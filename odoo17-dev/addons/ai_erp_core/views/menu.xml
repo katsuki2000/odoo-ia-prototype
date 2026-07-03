@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ================================================================= -->
+    <!-- Top-level Application Menu                                         -->
+    <!-- ================================================================= -->
+    <menuitem
+        id="menu_ai_erp_root"
+        name="IA ERP"
+        sequence="90"
+        web_icon="ai_erp_core,static/description/icon.png"
+    />
+
+    <!-- ── Main sections ──────────────────────────────────────────────── -->
+    <menuitem
+        id="menu_ai_erp_chat"
+        name="Assistant IA"
+        parent="menu_ai_erp_root"
+        sequence="10"
+        action="action_ai_conversation_my"
+    />
+
+    <menuitem
+        id="menu_ai_erp_documents"
+        name="Documents indexés"
+        parent="menu_ai_erp_root"
+        sequence="20"
+        action="action_ai_document"
+        groups="base.group_system"
+    />
+
+    <menuitem
+        id="menu_ai_erp_tools"
+        name="Outils ORM"
+        parent="menu_ai_erp_root"
+        sequence="30"
+        action="action_ai_tool"
+        groups="base.group_system"
+    />
+
+    <!-- ── Configuration sub-menu ─────────────────────────────────────── -->
+    <menuitem
+        id="menu_ai_erp_config_root"
+        name="Configuration"
+        parent="menu_ai_erp_root"
+        sequence="90"
+        groups="base.group_system"
+    />
+
+    <menuitem
+        id="menu_ai_erp_config"
+        name="Paramètres IA"
+        parent="menu_ai_erp_config_root"
+        sequence="10"
+        action="action_ai_config"
+        groups="base.group_system"
+    />
+
+    <menuitem
+        id="menu_ai_erp_conversations_all"
+        name="Toutes les conversations"
+        parent="menu_ai_erp_config_root"
+        sequence="20"
+        action="action_ai_conversation_all"
+        groups="base.group_system"
+    />
+</odoo>

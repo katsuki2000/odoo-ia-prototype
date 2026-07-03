@@ -1,0 +1,36 @@
+<odoo>
+    <record id="view_idea_ai_tree" model="ir.ui.view">
+        <name>idea.ai.tree</name>
+        <model>idea.ai</model>
+        <arch type="xml">
+            <tree>
+                <field name="name"/>
+                <field name="description"/>
+            </tree>
+        </arch>
+    </record>
+
+    <record id="view_idea_ai_form" model="ir.ui.view">
+        <name>idea.ai.form</name>
+        <model>idea.ai</model>
+        <arch type="xml">
+            <form>
+                <sheet>
+                    <group>
+                        <field name="name"/>
+                        <field name="description"/>
+                    </group>
+                </sheet>
+            </form>
+        </arch>
+    </record>
+
+    <record id="action_idea_ai" model="ir.actions.act_window">
+        <name>Idées IA</name>
+        <res_model>idea.ai</res_model>
+        <view_mode>tree,form</view_mode>
+    </record>
+
+    <menuitem id="menu_idea_ai_root" name="Applications IA" sequence="10"/>
+    <menuitem id="menu_idea_ai_sub" name="Mes Idées" parent="menu_idea_ai_root" action="action_idea_ai"/>
+</odoo>

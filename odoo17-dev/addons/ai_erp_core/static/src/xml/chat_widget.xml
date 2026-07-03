@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="utf-8"?>
+<templates xml:space="preserve">
+    <!--
+        AI ERP Core — Chat Widget OWL Template
+        Requires chat_widget.js to be loaded.
+    -->
+    <t t-name="ai_erp_core.ChatWidget">
+        <div class="ai-chat-container">
+
+            <!-- ── Header ──────────────────────────────────────────────── -->
+            <div class="ai-chat-header">
+                <div class="ai-avatar">🤖</div>
+                <div>
+                    <div class="ai-title">Assistant IA ERP</div>
+                    <div class="ai-subtitle">Alimenté par Ollama • Privé &amp; local</div>
+                </div>
+                <div t-att-class="'ai-status-dot' + (state.isThinking ? ' thinking' : '')"/>
+            </div>
+
+            <!-- ── Messages area ──────────────────────────────────────── -->
+            <div class="ai-messages" t-ref="messagesContainer">
+
+                <!-- Empty state with suggestion chips -->
+                <t t-if="!hasMessages and !state.isThinking">
+                    <div class="ai-empty-state">
+                        <div class="ai-empty-icon">💬</div>
+                        <p>
+                            Posez une question sur vos données ERP, vos documents
+                            ou votre code source. Chaque réponse cite ses sources.
+                        </p>
+                        <div class="ai-suggestion-chips">
+                            <t t-foreach="suggestions" t-as="s" t-key="s">
+                                <button class="ai-chip" t-on-click="() => this.useSuggestion(s)">
+                                    <t t-esc="s"/>
+                                </button>
+                            </t>
+                        </div>
+                    </div>
+                </t>
+
+                <!-- Render messages -->
+                <t t-foreach="state.messages" t-as="msg" t-key="msg.id">
+                    <t t-if="msg.role !== 'system'">
+                        <div t-att-class="'ai-msg ' + msg.role">
+                            <!-- Avatar -->
+                            <div class="ai-msg-avatar">
+                                <t t-if="msg.role === 'user'">👤</t>
+                                <t t-else="">🤖</t>
+                            </div>
+
+                            <div class="ai-msg-body">
+                                <!-- Bubble -->
+                                <div class="ai-msg-bubble">
+                                    <t t-esc="msg.content"/>
+                                </div>
+
+                                <!-- Pipeline tag (assistant only) -->
+                                <t t-if="msg.role === 'assistant' and msg.pipeline_used">
+                                    <span t-att-class="'ai-pipeline-tag ' + msg.pipeline_used">
+                                        <t t-esc="getPipelineLabel(msg.pipeline_used)"/>
+                                        <t t-if="msg.duration_ms">
+                                            • <t t-esc="formatDuration(msg.duration_ms)"/>
+                                        </t>
+                                    </span>
+                                </t>
+
+                                <!-- Citations -->
+                                <t t-if="msg.role === 'assistant' and msg.citations and msg.citations.length">
+                                    <div class="ai-citations-block">
+                                        <strong>Sources</strong>
+                                        <t t-foreach="msg.citations" t-as="cite" t-key="cite_index">
+                                            <div class="ai-citation-item">
+                                                <span class="ai-citation-badge">
+                                                    <t t-esc="cite_index + 1"/>
+                                                </span>
+                                                <span>
+                                                    <t t-esc="cite.source"/>
+                                                    <t t-if="cite.page"> · p.<t t-esc="cite.page"/></t>
+                                                    <t t-if="cite.line_start"> · l.<t t-esc="cite.line_start"/>–<t t-esc="cite.line_end"/></t>
+                                                    <t t-if="cite.score"> (<t t-esc="Math.round(cite.score * 100)"/>%)</t>
+                                                </span>
+                                            </div>
+                                        </t>
+                                    </div>
+                                </t>
+                            </div>
+                        </div>
+                    </t>
+                </t>
+
+                <!-- Thinking indicator -->
+                <t t-if="state.isThinking">
+                    <div class="ai-msg assistant">
+                        <div class="ai-msg-avatar">🤖</div>
+                        <div class="ai-msg-body">
+                            <div class="ai-thinking">
+                                <span/><span/><span/>
+                            </div>
+                        </div>
+                    </div>
+                </t>
+
+                <!-- Error display -->
+                <t t-if="state.error">
+                    <div class="ai-error-bubble">
+                        ⚠️ <t t-esc="state.error"/>
+                    </div>
+                </t>
+            </div>
+
+            <!-- ── Input area ─────────────────────────────────────────── -->
+            <div class="ai-chat-input-area">
+                <textarea
+                    class="ai-chat-input"
+                    t-ref="chatInput"
+                    placeholder="Posez votre question… (Ctrl+Entrée pour envoyer)"
+                    rows="1"
+                    t-att-value="state.inputText"
+                    t-on-input="onInput"
+                    t-on-keydown="onKeyDown"
+                    t-att-disabled="state.isThinking"
+                />
+                <button
+                    class="ai-send-btn"
+                    t-on-click="sendMessage"
+                    t-att-disabled="!state.inputText.trim() or state.isThinking"
+                    title="Envoyer (Ctrl+Entrée)"
+                >
+                    ➤
+                </button>
+            </div>
+
+        </div>
+    </t>
+</templates>
