@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ================================================================= -->
+    <!-- ai.document — Views                                                -->
+    <!-- ================================================================= -->
+
+    <record id="view_ai_document_form" model="ir.ui.view">
+        <field name="name">ai.document.form</field>
+        <field name="model">ai.document</field>
+        <field name="arch" type="xml">
+            <form string="Document indexé">
+                <header>
+                    <button
+                        name="action_ingest"
+                        string="Indexer dans ChromaDB"
+                        type="object"
+                        class="btn-primary"
+                        invisible="ingestion_status == 'processing'"
+                    />
+                    <button
+                        name="action_delete_from_vectorstore"
+                        string="Supprimer du vector store"
+                        type="object"
+                        class="btn-danger"
+                        invisible="ingestion_status != 'done'"
+                        confirm="Supprimer tous les vecteurs de ce document ?"
+                    />
+                    <field name="ingestion_status" widget="statusbar"
+                           statusbar_visible="pending,processing,done,error"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="name" placeholder="Titre du document"/>
+                        </h1>
+                    </div>
+                    <group>
+                        <group string="Source">
+                            <field name="doc_type"/>
+                            <field name="source_path"
+                                   invisible="doc_type in ('wiki', 'ticket')"/>
+                            <field name="source_ref"
+                                   invisible="doc_type not in ('wiki', 'ticket')"/>
+                            <field name="attachment_id"
+                                   invisible="doc_type != 'pdf'"/>
+                            <field name="language"/>
+                            <field name="odoo_version"/>
+                        </group>
+                        <group string="Index ChromaDB">
+                            <field name="ingestion_date"/>
+                            <field name="last_update"/>
+                            <field name="collection_name" readonly="1"/>
+                            <field name="chunk_count" readonly="1"/>
+                        </group>
+                    </group>
+                    <group string="Description / Notes">
+                        <field name="description" widget="text" nolabel="1"/>
+                    </group>
+                    <group string="Erreur d'ingestion"
+                           invisible="ingestion_status != 'error'">
+                        <field name="ingestion_error" readonly="1" widget="text" nolabel="1"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_ai_document_list" model="ir.ui.view">
+        <field name="name">ai.document.list</field>
+        <field name="model">ai.document</field>
+        <field name="arch" type="xml">
+            <tree string="Documents indexés" decoration-danger="ingestion_status == 'error'"
+                  decoration-success="ingestion_status == 'done'"
+                  decoration-warning="ingestion_status == 'pending'">
+                <field name="name"/>
+                <field name="doc_type" widget="badge"/>
+                <field name="chunk_count"/>
+                <field name="ingestion_date"/>
+                <field name="ingestion_status" widget="badge"
+                       decoration-success="ingestion_status == 'done'"
+                       decoration-danger="ingestion_status == 'error'"
+                       decoration-warning="ingestion_status == 'pending'"
+                       decoration-info="ingestion_status == 'processing'"/>
+                <button name="action_ingest" string="Indexer" type="object"
+                        invisible="ingestion_status == 'processing'"/>
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_ai_document_search" model="ir.ui.view">
+        <field name="name">ai.document.search</field>
+        <field name="model">ai.document</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <field name="source_path"/>
+                <filter name="pending" string="En attente" domain="[('ingestion_status','=','pending')]"/>
+                <filter name="done" string="Indexés" domain="[('ingestion_status','=','done')]"/>
+                <filter name="error" string="Erreurs" domain="[('ingestion_status','=','error')]"/>
+                <separator/>
+                <filter name="pdf" string="PDFs" domain="[('doc_type','=','pdf')]"/>
+                <filter name="wiki" string="Wiki" domain="[('doc_type','=','wiki')]"/>
+                <filter name="code" string="Code" domain="[('doc_type','in',['code_python','code_xml'])]"/>
+                <group expand="0" string="Grouper par">
+                    <filter name="group_type" string="Type" context="{'group_by': 'doc_type'}"/>
+                    <filter name="group_status" string="Statut" context="{'group_by': 'ingestion_status'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_ai_document" model="ir.actions.act_window">
+        <field name="name">Documents indexés</field>
+        <field name="res_model">ai.document</field>
+        <field name="view_mode">tree,form</field>
+        <field name="search_view_id" ref="view_ai_document_search"/>
+    </record>
+</odoo>

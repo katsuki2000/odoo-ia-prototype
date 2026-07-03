@@ -1,0 +1,29 @@
+[
+  {
+    "id": 1,
+    "client": "Société Dupont",
+    "produit": "Implémentation Odoo 17",
+    "montant": 4500000,
+    "devise": "Ar",
+    "date": "2025-01-15",
+    "statut": "facturé"
+  },
+  {
+    "id": 2,
+    "client": "Madagascar Tech",
+    "produit": "Formation Odoo 17",
+    "montant": 1200000,
+    "devise": "Ar",
+    "date": "2025-02-03",
+    "statut": "en cours"
+  },
+  {
+    "id": 3,
+    "client": "Société Dupont",
+    "produit": "Support mensuel",
+    "montant": 800000,
+    "devise": "Ar",
+    "date": "2025-02-28",
+    "statut": "facturé"
+  }
+]
