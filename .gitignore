@@ -1,2 +1,7 @@
-/captures
 /.vscode
+
+# --- Python Cache ---
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
