@@ -1,0 +1,37 @@
+WIKI INTERNE MIRO KE — Procédure d'onboarding RH
+
+1. AVANT L'ARRIVÉE DU NOUVEL EMPLOYÉ (J-5)
+   - Création du compte utilisateur Odoo par le service IT
+   - Attribution des groupes d'accès selon le profil de poste
+   - Commande du matériel informatique (laptop, écran, téléphone)
+   - Préparation du badge d'accès aux locaux
+   - Envoi du kit de bienvenue par email (livret d'accueil, planning de la 1ère semaine)
+
+2. JOUR D'ARRIVÉE (J0)
+   - Accueil par le manager direct à 8h30
+   - Tour des locaux et présentation aux équipes (1h)
+   - Session IT : remise du matériel, configuration email, accès VPN (1h)
+   - Présentation de l'organisation et de la culture MIRO KE par les RH (1h)
+   - Déjeuner d'équipe
+   - Après-midi : installation du poste et premiers pas sur Odoo
+
+3. PREMIÈRE SEMAINE (J1 à J5)
+   - Formation Odoo de base : navigation, profil, préférences (2h)
+   - Formation spécifique au module métier (Ventes, Achats, Comptabilité...) (4h)
+   - Rencontres avec les interlocuteurs clés de chaque département (1h/jour)
+   - Assignation d'un parrain/marraine pour les 3 premiers mois
+   - Objectifs de la période d'essai définis avec le manager
+
+4. PREMIER MOIS (J6 à J30)
+   - Point hebdomadaire avec le manager (30 min)
+   - Point bi-hebdomadaire avec le parrain/marraine
+   - Accès progressif aux modules Odoo selon la montée en compétences
+   - Première évaluation informelle à J+15
+   - Formation avancée si nécessaire (reporting, tableaux de bord)
+
+5. FIN DE PÉRIODE D'ESSAI (J+90)
+   - Évaluation formelle par le manager
+   - Feedback 360° (collègues, parrain/marraine, RH)
+   - Décision de confirmation ou prolongation
+   - Mise à jour du dossier RH dans Odoo (module Employés)
+   - Archivage du rapport d'onboarding
