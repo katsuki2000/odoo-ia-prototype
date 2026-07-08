@@ -1,0 +1,137 @@
+[
+  {
+    "id": 1,
+    "titre": "Facture bloquée en état brouillon",
+    "client": "Société Dupont",
+    "description": "La facture du client reste en brouillon après validation. Le bouton Confirmer ne répond pas.",
+    "solution": "Vérifier que le journal comptable est bien configuré. Aller dans Comptabilité → Configuration → Journaux → vérifier que le journal Ventes a un compte de revenus par défaut.",
+    "statut": "résolu",
+    "date": "2025-01-20"
+  },
+  {
+    "id": 2,
+    "titre": "Droits d'accès refusés sur module Achat",
+    "client": "Madagascar Tech",
+    "description": "L'utilisateur ne peut pas accéder au module Achats malgré son profil Manager.",
+    "solution": "Aller dans Paramètres → Utilisateurs → sélectionner l'utilisateur → vérifier que le groupe 'Achats / Administrateur' est bien coché. Déconnecter et reconnecter l'utilisateur.",
+    "statut": "résolu",
+    "date": "2025-02-10"
+  },
+  {
+    "id": 3,
+    "titre": "Rapport PDF ne s'imprime pas",
+    "client": "MIRO KE interne",
+    "description": "Le rapport de ventes en PDF génère une page blanche.",
+    "solution": "Problème wkhtmltopdf. Mettre à jour wkhtmltopdf vers la version 0.12.6 avec les patches. Redémarrer le service Odoo après mise à jour.",
+    "statut": "en cours",
+    "date": "2025-03-01"
+  },
+  {
+    "id": 4,
+    "titre": "Erreur de stock négatif sur produit fini",
+    "client": "Brasseries Star",
+    "description": "Le système autorise la livraison même quand le stock est à zéro. Les quantités deviennent négatives.",
+    "solution": "Activer la règle 'Ne pas autoriser les stocks négatifs' dans Inventaire → Configuration → Paramètres. Cocher 'Pas de stock négatif' au niveau de l'emplacement.",
+    "statut": "résolu",
+    "date": "2025-03-15"
+  },
+  {
+    "id": 5,
+    "titre": "Problème de multi-devises sur factures",
+    "client": "Air Madagascar",
+    "description": "Les factures en EUR ne convertissent pas correctement vers Ariary. Le taux de change semble figé à une ancienne valeur.",
+    "solution": "Aller dans Comptabilité → Configuration → Devises → activer la mise à jour automatique des taux de change. Vérifier que le fournisseur de taux est configuré (Banque Centrale de Madagascar ou BCE).",
+    "statut": "résolu",
+    "date": "2025-04-02"
+  },
+  {
+    "id": 6,
+    "titre": "Workflow d'approbation des bons de commande ne fonctionne pas",
+    "client": "Groupe Socimex",
+    "description": "Les bons de commande supérieurs à 500 000 Ar devraient nécessiter une approbation du directeur mais passent directement en commande confirmée.",
+    "solution": "Activer l'approbation des achats dans Achats → Configuration → Paramètres → Approbation des commandes. Définir le seuil à 500 000 Ar et assigner les approbateurs par niveau hiérarchique.",
+    "statut": "résolu",
+    "date": "2025-04-20"
+  },
+  {
+    "id": 7,
+    "titre": "Import CSV échoue avec erreur d'encodage",
+    "client": "Telma Madagascar",
+    "description": "L'import de la liste des contacts depuis un fichier CSV génère une erreur 'UnicodeDecodeError'. Le fichier contient des caractères malgaches.",
+    "solution": "Convertir le fichier CSV en UTF-8 avant import. Utiliser LibreOffice Calc pour ouvrir le fichier, puis Enregistrer sous → CSV avec encodage UTF-8. Réessayer l'import.",
+    "statut": "résolu",
+    "date": "2025-05-08"
+  },
+  {
+    "id": 8,
+    "titre": "Doublons dans la liste des contacts",
+    "client": "Shoprite Madagascar",
+    "description": "Après l'import initial, nous avons 200+ contacts en double. Les clients apparaissent deux fois dans les listes déroulantes.",
+    "solution": "Utiliser le module 'Fusion de contacts' (base_partner_merge) intégré à Odoo. Aller dans Contacts → action 'Fusionner les contacts'. Configurer les critères de détection (email, téléphone, nom).",
+    "statut": "résolu",
+    "date": "2025-05-22"
+  },
+  {
+    "id": 9,
+    "titre": "Cron job de relance automatique ne s'exécute pas",
+    "client": "Société Dupont",
+    "description": "Les relances automatiques de factures impayées ne partent plus depuis 2 semaines. Aucun email envoyé aux clients en retard.",
+    "solution": "Vérifier dans Paramètres → Technique → Automatisation → Actions planifiées que le cron 'Relance de paiement' est actif. Vérifier aussi la configuration du serveur SMTP dans Paramètres → Technique → Email → Serveurs sortants.",
+    "statut": "résolu",
+    "date": "2025-06-05"
+  },
+  {
+    "id": 10,
+    "titre": "Module Projet : les feuilles de temps ne s'affichent pas",
+    "client": "Madagascar Tech",
+    "description": "Les employés peuvent saisir des feuilles de temps mais elles n'apparaissent pas dans les rapports du projet.",
+    "solution": "Vérifier que le module 'Feuilles de temps' (hr_timesheet) est installé et que le projet a l'option 'Feuilles de temps' activée. Aller dans le projet → Paramètres → cocher 'Feuilles de temps'.",
+    "statut": "en cours",
+    "date": "2025-06-18"
+  },
+  {
+    "id": 11,
+    "titre": "Erreur 504 Gateway Timeout lors de la génération de rapports",
+    "client": "MIRO KE interne",
+    "description": "La génération de rapports comptables sur plus de 6 mois provoque un timeout 504 dans le navigateur.",
+    "solution": "Augmenter le timeout du proxy nginx à 300s. Modifier /etc/nginx/nginx.conf : proxy_read_timeout 300; proxy_connect_timeout 300; proxy_send_timeout 300;. Redémarrer nginx. Envisager aussi d'augmenter limit_time_real dans odoo.conf.",
+    "statut": "résolu",
+    "date": "2025-07-01"
+  },
+  {
+    "id": 12,
+    "titre": "Problème de séquence des factures après changement d'exercice",
+    "client": "Telma Madagascar",
+    "description": "Les factures de 2025 utilisent encore le préfixe FAC/2024/ au lieu de FAC/2025/. La séquence n'a pas basculé.",
+    "solution": "Aller dans Comptabilité → Configuration → Journaux → Journal Ventes → onglet Séquence. Vérifier la politique de redémarrage de séquence. Forcer la réinitialisation avec le nouveau préfixe d'année.",
+    "statut": "résolu",
+    "date": "2025-07-15"
+  },
+  {
+    "id": 13,
+    "titre": "Pièces jointes disparues après migration",
+    "client": "Groupe Socimex",
+    "description": "Suite à la migration Odoo 16 vers 17, certaines pièces jointes (bons de livraison scannés) ne sont plus accessibles.",
+    "solution": "Les pièces jointes sont stockées dans le filestore (/var/lib/odoo/filestore/). Vérifier que le répertoire a été copié lors de la migration. Lancer un script de vérification : SELECT id, store_fname FROM ir_attachment WHERE store_fname IS NOT NULL; et vérifier la présence des fichiers.",
+    "statut": "en cours",
+    "date": "2025-08-10"
+  },
+  {
+    "id": 14,
+    "titre": "Règles de prix non appliquées sur le site e-commerce",
+    "client": "Shoprite Madagascar",
+    "description": "Les promotions configurées dans les listes de prix ne s'affichent pas sur le site web Odoo.",
+    "solution": "Vérifier que la liste de prix est bien assignée au site web : Site Web → Configuration → Paramètres → Liste de prix. S'assurer que les dates de validité de la promotion sont correctes et que la liste de prix est de type 'Pourcentage de remise' ou 'Formule'.",
+    "statut": "résolu",
+    "date": "2025-08-25"
+  },
+  {
+    "id": 15,
+    "titre": "Problème de performance : liste des produits très lente",
+    "client": "Brasseries Star",
+    "description": "L'affichage de la liste des produits (3000+ articles) prend plus de 30 secondes. L'interface est quasi inutilisable.",
+    "solution": "Ajouter des index PostgreSQL sur les colonnes fréquemment recherchées. Vérifier les logs slow queries avec log_min_duration_statement = 1000. Activer le cache Odoo avec --db-filter et worker mode. Réduire les champs calculés en vue liste.",
+    "statut": "en cours",
+    "date": "2025-09-05"
+  }
+]

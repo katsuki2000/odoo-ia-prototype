@@ -1,0 +1,36 @@
+WIKI INTERNE MIRO KE — Procédure de gestion des stocks et inventaire
+
+1. RÉCEPTION DES MARCHANDISES
+   - Scanner le bon de livraison fournisseur à l'entrée du dépôt
+   - Créer la réception dans Odoo : Inventaire → Réceptions → Valider
+   - Contrôle qualité obligatoire pour les articles > 1 000 000 Ar
+   - Écarts de quantité : signaler immédiatement au responsable achats
+   - Délai de validation : 24h après réception physique
+
+2. GESTION DES EMPLACEMENTS
+   - Zone A (Allée 1-5) : Produits finis prêts à l'expédition
+   - Zone B (Allée 6-10) : Matières premières
+   - Zone C (Allée 11-12) : Produits en quarantaine / contrôle qualité
+   - Zone D (Extérieur couvert) : Articles volumineux
+   - Chaque emplacement a un code-barres unique dans Odoo
+
+3. INVENTAIRE PHYSIQUE
+   - Inventaire complet : 2 fois par an (juin et décembre)
+   - Inventaire tournant : hebdomadaire, par zone (rotation ABCD)
+   - Écarts acceptables : ≤ 2% en valeur par catégorie de produits
+   - Écarts > 2% : investigation obligatoire et rapport au Directeur
+   - Outil : Odoo Inventaire → Opérations → Inventaire physique
+
+4. RÈGLES DE RÉAPPROVISIONNEMENT
+   - Stock minimum défini par produit dans la fiche article
+   - Alerte automatique Odoo quand stock atteint le seuil minimum
+   - Commande automatique si la règle de réapprovisionnement est activée
+   - Délai de sécurité : ajouter 3 jours ouvrables au délai fournisseur
+   - Validation des commandes auto > 2 000 000 Ar par le Directeur des Achats
+
+5. EXPÉDITION ET LIVRAISON
+   - Bon de livraison généré depuis la commande client dans Odoo
+   - Colisage et étiquetage avant validation du transfert
+   - Scan de sortie obligatoire à la porte du dépôt
+   - Notification automatique au client par email
+   - Preuve de livraison : photo + signature digitale du destinataire

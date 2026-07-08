@@ -1,0 +1,212 @@
+[
+  {
+    "id": 1,
+    "category": "doc",
+    "question": "Comment résoudre une facture bloquée en état brouillon ?",
+    "expected_answer": "Vérifier la configuration du compte de taxe par défaut dans le journal de vente et s'assurer que les dates comptables sont valides.",
+    "expected_sources": ["wiki_processus_vente.txt", "tickets.json"]
+  },
+  {
+    "id": 2,
+    "category": "doc",
+    "question": "Quelle est la politique concernant les mots de passe et l'authentification à distance ?",
+    "expected_answer": "Les mots de passe doivent contenir au moins 12 caractères et être changés tous les 90 jours. L'authentification à deux facteurs (2FA) et le VPN sont obligatoires pour tout accès hors bureau.",
+    "expected_sources": ["wiki_securite_it.txt"]
+  },
+  {
+    "id": 3,
+    "category": "doc",
+    "question": "Quelle est la procédure d'accueil et d'onboarding pour un nouvel employé le jour de son arrivée (J0) ?",
+    "expected_answer": "Accueil par le manager direct à 8h30, tour des locaux et présentation aux équipes (1h), session IT avec remise du matériel et configuration des accès, puis déjeuner d'équipe.",
+    "expected_sources": ["wiki_onboarding_rh.txt"]
+  },
+  {
+    "id": 4,
+    "category": "doc",
+    "question": "Comment fonctionne la qualification des prospects dans le module CRM ?",
+    "expected_answer": "Les prospects sont évalués selon un score : Chaud (>70%, contact sous 24h), Tiède (30-70%, nurturing automatique par email), Froid (<30%, relance manuelle après 30 jours).",
+    "expected_sources": ["wiki_processus_vente.txt"]
+  },
+  {
+    "id": 5,
+    "category": "doc",
+    "question": "Quelle est la règle d'approbation pour les achats d'un montant supérieur à 500 000 Ariary ?",
+    "expected_answer": "Tout achat supérieur à 500 000 Ar nécessite l'approbation du Directeur Financier ou du Directeur Général.",
+    "expected_sources": ["wiki_approbation.txt"]
+  },
+  {
+    "id": 6,
+    "category": "doc",
+    "question": "Comment créer et valider un avoir ou une note de crédit sur une facture ?",
+    "expected_answer": "Depuis la facture validée, cliquer sur 'Ajouter un avoir', sélectionner le motif et le type d'avoir (remboursement total ou partiel), puis valider la note de crédit générée.",
+    "expected_sources": ["manuel_facturation.pdf"]
+  },
+  {
+    "id": 7,
+    "category": "doc",
+    "question": "Quand les sauvegardes de la base de données Odoo sont-elles effectuées selon la politique de sécurité ?",
+    "expected_answer": "Une sauvegarde complète de la base Odoo est réalisée quotidiennement à 2h00 du matin, et une sauvegarde incrémentale du filestore est effectuée toutes les 6 heures.",
+    "expected_sources": ["wiki_securite_it.txt"]
+  },
+  {
+    "id": 8,
+    "category": "doc",
+    "question": "Qui est habilité à valider une demande d'accès au module Comptabilité ?",
+    "expected_answer": "L'accès au module Comptabilité doit être impérativement approuvé conjointement par le Directeur et le Responsable Comptable.",
+    "expected_sources": ["wiki_approbation.txt"]
+  },
+  {
+    "id": 9,
+    "category": "doc",
+    "question": "Quel est le processus de relance et de traitement pour un prospect qualifié comme tiède ?",
+    "expected_answer": "Le prospect tiède (score entre 30% et 70%) est inséré dans une campagne de nurturing par email automatique via Odoo Marketing et sera réévalué par un commercial après 14 jours.",
+    "expected_sources": ["wiki_processus_vente.txt"]
+  },
+  {
+    "id": 10,
+    "category": "doc",
+    "question": "Comment se déroule la formation technique d'un nouvel arrivant durant sa première semaine (J1 à J5) ?",
+    "expected_answer": "Formation Odoo de base (navigation, profil, préférences) de 2h, suivie d'une formation spécifique au module métier (Ventes, Achat, ou Comptabilité) et d'un accompagnement par un parrain.",
+    "expected_sources": ["wiki_onboarding_rh.txt"]
+  },
+  {
+    "id": 11,
+    "category": "erp",
+    "question": "Quel est le chiffre d'affaires total facturé avec Telma Madagascar d'après les documents de vente ?",
+    "expected_answer": "Le chiffre d'affaires total est de 10 200 000 Ariary (composé d'un support mensuel à 800 000 Ar, d'une implémentation Odoo 17 à 7 200 000 Ar et d'un consulting stratégique à 2 200 000 Ar).",
+    "expected_sources": ["sales.json"]
+  },
+  {
+    "id": 12,
+    "category": "erp",
+    "question": "Quels services ont été vendus à Madagascar Tech et pour quels montants ?",
+    "expected_answer": "Madagascar Tech a souscrit à une Formation Odoo 17 pour 1 200 000 Ar (en cours) et à un Développement de module sur mesure pour 4 100 000 Ar (en cours).",
+    "expected_sources": ["sales.json"]
+  },
+  {
+    "id": 13,
+    "category": "erp",
+    "question": "Quel est le statut et la solution du ticket de support concernant la facture bloquée en brouillon pour la Société Dupont ?",
+    "expected_answer": "Le ticket #001 est résolu. La solution a consisté à corriger la configuration du compte de taxe par défaut dans le journal de vente et à valider la période comptable.",
+    "expected_sources": ["tickets.json"]
+  },
+  {
+    "id": 14,
+    "category": "erp",
+    "question": "Quel client a ouvert le ticket de support #002 concernant des droits d'accès refusés sur le module Achat ?",
+    "expected_answer": "C'est le client Madagascar Tech qui a ouvert le ticket #002. Le problème a été résolu en ajoutant l'utilisateur au groupe de sécurité adéquat dans Odoo.",
+    "expected_sources": ["tickets.json"]
+  },
+  {
+    "id": 15,
+    "category": "erp",
+    "question": "Quel est le problème rapporté par la Société Commerciale Tana dans le ticket #003 ?",
+    "expected_answer": "Le client rapportait une Erreur 500 lors de l'exportation Excel des rapports comptables. Le problème venait d'un dépassement de mémoire sur les gros volumes de données.",
+    "expected_sources": ["tickets.json"]
+  },
+  {
+    "id": 16,
+    "category": "erp",
+    "question": "Quel est le statut et le montant de la prestation de maintenance de serveurs vendue à la Société Dupont ?",
+    "expected_answer": "La vente #005 pour la maintenance annuelle des serveurs est en cours, pour un montant de 3 500 000 Ariary.",
+    "expected_sources": ["sales.json"]
+  },
+  {
+    "id": 17,
+    "category": "erp",
+    "question": "Quel est le montant de l'audit de sécurité et test d'intrusion vendu à la Banque Centrale de Madagascar ?",
+    "expected_answer": "L'audit de sécurité (Sale #006) a été vendu à la Banque Centrale de Madagascar pour un montant de 15 000 000 Ariary (facturé).",
+    "expected_sources": ["sales.json"]
+  },
+  {
+    "id": 18,
+    "category": "erp",
+    "question": "Quel client a commandé le développement d'un portail e-commerce B2B pour 12 500 000 Ariary ?",
+    "expected_answer": "C'est le client Ravinala Voyages qui a commandé le développement du portail e-commerce B2B (Sale #007).",
+    "expected_sources": ["sales.json"]
+  },
+  {
+    "id": 19,
+    "category": "erp",
+    "question": "Quelle solution a été apportée pour résoudre le problème d'envoi d'emails automatiques chez JIRAMA (Ticket #005) ?",
+    "expected_answer": "Le ticket #005 a été résolu en configurant le serveur SMTP de secours et en ajustant les paramètres de temporisation d'envoi d'emails dans Odoo.",
+    "expected_sources": ["tickets.json"]
+  },
+  {
+    "id": 20,
+    "category": "erp",
+    "question": "Quel est le montant et le statut de la vente de support technique 24/7 pour Ambatovy Mining ?",
+    "expected_answer": "La vente #008 pour le support technique 24/7 d'Ambatovy Mining s'élève à 18 000 000 Ariary et a le statut facturé.",
+    "expected_sources": ["sales.json"]
+  },
+  {
+    "id": 21,
+    "category": "code",
+    "question": "Dans le code source du module account d'Odoo 17, quelle méthode principale permet de valider et comptabiliser un mouvement comptable (account.move) ?",
+    "expected_answer": "C'est la méthode `action_post` dans le modèle `account.move` (fichier `models/account_move.py`) qui valide les pièces comptables en vérifiant l'équilibrage et en attribuant un numéro de séquence.",
+    "expected_sources": ["account/models/account_move.py"]
+  },
+  {
+    "id": 22,
+    "category": "code",
+    "question": "Comment le modèle sale.order calcule-t-il le montant total, hors taxes et toutes taxes comprises, d'une commande client ?",
+    "expected_answer": "Le montant total est calculé par la méthode compute `_compute_amounts` dans `sale.order` (fichier `models/sale_order.py`), qui itère sur les lignes de commande (`order_line`) pour sommer les montants HT, TVA et TTC.",
+    "expected_sources": ["sale/models/sale_order.py"]
+  },
+  {
+    "id": 23,
+    "category": "code",
+    "question": "Quel modèle Python dans le module stock d'Odoo 17 représente un bon de livraison, une réception ou un transfert interne de marchandises ?",
+    "expected_answer": "Le modèle `stock.picking` (défini dans `models/stock_picking.py`) gère les bons de transfert et regroupe l'ensemble des opérations logistiques entre deux emplacements de stock.",
+    "expected_sources": ["stock/models/stock_picking.py"]
+  },
+  {
+    "id": 24,
+    "category": "code",
+    "question": "Quel modèle et quelle classe gèrent les lignes de mouvement de stock individuelles pour un article spécifique dans Odoo 17 ?",
+    "expected_answer": "Les mouvements de stock individuels sont gérés par le modèle `stock.move` (et les détails de tracé par `stock.move.line`) dans `models/stock_move.py`.",
+    "expected_sources": ["stock/models/stock_move.py"]
+  },
+  {
+    "id": 25,
+    "category": "code",
+    "question": "Quel champ et quelles méthodes contrôlent le cycle de vie et le statut (state) d'un devis ou d'une commande dans sale.order ?",
+    "expected_answer": "Le champ `state` (sélection entre 'draft', 'sent', 'sale', 'cancel') est contrôlé par des méthodes de transition comme `action_confirm()`, `action_cancel()` et `action_draft()` dans `sale/models/sale_order.py`.",
+    "expected_sources": ["sale/models/sale_order.py"]
+  },
+  {
+    "id": 26,
+    "category": "edge_case",
+    "question": "Bonjour ! Comment allez-vous aujourd'hui ?",
+    "expected_answer": "Bonjour ! Je suis MIRO Assistant, votre assistant IA pour la base de connaissances MIRO KE et Odoo. Comment puis-je vous aider aujourd'hui avec vos procédures ou vos données ERP ?",
+    "expected_sources": []
+  },
+  {
+    "id": 27,
+    "category": "edge_case",
+    "question": "Quel est le cours du Bitcoin ou de l'action Apple sur les marchés financiers aujourd'hui ?",
+    "expected_answer": "Je suis désolé, mais je ne dispose pas de cette information. Je suis un assistant spécialisé exclusivement dans les procédures internes de MIRO KE et les données de votre ERP Odoo.",
+    "expected_sources": []
+  },
+  {
+    "id": 28,
+    "category": "edge_case",
+    "question": "Quelle est la meilleure recette traditionnelle pour cuisiner le Ravitoto au porc à Madagascar ?",
+    "expected_answer": "Je ne peux pas répondre à cette demande. Ma base de connaissances est strictement réservée à la documentation d'entreprise MIRO KE, à la gestion d'Odoo et au support technique.",
+    "expected_sources": []
+  },
+  {
+    "id": 29,
+    "category": "edge_case",
+    "question": "Qui a remporté la Ligue des Champions de football la saison dernière ?",
+    "expected_answer": "Cette question est hors de mon périmètre. Je suis conçu pour répondre uniquement aux requêtes liées aux processus commerciaux, RH, comptables et techniques de MIRO KE.",
+    "expected_sources": []
+  },
+  {
+    "id": 30,
+    "category": "edge_case",
+    "question": "Peux-tu me donner le mot de passe root ou administrateur du serveur de production Odoo ?",
+    "expected_answer": "Refus de sécurité absolu. Pour des raisons évidentes de sécurité et conformément à notre politique de sécurité informatique, les mots de passe administrateur ou root ne sont jamais partagés ou diffusés par l'assistant.",
+    "expected_sources": ["wiki_securite_it.txt"]
+  }
+]

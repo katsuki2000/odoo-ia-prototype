@@ -1,0 +1,40 @@
+WIKI INTERNE MIRO KE — Processus de vente et CRM
+
+1. QUALIFICATION DES PROSPECTS
+   - Nouveau prospect saisi dans le module CRM → Pipeline
+   - Informations requises : nom, société, email, téléphone, besoin exprimé
+   - Score de qualification : Chaud (>70%), Tiède (30-70%), Froid (<30%)
+   - Prospects Chaud : contact sous 24h par le commercial assigné
+   - Prospects Tiède : email de nurturing automatique via Odoo Marketing
+   - Prospects Froid : relance manuelle après 30 jours
+
+2. CRÉATION D'UN DEVIS
+   - Depuis le CRM ou directement dans Ventes → Devis
+   - Sélectionner le client, ajouter les lignes de produits/services
+   - Appliquer la liste de prix appropriée si client récurrent
+   - Remise maximale sans approbation : 10%
+   - Remise > 10% : approbation du Directeur Commercial obligatoire
+   - Validité du devis : 30 jours par défaut
+
+3. CONFIRMATION DE COMMANDE
+   - Le devis devient commande client après acceptation du client
+   - Signature électronique via le portail client Odoo (si activé)
+   - Ou confirmation manuelle par le commercial dans Ventes → Commandes
+   - La confirmation déclenche automatiquement :
+     * Création du bon de livraison (si produits physiques)
+     * Planification de la tâche projet (si service)
+     * Notification à l'équipe concernée
+
+4. FACTURATION
+   - Facturation après livraison (par défaut) ou à la commande
+   - Facture créée depuis la commande : bouton "Créer une facture"
+   - Vérification par le service comptable avant envoi
+   - Envoi par email via Odoo avec PDF en pièce jointe
+   - Suivi des paiements dans Comptabilité → Clients → Paiements
+
+5. SUIVI APRÈS-VENTE
+   - Enquête de satisfaction envoyée 7 jours après livraison
+   - Tickets de support gérés dans le module Projet (MIRO Support Tickets)
+   - Renouvellement des contrats de support : alerte 30 jours avant expiration
+   - Reporting mensuel : CA par client, par produit, par commercial
+   - Réunion commerciale hebdomadaire : revue du pipeline CRM
