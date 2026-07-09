@@ -1,8 +1,21 @@
+# --- IDE / Editor ---
 /.vscode
+/.idea
 
 # --- Python Cache ---
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
+
+# --- Virtual Environments ---
+venv/
 venv_miro/
+.venv/
+
+# --- Environment / Secrets ---
+.env
+
+# --- OS ---
+.DS_Store
+Thumbs.db

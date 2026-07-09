@@ -27,11 +27,11 @@ from ingestion.wiki_loader import WikiLoader, load_wiki_directory
 from vectorstore.chroma_manager import ChromaManager
 
 # Paths
-PROJECT_ROOT = Path(__file__).parent
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 FAKE_DATA_DIR = PROJECT_ROOT / "fake_data"
-DOCS_DIR = FAKE_DATA_DIR / "docs"
+DOCS_DIR = FAKE_DATA_DIR / "documents"
 CODE_DIR = FAKE_DATA_DIR / "code"
-LOGS_DIR = PROJECT_ROOT / "logs"
+LOGS_DIR = PROJECT_ROOT / "ingestion" / "logs"
 
 # Ensure directories exist BEFORE logging setup
 LOGS_DIR.mkdir(exist_ok=True, parents=True)
