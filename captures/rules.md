@@ -1,10 +1,78 @@
-code in english
-don't use emojis
-think first
-clean code
-find best algorithm
-make the work like it was built by an human. no "plagiat", at least reformulate first
+# 🛠️ Guide Complet : IA, Codage Défensif & Bonnes Pratiques Odoo
 
+> Ce guide couvre l'utilisation stratégique de l'IA pour le développement Odoo, les règles de codage défensif, les bonnes pratiques avancées et les templates prêts à l'emploi.
+
+---
+
+# Partie 1 — Protocole d'Utilisation de l'IA
+
+Pour que l'IA soit un atout, précisez toujours votre **version d'Odoo** (par exemple, Odoo 16, 17 ou 18) dans vos prompts, car l'API et certains comportements changent d'une version à l'autre.
+
+## Étape 1 : Conception et Architecture (Brainstorming)
+
+L'IA excelle pour transformer un besoin fonctionnel en architecture de base de données.
+
+- **Action :** Décrivez le besoin métier en langage naturel.
+- **Prompt type :**
+  > *"Je dois créer un module pour gérer des flottes de véhicules. Propose-moi les modèles Python nécessaires, avec les champs pertinents et les relations (Many2one, One2many) entre eux pour Odoo 17."*
+- **Gain de temps :** Structuration mentale immédiate.
+
+---
+
+## Étape 2 : Génération du Boilerplate (Code de base)
+
+Ne tapez plus jamais les structures de base.
+
+- **Action :** Demandez à l'IA de générer le fichier `__manifest__.py`, les fichiers `__init__.py`, et les classes Python de base.
+- **Prompt type :**
+  > *"Génère le modèle Python `fleet.maintenance` avec les champs : date, description, coût, et une relation vers `fleet.vehicle`. Ajoute une méthode compute pour calculer le coût total."*
+
+---
+
+## Étape 3 : Création des Vues XML (Le point fort de l'IA)
+
+L'écriture du XML (Tree, Form, Kanban, Search) est souvent chronophage. L'IA peut générer **90% de ce code**.
+
+- **Action :** Fournissez le modèle Python à l'IA et demandez les vues.
+- **Prompt type :**
+  > *"Voici mon modèle `fleet.maintenance`. Génère une vue Form (avec un header pour les statuts), une vue Tree et une vue Search incluant un filtre pour les maintenances de ce mois-ci."*
+
+---
+
+## Étape 4 : Gestion de la Sécurité (Droits d'accès)
+
+La création des fichiers `ir.model.access.csv` et des règles d'enregistrement (`ir.rule`) est fastidieuse et propice aux erreurs de frappe.
+
+- **Action :** Demandez à l'IA de formater vos droits.
+- **Prompt type :**
+  > *"Génère le fichier `ir.model.access.csv` pour les modèles `fleet.vehicle` et `fleet.maintenance`. Les utilisateurs normaux peuvent lire, les managers peuvent tout faire."*
+
+---
+
+## Étape 5 : Débogage et Optimisation de l'ORM
+
+L'IA est redoutable pour lire les **Tracebacks** (erreurs) ou optimiser des requêtes.
+
+- **Action :** Collez l'erreur exacte ou votre code lent.
+- **Prompt type :**
+  > *"Voici une méthode Odoo qui boucle sur des records. Comment puis-je l'optimiser pour éviter le problème des requêtes N+1 en utilisant `mapped()` ou `filtered()` ?"*
+
+---
+
+## Stratégies de Prompting
+
+* **Confidentialité des Données :** Ne copiez/collez **jamais** de clés API, de mots de passe dans l'IA.
+* **Hallucinations Techniques :** L'IA peut inventer (halluciner) des méthodes ORM Odoo ou des champs qui n'existent pas. **Vérifiez toujours** les méthodes générées. Fournir le code source du modèle natif, du module existant ou du fichier concerné directement dans votre prompt réduit drastiquement le risque d'hallucination.
+* **Gestion de la "Fatigue" de l'IA (Sessions Longues) :** Plus une conversation est longue, plus il y a de risque que l'IA s'embrouille, oublie les consignes initiales et génère du code de moins bonne qualité (dérive du contexte).
+    * *Bonne pratique :* Ne gardez pas le même fil de discussion pour tout un projet. Dès que vous changez de tâche ou que l'IA commence à faire des erreurs répétitives, **ouvrez une nouvelle session de chat**. Copiez-collez uniquement le dernier code propre nécessaire pour repartir sur des bases saines.
+
+---
+
+# Partie 2 — Codage Défensif (Zero Crash)
+
+Ces règles doivent être appliquées par les développeurs **et imposées à l'IA** lors de la génération de code pour garantir un code robuste.
+
+> **Prompt de sécurité :** Toujours exiger de l'IA qu'elle applique les règles de codage défensif dans sa génération.
 
 ## Règle 1 — Tolérance zéro pour la division par zéro
 
@@ -189,7 +257,7 @@ pylint --load-plugins=pylint_odoo mon_module/
 
 # Partie 4 — Template de Nouveau Module Odoo
 
-Pour accélérer la création, voici une structure standardisée. Demandez à l'IA de remplir ce squelette à chaque nouveau projet.
+Pour accélérer la création, voici une structure standardisée.
 
 ### Structure des dossiers
 

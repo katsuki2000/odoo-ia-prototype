@@ -1,24 +1,377 @@
 """
-vectorstore/chroma_manager.py
+ChromaDB Manager for vector storage and retrieval.
 
-Manages the ChromaDB vector store:
-- Initializes a persistent ChromaDB client
-- Creates/gets collections for different data types
-- Provides add/query methods with metadata filtering
+Handles initialization, CRUD operations, and querying against ChromaDB
+with nomic-embed-text-v1.5 embeddings.
 """
 
+from __future__ import annotations
+
+import hashlib
+import json
+import logging
 import os
 import sys
+from pathlib import Path
+from typing import Any, Optional
+
 import chromadb
 
 # Add parent directory to path for config imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from config.settings import CHROMA_PATH
 
+logger = logging.getLogger(__name__)
+
+
+class ChromaManager:
+    """Manages ChromaDB vector store for document chunks."""
+
+    def __init__(
+        self,
+        db_path: str | Path = None,
+        embedding_model: str = "nomic-embed-text-v1.5",
+        collection_name: str = "odoo_documents",
+    ):
+        """
+        Initialize ChromaDB with persistent storage.
+
+        Args:
+            db_path: Path to ChromaDB directory (defaults to vectorstore/chroma_db)
+            embedding_model: Name of the embedding model to use
+            collection_name: Name of the collection
+        """
+        if db_path is None:
+            db_path = os.path.join(
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                "vectorstore",
+                "chroma_db",
+            )
+
+        self.db_path = Path(db_path)
+        self.db_path.mkdir(parents=True, exist_ok=True)
+        self.embedding_model = embedding_model
+        self.collection_name = collection_name
+
+        # Initialize ChromaDB client with persistent storage
+        self.client = chromadb.PersistentClient(path=str(self.db_path))
+
+        # Get or create collection
+        self.collection = self.client.get_or_create_collection(
+            name=collection_name,
+            metadata={
+                "embedding_model": embedding_model,
+                "hnsw:space": "cosine",
+                "description": "Odoo documents and code chunks",
+            },
+        )
+
+        logger.info(
+            f"ChromaDB initialized at {self.db_path} with collection '{collection_name}'"
+        )
+
+    def add_chunks(
+        self,
+        texts: list[str],
+        metadatas: list[dict[str, Any]],
+        ids: list[str] | None = None,
+    ) -> list[str]:
+        """
+        Add chunks to the vector store.
+
+        Args:
+            texts: List of text chunks
+            metadatas: List of metadata dictionaries for each chunk
+            ids: Optional list of IDs; generated if not provided
+
+        Returns:
+            List of chunk IDs
+        """
+        if not texts or not metadatas:
+            logger.warning("Empty texts or metadatas provided to add_chunks")
+            return []
+
+        if len(texts) != len(metadatas):
+            raise ValueError("texts and metadatas must have the same length")
+
+        # Generate IDs if not provided
+        if ids is None:
+            ids = []
+            for i, text in enumerate(texts):
+                # Create ID from content hash
+                content_hash = hashlib.sha256(text.encode()).hexdigest()[:12]
+                source = metadatas[i].get("source", "unknown")
+                chunk_id = f"{source}_{i}_{content_hash}"
+                ids.append(chunk_id)
+
+        # Validate and clean metadata
+        cleaned_metadatas = []
+        for metadata in metadatas:
+            cleaned = self._clean_metadata(metadata)
+            cleaned_metadatas.append(cleaned)
+
+        try:
+            self.collection.add(
+                ids=ids,
+                documents=texts,
+                metadatas=cleaned_metadatas,
+            )
+            logger.info(f"Added {len(texts)} chunks to ChromaDB")
+            return ids
+        except Exception as e:
+            logger.error(f"Error adding chunks to ChromaDB: {e}")
+            raise
+
+    def query(
+        self,
+        query_text: str,
+        top_k: int = 5,
+        where: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """
+        Query the vector store.
+
+        Args:
+            query_text: Query text
+            top_k: Number of results to return
+            where: Optional ChromaDB where filter
+
+        Returns:
+            Query results with documents, metadatas, distances, and IDs
+        """
+        try:
+            kwargs = {
+                "query_texts": [query_text],
+                "n_results": top_k,
+            }
+            if where:
+                kwargs["where"] = where
+
+            results = self.collection.query(**kwargs)
+            return self._format_query_results(results)
+        except Exception as e:
+            logger.error(f"Error querying ChromaDB: {e}")
+            raise
+
+    def get_by_id(self, chunk_id: str) -> dict[str, Any] | None:
+        """
+        Get a chunk by its ID.
+
+        Args:
+            chunk_id: The chunk ID
+
+        Returns:
+            Chunk data or None if not found
+        """
+        try:
+            results = self.collection.get(ids=[chunk_id])
+            if results and results["ids"]:
+                return {
+                    "id": results["ids"][0],
+                    "document": results["documents"][0],
+                    "metadata": results["metadatas"][0],
+                }
+            return None
+        except Exception as e:
+            logger.error(f"Error retrieving chunk {chunk_id}: {e}")
+            return None
+
+    def delete_by_source(self, source_path: str) -> int:
+        """
+        Delete all chunks from a specific source.
+
+        Args:
+            source_path: Path to the source file
+
+        Returns:
+            Number of chunks deleted
+        """
+        try:
+            # Query for chunks with this source
+            results = self.collection.get(
+                where={"source": {"$eq": source_path}},
+                include=[],  # Don't need to retrieve documents
+            )
+
+            if results and results["ids"]:
+                chunk_ids = results["ids"]
+                self.collection.delete(ids=chunk_ids)
+                logger.info(f"Deleted {len(chunk_ids)} chunks from source {source_path}")
+                return len(chunk_ids)
+
+            return 0
+        except Exception as e:
+            logger.error(f"Error deleting chunks from source {source_path}: {e}")
+            raise
+
+    def delete_by_ids(self, ids: list[str]) -> int:
+        """
+        Delete specific chunks by ID.
+
+        Args:
+            ids: List of chunk IDs to delete
+
+        Returns:
+            Number of chunks deleted
+        """
+        if not ids:
+            return 0
+
+        try:
+            self.collection.delete(ids=ids)
+            logger.info(f"Deleted {len(ids)} chunks")
+            return len(ids)
+        except Exception as e:
+            logger.error(f"Error deleting chunks: {e}")
+            raise
+
+    def get_stats(self) -> dict[str, Any]:
+        """
+        Get collection statistics.
+
+        Returns:
+            Dictionary with collection stats
+        """
+        try:
+            # Count total documents
+            all_docs = self.collection.get(include=[])
+            total_chunks = len(all_docs.get("ids", []))
+
+            # Count by type
+            type_stats = {}
+            for doc_type in ["code_python", "code_xml", "doc_pdf", "doc_wiki"]:
+                try:
+                    results = self.collection.get(
+                        where={"type": {"$eq": doc_type}},
+                        include=[],
+                    )
+                    count = len(results.get("ids", []))
+                    type_stats[doc_type] = count
+                except Exception:
+                    type_stats[doc_type] = 0
+
+            # Count by module
+            module_stats = {}
+            try:
+                results = self.collection.get(include=["metadatas"])
+                for metadata in results.get("metadatas", []):
+                    module = metadata.get("module", "unknown")
+                    module_stats[module] = module_stats.get(module, 0) + 1
+            except Exception:
+                pass
+
+            return {
+                "total_chunks": total_chunks,
+                "by_type": type_stats,
+                "by_module": module_stats,
+                "collection_name": self.collection_name,
+                "embedding_model": self.embedding_model,
+            }
+        except Exception as e:
+            logger.error(f"Error getting collection stats: {e}")
+            return {
+                "error": str(e),
+                "total_chunks": 0,
+                "by_type": {},
+                "by_module": {},
+            }
+
+    def delete_collection(self) -> None:
+        """Delete the entire collection."""
+        try:
+            self.client.delete_collection(name=self.collection_name)
+            logger.info(f"Deleted collection {self.collection_name}")
+            # Recreate empty collection
+            self.collection = self.client.get_or_create_collection(
+                name=self.collection_name,
+                metadata={
+                    "embedding_model": self.embedding_model,
+                    "hnsw:space": "cosine",
+                    "description": "Odoo documents and code chunks",
+                },
+            )
+        except Exception as e:
+            logger.error(f"Error deleting collection: {e}")
+            raise
+
+    # Helper methods
+
+    @staticmethod
+    def _clean_metadata(metadata: dict[str, Any]) -> dict[str, Any]:
+        """
+        Clean and validate metadata for storage in ChromaDB.
+
+        ChromaDB has constraints on metadata values:
+        - Must be JSON serializable
+        - No nested dicts/lists
+        - Values must be string, int, float, bool, or None
+        """
+        cleaned = {}
+
+        for key, value in metadata.items():
+            # Skip None values
+            if value is None:
+                continue
+
+            # Convert to appropriate types
+            if isinstance(value, (str, int, float, bool)):
+                cleaned[key] = value
+            elif isinstance(value, (dict, list)):
+                # Flatten complex types to JSON string
+                cleaned[key] = json.dumps(value)
+            else:
+                # Convert other types to string
+                cleaned[key] = str(value)
+
+        return cleaned
+
+    @staticmethod
+    def _format_query_results(raw_results: dict[str, Any]) -> dict[str, Any]:
+        """
+        Format raw ChromaDB query results into a cleaner structure.
+
+        Args:
+            raw_results: Raw results from ChromaDB
+
+        Returns:
+            Formatted results
+        """
+        formatted = {
+            "results": [],
+            "count": 0,
+        }
+
+        if not raw_results or not raw_results.get("ids"):
+            return formatted
+
+        ids = raw_results["ids"][0] if raw_results["ids"] else []
+        documents = raw_results["documents"][0] if raw_results["documents"] else []
+        distances = raw_results["distances"][0] if raw_results["distances"] else []
+        metadatas = raw_results["metadatas"][0] if raw_results["metadatas"] else []
+
+        for i in range(len(ids)):
+            result = {
+                "id": ids[i],
+                "document": documents[i] if i < len(documents) else "",
+                "distance": float(distances[i]) if i < len(distances) else 0.0,
+                "similarity": 1 - float(distances[i]) if i < len(distances) else 0.0,
+                "metadata": metadatas[i] if i < len(metadatas) else {},
+            }
+            formatted["results"].append(result)
+
+        formatted["count"] = len(ids)
+        return formatted
+
+
+# Legacy function wrappers for backward compatibility
 
 def get_chroma_client():
     """Get a persistent ChromaDB client."""
-    db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "vectorstore", "chroma_db")
+    db_path = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        "vectorstore",
+        "chroma_db",
+    )
     os.makedirs(db_path, exist_ok=True)
     client = chromadb.PersistentClient(path=db_path)
     return client
