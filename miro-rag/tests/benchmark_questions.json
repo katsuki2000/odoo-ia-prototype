@@ -94,65 +94,65 @@
     {
       "id": "CODE-01",
       "category": "code_source",
-      "question": "Dans quel fichier sont définies les classes de propriété immobilière du module estate ?",
-      "expected_answer_contains": ["estate_property.py", "estate_property_type.py"],
-      "source_reference": "odoo17-dev/addons/estate/models/",
+      "question": "Dans quel fichier sont définies les lignes de facture (account.move.line) ?",
+      "expected_answer_contains": ["account_move_line.py"],
+      "source_reference": "account_move_line.py",
       "type": "code"
     },
     {
       "id": "CODE-02",
       "category": "code_source",
-      "question": "Quelle est la classe principale du modèle estate et quels sont ses champs principaux ?",
-      "expected_answer_contains": ["EstateProperty", "name", "price", "bedrooms"],
-      "source_reference": "odoo17-dev/addons/estate/models/estate_property.py",
+      "question": "Quelle classe gère les lignes de commande de vente (sale.order.line) ?",
+      "expected_answer_contains": ["SaleOrderLine", "sale.order.line"],
+      "source_reference": "sale_order_line.py",
       "type": "code"
     },
     {
       "id": "CODE-03",
       "category": "code_source",
-      "question": "Comment est structuré le contrôleur de chat du module ai_erp_core ?",
-      "expected_answer_contains": ["controllers", "chat", "endpoint"],
-      "source_reference": "odoo17-dev/addons/ai_erp_core/controllers/chat.py",
+      "question": "Comment est structuré le modèle stock.move ?",
+      "expected_answer_contains": ["StockMove", "stock.move"],
+      "source_reference": "stock_move.py",
       "type": "code"
     },
     {
       "id": "CODE-04",
       "category": "code_source",
-      "question": "Quels services sont définis dans le module ai_erp_core ?",
-      "expected_answer_contains": ["router", "ingestion", "retriever", "ollama_client", "vector_store", "tools"],
-      "source_reference": "odoo17-dev/addons/ai_erp_core/services/",
+      "question": "Comment est étendue la classe ResCompany dans le module sale ?",
+      "expected_answer_contains": ["ResCompany", "res.company"],
+      "source_reference": "res_company.py",
       "type": "code"
     },
     {
       "id": "CODE-05",
       "category": "code_source",
-      "question": "Comment la configuration de l'IA est-elle stockée dans le module ai_erp_core ?",
-      "expected_answer_contains": ["ai_config", "ai.settings", "modèle"],
-      "source_reference": "odoo17-dev/addons/ai_erp_core/models/ai_config.py",
+      "question": "Quelle classe gère les commandes de vente (sale.order) ?",
+      "expected_answer_contains": ["SaleOrder", "sale.order"],
+      "source_reference": "sale_order.py",
       "type": "code"
     },
     {
       "id": "CODE-06",
       "category": "code_source",
-      "question": "Quel est le rôle du service router.py dans ai_erp_core ?",
-      "expected_answer_contains": ["routage", "question", "RAG", "ERP", "LangGraph"],
-      "source_reference": "odoo17-dev/addons/ai_erp_core/services/router.py",
+      "question": "Quel est le rôle du modèle stock.warehouse ?",
+      "expected_answer_contains": ["StockWarehouse", "stock.warehouse", "lot_stock_id", "view_location_id"],
+      "source_reference": "stock_warehouse.py",
       "type": "code"
     },
     {
       "id": "CODE-07",
       "category": "code_source",
-      "question": "Comment le module idea_ai est-il structuré ?",
-      "expected_answer_contains": ["idea", "models", "__manifest__"],
-      "source_reference": "odoo17-dev/addons/idea_ai/",
+      "question": "Comment le journal comptable (account.journal) est-il défini ?",
+      "expected_answer_contains": ["AccountJournal", "account.journal", "type", "code"],
+      "source_reference": "account_journal.py",
       "type": "code"
     },
     {
       "id": "CODE-08",
       "category": "code_source",
-      "question": "Quels sont les modèles définis dans le fichier ai_document.py ?",
-      "expected_answer_contains": ["ai.document", "chunk", "vector"],
-      "source_reference": "odoo17-dev/addons/ai_erp_core/models/ai_document.py",
+      "question": "Quels sont les modèles étendus dans le fichier payment_provider.py du module sale ?",
+      "expected_answer_contains": ["PaymentProvider"],
+      "source_reference": "payment_provider.py",
       "type": "code"
     },
     {
