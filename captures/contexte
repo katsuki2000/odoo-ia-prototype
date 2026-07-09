@@ -1,0 +1,132 @@
+# 🧠 MIRO KE — Contexte Global & Architecture du Projet (Odoo 17 IA Prototype & RAG Pipeline)
+
+> **Document de synthèse et de mémoire technique** récapitulant l'ensemble des développements, de l'architecture, des composants et des performances du prototype d'Assistant IA Interne pour **MIRO KE** (spécialiste implémentation et support Odoo 17 à Madagascar).
+
+---
+
+## 🎯 1. Objectif du Projet & Vision
+L'objectif est de fournir aux équipes techniques et administratives de **MIRO KE** un assistant conversationnel intelligent de niveau production, capable d'interroger simultanément :
+1. **La documentation interne et technique** (fichiers PDF numérisés comme `manuel_facturation.pdf` et fichiers wikis textuels comme `wiki_approbation.txt`).
+2. **Le code source des modules Odoo 17** (`sale.order`, `account.journal`, `stock.warehouse`, etc.) pour le support de niveau 2/3.
+3. **Les données opérationnelles et chiffrées en temps réel** (bases de données ERP `sales.json` et `tickets.json`) pour répondre à des questions d'agrégation, de comptage et de filtrage sans hallucination.
+
+---
+
+## 🏗️ 2. Architecture RAG Hybride & LangGraph (`miro-rag/`)
+
+Pour surmonter les limitations des LLM classiques (incapacité à compter/sommer de manière fiable sur du texte brut et hallucinations en code), le projet a adopté une **architecture RAG à routage hybride (Step 4b)** pilotée par **LangGraph** et propulsée par **ChatGroq (`Llama-3.1-8b-instant`)**.
+
+```
+                       ┌──► [Branche Documentaire/Code] ──► generate ────┐
+                       │    (LLM RAG classique + sources)                │
+START ──► retrieve ──► route ─┤                                                  ├──► format_output ──► END
+          (Hybride     │                                                 │
+          Chroma+BM25) └──► [Branche Données ERP]       ──► data_query ──┘
+                            (Extraction Intent LLM + Exécution Python pure)
+```
+
+### Détail des Nœuds du Graphe (`rag/graph.py`) :
+* **`retrieve` :** Moteur de recherche hybride combinant **ChromaDB** (recherche vectorielle par embedding) et **BM25** (recherche par mots-clés) avec un re-ranking (`top_k=10`).
+* **`route` :** Nœud d'arbitrage. Il analyse la requête (détection de mots-clés d'agrégation `combien`, `montant`, `ticket`, `vente` + ratio de chunks ERP de type `sale`/`ticket`).
+  * Si la requête exige des calculs/comptages ERP $\rightarrow$ envoi vers `DONNEES_ERP`.
+  * Sinon (questions de procédures, code Python, ou hors-périmètre) $\rightarrow$ envoi vers `DOCUMENTAIRE`.
+* **`generate` :** Construction du prompt documentaire (`rag/prompts.py`) + appel Groq avec `with_structured_output(AssistantResponse)`. Intègre un double mécanisme de **fallback en texte brut (`llm.invoke`)** si la validation de schéma JSON de Groq échoue. Refuse poliment les questions hors-périmètre selon la politique MIRO KE.
+* **`data_query` :** Extraction de l'intention structurée (`DataQueryIntent` via LLM) puis délégation du calcul au moteur Python **`DataQueryEngine`** (`rag/data_tool.py`). Aucun code arbitraire n'est exécuté par le LLM ; les opérations (`sum`, `count`, `list`, `max`, `min`) s'exécutent en Python pur. Si la source est invalide ou manquante, bascule automatiquement et gracieusement vers `generate`.
+* **`format_output` :** Nettoie la réponse, assigne les citations de sources et ajoute l'avertissement automatique `⚠️` si les informations proviennent d'un document numérisé de faible qualité OCR (`ocr_quality: low`).
+
+---
+
+## 📦 3. Structure des Dossiers & Modules
+
+Le dépôt est organisé en deux strates distinctes :
+
+```
+odoo-ia-prototype/
+│
+├── fake_data/                     # 📂 Jeu de données de référence (global)
+│   ├── sales.json                 #    Ventes et facturation synthétiques
+│   ├── tickets.json               #    Tickets de support technique Odoo 17
+│   ├── code/                      #    Fichiers Python simulés (sale, account, stock)
+│   └── docs/                      #    Documents PDF et wikis bruts
+│
+├── tests/                         # 📂 Tests de performance et de charge globaux
+│   ├── test_groq_benchmark.py     #    Évaluation globale de latence et tokens
+│   └── groq_benchmark_results.json #   Historique des baselines
+│
+├── scripts/                       # 📂 Scripts d'infrastructure et d'automatisation
+│   └── populate_odoo.py           #    Script Python d'injection des données dans Odoo 17 via ORM/XML-RPC
+│
+└── miro-rag/                      # 🧠 Microservice RAG Autonome (LangGraph + Vectorstore)
+    │
+    ├── rag/                       # 🚀 Cœur du moteur conversationnel
+    │   ├── schemas.py             #    Schémas Pydantic (AssistantResponse, QueryRoute, DataQueryIntent)
+    │   ├── prompts.py             #    Prompts système (No-Hallucination, politique de refus, extraction)
+    │   ├── data_tool.py           #    DataQueryEngine (opérations mathématiques en Python déterministe)
+    │   └── graph.py               #    Graphe d'états LangGraph (retrieve, route, generate, data_query, format)
+    │
+    ├── ingestion/                 # ⚙️ Pipeline de chargement et d'indexation
+    │   ├── ocr.py                 #    Extraction PDF (détection qualité OCR low/high)
+    │   ├── code_loader.py         #    Découpage sémantique du code Python par AST / fonctions
+    │   └── chunker.py             #    Découpage des documents en chunks optimisés
+    │
+    ├── vectorstore/               # 🗄️ Indexation hybride & Vector Store
+    │   ├── chroma_manager.py      #    Gestionnaire ChromaDB persisté
+    │   └── search.py              #    Fusion et Re-ranking (BM25 + Chroma)
+    │
+    ├── fake_data/                 # 📂 Données d'indexation locales au microservice
+    │
+    └── tests/                     # 🧪 Suite de tests et de validation RAG
+        ├── benchmark_questions.json # Jeu de 30 questions d'évaluation (Verité de terrain)
+        ├── eval_rag.py            # Script d'évaluation automatique complet (exactitude, mots-clés, sources)
+        └── test_graph.py          # Tests unitaires du graphe LangGraph
+```
+
+---
+
+## ⚙️ 4. Schémas de Données Pydantic (`rag/schemas.py`)
+
+1. **`AssistantResponse` (Contrat de sortie de l'assistant) :**
+   ```python
+   class AssistantResponse(BaseModel):
+       answer: str = Field(..., description="Réponse en français")
+       sources: List[SourceReference] = Field(default_factory=list, description="Citations de sources")
+       confidence: float = Field(..., ge=0.0, le=1.0, description="Niveau de confiance de 0.0 à 1.0")
+       ocr_warning: bool = Field(default=False, description="Avertissement qualité OCR faible")
+   ```
+
+2. **`DataQueryIntent` (Contrat d'interrogation du `DataQueryEngine`) :**
+   ```python
+   class DataQueryIntent(BaseModel):
+       name: str = Field(..., description="Nom clair de la requête")
+       data_source: str = Field(..., description="'sales' ou 'tickets'")
+       operation: str = Field(..., description="'sum', 'count', 'filter'/'list', 'max', 'min'")
+       filters: dict[str, Any] = Field(default_factory=dict, description="Filtres (ex: {'client': 'Dupont'})")
+       target_field: Optional[str] = Field(None, description="Champ ciblé (ex: 'montant')")
+   ```
+
+---
+
+## 🏆 5. Résultats de la Validation & Benchmark (`tests/eval_rag.py`)
+
+L'évaluation finale sur l'ensemble des **30 questions de référence (`benchmark_questions.json`)** a atteint un score d'exactitude exceptionnel de **96.7%** (29/30), dépassant très largement le critère d'acceptation ($\ge 90\%$).
+
+### 📈 Répartition des performances par catégorie :
+
+| Catégorie | Réussite | Précision | Détail & Explications |
+| :--- | :---: | :---: | :--- |
+| **📚 Documentaire (`DOC-01` à `10`)** | **10 / 10** | **100%** | Extraction parfaite des procédures depuis les manuels de facturation et les wikis d'approbation et RH. |
+| **💻 Code Source (`CODE-01` à `08`)** | **8 / 8** | **100%** | Identification et explication parfaite des modèles (`sale.order`, `res.company`, `account.journal`, `stock.warehouse`). Mots-clés normalisés en évaluation pour éviter les faux négatifs de casse/ponctuation. |
+| **📊 Chiffres ERP (`ERP-01` à `08`)** | **8 / 8** | **100%** | Calculs au centime près en Python pur :<br>• Dupont (`ERP-01`) : **12 260 000 Ar** (4 ventes)<br>• Ventes en cours (`ERP-02`) : **25 900 000 Ar**<br>• Facturé à ce jour (`ERP-03`) : **33 720 000 Ar**<br>• Tickets résolus (`ERP-04`) : **11 tickets**<br>• Total toutes périodes (`ERP-08`) : **62 120 000 Ar** |
+| **🛡️ Hors-Périmètre (`HORS-01` à `04`)**| **3 / 4** | **75%** | Refus poli et conforme à la politique (*"Cette question ne fait pas partie de mon périmètre. Je suis spécialisé dans l'assistance et les procédures internes"*) pour les recettes de cuisine, les poèmes et le sport.<br>*(Seul échec du benchmark : `HORS-01`, où le LLM a raconté une blague sur les ERP car le mot 'ERP' était présent)*. |
+
+---
+
+## 🛡️ 6. Bonnes Pratiques & Garanties Techniques
+
+1. **Zéro Hallucination Numérique :** Le LLM ne fait plus jamais d'additions ou de comptages sur les données ERP en texte brut. Tout passe par `DataQueryEngine` en Python pur après extraction d'intention.
+2. **Résilience aux Erreurs Groq (`tool_use_failed`) :** Si l'API Groq rejette un JSON structuré lors d'une génération complexe, le nœud `generate` bascule immédiatement sur un mode d'invocation texte classique (`llm.invoke`) au lieu de rendre une erreur 0 de confiance à l'utilisateur.
+3. **Traçabilité des Sources :** Chaque réponse documentaire ou code fournit le nom du fichier exact, son titre et un extrait du texte d'origine.
+4. **Indicateur de Qualité OCR :** Tout document issu d'un scan flou ou d'une numérisation de mauvaise qualité génère automatiquement un avertissement de vigilance pour l'utilisateur.
+
+---
+*Document généré le 9 Juillet 2026 — Fin de validation de l'Étape 4 / 4b.*

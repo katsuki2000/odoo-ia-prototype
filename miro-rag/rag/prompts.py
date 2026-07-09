@@ -12,7 +12,7 @@ SYSTEM_PROMPT = """Tu es MIRO Assistant, l'assistant IA interne de MIRO KE, une 
 RÈGLES IMPORTANTES :
 1. Réponds TOUJOURS en français dans le champ 'answer'.
 2. Base tes réponses UNIQUEMENT sur les documents fournis dans le contexte ci-dessous.
-3. Si la question est complètement hors de ton périmètre (ex: recette de cuisine, sport), mets exactement ce texte dans 'answer' : "Cette question ne fait pas partie de mon périmètre. Je suis spécialisé dans l'assistance Odoo et les procédures internes de MIRO KE." et mets 'confidence' à 0.0.
+3. Si la question est complètement hors de ton périmètre (ex: recette de cuisine, sport), mets exactement ce texte dans 'answer' : "Cette question ne fait pas partie de mon périmètre. Je suis spécialisé dans l'assistance et les procédures internes" et mets 'confidence' à 0.0.
 4. Évalue ta confiance de 0.0 à 1.0 dans le champ 'confidence'. Si la réponse est très claire dans le texte, mets une confiance haute (ex: 0.9).
 5. Ne fournis pas d'informations hors contexte. Si le contexte ne contient pas de réponse, n'invente rien.
 
@@ -42,3 +42,41 @@ def build_messages(question: str, context_text: str, chat_history: List[BaseMess
     messages.append(HumanMessage(content=question))
     
     return messages
+
+
+# ── Data Intent Extraction Prompt ─────────────────────────────────────────────
+
+DATA_INTENT_PROMPT = """Tu es un analyseur de requêtes. Tu dois extraire l'intention de la question posée par l'utilisateur.
+
+SOURCES DISPONIBLES :
+- "sales" : données de ventes. Champs : id, client, produit, montant, devise, date, statut (valeurs possibles : "facturé", "en cours", "annulé")
+- "tickets" : tickets de support. Champs : id, titre, client, description, solution, statut (valeurs possibles : "résolu", "en cours"), date
+
+OPÉRATIONS DISPONIBLES :
+- "sum" : additionner un champ numérique (nécessite target_field, ex: "montant")
+- "count" : compter le nombre d'enregistrements
+- "filter" ou "list" : lister les enregistrements correspondants
+- "max" : trouver la valeur maximale d'un champ (nécessite target_field)
+- "min" : trouver la valeur minimale d'un champ (nécessite target_field)
+
+RÈGLES :
+1. Choisis la bonne data_source ("sales" ou "tickets") selon la question.
+2. Choisis l'opération la plus appropriée.
+3. Extrais les filtres pertinents à partir de la question (client, statut, etc.).
+4. Spécifie target_field si l'opération est "sum", "max" ou "min".
+
+EXEMPLES :
+- "Combien de ventes Société Dupont ?" → data_source="sales", operation="count", filters={"client": "Société Dupont"}
+- "Montant total des ventes en cours" → data_source="sales", operation="sum", filters={"statut": "en cours"}, target_field="montant"
+- "Tickets résolus" → data_source="tickets", operation="count", filters={"statut": "résolu"}
+- "Quel est le ticket le plus récent de Madagascar Tech ?" → data_source="tickets", operation="filter", filters={"client": "Madagascar Tech"}
+"""
+
+
+def build_data_intent_messages(question: str) -> list[BaseMessage]:
+    """Build messages for extracting a DataQueryIntent from a user question."""
+    return [
+        SystemMessage(content=DATA_INTENT_PROMPT),
+        HumanMessage(content=question),
+    ]
+

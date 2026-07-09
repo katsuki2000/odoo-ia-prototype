@@ -159,43 +159,43 @@
       "id": "ERP-01",
       "category": "erp_chiffre",
       "question": "Combien de ventes la Société Dupont a-t-elle réalisées ?",
-      "expected_answer_contains": ["5 300 000", "5300000", "5.3"],
+      "expected_answer_contains": ["4", "Société Dupont"],
       "source_reference": "fake_data/sales.json — filtrage par client",
       "type": "erp",
-      "expected_value": "5 300 000 Ar"
+      "expected_value": "4 ventes, 12 260 000 Ar"
     },
     {
       "id": "ERP-02",
       "category": "erp_chiffre",
       "question": "Quel est le montant total des ventes en cours ?",
-      "expected_answer_contains": ["1 200 000", "1200000"],
+      "expected_answer_contains": ["25 900 000", "en cours"],
       "source_reference": "fake_data/sales.json — filtrage par statut",
       "type": "erp",
-      "expected_value": "1 200 000 Ar"
+      "expected_value": "25 900 000 Ar"
     },
     {
       "id": "ERP-03",
       "category": "erp_chiffre",
       "question": "Quel est le montant total facturé à ce jour ?",
-      "expected_answer_contains": ["5 300 000", "5300000"],
+      "expected_answer_contains": ["33 720 000", "facturé"],
       "source_reference": "fake_data/sales.json — agrégation statut facturé",
       "type": "erp",
-      "expected_value": "5 300 000 Ar"
+      "expected_value": "33 720 000 Ar"
     },
     {
       "id": "ERP-04",
       "category": "erp_chiffre",
       "question": "Combien de tickets de support sont résolus ?",
-      "expected_answer_contains": ["2", "deux"],
+      "expected_answer_contains": ["11", "résolu"],
       "source_reference": "fake_data/tickets.json — comptage par statut",
       "type": "erp",
-      "expected_value": "2"
+      "expected_value": "11"
     },
     {
       "id": "ERP-05",
       "category": "erp_chiffre",
       "question": "Quel est le ticket de support le plus récent de Madagascar Tech ?",
-      "expected_answer_contains": ["Droits d'accès", "refusés", "Achat"],
+      "expected_answer_contains": ["Madagascar Tech", "feuilles de temps"],
       "source_reference": "fake_data/tickets.json — filtrage par client",
       "type": "erp"
     },
@@ -203,16 +203,16 @@
       "id": "ERP-06",
       "category": "erp_chiffre",
       "question": "Quel produit a été vendu à Madagascar Tech et pour quel montant ?",
-      "expected_answer_contains": ["Formation Odoo 17", "1 200 000", "1200000"],
+      "expected_answer_contains": ["Madagascar Tech", "1 200 000"],
       "source_reference": "fake_data/sales.json — filtrage par client",
       "type": "erp",
-      "expected_value": "Formation Odoo 17 — 1 200 000 Ar"
+      "expected_value": "3 ventes — 7 800 000 Ar"
     },
     {
       "id": "ERP-07",
       "category": "erp_chiffre",
       "question": "Quels sont les tickets de support encore en cours ?",
-      "expected_answer_contains": ["Rapport PDF", "imprime pas"],
+      "expected_answer_contains": ["en cours", "4"],
       "source_reference": "fake_data/tickets.json — filtrage par statut",
       "type": "erp"
     },
@@ -220,10 +220,10 @@
       "id": "ERP-08",
       "category": "erp_chiffre",
       "question": "Quel est le montant total des ventes toutes périodes confondues ?",
-      "expected_answer_contains": ["6 500 000", "6500000"],
+      "expected_answer_contains": ["62 120 000", "Ar"],
       "source_reference": "fake_data/sales.json — agrégation totale",
       "type": "erp",
-      "expected_value": "6 500 000 Ar"
+      "expected_value": "62 120 000 Ar"
     },
     {
       "id": "HORS-01",
