@@ -1,218 +1,322 @@
 """
-ingestion/pdf_loader.py
+PDF document loader with OCR support for scanned PDFs.
 
-Loads, chunks, and prepares all knowledge sources for the RAG vectorstore:
-1. Wiki and policy TXT documents from fake_data/documents/
-2. PDF manuals from fake_data/documents/
-3. Support tickets from fake_data/tickets.json
-4. Sales data from fake_data/sales.json
+Handles both text-based and image-based PDFs:
+- Text-based PDFs: Direct text extraction via pypdf
+- Image-based PDFs: OCR via pytesseract (French + English)
+
+Chunks documents with RecursiveCharacterTextSplitter (512 tokens, 50 overlap).
 """
 
-import os
-import sys
-import json
+from __future__ import annotations
+
 import hashlib
+import logging
+from pathlib import Path
+from typing import Any, Optional
+
+try:
+    from pypdf import PdfReader
+except ImportError:
+    PdfReader = None
+
+try:
+    import pytesseract
+except ImportError:
+    pytesseract = None
+
+try:
+    from PIL import Image
+    import io
+except ImportError:
+    Image = None
+    io = None
+
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-FAKE_DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "fake_data")
+logger = logging.getLogger(__name__)
 
 
-def get_text_splitter(chunk_size=600, chunk_overlap=50):
-    """Return an optimal recursive character text splitter."""
-    return RecursiveCharacterTextSplitter(
-        chunk_size=chunk_size,
-        chunk_overlap=chunk_overlap,
-        separators=["\n\n", "\n", ". ", " ", ""]
-    )
+class PDFLoader:
+    """Loads and processes PDF documents with automatic OCR detection."""
 
+    def __init__(
+        self,
+        chunk_size: int = 512,
+        chunk_overlap: int = 50,
+        ocr_threshold: float = 0.1,
+    ):
+        """
+        Initialize PDF loader.
 
-def make_id(source, index):
-    """Generate a deterministic unique ID for a document chunk using MD5 hash."""
-    raw = f"{source}_{index}"
-    return hashlib.md5(raw.encode()).hexdigest()
+        Args:
+            chunk_size: Number of characters per chunk
+            chunk_overlap: Number of overlapping characters between chunks
+            ocr_threshold: Minimum ratio of text extracted before triggering OCR
+                          (if extracted_text_length / pdf_size < threshold, use OCR)
+        """
+        self.chunk_size = chunk_size
+        self.chunk_overlap = chunk_overlap
+        self.ocr_threshold = ocr_threshold
 
+        # Initialize text splitter
+        self.splitter = RecursiveCharacterTextSplitter(
+            chunk_size=chunk_size,
+            chunk_overlap=chunk_overlap,
+            separators=["\n\n", "\n", " ", ""],
+        )
 
-def load_txt_documents():
-    """Load all text documents from the documents directory and split them into chunks."""
-    docs_dir = os.path.join(FAKE_DATA_DIR, "documents")
-    documents = []
-    metadatas = []
-    ids = []
+        # Verify dependencies
+        if not PdfReader:
+            logger.warning("pypdf not installed - PDF loading will fail")
+        if not pytesseract:
+            logger.warning("pytesseract not installed - OCR will be skipped")
+        if not Image:
+            logger.warning("Pillow not installed - Image conversion will fail")
 
-    splitter = get_text_splitter()
-    txt_files = [f for f in os.listdir(docs_dir) if f.endswith('.txt')]
+    def load_and_chunk(
+        self,
+        pdf_path: str | Path,
+        metadata: Optional[dict[str, Any]] = None,
+    ) -> dict[str, Any]:
+        """
+        Load a PDF and chunk it with OCR detection.
 
-    for filename in sorted(txt_files):
-        filepath = os.path.join(docs_dir, filename)
-        with open(filepath, 'r', encoding='utf-8') as f:
-            content = f.read()
+        Args:
+            pdf_path: Path to PDF file
+            metadata: Optional metadata to add to all chunks
 
-        lines = content.strip().split('\n')
-        title = lines[0].strip() if lines else filename
+        Returns:
+            Dictionary with:
+            - chunks: List of text chunks
+            - metadatas: List of metadata dictionaries
+            - ocr_used: Whether OCR was used
+            - ocr_quality: "high", "low", or None
+        """
+        pdf_path = Path(pdf_path)
 
-        chunks = splitter.split_text(content)
+        if not pdf_path.exists():
+            raise FileNotFoundError(f"PDF not found: {pdf_path}")
 
-        for i, chunk in enumerate(chunks):
-            documents.append(chunk)
-            metadatas.append({
-                "source": filename,
-                "type": "wiki",
-                "title": title,
-                "chunk_index": i,
-                "total_chunks": len(chunks),
-            })
-            ids.append(make_id(f"wiki_{filename}", i))
+        if not PdfReader:
+            raise ImportError("pypdf is required for PDF loading")
 
-        print(f"Loaded '{filename}': {len(chunks)} chunks")
+        # Initialize metadata
+        base_metadata = metadata or {}
+        base_metadata.setdefault("source", str(pdf_path))
+        base_metadata.setdefault("type", "doc_pdf")
+        base_metadata["file_size"] = pdf_path.stat().st_size
 
-    return documents, metadatas, ids
-
-
-def load_pdf_documents():
-    """Load PDF documents from the documents directory and split them into chunks."""
-    docs_dir = os.path.join(FAKE_DATA_DIR, "documents")
-    documents = []
-    metadatas = []
-    ids = []
-
-    splitter = get_text_splitter()
-    pdf_files = [f for f in os.listdir(docs_dir) if f.endswith('.pdf')]
-
-    for filename in sorted(pdf_files):
-        filepath = os.path.join(docs_dir, filename)
+        # Step 1: Try to extract text with pypdf
+        logger.info(f"Loading PDF: {pdf_path}")
         try:
-            from pypdf import PdfReader
-            reader = PdfReader(filepath)
-            content = ""
-            for page in reader.pages:
-                extracted = page.extract_text()
-                if extracted:
-                    content += extracted + "\n"
-        except ImportError:
-            print(f"Warning: pypdf not available, skipping {filename}")
-            continue
+            reader = PdfReader(str(pdf_path))
+            text = self._extract_text_from_pdf(reader)
+            ocr_used = False
+            ocr_quality = None
+        except Exception as e:
+            logger.warning(f"Error extracting text from {pdf_path}: {e}")
+            text = ""
+            ocr_used = False
+            ocr_quality = None
 
-        if not content.strip():
-            print(f"Warning: No text extracted from {filename}")
-            continue
+        # Step 2: Decide if OCR is needed
+        pdf_size = base_metadata.get("file_size", 1)
+        text_extracted_ratio = len(text) / pdf_size if pdf_size > 0 else 0
 
-        chunks = splitter.split_text(content)
+        if text_extracted_ratio < self.ocr_threshold:
+            logger.info(
+                f"Low text extraction ratio ({text_extracted_ratio:.2%}), attempting OCR"
+            )
+            if pytesseract and Image:
+                ocr_text = self._extract_text_via_ocr(pdf_path)
+                if ocr_text and len(ocr_text) > len(text):
+                    text = ocr_text
+                    ocr_used = True
+                    ocr_quality = self._assess_ocr_quality(text)
+                    logger.info(f"OCR extraction complete. Quality: {ocr_quality}")
+            else:
+                logger.warning("pytesseract or Pillow not installed, skipping OCR")
 
+        # Step 3: Chunk the text
+        if text.strip():
+            chunks = self.splitter.split_text(text)
+            logger.info(f"Created {len(chunks)} chunks from {pdf_path}")
+        else:
+            chunks = []
+            logger.warning(f"No text extracted from {pdf_path}")
+
+        # Step 4: Create metadata for each chunk
+        metadatas = []
         for i, chunk in enumerate(chunks):
-            documents.append(chunk)
-            metadatas.append({
-                "source": filename,
-                "type": "manual",
-                "title": f"Manual: {filename}",
-                "chunk_index": i,
-                "total_chunks": len(chunks),
-            })
-            ids.append(make_id(f"pdf_{filename}", i))
+            chunk_metadata = base_metadata.copy()
+            chunk_metadata.update(
+                {
+                    "chunk_index": i,
+                    "total_chunks": len(chunks),
+                    "content_hash": self._compute_hash(chunk),
+                    "ocr_processed": ocr_used,
+                    "ocr_quality": ocr_quality,
+                }
+            )
+            metadatas.append(chunk_metadata)
 
-        print(f"Loaded '{filename}': {len(chunks)} chunks")
+        return {
+            "chunks": chunks,
+            "metadatas": metadatas,
+            "ocr_used": ocr_used,
+            "ocr_quality": ocr_quality,
+        }
 
-    return documents, metadatas, ids
+    def _extract_text_from_pdf(self, reader: Any) -> str:
+        """
+        Extract text from PDF using pypdf.
 
+        Args:
+            reader: PdfReader instance
 
-def load_tickets():
-    """Load support tickets from tickets.json and format them as documents."""
-    tickets_file = os.path.join(FAKE_DATA_DIR, "tickets.json")
-    documents = []
-    metadatas = []
-    ids = []
+        Returns:
+            Extracted text
+        """
+        text_parts = []
+        for page_num, page in enumerate(reader.pages):
+            try:
+                text = page.extract_text()
+                if text:
+                    text_parts.append(f"--- Page {page_num + 1} ---\n{text}")
+            except Exception as e:
+                logger.warning(f"Error extracting text from page {page_num + 1}: {e}")
 
-    with open(tickets_file, 'r', encoding='utf-8') as f:
-        tickets = json.load(f)
+        return "\n\n".join(text_parts)
 
-    for ticket in tickets:
-        doc = (
-            f"SUPPORT TICKET #{ticket['id']:03d}\n"
-            f"Title: {ticket['titre']}\n"
-            f"Client: {ticket['client']}\n"
-            f"Date: {ticket['date']}\n"
-            f"Status: {ticket['statut']}\n\n"
-            f"PROBLEM:\n{ticket['description']}\n\n"
-            f"SOLUTION:\n{ticket['solution']}"
+    def _extract_text_via_ocr(self, pdf_path: Path) -> str:
+        """
+        Extract text from PDF using OCR (Tesseract).
+
+        Converts PDF pages to images and applies OCR.
+
+        Args:
+            pdf_path: Path to PDF file
+
+        Returns:
+            Extracted text
+        """
+        if not pytesseract or not Image:
+            logger.error("pytesseract or Pillow not available for OCR")
+            return ""
+
+        try:
+            from pdf2image import convert_from_path
+        except ImportError:
+            logger.error("pdf2image not installed, cannot perform OCR")
+            return ""
+
+        text_parts = []
+        try:
+            # Convert PDF pages to images
+            images = convert_from_path(str(pdf_path))
+            logger.info(f"Converted {len(images)} pages for OCR")
+
+            for page_num, image in enumerate(images):
+                try:
+                    # Run OCR with French and English
+                    text = pytesseract.image_to_string(
+                        image,
+                        lang="fra+eng",
+                        config="--psm 1 --oem 3",
+                    )
+                    if text.strip():
+                        text_parts.append(f"--- Page {page_num + 1} (OCR) ---\n{text}")
+                except Exception as e:
+                    logger.warning(f"OCR failed on page {page_num + 1}: {e}")
+
+        except Exception as e:
+            logger.error(f"Error converting PDF to images for OCR: {e}")
+
+        return "\n\n".join(text_parts)
+
+    @staticmethod
+    def _assess_ocr_quality(text: str) -> str:
+        """
+        Assess the quality of OCR extraction.
+
+        Simple heuristic based on:
+        - Text length
+        - Average word length
+        - Special character ratio
+
+        Args:
+            text: Extracted text
+
+        Returns:
+            "high", "low", or "medium"
+        """
+        if not text.strip():
+            return "low"
+
+        words = text.split()
+        if not words:
+            return "low"
+
+        avg_word_length = sum(len(w) for w in words) / len(words)
+
+        # High quality: decent length, reasonable word lengths, low garbling
+        if len(text) > 1000 and 3 < avg_word_length < 15:
+            return "high"
+
+        # Low quality: very short, very long words (garbling), or mostly special chars
+        special_char_ratio = sum(1 for c in text if not c.isalnum() and c != " ") / len(
+            text
         )
-        documents.append(doc)
-        metadatas.append({
-            "source": "tickets.json",
-            "type": "ticket",
-            "ticket_id": ticket['id'],
-            "client": ticket['client'],
-            "statut": ticket['statut'],
-            "date": ticket['date'],
-            "title": f"TICKET #{ticket['id']:03d} - {ticket['titre']}",
-        })
-        ids.append(make_id("ticket", ticket['id']))
+        if special_char_ratio > 0.5:
+            return "low"
 
-    print(f"Loaded {len(tickets)} support tickets")
-    return documents, metadatas, ids
+        return "high" if len(text) > 500 else "low"
+
+    @staticmethod
+    def _compute_hash(text: str) -> str:
+        """
+        Compute SHA-256 hash of text content.
+
+        Args:
+            text: Text content
+
+        Returns:
+            First 12 characters of SHA-256 hash
+        """
+        return hashlib.sha256(text.encode()).hexdigest()[:12]
 
 
-def load_sales():
-    """Load sales data from sales.json and format them as documents."""
-    sales_file = os.path.join(FAKE_DATA_DIR, "sales.json")
+def load_pdf_directory(
+    directory: str | Path,
+    chunk_size: int = 512,
+    chunk_overlap: int = 50,
+) -> list[dict[str, Any]]:
+    """
+    Load all PDFs from a directory.
+
+    Args:
+        directory: Path to directory containing PDFs
+        chunk_size: Chunk size for splitting
+        chunk_overlap: Chunk overlap for splitting
+
+    Returns:
+        List of document dictionaries with chunks and metadatas
+    """
+    directory = Path(directory)
+    if not directory.is_dir():
+        raise ValueError(f"Directory not found: {directory}")
+
+    loader = PDFLoader(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
     documents = []
-    metadatas = []
-    ids = []
 
-    with open(sales_file, 'r', encoding='utf-8') as f:
-        sales = json.load(f)
+    for pdf_file in directory.glob("*.pdf"):
+        try:
+            logger.info(f"Processing {pdf_file.name}...")
+            result = loader.load_and_chunk(pdf_file)
+            documents.append(result)
+        except Exception as e:
+            logger.error(f"Error processing {pdf_file}: {e}")
 
-    for sale in sales:
-        doc = (
-            f"SALE #{sale['id']:03d}\n"
-            f"Client: {sale['client']}\n"
-            f"Product/Service: {sale['produit']}\n"
-            f"Amount: {sale['montant']:,} {sale['devise']}\n"
-            f"Date: {sale['date']}\n"
-            f"Status: {sale['statut']}"
-        )
-        documents.append(doc)
-        metadatas.append({
-            "source": "sales.json",
-            "type": "sale",
-            "sale_id": sale['id'],
-            "client": sale['client'],
-            "produit": sale['produit'],
-            "montant": sale['montant'],
-            "statut": sale['statut'],
-            "date": sale['date'],
-            "title": f"SALE #{sale['id']:03d} - {sale['client']} ({sale['produit']})",
-        })
-        ids.append(make_id("sale", sale['id']))
-
-    print(f"Loaded {len(sales)} sales records")
-    return documents, metadatas, ids
-
-
-def load_all():
-    """Load all data sources and return combined documents, metadatas, and ids."""
-    all_docs = []
-    all_meta = []
-    all_ids = []
-
-    print("\nLoading all knowledge sources...")
-
-    for loader_func in [load_txt_documents, load_pdf_documents, load_tickets, load_sales]:
-        docs, meta, doc_ids = loader_func()
-        all_docs.extend(docs)
-        all_meta.extend(meta)
-        all_ids.extend(doc_ids)
-
-    print(f"\nTotal: {len(all_docs)} document chunks ready for vectorization")
-    return all_docs, all_meta, all_ids
-
-
-if __name__ == "__main__":
-    docs, meta, ids = load_all()
-    print(f"\nLoaded {len(docs)} chunks from {len(set(m['source'] for m in meta))} sources")
-    type_counts = {}
-    for m in meta:
-        t = m['type']
-        type_counts[t] = type_counts.get(t, 0) + 1
-    for t, c in sorted(type_counts.items()):
-        print(f"  - {t}: {c} chunks")
+    logger.info(f"Loaded {len(documents)} PDF documents from {directory}")
+    return documents

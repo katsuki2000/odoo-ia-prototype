@@ -2,45 +2,7 @@
 
 ## Context
 
-This is the **full prototype** — built on GitHub Codespaces while waiting for the production machine. It implements **everything** from the official plan. The only difference with production is the LLM provider:
-
-| Aspect | Production (machine MiroKE) | Codespaces (this version) |
-|--------|---------------------------|--------------------------:|
-| **LLM inference** | Ollama / vLLM on RTX 3060 | Groq API (Llama 3.1 8B, free tier) |
-| **Embeddings** | GPU-accelerated | CPU only (~550 MB RAM) |
-| **Odoo instance** | MiroKE's real Odoo 17 with client data | Our own Odoo 17 (Docker) with fake data |
-
-**Everything else is built for real**: Odoo module, XML-RPC connection, RBAC, multi-tenant, function calling, conversation memory, automated ingestion, OCR, evaluation, the works. The code transfers to production by changing 2 lines in `config/settings.py`.
-
----
-
-## Infrastructure
-
-### Odoo 17 on Docker (Codespaces)
-
-We run a full Odoo 17 Community Edition in Docker, pre-loaded with:
-
-| Data | Volume | Details |
-|------|--------|---------|
-| **Partners** | ~50 | Clients + vendors with realistic Malagasy names, addresses, phone numbers |
-| **Sales Orders** | ~200 | Spanning 2024-2026, various amounts in Ariary, multiple states (draft, confirmed, done, cancelled) |
-| **Invoices** | ~150 | Linked to sales, with paid/unpaid/overdue states |
-| **Products** | ~30 | With stock levels, categories, unit prices |
-| **Stock Moves** | ~100 | Warehouse movements, receipts, deliveries |
-| **Helpdesk Tickets** | ~80 | Support tickets with descriptions, priorities, statuses |
-| **Users** | 5-6 | Different roles: admin, sales manager, sales user, stock user, accountant, support |
-| **Companies** | 2 | Two companies for multi-tenant testing (`Company Alpha`, `Company Beta`) |
-
-This is not a toy — it's a realistic ERP with enough data to properly test aggregation, filtering, and edge cases.
-
-### Groq API
-
-- **Model**: `llama-3.1-8b-instant` (free tier: 30 RPM, 14,400 RPD)
-- **Function calling**: Groq supports tool_use with Llama 3.1 natively
-- **Latency**: ~1-3s per call (much faster than local inference)
-- **Fallback**: If rate-limited, queue and retry with exponential backoff
-
----
+Build an AI in Odoo 17 that knows the ERP (later in other versions)
 
 ## Architecture
 
