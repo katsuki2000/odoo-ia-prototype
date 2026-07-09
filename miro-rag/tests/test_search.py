@@ -14,6 +14,7 @@ import os
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 # Add parent directory for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -305,11 +306,14 @@ class TestCrossEncoderRerank(unittest.TestCase):
             {"id": "c", "document": "La gestion des stocks", "metadata": {}, "score": 0.7},
         ]
 
-        reranked = cross_encoder_rerank("facture Odoo comptabilité", results, top_k=2)
+        with patch("vectorstore.search._get_cross_encoder") as get_encoder:
+            get_encoder.return_value.predict.return_value = [0.1, 0.9, 0.2]
+            reranked = cross_encoder_rerank("facture Odoo comptabilité", results, top_k=2)
 
         self.assertEqual(len(reranked), 2)
         # The invoice-related doc should rank higher after re-ranking
         self.assertIn("cross_encoder_score", reranked[0])
+        self.assertEqual(reranked[0]["id"], "b")
 
     def test_rerank_empty(self):
         self.assertEqual(cross_encoder_rerank("test", [], top_k=5), [])
@@ -318,7 +322,9 @@ class TestCrossEncoderRerank(unittest.TestCase):
         results = [
             {"id": "a", "document": "test document", "metadata": {}, "score": 1.0},
         ]
-        reranked = cross_encoder_rerank("test", results, top_k=5)
+        with patch("vectorstore.search._get_cross_encoder") as get_encoder:
+            get_encoder.return_value.predict.return_value = [0.8]
+            reranked = cross_encoder_rerank("test", results, top_k=5)
         self.assertEqual(len(reranked), 1)
 
 
@@ -355,12 +361,23 @@ class TestRetrievePipeline(unittest.TestCase):
         self.chroma.add_chunks(texts, metadatas)
 
     def test_full_pipeline(self):
-        results = retrieve(
-            "Comment créer une facture ?",
-            top_k=3,
-            chroma_manager=self.chroma,
-            use_reranker=True,
-        )
+        with patch("vectorstore.search._get_cross_encoder") as get_encoder:
+            get_encoder.return_value.predict.return_value = [
+                1.0,
+                0.9,
+                0.8,
+                0.7,
+                0.6,
+                0.5,
+                0.4,
+                0.3,
+            ]
+            results = retrieve(
+                "Comment créer une facture ?",
+                top_k=3,
+                chroma_manager=self.chroma,
+                use_reranker=True,
+            )
         self.assertTrue(len(results) > 0)
         self.assertLessEqual(len(results), 3)
 

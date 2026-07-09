@@ -16,6 +16,21 @@ def test_generate_fallback():
     assert result["response"].confidence == 0.0
     assert len(result["response"].sources) == 0
 
+
+def test_generate_out_of_scope_refuses_before_llm():
+    state = {
+        "question": "Raconte-moi une blague sur les ERP.",
+        "chat_history": [],
+        "retrieved_chunks": [
+            {"document": "Odoo ERP context", "metadata": {"source": "wiki.txt"}}
+        ],
+    }
+    result = generate(state)
+    assert "Cette question ne fait pas partie de mon périmètre" in result["response"].answer
+    assert result["response"].confidence == 0.0
+    assert len(result["response"].sources) == 0
+
+
 # 2. Test OCR warning injection
 def test_format_output_ocr_warning():
     state = {
