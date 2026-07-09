@@ -1,0 +1,59 @@
+"""Tests for Step 5b Day 2 ingestion API endpoints."""
+
+from unittest.mock import MagicMock, patch
+
+import pytest
+from pydantic import ValidationError
+
+from api.main import ReindexRequestV1, ingestion_status, reindex_v1
+
+
+def test_api_v1_incremental_reindex_indexes_requested_path(tmp_path):
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir()
+    source_file = docs_dir / "api_doc.txt"
+    source_file.write_text("API ingestion document.", encoding="utf-8")
+    manager = MagicMock()
+    manager.get_stats.return_value = {"total_chunks": 1}
+    manager.db_path = tmp_path / "chroma"
+    manager.collection_name = "api_incremental"
+
+    with (
+        patch("api.main.ChromaManager", return_value=manager),
+        patch("api.main.reindex_if_changed") as reindex,
+        patch("api.main.write_ingestion_event"),
+    ):
+        reindex.return_value = {
+            "added_files": [str(source_file.resolve())],
+            "updated_files": [],
+            "deleted_files": [],
+            "skipped_files": [],
+            "failed_files": {},
+            "chunks_added": 1,
+            "chunks_deleted": 0,
+        }
+        response = reindex_v1(ReindexRequestV1(scope="incremental", path=str(docs_dir)))
+
+    payload = response.model_dump()
+    assert payload["status"] == "success"
+    assert payload["scope"] == "incremental"
+    assert str(source_file.resolve()) in payload["result"]["added_files"]
+    assert payload["total_chunks"] == 1
+
+
+def test_api_v1_ingestion_status_reports_stats_and_watcher_state(tmp_path):
+    manager = MagicMock()
+    manager.get_stats.return_value = {"total_chunks": 1}
+
+    with patch("api.main.ChromaManager", return_value=manager):
+        response = ingestion_status()
+
+    payload = response.model_dump()
+    assert payload["total_chunks"] == 1
+    assert payload["files_monitored"] >= 0
+    assert payload["watcher_status"]["watcher_running"] is False
+
+
+def test_api_v1_reindex_rejects_invalid_scope():
+    with pytest.raises(ValidationError):
+        ReindexRequestV1(scope="unknown")

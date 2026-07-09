@@ -31,6 +31,22 @@ logger = logging.getLogger(__name__)
 # ERP metadata types that trigger the data_query branch
 ERP_TYPES = {"sale", "ticket"}
 
+OUT_OF_SCOPE_ANSWER = (
+    "Cette question ne fait pas partie de mon périmètre. "
+    "Je suis spécialisé dans l'assistance et les procédures internes"
+)
+
+OUT_OF_SCOPE_TERMS = {
+    "blague",
+    "gâteau",
+    "gateau",
+    "recette",
+    "coupe du monde",
+    "poème",
+    "poeme",
+    "lune",
+}
+
 
 # ── State Definition ──────────────────────────────────────────────────────────
 
@@ -64,6 +80,15 @@ def retrieve(state: RAGState) -> dict:
         chunks = []
         
     return {"retrieved_chunks": chunks}
+
+
+def _is_out_of_scope(question: str) -> bool:
+    """Reject obvious non-work questions before the LLM can improvise."""
+    normalized_question = question.lower().strip()
+    if not normalized_question:
+        return False
+
+    return any(term in normalized_question for term in OUT_OF_SCOPE_TERMS)
 
 
 def route(state: RAGState) -> dict:
@@ -118,6 +143,15 @@ def generate(state: RAGState) -> dict:
     question = state["question"]
     chunks = state["retrieved_chunks"]
     logger.info("Node [generate]: Building prompt and calling LLM")
+
+    if _is_out_of_scope(question):
+        logger.info("Node [generate]: Deterministic out-of-scope refusal.")
+        response = AssistantResponse(
+            answer=OUT_OF_SCOPE_ANSWER,
+            sources=[],
+            confidence=0.0,
+        )
+        return {"response": response, "raw_answer": response.answer}
 
     # Fallback if no relevant chunks are found
     if not chunks:
