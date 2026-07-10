@@ -1,9 +1,13 @@
 # config/settings.py
 import os
+from pathlib import Path
 from dotenv import load_dotenv
 
-# Load the variables from the .env file
-load_dotenv()
+# Load variables from .env or env file near project root
+_ROOT = Path(__file__).resolve().parent.parent
+load_dotenv(_ROOT / ".env")
+if not os.getenv("GROQ_API_KEY"):
+    load_dotenv(_ROOT / "env")
 
 # ── LLM ──────────────────────────────────────────────
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "groq")  # "groq" or "ollama"

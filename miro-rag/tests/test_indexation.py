@@ -15,7 +15,7 @@ class TestIncrementalIndexation(unittest.TestCase):
     """Validate modify, delete, and add incremental indexing scenarios."""
 
     def setUp(self):
-        self.temp_dir = tempfile.TemporaryDirectory()
+        self.temp_dir = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
         self.root = Path(self.temp_dir.name)
         self.docs_dir = self.root / "docs"
         self.db_path = self.root / "chroma"
@@ -30,7 +30,14 @@ class TestIncrementalIndexation(unittest.TestCase):
             self.manager.delete_collection()
         except Exception:
             pass
-        self.temp_dir.cleanup()
+        try:
+            del self.manager
+        except Exception:
+            pass
+        try:
+            self.temp_dir.cleanup()
+        except Exception:
+            pass
 
     def test_modify_document_reindexes_only_changed_source(self):
         first_file = self.docs_dir / "first.txt"
