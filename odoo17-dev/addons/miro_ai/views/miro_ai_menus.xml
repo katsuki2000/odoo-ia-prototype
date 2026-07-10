@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Menu Principal MIRO AI -->
+    <menuitem id="menu_miro_ai_root"
+              name="MIRO Assistant"
+              sequence="50"
+              web_icon="miro_ai,static/description/icon.png"
+              groups="base.group_user"/>
+
+    <!-- Sous-menu Configuration -->
+    <menuitem id="menu_miro_ai_config"
+              name="Configuration"
+              parent="menu_miro_ai_root"
+              sequence="100"
+              groups="base.group_system"/>
+
+    <!-- Option Paramètres sous Configuration -->
+    <menuitem id="menu_miro_ai_settings_action"
+              name="Paramètres"
+              parent="menu_miro_ai_config"
+              action="action_miro_ai_settings"
+              sequence="10"/>
+</odoo>
