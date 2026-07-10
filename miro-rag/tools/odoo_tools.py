@@ -35,9 +35,11 @@ def obtenir_total_ventes(client: str, periode: str) -> str:
     """
     uid = _get_current_uid()
     domain = [
-        ("partner_id.name", "ilike", client),
         ("state", "in", ["sale", "done"])
     ]
+    
+    if client and client.lower() not in ["tous les clients", "tous", ""]:
+        domain.append(("partner_id.name", "ilike", client))
     
     date_range = parse_period(periode)
     if date_range:
@@ -151,10 +153,12 @@ def obtenir_total_factures(client: str, statut: str) -> str:
         payment_state = "not_paid"
         
     domain = [
-        ("partner_id.name", "ilike", client),
         ("move_type", "=", "out_invoice"),
         ("state", "=", state)
     ]
+    
+    if client and client.lower() not in ["tous les clients", "tous", ""]:
+        domain.append(("partner_id.name", "ilike", client))
     
     if state == "posted":
         domain.append(("payment_state", "in", ["paid", "in_payment"] if payment_state == "paid" else ["not_paid", "partial"]))
@@ -215,27 +219,40 @@ def rechercher_client(nom: str) -> str:
         return f"Erreur lors de la recherche du client : {str(e)}"
 
 @tool
-def obtenir_tickets_recents(client: str, limite: int = 5) -> str:
+def obtenir_tickets_recents(client: str, limite: int = 5, statut: Optional[str] = None) -> str:
     """
     Obtenir les tickets de support ou tâches de projet récents pour un client.
     
     Args:
-        client: Le nom du client.
+        client: Le nom du client. (Optionnel si on veut tous les clients, utiliser une chaine vide).
         limite: Le nombre maximum de tickets à récupérer (défaut: 5).
+        statut: Le statut du ticket (ex: 'résolu', 'en cours'). Optionnel.
     """
     uid = _get_current_uid()
-    domain = [("partner_id.name", "ilike", client)]
-    
+    domain = []
+    if client and client.lower() != "tous les clients":
+        domain.append(("partner_id.name", "ilike", client))
+        
+    if statut:
+        # Simple mapping for common states
+        statut_lower = statut.lower()
+        if "résolu" in statut_lower or "fini" in statut_lower or "done" in statut_lower:
+            domain.append(("state", "=", "1_done"))
+        elif "en cours" in statut_lower or "progress" in statut_lower:
+            domain.append(("state", "=", "01_in_progress"))
+        elif "nouveau" in statut_lower or "ouvert" in statut_lower:
+            domain.append(("state", "=", "01_in_progress")) # Approximate
+            
     try:
         # We use project.task as our mock helpdesk ticket per Step 1 populate script
         records = connector.search_read(
             uid=uid,
             model="project.task",
             domain=domain,
-            fields=["name", "state", "create_date"]
+            fields=["name", "state", "create_date", "partner_id"]
         )
         if not records:
-            return f"Aucun ticket récent trouvé pour {client}."
+            return f"Aucun ticket récent trouvé pour {client or 'tous les clients'} avec le statut '{statut or 'tous'}'."
             
         # Check for ambiguity by looking at unique partner_ids in the results
         unique_partners = set()
