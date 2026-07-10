@@ -131,7 +131,7 @@ document.addEventListener('DOMContentLoaded', () => {
             } else if (msg.role === 'error') {
                 appendErrorBubble(msg.text);
             } else {
-                appendAIBubble(msg.text);
+                appendAIBubble(msg.text, msg.sources, msg.confidence, msg.ocr_warning);
             }
         });
 
@@ -149,13 +149,61 @@ document.addEventListener('DOMContentLoaded', () => {
         chatMessages.appendChild(div);
     }
 
-    function appendAIBubble(text) {
+    function appendAIBubble(text, sources = [], confidence = null, ocrWarning = false) {
         const div = document.createElement('div');
         div.className = 'message ai-message';
+        
+        let metaHtml = '';
+        if (confidence !== null || sources.length > 0) {
+            metaHtml += '<div class="message-meta">';
+            
+            // Confidence badge
+            if (confidence !== null) {
+                let confClass = 'high';
+                if (confidence < 0.5) confClass = 'low';
+                else if (confidence < 0.8) confClass = 'medium';
+                
+                const pct = Math.round(confidence * 100);
+                metaHtml += `<div class="confidence-badge ${confClass}">
+                    <i class="fa-solid fa-check-circle"></i> Confiance : ${pct}%
+                </div>`;
+            }
+            
+            // Sources
+            if (sources.length > 0) {
+                metaHtml += '<div class="sources-container">';
+                sources.forEach((s, idx) => {
+                    const icon = s.doc_type === 'pdf' ? 'fa-file-pdf' :
+                                 s.doc_type === 'wiki' ? 'fa-book' :
+                                 s.doc_type === 'ticket' ? 'fa-ticket' : 'fa-file-lines';
+                    
+                    const warningHtml = ocrWarning ? '<i class="fa-solid fa-triangle-exclamation ocr-warning" title="Avertissement OCR"></i>' : '';
+                    
+                    metaHtml += `
+                        <details class="source-item">
+                            <summary>
+                                <i class="fa-solid ${icon} source-type-icon"></i>
+                                <span class="source-title">[${idx + 1}] ${escapeHTML(s.title || s.source)}</span>
+                                ${warningHtml}
+                                <i class="fa-solid fa-chevron-down" style="font-size: 0.75rem; margin-left: auto;"></i>
+                            </summary>
+                            <div class="source-snippet">${escapeHTML(s.snippet)}</div>
+                        </details>
+                    `;
+                });
+                metaHtml += '</div>';
+            }
+            
+            metaHtml += '</div>';
+        }
+
+        const formattedText = typeof marked !== 'undefined' ? marked.parse(text) : formatAnswer(text);
+
         div.innerHTML = `
             <div class="avatar"><i class="fa-solid fa-robot"></i></div>
             <div class="message-body">
-                <div class="message-content"><p>${formatAnswer(text)}</p></div>
+                <div class="message-content">${formattedText}</div>
+                ${metaHtml}
             </div>`;
         chatMessages.appendChild(div);
     }
@@ -329,8 +377,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 appendErrorBubble(detail);
             } else {
                 const data = await resp.json();
-                conv.messages.push({ role: 'assistant', text: data.answer });
-                appendAIBubble(data.answer);
+                conv.messages.push({ 
+                    role: 'assistant', 
+                    text: data.answer,
+                    sources: data.sources || [],
+                    confidence: data.confidence || 1.0,
+                    ocr_warning: data.ocr_warning || false
+                });
+                appendAIBubble(data.answer, data.sources, data.confidence, data.ocr_warning);
             }
         } catch (err) {
             removeTyping(typingId);

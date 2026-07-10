@@ -99,6 +99,9 @@ class AskResponseV1(BaseModel):
     answer: str
     question: str
     session_id: str
+    sources: list[dict] = Field(default_factory=list)
+    confidence: float = 1.0
+    ocr_warning: bool = False
 
 
 class StatsResponse(BaseModel):
@@ -307,7 +310,10 @@ def ask_question_v1(request: AskRequestV1, user: dict = Depends(get_current_user
         return AskResponseV1(
             answer=response.answer,
             question=request.question,
-            session_id=request.session_id
+            session_id=request.session_id,
+            sources=[s.model_dump() for s in response.sources] if hasattr(response, 'sources') else [],
+            confidence=response.confidence if hasattr(response, 'confidence') else 1.0,
+            ocr_warning=response.ocr_warning if hasattr(response, 'ocr_warning') else False
         )
     except HTTPException:
         raise
