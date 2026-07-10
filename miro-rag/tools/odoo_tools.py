@@ -14,11 +14,19 @@ from tools.date_utils import parse_period
 # The user's UID must be provided to each tool when called by the agent.
 connector = OdooConnector()
 
-# Cache the authenticated uid to avoid re-authenticating on every tool call.
-# In Step 7, this will be replaced by per-request UID injection from LangGraph state.
+import contextvars
+odoo_uid_ctx = contextvars.ContextVar('odoo_uid', default=None)
+
+# Cache the authenticated uid for fallback when testing outside of LangGraph
 _cached_uid = None
 
 def _get_current_uid() -> int:
+    # First, try to get the uid injected from the LangGraph request context
+    uid = odoo_uid_ctx.get()
+    if uid is not None:
+        return uid
+        
+    # Fallback to admin for legacy tests
     global _cached_uid
     if _cached_uid is None:
         _cached_uid = connector.authenticate("admin")

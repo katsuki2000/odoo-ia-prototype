@@ -24,6 +24,8 @@ from fastapi.responses import RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import Any, Literal, Optional
+from fastapi import Depends
+from api.auth import get_current_user
 from config.settings import API_HOST, API_PORT
 import asyncio
 import logging
@@ -266,7 +268,7 @@ def get_stats():
 
 
 @app.post("/api/v1/ask", response_model=AskResponseV1)
-def ask_question_v1(request: AskRequestV1):
+def ask_question_v1(request: AskRequestV1, user: dict = Depends(get_current_user)):
     """
     V1 endpoint for asking questions, using the LangGraph agent.
     """
@@ -278,17 +280,35 @@ def ask_question_v1(request: AskRequestV1):
     chat_history = [] 
 
     try:
+        if not request.question or not request.question.strip():
+            raise HTTPException(status_code=400, detail="Empty question provided.")
+
+        # Override uid from the trusted JWT token
+        token_uid = user.get("uid")
+        if token_uid:
+            request.user_uid = token_uid
+
         response = query_graph(
             question=request.question,
             chat_history=chat_history,
-            uid=request.user_uid
+            uid=request.user_uid,
+            skills=request.skills
         )
+        
+        if response.answer == "Une erreur interne s'est produite lors de l'exécution du pipeline.":
+            raise HTTPException(status_code=503, detail="Service Unavailable: Upstream provider down.")
+
         return AskResponseV1(
             answer=response.answer,
             question=request.question,
             session_id=request.session_id
         )
+    except HTTPException:
+        raise
     except Exception as e:
+        error_msg = str(e).lower()
+        if "connection" in error_msg or "timeout" in error_msg or "xmlrpc" in error_msg:
+            raise HTTPException(status_code=503, detail=f"Service Unavailable: {str(e)}")
         raise HTTPException(status_code=500, detail=f"RAG Graph error: {str(e)}")
 
 

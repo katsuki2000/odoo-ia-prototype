@@ -139,3 +139,4 @@ sentence-transformers
 langchain-groq
 langgraph
 langchain
+PyJWT
