@@ -101,24 +101,19 @@ def route(state: RAGState) -> dict:
     question = state.get("question", "").lower()
     logger.info("Node [route]: Classifying query type from %d chunks", len(chunks))
 
-    # Extended ERP keyword list — covers all 8 ORM tools
+    # Force DOCUMENTAIRE for "how to" or code structural questions
+    doc_keywords = ["comment", "procédure", "qui peut", "qui doit", "quel fichier", "quelle classe", "quel est le rôle", "quels sont les modèles", "dans quel fichier", "procédure de validation"]
+    if any(kw in question for kw in doc_keywords):
+        logger.info("Node [route]: Query matched explicit doc keywords → DOCUMENTAIRE branch")
+        return {"route": QueryRoute.DOCUMENTAIRE.value}
+
+    # Strict ERP intent list (e.g. asking for amounts, stats, or specific lookups)
     erp_keywords = [
-        # Sales
-        "combien de ventes", "montant total", "total des ventes", "chiffre d'affaires",
-        "ventes en cours", "facturé à ce jour", "quel produit a été vendu",
-        # Orders
-        "statut de la commande", "statut commande", "commande", "bon de commande",
-        # Invoices
-        "facture", "total des factures", "factures impayées", "factures payées",
-        # Stock
-        "stock", "rupture", "quantité disponible", "produit en rupture", "inventaire",
-        # Tickets
-        "ticket", "tickets de support", "ticket de support le plus récent",
-        "tickets sont résolus", "tickets en cours",
-        # Partners
-        "rechercher client", "coordonnées", "contact", "client",
-        # Generic ERP terms
-        "toutes périodes confondues", "ce mois", "cette année", "cette annee",
+        "combien de", "montant total", "total des", "chiffre d'affaires",
+        "statut de la", "statut commande", "factures impayées", "factures payées",
+        "quantité disponible", "produit en rupture", "le plus récent",
+        "tickets résolus", "tickets en cours", "rechercher client", "coordonnées",
+        "toutes périodes confondues", "ce mois", "cette année"
     ]
     if any(kw in question for kw in erp_keywords):
         logger.info("Node [route]: Query matched explicit ERP keywords → DONNEES_ERP branch")
