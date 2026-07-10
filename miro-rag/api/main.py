@@ -25,11 +25,17 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import Any, Literal, Optional
 from config.settings import API_HOST, API_PORT
+import asyncio
+import logging
 from ingestion.ingest_all import CODE_DIR, DOCS_DIR, IngestionOrchestrator
 from ingestion.incremental import reindex_if_changed
 from ingestion.logging_utils import now_iso, start_timer, write_ingestion_event
 from ingestion.watcher import DEFAULT_CODE_DIR, DEFAULT_DOCS_DIR
+from ingestion.scheduler import PeriodicScanScheduler, run_scheduled_scan, run_startup_scan
 from vectorstore.chroma_manager import ChromaManager
+
+# Background task handle for scheduled scans
+SCHEDULER_INSTANCE: PeriodicScanScheduler | None = None
 
 
 app = FastAPI(
@@ -110,11 +116,28 @@ class IngestionStatusResponse(BaseModel):
     total_chunks: int
     files_monitored: int
     watcher_status: dict[str, Any]
+    scheduler_status: Optional[dict[str, Any]] = None
+    last_scan_type: Optional[str] = None
+
+
+class ScheduledScanResponse(BaseModel):
+    """Response body for triggering or checking scheduled scan."""
+    status: str
+    scan_type: str
+    result: dict[str, Any]
+    last_ingestion_time: Optional[str]
 
 
 LAST_INGESTION_STATUS: dict[str, Any] = {
     "last_ingestion_time": None,
     "last_result": None,
+    "last_scan_type": None,
+    "scheduler_status": {
+        "interval_hours": 6,
+        "running": False,
+        "last_startup_scan_time": None,
+        "last_scheduled_scan_time": None,
+    },
 }
 WATCHER_INSTANCE = None
 
@@ -300,7 +323,25 @@ def ingestion_status():
         total_chunks=int(stats.get("total_chunks", 0) or 0),
         files_monitored=_count_supported_files([DEFAULT_DOCS_DIR, DEFAULT_CODE_DIR]),
         watcher_status=watcher_status,
+        scheduler_status=LAST_INGESTION_STATUS.get("scheduler_status"),
+        last_scan_type=LAST_INGESTION_STATUS.get("last_scan_type"),
     )
+
+
+@app.post("/api/v1/ingestion/scheduled-scan", response_model=ScheduledScanResponse)
+def trigger_scheduled_scan():
+    """Manually trigger one execution of the 6-hour scheduled periodic incremental scan."""
+    try:
+        manager = ChromaManager()
+        result = run_scheduled_scan([DOCS_DIR, CODE_DIR], manager, LAST_INGESTION_STATUS)
+        return ScheduledScanResponse(
+            status="success",
+            scan_type="periodic_incremental_scan",
+            result=result,
+            last_ingestion_time=LAST_INGESTION_STATUS.get("last_ingestion_time"),
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Scheduled scan failed: {str(exc)}")
 
 
 def _classify_reindex_path(target_path: Path) -> tuple[Path | str, Path | str]:
@@ -346,6 +387,43 @@ def _get_watcher_status() -> dict[str, Any]:
         "last_result": None,
         "errors": [],
     }
+
+
+@app.on_event("startup")
+async def _startup_scan_and_scheduler() -> None:
+    """Run one incremental scan at startup and schedule periodic scans."""
+    global SCHEDULER_INSTANCE
+    logger = logging.getLogger(__name__)
+
+    try:
+        logger.info("Startup incremental scan: scanning %s and %s", DOCS_DIR, CODE_DIR)
+        await asyncio.to_thread(
+            run_startup_scan,
+            [DOCS_DIR, CODE_DIR],
+            None,
+            LAST_INGESTION_STATUS,
+        )
+    except Exception as exc:
+        logger.exception("Startup incremental scan failed: %s", exc)
+
+    if SCHEDULER_INSTANCE is None:
+        SCHEDULER_INSTANCE = PeriodicScanScheduler(
+            interval_hours=6,
+            roots=[DOCS_DIR, CODE_DIR],
+            chroma_manager=None,
+            status_dict=LAST_INGESTION_STATUS,
+        )
+    SCHEDULER_INSTANCE.start()
+
+
+@app.on_event("shutdown")
+async def _shutdown_cancel_tasks() -> None:
+    """Cancel background tasks cleanly on shutdown."""
+    global SCHEDULER_INSTANCE
+    logger = logging.getLogger(__name__)
+    if SCHEDULER_INSTANCE is not None:
+        logger.info("Stopping background periodic scan scheduler...")
+        await SCHEDULER_INSTANCE.stop()
 
 
 if __name__ == "__main__":
