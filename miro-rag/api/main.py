@@ -63,6 +63,14 @@ class AskRequest(BaseModel):
     filter_type: Optional[str] = Field(None, description="Filter by document type: wiki, ticket, sale, manual")
 
 
+class AskRequestV1(BaseModel):
+    """Request body for /api/v1/ask."""
+    question: str = Field(..., min_length=1)
+    session_id: str
+    user_uid: int
+    company_id: int
+    skills: dict[str, bool] = Field(default_factory=dict)
+
 class Source(BaseModel):
     """A single source document reference."""
     source: str
@@ -76,6 +84,13 @@ class AskResponse(BaseModel):
     answer: str
     question: str
     sources: list[Source]
+
+
+class AskResponseV1(BaseModel):
+    """Response body for /api/v1/ask."""
+    answer: str
+    question: str
+    session_id: str
 
 
 class StatsResponse(BaseModel):
@@ -156,6 +171,83 @@ def health_check():
     return {"status": "ok", "service": "miro-rag-api"}
 
 
+@app.get("/api/v1/health")
+def health_check_v1():
+    """V1 health check verifying services."""
+    import os
+    import requests
+    from vectorstore.chroma_manager import get_chroma_client
+    from tools.odoo_connector import OdooConnector
+    
+    status = {"status": "ok", "services": {}}
+    
+    # Check Chroma
+    try:
+        client = get_chroma_client()
+        client.heartbeat()
+        status["services"]["chroma"] = "ok"
+    except Exception as e:
+        status["services"]["chroma"] = "error"
+        status["status"] = "degraded"
+        
+    # Check Odoo
+    try:
+        connector = OdooConnector()
+        connector.authenticate("admin") # Quick test
+        status["services"]["odoo"] = "ok"
+    except Exception:
+        status["services"]["odoo"] = "error"
+        status["status"] = "degraded"
+        
+    # Check Groq
+    groq_api_key = os.getenv("GROQ_API_KEY")
+    if not groq_api_key:
+        status["services"]["groq"] = "error (no key)"
+        status["status"] = "degraded"
+    else:
+        status["services"]["groq"] = "ok"
+
+    return status
+
+class ModuleCoverageResponse(BaseModel):
+    supported: list[str]
+    code_indexed: list[str]
+    not_covered: list[str]
+
+@app.get("/api/v1/modules", response_model=ModuleCoverageResponse)
+def get_modules():
+    """
+    Get module coverage data comparing installed Odoo modules against AI capabilities.
+    """
+    from tools.odoo_connector import OdooConnector, ALLOWED_MODELS
+    try:
+        connector = OdooConnector()
+        uid = connector.authenticate("admin")
+        records = connector.search_read(
+            uid=uid,
+            model="ir.module.module",
+            domain=[("state", "=", "installed")],
+            fields=["name"]
+        )
+        installed = {r["name"] for r in records}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Odoo error: {str(e)}")
+        
+    # Mocking supported and code_indexed for now
+    # Ideally, code_indexed would query ChromaDB for distinct `module` metadata
+    supported = ["sale", "account", "helpdesk", "project", "stock"]
+    code_indexed = ["sale", "account", "helpdesk", "project", "stock", "base"]
+    
+    actual_supported = [m for m in supported if m in installed]
+    actual_code_indexed = [m for m in code_indexed if m in installed and m not in actual_supported]
+    not_covered = [m for m in installed if m not in supported and m not in code_indexed]
+    
+    return ModuleCoverageResponse(
+        supported=actual_supported,
+        code_indexed=actual_code_indexed,
+        not_covered=not_covered
+    )
+
 @app.get("/stats", response_model=StatsResponse)
 def get_stats():
     """Return statistics about the current vectorstore collection."""
@@ -171,6 +263,34 @@ def get_stats():
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to retrieve stats: {str(e)}")
+
+
+@app.post("/api/v1/ask", response_model=AskResponseV1)
+def ask_question_v1(request: AskRequestV1):
+    """
+    V1 endpoint for asking questions, using the LangGraph agent.
+    """
+    from rag.graph import query_graph
+    from langchain_core.messages import HumanMessage, AIMessage
+
+    # Note: In a real app, session_id would be used to load chat_history from a DB.
+    # Here we just pass an empty history for now since session management isn't fully implemented in the backend yet.
+    chat_history = [] 
+
+    try:
+        response = query_graph(
+            question=request.question,
+            chat_history=chat_history,
+            uid=request.user_uid
+        )
+        return AskResponseV1(
+            answer=response.answer,
+            question=request.question,
+            session_id=request.session_id
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"RAG Graph error: {str(e)}")
+
 
 
 @app.post("/ask", response_model=AskResponse)

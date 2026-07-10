@@ -19,6 +19,7 @@ ALLOWED_MODELS = {
     "project.task",
     "res.partner",
     "product.product",
+    "ir.module.module",
 }
 
 class OdooConnectorError(Exception):
