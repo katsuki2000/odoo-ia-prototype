@@ -56,6 +56,9 @@ REACT_RECURSION_LIMIT = 6
 class RAGState(TypedDict):
     question: str
     chat_history: List[BaseMessage]
+    uid: Optional[int]
+    skills: Optional[dict]
+    timing: dict
     retrieved_chunks: List[dict]
     raw_answer: str
     route: Optional[str]
@@ -67,6 +70,8 @@ class RAGState(TypedDict):
 
 def retrieve(state: RAGState) -> dict:
     """Retrieve relevant documents for the query."""
+    import time
+    start_time = time.time()
     question = state["question"]
     logger.info("Node [retrieve]: Fetching documents for: %s", question)
     
@@ -97,50 +102,55 @@ def _is_out_of_scope(question: str) -> bool:
 
 def route(state: RAGState) -> dict:
     """Classify the query as documentaire or donnees_erp based on chunk metadata and query keywords."""
+    import time
+    start_time = time.time()
     chunks = state.get("retrieved_chunks", [])
     question = state.get("question", "").lower()
     logger.info("Node [route]: Classifying query type from %d chunks", len(chunks))
 
-    # Force DOCUMENTAIRE for "how to" or code structural questions
+    # Check for explicit documentation query keywords
     doc_keywords = ["comment", "procédure", "qui peut", "qui doit", "quel fichier", "quelle classe", "quel est le rôle", "quels sont les modèles", "dans quel fichier", "procédure de validation"]
     if any(kw in question for kw in doc_keywords):
         logger.info("Node [route]: Query matched explicit doc keywords → DOCUMENTAIRE branch")
-        return {"route": QueryRoute.DOCUMENTAIRE.value}
-
-    # Strict ERP intent list (e.g. asking for amounts, stats, or specific lookups)
-    erp_keywords = [
-        "combien de", "montant total", "total des", "chiffre d'affaires",
-        "statut de la", "statut commande", "factures impayées", "factures payées",
-        "quantité disponible", "produit en rupture", "le plus récent",
-        "tickets résolus", "tickets en cours", "rechercher client", "coordonnées",
-        "toutes périodes confondues", "ce mois", "cette année"
-    ]
-    if any(kw in question for kw in erp_keywords):
-        logger.info("Node [route]: Query matched explicit ERP keywords → DONNEES_ERP branch")
-        return {"route": QueryRoute.DONNEES_ERP.value}
-
-    if not chunks:
-        logger.info("Node [route]: No chunks → defaulting to documentaire")
-        return {"route": QueryRoute.DOCUMENTAIRE.value}
-
-    # Count how many chunks come from ERP data sources
-    erp_count = 0
-    for chunk in chunks:
-        meta = chunk.get("metadata") or {}
-        chunk_type = meta.get("type", "").lower().strip()
-        if chunk_type in ERP_TYPES:
-            erp_count += 1
-
-    erp_ratio = erp_count / len(chunks) if len(chunks) > 0 else 0
-    logger.info("Node [route]: ERP ratio = %d/%d (%.0f%%)", erp_count, len(chunks), erp_ratio * 100)
-
-    data_terms = ["combien", "montant", "ticket", "vente", "statut", "liste", "résolu", "en cours", "stock", "facture", "commande", "client", "chiffre"]
-    if erp_ratio >= 0.6 and any(term in question for term in data_terms):
-        logger.info("Node [route]: High ERP ratio + data terms → DONNEES_ERP branch")
-        return {"route": QueryRoute.DONNEES_ERP.value}
+        route_decision = QueryRoute.DOCUMENTAIRE.value
     else:
-        logger.info("Node [route]: → DOCUMENTAIRE branch")
-        return {"route": QueryRoute.DOCUMENTAIRE.value}
+        # Strict ERP intent list (e.g. asking for amounts, stats, or specific lookups)
+        erp_keywords = [
+            "combien de", "montant total", "total des", "chiffre d'affaires",
+            "statut de la", "statut commande", "factures impayées", "factures payées",
+            "quantité disponible", "produit en rupture", "le plus récent",
+            "tickets résolus", "tickets en cours", "rechercher client", "coordonnées",
+            "toutes périodes confondues", "ce mois", "cette année"
+        ]
+        if any(kw in question for kw in erp_keywords):
+            logger.info("Node [route]: Query matched explicit ERP keywords → DONNEES_ERP branch")
+            route_decision = QueryRoute.DONNEES_ERP.value
+        elif not chunks:
+            logger.info("Node [route]: No chunks → defaulting to documentaire")
+            route_decision = QueryRoute.DOCUMENTAIRE.value
+        else:
+            # Count how many chunks come from ERP data sources
+            erp_count = 0
+            for chunk in chunks:
+                meta = chunk.get("metadata") or {}
+                chunk_type = meta.get("type", "").lower().strip()
+                if chunk_type in ERP_TYPES:
+                    erp_count += 1
+
+            erp_ratio = erp_count / len(chunks) if len(chunks) > 0 else 0
+            logger.info("Node [route]: ERP ratio = %d/%d (%.0f%%)", erp_count, len(chunks), erp_ratio * 100)
+
+            data_terms = ["combien", "montant", "ticket", "vente", "statut", "liste", "résolu", "en cours", "stock", "facture", "commande", "client", "chiffre"]
+            if erp_ratio >= 0.6 and any(term in question for term in data_terms):
+                logger.info("Node [route]: High ERP ratio + data terms → DONNEES_ERP branch")
+                route_decision = QueryRoute.DONNEES_ERP.value
+            else:
+                logger.info("Node [route]: → DOCUMENTAIRE branch")
+                route_decision = QueryRoute.DOCUMENTAIRE.value
+
+    timing = state.get("timing", {}).copy()
+    timing["routing_time"] = time.time() - start_time
+    return {"route": route_decision, "timing": timing}
 
 
 def route_decision(state: RAGState) -> str:
@@ -150,10 +160,13 @@ def route_decision(state: RAGState) -> str:
 
 def generate(state: RAGState) -> dict:
     """Generate structured answer using Groq (documentary branch)."""
+    import time
+    start_time = time.time()
     question = state["question"]
     chunks = state["retrieved_chunks"]
     logger.info("Node [generate]: Building prompt and calling LLM")
 
+    # Fast-fail for out of scope
     if _is_out_of_scope(question):
         logger.info("Node [generate]: Deterministic out-of-scope refusal.")
         response = AssistantResponse(
@@ -161,7 +174,9 @@ def generate(state: RAGState) -> dict:
             sources=[],
             confidence=0.0,
         )
-        return {"response": response, "raw_answer": response.answer}
+        timing = state.get("timing", {}).copy()
+        timing["generation_time"] = time.time() - start_time
+        return {"response": response, "raw_answer": response.answer, "timing": timing}
 
     # Fallback if no relevant chunks are found
     if not chunks:
@@ -171,7 +186,9 @@ def generate(state: RAGState) -> dict:
             sources=[],
             confidence=0.0
         )
-        return {"response": response, "raw_answer": response.answer}
+        timing = state.get("timing", {}).copy()
+        timing["generation_time"] = time.time() - start_time
+        return {"response": response, "raw_answer": response.answer, "timing": timing}
 
     from rag.prompts import build_messages
 
@@ -217,7 +234,9 @@ def generate(state: RAGState) -> dict:
                 confidence=0.0
             )
         
-    return {"response": response, "raw_answer": response.answer if response else ""}
+    timing = state.get("timing", {}).copy()
+    timing["generation_time"] = time.time() - start_time
+    return {"response": response, "raw_answer": response.answer if response else "", "timing": timing}
 
 
 def orm_agent_loop(state: RAGState) -> dict:
@@ -226,6 +245,9 @@ def orm_agent_loop(state: RAGState) -> dict:
     Bound to all 8 Odoo ORM tools via llm.bind_tools().
     Recursion capped at REACT_RECURSION_LIMIT iterations.
     """
+    import time
+    start_time = time.time()
+    
     from langchain_core.messages import AIMessage, ToolMessage
     from tools.odoo_tools import (
         obtenir_total_ventes,
@@ -249,22 +271,34 @@ def orm_agent_loop(state: RAGState) -> dict:
             sources=[],
             confidence=0.0,
         )
-        return {"response": response, "raw_answer": response.answer}
+        timing = state.get("timing", {}).copy()
+        timing["generation_time"] = time.time() - start_time
+        return {"response": response, "raw_answer": response.answer, "timing": timing}
 
-    all_tools = [
-        obtenir_total_ventes,
-        obtenir_stock_produit,
-        obtenir_statut_commande,
-        obtenir_total_factures,
-        rechercher_client,
-        obtenir_tickets_recents,
-        lister_produits_en_rupture,
-        obtenir_ca_periode,
-    ]
+    skills = state.get("skills", {})
+    
+    # Base tools (always available)
+    all_tools = [rechercher_client]
+    
+    # Skill filtering
+    if skills.get("ventes", True):
+        all_tools.extend([obtenir_total_ventes, obtenir_statut_commande, obtenir_ca_periode])
+        
+    if skills.get("stocks", True):
+        all_tools.extend([obtenir_stock_produit, lister_produits_en_rupture])
+        
+    if skills.get("comptabilite", True):
+        all_tools.extend([obtenir_total_factures])
+        
+    if skills.get("tickets", True):
+        all_tools.extend([obtenir_tickets_recents])
 
-    tool_map = {t.name: t for t in all_tools}
-
-    llm = ChatGroq(model=GROQ_MODEL, temperature=0.0, max_tokens=1024)
+    # Re-bind tools dynamically to the LLM
+    llm = ChatGroq(
+        model=GROQ_MODEL,
+        api_key=GROQ_API_KEY,
+        temperature=0.0,
+    )
     llm_with_tools = llm.bind_tools(all_tools)
 
     system_prompt = (
@@ -309,10 +343,11 @@ def orm_agent_loop(state: RAGState) -> dict:
             tool_id = tool_call["id"]
             logger.info("Node [orm_agent_loop]: Calling tool '%s' with args %s", tool_name, tool_args)
 
-            if tool_name not in tool_map:
+            if tool_name not in [t.name for t in all_tools]:
                 observation = f"Outil '{tool_name}' non disponible."
             else:
                 try:
+                    tool_map = {t.name: t for t in all_tools}
                     observation = tool_map[tool_name].invoke(tool_args)
                 except Exception as e:
                     observation = f"Erreur lors de l'appel à {tool_name}: {str(e)}"
@@ -355,7 +390,10 @@ def orm_agent_loop(state: RAGState) -> dict:
         sources=sources,
         confidence=0.9 if tool_observations else 0.5,
     )
-    return {"response": response, "raw_answer": response.answer}
+    
+    timing = state.get("timing", {}).copy()
+    timing["generation_time"] = time.time() - start_time
+    return {"response": response, "raw_answer": response.answer, "timing": timing}
 
 
 def format_output(state: RAGState) -> dict:
@@ -425,27 +463,49 @@ def query_graph(
     question: str,
     chat_history: Optional[List[BaseMessage]] = None,
     uid: Optional[int] = None,
+    skills: Optional[dict] = None,
 ) -> AssistantResponse:
     """
     Public API to query the graph.
-    uid: Odoo user id for RBAC passthrough (injected into state for tool calls).
+    uid: Odoo user id for RBAC passthrough.
     """
+    import time
+    import json
+    start_time = time.time()
+    
     if chat_history is None:
         chat_history = []
+    if skills is None:
+        skills = {}
 
-    app = build_graph()
-    initial_state = {
-        "question": question,
-        "chat_history": chat_history,
-        "retrieved_chunks": [],
-        "raw_answer": "",
-        "route": None,
-        "response": None,
-        "uid": uid,
-    }
+    from tools.odoo_tools import odoo_uid_ctx
+    # Propagate the uid to tools via contextvar
+    token = None
+    if uid is not None:
+        token = odoo_uid_ctx.set(uid)
 
     try:
+        app = build_graph()
+        initial_state = {
+            "question": question,
+            "chat_history": chat_history,
+            "uid": uid,
+            "skills": skills,
+            "timing": {},
+            "retrieved_chunks": [],
+            "raw_answer": "",
+            "route": None,
+            "response": None,
+        }
+    
+        logger.info("Invoking graph for question: '%s'", question)
         final_state = app.invoke(initial_state)
+        
+        # Logging structured latency
+        timing = final_state.get("timing", {})
+        timing["total_time"] = time.time() - start_time
+        logger.info(json.dumps({"event": "request_latency", "metrics": timing}))
+        
         return final_state["response"]
     except Exception as e:
         logger.error("Graph execution failed: %s", e)
@@ -454,3 +514,6 @@ def query_graph(
             sources=[],
             confidence=0.0
         )
+    finally:
+        if token:
+            odoo_uid_ctx.reset(token)
