@@ -9,12 +9,14 @@ export class MiroAiAssistant extends Component {
         this.rpc = useService("rpc");
         this.notification = useService("notification");
         this.messagesContainer = useRef("messagesContainer");
+        const initialContent = "Bonjour ! Je suis MIRO AI, votre assistant ERP et documentaire sur Odoo 17. Comment puis-je vous aider aujourd'hui ?";
         this.state = useState({
             messages: [
                 {
                     id: 1,
                     sender: "bot",
-                    content: "Bonjour ! Je suis MIRO AI, votre assistant ERP et documentaire sur Odoo 17. Comment puis-je vous aider aujourd'hui ?",
+                    content: initialContent,
+                    formattedContent: this.formatMarkdown(initialContent),
                     sources: []
                 }
             ],
@@ -29,6 +31,55 @@ export class MiroAiAssistant extends Component {
                 this.messagesContainer.el.scrollTop = this.messagesContainer.el.scrollHeight;
             }
         });
+    }
+
+    formatMarkdown(text) {
+        if (!text) return "";
+        // 1. Sécurisation anti-XSS par échappement HTML basique
+        let html = text
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+
+        // 2. Blocs de code (fenced code blocks)
+        html = html.replace(/```(?:[a-zA-Z0-9_-]+)?\n?([\s\S]*?)```/g, (match, code) => {
+            return `<pre class="miro-code-block"><code>${code.trim()}</code></pre>`;
+        });
+
+        // 3. Code inline (`code`)
+        html = html.replace(/`([^`\n]+)`/g, `<code class="miro-inline-code">$1</code>`);
+
+        // 4. Titres (### Titre, ## Titre)
+        html = html.replace(/^###\s+(.*)$/gm, `<h6 class="miro-heading mt-2 mb-1 font-weight-bold">$1</h6>`);
+        html = html.replace(/^##\s+(.*)$/gm, `<h5 class="miro-heading mt-2 mb-1 font-weight-bold">$1</h5>`);
+
+        // 5. Gras et italique (**gras**, *italique*)
+        html = html.replace(/\*\*([^*\n]+)\*\*/g, `<strong>$1</strong>`);
+        html = html.replace(/\*([^*\n]+)\*/g, `<em>$1</em>`);
+
+        // 6. Liens Markdown [texte](url)
+        html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, `<a href="$2" target="_blank" rel="noopener noreferrer" class="miro-link font-weight-bold">$1</a>`);
+
+        // 7. Listes à puces (- élément ou * élément en début de ligne)
+        html = html.replace(/(?:^|\n)([-*]\s+.+(?:\n[-*]\s+.+)*)/g, (match, listBlock) => {
+            const items = listBlock.trim().split(/\n/).map(line => {
+                const itemText = line.replace(/^[-*]\s+/, '');
+                return `<li>${itemText}</li>`;
+            }).join('');
+            return `<ul class="miro-list pl-3 mb-2">${items}</ul>`;
+        });
+
+        // 8. Sauts de ligne simples en dehors des balises pre et ul
+        // Remplacement des sauts de ligne restants par des <br/>
+        const parts = html.split(/(<pre[\s\S]*?<\/pre>|<ul[\s\S]*?<\/ul>)/g);
+        for (let i = 0; i < parts.length; i++) {
+            if (!parts[i].startsWith('<pre') && !parts[i].startsWith('<ul')) {
+                parts[i] = parts[i].replace(/\n/g, '<br/>');
+            }
+        }
+        return parts.join('');
     }
 
     onKeyDown(ev) {
@@ -49,6 +100,7 @@ export class MiroAiAssistant extends Component {
             id: userMsgId,
             sender: "user",
             content: question,
+            formattedContent: this.formatMarkdown(question),
             sources: []
         });
         this.state.inputQuestion = "";
@@ -66,6 +118,7 @@ export class MiroAiAssistant extends Component {
                     id: botMsgId,
                     sender: "bot",
                     content: response.answer,
+                    formattedContent: this.formatMarkdown(response.answer),
                     sources: response.sources || []
                 });
                 if (response.session_id) {
@@ -77,10 +130,12 @@ export class MiroAiAssistant extends Component {
         } catch (error) {
             console.error("Erreur MIRO AI:", error);
             const errorMsgId = this.state.nextMsgId++;
+            const errMsg = "Désolé, une erreur est survenue lors de la communication avec l'assistant MIRO AI. Veuillez vérifier la connexion ou consulter le journal d'erreurs.";
             this.state.messages.push({
                 id: errorMsgId,
                 sender: "bot",
-                content: "Désolé, une erreur est survenue lors de la communication avec l'assistant MIRO AI. Veuillez vérifier la connexion ou consulter le journal d'erreurs.",
+                content: errMsg,
+                formattedContent: this.formatMarkdown(errMsg),
                 sources: []
             });
             this.notification.add("Erreur de connexion à l'assistant MIRO AI.", { type: "danger" });

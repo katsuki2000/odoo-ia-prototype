@@ -23,5 +23,28 @@
             <field name="implied_ids" eval="[(4, ref('group_miro_ai_user'))]"/>
             <field name="comment">Peut configurer l'API, les compétences et consulter tous les journaux.</field>
         </record>
+
+        <!-- Règle multi-sociétés pour les paramètres MIRO AI -->
+        <record id="rule_miro_ai_settings_company" model="ir.rule">
+            <field name="name">MIRO AI Settings Multi-Company</field>
+            <field name="model_id" ref="model_miro_ai_settings"/>
+            <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+        </record>
+
+        <!-- Règle de visibilité du journal : Utilisateur voit ses propres requêtes de sa société -->
+        <record id="rule_miro_ai_log_user" model="ir.rule">
+            <field name="name">MIRO AI Log : Voir ses requêtes</field>
+            <field name="model_id" ref="model_miro_ai_log"/>
+            <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+            <field name="domain_force">['&amp;', ('user_id', '=', user.id), ('company_id', 'in', company_ids)]</field>
+        </record>
+
+        <!-- Règle de visibilité du journal : Admin voit toutes les requêtes des sociétés autorisées -->
+        <record id="rule_miro_ai_log_admin" model="ir.rule">
+            <field name="name">MIRO AI Log : Admin voit tout</field>
+            <field name="model_id" ref="model_miro_ai_log"/>
+            <field name="groups" eval="[(4, ref('group_miro_ai_admin')), (4, ref('base.group_system'))]"/>
+            <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+        </record>
     </data>
 </odoo>

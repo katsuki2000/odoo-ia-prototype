@@ -21,6 +21,7 @@ Fonctionnalités :
         'security/miro_ai_security.xml',
         'security/ir.model.access.csv',
         'views/miro_ai_settings_views.xml',
+        'views/miro_ai_log_views.xml',
         'views/miro_ai_menus.xml',
     ],
     'assets': {

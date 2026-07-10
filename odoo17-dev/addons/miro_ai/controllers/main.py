@@ -82,33 +82,80 @@ class MiroAiController(http.Controller):
             "Authorization": f"Bearer {jwt_token}",
             "Content-Type": "application/json"
         }
+        effective_session = session_id or f"odoo_session_{uid}_{int(time.time())}"
         payload = {
             "question": question.strip(),
-            "session_id": session_id or f"odoo_session_{uid}_{int(time.time())}",
+            "session_id": effective_session,
             "user_uid": uid,
             "company_id": company_id,
             "groups": groups
         }
 
+        start_time = time.time()
         try:
             _logger.info("MIRO AI -> Interrogation RAG %s/api/v1/ask pour UID=%s", api_url, uid)
             resp = requests.post(f"{api_url}/api/v1/ask", headers=headers, json=payload, timeout=60)
+            elapsed_ms = int((time.time() - start_time) * 1000)
+
             if resp.status_code == 200:
                 data = resp.json()
+                answer_str = data.get('answer', 'Aucune réponse renvoyée par le RAG.')
+                sources_list = data.get('sources', [])
+                # Enregistrement du journal d'audit en succès
+                try:
+                    request.env['miro.ai.log'].sudo().log_query(
+                        question=question.strip(),
+                        answer=answer_str,
+                        session_id=effective_session,
+                        response_time_ms=elapsed_ms,
+                        sources=sources_list,
+                        state='success'
+                    )
+                except Exception as log_err:
+                    _logger.warning("Erreur lors de l'enregistrement du journal MIRO AI: %s", log_err)
+
                 return {
-                    'answer': data.get('answer', 'Aucune réponse renvoyée par le RAG.'),
-                    'sources': data.get('sources', []),
-                    'session_id': data.get('session_id', session_id)
+                    'answer': answer_str,
+                    'sources': sources_list,
+                    'session_id': data.get('session_id', effective_session)
                 }
             else:
+                elapsed_ms = int((time.time() - start_time) * 1000)
+                err_msg = f"Erreur du serveur RAG (code {resp.status_code}). Veuillez vérifier que le service FastAPI est actif."
                 _logger.error("Erreur API RAG HTTP %s: %s", resp.status_code, resp.text)
+                try:
+                    request.env['miro.ai.log'].sudo().log_query(
+                        question=question.strip(),
+                        answer=err_msg,
+                        session_id=effective_session,
+                        response_time_ms=elapsed_ms,
+                        sources=[],
+                        state='error'
+                    )
+                except Exception as log_err:
+                    _logger.warning("Erreur lors de l'enregistrement du journal MIRO AI: %s", log_err)
+
                 return {
-                    'answer': f"Erreur du serveur RAG (code {resp.status_code}). Veuillez vérifier que le service FastAPI est actif.",
+                    'answer': err_msg,
                     'sources': []
                 }
         except Exception as e:
+            elapsed_ms = int((time.time() - start_time) * 1000)
             _logger.exception("Impossible de contacter l'API RAG MIRO: %s", e)
+            err_msg = f"Impossible de contacter le serveur RAG MIRO ({api_url}). Vérifiez la configuration de l'URL."
+            try:
+                request.env['miro.ai.log'].sudo().log_query(
+                    question=question.strip(),
+                    answer=err_msg,
+                    session_id=effective_session,
+                    response_time_ms=elapsed_ms,
+                    sources=[],
+                    state='error'
+                )
+            except Exception as log_err:
+                _logger.warning("Erreur lors de l'enregistrement du journal MIRO AI: %s", log_err)
+
             return {
-                'answer': f"Impossible de contacter le serveur RAG MIRO ({api_url}). Vérifiez la configuration de l'URL.",
+                'answer': err_msg,
                 'sources': []
             }

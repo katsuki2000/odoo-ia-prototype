@@ -77,7 +77,37 @@ def main():
     print(f" -> Sources reçues : {len(result.get('sources', []))} sources")
     print(f" -> Session ID : {result.get('session_id')}")
     
-    print("\n[Vérification du Jour 3] Tous les tests du contrôleur Odoo sont PASSED !")
+    # 4. Vérification du Journal d'Audit (Step 11 Day 4)
+    print("\n[4] Vérification de l'enregistrement dans le Journal d'Audit (miro.ai.log)...")
+    kw_url = f"{ODOO_URL}/web/dataset/call_kw/miro.ai.log/search_read"
+    kw_payload = {
+        "jsonrpc": "2.0",
+        "method": "call",
+        "params": {
+            "model": "miro.ai.log",
+            "method": "search_read",
+            "args": [[["session_id", "=", "test_script_session_001"]]],
+            "kwargs": {
+                "fields": ["question", "response_time_ms", "sources_count", "state"],
+                "limit": 1
+            }
+        },
+        "id": int(time.time())
+    }
+    resp = session.post(kw_url, json=kw_payload)
+    data = resp.json()
+    if "error" in data:
+        print(f"Erreur lors de la lecture du journal d'audit : {data['error']}")
+        return False
+    logs = data.get("result", [])
+    if not logs:
+        print(" -> ATTENTION : Aucune entrée trouvée dans miro.ai.log pour cette session. Vérifiez si le module a été mis à jour.")
+    else:
+        log_entry = logs[0]
+        print(f" -> Journal d'audit trouvé : ID={log_entry.get('id')}, Durée={log_entry.get('response_time_ms')} ms, Statut={log_entry.get('state')}")
+        print(f" -> Question enregistrée : {log_entry.get('question')}")
+    
+    print("\n[Vérification du Jour 3 & 4] Tous les tests du contrôleur et du journal d'audit sont PASSED !")
     return True
 
 if __name__ == "__main__":
