@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="miro_ai.AssistantClientAction">
+        <div class="miro-ai-container o_content">
+            <div class="miro-ai-header">
+                <div class="miro-ai-title">
+                    <i class="fa fa-robot mr-2 text-primary"/> <span>Assistant MIRO AI</span>
+                </div>
+                <div class="miro-ai-subtitle text-muted">
+                    Posez vos questions sur la documentation ou explorez vos données ERP en temps réel.
+                </div>
+            </div>
+            <div class="miro-ai-messages" t-ref="messagesContainer">
+                <t t-foreach="state.messages" t-as="msg" t-key="msg.id">
+                    <div t-att-class="'miro-ai-message ' + (msg.sender === 'user' ? 'user-message' : 'bot-message')">
+                        <div class="message-sender" t-esc="msg.sender === 'user' ? 'Vous' : 'MIRO AI'"/>
+                        <div class="message-content" t-out="msg.content"/>
+                        <t t-if="msg.sources and msg.sources.length > 0">
+                            <details class="message-sources mt-2">
+                                <summary class="btn btn-sm btn-link p-0 text-muted">
+                                    <i class="fa fa-book"/> Sources (<t t-esc="msg.sources.length"/>)
+                                </summary>
+                                <ul class="list-unstyled pl-3 mt-1 text-muted small">
+                                    <t t-foreach="msg.sources" t-as="src" t-key="src_index">
+                                        <li>
+                                            <strong t-esc="src.title or src.source"/>
+                                            <span t-if="src.doc_type" t-att-class="'badge badge-light ml-1'" t-esc="src.doc_type"/>
+                                            <div class="font-italic text-truncate" t-esc="src.snippet"/>
+                                        </li>
+                                    </t>
+                                </ul>
+                            </details>
+                        </t>
+                    </div>
+                </t>
+                <div t-if="state.loading" class="miro-ai-message bot-message loading-indicator">
+                    <i class="fa fa-spinner fa-spin mr-2"/> <span>L'assistant réfléchit...</span>
+                </div>
+            </div>
+            <div class="miro-ai-input-area">
+                <div class="input-group">
+                    <input type="text" class="form-control" placeholder="Posez une question à MIRO AI..."
+                           t-model="state.inputQuestion" t-on-keydown="onKeyDown"/>
+                    <div class="input-group-append">
+                        <button class="btn btn-primary" type="button" t-on-click="sendMessage" t-att-disabled="state.loading">
+                            <i class="fa fa-paper-plane"/> Envoyer
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </t>
+</templates>

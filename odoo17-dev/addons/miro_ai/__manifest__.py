@@ -23,6 +23,13 @@ Fonctionnalités :
         'views/miro_ai_settings_views.xml',
         'views/miro_ai_menus.xml',
     ],
+    'assets': {
+        'web.assets_backend': [
+            'miro_ai/static/src/css/miro_ai.css',
+            'miro_ai/static/src/js/miro_ai.js',
+            'miro_ai/static/src/xml/miro_ai_assistant.xml',
+        ],
+    },
     'application': True,
     'installable': True,
     'auto_install': False,
