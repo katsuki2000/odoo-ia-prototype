@@ -3,8 +3,8 @@ rag/graph.py
 
 LangGraph RAG pipeline with hybrid routing.
 Flow:
-  retrieve → route → [documentaire]  → generate   → format_output → END
-                    → [donnees_erp]  → data_query  → format_output → END
+  retrieve → route → [documentaire]  → generate         → format_output → END
+                   → [donnees_erp]   → orm_agent_loop   → format_output → END
 """
 
 import logging
@@ -48,6 +48,9 @@ OUT_OF_SCOPE_TERMS = {
 }
 
 
+# Max ReAct iterations before forced stop (per implementation plan)
+REACT_RECURSION_LIMIT = 6
+
 # ── State Definition ──────────────────────────────────────────────────────────
 
 class RAGState(TypedDict):
@@ -57,6 +60,7 @@ class RAGState(TypedDict):
     raw_answer: str
     route: Optional[str]
     response: Optional[AssistantResponse]
+    uid: Optional[int]  # Odoo user uid for RBAC passthrough
 
 
 # ── Nodes ─────────────────────────────────────────────────────────────────────
@@ -97,12 +101,24 @@ def route(state: RAGState) -> dict:
     question = state.get("question", "").lower()
     logger.info("Node [route]: Classifying query type from %d chunks", len(chunks))
 
-    # Keyword check: if the question explicitly asks for ERP data counts/sums/lists
+    # Extended ERP keyword list — covers all 8 ORM tools
     erp_keywords = [
-        "combien de ventes", "montant total", "combien de tickets", 
-        "ticket de support le plus récent", "quel produit a été vendu", 
-        "tickets de support encore en cours", "toutes périodes confondues",
-        "ventes en cours", "tickets sont résolus", "facturé à ce jour"
+        # Sales
+        "combien de ventes", "montant total", "total des ventes", "chiffre d'affaires",
+        "ventes en cours", "facturé à ce jour", "quel produit a été vendu",
+        # Orders
+        "statut de la commande", "statut commande", "commande", "bon de commande",
+        # Invoices
+        "facture", "total des factures", "factures impayées", "factures payées",
+        # Stock
+        "stock", "rupture", "quantité disponible", "produit en rupture", "inventaire",
+        # Tickets
+        "ticket", "tickets de support", "ticket de support le plus récent",
+        "tickets sont résolus", "tickets en cours",
+        # Partners
+        "rechercher client", "coordonnées", "contact", "client",
+        # Generic ERP terms
+        "toutes périodes confondues", "ce mois", "cette année", "cette annee",
     ]
     if any(kw in question for kw in erp_keywords):
         logger.info("Node [route]: Query matched explicit ERP keywords → DONNEES_ERP branch")
@@ -123,8 +139,7 @@ def route(state: RAGState) -> dict:
     erp_ratio = erp_count / len(chunks) if len(chunks) > 0 else 0
     logger.info("Node [route]: ERP ratio = %d/%d (%.0f%%)", erp_count, len(chunks), erp_ratio * 100)
 
-    # Route to DONNEES_ERP if high ratio and contains basic data terms
-    data_terms = ["combien", "montant", "ticket", "vente", "statut", "liste", "résolu", "en cours"]
+    data_terms = ["combien", "montant", "ticket", "vente", "statut", "liste", "résolu", "en cours", "stock", "facture", "commande", "client", "chiffre"]
     if erp_ratio >= 0.6 and any(term in question for term in data_terms):
         logger.info("Node [route]: High ERP ratio + data terms → DONNEES_ERP branch")
         return {"route": QueryRoute.DONNEES_ERP.value}
@@ -210,45 +225,141 @@ def generate(state: RAGState) -> dict:
     return {"response": response, "raw_answer": response.answer if response else ""}
 
 
-def data_query(state: RAGState) -> dict:
-    """Execute a deterministic data query on structured ERP data (data branch)."""
+def orm_agent_loop(state: RAGState) -> dict:
+    """
+    ReAct agent loop: Reason → call ORM tool → observe → repeat or answer.
+    Bound to all 8 Odoo ORM tools via llm.bind_tools().
+    Recursion capped at REACT_RECURSION_LIMIT iterations.
+    """
+    from langchain_core.messages import AIMessage, ToolMessage
+    from tools.odoo_tools import (
+        obtenir_total_ventes,
+        obtenir_stock_produit,
+        obtenir_statut_commande,
+        obtenir_total_factures,
+        rechercher_client,
+        obtenir_tickets_recents,
+        lister_produits_en_rupture,
+        obtenir_ca_periode,
+    )
+
     question = state["question"]
-    logger.info("Node [data_query]: Extracting intent for: %s", question)
+    chat_history = state.get("chat_history", [])
+    logger.info("Node [orm_agent_loop]: Starting ReAct loop for: %s", question)
 
-    from rag.prompts import build_data_intent_messages
-    from rag.data_tool import DataQueryEngine
-
-    try:
-        # Step 1: Use LLM to extract the structured intent
-        llm = ChatGroq(model=GROQ_MODEL, temperature=0.0, max_tokens=256)
-        structured_llm = llm.with_structured_output(DataQueryIntent)
-
-        messages = build_data_intent_messages(question)
-        intent = structured_llm.invoke(messages)
-        logger.info("Node [data_query]: Extracted intent → %s", intent)
-
-        # Step 2: Execute the intent deterministically in Python
-        engine = DataQueryEngine()
-        result_text = engine.execute(intent)
-
-        # Step 3: Build AssistantResponse
-        source_name = f"fake_data/{intent.data_source}.json"
+    if _is_out_of_scope(question):
+        logger.info("Node [orm_agent_loop]: Out of scope question.")
         response = AssistantResponse(
-            answer=result_text,
-            confidence=0.95,
-            sources=[SourceReference(
-                source=source_name,
-                doc_type=intent.data_source,
-                title=f"Données {intent.data_source}",
-                snippet=f"Opération: {intent.operation}, Filtres: {intent.filters}",
-            )]
+            answer=OUT_OF_SCOPE_ANSWER,
+            sources=[],
+            confidence=0.0,
         )
+        return {"response": response, "raw_answer": response.answer}
 
-    except Exception as e:
-        logger.error("Data query failed: %s — falling back to generate", e)
-        # Fallback: run the documentary generate path instead
-        return generate(state)
+    all_tools = [
+        obtenir_total_ventes,
+        obtenir_stock_produit,
+        obtenir_statut_commande,
+        obtenir_total_factures,
+        rechercher_client,
+        obtenir_tickets_recents,
+        lister_produits_en_rupture,
+        obtenir_ca_periode,
+    ]
 
+    tool_map = {t.name: t for t in all_tools}
+
+    llm = ChatGroq(model=GROQ_MODEL, temperature=0.0, max_tokens=1024)
+    llm_with_tools = llm.bind_tools(all_tools)
+
+    system_prompt = (
+        "Tu es MIRO Assistant, l'assistant IA interne spécialisé dans les données ERP Odoo. "
+        "Pour répondre, utilise les outils disponibles pour interroger les données en temps réel. "
+        "Réponds TOUJOURS en français. "
+        "RÈGLE ABSOLUE : Si un outil indique qu'une donnée n'existe pas, ou retourne un résultat vide, "
+        "ACCEPTE CE RÉSULTAT IMMÉDIATEMENT. NE RÉPÈTE JAMAIS la même recherche. "
+        "Donne directement ta réponse finale à l'utilisateur."
+    )
+
+    messages = [
+        SystemMessage(content=system_prompt),
+        *chat_history[-10:],
+        HumanMessage(content=question),
+    ]
+
+    tool_observations = []
+    final_answer = None
+
+    for iteration in range(REACT_RECURSION_LIMIT):
+        logger.info("Node [orm_agent_loop]: Iteration %d/%d", iteration + 1, REACT_RECURSION_LIMIT)
+
+        try:
+            ai_msg = llm_with_tools.invoke(messages)
+        except Exception as e:
+            logger.error("LLM invoke failed at iteration %d: %s", iteration + 1, e)
+            break
+
+        messages.append(ai_msg)
+
+        # No tool calls → we have the final answer
+        if not getattr(ai_msg, "tool_calls", None):
+            final_answer = ai_msg.content
+            logger.info("Node [orm_agent_loop]: Final answer at iteration %d", iteration + 1)
+            break
+
+        # Execute each tool call
+        for tool_call in ai_msg.tool_calls:
+            tool_name = tool_call["name"]
+            tool_args = tool_call["args"]
+            tool_id = tool_call["id"]
+            logger.info("Node [orm_agent_loop]: Calling tool '%s' with args %s", tool_name, tool_args)
+
+            if tool_name not in tool_map:
+                observation = f"Outil '{tool_name}' non disponible."
+            else:
+                try:
+                    observation = tool_map[tool_name].invoke(tool_args)
+                except Exception as e:
+                    observation = f"Erreur lors de l'appel à {tool_name}: {str(e)}"
+                    logger.error("Tool call error: %s", e)
+
+            tool_observations.append(observation)
+            messages.append(ToolMessage(content=str(observation), tool_call_id=tool_id))
+    else:
+        # Recursion limit hit — force a final synthesis
+        logger.warning("Node [orm_agent_loop]: Recursion limit reached. Forcing final answer.")
+        synthesis_prompt = (
+            f"Question originale : {question}\n\n"
+            f"Observations collectées :\n" + "\n".join(tool_observations) +
+            "\n\nFournis une réponse finale et concise en français basée uniquement sur ces observations."
+        )
+        try:
+            plain_llm = ChatGroq(model=GROQ_MODEL, temperature=0.0, max_tokens=512)
+            final_resp = plain_llm.invoke([HumanMessage(content=synthesis_prompt)])
+            final_answer = final_resp.content
+        except Exception as e:
+            logger.error("Forced synthesis failed: %s", e)
+            final_answer = "Je n'ai pas pu obtenir une réponse complète. Veuillez reformuler la question."
+
+    if not final_answer:
+        final_answer = "Je n'ai pas de données disponibles pour répondre à cette question."
+
+    # Build sources from tool observations
+    sources = []
+    for obs in tool_observations:
+        if obs and str(obs).strip():
+            sources.append(SourceReference(
+                source="odoo://xmlrpc",
+                doc_type="erp_data",
+                title="Données ERP Odoo",
+                snippet=str(obs)[:150],
+            ))
+
+    response = AssistantResponse(
+        answer=final_answer,
+        sources=sources,
+        confidence=0.9 if tool_observations else 0.5,
+    )
     return {"response": response, "raw_answer": response.answer}
 
 
@@ -290,38 +401,43 @@ def format_output(state: RAGState) -> dict:
 def build_graph() -> StateGraph:
     """Build and compile the RAG LangGraph with hybrid routing."""
     workflow = StateGraph(RAGState)
-    
+
     # Add nodes
     workflow.add_node("retrieve", retrieve)
     workflow.add_node("route", route)
     workflow.add_node("generate", generate)
-    workflow.add_node("data_query", data_query)
+    workflow.add_node("orm_agent_loop", orm_agent_loop)
     workflow.add_node("format_output", format_output)
-    
+
     # Edges
     workflow.add_edge(START, "retrieve")
     workflow.add_edge("retrieve", "route")
-    
+
     # Conditional routing
     workflow.add_conditional_edges("route", route_decision, {
         QueryRoute.DOCUMENTAIRE.value: "generate",
-        QueryRoute.DONNEES_ERP.value: "data_query",
+        QueryRoute.DONNEES_ERP.value: "orm_agent_loop",
     })
-    
+
     workflow.add_edge("generate", "format_output")
-    workflow.add_edge("data_query", "format_output")
+    workflow.add_edge("orm_agent_loop", "format_output")
     workflow.add_edge("format_output", END)
-    
+
     return workflow.compile()
 
 
-def query_graph(question: str, chat_history: Optional[List[BaseMessage]] = None) -> AssistantResponse:
+def query_graph(
+    question: str,
+    chat_history: Optional[List[BaseMessage]] = None,
+    uid: Optional[int] = None,
+) -> AssistantResponse:
     """
     Public API to query the graph.
+    uid: Odoo user id for RBAC passthrough (injected into state for tool calls).
     """
     if chat_history is None:
         chat_history = []
-        
+
     app = build_graph()
     initial_state = {
         "question": question,
@@ -329,9 +445,10 @@ def query_graph(question: str, chat_history: Optional[List[BaseMessage]] = None)
         "retrieved_chunks": [],
         "raw_answer": "",
         "route": None,
-        "response": None
+        "response": None,
+        "uid": uid,
     }
-    
+
     try:
         final_state = app.invoke(initial_state)
         return final_state["response"]
