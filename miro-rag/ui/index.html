@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="MIRO Assistant - Intelligence Artificielle pour Odoo ERP">
+    <title>MIRO Assistant</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside id="sidebar" class="sidebar">
+            <div class="sidebar-header">
+                <button id="sidebar-close-btn" class="sidebar-close-btn" aria-label="Fermer le menu">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            
+            <div class="sidebar-actions">
+                <button id="new-chat-btn" class="new-chat-btn">
+                    <i class="fa-solid fa-plus"></i>
+                    <span>Nouvelle conversation</span>
+                </button>
+            </div>
+
+            <nav class="conversation-list" id="conversation-list">
+                <!-- Conversation items injected by JS -->
+            </nav>
+            
+            <!-- User selector for RBAC simulation (Day 3 prep) -->
+            <div class="user-selector-wrapper">
+                <select id="user-selector" class="user-selector">
+                    <option value="2">Admin (Toutes données)</option>
+                    <option value="5">Vendeur (Ventes uniquement)</option>
+                </select>
+            </div>
+        </aside>
+
+        <!-- Sidebar overlay for mobile -->
+        <div id="sidebar-overlay" class="sidebar-overlay"></div>
+
+        <!-- Main Chat Area -->
+        <main id="main-container" class="chat-container is-empty">
+            <header class="chat-header">
+                <button id="sidebar-toggle-btn" class="sidebar-toggle-btn" aria-label="Ouvrir le menu">
+                    <i class="fa-solid fa-bars"></i>
+                </button>
+                <div class="header-title" id="chat-title">MIRO AI</div>
+            </header>
+
+            <div id="chat-messages" class="chat-messages">
+                <!-- Messages injected here -->
+            </div>
+
+            <!-- Welcome Screen (Visible only when empty) -->
+            <div id="welcome-screen" class="welcome-screen">
+                <div class="greeting">
+                    <i class="fa-solid fa-sun greeting-icon"></i>
+                    <h2>Bonjour, comment puis-je vous aider ?</h2>
+                </div>
+                
+                <div class="quick-actions">
+                    <button class="action-pill" data-prompt="Combien de ventes ont été réalisées ce mois-ci ?"><i class="fa-solid fa-chart-line"></i> Chiffre d'affaires</button>
+                    <button class="action-pill" data-prompt="Quels sont les produits actuellement en rupture de stock ?"><i class="fa-solid fa-box-open"></i> Stocks</button>
+                    <button class="action-pill" data-prompt="Quelle est la procédure de validation d'une commande ?"><i class="fa-solid fa-file-signature"></i> Procédures</button>
+                    <button class="action-pill" data-prompt="Trouve-moi le client Société Dupont"><i class="fa-solid fa-user-magnifying-glass"></i> Clients</button>
+                </div>
+            </div>
+
+            <div class="chat-input-wrapper">
+                <form id="chat-form" class="chat-form">
+                    <button type="button" id="attach-btn" class="icon-btn" title="Joindre un fichier">
+                        <i class="fa-solid fa-plus"></i>
+                    </button>
+                    <input type="text" id="chat-input" placeholder="Posez votre question à MIRO..." autocomplete="off" required>
+                    <button type="submit" id="send-btn" class="icon-btn send-btn" aria-label="Envoyer" disabled>
+                        <i class="fa-solid fa-arrow-up"></i>
+                    </button>
+                </form>
+                <p class="input-footer">L'IA peut faire des erreurs. Vérifiez les informations générées.</p>
+            </div>
+        </main>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

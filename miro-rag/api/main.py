@@ -22,6 +22,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from typing import Any, Literal, Optional
 from fastapi import Depends
@@ -54,6 +55,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Mount the static UI
+ui_path = os.path.join(os.path.dirname(__file__), "..", "ui")
+if os.path.exists(ui_path):
+    app.mount("/ui", StaticFiles(directory=ui_path, html=True), name="ui")
 
 
 # -- Request and Response Models --
