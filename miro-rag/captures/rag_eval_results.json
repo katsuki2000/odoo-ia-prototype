@@ -4,14 +4,14 @@
     "question": "Comment cr\u00e9er une facture client dans Odoo 17 ?",
     "passed": true,
     "reason": "Pass",
-    "confidence": 0.85
+    "confidence": 0.9
   },
   {
     "id": "DOC-02",
     "question": "Comment envoyer une facture par email depuis Odoo ?",
     "passed": true,
     "reason": "Pass",
-    "confidence": 1.0
+    "confidence": 0.9
   },
   {
     "id": "DOC-03",
@@ -25,14 +25,14 @@
     "question": "Comment configurer les relances automatiques dans Odoo ?",
     "passed": true,
     "reason": "Pass",
-    "confidence": 0.9
+    "confidence": 0.85
   },
   {
     "id": "DOC-05",
     "question": "Qui peut approuver une mise \u00e0 disposition selon le wiki interne ?",
     "passed": true,
     "reason": "Pass",
-    "confidence": 0.9
+    "confidence": 0.85
   },
   {
     "id": "DOC-06",
@@ -46,7 +46,7 @@
     "question": "Quels sont les modules Odoo consid\u00e9r\u00e9s comme sensibles et qui y a acc\u00e8s ?",
     "passed": true,
     "reason": "Pass",
-    "confidence": 0.9
+    "confidence": 0.85
   },
   {
     "id": "DOC-08",
@@ -114,79 +114,79 @@
   {
     "id": "CODE-07",
     "question": "Comment le journal comptable (account.journal) est-il d\u00e9fini ?",
-    "passed": true,
-    "reason": "Pass",
-    "confidence": 0.85
+    "passed": false,
+    "reason": "Missing keywords: {'code', 'type', 'account.journal', 'accountjournal'} or Source mismatch (Expected: account_journal.py)",
+    "confidence": 0.9
   },
   {
     "id": "CODE-08",
     "question": "Quels sont les mod\u00e8les \u00e9tendus dans le fichier payment_provider.py du module sale ?",
     "passed": true,
     "reason": "Pass",
-    "confidence": 0.7
+    "confidence": 0.8
   },
   {
     "id": "ERP-01",
     "question": "Combien de ventes la Soci\u00e9t\u00e9 Dupont a-t-elle r\u00e9alis\u00e9es ?",
-    "passed": true,
-    "reason": "Pass",
-    "confidence": 0.95
+    "passed": false,
+    "reason": "Missing keywords: {'4'} or Source mismatch (Expected: fake_data/sales.json)",
+    "confidence": 0.9
   },
   {
     "id": "ERP-02",
     "question": "Quel est le montant total des ventes en cours ?",
-    "passed": true,
-    "reason": "Pass",
-    "confidence": 0.95
+    "passed": false,
+    "reason": "Missing keywords: {'25 900 000', 'en cours'} or Source mismatch (Expected: fake_data/sales.json)",
+    "confidence": 0.5
   },
   {
     "id": "ERP-03",
     "question": "Quel est le montant total factur\u00e9 \u00e0 ce jour ?",
-    "passed": true,
-    "reason": "Pass",
-    "confidence": 0.95
+    "passed": false,
+    "reason": "Missing keywords: {'33 720 000'} or Source mismatch (Expected: fake_data/sales.json)",
+    "confidence": 0.9
   },
   {
     "id": "ERP-04",
     "question": "Combien de tickets de support sont r\u00e9solus ?",
-    "passed": true,
-    "reason": "Pass",
-    "confidence": 0.95
+    "passed": false,
+    "reason": "Missing keywords: {'11', 'r\u00e9solu'} or Source mismatch (Expected: fake_data/tickets.json)",
+    "confidence": 0.5
   },
   {
     "id": "ERP-05",
     "question": "Quel est le ticket de support le plus r\u00e9cent de Madagascar Tech ?",
-    "passed": true,
-    "reason": "Pass",
-    "confidence": 0.95
+    "passed": false,
+    "reason": "Missing keywords: {'feuilles de temps'} or Source mismatch (Expected: fake_data/tickets.json)",
+    "confidence": 0.9
   },
   {
     "id": "ERP-06",
     "question": "Quel produit a \u00e9t\u00e9 vendu \u00e0 Madagascar Tech et pour quel montant ?",
-    "passed": true,
-    "reason": "Pass",
-    "confidence": 0.95
+    "passed": false,
+    "reason": "Missing keywords: {'1 200 000'} or Source mismatch (Expected: fake_data/sales.json)",
+    "confidence": 0.9
   },
   {
     "id": "ERP-07",
     "question": "Quels sont les tickets de support encore en cours ?",
-    "passed": true,
-    "reason": "Pass",
-    "confidence": 0.95
+    "passed": false,
+    "reason": "Missing keywords: {'4'} or Source mismatch (Expected: fake_data/tickets.json)",
+    "confidence": 0.9
   },
   {
     "id": "ERP-08",
     "question": "Quel est le montant total des ventes toutes p\u00e9riodes confondues ?",
-    "passed": true,
-    "reason": "Pass",
-    "confidence": 0.95
+    "passed": false,
+    "reason": "Missing keywords: {'62 120 000', 'ar'} or Source mismatch (Expected: fake_data/sales.json)",
+    "confidence": 0.9
   },
   {
     "id": "HORS-01",
     "question": "Raconte-moi une blague sur les ERP.",
-    "passed": false,
-    "reason": "Failed to refuse. Answer: Pourquoi l'ERP est-il all\u00e9 voir un psy ? Parce qu'il avait des probl\u00e8mes de synchronisation avec son c\u0153ur !",
-    "confidence": 0.8
+    "passed": true,
+    "reason": "Out of scope handled correctly",
+    "confidence": 0.0
   },
   {
     "id": "HORS-02",
