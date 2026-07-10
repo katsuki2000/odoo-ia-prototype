@@ -55,6 +55,10 @@ def obtenir_total_ventes(client: str, periode: str) -> str:
         if not results:
             return f"Aucune vente trouvée pour {client} sur la période demandée."
             
+        if len(results) > 1:
+            names = [r.get("partner_id")[1] for r in results if r.get("partner_id")]
+            return f"AMBIGUÏTÉ : Plusieurs clients correspondent à '{client}'. Veuillez préciser lequel parmi : {', '.join(names)}."
+            
         total = results[0].get("amount_total", 0.0)
         return f"Le total des ventes pour {client} est de {total:.2f} Ar."
     except Exception as e:
@@ -164,7 +168,11 @@ def obtenir_total_factures(client: str, statut: str) -> str:
             groupby=["partner_id"]
         )
         if not results:
-            return f"Aucune facture trouvée pour {client} avec le statut '{statut}'."
+            return f"Aucune facture ({statut}) trouvée pour {client}."
+            
+        if len(results) > 1:
+            names = [r.get("partner_id")[1] for r in results if r.get("partner_id")]
+            return f"AMBIGUÏTÉ : Plusieurs clients correspondent à '{client}'. Veuillez préciser lequel parmi : {', '.join(names)}."
             
         total = results[0].get("amount_total", 0.0)
         return f"Le total des factures ({statut}) pour {client} s'élève à {total:.2f} Ar."
@@ -229,7 +237,16 @@ def obtenir_tickets_recents(client: str, limite: int = 5) -> str:
         if not records:
             return f"Aucun ticket récent trouvé pour {client}."
             
-        # Sort by latest manually (since our connector doesn't expose standard limit/order kwargs yet)
+        # Check for ambiguity by looking at unique partner_ids in the results
+        unique_partners = set()
+        for r in records:
+            if r.get("partner_id"):
+                unique_partners.add(r.get("partner_id")[1])
+                
+        if len(unique_partners) > 1:
+            return f"AMBIGUÏTÉ : Plusieurs clients correspondent à '{client}'. Veuillez préciser lequel parmi : {', '.join(unique_partners)}."
+            
+        # Sort by latest manually
         records.sort(key=lambda x: x.get("create_date", ""), reverse=True)
         
         result_lines = [f"Derniers tickets pour {client} :"]
