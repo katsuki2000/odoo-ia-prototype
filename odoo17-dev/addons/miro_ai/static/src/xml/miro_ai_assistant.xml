@@ -14,7 +14,7 @@
                 <t t-foreach="state.messages" t-as="msg" t-key="msg.id">
                     <div t-att-class="'miro-ai-message ' + (msg.sender === 'user' ? 'user-message' : 'bot-message')">
                         <div class="message-sender" t-esc="msg.sender === 'user' ? 'Vous' : 'MIRO AI'"/>
-                        <div class="message-content" t-out="msg.content"/>
+                        <div class="message-content" t-out="msg.formattedContent or msg.content"/>
                         <t t-if="msg.sources and msg.sources.length > 0">
                             <details class="message-sources mt-2">
                                 <summary class="btn btn-sm btn-link p-0 text-muted">

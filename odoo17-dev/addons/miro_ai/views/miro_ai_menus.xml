@@ -20,6 +20,15 @@
               action="action_miro_ai_assistant"
               sequence="10"/>
 
+    <!-- Sous-menu Journal des requêtes IA -->
+    <menuitem id="menu_miro_ai_log"
+              name="Journal des requêtes"
+              parent="menu_miro_ai_root"
+              action="action_miro_ai_log"
+              sequence="20"
+              groups="base.group_user"/>
+
+
     <!-- Sous-menu Configuration -->
     <menuitem id="menu_miro_ai_config"
               name="Configuration"
