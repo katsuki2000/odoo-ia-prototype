@@ -133,6 +133,26 @@ def populate_products(models, uid, pwd, alpha_id, beta_id):
         ("Firewall Fortinet FortiGate 60F", 4800000, "consu", "Boitier de securite reseau pare-feu nouvelle generation"),
         ("Batterie de Remplacement UPS APC", 750000, "consu", "Cartouche de batterie de rechange certifiee"),
         ("Scanner de Documents Fujitsu fi-7160", 2400000, "consu", "Scanner de bureau recto-verso haute vitesse"),
+        ("Licence Windows Server 2022 Std", 3500000, "service", "Licence serveur Microsoft 16 coeurs"),
+        ("Installation et Paramétrage Reseau", 1500000, "service", "Prestation d installation et configuration sur site"),
+        ("Maintenance Préventive Annuelle", 4500000, "service", "Contrat de maintenance preventive matérielle et logicielle"),
+        ("Audit de Sécurité Informatique", 6000000, "service", "Audit complet des infrastructures et rapports de vulnérabilités"),
+        ("Formation Utilisateurs Odoo 17", 2000000, "service", "Session de formation de 2 jours sur mesure pour les utilisateurs"),
+        ("Clé USB Sécurisée Kingston 128Go", 150000, "consu", "Stockage portable chiffré matériellement"),
+        ("Webcam HD Logitech C920", 350000, "consu", "Caméra 1080p pour réunions à distance"),
+        ("Casque Micro Jabra Evolve 65", 680000, "consu", "Casque audio professionnel sans fil avec réduction de bruit"),
+        ("Station d Accueil USB-C Universal", 950000, "consu", "Replicateur de ports multi-écrans pour PC portables"),
+        ("Vidéoprojecteur Epson EB-U42", 2950000, "consu", "Projecteur Full HD pour salles de conférence"),
+        ("Souris Ergonomique Logitech MX Master 3", 450000, "consu", "Souris sans fil haute précision pour productivité"),
+        ("Clavier Mécanique Professionnel", 550000, "consu", "Clavier rétroéclairé robuste et confortable"),
+        ("Disque SSD NVMe Samsung 1To", 620000, "consu", "Stockage interne haute vitesse pour mise à niveau de postes"),
+        ("Mémoire RAM DDR4 16Go Corsair", 380000, "consu", "Module de mémoire vive pour serveurs et stations de travail"),
+        ("Caméra de Surveillance IP Hikvision 4MP", 750000, "consu", "Caméra d intérieur/extérieur avec vision nocturne"),
+        ("Prestation de Récupération de Données", 3000000, "service", "Intervention en laboratoire sur disque endommagé"),
+        ("Abonnement Cloud Backup 1 To (1 an)", 1200000, "service", "Sauvegarde externalisée sécurisée quotidienne"),
+        ("Assistance Technique Horaire", 150000, "service", "Intervention ponctuelle d un technicien senior"),
+        ("Configuration Pare-feu et VPN", 1800000, "service", "Mise en place de règles de sécurité et accès distants"),
+        ("Migration de Base de Données Odoo", 8500000, "service", "Prestation complète de migration vers Odoo 17"),
     ]
 
     created_ids = []
@@ -151,7 +171,7 @@ def populate_products(models, uid, pwd, alpha_id, beta_id):
         except Exception:
             pass
 
-    print(f"Created {len(created_ids)} new hardware products.")
+    print(f"Created {len(created_ids)} new products.")
     return models.execute_kw(DB, uid, pwd, 'product.product', 'search', [[]])
 
 
@@ -388,8 +408,8 @@ def populate_support_tickets(models, uid, pwd, alpha_id, beta_id):
     projects = models.execute_kw(DB, uid, pwd, 'project.project', 'search_read', [[]], {'fields': ['id', 'company_id']})
     project_id = projects[0]['id'] if projects else None
     if not project_id:
-        print("Warning: No project found to host support tickets.")
-        return
+        print("No project found to host support tickets. Creating default project...")
+        project_id = models.execute_kw(DB, uid, pwd, 'project.project', 'create', [{'name': 'Support & Maintenance IT', 'company_id': alpha_id}])
 
     users = models.execute_kw(DB, uid, pwd, 'res.users', 'search', [[]])
 
