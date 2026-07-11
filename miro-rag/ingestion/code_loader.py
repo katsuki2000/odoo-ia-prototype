@@ -72,8 +72,8 @@ class CodeLoader:
 
         logger.info(f"Loading Python file: {file_path}")
 
-        with open(file_path, "r", encoding="utf-8") as f:
-            source_code = f.read()
+        with open(file_path, "r", encoding="utf-8", errors="replace") as f:
+            source_code = f.read().replace("\x00", "")
 
         # Initialize base metadata
         base_metadata = metadata or {}
@@ -146,8 +146,8 @@ class CodeLoader:
 
         logger.info(f"Loading XML file: {file_path}")
 
-        with open(file_path, "r", encoding="utf-8") as f:
-            xml_content = f.read()
+        with open(file_path, "r", encoding="utf-8", errors="replace") as f:
+            xml_content = f.read().replace("\x00", "")
 
         # Initialize base metadata
         base_metadata = metadata or {}

@@ -165,7 +165,12 @@ def _load_file(
     chunk_size: int,
     chunk_overlap: int,
 ) -> tuple[list[str], list[dict[str, Any]]]:
-    """Load one supported file and return chunks plus metadata."""
+    """Load one supported file and return chunks plus metadata, with DOS and injection protections."""
+    max_file_size = 15 * 1024 * 1024  # 15 MB limit against DOS attacks
+    if file_path.stat().st_size > max_file_size:
+        logger.warning("Ingestion security check: Skipping file exceeding 15 MB: %s", file_path)
+        raise ValueError("File exceeds maximum allowed ingestion size of 15 MB.")
+
     suffix = file_path.suffix.lower()
 
     if suffix == ".pdf":
@@ -181,8 +186,15 @@ def _load_file(
     else:
         raise ValueError(f"Unsupported file type: {file_path.suffix}")
 
-    chunks = loaded.get("chunks", [])
+    chunks = [c.replace("\x00", "") for c in loaded.get("chunks", [])]
     metadatas = loaded.get("metadatas", [])
+
+    max_chunks_per_file = 500  # Cap chunk flood per single file
+    if len(chunks) > max_chunks_per_file:
+        logger.warning("Ingestion security check: Truncating %s from %d to %d chunks.", file_path, len(chunks), max_chunks_per_file)
+        chunks = chunks[:max_chunks_per_file]
+        metadatas = metadatas[:max_chunks_per_file]
+
     return chunks, metadatas
 
 

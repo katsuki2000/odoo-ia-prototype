@@ -78,8 +78,8 @@ class WikiLoader:
 
         logger.info(f"Loading text file: {file_path}")
 
-        with open(file_path, "r", encoding="utf-8") as f:
-            content = f.read()
+        with open(file_path, "r", encoding="utf-8", errors="replace") as f:
+            content = f.read().replace("\x00", "")
 
         # Initialize base metadata
         base_metadata = metadata or {}
@@ -144,8 +144,8 @@ class WikiLoader:
 
         logger.info(f"Loading markdown file: {file_path}")
 
-        with open(file_path, "r", encoding="utf-8") as f:
-            content = f.read()
+        with open(file_path, "r", encoding="utf-8", errors="replace") as f:
+            content = f.read().replace("\x00", "")
 
         # Initialize base metadata
         base_metadata = metadata or {}
