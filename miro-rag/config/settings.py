@@ -21,6 +21,11 @@ OLLAMA_MODEL = "hermes3"
 # ── ChromaDB ──────────────────────────────────────────
 CHROMA_PATH  = "./vectorstore/chroma_db"
 
+# ── Qdrant ────────────────────────────────────────────
+QDRANT_HOST = os.getenv("QDRANT_HOST", "localhost")
+QDRANT_PORT = int(os.getenv("QDRANT_PORT", "6333"))
+QDRANT_URL  = os.getenv("QDRANT_URL", f"http://{QDRANT_HOST}:{QDRANT_PORT}")
+
 # ── FastAPI ───────────────────────────────────────────
 API_HOST = "0.0.0.0"
 API_PORT = 8000

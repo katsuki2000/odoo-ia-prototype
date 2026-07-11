@@ -140,3 +140,4 @@ langchain-groq
 langgraph
 langchain
 PyJWT
+qdrant-client==1.13.2

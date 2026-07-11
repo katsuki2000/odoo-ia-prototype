@@ -58,3 +58,15 @@ Step 8 Day 3 is done:
 - Updated `obtenir_total_ventes` and `obtenir_total_factures` to support queries across all clients.
 - Wrote and executed `tests/test_multi_turn.py` to validate context memory.
 - The LangGraph agent successfully resolved cross-turn references (e.g., remembering "Société Dupont" when asked "And for this year?").
+
+Step 13 Day 1 is done (Phase 4 — Multi-tenant, branch phase-4):
+- Added Qdrant service to `odoo17-dev/docker-compose.yml` (image `qdrant/qdrant:v1.13.2`, ports 6333/6334, persistent volume `qdrantdata`).
+- Wired `miro_rag` service to Qdrant via `QDRANT_URL=http://qdrant:6333`.
+- Added Qdrant settings in `miro-rag/config/settings.py` (`QDRANT_HOST`, `QDRANT_PORT`, `QDRANT_URL`).
+- Implemented `miro-rag/vectorstore/qdrant_manager.py` with the same interface as `ChromaManager`:
+  `add_chunks()`, `query()`, `get_stats()`, `delete_by_source()`, `delete_by_ids()`, `get_by_id()`, `delete_collection()`.
+- Uses `sentence-transformers` for embeddings (nomic-embed-text-v1.5 in production, all-MiniLM-L6-v2 in tests).
+- Extracted shared test mixin in `miro-rag/tests/vector_manager_tests.py`.
+- Created `miro-rag/tests/test_qdrant_manager.py` — 16/16 tests PASSED (same contract as chroma_manager).
+- Refactored `miro-rag/tests/test_chroma_manager.py` to reuse the shared mixin.
+- Added `qdrant-client==1.13.2` to `requirements.txt`.
