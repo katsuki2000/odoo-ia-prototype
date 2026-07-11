@@ -134,28 +134,33 @@ def get_company_docs_dirs(
 # Manager / BM25 cache
 # ---------------------------------------------------------------------------
 
-def get_company_manager(company_id: int, *, url: str | None = None, client=None):
+def get_company_manager(
+    company_id: int, *, url: str | None = None, client=None, embedding_model: str | None = None
+):
     """
-    Return a QdrantManager scoped to the given company.
+    Return a QdrantManager initialized for the given company's collection.
 
     Managers are cached per collection name for reuse across requests.
     """
     from vectorstore.qdrant_manager import QdrantManager
 
     collection_name = collection_name_for_company(company_id)
-    if collection_name not in _manager_cache:
+    cache_key = f"{collection_name}_{embedding_model or 'default'}"
+    if cache_key not in _manager_cache:
         kwargs: dict = {"collection_name": collection_name}
         if client is not None:
             kwargs["client"] = client
         elif url is not None:
             kwargs["url"] = url
-        _manager_cache[collection_name] = QdrantManager(**kwargs)
+        if embedding_model is not None:
+            kwargs["embedding_model"] = embedding_model
+        _manager_cache[cache_key] = QdrantManager(**kwargs)
 
-    return _manager_cache[collection_name]
+    return _manager_cache[cache_key]
 
 
 def get_manager_for_collection(
-    collection_name: str, *, url: str | None = None, client=None
+    collection_name: str, *, url: str | None = None, client=None, embedding_model: str | None = None
 ):
     """
     Return a QdrantManager for a named collection (used by watcher/ingest).
@@ -165,15 +170,18 @@ def get_manager_for_collection(
     """
     from vectorstore.qdrant_manager import QdrantManager
 
-    if collection_name not in _manager_cache:
+    cache_key = f"{collection_name}_{embedding_model or 'default'}"
+    if cache_key not in _manager_cache:
         kwargs: dict = {"collection_name": collection_name}
         if client is not None:
             kwargs["client"] = client
         elif url is not None:
             kwargs["url"] = url
-        _manager_cache[collection_name] = QdrantManager(**kwargs)
+        if embedding_model is not None:
+            kwargs["embedding_model"] = embedding_model
+        _manager_cache[cache_key] = QdrantManager(**kwargs)
 
-    return _manager_cache[collection_name]
+    return _manager_cache[cache_key]
 
 
 def get_company_retriever(
@@ -181,6 +189,7 @@ def get_company_retriever(
     *,
     url: str | None = None,
     client=None,
+    embedding_model: str | None = None,
 ) -> tuple[object, BM25Index]:
     """
     Return (vector_manager, bm25_index) for the given company_id.
@@ -190,14 +199,15 @@ def get_company_retriever(
     from vectorstore.search import BM25Index
 
     collection_name = collection_name_for_company(company_id)
-    manager = get_company_manager(company_id, url=url, client=client)
+    cache_key = f"{collection_name}_{embedding_model or 'default'}"
+    manager = get_company_manager(company_id, url=url, client=client, embedding_model=embedding_model)
 
-    if collection_name not in _bm25_cache:
+    if cache_key not in _bm25_cache:
         bm25 = BM25Index()
         bm25.build_from_chroma(manager)
-        _bm25_cache[collection_name] = bm25
+        _bm25_cache[cache_key] = bm25
     else:
-        bm25 = _bm25_cache[collection_name]
+        bm25 = _bm25_cache[cache_key]
         if not bm25.is_built:
             bm25.build_from_chroma(manager)
 

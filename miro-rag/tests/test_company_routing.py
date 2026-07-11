@@ -79,6 +79,7 @@ class TestCompanyCollectionRouting(unittest.TestCase):
             manager, bm25 = get_company_retriever(
                 self.ALPHA_ID,
                 client=self.client,
+                embedding_model="all-MiniLM-L6-v2",
             )
             results = retrieve(
                 "sales policy",
@@ -98,6 +99,7 @@ class TestCompanyCollectionRouting(unittest.TestCase):
             manager, bm25 = get_company_retriever(
                 self.BETA_ID,
                 client=self.client,
+                embedding_model="all-MiniLM-L6-v2",
             )
             results = retrieve(
                 "inventory procedure",
@@ -114,8 +116,8 @@ class TestCompanyCollectionRouting(unittest.TestCase):
 
     def test_retrievers_use_different_collections(self):
         with patch("vectorstore.company_collections.COMPANY_COLLECTIONS", self.company_map):
-            alpha_manager, _ = get_company_retriever(self.ALPHA_ID, client=self.client)
-            beta_manager, _ = get_company_retriever(self.BETA_ID, client=self.client)
+            alpha_manager, _ = get_company_retriever(self.ALPHA_ID, client=self.client, embedding_model="all-MiniLM-L6-v2")
+            beta_manager, _ = get_company_retriever(self.BETA_ID, client=self.client, embedding_model="all-MiniLM-L6-v2")
 
         self.assertEqual(alpha_manager.collection_name, "company_alpha")
         self.assertEqual(beta_manager.collection_name, "company_beta")
