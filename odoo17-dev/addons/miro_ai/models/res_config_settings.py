@@ -8,7 +8,7 @@ class ResConfigSettings(models.TransientModel):
     miro_ai_api_url = fields.Char(
         string='URL API MIRO RAG',
         config_parameter='miro_ai.api_url',
-        default='http://127.0.0.1:8000'
+        default='http://miro_rag:8000'
     )
     miro_ai_api_token = fields.Char(
         string='Jeton API MIRO RAG',

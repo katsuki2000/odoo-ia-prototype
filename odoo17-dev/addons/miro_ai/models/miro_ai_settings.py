@@ -33,8 +33,8 @@ class MiroAiSettings(models.Model):
     api_url = fields.Char(
         string='URL de l\'API MIRO RAG',
         required=True,
-        default='http://127.0.0.1:8000',
-        help='Adresse racine du serveur FastAPI MIRO RAG (ex: http://127.0.0.1:8000 ou http://host.docker.internal:8000)'
+        default='http://miro_rag:8000',
+        help='Adresse racine du serveur FastAPI MIRO RAG (ex: http://miro_rag:8000 ou http://host.docker.internal:8000)'
     )
     api_token = fields.Char(
         string='Jeton Secret API (JWT Secret)',
@@ -73,7 +73,7 @@ class MiroAiSettings(models.Model):
         if not config:
             config = self.create({
                 'name': 'Configuration MIRO RAG principale',
-                'api_url': 'http://127.0.0.1:8000',
+                'api_url': 'http://miro_rag:8000',
                 'api_token': 'default_insecure_secret_for_dev',
                 'activer_ventes': True,
                 'activer_stocks': True,

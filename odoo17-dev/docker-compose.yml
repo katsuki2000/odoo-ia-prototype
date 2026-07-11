@@ -10,21 +10,29 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
 
-  # ÉTAGE IA : Base de données vectorielle privée
-  #chromadb:
-  #  image: chromadb/chroma:0.4.24
-  #  ports:
-  #    - "8000:8000"
-  #  volumes:
-  #    - chromadata:/chroma/data
-  #  environment:
-  #    - IS_PERSISTENT=TRUE
+  # ÉTAGE IA : Base de données vectorielle privée et API RAG
+  miro_rag:
+    build:
+      context: ../
+      dockerfile: miro-rag/Dockerfile
+    working_dir: /app/miro-rag
+    ports:
+      - "8000:8000"
+    volumes:
+      - chromadata:/app/miro-rag/vectorstore/chroma_db
+      - chromacache:/root/.cache
+      - ../miro-rag/fake_data:/app/fake_data
+      - ../miro-rag/ingestion/logs:/app/ingestion/logs
+    env_file:
+      - ../miro-rag/.env
+    environment:
+      - OMP_NUM_THREADS=1
 
   odoo:
     image: odoo:17.0
     depends_on:
       - db
-      #- chromadb
+      - miro_rag
     ports:
       - "8069:8069"
     environment:
@@ -40,3 +48,4 @@ volumes:
   pgdata:
   odoo-data:
   chromadata:
+  chromacache:
