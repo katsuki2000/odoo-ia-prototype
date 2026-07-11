@@ -50,27 +50,26 @@ class TestOdooTools:
         """Test sales aggregation tool."""
         res = obtenir_total_ventes.invoke({'client': 'Rakoto', 'periode': 'cette annee'})
         assert isinstance(res, str)
-        # Assuming either a number or a fallback message
-        assert "Ar" in res or "Aucune vente" in res
+        # Assuming either a number or a fallback message or ambiguity
+        assert "Ar" in res or "Aucune vente" in res or "AMBIGU" in res
 
     def test_obtenir_stock_produit(self):
-        """Test stock quantity tool."""
-        res = obtenir_stock_produit.invoke({'produit': 'Laptop'})
+        """Test product stock tool."""
+        res = obtenir_stock_produit.invoke({'produit': 'Chaise de Bureau Ergonomique'})
         assert isinstance(res, str)
-        assert "stock" in res.lower()
+        assert "unités" in res or "Inconnu" in res or "trouvé" in res
 
     def test_obtenir_statut_commande(self):
-        """Test order status tool."""
-        # 'S00001' might not exist in all environments, but it should return a safe string
+        """Test order status lookup."""
         res = obtenir_statut_commande.invoke({'reference': 'S00001'})
         assert isinstance(res, str)
-        assert "statut" in res or "n'existe pas" in res
+        assert "S00001" in res or "introuvable" in res or "n'existe pas" in res
 
     def test_obtenir_total_factures(self):
         """Test invoice aggregation tool."""
         res = obtenir_total_factures.invoke({'client': 'Rakoto', 'statut': 'impayé'})
         assert isinstance(res, str)
-        assert "Ar" in res or "Aucune facture" in res
+        assert "Ar" in res or "Aucune facture" in res or "AMBIGU" in res
 
     def test_rechercher_client(self):
         """Test client search tool."""

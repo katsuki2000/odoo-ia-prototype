@@ -277,22 +277,8 @@ def orm_agent_loop(state: RAGState) -> dict:
         return {"response": response, "raw_answer": response.answer, "timing": timing}
 
     skills = state.get("skills", {})
-    
-    # Base tools (always available)
-    all_tools = [rechercher_client]
-    
-    # Skill filtering
-    if skills.get("ventes", True):
-        all_tools.extend([obtenir_total_ventes, obtenir_statut_commande, obtenir_ca_periode])
-        
-    if skills.get("stocks", True):
-        all_tools.extend([obtenir_stock_produit, lister_produits_en_rupture])
-        
-    if skills.get("comptabilite", True):
-        all_tools.extend([obtenir_total_factures])
-        
-    if skills.get("tickets", True):
-        all_tools.extend([obtenir_tickets_recents])
+    from tools.odoo_tools import get_tools_for_skills
+    all_tools = get_tools_for_skills(skills)
 
     # Re-bind tools dynamically to the LLM
     llm = ChatGroq(
@@ -482,11 +468,21 @@ def query_graph(
     if skills is None:
         skills = {}
 
-    from tools.odoo_tools import odoo_uid_ctx
+    from tools.odoo_tools import odoo_uid_ctx, connector
     # Propagate the uid to tools via contextvar
     token = None
     if uid is not None:
         token = odoo_uid_ctx.set(uid)
+        if uid > 0:
+            try:
+                user_permitted_skills = connector.get_user_skills(uid)
+                if not skills:
+                    skills = user_permitted_skills
+                else:
+                    for k in ["ventes", "stocks", "comptabilite", "tickets"]:
+                        skills[k] = bool(skills.get(k, True)) and user_permitted_skills.get(k, False)
+            except Exception as e:
+                logger.warning("Could not fetch user skills for uid=%s: %s", uid, e)
 
     try:
         app = build_graph()

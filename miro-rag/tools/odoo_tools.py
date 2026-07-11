@@ -356,3 +356,25 @@ def obtenir_ca_periode(periode: str) -> str:
         return f"Le chiffre d'affaires total pour la période '{periode}' est de {total:.2f} Ar."
     except Exception as e:
         return f"Erreur lors du calcul du CA : {str(e)}"
+
+
+def get_tools_for_skills(skills: dict | None = None) -> list:
+    """
+    Return the list of Odoo ORM tools matching the enabled skill categories.
+    Base tool `rechercher_client` is always included.
+    """
+    if skills is None:
+        skills = {}
+
+    all_tools = [rechercher_client]
+    if skills.get("ventes", True):
+        all_tools.extend([obtenir_total_ventes, obtenir_statut_commande, obtenir_ca_periode])
+    if skills.get("stocks", True):
+        all_tools.extend([obtenir_stock_produit, lister_produits_en_rupture])
+    if skills.get("comptabilite", True):
+        all_tools.extend([obtenir_total_factures])
+    if skills.get("tickets", True):
+        all_tools.extend([obtenir_tickets_recents])
+
+    return all_tools
+
