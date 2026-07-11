@@ -400,15 +400,13 @@ def cross_encoder_rerank(
     if not results:
         return []
 
-    encoder = _get_cross_encoder()
-
-    # Create (query, document) pairs for scoring
-    pairs = [[query, r["document"]] for r in results]
-
     try:
+        encoder = _get_cross_encoder()
+        # Create (query, document) pairs for scoring
+        pairs = [[query, r["document"]] for r in results]
         scores = encoder.predict(pairs)
     except Exception as e:
-        logger.error("Cross-encoder scoring failed: %s", e)
+        logger.error("Cross-encoder scoring or loading failed: %s", e)
         # Fall back to original ordering
         return results[:top_k]
 

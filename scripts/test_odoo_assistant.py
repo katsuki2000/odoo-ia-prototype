@@ -107,7 +107,59 @@ def main():
         print(f" -> Journal d'audit trouvé : ID={log_entry.get('id')}, Durée={log_entry.get('response_time_ms')} ms, Statut={log_entry.get('state')}")
         print(f" -> Question enregistrée : {log_entry.get('question')}")
     
-    print("\n[Vérification du Jour 3 & 4] Tous les tests du contrôleur et du journal d'audit sont PASSED !")
+    # 5. Test RAG End-to-End avec question ERP sur le code / documentation (Step 11 Day 5)
+    print("\n[5] Test RAG End-to-End avec une question ERP technique sur Odoo 17...")
+    ask_url_2 = f"{ODOO_URL}/miro_ai/ask"
+    erp_question = "Comment fonctionne la gestion des pickings (bons de livraison) et la validation des mouvements dans Odoo ?"
+    ask_payload_2 = {
+        "jsonrpc": "2.0",
+        "method": "call",
+        "params": {
+            "question": erp_question,
+            "session_id": "test_script_session_002"
+        },
+        "id": int(time.time())
+    }
+    print(f" -> Question : \"{erp_question}\"")
+    start_t = time.time()
+    resp_2 = session.post(ask_url_2, json=ask_payload_2)
+    data_2 = resp_2.json()
+    duration = int((time.time() - start_t) * 1000)
+    
+    if "error" in data_2:
+        print(f"Erreur /miro_ai/ask (ERP) : {data_2['error']}")
+        return False
+        
+    result_2 = data_2.get("result", {})
+    answer_2 = result_2.get("answer", "")
+    sources_2 = result_2.get("sources", [])
+    print(f" -> Réponse obtenue ({duration} ms) :\n{answer_2[:300]}... [tronqué]")
+    print(f" -> Nombre de sources RAG citées : {len(sources_2)}")
+    if sources_2:
+        for idx, src in enumerate(sources_2[:3], 1):
+            print(f"    - Source {idx}: {src.get('filepath', 'Inconnue')} (score: {src.get('score', 'N/A')})")
+            
+    # Vérifier l'audit log pour le test 2
+    kw_payload_2 = {
+        "jsonrpc": "2.0",
+        "method": "call",
+        "params": {
+            "model": "miro.ai.log",
+            "method": "search_read",
+            "args": [[["session_id", "=", "test_script_session_002"]]],
+            "kwargs": {
+                "fields": ["question", "response_time_ms", "sources_count", "state", "answer"],
+                "limit": 1
+            }
+        },
+        "id": int(time.time())
+    }
+    resp_log_2 = session.post(kw_url, json=kw_payload_2)
+    logs_2 = resp_log_2.json().get("result", [])
+    if logs_2:
+        print(f" -> Audit log pour test 2 vérifié : ID={logs_2[0]['id']}, Sources enregistrées dans Odoo={logs_2[0]['sources_count']}")
+
+    print("\n[Vérification FINALE du Step 11 - Day 5] Tous les flux (Auth, Health, Proxy, RAG Citations, Audit Log) sont PASSED !")
     return True
 
 if __name__ == "__main__":

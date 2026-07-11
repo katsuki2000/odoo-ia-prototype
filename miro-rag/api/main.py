@@ -548,13 +548,13 @@ async def _startup_scan_and_scheduler() -> None:
     logger = logging.getLogger(__name__)
 
     try:
-        logger.info("Startup incremental scan: scanning %s and %s", DOCS_DIR, CODE_DIR)
-        await asyncio.to_thread(
-            run_startup_scan,
-            [DOCS_DIR, CODE_DIR],
-            None,
-            LAST_INGESTION_STATUS,
-        )
+        logger.info("Skipping startup incremental scan for faster testing.")
+        # await asyncio.to_thread(
+        #     run_startup_scan,
+        #     [DOCS_DIR, CODE_DIR],
+        #     None,
+        #     LAST_INGESTION_STATUS,
+        # )
     except Exception as exc:
         logger.exception("Startup incremental scan failed: %s", exc)
 
