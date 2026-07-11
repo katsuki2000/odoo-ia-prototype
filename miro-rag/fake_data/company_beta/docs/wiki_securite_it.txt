@@ -1,0 +1,34 @@
+WIKI INTERNE MIRO KE — COMPANY BETA — Sécurité informatique et politique accès
+
+1. POLITIQUE DE MOTS DE PASSE (Company Beta)
+   - Longueur minimale : 12 caractères
+   - Complexité requise : majuscule, minuscule, chiffre, caractère spécial
+   - Renouvellement obligatoire : tous les 90 jours
+   - Historique mémorisé : 10 derniers mots de passe
+   - Authentification multi-facteurs (MFA) : obligatoire pour les administrateurs
+
+2. GESTION DES ACCÈS ODOO (Beta)
+   - Attribution des droits par le service IT après validation RH
+   - Principe du moindre privilège : droits minimaux nécessaires
+   - Audit des accès trimestriel par le Responsable IT
+   - Accès temporaires : durée maximale 30 jours, revue obligatoire
+   - Désactivation immédiate en cas de départ employé
+
+3. SÉCURITÉ DES DONNÉES
+   - Sauvegarde Odoo quotidienne (03h00) → stockage chiffré S3
+   - Rétention des sauvegardes : 30 jours glissants
+   - Test de restauration mensuel obligatoire
+   - Données personnelles : conformité RGPD, DPA signé
+   - Chiffrement en transit : TLS 1.3 minimum
+
+4. INCIDENTS DE SÉCURITÉ
+   - Signalement immédiat au service IT : it-security@beta.mg
+   - Délai de réponse incidents critiques : 1 heure
+   - Post-mortem obligatoire pour tout incident P1/P2
+   - Notification CNIL si fuite de données personnelles (72h max)
+
+5. SENSIBILISATION
+   - Formation phishing simulée : trimestrielle
+   - E-learning sécurité : 2 modules obligatoires/an
+   - Newsletter sécurité mensuelle (actualités, bonnes pratiques)
+   - Signalement tentatives de phishing : phishing@beta.mg

@@ -1,0 +1,32 @@
+WIKI INTERNE MIRO KE — COMPANY BETA — Onboarding RH et processus recrutement
+
+1. PROCESSUS DE RECRUTEMENT (Company Beta)
+   - Offre d'emploi publiée via Odoo Recrutement
+   - Étapes du pipeline : Nouveau → Qualification → Entretien → Offre → Embauche
+   - Délai cible de recrutement : 30 jours ouvrés
+   - Validation du budget poste par le DRH avant publication
+
+2. INTÉGRATION DES NOUVEAUX EMPLOYÉS
+   - Kit d'accueil remis le premier jour (badge, PC, accès Odoo)
+   - Formation initiale : 3 jours obligatoires (Odoo, processus internes, sécurité IT)
+   - Tuteur désigné pour la période d'essai (3 mois)
+   - Évaluation à mi-période d'essai : semaine 6
+
+3. GESTION DES CONGÉS (Beta)
+   - Demande via Odoo RH → Congés → Nouvelle allocation
+   - Validation par le responsable direct sous 48h
+   - Congés annuels : 25 jours ouvrés par an
+   - RTT : 10 jours (selon accord d'entreprise Beta)
+   - Solde consultable en temps réel dans le portail employé
+
+4. FORMATION ET DÉVELOPPEMENT
+   - Plan de formation annuel établi en janvier
+   - Budget formation : 3% de la masse salariale Beta
+   - Formations obligatoires : sécurité, RGPD, outils Odoo
+   - Évaluations annuelles : décembre (grille de compétences)
+
+5. DÉPART D'UN EMPLOYÉ
+   - Procédure de départ initiée 1 mois avant la date effective
+   - Révocation des accès Odoo le dernier jour de travail
+   - Remise du matériel informatique au service IT
+   - Solde de tout compte transmis dans les 5 jours ouvrés

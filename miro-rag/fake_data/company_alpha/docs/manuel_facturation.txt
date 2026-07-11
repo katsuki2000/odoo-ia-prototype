@@ -1,0 +1,31 @@
+WIKI INTERNE MIRO KE — COMPANY ALPHA — Manuel de facturation clients
+
+1. CYCLE DE FACTURATION COMPANY ALPHA
+   - Facturation mensuelle pour les clients récurrents (abonnements)
+   - Facturation à la commande pour les ventes ponctuelles
+   - Délai de paiement standard : 30 jours nets
+   - Escompte pour paiement anticipé : 2% si paiement sous 10 jours
+
+2. CRÉATION ET ENVOI DE FACTURES
+   - Générer depuis Ventes → Commandes → bouton "Créer une facture"
+   - Ou directement dans Comptabilité → Clients → Factures
+   - Validation avant envoi obligatoire (bouton Confirmer)
+   - Envoi automatique par email avec PDF en pièce jointe
+
+3. SUIVI DES PAIEMENTS
+   - Relance automatique à J+30 (email), J+45 (email + SMS)
+   - Relance manuelle possible via Comptabilité → Relances
+   - Blocage de compte client si impayé > 60 jours
+   - Transmission au service contentieux si impayé > 90 jours
+
+4. AVOIRS ET REMBOURSEMENTS
+   - Avoir = annulation partielle ou totale d'une facture
+   - Création via le bouton "Avoir" sur la facture concernée
+   - Remboursement : virement ou avoir en compte selon accord client
+   - Validation par le Responsable Comptable obligatoire pour avoirs > 500 MGA
+
+5. CLÔTURE MENSUELLE (Company Alpha)
+   - Extraction du grand livre le dernier jour ouvré du mois
+   - Rapprochement bancaire avant la clôture
+   - Lettrage de tous les paiements en attente
+   - Archivage des factures validées en PDF

@@ -65,9 +65,9 @@ class QdrantManager:
         if client is not None:
             self.client = client
         elif self.url == ":memory:":
-            self.client = QdrantClient(location=":memory:", timeout=30)
+            self.client = QdrantClient(location=":memory:", timeout=30, check_compatibility=False)
         else:
-            self.client = QdrantClient(url=self.url, timeout=30)
+            self.client = QdrantClient(url=self.url, timeout=30, check_compatibility=False)
         self._embedder = None
         self._vector_size: int | None = None
 
@@ -317,6 +317,7 @@ class QdrantManager:
         if self.client.collection_exists(self.collection_name):
             return
 
+        self._ensure_vector_size()
         vector_size = self._vector_size or 384
         self.client.create_collection(
             collection_name=self.collection_name,

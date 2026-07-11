@@ -37,6 +37,21 @@ COMPANY_COLLECTIONS: dict[int, str] = {
     COMPANY_BETA_ID: "company_beta",
 }
 
+# Maps Qdrant collection name → fake_data subfolder name.
+# Watcher and ingest scripts derive the target collection from the file path:
+#   fake_data/<folder_name>/docs/  or  fake_data/<folder_name>/code/
+COMPANY_FOLDERS: dict[str, str] = {
+    "company_alpha": "company_alpha",
+    "company_beta": "company_beta",
+}
+
+# Reverse lookup: folder name → company_id (used by watcher path parser)
+FOLDER_TO_COMPANY_ID: dict[str, int] = {
+    folder: cid for cid, col in COMPANY_COLLECTIONS.items()
+    for col_name, folder in COMPANY_FOLDERS.items()
+    if col == col_name
+}
+
 # ── FastAPI ───────────────────────────────────────────
 API_HOST = "0.0.0.0"
 API_PORT = 8000

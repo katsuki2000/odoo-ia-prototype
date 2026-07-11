@@ -4,14 +4,21 @@ Multi-tenant Qdrant collection routing by Odoo company_id.
 Each company gets its own Qdrant collection (company_alpha, company_beta).
 The retrieval pipeline selects the collection from the authenticated user's
 company_id before running vector or BM25 search.
+
+Folder convention for ingestion:
+    fake_data/company_alpha/docs/   → collection "company_alpha"
+    fake_data/company_alpha/code/   → collection "company_alpha"
+    fake_data/company_beta/docs/    → collection "company_beta"
+    fake_data/company_beta/code/    → collection "company_beta"
 """
 
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from typing import TYPE_CHECKING
 
-from config.settings import COMPANY_COLLECTIONS, VECTOR_BACKEND
+from config.settings import COMPANY_COLLECTIONS, COMPANY_FOLDERS, VECTOR_BACKEND
 
 if TYPE_CHECKING:
     from vectorstore.search import BM25Index
@@ -21,6 +28,13 @@ logger = logging.getLogger(__name__)
 _manager_cache: dict[str, object] = {}
 _bm25_cache: dict[str, object] = {}
 
+# Root of the miro-rag project (parent of this file's package)
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+
+# ---------------------------------------------------------------------------
+# Company-id → collection name resolution
+# ---------------------------------------------------------------------------
 
 def collection_name_for_company(company_id: int) -> str:
     """Resolve the Qdrant collection name for an Odoo company_id."""
@@ -34,6 +48,92 @@ def collection_name_for_company(company_id: int) -> str:
     )
 
 
+# ---------------------------------------------------------------------------
+# File-path → collection name resolution (used by watcher + ingest scripts)
+# ---------------------------------------------------------------------------
+
+def collection_for_path(file_path: str | Path) -> str | None:
+    """
+    Derive the Qdrant collection name from a file's location inside fake_data/.
+
+    Returns the collection name string when the path sits under a recognised
+    company sub-folder (e.g. ``fake_data/company_alpha/docs/``), or ``None``
+    when the file does not belong to any configured company.
+
+    Examples::
+
+        collection_for_path(".../fake_data/company_alpha/docs/wiki.txt")
+        # → "company_alpha"
+
+        collection_for_path(".../fake_data/documents/wiki.txt")
+        # → None   (legacy flat layout — caller decides how to handle)
+    """
+    path = Path(file_path).resolve()
+    parts = path.parts
+
+    for idx, part in enumerate(parts):
+        if part in COMPANY_FOLDERS:
+            collection_name = COMPANY_FOLDERS[part]
+            logger.debug(
+                "Path '%s' resolved to collection '%s'", file_path, collection_name
+            )
+            return collection_name
+
+    logger.debug(
+        "Path '%s' does not match any company folder — returning None", file_path
+    )
+    return None
+
+
+def get_company_docs_dirs(
+    fake_data_root: str | Path | None = None,
+) -> dict[str, list[Path]]:
+    """
+    Return a mapping of collection_name → list of watch directories.
+
+    The directories are the ``docs/`` and ``code/`` subdirectories under each
+    company folder inside ``fake_data/``.  Only directories that actually exist
+    are included, so the watcher won't crash on a missing path.
+
+    Args:
+        fake_data_root: Override the default ``<project_root>/fake_data`` root.
+
+    Returns:
+        Example::
+
+            {
+                "company_alpha": [
+                    PosixPath(".../fake_data/company_alpha/docs"),
+                    PosixPath(".../fake_data/company_alpha/code"),
+                ],
+                "company_beta": [
+                    PosixPath(".../fake_data/company_beta/docs"),
+                ],
+            }
+    """
+    root = Path(fake_data_root).resolve() if fake_data_root else _PROJECT_ROOT / "fake_data"
+    result: dict[str, list[Path]] = {}
+
+    for collection_name, folder_name in COMPANY_FOLDERS.items():
+        paths: list[Path] = []
+        for sub in ("docs", "code"):
+            candidate = root / folder_name / sub
+            if candidate.exists():
+                paths.append(candidate)
+            else:
+                logger.debug(
+                    "Company dir not found (skipping): %s", candidate
+                )
+        if paths:
+            result[collection_name] = paths
+
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Manager / BM25 cache
+# ---------------------------------------------------------------------------
+
 def get_company_manager(company_id: int, *, url: str | None = None, client=None):
     """
     Return a QdrantManager scoped to the given company.
@@ -44,7 +144,29 @@ def get_company_manager(company_id: int, *, url: str | None = None, client=None)
 
     collection_name = collection_name_for_company(company_id)
     if collection_name not in _manager_cache:
-        kwargs = {"collection_name": collection_name}
+        kwargs: dict = {"collection_name": collection_name}
+        if client is not None:
+            kwargs["client"] = client
+        elif url is not None:
+            kwargs["url"] = url
+        _manager_cache[collection_name] = QdrantManager(**kwargs)
+
+    return _manager_cache[collection_name]
+
+
+def get_manager_for_collection(
+    collection_name: str, *, url: str | None = None, client=None
+):
+    """
+    Return a QdrantManager for a named collection (used by watcher/ingest).
+
+    Unlike ``get_company_manager`` this accepts the collection name directly,
+    which is more natural when the caller resolved the name from a file path.
+    """
+    from vectorstore.qdrant_manager import QdrantManager
+
+    if collection_name not in _manager_cache:
+        kwargs: dict = {"collection_name": collection_name}
         if client is not None:
             kwargs["client"] = client
         elif url is not None:

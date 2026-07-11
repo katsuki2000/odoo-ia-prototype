@@ -1,0 +1,32 @@
+WIKI INTERNE MIRO KE — COMPANY BETA — Procédure d'approbation et workflow interne
+
+1. NIVEAUX D'APPROBATION (Company Beta)
+   - Niveau 1 (< 500 000 MGA) : Responsable de département
+   - Niveau 2 (500K à 2M MGA) : Directeur de pôle
+   - Niveau 3 (> 2M MGA) : Direction Générale + DRH
+   - Urgences : approbation orale autorisée, régularisation sous 48h
+
+2. ACHATS ET COMMANDES FOURNISSEURS
+   - Demande d'achat initiée dans Odoo Achats → Demandes
+   - Budget préalable vérifié par le Contrôle de Gestion
+   - Appel d'offres obligatoire pour montants > 1M MGA
+   - Bon de commande signé électroniquement par le validateur
+
+3. NOTES DE FRAIS
+   - Soumission via Odoo Notes de Frais → Nouvelle dépense
+   - Justificatifs obligatoires (scan PDF ou photo)
+   - Délai de soumission : 30 jours après dépense
+   - Remboursement sous 15 jours après validation RH + Comptabilité
+   - Plafonds : déjeuner client 50€, déplacement jour 80€, hôtel 120€/nuit
+
+4. WORKFLOW VALIDATIONS NUMÉRIQUES
+   - Signature électronique : DocuSign intégré Odoo
+   - Délai de réponse attendu : 48h ouvrées
+   - Relance automatique à 24h, puis escalade au supérieur hiérarchique
+   - Archivage automatique dans la GED après signature
+
+5. AUDIT ET TRAÇABILITÉ
+   - Chaque approbation journalisée avec timestamp + identité
+   - Rapport mensuel des workflows en attente transmis à la Direction
+   - Archivage des décisions : 5 ans (conformité légale)
+   - Accès aux logs d'approbation : Responsable Compliance uniquement

@@ -1,0 +1,31 @@
+WIKI INTERNE MIRO KE — COMPANY ALPHA — Gestion des stocks et entrepôt
+
+1. RÉCEPTION DES MARCHANDISES
+   - Bon de réception généré automatiquement depuis la commande fournisseur
+   - Vérification quantités réelles vs commande avant validation
+   - Enregistrement des lots/numéros de série si activé
+   - Rapprochement facture fournisseur après réception
+
+2. MOUVEMENTS DE STOCK (Company Alpha)
+   - Transferts internes entre emplacements via Operations → Transferts
+   - Ajustements d'inventaire : Operations → Ajustements physiques
+   - Règles de réassort automatiques par produit (point de commande)
+   - Alertes stock minimum configurables par entrepôt
+
+3. PRÉPARATION DES EXPÉDITIONS
+   - Bons de livraison créés depuis commandes clients confirmées
+   - Stratégie de picking : FIFO (premier entré, premier sorti) par défaut
+   - Validation des livraisons dans Operations → Livraisons
+   - Mise à jour automatique du suivi client après expédition
+
+4. INVENTAIRE ANNUEL
+   - Inventaire complet en fin d'exercice (31 décembre)
+   - Inventaires tournants : zones cyclées chaque trimestre
+   - Écarts constatés soumis à validation du Responsable Stocks
+   - Rapport d'inventaire transmis à la comptabilité
+
+5. INDICATEURS (Alpha Stocks)
+   - Taux de rupture cible : < 2%
+   - Rotation des stocks : cible > 4 rotations/an
+   - Délai de réapprovisionnement moyen : 7 jours ouvrés
+   - Précision inventaire : cible > 98%
