@@ -1,0 +1,11 @@
+.git
+.vscode
+.theia
+miro-rag/venv_miro
+**/__pycache__
+**/*.pyc
+miro-rag/vectorstore/chroma_db
+miro-rag/ingestion/logs
+odoo17-dev/data
+odoo17-dev/extra-addons
+*.sqlite3

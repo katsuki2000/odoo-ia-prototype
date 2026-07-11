@@ -548,13 +548,14 @@ async def _startup_scan_and_scheduler() -> None:
     logger = logging.getLogger(__name__)
 
     try:
-        logger.info("Skipping startup incremental scan for faster testing.")
-        # await asyncio.to_thread(
-        #     run_startup_scan,
-        #     [DOCS_DIR, CODE_DIR],
-        #     None,
-        #     LAST_INGESTION_STATUS,
-        # )
+        import threading
+        logger.info("Startup incremental scan: scanning %s and %s", DOCS_DIR, CODE_DIR)
+        t = threading.Thread(
+            target=run_startup_scan,
+            args=([DOCS_DIR, CODE_DIR], None, LAST_INGESTION_STATUS),
+            daemon=True
+        )
+        t.start()
     except Exception as exc:
         logger.exception("Startup incremental scan failed: %s", exc)
 
@@ -566,6 +567,7 @@ async def _startup_scan_and_scheduler() -> None:
             status_dict=LAST_INGESTION_STATUS,
         )
     SCHEDULER_INSTANCE.start()
+    logger.info("FINISHED startup event in main.py, returning to uvicorn!")
 
 
 @app.on_event("shutdown")

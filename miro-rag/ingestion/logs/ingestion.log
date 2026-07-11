@@ -1586,3 +1586,34 @@ ake_data\documents\manuel_facturation.pdf
 2026-07-11 01:09:14,490 - ingestion.incremental - INFO - Added new source: D:\projets\odoo-ia-prototype\miro-rag\fake_data\code\account\account_move.py (720 chunks)
 2026-07-11 01:09:14,490 - ingestion.code_loader - INFO - Loading Python file: D:\projets\odoo-ia-prototype\miro-rag\fake_data\code\account\account_move_line.py
 2026-07-11 01:09:14,799 - ingestion.code_loader - INFO - Created 513 chunks from D:\projets\odoo-ia-prototype\miro-rag\fake_data\code\account\account_move_line.py
+2026-07-11 01:11:08,168 - api.main - INFO - Skipping startup incremental scan for faster testing.
+2026-07-11 01:11:17,668 - rag.graph - INFO - Invoking graph for question: 'Bonjour MIRO AI ! Est-ce que le service RAG répond ?'
+2026-07-11 01:11:17,760 - rag.graph - INFO - Node [retrieve]: Fetching documents for: Bonjour MIRO AI ! Est-ce que le service RAG répond ?
+2026-07-11 01:11:18,193 - vectorstore.chroma_manager - INFO - ChromaDB initialized at D:\projets\odoo-ia-prototype\miro-rag\vectorstore\chroma_db with collection 'odoo_documents'
+2026-07-11 01:11:18,859 - vectorstore.search - INFO - BM25 index built with 1432 documents
+2026-07-11 01:11:19,680 - vectorstore.search - INFO - Hybrid search: 30 vector results, 29 BM25 results
+2026-07-11 01:11:19,680 - vectorstore.search - INFO - RRF fusion: 37 results above threshold 0.30
+2026-07-11 01:11:19,682 - vectorstore.search - ERROR - sentence-transformers not installed. Install with: pip install sentence-transformers
+2026-07-11 01:11:19,682 - vectorstore.search - ERROR - Cross-encoder scoring or loading failed: cannot import name 'CrossEncoder' from 'sentence_transformers' (D:\projets\odoo-ia-prototype\miro-rag\venv_miro\Lib\site-packages\sentence_transformers\__init__.py)
+2026-07-11 01:11:19,683 - vectorstore.search - INFO - Retrieval complete: 10 results for query 'Bonjour MIRO AI ! Est-ce que le service RAG répond ?'
+2026-07-11 01:11:19,687 - rag.graph - INFO - Node [route]: Classifying query type from 10 chunks
+2026-07-11 01:11:19,687 - rag.graph - INFO - Node [route]: ERP ratio = 0/10 (0%)
+2026-07-11 01:11:19,965 - rag.graph - INFO - Node [generate]: Building prompt and calling LLM
+2026-07-11 01:11:26,079 - httpx - INFO - HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-07-11 01:11:26,333 - rag.graph - INFO - Node [format_output]: Formatting final response
+2026-07-11 01:11:26,335 - rag.graph - INFO - {"event": "request_latency", "metrics": {"routing_time": 0.2761838436126709, "generation_time": 6.366536855697632, "total_time": 9.222173690795898}}
+2026-07-11 01:11:26,791 - rag.graph - INFO - Invoking graph for question: 'Comment fonctionne la gestion des pickings (bons de livraison) et la validation des mouvements dans Odoo ?'
+2026-07-11 01:11:26,798 - rag.graph - INFO - Node [retrieve]: Fetching documents for: Comment fonctionne la gestion des pickings (bons de livraison) et la validation des mouvements dans Odoo ?
+2026-07-11 01:11:27,506 - vectorstore.search - INFO - Hybrid search: 30 vector results, 30 BM25 results
+2026-07-11 01:11:27,506 - vectorstore.search - INFO - RRF fusion: 44 results above threshold 0.30
+2026-07-11 01:11:27,508 - vectorstore.search - ERROR - sentence-transformers not installed. Install with: pip install sentence-transformers
+2026-07-11 01:11:27,508 - vectorstore.search - ERROR - Cross-encoder scoring or loading failed: cannot import name 'CrossEncoder' from 'sentence_transformers' (D:\projets\odoo-ia-prototype\miro-rag\venv_miro\Lib\site-packages\sentence_transformers\__init__.py)
+2026-07-11 01:11:27,508 - vectorstore.search - INFO - Retrieval complete: 10 results for query 'Comment fonctionne la gestion des pickings (bons de livraison) et la validation '
+2026-07-11 01:11:27,510 - rag.graph - INFO - Node [route]: Classifying query type from 10 chunks
+2026-07-11 01:11:27,518 - rag.graph - INFO - Node [generate]: Building prompt and calling LLM
+2026-07-11 01:11:29,469 - httpx - INFO - HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 400 Bad Request"
+2026-07-11 01:11:33,010 - httpx - INFO - HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-07-11 01:11:33,012 - groq._base_client - INFO - Retrying request to /openai/v1/chat/completions in 22.000000 seconds
+2026-07-11 01:11:56,396 - httpx - INFO - HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-07-11 01:11:56,399 - rag.graph - INFO - Node [format_output]: Formatting final response
+2026-07-11 01:11:56,401 - rag.graph - INFO - {"event": "request_latency", "metrics": {"routing_time": 0.0063250064849853516, "generation_time": 28.880542993545532, "total_time": 29.69607925415039}}
