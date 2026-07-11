@@ -65,6 +65,12 @@ class OdooConnector:
             logger.error("XML-RPC Auth error: %s", str(e))
             raise OdooConnectorError(f"Failed to authenticate: {str(e)}")
 
+    def _get_password_for_uid(self, uid: int) -> str:
+        """Get the XML-RPC password for a given uid. In this prototype, admin uses self.password, others use default 'password123'."""
+        if uid in (1, 2):
+            return self.password
+        return getattr(self, "_user_passwords", {}).get(uid, "password123")
+
     def _check_whitelist(self, model: str):
         """Ensure the requested model is in the allowed whitelist."""
         if model not in ALLOWED_MODELS:
@@ -82,7 +88,7 @@ class OdooConnector:
         
         try:
             records = self.models.execute_kw(
-                self.db, uid, self.password,
+                self.db, uid, self._get_password_for_uid(uid),
                 model, 'search_read',
                 [domain],
                 {'fields': fields}
@@ -100,7 +106,7 @@ class OdooConnector:
         
         try:
             records = self.models.execute_kw(
-                self.db, uid, self.password,
+                self.db, uid, self._get_password_for_uid(uid),
                 model, 'read_group',
                 [domain, fields, groupby]
             )
@@ -117,7 +123,7 @@ class OdooConnector:
         
         try:
             fields_info = self.models.execute_kw(
-                self.db, uid, self.password,
+                self.db, uid, self._get_password_for_uid(uid),
                 model, 'fields_get',
                 [],
                 {'attributes': ['string', 'type', 'help']}
@@ -138,8 +144,14 @@ class OdooConnector:
 
         skills = {"ventes": False, "stocks": False, "comptabilite": False, "tickets": False}
         try:
+            eval_uid = 2
+            try:
+                eval_uid = self.common.authenticate(self.db, "admin", self.password, {}) or 2
+            except Exception:
+                eval_uid = uid
+
             user_data = self.models.execute_kw(
-                self.db, uid, self.password,
+                self.db, eval_uid, self.password,
                 "res.users", "read",
                 [[uid]],
                 {"fields": ["groups_id"]}
@@ -149,12 +161,6 @@ class OdooConnector:
             group_ids = user_data[0].get("groups_id", [])
             if not group_ids:
                 return skills
-
-            eval_uid = uid
-            try:
-                eval_uid = self.common.authenticate(self.db, "admin", self.password, {}) or uid
-            except Exception:
-                pass
 
             mappings = self.models.execute_kw(
                 self.db, eval_uid, self.password,
