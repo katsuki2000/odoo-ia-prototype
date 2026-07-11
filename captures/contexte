@@ -70,3 +70,11 @@ Step 13 Day 1 is done (Phase 4 — Multi-tenant, branch phase-4):
 - Created `miro-rag/tests/test_qdrant_manager.py` — 16/16 tests PASSED (same contract as chroma_manager).
 - Refactored `miro-rag/tests/test_chroma_manager.py` to reuse the shared mixin.
 - Added `qdrant-client==1.13.2` to `requirements.txt`.
+
+Step 13 Day 2 is done (Phase 4 — Multi-tenant, branch phase-4):
+- Added `VECTOR_BACKEND`, `COMPANY_ALPHA_ID`, `COMPANY_BETA_ID`, and `COMPANY_COLLECTIONS` in `config/settings.py`.
+- Implemented `vectorstore/company_collections.py`: maps Odoo `company_id` to Qdrant collections (`company_alpha`, `company_beta`), caches per-company managers and BM25 indexes.
+- Updated `vectorstore/search.py` — `get_retriever(company_id)` routes to the correct company collection when `VECTOR_BACKEND=qdrant`.
+- Updated `rag/graph.py` — `company_id` added to `RAGState`, passed through `retrieve` node and `query_graph()`.
+- Updated `api/main.py` — JWT `company_id` overrides request body; startup ensures company collections exist.
+- Added `tests/test_company_routing.py` — verifies alpha/beta document isolation per company_id.

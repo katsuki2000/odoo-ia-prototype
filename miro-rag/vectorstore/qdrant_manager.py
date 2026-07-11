@@ -45,6 +45,7 @@ class QdrantManager:
         embedding_model: str = "nomic-embed-text-v1.5",
         collection_name: str = "odoo_documents",
         db_path: str | None = None,
+        client: QdrantClient | None = None,
     ):
         """
         Initialize a Qdrant client and ensure the target collection exists.
@@ -54,13 +55,16 @@ class QdrantManager:
             embedding_model: Embedding model identifier stored in collection metadata.
             collection_name: Target Qdrant collection name.
             db_path: Legacy ChromaManager parameter kept for interface compatibility.
+            client: Optional pre-built QdrantClient (for tests sharing one instance).
         """
         del db_path
 
         self.url = url or QDRANT_URL
         self.embedding_model = embedding_model
         self.collection_name = collection_name
-        if self.url == ":memory:":
+        if client is not None:
+            self.client = client
+        elif self.url == ":memory:":
             self.client = QdrantClient(location=":memory:", timeout=30)
         else:
             self.client = QdrantClient(url=self.url, timeout=30)

@@ -57,13 +57,13 @@ class RAGState(TypedDict):
     question: str
     chat_history: List[BaseMessage]
     uid: Optional[int]
+    company_id: Optional[int]
     skills: Optional[dict]
     timing: dict
     retrieved_chunks: List[dict]
     raw_answer: str
     route: Optional[str]
     response: Optional[AssistantResponse]
-    uid: Optional[int]  # Odoo user uid for RBAC passthrough
 
 
 # ── Nodes ─────────────────────────────────────────────────────────────────────
@@ -73,14 +73,15 @@ def retrieve(state: RAGState) -> dict:
     import time
     start_time = time.time()
     question = state["question"]
-    logger.info("Node [retrieve]: Fetching documents for: %s", question)
+    company_id = state.get("company_id")
+    logger.info("Node [retrieve]: Fetching documents for: %s (company_id=%s)", question, company_id)
     
     try:
-        chroma_manager, bm25_index = get_retriever()
+        vector_manager, bm25_index = get_retriever(company_id=company_id)
         chunks = search_retrieve(
             query=question, 
             top_k=10, 
-            chroma_manager=chroma_manager,
+            chroma_manager=vector_manager,
             bm25_index=bm25_index,
             use_reranker=True
         )
@@ -464,11 +465,13 @@ def query_graph(
     question: str,
     chat_history: Optional[List[BaseMessage]] = None,
     uid: Optional[int] = None,
+    company_id: Optional[int] = None,
     skills: Optional[dict] = None,
 ) -> AssistantResponse:
     """
     Public API to query the graph.
     uid: Odoo user id for RBAC passthrough.
+    company_id: Odoo res.company id for multi-tenant vector routing.
     """
     import time
     import json
@@ -491,6 +494,7 @@ def query_graph(
             "question": question,
             "chat_history": chat_history,
             "uid": uid,
+            "company_id": company_id,
             "skills": skills,
             "timing": {},
             "retrieved_chunks": [],

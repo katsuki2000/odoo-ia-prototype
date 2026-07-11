@@ -503,13 +503,27 @@ _shared_chroma: ChromaManager | None = None
 _shared_bm25: BM25Index | None = None
 
 
-def get_retriever() -> tuple[ChromaManager, BM25Index]:
+def get_retriever(
+    company_id: int | None = None,
+) -> tuple[ChromaManager | object, BM25Index]:
     """
-    Get or create shared ChromaManager and BM25Index instances.
+    Get or create vector manager and BM25Index for retrieval.
+
+    When VECTOR_BACKEND is qdrant, company_id is required and selects the
+    company-scoped Qdrant collection. With chroma, a single shared store is used.
 
     Returns:
-        Tuple of (ChromaManager, BM25Index) ready for use
+        Tuple of (vector_manager, BM25Index) ready for use
     """
+    from config.settings import VECTOR_BACKEND
+
+    if VECTOR_BACKEND == "qdrant":
+        if company_id is None:
+            raise ValueError("company_id is required when VECTOR_BACKEND=qdrant")
+        from vectorstore.company_collections import get_company_retriever
+
+        return get_company_retriever(company_id)
+
     global _shared_chroma, _shared_bm25
 
     if _shared_chroma is None:
@@ -522,23 +536,24 @@ def get_retriever() -> tuple[ChromaManager, BM25Index]:
     return _shared_chroma, _shared_bm25
 
 
-def quick_retrieve(query: str, top_k: int = 5, **kwargs) -> list[dict[str, Any]]:
+def quick_retrieve(query: str, top_k: int = 5, company_id: int | None = None, **kwargs) -> list[dict[str, Any]]:
     """
     Quick retrieval using shared instances.
 
     Args:
         query: Search query
         top_k: Number of results
+        company_id: Odoo company_id for Qdrant collection routing
         **kwargs: Additional arguments passed to retrieve()
 
     Returns:
         List of results
     """
-    chroma, bm25 = get_retriever()
+    vector_manager, bm25 = get_retriever(company_id=company_id)
     return retrieve(
         query=query,
         top_k=top_k,
-        chroma_manager=chroma,
+        chroma_manager=vector_manager,
         bm25_index=bm25,
         **kwargs,
     )

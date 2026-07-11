@@ -292,15 +292,20 @@ def ask_question_v1(request: AskRequestV1, user: dict = Depends(get_current_user
         if not request.question or not request.question.strip():
             raise HTTPException(status_code=400, detail="Empty question provided.")
 
-        # Override uid from the trusted JWT token
+        # Override uid and company_id from the trusted JWT token
         token_uid = user.get("uid")
         if token_uid:
             request.user_uid = token_uid
+
+        token_company_id = user.get("company_id")
+        if token_company_id is not None:
+            request.company_id = token_company_id
 
         response = query_graph(
             question=request.question,
             chat_history=chat_history,
             uid=request.user_uid,
+            company_id=request.company_id,
             skills=request.skills
         )
         
@@ -546,6 +551,13 @@ async def _startup_scan_and_scheduler() -> None:
     """Run one incremental scan at startup and schedule periodic scans."""
     global SCHEDULER_INSTANCE
     logger = logging.getLogger(__name__)
+
+    try:
+        from vectorstore.company_collections import ensure_company_collections
+
+        ensure_company_collections()
+    except Exception as exc:
+        logger.exception("Company Qdrant collection init failed: %s", exc)
 
     try:
         import threading

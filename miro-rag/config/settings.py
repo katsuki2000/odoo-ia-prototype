@@ -26,6 +26,17 @@ QDRANT_HOST = os.getenv("QDRANT_HOST", "localhost")
 QDRANT_PORT = int(os.getenv("QDRANT_PORT", "6333"))
 QDRANT_URL  = os.getenv("QDRANT_URL", f"http://{QDRANT_HOST}:{QDRANT_PORT}")
 
+# ── Vector store backend ──────────────────────────────
+VECTOR_BACKEND = os.getenv("VECTOR_BACKEND", "qdrant")  # "chroma" or "qdrant"
+
+# Odoo res.company IDs mapped to Qdrant collection names (multi-tenant)
+COMPANY_ALPHA_ID = int(os.getenv("COMPANY_ALPHA_ID", "1"))
+COMPANY_BETA_ID = int(os.getenv("COMPANY_BETA_ID", "2"))
+COMPANY_COLLECTIONS: dict[int, str] = {
+    COMPANY_ALPHA_ID: "company_alpha",
+    COMPANY_BETA_ID: "company_beta",
+}
+
 # ── FastAPI ───────────────────────────────────────────
 API_HOST = "0.0.0.0"
 API_PORT = 8000
