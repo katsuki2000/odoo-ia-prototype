@@ -139,3 +139,5 @@ sentence-transformers
 langchain-groq
 langgraph
 langchain
+pytesseract
+pdf2image

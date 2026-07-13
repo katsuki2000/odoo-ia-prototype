@@ -40,8 +40,8 @@ class CodeLoader:
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
 
-        # Initialize text splitter
-        self.splitter = RecursiveCharacterTextSplitter(
+        # Initialize text splitter (token-based via tiktoken)
+        self.splitter = RecursiveCharacterTextSplitter.from_tiktoken_encoder(
             chunk_size=chunk_size,
             chunk_overlap=chunk_overlap,
             separators=["\n\n", "\nclass ", "\ndef ", "\n    def ", "\n", " ", ""],
@@ -190,7 +190,116 @@ class CodeLoader:
             "xml_summary": {"total_records": len(chunks)},
         }
 
+    def load_js_file(
+        self,
+        file_path: str | Path,
+        metadata: Optional[dict[str, Any]] = None,
+    ) -> dict[str, Any]:
+        """
+        Load and chunk a JavaScript file (Odoo OWL components).
+
+        Args:
+            file_path: Path to JS file
+            metadata: Optional base metadata
+
+        Returns:
+            Dictionary with chunks, metadatas, and js_summary
+        """
+        file_path = Path(file_path)
+
+        if not file_path.exists():
+            raise FileNotFoundError(f"JavaScript file not found: {file_path}")
+
+        if file_path.suffix != ".js":
+            raise ValueError(f"Expected .js file, got {file_path.suffix}")
+
+        logger.info(f"Loading JavaScript file: {file_path}")
+
+        with open(file_path, "r", encoding="utf-8") as f:
+            source_code = f.read()
+
+        # Initialize base metadata
+        base_metadata = metadata or {}
+        base_metadata.setdefault("source", str(file_path))
+        base_metadata.setdefault("type", "code_js")
+        base_metadata.setdefault("module", self._extract_module_name(file_path))
+
+        # Extract JS structure info
+        js_info = self._extract_js_info(source_code)
+
+        # Use JS-aware separators for chunking
+        js_splitter = RecursiveCharacterTextSplitter.from_tiktoken_encoder(
+            chunk_size=self.chunk_size,
+            chunk_overlap=self.chunk_overlap,
+            separators=[
+                "\n\nexport ",   # ES module exports
+                "\n\nclass ",    # Class declarations
+                "\n\nfunction ", # Function declarations
+                "\n\nconst ",    # Const declarations (often components)
+                "\n\n",          # Paragraph
+                "\n",            # Line
+                " ",             # Word
+                "",              # Character
+            ],
+        )
+
+        chunks = js_splitter.split_text(source_code)
+        logger.info(f"Created {len(chunks)} chunks from {file_path}")
+
+        # Create metadata for each chunk
+        metadatas = []
+        for i, chunk in enumerate(chunks):
+            chunk_metadata = base_metadata.copy()
+
+            # Find which components/functions are in this chunk
+            chunk_components = [
+                c for c in js_info.get("components", []) if c in chunk
+            ]
+            chunk_functions = [
+                f for f in js_info.get("functions", []) if f in chunk
+            ]
+
+            chunk_metadata.update(
+                {
+                    "chunk_index": i,
+                    "total_chunks": len(chunks),
+                    "content_hash": self._compute_hash(chunk),
+                    "components": chunk_components,
+                    "functions": chunk_functions,
+                    "is_owl_component": "Component" in chunk or "@odoo/owl" in chunk,
+                }
+            )
+            metadatas.append(chunk_metadata)
+
+        return {
+            "chunks": chunks,
+            "metadatas": metadatas,
+            "js_summary": js_info,
+        }
+
     # Helper methods
+
+    def _extract_js_info(self, source_code: str) -> dict[str, Any]:
+        """Extract component and function names from JavaScript source."""
+        info = {"components": [], "functions": [], "imports": []}
+
+        # Extract class names (OWL components)
+        for match in re.finditer(r"class\s+(\w+)\s+extends", source_code):
+            info["components"].append(match.group(1))
+
+        # Extract standalone function names
+        for match in re.finditer(r"(?:export\s+)?function\s+(\w+)\s*\(", source_code):
+            info["functions"].append(match.group(1))
+
+        # Extract const arrow function components
+        for match in re.finditer(r"(?:export\s+)?const\s+(\w+)\s*=\s*\(", source_code):
+            info["functions"].append(match.group(1))
+
+        # Extract imports
+        for match in re.finditer(r"import\s+.*?from\s+[\"'](.+?)[\"']", source_code):
+            info["imports"].append(match.group(1))
+
+        return info
 
     def _extract_module_name(self, file_path: Path) -> str:
         """Extract module name from file path (e.g., 'account', 'sale')."""
@@ -379,3 +488,46 @@ def load_xml_directory(
 
     logger.info(f"Loaded {len(documents)} XML files from {directory}")
     return documents
+
+
+def load_js_directory(
+    directory: str | Path,
+    chunk_size: int = 512,
+    chunk_overlap: int = 50,
+) -> list[dict[str, Any]]:
+    """
+    Load all JavaScript files from a directory.
+
+    Args:
+        directory: Path to directory containing .js files
+        chunk_size: Chunk size for splitting
+        chunk_overlap: Chunk overlap for splitting
+
+    Returns:
+        List of document dictionaries with chunks and metadatas
+    """
+    directory = Path(directory)
+    if not directory.is_dir():
+        raise ValueError(f"Directory not found: {directory}")
+
+    loader = CodeLoader(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+    documents = []
+
+    for js_file in directory.rglob("*.js"):
+        # Skip node_modules and build directories
+        if any(
+            skip in js_file.parts
+            for skip in ("node_modules", "dist", "build", ".git")
+        ):
+            continue
+
+        try:
+            logger.info(f"Processing {js_file.name}...")
+            result = loader.load_js_file(js_file)
+            documents.append(result)
+        except Exception as e:
+            logger.error(f"Error processing {js_file}: {e}")
+
+    logger.info(f"Loaded {len(documents)} JavaScript files from {directory}")
+    return documents
+
