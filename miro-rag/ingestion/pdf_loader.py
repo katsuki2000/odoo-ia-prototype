@@ -59,8 +59,8 @@ class PDFLoader:
         self.chunk_overlap = chunk_overlap
         self.ocr_threshold = ocr_threshold
 
-        # Initialize text splitter
-        self.splitter = RecursiveCharacterTextSplitter(
+        # Initialize text splitter (token-based via tiktoken)
+        self.splitter = RecursiveCharacterTextSplitter.from_tiktoken_encoder(
             chunk_size=chunk_size,
             chunk_overlap=chunk_overlap,
             separators=["\n\n", "\n", " ", ""],

@@ -56,9 +56,23 @@ class ChromaManager:
         # Initialize ChromaDB client with persistent storage
         self.client = chromadb.PersistentClient(path=str(self.db_path))
 
+        # Configuration de l'API Nomic
+        from chromadb.utils import embedding_functions
+        nomic_api_key = os.environ.get("NOMIC_API_KEY")
+        
+        if nomic_api_key:
+            embedding_function = embedding_functions.NomicEmbeddingFunction(
+                api_key=nomic_api_key,
+                model_name=embedding_model
+            )
+        else:
+            logger.warning("NOMIC_API_KEY is not set in environment. Falling back to default embeddings.")
+            embedding_function = None
+
         # Get or create collection
         self.collection = self.client.get_or_create_collection(
             name=collection_name,
+            embedding_function=embedding_function,
             metadata={
                 "embedding_model": embedding_model,
                 "hnsw:space": "cosine",

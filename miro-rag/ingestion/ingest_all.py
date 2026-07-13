@@ -21,7 +21,11 @@ import time
 from pathlib import Path
 from typing import Any, Optional
 
-from ingestion.code_loader import CodeLoader, load_python_directory, load_xml_directory
+# Add PROJECT_ROOT to python path before imports
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(PROJECT_ROOT))
+
+from ingestion.code_loader import CodeLoader, load_python_directory, load_xml_directory, load_js_directory
 from ingestion.pdf_loader import PDFLoader, load_pdf_directory
 from ingestion.wiki_loader import WikiLoader, load_wiki_directory
 from vectorstore.chroma_manager import ChromaManager
@@ -177,7 +181,7 @@ class IngestionOrchestrator:
             logger.info(f"Wiki ingestion took {elapsed:.2f}s")
 
     def _ingest_code_dir(self, code_dir: Path) -> None:
-        """Ingest Python and XML code files."""
+        """Ingest Python, XML, and JS code files."""
         if not code_dir.exists():
             logger.warning(f"Code directory not found: {code_dir}")
             return
@@ -207,6 +211,19 @@ class IngestionOrchestrator:
             elapsed = time.time() - start
             self.stats["load_times"]["xml"] = elapsed
             logger.info(f"XML ingestion took {elapsed:.2f}s")
+
+        # Load JS files
+        js_files = list(code_dir.rglob("*.js"))
+        if js_files:
+            logger.info(f"Found {len(js_files)} JS files")
+            start = time.time()
+            try:
+                self._load_and_ingest_js(code_dir)
+            except Exception as e:
+                logger.error(f"Error loading JS files: {e}")
+            elapsed = time.time() - start
+            self.stats["load_times"]["js"] = elapsed
+            logger.info(f"JS ingestion took {elapsed:.2f}s")
 
     def _load_and_ingest_pdfs(self, docs_dir: Path) -> None:
         """Load and ingest PDF documents."""
@@ -384,6 +401,52 @@ class IngestionOrchestrator:
 
             except Exception as e:
                 logger.error(f"  Error processing {xml_file}: {e}")
+
+    def _load_and_ingest_js(self, code_dir: Path) -> None:
+        """Load and ingest JavaScript code files."""
+        loader = CodeLoader(
+            chunk_size=self.chunk_size,
+            chunk_overlap=self.chunk_overlap,
+        )
+
+        for js_file in code_dir.rglob("*.js"):
+            # Skip common non-code directories
+            if any(
+                skip in part.lower()
+                for part in js_file.parts
+                for skip in ("node_modules", "dist", "build", ".git")
+            ):
+                continue
+            try:
+                logger.info(f"  Processing: {js_file.relative_to(code_dir)}")
+                result = loader.load_js_file(js_file)
+
+                chunks = result["chunks"]
+                metadatas = result["metadatas"]
+
+                if chunks:
+                    ids = self.chroma_manager.add_chunks(chunks, metadatas)
+                    logger.info(f"    Added {len(ids)} chunks")
+
+                    self.stats["total_chunks"] += len(chunks)
+                    source_name = js_file.name
+                    self.stats["by_source"][source_name] = (
+                        self.stats["by_source"].get(source_name, 0) + len(chunks)
+                    )
+
+                    # Track by module
+                    for metadata in metadatas:
+                        module = metadata.get("module", "unknown")
+                        self.stats["by_module"][module] = (
+                            self.stats["by_module"].get(module, 0) + 1
+                        )
+
+                    self.stats["by_type"]["code_js"] = (
+                        self.stats["by_type"].get("code_js", 0) + len(chunks)
+                    )
+
+            except Exception as e:
+                logger.error(f"  Error processing {js_file}: {e}")
 
     def clear_and_reingest(
         self,
