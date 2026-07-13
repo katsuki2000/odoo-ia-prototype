@@ -1,7 +1,7 @@
 /** @odoo-module **/
 
 import { registry } from "@web/core/registry";
-import { Component, useState, useRef, onPatched } from "@odoo/owl";
+import { Component, useState, useRef, onPatched, markup } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
 
 export class MiroAiAssistant extends Component {
@@ -79,7 +79,7 @@ export class MiroAiAssistant extends Component {
                 parts[i] = parts[i].replace(/\n/g, '<br/>');
             }
         }
-        return parts.join('');
+        return markup(parts.join(''));
     }
 
     onKeyDown(ev) {

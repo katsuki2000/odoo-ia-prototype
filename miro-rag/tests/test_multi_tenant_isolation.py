@@ -36,12 +36,12 @@ class TestMultiTenantIsolation(unittest.TestCase):
         cls.alpha_manager = QdrantManager(
             client=cls.client,
             collection_name="company_alpha",
-            embedding_model="all-MiniLM-L6-v2",
+            embedding_model="nomic-embed-text-v1.5",
         )
         cls.beta_manager = QdrantManager(
             client=cls.client,
             collection_name="company_beta",
-            embedding_model="all-MiniLM-L6-v2",
+            embedding_model="nomic-embed-text-v1.5",
         )
 
         # Populate Alpha collection
@@ -103,7 +103,7 @@ class TestMultiTenantIsolation(unittest.TestCase):
         manager, bm25 = get_company_retriever(
             COMPANY_ALPHA_ID,
             client=self.client,
-            embedding_model="all-MiniLM-L6-v2",
+            embedding_model="nomic-embed-text-v1.5",
         )
 
         for i, query in enumerate(alpha_queries, start=1):
@@ -141,7 +141,7 @@ class TestMultiTenantIsolation(unittest.TestCase):
         manager, bm25 = get_company_retriever(
             COMPANY_BETA_ID,
             client=self.client,
-            embedding_model="all-MiniLM-L6-v2",
+            embedding_model="nomic-embed-text-v1.5",
         )
 
         for i, query in enumerate(beta_queries, start=6):

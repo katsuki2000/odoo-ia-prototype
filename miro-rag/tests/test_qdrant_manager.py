@@ -17,7 +17,7 @@ class TestQdrantManager(VectorManagerTestMixin, unittest.TestCase):
         self.manager = QdrantManager(
             url=":memory:",
             collection_name="test_collection",
-            embedding_model="all-MiniLM-L6-v2",
+            embedding_model="nomic-embed-text-v1.5",
         )
 
     def tearDown(self):

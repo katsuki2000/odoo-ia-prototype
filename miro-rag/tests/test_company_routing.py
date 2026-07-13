@@ -39,12 +39,12 @@ class TestCompanyCollectionRouting(unittest.TestCase):
         self.alpha_manager = QdrantManager(
             client=self.client,
             collection_name="company_alpha",
-            embedding_model="all-MiniLM-L6-v2",
+            embedding_model="nomic-embed-text-v1.5",
         )
         self.beta_manager = QdrantManager(
             client=self.client,
             collection_name="company_beta",
-            embedding_model="all-MiniLM-L6-v2",
+            embedding_model="nomic-embed-text-v1.5",
         )
 
         self.alpha_manager.add_chunks(
@@ -79,7 +79,7 @@ class TestCompanyCollectionRouting(unittest.TestCase):
             manager, bm25 = get_company_retriever(
                 self.ALPHA_ID,
                 client=self.client,
-                embedding_model="all-MiniLM-L6-v2",
+                embedding_model="nomic-embed-text-v1.5",
             )
             results = retrieve(
                 "sales policy",
@@ -99,7 +99,7 @@ class TestCompanyCollectionRouting(unittest.TestCase):
             manager, bm25 = get_company_retriever(
                 self.BETA_ID,
                 client=self.client,
-                embedding_model="all-MiniLM-L6-v2",
+                embedding_model="nomic-embed-text-v1.5",
             )
             results = retrieve(
                 "inventory procedure",
@@ -116,8 +116,8 @@ class TestCompanyCollectionRouting(unittest.TestCase):
 
     def test_retrievers_use_different_collections(self):
         with patch("vectorstore.company_collections.COMPANY_COLLECTIONS", self.company_map):
-            alpha_manager, _ = get_company_retriever(self.ALPHA_ID, client=self.client, embedding_model="all-MiniLM-L6-v2")
-            beta_manager, _ = get_company_retriever(self.BETA_ID, client=self.client, embedding_model="all-MiniLM-L6-v2")
+            alpha_manager, _ = get_company_retriever(self.ALPHA_ID, client=self.client, embedding_model="nomic-embed-text-v1.5")
+            beta_manager, _ = get_company_retriever(self.BETA_ID, client=self.client, embedding_model="nomic-embed-text-v1.5")
 
         self.assertEqual(alpha_manager.collection_name, "company_alpha")
         self.assertEqual(beta_manager.collection_name, "company_beta")

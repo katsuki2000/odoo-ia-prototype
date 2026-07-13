@@ -202,68 +202,50 @@ class CodeLoader:
         return "unknown"
 
     def _extract_ast_info(self, source_code: str) -> dict[str, Any]:
-        """Extract class and function information via AST parsing."""
+        """Extract class and function information via AST parsing using tree-sitter."""
         info = {"classes": [], "functions": [], "docstring": None}
 
         try:
-            tree = ast.parse(source_code)
-        except SyntaxError as e:
-            logger.warning(f"Syntax error parsing Python file: {e}")
-            return info
+            import tree_sitter_python as tspython
+            from tree_sitter import Language, Parser
+            
+            PY_LANGUAGE = Language(tspython.language())
+            parser = Parser()
+            parser.language = PY_LANGUAGE
+            tree = parser.parse(bytes(source_code, "utf8"))
+            
+            def traverse(node, in_class=False):
+                if node.type == 'class_definition':
+                    class_name = None
+                    for child in node.children:
+                        if child.type == 'identifier':
+                            class_name = child.text.decode("utf8")
+                            info["classes"].append({"name": class_name, "lineno": node.start_point[0] + 1})
+                            break
+                    for child in node.children:
+                        traverse(child, in_class=True)
+                elif node.type == 'function_definition':
+                    if not in_class:
+                        for child in node.children:
+                            if child.type == 'identifier':
+                                info["functions"].append({"name": child.text.decode("utf8"), "lineno": node.start_point[0] + 1})
+                                break
+                    for child in node.children:
+                        traverse(child, in_class=in_class)
+                else:
+                    # Check for module docstring
+                    if node.type == 'module' and len(node.children) > 0 and node.children[0].type == 'expression_statement':
+                        expr = node.children[0]
+                        if len(expr.children) > 0 and expr.children[0].type == 'string':
+                            info["docstring"] = expr.children[0].text.decode("utf8").strip('\'"')
+                    
+                    for child in node.children:
+                        traverse(child, in_class=in_class)
 
-        # Extract module docstring
-        if (
-            tree.body
-            and isinstance(tree.body[0], ast.Expr)
-            and isinstance(tree.body[0].value, ast.Constant)
-        ):
-            info["docstring"] = tree.body[0].value.value
-
-        # Extract classes and functions using a visitor
-        class _ASTCollector(ast.NodeVisitor):
-            def __init__(self):
-                self.classes = []
-                self.functions = []
-                self.in_class = False
-
-            def visit_ClassDef(self, node):
-                class_info = {
-                    "name": node.name,
-                    "lineno": node.lineno,
-                    "methods": [
-                        n.name
-                        for n in node.body
-                        if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
-                    ],
-                }
-                self.classes.append(class_info)
-                old_in_class = self.in_class
-                self.in_class = True
-                self.generic_visit(node)
-                self.in_class = old_in_class
-
-            def visit_FunctionDef(self, node):
-                if not self.in_class:
-                    func_info = {
-                        "name": node.name,
-                        "lineno": node.lineno,
-                    }
-                    self.functions.append(func_info)
-                self.generic_visit(node)
-
-            def visit_AsyncFunctionDef(self, node):
-                if not self.in_class:
-                    func_info = {
-                        "name": node.name,
-                        "lineno": node.lineno,
-                    }
-                    self.functions.append(func_info)
-                self.generic_visit(node)
-
-        collector = _ASTCollector()
-        collector.visit(tree)
-        info["classes"] = collector.classes
-        info["functions"] = collector.functions
+            traverse(tree.root_node)
+            
+        except Exception as e:
+            logger.warning(f"Tree-sitter error parsing Python file: {e}")
 
         return info
 
