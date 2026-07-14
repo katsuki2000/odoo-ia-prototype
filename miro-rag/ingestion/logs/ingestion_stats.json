@@ -1,17 +1,17 @@
 {
-  "total_chunks": 2668,
+  "total_chunks": 2674,
   "by_type": {
     "code_python": 2616,
-    "code_xml": 8,
-    "doc_pdf": 3,
+    "code_xml": 12,
+    "code_js": 18,
+    "code_csv": 1,
+    "doc_pdf": 4,
     "doc_wiki": 23
   },
   "by_module": {
-    "unknown": 34,
-    "sale": 282,
-    "account": 1518,
-    "stock": 834
-  },
-  "collection_name": "odoo_documents",
-  "embedding_model": "nomic-embed-text-v1.5"
+    "unknown": 35,
+    "sale": 284,
+    "account": 1520,
+    "stock": 835
+  }
 }
