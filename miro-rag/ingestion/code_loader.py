@@ -277,6 +277,65 @@ class CodeLoader:
             "js_summary": js_info,
         }
 
+    def load_csv_file(
+        self,
+        file_path: str | Path,
+        metadata: Optional[dict[str, Any]] = None,
+    ) -> dict[str, Any]:
+        """
+        Load and chunk a CSV file (e.g. Odoo ir.model.access.csv).
+
+        Args:
+            file_path: Path to CSV file
+            metadata: Optional base metadata
+
+        Returns:
+            Dictionary with chunks, metadatas, and csv_summary
+        """
+        file_path = Path(file_path)
+
+        if not file_path.exists():
+            raise FileNotFoundError(f"CSV file not found: {file_path}")
+
+        logger.info(f"Loading CSV file: {file_path}")
+
+        with open(file_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        # Initialize base metadata
+        base_metadata = metadata or {}
+        base_metadata.setdefault("source", str(file_path))
+        base_metadata.setdefault("type", "code_csv")
+        base_metadata.setdefault("module", self._extract_module_name(file_path))
+
+        # Use token-based splitter, splitting mostly by lines for CSV
+        csv_splitter = RecursiveCharacterTextSplitter.from_tiktoken_encoder(
+            chunk_size=self.chunk_size,
+            chunk_overlap=self.chunk_overlap,
+            separators=["\n\n", "\n", " ", ""],
+        )
+
+        chunks = csv_splitter.split_text(content)
+        logger.info(f"Created {len(chunks)} chunks from {file_path}")
+
+        metadatas = []
+        for i, chunk in enumerate(chunks):
+            chunk_metadata = base_metadata.copy()
+            chunk_metadata.update(
+                {
+                    "chunk_index": i,
+                    "total_chunks": len(chunks),
+                    "content_hash": self._compute_hash(chunk),
+                }
+            )
+            metadatas.append(chunk_metadata)
+
+        return {
+            "chunks": chunks,
+            "metadatas": metadatas,
+            "csv_summary": {"total_chunks": len(chunks)},
+        }
+
     # Helper methods
 
     def _extract_js_info(self, source_code: str) -> dict[str, Any]:

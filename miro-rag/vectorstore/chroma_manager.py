@@ -14,6 +14,9 @@ import os
 import sys
 from pathlib import Path
 from typing import Any, Optional
+from dotenv import load_dotenv
+
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 import chromadb
 
@@ -23,7 +26,38 @@ from config.settings import CHROMA_PATH
 
 logger = logging.getLogger(__name__)
 
+from chromadb.api.types import Documents, EmbeddingFunction, Embeddings
 
+
+class CustomNomicEmbeddingFunction(EmbeddingFunction):
+    """
+    Fonction d'embedding maison pour Nomic, appelant directement l'API REST
+    Atlas via `requests` — contourne le wrapper chromadb.utils.embedding_functions
+    .NomicEmbeddingFunction, fragile face aux changements de version du SDK nomic.
+    """
+
+    def __init__(self, model: str = "nomic-embed-text-v1.5", api_key: str = None, task_type: str = "search_document"):
+        self.model = model
+        self.api_key = api_key
+        self.task_type = task_type
+        self.endpoint = "https://api-atlas.nomic.ai/v1/embedding/text"
+
+    def __call__(self, input: Documents) -> Embeddings:
+        import requests
+
+        response = requests.post(
+            self.endpoint,
+            headers={"Authorization": f"Bearer {self.api_key}"},
+            json={
+                "texts": list(input),
+                "model": self.model,
+                "task_type": self.task_type,
+            },
+        )
+        response.raise_for_status()
+        data = response.json()
+        return data["embeddings"]
+        
 class ChromaManager:
     """Manages ChromaDB vector store for document chunks."""
 
@@ -56,18 +90,7 @@ class ChromaManager:
         # Initialize ChromaDB client with persistent storage
         self.client = chromadb.PersistentClient(path=str(self.db_path))
 
-        # Configuration de l'API Nomic
-        from chromadb.utils import embedding_functions
-        nomic_api_key = os.environ.get("NOMIC_API_KEY")
-        
-        if nomic_api_key:
-            embedding_function = embedding_functions.NomicEmbeddingFunction(
-                api_key=nomic_api_key,
-                model_name=embedding_model
-            )
-        else:
-            logger.warning("NOMIC_API_KEY is not set in environment. Falling back to default embeddings.")
-            embedding_function = None
+        embedding_function = self._resolve_embedding_function()
 
         # Get or create collection
         self.collection = self.client.get_or_create_collection(
@@ -83,6 +106,17 @@ class ChromaManager:
         logger.info(
             f"ChromaDB initialized at {self.db_path} with collection '{collection_name}'"
         )
+
+    def _resolve_embedding_function(self):
+            """Résout la fonction d'embedding à utiliser (Nomic si clé dispo, sinon default)."""
+            nomic_api_key = os.environ.get("NOMIC_API_KEY")
+            if nomic_api_key:
+                return CustomNomicEmbeddingFunction(
+                    model=self.embedding_model,
+                    api_key=nomic_api_key,
+                )
+            logger.warning("NOMIC_API_KEY is not set in environment. Falling back to default embeddings.")
+            return None
 
     def add_chunks(
         self,
@@ -253,7 +287,7 @@ class ChromaManager:
 
             # Count by type
             type_stats = {}
-            for doc_type in ["code_python", "code_xml", "doc_pdf", "doc_wiki"]:
+            for doc_type in ["code_python", "code_xml", "code_js", "code_csv", "doc_pdf", "doc_wiki"]:
                 try:
                     results = self.collection.get(
                         where={"type": {"$eq": doc_type}},
@@ -295,9 +329,11 @@ class ChromaManager:
         try:
             self.client.delete_collection(name=self.collection_name)
             logger.info(f"Deleted collection {self.collection_name}")
-            # Recreate empty collection
+
+            # Recreate empty collection with the SAME embedding function as __init__
             self.collection = self.client.get_or_create_collection(
                 name=self.collection_name,
+                embedding_function=self._resolve_embedding_function(),
                 metadata={
                     "embedding_model": self.embedding_model,
                     "hnsw:space": "cosine",

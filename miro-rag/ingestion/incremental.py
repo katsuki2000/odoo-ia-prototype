@@ -20,7 +20,7 @@ from vectorstore.chroma_manager import ChromaManager
 
 logger = logging.getLogger(__name__)
 
-SUPPORTED_EXTENSIONS = {".pdf", ".txt", ".md", ".py", ".xml"}
+SUPPORTED_EXTENSIONS = {".pdf", ".txt", ".md", ".py", ".xml", ".js", ".csv"}
 SKIP_PARTS = {"__pycache__", "venv", ".venv", ".git", "site-packages", ".pytest_cache"}
 
 
@@ -43,7 +43,8 @@ class IncrementalResult:
 
 def reindex_if_changed(
     roots: Iterable[str | Path],
-    chroma_manager: ChromaManager | None = None,
+    docs_manager: ChromaManager | None = None,
+    code_manager: ChromaManager | None = None,
     chunk_size: int = 512,
     chunk_overlap: int = 50,
 ) -> dict[str, Any]:
@@ -52,7 +53,8 @@ def reindex_if_changed(
 
     Args:
         roots: Directories or individual files to scan.
-        chroma_manager: Existing manager. If omitted, the default collection is used.
+        docs_manager: Manager for doc collections.
+        code_manager: Manager for code collections.
         chunk_size: Loader chunk size.
         chunk_overlap: Loader chunk overlap.
 
@@ -60,31 +62,36 @@ def reindex_if_changed(
         Dict summary containing added, updated, deleted, skipped, and failed files.
     """
     started_at = start_timer()
-    manager = chroma_manager or ChromaManager()
+    docs_manager = docs_manager or ChromaManager(collection_name="odoo_docs")
+    code_manager = code_manager or ChromaManager(collection_name="odoo_code")
     result = IncrementalResult()
 
     root_paths = [Path(root).resolve() for root in roots if str(root)]
     current_files = _scan_supported_files(root_paths)
     current_sources = {str(file_path) for file_path in current_files}
-    existing_sources = _get_existing_sources(manager)
-
-    for source in sorted(existing_sources):
-        if not _is_under_roots(source, root_paths):
-            continue
-        if source in current_sources:
-            continue
-
-        try:
-            deleted_count = manager.delete_by_source(source)
-            logger.info("Deleted removed source: %s (%d chunks)", source, deleted_count)
-            result.deleted_files.append(source)
-            result.chunks_deleted += deleted_count
-        except Exception as exc:
-            logger.error("Failed deleting removed source %s: %s", source, exc)
-            result.failed_files[source] = str(exc)
+    existing_sources_docs = _get_existing_sources(docs_manager)
+    existing_sources_code = _get_existing_sources(code_manager)
+    
+    # Track deleted sources for each manager
+    for manager, existing_sources in [(docs_manager, existing_sources_docs), (code_manager, existing_sources_code)]:
+        for source in sorted(existing_sources):
+            if not _is_under_roots(source, root_paths):
+                continue
+            if source in current_sources:
+                continue
+    
+            try:
+                deleted_count = manager.delete_by_source(source)
+                logger.info("Deleted removed source: %s (%d chunks)", source, deleted_count)
+                result.deleted_files.append(source)
+                result.chunks_deleted += deleted_count
+            except Exception as exc:
+                logger.error("Failed deleting removed source %s: %s", source, exc)
+                result.failed_files[source] = str(exc)
 
     for file_path in current_files:
         source = str(file_path)
+        manager = docs_manager if file_path.suffix.lower() in {".pdf", ".txt", ".md"} else code_manager
         try:
             chunks, metadatas = _load_file(file_path, chunk_size, chunk_overlap)
             if not chunks:
@@ -178,6 +185,10 @@ def _load_file(
         loaded = CodeLoader(chunk_size=chunk_size, chunk_overlap=chunk_overlap).load_python_file(file_path)
     elif suffix == ".xml":
         loaded = CodeLoader(chunk_size=chunk_size, chunk_overlap=chunk_overlap).load_xml_file(file_path)
+    elif suffix == ".js":
+        loaded = CodeLoader(chunk_size=chunk_size, chunk_overlap=chunk_overlap).load_js_file(file_path)
+    elif suffix == ".csv":
+        loaded = CodeLoader(chunk_size=chunk_size, chunk_overlap=chunk_overlap).load_csv_file(file_path)
     else:
         raise ValueError(f"Unsupported file type: {file_path.suffix}")
 
