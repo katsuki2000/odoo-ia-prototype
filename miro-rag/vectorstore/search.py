@@ -360,31 +360,7 @@ def hybrid_search(
 
 # ── Cross-Encoder Re-ranking ────────────────────────────────────────────────
 
-# Lazy-loaded cross-encoder to avoid slow import on module load
-_cross_encoder = None
 _cross_encoder_model_name = "cross-encoder/ms-marco-MiniLM-L-6-v2"
-
-
-def _get_cross_encoder():
-    """Lazy-load the cross-encoder model."""
-    global _cross_encoder
-    if _cross_encoder is None:
-        try:
-            from sentence_transformers import CrossEncoder
-            logger.info("Loading cross-encoder model: %s", _cross_encoder_model_name)
-            _cross_encoder = CrossEncoder(_cross_encoder_model_name)
-            logger.info("Cross-encoder loaded successfully")
-        except ImportError:
-            logger.error(
-                "sentence-transformers not installed. "
-                "Install with: pip install sentence-transformers"
-            )
-            raise
-        except Exception as e:
-            logger.error("Failed to load cross-encoder: %s", e)
-            raise
-    return _cross_encoder
-
 
 def cross_encoder_rerank(
     query: str,
@@ -392,10 +368,7 @@ def cross_encoder_rerank(
     top_k: int = 5,
 ) -> list[dict[str, Any]]:
     """
-    Re-rank results using a cross-encoder model.
-
-    The cross-encoder scores each (query, document) pair for semantic
-    relevance, providing more accurate ranking than bi-encoder similarity.
+    Rerank results using HuggingFace Inference API.
 
     Args:
         query: Original query text
@@ -408,24 +381,44 @@ def cross_encoder_rerank(
     if not results:
         return []
 
-    encoder = _get_cross_encoder()
+    import requests
+    import os
+    
+    api_url = f"https://api-inference.huggingface.co/models/{_cross_encoder_model_name}"
+    headers = {}
+    
+    hf_token = os.environ.get("HF_TOKEN")
+    if hf_token:
+        headers["Authorization"] = f"Bearer {hf_token}"
+    else:
+        logger.warning("No HF_TOKEN found in environment. Rate limits may apply.")
 
-    # Create (query, document) pairs for scoring
-    pairs = [[query, r["document"]] for r in results]
+    # Truncate documents to avoid payload too large (approx 1500 chars)
+    payload = {
+        "inputs": {
+            "source_sentence": query,
+            "sentences": [r["document"][:1500] for r in results]
+        }
+    }
 
     try:
-        scores = encoder.predict(pairs)
+        logger.info(f"Calling HuggingFace API for {_cross_encoder_model_name}...")
+        response = requests.post(api_url, headers=headers, json=payload, timeout=15)
+        
+        if response.status_code == 200:
+            scores = response.json()
+            if isinstance(scores, list) and len(scores) == len(results):
+                for i, r in enumerate(results):
+                    r["cross_encoder_score"] = float(scores[i])
+                results.sort(key=lambda x: x["cross_encoder_score"], reverse=True)
+            else:
+                logger.error(f"Unexpected API response format: {scores}")
+        else:
+            logger.error(f"HF API Error {response.status_code}: {response.text}")
+            logger.info("Falling back to hybrid search scores.")
     except Exception as e:
-        logger.error("Cross-encoder scoring failed: %s", e)
-        # Fall back to original ordering
-        return results[:top_k]
-
-    # Attach cross-encoder scores
-    for i, result in enumerate(results):
-        result["cross_encoder_score"] = float(scores[i])
-
-    # Sort by cross-encoder score descending
-    results.sort(key=lambda x: x["cross_encoder_score"], reverse=True)
+        logger.error(f"HF API Request failed: {e}")
+        logger.info("Falling back to hybrid search scores.")
 
     return results[:top_k]
 
@@ -471,21 +464,29 @@ def retrieve(
         bm25_index = BM25Index()
         bm25_index.build_from_chroma(chroma_manager)
 
-    # Ensure BM25 index is built
-    if not bm25_index.is_built:
-        bm25_index.build_from_chroma(chroma_manager)
+    # Query intent classification for dynamic weights
+    query_lower = query.lower()
+    is_code_query = any(kw in query_lower for kw in ["classe", "modèle", "fichier", ".py", "sale.", "stock.", "account."])
+    
+    if is_code_query:
+        vector_weight = 0.2
+        bm25_weight = 0.8  # Code needs exact keyword matching
+    else:
+        vector_weight = 0.8
+        bm25_weight = 0.2  # Docs need semantic meaning
 
     # Step 1+2: Hybrid search (vector + BM25 + RRF)
     # Retrieve more candidates than needed for re-ranking
-    candidate_count = top_k * 3 if use_reranker else top_k
+    # Without reranker, we need a massive pool for RRF to work perfectly
+    candidate_count = top_k * 20
     fused_results = hybrid_search(
         chroma_manager=chroma_manager,
         bm25_index=bm25_index,
         query=query,
-        top_k=max(12, candidate_count),
+        top_k=max(100, candidate_count),
         vector_weight=vector_weight,
         bm25_weight=bm25_weight,
-        relevance_threshold=relevance_threshold,
+        relevance_threshold=0.01,  # Lower threshold to keep more items for top_k truncation
         where=where,
     )
 
