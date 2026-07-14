@@ -1,11 +1,14 @@
 """
-Code document loader with AST metadata extraction for Python and XML files.
+Code document loader with AST/tree-sitter metadata extraction for
+Python, XML, JavaScript, and CSV files.
 
 Handles:
-- Python files: AST parsing for class/function/docstring extraction
-- XML files: Template and record boundary detection (Odoo module patterns)
+- Python files: stdlib `ast` parsing for class/function/docstring extraction
+- XML files: tree-sitter structural parsing (Odoo <record>/<template> boundaries)
+- JavaScript files: tree-sitter structural parsing (classes, functions, OWL components)
+- CSV files: line-based token splitting (no structural parsing needed)
 
-Chunks maintain AST metadata for semantic search optimization.
+Chunks maintain structural metadata for semantic search optimization.
 """
 
 from __future__ import annotations
@@ -13,17 +16,35 @@ from __future__ import annotations
 import ast
 import hashlib
 import logging
-import re
 from pathlib import Path
 from typing import Any, Optional
 
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from tree_sitter import Language, Node, Parser
+import tree_sitter_javascript as tsjs
+import tree_sitter_xml as tsxml
 
 logger = logging.getLogger(__name__)
 
+# Tree-sitter languages are loaded once at module level (parsing setup is
+# not free, and Language objects are stateless / safe to share).
+_XML_LANGUAGE = Language(tsxml.language_xml())
+_JS_LANGUAGE = Language(tsjs.language())
+
+# Odoo XML elements whose boundaries we chunk on. Anything else falls back
+# to the token-based splitter.
+_XML_RECORD_TAGS = {"record", "template"}
+
+# JS node types that represent a top-level "unit" worth chunking on.
+_JS_UNIT_NODE_TYPES = {
+    "class_declaration",
+    "function_declaration",
+    "lexical_declaration",  # covers `const X = () => {...}` / `const X = class {...}`
+}
+
 
 class CodeLoader:
-    """Loads and processes code files with AST metadata extraction."""
+    """Loads and processes code files with AST/tree-sitter metadata extraction."""
 
     def __init__(
         self,
@@ -34,18 +55,26 @@ class CodeLoader:
         Initialize code loader.
 
         Args:
-            chunk_size: Number of characters per chunk
-            chunk_overlap: Number of overlapping characters between chunks
+            chunk_size: Number of tokens per chunk (token-based via tiktoken)
+            chunk_overlap: Number of overlapping tokens between chunks
         """
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
 
-        # Initialize text splitter (token-based via tiktoken)
+        # Fallback splitter used for Python (primary) and for any structural
+        # chunk (XML record, JS class/function) that exceeds chunk_size.
         self.splitter = RecursiveCharacterTextSplitter.from_tiktoken_encoder(
             chunk_size=chunk_size,
             chunk_overlap=chunk_overlap,
             separators=["\n\n", "\nclass ", "\ndef ", "\n    def ", "\n", " ", ""],
         )
+
+        self._xml_parser = Parser(_XML_LANGUAGE)
+        self._js_parser = Parser(_JS_LANGUAGE)
+
+    # ------------------------------------------------------------------
+    # Python (unchanged: stdlib ast, already solid)
+    # ------------------------------------------------------------------
 
     def load_python_file(
         self,
@@ -75,25 +104,20 @@ class CodeLoader:
         with open(file_path, "r", encoding="utf-8") as f:
             source_code = f.read()
 
-        # Initialize base metadata
         base_metadata = metadata or {}
         base_metadata.setdefault("source", str(file_path))
         base_metadata.setdefault("type", "code_python")
         base_metadata.setdefault("module", self._extract_module_name(file_path))
 
-        # Extract AST information
         ast_info = self._extract_ast_info(source_code)
 
-        # Chunk the code
         chunks = self.splitter.split_text(source_code)
         logger.info(f"Created {len(chunks)} chunks from {file_path}")
 
-        # Create metadata for each chunk
         metadatas = []
         for i, chunk in enumerate(chunks):
             chunk_metadata = base_metadata.copy()
 
-            # Find which classes and functions are in this chunk
             chunk_classes = self._find_ast_elements_in_chunk(
                 chunk, ast_info.get("classes", [])
             )
@@ -119,15 +143,21 @@ class CodeLoader:
             "ast_summary": ast_info,
         }
 
+    # ------------------------------------------------------------------
+    # XML (tree-sitter)
+    # ------------------------------------------------------------------
+
     def load_xml_file(
         self,
         file_path: str | Path,
         metadata: Optional[dict[str, Any]] = None,
     ) -> dict[str, Any]:
         """
-        Load and chunk an XML file (Odoo template/record patterns).
+        Load and chunk an XML file using tree-sitter structural parsing.
 
-        Splits on <record> and <template> boundaries.
+        Splits on <record> and <template> element boundaries (Odoo module
+        patterns). Falls back to token-based splitting for any element that
+        exceeds chunk_size, and for files with no matching elements at all.
 
         Args:
             file_path: Path to XML file
@@ -149,36 +179,52 @@ class CodeLoader:
         with open(file_path, "r", encoding="utf-8") as f:
             xml_content = f.read()
 
-        # Initialize base metadata
         base_metadata = metadata or {}
         base_metadata.setdefault("source", str(file_path))
         base_metadata.setdefault("type", "code_xml")
         base_metadata.setdefault("module", self._extract_module_name(file_path))
 
-        # Split by record and template boundaries
-        chunks = self._split_xml_by_records(xml_content)
+        elements = self._split_xml_by_records(xml_content)
 
-        if not chunks:
-            chunks = self.splitter.split_text(xml_content)
+        chunks: list[str] = []
+        chunk_extras: list[dict[str, Any]] = []
+
+        if not elements:
+            # No <record>/<template> found (e.g. a menu.xml with only
+            # <menuitem> tags) — fall back to plain token splitting.
+            for text in self.splitter.split_text(xml_content):
+                chunks.append(text)
+                chunk_extras.append({"tag": None, "record_id": None})
+        else:
+            for element in elements:
+                text = element["text"]
+                if self._estimate_tokens(text) > self.chunk_size:
+                    # A single record/template is unusually large — split it
+                    # further with the fallback splitter, but keep the tag
+                    # metadata attached to every sub-chunk.
+                    for sub_text in self.splitter.split_text(text):
+                        chunks.append(sub_text)
+                        chunk_extras.append(
+                            {"tag": element["tag"], "record_id": element["record_id"]}
+                        )
+                else:
+                    chunks.append(text)
+                    chunk_extras.append(
+                        {"tag": element["tag"], "record_id": element["record_id"]}
+                    )
 
         logger.info(f"Created {len(chunks)} chunks from {file_path}")
 
-        # Create metadata for each chunk
         metadatas = []
-        for i, chunk in enumerate(chunks):
+        for i, (chunk, extra) in enumerate(zip(chunks, chunk_extras)):
             chunk_metadata = base_metadata.copy()
-
-            # Extract record/template info
-            record_id = self._extract_xml_id(chunk, "record")
-            template_id = self._extract_xml_id(chunk, "template")
-
             chunk_metadata.update(
                 {
                     "chunk_index": i,
                     "total_chunks": len(chunks),
                     "content_hash": self._compute_hash(chunk),
-                    "record_id": record_id,
-                    "template_id": template_id,
+                    "record_id": extra["record_id"] if extra["tag"] == "record" else None,
+                    "template_id": extra["record_id"] if extra["tag"] == "template" else None,
                     "is_model_definition": "model=" in chunk,
                 }
             )
@@ -187,8 +233,85 @@ class CodeLoader:
         return {
             "chunks": chunks,
             "metadatas": metadatas,
-            "xml_summary": {"total_records": len(chunks)},
+            "xml_summary": {"total_elements": len(elements), "total_chunks": len(chunks)},
         }
+
+    def _split_xml_by_records(self, xml_content: str) -> list[dict[str, Any]]:
+        """
+        Split XML content by <record> and <template> element boundaries
+        using a real tree-sitter parse tree (handles nesting, attributes
+        with embedded '>', comments, and self-closing tags correctly,
+        unlike a regex-based approach).
+
+        Returns:
+            List of {"text": str, "tag": str, "record_id": str | None}
+        """
+        source_bytes = xml_content.encode("utf-8")
+        tree = self._xml_parser.parse(source_bytes)
+
+        found: list[dict[str, Any]] = []
+
+        def walk(node: Node) -> None:
+            if node.type == "element":
+                tag_name = self._xml_element_tag(node, source_bytes)
+                if tag_name in _XML_RECORD_TAGS:
+                    text = source_bytes[node.start_byte : node.end_byte].decode(
+                        "utf-8", errors="replace"
+                    )
+                    found.append(
+                        {
+                            "text": text,
+                            "tag": tag_name,
+                            "record_id": self._xml_element_attr(node, source_bytes, "id"),
+                        }
+                    )
+                    return  # don't descend into matched elements
+            for child in node.children:
+                walk(child)
+
+        walk(tree.root_node)
+        return found
+
+    @staticmethod
+    def _xml_element_tag(element_node: Node, source_bytes: bytes) -> Optional[str]:
+        """Return the tag name of an XML `element` node (from its STag/EmptyElemTag)."""
+        for child in element_node.children:
+            if child.type in ("STag", "EmptyElemTag"):
+                for grandchild in child.children:
+                    if grandchild.type == "Name":
+                        return source_bytes[
+                            grandchild.start_byte : grandchild.end_byte
+                        ].decode("utf-8", errors="replace")
+        return None
+
+    @staticmethod
+    def _xml_element_attr(
+        element_node: Node, source_bytes: bytes, attr_name: str
+    ) -> Optional[str]:
+        """Return the value of a given attribute on an XML element's start tag."""
+        for child in element_node.children:
+            if child.type in ("STag", "EmptyElemTag"):
+                for attr_node in child.children:
+                    if attr_node.type != "Attribute":
+                        continue
+                    name_text = None
+                    value_text = None
+                    for part in attr_node.children:
+                        if part.type == "Name":
+                            name_text = source_bytes[
+                                part.start_byte : part.end_byte
+                            ].decode("utf-8", errors="replace")
+                        elif part.type == "AttValue":
+                            value_text = source_bytes[
+                                part.start_byte : part.end_byte
+                            ].decode("utf-8", errors="replace").strip("\"'")
+                    if name_text == attr_name:
+                        return value_text
+        return None
+
+    # ------------------------------------------------------------------
+    # JavaScript (tree-sitter)
+    # ------------------------------------------------------------------
 
     def load_js_file(
         self,
@@ -196,7 +319,13 @@ class CodeLoader:
         metadata: Optional[dict[str, Any]] = None,
     ) -> dict[str, Any]:
         """
-        Load and chunk a JavaScript file (Odoo OWL components).
+        Load and chunk a JavaScript file using tree-sitter structural
+        parsing (Odoo OWL components).
+
+        Splits on top-level class declarations, function declarations, and
+        `const X = ...` lexical declarations. Falls back to token-based
+        splitting for oversized units and for files with no matching
+        top-level structures.
 
         Args:
             file_path: Path to JS file
@@ -218,54 +347,52 @@ class CodeLoader:
         with open(file_path, "r", encoding="utf-8") as f:
             source_code = f.read()
 
-        # Initialize base metadata
         base_metadata = metadata or {}
         base_metadata.setdefault("source", str(file_path))
         base_metadata.setdefault("type", "code_js")
         base_metadata.setdefault("module", self._extract_module_name(file_path))
 
-        # Extract JS structure info
-        js_info = self._extract_js_info(source_code)
+        units = self._split_js_by_units(source_code)
 
-        # Use JS-aware separators for chunking
-        js_splitter = RecursiveCharacterTextSplitter.from_tiktoken_encoder(
-            chunk_size=self.chunk_size,
-            chunk_overlap=self.chunk_overlap,
-            separators=[
-                "\n\nexport ",   # ES module exports
-                "\n\nclass ",    # Class declarations
-                "\n\nfunction ", # Function declarations
-                "\n\nconst ",    # Const declarations (often components)
-                "\n\n",          # Paragraph
-                "\n",            # Line
-                " ",             # Word
-                "",              # Character
-            ],
-        )
+        chunks: list[str] = []
+        chunk_extras: list[dict[str, Any]] = []
 
-        chunks = js_splitter.split_text(source_code)
+        if not units:
+            for text in self.splitter.split_text(source_code):
+                chunks.append(text)
+                chunk_extras.append({"unit_type": None, "name": None})
+        else:
+            for unit in units:
+                text = unit["text"]
+                if self._estimate_tokens(text) > self.chunk_size:
+                    for sub_text in self.splitter.split_text(text):
+                        chunks.append(sub_text)
+                        chunk_extras.append(
+                            {"unit_type": unit["unit_type"], "name": unit["name"]}
+                        )
+                else:
+                    chunks.append(text)
+                    chunk_extras.append(
+                        {"unit_type": unit["unit_type"], "name": unit["name"]}
+                    )
+
         logger.info(f"Created {len(chunks)} chunks from {file_path}")
 
-        # Create metadata for each chunk
+        all_components = [u["name"] for u in units if u["unit_type"] == "class" and u["name"]]
+        all_functions = [
+            u["name"] for u in units if u["unit_type"] in ("function", "lexical") and u["name"]
+        ]
+
         metadatas = []
-        for i, chunk in enumerate(chunks):
+        for i, (chunk, extra) in enumerate(zip(chunks, chunk_extras)):
             chunk_metadata = base_metadata.copy()
-
-            # Find which components/functions are in this chunk
-            chunk_components = [
-                c for c in js_info.get("components", []) if c in chunk
-            ]
-            chunk_functions = [
-                f for f in js_info.get("functions", []) if f in chunk
-            ]
-
             chunk_metadata.update(
                 {
                     "chunk_index": i,
                     "total_chunks": len(chunks),
                     "content_hash": self._compute_hash(chunk),
-                    "components": chunk_components,
-                    "functions": chunk_functions,
+                    "components": [extra["name"]] if extra["unit_type"] == "class" and extra["name"] else [],
+                    "functions": [extra["name"]] if extra["unit_type"] in ("function", "lexical") and extra["name"] else [],
                     "is_owl_component": "Component" in chunk or "@odoo/owl" in chunk,
                 }
             )
@@ -274,8 +401,81 @@ class CodeLoader:
         return {
             "chunks": chunks,
             "metadatas": metadatas,
-            "js_summary": js_info,
+            "js_summary": {"components": all_components, "functions": all_functions},
         }
+
+    def _split_js_by_units(self, source_code: str) -> list[dict[str, Any]]:
+        """
+        Split JS source into top-level structural units (classes, function
+        declarations, const/let/var declarations) using tree-sitter, instead
+        of regex keyword matching which false-positives on strings/comments.
+
+        Returns:
+            List of {"text": str, "unit_type": str, "name": str | None}
+        """
+        source_bytes = source_code.encode("utf-8")
+        tree = self._js_parser.parse(source_bytes)
+
+        units: list[dict[str, Any]] = []
+
+        # Only walk top-level (program-level) nodes — we don't want to
+        # recurse into every nested function, just the outer chunkable units.
+        for node in tree.root_node.children:
+            node_type = node.type
+            if node_type == "export_statement":
+                # unwrap `export class X` / `export function X` / `export const X`
+                inner = node.child_by_field_name("declaration")
+                if inner is not None:
+                    node_type = inner.type
+                    node = inner
+                else:
+                    continue
+
+            if node_type not in _JS_UNIT_NODE_TYPES:
+                continue
+
+            text = source_bytes[node.start_byte : node.end_byte].decode(
+                "utf-8", errors="replace"
+            )
+            name = self._js_unit_name(node, source_bytes)
+
+            unit_type = {
+                "class_declaration": "class",
+                "function_declaration": "function",
+                "lexical_declaration": "lexical",
+            }[node_type]
+
+            units.append({"text": text, "unit_type": unit_type, "name": name})
+
+        return units
+
+    @staticmethod
+    def _js_unit_name(node: Node, source_bytes: bytes) -> Optional[str]:
+        """Extract the name of a class/function/lexical declaration node."""
+        if node.type in ("class_declaration", "function_declaration"):
+            name_node = node.child_by_field_name("name")
+            if name_node is not None:
+                return source_bytes[name_node.start_byte : name_node.end_byte].decode(
+                    "utf-8", errors="replace"
+                )
+            return None
+
+        if node.type == "lexical_declaration":
+            # `const X = ...` — first declarator's identifier
+            for child in node.children:
+                if child.type == "variable_declarator":
+                    name_node = child.child_by_field_name("name")
+                    if name_node is not None:
+                        return source_bytes[
+                            name_node.start_byte : name_node.end_byte
+                        ].decode("utf-8", errors="replace")
+            return None
+
+        return None
+
+    # ------------------------------------------------------------------
+    # CSV (unchanged)
+    # ------------------------------------------------------------------
 
     def load_csv_file(
         self,
@@ -302,13 +502,11 @@ class CodeLoader:
         with open(file_path, "r", encoding="utf-8") as f:
             content = f.read()
 
-        # Initialize base metadata
         base_metadata = metadata or {}
         base_metadata.setdefault("source", str(file_path))
         base_metadata.setdefault("type", "code_csv")
         base_metadata.setdefault("module", self._extract_module_name(file_path))
 
-        # Use token-based splitter, splitting mostly by lines for CSV
         csv_splitter = RecursiveCharacterTextSplitter.from_tiktoken_encoder(
             chunk_size=self.chunk_size,
             chunk_overlap=self.chunk_overlap,
@@ -336,37 +534,28 @@ class CodeLoader:
             "csv_summary": {"total_chunks": len(chunks)},
         }
 
-    # Helper methods
+    # ------------------------------------------------------------------
+    # Shared helpers
+    # ------------------------------------------------------------------
 
-    def _extract_js_info(self, source_code: str) -> dict[str, Any]:
-        """Extract component and function names from JavaScript source."""
-        info = {"components": [], "functions": [], "imports": []}
-
-        # Extract class names (OWL components)
-        for match in re.finditer(r"class\s+(\w+)\s+extends", source_code):
-            info["components"].append(match.group(1))
-
-        # Extract standalone function names
-        for match in re.finditer(r"(?:export\s+)?function\s+(\w+)\s*\(", source_code):
-            info["functions"].append(match.group(1))
-
-        # Extract const arrow function components
-        for match in re.finditer(r"(?:export\s+)?const\s+(\w+)\s*=\s*\(", source_code):
-            info["functions"].append(match.group(1))
-
-        # Extract imports
-        for match in re.finditer(r"import\s+.*?from\s+[\"'](.+?)[\"']", source_code):
-            info["imports"].append(match.group(1))
-
-        return info
+    def _estimate_tokens(self, text: str) -> int:
+        """
+        Cheap token-count estimate used to decide whether a structural
+        chunk (XML element / JS unit) needs further splitting.
+        Uses the same tiktoken encoder as the fallback splitter for
+        consistency, without paying for a full split.
+        """
+        try:
+            return len(self.splitter._tokenizer.encode(text))
+        except Exception:
+            # Fallback heuristic if the tokenizer isn't accessible for any reason.
+            return len(text) // 4
 
     def _extract_module_name(self, file_path: Path) -> str:
         """Extract module name from file path (e.g., 'account', 'sale')."""
-        # Try to find a module folder in the path
         for part in file_path.parts:
             if part in ("account", "sale", "stock", "base", "hr"):
                 return part
-
         return "unknown"
 
     def _extract_ast_info(self, source_code: str) -> dict[str, Any]:
@@ -379,7 +568,6 @@ class CodeLoader:
             logger.warning(f"Syntax error parsing Python file: {e}")
             return info
 
-        # Extract module docstring
         if (
             tree.body
             and isinstance(tree.body[0], ast.Expr)
@@ -387,7 +575,6 @@ class CodeLoader:
         ):
             info["docstring"] = tree.body[0].value.value
 
-        # Extract classes and functions using a visitor
         class _ASTCollector(ast.NodeVisitor):
             def __init__(self):
                 self.classes = []
@@ -412,20 +599,12 @@ class CodeLoader:
 
             def visit_FunctionDef(self, node):
                 if not self.in_class:
-                    func_info = {
-                        "name": node.name,
-                        "lineno": node.lineno,
-                    }
-                    self.functions.append(func_info)
+                    self.functions.append({"name": node.name, "lineno": node.lineno})
                 self.generic_visit(node)
 
             def visit_AsyncFunctionDef(self, node):
                 if not self.in_class:
-                    func_info = {
-                        "name": node.name,
-                        "lineno": node.lineno,
-                    }
-                    self.functions.append(func_info)
+                    self.functions.append({"name": node.name, "lineno": node.lineno})
                 self.generic_visit(node)
 
         collector = _ASTCollector()
@@ -442,32 +621,9 @@ class CodeLoader:
         found = []
         for element in elements:
             name = element.get("name", "")
-            # Simple text search - not perfect but fast
             if f"class {name}" in chunk or f"def {name}" in chunk:
                 found.append(name)
-
         return found
-
-    def _split_xml_by_records(self, xml_content: str) -> list[str]:
-        """Split XML content by <record> and <template> boundaries."""
-        chunks = []
-
-        # Find all record and template blocks
-        pattern = r"(<record[^>]*>.*?</record>|<template[^>]*>.*?</template>)"
-        matches = re.finditer(pattern, xml_content, re.DOTALL)
-
-        for match in matches:
-            chunk = match.group(0)
-            if chunk.strip():
-                chunks.append(chunk)
-
-        return chunks
-
-    def _extract_xml_id(self, xml_chunk: str, tag: str) -> Optional[str]:
-        """Extract id attribute from XML tag."""
-        pattern = rf'<{tag}[^>]*id=["\']([^"\']+)["\']'
-        match = re.search(pattern, xml_chunk)
-        return match.group(1) if match else None
 
     @staticmethod
     def _compute_hash(text: str) -> str:
@@ -475,22 +631,17 @@ class CodeLoader:
         return hashlib.sha256(text.encode()).hexdigest()[:12]
 
 
+# ----------------------------------------------------------------------
+# Directory-level convenience wrappers (unchanged behavior)
+# ----------------------------------------------------------------------
+
+
 def load_python_directory(
     directory: str | Path,
     chunk_size: int = 512,
     chunk_overlap: int = 50,
 ) -> list[dict[str, Any]]:
-    """
-    Load all Python files from a directory.
-
-    Args:
-        directory: Path to directory containing .py files
-        chunk_size: Chunk size for splitting
-        chunk_overlap: Chunk overlap for splitting
-
-    Returns:
-        List of document dictionaries with chunks and metadatas
-    """
+    """Load all Python files from a directory."""
     directory = Path(directory)
     if not directory.is_dir():
         raise ValueError(f"Directory not found: {directory}")
@@ -499,10 +650,8 @@ def load_python_directory(
     documents = []
 
     for py_file in directory.rglob("*.py"):
-        # Skip __pycache__ and venv directories
         if "__pycache__" in py_file.parts or "venv" in py_file.parts:
             continue
-
         try:
             logger.info(f"Processing {py_file.name}...")
             result = loader.load_python_file(py_file)
@@ -519,17 +668,7 @@ def load_xml_directory(
     chunk_size: int = 512,
     chunk_overlap: int = 50,
 ) -> list[dict[str, Any]]:
-    """
-    Load all XML files from a directory.
-
-    Args:
-        directory: Path to directory containing .xml files
-        chunk_size: Chunk size for splitting
-        chunk_overlap: Chunk overlap for splitting
-
-    Returns:
-        List of document dictionaries with chunks and metadatas
-    """
+    """Load all XML files from a directory."""
     directory = Path(directory)
     if not directory.is_dir():
         raise ValueError(f"Directory not found: {directory}")
@@ -554,17 +693,7 @@ def load_js_directory(
     chunk_size: int = 512,
     chunk_overlap: int = 50,
 ) -> list[dict[str, Any]]:
-    """
-    Load all JavaScript files from a directory.
-
-    Args:
-        directory: Path to directory containing .js files
-        chunk_size: Chunk size for splitting
-        chunk_overlap: Chunk overlap for splitting
-
-    Returns:
-        List of document dictionaries with chunks and metadatas
-    """
+    """Load all JavaScript files from a directory."""
     directory = Path(directory)
     if not directory.is_dir():
         raise ValueError(f"Directory not found: {directory}")
@@ -573,13 +702,8 @@ def load_js_directory(
     documents = []
 
     for js_file in directory.rglob("*.js"):
-        # Skip node_modules and build directories
-        if any(
-            skip in js_file.parts
-            for skip in ("node_modules", "dist", "build", ".git")
-        ):
+        if any(skip in js_file.parts for skip in ("node_modules", "dist", "build", ".git")):
             continue
-
         try:
             logger.info(f"Processing {js_file.name}...")
             result = loader.load_js_file(js_file)
@@ -589,4 +713,3 @@ def load_js_directory(
 
     logger.info(f"Loaded {len(documents)} JavaScript files from {directory}")
     return documents
-
