@@ -361,6 +361,18 @@ def hybrid_search(
 # ── Cross-Encoder Re-ranking ────────────────────────────────────────────────
 
 _cross_encoder_model_name = "cross-encoder/ms-marco-MiniLM-L-6-v2"
+_cross_encoder_instance = None  # lazy-loaded singleton, avoids reloading the model per call
+
+
+def _get_cross_encoder():
+    """Load and cache the local cross-encoder model (lazy singleton)."""
+    global _cross_encoder_instance
+    if _cross_encoder_instance is None:
+        from sentence_transformers import CrossEncoder
+        logger.info(f"Loading local cross-encoder model: {_cross_encoder_model_name}")
+        _cross_encoder_instance = CrossEncoder(_cross_encoder_model_name)
+    return _cross_encoder_instance
+
 
 def cross_encoder_rerank(
     query: str,
@@ -368,7 +380,10 @@ def cross_encoder_rerank(
     top_k: int = 5,
 ) -> list[dict[str, Any]]:
     """
-    Rerank results using HuggingFace Inference API.
+    Rerank results using a locally-loaded cross-encoder model.
+
+    Runs entirely offline via sentence-transformers — no network calls,
+    consistent with the project's local-first / no-cloud-dependency goal.
 
     Args:
         query: Original query text
@@ -381,47 +396,25 @@ def cross_encoder_rerank(
     if not results:
         return []
 
-    import requests
-    import os
-    
-    api_url = f"https://api-inference.huggingface.co/models/{_cross_encoder_model_name}"
-    headers = {}
-    
-    hf_token = os.environ.get("HF_TOKEN")
-    if hf_token:
-        headers["Authorization"] = f"Bearer {hf_token}"
-    else:
-        logger.warning("No HF_TOKEN found in environment. Rate limits may apply.")
-
-    # Truncate documents to avoid payload too large (approx 1500 chars)
-    payload = {
-        "inputs": {
-            "source_sentence": query,
-            "sentences": [r["document"][:1500] for r in results]
-        }
-    }
-
     try:
-        logger.info(f"Calling HuggingFace API for {_cross_encoder_model_name}...")
-        response = requests.post(api_url, headers=headers, json=payload, timeout=15)
-        
-        if response.status_code == 200:
-            scores = response.json()
-            if isinstance(scores, list) and len(scores) == len(results):
-                for i, r in enumerate(results):
-                    r["cross_encoder_score"] = float(scores[i])
-                results.sort(key=lambda x: x["cross_encoder_score"], reverse=True)
-            else:
-                logger.error(f"Unexpected API response format: {scores}")
-        else:
-            logger.error(f"HF API Error {response.status_code}: {response.text}")
-            logger.info("Falling back to hybrid search scores.")
+        model = _get_cross_encoder()
+
+        # Truncate documents to keep inference fast and consistent with
+        # the previous 1500-char limit used for the API payload.
+        pairs = [[query, r["document"][:1500]] for r in results]
+
+        scores = model.predict(pairs)
+
+        for i, r in enumerate(results):
+            r["cross_encoder_score"] = float(scores[i])
+
+        results.sort(key=lambda x: x["cross_encoder_score"], reverse=True)
+
     except Exception as e:
-        logger.error(f"HF API Request failed: {e}")
+        logger.error(f"Local cross-encoder reranking failed: {e}")
         logger.info("Falling back to hybrid search scores.")
 
     return results[:top_k]
-
 
 # ── Full Retrieval Pipeline ─────────────────────────────────────────────────
 
@@ -464,23 +457,32 @@ def retrieve(
         bm25_index = BM25Index()
         bm25_index.build_from_chroma(chroma_manager)
 
-    # Query intent classification for dynamic weights
+    # Query intent classification for dynamic weights and collection routing
     query_lower = query.lower()
-    is_code_query = any(kw in query_lower for kw in ["classe", "modèle", "fichier", ".py", "sale.", "stock.", "account."])
-    
+    code_keywords = ["classe", "modèle", "fichier", ".py", "sale.", "stock.", "account.",
+                     "méthode", "fonction", "héritage", "inherit", "_name", "def ", "class ",
+                     "structuré", "étendue", "défini", "gère"]
+    is_code_query = any(kw in query_lower for kw in code_keywords)
+
     if is_code_query:
-        vector_weight = 0.2
-        bm25_weight = 0.8  # Code needs exact keyword matching
+        vector_weight = 0.3
+        bm25_weight = 0.7
+        # Si on a une liste de managers, ne garder que le code manager
+        if isinstance(chroma_manager, list) and len(chroma_manager) > 1:
+            chroma_manager_for_search = [chroma_manager[1]]  # odoo_code only
+        else:
+            chroma_manager_for_search = chroma_manager
     else:
-        vector_weight = 0.8
-        bm25_weight = 0.2  # Docs need semantic meaning
+        vector_weight = 0.7
+        bm25_weight = 0.3
+        chroma_manager_for_search = chroma_manager
 
     # Step 1+2: Hybrid search (vector + BM25 + RRF)
     # Retrieve more candidates than needed for re-ranking
     # Without reranker, we need a massive pool for RRF to work perfectly
     candidate_count = top_k * 20
     fused_results = hybrid_search(
-        chroma_manager=chroma_manager,
+        chroma_manager=chroma_manager_for_search,
         bm25_index=bm25_index,
         query=query,
         top_k=max(100, candidate_count),

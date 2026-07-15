@@ -111,7 +111,17 @@ class CodeLoader:
 
         ast_info = self._extract_ast_info(source_code)
 
-        chunks = self.splitter.split_text(source_code)
+        # Construire un header résumant le fichier pour le retrieval
+        file_header = self._build_python_file_header(file_path, ast_info)
+
+        # Préfixer le header au code source avant le chunking
+        # pour que le premier chunk contienne toujours le résumé du fichier
+        if file_header:
+            source_code_with_header = file_header + "\n\n" + source_code
+        else:
+            source_code_with_header = source_code
+
+        chunks = self.splitter.split_text(source_code_with_header)
         logger.info(f"Created {len(chunks)} chunks from {file_path}")
 
         metadatas = []
@@ -125,6 +135,9 @@ class CodeLoader:
                 chunk, ast_info.get("functions", [])
             )
 
+            # Trouver la classe principale du fichier (pour les métadonnées)
+            main_class = ast_info["classes"][0] if ast_info["classes"] else {}
+
             chunk_metadata.update(
                 {
                     "chunk_index": i,
@@ -133,6 +146,8 @@ class CodeLoader:
                     "classes": chunk_classes,
                     "functions": chunk_functions,
                     "has_docstring": "\"\"\"" in chunk or "'''" in chunk,
+                    "class_name": main_class.get("name", ""),
+                    "model_name": main_class.get("odoo_model", "") or main_class.get("odoo_inherit", "") or "",
                 }
             )
             metadatas.append(chunk_metadata)
@@ -590,7 +605,26 @@ class CodeLoader:
                         for n in node.body
                         if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
                     ],
+                    "odoo_model": None,
+                    "odoo_inherit": None,
                 }
+                # Extraire _name = '...' et _inherit = '...' des attributs de classe
+                for stmt in node.body:
+                    if isinstance(stmt, ast.Assign):
+                        for target in stmt.targets:
+                            if isinstance(target, ast.Name):
+                                if target.id == "_name" and isinstance(stmt.value, ast.Constant):
+                                    class_info["odoo_model"] = stmt.value.value
+                                elif target.id == "_inherit":
+                                    if isinstance(stmt.value, ast.Constant):
+                                        class_info["odoo_inherit"] = stmt.value.value
+                                    elif isinstance(stmt.value, ast.List):
+                                        # _inherit = ['res.company', 'mail.thread']
+                                        vals = [
+                                            elt.value for elt in stmt.value.elts
+                                            if isinstance(elt, ast.Constant)
+                                        ]
+                                        class_info["odoo_inherit"] = ", ".join(vals)
                 self.classes.append(class_info)
                 old_in_class = self.in_class
                 self.in_class = True
@@ -624,6 +658,38 @@ class CodeLoader:
             if f"class {name}" in chunk or f"def {name}" in chunk:
                 found.append(name)
         return found
+
+    def _build_python_file_header(self, file_path: Path, ast_info: dict[str, Any]) -> str:
+        """
+        Build a natural-language header summarizing a Python file.
+
+        This header is prepended to the source code before chunking so that
+        the first chunk always contains a searchable summary of the file's
+        contents (module name, classes, Odoo model names).
+        """
+        parts = []
+        module = self._extract_module_name(file_path)
+        filename = file_path.name
+
+        parts.append(f"# Fichier: {filename} | Module Odoo: {module}")
+
+        for cls in ast_info.get("classes", []):
+            class_name = cls["name"]
+            model = cls.get("odoo_model")
+            inherit = cls.get("odoo_inherit")
+
+            if model:
+                parts.append(f"# Classe {class_name} — modèle Odoo: {model}")
+            elif inherit:
+                parts.append(f"# Classe {class_name} — hérite de: {inherit}")
+            else:
+                parts.append(f"# Classe {class_name}")
+
+            methods = cls.get("methods", [])
+            if methods:
+                parts.append(f"# Méthodes: {', '.join(methods[:10])}")
+
+        return "\n".join(parts) if parts else ""
 
     @staticmethod
     def _compute_hash(text: str) -> str:
