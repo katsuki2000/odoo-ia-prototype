@@ -4,70 +4,70 @@
     "question": "Comment cr\u00e9er une facture client dans Odoo 17 ?",
     "passed": true,
     "reason": "Pass",
-    "confidence": 0.85
+    "confidence": 0.95
   },
   {
     "id": "DOC-02",
     "question": "Comment envoyer une facture par email depuis Odoo ?",
     "passed": true,
     "reason": "Pass",
-    "confidence": 1.0
+    "confidence": 0.95
   },
   {
     "id": "DOC-03",
     "question": "Comment cr\u00e9er un avoir (note de cr\u00e9dit) dans Odoo ?",
     "passed": true,
     "reason": "Pass",
-    "confidence": 0.85
+    "confidence": 0.95
   },
   {
     "id": "DOC-04",
     "question": "Comment configurer les relances automatiques dans Odoo ?",
     "passed": true,
     "reason": "Pass",
-    "confidence": 0.9
+    "confidence": 0.95
   },
   {
     "id": "DOC-05",
     "question": "Qui peut approuver une mise \u00e0 disposition selon le wiki interne ?",
     "passed": true,
     "reason": "Pass",
-    "confidence": 0.9
+    "confidence": 0.95
   },
   {
     "id": "DOC-06",
     "question": "Quelle est la proc\u00e9dure de validation d'une facture selon le wiki ?",
     "passed": true,
     "reason": "Pass",
-    "confidence": 0.9
+    "confidence": 0.95
   },
   {
     "id": "DOC-07",
     "question": "Quels sont les modules Odoo consid\u00e9r\u00e9s comme sensibles et qui y a acc\u00e8s ?",
     "passed": true,
     "reason": "Pass",
-    "confidence": 0.9
+    "confidence": 0.95
   },
   {
     "id": "DOC-08",
     "question": "Quel est le d\u00e9lai de traitement pour une demande de mise \u00e0 disposition ?",
     "passed": true,
     "reason": "Pass",
-    "confidence": 0.9
+    "confidence": 0.95
   },
   {
     "id": "DOC-09",
     "question": "Qui doit approuver un avoir dans la politique interne de MIRO KE ?",
     "passed": true,
     "reason": "Pass",
-    "confidence": 1.0
+    "confidence": 0.95
   },
   {
     "id": "DOC-10",
     "question": "Quels sont les trois niveaux de relance disponibles dans Odoo ?",
     "passed": true,
     "reason": "Pass",
-    "confidence": 0.85
+    "confidence": 0.95
   },
   {
     "id": "CODE-01",
@@ -81,49 +81,49 @@
     "question": "Quelle classe g\u00e8re les lignes de commande de vente (sale.order.line) ?",
     "passed": true,
     "reason": "Pass",
-    "confidence": 0.9
+    "confidence": 0.95
   },
   {
     "id": "CODE-03",
     "question": "Comment est structur\u00e9 le mod\u00e8le stock.move ?",
     "passed": true,
     "reason": "Pass",
-    "confidence": 0.9
+    "confidence": 0.95
   },
   {
     "id": "CODE-04",
     "question": "Comment est \u00e9tendue la classe ResCompany dans le module sale ?",
     "passed": true,
     "reason": "Pass",
-    "confidence": 0.9
+    "confidence": 0.95
   },
   {
     "id": "CODE-05",
     "question": "Quelle classe g\u00e8re les commandes de vente (sale.order) ?",
     "passed": true,
     "reason": "Pass",
-    "confidence": 0.9
+    "confidence": 0.95
   },
   {
     "id": "CODE-06",
     "question": "Quel est le r\u00f4le du mod\u00e8le stock.warehouse ?",
     "passed": true,
     "reason": "Pass",
-    "confidence": 0.9
+    "confidence": 0.95
   },
   {
     "id": "CODE-07",
     "question": "Comment le journal comptable (account.journal) est-il d\u00e9fini ?",
     "passed": true,
     "reason": "Pass",
-    "confidence": 0.85
+    "confidence": 0.95
   },
   {
     "id": "CODE-08",
     "question": "Quels sont les mod\u00e8les \u00e9tendus dans le fichier payment_provider.py du module sale ?",
     "passed": true,
     "reason": "Pass",
-    "confidence": 0.7
+    "confidence": 1.0
   },
   {
     "id": "ERP-01",
@@ -184,9 +184,9 @@
   {
     "id": "HORS-01",
     "question": "Raconte-moi une blague sur les ERP.",
-    "passed": false,
-    "reason": "Failed to refuse. Answer: Pourquoi l'ERP est-il all\u00e9 voir un psy ? Parce qu'il avait des probl\u00e8mes de synchronisation avec son c\u0153ur !",
-    "confidence": 0.8
+    "passed": true,
+    "reason": "Out of scope handled correctly",
+    "confidence": 0.0
   },
   {
     "id": "HORS-02",
