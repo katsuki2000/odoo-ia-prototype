@@ -1,0 +1,14 @@
+<odoo>
+    <menuitem id="estate_menu_root" name="Estate Application" sequence="-20">
+        <menuitem id="estate_master_data_menu" name="Master Data">     
+            <menuitem
+                id="estate_property_menu_action"
+                action="estate-property_action"
+            />
+            <menuitem
+                id="estate_property_type_menu_action"
+                action="estate-property_type_action"
+            />
+        </menuitem>
+    </menuitem>
+</odoo>
