@@ -39,8 +39,8 @@ class WikiLoader:
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
 
-        # Initialize text splitter with wiki-friendly separators
-        self.splitter = RecursiveCharacterTextSplitter(
+        # Initialize text splitter with wiki-friendly separators (token-based via tiktoken)
+        self.splitter = RecursiveCharacterTextSplitter.from_tiktoken_encoder(
             chunk_size=chunk_size,
             chunk_overlap=chunk_overlap,
             separators=[

@@ -1,0 +1,8 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_account_move,account.move,model_account_move,account.group_account_user,1,1,1,0
+access_account_move_manager,account.move manager,model_account_move,account.group_account_manager,1,1,1,1
+access_account_move_line,account.move.line,model_account_move_line,account.group_account_user,1,1,1,0
+access_account_journal,account.journal,model_account_journal,account.group_account_user,1,0,0,0
+access_account_journal_manager,account.journal manager,model_account_journal,account.group_account_manager,1,1,1,1
+access_account_tax,account.tax,model_account_tax,account.group_account_user,1,0,0,0
+access_account_tax_manager,account.tax manager,model_account_tax,account.group_account_manager,1,1,1,1
