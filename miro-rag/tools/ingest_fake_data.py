@@ -121,25 +121,25 @@ def main():
 
     print("\n--- Part 2: Creating Products ---")
     products_data = [
-        {"name": "Implémentation Odoo 17", "list_price": 4500000, "type": "service",
+        {"name": "Implémentation Odoo 17", "list_price": 4500000, "type": "service", "invoice_policy": "order",
          "description_sale": "Service complet d'implémentation Odoo 17 incluant configuration, migration et formation."},
-        {"name": "Formation Odoo 17", "list_price": 1200000, "type": "service",
+        {"name": "Formation Odoo 17", "list_price": 1200000, "type": "service", "invoice_policy": "order",
          "description_sale": "Programme de formation Odoo 17 pour les utilisateurs et administrateurs."},
-        {"name": "Support mensuel", "list_price": 800000, "type": "service",
+        {"name": "Support mensuel", "list_price": 800000, "type": "service", "invoice_policy": "order",
          "description_sale": "Contrat de support mensuel incluant maintenance, correctifs et assistance technique."},
-        {"name": "Audit ERP", "list_price": 2800000, "type": "service",
+        {"name": "Audit ERP", "list_price": 2800000, "type": "service", "invoice_policy": "order",
          "description_sale": "Audit complet de l'infrastructure ERP existante avec recommandations d'amélioration."},
-        {"name": "Migration Odoo 16 vers 17", "list_price": 5600000, "type": "service",
+        {"name": "Migration Odoo 16 vers 17", "list_price": 5600000, "type": "service", "invoice_policy": "order",
          "description_sale": "Migration complète d'Odoo 16 vers 17 incluant données, personnalisations et tests."},
-        {"name": "Développement module sur mesure", "list_price": 3400000, "type": "service",
+        {"name": "Développement module sur mesure", "list_price": 3400000, "type": "service", "invoice_policy": "order",
          "description_sale": "Développement de modules Odoo personnalisés selon cahier des charges client."},
-        {"name": "Maintenance annuelle", "list_price": 6000000, "type": "service",
+        {"name": "Maintenance annuelle", "list_price": 6000000, "type": "service", "invoice_policy": "order",
          "description_sale": "Contrat de maintenance annuelle couvrant mises à jour, correctifs et support prioritaire."},
-        {"name": "Hébergement Cloud Odoo", "list_price": 960000, "type": "service",
+        {"name": "Hébergement Cloud Odoo", "list_price": 960000, "type": "service", "invoice_policy": "order",
          "description_sale": "Hébergement cloud haute disponibilité pour instance Odoo avec sauvegardes quotidiennes."},
-        {"name": "Intégration API tierce", "list_price": 3800000, "type": "service",
+        {"name": "Intégration API tierce", "list_price": 3800000, "type": "service", "invoice_policy": "order",
          "description_sale": "Intégration d'APIs tierces (paiement, logistique, CRM) avec l'instance Odoo du client."},
-        {"name": "Consulting stratégique IT", "list_price": 2200000, "type": "service",
+        {"name": "Consulting stratégique IT", "list_price": 2200000, "type": "service", "invoice_policy": "order",
          "description_sale": "Conseil stratégique en transformation digitale et optimisation des processus IT."},
     ]
     product_ids = {}
@@ -195,8 +195,29 @@ def main():
                 try:
                     models.execute_kw(DB, uid, pwd, 'sale.order', 'action_confirm', [[so_id]])
                     print(f"    Confirmed SO {so_name}")
+                    # Day 2 Step 1A: Automatically create and post invoice for the confirmed Sales Order via Wizard
+                    try:
+                        context = {
+                            'active_model': 'sale.order',
+                            'active_ids': [so_id],
+                            'active_id': so_id,
+                        }
+                        wizard_id = models.execute_kw(DB, uid, pwd, 'sale.advance.payment.inv', 'create', [{}], {'context': context})
+                        try:
+                            models.execute_kw(DB, uid, pwd, 'sale.advance.payment.inv', 'create_invoices', [[wizard_id]], {'context': context})
+                        except xmlrpc.client.Fault as e:
+                            if "cannot marshal None" not in str(e):
+                                raise
+                        
+                        so_data = models.execute_kw(DB, uid, pwd, 'sale.order', 'read', [[so_id]], {'fields': ['invoice_ids']})
+                        inv_ids = so_data[0]['invoice_ids']
+                        if inv_ids:
+                            models.execute_kw(DB, uid, pwd, 'account.move', 'action_post', [inv_ids])
+                            print(f"      -> Invoiced & Posted (Invoice IDs: {inv_ids})")
+                    except Exception as inv_err:
+                        print(f"      -> Invoicing failed: {inv_err}")
                 except Exception as e:
-                    print(f"    Warning: Could not confirm SO {so_name}: {e}")
+                    print(f"    Warning: Could not confirm/invoice SO {so_name}: {e}")
         except Exception as e:
             print(f"  Warning: Could not create SO {so_name}: {e}")
 
@@ -240,6 +261,7 @@ def main():
             'description': description,
             'date_deadline': ticket['date'],
             'company_id': alpha_id,
+            'state': '1_done' if ticket['statut'] == 'résolu' else '01_in_progress',
         }
 
         try:

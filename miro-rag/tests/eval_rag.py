@@ -12,7 +12,7 @@ import logging
 from tqdm import tqdm
 from dotenv import load_dotenv
 
-load_dotenv("env")
+load_dotenv()
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from rag.graph import query_graph
@@ -29,10 +29,19 @@ def run_evaluation():
     
     print(f"Starting RAG evaluation on {total} questions...\n")
     
+    from tools.odoo_connector import OdooConnector
+    _conn = OdooConnector()
+    _charlie_password = "password123"
+    charlie_uid = _conn.common.authenticate(_conn.db, "charlie@alpha.com", _charlie_password, {})
+    if not charlie_uid:
+        print("ERROR: Could not authenticate as charlie@alpha.com")
+        sys.exit(1)
+    print(f"Authenticated as Charlie CRM (UID: {charlie_uid})")
+    
     results_log = []
     
     for q in tqdm(questions, desc="Evaluating RAG Pipeline"):
-        response = query_graph(q["question"])
+        response = query_graph(q["question"], uid=charlie_uid, api_key=_charlie_password)
         
         answer_lower = response.answer.lower()
         

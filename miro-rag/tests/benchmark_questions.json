@@ -226,6 +226,62 @@
       "expected_value": "62 120 000 Ar"
     },
     {
+      "id": "ERP-09",
+      "category": "erp_chiffre",
+      "question": "Quel est le montant total des ventes du mois de janvier 2025 ?",
+      "expected_answer_contains": ["4 500 000", "janvier"],
+      "source_reference": "fake_data/sales.json",
+      "type": "erp"
+    },
+    {
+      "id": "ERP-10",
+      "category": "erp_chiffre",
+      "question": "Quel est le montant moyen d'une vente pour la Société Dupont ?",
+      "expected_answer_contains": ["3 065 000"],
+      "source_reference": "fake_data/sales.json",
+      "type": "erp"
+    },
+    {
+      "id": "ERP-11",
+      "category": "erp_chiffre",
+      "question": "Combien de produits sont actuellement en rupture de stock ?",
+      "expected_answer_contains": ["0", "Aucun", "rupture"],
+      "source_reference": "ERP Stock",
+      "type": "erp"
+    },
+    {
+      "id": "ERP-12",
+      "category": "erp_chiffre",
+      "question": "Quel est le stock disponible pour le produit 'Formation Odoo 17' ?",
+      "expected_answer_contains": ["pas", "trouvé", "0"],
+      "source_reference": "ERP Stock",
+      "type": "erp"
+    },
+    {
+      "id": "ERP-13",
+      "category": "erp_chiffre",
+      "question": "D'après les procédures, qui doit valider les ventes, et quel est le montant total des ventes en cours ?",
+      "expected_answer_contains": ["valider", "25 900 000"],
+      "source_reference": "Procédures + ERP",
+      "type": "erp"
+    },
+    {
+      "id": "ERP-14",
+      "category": "erp_chiffre",
+      "question": "Quel est le chiffre d'affaires total payé pour l'année 2025 ?",
+      "expected_answer_contains": ["0", "Aucun"],
+      "source_reference": "ERP Factures",
+      "type": "erp"
+    },
+    {
+      "id": "ERP-15",
+      "category": "erp_chiffre",
+      "question": "Quelles sont les coordonnées du client Telma Madagascar et quel est son total de factures ?",
+      "expected_answer_contains": ["contact@telma.mg", "factures"],
+      "source_reference": "ERP Clients",
+      "type": "erp"
+    },
+    {
       "id": "HORS-01",
       "category": "hors_perimetre",
       "question": "Raconte-moi une blague sur les ERP.",

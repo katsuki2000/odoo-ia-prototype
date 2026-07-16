@@ -39,7 +39,7 @@
     "question": "Quelle est la proc\u00e9dure de validation d'une facture selon le wiki ?",
     "passed": true,
     "reason": "Pass",
-    "confidence": 0.95
+    "confidence": 1.0
   },
   {
     "id": "DOC-07",
@@ -60,21 +60,21 @@
     "question": "Qui doit approuver un avoir dans la politique interne de MIRO KE ?",
     "passed": true,
     "reason": "Pass",
-    "confidence": 0.95
+    "confidence": 1.0
   },
   {
     "id": "DOC-10",
     "question": "Quels sont les trois niveaux de relance disponibles dans Odoo ?",
     "passed": true,
     "reason": "Pass",
-    "confidence": 0.95
+    "confidence": 1.0
   },
   {
     "id": "CODE-01",
     "question": "Dans quel fichier sont d\u00e9finies les lignes de facture (account.move.line) ?",
     "passed": true,
     "reason": "Pass",
-    "confidence": 0.9
+    "confidence": 0.95
   },
   {
     "id": "CODE-02",
@@ -88,14 +88,14 @@
     "question": "Comment est structur\u00e9 le mod\u00e8le stock.move ?",
     "passed": true,
     "reason": "Pass",
-    "confidence": 0.95
+    "confidence": 0.85
   },
   {
     "id": "CODE-04",
     "question": "Comment est \u00e9tendue la classe ResCompany dans le module sale ?",
     "passed": true,
     "reason": "Pass",
-    "confidence": 0.95
+    "confidence": 0.9
   },
   {
     "id": "CODE-05",
@@ -128,58 +128,58 @@
   {
     "id": "ERP-01",
     "question": "Combien de ventes la Soci\u00e9t\u00e9 Dupont a-t-elle r\u00e9alis\u00e9es ?",
-    "passed": true,
-    "reason": "Pass",
-    "confidence": 0.95
+    "passed": false,
+    "reason": "Missing keywords: {'soci\u00e9t\u00e9 dupont', '4'} or Source mismatch (Expected: fake_data/sales.json)",
+    "confidence": 0.5
   },
   {
     "id": "ERP-02",
     "question": "Quel est le montant total des ventes en cours ?",
-    "passed": true,
-    "reason": "Pass",
-    "confidence": 0.95
+    "passed": false,
+    "reason": "Missing keywords: {'25 900 000'} or Source mismatch (Expected: fake_data/sales.json)",
+    "confidence": 0.9
   },
   {
     "id": "ERP-03",
     "question": "Quel est le montant total factur\u00e9 \u00e0 ce jour ?",
-    "passed": true,
-    "reason": "Pass",
-    "confidence": 0.95
+    "passed": false,
+    "reason": "Missing keywords: {'factur\u00e9', '33 720 000'} or Source mismatch (Expected: fake_data/sales.json)",
+    "confidence": 0.9
   },
   {
     "id": "ERP-04",
     "question": "Combien de tickets de support sont r\u00e9solus ?",
-    "passed": true,
-    "reason": "Pass",
-    "confidence": 0.95
+    "passed": false,
+    "reason": "Missing keywords: {'11', 'r\u00e9solu'} or Source mismatch (Expected: fake_data/tickets.json)",
+    "confidence": 0.9
   },
   {
     "id": "ERP-05",
     "question": "Quel est le ticket de support le plus r\u00e9cent de Madagascar Tech ?",
-    "passed": true,
-    "reason": "Pass",
-    "confidence": 0.95
+    "passed": false,
+    "reason": "Missing keywords: {'feuilles de temps', 'madagascar tech'} or Source mismatch (Expected: fake_data/tickets.json)",
+    "confidence": 0.9
   },
   {
     "id": "ERP-06",
     "question": "Quel produit a \u00e9t\u00e9 vendu \u00e0 Madagascar Tech et pour quel montant ?",
-    "passed": true,
-    "reason": "Pass",
-    "confidence": 0.95
+    "passed": false,
+    "reason": "Missing keywords: {'madagascar tech'} or Source mismatch (Expected: fake_data/sales.json)",
+    "confidence": 1.0
   },
   {
     "id": "ERP-07",
     "question": "Quels sont les tickets de support encore en cours ?",
-    "passed": true,
-    "reason": "Pass",
+    "passed": false,
+    "reason": "Missing keywords: {'4'} or Source mismatch (Expected: fake_data/tickets.json)",
     "confidence": 0.95
   },
   {
     "id": "ERP-08",
     "question": "Quel est le montant total des ventes toutes p\u00e9riodes confondues ?",
-    "passed": true,
-    "reason": "Pass",
-    "confidence": 0.95
+    "passed": false,
+    "reason": "Missing keywords: {'ar', '62 120 000'} or Source mismatch (Expected: fake_data/sales.json)",
+    "confidence": 0.9
   },
   {
     "id": "HORS-01",

@@ -1,11 +1,24 @@
-import json
 import os
 import sys
+
+# Force offline mode for Hugging Face to avoid hanging/connecting to the Hub
+os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
+os.environ["TRANSFORMERS_OFFLINE"] = "1"
+os.environ["HF_HUB_OFFLINE"] = "1"
+
+import json
 import logging
 from tqdm import tqdm
 from dotenv import load_dotenv
 
-load_dotenv("env")
+load_dotenv()
+
+# Verify Nomic Key is loaded
+nomic_key = os.environ.get("NOMIC_API_KEY")
+if not nomic_key:
+    print("WARNING: NOMIC_API_KEY not found in environment variables!")
+else:
+    print("NOMIC_API_KEY successfully loaded from environment.")
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from rag.graph import query_graph
@@ -26,10 +39,20 @@ def run_erp_evaluation():
     
     print(f"Starting ERP Evaluation on {total} questions...\n")
     
+    from tools.odoo_connector import OdooConnector
+    _conn = OdooConnector()
+    _manager_password = "password123"
+    manager_uid = _conn.common.authenticate(_conn.db, "manager@miro.com", _manager_password, {})
+        
+    if not manager_uid:
+        print("ERROR: Could not authenticate as manager@miro.com")
+        sys.exit(1)
+    print(f"Authenticated as Manager (UID: {manager_uid})")
+    
     results = []
     
     for q in tqdm(questions, desc="Evaluating ERP"):
-        response = query_graph(q["question"])
+        response = query_graph(q["question"], uid=manager_uid, api_key=_manager_password)
         results.append({
             "id": q["id"],
             "question": q["question"],

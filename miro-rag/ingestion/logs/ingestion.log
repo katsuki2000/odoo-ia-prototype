@@ -8007,3 +8007,572 @@ Statistics saved to /home/user/odoo-ia-prototype/miro-rag/ingestion/logs/ingesti
 2026-07-15 11:29:48,047 - __main__ - INFO - By module: {'unknown': 37, 'sale': 292, 'account': 1528, 'stock': 843}
 2026-07-15 11:29:48,111 - __main__ - INFO - 
 Statistics saved to /home/user/odoo-ia-prototype/miro-rag/ingestion/logs/ingestion_stats.json
+2026-07-16 09:49:54,414 - vectorstore.chroma_manager - INFO - ChromaDB initialized at /home/user/odoo-ia-prototype/miro-rag/vectorstore/chroma_db with collection 'odoo_docs'
+2026-07-16 09:49:54,437 - vectorstore.chroma_manager - INFO - ChromaDB initialized at /home/user/odoo-ia-prototype/miro-rag/vectorstore/chroma_db with collection 'odoo_code'
+2026-07-16 09:49:54,437 - __main__ - INFO - ============================================================
+2026-07-16 09:49:54,437 - __main__ - INFO - Starting full document ingestion
+2026-07-16 09:49:54,437 - __main__ - INFO - ============================================================
+2026-07-16 09:49:54,438 - __main__ - INFO - 
+[DOCS] Loading from /home/user/odoo-ia-prototype/miro-rag/fake_data/documents
+2026-07-16 09:49:54,438 - __main__ - INFO - Found 4 PDF files
+2026-07-16 09:50:02,396 - __main__ - INFO -   Processing: Facture brouillon (_ 35).pdf
+2026-07-16 09:50:02,397 - ingestion.pdf_loader - INFO - Loading PDF: /home/user/odoo-ia-prototype/miro-rag/fake_data/documents/Facture brouillon (_ 35).pdf
+2026-07-16 09:50:02,434 - ingestion.pdf_loader - INFO - Low text extraction ratio (1.05%), attempting OCR
+2026-07-16 09:50:02,597 - ingestion.pdf_loader - INFO - Converted 1 pages for OCR
+2026-07-16 09:50:22,145 - ingestion.pdf_loader - INFO - OCR extraction complete. Quality: low
+2026-07-16 09:50:22,154 - ingestion.pdf_loader - INFO - Created 1 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/documents/Facture brouillon (_ 35).pdf
+2026-07-16 09:50:23,558 - vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-07-16 09:50:23,558 - __main__ - INFO -     Added 1 chunks (OCR: True)
+2026-07-16 09:50:23,559 - __main__ - INFO -   Processing: manuel_facturation.pdf
+2026-07-16 09:50:23,559 - ingestion.pdf_loader - INFO - Loading PDF: /home/user/odoo-ia-prototype/miro-rag/fake_data/documents/manuel_facturation.pdf
+2026-07-16 09:50:23,566 - ingestion.pdf_loader - INFO - Created 1 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/documents/manuel_facturation.pdf
+2026-07-16 09:50:24,263 - vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-07-16 09:50:24,263 - __main__ - INFO -     Added 1 chunks (OCR: False)
+2026-07-16 09:50:24,264 - __main__ - INFO -   Processing: FAC_2025_00039.pdf
+2026-07-16 09:50:24,264 - ingestion.pdf_loader - INFO - Loading PDF: /home/user/odoo-ia-prototype/miro-rag/fake_data/documents/FAC_2025_00039.pdf
+2026-07-16 09:50:24,314 - ingestion.pdf_loader - INFO - Low text extraction ratio (1.33%), attempting OCR
+2026-07-16 09:50:24,542 - ingestion.pdf_loader - INFO - Converted 1 pages for OCR
+2026-07-16 09:51:00,430 - ingestion.pdf_loader - INFO - OCR extraction complete. Quality: low
+2026-07-16 09:51:00,441 - ingestion.pdf_loader - INFO - Created 1 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/documents/FAC_2025_00039.pdf
+2026-07-16 09:51:01,786 - vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-07-16 09:51:01,786 - __main__ - INFO -     Added 1 chunks (OCR: True)
+2026-07-16 09:51:01,787 - __main__ - INFO -   Processing: facture_scannee.pdf
+2026-07-16 09:51:01,787 - ingestion.pdf_loader - INFO - Loading PDF: /home/user/odoo-ia-prototype/miro-rag/fake_data/documents/facture_scannee.pdf
+2026-07-16 09:51:01,795 - ingestion.pdf_loader - INFO - Low text extraction ratio (0.00%), attempting OCR
+2026-07-16 09:51:02,156 - ingestion.pdf_loader - INFO - Converted 1 pages for OCR
+2026-07-16 09:51:23,124 - ingestion.pdf_loader - INFO - OCR extraction complete. Quality: low
+2026-07-16 09:51:23,127 - ingestion.pdf_loader - INFO - Created 1 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/documents/facture_scannee.pdf
+2026-07-16 09:51:23,772 - vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-07-16 09:51:23,773 - __main__ - INFO -     Added 1 chunks (OCR: True)
+2026-07-16 09:51:23,773 - __main__ - INFO - PDF ingestion took 89.33s
+2026-07-16 09:51:23,773 - __main__ - INFO - Found 5 .txt and 1 .md files
+2026-07-16 09:51:23,774 - __main__ - INFO -   Processing: wiki_processus_vente.txt
+2026-07-16 09:51:23,774 - ingestion.wiki_loader - INFO - Loading text file: /home/user/odoo-ia-prototype/miro-rag/fake_data/documents/wiki_processus_vente.txt
+2026-07-16 09:51:23,775 - ingestion.wiki_loader - INFO - Created 2 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/documents/wiki_processus_vente.txt
+2026-07-16 09:51:24,399 - vectorstore.chroma_manager - INFO - Added 2 chunks to ChromaDB
+2026-07-16 09:51:24,399 - __main__ - INFO -     Added 2 chunks
+2026-07-16 09:51:24,399 - __main__ - INFO -   Processing: wiki_onboarding_rh.txt
+2026-07-16 09:51:24,399 - ingestion.wiki_loader - INFO - Loading text file: /home/user/odoo-ia-prototype/miro-rag/fake_data/documents/wiki_onboarding_rh.txt
+2026-07-16 09:51:24,401 - ingestion.wiki_loader - INFO - Created 2 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/documents/wiki_onboarding_rh.txt
+2026-07-16 09:51:25,123 - vectorstore.chroma_manager - INFO - Added 2 chunks to ChromaDB
+2026-07-16 09:51:25,124 - __main__ - INFO -     Added 2 chunks
+2026-07-16 09:51:25,124 - __main__ - INFO -   Processing: wiki_approbation.txt
+2026-07-16 09:51:25,124 - ingestion.wiki_loader - INFO - Loading text file: /home/user/odoo-ia-prototype/miro-rag/fake_data/documents/wiki_approbation.txt
+2026-07-16 09:51:25,125 - ingestion.wiki_loader - INFO - Created 1 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/documents/wiki_approbation.txt
+2026-07-16 09:51:25,844 - vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-07-16 09:51:25,844 - __main__ - INFO -     Added 1 chunks
+2026-07-16 09:51:25,844 - __main__ - INFO -   Processing: wiki_securite_it.txt
+2026-07-16 09:51:25,844 - ingestion.wiki_loader - INFO - Loading text file: /home/user/odoo-ia-prototype/miro-rag/fake_data/documents/wiki_securite_it.txt
+2026-07-16 09:51:25,845 - ingestion.wiki_loader - INFO - Created 2 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/documents/wiki_securite_it.txt
+2026-07-16 09:51:26,522 - vectorstore.chroma_manager - INFO - Added 2 chunks to ChromaDB
+2026-07-16 09:51:26,522 - __main__ - INFO -     Added 2 chunks
+2026-07-16 09:51:26,522 - __main__ - INFO -   Processing: wiki_gestion_stocks.txt
+2026-07-16 09:51:26,522 - ingestion.wiki_loader - INFO - Loading text file: /home/user/odoo-ia-prototype/miro-rag/fake_data/documents/wiki_gestion_stocks.txt
+2026-07-16 09:51:26,523 - ingestion.wiki_loader - INFO - Created 2 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/documents/wiki_gestion_stocks.txt
+2026-07-16 09:51:27,169 - vectorstore.chroma_manager - INFO - Added 2 chunks to ChromaDB
+2026-07-16 09:51:27,170 - __main__ - INFO -     Added 2 chunks
+2026-07-16 09:51:27,170 - __main__ - INFO -   Processing: Miro - SMA, MMT, JHR, Miro K.E., Protocoles IA et Codage Défensif, v1.1, 2026-06-04.md
+2026-07-16 09:51:27,170 - ingestion.wiki_loader - INFO - Loading markdown file: /home/user/odoo-ia-prototype/miro-rag/fake_data/documents/Miro - SMA, MMT, JHR, Miro K.E., Protocoles IA et Codage Défensif, v1.1, 2026-06-04.md
+2026-07-16 09:51:27,211 - ingestion.wiki_loader - INFO - Created 14 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/documents/Miro - SMA, MMT, JHR, Miro K.E., Protocoles IA et Codage Défensif, v1.1, 2026-06-04.md
+2026-07-16 09:51:28,492 - vectorstore.chroma_manager - INFO - Added 14 chunks to ChromaDB
+2026-07-16 09:51:28,493 - __main__ - INFO -     Added 14 chunks
+2026-07-16 09:51:28,493 - __main__ - INFO - Wiki ingestion took 4.72s
+2026-07-16 09:51:28,493 - __main__ - INFO - 
+[CODE] Loading from /home/user/odoo-ia-prototype/miro-rag/fake_data/code
+2026-07-16 09:51:28,495 - __main__ - INFO - Found 85 Python files
+2026-07-16 09:51:28,499 - __main__ - INFO -   Processing: sale/sale_order.py
+2026-07-16 09:51:28,500 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/sale/sale_order.py
+2026-07-16 09:51:28,654 - ingestion.code_loader - INFO - Created 108 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/sale/sale_order.py
+2026-07-16 09:51:31,077 - vectorstore.chroma_manager - INFO - Added 108 chunks to ChromaDB
+2026-07-16 09:51:31,077 - __main__ - INFO -     Added 108 chunks
+2026-07-16 09:51:31,077 - __main__ - INFO -   Processing: sale/onboarding_onboarding_step.py
+2026-07-16 09:51:31,077 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/sale/onboarding_onboarding_step.py
+2026-07-16 09:51:31,083 - ingestion.code_loader - INFO - Created 6 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/sale/onboarding_onboarding_step.py
+2026-07-16 09:51:31,777 - vectorstore.chroma_manager - INFO - Added 6 chunks to ChromaDB
+2026-07-16 09:51:31,777 - __main__ - INFO -     Added 6 chunks
+2026-07-16 09:51:31,777 - __main__ - INFO -   Processing: sale/onboarding_onboarding.py
+2026-07-16 09:51:31,777 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/sale/onboarding_onboarding.py
+2026-07-16 09:51:31,778 - ingestion.code_loader - INFO - Created 1 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/sale/onboarding_onboarding.py
+2026-07-16 09:51:32,514 - vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-07-16 09:51:32,514 - __main__ - INFO -     Added 1 chunks
+2026-07-16 09:51:32,516 - __main__ - INFO -   Processing: sale/account_move_line.py
+2026-07-16 09:51:32,517 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/sale/account_move_line.py
+2026-07-16 09:51:32,555 - ingestion.code_loader - INFO - Created 17 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/sale/account_move_line.py
+2026-07-16 09:51:33,509 - vectorstore.chroma_manager - INFO - Added 17 chunks to ChromaDB
+2026-07-16 09:51:33,509 - __main__ - INFO -     Added 17 chunks
+2026-07-16 09:51:33,510 - __main__ - INFO -   Processing: sale/ir_config_parameter.py
+2026-07-16 09:51:33,510 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/sale/ir_config_parameter.py
+2026-07-16 09:51:33,512 - ingestion.code_loader - INFO - Created 1 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/sale/ir_config_parameter.py
+2026-07-16 09:51:34,219 - vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-07-16 09:51:34,219 - __main__ - INFO -     Added 1 chunks
+2026-07-16 09:51:34,220 - __main__ - INFO -   Processing: sale/sale_order_line.py
+2026-07-16 09:51:34,220 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/sale/sale_order_line.py
+2026-07-16 09:51:34,306 - ingestion.code_loader - INFO - Created 81 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/sale/sale_order_line.py
+2026-07-16 09:51:35,940 - vectorstore.chroma_manager - INFO - Added 81 chunks to ChromaDB
+2026-07-16 09:51:35,942 - __main__ - INFO -     Added 81 chunks
+2026-07-16 09:51:35,942 - __main__ - INFO -   Processing: sale/product_product.py
+2026-07-16 09:51:35,942 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/sale/product_product.py
+2026-07-16 09:51:35,948 - ingestion.code_loader - INFO - Created 6 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/sale/product_product.py
+2026-07-16 09:51:36,922 - vectorstore.chroma_manager - INFO - Added 6 chunks to ChromaDB
+2026-07-16 09:51:36,923 - __main__ - INFO -     Added 6 chunks
+2026-07-16 09:51:36,923 - __main__ - INFO -   Processing: sale/res_partner.py
+2026-07-16 09:51:36,923 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/sale/res_partner.py
+2026-07-16 09:51:36,927 - ingestion.code_loader - INFO - Created 5 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/sale/res_partner.py
+2026-07-16 09:51:38,050 - vectorstore.chroma_manager - INFO - Added 5 chunks to ChromaDB
+2026-07-16 09:51:38,051 - __main__ - INFO -     Added 5 chunks
+2026-07-16 09:51:38,051 - __main__ - INFO -   Processing: sale/utm_campaign.py
+2026-07-16 09:51:38,052 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/sale/utm_campaign.py
+2026-07-16 09:51:38,056 - ingestion.code_loader - INFO - Created 4 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/sale/utm_campaign.py
+2026-07-16 09:51:38,748 - vectorstore.chroma_manager - INFO - Added 4 chunks to ChromaDB
+2026-07-16 09:51:38,748 - __main__ - INFO -     Added 4 chunks
+2026-07-16 09:51:38,748 - __main__ - INFO -   Processing: sale/analytic.py
+2026-07-16 09:51:38,748 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/sale/analytic.py
+2026-07-16 09:51:38,750 - ingestion.code_loader - INFO - Created 2 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/sale/analytic.py
+2026-07-16 09:51:39,630 - vectorstore.chroma_manager - INFO - Added 2 chunks to ChromaDB
+2026-07-16 09:51:39,631 - __main__ - INFO -     Added 2 chunks
+2026-07-16 09:51:39,631 - __main__ - INFO -   Processing: sale/payment_provider.py
+2026-07-16 09:51:39,631 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/sale/payment_provider.py
+2026-07-16 09:51:39,632 - ingestion.code_loader - INFO - Created 1 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/sale/payment_provider.py
+2026-07-16 09:51:40,311 - vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-07-16 09:51:40,311 - __main__ - INFO -     Added 1 chunks
+2026-07-16 09:51:40,312 - __main__ - INFO -   Processing: sale/product_document.py
+2026-07-16 09:51:40,312 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/sale/product_document.py
+2026-07-16 09:51:40,313 - ingestion.code_loader - INFO - Created 1 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/sale/product_document.py
+2026-07-16 09:51:41,056 - vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-07-16 09:51:41,056 - __main__ - INFO -     Added 1 chunks
+2026-07-16 09:51:41,056 - __main__ - INFO -   Processing: sale/account_move.py
+2026-07-16 09:51:41,057 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/sale/account_move.py
+2026-07-16 09:51:41,070 - ingestion.code_loader - INFO - Created 10 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/sale/account_move.py
+2026-07-16 09:51:41,862 - vectorstore.chroma_manager - INFO - Added 10 chunks to ChromaDB
+2026-07-16 09:51:41,862 - __main__ - INFO -     Added 10 chunks
+2026-07-16 09:51:41,862 - __main__ - INFO -   Processing: sale/res_company.py
+2026-07-16 09:51:41,863 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/sale/res_company.py
+2026-07-16 09:51:41,865 - ingestion.code_loader - INFO - Created 3 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/sale/res_company.py
+2026-07-16 09:51:42,512 - vectorstore.chroma_manager - INFO - Added 3 chunks to ChromaDB
+2026-07-16 09:51:42,512 - __main__ - INFO -     Added 3 chunks
+2026-07-16 09:51:42,513 - __main__ - INFO -   Processing: sale/crm_team.py
+2026-07-16 09:51:42,513 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/sale/crm_team.py
+2026-07-16 09:51:42,522 - ingestion.code_loader - INFO - Created 10 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/sale/crm_team.py
+2026-07-16 09:51:43,267 - vectorstore.chroma_manager - INFO - Added 10 chunks to ChromaDB
+2026-07-16 09:51:43,268 - __main__ - INFO -     Added 10 chunks
+2026-07-16 09:51:43,268 - __main__ - INFO -   Processing: sale/product_template.py
+2026-07-16 09:51:43,268 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/sale/product_template.py
+2026-07-16 09:51:43,276 - ingestion.code_loader - INFO - Created 11 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/sale/product_template.py
+2026-07-16 09:51:43,990 - vectorstore.chroma_manager - INFO - Added 11 chunks to ChromaDB
+2026-07-16 09:51:43,990 - __main__ - INFO -     Added 11 chunks
+2026-07-16 09:51:43,991 - __main__ - INFO -   Processing: sale/payment_transaction.py
+2026-07-16 09:51:43,991 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/sale/payment_transaction.py
+2026-07-16 09:51:44,001 - ingestion.code_loader - INFO - Created 13 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/sale/payment_transaction.py
+2026-07-16 09:51:44,855 - vectorstore.chroma_manager - INFO - Added 13 chunks to ChromaDB
+2026-07-16 09:51:44,855 - __main__ - INFO -     Added 13 chunks
+2026-07-16 09:51:44,855 - __main__ - INFO -   Processing: sale/__init__.py
+2026-07-16 09:51:44,855 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/sale/__init__.py
+2026-07-16 09:51:44,856 - ingestion.code_loader - INFO - Created 1 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/sale/__init__.py
+2026-07-16 09:51:45,516 - vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-07-16 09:51:45,516 - __main__ - INFO -     Added 1 chunks
+2026-07-16 09:51:45,517 - __main__ - INFO -   Processing: account/sequence_mixin.py
+2026-07-16 09:51:45,517 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/sequence_mixin.py
+2026-07-16 09:51:45,536 - ingestion.code_loader - INFO - Created 25 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/sequence_mixin.py
+2026-07-16 09:51:46,544 - vectorstore.chroma_manager - INFO - Added 25 chunks to ChromaDB
+2026-07-16 09:51:46,545 - __main__ - INFO -     Added 25 chunks
+2026-07-16 09:51:46,545 - __main__ - INFO -   Processing: account/account_analytic_plan.py
+2026-07-16 09:51:46,545 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/account_analytic_plan.py
+2026-07-16 09:51:46,548 - ingestion.code_loader - INFO - Created 2 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/account_analytic_plan.py
+2026-07-16 09:51:47,248 - vectorstore.chroma_manager - INFO - Added 2 chunks to ChromaDB
+2026-07-16 09:51:47,248 - __main__ - INFO -     Added 2 chunks
+2026-07-16 09:51:47,248 - __main__ - INFO -   Processing: account/account_analytic_distribution_model.py
+2026-07-16 09:51:47,248 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/account_analytic_distribution_model.py
+2026-07-16 09:51:47,250 - ingestion.code_loader - INFO - Created 1 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/account_analytic_distribution_model.py
+2026-07-16 09:51:47,856 - vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-07-16 09:51:47,857 - __main__ - INFO -     Added 1 chunks
+2026-07-16 09:51:47,857 - __main__ - INFO -   Processing: account/account_incoterms.py
+2026-07-16 09:51:47,857 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/account_incoterms.py
+2026-07-16 09:51:47,858 - ingestion.code_loader - INFO - Created 1 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/account_incoterms.py
+2026-07-16 09:51:48,473 - vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-07-16 09:51:48,474 - __main__ - INFO -     Added 1 chunks
+2026-07-16 09:51:48,474 - __main__ - INFO -   Processing: account/res_config_settings.py
+2026-07-16 09:51:48,474 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/res_config_settings.py
+2026-07-16 09:51:48,492 - ingestion.code_loader - INFO - Created 16 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/res_config_settings.py
+2026-07-16 09:51:49,330 - vectorstore.chroma_manager - INFO - Added 16 chunks to ChromaDB
+2026-07-16 09:51:49,330 - __main__ - INFO -     Added 16 chunks
+2026-07-16 09:51:49,330 - __main__ - INFO -   Processing: account/account_payment.py
+2026-07-16 09:51:49,330 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/account_payment.py
+2026-07-16 09:51:49,400 - ingestion.code_loader - INFO - Created 64 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/account_payment.py
+2026-07-16 09:51:51,441 - vectorstore.chroma_manager - INFO - Added 64 chunks to ChromaDB
+2026-07-16 09:51:51,441 - __main__ - INFO -     Added 64 chunks
+2026-07-16 09:51:51,441 - __main__ - INFO -   Processing: account/res_users.py
+2026-07-16 09:51:51,441 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/res_users.py
+2026-07-16 09:51:51,443 - ingestion.code_loader - INFO - Created 1 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/res_users.py
+2026-07-16 09:51:52,115 - vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-07-16 09:51:52,116 - __main__ - INFO -     Added 1 chunks
+2026-07-16 09:51:52,116 - __main__ - INFO -   Processing: account/template_generic_coa.py
+2026-07-16 09:51:52,116 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/template_generic_coa.py
+2026-07-16 09:51:52,118 - ingestion.code_loader - INFO - Created 4 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/template_generic_coa.py
+2026-07-16 09:51:52,860 - vectorstore.chroma_manager - INFO - Added 4 chunks to ChromaDB
+2026-07-16 09:51:52,861 - __main__ - INFO -     Added 4 chunks
+2026-07-16 09:51:52,861 - __main__ - INFO -   Processing: account/onboarding_onboarding_step.py
+2026-07-16 09:51:52,861 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/onboarding_onboarding_step.py
+2026-07-16 09:51:52,869 - ingestion.code_loader - INFO - Created 6 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/onboarding_onboarding_step.py
+2026-07-16 09:51:53,671 - vectorstore.chroma_manager - INFO - Added 6 chunks to ChromaDB
+2026-07-16 09:51:53,672 - __main__ - INFO -     Added 6 chunks
+2026-07-16 09:51:53,672 - __main__ - INFO -   Processing: account/uom_uom.py
+2026-07-16 09:51:53,672 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/uom_uom.py
+2026-07-16 09:51:53,678 - ingestion.code_loader - INFO - Created 3 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/uom_uom.py
+2026-07-16 09:51:54,358 - vectorstore.chroma_manager - INFO - Added 3 chunks to ChromaDB
+2026-07-16 09:51:54,358 - __main__ - INFO -     Added 3 chunks
+2026-07-16 09:51:54,358 - __main__ - INFO -   Processing: account/res_partner_bank.py
+2026-07-16 09:51:54,358 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/res_partner_bank.py
+2026-07-16 09:51:54,376 - ingestion.code_loader - INFO - Created 19 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/res_partner_bank.py
+2026-07-16 09:51:55,319 - vectorstore.chroma_manager - INFO - Added 19 chunks to ChromaDB
+2026-07-16 09:51:55,319 - __main__ - INFO -     Added 19 chunks
+2026-07-16 09:51:55,319 - __main__ - INFO -   Processing: account/onboarding_onboarding.py
+2026-07-16 09:51:55,319 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/onboarding_onboarding.py
+2026-07-16 09:51:55,321 - ingestion.code_loader - INFO - Created 2 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/onboarding_onboarding.py
+2026-07-16 09:51:56,003 - vectorstore.chroma_manager - INFO - Added 2 chunks to ChromaDB
+2026-07-16 09:51:56,003 - __main__ - INFO -     Added 2 chunks
+2026-07-16 09:51:56,003 - __main__ - INFO -   Processing: account/account_analytic_account.py
+2026-07-16 09:51:56,003 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/account_analytic_account.py
+2026-07-16 09:51:56,009 - ingestion.code_loader - INFO - Created 6 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/account_analytic_account.py
+2026-07-16 09:51:56,672 - vectorstore.chroma_manager - INFO - Added 6 chunks to ChromaDB
+2026-07-16 09:51:56,673 - __main__ - INFO -     Added 6 chunks
+2026-07-16 09:51:56,673 - __main__ - INFO -   Processing: account/decimal_precision.py
+2026-07-16 09:51:56,673 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/decimal_precision.py
+2026-07-16 09:51:56,674 - ingestion.code_loader - INFO - Created 1 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/decimal_precision.py
+2026-07-16 09:51:57,471 - vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-07-16 09:51:57,471 - __main__ - INFO -     Added 1 chunks
+2026-07-16 09:51:57,471 - __main__ - INFO -   Processing: account/product.py
+2026-07-16 09:51:57,472 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/product.py
+2026-07-16 09:51:57,490 - ingestion.code_loader - INFO - Created 23 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/product.py
+2026-07-16 09:51:58,421 - vectorstore.chroma_manager - INFO - Added 23 chunks to ChromaDB
+2026-07-16 09:51:58,422 - __main__ - INFO -     Added 23 chunks
+2026-07-16 09:51:58,422 - __main__ - INFO -   Processing: account/ir_actions_report.py
+2026-07-16 09:51:58,422 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/ir_actions_report.py
+2026-07-16 09:51:58,426 - ingestion.code_loader - INFO - Created 5 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/ir_actions_report.py
+2026-07-16 09:51:59,148 - vectorstore.chroma_manager - INFO - Added 5 chunks to ChromaDB
+2026-07-16 09:51:59,149 - __main__ - INFO -     Added 5 chunks
+2026-07-16 09:51:59,149 - __main__ - INFO -   Processing: account/ir_module.py
+2026-07-16 09:51:59,149 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/ir_module.py
+2026-07-16 09:51:59,155 - ingestion.code_loader - INFO - Created 7 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/ir_module.py
+2026-07-16 09:51:59,916 - vectorstore.chroma_manager - INFO - Added 7 chunks to ChromaDB
+2026-07-16 09:51:59,916 - __main__ - INFO -     Added 7 chunks
+2026-07-16 09:51:59,916 - __main__ - INFO -   Processing: account/account_journal_dashboard.py
+2026-07-16 09:51:59,916 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/account_journal_dashboard.py
+2026-07-16 09:51:59,977 - ingestion.code_loader - INFO - Created 61 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/account_journal_dashboard.py
+2026-07-16 09:52:01,311 - vectorstore.chroma_manager - INFO - Added 61 chunks to ChromaDB
+2026-07-16 09:52:01,311 - __main__ - INFO -     Added 61 chunks
+2026-07-16 09:52:01,311 - __main__ - INFO -   Processing: account/account_reconcile_model.py
+2026-07-16 09:52:01,311 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/account_reconcile_model.py
+2026-07-16 09:52:01,344 - ingestion.code_loader - INFO - Created 17 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/account_reconcile_model.py
+2026-07-16 09:52:02,432 - vectorstore.chroma_manager - INFO - Added 17 chunks to ChromaDB
+2026-07-16 09:52:02,433 - __main__ - INFO -     Added 17 chunks
+2026-07-16 09:52:02,433 - __main__ - INFO -   Processing: account/account_journal.py
+2026-07-16 09:52:02,433 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/account_journal.py
+2026-07-16 09:52:02,614 - ingestion.code_loader - INFO - Created 64 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/account_journal.py
+2026-07-16 09:52:04,044 - vectorstore.chroma_manager - INFO - Added 64 chunks to ChromaDB
+2026-07-16 09:52:04,045 - __main__ - INFO -     Added 64 chunks
+2026-07-16 09:52:04,046 - __main__ - INFO -   Processing: account/digest.py
+2026-07-16 09:52:04,046 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/digest.py
+2026-07-16 09:52:04,048 - ingestion.code_loader - INFO - Created 3 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/digest.py
+2026-07-16 09:52:04,801 - vectorstore.chroma_manager - INFO - Added 3 chunks to ChromaDB
+2026-07-16 09:52:04,801 - __main__ - INFO -     Added 3 chunks
+2026-07-16 09:52:04,802 - __main__ - INFO -   Processing: account/account_move_line.py
+2026-07-16 09:52:04,802 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/account_move_line.py
+2026-07-16 09:52:05,385 - ingestion.code_loader - INFO - Created 227 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/account_move_line.py
+2026-07-16 09:52:07,926 - vectorstore.chroma_manager - INFO - Added 227 chunks to ChromaDB
+2026-07-16 09:52:07,926 - __main__ - INFO -     Added 227 chunks
+2026-07-16 09:52:07,927 - __main__ - INFO -   Processing: account/account_analytic_line.py
+2026-07-16 09:52:07,927 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/account_analytic_line.py
+2026-07-16 09:52:07,931 - ingestion.code_loader - INFO - Created 4 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/account_analytic_line.py
+2026-07-16 09:52:08,751 - vectorstore.chroma_manager - INFO - Added 4 chunks to ChromaDB
+2026-07-16 09:52:08,752 - __main__ - INFO -     Added 4 chunks
+2026-07-16 09:52:08,752 - __main__ - INFO -   Processing: account/account_account_tag.py
+2026-07-16 09:52:08,752 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/account_account_tag.py
+2026-07-16 09:52:08,760 - ingestion.code_loader - INFO - Created 6 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/account_account_tag.py
+2026-07-16 09:52:09,525 - vectorstore.chroma_manager - INFO - Added 6 chunks to ChromaDB
+2026-07-16 09:52:09,525 - __main__ - INFO -     Added 6 chunks
+2026-07-16 09:52:09,525 - __main__ - INFO -   Processing: account/account_cash_rounding.py
+2026-07-16 09:52:09,525 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/account_cash_rounding.py
+2026-07-16 09:52:09,528 - ingestion.code_loader - INFO - Created 3 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/account_cash_rounding.py
+2026-07-16 09:52:10,271 - vectorstore.chroma_manager - INFO - Added 3 chunks to ChromaDB
+2026-07-16 09:52:10,271 - __main__ - INFO -     Added 3 chunks
+2026-07-16 09:52:10,271 - __main__ - INFO -   Processing: account/account_payment_term.py
+2026-07-16 09:52:10,271 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/account_payment_term.py
+2026-07-16 09:52:10,291 - ingestion.code_loader - INFO - Created 21 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/account_payment_term.py
+2026-07-16 09:52:11,251 - vectorstore.chroma_manager - INFO - Added 21 chunks to ChromaDB
+2026-07-16 09:52:11,251 - __main__ - INFO -     Added 21 chunks
+2026-07-16 09:52:11,252 - __main__ - INFO -   Processing: account/kpi_provider.py
+2026-07-16 09:52:11,252 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/kpi_provider.py
+2026-07-16 09:52:11,254 - ingestion.code_loader - INFO - Created 2 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/kpi_provider.py
+2026-07-16 09:52:12,007 - vectorstore.chroma_manager - INFO - Added 2 chunks to ChromaDB
+2026-07-16 09:52:12,007 - __main__ - INFO -     Added 2 chunks
+2026-07-16 09:52:12,007 - __main__ - INFO -   Processing: account/account_report.py
+2026-07-16 09:52:12,007 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/account_report.py
+2026-07-16 09:52:12,138 - ingestion.code_loader - INFO - Created 56 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/account_report.py
+2026-07-16 09:52:13,843 - vectorstore.chroma_manager - INFO - Added 56 chunks to ChromaDB
+2026-07-16 09:52:13,844 - __main__ - INFO -     Added 56 chunks
+2026-07-16 09:52:13,844 - __main__ - INFO -   Processing: account/ir_http.py
+2026-07-16 09:52:13,845 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/ir_http.py
+2026-07-16 09:52:13,846 - ingestion.code_loader - INFO - Created 1 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/ir_http.py
+2026-07-16 09:52:14,605 - vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-07-16 09:52:14,605 - __main__ - INFO -     Added 1 chunks
+2026-07-16 09:52:14,605 - __main__ - INFO -   Processing: account/res_currency.py
+2026-07-16 09:52:14,605 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/res_currency.py
+2026-07-16 09:52:14,618 - ingestion.code_loader - INFO - Created 4 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/res_currency.py
+2026-07-16 09:52:15,324 - vectorstore.chroma_manager - INFO - Added 4 chunks to ChromaDB
+2026-07-16 09:52:15,324 - __main__ - INFO -     Added 4 chunks
+2026-07-16 09:52:15,324 - __main__ - INFO -   Processing: account/exceptions.py
+2026-07-16 09:52:15,324 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/exceptions.py
+2026-07-16 09:52:15,325 - ingestion.code_loader - INFO - Created 1 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/exceptions.py
+2026-07-16 09:52:16,039 - vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-07-16 09:52:16,039 - __main__ - INFO -     Added 1 chunks
+2026-07-16 09:52:16,040 - __main__ - INFO -   Processing: account/ir_attachment.py
+2026-07-16 09:52:16,040 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/ir_attachment.py
+2026-07-16 09:52:16,049 - ingestion.code_loader - INFO - Created 12 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/ir_attachment.py
+2026-07-16 09:52:16,850 - vectorstore.chroma_manager - INFO - Added 12 chunks to ChromaDB
+2026-07-16 09:52:16,850 - __main__ - INFO -     Added 12 chunks
+2026-07-16 09:52:16,851 - __main__ - INFO -   Processing: account/account_payment_method.py
+2026-07-16 09:52:16,851 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/account_payment_method.py
+2026-07-16 09:52:16,858 - ingestion.code_loader - INFO - Created 7 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/account_payment_method.py
+2026-07-16 09:52:17,645 - vectorstore.chroma_manager - INFO - Added 7 chunks to ChromaDB
+2026-07-16 09:52:17,645 - __main__ - INFO -     Added 7 chunks
+2026-07-16 09:52:17,645 - __main__ - INFO -   Processing: account/account_move.py
+2026-07-16 09:52:17,646 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/account_move.py
+2026-07-16 09:52:17,974 - ingestion.code_loader - INFO - Created 316 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/account_move.py
+2026-07-16 09:52:20,519 - vectorstore.chroma_manager - INFO - Added 316 chunks to ChromaDB
+2026-07-16 09:52:20,520 - __main__ - INFO -     Added 316 chunks
+2026-07-16 09:52:20,520 - __main__ - INFO -   Processing: account/account_partial_reconcile.py
+2026-07-16 09:52:20,520 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/account_partial_reconcile.py
+2026-07-16 09:52:20,548 - ingestion.code_loader - INFO - Created 39 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/account_partial_reconcile.py
+2026-07-16 09:52:21,621 - vectorstore.chroma_manager - INFO - Added 39 chunks to ChromaDB
+2026-07-16 09:52:21,621 - __main__ - INFO -     Added 39 chunks
+2026-07-16 09:52:21,621 - __main__ - INFO -   Processing: account/company.py
+2026-07-16 09:52:21,621 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/company.py
+2026-07-16 09:52:21,779 - ingestion.code_loader - INFO - Created 46 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/company.py
+2026-07-16 09:52:23,343 - vectorstore.chroma_manager - INFO - Added 46 chunks to ChromaDB
+2026-07-16 09:52:23,344 - __main__ - INFO -     Added 46 chunks
+2026-07-16 09:52:23,344 - __main__ - INFO -   Processing: account/account_full_reconcile.py
+2026-07-16 09:52:23,344 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/account_full_reconcile.py
+2026-07-16 09:52:23,348 - ingestion.code_loader - INFO - Created 5 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/account_full_reconcile.py
+2026-07-16 09:52:24,073 - vectorstore.chroma_manager - INFO - Added 5 chunks to ChromaDB
+2026-07-16 09:52:24,074 - __main__ - INFO -     Added 5 chunks
+2026-07-16 09:52:24,074 - __main__ - INFO -   Processing: account/account_account.py
+2026-07-16 09:52:24,074 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/account_account.py
+2026-07-16 09:52:24,165 - ingestion.code_loader - INFO - Created 62 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/account_account.py
+2026-07-16 09:52:25,554 - vectorstore.chroma_manager - INFO - Added 62 chunks to ChromaDB
+2026-07-16 09:52:25,554 - __main__ - INFO -     Added 62 chunks
+2026-07-16 09:52:25,555 - __main__ - INFO -   Processing: account/account_move_line_tax_details.py
+2026-07-16 09:52:25,555 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/account_move_line_tax_details.py
+2026-07-16 09:52:25,577 - ingestion.code_loader - INFO - Created 44 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/account_move_line_tax_details.py
+2026-07-16 09:52:26,673 - vectorstore.chroma_manager - INFO - Added 44 chunks to ChromaDB
+2026-07-16 09:52:26,673 - __main__ - INFO -     Added 44 chunks
+2026-07-16 09:52:26,673 - __main__ - INFO -   Processing: account/account_bank_statement_line.py
+2026-07-16 09:52:26,674 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/account_bank_statement_line.py
+2026-07-16 09:52:26,731 - ingestion.code_loader - INFO - Created 42 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/account_bank_statement_line.py
+2026-07-16 09:52:27,977 - vectorstore.chroma_manager - INFO - Added 42 chunks to ChromaDB
+2026-07-16 09:52:27,978 - __main__ - INFO -     Added 42 chunks
+2026-07-16 09:52:27,978 - __main__ - INFO -   Processing: account/account_tax.py
+2026-07-16 09:52:27,978 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/account_tax.py
+2026-07-16 09:52:28,280 - ingestion.code_loader - INFO - Created 120 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/account_tax.py
+2026-07-16 09:52:31,336 - vectorstore.chroma_manager - INFO - Added 120 chunks to ChromaDB
+2026-07-16 09:52:31,336 - __main__ - INFO -     Added 120 chunks
+2026-07-16 09:52:31,336 - __main__ - INFO -   Processing: account/account_bank_statement.py
+2026-07-16 09:52:31,336 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/account_bank_statement.py
+2026-07-16 09:52:31,356 - ingestion.code_loader - INFO - Created 18 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/account_bank_statement.py
+2026-07-16 09:52:32,265 - vectorstore.chroma_manager - INFO - Added 18 chunks to ChromaDB
+2026-07-16 09:52:32,265 - __main__ - INFO -     Added 18 chunks
+2026-07-16 09:52:32,266 - __main__ - INFO -   Processing: account/__init__.py
+2026-07-16 09:52:32,266 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/__init__.py
+2026-07-16 09:52:32,268 - ingestion.code_loader - INFO - Created 1 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/__init__.py
+2026-07-16 09:52:32,982 - vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-07-16 09:52:32,982 - __main__ - INFO -     Added 1 chunks
+2026-07-16 09:52:32,982 - __main__ - INFO -   Processing: account/partner.py
+2026-07-16 09:52:32,983 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/partner.py
+2026-07-16 09:52:33,104 - ingestion.code_loader - INFO - Created 57 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/partner.py
+2026-07-16 09:52:34,459 - vectorstore.chroma_manager - INFO - Added 57 chunks to ChromaDB
+2026-07-16 09:52:34,459 - __main__ - INFO -     Added 57 chunks
+2026-07-16 09:52:34,459 - __main__ - INFO -   Processing: account/chart_template.py
+2026-07-16 09:52:34,459 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/chart_template.py
+2026-07-16 09:52:34,615 - ingestion.code_loader - INFO - Created 95 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/chart_template.py
+2026-07-16 09:52:36,266 - vectorstore.chroma_manager - INFO - Added 95 chunks to ChromaDB
+2026-07-16 09:52:36,266 - __main__ - INFO -     Added 95 chunks
+2026-07-16 09:52:36,267 - __main__ - INFO -   Processing: stock/barcode.py
+2026-07-16 09:52:36,267 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/stock/barcode.py
+2026-07-16 09:52:36,268 - ingestion.code_loader - INFO - Created 1 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/stock/barcode.py
+2026-07-16 09:52:36,969 - vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-07-16 09:52:36,969 - __main__ - INFO -     Added 1 chunks
+2026-07-16 09:52:36,969 - __main__ - INFO -   Processing: stock/stock_rule.py
+2026-07-16 09:52:36,969 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/stock/stock_rule.py
+2026-07-16 09:52:37,120 - ingestion.code_loader - INFO - Created 44 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/stock/stock_rule.py
+2026-07-16 09:52:38,321 - vectorstore.chroma_manager - INFO - Added 44 chunks to ChromaDB
+2026-07-16 09:52:38,322 - __main__ - INFO -     Added 44 chunks
+2026-07-16 09:52:38,322 - __main__ - INFO -   Processing: stock/stock_lot.py
+2026-07-16 09:52:38,322 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/stock/stock_lot.py
+2026-07-16 09:52:38,350 - ingestion.code_loader - INFO - Created 22 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/stock/stock_lot.py
+2026-07-16 09:52:39,321 - vectorstore.chroma_manager - INFO - Added 22 chunks to ChromaDB
+2026-07-16 09:52:39,321 - __main__ - INFO -     Added 22 chunks
+2026-07-16 09:52:39,321 - __main__ - INFO -   Processing: stock/res_config_settings.py
+2026-07-16 09:52:39,322 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/stock/res_config_settings.py
+2026-07-16 09:52:39,350 - ingestion.code_loader - INFO - Created 9 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/stock/res_config_settings.py
+2026-07-16 09:52:40,112 - vectorstore.chroma_manager - INFO - Added 9 chunks to ChromaDB
+2026-07-16 09:52:40,112 - __main__ - INFO -     Added 9 chunks
+2026-07-16 09:52:40,112 - __main__ - INFO -   Processing: stock/stock_warehouse.py
+2026-07-16 09:52:40,112 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/stock/stock_warehouse.py
+2026-07-16 09:52:40,197 - ingestion.code_loader - INFO - Created 76 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/stock/stock_warehouse.py
+2026-07-16 09:52:41,869 - vectorstore.chroma_manager - INFO - Added 76 chunks to ChromaDB
+2026-07-16 09:52:41,869 - __main__ - INFO -     Added 76 chunks
+2026-07-16 09:52:41,869 - __main__ - INFO -   Processing: stock/res_users.py
+2026-07-16 09:52:41,869 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/stock/res_users.py
+2026-07-16 09:52:41,870 - ingestion.code_loader - INFO - Created 1 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/stock/res_users.py
+2026-07-16 09:52:42,595 - vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-07-16 09:52:42,595 - __main__ - INFO -     Added 1 chunks
+2026-07-16 09:52:42,595 - __main__ - INFO -   Processing: stock/stock_quant.py
+2026-07-16 09:52:42,596 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/stock/stock_quant.py
+2026-07-16 09:52:43,638 - ingestion.code_loader - INFO - Created 106 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/stock/stock_quant.py
+2026-07-16 09:52:45,747 - vectorstore.chroma_manager - INFO - Added 106 chunks to ChromaDB
+2026-07-16 09:52:45,748 - __main__ - INFO -     Added 106 chunks
+2026-07-16 09:52:45,749 - __main__ - INFO -   Processing: stock/product.py
+2026-07-16 09:52:45,749 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/stock/product.py
+2026-07-16 09:52:45,849 - ingestion.code_loader - INFO - Created 76 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/stock/product.py
+2026-07-16 09:52:47,360 - vectorstore.chroma_manager - INFO - Added 76 chunks to ChromaDB
+2026-07-16 09:52:47,360 - __main__ - INFO -     Added 76 chunks
+2026-07-16 09:52:47,360 - __main__ - INFO -   Processing: stock/ir_actions_report.py
+2026-07-16 09:52:47,360 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/stock/ir_actions_report.py
+2026-07-16 09:52:47,361 - ingestion.code_loader - INFO - Created 1 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/stock/ir_actions_report.py
+2026-07-16 09:52:48,062 - vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-07-16 09:52:48,062 - __main__ - INFO -     Added 1 chunks
+2026-07-16 09:52:48,063 - __main__ - INFO -   Processing: stock/product_strategy.py
+2026-07-16 09:52:48,063 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/stock/product_strategy.py
+2026-07-16 09:52:48,071 - ingestion.code_loader - INFO - Created 9 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/stock/product_strategy.py
+2026-07-16 09:52:48,797 - vectorstore.chroma_manager - INFO - Added 9 chunks to ChromaDB
+2026-07-16 09:52:48,798 - __main__ - INFO -     Added 9 chunks
+2026-07-16 09:52:48,798 - __main__ - INFO -   Processing: stock/stock_move.py
+2026-07-16 09:52:48,798 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/stock/stock_move.py
+2026-07-16 09:52:48,984 - ingestion.code_loader - INFO - Created 167 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/stock/stock_move.py
+2026-07-16 09:52:50,949 - vectorstore.chroma_manager - INFO - Added 167 chunks to ChromaDB
+2026-07-16 09:52:50,950 - __main__ - INFO -     Added 167 chunks
+2026-07-16 09:52:50,950 - __main__ - INFO -   Processing: stock/stock_storage_category.py
+2026-07-16 09:52:50,950 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/stock/stock_storage_category.py
+2026-07-16 09:52:50,957 - ingestion.code_loader - INFO - Created 3 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/stock/stock_storage_category.py
+2026-07-16 09:52:51,671 - vectorstore.chroma_manager - INFO - Added 3 chunks to ChromaDB
+2026-07-16 09:52:51,671 - __main__ - INFO -     Added 3 chunks
+2026-07-16 09:52:51,671 - __main__ - INFO -   Processing: stock/stock_scrap.py
+2026-07-16 09:52:51,671 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/stock/stock_scrap.py
+2026-07-16 09:52:51,692 - ingestion.code_loader - INFO - Created 16 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/stock/stock_scrap.py
+2026-07-16 09:52:52,481 - vectorstore.chroma_manager - INFO - Added 16 chunks to ChromaDB
+2026-07-16 09:52:52,481 - __main__ - INFO -     Added 16 chunks
+2026-07-16 09:52:52,481 - __main__ - INFO -   Processing: stock/stock_orderpoint.py
+2026-07-16 09:52:52,482 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/stock/stock_orderpoint.py
+2026-07-16 09:52:52,530 - ingestion.code_loader - INFO - Created 46 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/stock/stock_orderpoint.py
+2026-07-16 09:52:53,814 - vectorstore.chroma_manager - INFO - Added 46 chunks to ChromaDB
+2026-07-16 09:52:53,814 - __main__ - INFO -     Added 46 chunks
+2026-07-16 09:52:53,815 - __main__ - INFO -   Processing: stock/res_partner.py
+2026-07-16 09:52:53,815 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/stock/res_partner.py
+2026-07-16 09:52:53,816 - ingestion.code_loader - INFO - Created 1 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/stock/res_partner.py
+2026-07-16 09:52:54,489 - vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-07-16 09:52:54,489 - __main__ - INFO -     Added 1 chunks
+2026-07-16 09:52:54,489 - __main__ - INFO -   Processing: stock/stock_picking.py
+2026-07-16 09:52:54,489 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/stock/stock_picking.py
+2026-07-16 09:52:54,683 - ingestion.code_loader - INFO - Created 111 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/stock/stock_picking.py
+2026-07-16 09:52:56,439 - vectorstore.chroma_manager - INFO - Added 111 chunks to ChromaDB
+2026-07-16 09:52:56,439 - __main__ - INFO -     Added 111 chunks
+2026-07-16 09:52:56,439 - __main__ - INFO -   Processing: stock/stock_package_level.py
+2026-07-16 09:52:56,440 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/stock/stock_package_level.py
+2026-07-16 09:52:56,454 - ingestion.code_loader - INFO - Created 17 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/stock/stock_package_level.py
+2026-07-16 09:52:57,305 - vectorstore.chroma_manager - INFO - Added 17 chunks to ChromaDB
+2026-07-16 09:52:57,305 - __main__ - INFO -     Added 17 chunks
+2026-07-16 09:52:57,305 - __main__ - INFO -   Processing: stock/res_company.py
+2026-07-16 09:52:57,305 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/stock/res_company.py
+2026-07-16 09:52:57,314 - ingestion.code_loader - INFO - Created 11 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/stock/res_company.py
+2026-07-16 09:52:58,126 - vectorstore.chroma_manager - INFO - Added 11 chunks to ChromaDB
+2026-07-16 09:52:58,126 - __main__ - INFO -     Added 11 chunks
+2026-07-16 09:52:58,126 - __main__ - INFO -   Processing: stock/stock_move_line.py
+2026-07-16 09:52:58,126 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/stock/stock_move_line.py
+2026-07-16 09:52:58,209 - ingestion.code_loader - INFO - Created 75 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/stock/stock_move_line.py
+2026-07-16 09:52:59,530 - vectorstore.chroma_manager - INFO - Added 75 chunks to ChromaDB
+2026-07-16 09:52:59,530 - __main__ - INFO -     Added 75 chunks
+2026-07-16 09:52:59,530 - __main__ - INFO -   Processing: stock/stock_package_type.py
+2026-07-16 09:52:59,530 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/stock/stock_package_type.py
+2026-07-16 09:52:59,533 - ingestion.code_loader - INFO - Created 3 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/stock/stock_package_type.py
+2026-07-16 09:53:00,211 - vectorstore.chroma_manager - INFO - Added 3 chunks to ChromaDB
+2026-07-16 09:53:00,211 - __main__ - INFO -     Added 3 chunks
+2026-07-16 09:53:00,212 - __main__ - INFO -   Processing: stock/__init__.py
+2026-07-16 09:53:00,212 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/stock/__init__.py
+2026-07-16 09:53:00,213 - ingestion.code_loader - INFO - Created 1 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/stock/__init__.py
+2026-07-16 09:53:00,862 - vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-07-16 09:53:00,863 - __main__ - INFO -     Added 1 chunks
+2026-07-16 09:53:00,863 - __main__ - INFO -   Processing: stock/stock_location.py
+2026-07-16 09:53:00,863 - ingestion.code_loader - INFO - Loading Python file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/stock/stock_location.py
+2026-07-16 09:53:00,965 - ingestion.code_loader - INFO - Created 37 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/stock/stock_location.py
+2026-07-16 09:53:02,509 - vectorstore.chroma_manager - INFO - Added 37 chunks to ChromaDB
+2026-07-16 09:53:02,511 - __main__ - INFO -     Added 37 chunks
+2026-07-16 09:53:02,515 - __main__ - INFO - Python ingestion took 94.02s
+2026-07-16 09:53:02,518 - __main__ - INFO - Found 7 XML files
+2026-07-16 09:53:02,519 - __main__ - INFO -   Processing: sale/sale_order_view.xml
+2026-07-16 09:53:02,520 - ingestion.code_loader - INFO - Loading XML file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/sale/sale_order_view.xml
+2026-07-16 09:53:02,526 - ingestion.code_loader - INFO - Created 6 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/sale/sale_order_view.xml
+2026-07-16 09:53:03,314 - vectorstore.chroma_manager - INFO - Added 6 chunks to ChromaDB
+2026-07-16 09:53:03,315 - __main__ - INFO -     Added 6 chunks
+2026-07-16 09:53:03,316 - __main__ - INFO -   Processing: account/account_move_view.xml
+2026-07-16 09:53:03,316 - ingestion.code_loader - INFO - Loading XML file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/account_move_view.xml
+2026-07-16 09:53:03,320 - ingestion.code_loader - INFO - Created 3 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/account_move_view.xml
+2026-07-16 09:53:04,132 - vectorstore.chroma_manager - INFO - Added 3 chunks to ChromaDB
+2026-07-16 09:53:04,132 - __main__ - INFO -     Added 3 chunks
+2026-07-16 09:53:04,133 - __main__ - INFO -   Processing: views/estate_property_type.xml
+2026-07-16 09:53:04,133 - ingestion.code_loader - INFO - Loading XML file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/views/estate_property_type.xml
+2026-07-16 09:53:04,134 - ingestion.code_loader - INFO - Created 1 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/views/estate_property_type.xml
+2026-07-16 09:53:04,917 - vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-07-16 09:53:04,918 - __main__ - INFO -     Added 1 chunks
+2026-07-16 09:53:04,918 - __main__ - INFO -   Processing: views/estate_property_views.xml
+2026-07-16 09:53:04,918 - ingestion.code_loader - INFO - Loading XML file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/views/estate_property_views.xml
+2026-07-16 09:53:04,953 - ingestion.code_loader - INFO - Created 7 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/views/estate_property_views.xml
+2026-07-16 09:53:05,754 - vectorstore.chroma_manager - INFO - Added 7 chunks to ChromaDB
+2026-07-16 09:53:05,754 - __main__ - INFO -     Added 7 chunks
+2026-07-16 09:53:05,754 - __main__ - INFO -   Processing: views/menu.xml
+2026-07-16 09:53:05,754 - ingestion.code_loader - INFO - Loading XML file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/views/menu.xml
+2026-07-16 09:53:05,755 - ingestion.code_loader - INFO - Created 1 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/views/menu.xml
+2026-07-16 09:53:06,462 - vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-07-16 09:53:06,463 - __main__ - INFO -     Added 1 chunks
+2026-07-16 09:53:06,463 - __main__ - INFO -   Processing: views/schedulers/estate_property_scheduler.xml
+2026-07-16 09:53:06,463 - ingestion.code_loader - INFO - Loading XML file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/views/schedulers/estate_property_scheduler.xml
+2026-07-16 09:53:06,464 - ingestion.code_loader - INFO - Created 1 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/views/schedulers/estate_property_scheduler.xml
+2026-07-16 09:53:07,118 - vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-07-16 09:53:07,118 - __main__ - INFO -     Added 1 chunks
+2026-07-16 09:53:07,118 - __main__ - INFO -   Processing: stock/stock_picking_view.xml
+2026-07-16 09:53:07,119 - ingestion.code_loader - INFO - Loading XML file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/stock/stock_picking_view.xml
+2026-07-16 09:53:07,122 - ingestion.code_loader - INFO - Created 4 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/stock/stock_picking_view.xml
+2026-07-16 09:53:07,875 - vectorstore.chroma_manager - INFO - Added 4 chunks to ChromaDB
+2026-07-16 09:53:07,875 - __main__ - INFO -     Added 4 chunks
+2026-07-16 09:53:07,875 - __main__ - INFO - XML ingestion took 5.36s
+2026-07-16 09:53:07,876 - __main__ - INFO - Found 3 JS files
+2026-07-16 09:53:07,877 - __main__ - INFO -   Processing: sale/sale_order_dashboard.js
+2026-07-16 09:53:07,877 - ingestion.code_loader - INFO - Loading JavaScript file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/sale/sale_order_dashboard.js
+2026-07-16 09:53:07,883 - ingestion.code_loader - INFO - Created 5 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/sale/sale_order_dashboard.js
+2026-07-16 09:53:08,588 - vectorstore.chroma_manager - INFO - Added 5 chunks to ChromaDB
+2026-07-16 09:53:08,589 - __main__ - INFO -     Added 5 chunks
+2026-07-16 09:53:08,589 - __main__ - INFO -   Processing: account/account_move_widget.js
+2026-07-16 09:53:08,589 - ingestion.code_loader - INFO - Loading JavaScript file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/account_move_widget.js
+2026-07-16 09:53:08,592 - ingestion.code_loader - INFO - Created 4 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/account_move_widget.js
+2026-07-16 09:53:09,340 - vectorstore.chroma_manager - INFO - Added 4 chunks to ChromaDB
+2026-07-16 09:53:09,340 - __main__ - INFO -     Added 4 chunks
+2026-07-16 09:53:09,341 - __main__ - INFO -   Processing: stock/stock_barcode_scanner.js
+2026-07-16 09:53:09,341 - ingestion.code_loader - INFO - Loading JavaScript file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/stock/stock_barcode_scanner.js
+2026-07-16 09:53:09,345 - ingestion.code_loader - INFO - Created 6 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/stock/stock_barcode_scanner.js
+2026-07-16 09:53:10,161 - vectorstore.chroma_manager - INFO - Added 6 chunks to ChromaDB
+2026-07-16 09:53:10,162 - __main__ - INFO -     Added 6 chunks
+2026-07-16 09:53:10,162 - __main__ - INFO - JS ingestion took 2.29s
+2026-07-16 09:53:10,163 - __main__ - INFO - Found 1 CSV files
+2026-07-16 09:53:10,163 - __main__ - INFO -   Processing: account/ir.model.access.csv
+2026-07-16 09:53:10,163 - ingestion.code_loader - INFO - Loading CSV file: /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/ir.model.access.csv
+2026-07-16 09:53:10,166 - ingestion.code_loader - INFO - Created 1 chunks from /home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/ir.model.access.csv
+2026-07-16 09:53:10,922 - vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-07-16 09:53:10,923 - __main__ - INFO -     Added 1 chunks
+2026-07-16 09:53:10,923 - __main__ - INFO - CSV ingestion took 0.76s
+2026-07-16 09:53:11,945 - __main__ - INFO - 
+============================================================
+2026-07-16 09:53:11,945 - __main__ - INFO - INGESTION COMPLETE
+2026-07-16 09:53:11,946 - __main__ - INFO - ============================================================
+2026-07-16 09:53:11,946 - __main__ - INFO - Total chunks indexed: 2700
+2026-07-16 09:53:11,946 - __main__ - INFO - By type: {'code_python': 2634, 'code_xml': 23, 'code_js': 15, 'code_csv': 1, 'doc_pdf': 4, 'doc_wiki': 23}
+2026-07-16 09:53:11,946 - __main__ - INFO - By module: {'unknown': 37, 'sale': 292, 'account': 1528, 'stock': 843}
+2026-07-16 09:53:11,947 - __main__ - INFO - 
+Statistics saved to /home/user/odoo-ia-prototype/miro-rag/ingestion/logs/ingestion_stats.json

@@ -82,7 +82,7 @@ def retrieve(state: RAGState) -> dict:
             top_k=10, 
             chroma_manager=chroma_manager,
             bm25_index=bm25_index,
-            use_reranker=True
+            use_reranker=False
         )
     except Exception as e:
         logger.error("Error during retrieval: %s", e)
@@ -120,7 +120,8 @@ def route(state: RAGState) -> dict:
             "statut de la", "statut commande", "factures impayées", "factures payées",
             "quantité disponible", "produit en rupture", "le plus récent",
             "tickets résolus", "tickets en cours", "rechercher client", "coordonnées",
-            "toutes périodes confondues", "ce mois", "cette année"
+            "toutes périodes confondues", "ce mois", "cette année", "moyenne", 
+            "stock", "quel produit", "montant moyen"
         ]
         if any(kw in question for kw in erp_keywords):
             logger.info("Node [route]: Query matched explicit ERP keywords → DONNEES_ERP branch")
@@ -326,8 +327,38 @@ def orm_agent_loop(state: RAGState) -> dict:
         try:
             ai_msg = llm_with_tools.invoke(messages)
         except Exception as e:
-            logger.error("LLM invoke failed at iteration %d: %s", iteration + 1, e)
-            break
+            logger.warning("LLM invoke failed at iteration %d: %s", iteration + 1, e)
+            # ── Recovery: parse malformed tool calls from small models ──
+            # Llama 3.1 8B sometimes generates <function=name>{"arg": "val"}
+            # instead of structured JSON. Groq rejects it with a 400 containing
+            # the raw text in 'failed_generation'. We parse it and continue.
+            recovered = False
+            err_str = str(e)
+            if "failed_generation" in err_str:
+                import re
+                match = re.search(r'<function=(\w+)>\s*(\{.*?\})', err_str)
+                if match:
+                    fn_name = match.group(1)
+                    try:
+                        import json as _json
+                        fn_args = _json.loads(match.group(2))
+                        tool_map = {t.name: t for t in all_tools}
+                        if fn_name in tool_map:
+                            logger.info("Recovered malformed tool call: %s(%s)", fn_name, fn_args)
+                            observation = tool_map[fn_name].invoke(fn_args)
+                            tool_observations.append(str(observation))
+                            # Feed the observation back as a HumanMessage so the LLM
+                            # can use it on the next iteration (no tool_call_id needed)
+                            messages.append(HumanMessage(
+                                content=f"Résultat de l'outil {fn_name} : {observation}"
+                            ))
+                            recovered = True
+                    except Exception as parse_err:
+                        logger.error("Recovery parse failed: %s", parse_err)
+            if not recovered:
+                logger.error("Unrecoverable LLM error at iteration %d", iteration + 1)
+                break
+            continue  # Skip normal ai_msg processing, go to next iteration
 
         messages.append(ai_msg)
 
@@ -404,7 +435,8 @@ def format_output(state: RAGState) -> dict:
     response = state.get("response")
     chunks = state.get("retrieved_chunks", [])
     
-    if response and chunks:
+    route = state.get("route")
+    if response and chunks and route == QueryRoute.DOCUMENTAIRE.value:
         # OCR Warning Logic
         has_low_ocr = any(chunk.get("metadata", {}).get("ocr_quality") == "low" for chunk in chunks)
         if has_low_ocr:
@@ -464,11 +496,13 @@ def query_graph(
     question: str,
     chat_history: Optional[List[BaseMessage]] = None,
     uid: Optional[int] = None,
+    api_key: Optional[str] = None,
     skills: Optional[dict] = None,
 ) -> AssistantResponse:
     """
     Public API to query the graph.
     uid: Odoo user id for RBAC passthrough.
+    api_key: Odoo user API key / password for authenticated XML-RPC calls.
     """
     import time
     import json
@@ -479,11 +513,14 @@ def query_graph(
     if skills is None:
         skills = {}
 
-    from tools.odoo_tools import odoo_uid_ctx
-    # Propagate the uid to tools via contextvar
-    token = None
+    from tools.odoo_tools import odoo_uid_ctx, odoo_api_key_ctx
+    # Propagate the uid and api_key to tools via contextvars
+    uid_token = None
+    api_key_token = None
     if uid is not None:
-        token = odoo_uid_ctx.set(uid)
+        uid_token = odoo_uid_ctx.set(uid)
+    if api_key is not None:
+        api_key_token = odoo_api_key_ctx.set(api_key)
 
     try:
         app = build_graph()
@@ -516,5 +553,8 @@ def query_graph(
             confidence=0.0
         )
     finally:
-        if token:
-            odoo_uid_ctx.reset(token)
+        if uid_token:
+            odoo_uid_ctx.reset(uid_token)
+        if api_key_token:
+            odoo_api_key_ctx.reset(api_key_token)
+
