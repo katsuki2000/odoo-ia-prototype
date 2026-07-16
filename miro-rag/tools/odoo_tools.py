@@ -16,6 +16,7 @@ connector = OdooConnector()
 
 import contextvars
 odoo_uid_ctx = contextvars.ContextVar('odoo_uid', default=None)
+odoo_api_key_ctx = contextvars.ContextVar('odoo_api_key', default=None)
 
 # Cache the authenticated uid for fallback when testing outside of LangGraph
 _cached_uid = None
@@ -33,18 +34,23 @@ def _get_current_uid() -> int:
     return _cached_uid
 
 @tool
-def obtenir_total_ventes(client: str, periode: str) -> str:
+def obtenir_total_ventes(client: str = "", periode: str = "toutes", statut: str = "confirmé") -> str:
     """
-    Obtenir le montant total des ventes confirmées pour un client donné sur une période.
+    Obtenir le montant total des ventes pour un client donné sur une période.
     
     Args:
-        client: Le nom du client.
-        periode: La période (ex: 'ce mois', '2024'). À parser ultérieurement.
+        client: Le nom du client. (Optionnel, laisser vide ou utiliser 'tous' pour tous les clients).
+        periode: La période (ex: 'ce mois', '2024'). Optionnel.
+        statut: Le statut des ventes ('confirmé', 'brouillon', 'en cours', 'toutes'). Défaut: 'confirmé'.
     """
     uid = _get_current_uid()
-    domain = [
-        ("state", "in", ["sale", "done"])
-    ]
+    
+    if statut.lower() in ["brouillon", "en cours", "draft", "sent"]:
+        domain = [("state", "in", ["draft", "sent"])]
+    elif statut.lower() == "toutes":
+        domain = []
+    else:
+        domain = [("state", "in", ["sale", "done"])]
     
     if client and client.lower() not in ["tous les clients", "tous", ""]:
         domain.append(("partner_id.name", "ilike", client))
@@ -63,14 +69,20 @@ def obtenir_total_ventes(client: str, periode: str) -> str:
             groupby=["partner_id"]
         )
         if not results:
-            return f"Aucune vente trouvée pour {client} sur la période demandée."
+            return f"Aucune vente trouvée pour {client or 'tous les clients'} sur la période demandée."
             
-        if len(results) > 1:
+        is_global = not client or client.lower() in ["tous les clients", "tous", ""]
+        if not is_global and len(results) > 1:
             names = [r.get("partner_id")[1] for r in results if r.get("partner_id")]
             return f"AMBIGUÏTÉ : Plusieurs clients correspondent à '{client}'. Veuillez préciser lequel parmi : {', '.join(names)}."
             
-        total = results[0].get("amount_total", 0.0)
-        return f"Le total des ventes pour {client} est de {total:.2f} Ar."
+        if is_global:
+            total = sum(r.get("amount_total", 0.0) for r in results)
+            return f"Le total des ventes est de {total:.2f} Ar."
+        else:
+            total = results[0].get("amount_total", 0.0)
+            client_name = results[0].get("partner_id")[1] if results[0].get("partner_id") else client
+            return f"Le total des ventes pour {client_name} est de {total:.2f} Ar."
     except Exception as e:
         return f"Erreur lors de la récupération des ventes : {str(e)}"
 
@@ -141,34 +153,41 @@ def obtenir_statut_commande(reference: str) -> str:
         return f"Erreur lors de la récupération de la commande : {str(e)}"
 
 @tool
-def obtenir_total_factures(client: str, statut: str) -> str:
+def obtenir_total_factures(client: str = "", statut: str = "toutes") -> str:
     """
-    Obtenir le montant total des factures d'un client selon leur statut.
+    Obtenir le montant total des factures pour un client selon leur statut.
     
     Args:
-        client: Le nom du client.
-        statut: Le statut de la facture ('payé', 'impayé', 'brouillon').
+        client: Le nom du client. (Optionnel, laisser vide ou utiliser 'tous' pour tous les clients).
+        statut: Le statut de la facture ('payé', 'impayé', 'brouillon', 'toutes'). Défaut: 'toutes'.
     """
     uid = _get_current_uid()
     
     # Map friendly status to Odoo technical fields
-    payment_state = "not_paid"
-    state = "posted"
-    if "pay" in statut.lower() and "impay" not in statut.lower():
+    payment_state = None
+    state = None
+    
+    statut_lower = statut.lower()
+    if "pay" in statut_lower and "impay" not in statut_lower:
         payment_state = "paid"
-    elif "brouillon" in statut.lower():
+        state = "posted"
+    elif "impay" in statut_lower:
+        payment_state = "not_paid"
+        state = "posted"
+    elif "brouillon" in statut_lower:
         state = "draft"
         payment_state = "not_paid"
         
     domain = [
-        ("move_type", "=", "out_invoice"),
-        ("state", "=", state)
+        ("move_type", "=", "out_invoice")
     ]
+    if state:
+        domain.append(("state", "=", state))
     
     if client and client.lower() not in ["tous les clients", "tous", ""]:
         domain.append(("partner_id.name", "ilike", client))
     
-    if state == "posted":
+    if state == "posted" and payment_state:
         domain.append(("payment_state", "in", ["paid", "in_payment"] if payment_state == "paid" else ["not_paid", "partial"]))
         
     try:
@@ -180,14 +199,20 @@ def obtenir_total_factures(client: str, statut: str) -> str:
             groupby=["partner_id"]
         )
         if not results:
-            return f"Aucune facture ({statut}) trouvée pour {client}."
+            return f"Aucune facture ({statut}) trouvée pour {client or 'tous les clients'}."
             
-        if len(results) > 1:
+        is_global = not client or client.lower() in ["tous les clients", "tous", ""]
+        if not is_global and len(results) > 1:
             names = [r.get("partner_id")[1] for r in results if r.get("partner_id")]
             return f"AMBIGUÏTÉ : Plusieurs clients correspondent à '{client}'. Veuillez préciser lequel parmi : {', '.join(names)}."
             
-        total = results[0].get("amount_total", 0.0)
-        return f"Le total des factures ({statut}) pour {client} s'élève à {total:.2f} Ar."
+        if is_global:
+            total = sum(r.get("amount_total", 0.0) for r in results)
+            return f"Le total des factures ({statut}) est de {total:.2f} Ar."
+        else:
+            total = results[0].get("amount_total", 0.0)
+            client_name = results[0].get("partner_id")[1] if results[0].get("partner_id") else client
+            return f"Le total des factures ({statut}) pour {client_name} s'élève à {total:.2f} Ar."
     except Exception as e:
         return f"Erreur lors de la récupération des factures : {str(e)}"
 
@@ -227,18 +252,20 @@ def rechercher_client(nom: str) -> str:
         return f"Erreur lors de la recherche du client : {str(e)}"
 
 @tool
-def obtenir_tickets_recents(client: str, limite: int = 5, statut: Optional[str] = None) -> str:
+def obtenir_tickets_recents(client: str = "", limite: int = 5, statut: Optional[str] = None) -> str:
     """
     Obtenir les tickets de support ou tâches de projet récents pour un client.
     
     Args:
-        client: Le nom du client. (Optionnel si on veut tous les clients, utiliser une chaine vide).
-        limite: Le nombre maximum de tickets à récupérer (défaut: 5).
+        client: Le nom du client. (Optionnel, laisser vide ou utiliser 'tous' pour tous les clients).
+        limite: Le nombre maximum de tickets à lister (défaut: 5).
         statut: Le statut du ticket (ex: 'résolu', 'en cours'). Optionnel.
     """
     uid = _get_current_uid()
     domain = []
-    if client and client.lower() != "tous les clients":
+    
+    is_global = not client or client.lower() in ["tous les clients", "tous", ""]
+    if not is_global:
         domain.append(("partner_id.name", "ilike", client))
         
     if statut:
@@ -249,10 +276,9 @@ def obtenir_tickets_recents(client: str, limite: int = 5, statut: Optional[str] 
         elif "en cours" in statut_lower or "progress" in statut_lower:
             domain.append(("state", "=", "01_in_progress"))
         elif "nouveau" in statut_lower or "ouvert" in statut_lower:
-            domain.append(("state", "=", "01_in_progress")) # Approximate
+            domain.append(("state", "=", "01_in_progress"))
             
     try:
-        # We use project.task as our mock helpdesk ticket per Step 1 populate script
         records = connector.search_read(
             uid=uid,
             model="project.task",
@@ -260,22 +286,29 @@ def obtenir_tickets_recents(client: str, limite: int = 5, statut: Optional[str] 
             fields=["name", "state", "create_date", "partner_id"]
         )
         if not records:
-            return f"Aucun ticket récent trouvé pour {client or 'tous les clients'} avec le statut '{statut or 'tous'}'."
+            return f"Aucun ticket trouvé pour {client or 'tous les clients'} avec le statut '{statut or 'tous'}'."
             
-        # Check for ambiguity by looking at unique partner_ids in the results
-        unique_partners = set()
-        for r in records:
-            if r.get("partner_id"):
-                unique_partners.add(r.get("partner_id")[1])
-                
-        if len(unique_partners) > 1:
-            return f"AMBIGUÏTÉ : Plusieurs clients correspondent à '{client}'. Veuillez préciser lequel parmi : {', '.join(unique_partners)}."
+        if not is_global:
+            # Check for ambiguity by looking at unique partner_ids in the results
+            unique_partners = set()
+            for r in records:
+                if r.get("partner_id"):
+                    unique_partners.add(r.get("partner_id")[1])
+                    
+            if len(unique_partners) > 1:
+                return f"AMBIGUÏTÉ : Plusieurs clients correspondent à '{client}'. Veuillez préciser lequel parmi : {', '.join(unique_partners)}."
             
         # Sort by latest manually
         records.sort(key=lambda x: x.get("create_date", ""), reverse=True)
         
-        result_lines = [f"Derniers tickets pour {client} :"]
-        for r in records[:limite]:
+        total_count = len(records)
+        display_limit = limite if limite > 0 else 5
+        
+        result_lines = [
+            f"Total de tickets trouvés : {total_count}",
+            f"Derniers tickets pour {client or 'tous les clients'} :"
+        ]
+        for r in records[:display_limit]:
             state = r.get("state") or "N/A"
             date_str = r.get("create_date") or "N/A"
             if date_str != "N/A":

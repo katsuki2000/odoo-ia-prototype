@@ -44,6 +44,14 @@ class OdooConnector:
         self.common = xmlrpc.client.ServerProxy(f"{self.url}/xmlrpc/2/common")
         self.models = xmlrpc.client.ServerProxy(f"{self.url}/xmlrpc/2/object")
 
+    def _resolve_password(self) -> str:
+        """Return the per-request API key/password if set via ContextVar, else fall back to instance default."""
+        from tools.odoo_tools import odoo_api_key_ctx
+        ctx_key = odoo_api_key_ctx.get()
+        if ctx_key is not None:
+            return ctx_key
+        return self.password
+
     def authenticate(self, username: str) -> int:
         """
         Authenticate a user by username and return their uid.
@@ -75,7 +83,7 @@ class OdooConnector:
         
         try:
             records = self.models.execute_kw(
-                self.db, uid, self.password,
+                self.db, uid, self._resolve_password(),
                 model, 'search_read',
                 [domain],
                 {'fields': fields}
@@ -93,7 +101,7 @@ class OdooConnector:
         
         try:
             records = self.models.execute_kw(
-                self.db, uid, self.password,
+                self.db, uid, self._resolve_password(),
                 model, 'read_group',
                 [domain, fields, groupby]
             )
@@ -110,7 +118,7 @@ class OdooConnector:
         
         try:
             fields_info = self.models.execute_kw(
-                self.db, uid, self.password,
+                self.db, uid, self._resolve_password(),
                 model, 'fields_get',
                 [],
                 {'attributes': ['string', 'type', 'help']}

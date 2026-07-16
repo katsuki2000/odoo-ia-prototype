@@ -368,9 +368,15 @@ def _get_cross_encoder():
     """Load and cache the local cross-encoder model (lazy singleton)."""
     global _cross_encoder_instance
     if _cross_encoder_instance is None:
+        import os
         from sentence_transformers import CrossEncoder
         logger.info(f"Loading local cross-encoder model: {_cross_encoder_model_name}")
-        _cross_encoder_instance = CrossEncoder(_cross_encoder_model_name)
+        try:
+            # Force HuggingFace to load from local cache only (prevents 504 network timeouts)
+            _cross_encoder_instance = CrossEncoder(_cross_encoder_model_name, local_files_only=True)
+        except Exception as e:
+            logger.warning(f"Failed to load CrossEncoder in offline mode, retrying online: {e}")
+            _cross_encoder_instance = CrossEncoder(_cross_encoder_model_name)
     return _cross_encoder_instance
 
 

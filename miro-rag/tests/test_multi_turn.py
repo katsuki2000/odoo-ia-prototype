@@ -4,7 +4,7 @@ import logging
 from tqdm import tqdm
 from dotenv import load_dotenv
 
-load_dotenv("env")
+load_dotenv()
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from rag.graph import query_graph
