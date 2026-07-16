@@ -95,42 +95,43 @@ class BM25Index:
     def size(self) -> int:
         return len(self._doc_ids)
 
-    def build_from_chroma(self, chroma_manager: ChromaManager) -> int:
-        """
-        Build BM25 index from all documents in ChromaDB.
+    def build_from_chroma(
+        self, chroma_manager: ChromaManager | list[ChromaManager]
+    ) -> int:
+        """Build BM25 index from all documents across one or more ChromaDB collections."""
+        managers = chroma_manager if isinstance(chroma_manager, list) else [chroma_manager]
 
-        Args:
-            chroma_manager: ChromaManager instance to pull documents from
+        all_ids: list[str] = []
+        all_documents: list[str] = []
+        all_metadatas: list[dict[str, Any]] = []
 
-        Returns:
-            Number of documents indexed
-        """
-        try:
-            all_docs = chroma_manager.collection.get(
-                include=["documents", "metadatas"]
-            )
-        except Exception as e:
-            logger.error("Failed to retrieve documents from ChromaDB: %s", e)
-            return 0
+        for manager in managers:
+            try:
+                docs = manager.collection.get(include=["documents", "metadatas"])
+            except Exception as e:
+                logger.error(
+                    "Failed to retrieve documents from collection '%s': %s",
+                    getattr(manager.collection, "name", "?"), e
+                )
+                continue
+            all_ids.extend(docs.get("ids", []))
+            all_documents.extend(docs.get("documents", []))
+            all_metadatas.extend(docs.get("metadatas", []))
 
-        ids = all_docs.get("ids", [])
-        documents = all_docs.get("documents", [])
-        metadatas = all_docs.get("metadatas", [])
-
-        if not ids:
+        if not all_ids:
             logger.warning("No documents found in ChromaDB for BM25 indexing")
             return 0
 
-        self._doc_ids = ids
-        self._doc_texts = documents
-        self._doc_metadatas = metadatas
-        self._corpus_tokens = [_tokenize(doc) for doc in documents]
+        self._doc_ids = all_ids
+        self._doc_texts = all_documents
+        self._doc_metadatas = all_metadatas
+        self._corpus_tokens = [_tokenize(doc) for doc in all_documents]
 
         # Build BM25 index
         self._bm25 = BM25Okapi(self._corpus_tokens)
 
-        logger.info("BM25 index built with %d documents", len(ids))
-        return len(ids)
+        logger.info("BM25 index built with %d documents (%d collections)", len(all_ids), len(managers))
+        return len(all_ids)
 
     def search(self, query: str, top_k: int = 12) -> list[dict[str, Any]]:
         """
@@ -176,7 +177,7 @@ class BM25Index:
 # ── Vector Search ────────────────────────────────────────────────────────────
 
 def vector_search(
-    chroma_manager: ChromaManager,
+    chroma_manager: ChromaManager | list[ChromaManager],
     query: str,
     top_k: int = 12,
     where: dict[str, Any] | None = None,
@@ -187,7 +188,7 @@ def vector_search(
     Uses cosine similarity on embedded vectors (nomic-embed-text-v1.5).
 
     Args:
-        chroma_manager: ChromaManager instance
+        chroma_manager: ChromaManager instance(s)
         query: Search query text
         top_k: Number of results to return
         where: Optional ChromaDB metadata filter
@@ -195,22 +196,29 @@ def vector_search(
     Returns:
         List of result dicts with id, document, metadata, similarity score
     """
-    try:
-        raw = chroma_manager.query(query_text=query, top_k=top_k, where=where)
-    except Exception as e:
-        logger.error("Vector search failed: %s", e)
-        return []
+    managers = chroma_manager if isinstance(chroma_manager, list) else [chroma_manager]
 
-    results = []
-    for item in raw.get("results", []):
-        results.append({
-            "id": item["id"],
-            "document": item["document"],
-            "metadata": item["metadata"],
-            "score": item["similarity"],  # 1 - cosine distance
-        })
+    results: list[dict[str, Any]] = []
+    for manager in managers:
+        try:
+            raw = manager.query(query_text=query, top_k=top_k, where=where)
+        except Exception as e:
+            logger.error(
+                "Vector search failed on collection '%s': %s",
+                getattr(manager.collection, "name", "?"), e
+            )
+            continue
+        for item in raw.get("results", []):
+            results.append({
+                "id": item["id"],
+                "document": item["document"],
+                "metadata": item["metadata"],
+                "score": item["similarity"],
+            })
 
-    return results
+    # Merge across collections, keep global top_k by similarity
+    results.sort(key=lambda x: x["score"], reverse=True)
+    return results[:top_k]
 
 
 def bm25_search(
@@ -303,7 +311,7 @@ def reciprocal_rank_fusion(
 # ── Hybrid Search ────────────────────────────────────────────────────────────
 
 def hybrid_search(
-    chroma_manager: ChromaManager,
+    chroma_manager: ChromaManager | list[ChromaManager],
     bm25_index: BM25Index,
     query: str,
     top_k: int = 12,
@@ -352,30 +360,18 @@ def hybrid_search(
 
 # ── Cross-Encoder Re-ranking ────────────────────────────────────────────────
 
-# Lazy-loaded cross-encoder to avoid slow import on module load
-_cross_encoder = None
 _cross_encoder_model_name = "cross-encoder/ms-marco-MiniLM-L-6-v2"
+_cross_encoder_instance = None  # lazy-loaded singleton, avoids reloading the model per call
 
 
 def _get_cross_encoder():
-    """Lazy-load the cross-encoder model."""
-    global _cross_encoder
-    if _cross_encoder is None:
-        try:
-            from sentence_transformers import CrossEncoder
-            logger.info("Loading cross-encoder model: %s", _cross_encoder_model_name)
-            _cross_encoder = CrossEncoder(_cross_encoder_model_name)
-            logger.info("Cross-encoder loaded successfully")
-        except ImportError:
-            logger.error(
-                "sentence-transformers not installed. "
-                "Install with: pip install sentence-transformers"
-            )
-            raise
-        except Exception as e:
-            logger.error("Failed to load cross-encoder: %s", e)
-            raise
-    return _cross_encoder
+    """Load and cache the local cross-encoder model (lazy singleton)."""
+    global _cross_encoder_instance
+    if _cross_encoder_instance is None:
+        from sentence_transformers import CrossEncoder
+        logger.info(f"Loading local cross-encoder model: {_cross_encoder_model_name}")
+        _cross_encoder_instance = CrossEncoder(_cross_encoder_model_name)
+    return _cross_encoder_instance
 
 
 def cross_encoder_rerank(
@@ -384,10 +380,10 @@ def cross_encoder_rerank(
     top_k: int = 5,
 ) -> list[dict[str, Any]]:
     """
-    Re-rank results using a cross-encoder model.
+    Rerank results using a locally-loaded cross-encoder model.
 
-    The cross-encoder scores each (query, document) pair for semantic
-    relevance, providing more accurate ranking than bi-encoder similarity.
+    Runs entirely offline via sentence-transformers — no network calls,
+    consistent with the project's local-first / no-cloud-dependency goal.
 
     Args:
         query: Original query text
@@ -400,34 +396,32 @@ def cross_encoder_rerank(
     if not results:
         return []
 
-    encoder = _get_cross_encoder()
-
-    # Create (query, document) pairs for scoring
-    pairs = [[query, r["document"]] for r in results]
-
     try:
-        scores = encoder.predict(pairs)
+        model = _get_cross_encoder()
+
+        # Truncate documents to keep inference fast and consistent with
+        # the previous 1500-char limit used for the API payload.
+        pairs = [[query, r["document"][:1500]] for r in results]
+
+        scores = model.predict(pairs)
+
+        for i, r in enumerate(results):
+            r["cross_encoder_score"] = float(scores[i])
+
+        results.sort(key=lambda x: x["cross_encoder_score"], reverse=True)
+
     except Exception as e:
-        logger.error("Cross-encoder scoring failed: %s", e)
-        # Fall back to original ordering
-        return results[:top_k]
-
-    # Attach cross-encoder scores
-    for i, result in enumerate(results):
-        result["cross_encoder_score"] = float(scores[i])
-
-    # Sort by cross-encoder score descending
-    results.sort(key=lambda x: x["cross_encoder_score"], reverse=True)
+        logger.error(f"Local cross-encoder reranking failed: {e}")
+        logger.info("Falling back to hybrid search scores.")
 
     return results[:top_k]
-
 
 # ── Full Retrieval Pipeline ─────────────────────────────────────────────────
 
 def retrieve(
     query: str,
     top_k: int = 5,
-    chroma_manager: ChromaManager | None = None,
+    chroma_manager: ChromaManager | list[ChromaManager] | None = None,
     bm25_index: BM25Index | None = None,
     vector_weight: float = 0.6,
     bm25_weight: float = 0.4,
@@ -463,21 +457,38 @@ def retrieve(
         bm25_index = BM25Index()
         bm25_index.build_from_chroma(chroma_manager)
 
-    # Ensure BM25 index is built
-    if not bm25_index.is_built:
-        bm25_index.build_from_chroma(chroma_manager)
+    # Query intent classification for dynamic weights and collection routing
+    query_lower = query.lower()
+    code_keywords = ["classe", "modèle", "fichier", ".py", "sale.", "stock.", "account.",
+                     "méthode", "fonction", "héritage", "inherit", "_name", "def ", "class ",
+                     "structuré", "étendue", "défini", "gère"]
+    is_code_query = any(kw in query_lower for kw in code_keywords)
+
+    if is_code_query:
+        vector_weight = 0.3
+        bm25_weight = 0.7
+        # Si on a une liste de managers, ne garder que le code manager
+        if isinstance(chroma_manager, list) and len(chroma_manager) > 1:
+            chroma_manager_for_search = [chroma_manager[1]]  # odoo_code only
+        else:
+            chroma_manager_for_search = chroma_manager
+    else:
+        vector_weight = 0.7
+        bm25_weight = 0.3
+        chroma_manager_for_search = chroma_manager
 
     # Step 1+2: Hybrid search (vector + BM25 + RRF)
     # Retrieve more candidates than needed for re-ranking
-    candidate_count = top_k * 3 if use_reranker else top_k
+    # Without reranker, we need a massive pool for RRF to work perfectly
+    candidate_count = top_k * 20
     fused_results = hybrid_search(
-        chroma_manager=chroma_manager,
+        chroma_manager=chroma_manager_for_search,
         bm25_index=bm25_index,
         query=query,
-        top_k=max(12, candidate_count),
+        top_k=max(100, candidate_count),
         vector_weight=vector_weight,
         bm25_weight=bm25_weight,
-        relevance_threshold=relevance_threshold,
+        relevance_threshold=0.01,  # Lower threshold to keep more items for top_k truncation
         where=where,
     )
 
@@ -501,21 +512,24 @@ def retrieve(
 
 # ── Convenience: Singleton manager for reuse ─────────────────────────────────
 
-_shared_chroma: ChromaManager | None = None
+_shared_chroma: list[ChromaManager] | None = None
 _shared_bm25: BM25Index | None = None
 
 
-def get_retriever() -> tuple[ChromaManager, BM25Index]:
+def get_retriever() -> tuple[list[ChromaManager], BM25Index]:
     """
     Get or create shared ChromaManager and BM25Index instances.
 
     Returns:
-        Tuple of (ChromaManager, BM25Index) ready for use
+        Tuple of (list[ChromaManager], BM25Index) ready for use
     """
     global _shared_chroma, _shared_bm25
 
     if _shared_chroma is None:
-        _shared_chroma = ChromaManager()
+        _shared_chroma = [
+            ChromaManager(collection_name="odoo_docs"),
+            ChromaManager(collection_name="odoo_code"),
+        ]
 
     if _shared_bm25 is None or not _shared_bm25.is_built:
         _shared_bm25 = BM25Index()

@@ -21,7 +21,11 @@ import time
 from pathlib import Path
 from typing import Any, Optional
 
-from ingestion.code_loader import CodeLoader, load_python_directory, load_xml_directory
+# Add PROJECT_ROOT to python path before imports
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(PROJECT_ROOT))
+
+from ingestion.code_loader import CodeLoader, load_python_directory, load_xml_directory, load_js_directory
 from ingestion.pdf_loader import PDFLoader, load_pdf_directory
 from ingestion.wiki_loader import WikiLoader, load_wiki_directory
 from vectorstore.chroma_manager import ChromaManager
@@ -70,9 +74,13 @@ class IngestionOrchestrator:
             chunk_size: Chunk size for all text splitters
             chunk_overlap: Overlap between chunks
         """
-        self.chroma_manager = ChromaManager(
+        self.docs_manager = ChromaManager(
             db_path=chroma_db_path,
-            collection_name=collection_name,
+            collection_name="odoo_docs",
+        )
+        self.code_manager = ChromaManager(
+            db_path=chroma_db_path,
+            collection_name="odoo_code",
         )
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
@@ -133,7 +141,16 @@ class IngestionOrchestrator:
             logger.warning(f"Code directory not found or empty: {code_dir}")
 
         # Get final statistics
-        final_stats = self.chroma_manager.get_stats()
+        docs_stats = self.docs_manager.get_stats()
+        code_stats = self.code_manager.get_stats()
+        
+        from collections import Counter
+
+        final_stats = {
+            "total_chunks": docs_stats.get("total_chunks", 0) + code_stats.get("total_chunks", 0),
+            "by_type": dict(Counter(docs_stats.get("by_type", {})) + Counter(code_stats.get("by_type", {}))),
+            "by_module": dict(Counter(docs_stats.get("by_module", {})) + Counter(code_stats.get("by_module", {}))),
+        }
         logger.info("\n" + "=" * 60)
         logger.info("INGESTION COMPLETE")
         logger.info("=" * 60)
@@ -177,7 +194,7 @@ class IngestionOrchestrator:
             logger.info(f"Wiki ingestion took {elapsed:.2f}s")
 
     def _ingest_code_dir(self, code_dir: Path) -> None:
-        """Ingest Python and XML code files."""
+        """Ingest Python, XML, and JS code files."""
         if not code_dir.exists():
             logger.warning(f"Code directory not found: {code_dir}")
             return
@@ -208,6 +225,32 @@ class IngestionOrchestrator:
             self.stats["load_times"]["xml"] = elapsed
             logger.info(f"XML ingestion took {elapsed:.2f}s")
 
+        # Load JS files
+        js_files = list(code_dir.rglob("*.js"))
+        if js_files:
+            logger.info(f"Found {len(js_files)} JS files")
+            start = time.time()
+            try:
+                self._load_and_ingest_js(code_dir)
+            except Exception as e:
+                logger.error(f"Error loading JS files: {e}")
+            elapsed = time.time() - start
+            self.stats["load_times"]["js"] = elapsed
+            logger.info(f"JS ingestion took {elapsed:.2f}s")
+
+        # Load CSV files
+        csv_files = list(code_dir.rglob("*.csv"))
+        if csv_files:
+            logger.info(f"Found {len(csv_files)} CSV files")
+            start = time.time()
+            try:
+                self._load_and_ingest_csv(code_dir)
+            except Exception as e:
+                logger.error(f"Error loading CSV files: {e}")
+            elapsed = time.time() - start
+            self.stats["load_times"]["csv"] = elapsed
+            logger.info(f"CSV ingestion took {elapsed:.2f}s")
+
     def _load_and_ingest_pdfs(self, docs_dir: Path) -> None:
         """Load and ingest PDF documents."""
         loader = PDFLoader(
@@ -225,7 +268,7 @@ class IngestionOrchestrator:
                 ocr_used = result["ocr_used"]
 
                 if chunks:
-                    ids = self.chroma_manager.add_chunks(chunks, metadatas)
+                    ids = self.docs_manager.add_chunks(chunks, metadatas)
                     logger.info(
                         f"    Added {len(ids)} chunks "
                         f"(OCR: {ocr_used})"
@@ -259,7 +302,7 @@ class IngestionOrchestrator:
                 metadatas = result["metadatas"]
 
                 if chunks:
-                    ids = self.chroma_manager.add_chunks(chunks, metadatas)
+                    ids = self.docs_manager.add_chunks(chunks, metadatas)
                     logger.info(f"    Added {len(ids)} chunks")
 
                     self.stats["total_chunks"] += len(chunks)
@@ -280,7 +323,7 @@ class IngestionOrchestrator:
                 metadatas = result["metadatas"]
 
                 if chunks:
-                    ids = self.chroma_manager.add_chunks(chunks, metadatas)
+                    ids = self.docs_manager.add_chunks(chunks, metadatas)
                     logger.info(f"    Added {len(ids)} chunks")
 
                     self.stats["total_chunks"] += len(chunks)
@@ -316,7 +359,7 @@ class IngestionOrchestrator:
                 metadatas = result["metadatas"]
 
                 if chunks:
-                    ids = self.chroma_manager.add_chunks(chunks, metadatas)
+                    ids = self.code_manager.add_chunks(chunks, metadatas)
                     logger.info(f"    Added {len(ids)} chunks")
 
                     self.stats["total_chunks"] += len(chunks)
@@ -362,7 +405,7 @@ class IngestionOrchestrator:
                 metadatas = result["metadatas"]
 
                 if chunks:
-                    ids = self.chroma_manager.add_chunks(chunks, metadatas)
+                    ids = self.code_manager.add_chunks(chunks, metadatas)
                     logger.info(f"    Added {len(ids)} chunks")
 
                     self.stats["total_chunks"] += len(chunks)
@@ -385,6 +428,91 @@ class IngestionOrchestrator:
             except Exception as e:
                 logger.error(f"  Error processing {xml_file}: {e}")
 
+    def _load_and_ingest_js(self, code_dir: Path) -> None:
+        """Load and ingest JavaScript code files."""
+        loader = CodeLoader(
+            chunk_size=self.chunk_size,
+            chunk_overlap=self.chunk_overlap,
+        )
+
+        for js_file in code_dir.rglob("*.js"):
+            # Skip common non-code directories
+            if any(
+                skip in part.lower()
+                for part in js_file.parts
+                for skip in ("node_modules", "dist", "build", ".git")
+            ):
+                continue
+            try:
+                logger.info(f"  Processing: {js_file.relative_to(code_dir)}")
+                result = loader.load_js_file(js_file)
+
+                chunks = result["chunks"]
+                metadatas = result["metadatas"]
+
+                if chunks:
+                    ids = self.code_manager.add_chunks(chunks, metadatas)
+                    logger.info(f"    Added {len(ids)} chunks")
+
+                    self.stats["total_chunks"] += len(chunks)
+                    source_name = js_file.name
+                    self.stats["by_source"][source_name] = (
+                        self.stats["by_source"].get(source_name, 0) + len(chunks)
+                    )
+
+                    # Track by module
+                    for metadata in metadatas:
+                        module = metadata.get("module", "unknown")
+                        self.stats["by_module"][module] = (
+                            self.stats["by_module"].get(module, 0) + 1
+                        )
+
+                    self.stats["by_type"]["code_js"] = (
+                        self.stats["by_type"].get("code_js", 0) + len(chunks)
+                    )
+
+            except Exception as e:
+                logger.error(f"  Error processing {js_file}: {e}")
+
+    def _load_and_ingest_csv(self, code_dir: Path) -> None:
+        """Load and ingest CSV code files."""
+        loader = CodeLoader(
+            chunk_size=self.chunk_size,
+            chunk_overlap=self.chunk_overlap,
+        )
+
+        for csv_file in code_dir.rglob("*.csv"):
+            try:
+                logger.info(f"  Processing: {csv_file.relative_to(code_dir)}")
+                result = loader.load_csv_file(csv_file)
+
+                chunks = result["chunks"]
+                metadatas = result["metadatas"]
+
+                if chunks:
+                    ids = self.code_manager.add_chunks(chunks, metadatas)
+                    logger.info(f"    Added {len(ids)} chunks")
+
+                    self.stats["total_chunks"] += len(chunks)
+                    source_name = csv_file.name
+                    self.stats["by_source"][source_name] = (
+                        self.stats["by_source"].get(source_name, 0) + len(chunks)
+                    )
+
+                    # Track by module
+                    for metadata in metadatas:
+                        module = metadata.get("module", "unknown")
+                        self.stats["by_module"][module] = (
+                            self.stats["by_module"].get(module, 0) + 1
+                        )
+
+                    self.stats["by_type"]["code_csv"] = (
+                        self.stats["by_type"].get("code_csv", 0) + len(chunks)
+                    )
+
+            except Exception as e:
+                logger.error(f"  Error processing {csv_file}: {e}")
+
     def clear_and_reingest(
         self,
         docs_dir: Optional[str | Path] = None,
@@ -393,7 +521,8 @@ class IngestionOrchestrator:
     ) -> dict[str, Any]:
         """Clear collection and re-ingest all documents."""
         logger.info("Clearing collection...")
-        self.chroma_manager.delete_collection()
+        self.docs_manager.delete_collection()
+        self.code_manager.delete_collection()
         logger.info("Collection cleared.")
 
         target_docs = docs_dir if docs_dir is not None else getattr(self, "last_docs_dir", DOCS_DIR)

@@ -137,7 +137,11 @@ def evaluate_recall(
                         break
 
         # Categorize
-        category = q_type if q_type in results_by_type else "other"
+        if q_type in ["pdf", "wiki"]:
+            category = "doc"
+        else:
+            category = q_type if q_type in results_by_type else "other"
+        
         results_by_type[category].append(hit)
 
         detailed.append({
@@ -274,8 +278,11 @@ def main():
     logger.info("Loaded %d questions", len(questions))
 
     # Initialize retrieval components
-    logger.info("Initializing ChromaManager...")
-    chroma = ChromaManager()
+    logger.info("Initializing ChromaManager (odoo_docs + odoo_code)...")
+    chroma = [
+        ChromaManager(collection_name="odoo_docs"),
+        ChromaManager(collection_name="odoo_code"),
+    ]
 
     logger.info("Building BM25 index...")
     bm25 = BM25Index()
@@ -299,11 +306,12 @@ def main():
         "cross_encoder": "cross-encoder/ms-marco-MiniLM-L-6-v2",
     }
 
-    logger.info("Running evaluation with reranker...")
+    use_reranker = "--no-reranker" not in sys.argv
+    logger.info(f"Running evaluation (reranker enabled: {use_reranker})...")
     results = evaluate_recall(
         questions, chroma, bm25,
         top_k=5,
-        use_reranker=True,
+        use_reranker=use_reranker,
     )
 
     # Generate and save report
