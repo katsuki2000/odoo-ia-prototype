@@ -19,7 +19,7 @@ from langchain_groq import ChatGroq
 from langchain_core.messages import BaseMessage, SystemMessage, HumanMessage
 from langgraph.graph import StateGraph, START, END
 
-from config.settings import LLM_PROVIDER, GROQ_API_KEY, GROQ_MODEL
+from config.settings import LLM_PROVIDER, GROQ_API_KEY, GROQ_MODEL, GITHUB_TOKEN
 from rag.schemas import (
     AssistantResponse, SourceReference, LLMResponse,
     QueryRoute, DataQueryIntent,
@@ -27,6 +27,24 @@ from rag.schemas import (
 from vectorstore.search import get_retriever, retrieve as search_retrieve
 
 logger = logging.getLogger(__name__)
+
+# def get_llm(temperature=0.0, max_tokens=None):
+#     if GITHUB_TOKEN:
+#         from langchain_openai import ChatOpenAI
+#         return ChatOpenAI(
+#             model="Meta-Llama-3.1-8B-Instruct",
+#             api_key=GITHUB_TOKEN,
+#             base_url="https://models.inference.ai.azure.com",
+#             temperature=temperature,
+#             max_tokens=max_tokens,
+#         )
+#     else:
+#         return ChatGroq(
+#             model=GROQ_MODEL,
+#             api_key=GROQ_API_KEY,
+#             temperature=temperature,
+#             max_tokens=max_tokens,
+#         )
 
 # ERP metadata types that trigger the data_query branch
 ERP_TYPES = {"sale", "ticket"}
@@ -64,6 +82,8 @@ class RAGState(TypedDict):
     route: Optional[str]
     response: Optional[AssistantResponse]
     uid: Optional[int]  # Odoo user uid for RBAC passthrough
+
+
 
 
 # ── Nodes ─────────────────────────────────────────────────────────────────────
@@ -110,44 +130,47 @@ def route(state: RAGState) -> dict:
 
     # Check for explicit documentation query keywords
     doc_keywords = ["comment", "procédure", "qui peut", "qui doit", "quel fichier", "quelle classe", "quel est le rôle", "quels sont les modèles", "dans quel fichier", "procédure de validation"]
-    if any(kw in question for kw in doc_keywords):
+    has_doc = any(kw in question for kw in doc_keywords)
+    
+    # Strict ERP intent list (e.g. asking for amounts, stats, or specific lookups)
+    erp_keywords = [
+        "combien de", "montant total", "total des", "chiffre d'affaires",
+        "statut de la", "statut commande", "factures impayées", "factures payées",
+        "quantité disponible", "produit en rupture", "le plus récent",
+        "tickets résolus", "tickets en cours", "rechercher client", "coordonnées",
+        "toutes périodes confondues", "ce mois", "cette année", "moyenne", 
+        "stock", "quel produit", "montant moyen"
+    ]
+    has_erp = any(kw in question for kw in erp_keywords)
+
+    if has_erp:
+        logger.info("Node [route]: Query matched ERP keywords (hybrid or pure) → DONNEES_ERP branch")
+        route_decision = QueryRoute.DONNEES_ERP.value
+    elif has_doc:
         logger.info("Node [route]: Query matched explicit doc keywords → DOCUMENTAIRE branch")
         route_decision = QueryRoute.DOCUMENTAIRE.value
+    elif not chunks:
+        logger.info("Node [route]: No chunks → defaulting to documentaire")
+        route_decision = QueryRoute.DOCUMENTAIRE.value
     else:
-        # Strict ERP intent list (e.g. asking for amounts, stats, or specific lookups)
-        erp_keywords = [
-            "combien de", "montant total", "total des", "chiffre d'affaires",
-            "statut de la", "statut commande", "factures impayées", "factures payées",
-            "quantité disponible", "produit en rupture", "le plus récent",
-            "tickets résolus", "tickets en cours", "rechercher client", "coordonnées",
-            "toutes périodes confondues", "ce mois", "cette année", "moyenne", 
-            "stock", "quel produit", "montant moyen"
-        ]
-        if any(kw in question for kw in erp_keywords):
-            logger.info("Node [route]: Query matched explicit ERP keywords → DONNEES_ERP branch")
+        # Count how many chunks come from ERP data sources
+        erp_count = 0
+        for chunk in chunks:
+            meta = chunk.get("metadata") or {}
+            chunk_type = meta.get("type", "").lower().strip()
+            if chunk_type in ERP_TYPES:
+                erp_count += 1
+
+        erp_ratio = erp_count / len(chunks) if len(chunks) > 0 else 0
+        logger.info("Node [route]: ERP ratio = %d/%d (%.0f%%)", erp_count, len(chunks), erp_ratio * 100)
+
+        data_terms = ["combien", "montant", "ticket", "vente", "statut", "liste", "résolu", "en cours", "stock", "facture", "commande", "client", "chiffre"]
+        if erp_ratio >= 0.6 and any(term in question for term in data_terms):
+            logger.info("Node [route]: High ERP ratio + data terms → DONNEES_ERP branch")
             route_decision = QueryRoute.DONNEES_ERP.value
-        elif not chunks:
-            logger.info("Node [route]: No chunks → defaulting to documentaire")
-            route_decision = QueryRoute.DOCUMENTAIRE.value
         else:
-            # Count how many chunks come from ERP data sources
-            erp_count = 0
-            for chunk in chunks:
-                meta = chunk.get("metadata") or {}
-                chunk_type = meta.get("type", "").lower().strip()
-                if chunk_type in ERP_TYPES:
-                    erp_count += 1
-
-            erp_ratio = erp_count / len(chunks) if len(chunks) > 0 else 0
-            logger.info("Node [route]: ERP ratio = %d/%d (%.0f%%)", erp_count, len(chunks), erp_ratio * 100)
-
-            data_terms = ["combien", "montant", "ticket", "vente", "statut", "liste", "résolu", "en cours", "stock", "facture", "commande", "client", "chiffre"]
-            if erp_ratio >= 0.6 and any(term in question for term in data_terms):
-                logger.info("Node [route]: High ERP ratio + data terms → DONNEES_ERP branch")
-                route_decision = QueryRoute.DONNEES_ERP.value
-            else:
-                logger.info("Node [route]: → DOCUMENTAIRE branch")
-                route_decision = QueryRoute.DOCUMENTAIRE.value
+            logger.info("Node [route]: → DOCUMENTAIRE branch")
+            route_decision = QueryRoute.DOCUMENTAIRE.value
 
     timing = state.get("timing", {}).copy()
     timing["routing_time"] = time.time() - start_time
@@ -208,6 +231,7 @@ def generate(state: RAGState) -> dict:
 
     try:
         llm = ChatGroq(model=GROQ_MODEL, temperature=0.3, max_tokens=1024)
+        # llm = get_llm(temperature=0.3, max_tokens=1024)
         # Enforce structured output to match our schema
         structured_llm = llm.with_structured_output(LLMResponse)
         
@@ -221,6 +245,7 @@ def generate(state: RAGState) -> dict:
         logger.warning("Structured LLM Generation failed (%s) → falling back to raw invoke", e)
         try:
             llm = ChatGroq(model=GROQ_MODEL, temperature=0.3, max_tokens=1024)
+            # llm = get_llm(temperature=0.3, max_tokens=1024)
             raw_resp = llm.invoke(messages)
             response = AssistantResponse(
                 answer=raw_resp.content,
@@ -301,17 +326,38 @@ def orm_agent_loop(state: RAGState) -> dict:
         api_key=GROQ_API_KEY,
         temperature=0.0,
     )
+    # llm = get_llm(temperature=0.0)
     llm_with_tools = llm.bind_tools(all_tools)
+
+    # Prepare context for hybrid queries
+    chunks = state.get("retrieved_chunks", [])
+    context_text = ""
+    for i, chunk in enumerate(chunks[:3]): # Limit to top 3 chunks to prevent 8B from being overwhelmed
+        doc_text = chunk.get("document", "")
+        meta = chunk.get("metadata") or {}
+        source = meta.get("source", "unknown")
+        context_text += f"[Source {i+1}: {source}]\n{doc_text}\n\n"
+
+    # Check if we actually need the document context (hybrid queries)
+    doc_keywords = ["comment", "procédure", "qui peut", "qui doit", "quel fichier", "quelle classe", "quel est le rôle", "quels sont les modèles", "dans quel fichier", "procédure de validation"]
+    is_hybrid = any(kw in question.lower() for kw in doc_keywords)
 
     system_prompt = (
         "Tu es MIRO Assistant, l'assistant IA interne spécialisé dans les données ERP Odoo. "
         "Pour répondre, utilise les outils disponibles pour interroger les données en temps réel. "
+        "CONSIGNE DE FIN : Dès que tu as obtenu la réponse d'un outil avec l'information demandée (visible dans l'historique), tu ne dois plus appeler aucun outil. Formule simplement ta réponse finale en français directement à l'utilisateur.\n"
         "Lis TRÈS ATTENTIVEMENT les descriptions des outils. Ne confonds pas le chiffre d'affaires (factures payées) et le total des ventes (devis/commandes). "
         "Fais très attention aux arguments passés aux outils (ex: statut='en cours'). "
         "RÈGLE ABSOLUE : Si un outil indique qu'une donnée n'existe pas, ou retourne un résultat vide, "
         "ACCEPTE CE RÉSULTAT IMMÉDIATEMENT. NE RÉPÈTE JAMAIS la même recherche. "
         "Donne directement ta réponse finale à l'utilisateur sans justifier."
     )
+    if is_hybrid and context_text:
+        system_prompt += (
+            f"\n\nVoici le CONTEXTE DOCUMENTAIRE DISPONIBLE pour répondre aux règles et procédures de la question :\n{context_text}\n"
+            "IMPORTANT : Cette question nécessite à la fois de lire le contexte ci-dessus (pour la partie procédure) ET d'appeler l'outil de ventes en cours (pour la partie chiffres). "
+            "Réponds aux deux parties de la question de façon concise en français."
+        )
 
     messages = [
         SystemMessage(content=system_prompt),
@@ -348,11 +394,14 @@ def orm_agent_loop(state: RAGState) -> dict:
                             logger.info("Recovered malformed tool call: %s(%s)", fn_name, fn_args)
                             observation = tool_map[fn_name].invoke(fn_args)
                             tool_observations.append(str(observation))
-                            # Feed the observation back as a HumanMessage so the LLM
-                            # can use it on the next iteration (no tool_call_id needed)
-                            messages.append(HumanMessage(
-                                content=f"Résultat de l'outil {fn_name} : {observation}"
-                            ))
+                            import uuid
+                            call_id = f"call_{uuid.uuid4().hex[:8]}"
+                            from langchain_core.messages import AIMessage, ToolMessage
+                            
+                            # Feed the observation back using standard ToolMessage format
+                            # so the LLM understands it's a tool response and doesn't loop
+                            messages.append(AIMessage(content="", tool_calls=[{"name": fn_name, "args": fn_args, "id": call_id}]))
+                            messages.append(ToolMessage(name=fn_name, tool_call_id=call_id, content=str(observation)))
                             recovered = True
                     except Exception as parse_err:
                         logger.error("Recovery parse failed: %s", parse_err)
@@ -393,11 +442,12 @@ def orm_agent_loop(state: RAGState) -> dict:
         logger.warning("Node [orm_agent_loop]: Recursion limit reached. Forcing final answer.")
         synthesis_prompt = (
             f"Question originale : {question}\n\n"
-            f"Observations collectées :\n" + "\n".join(tool_observations) +
+            f"Observations collectées :\n" + "\n".join(str(obs) for obs in tool_observations) +
             "\n\nFournis une réponse finale et concise en français basée uniquement sur ces observations."
         )
         try:
             plain_llm = ChatGroq(model=GROQ_MODEL, temperature=0.0, max_tokens=512)
+            # plain_llm = get_llm(temperature=0.0, max_tokens=512)
             final_resp = plain_llm.invoke([HumanMessage(content=synthesis_prompt)])
             final_answer = final_resp.content
         except Exception as e:

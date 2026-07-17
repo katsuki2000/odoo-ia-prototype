@@ -28,7 +28,7 @@ from tools.odoo_tools import (
     obtenir_tickets_recents
 )
 
-logging.basicConfig(level=logging.ERROR)
+logging.basicConfig(level=logging.WARNING)
 
 def run_erp_evaluation():
     with open("tests/benchmark_questions.json", "r", encoding="utf-8") as f:
