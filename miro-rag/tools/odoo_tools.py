@@ -433,3 +433,63 @@ def obtenir_moyenne_ventes(client: str = "", periode: str = "toutes") -> str:
             return f"Le montant moyen d'une vente pour {client_name} est de {moyenne:.2f} Ar."
     except Exception as e:
         return f"Erreur lors du calcul de la moyenne : {str(e)}"
+
+@tool
+def obtenir_details_ventes(client: str = "", statut: str = "toutes", limite: int = 5) -> str:
+    """
+    Utilisez cet outil UNIQUEMENT pour obtenir les détails d'une vente (produits vendus, montants, date) pour un client.
+    Utile pour répondre à "Quel produit a été vendu à X".
+    
+    Args:
+        client: Le nom du client.
+        statut: Le statut ('confirmé', 'en cours', 'toutes'). Défaut: 'toutes'.
+        limite: Le nombre maximum de ventes à retourner.
+    """
+    uid = _get_current_uid()
+    if statut.lower() in ["brouillon", "en cours"]:
+        domain = [("state", "in", ["draft", "sent"])]
+    elif statut.lower() == "confirmé":
+        domain = [("state", "in", ["sale", "done"])]
+    else:
+        domain = []
+        
+    if client and client.lower() not in ["tous les clients", "tous", ""]:
+        domain.append(("partner_id.name", "ilike", client))
+        
+    try:
+        records = connector.search_read(
+            uid=uid,
+            model="sale.order",
+            domain=domain,
+            fields=["name", "partner_id", "date_order", "amount_total", "state", "order_line"],
+            limit=limite
+        )
+        if not records:
+            return f"Aucune vente trouvée pour {client or 'tous les clients'}."
+            
+        result_lines = []
+        for r in records:
+            client_name = r.get("partner_id")[1] if r.get("partner_id") else "Inconnu"
+            amount = r.get("amount_total", 0.0)
+            state = r.get("state", "inconnu")
+            name = r.get("name", "inconnu")
+            
+            line_ids = r.get("order_line", [])
+            produits = []
+            if line_ids:
+                lines = connector.search_read(
+                    uid=uid,
+                    model="sale.order.line",
+                    domain=[("id", "in", line_ids)],
+                    fields=["product_id"]
+                )
+                for line in lines:
+                    if line.get("product_id"):
+                        produits.append(line.get("product_id")[1])
+            
+            prod_str = ", ".join(produits) if produits else "Aucun produit"
+            result_lines.append(f"- Commande {name} ({state}) pour {client_name} : {amount} Ar. Produits : {prod_str}")
+            
+        return "\n".join(result_lines)
+    except Exception as e:
+        return f"Erreur lors de la récupération des détails : {str(e)}"
