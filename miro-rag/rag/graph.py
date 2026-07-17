@@ -259,6 +259,7 @@ def orm_agent_loop(state: RAGState) -> dict:
         obtenir_tickets_recents,
         lister_produits_en_rupture,
         obtenir_ca_periode,
+        obtenir_moyenne_ventes,
     )
 
     question = state["question"]
@@ -283,7 +284,7 @@ def orm_agent_loop(state: RAGState) -> dict:
     
     # Skill filtering
     if skills.get("ventes", True):
-        all_tools.extend([obtenir_total_ventes, obtenir_statut_commande, obtenir_ca_periode])
+        all_tools.extend([obtenir_total_ventes, obtenir_statut_commande, obtenir_ca_periode, obtenir_moyenne_ventes])
         
     if skills.get("stocks", True):
         all_tools.extend([obtenir_stock_produit, lister_produits_en_rupture])
@@ -305,11 +306,11 @@ def orm_agent_loop(state: RAGState) -> dict:
     system_prompt = (
         "Tu es MIRO Assistant, l'assistant IA interne spécialisé dans les données ERP Odoo. "
         "Pour répondre, utilise les outils disponibles pour interroger les données en temps réel. "
-        "Réponds en français par défaut, mais tu peux parler anglais si l'utilisateur le demande ou te parle en anglais. "
-        "Tu as le droit de répondre poliment aux salutations. "
+        "Lis TRÈS ATTENTIVEMENT les descriptions des outils. Ne confonds pas le chiffre d'affaires (factures payées) et le total des ventes (devis/commandes). "
+        "Fais très attention aux arguments passés aux outils (ex: statut='en cours'). "
         "RÈGLE ABSOLUE : Si un outil indique qu'une donnée n'existe pas, ou retourne un résultat vide, "
         "ACCEPTE CE RÉSULTAT IMMÉDIATEMENT. NE RÉPÈTE JAMAIS la même recherche. "
-        "Donne directement ta réponse finale à l'utilisateur."
+        "Donne directement ta réponse finale à l'utilisateur sans justifier."
     )
 
     messages = [

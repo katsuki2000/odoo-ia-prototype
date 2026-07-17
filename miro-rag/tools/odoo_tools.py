@@ -36,12 +36,13 @@ def _get_current_uid() -> int:
 @tool
 def obtenir_total_ventes(client: str = "", periode: str = "toutes", statut: str = "confirmé") -> str:
     """
-    Obtenir le montant total des ventes pour un client donné sur une période.
+    Utilisez cet outil pour obtenir le montant total des ventes (devis, commandes, etc.).
+    NE L'UTILISEZ PAS pour demander le chiffre d'affaires (utilisez obtenir_ca_periode).
     
     Args:
-        client: Le nom du client. (Optionnel, laisser vide ou utiliser 'tous' pour tous les clients).
+        client: Le nom du client (Optionnel, laisser vide ou 'tous' pour tous les clients).
         periode: La période (ex: 'ce mois', '2024'). Optionnel.
-        statut: Le statut des ventes ('confirmé', 'brouillon', 'en cours', 'toutes'). Défaut: 'confirmé'.
+        statut: Le statut des ventes ('confirmé', 'brouillon', 'en cours', 'toutes'). Défaut: 'confirmé'. Pour "en cours", utilisez "en cours".
     """
     uid = _get_current_uid()
     
@@ -155,10 +156,11 @@ def obtenir_statut_commande(reference: str) -> str:
 @tool
 def obtenir_total_factures(client: str = "", statut: str = "toutes") -> str:
     """
-    Obtenir le montant total des factures pour un client selon leur statut.
+    Utilisez cet outil pour obtenir le montant total des factures (payées, impayées, brouillon).
+    NE L'UTILISEZ PAS pour les ventes (utilisez obtenir_total_ventes).
     
     Args:
-        client: Le nom du client. (Optionnel, laisser vide ou utiliser 'tous' pour tous les clients).
+        client: Le nom du client (Optionnel).
         statut: Le statut de la facture ('payé', 'impayé', 'brouillon', 'toutes'). Défaut: 'toutes'.
     """
     uid = _get_current_uid()
@@ -354,10 +356,11 @@ def lister_produits_en_rupture() -> str:
 @tool
 def obtenir_ca_periode(periode: str) -> str:
     """
-    Obtenir le chiffre d'affaires (factures payées) global sur une période donnée.
+    Utilisez cet outil UNIQUEMENT pour obtenir le chiffre d'affaires (factures payées) global sur une période.
+    NE L'UTILISEZ PAS pour demander le montant total des ventes ou commandes.
     
     Args:
-        periode: La période (ex: 'ce mois', '2024').
+        periode: La période (ex: 'ce mois', '2024', 'toutes').
     """
     uid = _get_current_uid()
     domain = [
@@ -389,3 +392,44 @@ def obtenir_ca_periode(periode: str) -> str:
         return f"Le chiffre d'affaires total pour la période '{periode}' est de {total:.2f} Ar."
     except Exception as e:
         return f"Erreur lors du calcul du CA : {str(e)}"
+
+@tool
+def obtenir_moyenne_ventes(client: str = "", periode: str = "toutes") -> str:
+    """
+    Obtenir le montant moyen d'une vente (panier moyen) pour un client ou au global.
+    
+    Args:
+        client: Le nom du client (Optionnel).
+        periode: La période (Optionnel).
+    """
+    uid = _get_current_uid()
+    domain = [("state", "in", ["sale", "done"])]
+    if client and client.lower() not in ["tous les clients", "tous", ""]:
+        domain.append(("partner_id.name", "ilike", client))
+    
+    date_range = parse_period(periode)
+    if date_range:
+        domain.append(("date_order", ">=", date_range[0]))
+        domain.append(("date_order", "<=", date_range[1]))
+        
+    try:
+        results = connector.read_group(
+            uid=uid,
+            model="sale.order",
+            domain=domain,
+            fields=["amount_total:avg"],
+            groupby=["partner_id"] if client and client.lower() not in ["tous", ""] else []
+        )
+        if not results:
+            return f"Aucune vente trouvée pour calculer la moyenne."
+            
+        if not client or client.lower() in ["tous", ""]:
+            # Odoo without groupby might just return one record with the global average
+            moyenne = results[0].get("amount_total", 0.0)
+            return f"Le montant moyen d'une vente est de {moyenne:.2f} Ar."
+        else:
+            moyenne = results[0].get("amount_total", 0.0)
+            client_name = results[0].get("partner_id")[1] if results[0].get("partner_id") else client
+            return f"Le montant moyen d'une vente pour {client_name} est de {moyenne:.2f} Ar."
+    except Exception as e:
+        return f"Erreur lors du calcul de la moyenne : {str(e)}"
