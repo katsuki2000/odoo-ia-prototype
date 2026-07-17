@@ -123,8 +123,12 @@ def route(state: RAGState) -> dict:
             "toutes périodes confondues", "ce mois", "cette année", "moyenne", 
             "stock", "quel produit", "montant moyen"
         ]
-        if any(kw in question for kw in erp_keywords):
-            logger.info("Node [route]: Query matched explicit ERP keywords → DONNEES_ERP branch")
+        doc_keywords = ["comment", "procédure", "qui peut", "qui doit", "quel fichier", "quelle classe", "quel est le rôle", "quels sont les modèles", "dans quel fichier", "procédure de validation"]
+        data_terms = ["combien", "montant", "ticket", "vente", "statut", "liste", "résolu", "en cours", "stock", "facture", "commande", "client", "chiffre"]
+        is_hybrid = any(kw in question.lower() for kw in doc_keywords) and any(term in question.lower() for term in data_terms)
+
+        if any(kw in question.lower() for kw in erp_keywords) or is_hybrid:
+            logger.info("Node [route]: Query matched explicit ERP keywords or is hybrid → DONNEES_ERP branch")
             route_decision = QueryRoute.DONNEES_ERP.value
         elif not chunks:
             logger.info("Node [route]: No chunks → defaulting to documentaire")
@@ -260,6 +264,7 @@ def orm_agent_loop(state: RAGState) -> dict:
         lister_produits_en_rupture,
         obtenir_ca_periode,
         obtenir_moyenne_ventes,
+        obtenir_details_ventes,
     )
 
     question = state["question"]
@@ -284,7 +289,7 @@ def orm_agent_loop(state: RAGState) -> dict:
     
     # Skill filtering
     if skills.get("ventes", True):
-        all_tools.extend([obtenir_total_ventes, obtenir_statut_commande, obtenir_ca_periode, obtenir_moyenne_ventes])
+        all_tools.extend([obtenir_total_ventes, obtenir_statut_commande, obtenir_ca_periode, obtenir_moyenne_ventes, obtenir_details_ventes])
         
     if skills.get("stocks", True):
         all_tools.extend([obtenir_stock_produit, lister_produits_en_rupture])
@@ -303,15 +308,35 @@ def orm_agent_loop(state: RAGState) -> dict:
     )
     llm_with_tools = llm.bind_tools(all_tools)
 
+    # Prepare context for hybrid queries
+    chunks = state.get("retrieved_chunks", [])
+    context_text = ""
+    for i, chunk in enumerate(chunks[:3]): # Limit to top 3 chunks to prevent 8B from being overwhelmed
+        doc_text = chunk.get("document", "")
+        meta = chunk.get("metadata") or {}
+        source = meta.get("source", "unknown")
+        context_text += f"[Source {i+1}: {source}]\n{doc_text}\n\n"
+
+    # Check if we actually need the document context (hybrid queries)
+    doc_keywords = ["comment", "procédure", "qui peut", "qui doit", "quel fichier", "quelle classe", "quel est le rôle", "quels sont les modèles", "dans quel fichier", "procédure de validation"]
+    is_hybrid = any(kw in question.lower() for kw in doc_keywords)
+
     system_prompt = (
         "Tu es MIRO Assistant, l'assistant IA interne spécialisé dans les données ERP Odoo. "
         "Pour répondre, utilise les outils disponibles pour interroger les données en temps réel. "
         "Lis TRÈS ATTENTIVEMENT les descriptions des outils. Ne confonds pas le chiffre d'affaires (factures payées) et le total des ventes (devis/commandes). "
-        "Fais très attention aux arguments passés aux outils (ex: statut='en cours'). "
+        "Fais très attention aux arguments passés aux outils (ex: statut='en cours', statut='toutes'). "
         "RÈGLE ABSOLUE : Si un outil indique qu'une donnée n'existe pas, ou retourne un résultat vide, "
         "ACCEPTE CE RÉSULTAT IMMÉDIATEMENT. NE RÉPÈTE JAMAIS la même recherche. "
         "Donne directement ta réponse finale à l'utilisateur sans justifier."
     )
+    
+    if is_hybrid and context_text:
+        system_prompt += (
+            f"\n\nVoici le CONTEXTE DOCUMENTAIRE DISPONIBLE pour répondre aux règles et procédures de la question :\n{context_text}\n"
+            "IMPORTANT : Cette question nécessite à la fois de lire le contexte ci-dessus (pour la partie procédure) ET d'appeler l'outil de ventes (pour la partie chiffres). "
+            "Réponds aux deux parties de la question de façon concise en français."
+        )
 
     messages = [
         SystemMessage(content=system_prompt),

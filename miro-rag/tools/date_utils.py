@@ -35,6 +35,25 @@ def parse_period(periode: str) -> Optional[Tuple[str, str]]:
         end_date = today.replace(day=last_day)
         return start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d")
         
+    # Explicit months (e.g., "janvier 2025")
+    french_months = {
+        "janvier": 1, "fevrier": 2, "février": 2, "mars": 3, "avril": 4, 
+        "mai": 5, "juin": 6, "juillet": 7, "aout": 8, "août": 8, 
+        "septembre": 9, "octobre": 10, "novembre": 11, "decembre": 12, "décembre": 12
+    }
+    for month_name, month_num in french_months.items():
+        if month_name in periode:
+            words = periode.replace(",", " ").split()
+            year = today.year
+            for word in words:
+                if word.isdigit() and len(word) == 4:
+                    year = int(word)
+                    break
+            start_date = date(year, month_num, 1)
+            _, last_day = calendar.monthrange(year, month_num)
+            end_date = date(year, month_num, last_day)
+            return start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d")
+        
     # "le mois dernier"
     if "mois dernier" in periode:
         first_day_this_month = today.replace(day=1)
