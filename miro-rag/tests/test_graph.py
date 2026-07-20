@@ -58,10 +58,10 @@ def test_format_output_clean():
     assert "qualité de lecture est limitée" not in result["response"].answer
 
 # 4. Test full query graph with mocked LLM and retriever
-@patch('rag.graph.ChatGroq')
+@patch('rag.graph.ChatOllama')
 @patch('rag.graph.get_retriever')
 @patch('rag.graph.search_retrieve')
-def test_query_graph_mocked(mock_search_retrieve, mock_get_retriever, mock_chat_groq):
+def test_query_graph_mocked(mock_search_retrieve, mock_get_retriever, mock_chat_ollama):
     # Mock Retriever
     mock_get_retriever.return_value = (MagicMock(), MagicMock())
     mock_search_retrieve.return_value = [
@@ -70,7 +70,7 @@ def test_query_graph_mocked(mock_search_retrieve, mock_get_retriever, mock_chat_
     
     # Mock LLM
     mock_llm_instance = MagicMock()
-    mock_chat_groq.return_value = mock_llm_instance
+    mock_chat_ollama.return_value = mock_llm_instance
     mock_structured_llm = MagicMock()
     mock_llm_instance.with_structured_output.return_value = mock_structured_llm
     

@@ -40,7 +40,7 @@ class AiConfig(models.Model):
     model_chat = fields.Char(
         string='Modèle Chat / Tool-use',
         required=True,
-        default='llama3.1:8b',
+        default='llama3.1',
         help=(
             'Modèle Ollama utilisé pour le routage et la réponse finale.\n'
             'Exemples : hermes3:8b, mistral:7b, phi3.5'

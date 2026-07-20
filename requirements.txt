@@ -91,7 +91,6 @@ pypdf==6.14.2
 PyPika==0.51.1
 pyproject_hooks==1.2.0
 pytesseract==0.3.13
-pytest==9.1.1
 python-dateutil==2.9.0.post0
 python-dotenv==1.2.2
 PyYAML==6.0.3
@@ -116,7 +115,7 @@ tenacity==9.1.4
 threadpoolctl==3.6.0
 tiktoken==0.13.0
 tokenizers==0.22.2
-torch==2.5.1+cpu
+torch
 tqdm==4.68.4
 transformers==5.13.1
 tree-sitter==0.26.0
@@ -147,3 +146,4 @@ langgraph
 langchain
 PyJWT
 
+langchain-ollama
