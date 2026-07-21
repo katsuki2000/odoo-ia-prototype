@@ -127,8 +127,11 @@ def route(state: RAGState) -> dict:
         data_terms = ["combien", "montant", "ticket", "vente", "statut", "liste", "résolu", "en cours", "stock", "facture", "commande", "client", "chiffre"]
         is_hybrid = any(kw in question.lower() for kw in doc_keywords) and any(term in question.lower() for term in data_terms)
 
-        if any(kw in question.lower() for kw in erp_keywords) or is_hybrid:
-            logger.info("Node [route]: Query matched explicit ERP keywords or is hybrid → DONNEES_ERP branch")
+        if is_hybrid:
+            logger.info("Node [route]: Query is hybrid → HYBRIDE branch")
+            route_decision = QueryRoute.HYBRIDE.value
+        elif any(kw in question.lower() for kw in erp_keywords):
+            logger.info("Node [route]: Query matched explicit ERP keywords → DONNEES_ERP branch")
             route_decision = QueryRoute.DONNEES_ERP.value
         elif not chunks:
             logger.info("Node [route]: No chunks → defaulting to documentaire")
@@ -308,35 +311,16 @@ def orm_agent_loop(state: RAGState) -> dict:
     )
     llm_with_tools = llm.bind_tools(all_tools)
 
-    # Prepare context for hybrid queries
-    chunks = state.get("retrieved_chunks", [])
-    context_text = ""
-    for i, chunk in enumerate(chunks[:3]): # Limit to top 3 chunks to prevent 8B from being overwhelmed
-        doc_text = chunk.get("document", "")
-        meta = chunk.get("metadata") or {}
-        source = meta.get("source", "unknown")
-        context_text += f"[Source {i+1}: {source}]\n{doc_text}\n\n"
-
-    # Check if we actually need the document context (hybrid queries)
-    doc_keywords = ["comment", "procédure", "qui peut", "qui doit", "quel fichier", "quelle classe", "quel est le rôle", "quels sont les modèles", "dans quel fichier", "procédure de validation"]
-    is_hybrid = any(kw in question.lower() for kw in doc_keywords)
-
     system_prompt = (
         "Tu es MIRO Assistant, l'assistant IA interne spécialisé dans les données ERP Odoo. "
         "Pour répondre, utilise les outils disponibles pour interroger les données en temps réel. "
         "Lis TRÈS ATTENTIVEMENT les descriptions des outils. Ne confonds pas le chiffre d'affaires (factures payées) et le total des ventes (devis/commandes). "
+        "Pour une question sur le montant des 'ventes' d'un mois, utilise TOUJOURS obtenir_total_ventes et JAMAIS obtenir_ca_periode. "
         "Fais très attention aux arguments passés aux outils (ex: statut='en cours', statut='toutes'). "
         "RÈGLE ABSOLUE : Si un outil indique qu'une donnée n'existe pas, ou retourne un résultat vide, "
         "ACCEPTE CE RÉSULTAT IMMÉDIATEMENT. NE RÉPÈTE JAMAIS la même recherche. "
         "Donne directement ta réponse finale à l'utilisateur sans justifier."
     )
-    
-    if is_hybrid and context_text:
-        system_prompt += (
-            f"\n\nVoici le CONTEXTE DOCUMENTAIRE DISPONIBLE pour répondre aux règles et procédures de la question :\n{context_text}\n"
-            "IMPORTANT : Cette question nécessite à la fois de lire le contexte ci-dessus (pour la partie procédure) ET d'appeler l'outil de ventes (pour la partie chiffres). "
-            "Réponds aux deux parties de la question de façon concise en français."
-        )
 
     messages = [
         SystemMessage(content=system_prompt),
@@ -454,6 +438,71 @@ def orm_agent_loop(state: RAGState) -> dict:
     return {"response": response, "raw_answer": response.answer, "timing": timing}
 
 
+def hybrid_node(state: RAGState) -> dict:
+    """Agent that orchestrates a hybrid query by dispatching to doc-reader and tool-caller sequentially, then combining."""
+    import time
+    start_time = time.time()
+    logger.info("Node [hybrid_node]: Delegating to doc agent and data agent")
+    
+    # Run the documentaire branch to get procedures
+    doc_state = state.copy()
+    doc_result = generate(doc_state)
+    doc_answer = doc_result.get("raw_answer", "")
+    
+    # Run the ERP branch to get numbers (without documentary context to avoid confusing the 8B model)
+    data_state = state.copy()
+    data_state["retrieved_chunks"] = []
+    data_state["question"] = (
+        state["question"] + 
+        "\n\n[INSTRUCTION INTERNE] : Ignore la partie de cette question qui parle de procédures ou de documents. "
+        "Ton SEUL rôle est d'utiliser tes outils pour chercher la donnée chiffrée demandée. Appelle l'outil approprié maintenant."
+    )
+    data_result = orm_agent_loop(data_state)
+    data_answer = data_result.get("raw_answer", "")
+    
+    # Combine the two using a final Synthesis LLM
+    from langchain_core.messages import HumanMessage
+    from langchain_groq import ChatGroq
+    from config.settings import GROQ_MODEL
+    
+    combine_prompt = (
+        f"Tu es l'agent de synthèse finale.\n"
+        f"La question de l'utilisateur était : '{state['question']}'\n\n"
+        f"Voici ce que l'agent de documentation a trouvé sur les procédures :\n{doc_answer}\n\n"
+        f"Voici ce que l'agent des données ERP a trouvé dans les chiffres :\n{data_answer}\n\n"
+        f"Combine ces deux informations pour faire une seule réponse cohérente et fluide, sans mentionner l'existence des agents."
+    )
+    
+    try:
+        plain_llm = ChatGroq(model=GROQ_MODEL, temperature=0.3, max_tokens=1024)
+        final_resp = plain_llm.invoke([HumanMessage(content=combine_prompt)])
+        final_answer = final_resp.content
+    except Exception as e:
+        logger.error("Hybrid combine failed: %s", e)
+        final_answer = f"{doc_answer}\n\n{data_answer}"
+        
+    # Combine sources safely
+    sources = []
+    if doc_result.get("response") and doc_result["response"].sources:
+        sources.extend(doc_result["response"].sources)
+    if data_result.get("response") and data_result["response"].sources:
+        sources.extend(data_result["response"].sources)
+        
+    confidence = 0.5
+    if doc_result.get("response") and data_result.get("response"):
+        confidence = min(doc_result["response"].confidence, data_result["response"].confidence)
+        
+    response = AssistantResponse(
+        answer=final_answer,
+        sources=sources,
+        confidence=confidence
+    )
+    
+    timing = state.get("timing", {}).copy()
+    timing["hybrid_time"] = time.time() - start_time
+    return {"response": response, "raw_answer": final_answer, "timing": timing}
+
+
 def format_output(state: RAGState) -> dict:
     """Format and clean up the final output (e.g. OCR warnings)."""
     logger.info("Node [format_output]: Formatting final response")
@@ -499,6 +548,7 @@ def build_graph() -> StateGraph:
     workflow.add_node("route", route)
     workflow.add_node("generate", generate)
     workflow.add_node("orm_agent_loop", orm_agent_loop)
+    workflow.add_node("hybrid_node", hybrid_node)
     workflow.add_node("format_output", format_output)
 
     # Edges
@@ -509,10 +559,12 @@ def build_graph() -> StateGraph:
     workflow.add_conditional_edges("route", route_decision, {
         QueryRoute.DOCUMENTAIRE.value: "generate",
         QueryRoute.DONNEES_ERP.value: "orm_agent_loop",
+        QueryRoute.HYBRIDE.value: "hybrid_node",
     })
 
     workflow.add_edge("generate", "format_output")
     workflow.add_edge("orm_agent_loop", "format_output")
+    workflow.add_edge("hybrid_node", "format_output")
     workflow.add_edge("format_output", END)
 
     return workflow.compile()

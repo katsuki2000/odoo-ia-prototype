@@ -5,11 +5,11 @@
 
 ---
 ### [ERP-02] Quel est le montant total des ventes en cours ?
-**Agent Answer:** Le montant total des ventes en cours est de 28400000.00 Ar.
+**Agent Answer:** Le total des ventes est de 28400000.00 Ar.
 
 ---
 ### [ERP-03] Quel est le montant total facturé à ce jour ?
-**Agent Answer:** Aucun chiffre d'affaires n'a été trouvé pour les périodes spécifiées, il est donc impossible de déterminer le montant total facturé à ce jour.
+**Agent Answer:** Aucun chiffre d'affaires n'a été trouvé pour toutes les périodes considérées.
 
 ---
 ### [ERP-04] Combien de tickets de support sont résolus ?
@@ -21,19 +21,26 @@
 
 ---
 ### [ERP-06] Quel produit a été vendu à Madagascar Tech et pour quel montant ?
-**Agent Answer:** Malheureusement, il n'y a pas suffisamment d'informations pour déterminer quel produit a été vendu à Madagascar Tech et pour quel montant. Les erreurs indiquent que la fonction `search_read()` de l'OdooConnector a reçu un argument non attendu appelé `limit`, mais elles ne fournissent aucune information sur le produit en question.
+**Agent Answer:** Le produit vendu à Madagascar Tech est l'Audit ERP pour un montant de 2 500 000 Ar.
 
 ---
 ### [ERP-07] Quels sont les tickets de support encore en cours ?
-**Agent Answer:** Vous pouvez consulter les tickets de support en cours dans le module Projet (MIRO Support Tickets). Vous pouvez y trouver les informations relatives aux tickets ouverts, en cours de traitement et fermés. Vous pouvez également y effectuer des recherches pour trouver des tickets spécifiques.
+**Agent Answer:** {
+  "answer": "Vous pouvez trouver les tickets de support encore en cours dans le module Projet (MIRO Support Tickets).",
+  "sources": [
+    {"file": "wiki_processus_vente.txt", "lines": "5. SUIVI APRÈS-VENTE"}
+  ],
+  "confidence": 0.9,
+  "missing_info": null
+}
 
 ---
 ### [ERP-08] Quel est le montant total des ventes toutes périodes confondues ?
-**Agent Answer:** Le montant total des ventes toutes périodes confondues est de 168600000.00 Ar.
+**Agent Answer:** Le montant total des ventes toutes périodes confondues est de 308600000.00 Ar.
 
 ---
 ### [ERP-09] Quel est le montant total des ventes du mois de janvier 2025 ?
-**Agent Answer:** Aucun montant total de ventes pour le mois de janvier 2025 n'est disponible, car aucune vente n'a été trouvée pour la période demandée.
+**Agent Answer:** La réponse finale est : Aucune vente trouvée pour tous les clients sur la période demandée.
 
 ---
 ### [ERP-10] Quel est le montant moyen d'une vente pour la Société Dupont ?
@@ -49,14 +56,14 @@
 
 ---
 ### [ERP-13] D'après les procédures, qui doit valider les ventes, et quel est le montant total des ventes en cours ?
-**Agent Answer:** Selon les procédures, les ventes doivent être validées par le Responsable Administratif et le Directeur Général. Le montant total des ventes en cours n'est pas mentionné dans les procédures fournies.
+**Agent Answer:** Selon les procédures, les ventes doivent être validées par le Responsable Administratif et le Directeur Général. Le montant total des ventes en cours n'est pas spécifié dans les procédures fournies.
 
 ---
 ### [ERP-14] Quel est le chiffre d'affaires total payé pour l'année 2025 ?
-**Agent Answer:** Aucun chiffre d'affaires n'a été trouvé pour l'année 2025.
+**Agent Answer:** Je n'ai pas de données disponibles pour répondre à cette question.
 
 ---
 ### [ERP-15] Quelles sont les coordonnées du client Telma Madagascar et quel est son total de factures ?
-**Agent Answer:** Notez que le chiffre d'affaires (factures payées) et le total des factures (toutes) ne sont pas les mêmes. Si vous souhaitez connaître le chiffre d'affaires de Telma Madagascar, vous devrez utiliser la fonction `obtenir_ca_periode`.
+**Agent Answer:** Je n'ai pas de données disponibles pour répondre à cette question.
 
 ---

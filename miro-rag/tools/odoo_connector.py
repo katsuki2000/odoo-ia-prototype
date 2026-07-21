@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 ALLOWED_MODELS = {
     "sale.order",
+    "sale.order.line",
     "account.move",
     "stock.quant",
     "helpdesk.ticket",
@@ -72,7 +73,7 @@ class OdooConnector:
             logger.warning("Attempted access to non-whitelisted model: %s", model)
             raise OdooConnectorError(f"Model {model} is not whitelisted for AI queries.")
 
-    def search_read(self, uid: int, model: str, domain: list = None, fields: list = None) -> list[dict]:
+    def search_read(self, uid: int, model: str, domain: list = None, fields: list = None, limit: int = 0) -> list[dict]:
         """
         Execute a search_read query safely.
         Must use the requesting user's uid.
@@ -81,12 +82,16 @@ class OdooConnector:
         domain = domain if domain is not None else []
         fields = fields if fields is not None else []
         
+        kwargs = {'fields': fields}
+        if limit > 0:
+            kwargs['limit'] = limit
+            
         try:
             records = self.models.execute_kw(
                 self.db, uid, self._resolve_password(),
                 model, 'search_read',
                 [domain],
-                {'fields': fields}
+                kwargs
             )
             return records
         except Exception as e:

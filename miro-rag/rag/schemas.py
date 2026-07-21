@@ -15,6 +15,7 @@ class QueryRoute(str, Enum):
     """Classification of the query type for routing."""
     DOCUMENTAIRE = "documentaire"
     DONNEES_ERP = "donnees_erp"
+    HYBRIDE = "hybride"
 
 
 class DataQueryIntent(BaseModel):
