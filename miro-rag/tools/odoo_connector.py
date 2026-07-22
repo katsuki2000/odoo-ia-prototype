@@ -73,7 +73,7 @@ class OdooConnector:
             logger.warning("Attempted access to non-whitelisted model: %s", model)
             raise OdooConnectorError(f"Model {model} is not whitelisted for AI queries.")
 
-    def search_read(self, uid: int, model: str, domain: list = None, fields: list = None, limit: int = 0) -> list[dict]:
+    def search_read(self, uid: int, model: str, domain: list = None, fields: list = None, limit: int = 0, order: str = None, **extra_kwargs) -> list[dict]:
         """
         Execute a search_read query safely.
         Must use the requesting user's uid.
@@ -85,6 +85,9 @@ class OdooConnector:
         kwargs = {'fields': fields}
         if limit > 0:
             kwargs['limit'] = limit
+        if order:
+            kwargs['order'] = order
+        kwargs.update(extra_kwargs)
             
         try:
             records = self.models.execute_kw(

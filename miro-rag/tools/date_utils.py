@@ -27,7 +27,11 @@ def parse_period(periode: str) -> Optional[Tuple[str, str]]:
     """
     periode = periode.lower().strip()
     today = date.today()
-    
+
+    # "a ce jour" / "à ce jour" / "ce jour" / "toutes" (means all history up to today)
+    if "ce jour" in periode or "a ce jour" in periode or "à ce jour" in periode:
+        return None
+
     # "ce mois" / "mois en cours"
     if "ce mois" in periode or "mois en cours" in periode:
         start_date = today.replace(day=1)

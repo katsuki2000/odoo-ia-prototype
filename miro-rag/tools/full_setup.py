@@ -1,14 +1,22 @@
 #!/usr/bin/env python3
 """
-tools/ingest_fake_data.py
+tools/full_setup.py
 
-Day 2 Step 1A: Ingest Fake Transactions into Live Odoo Database
+Consolidated single setup script to populate a fresh Odoo 17 database (SINGLE COMPANY):
+1. Single Company (Company Alpha) + Sales Journal + Income Account
+2. 6 Specialized users + 1 Miro Manager user, all linked to Company Alpha
+3. Clients (res.partner), products (product.template), sales orders (sales.json), tickets (tickets.json)
 
-Creates via XML-RPC:
-1. Clients (res.partner): Société Dupont, Madagascar Tech, MIRO KE interne, etc.
-2. Products: Implémentation Odoo 17, Formation Odoo 17, Support mensuel, etc.
-3. Sales Orders from sales.json (assigned to Charlie CRM under appropriate company)
-4. Project and Tasks from tickets.json (assigned to Diana Support / Evan Engineer)
+Architecture note: Multi-company (multiple res.company records in one single database)
+was intentionally simplified. At MiroKE, each client company integrated with Odoo has its
+OWN isolated Odoo database. Multi-tenant behavior will be tested via multiple distinct
+databases rather than multiple res.company records in one DB.
+
+Includes fixes for:
+- Sales journal creation (account.journal type sale)
+- Income account creation (account.account code 400000) and product category assignment
+- Sales order cancellation for 'annul' status
+- Task partner_id resolution for support tickets
 """
 
 import xmlrpc.client
@@ -24,8 +32,9 @@ PASSWORDS_TO_TRY = ["admin", "odoo"]
 FAKE_DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "fake_data")
 
 
+# --- Connection ---
+
 def get_connection():
-    """Authenticate via XML-RPC and return uid, password, and models proxy."""
     common = xmlrpc.client.ServerProxy(f"{URL}/xmlrpc/2/common")
     uid = None
     password = None
@@ -38,15 +47,16 @@ def get_connection():
         except Exception:
             continue
     if not uid:
-        print("Error: Failed to authenticate with Odoo server.")
+        print("Failed to authenticate with Odoo. Check credentials or DB name.")
         sys.exit(1)
     print(f"Authenticated as admin (UID: {uid})")
     models = xmlrpc.client.ServerProxy(f"{URL}/xmlrpc/2/object")
     return uid, password, models
 
 
+# --- Generic Helpers ---
+
 def find_or_create(models, uid, pwd, model, search_domain, create_vals, label="record"):
-    """Find an existing record by domain or create a new one."""
     ids = models.execute_kw(DB, uid, pwd, model, 'search', [search_domain])
     if ids:
         print(f"  -> {label} already exists (ID: {ids[0]})")
@@ -56,66 +66,166 @@ def find_or_create(models, uid, pwd, model, search_domain, create_vals, label="r
     return new_id
 
 
-def get_user_id_by_login(models, uid, pwd, login):
-    """Retrieve user ID by login email."""
-    ids = models.execute_kw(DB, uid, pwd, 'res.users', 'search', [[('login', '=', login)]])
-    return ids[0] if ids else None
+def get_group_id(models, uid, pwd, xml_id):
+    if "." not in xml_id:
+        return None
+    module, name = xml_id.split(".", 1)
+    res = models.execute_kw(DB, uid, pwd, 'ir.model.data', 'search_read',
+                            [[('module', '=', module), ('name', '=', name)]],
+                            {'fields': ['res_id']})
+    return res[0]['res_id'] if res else None
 
 
-def get_company_id_by_name(models, uid, pwd, name):
-    """Retrieve company ID by company name."""
-    ids = models.execute_kw(DB, uid, pwd, 'res.company', 'search', [[('name', '=', name)]])
-    return ids[0] if ids else None
+# --- Step 1: Single Company + Sales Journal + Income Account ---
+
+def setup_company_and_journal(models, uid, pwd):
+    print("\n--- Step 1: Company, Sales Journal & Income Account ---")
+
+    alpha_id = find_or_create(models, uid, pwd, 'res.company',
+                               [('name', '=', 'Company Alpha')],
+                               {'name': 'Company Alpha'}, label="Company 'Company Alpha'")
+
+    # Sales Journal
+    journal_ids = models.execute_kw(
+        DB, uid, pwd, 'account.journal', 'search',
+        [[('type', '=', 'sale'), ('company_id', '=', alpha_id)]]
+    )
+    if not journal_ids:
+        models.execute_kw(DB, uid, pwd, 'account.journal', 'create', [{
+            'name': 'Sales Journal (Company Alpha)',
+            'type': 'sale',
+            'code': 'SJA',
+            'company_id': alpha_id,
+        }])
+        print("  Created Sales Journal for Company Alpha (code: SJA)")
+    else:
+        print("  -> Sales Journal already exists for Company Alpha")
+
+    # Income Account for Invoicing
+    account_ids = models.execute_kw(
+        DB, uid, pwd, 'account.account', 'search',
+        [[('code', '=', '400000'), ('company_id', '=', alpha_id)]]
+    )
+    if not account_ids:
+        income_account_id = models.execute_kw(DB, uid, pwd, 'account.account', 'create', [{
+            'name': 'Ventes de marchandises / Services',
+            'code': '400000',
+            'account_type': 'income',
+            'company_id': alpha_id,
+        }])
+        print("  Created Income Account 400000 for Company Alpha")
+    else:
+        income_account_id = account_ids[0]
+
+    categ_ids = models.execute_kw(DB, uid, pwd, 'product.category', 'search', [[]])
+    if categ_ids:
+        try:
+            models.execute_kw(DB, uid, pwd, 'product.category', 'write', [
+                [categ_ids[0]],
+                {'property_account_income_categ_id': income_account_id}
+            ])
+            print("  Assigned Income Account to Product Category")
+        except Exception as e:
+            print(f"  Warning: Could not assign income account to category: {e}")
+
+    return alpha_id
 
 
-def main():
-    print("Day 2 Step 1A: Ingesting Fake Data into Odoo")
-    print("=" * 55)
-    uid, pwd, models = get_connection()
+# --- Step 2: Specialized Users (All on Company Alpha) ---
 
-    alpha_id = get_company_id_by_name(models, uid, pwd, "Company Alpha") or 1
-    beta_id = get_company_id_by_name(models, uid, pwd, "Company Beta") or 1
-    charlie_uid = get_user_id_by_login(models, uid, pwd, "charlie@alpha.com") or uid
-    diana_uid = get_user_id_by_login(models, uid, pwd, "diana@beta.com") or uid
-    evan_uid = get_user_id_by_login(models, uid, pwd, "evan@alpha.com") or uid
+def setup_users(models, uid, pwd, alpha_id):
+    print("\n--- Step 2: Specialized Users (all on Company Alpha) ---")
+    internal_user_group = get_group_id(models, uid, pwd, "base.group_user")
 
-    print(f"\nCompany Alpha ID: {alpha_id}, Company Beta ID: {beta_id}")
-    print(f"Charlie CRM UID: {charlie_uid}, Diana Support UID: {diana_uid}, Evan Engineer UID: {evan_uid}")
+    users_data = [
+        {"name": "Alice Admin", "login": "alice@alpha.com",
+         "groups": ["base.group_user", "sales_team.group_sale_manager", "project.group_project_manager"]},
+        {"name": "Bob Buyer", "login": "bob@alpha.com",
+         "groups": ["base.group_user", "purchase.group_purchase_manager", "stock.group_stock_manager"]},
+        {"name": "Charlie CRM", "login": "charlie@alpha.com",
+         "groups": ["base.group_user", "sales_team.group_sale_salesman"]},
+        {"name": "Diana Support", "login": "diana@alpha.com",
+         "groups": ["base.group_user", "project.group_project_user"]},
+        {"name": "Evan Engineer", "login": "evan@alpha.com",
+         "groups": ["base.group_user", "project.group_project_user", "stock.group_stock_user"]},
+        {"name": "Fiona Finance", "login": "fiona@alpha.com",
+         "groups": ["base.group_user", "account.group_account_invoice"]},
+        {"name": "Miro Manager", "login": "manager@miro.com",
+         "groups": ["base.group_user", "base.group_erp_manager",
+                    "sales_team.group_sale_manager", "project.group_project_manager",
+                    "stock.group_stock_manager", "account.group_account_manager"]},
+    ]
 
-    print("\n--- Part 1: Creating Clients ---")
+    user_uids = {}
+    for u in users_data:
+        existing = models.execute_kw(DB, uid, pwd, 'res.users', 'search', [[('login', '=', u['login'])]])
+        if existing:
+            print(f"  -> User '{u['name']}' already exists (ID: {existing[0]})")
+            user_uids[u['name']] = existing[0]
+            continue
+
+        group_ids = []
+        for xml_id in u['groups']:
+            gid = get_group_id(models, uid, pwd, xml_id)
+            if gid and gid not in group_ids:
+                group_ids.append(gid)
+        if internal_user_group and internal_user_group not in group_ids:
+            group_ids.append(internal_user_group)
+
+        user_vals = {
+            'name': u['name'],
+            'login': u['login'],
+            'password': 'password123',
+            'company_id': alpha_id,
+            'company_ids': [(6, 0, [alpha_id])],
+        }
+        if group_ids:
+            user_vals['groups_id'] = [(6, 0, group_ids)]
+
+        try:
+            new_id = models.execute_kw(DB, uid, pwd, 'res.users', 'create', [user_vals])
+            print(f"  Created User '{u['name']}' ({u['login']}) (ID: {new_id})")
+            user_uids[u['name']] = new_id
+        except Exception as e:
+            print(f"  Warning: Could not create user '{u['name']}': {e}")
+
+    return user_uids
+
+
+# --- Step 3: Clients (All assigned to Company Alpha) ---
+
+def setup_clients(models, uid, pwd, alpha_id):
+    print("\n--- Step 3: Creating Clients ---")
     clients = {
         "Société Dupont": {"name": "Société Dupont", "company_type": "company",
-                           "email": "contact@dupont.mg", "phone": "+261 20 22 123 45",
-                           "company_id": alpha_id},
+                           "email": "contact@dupont.mg", "phone": "+261 20 22 123 45", "company_id": alpha_id},
         "Madagascar Tech": {"name": "Madagascar Tech", "company_type": "company",
-                            "email": "info@madatech.mg", "phone": "+261 20 22 678 90",
-                            "company_id": alpha_id},
+                            "email": "info@madatech.mg", "phone": "+261 20 22 678 90", "company_id": alpha_id},
         "MIRO KE interne": {"name": "MIRO KE interne", "company_type": "company",
-                            "email": "support@miroke.mg", "phone": "+261 20 22 000 00",
-                            "company_id": alpha_id},
+                            "email": "support@miroke.mg", "phone": "+261 20 22 000 00", "company_id": alpha_id},
         "Telma Madagascar": {"name": "Telma Madagascar", "company_type": "company",
-                             "email": "contact@telma.mg", "phone": "+261 20 23 100 00",
-                             "company_id": alpha_id},
+                             "email": "contact@telma.mg", "phone": "+261 20 23 100 00", "company_id": alpha_id},
         "Groupe Socimex": {"name": "Groupe Socimex", "company_type": "company",
-                           "email": "info@socimex.mg", "phone": "+261 20 22 345 67",
-                           "company_id": alpha_id},
+                           "email": "info@socimex.mg", "phone": "+261 20 22 345 67", "company_id": alpha_id},
         "Brasseries Star": {"name": "Brasseries Star", "company_type": "company",
-                            "email": "contact@star.mg", "phone": "+261 20 22 456 78",
-                            "company_id": beta_id},
+                            "email": "contact@star.mg", "phone": "+261 20 22 456 78", "company_id": alpha_id},
         "Air Madagascar": {"name": "Air Madagascar", "company_type": "company",
-                           "email": "commercial@airmadagascar.mg", "phone": "+261 20 22 222 22",
-                           "company_id": beta_id},
+                           "email": "commercial@airmadagascar.mg", "phone": "+261 20 22 222 22", "company_id": alpha_id},
         "Shoprite Madagascar": {"name": "Shoprite Madagascar", "company_type": "company",
-                                "email": "procurement@shoprite.mg", "phone": "+261 20 22 567 89",
-                                "company_id": beta_id},
+                                "email": "procurement@shoprite.mg", "phone": "+261 20 22 567 89", "company_id": alpha_id},
     }
     client_ids = {}
     for name, vals in clients.items():
         cid = find_or_create(models, uid, pwd, 'res.partner',
                              [('name', '=', name)], vals, label=f"Client '{name}'")
         client_ids[name] = cid
+    return client_ids
 
-    print("\n--- Part 2: Creating Products ---")
+
+# --- Step 4: Products ---
+
+def setup_products(models, uid, pwd):
+    print("\n--- Step 4: Creating Products ---")
     products_data = [
         {"name": "Implémentation Odoo 17", "list_price": 4500000, "type": "service", "invoice_policy": "order",
          "description_sale": "Service complet d'implémentation Odoo 17 incluant configuration, migration et formation."},
@@ -145,8 +255,13 @@ def main():
         pp_ids = models.execute_kw(DB, uid, pwd, 'product.product', 'search',
                                    [[('product_tmpl_id', '=', pid)]])
         product_ids[p['name']] = pp_ids[0] if pp_ids else pid
+    return product_ids
 
-    print("\n--- Part 3: Creating Sales Orders ---")
+
+# --- Step 5: Sales Orders ---
+
+def setup_sales_orders(models, uid, pwd, alpha_id, client_ids, product_ids, charlie_uid):
+    print("\n--- Step 5: Creating Sales Orders ---")
     sales_file = os.path.join(FAKE_DATA_DIR, "sales.json")
     with open(sales_file, 'r', encoding='utf-8') as f:
         sales_data = json.load(f)
@@ -165,15 +280,11 @@ def main():
             print(f"  Warning: Skipping SO {so_name} due to missing partner or product")
             continue
 
-        partner_data = models.execute_kw(DB, uid, pwd, 'res.partner', 'read',
-                                         [partner_id], {'fields': ['company_id']})
-        partner_company = partner_data[0]['company_id'][0] if partner_data[0].get('company_id') else alpha_id
-
         so_vals = {
             'partner_id': partner_id,
             'date_order': sale['date'],
             'client_order_ref': so_name,
-            'company_id': partner_company,
+            'company_id': alpha_id,
             'user_id': charlie_uid or uid,
             'order_line': [(0, 0, {
                 'product_id': product_id,
@@ -190,21 +301,19 @@ def main():
             if sale.get('statut') == 'facturé':
                 try:
                     models.execute_kw(DB, uid, pwd, 'sale.order', 'action_confirm', [[so_id]])
+                    # Re-write date_order because action_confirm overwrites date_order with current timestamp
+                    dt_val = sale['date'] + " 10:00:00" if len(sale['date']) == 10 else sale['date']
+                    models.execute_kw(DB, uid, pwd, 'sale.order', 'write', [[so_id], {'date_order': dt_val}])
                     print(f"    Confirmed SO {so_name}")
-                    # Day 2 Step 1A: Automatically create and post invoice for the confirmed Sales Order via Wizard
                     try:
-                        context = {
-                            'active_model': 'sale.order',
-                            'active_ids': [so_id],
-                            'active_id': so_id,
-                        }
+                        context = {'active_model': 'sale.order', 'active_ids': [so_id], 'active_id': so_id}
                         wizard_id = models.execute_kw(DB, uid, pwd, 'sale.advance.payment.inv', 'create', [{}], {'context': context})
                         try:
                             models.execute_kw(DB, uid, pwd, 'sale.advance.payment.inv', 'create_invoices', [[wizard_id]], {'context': context})
                         except xmlrpc.client.Fault as e:
                             if "cannot marshal None" not in str(e):
                                 raise
-                        
+
                         so_data = models.execute_kw(DB, uid, pwd, 'sale.order', 'read', [[so_id]], {'fields': ['invoice_ids']})
                         inv_ids = so_data[0]['invoice_ids']
                         if inv_ids:
@@ -214,10 +323,20 @@ def main():
                         print(f"      -> Invoicing failed: {inv_err}")
                 except Exception as e:
                     print(f"    Warning: Could not confirm/invoice SO {so_name}: {e}")
+            elif sale.get('statut') == 'annulé':
+                try:
+                    models.execute_kw(DB, uid, pwd, 'sale.order', 'action_cancel', [[so_id]])
+                    print(f"    Cancelled SO {so_name}")
+                except Exception as e:
+                    print(f"    Warning: Could not cancel SO {so_name}: {e}")
         except Exception as e:
             print(f"  Warning: Could not create SO {so_name}: {e}")
 
-    print("\n--- Part 4: Creating Support Project & Tasks ---")
+
+# --- Step 6: Support Project & Tickets ---
+
+def setup_tickets(models, uid, pwd, alpha_id, client_ids, diana_uid, evan_uid):
+    print("\n--- Step 6: Creating Support Project & Tasks ---")
     project_id = find_or_create(models, uid, pwd, 'project.project',
                                 [('name', '=', 'MIRO Support Tickets')],
                                 {'name': 'MIRO Support Tickets',
@@ -230,8 +349,7 @@ def main():
     with open(tickets_file, 'r', encoding='utf-8') as f:
         tickets_data = json.load(f)
 
-    assignees = [diana_uid, evan_uid]
-    assignees = [a for a in assignees if a]
+    assignees = [a for a in [diana_uid, evan_uid] if a]
 
     for i, ticket in enumerate(tickets_data):
         task_name = f"[TK-{ticket['id']:03d}] {ticket['titre']}"
@@ -242,6 +360,10 @@ def main():
             continue
 
         assignee = assignees[i % len(assignees)] if assignees else uid
+
+        partner_id = client_ids.get(ticket['client'])
+        if not partner_id:
+            print(f"  Warning: Client '{ticket['client']}' not found in client_ids for ticket {task_name}")
 
         description = (
             f"<p><strong>Client:</strong> {ticket['client']}</p>"
@@ -254,6 +376,7 @@ def main():
             'name': task_name,
             'project_id': project_id,
             'user_ids': [(6, 0, [assignee])],
+            'partner_id': partner_id,
             'description': description,
             'date_deadline': ticket['date'],
             'company_id': alpha_id,
@@ -268,16 +391,38 @@ def main():
         except Exception as e:
             print(f"  Warning: Could not create task: {e}")
 
-    print("\n" + "=" * 55)
-    print("Step 1A Completed Successfully! Database contains:")
+    return project_id
 
+
+# --- Main ---
+
+def main():
+    print("Full Setup (Single Company): Company + Journal + Users + Clients + Products + Sales + Tickets")
+    print("=" * 90)
+    uid, pwd, models = get_connection()
+
+    alpha_id = setup_company_and_journal(models, uid, pwd)
+    user_uids = setup_users(models, uid, pwd, alpha_id)
+
+    charlie_uid = user_uids.get("Charlie CRM", uid)
+    diana_uid = user_uids.get("Diana Support", uid)
+    evan_uid = user_uids.get("Evan Engineer", uid)
+
+    print(f"\nCompany Alpha ID: {alpha_id}")
+    print(f"Charlie CRM UID: {charlie_uid}, Diana Support UID: {diana_uid}, Evan Engineer UID: {evan_uid}")
+
+    client_ids = setup_clients(models, uid, pwd, alpha_id)
+    product_ids = setup_products(models, uid, pwd)
+    setup_sales_orders(models, uid, pwd, alpha_id, client_ids, product_ids, charlie_uid)
+    project_id = setup_tickets(models, uid, pwd, alpha_id, client_ids, diana_uid, evan_uid)
+
+    print("\n" + "=" * 90)
+    print("Setup Completed Successfully! Database contains:")
     so_count = models.execute_kw(DB, uid, pwd, 'sale.order', 'search_count',
                                  [[('client_order_ref', 'like', 'SO-MIRO')]])
     task_count = models.execute_kw(DB, uid, pwd, 'project.task', 'search_count',
                                    [[('project_id', '=', project_id)]])
-    partner_count = len(client_ids)
-
-    print(f"  - {partner_count} Clients")
+    print(f"  - {len(client_ids)} Clients")
     print(f"  - {len(product_ids)} Products/Services")
     print(f"  - {so_count} Sales Orders")
     print(f"  - {task_count} Support Tickets")
