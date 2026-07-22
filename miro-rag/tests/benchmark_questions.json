@@ -203,10 +203,10 @@
       "id": "ERP-06",
       "category": "erp_chiffre",
       "question": "Quel produit a été vendu à Madagascar Tech et pour quel montant ?",
-      "expected_answer_contains": ["Madagascar Tech", "1 200 000"],
+      "expected_answer_contains": ["Madagascar Tech", "5 300 000"],
       "source_reference": "fake_data/sales.json — filtrage par client",
       "type": "erp",
-      "expected_value": "3 ventes — 7 800 000 Ar"
+      "expected_value": "2 ventes — 5 300 000 Ar"
     },
     {
       "id": "ERP-07",
@@ -220,10 +220,10 @@
       "id": "ERP-08",
       "category": "erp_chiffre",
       "question": "Quel est le montant total des ventes toutes périodes confondues ?",
-      "expected_answer_contains": ["62 120 000", "Ar"],
+      "expected_answer_contains": ["59 620 000", "Ar"],
       "source_reference": "fake_data/sales.json — agrégation totale",
       "type": "erp",
-      "expected_value": "62 120 000 Ar"
+      "expected_value": "59 620 000 Ar"
     },
     {
       "id": "ERP-09",

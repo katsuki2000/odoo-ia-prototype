@@ -108,53 +108,51 @@ def route(state: RAGState) -> dict:
     question = state.get("question", "").lower()
     logger.info("Node [route]: Classifying query type from %d chunks", len(chunks))
 
-    # Check for explicit documentation query keywords
+    # Explicit ERP keywords list
+    erp_keywords = [
+        "combien de", "montant total", "total des", "chiffre d'affaires",
+        "statut de la", "statut commande", "factures impayées", "factures payées",
+        "quantité disponible", "produit en rupture", "le plus récent",
+        "tickets résolus", "tickets en cours", "tickets de support", "tickets", "ticket", "rechercher client", "coordonnées",
+        "toutes périodes confondues", "ce mois", "cette année", "moyenne", 
+        "stock", "quel produit", "montant moyen"
+    ]
     doc_keywords = ["comment", "procédure", "qui peut", "qui doit", "quel fichier", "quelle classe", "quel est le rôle", "quels sont les modèles", "dans quel fichier", "procédure de validation"]
-    if any(kw in question for kw in doc_keywords):
+    data_terms = ["combien", "montant", "ticket", "vente", "statut", "liste", "résolu", "en cours", "stock", "facture", "commande", "client", "chiffre"]
+
+    # Hybrid check MUST come first to avoid overriding mixed questions that contain both procedure and data keywords
+    is_hybrid = any(kw in question for kw in doc_keywords) and any(term in question for term in data_terms)
+
+    if is_hybrid:
+        logger.info("Node [route]: Query is hybrid → HYBRIDE branch")
+        route_decision = QueryRoute.HYBRIDE.value
+    elif any(kw in question for kw in doc_keywords):
         logger.info("Node [route]: Query matched explicit doc keywords → DOCUMENTAIRE branch")
         route_decision = QueryRoute.DOCUMENTAIRE.value
+    elif any(kw in question for kw in erp_keywords):
+        logger.info("Node [route]: Query matched explicit ERP keywords → DONNEES_ERP branch")
+        route_decision = QueryRoute.DONNEES_ERP.value
+    elif not chunks:
+        logger.info("Node [route]: No chunks → defaulting to documentaire")
+        route_decision = QueryRoute.DOCUMENTAIRE.value
     else:
-        # Strict ERP intent list (e.g. asking for amounts, stats, or specific lookups)
-        erp_keywords = [
-            "combien de", "montant total", "total des", "chiffre d'affaires",
-            "statut de la", "statut commande", "factures impayées", "factures payées",
-            "quantité disponible", "produit en rupture", "le plus récent",
-            "tickets résolus", "tickets en cours", "rechercher client", "coordonnées",
-            "toutes périodes confondues", "ce mois", "cette année", "moyenne", 
-            "stock", "quel produit", "montant moyen"
-        ]
-        doc_keywords = ["comment", "procédure", "qui peut", "qui doit", "quel fichier", "quelle classe", "quel est le rôle", "quels sont les modèles", "dans quel fichier", "procédure de validation"]
-        data_terms = ["combien", "montant", "ticket", "vente", "statut", "liste", "résolu", "en cours", "stock", "facture", "commande", "client", "chiffre"]
-        is_hybrid = any(kw in question.lower() for kw in doc_keywords) and any(term in question.lower() for term in data_terms)
+        # Count how many chunks come from ERP data sources
+        erp_count = 0
+        for chunk in chunks:
+            meta = chunk.get("metadata") or {}
+            chunk_type = meta.get("type", "").lower().strip()
+            if chunk_type in ERP_TYPES:
+                erp_count += 1
 
-        if is_hybrid:
-            logger.info("Node [route]: Query is hybrid → HYBRIDE branch")
-            route_decision = QueryRoute.HYBRIDE.value
-        elif any(kw in question.lower() for kw in erp_keywords):
-            logger.info("Node [route]: Query matched explicit ERP keywords → DONNEES_ERP branch")
+        erp_ratio = erp_count / len(chunks) if len(chunks) > 0 else 0
+        logger.info("Node [route]: ERP ratio = %d/%d (%.0f%%)", erp_count, len(chunks), erp_ratio * 100)
+
+        if erp_ratio >= 0.6 and any(term in question for term in data_terms):
+            logger.info("Node [route]: High ERP ratio + data terms → DONNEES_ERP branch")
             route_decision = QueryRoute.DONNEES_ERP.value
-        elif not chunks:
-            logger.info("Node [route]: No chunks → defaulting to documentaire")
-            route_decision = QueryRoute.DOCUMENTAIRE.value
         else:
-            # Count how many chunks come from ERP data sources
-            erp_count = 0
-            for chunk in chunks:
-                meta = chunk.get("metadata") or {}
-                chunk_type = meta.get("type", "").lower().strip()
-                if chunk_type in ERP_TYPES:
-                    erp_count += 1
-
-            erp_ratio = erp_count / len(chunks) if len(chunks) > 0 else 0
-            logger.info("Node [route]: ERP ratio = %d/%d (%.0f%%)", erp_count, len(chunks), erp_ratio * 100)
-
-            data_terms = ["combien", "montant", "ticket", "vente", "statut", "liste", "résolu", "en cours", "stock", "facture", "commande", "client", "chiffre"]
-            if erp_ratio >= 0.6 and any(term in question for term in data_terms):
-                logger.info("Node [route]: High ERP ratio + data terms → DONNEES_ERP branch")
-                route_decision = QueryRoute.DONNEES_ERP.value
-            else:
-                logger.info("Node [route]: → DOCUMENTAIRE branch")
-                route_decision = QueryRoute.DOCUMENTAIRE.value
+            logger.info("Node [route]: → DOCUMENTAIRE branch")
+            route_decision = QueryRoute.DOCUMENTAIRE.value
 
     timing = state.get("timing", {}).copy()
     timing["routing_time"] = time.time() - start_time
@@ -258,16 +256,16 @@ def orm_agent_loop(state: RAGState) -> dict:
     
     from langchain_core.messages import AIMessage, ToolMessage
     from tools.odoo_tools import (
-        obtenir_total_ventes,
-        obtenir_stock_produit,
-        obtenir_statut_commande,
-        obtenir_total_factures,
-        rechercher_client,
-        obtenir_tickets_recents,
-        lister_produits_en_rupture,
-        obtenir_ca_periode,
-        obtenir_moyenne_ventes,
-        obtenir_details_ventes,
+        get_total_sales,
+        get_product_stock,
+        get_order_status,
+        get_total_invoices,
+        search_partner,
+        get_recent_tickets,
+        list_out_of_stock_products,
+        get_period_revenue,
+        get_average_sales,
+        get_sale_details,
     )
 
     question = state["question"]
@@ -288,20 +286,20 @@ def orm_agent_loop(state: RAGState) -> dict:
     skills = state.get("skills", {})
     
     # Base tools (always available)
-    all_tools = [rechercher_client]
+    all_tools = [search_partner]
     
     # Skill filtering
     if skills.get("ventes", True):
-        all_tools.extend([obtenir_total_ventes, obtenir_statut_commande, obtenir_ca_periode, obtenir_moyenne_ventes, obtenir_details_ventes])
+        all_tools.extend([get_total_sales, get_order_status, get_period_revenue, get_average_sales, get_sale_details])
         
     if skills.get("stocks", True):
-        all_tools.extend([obtenir_stock_produit, lister_produits_en_rupture])
+        all_tools.extend([get_product_stock, list_out_of_stock_products])
         
     if skills.get("comptabilite", True):
-        all_tools.extend([obtenir_total_factures])
+        all_tools.extend([get_total_invoices])
         
     if skills.get("tickets", True):
-        all_tools.extend([obtenir_tickets_recents])
+        all_tools.extend([get_recent_tickets])
 
     # Re-bind tools dynamically to the LLM
     llm = ChatGroq(
@@ -313,13 +311,8 @@ def orm_agent_loop(state: RAGState) -> dict:
 
     system_prompt = (
         "Tu es MIRO Assistant, l'assistant IA interne spécialisé dans les données ERP Odoo. "
-        "Pour répondre, utilise les outils disponibles pour interroger les données en temps réel. "
-        "Lis TRÈS ATTENTIVEMENT les descriptions des outils. Ne confonds pas le chiffre d'affaires (factures payées) et le total des ventes (devis/commandes). "
-        "Pour une question sur le montant des 'ventes' d'un mois, utilise TOUJOURS obtenir_total_ventes et JAMAIS obtenir_ca_periode. "
-        "Fais très attention aux arguments passés aux outils (ex: statut='en cours', statut='toutes'). "
-        "RÈGLE ABSOLUE : Si un outil indique qu'une donnée n'existe pas, ou retourne un résultat vide, "
-        "ACCEPTE CE RÉSULTAT IMMÉDIATEMENT. NE RÉPÈTE JAMAIS la même recherche. "
-        "Donne directement ta réponse finale à l'utilisateur sans justifier."
+        "Utilise les outils disponibles pour interroger la base de données en temps réel et réponds avec les informations exactes retournées. "
+        "Indique toujours la source exacte des données à la fin de ta réponse (ex: [Source: Odoo ERP - Module ...])."
     )
 
     messages = [
@@ -333,6 +326,12 @@ def orm_agent_loop(state: RAGState) -> dict:
 
     for iteration in range(REACT_RECURSION_LIMIT):
         logger.info("Node [orm_agent_loop]: Iteration %d/%d", iteration + 1, REACT_RECURSION_LIMIT)
+
+        # If we already executed tool calls, output joined answer
+        if tool_observations:
+            logger.info("Node [orm_agent_loop]: Tool observations collected, outputting combined answer.")
+            final_answer = "\n".join(tool_observations)
+            break
 
         try:
             ai_msg = llm_with_tools.invoke(messages)
@@ -449,14 +448,9 @@ def hybrid_node(state: RAGState) -> dict:
     doc_result = generate(doc_state)
     doc_answer = doc_result.get("raw_answer", "")
     
-    # Run the ERP branch to get numbers (without documentary context to avoid confusing the 8B model)
     data_state = state.copy()
     data_state["retrieved_chunks"] = []
-    data_state["question"] = (
-        state["question"] + 
-        "\n\n[INSTRUCTION INTERNE] : Ignore la partie de cette question qui parle de procédures ou de documents. "
-        "Ton SEUL rôle est d'utiliser tes outils pour chercher la donnée chiffrée demandée. Appelle l'outil approprié maintenant."
-    )
+    data_state["question"] = state["question"]
     data_result = orm_agent_loop(data_state)
     data_answer = data_result.get("raw_answer", "")
     

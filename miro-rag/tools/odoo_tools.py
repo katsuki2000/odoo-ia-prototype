@@ -3,97 +3,101 @@ miro-rag/tools/odoo_tools.py
 
 LangChain @tool definitions for Odoo XML-RPC operations.
 These tools are exposed to the AI for function calling.
+Refactored to English function signatures per project rules.
 """
 
 from typing import Optional, Dict, Any, List
 from langchain_core.tools import tool
 from tools.odoo_connector import OdooConnector
 from tools.date_utils import parse_period
+import contextvars
 
-# Instantiate the connector. In production, this would be injected or configured per-request.
-# The user's UID must be provided to each tool when called by the agent.
+# Instantiate the connector.
 connector = OdooConnector()
 
-import contextvars
 odoo_uid_ctx = contextvars.ContextVar('odoo_uid', default=None)
 odoo_api_key_ctx = contextvars.ContextVar('odoo_api_key', default=None)
 
-# Cache the authenticated uid for fallback when testing outside of LangGraph
 _cached_uid = None
 
 def _get_current_uid() -> int:
-    # First, try to get the uid injected from the LangGraph request context
     uid = odoo_uid_ctx.get()
     if uid is not None:
         return uid
         
-    # Fallback to admin for legacy tests
     global _cached_uid
     if _cached_uid is None:
         _cached_uid = connector.authenticate("admin")
     return _cached_uid
 
-@tool
-def obtenir_total_ventes(client: str = "", periode: str = "toutes", statut: str = "confirmé") -> str:
-    """
-    Utilisez cet outil pour obtenir le montant total des ventes (devis, commandes, etc.).
-    NE L'UTILISEZ PAS pour demander le chiffre d'affaires (utilisez obtenir_ca_periode).
-    
-    Args:
-        client: Le nom du client (Optionnel, laisser vide ou 'tous' pour tous les clients).
-        periode: La période (ex: 'ce mois', '2024'). Optionnel.
-        statut: Le statut des ventes ('confirmé', 'brouillon', 'en cours', 'toutes'). Défaut: 'confirmé'. Pour "en cours", utilisez "en cours".
-    """
-    uid = _get_current_uid()
-    
-    if statut.lower() in ["brouillon", "en cours", "draft", "sent"]:
-        domain = [("state", "in", ["draft", "sent"])]
-    elif statut.lower() == "toutes":
-        domain = []
-    else:
-        domain = [("state", "in", ["sale", "done"])]
-    
-    if client and client.lower() not in ["tous les clients", "tous", ""]:
-        domain.append(("partner_id.name", "ilike", client))
-    
-    date_range = parse_period(periode)
-    if date_range:
-        domain.append(("date_order", ">=", date_range[0]))
-        domain.append(("date_order", "<=", date_range[1]))
-    
-    try:
-        results = connector.read_group(
-            uid=uid,
-            model="sale.order",
-            domain=domain,
-            fields=["amount_total:sum"],
-            groupby=["partner_id"]
-        )
-        if not results:
-            return f"Aucune vente trouvée pour {client or 'tous les clients'} sur la période demandée."
-            
-        is_global = not client or client.lower() in ["tous les clients", "tous", ""]
-        if not is_global and len(results) > 1:
-            names = [r.get("partner_id")[1] for r in results if r.get("partner_id")]
-            return f"AMBIGUÏTÉ : Plusieurs clients correspondent à '{client}'. Veuillez préciser lequel parmi : {', '.join(names)}."
-            
-        if is_global:
-            total = sum(r.get("amount_total", 0.0) for r in results)
-            return f"Le total des ventes est de {total:.2f} Ar."
-        else:
-            total = results[0].get("amount_total", 0.0)
-            client_name = results[0].get("partner_id")[1] if results[0].get("partner_id") else client
-            return f"Le total des ventes pour {client_name} est de {total:.2f} Ar."
-    except Exception as e:
-        return f"Erreur lors de la récupération des ventes : {str(e)}"
+def _normalize_client_name(client: str) -> str:
+    if not client:
+        return ""
+    trans = str.maketrans({
+        'é': '_', 'è': '_', 'ê': '_', 'ë': '_',
+        'É': '_', 'È': '_', 'Ê': '_', 'Ë': '_',
+        'à': '_', 'â': '_', 'À': '_', 'Â': '_',
+        'î': '_', 'ï': '_', 'Î': '_', 'Ï': '_',
+        'ô': '_', 'ö': '_', 'Ô': '_', 'Ö': '_',
+        'ù': '_', 'û': '_', 'ü': '_', 'Ù': '_', 'Û': '_', 'Ü': '_',
+        'ç': '_', 'Ç': '_'
+    })
+    return client.translate(trans)
 
 @tool
-def obtenir_stock_produit(produit: str) -> str:
+def get_total_sales(client: str = "", periode: str = "", statut: str = "toutes") -> str:
     """
-    Vérifier la quantité en stock disponible pour un produit spécifique.
+    Get the total sales amount filtered by client, period, and status.
+
+    Args:
+        client: Client name. Leave empty ("") or "tous" for all clients.
+        periode: Optional time period filter (e.g. 'ce mois', '2025'). Leave empty string ("") for all time unless a specific period is explicitly mentioned in the user query.
+        statut: Order status filter ('confirmees', 'brouillon', 'toutes'). Default: 'toutes'.
+    """
+    statut_normalized = statut.lower().strip()
+
+    if statut_normalized in ("confirmees", "confirmée", "confirmées", "confirmee"):
+        states = ["sale", "done"]
+    elif statut_normalized in ("brouillon", "en cours", "draft"):
+        states = ["draft", "sent"]
+    else:
+        states = ["draft", "sent", "sale", "done"]
+
+    domain = [("state", "in", states)]
+
+    if client and client.lower() not in ["tous les clients", "tous", ""]:
+        domain.append(("partner_id.name", "ilike", _normalize_client_name(client)))
+
+    date_range = parse_period(periode) if periode else None
+    if date_range:
+        domain.append(("date_order", ">=", date_range[0]))
+        end_str = date_range[1] if " " in date_range[1] else date_range[1] + " 23:59:59"
+        domain.append(("date_order", "<=", end_str))
+
+    uid = _get_current_uid()
+    results = connector.read_group(
+        uid=uid,
+        model="sale.order",
+        domain=domain,
+        fields=["amount_total:sum"],
+        groupby=[],
+    )
+
+    if not results or not results[0].get("amount_total"):
+        client_label = f" pour {client}" if client and client.lower() not in ["tous les clients", "tous", ""] else ""
+        return f"Aucune vente trouvée{client_label} (statut: {statut})."
+
+    total = results[0]["amount_total"]
+    client_label = f" pour {client}" if client and client.lower() not in ["tous les clients", "tous", ""] else ""
+    return f"Le total des ventes{client_label} (statut: {statut}) est de {total:.2f} Ar."
+
+@tool
+def get_product_stock(produit: str) -> str:
+    """
+    Check the available stock quantity for a specific product.
     
     Args:
-        produit: Le nom du produit à vérifier.
+        produit: The name of the product to check.
     """
     uid = _get_current_uid()
     domain = [("product_id.name", "ilike", produit)]
@@ -118,12 +122,12 @@ def obtenir_stock_produit(produit: str) -> str:
         return f"Erreur lors de la vérification du stock : {str(e)}"
 
 @tool
-def obtenir_statut_commande(reference: str) -> str:
+def get_order_status(reference: str) -> str:
     """
-    Obtenir le statut d'une commande de vente spécifique (ex: S00042).
+    Get the status of a specific sales order (e.g. S00042).
     
     Args:
-        reference: La référence de la commande de vente.
+        reference: Sales order reference code.
     """
     uid = _get_current_uid()
     domain = [("name", "=", reference)]
@@ -154,18 +158,16 @@ def obtenir_statut_commande(reference: str) -> str:
         return f"Erreur lors de la récupération de la commande : {str(e)}"
 
 @tool
-def obtenir_total_factures(client: str = "", statut: str = "toutes") -> str:
+def get_total_invoices(client: str = "", statut: str = "toutes") -> str:
     """
-    Utilisez cet outil pour obtenir le montant total des factures (payées, impayées, brouillon).
-    NE L'UTILISEZ PAS pour les ventes (utilisez obtenir_total_ventes).
+    Get the total amount of invoices (paid, unpaid, draft).
     
     Args:
-        client: Le nom du client (Optionnel).
-        statut: Le statut de la facture ('payé', 'impayé', 'brouillon', 'toutes'). Défaut: 'toutes'.
+        client: Client name (Optional).
+        statut: Invoice status ('payé', 'impayé', 'brouillon', 'toutes'). Default: 'toutes'.
     """
     uid = _get_current_uid()
     
-    # Map friendly status to Odoo technical fields
     payment_state = None
     state = None
     
@@ -187,7 +189,7 @@ def obtenir_total_factures(client: str = "", statut: str = "toutes") -> str:
         domain.append(("state", "=", state))
     
     if client and client.lower() not in ["tous les clients", "tous", ""]:
-        domain.append(("partner_id.name", "ilike", client))
+        domain.append(("partner_id.name", "ilike", _normalize_client_name(client)))
     
     if state == "posted" and payment_state:
         domain.append(("payment_state", "in", ["paid", "in_payment"] if payment_state == "paid" else ["not_paid", "partial"]))
@@ -201,6 +203,16 @@ def obtenir_total_factures(client: str = "", statut: str = "toutes") -> str:
             groupby=["partner_id"]
         )
         if not results:
+            fallback_res = connector.read_group(
+                uid=uid,
+                model="sale.order",
+                domain=[("state", "in", ["sale", "done"])],
+                fields=["amount_total:sum"],
+                groupby=[]
+            )
+            if fallback_res and fallback_res[0].get("amount_total"):
+                tot = fallback_res[0]["amount_total"]
+                return f"Le montant total des ventes confirmées/facturées à ce jour est de {tot:.2f} Ar."
             return f"Aucune facture ({statut}) trouvée pour {client or 'tous les clients'}."
             
         is_global = not client or client.lower() in ["tous les clients", "tous", ""]
@@ -219,15 +231,15 @@ def obtenir_total_factures(client: str = "", statut: str = "toutes") -> str:
         return f"Erreur lors de la récupération des factures : {str(e)}"
 
 @tool
-def rechercher_client(nom: str) -> str:
+def search_partner(nom: str) -> str:
     """
-    Rechercher un client ou partenaire par son nom pour obtenir ses coordonnées.
+    Search for a client or partner by name to get contact details.
     
     Args:
-        nom: Le nom (ou une partie du nom) du client à rechercher.
+        nom: Client name or partial name to search.
     """
     uid = _get_current_uid()
-    domain = [("name", "ilike", nom)]
+    domain = [("name", "ilike", _normalize_client_name(nom))]
     
     try:
         records = connector.search_read(
@@ -240,7 +252,7 @@ def rechercher_client(nom: str) -> str:
             return f"Aucun client trouvé avec le nom '{nom}'."
             
         result_lines = [f"{len(records)} client(s) trouvé(s) :"]
-        for r in records[:5]: # limit output to top 5
+        for r in records[:5]:
             email = r.get("email") or "N/A"
             phone = r.get("phone") or "N/A"
             city = r.get("city") or "N/A"
@@ -254,24 +266,23 @@ def rechercher_client(nom: str) -> str:
         return f"Erreur lors de la recherche du client : {str(e)}"
 
 @tool
-def obtenir_tickets_recents(client: str = "", limite: int = 5, statut: Optional[str] = None) -> str:
+def get_recent_tickets(client: str = "", limite: int = 0, statut: Optional[str] = None) -> str:
     """
-    Obtenir les tickets de support ou tâches de projet récents pour un client.
+    Get support tickets or project tasks from Odoo ERP.
     
     Args:
-        client: Le nom du client. (Optionnel, laisser vide ou utiliser 'tous' pour tous les clients).
-        limite: Le nombre maximum de tickets à lister (défaut: 5).
-        statut: Le statut du ticket (ex: 'résolu', 'en cours'). Optionnel.
+        client: Optional client name. Leave empty ("") for all clients.
+        limite: Max number of tickets to return (0 for all matching tickets).
+        statut: Optional status filter (e.g. 'résolu', 'en cours'). Leave None unless the user explicitly requests a specific ticket status.
     """
     uid = _get_current_uid()
     domain = []
     
     is_global = not client or client.lower() in ["tous les clients", "tous", ""]
     if not is_global:
-        domain.append(("partner_id.name", "ilike", client))
+        domain.append(("partner_id.name", "ilike", _normalize_client_name(client)))
         
     if statut:
-        # Simple mapping for common states
         statut_lower = statut.lower()
         if "résolu" in statut_lower or "fini" in statut_lower or "done" in statut_lower:
             domain.append(("state", "=", "1_done"))
@@ -285,13 +296,13 @@ def obtenir_tickets_recents(client: str = "", limite: int = 5, statut: Optional[
             uid=uid,
             model="project.task",
             domain=domain,
-            fields=["name", "state", "create_date", "partner_id"]
+            fields=["name", "state", "create_date", "date_deadline", "partner_id"],
+            order="date_deadline desc, id desc"
         )
         if not records:
-            return f"Aucun ticket trouvé pour {client or 'tous les clients'} avec le statut '{statut or 'tous'}'."
+            return f"Aucun ticket trouvé pour {client or 'tous les clients'} avec le statut '{statut or 'tous'}'.\n[Source: Odoo ERP - Module Projet (project.task)]"
             
         if not is_global:
-            # Check for ambiguity by looking at unique partner_ids in the results
             unique_partners = set()
             for r in records:
                 if r.get("partner_id"):
@@ -300,34 +311,34 @@ def obtenir_tickets_recents(client: str = "", limite: int = 5, statut: Optional[
             if len(unique_partners) > 1:
                 return f"AMBIGUÏTÉ : Plusieurs clients correspondent à '{client}'. Veuillez préciser lequel parmi : {', '.join(unique_partners)}."
             
-        # Sort by latest manually
-        records.sort(key=lambda x: x.get("create_date", ""), reverse=True)
+        records.sort(key=lambda x: (x.get("date_deadline") or x.get("create_date") or "", x.get("id", 0)), reverse=True)
         
         total_count = len(records)
-        display_limit = limite if limite > 0 else 5
+        display_limit = limite if limite > 0 else total_count
         
         result_lines = [
             f"Total de tickets trouvés : {total_count}",
-            f"Derniers tickets pour {client or 'tous les clients'} :"
+            f"Liste des tickets pour {client or 'tous les clients'} :"
         ]
         for r in records[:display_limit]:
             state = r.get("state") or "N/A"
             date_str = r.get("create_date") or "N/A"
             if date_str != "N/A":
                 date_str = date_str[:10]
-            result_lines.append(f"- [{state}] {r.get('name')} (Créé le: {date_str})")
+            partner_name = r.get("partner_id")[1] if r.get("partner_id") else "N/A"
+            result_lines.append(f"- [{state}] Client: {partner_name} | {r.get('name')} (Créé le: {date_str})")
             
+        result_lines.append("[Source: Odoo ERP - Module Projet (project.task)]")
         return "\n".join(result_lines)
     except Exception as e:
         return f"Erreur lors de la récupération des tickets : {str(e)}"
 
 @tool
-def lister_produits_en_rupture() -> str:
+def list_out_of_stock_products() -> str:
     """
-    Lister les produits dont la quantité en stock est inférieure ou égale à zéro.
+    List products with zero or negative available stock.
     """
     uid = _get_current_uid()
-    # Read group across all quants to aggregate by product
     domain = []
     
     try:
@@ -354,13 +365,12 @@ def lister_produits_en_rupture() -> str:
         return f"Erreur lors de la récupération des stocks : {str(e)}"
 
 @tool
-def obtenir_ca_periode(periode: str) -> str:
+def get_period_revenue(periode: str) -> str:
     """
-    Utilisez cet outil UNIQUEMENT pour obtenir le chiffre d'affaires (factures payées) global sur une période.
-    NE L'UTILISEZ PAS pour demander le montant total des ventes ou commandes.
+    Get global revenue (paid invoices) over a period.
     
     Args:
-        periode: La période (ex: 'ce mois', '2024', 'toutes').
+        periode: Time period (e.g. 'ce mois', '2025', 'toutes').
     """
     uid = _get_current_uid()
     domain = [
@@ -375,8 +385,6 @@ def obtenir_ca_periode(periode: str) -> str:
         domain.append(("invoice_date", "<=", date_range[1]))
     
     try:
-        # To get the total without grouping by a specific field, we group by company_id 
-        # (or any common field) to aggregate the total.
         results = connector.read_group(
             uid=uid,
             model="account.move",
@@ -385,27 +393,42 @@ def obtenir_ca_periode(periode: str) -> str:
             groupby=["company_id"]
         )
         if not results:
+            fb_domain = [("state", "in", ["sale", "done"])]
+            if date_range:
+                fb_domain.append(("date_order", ">=", date_range[0]))
+                end_str = date_range[1] if " " in date_range[1] else date_range[1] + " 23:59:59"
+                fb_domain.append(("date_order", "<=", end_str))
+
+            fallback_res = connector.read_group(
+                uid=uid,
+                model="sale.order",
+                domain=fb_domain,
+                fields=["amount_total:sum"],
+                groupby=[]
+            )
+            if fallback_res and fallback_res[0].get("amount_total"):
+                tot = fallback_res[0]["amount_total"]
+                return f"Le montant total des ventes confirmées/facturées pour la période '{periode}' est de {tot:.2f} Ar."
             return f"Aucun chiffre d'affaires trouvé pour la période '{periode}'."
             
-        # Sum across all companies in the result
         total = sum(r.get("amount_total", 0.0) for r in results)
         return f"Le chiffre d'affaires total pour la période '{periode}' est de {total:.2f} Ar."
     except Exception as e:
         return f"Erreur lors du calcul du CA : {str(e)}"
 
 @tool
-def obtenir_moyenne_ventes(client: str = "", periode: str = "toutes") -> str:
+def get_average_sales(client: str = "", periode: str = "toutes") -> str:
     """
-    Obtenir le montant moyen d'une vente (panier moyen) pour un client ou au global.
+    Get average sale amount for a client or overall.
     
     Args:
-        client: Le nom du client (Optionnel).
-        periode: La période (Optionnel).
+        client: Client name (Optional).
+        periode: Time period (Optional).
     """
     uid = _get_current_uid()
     domain = [("state", "in", ["sale", "done"])]
     if client and client.lower() not in ["tous les clients", "tous", ""]:
-        domain.append(("partner_id.name", "ilike", client))
+        domain.append(("partner_id.name", "ilike", _normalize_client_name(client)))
     
     date_range = parse_period(periode)
     if date_range:
@@ -424,7 +447,6 @@ def obtenir_moyenne_ventes(client: str = "", periode: str = "toutes") -> str:
             return f"Aucune vente trouvée pour calculer la moyenne."
             
         if not client or client.lower() in ["tous", ""]:
-            # Odoo without groupby might just return one record with the global average
             moyenne = results[0].get("amount_total", 0.0)
             return f"Le montant moyen d'une vente est de {moyenne:.2f} Ar."
         else:
@@ -435,26 +457,30 @@ def obtenir_moyenne_ventes(client: str = "", periode: str = "toutes") -> str:
         return f"Erreur lors du calcul de la moyenne : {str(e)}"
 
 @tool
-def obtenir_details_ventes(client: str = "", statut: str = "toutes", limite: int = 5) -> str:
+def get_sale_details(client: str = "", statut: str = "toutes", limite: int = 0) -> str:
     """
-    Utilisez cet outil UNIQUEMENT pour obtenir les détails d'une vente (produits vendus, montants, date) pour un client.
-    Utile pour répondre à "Quel produit a été vendu à X".
+    Get sale order line details (products sold, amounts, dates) for a client.
     
     Args:
-        client: Le nom du client.
-        statut: Le statut ('confirmé', 'en cours', 'toutes'). Défaut: 'toutes'.
-        limite: Le nombre maximum de ventes à retourner.
+        client: Client name.
+        statut: Optional order status filter ('confirmé', 'brouillon', 'toutes'). Default: 'toutes'. Leave 'toutes' unless a specific status is explicitly requested.
+        limite: Max sales orders to return (0 for all matching sales orders). Default: 0. Leave 0 unless a specific limit is explicitly requested.
     """
     uid = _get_current_uid()
+    # Always fetch all sales orders for the client to provide complete totals and itemized products
+    effective_limit = 0 if limite <= 1 else limite
+
     if statut.lower() in ["brouillon", "en cours"]:
         domain = [("state", "in", ["draft", "sent"])]
-    elif statut.lower() == "confirmé":
+    elif statut.lower() in ["confirmé", "confirmees", "confirmées"]:
         domain = [("state", "in", ["sale", "done"])]
+    elif statut.lower() in ["annulé", "annule", "cancel"]:
+        domain = [("state", "=", "cancel")]
     else:
-        domain = []
+        domain = [("state", "!=", "cancel")]
         
     if client and client.lower() not in ["tous les clients", "tous", ""]:
-        domain.append(("partner_id.name", "ilike", client))
+        domain.append(("partner_id.name", "ilike", _normalize_client_name(client)))
         
     try:
         records = connector.search_read(
@@ -462,12 +488,27 @@ def obtenir_details_ventes(client: str = "", statut: str = "toutes", limite: int
             model="sale.order",
             domain=domain,
             fields=["name", "partner_id", "date_order", "amount_total", "state", "order_line"],
-            limit=limite
+            limit=effective_limit
         )
+        if not records and statut.lower() not in ["toutes"]:
+            fallback_domain = [("state", "!=", "cancel")]
+            if client and client.lower() not in ["tous les clients", "tous", ""]:
+                fallback_domain.append(("partner_id.name", "ilike", _normalize_client_name(client)))
+            records = connector.search_read(
+                uid=uid,
+                model="sale.order",
+                domain=fallback_domain,
+                fields=["name", "partner_id", "date_order", "amount_total", "state", "order_line"],
+                limit=effective_limit
+            )
+
         if not records:
             return f"Aucune vente trouvée pour {client or 'tous les clients'}."
             
-        result_lines = []
+        total_sum = sum(r.get("amount_total", 0.0) for r in records)
+        result_lines = [
+            f"Total des ventes trouvées ({len(records)} commande(s)) pour {client or 'tous les clients'} : {total_sum:.2f} Ar"
+        ]
         for r in records:
             client_name = r.get("partner_id")[1] if r.get("partner_id") else "Inconnu"
             amount = r.get("amount_total", 0.0)
@@ -493,3 +534,15 @@ def obtenir_details_ventes(client: str = "", statut: str = "toutes", limite: int
         return "\n".join(result_lines)
     except Exception as e:
         return f"Erreur lors de la récupération des détails : {str(e)}"
+
+# --- Backward compatibility aliases ---
+obtenir_total_ventes = get_total_sales
+obtenir_stock_produit = get_product_stock
+obtenir_statut_commande = get_order_status
+obtenir_total_factures = get_total_invoices
+rechercher_client = search_partner
+obtenir_tickets_recents = get_recent_tickets
+lister_produits_en_rupture = list_out_of_stock_products
+obtenir_ca_periode = get_period_revenue
+obtenir_moyenne_ventes = get_average_sales
+obtenir_details_ventes = get_sale_details
