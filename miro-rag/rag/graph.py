@@ -327,10 +327,12 @@ def orm_agent_loop(state: RAGState) -> dict:
     for iteration in range(REACT_RECURSION_LIMIT):
         logger.info("Node [orm_agent_loop]: Iteration %d/%d", iteration + 1, REACT_RECURSION_LIMIT)
 
-        # If we already executed tool calls, output joined answer
+        # If we already executed tool calls, output clean combined answer
         if tool_observations:
             logger.info("Node [orm_agent_loop]: Tool observations collected, outputting combined answer.")
-            final_answer = "\n".join(tool_observations)
+            valid_obs = [obs for obs in tool_observations if "n'existe pas" not in obs and "pas été trouvé" not in obs and "Aucune vente trouvée" not in obs]
+            selected_obs = valid_obs if valid_obs else tool_observations
+            final_answer = "\n".join(selected_obs)
             break
 
         try:
@@ -527,6 +529,10 @@ def format_output(state: RAGState) -> dict:
                     snippet=snippet
                 ))
             response.sources = sources
+            
+        if response.sources and "[Source:" not in response.answer:
+            main_src = response.sources[0].title or response.sources[0].source
+            response.answer += f"\n\n[Source: Documentation Odoo - {main_src}]"
 
     return {"response": response}
 

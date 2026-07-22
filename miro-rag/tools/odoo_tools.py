@@ -89,7 +89,7 @@ def get_total_sales(client: str = "", periode: str = "", statut: str = "toutes")
 
     total = results[0]["amount_total"]
     client_label = f" pour {client}" if client and client.lower() not in ["tous les clients", "tous", ""] else ""
-    return f"Le total des ventes{client_label} (statut: {statut}) est de {total:.2f} Ar."
+    return f"Le total des ventes{client_label} (statut: {statut}) est de {total:.2f} Ar.\n[Source: Odoo ERP - Module Ventes (sale.order)]"
 
 @tool
 def get_product_stock(produit: str) -> str:
@@ -117,7 +117,7 @@ def get_product_stock(produit: str) -> str:
         reserved = results[0].get("reserved_quantity", 0.0)
         available = qty - reserved
         
-        return f"Il y a {available} unités de '{produit}' disponibles en stock (Total: {qty}, Réservé: {reserved})."
+        return f"Il y a {available} unités de '{produit}' disponibles en stock (Total: {qty}, Réservé: {reserved}).\n[Source: Odoo ERP - Module Stock (stock.quant)]"
     except Exception as e:
         return f"Erreur lors de la vérification du stock : {str(e)}"
 
@@ -222,11 +222,11 @@ def get_total_invoices(client: str = "", statut: str = "toutes") -> str:
             
         if is_global:
             total = sum(r.get("amount_total", 0.0) for r in results)
-            return f"Le total des factures ({statut}) est de {total:.2f} Ar."
+            return f"Le total des factures ({statut}) est de {total:.2f} Ar.\n[Source: Odoo ERP - Module Comptabilité (account.move)]"
         else:
             total = results[0].get("amount_total", 0.0)
             client_name = results[0].get("partner_id")[1] if results[0].get("partner_id") else client
-            return f"Le total des factures ({statut}) pour {client_name} s'élève à {total:.2f} Ar."
+            return f"Le total des factures ({statut}) pour {client_name} s'élève à {total:.2f} Ar.\n[Source: Odoo ERP - Module Comptabilité (account.move)]"
     except Exception as e:
         return f"Erreur lors de la récupération des factures : {str(e)}"
 
@@ -261,6 +261,7 @@ def search_partner(nom: str) -> str:
         if len(records) > 5:
             result_lines.append("... (résultats tronqués, précisez la recherche)")
             
+        result_lines.append("[Source: Odoo ERP - Contacts (res.partner)]")
         return "\n".join(result_lines)
     except Exception as e:
         return f"Erreur lors de la recherche du client : {str(e)}"
@@ -408,11 +409,11 @@ def get_period_revenue(periode: str) -> str:
             )
             if fallback_res and fallback_res[0].get("amount_total"):
                 tot = fallback_res[0]["amount_total"]
-                return f"Le montant total des ventes confirmées/facturées pour la période '{periode}' est de {tot:.2f} Ar."
+                return f"Le montant total des ventes confirmées/facturées pour la période '{periode}' est de {tot:.2f} Ar.\n[Source: Odoo ERP - Module Comptabilité (account.move)]"
             return f"Aucun chiffre d'affaires trouvé pour la période '{periode}'."
             
         total = sum(r.get("amount_total", 0.0) for r in results)
-        return f"Le chiffre d'affaires total pour la période '{periode}' est de {total:.2f} Ar."
+        return f"Le chiffre d'affaires total pour la période '{periode}' est de {total:.2f} Ar.\n[Source: Odoo ERP - Module Comptabilité (account.move)]"
     except Exception as e:
         return f"Erreur lors du calcul du CA : {str(e)}"
 
@@ -448,11 +449,11 @@ def get_average_sales(client: str = "", periode: str = "toutes") -> str:
             
         if not client or client.lower() in ["tous", ""]:
             moyenne = results[0].get("amount_total", 0.0)
-            return f"Le montant moyen d'une vente est de {moyenne:.2f} Ar."
+            return f"Le montant moyen d'une vente est de {moyenne:.2f} Ar.\n[Source: Odoo ERP - Module Ventes (sale.order)]"
         else:
             moyenne = results[0].get("amount_total", 0.0)
             client_name = results[0].get("partner_id")[1] if results[0].get("partner_id") else client
-            return f"Le montant moyen d'une vente pour {client_name} est de {moyenne:.2f} Ar."
+            return f"Le montant moyen d'une vente pour {client_name} est de {moyenne:.2f} Ar.\n[Source: Odoo ERP - Module Ventes (sale.order)]"
     except Exception as e:
         return f"Erreur lors du calcul de la moyenne : {str(e)}"
 
@@ -506,13 +507,23 @@ def get_sale_details(client: str = "", statut: str = "toutes", limite: int = 0) 
             return f"Aucune vente trouvée pour {client or 'tous les clients'}."
             
         total_sum = sum(r.get("amount_total", 0.0) for r in records)
+        state_labels = {
+            "draft": "Devis en cours",
+            "sent": "Devis envoyé",
+            "sale": "Vente confirmée",
+            "done": "Vente confirmée",
+            "cancel": "Commande annulée"
+        }
+        total_fmt = f"{total_sum:,.2f}".replace(",", " ")
         result_lines = [
-            f"Total des ventes trouvées ({len(records)} commande(s)) pour {client or 'tous les clients'} : {total_sum:.2f} Ar"
+            f"Détails des commandes / devis pour {client or 'tous les clients'} (Total: {total_fmt} Ar, {len(records)} commande(s)) :"
         ]
         for r in records:
             client_name = r.get("partner_id")[1] if r.get("partner_id") else "Inconnu"
             amount = r.get("amount_total", 0.0)
-            state = r.get("state", "inconnu")
+            amount_fmt = f"{amount:,.2f}".replace(",", " ")
+            state_raw = r.get("state", "inconnu")
+            state_fr = state_labels.get(state_raw, state_raw)
             name = r.get("name", "inconnu")
             
             line_ids = r.get("order_line", [])
@@ -529,8 +540,9 @@ def get_sale_details(client: str = "", statut: str = "toutes", limite: int = 0) 
                         produits.append(line.get("product_id")[1])
             
             prod_str = ", ".join(produits) if produits else "Aucun produit"
-            result_lines.append(f"- Commande {name} ({state}) pour {client_name} : {amount} Ar. Produits : {prod_str}")
+            result_lines.append(f"- Commande {name} ({state_fr}) pour {client_name} : {amount_fmt} Ar. Produits : {prod_str}")
             
+        result_lines.append("[Source: Odoo ERP - Module Ventes (sale.order)]")
         return "\n".join(result_lines)
     except Exception as e:
         return f"Erreur lors de la récupération des détails : {str(e)}"
