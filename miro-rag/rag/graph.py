@@ -82,7 +82,7 @@ def retrieve(state: RAGState) -> dict:
             top_k=10, 
             chroma_manager=chroma_manager,
             bm25_index=bm25_index,
-            use_reranker=False
+            use_reranker=True
         )
     except Exception as e:
         logger.error("Error during retrieval: %s", e)
@@ -117,11 +117,13 @@ def route(state: RAGState) -> dict:
         "toutes périodes confondues", "ce mois", "cette année", "moyenne", 
         "stock", "quel produit", "montant moyen"
     ]
-    doc_keywords = ["comment", "procédure", "qui peut", "qui doit", "quel fichier", "quelle classe", "quel est le rôle", "quels sont les modèles", "dans quel fichier", "procédure de validation"]
+    # Quantitative data terms that indicate a real ERP data need (not just mentioning an ERP concept)
+    quantitative_terms = ["combien", "montant", "total", "résolu", "en cours", "moyenne", "chiffre", "quel est le stock"]
+    doc_keywords = ["comment", "procédure", "qui peut", "qui doit", "quel fichier", "quelle classe", "quel est le rôle", "quels sont les modèles", "dans quel fichier", "procédure de validation", "politique interne", "selon le wiki"]
     data_terms = ["combien", "montant", "ticket", "vente", "statut", "liste", "résolu", "en cours", "stock", "facture", "commande", "client", "chiffre"]
 
-    # Hybrid check MUST come first to avoid overriding mixed questions that contain both procedure and data keywords
-    is_hybrid = any(kw in question for kw in doc_keywords) and any(term in question for term in data_terms)
+    # Hybrid check: doc keyword + quantitative ERP term (not just generic nouns like 'facture')
+    is_hybrid = any(kw in question for kw in doc_keywords) and any(term in question for term in quantitative_terms)
 
     if is_hybrid:
         logger.info("Node [route]: Query is hybrid → HYBRIDE branch")
