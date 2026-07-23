@@ -52,12 +52,14 @@ class OdooGraphBuilder:
         """Add Module nodes and module dependency edges."""
         for mod_name, mod in self.modules_dict.items():
             node_id = f"module:{mod_name}"
+            depends = mod.manifest.depends if (mod and mod.manifest) else []
+            filepath = mod.manifest.filepath if (mod and mod.manifest) else ""
             self.G.add_node(
                 node_id,
                 node_type="Module",
                 name=mod_name,
-                depends=mod.manifest.depends,
-                filepath=mod.manifest.filepath,
+                depends=depends,
+                filepath=filepath,
             )
 
     def _add_model_field_method_nodes(self):

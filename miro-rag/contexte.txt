@@ -59,6 +59,11 @@
 - Story A1.4: Implemented JS & OWL client-side security check extractor in `code_intelligence/js_extractor.py` (`OdooClientGroupCheck`). Extracted `hasGroup` and `t-if="user.hasGroup(...)"` patterns tagged with `client_side_only=True`. Completed full A1 end-to-end integration test (`test_a1_4_1.py`) validating Python, XML, CSV, JS, and manifest extractors across full Odoo modules.
 - Story A2.1: Implemented Two-Pass Cross-File Reference Resolver in `code_intelligence/cross_file_resolver.py` (`build_module_symbol_registry`). Pass 1 indexes symbols according to topological sorting of manifest `depends` load ordering (`topological_sort_modules`). Pass 2 resolves cross-file model inheritances, security rules, and group hierarchies. Implemented categorized unresolved reference tracking (`UnresolvedCategory`: `absent_from_corpus`, `core_odoo_out_of_scope`, `probable_typo`) and inheritance cycle detection with `visited: set()` recursion tracking (`test_a2_1_1.py`).
 - Story A3.1: Implemented NetworkX Knowledge Graph Builder and Workflow Sub-Graph in `code_intelligence/graph_builder.py` (`OdooGraphBuilder`). Constructed typed nodes (`Model`, `Field`, `Method`, `Group`, `Rule`, `Module`, `AccessEntry`, `WorkflowState`) and typed edges (`EXTENDS`, `DELEGATES_TO`, `HAS_FIELD`, `RELATES_TO`, `COMPUTED_BY`, `DEPENDS_ON`, `RESTRICTED_BY`, `APPLIES_TO_GROUP`, `IMPLIES`, `GRANTED_BY`, `DEFINED_IN`, `TRANSITIONS_VIA`). Implemented JSON serialization via `networkx.node_link_data` / `node_link_graph` per DT-4. Achieved **0.89ms traversal speed** on 5-hop benchmarks (`benchmark_graph_traversal`), well below the 50ms budget target (`test_a3_1_1.py`).
+- Epic B (Deterministic Tools): Implemented 3 specialized query algorithms in `code_intelligence/deterministic_tools.py`:
+  1. `qui_a_acces_a(G, model, droit, group_id)`: Combines ACLs, record rules, group inheritance, and JS checks (`test_b1_1.py`).
+  2. `impact_changement_champ(G, field, model)`: Computes upstream dependencies (`DEPENDS_ON`) and downstream impact (`COMPUTED_BY`, `RELATES_TO`) (`test_b1_2.py`).
+  3. `chemin_execution_bouton(G, button, model)`: Traces step-by-step UI button -> Python method -> Workflow state transition -> Security requirements (`test_b1_3.py`).
+
 
 
 
