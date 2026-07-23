@@ -50,6 +50,16 @@
 - Task A1.1.5: Implemented method execution context extraction (`@api.model`, `@api.model_create_multi` vs instance method) in `code_intelligence/python_extractor.py`. Validated via unit tests in `code_intelligence/tests/test_a1_1_5.py`.
 - Task A1.1.6: Implemented Odoo module manifest parser in `code_intelligence/manifest_parser.py` (`OdooManifest`), extracting `depends`, `data`, `demo`, `assets`, and detecting XML/CSV files present in module directory but unlisted in `data`. Validated via unit tests in `code_intelligence/tests/test_a1_1_6.py`.
 - Task A1.1.7: Completed integration test suite for Story A1.1 in `code_intelligence/tests/test_a1_1_7.py`. Evaluated Python extractors on full `sale` and `account` modules from the real Odoo 17 corpus. Achieved **100% file parsing coverage** (target >= 90%). Extracted dozens of model declarations across `BASE`, `EXTENSION`, `CLASSIC_INHERITANCE`, and `DELEGATION` types along with fields and method decorators.
+- Task A1.2.1: Implemented XML parser for `<record model="ir.rule">` in `code_intelligence/xml_extractor.py` (`OdooRuleRecord`). Extracted `domain_force` as raw text (per DT-3), `model_id`, `groups_id` (from ref and eval), and distinct `perm_read`, `perm_write`, `perm_create`, `perm_unlink` boolean flags. Validated via unit tests in `code_intelligence/tests/test_a1_2_1.py`.
+- Task A1.2.2: Implemented XML parsers for `<record model="res.groups">` (`OdooGroupRecord`) and `<record model="ir.actions.act_window">` (`OdooActionRecord`) in `code_intelligence/xml_extractor.py`. Extracted transitive `implied_ids` hierarchy, `category_id`, and action-level `groups_id` restrictions. Validated via unit tests in `code_intelligence/tests/test_a1_2_2.py`.
+- Task A1.2.3: Implemented XML parsers for `<record model="ir.model.fields">` (`OdooXmlFieldRecord`) and `<menuitem>` / `<record model="ir.ui.menu">` (`OdooMenuItemRecord`) in `code_intelligence/xml_extractor.py`. Extracted menu hierarchies, sequence numbers, actions, and menu visibility groups. Validated via unit tests in `code_intelligence/tests/test_a1_2_3.py`.
+- Task A1.2.4: Implemented XML form view parser (`parse_views_from_xml`, `OdooViewRecord`, `OdooFormButton`) in `code_intelligence/xml_extractor.py`. Extracted transition buttons from view `arch`, button labels (`string`), target method names (`name`), method types (`type`), states restrictions (`states`), and required security groups (`groups`). Validated via unit tests in `code_intelligence/tests/test_a1_2_4.py`.
+- Task A1.2.5: Completed integration test suite for Story A1.2 in `code_intelligence/tests/test_a1_2_5.py`. Evaluated XML extractors across full `miro_ai` and `sale` modules. Achieved **100% XML file parsing coverage** (target >= 90%), extracting security rules (`ir.rule`), group hierarchies (`res.groups`), window actions, menu items, views, and form transition buttons.
+
+
+
+
+
 
 
 
