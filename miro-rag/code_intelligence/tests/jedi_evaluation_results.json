@@ -1,0 +1,89 @@
+{
+  "jedi_version": "0.20.0",
+  "corpus_root": "/home/user/odoo-ia-prototype/miro-rag/fake_data/code",
+  "total_tests": 16,
+  "passed": 8,
+  "failed": 8,
+  "results": [
+    {
+      "test": "Standard imports detected",
+      "success": true,
+      "details": "Found 23 top-level names"
+    },
+    {
+      "test": "Resolve 'timedelta' import",
+      "success": true,
+      "details": "Got 1 definition(s): ['datetime.timedelta']"
+    },
+    {
+      "test": "Find class definitions",
+      "success": true,
+      "details": "Classes found: ['defaultdict', 'timedelta', 'groupby', 'SaleOrder']"
+    },
+    {
+      "test": "Find method definitions",
+      "success": true,
+      "details": "Found 123 methods (showing first 10): ['_rec_names_search', 'init', '_compute_display_name', '_compute_require_signature', '_compute_require_payment', '_compute_prepayment_percent', '_compute_validity_date', '_compute_journal_id', '_compute_note', '_get_note_url']"
+    },
+    {
+      "test": "Resolve _inherit = 'res.partner'",
+      "success": false,
+      "details": "No results — jedi doesn't understand _inherit"
+    },
+    {
+      "test": "Resolve _inherit = ['portal.mixin', ...] (list form)",
+      "success": false,
+      "details": "No results — jedi treats this as a plain string/list, not a model ref"
+    },
+    {
+      "test": "Resolve self.env['sale.order']",
+      "success": false,
+      "details": "No results — self.env[] is Odoo metaclass magic, opaque to jedi"
+    },
+    {
+      "test": "Complete self.env['sale.order'].<methods>",
+      "success": false,
+      "details": "Got 0 completions, _read_group found: False"
+    },
+    {
+      "test": "Resolve fields.Many2one(comodel_name='res.company')",
+      "success": false,
+      "details": "No results — comodel_name is a string arg, not a Python reference"
+    },
+    {
+      "test": "Resolve fields.One2many(comodel_name='sale.order.line')",
+      "success": false,
+      "details": "No results — same issue, string-based model reference"
+    },
+    {
+      "test": "Resolve @api.depends field reference (line 303)",
+      "success": false,
+      "details": "No results — field names in @api.depends are strings, not Python symbols"
+    },
+    {
+      "test": "Resolve super()._can_edit_name() in _inherit class",
+      "success": true,
+      "details": "Got 1 result(s): [('miro-rag.fake_data.code.sale.res_partner.ResPartner', 'instance', '/home/user/odoo-ia-prototype/miro-rag/fake_data/code/sale/res_partner.py')]"
+    },
+    {
+      "test": "Resolve SALE_ORDER_STATE constant in fields.Selection()",
+      "success": true,
+      "details": "Got 1 result(s): [('miro-rag.fake_data.code.sale.sale_order.SALE_ORDER_STATE', 22, 'statement')]"
+    },
+    {
+      "test": "Find all references to 'SaleOrder' class",
+      "success": true,
+      "details": "Got 3 reference(s) (showing first 5): [('miro-rag.fake_data.code.sale.sale_order.SaleOrder', 30), ('miro-rag.fake_data.code.sale.sale_order.SaleOrder.onchange.SaleOrder', 739), ('miro-rag.fake_data.code.sale.sale_order.SaleOrder.message_post.SaleOrder', 1503)]"
+    },
+    {
+      "test": "jedi.Project cross-file setup",
+      "success": true,
+      "details": "Project created at /home/user/odoo-ia-prototype/miro-rag/fake_data/code. Script has 47 names."
+    },
+    {
+      "test": "Cross-file: complete after self.env",
+      "success": false,
+      "details": "No completions — self.env is Odoo registry magic, invisible to jedi even with Project"
+    }
+  ]
+}
