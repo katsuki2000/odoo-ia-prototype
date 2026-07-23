@@ -1,0 +1,179 @@
+[
+  {
+    "id": "DOC-01",
+    "question": "Comment créer une facture client dans Odoo 17 ?",
+    "answer_snippet": "Pour créer une facture client dans Odoo 17, suivez ces étapes : Aller dans Comptabilité > Clients > Factures > Nouveau. Sélectionner le client, ajouter les lignes de produits, puis cliquer sur Confirm",
+    "passed": true,
+    "matched_keywords": [
+      "comptabilité",
+      "clients",
+      "factures",
+      "nouveau",
+      "confirmer"
+    ],
+    "missing_keywords": [],
+    "source_expected": [
+      "manuel_facturation.pdf"
+    ],
+    "source_found": true,
+    "confidence": 0.95
+  },
+  {
+    "id": "DOC-02",
+    "question": "Comment envoyer une facture par email depuis Odoo ?",
+    "answer_snippet": "Pour envoyer une facture par email depuis Odoo, suivez ces étapes : Aller dans la facture confirmée, cliquer sur Envoyer et Imprimer. Odoo générera automatiquement un email avec le PDF de la facture e",
+    "passed": true,
+    "matched_keywords": [
+      "envoyer et imprimer",
+      "email",
+      "pdf",
+      "modèle d'email"
+    ],
+    "missing_keywords": [],
+    "source_expected": [
+      "manuel_facturation.pdf"
+    ],
+    "source_found": true,
+    "confidence": 0.95
+  },
+  {
+    "id": "DOC-03",
+    "question": "Comment créer un avoir (note de crédit) dans Odoo ?",
+    "answer_snippet": "Pour créer un avoir (note de crédit) dans Odoo, suivez les étapes suivantes : Depuis la facture confirmée, cliquez sur Avoir. Choisissez la date et le journal, puis confirmez. L'avoir doit être approu",
+    "passed": true,
+    "matched_keywords": [
+      "avoir",
+      "facture",
+      "directeur général",
+      "miro ke"
+    ],
+    "missing_keywords": [],
+    "source_expected": [
+      "manuel_facturation.pdf"
+    ],
+    "source_found": true,
+    "confidence": 0.95
+  },
+  {
+    "id": "DOC-04",
+    "question": "Comment configurer les relances automatiques dans Odoo ?",
+    "answer_snippet": "Pour configurer les relances automatiques dans Odoo, suivez ces étapes : \n\n1. Allez dans Comptabilité > Configuration > Niveaux de relance.\n2. Sélectionnez le niveau de relance souhaité (rappel doux, ",
+    "passed": true,
+    "matched_keywords": [
+      "relances",
+      "niveaux de relance",
+      "rappel doux",
+      "rappel ferme",
+      "mise en demeure"
+    ],
+    "missing_keywords": [],
+    "source_expected": [
+      "manuel_facturation.pdf"
+    ],
+    "source_found": true,
+    "confidence": 0.95
+  },
+  {
+    "id": "DOC-05",
+    "question": "Qui peut approuver une mise à disposition selon le wiki interne ?",
+    "answer_snippet": "Selon le wiki interne, une demande de mise à disposition doit être approuvée par le Directeur Technique si le montant est inférieur à 500 000 Ar, et par le Directeur Général si le montant est égal ou ",
+    "passed": true,
+    "matched_keywords": [
+      "directeur technique",
+      "directeur général",
+      "500 000 ar"
+    ],
+    "missing_keywords": [],
+    "source_expected": [
+      "wiki_approbation.txt"
+    ],
+    "source_found": true,
+    "confidence": 0.95
+  },
+  {
+    "id": "DOC-06",
+    "question": "Quelle est la procédure de validation d'une facture selon le wiki ?",
+    "answer_snippet": "Une facture est validée comme suit : Créée par le comptable, vérifiée par le Responsable Administratif, envoyée au client uniquement après double validation. Tout avoir doit être approuvé par le Direc",
+    "passed": true,
+    "matched_keywords": [
+      "comptable",
+      "responsable administratif",
+      "double validation"
+    ],
+    "missing_keywords": [],
+    "source_expected": [
+      "wiki_approbation.txt"
+    ],
+    "source_found": true,
+    "confidence": 0.95
+  },
+  {
+    "id": "DOC-07",
+    "question": "Quels sont les modules Odoo considérés comme sensibles et qui y a accès ?",
+    "answer_snippet": "Les modules Odoo considérés comme sensibles sont la Comptabilité et RH. Le module Comptabilité est accessible aux Directeurs et aux Comptables, tandis que le module RH est accessible aux DRH et aux Di",
+    "passed": true,
+    "matched_keywords": [
+      "comptabilité",
+      "rh",
+      "directeur",
+      "comptable",
+      "drh"
+    ],
+    "missing_keywords": [],
+    "source_expected": [
+      "wiki_approbation.txt"
+    ],
+    "source_found": true,
+    "confidence": 0.95
+  },
+  {
+    "id": "DOC-08",
+    "question": "Quel est le délai de traitement pour une demande de mise à disposition ?",
+    "answer_snippet": "48 heures ouvrables\n\n[Source: Documentation Odoo - WIKI INTERNE MIRO KE — Procédure d'approbation des demandes]",
+    "passed": true,
+    "matched_keywords": [
+      "48h",
+      "48 heures",
+      "ouvrables"
+    ],
+    "missing_keywords": [],
+    "source_expected": [
+      "wiki_approbation.txt"
+    ],
+    "source_found": true,
+    "confidence": 1.0
+  },
+  {
+    "id": "DOC-09",
+    "question": "Qui doit approuver un avoir dans la politique interne de MIRO KE ?",
+    "answer_snippet": "L'avoir doit être approuvé par le Directeur Général selon la politique interne de MIRO KE.\n\n⚠️ *Cette information provient d'un document numérisé dont la qualité de lecture est limitée.*\n\n[Source: Doc",
+    "passed": true,
+    "matched_keywords": [
+      "directeur général"
+    ],
+    "missing_keywords": [],
+    "source_expected": [
+      "manuel_facturation.pdf",
+      "wiki_approbation.txt"
+    ],
+    "source_found": true,
+    "confidence": 0.95
+  },
+  {
+    "id": "DOC-10",
+    "question": "Quels sont les trois niveaux de relance disponibles dans Odoo ?",
+    "answer_snippet": "Les trois niveaux de relance disponibles dans Odoo sont : rappel doux, rappel ferme et mise en demeure.\n\n[Source: Documentation Odoo - /home/user/odoo-ia-prototype/miro-rag/fake_data/documents/manuel_",
+    "passed": true,
+    "matched_keywords": [
+      "rappel doux",
+      "rappel ferme",
+      "mise en demeure"
+    ],
+    "missing_keywords": [],
+    "source_expected": [
+      "manuel_facturation.pdf"
+    ],
+    "source_found": true,
+    "confidence": 1.0
+  }
+]
