@@ -55,6 +55,10 @@
 - Task A1.2.3: Implemented XML parsers for `<record model="ir.model.fields">` (`OdooXmlFieldRecord`) and `<menuitem>` / `<record model="ir.ui.menu">` (`OdooMenuItemRecord`) in `code_intelligence/xml_extractor.py`. Extracted menu hierarchies, sequence numbers, actions, and menu visibility groups. Validated via unit tests in `code_intelligence/tests/test_a1_2_3.py`.
 - Task A1.2.4: Implemented XML form view parser (`parse_views_from_xml`, `OdooViewRecord`, `OdooFormButton`) in `code_intelligence/xml_extractor.py`. Extracted transition buttons from view `arch`, button labels (`string`), target method names (`name`), method types (`type`), states restrictions (`states`), and required security groups (`groups`). Validated via unit tests in `code_intelligence/tests/test_a1_2_4.py`.
 - Task A1.2.5: Completed integration test suite for Story A1.2 in `code_intelligence/tests/test_a1_2_5.py`. Evaluated XML extractors across full `miro_ai` and `sale` modules. Achieved **100% XML file parsing coverage** (target >= 90%), extracting security rules (`ir.rule`), group hierarchies (`res.groups`), window actions, menu items, views, and form transition buttons.
+- Story A1.3: Implemented CSV ACL parser in `code_intelligence/csv_extractor.py` (`OdooAccessEntry`). Handled header variations (`:id` vs `/id`) and explicit `group_id` empty handling where empty `group_id` applies to all authenticated users (`all_authenticated=True`). Validated via unit tests in `code_intelligence/tests/test_a1_3_1.py`.
+- Story A1.4: Implemented JS & OWL client-side security check extractor in `code_intelligence/js_extractor.py` (`OdooClientGroupCheck`). Extracted `hasGroup` and `t-if="user.hasGroup(...)"` patterns tagged with `client_side_only=True`. Completed full A1 end-to-end integration test (`test_a1_4_1.py`) validating Python, XML, CSV, JS, and manifest extractors across full Odoo modules.
+
+
 
 
 
