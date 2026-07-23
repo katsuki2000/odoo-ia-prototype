@@ -516,6 +516,27 @@ def hybrid_node(state: RAGState) -> dict:
 
 # ── Code Intelligence Agent ───────────────────────────────────────────────────
 
+# C.1.3: System prompt with explicit scope-first navigation strategy.
+CI_SYSTEM_PROMPT = (
+    "Tu es l'agent Code Intelligence de MIRO, specialise dans l'analyse structurelle du code Odoo. "
+    "Tu disposes de 9 outils deterministes qui interrogent un graphe de connaissances "
+    "construit a partir du code source Odoo.\n\n"
+    "STRATEGIE DE NAVIGATION OBLIGATOIRE:\n"
+    "1. TOUJOURS commencer par `lister_modules_impliques` pour identifier les modules concernes.\n"
+    "2. Utiliser ensuite les outils composites (`qui_a_acces_a`, `impact_changement_champ`, etc.) "
+    "sur le modele identifie.\n"
+    "3. Comparer le statique AVANT d'invoquer le live (si applicable).\n"
+    "4. Utiliser `resoudre_nom_technique` pour traduire les XML-ID techniques en roles metier lisibles.\n\n"
+    "REGLES:\n"
+    "- Maximum 2 iterations d'outils par question.\n"
+    "- Ne JAMAIS inventer de donnees. Si un outil retourne 'not found', signale-le.\n"
+    "- Reponds toujours en francais.\n"
+    "- Cite la source: [Source: Graphe de Connaissances Code Intelligence].\n"
+)
+
+# C.1.4: Maximum hops allowed per question.
+CI_MAX_HOPS = 4
+
 _CACHED_CODE_INTEL_GRAPH = None
 
 
@@ -582,129 +603,205 @@ def get_code_intelligence_graph():
     return _CACHED_CODE_INTEL_GRAPH
 
 
-def _extract_model_from_question(q_lower: str, default: str = "sale.order") -> str:
-    models_map = {
-        "sale.order": ["sale.order", "vente", "ventes", "commande", "quotation"],
-        "account.move": ["account.move", "facture", "factures", "comptabilité", "journal"],
-        "res.partner": ["res.partner", "client", "partenaire", "contact"],
-        "product.product": ["product.product", "produit", "article"],
-        "stock.picking": ["stock.picking", "livraison", "réception", "picking", "stock"],
-        "miro.ai.log": ["miro.ai.log", "miro_ai_log", "journal miro"],
-        "miro.ai.settings": ["miro.ai.settings", "paramètres miro"],
-    }
-    for model_name, aliases in models_map.items():
-        if any(alias in q_lower for alias in aliases):
-            return model_name
-    return default
-
-
-def _extract_droit_from_question(q_lower: str, default: str = "read") -> str:
-    if any(term in q_lower for term in ["suppr", "delete", "unlink"]):
-        return "unlink"
-    elif any(term in q_lower for term in ["écrir", "ecrir", "write", "modifi"]):
-        return "write"
-    elif any(term in q_lower for term in ["créer", "creer", "create", "ajout"]):
-        return "create"
-    return "read"
-
-
-def _extract_field_from_question(q_lower: str, default: str = "partner_id") -> str:
-    fields = ["partner_id", "price_unit", "amount_untaxed", "amount_total", "state", "user_id", "date_order", "order_line"]
-    for f in fields:
-        if f in q_lower:
-            return f
-    return default
-
-
-def _extract_button_from_question(q_lower: str, default: str = "action_confirm") -> str:
-    if "cancel" in q_lower or "annul" in q_lower:
-        return "action_cancel"
-    elif "confirm" in q_lower or "confirm" in q_lower:
-        return "action_confirm"
-    return default
-
-
 def code_intelligence_agent(state: RAGState) -> dict:
     """
-    Node [code_intelligence_agent]: Deterministic Knowledge Graph query node.
+    Node [code_intelligence_agent]: ReAct agent loop for Code Intelligence.
+
+    C.1.1: LangGraph ReAct loop with 9 bound tools (5 composite + 4 auxiliary).
+    C.1.2: Anti-loop guard detects duplicate tool+args calls.
+    C.1.3: System prompt enforces scope-first navigation strategy.
+    C.1.4: Hop counter tracks tool calls; partial response on limit.
     """
     import time
+    import json as _json
     start_time = time.time()
+
+    from langchain_core.messages import AIMessage, ToolMessage
+
     question = state.get("question", "").strip()
-    logger.info("Node [code_intelligence_agent]: Executing Code Intelligence query: %s", question)
+    chat_history = state.get("chat_history", [])
+    logger.info("Node [code_intelligence_agent]: Starting ReAct loop for: %s", question)
 
+    if _is_out_of_scope(question):
+        logger.info("Node [code_intelligence_agent]: Out of scope question.")
+        response = AssistantResponse(
+            answer=OUT_OF_SCOPE_ANSWER,
+            sources=[],
+            confidence=0.0,
+        )
+        timing = state.get("timing", {}).copy()
+        timing["code_intelligence_time"] = time.time() - start_time
+        return {"response": response, "raw_answer": response.answer, "timing": timing}
+
+    # Initialize the knowledge graph and inject into tool wrappers
     G = get_code_intelligence_graph()
+    from code_intelligence.ci_agent_tools import ALL_CI_TOOLS, set_graph_ref
+    set_graph_ref(G)
 
-    from code_intelligence.deterministic_tools import (
-        qui_a_acces_a,
-        impact_changement_champ,
-        chemin_execution_bouton,
-        suivre_heritage_complet,
-        quel_est_le_processus_de,
+    # Bind tools to LLM (C.1.1)
+    llm = ChatGroq(
+        model=GROQ_MODEL,
+        api_key=GROQ_API_KEY,
+        temperature=0.0,
     )
+    llm_with_tools = llm.bind_tools(ALL_CI_TOOLS)
 
-    q_lower = question.lower()
+    messages = [
+        SystemMessage(content=CI_SYSTEM_PROMPT),
+        *chat_history[-6:],
+        HumanMessage(content=question),
+    ]
 
-    if any(k in q_lower for k in ["héritage", "heritage", "hérite", "herite", "ancêtres", "ancetres"]):
-        model_name = _extract_model_from_question(q_lower, default="sale.order")
-        res = suivre_heritage_complet(G, model_name)
-        answer_text = f"**Chaîne d'Héritage et de Délégation de `{model_name}`**\n\n{res.summary_text}"
+    tool_observations = []
+    final_answer = None
+    hop_count = 0
 
-    elif any(k in q_lower for k in ["processus", "workflow", "étapes", "etapes", "déroulement"]):
-        model_name = _extract_model_from_question(q_lower, default="hr.leave")
-        res = quel_est_le_processus_de(G, model_name)
-        answer_text = f"**Processus Métier et Workflow de `{model_name}`**\n\n{res.summary_text}"
+    # C.1.2: Anti-loop guard -- track (tool_name, args_hash) to detect duplicates
+    seen_calls: set = set()
 
-    elif any(k in q_lower for k in ["impact", "si je modifie", "changement", "dépend", "depend"]):
-        model_name = _extract_model_from_question(q_lower, default="sale.order")
-        field_name = _extract_field_from_question(q_lower, default="partner_id")
-        res = impact_changement_champ(G, field_name, model_name)
-        answer_text = f"**Analyse d'Impact du Champ `{field_name}` sur `{model_name}`**\n\n{res.summary_text}"
-        if res.upstream_triggers:
-            answer_text += f"\n\n- **Déclencheurs amont (champs dont dépend le calcul)** : {', '.join(res.upstream_triggers)}"
-        if res.downstream_computed_fields:
-            answer_text += f"\n- **Impact aval (champs re-calculés automatiquement)** : {', '.join(res.downstream_computed_fields)}"
+    for iteration in range(REACT_RECURSION_LIMIT):
+        logger.info(
+            "Node [code_intelligence_agent]: Iteration %d/%d (hops: %d/%d)",
+            iteration + 1, REACT_RECURSION_LIMIT, hop_count, CI_MAX_HOPS,
+        )
 
-    elif any(k in q_lower for k in ["bouton", "clique", "click", "quand je clique"]):
-        model_name = _extract_model_from_question(q_lower, default="sale.order")
-        button_name = _extract_button_from_question(q_lower, default="action_confirm")
-        res = chemin_execution_bouton(G, button_name, model_name)
-        answer_text = f"**Chemin d'Exécution du Bouton `{button_name}` sur `{model_name}`**\n\n"
-        answer_text += "\n".join(res.execution_steps)
+        # C.1.4: Hop counter check
+        if hop_count >= CI_MAX_HOPS:
+            logger.warning(
+                "Node [code_intelligence_agent]: Hop limit reached (%d/%d). Forcing partial answer.",
+                hop_count, CI_MAX_HOPS,
+            )
+            break
+
+        try:
+            ai_msg = llm_with_tools.invoke(messages)
+        except Exception as e:
+            logger.error("LLM invoke failed at iteration %d: %s", iteration + 1, e)
+            # Recovery for malformed tool calls (same pattern as orm_agent_loop)
+            recovered = False
+            err_str = str(e)
+            if "failed_generation" in err_str:
+                import re
+                match = re.search(r'<function=(\w+)>\s*(\{.*?\})', err_str)
+                if match:
+                    fn_name = match.group(1)
+                    try:
+                        fn_args = _json.loads(match.group(2))
+                        tool_map = {t.name: t for t in ALL_CI_TOOLS}
+                        if fn_name in tool_map:
+                            logger.info("Recovered malformed tool call: %s(%s)", fn_name, fn_args)
+                            observation = tool_map[fn_name].invoke(fn_args)
+                            tool_observations.append(str(observation))
+                            hop_count += 1
+                            messages.append(HumanMessage(
+                                content=f"Tool result ({fn_name}): {observation}"
+                            ))
+                            recovered = True
+                    except Exception as parse_err:
+                        logger.error("Recovery parse failed: %s", parse_err)
+            if not recovered:
+                logger.error("Unrecoverable LLM error at iteration %d", iteration + 1)
+                break
+            continue
+
+        messages.append(ai_msg)
+
+        # No tool calls: final answer from the LLM
+        if not getattr(ai_msg, "tool_calls", None):
+            final_answer = ai_msg.content
+            logger.info("Node [code_intelligence_agent]: Final answer at iteration %d (hops: %d)", iteration + 1, hop_count)
+            break
+
+        # Execute each tool call
+        for tool_call in ai_msg.tool_calls:
+            tool_name = tool_call["name"]
+            tool_args = tool_call["args"]
+            tool_id = tool_call["id"]
+
+            # C.1.2: Anti-loop guard
+            call_signature = (tool_name, _json.dumps(tool_args, sort_keys=True))
+            if call_signature in seen_calls:
+                logger.warning(
+                    "Node [code_intelligence_agent]: ANTI-LOOP -- Duplicate call detected: %s(%s). Skipping.",
+                    tool_name, tool_args,
+                )
+                messages.append(ToolMessage(
+                    content=f"Duplicate call to '{tool_name}' with same arguments was blocked. Use a different tool or provide your final answer.",
+                    tool_call_id=tool_id,
+                ))
+                continue
+
+            seen_calls.add(call_signature)
+            logger.info("Node [code_intelligence_agent]: Calling tool '%s' with args %s (hop %d)", tool_name, tool_args, hop_count + 1)
+
+            tool_map = {t.name: t for t in ALL_CI_TOOLS}
+            if tool_name not in tool_map:
+                observation = f"Tool '{tool_name}' is not available."
+            else:
+                try:
+                    observation = tool_map[tool_name].invoke(tool_args)
+                except Exception as e:
+                    observation = f"Error calling {tool_name}: {str(e)}"
+                    logger.error("Tool call error: %s", e)
+
+            tool_observations.append(str(observation))
+            hop_count += 1
+            messages.append(ToolMessage(content=str(observation), tool_call_id=tool_id))
 
     else:
-        model_name = _extract_model_from_question(q_lower, default="sale.order")
-        droit = _extract_droit_from_question(q_lower, default="read")
-        res = qui_a_acces_a(G, model_name, droit=droit)
+        # Recursion limit reached without a final answer
+        logger.warning("Node [code_intelligence_agent]: Recursion limit reached. Forcing synthesis.")
 
-        answer_text = f"**Droits d'Accès et Sécurité pour `{model_name}` (Droit : `{droit.upper()}`)**\n\n"
-        answer_text += f"{res.summary_text}\n\n"
-        if res.allowed_groups:
-            answer_text += f"- **Groupes autorisés (avec hiérarchie)** : {', '.join(res.allowed_groups)}\n"
-        if res.active_rules:
-            answer_text += f"- **Règles de sécurité actives (`ir.rule`)** :\n"
-            for r in res.active_rules:
-                answer_text += f"  - `{r.rule_name}` (`{r.rule_xml_id}`) : domaine = `{r.domain_force}`\n"
+    # If no final answer yet, synthesize from observations
+    if not final_answer:
+        if tool_observations:
+            # C.1.4: Explicit partial-answer message when hop limit was reached
+            hop_msg = ""
+            if hop_count >= CI_MAX_HOPS:
+                hop_msg = f"\n\n_Analyse arretee au saut {hop_count}/{CI_MAX_HOPS}. Reformulez pour approfondir._"
 
-    answer_text += f"\n\n[Source: Graphe de Connaissances Code Intelligence - Modèle {model_name}]"
+            synthesis_prompt = (
+                f"Question originale : {question}\n\n"
+                f"Observations collectees :\n" + "\n---\n".join(tool_observations) +
+                f"\n\nFournis une reponse finale et structuree en francais basee uniquement sur ces observations."
+                f"{hop_msg}"
+            )
+            try:
+                plain_llm = ChatGroq(model=GROQ_MODEL, temperature=0.0, max_tokens=1024)
+                final_resp = plain_llm.invoke([HumanMessage(content=synthesis_prompt)])
+                final_answer = final_resp.content
+                if hop_count >= CI_MAX_HOPS:
+                    final_answer += f"\n\n_Analyse arretee au saut {hop_count}/{CI_MAX_HOPS}. Reformulez pour approfondir._"
+            except Exception as e:
+                logger.error("Forced synthesis failed: %s", e)
+                final_answer = "\n\n".join(tool_observations)
+        else:
+            final_answer = "Je n'ai pas de donnees disponibles dans le graphe de connaissances pour repondre a cette question."
 
-    response = AssistantResponse(
-        answer=answer_text,
-        sources=[
-            SourceReference(
+    final_answer += "\n\n[Source: Graphe de Connaissances Code Intelligence]"
+
+    # Build sources from tool observations
+    sources = []
+    for obs in tool_observations:
+        if obs and str(obs).strip():
+            sources.append(SourceReference(
                 source="Code Intelligence Graph",
                 doc_type="code_graph",
-                title=f"Graphe de Connaissances Odoo ({model_name})",
-                snippet=answer_text[:120] + "..."
-            )
-        ],
-        confidence=1.0
+                title="Graphe de Connaissances Odoo",
+                snippet=str(obs)[:150],
+            ))
+
+    response = AssistantResponse(
+        answer=final_answer,
+        sources=sources,
+        confidence=1.0 if tool_observations else 0.5,
     )
 
     timing = state.get("timing", {}).copy()
     timing["code_intelligence_time"] = time.time() - start_time
+    timing["ci_hop_count"] = hop_count
 
-    return {"response": response, "raw_answer": answer_text, "timing": timing}
+    return {"response": response, "raw_answer": final_answer, "timing": timing}
 
 
 def format_output(state: RAGState) -> dict:
