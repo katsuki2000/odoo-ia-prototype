@@ -74,7 +74,10 @@
 - Story A4.1 (Live Odoo Sync & Divergence Detector): Implemented XML-RPC live comparator in `code_intelligence/live_comparator.py`:
   - `fetch_live_model_security(model)`: 5-minute TTL cache with manual invalidation (`clear_live_cache()`).
   - `comparer_regles_statique_vs_live(registry, model, live_data)`: Detailed divergence detection (`GROUP_ADDED_IN_LIVE`, `DOMAIN_MODIFIED`, `RULE_DISABLED_IN_LIVE`).
-- Story C.1 (Router & Agent Node): 4-way routing (`DOCUMENTAIRE`, `DONNEES_ERP`, `HYBRIDE`, `CODE_INTELLIGENCE`) wired in `rag/schemas.py` and `rag/graph.py` with 100% test pass rate across 50 tests (`test_b_complete.py` + `test_c1_1.py`).
+- Story D.1 (Evaluation Dataset & Harness): Implemented structured evaluation suite:
+  - `code_intelligence/evaluation/test_dataset.json`: 25 test cases categorized by (1-hop / 2-3 hops / 4+ hops) x (security / business logic / tech mapping) with 20% trick questions (`NOT_FOUND` / `out_of_scope`).
+  - `code_intelligence/evaluation/eval_harness.py`: Automated evaluation harness script recording execution latency, hop count, tool accuracy, and generating markdown reports.
+  - Optimized prompt & tool schema token footprint in `ci_agent_tools.py` and `graph.py`, reducing prompt tokens by >60% to run cleanly under Groq API tier limits.
 
 
 

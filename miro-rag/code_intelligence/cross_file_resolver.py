@@ -286,15 +286,18 @@ def _detect_inheritance_cycles(registry: ResolvedSymbolRegistry):
     """
     Detect inheritance cycles across models using visited: set().
     Fills registry.detected_cycles with detected cycle paths.
+    Note: In-place model extensions (_inherit = 'model.name') where parent == model_name
+    are excluded from cycle detection.
     """
-    # Build model dependency graph
+    # Build model dependency graph excluding self-extensions (in-place module extensions)
     inheritance_graph: Dict[str, List[str]] = {}
     for model_name, decls in registry.models.items():
         parents = []
         for decl in decls:
             parents.extend(decl.inherit)
             parents.extend(decl.inherits.keys())
-        inheritance_graph[model_name] = parents
+        # Exclude self-references (in-place _inherit = 'same.model')
+        inheritance_graph[model_name] = [p for p in parents if p != model_name]
 
     visited: Set[str] = set()
     rec_stack: Set[str] = set()
@@ -305,6 +308,8 @@ def _detect_inheritance_cycles(registry: ResolvedSymbolRegistry):
         path.append(node)
 
         for parent in inheritance_graph.get(node, []):
+            if parent == node:
+                continue
             if parent not in visited:
                 dfs(parent, path)
             elif parent in rec_stack:

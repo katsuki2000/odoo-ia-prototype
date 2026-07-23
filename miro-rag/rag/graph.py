@@ -10,6 +10,8 @@ Flow:
 import logging
 import os
 import sys
+import threading
+import time
 from typing import TypedDict, List, Optional, Any
 
 # Add parent dir to path
@@ -27,6 +29,84 @@ from rag.schemas import (
 from vectorstore.search import get_retriever, retrieve as search_retrieve
 
 logger = logging.getLogger(__name__)
+
+import re
+
+# ── Groq Rate Limiting & Throttle ─────────────────────────────────────────────
+_groq_call_lock = threading.Lock()
+_last_groq_call_time = [0.0]
+MIN_GROQ_CALL_INTERVAL = 5.0  # Enforce 5.0s minimum spacing between LLM calls
+
+
+def _parse_reset_seconds(header_value: str, default: float = 20.0) -> float:
+    """
+    Groq's x-ratelimit-reset-* headers come as e.g. '13.42s' or '1m3.42s'.
+    Parse into a plain float number of seconds.
+    """
+    if not header_value:
+        return default
+    match = re.match(r"(?:(\d+)m)?([\d.]+)s", header_value.strip())
+    if not match:
+        return default
+    minutes = float(match.group(1)) if match.group(1) else 0.0
+    seconds = float(match.group(2))
+    return minutes * 60 + seconds
+
+
+def _extract_rate_limit_headers(exc: Exception) -> dict:
+    """
+    Best-effort extraction of Groq rate-limit headers from whatever
+    exception langchain_groq/groq-python raises on a 429.
+    """
+    for attr_path in ("response", "http_response", "resp"):
+        resp = getattr(exc, attr_path, None)
+        if resp is not None and hasattr(resp, "headers"):
+            return dict(resp.headers)
+    cause = getattr(exc, "__cause__", None)
+    if cause is not None:
+        resp = getattr(cause, "response", None)
+        if resp is not None and hasattr(resp, "headers"):
+            return dict(resp.headers)
+    return {}
+
+
+def _invoke_with_rate_limit(llm_with_tools, messages, max_retries: int = 5):
+    """
+    Invoke the Groq LLM with:
+      - base minimum spacing enforced before every call
+      - dynamic header-based backoff on 429s (reads x-ratelimit-reset-tokens)
+    """
+    for attempt in range(max_retries):
+        with _groq_call_lock:
+            elapsed = time.time() - _last_groq_call_time[0]
+            if elapsed < MIN_GROQ_CALL_INTERVAL:
+                time.sleep(MIN_GROQ_CALL_INTERVAL - elapsed)
+            try:
+                result = llm_with_tools.invoke(messages)
+                _last_groq_call_time[0] = time.time()
+                if hasattr(result, "response_metadata"):
+                    logger.info("GROQ DIAGNOSTIC METADATA: %s", result.response_metadata)
+                return result
+            except Exception as e:
+                _last_groq_call_time[0] = time.time()
+                is_rate_limit = "429" in str(e) or "rate_limit" in str(e).lower()
+                if is_rate_limit and attempt < max_retries - 1:
+                    headers = _extract_rate_limit_headers(e)
+                    reset_raw = (
+                        headers.get("x-ratelimit-reset-tokens")
+                        or headers.get("x-ratelimit-reset-requests")
+                    )
+                    wait_time = _parse_reset_seconds(reset_raw, default=2 ** attempt * 5.0)
+                    wait_time += 0.5  # small safety buffer past reset boundary
+                    logger.warning(
+                        "Groq rate limit hit (attempt %d/%d). Headers: %s. Dynamically waiting %.1fs...",
+                        attempt + 1, max_retries,
+                        {k: v for k, v in headers.items() if "ratelimit" in k.lower()},
+                        wait_time,
+                    )
+                    time.sleep(wait_time)
+                    continue
+                raise
 
 # ERP metadata types that trigger the data_query branch
 ERP_TYPES = {"sale", "ticket"}
@@ -518,20 +598,15 @@ def hybrid_node(state: RAGState) -> dict:
 
 # C.1.3: System prompt with explicit scope-first navigation strategy.
 CI_SYSTEM_PROMPT = (
-    "Tu es l'agent Code Intelligence de MIRO, specialise dans l'analyse structurelle du code Odoo. "
-    "Tu disposes de 9 outils deterministes qui interrogent un graphe de connaissances "
-    "construit a partir du code source Odoo.\n\n"
-    "STRATEGIE DE NAVIGATION OBLIGATOIRE:\n"
-    "1. TOUJOURS commencer par `lister_modules_impliques` pour identifier les modules concernes.\n"
-    "2. Utiliser ensuite les outils composites (`qui_a_acces_a`, `impact_changement_champ`, etc.) "
-    "sur le modele identifie.\n"
-    "3. Comparer le statique AVANT d'invoquer le live (si applicable).\n"
-    "4. Utiliser `resoudre_nom_technique` pour traduire les XML-ID techniques en roles metier lisibles.\n\n"
-    "REGLES:\n"
-    "- Maximum 2 iterations d'outils par question.\n"
-    "- Ne JAMAIS inventer de donnees. Si un outil retourne 'not found', signale-le.\n"
-    "- Reponds toujours en francais.\n"
-    "- Cite la source: [Source: Graphe de Connaissances Code Intelligence].\n"
+    "You are MIRO Code Intelligence Assistant specializing in Odoo source code analysis.\n"
+    "NAVIGATION STRATEGY:\n"
+    "1. Call `lister_modules_impliques` to scope relevant Odoo modules.\n"
+    "2. Call specialized composite tools (`qui_a_acces_a`, `impact_changement_champ`, `chemin_execution_bouton`, etc.).\n"
+    "3. Use `resoudre_nom_technique` to map technical XML-IDs to business role names.\n\n"
+    "RULES:\n"
+    "- Call `qui_a_acces_a` ONCE per model; DO NOT enumerate groups or permissions individually.\n"
+    "- Never invent data. Respond in French.\n"
+    "- Always cite source: [Source: Graphe de Connaissances Code Intelligence]."
 )
 
 # C.1.4: Maximum hops allowed per question.
@@ -643,6 +718,8 @@ def code_intelligence_agent(state: RAGState) -> dict:
         model=GROQ_MODEL,
         api_key=GROQ_API_KEY,
         temperature=0.0,
+        max_retries=0,  # Let _invoke_with_rate_limit handle dynamic header backoff
+        max_tokens=4096,
     )
     llm_with_tools = llm.bind_tools(ALL_CI_TOOLS)
 
@@ -660,123 +737,52 @@ def code_intelligence_agent(state: RAGState) -> dict:
     seen_calls: set = set()
 
     for iteration in range(REACT_RECURSION_LIMIT):
-        logger.info(
-            "Node [code_intelligence_agent]: Iteration %d/%d (hops: %d/%d)",
-            iteration + 1, REACT_RECURSION_LIMIT, hop_count, CI_MAX_HOPS,
-        )
+    # Single-Pass Composite Execution: 1 Tool Selection turn + 1 Synthesis turn
+    try:
+        ai_msg = _invoke_with_rate_limit(llm_with_tools, messages)
+    except Exception as e:
+        logger.error("LLM tool selection failed: %s", e)
+        ai_msg = None
 
-        # C.1.4: Hop counter check
-        if hop_count >= CI_MAX_HOPS:
-            logger.warning(
-                "Node [code_intelligence_agent]: Hop limit reached (%d/%d). Forcing partial answer.",
-                hop_count, CI_MAX_HOPS,
-            )
-            break
-
-        try:
-            ai_msg = llm_with_tools.invoke(messages)
-        except Exception as e:
-            logger.error("LLM invoke failed at iteration %d: %s", iteration + 1, e)
-            # Recovery for malformed tool calls (same pattern as orm_agent_loop)
-            recovered = False
-            err_str = str(e)
-            if "failed_generation" in err_str:
-                import re
-                match = re.search(r'<function=(\w+)>\s*(\{.*?\})', err_str)
-                if match:
-                    fn_name = match.group(1)
-                    try:
-                        fn_args = _json.loads(match.group(2))
-                        tool_map = {t.name: t for t in ALL_CI_TOOLS}
-                        if fn_name in tool_map:
-                            logger.info("Recovered malformed tool call: %s(%s)", fn_name, fn_args)
-                            observation = tool_map[fn_name].invoke(fn_args)
-                            tool_observations.append(str(observation))
-                            hop_count += 1
-                            messages.append(HumanMessage(
-                                content=f"Tool result ({fn_name}): {observation}"
-                            ))
-                            recovered = True
-                    except Exception as parse_err:
-                        logger.error("Recovery parse failed: %s", parse_err)
-            if not recovered:
-                logger.error("Unrecoverable LLM error at iteration %d", iteration + 1)
-                break
-            continue
-
-        messages.append(ai_msg)
-
-        # No tool calls: final answer from the LLM
-        if not getattr(ai_msg, "tool_calls", None):
-            final_answer = ai_msg.content
-            logger.info("Node [code_intelligence_agent]: Final answer at iteration %d (hops: %d)", iteration + 1, hop_count)
-            break
-
-        # Execute each tool call
+    if ai_msg and getattr(ai_msg, "tool_calls", None):
         for tool_call in ai_msg.tool_calls:
             tool_name = tool_call["name"]
             tool_args = tool_call["args"]
-            tool_id = tool_call["id"]
 
-            # C.1.2: Anti-loop guard
-            call_signature = (tool_name, _json.dumps(tool_args, sort_keys=True))
-            if call_signature in seen_calls:
-                logger.warning(
-                    "Node [code_intelligence_agent]: ANTI-LOOP -- Duplicate call detected: %s(%s). Skipping.",
-                    tool_name, tool_args,
-                )
-                messages.append(ToolMessage(
-                    content=f"Duplicate call to '{tool_name}' with same arguments was blocked. Use a different tool or provide your final answer.",
-                    tool_call_id=tool_id,
-                ))
-                continue
+            # If qui_a_acces_a is called without explicit droit, default to 'all' for single-pass matrix
+            if tool_name == "qui_a_acces_a" and "droit" not in tool_args:
+                tool_args["droit"] = "all"
 
-            seen_calls.add(call_signature)
-            logger.info("Node [code_intelligence_agent]: Calling tool '%s' with args %s (hop %d)", tool_name, tool_args, hop_count + 1)
-
+            logger.info("Node [code_intelligence_agent]: Single-Dispatch invoking '%s' with args %s", tool_name, tool_args)
             tool_map = {t.name: t for t in ALL_CI_TOOLS}
-            if tool_name not in tool_map:
-                observation = f"Tool '{tool_name}' is not available."
-            else:
+            if tool_name in tool_map:
                 try:
                     observation = tool_map[tool_name].invoke(tool_args)
-                except Exception as e:
-                    observation = f"Error calling {tool_name}: {str(e)}"
-                    logger.error("Tool call error: %s", e)
+                    tool_observations.append(str(observation))
+                    hop_count += 1
+                except Exception as te:
+                    logger.error("Tool execution failed (%s): %s", tool_name, te)
+                    tool_observations.append(f"Error executing {tool_name}: {str(te)}")
+    elif ai_msg and ai_msg.content:
+        final_answer = ai_msg.content
 
-            tool_observations.append(str(observation))
-            hop_count += 1
-            messages.append(ToolMessage(content=str(observation), tool_call_id=tool_id))
-
-    else:
-        # Recursion limit reached without a final answer
-        logger.warning("Node [code_intelligence_agent]: Recursion limit reached. Forcing synthesis.")
-
-    # If no final answer yet, synthesize from observations
+    # Synthesize clean final answer from composite tool output
     if not final_answer:
         if tool_observations:
-            # C.1.4: Explicit partial-answer message when hop limit was reached
-            hop_msg = ""
-            if hop_count >= CI_MAX_HOPS:
-                hop_msg = f"\n\n_Analyse arretee au saut {hop_count}/{CI_MAX_HOPS}. Reformulez pour approfondir._"
-
             synthesis_prompt = (
-                f"Question originale : {question}\n\n"
-                f"Observations collectees :\n" + "\n---\n".join(tool_observations) +
-                f"\n\nFournis une reponse finale et structuree en francais basee uniquement sur ces observations."
-                f"{hop_msg}"
+                f"Original Question: {question}\n\n"
+                f"Knowledge Graph Output:\n" + "\n---\n".join(tool_observations) +
+                f"\n\nSynthesize a clear, professional response in French based strictly on the data above."
             )
             try:
-                plain_llm = ChatGroq(model=GROQ_MODEL, temperature=0.0, max_tokens=1024)
-                final_resp = plain_llm.invoke([HumanMessage(content=synthesis_prompt)])
+                plain_llm = ChatGroq(model=GROQ_MODEL, temperature=0.0, max_retries=0, max_tokens=4096)
+                final_resp = _invoke_with_rate_limit(plain_llm, [HumanMessage(content=synthesis_prompt)])
                 final_answer = final_resp.content
-                if hop_count >= CI_MAX_HOPS:
-                    final_answer += f"\n\n_Analyse arretee au saut {hop_count}/{CI_MAX_HOPS}. Reformulez pour approfondir._"
             except Exception as e:
-                logger.error("Forced synthesis failed: %s", e)
+                logger.error("Synthesis failed: %s", e)
                 final_answer = "\n\n".join(tool_observations)
         else:
-            final_answer = "Je n'ai pas de donnees disponibles dans le graphe de connaissances pour repondre a cette question."
+            final_answer = "Je n'ai pas de données disponibles dans le graphe de connaissances pour répondre à cette question."
 
     final_answer += "\n\n[Source: Graphe de Connaissances Code Intelligence]"
 

@@ -1,0 +1,292 @@
+{
+  "description": "Jeu de test et grille d'évaluation pour l'agent Code Intelligence Odoo (Sprint D.1)",
+  "version": "1.0",
+  "matrix_cells": {
+    "1_hop_security": 3,
+    "1_hop_business_logic": 3,
+    "1_hop_tech_mapping": 3,
+    "2_3_hops_security": 3,
+    "2_3_hops_business_logic": 3,
+    "2_3_hops_tech_mapping": 2,
+    "4_plus_hops_security": 2,
+    "4_plus_hops_business_logic": 2,
+    "trick_out_of_scope": 5
+  },
+  "test_cases": [
+    {
+      "id": "TC_01",
+      "category": "security",
+      "hops": "1_hop",
+      "question": "Qui a accès au modèle sale.order en lecture ?",
+      "expected_tool": "qui_a_acces_a",
+      "expected_model": "sale.order",
+      "expected_status": "found",
+      "expected_keywords": ["Droits d'Accès", "sale.order", "Groupes autorisés"],
+      "is_trick": false
+    },
+    {
+      "id": "TC_02",
+      "category": "security",
+      "hops": "1_hop",
+      "question": "Qui a le droit de suppression sur account.move ?",
+      "expected_tool": "qui_a_acces_a",
+      "expected_model": "account.move",
+      "expected_status": "found",
+      "expected_keywords": ["UNLINK", "account.move"],
+      "is_trick": false
+    },
+    {
+      "id": "TC_03",
+      "category": "security",
+      "hops": "1_hop",
+      "question": "Quelles sont les règles ir.rule actives sur le modèle res.partner ?",
+      "expected_tool": "qui_a_acces_a",
+      "expected_model": "res.partner",
+      "expected_status": "found",
+      "expected_keywords": ["Règles de sécurité", "res.partner"],
+      "is_trick": false
+    },
+    {
+      "id": "TC_04",
+      "category": "business_logic",
+      "hops": "1_hop",
+      "question": "Quel est l'impact si je modifie le champ partner_id sur sale.order ?",
+      "expected_tool": "impact_changement_champ",
+      "expected_model": "sale.order",
+      "expected_status": "found",
+      "expected_keywords": ["Analyse d'Impact", "partner_id"],
+      "is_trick": false
+    },
+    {
+      "id": "TC_05",
+      "category": "business_logic",
+      "hops": "1_hop",
+      "question": "Quels champs dépendent du champ price_unit sur sale.order ?",
+      "expected_tool": "impact_changement_champ",
+      "expected_model": "sale.order",
+      "expected_status": "found",
+      "expected_keywords": ["price_unit"],
+      "is_trick": false
+    },
+    {
+      "id": "TC_06",
+      "category": "business_logic",
+      "hops": "1_hop",
+      "question": "Quels sont les déclencheurs amont du champ amount_total sur sale.order ?",
+      "expected_tool": "impact_changement_champ",
+      "expected_model": "sale.order",
+      "expected_status": "found",
+      "expected_keywords": ["amount_total"],
+      "is_trick": false
+    },
+    {
+      "id": "TC_07",
+      "category": "tech_mapping",
+      "hops": "1_hop",
+      "question": "À quel rôle métier correspond le groupe technique sales_team.group_sale_manager ?",
+      "expected_tool": "resoudre_nom_technique",
+      "expected_model": null,
+      "expected_status": "found",
+      "expected_keywords": ["Responsable Ventes"],
+      "is_trick": false
+    },
+    {
+      "id": "TC_08",
+      "category": "tech_mapping",
+      "hops": "1_hop",
+      "question": "À quoi correspond le XML-ID account.group_account_manager ?",
+      "expected_tool": "resoudre_nom_technique",
+      "expected_model": null,
+      "expected_status": "found",
+      "expected_keywords": ["Responsable Comptabilité"],
+      "is_trick": false
+    },
+    {
+      "id": "TC_09",
+      "category": "tech_mapping",
+      "hops": "1_hop",
+      "question": "Quel est le nom fonctionnel du groupe hr.group_hr_user ?",
+      "expected_tool": "resoudre_nom_technique",
+      "expected_model": null,
+      "expected_status": "found",
+      "expected_keywords": ["Agent RH"],
+      "is_trick": false
+    },
+    {
+      "id": "TC_10",
+      "category": "security",
+      "hops": "2_3_hops",
+      "question": "Quels sont les modules qui définissent ou étendent le modèle sale.order ?",
+      "expected_tool": "lister_modules_impliques",
+      "expected_model": "sale.order",
+      "expected_status": "found",
+      "expected_keywords": ["sale"],
+      "is_trick": false
+    },
+    {
+      "id": "TC_11",
+      "category": "security",
+      "hops": "2_3_hops",
+      "question": "Le groupe Vendeur hérite-t-il des accès du modèle account.move ?",
+      "expected_tool": "qui_a_acces_a",
+      "expected_model": "account.move",
+      "expected_status": "found",
+      "expected_keywords": ["account.move"],
+      "is_trick": false
+    },
+    {
+      "id": "TC_12",
+      "category": "security",
+      "hops": "2_3_hops",
+      "question": "Quelle est la hiérarchie d'héritage complète du modèle sale.order ?",
+      "expected_tool": "suivre_heritage_complet",
+      "expected_model": "sale.order",
+      "expected_status": "found",
+      "expected_keywords": ["Inheritance Chain", "sale.order"],
+      "is_trick": false
+    },
+    {
+      "id": "TC_13",
+      "category": "business_logic",
+      "hops": "2_3_hops",
+      "question": "Que fait le bouton action_confirm sur les commandes de vente ?",
+      "expected_tool": "chemin_execution_bouton",
+      "expected_model": "sale.order",
+      "expected_status": "found",
+      "expected_keywords": ["action_confirm", "sale.order"],
+      "is_trick": false
+    },
+    {
+      "id": "TC_14",
+      "category": "business_logic",
+      "hops": "2_3_hops",
+      "question": "Quel est le processus de workflow complet pour le modèle hr.leave ?",
+      "expected_tool": "quel_est_le_processus_de",
+      "expected_model": "hr.leave",
+      "expected_status": "found",
+      "expected_keywords": ["Workflow Process", "hr.leave"],
+      "is_trick": false
+    },
+    {
+      "id": "TC_15",
+      "category": "business_logic",
+      "hops": "2_3_hops",
+      "question": "Que se passe-t-il lors d'un clic sur le bouton annuler d'une facture ?",
+      "expected_tool": "chemin_execution_bouton",
+      "expected_model": "account.move",
+      "expected_status": "found",
+      "expected_keywords": ["account.move"],
+      "is_trick": false
+    },
+    {
+      "id": "TC_16",
+      "category": "tech_mapping",
+      "hops": "2_3_hops",
+      "question": "Quels modules sont impliqués dans la définition du modèle res.partner ?",
+      "expected_tool": "lister_modules_impliques",
+      "expected_model": "res.partner",
+      "expected_status": "found",
+      "expected_keywords": ["res.partner"],
+      "is_trick": false
+    },
+    {
+      "id": "TC_17",
+      "category": "tech_mapping",
+      "hops": "2_3_hops",
+      "question": "Explique-moi le chemin de décision entre le modèle sale.order et la règle sale.rule1",
+      "expected_tool": "expliquer_chemin",
+      "expected_model": "sale.order",
+      "expected_status": "found",
+      "expected_keywords": ["sale.order"],
+      "is_trick": false
+    },
+    {
+      "id": "TC_18",
+      "category": "security",
+      "hops": "4_plus_hops",
+      "question": "Combien de sauts et quelles règles de sécurité séparent l'utilisateur interne du modèle account.move ?",
+      "expected_tool": "qui_a_acces_a",
+      "expected_model": "account.move",
+      "expected_status": "found",
+      "expected_keywords": ["account.move"],
+      "is_trick": false
+    },
+    {
+      "id": "TC_19",
+      "category": "security",
+      "hops": "4_plus_hops",
+      "question": "Quelle est la chaîne d'héritage transitive complète de res.users à travers res.partner ?",
+      "expected_tool": "suivre_heritage_complet",
+      "expected_model": "res.users",
+      "expected_status": "found",
+      "expected_keywords": ["Inheritance Chain"],
+      "is_trick": false
+    },
+    {
+      "id": "TC_20",
+      "category": "business_logic",
+      "hops": "4_plus_hops",
+      "question": "Quel est le cycle de vie complet du workflow de validation des congés avec tous les boutons et rôles ?",
+      "expected_tool": "quel_est_le_processus_de",
+      "expected_model": "hr.leave",
+      "expected_status": "found",
+      "expected_keywords": ["hr.leave"],
+      "is_trick": false
+    },
+    {
+      "id": "TC_21",
+      "category": "business_logic",
+      "hops": "4_plus_hops",
+      "question": "Quelles sont toutes les méthodes et transitions déclenchées par le bouton de confirmation des ventes ?",
+      "expected_tool": "chemin_execution_bouton",
+      "expected_model": "sale.order",
+      "expected_status": "found",
+      "expected_keywords": ["sale.order"],
+      "is_trick": false
+    },
+    {
+      "id": "TC_22",
+      "category": "trick_out_of_scope",
+      "hops": "1_hop",
+      "question": "Qui a accès au modèle custom.unknown.model_xyz ?",
+      "expected_tool": "qui_a_acces_a",
+      "expected_model": "custom.unknown.model_xyz",
+      "expected_status": "not_found",
+      "expected_keywords": ["was not found", "probable typo"],
+      "is_trick": true
+    },
+    {
+      "id": "TC_23",
+      "category": "trick_out_of_scope",
+      "hops": "1_hop",
+      "question": "Quel est l'impact de la modification du champ non_existent_field sur sale.order ?",
+      "expected_tool": "impact_changement_champ",
+      "expected_model": "sale.order",
+      "expected_status": "not_found",
+      "expected_keywords": ["was not found"],
+      "is_trick": true
+    },
+    {
+      "id": "TC_24",
+      "category": "trick_out_of_scope",
+      "hops": "1_hop",
+      "question": "Quelle est la recette du gâteau au chocolat d'Odoo ?",
+      "expected_tool": null,
+      "expected_model": null,
+      "expected_status": "out_of_scope",
+      "expected_keywords": ["périmètre", "spécialisé"],
+      "is_trick": true
+    },
+    {
+      "id": "TC_25",
+      "category": "trick_out_of_scope",
+      "hops": "2_3_hops",
+      "question": "Quel est le processus du modèle invente.modele.inexistant ?",
+      "expected_tool": "quel_est_le_processus_de",
+      "expected_model": "invente.modele.inexistant",
+      "expected_status": "not_found",
+      "expected_keywords": ["was not found", "probable typo"],
+      "is_trick": true
+    }
+  ]
+}

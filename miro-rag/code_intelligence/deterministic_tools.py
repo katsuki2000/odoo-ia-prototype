@@ -37,59 +37,37 @@ class AccessEvaluationResult:
     summary_text: str = ""
 
 
-def qui_a_acces_a(
-    G: nx.DiGraph,
-    model_name: str,
-    droit: str = "read",
-    group_id: Optional[str] = None
-) -> AccessEvaluationResult:
-    """
-    Story B1.1: Evaluates access rights for a given model and permission type.
-    Combines CSV ACLs, ir.rule domain_force expressions, res.groups implied hierarchy, and JS client checks.
-    """
+def _eval_single_droit(G: nx.DiGraph, model_name: str, droit: str, group_id: Optional[str] = None):
     model_node = f"model:{model_name}"
-    
-    # Normalize droit parameter
     perm_attr = f"perm_{droit}" if droit in {"read", "write", "create", "unlink"} else "perm_read"
 
     if model_node not in G:
-        return AccessEvaluationResult(
-            model_name=model_name,
-            droit_demande=droit,
-            summary_text=f"Model '{model_name}' was not found in the indexed knowledge graph."
-        )
+        return set(), False, []
 
     allowed_groups: Set[str] = set()
     all_authenticated = False
     active_rules: List[RuleDetail] = []
-    client_checks: List[Dict[str, Any]] = []
 
-    # 1. Traversal: Model -> GRANTED_BY -> AccessEntry -> APPLIES_TO_GROUP -> Group
     for neighbor in G.neighbors(model_node):
         edge_data = G.get_edge_data(model_node, neighbor) or {}
         edge_type = edge_data.get("edge_type")
 
-        # Process ACLs
         if edge_type == "GRANTED_BY" and G.nodes[neighbor].get("node_type") == "AccessEntry":
             acl_node = G.nodes[neighbor]
             if acl_node.get(perm_attr, False):
                 if acl_node.get("all_authenticated", False):
                     all_authenticated = True
                 
-                # Get groups attached to this ACL
                 for acl_neighbor in G.neighbors(neighbor):
                     acl_edge = G.get_edge_data(neighbor, acl_neighbor) or {}
                     if acl_edge.get("edge_type") == "APPLIES_TO_GROUP":
                         grp_xml_id = acl_neighbor.replace("group:", "")
                         allowed_groups.add(grp_xml_id)
-
-                        # Expand group hierarchy via reverse IMPLIES edges (child groups that inherit this group)
                         _expand_inheriting_groups(G, grp_xml_id, allowed_groups)
 
-        # Process Record Rules
         elif edge_type == "RESTRICTED_BY" and G.nodes[neighbor].get("node_type") == "Rule":
             rule_node = G.nodes[neighbor]
-            if rule_node.get(perm_attr, True): # Default True for rules if perm flag is active
+            if rule_node.get(perm_attr, True):
                 rule_groups = []
                 for rule_neighbor in G.neighbors(neighbor):
                     rule_edge = G.get_edge_data(neighbor, rule_neighbor) or {}
@@ -106,7 +84,59 @@ def qui_a_acces_a(
                     )
                 )
 
-    # 2. Filter by specific group_id if requested
+    return allowed_groups, all_authenticated, active_rules
+
+
+def qui_a_acces_a(
+    G: nx.DiGraph,
+    model_name: str,
+    droit: str = "read",
+    group_id: Optional[str] = None
+) -> AccessEvaluationResult:
+    """
+    Story B1.1: Evaluates access rights for a given model and permission type.
+    Combines CSV ACLs, ir.rule domain_force expressions, res.groups implied hierarchy, and JS client checks.
+    Supports droit='all' to evaluate all 4 permissions in a single pass.
+    """
+    model_node = f"model:{model_name}"
+
+    if model_node not in G:
+        return AccessEvaluationResult(
+            model_name=model_name,
+            droit_demande=droit,
+            summary_text=f"Model '{model_name}' was not found in the indexed knowledge graph (probable typo or missing model)."
+        )
+
+    if droit.lower() == "all":
+        rights_summary = []
+        all_allowed: Set[str] = set()
+        all_rules: List[RuleDetail] = []
+        all_auth = False
+
+        for p in ["read", "write", "create", "unlink"]:
+            grps, auth, rules = _eval_single_droit(G, model_name, p, group_id)
+            all_allowed.update(grps)
+            all_rules.extend(rules)
+            if auth:
+                all_auth = True
+            
+            grp_str = "All authenticated users" if auth else (", ".join(sorted(grps)) if grps else "None")
+            rights_summary.append(f"[{p.upper()}]: {grp_str} (Rules: {len(rules)})")
+
+        summary = f"Access Matrix for '{model_name}':\n" + "\n".join(rights_summary)
+
+        return AccessEvaluationResult(
+            model_name=model_name,
+            droit_demande="all",
+            allowed_groups=sorted(list(all_allowed)),
+            all_authenticated_access=all_auth,
+            active_rules=all_rules,
+            summary_text=summary,
+        )
+
+    # Single permission evaluation
+    allowed_groups, all_authenticated, active_rules = _eval_single_droit(G, model_name, droit, group_id)
+
     if group_id:
         has_access = all_authenticated or (group_id in allowed_groups)
         summary = (
@@ -130,7 +160,7 @@ def qui_a_acces_a(
         allowed_groups=sorted(list(allowed_groups)),
         all_authenticated_access=all_authenticated,
         active_rules=active_rules,
-        client_side_checks=client_checks,
+        client_side_checks=[],
         summary_text=summary,
     )
 

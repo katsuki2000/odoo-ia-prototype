@@ -42,6 +42,9 @@ class CustomNomicEmbeddingFunction(EmbeddingFunction):
         self.task_type = task_type
         self.endpoint = "https://api-atlas.nomic.ai/v1/embedding/text"
 
+    def name(self) -> str:
+        return self.model
+
     def __call__(self, input: Documents) -> Embeddings:
         import requests
 
