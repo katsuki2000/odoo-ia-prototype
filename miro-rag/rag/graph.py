@@ -117,6 +117,16 @@ def route(state: RAGState) -> dict:
         "toutes périodes confondues", "ce mois", "cette année", "moyenne", 
         "stock", "quel produit", "montant moyen"
     ]
+    code_intel_keywords = [
+        "qui a accès", "qui a acces", "droit d'accès", "droit d acces", "droits d'accès",
+        "droit de lecture", "droit d'écriture", "droit de modification", "droit de suppression",
+        "quel groupe a accès", "quels groupes ont accès", "qui a le droit",
+        "impact de la modification", "impact de modification", "si je modifie le champ",
+        "changement du champ", "impact du champ", "champs calculés dépendants",
+        "chemin d'exécution", "chemin execution", "bouton", "quand je clique sur",
+        "action du bouton", "que fait le bouton", "modèle odoo", "modele odoo"
+    ]
+
     # Quantitative data terms that indicate a real ERP data need (not just mentioning an ERP concept)
     quantitative_terms = ["combien", "montant", "total", "résolu", "en cours", "moyenne", "chiffre", "quel est le stock"]
     doc_keywords = ["comment", "procédure", "qui peut", "qui doit", "quel fichier", "quelle classe", "quel est le rôle", "quels sont les modèles", "dans quel fichier", "procédure de validation", "politique interne", "selon le wiki"]
@@ -125,7 +135,10 @@ def route(state: RAGState) -> dict:
     # Hybrid check: doc keyword + quantitative ERP term (not just generic nouns like 'facture')
     is_hybrid = any(kw in question for kw in doc_keywords) and any(term in question for term in quantitative_terms)
 
-    if is_hybrid:
+    if any(kw in question for kw in code_intel_keywords):
+        logger.info("Node [route]: Query matched Code Intelligence keywords → CODE_INTELLIGENCE branch")
+        route_decision = QueryRoute.CODE_INTELLIGENCE.value
+    elif is_hybrid:
         logger.info("Node [route]: Query is hybrid → HYBRIDE branch")
         route_decision = QueryRoute.HYBRIDE.value
     elif any(kw in question for kw in doc_keywords):
@@ -501,6 +514,199 @@ def hybrid_node(state: RAGState) -> dict:
     return {"response": response, "raw_answer": final_answer, "timing": timing}
 
 
+# ── Code Intelligence Agent ───────────────────────────────────────────────────
+
+_CACHED_CODE_INTEL_GRAPH = None
+
+
+def get_code_intelligence_graph():
+    """Lazy-load and cache Knowledge Graph for Code Intelligence node."""
+    global _CACHED_CODE_INTEL_GRAPH
+    if _CACHED_CODE_INTEL_GRAPH is not None:
+        return _CACHED_CODE_INTEL_GRAPH
+
+    from pathlib import Path
+    from code_intelligence.manifest_parser import parse_manifest
+    from code_intelligence.python_extractor import extract_odoo_models_from_file
+    from code_intelligence.xml_extractor import (
+        parse_ir_rules_from_xml, parse_groups_from_xml,
+        parse_actions_from_xml, parse_menuitems_from_xml, parse_views_from_xml
+    )
+    from code_intelligence.csv_extractor import parse_access_control_csv
+    from code_intelligence.cross_file_resolver import ParsedModule, build_module_symbol_registry
+    from code_intelligence.graph_builder import OdooGraphBuilder
+
+    base_dir = Path(__file__).resolve().parent.parent
+    corpus_root = base_dir / "fake_data" / "code"
+    addons_root = base_dir.parent / "odoo17-dev" / "addons"
+
+    modules_dict = {}
+
+    if corpus_root.exists():
+        for mod_dir in corpus_root.iterdir():
+            if mod_dir.is_dir():
+                manifest_p = mod_dir / "__manifest__.py"
+                manifest = parse_manifest(manifest_p) if manifest_p.exists() else None
+                mod = ParsedModule(manifest=manifest)
+                for py_f in mod_dir.rglob("*.py"):
+                    mod.models.extend(extract_odoo_models_from_file(py_f))
+                for xml_f in mod_dir.rglob("*.xml"):
+                    mod.rules.extend(parse_ir_rules_from_xml(xml_f))
+                    mod.groups.extend(parse_groups_from_xml(xml_f))
+                    mod.actions.extend(parse_actions_from_xml(xml_f))
+                    mod.menuitems.extend(parse_menuitems_from_xml(xml_f))
+                    mod.views.extend(parse_views_from_xml(xml_f))
+                for csv_f in mod_dir.rglob("*.csv"):
+                    mod.acl_entries.extend(parse_access_control_csv(csv_f))
+                modules_dict[mod_dir.name] = mod
+
+    miro_ai_dir = addons_root / "miro_ai"
+    if miro_ai_dir.exists():
+        manifest = parse_manifest(miro_ai_dir / "__manifest__.py")
+        mod = ParsedModule(manifest=manifest)
+        for py_f in miro_ai_dir.rglob("*.py"):
+            mod.models.extend(extract_odoo_models_from_file(py_f))
+        for xml_f in miro_ai_dir.rglob("*.xml"):
+            mod.rules.extend(parse_ir_rules_from_xml(xml_f))
+            mod.groups.extend(parse_groups_from_xml(xml_f))
+            mod.actions.extend(parse_actions_from_xml(xml_f))
+            mod.menuitems.extend(parse_menuitems_from_xml(xml_f))
+            mod.views.extend(parse_views_from_xml(xml_f))
+        for csv_f in miro_ai_dir.rglob("*.csv"):
+            mod.acl_entries.extend(parse_access_control_csv(csv_f))
+        modules_dict["miro_ai"] = mod
+
+    registry = build_module_symbol_registry(modules_dict)
+    builder = OdooGraphBuilder(registry, modules_dict)
+    _CACHED_CODE_INTEL_GRAPH = builder.build_graph()
+    return _CACHED_CODE_INTEL_GRAPH
+
+
+def _extract_model_from_question(q_lower: str, default: str = "sale.order") -> str:
+    models_map = {
+        "sale.order": ["sale.order", "vente", "ventes", "commande", "quotation"],
+        "account.move": ["account.move", "facture", "factures", "comptabilité", "journal"],
+        "res.partner": ["res.partner", "client", "partenaire", "contact"],
+        "product.product": ["product.product", "produit", "article"],
+        "stock.picking": ["stock.picking", "livraison", "réception", "picking", "stock"],
+        "miro.ai.log": ["miro.ai.log", "miro_ai_log", "journal miro"],
+        "miro.ai.settings": ["miro.ai.settings", "paramètres miro"],
+    }
+    for model_name, aliases in models_map.items():
+        if any(alias in q_lower for alias in aliases):
+            return model_name
+    return default
+
+
+def _extract_droit_from_question(q_lower: str, default: str = "read") -> str:
+    if any(term in q_lower for term in ["suppr", "delete", "unlink"]):
+        return "unlink"
+    elif any(term in q_lower for term in ["écrir", "ecrir", "write", "modifi"]):
+        return "write"
+    elif any(term in q_lower for term in ["créer", "creer", "create", "ajout"]):
+        return "create"
+    return "read"
+
+
+def _extract_field_from_question(q_lower: str, default: str = "partner_id") -> str:
+    fields = ["partner_id", "price_unit", "amount_untaxed", "amount_total", "state", "user_id", "date_order", "order_line"]
+    for f in fields:
+        if f in q_lower:
+            return f
+    return default
+
+
+def _extract_button_from_question(q_lower: str, default: str = "action_confirm") -> str:
+    if "cancel" in q_lower or "annul" in q_lower:
+        return "action_cancel"
+    elif "confirm" in q_lower or "confirm" in q_lower:
+        return "action_confirm"
+    return default
+
+
+def code_intelligence_agent(state: RAGState) -> dict:
+    """
+    Node [code_intelligence_agent]: Deterministic Knowledge Graph query node.
+    """
+    import time
+    start_time = time.time()
+    question = state.get("question", "").strip()
+    logger.info("Node [code_intelligence_agent]: Executing Code Intelligence query: %s", question)
+
+    G = get_code_intelligence_graph()
+
+    from code_intelligence.deterministic_tools import (
+        qui_a_acces_a,
+        impact_changement_champ,
+        chemin_execution_bouton,
+        suivre_heritage_complet,
+        quel_est_le_processus_de,
+    )
+
+    q_lower = question.lower()
+
+    if any(k in q_lower for k in ["héritage", "heritage", "hérite", "herite", "ancêtres", "ancetres"]):
+        model_name = _extract_model_from_question(q_lower, default="sale.order")
+        res = suivre_heritage_complet(G, model_name)
+        answer_text = f"**Chaîne d'Héritage et de Délégation de `{model_name}`**\n\n{res.summary_text}"
+
+    elif any(k in q_lower for k in ["processus", "workflow", "étapes", "etapes", "déroulement"]):
+        model_name = _extract_model_from_question(q_lower, default="hr.leave")
+        res = quel_est_le_processus_de(G, model_name)
+        answer_text = f"**Processus Métier et Workflow de `{model_name}`**\n\n{res.summary_text}"
+
+    elif any(k in q_lower for k in ["impact", "si je modifie", "changement", "dépend", "depend"]):
+        model_name = _extract_model_from_question(q_lower, default="sale.order")
+        field_name = _extract_field_from_question(q_lower, default="partner_id")
+        res = impact_changement_champ(G, field_name, model_name)
+        answer_text = f"**Analyse d'Impact du Champ `{field_name}` sur `{model_name}`**\n\n{res.summary_text}"
+        if res.upstream_triggers:
+            answer_text += f"\n\n- **Déclencheurs amont (champs dont dépend le calcul)** : {', '.join(res.upstream_triggers)}"
+        if res.downstream_computed_fields:
+            answer_text += f"\n- **Impact aval (champs re-calculés automatiquement)** : {', '.join(res.downstream_computed_fields)}"
+
+    elif any(k in q_lower for k in ["bouton", "clique", "click", "quand je clique"]):
+        model_name = _extract_model_from_question(q_lower, default="sale.order")
+        button_name = _extract_button_from_question(q_lower, default="action_confirm")
+        res = chemin_execution_bouton(G, button_name, model_name)
+        answer_text = f"**Chemin d'Exécution du Bouton `{button_name}` sur `{model_name}`**\n\n"
+        answer_text += "\n".join(res.execution_steps)
+
+    else:
+        model_name = _extract_model_from_question(q_lower, default="sale.order")
+        droit = _extract_droit_from_question(q_lower, default="read")
+        res = qui_a_acces_a(G, model_name, droit=droit)
+
+        answer_text = f"**Droits d'Accès et Sécurité pour `{model_name}` (Droit : `{droit.upper()}`)**\n\n"
+        answer_text += f"{res.summary_text}\n\n"
+        if res.allowed_groups:
+            answer_text += f"- **Groupes autorisés (avec hiérarchie)** : {', '.join(res.allowed_groups)}\n"
+        if res.active_rules:
+            answer_text += f"- **Règles de sécurité actives (`ir.rule`)** :\n"
+            for r in res.active_rules:
+                answer_text += f"  - `{r.rule_name}` (`{r.rule_xml_id}`) : domaine = `{r.domain_force}`\n"
+
+    answer_text += f"\n\n[Source: Graphe de Connaissances Code Intelligence - Modèle {model_name}]"
+
+    response = AssistantResponse(
+        answer=answer_text,
+        sources=[
+            SourceReference(
+                source="Code Intelligence Graph",
+                doc_type="code_graph",
+                title=f"Graphe de Connaissances Odoo ({model_name})",
+                snippet=answer_text[:120] + "..."
+            )
+        ],
+        confidence=1.0
+    )
+
+    timing = state.get("timing", {}).copy()
+    timing["code_intelligence_time"] = time.time() - start_time
+
+    return {"response": response, "raw_answer": answer_text, "timing": timing}
+
+
 def format_output(state: RAGState) -> dict:
     """Format and clean up the final output (e.g. OCR warnings)."""
     logger.info("Node [format_output]: Formatting final response")
@@ -551,6 +757,7 @@ def build_graph() -> StateGraph:
     workflow.add_node("generate", generate)
     workflow.add_node("orm_agent_loop", orm_agent_loop)
     workflow.add_node("hybrid_node", hybrid_node)
+    workflow.add_node("code_intelligence_agent", code_intelligence_agent)
     workflow.add_node("format_output", format_output)
 
     # Edges
@@ -562,11 +769,13 @@ def build_graph() -> StateGraph:
         QueryRoute.DOCUMENTAIRE.value: "generate",
         QueryRoute.DONNEES_ERP.value: "orm_agent_loop",
         QueryRoute.HYBRIDE.value: "hybrid_node",
+        QueryRoute.CODE_INTELLIGENCE.value: "code_intelligence_agent",
     })
 
     workflow.add_edge("generate", "format_output")
     workflow.add_edge("orm_agent_loop", "format_output")
     workflow.add_edge("hybrid_node", "format_output")
+    workflow.add_edge("code_intelligence_agent", "format_output")
     workflow.add_edge("format_output", END)
 
     return workflow.compile()

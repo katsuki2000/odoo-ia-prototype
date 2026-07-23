@@ -16,6 +16,7 @@ class QueryRoute(str, Enum):
     DOCUMENTAIRE = "documentaire"
     DONNEES_ERP = "donnees_erp"
     HYBRIDE = "hybride"
+    CODE_INTELLIGENCE = "code_intelligence"
 
 
 class DataQueryIntent(BaseModel):

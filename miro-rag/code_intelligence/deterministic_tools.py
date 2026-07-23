@@ -9,6 +9,7 @@ Implements Epic B:
 """
 
 from dataclasses import dataclass, field
+from enum import Enum
 from typing import Dict, List, Optional, Set, Any
 import logging
 
@@ -312,6 +313,178 @@ def chemin_execution_bouton(
         target_state=target_state,
         required_groups=sorted(list(required_groups)),
         execution_steps=execution_steps,
+        summary_text=summary,
+    )
+
+
+class QueryStatus(Enum):
+    FOUND = "found"
+    EMPTY = "empty"
+    NOT_FOUND = "not_found"
+
+
+@dataclass
+class InheritanceChainResult:
+    model_name: str
+    status: QueryStatus = QueryStatus.NOT_FOUND
+    extension_parents: List[str] = field(default_factory=list)
+    delegation_parents: Dict[str, str] = field(default_factory=dict)
+    full_ancestors: List[str] = field(default_factory=list)
+    summary_text: str = ""
+
+
+@dataclass
+class WorkflowProcessResult:
+    model_name: str
+    status: QueryStatus = QueryStatus.NOT_FOUND
+    states: List[str] = field(default_factory=list)
+    transitions: List[Dict[str, Any]] = field(default_factory=list)
+    summary_text: str = ""
+
+
+def suivre_heritage_complet(
+    G: nx.DiGraph,
+    model_name: str
+) -> InheritanceChainResult:
+    """
+    Story B.1.4: Traverses full inheritance chain distinguishing _inherit extension vs _inherits delegation.
+    Handles 3-level error management (B.1.6).
+    """
+    model_node = f"model:{model_name}"
+
+    if model_node not in G:
+        return InheritanceChainResult(
+            model_name=model_name,
+            status=QueryStatus.NOT_FOUND,
+            summary_text=f"Model '{model_name}' was not found in the indexed knowledge graph (probable typo or missing model)."
+        )
+
+    extension_parents: Set[str] = set()
+    delegation_parents: Dict[str, str] = {}
+    full_ancestors: List[str] = []
+
+    # BFS traversal for full ancestors
+    visited: Set[str] = {model_name}
+    queue: List[str] = [model_name]
+
+    while queue:
+        curr = queue.pop(0)
+        curr_node = f"model:{curr}"
+
+        if curr_node in G:
+            for neighbor in G.neighbors(curr_node):
+                edge_data = G.get_edge_data(curr_node, neighbor) or {}
+                edge_type = edge_data.get("edge_type")
+
+                if edge_type == "EXTENDS":
+                    parent_m = neighbor.replace("model:", "")
+                    if curr == model_name:
+                        extension_parents.add(parent_m)
+                    if parent_m not in visited:
+                        visited.add(parent_m)
+                        queue.append(parent_m)
+                        full_ancestors.append(parent_m)
+
+                elif edge_type == "DELEGATES_TO":
+                    parent_m = neighbor.replace("model:", "")
+                    fk_field = edge_data.get("fk_field", "")
+                    if curr == model_name:
+                        delegation_parents[parent_m] = fk_field
+                    if parent_m not in visited:
+                        visited.add(parent_m)
+                        queue.append(parent_m)
+                        full_ancestors.append(parent_m)
+
+    if not extension_parents and not delegation_parents:
+        return InheritanceChainResult(
+            model_name=model_name,
+            status=QueryStatus.EMPTY,
+            summary_text=f"Model '{model_name}' exists in the index but does not inherit from any other models."
+        )
+
+    ext_str = ", ".join(sorted(extension_parents)) if extension_parents else "None"
+    del_str = ", ".join([f"{m} (via {fk})" for m, fk in delegation_parents.items()]) if delegation_parents else "None"
+
+    summary = (
+        f"Inheritance Chain for '{model_name}': "
+        f"Extensions (_inherit): [{ext_str}]. "
+        f"Delegations (_inherits): [{del_str}]. "
+        f"Full Ancestor Chain: [{', '.join(full_ancestors)}]."
+    )
+
+    return InheritanceChainResult(
+        model_name=model_name,
+        status=QueryStatus.FOUND,
+        extension_parents=sorted(list(extension_parents)),
+        delegation_parents=delegation_parents,
+        full_ancestors=full_ancestors,
+        summary_text=summary,
+    )
+
+
+def quel_est_le_processus_de(
+    G: nx.DiGraph,
+    model_name: str
+) -> WorkflowProcessResult:
+    """
+    Story B.1.5: Traverses WorkflowState -> TRANSITIONS_VIA -> WorkflowState edges.
+    Handles 3-level error management (B.1.6).
+    """
+    model_node = f"model:{model_name}"
+
+    if model_node not in G:
+        return WorkflowProcessResult(
+            model_name=model_name,
+            status=QueryStatus.NOT_FOUND,
+            summary_text=f"Model '{model_name}' was not found in the indexed knowledge graph (probable typo or missing model)."
+        )
+
+    states: Set[str] = set()
+    transitions: List[Dict[str, Any]] = []
+
+    # Find workflow state nodes for this model
+    for n, data in G.nodes(data=True):
+        if data.get("node_type") == "WorkflowState" and data.get("model") == model_name:
+            states.add(data.get("state_value", ""))
+
+    # Find TRANSITIONS_VIA edges
+    for u, v, edge_data in G.edges(data=True):
+        if edge_data.get("edge_type") == "TRANSITIONS_VIA":
+            orig_st = u.replace(f"state:{model_name}.", "").replace("state:", "")
+            targ_st = v.replace(f"state:{model_name}.", "").replace("state:", "")
+
+            if u.startswith(f"state:{model_name}") or v.startswith(f"state:{model_name}"):
+                transitions.append({
+                    "origin_state": orig_st,
+                    "target_state": targ_st,
+                    "method_name": edge_data.get("method_name", ""),
+                    "button_label": edge_data.get("label_bouton", ""),
+                    "required_groups": edge_data.get("groupe_requis", []),
+                })
+
+    if not transitions:
+        return WorkflowProcessResult(
+            model_name=model_name,
+            status=QueryStatus.EMPTY,
+            states=sorted(list(states)),
+            summary_text=f"Model '{model_name}' exists in the index but has no explicit workflow state transitions defined."
+        )
+
+    steps_text = []
+    for idx, tr in enumerate(transitions, 1):
+        grp_str = ", ".join(tr["required_groups"]) if tr["required_groups"] else "All Users"
+        steps_text.append(
+            f"Step {idx}: [{tr['origin_state']}] -> [{tr['target_state']}] "
+            f"via Button '{tr['button_label']}' (Method: `{tr['method_name']}()`, Role: [{grp_str}])"
+        )
+
+    summary = f"Workflow Process for '{model_name}' ({len(transitions)} transitions):\n" + "\n".join(steps_text)
+
+    return WorkflowProcessResult(
+        model_name=model_name,
+        status=QueryStatus.FOUND,
+        states=sorted(list(states)),
+        transitions=transitions,
         summary_text=summary,
     )
 

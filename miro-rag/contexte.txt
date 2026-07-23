@@ -59,10 +59,24 @@
 - Story A1.4: Implemented JS & OWL client-side security check extractor in `code_intelligence/js_extractor.py` (`OdooClientGroupCheck`). Extracted `hasGroup` and `t-if="user.hasGroup(...)"` patterns tagged with `client_side_only=True`. Completed full A1 end-to-end integration test (`test_a1_4_1.py`) validating Python, XML, CSV, JS, and manifest extractors across full Odoo modules.
 - Story A2.1: Implemented Two-Pass Cross-File Reference Resolver in `code_intelligence/cross_file_resolver.py` (`build_module_symbol_registry`). Pass 1 indexes symbols according to topological sorting of manifest `depends` load ordering (`topological_sort_modules`). Pass 2 resolves cross-file model inheritances, security rules, and group hierarchies. Implemented categorized unresolved reference tracking (`UnresolvedCategory`: `absent_from_corpus`, `core_odoo_out_of_scope`, `probable_typo`) and inheritance cycle detection with `visited: set()` recursion tracking (`test_a2_1_1.py`).
 - Story A3.1: Implemented NetworkX Knowledge Graph Builder and Workflow Sub-Graph in `code_intelligence/graph_builder.py` (`OdooGraphBuilder`). Constructed typed nodes (`Model`, `Field`, `Method`, `Group`, `Rule`, `Module`, `AccessEntry`, `WorkflowState`) and typed edges (`EXTENDS`, `DELEGATES_TO`, `HAS_FIELD`, `RELATES_TO`, `COMPUTED_BY`, `DEPENDS_ON`, `RESTRICTED_BY`, `APPLIES_TO_GROUP`, `IMPLIES`, `GRANTED_BY`, `DEFINED_IN`, `TRANSITIONS_VIA`). Implemented JSON serialization via `networkx.node_link_data` / `node_link_graph` per DT-4. Achieved **0.89ms traversal speed** on 5-hop benchmarks (`benchmark_graph_traversal`), well below the 50ms budget target (`test_a3_1_1.py`).
-- Epic B (Deterministic Tools): Implemented 3 specialized query algorithms in `code_intelligence/deterministic_tools.py`:
-  1. `qui_a_acces_a(G, model, droit, group_id)`: Combines ACLs, record rules, group inheritance, and JS checks (`test_b1_1.py`).
-  2. `impact_changement_champ(G, field, model)`: Computes upstream dependencies (`DEPENDS_ON`) and downstream impact (`COMPUTED_BY`, `RELATES_TO`) (`test_b1_2.py`).
-  3. `chemin_execution_bouton(G, button, model)`: Traces step-by-step UI button -> Python method -> Workflow state transition -> Security requirements (`test_b1_3.py`).
+- Story B.1 (All Composite Tools): Implemented 5 specialized query tools in `code_intelligence/deterministic_tools.py`:
+  1. `qui_a_acces_a(G, model, droit, group_id)` (B.1.1)
+  2. `impact_changement_champ(G, field, model)` (B.1.2)
+  3. `chemin_execution_bouton(G, button, model)` (B.1.3)
+  4. `suivre_heritage_complet(G, model)` (B.1.4): Full inheritance chain distinguishing `_inherit` extensions and `_inherits` delegation.
+  5. `quel_est_le_processus_de(G, model)` (B.1.5): Workflow sequence traversal across `WorkflowState -> TRANSITIONS_VIA`.
+  - Implemented 3-level error management (B.1.6: `FOUND`, `EMPTY`, `NOT_FOUND` / typo error handling across all tools).
+- Story B.2 (Auxiliary Tools): Implemented utility tools in `code_intelligence/auxiliary_tools.py`:
+  - `resoudre_nom_technique_vers_role(nom)` (B.2.1): Technical XML-ID to business role mapper.
+  - `lister_modules_impliques(G, model)` (B.2.2): Scoping tool returning list of modules extending a model.
+  - `expliquer_chemin_de_decision(G, path)` (B.2.3): Path sequence to natural language translator.
+  - `lire_code_source_precis(file, start, end)` (B.2.4): Targeted source reader with 200 line safeguard limit.
+- Story A4.1 (Live Odoo Sync & Divergence Detector): Implemented XML-RPC live comparator in `code_intelligence/live_comparator.py`:
+  - `fetch_live_model_security(model)`: 5-minute TTL cache with manual invalidation (`clear_live_cache()`).
+  - `comparer_regles_statique_vs_live(registry, model, live_data)`: Detailed divergence detection (`GROUP_ADDED_IN_LIVE`, `DOMAIN_MODIFIED`, `RULE_DISABLED_IN_LIVE`).
+- Story C.1 (Router & Agent Node): 4-way routing (`DOCUMENTAIRE`, `DONNEES_ERP`, `HYBRIDE`, `CODE_INTELLIGENCE`) wired in `rag/schemas.py` and `rag/graph.py` with 100% test pass rate across 50 tests (`test_b_complete.py` + `test_c1_1.py`).
+
+
 
 
 
