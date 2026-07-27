@@ -120,7 +120,7 @@ def test_integration_a1_a2_real_corpus():
     modules_dict = {}
 
     # Load miro_ai module
-    miro_ai_dir = root_dir / "odoo17-dev" / "addons" / "miro_ai"
+    miro_ai_dir = Path("/home/user/odoo-17.0/addons") / "miro_ai"
     if miro_ai_dir.exists():
         manifest = parse_manifest(miro_ai_dir / "__manifest__.py")
         if manifest:

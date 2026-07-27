@@ -81,7 +81,7 @@ def test_groups_and_actions_extraction():
 def test_real_xml_miro_ai_groups():
     """Test parsing res.groups from real miro_ai_security.xml."""
     root_dir = Path(__file__).resolve().parent.parent.parent.parent
-    xml_file = root_dir / "odoo17-dev" / "addons" / "miro_ai" / "security" / "miro_ai_security.xml"
+    xml_file = Path("/home/user/odoo-17.0/addons") / "miro_ai" / "security" / "miro_ai_security.xml"
 
     if xml_file.exists():
         groups = parse_groups_from_xml(xml_file)

@@ -27,6 +27,148 @@ class RuleDetail:
 
 
 @dataclass
+@dataclass
+class RuleEvaluationResult:
+    model_name: str
+    user_groups: List[str]
+    applied_global_rules: List[RuleDetail] = field(default_factory=list)
+    applied_group_rules: List[RuleDetail] = field(default_factory=list)
+    ignored_group_rules: List[RuleDetail] = field(default_factory=list)
+    effective_domain_summary: str = ""
+    summary_text: str = ""
+
+    def can_view_amount(self, amount: float) -> bool:
+        """
+        Helper method to evaluate effective rules against a specific monetary threshold.
+        """
+        import re
+
+        # Check global rules first (AND logic)
+        for rule in self.applied_global_rules:
+            m = re.search(r"<=['\"\s]*,['\"\s]*(-?\d+(?:\.\d+)?)", rule.domain_force)
+            if m:
+                limit = float(m.group(1))
+                if amount > limit:
+                    return False
+
+        # If user has no applicable group rules, they are NOT restricted by group rules!
+        if not self.applied_group_rules:
+            return True
+
+        # If user has applied group rules, they are combined with OR
+        # If any applied group rule allows the amount, OR evaluates to True!
+        for rule in self.applied_group_rules:
+            dom = rule.domain_force
+            if dom in ("[(1, '=', 1)]", "[(1,'=',1)]", "[('id', '!=', False)]"):
+                return True
+            m = re.search(r"<=['\"\s]*,['\"\s]*(-?\d+(?:\.\d+)?)", dom)
+            if m:
+                limit = float(m.group(1))
+                if amount <= limit:
+                    return True
+            else:
+                # Group rule with no numeric limit (e.g. unlimited or non-amount rule) allows access
+                return True
+
+        return False
+
+
+def evaluer_regles_enregistrement(
+    G: nx.DiGraph,
+    model_name: str,
+    droit: str = "read",
+    user_groups: Optional[List[str]] = None
+) -> RuleEvaluationResult:
+    """
+    Stories S2.1 & S2.2: Evaluates Odoo ir.rule record rules for a user, model, and permission type (read, write, create, unlink):
+    - Global rules (no groups) are combined with AND across ALL users.
+    - Group-specific rules are combined with OR across groups the user belongs to.
+    - If user belongs to NO groups linked to a group rule, that group rule is IGNORED (does not restrict the user).
+    """
+    if user_groups is None:
+        user_groups = []
+
+    model_node = f"model:{model_name}"
+    perm_attr = f"perm_{droit}" if droit in {"read", "write", "create", "unlink"} else "perm_read"
+
+    if model_node not in G:
+        return RuleEvaluationResult(
+            model_name=model_name,
+            user_groups=user_groups,
+            summary_text=f"Model '{model_name}' was not found in the indexed knowledge graph."
+        )
+
+    # Find all rules attached to model that apply to requested permission
+    all_rules: List[RuleDetail] = []
+    for neighbor in G.neighbors(model_node):
+        edge_data = G.get_edge_data(model_node, neighbor) or {}
+        if edge_data.get("edge_type") == "RESTRICTED_BY" and G.nodes[neighbor].get("node_type") == "Rule":
+            rule_node = G.nodes[neighbor]
+            if not rule_node.get(perm_attr, True):
+                continue
+
+            rule_groups = []
+            for r_neighbor in G.neighbors(neighbor):
+                r_edge = G.get_edge_data(neighbor, r_neighbor) or {}
+                if r_edge.get("edge_type") == "APPLIES_TO_GROUP":
+                    grp_xml_id = r_neighbor.replace("group:", "")
+                    rule_groups.append(grp_xml_id)
+
+            all_rules.append(
+                RuleDetail(
+                    rule_xml_id=rule_node.get("xml_id", neighbor.replace("rule:", "")),
+                    rule_name=rule_node.get("name", ""),
+                    domain_force=rule_node.get("domain_force", ""),
+                    groups=rule_groups,
+                )
+            )
+
+    applied_global: List[RuleDetail] = []
+    applied_group: List[RuleDetail] = []
+    ignored_group: List[RuleDetail] = []
+
+    user_group_set = set(user_groups)
+    for g in list(user_group_set):
+        _expand_inheriting_groups(G, g, user_group_set)
+
+    for rule in all_rules:
+        if not rule.groups:
+            applied_global.append(rule)
+        else:
+            rule_grp_set = set(rule.groups)
+            if user_group_set.intersection(rule_grp_set):
+                applied_group.append(rule)
+            else:
+                ignored_group.append(rule)
+
+    lines = [f"Évaluation des règles d'enregistrement (ir.rule) pour '{model_name}':"]
+    if applied_global:
+        lines.append("  - Règles Globales (ET pour tous): " + ", ".join([f"{r.rule_name} [{r.domain_force}]" for r in applied_global]))
+    else:
+        lines.append("  - Règles Globales: Aucune")
+
+    if applied_group:
+        lines.append("  - Règles de Groupe applicables (combinées en OU): " + ", ".join([f"{r.rule_name} [{r.domain_force}]" for r in applied_group]))
+    else:
+        lines.append("  - Règles de Groupe applicables: Aucune (l'utilisateur n'appartient à aucun des groupes visés)")
+
+    if ignored_group:
+        lines.append("  - Règles de Groupe ignorées (non-membre): " + ", ".join([f"{r.rule_name}" for r in ignored_group]))
+
+    summary_text = "\n".join(lines)
+
+    return RuleEvaluationResult(
+        model_name=model_name,
+        user_groups=user_groups,
+        applied_global_rules=applied_global,
+        applied_group_rules=applied_group,
+        ignored_group_rules=ignored_group,
+        effective_domain_summary=summary_text,
+        summary_text=summary_text,
+    )
+
+
+@dataclass
 class AccessEvaluationResult:
     model_name: str
     droit_demande: str

@@ -1,0 +1,1079 @@
+{
+  "directed": true,
+  "multigraph": false,
+  "graph": {},
+  "nodes": [
+    {
+      "node_type": "Module",
+      "name": "custom_asset_loan",
+      "depends": [
+        "custom_purchase_request"
+      ],
+      "filepath": "/home/user/odoo-17.0/addons/custom_asset_loan/__manifest__.py",
+      "id": "module:custom_asset_loan"
+    },
+    {
+      "node_type": "Module",
+      "name": "custom_automation_traps",
+      "depends": [
+        "account",
+        "base_automation"
+      ],
+      "filepath": "/home/user/odoo-17.0/addons/custom_automation_traps/__manifest__.py",
+      "id": "module:custom_automation_traps"
+    },
+    {
+      "node_type": "Module",
+      "name": "custom_credit_note_approval",
+      "depends": [
+        "account"
+      ],
+      "filepath": "/home/user/odoo-17.0/addons/custom_credit_note_approval/__manifest__.py",
+      "id": "module:custom_credit_note_approval"
+    },
+    {
+      "node_type": "Module",
+      "name": "custom_credit_note_approval_regional",
+      "depends": [
+        "custom_credit_note_approval",
+        "hr"
+      ],
+      "filepath": "/home/user/odoo-17.0/addons/custom_credit_note_approval_regional/__manifest__.py",
+      "id": "module:custom_credit_note_approval_regional"
+    },
+    {
+      "node_type": "Module",
+      "name": "custom_credit_note_approval_vip",
+      "depends": [
+        "custom_credit_note_approval_regional"
+      ],
+      "filepath": "/home/user/odoo-17.0/addons/custom_credit_note_approval_vip/__manifest__.py",
+      "id": "module:custom_credit_note_approval_vip"
+    },
+    {
+      "node_type": "Module",
+      "name": "custom_credit_note_visibility_rules",
+      "depends": [
+        "custom_credit_note_approval"
+      ],
+      "filepath": "/home/user/odoo-17.0/addons/custom_credit_note_visibility_rules/__manifest__.py",
+      "id": "module:custom_credit_note_visibility_rules"
+    },
+    {
+      "node_type": "Module",
+      "name": "custom_expense_reimbursement_indirect",
+      "depends": [
+        "base"
+      ],
+      "filepath": "/home/user/odoo-17.0/addons/custom_expense_reimbursement_indirect/__manifest__.py",
+      "id": "module:custom_expense_reimbursement_indirect"
+    },
+    {
+      "node_type": "Module",
+      "name": "custom_hr_leave_workflow",
+      "depends": [
+        "hr_holidays"
+      ],
+      "filepath": "/home/user/odoo-17.0/addons/custom_hr_leave_workflow/__manifest__.py",
+      "id": "module:custom_hr_leave_workflow"
+    },
+    {
+      "node_type": "Module",
+      "name": "custom_purchase_request",
+      "depends": [
+        "purchase"
+      ],
+      "filepath": "/home/user/odoo-17.0/addons/custom_purchase_request/__manifest__.py",
+      "id": "module:custom_purchase_request"
+    },
+    {
+      "node_type": "Model",
+      "name": "custom.purchase.request",
+      "inherits_list": [],
+      "delegations_dict": {},
+      "filepaths": [
+        "/home/user/odoo-17.0/addons/custom_purchase_request/models/purchase_request.py"
+      ],
+      "id": "model:custom.purchase.request"
+    },
+    {
+      "id": "module:"
+    },
+    {
+      "node_type": "Field",
+      "name": "name",
+      "model": "custom.purchase.request",
+      "field_type": "Char",
+      "comodel_name": null,
+      "inverse_name": null,
+      "compute": null,
+      "related": null,
+      "store": true,
+      "filepath": "/home/user/odoo-17.0/addons/custom_purchase_request/models/purchase_request.py",
+      "id": "field:custom.purchase.request.name"
+    },
+    {
+      "node_type": "Field",
+      "name": "demandeur_id",
+      "model": "custom.purchase.request",
+      "field_type": "Many2one",
+      "comodel_name": "res.users",
+      "inverse_name": null,
+      "compute": null,
+      "related": null,
+      "store": true,
+      "filepath": "/home/user/odoo-17.0/addons/custom_purchase_request/models/purchase_request.py",
+      "id": "field:custom.purchase.request.demandeur_id"
+    },
+    {
+      "id": "model:res.users"
+    },
+    {
+      "node_type": "Field",
+      "name": "montant_estime",
+      "model": "custom.purchase.request",
+      "field_type": "Float",
+      "comodel_name": null,
+      "inverse_name": null,
+      "compute": null,
+      "related": null,
+      "store": true,
+      "filepath": "/home/user/odoo-17.0/addons/custom_purchase_request/models/purchase_request.py",
+      "id": "field:custom.purchase.request.montant_estime"
+    },
+    {
+      "node_type": "Field",
+      "name": "etat",
+      "model": "custom.purchase.request",
+      "field_type": "Selection",
+      "comodel_name": null,
+      "inverse_name": null,
+      "compute": null,
+      "related": null,
+      "store": true,
+      "filepath": "/home/user/odoo-17.0/addons/custom_purchase_request/models/purchase_request.py",
+      "id": "field:custom.purchase.request.etat"
+    },
+    {
+      "node_type": "Field",
+      "name": "justification",
+      "model": "custom.purchase.request",
+      "field_type": "Text",
+      "comodel_name": null,
+      "inverse_name": null,
+      "compute": null,
+      "related": null,
+      "store": true,
+      "filepath": "/home/user/odoo-17.0/addons/custom_purchase_request/models/purchase_request.py",
+      "id": "field:custom.purchase.request.justification"
+    },
+    {
+      "node_type": "Method",
+      "name": "action_soumettre",
+      "model": "custom.purchase.request",
+      "api_model": false,
+      "is_instance_method": true,
+      "filepath": "/home/user/odoo-17.0/addons/custom_purchase_request/models/purchase_request.py",
+      "lineno": 22,
+      "id": "method:custom.purchase.request.action_soumettre"
+    },
+    {
+      "node_type": "Method",
+      "name": "action_valider",
+      "model": "custom.purchase.request",
+      "api_model": false,
+      "is_instance_method": true,
+      "filepath": "/home/user/odoo-17.0/addons/custom_purchase_request/models/purchase_request.py",
+      "lineno": 25,
+      "id": "method:custom.purchase.request.action_valider"
+    },
+    {
+      "node_type": "Model",
+      "name": "custom.asset.loan",
+      "inherits_list": [],
+      "delegations_dict": {},
+      "filepaths": [
+        "/home/user/odoo-17.0/addons/custom_asset_loan/models/asset_loan.py"
+      ],
+      "id": "model:custom.asset.loan"
+    },
+    {
+      "node_type": "Field",
+      "name": "name",
+      "model": "custom.asset.loan",
+      "field_type": "Char",
+      "comodel_name": null,
+      "inverse_name": null,
+      "compute": null,
+      "related": null,
+      "store": true,
+      "filepath": "/home/user/odoo-17.0/addons/custom_asset_loan/models/asset_loan.py",
+      "id": "field:custom.asset.loan.name"
+    },
+    {
+      "node_type": "Field",
+      "name": "beneficiaire_id",
+      "model": "custom.asset.loan",
+      "field_type": "Many2one",
+      "comodel_name": "res.users",
+      "inverse_name": null,
+      "compute": null,
+      "related": null,
+      "store": true,
+      "filepath": "/home/user/odoo-17.0/addons/custom_asset_loan/models/asset_loan.py",
+      "id": "field:custom.asset.loan.beneficiaire_id"
+    },
+    {
+      "node_type": "Field",
+      "name": "materiel",
+      "model": "custom.asset.loan",
+      "field_type": "Char",
+      "comodel_name": null,
+      "inverse_name": null,
+      "compute": null,
+      "related": null,
+      "store": true,
+      "filepath": "/home/user/odoo-17.0/addons/custom_asset_loan/models/asset_loan.py",
+      "id": "field:custom.asset.loan.materiel"
+    },
+    {
+      "node_type": "Field",
+      "name": "date_debut",
+      "model": "custom.asset.loan",
+      "field_type": "Date",
+      "comodel_name": null,
+      "inverse_name": null,
+      "compute": null,
+      "related": null,
+      "store": true,
+      "filepath": "/home/user/odoo-17.0/addons/custom_asset_loan/models/asset_loan.py",
+      "id": "field:custom.asset.loan.date_debut"
+    },
+    {
+      "node_type": "Field",
+      "name": "date_fin",
+      "model": "custom.asset.loan",
+      "field_type": "Date",
+      "comodel_name": null,
+      "inverse_name": null,
+      "compute": null,
+      "related": null,
+      "store": true,
+      "filepath": "/home/user/odoo-17.0/addons/custom_asset_loan/models/asset_loan.py",
+      "id": "field:custom.asset.loan.date_fin"
+    },
+    {
+      "node_type": "Field",
+      "name": "demande_achat_liee_id",
+      "model": "custom.asset.loan",
+      "field_type": "Many2one",
+      "comodel_name": "custom.purchase.request",
+      "inverse_name": null,
+      "compute": null,
+      "related": null,
+      "store": true,
+      "filepath": "/home/user/odoo-17.0/addons/custom_asset_loan/models/asset_loan.py",
+      "id": "field:custom.asset.loan.demande_achat_liee_id"
+    },
+    {
+      "node_type": "Field",
+      "name": "etat",
+      "model": "custom.asset.loan",
+      "field_type": "Selection",
+      "comodel_name": null,
+      "inverse_name": null,
+      "compute": null,
+      "related": null,
+      "store": true,
+      "filepath": "/home/user/odoo-17.0/addons/custom_asset_loan/models/asset_loan.py",
+      "id": "field:custom.asset.loan.etat"
+    },
+    {
+      "node_type": "Method",
+      "name": "action_demarrer",
+      "model": "custom.asset.loan",
+      "api_model": false,
+      "is_instance_method": true,
+      "filepath": "/home/user/odoo-17.0/addons/custom_asset_loan/models/asset_loan.py",
+      "lineno": 20,
+      "id": "method:custom.asset.loan.action_demarrer"
+    },
+    {
+      "node_type": "Model",
+      "name": "account.move",
+      "inherits_list": [
+        "account.move",
+        "account.move",
+        "account.move"
+      ],
+      "delegations_dict": {},
+      "filepaths": [
+        "/home/user/odoo-17.0/addons/custom_credit_note_approval/models/account_move.py",
+        "/home/user/odoo-17.0/addons/custom_credit_note_approval_regional/models/account_move.py",
+        "/home/user/odoo-17.0/addons/custom_credit_note_approval_vip/models/account_move.py"
+      ],
+      "id": "model:account.move"
+    },
+    {
+      "node_type": "Field",
+      "name": "avoir_valide_par_id",
+      "model": "account.move",
+      "field_type": "Many2one",
+      "comodel_name": "res.users",
+      "inverse_name": null,
+      "compute": null,
+      "related": null,
+      "store": true,
+      "filepath": "/home/user/odoo-17.0/addons/custom_credit_note_approval/models/account_move.py",
+      "id": "field:account.move.avoir_valide_par_id"
+    },
+    {
+      "node_type": "Field",
+      "name": "avoir_niveau_appro",
+      "model": "account.move",
+      "field_type": "Selection",
+      "comodel_name": null,
+      "inverse_name": null,
+      "compute": null,
+      "related": null,
+      "store": true,
+      "filepath": "/home/user/odoo-17.0/addons/custom_credit_note_approval/models/account_move.py",
+      "id": "field:account.move.avoir_niveau_appro"
+    },
+    {
+      "node_type": "Method",
+      "name": "action_valider_avoir",
+      "model": "account.move",
+      "api_model": false,
+      "is_instance_method": true,
+      "filepath": "/home/user/odoo-17.0/addons/custom_credit_note_approval_vip/models/account_move.py",
+      "lineno": 7,
+      "id": "method:account.move.action_valider_avoir"
+    },
+    {
+      "node_type": "Field",
+      "name": "avoir_directeur_regional_id",
+      "model": "account.move",
+      "field_type": "Many2one",
+      "comodel_name": "res.users",
+      "inverse_name": null,
+      "compute": null,
+      "related": null,
+      "store": true,
+      "filepath": "/home/user/odoo-17.0/addons/custom_credit_note_approval_regional/models/account_move.py",
+      "id": "field:account.move.avoir_directeur_regional_id"
+    },
+    {
+      "node_type": "Method",
+      "name": "_get_directeur_regional",
+      "model": "account.move",
+      "api_model": false,
+      "is_instance_method": true,
+      "filepath": "/home/user/odoo-17.0/addons/custom_credit_note_approval_regional/models/account_move.py",
+      "lineno": 17,
+      "id": "method:account.move._get_directeur_regional"
+    },
+    {
+      "node_type": "Model",
+      "name": "res.partner",
+      "inherits_list": [
+        "res.partner"
+      ],
+      "delegations_dict": {},
+      "filepaths": [
+        "/home/user/odoo-17.0/addons/custom_credit_note_approval_vip/models/res_partner.py"
+      ],
+      "id": "model:res.partner"
+    },
+    {
+      "node_type": "Field",
+      "name": "avoir_vip_exempt",
+      "model": "res.partner",
+      "field_type": "Boolean",
+      "comodel_name": null,
+      "inverse_name": null,
+      "compute": null,
+      "related": null,
+      "store": true,
+      "filepath": "/home/user/odoo-17.0/addons/custom_credit_note_approval_vip/models/res_partner.py",
+      "id": "field:res.partner.avoir_vip_exempt"
+    },
+    {
+      "node_type": "Model",
+      "name": "custom.reimbursement.request",
+      "inherits_list": [],
+      "delegations_dict": {},
+      "filepaths": [
+        "/home/user/odoo-17.0/addons/custom_expense_reimbursement_indirect/models/reimbursement.py"
+      ],
+      "id": "model:custom.reimbursement.request"
+    },
+    {
+      "node_type": "Field",
+      "name": "employe_id",
+      "model": "custom.reimbursement.request",
+      "field_type": "Many2one",
+      "comodel_name": "res.users",
+      "inverse_name": null,
+      "compute": null,
+      "related": null,
+      "store": true,
+      "filepath": "/home/user/odoo-17.0/addons/custom_expense_reimbursement_indirect/models/reimbursement.py",
+      "id": "field:custom.reimbursement.request.employe_id"
+    },
+    {
+      "node_type": "Field",
+      "name": "montant",
+      "model": "custom.reimbursement.request",
+      "field_type": "Float",
+      "comodel_name": null,
+      "inverse_name": null,
+      "compute": null,
+      "related": null,
+      "store": true,
+      "filepath": "/home/user/odoo-17.0/addons/custom_expense_reimbursement_indirect/models/reimbursement.py",
+      "id": "field:custom.reimbursement.request.montant"
+    },
+    {
+      "node_type": "Field",
+      "name": "motif",
+      "model": "custom.reimbursement.request",
+      "field_type": "Char",
+      "comodel_name": null,
+      "inverse_name": null,
+      "compute": null,
+      "related": null,
+      "store": true,
+      "filepath": "/home/user/odoo-17.0/addons/custom_expense_reimbursement_indirect/models/reimbursement.py",
+      "id": "field:custom.reimbursement.request.motif"
+    },
+    {
+      "node_type": "Field",
+      "name": "etat",
+      "model": "custom.reimbursement.request",
+      "field_type": "Selection",
+      "comodel_name": null,
+      "inverse_name": null,
+      "compute": null,
+      "related": null,
+      "store": true,
+      "filepath": "/home/user/odoo-17.0/addons/custom_expense_reimbursement_indirect/models/reimbursement.py",
+      "id": "field:custom.reimbursement.request.etat"
+    },
+    {
+      "node_type": "Method",
+      "name": "action_valider",
+      "model": "custom.reimbursement.request",
+      "api_model": false,
+      "is_instance_method": true,
+      "filepath": "/home/user/odoo-17.0/addons/custom_expense_reimbursement_indirect/models/reimbursement.py",
+      "lineno": 25,
+      "id": "method:custom.reimbursement.request.action_valider"
+    },
+    {
+      "node_type": "Method",
+      "name": "_g_q7",
+      "model": "custom.reimbursement.request",
+      "api_model": false,
+      "is_instance_method": true,
+      "filepath": "/home/user/odoo-17.0/addons/custom_expense_reimbursement_indirect/models/reimbursement.py",
+      "lineno": 37,
+      "id": "method:custom.reimbursement.request._g_q7"
+    },
+    {
+      "node_type": "Model",
+      "name": "hr.leave",
+      "inherits_list": [
+        "hr.leave"
+      ],
+      "delegations_dict": {},
+      "filepaths": [
+        "/home/user/odoo-17.0/addons/custom_hr_leave_workflow/models/hr_leave.py"
+      ],
+      "id": "model:hr.leave"
+    },
+    {
+      "node_type": "Field",
+      "name": "conge_urgence",
+      "model": "hr.leave",
+      "field_type": "Boolean",
+      "comodel_name": null,
+      "inverse_name": null,
+      "compute": null,
+      "related": null,
+      "store": true,
+      "filepath": "/home/user/odoo-17.0/addons/custom_hr_leave_workflow/models/hr_leave.py",
+      "id": "field:hr.leave.conge_urgence"
+    },
+    {
+      "node_type": "Method",
+      "name": "_check_solde_conge",
+      "model": "hr.leave",
+      "api_model": false,
+      "is_instance_method": true,
+      "filepath": "/home/user/odoo-17.0/addons/custom_hr_leave_workflow/models/hr_leave.py",
+      "lineno": 11,
+      "id": "method:hr.leave._check_solde_conge"
+    },
+    {
+      "node_type": "Method",
+      "name": "action_approve",
+      "model": "hr.leave",
+      "api_model": false,
+      "is_instance_method": true,
+      "filepath": "/home/user/odoo-17.0/addons/custom_hr_leave_workflow/models/hr_leave.py",
+      "lineno": 20,
+      "id": "method:hr.leave.action_approve"
+    },
+    {
+      "node_type": "Group",
+      "xml_id": "custom_credit_note_visibility_rules.group_avoir_regional",
+      "name": "Avoirs - Visibilite Regionale",
+      "category_id": "",
+      "id": "group:custom_credit_note_visibility_rules.group_avoir_regional"
+    },
+    {
+      "node_type": "Group",
+      "xml_id": "group_avoir_regional",
+      "name": "Avoirs - Visibilite Regionale",
+      "category_id": "",
+      "id": "group:group_avoir_regional"
+    },
+    {
+      "node_type": "Group",
+      "xml_id": "custom_credit_note_visibility_rules.group_avoir_national",
+      "name": "Avoirs - Visibilite Nationale",
+      "category_id": "",
+      "id": "group:custom_credit_note_visibility_rules.group_avoir_national"
+    },
+    {
+      "node_type": "Group",
+      "xml_id": "group_avoir_national",
+      "name": "Avoirs - Visibilite Nationale",
+      "category_id": "",
+      "id": "group:group_avoir_national"
+    },
+    {
+      "node_type": "Rule",
+      "xml_id": "custom_credit_note_approval.rule_avoir_visibilite_departement",
+      "name": "Avoirs - visibilite par departement (sauf managers)",
+      "domain_force": "['|', ('move_type', '!=', 'out_refund'), '|', ('invoice_user_id', '=', user.id), ('journal_id.department_id', '=', user.employee_id.department_id.id)]",
+      "filepath": "/home/user/odoo-17.0/addons/custom_credit_note_approval/security/security_rules.xml",
+      "lineno": 2,
+      "perm_read": true,
+      "perm_write": true,
+      "perm_create": true,
+      "perm_unlink": true,
+      "id": "rule:custom_credit_note_approval.rule_avoir_visibilite_departement"
+    },
+    {
+      "id": "group:account.group_account_invoice"
+    },
+    {
+      "node_type": "Rule",
+      "xml_id": "rule_avoir_visibilite_departement",
+      "name": "Avoirs - visibilite par departement (sauf managers)",
+      "domain_force": "['|', ('move_type', '!=', 'out_refund'), '|', ('invoice_user_id', '=', user.id), ('journal_id.department_id', '=', user.employee_id.department_id.id)]",
+      "filepath": "/home/user/odoo-17.0/addons/custom_credit_note_approval/security/security_rules.xml",
+      "lineno": 2,
+      "perm_read": true,
+      "perm_write": true,
+      "perm_create": true,
+      "perm_unlink": true,
+      "id": "rule:rule_avoir_visibilite_departement"
+    },
+    {
+      "node_type": "Rule",
+      "xml_id": "custom_credit_note_visibility_rules.rule_avoir_multi_societe",
+      "name": "Avoirs - cantonnement societe (regle globale, sans groupe)",
+      "domain_force": "['|', ('move_type', '!=', 'out_refund'), ('company_id', '=', user.company_id.id)]",
+      "filepath": "/home/user/odoo-17.0/addons/custom_credit_note_visibility_rules/security/ir_rule_layered.xml",
+      "lineno": 2,
+      "perm_read": true,
+      "perm_write": true,
+      "perm_create": true,
+      "perm_unlink": true,
+      "id": "rule:custom_credit_note_visibility_rules.rule_avoir_multi_societe"
+    },
+    {
+      "node_type": "Rule",
+      "xml_id": "rule_avoir_multi_societe",
+      "name": "Avoirs - cantonnement societe (regle globale, sans groupe)",
+      "domain_force": "['|', ('move_type', '!=', 'out_refund'), ('company_id', '=', user.company_id.id)]",
+      "filepath": "/home/user/odoo-17.0/addons/custom_credit_note_visibility_rules/security/ir_rule_layered.xml",
+      "lineno": 2,
+      "perm_read": true,
+      "perm_write": true,
+      "perm_create": true,
+      "perm_unlink": true,
+      "id": "rule:rule_avoir_multi_societe"
+    },
+    {
+      "node_type": "Rule",
+      "xml_id": "custom_credit_note_visibility_rules.rule_avoir_visibilite_regionale",
+      "name": "Avoirs - plafond visibilite regionale (50000e)",
+      "domain_force": "['|', ('move_type', '!=', 'out_refund'), ('amount_total', '<=', 50000)]",
+      "filepath": "/home/user/odoo-17.0/addons/custom_credit_note_visibility_rules/security/ir_rule_layered.xml",
+      "lineno": 8,
+      "perm_read": true,
+      "perm_write": true,
+      "perm_create": true,
+      "perm_unlink": true,
+      "id": "rule:custom_credit_note_visibility_rules.rule_avoir_visibilite_regionale"
+    },
+    {
+      "node_type": "Rule",
+      "xml_id": "rule_avoir_visibilite_regionale",
+      "name": "Avoirs - plafond visibilite regionale (50000e)",
+      "domain_force": "['|', ('move_type', '!=', 'out_refund'), ('amount_total', '<=', 50000)]",
+      "filepath": "/home/user/odoo-17.0/addons/custom_credit_note_visibility_rules/security/ir_rule_layered.xml",
+      "lineno": 8,
+      "perm_read": true,
+      "perm_write": true,
+      "perm_create": true,
+      "perm_unlink": true,
+      "id": "rule:rule_avoir_visibilite_regionale"
+    },
+    {
+      "id": "group:base.group_avoir_regional"
+    },
+    {
+      "node_type": "Rule",
+      "xml_id": "custom_credit_note_visibility_rules.rule_avoir_visibilite_nationale",
+      "name": "Avoirs - visibilite nationale (illimitee)",
+      "domain_force": "[(1, '=', 1)]",
+      "filepath": "/home/user/odoo-17.0/addons/custom_credit_note_visibility_rules/security/ir_rule_layered.xml",
+      "lineno": 15,
+      "perm_read": true,
+      "perm_write": true,
+      "perm_create": true,
+      "perm_unlink": true,
+      "id": "rule:custom_credit_note_visibility_rules.rule_avoir_visibilite_nationale"
+    },
+    {
+      "node_type": "Rule",
+      "xml_id": "rule_avoir_visibilite_nationale",
+      "name": "Avoirs - visibilite nationale (illimitee)",
+      "domain_force": "[(1, '=', 1)]",
+      "filepath": "/home/user/odoo-17.0/addons/custom_credit_note_visibility_rules/security/ir_rule_layered.xml",
+      "lineno": 15,
+      "perm_read": true,
+      "perm_write": true,
+      "perm_create": true,
+      "perm_unlink": true,
+      "id": "rule:rule_avoir_visibilite_nationale"
+    },
+    {
+      "id": "group:base.group_avoir_national"
+    },
+    {
+      "node_type": "AccessEntry",
+      "name": "custom.asset.loan",
+      "perm_read": true,
+      "perm_write": true,
+      "perm_create": true,
+      "perm_unlink": false,
+      "all_authenticated": false,
+      "id": "acl:custom_asset_loan.access_custom_asset_loan"
+    },
+    {
+      "id": "group:base.group_user"
+    },
+    {
+      "node_type": "AccessEntry",
+      "name": "account.move.avoir.base",
+      "perm_read": true,
+      "perm_write": true,
+      "perm_create": false,
+      "perm_unlink": false,
+      "all_authenticated": false,
+      "id": "acl:custom_credit_note_approval.access_account_move_avoir_base"
+    },
+    {
+      "node_type": "AccessEntry",
+      "name": "custom.reimbursement.request",
+      "perm_read": true,
+      "perm_write": true,
+      "perm_create": true,
+      "perm_unlink": true,
+      "all_authenticated": true,
+      "id": "acl:custom_expense_reimbursement_indirect.access_custom_reimbursement_request"
+    },
+    {
+      "node_type": "AccessEntry",
+      "name": "custom.purchase.request",
+      "perm_read": true,
+      "perm_write": true,
+      "perm_create": true,
+      "perm_unlink": false,
+      "all_authenticated": false,
+      "id": "acl:custom_purchase_request.access_custom_purchase_request"
+    },
+    {
+      "node_type": "ServerAction",
+      "xml_id": "custom_automation_traps.ir_action_server_avoir_fournisseur_privilegie",
+      "name": "Auto-validation avoirs fournisseurs privilegies (logique cachee)",
+      "model_id": "account.model_account_move",
+      "state": "code",
+      "code": "\n# Regle non documentee ailleurs : les avoirs recus de 3 fournisseurs\n# identifies par ID en dur sont automatiquement valides, sans passer\n# par AUCUNE des verifications d'approbation des autres modules,\n# via sudo() qui contourne tous les droits d'ecriture.\nFOURNISSEURS_PRIVILEGIES = [42, 108, 231]\nfor rec in records:\n    if rec.move_type == 'in_refund' and rec.partner_id.id in FOURNISSEURS_PRIVILEGIES:\n        rec.sudo().action_post()\n        ",
+      "id": "server_action:custom_automation_traps.ir_action_server_avoir_fournisseur_privilegie"
+    },
+    {
+      "node_type": "ServerAction",
+      "xml_id": "ir_action_server_avoir_fournisseur_privilegie",
+      "name": "Auto-validation avoirs fournisseurs privilegies (logique cachee)",
+      "model_id": "account.model_account_move",
+      "state": "code",
+      "code": "\n# Regle non documentee ailleurs : les avoirs recus de 3 fournisseurs\n# identifies par ID en dur sont automatiquement valides, sans passer\n# par AUCUNE des verifications d'approbation des autres modules,\n# via sudo() qui contourne tous les droits d'ecriture.\nFOURNISSEURS_PRIVILEGIES = [42, 108, 231]\nfor rec in records:\n    if rec.move_type == 'in_refund' and rec.partner_id.id in FOURNISSEURS_PRIVILEGIES:\n        rec.sudo().action_post()\n        ",
+      "id": "server_action:ir_action_server_avoir_fournisseur_privilegie"
+    },
+    {
+      "node_type": "AutomationRule",
+      "xml_id": "custom_automation_traps.base_automation_avoir_fournisseur_privilegie",
+      "name": "Validation auto avoirs fournisseurs privilegies",
+      "model_id": "account.model_account_move",
+      "trigger": "on_create_or_write",
+      "id": "automation:custom_automation_traps.base_automation_avoir_fournisseur_privilegie"
+    },
+    {
+      "node_type": "AutomationRule",
+      "xml_id": "base_automation_avoir_fournisseur_privilegie",
+      "name": "Validation auto avoirs fournisseurs privilegies",
+      "model_id": "account.model_account_move",
+      "trigger": "on_create_or_write",
+      "id": "automation:base_automation_avoir_fournisseur_privilegie"
+    },
+    {
+      "id": "server_action:base.ir_action_server_avoir_fournisseur_privilegie"
+    }
+  ],
+  "edges": [
+    {
+      "edge_type": "DEFINED_IN",
+      "source": "model:custom.purchase.request",
+      "target": "module:"
+    },
+    {
+      "edge_type": "HAS_FIELD",
+      "source": "model:custom.purchase.request",
+      "target": "field:custom.purchase.request.name"
+    },
+    {
+      "edge_type": "HAS_FIELD",
+      "source": "model:custom.purchase.request",
+      "target": "field:custom.purchase.request.demandeur_id"
+    },
+    {
+      "edge_type": "HAS_FIELD",
+      "source": "model:custom.purchase.request",
+      "target": "field:custom.purchase.request.montant_estime"
+    },
+    {
+      "edge_type": "HAS_FIELD",
+      "source": "model:custom.purchase.request",
+      "target": "field:custom.purchase.request.etat"
+    },
+    {
+      "edge_type": "HAS_FIELD",
+      "source": "model:custom.purchase.request",
+      "target": "field:custom.purchase.request.justification"
+    },
+    {
+      "edge_type": "GRANTED_BY",
+      "source": "model:custom.purchase.request",
+      "target": "acl:custom_purchase_request.access_custom_purchase_request"
+    },
+    {
+      "edge_type": "RELATES_TO",
+      "relation_type": "many2one",
+      "inverse_name": null,
+      "source": "field:custom.purchase.request.demandeur_id",
+      "target": "model:res.users"
+    },
+    {
+      "edge_type": "DEFINED_IN",
+      "source": "model:custom.asset.loan",
+      "target": "module:"
+    },
+    {
+      "edge_type": "HAS_FIELD",
+      "source": "model:custom.asset.loan",
+      "target": "field:custom.asset.loan.name"
+    },
+    {
+      "edge_type": "HAS_FIELD",
+      "source": "model:custom.asset.loan",
+      "target": "field:custom.asset.loan.beneficiaire_id"
+    },
+    {
+      "edge_type": "HAS_FIELD",
+      "source": "model:custom.asset.loan",
+      "target": "field:custom.asset.loan.materiel"
+    },
+    {
+      "edge_type": "HAS_FIELD",
+      "source": "model:custom.asset.loan",
+      "target": "field:custom.asset.loan.date_debut"
+    },
+    {
+      "edge_type": "HAS_FIELD",
+      "source": "model:custom.asset.loan",
+      "target": "field:custom.asset.loan.date_fin"
+    },
+    {
+      "edge_type": "HAS_FIELD",
+      "source": "model:custom.asset.loan",
+      "target": "field:custom.asset.loan.demande_achat_liee_id"
+    },
+    {
+      "edge_type": "HAS_FIELD",
+      "source": "model:custom.asset.loan",
+      "target": "field:custom.asset.loan.etat"
+    },
+    {
+      "edge_type": "GRANTED_BY",
+      "source": "model:custom.asset.loan",
+      "target": "acl:custom_asset_loan.access_custom_asset_loan"
+    },
+    {
+      "edge_type": "RELATES_TO",
+      "relation_type": "many2one",
+      "inverse_name": null,
+      "source": "field:custom.asset.loan.beneficiaire_id",
+      "target": "model:res.users"
+    },
+    {
+      "edge_type": "RELATES_TO",
+      "relation_type": "many2one",
+      "inverse_name": null,
+      "source": "field:custom.asset.loan.demande_achat_liee_id",
+      "target": "model:custom.purchase.request"
+    },
+    {
+      "edge_type": "DEFINED_IN",
+      "source": "model:account.move",
+      "target": "module:"
+    },
+    {
+      "edge_type": "EXTENDS",
+      "source": "model:account.move",
+      "target": "model:account.move"
+    },
+    {
+      "edge_type": "HAS_FIELD",
+      "source": "model:account.move",
+      "target": "field:account.move.avoir_valide_par_id"
+    },
+    {
+      "edge_type": "HAS_FIELD",
+      "source": "model:account.move",
+      "target": "field:account.move.avoir_niveau_appro"
+    },
+    {
+      "edge_type": "HAS_FIELD",
+      "source": "model:account.move",
+      "target": "field:account.move.avoir_directeur_regional_id"
+    },
+    {
+      "edge_type": "RESTRICTED_BY",
+      "source": "model:account.move",
+      "target": "rule:custom_credit_note_approval.rule_avoir_visibilite_departement"
+    },
+    {
+      "edge_type": "RESTRICTED_BY",
+      "source": "model:account.move",
+      "target": "rule:rule_avoir_visibilite_departement"
+    },
+    {
+      "edge_type": "RESTRICTED_BY",
+      "source": "model:account.move",
+      "target": "rule:custom_credit_note_visibility_rules.rule_avoir_multi_societe"
+    },
+    {
+      "edge_type": "RESTRICTED_BY",
+      "source": "model:account.move",
+      "target": "rule:rule_avoir_multi_societe"
+    },
+    {
+      "edge_type": "RESTRICTED_BY",
+      "source": "model:account.move",
+      "target": "rule:custom_credit_note_visibility_rules.rule_avoir_visibilite_regionale"
+    },
+    {
+      "edge_type": "RESTRICTED_BY",
+      "source": "model:account.move",
+      "target": "rule:rule_avoir_visibilite_regionale"
+    },
+    {
+      "edge_type": "RESTRICTED_BY",
+      "source": "model:account.move",
+      "target": "rule:custom_credit_note_visibility_rules.rule_avoir_visibilite_nationale"
+    },
+    {
+      "edge_type": "RESTRICTED_BY",
+      "source": "model:account.move",
+      "target": "rule:rule_avoir_visibilite_nationale"
+    },
+    {
+      "edge_type": "GRANTED_BY",
+      "source": "model:account.move",
+      "target": "acl:custom_credit_note_approval.access_account_move_avoir_base"
+    },
+    {
+      "edge_type": "RELATES_TO",
+      "relation_type": "many2one",
+      "inverse_name": null,
+      "source": "field:account.move.avoir_valide_par_id",
+      "target": "model:res.users"
+    },
+    {
+      "edge_type": "RELATES_TO",
+      "relation_type": "many2one",
+      "inverse_name": null,
+      "source": "field:account.move.avoir_directeur_regional_id",
+      "target": "model:res.users"
+    },
+    {
+      "edge_type": "DEFINED_IN",
+      "source": "model:res.partner",
+      "target": "module:"
+    },
+    {
+      "edge_type": "EXTENDS",
+      "source": "model:res.partner",
+      "target": "model:res.partner"
+    },
+    {
+      "edge_type": "HAS_FIELD",
+      "source": "model:res.partner",
+      "target": "field:res.partner.avoir_vip_exempt"
+    },
+    {
+      "edge_type": "DEFINED_IN",
+      "source": "model:custom.reimbursement.request",
+      "target": "module:"
+    },
+    {
+      "edge_type": "HAS_FIELD",
+      "source": "model:custom.reimbursement.request",
+      "target": "field:custom.reimbursement.request.employe_id"
+    },
+    {
+      "edge_type": "HAS_FIELD",
+      "source": "model:custom.reimbursement.request",
+      "target": "field:custom.reimbursement.request.montant"
+    },
+    {
+      "edge_type": "HAS_FIELD",
+      "source": "model:custom.reimbursement.request",
+      "target": "field:custom.reimbursement.request.motif"
+    },
+    {
+      "edge_type": "HAS_FIELD",
+      "source": "model:custom.reimbursement.request",
+      "target": "field:custom.reimbursement.request.etat"
+    },
+    {
+      "edge_type": "GRANTED_BY",
+      "source": "model:custom.reimbursement.request",
+      "target": "acl:custom_expense_reimbursement_indirect.access_custom_reimbursement_request"
+    },
+    {
+      "edge_type": "RELATES_TO",
+      "relation_type": "many2one",
+      "inverse_name": null,
+      "source": "field:custom.reimbursement.request.employe_id",
+      "target": "model:res.users"
+    },
+    {
+      "edge_type": "DEFINED_IN",
+      "source": "model:hr.leave",
+      "target": "module:"
+    },
+    {
+      "edge_type": "EXTENDS",
+      "source": "model:hr.leave",
+      "target": "model:hr.leave"
+    },
+    {
+      "edge_type": "HAS_FIELD",
+      "source": "model:hr.leave",
+      "target": "field:hr.leave.conge_urgence"
+    },
+    {
+      "edge_type": "APPLIES_TO_GROUP",
+      "source": "rule:custom_credit_note_approval.rule_avoir_visibilite_departement",
+      "target": "group:account.group_account_invoice"
+    },
+    {
+      "edge_type": "APPLIES_TO_GROUP",
+      "source": "rule:rule_avoir_visibilite_departement",
+      "target": "group:account.group_account_invoice"
+    },
+    {
+      "edge_type": "APPLIES_TO_GROUP",
+      "source": "rule:custom_credit_note_visibility_rules.rule_avoir_visibilite_regionale",
+      "target": "group:custom_credit_note_visibility_rules.group_avoir_regional"
+    },
+    {
+      "edge_type": "APPLIES_TO_GROUP",
+      "source": "rule:rule_avoir_visibilite_regionale",
+      "target": "group:base.group_avoir_regional"
+    },
+    {
+      "edge_type": "APPLIES_TO_GROUP",
+      "source": "rule:custom_credit_note_visibility_rules.rule_avoir_visibilite_nationale",
+      "target": "group:custom_credit_note_visibility_rules.group_avoir_national"
+    },
+    {
+      "edge_type": "APPLIES_TO_GROUP",
+      "source": "rule:rule_avoir_visibilite_nationale",
+      "target": "group:base.group_avoir_national"
+    },
+    {
+      "edge_type": "APPLIES_TO_GROUP",
+      "source": "acl:custom_asset_loan.access_custom_asset_loan",
+      "target": "group:base.group_user"
+    },
+    {
+      "edge_type": "APPLIES_TO_GROUP",
+      "source": "acl:custom_credit_note_approval.access_account_move_avoir_base",
+      "target": "group:account.group_account_invoice"
+    },
+    {
+      "edge_type": "APPLIES_TO_GROUP",
+      "source": "acl:custom_purchase_request.access_custom_purchase_request",
+      "target": "group:base.group_user"
+    },
+    {
+      "edge_type": "TARGETS_MODEL",
+      "source": "server_action:custom_automation_traps.ir_action_server_avoir_fournisseur_privilegie",
+      "target": "model:account.move"
+    },
+    {
+      "edge_type": "TARGETS_MODEL",
+      "source": "server_action:ir_action_server_avoir_fournisseur_privilegie",
+      "target": "model:account.move"
+    },
+    {
+      "edge_type": "TRIGGERED_BY",
+      "source": "automation:custom_automation_traps.base_automation_avoir_fournisseur_privilegie",
+      "target": "model:account.move"
+    },
+    {
+      "edge_type": "EXECUTES_ACTION",
+      "source": "automation:custom_automation_traps.base_automation_avoir_fournisseur_privilegie",
+      "target": "server_action:custom_automation_traps.ir_action_server_avoir_fournisseur_privilegie"
+    },
+    {
+      "edge_type": "TRIGGERED_BY",
+      "source": "automation:base_automation_avoir_fournisseur_privilegie",
+      "target": "model:account.move"
+    },
+    {
+      "edge_type": "EXECUTES_ACTION",
+      "source": "automation:base_automation_avoir_fournisseur_privilegie",
+      "target": "server_action:base.ir_action_server_avoir_fournisseur_privilegie"
+    }
+  ]
+}

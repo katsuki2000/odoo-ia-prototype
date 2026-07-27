@@ -25,11 +25,15 @@ from code_intelligence.xml_extractor import (
     OdooRuleRecord,
     OdooGroupRecord,
     OdooActionRecord,
+    OdooServerActionRecord,
+    OdooBaseAutomationRecord,
     OdooMenuItemRecord,
     OdooViewRecord,
     parse_ir_rules_from_xml,
     parse_groups_from_xml,
     parse_actions_from_xml,
+    parse_server_actions_from_xml,
+    parse_base_automations_from_xml,
     parse_menuitems_from_xml,
     parse_views_from_xml,
 )
@@ -37,6 +41,7 @@ from code_intelligence.csv_extractor import (
     OdooAccessEntry,
     parse_access_control_csv,
 )
+from code_intelligence.utils import resolve_model_xmlref
 
 _logger = logging.getLogger(__name__)
 
@@ -64,6 +69,8 @@ class ParsedModule:
     rules: List[OdooRuleRecord] = field(default_factory=list)
     groups: List[OdooGroupRecord] = field(default_factory=list)
     actions: List[OdooActionRecord] = field(default_factory=list)
+    server_actions: List[OdooServerActionRecord] = field(default_factory=list)
+    base_automations: List[OdooBaseAutomationRecord] = field(default_factory=list)
     menuitems: List[OdooMenuItemRecord] = field(default_factory=list)
     views: List[OdooViewRecord] = field(default_factory=list)
     acl_entries: List[OdooAccessEntry] = field(default_factory=list)
@@ -77,6 +84,8 @@ class ResolvedSymbolRegistry:
     groups: Dict[str, OdooGroupRecord] = field(default_factory=dict)
     rules: Dict[str, OdooRuleRecord] = field(default_factory=dict)
     actions: Dict[str, OdooActionRecord] = field(default_factory=dict)
+    server_actions: Dict[str, OdooServerActionRecord] = field(default_factory=dict)
+    base_automations: Dict[str, OdooBaseAutomationRecord] = field(default_factory=dict)
     menuitems: Dict[str, OdooMenuItemRecord] = field(default_factory=dict)
     views: Dict[str, OdooViewRecord] = field(default_factory=dict)
 
@@ -98,38 +107,29 @@ def topological_sort_modules(modules_dict: Dict[str, ParsedModule]) -> List[str]
     """
     sorted_modules: List[str] = []
     visited: Set[str] = set()
-    permanently_visited: Set[str] = set()
 
-    def visit(mod_name: str):
-        if mod_name in permanently_visited:
+    def visit(m_name: str, chain: List[str]):
+        if m_name in chain:
+            _logger.warning("Circular dependency detected in manifests: %s", " -> ".join(chain + [m_name]))
             return
-        if mod_name in visited:
-            _logger.warning("Circular module dependency detected involving: %s", mod_name)
-            return
+        if m_name not in visited:
+            visited.add(m_name)
+            mod = modules_dict.get(m_name)
+            if mod and mod.manifest:
+                for dep in mod.manifest.depends:
+                    visit(dep, chain + [m_name])
+            sorted_modules.append(m_name)
 
-        visited.add(mod_name)
-        module = modules_dict.get(mod_name)
-        if module and module.manifest:
-            for dep in module.manifest.depends:
-                if dep in modules_dict:
-                    visit(dep)
-
-        visited.remove(mod_name)
-        permanently_visited.add(mod_name)
-        sorted_modules.append(mod_name)
-
-    for mod_name in sorted(modules_dict.keys()):
-        if mod_name not in permanently_visited:
-            visit(mod_name)
+    for name in modules_dict:
+        visit(name, [])
 
     return sorted_modules
 
 
 def build_module_symbol_registry(modules_dict: Dict[str, ParsedModule]) -> ResolvedSymbolRegistry:
     """
-    Two-Pass Cross-File Reference Resolver.
-    Pass 1: Topological load order indexation of defined symbols.
-    Pass 2: Ordered reference resolution, unresolved reference categorization, and cycle detection.
+    Pass 1 & Pass 2 symbol resolution across all parsed modules.
+    Returns populated ResolvedSymbolRegistry with all cross-file references resolved.
     """
     registry = ResolvedSymbolRegistry()
 
@@ -167,11 +167,21 @@ def build_module_symbol_registry(modules_dict: Dict[str, ParsedModule]) -> Resol
             registry.rules[full_xml_id] = rule
             registry.rules[rule.xml_id] = rule
 
-        # 4. Index Actions, Menuitems, Views
+        # 4. Index Actions, Server Actions, Automations, Menuitems, Views
         for act in mod.actions:
             full_xml_id = act.xml_id if "." in act.xml_id else f"{mod_name}.{act.xml_id}"
             registry.actions[full_xml_id] = act
             registry.actions[act.xml_id] = act
+
+        for sa in mod.server_actions:
+            full_xml_id = sa.xml_id if "." in sa.xml_id else f"{mod_name}.{sa.xml_id}"
+            registry.server_actions[full_xml_id] = sa
+            registry.server_actions[sa.xml_id] = sa
+
+        for ba in mod.base_automations:
+            full_xml_id = ba.xml_id if "." in ba.xml_id else f"{mod_name}.{ba.xml_id}"
+            registry.base_automations[full_xml_id] = ba
+            registry.base_automations[ba.xml_id] = ba
 
         for menu in mod.menuitems:
             full_xml_id = menu.xml_id if "." in menu.xml_id else f"{mod_name}.{menu.xml_id}"
@@ -200,9 +210,7 @@ def build_module_symbol_registry(modules_dict: Dict[str, ParsedModule]) -> Resol
         # 2. Resolve Security Rules (model_id & groups_id)
         for rule in mod.rules:
             if rule.model_id:
-                # Strip model_ prefix if present (e.g. model_sale_order -> sale.order)
-                raw_model = rule.model_id
-                clean_model = raw_model.replace("model_", "").replace("_", ".") if raw_model.startswith("model_") else raw_model
+                clean_model = resolve_model_xmlref(rule.model_id)
                 _resolve_model_reference(mod_name, rule.filepath, clean_model, registry)
 
             for grp_ref in rule.groups_id:

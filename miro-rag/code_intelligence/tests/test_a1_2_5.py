@@ -79,7 +79,7 @@ def run_module_xml_extraction(module_path: Path):
 def test_miro_ai_xml_integration():
     """Run XML integration test on odoo17-dev/addons/miro_ai."""
     root_dir = Path(__file__).resolve().parent.parent.parent.parent
-    mod_dir = root_dir / "odoo17-dev" / "addons" / "miro_ai"
+    mod_dir = Path("/home/user/odoo-17.0/addons") / "miro_ai"
 
     if mod_dir.exists():
         metrics = run_module_xml_extraction(mod_dir)

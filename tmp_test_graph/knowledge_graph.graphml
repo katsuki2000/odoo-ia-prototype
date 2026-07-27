@@ -1,0 +1,878 @@
+<?xml version='1.0' encoding='utf-8'?>
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://graphml.graphdrawing.org/xmlns http://graphml.graphdrawing.org/xmlns/1.0/graphml.xsd">
+  <key id="d31" for="edge" attr.name="inverse_name" attr.type="string" />
+  <key id="d30" for="edge" attr.name="relation_type" attr.type="string" />
+  <key id="d29" for="edge" attr.name="edge_type" attr.type="string" />
+  <key id="d28" for="node" attr.name="trigger" attr.type="string" />
+  <key id="d27" for="node" attr.name="code" attr.type="string" />
+  <key id="d26" for="node" attr.name="state" attr.type="string" />
+  <key id="d25" for="node" attr.name="model_id" attr.type="string" />
+  <key id="d24" for="node" attr.name="all_authenticated" attr.type="boolean" />
+  <key id="d23" for="node" attr.name="perm_unlink" attr.type="boolean" />
+  <key id="d22" for="node" attr.name="perm_create" attr.type="boolean" />
+  <key id="d21" for="node" attr.name="perm_write" attr.type="boolean" />
+  <key id="d20" for="node" attr.name="perm_read" attr.type="boolean" />
+  <key id="d19" for="node" attr.name="domain_force" attr.type="string" />
+  <key id="d18" for="node" attr.name="category_id" attr.type="string" />
+  <key id="d17" for="node" attr.name="xml_id" attr.type="string" />
+  <key id="d16" for="node" attr.name="lineno" attr.type="long" />
+  <key id="d15" for="node" attr.name="is_instance_method" attr.type="boolean" />
+  <key id="d14" for="node" attr.name="api_model" attr.type="boolean" />
+  <key id="d13" for="node" attr.name="store" attr.type="boolean" />
+  <key id="d12" for="node" attr.name="related" attr.type="string" />
+  <key id="d11" for="node" attr.name="compute" attr.type="string" />
+  <key id="d10" for="node" attr.name="inverse_name" attr.type="string" />
+  <key id="d9" for="node" attr.name="comodel_name" attr.type="string" />
+  <key id="d8" for="node" attr.name="field_type" attr.type="string" />
+  <key id="d7" for="node" attr.name="model" attr.type="string" />
+  <key id="d6" for="node" attr.name="filepaths" attr.type="string" />
+  <key id="d5" for="node" attr.name="delegations_dict" attr.type="string" />
+  <key id="d4" for="node" attr.name="inherits_list" attr.type="string" />
+  <key id="d3" for="node" attr.name="filepath" attr.type="string" />
+  <key id="d2" for="node" attr.name="depends" attr.type="string" />
+  <key id="d1" for="node" attr.name="name" attr.type="string" />
+  <key id="d0" for="node" attr.name="node_type" attr.type="string" />
+  <graph edgedefault="directed">
+    <node id="module:custom_asset_loan">
+      <data key="d0">Module</data>
+      <data key="d1">custom_asset_loan</data>
+      <data key="d2">["custom_purchase_request"]</data>
+      <data key="d3">/home/user/odoo-17.0/addons/custom_asset_loan/__manifest__.py</data>
+    </node>
+    <node id="module:custom_automation_traps">
+      <data key="d0">Module</data>
+      <data key="d1">custom_automation_traps</data>
+      <data key="d2">["account", "base_automation"]</data>
+      <data key="d3">/home/user/odoo-17.0/addons/custom_automation_traps/__manifest__.py</data>
+    </node>
+    <node id="module:custom_credit_note_approval">
+      <data key="d0">Module</data>
+      <data key="d1">custom_credit_note_approval</data>
+      <data key="d2">["account"]</data>
+      <data key="d3">/home/user/odoo-17.0/addons/custom_credit_note_approval/__manifest__.py</data>
+    </node>
+    <node id="module:custom_credit_note_approval_regional">
+      <data key="d0">Module</data>
+      <data key="d1">custom_credit_note_approval_regional</data>
+      <data key="d2">["custom_credit_note_approval", "hr"]</data>
+      <data key="d3">/home/user/odoo-17.0/addons/custom_credit_note_approval_regional/__manifest__.py</data>
+    </node>
+    <node id="module:custom_credit_note_approval_vip">
+      <data key="d0">Module</data>
+      <data key="d1">custom_credit_note_approval_vip</data>
+      <data key="d2">["custom_credit_note_approval_regional"]</data>
+      <data key="d3">/home/user/odoo-17.0/addons/custom_credit_note_approval_vip/__manifest__.py</data>
+    </node>
+    <node id="module:custom_credit_note_visibility_rules">
+      <data key="d0">Module</data>
+      <data key="d1">custom_credit_note_visibility_rules</data>
+      <data key="d2">["custom_credit_note_approval"]</data>
+      <data key="d3">/home/user/odoo-17.0/addons/custom_credit_note_visibility_rules/__manifest__.py</data>
+    </node>
+    <node id="module:custom_expense_reimbursement_indirect">
+      <data key="d0">Module</data>
+      <data key="d1">custom_expense_reimbursement_indirect</data>
+      <data key="d2">["base"]</data>
+      <data key="d3">/home/user/odoo-17.0/addons/custom_expense_reimbursement_indirect/__manifest__.py</data>
+    </node>
+    <node id="module:custom_hr_leave_workflow">
+      <data key="d0">Module</data>
+      <data key="d1">custom_hr_leave_workflow</data>
+      <data key="d2">["hr_holidays"]</data>
+      <data key="d3">/home/user/odoo-17.0/addons/custom_hr_leave_workflow/__manifest__.py</data>
+    </node>
+    <node id="module:custom_purchase_request">
+      <data key="d0">Module</data>
+      <data key="d1">custom_purchase_request</data>
+      <data key="d2">["purchase"]</data>
+      <data key="d3">/home/user/odoo-17.0/addons/custom_purchase_request/__manifest__.py</data>
+    </node>
+    <node id="model:custom.purchase.request">
+      <data key="d0">Model</data>
+      <data key="d1">custom.purchase.request</data>
+      <data key="d4">[]</data>
+      <data key="d5">{}</data>
+      <data key="d6">["/home/user/odoo-17.0/addons/custom_purchase_request/models/purchase_request.py"]</data>
+    </node>
+    <node id="module:" />
+    <node id="field:custom.purchase.request.name">
+      <data key="d0">Field</data>
+      <data key="d1">name</data>
+      <data key="d7">custom.purchase.request</data>
+      <data key="d8">Char</data>
+      <data key="d9" />
+      <data key="d10" />
+      <data key="d11" />
+      <data key="d12" />
+      <data key="d13">True</data>
+      <data key="d3">/home/user/odoo-17.0/addons/custom_purchase_request/models/purchase_request.py</data>
+    </node>
+    <node id="field:custom.purchase.request.demandeur_id">
+      <data key="d0">Field</data>
+      <data key="d1">demandeur_id</data>
+      <data key="d7">custom.purchase.request</data>
+      <data key="d8">Many2one</data>
+      <data key="d9">res.users</data>
+      <data key="d10" />
+      <data key="d11" />
+      <data key="d12" />
+      <data key="d13">True</data>
+      <data key="d3">/home/user/odoo-17.0/addons/custom_purchase_request/models/purchase_request.py</data>
+    </node>
+    <node id="model:res.users" />
+    <node id="field:custom.purchase.request.montant_estime">
+      <data key="d0">Field</data>
+      <data key="d1">montant_estime</data>
+      <data key="d7">custom.purchase.request</data>
+      <data key="d8">Float</data>
+      <data key="d9" />
+      <data key="d10" />
+      <data key="d11" />
+      <data key="d12" />
+      <data key="d13">True</data>
+      <data key="d3">/home/user/odoo-17.0/addons/custom_purchase_request/models/purchase_request.py</data>
+    </node>
+    <node id="field:custom.purchase.request.etat">
+      <data key="d0">Field</data>
+      <data key="d1">etat</data>
+      <data key="d7">custom.purchase.request</data>
+      <data key="d8">Selection</data>
+      <data key="d9" />
+      <data key="d10" />
+      <data key="d11" />
+      <data key="d12" />
+      <data key="d13">True</data>
+      <data key="d3">/home/user/odoo-17.0/addons/custom_purchase_request/models/purchase_request.py</data>
+    </node>
+    <node id="field:custom.purchase.request.justification">
+      <data key="d0">Field</data>
+      <data key="d1">justification</data>
+      <data key="d7">custom.purchase.request</data>
+      <data key="d8">Text</data>
+      <data key="d9" />
+      <data key="d10" />
+      <data key="d11" />
+      <data key="d12" />
+      <data key="d13">True</data>
+      <data key="d3">/home/user/odoo-17.0/addons/custom_purchase_request/models/purchase_request.py</data>
+    </node>
+    <node id="method:custom.purchase.request.action_soumettre">
+      <data key="d0">Method</data>
+      <data key="d1">action_soumettre</data>
+      <data key="d7">custom.purchase.request</data>
+      <data key="d14">False</data>
+      <data key="d15">True</data>
+      <data key="d3">/home/user/odoo-17.0/addons/custom_purchase_request/models/purchase_request.py</data>
+      <data key="d16">22</data>
+    </node>
+    <node id="method:custom.purchase.request.action_valider">
+      <data key="d0">Method</data>
+      <data key="d1">action_valider</data>
+      <data key="d7">custom.purchase.request</data>
+      <data key="d14">False</data>
+      <data key="d15">True</data>
+      <data key="d3">/home/user/odoo-17.0/addons/custom_purchase_request/models/purchase_request.py</data>
+      <data key="d16">25</data>
+    </node>
+    <node id="model:custom.asset.loan">
+      <data key="d0">Model</data>
+      <data key="d1">custom.asset.loan</data>
+      <data key="d4">[]</data>
+      <data key="d5">{}</data>
+      <data key="d6">["/home/user/odoo-17.0/addons/custom_asset_loan/models/asset_loan.py"]</data>
+    </node>
+    <node id="field:custom.asset.loan.name">
+      <data key="d0">Field</data>
+      <data key="d1">name</data>
+      <data key="d7">custom.asset.loan</data>
+      <data key="d8">Char</data>
+      <data key="d9" />
+      <data key="d10" />
+      <data key="d11" />
+      <data key="d12" />
+      <data key="d13">True</data>
+      <data key="d3">/home/user/odoo-17.0/addons/custom_asset_loan/models/asset_loan.py</data>
+    </node>
+    <node id="field:custom.asset.loan.beneficiaire_id">
+      <data key="d0">Field</data>
+      <data key="d1">beneficiaire_id</data>
+      <data key="d7">custom.asset.loan</data>
+      <data key="d8">Many2one</data>
+      <data key="d9">res.users</data>
+      <data key="d10" />
+      <data key="d11" />
+      <data key="d12" />
+      <data key="d13">True</data>
+      <data key="d3">/home/user/odoo-17.0/addons/custom_asset_loan/models/asset_loan.py</data>
+    </node>
+    <node id="field:custom.asset.loan.materiel">
+      <data key="d0">Field</data>
+      <data key="d1">materiel</data>
+      <data key="d7">custom.asset.loan</data>
+      <data key="d8">Char</data>
+      <data key="d9" />
+      <data key="d10" />
+      <data key="d11" />
+      <data key="d12" />
+      <data key="d13">True</data>
+      <data key="d3">/home/user/odoo-17.0/addons/custom_asset_loan/models/asset_loan.py</data>
+    </node>
+    <node id="field:custom.asset.loan.date_debut">
+      <data key="d0">Field</data>
+      <data key="d1">date_debut</data>
+      <data key="d7">custom.asset.loan</data>
+      <data key="d8">Date</data>
+      <data key="d9" />
+      <data key="d10" />
+      <data key="d11" />
+      <data key="d12" />
+      <data key="d13">True</data>
+      <data key="d3">/home/user/odoo-17.0/addons/custom_asset_loan/models/asset_loan.py</data>
+    </node>
+    <node id="field:custom.asset.loan.date_fin">
+      <data key="d0">Field</data>
+      <data key="d1">date_fin</data>
+      <data key="d7">custom.asset.loan</data>
+      <data key="d8">Date</data>
+      <data key="d9" />
+      <data key="d10" />
+      <data key="d11" />
+      <data key="d12" />
+      <data key="d13">True</data>
+      <data key="d3">/home/user/odoo-17.0/addons/custom_asset_loan/models/asset_loan.py</data>
+    </node>
+    <node id="field:custom.asset.loan.demande_achat_liee_id">
+      <data key="d0">Field</data>
+      <data key="d1">demande_achat_liee_id</data>
+      <data key="d7">custom.asset.loan</data>
+      <data key="d8">Many2one</data>
+      <data key="d9">custom.purchase.request</data>
+      <data key="d10" />
+      <data key="d11" />
+      <data key="d12" />
+      <data key="d13">True</data>
+      <data key="d3">/home/user/odoo-17.0/addons/custom_asset_loan/models/asset_loan.py</data>
+    </node>
+    <node id="field:custom.asset.loan.etat">
+      <data key="d0">Field</data>
+      <data key="d1">etat</data>
+      <data key="d7">custom.asset.loan</data>
+      <data key="d8">Selection</data>
+      <data key="d9" />
+      <data key="d10" />
+      <data key="d11" />
+      <data key="d12" />
+      <data key="d13">True</data>
+      <data key="d3">/home/user/odoo-17.0/addons/custom_asset_loan/models/asset_loan.py</data>
+    </node>
+    <node id="method:custom.asset.loan.action_demarrer">
+      <data key="d0">Method</data>
+      <data key="d1">action_demarrer</data>
+      <data key="d7">custom.asset.loan</data>
+      <data key="d14">False</data>
+      <data key="d15">True</data>
+      <data key="d3">/home/user/odoo-17.0/addons/custom_asset_loan/models/asset_loan.py</data>
+      <data key="d16">20</data>
+    </node>
+    <node id="model:account.move">
+      <data key="d0">Model</data>
+      <data key="d1">account.move</data>
+      <data key="d4">["account.move", "account.move", "account.move"]</data>
+      <data key="d5">{}</data>
+      <data key="d6">["/home/user/odoo-17.0/addons/custom_credit_note_approval/models/account_move.py", "/home/user/odoo-17.0/addons/custom_credit_note_approval_regional/models/account_move.py", "/home/user/odoo-17.0/addons/custom_credit_note_approval_vip/models/account_move.py"]</data>
+    </node>
+    <node id="field:account.move.avoir_valide_par_id">
+      <data key="d0">Field</data>
+      <data key="d1">avoir_valide_par_id</data>
+      <data key="d7">account.move</data>
+      <data key="d8">Many2one</data>
+      <data key="d9">res.users</data>
+      <data key="d10" />
+      <data key="d11" />
+      <data key="d12" />
+      <data key="d13">True</data>
+      <data key="d3">/home/user/odoo-17.0/addons/custom_credit_note_approval/models/account_move.py</data>
+    </node>
+    <node id="field:account.move.avoir_niveau_appro">
+      <data key="d0">Field</data>
+      <data key="d1">avoir_niveau_appro</data>
+      <data key="d7">account.move</data>
+      <data key="d8">Selection</data>
+      <data key="d9" />
+      <data key="d10" />
+      <data key="d11" />
+      <data key="d12" />
+      <data key="d13">True</data>
+      <data key="d3">/home/user/odoo-17.0/addons/custom_credit_note_approval/models/account_move.py</data>
+    </node>
+    <node id="method:account.move.action_valider_avoir">
+      <data key="d0">Method</data>
+      <data key="d1">action_valider_avoir</data>
+      <data key="d7">account.move</data>
+      <data key="d14">False</data>
+      <data key="d15">True</data>
+      <data key="d3">/home/user/odoo-17.0/addons/custom_credit_note_approval_vip/models/account_move.py</data>
+      <data key="d16">7</data>
+    </node>
+    <node id="field:account.move.avoir_directeur_regional_id">
+      <data key="d0">Field</data>
+      <data key="d1">avoir_directeur_regional_id</data>
+      <data key="d7">account.move</data>
+      <data key="d8">Many2one</data>
+      <data key="d9">res.users</data>
+      <data key="d10" />
+      <data key="d11" />
+      <data key="d12" />
+      <data key="d13">True</data>
+      <data key="d3">/home/user/odoo-17.0/addons/custom_credit_note_approval_regional/models/account_move.py</data>
+    </node>
+    <node id="method:account.move._get_directeur_regional">
+      <data key="d0">Method</data>
+      <data key="d1">_get_directeur_regional</data>
+      <data key="d7">account.move</data>
+      <data key="d14">False</data>
+      <data key="d15">True</data>
+      <data key="d3">/home/user/odoo-17.0/addons/custom_credit_note_approval_regional/models/account_move.py</data>
+      <data key="d16">17</data>
+    </node>
+    <node id="model:res.partner">
+      <data key="d0">Model</data>
+      <data key="d1">res.partner</data>
+      <data key="d4">["res.partner"]</data>
+      <data key="d5">{}</data>
+      <data key="d6">["/home/user/odoo-17.0/addons/custom_credit_note_approval_vip/models/res_partner.py"]</data>
+    </node>
+    <node id="field:res.partner.avoir_vip_exempt">
+      <data key="d0">Field</data>
+      <data key="d1">avoir_vip_exempt</data>
+      <data key="d7">res.partner</data>
+      <data key="d8">Boolean</data>
+      <data key="d9" />
+      <data key="d10" />
+      <data key="d11" />
+      <data key="d12" />
+      <data key="d13">True</data>
+      <data key="d3">/home/user/odoo-17.0/addons/custom_credit_note_approval_vip/models/res_partner.py</data>
+    </node>
+    <node id="model:custom.reimbursement.request">
+      <data key="d0">Model</data>
+      <data key="d1">custom.reimbursement.request</data>
+      <data key="d4">[]</data>
+      <data key="d5">{}</data>
+      <data key="d6">["/home/user/odoo-17.0/addons/custom_expense_reimbursement_indirect/models/reimbursement.py"]</data>
+    </node>
+    <node id="field:custom.reimbursement.request.employe_id">
+      <data key="d0">Field</data>
+      <data key="d1">employe_id</data>
+      <data key="d7">custom.reimbursement.request</data>
+      <data key="d8">Many2one</data>
+      <data key="d9">res.users</data>
+      <data key="d10" />
+      <data key="d11" />
+      <data key="d12" />
+      <data key="d13">True</data>
+      <data key="d3">/home/user/odoo-17.0/addons/custom_expense_reimbursement_indirect/models/reimbursement.py</data>
+    </node>
+    <node id="field:custom.reimbursement.request.montant">
+      <data key="d0">Field</data>
+      <data key="d1">montant</data>
+      <data key="d7">custom.reimbursement.request</data>
+      <data key="d8">Float</data>
+      <data key="d9" />
+      <data key="d10" />
+      <data key="d11" />
+      <data key="d12" />
+      <data key="d13">True</data>
+      <data key="d3">/home/user/odoo-17.0/addons/custom_expense_reimbursement_indirect/models/reimbursement.py</data>
+    </node>
+    <node id="field:custom.reimbursement.request.motif">
+      <data key="d0">Field</data>
+      <data key="d1">motif</data>
+      <data key="d7">custom.reimbursement.request</data>
+      <data key="d8">Char</data>
+      <data key="d9" />
+      <data key="d10" />
+      <data key="d11" />
+      <data key="d12" />
+      <data key="d13">True</data>
+      <data key="d3">/home/user/odoo-17.0/addons/custom_expense_reimbursement_indirect/models/reimbursement.py</data>
+    </node>
+    <node id="field:custom.reimbursement.request.etat">
+      <data key="d0">Field</data>
+      <data key="d1">etat</data>
+      <data key="d7">custom.reimbursement.request</data>
+      <data key="d8">Selection</data>
+      <data key="d9" />
+      <data key="d10" />
+      <data key="d11" />
+      <data key="d12" />
+      <data key="d13">True</data>
+      <data key="d3">/home/user/odoo-17.0/addons/custom_expense_reimbursement_indirect/models/reimbursement.py</data>
+    </node>
+    <node id="method:custom.reimbursement.request.action_valider">
+      <data key="d0">Method</data>
+      <data key="d1">action_valider</data>
+      <data key="d7">custom.reimbursement.request</data>
+      <data key="d14">False</data>
+      <data key="d15">True</data>
+      <data key="d3">/home/user/odoo-17.0/addons/custom_expense_reimbursement_indirect/models/reimbursement.py</data>
+      <data key="d16">25</data>
+    </node>
+    <node id="method:custom.reimbursement.request._g_q7">
+      <data key="d0">Method</data>
+      <data key="d1">_g_q7</data>
+      <data key="d7">custom.reimbursement.request</data>
+      <data key="d14">False</data>
+      <data key="d15">True</data>
+      <data key="d3">/home/user/odoo-17.0/addons/custom_expense_reimbursement_indirect/models/reimbursement.py</data>
+      <data key="d16">37</data>
+    </node>
+    <node id="model:hr.leave">
+      <data key="d0">Model</data>
+      <data key="d1">hr.leave</data>
+      <data key="d4">["hr.leave"]</data>
+      <data key="d5">{}</data>
+      <data key="d6">["/home/user/odoo-17.0/addons/custom_hr_leave_workflow/models/hr_leave.py"]</data>
+    </node>
+    <node id="field:hr.leave.conge_urgence">
+      <data key="d0">Field</data>
+      <data key="d1">conge_urgence</data>
+      <data key="d7">hr.leave</data>
+      <data key="d8">Boolean</data>
+      <data key="d9" />
+      <data key="d10" />
+      <data key="d11" />
+      <data key="d12" />
+      <data key="d13">True</data>
+      <data key="d3">/home/user/odoo-17.0/addons/custom_hr_leave_workflow/models/hr_leave.py</data>
+    </node>
+    <node id="method:hr.leave._check_solde_conge">
+      <data key="d0">Method</data>
+      <data key="d1">_check_solde_conge</data>
+      <data key="d7">hr.leave</data>
+      <data key="d14">False</data>
+      <data key="d15">True</data>
+      <data key="d3">/home/user/odoo-17.0/addons/custom_hr_leave_workflow/models/hr_leave.py</data>
+      <data key="d16">11</data>
+    </node>
+    <node id="method:hr.leave.action_approve">
+      <data key="d0">Method</data>
+      <data key="d1">action_approve</data>
+      <data key="d7">hr.leave</data>
+      <data key="d14">False</data>
+      <data key="d15">True</data>
+      <data key="d3">/home/user/odoo-17.0/addons/custom_hr_leave_workflow/models/hr_leave.py</data>
+      <data key="d16">20</data>
+    </node>
+    <node id="group:custom_credit_note_visibility_rules.group_avoir_regional">
+      <data key="d0">Group</data>
+      <data key="d17">custom_credit_note_visibility_rules.group_avoir_regional</data>
+      <data key="d1">Avoirs - Visibilite Regionale</data>
+      <data key="d18" />
+    </node>
+    <node id="group:group_avoir_regional">
+      <data key="d0">Group</data>
+      <data key="d17">group_avoir_regional</data>
+      <data key="d1">Avoirs - Visibilite Regionale</data>
+      <data key="d18" />
+    </node>
+    <node id="group:custom_credit_note_visibility_rules.group_avoir_national">
+      <data key="d0">Group</data>
+      <data key="d17">custom_credit_note_visibility_rules.group_avoir_national</data>
+      <data key="d1">Avoirs - Visibilite Nationale</data>
+      <data key="d18" />
+    </node>
+    <node id="group:group_avoir_national">
+      <data key="d0">Group</data>
+      <data key="d17">group_avoir_national</data>
+      <data key="d1">Avoirs - Visibilite Nationale</data>
+      <data key="d18" />
+    </node>
+    <node id="rule:custom_credit_note_approval.rule_avoir_visibilite_departement">
+      <data key="d0">Rule</data>
+      <data key="d17">custom_credit_note_approval.rule_avoir_visibilite_departement</data>
+      <data key="d1">Avoirs - visibilite par departement (sauf managers)</data>
+      <data key="d19">['|', ('move_type', '!=', 'out_refund'), '|', ('invoice_user_id', '=', user.id), ('journal_id.department_id', '=', user.employee_id.department_id.id)]</data>
+      <data key="d3">/home/user/odoo-17.0/addons/custom_credit_note_approval/security/security_rules.xml</data>
+      <data key="d16">2</data>
+      <data key="d20">True</data>
+      <data key="d21">True</data>
+      <data key="d22">True</data>
+      <data key="d23">True</data>
+    </node>
+    <node id="group:account.group_account_invoice" />
+    <node id="rule:rule_avoir_visibilite_departement">
+      <data key="d0">Rule</data>
+      <data key="d17">rule_avoir_visibilite_departement</data>
+      <data key="d1">Avoirs - visibilite par departement (sauf managers)</data>
+      <data key="d19">['|', ('move_type', '!=', 'out_refund'), '|', ('invoice_user_id', '=', user.id), ('journal_id.department_id', '=', user.employee_id.department_id.id)]</data>
+      <data key="d3">/home/user/odoo-17.0/addons/custom_credit_note_approval/security/security_rules.xml</data>
+      <data key="d16">2</data>
+      <data key="d20">True</data>
+      <data key="d21">True</data>
+      <data key="d22">True</data>
+      <data key="d23">True</data>
+    </node>
+    <node id="rule:custom_credit_note_visibility_rules.rule_avoir_multi_societe">
+      <data key="d0">Rule</data>
+      <data key="d17">custom_credit_note_visibility_rules.rule_avoir_multi_societe</data>
+      <data key="d1">Avoirs - cantonnement societe (regle globale, sans groupe)</data>
+      <data key="d19">['|', ('move_type', '!=', 'out_refund'), ('company_id', '=', user.company_id.id)]</data>
+      <data key="d3">/home/user/odoo-17.0/addons/custom_credit_note_visibility_rules/security/ir_rule_layered.xml</data>
+      <data key="d16">2</data>
+      <data key="d20">True</data>
+      <data key="d21">True</data>
+      <data key="d22">True</data>
+      <data key="d23">True</data>
+    </node>
+    <node id="rule:rule_avoir_multi_societe">
+      <data key="d0">Rule</data>
+      <data key="d17">rule_avoir_multi_societe</data>
+      <data key="d1">Avoirs - cantonnement societe (regle globale, sans groupe)</data>
+      <data key="d19">['|', ('move_type', '!=', 'out_refund'), ('company_id', '=', user.company_id.id)]</data>
+      <data key="d3">/home/user/odoo-17.0/addons/custom_credit_note_visibility_rules/security/ir_rule_layered.xml</data>
+      <data key="d16">2</data>
+      <data key="d20">True</data>
+      <data key="d21">True</data>
+      <data key="d22">True</data>
+      <data key="d23">True</data>
+    </node>
+    <node id="rule:custom_credit_note_visibility_rules.rule_avoir_visibilite_regionale">
+      <data key="d0">Rule</data>
+      <data key="d17">custom_credit_note_visibility_rules.rule_avoir_visibilite_regionale</data>
+      <data key="d1">Avoirs - plafond visibilite regionale (50000e)</data>
+      <data key="d19">['|', ('move_type', '!=', 'out_refund'), ('amount_total', '&lt;=', 50000)]</data>
+      <data key="d3">/home/user/odoo-17.0/addons/custom_credit_note_visibility_rules/security/ir_rule_layered.xml</data>
+      <data key="d16">8</data>
+      <data key="d20">True</data>
+      <data key="d21">True</data>
+      <data key="d22">True</data>
+      <data key="d23">True</data>
+    </node>
+    <node id="rule:rule_avoir_visibilite_regionale">
+      <data key="d0">Rule</data>
+      <data key="d17">rule_avoir_visibilite_regionale</data>
+      <data key="d1">Avoirs - plafond visibilite regionale (50000e)</data>
+      <data key="d19">['|', ('move_type', '!=', 'out_refund'), ('amount_total', '&lt;=', 50000)]</data>
+      <data key="d3">/home/user/odoo-17.0/addons/custom_credit_note_visibility_rules/security/ir_rule_layered.xml</data>
+      <data key="d16">8</data>
+      <data key="d20">True</data>
+      <data key="d21">True</data>
+      <data key="d22">True</data>
+      <data key="d23">True</data>
+    </node>
+    <node id="group:base.group_avoir_regional" />
+    <node id="rule:custom_credit_note_visibility_rules.rule_avoir_visibilite_nationale">
+      <data key="d0">Rule</data>
+      <data key="d17">custom_credit_note_visibility_rules.rule_avoir_visibilite_nationale</data>
+      <data key="d1">Avoirs - visibilite nationale (illimitee)</data>
+      <data key="d19">[(1, '=', 1)]</data>
+      <data key="d3">/home/user/odoo-17.0/addons/custom_credit_note_visibility_rules/security/ir_rule_layered.xml</data>
+      <data key="d16">15</data>
+      <data key="d20">True</data>
+      <data key="d21">True</data>
+      <data key="d22">True</data>
+      <data key="d23">True</data>
+    </node>
+    <node id="rule:rule_avoir_visibilite_nationale">
+      <data key="d0">Rule</data>
+      <data key="d17">rule_avoir_visibilite_nationale</data>
+      <data key="d1">Avoirs - visibilite nationale (illimitee)</data>
+      <data key="d19">[(1, '=', 1)]</data>
+      <data key="d3">/home/user/odoo-17.0/addons/custom_credit_note_visibility_rules/security/ir_rule_layered.xml</data>
+      <data key="d16">15</data>
+      <data key="d20">True</data>
+      <data key="d21">True</data>
+      <data key="d22">True</data>
+      <data key="d23">True</data>
+    </node>
+    <node id="group:base.group_avoir_national" />
+    <node id="acl:custom_asset_loan.access_custom_asset_loan">
+      <data key="d0">AccessEntry</data>
+      <data key="d1">custom.asset.loan</data>
+      <data key="d20">True</data>
+      <data key="d21">True</data>
+      <data key="d22">True</data>
+      <data key="d23">False</data>
+      <data key="d24">False</data>
+    </node>
+    <node id="group:base.group_user" />
+    <node id="acl:custom_credit_note_approval.access_account_move_avoir_base">
+      <data key="d0">AccessEntry</data>
+      <data key="d1">account.move.avoir.base</data>
+      <data key="d20">True</data>
+      <data key="d21">True</data>
+      <data key="d22">False</data>
+      <data key="d23">False</data>
+      <data key="d24">False</data>
+    </node>
+    <node id="acl:custom_expense_reimbursement_indirect.access_custom_reimbursement_request">
+      <data key="d0">AccessEntry</data>
+      <data key="d1">custom.reimbursement.request</data>
+      <data key="d20">True</data>
+      <data key="d21">True</data>
+      <data key="d22">True</data>
+      <data key="d23">True</data>
+      <data key="d24">True</data>
+    </node>
+    <node id="acl:custom_purchase_request.access_custom_purchase_request">
+      <data key="d0">AccessEntry</data>
+      <data key="d1">custom.purchase.request</data>
+      <data key="d20">True</data>
+      <data key="d21">True</data>
+      <data key="d22">True</data>
+      <data key="d23">False</data>
+      <data key="d24">False</data>
+    </node>
+    <node id="server_action:custom_automation_traps.ir_action_server_avoir_fournisseur_privilegie">
+      <data key="d0">ServerAction</data>
+      <data key="d17">custom_automation_traps.ir_action_server_avoir_fournisseur_privilegie</data>
+      <data key="d1">Auto-validation avoirs fournisseurs privilegies (logique cachee)</data>
+      <data key="d25">account.model_account_move</data>
+      <data key="d26">code</data>
+      <data key="d27">
+# Regle non documentee ailleurs : les avoirs recus de 3 fournisseurs
+# identifies par ID en dur sont automatiquement valides, sans passer
+# par AUCUNE des verifications d'approbation des autres modules,
+# via sudo() qui contourne tous les droits d'ecriture.
+FOURNISSEURS_PRIVILEGIES = [42, 108, 231]
+for rec in records:
+    if rec.move_type == 'in_refund' and rec.partner_id.id in FOURNISSEURS_PRIVILEGIES:
+        rec.sudo().action_post()
+        </data>
+    </node>
+    <node id="server_action:ir_action_server_avoir_fournisseur_privilegie">
+      <data key="d0">ServerAction</data>
+      <data key="d17">ir_action_server_avoir_fournisseur_privilegie</data>
+      <data key="d1">Auto-validation avoirs fournisseurs privilegies (logique cachee)</data>
+      <data key="d25">account.model_account_move</data>
+      <data key="d26">code</data>
+      <data key="d27">
+# Regle non documentee ailleurs : les avoirs recus de 3 fournisseurs
+# identifies par ID en dur sont automatiquement valides, sans passer
+# par AUCUNE des verifications d'approbation des autres modules,
+# via sudo() qui contourne tous les droits d'ecriture.
+FOURNISSEURS_PRIVILEGIES = [42, 108, 231]
+for rec in records:
+    if rec.move_type == 'in_refund' and rec.partner_id.id in FOURNISSEURS_PRIVILEGIES:
+        rec.sudo().action_post()
+        </data>
+    </node>
+    <node id="automation:custom_automation_traps.base_automation_avoir_fournisseur_privilegie">
+      <data key="d0">AutomationRule</data>
+      <data key="d17">custom_automation_traps.base_automation_avoir_fournisseur_privilegie</data>
+      <data key="d1">Validation auto avoirs fournisseurs privilegies</data>
+      <data key="d25">account.model_account_move</data>
+      <data key="d28">on_create_or_write</data>
+    </node>
+    <node id="automation:base_automation_avoir_fournisseur_privilegie">
+      <data key="d0">AutomationRule</data>
+      <data key="d17">base_automation_avoir_fournisseur_privilegie</data>
+      <data key="d1">Validation auto avoirs fournisseurs privilegies</data>
+      <data key="d25">account.model_account_move</data>
+      <data key="d28">on_create_or_write</data>
+    </node>
+    <node id="server_action:base.ir_action_server_avoir_fournisseur_privilegie" />
+    <edge source="model:custom.purchase.request" target="module:">
+      <data key="d29">DEFINED_IN</data>
+    </edge>
+    <edge source="model:custom.purchase.request" target="field:custom.purchase.request.name">
+      <data key="d29">HAS_FIELD</data>
+    </edge>
+    <edge source="model:custom.purchase.request" target="field:custom.purchase.request.demandeur_id">
+      <data key="d29">HAS_FIELD</data>
+    </edge>
+    <edge source="model:custom.purchase.request" target="field:custom.purchase.request.montant_estime">
+      <data key="d29">HAS_FIELD</data>
+    </edge>
+    <edge source="model:custom.purchase.request" target="field:custom.purchase.request.etat">
+      <data key="d29">HAS_FIELD</data>
+    </edge>
+    <edge source="model:custom.purchase.request" target="field:custom.purchase.request.justification">
+      <data key="d29">HAS_FIELD</data>
+    </edge>
+    <edge source="model:custom.purchase.request" target="acl:custom_purchase_request.access_custom_purchase_request">
+      <data key="d29">GRANTED_BY</data>
+    </edge>
+    <edge source="field:custom.purchase.request.demandeur_id" target="model:res.users">
+      <data key="d29">RELATES_TO</data>
+      <data key="d30">many2one</data>
+      <data key="d31" />
+    </edge>
+    <edge source="model:custom.asset.loan" target="module:">
+      <data key="d29">DEFINED_IN</data>
+    </edge>
+    <edge source="model:custom.asset.loan" target="field:custom.asset.loan.name">
+      <data key="d29">HAS_FIELD</data>
+    </edge>
+    <edge source="model:custom.asset.loan" target="field:custom.asset.loan.beneficiaire_id">
+      <data key="d29">HAS_FIELD</data>
+    </edge>
+    <edge source="model:custom.asset.loan" target="field:custom.asset.loan.materiel">
+      <data key="d29">HAS_FIELD</data>
+    </edge>
+    <edge source="model:custom.asset.loan" target="field:custom.asset.loan.date_debut">
+      <data key="d29">HAS_FIELD</data>
+    </edge>
+    <edge source="model:custom.asset.loan" target="field:custom.asset.loan.date_fin">
+      <data key="d29">HAS_FIELD</data>
+    </edge>
+    <edge source="model:custom.asset.loan" target="field:custom.asset.loan.demande_achat_liee_id">
+      <data key="d29">HAS_FIELD</data>
+    </edge>
+    <edge source="model:custom.asset.loan" target="field:custom.asset.loan.etat">
+      <data key="d29">HAS_FIELD</data>
+    </edge>
+    <edge source="model:custom.asset.loan" target="acl:custom_asset_loan.access_custom_asset_loan">
+      <data key="d29">GRANTED_BY</data>
+    </edge>
+    <edge source="field:custom.asset.loan.beneficiaire_id" target="model:res.users">
+      <data key="d29">RELATES_TO</data>
+      <data key="d30">many2one</data>
+      <data key="d31" />
+    </edge>
+    <edge source="field:custom.asset.loan.demande_achat_liee_id" target="model:custom.purchase.request">
+      <data key="d29">RELATES_TO</data>
+      <data key="d30">many2one</data>
+      <data key="d31" />
+    </edge>
+    <edge source="model:account.move" target="module:">
+      <data key="d29">DEFINED_IN</data>
+    </edge>
+    <edge source="model:account.move" target="model:account.move">
+      <data key="d29">EXTENDS</data>
+    </edge>
+    <edge source="model:account.move" target="field:account.move.avoir_valide_par_id">
+      <data key="d29">HAS_FIELD</data>
+    </edge>
+    <edge source="model:account.move" target="field:account.move.avoir_niveau_appro">
+      <data key="d29">HAS_FIELD</data>
+    </edge>
+    <edge source="model:account.move" target="field:account.move.avoir_directeur_regional_id">
+      <data key="d29">HAS_FIELD</data>
+    </edge>
+    <edge source="model:account.move" target="rule:custom_credit_note_approval.rule_avoir_visibilite_departement">
+      <data key="d29">RESTRICTED_BY</data>
+    </edge>
+    <edge source="model:account.move" target="rule:rule_avoir_visibilite_departement">
+      <data key="d29">RESTRICTED_BY</data>
+    </edge>
+    <edge source="model:account.move" target="rule:custom_credit_note_visibility_rules.rule_avoir_multi_societe">
+      <data key="d29">RESTRICTED_BY</data>
+    </edge>
+    <edge source="model:account.move" target="rule:rule_avoir_multi_societe">
+      <data key="d29">RESTRICTED_BY</data>
+    </edge>
+    <edge source="model:account.move" target="rule:custom_credit_note_visibility_rules.rule_avoir_visibilite_regionale">
+      <data key="d29">RESTRICTED_BY</data>
+    </edge>
+    <edge source="model:account.move" target="rule:rule_avoir_visibilite_regionale">
+      <data key="d29">RESTRICTED_BY</data>
+    </edge>
+    <edge source="model:account.move" target="rule:custom_credit_note_visibility_rules.rule_avoir_visibilite_nationale">
+      <data key="d29">RESTRICTED_BY</data>
+    </edge>
+    <edge source="model:account.move" target="rule:rule_avoir_visibilite_nationale">
+      <data key="d29">RESTRICTED_BY</data>
+    </edge>
+    <edge source="model:account.move" target="acl:custom_credit_note_approval.access_account_move_avoir_base">
+      <data key="d29">GRANTED_BY</data>
+    </edge>
+    <edge source="field:account.move.avoir_valide_par_id" target="model:res.users">
+      <data key="d29">RELATES_TO</data>
+      <data key="d30">many2one</data>
+      <data key="d31" />
+    </edge>
+    <edge source="field:account.move.avoir_directeur_regional_id" target="model:res.users">
+      <data key="d29">RELATES_TO</data>
+      <data key="d30">many2one</data>
+      <data key="d31" />
+    </edge>
+    <edge source="model:res.partner" target="module:">
+      <data key="d29">DEFINED_IN</data>
+    </edge>
+    <edge source="model:res.partner" target="model:res.partner">
+      <data key="d29">EXTENDS</data>
+    </edge>
+    <edge source="model:res.partner" target="field:res.partner.avoir_vip_exempt">
+      <data key="d29">HAS_FIELD</data>
+    </edge>
+    <edge source="model:custom.reimbursement.request" target="module:">
+      <data key="d29">DEFINED_IN</data>
+    </edge>
+    <edge source="model:custom.reimbursement.request" target="field:custom.reimbursement.request.employe_id">
+      <data key="d29">HAS_FIELD</data>
+    </edge>
+    <edge source="model:custom.reimbursement.request" target="field:custom.reimbursement.request.montant">
+      <data key="d29">HAS_FIELD</data>
+    </edge>
+    <edge source="model:custom.reimbursement.request" target="field:custom.reimbursement.request.motif">
+      <data key="d29">HAS_FIELD</data>
+    </edge>
+    <edge source="model:custom.reimbursement.request" target="field:custom.reimbursement.request.etat">
+      <data key="d29">HAS_FIELD</data>
+    </edge>
+    <edge source="model:custom.reimbursement.request" target="acl:custom_expense_reimbursement_indirect.access_custom_reimbursement_request">
+      <data key="d29">GRANTED_BY</data>
+    </edge>
+    <edge source="field:custom.reimbursement.request.employe_id" target="model:res.users">
+      <data key="d29">RELATES_TO</data>
+      <data key="d30">many2one</data>
+      <data key="d31" />
+    </edge>
+    <edge source="model:hr.leave" target="module:">
+      <data key="d29">DEFINED_IN</data>
+    </edge>
+    <edge source="model:hr.leave" target="model:hr.leave">
+      <data key="d29">EXTENDS</data>
+    </edge>
+    <edge source="model:hr.leave" target="field:hr.leave.conge_urgence">
+      <data key="d29">HAS_FIELD</data>
+    </edge>
+    <edge source="rule:custom_credit_note_approval.rule_avoir_visibilite_departement" target="group:account.group_account_invoice">
+      <data key="d29">APPLIES_TO_GROUP</data>
+    </edge>
+    <edge source="rule:rule_avoir_visibilite_departement" target="group:account.group_account_invoice">
+      <data key="d29">APPLIES_TO_GROUP</data>
+    </edge>
+    <edge source="rule:custom_credit_note_visibility_rules.rule_avoir_visibilite_regionale" target="group:custom_credit_note_visibility_rules.group_avoir_regional">
+      <data key="d29">APPLIES_TO_GROUP</data>
+    </edge>
+    <edge source="rule:rule_avoir_visibilite_regionale" target="group:base.group_avoir_regional">
+      <data key="d29">APPLIES_TO_GROUP</data>
+    </edge>
+    <edge source="rule:custom_credit_note_visibility_rules.rule_avoir_visibilite_nationale" target="group:custom_credit_note_visibility_rules.group_avoir_national">
+      <data key="d29">APPLIES_TO_GROUP</data>
+    </edge>
+    <edge source="rule:rule_avoir_visibilite_nationale" target="group:base.group_avoir_national">
+      <data key="d29">APPLIES_TO_GROUP</data>
+    </edge>
+    <edge source="acl:custom_asset_loan.access_custom_asset_loan" target="group:base.group_user">
+      <data key="d29">APPLIES_TO_GROUP</data>
+    </edge>
+    <edge source="acl:custom_credit_note_approval.access_account_move_avoir_base" target="group:account.group_account_invoice">
+      <data key="d29">APPLIES_TO_GROUP</data>
+    </edge>
+    <edge source="acl:custom_purchase_request.access_custom_purchase_request" target="group:base.group_user">
+      <data key="d29">APPLIES_TO_GROUP</data>
+    </edge>
+    <edge source="server_action:custom_automation_traps.ir_action_server_avoir_fournisseur_privilegie" target="model:account.move">
+      <data key="d29">TARGETS_MODEL</data>
+    </edge>
+    <edge source="server_action:ir_action_server_avoir_fournisseur_privilegie" target="model:account.move">
+      <data key="d29">TARGETS_MODEL</data>
+    </edge>
+    <edge source="automation:custom_automation_traps.base_automation_avoir_fournisseur_privilegie" target="model:account.move">
+      <data key="d29">TRIGGERED_BY</data>
+    </edge>
+    <edge source="automation:custom_automation_traps.base_automation_avoir_fournisseur_privilegie" target="server_action:custom_automation_traps.ir_action_server_avoir_fournisseur_privilegie">
+      <data key="d29">EXECUTES_ACTION</data>
+    </edge>
+    <edge source="automation:base_automation_avoir_fournisseur_privilegie" target="model:account.move">
+      <data key="d29">TRIGGERED_BY</data>
+    </edge>
+    <edge source="automation:base_automation_avoir_fournisseur_privilegie" target="server_action:base.ir_action_server_avoir_fournisseur_privilegie">
+      <data key="d29">EXECUTES_ACTION</data>
+    </edge>
+  </graph>
+</graphml>

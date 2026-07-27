@@ -11,6 +11,7 @@ import logging
 from typing import Optional
 
 from langchain_core.tools import tool
+from code_intelligence.utils import resolve_model_xmlref
 
 _logger = logging.getLogger(__name__)
 
@@ -125,6 +126,91 @@ def lire_code_source(filepath: str, line_start: int, line_end: int) -> str:
     return _impl(filepath, line_start, line_end)
 
 
+@tool
+def evaluer_regles_enregistrement(model_name: str, droit: str = "read", user_groups_json: str = "[]") -> str:
+    """Evaluate Odoo ir.rule record rules for a model, permission (read, write, create, unlink), and user groups using Odoo's exact AND/OR security engine."""
+    from code_intelligence.deterministic_tools import evaluer_regles_enregistrement as _impl
+    G = _require_graph()
+    try:
+        user_groups = json.loads(user_groups_json) if isinstance(user_groups_json, str) else user_groups_json
+    except Exception:
+        user_groups = []
+    res = _impl(G, model_name, droit=droit, user_groups=user_groups)
+    return res.summary_text
+
+
+@tool
+def analyser_actions_serveur(model_name: str) -> str:
+    """Analyze server actions (ir.actions.server) and automated rules (base.automation) for a given model. Detects sudo() calls, hardcoded IDs, and security warnings."""
+    from code_intelligence.server_action_analyzer import analyze_server_action_code
+    G = _require_graph()
+
+    model_node = f"model:{model_name}"
+    if model_node not in G:
+        return f"Model '{model_name}' was not found in the indexed knowledge graph."
+
+    sa_nodes = []
+    for node, attrs in G.nodes(data=True):
+        if attrs.get("node_type") == "ServerAction":
+            target_m = attrs.get("model_id", "")
+            clean_m = resolve_model_xmlref(target_m)
+            if clean_m == model_name or G.has_edge(node, model_node):
+                sa_nodes.append((node, attrs))
+
+    if not sa_nodes:
+        return f"No server actions (ir.actions.server) found for model '{model_name}'."
+
+    summaries = []
+    for node_id, attrs in sa_nodes:
+        xml_id = attrs.get("xml_id", node_id)
+        code = attrs.get("code", "")
+        analysis = analyze_server_action_code(code, xml_id)
+        summaries.append(analysis.summary_text)
+
+    return "\n\n".join(summaries)
+
+
+@tool
+def analyser_verrous_securite(model_name: str) -> str:
+    """Analyze Python code for a given model to detect hardcoded security locks, exception messages (UserError/ValidationError), hardcoded email/login lists, and dynamic dispatch uncertainties (getattr/eval/exec)."""
+    from code_intelligence.semgrep_locks_analyzer import analyze_python_security_locks
+    from pathlib import Path
+
+    G = _require_graph()
+    model_node = f"model:{model_name}"
+    if model_node not in G:
+        return f"Model '{model_name}' was not found in the indexed knowledge graph."
+
+    # Find source filepaths linked to this model
+    filepaths = set(G.nodes[model_node].get("filepaths", []))
+
+    if not filepaths:
+        for u, v, attrs in G.edges(data=True):
+            if attrs.get("edge_type") == "HAS_FIELD" and u == model_node:
+                f_path = G.nodes[v].get("filepath", "")
+                if f_path:
+                    filepaths.add(f_path)
+
+        for node, attrs in G.nodes(data=True):
+            if attrs.get("node_type") == "Method" and attrs.get("model") == model_name:
+                f_path = attrs.get("filepath", "")
+                if f_path:
+                    filepaths.add(f_path)
+
+    if not filepaths:
+        return f"No Python source files located for model '{model_name}'."
+
+    summaries = []
+    for fp in sorted(filepaths):
+        p = Path(fp)
+        if p.exists():
+            code = p.read_text(encoding="utf-8")
+            analysis = analyze_python_security_locks(code, fp)
+            summaries.append(analysis.summary_text)
+
+    return "\n\n".join(summaries) if summaries else f"No security analysis results for model '{model_name}'."
+
+
 # =====================================================================
 # TOOL REGISTRY
 # =====================================================================
@@ -132,6 +218,9 @@ def lire_code_source(filepath: str, line_start: int, line_end: int) -> str:
 ALL_CI_TOOLS = [
     lister_modules_impliques,
     qui_a_acces_a,
+    evaluer_regles_enregistrement,
+    analyser_actions_serveur,
+    analyser_verrous_securite,
     impact_changement_champ,
     chemin_execution_bouton,
     suivre_heritage_complet,

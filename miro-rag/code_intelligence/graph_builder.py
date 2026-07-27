@@ -23,6 +23,7 @@ from code_intelligence.cross_file_resolver import (
     ResolvedSymbolRegistry,
     build_module_symbol_registry,
 )
+from code_intelligence.utils import resolve_model_xmlref
 
 _logger = logging.getLogger(__name__)
 
@@ -74,12 +75,16 @@ class OdooGraphBuilder:
                 all_inherits.extend(d.inherit)
                 all_delegations.update(d.inherits)
 
+            # Collect source filepaths for this model across declarations
+            all_filepaths = list(dict.fromkeys(d.filepath for d in decls if d.filepath))
+
             self.G.add_node(
                 model_node_id,
                 node_type="Model",
                 name=model_name,
                 inherits_list=all_inherits,
                 delegations_dict=all_delegations,
+                filepaths=all_filepaths,
             )
 
             # Model -> Module DEFINED_IN edge
@@ -117,6 +122,7 @@ class OdooGraphBuilder:
                         compute=f.compute,
                         related=f.related,
                         store=f.store,
+                        filepath=d.filepath,
                     )
                     # Model HAS_FIELD Field
                     self.G.add_edge(model_node_id, field_node_id, edge_type="HAS_FIELD")
@@ -147,6 +153,8 @@ class OdooGraphBuilder:
                         model=model_name,
                         api_model=m.api_model,
                         is_instance_method=m.is_instance_method,
+                        filepath=d.filepath,
+                        lineno=m.lineno,
                     )
 
                     # Method DEPENDS_ON Field (from @api.depends)
@@ -182,6 +190,8 @@ class OdooGraphBuilder:
                 xml_id=full_xml_id,
                 name=rule.name,
                 domain_force=rule.domain_force,
+                filepath=rule.filepath,
+                lineno=rule.lineno,
                 perm_read=rule.perm_read,
                 perm_write=rule.perm_write,
                 perm_create=rule.perm_create,
@@ -189,12 +199,14 @@ class OdooGraphBuilder:
             )
 
             if rule.model_id:
-                raw_m = rule.model_id.replace("model_", "").replace("_", ".")
+                raw_m = resolve_model_xmlref(rule.model_id)
                 model_node_id = f"model:{raw_m}"
                 self.G.add_edge(model_node_id, rule_node_id, edge_type="RESTRICTED_BY")
 
             for grp_ref in rule.groups_id:
-                grp_node_id = f"group:{grp_ref}"
+                mod_prefix = full_xml_id.split(".")[0] if "." in full_xml_id else "base"
+                full_grp = grp_ref if "." in grp_ref else f"{mod_prefix}.{grp_ref}"
+                grp_node_id = f"group:{full_grp}"
                 self.G.add_edge(rule_node_id, grp_node_id, edge_type="APPLIES_TO_GROUP")
 
         # 3. CSV Access Control Entries (Model GRANTED_BY AccessEntry)
@@ -212,13 +224,53 @@ class OdooGraphBuilder:
                     all_authenticated=acl.all_authenticated,
                 )
 
-                raw_m = acl.model_id.replace("model_", "").replace("_", ".")
+                raw_m = resolve_model_xmlref(acl.model_id)
                 model_node_id = f"model:{raw_m}"
                 self.G.add_edge(model_node_id, acl_node_id, edge_type="GRANTED_BY")
 
                 if acl.group_id:
                     grp_node_id = f"group:{acl.group_id}"
                     self.G.add_edge(acl_node_id, grp_node_id, edge_type="APPLIES_TO_GROUP")
+
+        # 4. Server Actions (ir.actions.server) & Automations (base.automation)
+        for full_xml_id, sa in self.registry.server_actions.items():
+            sa_node_id = f"server_action:{full_xml_id}"
+            self.G.add_node(
+                sa_node_id,
+                node_type="ServerAction",
+                xml_id=full_xml_id,
+                name=sa.name,
+                model_id=sa.model_id,
+                state=sa.state,
+                code=sa.code,
+            )
+
+            if sa.model_id:
+                raw_m = resolve_model_xmlref(sa.model_id)
+                model_node_id = f"model:{raw_m}"
+                self.G.add_edge(sa_node_id, model_node_id, edge_type="TARGETS_MODEL")
+
+        for full_xml_id, ba in self.registry.base_automations.items():
+            ba_node_id = f"automation:{full_xml_id}"
+            self.G.add_node(
+                ba_node_id,
+                node_type="AutomationRule",
+                xml_id=full_xml_id,
+                name=ba.name,
+                model_id=ba.model_id,
+                trigger=ba.trigger,
+            )
+
+            if ba.model_id:
+                raw_m = resolve_model_xmlref(ba.model_id)
+                model_node_id = f"model:{raw_m}"
+                self.G.add_edge(ba_node_id, model_node_id, edge_type="TRIGGERED_BY")
+
+            for sa_ref in ba.action_server_ids:
+                mod_prefix = full_xml_id.split(".")[0] if "." in full_xml_id else "base"
+                full_sa = sa_ref if "." in sa_ref else f"{mod_prefix}.{sa_ref}"
+                sa_node_id = f"server_action:{full_sa}"
+                self.G.add_edge(ba_node_id, sa_node_id, edge_type="EXECUTES_ACTION")
 
     def _add_workflow_nodes_and_edges(self):
         """

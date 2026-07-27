@@ -77,7 +77,7 @@ export class SaleDashboard extends Component {
 def test_end_to_end_a1_module_extraction():
     """Test Task A1.4.2: End-to-end integration test across full A1 extractors (Python, XML, CSV, JS, Manifest)."""
     root_dir = Path(__file__).resolve().parent.parent.parent.parent
-    mod_dir = root_dir / "odoo17-dev" / "addons" / "miro_ai"
+    mod_dir = Path("/home/user/odoo-17.0/addons") / "miro_ai"
 
     if mod_dir.exists():
         manifest_path = mod_dir / "__manifest__.py"

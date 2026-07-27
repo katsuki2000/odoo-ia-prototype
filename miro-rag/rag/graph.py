@@ -201,6 +201,9 @@ def route(state: RAGState) -> dict:
         "qui a accès", "qui a acces", "droit d'accès", "droit d acces", "droits d'accès",
         "droit de lecture", "droit d'écriture", "droit de modification", "droit de suppression",
         "quel groupe a accès", "quels groupes ont accès", "qui a le droit",
+        "règle d'enregistrement", "regle d'enregistrement", "ir.rule", "règle de sécurité", "regle de securite",
+        "action serveur", "action automati", "base.automation", "ir.actions.server", "sudo", "logique cachée",
+        "verrou", "validateurs exceptionnels", "validationerror", "usererror", "dispatch dynamique", "getattr",
         "impact de la modification", "impact de modification", "si je modifie le champ",
         "changement du champ", "impact du champ", "champs calculés dépendants",
         "chemin d'exécution", "chemin execution", "bouton", "quand je clique sur",
@@ -598,15 +601,14 @@ def hybrid_node(state: RAGState) -> dict:
 
 # C.1.3: System prompt with explicit scope-first navigation strategy.
 CI_SYSTEM_PROMPT = (
-    "You are MIRO Code Intelligence Assistant specializing in Odoo source code analysis.\n"
+    "You are MIRO Code Intelligence Assistant specializing in Odoo source code and security analysis.\n"
     "NAVIGATION STRATEGY:\n"
-    "1. Call `lister_modules_impliques` to scope relevant Odoo modules.\n"
-    "2. Call specialized composite tools (`qui_a_acces_a`, `impact_changement_champ`, `chemin_execution_bouton`, etc.).\n"
-    "3. Use `resoudre_nom_technique` to map technical XML-IDs to business role names.\n\n"
-    "RULES:\n"
-    "- Call `qui_a_acces_a` ONCE per model; DO NOT enumerate groups or permissions individually.\n"
-    "- Never invent data. Respond in French.\n"
-    "- Always cite source: [Source: Graphe de Connaissances Code Intelligence]."
+    "1. When target models or modules are provided by [BUSINESS TERM RESOLVER S2.0], invoke the appropriate tools immediately:\n"
+    "   - For approval limits, hardcoded emails (_VALIDATEURS_EXCEPTIONNELS), UserError/ValidationError strings, or dynamic getattr dispatches: ALWAYS invoke `analyser_verrous_securite`.\n"
+    "   - For ir.rule record rules and group permissions: invoke `evaluer_regles_enregistrement` and `qui_a_acces_a`.\n"
+    "   - For automated actions, ir.actions.server, or sudo() bypasses: invoke `analyser_actions_serveur`.\n"
+    "2. DO NOT make generic fallbacks. Synthesize the tool observations directly.\n"
+    "3. Always cite source file links: [file.py:L12-L25](file:///path#L12-L25)."
 )
 
 # C.1.4: Maximum hops allowed per question.
@@ -634,7 +636,7 @@ def get_code_intelligence_graph():
 
     base_dir = Path(__file__).resolve().parent.parent
     corpus_root = base_dir / "fake_data" / "code"
-    addons_root = base_dir.parent / "odoo17-dev" / "addons"
+    addons_root = Path("/home/user/odoo-17.0/addons") if Path("/home/user/odoo-17.0/addons").exists() else base_dir.parent / "addons"
 
     modules_dict = {}
 
@@ -711,7 +713,11 @@ def code_intelligence_agent(state: RAGState) -> dict:
     # Initialize the knowledge graph and inject into tool wrappers
     G = get_code_intelligence_graph()
     from code_intelligence.ci_agent_tools import ALL_CI_TOOLS, set_graph_ref
+    from code_intelligence.business_resolver import resolve_business_term
     set_graph_ref(G)
+
+    # Story S2.0: Business Term Resolver -- Map natural language concepts to technical Odoo models/modules
+    concept = resolve_business_term(question, G)
 
     # Bind tools to LLM (C.1.1)
     llm = ChatGroq(
@@ -723,8 +729,22 @@ def code_intelligence_agent(state: RAGState) -> dict:
     )
     llm_with_tools = llm.bind_tools(ALL_CI_TOOLS)
 
+    system_prompt = CI_SYSTEM_PROMPT
+    if concept.is_resolved:
+        resolved_info = []
+        if concept.resolved_models:
+            resolved_info.append(f"Target Models: {', '.join(concept.resolved_models)}")
+        if concept.resolved_modules:
+            resolved_info.append(f"Target Modules: {', '.join(concept.resolved_modules)}")
+        system_prompt += (
+            f"\n\n[BUSINESS TERM RESOLVER S2.0]\n"
+            f"Query term matched: '{concept.user_term}'.\n"
+            f"{' | '.join(resolved_info)}.\n"
+            f"Use these exact technical identifiers when invoking composite tools."
+        )
+
     messages = [
-        SystemMessage(content=CI_SYSTEM_PROMPT),
+        SystemMessage(content=system_prompt),
         *chat_history[-6:],
         HumanMessage(content=question),
     ]
@@ -737,52 +757,55 @@ def code_intelligence_agent(state: RAGState) -> dict:
     seen_calls: set = set()
 
     for iteration in range(REACT_RECURSION_LIMIT):
-    # Single-Pass Composite Execution: 1 Tool Selection turn + 1 Synthesis turn
-    try:
-        ai_msg = _invoke_with_rate_limit(llm_with_tools, messages)
-    except Exception as e:
-        logger.error("LLM tool selection failed: %s", e)
-        ai_msg = None
+        # Single-Pass Composite Execution: 1 Tool Selection turn + 1 Synthesis turn
+        try:
+            ai_msg = _invoke_with_rate_limit(llm_with_tools, messages)
+        except Exception as e:
+            logger.error("LLM tool selection failed: %s", e)
+            ai_msg = None
 
-    if ai_msg and getattr(ai_msg, "tool_calls", None):
-        for tool_call in ai_msg.tool_calls:
-            tool_name = tool_call["name"]
-            tool_args = tool_call["args"]
+        if ai_msg and getattr(ai_msg, "tool_calls", None):
+            for tool_call in ai_msg.tool_calls:
+                tool_name = tool_call["name"]
+                tool_args = tool_call["args"]
 
-            # If qui_a_acces_a is called without explicit droit, default to 'all' for single-pass matrix
-            if tool_name == "qui_a_acces_a" and "droit" not in tool_args:
-                tool_args["droit"] = "all"
+                # If qui_a_acces_a is called without explicit droit, default to 'all' for single-pass matrix
+                if tool_name == "qui_a_acces_a" and "droit" not in tool_args:
+                    tool_args["droit"] = "all"
 
-            logger.info("Node [code_intelligence_agent]: Single-Dispatch invoking '%s' with args %s", tool_name, tool_args)
-            tool_map = {t.name: t for t in ALL_CI_TOOLS}
-            if tool_name in tool_map:
+                logger.info("Node [code_intelligence_agent]: Single-Dispatch invoking '%s' with args %s", tool_name, tool_args)
+                tool_map = {t.name: t for t in ALL_CI_TOOLS}
+                if tool_name in tool_map:
+                    try:
+                        observation = tool_map[tool_name].invoke(tool_args)
+                        tool_observations.append(str(observation))
+                        hop_count += 1
+                    except Exception as te:
+                        logger.error("Tool execution failed (%s): %s", tool_name, te)
+                        tool_observations.append(f"Error executing {tool_name}: {str(te)}")
+        elif ai_msg and ai_msg.content:
+            final_answer = ai_msg.content
+
+        # Synthesize clean final answer from composite tool output
+        if not final_answer:
+            if tool_observations:
+                synthesis_prompt = (
+                    f"Original Question: {question}\n\n"
+                    f"Knowledge Graph Output:\n" + "\n---\n".join(tool_observations) +
+                    f"\n\nSynthesize a clear, professional response in French based strictly on the data above."
+                )
                 try:
-                    observation = tool_map[tool_name].invoke(tool_args)
-                    tool_observations.append(str(observation))
-                    hop_count += 1
-                except Exception as te:
-                    logger.error("Tool execution failed (%s): %s", tool_name, te)
-                    tool_observations.append(f"Error executing {tool_name}: {str(te)}")
-    elif ai_msg and ai_msg.content:
-        final_answer = ai_msg.content
+                    plain_llm = ChatGroq(model=GROQ_MODEL, temperature=0.0, max_retries=0, max_tokens=4096)
+                    final_resp = _invoke_with_rate_limit(plain_llm, [HumanMessage(content=synthesis_prompt)])
+                    final_answer = final_resp.content
+                except Exception as e:
+                    logger.error("Synthesis failed: %s", e)
+                    final_answer = "\n\n".join(tool_observations)
+            else:
+                final_answer = "Je n'ai pas de données disponibles dans le graphe de connaissances pour répondre à cette question."
 
-    # Synthesize clean final answer from composite tool output
-    if not final_answer:
-        if tool_observations:
-            synthesis_prompt = (
-                f"Original Question: {question}\n\n"
-                f"Knowledge Graph Output:\n" + "\n---\n".join(tool_observations) +
-                f"\n\nSynthesize a clear, professional response in French based strictly on the data above."
-            )
-            try:
-                plain_llm = ChatGroq(model=GROQ_MODEL, temperature=0.0, max_retries=0, max_tokens=4096)
-                final_resp = _invoke_with_rate_limit(plain_llm, [HumanMessage(content=synthesis_prompt)])
-                final_answer = final_resp.content
-            except Exception as e:
-                logger.error("Synthesis failed: %s", e)
-                final_answer = "\n\n".join(tool_observations)
-        else:
-            final_answer = "Je n'ai pas de données disponibles dans le graphe de connaissances pour répondre à cette question."
+        if final_answer:
+            break
 
     final_answer += "\n\n[Source: Graphe de Connaissances Code Intelligence]"
 

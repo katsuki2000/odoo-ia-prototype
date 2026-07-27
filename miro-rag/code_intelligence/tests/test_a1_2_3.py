@@ -72,7 +72,7 @@ def test_xml_fields_and_menuitems_extraction():
 def test_real_xml_miro_ai_menus():
     """Test parsing menuitems from real miro_ai_menus.xml."""
     root_dir = Path(__file__).resolve().parent.parent.parent.parent
-    xml_file = root_dir / "odoo17-dev" / "addons" / "miro_ai" / "views" / "miro_ai_menus.xml"
+    xml_file = Path("/home/user/odoo-17.0/addons") / "miro_ai" / "views" / "miro_ai_menus.xml"
 
     if xml_file.exists():
         menus = parse_menuitems_from_xml(xml_file)

@@ -61,7 +61,8 @@ def test_manifest_parsing_and_unloaded_detection():
 def test_real_manifest_miro_ai():
     """Test parsing real manifest from odoo17-dev/addons/miro_ai/__manifest__.py."""
     root_dir = Path(__file__).resolve().parent.parent.parent.parent
-    real_manifest = root_dir / "odoo17-dev" / "addons" / "miro_ai" / "__manifest__.py"
+    addons_dir = Path("/home/user/odoo-17.0/addons") if Path("/home/user/odoo-17.0/addons").exists() else root_dir / "addons"
+    real_manifest = addons_dir / "miro_ai" / "__manifest__.py"
 
     if real_manifest.exists():
         manifest = parse_manifest(real_manifest)

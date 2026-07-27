@@ -54,6 +54,31 @@ class OdooActionRecord:
 
 
 @dataclass
+class OdooServerActionRecord:
+    """Represents an ir.actions.server record extracted from XML data files."""
+    xml_id: str
+    filepath: str
+    lineno: int
+    name: str = ""
+    model_id: str = ""
+    state: str = "code"
+    code: str = ""
+    groups_id: List[str] = field(default_factory=list)
+
+
+@dataclass
+class OdooBaseAutomationRecord:
+    """Represents a base.automation record extracted from XML data files."""
+    xml_id: str
+    filepath: str
+    lineno: int
+    name: str = ""
+    model_id: str = ""
+    trigger: str = ""
+    action_server_ids: List[str] = field(default_factory=list)
+
+
+@dataclass
 class OdooXmlFieldRecord:
     xml_id: str
     filepath: str
@@ -137,7 +162,7 @@ def parse_ir_rules_from_xml(filepath: Path) -> List[OdooRuleRecord]:
 
     try:
         content = filepath.read_text(encoding="utf-8")
-        # Handle potential XML declaration encoding issues safely
+        lines = content.splitlines()
         root = ET.fromstring(content)
     except Exception as e:
         _logger.error("Failed to parse XML file %s: %s", filepath, e)
@@ -149,10 +174,19 @@ def parse_ir_rules_from_xml(filepath: Path) -> List[OdooRuleRecord]:
             continue
 
         xml_id = record.attrib.get("id", "")
+        
+        # Line number estimation by looking up id="xml_id"
+        lineno = 1
+        if xml_id:
+            for idx, line in enumerate(lines, 1):
+                if f'id="{xml_id}"' in line or f"id='{xml_id}'" in line:
+                    lineno = idx
+                    break
+
         rule = OdooRuleRecord(
             xml_id=xml_id,
             filepath=str(filepath),
-            lineno=0, # ElementTree does not natively track line numbers without custom parser
+            lineno=lineno,
         )
 
         for field_elem in record.findall("field"):
@@ -522,3 +556,132 @@ def _extract_buttons_from_arch_elem(arch_elem: ET.Element) -> List[OdooFormButto
                 )
             )
     return buttons
+
+
+def parse_server_actions_from_xml(filepath: Path) -> List[OdooServerActionRecord]:
+    """
+    Story S2.3: Parse an Odoo XML file and extract all <record model="ir.actions.server"> declarations.
+    Captures the 'code' field content that contains executable Python logic.
+    """
+    if not filepath.exists():
+        _logger.warning("XML file does not exist: %s", filepath)
+        return []
+
+    actions: List[OdooServerActionRecord] = []
+
+    try:
+        content = filepath.read_text(encoding="utf-8")
+        root = ET.fromstring(content)
+    except Exception as e:
+        _logger.error("Failed to parse XML file %s: %s", filepath, e)
+        return []
+
+    for record in root.findall(".//record"):
+        model_attr = record.attrib.get("model")
+        if model_attr != "ir.actions.server":
+            continue
+
+        xml_id = record.attrib.get("id", "")
+        sa = OdooServerActionRecord(
+            xml_id=xml_id,
+            filepath=str(filepath),
+            lineno=0,
+        )
+
+        for field_elem in record.findall("field"):
+            field_name = field_elem.attrib.get("name")
+            if not field_name:
+                continue
+
+            field_text = (field_elem.text or "").strip()
+            field_ref = field_elem.attrib.get("ref")
+            field_eval = field_elem.attrib.get("eval")
+
+            if field_name == "name":
+                sa.name = field_text
+            elif field_name == "model_id":
+                if field_ref:
+                    sa.model_id = field_ref
+                elif field_eval:
+                    refs = extract_refs_from_eval(field_eval)
+                    if refs:
+                        sa.model_id = refs[0]
+                elif field_text:
+                    sa.model_id = field_text
+            elif field_name == "state":
+                sa.state = field_text
+            elif field_name == "code":
+                # Preserve the full code content including whitespace
+                sa.code = field_elem.text or ""
+            elif field_name in {"groups", "groups_id"}:
+                if field_ref:
+                    sa.groups_id.append(field_ref)
+                if field_eval:
+                    sa.groups_id.extend(extract_refs_from_eval(field_eval))
+
+        actions.append(sa)
+
+    return actions
+
+
+def parse_base_automations_from_xml(filepath: Path) -> List[OdooBaseAutomationRecord]:
+    """
+    Story S2.3: Parse an Odoo XML file and extract all <record model="base.automation"> declarations.
+    Links automation triggers to their associated ir.actions.server records.
+    """
+    if not filepath.exists():
+        _logger.warning("XML file does not exist: %s", filepath)
+        return []
+
+    automations: List[OdooBaseAutomationRecord] = []
+
+    try:
+        content = filepath.read_text(encoding="utf-8")
+        root = ET.fromstring(content)
+    except Exception as e:
+        _logger.error("Failed to parse XML file %s: %s", filepath, e)
+        return []
+
+    for record in root.findall(".//record"):
+        model_attr = record.attrib.get("model")
+        if model_attr != "base.automation":
+            continue
+
+        xml_id = record.attrib.get("id", "")
+        ba = OdooBaseAutomationRecord(
+            xml_id=xml_id,
+            filepath=str(filepath),
+            lineno=0,
+        )
+
+        for field_elem in record.findall("field"):
+            field_name = field_elem.attrib.get("name")
+            if not field_name:
+                continue
+
+            field_text = (field_elem.text or "").strip()
+            field_ref = field_elem.attrib.get("ref")
+            field_eval = field_elem.attrib.get("eval")
+
+            if field_name == "name":
+                ba.name = field_text
+            elif field_name == "model_id":
+                if field_ref:
+                    ba.model_id = field_ref
+                elif field_eval:
+                    refs = extract_refs_from_eval(field_eval)
+                    if refs:
+                        ba.model_id = refs[0]
+                elif field_text:
+                    ba.model_id = field_text
+            elif field_name == "trigger":
+                ba.trigger = field_text
+            elif field_name in {"action_server_ids", "action_server_id"}:
+                if field_ref:
+                    ba.action_server_ids.append(field_ref)
+                if field_eval:
+                    ba.action_server_ids.extend(extract_refs_from_eval(field_eval))
+
+        automations.append(ba)
+
+    return automations

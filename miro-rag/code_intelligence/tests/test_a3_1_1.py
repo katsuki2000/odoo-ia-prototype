@@ -38,7 +38,7 @@ def test_graph_construction_and_typed_edges():
     """Test NetworkX node and typed edge creation (A3.1.2 & A3.1.3)."""
     # Create synthetic parsed module
     mod = ParsedModule(
-        manifest=parse_manifest(Path(__file__).resolve().parent.parent.parent.parent / "odoo17-dev" / "addons" / "miro_ai" / "__manifest__.py")
+        manifest=parse_manifest(Path("/home/user/odoo-17.0/addons") / "miro_ai" / "__manifest__.py")
     )
     
     modules_dict = {"miro_ai": mod}
@@ -88,7 +88,7 @@ def test_workflow_subgraph():
     sale_dir = corpus_root / "sale"
     assert sale_dir.exists()
 
-    mod = ParsedModule(manifest=parse_manifest(sale_dir / "__manifest__.py") if (sale_dir / "__manifest__.py").exists() else parse_manifest(root_dir / "odoo17-dev" / "addons" / "miro_ai" / "__manifest__.py"))
+    mod = ParsedModule(manifest=parse_manifest(sale_dir / "__manifest__.py") if (sale_dir / "__manifest__.py").exists() else parse_manifest(Path("/home/user/odoo-17.0/addons") / "miro_ai" / "__manifest__.py"))
     for py_file in sale_dir.rglob("*.py"):
         mod.models.extend(extract_odoo_models_from_file(py_file))
     for xml_file in sale_dir.rglob("*.xml"):
@@ -119,7 +119,7 @@ def test_real_corpus_graph_and_5hop_benchmark():
     modules_dict = {}
 
     # Load miro_ai
-    miro_ai_dir = root_dir / "odoo17-dev" / "addons" / "miro_ai"
+    miro_ai_dir = Path("/home/user/odoo-17.0/addons") / "miro_ai"
     if miro_ai_dir.exists():
         manifest = parse_manifest(miro_ai_dir / "__manifest__.py")
         if manifest:

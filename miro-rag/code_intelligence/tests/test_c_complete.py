@@ -37,14 +37,17 @@ def test_c1_1_tools_binding():
         "lire_code_source"
     }
     assert expected_tools.issubset(tool_names), f"Missing tools: {expected_tools - tool_names}"
-    assert len(ALL_CI_TOOLS) == 9
+    assert len(ALL_CI_TOOLS) == 12
 
 
 def test_c1_3_system_prompt_structure():
     """Test C.1.3: Verify system prompt contains scope-first navigation strategy directives."""
     assert "lister_modules_impliques" in CI_SYSTEM_PROMPT
     assert "qui_a_acces_a" in CI_SYSTEM_PROMPT
-    assert "TOUJOURS commencer par" in CI_SYSTEM_PROMPT
+    assert "evaluer_regles_enregistrement" in CI_SYSTEM_PROMPT
+    assert "analyser_actions_serveur" in CI_SYSTEM_PROMPT
+    assert "analyser_verrous_securite" in CI_SYSTEM_PROMPT
+    assert "NAVIGATION STRATEGY" in CI_SYSTEM_PROMPT
 
 
 def test_c1_4_hop_counter_limit():

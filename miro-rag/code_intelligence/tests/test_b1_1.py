@@ -62,7 +62,7 @@ def test_qui_a_acces_a_synthetic():
 def test_qui_a_acces_a_real_miro_ai():
     """Test qui_a_acces_a on real miro_ai module graph."""
     root_dir = Path(__file__).resolve().parent.parent.parent.parent
-    mod_dir = root_dir / "odoo17-dev" / "addons" / "miro_ai"
+    mod_dir = Path("/home/user/odoo-17.0/addons") / "miro_ai"
 
     if mod_dir.exists():
         manifest = parse_manifest(mod_dir / "__manifest__.py")

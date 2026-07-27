@@ -57,7 +57,7 @@ def test_chemin_execution_bouton_real_sale():
 
     if sale_dir.exists():
         manifest_p = sale_dir / "__manifest__.py"
-        manifest = parse_manifest(manifest_p) if manifest_p.exists() else parse_manifest(root_dir / "odoo17-dev" / "addons" / "miro_ai" / "__manifest__.py")
+        manifest = parse_manifest(manifest_p) if manifest_p.exists() else parse_manifest(Path("/home/user/odoo-17.0/addons") / "miro_ai" / "__manifest__.py")
         mod = ParsedModule(manifest=manifest)
         for py_file in sale_dir.rglob("*.py"):
             mod.models.extend(extract_odoo_models_from_file(py_file))
