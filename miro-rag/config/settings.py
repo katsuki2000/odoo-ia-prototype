@@ -13,7 +13,7 @@ if not os.getenv("GROQ_API_KEY"):
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "groq")  # "groq" or "ollama"
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-GROQ_MODEL   = "llama-3.1-8b-instant"
+GROQ_MODEL   = "llama-3.3-70b-versatile"
 
 OLLAMA_HOST  = "http://localhost:11434"
 OLLAMA_MODEL = "hermes3"

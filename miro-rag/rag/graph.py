@@ -12,6 +12,7 @@ import os
 import sys
 import threading
 import time
+from pathlib import Path
 from typing import TypedDict, List, Optional, Any
 
 # Add parent dir to path
@@ -617,21 +618,46 @@ CI_MAX_HOPS = 4
 _CACHED_CODE_INTEL_GRAPH = None
 
 
+def _load_module(mod_dir: Path) -> tuple:
+    """Load a single Odoo module directory into a ParsedModule."""
+    from code_intelligence.manifest_parser import parse_manifest
+    from code_intelligence.python_extractor import extract_odoo_models_from_file
+    from code_intelligence.xml_extractor import (
+        parse_ir_rules_from_xml, parse_groups_from_xml,
+        parse_actions_from_xml, parse_menuitems_from_xml, parse_views_from_xml,
+        parse_server_actions_from_xml, parse_base_automations_from_xml,
+    )
+    from code_intelligence.csv_extractor import parse_access_control_csv
+    from code_intelligence.cross_file_resolver import ParsedModule
+
+    manifest_p = mod_dir / "__manifest__.py"
+    manifest = parse_manifest(manifest_p) if manifest_p.exists() else None
+    mod = ParsedModule(manifest=manifest)
+    for py_f in mod_dir.rglob("*.py"):
+        if py_f.name == "__manifest__.py":
+            continue
+        mod.models.extend(extract_odoo_models_from_file(py_f))
+    for xml_f in mod_dir.rglob("*.xml"):
+        mod.rules.extend(parse_ir_rules_from_xml(xml_f))
+        mod.groups.extend(parse_groups_from_xml(xml_f))
+        mod.actions.extend(parse_actions_from_xml(xml_f))
+        mod.server_actions.extend(parse_server_actions_from_xml(xml_f))
+        mod.base_automations.extend(parse_base_automations_from_xml(xml_f))
+        mod.menuitems.extend(parse_menuitems_from_xml(xml_f))
+        mod.views.extend(parse_views_from_xml(xml_f))
+    for csv_f in mod_dir.rglob("*.csv"):
+        mod.acl_entries.extend(parse_access_control_csv(csv_f))
+    return mod_dir.name, mod
+
+
 def get_code_intelligence_graph():
     """Lazy-load and cache Knowledge Graph for Code Intelligence node."""
     global _CACHED_CODE_INTEL_GRAPH
     if _CACHED_CODE_INTEL_GRAPH is not None:
         return _CACHED_CODE_INTEL_GRAPH
 
-    from pathlib import Path
-    from code_intelligence.manifest_parser import parse_manifest
-    from code_intelligence.python_extractor import extract_odoo_models_from_file
-    from code_intelligence.xml_extractor import (
-        parse_ir_rules_from_xml, parse_groups_from_xml,
-        parse_actions_from_xml, parse_menuitems_from_xml, parse_views_from_xml
-    )
-    from code_intelligence.csv_extractor import parse_access_control_csv
-    from code_intelligence.cross_file_resolver import ParsedModule, build_module_symbol_registry
+    from code_intelligence.utils import discover_odoo_modules
+    from code_intelligence.cross_file_resolver import build_module_symbol_registry
     from code_intelligence.graph_builder import OdooGraphBuilder
 
     base_dir = Path(__file__).resolve().parent.parent
@@ -643,40 +669,31 @@ def get_code_intelligence_graph():
     if corpus_root.exists():
         for mod_dir in corpus_root.iterdir():
             if mod_dir.is_dir():
-                manifest_p = mod_dir / "__manifest__.py"
-                manifest = parse_manifest(manifest_p) if manifest_p.exists() else None
-                mod = ParsedModule(manifest=manifest)
-                for py_f in mod_dir.rglob("*.py"):
-                    mod.models.extend(extract_odoo_models_from_file(py_f))
-                for xml_f in mod_dir.rglob("*.xml"):
-                    mod.rules.extend(parse_ir_rules_from_xml(xml_f))
-                    mod.groups.extend(parse_groups_from_xml(xml_f))
-                    mod.actions.extend(parse_actions_from_xml(xml_f))
-                    mod.menuitems.extend(parse_menuitems_from_xml(xml_f))
-                    mod.views.extend(parse_views_from_xml(xml_f))
-                for csv_f in mod_dir.rglob("*.csv"):
-                    mod.acl_entries.extend(parse_access_control_csv(csv_f))
-                modules_dict[mod_dir.name] = mod
+                name, mod = _load_module(mod_dir)
+                modules_dict[name] = mod
 
     miro_ai_dir = addons_root / "miro_ai"
     if miro_ai_dir.exists():
-        manifest = parse_manifest(miro_ai_dir / "__manifest__.py")
-        mod = ParsedModule(manifest=manifest)
-        for py_f in miro_ai_dir.rglob("*.py"):
-            mod.models.extend(extract_odoo_models_from_file(py_f))
-        for xml_f in miro_ai_dir.rglob("*.xml"):
-            mod.rules.extend(parse_ir_rules_from_xml(xml_f))
-            mod.groups.extend(parse_groups_from_xml(xml_f))
-            mod.actions.extend(parse_actions_from_xml(xml_f))
-            mod.menuitems.extend(parse_menuitems_from_xml(xml_f))
-            mod.views.extend(parse_views_from_xml(xml_f))
-        for csv_f in miro_ai_dir.rglob("*.csv"):
-            mod.acl_entries.extend(parse_access_control_csv(csv_f))
-        modules_dict["miro_ai"] = mod
+        name, mod = _load_module(miro_ai_dir)
+        modules_dict[name] = mod
+
+    # Load adversarial custom_* modules for end-to-end benchmark support
+    if addons_root.exists():
+        custom_modules = discover_odoo_modules(addons_root, prefix="custom_")
+        for mod_name in custom_modules:
+            mod_dir = addons_root / mod_name
+            name, mod = _load_module(mod_dir)
+            modules_dict[name] = mod
 
     registry = build_module_symbol_registry(modules_dict)
     builder = OdooGraphBuilder(registry, modules_dict)
     _CACHED_CODE_INTEL_GRAPH = builder.build_graph()
+    logger.info(
+        "Knowledge Graph built: %d nodes, %d edges, %d modules",
+        _CACHED_CODE_INTEL_GRAPH.number_of_nodes(),
+        _CACHED_CODE_INTEL_GRAPH.number_of_edges(),
+        len(modules_dict),
+    )
     return _CACHED_CODE_INTEL_GRAPH
 
 
