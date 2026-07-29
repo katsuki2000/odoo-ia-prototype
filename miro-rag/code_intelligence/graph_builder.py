@@ -7,6 +7,8 @@ Implements Story A3.1:
   - A3.1.3: Typed edge creation (EXTENDS, DELEGATES_TO, HAS_FIELD, RELATES_TO, COMPUTED_BY, DEPENDS_ON, RESTRICTED_BY, APPLIES_TO_GROUP, IMPLIES, GRANTED_BY, DEFINED_IN).
   - A3.1.4: JSON Graph Serialization (node_link_data / node_link_graph per DT-4).
   - A3.1.5: Workflow Sub-Graph (WorkflowState nodes + TRANSITIONS_VIA edges).
+  - B0 (bloc 0 du plan d'agent): Menu nodes + business-language labels (string=/_description)
+    on Field/Model nodes, required as fuzzy-matching targets for the business-name -> technical-name resolver.
 """
 
 import json
@@ -28,6 +30,16 @@ from code_intelligence.utils import resolve_model_xmlref
 _logger = logging.getLogger(__name__)
 
 
+def _humanize_technical_name(name: str) -> str:
+    """
+    B0 fallback: when a field has no explicit string=, Odoo itself displays
+    the technical name humanized this way in the UI (e.g. amount_total ->
+    "Amount Total"). We replicate that here so the resolver has something
+    to fuzzy-match against even for the ~60% of fields that skip string=.
+    """
+    return name.replace("_", " ").replace(".", " ").strip().title()
+
+
 class OdooGraphBuilder:
     """
     Constructs a NetworkX DiGraph from ParsedModules and ResolvedSymbolRegistry.
@@ -46,6 +58,7 @@ class OdooGraphBuilder:
         self._add_model_field_method_nodes()
         self._add_security_group_nodes()
         self._add_workflow_nodes_and_edges()
+        self._add_menu_nodes()
 
         return self.G
 
@@ -67,7 +80,7 @@ class OdooGraphBuilder:
         """Add Model, Field, Method, Rule, and AccessEntry nodes + their edges."""
         for model_name, decls in self.registry.models.items():
             model_node_id = f"model:{model_name}"
-            
+
             # Combine model attributes across extensions
             all_inherits = []
             all_delegations = {}
@@ -78,6 +91,16 @@ class OdooGraphBuilder:
             # Collect source filepaths for this model across declarations
             all_filepaths = list(dict.fromkeys(d.filepath for d in decls if d.filepath))
 
+            # B0: business-language description (_description = "...").
+            # Usually only set on the base declaration (the one with _name); extensions
+            # rarely redeclare it, so take the first non-empty value found across decls.
+            # Same ~50% gap as fields, same fallback: humanize the technical model name
+            # (e.g. custom.credit.note.approval.regional -> "Custom Credit Note Approval
+            # Regional") rather than leaving the resolver with nothing to match.
+            explicit_description = next((d.description for d in decls if d.description), None)
+            model_description = explicit_description or _humanize_technical_name(model_name)
+            description_source = "explicit" if explicit_description else "generated"
+
             self.G.add_node(
                 model_node_id,
                 node_type="Model",
@@ -85,6 +108,8 @@ class OdooGraphBuilder:
                 inherits_list=all_inherits,
                 delegations_dict=all_delegations,
                 filepaths=all_filepaths,
+                description=model_description,
+                description_source=description_source,
             )
 
             # Model -> Module DEFINED_IN edge
@@ -123,6 +148,14 @@ class OdooGraphBuilder:
                         related=f.related,
                         store=f.store,
                         filepath=d.filepath,
+                        # B0: business-language label (string=) as fuzzy-matching target.
+                        # ~60% of fields skip string= in practice; Odoo itself falls back
+                        # to a humanized technical name in the UI, so we replicate that
+                        # fallback here rather than leaving a resolver-side gap.
+                        # label_source lets the resolver (and any audit) tell an author's
+                        # intentional label apart from a machine-derived one.
+                        label=f.string if f.string else _humanize_technical_name(f.name),
+                        label_source="explicit" if f.string else "generated",
                     )
                     # Model HAS_FIELD Field
                     self.G.add_edge(model_node_id, field_node_id, edge_type="HAS_FIELD")
@@ -271,6 +304,66 @@ class OdooGraphBuilder:
                 full_sa = sa_ref if "." in sa_ref else f"{mod_prefix}.{sa_ref}"
                 sa_node_id = f"server_action:{full_sa}"
                 self.G.add_edge(ba_node_id, sa_node_id, edge_type="EXECUTES_ACTION")
+
+    def _add_menu_nodes(self):
+        """
+        B0: Add Menu nodes as fuzzy-matching targets for the business-name -> technical-name
+        resolver ("titres de menu" per the plan).
+
+        A menu item (ir.ui.menu) does not reference a model directly -- it points to an
+        action (action="..."), and the action (ir.actions.server / act_window, indexed in
+        registry.actions as OdooActionRecord) carries res_model. We resolve through that
+        chain: Menu -> Action -> Model. If the action can't be resolved (menu is a pure
+        folder/separator with no action, or the action lives outside this corpus), the
+        Menu node is still created but left without an OPENS_MODEL edge -- better an
+        unresolved edge than a guessed one.
+        """
+        for mod_name, mod in self.modules_dict.items():
+            for menu in mod.menuitems:
+                full_xml_id = menu.xml_id if "." in menu.xml_id else f"{mod_name}.{menu.xml_id}"
+                menu_node_id = f"menu:{full_xml_id}"
+
+                self.G.add_node(
+                    menu_node_id,
+                    node_type="Menu",
+                    xml_id=full_xml_id,
+                    name=menu.name,
+                    sequence=menu.sequence,
+                    filepath=menu.filepath,
+                    # Raw action ref as written in the XML (empty string if none).
+                    # Kept even when unresolved so a coverage check can tell "folder
+                    # menu with no action at all" (expected, no bug) apart from
+                    # "has an action reference but it didn't resolve" (real gap).
+                    action_ref=menu.action or "",
+                )
+
+                # Menu -> parent Menu (tree structure, useful for disambiguation later)
+                if menu.parent:
+                    parent_full = menu.parent if "." in menu.parent else f"{mod_name}.{menu.parent}"
+                    self.G.add_edge(menu_node_id, f"menu:{parent_full}", edge_type="CHILD_OF")
+
+                if not menu.action:
+                    continue
+
+                action_ref = menu.action if "." in menu.action else f"{mod_name}.{menu.action}"
+
+                # Try ir.actions.act_window first (the common case).
+                action_rec = self.registry.actions.get(action_ref) or self.registry.actions.get(menu.action)
+                target_model = action_rec.res_model if (action_rec and action_rec.res_model) else None
+                via = "act_window" if target_model else None
+
+                # Fallback: ir.actions.server (e.g. action_new_bank_setting) also
+                # carries a model_id and is a legitimate menu target -- not resolving
+                # it was a real coverage gap, not a "no action" folder menu.
+                if not target_model:
+                    sa_rec = self.registry.server_actions.get(action_ref) or self.registry.server_actions.get(menu.action)
+                    if sa_rec and sa_rec.model_id:
+                        target_model = resolve_model_xmlref(sa_rec.model_id)
+                        via = "server_action"
+
+                if target_model:
+                    model_node_id = f"model:{target_model}"
+                    self.G.add_edge(menu_node_id, model_node_id, edge_type="OPENS_MODEL", via=via)
 
     def _add_workflow_nodes_and_edges(self):
         """

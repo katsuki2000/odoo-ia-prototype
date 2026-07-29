@@ -46,6 +46,40 @@ from code_intelligence.utils import resolve_model_xmlref
 _logger = logging.getLogger(__name__)
 
 
+def _merge_action(existing: OdooActionRecord, new: OdooActionRecord) -> OdooActionRecord:
+    """
+    Merge an extension record (e.g. <record id="base.action_partner_form">
+    re-declared in a dependent module to tweak view_mode/domain/context)
+    onto the originally-declared action, instead of overwriting it wholesale.
+    Odoo's own record-inheritance semantics only replace the fields the
+    extension explicitly sets; fields it omits keep their inherited value.
+    """
+    new.res_model = new.res_model or existing.res_model
+    new.view_mode = new.view_mode or existing.view_mode
+    new.name = new.name or existing.name
+    new.groups_id = new.groups_id or existing.groups_id
+    return new
+
+
+def _merge_server_action(existing: OdooServerActionRecord, new: OdooServerActionRecord) -> OdooServerActionRecord:
+    new.model_id = getattr(new, "model_id", "") or getattr(existing, "model_id", "")
+    new.name = getattr(new, "name", "") or getattr(existing, "name", "")
+    return new
+
+
+def _merge_rule(existing: OdooRuleRecord, new: OdooRuleRecord) -> OdooRuleRecord:
+    new.model_id = getattr(new, "model_id", "") or getattr(existing, "model_id", "")
+    new.domain_force = getattr(new, "domain_force", "") or getattr(existing, "domain_force", "")
+    new.groups_id = getattr(new, "groups_id", None) or getattr(existing, "groups_id", [])
+    return new
+
+
+def _merge_group(existing: OdooGroupRecord, new: OdooGroupRecord) -> OdooGroupRecord:
+    new.implied_ids = getattr(new, "implied_ids", None) or getattr(existing, "implied_ids", [])
+    new.name = getattr(new, "name", "") or getattr(existing, "name", "")
+    return new
+
+
 class UnresolvedCategory(Enum):
     ABSENT_FROM_CORPUS = "absent_from_corpus"
     CORE_ODOO_OUT_OF_SCOPE = "core_odoo_out_of_scope"
@@ -155,29 +189,42 @@ def build_module_symbol_registry(modules_dict: Dict[str, ParsedModule]) -> Resol
                     registry.models[model_key] = []
                 registry.models[model_key].append(decl)
 
-        # 2. Index XML Groups
+        # 2. Index XML Groups with merge
         for grp in mod.groups:
             full_xml_id = grp.xml_id if "." in grp.xml_id else f"{mod_name}.{grp.xml_id}"
+            existing = registry.groups.get(full_xml_id)
+            if existing:
+                grp = _merge_group(existing, grp)
             registry.groups[full_xml_id] = grp
             registry.groups[grp.xml_id] = grp
 
-        # 3. Index XML Rules
+        # 3. Index XML Rules with merge
         for rule in mod.rules:
             full_xml_id = rule.xml_id if "." in rule.xml_id else f"{mod_name}.{rule.xml_id}"
+            existing = registry.rules.get(full_xml_id)
+            if existing:
+                rule = _merge_rule(existing, rule)
             registry.rules[full_xml_id] = rule
             registry.rules[rule.xml_id] = rule
 
-        # 4. Index Actions, Server Actions, Automations, Menuitems, Views
+        # 4. Index Actions, Server Actions, Automations, Menuitems, Views with merge for actions & server_actions
         for act in mod.actions:
             full_xml_id = act.xml_id if "." in act.xml_id else f"{mod_name}.{act.xml_id}"
+            existing = registry.actions.get(full_xml_id)
+            if existing:
+                act = _merge_action(existing, act)
             registry.actions[full_xml_id] = act
             registry.actions[act.xml_id] = act
 
         for sa in mod.server_actions:
             full_xml_id = sa.xml_id if "." in sa.xml_id else f"{mod_name}.{sa.xml_id}"
+            existing = registry.server_actions.get(full_xml_id)
+            if existing:
+                sa = _merge_server_action(existing, sa)
             registry.server_actions[full_xml_id] = sa
             registry.server_actions[sa.xml_id] = sa
 
+        # base_automations, menuitems, views: left as is (no known extension bug)
         for ba in mod.base_automations:
             full_xml_id = ba.xml_id if "." in ba.xml_id else f"{mod_name}.{ba.xml_id}"
             registry.base_automations[full_xml_id] = ba
