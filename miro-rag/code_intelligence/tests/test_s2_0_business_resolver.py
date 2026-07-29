@@ -5,6 +5,8 @@ Unit tests for Story S2.0: Business Term Resolver.
 Tests static alias lookup, graph model matching, and unresolved concept fallback.
 """
 
+import unicodedata
+
 import pytest
 import networkx as nx
 from code_intelligence.business_resolver import resolve_business_term, BUSINESS_ALIASES
@@ -19,6 +21,19 @@ def mock_graph():
     G.add_node("model:custom_asset_loan", node_type="Model", name="custom_asset_loan")
     G.add_node("model:hr.leave", node_type="Model", name="hr.leave")
     G.add_node("module:custom_expense_reimbursement_indirect", node_type="Module", name="custom_expense_reimbursement_indirect")
+
+    # J1 regression fixture: a Field labeled exactly "avoirs" on an unrelated
+    # model (res.partner), mirroring the real bug observed in production
+    # ('avoirs' -> fuzzy: res.partner (100.0)). Without this node, the
+    # fuzzy index is empty and the ordering bug can never be exercised —
+    # the test would pass even if someone reverted the fix.
+    G.add_node("model:res.partner", node_type="Model", name="res.partner")
+    G.add_node(
+        "field:res_partner_avoirs",
+        node_type="Field",
+        label="avoirs",
+        model="res.partner",
+    )
     return G
 
 
@@ -55,3 +70,48 @@ def test_s2_0_unresolved_concept(mock_graph):
     assert res.is_resolved is False
     assert res.source_step == "unresolved"
     assert res.confidence == 0.0
+
+
+def test_s2_0_alias_not_shadowed_by_fuzzy_single_token(mock_graph):
+    """
+    Regression test for Bug #1 (J1): a short/single-token query matching
+    a static alias must resolve via static_alias, never be shadowed by a
+    same-score fuzzy match on an unrelated model's Field label.
+
+    Prior to the fix, fuzzy matching ran BEFORE the static alias lookup,
+    and a 1-token query against a 1-token label produced
+    length_penalty = min(1/1, 1.0) ** 0.5 = 1.0 (no penalty at all),
+    letting 'avoirs' resolve to res.partner (100.0) instead of the
+    correct account.move alias.
+    """
+    res = resolve_business_term("avoirs", mock_graph)
+    assert res.source_step == "static_alias"
+    assert res.resolved_models == ["account.move"]
+    assert "res.partner" not in res.resolved_models
+
+
+def test_s2_0_alias_word_boundary_respects_token_order(mock_graph):
+    """
+    Regression test: multi-word aliases must not match on token presence
+    alone, regardless of order. 'disposition à mise' contains the same
+    words as the 'mise à disposition' alias but in reversed order and
+    must NOT resolve via static_alias.
+    """
+    res = resolve_business_term("disposition à mise", mock_graph)
+    assert res.source_step != "static_alias"
+
+
+def test_s2_0_alias_matches_nfd_decomposed_input(mock_graph):
+    """
+    Defensive test: a query typed/copy-pasted with NFD-decomposed accents
+    (e.g. 'a' + combining grave accent U+0300, visually identical to 'à')
+    must still match the NFC-stored alias table. Guards against the
+    Unicode-form mismatch class of bug even though it was not reproduced
+    in this specific alias table.
+    """
+    nfd_query = unicodedata.normalize("NFD", "mise à disposition de matériel")
+    assert nfd_query != "mise à disposition de matériel"  # sanity check: genuinely different bytes
+    res = resolve_business_term(nfd_query, mock_graph)
+    assert res.is_resolved is True
+    assert res.source_step == "static_alias"
+    assert "custom.asset.loan" in res.resolved_models

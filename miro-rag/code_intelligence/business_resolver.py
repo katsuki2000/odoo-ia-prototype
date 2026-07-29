@@ -11,7 +11,9 @@ Resolution Order:
 4. Explicit "unresolved" return status if no candidate matches.
 """
 
+import re
 import logging
+import unicodedata
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
@@ -19,39 +21,51 @@ from rapidfuzz import fuzz, process
 
 _logger = logging.getLogger(__name__)
 
-# Static hand-maintained business alias table mapping French terms & module names to technical model names
+# Static hand-maintained business alias table.
+# ONLY for synonyms with zero lexical overlap between the French business
+# term and the English technical name, where fuzzy matching cannot help.
+# Keep this short — if a term can be found via graph labels, it belongs
+# in the graph, not here.
 BUSINESS_ALIASES: Dict[str, List[str]] = {
+    # Comptabilité / avoirs
     "avoir": ["account.move"],
     "avoirs": ["account.move"],
     "credit note": ["account.move"],
-    "client vip": ["account.move"],
-    "vip": ["account.move"],
+    # Achats
     "demande d'achat": ["custom.purchase.request", "purchase.order"],
     "demande d'achats": ["custom.purchase.request", "purchase.order"],
-    "purchase request": ["custom.purchase.request"],
-    "custom_purchase_request": ["custom.purchase.request"],
+    # Prêt matériel
     "mise a disposition": ["custom.asset.loan"],
     "mise à disposition": ["custom.asset.loan"],
-    "materiel": ["custom.asset.loan"],
-    "matériel": ["custom.asset.loan"],
-    "asset loan": ["custom.asset.loan"],
-    "custom_asset_loan": ["custom.asset.loan"],
+    # Congés
     "conge": ["hr.leave"],
     "congé": ["hr.leave"],
     "conges": ["hr.leave"],
     "congés": ["hr.leave"],
     "demande de conge": ["hr.leave"],
     "demande de congé": ["hr.leave"],
-    "custom_hr_leave_workflow": ["hr.leave"],
+    # Frais
     "remboursement de frais": ["custom.reimbursement.request", "hr.expense"],
     "note de frais": ["custom.reimbursement.request", "hr.expense"],
-    "custom_expense_reimbursement_indirect": ["custom.reimbursement.request"],
-    "action automatique": ["custom.purchase.request", "base.automation"],
-    "serveur action": ["custom.purchase.request", "ir.actions.server"],
-    "server action": ["custom.purchase.request", "ir.actions.server"],
-    "regional": ["account.move"],
-    "régional": ["account.move"],
-    "national": ["account.move"],
+    # Automatismes Odoo
+    "action automatique": ["base.automation"],
+    "serveur action": ["ir.actions.server"],
+    "server action": ["ir.actions.server"],
+}
+
+
+def _nfc(s: str) -> str:
+    return unicodedata.normalize("NFC", s)
+
+
+BUSINESS_ALIASES_NFC: Dict[str, List[str]] = {_nfc(k): v for k, v in BUSINESS_ALIASES.items()}
+
+# Word-boundary pattern: \w is Unicode-aware by default in Python 3.
+# Prevents "avoir" from matching inside longer unrelated words,
+# while preserving token order for multi-word phrases ("mise à disposition").
+_ALIAS_PATTERNS: Dict[str, re.Pattern] = {
+    alias: re.compile(r"(?<!\w)" + re.escape(alias) + r"(?!\w)")
+    for alias in BUSINESS_ALIASES_NFC
 }
 
 
@@ -148,10 +162,6 @@ def _fuzzy_match_graph(query: str, G, threshold: int = 75, limit: int = 5) -> Li
         for _text, score, idx in (hits or []):
             label = index[idx][0]
             label_token_count = max(len(label.split()), 1)
-            # Length penalty: a 1-token label matching a 7-token query is
-            # far less meaningful than a 5-token label matching a 7-token
-            # query.  sqrt softens the curve so multi-word labels aren't
-            # over-penalized.
             length_penalty = min(label_token_count / query_token_count, 1.0) ** 0.5
             adjusted = score * length_penalty
             if adjusted >= threshold:
@@ -180,19 +190,18 @@ def resolve_business_term(query_text: str, G=None) -> ResolvedConcept:
             reason="Empty query text provided."
         )
 
-    clean_query = query_text.lower().strip()
+    clean_query = _nfc(query_text.lower().strip())
 
-    # Step 1: Static Business Alias Lookup
+    # Step 1: Static Business Alias Lookup (100% deterministic, zero latency)
     matched_models = []
     matched_modules = []
     matched_terms = []
 
-    for alias, targets in BUSINESS_ALIASES.items():
-        if alias in clean_query:
+    for alias, targets in BUSINESS_ALIASES_NFC.items():
+        if _ALIAS_PATTERNS[alias].search(clean_query):
             matched_terms.append(alias)
             for t in targets:
                 if G is not None:
-                    # Check if target exists as model or module in graph
                     if G.has_node(f"model:{t}"):
                         if t not in matched_models:
                             matched_models.append(t)
@@ -200,7 +209,6 @@ def resolve_business_term(query_text: str, G=None) -> ResolvedConcept:
                         if t not in matched_modules:
                             matched_modules.append(t)
                     else:
-                        # Fallback add
                         if t not in matched_models:
                             matched_models.append(t)
                 else:
@@ -215,13 +223,10 @@ def resolve_business_term(query_text: str, G=None) -> ResolvedConcept:
             confidence=1.0,
             source_step="static_alias",
             is_resolved=True,
-            reason=f"Matched static aliases: {', '.join(matched_terms)}"
+            reason=f"Matched static aliases: {', '.join(matched_terms)}",
         )
 
     # Step 2: Fuzzy matching against Graph Node labels (rapidfuzz)
-    # Uses token_set_ratio / token_sort_ratio — never a plain ratio on the
-    # whole string (per B0 plan spec).  Targets: Model.description,
-    # Field.label (string=), Menu.name (-> model via OPENS_MODEL).
     if G is not None:
         fuzzy_results = _fuzzy_match_graph(clean_query, G)
         if fuzzy_results:
@@ -233,7 +238,7 @@ def resolve_business_term(query_text: str, G=None) -> ResolvedConcept:
                 confidence=round(top_score / 100, 2),
                 source_step="fuzzy_graph_match",
                 is_resolved=True,
-                reason=f"Fuzzy matched graph labels: {', '.join(f'{m} ({s:.0f})' for m, s in fuzzy_results)}"
+                reason=f"Fuzzy matched graph labels: {', '.join(f'{m} ({s:.0f})' for m, s in fuzzy_results)}",
             )
 
     # Step 3: Unresolved concept fallback
