@@ -22,8 +22,6 @@ project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(project_root))
 sys.path.insert(0, str(project_root / "miro-rag"))
 
-from code_intelligence.utils import discover_odoo_modules
-from code_intelligence.ci_agent_tools import set_graph_ref
 from rag.graph import code_intelligence_agent
 
 BENCHMARK_QUESTIONS = [

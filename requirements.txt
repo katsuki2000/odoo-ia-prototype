@@ -147,4 +147,5 @@ langchain-groq
 langgraph
 langchain
 PyJWT
+rapidfuzz
 
