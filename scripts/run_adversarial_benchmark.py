@@ -22,7 +22,6 @@ project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(project_root))
 sys.path.insert(0, str(project_root / "miro-rag"))
 
-from scripts.extract_modules import run_pipeline
 from code_intelligence.utils import discover_odoo_modules
 from code_intelligence.ci_agent_tools import set_graph_ref
 from rag.graph import code_intelligence_agent
@@ -91,11 +90,13 @@ def run_benchmark():
     print(" Target: 9 Adversarial Test Questions")
     print("=" * 80)
 
-    # 1. Generate & load knowledge graph from the 9 adversarial modules
-    addons_dir = Path("/home/user/odoo-17.0/addons")
-    modules = discover_odoo_modules(addons_dir, prefix="custom_")
-    G, registry = run_pipeline(addons_dir, modules, Path(__file__).resolve().parent.parent / "tmp_test_graph")
-    set_graph_ref(G)
+    # NOTE (2026-07-29): run_pipeline()/set_graph_ref() ici étaient du code mort --
+    # code_intelligence_agent() (rag/graph.py) appelle get_code_intelligence_graph()
+    # puis set_graph_ref() lui-même à CHAQUE question, ce qui écrasait silencieusement
+    # ce graphe de 9 modules custom_* avec le graphe complet (fake_data/code + miro_ai
+    # + custom_*, ~3775 nœuds) avant que la première question ne soit posée.
+    # Le benchmark a donc toujours tourné sur le graphe complet, jamais sur celui-ci --
+    # supprimé pour éviter la confusion (cf. logs Sprint 2, 2026-07-29).
 
     results = []
 
