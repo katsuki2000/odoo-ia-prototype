@@ -1,3 +1,5 @@
+
+use of llama 3.1 8B is a must
 code in english
 don't use emojis
 think first
