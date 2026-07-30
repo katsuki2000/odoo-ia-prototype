@@ -19,3 +19,5 @@ venv_miro/
 # --- OS ---
 .DS_Store
 Thumbs.db
+# ChromaDB vector store artifacts -- regenerated locally, should never be versioned
+miro-rag/vectorstore/chroma_db/
