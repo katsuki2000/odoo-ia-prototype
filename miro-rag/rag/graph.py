@@ -10,6 +10,7 @@ Flow:
 import logging
 import os
 import sys
+import json
 import threading
 import time
 from pathlib import Path
@@ -70,12 +71,49 @@ def _extract_rate_limit_headers(exc: Exception) -> dict:
             return dict(resp.headers)
     return {}
 
+class _ToolCallFallback:
+    """Stand-in minimal pour un AIMessage : seuls .tool_calls et .content sont lus par la boucle ReAct."""
+    def __init__(self, tool_calls):
+        self.tool_calls = tool_calls
+        self.content = ""
+
+
+_TOOL_USE_FAILED_RE = re.compile(r"'code':\s*'tool_use_failed'.*?'failed_generation':\s*'(.*?)'\s*\}", re.DOTALL)
+_FAILED_GEN_CALL_RE = re.compile(r"<function=(\w+)>(\{.*\})")
+
+
+def _try_recover_tool_use_failed(exc: Exception):
+    """
+    llama-3.1-8b-instant régresse parfois vers un pattern texte
+    '<function=NOM>{...}' au lieu d'un tool_call structuré, ce que
+    l'API Groq rejette en 400 tool_use_failed. On récupère l'intention
+    par regex plutôt que de perdre le tour.
+    Retourne None si le payload n'est pas récupérable (laisse la place au retry).
+    """
+    msg = str(exc)
+    if "tool_use_failed" not in msg:
+        return None
+    match = _TOOL_USE_FAILED_RE.search(msg)
+    if not match:
+        return None
+    call_match = _FAILED_GEN_CALL_RE.search(match.group(1))
+    if not call_match:
+        return None
+    fn_name, args_raw = call_match.group(1), call_match.group(2)
+    try:
+        args = json.loads(args_raw)
+    except json.JSONDecodeError:
+        return None
+    logger.warning("Récupération d'un tool_call malformé via failed_generation: %s(%s)", fn_name, args)
+    return _ToolCallFallback([{"name": fn_name, "args": args, "id": f"fallback_{fn_name}", "type": "tool_call"}])
 
 def _invoke_with_rate_limit(llm_with_tools, messages, max_retries: int = 5):
     """
-    Invoke the Groq LLM with:
-      - base minimum spacing enforced before every call
-      - dynamic header-based backoff on 429s (reads x-ratelimit-reset-tokens)
+    Invoke le LLM Groq avec :
+      - espacement minimal entre appels
+      - backoff dynamique sur 429 (headers x-ratelimit-reset-tokens)
+      - récupération / retry renforcé sur tool_use_failed
+      - retry générique avec backoff exponentiel sur erreurs de connexion transitoires
     """
     for attempt in range(max_retries):
         with _groq_call_lock:
@@ -90,7 +128,10 @@ def _invoke_with_rate_limit(llm_with_tools, messages, max_retries: int = 5):
                 return result
             except Exception as e:
                 _last_groq_call_time[0] = time.time()
-                is_rate_limit = "429" in str(e) or "rate_limit" in str(e).lower()
+                err_str = str(e)
+
+                # Cas 1 : rate limit (comportement existant, inchangé)
+                is_rate_limit = "429" in err_str or "rate_limit" in err_str.lower()
                 if is_rate_limit and attempt < max_retries - 1:
                     headers = _extract_rate_limit_headers(e)
                     reset_raw = (
@@ -98,7 +139,7 @@ def _invoke_with_rate_limit(llm_with_tools, messages, max_retries: int = 5):
                         or headers.get("x-ratelimit-reset-requests")
                     )
                     wait_time = _parse_reset_seconds(reset_raw, default=2 ** attempt * 5.0)
-                    wait_time += 0.5  # small safety buffer past reset boundary
+                    wait_time += 0.5
                     logger.warning(
                         "Groq rate limit hit (attempt %d/%d). Headers: %s. Dynamically waiting %.1fs...",
                         attempt + 1, max_retries,
@@ -107,8 +148,44 @@ def _invoke_with_rate_limit(llm_with_tools, messages, max_retries: int = 5):
                     )
                     time.sleep(wait_time)
                     continue
-                raise
 
+                # Cas 2 : tool_use_failed -- tenter la récupération, sinon retry renforcé
+                if "tool_use_failed" in err_str:
+                    recovered = _try_recover_tool_use_failed(e)
+                    if recovered is not None:
+                        return recovered
+                    if attempt < max_retries - 1:
+                        logger.warning(
+                            "tool_use_failed non récupérable (attempt %d/%d), retry avec instruction renforcée.",
+                            attempt + 1, max_retries,
+                        )
+                        messages = messages + [
+                            SystemMessage(content=(
+                                "RAPPEL STRICT : réponds UNIQUEMENT via un appel d'outil structuré "
+                                "(tool_call). N'écris jamais de pseudo-appel en texte libre du type "
+                                "<function=...>{...}>."
+                            ))
+                        ]
+                        time.sleep(1.0)
+                        continue
+                    raise
+
+                # Cas 3 : erreurs de connexion transitoires -- retry générique
+                is_connection_error = any(
+                    term in err_str.lower()
+                    for term in ("connection", "timeout", "timed out", "temporarily unavailable")
+                )
+                if is_connection_error and attempt < max_retries - 1:
+                    wait_time = 2 ** attempt * 3.0
+                    logger.warning(
+                        "Erreur de connexion transitoire (attempt %d/%d): %s. Retry dans %.1fs...",
+                        attempt + 1, max_retries, err_str, wait_time,
+                    )
+                    time.sleep(wait_time)
+                    continue
+
+                raise
+ 
 # ERP metadata types that trigger the data_query branch
 ERP_TYPES = {"sale", "ticket"}
 
@@ -606,7 +683,7 @@ CI_SYSTEM_PROMPT = (
     "NAVIGATION STRATEGY:\n"
     "1. When target models or modules are provided by [BUSINESS TERM RESOLVER S2.0], invoke the appropriate tools immediately:\n"
     "   - For approval limits, hardcoded emails (_VALIDATEURS_EXCEPTIONNELS), UserError/ValidationError strings, or dynamic getattr dispatches: ALWAYS invoke `analyser_verrous_securite`.\n"
-    "   - For ir.rule record rules and group permissions: invoke `evaluer_regles_enregistrement` and `qui_a_acces_a`.\n"
+    "   - For ir.rule record rules and group-based RECORD visibility (e.g. \"can group X see this record\"): invoke `evaluer_regles_enregistrement` -- it is AUTHORITATIVE for this. `qui_a_acces_a` checks a DIFFERENT thing (model-level CRUD ACLs), and if it reports a group identifier \"could not be resolved\" while `evaluer_regles_enregistrement` DID resolve and evaluate the same group, that does NOT create doubt -- trust evaluer_regles_enregistrement's conclusion, since record-visibility groups often have no CRUD ACL entry at all and are correctly absent from qui_a_acces_a's candidate list. For general CRUD access questions with no specific record/amount in play, use `qui_a_acces_a`.\n"
     "   - For automated actions, ir.actions.server, or sudo() bypasses: invoke `analyser_actions_serveur`.\n"
     "2. DO NOT make generic fallbacks. Synthesize the tool observations directly.\n"
     "3. Always cite source file links: [file.py:L12-L25](file:///path#L12-L25)."
@@ -733,9 +810,6 @@ def code_intelligence_agent(state: RAGState) -> dict:
     from code_intelligence.business_resolver import resolve_business_term
     set_graph_ref(G)
 
-    # Story S2.0: Business Term Resolver -- Map natural language concepts to technical Odoo models/modules
-    concept = resolve_business_term(question, G)
-
     # Bind tools to LLM (C.1.1)
     llm = ChatGroq(
         model=GROQ_MODEL,
@@ -746,6 +820,9 @@ def code_intelligence_agent(state: RAGState) -> dict:
     )
     llm_with_tools = llm.bind_tools(ALL_CI_TOOLS)
 
+    # Story S2.0: Business Term Resolver -- Map natural language concepts to technical Odoo models/modules
+    concept = resolve_business_term(question, G, llm=llm)
+
     system_prompt = CI_SYSTEM_PROMPT
     if concept.is_resolved:
         resolved_info = []
@@ -753,9 +830,14 @@ def code_intelligence_agent(state: RAGState) -> dict:
             resolved_info.append(f"Target Models: {', '.join(concept.resolved_models)}")
         if concept.resolved_modules:
             resolved_info.append(f"Target Modules: {', '.join(concept.resolved_modules)}")
+        confidence_tag = (
+            f" (LLM-arbitrated, confidence={concept.confidence})"
+            if concept.source_step == "llm_arbitration"
+            else ""
+        )
         system_prompt += (
             f"\n\n[BUSINESS TERM RESOLVER S2.0]\n"
-            f"Query term matched: '{concept.user_term}'.\n"
+            f"Query term matched: '{concept.user_term}'{confidence_tag}.\n"
             f"{' | '.join(resolved_info)}.\n"
             f"Use these exact technical identifiers when invoking composite tools."
         )
@@ -809,7 +891,12 @@ def code_intelligence_agent(state: RAGState) -> dict:
                 synthesis_prompt = (
                     f"Original Question: {question}\n\n"
                     f"Knowledge Graph Output:\n" + "\n---\n".join(tool_observations) +
-                    f"\n\nSynthesize a clear, professional response in French based strictly on the data above."
+                    f"\n\nSynthesize a clear, professional response based strictly on the "
+                    f"data above. Respond in the SAME language as the Original Question "
+                    f"above (French question -> French answer, English question -> "
+                    f"English answer) -- never mix languages. Do NOT translate exact "
+                    f"technical identifiers (model names, XML-IDs, group names, method "
+                    f"names) -- copy them verbatim."
                 )
                 try:
                     plain_llm = ChatGroq(model=GROQ_MODEL, temperature=0.0, max_retries=0, max_tokens=4096)
@@ -847,7 +934,12 @@ def code_intelligence_agent(state: RAGState) -> dict:
     timing["code_intelligence_time"] = time.time() - start_time
     timing["ci_hop_count"] = hop_count
 
-    return {"response": response, "raw_answer": final_answer, "timing": timing}
+    return {
+        "response": response,
+        "raw_answer": final_answer,
+        "timing": timing,
+        "raw_tool_output": "\n\n".join(tool_observations),
+    }
 
 
 def format_output(state: RAGState) -> dict:

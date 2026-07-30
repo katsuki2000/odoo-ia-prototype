@@ -1,6 +1,6 @@
 # Rapport Verbatim — Test Adversarial (Sprint 2 / End-to-End Benchmark)
 
-**Date d'exécution :** 2026-07-29 11:37:18
+**Date d'exécution :** 2026-07-30 13:36:12
 
 **Objectif :** Poser les questions test du README à l'agent Code Intelligence et mesurer les réponses verbatim après résolution des verrous Sprint 2.
 
@@ -12,13 +12,15 @@
 **Vérité Terrain attendue :**
 > Niveau 1: Groupe account.group_account_manager (>5000€). Niveau 2: Directeur régional (N+2) notifié (>20000€, code Python). Risque: N+2 non géré si vide.
 
-**Réponse Verbatim de l'agent (8.82s) :**
+**Réponse Verbatim de l'agent (106.46s) :**
 ```text
-D'après les règles d'enregistrement et les analyses des verrous Python, il semble qu'il n'y ait pas de règle spécifique qui interdise explicitement l'approbation d'un avoir de 25 000€ pour un client normal (pas VIP). Cependant, il est important de noter que les règles de groupe applicables ne sont pas définies pour les utilisateurs non-VIP, et que les règles de groupe ignorées (non-membre) incluent des plafonds de visibilité régionaux et nationaux.
+Selon les informations disponibles, les utilisateurs ayant le droit d'approuver un avoir de 25 000€ pour un client normal (pas VIP) sont :
 
-Cependant, l'analyse des verrous Python révèle un message de verrou qui indique que "Seul un responsable comptable peut valider un avoir de plus de 5000€." Cela suggère que les avoirs supérieurs à 5 000€ nécessitent l'approbation d'un responsable comptable.
+- Les utilisateurs appartenant au groupe `account.group_account_invoice`
+- Les utilisateurs appartenant au groupe `account.group_account_manager`
+- Les utilisateurs appartenant au groupe `account.group_account_user`
 
-En conséquence, il est probable que l'approbation d'un avoir de 25 000€ pour un client normal nécessite l'intervention d'un responsable comptable, en raison du montant élevé de l'avoir. Il est recommandé de consulter les règles et les procédures internes de l'entreprise pour confirmer les exigences spécifiques pour l'approbation d'avoirs de ce montant.
+Il convient de noter que les utilisateurs appartenant au groupe `res.partner` n'ont pas l'accès en écriture pour le modèle `account.move`.
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```
@@ -31,17 +33,9 @@ En conséquence, il est probable que l'approbation d'un avoir de 25 000€ pour 
 **Vérité Terrain attendue :**
 > Bypass total pour avoir_vip_exempt = True. Piège: super().action_valider_avoir() rappelé sur tout le recordset à la fin.
 
-**Réponse Verbatim de l'agent (55.12s) :**
+**Réponse Verbatim de l'agent (11.16s) :**
 ```text
-D'après les règles d'enregistrement (ir.rule) pour 'account.move', les avoirs pour les clients VIP peuvent être approuvés par les utilisateurs ayant les droits suivants :
-
-- Les membres du groupe 'account.group_account_invoice' 
-- Les membres du groupe 'account.group_account_manager' 
-- Les membres du groupe 'account.group_account_user'
-
-Cependant, il est important de noter qu'il existe des règles spécifiques pour les avoirs, notamment celles liées au montant et à la visibilité départementale ou nationale. Par exemple, seuls les responsables comptables peuvent valider un avoir de plus de 5000€.
-
-En résumé, pour approuver un avoir pour un client VIP, il faut disposer des droits appropriés au sein des groupes 'account.group_account_invoice', 'account.group_account_manager' ou 'account.group_account_user', et respecter les règles spécifiques liées aux avoirs, telles que les limitations de montant.
+En fonction des règles d'enregistrement (ir.rule) pour 'account.move', seul l'utilisateur qui appartient à la société (company_id) a le droit d'approuver un avoir pour un client VIP.
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```
@@ -54,20 +48,21 @@ En résumé, pour approuver un avoir pour un client VIP, il faut disposer des dr
 **Vérité Terrain attendue :**
 > Message d'erreur exact: 'Une demande urgente dépassant le solde doit être validée par le N+2 ou un responsable RH.'
 
-**Réponse Verbatim de l'agent (16.76s) :**
+**Réponse Verbatim de l'agent (63.01s) :**
 ```text
 Bonjour,
 
-Nous avons analysé votre situation et identifié les raisons pour lesquelles vous n'arrivez pas à valider votre demande de congé malgré avoir coché l'option 'urgente'. 
+Je suis désolé d'apprendre que vous rencontrez des difficultés pour valider votre demande de congé malgré avoir coché l'option 'urgente'. 
 
-Selon les informations disponibles, il semble que le solde de congés restant est insuffisant pour valider votre demande. Même si vous avez coché 'Demande urgente', une validation exceptionnelle par le N+2 ou un responsable RH est nécessaire lorsque la demande dépasse le solde disponible.
+Après avoir analysé les règles de validation de votre demande, j'ai identifié deux raisons possibles pour ce problème :
 
-Il est important de noter que les règles d'enregistrement (ir.rule) pour 'hr.leave' ne sont pas applicables dans votre cas, car il n'y a pas de règles globales ou de règles de groupe qui vous soient spécifiquement attribuées.
+1. **Solde de congés insuffisant** : Votre solde de congés restant est inférieur à la durée de votre demande. Dans ce cas, vous pouvez essayer de cocher l'option 'Demande urgente' et soumettre votre demande à validation exceptionnelle du N+2.
+2. **Validation par le N+2 ou un responsable RH** : Si votre demande urgente dépasse votre solde de congés, elle doit être validée par le N+2 ou un responsable RH. Veuillez contacter votre supérieur hiérarchique ou un responsable RH pour obtenir leur validation.
 
-Pour résoudre ce problème, nous vous recommandons de vérifier votre solde de congés restant et de contacter le N+2 ou un responsable RH pour obtenir une validation exceptionnelle de votre demande de congé.
+J'espère que ces informations vous aideront à résoudre votre problème. N'hésitez pas à me contacter si vous avez d'autres questions.
 
 Cordialement,
-[Votre Nom]
+[Votre nom]
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```
@@ -80,9 +75,15 @@ Cordialement,
 **Vérité Terrain attendue :**
 > Le groupe purchase_manager ne suffit pas >10000€. Seuls logins dans _VALIDATEURS_EXCEPTIONNELS (direction@societe.com, daf@societe.com) peuvent valider.
 
-**Réponse Verbatim de l'agent (11.96s) :**
+**Réponse Verbatim de l'agent (11.11s) :**
 ```text
-Selon les règles d'enregistrement et les verrous Python analysés, les utilisateurs ayant le droit d'approuver une demande d'achat de 15 000€ sont les membres du groupe 'direction' ou ceux ayant les adresses e-mail 'direction@societe.com' ou 'daf@societe.com'. En effet, les messages de verrous Python indiquent explicitement que seule la Direction peut valider les demandes d'achat supérieures à 10 000 euros. Les groupes 'base.group_user', 'group_miro_ai_admin', 'group_miro_ai_user', 'miro_ai.group_miro_ai_admin' et 'miro_ai.group_miro_ai_user' ont des droits d'écriture sur le modèle 'custom.purchase.request', mais les règles spécifiques pour les demandes supérieures à 10 000 euros restreignent l'approbation à la Direction.
+Selon les informations disponibles, les personnes autorisées à approuver une demande d'achat de 15 000€ sont :
+
+- Les utilisateurs appartenant au groupe `base.group_user`
+- Les administrateurs de Miro AI appartenant au groupe `miro_ai.group_miro_ai_admin`
+- Les utilisateurs de Miro AI appartenant au groupe `miro_ai.group_miro_ai_user`
+- Les administrateurs de Miro AI appartenant au groupe `group_miro_ai_admin`
+- Les utilisateurs de Miro AI appartenant au groupe `group_miro_ai_user`
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```
@@ -95,15 +96,15 @@ Selon les règles d'enregistrement et les verrous Python analysés, les utilisat
 **Vérité Terrain attendue :**
 > Nécessite demande_achat_liee_id. Si >2000€, bénéficiaire != demandeur (séparation des rôles).
 
-**Réponse Verbatim de l'agent (17.17s) :**
+**Réponse Verbatim de l'agent (11.4s) :**
 ```text
-Pour faire une demande de mise à disposition de matériel, il suffit de cliquer sur le bouton "Demande de mise à disposition de matériel" sur le formulaire de vue de "custom.asset.loan". Cette action appellera la méthode Python "action_demande de mise à disposition de matériel()".
+Pour faire une demande de mise à disposition de matériel, vous devez cliquer sur le bouton 'demande_mise_disposition' sur la vue de formulaire du modèle 'custom.asset.loan'. Cette action appelle la méthode Python 'action_demande_mise_disposition()'.
 
-Il est important de noter qu'il n'y a pas de restrictions de groupe pour accéder à ce bouton, ce qui signifie que tout utilisateur peut effectuer cette demande.
+Il est important de noter que pour demander un matériel d'une valeur supérieure à 2000 euros, il est nécessaire que le bénéficiaire soit différent du demandeur initial. Cette condition est vérifiée par la règle de sécurité 'Separation des roles requise'.
 
-Cependant, il existe une règle de validation spécifique pour les demandes de mise à disposition de matériel. En effet, si le bénéficiaire d'un matériel dont la valeur est supérieure à 2000 euros est le même que le demandeur initial, la demande sera rejetée avec un message d'erreur indiquant que la séparation des rôles est requise.
+Il n'y a pas de conditions particulières à respecter pour faire une demande de mise à disposition de matériel, mais il est recommandé de vérifier les règles de sécurité et les conditions de demande avant de soumettre votre demande.
 
-Il n'y a pas d'autres conditions particulières ou de règles d'enregistrement spécifiques pour les demandes de mise à disposition de matériel. Les demandes seront traitées en fonction de la logique définie dans la méthode Python "action_demande de mise à disposition de matériel()".
+En outre, il est à noter que le modèle 'custom.asset.loan' n'a pas de workflow d'état défini, ce qui signifie que la demande de mise à disposition de matériel ne sera pas soumise à un processus de validation ou d'approbation automatique.
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```
@@ -116,13 +117,11 @@ Il n'y a pas d'autres conditions particulières ou de règles d'enregistrement s
 **Vérité Terrain attendue :**
 > NON: fournisseurs ID 42, 108, 231 auto-validés via ir.actions.server avec sudo() contournant les règles standard.
 
-**Réponse Verbatim de l'agent (12.31s) :**
+**Réponse Verbatim de l'agent (11.17s) :**
 ```text
-Non, tous les avoirs fournisseurs ne passent pas par les mêmes règles d'approbation. Selon les données analysées, il existe des règles globales et des règles de groupe qui s'appliquent à l'enregistrement des avoirs. Les règles globales portent sur le cantonnement société et s'appliquent à tous les utilisateurs, tandis que les règles de groupe sont spécifiques à certains départements ou régions et sont ignorées si l'utilisateur n'en fait pas partie.
+Les avoirs fournisseurs ne passent pas nécessairement par les mêmes règles d'approbation. En effet, les règles d'enregistrement (ir.rule) pour le modèle 'account.move' indiquent que les règles globales sont appliquées pour les avoirs, mais il n'y a pas de règles de groupe applicables pour les avoirs fournisseurs.
 
-De plus, les analyses des verrous Python révèlent que certaines règles d'approbation sont spécifiques à certaines conditions, telles que le montant de l'avoir (par exemple, "Seul un responsable comptable peut valider un avoir de plus de 5000€"). Cela indique que les règles d'approbation peuvent varier en fonction de facteurs tels que le montant, le département ou la région.
-
-Enfin, les données montrent que les utilisateurs appartenant aux groupes "account.group_account_invoice", "account.group_account_manager" et "account.group_account_user" ont accès à l'écriture sur le modèle "account.move", mais les règles d'approbation spécifiques peuvent varier en fonction de leur appartenance à ces groupes. En résumé, les règles d'approbation pour les avoirs fournisseurs sont complexes et dépendent de plusieurs facteurs, ce qui signifie que tous les avoirs ne passent pas par les mêmes règles d'approbation.
+Cependant, il est important de noter que les règles de groupe ignorées (non-membre) sont appliquées pour les avoirs fournisseurs, ce qui signifie que certaines règles ne sont pas appliquées à l'utilisateur en raison de son appartenance ou non à certains groupes.
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```
@@ -135,13 +134,13 @@ Enfin, les données montrent que les utilisateurs appartenant aux groupes "accou
 **Vérité Terrain attendue :**
 > OUI: Règles de groupe en OU. La règle nationale (illimitée) l'emporte sur le plafond 50k€ régional.
 
-**Réponse Verbatim de l'agent (15.59s) :**
+**Réponse Verbatim de l'agent (59.19s) :**
 ```text
-D'après les règles d'enregistrement (ir.rule) pour 'account.move', il est évident que les règles globales ne permettent pas l'accès à l'avoir de 80 000€ pour un utilisateur membre à la fois du groupe régional et du groupe national. 
+L'utilisateur membre à la fois du groupe régional et du groupe national ne peut pas voir un avoir de 80 000€. 
 
-Les règles de groupe applicables ne sont pas non plus respectées, car l'utilisateur n'appartient à aucun des groupes visés. De plus, les règles de groupe ignorées (non-membre) incluent des plafonds de visibilité régionaux de 50 000€ et une visibilité nationale illimitée.
+En effet, les règles de groupe applicables ne sont pas trouvées car l'utilisateur n'appartient à aucun des groupes visés. Les règles de groupe ignorées ne sont pas non plus applicables car l'utilisateur n'est pas membre des groupes 'group_regional' et 'group_national' qui n'ont pas d'accès de lecture sur le modèle 'account.move'. 
 
-Cependant, les résultats indiquent explicitement que les groupes 'regional' et 'national' n'ont pas d'accès en lecture à 'account.move'. Par conséquent, un utilisateur membre à la fois du groupe régional et du groupe national ne peut pas voir un avoir de 80 000€ en raison du manque d'accès en lecture pour ces groupes.
+Par conséquent, l'utilisateur ne peut pas voir l'élément 'account.move' en question.
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```
@@ -154,13 +153,9 @@ Cependant, les résultats indiquent explicitement que les groupes 'regional' et 
 **Vérité Terrain attendue :**
 > OUI: Ni l'une ni l'autre règle ne s'applique. Soumis uniquement à la règle globale (société) sans limite de montant.
 
-**Réponse Verbatim de l'agent (12.3s) :**
+**Réponse Verbatim de l'agent (11.09s) :**
 ```text
-D'après les règles d'enregistrement évaluées pour 'account.move', il est évident que les règles globales s'appliquent sans considération de groupe. Les règles spécifiques aux groupes, telles que "Avoirs - visibilite par departement (sauf managers)" et "Avoirs - visibilite nationale (illimitee)", sont ignorées dans ce cas puisque l'utilisateur n'appartient à aucun des groupes visés.
-
-Cependant, les règles globales définies comme [['|', ('move_type', '!=', 'out_refund'), ('company_id', '=', user.company_id.id)]] s'appliquent. Ces règles n'impliquent pas directement un plafond de visibilité basé sur le montant de l'avoir, mais plutôt sur le type de mouvement et l'appartenance à la société.
-
-Étant donné que l'utilisateur n'appartient à aucun groupe et que les règles globales ne spécifient pas de restriction de montant pour la visibilité des avoirs, il est raisonnable de conclure que l'utilisateur peut voir l'avoir de 80 000€ si celui-ci correspond aux critères définis par les règles globales, notamment en termes de type de mouvement et d'appartenance à la société de l'utilisateur. Cependant, sans informations supplémentaires sur la configuration spécifique des règles d'accès et des droits de l'utilisateur, il est difficile de donner une réponse définitive. Il faudrait vérifier les paramètres de sécurité et les règles d'accès spécifiques à l'entreprise pour confirmer les droits de visibilité de cet utilisateur.
+L'utilisateur en question ne peut pas voir l'avoir de 80 000€ car il n'appartient à aucun des groupes régional ou national. Les règles de visibilité définies pour les avois ne sont pas applicables à cet utilisateur, car il n'est membre d'aucun groupe ciblé.
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```
@@ -173,9 +168,9 @@ Cependant, les règles globales définies comme [['|', ('move_type', '!=', 'out_
 **Vérité Terrain attendue :**
 > Point de contrôle dynamique (getattr/_g_q7) repéré dans action_valider mais NON CLASSIFIÉ avec certitude. Proposer pour revue manuelle avec source fichier+ligne.
 
-**Réponse Verbatim de l'agent (11.58s) :**
+**Réponse Verbatim de l'agent (10.79s) :**
 ```text
-Selon les informations disponibles, tous les utilisateurs authentifiés ont l'autorisation d'écrire sur le modèle 'custom.reimbursement.request'. Cela signifie qu'ils peuvent valider une demande de remboursement de frais dans le module custom_expense_reimbursement_indirect. Il n'y a pas de règles actives spécifiques qui restreignent cette autorisation. Cependant, il est important de noter que le modèle 'hr.expense' n'a pas été trouvé dans le graphique de connaissances indexé, ce qui pourrait indiquer une erreur de frappe ou un modèle manquant.
+Tout utilisateur authentifié peut valider une demande de remboursement de frais dans le module custom_expense_reimbursement_indirect.
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```

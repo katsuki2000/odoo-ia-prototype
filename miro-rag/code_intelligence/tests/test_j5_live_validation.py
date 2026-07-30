@@ -1,0 +1,226 @@
+"""
+J5 live validation for Odoo ACL + ir.rule semantics.
+
+These tests intentionally call a real Odoo 17 instance through XML-RPC. They
+are skipped only when the live instance or required adversarial fixtures are
+not reachable. The assertions encode the J5 divergences observed in Sprint D:
+ACL denial happens before record-rule evaluation, and Odoo combines applicable
+group ir.rules with OR.
+"""
+
+from __future__ import annotations
+
+import os
+import xmlrpc.client
+from pathlib import Path
+
+import networkx as nx
+import pytest
+
+from code_intelligence.cross_file_resolver import ParsedModule, build_module_symbol_registry
+from code_intelligence.csv_extractor import parse_access_control_csv
+from code_intelligence.graph_builder import OdooGraphBuilder
+from code_intelligence.live_rule_validator import validate_live_rule_prediction
+from code_intelligence.odoo_rpc_client import OdooRpcClient
+from code_intelligence.xml_extractor import parse_groups_from_xml, parse_ir_rules_from_xml
+
+
+pytestmark = pytest.mark.integration
+
+TEST_PASSWORD = os.getenv("ODOO_J5_TEST_PASSWORD", "J5TestPassword2026!")
+TEST_USERS = ("test_both_2026", "test_regional_2026", "test_no_group_2026")
+ACCOUNT_MOVE_80K_REFUND_DOMAIN = [
+    ("move_type", "=", "out_refund"),
+    ("amount_total", ">=", 80000),
+]
+
+
+@pytest.fixture(scope="module")
+def live_client() -> OdooRpcClient:
+    client = OdooRpcClient()
+    try:
+        admin_uid = client.authenticate_admin()
+    except Exception as exc:
+        pytest.skip(f"Live Odoo admin authentication is not available: {exc}")
+
+    missing_modules = [
+        module
+        for module in ("custom_credit_note_approval", "custom_credit_note_visibility_rules")
+        if not client.execute_kw(
+            admin_uid,
+            "ir.module.module",
+            "search",
+            [[("name", "=", module), ("state", "=", "installed")]],
+            {"limit": 1},
+        )
+    ]
+    if missing_modules:
+        pytest.skip(f"Required J5 Odoo modules are not installed: {missing_modules}")
+
+    # Intentional test-environment side effect: the J5 live tests authenticate
+    # as the real Odoo users, so their passwords are reset here to one local
+    # test-only value instead of guessing or storing secrets elsewhere.
+    for login in TEST_USERS:
+        client.set_user_password(admin_uid, login, TEST_PASSWORD)
+
+    if not client.execute_kw(
+        admin_uid,
+        "account.move",
+        "search",
+        [ACCOUNT_MOVE_80K_REFUND_DOMAIN],
+        {"limit": 1},
+    ):
+        pytest.skip("No live 80k customer credit note found for J5 visibility validation.")
+
+    return client
+
+
+@pytest.fixture(scope="module")
+def real_security_graph() -> nx.DiGraph:
+    addons_root = Path("/home/user/odoo-17.0/addons")
+    module_names = ("custom_credit_note_approval", "custom_credit_note_visibility_rules")
+    modules = {}
+
+    for module_name in module_names:
+        module_dir = addons_root / module_name
+        if not module_dir.exists():
+            pytest.skip(f"Required real Odoo module is missing: {module_dir}")
+
+        parsed = ParsedModule(manifest=None)
+        for xml_file in module_dir.rglob("*.xml"):
+            parsed.groups.extend(parse_groups_from_xml(xml_file))
+            parsed.rules.extend(parse_ir_rules_from_xml(xml_file))
+        for csv_file in module_dir.rglob("*.csv"):
+            parsed.acl_entries.extend(parse_access_control_csv(csv_file))
+        modules[module_name] = parsed
+
+    registry = build_module_symbol_registry(modules)
+    return OdooGraphBuilder(registry, modules).build_graph()
+
+
+def _authenticate(client: OdooRpcClient, login: str) -> int:
+    return client.authenticate_user(login, TEST_PASSWORD)
+
+
+def test_regional_user_has_live_billing_group_and_write_acl(live_client: OdooRpcClient):
+    admin_uid = live_client.authenticate_admin()
+    users = live_client.execute_kw(
+        admin_uid,
+        "res.users",
+        "search_read",
+        [[("login", "=", "test_regional_2026")]],
+        {"fields": ["id", "login", "groups_id"], "limit": 1},
+    )
+    assert users
+
+    groups = live_client.execute_kw(
+        admin_uid,
+        "res.groups",
+        "read",
+        [users[0]["groups_id"]],
+        {"fields": ["name"]},
+    )
+    groups_by_id = {group["id"]: group["name"] for group in groups}
+    assert groups_by_id[26] == "Billing"
+    assert groups_by_id[70] == "Avoirs - Visibilite Regionale"
+
+    uid = _authenticate(live_client, "test_regional_2026")
+    assert live_client.check_access_rights(uid, "account.move", "read") is True
+    assert live_client.check_access_rights(uid, "account.move", "write") is True
+
+
+@pytest.mark.parametrize("operation", ["read", "write"])
+def test_no_group_user_blocked_by_acl(live_client: OdooRpcClient, operation: str):
+    uid = _authenticate(live_client, "test_no_group_2026")
+
+    with pytest.raises(xmlrpc.client.Fault) as excinfo:
+        live_client.search_as_user(
+            uid,
+            "account.move",
+            ACCOUNT_MOVE_80K_REFUND_DOMAIN,
+            operation=operation,
+            limit=1,
+        )
+
+    fault = excinfo.value.faultString
+    assert (
+        "Access Denied by ACLs" in fault
+        or "not allowed to access" in fault
+        or "not allowed to modify" in fault
+    )
+    assert "account.move" in fault or "Journal Entry" in fault
+
+
+@pytest.mark.parametrize("operation", ["read", "write"])
+def test_regional_user_override_by_billing_group(live_client: OdooRpcClient, operation: str):
+    uid = _authenticate(live_client, "test_regional_2026")
+
+    record_ids = live_client.search_as_user(
+        uid,
+        "account.move",
+        ACCOUNT_MOVE_80K_REFUND_DOMAIN,
+        operation=operation,
+        limit=5,
+    )
+
+    assert record_ids, (
+        "Odoo live search must return the 80k credit note: the account.group_account_invoice "
+        "Billing rule is OR-combined with the regional 50k rule, so the regional cap alone "
+        "does not block this user."
+    )
+
+
+@pytest.mark.parametrize("operation", ["read", "write"])
+def test_both_groups_user_access(live_client: OdooRpcClient, operation: str):
+    uid = _authenticate(live_client, "test_both_2026")
+
+    record_ids = live_client.search_as_user(
+        uid,
+        "account.move",
+        ACCOUNT_MOVE_80K_REFUND_DOMAIN,
+        operation=operation,
+        limit=5,
+    )
+
+    assert record_ids
+
+
+@pytest.mark.parametrize(
+    ("login", "operation", "expected_allowed"),
+    [
+        ("test_no_group_2026", "read", False),
+        ("test_no_group_2026", "write", False),
+        ("test_regional_2026", "read", True),
+        ("test_regional_2026", "write", True),
+        ("test_both_2026", "read", True),
+        ("test_both_2026", "write", True),
+    ],
+)
+def test_live_rule_validator_matches_odoo_truth(
+    live_client: OdooRpcClient,
+    real_security_graph: nx.DiGraph,
+    login: str,
+    operation: str,
+    expected_allowed: bool,
+):
+    result = validate_live_rule_prediction(
+        live_client,
+        real_security_graph,
+        user_login=login,
+        password=TEST_PASSWORD,
+        model_name="account.move",
+        domain=ACCOUNT_MOVE_80K_REFUND_DOMAIN,
+        operation=operation,
+        amount=80000,
+    )
+    print(result.summary_text)
+
+    assert result.live_allowed is expected_allowed
+    assert result.deterministic_allowed is expected_allowed
+    assert result.has_divergence is False
+    assert {
+        "custom_credit_note_approval.rule_avoir_visibilite_departement",
+        "custom_credit_note_visibility_rules.rule_avoir_multi_societe",
+        "custom_credit_note_visibility_rules.rule_avoir_visibilite_regionale",
+        "custom_credit_note_visibility_rules.rule_avoir_visibilite_nationale",
+    }.issubset({ref.xml_id for ref in result.live_rule_refs})

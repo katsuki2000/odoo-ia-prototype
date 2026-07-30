@@ -31,6 +31,9 @@ BUSINESS_ALIASES: Dict[str, List[str]] = {
     "avoir": ["account.move"],
     "avoirs": ["account.move"],
     "credit note": ["account.move"],
+    "facture": ["account.move"],
+    "factures": ["account.move"],
+    "facturation": ["account.move"],
     # Achats
     "demande d'achat": ["custom.purchase.request", "purchase.order"],
     "demande d'achats": ["custom.purchase.request", "purchase.order"],
@@ -67,6 +70,84 @@ _ALIAS_PATTERNS: Dict[str, re.Pattern] = {
     alias: re.compile(r"(?<!\w)" + re.escape(alias) + r"(?!\w)")
     for alias in BUSINESS_ALIASES_NFC
 }
+
+# Bug #1 (J1) regression note: static alias lookup MUST run before fuzzy
+# matching. Do not reorder these steps — see test_s2_0_alias_not_shadowed_by_fuzzy_single_token.
+
+# --- J2: bounded LLM arbitration ------------------------------------------
+
+# Below this score gap between the top-1 and top-2 fuzzy candidates, the
+# result is considered ambiguous and is escalated to LLM arbitration
+# instead of being returned directly.
+AMBIGUITY_GAP_THRESHOLD = 10.0
+
+_ARBITRATION_SYSTEM_PROMPT = (
+    "Tu es un composant de résolution de symboles techniques Odoo. "
+    "Tu dois choisir, parmi une liste fermée de modèles techniques candidats, "
+    "celui qui correspond le mieux à la question métier posée — ou indiquer "
+    "qu'aucun ne convient. Tu ne dois JAMAIS proposer un nom de modèle en "
+    "dehors de la liste fournie, même s'il te semble plus pertinent."
+)
+
+
+def _build_arbitration_prompt(query_text: str, candidates: List[str]) -> str:
+    candidates_block = "\n".join(f"- {c}" for c in candidates)
+    return (
+        f'Question métier utilisateur : "{query_text}"\n\n'
+        f"Modèles techniques Odoo candidats (extraits par correspondance approximative, "
+        f"scores proches, ambigus) :\n{candidates_block}\n\n"
+        "Réponds UNIQUEMENT avec le nom technique exact d'UN SEUL de ces modèles "
+        "s'il correspond clairement à la question, ou UNIQUEMENT le mot NONE si "
+        "aucun ne correspond clairement. Pas d'explication, pas de ponctuation, "
+        "pas de modèle hors de cette liste."
+    )
+
+
+def _llm_arbitrate(query_text: str, candidates: List[str], llm) -> Optional[str]:
+    """
+    Bounded LLM candidate selection over a closed list.
+
+    Args:
+        query_text: original user question.
+        candidates: closed list of candidate technical model names (fuzzy top-N).
+        llm: a LangChain-compatible chat model already instantiated by the
+             caller (e.g. graph.py's ChatGroq client). Injected rather than
+             built here so callers/tests control the client and its config.
+
+    Returns:
+        The chosen candidate (exact string from `candidates`), or None if
+        the LLM said NONE, returned something outside the closed list, or
+        the call failed. None is never treated as a guess — callers must
+        fall back to "unresolved", never silently pick a default candidate.
+    """
+    if llm is None:
+        _logger.warning("LLM arbitration requested but no llm client was provided; skipping.")
+        return None
+
+    try:
+        from langchain_core.messages import SystemMessage, HumanMessage
+
+        prompt = _build_arbitration_prompt(query_text, candidates)
+        response = llm.invoke([
+            SystemMessage(content=_ARBITRATION_SYSTEM_PROMPT),
+            HumanMessage(content=prompt),
+        ])
+        raw = (response.content or "").strip()
+    except Exception:
+        _logger.exception("LLM arbitration call failed for query=%r candidates=%r", query_text, candidates)
+        return None
+
+    if raw == "NONE":
+        return None
+    if raw in candidates:
+        return raw
+
+    # Hallucinated or malformed output (e.g. a model not in the closed
+    # list, or extra text). Never trust it — treat as a failed arbitration,
+    # not a resolved concept, per the plan's "jamais présenté comme fait
+    # structurel certain" rule for LLM-derived results.
+    _logger.warning("LLM arbitration returned an out-of-list value: %r (candidates=%r)", raw, candidates)
+    return None
 
 
 @dataclass
@@ -148,15 +229,13 @@ def _fuzzy_match_graph(query: str, G, threshold: int = 75, limit: int = 5) -> Li
     query_lower = query.lower()
     query_token_count = max(len(query_lower.split()), 1)
 
-    # token_set_ratio:  handles extra tokens in the query gracefully.
-    # token_sort_ratio: handles word-order variations.
     model_scores: Dict[str, float] = {}
 
     for scorer in (fuzz.token_set_ratio, fuzz.token_sort_ratio):
         hits = process.extract(
             query_lower, labels,
             scorer=scorer,
-            score_cutoff=threshold * 0.6,  # pre-filter; real threshold applied after penalty
+            score_cutoff=threshold * 0.6,
             limit=limit * 5,
         )
         for _text, score, idx in (hits or []):
@@ -172,14 +251,19 @@ def _fuzzy_match_graph(query: str, G, threshold: int = 75, limit: int = 5) -> Li
     return sorted_results[:limit]
 
 
-def resolve_business_term(query_text: str, G=None) -> ResolvedConcept:
+def resolve_business_term(query_text: str, G=None, llm=None) -> ResolvedConcept:
     """
     Resolve natural language query terms to technical Odoo models or modules.
-    
+
     Args:
         query_text: Natural language user question.
         G: Optional NetworkX knowledge graph reference.
-        
+        llm: Optional LangChain-compatible chat client (e.g. graph.py's
+             ChatGroq instance), used only for bounded arbitration when
+             fuzzy matching returns ambiguous candidates. If None,
+             ambiguous cases fall through to "unresolved" rather than
+             guessing.
+
     Returns:
         ResolvedConcept object.
     """
@@ -232,16 +316,57 @@ def resolve_business_term(query_text: str, G=None) -> ResolvedConcept:
         if fuzzy_results:
             top_models = [model for model, _score in fuzzy_results]
             top_score = fuzzy_results[0][1]
-            return ResolvedConcept(
-                user_term=query_text,
-                resolved_models=top_models,
-                confidence=round(top_score / 100, 2),
-                source_step="fuzzy_graph_match",
-                is_resolved=True,
-                reason=f"Fuzzy matched graph labels: {', '.join(f'{m} ({s:.0f})' for m, s in fuzzy_results)}",
+
+            # Ambiguity check: is the top candidate clearly detached from
+            # the runner-up, or are several candidates within the gap
+            # threshold of each other?
+            is_ambiguous = (
+                len(fuzzy_results) >= 2
+                and (fuzzy_results[0][1] - fuzzy_results[1][1]) < AMBIGUITY_GAP_THRESHOLD
             )
 
-    # Step 3: Unresolved concept fallback
+            if not is_ambiguous:
+                return ResolvedConcept(
+                    user_term=query_text,
+                    resolved_models=top_models,
+                    confidence=round(top_score / 100, 2),
+                    source_step="fuzzy_graph_match",
+                    is_resolved=True,
+                    reason=f"Fuzzy matched graph labels: {', '.join(f'{m} ({s:.0f})' for m, s in fuzzy_results)}",
+                )
+
+            # Step 3: Bounded LLM Candidate Selection (only reached on
+            # genuine ambiguity — never for a clear top-1 fuzzy match).
+            chosen = _llm_arbitrate(query_text, top_models, llm)
+            if chosen is not None:
+                return ResolvedConcept(
+                    user_term=query_text,
+                    resolved_models=[chosen],
+                    confidence=0.6,  # bounded/low confidence — LLM interpretation, not a structural fact
+                    source_step="llm_arbitration",
+                    is_resolved=True,
+                    reason=(
+                        f"LLM arbitration among ambiguous fuzzy candidates "
+                        f"({', '.join(f'{m} ({s:.0f})' for m, s in fuzzy_results)}) -> chose '{chosen}'. "
+                        f"Low-confidence LLM interpretation, not a certain structural fact."
+                    ),
+                )
+
+            # LLM declined (NONE / invalid / call failure): fall through to
+            # unresolved rather than silently keeping the fuzzy top-1.
+            return ResolvedConcept(
+                user_term=query_text,
+                is_resolved=False,
+                confidence=0.0,
+                source_step="unresolved",
+                reason=(
+                    f"Ambiguous fuzzy candidates "
+                    f"({', '.join(f'{m} ({s:.0f})' for m, s in fuzzy_results)}) "
+                    f"and LLM arbitration did not select one."
+                ),
+            )
+
+    # Step 4: Unresolved concept fallback
     return ResolvedConcept(
         user_term=query_text,
         is_resolved=False,

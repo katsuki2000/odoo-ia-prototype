@@ -115,3 +115,61 @@ def test_s2_0_alias_matches_nfd_decomposed_input(mock_graph):
     assert res.is_resolved is True
     assert res.source_step == "static_alias"
     assert "custom.asset.loan" in res.resolved_models
+
+
+# --- J2: Bounded LLM Arbitration Tests ------------------------------------
+
+class _FakeLLMResponse:
+    def __init__(self, content):
+        self.content = content
+
+
+class _FakeLLM:
+    def __init__(self, reply: str):
+        self._reply = reply
+
+    def invoke(self, messages):
+        return _FakeLLMResponse(self._reply)
+
+
+@pytest.fixture
+def ambiguous_graph():
+    """Two Field labels with near-identical fuzzy scores against the same
+    query, mirroring the real 'purchase order approval' case."""
+    G = nx.DiGraph()
+    G.add_node("model:custom.purchase.request", node_type="Model", name="custom.purchase.request")
+    G.add_node("model:purchase.order.line", node_type="Model", name="purchase.order.line")
+    G.add_node("field:f1", node_type="Field", label="purchase order approval request", model="custom.purchase.request")
+    G.add_node("field:f2", node_type="Field", label="purchase order line approval", model="purchase.order.line")
+    return G
+
+
+def test_s2_0_llm_arbitration_picks_valid_candidate(ambiguous_graph):
+    fake_llm = _FakeLLM(reply="custom.purchase.request")
+    res = resolve_business_term("purchase order approval", ambiguous_graph, llm=fake_llm)
+    assert res.source_step == "llm_arbitration"
+    assert res.resolved_models == ["custom.purchase.request"]
+    assert res.confidence == 0.6
+
+
+def test_s2_0_llm_arbitration_rejects_out_of_list_hallucination(ambiguous_graph):
+    fake_llm = _FakeLLM(reply="account.move")  # not in the closed candidate list
+    res = resolve_business_term("purchase order approval", ambiguous_graph, llm=fake_llm)
+    assert res.source_step == "unresolved"
+    assert res.is_resolved is False
+
+
+def test_s2_0_llm_arbitration_none_response_falls_back_unresolved(ambiguous_graph):
+    fake_llm = _FakeLLM(reply="NONE")
+    res = resolve_business_term("purchase order approval", ambiguous_graph, llm=fake_llm)
+    assert res.source_step == "unresolved"
+
+
+def test_s2_0_no_llm_call_when_top_candidate_is_clear(mock_graph):
+    """Clear alias/fuzzy resolution must never trigger LLM arbitration."""
+    def _should_not_be_called(*args, **kwargs):
+        raise AssertionError("LLM should not be invoked when resolution is unambiguous")
+
+    fake_llm = type("Blocker", (), {"invoke": _should_not_be_called})()
+    res = resolve_business_term("avoirs", mock_graph, llm=fake_llm)
+    assert res.source_step == "static_alias"

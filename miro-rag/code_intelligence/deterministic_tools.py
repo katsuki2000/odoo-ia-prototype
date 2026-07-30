@@ -309,6 +309,20 @@ def evaluer_regles_enregistrement(
     if ignored_group:
         lines.append("  - Règles de Groupe ignorées (non-membre): " + ", ".join([f"{r.rule_name}" for r in ignored_group]))
 
+    if applied_group:
+        lines.append(
+            "  -> CONCLUSION: Au moins une regle de groupe applicable restreint potentiellement "
+            "l'acces -- se referer aux domain_force ci-dessus pour les conditions exactes "
+            "(combinees en OU entre elles, puis en ET avec les regles globales)."
+        )
+    else:
+        lines.append(
+            "  -> CONCLUSION: Aucune regle de groupe applicable (l'utilisateur n'appartient a aucun "
+            "groupe cible par une regle sur ce modele). Seules les regles globales ci-dessus "
+            "s'appliquent -- il n'y a AUCUNE restriction supplementaire de montant ou de portee "
+            "provenant d'une regle de groupe pour cet utilisateur."
+        )
+
     summary_text = "\n".join(lines)
 
     return RuleEvaluationResult(
