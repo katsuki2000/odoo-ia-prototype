@@ -12,6 +12,7 @@ from typing import Optional
 
 from langchain_core.tools import tool
 from code_intelligence.utils import resolve_model_xmlref
+from code_intelligence.business_resolver import resolve_business_term
 
 _logger = logging.getLogger(__name__)
 
@@ -31,6 +32,48 @@ def _require_graph():
     return _GRAPH_REF
 
 
+def _resolve_model_param(model_name: str) -> str:
+    """
+    J3 structural guard: ensure composite/auxiliary tools always operate on a
+    real technical model name, even when the LLM supplies a business term
+    instead of the exact Odoo model (e.g. "avoir" instead of "account.move").
+
+    This is a SAFETY NET, not the primary resolution path -- the primary
+    path is the [BUSINESS TERM RESOLVER S2.0] hint injected into the system
+    prompt once per question in code_intelligence_agent() (rag/graph.py),
+    which already ran full arbitration (static alias -> fuzzy -> bounded LLM
+    on ambiguity) for the user's actual question. This guard exists because
+    nothing forces the LLM to actually use that hint verbatim in its tool
+    calls -- so every tool re-validates its own model_name independently.
+
+    Deliberately does NOT pass an llm client here (no re-arbitration at the
+    tool level): ambiguity arbitration already happened once per question
+    upstream; repeating it per tool call would multiply LLM calls and risk
+    inconsistent picks across different tools within the same question.
+    Only static alias + fuzzy graph match are attempted here.
+
+    If model_name is already a valid indexed technical model, it is
+    returned unchanged (zero overhead, and never overrides an already-
+    correct technical identifier). If it cannot be resolved to exactly one
+    unambiguous model, the original value is returned unchanged and the
+    downstream tool's own "model not found" check will surface the error to
+    the LLM -- this function never silently guesses.
+    """
+    G = _require_graph()
+    if G.has_node(f"model:{model_name}"):
+        return model_name
+
+    concept = resolve_business_term(model_name, G)  # llm=None: static alias + fuzzy only
+    if concept.is_resolved and len(concept.resolved_models) == 1:
+        _logger.info(
+            "Resolved business term %r -> technical model %r (source=%s)",
+            model_name, concept.resolved_models[0], concept.source_step,
+        )
+        return concept.resolved_models[0]
+
+    return model_name
+
+
 # =====================================================================
 # COMPOSITE TOOLS (B.1.1 - B.1.5)
 # =====================================================================
@@ -40,6 +83,7 @@ def qui_a_acces_a(model_name: str, droit: str = "read", group_id: Optional[str] 
     """Evaluate model access rights and list active ir.rule record rules. Call ONCE per model without group_id unless testing a single group."""
     from code_intelligence.deterministic_tools import qui_a_acces_a as _impl
     G = _require_graph()
+    model_name = _resolve_model_param(model_name)
     result = _impl(G, model_name, droit=droit, group_id=group_id)
     return result.summary_text
 
@@ -49,6 +93,7 @@ def impact_changement_champ(field_name: str, model_name: str) -> str:
     """Analyze upstream triggers and downstream computed fields when modifying a model field."""
     from code_intelligence.deterministic_tools import impact_changement_champ as _impl
     G = _require_graph()
+    model_name = _resolve_model_param(model_name)
     result = _impl(G, field_name, model_name)
     parts = [result.summary_text]
     if result.upstream_triggers:
@@ -63,6 +108,7 @@ def chemin_execution_bouton(button_name: str, model_name: str) -> str:
     """Trace UI button execution path, method called, workflow transition, and required groups."""
     from code_intelligence.deterministic_tools import chemin_execution_bouton as _impl
     G = _require_graph()
+    model_name = _resolve_model_param(model_name)
     result = _impl(G, button_name, model_name)
     return result.summary_text + "\n" + "\n".join(result.execution_steps)
 
@@ -72,6 +118,7 @@ def suivre_heritage_complet(model_name: str) -> str:
     """Trace full _inherit extension and _inherits delegation hierarchy for an Odoo model."""
     from code_intelligence.deterministic_tools import suivre_heritage_complet as _impl
     G = _require_graph()
+    model_name = _resolve_model_param(model_name)
     result = _impl(G, model_name)
     return result.summary_text
 
@@ -81,6 +128,7 @@ def quel_est_le_processus_de(model_name: str) -> str:
     """Get ordered workflow state machine transitions for an Odoo model."""
     from code_intelligence.deterministic_tools import quel_est_le_processus_de as _impl
     G = _require_graph()
+    model_name = _resolve_model_param(model_name)
     result = _impl(G, model_name)
     return result.summary_text
 
@@ -101,6 +149,7 @@ def lister_modules_impliques(model_name: str) -> str:
     """List Odoo modules defining or extending a model."""
     from code_intelligence.auxiliary_tools import lister_modules_impliques as _impl
     G = _require_graph()
+    model_name = _resolve_model_param(model_name)
     modules = _impl(G, model_name)
     if modules:
         return f"Modules implicated for model '{model_name}': {', '.join(modules)}"
@@ -131,6 +180,7 @@ def evaluer_regles_enregistrement(model_name: str, droit: str = "read", user_gro
     """Evaluate Odoo ir.rule record rules for a model, permission (read, write, create, unlink), and user groups using Odoo's exact AND/OR security engine."""
     from code_intelligence.deterministic_tools import evaluer_regles_enregistrement as _impl
     G = _require_graph()
+    model_name = _resolve_model_param(model_name)
     try:
         user_groups = json.loads(user_groups_json) if isinstance(user_groups_json, str) else user_groups_json
     except Exception:
@@ -144,6 +194,7 @@ def analyser_actions_serveur(model_name: str) -> str:
     """Analyze server actions (ir.actions.server) and automated rules (base.automation) for a given model. Detects sudo() calls, hardcoded IDs, and security warnings."""
     from code_intelligence.server_action_analyzer import analyze_server_action_code
     G = _require_graph()
+    model_name = _resolve_model_param(model_name)
 
     model_node = f"model:{model_name}"
     if model_node not in G:
@@ -177,6 +228,7 @@ def analyser_verrous_securite(model_name: str) -> str:
     from pathlib import Path
 
     G = _require_graph()
+    model_name = _resolve_model_param(model_name)
     model_node = f"model:{model_name}"
     if model_node not in G:
         return f"Model '{model_name}' was not found in the indexed knowledge graph."
