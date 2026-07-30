@@ -131,12 +131,39 @@ def evaluer_regles_enregistrement(
     for g in list(user_group_set):
         _expand_inheriting_groups(G, g, user_group_set)
 
+    def _group_short_name(xml_id: str) -> str:
+        """Part of a group xml_id after the last '.', used as a tolerant
+        fallback when a full module-qualified id doesn't match exactly."""
+        return xml_id.rsplit(".", 1)[-1]
+
+    def _user_belongs_to_rule_group(user_groups_set: set, rule_groups: List[str]) -> bool:
+        """
+        Tolerant membership check between user-supplied group identifiers
+        and a rule's group xml_ids.
+
+        The primary path (exact match on the full xml_id, e.g.
+        "custom_credit_note_visibility_rules.group_avoir_national") is
+        tried first and is what Odoo itself uses. A short-name fallback
+        (matching only the part after the last '.') is applied second,
+        because the LLM populating user_groups_json in its tool call may
+        supply an unqualified group name (e.g. "group_avoir_national")
+        instead of the fully-qualified xml_id -- this caused Q6.1/Q6.2 in
+        the adversarial benchmark to silently misclassify applicable group
+        rules as "ignored (non-member)", inverting the actual access
+        decision even though the AND/OR combination logic itself was
+        correct. See test_group_membership_tolerates_missing_module_prefix.
+        """
+        if user_groups_set.intersection(rule_groups):
+            return True
+        short_rule_groups = {_group_short_name(g) for g in rule_groups}
+        short_user_groups = {_group_short_name(g) for g in user_groups_set}
+        return bool(short_user_groups.intersection(short_rule_groups))
+
     for rule in all_rules:
         if not rule.groups:
             applied_global.append(rule)
         else:
-            rule_grp_set = set(rule.groups)
-            if user_group_set.intersection(rule_grp_set):
+            if _user_belongs_to_rule_group(user_group_set, rule.groups):
                 applied_group.append(rule)
             else:
                 ignored_group.append(rule)

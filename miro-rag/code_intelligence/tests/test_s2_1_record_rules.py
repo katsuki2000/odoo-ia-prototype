@@ -119,3 +119,29 @@ def test_regional_group_only_user_cannot_view_80k():
     assert res.can_view_amount(80000) is False
     assert len(res.applied_group_rules) == 1
     assert res.applied_group_rules[0].rule_xml_id.endswith("rule_regional_limit")
+
+
+def test_group_membership_tolerates_missing_module_prefix():
+    """
+    Regression guard for a real bug found during J4 benchmark analysis:
+    calling evaluer_regles_enregistrement with unqualified group names
+    (e.g. "group_avoir_national" instead of
+    "custom_credit_note_visibility_rules.group_avoir_national") silently
+    caused applicable group rules to be misclassified as "ignored
+    (non-member)", inverting the access decision for Q6.1/Q6.2 even though
+    the underlying AND/OR combination logic was correct. The LLM populating
+    user_groups_json in its tool call cannot be relied on to always supply
+    the fully-qualified xml_id.
+    """
+    G = _build_test_6_knowledge_graph()
+
+    # Unqualified group names, as an LLM tool call might supply them
+    user_groups = ["group_regional", "group_national"]
+
+    res = evaluer_regles_enregistrement(G, "account.move", user_groups=user_groups)
+    assert res.can_view_amount(80000) is True, (
+        "Short group names without module prefix must still match the "
+        "fully-qualified group xml_ids stored on the rules."
+    )
+    assert len(res.applied_group_rules) == 2
+    assert len(res.ignored_group_rules) == 0
