@@ -145,3 +145,89 @@ def test_group_membership_tolerates_missing_module_prefix():
     )
     assert len(res.applied_group_rules) == 2
     assert len(res.ignored_group_rules) == 0
+
+
+def test_group_membership_fuzzy_matches_display_name():
+    """
+    Regression guard for the REAL bug reproduced end-to-end during J4:
+    the LLM's actual tool call for Q6.1 supplied
+    user_groups_json = '["regional", "national"]' -- bare words paraphrased
+    from the question, not any technical identifier (neither xml_id nor
+    short name). This must still resolve via fuzzy match against each
+    group's human-readable display name (e.g. "Avoirs - Visibilite
+    Nationale").
+    """
+    G = _build_test_6_knowledge_graph()
+    user_groups = ["regional", "national"]  # exact strings the LLM actually sent
+
+    res = evaluer_regles_enregistrement(G, "account.move", user_groups=user_groups)
+    assert res.can_view_amount(80000) is True, (
+        "Bare business words extracted from the question ('regional', "
+        "'national') must still resolve to the matching group rules via "
+        "fuzzy match against the group's display name."
+    )
+    assert len(res.applied_group_rules) == 2
+    assert len(res.ignored_group_rules) == 0
+
+
+def test_qui_a_acces_a_resolves_imprecise_group_against_acl():
+    """
+    Regression guard for the qui_a_acces_a half of the J4 Q6.1/Q6.2 bug:
+    an imprecise group_id (short name, no module prefix) must resolve to
+    the correct group via the same tolerant resolution used by
+    evaluer_regles_enregistrement, not silently report false denial.
+    """
+    from code_intelligence.deterministic_tools import qui_a_acces_a
+
+    G = nx.DiGraph()
+    G.add_node("model:account.move", node_type="Model", name="account.move")
+    G.add_node(
+        "access:test_acl",
+        node_type="AccessEntry",
+        perm_read=True,
+    )
+    G.add_edge("model:account.move", "access:test_acl", edge_type="GRANTED_BY")
+    G.add_node(
+        "group:custom_credit_note_visibility_rules.group_avoir_national",
+        node_type="Group",
+        name="Avoirs - Visibilite Nationale",
+    )
+    G.add_edge(
+        "access:test_acl",
+        "group:custom_credit_note_visibility_rules.group_avoir_national",
+        edge_type="APPLIES_TO_GROUP",
+    )
+
+    res = qui_a_acces_a(G, "account.move", droit="read", group_id="group_national")
+    assert "HAS READ access" in res.summary_text
+    assert "DOES NOT HAVE" not in res.summary_text
+    assert "could not be resolved" not in res.summary_text
+
+
+def test_qui_a_acces_a_reports_unresolved_group_distinctly_from_denied():
+    """
+    A group_id that matches NOTHING (not even fuzzily) must be reported as
+    unresolved, never as "DOES NOT HAVE access" -- the two are epistemically
+    different and conflating them misrepresents an input problem as a
+    security decision.
+    """
+    from code_intelligence.deterministic_tools import qui_a_acces_a
+
+    G = nx.DiGraph()
+    G.add_node("model:account.move", node_type="Model", name="account.move")
+    G.add_node("access:test_acl", node_type="AccessEntry", perm_read=True)
+    G.add_edge("model:account.move", "access:test_acl", edge_type="GRANTED_BY")
+    G.add_node(
+        "group:account.group_account_manager",
+        node_type="Group",
+        name="Accounting Manager",
+    )
+    G.add_edge(
+        "access:test_acl",
+        "group:account.group_account_manager",
+        edge_type="APPLIES_TO_GROUP",
+    )
+
+    res = qui_a_acces_a(G, "account.move", droit="read", group_id="xyz_totally_unrelated_gibberish")
+    assert "could not be resolved" in res.summary_text
+    assert "DOES NOT HAVE" not in res.summary_text

@@ -434,12 +434,31 @@ def qui_a_acces_a(
     allowed_groups, all_authenticated, active_rules = _eval_single_droit(G, model_name, droit, group_id)
 
     if group_id:
-        has_access = all_authenticated or (group_id in allowed_groups)
-        summary = (
-            f"Group '{group_id}' HAS {droit.upper()} access to '{model_name}'."
-            if has_access
-            else f"Group '{group_id}' DOES NOT HAVE {droit.upper()} access to '{model_name}'."
-        )
+        resolved_group_id = resolve_group_identifier(G, group_id, list(allowed_groups)) if allowed_groups else None
+        if resolved_group_id is None and not all_authenticated:
+            # Distinguish "we could not identify this group at all" from
+            # "this group was identified and does not have access" -- the
+            # latter is a security decision, the former is an input
+            # resolution failure and must never be silently reported as if
+            # it were the former. Real bug found via J4 benchmark analysis:
+            # qui_a_acces_a previously reported "DOES NOT HAVE access" for
+            # imprecise group identifiers purely because of a strict
+            # membership check, causing the LLM to synthesize a confidently
+            # wrong final answer for Q6.1/Q6.2.
+            summary = (
+                f"Group identifier '{group_id}' could not be resolved against any group "
+                f"with {droit.upper()} rules or ACLs on '{model_name}'. This does NOT mean "
+                f"access is denied -- it means the identifier itself could not be matched. "
+                f"Try lister_modules_impliques or resoudre_nom_technique to find the exact group xml_id."
+            )
+        else:
+            has_access = all_authenticated or (resolved_group_id is not None)
+            display_id = resolved_group_id or group_id
+            summary = (
+                f"Group '{display_id}' HAS {droit.upper()} access to '{model_name}'."
+                if has_access
+                else f"Group '{display_id}' DOES NOT HAVE {droit.upper()} access to '{model_name}'."
+            )
     else:
         if all_authenticated:
             grp_str = "All authenticated users"
