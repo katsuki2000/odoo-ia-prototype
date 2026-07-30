@@ -14,8 +14,16 @@ from typing import Dict, List, Optional, Set, Any
 import logging
 
 import networkx as nx
+import unicodedata
+from rapidfuzz import fuzz
 
 _logger = logging.getLogger(__name__)
+
+# Shared literal marker for "model/field not found in graph" messages.
+# Used downstream by code_intelligence_agent() to bypass LLM synthesis
+# for deterministic structural facts (never paraphrased, per plan rule
+# against presenting LLM-derived text as a certain structural fact).
+NOT_FOUND_MARKER = "was not found in the indexed knowledge graph"
 
 
 @dataclass
@@ -73,6 +81,108 @@ class RuleEvaluationResult:
         return False
 
 
+FUZZY_GROUP_MATCH_THRESHOLD = 75
+
+
+def _group_short_name(xml_id: str) -> str:
+    """Part of a group xml_id after the last '.', used as a tolerant
+    fallback when a full module-qualified id doesn't match exactly."""
+    return xml_id.rsplit(".", 1)[-1]
+
+
+def _group_display_name(G: nx.DiGraph, full_xml_id: str) -> str:
+    """Human-readable name of a group node (e.g. 'Avoirs - Visibilite
+    Regionale'), looked up from the graph. Empty string if not found."""
+    node_id = f"group:{full_xml_id}"
+    if node_id in G:
+        return G.nodes[node_id].get("name", "")
+    return ""
+
+
+def _strip_group_prefix(s: str) -> str:
+    """
+    Strip the Odoo naming-convention prefix "group_" (e.g.
+    "group_regional" -> "regional") before fuzzy-matching against a
+    group's human-readable display name. Without this, the prefix
+    dilutes the match score below threshold: "group_regional" vs
+    "Avoirs - Visibilite Regionale" scores ~70 (just under the 75
+    threshold) via partial_ratio, while "regional" alone (prefix
+    stripped) scores much higher, since "group_" has no counterpart
+    in the display name.
+    """
+    return s[len("group_"):] if s.lower().startswith("group_") else s
+
+
+def _fold_accents(s: str) -> str:
+    """
+    Strip accents for accent-insensitive fuzzy matching. NFC normalization
+    alone (used elsewhere for exact alias lookup) is NOT enough here: it
+    only picks a canonical encoding for an accented character, it never
+    removes the accent itself.
+    """
+    nfd = unicodedata.normalize("NFD", s)
+    return "".join(c for c in nfd if not unicodedata.combining(c))
+
+
+def _group_fuzzy_matches_display_name(G: nx.DiGraph, user_group: str, rule_group_full_xml_id: str) -> bool:
+    """
+    Fuzzy-match a user-supplied group identifier against a specific group's
+    human-readable display name (e.g. "Avoirs - Visibilite Nationale").
+    """
+    display_name = _group_display_name(G, rule_group_full_xml_id)
+    if not display_name:
+        return False
+    folded_display_name = _fold_accents(display_name.lower())
+    folded_user_group = _fold_accents(_strip_group_prefix(user_group).lower())
+    score = max(
+        fuzz.token_set_ratio(folded_user_group, folded_display_name),
+        fuzz.partial_ratio(folded_user_group, folded_display_name),
+    )
+    return score >= FUZZY_GROUP_MATCH_THRESHOLD
+
+
+def resolve_group_identifier(G: nx.DiGraph, user_group: str, candidate_full_xml_ids: List[str]) -> Optional[str]:
+    """
+    Shared tolerant group-identifier resolver, used by both
+    evaluer_regles_enregistrement() and qui_a_acces_a() so an LLM tool call
+    supplying an imprecise group name (short name, missing module prefix,
+    or a bare business word like "regional" instead of any technical
+    identifier) resolves consistently across every tool, not just the one
+    that happened to be patched first.
+
+    Real bug found via J4 benchmark analysis on Q6.1/Q6.2: the LLM's tool
+    calls supplied plain words like "regional"/"national" or short names
+    like "group_regional" instead of the fully-qualified group xml_id.
+    Without this tolerant resolution, evaluer_regles_enregistrement and
+    qui_a_acces_a silently disagreed with each other on the same question.
+
+    Tried in order, from most to least strict -- this only widens WHICH
+    identifier counts as a match, it never touches any access/security
+    decision logic itself:
+      1. Exact match on the full xml_id.
+      2. Short-name match (part after the last '.').
+      3. Fuzzy match against the group's human-readable display name.
+
+    Returns the matching full_xml_id from candidate_full_xml_ids, or None
+    if no candidate matches by any of the three methods -- callers MUST
+    treat None as "group identifier could not be resolved", distinct from
+    "group resolved but does not have access".
+    """
+    if user_group in candidate_full_xml_ids:
+        return user_group
+
+    short_user_group = _group_short_name(user_group)
+    for candidate in candidate_full_xml_ids:
+        if _group_short_name(candidate) == short_user_group:
+            return candidate
+
+    for candidate in candidate_full_xml_ids:
+        if _group_fuzzy_matches_display_name(G, user_group, candidate):
+            return candidate
+
+    return None
+
+
 def evaluer_regles_enregistrement(
     G: nx.DiGraph,
     model_name: str,
@@ -95,7 +205,7 @@ def evaluer_regles_enregistrement(
         return RuleEvaluationResult(
             model_name=model_name,
             user_groups=user_groups,
-            summary_text=f"Model '{model_name}' was not found in the indexed knowledge graph."
+            summary_text=f"Model '{model_name}' {NOT_FOUND_MARKER}."
         )
 
     # Find all rules attached to model that apply to requested permission
@@ -131,33 +241,50 @@ def evaluer_regles_enregistrement(
     for g in list(user_group_set):
         _expand_inheriting_groups(G, g, user_group_set)
 
-    def _group_short_name(xml_id: str) -> str:
-        """Part of a group xml_id after the last '.', used as a tolerant
-        fallback when a full module-qualified id doesn't match exactly."""
-        return xml_id.rsplit(".", 1)[-1]
-
     def _user_belongs_to_rule_group(user_groups_set: set, rule_groups: List[str]) -> bool:
         """
         Tolerant membership check between user-supplied group identifiers
         and a rule's group xml_ids.
 
-        The primary path (exact match on the full xml_id, e.g.
-        "custom_credit_note_visibility_rules.group_avoir_national") is
-        tried first and is what Odoo itself uses. A short-name fallback
-        (matching only the part after the last '.') is applied second,
-        because the LLM populating user_groups_json in its tool call may
-        supply an unqualified group name (e.g. "group_avoir_national")
-        instead of the fully-qualified xml_id -- this caused Q6.1/Q6.2 in
-        the adversarial benchmark to silently misclassify applicable group
-        rules as "ignored (non-member)", inverting the actual access
-        decision even though the AND/OR combination logic itself was
-        correct. See test_group_membership_tolerates_missing_module_prefix.
+        Tried in order, from most to least strict, per plan Bloc 1's rule
+        against reimplementing Odoo's security engine by hand -- this only
+        widens WHICH identifier counts as a match, it never touches the
+        AND/OR combination algorithm itself:
+          1. Exact match on the full xml_id (what Odoo itself uses).
+          2. Short-name match (part after the last '.'), e.g. the LLM
+             supplies "group_avoir_national" instead of the fully-qualified
+             "custom_credit_note_visibility_rules.group_avoir_national".
+          3. Fuzzy match against the group's human-readable display name
+             (e.g. "Avoirs - Visibilite Nationale"), e.g. the LLM supplies
+             a bare business word like "national" extracted straight from
+             the user's question rather than any technical identifier.
+
+        Real bug found via J4 benchmark analysis: the LLM populating
+        user_groups_json in evaluer_regles_enregistrement's tool call
+        supplied ["regional", "national"] verbatim from the question text
+        for Q6.1/Q6.2 -- neither the xml_id nor its short name, just a
+        paraphrase. Step 3 (fuzzy match against the group's display name)
+        is what's needed to catch this specific case; steps 1-2 alone are
+        insufficient. See test_group_membership_fuzzy_matches_display_name.
         """
+        # Step 1: exact match
         if user_groups_set.intersection(rule_groups):
             return True
+
+        # Step 2: short-name match
         short_rule_groups = {_group_short_name(g) for g in rule_groups}
         short_user_groups = {_group_short_name(g) for g in user_groups_set}
-        return bool(short_user_groups.intersection(short_rule_groups))
+        if short_user_groups.intersection(short_rule_groups):
+            return True
+
+        # Step 3: fuzzy match against display name
+        for rule_group in rule_groups:
+            if resolve_group_identifier(G, next(iter(user_groups_set), ""), [rule_group]) or any(
+                _group_fuzzy_matches_display_name(G, ug, rule_group) for ug in user_groups_set
+            ):
+                return True
+
+        return False
 
     for rule in all_rules:
         if not rule.groups:
@@ -273,7 +400,7 @@ def qui_a_acces_a(
         return AccessEvaluationResult(
             model_name=model_name,
             droit_demande=droit,
-            summary_text=f"Model '{model_name}' was not found in the indexed knowledge graph (probable typo or missing model)."
+            summary_text=f"Model '{model_name}' {NOT_FOUND_MARKER} (probable typo or missing model)."
         )
 
     if droit.lower() == "all":
@@ -360,7 +487,7 @@ def impact_changement_champ(
         return FieldImpactResult(
             field_name=field_name,
             model_name=model_name,
-            summary_text=f"Field '{field_name}' on model '{model_name}' was not found in the indexed knowledge graph."
+            summary_text=f"Field '{field_name}' on model '{model_name}' {NOT_FOUND_MARKER}."
         )
 
     f_data = G.nodes[field_node]
@@ -441,7 +568,7 @@ def chemin_execution_bouton(
         return ButtonExecutionPathResult(
             button_identifier=button_label_or_name,
             model_name=model_name,
-            summary_text=f"Model '{model_name}' was not found in the indexed knowledge graph."
+            summary_text=f"Model '{model_name}' {NOT_FOUND_MARKER}."
         )
 
     # Search for TRANSITIONS_VIA edges linked to this model
@@ -555,7 +682,7 @@ def suivre_heritage_complet(
         return InheritanceChainResult(
             model_name=model_name,
             status=QueryStatus.NOT_FOUND,
-            summary_text=f"Model '{model_name}' was not found in the indexed knowledge graph (probable typo or missing model)."
+            summary_text=f"Model '{model_name}' {NOT_FOUND_MARKER} (probable typo or missing model)."
         )
 
     extension_parents: Set[str] = set()
@@ -635,7 +762,7 @@ def quel_est_le_processus_de(
         return WorkflowProcessResult(
             model_name=model_name,
             status=QueryStatus.NOT_FOUND,
-            summary_text=f"Model '{model_name}' was not found in the indexed knowledge graph (probable typo or missing model)."
+            summary_text=f"Model '{model_name}' {NOT_FOUND_MARKER} (probable typo or missing model)."
         )
 
     states: Set[str] = set()
