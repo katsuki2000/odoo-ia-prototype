@@ -148,4 +148,4 @@ langgraph
 langchain
 PyJWT
 rapidfuzz
-
+semgrep

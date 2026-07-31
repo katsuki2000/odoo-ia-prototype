@@ -1,0 +1,12 @@
+rules:
+  - id: odoo-relational-domain-declaration
+    patterns:
+      - pattern-either:
+          - pattern: "$FIELD = fields.Many2one(..., domain=$DOMAIN, ...)"
+          - pattern: "$FIELD = fields.Many2many(..., domain=$DOMAIN, ...)"
+      - pattern-not: "$FIELD = fields.Many2one(..., domain=lambda $SELF: ..., ...)"
+      - pattern-not: "$FIELD = fields.Many2many(..., domain=lambda $SELF: ..., ...)"
+    message: "Odoo relational field '$FIELD' specifies a domain condition: $DOMAIN"
+    severity: INFO
+    languages:
+      - python

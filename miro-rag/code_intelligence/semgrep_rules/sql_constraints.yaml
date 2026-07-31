@@ -1,0 +1,22 @@
+rules:
+  - id: odoo-sql-constraints-declaration
+    languages: [python]
+    severity: INFO
+    message: >
+      Odoo _sql_constraints declaration detected. Extracted as a
+      DB-level constraint source for the Code Intelligence graph
+      (file+line sourcing).
+    patterns:
+      - pattern: _sql_constraints = [...]
+
+    # Portée volontairement limitée à ce stade (J11) :
+    # - matche uniquement l'assignation d'un littéral de liste
+    #   (`_sql_constraints = [(...), (...)]`), forme standard Odoo.
+    # - ne matche PAS une lecture (`self._sql_constraints`), car le
+    #   pattern exige le nom nu `_sql_constraints` à gauche.
+    # - ne matche PAS un nom différent (ex. `_sql_constraints_backup`),
+    #   car le token est comparé exactement.
+    # - ne matche PAS une surcharge dynamique par compréhension /
+    #   concaténation (`[c for c in Model._sql_constraints ...] + [...]`) :
+    #   gap connu et documenté, pas un défaut silencieux — à traiter
+    #   explicitement si le benchmark adversarial en révèle le besoin.
