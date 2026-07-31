@@ -1,0 +1,157 @@
+Groq rate limit hit (attempt 1/5). Headers: {'x-ratelimit-limit-requests': '14400', 'x-ratelimit-limit-tokens': '6000', 'x-ratelimit-remaining-requests': '14400', 'x-ratelimit-remaining-tokens': '536', 'x-ratelimit-reset-requests': '1ms', 'x-ratelimit-reset-tokens': '54.64s'}. Dynamically waiting 55.1s...
+Groq rate limit hit (attempt 1/5). Headers: {'x-ratelimit-limit-requests': '14400', 'x-ratelimit-limit-tokens': '6000', 'x-ratelimit-remaining-requests': '14399', 'x-ratelimit-remaining-tokens': '5203', 'x-ratelimit-reset-requests': '6s', 'x-ratelimit-reset-tokens': '7.97s'}. Dynamically waiting 8.5s...
+Groq rate limit hit (attempt 1/5). Headers: {'x-ratelimit-limit-requests': '14400', 'x-ratelimit-limit-tokens': '6000', 'x-ratelimit-remaining-requests': '14396', 'x-ratelimit-remaining-tokens': '2204', 'x-ratelimit-reset-requests': '24s', 'x-ratelimit-reset-tokens': '37.96s'}. Dynamically waiting 38.5s...
+Groq rate limit hit (attempt 1/5). Headers: {'x-ratelimit-limit-requests': '14400', 'x-ratelimit-limit-tokens': '6000', 'x-ratelimit-remaining-requests': '14397', 'x-ratelimit-remaining-tokens': '4001', 'x-ratelimit-reset-requests': '18s', 'x-ratelimit-reset-tokens': '19.99s'}. Dynamically waiting 20.5s...
+================================================================================
+ CODE INTELLIGENCE — AUTOMATED BENCHMARK RUNNER (SPRINT 2)
+ Target: 9 Adversarial Test Questions
+================================================================================
+
+--------------------------------------------------------------------------------
+[Q1.1] Category: 1. Cascade avoirs (Standard)
+Question: Qui a le droit d'approuver un avoir de 25 000€ pour un client normal (pas VIP) ?
+--------------------------------------------------------------------------------
+Verbatim Response (68.41s):
+En fonction des règles d'enregistrement (ir.rule) pour le modèle 'account.move', il semble que l'utilisateur n'appartient à aucun groupe cible par une règle sur ce modèle. Les seules règles globales s'appliquent, qui ne comportent aucune restriction supplémentaire de montant ou de portée.
+
+Cependant, pour approuver un avoir de 25 000€ pour un client normal (pas VIP), il est nécessaire de vérifier les droits de l'utilisateur. Selon les informations fournies, les utilisateurs suivants ont les droits pour approuver un avoir :
+
+- Manager
+- Accountant
+- Responsable Comptabilité
+- Accountant Manager
+
+Il est donc nécessaire que l'un de ces utilisateurs approuve l'avoir pour un montant de 25 000€.
+
+[Source: Graphe de Connaissances Code Intelligence]
+
+--------------------------------------------------------------------------------
+[Q1.2] Category: 1. Cascade avoirs (VIP)
+Question: Qui a le droit d'approuver un avoir pour un client VIP ?
+--------------------------------------------------------------------------------
+Verbatim Response (20.19s):
+En fonction des règles d'enregistrement (ir.rule) pour 'account.move', il semble que le droit d'approuver un avoir pour un client VIP soit déterminé par les règles globales. 
+
+Cependant, il n'y a pas de règle spécifique mentionnée pour les clients VIP. Les règles globales mentionnées sont :
+
+- Avoirs - cantonnement societe : Cette règle autorise l'utilisateur à approuver les avoirs si le type de mouvement n'est pas un remboursement (out_refund) et si l'utilisateur appartient à la même société que la société du mouvement.
+
+Puisque l'utilisateur est un Vip Manager, il est probable qu'il ait les droits nécessaires pour approuver les avoirs, mais il est recommandé de vérifier les droits spécifiques de l'utilisateur pour confirmer cela.
+
+En résumé, le Vip Manager a probablement le droit d'approuver un avoir pour un client VIP, mais il est recommandé de vérifier les droits spécifiques de l'utilisateur pour confirmer cela.
+
+[Source: Graphe de Connaissances Code Intelligence]
+
+--------------------------------------------------------------------------------
+[Q2.1] Category: 2. Congés (Message d'erreur)
+Question: Pourquoi je n'arrive pas à valider ma demande de congé alors que j'ai coché 'urgente' ?
+--------------------------------------------------------------------------------
+Verbatim Response (12.00s):
+Bonjour,
+
+Je vous ai analysé la situation et je vous propose une explication claire et professionnelle.
+
+Il semble que vous rencontriez un problème lors de la validation de votre demande de congé, même si vous avez coché la case « urgente ». Voici les raisons possibles :
+
+1. **Solde de congé insuffisant** : Votre solde de congé restant est insuffisant pour valider votre demande. Vous devez cocher la case « Demande urgente » pour soumettre votre demande à validation exceptionnelle du N+2.
+2. **Validation par le N+2 ou un responsable RH** : Si votre demande urgente dépasse votre solde de congé, elle doit être validée par le N+2 ou un responsable RH.
+
+Je vous recommande de vérifier votre solde de congé et de contacter votre responsable RH ou le N+2 si nécessaire pour obtenir plus d'informations ou pour valider votre demande.
+
+Cordialement,
+[Votre nom]
+
+[Source: Graphe de Connaissances Code Intelligence]
+
+--------------------------------------------------------------------------------
+[Q3.1] Category: 3. Demande d'achat (Bypass e-mails)
+Question: Qui a le droit d'approuver une demande d'achat de 15 000€ ?
+--------------------------------------------------------------------------------
+Verbatim Response (50.17s):
+En fonction des règles d'enregistrement (ir.rule) pour 'custom.purchase.request', il n'y a aucune règle globale ni de règle de groupe applicable pour l'utilisateur. Par conséquent, il n'y a aucune restriction supplémentaire de montant ou de portée provenant d'une règle de groupe pour cet utilisateur.
+
+Cependant, pour approuver une demande d'achat de 15 000€, il est probablement nécessaire d'avoir accès à un modèle 'purchase.order' qui n'a pas été trouvé dans le graphique de connaissance indexé. Il est possible qu'il y ait une erreur de typographie ou que le modèle soit manquant.
+
+Il est également mentionné que le groupe 'group_manager' ne peut pas être résolu contre aucun groupe avec des règles d'accès en écriture (WRITE rules) ou des ACLs sur 'custom.purchase.request'. Cela ne signifie pas que l'accès est refusé, mais plutôt que l'identifiant du groupe ne peut pas être trouvé. Il est possible de lister les modules impliqués ou de résoudre le nom technique pour trouver l'exacte groupe XML_ID.
+
+[Source: Graphe de Connaissances Code Intelligence]
+
+--------------------------------------------------------------------------------
+[Q4.1] Category: 4. Asset loan (Référence croisée)
+Question: Comment faire une demande de mise à disposition de matériel, et y a-t-il des conditions particulières ?
+--------------------------------------------------------------------------------
+Verbatim Response (11.72s):
+Pour faire une demande de mise à disposition de matériel, vous devez suivre les étapes suivantes :
+
+1. Cliquez sur le bouton "Demande de mise à disposition" sur la vue de formulaire du modèle "custom.asset.loan".
+2. Le système vérifiera si la séparation des rôles est requise, c'est-à-dire si le bénéficiaire du matériel de plus de 2000 euros doit être différent du demandeur initial. Si ce n'est pas le cas, un message d'erreur sera affiché.
+3. Si la demande est validée, vous pourrez procéder à la mise à disposition du matériel.
+
+Il est important de noter que le modèle "custom.asset.loan" n'hérite d'aucun autre modèle et n'a pas de règles de groupe applicables. Par conséquent, aucune restriction supplémentaire de montant ou de portée n'est appliquée.
+
+En outre, le bouton "Demande de mise à disposition" n'a pas de restriction de groupe spécifiée, ce qui signifie que tout utilisateur peut accéder à cette fonctionnalité.
+
+Enfin, le modèle "custom.asset.loan" n'a pas de workflow défini, ce qui signifie que la mise à disposition du matériel ne sera pas suivie d'un processus de workflow spécifique.
+
+[Source: Graphe de Connaissances Code Intelligence]
+
+--------------------------------------------------------------------------------
+[Q5.1] Category: 5. Actions serveur (Data / sudo)
+Question: Est-ce que tous les avoirs fournisseurs passent par les mêmes règles d'approbation ?
+--------------------------------------------------------------------------------
+Groq rate limit hit (attempt 1/5). Headers: {'x-ratelimit-limit-requests': '14400', 'x-ratelimit-limit-tokens': '6000', 'x-ratelimit-remaining-requests': '14398', 'x-ratelimit-remaining-tokens': '4701', 'x-ratelimit-reset-requests': '12s', 'x-ratelimit-reset-tokens': '12.99s'}. Dynamically waiting 13.5s...
+Groq rate limit hit (attempt 1/5). Headers: {'x-ratelimit-limit-requests': '14400', 'x-ratelimit-limit-tokens': '6000', 'x-ratelimit-remaining-requests': '14399', 'x-ratelimit-remaining-tokens': '702', 'x-ratelimit-reset-requests': '6s', 'x-ratelimit-reset-tokens': '52.98s'}. Dynamically waiting 53.5s...
+Verbatim Response (31.90s):
+En réponse à votre question, non, tous les avoirs fournisseurs ne passent pas par les mêmes règles d'approbation. Les règles d'enregistrement (ir.rule) pour le modèle 'account.move' sont les suivantes :
+
+- Les règles globales s'appliquent à tous les avoirs, en particulier la règle de cantonnement sociétal qui s'applique aux avoirs non de type 'out_refund' et qui sont liés à la société de l'utilisateur actuel.
+- Il n'y a pas de règles de groupe applicables à l'utilisateur actuel, car il n'appartient à aucun des groupes ciblés par les règles de groupe.
+- Les règles de groupe ignorées ne s'appliquent pas non plus, car l'utilisateur n'est pas membre des groupes visés.
+
+Par conséquent, les seules règles qui s'appliquent aux avoirs fournisseurs sont les règles globales mentionnées ci-dessus, sans aucune restriction supplémentaire de montant ou de portée provenant d'une règle de groupe.
+
+[Source: Graphe de Connaissances Code Intelligence]
+
+--------------------------------------------------------------------------------
+[Q6.1] Category: 6. ir.rule ET/OU (Deux groupes)
+Question: Un utilisateur membre à la fois du groupe régional et du groupe national peut-il voir un avoir de 80 000€ ?
+--------------------------------------------------------------------------------
+Verbatim Response (140.35s):
+En fonction des règles d'enregistrement (ir.rule) pour 'account.move', un utilisateur membre à la fois du groupe régional et du groupe national peut voir un avoir de 80 000€.
+
+Les règles de groupe applicables sont les suivantes :
+
+- Avoirs - plafond visibilité régionale (50000e) : Cette règle est applicable si le montant total de l'avoir est inférieur ou égal à 50 000€.
+- Avoirs - visibilité nationale (illimitée) : Cette règle est toujours applicable.
+
+Puisque le montant total de l'avoir (80 000€) est supérieur à 50 000€, la règle Avoirs - plafond visibilité régionale (50000e) n'est pas applicable. La règle Avoirs - visibilité nationale (illimitée) est toujours applicable, ce qui signifie que l'utilisateur peut voir l'avoir.
+
+Par conséquent, l'utilisateur membre à la fois du groupe régional et du groupe national peut voir un avoir de 80 000€.
+
+[Source: Graphe de Connaissances Code Intelligence]
+
+--------------------------------------------------------------------------------
+[Q6.2] Category: 6. ir.rule ET/OU (Aucun groupe)
+Question: Un utilisateur qui n'appartient à AUCUN des deux groupes (ni régional, ni national) peut-il voir ce même avoir de 80 000€ ?
+--------------------------------------------------------------------------------
+Verbatim Response (78.56s):
+L'utilisateur qui n'appartient à aucun des deux groupes (ni régional, ni national) peut voir l'avoir de 80 000€, car aucune règle de groupe n'est applicable à cet utilisateur. Seules les règles globales s'appliquent, et il n'y a aucune restriction supplémentaire de montant ou de portée provenant d'une règle de groupe pour cet utilisateur.
+
+[Source: Graphe de Connaissances Code Intelligence]
+
+--------------------------------------------------------------------------------
+[Q9.1] Category: 9. Incertitude (getattr dynamic)
+Question: Qui peut valider une demande de remboursement de frais dans le module custom_expense_reimbursement_indirect ?
+--------------------------------------------------------------------------------
+Verbatim Response (14.37s):
+En fonction des informations disponibles, il semble que les règles d'enregistrement (ir.rule) pour le modèle 'custom.reimbursement.request' ne contiennent aucune règle globale ni de règle de groupe applicable. 
+
+Cela signifie que pour valider une demande de remboursement de frais dans le module custom_expense_reimbursement_indirect, il n'y a pas de restriction supplémentaire de montant ou de portée provenant d'une règle de groupe. 
+
+Par conséquent, la validation de la demande de remboursement de frais dépendrait des règles globales, qui ne sont pas mentionnées dans les informations disponibles. Il est donc recommandé de vérifier les règles globales ou de contacter l'administrateur système pour obtenir plus d'informations sur la procédure de validation.
+
+[Source: Graphe de Connaissances Code Intelligence]
+
+Saved JSON verbatim report to: /home/user/odoo-ia-prototype/todo/verbatim_responses_sprint2.json
+Saved Markdown verbatim report to: /home/user/odoo-ia-prototype/todo/verbatim_responses_sprint2.md
+================================================================================
