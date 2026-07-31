@@ -239,7 +239,7 @@ def evaluer_regles_enregistrement(
 
     user_group_set = set(user_groups)
     for g in list(user_group_set):
-        _expand_inheriting_groups(G, g, user_group_set)
+        _expand_implied_user_groups(G, g, user_group_set)
 
     def _user_belongs_to_rule_group(user_groups_set: set, rule_groups: List[str]) -> bool:
         """
@@ -373,7 +373,7 @@ def _eval_single_droit(G: nx.DiGraph, model_name: str, droit: str, group_id: Opt
                     if acl_edge.get("edge_type") == "APPLIES_TO_GROUP":
                         grp_xml_id = acl_neighbor.replace("group:", "")
                         allowed_groups.add(grp_xml_id)
-                        _expand_inheriting_groups(G, grp_xml_id, allowed_groups)
+                        _expand_inheriting_acl_groups(G, grp_xml_id, allowed_groups)
 
         elif edge_type == "RESTRICTED_BY" and G.nodes[neighbor].get("node_type") == "Rule":
             rule_node = G.nodes[neighbor]
@@ -848,16 +848,46 @@ def quel_est_le_processus_de(
     )
 
 
-def _expand_inheriting_groups(G: nx.DiGraph, parent_group: str, allowed_groups: Set[str]):
-    """Recursively find all child groups that inherit parent_group via IMPLIES edges."""
-    parent_node = f"group:{parent_group}"
-    if parent_node not in G:
+def _expand_implied_user_groups(G: nx.DiGraph, user_group: str, user_group_set: Set[str]):
+    """
+    Recursively add every broader group implied BY user_group (Odoo implied_ids
+    semantics: membership in user_group automatically grants membership in
+    every group it implies, transitively).
+
+    Edge convention in graph_builder.py:
+        specific_group --IMPLIES--> broader_group
+    So the broader groups a user inherits are reached by walking OUTGOING
+    IMPLIES edges from user_group.
+    """
+    group_node = f"group:{user_group}"
+    if group_node not in G:
         return
 
-    # In DiGraph, if Child IMPLIES Parent, edge is Child -> Parent (in_edges of Parent)
-    for child_node, _, edge_data in G.in_edges(parent_node, data=True):
+    for _, broader_node, edge_data in G.out_edges(group_node, data=True):
         if edge_data.get("edge_type") == "IMPLIES":
-            child_group_id = child_node.replace("group:", "")
-            if child_group_id not in allowed_groups:
-                allowed_groups.add(child_group_id)
-                _expand_inheriting_groups(G, child_group_id, allowed_groups)
+            broader_group_id = broader_node.replace("group:", "")
+            if broader_group_id not in user_group_set:
+                user_group_set.add(broader_group_id)
+                _expand_implied_user_groups(G, broader_group_id, user_group_set)
+
+
+def _expand_inheriting_acl_groups(G: nx.DiGraph, acl_group: str, allowed_groups: Set[str]):
+    """
+    Recursively add every higher-privilege group that IMPLIES acl_group.
+
+    Edge convention in graph_builder.py:
+        higher_group --IMPLIES--> acl_group
+    When an ACL grants permission to acl_group, any higher_group that implies
+    acl_group automatically inherits that ACL permission. Reached by walking
+    INCOMING IMPLIES edges to acl_group.
+    """
+    group_node = f"group:{acl_group}"
+    if group_node not in G:
+        return
+
+    for higher_node, _, edge_data in G.in_edges(group_node, data=True):
+        if edge_data.get("edge_type") == "IMPLIES":
+            higher_group_id = higher_node.replace("group:", "")
+            if higher_group_id not in allowed_groups:
+                allowed_groups.add(higher_group_id)
+                _expand_inheriting_acl_groups(G, higher_group_id, allowed_groups)

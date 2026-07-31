@@ -85,16 +85,20 @@ class OdooRpcClient:
         domain: List[Any],
         operation: str = "read",
         limit: Optional[int] = None,
+        context: Optional[Dict[str, Any]] = None,
     ) -> List[int]:
         self._validate_operation(operation)
         self.check_access_rights(uid, model_name, operation)
         kwargs: Dict[str, Any] = {}
         if limit is not None:
             kwargs["limit"] = limit
+        if context is not None:
+            kwargs["context"] = context
         record_ids = list(self.execute_kw(uid, model_name, "search", [domain], kwargs))
         if operation != "read" and record_ids:
             self.check_access_rule(uid, model_name, record_ids, operation)
         return record_ids
+
 
     def check_access_rule(
         self,

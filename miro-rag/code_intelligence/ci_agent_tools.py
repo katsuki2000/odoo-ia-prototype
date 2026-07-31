@@ -17,12 +17,19 @@ from code_intelligence.business_resolver import resolve_business_term
 _logger = logging.getLogger(__name__)
 
 _GRAPH_REF = None
+_LLM_REF = None
 
 
 def set_graph_ref(G):
     """Set global knowledge graph reference for tool wrappers."""
     global _GRAPH_REF
     _GRAPH_REF = G
+
+
+def set_llm_ref(llm):
+    """Set global LLM reference for tool wrappers needing bounded interpretation (J8)."""
+    global _LLM_REF
+    _LLM_REF = llm
 
 
 def _require_graph():
@@ -189,16 +196,21 @@ def evaluer_regles_enregistrement(model_name: str, droit: str = "read", user_gro
     return res.summary_text
 
 
-@tool
-def analyser_actions_serveur(model_name: str) -> str:
-    """Analyze server actions (ir.actions.server) and automated rules (base.automation) for a given model. Detects sudo() calls, hardcoded IDs, and security warnings."""
-    from code_intelligence.server_action_analyzer import analyze_server_action_code
-    G = _require_graph()
-    model_name = _resolve_model_param(model_name)
+def find_server_action_nodes(G, model_name: str) -> list:
+    """
+    Locate ServerAction nodes (ir.actions.server / base.automation, as
+    normalized by graph_builder) targeting the given technical model.
 
+    Extracted as a standalone helper (not inlined in analyser_actions_serveur)
+    so that rag/graph.py's deterministic pre-dispatch guard can check for
+    presence WITHOUT re-implementing the lookup -- two independent
+    implementations of "does this model have server actions" is exactly the
+    kind of duplication that produced the F-08 rule-indexing bug in J7.
+    Returns a list of (node_id, attrs) tuples, empty if none found.
+    """
     model_node = f"model:{model_name}"
     if model_node not in G:
-        return f"Model '{model_name}' was not found in the indexed knowledge graph."
+        return []
 
     sa_nodes = []
     for node, attrs in G.nodes(data=True):
@@ -207,7 +219,23 @@ def analyser_actions_serveur(model_name: str) -> str:
             clean_m = resolve_model_xmlref(target_m)
             if clean_m == model_name or G.has_edge(node, model_node):
                 sa_nodes.append((node, attrs))
+    return sa_nodes
 
+
+@tool
+def analyser_actions_serveur(model_name: str) -> str:
+    """Analyze server actions (ir.actions.server) and automated rules (base.automation) for a given model. Detects sudo() calls, hardcoded IDs, and security warnings."""
+    from code_intelligence.server_action_analyzer import (
+        analyze_server_action_code, interpret_server_action_with_llm,
+    )
+    G = _require_graph()
+    model_name = _resolve_model_param(model_name)
+
+    model_node = f"model:{model_name}"
+    if model_node not in G:
+        return f"Model '{model_name}' was not found in the indexed knowledge graph."
+
+    sa_nodes = find_server_action_nodes(G, model_name)
     if not sa_nodes:
         return f"No server actions (ir.actions.server) found for model '{model_name}'."
 
@@ -216,6 +244,7 @@ def analyser_actions_serveur(model_name: str) -> str:
         xml_id = attrs.get("xml_id", node_id)
         code = attrs.get("code", "")
         analysis = analyze_server_action_code(code, xml_id)
+        analysis = interpret_server_action_with_llm(analysis, code, _LLM_REF)
         summaries.append(analysis.summary_text)
 
     return "\n\n".join(summaries)

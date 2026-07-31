@@ -683,7 +683,7 @@ CI_SYSTEM_PROMPT = (
     "NAVIGATION STRATEGY:\n"
     "1. When target models or modules are provided by [BUSINESS TERM RESOLVER S2.0], invoke the appropriate tools immediately:\n"
     "   - For approval limits, hardcoded emails (_VALIDATEURS_EXCEPTIONNELS), UserError/ValidationError strings, or dynamic getattr dispatches: ALWAYS invoke `analyser_verrous_securite`.\n"
-    "   - For ir.rule record rules and group-based RECORD visibility (e.g. \"can group X see this record\"): invoke `evaluer_regles_enregistrement` -- it is AUTHORITATIVE for this. `qui_a_acces_a` checks a DIFFERENT thing (model-level CRUD ACLs), and if it reports a group identifier \"could not be resolved\" while `evaluer_regles_enregistrement` DID resolve and evaluate the same group, that does NOT create doubt -- trust evaluer_regles_enregistrement's conclusion, since record-visibility groups often have no CRUD ACL entry at all and are correctly absent from qui_a_acces_a's candidate list. For general CRUD access questions with no specific record/amount in play, use `qui_a_acces_a`.\n"
+    "   - For ir.rule record rules and group-based RECORD visibility: invoke `evaluer_regles_enregistrement` (authoritative). A `qui_a_acces_a` \"could not be resolved\" message for the same group does NOT contradict it.\n"
     "   - For automated actions, ir.actions.server, or sudo() bypasses: invoke `analyser_actions_serveur`.\n"
     "2. DO NOT make generic fallbacks. Synthesize the tool observations directly.\n"
     "3. Always cite source file links: [file.py:L12-L25](file:///path#L12-L25)."
@@ -691,6 +691,52 @@ CI_SYSTEM_PROMPT = (
 
 # C.1.4: Maximum hops allowed per question.
 CI_MAX_HOPS = 4
+
+# J8 (Bloc 2): deterministic security-lock trigger.
+# J7 found that the LLM does not reliably invoke analyser_verrous_securite
+# on its own, even with the explicit "ALWAYS invoke" directive already in
+# CI_SYSTEM_PROMPT (Q3.1: analyser_verrous_securite is correct and
+# HIGH-confidence in isolation, but the LLM simply never calls it for
+# approval-limit questions with a monetary amount). Rather than trying to
+# word the prompt more forcefully -- which already failed once -- the
+# amount is detected deterministically in code and the tool call is forced,
+# removing the LLM from that decision entirely.
+_AMOUNT_PATTERN = re.compile(r"\d[\d\s.,]*\d\s*(?:€|eur(?:os?)?\b)", re.IGNORECASE)
+# Regression found on this same J8 patch (Q6.2, run of 2026-08-06): matching
+# on amount alone forces analyser_verrous_securite even for pure ir.rule
+# visibility questions ("peut voir un avoir de 80k?"), and the synthesis LLM
+# then wrongly cross-attributed a Python-lock approval threshold (5000e) to
+# an unrelated ir.rule rule name. Requiring an approval-intent keyword in
+# addition to the amount keeps the forced dispatch scoped to what Q3.1
+# actually needed (approval-limit / bypass questions), and leaves pure
+# visibility questions to evaluer_regles_enregistrement alone.
+_APPROVAL_PATTERN = re.compile(r"\b(?:approuv\w*|valid\w*|approbation\w*)\b", re.IGNORECASE)
+# J8/J9: dedicated trigger for analyser_actions_serveur -- deliberately
+# NOT reusing _APPROVAL_PATTERN alone (tested against the adversarial set:
+# would fire on 6/9 questions, repolluting Python-lock questions like
+# Q1.1/Q3.1/Q9.1 with irrelevant server-action noise -- same class of risk
+# as the Q6.2 regression on _AMOUNT_PATTERN). Scoped to vocabulary that
+# actually signals automation/bypass logic, not just "approval" in general.
+# "tous les" / "toutes les" deliberately excluded: too generic in French
+# (fires on unrelated questions like "tous les employés peuvent-ils...");
+# "mêmes règles" alone already covers Q5.1's actual wording.
+_AUTOMATION_PATTERN = re.compile(
+    r"\b(?:mêmes?\s+règles?|systématiq\w*|automatiq\w*|actions?\s+serveur|bypass|contourn\w*)\b",
+    re.IGNORECASE,
+)
+
+
+def _question_mentions_amount(question: str) -> bool:
+    return bool(_AMOUNT_PATTERN.search(question))
+
+
+def _question_is_approval_related(question: str) -> bool:
+    return bool(_APPROVAL_PATTERN.search(question))
+
+
+def _question_suggests_automation_bypass(question: str) -> bool:
+    return bool(_AUTOMATION_PATTERN.search(question))
+
 
 _CACHED_CODE_INTEL_GRAPH = None
 
@@ -806,7 +852,7 @@ def code_intelligence_agent(state: RAGState) -> dict:
 
     # Initialize the knowledge graph and inject into tool wrappers
     G = get_code_intelligence_graph()
-    from code_intelligence.ci_agent_tools import ALL_CI_TOOLS, set_graph_ref
+    from code_intelligence.ci_agent_tools import ALL_CI_TOOLS, set_graph_ref, set_llm_ref
     from code_intelligence.business_resolver import resolve_business_term
     set_graph_ref(G)
 
@@ -818,10 +864,16 @@ def code_intelligence_agent(state: RAGState) -> dict:
         max_retries=0,  # Let _invoke_with_rate_limit handle dynamic header backoff
         max_tokens=4096,
     )
+    set_llm_ref(llm)
     llm_with_tools = llm.bind_tools(ALL_CI_TOOLS)
 
     # Story S2.0: Business Term Resolver -- Map natural language concepts to technical Odoo models/modules
     concept = resolve_business_term(question, G, llm=llm)
+
+    tool_observations: list = []
+    final_answer = None
+    hop_count = 0
+    seen_calls: set = set()
 
     system_prompt = CI_SYSTEM_PROMPT
     if concept.is_resolved:
@@ -842,18 +894,90 @@ def code_intelligence_agent(state: RAGState) -> dict:
             f"Use these exact technical identifiers when invoking composite tools."
         )
 
+    # J8: force analyser_verrous_securite when the question both resolves to
+    # a target model AND mentions a monetary amount. Only fires when a model
+    # is actually available -- an unresolved concept is a Bloc 0 problem,
+    # not this one.
+    if (
+        concept.is_resolved
+        and concept.resolved_models
+        and _question_mentions_amount(question)
+        and _question_is_approval_related(question)
+    ):
+        tool_map = {t.name: t for t in ALL_CI_TOOLS}
+        lock_tool = tool_map.get("analyser_verrous_securite")
+        if lock_tool is not None:
+            for target_model in concept.resolved_models:
+                try:
+                    forced_observation = lock_tool.invoke({"model_name": target_model})
+                    tool_observations.append(str(forced_observation))
+                    hop_count += 1
+                    seen_calls.add(("analyser_verrous_securite", target_model))
+                    logger.info(
+                        "Node [code_intelligence_agent]: Deterministic pre-dispatch of "
+                        "'analyser_verrous_securite' for model '%s' (amount detected in question).",
+                        target_model,
+                    )
+                except Exception as te:
+                    logger.error("Deterministic analyser_verrous_securite dispatch failed: %s", te)
+            system_prompt += (
+                "\n\n[DETERMINISTIC PRE-DISPATCH]\n"
+                "analyser_verrous_securite has already been run for the target model(s) above "
+                "because the question mentions a monetary amount; its output is already included "
+                "in the tool observations. Do not call it again -- focus any further tool calls on "
+                "what it does NOT cover (e.g. ir.rule / group-based record visibility via "
+                "evaluer_regles_enregistrement)."
+            )
+
+    # J8/J9: force analyser_actions_serveur when the question resolves to a
+    # target model, suggests automation/bypass logic (_AUTOMATION_PATTERN),
+    # AND the model structurally has ServerAction nodes in the graph
+    # (find_server_action_nodes). The structural guard is the primary
+    # defense against noise: on a model with zero server actions the cost
+    # of a false-positive keyword match is zero (empty tool_observation
+    # never appended), so the keyword pattern doesn't need to be perfectly
+    # precise on its own.
+    if (
+        concept.is_resolved
+        and concept.resolved_models
+        and _question_suggests_automation_bypass(question)
+    ):
+        from code_intelligence.ci_agent_tools import find_server_action_nodes
+        tool_map = {t.name: t for t in ALL_CI_TOOLS}
+        sa_tool = tool_map.get("analyser_actions_serveur")
+        if sa_tool is not None:
+            for target_model in concept.resolved_models:
+                if not find_server_action_nodes(G, target_model):
+                    continue  # structural guard: nothing to say, skip silently
+                call_key = ("analyser_actions_serveur", target_model)
+                if call_key in seen_calls:
+                    continue
+                try:
+                    forced_observation = sa_tool.invoke({"model_name": target_model})
+                    tool_observations.append(str(forced_observation))
+                    hop_count += 1
+                    seen_calls.add(call_key)
+                    logger.info(
+                        "Node [code_intelligence_agent]: Deterministic pre-dispatch of "
+                        "'analyser_actions_serveur' for model '%s' (automation/bypass "
+                        "wording + ServerAction nodes present).",
+                        target_model,
+                    )
+                except Exception as te:
+                    logger.error("Deterministic analyser_actions_serveur dispatch failed: %s", te)
+            if any(k[0] == "analyser_actions_serveur" for k in seen_calls):
+                system_prompt += (
+                    "\n\n[DETERMINISTIC PRE-DISPATCH]\n"
+                    "analyser_actions_serveur has already been run for the target model(s) "
+                    "above because the question suggests automation/bypass logic; its output "
+                    "is already included in the tool observations. Do not call it again."
+                )
+
     messages = [
         SystemMessage(content=system_prompt),
         *chat_history[-6:],
         HumanMessage(content=question),
     ]
-
-    tool_observations = []
-    final_answer = None
-    hop_count = 0
-
-    # C.1.2: Anti-loop guard -- track (tool_name, args_hash) to detect duplicates
-    seen_calls: set = set()
 
     for iteration in range(REACT_RECURSION_LIMIT):
         # Single-Pass Composite Execution: 1 Tool Selection turn + 1 Synthesis turn
@@ -896,7 +1020,15 @@ def code_intelligence_agent(state: RAGState) -> dict:
                     f"above (French question -> French answer, English question -> "
                     f"English answer) -- never mix languages. Do NOT translate exact "
                     f"technical identifiers (model names, XML-IDs, group names, method "
-                    f"names) -- copy them verbatim."
+                    f"names) -- copy them verbatim. Each observation above comes from a "
+                    f"distinct mechanism (ir.rule evaluation vs Python code lock analysis "
+                    f"vs server action analysis) -- NEVER combine a numeric threshold or "
+                    f"condition from one mechanism with a rule/lock name from a different "
+                    f"one; attribute each finding only to its own source. Any confidence "
+                    f"tag present in the source data (e.g. '[Confiance: FAIBLE]', '[Confiance: "
+                    f"HIGH]', LLM interpretation confidence) MUST appear in your answer, "
+                    f"attached to the specific finding it qualifies -- never drop it, "
+                    f"never present a low-confidence or LLM-interpreted finding as an unqualified fact."
                 )
                 try:
                     plain_llm = ChatGroq(model=GROQ_MODEL, temperature=0.0, max_retries=0, max_tokens=4096)

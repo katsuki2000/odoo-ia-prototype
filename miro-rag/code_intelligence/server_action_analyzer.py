@@ -12,6 +12,7 @@ All results are tagged with confidence='low' because server action code
 is data-driven (not traditional Python source) and may be modified at runtime.
 """
 
+import json
 import re
 from dataclasses import dataclass, field
 from typing import List, Optional
@@ -34,6 +35,15 @@ class ServerActionCodeAnalysis:
     security_warnings: List[str] = field(default_factory=list)
     confidence: str = "low"
     summary_text: str = ""
+
+    # J8 -- bounded LLM interpretation layer, kept as SEPARATE fields from
+    # the static `confidence` above. Never merge or overwrite the static
+    # value: an LLM misjudging risk (e.g. reporting "high" confidence on
+    # code it actually misunderstood) must never silently replace or hide
+    # the conservative static safety net. None means the LLM pass was
+    # skipped (no warnings to interpret) or failed/was rejected.
+    llm_summary: Optional[str] = None
+    llm_confidence: Optional[str] = None
 
 
 # Regex patterns for security-relevant code constructs
@@ -139,3 +149,122 @@ def analyze_server_action_code(
 
     result.summary_text = "\n".join(lines)
     return result
+
+
+_LLM_CONFIDENCE_CLOSED_SET = {"high", "medium", "low"}
+
+_INTERPRETATION_SYSTEM_PROMPT = (
+    "Tu es un analyste de sécurité pour du code Odoo ir.actions.server (server actions). "
+    "Un premier passage automatique (regex) a déjà détecté des patterns de sécurité dans ce "
+    "code -- ta tâche est UNIQUEMENT d'interpréter et résumer en une phrase ce que fait "
+    "concrètement ce code du point de vue métier/sécurité, et d'indiquer ta confiance dans "
+    "cette interprétation. Réponds STRICTEMENT en JSON, sans aucun texte avant ou après, "
+    'au format exact: {"summary": "...", "confidence": "high"|"medium"|"low"}. '
+    "N'utilise JAMAIS une autre valeur de confidence que high, medium, ou low."
+)
+
+
+def _build_interpretation_prompt(analysis: "ServerActionCodeAnalysis", code: str) -> str:
+    detected = "\n".join(f"- {w}" for w in analysis.security_warnings)
+    return (
+        f"Code de l'action serveur '{analysis.action_xml_id}':\n"
+        f"```python\n{code}\n```\n\n"
+        f"Patterns déjà détectés par analyse statique (regex):\n{detected}\n\n"
+        "Résume en une phrase claire ce que fait ce code du point de vue métier/sécurité, "
+        "et indique ta confiance dans cette interprétation."
+    )
+
+
+def interpret_server_action_with_llm(
+    analysis: "ServerActionCodeAnalysis",
+    code: str,
+    llm,
+) -> "ServerActionCodeAnalysis":
+    """
+    J8: Bounded LLM interpretation layer on top of the existing regex-based
+    static analysis. COMPLEMENTS, never replaces, the static analysis --
+    the static `confidence` field ('low', fixed) and `security_warnings`
+    (regex-detected facts) are returned completely unchanged.
+
+    Only invoked when the static pass already found something worth
+    interpreting (`analysis.security_warnings` non-empty) -- this keeps the
+    LLM call bounded rather than run on every server action unconditionally,
+    per the plan's "lecture LLM bornée" requirement.
+
+    The LLM must respond in a fixed JSON shape with confidence restricted to
+    a closed set {"high", "medium", "low"}; any malformed response, any
+    confidence value outside that set, an LLM call failure, or llm=None all
+    degrade gracefully to leaving llm_summary/llm_confidence as None --
+    never crashes, never guesses, never silently trusts an out-of-spec
+    response (same closed-list discipline as the business term resolver's
+    bounded LLM arbitration).
+
+    Args:
+        analysis: the ServerActionCodeAnalysis already produced by
+            analyze_server_action_code() (static regex pass).
+        code: the raw ir.actions.server code field, passed for the LLM's
+            own reading -- the static analysis alone is a set of detected
+            patterns, not the code itself.
+        llm: a LangChain-compatible chat model already instantiated by the
+            caller, or None to skip the LLM pass entirely.
+
+    Returns:
+        The same ServerActionCodeAnalysis object, with llm_summary and
+        llm_confidence populated if the LLM pass succeeded, left as None
+        otherwise. All other fields are untouched.
+    """
+    if not analysis.security_warnings:
+        return analysis
+
+    if llm is None:
+        return analysis
+
+    try:
+        from langchain_core.messages import SystemMessage, HumanMessage
+
+        prompt = _build_interpretation_prompt(analysis, code)
+        response = llm.invoke([
+            SystemMessage(content=_INTERPRETATION_SYSTEM_PROMPT),
+            HumanMessage(content=prompt),
+        ])
+        raw = (response.content or "").strip()
+    except Exception:
+        _logger.exception(
+            "LLM interpretation call failed for action=%r", analysis.action_xml_id
+        )
+        return analysis
+
+    try:
+        parsed = json.loads(raw)
+    except (json.JSONDecodeError, TypeError):
+        _logger.warning(
+            "LLM interpretation returned non-JSON response for action=%r: %r",
+            analysis.action_xml_id, raw,
+        )
+        return analysis
+
+    if not isinstance(parsed, dict):
+        return analysis
+
+    summary = parsed.get("summary")
+    confidence = parsed.get("confidence")
+
+    if confidence not in _LLM_CONFIDENCE_CLOSED_SET:
+        _logger.warning(
+            "LLM interpretation returned out-of-set confidence for action=%r: %r",
+            analysis.action_xml_id, confidence,
+        )
+        return analysis
+
+    if not summary or not isinstance(summary, str):
+        return analysis
+
+    analysis.llm_summary = summary
+    analysis.llm_confidence = confidence
+
+    analysis.summary_text += (
+        f"\n  -> Interprétation LLM [confiance: {confidence.upper()}, distincte de la "
+        f"confiance statique ci-dessus]: {summary}"
+    )
+
+    return analysis

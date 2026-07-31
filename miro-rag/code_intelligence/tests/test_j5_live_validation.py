@@ -27,6 +27,7 @@ from code_intelligence.xml_extractor import parse_groups_from_xml, parse_ir_rule
 
 pytestmark = pytest.mark.integration
 
+
 TEST_PASSWORD = os.getenv("ODOO_J5_TEST_PASSWORD", "J5TestPassword2026!")
 TEST_USERS = ("test_both_2026", "test_regional_2026", "test_no_group_2026")
 ACCOUNT_MOVE_80K_REFUND_DOMAIN = [
@@ -36,46 +37,7 @@ ACCOUNT_MOVE_80K_REFUND_DOMAIN = [
 
 
 @pytest.fixture(scope="module")
-def live_client() -> OdooRpcClient:
-    client = OdooRpcClient()
-    try:
-        admin_uid = client.authenticate_admin()
-    except Exception as exc:
-        pytest.skip(f"Live Odoo admin authentication is not available: {exc}")
 
-    missing_modules = [
-        module
-        for module in ("custom_credit_note_approval", "custom_credit_note_visibility_rules")
-        if not client.execute_kw(
-            admin_uid,
-            "ir.module.module",
-            "search",
-            [[("name", "=", module), ("state", "=", "installed")]],
-            {"limit": 1},
-        )
-    ]
-    if missing_modules:
-        pytest.skip(f"Required J5 Odoo modules are not installed: {missing_modules}")
-
-    # Intentional test-environment side effect: the J5 live tests authenticate
-    # as the real Odoo users, so their passwords are reset here to one local
-    # test-only value instead of guessing or storing secrets elsewhere.
-    for login in TEST_USERS:
-        client.set_user_password(admin_uid, login, TEST_PASSWORD)
-
-    if not client.execute_kw(
-        admin_uid,
-        "account.move",
-        "search",
-        [ACCOUNT_MOVE_80K_REFUND_DOMAIN],
-        {"limit": 1},
-    ):
-        pytest.skip("No live 80k customer credit note found for J5 visibility validation.")
-
-    return client
-
-
-@pytest.fixture(scope="module")
 def real_security_graph() -> nx.DiGraph:
     addons_root = Path("/home/user/odoo-17.0/addons")
     module_names = ("custom_credit_note_approval", "custom_credit_note_visibility_rules")

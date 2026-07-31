@@ -54,8 +54,7 @@ ADVERSARIAL_MODULE_NAMES = [
 
 
 def run_extraction():
-    root_dir = Path(__file__).resolve().parent.parent
-    addons_dir = root_dir / "odoo17-dev" / "addons"
+    addons_dir = Path("/home/user/odoo-17.0/addons")
 
     print("=" * 80)
     print(" CODE INTELLIGENCE - EXTRACTION PIPELINE (STORY S1.2 / S2.3)")
