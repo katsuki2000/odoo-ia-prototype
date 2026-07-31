@@ -35,14 +35,14 @@ odoo-ia-prototype/
 │
 └── miro-rag/                            # Module principal RAG & Code Intelligence
     ├── rag/
-    │   ├── graph.py                     # Routeur LangGraph, ReAct loop, pre-dispatch J8 & tags
+    │   ├── graph.py                     # Routeur LangGraph, ReAct loop, pre-dispatch J8/J9 & tags
     │   ├── schemas.py                   # Dataclasses de réponses & états RAG
     │   └── search.py                    # Recherche vectorielle
     │
     ├── code_intelligence/               # Cœur déterministe & outils Code Intelligence
     │   ├── deterministic_tools.py       # evaluer_regles_enregistrement & qui_a_acces_a (AND/OR, expansion)
     │   ├── business_resolver.py         # Résolveur nom métier -> nom technique (B0)
-    │   ├── ci_agent_tools.py            # Wrappers LangChain @tool des 9 outils (avec set_llm_ref)
+    │   ├── ci_agent_tools.py            # Wrappers LangChain @tool (find_server_action_nodes, set_llm_ref)
     │   ├── semgrep_locks_analyzer.py    # Analyseur de verrous Python (analyser_verrous_securite)
     │   ├── server_action_analyzer.py    # Analyseur d'actions serveur (interpret_server_action_with_llm)
     │   ├── graph_builder.py             # Construction du graphe NetworkX
@@ -56,11 +56,15 @@ odoo-ia-prototype/
     │       ├── conftest.py              # Fixtures pytest partagées (live_client)
     │       ├── test_j5_live_validation.py
     │       ├── test_j6_context_validation.py
+    │       ├── test_j8_deterministic_dispatch.py # Tests unitaires des déclencheurs déterministes J8
     │       ├── test_s2_0_business_resolver.py
     │       ├── test_s2_1_record_rules.py
     │       ├── test_s2_3_server_actions.py
     │       ├── test_s2_5_semgrep_locks.py
-    │       └── test_j8_llm_server_action_interpretation.py
+    │       └── test_s2_8_fidelity_checker.py
+    │
+    ├── tests/                           # Suite de tests niveau module RAG
+    │   └── test_j8_llm_server_action_interpretation.py # Tests d'interprétation LLM bornée des actions serveur
     │
     ├── ingestion/                       # Ingestion documentaire & indexation
     ├── vectorstore/                     # Stockage ChromaDB local
