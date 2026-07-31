@@ -231,3 +231,88 @@ def test_qui_a_acces_a_reports_unresolved_group_distinctly_from_denied():
     res = qui_a_acces_a(G, "account.move", droit="read", group_id="xyz_totally_unrelated_gibberish")
     assert "could not be resolved" in res.summary_text
     assert "DOES NOT HAVE" not in res.summary_text
+
+
+def test_implied_group_hierarchy_expansion_direction():
+    """
+    Validates that group hierarchy expansion via implied_ids correctly expands
+    user groups along OUTGOING IMPLIES edges (Manager -> User):
+      1. An user with group 'Manager' automatically gets 'User' (broader group).
+      2. A record rule defined for 'User' correctly applies to the 'Manager' user.
+      3. An user with group 'User' does NOT get 'Manager' (no false positive).
+    """
+    G = nx.DiGraph()
+
+    G.add_node("model:account.move", node_type="Model", name="account.move")
+    G.add_node("group:sales_team.group_sale_manager", node_type="Group", name="Sales Manager")
+    G.add_node("group:sales_team.group_sale_salesman", node_type="Group", name="Sales User")
+
+    # Manager --IMPLIES--> User (Manager has implied_ids = [User])
+    G.add_edge("group:sales_team.group_sale_manager", "group:sales_team.group_sale_salesman", edge_type="IMPLIES")
+
+    # Record rule targeted ONLY at 'User'
+    G.add_node(
+        "rule:sale.rule_user_only",
+        node_type="Rule",
+        name="User Only Rule",
+        domain_force="[('user_id', '=', user.id)]",
+        perm_read=True,
+    )
+    G.add_edge("model:account.move", "rule:sale.rule_user_only", edge_type="RESTRICTED_BY")
+    G.add_edge("rule:sale.rule_user_only", "group:sales_team.group_sale_salesman", edge_type="APPLIES_TO_GROUP")
+
+    # Case A: User assigned 'Manager' -> should get 'User' rule applied!
+    res_mgr = evaluer_regles_enregistrement(G, "account.move", user_groups=["sales_team.group_sale_manager"])
+    assert len(res_mgr.applied_group_rules) == 1
+    assert res_mgr.applied_group_rules[0].rule_name == "User Only Rule"
+    assert len(res_mgr.ignored_group_rules) == 0
+
+    # Case B: User assigned 'User' -> does NOT get 'Manager' (no false positive higher privilege)
+    res_usr = evaluer_regles_enregistrement(G, "account.move", user_groups=["sales_team.group_sale_salesman"])
+    assert len(res_usr.applied_group_rules) == 1
+    assert res_usr.applied_group_rules[0].rule_name == "User Only Rule"
+
+
+
+def test_inactive_rule_is_excluded_from_graph():
+    """
+    Regression guard for J7 finding F-06: a rule with active=False in the
+    source XML must not be included in the graph at all, since Odoo itself
+    disables it -- evaluer_regles_enregistrement must never see it, let
+    alone apply it as a phantom restriction.
+    """
+    import sys
+    sys.path.insert(0, '.')
+    from code_intelligence.graph_builder import OdooGraphBuilder
+    from code_intelligence.cross_file_resolver import ResolvedSymbolRegistry
+
+    class _FakeRule:
+        def __init__(self, xml_id, active):
+            self.xml_id = xml_id
+            self.name = "Fake Inactive Rule"
+            self.domain_force = "[(1, '=', 1)]"
+            self.filepath = "fake.xml"
+            self.lineno = 1
+            self.perm_read = True
+            self.perm_write = True
+            self.perm_create = True
+            self.perm_unlink = True
+            self.model_id = ""
+            self.groups_id = []
+            self.active = active
+
+    registry = ResolvedSymbolRegistry()
+    active_rule = _FakeRule("test_mod.rule_active", active=True)
+    inactive_rule = _FakeRule("test_mod.rule_inactive", active=False)
+    registry.rules["test_mod.rule_active"] = active_rule
+    registry.rules["rule_active"] = active_rule
+    registry.rules["test_mod.rule_inactive"] = inactive_rule
+    registry.rules["rule_inactive"] = inactive_rule
+
+    builder = OdooGraphBuilder(registry, {})
+    G = builder.build_graph()
+
+    assert "rule:test_mod.rule_active" in G
+    assert "rule:test_mod.rule_inactive" not in G, (
+        "A rule with active=False must be excluded from the graph entirely."
+    )

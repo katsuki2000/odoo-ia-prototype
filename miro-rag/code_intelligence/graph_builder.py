@@ -215,7 +215,25 @@ class OdooGraphBuilder:
                 self.G.add_edge(grp_node_id, parent_node_id, edge_type="IMPLIES")
 
         # 2. Rules & Model RESTRICTED_BY Rule -> Rule APPLIES_TO_GROUP Group
+        # Bloc 1 J7 finding F-08: registry.rules indexes each rule under BOTH
+        # its full xml_id and its short xml_id (both keys pointing to the
+        # SAME rule object -- see cross_file_resolver.build_module_symbol_registry).
+        # Iterating .items() naively therefore builds TWO graph nodes per rule,
+        # and the short-key duplicate has no '.' in it, so mod_prefix below
+        # silently fell back to the hardcoded literal "base" instead of the
+        # rule's real module -- producing a hallucinated group reference like
+        # "group:base.group_avoir_regional" that does not exist. Skipping
+        # entries without a '.' is safe: a fully-qualified key is guaranteed
+        # to exist for every rule by construction.
         for full_xml_id, rule in self.registry.rules.items():
+            if "." not in full_xml_id:
+                continue
+            # Bloc 1 J7 finding F-06: a rule with active=False in Odoo is
+            # disabled and must not restrict access. Without this check it
+            # was silently included in the graph and evaluated as active by
+            # evaluer_regles_enregistrement, producing a phantom restriction.
+            if not getattr(rule, "active", True):
+                continue
             rule_node_id = f"rule:{full_xml_id}"
             self.G.add_node(
                 rule_node_id,
