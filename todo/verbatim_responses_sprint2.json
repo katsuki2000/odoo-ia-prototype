@@ -8,7 +8,7 @@
     "sources": [
       "Code Intelligence Graph"
     ],
-    "elapsed_seconds": 86.25
+    "elapsed_seconds": 86.21
   },
   {
     "id": "Q1.2",
@@ -20,7 +20,7 @@
       "Code Intelligence Graph",
       "Code Intelligence Graph"
     ],
-    "elapsed_seconds": 112.33
+    "elapsed_seconds": 112.36
   },
   {
     "id": "Q2.1",
@@ -37,7 +37,7 @@
       "Code Intelligence Graph",
       "Code Intelligence Graph"
     ],
-    "elapsed_seconds": 11.86
+    "elapsed_seconds": 11.47
   },
   {
     "id": "Q3.1",
@@ -54,7 +54,7 @@
       "Code Intelligence Graph",
       "Code Intelligence Graph"
     ],
-    "elapsed_seconds": 50.91
+    "elapsed_seconds": 11.55
   },
   {
     "id": "Q4.1",
@@ -77,20 +77,20 @@
       "Code Intelligence Graph",
       "Code Intelligence Graph"
     ],
-    "elapsed_seconds": 58.42
+    "elapsed_seconds": 11.6
   },
   {
     "id": "Q5.1",
     "category": "5. Actions serveur (Data / sudo)",
     "question": "Est-ce que tous les avoirs fournisseurs passent par les mêmes règles d'approbation ?",
     "expected": "NON: fournisseurs ID 42, 108, 231 auto-validés via ir.actions.server avec sudo() contournant les règles standard.",
-    "verbatim": "En réponse à votre question, il semble que les avoirs fournisseurs ne passent pas par les mêmes règles d'approbation. \n\nD'une part, l'analyse du code de l'action serveur 'custom_automation_traps.ir_action_server_avoir_fournisseur_privilegie' [Confiance: FAIBLE - logique en données XML, modifiable à l'exécution] révèle que cet action serveur automatise la validation d'avoirs reçus de trois fournisseurs spécifiques, en contournant les règles d'accès et les ACL via sudo(). \n\nD'autre part, l'évaluation des règles d'enregistrement (ir.rule) pour 'account.move' montre que seules les règles globales s'appliquent, sans aucune règle de groupe applicable pour l'utilisateur en question. \n\nCela suggère que les avoirs fournisseurs sont traités de manière spécifique, en contournant les règles d'accès et les ACL, tandis que les autres avoirs sont soumis aux règles globales et de groupe. \n\nIl est donc important de prendre en compte ces différences dans la gestion des avoirs fournisseurs pour garantir une approbation appropriée et sécurisée.\n\n[Source: Graphe de Connaissances Code Intelligence]",
+    "verbatim": "En réponse à votre question, il semble que les avoirs fournisseurs ne passent pas par les mêmes règles d'approbation. \n\nD'une part, l'analyse du code de l'action serveur 'custom_automation_traps.ir_action_server_avoir_fournisseur_privilegie' [Confiance: FAIBLE - logique en données XML, modifiable à l'exécution] et 'ir_action_server_avoir_fournisseur_privilegie' [Confiance: FAIBLE - logique en données XML, modifiable à l'exécution] révèle que ces actions utilisent des IDs en dur [42, 108, 231] qui correspondent à un traitement privilégié non documenté.\n\nD'autre part, l'évaluation des règles d'enregistrement (ir.rule) pour 'account.move' montre que les règles de groupe applicables sont absentes, car l'utilisateur n'appartient à aucun des groupes visés. Seules les règles globales s'appliquent, qui ne comportent aucune restriction supplémentaire de montant ou de portée.\n\nEnfin, l'analyse du code Python de l'action serveur 'custom_automation_traps.ir_action_server_avoir_fournisseur_privilegie' [Confiance: FAIBLE - logique en données XML, modifiable à l'exécution] révèle que le SUDO est détecté, ce qui implique un contournement des droits d'accès via sudo().\n\nEn conclusion, les avoirs fournisseurs semblent être soumis à des règles d'approbation différentes, qui incluent des traitements privilégiés non documentés, des règles globales sans restrictions supplémentaires et un contournement des droits d'accès via sudo().\n\n[Source: Graphe de Connaissances Code Intelligence]",
     "sources": [
       "Code Intelligence Graph",
       "Code Intelligence Graph",
       "Code Intelligence Graph"
     ],
-    "elapsed_seconds": 60.98
+    "elapsed_seconds": 63.46
   },
   {
     "id": "Q6.1",
@@ -105,7 +105,7 @@
       "Code Intelligence Graph",
       "Code Intelligence Graph"
     ],
-    "elapsed_seconds": 11.64
+    "elapsed_seconds": 88.46
   },
   {
     "id": "Q6.2",
@@ -118,7 +118,7 @@
       "Code Intelligence Graph",
       "Code Intelligence Graph"
     ],
-    "elapsed_seconds": 11.25
+    "elapsed_seconds": 59.79
   },
   {
     "id": "Q9.1",
@@ -130,6 +130,6 @@
       "Code Intelligence Graph",
       "Code Intelligence Graph"
     ],
-    "elapsed_seconds": 57.71
+    "elapsed_seconds": 11.17
   }
 ]

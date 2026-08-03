@@ -719,7 +719,10 @@ _AMOUNT_PATTERN = re.compile(r"\d[\d\s.,]*\d\s*(?:€|eur(?:os?)?\b)", re.IGNORE
 # addition to the amount keeps the forced dispatch scoped to what Q3.1
 # actually needed (approval-limit / bypass questions), and leaves pure
 # visibility questions to evaluer_regles_enregistrement alone.
-_APPROVAL_PATTERN = re.compile(r"\b(?:approuv\w*|valid\w*|approbation\w*)\b", re.IGNORECASE)
+_APPROVAL_PATTERN = re.compile(
+    r"\b(?:approuv\w*|valid\w*|approbation\w*|droit\w*|exig\w*|condition\w*|rembourse\w*)\b",
+    re.IGNORECASE,
+)
 # J8/J9: dedicated trigger for analyser_actions_serveur -- deliberately
 # NOT reusing _APPROVAL_PATTERN alone (tested against the adversarial set:
 # would fire on 6/9 questions, repolluting Python-lock questions like
@@ -931,14 +934,13 @@ def code_intelligence_agent(state: RAGState) -> dict:
             f"Use these exact technical identifiers when invoking composite tools."
         )
 
-    # J8: force analyser_verrous_securite when the question both resolves to
-    # a target model AND mentions a monetary amount. Only fires when a model
-    # is actually available -- an unresolved concept is a Bloc 0 problem,
-    # not this one.
+    # J8/J15: force analyser_verrous_securite when the question resolves to
+    # a target model AND is approval/security/condition related. Only fires
+    # when a model is actually available -- an unresolved concept is a Bloc 0
+    # problem, not this one.
     if (
         concept.is_resolved
         and concept.resolved_models
-        and _question_mentions_amount(question)
         and _question_is_approval_related(question)
     ):
         tool_map = {t.name: t for t in ALL_CI_TOOLS}
@@ -946,13 +948,15 @@ def code_intelligence_agent(state: RAGState) -> dict:
         if lock_tool is not None:
             for target_model in concept.resolved_models:
                 try:
-                    forced_observation = lock_tool.invoke({"model_name": target_model})
-                    tool_observations.append(str(forced_observation))
+                    forced_observation = str(lock_tool.invoke({"model_name": target_model}))
+                    if len(forced_observation) > 3000:
+                        forced_observation = forced_observation[:3000] + "\n[... Content truncated for LLM context limit ...]"
+                    tool_observations.append(forced_observation)
                     hop_count += 1
                     seen_calls.add(("analyser_verrous_securite", target_model))
                     logger.info(
                         "Node [code_intelligence_agent]: Deterministic pre-dispatch of "
-                        "'analyser_verrous_securite' for model '%s' (amount detected in question).",
+                        "'analyser_verrous_securite' for model '%s' (approval/security wording detected).",
                         target_model,
                     )
                 except Exception as te:
@@ -960,7 +964,7 @@ def code_intelligence_agent(state: RAGState) -> dict:
             system_prompt += (
                 "\n\n[DETERMINISTIC PRE-DISPATCH]\n"
                 "analyser_verrous_securite has already been run for the target model(s) above "
-                "because the question mentions a monetary amount; its output is already included "
+                "because the question is approval/security-related; its output is already included "
                 "in the tool observations. Do not call it again -- focus any further tool calls on "
                 "what it does NOT cover (e.g. ir.rule / group-based record visibility via "
                 "evaluer_regles_enregistrement)."
@@ -990,8 +994,10 @@ def code_intelligence_agent(state: RAGState) -> dict:
                 if call_key in seen_calls:
                     continue
                 try:
-                    forced_observation = sa_tool.invoke({"model_name": target_model})
-                    tool_observations.append(str(forced_observation))
+                    forced_observation = str(sa_tool.invoke({"model_name": target_model}))
+                    if len(forced_observation) > 3000:
+                        forced_observation = forced_observation[:3000] + "\n[... Content truncated for LLM context limit ...]"
+                    tool_observations.append(forced_observation)
                     hop_count += 1
                     seen_calls.add(call_key)
                     logger.info(
@@ -1037,8 +1043,10 @@ def code_intelligence_agent(state: RAGState) -> dict:
                 tool_map = {t.name: t for t in ALL_CI_TOOLS}
                 if tool_name in tool_map:
                     try:
-                        observation = tool_map[tool_name].invoke(tool_args)
-                        tool_observations.append(str(observation))
+                        observation = str(tool_map[tool_name].invoke(tool_args))
+                        if len(observation) > 3000:
+                            observation = observation[:3000] + "\n[... Content truncated for LLM context limit ...]"
+                        tool_observations.append(observation)
                         hop_count += 1
 
                         # J14 fix (Q6.1 regression):

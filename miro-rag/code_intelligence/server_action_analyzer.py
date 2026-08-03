@@ -228,9 +228,9 @@ def interpret_server_action_with_llm(
             HumanMessage(content=prompt),
         ])
         raw = (response.content or "").strip()
-    except Exception:
-        _logger.exception(
-            "LLM interpretation call failed for action=%r", analysis.action_xml_id
+    except Exception as e:
+        _logger.warning(
+            "LLM interpretation call failed for action=%r: %s", analysis.action_xml_id, e
         )
         return analysis
 

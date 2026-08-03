@@ -1,6 +1,6 @@
 # Rapport Verbatim — Test Adversarial (Sprint 2 / End-to-End Benchmark)
 
-**Date d'exécution :** 2026-08-03 14:01:04
+**Date d'exécution :** 2026-08-03 14:25:10
 
 **Objectif :** Poser les questions test du README à l'agent Code Intelligence et mesurer les réponses verbatim après résolution des verrous Sprint 2.
 
@@ -12,7 +12,7 @@
 **Vérité Terrain attendue :**
 > Niveau 1: Groupe account.group_account_manager (>5000€). Niveau 2: Directeur régional (N+2) notifié (>20000€, code Python). Risque: N+2 non géré si vide.
 
-**Réponse Verbatim de l'agent (86.25s) :**
+**Réponse Verbatim de l'agent (86.21s) :**
 ```text
 Qui a le droit d'approuver un avoir de 25 000€ pour un client normal (pas VIP) ?
 
@@ -34,7 +34,7 @@ Ainsi, seul un responsable comptable peut valider un avoir de plus de 5000€.
 **Vérité Terrain attendue :**
 > Bypass total pour avoir_vip_exempt = True. Piège: super().action_valider_avoir() rappelé sur tout le recordset à la fin.
 
-**Réponse Verbatim de l'agent (112.33s) :**
+**Réponse Verbatim de l'agent (112.36s) :**
 ```text
 En fonction des règles d'enregistrement (ir.rule) pour 'account.move', nous pouvons conclure que :
 
@@ -55,7 +55,7 @@ En conséquence, il semble que l'utilisateur n'a pas de restriction supplémenta
 **Vérité Terrain attendue :**
 > Message d'erreur exact: 'Une demande urgente dépassant le solde doit être validée par le N+2 ou un responsable RH.'
 
-**Réponse Verbatim de l'agent (11.86s) :**
+**Réponse Verbatim de l'agent (11.47s) :**
 ```text
 Réponse claire et professionnelle :
 
@@ -84,7 +84,7 @@ En résumé, il semble que le problème soit lié au solde de congés restant in
 **Vérité Terrain attendue :**
 > Le groupe purchase_manager ne suffit pas >10000€. Seuls logins dans _VALIDATEURS_EXCEPTIONNELS (direction@societe.com, daf@societe.com) peuvent valider.
 
-**Réponse Verbatim de l'agent (50.91s) :**
+**Réponse Verbatim de l'agent (11.55s) :**
 ```text
 En fonction des informations disponibles, voici la réponse :
 
@@ -107,7 +107,7 @@ En résumé, seuls les utilisateurs avec les emails privilégés en dur 'directi
 **Vérité Terrain attendue :**
 > Nécessite demande_achat_liee_id. Si >2000€, bénéficiaire != demandeur (séparation des rôles).
 
-**Réponse Verbatim de l'agent (58.42s) :**
+**Réponse Verbatim de l'agent (11.6s) :**
 ```text
 Pour faire une demande de mise à disposition de matériel, vous devez suivre les étapes suivantes :
 
@@ -129,17 +129,17 @@ Il est également important de noter que le modèle 'custom.asset.loan' n'hérit
 **Vérité Terrain attendue :**
 > NON: fournisseurs ID 42, 108, 231 auto-validés via ir.actions.server avec sudo() contournant les règles standard.
 
-**Réponse Verbatim de l'agent (60.98s) :**
+**Réponse Verbatim de l'agent (63.46s) :**
 ```text
 En réponse à votre question, il semble que les avoirs fournisseurs ne passent pas par les mêmes règles d'approbation. 
 
-D'une part, l'analyse du code de l'action serveur 'custom_automation_traps.ir_action_server_avoir_fournisseur_privilegie' [Confiance: FAIBLE - logique en données XML, modifiable à l'exécution] révèle que cet action serveur automatise la validation d'avoirs reçus de trois fournisseurs spécifiques, en contournant les règles d'accès et les ACL via sudo(). 
+D'une part, l'analyse du code de l'action serveur 'custom_automation_traps.ir_action_server_avoir_fournisseur_privilegie' [Confiance: FAIBLE - logique en données XML, modifiable à l'exécution] et 'ir_action_server_avoir_fournisseur_privilegie' [Confiance: FAIBLE - logique en données XML, modifiable à l'exécution] révèle que ces actions utilisent des IDs en dur [42, 108, 231] qui correspondent à un traitement privilégié non documenté.
 
-D'autre part, l'évaluation des règles d'enregistrement (ir.rule) pour 'account.move' montre que seules les règles globales s'appliquent, sans aucune règle de groupe applicable pour l'utilisateur en question. 
+D'autre part, l'évaluation des règles d'enregistrement (ir.rule) pour 'account.move' montre que les règles de groupe applicables sont absentes, car l'utilisateur n'appartient à aucun des groupes visés. Seules les règles globales s'appliquent, qui ne comportent aucune restriction supplémentaire de montant ou de portée.
 
-Cela suggère que les avoirs fournisseurs sont traités de manière spécifique, en contournant les règles d'accès et les ACL, tandis que les autres avoirs sont soumis aux règles globales et de groupe. 
+Enfin, l'analyse du code Python de l'action serveur 'custom_automation_traps.ir_action_server_avoir_fournisseur_privilegie' [Confiance: FAIBLE - logique en données XML, modifiable à l'exécution] révèle que le SUDO est détecté, ce qui implique un contournement des droits d'accès via sudo().
 
-Il est donc important de prendre en compte ces différences dans la gestion des avoirs fournisseurs pour garantir une approbation appropriée et sécurisée.
+En conclusion, les avoirs fournisseurs semblent être soumis à des règles d'approbation différentes, qui incluent des traitements privilégiés non documentés, des règles globales sans restrictions supplémentaires et un contournement des droits d'accès via sudo().
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```
@@ -152,7 +152,7 @@ Il est donc important de prendre en compte ces différences dans la gestion des 
 **Vérité Terrain attendue :**
 > OUI: Règles de groupe en OU. La règle nationale (illimitée) l'emporte sur le plafond 50k€ régional.
 
-**Réponse Verbatim de l'agent (11.64s) :**
+**Réponse Verbatim de l'agent (88.46s) :**
 ```text
 L'utilisateur membre à la fois du groupe régional et du groupe national peut voir un avoir de 80 000€.
 
@@ -188,7 +188,7 @@ Note : La synthèse des observations est basée sur les résultats de l'évaluat
 **Vérité Terrain attendue :**
 > OUI: Ni l'une ni l'autre règle ne s'applique. Soumis uniquement à la règle globale (société) sans limite de montant.
 
-**Réponse Verbatim de l'agent (11.25s) :**
+**Réponse Verbatim de l'agent (59.79s) :**
 ```text
 L'utilisateur qui n'appartient à AUCUN des deux groupes (ni régional, ni national) peut voir cet avoir de 80 000€. 
 
@@ -207,7 +207,7 @@ De plus, la méthode can_view_amount() a retourné True pour un montant de 80 00
 **Vérité Terrain attendue :**
 > Point de contrôle dynamique (getattr/_g_q7) repéré dans action_valider mais NON CLASSIFIÉ avec certitude. Proposer pour revue manuelle avec source fichier+ligne.
 
-**Réponse Verbatim de l'agent (57.71s) :**
+**Réponse Verbatim de l'agent (11.17s) :**
 ```text
 En fonction des informations disponibles, il semble que les règles d'enregistrement (ir.rule) pour le modèle 'custom.reimbursement.request' n'aient pas de règles globales applicables. De plus, l'utilisateur n'appartient à aucun groupe cible par une règle sur ce modèle, ce qui signifie qu'il n'y a pas de règles de groupe applicables.
 
