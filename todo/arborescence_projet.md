@@ -46,6 +46,7 @@ odoo-ia-prototype/
     │   ├── ci_agent_tools.py            # Wrappers LangChain @tool (find_server_action_nodes, set_llm_ref)
     │   ├── semgrep_locks_analyzer.py    # Analyseur de verrous Python (analyser_verrous_securite)
     │   ├── server_action_analyzer.py    # Analyseur d'actions serveur (interpret_server_action_with_llm)
+    │   ├── sourcing_guard.py            # Contrôleur mécanique de sûreté de sourcing (Bloc 4 / J14)
     │   ├── semgrep_runner.py            # Runner Semgrep subprocess --json & slicing lignes/fichiers (J12)
     │   ├── semgrep_rules/               # Dossier des règles Semgrep & fixtures TDD (Bloc 3)
     │   │   ├── sql_constraints.yaml     # Règle Semgrep odoo-sql-constraints-declaration (J11)
@@ -65,6 +66,7 @@ odoo-ia-prototype/
     │       ├── test_j6_context_validation.py
     │       ├── test_j8_deterministic_dispatch.py # Tests unitaires des déclencheurs déterministes J8
     │       ├── test_semgrep_runner.py   # Tests unitaires du runner Semgrep (J12)
+    │       ├── test_j14_sourcing_guard.py # Tests unitaires du contrôleur de sûreté de sourcing (J14)
     │       ├── test_s2_0_business_resolver.py
     │       ├── test_s2_1_record_rules.py
     │       ├── test_s2_3_server_actions.py
