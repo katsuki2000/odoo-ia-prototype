@@ -196,6 +196,41 @@ def evaluer_regles_enregistrement(model_name: str, droit: str = "read", user_gro
     return res.summary_text
 
 
+def find_model_source_filepaths(G, model_name: str) -> set:
+    """
+    Locate Python source filepaths linked to the given technical model
+    (via HAS_FIELD edges or Method nodes), independently of what the
+    caller does with them.
+
+    Extracted from analyser_verrous_securite's original inline logic so
+    that a second consumer (analyser_contraintes_donnees, J13-bis) doesn't
+    reimplement the same lookup a second time -- two independent copies of
+    "which files belong to this model" is exactly the kind of duplication
+    that produced the F-08 rule-indexing bug in J7.
+    """
+    model_node = f"model:{model_name}"
+    if model_node not in G:
+        return set()
+
+    filepaths = set(G.nodes[model_node].get("filepaths", []))
+    if filepaths:
+        return filepaths
+
+    for u, v, attrs in G.edges(data=True):
+        if attrs.get("edge_type") == "HAS_FIELD" and u == model_node:
+            f_path = G.nodes[v].get("filepath", "")
+            if f_path:
+                filepaths.add(f_path)
+
+    for node, attrs in G.nodes(data=True):
+        if attrs.get("node_type") == "Method" and attrs.get("model") == model_name:
+            f_path = attrs.get("filepath", "")
+            if f_path:
+                filepaths.add(f_path)
+
+    return filepaths
+
+
 def find_server_action_nodes(G, model_name: str) -> list:
     """
     Locate ServerAction nodes (ir.actions.server / base.automation, as
@@ -262,21 +297,7 @@ def analyser_verrous_securite(model_name: str) -> str:
     if model_node not in G:
         return f"Model '{model_name}' was not found in the indexed knowledge graph."
 
-    # Find source filepaths linked to this model
-    filepaths = set(G.nodes[model_node].get("filepaths", []))
-
-    if not filepaths:
-        for u, v, attrs in G.edges(data=True):
-            if attrs.get("edge_type") == "HAS_FIELD" and u == model_node:
-                f_path = G.nodes[v].get("filepath", "")
-                if f_path:
-                    filepaths.add(f_path)
-
-        for node, attrs in G.nodes(data=True):
-            if attrs.get("node_type") == "Method" and attrs.get("model") == model_name:
-                f_path = attrs.get("filepath", "")
-                if f_path:
-                    filepaths.add(f_path)
+    filepaths = find_model_source_filepaths(G, model_name)
 
     if not filepaths:
         return f"No Python source files located for model '{model_name}'."
@@ -292,6 +313,53 @@ def analyser_verrous_securite(model_name: str) -> str:
     return "\n\n".join(summaries) if summaries else f"No security analysis results for model '{model_name}'."
 
 
+@tool
+def analyser_contraintes_donnees(model_name: str) -> str:
+    """Detect _sql_constraints declarations and relational field domain= conditions
+    (Many2one/Many2many) for a given model via static Semgrep analysis. Deterministic
+    pattern matching, not LLM interpretation -- high confidence."""
+    from pathlib import Path
+    from code_intelligence.semgrep_runner import run_semgrep_analysis
+    from code_intelligence.utils import format_file_link
+
+    G = _require_graph()
+    model_name = _resolve_model_param(model_name)
+    model_node = f"model:{model_name}"
+    if model_node not in G:
+        return f"Model '{model_name}' was not found in the indexed knowledge graph."
+
+    filepaths = find_model_source_filepaths(G, model_name)
+    if not filepaths:
+        return f"No Python source files located for model '{model_name}'."
+
+    config_dir = Path(__file__).resolve().parent / "semgrep_rules"
+    all_matches = []
+    for fp in sorted(filepaths):
+        p = Path(fp)
+        if not p.exists():
+            continue
+        all_matches.extend(run_semgrep_analysis(p, config_dir))
+
+    if not all_matches:
+        return (
+            f"No _sql_constraints or relational domain= patterns detected for "
+            f"model '{model_name}' [Confiance: HIGH -- static pattern match, "
+            f"deterministic]."
+        )
+
+    lines = [
+        f"Analyse des contraintes de données (Semgrep) pour '{model_name}' "
+        f"[Confiance: HIGH -- correspondance de motif statique, déterministe]:"
+    ]
+    for match in all_matches:
+        link = format_file_link(match.filepath, match.start_line, match.end_line)
+        lines.append(f"  - {link} ({match.check_id}): {match.message}")
+        if match.lines:
+            lines.append(f"    ```\n    {match.lines}\n    ```")
+
+    return "\n".join(lines)
+
+
 # =====================================================================
 # TOOL REGISTRY
 # =====================================================================
@@ -302,6 +370,7 @@ ALL_CI_TOOLS = [
     evaluer_regles_enregistrement,
     analyser_actions_serveur,
     analyser_verrous_securite,
+    analyser_contraintes_donnees,
     impact_changement_champ,
     chemin_execution_bouton,
     suivre_heritage_complet,

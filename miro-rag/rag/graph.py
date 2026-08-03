@@ -685,6 +685,7 @@ CI_SYSTEM_PROMPT = (
     "   - For approval limits, hardcoded emails (_VALIDATEURS_EXCEPTIONNELS), UserError/ValidationError strings, or dynamic getattr dispatches: ALWAYS invoke `analyser_verrous_securite`.\n"
     "   - For ir.rule record rules and group-based RECORD visibility: invoke `evaluer_regles_enregistrement` (authoritative). A `qui_a_acces_a` \"could not be resolved\" message for the same group does NOT contradict it.\n"
     "   - For automated actions, ir.actions.server, or sudo() bypasses: invoke `analyser_actions_serveur`.\n"
+    "   - For SQL uniqueness constraints (_sql_constraints) or relational field domain= filters (Many2one/Many2many): invoke `analyser_contraintes_donnees`.\n"
     "2. DO NOT make generic fallbacks. Synthesize the tool observations directly.\n"
     "3. Always cite source file links: [file.py:L12-L25](file:///path#L12-L25).\n"
     "4. When citing a rule, group, or action by its Odoo technical identifier as a "
