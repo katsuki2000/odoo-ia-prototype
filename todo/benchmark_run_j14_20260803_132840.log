@@ -1,0 +1,207 @@
+Groq rate limit hit (attempt 1/5). Headers: {'x-ratelimit-limit-requests': '14400', 'x-ratelimit-limit-tokens': '6000', 'x-ratelimit-remaining-requests': '14400', 'x-ratelimit-remaining-tokens': '6000', 'x-ratelimit-reset-requests': '1ms', 'x-ratelimit-reset-tokens': '1ms'}. Dynamically waiting 5.5s...
+Groq rate limit hit (attempt 2/5). Headers: {'x-ratelimit-limit-requests': '14400', 'x-ratelimit-limit-tokens': '6000', 'x-ratelimit-remaining-requests': '14400', 'x-ratelimit-remaining-tokens': '6000', 'x-ratelimit-reset-requests': '1ms', 'x-ratelimit-reset-tokens': '1ms'}. Dynamically waiting 10.5s...
+Groq rate limit hit (attempt 3/5). Headers: {'x-ratelimit-limit-requests': '14400', 'x-ratelimit-limit-tokens': '6000', 'x-ratelimit-remaining-requests': '14400', 'x-ratelimit-remaining-tokens': '6000', 'x-ratelimit-reset-requests': '1ms', 'x-ratelimit-reset-tokens': '1ms'}. Dynamically waiting 20.5s...
+Groq rate limit hit (attempt 4/5). Headers: {'x-ratelimit-limit-requests': '14400', 'x-ratelimit-limit-tokens': '6000', 'x-ratelimit-remaining-requests': '14400', 'x-ratelimit-remaining-tokens': '6000', 'x-ratelimit-reset-requests': '1ms', 'x-ratelimit-reset-tokens': '1ms'}. Dynamically waiting 40.5s...
+LLM tool selection failed: Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kwh6tbbrf21a22rgs04pwnn1` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 6071, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}
+Node [code_intelligence_agent]: Unverified citations -- SourcingVerificationResult(unverified_scoped_citations=[], bare_file_links=['home/user/odoo-17.0/addons/custom_credit_note_approval/models/account_move.py'], unverified_xml_ids=[])
+Groq rate limit hit (attempt 1/5). Headers: {'x-ratelimit-limit-requests': '14400', 'x-ratelimit-limit-tokens': '6000', 'x-ratelimit-remaining-requests': '14399', 'x-ratelimit-remaining-tokens': '1517', 'x-ratelimit-reset-requests': '6s', 'x-ratelimit-reset-tokens': '44.83s'}. Dynamically waiting 45.3s...
+Groq rate limit hit (attempt 1/5). Headers: {'x-ratelimit-limit-requests': '14400', 'x-ratelimit-limit-tokens': '6000', 'x-ratelimit-remaining-requests': '14399', 'x-ratelimit-remaining-tokens': '532', 'x-ratelimit-reset-requests': '6s', 'x-ratelimit-reset-tokens': '54.68s'}. Dynamically waiting 55.2s...
+Groq rate limit hit (attempt 1/5). Headers: {'x-ratelimit-limit-requests': '14400', 'x-ratelimit-limit-tokens': '6000', 'x-ratelimit-remaining-requests': '14396', 'x-ratelimit-remaining-tokens': '1761', 'x-ratelimit-reset-requests': '24s', 'x-ratelimit-reset-tokens': '42.39s'}. Dynamically waiting 42.9s...
+Node [code_intelligence_agent]: Unverified citations -- SourcingVerificationResult(unverified_scoped_citations=[], bare_file_links=['home/user/odoo-17.0/addons/custom_asset_loan/models/asset_loan.py'], unverified_xml_ids=[])
+LLM interpretation call failed for action='ir_action_server_avoir_fournisseur_privilegie'
+Traceback (most recent call last):
+  File "/home/user/odoo-ia-prototype/miro-rag/code_intelligence/server_action_analyzer.py", line 226, in interpret_server_action_with_llm
+    response = llm.invoke([
+               ^^^^^^^^^^^^
+  File "/home/user/odoo-ia-prototype/.venv/lib/python3.11/site-packages/langchain_core/language_models/chat_models.py", line 476, in invoke
+    self.generate_prompt(
+  File "/home/user/odoo-ia-prototype/.venv/lib/python3.11/site-packages/langchain_core/language_models/chat_models.py", line 1849, in generate_prompt
+    return self.generate(prompt_messages, stop=stop, callbacks=callbacks, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/odoo-ia-prototype/.venv/lib/python3.11/site-packages/langchain_core/language_models/chat_models.py", line 1656, in generate
+    self._generate_with_cache(
+  File "/home/user/odoo-ia-prototype/.venv/lib/python3.11/site-packages/langchain_core/language_models/chat_models.py", line 1994, in _generate_with_cache
+    result = self._generate(
+             ^^^^^^^^^^^^^^^
+  File "/home/user/odoo-ia-prototype/.venv/lib/python3.11/site-packages/langchain_groq/chat_models.py", line 627, in _generate
+    response = self.client.create(messages=message_dicts, **params)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/odoo-ia-prototype/.venv/lib/python3.11/site-packages/groq/resources/chat/completions.py", line 461, in create
+    return self._post(
+           ^^^^^^^^^^^
+  File "/home/user/odoo-ia-prototype/.venv/lib/python3.11/site-packages/groq/_base_client.py", line 1242, in post
+    return cast(ResponseT, self.request(cast_to, opts, stream=stream, stream_cls=stream_cls))
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/odoo-ia-prototype/.venv/lib/python3.11/site-packages/groq/_base_client.py", line 1044, in request
+    raise self._make_status_error_from_response(err.response) from None
+groq.RateLimitError: Error code: 429 - {'error': {'message': 'Rate limit reached for model `llama-3.1-8b-instant` in organization `org_01kwh6tbbrf21a22rgs04pwnn1` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Used 3489, Requested 4631. Please try again in 21.2s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}
+Groq rate limit hit (attempt 1/5). Headers: {'x-ratelimit-limit-requests': '14400', 'x-ratelimit-limit-tokens': '6000', 'x-ratelimit-remaining-requests': '14397', 'x-ratelimit-remaining-tokens': '2964', 'x-ratelimit-reset-requests': '18s', 'x-ratelimit-reset-tokens': '30.36s'}. Dynamically waiting 30.9s...
+================================================================================
+ CODE INTELLIGENCE — AUTOMATED BENCHMARK RUNNER (SPRINT 2)
+ Target: 9 Adversarial Test Questions
+================================================================================
+
+--------------------------------------------------------------------------------
+[Q1.1] Category: 1. Cascade avoirs (Standard)
+Question: Qui a le droit d'approuver un avoir de 25 000€ pour un client normal (pas VIP) ?
+--------------------------------------------------------------------------------
+Verbatim Response (86.09s):
+Qui a le droit d'approuver un avoir de 25 000€ pour un client normal (pas VIP) ?
+
+Analyse des verrous Python ([account_move.py](file:///home/user/odoo-17.0/addons/custom_credit_note_approval/models/account_move.py)) [Confiance: HIGH] :
+- Messages de verrous (UserError/ValidationError) : "Seul un responsable comptable peut valider un avoir de plus de 5000€."
+
+Ainsi, seul un responsable comptable peut valider un avoir de plus de 5000€.
+
+⚠️ SOURCING NON VÉRIFIÉ (J14): lien(s) fichier sans plage de lignes (non vérifiable mécaniquement): home/user/odoo-17.0/addons/custom_credit_note_approval/models/account_move.py. Ne pas considérer ces éléments comme confirmés pour cette question.
+
+[Source: Graphe de Connaissances Code Intelligence]
+
+--------------------------------------------------------------------------------
+[Q1.2] Category: 1. Cascade avoirs (VIP)
+Question: Qui a le droit d'approuver un avoir pour un client VIP ?
+--------------------------------------------------------------------------------
+Verbatim Response (112.41s):
+En fonction des règles d'enregistrement (ir.rule) pour 'account.move', nous constatons que :
+
+- Les règles globales s'appliquent, notamment la règle 'Avoirs - cantonnement societe' qui autorise l'enregistrement d'un avoir pour un client VIP si l'utilisateur appartient à la même société que le client.
+- Il n'y a aucune règle de groupe applicable pour cet utilisateur, car il n'appartient à aucun groupe cible par une règle sur ce modèle.
+- Le groupe 'client_vip_manager' n'a pas pu être résolu contre aucun groupe avec des règles d'écriture ou des ACLs sur 'account.move'. Cela ne signifie pas que l'accès est refusé, mais plutôt que l'identifiant du groupe n'a pas pu être trouvé.
+
+En conclusion, en fonction des règles d'enregistrement, l'utilisateur a le droit d'approuver un avoir pour un client VIP si l'utilisateur appartient à la même société que le client.
+
+[Source: Graphe de Connaissances Code Intelligence]
+
+--------------------------------------------------------------------------------
+[Q2.1] Category: 2. Congés (Message d'erreur)
+Question: Pourquoi je n'arrive pas à valider ma demande de congé alors que j'ai coché 'urgente' ?
+--------------------------------------------------------------------------------
+Verbatim Response (11.91s):
+Réponse claire et professionnelle :
+
+Je comprends que vous rencontrez des difficultés pour valider votre demande de congé malgré avoir coché la case « urgente ». 
+
+Analyse des verrous Python (hr_leave.py) [Confiance: HIGH] :
+- Les messages de verrous indiquent que le solde de congés restant est insuffisant. Vous pouvez essayer de valider votre demande en cochant la case « urgente » pour une validation exceptionnelle du N+2.
+
+Évaluation des règles d'enregistrement (ir.rule) pour 'hr.leave' :
+- Aucune règle globale n'est applicable.
+- Aucune règle de groupe n'est applicable pour l'utilisateur en question.
+
+Analyse des verrous Python (hr_leave.py) [Confiance: HIGH] :
+- Les messages de verrous indiquent que le solde de congés restant est insuffisant. Vous pouvez essayer de valider votre demande en cochant la case « urgente » pour une validation exceptionnelle du N+2.
+
+En résumé, il semble que le problème soit lié au solde de congés restant insuffisant. Vous pouvez essayer de valider votre demande en cochant la case « urgente » pour une validation exceptionnelle du N+2.
+
+[Source: Graphe de Connaissances Code Intelligence]
+
+--------------------------------------------------------------------------------
+[Q3.1] Category: 3. Demande d'achat (Bypass e-mails)
+Question: Qui a le droit d'approuver une demande d'achat de 15 000€ ?
+--------------------------------------------------------------------------------
+Verbatim Response (11.29s):
+En fonction des informations disponibles, voici la réponse :
+
+Selon l'analyse des verrous Python, seuls les utilisateurs avec les logins/emails privilégés en dur 'direction@societe.com' ou 'daf@societe.com' ont le droit d'approuver une demande d'achat de 15 000€.
+
+Cela signifie que les utilisateurs avec ces logins/emails peuvent valider la demande d'achat, tandis que les autres utilisateurs ne peuvent pas.
+
+Il n'y a pas d'autres restrictions ou règles qui s'appliquent à cette demande d'achat en fonction des règles d'enregistrement (ir.rule) ou des modules impliqués.
+
+[Source: Graphe de Connaissances Code Intelligence]
+
+--------------------------------------------------------------------------------
+[Q4.1] Category: 4. Asset loan (Référence croisée)
+Question: Comment faire une demande de mise à disposition de matériel, et y a-t-il des conditions particulières ?
+--------------------------------------------------------------------------------
+Verbatim Response (55.09s):
+Pour faire une demande de mise à disposition de matériel, vous devez suivre les étapes suivantes :
+
+1. Cliquez sur le bouton 'demande_mise_disposition' sur la vue de formulaire de 'custom.asset.loan'.
+2. Le bouton 'demande_mise_disposition' appelle la méthode Python 'action_demande_mise_disposition()'.
+3. La méthode 'action_demande_mise_disposition()' exécute la logique de la demande sans transition d'état.
+
+Il n'y a pas de conditions particulières pour faire une demande de mise à disposition de matériel, mais il est important de noter que :
+
+- La séparation des rôles est requise : le bénéficiaire d'un matériel de plus de 2000 euros doit être différent du demandeur initial. (Analyse des verrous Python [asset_loan.py](file:///home/user/odoo-17.0/addons/custom_asset_loan/models/asset_loan.py) [Confiance: HIGH])
+- Il n'y a pas de règles de groupe applicables pour cet utilisateur. (Évaluation des règles d'enregistrement (ir.rule) pour 'custom.asset.loan')
+- Il n'y a pas de restrictions supplémentaires de montant ou de portée provenant d'une règle de groupe pour cet utilisateur. (Évaluation des règles d'enregistrement (ir.rule) pour 'custom.asset.loan')
+- Il n'y a pas de workflow d'état défini pour le modèle 'custom.asset.loan'. (Model 'custom.asset.loan' exists in the index but does not inherit from any other models.)
+- Le champ 'state' n'existe pas dans le modèle 'custom.asset.loan'. (Field 'state' on model 'custom.asset.loan' was not found in the indexed knowledge graph.)
+
+⚠️ SOURCING NON VÉRIFIÉ (J14): lien(s) fichier sans plage de lignes (non vérifiable mécaniquement): home/user/odoo-17.0/addons/custom_asset_loan/models/asset_loan.py. Ne pas considérer ces éléments comme confirmés pour cette question.
+
+[Source: Graphe de Connaissances Code Intelligence]
+
+--------------------------------------------------------------------------------
+[Q5.1] Category: 5. Actions serveur (Data / sudo)
+Question: Est-ce que tous les avoirs fournisseurs passent par les mêmes règles d'approbation ?
+--------------------------------------------------------------------------------
+Groq rate limit hit (attempt 1/5). Headers: {'x-ratelimit-limit-requests': '14400', 'x-ratelimit-limit-tokens': '6000', 'x-ratelimit-remaining-requests': '14398', 'x-ratelimit-remaining-tokens': '3806', 'x-ratelimit-reset-requests': '12s', 'x-ratelimit-reset-tokens': '21.939s'}. Dynamically waiting 22.4s...
+Groq rate limit hit (attempt 1/5). Headers: {'x-ratelimit-limit-requests': '14400', 'x-ratelimit-limit-tokens': '6000', 'x-ratelimit-remaining-requests': '14400', 'x-ratelimit-remaining-tokens': '571', 'x-ratelimit-reset-requests': '1ms', 'x-ratelimit-reset-tokens': '54.29s'}. Dynamically waiting 54.8s...
+Verbatim Response (42.56s):
+En réponse à votre question, les avoirs fournisseurs ne passent pas tous par les mêmes règles d'approbation. 
+
+Analyse du code de l'action serveur 'custom_automation_traps.ir_action_server_avoir_fournisseur_privilegie' [Confiance: FAIBLE - logique en données XML, modifiable à l'exécution] :
+- SUDO détecté : Contournement des droits d'accès via sudo()
+- IDs en dur : [42, 108, 231] → traitement privilégié non documenté
+
+Cet action serveur automatise la validation d'avoirs reçus de trois fournisseurs spécifiques, en contournant les règles d'accès et les ACL via sudo(), ce qui suggère que ces avoirs sont traités différemment des autres.
+
+Évaluation des règles d'enregistrement (ir.rule) pour 'account.move' :
+- Règles Globales (ET pour tous) : Avoirs - cantonnement societe (regle globale, sans groupe) [['|', ('move_type', '!=', 'out_refund'), ('company_id', '=', user.company_id.id)]]
+- Règles de Groupe applicables : Aucune (l'utilisateur n'appartient à aucun des groupes visés)
+- Règles de Groupe ignorées (non-membre) : Avoirs - visibilite par departement (sauf managers), Avoirs - plafond visibilite regionale (50000e), Avoirs - visibilite nationale (illimitee)
+
+La conclusion est que seule la règle globale s'applique, sans aucune restriction supplémentaire de montant ou de portée provenant d'une règle de groupe pour cet utilisateur.
+
+Modules implicated for model 'account.move' :
+
+Ainsi, il est clair que les avoirs fournisseurs ne passent pas tous par les mêmes règles d'approbation, car certains sont traités différemment en raison de l'utilisation de sudo() et d'autres règles spécifiques.
+
+[Source: Graphe de Connaissances Code Intelligence]
+
+--------------------------------------------------------------------------------
+[Q6.1] Category: 6. ir.rule ET/OU (Deux groupes)
+Question: Un utilisateur membre à la fois du groupe régional et du groupe national peut-il voir un avoir de 80 000€ ?
+--------------------------------------------------------------------------------
+Verbatim Response (89.79s):
+L'utilisateur membre à la fois du groupe régional et du groupe national peut-il voir un avoir de 80 000€ ?
+
+Évaluation des règles d'enregistrement (ir.rule) pour 'account.move' :
+- Règles Globales (ET pour tous) : Avoirs - cantonnement societe (regle globale, sans groupe) [['|', ('move_type', '!=', 'out_refund'), ('company_id', '=', user.company_id.id)]]
+- Règles de Groupe applicables (combinées en OU) : Avoirs - plafond visibilite regionale (50000e) [['|', ('move_type', '!=', 'out_refund'), ('amount_total', '<=', 50000)]], Avoirs - visibilite nationale (illimitee) [[(1, '=', 1)]]
+- Règles de Groupe ignorées (non-membre) : Avoirs - visibilite par departement (sauf managers)
+-> CONCLUSION : Au moins une regle de groupe applicable restreint potentiellement l'acces -- se referer aux domain_force ci-dessus pour les conditions exactes (combinees en OU entre elles, puis en ET avec les regles globales).
+
+Puisque l'utilisateur est membre du groupe régional, la règle Avoirs - plafond visibilite regionale (50000e) s'applique. Cette règle impose un plafond de 50 000€ pour la visibilité des avoirs. Puisque l'import de l'avoir est de 80 000€, ce plafond est dépassé.
+
+Par conséquent, l'utilisateur ne peut pas voir l'avoir de 80 000€ en raison de la règle Avoirs - plafond visibilite regionale (50000e).
+
+[Source: Graphe de Connaissances Code Intelligence]
+
+--------------------------------------------------------------------------------
+[Q6.2] Category: 6. ir.rule ET/OU (Aucun groupe)
+Question: Un utilisateur qui n'appartient à AUCUN des deux groupes (ni régional, ni national) peut-il voir ce même avoir de 80 000€ ?
+--------------------------------------------------------------------------------
+Verbatim Response (11.13s):
+En réponse à votre question, l'utilisateur qui n'appartient à AUCUN des deux groupes (ni régional, ni national) peut voir l'avoir de 80 000€. 
+
+Cette conclusion est basée sur l'évaluation des règles d'enregistrement (ir.rule) pour le modèle 'account.move', qui n'a pas trouvé d'application de règles de groupe pour cet utilisateur. Les seules règles globales s'appliquant à cet utilisateur ne comportent aucune restriction supplémentaire de montant ou de portée.
+
+[Source: Graphe de Connaissances Code Intelligence]
+
+--------------------------------------------------------------------------------
+[Q9.1] Category: 9. Incertitude (getattr dynamic)
+Question: Qui peut valider une demande de remboursement de frais dans le module custom_expense_reimbursement_indirect ?
+--------------------------------------------------------------------------------
+Verbatim Response (11.10s):
+En fonction des informations disponibles, il semble que les règles d'enregistrement (ir.rule) pour le modèle 'custom.reimbursement.request' n'aient pas de règles globales applicables. De plus, l'utilisateur n'appartient à aucun groupe cible par une règle sur ce modèle, ce qui signifie qu'il n'y a pas de règles de groupe applicables.
+
+Par conséquent, pour valider une demande de remboursement de frais dans le module custom_expense_reimbursement_indirect, il n'y a pas de restriction supplémentaire de montant ou de portée provenant d'une règle de groupe pour cet utilisateur.
+
+[Source: Graphe de Connaissances Code Intelligence]
+
+Saved JSON verbatim report to: /home/user/odoo-ia-prototype/todo/verbatim_responses_sprint2.json
+Saved Markdown verbatim report to: /home/user/odoo-ia-prototype/todo/verbatim_responses_sprint2.md
+================================================================================

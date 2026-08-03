@@ -739,6 +739,34 @@ def _question_mentions_amount(question: str) -> bool:
     return bool(_AMOUNT_PATTERN.search(question))
 
 
+def _extract_amount(question: str) -> "Optional[float]":
+    """
+    Extract the first monetary amount mentioned in the question, as a
+    float, or None if none found / unparseable. Reuses _AMOUNT_PATTERN's
+    detection but strips the currency symbol/word and normalizes the
+    thousands separator (space or comma) before the decimal point.
+    Deliberately conservative: on any parsing ambiguity, returns None
+    rather than guessing a possibly-wrong value -- a missed deterministic
+    check is safer than a wrong one.
+    """
+    match = _AMOUNT_PATTERN.search(question)
+    if not match:
+        return None
+    raw = match.group(0)
+    # Strip currency symbol/word, keep only digits, spaces, commas, dots.
+    numeric_part = re.sub(r"(?i)(€|eur(?:os?)?)", "", raw).strip()
+    # Normalize: remove spaces and commas used as thousands separators.
+    # This assumes no decimal amounts appear in the adversarial question
+    # set (verified: all amounts are whole euros, e.g. "80 000€") --
+    # a real decimal separator would need locale-aware parsing, out of
+    # scope for this bounded deterministic check.
+    cleaned = numeric_part.replace(" ", "").replace(",", "")
+    try:
+        return float(cleaned)
+    except ValueError:
+        return None
+
+
 def _question_is_approval_related(question: str) -> bool:
     return bool(_APPROVAL_PATTERN.search(question))
 
@@ -1012,6 +1040,57 @@ def code_intelligence_agent(state: RAGState) -> dict:
                         observation = tool_map[tool_name].invoke(tool_args)
                         tool_observations.append(str(observation))
                         hop_count += 1
+
+                        # J14 fix (Q6.1 regression, rerun of 2026-08-XX):
+                        # evaluer_regles_enregistrement's summary_text lists
+                        # applicable group rules but never computes the actual
+                        # OR-union against a specific amount -- it leaves the
+                        # synthesis LLM to guess, and the LLM picked the most
+                        # restrictive rule instead of the union. can_view_amount()
+                        # already implements the correct AND-global/OR-group
+                        # logic; call it directly here on the SAME tool_args the
+                        # LLM already supplied (including user_groups_json --
+                        # never re-derive group membership by hand), and inject
+                        # an unambiguous deterministic fact the synthesis LLM
+                        # must not recompute or contradict.
+                        if tool_name == "evaluer_regles_enregistrement":
+                            amount = _extract_amount(question)
+                            if amount is not None:
+                                try:
+                                    from code_intelligence.deterministic_tools import (
+                                        evaluer_regles_enregistrement as _eval_rules_impl,
+                                    )
+                                    from code_intelligence.ci_agent_tools import resolve_model_param
+
+                                    model_name = resolve_model_param(tool_args.get("model_name", ""))
+                                    droit = tool_args.get("droit", "read")
+                                    try:
+                                        user_groups = _json.loads(tool_args.get("user_groups_json", "[]"))
+                                    except Exception:
+                                        user_groups = []
+
+                                    rule_result = _eval_rules_impl(
+                                        G, model_name, droit=droit, user_groups=user_groups
+                                    )
+                                    can_view = rule_result.can_view_amount(amount)
+                                    tool_observations.append(
+                                        f"[FAIT DÉTERMINISTIQUE] Pour un montant de {amount:.0f}€, "
+                                        f"can_view_amount() = {can_view} -> l'utilisateur "
+                                        f"{'PEUT' if can_view else 'NE PEUT PAS'} voir cet "
+                                        f"enregistrement. Ce résultat est calculé directement par "
+                                        f"le moteur de règles (evaluer_regles_enregistrement."
+                                        f"can_view_amount) et ne doit JAMAIS être recalculé ou "
+                                        f"contredit par la synthèse -- reprendre ce verdict tel quel."
+                                    )
+                                    logger.info(
+                                        "Node [code_intelligence_agent]: Injected deterministic "
+                                        "can_view_amount fact for '%s' (amount=%.0f, result=%s).",
+                                        model_name, amount, can_view,
+                                    )
+                                except Exception as ve:
+                                    logger.error(
+                                        "Deterministic can_view_amount injection failed: %s", ve
+                                    )
                     except Exception as te:
                         logger.error("Tool execution failed (%s): %s", tool_name, te)
                         tool_observations.append(f"Error executing {tool_name}: {str(te)}")

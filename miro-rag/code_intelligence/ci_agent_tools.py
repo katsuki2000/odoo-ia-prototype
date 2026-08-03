@@ -81,6 +81,9 @@ def _resolve_model_param(model_name: str) -> str:
     return model_name
 
 
+resolve_model_param = _resolve_model_param
+
+
 # =====================================================================
 # COMPOSITE TOOLS (B.1.1 - B.1.5)
 # =====================================================================

@@ -4,60 +4,69 @@
     "category": "1. Cascade avoirs (Standard)",
     "question": "Qui a le droit d'approuver un avoir de 25 000€ pour un client normal (pas VIP) ?",
     "expected": "Niveau 1: Groupe account.group_account_manager (>5000€). Niveau 2: Directeur régional (N+2) notifié (>20000€, code Python). Risque: N+2 non géré si vide.",
-    "verbatim": "En fonction des analyses effectuées, il semble que le droit d'approuver un avoir de 25 000€ pour un client normal (pas VIP) soit déterminé par la présence d'un verrou spécifique dans le module `custom_credit_note_approval`. Ce verrou est défini dans le fichier `account_move.py` (file:///home/user/odoo-17.0/addons/custom_credit_note_approval/models/account_move.py#L12-L25) et indique que \"Seul un responsable comptable peut valider un avoir de plus de 5000€.\".\n\nAinsi, en fonction de cette analyse, seul un responsable comptable a le droit d'approuver un avoir de 25 000€ pour un client normal (pas VIP) [Confiance: HIGH].\n\n⚠️ SOURCING NON VÉRIFIÉ (J14): citation(s) fichier non retrouvée(s) dans les données produites: home/user/odoo-17.0/addons/custom_credit_note_approval/models/account_move.py#L12-L25. Ne pas considérer ces éléments comme confirmés pour cette question.\n\n[Source: Graphe de Connaissances Code Intelligence]",
+    "verbatim": "Qui a le droit d'approuver un avoir de 25 000€ pour un client normal (pas VIP) ?\n\nAnalyse des verrous Python ([account_move.py](file:///home/user/odoo-17.0/addons/custom_credit_note_approval/models/account_move.py)) [Confiance: HIGH] :\n- Messages de verrous (UserError/ValidationError) : \"Seul un responsable comptable peut valider un avoir de plus de 5000€.\"\n\nAinsi, seul un responsable comptable peut valider un avoir de plus de 5000€.\n\n⚠️ SOURCING NON VÉRIFIÉ (J14): lien(s) fichier sans plage de lignes (non vérifiable mécaniquement): home/user/odoo-17.0/addons/custom_credit_note_approval/models/account_move.py. Ne pas considérer ces éléments comme confirmés pour cette question.\n\n[Source: Graphe de Connaissances Code Intelligence]",
     "sources": [
       "Code Intelligence Graph"
     ],
-    "elapsed_seconds": 86.45
+    "elapsed_seconds": 86.09
   },
   {
     "id": "Q1.2",
     "category": "1. Cascade avoirs (VIP)",
     "question": "Qui a le droit d'approuver un avoir pour un client VIP ?",
     "expected": "Bypass total pour avoir_vip_exempt = True. Piège: super().action_valider_avoir() rappelé sur tout le recordset à la fin.",
-    "verbatim": "En réponse à votre question, il semble que les règles d'enregistrement (ir.rule) pour le modèle 'account.move' ne contiennent aucune restriction supplémentaire de montant ou de portée provenant d'une règle de groupe pour l'utilisateur en question. [Confiance: FAIBLE]\n\nCependant, il est important de noter que l'utilisateur n'appartient à aucun groupe cible par une règle sur ce modèle, ce qui signifie que seules les règles globales s'appliquent. [Confiance: FAIBLE]\n\nEn outre, lors de l'analyse des groupes, il n'a pas été possible de résoudre l'identifiant 'client_vip' contre n'importe quel groupe avec des règles d'écriture ou des ACLs sur le modèle 'account.move'. [Confiance: FAIBLE]\n\nIl est donc impossible de déterminer avec certitude qui a le droit d'approuver un avoir pour un client VIP en fonction des informations fournies. [Confiance: FAIBLE]\n\nCependant, il est possible que les règles globales s'appliquent, comme indiqué ci-dessus. [Confiance: FAIBLE]\n\nRéférence : \n- ir.rule évaluation pour 'account.move' : \n  - Règles Globales (ET pour tous) : Avoirs - cantonnement societe (regle globale, sans groupe) [['|', ('move_type', '!=', 'out_refund'), ('company_id', '=', user.company_id.id)]] \n  - Règles de Groupe applicables : Aucune (l'utilisateur n'appartient à aucun des groupes visés)\n  - Règles de Groupe ignorées (non-membre) : Avoirs - visibilite par departement (sauf managers), Avoirs - plafond visibilite regionale (50000e), Avoirs - visibilite nationale (illimitee)\n  -> CONCLUSION : Aucune regle de groupe applicable (l'utilisateur n'appartient a aucun groupe cible par une regle sur ce modele). Seules les regles globales ci-dessus s'appliquent -- il n'y a AUCUNE restriction supplementaire de montant ou de portee provenant d'une regle de groupe pour cet utilisateur.\n- Analyse des groupes : \n  - Group identifier 'client_vip' could not be resolved against any group with WRITE rules or ACLs on 'account.move'. This does NOT mean access is denied -- it means the identifier itself could not be matched. Try lister_modules_impliques or resoudre_nom_technique to find the exact group xml_id.\n\n[Source: Graphe de Connaissances Code Intelligence]",
+    "verbatim": "En fonction des règles d'enregistrement (ir.rule) pour 'account.move', nous constatons que :\n\n- Les règles globales s'appliquent, notamment la règle 'Avoirs - cantonnement societe' qui autorise l'enregistrement d'un avoir pour un client VIP si l'utilisateur appartient à la même société que le client.\n- Il n'y a aucune règle de groupe applicable pour cet utilisateur, car il n'appartient à aucun groupe cible par une règle sur ce modèle.\n- Le groupe 'client_vip_manager' n'a pas pu être résolu contre aucun groupe avec des règles d'écriture ou des ACLs sur 'account.move'. Cela ne signifie pas que l'accès est refusé, mais plutôt que l'identifiant du groupe n'a pas pu être trouvé.\n\nEn conclusion, en fonction des règles d'enregistrement, l'utilisateur a le droit d'approuver un avoir pour un client VIP si l'utilisateur appartient à la même société que le client.\n\n[Source: Graphe de Connaissances Code Intelligence]",
     "sources": [
       "Code Intelligence Graph",
       "Code Intelligence Graph"
     ],
-    "elapsed_seconds": 91.05
+    "elapsed_seconds": 112.41
   },
   {
     "id": "Q2.1",
     "category": "2. Congés (Message d'erreur)",
     "question": "Pourquoi je n'arrive pas à valider ma demande de congé alors que j'ai coché 'urgente' ?",
     "expected": "Message d'erreur exact: 'Une demande urgente dépassant le solde doit être validée par le N+2 ou un responsable RH.'",
-    "verbatim": "Réponse :\n\nJe comprends que vous rencontrez des difficultés pour valider votre demande de congé malgré avoir coché 'urgente'. Voici quelques observations qui pourraient expliquer ce problème :\n\n1. **Analyse des verrous Python** : [hr_leave.py](file:///home/user/odoo-17.0/addons/custom_hr_leave_workflow/models/hr_leave.py) [Confiance: HIGH] : Il semble que vous ayez atteint votre solde de congés restant. Le système vous avertit que vous devez cocher 'Demande urgente' pour soumettre une demande exceptionnelle de validation du N+2. Cependant, même avec 'urgente' cochée, vous devez avoir suffisamment de congés restants pour valider votre demande.\n\n2. **Évaluation des règles d'enregistrement (ir.rule)** : Aucune règle de groupe applicable [Confiance: MÉDI] : Vous n'appartenez à aucun groupe cible par une règle sur le modèle 'hr.leave'. Les règles globales ne sont pas applicables dans ce cas.\n\n3. **Model 'hr.leave' [WRITE]** : Aucune règle de groupe applicable [Confiance: MÉDI] : Comme mentionné précédemment, vous n'appartenez à aucun groupe cible par une règle sur le modèle 'hr.leave'.\n\n4. **Erreur de fichier** : File 'hr/models/hr_leave.py' does not exist [Confiance: ÉLEVÉ] : Il semble qu'il y ait une erreur de fichier liée au modèle 'hr_leave.py'. Cependant, cela n'affecte pas directement votre demande de congé.\n\nEn résumé, il semble que vous ayez atteint votre solde de congés restant, ce qui empêche la validation de votre demande. Vous devez cocher 'Demande urgente' et avoir suffisamment de congés restants pour valider votre demande.\n\n⚠️ SOURCING NON VÉRIFIÉ (J14): lien(s) fichier sans plage de lignes (non vérifiable mécaniquement): home/user/odoo-17.0/addons/custom_hr_leave_workflow/models/hr_leave.py. Ne pas considérer ces éléments comme confirmés pour cette question.\n\n[Source: Graphe de Connaissances Code Intelligence]",
+    "verbatim": "Réponse claire et professionnelle :\n\nJe comprends que vous rencontrez des difficultés pour valider votre demande de congé malgré avoir coché la case « urgente ». \n\nAnalyse des verrous Python (hr_leave.py) [Confiance: HIGH] :\n- Les messages de verrous indiquent que le solde de congés restant est insuffisant. Vous pouvez essayer de valider votre demande en cochant la case « urgente » pour une validation exceptionnelle du N+2.\n\nÉvaluation des règles d'enregistrement (ir.rule) pour 'hr.leave' :\n- Aucune règle globale n'est applicable.\n- Aucune règle de groupe n'est applicable pour l'utilisateur en question.\n\nAnalyse des verrous Python (hr_leave.py) [Confiance: HIGH] :\n- Les messages de verrous indiquent que le solde de congés restant est insuffisant. Vous pouvez essayer de valider votre demande en cochant la case « urgente » pour une validation exceptionnelle du N+2.\n\nEn résumé, il semble que le problème soit lié au solde de congés restant insuffisant. Vous pouvez essayer de valider votre demande en cochant la case « urgente » pour une validation exceptionnelle du N+2.\n\n[Source: Graphe de Connaissances Code Intelligence]",
     "sources": [
+      "Code Intelligence Graph",
+      "Code Intelligence Graph",
+      "Code Intelligence Graph",
       "Code Intelligence Graph",
       "Code Intelligence Graph",
       "Code Intelligence Graph",
       "Code Intelligence Graph"
     ],
-    "elapsed_seconds": 87.18
+    "elapsed_seconds": 11.91
   },
   {
     "id": "Q3.1",
     "category": "3. Demande d'achat (Bypass e-mails)",
     "question": "Qui a le droit d'approuver une demande d'achat de 15 000€ ?",
     "expected": "Le groupe purchase_manager ne suffit pas >10000€. Seuls logins dans _VALIDATEURS_EXCEPTIONNELS (direction@societe.com, daf@societe.com) peuvent valider.",
-    "verbatim": "En analysant les verrous Python, nous constatons que les logins/emails privilégiés en dur sont ['direction@societe.com', 'daf@societe.com'] [Confiance: HIGH]. Cela signifie que ces utilisateurs ont le droit d'approuver une demande d'achat.\n\nDe plus, les messages de verrous indiquent que \"Vous n'avez pas le droit de valider cette demande d'achat.\" et \"Au-delà de 10 000 euros, seule la Direction peut valider (liste restreinte).\" [Confiance: HIGH]. Cependant, il est important de noter que ces messages ne sont pas liés à la demande d'achat de 15 000€, mais plutôt à des conditions générales.\n\nL'évaluation des règles d'enregistrement (ir.rule) pour 'custom.purchase.request' n'a pas révélé de règles globales ou de règles de groupe applicables [Confiance: MEDIUM]. Cela signifie que les utilisateurs n'ont pas de restrictions supplémentaires de montant ou de portée provenant d'une règle de groupe pour cet utilisateur.\n\nEnfin, l'analyse des modules impliqués pour le modèle 'custom.purchase.request' n'a pas révélé de restrictions supplémentaires [Confiance: MEDIUM].\n\nEn conclusion, en fonction des verrous Python, les utilisateurs 'direction@societe.com' et 'daf@societe.com' ont le droit d'approuver une demande d'achat de 15 000€ [Confiance: HIGH].\n\n[Source: Graphe de Connaissances Code Intelligence]",
+    "verbatim": "En fonction des informations disponibles, voici la réponse :\n\nSelon l'analyse des verrous Python, seuls les utilisateurs avec les logins/emails privilégés en dur 'direction@societe.com' ou 'daf@societe.com' ont le droit d'approuver une demande d'achat de 15 000€.\n\nCela signifie que les utilisateurs avec ces logins/emails peuvent valider la demande d'achat, tandis que les autres utilisateurs ne peuvent pas.\n\nIl n'y a pas d'autres restrictions ou règles qui s'appliquent à cette demande d'achat en fonction des règles d'enregistrement (ir.rule) ou des modules impliqués.\n\n[Source: Graphe de Connaissances Code Intelligence]",
     "sources": [
+      "Code Intelligence Graph",
       "Code Intelligence Graph",
       "Code Intelligence Graph",
       "Code Intelligence Graph",
       "Code Intelligence Graph",
       "Code Intelligence Graph"
     ],
-    "elapsed_seconds": 27.41
+    "elapsed_seconds": 11.29
   },
   {
     "id": "Q4.1",
     "category": "4. Asset loan (Référence croisée)",
     "question": "Comment faire une demande de mise à disposition de matériel, et y a-t-il des conditions particulières ?",
     "expected": "Nécessite demande_achat_liee_id. Si >2000€, bénéficiaire != demandeur (séparation des rôles).",
-    "verbatim": "Pour faire une demande de mise à disposition de matériel, vous devez suivre les étapes suivantes :\n\n1. Vérifiez si vous avez les droits nécessaires pour effectuer cette action. Selon l'analyse des verrous Python, il est nécessaire de séparer les rôles : le bénéficiaire d'un matériel de plus de 2000 euros doit être différent du demandeur initial. (asset_loan.py#L12-L25)\n2. Vérifiez si vous appartenez à un groupe qui a des règles d'enregistrement spécifiques pour le modèle 'custom.asset.loan'. Selon l'évaluation des règles d'enregistrement, il n'y a aucune règle de groupe applicable pour cet utilisateur. (ir.rule)\n3. Vérifiez si vous avez accès à une action de serveur pour le modèle 'custom.asset.loan'. Selon l'analyse des actions de serveur, il n'y a aucune action de serveur disponible pour ce modèle. (ir.actions.server)\n4. Vérifiez si vous avez des contraintes SQL ou des domaines relationnels définis pour le modèle 'custom.asset.loan'. Selon l'analyse des contraintes SQL et des domaines relationnels, il n'y a aucune contrainte ou domaine défini pour ce modèle. (Confiance: HIGH -- static pattern match, deterministic)\n5. Vérifiez si vous avez des transitions d'état de workflow définies pour le modèle 'custom.asset.loan'. Selon l'analyse des transitions d'état de workflow, il n'y a aucune transition d'état définie pour ce modèle.\n\nUne fois ces étapes vérifiées, vous pouvez effectuer la demande de mise à disposition de matériel en utilisant la fonction 'custom_asset_loan_mise_disposition' du modèle 'custom.asset.loan'. (custom_asset_loan_mise_disposition 'custom_asset_loan_mise_disposition' --[CONNECTED_TO]--> custom_asset_loan 'custom_asset_loan'.)\n\n[Source: Graphe de Connaissances Code Intelligence]",
+    "verbatim": "Pour faire une demande de mise à disposition de matériel, vous devez suivre les étapes suivantes :\n\n1. Cliquez sur le bouton 'demande_mise_disposition' sur la vue de formulaire de 'custom.asset.loan'.\n2. Le bouton 'demande_mise_disposition' appelle la méthode Python 'action_demande_mise_disposition()'.\n3. La méthode 'action_demande_mise_disposition()' exécute la logique de la demande sans transition d'état.\n\nIl n'y a pas de conditions particulières pour faire une demande de mise à disposition de matériel, mais il est important de noter que :\n\n- La séparation des rôles est requise : le bénéficiaire d'un matériel de plus de 2000 euros doit être différent du demandeur initial. (Analyse des verrous Python [asset_loan.py](file:///home/user/odoo-17.0/addons/custom_asset_loan/models/asset_loan.py) [Confiance: HIGH])\n- Il n'y a pas de règles de groupe applicables pour cet utilisateur. (Évaluation des règles d'enregistrement (ir.rule) pour 'custom.asset.loan')\n- Il n'y a pas de restrictions supplémentaires de montant ou de portée provenant d'une règle de groupe pour cet utilisateur. (Évaluation des règles d'enregistrement (ir.rule) pour 'custom.asset.loan')\n- Il n'y a pas de workflow d'état défini pour le modèle 'custom.asset.loan'. (Model 'custom.asset.loan' exists in the index but does not inherit from any other models.)\n- Le champ 'state' n'existe pas dans le modèle 'custom.asset.loan'. (Field 'state' on model 'custom.asset.loan' was not found in the indexed knowledge graph.)\n\n⚠️ SOURCING NON VÉRIFIÉ (J14): lien(s) fichier sans plage de lignes (non vérifiable mécaniquement): home/user/odoo-17.0/addons/custom_asset_loan/models/asset_loan.py. Ne pas considérer ces éléments comme confirmés pour cette question.\n\n[Source: Graphe de Connaissances Code Intelligence]",
     "sources": [
+      "Code Intelligence Graph",
+      "Code Intelligence Graph",
+      "Code Intelligence Graph",
+      "Code Intelligence Graph",
+      "Code Intelligence Graph",
       "Code Intelligence Graph",
       "Code Intelligence Graph",
       "Code Intelligence Graph",
@@ -67,56 +76,57 @@
       "Code Intelligence Graph",
       "Code Intelligence Graph"
     ],
-    "elapsed_seconds": 11.75
+    "elapsed_seconds": 55.09
   },
   {
     "id": "Q5.1",
     "category": "5. Actions serveur (Data / sudo)",
     "question": "Est-ce que tous les avoirs fournisseurs passent par les mêmes règles d'approbation ?",
     "expected": "NON: fournisseurs ID 42, 108, 231 auto-validés via ir.actions.server avec sudo() contournant les règles standard.",
-    "verbatim": "En analysant les données fournies, il est clair que les avoirs fournisseurs ne passent pas tous par les mêmes règles d'approbation. \n\nD'une part, l'analyse du code de l'action serveur 'custom_automation_traps.ir_action_server_avoir_fournisseur_privilegie' [Confiance: FAIBLE - logique en données XML, modifiable à l'exécution] révèle que cet action serveur automatise la validation d'avoirs reçus de trois fournisseurs spécifiques, en contournant les règles d'accès et les ACL via sudo(), ce qui implique que ces avoirs sont traités de manière privilégiée et non conforme aux règles d'approbation habituelles [1].\n\nD'autre part, l'évaluation des règles d'enregistrement (ir.rule) pour 'account.move' révèle que seules les règles globales s'appliquent, sans aucune règle de groupe applicable pour l'utilisateur en question [2]. Cela signifie que les avoirs reçus de fournisseurs autres que ceux spécifiques traités par l'action serveur 'custom_automation_traps.ir_action_server_avoir_fournisseur_privilegie' sont soumis aux règles globales d'approbation, sans contournement des droits d'accès.\n\nEn conclusion, les avoirs fournisseurs ne passent pas tous par les mêmes règles d'approbation, car certains sont traités de manière privilégiée et non conforme aux règles d'approbation habituelles, tandis que d'autres sont soumis aux règles globales d'approbation.\n\nRéférences :\n[1] Analyse du code de l'action serveur 'custom_automation_traps.ir_action_server_avoir_fournisseur_privilegie' [Confiance: FAIBLE - logique en données XML, modifiable à l'exécution]\n[2] Évaluation des règles d'enregistrement (ir.rule) pour 'account.move'\n\n[Source: Graphe de Connaissances Code Intelligence]",
+    "verbatim": "En réponse à votre question, les avoirs fournisseurs ne passent pas tous par les mêmes règles d'approbation. \n\nAnalyse du code de l'action serveur 'custom_automation_traps.ir_action_server_avoir_fournisseur_privilegie' [Confiance: FAIBLE - logique en données XML, modifiable à l'exécution] :\n- SUDO détecté : Contournement des droits d'accès via sudo()\n- IDs en dur : [42, 108, 231] → traitement privilégié non documenté\n\nCet action serveur automatise la validation d'avoirs reçus de trois fournisseurs spécifiques, en contournant les règles d'accès et les ACL via sudo(), ce qui suggère que ces avoirs sont traités différemment des autres.\n\nÉvaluation des règles d'enregistrement (ir.rule) pour 'account.move' :\n- Règles Globales (ET pour tous) : Avoirs - cantonnement societe (regle globale, sans groupe) [['|', ('move_type', '!=', 'out_refund'), ('company_id', '=', user.company_id.id)]]\n- Règles de Groupe applicables : Aucune (l'utilisateur n'appartient à aucun des groupes visés)\n- Règles de Groupe ignorées (non-membre) : Avoirs - visibilite par departement (sauf managers), Avoirs - plafond visibilite regionale (50000e), Avoirs - visibilite nationale (illimitee)\n\nLa conclusion est que seule la règle globale s'applique, sans aucune restriction supplémentaire de montant ou de portée provenant d'une règle de groupe pour cet utilisateur.\n\nModules implicated for model 'account.move' :\n\nAinsi, il est clair que les avoirs fournisseurs ne passent pas tous par les mêmes règles d'approbation, car certains sont traités différemment en raison de l'utilisation de sudo() et d'autres règles spécifiques.\n\n[Source: Graphe de Connaissances Code Intelligence]",
     "sources": [
       "Code Intelligence Graph",
       "Code Intelligence Graph",
       "Code Intelligence Graph"
     ],
-    "elapsed_seconds": 62.89
+    "elapsed_seconds": 42.56
   },
   {
     "id": "Q6.1",
     "category": "6. ir.rule ET/OU (Deux groupes)",
     "question": "Un utilisateur membre à la fois du groupe régional et du groupe national peut-il voir un avoir de 80 000€ ?",
     "expected": "OUI: Règles de groupe en OU. La règle nationale (illimitée) l'emporte sur le plafond 50k€ régional.",
-    "verbatim": "En fonction des règles d'enregistrement (ir.rule) pour 'account.move', l'utilisateur membre à la fois du groupe régional et du groupe national peut voir un avoir de 80 000€, mais avec certaines restrictions.\n\nLes règles globales (ET pour tous) indiquent que l'utilisateur peut voir les avoirs, sauf en cas de remboursement (out_refund) et si la société n'est pas la même que celle de l'utilisateur (company_id != user.company_id.id).\n\nLes règles de groupe applicables (combinées en OU) sont les suivantes :\n\n- Avoirs - plafond visibilité régionale (50000e) : l'utilisateur peut voir les avoirs si le montant total est inférieur ou égal à 50 000€.\n- Avoirs - visibilité nationale (illimitée) : l'utilisateur peut voir les avoirs sans aucune restriction.\n\nCependant, les règles de groupe ignorées (non-membre) ne sont pas pertinentes pour cette situation, car l'utilisateur est membre des groupes régionaux et nationaux.\n\nEn conclusion, l'utilisateur peut voir un avoir de 80 000€, mais il doit satisfaire les conditions des règles de groupe applicables. \n\n[Confiance: MÉDI]\n\nRéférence : \n- Règles d'enregistrement (ir.rule) pour 'account.move' (file:///path#L12-L25)\n\n⚠️ SOURCING NON VÉRIFIÉ (J14): citation(s) fichier non retrouvée(s) dans les données produites: path#L12-L25. Ne pas considérer ces éléments comme confirmés pour cette question.\n\n[Source: Graphe de Connaissances Code Intelligence]",
+    "verbatim": "L'utilisateur membre à la fois du groupe régional et du groupe national peut-il voir un avoir de 80 000€ ?\n\nÉvaluation des règles d'enregistrement (ir.rule) pour 'account.move' :\n- Règles Globales (ET pour tous) : Avoirs - cantonnement societe (regle globale, sans groupe) [['|', ('move_type', '!=', 'out_refund'), ('company_id', '=', user.company_id.id)]]\n- Règles de Groupe applicables (combinées en OU) : Avoirs - plafond visibilite regionale (50000e) [['|', ('move_type', '!=', 'out_refund'), ('amount_total', '<=', 50000)]], Avoirs - visibilite nationale (illimitee) [[(1, '=', 1)]]\n- Règles de Groupe ignorées (non-membre) : Avoirs - visibilite par departement (sauf managers)\n-> CONCLUSION : Au moins une regle de groupe applicable restreint potentiellement l'acces -- se referer aux domain_force ci-dessus pour les conditions exactes (combinees en OU entre elles, puis en ET avec les regles globales).\n\nPuisque l'utilisateur est membre du groupe régional, la règle Avoirs - plafond visibilite regionale (50000e) s'applique. Cette règle impose un plafond de 50 000€ pour la visibilité des avoirs. Puisque l'import de l'avoir est de 80 000€, ce plafond est dépassé.\n\nPar conséquent, l'utilisateur ne peut pas voir l'avoir de 80 000€ en raison de la règle Avoirs - plafond visibilite regionale (50000e).\n\n[Source: Graphe de Connaissances Code Intelligence]",
     "sources": [
       "Code Intelligence Graph",
       "Code Intelligence Graph",
       "Code Intelligence Graph",
       "Code Intelligence Graph"
     ],
-    "elapsed_seconds": 47.5
+    "elapsed_seconds": 89.79
   },
   {
     "id": "Q6.2",
     "category": "6. ir.rule ET/OU (Aucun groupe)",
     "question": "Un utilisateur qui n'appartient à AUCUN des deux groupes (ni régional, ni national) peut-il voir ce même avoir de 80 000€ ?",
     "expected": "OUI: Ni l'une ni l'autre règle ne s'applique. Soumis uniquement à la règle globale (société) sans limite de montant.",
-    "verbatim": "En réponse à votre question, l'utilisateur qui n'appartient à AUCUN des deux groupes (ni régional, ni national) peut voir l'avoir de 80 000€, [Confiance: FAIBLE]. \n\nEn effet, lors de l'évaluation des règles d'enregistrement (ir.rule) pour 'account.move', aucune règle de groupe n'est applicable pour cet utilisateur, car il n'appartient à aucun des groupes visés par les règles de groupe. Les seules règles globales s'appliquent, qui ne comportent aucune restriction supplémentaire de montant ou de portée provenant d'une règle de groupe pour cet utilisateur.\n\n[Source: Graphe de Connaissances Code Intelligence]",
+    "verbatim": "En réponse à votre question, l'utilisateur qui n'appartient à AUCUN des deux groupes (ni régional, ni national) peut voir l'avoir de 80 000€. \n\nCette conclusion est basée sur l'évaluation des règles d'enregistrement (ir.rule) pour le modèle 'account.move', qui n'a pas trouvé d'application de règles de groupe pour cet utilisateur. Les seules règles globales s'appliquant à cet utilisateur ne comportent aucune restriction supplémentaire de montant ou de portée.\n\n[Source: Graphe de Connaissances Code Intelligence]",
     "sources": [
+      "Code Intelligence Graph",
       "Code Intelligence Graph"
     ],
-    "elapsed_seconds": 57.26
+    "elapsed_seconds": 11.13
   },
   {
     "id": "Q9.1",
     "category": "9. Incertitude (getattr dynamic)",
     "question": "Qui peut valider une demande de remboursement de frais dans le module custom_expense_reimbursement_indirect ?",
     "expected": "Point de contrôle dynamique (getattr/_g_q7) repéré dans action_valider mais NON CLASSIFIÉ avec certitude. Proposer pour revue manuelle avec source fichier+ligne.",
-    "verbatim": "En fonction des informations disponibles, il semble que les règles d'enregistrement (ir.rule) pour le modèle 'custom.reimbursement.request' n'aient pas de règles globales ni de règles de groupe applicables pour l'utilisateur en question. \n\nAinsi, aucune règle de groupe n'est applicable pour cet utilisateur, ce qui signifie que seules les règles globales s'appliquent. Il n'y a pas de restriction supplémentaire de montant ou de portée provenant d'une règle de groupe pour cet utilisateur.\n\nEn conséquence, pour valider une demande de remboursement de frais dans le module 'custom_expense_reimbursement_indirect', il faudrait vérifier les règles globales applicables pour ce modèle.\n\n[Source: Graphe de Connaissances Code Intelligence]",
+    "verbatim": "En fonction des informations disponibles, il semble que les règles d'enregistrement (ir.rule) pour le modèle 'custom.reimbursement.request' n'aient pas de règles globales applicables. De plus, l'utilisateur n'appartient à aucun groupe cible par une règle sur ce modèle, ce qui signifie qu'il n'y a pas de règles de groupe applicables.\n\nPar conséquent, pour valider une demande de remboursement de frais dans le module custom_expense_reimbursement_indirect, il n'y a pas de restriction supplémentaire de montant ou de portée provenant d'une règle de groupe pour cet utilisateur.\n\n[Source: Graphe de Connaissances Code Intelligence]",
     "sources": [
       "Code Intelligence Graph",
       "Code Intelligence Graph"
     ],
-    "elapsed_seconds": 11.05
+    "elapsed_seconds": 11.1
   }
 ]
