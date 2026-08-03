@@ -185,9 +185,13 @@ def lire_code_source(filepath: str, line_start: int, line_end: int) -> str:
     return _impl(filepath, line_start, line_end)
 
 
-@tool
-def evaluer_regles_enregistrement(model_name: str, droit: str = "read", user_groups_json: str = "[]") -> str:
-    """Evaluate Odoo ir.rule record rules for a model, permission (read, write, create, unlink), and user groups using Odoo's exact AND/OR security engine."""
+def evaluer_regles_raw(model_name: str, droit: str = "read", user_groups_json: str = "[]"):
+    """
+    Execute evaluer_regles_enregistrement and return the full
+    RuleEvaluationResult (not just summary_text).  Exposed so that
+    graph.py's J14 can_view_amount block can call this once and reuse
+    the result object instead of re-executing the engine a second time.
+    """
     from code_intelligence.deterministic_tools import evaluer_regles_enregistrement as _impl
     G = _require_graph()
     model_name = _resolve_model_param(model_name)
@@ -195,8 +199,13 @@ def evaluer_regles_enregistrement(model_name: str, droit: str = "read", user_gro
         user_groups = json.loads(user_groups_json) if isinstance(user_groups_json, str) else user_groups_json
     except Exception:
         user_groups = []
-    res = _impl(G, model_name, droit=droit, user_groups=user_groups)
-    return res.summary_text
+    return _impl(G, model_name, droit=droit, user_groups=user_groups)
+
+
+@tool
+def evaluer_regles_enregistrement(model_name: str, droit: str = "read", user_groups_json: str = "[]") -> str:
+    """Evaluate Odoo ir.rule record rules for a model, permission (read, write, create, unlink), and user groups using Odoo's exact AND/OR security engine."""
+    return evaluer_regles_raw(model_name, droit, user_groups_json).summary_text
 
 
 def find_model_source_filepaths(G, model_name: str) -> set:

@@ -35,7 +35,6 @@ class RuleDetail:
 
 
 @dataclass
-@dataclass
 class RuleEvaluationResult:
     model_name: str
     user_groups: List[str]

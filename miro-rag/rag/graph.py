@@ -1041,36 +1041,28 @@ def code_intelligence_agent(state: RAGState) -> dict:
                         tool_observations.append(str(observation))
                         hop_count += 1
 
-                        # J14 fix (Q6.1 regression, rerun of 2026-08-XX):
+                        # J14 fix (Q6.1 regression):
                         # evaluer_regles_enregistrement's summary_text lists
                         # applicable group rules but never computes the actual
                         # OR-union against a specific amount -- it leaves the
                         # synthesis LLM to guess, and the LLM picked the most
                         # restrictive rule instead of the union. can_view_amount()
                         # already implements the correct AND-global/OR-group
-                        # logic; call it directly here on the SAME tool_args the
-                        # LLM already supplied (including user_groups_json --
-                        # never re-derive group membership by hand), and inject
-                        # an unambiguous deterministic fact the synthesis LLM
-                        # must not recompute or contradict.
+                        # logic; call evaluer_regles_raw (which shares the same
+                        # resolve + parse logic as the @tool wrapper) to get a
+                        # RuleEvaluationResult, then inject an unambiguous
+                        # deterministic fact the synthesis LLM must not
+                        # recompute or contradict.
                         if tool_name == "evaluer_regles_enregistrement":
                             amount = _extract_amount(question)
                             if amount is not None:
                                 try:
-                                    from code_intelligence.deterministic_tools import (
-                                        evaluer_regles_enregistrement as _eval_rules_impl,
-                                    )
-                                    from code_intelligence.ci_agent_tools import resolve_model_param
+                                    from code_intelligence.ci_agent_tools import evaluer_regles_raw
 
-                                    model_name = resolve_model_param(tool_args.get("model_name", ""))
-                                    droit = tool_args.get("droit", "read")
-                                    try:
-                                        user_groups = _json.loads(tool_args.get("user_groups_json", "[]"))
-                                    except Exception:
-                                        user_groups = []
-
-                                    rule_result = _eval_rules_impl(
-                                        G, model_name, droit=droit, user_groups=user_groups
+                                    rule_result = evaluer_regles_raw(
+                                        model_name=tool_args.get("model_name", ""),
+                                        droit=tool_args.get("droit", "read"),
+                                        user_groups_json=tool_args.get("user_groups_json", "[]"),
                                     )
                                     can_view = rule_result.can_view_amount(amount)
                                     tool_observations.append(
@@ -1084,8 +1076,8 @@ def code_intelligence_agent(state: RAGState) -> dict:
                                     )
                                     logger.info(
                                         "Node [code_intelligence_agent]: Injected deterministic "
-                                        "can_view_amount fact for '%s' (amount=%.0f, result=%s).",
-                                        model_name, amount, can_view,
+                                        "can_view_amount fact for amount=%.0f, result=%s.",
+                                        amount, can_view,
                                     )
                                 except Exception as ve:
                                     logger.error(
