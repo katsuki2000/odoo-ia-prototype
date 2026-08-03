@@ -66,6 +66,7 @@ odoo-ia-prototype/
     │       ├── test_j6_context_validation.py
     │       ├── test_j8_deterministic_dispatch.py # Tests unitaires des déclencheurs déterministes J8
     │       ├── test_semgrep_runner.py   # Tests unitaires du runner Semgrep (J12)
+    │       ├── test_analyser_contraintes_donnees.py # Tests unitaires du tool analyser_contraintes_donnees (J13-bis)
     │       ├── test_j14_sourcing_guard.py # Tests unitaires du contrôleur de sûreté de sourcing (J14)
     │       ├── test_s2_0_business_resolver.py
     │       ├── test_s2_1_record_rules.py
