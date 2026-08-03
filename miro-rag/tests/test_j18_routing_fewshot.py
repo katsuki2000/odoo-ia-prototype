@@ -10,8 +10,15 @@ to verify deterministic keyword matching. Each test case corresponds to
 one of the 16 few-shot examples in few_shot_routing_examples.py.
 """
 import pytest
-from rag.graph import route
-from tests.few_shot_routing_examples import FEW_SHOT_ROUTING_EXAMPLES
+from rag.graph import (
+    ROUTING_CONFLICT_PRIORITY,
+    _force_dynamic_uncertainty_answer,
+    route,
+)
+from tests.few_shot_routing_examples import (
+    CONFLICT_RESOLUTION_POLICY,
+    FEW_SHOT_ROUTING_EXAMPLES,
+)
 
 
 def _route_question(question: str) -> str:
@@ -42,3 +49,46 @@ def test_few_shot_routing(example):
         f"Rationale: {example['rationale']}\n"
         f"Conflict: {example['conflict_notes']}"
     )
+
+
+def test_conflict_policy_is_explicit_and_ordered():
+    """Bloc 6 requires a documented conflict policy, not only branch selection."""
+    assert ROUTING_CONFLICT_PRIORITY == (
+        "code_intelligence",
+        "donnees_erp",
+        "hybride",
+        "documentaire",
+    )
+    assert "Code > Wiki" in CONFLICT_RESOLUTION_POLICY
+    assert "Données ERP > Code" in CONFLICT_RESOLUTION_POLICY
+    assert "HYBRIDE uniquement si deux sous-questions distinctes" in CONFLICT_RESOLUTION_POLICY
+
+
+@pytest.mark.parametrize(
+    "example",
+    FEW_SHOT_ROUTING_EXAMPLES,
+    ids=[ex["question"][:60] for ex in FEW_SHOT_ROUTING_EXAMPLES],
+)
+def test_each_few_shot_case_documents_decision(example):
+    """Each ambiguous-boundary case must explain which branch wins and why."""
+    assert example["expected_route"] in ROUTING_CONFLICT_PRIORITY
+    assert example["rationale"].strip()
+    assert example["conflict_notes"].strip()
+
+
+def test_dynamic_dispatch_uncertainty_cannot_be_synthesized_as_certain():
+    raw = (
+        "Analyse des verrous Python "
+        "([reimbursement.py:L1-L31](file:///tmp/reimbursement.py#L1-L31)) "
+        "[Confiance: LOW]:\n"
+        "  - Incertitude dynamique (getattr): revue manuelle recommandée"
+    )
+    answer = _force_dynamic_uncertainty_answer(
+        "Qui peut valider une demande de remboursement de frais ?",
+        raw,
+    )
+    assert answer is not None
+    assert "Je ne peux pas classifier avec certitude" in answer
+    assert "getattr" in answer
+    assert "file:///tmp/reimbursement.py#L1-L31" in answer
+    assert "aucune restriction" not in answer.lower()

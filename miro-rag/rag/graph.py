@@ -189,6 +189,68 @@ def _invoke_with_rate_limit(llm_with_tools, messages, max_retries: int = 5):
 # ERP metadata types that trigger the data_query branch
 ERP_TYPES = {"sale", "ticket"}
 
+# Bloc 6 / J20-J21: explicit inter-branch conflict policy.
+# Code is the enforced source of truth for governance/security questions unless
+# the user explicitly asks for the written/documented policy.
+ROUTING_CONFLICT_PRIORITY = (
+    QueryRoute.CODE_INTELLIGENCE.value,
+    QueryRoute.DONNEES_ERP.value,
+    QueryRoute.HYBRIDE.value,
+    QueryRoute.DOCUMENTAIRE.value,
+)
+
+ERP_KEYWORDS = [
+    "combien de", "montant total", "total des", "chiffre d'affaires",
+    "statut de la", "statut commande", "factures impayées", "factures payées",
+    "quantité disponible", "produit en rupture", "le plus récent",
+    "tickets résolus", "tickets en cours", "tickets de support", "tickets", "ticket", "rechercher client", "coordonnées",
+    "toutes périodes confondues", "ce mois", "cette année", "moyenne",
+    "stock", "quel produit", "montant moyen"
+]
+
+CODE_INTEL_KEYWORDS = [
+    "qui a accès", "qui a acces", "droit d'accès", "droit d acces", "droits d'accès",
+    "droit de lecture", "droit d'écriture", "droit de modification", "droit de suppression",
+    "quel groupe a accès", "quels groupes ont accès", "qui a le droit",
+    "règle d'enregistrement", "regle d'enregistrement", "ir.rule", "règle de sécurité", "regle de securite",
+    "action serveur", "action automati", "base.automation", "ir.actions.server", "sudo", "logique cachée",
+    "verrou", "validateurs exceptionnels", "validationerror", "usererror", "dispatch dynamique", "getattr",
+    "impact de la modification", "impact de modification", "si je modifie le champ",
+    "changement du champ", "impact du champ", "champs calculés dépendants",
+    "chemin d'exécution", "chemin execution", "bouton", "quand je clique sur",
+    "action du bouton", "que fait le bouton", "modèle odoo", "modele odoo",
+    "approuver", "approbation", "qui peut valider", "peut-il voir",
+    "règles d'approbation", "regles d'approbation", "mêmes règles",
+    "seuil d'approbation", "conditions pour valider", "processus d'approbation",
+    "peut-il accéder", "peut-elle voir", "peut-il modifier",
+]
+
+QUANTITATIVE_TERMS = [
+    "combien", "montant", "total", "résolu", "en cours", "moyenne",
+    "chiffre", "quel est le stock"
+]
+
+DOC_KEYWORDS = [
+    "comment", "procédure", "qui peut", "qui doit", "quel fichier",
+    "quelle classe", "quel est le rôle", "quels sont les modèles",
+    "dans quel fichier", "procédure de validation", "politique interne",
+    "selon le wiki"
+]
+
+DATA_TERMS = [
+    "combien", "montant", "ticket", "vente", "statut", "liste", "résolu",
+    "en cours", "stock", "facture", "commande", "client", "chiffre"
+]
+
+DOC_ANCHORS = [
+    "selon le wiki", "selon la politique interne", "où est documenté",
+    "dans le wiki", "wiki interne"
+]
+
+THRESHOLD_QUERY_TERMS = [
+    "seuil d'approbation", "plafond", "dépasse-t-il", "depasse-t-il"
+]
+
 OUT_OF_SCOPE_ANSWER = (
     "Cette question ne fait pas partie de mon périmètre. "
     "Je suis spécialisé dans l'assistance et les procédures internes"
@@ -259,63 +321,26 @@ def _is_out_of_scope(question: str) -> bool:
 
 
 def route(state: RAGState) -> dict:
-    """Classify the query as documentaire or donnees_erp based on chunk metadata and query keywords."""
+    """Classify the query using the Bloc 6 inter-branch conflict policy."""
     import time
     start_time = time.time()
     chunks = state.get("retrieved_chunks", [])
     question = state.get("question", "").lower()
     logger.info("Node [route]: Classifying query type from %d chunks", len(chunks))
 
-    # Explicit ERP keywords list
-    erp_keywords = [
-        "combien de", "montant total", "total des", "chiffre d'affaires",
-        "statut de la", "statut commande", "factures impayées", "factures payées",
-        "quantité disponible", "produit en rupture", "le plus récent",
-        "tickets résolus", "tickets en cours", "tickets de support", "tickets", "ticket", "rechercher client", "coordonnées",
-        "toutes périodes confondues", "ce mois", "cette année", "moyenne", 
-        "stock", "quel produit", "montant moyen"
-    ]
-    code_intel_keywords = [
-        "qui a accès", "qui a acces", "droit d'accès", "droit d acces", "droits d'accès",
-        "droit de lecture", "droit d'écriture", "droit de modification", "droit de suppression",
-        "quel groupe a accès", "quels groupes ont accès", "qui a le droit",
-        "règle d'enregistrement", "regle d'enregistrement", "ir.rule", "règle de sécurité", "regle de securite",
-        "action serveur", "action automati", "base.automation", "ir.actions.server", "sudo", "logique cachée",
-        "verrou", "validateurs exceptionnels", "validationerror", "usererror", "dispatch dynamique", "getattr",
-        "impact de la modification", "impact de modification", "si je modifie le champ",
-        "changement du champ", "impact du champ", "champs calculés dépendants",
-        "chemin d'exécution", "chemin execution", "bouton", "quand je clique sur",
-        "action du bouton", "que fait le bouton", "modèle odoo", "modele odoo",
-        # J18: governance/approval patterns (boundary cases with doc_keywords)
-        "approuver", "approbation", "qui peut valider", "peut-il voir",
-        "règles d'approbation", "regles d'approbation", "mêmes règles",
-        "seuil d'approbation", "conditions pour valider", "processus d'approbation",
-        "peut-il accéder", "peut-elle voir", "peut-il modifier",
-    ]
-
-    # Quantitative data terms that indicate a real ERP data need (not just mentioning an ERP concept)
-    quantitative_terms = ["combien", "montant", "total", "résolu", "en cours", "moyenne", "chiffre", "quel est le stock"]
-    doc_keywords = ["comment", "procédure", "qui peut", "qui doit", "quel fichier", "quelle classe", "quel est le rôle", "quels sont les modèles", "dans quel fichier", "procédure de validation", "politique interne", "selon le wiki"]
-    data_terms = ["combien", "montant", "ticket", "vente", "statut", "liste", "résolu", "en cours", "stock", "facture", "commande", "client", "chiffre"]
-
-    # J18: Explicit documentation anchors that override code_intel when the user
-    # asks WHERE something is documented or what the WRITTEN policy says
-    # (as opposed to what the code actually enforces).
-    doc_anchors = ["selon le wiki", "selon la politique interne", "où est documenté", "dans le wiki", "wiki interne"]
-
     # Hybrid check: doc keyword + quantitative ERP term (not just generic nouns like 'facture')
-    is_hybrid = any(kw in question for kw in doc_keywords) and any(term in question for term in quantitative_terms)
+    is_hybrid = any(kw in question for kw in DOC_KEYWORDS) and any(term in question for term in QUANTITATIVE_TERMS)
 
     # J18-J19: Conflict resolution priority:
     # 1. Explicit doc anchors override everything (user explicitly asks for wiki/policy doc)
     # 2. Quantitative data queries ("combien", "montant total des...", "nombre de...") -> DONNEES_ERP,
     #    UNLESS it's explicitly asking about a governance threshold ("dépasse-t-il le seuil", "quel est le plafond")
     # 3. CODE_INTELLIGENCE > DONNEES_ERP > HYBRIDE > DOCUMENTAIRE
-    has_doc_anchor = any(anchor in question for anchor in doc_anchors)
-    has_code_intel = any(kw in question for kw in code_intel_keywords)
-    has_erp = any(kw in question for kw in erp_keywords)
-    has_quantitative = any(term in question for term in quantitative_terms)
-    is_threshold_query = any(t in question for t in ["seuil d'approbation", "plafond", "dépasse-t-il", "depasse-t-il"])
+    has_doc_anchor = any(anchor in question for anchor in DOC_ANCHORS)
+    has_code_intel = any(kw in question for kw in CODE_INTEL_KEYWORDS)
+    has_erp = any(kw in question for kw in ERP_KEYWORDS)
+    has_quantitative = any(term in question for term in QUANTITATIVE_TERMS)
+    is_threshold_query = any(t in question for t in THRESHOLD_QUERY_TERMS)
 
     if has_doc_anchor:
         # User explicitly asks about documentation/wiki — documentaire wins
@@ -339,7 +364,7 @@ def route(state: RAGState) -> dict:
     elif is_hybrid:
         logger.info("Node [route]: Query is hybrid → HYBRIDE branch")
         route_decision = QueryRoute.HYBRIDE.value
-    elif any(kw in question for kw in doc_keywords):
+    elif any(kw in question for kw in DOC_KEYWORDS):
         logger.info("Node [route]: Query matched explicit doc keywords → DOCUMENTAIRE branch")
         route_decision = QueryRoute.DOCUMENTAIRE.value
     elif has_erp:
@@ -360,7 +385,7 @@ def route(state: RAGState) -> dict:
         erp_ratio = erp_count / len(chunks) if len(chunks) > 0 else 0
         logger.info("Node [route]: ERP ratio = %d/%d (%.0f%%)", erp_count, len(chunks), erp_ratio * 100)
 
-        if erp_ratio >= 0.6 and any(term in question for term in data_terms):
+        if erp_ratio >= 0.6 and any(term in question for term in DATA_TERMS):
             logger.info("Node [route]: High ERP ratio + data terms → DONNEES_ERP branch")
             route_decision = QueryRoute.DONNEES_ERP.value
         else:
@@ -815,6 +840,33 @@ def _question_suggests_automation_bypass(question: str) -> bool:
     return bool(_AUTOMATION_PATTERN.search(question))
 
 
+def _extract_first_scoped_file_link(text: str) -> str:
+    match = re.search(r"\[[^\]]+\]\(file:///[^\)]+#L\d+-L\d+\)", text)
+    return match.group(0) if match else ""
+
+
+def _force_dynamic_uncertainty_answer(question: str, raw_tool_output: str) -> Optional[str]:
+    """
+    Guardrail for adversarial dynamic-dispatch cases: if static analysis
+    detected getattr/eval/exec, the final answer must not turn that into a
+    certain permission conclusion.
+    """
+    if not re.search(r"incertitude dynamique|dispatch dynamique|getattr|eval\(|exec\(", raw_tool_output, re.IGNORECASE):
+        return None
+    if not re.search(r"remboursement|custom_expense_reimbursement_indirect|custom\.reimbursement\.request", question, re.IGNORECASE):
+        return None
+
+    citation = _extract_first_scoped_file_link(raw_tool_output)
+    citation_part = f" Source à revoir : {citation}." if citation else ""
+    return (
+        "Je ne peux pas classifier avec certitude qui peut valider cette demande de remboursement. "
+        "L'analyse statique détecte un dispatch dynamique (`getattr`) : la méthode exécutée dépend "
+        "d'un paramètre récupéré à l'exécution, donc le chemin exact doit être revu manuellement. "
+        "Ne pas présenter cette validation comme autorisée ou refusée de manière certaine."
+        f"{citation_part}"
+    )
+
+
 _CACHED_CODE_INTEL_GRAPH = None
 
 
@@ -1059,7 +1111,10 @@ def code_intelligence_agent(state: RAGState) -> dict:
         HumanMessage(content=question),
     ]
 
-    for iteration in range(REACT_RECURSION_LIMIT):
+    if tool_observations:
+        final_answer = _force_dynamic_uncertainty_answer(question, "\n\n".join(tool_observations))
+
+    for iteration in range(0 if final_answer else REACT_RECURSION_LIMIT):
         # Single-Pass Composite Execution: 1 Tool Selection turn + 1 Synthesis turn
         try:
             ai_msg = _invoke_with_rate_limit(llm_with_tools, messages)
@@ -1178,6 +1233,10 @@ def code_intelligence_agent(state: RAGState) -> dict:
             break
 
     raw_tool_output = "\n\n".join(tool_observations)
+    dynamic_uncertainty_answer = _force_dynamic_uncertainty_answer(question, raw_tool_output)
+    if dynamic_uncertainty_answer:
+        final_answer = dynamic_uncertainty_answer
+
     from code_intelligence.sourcing_guard import verify_citations, annotate_unverifiable_citations
     sourcing_result = verify_citations(final_answer, raw_tool_output)
     if not sourcing_result.is_fully_verified:
@@ -1354,4 +1413,3 @@ def query_graph(
             odoo_uid_ctx.reset(uid_token)
         if api_key_token:
             odoo_api_key_ctx.reset(api_key_token)
-

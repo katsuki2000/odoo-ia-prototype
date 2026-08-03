@@ -73,6 +73,8 @@ class TestDynamicDispatchDetection:
         analysis = analyze_python_security_locks(code, "custom_expense_reimbursement_indirect/models/reimbursement.py")
         assert analysis.has_dynamic_dispatch is True
         assert "getattr" in analysis.dynamic_dispatch_types
+        assert "file://" in analysis.summary_text
+        assert "#L1-" in analysis.summary_text
         assert analysis.confidence == "low"
         assert len(analysis.security_warnings) >= 1
         assert "DISPATCH DYNAMIQUE" in analysis.security_warnings[0]

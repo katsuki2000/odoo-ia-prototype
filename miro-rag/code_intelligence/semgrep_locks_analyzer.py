@@ -165,7 +165,8 @@ def analyze_python_security_locks(code: str, filepath: str) -> PythonSecurityLoc
 
     # 4. Summary Text
     from code_intelligence.utils import format_file_link
-    file_link = format_file_link(filepath)
+    line_count = max(1, len(code.splitlines()))
+    file_link = format_file_link(filepath, 1, line_count)
     lines = [f"Analyse des verrous Python ({file_link}) [Confiance: {result.confidence.upper()}]:"]
     if result.has_hardcoded_logins:
         lines.append(f"  - Logins/Emails privilégies en dur: {result.hardcoded_logins}")
