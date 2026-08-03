@@ -686,7 +686,11 @@ CI_SYSTEM_PROMPT = (
     "   - For ir.rule record rules and group-based RECORD visibility: invoke `evaluer_regles_enregistrement` (authoritative). A `qui_a_acces_a` \"could not be resolved\" message for the same group does NOT contradict it.\n"
     "   - For automated actions, ir.actions.server, or sudo() bypasses: invoke `analyser_actions_serveur`.\n"
     "2. DO NOT make generic fallbacks. Synthesize the tool observations directly.\n"
-    "3. Always cite source file links: [file.py:L12-L25](file:///path#L12-L25)."
+    "3. Always cite source file links: [file.py:L12-L25](file:///path#L12-L25).\n"
+    "4. When citing a rule, group, or action by its Odoo technical identifier as a "
+    "sourcing claim (not just using it as ordinary vocabulary), prefix it exactly as "
+    "'xml_id: module.identifier' (e.g. xml_id: custom_credit_note_visibility_rules."
+    "rule_avoir_visibilite_regionale)."
 )
 
 # C.1.4: Maximum hops allowed per question.
@@ -1028,7 +1032,12 @@ def code_intelligence_agent(state: RAGState) -> dict:
                     f"tag present in the source data (e.g. '[Confiance: FAIBLE]', '[Confiance: "
                     f"HIGH]', LLM interpretation confidence) MUST appear in your answer, "
                     f"attached to the specific finding it qualifies -- never drop it, "
-                    f"never present a low-confidence or LLM-interpreted finding as an unqualified fact."
+                    f"never present a low-confidence or LLM-interpreted finding as an unqualified fact. "
+                    f"Any file citation you make MUST keep its exact line range from the "
+                    f"source observation (file:///path#L12-L25) -- never drop the line range "
+                    f"even when shortening a citation. Any rule/action/group xml_id you cite "
+                    f"as a sourcing claim MUST be prefixed 'xml_id: module.identifier', copied "
+                    f"verbatim from the source observation."
                 )
                 try:
                     plain_llm = ChatGroq(model=GROQ_MODEL, temperature=0.0, max_retries=0, max_tokens=4096)
@@ -1042,6 +1051,13 @@ def code_intelligence_agent(state: RAGState) -> dict:
 
         if final_answer:
             break
+
+    raw_tool_output = "\n\n".join(tool_observations)
+    from code_intelligence.sourcing_guard import verify_citations, annotate_unverifiable_citations
+    sourcing_result = verify_citations(final_answer, raw_tool_output)
+    if not sourcing_result.is_fully_verified:
+        logger.warning("Node [code_intelligence_agent]: Unverified citations -- %s", sourcing_result)
+        final_answer = annotate_unverifiable_citations(final_answer, sourcing_result)
 
     final_answer += "\n\n[Source: Graphe de Connaissances Code Intelligence]"
 
