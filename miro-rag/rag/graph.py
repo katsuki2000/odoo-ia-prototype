@@ -285,7 +285,12 @@ def route(state: RAGState) -> dict:
         "impact de la modification", "impact de modification", "si je modifie le champ",
         "changement du champ", "impact du champ", "champs calculés dépendants",
         "chemin d'exécution", "chemin execution", "bouton", "quand je clique sur",
-        "action du bouton", "que fait le bouton", "modèle odoo", "modele odoo"
+        "action du bouton", "que fait le bouton", "modèle odoo", "modele odoo",
+        # J18: governance/approval patterns (boundary cases with doc_keywords)
+        "approuver", "approbation", "qui peut valider", "peut-il voir",
+        "règles d'approbation", "regles d'approbation", "mêmes règles",
+        "seuil d'approbation", "conditions pour valider", "processus d'approbation",
+        "peut-il accéder", "peut-elle voir", "peut-il modifier",
     ]
 
     # Quantitative data terms that indicate a real ERP data need (not just mentioning an ERP concept)
@@ -293,10 +298,42 @@ def route(state: RAGState) -> dict:
     doc_keywords = ["comment", "procédure", "qui peut", "qui doit", "quel fichier", "quelle classe", "quel est le rôle", "quels sont les modèles", "dans quel fichier", "procédure de validation", "politique interne", "selon le wiki"]
     data_terms = ["combien", "montant", "ticket", "vente", "statut", "liste", "résolu", "en cours", "stock", "facture", "commande", "client", "chiffre"]
 
+    # J18: Explicit documentation anchors that override code_intel when the user
+    # asks WHERE something is documented or what the WRITTEN policy says
+    # (as opposed to what the code actually enforces).
+    doc_anchors = ["selon le wiki", "selon la politique interne", "où est documenté", "dans le wiki", "wiki interne"]
+
     # Hybrid check: doc keyword + quantitative ERP term (not just generic nouns like 'facture')
     is_hybrid = any(kw in question for kw in doc_keywords) and any(term in question for term in quantitative_terms)
 
-    if any(kw in question for kw in code_intel_keywords):
+    # J18-J19: Conflict resolution priority:
+    # 1. Explicit doc anchors override everything (user explicitly asks for wiki/policy doc)
+    # 2. Quantitative data queries ("combien", "montant total des...", "nombre de...") -> DONNEES_ERP,
+    #    UNLESS it's explicitly asking about a governance threshold ("dépasse-t-il le seuil", "quel est le plafond")
+    # 3. CODE_INTELLIGENCE > DONNEES_ERP > HYBRIDE > DOCUMENTAIRE
+    has_doc_anchor = any(anchor in question for anchor in doc_anchors)
+    has_code_intel = any(kw in question for kw in code_intel_keywords)
+    has_erp = any(kw in question for kw in erp_keywords)
+    has_quantitative = any(term in question for term in quantitative_terms)
+    is_threshold_query = any(t in question for t in ["seuil d'approbation", "plafond", "dépasse-t-il", "depasse-t-il"])
+
+    if has_doc_anchor:
+        # User explicitly asks about documentation/wiki — documentaire wins
+        if is_hybrid:
+            logger.info("Node [route]: Doc anchor + quantitative → HYBRIDE branch")
+            route_decision = QueryRoute.HYBRIDE.value
+        else:
+            logger.info("Node [route]: Explicit doc anchor → DOCUMENTAIRE branch")
+            route_decision = QueryRoute.DOCUMENTAIRE.value
+    elif is_hybrid:
+        logger.info("Node [route]: Query is hybrid → HYBRIDE branch")
+        route_decision = QueryRoute.HYBRIDE.value
+    elif has_quantitative and not is_threshold_query:
+        # Quantitative record count/sum lookup -> DONNEES_ERP wins over code_intel
+        logger.info("Node [route]: Quantitative data query → DONNEES_ERP branch")
+        route_decision = QueryRoute.DONNEES_ERP.value
+    elif has_code_intel:
+        # Code intelligence wins over doc/erp for governance questions
         logger.info("Node [route]: Query matched Code Intelligence keywords → CODE_INTELLIGENCE branch")
         route_decision = QueryRoute.CODE_INTELLIGENCE.value
     elif is_hybrid:
@@ -305,7 +342,7 @@ def route(state: RAGState) -> dict:
     elif any(kw in question for kw in doc_keywords):
         logger.info("Node [route]: Query matched explicit doc keywords → DOCUMENTAIRE branch")
         route_decision = QueryRoute.DOCUMENTAIRE.value
-    elif any(kw in question for kw in erp_keywords):
+    elif has_erp:
         logger.info("Node [route]: Query matched explicit ERP keywords → DONNEES_ERP branch")
         route_decision = QueryRoute.DONNEES_ERP.value
     elif not chunks:
