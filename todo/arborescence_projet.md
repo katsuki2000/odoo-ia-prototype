@@ -1,6 +1,6 @@
 # Arborescence du Projet & Environnement Odoo
 
-**Date de mise à jour** : 2026-07-31
+**Date de mise à jour** : 2026-08-03
 
 ---
 
@@ -25,6 +25,7 @@ odoo-ia-prototype/
 │   ├── real plan.md                     # Plan d'exécution jour par jour (Blocs 0 à 16)
 │   ├── arborescence_projet.md           # Ce fichier (arborescence & doc environnement Odoo)
 │   ├── j7_security_review.md            # Rapport de revue de sécurité ligne à ligne (J7)
+│   ├── j13_semgrep_precision_review.md  # Rapport de revue de précision des règles Semgrep (J13)
 │   ├── verbatim_responses_sprint2.md    # Rapport verbatim adversarial end-to-end (Sprint 2)
 │   ├── verbatim_responses_sprint2.json  # Données brutes JSON du benchmark
 │   └── benchmark_run_j7_*.log           # Logs d'exécution brute du benchmark
@@ -45,6 +46,12 @@ odoo-ia-prototype/
     │   ├── ci_agent_tools.py            # Wrappers LangChain @tool (find_server_action_nodes, set_llm_ref)
     │   ├── semgrep_locks_analyzer.py    # Analyseur de verrous Python (analyser_verrous_securite)
     │   ├── server_action_analyzer.py    # Analyseur d'actions serveur (interpret_server_action_with_llm)
+    │   ├── semgrep_runner.py            # Runner Semgrep subprocess --json & slicing lignes/fichiers (J12)
+    │   ├── semgrep_rules/               # Dossier des règles Semgrep & fixtures TDD (Bloc 3)
+    │   │   ├── sql_constraints.yaml     # Règle Semgrep odoo-sql-constraints-declaration (J11)
+    │   │   ├── sql_constraints.py       # Fixture TDD # ruleid: / # ok: pour _sql_constraints (J11)
+    │   │   ├── domain_relational.yaml   # Règle Semgrep odoo-relational-domain-declaration (J12)
+    │   │   └── domain_relational.py     # Fixture TDD # ruleid: / # ok: pour domain= (J12)
     │   ├── graph_builder.py             # Construction du graphe NetworkX
     │   ├── odoo_rpc_client.py           # Client XML-RPC Odoo live (J5/J6)
     │   ├── live_rule_validator.py       # Validateur live vs déterministe (J5)
@@ -57,6 +64,7 @@ odoo-ia-prototype/
     │       ├── test_j5_live_validation.py
     │       ├── test_j6_context_validation.py
     │       ├── test_j8_deterministic_dispatch.py # Tests unitaires des déclencheurs déterministes J8
+    │       ├── test_semgrep_runner.py   # Tests unitaires du runner Semgrep (J12)
     │       ├── test_s2_0_business_resolver.py
     │       ├── test_s2_1_record_rules.py
     │       ├── test_s2_3_server_actions.py
