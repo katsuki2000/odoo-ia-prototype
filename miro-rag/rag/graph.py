@@ -949,8 +949,8 @@ def code_intelligence_agent(state: RAGState) -> dict:
             for target_model in concept.resolved_models:
                 try:
                     forced_observation = str(lock_tool.invoke({"model_name": target_model}))
-                    if len(forced_observation) > 3000:
-                        forced_observation = forced_observation[:3000] + "\n[... Content truncated for LLM context limit ...]"
+                    if len(forced_observation) > 1200:
+                        forced_observation = forced_observation[:1200] + "\n[... Content truncated for LLM context limit ...]"
                     tool_observations.append(forced_observation)
                     hop_count += 1
                     seen_calls.add(("analyser_verrous_securite", target_model))
@@ -995,8 +995,8 @@ def code_intelligence_agent(state: RAGState) -> dict:
                     continue
                 try:
                     forced_observation = str(sa_tool.invoke({"model_name": target_model}))
-                    if len(forced_observation) > 3000:
-                        forced_observation = forced_observation[:3000] + "\n[... Content truncated for LLM context limit ...]"
+                    if len(forced_observation) > 1200:
+                        forced_observation = forced_observation[:1200] + "\n[... Content truncated for LLM context limit ...]"
                     tool_observations.append(forced_observation)
                     hop_count += 1
                     seen_calls.add(call_key)
@@ -1044,8 +1044,8 @@ def code_intelligence_agent(state: RAGState) -> dict:
                 if tool_name in tool_map:
                     try:
                         observation = str(tool_map[tool_name].invoke(tool_args))
-                        if len(observation) > 3000:
-                            observation = observation[:3000] + "\n[... Content truncated for LLM context limit ...]"
+                        if len(observation) > 1200:
+                            observation = observation[:1200] + "\n[... Content truncated for LLM context limit ...]"
                         tool_observations.append(observation)
                         hop_count += 1
 
