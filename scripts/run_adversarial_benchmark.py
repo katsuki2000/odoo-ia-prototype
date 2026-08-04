@@ -22,7 +22,35 @@ project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(project_root))
 sys.path.insert(0, str(project_root / "miro-rag"))
 
-from rag.graph import code_intelligence_agent
+from rag.graph import code_intelligence_agent, _get_admin_rpc_client
+
+
+def _resolve_bloc7_test_group_ids():
+    """
+    Bloc 7 harness fix (2026-08-04): Q6.1/Q6.2 describe a requester who is
+    member of both / neither of group_avoir_regional and group_avoir_national
+    (custom_credit_note_visibility_rules), but the benchmark never actually
+    passed any user_groups into the pipeline -- state['user_groups'] was
+    always absent, so code_intelligence_agent() resolved it to [] for every
+    question, and Q6.1/Q6.2 silently tested the exact same (ungrouped)
+    scenario. Resolve the two groups' real DB ids here so both questions can
+    be run as the requester the ground truth actually describes.
+
+    Reuses rag.graph's lazy admin RPC singleton (_get_admin_rpc_client)
+    instead of opening a second admin connection -- this is the same
+    pure static-metadata lookup (group xml_id never depends on who's
+    asking) that _resolve_user_group_xmlids() already does internally,
+    just in the reverse direction (xml_id -> DB id).
+    """
+    client, admin_uid = _get_admin_rpc_client()
+    records = client.execute_kw(
+        admin_uid, "ir.model.data", "search_read",
+        [[("module", "=", "custom_credit_note_visibility_rules"),
+          ("name", "in", ["group_avoir_regional", "group_avoir_national"])]],
+        {"fields": ["name", "res_id"]},
+    )
+    by_name = {r["name"]: r["res_id"] for r in records}
+    return by_name.get("group_avoir_regional"), by_name.get("group_avoir_national")
 
 BENCHMARK_QUESTIONS = [
     {
@@ -65,13 +93,15 @@ BENCHMARK_QUESTIONS = [
         "id": "Q6.1",
         "category": "6. ir.rule ET/OU (Deux groupes)",
         "question": "Un utilisateur membre à la fois du groupe régional et du groupe national peut-il voir un avoir de 80 000€ ?",
-        "expected": "OUI: Règles de groupe en OU. La règle nationale (illimitée) l'emporte sur le plafond 50k€ régional."
+        "expected": "OUI: Règles de groupe en OU. La règle nationale (illimitée) l'emporte sur le plafond 50k€ régional.",
+        "user_groups": "BOTH"
     },
     {
         "id": "Q6.2",
         "category": "6. ir.rule ET/OU (Aucun groupe)",
         "question": "Un utilisateur qui n'appartient à AUCUN des deux groupes (ni régional, ni national) peut-il voir ce même avoir de 80 000€ ?",
-        "expected": "OUI: Ni l'une ni l'autre règle ne s'applique. Soumis uniquement à la règle globale (société) sans limite de montant."
+        "expected": "OUI: Ni l'une ni l'autre règle ne s'applique. Soumis uniquement à la règle globale (société) sans limite de montant.",
+        "user_groups": "NONE"
     },
     {
         "id": "Q9.1",
@@ -98,20 +128,39 @@ def run_benchmark():
 
     results = []
 
+    # Bloc 7 harness fix: resolve the real group DB ids once, so Q6.1/Q6.2
+    # can be run as the requester their ground truth actually describes
+    # instead of silently falling back to an empty (ungrouped) requester.
+    try:
+        region_id, national_id = _resolve_bloc7_test_group_ids()
+        if region_id is None or national_id is None:
+            print(f"[WARN] Could not resolve group ids (region={region_id}, national={national_id}). "
+                  f"Q6.1/Q6.2 will run as an ungrouped requester.")
+        group_map = {
+            "BOTH": [g for g in (region_id, national_id) if g is not None],
+            "NONE": [],
+        }
+    except Exception as e:
+        print(f"[WARN] Group id resolution failed ({e}). Q6.1/Q6.2 will run as an ungrouped requester.")
+        group_map = {"BOTH": [], "NONE": []}
+
     for item in BENCHMARK_QUESTIONS:
         qid = item["id"]
         category = item["category"]
         question = item["question"]
         expected = item["expected"]
+        user_groups = group_map.get(item.get("user_groups"), [])
 
         print("\n" + "-" * 80)
         print(f"[{qid}] Category: {category}")
         print(f"Question: {question}")
+        if item.get("user_groups"):
+            print(f"Requester groups: {item['user_groups']} -> DB ids {user_groups}")
         print("-" * 80)
 
         start_time = time.time()
         try:
-            state = {"question": question, "chat_history": []}
+            state = {"question": question, "chat_history": [], "user_groups": user_groups}
             res = code_intelligence_agent(state)
             elapsed = time.time() - start_time
 

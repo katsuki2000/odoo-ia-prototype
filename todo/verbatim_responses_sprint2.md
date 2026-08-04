@@ -1,6 +1,6 @@
 # Rapport Verbatim — Test Adversarial (Sprint 2 / End-to-End Benchmark)
 
-**Date d'exécution :** 2026-08-03 16:00:10
+**Date d'exécution :** 2026-08-04 15:44:12
 
 **Objectif :** Poser les questions test du README à l'agent Code Intelligence et mesurer les réponses verbatim après résolution des verrous Sprint 2.
 
@@ -12,15 +12,14 @@
 **Vérité Terrain attendue :**
 > Niveau 1: Groupe account.group_account_manager (>5000€). Niveau 2: Directeur régional (N+2) notifié (>20000€, code Python). Risque: N+2 non géré si vide.
 
-**Réponse Verbatim de l'agent (85.93s) :**
+**Réponse Verbatim de l'agent (93.84s) :**
 ```text
-En fonction des analyses effectuées, il semble que le droit d'approuver un avoir de 25 000€ pour un client normal (pas VIP) soit déterminé par les verrous Python présents dans le module `account_move.py` du module `custom_credit_note_approval`.
-
-En effet, l'analyse des verrous Python ([account_move.py:L1-L22](file:///home/user/odoo-17.0/addons/custom_credit_note_approval/models/account_move.py#L1-L22)) [Confiance: HIGH] a révélé que "Seul un responsable comptable peut valider un avoir de plus de 5000€."
-
-Il est donc probable que le responsable comptable soit l'entité autorisée à approuver un avoir de 25 000€ pour un client normal.
+En fonction des informations disponibles, il semble que l'analyse de sécurité via `analyser_verrous_securite` n'a pas pu divulguer le contenu nécessaire au demandeur actuel, faute de droits de gestion suffisants sur le modèle `account.move`.
 
 [Source: Graphe de Connaissances Code Intelligence]
+
+🔒 ÉLÉMENT(S) OMIS POUR RAISON D'AUTORISATION (Bloc 7 / J23-24):
+  - analyser_verrous_securite(account.move) : ÉLÉMENT OMIS POUR RAISON D'AUTORISATION : cette analyse porte sur un mécanisme de sécurité interne (verrou codé en dur / contournement) et le demandeur ne dispose pas d'un accès de gestion (write ou unlink) sur 'account.move'.
 ```
 
 ---
@@ -31,25 +30,16 @@ Il est donc probable que le responsable comptable soit l'entité autorisée à a
 **Vérité Terrain attendue :**
 > Bypass total pour avoir_vip_exempt = True. Piège: super().action_valider_avoir() rappelé sur tout le recordset à la fin.
 
-**Réponse Verbatim de l'agent (83.38s) :**
+**Réponse Verbatim de l'agent (136.67s) :**
 ```text
-En réponse à la question "Qui a le droit d'approuver un avoir pour un client VIP ?", nous pouvons faire les observations suivantes :
+En fonction des informations disponibles, il semble que l'analyse de sécurité via `analyser_verrous_securite` n'a pas pu divulguer le contenu nécessaire pour répondre à la question. Cependant, il est mentionné que l'analyse a été exécutée sur l'élément `account.move`. 
 
-- Analyse des verrous Python ([account_move.py:L1-L22](file:///home/user/odoo-17.0/addons/custom_credit_note_approval/models/account_move.py#L1-L22)) [Confiance: HIGH] : Seul un responsable comptable peut valider un avoir de plus de 5000€.
-- Analyse des verrous Python ([account_bank_statement_line.py:L1-L807](file:///home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/account_bank_statement_line.py#L1-L807)) [Confiance: HIGH] : Aucun verrou spécifique ni incertitude dynamique détecté.
-- Évaluation des règles d'enregistrement (ir.rule) pour 'account.move' : Aucune règle de groupe applicable (l'utilisateur n'appartient à aucun groupe cible par une règle sur ce modèle). Seules les règles globales s'appliquent.
-
-Cependant, nous n'avons pas trouvé d'information spécifique concernant les droits d'approuver un avoir pour un client VIP. Il est possible que cela soit géré par une règle ou un verrou spécifique qui n'a pas été détecté par nos analyses.
-
-En résumé, nous pouvons affirmer que :
-
-- Un responsable comptable peut valider un avoir de plus de 5000€.
-- Aucun verrou spécifique ni incertitude dynamique n'a été détecté pour les avoirs.
-- Aucune règle de groupe n'est applicable pour les avoirs.
-
-Cependant, les droits d'approuver un avoir pour un client VIP ne sont pas clairement définis par nos analyses.
+Il est donc impossible de fournir une réponse claire et professionnelle basée sur les données disponibles.
 
 [Source: Graphe de Connaissances Code Intelligence]
+
+🔒 ÉLÉMENT(S) OMIS POUR RAISON D'AUTORISATION (Bloc 7 / J23-24):
+  - analyser_verrous_securite(account.move) : ÉLÉMENT OMIS POUR RAISON D'AUTORISATION : cette analyse porte sur un mécanisme de sécurité interne (verrou codé en dur / contournement) et le demandeur ne dispose pas d'un accès de gestion (write ou unlink) sur 'account.move'.
 ```
 
 ---
@@ -60,22 +50,16 @@ Cependant, les droits d'approuver un avoir pour un client VIP ne sont pas claire
 **Vérité Terrain attendue :**
 > Message d'erreur exact: 'Une demande urgente dépassant le solde doit être validée par le N+2 ou un responsable RH.'
 
-**Réponse Verbatim de l'agent (134.51s) :**
+**Réponse Verbatim de l'agent (125.1s) :**
 ```text
-Je comprends que vous rencontrez des difficultés pour valider votre demande de congé malgré avoir coché 'urgente'. 
+Je suis désolé d'entendre que vous rencontrez des difficultés pour valider votre demande de congé. Selon les informations disponibles, il semble que le système ait détecté un problème de sécurité lié à l'analyse de votre demande de congé via la fonction `analyser_verrous_securite`. Cette fonction a été exécutée, mais le contenu de l'analyse n'a pas été divulgué à votre demande actuelle en raison de droits de gestion insuffisants sur le modèle `hr.leave`.
 
-Analyse des verrous Python (hr_leave.py:L1-L28) [Confiance: HIGH] :
-- Vous recevez un message d'erreur indiquant que le solde de congés restant est insuffisant. Cela suggère que vous n'avez pas suffisamment de jours de congé disponibles pour valider votre demande.
-
-Analyse des messages de verrous (UserError/ValidationError) :
-- Vous recevez un message d'erreur indiquant que vous devez valider votre demande par exceptionnelle du N+2, car votre demande urgente dépasse le solde de congés restant.
-
-Analyse des actions du serveur :
-- Vous recevez un message d'erreur indiquant que votre demande urgente doit être validée par le N+2 ou un responsable RH, car elle dépasse le solde de congés restant.
-
-En résumé, il semble que le problème réside dans le solde de congés restant insuffisant. Vous devriez vérifier votre solde de congés et prendre les mesures nécessaires pour le compléter avant de réessayer de valider votre demande de congé.
+Je vous recommande de contacter l'administrateur système ou le responsable de la gestion des congés pour obtenir plus d'informations sur la cause de ce problème et pour trouver une solution pour valider votre demande de congé.
 
 [Source: Graphe de Connaissances Code Intelligence]
+
+🔒 ÉLÉMENT(S) OMIS POUR RAISON D'AUTORISATION (Bloc 7 / J23-24):
+  - analyser_verrous_securite(hr.leave) : ÉLÉMENT OMIS POUR RAISON D'AUTORISATION : cette analyse porte sur un mécanisme de sécurité interne (verrou codé en dur / contournement) et le demandeur ne dispose pas d'un accès de gestion (write ou unlink) sur 'hr.leave'.
 ```
 
 ---
@@ -86,19 +70,23 @@ En résumé, il semble que le problème réside dans le solde de congés restant
 **Vérité Terrain attendue :**
 > Le groupe purchase_manager ne suffit pas >10000€. Seuls logins dans _VALIDATEURS_EXCEPTIONNELS (direction@societe.com, daf@societe.com) peuvent valider.
 
-**Réponse Verbatim de l'agent (55.26s) :**
+**Réponse Verbatim de l'agent (54.25s) :**
 ```text
-En fonction des informations disponibles, voici la réponse :
+Analyse de la demande d'achat de 15 000€ :
 
-Selon l'analyse des verrous Python, seuls les utilisateurs avec les logins/emails privilégés en dur 'direction@societe.com' ou 'daf@societe.com' ont le droit d'approuver une demande d'achat de 15 000€.
+- L'analyse de sécurité via `analyser_verrous_securite` n'a pas permis de déterminer qui a le droit d'approuver la demande, faute de droits de gestion suffisants sur le modèle `custom.purchase.request`.
+- L'analyse de sécurité via `analyser_verrous_securite` n'a pas permis de déterminer qui a le droit d'approuver la demande, faute de droits de gestion suffisants sur le modèle `purchase.order`.
+- L'évaluation des règles d'enregistrement (`ir.rule`) pour `custom.purchase.request` n'a pas trouvé de règles de groupe applicables, car l'utilisateur n'appartient à aucun des groupes visés par les règles.
+- Le moteur de règles (`evaluer_regles_enregistrement`) a déterminé que l'utilisateur peut voir l'enregistrement pour un montant de 15 000€, car `can_view_amount()` est True.
+- Le modèle `purchase.order` n'a pas été trouvé dans le graphique de connaissance indexé.
 
-Cependant, il est important de noter que les règles d'enregistrement (ir.rule) pour le modèle 'custom.purchase.request' ne sont pas applicables à l'utilisateur actuel, car il n'appartient à aucun des groupes visés par ces règles.
-
-Enfin, la fonction can_view_amount() a retourné True, ce qui signifie que l'utilisateur a le droit de voir cet enregistrement.
-
-En conclusion, en fonction des informations disponibles, seul l'utilisateur avec le login/email privilégé 'direction@societe.com' ou 'daf@societe.com' a le droit d'approuver une demande d'achat de 15 000€.
+En conclusion, il n'est pas possible de déterminer avec certitude qui a le droit d'approuver la demande d'achat de 15 000€ en fonction des informations disponibles. Cependant, l'utilisateur a le droit de voir l'enregistrement pour un montant de 15 000€, car `can_view_amount()` est True.
 
 [Source: Graphe de Connaissances Code Intelligence]
+
+🔒 ÉLÉMENT(S) OMIS POUR RAISON D'AUTORISATION (Bloc 7 / J23-24):
+  - analyser_verrous_securite(custom.purchase.request) : ÉLÉMENT OMIS POUR RAISON D'AUTORISATION : cette analyse porte sur un mécanisme de sécurité interne (verrou codé en dur / contournement) et le demandeur ne dispose pas d'un accès de gestion (write ou unlink) sur 'custom.purchase.request'.
+  - analyser_verrous_securite(purchase.order) : ÉLÉMENT OMIS POUR RAISON D'AUTORISATION : cette analyse porte sur un mécanisme de sécurité interne (verrou codé en dur / contournement) et le demandeur ne dispose pas d'un accès de gestion (write ou unlink) sur 'purchase.order'.
 ```
 
 ---
@@ -109,25 +97,30 @@ En conclusion, en fonction des informations disponibles, seul l'utilisateur avec
 **Vérité Terrain attendue :**
 > Nécessite demande_achat_liee_id. Si >2000€, bénéficiaire != demandeur (séparation des rôles).
 
-**Réponse Verbatim de l'agent (50.44s) :**
+**Réponse Verbatim de l'agent (12.51s) :**
 ```text
 Pour faire une demande de mise à disposition de matériel, vous devez suivre les étapes suivantes :
 
-1. Cliquez sur le bouton 'Demande de mise à disposition' sur la vue de formulaire du modèle 'custom.asset.loan'.
-2. Le bouton 'Demande de mise à disposition' appelle la méthode Python 'action_demande de mise à disposition()'.
-3. La méthode 'action_demande de mise à disposition()' exécute la logique de la méthode sans transition d'état.
+1. Cliquez sur le bouton 'Demande de mise à disposition' sur la vue de formulaire de 'custom.asset.loan'.
+2. Cette action appelle la méthode Python 'action_demande de mise à disposition()'.
+3. La méthode exécute la logique sans transition d'état de la machine à états.
 
-Il est important de noter que la demande de mise à disposition de matériel nécessite une séparation des rôles, c'est-à-dire que le bénéficiaire du matériel doit être différent du demandeur initial si le coût du matériel dépasse 2000 euros.
+Il n'y a pas de restriction de groupe spécifiée pour ce bouton.
 
-En ce qui concerne les conditions particulières, il est recommandé de vérifier les règles d'enregistrement (ir.rule) pour le modèle 'custom.asset.loan'. Actuellement, aucune règle globale ou de groupe n'est applicable pour ce modèle.
+L'évaluation des règles d'enregistrement (ir.rule) pour 'custom.asset.loan' n'a pas trouvé de règles globales ou de règles de groupe applicables. L'utilisateur n'appartient à aucun des groupes visés par les règles de groupe.
 
-En outre, le modèle 'custom.asset.loan' n'hérite d'aucun autre modèle et n'a pas de transitions d'état de workflow explicites définies.
+Il n'y a pas de contraintes SQL ou de modèles de domaine relationnel définis pour le modèle 'custom.asset.loan'.
 
-Il est également important de noter que la méthode 'action_demande de mise à disposition()' n'est pas définie dans le code Python.
+Le modèle 'custom.asset.loan' existe dans l'index mais n'a pas de transitions d'état de workflow explicites définies.
 
-Enfin, le modèle 'custom.asset.loan' existe dans l'index mais n'a pas d'actions de serveur (ir.actions.server) associées.
+La demande de mise à disposition de matériel est liée à la demande de mise à disposition 'demande_mise_disposition'.
+
+Il est important de noter que les conditions particulières pour faire une demande de mise à disposition de matériel ne sont pas explicitement définies dans les observations fournies. Il est donc recommandé de consulter les documents internes ou les responsables concernés pour obtenir plus d'informations sur les conditions particulières.
 
 [Source: Graphe de Connaissances Code Intelligence]
+
+🔒 ÉLÉMENT(S) OMIS POUR RAISON D'AUTORISATION (Bloc 7 / J23-24):
+  - analyser_verrous_securite(custom.asset.loan) : ÉLÉMENT OMIS POUR RAISON D'AUTORISATION : cette analyse porte sur un mécanisme de sécurité interne (verrou codé en dur / contournement) et le demandeur ne dispose pas d'un accès de gestion (write ou unlink) sur 'custom.asset.loan'.
 ```
 
 ---
@@ -138,38 +131,26 @@ Enfin, le modèle 'custom.asset.loan' existe dans l'index mais n'a pas d'actions
 **Vérité Terrain attendue :**
 > NON: fournisseurs ID 42, 108, 231 auto-validés via ir.actions.server avec sudo() contournant les règles standard.
 
-**Réponse Verbatim de l'agent (77.86s) :**
+**Réponse Verbatim de l'agent (81.89s) :**
 ```text
-En réponse à votre question, il semble que les avoirs fournisseurs ne passent pas par les mêmes règles d'approbation. 
+En réponse à votre question, tous les avoirs fournisseurs ne passent pas par les mêmes règles d'approbation. 
 
-Analyse des verrous Python ([account_move.py:L1-L22](file:///home/user/odoo-17.0/addons/custom_credit_note_approval/models/account_move.py#L1-L22)) [Confiance: HIGH] :
-- Il existe un message de verrou (UserError/ValidationError) qui indique que "Seul un responsable comptable peut valider un avoir de plus de 5000€."
+En effet, l'évaluation des règles d'enregistrement (ir.rule) pour 'account.move' a révélé que seules les règles globales s'appliquent, sans aucune règle de groupe applicable pour l'utilisateur actuel. 
 
-Cependant, d'autres analyses ne détectent pas de verrous spécifiques ni d'incertitude dynamique. 
+Cependant, l'analyse des contraintes de données (Semgrep) pour 'account.move' a révélé que le champ 'partner_id' spécifie une condition de domaine qui restreint les partenaires autorisés, et que le champ 'journal_id' spécifie une condition de domaine qui restreint les journaux autorisés.
 
-Analyse des verrous Python ([account_bank_statement_line.py:L1-L807](file:///home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/account_bank_statement_line.py#L1-L807)) [Confiance: HIGH] :
-- Aucun verrou spécifique ni incertitude dynamique détecté.
+De plus, l'analyse des droits de gestion pour le modèle 'account.move' a révélé que les groupes 'account.group_account_invoice', 'account.group_account_manager' et 'account.group_account_user' ont le droit d'écrire sur ce modèle.
 
-Analyse des verrous Python ([account_move.py:L1-L5214](file:///home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/account_move.py#L1-L5214)) [Confiance: LOW] :
-- (Contenu tronqué pour LLM context limit...)
+Enfin, l'analyse des transitions de workflow pour 'account.move' a révélé que les utilisateurs ont la possibilité de passer le modèle 'account.move' de l'état 'draft' à l'état 'done' via le bouton 'Post', et de passer le modèle 'account.move' de l'état 'cancel' à l'état 'cancel' via le bouton 'Cancel Entry'.
 
-Analyse du code de l'action serveur 'custom_automation_traps.ir_action_server_avoir_fournisseur_privilegie' [Confiance: FAIBLE - logique en données XML, modifiable à l'exécution] :
-- SUDO détecté : Contournement des droits d'accès via sudo()
-- IDs en dur : [42, 108, 231] → traitement privilégié non documenté
-
-Analyse du code de l'action serveur 'ir_action_server_avoir_fournisseur_privilegie' [Confiance: FAIBLE - logique en données XML, modifiable à l'exécution] :
-- SUDO détecté : Contournement des droits d'accès via sudo()
-- IDs en dur : [42, 108, 231] → traitement privilégié non documenté
-
-Évaluation des règles d'enregistrement (ir.rule) pour 'account.move' :
-- Règles Globales (ET pour tous) : Avoirs - cantonnement societe (regle globale, sans groupe) [['|', ('move_type', '!=', 'out_refund'), ('company_id', '=', user.company_id.id)]]
-- Règles de Groupe applicables : Aucune (l'utilisateur n'appartient à aucun des groupes visés)
-- Règles de Groupe ignorées (non-membre) : Avoirs - visibilite par departement (sauf managers), Avoirs - plafond visibilite regionale (50000e), Avoirs - visibilite nationale (illimitee)
--> CONCLUSION : Aucune regle de groupe applicable (l'utilisateur n'appartient a aucun groupe cible par une regle sur ce modele). Seules les regles globales ci-dessus s'appliquent -- il n'y a AUCUNE restriction supplementaire de montant ou de portee provenant d'une regle de groupe pour cet utilisateur.
-
-En conclusion, il existe des règles d'approbation spécifiques pour les avoirs fournisseurs, mais elles ne sont pas les mêmes pour tous les avoirs fournisseurs.
+En conclusion, bien que les règles globales s'appliquent pour l'utilisateur actuel, d'autres contraintes et règles peuvent s'appliquer en fonction du contexte et des droits de gestion.
 
 [Source: Graphe de Connaissances Code Intelligence]
+
+🔒 ÉLÉMENT(S) OMIS POUR RAISON D'AUTORISATION (Bloc 7 / J23-24):
+  - analyser_verrous_securite(account.move) : ÉLÉMENT OMIS POUR RAISON D'AUTORISATION : cette analyse porte sur un mécanisme de sécurité interne (verrou codé en dur / contournement) et le demandeur ne dispose pas d'un accès de gestion (write ou unlink) sur 'account.move'.
+  - analyser_actions_serveur(account.move) : ÉLÉMENT OMIS POUR RAISON D'AUTORISATION : cette analyse porte sur un mécanisme de sécurité interne (verrou codé en dur / contournement) et le demandeur ne dispose pas d'un accès de gestion (write ou unlink) sur 'account.move'.
+  - ir.rule sur 'account.move' non applicable(s) au demandeur : Avoirs - visibilite par departement (sauf managers), Avoirs - plafond visibilite regionale (50000e), Avoirs - visibilite nationale (illimitee) : ÉLÉMENT OMIS POUR RAISON D'AUTORISATION : ces règles de sécurité visent des groupes dont le demandeur n'est pas membre ; leur nom et leur condition (domain_force) ne sont pas divulgués.
 ```
 
 ---
@@ -180,32 +161,26 @@ En conclusion, il existe des règles d'approbation spécifiques pour les avoirs 
 **Vérité Terrain attendue :**
 > OUI: Règles de groupe en OU. La règle nationale (illimitée) l'emporte sur le plafond 50k€ régional.
 
-**Réponse Verbatim de l'agent (45.22s) :**
+**Réponse Verbatim de l'agent (11.37s) :**
 ```text
 L'utilisateur membre à la fois du groupe régional et du groupe national peut voir un avoir de 80 000€.
 
-La règle d'enregistrement 'Avoirs - cantonnement societe' n'affecte pas l'accès à cet enregistrement, car elle ne s'applique pas au groupe de l'utilisateur.
+La règle d'enregistrement 'Avoirs - visibilite nationale (illimitee)' permet à l'utilisateur de voir l'enregistrement, car le montant total est supérieur à 50 000€. Cette règle est applicable car l'utilisateur est membre du groupe national.
 
-La règle d'enregistrement 'Avoirs - plafond visibilite regionale (50000e)' n'est pas applicable, car l'amount_total est supérieur à 50 000€.
+La règle d'enregistrement 'Avoirs - plafond visibilite regionale (50000e)' n'est pas applicable, car le montant total est supérieur à 50 000€.
 
-La règle d'enregistrement 'Avoirs - visibilite nationale (illimitee)' est applicable, mais elle ne restreint pas l'accès à cet enregistrement.
+La règle d'enregistrement 'Avoirs - cantonnement societe' est applicable, mais elle ne restreint pas l'accès à l'enregistrement.
 
-La synthèse des règles d'enregistrement indique que l'utilisateur peut voir cet enregistrement.
-
-La résolution des groupes 'group_region' et 'group_national' n'a pas pu être effectuée, mais cela ne signifie pas que l'accès est refusé.
+La résolution du nom technique 'group_region' et 'group_national' n'a pas pu être effectuée, mais cela ne signifie pas que l'accès est refusé.
 
 Les modules impliqués pour le modèle 'account.move' sont :
 
-Synthèse des observations :
-
-- L'utilisateur peut voir l'enregistrement en raison de la règle d'enregistrement 'Avoirs - visibilite nationale (illimitee)'.
-- La règle d'enregistrement 'Avoirs - plafond visibilite regionale (50000e)' n'est pas applicable.
-- La résolution des groupes 'group_region' et 'group_national' n'a pas pu être effectuée.
-- Les modules impliqués pour le modèle 'account.move' sont :
-
-Note : La synthèse des observations est basée sur les résultats de l'évaluation des règles d'enregistrement et de la résolution des groupes.
+Synthèse : L'utilisateur peut voir l'enregistrement car la règle d'enregistrement 'Avoirs - visibilite nationale (illimitee)' est applicable et ne restreint pas l'accès.
 
 [Source: Graphe de Connaissances Code Intelligence]
+
+🔒 ÉLÉMENT(S) OMIS POUR RAISON D'AUTORISATION (Bloc 7 / J23-24):
+  - ir.rule sur 'account.move' non applicable(s) au demandeur : Avoirs - visibilite par departement (sauf managers) : ÉLÉMENT OMIS POUR RAISON D'AUTORISATION : ces règles de sécurité visent des groupes dont le demandeur n'est pas membre ; leur nom et leur condition (domain_force) ne sont pas divulgués.
 ```
 
 ---
@@ -216,15 +191,16 @@ Note : La synthèse des observations est basée sur les résultats de l'évaluat
 **Vérité Terrain attendue :**
 > OUI: Ni l'une ni l'autre règle ne s'applique. Soumis uniquement à la règle globale (société) sans limite de montant.
 
-**Réponse Verbatim de l'agent (59.62s) :**
+**Réponse Verbatim de l'agent (11.22s) :**
 ```text
 L'utilisateur qui n'appartient à AUCUN des deux groupes (ni régional, ni national) peut voir cet avoir de 80 000€. 
 
-Cette conclusion est basée sur l'évaluation des règles d'enregistrement (ir.rule) pour le modèle 'account.move', qui n'ont pas trouvé d'application pour cet utilisateur. Les règles globales s'appliquant à tous les utilisateurs n'ont pas imposé de restriction supplémentaire de montant ou de portée. 
-
-De plus, la méthode can_view_amount() a retourné True pour un montant de 80 000€, ce qui signifie que l'utilisateur peut voir cet enregistrement. Ce résultat est calculé directement par le moteur de règles et ne doit pas être recalculé ou contredit.
+Cette conclusion est basée sur l'évaluation des règles d'enregistrement (ir.rule) pour le modèle 'account.move', qui n'ont pas trouvé d'application pour cet utilisateur. Les règles globales s'appliquant à tous les utilisateurs n'ont pas imposé de restriction supplémentaire de montant ou de portée. De plus, la méthode can_view_amount() a retourné True, ce qui signifie que l'utilisateur peut voir cet enregistrement.
 
 [Source: Graphe de Connaissances Code Intelligence]
+
+🔒 ÉLÉMENT(S) OMIS POUR RAISON D'AUTORISATION (Bloc 7 / J23-24):
+  - ir.rule sur 'account.move' non applicable(s) au demandeur : Avoirs - visibilite par departement (sauf managers), Avoirs - plafond visibilite regionale (50000e), Avoirs - visibilite nationale (illimitee) : ÉLÉMENT OMIS POUR RAISON D'AUTORISATION : ces règles de sécurité visent des groupes dont le demandeur n'est pas membre ; leur nom et leur condition (domain_force) ne sont pas divulgués.
 ```
 
 ---
@@ -235,11 +211,14 @@ De plus, la méthode can_view_amount() a retourné True pour un montant de 80 00
 **Vérité Terrain attendue :**
 > Point de contrôle dynamique (getattr/_g_q7) repéré dans action_valider mais NON CLASSIFIÉ avec certitude. Proposer pour revue manuelle avec source fichier+ligne.
 
-**Réponse Verbatim de l'agent (0.11s) :**
+**Réponse Verbatim de l'agent (0.08s) :**
 ```text
 Je ne peux pas classifier avec certitude qui peut valider cette demande de remboursement. L'analyse statique détecte un dispatch dynamique (`getattr`) : la méthode exécutée dépend d'un paramètre récupéré à l'exécution, donc le chemin exact doit être revu manuellement. Ne pas présenter cette validation comme autorisée ou refusée de manière certaine. Source à revoir : [reimbursement.py:L1-L39](file:///home/user/odoo-17.0/addons/custom_expense_reimbursement_indirect/models/reimbursement.py#L1-L39).
 
 [Source: Graphe de Connaissances Code Intelligence]
+
+🔒 ÉLÉMENT(S) OMIS POUR RAISON D'AUTORISATION (Bloc 7 / J23-24):
+  - analyser_verrous_securite(hr.expense) : ÉLÉMENT OMIS POUR RAISON D'AUTORISATION : cette analyse porte sur un mécanisme de sécurité interne (verrou codé en dur / contournement) et le demandeur ne dispose pas d'un accès de gestion (write ou unlink) sur 'hr.expense'.
 ```
 
 ---

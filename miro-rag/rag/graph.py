@@ -40,6 +40,62 @@ _last_groq_call_time = [0.0]
 MIN_GROQ_CALL_INTERVAL = 5.0  # Enforce 5.0s minimum spacing between LLM calls
 
 
+# ── Bloc 7 fix: real Odoo group DB IDs -> xml_id resolution ──────────────────
+_GROUP_XMLID_CACHE: dict = {}
+_ADMIN_RPC_CLIENT = None
+_ADMIN_RPC_UID = None
+
+
+def _get_admin_rpc_client():
+    """Lazy singleton admin XML-RPC client + uid, reused across requests --
+    pure static-metadata lookups only (group xml_id resolution), never used
+    for anything requiring the actual requester's own rights."""
+    global _ADMIN_RPC_CLIENT, _ADMIN_RPC_UID
+    if _ADMIN_RPC_CLIENT is None:
+        from code_intelligence.odoo_rpc_client import OdooRpcClient
+        client = OdooRpcClient()
+        _ADMIN_RPC_UID = client.authenticate_admin()
+        _ADMIN_RPC_CLIENT = client
+    return _ADMIN_RPC_CLIENT, _ADMIN_RPC_UID
+
+
+def _resolve_user_group_xmlids(group_ids) -> list:
+    """
+    Bloc 7 fix: the demandeur's real Odoo groups arrive from the JWT as
+    res.groups DATABASE IDs (see miro_ai/controllers/main.py:
+    `groups = [g.id for g in user.groups_id]`), but the Code Intelligence
+    graph identifies every group by its XML-ID (module.name), built
+    statically from XML extraction. Without this translation,
+    resolve_group_identifier() / _has_elevated_access() never match a real
+    logged-in user against any group in the graph -- every real requester
+    was silently treated as belonging to no group at all (found in review,
+    J23-24). This affects both evaluer_regles_enregistrement's AND/OR
+    engine (Bloc 1) and authorization_gate's elevated-access check (Bloc 7).
+
+    Fails closed: any ID that can't be resolved (RPC error, group has no
+    ir.model.data entry) is simply dropped, never guessed -- a missing
+    group membership can only make gating MORE restrictive, never less.
+    Locked by test_j23_24_group_id_xmlid_resolution.py.
+    """
+    if not group_ids:
+        return []
+
+    uncached = [g for g in group_ids if g not in _GROUP_XMLID_CACHE]
+    if uncached:
+        try:
+            client, admin_uid = _get_admin_rpc_client()
+            resolved = client.get_group_xmlids(admin_uid, uncached)
+            _GROUP_XMLID_CACHE.update(resolved)
+        except Exception as e:
+            logger.error(
+                "Group ID -> xml_id resolution failed for %s: %s. "
+                "These groups will be treated as unresolved (fail closed).",
+                uncached, e,
+            )
+
+    return [_GROUP_XMLID_CACHE[g] for g in group_ids if g in _GROUP_XMLID_CACHE]
+
+
 def _parse_reset_seconds(header_value: str, default: float = 20.0) -> float:
     """
     Groq's x-ratelimit-reset-* headers come as e.g. '13.42s' or '1m3.42s'.
@@ -284,6 +340,7 @@ class RAGState(TypedDict):
     route: Optional[str]
     response: Optional[AssistantResponse]
     uid: Optional[int]  # Odoo user uid for RBAC passthrough
+    user_groups: List[int]  # Real Odoo group ids of the requester (signed JWT, never LLM-guessed)
 
 
 # ── Nodes ─────────────────────────────────────────────────────────────────────
@@ -844,6 +901,37 @@ def _question_suggests_automation_bypass(question: str) -> bool:
     return bool(_AUTOMATION_PATTERN.search(question))
 
 
+def _override_user_groups_arg(tool_name: str, tool_args: dict, resolved_user_group_xmlids: list) -> dict:
+    """
+    Bloc 7 (J23-24) / real-auth fix: for evaluer_regles_enregistrement, the
+    tool call's user_groups_json must always reflect the DEMANDEUR's real
+    Odoo groups -- never a value invented by the LLM from free text, which
+    has no way to know the actual requester's real group memberships.
+
+    resolved_user_group_xmlids: the demandeur's real group DB IDs (signed
+    into the JWT by the Odoo controller from request.env.user.groups_id),
+    already translated to xml_id strings by _resolve_user_group_xmlids()
+    -- the graph identifies groups by xml_id, never by raw DB id (see that
+    function's docstring for the bug this fixes).
+
+    Mutates and returns tool_args for convenience; any value the LLM
+    proposed is discarded and logged. No-op for every other tool.
+    """
+    if tool_name != "evaluer_regles_enregistrement":
+        return tool_args
+
+    real_groups_json = json.dumps(resolved_user_group_xmlids)
+    llm_proposed = tool_args.get("user_groups_json")
+    if llm_proposed and llm_proposed != real_groups_json:
+        logger.warning(
+            "Node [code_intelligence_agent]: overriding LLM-guessed "
+            "user_groups_json (%s) with the real requester groups (%s).",
+            llm_proposed, real_groups_json,
+        )
+    tool_args["user_groups_json"] = real_groups_json
+    return tool_args
+
+
 def _extract_first_scoped_file_link(text: str) -> str:
     match = re.search(r"\[[^\]]+\]\(file:///[^\)]+#L\d+-L\d+\)", text)
     return match.group(0) if match else ""
@@ -987,7 +1075,20 @@ def code_intelligence_agent(state: RAGState) -> dict:
     G = get_code_intelligence_graph()
     from code_intelligence.ci_agent_tools import ALL_CI_TOOLS, set_graph_ref, set_llm_ref
     from code_intelligence.business_resolver import resolve_business_term
+    from code_intelligence.authorization_gate import gate_observation, OmittedItem
     set_graph_ref(G)
+
+    # Bloc 7 fix: translate the demandeur's real Odoo group DB IDs to xml_id
+    # strings ONCE for this question -- see _resolve_user_group_xmlids()
+    # docstring. Every gating / evaluer_regles_enregistrement call below
+    # must use this resolved list, never the raw state["user_groups"] ids.
+    resolved_user_group_xmlids = _resolve_user_group_xmlids(state.get("user_groups", []))
+    if state.get("user_groups") and not resolved_user_group_xmlids:
+        logger.warning(
+            "Node [code_intelligence_agent]: none of the demandeur's %d group ID(s) "
+            "resolved to an xml_id -- gating will fail closed for this request.",
+            len(state["user_groups"]),
+        )
 
     # Bind tools to LLM (C.1.1)
     llm = ChatGroq(
@@ -1004,6 +1105,7 @@ def code_intelligence_agent(state: RAGState) -> dict:
     concept = resolve_business_term(question, G, llm=llm)
 
     tool_observations: list = []
+    omitted_items: list = []  # Bloc 7 (J23-24): OmittedForAuthorization entries
     final_answer = None
     hop_count = 0
     seen_calls: set = set()
@@ -1044,6 +1146,19 @@ def code_intelligence_agent(state: RAGState) -> dict:
                     forced_observation = str(lock_tool.invoke({"model_name": target_model}))
                     if len(forced_observation) > 1200:
                         forced_observation = forced_observation[:1200] + "\n[... Content truncated for LLM context limit ...]"
+                    # Bloc 7 (J23-24): generalized gating on this forced
+                    # dispatch too -- it bypasses the normal ReAct tool
+                    # loop, so it must be gated here explicitly rather than
+                    # relying on the loop's gating below.
+                    forced_observation, omitted_item = gate_observation(
+                        tool_name="analyser_verrous_securite",
+                        model_name=target_model,
+                        observation=forced_observation,
+                        G=G,
+                        user_groups=resolved_user_group_xmlids,
+                    )
+                    if omitted_item is not None:
+                        omitted_items.append(omitted_item)
                     tool_observations.append(forced_observation)
                     hop_count += 1
                     seen_calls.add(("analyser_verrous_securite", target_model))
@@ -1090,6 +1205,18 @@ def code_intelligence_agent(state: RAGState) -> dict:
                     forced_observation = str(sa_tool.invoke({"model_name": target_model}))
                     if len(forced_observation) > 1200:
                         forced_observation = forced_observation[:1200] + "\n[... Content truncated for LLM context limit ...]"
+                    # Bloc 7 (J23-24): same rationale as the
+                    # analyser_verrous_securite forced dispatch above --
+                    # this bypasses the ReAct loop's gating, so gate here.
+                    forced_observation, omitted_item = gate_observation(
+                        tool_name="analyser_actions_serveur",
+                        model_name=target_model,
+                        observation=forced_observation,
+                        G=G,
+                        user_groups=resolved_user_group_xmlids,
+                    )
+                    if omitted_item is not None:
+                        omitted_items.append(omitted_item)
                     tool_observations.append(forced_observation)
                     hop_count += 1
                     seen_calls.add(call_key)
@@ -1135,6 +1262,11 @@ def code_intelligence_agent(state: RAGState) -> dict:
                 if tool_name == "qui_a_acces_a" and "droit" not in tool_args:
                     tool_args["droit"] = "all"
 
+                # Bloc 7 (J23-24) / real-auth fix: force the DEMANDEUR's real
+                # groups into evaluer_regles_enregistrement's args (see
+                # _override_user_groups_arg docstring). No-op for other tools.
+                tool_args = _override_user_groups_arg(tool_name, tool_args, resolved_user_group_xmlids)
+
                 logger.info("Node [code_intelligence_agent]: Single-Dispatch invoking '%s' with args %s", tool_name, tool_args)
                 tool_map = {t.name: t for t in ALL_CI_TOOLS}
                 if tool_name in tool_map:
@@ -1142,6 +1274,41 @@ def code_intelligence_agent(state: RAGState) -> dict:
                         observation = str(tool_map[tool_name].invoke(tool_args))
                         if len(observation) > 1200:
                             observation = observation[:1200] + "\n[... Content truncated for LLM context limit ...]"
+
+                        # Bloc 7 (J23-24): compute the RuleEvaluationResult
+                        # once, unconditionally, whenever this tool ran --
+                        # both the gating below and the can_view_amount
+                        # deterministic fact (J14 fix, only when an amount
+                        # is present) reuse this same object instead of
+                        # calling evaluer_regles_raw twice.
+                        rule_result = None
+                        if tool_name == "evaluer_regles_enregistrement":
+                            try:
+                                from code_intelligence.ci_agent_tools import evaluer_regles_raw
+
+                                rule_result = evaluer_regles_raw(
+                                    model_name=tool_args.get("model_name", ""),
+                                    droit=tool_args.get("droit", "read"),
+                                    user_groups_json=tool_args.get("user_groups_json", "[]"),
+                                )
+                            except Exception as ve:
+                                logger.error("evaluer_regles_raw computation failed: %s", ve)
+
+                        # Bloc 7 (J23-24): generalized gating -- filter this
+                        # observation according to the demandeur's real
+                        # rights BEFORE it ever reaches the synthesis LLM,
+                        # so an omitted fact can't leak back out paraphrased.
+                        observation, omitted_item = gate_observation(
+                            tool_name=tool_name,
+                            model_name=tool_args.get("model_name", ""),
+                            observation=observation,
+                            G=G,
+                            user_groups=resolved_user_group_xmlids,
+                            rule_result=rule_result,
+                        )
+                        if omitted_item is not None:
+                            omitted_items.append(omitted_item)
+
                         tool_observations.append(observation)
                         hop_count += 1
 
@@ -1152,22 +1319,20 @@ def code_intelligence_agent(state: RAGState) -> dict:
                         # synthesis LLM to guess, and the LLM picked the most
                         # restrictive rule instead of the union. can_view_amount()
                         # already implements the correct AND-global/OR-group
-                        # logic; call evaluer_regles_raw (which shares the same
-                        # resolve + parse logic as the @tool wrapper) to get a
-                        # RuleEvaluationResult, then inject an unambiguous
-                        # deterministic fact the synthesis LLM must not
-                        # recompute or contradict.
-                        if tool_name == "evaluer_regles_enregistrement":
+                        # logic; reuse the RuleEvaluationResult computed above
+                        # (shares the same resolve + parse logic as the @tool
+                        # wrapper) to inject an unambiguous deterministic fact
+                        # the synthesis LLM must not recompute or contradict.
+                        # This injected fact is NEVER gated: it's already
+                        # computed directly against the demandeur's real
+                        # rights, so surfacing the verdict itself (not the
+                        # rule's internal name/condition) is exactly the
+                        # point of Bloc 7's generalized gating, not something
+                        # it should hide.
+                        if tool_name == "evaluer_regles_enregistrement" and rule_result is not None:
                             amount = _extract_amount(question)
                             if amount is not None:
                                 try:
-                                    from code_intelligence.ci_agent_tools import evaluer_regles_raw
-
-                                    rule_result = evaluer_regles_raw(
-                                        model_name=tool_args.get("model_name", ""),
-                                        droit=tool_args.get("droit", "read"),
-                                        user_groups_json=tool_args.get("user_groups_json", "[]"),
-                                    )
                                     can_view = rule_result.can_view_amount(amount)
                                     tool_observations.append(
                                         f"[FAIT DÉTERMINISTIQUE] Pour un montant de {amount:.0f}€, "
@@ -1249,6 +1414,23 @@ def code_intelligence_agent(state: RAGState) -> dict:
 
     final_answer += "\n\n[Source: Graphe de Connaissances Code Intelligence]"
 
+    # Bloc 7 (J23-24): surface the omission state explicitly and visibly,
+    # kept as its own separate footer -- never merged into the sourcing
+    # warning above -- so an omission is never mistaken for an unverified
+    # citation or folded into the confidence score.
+    from rag.schemas import OmittedForAuthorization
+    omitted_for_authorization = [
+        OmittedForAuthorization(label=item.label, reason=item.reason)
+        for item in omitted_items
+    ]
+    if omitted_for_authorization:
+        omission_separator = chr(10)
+        omission_lines = omission_separator.join(f"  - {o.label} : {o.reason}" for o in omitted_for_authorization)
+        final_answer += (
+            "\n\n\U0001F512 \u00c9L\u00c9MENT(S) OMIS POUR RAISON D'AUTORISATION (Bloc 7 / J23-24):\n"
+            + omission_lines
+        )
+
     # Build sources from tool observations
     sources = []
     for obs in tool_observations:
@@ -1264,6 +1446,7 @@ def code_intelligence_agent(state: RAGState) -> dict:
         answer=final_answer,
         sources=sources,
         confidence=1.0 if tool_observations else 0.5,
+        omitted_for_authorization=omitted_for_authorization,
     )
 
     timing = state.get("timing", {}).copy()
@@ -1358,11 +1541,16 @@ def query_graph(
     uid: Optional[int] = None,
     api_key: Optional[str] = None,
     skills: Optional[dict] = None,
+    user_groups: Optional[List[int]] = None,
 ) -> AssistantResponse:
     """
     Public API to query the graph.
     uid: Odoo user id for RBAC passthrough.
     api_key: Odoo user API key / password for authenticated XML-RPC calls.
+    user_groups: real Odoo group ids of the requester, signed into the JWT
+    by the Odoo controller. Used to evaluate ir.rule record rules against
+    the actual requester, never guessed by the LLM, so Code Intelligence
+    explanations are gated by the real demandeur's rights (Bloc 7).
     """
     import time
     import json
@@ -1394,6 +1582,7 @@ def query_graph(
             "raw_answer": "",
             "route": None,
             "response": None,
+            "user_groups": user_groups or [],
         }
     
         logger.info("Invoking graph for question: '%s'", question)

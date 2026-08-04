@@ -25,7 +25,8 @@ class TestDebouncedIngestionHandler(unittest.TestCase):
         self.root = Path(self.temp_dir.name)
         self.manager = MagicMock()
         self.handler = DebouncedIngestionHandler(
-            chroma_manager=self.manager,
+            docs_manager=self.manager,
+            code_manager=self.manager,
             debounce_seconds=0,
             chunk_size=120,
             chunk_overlap=10,
@@ -46,7 +47,8 @@ class TestDebouncedIngestionHandler(unittest.TestCase):
         reindex.assert_called_once()
         args, kwargs = reindex.call_args
         self.assertEqual(args[0], [target.resolve()])
-        self.assertEqual(kwargs.get("chroma_manager"), self.manager)
+        self.assertEqual(kwargs.get("docs_manager"), self.manager)
+        self.assertEqual(kwargs.get("code_manager"), self.manager)
         self.assertEqual(self.handler.last_event_type, "upsert")
         self.assertEqual(self.handler.last_result.get("chunks_added"), 1)
 

@@ -43,7 +43,7 @@ def test_run_startup_scan_updates_status_and_logs_event(tmp_path):
             "chunks_deleted": 0,
         }
         
-        result = run_startup_scan([docs_dir], chroma_manager=manager, status_dict=status_dict)
+        result = run_startup_scan([docs_dir], docs_manager=manager, code_manager=manager, status_dict=status_dict)
 
     assert result["chunks_added"] == 1
     assert status_dict["last_scan_type"] == "startup_incremental_scan"
@@ -82,7 +82,7 @@ def test_run_scheduled_scan_updates_status_and_logs_event(tmp_path):
             "chunks_deleted": 1,
         }
         
-        result = run_scheduled_scan([docs_dir], chroma_manager=manager, status_dict=status_dict)
+        result = run_scheduled_scan([docs_dir], docs_manager=manager, code_manager=manager, status_dict=status_dict)
 
     assert result["chunks_added"] == 2
     assert status_dict["last_scan_type"] == "periodic_incremental_scan"

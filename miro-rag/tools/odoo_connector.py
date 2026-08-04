@@ -46,11 +46,30 @@ class OdooConnector:
         self.models = xmlrpc.client.ServerProxy(f"{self.url}/xmlrpc/2/object")
 
     def _resolve_password(self) -> str:
-        """Return the per-request API key/password if set via ContextVar, else fall back to instance default."""
+        """
+        Return the per-request API key/password if set via ContextVar, else
+        fall back to the instance default (admin) password.
+
+        The ContextVar is set by query_graph() from the `api_key` it receives
+        -- on a real API request that is the real per-user Odoo API key
+        signed into the JWT by the Odoo controller (request.env['res.users.
+        apikeys']._generate(), see miro_ai/controllers/main.py), so calls
+        genuinely execute as that specific user and Odoo's own ir.rule / ACL
+        enforcement applies to them. Falling through to the admin password
+        means every call runs as admin regardless of who asked -- exactly the
+        auth mock this was meant to remove -- so it's logged loudly instead
+        of happening silently.
+        """
         from tools.odoo_tools import odoo_api_key_ctx
         ctx_key = odoo_api_key_ctx.get()
         if ctx_key is not None:
             return ctx_key
+        logger.warning(
+            "OdooConnector._resolve_password(): no per-request API key in "
+            "context -- falling back to the admin password. Expected in "
+            "tests/scripts; on a real API request it means the JWT api_key "
+            "was missing or not propagated."
+        )
         return self.password
 
     def authenticate(self, username: str) -> int:

@@ -39,7 +39,8 @@ class TestIngestionPipeline(unittest.TestCase):
     def tearDown(self):
         """Clean up after each test."""
         try:
-            self.orchestrator.chroma_manager.delete_collection()
+            self.orchestrator.docs_manager.delete_collection()
+            self.orchestrator.code_manager.delete_collection()
         except Exception:
             pass
 
@@ -62,7 +63,7 @@ class TestIngestionPipeline(unittest.TestCase):
             chunks = result["chunks"]
             metadatas = result["metadatas"]
 
-            ids = self.orchestrator.chroma_manager.add_chunks(chunks, metadatas)
+            ids = self.orchestrator.docs_manager.add_chunks(chunks, metadatas)
 
             # Verify metadata completeness
             required_fields = [
@@ -205,11 +206,11 @@ class TestIngestionPipeline(unittest.TestCase):
             chunks = result["chunks"]
             metadatas = result["metadatas"]
 
-            # Ingest
-            ids = self.orchestrator.chroma_manager.add_chunks(chunks, metadatas)
+            # Ingest (wiki/text content goes to docs_manager)
+            ids = self.orchestrator.docs_manager.add_chunks(chunks, metadatas)
 
             # Try to retrieve
-            query_result = self.orchestrator.chroma_manager.query(
+            query_result = self.orchestrator.docs_manager.query(
                 "What is the sales process?",
                 top_k=2,
             )
@@ -239,45 +240,57 @@ class TestIngestionPipeline(unittest.TestCase):
             chunks = result["chunks"]
             metadatas = result["metadatas"]
 
-            # Ingest
-            ids = self.orchestrator.chroma_manager.add_chunks(chunks, metadatas)
+            # Ingest (wiki/text content goes to docs_manager)
+            ids = self.orchestrator.docs_manager.add_chunks(chunks, metadatas)
             initial_count = len(ids)
 
             # Delete by source
             source_name = str(txt_path)
-            deleted = self.orchestrator.chroma_manager.delete_by_source(source_name)
+            deleted = self.orchestrator.docs_manager.delete_by_source(source_name)
 
             self.assertEqual(deleted, initial_count)
 
             # Verify chunks are gone
-            stats = self.orchestrator.chroma_manager.get_stats()
+            stats = self.orchestrator.docs_manager.get_stats()
             self.assertEqual(stats["total_chunks"], 0)
 
         finally:
             os.unlink(txt_path)
 
     def test_statistics_aggregation(self):
-        """Test that statistics are properly aggregated."""
-        # Manually add chunks of different types
-        texts = ["Python code chunk", "XML template chunk", "PDF document chunk"]
-        metadatas = [
+        """Test that statistics are properly aggregated across docs_manager and code_manager."""
+        # Code chunks go to code_manager, doc chunks go to docs_manager
+        # (mirrors how IngestionOrchestrator.ingest_all splits and combines stats)
+        code_texts = ["Python code chunk", "XML template chunk"]
+        code_metadatas = [
             {"source": "file1.py", "type": "code_python", "module": "account"},
             {"source": "file2.xml", "type": "code_xml", "module": "sale"},
+        ]
+        doc_texts = ["PDF document chunk"]
+        doc_metadatas = [
             {"source": "file3.pdf", "type": "doc_pdf", "module": "stock"},
         ]
 
-        self.orchestrator.chroma_manager.add_chunks(texts, metadatas)
+        self.orchestrator.code_manager.add_chunks(code_texts, code_metadatas)
+        self.orchestrator.docs_manager.add_chunks(doc_texts, doc_metadatas)
 
-        stats = self.orchestrator.chroma_manager.get_stats()
+        code_stats = self.orchestrator.code_manager.get_stats()
+        docs_stats = self.orchestrator.docs_manager.get_stats()
+
+        from collections import Counter
+
+        total_chunks = code_stats["total_chunks"] + docs_stats["total_chunks"]
+        by_type = dict(Counter(code_stats["by_type"]) + Counter(docs_stats["by_type"]))
+        by_module = dict(Counter(code_stats["by_module"]) + Counter(docs_stats["by_module"]))
 
         # Verify stats
-        self.assertEqual(stats["total_chunks"], 3)
-        self.assertEqual(stats["by_type"]["code_python"], 1)
-        self.assertEqual(stats["by_type"]["code_xml"], 1)
-        self.assertEqual(stats["by_type"]["doc_pdf"], 1)
-        self.assertEqual(stats["by_module"]["account"], 1)
-        self.assertEqual(stats["by_module"]["sale"], 1)
-        self.assertEqual(stats["by_module"]["stock"], 1)
+        self.assertEqual(total_chunks, 3)
+        self.assertEqual(by_type["code_python"], 1)
+        self.assertEqual(by_type["code_xml"], 1)
+        self.assertEqual(by_type["doc_pdf"], 1)
+        self.assertEqual(by_module["account"], 1)
+        self.assertEqual(by_module["sale"], 1)
+        self.assertEqual(by_module["stock"], 1)
 
 
 class TestOCRIntegration(unittest.TestCase):

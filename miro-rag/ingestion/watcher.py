@@ -55,12 +55,14 @@ class DebouncedIngestionHandler(FileSystemEventHandler):
 
     def __init__(
         self,
-        chroma_manager: ChromaManager | None = None,
+        docs_manager: ChromaManager | None = None,
+        code_manager: ChromaManager | None = None,
         debounce_seconds: float = 2.0,
         chunk_size: int = 512,
         chunk_overlap: int = 50,
     ):
-        self.chroma_manager = chroma_manager or ChromaManager()
+        self.docs_manager = docs_manager or ChromaManager(collection_name="odoo_docs")
+        self.code_manager = code_manager or ChromaManager(collection_name="odoo_code")
         self.debounce_seconds = debounce_seconds
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
@@ -96,6 +98,12 @@ class DebouncedIngestionHandler(FileSystemEventHandler):
             for timer in self._timers.values():
                 timer.cancel()
             self._timers.clear()
+
+    def _manager_for_path(self, path: Path) -> ChromaManager:
+        """Route a file path to its docs or code ChromaManager, mirroring incremental.py."""
+        if path.suffix.lower() in {".pdf", ".txt", ".md"}:
+            return self.docs_manager
+        return self.code_manager
 
     def _schedule_event(self, event: Any, action: str) -> None:
         path = getattr(event, "src_path", "")
@@ -145,7 +153,8 @@ class DebouncedIngestionHandler(FileSystemEventHandler):
 
         try:
             if action == "delete":
-                deleted_count = self.chroma_manager.delete_by_source(key)
+                manager = self._manager_for_path(path)
+                deleted_count = manager.delete_by_source(key)
                 self.last_result = {
                     "deleted_files": [key],
                     "chunks_deleted": deleted_count,
@@ -172,7 +181,8 @@ class DebouncedIngestionHandler(FileSystemEventHandler):
                 target_roots = [path] if not is_directory else [path]
                 self.last_result = reindex_if_changed(
                     target_roots,
-                    chroma_manager=self.chroma_manager,
+                    docs_manager=self.docs_manager,
+                    code_manager=self.code_manager,
                     chunk_size=self.chunk_size,
                     chunk_overlap=self.chunk_overlap,
                 )
@@ -205,7 +215,8 @@ class IngestionWatcher:
     def __init__(
         self,
         watched_paths: Iterable[str | Path] | None = None,
-        chroma_manager: ChromaManager | None = None,
+        docs_manager: ChromaManager | None = None,
+        code_manager: ChromaManager | None = None,
         debounce_seconds: float = 2.0,
         chunk_size: int = 512,
         chunk_overlap: int = 50,
@@ -218,7 +229,8 @@ class IngestionWatcher:
             for path in (watched_paths or [DEFAULT_DOCS_DIR, DEFAULT_CODE_DIR])
         ]
         self.handler = DebouncedIngestionHandler(
-            chroma_manager=chroma_manager,
+            docs_manager=docs_manager,
+            code_manager=code_manager,
             debounce_seconds=debounce_seconds,
             chunk_size=chunk_size,
             chunk_overlap=chunk_overlap,

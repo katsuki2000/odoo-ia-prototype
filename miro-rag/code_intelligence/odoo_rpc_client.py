@@ -134,6 +134,33 @@ class OdooRpcClient:
         self.execute_kw(admin_uid, "res.users", "write", [user_ids, {"password": password}])
         return int(user_ids[0])
 
+    def get_group_xmlids(self, uid: int, group_ids: List[int]) -> Dict[int, str]:
+        """
+        Resolve res.groups database IDs to their fully-qualified xml_id
+        (module.name), via ir.model.data -- the same lookup Odoo itself uses
+        internally for xml_id resolution.
+
+        This is a pure static-metadata lookup (a group's xml_id never
+        depends on who's asking), so it is safe to run under an admin
+        connection unlike ir.rule evaluation, which must always run as the
+        actual requester.
+
+        Group IDs with no matching ir.model.data entry (e.g. a group
+        created purely via the ORM/UI, never via an XML data file) are
+        simply absent from the returned dict -- callers must treat a
+        missing key as "could not resolve", never guess or fabricate one.
+        """
+        if not group_ids:
+            return {}
+        records = self.execute_kw(
+            uid,
+            "ir.model.data",
+            "search_read",
+            [[("model", "=", "res.groups"), ("res_id", "in", list(group_ids))]],
+            {"fields": ["module", "name", "res_id"]},
+        )
+        return {rec["res_id"]: f"{rec['module']}.{rec['name']}" for rec in records}
+
     @staticmethod
     def _validate_operation(operation: str) -> None:
         if operation not in VALID_OPERATIONS:

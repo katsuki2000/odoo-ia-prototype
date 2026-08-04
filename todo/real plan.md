@@ -130,6 +130,10 @@ la question, plutôt que de compter sur le LLM pour le déduire du prompt.
 *Gap confirmé, distinct du contrôle d'accès aux données déjà couvert par le Function Calling ERP*
 
 - **J22 — mer. 26/08** : Trancher la décision produit avec le maître de stage — gating généralisé (toute explication filtrée selon les droits du demandeur) vs gating ciblé (seuls les contournements déjà identifiés comme sensibles sont masqués/généralisés).
+
+
+retenue :toute explication filtrée selon les droits du demandeur 
+
 - **J23-J24 — jeu. 27/08 → ven. 28/08** : Implémenter l'option retenue. Ajouter l'état explicite "élément omis pour raison d'autorisation" — distinct du score de couverture (A1), pour ne pas casser le principe de sourcing.
 - **J25-J26 — lun. 31/08 → mar. 01/09** : Test sur le test adversarial 3 (liste de validateurs codée en dur) — vérifier qu'un utilisateur sans droit ne reçoit plus l'information brute d'un contournement caché.
 

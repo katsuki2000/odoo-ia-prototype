@@ -78,21 +78,24 @@ def run_scalability_benchmark(
         corpus_roots = prepare_duplicated_corpus(temp_path / "corpus", multiplier=multiplier)
         db_path = temp_path / "chroma_benchmark"
 
-        manager = ChromaManager(db_path=db_path, collection_name=collection_name)
-        
+        docs_manager = ChromaManager(db_path=db_path, collection_name=f"{collection_name}_docs")
+        code_manager = ChromaManager(db_path=db_path, collection_name=f"{collection_name}_code")
+
         logger.info("Starting ingestion benchmark across %s...", corpus_roots)
         start_time = time.perf_counter()
-        
+
         result = reindex_if_changed(
             roots=corpus_roots,
-            chroma_manager=manager,
+            docs_manager=docs_manager,
+            code_manager=code_manager,
             chunk_size=512,
             chunk_overlap=50,
         )
-        
+
         elapsed_time = time.perf_counter() - start_time
-        stats = manager.get_stats()
-        total_chunks = int(stats.get("total_chunks", 0) or 0)
+        docs_stats = docs_manager.get_stats()
+        code_stats = code_manager.get_stats()
+        total_chunks = int(docs_stats.get("total_chunks", 0) or 0) + int(code_stats.get("total_chunks", 0) or 0)
         chunks_per_sec = total_chunks / elapsed_time if elapsed_time > 0 else 0.0
 
         metrics = {
@@ -114,8 +117,9 @@ def run_scalability_benchmark(
         )
 
         try:
-            manager.delete_collection()
-            del manager
+            docs_manager.delete_collection()
+            code_manager.delete_collection()
+            del docs_manager, code_manager
         except Exception:
             pass
 

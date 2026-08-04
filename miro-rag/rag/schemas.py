@@ -60,6 +60,20 @@ class LLMResponse(BaseModel):
     confidence: float = Field(..., ge=0.0, le=1.0, description="Confidence score of the answer from 0.0 to 1.0")
 
 
+class OmittedForAuthorization(BaseModel):
+    """
+    Bloc 7 / J23-J24: a single element withheld from the answer because
+    the demandeur's real rights don't cover it -- distinct from the
+    confidence/coverage score and from sourcing verification, per the
+    J23-24 requirement not to break the sourcing principle by conflating
+    the two.
+    """
+    model_config = ConfigDict(strict=True)
+
+    label: str = Field(..., description="What was omitted (rule names, or tool+model), never the withheld content itself")
+    reason: str = Field(..., description="Explicit, human-readable authorization reason for the omission")
+
+
 class AssistantResponse(BaseModel):
     """Structured response from the MIRO Assistant."""
     model_config = ConfigDict(strict=True)
@@ -68,3 +82,7 @@ class AssistantResponse(BaseModel):
     sources: List[SourceReference] = Field(default_factory=list, description="List of sources cited in the answer")
     confidence: float = Field(..., ge=0.0, le=1.0, description="Confidence score of the answer from 0.0 to 1.0")
     ocr_warning: bool = Field(default=False, description="True if any of the sources come from a low-quality OCR scan")
+    omitted_for_authorization: List[OmittedForAuthorization] = Field(
+        default_factory=list,
+        description="Bloc 7 (J23-24): elements withheld because the demandeur's rights don't cover them",
+    )

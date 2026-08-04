@@ -25,7 +25,8 @@ DEFAULT_SCAN_ROOTS = [DOCS_DIR, CODE_DIR]
 
 def run_startup_scan(
     roots: list[Path | str] | None = None,
-    chroma_manager: ChromaManager | None = None,
+    docs_manager: ChromaManager | None = None,
+    code_manager: ChromaManager | None = None,
     status_dict: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """
@@ -34,10 +35,11 @@ def run_startup_scan(
     """
     started_at = start_timer()
     target_roots = roots if roots is not None else DEFAULT_SCAN_ROOTS
-    manager = chroma_manager or ChromaManager()
+    docs_manager = docs_manager or ChromaManager(collection_name="odoo_docs")
+    code_manager = code_manager or ChromaManager(collection_name="odoo_code")
 
     logger.info("Running startup incremental scan across roots: %s", target_roots)
-    result = reindex_if_changed(target_roots, chroma_manager=manager)
+    result = reindex_if_changed(target_roots, docs_manager=docs_manager, code_manager=code_manager)
 
     if status_dict is not None:
         status_dict["last_ingestion_time"] = now_iso()
@@ -57,7 +59,8 @@ def run_startup_scan(
 
 def run_scheduled_scan(
     roots: list[Path | str] | None = None,
-    chroma_manager: ChromaManager | None = None,
+    docs_manager: ChromaManager | None = None,
+    code_manager: ChromaManager | None = None,
     status_dict: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """
@@ -66,10 +69,11 @@ def run_scheduled_scan(
     """
     started_at = start_timer()
     target_roots = roots if roots is not None else DEFAULT_SCAN_ROOTS
-    manager = chroma_manager or ChromaManager()
+    docs_manager = docs_manager or ChromaManager(collection_name="odoo_docs")
+    code_manager = code_manager or ChromaManager(collection_name="odoo_code")
 
     logger.info("Running scheduled incremental scan across roots: %s", target_roots)
-    result = reindex_if_changed(target_roots, chroma_manager=manager)
+    result = reindex_if_changed(target_roots, docs_manager=docs_manager, code_manager=code_manager)
 
     if status_dict is not None:
         status_dict["last_ingestion_time"] = now_iso()
@@ -94,12 +98,14 @@ class PeriodicScanScheduler:
         self,
         interval_hours: int = 6,
         roots: list[Path | str] | None = None,
-        chroma_manager: ChromaManager | None = None,
+        docs_manager: ChromaManager | None = None,
+        code_manager: ChromaManager | None = None,
         status_dict: dict[str, Any] | None = None,
     ) -> None:
         self.interval_hours = interval_hours
         self.roots = roots if roots is not None else DEFAULT_SCAN_ROOTS
-        self.chroma_manager = chroma_manager
+        self.docs_manager = docs_manager
+        self.code_manager = code_manager
         self.status_dict = status_dict
         self._task: asyncio.Task[Any] | None = None
         self._running = False
@@ -111,11 +117,13 @@ class PeriodicScanScheduler:
             if not self._running:
                 break
             try:
-                manager = self.chroma_manager or ChromaManager()
+                docs_manager = self.docs_manager or ChromaManager(collection_name="odoo_docs")
+                code_manager = self.code_manager or ChromaManager(collection_name="odoo_code")
                 await asyncio.to_thread(
                     run_scheduled_scan,
                     self.roots,
-                    manager,
+                    docs_manager,
+                    code_manager,
                     self.status_dict,
                 )
             except Exception as exc:

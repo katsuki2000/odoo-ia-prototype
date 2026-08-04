@@ -36,13 +36,15 @@ class TestIngestionOrchestrator(unittest.TestCase):
     def tearDown(self):
         """Clean up after each test."""
         try:
-            self.orchestrator.chroma_manager.delete_collection()
+            self.orchestrator.docs_manager.delete_collection()
+            self.orchestrator.code_manager.delete_collection()
         except Exception:
             pass
 
     def test_initialization(self):
         """Test orchestrator initialization."""
-        self.assertIsNotNone(self.orchestrator.chroma_manager)
+        self.assertIsNotNone(self.orchestrator.docs_manager)
+        self.assertIsNotNone(self.orchestrator.code_manager)
         self.assertEqual(self.orchestrator.chunk_size, 200)
         self.assertEqual(self.orchestrator.chunk_overlap, 20)
         self.assertIn("total_chunks", self.orchestrator.stats)
@@ -102,8 +104,8 @@ class TestIngestionOrchestrator(unittest.TestCase):
         try:
             self.orchestrator._ingest_documents_dir(docs_dir)
 
-            # Check that chunks were added
-            stats = self.orchestrator.chroma_manager.get_stats()
+            # Check that chunks were added (text/markdown docs go to docs_manager)
+            stats = self.orchestrator.docs_manager.get_stats()
             self.assertGreater(stats["total_chunks"], 0)
             self.assertGreater(stats["by_type"].get("doc_wiki", 0), 0)
 
@@ -272,7 +274,8 @@ class TestIngestionIntegration(unittest.TestCase):
                 pass
             finally:
                 try:
-                    orchestrator.chroma_manager.delete_collection()
+                    orchestrator.docs_manager.delete_collection()
+                    orchestrator.code_manager.delete_collection()
                 except Exception:
                     pass
 

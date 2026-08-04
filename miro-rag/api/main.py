@@ -297,10 +297,26 @@ def ask_question_v1(request: AskRequestV1, user: dict = Depends(get_current_user
         if token_uid:
             request.user_uid = token_uid
 
+        # Real per-user Odoo API key and group membership, both signed into
+        # the JWT by the Odoo controller from request.env.user -- never taken
+        # from the request body, which is untrusted client input. Without
+        # these, ERP tool calls and ir.rule evaluation silently ran with
+        # admin rights / LLM-guessed groups instead of the actual requester's.
+        token_api_key = user.get("api_key")
+        token_groups = user.get("groups") or []
+        if not token_api_key:
+            logging.getLogger(__name__).warning(
+                "No real Odoo API key in JWT for uid=%s -- ERP/XML-RPC calls "
+                "will fall back to the admin credential instead of the "
+                "requester's own rights.", token_uid,
+            )
+
         response = query_graph(
             question=request.question,
             chat_history=chat_history,
             uid=request.user_uid,
+            api_key=token_api_key,
+            user_groups=token_groups,
             skills=request.skills
         )
         
@@ -414,7 +430,7 @@ def reindex_v1(request: ReindexRequestV1):
     try:
         if request.scope == "incremental":
             roots = [target_path] if target_path else [DOCS_DIR, CODE_DIR]
-            result = reindex_if_changed(roots, chroma_manager=manager)
+            result = reindex_if_changed(roots, docs_manager=manager, code_manager=manager)
         elif request.scope == "full":
             orchestrator = IngestionOrchestrator(
                 chroma_db_path=manager.db_path,
@@ -485,7 +501,7 @@ def trigger_scheduled_scan():
     """Manually trigger one execution of the 6-hour scheduled periodic incremental scan."""
     try:
         manager = ChromaManager()
-        result = run_scheduled_scan([DOCS_DIR, CODE_DIR], manager, LAST_INGESTION_STATUS)
+        result = run_scheduled_scan([DOCS_DIR, CODE_DIR], docs_manager=manager, code_manager=manager, status_dict=LAST_INGESTION_STATUS)
         return ScheduledScanResponse(
             status="success",
             scan_type="periodic_incremental_scan",
@@ -552,7 +568,8 @@ async def _startup_scan_and_scheduler() -> None:
         logger.info("Startup incremental scan: scanning %s and %s", DOCS_DIR, CODE_DIR)
         t = threading.Thread(
             target=run_startup_scan,
-            args=([DOCS_DIR, CODE_DIR], None, LAST_INGESTION_STATUS),
+            args=([DOCS_DIR, CODE_DIR],),
+            kwargs={"status_dict": LAST_INGESTION_STATUS},
             daemon=True
         )
         t.start()
@@ -563,7 +580,8 @@ async def _startup_scan_and_scheduler() -> None:
         SCHEDULER_INSTANCE = PeriodicScanScheduler(
             interval_hours=6,
             roots=[DOCS_DIR, CODE_DIR],
-            chroma_manager=None,
+            docs_manager=None,
+            code_manager=None,
             status_dict=LAST_INGESTION_STATUS,
         )
     SCHEDULER_INSTANCE.start()

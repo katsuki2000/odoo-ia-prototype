@@ -153,29 +153,34 @@ class TestCodeLoaderXML(unittest.TestCase):
         """Initialize CodeLoader for each test."""
         self.loader = CodeLoader()
 
-    def test_extract_xml_id_record(self):
-        """Test extraction of record ID from XML."""
-        xml = '<record id="account_move_001" model="account.move">'
+    def test_split_xml_by_records_extracts_record_id(self):
+        """Test extraction of record ID via tree-sitter parsing (replaces old regex-based _extract_xml_id)."""
+        xml = '<record id="account_move_001" model="account.move"><field name="x">1</field></record>'
 
-        record_id = self.loader._extract_xml_id(xml, "record")
+        chunks = self.loader._split_xml_by_records(xml)
 
-        self.assertEqual(record_id, "account_move_001")
+        self.assertEqual(len(chunks), 1)
+        self.assertEqual(chunks[0]["tag"], "record")
+        self.assertEqual(chunks[0]["record_id"], "account_move_001")
 
-    def test_extract_xml_id_template(self):
-        """Test extraction of template ID from XML."""
-        xml = '<template id="sale_view_001" name="Sale Order">'
+    def test_split_xml_by_records_extracts_template_id(self):
+        """Test extraction of template ID via tree-sitter parsing (replaces old regex-based _extract_xml_id)."""
+        xml = '<template id="sale_view_001" name="Sale Order"><t t-name="x"/></template>'
 
-        template_id = self.loader._extract_xml_id(xml, "template")
+        chunks = self.loader._split_xml_by_records(xml)
 
-        self.assertEqual(template_id, "sale_view_001")
+        self.assertEqual(len(chunks), 1)
+        self.assertEqual(chunks[0]["tag"], "template")
+        self.assertEqual(chunks[0]["record_id"], "sale_view_001")
 
-    def test_extract_xml_id_not_found(self):
-        """Test XML ID extraction when no ID exists."""
-        xml = "<record model='account.move'>"
+    def test_split_xml_by_records_record_without_id(self):
+        """Test record_id is None when no id attribute exists (replaces old regex-based _extract_xml_id)."""
+        xml = "<record model='account.move'><field name='x'>1</field></record>"
 
-        record_id = self.loader._extract_xml_id(xml, "record")
+        chunks = self.loader._split_xml_by_records(xml)
 
-        self.assertIsNone(record_id)
+        self.assertEqual(len(chunks), 1)
+        self.assertIsNone(chunks[0]["record_id"])
 
     def test_split_xml_by_records(self):
         """Test splitting XML by record boundaries."""
@@ -191,8 +196,10 @@ class TestCodeLoaderXML(unittest.TestCase):
         chunks = self.loader._split_xml_by_records(xml)
 
         self.assertEqual(len(chunks), 2)
-        self.assertIn("rec1", chunks[0])
-        self.assertIn("rec2", chunks[1])
+        self.assertIn("rec1", chunks[0]["text"])
+        self.assertEqual(chunks[0]["record_id"], "rec1")
+        self.assertIn("rec2", chunks[1]["text"])
+        self.assertEqual(chunks[1]["record_id"], "rec2")
 
     def test_load_xml_file_not_found(self):
         """Test loading non-existent XML file."""

@@ -7,10 +7,13 @@ Refactored to English function signatures per project rules.
 """
 
 from typing import Optional, Dict, Any, List
+import logging
 from langchain_core.tools import tool
 from tools.odoo_connector import OdooConnector
 from tools.date_utils import parse_period
 import contextvars
+
+logger = logging.getLogger(__name__)
 
 # Instantiate the connector.
 connector = OdooConnector()
@@ -21,12 +24,28 @@ odoo_api_key_ctx = contextvars.ContextVar('odoo_api_key', default=None)
 _cached_uid = None
 
 def _get_current_uid() -> int:
+    """
+    Return the requester's real Odoo uid, propagated via odoo_uid_ctx from
+    query_graph()'s `uid` param (itself taken from the trusted JWT on every
+    real API request -- see api/main.py::ask_question_v1). That contextvar
+    is always set on the real request path, so this admin fallback should
+    only ever be hit from tests, scripts, or other out-of-request usage --
+    never silently, hence the loud warning: a silent admin fallback is
+    exactly the kind of mock that made every ERP query run with admin
+    rights regardless of who actually asked.
+    """
     uid = odoo_uid_ctx.get()
     if uid is not None:
         return uid
-        
+
     global _cached_uid
     if _cached_uid is None:
+        logger.warning(
+            "_get_current_uid(): no requester uid in context -- falling back "
+            "to the admin uid. This is expected in tests/scripts, but must "
+            "never happen on a real API request (it would mean the JWT uid "
+            "was not propagated)."
+        )
         _cached_uid = connector.authenticate("admin")
     return _cached_uid
 

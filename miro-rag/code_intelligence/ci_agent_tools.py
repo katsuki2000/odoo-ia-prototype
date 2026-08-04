@@ -210,7 +210,12 @@ def evaluer_regles_raw(model_name: str, droit: str = "read", user_groups_json: s
 
 @tool
 def evaluer_regles_enregistrement(model_name: str, droit: str = "read", user_groups_json: str = "[]") -> str:
-    """Evaluate Odoo ir.rule record rules for a model, permission (read, write, create, unlink), and user groups using Odoo's exact AND/OR security engine."""
+    """Evaluate Odoo ir.rule record rules for a model and permission (read, write, create, unlink).
+    NOTE: user_groups_json is ALWAYS overridden by the caller (rag/graph.py's
+    code_intelligence_agent) with the actual requester's real Odoo group ids
+    from the signed JWT before this tool executes -- any value supplied here
+    is discarded. Do not attempt to guess or compute the demandeur's groups;
+    just call this tool with model_name and droit."""
     return evaluer_regles_raw(model_name, droit, user_groups_json).summary_text
 
 
