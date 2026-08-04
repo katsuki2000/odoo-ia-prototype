@@ -9,6 +9,10 @@ odoo 17(laisse des indications pour les autres versions, mais pas encore à trai
 
 - **J1 — mar. 28/07** : Extraire les labels déjà indexés dans le graphe (`string=` des champs, titres de menu, descriptions de modèle) comme cible du fuzzy-matching. Mettre en place `rapidfuzz` avec `token_set_ratio`/`token_sort_ratio` (jamais un ratio sur chaîne entière).
 - **J2 — mer. 29/07** : Construire la table d'alias métier statique (courte, maintenue à la main) pour les synonymes sans chevauchement lexical (`mise à disposition ↔ asset.loan`, `avoir ↔ account.move`/`out_refund`). Brancher l'ordre : fuzzy-matching → table d'alias → arbitrage LLM borné sur liste fermée → statut "non résolu" explicite si rien ne matche.
+
+Le code fait l'inverse — alias statique en premier, fuzzy ensuite 
+Ce n'est pas une erreur d'implémentation — c'est une correction délibérée et documentée, verrouillée par test_s2_0_alias_not_shadowed_by_fuzzy_single_token. Le scénario réel : la requête "avoirs" (1 token) matchait un label de champ "avoirs" sur res.partner avec un score fuzzy de 100 (aucune pénalité de longueur sur un match 1-token/1-token), et écrasait la bonne réponse account.move. Inverser l'ordre corrige ça.
+
 - **J3 — jeu. 30/07** : Tests unitaires du résolveur seul (cas synonymes, cas ambigus, cas hors périmètre). Brancher le résolveur en amont des 5 outils composites existants (`qui_a_acces_a`, etc.) pour qu'ils reçoivent enfin le bon `modele_odoo`.
 - **J4 — ven. 31/07** : **Test de la vraie DoD** (distincte d'un test unitaire isolé) — rejouer le jeu adversarial complet et mesurer si le taux de réussite end-to-end progresse réellement, pas seulement si le résolveur renvoie une valeur plausible en isolation. Ajuster la table d'alias / les seuils fuzzy selon les échecs observés.
 
@@ -23,8 +27,58 @@ odoo 17(laisse des indications pour les autres versions, mais pas encore à trai
 - **J7 — mer. 05/08** : Revue manuelle ligne à ligne documentée du mécanisme (pas seulement "les tests passent"). Rejouer le benchmark adversarial complet.
 
 **Critère de fin** : mécanisme validé end-to-end sur le jeu adversarial + revue de sécurité documentée et archivée.
+Où on en est sur le Bloc 1
 
+J5 (wrapper with_user/vérification live) : validé, 13/13.
+J6 (non-confusion contexte / test 6 combinaison ET/OU) : validé, 8/8, avec deux ajustements documentés plutôt que masqués :
+le bug de direction IMPLIES (inversion in_edges/out_edges) trouvé et corrigé en cours de route — indépendant de Q6.1/Q6.2 mais bien réel, verrouillé par test_implied_group_hierarchy_expansion_direction
+la limite mono-société de l'environnement de test, documentée explicitement dans test_active_company_context_restricts_to_authorized_company plutôt que testée à tort comme couverture multi-société
 ---
+
+J7 (revue de sécurité ligne à ligne + rejeu benchmark) : validé.
+
+Revue ligne à ligne documentée dans J7 — Revue de sécurité ligne à ligne du
+mécanisme Bloc 1 (7 findings : F-01 à F-07). Deux findings actionnables
+trouvés et corrigés en cours de revue, non présents dans le rapport initial :
+
+- F-08 (découvert après la revue initiale) : registry.rules indexe chaque
+  règle sous deux clés (xml_id complet + court) pointant vers le même objet.
+  graph_builder.py itérait naïvement dessus, créant deux nœuds Rule par
+  règle ; la copie à clé courte n'a pas de "." donc mod_prefix retombait sur
+  le littéral "base" au lieu du vrai module, produisant une référence de
+  groupe hallucinée (ex. group:base.group_avoir_regional, inexistant).
+  Corrigé en ignorant les clés non qualifiées. Test de régression :
+  test_inactive_rule_is_excluded_from_graph (nommage à corriger — couvre
+  en fait F-08, pas l'inactivité).
+- F-06 : règles active=False non filtrées dans le graphe, évaluées comme
+  actives → restriction fantôme possible. Corrigé (skip si not rule.active).
+  Test de régression : test_inactive_rule_is_excluded_from_graph.
+
+Commit : 001ea0c "fix(J7): correct rule node duplication and inactive-rule
+filtering in graph_builder".
+
+Rejeu benchmark adversarial complet post-fix (todo/benchmark_run_j7_*.log) :
+Q6.1 et Q6.2 (cible du Bloc 1, test 6 "ir.rule ET/OU") répondent maintenant
+correctement de bout en bout, avec raisonnement OU-groupe correct cité
+("la règle nationale illimitée l'emporte sur le plafond régional").
+
+**Critère de fin du Bloc 1 atteint** : mécanisme validé end-to-end sur le
+jeu adversarial (test 6) + revue de sécurité documentée et archivée
+(fichier de revue J7 + F-06/F-08 dans le code).
+
+Gap connu, HORS périmètre Bloc 1, à traiter en Bloc 2 :
+Q3.1 ("demande d'achat 15 000€", bypass _VALIDATEURS_EXCEPTIONNELS) reste
+en échec — mais pas pour une raison de sécurité/ir.rule. analyser_verrous_
+securite() est vérifié correct et fiable en isolation (détecte les deux
+emails, les deux messages UserError, confiance HIGH), mais le LLM
+n'invoque jamais cet outil pour cette question précise malgré la
+directive explicite du prompt système ("ALWAYS invoke analyser_verrous_
+securite" pour "approval limits"). Problème de navigation/priorisation
+LLM sur montants chiffrés + demande d'achat, pas un défaut du mécanisme
+ir.rule. À traiter explicitement en J8/J9 (Bloc 2), qui couvre justement
+analyser_verrous_securite et le cas adversarial 5/9 similaires — envisager
+un déclenchement déterministe de l'outil dès qu'un montant apparaît dans
+la question, plutôt que de compter sur le LLM pour le déduire du prompt.
 
 ## Bloc 2 — `ir.actions.server` / `base.automation` / `ir.cron`
 
@@ -170,11 +224,11 @@ odoo 17(laisse des indications pour les autres versions, mais pas encore à trai
 
 Ces points restent dans le plan source mais **ne doivent consommer aucun jour ci-dessus** tant que la condition de déclenchement n'est pas remplie :
 
-- **Interopérabilité multi-tenant** (plusieurs clients sur un même serveur mutualisé) — hors scope tant que MiroKE reste l'unique client cible. Redevient un sujet si un deuxième client est ajouté au périmètre.
-- **Infrastructure locale, POC démonstrable** — hors scope tant que le matériel local n'est pas arrivé.
+- **Interorrivé.
 
 
-## Table de correspondance rapide (bloc → item du plan source)
+## Table de correspondance rapide (blocpérabilité multi-tenant** (plusieurs clients sur un même serveur mutualisé) — hors scope tant que MiroKE reste l'unique client cible. Redevient un sujet si un deuxième client est ajouté au périmètre.
+- **Infrastructure locale, POC démonstrable** — hors scope tant que le matériel local n'est pas a → item du plan source)
 
 | Bloc | Référence dans `plan_unifie_agent_code_intelligence.md` |
 |---|---|
@@ -189,3 +243,8 @@ Ces points restent dans le plan source mais **ne doivent consommer aucun jour ci
 | 13 | "Interopérabilité — état réel", gap différé |
 | 14 | Sprint D, "Suite de régression vivante OCA" |
 | 15 | Gaps différés, "Accès au vrai code MiroKE" |
+
+
+
+ 
+

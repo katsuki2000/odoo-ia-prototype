@@ -76,6 +76,23 @@ def test_each_few_shot_case_documents_decision(example):
     assert example["conflict_notes"].strip()
 
 
+def test_hybrid_detects_doc_anchor_not_only_doc_keyword():
+    """
+    Regression for a J20-J21 review finding: is_hybrid must fire on DOC_ANCHORS
+    ("où est documenté", "dans le wiki", "wiki interne", "selon la politique interne"),
+    not only on DOC_KEYWORDS. Before the fix, anchors absent from DOC_KEYWORDS caused
+    a doc-anchor + quantitative question to silently route to DOCUMENTAIRE instead of
+    HYBRIDE, because is_hybrid never became True and the has_doc_anchor branch fell
+    back to its else clause.
+    """
+    for anchor in ("où est documenté", "dans le wiki", "wiki interne", "selon la politique interne"):
+        question = f"{anchor}, combien de tickets sont encore en cours ?"
+        assert _route_question(question) == "hybride", (
+            f"Doc anchor '{anchor}' + quantitative term should route to HYBRIDE, not fall "
+            f"through to DOCUMENTAIRE."
+        )
+
+
 def test_dynamic_dispatch_uncertainty_cannot_be_synthesized_as_certain():
     raw = (
         "Analyse des verrous Python "

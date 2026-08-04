@@ -173,8 +173,14 @@ def expliquer_chemin(path_nodes_json: str) -> str:
     G = _require_graph()
     try:
         path_nodes = json.loads(path_nodes_json)
+        
     except (json.JSONDecodeError, TypeError):
         return "Error: path_nodes_json must be a valid JSON list of node IDs."
+    if not isinstance(path_nodes, list) or not all(isinstance(n, str) for n in path_nodes):
+        return (
+            "Error: path_nodes_json must be a JSON list of string node IDs "
+            "(e.g. [\"model:account.move\", \"rule:xyz\"]), not numbers or other types."
+        )
     return _impl(G, path_nodes)
 
 

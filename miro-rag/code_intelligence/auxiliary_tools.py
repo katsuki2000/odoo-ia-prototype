@@ -86,8 +86,8 @@ def expliquer_chemin_de_decision(G: nx.DiGraph, path_nodes: List[str]) -> str:
 
     steps = []
     for idx in range(len(path_nodes) - 1):
-        u = path_nodes[idx]
-        v = path_nodes[idx + 1]
+        u = str(path_nodes[idx])
+        v = str(path_nodes[idx + 1])
 
         u_data = G.nodes.get(u, {})
         v_data = G.nodes.get(v, {})

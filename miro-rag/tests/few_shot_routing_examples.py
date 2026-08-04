@@ -166,6 +166,25 @@ FEW_SHOT_ROUTING_EXAMPLES = [
         "conflict_notes": "EDGE CASE: 'daf@societe.com' is a code-level hardcoded validator, but "
                          "'combien de demandes' makes this a data lookup. Resolution: donnees_erp.",
     },
+
+    # =========================================================================
+    # 9. REGRESSION: doc ANCHOR (not a DOC_KEYWORD) + quantitative -> HYBRIDE
+    #    Found in J20-J21 review: is_hybrid only checked DOC_KEYWORDS, so anchors
+    #    like "où est documenté" / "dans le wiki" / "wiki interne" that are NOT
+    #    also in DOC_KEYWORDS silently fell through to DOCUMENTAIRE instead of
+    #    HYBRIDE. Only "selon le wiki" worked by coincidence (present in both
+    #    lists). Fixed by widening is_hybrid to (DOC_KEYWORDS or DOC_ANCHORS).
+    # =========================================================================
+    {
+        "question": "Où est documenté combien de tickets sont encore en cours ?",
+        "expected_route": "hybride",
+        "rationale": "Two needs at once: pointer to the documented procedure (doc anchor 'où est "
+                     "documenté') AND a live count of open tickets (quantitative). Genuine hybrid, "
+                     "not pure documentaire.",
+        "conflict_notes": "REGRESSION: 'où est documenté' is a DOC_ANCHOR but not a DOC_KEYWORD; "
+                         "before the fix this silently routed to documentaire because is_hybrid only "
+                         "looked at DOC_KEYWORDS. Resolution: hybride.",
+    },
 ]
 
 

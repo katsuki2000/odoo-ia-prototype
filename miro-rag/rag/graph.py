@@ -328,8 +328,15 @@ def route(state: RAGState) -> dict:
     question = state.get("question", "").lower()
     logger.info("Node [route]: Classifying query type from %d chunks", len(chunks))
 
-    # Hybrid check: doc keyword + quantitative ERP term (not just generic nouns like 'facture')
-    is_hybrid = any(kw in question for kw in DOC_KEYWORDS) and any(term in question for term in QUANTITATIVE_TERMS)
+    # Hybrid check: doc keyword/anchor + quantitative ERP term (not just generic nouns like 'facture').
+    # Must include DOC_ANCHORS, not only DOC_KEYWORDS: anchors like "où est documenté" or
+    # "dans le wiki" are not in DOC_KEYWORDS, so a query combining one of them with a
+    # quantitative term (e.g. "Où est documenté le nombre de tickets en cours ?") was
+    # silently falling through to DOCUMENTAIRE instead of HYBRIDE. Found in review, locked
+    # by test_hybrid_detects_doc_anchor_not_only_doc_keyword.
+    is_hybrid = (
+        any(kw in question for kw in DOC_KEYWORDS) or any(a in question for a in DOC_ANCHORS)
+    ) and any(term in question for term in QUANTITATIVE_TERMS)
 
     # J18-J19: Conflict resolution priority:
     # 1. Explicit doc anchors override everything (user explicitly asks for wiki/policy doc)
@@ -361,9 +368,6 @@ def route(state: RAGState) -> dict:
         # Code intelligence wins over doc/erp for governance questions
         logger.info("Node [route]: Query matched Code Intelligence keywords → CODE_INTELLIGENCE branch")
         route_decision = QueryRoute.CODE_INTELLIGENCE.value
-    elif is_hybrid:
-        logger.info("Node [route]: Query is hybrid → HYBRIDE branch")
-        route_decision = QueryRoute.HYBRIDE.value
     elif any(kw in question for kw in DOC_KEYWORDS):
         logger.info("Node [route]: Query matched explicit doc keywords → DOCUMENTAIRE branch")
         route_decision = QueryRoute.DOCUMENTAIRE.value
