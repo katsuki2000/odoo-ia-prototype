@@ -1,6 +1,6 @@
 # Arborescence du Projet & Environnement Odoo
 
-**Date de mise à jour** : 2026-08-03
+**Date de mise à jour** : 2026-08-04
 
 ---
 
@@ -26,9 +26,10 @@ odoo-ia-prototype/
 │   ├── arborescence_projet.md           # Ce fichier (arborescence & doc environnement Odoo)
 │   ├── j7_security_review.md            # Rapport de revue de sécurité ligne à ligne (J7)
 │   ├── j13_semgrep_precision_review.md  # Rapport de revue de précision des règles Semgrep (J13)
+│   ├── j16_rapport_consolide_e1_e2.md   # Rapport consolidé de clôture du cycle E1/E2 (J16)
 │   ├── verbatim_responses_sprint2.md    # Rapport verbatim adversarial end-to-end (Sprint 2)
 │   ├── verbatim_responses_sprint2.json  # Données brutes JSON du benchmark
-│   └── benchmark_run_j7_*.log           # Logs d'exécution brute du benchmark
+│   └── benchmark_run_*.log              # Logs d'exécution brute du benchmark
 │
 ├── scripts/                             # Scripts d'exécution et harnais de test
 │   ├── run_adversarial_benchmark.py     # Exécuteur du benchmark adversarial (9 questions)
@@ -36,8 +37,8 @@ odoo-ia-prototype/
 │
 └── miro-rag/                            # Module principal RAG & Code Intelligence
     ├── rag/
-    │   ├── graph.py                     # Routeur LangGraph, ReAct loop, pre-dispatch J8/J9 & tags
-    │   ├── schemas.py                   # Dataclasses de réponses & états RAG
+    │   ├── graph.py                     # Routeur LangGraph (J18-J19 politique de conflits), ReAct loop, pre-dispatch J8/J9/J15 & tags
+    │   ├── schemas.py                   # Dataclasses de réponses & états RAG (QueryRoute, etc.)
     │   └── search.py                    # Recherche vectorielle
     │
     ├── code_intelligence/               # Cœur déterministe & outils Code Intelligence
@@ -75,6 +76,8 @@ odoo-ia-prototype/
     │       └── test_s2_8_fidelity_checker.py
     │
     ├── tests/                           # Suite de tests niveau module RAG
+    │   ├── few_shot_routing_examples.py # Dataset de 16 exemples few-shot aux frontières des branches (J18-J19)
+    │   ├── test_j18_routing_fewshot.py  # Tests unitaires du routeur vs dataset few-shot (J18-J19)
     │   └── test_j8_llm_server_action_interpretation.py # Tests d'interprétation LLM bornée des actions serveur
     │
     ├── ingestion/                       # Ingestion documentaire & indexation
