@@ -32,12 +32,14 @@ def test_generate_out_of_scope_refuses_before_llm():
 
 
 # 2. Test OCR warning injection
+
 def test_format_output_ocr_warning():
     state = {
         "response": AssistantResponse(answer="Voici la réponse.", confidence=0.8, sources=[]),
         "retrieved_chunks": [
             {"document": "test doc", "metadata": {"source": "scan.pdf", "ocr_quality": "low", "type": "pdf"}}
-        ]
+        ],
+        "route": "documentaire",
     }
     result = format_output(state)
     assert result["response"].ocr_warning is True
@@ -86,3 +88,4 @@ def test_query_graph_mocked(mock_search_retrieve, mock_get_retriever, mock_chat_
     assert response.ocr_warning is False
     assert len(response.sources) == 1
     assert response.sources[0].source == "facture.md"
+
