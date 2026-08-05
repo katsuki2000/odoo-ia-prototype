@@ -39,6 +39,18 @@ def _require_graph():
     return _GRAPH_REF
 
 
+WILDCARD_MODEL_ERROR_MSG = (
+    "Erreur : le modèle doit être spécifié explicitement (les jokers '*' et "
+    "l'extraction globale de tous les modèles ne sont pas autorisés par la politique de sécurité J32-J33)."
+)
+
+
+def _is_wildcard_model(model_name: str) -> bool:
+    """J32-J33: Detect wildcard or bulk model queries."""
+    clean = (model_name or "").strip().lower()
+    return clean in {"*", "%", "all", "tous", "tous les modèles", "all models", ""}
+
+
 def _resolve_model_param(model_name: str) -> str:
     """
     J3 structural guard: ensure composite/auxiliary tools always operate on a
@@ -66,6 +78,9 @@ def _resolve_model_param(model_name: str) -> str:
     downstream tool's own "model not found" check will surface the error to
     the LLM -- this function never silently guesses.
     """
+    if _is_wildcard_model(model_name):
+        return model_name
+
     G = _require_graph()
     if G.has_node(f"model:{model_name}"):
         return model_name
@@ -84,6 +99,12 @@ def _resolve_model_param(model_name: str) -> str:
 resolve_model_param = _resolve_model_param
 
 
+WILDCARD_MODEL_ERROR_MSG = (
+    "Erreur : le modèle doit être spécifié explicitement (les jokers '*' et "
+    "l'extraction globale de tous les modèles ne sont pas autorisés par la politique de sécurité J32-J33)."
+)
+
+
 # =====================================================================
 # COMPOSITE TOOLS (B.1.1 - B.1.5)
 # =====================================================================
@@ -91,6 +112,9 @@ resolve_model_param = _resolve_model_param
 @tool
 def qui_a_acces_a(model_name: str, droit: str = "read", group_id: Optional[str] = None) -> str:
     """Evaluate model access rights and list active ir.rule record rules. Call ONCE per model without group_id unless testing a single group."""
+    if _is_wildcard_model(model_name):
+        return WILDCARD_MODEL_ERROR_MSG
+
     from code_intelligence.deterministic_tools import qui_a_acces_a as _impl
     G = _require_graph()
     model_name = _resolve_model_param(model_name)
@@ -156,13 +180,24 @@ def resoudre_nom_technique(nom_technique: str) -> str:
 
 @tool
 def lister_modules_impliques(model_name: str) -> str:
-    """List Odoo modules defining or extending a model."""
-    from code_intelligence.auxiliary_tools import lister_modules_impliques as _impl
+    """List Odoo modules defining or extending a model, each tagged with its role
+    (declares = holds _name, extends = _inherit only). When a model spans several
+    modules, ALL candidates are listed -- do not assume the first one listed is
+    the "real" origin; if the question depends on which module is responsible,
+    ask the user to clarify or state all candidates explicitly rather than
+    picking one yourself (Bloc 8 / J28-29: ambiguous symbols)."""
+    from code_intelligence.auxiliary_tools import lister_modules_impliques_avec_role as _impl
     G = _require_graph()
     model_name = _resolve_model_param(model_name)
-    modules = _impl(G, model_name)
-    if modules:
-        return f"Modules implicated for model '{model_name}': {', '.join(modules)}"
+    entries = _impl(G, model_name)
+    if entries:
+        formatted = ", ".join(f"{mod} ({role})" for mod, role in entries)
+        ambiguity_note = (
+            " [SYMBOLE AMBIGU: plusieurs modules candidats -- ne pas en choisir un "
+            "arbitrairement, les présenter tous ou demander à l'utilisateur de trancher]"
+            if len(entries) > 1 else ""
+        )
+        return f"Modules implicated for model '{model_name}': {formatted}.{ambiguity_note}"
     return f"No modules found for model '{model_name}' in the indexed knowledge graph."
 
 
@@ -210,12 +245,19 @@ def evaluer_regles_raw(model_name: str, droit: str = "read", user_groups_json: s
 
 @tool
 def evaluer_regles_enregistrement(model_name: str, droit: str = "read", user_groups_json: str = "[]") -> str:
-    """Evaluate Odoo ir.rule record rules for a model and permission (read, write, create, unlink).
-    NOTE: user_groups_json is ALWAYS overridden by the caller (rag/graph.py's
-    code_intelligence_agent) with the actual requester's real Odoo group ids
-    from the signed JWT before this tool executes -- any value supplied here
-    is discarded. Do not attempt to guess or compute the demandeur's groups;
-    just call this tool with model_name and droit."""
+    """Evaluate Odoo ir.rule record rules for a model and permission (read, write, create, unlink)."""
+    if _is_wildcard_model(model_name):
+        return WILDCARD_MODEL_ERROR_MSG
+    # NOTE (dev-facing only, kept out of the @tool docstring on purpose --
+    # the docstring above is sent verbatim to the LLM as this tool's
+    # description on every single call, so it stays LLM-relevant only):
+    # user_groups_json is ALWAYS overridden by the caller (rag/graph.py's
+    # code_intelligence_agent, via _override_user_groups_arg) with the
+    # actual requester's real Odoo group ids from the signed JWT before
+    # this tool executes -- whatever value the LLM supplies here is
+    # discarded. The LLM doesn't need to know this to call the tool
+    # correctly (it just needs model_name + droit), so telling it costs
+    # tokens on every request for zero behavioral benefit.
     return evaluer_regles_raw(model_name, droit, user_groups_json).summary_text
 
 
@@ -283,6 +325,8 @@ def find_server_action_nodes(G, model_name: str) -> list:
 @tool
 def analyser_actions_serveur(model_name: str) -> str:
     """Analyze server actions (ir.actions.server) and automated rules (base.automation) for a given model. Detects sudo() calls, hardcoded IDs, and security warnings."""
+    if _is_wildcard_model(model_name):
+        return WILDCARD_MODEL_ERROR_MSG
     from code_intelligence.server_action_analyzer import (
         analyze_server_action_code, interpret_server_action_with_llm,
     )
@@ -311,6 +355,8 @@ def analyser_actions_serveur(model_name: str) -> str:
 @tool
 def analyser_verrous_securite(model_name: str) -> str:
     """Analyze Python code for a given model to detect hardcoded security locks, exception messages (UserError/ValidationError), hardcoded email/login lists, and dynamic dispatch uncertainties (getattr/eval/exec)."""
+    if _is_wildcard_model(model_name):
+        return WILDCARD_MODEL_ERROR_MSG
     from code_intelligence.semgrep_locks_analyzer import analyze_python_security_locks
     from pathlib import Path
 
@@ -341,6 +387,8 @@ def analyser_contraintes_donnees(model_name: str) -> str:
     """Detect _sql_constraints declarations and relational field domain= conditions
     (Many2one/Many2many) for a given model via static Semgrep analysis. Deterministic
     pattern matching, not LLM interpretation -- high confidence."""
+    if _is_wildcard_model(model_name):
+        return WILDCARD_MODEL_ERROR_MSG
     from pathlib import Path
     from code_intelligence.semgrep_runner import run_semgrep_analysis
     from code_intelligence.utils import format_file_link

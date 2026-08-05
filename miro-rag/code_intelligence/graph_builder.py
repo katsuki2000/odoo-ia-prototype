@@ -112,10 +112,26 @@ class OdooGraphBuilder:
                 description_source=description_source,
             )
 
-            # Model -> Module DEFINED_IN edge
-            if decls:
-                first_mod = decls[0].filepath.split("/")[0] if "/" in decls[0].filepath else "base"
-                self.G.add_edge(model_node_id, f"module:{first_mod}", edge_type="DEFINED_IN")
+            # Model -> Module DEFINED_IN edges (Bloc 8 / J28-29).
+            # One edge per real declaration site, not a single one picked
+            # from decls[0] -- a model declared with _name in one module
+            # and extended via _inherit in others is a genuinely ambiguous
+            # symbol (which module is "the" origin?), and collapsing it to
+            # decls[0]'s module arbitrarily (order = topological load order,
+            # not authorship) previously hid every other module from
+            # lister_modules_impliques. Every candidate module is now kept,
+            # tagged with its role, so the agent/user can see and decide
+            # instead of the tool silently picking one.
+            decl_modules = self.registry.model_modules.get(model_name, [])
+            for idx, d in enumerate(decls):
+                if idx >= len(decl_modules):
+                    continue
+                mod_name = decl_modules[idx]
+                role = "declares" if d.name else "extends"
+                self.G.add_edge(
+                    model_node_id, f"module:{mod_name}",
+                    edge_type="DEFINED_IN", role=role,
+                )
 
             # Model inheritance edges (EXTENDS and DELEGATES_TO)
             for parent_model in all_inherits:

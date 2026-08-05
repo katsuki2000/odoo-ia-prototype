@@ -134,6 +134,36 @@ class _ToolCallFallback:
         self.content = ""
 
 
+_DEGENERATE_REPETITION_RE = re.compile(r"\b(\w+(?:\s+\w+){0,2})\b(?:[\s,.-]+\1\b){5,}", re.IGNORECASE)
+
+
+def _detect_degenerate_repetition(text: str) -> bool:
+    """
+    Review finding (Q1.1 benchmark run): llama-3.1-8b-instant at
+    temperature=0 with no frequency/presence penalty occasionally collapses
+    into a decoding loop -- the same word or short phrase repeated dozens
+    of times in a row (observed: ~140x "Accountant Manager") -- typically
+    right after a truncated tool observation pushes the context close to
+    the model's limit. This is not tool output (no '- xxx:' shape), it's a
+    synthesis-LLM decoding failure.
+
+    Detects a 1-3 word phrase immediately repeated 6+ times in a row. Kept
+    deliberately narrow (consecutive repetition only) to avoid flagging
+    normal prose that legitimately reuses a technical term across a long
+    answer.
+    """
+    if not text:
+        return False
+    return bool(_DEGENERATE_REPETITION_RE.search(text))
+
+
+def _strip_degenerate_repetition(text: str) -> str:
+    """Collapse a detected degenerate run down to a single occurrence of
+    the repeated phrase, as a last resort if a retry still comes back
+    degenerate -- never ship a wall of repeated tokens to the user."""
+    return _DEGENERATE_REPETITION_RE.sub(r"\1", text)
+
+
 _TOOL_USE_FAILED_RE = re.compile(r"'code':\s*'tool_use_failed'.*?'failed_generation':\s*'(.*?)'\s*\}", re.DOTALL)
 _FAILED_GEN_CALL_RE = re.compile(r"<function=(\w+)>(\{.*\})")
 
@@ -163,28 +193,139 @@ def _try_recover_tool_use_failed(exc: Exception):
     logger.warning("Récupération d'un tool_call malformé via failed_generation: %s(%s)", fn_name, args)
     return _ToolCallFallback([{"name": fn_name, "args": args, "id": f"fallback_{fn_name}", "type": "tool_call"}])
 
+_TOOL_MSG_HARD_CAP = 400
+
+
+def _reduce_message_context(messages: list) -> list:
+    """
+    Groq 413 (payload too large) has a FIXED request size -- unlike a 429,
+    resending the identical messages after a wait will never succeed, since
+    the token count doesn't change on its own. This shrinks the largest,
+    most compressible part of the payload (ToolMessage and HumanMessage synthesis prompts).
+    """
+    from langchain_core.messages import ToolMessage, HumanMessage
+
+    reduced = []
+    for msg in messages:
+        if (
+            isinstance(msg, ToolMessage)
+            and isinstance(msg.content, str)
+            and len(msg.content) > _TOOL_MSG_HARD_CAP
+        ):
+            reduced.append(
+                ToolMessage(
+                    content=(
+                        msg.content[:_TOOL_MSG_HARD_CAP]
+                        + "\n[... tronqué pour respecter la limite de taille de requête Groq ...]"
+                    ),
+                    tool_call_id=msg.tool_call_id,
+                )
+            )
+        elif (
+            isinstance(msg, SystemMessage)
+            and isinstance(msg.content, str)
+            and len(msg.content) > 1000
+        ):
+            reduced.append(
+                SystemMessage(
+                    content=(
+                        msg.content[:1000]
+                        + "\n[... tronqué pour respecter la limite de taille Groq ...]"
+                    )
+                )
+            )
+        elif (
+            isinstance(msg, HumanMessage)
+            and isinstance(msg.content, str)
+            and len(msg.content) > 1500
+        ):
+            reduced.append(
+                HumanMessage(
+                    content=(
+                        msg.content[:1500]
+                        + "\n[... tronqué pour respecter la limite de taille de requête Groq ...]"
+                    )
+                )
+            )
+        else:
+            reduced.append(msg)
+    return reduced
+
+
 def _invoke_with_rate_limit(llm_with_tools, messages, max_retries: int = 5):
     """
     Invoke le LLM Groq avec :
       - espacement minimal entre appels
       - backoff dynamique sur 429 (headers x-ratelimit-reset-tokens)
+      - réduction de contexte sur 413 (payload trop gros -- attendre ne sert à rien)
       - récupération / retry renforcé sur tool_use_failed
       - retry générique avec backoff exponentiel sur erreurs de connexion transitoires
+
+    Returns (result, wait_seconds) where wait_seconds is the total time spent
+    sleeping for rate-limit backoffs and minimum-interval enforcement -- callers
+    subtract this from wall-clock to get effective (algorithmic) latency.
+    (J30-J31: performance instrumentation.)
     """
+    context_reduced = False
+    total_wait_seconds = 0.0
     for attempt in range(max_retries):
         with _groq_call_lock:
             elapsed = time.time() - _last_groq_call_time[0]
             if elapsed < MIN_GROQ_CALL_INTERVAL:
-                time.sleep(MIN_GROQ_CALL_INTERVAL - elapsed)
+                gap = MIN_GROQ_CALL_INTERVAL - elapsed
+                time.sleep(gap)
+                total_wait_seconds += gap
             try:
                 result = llm_with_tools.invoke(messages)
                 _last_groq_call_time[0] = time.time()
                 if hasattr(result, "response_metadata"):
                     logger.info("GROQ DIAGNOSTIC METADATA: %s", result.response_metadata)
-                return result
+                return result, total_wait_seconds
             except Exception as e:
                 _last_groq_call_time[0] = time.time()
                 err_str = str(e)
+
+                # Cas 0 : payload trop gros (413). Groq renvoie aussi
+                # 'code': 'rate_limit_exceeded' sur ce cas, ce qui le faisait
+                # tomber dans le Cas 1 ci-dessous et partir en backoff
+                # exponentiel (5.5s -> 40.5s -> échec) alors que la requête a
+                # une taille FIXE : attendre ne réduit jamais son nombre de
+                # tokens, donc chaque nouvelle tentative répète exactement le
+                # même échec (bug confirmé par test_c1_1.py::
+                # test_end_to_end_code_intelligence_graph_execution : 4
+                # tentatives, ~77s perdues, échec garanti à chaque fois). Ici
+                # on réduit le contexte une seule fois et on retente
+                # immédiatement ; si ça échoue encore, on abandonne sans
+                # backoff supplémentaire.
+                is_too_large = (
+                    "413" in err_str
+                    or "request too large" in err_str.lower()
+                    or "reduce your message size" in err_str.lower()
+                )
+                if is_too_large:
+                    if not context_reduced:
+                        messages = _reduce_message_context(messages)
+                        context_reduced = True
+                        logger.warning(
+                            "Groq payload too large (413, attempt %d/%d) -- contexte réduit, "
+                            "nouvelle tentative immédiate.",
+                            attempt + 1, max_retries,
+                        )
+                        continue
+                    elif attempt < max_retries - 1:
+                        wait_time = 10.0
+                        logger.warning(
+                            "Groq TPM limit still hit after context reduction (attempt %d/%d) -- "
+                            "waiting %.1fs for TPM window reset.",
+                            attempt + 1, max_retries, wait_time,
+                        )
+                        time.sleep(wait_time)
+                        total_wait_seconds += wait_time
+                        continue
+                    logger.error(
+                        "Groq payload still too large after retries -- aborting: %s", err_str,
+                    )
+                    raise
 
                 # Cas 1 : rate limit (comportement existant, inchangé)
                 is_rate_limit = "429" in err_str or "rate_limit" in err_str.lower()
@@ -203,13 +344,14 @@ def _invoke_with_rate_limit(llm_with_tools, messages, max_retries: int = 5):
                         wait_time,
                     )
                     time.sleep(wait_time)
+                    total_wait_seconds += wait_time
                     continue
 
                 # Cas 2 : tool_use_failed -- tenter la récupération, sinon retry renforcé
                 if "tool_use_failed" in err_str:
                     recovered = _try_recover_tool_use_failed(e)
                     if recovered is not None:
-                        return recovered
+                        return recovered, total_wait_seconds
                     if attempt < max_retries - 1:
                         logger.warning(
                             "tool_use_failed non récupérable (attempt %d/%d), retry avec instruction renforcée.",
@@ -222,7 +364,9 @@ def _invoke_with_rate_limit(llm_with_tools, messages, max_retries: int = 5):
                                 "<function=...>{...}>."
                             ))
                         ]
-                        time.sleep(1.0)
+                        wait_time = 1.0
+                        time.sleep(wait_time)
+                        total_wait_seconds += wait_time
                         continue
                     raise
 
@@ -238,6 +382,7 @@ def _invoke_with_rate_limit(llm_with_tools, messages, max_retries: int = 5):
                         attempt + 1, max_retries, err_str, wait_time,
                     )
                     time.sleep(wait_time)
+                    total_wait_seconds += wait_time
                     continue
 
                 raise
@@ -375,6 +520,64 @@ def _is_out_of_scope(question: str) -> bool:
         return False
 
     return any(term in normalized_question for term in OUT_OF_SCOPE_TERMS)
+
+
+_MASSIVE_EXTRACTION_PATTERNS = [
+    r"toutes?\s+les?\s+règl(es|ements)",
+    r"tous\s+les\s+modèles",
+    r"tous\s+les\s+modules",
+    r"chaque\s+modèle",
+    r"l'intégralité\s+du\s+code",
+    r"dump\s+de\s+tous",
+    r"liste\s+complète\s+de\s+tous",
+    r"tous\s+les\s+mots\s+de\s+passe",
+    r"tous\s+les\s+utilisateurs",
+    r"extraire?\s+tout",
+    r"toutes\s+les\s+actions\s+serveur",
+    r"all\s+rules\s+of\s+all\s+models",
+    r"dump\s+all\s+models",
+    r"dump\s+all\s+rules",
+    r"list\s+all\s+models",
+    r"extract\s+all\s+code",
+    r"all\s+users\s+and\s+passwords",
+]
+
+_PROMPT_INJECTION_PATTERNS = [
+    r"ignore\s+(?:all\s+|previous\s+)*instructions",
+    r"override\s+security",
+    r"system\s+prompt",
+    r"affiche\s+(ton\s+)?prompt\s+système",
+    r"montre\s+(moi\s+)?les\s+consignes\s+système",
+    r"forget\s+all\s+rules",
+    r"bypass\s+all\s+checks",
+    r"you\s+are\s+now\s+dan",
+    r"jailbreak",
+]
+
+
+def _is_massive_extraction_request(question: str) -> bool:
+    """J32-J33: Detect queries attempting bulk metadata or rule extraction across all models/modules."""
+    import re
+    q = question.lower().strip()
+    if not q:
+        return False
+
+    # Combination check: e.g. "toutes les règles" + ("tous les modèles" or "tout le système")
+    has_bulk_scope = any(w in q for w in ["tous les modèles", "tous les modules", "chaque modèle", "tout le système", "all models", "all modules", "whole database"])
+    has_bulk_target = any(w in q for w in ["toutes les règles", "tous les accès", "tous les droits", "all rules", "all permissions", "all access"])
+    if has_bulk_scope and has_bulk_target:
+        return True
+
+    return any(re.search(pat, q) for pat in _MASSIVE_EXTRACTION_PATTERNS)
+
+
+def _is_prompt_injection(question: str) -> bool:
+    """J32-J33: Detect prompt injection and system prompt reveal attempts."""
+    import re
+    q = question.lower().strip()
+    if not q:
+        return False
+    return any(re.search(pat, q) for pat in _PROMPT_INJECTION_PATTERNS)
 
 
 def route(state: RAGState) -> dict:
@@ -806,7 +1009,8 @@ CI_SYSTEM_PROMPT = (
     "NAVIGATION STRATEGY:\n"
     "1. When target models or modules are provided by [BUSINESS TERM RESOLVER S2.0], invoke the appropriate tools immediately:\n"
     "   - For approval limits, hardcoded emails (_VALIDATEURS_EXCEPTIONNELS), UserError/ValidationError strings, or dynamic getattr dispatches: ALWAYS invoke `analyser_verrous_securite`.\n"
-    "   - For ir.rule record rules and group-based RECORD visibility: invoke `evaluer_regles_enregistrement` (authoritative). A `qui_a_acces_a` \"could not be resolved\" message for the same group does NOT contradict it.\n"
+    "   - For group access matrix and ACL model permissions: invoke `qui_a_acces_a`.\n"
+    "   - For ir.rule record rules and group-based RECORD visibility: invoke `evaluer_regles_enregistrement` (authoritative).\n"
     "   - For automated actions, ir.actions.server, or sudo() bypasses: invoke `analyser_actions_serveur`.\n"
     "   - For SQL uniqueness constraints (_sql_constraints) or relational field domain= filters (Many2one/Many2many): invoke `analyser_contraintes_donnees`.\n"
     "2. DO NOT make generic fallbacks. Synthesize the tool observations directly.\n"
@@ -932,6 +1136,68 @@ def _override_user_groups_arg(tool_name: str, tool_args: dict, resolved_user_gro
     return tool_args
 
 
+# ── Q6.1 fix: strip group-resolution noise from synthesis context ─────────────
+
+# Regex matching the "could not be resolved" boilerplate emitted by
+# qui_a_acces_a (deterministic_tools.py L461-465) when the LLM-guessed
+# group identifier doesn't match any group in the knowledge graph.
+_COULD_NOT_RESOLVE_RE = re.compile(
+    r"""Group identifier ['"].*?['"] could not be resolved""",
+    re.IGNORECASE,
+)
+
+
+def _strip_group_resolution_noise(
+    tool_observations: List[str],
+    resolved_user_group_xmlids: list,
+) -> List[str]:
+    """Remove qui_a_acces_a 'could not be resolved' observations that refer
+    to LLM-guessed group names, when the real-auth override has already
+    injected the demandeur's actual groups into evaluer_regles_enregistrement.
+
+    Context (Q6.1 regression): the synthesis LLM sees BOTH:
+      - a 'could not be resolved' message from qui_a_acces_a (which does NOT
+        receive the override, and uses whatever group name the LLM guessed),
+      - a correct [FAIT DÉTERMINISTIQUE] can_view_amount() verdict computed
+        on the real resolved groups via evaluer_regles_enregistrement.
+
+    The synthesis then self-contradicts: it mentions the resolution failure
+    (obsolete artifact of the LLM-guessed names) while simultaneously
+    presenting the correct verdict.  Stripping the noise at the source is
+    the simplest fix -- the qui_a_acces_a 'could not be resolved' message
+    adds zero information once evaluer_regles_enregistrement has already
+    run with the real groups.
+
+    Conditions for stripping (all must be true):
+      1. Real groups were resolved (the override is active).
+      2. The observation matches the 'could not be resolved' pattern.
+      3. At least one other observation is a [FAIT DÉTERMINISTIQUE] block
+         (meaning evaluer_regles_enregistrement already computed the real
+         verdict -- the 'could not be resolved' message is truly obsolete).
+    """
+    if not resolved_user_group_xmlids:
+        return tool_observations  # No override active, keep everything.
+
+    has_deterministic_fact = any(
+        "[FAIT DÉTERMINISTIQUE]" in obs for obs in tool_observations
+    )
+    if not has_deterministic_fact:
+        return tool_observations  # No authoritative verdict yet, keep everything.
+
+    cleaned = []
+    for obs in tool_observations:
+        if _COULD_NOT_RESOLVE_RE.search(obs):
+            logger.info(
+                "Node [code_intelligence_agent]: Q6.1 fix -- stripping 'could not be "
+                "resolved' observation from synthesis context (real groups override "
+                "is active and a deterministic fact is present): %.120s",
+                obs,
+            )
+            continue
+        cleaned.append(obs)
+    return cleaned
+
+
 def _extract_first_scoped_file_link(text: str) -> str:
     match = re.search(r"\[[^\]]+\]\(file:///[^\)]+#L\d+-L\d+\)", text)
     return match.group(0) if match else ""
@@ -1045,7 +1311,9 @@ def code_intelligence_agent(state: RAGState) -> dict:
     """
     Node [code_intelligence_agent]: ReAct agent loop for Code Intelligence.
 
-    C.1.1: LangGraph ReAct loop with 9 bound tools (5 composite + 4 auxiliary).
+    C.1.1: LangGraph ReAct loop with 13 bound tools (5 composite + 4 auxiliary +
+    4 code-analysis: analyser_verrous_securite, analyser_actions_serveur,
+    analyser_contraintes_donnees, evaluer_regles_enregistrement).
     C.1.2: Anti-loop guard detects duplicate tool+args calls.
     C.1.3: System prompt enforces scope-first navigation strategy.
     C.1.4: Hop counter tracks tool calls; partial response on limit.
@@ -1064,6 +1332,35 @@ def code_intelligence_agent(state: RAGState) -> dict:
         logger.info("Node [code_intelligence_agent]: Out of scope question.")
         response = AssistantResponse(
             answer=OUT_OF_SCOPE_ANSWER,
+            sources=[],
+            confidence=0.0,
+        )
+        timing = state.get("timing", {}).copy()
+        timing["code_intelligence_time"] = time.time() - start_time
+        return {"response": response, "raw_answer": response.answer, "timing": timing}
+
+    # J32-J33: Security & Massive Extraction Safeguards
+    from config.settings import (
+        MAX_MODELS_PER_QUERY,
+        MASSIVE_EXTRACTION_REFUSAL_MSG,
+        PROMPT_INJECTION_REFUSAL_MSG,
+    )
+
+    if _is_prompt_injection(question):
+        logger.warning("Node [code_intelligence_agent]: Prompt injection attempt intercepted.")
+        response = AssistantResponse(
+            answer=PROMPT_INJECTION_REFUSAL_MSG,
+            sources=[],
+            confidence=0.0,
+        )
+        timing = state.get("timing", {}).copy()
+        timing["code_intelligence_time"] = time.time() - start_time
+        return {"response": response, "raw_answer": response.answer, "timing": timing}
+
+    if _is_massive_extraction_request(question):
+        logger.warning("Node [code_intelligence_agent]: Massive extraction request intercepted.")
+        response = AssistantResponse(
+            answer=MASSIVE_EXTRACTION_REFUSAL_MSG,
             sources=[],
             confidence=0.0,
         )
@@ -1101,8 +1398,22 @@ def code_intelligence_agent(state: RAGState) -> dict:
     set_llm_ref(llm)
     llm_with_tools = llm.bind_tools(ALL_CI_TOOLS)
 
+    # J30-J31: phase timing instrumentation
+    _ci_groq_wait = 0.0          # accumulated Groq rate-limit wait (subtracted from wall-clock)
+    _ci_per_hop_times: list = []  # per-hop wall-clock durations
+
     # Story S2.0: Business Term Resolver -- Map natural language concepts to technical Odoo models/modules
+    _t_resolver = time.perf_counter()
     concept = resolve_business_term(question, G, llm=llm)
+    _ci_resolver_time = time.perf_counter() - _t_resolver
+
+    # J32-J33: Enforce MAX_MODELS_PER_QUERY limit on resolved models
+    if concept.resolved_models and len(concept.resolved_models) > MAX_MODELS_PER_QUERY:
+        logger.warning(
+            "Node [code_intelligence_agent]: Truncating resolved models from %d to MAX_MODELS_PER_QUERY (%d)",
+            len(concept.resolved_models), MAX_MODELS_PER_QUERY,
+        )
+        concept.resolved_models = concept.resolved_models[:MAX_MODELS_PER_QUERY]
 
     tool_observations: list = []
     omitted_items: list = []  # Bloc 7 (J23-24): OmittedForAuthorization entries
@@ -1150,15 +1461,14 @@ def code_intelligence_agent(state: RAGState) -> dict:
                     # dispatch too -- it bypasses the normal ReAct tool
                     # loop, so it must be gated here explicitly rather than
                     # relying on the loop's gating below.
-                    forced_observation, omitted_item = gate_observation(
+                    forced_observation, omitted_list = gate_observation(
                         tool_name="analyser_verrous_securite",
                         model_name=target_model,
                         observation=forced_observation,
                         G=G,
                         user_groups=resolved_user_group_xmlids,
                     )
-                    if omitted_item is not None:
-                        omitted_items.append(omitted_item)
+                    omitted_items.extend(omitted_list)
                     tool_observations.append(forced_observation)
                     hop_count += 1
                     seen_calls.add(("analyser_verrous_securite", target_model))
@@ -1208,15 +1518,14 @@ def code_intelligence_agent(state: RAGState) -> dict:
                     # Bloc 7 (J23-24): same rationale as the
                     # analyser_verrous_securite forced dispatch above --
                     # this bypasses the ReAct loop's gating, so gate here.
-                    forced_observation, omitted_item = gate_observation(
+                    forced_observation, omitted_list = gate_observation(
                         tool_name="analyser_actions_serveur",
                         model_name=target_model,
                         observation=forced_observation,
                         G=G,
                         user_groups=resolved_user_group_xmlids,
                     )
-                    if omitted_item is not None:
-                        omitted_items.append(omitted_item)
+                    omitted_items.extend(omitted_list)
                     tool_observations.append(forced_observation)
                     hop_count += 1
                     seen_calls.add(call_key)
@@ -1245,10 +1554,12 @@ def code_intelligence_agent(state: RAGState) -> dict:
     if tool_observations:
         final_answer = _force_dynamic_uncertainty_answer(question, "\n\n".join(tool_observations))
 
+    _t_react_loop = time.perf_counter()
     for iteration in range(0 if final_answer else REACT_RECURSION_LIMIT):
         # Single-Pass Composite Execution: 1 Tool Selection turn + 1 Synthesis turn
         try:
-            ai_msg = _invoke_with_rate_limit(llm_with_tools, messages)
+            ai_msg, _wait = _invoke_with_rate_limit(llm_with_tools, messages)
+            _ci_groq_wait += _wait
         except Exception as e:
             logger.error("LLM tool selection failed: %s", e)
             ai_msg = None
@@ -1270,6 +1581,7 @@ def code_intelligence_agent(state: RAGState) -> dict:
                 logger.info("Node [code_intelligence_agent]: Single-Dispatch invoking '%s' with args %s", tool_name, tool_args)
                 tool_map = {t.name: t for t in ALL_CI_TOOLS}
                 if tool_name in tool_map:
+                    _t_hop = time.perf_counter()  # J30-J31: per-hop timing
                     try:
                         observation = str(tool_map[tool_name].invoke(tool_args))
                         if len(observation) > 1200:
@@ -1298,7 +1610,7 @@ def code_intelligence_agent(state: RAGState) -> dict:
                         # observation according to the demandeur's real
                         # rights BEFORE it ever reaches the synthesis LLM,
                         # so an omitted fact can't leak back out paraphrased.
-                        observation, omitted_item = gate_observation(
+                        observation, omitted_list = gate_observation(
                             tool_name=tool_name,
                             model_name=tool_args.get("model_name", ""),
                             observation=observation,
@@ -1306,11 +1618,21 @@ def code_intelligence_agent(state: RAGState) -> dict:
                             user_groups=resolved_user_group_xmlids,
                             rule_result=rule_result,
                         )
-                        if omitted_item is not None:
-                            omitted_items.append(omitted_item)
+                        omitted_items.extend(omitted_list)
 
                         tool_observations.append(observation)
+                        _ci_per_hop_times.append(time.perf_counter() - _t_hop)  # J30-J31
                         hop_count += 1
+
+                        # J30-J31: CI_MAX_HOPS enforcement (was defined but
+                        # never checked -- the loop ran up to
+                        # REACT_RECURSION_LIMIT=6 instead of CI_MAX_HOPS=4).
+                        if hop_count >= CI_MAX_HOPS:
+                            logger.warning(
+                                "Node [code_intelligence_agent]: CI_MAX_HOPS (%d) "
+                                "reached -- breaking ReAct loop.", CI_MAX_HOPS,
+                            )
+                            break
 
                         # J14 fix (Q6.1 regression):
                         # evaluer_regles_enregistrement's summary_text lists
@@ -1361,6 +1683,14 @@ def code_intelligence_agent(state: RAGState) -> dict:
         # Synthesize clean final answer from composite tool output
         if not final_answer:
             if tool_observations:
+                # Q6.1 fix: strip 'could not be resolved' noise from
+                # qui_a_acces_a before it reaches the synthesis LLM when
+                # the real-auth override has already injected the
+                # demandeur's real groups into evaluer_regles_enregistrement
+                # and a deterministic can_view_amount fact is present.
+                tool_observations = _strip_group_resolution_noise(
+                    tool_observations, resolved_user_group_xmlids,
+                )
                 synthesis_prompt = (
                     f"Original Question: {question}\n\n"
                     f"Knowledge Graph Output:\n" + "\n---\n".join(tool_observations) +
@@ -1382,6 +1712,12 @@ def code_intelligence_agent(state: RAGState) -> dict:
                     f"output, resolved model listings) are deterministic facts -- NEVER invent, "
                     f"infer, or add a confidence tag to them. Presenting a deterministic fact as "
                     f"if it carried a confidence level is itself a fabrication. "
+                    f"If a [FAIT DÉTERMINISTIQUE] observation is present, it is the "
+                    f"authoritative verdict on the user's access for the stated amount -- "
+                    f"do NOT mention, paraphrase, or allude to any 'could not be resolved' "
+                    f"message from a different tool about group identifiers; those are "
+                    f"obsolete artifacts of an earlier resolution step and have been "
+                    f"superseded by the deterministic evaluation. "
                     f"Any file citation you make MUST keep its exact line range from the "
                     f"source observation (file:///path#L12-L25) -- never drop the line range "
                     f"even when shortening a citation. Any rule/action/group xml_id you cite "
@@ -1389,9 +1725,51 @@ def code_intelligence_agent(state: RAGState) -> dict:
                     f"verbatim from the source observation."
                 )
                 try:
-                    plain_llm = ChatGroq(model=GROQ_MODEL, temperature=0.0, max_retries=0, max_tokens=4096)
-                    final_resp = _invoke_with_rate_limit(plain_llm, [HumanMessage(content=synthesis_prompt)])
+                    plain_llm = ChatGroq(
+                        model=GROQ_MODEL, temperature=0.0, max_retries=0, max_tokens=4096,
+                        # Review finding (Q1.1 benchmark run): mitigate llama-3.1-8b-instant's
+                        # decoding-collapse failure mode (see _detect_degenerate_repetition) --
+                        # a mild penalty discourages the model from repeating the same token/
+                        # phrase without materially changing normal synthesis quality.
+                        model_kwargs={"frequency_penalty": 0.3, "presence_penalty": 0.2},
+                    )
+                    _t_synthesis = time.perf_counter()
+                    final_resp, _synth_wait = _invoke_with_rate_limit(plain_llm, [HumanMessage(content=synthesis_prompt)])
+                    _ci_groq_wait += _synth_wait
                     final_answer = final_resp.content
+                    _ci_synthesis_time = time.perf_counter() - _t_synthesis
+                    if _detect_degenerate_repetition(final_answer):
+                        logger.warning(
+                            "Node [code_intelligence_agent]: degenerate repetition detected in "
+                            "synthesis output (%d chars) -- retrying once with an explicit "
+                            "anti-repetition instruction before falling back to stripping it.",
+                            len(final_answer),
+                        )
+                        retry_messages = [
+                            HumanMessage(content=synthesis_prompt),
+                            SystemMessage(content=(
+                                "RAPPEL STRICT : ta r\u00e9ponse pr\u00e9c\u00e9dente contenait une "
+                                "r\u00e9p\u00e9tition d\u00e9g\u00e9n\u00e9r\u00e9e (le m\u00eame mot ou groupe "
+                                "de mots r\u00e9p\u00e9t\u00e9 des dizaines de fois de suite). Ne r\u00e9p\u00e8te "
+                                "JAMAIS un mot ou groupe de mots plus de 2-3 fois de suite. Si tu "
+                                "n'as rien de nouveau \u00e0 dire sur un point, passe au suivant ou "
+                                "termine ta phrase."
+                            )),
+                        ]
+                        try:
+                            retry_resp, _retry_wait = _invoke_with_rate_limit(plain_llm, retry_messages, max_retries=2)
+                            _ci_groq_wait += _retry_wait
+                            if not _detect_degenerate_repetition(retry_resp.content):
+                                final_answer = retry_resp.content
+                            else:
+                                logger.error(
+                                    "Node [code_intelligence_agent]: synthesis still degenerate "
+                                    "after retry -- stripping the repeated run instead of shipping it."
+                                )
+                                final_answer = _strip_degenerate_repetition(final_answer)
+                        except Exception as retry_e:
+                            logger.error("Anti-repetition retry failed: %s", retry_e)
+                            final_answer = _strip_degenerate_repetition(final_answer)
                 except Exception as e:
                     logger.error("Synthesis failed: %s", e)
                     final_answer = "\n\n".join(tool_observations)
@@ -1412,6 +1790,18 @@ def code_intelligence_agent(state: RAGState) -> dict:
         logger.warning("Node [code_intelligence_agent]: Unverified citations -- %s", sourcing_result)
         final_answer = annotate_unverifiable_citations(final_answer, sourcing_result)
 
+    # Review finding (Q1.1 benchmark run): final catch-all in case a
+    # degenerate repetition slipped through on a path OTHER than the main
+    # synthesis-prompt branch above (e.g. ai_msg.content returned directly
+    # without any tool call) -- never ship a wall of repeated tokens
+    # regardless of which code path produced final_answer.
+    if _detect_degenerate_repetition(final_answer):
+        logger.error(
+            "Node [code_intelligence_agent]: degenerate repetition detected in final_answer "
+            "outside the main synthesis retry path -- stripping before returning."
+        )
+        final_answer = _strip_degenerate_repetition(final_answer)
+
     final_answer += "\n\n[Source: Graphe de Connaissances Code Intelligence]"
 
     # Bloc 7 (J23-24): surface the omission state explicitly and visibly,
@@ -1419,9 +1809,23 @@ def code_intelligence_agent(state: RAGState) -> dict:
     # warning above -- so an omission is never mistaken for an unverified
     # citation or folded into the confidence score.
     from rag.schemas import OmittedForAuthorization
+    # Dedup: the same tool (e.g. evaluer_regles_enregistrement on the same
+    # model) can legitimately be invoked more than once across the forced
+    # pre-dispatch + ReAct loop, or re-invoked by the LLM with identical
+    # args -- each call gates and records its own OmittedItem, so without
+    # this the footer/response repeat the identical omission N times
+    # (observed in the J28-29 benchmark run, e.g. Q5.1 showing the same
+    # ir.rule omission 4x). Dedup on (label, reason), order-preserving.
+    _seen_omitted_keys: set = set()
+    deduped_omitted_items = []
+    for _item in omitted_items:
+        _key = (_item.label, _item.reason)
+        if _key not in _seen_omitted_keys:
+            _seen_omitted_keys.add(_key)
+            deduped_omitted_items.append(_item)
     omitted_for_authorization = [
         OmittedForAuthorization(label=item.label, reason=item.reason)
-        for item in omitted_items
+        for item in deduped_omitted_items
     ]
     if omitted_for_authorization:
         omission_separator = chr(10)
@@ -1449,9 +1853,19 @@ def code_intelligence_agent(state: RAGState) -> dict:
         omitted_for_authorization=omitted_for_authorization,
     )
 
+    # J30-J31: compute effective latency (algorithmic) by subtracting Groq waits
+    _ci_total_wall = time.time() - start_time
+    _ci_react_loop_time = time.perf_counter() - _t_react_loop if '_t_react_loop' in dir() else 0.0
+    _ci_post_time = time.perf_counter() - (_t_react_loop + _ci_react_loop_time) if '_t_react_loop' in dir() else 0.0
+
     timing = state.get("timing", {}).copy()
-    timing["code_intelligence_time"] = time.time() - start_time
+    timing["code_intelligence_time"] = _ci_total_wall
     timing["ci_hop_count"] = hop_count
+    timing["ci_groq_wait_time"] = round(_ci_groq_wait, 3)
+    timing["ci_effective_time"] = round(_ci_total_wall - _ci_groq_wait, 3)
+    timing["ci_business_resolver_time"] = round(_ci_resolver_time, 3) if '_ci_resolver_time' in dir() else 0.0
+    timing["ci_per_hop_times"] = [round(t, 3) for t in _ci_per_hop_times]
+    timing["ci_synthesis_time"] = round(_ci_synthesis_time, 3) if '_ci_synthesis_time' in dir() else 0.0
 
     return {
         "response": response,

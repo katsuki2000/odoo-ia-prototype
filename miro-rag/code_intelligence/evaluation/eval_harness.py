@@ -127,13 +127,36 @@ def run_evaluation() -> Dict[str, Any]:
             "question": question,
             "is_trick": is_trick,
             "route_decision": route_decision,
+        ci_effective = timing_info.get("ci_effective_time", round(exec_time, 3))
+        ci_groq_wait = timing_info.get("ci_groq_wait_time", 0.0)
+
+        results.append({
+            "id": tc_id,
+            "category": tc["category"],
+            "hops": tc["hops"],
+            "question": question,
+            "is_trick": is_trick,
+            "route_decision": route_decision,
             "exec_time_sec": round(exec_time, 3),
+            "effective_time_sec": ci_effective,
+            "groq_wait_sec": ci_groq_wait,
             "hop_count": hop_count,
             "passed": is_passed,
             "is_truncated": is_truncated,
             "matched_keywords": keywords_matched,
             "answer_snippet": answer_text[:160].replace("\n", " ") + "...",
         })
+
+    import statistics
+    eff_latencies = [r["effective_time_sec"] for r in results if r["effective_time_sec"] > 0]
+    if eff_latencies:
+        sorted_lat = sorted(eff_latencies)
+        n = len(sorted_lat)
+        p50 = round(statistics.median(sorted_lat), 3)
+        p90 = round(sorted_lat[min(int(n * 0.9), n - 1)], 3)
+        p95 = round(sorted_lat[min(int(n * 0.95), n - 1)], 3)
+    else:
+        p50 = p90 = p95 = 0.0
 
     avg_latency = round(total_time / len(test_cases), 3) if test_cases else 0.0
     accuracy_rate = round((passed_count / len(test_cases)) * 100, 1) if test_cases else 0.0
@@ -148,6 +171,9 @@ def run_evaluation() -> Dict[str, Any]:
         "trick_accuracy_pct": trick_accuracy,
         "total_time_sec": round(total_time, 3),
         "avg_latency_sec": avg_latency,
+        "p50_effective_sec": p50,
+        "p90_effective_sec": p90,
+        "p95_effective_sec": p95,
         "results": results,
     }
 

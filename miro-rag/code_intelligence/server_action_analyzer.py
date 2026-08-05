@@ -123,22 +123,32 @@ def analyze_server_action_code(
             )
 
     # Build summary text
+    from code_intelligence.utils import SENSITIVE_BYPASS_MARKER
     lines = [
         f"Analyse du code de l'action serveur '{action_xml_id}' "
         f"[Confiance: FAIBLE - logique en données XML, modifiable à l'exécution]:"
     ]
 
     if result.has_sudo:
-        lines.append(f"  - SUDO détecté: Contournement des droits d'accès via sudo()")
+        # Bloc 7 (J23-24, revised): sudo() is a genuine bypass of ir.rule/ACL,
+        # not ordinary governance info -- marked for source-level redaction.
+        lines.append(f"  - {SENSITIVE_BYPASS_MARKER} SUDO détecté: Contournement des droits d'accès via sudo()")
 
     if result.has_hardcoded_ids:
         for id_list in result.hardcoded_id_lists:
-            lines.append(f"  - IDs en dur: {id_list} → traitement privilégié non documenté")
+            # Bloc 7 (J23-24, revised): hardcoded ID lists grant undocumented
+            # special treatment outside the normal ACL/ir.rule system -- same
+            # bypass category as sudo(), marked identically.
+            lines.append(f"  - {SENSITIVE_BYPASS_MARKER} IDs en dur: {id_list} → traitement privilégié non documenté")
 
     if result.has_group_checks:
+        # NOT marked: has_group() is Odoo's normal, documented access-control
+        # mechanism -- legitimate governance info, not a bypass.
         lines.append(f"  - Vérifications de groupes: {', '.join(result.has_group_checks)}")
 
     if result.has_dynamic_dispatch:
+        # NOT marked: this is a confidence/uncertainty caveat ("can't be sure
+        # statically"), not itself a disclosed bypass mechanism.
         lines.append(
             f"  - Dispatch dynamique: {', '.join(result.dynamic_dispatch_patterns)} "
             f"→ comportement non classifiable statiquement"

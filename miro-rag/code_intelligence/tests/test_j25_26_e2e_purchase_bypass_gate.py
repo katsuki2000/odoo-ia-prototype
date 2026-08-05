@@ -23,40 +23,38 @@ references "demande d'achat" without naming the module explicitly):
   ACL/ir.rule system, exactly what analyser_verrous_securite + Bloc 7's
   gate exist to detect and protect respectively.
 
-KNOWN GAP (found while writing this test, not yet fixed -- see conversation
-2026-08-05): authorization_gate._has_elevated_access() treats WRITE or
-UNLINK access on the model as "elevated" (see its own docstring). This is
-the right proxy for models like account.move, where write is restricted to
-an actual accounting/management group. It is the WRONG proxy here: this
-module's real ACL (security/ir.model.access.csv) grants
-perm_write=1/perm_unlink=0 to `base.group_user` -- Odoo's default Internal
-User group, held by virtually every employee precisely so they can submit
-and edit their OWN purchase requests. Write access here has nothing to do
-with approval authority, which is gated separately in Python via
-has_group('purchase.group_purchase_manager') -- a check the knowledge graph
-has no structural edge for today (it only exists in Python source text,
-detected by the very tool this gate is supposed to protect).
+GAP FOUND, THEN FIXED (see conversation 2026-08-05): originally,
+authorization_gate._has_elevated_access() treated WRITE or UNLINK access on
+the model as "elevated" (see its own docstring). That proxy is right for
+models like account.move, where write is restricted to an actual
+accounting/management group. It was WRONG here: this module's real ACL
+(security/ir.model.access.csv) grants perm_write=1/perm_unlink=0 to
+`base.group_user` -- Odoo's default Internal User group, held by virtually
+every employee precisely so they can submit and edit their OWN purchase
+requests. Write access here has nothing to do with approval authority,
+which is gated separately in Python via
+has_group('purchase.group_purchase_manager').
 
-Consequence, confirmed against real Odoo test users on 2026-08-05: ANY
-employee holding base.group_user (i.e. every non-portal user, including
-test_nospecial_2026 below, who is a standard employee with no purchase
-management group at all) is treated as "elevated" and sails through the
-gate -- the hardcoded validator emails are NOT hidden from them, even
-though Bloc 7 (J22's decision: "toute explication filtrée selon les droits
-du demandeur") was explicitly meant to protect exactly this case.
+Confirmed against real Odoo test users on 2026-08-05: this originally let
+ANY employee holding base.group_user (i.e. every non-portal user, including
+test_nospecial_2026 below, a standard employee with no purchase management
+group at all) sail through the gate as "elevated" -- the hardcoded
+validator emails were NOT hidden from them, even though Bloc 7 (J22's
+decision: "toute explication filtrée selon les droits du demandeur") was
+explicitly meant to protect exactly this case.
 
-test_standard_employee_sees_bypass_hidden below therefore currently FAILS.
-This is deliberate and expected -- see the conversation this test was
-written in: the alternative (using a portal user with no base.group_user
-at all) would validate a profile nobody realistically uses to ask this
-question, or silently asserting today's (wrong) behavior would hide a real
-gap from the benchmark report. The failure itself is the J25-26 finding to
-bring back to the maître de stage; the fix (tracked separately, not applied
-here) needs _has_elevated_access to check a right that is actually specific
-to the security mechanism being gated -- e.g. statically extracted
-has_group() calls from the model's own Python source -- rather than generic
-ORM write/unlink, which this module's ACL design does not correlate with
-approval authority.
+FIXED the same day: authorization_gate._extract_has_group_xmlids_from_source()
+statically extracts has_group('xml.id') checks from the model's OWN Python
+source and, when present, uses that -- strictly more specific than the
+model's blanket ORM ACL -- INSTEAD of the write/unlink proxy in
+_has_elevated_access(). Both tests below now pass: the standard employee is
+correctly gated on custom.purchase.request (bypass hidden), and the real
+purchase.group_purchase_manager holder (bob@alpha.com) is correctly
+recognized as elevated (bypass shown). See authorization_gate.py's own
+docstrings for the fix's full rationale, including the analogous
+account.move case it also covers (custom_credit_note_approval grants write
+to account.group_account_invoice, but action_valider_avoir()'s real guard
+checks the stricter account.group_account_manager).
 
 test_purchase_manager_sees_bypass_unhidden is the mirror sanity check: a
 real purchase.group_purchase_manager holder must NOT be gated -- confirming
@@ -111,13 +109,13 @@ def _run(question: str, user_groups: list) -> AssistantResponse:
 
 def test_standard_employee_sees_bypass_hidden():
     """
-    KNOWN FAILING (see module docstring): a standard employee
-    (test_nospecial_2026, base.group_user only) asking Q3.1 must not
-    receive the raw _VALIDATEURS_EXCEPTIONNELS emails, and the response
-    must record an explicit omission for authorization on
-    custom.purchase.request. Currently fails because _has_elevated_access
-    treats this model's broad base.group_user write ACL as "elevated",
-    which the real approval bypass has nothing to do with.
+    A standard employee (test_nospecial_2026, base.group_user only) asking
+    Q3.1 must not receive the raw _VALIDATEURS_EXCEPTIONNELS emails, and the
+    response must record an explicit omission for authorization on
+    custom.purchase.request. See module docstring: originally failed
+    because _has_elevated_access treated this model's broad base.group_user
+    write ACL as "elevated"; fixed the same day by preferring the model's
+    own has_group() source checks when present.
     """
     response = _run(Q3_1_QUESTION, STANDARD_EMPLOYEE_GROUP_IDS)
 

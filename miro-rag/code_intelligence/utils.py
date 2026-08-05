@@ -8,6 +8,26 @@ import hashlib
 from pathlib import Path
 from typing import List, Optional, Set
 
+# Bloc 7 (J23-24, revised): shared marker used to tag, AT THE SOURCE, the
+# specific lines within a tool's summary_text that describe an actual
+# security-bypass mechanism (hardcoded privileged logins, sudo() escaping
+# ir.rule/ACL, hardcoded ID lists granting undocumented special treatment)
+# -- as opposed to normal governance/uncertainty information (which groups
+# can approve, dynamic-dispatch confidence caveats), which must NOT be
+# marked and stays visible to every requester regardless of their rights.
+#
+# Decision (after J23-24 review): gating the ENTIRE tool observation
+# whenever a requester lacked elevated rights on the model made routine
+# governance questions ("qui peut approuver un avoir ?") unanswerable for
+# most requesters, since analyser_verrous_securite mixes both kinds of
+# content in one block. Tagging at the source lets authorization_gate.py
+# redact only the specific marked line(s), leaving the rest of the answer
+# intact. Defined here (not in authorization_gate.py) so the Bloc 2
+# analyzers (semgrep_locks_analyzer.py, server_action_analyzer.py) that
+# produce this text don't need to depend on the later Bloc 7 gating module
+# -- both sides import this single shared constant instead.
+SENSITIVE_BYPASS_MARKER = "[CONTOURNEMENT SENSIBLE]"
+
 
 def format_file_link(filepath: str, start_line: Optional[int] = None, end_line: Optional[int] = None) -> str:
     """Format a file path and line numbers into a clickable GitHub-style markdown link.

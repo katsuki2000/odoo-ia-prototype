@@ -10,7 +10,7 @@ Implements Story B.2:
 """
 
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Any
+from typing import Dict, List, Optional, Set, Any, Tuple
 import logging
 
 import networkx as nx
@@ -52,6 +52,21 @@ def resoudre_nom_technique_vers_role(nom_technique: str) -> str:
 def lister_modules_impliques(G: nx.DiGraph, model_name: str) -> List[str]:
     """
     Story B.2.2: Lists all modules that define or extend a given model.
+
+    Note: this returns a flat, unordered-role list for backward
+    compatibility with existing callers/tests. Since Bloc 8 (J28-29),
+    graph_builder.py creates one DEFINED_IN edge per real declaration site
+    (not just decls[0]'s module), so this can legitimately return several
+    modules for a model that is declared in one and extended in others.
+    Callers that need to distinguish "declares" from "extends" per module
+    (e.g. to present ambiguous-symbol candidates to the agent/user) should
+    use lister_modules_impliques_avec_role() instead.
+
+    The previous field->module fallback (for when no DEFINED_IN edge was
+    found) is removed here: it walked field nodes looking for a `module:`
+    neighbor, but no such edge is ever created by graph_builder (fields
+    only carry HAS_FIELD/COMPUTED_BY/RELATES_TO edges) -- it never found
+    anything and was silently dead code.
     """
     model_node = f"model:{model_name}"
     if model_node not in G:
@@ -64,17 +79,38 @@ def lister_modules_impliques(G: nx.DiGraph, model_name: str) -> List[str]:
         if edge_data.get("edge_type") == "DEFINED_IN" and neighbor.startswith("module:"):
             modules.add(neighbor.replace("module:", ""))
 
-    # If no DEFINED_IN edge found, check model node attribute or module prefix
-    m_data = G.nodes[model_node]
-    if "inherits_list" in m_data:
-        # Check connected field/method definitions for module source
-        for field_node in G.neighbors(model_node):
-            if field_node.startswith("field:"):
-                for mod_node in G.neighbors(field_node):
-                    if mod_node.startswith("module:"):
-                        modules.add(mod_node.replace("module:", ""))
-
     return sorted(list(modules)) if modules else ["base"]
+
+
+def lister_modules_impliques_avec_role(G: nx.DiGraph, model_name: str) -> List[Tuple[str, str]]:
+    """
+    Bloc 8 (J28-29): ambiguous-symbol variant of lister_modules_impliques().
+
+    A model declared with `_name` in one module and extended via
+    `_inherit` in one or more other modules is a genuinely ambiguous
+    symbol from the agent's point of view -- there is no single "correct"
+    origin module. Rather than silently picking the first declaration
+    found (the bug this story fixes -- graph_builder.py previously took
+    decls[0]'s module only), this returns EVERY candidate module together
+    with its role for this model:
+      - "declares": the module whose class sets `_name` for this model.
+      - "extends":   a module that only extends it via `_inherit` (no
+                     `_name` in that declaration).
+    Callers (the `lister_modules_impliques` @tool wrapper, in particular)
+    must present all candidates to the agent/user and let them decide,
+    never collapse this list to one entry themselves.
+    """
+    model_node = f"model:{model_name}"
+    if model_node not in G:
+        return []
+
+    entries: List[Tuple[str, str]] = []
+    for neighbor in G.neighbors(model_node):
+        edge_data = G.get_edge_data(model_node, neighbor) or {}
+        if edge_data.get("edge_type") == "DEFINED_IN" and neighbor.startswith("module:"):
+            entries.append((neighbor.replace("module:", ""), edge_data.get("role", "unknown")))
+
+    return sorted(entries) if entries else [("base", "unknown")]
 
 
 def expliquer_chemin_de_decision(G: nx.DiGraph, path_nodes: List[str]) -> str:

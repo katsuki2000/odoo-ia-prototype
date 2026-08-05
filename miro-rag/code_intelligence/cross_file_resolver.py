@@ -114,6 +114,11 @@ class ParsedModule:
 class ResolvedSymbolRegistry:
     # Key = model_name (e.g. "sale.order"), Value = List of declarations across modules
     models: Dict[str, List[OdooModelDeclaration]] = field(default_factory=dict)
+    # Bloc 8 (J28-29): Key = model_name, Value = List of module names, in the
+    # SAME order as models[model_name] (one module name per declaration) --
+    # lets graph_builder create one DEFINED_IN edge per real declaration
+    # site instead of arbitrarily picking decls[0]'s filepath.
+    model_modules: Dict[str, List[str]] = field(default_factory=dict)
     # Key = full_xml_id (e.g. "base.group_user" or "sale.group_sale_manager"), Value = Record
     groups: Dict[str, OdooGroupRecord] = field(default_factory=dict)
     rules: Dict[str, OdooRuleRecord] = field(default_factory=dict)
@@ -188,6 +193,13 @@ def build_module_symbol_registry(modules_dict: Dict[str, ParsedModule]) -> Resol
                 if model_key not in registry.models:
                     registry.models[model_key] = []
                 registry.models[model_key].append(decl)
+                # Bloc 8 (J28-29): record mod_name in lockstep with the decl
+                # just appended above -- same index in both lists -- so
+                # graph_builder can zip them back together per-declaration
+                # instead of guessing a module from decl.filepath.
+                if model_key not in registry.model_modules:
+                    registry.model_modules[model_key] = []
+                registry.model_modules[model_key].append(mod_name)
 
         # 2. Index XML Groups with merge
         for grp in mod.groups:

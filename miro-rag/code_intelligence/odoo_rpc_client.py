@@ -8,10 +8,14 @@ records as that same user so ir.rule filtering is evaluated by Odoo itself.
 
 from __future__ import annotations
 
+import logging
 import os
+import time
 import xmlrpc.client
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
+
+logger = logging.getLogger(__name__)
 
 
 VALID_OPERATIONS = {"read", "write", "create", "unlink"}
@@ -56,7 +60,8 @@ class OdooRpcClient:
             raise OdooRpcError(
                 f"No password cached for uid {uid}; call authenticate_user() for that user first."
             )
-        return self.models.execute_kw(
+        t0 = time.perf_counter()
+        result = self.models.execute_kw(
             self.db,
             uid,
             password,
@@ -65,6 +70,9 @@ class OdooRpcClient:
             args or [],
             kwargs or {},
         )
+        elapsed_ms = (time.perf_counter() - t0) * 1000
+        logger.info("XML-RPC call %.1fms: %s.%s", elapsed_ms, model_name, method)
+        return result
 
     def check_access_rights(self, uid: int, model_name: str, operation: str = "read") -> bool:
         self._validate_operation(operation)

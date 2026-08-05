@@ -1,9 +1,32 @@
 """
 code_intelligence/authorization_gate.py
 
-Bloc 7 / J23-J24: implements the option decided at J22 -- "toute
-explication filtrée selon les droits du demandeur" (generalized gating,
-not only the bypasses already known to be sensitive).
+Bloc 7 / J23-J24, REVISED after J22 decision review: targeted gating, not
+generalized gating. History:
+
+  J22 decision (as first recorded): "toute explication filtrée selon les
+  droits du demandeur" -- gate an ENTIRE tool observation whenever the
+  demandeur lacked elevated access on the model it concerned.
+
+  J23-24 build + first benchmark run: implemented as designed. Regression
+  found in the SAME benchmark run: analyser_verrous_securite mixes
+  legitimate governance content (which groups can approve, standard
+  thresholds) with the actual sensitive bypass content (hardcoded
+  privileged emails, sudo() escapes) in ONE block. Gating the whole block
+  made routine questions like "qui a le droit d'approuver un avoir de
+  25 000e ?" unanswerable for most requesters -- collateral damage far
+  beyond the actual gap (test adversarial 3's hidden validator list).
+
+  Revised decision: tag ONLY the specific bypass-revealing line(s) AT THE
+  SOURCE (semgrep_locks_analyzer.py, server_action_analyzer.py) with the
+  shared code_intelligence.utils.SENSITIVE_BYPASS_MARKER, and redact ONLY
+  those marked lines here -- never the surrounding governance content. The
+  guiding principle going forward: the Code Intelligence agent should
+  answer everyone on how the system's normal governance works; access
+  control belongs primarily on ERP DATA (already covered by the Function
+  Calling ERP branch, out of this module's scope), not on explanations of
+  how the system is designed -- EXCEPT for the narrow case of an actual
+  undisclosed security bypass, which is what this module still protects.
 
 Gating happens PER TOOL OBSERVATION, before synthesis ever sees the text.
 This is deliberate: filtering only the final synthesized answer (e.g. by
@@ -19,16 +42,19 @@ Two independent sources of privileged content are gated:
    evaluer_regles_enregistrement / evaluer_regles_raw). Their name and
    domain_force are stripped from the tool observation text -- revealing
    which restriction exists for a group the demandeur isn't part of is
-   exactly the kind of thing such a rule exists to hide from them.
+   exactly the kind of thing such a rule exists to hide from them. This
+   was already targeted (one line only) before this revision -- unchanged.
 
-2. Security-bypass / internal-logic analyses (analyser_verrous_securite,
-   analyser_actions_serveur): hardcoded validator lists, sudo() overrides,
-   dynamic-dispatch uncertainty. These are gated unless the demandeur
-   holds a management-level right (write or unlink) on the model in
-   question, via the same ACL/ir.rule graph already used by
-   qui_a_acces_a -- a user who can already write/delete records on a
-   model is not learning anything new by seeing how its bypasses work; a
-   read-only user is.
+2. Lines explicitly tagged SENSITIVE_BYPASS_MARKER by the analyzer that
+   produced them (semgrep_locks_analyzer.py: hardcoded privileged logins;
+   server_action_analyzer.py: sudo() calls, hardcoded ID lists). Redacted
+   unless the demandeur holds elevated access on the model the observation
+   concerns (see _has_elevated_access) -- everything else in the SAME
+   observation (normal has_group() checks, dynamic-dispatch uncertainty
+   caveats, approval group listings) is left untouched, tool-name-agnostic:
+   any tool's output gets this same line-level treatment, so a future
+   analyzer only needs to tag its own sensitive lines, not be registered
+   in an allowlist here.
 
 Every omission is recorded as an explicit OmittedItem -- never silently
 dropped -- and is kept separate from sourcing_guard.py's citation
@@ -41,15 +67,10 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import List, Optional, Set
+from pathlib import Path
+from typing import List, Optional, Set, Tuple
 
 import networkx as nx
-
-# Tool names whose output can reveal an internal security-bypass mechanism
-# (hardcoded validator lists, sudo() overrides, dynamic dispatch) rather
-# than plain structural facts. Gated unless the demandeur has management
-# rights (write/unlink) on the model the observation is about.
-GATED_TOOL_NAMES: Set[str] = {"analyser_verrous_securite", "analyser_actions_serveur"}
 
 _OMISSION_MARKER = "ÉLÉMENT OMIS POUR RAISON D'AUTORISATION"
 
@@ -59,6 +80,12 @@ _OMISSION_MARKER = "ÉLÉMENT OMIS POUR RAISON D'AUTORISATION"
 # and a .*? would silently swallow the CONCLUSION text too. Matching only
 # up to the next newline keeps the redaction scoped to this one line.
 _IGNORED_RULES_LINE = re.compile(r"  - Règles de Groupe ignorées \(non-membre\):[^\n]*")
+
+# J25-26 fix: same has_group('xml.id') detection already trusted for
+# ir.actions.server code (server_action_analyzer.py's _HAS_GROUP_PATTERN),
+# reused here against a model's own regular Python source files.
+_HAS_GROUP_SOURCE_PATTERN = re.compile(r"\.has_group\s*\(\s*['\"]([^'\"]+)['\"]\s*\)")
+
 
 
 @dataclass
@@ -73,11 +100,80 @@ class OmittedItem:
     reason: str
 
 
+def _extract_has_group_xmlids_from_source(G: nx.DiGraph, model_name: str) -> Set[str]:
+    """
+    J25-26 fix (see test_j25_26_e2e_purchase_bypass_gate.py): statically
+    extract the group xml_ids a model's OWN Python source code checks via
+    has_group('xml.id') (e.g. inside an action_valider() guard).
+
+    _has_elevated_access() previously used generic ORM write/unlink access
+    as its sole proxy for "elevated". That proxy is correct only when the
+    model's write ACL itself represents management-level access (true for
+    a model whose write ACL is scoped to an actual manager group). It
+    silently breaks for a model like custom.purchase.request, whose write
+    ACL is granted broadly to base.group_user (every employee, so they can
+    edit their OWN records) while the REAL approval/bypass gate is enforced
+    separately in Python via has_group('purchase.group_purchase_manager').
+    The same mismatch, less extreme, was also found on account.move: its
+    supplementary ACL (custom_credit_note_approval) grants write to
+    account.group_account_invoice, but action_valider_avoir()'s actual
+    guard checks the stricter account.group_account_manager.
+
+    When the model's own source code declares such a check, it is a
+    strictly more specific and authoritative signal of what "elevated"
+    means for THIS model's security-bypass content than the generic ORM
+    ACL -- so it takes priority over write/unlink when present (see
+    _has_elevated_access).
+
+    Deliberately simple regex, mirroring server_action_analyzer.py's own
+    _HAS_GROUP_PATTERN (same detection already trusted for ir.actions.server
+    code) -- this is a detection aid for gating, not a claim about runtime
+    control flow: a has_group() call that turns out to be unreachable would
+    still be picked up, same conservative bias as analyser_verrous_securite
+    itself (a static match errs toward gating more, never less).
+
+    Reuses find_model_source_filepaths (ci_agent_tools.py) rather than
+    re-implementing "which files belong to this model" a third time --
+    exactly the duplication that caused the F-08 rule-indexing bug in J7.
+    Returns an empty set (never raises) for models with no resolvable
+    source files, e.g. the synthetic graphs used by
+    test_j23_24_authorization_gate.py / test_j23_24_group_id_xmlid_resolution.py,
+    which have no HAS_FIELD/Method nodes -- _has_elevated_access falls back
+    to the write/unlink ACL check unchanged in that case.
+    """
+    from code_intelligence.ci_agent_tools import find_model_source_filepaths
+
+    filepaths = find_model_source_filepaths(G, model_name)
+    found: Set[str] = set()
+    for fp in filepaths:
+        p = Path(fp)
+        if not p.exists():
+            continue
+        try:
+            code = p.read_text(encoding="utf-8")
+        except Exception:
+            continue
+        found.update(_HAS_GROUP_SOURCE_PATTERN.findall(code))
+    return found
+
+
 def _has_elevated_access(G: nx.DiGraph, model_name: str, user_groups: List[str]) -> bool:
     """
     True if the demandeur's real Odoo groups (never LLM-guessed -- see
-    rag/graph.py's _override_user_groups_arg) grant WRITE or UNLINK on
-    model_name, per the same ACL graph qui_a_acces_a already reads.
+    rag/graph.py's _override_user_groups_arg) grant elevated access to
+    model_name's security-bypass content.
+
+    J25-26 fix: when the model's own Python source declares an explicit
+    has_group('xml.id') check (see _extract_has_group_xmlids_from_source),
+    that check is authoritative and used INSTEAD of the generic write/
+    unlink ACL proxy below -- the source code's own guard is always at
+    least as specific as a blanket ORM permission, and per the cases
+    documented in _extract_has_group_xmlids_from_source's docstring, is
+    sometimes strictly narrower (correctly so). Only when the source
+    declares no such check at all does this fall back to write/unlink,
+    which remains the right proxy for a model with no explicit Python-level
+    group guard.
+
     Read-only access, or no resolvable access at all, is NOT elevated.
     """
     if not model_name:
@@ -87,6 +183,16 @@ def _has_elevated_access(G: nx.DiGraph, model_name: str, user_groups: List[str])
         _eval_single_droit,
         resolve_group_identifier,
     )
+
+    source_has_group_ids = _extract_has_group_xmlids_from_source(G, model_name)
+    if source_has_group_ids:
+        if not user_groups:
+            return False
+        candidate_groups = list(source_has_group_ids)
+        return any(
+            resolve_group_identifier(G, str(ug), candidate_groups) is not None
+            for ug in user_groups
+        )
 
     write_groups, write_auth, _ = _eval_single_droit(G, model_name, "write")
     unlink_groups, unlink_auth, _ = _eval_single_droit(G, model_name, "unlink")
@@ -117,6 +223,58 @@ def _strip_ignored_rule_details(observation: str) -> str:
     )
 
 
+def _redact_sensitive_bypass_lines(
+    observation: str,
+    model_name: str,
+    G: nx.DiGraph,
+    user_groups: List[str],
+) -> Tuple[str, List[OmittedItem]]:
+    """
+    Bloc 7 (J23-24, revised): redact ONLY the line(s) tagged
+    SENSITIVE_BYPASS_MARKER at the source (semgrep_locks_analyzer.py,
+    server_action_analyzer.py) -- never the observation as a whole. Applies
+    to any tool's output uniformly: there is no tool-name allowlist here
+    anymore, just "does this line carry the marker".
+
+    A quick short-circuit (marker not present at all) means this is a
+    no-op for the vast majority of observations, which carry no bypass
+    content to begin with.
+    """
+    from code_intelligence.utils import SENSITIVE_BYPASS_MARKER
+
+    if SENSITIVE_BYPASS_MARKER not in observation:
+        return observation, []
+    if _has_elevated_access(G, model_name, user_groups):
+        return observation, []
+
+    omitted: List[OmittedItem] = []
+    out_lines: List[str] = []
+    for line in observation.splitlines():
+        if SENSITIVE_BYPASS_MARKER not in line:
+            out_lines.append(line)
+            continue
+        # Best-effort short label for the report: the text right after the
+        # marker up to the first colon (e.g. "SUDO détecté", "Logins/Emails
+        # privilégies en dur") -- purely descriptive, never the sensitive
+        # payload itself (which stays out of both the label and out_lines).
+        detail = line.split(SENSITIVE_BYPASS_MARKER, 1)[1].strip(" -")
+        label = (detail.split(":")[0].strip() if detail else "") or "mécanisme de contournement de sécurité"
+        model_suffix = f" ({model_name})" if model_name else ""
+        omitted.append(OmittedItem(
+            label=f"{label}{model_suffix}",
+            reason=(
+                f"{_OMISSION_MARKER} : cette ligne décrit un mécanisme de contournement de "
+                "sécurité (accès privilégié codé en dur, sudo(), ou traitement non documenté "
+                "hors des ACL/ir.rule standards) et le demandeur ne dispose pas d'un accès "
+                f"élevé sur '{model_name}'." if model_name else
+                f"{_OMISSION_MARKER} : cette ligne décrit un mécanisme de contournement de sécurité."
+            ),
+        ))
+        out_lines.append(f"  - [{_OMISSION_MARKER}] (détail masqué -- mécanisme de contournement de sécurité)")
+
+    return "\n".join(out_lines), omitted
+
+
 def gate_observation(
     tool_name: str,
     model_name: str,
@@ -124,7 +282,7 @@ def gate_observation(
     G: nx.DiGraph,
     user_groups: List[str],
     rule_result: Optional["object"] = None,
-) -> "tuple[str, Optional[OmittedItem]]":
+) -> Tuple[str, List[OmittedItem]]:
     """
     Gate a single tool observation against the demandeur's real rights.
 
@@ -134,42 +292,33 @@ def gate_observation(
     can_view_amount deterministic fact -- reused here rather than
     recomputed a second time).
 
-    Returns (gated_text, omitted_item_or_None). gated_text is what should
-    be handed to the synthesis LLM instead of the raw observation;
-    omitted_item is appended by the caller to the response's
-    omitted_for_authorization list, or None if nothing was withheld.
+    Returns (gated_text, omitted_items). gated_text is what should be
+    handed to the synthesis LLM instead of the raw observation;
+    omitted_items (possibly empty, never None) is extended by the caller
+    into the response's omitted_for_authorization list.
     """
+    omitted_items: List[OmittedItem] = []
+
     if tool_name == "evaluer_regles_enregistrement" and rule_result is not None:
         ignored = getattr(rule_result, "ignored_group_rules", None) or []
         if ignored:
-            gated_text = _strip_ignored_rule_details(observation)
+            observation = _strip_ignored_rule_details(observation)
             names = ", ".join(r.rule_name or r.rule_xml_id for r in ignored)
-            omitted = OmittedItem(
+            omitted_items.append(OmittedItem(
                 label=f"ir.rule sur '{model_name}' non applicable(s) au demandeur : {names}",
                 reason=(
                     f"{_OMISSION_MARKER} : ces règles de sécurité visent des groupes dont le "
                     "demandeur n'est pas membre ; leur nom et leur condition (domain_force) ne "
                     "sont pas divulgués."
                 ),
-            )
-            return gated_text, omitted
-        return observation, None
+            ))
 
-    if tool_name in GATED_TOOL_NAMES and model_name:
-        if not _has_elevated_access(G, model_name, user_groups):
-            omitted = OmittedItem(
-                label=f"{tool_name}({model_name})",
-                reason=(
-                    f"{_OMISSION_MARKER} : cette analyse porte sur un mécanisme de sécurité "
-                    "interne (verrou codé en dur / contournement) et le demandeur ne dispose "
-                    f"pas d'un accès de gestion (write ou unlink) sur '{model_name}'."
-                ),
-            )
-            gated_text = (
-                f"[{_OMISSION_MARKER}] Analyse de '{model_name}' via {tool_name} exécutée ; "
-                "contenu non divulgué au demandeur actuel faute de droits de gestion "
-                "suffisants sur ce modèle."
-            )
-            return gated_text, omitted
+    # Bloc 7 (J23-24, revised): source-tagged bypass lines are redacted
+    # regardless of which tool produced them -- applies uniformly, after
+    # the ir.rule-specific handling above (independent concerns, can both
+    # apply to the same observation in principle, though in practice no
+    # current tool triggers both at once).
+    observation, bypass_omitted = _redact_sensitive_bypass_lines(observation, model_name, G, user_groups)
+    omitted_items.extend(bypass_omitted)
 
-    return observation, None
+    return observation, omitted_items

@@ -6,6 +6,7 @@ Enforces model whitelisting and read-only operations for secure data retrieval.
 """
 
 import os
+import time
 import xmlrpc.client
 import logging
 
@@ -109,12 +110,15 @@ class OdooConnector:
         kwargs.update(extra_kwargs)
             
         try:
+            t0 = time.perf_counter()
             records = self.models.execute_kw(
                 self.db, uid, self._resolve_password(),
                 model, 'search_read',
                 [domain],
                 kwargs
             )
+            elapsed_ms = (time.perf_counter() - t0) * 1000
+            logger.info("XML-RPC %.1fms: %s.%s", elapsed_ms, model, 'search_read')
             return records
         except Exception as e:
             logger.error("XML-RPC search_read error on %s: %s", model, str(e))
@@ -127,11 +131,14 @@ class OdooConnector:
         self._check_whitelist(model)
         
         try:
+            t0 = time.perf_counter()
             records = self.models.execute_kw(
                 self.db, uid, self._resolve_password(),
                 model, 'read_group',
                 [domain, fields, groupby]
             )
+            elapsed_ms = (time.perf_counter() - t0) * 1000
+            logger.info("XML-RPC %.1fms: %s.%s", elapsed_ms, model, 'read_group')
             return records
         except Exception as e:
             logger.error("XML-RPC read_group error on %s: %s", model, str(e))
@@ -144,12 +151,15 @@ class OdooConnector:
         self._check_whitelist(model)
         
         try:
+            t0 = time.perf_counter()
             fields_info = self.models.execute_kw(
                 self.db, uid, self._resolve_password(),
                 model, 'fields_get',
                 [],
                 {'attributes': ['string', 'type', 'help']}
             )
+            elapsed_ms = (time.perf_counter() - t0) * 1000
+            logger.info("XML-RPC %.1fms: %s.%s", elapsed_ms, model, 'fields_get')
             return fields_info
         except Exception as e:
             logger.error("XML-RPC fields_get error on %s: %s", model, str(e))

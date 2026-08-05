@@ -68,7 +68,7 @@ def test_resolved_xmlid_correctly_recognizes_elevated_access(monkeypatch):
         G=G,
         user_groups=resolved_xmlids,
     )
-    assert omitted is None
+    assert omitted == []
     assert gated_text == "Hardcoded validators: [admin@corp.com]"
 
 
@@ -94,9 +94,17 @@ def test_resolve_user_group_xmlids_translates_via_rpc(monkeypatch):
         lambda: _FakeRpcClient(),
     )
     # Reset module-level singleton/cache so the monkeypatched client is used.
-    graph_module._ADMIN_RPC_CLIENT = None
-    graph_module._ADMIN_RPC_UID = None
-    graph_module._GROUP_XMLID_CACHE.clear()
+    # Use monkeypatch.setattr (not a bare assignment) so pytest restores the
+    # ORIGINAL objects after this test -- a bare `graph_module._ADMIN_RPC_CLIENT
+    # = None` would leave whatever THIS test assigns to it (a live
+    # _FakeRpcClient instance, once _get_admin_rpc_client() re-populates it)
+    # permanently in place for every test that runs afterwards in the same
+    # pytest process, since monkeypatch only tracks attributes it set itself.
+    # Confirmed to cause exactly this leak into
+    # test_j25_26_e2e_purchase_bypass_gate.py (see conversation 2026-08-05).
+    monkeypatch.setattr(graph_module, "_ADMIN_RPC_CLIENT", None)
+    monkeypatch.setattr(graph_module, "_ADMIN_RPC_UID", None)
+    monkeypatch.setattr(graph_module, "_GROUP_XMLID_CACHE", {})
 
     resolved = graph_module._resolve_user_group_xmlids([42, 17])
     assert set(resolved) == {"account.group_account_manager", "base.group_user"}
@@ -118,8 +126,8 @@ def test_resolve_user_group_xmlids_fails_closed_on_unresolvable_id(monkeypatch):
         "code_intelligence.odoo_rpc_client.OdooRpcClient",
         lambda: _FakeRpcClient(),
     )
-    graph_module._ADMIN_RPC_CLIENT = None
-    graph_module._ADMIN_RPC_UID = None
-    graph_module._GROUP_XMLID_CACHE.clear()
+    monkeypatch.setattr(graph_module, "_ADMIN_RPC_CLIENT", None)
+    monkeypatch.setattr(graph_module, "_ADMIN_RPC_UID", None)
+    monkeypatch.setattr(graph_module, "_GROUP_XMLID_CACHE", {})
 
     assert graph_module._resolve_user_group_xmlids([999]) == []

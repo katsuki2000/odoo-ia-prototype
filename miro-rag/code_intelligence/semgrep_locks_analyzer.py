@@ -164,12 +164,19 @@ def analyze_python_security_locks(code: str, filepath: str) -> PythonSecurityLoc
         )
 
     # 4. Summary Text
-    from code_intelligence.utils import format_file_link
+    from code_intelligence.utils import format_file_link, SENSITIVE_BYPASS_MARKER
     line_count = max(1, len(code.splitlines()))
     file_link = format_file_link(filepath, 1, line_count)
     lines = [f"Analyse des verrous Python ({file_link}) [Confiance: {result.confidence.upper()}]:"]
     if result.has_hardcoded_logins:
-        lines.append(f"  - Logins/Emails privilégies en dur: {result.hardcoded_logins}")
+        # Bloc 7 (J23-24, revised): the ONLY line in this analyzer's output
+        # that describes an actual bypass (privileged access granted
+        # outside Odoo's normal ir.rule/ACL system) rather than ordinary
+        # governance/uncertainty info -- marked so authorization_gate.py
+        # redacts just this line for unprivileged requesters, not the
+        # whole analysis (which also covers legitimate approval-flow
+        # questions that must stay answerable for everyone).
+        lines.append(f"  - {SENSITIVE_BYPASS_MARKER} Logins/Emails privilégies en dur: {result.hardcoded_logins}")
     if result.exception_messages:
         lines.append(f"  - Messages de verrous (UserError/ValidationError):")
         for msg in result.exception_messages:

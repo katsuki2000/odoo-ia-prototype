@@ -1,15 +1,24 @@
 """
 code_intelligence/tests/test_j23_24_authorization_gate.py
 
-Unit tests for Bloc 7 / J23-J24: generalized gating -- every explanation is
-filtered according to the demandeur's real rights (decision taken J22), with
-an explicit "élément omis pour raison d'autorisation" state distinct from
-sourcing verification (J14) and from the confidence/coverage score.
+Unit tests for Bloc 7 / J23-J24 (REVISED, see authorization_gate.py module
+docstring): TARGETED gating -- only lines explicitly tagged
+SENSITIVE_BYPASS_MARKER at the source are redacted, never a whole tool
+observation. Governance content (normal approval groups, has_group()
+checks, uncertainty caveats) must always survive gating untouched, even
+for a demandeur without elevated access -- that's precisely the bug this
+revision fixes (see git history / real plan.md Bloc 7 J23-24 for the
+original generalized-gating regression found in the first benchmark run).
+
+An explicit "élément omis pour raison d'autorisation" state is still kept,
+distinct from sourcing verification (J14) and from the confidence/coverage
+score.
 """
 
 import networkx as nx
 
 from code_intelligence.authorization_gate import gate_observation, OmittedItem
+from code_intelligence.utils import SENSITIVE_BYPASS_MARKER
 from code_intelligence.deterministic_tools import (
     evaluer_regles_enregistrement,
     RuleDetail,
@@ -59,35 +68,66 @@ def _build_graph_with_ir_rule(model_name: str, member_group: str, other_group: s
     return G
 
 
-# ── Source 1: security-bypass tools (analyser_verrous_securite / analyser_actions_serveur) ──
+# ── Source 1: lines tagged SENSITIVE_BYPASS_MARKER at the source ──
 
-def test_gated_tool_is_omitted_for_read_only_demandeur():
+def test_marked_bypass_line_is_redacted_for_read_only_demandeur():
     G = _build_graph_with_acl("account.move", "account.group_account_manager")
+    observation = (
+        f"Analyse des verrous Python [Confiance: HIGH]:\n"
+        f"  - {SENSITIVE_BYPASS_MARKER} Logins/Emails privilegies en dur: ['admin@corp.com']"
+    )
     gated_text, omitted = gate_observation(
         tool_name="analyser_verrous_securite",
         model_name="account.move",
-        observation="Hardcoded validators: [admin@corp.com]",
+        observation=observation,
         G=G,
         user_groups=["some_other_group"],  # not a member of the write group
     )
-    assert omitted is not None
-    assert "account.move" in omitted.label
-    assert "autorisation" in omitted.reason.lower()
+    assert len(omitted) == 1
+    assert "account.move" in omitted[0].label
+    assert "autorisation" in omitted[0].reason.lower()
     assert "admin@corp.com" not in gated_text
     assert "ÉLÉMENT OMIS POUR RAISON D'AUTORISATION" in gated_text
+    # The header line (no marker) must survive untouched.
+    assert "Analyse des verrous Python [Confiance: HIGH]:" in gated_text
 
 
-def test_gated_tool_is_not_omitted_for_elevated_demandeur():
+def test_marked_bypass_line_is_not_redacted_for_elevated_demandeur():
     G = _build_graph_with_acl("account.move", "account.group_account_manager")
+    observation = f"  - {SENSITIVE_BYPASS_MARKER} Logins/Emails privilegies en dur: ['admin@corp.com']"
     gated_text, omitted = gate_observation(
         tool_name="analyser_verrous_securite",
         model_name="account.move",
-        observation="Hardcoded validators: [admin@corp.com]",
+        observation=observation,
         G=G,
         user_groups=["account.group_account_manager"],  # has write/unlink
     )
-    assert omitted is None
-    assert gated_text == "Hardcoded validators: [admin@corp.com]"
+    assert omitted == []
+    assert gated_text == observation
+
+
+def test_unmarked_governance_content_is_never_redacted():
+    """Core regression lock for the J23-24 revision: ordinary governance
+    lines (which groups can approve, has_group() checks) carry no marker
+    and must stay fully visible even to a demandeur with zero elevated
+    access -- this is exactly what broke basic 'qui peut approuver ?'
+    questions under the original generalized-gating design."""
+    G = _build_graph_with_acl("account.move", "account.group_account_manager")
+    observation = (
+        "Analyse du code de l'action serveur 'approve_credit_note' "
+        "[Confiance: FAIBLE]:\n"
+        "  - Vérifications de groupes: account.group_account_manager\n"
+        "  - Dispatch dynamique: getattr → comportement non classifiable statiquement"
+    )
+    gated_text, omitted = gate_observation(
+        tool_name="analyser_actions_serveur",
+        model_name="account.move",
+        observation=observation,
+        G=G,
+        user_groups=[],  # zero access at all
+    )
+    assert omitted == []
+    assert gated_text == observation
 
 
 def test_gated_tool_all_authenticated_write_is_not_omitted():
@@ -103,18 +143,22 @@ def test_gated_tool_all_authenticated_write_is_not_omitted():
     )
     G.add_edge("model:helpdesk.ticket", "acl:helpdesk.ticket.access_all", edge_type="GRANTED_BY")
 
+    observation = f"  - {SENSITIVE_BYPASS_MARKER} SUDO détecté: Contournement des droits d'accès via sudo()"
     gated_text, omitted = gate_observation(
         tool_name="analyser_actions_serveur",
         model_name="helpdesk.ticket",
-        observation="Server action bypasses approval via sudo().",
+        observation=observation,
         G=G,
         user_groups=[],
     )
-    assert omitted is None
-    assert gated_text == "Server action bypasses approval via sudo()."
+    assert omitted == []
+    assert gated_text == observation
 
 
-def test_non_gated_tool_name_passes_through_unchanged():
+def test_no_marker_means_nothing_omitted_regardless_of_tool_name():
+    """Marker-based redaction is tool-name-agnostic: any tool's output is
+    left untouched as long as it carries no SENSITIVE_BYPASS_MARKER line --
+    no allowlist of "gated tool names" exists anymore."""
     G = _build_graph_with_acl("account.move", "account.group_account_manager")
     gated_text, omitted = gate_observation(
         tool_name="qui_a_acces_a",
@@ -123,7 +167,7 @@ def test_non_gated_tool_name_passes_through_unchanged():
         G=G,
         user_groups=[],
     )
-    assert omitted is None
+    assert omitted == []
     assert gated_text == "Access matrix for account.move: ..."
 
 
@@ -149,7 +193,7 @@ def test_ignored_group_rule_details_are_stripped():
         user_groups=["custom.group_reimbursement_member"],
         rule_result=rule_result,
     )
-    assert omitted is not None
+    assert len(omitted) == 1
     assert "Regle Region Non Autorisee" not in gated_text
     assert "500000" not in gated_text
     assert "ÉLÉMENT OMIS POUR RAISON D'AUTORISATION" in gated_text
@@ -178,7 +222,7 @@ def test_no_ignored_rules_means_nothing_omitted():
         user_groups=["custom.group_reimbursement_member", "custom.group_reimbursement_region_other"],
         rule_result=rule_result,
     )
-    assert omitted is None
+    assert omitted == []
     assert gated_text == rule_result.summary_text
 
 
@@ -198,5 +242,5 @@ def test_evaluer_regles_without_rule_result_passes_through():
         user_groups=[],
         rule_result=None,
     )
-    assert omitted is None
+    assert omitted == []
     assert gated_text == "some summary text"
