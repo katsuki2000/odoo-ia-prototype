@@ -47,6 +47,11 @@ class OdooMethodDeclaration:
     decorators: List[OdooMethodDecoration] = field(default_factory=list)
     api_model: bool = False
     is_instance_method: bool = True
+    # Method override chain resolver (Bloc 9 gap, found 2026-08-06): needed
+    # to read a method's exact source slice per module in a cascade without
+    # guessing where it ends. None on Python versions/nodes without
+    # end_lineno (defensive default, never crashes callers).
+    end_lineno: Optional[int] = None
 
 
 @dataclass
@@ -220,6 +225,7 @@ class OdooClassVisitor(ast.NodeVisitor):
         method_decl = OdooMethodDeclaration(
             name=node.name,
             lineno=node.lineno,
+            end_lineno=getattr(node, "end_lineno", None),
         )
         is_api_model = False
         is_instance = True

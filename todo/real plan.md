@@ -35,51 +35,7 @@ le bug de direction IMPLIES (inversion in_edges/out_edges) trouvé et corrigé e
 la limite mono-société de l'environnement de test, documentée explicitement dans test_active_company_context_restricts_to_authorized_company plutôt que testée à tort comme couverture multi-société
 ---
 
-J7 (revue de sécurité ligne à ligne + rejeu benchmark) : validé.
-
-Revue ligne à ligne documentée dans J7 — Revue de sécurité ligne à ligne du
-mécanisme Bloc 1 (7 findings : F-01 à F-07). Deux findings actionnables
-trouvés et corrigés en cours de revue, non présents dans le rapport initial :
-
-- F-08 (découvert après la revue initiale) : registry.rules indexe chaque
-  règle sous deux clés (xml_id complet + court) pointant vers le même objet.
-  graph_builder.py itérait naïvement dessus, créant deux nœuds Rule par
-  règle ; la copie à clé courte n'a pas de "." donc mod_prefix retombait sur
-  le littéral "base" au lieu du vrai module, produisant une référence de
-  groupe hallucinée (ex. group:base.group_avoir_regional, inexistant).
-  Corrigé en ignorant les clés non qualifiées. Test de régression :
-  test_inactive_rule_is_excluded_from_graph (nommage à corriger — couvre
-  en fait F-08, pas l'inactivité).
-- F-06 : règles active=False non filtrées dans le graphe, évaluées comme
-  actives → restriction fantôme possible. Corrigé (skip si not rule.active).
-  Test de régression : test_inactive_rule_is_excluded_from_graph.
-
-Commit : 001ea0c "fix(J7): correct rule node duplication and inactive-rule
-filtering in graph_builder".
-
-Rejeu benchmark adversarial complet post-fix (todo/benchmark_run_j7_*.log) :
-Q6.1 et Q6.2 (cible du Bloc 1, test 6 "ir.rule ET/OU") répondent maintenant
-correctement de bout en bout, avec raisonnement OU-groupe correct cité
-("la règle nationale illimitée l'emporte sur le plafond régional").
-
-**Critère de fin du Bloc 1 atteint** : mécanisme validé end-to-end sur le
-jeu adversarial (test 6) + revue de sécurité documentée et archivée
-(fichier de revue J7 + F-06/F-08 dans le code).
-
-Gap connu, HORS périmètre Bloc 1, à traiter en Bloc 2 :
-Q3.1 ("demande d'achat 15 000€", bypass _VALIDATEURS_EXCEPTIONNELS) reste
-en échec — mais pas pour une raison de sécurité/ir.rule. analyser_verrous_
-securite() est vérifié correct et fiable en isolation (détecte les deux
-emails, les deux messages UserError, confiance HIGH), mais le LLM
-n'invoque jamais cet outil pour cette question précise malgré la
-directive explicite du prompt système ("ALWAYS invoke analyser_verrous_
-securite" pour "approval limits"). Problème de navigation/priorisation
-LLM sur montants chiffrés + demande d'achat, pas un défaut du mécanisme
-ir.rule. À traiter explicitement en J8/J9 (Bloc 2), qui couvre justement
-analyser_verrous_securite et le cas adversarial 5/9 similaires — envisager
-un déclenchement déterministe de l'outil dès qu'un montant apparaît dans
-la question, plutôt que de compter sur le LLM pour le déduire du prompt.
-
+J7 (revue de sécurité ligne à ligne + rejeu benchmark) : 
 ## Bloc 2 — `ir.actions.server` / `base.automation` / `ir.cron`
 
 - **J8 — jeu. 06/08** : Requête ORM des enregistrements (triviale). Mettre en place la lecture LLM bornée du champ `code` avec tag de confiance obligatoire sur chaque résultat.
@@ -130,10 +86,6 @@ la question, plutôt que de compter sur le LLM pour le déduire du prompt.
 *Gap confirmé, distinct du contrôle d'accès aux données déjà couvert par le Function Calling ERP*
 
 - **J22 — mer. 26/08** : Trancher la décision produit avec le maître de stage — gating généralisé (toute explication filtrée selon les droits du demandeur) vs gating ciblé (seuls les contournements déjà identifiés comme sensibles sont masqués/généralisés).
-
-
-retenue :toute explication filtrée selon les droits du demandeur 
-
 - **J23-J24 — jeu. 27/08 → ven. 28/08** : Implémenter l'option retenue. Ajouter l'état explicite "élément omis pour raison d'autorisation" — distinct du score de couverture (A1), pour ne pas casser le principe de sourcing.
 - **J25-J26 — lun. 31/08 → mar. 01/09** : Test sur le test adversarial 3 (liste de validateurs codée en dur) — vérifier qu'un utilisateur sans droit ne reçoit plus l'information brute d'un contournement caché.
 
@@ -247,8 +199,3 @@ Ces points restent dans le plan source mais **ne doivent consommer aucun jour ci
 | 13 | "Interopérabilité — état réel", gap différé |
 | 14 | Sprint D, "Suite de régression vivante OCA" |
 | 15 | Gaps différés, "Accès au vrai code MiroKE" |
-
-
-
- 
-

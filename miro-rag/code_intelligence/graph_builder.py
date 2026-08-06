@@ -66,8 +66,33 @@ class OdooGraphBuilder:
         """Add Module nodes and module dependency edges."""
         for mod_name, mod in self.modules_dict.items():
             node_id = f"module:{mod_name}"
-            depends = mod.manifest.depends if (mod and mod.manifest) else []
-            filepath = mod.manifest.filepath if (mod and mod.manifest) else ""
+            if mod and mod.manifest:
+                depends = mod.manifest.depends
+                filepath = mod.manifest.filepath
+            else:
+                # 2026-08-06 fix: same silent-swallow shape as the
+                # topological_sort_modules bug this mirrors (see
+                # cross_file_resolver.py / manifest_parser.py::
+                # MissingManifestError) -- `depends`/`filepath` used to
+                # fall back to [] / "" with zero signal whenever a module
+                # had no manifest. rag/graph.py::_load_module() no longer
+                # produces manifest=None for real corpus modules (it
+                # synthesizes a real fallback or raises), so this branch
+                # should be unreachable in production; it's kept only for
+                # callers/tests that intentionally build
+                # ParsedModule(manifest=None, ...), now with a warning
+                # instead of silence so a real regression here is visible.
+                depends = []
+                filepath = ""
+                if mod is not None:
+                    _logger.warning(
+                        "Module '%s' has no manifest -- Module node's "
+                        "'depends'/'filepath' attributes will be empty. If "
+                        "'%s' is a real corpus module this indicates a "
+                        "missing __manifest__.py that should have raised "
+                        "earlier in rag/graph.py::_load_module().",
+                        mod_name, mod_name,
+                    )
             self.G.add_node(
                 node_id,
                 node_type="Module",
@@ -147,8 +172,12 @@ class OdooGraphBuilder:
                     fk_field=fk_field
                 )
 
-            # Process fields & methods for this model
-            for d in decls:
+            # Process fields & methods for this model.
+            # decl_modules (Bloc 8 / J28-29 parallel list) gives the module
+            # name for each decl at the same index -- needed below to tag
+            # each method's override_sites entry with its owning module.
+            for decl_idx, d in enumerate(decls):
+                mod_name_for_d = decl_modules[decl_idx] if decl_idx < len(decl_modules) else "unknown"
                 # 1. Fields
                 for f in d.fields:
                     field_node_id = f"field:{model_name}.{f.name}"
@@ -195,6 +224,29 @@ class OdooGraphBuilder:
                 # 2. Methods
                 for m in d.methods:
                     method_node_id = f"method:{model_name}.{m.name}"
+                    # Bloc 9 gap (found 2026-08-06, investigating adversarial
+                    # Q1.2 "avoir VIP"): a method overridden in several
+                    # modules in an _inherit cascade (e.g. account.move.
+                    # action_valider_avoir in custom_credit_note_approval /
+                    # _regional / _vip) previously got ONE Method node whose
+                    # filepath/lineno were silently overwritten on every
+                    # pass through this loop -- only the LAST-processed
+                    # decl's site survived, with no trace of the others.
+                    # Same failure shape as the F-08 rule double-indexing
+                    # bug (J7): one node id, multiple real declaration
+                    # sites, naive overwrite. Fix: accumulate every site in
+                    # override_sites (module load order, additive/backward
+                    # compatible -- filepath/lineno below keep their
+                    # existing last-write-wins meaning for callers that
+                    # don't know about override_sites yet).
+                    existing_sites = list(self.G.nodes[method_node_id].get("override_sites", [])) \
+                        if method_node_id in self.G else []
+                    existing_sites.append({
+                        "module": mod_name_for_d,
+                        "filepath": d.filepath,
+                        "lineno": m.lineno,
+                        "end_lineno": getattr(m, "end_lineno", None),
+                    })
                     self.G.add_node(
                         method_node_id,
                         node_type="Method",
@@ -204,6 +256,7 @@ class OdooGraphBuilder:
                         is_instance_method=m.is_instance_method,
                         filepath=d.filepath,
                         lineno=m.lineno,
+                        override_sites=existing_sites,
                     )
 
                     # Method DEPENDS_ON Field (from @api.depends)

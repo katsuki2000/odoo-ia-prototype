@@ -1,0 +1,182 @@
+Node [code_intelligence_agent]: CI_MAX_HOPS (4) reached -- breaking ReAct loop.
+Groq rate limit hit (attempt 1/5). Headers: {'x-ratelimit-limit-requests': '14400', 'x-ratelimit-limit-tokens': '6000', 'x-ratelimit-remaining-requests': '14397', 'x-ratelimit-remaining-tokens': '1917', 'x-ratelimit-reset-requests': '18s', 'x-ratelimit-reset-tokens': '40.83s'}. Dynamically waiting 41.3s...
+Groq rate limit hit (attempt 1/5). Headers: {'x-ratelimit-limit-requests': '14400', 'x-ratelimit-limit-tokens': '6000', 'x-ratelimit-remaining-requests': '14397', 'x-ratelimit-remaining-tokens': '2293', 'x-ratelimit-reset-requests': '18s', 'x-ratelimit-reset-tokens': '37.07s'}. Dynamically waiting 37.6s...
+Node [code_intelligence_agent]: CI_MAX_HOPS (4) reached -- breaking ReAct loop.
+Groq rate limit hit (attempt 1/5). Headers: {'x-ratelimit-limit-requests': '14400', 'x-ratelimit-limit-tokens': '6000', 'x-ratelimit-remaining-requests': '14396', 'x-ratelimit-remaining-tokens': '1446', 'x-ratelimit-reset-requests': '24s', 'x-ratelimit-reset-tokens': '45.54s'}. Dynamically waiting 46.0s...
+================================================================================
+ CODE INTELLIGENCE — AUTOMATED BENCHMARK RUNNER (SPRINT 2)
+ Target: 9 Adversarial Test Questions
+================================================================================
+
+--------------------------------------------------------------------------------
+[Q1.1] Category: 1. Cascade avoirs (Standard)
+Question: Qui a le droit d'approuver un avoir de 25 000€ pour un client normal (pas VIP) ?
+--------------------------------------------------------------------------------
+Verbatim Response (53.08s total | effective 6.84s | groq_wait 46.24s | hops 4):
+Analyse des résultats :
+
+- Évaluation des règles d'enregistrement (ir.rule) pour 'account.move' : Aucune règle de groupe applicable (l'utilisateur n'appartient à aucun groupe cible par une règle sur ce modèle). Seules les règles globales s'appliquent -- il n'y a AUCUNE restriction supplémentaire de montant ou de portée provenant d'une règle de groupe pour cet utilisateur.
+- Analyse des verrous Python ([account_move.py:L1-L22](file:///home/user/odoo-17.0/addons/custom_credit_note_approval/models/account_move.py#L1-L22)) [Confiance: HIGH] : "Seul un responsable comptable peut valider un avoir de plus de 5000€."
+- Chaîne de surcharge de 'account.move.action_valider_avoir' (3 modules, ordre d'exécution réel, pas l'ordre de dépendance) : 
+  - SUPER() NON GARDÉ : 'action_valider_avoir' (module 'custom_credit_note_approval_vip') contient une branche conditionnelle qui modifie l'état sans `return` explicite, suivie d'un appel `super().action_valider_avoir(...)` inconditionnel plus loin dans la méthode. La logique de la classe parente va se réappliquer sur TOUS les enregistrements, y compris ceux couverts par la branche conditionnelle -- risque réel que la condition soit silencieusement annulée. [Confiance: FAIBLE -- heuristique statique sur la forme exacte du contrôle de flux, ne détecte pas les gardes formulées autrement]
+
+Conclusion : 
+- Le responsable comptable est le seul à pouvoir valider un avoir de plus de 5000€, selon l'analyse des verrous Python.
+- La chaîne de surcharge de 'account.move.action_valider_avoir' contient une branche conditionnelle qui peut être annulée par un appel `super().action_valider_avoir(...)` inconditionnel, ce qui pourrait annuler la condition de validation de l'avoir.
+- Aucune règle de groupe applicable pour limiter la validation de l'avoir.
+
+Réponse finale : 
+Seul un responsable comptable peut valider un avoir de plus de 5000€, mais la chaîne de surcharge de 'account.move.action_valider_avoir' contient une branche conditionnelle qui peut être annulée par un appel `super().action_valider_avoir(...)` inconditionnel.
+
+[Source: Graphe de Connaissances Code Intelligence]
+
+🔒 ÉLÉMENT(S) OMIS POUR RAISON D'AUTORISATION (Bloc 7 / J23-24):
+  - ir.rule sur 'account.move' non applicable(s) au demandeur : Avoirs - visibilite par departement (sauf managers), Avoirs - plafond visibilite regionale (50000e), Avoirs - visibilite nationale (illimitee) : ÉLÉMENT OMIS POUR RAISON D'AUTORISATION : ces règles de sécurité visent des groupes dont le demandeur n'est pas membre ; leur nom et leur condition (domain_force) ne sont pas divulgués.
+
+--------------------------------------------------------------------------------
+[Q1.2] Category: 1. Cascade avoirs (VIP)
+Question: Qui a le droit d'approuver un avoir pour un client VIP ?
+--------------------------------------------------------------------------------
+Verbatim Response (47.73s total | effective 5.19s | groq_wait 42.55s | hops 4):
+Analyse des résultats :
+
+- Évaluation des règles d'enregistrement (ir.rule) pour 'account.move' : Aucune règle de groupe applicable (l'utilisateur n'appartient à aucun groupe cible par une règle sur ce modèle). Seules les règles globales s'appliquent -- il n'y a AUCUNE restriction supplémentaire de montant ou de portée provenant d'une règle de groupe pour cet utilisateur.
+- Analyse des verrous Python ([account_move.py:L1-L22](file:///home/user/odoo-17.0/addons/custom_credit_note_approval/models/account_move.py#L1-L22)) [Confiance: HIGH] : "Seul un responsable comptable peut valider un avoir de plus de 5000€."
+- Chaîne de surcharge de 'account.move.action_valider_avoir' (3 modules, ordre d'exécution réel, pas l'ordre de dépendance) : 
+  - SUPER() NON GARDÉ : 'action_valider_avoir' (module 'custom_credit_note_approval_vip') contient une branche conditionnelle qui modifie l'état sans `return` explicite, suivie d'un appel `super().action_valider_avoir(...)` inconditionnel plus loin dans la méthode. La logique de la classe parente va se réappliquer sur TOUS les enregistrements, y compris ceux couverts par la branche conditionnelle -- risque réel que la condition soit silencieusement annulée. [Confiance: FAIBLE -- heuristique statique sur la forme exacte du contrôle de flux, ne détecte pas les gardes formulées autrement]
+
+Conclusion : 
+- L'utilisateur n'a pas de restriction supplémentaire de montant ou de portée provenant d'une règle de groupe pour valider un avoir.
+- Cependant, il y a un risque réel que la condition de validation d'un avoir de plus de 5000€ soit silencieusement annulée en raison d'une branche conditionnelle qui modifie l'état sans `return` explicite dans le module 'custom_credit_note_approval_vip'.
+- Par conséquent, seul un responsable comptable peut valider un avoir de plus de 5000€, mais il est possible que cette condition soit annulée en raison de la chaîne de surcharge de 'account.move.action_valider_avoir'.
+
+[Source: Graphe de Connaissances Code Intelligence]
+
+🔒 ÉLÉMENT(S) OMIS POUR RAISON D'AUTORISATION (Bloc 7 / J23-24):
+  - ir.rule sur 'account.move' non applicable(s) au demandeur : Avoirs - visibilite par departement (sauf managers), Avoirs - plafond visibilite regionale (50000e), Avoirs - visibilite nationale (illimitee) : ÉLÉMENT OMIS POUR RAISON D'AUTORISATION : ces règles de sécurité visent des groupes dont le demandeur n'est pas membre ; leur nom et leur condition (domain_force) ne sont pas divulgués.
+
+--------------------------------------------------------------------------------
+[Q2.1] Category: 2. Congés (Message d'erreur)
+Question: Pourquoi je n'arrive pas à valider ma demande de congé alors que j'ai coché 'urgente' ?
+--------------------------------------------------------------------------------
+Verbatim Response (9.50s total | effective 1.65s | groq_wait 7.86s | hops 2):
+Je suis désolé d'entendre que vous rencontrez des difficultés pour valider votre demande de congé. 
+
+Selon l'analyse des verrous Python, il semblerait que le problème soit lié à votre solde de congés restant. Vous avez coché la case 'urgente', mais votre solde de congés est insuffisant. Vous devez donc soumettre une demande de validation exceptionnelle du N+2.
+
+Cependant, si votre demande urgente dépasse votre solde de congés, elle doit être validée par le N+2 ou un responsable RH. 
+
+Je vous recommande de vérifier votre solde de congés et de contacter votre responsable RH si vous avez besoin d'aide supplémentaire.
+
+[Source: Graphe de Connaissances Code Intelligence]
+
+--------------------------------------------------------------------------------
+[Q3.1] Category: 3. Demande d'achat (Bypass e-mails)
+Question: Qui a le droit d'approuver une demande d'achat de 15 000€ ?
+--------------------------------------------------------------------------------
+Groq rate limit hit (attempt 1/5). Headers: {'x-ratelimit-limit-requests': '14400', 'x-ratelimit-limit-tokens': '6000', 'x-ratelimit-remaining-requests': '14398', 'x-ratelimit-remaining-tokens': '925', 'x-ratelimit-reset-requests': '12s', 'x-ratelimit-reset-tokens': '50.75s'}. Dynamically waiting 51.2s...
+Groq rate limit hit (attempt 1/5). Headers: {'x-ratelimit-limit-requests': '14400', 'x-ratelimit-limit-tokens': '6000', 'x-ratelimit-remaining-requests': '14395', 'x-ratelimit-remaining-tokens': '2521', 'x-ratelimit-reset-requests': '30s', 'x-ratelimit-reset-tokens': '34.79s'}. Dynamically waiting 35.3s...
+Node [code_intelligence_agent]: CI_MAX_HOPS (4) reached -- breaking ReAct loop.
+Groq rate limit hit (attempt 1/5). Headers: {'x-ratelimit-limit-requests': '14400', 'x-ratelimit-limit-tokens': '6000', 'x-ratelimit-remaining-requests': '14399', 'x-ratelimit-remaining-tokens': '1359', 'x-ratelimit-reset-requests': '6s', 'x-ratelimit-reset-tokens': '46.41s'}. Dynamically waiting 46.9s...
+Node [code_intelligence_agent]: overriding LLM-guessed user_groups_json (["group_region", "group_national"]) with the real requester groups (["custom_credit_note_visibility_rules.group_avoir_regional", "custom_credit_note_visibility_rules.group_avoir_national"]).
+Verbatim Response (55.69s total | effective 1.83s | groq_wait 53.87s | hops 3):
+En fonction des informations disponibles, il semble que la demande d'achat de 15 000€ nécessite une validation spécifique. 
+
+D'après l'analyse des verrous Python, il y a deux messages de verrous possibles :
+
+- "Vous n'avez pas le droit de valider cette demande d'achat."
+- "Au-delà de 10 000 euros, seule la Direction peut valider (liste restreinte)."
+
+Cependant, il est important de noter que la première règle est masquée par un mécanisme de contournement de sécurité, ce qui signifie que la vraie règle peut être différente.
+
+En revanche, l'analyse des règles de validation (ir.rule) n'a pas pu résoudre l'identifiant du groupe qui a le droit de valider la demande d'achat.
+
+Enfin, l'analyse des modèles n'a pas pu trouver le modèle 'purchase.order' dans la base de connaissances.
+
+En conclusion, la seule règle qui est clairement applicable est celle qui stipule que "Au-delà de 10 000 euros, seule la Direction peut valider (liste restreinte)".
+
+[Source: Graphe de Connaissances Code Intelligence]
+
+🔒 ÉLÉMENT(S) OMIS POUR RAISON D'AUTORISATION (Bloc 7 / J23-24):
+  - Logins/Emails privilégies en dur (custom.purchase.request) : ÉLÉMENT OMIS POUR RAISON D'AUTORISATION : cette ligne décrit un mécanisme de contournement de sécurité (accès privilégié codé en dur, sudo(), ou traitement non documenté hors des ACL/ir.rule standards) et le demandeur ne dispose pas d'un accès élevé sur 'custom.purchase.request'.
+
+--------------------------------------------------------------------------------
+[Q4.1] Category: 4. Asset loan (Référence croisée)
+Question: Comment faire une demande de mise à disposition de matériel, et y a-t-il des conditions particulières ?
+--------------------------------------------------------------------------------
+Verbatim Response (61.48s total | effective 2.38s | groq_wait 59.09s | hops 2):
+Pour faire une demande de mise à disposition de matériel, vous devez cliquer sur le bouton 'Demande de mise à disposition' sur la vue de formulaire de 'custom.asset.loan'. Cette action appelle la méthode 'action_demande de mise à disposition()'.
+
+Il est important de noter que la demande de mise à disposition de matériel de plus de 2000 euros nécessite une séparation des rôles, c'est-à-dire que le bénéficiaire du matériel doit être différent du demandeur initial. Cette condition est vérifiée par le système et si elle n'est pas respectée, un message d'erreur 'Separation des rôles requise : le bénéficiaire d'un matériel de plus de 2000 euros doit être différent du demandeur initial.' est affiché.
+
+Il n'y a pas de conditions particulières à respecter pour faire une demande de mise à disposition de matériel, mais il est important de noter que la méthode 'action_demande de mise à disposition()' n'a pas de groupe de sécurité spécifié, ce qui signifie que tout utilisateur peut accéder à cette fonctionnalité.
+
+[Source: Graphe de Connaissances Code Intelligence]
+
+--------------------------------------------------------------------------------
+[Q5.1] Category: 5. Actions serveur (Data / sudo)
+Question: Est-ce que tous les avoirs fournisseurs passent par les mêmes règles d'approbation ?
+--------------------------------------------------------------------------------
+Verbatim Response (46.90s total | effective 6.68s | groq_wait 40.22s | hops 5):
+En analysant les règles d'approbation pour les avoirs fournisseurs, nous constatons que :
+
+- Les règles globales (ir.rule) pour 'account.move' ne contiennent aucune restriction supplémentaire de montant ou de portée provenant d'une règle de groupe pour l'utilisateur actuel. Seules les règles globales s'appliquent, qui concernent les avoirs - cantonnement societe (regle globale, sans groupe) [['|', ('move_type', '!=', 'out_refund'), ('company_id', '=', user.company_id.id)]].
+- L'analyse des verrous Python pour le module 'account_move.py' (L1-L22) indique que "Seul un responsable comptable peut valider un avoir de plus de 5000€."
+- L'analyse des verrous Python pour les autres modules (account_bank_statement_line.py, account_move.py (L1-L5214)) n'a pas détecté de verrous spécifiques ni d'incertitude dynamique.
+- L'analyse du code de l'action serveur 'custom_automation_traps.ir_action_server_avoir_fournisseur_privilegie' indique que cet action serveur automatise la validation d'avoirs reçus de trois fournisseurs spécifiques, en contournant les règles d'accès et les ACL via sudo().
+- L'analyse du code de l'action serveur 'ir_action_server_avoir_fournisseur_privilegie' est similaire à celle du précédent.
+- La chaîne de surcharge de 'account.move._reverse_moves' (2 modules) indique que certaines lignes peuvent être réconciliées avec leurs paires inversées, mais la condition qui détermine cela n'est pas clairement définie.
+- La chaîne de surcharge de 'account.move.action_valider_avoir' (3 modules) indique que certaines lignes peuvent être réconciliées avec leurs paires inversées, mais la condition qui détermine cela n'est pas clairement définie.
+
+En conclusion, les règles d'approbation pour les avoirs fournisseurs sont complexes et varient en fonction des modules et des conditions spécifiques. Il est important de prendre en compte les règles globales, les verrous Python, les actions serveurs et les chaînes de surcharge pour comprendre les règles d'approbation qui s'appliquent à un utilisateur donné.
+
+[Source: Graphe de Connaissances Code Intelligence]
+
+🔒 ÉLÉMENT(S) OMIS POUR RAISON D'AUTORISATION (Bloc 7 / J23-24):
+  - SUDO détecté (account.move) : ÉLÉMENT OMIS POUR RAISON D'AUTORISATION : cette ligne décrit un mécanisme de contournement de sécurité (accès privilégié codé en dur, sudo(), ou traitement non documenté hors des ACL/ir.rule standards) et le demandeur ne dispose pas d'un accès élevé sur 'account.move'.
+  - IDs en dur (account.move) : ÉLÉMENT OMIS POUR RAISON D'AUTORISATION : cette ligne décrit un mécanisme de contournement de sécurité (accès privilégié codé en dur, sudo(), ou traitement non documenté hors des ACL/ir.rule standards) et le demandeur ne dispose pas d'un accès élevé sur 'account.move'.
+  - ir.rule sur 'account.move' non applicable(s) au demandeur : Avoirs - visibilite par departement (sauf managers), Avoirs - plafond visibilite regionale (50000e), Avoirs - visibilite nationale (illimitee) : ÉLÉMENT OMIS POUR RAISON D'AUTORISATION : ces règles de sécurité visent des groupes dont le demandeur n'est pas membre ; leur nom et leur condition (domain_force) ne sont pas divulgués.
+
+--------------------------------------------------------------------------------
+[Q6.1] Category: 6. ir.rule ET/OU (Deux groupes)
+Question: Un utilisateur membre à la fois du groupe régional et du groupe national peut-il voir un avoir de 80 000€ ?
+Requester groups: BOTH -> DB ids [70, 71]
+--------------------------------------------------------------------------------
+Verbatim Response (56.76s total | effective 2.07s | groq_wait 54.69s | hops 1):
+L'utilisateur membre à la fois du groupe régional et du groupe national peut voir un avoir de 80 000€.
+
+La règle d'enregistrement 'Avoirs - visibilite nationale (illimitee)' permet à l'utilisateur de voir l'enregistrement, car le montant total est supérieur à 50 000€. Cette règle est combinée avec les règles globales, qui ne restreignent pas l'accès.
+
+[Source: Graphe de Connaissances Code Intelligence]
+
+🔒 ÉLÉMENT(S) OMIS POUR RAISON D'AUTORISATION (Bloc 7 / J23-24):
+  - ir.rule sur 'account.move' non applicable(s) au demandeur : Avoirs - visibilite par departement (sauf managers) : ÉLÉMENT OMIS POUR RAISON D'AUTORISATION : ces règles de sécurité visent des groupes dont le demandeur n'est pas membre ; leur nom et leur condition (domain_force) ne sont pas divulgués.
+
+--------------------------------------------------------------------------------
+[Q6.2] Category: 6. ir.rule ET/OU (Aucun groupe)
+Groq payload too large (413, attempt 1/5) -- contexte réduit, nouvelle tentative immédiate.
+Question: Un utilisateur qui n'appartient à AUCUN des deux groupes (ni régional, ni national) peut-il voir ce même avoir de 80 000€ ?
+Requester groups: NONE -> DB ids []
+--------------------------------------------------------------------------------
+Verbatim Response (14.35s total | effective 1.49s | groq_wait 12.86s | hops 1):
+En réponse à la question : Un utilisateur qui n'appartient à AUCUN des deux groupes (ni régional, ni national) peut-il voir ce même avoir de 80 000€ ?
+
+La réponse est : OUI, l'utilisateur PEUT voir cet enregistrement. Ce résultat est calculé directement par le moteur de règles (evaluer_regles_enregistrement.can_view_amount) et ne doit JAMAIS être recalculé ou contredit par la synthèse -- reprendre ce verdict tel quel.
+
+[Source: Graphe de Connaissances Code Intelligence]
+
+🔒 ÉLÉMENT(S) OMIS POUR RAISON D'AUTORISATION (Bloc 7 / J23-24):
+  - ir.rule sur 'account.move' non applicable(s) au demandeur : Avoirs - visibilite par departement (sauf managers), Avoirs - plafond visibilite regionale (50000e), Avoirs - visibilite nationale (illimitee) : ÉLÉMENT OMIS POUR RAISON D'AUTORISATION : ces règles de sécurité visent des groupes dont le demandeur n'est pas membre ; leur nom et leur condition (domain_force) ne sont pas divulgués.
+
+--------------------------------------------------------------------------------
+[Q9.1] Category: 9. Incertitude (getattr dynamic)
+Question: Qui peut valider une demande de remboursement de frais dans le module custom_expense_reimbursement_indirect ?
+--------------------------------------------------------------------------------
+Verbatim Response (0.09s total | effective 0.09s | groq_wait 0.00s | hops 2):
+Je ne peux pas classifier avec certitude qui peut valider cette demande de remboursement. L'analyse statique détecte un dispatch dynamique (`getattr`) : la méthode exécutée dépend d'un paramètre récupéré à l'exécution, donc le chemin exact doit être revu manuellement. Ne pas présenter cette validation comme autorisée ou refusée de manière certaine. Source à revoir : [reimbursement.py:L1-L39](file:///home/user/odoo-17.0/addons/custom_expense_reimbursement_indirect/models/reimbursement.py#L1-L39).
+
+[Source: Graphe de Connaissances Code Intelligence]
+
+Saved JSON verbatim report to: /home/user/odoo-ia-prototype/todo/verbatim_responses_sprint2.json
+Saved Markdown verbatim report to: /home/user/odoo-ia-prototype/todo/verbatim_responses_sprint2.md
+================================================================================

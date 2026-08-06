@@ -1,10 +1,17 @@
 """
-code_intelligence/tests/test_j46_j48_observability_and_budget.py
+code_intelligence/tests/test_bloc10_incremental_event_logging.py
 
-Unit tests for Sprint F / Bloc 12 (J46-J48: Observabilité et Budget Latence Incrémentale):
+Unit tests for Sprint F / Bloc 10 (J37-J42: Staleness detection & incremental
+graph update -- event logging + recalculation latency budget):
 1. Verifies IncrementalEventLogger appends valid JSONL records to disk.
 2. Verifies latency budget assertion (partial recalculation < 2.0s target).
 3. Verifies read_recent_events log retrieval.
+
+Renamed from test_j46_j48_observability_and_budget.py (correction, see
+todo/real plan.md Bloc 12): this file's actual subject is graph staleness/
+incremental recalculation, which is Bloc 10, not Bloc 12. Bloc 12's real
+scope (agent reasoning-path logging + LLM-call budget) is covered by
+test_j46_j48_reasoning_trace.py.
 """
 
 import time

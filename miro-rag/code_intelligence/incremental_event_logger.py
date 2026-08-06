@@ -1,11 +1,20 @@
 """
 code_intelligence/incremental_event_logger.py
 
-Incremental Event Logger & Recalculation Performance Budget (Sprint F / Bloc 12 — J46-J48):
+Incremental Event Logger & Recalculation Performance Budget (Sprint F / Bloc 10
+-- J37-J42, staleness detection & incremental graph update):
 - Logs structured graph events (STALENESS_CHECK, INCREMENTAL_RECALC, FULL_REBUILD, ATOMIC_SWAP)
   to an append-only JSONL log file (`captures/incremental_events.jsonl`).
 - Tracks fine-grained latency per recalculation phase (detection_time_ms, recalc_time_ms, swap_time_ms, total_time_ms).
 - Enforces LATENCY_BUDGET_PARTIAL_RECALC_SECONDS = 2.0s budget target.
+
+NOTE (correction, see todo/real plan.md Bloc 12): this module was originally
+mislabeled "Bloc 12 -- J46-J48" in its docstring and in its test file's name
+(test_j46_j48_observability_and_budget.py, since renamed to
+test_bloc10_incremental_event_logging.py). Its actual subject -- KNOWLEDGE
+GRAPH staleness/recalculation events -- is Bloc 10 (J37-J42), not Bloc 12.
+Bloc 12's real scope (agent reasoning-path logging + LLM-call budget across
+RAG branches) is implemented separately in reasoning_trace_logger.py.
 """
 
 import datetime

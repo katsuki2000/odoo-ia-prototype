@@ -158,6 +158,7 @@ def run_benchmark():
             print(f"Requester groups: {item['user_groups']} -> DB ids {user_groups}")
         print("-" * 80)
 
+        time.sleep(2.0)  # Pacing between questions to respect Groq free-tier TPM window
         start_time = time.time()
         try:
             state = {"question": question, "chat_history": [], "user_groups": user_groups}
@@ -172,7 +173,12 @@ def run_benchmark():
                 verbatim_answer = res.get("raw_answer", "Aucune réponse")
                 sources = []
 
-            print(f"Verbatim Response ({elapsed:.2f}s):\n{verbatim_answer}")
+            timing_info = res.get("timing", {})
+            ci_effective = timing_info.get("ci_effective_time", round(elapsed, 2))
+            ci_groq_wait = timing_info.get("ci_groq_wait_time", 0.0)
+            ci_hops = timing_info.get("ci_hop_count", 0)
+
+            print(f"Verbatim Response ({elapsed:.2f}s total | effective {ci_effective:.2f}s | groq_wait {ci_groq_wait:.2f}s | hops {ci_hops}):\n{verbatim_answer}")
 
             results.append({
                 "id": qid,
@@ -181,7 +187,11 @@ def run_benchmark():
                 "expected": expected,
                 "verbatim": verbatim_answer,
                 "sources": sources,
-                "elapsed_seconds": round(elapsed, 2)
+                "elapsed_seconds": round(elapsed, 2),
+                "effective_seconds": ci_effective,
+                "groq_wait_seconds": ci_groq_wait,
+                "hop_count": ci_hops,
+                "timing_detail": timing_info
             })
 
         except Exception as e:
@@ -193,7 +203,11 @@ def run_benchmark():
                 "expected": expected,
                 "verbatim": f"ERROR: {str(e)}",
                 "sources": [],
-                "elapsed_seconds": 0.0
+                "elapsed_seconds": 0.0,
+                "effective_seconds": 0.0,
+                "groq_wait_seconds": 0.0,
+                "hop_count": 0,
+                "timing_detail": {}
             })
 
     # Save outputs
@@ -206,19 +220,50 @@ def run_benchmark():
         json.dump(results, f, indent=2, ensure_ascii=False)
     print(f"\nSaved JSON verbatim report to: {json_report_path}")
 
+    # Percentile Latency Metrics (J30-J31)
+    import statistics
+    from config.settings import LATENCY_BUDGET_P90_SECONDS
+
+    eff_latencies = [r["effective_seconds"] for r in results if r["effective_seconds"] > 0]
+    if eff_latencies:
+        sorted_lat = sorted(eff_latencies)
+        n = len(sorted_lat)
+        p50 = round(statistics.median(sorted_lat), 2)
+        p90 = round(sorted_lat[min(int(n * 0.9), n - 1)], 2)
+        p95 = round(sorted_lat[min(int(n * 0.95), n - 1)], 2)
+        mean_lat = round(statistics.mean(sorted_lat), 2)
+        max_lat = round(max(sorted_lat), 2)
+        budget_met = p90 <= LATENCY_BUDGET_P90_SECONDS
+    else:
+        p50 = p90 = p95 = mean_lat = max_lat = 0.0
+        budget_met = True
+
     # Generate Markdown summary
     md_lines = [
         "# Rapport Verbatim — Test Adversarial (Sprint 2 / End-to-End Benchmark)\n",
         f"**Date d'exécution :** {time.strftime('%Y-%m-%d %H:%M:%S')}\n",
-        "**Objectif :** Poser les questions test du README à l'agent Code Intelligence et mesurer les réponses verbatim après résolution des verrous Sprint 2.\n",
+        "**Objectif :** Poser les questions test du README à l'agent Code Intelligence et mesurer les réponses verbatim et la latence après instrumentation J30-J31.\n",
         "---",
+        "## Synthèse Latence & Performance (J30-J31)\n",
+        f"| Métrique | Temps Effectif (Algorithmique) | Budget Target | Statut |",
+        f"|---|---|---|---|",
+        f"| **p50 (Médiane)** | `{p50}s` | — | — |",
+        f"| **p90 (90e Percentile)** | `{p90}s` | `{LATENCY_BUDGET_P90_SECONDS}s` | {'✅ RESPECTÉ' if budget_met else '❌ DÉPASSÉ'} |",
+        f"| **p95 (95e Percentile)** | `{p95}s` | — | — |",
+        f"| **Moyenne** | `{mean_lat}s` | — | — |",
+        f"| **Max** | `{max_lat}s` | — | — |",
+        "\n---",
     ]
 
     for r in results:
         md_lines.append(f"\n## [{r['id']}] {r['category']}")
         md_lines.append(f"**Question :** {r['question']}\n")
         md_lines.append(f"**Vérité Terrain attendue :**\n> {r['expected']}\n")
-        md_lines.append(f"**Réponse Verbatim de l'agent ({r['elapsed_seconds']}s) :**\n```text\n{r['verbatim']}\n```\n")
+        md_lines.append(
+            f"**Réponse Verbatim de l'agent (Total: {r['elapsed_seconds']}s | "
+            f"Effectif: {r['effective_seconds']}s | Groq wait: {r['groq_wait_seconds']}s | Sauts: {r['hop_count']}) :**\n"
+            f"```text\n{r['verbatim']}\n```\n"
+        )
         md_lines.append("---")
 
     md_report_path = todo_dir / "verbatim_responses_sprint2.md"

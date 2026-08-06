@@ -1,0 +1,191 @@
+Node [code_intelligence_agent]: CI_MAX_HOPS (4) reached -- breaking ReAct loop.
+LLM interpretation call failed for account.move._reverse_moves: Error code: 429 - {'error': {'message': 'Rate limit reached for model `llama-3.1-8b-instant` in organization `org_01kwh6tbbrf21a22rgs04pwnn1` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Used 5541, Requested 1378. Please try again in 9.19s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}
+LLM interpretation call failed for account.move.action_valider_avoir: Error code: 429 - {'error': {'message': 'Rate limit reached for model `llama-3.1-8b-instant` in organization `org_01kwh6tbbrf21a22rgs04pwnn1` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Used 5517, Requested 1237. Please try again in 7.54s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}
+Groq rate limit hit (attempt 1/5). Headers: {'x-ratelimit-limit-requests': '14400', 'x-ratelimit-limit-tokens': '6000', 'x-ratelimit-remaining-requests': '14396', 'x-ratelimit-remaining-tokens': '525', 'x-ratelimit-reset-requests': '24s', 'x-ratelimit-reset-tokens': '54.75s'}. Dynamically waiting 55.2s...
+Node [code_intelligence_agent]: CI_MAX_HOPS (4) reached -- breaking ReAct loop.
+Groq rate limit hit (attempt 1/5). Headers: {'x-ratelimit-limit-requests': '14400', 'x-ratelimit-limit-tokens': '6000', 'x-ratelimit-remaining-requests': '14398', 'x-ratelimit-remaining-tokens': '2442', 'x-ratelimit-reset-requests': '12s', 'x-ratelimit-reset-tokens': '35.58s'}. Dynamically waiting 36.1s...
+Groq payload too large (413, attempt 2/5) -- contexte réduit, nouvelle tentative immédiate.
+Groq TPM limit still hit after context reduction (attempt 3/5) -- waiting 10.0s for TPM window reset.
+Groq TPM limit still hit after context reduction (attempt 4/5) -- waiting 10.0s for TPM window reset.
+Groq payload still too large after retries -- aborting: Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kwh6tbbrf21a22rgs04pwnn1` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 6320, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}
+LLM tool selection failed: Error code: 413 - {'error': {'message': 'Request too large for model `llama-3.1-8b-instant` in organization `org_01kwh6tbbrf21a22rgs04pwnn1` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 6320, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}
+Groq payload too large (413, attempt 1/5) -- contexte réduit, nouvelle tentative immédiate.
+Groq TPM limit still hit after context reduction (attempt 2/5) -- waiting 10.0s for TPM window reset.
+Groq rate limit hit (attempt 1/5). Headers: {'x-ratelimit-limit-requests': '14400', 'x-ratelimit-limit-tokens': '6000', 'x-ratelimit-remaining-requests': '14398', 'x-ratelimit-remaining-tokens': '1150', 'x-ratelimit-reset-requests': '12s', 'x-ratelimit-reset-tokens': '48.5s'}. Dynamically waiting 49.0s...
+Groq rate limit hit (attempt 1/5). Headers: {'x-ratelimit-limit-requests': '14400', 'x-ratelimit-limit-tokens': '6000', 'x-ratelimit-remaining-requests': '14400', 'x-ratelimit-remaining-tokens': '3515', 'x-ratelimit-reset-requests': '1ms', 'x-ratelimit-reset-tokens': '24.85s'}. Dynamically waiting 25.4s...
+================================================================================
+ CODE INTELLIGENCE — AUTOMATED BENCHMARK RUNNER (SPRINT 2)
+ Target: 9 Adversarial Test Questions
+================================================================================
+
+--------------------------------------------------------------------------------
+[Q1.1] Category: 1. Cascade avoirs (Standard)
+Question: Qui a le droit d'approuver un avoir de 25 000€ pour un client normal (pas VIP) ?
+--------------------------------------------------------------------------------
+Verbatim Response (10.83s total | effective 5.90s | groq_wait 4.93s | hops 4):
+Analyse des résultats :
+
+- Évaluation des règles d'enregistrement (ir.rule) pour 'account.move' : Aucune règle de groupe applicable (l'utilisateur n'appartient à aucun groupe cible par une règle sur ce modèle). Seules les règles globales s'appliquent -- il n'y a AUCUNE restriction supplémentaire de montant ou de portée provenant d'une règle de groupe pour cet utilisateur.
+- Analyse des verrous Python ([account_move.py:L1-L22](file:///home/user/odoo-17.0/addons/custom_credit_note_approval/models/account_move.py#L1-L22)) [Confiance: HIGH] : "Seul un responsable comptable peut valider un avoir de plus de 5000€."
+- Aucune autre analyse des verrous Python ou chaîne de surcharge de méthode n'a trouvé de restriction supplémentaire.
+
+Conclusion : Seul un responsable comptable peut valider un avoir de plus de 5000€.
+
+[Source: Graphe de Connaissances Code Intelligence]
+
+🔒 ÉLÉMENT(S) OMIS POUR RAISON D'AUTORISATION (Bloc 7 / J23-24):
+  - ir.rule sur 'account.move' non applicable(s) au demandeur : Avoirs - visibilite par departement (sauf managers), Avoirs - plafond visibilite regionale (50000e), Avoirs - visibilite nationale (illimitee) : ÉLÉMENT OMIS POUR RAISON D'AUTORISATION : ces règles de sécurité visent des groupes dont le demandeur n'est pas membre ; leur nom et leur condition (domain_force) ne sont pas divulgués.
+
+--------------------------------------------------------------------------------
+[Q1.2] Category: 1. Cascade avoirs (VIP)
+Question: Qui a le droit d'approuver un avoir pour un client VIP ?
+--------------------------------------------------------------------------------
+Verbatim Response (64.80s total | effective 4.44s | groq_wait 60.37s | hops 4):
+Analyse des résultats :
+
+- L'analyse des verrous Python ([account_move.py:L1-L22](file:///home/user/odoo-17.0/addons/custom_credit_note_approval/models/account_move.py#L1-L22)) [Confiance: HIGH] indique que "Seul un responsable comptable peut valider un avoir de plus de 5000€."
+- L'analyse des verrous Python ([account_bank_statement_line.py:L1-L807](file:///home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/account_bank_statement_line.py#L1-L807)) [Confiance: HIGH] n'a pas détecté de verrou spécifique ni d'incertitude dynamique.
+- L'évaluation des règles d'enregistrement (ir.rule) pour 'account.move' indique que seules les règles globales s'appliquent, sans restriction supplémentaire de montant ou de portée provenant d'une règle de groupe pour cet utilisateur.
+
+Conclusion : 
+Seul un responsable comptable peut valider un avoir de plus de 5000€.
+
+[Source: Graphe de Connaissances Code Intelligence]
+
+🔒 ÉLÉMENT(S) OMIS POUR RAISON D'AUTORISATION (Bloc 7 / J23-24):
+  - ir.rule sur 'account.move' non applicable(s) au demandeur : Avoirs - visibilite par departement (sauf managers), Avoirs - plafond visibilite regionale (50000e), Avoirs - visibilite nationale (illimitee) : ÉLÉMENT OMIS POUR RAISON D'AUTORISATION : ces règles de sécurité visent des groupes dont le demandeur n'est pas membre ; leur nom et leur condition (domain_force) ne sont pas divulgués.
+
+--------------------------------------------------------------------------------
+[Q2.1] Category: 2. Congés (Message d'erreur)
+Question: Pourquoi je n'arrive pas à valider ma demande de congé alors que j'ai coché 'urgente' ?
+--------------------------------------------------------------------------------
+Verbatim Response (71.82s total | effective 66.89s | groq_wait 4.93s | hops 1):
+Je suis désolé d'entendre que vous rencontrez des difficultés pour valider votre demande de congé. 
+
+Analyse des verrous Python (hr_leave.py:L1-L28) [Confiance: HIGH] :
+- Vous avez peut-être reçu un message d'erreur indiquant que le solde de congés restant est insuffisant. Dans ce cas, vous pouvez essayer de cocher la case 'Demande urgente' pour soumettre votre demande à validation exceptionnelle du N+2.
+
+Analyse des messages de verrous (UserError/ValidationError) :
+- Vous avez peut-être reçu un message d'erreur indiquant que votre demande urgente dépasse le solde de congés restant. Dans ce cas, votre demande doit être validée par le N+2 ou un responsable RH.
+
+Je vous recommande de vérifier ces conditions et de prendre les mesures nécessaires pour résoudre les problèmes. Si vous avez besoin d'aide supplémentaire, n'hésitez pas à contacter votre responsable RH ou le support technique.
+
+[Source: Graphe de Connaissances Code Intelligence]
+
+--------------------------------------------------------------------------------
+[Q3.1] Category: 3. Demande d'achat (Bypass e-mails)
+Question: Qui a le droit d'approuver une demande d'achat de 15 000€ ?
+--------------------------------------------------------------------------------
+Verbatim Response (24.55s total | effective 1.72s | groq_wait 22.84s | hops 3):
+En fonction des informations disponibles, voici les résultats de l'analyse :
+
+- Selon l'analyse des verrous Python, il est possible que la demande d'achat de 15 000€ nécessite une autorisation spécifique. Cependant, il n'est pas possible de déterminer avec certitude qui a le droit d'approuver cette demande en raison d'un élément omis pour raison d'autorisation (détail masqué -- mécanisme de contournement de sécurité).
+- Selon les messages de verrous, il est possible que la demande d'achat de 15 000€ nécessite une autorisation spécifique. En effet, il est possible que la demande dépasse la limite de 10 000 euros, ce qui nécessite l'autorisation de la Direction (liste restreinte).
+
+En résumé, il est possible que la demande d'achat de 15 000€ nécessite une autorisation spécifique, mais il n'est pas possible de déterminer avec certitude qui a le droit d'approuver cette demande en raison d'un élément omis pour raison d'autorisation.
+
+[Source: Graphe de Connaissances Code Intelligence]
+
+🔒 ÉLÉMENT(S) OMIS POUR RAISON D'AUTORISATION (Bloc 7 / J23-24):
+  - Logins/Emails privilégies en dur (custom.purchase.request) : ÉLÉMENT OMIS POUR RAISON D'AUTORISATION : cette ligne décrit un mécanisme de contournement de sécurité (accès privilégié codé en dur, sudo(), ou traitement non documenté hors des ACL/ir.rule standards) et le demandeur ne dispose pas d'un accès élevé sur 'custom.purchase.request'.
+
+--------------------------------------------------------------------------------
+[Q4.1] Category: 4. Asset loan (Référence croisée)
+Question: Comment faire une demande de mise à disposition de matériel, et y a-t-il des conditions particulières ?
+--------------------------------------------------------------------------------
+LLM interpretation call failed for account.move._reverse_moves: Error code: 429 - {'error': {'message': 'Rate limit reached for model `llama-3.1-8b-instant` in organization `org_01kwh6tbbrf21a22rgs04pwnn1` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Used 5602, Requested 1028. Please try again in 6.3s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}
+LLM interpretation call failed for account.move.action_valider_avoir: Error code: 429 - {'error': {'message': 'Rate limit reached for model `llama-3.1-8b-instant` in organization `org_01kwh6tbbrf21a22rgs04pwnn1` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Used 5577, Requested 1220. Please try again in 7.97s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}
+Groq rate limit hit (attempt 1/5). Headers: {'x-ratelimit-limit-requests': '14400', 'x-ratelimit-limit-tokens': '6000', 'x-ratelimit-remaining-requests': '14397', 'x-ratelimit-remaining-tokens': '454', 'x-ratelimit-reset-requests': '18s', 'x-ratelimit-reset-tokens': '55.46s'}. Dynamically waiting 56.0s...
+Node [code_intelligence_agent]: CI_MAX_HOPS (4) reached -- breaking ReAct loop.
+Groq rate limit hit (attempt 1/5). Headers: {'x-ratelimit-limit-requests': '14400', 'x-ratelimit-limit-tokens': '6000', 'x-ratelimit-remaining-requests': '14399', 'x-ratelimit-remaining-tokens': '1148', 'x-ratelimit-reset-requests': '6s', 'x-ratelimit-reset-tokens': '48.519s'}. Dynamically waiting 49.0s...
+Node [code_intelligence_agent]: overriding LLM-guessed user_groups_json (["group_region", "group_national"]) with the real requester groups (["custom_credit_note_visibility_rules.group_avoir_regional", "custom_credit_note_visibility_rules.group_avoir_national"]).
+Verbatim Response (85.11s total | effective 2.92s | groq_wait 82.19s | hops 2):
+Pour faire une demande de mise à disposition de matériel, vous devez cliquer sur le bouton 'Demande de mise à disposition' sur la vue de formulaire de 'custom.asset.loan'. Cette action appelle la méthode Python 'action_demande de mise à disposition()'.
+
+Il est important de noter que pour les matériaux d'une valeur supérieure à 2000 euros, une séparation des rôles est requise entre le bénéficiaire et le demandeur initial. Cette condition est évaluée par le mécanisme de vérification des règles (ir.rule evaluation) et est considérée comme étant de confiance élevée [Confiance: HIGH].
+
+Il n'y a pas de conditions particulières pour la demande de mise à disposition de matériel, mais il est important de respecter la séparation des rôles pour les matériaux d'une valeur supérieure à 2000 euros.
+
+[Source: Graphe de Connaissances Code Intelligence]
+
+--------------------------------------------------------------------------------
+[Q5.1] Category: 5. Actions serveur (Data / sudo)
+Question: Est-ce que tous les avoirs fournisseurs passent par les mêmes règles d'approbation ?
+--------------------------------------------------------------------------------
+Verbatim Response (66.69s total | effective 5.84s | groq_wait 60.85s | hops 5):
+En analysant les règles d'approbation pour les avoirs fournisseurs, nous constatons que :
+
+- Les règles globales (ir.rule) pour 'account.move' ne comportent aucune restriction supplémentaire de montant ou de portée provenant d'une règle de groupe pour l'utilisateur actuel. Seules les règles globales s'appliquent, qui concernent les avoirs - cantonnement societe (regle globale, sans groupe) [['|', ('move_type', '!=', 'out_refund'), ('company_id', '=', user.company_id.id)]].
+
+- L'analyse des verrous Python pour les modules 'account_move.py' des add-ons 'custom_credit_note_approval', 'custom_credit_note_approval_regional' et 'custom_credit_note_approval_vip' ne détecte aucun verrou spécifique ni incertitude dynamique.
+
+- L'analyse des verrous Python pour le module 'account_bank_statement_line.py' ne détecte aucun verrou spécifique ni incertitude dynamique.
+
+- L'analyse des verrous Python pour le module 'account_move.py' du module 'account' détecte une chaîne de surcharge de la méthode '_reverse_moves' qui contient une branche conditionnelle qui modifie l'état sans `return` explicite, suivie d'un appel `super()._reverse_moves(...)` inconditionnel plus loin dans la méthode. Cela peut entraîner un risque réel que la condition soit silencieusement annulée.
+
+- L'analyse des verrous Python pour le module 'account_move.py' du module 'sale' détecte une chaîne de surcharge de la méthode '_reverse_moves' qui contient une branche conditionnelle qui modifie l'état sans `return` explicite, suivie d'un appel `super()._reverse_moves(...)` inconditionnel plus loin dans la méthode. Cela peut entraîner un risque réel que la condition soit silencieusement annulée.
+
+- L'analyse des verrous Python pour le module 'account_move.py' du module 'custom_credit_note_approval_vip' détecte une chaîne de surcharge de la méthode 'action_valider_avoir' qui contient une branche conditionnelle qui modifie l'état sans `return` explicite, suivie d'un appel `super().action_valider_avoir(...)` inconditionnel plus loin dans la méthode. Cela peut entraîner un risque réel que la condition soit silencieusement annulée.
+
+- L'analyse des verrous Python pour le module 'account_move.py' du module 'custom_credit_note_approval_regional' détecte une chaîne de surcharge de la méthode 'action_valider_avoir' qui contient une branche conditionnelle qui modifie l'état sans `return` explicite, suivie d'un appel `super().action_valider_avoir(...)` inconditionnel plus loin dans la méthode. Cela peut entraîner un risque réel que la condition soit silencieusement annulée.
+
+- L'analyse des verrous Python pour le module 'account_move.py' du module 'custom_credit_note_approval' détecte une chaîne de surcharge de la méthode 'action_valider_avoir' qui contient une branche conditionnelle qui modifie l'état sans `return` explicite, suivie d'un appel `super().action_valider_avoir(...)` inconditionnel plus loin dans la méthode. Cela peut entraîner un risque réel que la condition soit silencieusement annulée.
+
+- L'analyse des actions serveurs 'custom_automation_traps.ir_action_server_avoir_fournisseur_privilegie' et 'ir_action_server_avoir_fournisseur_privilegie' détecte que ces actions serveurs automatise la validation d'avoirs reçus de trois fournisseurs spécifiques, en contournant les règles d'accès et les ACL via sudo(), ce qui peut entraîner un risque de sécurité.
+
+En conclusion, les règles d'approbation pour les avoirs fournisseurs ne comportent aucune restriction supplémentaire de montant ou de portée provenant d'une règle de groupe pour l'utilisateur actuel. Cependant, certaines chaînes de surcharge de méthodes et actions serveurs peuvent entraîner des risques de sécurité ou de comportement inattendu.
+
+[Source: Graphe de Connaissances Code Intelligence]
+
+🔒 ÉLÉMENT(S) OMIS POUR RAISON D'AUTORISATION (Bloc 7 / J23-24):
+  - SUDO détecté (account.move) : ÉLÉMENT OMIS POUR RAISON D'AUTORISATION : cette ligne décrit un mécanisme de contournement de sécurité (accès privilégié codé en dur, sudo(), ou traitement non documenté hors des ACL/ir.rule standards) et le demandeur ne dispose pas d'un accès élevé sur 'account.move'.
+  - IDs en dur (account.move) : ÉLÉMENT OMIS POUR RAISON D'AUTORISATION : cette ligne décrit un mécanisme de contournement de sécurité (accès privilégié codé en dur, sudo(), ou traitement non documenté hors des ACL/ir.rule standards) et le demandeur ne dispose pas d'un accès élevé sur 'account.move'.
+  - ir.rule sur 'account.move' non applicable(s) au demandeur : Avoirs - visibilite par departement (sauf managers), Avoirs - plafond visibilite regionale (50000e), Avoirs - visibilite nationale (illimitee) : ÉLÉMENT OMIS POUR RAISON D'AUTORISATION : ces règles de sécurité visent des groupes dont le demandeur n'est pas membre ; leur nom et leur condition (domain_force) ne sont pas divulgués.
+
+--------------------------------------------------------------------------------
+[Q6.1] Category: 6. ir.rule ET/OU (Deux groupes)
+Question: Un utilisateur membre à la fois du groupe régional et du groupe national peut-il voir un avoir de 80 000€ ?
+Requester groups: BOTH -> DB ids [70, 71]
+--------------------------------------------------------------------------------
+Verbatim Response (59.43s total | effective 2.67s | groq_wait 56.76s | hops 1):
+L'utilisateur membre à la fois du groupe régional et du groupe national peut voir un avoir de 80 000€.
+
+La règle d'enregistrement 'Avoirs - cantonnement societe' (ir.rule) n'applique pas de restriction pour les utilisateurs membres de groupes spécifiques.
+
+Les règles de groupe applicables sont 'Avoirs - plafond visibilite regionale (50000e)' et 'Avoirs - visibilite nationale (illimitee)'. Cependant, la règle 'Avoirs - visibilite nationale (illimitee)' n'impose aucune restriction.
+
+La règle 'Avoirs - plafond visibilite regionale (50000e)' impose un plafond de 50 000€, mais l'utilisateur peut voir un avoir de 80 000€ car la règle 'Avoirs - visibilite nationale (illimitee)' n'impose aucune restriction.
+
+La synthèse des règles d'enregistrement indique que l'utilisateur peut voir l'enregistrement, ce qui est confirmé par la déclaration [FAIT DÉTERMINISTIQUE] : 'Pour un montant de 80000€, can_view_amount() = True -> l'utilisateur PEUT voir cet enregistrement.'
+
+[Source: Graphe de Connaissances Code Intelligence]
+
+🔒 ÉLÉMENT(S) OMIS POUR RAISON D'AUTORISATION (Bloc 7 / J23-24):
+  - ir.rule sur 'account.move' non applicable(s) au demandeur : Avoirs - visibilite par departement (sauf managers) : ÉLÉMENT OMIS POUR RAISON D'AUTORISATION : ces règles de sécurité visent des groupes dont le demandeur n'est pas membre ; leur nom et leur condition (domain_force) ne sont pas divulgués.
+Groq rate limit hit (attempt 1/5). Headers: {'x-ratelimit-limit-requests': '14400', 'x-ratelimit-limit-tokens': '6000', 'x-ratelimit-remaining-requests': '14399', 'x-ratelimit-remaining-tokens': '3102', 'x-ratelimit-reset-requests': '6s', 'x-ratelimit-reset-tokens': '28.98s'}. Dynamically waiting 29.5s...
+
+--------------------------------------------------------------------------------
+[Q6.2] Category: 6. ir.rule ET/OU (Aucun groupe)
+Question: Un utilisateur qui n'appartient à AUCUN des deux groupes (ni régional, ni national) peut-il voir ce même avoir de 80 000€ ?
+Requester groups: NONE -> DB ids []
+--------------------------------------------------------------------------------
+Verbatim Response (39.00s total | effective 1.70s | groq_wait 37.31s | hops 1):
+L'utilisateur peut voir l'avoir de 80 000€ car les règles de groupe n'ont pas d'impact sur cet enregistrement. Les règles globales s'appliquent et n'imposent aucune restriction supplémentaire de montant ou de portée. La fonction can_view_amount() a retourné True, ce qui signifie que l'utilisateur a le droit de voir cet enregistrement.
+
+[Source: Graphe de Connaissances Code Intelligence]
+
+🔒 ÉLÉMENT(S) OMIS POUR RAISON D'AUTORISATION (Bloc 7 / J23-24):
+  - ir.rule sur 'account.move' non applicable(s) au demandeur : Avoirs - visibilite par departement (sauf managers), Avoirs - plafond visibilite regionale (50000e), Avoirs - visibilite nationale (illimitee) : ÉLÉMENT OMIS POUR RAISON D'AUTORISATION : ces règles de sécurité visent des groupes dont le demandeur n'est pas membre ; leur nom et leur condition (domain_force) ne sont pas divulgués.
+
+--------------------------------------------------------------------------------
+[Q9.1] Category: 9. Incertitude (getattr dynamic)
+Question: Qui peut valider une demande de remboursement de frais dans le module custom_expense_reimbursement_indirect ?
+--------------------------------------------------------------------------------
+Verbatim Response (0.13s total | effective 0.13s | groq_wait 0.00s | hops 2):
+Je ne peux pas classifier avec certitude qui peut valider cette demande de remboursement. L'analyse statique détecte un dispatch dynamique (`getattr`) : la méthode exécutée dépend d'un paramètre récupéré à l'exécution, donc le chemin exact doit être revu manuellement. Ne pas présenter cette validation comme autorisée ou refusée de manière certaine. Source à revoir : [reimbursement.py:L1-L39](file:///home/user/odoo-17.0/addons/custom_expense_reimbursement_indirect/models/reimbursement.py#L1-L39).
+
+[Source: Graphe de Connaissances Code Intelligence]
+
+Saved JSON verbatim report to: /home/user/odoo-ia-prototype/todo/verbatim_responses_sprint2.json
+Saved Markdown verbatim report to: /home/user/odoo-ia-prototype/todo/verbatim_responses_sprint2.md
+================================================================================

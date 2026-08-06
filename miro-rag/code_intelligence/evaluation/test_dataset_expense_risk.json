@@ -1,0 +1,100 @@
+{
+  "description": "J36 — Sprint D élargi : questions de gouvernance sur le corpus custom_expense_risk_* (3 modules, cascade 2-hop cross-module)",
+  "version": "2.0",
+  "corpus_modules": [
+    "custom_expense_risk_base",
+    "custom_expense_risk_score",
+    "custom_expense_risk_alert"
+  ],
+  "test_cases": [
+    {
+      "id": "EXP_01",
+      "category": "field_impact",
+      "hops": "1_hop",
+      "question": "Quel est l'impact si je modifie le champ justificatif_manquant sur hr.expense ?",
+      "expected_tool": "impact_changement_champ",
+      "expected_model": "hr.expense",
+      "expected_field": "justificatif_manquant",
+      "expected_downstream": ["risk_score", "alerte_conformite"],
+      "expected_depth_gte": 2,
+      "description": "Cascade 2-hop: justificatif_manquant → risk_score → alerte_conformite"
+    },
+    {
+      "id": "EXP_02",
+      "category": "field_impact",
+      "hops": "1_hop",
+      "question": "Quel est l'impact si je modifie nombre_relances sur hr.expense ?",
+      "expected_tool": "impact_changement_champ",
+      "expected_model": "hr.expense",
+      "expected_field": "nombre_relances",
+      "expected_downstream": ["risk_score", "alerte_conformite"],
+      "expected_depth_gte": 2,
+      "description": "Cascade 2-hop: nombre_relances → risk_score → alerte_conformite"
+    },
+    {
+      "id": "EXP_03",
+      "category": "field_impact",
+      "hops": "1_hop",
+      "question": "Quels champs amont déclenchent le recalcul de risk_score sur hr.expense ?",
+      "expected_tool": "impact_changement_champ",
+      "expected_model": "hr.expense",
+      "expected_field": "risk_score",
+      "expected_upstream": ["justificatif_manquant", "nombre_relances", "total_amount"],
+      "expected_downstream": ["alerte_conformite"],
+      "description": "risk_score dépend de 3 champs provenant de 2 modules différents"
+    },
+    {
+      "id": "EXP_04",
+      "category": "field_impact",
+      "hops": "2_3_hops",
+      "question": "Quels champs amont déclenchent le recalcul de alerte_conformite sur hr.expense ?",
+      "expected_tool": "impact_changement_champ",
+      "expected_model": "hr.expense",
+      "expected_field": "alerte_conformite",
+      "expected_upstream": ["employee_id", "risk_score"],
+      "expected_trigger_paths": {"employee_id": "employee_id.department_id"},
+      "description": "alerte_conformite dépend de risk_score et employee_id.department_id (dotted path)"
+    },
+    {
+      "id": "EXP_05",
+      "category": "field_impact",
+      "hops": "1_hop",
+      "question": "Quel est l'impact si je modifie employee_id sur hr.expense ?",
+      "expected_tool": "impact_changement_champ",
+      "expected_model": "hr.expense",
+      "expected_field": "employee_id",
+      "expected_downstream_contains": ["alerte_conformite"],
+      "description": "employee_id triggers alerte_conformite via dotted path employee_id.department_id"
+    },
+    {
+      "id": "EXP_06",
+      "category": "module_mapping",
+      "hops": "1_hop",
+      "question": "Quels modules définissent ou étendent le modèle hr.expense dans le corpus ?",
+      "expected_modules_contain": ["custom_expense_risk_base", "custom_expense_risk_score", "custom_expense_risk_alert"],
+      "description": "All 3 custom modules extend hr.expense"
+    },
+    {
+      "id": "EXP_07",
+      "category": "field_impact",
+      "hops": "1_hop",
+      "question": "Le champ total_amount sur hr.expense a-t-il un impact sur des champs cross-module ?",
+      "expected_tool": "impact_changement_champ",
+      "expected_model": "hr.expense",
+      "expected_field": "total_amount",
+      "expected_downstream_contains": ["risk_score"],
+      "description": "total_amount (core hr_expense) → risk_score (custom_expense_risk_score)"
+    },
+    {
+      "id": "EXP_08",
+      "category": "trick",
+      "hops": "1_hop",
+      "question": "Quel est l'impact du champ champ_inexistant_xyz sur hr.expense ?",
+      "expected_tool": "impact_changement_champ",
+      "expected_model": "hr.expense",
+      "expected_field": "champ_inexistant_xyz",
+      "expected_not_found": true,
+      "description": "Trick question: field does not exist, agent must return NOT_FOUND"
+    }
+  ]
+}

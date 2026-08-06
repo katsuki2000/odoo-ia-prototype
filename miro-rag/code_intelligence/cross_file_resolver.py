@@ -157,6 +157,32 @@ def topological_sort_modules(modules_dict: Dict[str, ParsedModule]) -> List[str]
             if mod and mod.manifest:
                 for dep in mod.manifest.depends:
                     visit(dep, chain + [m_name])
+            elif mod is not None:
+                # 2026-08-06 fix: this used to be silent (`if mod and
+                # mod.manifest` simply False for manifest=None), which let a
+                # module with real, unresolved dependencies get appended to
+                # load_order by filesystem/dict iteration order instead of by
+                # its actual depends -- corrupting load_order and, downstream,
+                # every method-override execution order derived from it (see
+                # rag/graph.py::_load_module and manifest_parser.py::
+                # MissingManifestError for the full fix). rag/graph.py's real
+                # corpus loader now always supplies a manifest (real, hardcoded
+                # fallback for known core modules, or raises) so this branch
+                # should be unreachable there; it stays reachable here only for
+                # callers/tests that intentionally construct
+                # ParsedModule(manifest=None, ...) for cases where dependency
+                # order genuinely doesn't matter (e.g. a single isolated
+                # module) -- for those this module is still, correctly,
+                # treated as a dependency-free leaf, just no longer silently.
+                _logger.warning(
+                    "Module '%s' has no manifest (or no manifest.depends) -- "
+                    "treating it as having NO dependencies for load-order "
+                    "purposes. If '%s' actually depends on other modules, this "
+                    "will silently produce a wrong load_order and a wrong "
+                    "method-override execution order for any method it shares "
+                    "with those dependencies.",
+                    m_name, m_name,
+                )
             sorted_modules.append(m_name)
 
     for name in modules_dict:

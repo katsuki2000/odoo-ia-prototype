@@ -322,6 +322,38 @@ def find_server_action_nodes(G, model_name: str) -> list:
     return sa_nodes
 
 
+def find_methods_with_override_cascade(G, model_name: str) -> list:
+    """
+    Locate methods on the given technical model that are overridden in more
+    than one module (a real _inherit cascade), by reading override_sites off
+    each Method node (populated by graph_builder.py in manifest-dependency
+    load order; see method_override_resolver.py).
+
+    Extracted as a standalone helper (not inlined in rag/graph.py) so the
+    forced-dispatch guard there can check for structural presence WITHOUT
+    re-implementing the lookup -- same rationale as find_server_action_nodes
+    above (F-08 duplication lesson from J7). Needed because
+    analyser_chaine_surcharge_methode requires a method_name that never
+    appears in the natural-language question, unlike the model-only forced
+    dispatches (J8/J9) -- this structural guard is what makes it safe to
+    reuse the broad _APPROVAL_PATTERN keyword trigger for it (see rag/
+    graph.py): on a model with no real override cascade the cost of a
+    keyword false-positive is zero, nothing is dispatched.
+
+    Returns a list of method names (str), empty if none found.
+    """
+    prefix = f"method:{model_name}."
+    method_names = []
+    for node, attrs in G.nodes(data=True):
+        if not node.startswith(prefix):
+            continue
+        if attrs.get("node_type") != "Method":
+            continue
+        if len(attrs.get("override_sites", [])) > 1:
+            method_names.append(node[len(prefix):])
+    return method_names
+
+
 @tool
 def analyser_actions_serveur(model_name: str) -> str:
     """Analyze server actions (ir.actions.server) and automated rules (base.automation) for a given model. Detects sudo() calls, hardcoded IDs, and security warnings."""
@@ -383,6 +415,25 @@ def analyser_verrous_securite(model_name: str) -> str:
 
 
 @tool
+def analyser_chaine_surcharge_methode(model_name: str, method_name: str) -> str:
+    """Resolve the REAL execution order of a method overridden across several
+    modules in an _inherit cascade (e.g. account.move.action_valider_avoir
+    extended by 3 different customization modules), and flag if a
+    conditional exemption set without an early `return` is silently
+    nullified by an unconditional `super()` call later in the same method.
+    ALWAYS call this when a governance question involves a method known to
+    be overridden in more than one module (check suivre_heritage_complet /
+    lister_modules_impliques first) -- reading a single module's version of
+    the method in isolation can miss the real, composed behavior."""
+    if _is_wildcard_model(model_name):
+        return WILDCARD_MODEL_ERROR_MSG
+    from code_intelligence.method_override_resolver import analyser_chaine_surcharge_methode as _impl
+    G = _require_graph()
+    model_name = _resolve_model_param(model_name)
+    return _impl(G, model_name, method_name, llm=_LLM_REF)
+
+
+@tool
 def analyser_contraintes_donnees(model_name: str) -> str:
     """Detect _sql_constraints declarations and relational field domain= conditions
     (Many2one/Many2many) for a given model via static Semgrep analysis. Deterministic
@@ -441,6 +492,7 @@ ALL_CI_TOOLS = [
     evaluer_regles_enregistrement,
     analyser_actions_serveur,
     analyser_verrous_securite,
+    analyser_chaine_surcharge_methode,
     analyser_contraintes_donnees,
     impact_changement_champ,
     chemin_execution_bouton,

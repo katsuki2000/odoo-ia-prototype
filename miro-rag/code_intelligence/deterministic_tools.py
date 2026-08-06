@@ -10,7 +10,8 @@ Implements Epic B:
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Dict, List, Optional, Set, Any
+from collections import deque
+from typing import Dict, List, Optional, Set, Any, Tuple
 import logging
 
 import networkx as nx
@@ -498,20 +499,121 @@ class FieldImpactResult:
     field_name: str
     model_name: str
     upstream_triggers: List[str] = field(default_factory=list)
+    upstream_trigger_paths: Dict[str, str] = field(default_factory=dict)
     downstream_computed_fields: List[str] = field(default_factory=list)
+    propagation_depth: int = 0
     relational_target: Optional[str] = None
     compute_method: Optional[str] = None
     summary_text: str = ""
 
 
+# ---------- helpers for multi-hop BFS ----------
+
+def _field_to_short_name(field_node_id: str) -> str:
+    """'field:hr.expense.risk_score' -> 'risk_score'.
+    Field node IDs have the format 'field:{model_name}.{field_name}' where
+    model_name itself contains dots (e.g. 'hr.expense'), so the field name
+    is always the last dot-segment.
+    """
+    # Strip 'field:' prefix if present
+    raw = field_node_id.removeprefix("field:")
+    # The field name is the last dot-segment
+    return raw.rsplit(".", 1)[-1]
+
+
+def _bfs_downstream(
+    G: nx.DiGraph,
+    start_field_node: str,
+    max_depth: int = 10,
+) -> Tuple[Set[str], int]:
+    """
+    Multi-hop BFS downstream propagation.
+    From a field node, follows:
+      in_edges DEPENDS_ON -> method node -> in_edges COMPUTED_BY -> computed field node
+    then recurses from each discovered computed field.
+    Returns (set_of_downstream_field_node_ids, max_depth_reached).
+    """
+    visited_fields: Set[str] = set()
+    queue: deque = deque()  # (field_node_id, depth)
+    queue.append((start_field_node, 0))
+    visited_fields.add(start_field_node)
+    max_depth_reached = 0
+
+    while queue:
+        current_field, depth = queue.popleft()
+        if depth >= max_depth:
+            continue
+
+        # Find methods that DEPENDS_ON this field (in_edges of current_field)
+        for in_node, _, in_edge_data in G.in_edges(current_field, data=True):
+            if in_edge_data.get("edge_type") != "DEPENDS_ON":
+                continue
+            method_node = in_node
+            # Find computed fields attached to this method (in_edges of method with COMPUTED_BY)
+            for comp_node, _, comp_edge_data in G.in_edges(method_node, data=True):
+                if comp_edge_data.get("edge_type") != "COMPUTED_BY":
+                    continue
+                if comp_node not in visited_fields:
+                    visited_fields.add(comp_node)
+                    next_depth = depth + 1
+                    if next_depth > max_depth_reached:
+                        max_depth_reached = next_depth
+                    queue.append((comp_node, next_depth))
+
+    # Remove the start node itself from results
+    visited_fields.discard(start_field_node)
+    return visited_fields, max_depth_reached
+
+
+def _collect_upstream_triggers(
+    G: nx.DiGraph,
+    field_node: str,
+) -> Tuple[Set[str], Dict[str, str]]:
+    """
+    Collect upstream trigger fields for a computed field.
+    Returns (set_of_trigger_short_names, dict_of_trigger_short_name -> trigger_path).
+    trigger_path is the full dotted dependency path stored on the DEPENDS_ON edge
+    (e.g. 'employee_id.department_id'), or the short name itself if no dotted path.
+    """
+    upstream_triggers: Set[str] = set()
+    trigger_paths: Dict[str, str] = {}
+
+    for neighbor in G.neighbors(field_node):
+        edge_data = G.get_edge_data(field_node, neighbor) or {}
+        if edge_data.get("edge_type") != "COMPUTED_BY":
+            continue
+        method_node = neighbor
+        for method_neighbor in G.neighbors(method_node):
+            m_edge = G.get_edge_data(method_node, method_neighbor) or {}
+            if m_edge.get("edge_type") != "DEPENDS_ON":
+                continue
+            trig_short = _field_to_short_name(method_neighbor)
+            upstream_triggers.add(trig_short)
+            # Read trigger_path edge attribute (full dotted path)
+            trigger_path = m_edge.get("trigger_path")
+            if trigger_path and trigger_path != trig_short:
+                trigger_paths[trig_short] = trigger_path
+
+    return upstream_triggers, trigger_paths
+
+
 def impact_changement_champ(
     G: nx.DiGraph,
     field_name: str,
-    model_name: str
+    model_name: str,
+    max_depth: int = 10,
 ) -> FieldImpactResult:
     """
     Story B1.2: Analyzes upstream dependencies and downstream impact of modifying a field.
     Traces COMPUTED_BY, DEPENDS_ON, and RELATES_TO edges on the Knowledge Graph.
+
+    Multi-hop BFS propagation (max_depth=10 by default): transitively discovers
+    all downstream computed fields reachable through any chain of
+    DEPENDS_ON / COMPUTED_BY edges, not just one hop.
+
+    Reads the 'trigger_path' edge attribute on DEPENDS_ON edges to surface the
+    full dotted @api.depends path (e.g. 'employee_id.department_id') in
+    upstream_trigger_paths and summary_text.
     """
     field_node = f"field:{model_name}.{field_name}"
 
@@ -526,35 +628,26 @@ def impact_changement_champ(
     compute_method = f_data.get("compute")
     relational_target = f_data.get("comodel_name")
 
-    upstream_triggers: Set[str] = set()
+    # 1. Upstream: field -> COMPUTED_BY -> method -> DEPENDS_ON -> trigger fields
+    upstream_triggers, trigger_paths = _collect_upstream_triggers(G, field_node)
+
+    # 2. Downstream: multi-hop BFS from this field through DEPENDS_ON / COMPUTED_BY chains
+    downstream_field_nodes, depth_reached = _bfs_downstream(G, field_node, max_depth=max_depth)
     downstream_computed_fields: Set[str] = set()
-
-    # 1. Upstream Traversal: field -> COMPUTED_BY -> method -> DEPENDS_ON -> trigger_field
-    for neighbor in G.neighbors(field_node):
-        edge_data = G.get_edge_data(field_node, neighbor) or {}
-        if edge_data.get("edge_type") == "COMPUTED_BY":
-            # Method node
-            method_node = neighbor
-            for method_neighbor in G.neighbors(method_node):
-                m_edge = G.get_edge_data(method_node, method_neighbor) or {}
-                if m_edge.get("edge_type") == "DEPENDS_ON":
-                    trig_field_name = method_neighbor.replace(f"field:{model_name}.", "")
-                    upstream_triggers.add(trig_field_name)
-
-    # 2. Downstream Traversal: method -> DEPENDS_ON -> field_node (in_edges of field_node)
-    for in_node, _, in_edge_data in G.in_edges(field_node, data=True):
-        if in_edge_data.get("edge_type") == "DEPENDS_ON":
-            # in_node is a method that depends on this field
-            method_node = in_node
-            # Find computed fields attached to this method (in_edges of method_node with COMPUTED_BY)
-            for comp_node, _, comp_edge_data in G.in_edges(method_node, data=True):
-                if comp_edge_data.get("edge_type") == "COMPUTED_BY":
-                    impacted_field_name = comp_node.replace(f"field:{model_name}.", "").replace("field:", "")
-                    downstream_computed_fields.add(impacted_field_name)
+    for dn in downstream_field_nodes:
+        downstream_computed_fields.add(_field_to_short_name(dn))
 
     # Build summary
     downstream_str = ", ".join(sorted(downstream_computed_fields)) if downstream_computed_fields else "None"
-    upstream_str = ", ".join(sorted(upstream_triggers)) if upstream_triggers else "None"
+
+    # Build upstream string with trigger_paths when available
+    upstream_parts: List[str] = []
+    for trig in sorted(upstream_triggers):
+        if trig in trigger_paths:
+            upstream_parts.append(f"{trig} (via {trigger_paths[trig]})")
+        else:
+            upstream_parts.append(trig)
+    upstream_str = ", ".join(upstream_parts) if upstream_parts else "None"
 
     summary = (
         f"Field '{field_name}' on '{model_name}': "
@@ -566,7 +659,9 @@ def impact_changement_champ(
         field_name=field_name,
         model_name=model_name,
         upstream_triggers=sorted(list(upstream_triggers)),
+        upstream_trigger_paths=trigger_paths,
         downstream_computed_fields=sorted(list(downstream_computed_fields)),
+        propagation_depth=depth_reached,
         relational_target=relational_target,
         compute_method=compute_method,
         summary_text=summary,

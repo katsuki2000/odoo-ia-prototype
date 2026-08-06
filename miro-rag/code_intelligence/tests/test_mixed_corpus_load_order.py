@@ -1,0 +1,323 @@
+"""
+code_intelligence/tests/test_mixed_corpus_load_order.py
+
+Non-regression test for the 2026-08-06 fix: fake_data/code/{account,sale,
+stock}/ simulate Odoo's own "core" addons and ship no __manifest__.py.
+rag/graph.py::_load_module() used to leave manifest=None for them, and
+cross_file_resolver.topological_sort_modules()'s `if mod and mod.manifest:`
+guard then silently skipped dependency resolution for those modules --
+no exception, no warning. The module landed in load_order wherever the
+`for name in modules_dict` loop happened to encounter it (dict/filesystem
+iteration order), not according to its real dependencies.
+
+That corrupted load_order corrupts everything built from it: graph_builder
+accumulates each Method node's override_sites in load_order sequence, and
+method_override_resolver.resoudre_chaine_surcharge_methode() reverses that
+sequence assuming it is a real dependency order (Odoo's MRO: the
+last-loaded/most-dependent module's override runs FIRST). Confirmed active
+in production: reasoning_trace.jsonl (trace fb42dd5a1de2, hop 1) showed
+account.move._reverse_moves' override chain reported as "1. account,
+2. sale" -- account before sale -- while the real Odoo MRO runs sale's
+override FIRST (sale depends on account, so sale is loaded after and its
+class sits ahead of account's in the MRO): the correct execution order is
+[sale, account].
+
+test_method_override_chain.py's real-corpus tests (custom_credit_note_
+approval / _regional / _vip) never caught this because all three of those
+modules have real __manifest__.py files with an explicit `depends` --
+they only cover the 100%-custom sub-case. This file specifically builds
+the FULL mixed corpus (core modules with no manifest + custom modules
+with real manifests), matching what
+rag.graph.get_code_intelligence_graph() actually loads in production.
+"""
+
+from pathlib import Path
+
+import pytest
+
+from code_intelligence.cross_file_resolver import (
+    ParsedModule,
+    build_module_symbol_registry,
+    topological_sort_modules,
+)
+from code_intelligence.graph_builder import OdooGraphBuilder
+from code_intelligence.manifest_parser import (
+    KNOWN_CORE_MODULE_DEPENDS,
+    MissingManifestError,
+    synthesize_fallback_manifest,
+)
+from code_intelligence.method_override_resolver import resoudre_chaine_surcharge_methode
+from code_intelligence.python_extractor import (
+    OdooMethodDeclaration,
+    OdooModelDeclaration,
+)
+from rag.graph import _load_module
+
+FAKE_DATA_CODE_ROOT = Path(__file__).resolve().parent.parent.parent / "fake_data" / "code"
+ADDONS_PATH = Path("/home/user/odoo-17.0/addons")
+CUSTOM_MODULES = [
+    "custom_credit_note_approval",
+    "custom_credit_note_approval_regional",
+    "custom_credit_note_approval_vip",
+]
+
+
+# ---------------------------------------------------------------------
+# _load_module(): manifest-gap resolution itself (rag/graph.py)
+# ---------------------------------------------------------------------
+
+def test_load_module_synthesizes_manifest_for_known_core_module(tmp_path):
+    """A directory named after a KNOWN_CORE_MODULE_DEPENDS entry with no
+    __manifest__.py must get a synthesized manifest carrying that entry's
+    real hardcoded depends -- never manifest=None."""
+    account_dir = tmp_path / "account"
+    account_dir.mkdir()
+    (account_dir / "account_move.py").write_text(
+        "from odoo import models\n\nclass AccountMove(models.Model):\n"
+        "    _name = 'account.move'\n"
+    )
+
+    name, mod = _load_module(account_dir)
+
+    assert name == "account"
+    assert mod.manifest is not None
+    assert mod.manifest.synthesized is True
+    assert mod.manifest.depends == KNOWN_CORE_MODULE_DEPENDS["account"]
+
+
+def test_load_module_raises_for_unknown_module_without_manifest(tmp_path):
+    """A real module directory (contains .py files) with no
+    __manifest__.py and NOT in KNOWN_CORE_MODULE_DEPENDS must fail loudly
+    -- never silently become manifest=None again."""
+    mystery_dir = tmp_path / "totally_unknown_custom_module"
+    mystery_dir.mkdir()
+    (mystery_dir / "models.py").write_text(
+        "from odoo import models\n\nclass X(models.Model):\n    _name = 'x.y'\n"
+    )
+
+    with pytest.raises(MissingManifestError):
+        _load_module(mystery_dir)
+
+
+def test_load_module_tolerates_asset_only_directory_without_manifest(tmp_path):
+    """A directory with no .py files at all (loose XML views, like
+    fake_data/code/views/) can never declare a Model/Method, so it can
+    never corrupt override-chain resolution -- must NOT raise, and must
+    still get a real (empty-deps) manifest rather than None."""
+    views_dir = tmp_path / "views"
+    views_dir.mkdir()
+    (views_dir / "some_view.xml").write_text("<odoo></odoo>")
+
+    name, mod = _load_module(views_dir)
+
+    assert name == "views"
+    assert mod.manifest is not None
+    assert mod.manifest.depends == []
+
+
+def test_load_module_real_fake_data_account_and_sale_get_real_manifests():
+    """Sanity check against the ACTUAL fake_data/code/ corpus (no mocks):
+    account and sale both ship no __manifest__.py on disk, and must both
+    come back with a real, non-None, synthesized manifest reflecting the
+    real dependency (sale depends on account)."""
+    if not FAKE_DATA_CODE_ROOT.exists():
+        pytest.skip(f"fake_data/code/ not found at {FAKE_DATA_CODE_ROOT}")
+
+    account_dir = FAKE_DATA_CODE_ROOT / "account"
+    sale_dir = FAKE_DATA_CODE_ROOT / "sale"
+    assert not (account_dir / "__manifest__.py").exists(), (
+        "This test's premise is that fake_data/code/account has no manifest "
+        "-- if that changed, this whole regression class may no longer apply."
+    )
+    assert not (sale_dir / "__manifest__.py").exists()
+
+    _, account_mod = _load_module(account_dir)
+    _, sale_mod = _load_module(sale_dir)
+
+    assert account_mod.manifest is not None and account_mod.manifest.synthesized
+    assert sale_mod.manifest is not None and sale_mod.manifest.synthesized
+    assert "account" in sale_mod.manifest.depends
+
+
+# ---------------------------------------------------------------------
+# Synthetic reproduction: iteration-order independence.
+#
+# The original bug was order-dependent: it only surfaced when
+# corpus_root.iterdir() / dict insertion order happened to disagree with
+# the real dependency order. Insert 'sale' into modules_dict BEFORE
+# 'account' -- the exact scenario that produced the wrong [account, sale]
+# output in the reasoning_trace.jsonl incident -- and confirm the fix no
+# longer depends on insertion order at all.
+# ---------------------------------------------------------------------
+
+def _make_synthetic_account_sale_modules_dict(insertion_order):
+    """Build a synthetic 2-module corpus: 'account' declares account.move
+    with _reverse_moves; 'sale' extends account.move and overrides
+    _reverse_moves too (mirrors the real fake_data/code shape). Both use
+    synthesize_fallback_manifest -- no manifest on disk, exactly like the
+    real corpus."""
+    account_decl = OdooModelDeclaration(
+        class_name="AccountMove",
+        filepath="/corpus/account/account_move.py",
+        lineno=1,
+        name="account.move",
+        methods=[OdooMethodDeclaration(name="_reverse_moves", lineno=42, end_lineno=50)],
+    )
+    sale_decl = OdooModelDeclaration(
+        class_name="AccountMove",
+        filepath="/corpus/sale/account_move.py",
+        lineno=1,
+        inherit=["account.move"],
+        methods=[OdooMethodDeclaration(name="_reverse_moves", lineno=88, end_lineno=96)],
+    )
+
+    modules = {
+        "account": ParsedModule(
+            manifest=synthesize_fallback_manifest("account", Path("/corpus/account")),
+            models=[account_decl],
+        ),
+        "sale": ParsedModule(
+            manifest=synthesize_fallback_manifest("sale", Path("/corpus/sale")),
+            models=[sale_decl],
+        ),
+    }
+    return {name: modules[name] for name in insertion_order}
+
+
+@pytest.mark.parametrize("insertion_order", [
+    ["account", "sale"],  # matches real dependency order
+    ["sale", "account"],  # the actual order that triggered the incident
+])
+def test_load_order_respects_real_dependency_regardless_of_insertion_order(insertion_order):
+    modules_dict = _make_synthetic_account_sale_modules_dict(insertion_order)
+
+    load_order = topological_sort_modules(modules_dict)
+
+    assert load_order.index("account") < load_order.index("sale"), (
+        f"load_order={load_order}: 'account' must come before 'sale' "
+        f"(sale depends on account) regardless of dict insertion order "
+        f"{insertion_order}."
+    )
+
+
+@pytest.mark.parametrize("insertion_order", [
+    ["account", "sale"],
+    ["sale", "account"],
+])
+def test_override_chain_execution_order_regardless_of_insertion_order(insertion_order):
+    """The end-to-end regression lock: real Odoo MRO execution order for
+    account.move._reverse_moves is [sale, account] (sale, the more
+    dependent/later-loaded module, runs first and calls super() down into
+    account) -- this must hold no matter which order the two modules were
+    inserted into modules_dict in, unlike before the fix."""
+    modules_dict = _make_synthetic_account_sale_modules_dict(insertion_order)
+
+    registry = build_module_symbol_registry(modules_dict)
+    builder = OdooGraphBuilder(registry, modules_dict)
+    G = builder.build_graph()
+
+    sites = resoudre_chaine_surcharge_methode(G, "account.move", "_reverse_moves")
+
+    assert [s.module for s in sites] == ["sale", "account"], (
+        f"insertion_order={insertion_order}: got {[s.module for s in sites]}. "
+        f"This is the exact bug reported in reasoning_trace.jsonl "
+        f"(trace fb42dd5a1de2, hop 1): [account, sale] was reported as "
+        f"'ordre d'exécution réel' when the real execution order is "
+        f"[sale, account]."
+    )
+
+
+# ---------------------------------------------------------------------
+# Full mixed corpus, real files, no mocks: core modules with NO manifest
+# (fake_data/code/account, fake_data/code/sale) loaded together with
+# custom modules that DO have real manifests declaring `depends: ['account', ...]`
+# (custom_credit_note_approval / _regional / _vip) -- exactly what
+# rag.graph.get_code_intelligence_graph() builds in production. This is
+# the "graphe complet corpus core+custom" the isolated
+# test_method_override_chain.py::_build_real_registry_and_graph never
+# covered (it only ever loaded the three custom_* modules, never account
+# or sale).
+# ---------------------------------------------------------------------
+
+def _build_full_mixed_corpus_graph(core_insertion_order):
+    if not FAKE_DATA_CODE_ROOT.exists():
+        pytest.skip(f"fake_data/code/ not found at {FAKE_DATA_CODE_ROOT}")
+    for mod_name in CUSTOM_MODULES:
+        if not (ADDONS_PATH / mod_name / "__manifest__.py").exists():
+            pytest.skip(f"Real module {mod_name} not found under {ADDONS_PATH} -- skipping live corpus test.")
+
+    modules_dict = {}
+
+    # Core modules, in the caller-specified (possibly "wrong") order --
+    # mirrors corpus_root.iterdir()'s unspecified order in production.
+    for core_name in core_insertion_order:
+        core_dir = FAKE_DATA_CODE_ROOT / core_name
+        _, mod = _load_module(core_dir)
+        modules_dict[core_name] = mod
+
+    # Custom modules, each with a real __manifest__.py (depends on 'account').
+    for mod_name in CUSTOM_MODULES:
+        mod_dir = ADDONS_PATH / mod_name
+        _, mod = _load_module(mod_dir)
+        modules_dict[mod_name] = mod
+
+    registry = build_module_symbol_registry(modules_dict)
+    builder = OdooGraphBuilder(registry, modules_dict)
+    G = builder.build_graph()
+    return modules_dict, G
+
+
+@pytest.mark.parametrize("core_insertion_order", [
+    ["account", "sale", "stock"],
+    ["sale", "account", "stock"],
+    ["stock", "sale", "account"],
+])
+def test_full_mixed_corpus_core_and_custom_load_order_is_correct(core_insertion_order):
+    """load_order over the FULL mixed corpus (core, no manifest + custom,
+    real manifest) must respect real dependencies for every pair,
+    regardless of the order core modules were discovered on disk."""
+    modules_dict, _G = _build_full_mixed_corpus_graph(core_insertion_order)
+    load_order = topological_sort_modules(modules_dict)
+
+    assert load_order.index("account") < load_order.index("sale")
+    assert load_order.index("account") < load_order.index("custom_credit_note_approval")
+    assert (
+        load_order.index("custom_credit_note_approval")
+        < load_order.index("custom_credit_note_approval_regional")
+        < load_order.index("custom_credit_note_approval_vip")
+    )
+
+
+@pytest.mark.parametrize("core_insertion_order", [
+    ["account", "sale", "stock"],
+    ["sale", "account", "stock"],
+])
+def test_full_mixed_corpus_reverse_moves_execution_order_is_correct(core_insertion_order):
+    """The originally-reported regression, reproduced against the real
+    fake_data/code files (no synthetic stand-ins), inside the full mixed
+    corpus: account.move._reverse_moves execution order must be
+    [sale, account]."""
+    modules_dict, G = _build_full_mixed_corpus_graph(core_insertion_order)
+
+    sites = resoudre_chaine_surcharge_methode(G, "account.move", "_reverse_moves")
+    assert sites, "expected _reverse_moves to be found as overridden in both 'account' and 'sale'"
+    assert [s.module for s in sites] == ["sale", "account"]
+
+
+@pytest.mark.parametrize("core_insertion_order", [
+    ["account", "sale", "stock"],
+    ["sale", "account", "stock"],
+])
+def test_full_mixed_corpus_custom_override_chain_still_correct(core_insertion_order):
+    """Non-regression on the case test_method_override_chain.py already
+    covered in isolation: mixing in the (previously buggy) core corpus
+    must NOT change the already-correct custom_credit_note_approval_vip
+    cascade order."""
+    modules_dict, G = _build_full_mixed_corpus_graph(core_insertion_order)
+
+    sites = resoudre_chaine_surcharge_methode(G, "account.move", "action_valider_avoir")
+    assert [s.module for s in sites] == [
+        "custom_credit_note_approval_vip",
+        "custom_credit_note_approval_regional",
+        "custom_credit_note_approval",
+    ]

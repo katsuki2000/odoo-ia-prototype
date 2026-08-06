@@ -674,6 +674,15 @@ def generate(state: RAGState) -> dict:
     chunks = state["retrieved_chunks"]
     logger.info("Node [generate]: Building prompt and calling LLM")
 
+    # Bloc 12 / J46-J48: reasoning-trace + LLM-call-budget instrumentation.
+    # "documentaire" is the simplest branch (RAG only, no tool hops) --
+    # it exists as the baseline llm_call_count comparator against
+    # donnees_erp (Function Calling, up to REACT_RECURSION_LIMIT calls)
+    # and code_intelligence (up to CI_MAX_HOPS calls + resolver + synthesis).
+    from code_intelligence.reasoning_trace_logger import ReasoningTraceLogger, new_trace_id
+    _trace_id = new_trace_id()
+    _trace_logger = ReasoningTraceLogger()
+
     # Fast-fail for out of scope
     if _is_out_of_scope(question):
         logger.info("Node [generate]: Deterministic out-of-scope refusal.")
@@ -684,6 +693,10 @@ def generate(state: RAGState) -> dict:
         )
         timing = state.get("timing", {}).copy()
         timing["generation_time"] = time.time() - start_time
+        _trace_logger.log_summary(
+            trace_id=_trace_id, branch="documentaire", question=question,
+            hop_count=0, llm_call_count=0, total_time_ms=timing["generation_time"] * 1000,
+        )
         return {"response": response, "raw_answer": response.answer, "timing": timing}
 
     # Fallback if no relevant chunks are found
@@ -696,6 +709,10 @@ def generate(state: RAGState) -> dict:
         )
         timing = state.get("timing", {}).copy()
         timing["generation_time"] = time.time() - start_time
+        _trace_logger.log_summary(
+            trace_id=_trace_id, branch="documentaire", question=question,
+            hop_count=0, llm_call_count=0, total_time_ms=timing["generation_time"] * 1000,
+        )
         return {"response": response, "raw_answer": response.answer, "timing": timing}
 
     from rag.prompts import build_messages
@@ -713,12 +730,14 @@ def generate(state: RAGState) -> dict:
     chat_history = state.get("chat_history", [])
     messages = build_messages(question, context_text, chat_history)
 
+    _llm_call_count = 0
     try:
         llm = ChatGroq(model=GROQ_MODEL, temperature=0.3, max_tokens=1024)
         # Enforce structured output to match our schema
         structured_llm = llm.with_structured_output(LLMResponse)
         
         llm_resp = structured_llm.invoke(messages)
+        _llm_call_count += 1
         response = AssistantResponse(
             answer=llm_resp.answer,
             confidence=llm_resp.confidence,
@@ -729,6 +748,7 @@ def generate(state: RAGState) -> dict:
         try:
             llm = ChatGroq(model=GROQ_MODEL, temperature=0.3, max_tokens=1024)
             raw_resp = llm.invoke(messages)
+            _llm_call_count += 1
             response = AssistantResponse(
                 answer=raw_resp.content,
                 confidence=0.85,
@@ -744,6 +764,15 @@ def generate(state: RAGState) -> dict:
         
     timing = state.get("timing", {}).copy()
     timing["generation_time"] = time.time() - start_time
+    timing["llm_call_count"] = _llm_call_count
+    # Bloc 12 / J46-J48: documentaire branch never makes tool-call hops --
+    # hop_count is always 0 here, which is itself the point of comparison
+    # against donnees_erp / code_intelligence in the J48 budget report.
+    _trace_logger.log_summary(
+        trace_id=_trace_id, branch="documentaire", question=question,
+        hop_count=0, llm_call_count=_llm_call_count,
+        total_time_ms=timing["generation_time"] * 1000,
+    )
     return {"response": response, "raw_answer": response.answer if response else "", "timing": timing}
 
 
@@ -774,6 +803,16 @@ def orm_agent_loop(state: RAGState) -> dict:
     chat_history = state.get("chat_history", [])
     logger.info("Node [orm_agent_loop]: Starting ReAct loop for: %s", question)
 
+    # Bloc 12 / J46-J48: reasoning-trace + LLM-call-budget instrumentation.
+    # "donnees_erp" is the Function Calling branch -- llm_call_count here
+    # is directly comparable to "documentaire" (generate, 1-2 calls) and
+    # "code_intelligence" (code_intelligence_agent, resolver + hops + synthesis).
+    from code_intelligence.reasoning_trace_logger import ReasoningTraceLogger, new_trace_id
+    _trace_id = new_trace_id()
+    _trace_logger = ReasoningTraceLogger()
+    _llm_call_count = 0
+    _hop_index = 0
+
     if _is_out_of_scope(question):
         logger.info("Node [orm_agent_loop]: Out of scope question.")
         response = AssistantResponse(
@@ -783,6 +822,10 @@ def orm_agent_loop(state: RAGState) -> dict:
         )
         timing = state.get("timing", {}).copy()
         timing["generation_time"] = time.time() - start_time
+        _trace_logger.log_summary(
+            trace_id=_trace_id, branch="donnees_erp", question=question,
+            hop_count=0, llm_call_count=0, total_time_ms=timing["generation_time"] * 1000,
+        )
         return {"response": response, "raw_answer": response.answer, "timing": timing}
 
     skills = state.get("skills", {})
@@ -839,7 +882,9 @@ def orm_agent_loop(state: RAGState) -> dict:
 
         try:
             ai_msg = llm_with_tools.invoke(messages)
+            _llm_call_count += 1
         except Exception as e:
+            _llm_call_count += 1  # attempt still counts against the LLM-call budget
             logger.warning("LLM invoke failed at iteration %d: %s", iteration + 1, e)
             # ── Recovery: parse malformed tool calls from small models ──
             # Llama 3.1 8B sometimes generates <function=name>{"arg": "val"}
@@ -858,8 +903,15 @@ def orm_agent_loop(state: RAGState) -> dict:
                         tool_map = {t.name: t for t in all_tools}
                         if fn_name in tool_map:
                             logger.info("Recovered malformed tool call: %s(%s)", fn_name, fn_args)
+                            _t_hop = time.time()
                             observation = tool_map[fn_name].invoke(fn_args)
                             tool_observations.append(str(observation))
+                            _trace_logger.log_hop(
+                                trace_id=_trace_id, hop_index=_hop_index, tool_name=fn_name,
+                                tool_args=fn_args, observation=str(observation),
+                                elapsed_ms=(time.time() - _t_hop) * 1000,
+                            )
+                            _hop_index += 1
                             # Feed the observation back as a HumanMessage so the LLM
                             # can use it on the next iteration (no tool_call_id needed)
                             messages.append(HumanMessage(
@@ -888,6 +940,7 @@ def orm_agent_loop(state: RAGState) -> dict:
             tool_id = tool_call["id"]
             logger.info("Node [orm_agent_loop]: Calling tool '%s' with args %s", tool_name, tool_args)
 
+            _t_hop = time.time()
             if tool_name not in [t.name for t in all_tools]:
                 observation = f"Outil '{tool_name}' non disponible."
             else:
@@ -899,6 +952,12 @@ def orm_agent_loop(state: RAGState) -> dict:
                     logger.error("Tool call error: %s", e)
 
             tool_observations.append(observation)
+            _trace_logger.log_hop(
+                trace_id=_trace_id, hop_index=_hop_index, tool_name=tool_name,
+                tool_args=tool_args, observation=str(observation),
+                elapsed_ms=(time.time() - _t_hop) * 1000,
+            )
+            _hop_index += 1
             messages.append(ToolMessage(content=str(observation), tool_call_id=tool_id))
     else:
         # Recursion limit hit — force a final synthesis
@@ -911,8 +970,10 @@ def orm_agent_loop(state: RAGState) -> dict:
         try:
             plain_llm = ChatGroq(model=GROQ_MODEL, temperature=0.0, max_tokens=512)
             final_resp = plain_llm.invoke([HumanMessage(content=synthesis_prompt)])
+            _llm_call_count += 1
             final_answer = final_resp.content
         except Exception as e:
+            _llm_call_count += 1
             logger.error("Forced synthesis failed: %s", e)
             final_answer = "Je n'ai pas pu obtenir une réponse complète. Veuillez reformuler la question."
 
@@ -938,6 +999,14 @@ def orm_agent_loop(state: RAGState) -> dict:
     
     timing = state.get("timing", {}).copy()
     timing["generation_time"] = time.time() - start_time
+    timing["llm_call_count"] = _llm_call_count
+    timing["hop_count"] = _hop_index
+    _trace_logger.log_summary(
+        trace_id=_trace_id, branch="donnees_erp", question=question,
+        hop_count=_hop_index, llm_call_count=_llm_call_count,
+        total_time_ms=timing["generation_time"] * 1000,
+        hop_cap=REACT_RECURSION_LIMIT,
+    )
     return {"response": response, "raw_answer": response.answer, "timing": timing}
 
 
@@ -1022,7 +1091,19 @@ CI_SYSTEM_PROMPT = (
     "4. When citing a rule, group, or action by its Odoo technical identifier as a "
     "sourcing claim (not just using it as ordinary vocabulary), prefix it exactly as "
     "'xml_id: module.identifier' (e.g. xml_id: custom_credit_note_visibility_rules."
-    "rule_avoir_visibilite_regionale)."
+    "rule_avoir_visibilite_regionale).\n"
+    "5. RETRY-BEFORE-HEDGE RULE (post-Bloc-8 fix): if a tool call returns 'not found in the "
+    "indexed knowledge graph' or any similar failure, that failure means the MODEL NAME OR "
+    "IDENTIFIER YOU JUST TRIED WAS WRONG -- it does not mean the information doesn't exist. "
+    "Before proposing a different guessed identifier, or giving up and answering with hedging "
+    "language ('il n'est pas possible de determiner avec certitude', 'il est possible que'), "
+    "you MUST retry the SAME tool using the EXACT technical identifier already given to you "
+    "under [BUSINESS TERM RESOLVER S2.0] above ('Target Models: ...') or already confirmed by "
+    "an earlier successful tool observation in this same conversation. Never invent a new "
+    "model/module name by paraphrasing the user's natural-language wording (e.g. 'demande_conge', "
+    "'achat.demande', 'purchase.order') -- only the resolver-confirmed identifier or one copied "
+    "verbatim from a prior successful observation is valid. Do not answer with uncertainty "
+    "language until you have used at least one tool call against the resolver-confirmed model."
 )
 
 # C.1.4: Maximum hops allowed per question.
@@ -1229,8 +1310,42 @@ _CACHED_CODE_INTEL_GRAPH = None
 
 
 def _load_module(mod_dir: Path) -> tuple:
-    """Load a single Odoo module directory into a ParsedModule."""
-    from code_intelligence.manifest_parser import parse_manifest
+    """Load a single Odoo module directory into a ParsedModule.
+
+    2026-08-06 fix (account.move._reverse_moves override-order bug): a
+    missing __manifest__.py must NEVER silently become manifest=None here.
+    cross_file_resolver.topological_sort_modules() only follows a module's
+    real dependencies when `mod.manifest` is truthy -- manifest=None made it
+    treat the module as a dependency-free leaf with no warning at all,
+    corrupting load_order (and everything built from it: graph_builder's
+    per-method override_sites, and method_override_resolver's reversal of
+    that order into Odoo's real MRO execution order) whenever a module with
+    real dependencies had no manifest on disk. See
+    code_intelligence/manifest_parser.py::KNOWN_CORE_MODULE_DEPENDS /
+    MissingManifestError for the full writeup and
+    code_intelligence/tests/test_mixed_corpus_load_order.py for the
+    regression test.
+
+    Resolution order when __manifest__.py is absent:
+      1. Known fake_data/code/ core module (account/sale/stock) -> synthesize
+         a manifest with its real, well-known, hardcoded `depends`.
+      2. Directory with no .py files at all (e.g. fake_data/code/views/, a
+         loose XML asset folder, not a real Odoo module) -> it can never
+         declare a Model/Method, so it can never appear in a method
+         override_sites list and its position in load_order cannot corrupt
+         override-chain resolution. Safe to treat as a dependency-free leaf.
+      3. Anything else (a real addon -- miro_ai, custom_*, or any future
+         fake_data/code/ module actually containing code) -> raise
+         MissingManifestError instead of guessing. A silently-guessed
+         dependency set for a module we don't actually know is exactly the
+         bug this fix removes.
+    """
+    from code_intelligence.manifest_parser import (
+        parse_manifest,
+        synthesize_fallback_manifest,
+        MissingManifestError,
+        KNOWN_CORE_MODULE_DEPENDS,
+    )
     from code_intelligence.python_extractor import extract_odoo_models_from_file
     from code_intelligence.xml_extractor import (
         parse_ir_rules_from_xml, parse_groups_from_xml,
@@ -1241,7 +1356,41 @@ def _load_module(mod_dir: Path) -> tuple:
     from code_intelligence.cross_file_resolver import ParsedModule
 
     manifest_p = mod_dir / "__manifest__.py"
-    manifest = parse_manifest(manifest_p) if manifest_p.exists() else None
+    if manifest_p.exists():
+        manifest = parse_manifest(manifest_p)
+    else:
+        module_name = mod_dir.name
+        manifest = synthesize_fallback_manifest(module_name, mod_dir)
+        if manifest is None:
+            has_python_files = next(mod_dir.rglob("*.py"), None) is not None
+            if not has_python_files:
+                logger.info(
+                    "Module directory '%s' at %s has no __manifest__.py and no "
+                    ".py files -- treating as a non-module asset directory "
+                    "(e.g. loose XML views), not a real Odoo module. It can "
+                    "declare no Model/Method, so it cannot affect override-chain "
+                    "resolution regardless of its position in load_order.",
+                    module_name, mod_dir,
+                )
+                from code_intelligence.manifest_parser import OdooManifest
+                manifest = OdooManifest(
+                    module_name=module_name, filepath="", name=module_name,
+                    depends=[], synthesized=True,
+                )
+            else:
+                raise MissingManifestError(
+                    f"Module '{module_name}' at {mod_dir} has no __manifest__.py, "
+                    f"contains .py files, and is not a known fake_data/code/ core "
+                    f"module ({sorted(KNOWN_CORE_MODULE_DEPENDS)}). Refusing to "
+                    f"silently treat it as having no dependencies -- this "
+                    f"previously produced a wrong module load_order and a wrong "
+                    f"method-override execution order with no error signal at "
+                    f"all (see manifest_parser.MissingManifestError docstring). "
+                    f"If this is a real Odoo module, add its __manifest__.py; if "
+                    f"it's a new fake_data/code/ core module standing in for a "
+                    f"real Odoo core addon, add it to KNOWN_CORE_MODULE_DEPENDS "
+                    f"in code_intelligence/manifest_parser.py."
+                )
     mod = ParsedModule(manifest=manifest)
     for py_f in mod_dir.rglob("*.py"):
         if py_f.name == "__manifest__.py":
@@ -1328,6 +1477,18 @@ def code_intelligence_agent(state: RAGState) -> dict:
     chat_history = state.get("chat_history", [])
     logger.info("Node [code_intelligence_agent]: Starting ReAct loop for: %s", question)
 
+    # Bloc 12 / J46-J48: reasoning-trace + LLM-call-budget instrumentation.
+    # "code_intelligence" is the most expensive branch to reason about --
+    # this trace_id ties together every composite tool call this question
+    # triggers (forced pre-dispatch + ReAct loop hops) so the full path is
+    # readable post-hoc via ReasoningTraceLogger.read_trace(trace_id), and
+    # llm_call_count is directly comparable to "documentaire"/"donnees_erp".
+    from code_intelligence.reasoning_trace_logger import ReasoningTraceLogger, new_trace_id
+    _trace_id = new_trace_id()
+    _trace_logger = ReasoningTraceLogger()
+    _llm_call_count = 0
+    _hop_index = 0
+
     if _is_out_of_scope(question):
         logger.info("Node [code_intelligence_agent]: Out of scope question.")
         response = AssistantResponse(
@@ -1337,6 +1498,11 @@ def code_intelligence_agent(state: RAGState) -> dict:
         )
         timing = state.get("timing", {}).copy()
         timing["code_intelligence_time"] = time.time() - start_time
+        _trace_logger.log_summary(
+            trace_id=_trace_id, branch="code_intelligence", question=question,
+            hop_count=0, llm_call_count=0, total_time_ms=timing["code_intelligence_time"] * 1000,
+            hop_cap=CI_MAX_HOPS,
+        )
         return {"response": response, "raw_answer": response.answer, "timing": timing}
 
     # J32-J33: Security & Massive Extraction Safeguards
@@ -1355,6 +1521,11 @@ def code_intelligence_agent(state: RAGState) -> dict:
         )
         timing = state.get("timing", {}).copy()
         timing["code_intelligence_time"] = time.time() - start_time
+        _trace_logger.log_summary(
+            trace_id=_trace_id, branch="code_intelligence", question=question,
+            hop_count=0, llm_call_count=0, total_time_ms=timing["code_intelligence_time"] * 1000,
+            hop_cap=CI_MAX_HOPS,
+        )
         return {"response": response, "raw_answer": response.answer, "timing": timing}
 
     if _is_massive_extraction_request(question):
@@ -1366,6 +1537,11 @@ def code_intelligence_agent(state: RAGState) -> dict:
         )
         timing = state.get("timing", {}).copy()
         timing["code_intelligence_time"] = time.time() - start_time
+        _trace_logger.log_summary(
+            trace_id=_trace_id, branch="code_intelligence", question=question,
+            hop_count=0, llm_call_count=0, total_time_ms=timing["code_intelligence_time"] * 1000,
+            hop_cap=CI_MAX_HOPS,
+        )
         return {"response": response, "raw_answer": response.answer, "timing": timing}
 
     # Initialize the knowledge graph and inject into tool wrappers
@@ -1394,6 +1570,20 @@ def code_intelligence_agent(state: RAGState) -> dict:
         temperature=0.0,
         max_retries=0,  # Let _invoke_with_rate_limit handle dynamic header backoff
         max_tokens=4096,
+        # ReAct-loop fix (part 2, post-Bloc-8 regression): force ONE tool
+        # call per LLM turn. Without this, llama-3.1-8b-instant frequently
+        # emits 3-4 tool_calls in a single ai_msg -- all chosen blind, in
+        # one shot, before any observation exists yet (confirmed in the
+        # J46-J48 reasoning traces: batches of hops land at the exact same
+        # millisecond timestamp). That burns through CI_MAX_HOPS in one
+        # breath and defeats the messages-accumulation fix above, since
+        # there's no LLM call in between the wrong guesses for the model to
+        # actually see and correct from. Groq's chat.completions API
+        # accepts parallel_tool_calls at the top level (default true);
+        # ChatGroq passes unknown kwargs straight through via model_kwargs
+        # (same mechanism already used for frequency_penalty/presence_penalty
+        # on the synthesis LLM below).
+        model_kwargs={"parallel_tool_calls": False},
     )
     set_llm_ref(llm)
     llm_with_tools = llm.bind_tools(ALL_CI_TOOLS)
@@ -1406,6 +1596,8 @@ def code_intelligence_agent(state: RAGState) -> dict:
     _t_resolver = time.perf_counter()
     concept = resolve_business_term(question, G, llm=llm)
     _ci_resolver_time = time.perf_counter() - _t_resolver
+    if concept.source_step == "llm_arbitration":
+        _llm_call_count += 1  # bounded arbitration call inside resolve_business_term
 
     # J32-J33: Enforce MAX_MODELS_PER_QUERY limit on resolved models
     if concept.resolved_models and len(concept.resolved_models) > MAX_MODELS_PER_QUERY:
@@ -1453,6 +1645,7 @@ def code_intelligence_agent(state: RAGState) -> dict:
         lock_tool = tool_map.get("analyser_verrous_securite")
         if lock_tool is not None:
             for target_model in concept.resolved_models:
+                _t_hop = time.perf_counter()
                 try:
                     forced_observation = str(lock_tool.invoke({"model_name": target_model}))
                     if len(forced_observation) > 1200:
@@ -1472,6 +1665,12 @@ def code_intelligence_agent(state: RAGState) -> dict:
                     tool_observations.append(forced_observation)
                     hop_count += 1
                     seen_calls.add(("analyser_verrous_securite", target_model))
+                    _trace_logger.log_hop(
+                        trace_id=_trace_id, hop_index=_hop_index,
+                        tool_name="analyser_verrous_securite", tool_args={"model_name": target_model},
+                        observation=forced_observation, elapsed_ms=(time.perf_counter() - _t_hop) * 1000,
+                    )
+                    _hop_index += 1
                     logger.info(
                         "Node [code_intelligence_agent]: Deterministic pre-dispatch of "
                         "'analyser_verrous_securite' for model '%s' (approval/security wording detected).",
@@ -1511,6 +1710,7 @@ def code_intelligence_agent(state: RAGState) -> dict:
                 call_key = ("analyser_actions_serveur", target_model)
                 if call_key in seen_calls:
                     continue
+                _t_hop = time.perf_counter()
                 try:
                     forced_observation = str(sa_tool.invoke({"model_name": target_model}))
                     if len(forced_observation) > 1200:
@@ -1529,6 +1729,12 @@ def code_intelligence_agent(state: RAGState) -> dict:
                     tool_observations.append(forced_observation)
                     hop_count += 1
                     seen_calls.add(call_key)
+                    _trace_logger.log_hop(
+                        trace_id=_trace_id, hop_index=_hop_index,
+                        tool_name="analyser_actions_serveur", tool_args={"model_name": target_model},
+                        observation=forced_observation, elapsed_ms=(time.perf_counter() - _t_hop) * 1000,
+                    )
+                    _hop_index += 1
                     logger.info(
                         "Node [code_intelligence_agent]: Deterministic pre-dispatch of "
                         "'analyser_actions_serveur' for model '%s' (automation/bypass "
@@ -1545,6 +1751,89 @@ def code_intelligence_agent(state: RAGState) -> dict:
                     "is already included in the tool observations. Do not call it again."
                 )
 
+    # Bloc 9 gap, found 2026-08-06 (Q1.2 "avoir VIP"): deterministic
+    # pre-dispatch of analyser_chaine_surcharge_methode. Unlike the two
+    # forced dispatches above, this tool needs a method_name, which never
+    # appears in the natural-language question -- so the structural guard
+    # (find_methods_with_override_cascade: does ANY method on the resolved
+    # model actually have >1 override site in the graph?) is the PRIMARY
+    # defense here, not a secondary one. That's what makes it safe to reuse
+    # the already-broad _APPROVAL_PATTERN without repeating the Q6.2
+    # false-positive regression the amount-only trigger caused earlier: on
+    # a model with no real override cascade, a keyword false-positive costs
+    # nothing (the guard returns [], nothing is dispatched).
+    if (
+        concept.is_resolved
+        and concept.resolved_models
+        and _question_is_approval_related(question)
+    ):
+        from code_intelligence.ci_agent_tools import find_methods_with_override_cascade
+        from code_intelligence.method_override_resolver import find_methods_with_unguarded_super
+        tool_map = {t.name: t for t in ALL_CI_TOOLS}
+        override_tool = tool_map.get("analyser_chaine_surcharge_methode")
+        if override_tool is not None:
+            for target_model in concept.resolved_models:
+                candidate_methods = find_methods_with_override_cascade(G, target_model)
+                # Second, cheaper filter (2026-08-06 fix): the cascade-only
+                # guard alone fires on every ordinary multiply-overridden
+                # method (write, create, action_post...) on a shared model
+                # like account.move -- confirmed to blow past CI_MAX_HOPS
+                # (17 hops on Q1.1/Q1.2/Q5.1) and to bury the real finding
+                # in noise. Only dispatch the full LLM-backed tool for
+                # methods where the cheap deterministic AST check already
+                # found something.
+                flagged_methods = find_methods_with_unguarded_super(G, target_model, candidate_methods)
+                for method_name in flagged_methods:
+                    call_key = ("analyser_chaine_surcharge_methode", target_model, method_name)
+                    if call_key in seen_calls:
+                        continue
+                    _t_hop = time.perf_counter()
+                    try:
+                        forced_observation = str(override_tool.invoke({
+                            "model_name": target_model, "method_name": method_name,
+                        }))
+                        if len(forced_observation) > 1200:
+                            forced_observation = forced_observation[:1200] + "\n[... Content truncated for LLM context limit ...]"
+                        # Bloc 7 (J23-24): same rationale as the two forced
+                        # dispatches above -- bypasses the ReAct loop's
+                        # gating, so gate here explicitly.
+                        forced_observation, omitted_list = gate_observation(
+                            tool_name="analyser_chaine_surcharge_methode",
+                            model_name=target_model,
+                            observation=forced_observation,
+                            G=G,
+                            user_groups=resolved_user_group_xmlids,
+                        )
+                        omitted_items.extend(omitted_list)
+                        tool_observations.append(forced_observation)
+                        hop_count += 1
+                        seen_calls.add(call_key)
+                        _trace_logger.log_hop(
+                            trace_id=_trace_id, hop_index=_hop_index,
+                            tool_name="analyser_chaine_surcharge_methode",
+                            tool_args={"model_name": target_model, "method_name": method_name},
+                            observation=forced_observation, elapsed_ms=(time.perf_counter() - _t_hop) * 1000,
+                        )
+                        _hop_index += 1
+                        logger.info(
+                            "Node [code_intelligence_agent]: Deterministic pre-dispatch of "
+                            "'analyser_chaine_surcharge_methode' for '%s.%s' (approval wording "
+                            "+ real override cascade present).",
+                            target_model, method_name,
+                        )
+                    except Exception as te:
+                        logger.error("Deterministic analyser_chaine_surcharge_methode dispatch failed: %s", te)
+            if any(k[0] == "analyser_chaine_surcharge_methode" for k in seen_calls):
+                system_prompt += (
+                    "\n\n[DETERMINISTIC PRE-DISPATCH]\n"
+                    "analyser_chaine_surcharge_methode has already been run for the "
+                    "overridden method(s) above because the question is approval-related "
+                    "and a real override cascade exists on the target model; its output is "
+                    "already included in the tool observations. Do not call it again -- if "
+                    "it flagged an unguarded super(), that finding takes precedence over any "
+                    "single-module reading of the method."
+                )
+
     messages = [
         SystemMessage(content=system_prompt),
         *chat_history[-6:],
@@ -1559,15 +1848,33 @@ def code_intelligence_agent(state: RAGState) -> dict:
         # Single-Pass Composite Execution: 1 Tool Selection turn + 1 Synthesis turn
         try:
             ai_msg, _wait = _invoke_with_rate_limit(llm_with_tools, messages)
+            _llm_call_count += 1  # J46-J48: tool-selection call
             _ci_groq_wait += _wait
         except Exception as e:
+            _llm_call_count += 1  # attempt still counts against the LLM-call budget
             logger.error("LLM tool selection failed: %s", e)
             ai_msg = None
 
         if ai_msg and getattr(ai_msg, "tool_calls", None):
+            # ReAct-loop fix (Bloc 12 review, post-Bloc-8 regression): feed
+            # the AI's tool-call message and every resulting ToolMessage
+            # back into `messages` so the NEXT iteration's LLM call actually
+            # sees what was already tried and what came back (success or
+            # failure). Previously `messages` was NEVER updated inside this
+            # loop -- every iteration re-sent the exact same initial prompt
+            # (system + history + question), so the model had zero memory of
+            # its own prior tool calls within the same question. That's what
+            # let it repeatedly re-guess wrong technical identifiers (e.g.
+            # "demande_conge" instead of the already-confirmed "hr.leave",
+            # or "group_region" instead of the real xml_id) across hops
+            # instead of learning from the "not found" observation it had
+            # just received one message ago. Mirrors what orm_agent_loop
+            # (donnees_erp branch) already does correctly.
+            messages.append(ai_msg)
             for tool_call in ai_msg.tool_calls:
                 tool_name = tool_call["name"]
                 tool_args = tool_call["args"]
+                tool_id = tool_call["id"]
 
                 # If qui_a_acces_a is called without explicit droit, default to 'all' for single-pass matrix
                 if tool_name == "qui_a_acces_a" and "droit" not in tool_args:
@@ -1580,6 +1887,21 @@ def code_intelligence_agent(state: RAGState) -> dict:
 
                 logger.info("Node [code_intelligence_agent]: Single-Dispatch invoking '%s' with args %s", tool_name, tool_args)
                 tool_map = {t.name: t for t in ALL_CI_TOOLS}
+                if tool_name not in tool_map:
+                    # ReAct-loop fix: this case was previously silently
+                    # ignored (no observation, no ToolMessage) -- now that
+                    # ai_msg + ToolMessages are fed back into `messages`,
+                    # every tool_call MUST get a matching ToolMessage or the
+                    # next LLM call can be rejected by the API for an
+                    # orphaned tool_call_id.
+                    logger.warning(
+                        "Node [code_intelligence_agent]: LLM requested unknown tool '%s'.",
+                        tool_name,
+                    )
+                    messages.append(ToolMessage(
+                        content=f"Outil '{tool_name}' non disponible.",
+                        tool_call_id=tool_id,
+                    ))
                 if tool_name in tool_map:
                     _t_hop = time.perf_counter()  # J30-J31: per-hop timing
                     try:
@@ -1621,8 +1943,23 @@ def code_intelligence_agent(state: RAGState) -> dict:
                         omitted_items.extend(omitted_list)
 
                         tool_observations.append(observation)
+                        # ReAct-loop fix: feed this (already-gated)
+                        # observation back as a ToolMessage tied to its
+                        # tool_call_id, so the LLM sees the real result --
+                        # "not found", the access matrix, whatever it is --
+                        # on its NEXT tool-selection call, instead of being
+                        # re-invoked blind against the exact same prompt.
+                        messages.append(ToolMessage(content=observation, tool_call_id=tool_id))
                         _ci_per_hop_times.append(time.perf_counter() - _t_hop)  # J30-J31
                         hop_count += 1
+                        # J46-J48: index this hop into the reasoning trace --
+                        # tool_name, args, observation, elapsed, in call order.
+                        _trace_logger.log_hop(
+                            trace_id=_trace_id, hop_index=_hop_index, tool_name=tool_name,
+                            tool_args=tool_args, observation=observation,
+                            elapsed_ms=_ci_per_hop_times[-1] * 1000,
+                        )
+                        _hop_index += 1
 
                         # J30-J31: CI_MAX_HOPS enforcement (was defined but
                         # never checked -- the loop ran up to
@@ -1676,7 +2013,12 @@ def code_intelligence_agent(state: RAGState) -> dict:
                                     )
                     except Exception as te:
                         logger.error("Tool execution failed (%s): %s", tool_name, te)
-                        tool_observations.append(f"Error executing {tool_name}: {str(te)}")
+                        _error_observation = f"Error executing {tool_name}: {str(te)}"
+                        tool_observations.append(_error_observation)
+                        # ReAct-loop fix: surface the failure to the LLM
+                        # too, so it doesn't blindly repeat the exact same
+                        # failing call on the next iteration.
+                        messages.append(ToolMessage(content=_error_observation, tool_call_id=tool_id))
         elif ai_msg and ai_msg.content:
             final_answer = ai_msg.content
 
@@ -1722,7 +2064,15 @@ def code_intelligence_agent(state: RAGState) -> dict:
                     f"source observation (file:///path#L12-L25) -- never drop the line range "
                     f"even when shortening a citation. Any rule/action/group xml_id you cite "
                     f"as a sourcing claim MUST be prefixed 'xml_id: module.identifier', copied "
-                    f"verbatim from the source observation."
+                    f"verbatim from the source observation. "
+                    f"If an observation contains 'SUPER() NON GARDÉ', it means a conditional "
+                    f"exemption in one module can be silently nullified by an unconditional "
+                    f"super() call re-applying the parent module's logic -- this is the ACTUAL "
+                    f"real-world behavior, more authoritative than a single module's lock message "
+                    f"read in isolation. When both are present, lead the answer with what the "
+                    f"override-chain finding says actually happens, not with the base module's "
+                    f"lock message alone -- do not present the base module's rule as the answer "
+                    f"while ignoring a SUPER() NON GARDÉ finding on the same method."
                 )
                 try:
                     plain_llm = ChatGroq(
@@ -1735,6 +2085,7 @@ def code_intelligence_agent(state: RAGState) -> dict:
                     )
                     _t_synthesis = time.perf_counter()
                     final_resp, _synth_wait = _invoke_with_rate_limit(plain_llm, [HumanMessage(content=synthesis_prompt)])
+                    _llm_call_count += 1  # J46-J48: synthesis call
                     _ci_groq_wait += _synth_wait
                     final_answer = final_resp.content
                     _ci_synthesis_time = time.perf_counter() - _t_synthesis
@@ -1758,6 +2109,7 @@ def code_intelligence_agent(state: RAGState) -> dict:
                         ]
                         try:
                             retry_resp, _retry_wait = _invoke_with_rate_limit(plain_llm, retry_messages, max_retries=2)
+                            _llm_call_count += 1  # J46-J48: anti-repetition retry call
                             _ci_groq_wait += _retry_wait
                             if not _detect_degenerate_repetition(retry_resp.content):
                                 final_answer = retry_resp.content
@@ -1866,6 +2218,17 @@ def code_intelligence_agent(state: RAGState) -> dict:
     timing["ci_business_resolver_time"] = round(_ci_resolver_time, 3) if '_ci_resolver_time' in dir() else 0.0
     timing["ci_per_hop_times"] = [round(t, 3) for t in _ci_per_hop_times]
     timing["ci_synthesis_time"] = round(_ci_synthesis_time, 3) if '_ci_synthesis_time' in dir() else 0.0
+    timing["llm_call_count"] = _llm_call_count
+
+    # Bloc 12 / J46-J48: close the reasoning trace for this question --
+    # SUMMARY record ties hop_count/llm_call_count/total_time to every HOP
+    # record logged above under the same trace_id, and flags whether
+    # CI_MAX_HOPS was actually hit (the J48 guardrail).
+    _trace_logger.log_summary(
+        trace_id=_trace_id, branch="code_intelligence", question=question,
+        hop_count=hop_count, llm_call_count=_llm_call_count,
+        total_time_ms=_ci_total_wall * 1000, hop_cap=CI_MAX_HOPS,
+    )
 
     return {
         "response": response,
