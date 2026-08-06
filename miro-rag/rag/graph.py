@@ -1307,6 +1307,8 @@ def _force_dynamic_uncertainty_answer(question: str, raw_tool_output: str) -> Op
 
 
 _CACHED_CODE_INTEL_GRAPH = None
+_CACHED_GRAPH_MTIME = 0.0
+GRAPH_JSON_PATH = Path(__file__).resolve().parent.parent / "code_intelligence" / "active_graph.json"
 
 
 def _load_module(mod_dir: Path) -> tuple:
@@ -1411,10 +1413,32 @@ def _load_module(mod_dir: Path) -> tuple:
 
 def get_code_intelligence_graph():
     """Lazy-load and cache Knowledge Graph for Code Intelligence node."""
-    global _CACHED_CODE_INTEL_GRAPH
+    global _CACHED_CODE_INTEL_GRAPH, _CACHED_GRAPH_MTIME
+
+    # Check if a built JSON graph exists and has been modified since last load
+    try:
+        if GRAPH_JSON_PATH.exists():
+            current_mtime = GRAPH_JSON_PATH.stat().st_mtime
+            if _CACHED_CODE_INTEL_GRAPH is None or current_mtime > _CACHED_GRAPH_MTIME:
+                from code_intelligence.atomic_graph_swap import atomic_read_json
+                from code_intelligence.graph_version import deserialize_graph_with_metadata
+                
+                logger.info("Loading graph from disk (mtime %s > %s)", current_mtime, _CACHED_GRAPH_MTIME)
+                data_dict = atomic_read_json(GRAPH_JSON_PATH)
+                G, metadata = deserialize_graph_with_metadata(data_dict)
+                _CACHED_CODE_INTEL_GRAPH = G
+                _CACHED_GRAPH_MTIME = current_mtime
+                logger.info("Knowledge Graph loaded from JSON: %d nodes, %d edges (version: %s)", 
+                            G.number_of_nodes(), G.number_of_edges(), metadata.get("git_commit", "unknown"))
+                return _CACHED_CODE_INTEL_GRAPH
+    except Exception as e:
+        logger.error("Failed to load graph from %s: %s", GRAPH_JSON_PATH, e)
+        # Fall back to building it
+
     if _CACHED_CODE_INTEL_GRAPH is not None:
         return _CACHED_CODE_INTEL_GRAPH
 
+    logger.info("Building Knowledge Graph from source files...")
     from code_intelligence.utils import discover_odoo_modules
     from code_intelligence.cross_file_resolver import build_module_symbol_registry
     from code_intelligence.graph_builder import OdooGraphBuilder
@@ -1447,6 +1471,18 @@ def get_code_intelligence_graph():
     registry = build_module_symbol_registry(modules_dict)
     builder = OdooGraphBuilder(registry, modules_dict)
     _CACHED_CODE_INTEL_GRAPH = builder.build_graph()
+    
+    # Save the freshly built graph so future requests or concurrent processes can load it fast
+    try:
+        from code_intelligence.atomic_graph_swap import atomic_write_json
+        from code_intelligence.graph_version import serialize_graph_with_metadata
+        data_dict = serialize_graph_with_metadata(_CACHED_CODE_INTEL_GRAPH)
+        atomic_write_json(data_dict, GRAPH_JSON_PATH)
+        _CACHED_GRAPH_MTIME = GRAPH_JSON_PATH.stat().st_mtime
+        logger.info("Saved freshly built graph to %s", GRAPH_JSON_PATH)
+    except Exception as e:
+        logger.error("Failed to save built graph to %s: %s", GRAPH_JSON_PATH, e)
+
     logger.info(
         "Knowledge Graph built: %d nodes, %d edges, %d modules",
         _CACHED_CODE_INTEL_GRAPH.number_of_nodes(),
@@ -1454,7 +1490,6 @@ def get_code_intelligence_graph():
         len(modules_dict),
     )
     return _CACHED_CODE_INTEL_GRAPH
-
 
 def code_intelligence_agent(state: RAGState) -> dict:
     """
@@ -1569,7 +1604,7 @@ def code_intelligence_agent(state: RAGState) -> dict:
         api_key=GROQ_API_KEY,
         temperature=0.0,
         max_retries=0,  # Let _invoke_with_rate_limit handle dynamic header backoff
-        max_tokens=4096,
+        max_tokens=1024,
         # ReAct-loop fix (part 2, post-Bloc-8 regression): force ONE tool
         # call per LLM turn. Without this, llama-3.1-8b-instant frequently
         # emits 3-4 tool_calls in a single ai_msg -- all chosen blind, in
