@@ -1,18 +1,27 @@
 """
 code_intelligence/tests/test_j23_24_authorization_gate.py
 
-Unit tests for Bloc 7 / J23-J24 (REVISED, see authorization_gate.py module
-docstring): TARGETED gating -- only lines explicitly tagged
-SENSITIVE_BYPASS_MARKER at the source are redacted, never a whole tool
-observation. Governance content (normal approval groups, has_group()
-checks, uncertainty caveats) must always survive gating untouched, even
-for a demandeur without elevated access -- that's precisely the bug this
-revision fixes (see git history / real plan.md Bloc 7 J23-24 for the
-original generalized-gating regression found in the first benchmark run).
+Unit tests for Bloc 7 / J23-J24 (REVISED twice, see authorization_gate.py
+module docstring):
+
+  1. TARGETED gating -- only lines explicitly tagged SENSITIVE_BYPASS_MARKER
+     at the source are redacted, never a whole tool observation. Governance
+     content (normal approval groups, has_group() checks, uncertainty
+     caveats) must always survive gating untouched, even for a demandeur
+     without elevated access -- that's precisely the bug this revision
+     fixes (see git history / real plan.md Bloc 7 J23-24 for the original
+     generalized-gating regression found in the first benchmark run).
+
+  2. (2026-08-07) ir.rule group rules the demandeur is NOT a member of are
+     no longer redacted by membership -- their name and domain_force are
+     governance/scoping content ("who can see what under which regional/
+     national cap"), the same category as "qui peut approuver ?", not a
+     security bypass. Only SENSITIVE_BYPASS_MARKER-tagged content is still
+     identity-gated.
 
 An explicit "élément omis pour raison d'autorisation" state is still kept,
 distinct from sourcing verification (J14) and from the confidence/coverage
-score.
+score, for the one remaining gated source (SENSITIVE_BYPASS_MARKER).
 """
 
 import networkx as nx
@@ -171,9 +180,16 @@ def test_no_marker_means_nothing_omitted_regardless_of_tool_name():
     assert gated_text == "Access matrix for account.move: ..."
 
 
-# ── Source 2: ir.rule group rules the demandeur is not a member of ──
+# ── Source 2 (removed 2026-08-07): ir.rule group rules the demandeur is ──
+# ── not a member of are governance content and are never redacted now ──
 
-def test_ignored_group_rule_details_are_stripped():
+def test_ignored_group_rule_details_are_never_redacted():
+    """Regression lock for the 2026-08-07 revision: a rule name and its
+    domain_force (e.g. a regional visibility cap) must survive gating even
+    for a demandeur who is not a member of the group that rule targets --
+    this is exactly the same category of content as "qui peut approuver ?",
+    which Source 1's tests above already established must never be gated.
+    """
     G = _build_graph_with_ir_rule(
         "custom.reimbursement.request",
         member_group="custom.group_reimbursement_member",
@@ -193,12 +209,13 @@ def test_ignored_group_rule_details_are_stripped():
         user_groups=["custom.group_reimbursement_member"],
         rule_result=rule_result,
     )
-    assert len(omitted) == 1
-    assert "Regle Region Non Autorisee" not in gated_text
-    assert "500000" not in gated_text
-    assert "ÉLÉMENT OMIS POUR RAISON D'AUTORISATION" in gated_text
-    # The applicable rule the demandeur DOES belong to must remain visible.
+    assert omitted == []
+    assert "Regle Region Non Autorisee" in gated_text
+    assert "500000" in gated_text
+    assert "ÉLÉMENT OMIS POUR RAISON D'AUTORISATION" not in gated_text
+    # The applicable rule the demandeur DOES belong to must remain visible too.
     assert "Regle Membre" in gated_text
+    assert gated_text == rule_result.summary_text
 
 
 def test_no_ignored_rules_means_nothing_omitted():

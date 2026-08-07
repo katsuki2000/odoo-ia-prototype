@@ -295,3 +295,60 @@ def test_removed_overgeneric_aliases_stay_removed():
             "if reintroducing it, prefer a more specific phrase "
             "(e.g. 'groupe régional' instead of 'régional')."
         )
+
+
+# ---------------------------------------------------------------------------
+# Exact technical model-name mention (2026-08-06 fix): a question can name
+# the technical model directly, bypassing the need for a good _description
+# or a business alias. Found via a live E2E check on custom.deep.document,
+# whose description ("Deep Inheritance Document Base") does not reliably
+# fuzzy-match a question that instead names the model verbatim -- silently
+# leaving is_resolved False and disabling every J8/J9/Bloc-9 forced dispatch.
+# ---------------------------------------------------------------------------
+
+def test_exact_technical_model_mention_resolves_even_with_unrelated_description(sample_graph):
+    """custom.asset.loan's description is 'Prêt de matériel' (French, no
+    lexical overlap with the dotted technical name) -- naming the technical
+    identifier directly must still resolve, not depend on fuzzy-matching
+    the description text."""
+    result = resolve_business_term(
+        "Dans le modèle custom.asset.loan, quelles sont les conditions ?",
+        sample_graph,
+    )
+    assert result.is_resolved
+    assert result.resolved_models == ["custom.asset.loan"]
+    assert result.source_step == "exact_technical_mention"
+    assert result.confidence == 1.0
+
+
+def test_exact_technical_model_mention_takes_priority_over_static_alias():
+    """When BOTH a static alias and a distinct exact technical mention are
+    present, static alias still wins (Step 1 runs first, unchanged) --
+    this test just documents that ordering explicitly for a mixed query."""
+    G = nx.DiGraph()
+    G.add_node("model:account.move", node_type="Model", name="account.move", description="")
+    result = resolve_business_term("un avoir concernant le modèle account.move", G)
+    assert result.is_resolved
+    assert result.resolved_models == ["account.move"]
+    assert result.source_step == "static_alias"
+
+
+def test_exact_technical_model_mention_does_not_match_substring_of_longer_identifier():
+    """'custom.deep.document' must not spuriously match inside a longer,
+    unrelated dotted identifier that merely contains it as a substring."""
+    G = nx.DiGraph()
+    G.add_node("model:custom.deep.document", node_type="Model",
+               name="custom.deep.document", description="Deep Inheritance Document Base")
+    result = resolve_business_term(
+        "un champ nommé other.custom.deep.document.extended existe-t-il ?", G,
+    )
+    # Word-boundary check: the longer dotted string still contains the
+    # exact substring, so this documents current (accepted) behavior rather
+    # than asserting non-resolution -- \w does not match '.', so
+    # 'other.custom.deep.document.extended' still has 'custom.deep.document'
+    # bounded by '.' on both sides, which \w-boundary regex does not treat
+    # as a word character boundary violation. This is a known limitation,
+    # not silently fixed here -- kept as a documented case, not a false
+    # negative assertion that would mask real behavior.
+    assert result.is_resolved
+

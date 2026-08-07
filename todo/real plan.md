@@ -91,6 +91,17 @@ J7 (revue de sécurité ligne à ligne + rejeu benchmark) :
 
 **Critère de fin** : décision produit actée, mécanisme testé sur le cas adversarial 3, non-régression sur le reste du benchmark.
 
+## Bloc 7-bis — Revision 2026-08-07 : gouvernance vs contournement, et disponibilite reelle des actions
+
+Deux ajustements decides le 07/08 avec le maitre de stage, en plus du gating cible de J23-24 :
+
+- **Gating resserre au strict contournement** : les noms/`domain_force` d'`ir.rule` pour les groupes dont le demandeur n'est pas membre ne sont plus masques (ils l'etaient depuis J23-24, cible sur une seule ligne). Ce n'est pas un mecanisme de contournement, c'est de la gouvernance/portee (qui voit quoi selon quelle region/plafond) -- meme categorie que « qui peut approuver ? », qui doit rester ouverte a tous. Seul `SENSITIVE_BYPASS_MARKER` (sudo(), emails/IDs codes en dur) reste filtre selon l'identite du demandeur. Voir `authorization_gate.py` (docstring revise) + `test_j23_24_authorization_gate.py::test_ignored_group_rule_details_are_never_redacted`.
+- **Disponibilite reelle sur les questions « comment faire X ? »** : `chemin_execution_bouton` accepte desormais `user_groups` et calcule `available_to_demandeur` en reutilisant le meme resolveur de groupe tolerant que le Bloc 1 (jamais une deuxieme implementation de l'algorithme de droits). Si l'action n'est pas disponible pour le demandeur reel (memes groupes signes JWT que le reste du Bloc 7, jamais devines par le LLM), la reponse doit dire explicitement que l'option n'existe pas dans l'interface pour lui, plutot que d'expliquer un mecanisme qu'il ne peut pas declencher. Voir `deterministic_tools.py`, `ci_agent_tools.py`, `rag/graph.py` (CI_SYSTEM_PROMPT regle 6, `_override_user_groups_arg`) et `test_j22bis_button_availability_gate.py`.
+
+**A verifier (non execute dans cette session -- pas d'acces d'execution sur cette machine, uniquement lecture/ecriture de fichiers)** : rejouer `pytest code_intelligence/tests/test_j23_24_authorization_gate.py code_intelligence/tests/test_j22bis_button_availability_gate.py code_intelligence/tests/test_j25_26_e2e_purchase_bypass_gate.py -v`, puis le benchmark adversarial complet (Q1.1/Q1.2 notamment, pour confirmer que les noms de regles regionale/nationale apparaissent desormais dans la reponse) avant de considerer ce point clos.
+
+---
+
 ## Bloc 8 — Sprint E : robustesse et cas limites
 
 - **J27 — mer. 02/09** : Cycles d'héritage — test de non-régression avec cycle artificiel injecté dans le corpus de test (détection déjà posée en A2, à couvrir en non-régression ici).
@@ -100,6 +111,15 @@ J7 (revue de sécurité ligne à ligne + rejeu benchmark) :
 
 **Critère de fin** : les 4 cas limites (cycles, ambiguïté, latence, extraction massive) ont chacun un test de non-régression vert et un chiffre/comportement documenté.
 
+Où on en est sur le Bloc 8 (mis à jour 06/08, plan retrouvé en retard sur le code réel)
+
+J27 (cycles d'héritage) : clos, 3/3 — cycle 2-modèles, cascade 3-modèles, auto-héritage, sous 2s.
+J28-J29 (symboles ambigus) : clos, 7/7 — `DEFINED_IN` par module, note "SYMBOLE AMBIGU" exposée à l'agent.
+J30-J31 (budget de latence) : **déjà fait**, contrairement à ce que ce plan indiquait — `run_adversarial_benchmark.py` calcule réellement p50/p90/p95 sur le temps effectif (hors attente Groq) et compare à `LATENCY_BUDGET_P90_SECONDS=12.0s`. Chiffre documenté le 06/08 : p90 = 6.84s ✅. Constantes dans `config/settings.py`.
+J32-J33 (extraction massive) : **déjà fait** — `_is_massive_extraction_request`/`_is_prompt_injection` (rag/graph.py) + `MAX_MODELS_PER_QUERY=3`, refus explicite testé et vert (`test_j32_33_massive_extraction_guard.py`).
+En creusant J28-29, un gap hors-périmètre trouvé le même jour : bug réel de surcharge en cascade sur `action_valider_avoir` (VIP/regional/base), traité comme un mini-cycle complet à part — dispatch forcé ajouté (`analyser_chaine_surcharge_methode`), garde structurelle trop large corrigée (explosion à 17 hops sur un modèle partagé comme account.move), instruction de synthèse manquante corrigée (le finding n'atteignait jamais le prompt de synthèse). Voir Bloc 9 pour la suite (gap de généralisation trouvé en marge).
+
+---
 
 ## Bloc 9 — Généralisation au code custom : jeu adversarial complémentaire
 *Approfondissement de ce qui existe déjà, en attendant l'accès au vrai code MiroKE*
@@ -108,6 +128,11 @@ J7 (revue de sécurité ligne à ligne + rejeu benchmark) :
 - **J36 — mar. 15/09** : Rejouer le Sprint D complet sur ce jeu élargi, consolider le rapport en distinguant explicitement "validé sur modules standards" / "validé sur custom synthétique" / "à confirmer sur le vrai code MiroKE".
 
 **Critère de fin** : rapport de couverture à trois niveaux (standard / custom synthétique / vrai code — en attente) documenté et partagé avec le maître de stage.
+
+Où on en est sur le Bloc 9 (mis à jour 06/08)
+
+J34-J35 (module custom adversarial supplémentaire, héritage 5 niveaux) : le module `custom_deep_inheritance_security` existe et sa couche extraction est testée et verte (`test_j34_35_deep_custom_modules.py`, 5 niveaux d'héritage, `domain_force` imbriqué, messages `UserError`/`ValidationError`) — mais ces tests exercent la couche extraction/parsing en isolation, jamais `code_intelligence_agent` de bout en bout. Rejeu manuel via un script de contrôle (`scripts/check_j34_35_e2e.py`, une question réelle sur ce module) a révélé un vrai gap de généralisation, pas ponctuel à ce module : `business_resolver._build_fuzzy_index()` n'indexait jamais le nom technique brut d'un modèle (`_name`), seulement sa `_description`/labels de champs/noms de menu — donc une question nommant le modèle technique verbatim pouvait ne jamais se résoudre, désactivant silencieusement tous les dispatches forcés J8/J9/Bloc 9 pour ce modèle. Corrigé (indexation du nom technique + nouvelle étape "exact_technical_mention" prioritaire dans `resolve_business_term`, 3 tests ajoutés, verts). Deuxième gap trouvé sur le même rejeu : l'outil renvoyait bien les deux verrous réels (seuils 50k€ et 100k€) mais la synthèse ne répondait qu'au premier volet d'une question à deux volets — corrigé par une instruction explicite dans `synthesis_prompt` (traiter chaque partie de la question, chaque message de verrou comme un finding distinct). Rejeu final : les deux seuils sont correctement surfacés. **J34-35 considéré clos côté extraction ET E2E maintenant**, mais la méthode (vérifier E2E, pas seulement les tests unitaires isolés) doit être répliquée sur les 8 autres modules adversariaux avant de clore complètement le bloc.
+J36 (rejeu Sprint D complet + rapport à trois niveaux) : **corrigé et confirmé 07/08.** Root cause : `get_code_intelligence_graph()` (rag/graph.py) ne chargeait jamais le vrai module Odoo `hr_expense` (dépendance directe de `custom_expense_risk_base`), donc `model:hr.expense` n'existait jamais dans le graphe -- corrigé en chargeant aussi les dépendances directes (un niveau) de chaque module `custom_*`. Rejeu E2E réel (`eval_j36_expense_risk_llm.py`, vrai `code_intelligence_agent` + LLM) : **8/8 (100%)**, voir `eval_report_j36_expense_risk.md`. Test de non-régression rapide/sans LLM ajouté et exécuté par l'équipe (`test_f08_j36_graph_dependency_loading.py`) : **3/3 verts en 8.92s**. Voir `todo/etat_reel.md` Bloc 9 pour le détail complet et la leçon sur la fraîcheur des docs. Bloc 9 dans son ensemble reste non clos : la méthode de vérification E2E doit encore être répliquée sur les 8 autres modules adversariaux.
 
 ---
 
@@ -199,3 +224,9 @@ Ces points restent dans le plan source mais **ne doivent consommer aucun jour ci
 | 13 | "Interopérabilité — état réel", gap différé |
 | 14 | Sprint D, "Suite de régression vivante OCA" |
 | 15 | Gaps différés, "Accès au vrai code MiroKE" |
+
+
+
+
+
+

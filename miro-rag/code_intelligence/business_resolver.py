@@ -204,9 +204,59 @@ def _build_fuzzy_index(G) -> List[Tuple[str, str]]:
                         index.append((menu_name.lower(), model_name))
                         break
 
+        if node_type == "Model":
+            # Gap found 2026-08-06 (custom.deep.document E2E check): the
+            # raw technical model name itself was never indexed, only its
+            # human-readable _description. A question stating the exact
+            # technical name verbatim (e.g. "dans le modèle
+            # custom.deep.document") had no reliable resolution path --
+            # is_resolved stayed False, so every J8/J9/Bloc-9 forced
+            # dispatch (analyser_verrous_securite, analyser_actions_serveur,
+            # analyser_chaine_surcharge_methode) silently never fired, and
+            # the LLM was left to freelance tool selection alone -- exactly
+            # the unreliable behavior J8 exists to remove. Index both the
+            # dotted technical name and its dot-to-space token form so
+            # fuzzy matching (which tokenizes on whitespace) can score it.
+            technical_name = data.get("name", node_id.replace("model:", ""))
+            if technical_name:
+                index.append((technical_name.lower(), technical_name))
+                spaced = technical_name.replace(".", " ").replace("_", " ")
+                if spaced != technical_name:
+                    index.append((spaced.lower(), technical_name))
+
     _FUZZY_INDEX_CACHE[cache_key] = index
     _logger.info("Built fuzzy index: %d entries from graph (%d nodes)", len(index), G.number_of_nodes())
     return index
+
+
+def _find_exact_technical_model_mentions(query_lower: str, G) -> List[str]:
+    """
+    Step 1.5 (added 2026-08-06, same gap as the fuzzy-index fix above):
+    before falling back to fuzzy matching against descriptions/labels,
+    check whether the query mentions a real technical model name verbatim
+    (e.g. "custom.deep.document"). This is strictly more reliable than
+    fuzzy matching for this specific case -- an exact technical identifier
+    in the question is unambiguous and should never depend on how well a
+    model's _description happens to read.
+
+    Returns the list of technical model names found as whole-word
+    substrings (dots included, so "custom.deep.document" won't spuriously
+    match inside a longer dotted identifier). Deliberately does not use
+    fuzzy scoring here -- this is an exact-mention check only.
+    """
+    if G is None:
+        return []
+    found = []
+    for node_id, data in G.nodes(data=True):
+        if data.get("node_type") != "Model":
+            continue
+        technical_name = data.get("name", node_id.replace("model:", ""))
+        if not technical_name or len(technical_name) < 3:
+            continue
+        pattern = r"(?<!\w)" + re.escape(technical_name.lower()) + r"(?!\w)"
+        if re.search(pattern, query_lower):
+            found.append(technical_name)
+    return found
 
 
 def _fuzzy_match_graph(query: str, G, threshold: int = 75, limit: int = 5) -> List[Tuple[str, float]]:
@@ -308,6 +358,21 @@ def resolve_business_term(query_text: str, G=None, llm=None) -> ResolvedConcept:
             source_step="static_alias",
             is_resolved=True,
             reason=f"Matched static aliases: {', '.join(matched_terms)}",
+        )
+
+    # Step 1.5 (2026-08-06 fix): exact technical model-name mention.
+    # Strictly more reliable than fuzzy matching when the question already
+    # names the technical identifier verbatim -- see
+    # _find_exact_technical_model_mentions docstring for the gap this closes.
+    exact_mentions = _find_exact_technical_model_mentions(clean_query, G)
+    if exact_mentions:
+        return ResolvedConcept(
+            user_term=query_text,
+            resolved_models=exact_mentions,
+            confidence=1.0,
+            source_step="exact_technical_mention",
+            is_resolved=True,
+            reason=f"Exact technical model name(s) mentioned verbatim: {', '.join(exact_mentions)}",
         )
 
     # Step 2: Fuzzy matching against Graph Node labels (rapidfuzz)

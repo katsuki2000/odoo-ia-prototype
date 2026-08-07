@@ -1103,7 +1103,14 @@ CI_SYSTEM_PROMPT = (
     "model/module name by paraphrasing the user's natural-language wording (e.g. 'demande_conge', "
     "'achat.demande', 'purchase.order') -- only the resolver-confirmed identifier or one copied "
     "verbatim from a prior successful observation is valid. Do not answer with uncertainty "
-    "language until you have used at least one tool call against the resolver-confirmed model."
+    "language until you have used at least one tool call against the resolver-confirmed model.\n"
+    "6. 'COMMENT FAIRE X ?' RULE (Bloc 7 extension, 2026-08-07): for any question asking HOW to "
+    "perform an action (click a button, submit a request, validate/approve something), invoke "
+    "`chemin_execution_bouton`. Its result states explicitly whether the action is available to "
+    "THIS demandeur. If it says NON DISPONIBLE / available_to_demandeur is false, your answer "
+    "MUST say plainly that the demandeur does not have this option in the interface and, if the "
+    "observation names the required group(s), who they should contact instead -- do NOT walk them "
+    "through the button/method mechanism as if they could trigger it themselves."
 )
 
 # C.1.4: Maximum hops allowed per question.
@@ -1199,10 +1206,16 @@ def _override_user_groups_arg(tool_name: str, tool_args: dict, resolved_user_gro
     -- the graph identifies groups by xml_id, never by raw DB id (see that
     function's docstring for the bug this fixes).
 
+    Also applies to chemin_execution_bouton (Bloc 7 extension, 2026-08-07):
+    a "comment faire X ?" question needs the button's REAL availability for
+    THIS demandeur, same reasoning as evaluer_regles_enregistrement -- the
+    LLM has no way to know the actual requester's real group memberships,
+    so whatever it proposes for user_groups_json is discarded here too.
+
     Mutates and returns tool_args for convenience; any value the LLM
     proposed is discarded and logged. No-op for every other tool.
     """
-    if tool_name != "evaluer_regles_enregistrement":
+    if tool_name not in ("evaluer_regles_enregistrement", "chemin_execution_bouton"):
         return tool_args
 
     real_groups_json = json.dumps(resolved_user_group_xmlids)
@@ -1467,6 +1480,47 @@ def get_code_intelligence_graph():
             mod_dir = addons_root / mod_name
             name, mod = _load_module(mod_dir)
             modules_dict[name] = mod
+
+        # J36 fix (2026-08-07): custom_* modules routinely _inherit a REAL
+        # Odoo core module (e.g. custom_expense_risk_base extends hr.expense
+        # via depends=['hr_expense']) that is neither part of the synthetic
+        # fake_data/code/ corpus nor itself prefixed 'custom_', so it was
+        # never loaded -- the extended model's base declaration (and its
+        # real fields/methods) never entered the graph, and every tool call
+        # against it returned "model not found" (confirmed root cause of the
+        # J36 Sprint D replay failure, 0/8, eval_report_j36_expense_risk.md).
+        # Load each custom_* module's DIRECT manifest dependencies too, one
+        # level only -- not the full transitive closure. A real addon's
+        # dependency chain quickly reaches base/mail/web and would balloon
+        # load time for no benefit here: we only need the dependency's OWN
+        # model declarations (e.g. hr.expense's _name + fields), not a
+        # faithful simulation of everything base/mail/web themselves add.
+        direct_deps = set()
+        for mod_name in custom_modules:
+            dep_mod = modules_dict.get(mod_name)
+            if dep_mod and dep_mod.manifest:
+                direct_deps.update(dep_mod.manifest.depends)
+
+        for dep_name in sorted(direct_deps):
+            if dep_name in modules_dict:
+                continue  # already loaded (fake_data/code, miro_ai, or another custom_* module)
+            dep_dir = addons_root / dep_name
+            if not dep_dir.is_dir() or not (dep_dir / "__manifest__.py").exists():
+                # Not a real loadable addon here (e.g. 'base' ships as a
+                # single file in this corpus, not a module directory) --
+                # skip rather than guess; topological_sort_modules already
+                # treats an unresolved dependency name as a harmless leaf.
+                continue
+            try:
+                name, mod = _load_module(dep_dir)
+                modules_dict[name] = mod
+                logger.info(
+                    "Loaded '%s' as a direct dependency of a custom_* module "
+                    "(J36 fix) -- its base model declarations are now available "
+                    "to models that _inherit it.", name,
+                )
+            except Exception as e:
+                logger.error("Failed to load custom_* dependency '%s': %s", dep_name, e)
 
     registry = build_module_symbol_registry(modules_dict)
     builder = OdooGraphBuilder(registry, modules_dict)
@@ -1803,7 +1857,7 @@ def code_intelligence_agent(state: RAGState) -> dict:
         and _question_is_approval_related(question)
     ):
         from code_intelligence.ci_agent_tools import find_methods_with_override_cascade
-        from code_intelligence.method_override_resolver import find_methods_with_unguarded_super
+        from code_intelligence.method_override_resolver import find_methods_with_override_risk_findings
         tool_map = {t.name: t for t in ALL_CI_TOOLS}
         override_tool = tool_map.get("analyser_chaine_surcharge_methode")
         if override_tool is not None:
@@ -1816,8 +1870,11 @@ def code_intelligence_agent(state: RAGState) -> dict:
                 # (17 hops on Q1.1/Q1.2/Q5.1) and to bury the real finding
                 # in noise. Only dispatch the full LLM-backed tool for
                 # methods where the cheap deterministic AST check already
-                # found something.
-                flagged_methods = find_methods_with_unguarded_super(G, target_model, candidate_methods)
+                # found something (unguarded-super OR, 2026-08-06 Bloc 9
+                # gap fix, an unchecked long relational-field chain --
+                # renamed find_methods_with_unguarded_super ->
+                # find_methods_with_override_risk_findings accordingly).
+                flagged_methods = find_methods_with_override_risk_findings(G, target_model, candidate_methods)
                 for method_name in flagged_methods:
                     call_key = ("analyser_chaine_surcharge_methode", target_model, method_name)
                     if call_key in seen_calls:
@@ -1865,8 +1922,13 @@ def code_intelligence_agent(state: RAGState) -> dict:
                     "overridden method(s) above because the question is approval-related "
                     "and a real override cascade exists on the target model; its output is "
                     "already included in the tool observations. Do not call it again -- if "
-                    "it flagged an unguarded super(), that finding takes precedence over any "
-                    "single-module reading of the method."
+                    "it flagged an unguarded super() OR an unchecked relational-field chain "
+                    "(CHAINE RELATIONNELLE NON VERIFIEE), that finding takes precedence over "
+                    "any single-module reading of the method. A relational-chain finding "
+                    "often names a SECOND threshold/condition (e.g. a higher amount that "
+                    "triggers an additional module's override on top of the first module's "
+                    "rule) -- when the question's stated amount clears both thresholds, both "
+                    "must be reported together, not only the first one encountered."
                 )
 
     messages = [
@@ -2107,7 +2169,24 @@ def code_intelligence_agent(state: RAGState) -> dict:
                     f"read in isolation. When both are present, lead the answer with what the "
                     f"override-chain finding says actually happens, not with the base module's "
                     f"lock message alone -- do not present the base module's rule as the answer "
-                    f"while ignoring a SUPER() NON GARDÉ finding on the same method."
+                    f"while ignoring a SUPER() NON GARDÉ finding on the same method. "
+                    f"If an observation contains 'CHAINE RELATIONNELLE NON VÉRIFIÉE', it "
+                    f"describes a SECOND, ADDITIONAL threshold/condition from a different "
+                    f"override module on top of whatever the base module's lock message already "
+                    f"said (e.g. base module: >5000€ needs manager approval; override module: "
+                    f">20000€ ALSO triggers director notification, with a real risk it silently "
+                    f"fails if the hierarchy chain is incomplete) -- when the amount in the "
+                    f"Original Question clears BOTH thresholds, report BOTH levels explicitly as "
+                    f"a cascade, including the relational-chain risk verbatim; never report only "
+                    f"the first (lowest) threshold and drop the second. "
+                    f"If the Original Question above asks about more than one condition or "
+                    f"threshold (e.g. 'qui peut valider X, et y a-t-il une restriction "
+                    f"supplémentaire au-delà de Y ?'), answer EACH part explicitly and "
+                    f"separately -- never answer only the first part and silently imply 'no' "
+                    f"for the rest. When an observation's 'Messages de verrous' section lists "
+                    f"more than one message, treat each one as a DISTINCT finding to report -- "
+                    f"do not summarize or select only one of them; a second or third message in "
+                    f"that list is exactly as authoritative as the first."
                 )
                 try:
                     plain_llm = ChatGroq(

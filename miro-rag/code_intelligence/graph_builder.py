@@ -269,7 +269,19 @@ class OdooGraphBuilder:
     def _add_security_group_nodes(self):
         """Add Group, Rule, AccessEntry nodes and security edges."""
         # 1. Groups & Group IMPLIES Group hierarchy
+        # F-08 fix (2026-08-07, extending the J7 rule fix to groups):
+        # registry.groups indexes each group under BOTH its full xml_id and
+        # its short xml_id (same mechanism as registry.rules -- see
+        # cross_file_resolver.build_module_symbol_registry). Without this
+        # guard, two Group nodes were built per real group, and a short-key
+        # duplicate has no '.' in it, so any code deriving a module prefix
+        # from it (as the rule-groups and automation loops below already do)
+        # would silently fall back to a wrong/hardcoded prefix. A
+        # fully-qualified key is guaranteed to exist for every group by
+        # construction, so skipping unqualified ones is safe.
         for full_xml_id, grp in self.registry.groups.items():
+            if "." not in full_xml_id:
+                continue
             grp_node_id = f"group:{full_xml_id}"
             self.G.add_node(
                 grp_node_id,
@@ -353,7 +365,15 @@ class OdooGraphBuilder:
                     self.G.add_edge(acl_node_id, grp_node_id, edge_type="APPLIES_TO_GROUP")
 
         # 4. Server Actions (ir.actions.server) & Automations (base.automation)
+        # F-08 fix (2026-08-07): same double-indexing defect as the rules
+        # loop above (J7), confirmed actively manifesting on 2026-08-06
+        # (Q5.1 benchmark: the same sudo() server action analysed and
+        # reported twice -- see todo/revue_code_20260806_override_chain.md,
+        # finding F5). registry.server_actions indexes each action under
+        # both its full and short xml_id; skip the unqualified duplicate.
         for full_xml_id, sa in self.registry.server_actions.items():
+            if "." not in full_xml_id:
+                continue
             sa_node_id = f"server_action:{full_xml_id}"
             self.G.add_node(
                 sa_node_id,
@@ -370,7 +390,14 @@ class OdooGraphBuilder:
                 model_node_id = f"model:{raw_m}"
                 self.G.add_edge(sa_node_id, model_node_id, edge_type="TARGETS_MODEL")
 
+        # F-08 fix (2026-08-07): same double-indexing defect, not yet
+        # observed in a benchmark for base_automations specifically but
+        # structurally identical to the confirmed server_actions/groups
+        # cases above -- fixed proactively rather than waiting for a
+        # concrete failure to surface it.
         for full_xml_id, ba in self.registry.base_automations.items():
+            if "." not in full_xml_id:
+                continue
             ba_node_id = f"automation:{full_xml_id}"
             self.G.add_node(
                 ba_node_id,

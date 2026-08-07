@@ -79,6 +79,54 @@
   - `code_intelligence/evaluation/eval_harness.py`: Automated evaluation harness script recording execution latency, hop count, tool accuracy, and generating markdown reports.
   - Optimized prompt & tool schema token footprint in `ci_agent_tools.py` and `graph.py`, reducing prompt tokens by >60% to run cleanly under Groq API tier limits.
 
+## 11. Bloc 7-bis (2026-08-07) — Gouvernance vs contournement, disponibilité réelle des actions
+- `authorization_gate.py`: removed the ir.rule name/`domain_force` redaction for groups the demandeur isn't a member of (was there since J23-24, one line only). That content is governance/scoping, not a security bypass -- only `SENSITIVE_BYPASS_MARKER`-tagged lines (sudo(), hardcoded emails/IDs) remain identity-gated now. Updated `test_j23_24_authorization_gate.py` (`test_ignored_group_rule_details_are_never_redacted` replaces the old `_are_stripped` test).
+- `deterministic_tools.py`: `chemin_execution_bouton` now accepts an optional `user_groups` param and returns `available_to_demandeur` / `unavailable_reason`, reusing `resolve_group_identifier` + `_expand_implied_user_groups` (no new access-check algorithm). New helper `_demandeur_satisfies_required_groups`.
+- `ci_agent_tools.py`: `chemin_execution_bouton` tool wrapper now takes `user_groups_json` (same pattern as `evaluer_regles_enregistrement`).
+- `rag/graph.py`: `_override_user_groups_arg` now also injects the real demandeur's groups into `chemin_execution_bouton` calls; added rule 6 to `CI_SYSTEM_PROMPT` instructing the synthesis to say plainly when an action isn't available to the demandeur instead of walking them through it.
+- New test: `code_intelligence/tests/test_j22bis_button_availability_gate.py` (5 unit tests, synthetic graphs, no live Odoo/Groq dependency).
+- Not run in this session (file-editing access only, no execution on this machine) -- run `pytest code_intelligence/tests/test_j23_24_authorization_gate.py code_intelligence/tests/test_j22bis_button_availability_gate.py code_intelligence/tests/test_j25_26_e2e_purchase_bypass_gate.py -v` and rejeu the adversarial benchmark (Q1.1/Q1.2) before considering this closed. See `todo/real plan.md` Bloc 7-bis and `todo/etat_reel.md`.
+
+## 12. Bloc 9 / J36 (2026-08-07) -- documentation catch-up + missing regression test
+
+Found this session that the J36 fix (root cause + code change) had already been applied and verified E2E earlier the same morning, but neither logged here nor reflected in `todo/etat_reel.md` / `todo/real plan.md`, which still described J36 as an open 0/8 failure with an unconfirmed diagnosis -- confirmed stale by comparing file mtimes (graph rebuild 09:25, eval 8/8 at 09:30, `etat_reel.md` rewritten later at 10:33 without re-checking either).
+
+- Root cause (confirmed by reading `rag/graph.py::get_code_intelligence_graph()`): `custom_expense_risk_base` extends `hr.expense` via `depends=['hr_expense']`, but `hr_expense` -- a real Odoo core module, not part of `fake_data/code/`, not `miro_ai`, not prefixed `custom_*` -- was never loaded, so `model:hr.expense` never existed in the graph and every tool call against it returned "model not found". Confirmed root cause of the documented 0/8 J36 Sprint D replay failure.
+- Fix (already present on disk, code comment dated 2026-08-07): `get_code_intelligence_graph()` now also loads each `custom_*` module's DIRECT manifest dependencies (one level only, not transitive) when not already loaded some other way.
+- E2E confirmation already on disk: `active_graph.json` rebuilt 2026-08-07 09:25 (old broken graph preserved as `active_graph.json.stale_pre_f08_j36_fix_20260807`), then `code_intelligence/evaluation/eval_j36_expense_risk_llm.py` (real `code_intelligence_agent` + Groq calls, not isolated tests) rerun at 09:30 -> 8/8 (100%), see `code_intelligence/evaluation/eval_report_j36_expense_risk.md`.
+- Test coverage gap found and closed: the only file named "J36" (`test_j36_sprint_d_expense_risk_replay.py`, 2026-08-06) hand-builds its graph from only the 3 `custom_expense_risk_*` modules and never loads `hr_expense` either -- it could not have caught this bug or locked the fix. No fast/deterministic (no-LLM) test exercised the actually-fixed code path. Added `code_intelligence/tests/test_f08_j36_graph_dependency_loading.py`: forces a full rebuild through `get_code_intelligence_graph()` itself (the real production path, not a hand-assembled subset), no LLM, asserts `hr.expense` carries its real base fields (`total_amount`, `employee_id`) with the correct cross-module cascade into `risk_score`/`alerte_conformite`.
+- Updated `todo/etat_reel.md` and `todo/real plan.md` (Bloc 9 / J36 sections) to replace the stale "0/8, open, unconfirmed" text with the confirmed fixed state, and documented the doc-staleness incident itself as a lesson (same pattern as the Bloc 7-bis lesson already on file).
+- Ran by the team same day: `pytest code_intelligence/tests/test_f08_j36_graph_dependency_loading.py -v` -> 3/3 PASSED in 8.92s (`test_hr_expense_base_model_is_loaded`, `test_real_base_field_impact_reaches_custom_cascade`, `test_employee_id_is_the_real_base_field_not_a_phantom_reference`). J36's test coverage gap is now closed -- fast, deterministic, no Groq dependency.
+- Bloc 9 as a whole remains open regardless: the E2E-verification method (not just isolated unit tests, which can pass while missing the real gap) still needs to be replicated across the other 8 adversarial modules before the block can be closed. See `todo/etat_reel.md` Bloc 9.
+
+## 13. Bloc 9 (2026-08-07, this session) -- start of the "8 autres modules adversariaux" replication, script 1/8
+
+Session scope: filesystem-only access again (no execution on this machine), so this is script-writing + ground-truth verification by reading source, not a run.
+
+First step was pinning down what "8 autres modules adversariaux" actually enumerates, since neither `real plan.md` nor `etat_reel.md` lists them by name -- traced it to the 9 questions in `scripts/run_adversarial_benchmark.py::BENCHMARK_QUESTIONS` (Q1.1/Q1.2, Q2.1, Q3.1, Q4.1, Q5.1, Q6.1/Q6.2, Q9.1 = 9 questions over 7 distinct mechanisms), which map to 9 `custom_*` addon directories once `custom_credit_note_approval`/`_regional`/`_vip` are counted separately:
+
+1. custom_credit_note_approval (+regional +vip) -- cascade avoirs (Q1.1/Q1.2)
+2. custom_credit_note_visibility_rules -- ir.rule ET/OU (Q6.1/Q6.2)
+3. custom_hr_leave_workflow -- congés (Q2.1)
+4. custom_purchase_request -- demande d'achat (Q3.1)
+5. custom_asset_loan -- asset loan (Q4.1)
+6. custom_automation_traps -- actions serveur / sudo (Q5.1)
+7. custom_expense_reimbursement_indirect -- incertitude getattr (Q9.1)
+
+That's 7 distinct mechanisms across 9 addon dirs. `custom_deep_inheritance_security` (J34-35) and the `custom_expense_risk_*` trio (J36) are the *supplementary* Bloc-9 modules built to probe generalization gaps, not part of this set -- their check scripts (`check_j34_35_e2e.py`, `check_locks_raw.py`) are the template being replicated here, not additional items to replicate onto. Not claiming to have resolved the "8" vs "7 mechanisms" wording exactly -- documenting the discrepancy rather than silently picking one, per the project's own stated lesson about not trusting a plan/doc count without reverifying against what's actually on disk.
+
+Script 1/8 built: `scripts/check_bloc9_01_credit_note_cascade_e2e.py` (mechanism 1 above -- base+regional+vip cascade on `account.move.action_valider_avoir`). Structure mirrors `check_j34_35_e2e.py` + `check_locks_raw.py`:
+  - raw `analyser_chaine_surcharge_methode` tool output isolated from synthesis (checks all 3 module names surface in the raw observation before blaming the LLM for dropping one);
+  - one E2E question using the same business phrasing as the existing Q1.1/Q1.2 benchmark (regression anchor);
+  - one E2E question using the bare technical model name `account.move` instead of a business alias, re-exercising the `exact_technical_mention` resolver path that J34-35 found silently broken for a purely custom model -- weaker signal here since `account.move` is a core model already well-indexed, but still confirms the forced dispatch survives literal technical naming;
+  - one E2E question specifically on the VIP trap (`avoir_vip_exempt` + late `super()` call over the whole recordset) flagged in `real plan.md`.
+
+Ground truth re-verified by reading source directly (not from memory/plan text): `custom_credit_note_approval/models/account_move.py` (>5000€ -> `account.group_account_manager`), `custom_credit_note_approval_regional/models/account_move.py` (>20000€ -> N+2 via `employee_id.parent_id.parent_id.user_id`, undocumented anywhere else), `custom_credit_note_approval_vip/models/account_move.py` (VIP bypass + `super()` called after the VIP branch already `continue`d).
+
+**Not run in this session** -- run `python scripts/check_bloc9_01_credit_note_cascade_e2e.py` before considering module 1/8 closed. Next up (script 2/8): `custom_credit_note_visibility_rules` (Q6.1/Q6.2, ir.rule OU combination).
+
+**Tooling mistake caught and fixed same session, TWICE**: (1) the script was first written with the wrong file tool (Claude's own sandbox filesystem instead of the user's real machine via the filesystem connector) -- it reported success but the file never existed on disk at `~/odoo-ia-prototype/scripts/`, confirmed by the user hitting `No such file or directory`. Re-written with the correct tool (`Filesystem:write_file`) and verified present on the real filesystem (`get_file_info`) before telling the user to rerun it. (2) After the first live run surfaced the substring-matching false positive (below), the fix was applied with the wrong EDIT tool again (`str_replace`, Claude's own sandbox editor, instead of `Filesystem:edit_file`) -- it reported "successfully replaced" with no diff shown, and `get_file_info` on the real file showed an unchanged mtime, exposing the mistake before the user re-ran anything. Re-applied with `Filesystem:edit_file` (which returns an actual diff on success -- a clearer success signal than str_replace's bare confirmation) and re-verified by reading the file back in full. Lesson, same category as the Bloc 7-bis test-file incident: a tool call reporting success is not proof a file exists or changed where the user can actually reach it -- always verify on the target filesystem via a read-back or diff, not just the tool's return message. When two filesystems are in play (this sandbox vs. the user's real machine via the connector), double-check which tool namespace (`Filesystem:*` vs. bare `str_replace`/`create_file`) is being called before trusting its result.
+
 
 
 

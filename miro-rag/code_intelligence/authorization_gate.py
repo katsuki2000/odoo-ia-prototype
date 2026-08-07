@@ -35,26 +35,35 @@ synthesis LLM paraphrasing an omitted fact in its own words. Gating the
 raw observation removes the fact from the LLM's context entirely, so it
 cannot leak it back out reworded.
 
-Two independent sources of privileged content are gated:
+Exactly ONE source of privileged content is gated (REVISED 2026-08-07,
+see conversation with maître de stage the same day -- real plan.md /
+etat_reel.md Bloc 7 entry):
 
-1. ir.rule group rules the demandeur is NOT a member of
-   (RuleEvaluationResult.ignored_group_rules from
-   evaluer_regles_enregistrement / evaluer_regles_raw). Their name and
-   domain_force are stripped from the tool observation text -- revealing
-   which restriction exists for a group the demandeur isn't part of is
-   exactly the kind of thing such a rule exists to hide from them. This
-   was already targeted (one line only) before this revision -- unchanged.
+Lines explicitly tagged SENSITIVE_BYPASS_MARKER by the analyzer that
+produced them (semgrep_locks_analyzer.py: hardcoded privileged logins;
+server_action_analyzer.py: sudo() calls, hardcoded ID lists). Redacted
+unless the demandeur holds elevated access on the model the observation
+concerns (see _has_elevated_access) -- everything else in the SAME
+observation (normal has_group() checks, dynamic-dispatch uncertainty
+caveats, approval group listings) is left untouched, tool-name-agnostic:
+any tool's output gets this same line-level treatment, so a future
+analyzer only needs to tag its own sensitive lines, not be registered
+in an allowlist here.
 
-2. Lines explicitly tagged SENSITIVE_BYPASS_MARKER by the analyzer that
-   produced them (semgrep_locks_analyzer.py: hardcoded privileged logins;
-   server_action_analyzer.py: sudo() calls, hardcoded ID lists). Redacted
-   unless the demandeur holds elevated access on the model the observation
-   concerns (see _has_elevated_access) -- everything else in the SAME
-   observation (normal has_group() checks, dynamic-dispatch uncertainty
-   caveats, approval group listings) is left untouched, tool-name-agnostic:
-   any tool's output gets this same line-level treatment, so a future
-   analyzer only needs to tag its own sensitive lines, not be registered
-   in an allowlist here.
+ir.rule group rules the demandeur is NOT a member of (via
+RuleEvaluationResult.ignored_group_rules) are DELIBERATELY NOT gated
+anymore, even though an earlier version of this module did strip their
+name and domain_force. Reviewed 2026-08-07: a rule like "Avoirs -
+plafond visibilite regionale (50000e)" describes WHO can see WHAT under
+which scope -- that is governance content, the same category as "qui
+peut approuver un avoir de 25000e ?", not a security bypass. Gating it
+by group membership reproduces, on a smaller scale, exactly the mistake
+the J23-24 revision above already fixed once for the whole-observation
+case: it makes a legitimate "pourquoi je ne vois pas cet avoir ?"
+question unanswerable for precisely the users who would ask it. Only an
+actual bypass mechanism (SENSITIVE_BYPASS_MARKER) still withholds
+identity-dependent content; a scoping/visibility ir.rule never does,
+regardless of the demandeur's groups.
 
 Every omission is recorded as an explicit OmittedItem -- never silently
 dropped -- and is kept separate from sourcing_guard.py's citation
@@ -73,13 +82,6 @@ from typing import List, Optional, Set, Tuple
 import networkx as nx
 
 _OMISSION_MARKER = "ÉLÉMENT OMIS POUR RAISON D'AUTORISATION"
-
-# Deliberately NOT DOTALL and scoped with [^\n]*: the line that follows in
-# the summary (the CONCLUSION line) starts with "  -> " (arrow), not "  - "
-# (dash), so a lookahead keyed on "  - " would never match that boundary
-# and a .*? would silently swallow the CONCLUSION text too. Matching only
-# up to the next newline keeps the redaction scoped to this one line.
-_IGNORED_RULES_LINE = re.compile(r"  - Règles de Groupe ignorées \(non-membre\):[^\n]*")
 
 # J25-26 fix: same has_group('xml.id') detection already trusted for
 # ir.actions.server code (server_action_analyzer.py's _HAS_GROUP_PATTERN),
@@ -211,18 +213,6 @@ def _has_elevated_access(G: nx.DiGraph, model_name: str, user_groups: List[str])
     )
 
 
-def _strip_ignored_rule_details(observation: str) -> str:
-    """Remove the 'Règles de Groupe ignorées (non-membre): ...' line's
-    content (rule names + domain_force) from an evaluer_regles_enregistrement
-    summary, replacing it with an explicit omission marker. The line's mere
-    presence (that some rules were evaluated and ignored) is kept -- only
-    the identifying details of those specific rules are withheld."""
-    return _IGNORED_RULES_LINE.sub(
-        f"  - Règles de Groupe ignorées (non-membre) : [{_OMISSION_MARKER}]",
-        observation,
-    )
-
-
 def _redact_sensitive_bypass_lines(
     observation: str,
     model_name: str,
@@ -299,19 +289,12 @@ def gate_observation(
     """
     omitted_items: List[OmittedItem] = []
 
-    if tool_name == "evaluer_regles_enregistrement" and rule_result is not None:
-        ignored = getattr(rule_result, "ignored_group_rules", None) or []
-        if ignored:
-            observation = _strip_ignored_rule_details(observation)
-            names = ", ".join(r.rule_name or r.rule_xml_id for r in ignored)
-            omitted_items.append(OmittedItem(
-                label=f"ir.rule sur '{model_name}' non applicable(s) au demandeur : {names}",
-                reason=(
-                    f"{_OMISSION_MARKER} : ces règles de sécurité visent des groupes dont le "
-                    "demandeur n'est pas membre ; leur nom et leur condition (domain_force) ne "
-                    "sont pas divulgués."
-                ),
-            ))
+    # NOTE (revised 2026-08-07): ir.rule names/domain_force for groups the
+    # demandeur isn't a member of used to be stripped here via
+    # rule_result.ignored_group_rules. That masking is intentionally gone
+    # -- see this module's docstring for why (governance/scoping content,
+    # not a security bypass). rule_result is still accepted as a parameter
+    # for forward compatibility, but is currently unused by this function.
 
     # Bloc 7 (J23-24, revised): source-tagged bypass lines are redacted
     # regardless of which tool produced them -- applies uniformly, after

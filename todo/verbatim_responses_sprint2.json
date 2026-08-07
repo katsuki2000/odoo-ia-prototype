@@ -4,27 +4,29 @@
     "category": "1. Cascade avoirs (Standard)",
     "question": "Qui a le droit d'approuver un avoir de 25 000€ pour un client normal (pas VIP) ?",
     "expected": "Niveau 1: Groupe account.group_account_manager (>5000€). Niveau 2: Directeur régional (N+2) notifié (>20000€, code Python). Risque: N+2 non géré si vide.",
-    "verbatim": "Analyse des droits d'approuver un avoir de 25 000€ pour un client normal (pas VIP) :\n\n- L'analyse des verrous Python dans le module `account_move.py` (L1-L22) indique que \"Seul un responsable comptable peut valider un avoir de plus de 5000€.\" [Confiance: HIGH].\n\n- L'analyse des verrous Python dans les modules `account_move.py` (L1-L21) et `account_move.py` (L1-L14) ne détecte aucun verrou spécifique ni incertitude dynamique.\n\n- L'analyse des verrous Python dans le module `account_bank_statement_line.py` (L1-L807) ne détecte aucun verrou spécifique ni incertitude dynamique.\n\n- La chaîne de surcharge de la méthode `action_valider_avoir` (3 modules, ordre d'exécution réel, pas l'ordre de dépendance) indique que la méthode `action_valider_avoir` du module `custom_credit_note_approval_vip` contient une branche conditionnelle qui modifie l'état sans `return` explicite, suivie d'un appel `super().action_valider_avoir(...)` inconditionnel plus loin dans la méthode. La logique de la classe parente va se réappliquer sur TOUS les enregistrements, y compris ceux couverts par la branche conditionnelle -- risque réel que la condition soit silencieusement annulée. [Confiance: FAIBLE].\n\n- La chaîne de surcharge de la méthode `action_valider_avoir` (3 modules, ordre d'exécution réel, pas l'ordre de dépendance) indique que la méthode `action_valider_avoir` du module `custom_credit_note_approval_regional` et `custom_credit_note_approval` ne détecte aucun verrou spécifique ni incertitude dynamique.\n\n- Le module `account.invoice` n'a pas été trouvé dans le graphique de connaissance indexé (probable typo ou modèle manquant).\n\nEn conclusion, selon l'analyse des verrous Python dans le module `account_move.py` (L1-L22), seul un responsable comptable peut valider un avoir de plus de 5000€.\n\n[Source: Graphe de Connaissances Code Intelligence]",
+    "verbatim": "Analyse des verrous Python ([account_move.py:L1-L22](file:///home/user/odoo-17.0/addons/custom_credit_note_approval/models/account_move.py#L1-L22)) [Confiance: HIGH]:\n  - Messages de verrous (UserError/ValidationError):\n    * \"Seul un responsable comptable peut valider un avoir de plus de 5000€.\"\n\nÉvaluation des règles d'enregistrement (ir.rule) pour 'account.move':\n  - Règles Globales (ET pour tous): Avoirs - cantonnement societe (regle globale, sans groupe) [['|', ('move_type', '!=', 'out_refund'), ('company_id', '=', user.company_id.id)]]\n  - Règles de Groupe applicables: Aucune (l'utilisateur n'appartient à aucun des groupes visés)\n  - Règles de Groupe ignorées (non-membre): Purchase User Account Move [[('move_type', 'in', ('in_invoice', 'in_refund', 'in_receipt'))]], Avoirs - visibilite par departement (sauf managers) [['|', ('move_type', '!=', 'out_refund'), '|', ('invoice_user_id', '=', user.id), ('journal_id.department_id', '=', user.employee_id.department_id.id)]], Avoirs - plafond visibilite regionale (50000e) [['|', ('move_type', '!=', 'out_refund'), ('amount_total', '<=', 50000)]], Avoirs - visibilite nationale (illimitee) [[(1, '=', 1)]], Expense Team Approver Account Move [[('line_ids.expense_id', '!=', False)]]\n  -> CONCLUSION: Aucune regle de groupe applicable (l'utilisateur n'appartient a aucun groupe cible par une regle sur ce modele). Seules les regles globales ci-dessus s'appliquent -- il n'y a AUCUNE restriction supplementaire de montant ou de portee pour valider un avoir de 25 000€.\n\nCependant, il est important de noter que la chaîne de surcharge de 'account.move.action_valider_avoir' (3 modules, ordre d'exécution réel, pas l'ordre de dépendance) contient une branche conditionnelle qui modifie l'état sans `return` explicite, suivie d'un appel `super().action_valider_avoir(...)` inconditionnel plus loin dans la méthode. La logique de la classe parente va se réappliquer sur TOUS les enregistrements, y compris ceux couverts par la branche conditionnelle -- risque réel que la condition soit silencieusement annulée. [Confiance: FAIBLE -- heuristique statique sur la forme exacte du contrôle de flux, ne détecte pas les gardes formulées autrement]\n\nEn conclusion, seul un responsable comptable peut valider un avoir de plus de 5000€, mais il n'y a pas de restriction supplémentaire de montant ou de portée pour valider un avoir de 25 000€. Cependant, il existe un risque réel que la condition soit silencieusement annulée en raison de la chaîne de surcharge de 'account.move.action_valider_avoir'.\n\n[Source: Graphe de Connaissances Code Intelligence]",
     "sources": [
+      "Code Intelligence Graph",
+      "Code Intelligence Graph",
       "Code Intelligence Graph",
       "Code Intelligence Graph",
       "Code Intelligence Graph",
       "Code Intelligence Graph"
     ],
-    "elapsed_seconds": 79.75,
-    "effective_seconds": 7.421,
-    "groq_wait_seconds": 72.328,
-    "hop_count": 4,
+    "elapsed_seconds": 72.21,
+    "effective_seconds": 12.608,
+    "groq_wait_seconds": 59.602,
+    "hop_count": 6,
     "timing_detail": {
-      "code_intelligence_time": 79.74872255325317,
-      "ci_hop_count": 4,
-      "ci_groq_wait_time": 72.328,
-      "ci_effective_time": 7.421,
+      "code_intelligence_time": 72.21027302742004,
+      "ci_hop_count": 6,
+      "ci_groq_wait_time": 59.602,
+      "ci_effective_time": 12.608,
       "ci_business_resolver_time": 0.0,
       "ci_per_hop_times": [
-        0.08
+        0.013
       ],
-      "ci_synthesis_time": 58.631,
+      "ci_synthesis_time": 6.284,
       "llm_call_count": 2
     }
   },
@@ -33,27 +35,29 @@
     "category": "1. Cascade avoirs (VIP)",
     "question": "Qui a le droit d'approuver un avoir pour un client VIP ?",
     "expected": "Bypass total pour avoir_vip_exempt = True. Piège: super().action_valider_avoir() rappelé sur tout le recordset à la fin.",
-    "verbatim": "Analyse des résultats :\n\n- L'analyse des verrous Python ([account_move.py:L1-L22](file:///home/user/odoo-17.0/addons/custom_credit_note_approval/models/account_move.py#L1-L22)) [Confiance: HIGH] indique que seul un responsable comptable peut valider un avoir de plus de 5000€.\n- L'analyse des verrous Python ([account_bank_statement_line.py:L1-L807](file:///home/user/odoo-ia-prototype/miro-rag/fake_data/code/account/account_bank_statement_line.py#L1-L807)) [Confiance: HIGH] n'a pas détecté de verrou spécifique ni d'incertitude dynamique.\n- L'analyse des verrous Python ([account_move.py:L1-L14](file:///home/user/odoo-17.0/addons/custom_credit_note_approval_vip/models/account_move.py#L1-L14)) [Confiance: HIGH] n'a pas détecté de verrou spécifique ni d'incertitude dynamique.\n- La chaîne de surcharge de 'account.move._reverse_moves' (2 modules, ordre d'exécution réel, pas l'ordre de dépendance) indique que la logique de la classe parente va se réappliquer sur TOUS les enregistrements, y compris ceux couverts par la branche conditionnelle -- risque réel que la condition soit silencieusement annulée.\n- La chaîne de surcharge de 'account.move.action_valider_avoir' (3 modules, ordre d'exécution réel, pas l'ordre de dépendance) indique que la logique de la classe parente va se réappliquer sur TOUS les enregistrements, y compris ceux couverts par la branche conditionnelle -- risque réel que la condition soit silencieusement annulée.\n- Le groupe identifiant 'client_vip_group' n'a pas pu être résolu contre aucun groupe avec des règles d'écriture ou des ACLs sur 'account.move'. Cela ne signifie pas que l'accès est refusé -- cela signifie que l'identifiant lui-même n'a pas pu être matché.\n\nRéponse finale :\n\nSeul un responsable comptable peut valider un avoir de plus de 5000€.\n\n[Source: Graphe de Connaissances Code Intelligence]",
+    "verbatim": "Analyse des droits d'approuver un avoir pour un client VIP :\n\n- Le module 'custom_credit_note_approval' n'a pas de verrou spécifique ni incertitude dynamique détecté.\n- Le module 'custom_credit_note_approval_vip' n'a pas de verrou spécifique ni incertitude dynamique détecté.\n- Le module 'hr_expense' n'a pas de verrou spécifique ni incertitude dynamique détecté.\n- Le module 'purchase' n'a pas de verrou spécifique ni incertitude dynamique détecté.\n\nCependant, la chaîne de surcharge de 'account.move.action_valider_avoir' (module 'custom_credit_note_approval_vip') contient une branche conditionnelle qui modifie l'état sans `return` explicite, suivie d'un appel `super().action_valider_avoir(...)` inconditionnel plus loin dans la méthode. La logique de la classe parente va se réappliquer sur TOUS les enregistrements, y compris ceux couverts par la branche conditionnelle -- risque réel que la condition soit silencieusement annulée.\n\nEn outre, la chaîne de surcharge de 'account.move.action_valider_avoir' (module 'custom_credit_note_approval_regional') contient une CHAINE RELATIONNELLE NON VÉRIFIÉE (Règle 3) : 'action_valider_avoir' (module 'custom_credit_note_approval_regional') dépasse la condition de base du module 'custom_credit_note_approval_vip' et ajoute une restriction supplémentaire.\n\nEnfin, le Model 'account.move' [WRITE] est autorisé pour les groupes account.group_account_invoice, account.group_account_manager, account.group_account_user, group_purchase_user, purchase.group_purchase_manager.\n\nEn conclusion, pour approuver un avoir pour un client VIP, il faut vérifier les conditions suivantes :\n\n- La condition de base du module 'custom_credit_note_approval_vip' (pas de verrou spécifique ni incertitude dynamique détecté).\n- La condition supplémentaire du module 'custom_credit_note_approval_regional' (CHAINE RELATIONNELLE NON VÉRIFIÉE).\n- La chaîne de surcharge de 'account.move.action_valider_avoir' (module 'custom_credit_note_approval_vip') qui peut annuler la condition de base.\n\nIl est donc important de vérifier les conditions supplémentaires et les chaînes de surcharge pour déterminer qui a le droit d'approuver un avoir pour un client VIP.\n\n[Source: Graphe de Connaissances Code Intelligence]",
     "sources": [
+      "Code Intelligence Graph",
+      "Code Intelligence Graph",
       "Code Intelligence Graph",
       "Code Intelligence Graph",
       "Code Intelligence Graph",
       "Code Intelligence Graph"
     ],
-    "elapsed_seconds": 65.09,
-    "effective_seconds": 5.576,
-    "groq_wait_seconds": 59.515,
-    "hop_count": 4,
+    "elapsed_seconds": 65.33,
+    "effective_seconds": 10.411,
+    "groq_wait_seconds": 54.916,
+    "hop_count": 6,
     "timing_detail": {
-      "code_intelligence_time": 65.09076857566833,
-      "ci_hop_count": 4,
-      "ci_groq_wait_time": 59.515,
-      "ci_effective_time": 5.576,
+      "code_intelligence_time": 65.32705068588257,
+      "ci_hop_count": 6,
+      "ci_groq_wait_time": 54.916,
+      "ci_effective_time": 10.411,
       "ci_business_resolver_time": 0.0,
       "ci_per_hop_times": [
         0.001
       ],
-      "ci_synthesis_time": 5.953,
+      "ci_synthesis_time": 6.054,
       "llm_call_count": 2
     }
   },
@@ -62,25 +66,26 @@
     "category": "2. Congés (Message d'erreur)",
     "question": "Pourquoi je n'arrive pas à valider ma demande de congé alors que j'ai coché 'urgente' ?",
     "expected": "Message d'erreur exact: 'Une demande urgente dépassant le solde doit être validée par le N+2 ou un responsable RH.'",
-    "verbatim": "Bonjour,\n\nJe suis désolé d'entendre que vous rencontrez des difficultés pour valider votre demande de congé. Selon l'analyse des verrous Python, il semble que le problème soit lié à votre solde de congés restant. Vous avez coché 'urgente', mais votre solde de congés est insuffisant. Vous devez cocher 'Demande urgente' pour soumettre une demande de validation exceptionnelle du N+2.\n\nCependant, il est important de noter que même si vous cochez 'urgente', votre demande doit être validée par le N+2 ou un responsable RH si elle dépasse votre solde de congés.\n\nJ'espère que cela vous aidera à résoudre le problème. Si vous avez d'autres questions, n'hésitez pas à me demander.\n\nCordialement, [Votre nom]\n\n[Source: Graphe de Connaissances Code Intelligence]",
+    "verbatim": "Analyse des verrous Python ([hr_leave.py:L1-L28](file:///home/user/odoo-17.0/addons/custom_hr_leave_workflow/models/hr_leave.py#L1-L28)) [Confiance: HIGH] :\n\n- Vous avez un message de verrou qui indique : \"Impossible de valider : le solde de conges restant (%.1f jours) est insuffisant. Cochez 'Demande urgente' pour soumettre quand meme a validation exceptionnelle du N+2.\"\n- Vous avez un autre message de verrou qui indique : \"Une demande urgente depassant le solde doit etre validee par le N+2 ou un responsable RH.\"\n\nAnalyse des verrous Python ([hr_leave.py:L1-L1825](file:///home/user/odoo-17.0/addons/hr_holidays/models/hr_leave.py#L1-L1825)) [Confiance: HIGH] :\n\n- Aucun verrou spécifique ni incertitude dynamique détecté.\n\nAnalyse des verrous Python ([hr_leave.py:L1-L67](file:///home/user/odoo-17.0/addons/hr_holidays/populate/hr_leave.py#L1-L67)) [Confiance: HIGH] :\n\n- Aucun verrou spécifique ni incertitude dynamique détecté.\n\nChaîne de surcharge de 'hr.leave.action_approve' (2 modules, ordre d'exécution réel, pas l'ordre de dépendance) :\n\n- Le module 'custom_hr_leave_workflow' contient une branche conditionnelle qui modifie l'état sans `return` explicite, suivie d'un appel `super().action_approve(...)` inconditionnel plus loin dans la méthode. La logique de la classe parente va se réappliquer sur TOUS les enregistrements, y compris ceux couverts par la branche conditionnelle -- risque réel que la condition soit silencieusement annulée. [Confiance: FAIBLE -- heuristique statique sur la forme exacte du contrôle de flux, ne détecte pas les gardes formulées autrement]\n- Le module 'hr_holidays' contient une logique de validation qui n'a pas été détectée par les analyses précédentes.\n\nButton 'valider demande de congé' on 'hr.leave' :\n\n- Appelle la méthode 'action_valider demande de congé()'.\n- La transition d'état est exécutée sans passer par la machine à états.\n- Il n'y a pas de restriction de groupe spécifiée pour ce bouton.\n\nEn résumé, vous avez deux messages de verrou qui indiquent que vous ne pouvez pas valider votre demande de congé car votre solde de congés est insuffisant. Vous devez cocher la case 'Demande urgente' pour soumettre votre demande à validation exceptionnelle du N+2. De plus, une demande urgente dépassant le solde doit être validée par le N+2 ou un responsable RH.\n\n[Source: Graphe de Connaissances Code Intelligence]",
     "sources": [
+      "Code Intelligence Graph",
       "Code Intelligence Graph",
       "Code Intelligence Graph"
     ],
-    "elapsed_seconds": 59.6,
-    "effective_seconds": 2.376,
-    "groq_wait_seconds": 57.224,
-    "hop_count": 2,
+    "elapsed_seconds": 86.51,
+    "effective_seconds": 2.986,
+    "groq_wait_seconds": 83.522,
+    "hop_count": 3,
     "timing_detail": {
-      "code_intelligence_time": 59.60023474693298,
-      "ci_hop_count": 2,
-      "ci_groq_wait_time": 57.224,
-      "ci_effective_time": 2.376,
+      "code_intelligence_time": 86.50743341445923,
+      "ci_hop_count": 3,
+      "ci_groq_wait_time": 83.522,
+      "ci_effective_time": 2.986,
       "ci_business_resolver_time": 0.0,
       "ci_per_hop_times": [
-        0.003
+        0.005
       ],
-      "ci_synthesis_time": 40.353,
+      "ci_synthesis_time": 32.291,
       "llm_call_count": 2
     }
   },
@@ -89,26 +94,26 @@
     "category": "3. Demande d'achat (Bypass e-mails)",
     "question": "Qui a le droit d'approuver une demande d'achat de 15 000€ ?",
     "expected": "Le groupe purchase_manager ne suffit pas >10000€. Seuls logins dans _VALIDATEURS_EXCEPTIONNELS (direction@societe.com, daf@societe.com) peuvent valider.",
-    "verbatim": "En fonction des informations disponibles, il semble que la demande d'achat de 15 000€ nécessite une validation spécifique. \n\nD'après l'analyse des verrous Python, il y a deux messages de verrous possibles :\n\n- \"Vous n'avez pas le droit de valider cette demande d'achat.\"\n- \"Au-delà de 10 000 euros, seule la Direction peut valider (liste restreinte).\"\n\nCependant, il est important de noter que la première règle est masquée par un mécanisme de contournement de sécurité, ce qui signifie que la validation peut être autorisée malgré cette règle.\n\nEn revanche, la deuxième règle est basée sur une condition spécifique (au-delà de 10 000 euros) et ne concerne pas directement la validation de la demande d'achat.\n\nEnfin, il est important de noter que la validation de la demande d'achat de 15 000€ nécessite une validation spécifique, mais il n'est pas clair qui a le droit d'approuver cette demande.\n\nEn résumé, la réponse finale est :\n\n- La Direction a le droit d'approuver la demande d'achat de 15 000€ (liste restreinte).\n- La validation de la demande d'achat nécessite une validation spécifique, mais il n'est pas clair qui a le droit d'approuver cette demande.\n- La première règle est masquée par un mécanisme de contournement de sécurité, ce qui signifie que la validation peut être autorisée malgré cette règle.\n\n[Source: Graphe de Connaissances Code Intelligence]\n\n🔒 ÉLÉMENT(S) OMIS POUR RAISON D'AUTORISATION (Bloc 7 / J23-24):\n  - Logins/Emails privilégies en dur (custom.purchase.request) : ÉLÉMENT OMIS POUR RAISON D'AUTORISATION : cette ligne décrit un mécanisme de contournement de sécurité (accès privilégié codé en dur, sudo(), ou traitement non documenté hors des ACL/ir.rule standards) et le demandeur ne dispose pas d'un accès élevé sur 'custom.purchase.request'.",
+    "verbatim": "Analyse des droits d'approuver une demande d'achat de 15 000€ :\n\n- Selon l'analyse des verrous Python dans le fichier `purchase_request.py` (L1-L33), il y a deux messages de verrous :\n  * \"Vous n'avez pas le droit de valider cette demande d'achat.\"\n  * \"Au-delà de 10 000 euros, seule la Direction peut valider (liste restreinte).\"\n\n- Selon l'analyse des verrous Python dans le fichier `purchase_order.py` (L1-L1101), aucun verrou spécifique ni incertitude dynamique n'a été détecté.\n\n- Selon l'analyse des verrous Python dans le fichier `purchase.py` (L1-L92), aucun verrou spécifique ni incertitude dynamique n'a été détecté.\n\n- Selon l'évaluation des règles, le modèle `purchase.order` est accessible aux groupes `account.group_account_invoice`, `group_purchase_manager`, `group_purchase_user` et `purchase.group_purchase_manager`.\n\nEn conclusion, pour approuver une demande d'achat de 15 000€, il faut être membre d'un des groupes suivants : `account.group_account_invoice`, `group_purchase_manager`, `group_purchase_user` ou `purchase.group_purchase_manager`. Cependant, si la demande dépasse 10 000€, seule la Direction peut valider la demande.\n\n[Source: Graphe de Connaissances Code Intelligence]\n\n🔒 ÉLÉMENT(S) OMIS POUR RAISON D'AUTORISATION (Bloc 7 / J23-24):\n  - Logins/Emails privilégies en dur (custom.purchase.request) : ÉLÉMENT OMIS POUR RAISON D'AUTORISATION : cette ligne décrit un mécanisme de contournement de sécurité (accès privilégié codé en dur, sudo(), ou traitement non documenté hors des ACL/ir.rule standards) et le demandeur ne dispose pas d'un accès élevé sur 'custom.purchase.request'.",
     "sources": [
       "Code Intelligence Graph",
       "Code Intelligence Graph",
       "Code Intelligence Graph"
     ],
-    "elapsed_seconds": 93.32,
-    "effective_seconds": 3.187,
-    "groq_wait_seconds": 90.131,
+    "elapsed_seconds": 49.51,
+    "effective_seconds": 1.841,
+    "groq_wait_seconds": 47.671,
     "hop_count": 3,
     "timing_detail": {
-      "code_intelligence_time": 93.3184244632721,
+      "code_intelligence_time": 49.51230549812317,
       "ci_hop_count": 3,
-      "ci_groq_wait_time": 90.131,
-      "ci_effective_time": 3.187,
+      "ci_groq_wait_time": 47.671,
+      "ci_effective_time": 1.841,
       "ci_business_resolver_time": 0.0,
       "ci_per_hop_times": [
-        0.003
+        0.001
       ],
-      "ci_synthesis_time": 23.585,
+      "ci_synthesis_time": 45.836,
       "llm_call_count": 2
     }
   },
@@ -117,25 +122,25 @@
     "category": "4. Asset loan (Référence croisée)",
     "question": "Comment faire une demande de mise à disposition de matériel, et y a-t-il des conditions particulières ?",
     "expected": "Nécessite demande_achat_liee_id. Si >2000€, bénéficiaire != demandeur (séparation des rôles).",
-    "verbatim": "Pour faire une demande de mise à disposition de matériel, il est important de prendre en compte les conditions particulières. \n\nD'après l'analyse des verrous Python, il existe une condition selon laquelle le bénéficiaire d'un matériel de plus de 2000 euros doit être différent du demandeur initial. Cette condition est indiquée par le message d'erreur \"Separation des roles requise : le beneficiaire d'un materiel de plus de 2000 euros doit etre different du demandeur initial.\" [Confiance: HIGH].\n\nIl est donc essentiel de vérifier que les rôles sont séparés avant de faire une demande de mise à disposition de matériel.\n\n[Source: Graphe de Connaissances Code Intelligence]",
+    "verbatim": "Pour faire une demande de mise à disposition de matériel, vous devez cliquer sur le bouton 'Demande de mise à disposition' sur la vue de formulaire de 'custom.asset.loan'. Cette action appelle la méthode 'action_demande de mise à disposition()'.\n\nIl est important de noter que la demande de mise à disposition est disponible pour les utilisateurs qui appartiennent à un groupe requis (ou aucun groupe n'est requis).\n\nEn ce qui concerne les conditions particulières, il est mentionné que la séparation des rôles est requise : le bénéficiaire d'un matériel de plus de 2000 euros doit être différent du demandeur initial. Cela signifie que si vous demandez un matériel d'une valeur supérieure à 2000 euros, vous devez être différent du demandeur initial.\n\nIl n'y a pas d'autres conditions ou restrictions supplémentaires mentionnées dans les observations disponibles.\n\n[Source: Graphe de Connaissances Code Intelligence]",
     "sources": [
       "Code Intelligence Graph",
       "Code Intelligence Graph"
     ],
-    "elapsed_seconds": 32.32,
-    "effective_seconds": 2.049,
-    "groq_wait_seconds": 30.275,
+    "elapsed_seconds": 60.06,
+    "effective_seconds": 2.219,
+    "groq_wait_seconds": 57.843,
     "hop_count": 2,
     "timing_detail": {
-      "code_intelligence_time": 32.324556827545166,
+      "code_intelligence_time": 60.06184530258179,
       "ci_hop_count": 2,
-      "ci_groq_wait_time": 30.275,
-      "ci_effective_time": 2.049,
+      "ci_groq_wait_time": 57.843,
+      "ci_effective_time": 2.219,
       "ci_business_resolver_time": 0.0,
       "ci_per_hop_times": [
-        0.003
+        0.008
       ],
-      "ci_synthesis_time": 23.4,
+      "ci_synthesis_time": 5.564,
       "llm_call_count": 2
     }
   },
@@ -144,28 +149,30 @@
     "category": "5. Actions serveur (Data / sudo)",
     "question": "Est-ce que tous les avoirs fournisseurs passent par les mêmes règles d'approbation ?",
     "expected": "NON: fournisseurs ID 42, 108, 231 auto-validés via ir.actions.server avec sudo() contournant les règles standard.",
-    "verbatim": "En analysant les règles d'approbation pour les avoirs fournisseurs, nous constatons que :\n\n- Les avoirs de plus de 5000€ nécessitent l'approbation d'un responsable comptable, comme indiqué par le message d'erreur \"Seul un responsable comptable peut valider un avoir de plus de 5000€.\" (Analyse des verrous Python [account_move.py:L1-L22](file:///home/user/odoo-17.0/addons/custom_credit_note_approval/models/account_move.py#L1-L22) [Confiance: HIGH]).\n\n- Les autres avoirs fournisseurs ne sont pas soumis à des règles d'approbation spécifiques, comme indiqué par les analyses des verrous Python (Analyse des verrous Python [account_move.py:L1-L21](file:///home/user/odoo-17.0/addons/custom_credit_note_approval_regional/models/account_move.py#L1-L21) [Confiance: HIGH] et Analyse des verrous Python [account_move.py:L1-L14](file:///home/user/odoo-17.0/addons/custom_credit_note_approval_vip/models/account_move.py#L1-L14) [Confiance: HIGH]).\n\n- L'action serveur 'custom_automation_traps.ir_action_server_avoir_fournisseur_privilegie' automatise la validation d'avoirs reçus de trois fournisseurs spécifiques, en contournant les règles d'accès et les ACL via sudo(), comme indiqué par l'analyse du code de l'action serveur (Analyse du code de l'action serveur 'custom_automation_traps.ir_action_server_avoir_fournisseur_privilegie' [Confiance: FAIBLE - logique en données XML, modifiable à l'exécution]).\n\n- La chaîne de surcharge de 'account.move._reverse_moves' (module 'sale') contient une branche conditionnelle qui modifie l'état sans `return` explicite, suivie d'un appel `super()._reverse_moves(...)` inconditionnel, ce qui peut annuler la condition, comme indiqué par la chaîne de surcharge de 'account.move._reverse_moves' (module 'sale') (Chaîne de surcharge de 'account.move._reverse_moves' (2 modules, ordre d'exécution réel, pas l'ordre de dépendance)).\n\n- La chaîne de surcharge de 'account.move.action_valider_avoir' (module 'custom_credit_note_approval_vip') contient également une branche conditionnelle qui modifie l'état sans `return` explicite, suivie d'un appel `super().action_valider_avoir(...)` inconditionnel, ce qui peut annuler la condition, comme indiqué par la chaîne de surcharge de 'account.move.action_valider_avoir' (3 modules, ordre d'exécution réel, pas l'ordre de dépendance).\n\n- L'évaluation des règles d'enregistrement (ir.rule) pour 'stock.move' n'a pas trouvé de règles globales ou de groupes applicables, ce qui signifie que les règles d'approbation pour les avoirs fournisseurs ne sont pas définies par les règles d'enregistrement, comme indiqué par l'évaluation des règles d'enregistrement (ir.rule) pour 'stock.move' (Évaluation des règles d'enregistrement (ir.rule) pour 'stock.move').\n\nEn conclusion, les avoirs de plus de 5000€ nécessitent l'approbation d'un responsable comptable, tandis que les autres avoirs fournisseurs ne sont pas soumis à des règles d'approbation spécifiques.\n\n[Source: Graphe de Connaissances Code Intelligence]\n\n🔒 ÉLÉMENT(S) OMIS POUR RAISON D'AUTORISATION (Bloc 7 / J23-24):\n  - SUDO détecté (account.move) : ÉLÉMENT OMIS POUR RAISON D'AUTORISATION : cette ligne décrit un mécanisme de contournement de sécurité (accès privilégié codé en dur, sudo(), ou traitement non documenté hors des ACL/ir.rule standards) et le demandeur ne dispose pas d'un accès élevé sur 'account.move'.\n  - IDs en dur (account.move) : ÉLÉMENT OMIS POUR RAISON D'AUTORISATION : cette ligne décrit un mécanisme de contournement de sécurité (accès privilégié codé en dur, sudo(), ou traitement non documenté hors des ACL/ir.rule standards) et le demandeur ne dispose pas d'un accès élevé sur 'account.move'.",
+    "verbatim": "En analysant les règles d'approbation pour les avoirs fournisseurs, nous constatons que :\n\n- Les règles globales (ir.rule) pour 'account.move' sont les suivantes : Avoirs - cantonnement societe (regle globale, sans groupe) [['|', ('move_type', '!=', 'out_refund'), ('company_id', '=', user.company_id.id)]].\n- Aucune règle de groupe n'est applicable pour l'utilisateur, car il n'appartient à aucun groupe cible par une règle sur ce modèle.\n- Seules les règles globales s'appliquent, sans restriction supplémentaire de montant ou de portée.\n\nCependant, nous avons également détecté les suivants :\n\n- Dans le module 'custom_credit_note_approval', il existe une règle d'approbation qui nécessite la validation d'un responsable comptable pour les avoirs de plus de 5000€.\n- Dans la chaîne de surcharge de 'account.move.action_valider_avoir', nous avons trouvé une branche conditionnelle qui modifie l'état sans `return` explicite, suivie d'un appel `super().action_valider_avoir(...)` inconditionnel. Cela peut entraîner un risque réel que la condition soit silencieusement annulée.\n- Dans la chaîne de surcharge de 'account.move._reverse_moves', nous avons trouvé une branche conditionnelle qui modifie l'état sans `return` explicite, suivie d'un appel `super()._reverse_moves(...)` inconditionnel. Cela peut également entraîner un risque réel que la condition soit silencieusement annulée.\n\nEn conclusion, les règles d'approbation pour les avoirs fournisseurs sont les suivantes :\n\n- Les règles globales s'appliquent sans restriction supplémentaire de montant ou de portée.\n- Les avoirs de plus de 5000€ nécessitent la validation d'un responsable comptable.\n- Il existe un risque réel que les conditions d'approbation soient silencieusement annulées en raison de la chaîne de surcharge de 'account.move.action_valider_avoir' et 'account.move._reverse_moves'.\n\n[Source: Graphe de Connaissances Code Intelligence]\n\n🔒 ÉLÉMENT(S) OMIS POUR RAISON D'AUTORISATION (Bloc 7 / J23-24):\n  - SUDO détecté (account.move) : ÉLÉMENT OMIS POUR RAISON D'AUTORISATION : cette ligne décrit un mécanisme de contournement de sécurité (accès privilégié codé en dur, sudo(), ou traitement non documenté hors des ACL/ir.rule standards) et le demandeur ne dispose pas d'un accès élevé sur 'account.move'.\n  - IDs en dur (account.move) : ÉLÉMENT OMIS POUR RAISON D'AUTORISATION : cette ligne décrit un mécanisme de contournement de sécurité (accès privilégié codé en dur, sudo(), ou traitement non documenté hors des ACL/ir.rule standards) et le demandeur ne dispose pas d'un accès élevé sur 'account.move'.",
     "sources": [
+      "Code Intelligence Graph",
+      "Code Intelligence Graph",
       "Code Intelligence Graph",
       "Code Intelligence Graph",
       "Code Intelligence Graph",
       "Code Intelligence Graph",
       "Code Intelligence Graph"
     ],
-    "elapsed_seconds": 71.02,
-    "effective_seconds": 6.356,
-    "groq_wait_seconds": 64.664,
-    "hop_count": 5,
+    "elapsed_seconds": 99.65,
+    "effective_seconds": 12.236,
+    "groq_wait_seconds": 87.409,
+    "hop_count": 7,
     "timing_detail": {
-      "code_intelligence_time": 71.02036595344543,
-      "ci_hop_count": 5,
-      "ci_groq_wait_time": 64.664,
-      "ci_effective_time": 6.356,
+      "code_intelligence_time": 99.64498162269592,
+      "ci_hop_count": 7,
+      "ci_groq_wait_time": 87.409,
+      "ci_effective_time": 12.236,
       "ci_business_resolver_time": 0.0,
       "ci_per_hop_times": [
-        0.001
+        0.002
       ],
-      "ci_synthesis_time": 6.345,
+      "ci_synthesis_time": 37.627,
       "llm_call_count": 2
     }
   },
@@ -174,25 +181,25 @@
     "category": "6. ir.rule ET/OU (Deux groupes)",
     "question": "Un utilisateur membre à la fois du groupe régional et du groupe national peut-il voir un avoir de 80 000€ ?",
     "expected": "OUI: Règles de groupe en OU. La règle nationale (illimitée) l'emporte sur le plafond 50k€ régional.",
-    "verbatim": "L'utilisateur membre à la fois du groupe régional et du groupe national peut voir un avoir de 80 000€.\n\nLa règle d'enregistrement 'Avoirs - visibilite nationale (illimitee)' permet à l'utilisateur de voir l'enregistrement, car le montant total est supérieur à 50 000€. Cette règle est combinée avec les règles globales, qui ne restreignent pas l'accès.\n\n[Source: Graphe de Connaissances Code Intelligence]\n\n🔒 ÉLÉMENT(S) OMIS POUR RAISON D'AUTORISATION (Bloc 7 / J23-24):\n  - ir.rule sur 'account.move' non applicable(s) au demandeur : Avoirs - visibilite par departement (sauf managers) : ÉLÉMENT OMIS POUR RAISON D'AUTORISATION : ces règles de sécurité visent des groupes dont le demandeur n'est pas membre ; leur nom et leur condition (domain_force) ne sont pas divulgués.",
+    "verbatim": "L'utilisateur membre à la fois du groupe régional et du groupe national peut voir un avoir de 80 000€.\n\nLa règle d'enregistrement 'Avoirs - plafond visibilité régionale (50000e)' ne s'applique pas car l'amount_total est supérieur à 50 000€. La règle d'enregistrement 'Avoirs - visibilité nationale (illimitée)' ne pose pas de restriction.\n\nLa fonction can_view_amount() a été évaluée et a retourné True, ce qui signifie que l'utilisateur peut voir cet enregistrement.\n\nCe résultat est calculé directement par le moteur de règles et ne doit jamais être recalculé ou contredit.\n\n[Source: Graphe de Connaissances Code Intelligence]",
     "sources": [
       "Code Intelligence Graph",
       "Code Intelligence Graph"
     ],
-    "elapsed_seconds": 54.12,
-    "effective_seconds": 1.924,
-    "groq_wait_seconds": 52.199,
+    "elapsed_seconds": 40.03,
+    "effective_seconds": 2.03,
+    "groq_wait_seconds": 38.0,
     "hop_count": 1,
     "timing_detail": {
-      "code_intelligence_time": 54.12211799621582,
+      "code_intelligence_time": 40.02991461753845,
       "ci_hop_count": 1,
-      "ci_groq_wait_time": 52.199,
-      "ci_effective_time": 1.924,
+      "ci_groq_wait_time": 38.0,
+      "ci_effective_time": 2.03,
       "ci_business_resolver_time": 0.0,
       "ci_per_hop_times": [
-        0.001
+        0.002
       ],
-      "ci_synthesis_time": 5.4,
+      "ci_synthesis_time": 5.55,
       "llm_call_count": 2
     }
   },
@@ -201,25 +208,25 @@
     "category": "6. ir.rule ET/OU (Aucun groupe)",
     "question": "Un utilisateur qui n'appartient à AUCUN des deux groupes (ni régional, ni national) peut-il voir ce même avoir de 80 000€ ?",
     "expected": "OUI: Ni l'une ni l'autre règle ne s'applique. Soumis uniquement à la règle globale (société) sans limite de montant.",
-    "verbatim": "En réponse à la question : Un utilisateur qui n'appartient à AUCUN des deux groupes (ni régional, ni national) peut-il voir ce même avoir de 80 000€ ?\n\nLa réponse est : OUI, l'utilisateur peut voir cet enregistrement.\n\nCette conclusion est basée sur l'évaluation des règles d'enregistrement (ir.rule) pour le modèle 'account.move', qui n'a pas trouvé d'application de règles de groupe pour cet utilisateur. Seules les règles globales s'appliquent, qui n'imposent aucune restriction supplémentaire de montant ou de portée. Le moteur de règles a donc déterminé que l'utilisateur peut voir cet enregistrement pour un montant de 80 000€, ce qui est confirmé par le [FAIT DÉTERMINISTIQUE] : can_view_amount() = True.\n\n[Source: Graphe de Connaissances Code Intelligence]\n\n🔒 ÉLÉMENT(S) OMIS POUR RAISON D'AUTORISATION (Bloc 7 / J23-24):\n  - ir.rule sur 'account.move' non applicable(s) au demandeur : Avoirs - visibilite par departement (sauf managers), Avoirs - plafond visibilite regionale (50000e), Avoirs - visibilite nationale (illimitee) : ÉLÉMENT OMIS POUR RAISON D'AUTORISATION : ces règles de sécurité visent des groupes dont le demandeur n'est pas membre ; leur nom et leur condition (domain_force) ne sont pas divulgués.",
+    "verbatim": "L'utilisateur peut voir l'enregistrement d'un avoir de 80 000€. Cela est déterminé par l'évaluation des règles d'enregistrement (ir.rule) pour le modèle 'account.move', qui n'applique aucune règle de groupe à l'utilisateur car il n'appartient à aucun des groupes visés. Seules les règles globales s'appliquent, et il n'y a aucune restriction supplémentaire de montant ou de portée pour cet enregistrement. Le moteur de règles (evaluer_regles_enregistrement) calcule directement que l'utilisateur peut voir cet enregistrement, ce qui est confirmé par le verdict [FAIT DÉTERMINISTIQUE] : l'utilisateur PEUT voir cet enregistrement.\n\n[Source: Graphe de Connaissances Code Intelligence]",
     "sources": [
       "Code Intelligence Graph",
       "Code Intelligence Graph"
     ],
-    "elapsed_seconds": 9.38,
-    "effective_seconds": 1.525,
-    "groq_wait_seconds": 7.854,
+    "elapsed_seconds": 43.66,
+    "effective_seconds": 2.058,
+    "groq_wait_seconds": 41.599,
     "hop_count": 1,
     "timing_detail": {
-      "code_intelligence_time": 9.378894090652466,
+      "code_intelligence_time": 43.65733098983765,
       "ci_hop_count": 1,
-      "ci_groq_wait_time": 7.854,
-      "ci_effective_time": 1.525,
+      "ci_groq_wait_time": 41.599,
+      "ci_effective_time": 2.058,
       "ci_business_resolver_time": 0.0,
       "ci_per_hop_times": [
-        0.001
+        0.002
       ],
-      "ci_synthesis_time": 5.493,
+      "ci_synthesis_time": 5.651,
       "llm_call_count": 2
     }
   },
@@ -233,15 +240,15 @@
       "Code Intelligence Graph",
       "Code Intelligence Graph"
     ],
-    "elapsed_seconds": 0.11,
-    "effective_seconds": 0.108,
+    "elapsed_seconds": 0.12,
+    "effective_seconds": 0.12,
     "groq_wait_seconds": 0.0,
     "hop_count": 2,
     "timing_detail": {
-      "code_intelligence_time": 0.1078042984008789,
+      "code_intelligence_time": 0.11973428726196289,
       "ci_hop_count": 2,
       "ci_groq_wait_time": 0.0,
-      "ci_effective_time": 0.108,
+      "ci_effective_time": 0.12,
       "ci_business_resolver_time": 0.0,
       "ci_per_hop_times": [],
       "ci_synthesis_time": 0.0,

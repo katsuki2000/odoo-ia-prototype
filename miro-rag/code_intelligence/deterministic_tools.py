@@ -307,7 +307,17 @@ def evaluer_regles_enregistrement(
         lines.append("  - Règles de Groupe applicables: Aucune (l'utilisateur n'appartient à aucun des groupes visés)")
 
     if ignored_group:
-        lines.append("  - Règles de Groupe ignorées (non-membre): " + ", ".join([f"{r.rule_name}" for r in ignored_group]))
+        # 2026-08-07 fix: include domain_force here too, same as the
+        # applied-rules lines above -- omitting it silently hid the actual
+        # scope/threshold (e.g. a 500000e regional cap) of a governance
+        # rule the demandeur isn't a member of, even though the 2026-08-07
+        # Bloc 7-bis revision (see authorization_gate.py / etat_reel.md)
+        # explicitly decided this content is governance, not a bypass, and
+        # must never be gated. Found via test_j23_24_authorization_gate.py::
+        # test_ignored_group_rule_details_are_never_redacted actually being
+        # run for the first time on 2026-08-07 (previously never executed
+        # on this machine -- no execution access before that session).
+        lines.append("  - Règles de Groupe ignorées (non-membre): " + ", ".join([f"{r.rule_name} [{r.domain_force}]" for r in ignored_group]))
 
     if applied_group:
         lines.append(
@@ -678,16 +688,67 @@ class ButtonExecutionPathResult:
     required_groups: List[str] = field(default_factory=list)
     execution_steps: List[str] = field(default_factory=list)
     summary_text: str = ""
+    # "comment faire X" gating (Bloc 7 extension, 2026-08-07): whether the
+    # REAL demandeur (never LLM-guessed, see rag/graph.py's
+    # _override_user_groups_arg) can actually use this button, mirroring
+    # what Odoo's own UI would already do (button invisible/greyed out for
+    # a user outside required_groups). None when user_groups was not
+    # supplied to chemin_execution_bouton() -- distinct from True/False,
+    # since "unknown" must never be reported as "available".
+    available_to_demandeur: Optional[bool] = None
+    unavailable_reason: str = ""
+
+
+def _demandeur_satisfies_required_groups(
+    G: nx.DiGraph, required_groups: List[str], user_groups: List[str]
+) -> bool:
+    """
+    True if the demandeur belongs to at least one of required_groups (Odoo
+    button-level groups="..." is an OR condition across the listed groups,
+    same semantics as an ACL's APPLIES_TO_GROUP set). No required_groups at
+    all means the button carries no button-level restriction -- available
+    to everyone, same convention as chemin_execution_bouton's own summary
+    text ("No button-level group restriction specified").
+
+    Reuses resolve_group_identifier (already used by qui_a_acces_a and
+    evaluer_regles_enregistrement) so a required_groups entry supplied as a
+    short name or a display-name fuzzy match resolves exactly the same way
+    here as everywhere else in the module -- one tolerant resolver, not a
+    fourth reimplementation of it.
+    """
+    if not required_groups:
+        return True
+    if not user_groups:
+        return False
+
+    user_group_set: Set[str] = set(user_groups)
+    for g in list(user_group_set):
+        _expand_implied_user_groups(G, g, user_group_set)
+
+    return any(
+        resolve_group_identifier(G, ug, required_groups) is not None
+        for ug in user_group_set
+    )
 
 
 def chemin_execution_bouton(
     G: nx.DiGraph,
     button_label_or_name: str,
-    model_name: str
+    model_name: str,
+    user_groups: Optional[List[str]] = None,
 ) -> ButtonExecutionPathResult:
     """
     Story B1.3: Traces step-by-step workflow execution path for a UI button click.
     Combines UI View Button -> Python Method -> Workflow State Transition -> Security Rules.
+
+    user_groups (Bloc 7 extension, 2026-08-07): when supplied, also answers
+    "comment faire X ?" honestly for the REAL demandeur -- if the button's
+    required_groups don't include any group the demandeur belongs to, the
+    action is reported as NOT available to them, mirroring what Odoo's own
+    UI already enforces (invisible/greyed-out button), rather than walking
+    them through a mechanism they cannot actually trigger. Optional and
+    defaults to None (skip the check) so existing callers that don't pass
+    it keep their prior behavior unchanged.
     """
     model_node = f"model:{model_name}"
 
@@ -758,6 +819,27 @@ def chemin_execution_bouton(
         f"Required Groups: [{', '.join(sorted(required_groups)) if required_groups else 'None'}]."
     )
 
+    available_to_demandeur: Optional[bool] = None
+    unavailable_reason = ""
+    if user_groups is not None:
+        available_to_demandeur = _demandeur_satisfies_required_groups(G, sorted(required_groups), user_groups)
+        if not available_to_demandeur:
+            unavailable_reason = (
+                f"Ce bouton est restreint aux groupes [{', '.join(sorted(required_groups))}], "
+                "dont le demandeur ne fait partie d'aucun -- l'action n'est pas disponible "
+                "pour lui dans l'interface (bouton absent ou grise), pas seulement documentee "
+                "comme restreinte."
+            )
+            summary += f" NON DISPONIBLE POUR LE DEMANDEUR : {unavailable_reason}"
+            execution_steps.append(
+                f"5. Disponibilite reelle : NON -- {unavailable_reason}"
+            )
+        else:
+            execution_steps.append(
+                "5. Disponibilite reelle : OUI -- le demandeur appartient a un groupe requis "
+                "(ou aucun groupe n'est requis)."
+            )
+
     return ButtonExecutionPathResult(
         button_identifier=button_label_or_name,
         model_name=model_name,
@@ -767,6 +849,8 @@ def chemin_execution_bouton(
         required_groups=sorted(list(required_groups)),
         execution_steps=execution_steps,
         summary_text=summary,
+        available_to_demandeur=available_to_demandeur,
+        unavailable_reason=unavailable_reason,
     )
 
 

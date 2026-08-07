@@ -1,0 +1,40 @@
+name: OCA Coverage Pipeline
+
+on:
+  push:
+    paths:
+      - 'miro-rag/code_intelligence/**'
+      - 'scripts/run_oca_coverage.py'
+  pull_request:
+    paths:
+      - 'miro-rag/code_intelligence/**'
+      - 'scripts/run_oca_coverage.py'
+
+jobs:
+  oca-coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest networkx
+
+      - name: Clone OCA sample modules
+        run: |
+          mkdir -p tests/oca_sample
+          cd tests/oca_sample
+          git clone --depth 1 -b 17.0 https://github.com/OCA/account-financial-reporting.git
+          git clone --depth 1 -b 17.0 https://github.com/OCA/sale-workflow.git
+          git clone --depth 1 -b 17.0 https://github.com/OCA/server-tools.git
+
+      - name: Run coverage script
+        run: |
+          PYTHONPATH=miro-rag python scripts/run_oca_coverage.py tests/oca_sample

@@ -138,12 +138,21 @@ def impact_changement_champ(field_name: str, model_name: str) -> str:
 
 
 @tool
-def chemin_execution_bouton(button_name: str, model_name: str) -> str:
-    """Trace UI button execution path, method called, workflow transition, and required groups."""
+def chemin_execution_bouton(button_name: str, model_name: str, user_groups_json: str = "[]") -> str:
+    """Trace UI button execution path, method called, workflow transition, required groups,
+    and whether the requester can actually use it. Call this for any "how do I do X" question."""
+    # NOTE (dev-facing only, kept out of the @tool docstring -- same rationale
+    # as evaluer_regles_enregistrement above): user_groups_json is ALWAYS
+    # overridden by rag/graph.py's _override_user_groups_arg with the real
+    # requester's groups before this tool executes.
     from code_intelligence.deterministic_tools import chemin_execution_bouton as _impl
     G = _require_graph()
     model_name = _resolve_model_param(model_name)
-    result = _impl(G, button_name, model_name)
+    try:
+        user_groups = json.loads(user_groups_json) if isinstance(user_groups_json, str) else user_groups_json
+    except Exception:
+        user_groups = None
+    result = _impl(G, button_name, model_name, user_groups=user_groups)
     return result.summary_text + "\n" + "\n".join(result.execution_steps)
 
 
