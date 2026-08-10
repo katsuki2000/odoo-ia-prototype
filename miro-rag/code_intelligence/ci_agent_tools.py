@@ -305,6 +305,53 @@ def find_model_source_filepaths(G, model_name: str) -> set:
     return filepaths
 
 
+def find_security_lock_source_files(G, model_name: str) -> list:
+    """
+    Locate Python source files for the given technical model that contain
+    at least one security-lock finding (hardcoded login/email list,
+    UserError/ValidationError message, dynamic dispatch, or a has_group()
+    check), per semgrep_locks_analyzer.python_source_has_security_findings.
+
+    Extracted as a standalone helper so rag/graph.py's deterministic
+    pre-dispatch guard for analyser_verrous_securite can check for
+    structural presence WITHOUT re-implementing the detection -- same
+    rationale as find_server_action_nodes/find_methods_with_override_cascade
+    below (F-08 duplication lesson from J7). Unlike those two, there is no
+    graph-node representation of locks (they're computed live from source
+    by semgrep_locks_analyzer, not indexed by graph_builder.py at build
+    time), so this reads the actual files -- still cheap (one AST parse +
+    a few regex passes per file, no LLM), matching the same "a false
+    positive costs ~nothing" philosophy already used for the other guards.
+
+    Added 2026-08-10 (Bloc 9, module 5 gap): the forced dispatch of
+    analyser_verrous_securite previously relied SOLELY on _APPROVAL_PATTERN
+    keyword matching in the question text -- questions like "pourquoi je
+    n'arrive pas à démarrer..." or "la règle s'applique-t-elle..." contain
+    none of that vocabulary, so the dispatch silently never fired and the
+    LLM was left to freely pick a tool, which it did wrong (hallucinated a
+    malformed method name). This structural guard makes the trigger
+    independent of the question's wording -- if the model has a real
+    Python lock, analyser_verrous_securite fires no matter how the
+    question is phrased.
+
+    Returns a list of filepaths (str) with at least one finding, empty if
+    the model has no source files or none of them have any finding.
+    """
+    from code_intelligence.semgrep_locks_analyzer import python_source_has_security_findings
+    from pathlib import Path
+
+    filepaths = find_model_source_filepaths(G, model_name)
+    hit_files = []
+    for fp in sorted(filepaths):
+        p = Path(fp)
+        if not p.exists():
+            continue
+        code = p.read_text(encoding="utf-8")
+        if python_source_has_security_findings(code, fp):
+            hit_files.append(fp)
+    return hit_files
+
+
 def find_server_action_nodes(G, model_name: str) -> list:
     """
     Locate ServerAction nodes (ir.actions.server / base.automation, as

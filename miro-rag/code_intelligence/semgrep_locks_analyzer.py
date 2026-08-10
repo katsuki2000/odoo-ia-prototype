@@ -23,8 +23,12 @@ class PythonSecurityLockAnalysis:
     has_hardcoded_logins: bool = False
     hardcoded_logins: List[str] = field(default_factory=list)
     exception_messages: List[str] = field(default_factory=list)
+    # Index-aligned with exception_messages -- see SecurityLockASTVisitor's
+    # __init__ comment. Always the same length as exception_messages.
+    exception_conditions: List[str] = field(default_factory=list)
     has_dynamic_dispatch: bool = False
     dynamic_dispatch_types: List[str] = field(default_factory=list)
+    required_groups: List[str] = field(default_factory=list)
     security_warnings: List[str] = field(default_factory=list)
     confidence: str = "high"
     summary_text: str = ""
@@ -38,12 +42,51 @@ _EXEC_PATTERN = re.compile(r"\bexec\s*\(")
 _EXCEPTION_RAISE_PATTERN = re.compile(r"raise\s+(?:ValidationError|UserError)\s*\(\s*([\"'].*?[\"'])", re.DOTALL)
 
 
+_HAS_GROUP_PATTERN = re.compile(r"has_group\s*\(\s*['\"]([\w.]+)['\"]\s*\)")
+
+
 class SecurityLockASTVisitor(ast.NodeVisitor):
     def __init__(self, filepath: str):
         self.filepath = filepath
         self.hardcoded_logins: List[str] = []
         self.exception_messages: List[str] = []
+        # Bloc 9 gap (module 5/8, custom_asset_loan, 2026-08-10): index-aligned
+        # with exception_messages -- the unparsed source of every `if` test
+        # enclosing the corresponding raise, outer to inner, joined with
+        # " and " (ALL must hold for the raise to trigger), or "" if the
+        # raise sits outside any `if`. Same pattern as _UnguardedSuperVisitor /
+        # _find_guarding_condition_for_helper_call in method_override_resolver.py
+        # (Module 1/8's fix for the analogous gap on `super()` calls) --
+        # without this, a purely conditional rule (e.g. "only applies if a
+        # linked purchase request exceeds 2000e") reaches the synthesis LLM
+        # as a bare message with no visible condition, and gets reasoned
+        # about as if it were unconditional (bloc9-05c-no-link-trap).
+        self.exception_conditions: List[str] = []
         self.dynamic_dispatches: List[str] = []
+        self.required_groups: List[str] = []
+        self._if_test_stack: List[ast.expr] = []
+
+    def visit_If(self, node: ast.If):
+        self._if_test_stack.append(node.test)
+        self.generic_visit(node)
+        self._if_test_stack.pop()
+
+    def _current_condition_text(self) -> str:
+        """Unparsed source of every `if` test currently enclosing the node
+        being visited, outer to inner. Same limitation as method_override_
+        resolver.py's _GuardFinder: does not distinguish the `if` body from
+        its `orelse` (a raise reached only via `else` would be mis-described
+        as gated by the positive condition) -- deliberately conservative,
+        not full control-flow analysis."""
+        if not self._if_test_stack:
+            return ""
+        parts = []
+        for test in self._if_test_stack:
+            try:
+                parts.append(ast.unparse(test))
+            except Exception:
+                parts.append("?")
+        return " and ".join(parts)
 
     def visit_Assign(self, node: ast.Assign):
         """Detect hardcoded email/login lists assigned to variables like _VALIDATEURS_EXCEPTIONNELS."""
@@ -71,19 +114,26 @@ class SecurityLockASTVisitor(ast.NodeVisitor):
                 func_name = node.exc.func.attr
 
             if func_name in {"ValidationError", "UserError"}:
+                message = None
                 if node.exc.args:
                     first_arg = node.exc.args[0]
                     if isinstance(first_arg, ast.Constant) and isinstance(first_arg.value, str):
-                        self.exception_messages.append(first_arg.value.strip())
+                        message = first_arg.value.strip()
                     elif isinstance(first_arg, ast.BinOp) and isinstance(first_arg.left, ast.Constant):
                         # e.g. "Msg %s" % var -> extract template
                         if isinstance(first_arg.left.value, str):
-                            self.exception_messages.append(first_arg.left.value.strip())
+                            message = first_arg.left.value.strip()
                     elif isinstance(first_arg, ast.JoinedStr):
                         # f-string -> extract literal text parts
                         parts = [p.value for p in first_arg.values if isinstance(p, ast.Constant) and isinstance(p.value, str)]
                         if parts:
-                            self.exception_messages.append("".join(parts).strip())
+                            message = "".join(parts).strip()
+
+                if message is not None:
+                    self.exception_messages.append(message)
+                    # Index-aligned with exception_messages -- see __init__
+                    # docstring comment above for why this exists.
+                    self.exception_conditions.append(self._current_condition_text())
 
         self.generic_visit(node)
 
@@ -96,6 +146,23 @@ class SecurityLockASTVisitor(ast.NodeVisitor):
         if func_name in {"getattr", "eval", "exec"}:
             if func_name not in self.dynamic_dispatches:
                 self.dynamic_dispatches.append(func_name)
+
+        # Bloc 9 gap (2026-08-10, bloc9-01a-business): a Python-level guard
+        # like `self.env.user.has_group('account.group_account_manager')`
+        # gates the raise right above it, but the technical group xmlid it
+        # checks was never extracted anywhere in the pipeline -- only the
+        # UserError/ValidationError message text was. A question asking
+        # WHO can approve something got the human-readable message
+        # ("un responsable comptable") but never the technical group
+        # identifier backing it, which is exactly what a governance answer
+        # needs to be actionable/citable. Detects `<expr>.has_group('xml.id')`
+        # regardless of the receiver expression (self.env.user, rec.create_uid,
+        # etc.) -- only the literal string argument is captured.
+        if isinstance(node.func, ast.Attribute) and node.func.attr == "has_group":
+            if node.args and isinstance(node.args[0], ast.Constant) and isinstance(node.args[0].value, str):
+                group_xmlid = node.args[0].value
+                if group_xmlid not in self.required_groups:
+                    self.required_groups.append(group_xmlid)
 
         self.generic_visit(node)
 
@@ -119,7 +186,9 @@ def analyze_python_security_locks(code: str, filepath: str) -> PythonSecurityLoc
 
         result.hardcoded_logins = visitor.hardcoded_logins
         result.exception_messages = visitor.exception_messages
+        result.exception_conditions = visitor.exception_conditions
         result.dynamic_dispatch_types = visitor.dynamic_dispatches
+        result.required_groups = visitor.required_groups
 
     except SyntaxError:
         _logger.warning("AST parse failed for %s, falling back to regex analysis", filepath)
@@ -145,6 +214,16 @@ def analyze_python_security_locks(code: str, filepath: str) -> PythonSecurityLoc
             raw_msg = match.group(1).strip("'\"")
             if raw_msg and raw_msg not in result.exception_messages:
                 result.exception_messages.append(raw_msg)
+                # Regex fallback can't recover the enclosing condition (no
+                # control-flow structure available from a flat pattern
+                # match) -- kept index-aligned with "" rather than left
+                # unset, same convention as the AST path.
+                result.exception_conditions.append("")
+
+    if not result.required_groups:
+        for group_xmlid in _HAS_GROUP_PATTERN.findall(code):
+            if group_xmlid not in result.required_groups:
+                result.required_groups.append(group_xmlid)
 
     # 3. Categorize findings
     if result.hardcoded_logins:
@@ -179,8 +258,25 @@ def analyze_python_security_locks(code: str, filepath: str) -> PythonSecurityLoc
         lines.append(f"  - {SENSITIVE_BYPASS_MARKER} Logins/Emails privilégies en dur: {result.hardcoded_logins}")
     if result.exception_messages:
         lines.append(f"  - Messages de verrous (UserError/ValidationError):")
-        for msg in result.exception_messages:
-            lines.append(f"    * \"{msg}\"")
+        # exception_conditions is index-aligned with exception_messages (see
+        # SecurityLockASTVisitor); pad defensively in case some caller ever
+        # builds a PythonSecurityLockAnalysis by hand without it, same
+        # discipline as the rest of this function never trusting shape.
+        conditions = result.exception_conditions or [""] * len(result.exception_messages)
+        for msg, condition in zip(result.exception_messages, conditions):
+            if condition:
+                # Module 5/8 fix (2026-08-10): without this, a raise gated by
+                # an `if` (e.g. "only if a linked purchase request exceeds
+                # 2000e") reached the synthesis LLM as a bare, apparently
+                # unconditional message -- it then reasoned the rule always
+                # applies (bloc9-05c-no-link-trap), the exact inverse of the
+                # ground truth documented in that adversarial check script.
+                lines.append(f"    * \"{msg}\" (condition : {condition})")
+            else:
+                lines.append(f"    * \"{msg}\"")
+    if result.required_groups:
+        groups_joined = ', '.join(result.required_groups)
+        lines.append(f"  - Groupe(s) technique(s) requis detecte(s) (has_group): {groups_joined}")
     if result.has_dynamic_dispatch:
         lines.append(f"  - Incertitude dynamique ({', '.join(result.dynamic_dispatch_types)}): revue manuelle recommandée")
 
@@ -189,3 +285,34 @@ def analyze_python_security_locks(code: str, filepath: str) -> PythonSecurityLoc
 
     result.summary_text = "\n".join(lines)
     return result
+
+
+def python_source_has_security_findings(code: str, filepath: str = "<unknown>") -> bool:
+    """
+    Cheap boolean wrapper around analyze_python_security_locks: True if the
+    file has ANY finding (hardcoded login/email list, UserError/
+    ValidationError message, dynamic dispatch, or a has_group() check).
+
+    Deliberately reuses the full analysis rather than re-implementing a
+    faster short-circuit scan -- two independent detectors for "does this
+    file have a lock" is exactly the F-08/J7 duplication mistake this
+    codebase already paid for once. The full analysis is already cheap
+    (one AST parse + a few regex passes, no LLM), so there's no real
+    performance reason to duplicate it.
+
+    Added 2026-08-10 (Bloc 9, module 5 gap): used as the structural
+    pre-dispatch guard for analyser_verrous_securite in rag/graph.py, so
+    that forced dispatch no longer depends on the question's wording
+    matching _APPROVAL_PATTERN -- questions like "pourquoi je n'arrive pas
+    à démarrer..." or "la règle s'applique-t-elle..." contain none of that
+    vocabulary, so the keyword-only trigger silently never fired and the
+    LLM was left to pick a tool on its own, which it did wrong (hallucinated
+    a malformed method name instead of finding the real Python lock).
+    """
+    result = analyze_python_security_locks(code, filepath)
+    return bool(
+        result.hardcoded_logins
+        or result.exception_messages
+        or result.dynamic_dispatch_types
+        or result.required_groups
+    )

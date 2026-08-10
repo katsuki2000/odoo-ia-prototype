@@ -1147,8 +1147,30 @@ _APPROVAL_PATTERN = re.compile(
 # "tous les" / "toutes les" deliberately excluded: too generic in French
 # (fires on unrelated questions like "tous les employés peuvent-ils...");
 # "mêmes règles" alone already covers Q5.1's actual wording.
+#
+# Bloc 9 gap, found 2026-08-10 (bloc9-03c-urgente-trap, generalization
+# check 3/8 on custom_hr_leave_workflow): bare `automatiq\w*` also matches
+# the everyday adverb "automatiquement" in a question like "sa demande
+# est-elle automatiquement validée ?" -- ordinary language asking whether
+# something happens without further action, nothing to do with
+# ir.actions.server/base.automation/sudo() bypass logic. On a model that
+# DOES have real ServerAction nodes (hr.leave does, via hr_holidays), the
+# structural guard below does not filter this out, so the false-positive
+# forces analyser_actions_serveur to run and consumes a hop of the tight
+# CI_MAX_HOPS=4 budget for a question that had nothing to do with server
+# actions -- confirmed live: CI_MAX_HOPS was reached before the ReAct loop
+# started, and the synthesis LLM dropped the has_group()-derived required
+# group (hr_holidays.group_hr_holidays_manager) from its answer, the exact
+# same failure shape as module 1/8's Gap 2 (dispatch noise crowding out a
+# needed fact), just triggered by a false keyword match instead of an
+# uncapped candidate list. Fix: require the automation vocabulary to
+# actually be about an "action" (the noun this tool analyzes) or use the
+# more specific technical term "automatisation" -- a standalone adjective/
+# adverb "automatique"/"automatiquement" with no accompanying "action"
+# noun no longer matches on its own.
 _AUTOMATION_PATTERN = re.compile(
-    r"\b(?:mêmes?\s+règles?|systématiq\w*|automatiq\w*|actions?\s+serveur|bypass|contourn\w*)\b",
+    r"\b(?:mêmes?\s+règles?|systématiq\w*|actions?\s+automatiques?|automatisation\w*|"
+    r"actions?\s+serveur|bypass|contourn\w*)\b",
     re.IGNORECASE,
 )
 
@@ -1189,8 +1211,160 @@ def _question_is_approval_related(question: str) -> bool:
     return bool(_APPROVAL_PATTERN.search(question))
 
 
+# Bloc 9 cross-module gap (2026-08-10, modules 1/8, 3/8, 4/8 generalization
+# checks): the "Groupe(s) technique(s) requis detecte(s) (has_group)" line
+# was present in every single raw analyser_verrous_securite observation
+# checked, but was just as reliably DROPPED from the final synthesized
+# answer specifically on business/trap-phrased approval questions (present
+# on purely technical-enumeration phrasings, e.g. "quelles sont toutes les
+# conditions verifiees par ..."). Unlike SUPER() NON GARDE / CHAINE
+# RELATIONNELLE NON VERIFIEE, which each already have a dedicated prose
+# instruction in synthesis_prompt below, this line had none.
+#
+# Deliberately NOT fixed by adding yet another synthesis_prompt clause.
+# synthesis_prompt already carries a dozen-plus specific instructions for
+# an 8B model with a documented decoding-collapse failure mode under
+# pressure (_detect_degenerate_repetition) and a hard Groq 413 payload
+# ceiling already hit repeatedly in these same runs -- growing it further
+# risks diluting attention on the instructions already there, for an
+# unproven gain on this one. This project already made exactly this call
+# once before and reversed it (see the J7/J8 comment above
+# _AMOUNT_PATTERN: "Rather than trying to word the prompt more forcefully
+# -- which already failed once -- ... removing the LLM from that decision
+# entirely"). Applying the same principle here: extract the required
+# group(s) directly from the raw tool text, independent of anything the
+# LLM did or didn't say, and append them only if genuinely missing --
+# never overriding or duplicating a correct answer.
+_REQUIRED_GROUP_LINE_RE = re.compile(
+    r"Groupe\(s\)\s+technique\(s\)\s+requis\s+detecte\(s\)\s+\(has_group\):\s*([^\n]+)"
+)
+
+
+def _extract_required_groups(raw_tool_output: str) -> List[str]:
+    """Pull every has_group()-derived required group xml_id out of the raw
+    tool text, in first-seen order, deduplicated. Returns [] if no such
+    line is present -- never guesses a group from anywhere else."""
+    groups: List[str] = []
+    for match in _REQUIRED_GROUP_LINE_RE.finditer(raw_tool_output):
+        for name in match.group(1).split(","):
+            name = name.strip()
+            if name and name not in groups:
+                groups.append(name)
+    return groups
+
+
+def _backfill_missing_required_groups(final_answer: str, raw_tool_output: str, question: str) -> str:
+    """Deterministic backfill (see module-level comment above
+    _REQUIRED_GROUP_LINE_RE for why this is a code-level fix, not a
+    prompt-level one): on an approval-related question, if the raw tool
+    output named required group(s) via has_group() that never made it
+    into the synthesized answer, append them as an explicit, clearly
+    labeled fact. No-op whenever every required group is already present
+    in the answer -- this never duplicates or contradicts a correct
+    synthesis, it only fills a gap.
+    """
+    if not _question_is_approval_related(question):
+        return final_answer
+
+    required_groups = _extract_required_groups(raw_tool_output)
+    if not required_groups:
+        return final_answer
+
+    missing = [g for g in required_groups if g not in final_answer]
+    if not missing:
+        return final_answer
+
+    group_list = ", ".join(missing)
+    logger.info(
+        "Node [code_intelligence_agent]: backfilling required group(s) missing "
+        "from synthesized answer (present in raw tool output, dropped by synthesis): %s",
+        group_list,
+    )
+    return (
+        final_answer
+        + f"\n\n[FAIT DÉTERMINISTIQUE] Groupe(s) technique(s) requis (has_group) "
+        f"détecté(s) dans le code pour cette action : {group_list}. Fait extrait "
+        f"directement de l'analyse statique du code."
+    )
+
+
+def _format_can_view_amount_fact(amount: float, can_view: bool) -> str:
+    """
+    Bloc 9 gap (2026-08-10, bloc9-02b-no-groups): the previous phrasing
+    addressed the synthesis LLM directly in second-person imperative
+    INSIDE the data block itself ("ne doit JAMAIS etre recalcule ...
+    reprendre ce verdict tel quel"), blurring the line between fact and
+    instruction. Live run confirmed the small model (llama-3.1-8b-instant)
+    treated that sentence as safe, quotable content and echoed it VERBATIM
+    as the entire final answer -- with zero mention of WHY (no rule name,
+    no reasoning), on the one question where this was the only observation
+    present (no applicable group rule to also cite).
+
+    Kept purely declarative here -- the "never contradict this verdict"
+    instruction now lives in synthesis_prompt instead (code_intelligence_
+    agent), alongside an explicit instruction to still explain the verdict
+    using the OTHER observations in the same response. Extracted as a
+    standalone function so this specific regression (no imperative
+    second-person sentence inside the injected fact) has a fast,
+    deterministic unit test independent of the full ReAct loop / LLM.
+    """
+    return (
+        f"[FAIT DÉTERMINISTIQUE] Pour un montant de {amount:.0f}€, "
+        f"le moteur de règles calcule can_view_amount() = {can_view} : "
+        f"l'utilisateur {'PEUT' if can_view else 'NE PEUT PAS'} voir "
+        f"cet enregistrement."
+    )
+
+
 def _question_suggests_automation_bypass(question: str) -> bool:
     return bool(_AUTOMATION_PATTERN.search(question))
+
+
+# Bloc 9 gap, found 2026-08-10 (bloc9-01a-business, generalization check
+# 1/8 on custom_credit_note_approval): find_methods_with_override_risk_findings
+# has no cap -- on a model shared across many adversarial customization
+# modules (account.move is extended by credit-note-approval AND
+# expense-risk AND others), EVERY flagged method across ALL of them gets
+# forced-dispatched for any single approval-related question, regardless
+# of whether it has anything to do with what was actually asked. Confirmed
+# live: the regional director's 20000e cascade finding on
+# action_valider_avoir never reached the synthesis answer once an
+# unrelated hr_expense finding on a different method was dispatched
+# alongside it in the same tool_observations blob -- the small synthesis
+# LLM has a limited context budget and no way to know which finding the
+# question actually needs. Ranking by lexical relevance to the question
+# (rapidfuzz, already a project dependency -- see business_resolver.py)
+# and capping the dispatch keeps the forced pre-dispatch scoped to what
+# the question is actually about, same discipline as the other J8/J9
+# structural guards (narrow the expensive step, don't widen the prompt).
+_MAX_OVERRIDE_CASCADE_DISPATCH = 2
+
+
+def _rank_and_cap_override_methods(question: str, method_names: List[str]) -> List[str]:
+    """Rank override-risk-flagged method names by lexical relevance to the
+    question (method name with underscores turned into spaces, fuzzy-
+    compared to the question text) and keep only the top
+    _MAX_OVERRIDE_CASCADE_DISPATCH. No-op (returns the input unchanged) when
+    there are already few enough candidates -- this only kicks in once a
+    shared model has accumulated more flagged methods than the budget
+    allows, it never reorders or drops anything on an otherwise-small list.
+    """
+    if len(method_names) <= _MAX_OVERRIDE_CASCADE_DISPATCH:
+        return method_names
+    from rapidfuzz import fuzz
+    question_lower = question.lower()
+    scored = [
+        (name, fuzz.token_set_ratio(question_lower, name.replace("_", " ").lower()))
+        for name in method_names
+    ]
+    scored.sort(key=lambda pair: pair[1], reverse=True)
+    kept = [name for name, _score in scored[:_MAX_OVERRIDE_CASCADE_DISPATCH]]
+    logger.info(
+        "Node [code_intelligence_agent]: override-cascade dispatch capped -- "
+        "%d flagged method(s) found, keeping top %d by relevance to the question: %s.",
+        len(method_names), _MAX_OVERRIDE_CASCADE_DISPATCH, kept,
+    )
+    return kept
 
 
 def _override_user_groups_arg(tool_name: str, tool_args: dict, resolved_user_group_xmlids: list) -> dict:
@@ -1722,18 +1896,43 @@ def code_intelligence_agent(state: RAGState) -> dict:
         )
 
     # J8/J15: force analyser_verrous_securite when the question resolves to
-    # a target model AND is approval/security/condition related. Only fires
+    # a target model AND that model structurally has at least one Python
+    # security-lock finding (find_security_lock_source_files). Only fires
     # when a model is actually available -- an unresolved concept is a Bloc 0
     # problem, not this one.
-    if (
-        concept.is_resolved
-        and concept.resolved_models
-        and _question_is_approval_related(question)
-    ):
+    #
+    # 2026-08-10 (Bloc 9, module 5 gap): this used to be gated ADDITIONALLY
+    # on _question_is_approval_related(question) -- but questions like
+    # "pourquoi je n'arrive pas à démarrer..." or "la règle s'applique-t-elle
+    # ..." (module 5, 05a/05c) contain none of that vocabulary, so the
+    # forced dispatch silently never fired and the LLM picked its own tool,
+    # badly (hallucinated a malformed method name instead of finding the
+    # real Python lock). Every module has its own action vocabulary
+    # ("démarrer", "soumettre", "rejeter"...) -- chasing keywords
+    # per-module is the same whack-a-mole already abandoned for
+    # find_server_action_nodes/find_methods_with_override_cascade below,
+    # which lean on their structural guard instead. Dropped the keyword
+    # gate entirely for THIS dispatch: unlike those two tools (genuinely
+    # tangential to most questions), a Python security lock is central to
+    # nearly every governance/access question about a model -- which is
+    # exactly why J7/J8 exist (the LLM never reliably called this tool on
+    # its own even with an explicit "ALWAYS invoke" directive in
+    # CI_SYSTEM_PROMPT). Tradeoff accepted: this can now also fire on
+    # questions unrelated to security that happen to resolve to a model
+    # with a lock elsewhere in its source -- same "false positive costs
+    # ~nothing" philosophy already accepted for the other two guards below,
+    # and the static tool call itself is cheap (no LLM).
+    if concept.is_resolved and concept.resolved_models:
+        from code_intelligence.ci_agent_tools import find_security_lock_source_files
         tool_map = {t.name: t for t in ALL_CI_TOOLS}
         lock_tool = tool_map.get("analyser_verrous_securite")
         if lock_tool is not None:
             for target_model in concept.resolved_models:
+                if not find_security_lock_source_files(G, target_model):
+                    continue  # structural guard: nothing to say, skip silently
+                call_key = ("analyser_verrous_securite", target_model)
+                if call_key in seen_calls:
+                    continue
                 _t_hop = time.perf_counter()
                 try:
                     forced_observation = str(lock_tool.invoke({"model_name": target_model}))
@@ -1753,7 +1952,7 @@ def code_intelligence_agent(state: RAGState) -> dict:
                     omitted_items.extend(omitted_list)
                     tool_observations.append(forced_observation)
                     hop_count += 1
-                    seen_calls.add(("analyser_verrous_securite", target_model))
+                    seen_calls.add(call_key)
                     _trace_logger.log_hop(
                         trace_id=_trace_id, hop_index=_hop_index,
                         tool_name="analyser_verrous_securite", tool_args={"model_name": target_model},
@@ -1762,19 +1961,20 @@ def code_intelligence_agent(state: RAGState) -> dict:
                     _hop_index += 1
                     logger.info(
                         "Node [code_intelligence_agent]: Deterministic pre-dispatch of "
-                        "'analyser_verrous_securite' for model '%s' (approval/security wording detected).",
+                        "'analyser_verrous_securite' for model '%s' (structural lock finding present).",
                         target_model,
                     )
                 except Exception as te:
                     logger.error("Deterministic analyser_verrous_securite dispatch failed: %s", te)
-            system_prompt += (
-                "\n\n[DETERMINISTIC PRE-DISPATCH]\n"
-                "analyser_verrous_securite has already been run for the target model(s) above "
-                "because the question is approval/security-related; its output is already included "
-                "in the tool observations. Do not call it again -- focus any further tool calls on "
-                "what it does NOT cover (e.g. ir.rule / group-based record visibility via "
-                "evaluer_regles_enregistrement)."
-            )
+            if any(k[0] == "analyser_verrous_securite" for k in seen_calls):
+                system_prompt += (
+                    "\n\n[DETERMINISTIC PRE-DISPATCH]\n"
+                    "analyser_verrous_securite has already been run for the target model(s) above "
+                    "because the question is approval/security-related; its output is already included "
+                    "in the tool observations. Do not call it again -- focus any further tool calls on "
+                    "what it does NOT cover (e.g. ir.rule / group-based record visibility via "
+                    "evaluer_regles_enregistrement)."
+                )
 
     # J8/J9: force analyser_actions_serveur when the question resolves to a
     # target model, suggests automation/bypass logic (_AUTOMATION_PATTERN),
@@ -1875,6 +2075,7 @@ def code_intelligence_agent(state: RAGState) -> dict:
                 # renamed find_methods_with_unguarded_super ->
                 # find_methods_with_override_risk_findings accordingly).
                 flagged_methods = find_methods_with_override_risk_findings(G, target_model, candidate_methods)
+                flagged_methods = _rank_and_cap_override_methods(question, flagged_methods)
                 for method_name in flagged_methods:
                     call_key = ("analyser_chaine_surcharge_methode", target_model, method_name)
                     if call_key in seen_calls:
@@ -2091,13 +2292,7 @@ def code_intelligence_agent(state: RAGState) -> dict:
                                 try:
                                     can_view = rule_result.can_view_amount(amount)
                                     tool_observations.append(
-                                        f"[FAIT DÉTERMINISTIQUE] Pour un montant de {amount:.0f}€, "
-                                        f"can_view_amount() = {can_view} -> l'utilisateur "
-                                        f"{'PEUT' if can_view else 'NE PEUT PAS'} voir cet "
-                                        f"enregistrement. Ce résultat est calculé directement par "
-                                        f"le moteur de règles (evaluer_regles_enregistrement."
-                                        f"can_view_amount) et ne doit JAMAIS être recalculé ou "
-                                        f"contredit par la synthèse -- reprendre ce verdict tel quel."
+                                        _format_can_view_amount_fact(amount, can_view)
                                     )
                                     logger.info(
                                         "Node [code_intelligence_agent]: Injected deterministic "
@@ -2153,10 +2348,19 @@ def code_intelligence_agent(state: RAGState) -> dict:
                     f"if it carried a confidence level is itself a fabrication. "
                     f"If a [FAIT DÉTERMINISTIQUE] observation is present, it is the "
                     f"authoritative verdict on the user's access for the stated amount -- "
-                    f"do NOT mention, paraphrase, or allude to any 'could not be resolved' "
-                    f"message from a different tool about group identifiers; those are "
-                    f"obsolete artifacts of an earlier resolution step and have been "
-                    f"superseded by the deterministic evaluation. "
+                    f"never recompute or contradict it, and do NOT mention, paraphrase, or "
+                    f"allude to any 'could not be resolved' message from a different tool "
+                    f"about group identifiers; those are obsolete artifacts of an earlier "
+                    f"resolution step and have been superseded by the deterministic "
+                    f"evaluation. This verdict is a CONCLUSION, not an explanation: you MUST "
+                    f"still explain WHY in your answer, using the applicable and ignored rule "
+                    f"names/domain_force from the OTHER observations in this same response "
+                    f"(e.g. an unconditional group rule that outweighs a capped one via OR, "
+                    f"or -- when no group rule applies at all -- the remaining global rule that "
+                    f"carries no amount condition). Never quote or restate the bracketed "
+                    f"'[FAIT DÉTERMINISTIQUE]' label or the mechanism name "
+                    f"'evaluer_regles_enregistrement.can_view_amount' itself as if that were "
+                    f"the explanation -- it is internal bookkeeping, not user-facing reasoning. "
                     f"Any file citation you make MUST keep its exact line range from the "
                     f"source observation (file:///path#L12-L25) -- never drop the line range "
                     f"even when shortening a citation. Any rule/action/group xml_id you cite "
@@ -2179,6 +2383,19 @@ def code_intelligence_agent(state: RAGState) -> dict:
                     f"Original Question clears BOTH thresholds, report BOTH levels explicitly as "
                     f"a cascade, including the relational-chain risk verbatim; never report only "
                     f"the first (lowest) threshold and drop the second. "
+                    f"When an observation names a chain of override modules (e.g. 'Cha\u00eene de "
+                    f"surcharge de ... (N modules ...)'), the list of modules and their line "
+                    f"ranges in that observation is EXHAUSTIVE and CLOSED -- never add a module, "
+                    f"file path, or line range that is not copied verbatim from that observation, "
+                    f"even to make the pattern look complete or consistent with the others; if "
+                    f"you are unsure whether a module belongs, omit it rather than invent one. "
+                    f"When a finding includes a literal condition or field name in backticks "
+                    f"(e.g. `rec.partner_id.avoir_vip_exempt`, `rec.amount_total > 20000`), copy "
+                    f"that literal verbatim in your answer -- do not paraphrase it away into a "
+                    f"generic phrase like 'a conditional branch'. If a module listed in an "
+                    f"override chain has NO \u26a0\ufe0f warning attached to it in the observation, state "
+                    f"explicitly that no risk pattern was detected for that module by this "
+                    f"heuristic -- never invent a risk finding to fill that gap. "
                     f"If the Original Question above asks about more than one condition or "
                     f"threshold (e.g. 'qui peut valider X, et y a-t-il une restriction "
                     f"supplémentaire au-delà de Y ?'), answer EACH part explicitly and "
@@ -2249,6 +2466,14 @@ def code_intelligence_agent(state: RAGState) -> dict:
     dynamic_uncertainty_answer = _force_dynamic_uncertainty_answer(question, raw_tool_output)
     if dynamic_uncertainty_answer:
         final_answer = dynamic_uncertainty_answer
+    else:
+        # Bloc 9 cross-module gap fix (2026-08-10): deterministic backfill,
+        # not a prompt instruction -- see the comment above
+        # _REQUIRED_GROUP_LINE_RE for why. Never runs on the dynamic-
+        # uncertainty path above (that answer is deliberately restricted to
+        # "cannot determine with certainty"; appending a required-group fact
+        # there would contradict its own point).
+        final_answer = _backfill_missing_required_groups(final_answer, raw_tool_output, question)
 
     from code_intelligence.sourcing_guard import verify_citations, annotate_unverifiable_citations
     sourcing_result = verify_citations(final_answer, raw_tool_output)

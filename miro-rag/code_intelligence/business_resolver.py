@@ -35,8 +35,26 @@ BUSINESS_ALIASES: Dict[str, List[str]] = {
     "factures": ["account.move"],
     "facturation": ["account.move"],
     # Achats
-    "demande d'achat": ["custom.purchase.request", "purchase.order"],
-    "demande d'achats": ["custom.purchase.request", "purchase.order"],
+    # Bloc 9 gap (2026-08-10, module 4/8, bloc9-04a/04c): this alias used to
+    # also resolve to the real standard Odoo "purchase.order" model. In
+    # French Odoo terminology "demande d'achat" is not actually a synonym
+    # for "purchase.order" (a bon de commande) -- it is the literal name of
+    # this custom module's own _description ("Demande d'achat interne",
+    # custom_purchase_request/models/purchase_request.py). Forcing both
+    # models through the deterministic pre-dispatch in rag/graph.py meant
+    # every question about this custom approval/threshold workflow also
+    # dragged in the entire unrelated 1101-line standard purchase.order
+    # lock analysis (a different mechanism, different required group) --
+    # confirmed via check_bloc9_04_purchase_request_e2e.py to drown the
+    # 10 000e threshold fact specific to custom.purchase.request in noise,
+    # and in the trap question (bloc9-04c) to make the synthesis answer
+    # off the wrong (irrelevant) model entirely. Zero lexical-overlap
+    # principle from this table's own docstring: custom.purchase.request
+    # is the exact, unambiguous match, so it is the only static alias
+    # target here -- a genuine "bon de commande"/purchase.order question
+    # remains resolvable on its own merits via fuzzy graph matching.
+    "demande d'achat": ["custom.purchase.request"],
+    "demande d'achats": ["custom.purchase.request"],
     # Prêt matériel
     "mise a disposition": ["custom.asset.loan"],
     "mise à disposition": ["custom.asset.loan"],

@@ -538,12 +538,27 @@ def analyser_chaine_surcharge_methode(
             continue
         source = p.read_text(encoding="utf-8")
 
+        # 2026-08-07: track whether THIS site got a warning line -- without
+        # this, a clean site (no unguarded-super, no unchecked-relational-
+        # chain) ends up as a bare "N. module 'x' -- link" line with zero
+        # elaboration, visually indistinguishable from "not analyzed yet".
+        # Confirmed live (bloc9-01b, 2026-08-07) that the synthesis LLM does
+        # NOT reliably treat that bare line as a real, reportable 3rd
+        # finding -- it fabricates a plausible-looking 4th module with an
+        # invented risk instead of citing the real clean module verbatim.
+        # Making "nothing found" explicit here removes the ambiguity at the
+        # source rather than relying on a synthesis-prompt instruction alone
+        # (that alone was NOT sufficient -- see synthesis_prompt in
+        # rag/graph.py, patched same day but insufficient by itself).
+        site_has_warning = False
+
         warning = detect_unguarded_super(
             source, site.filepath, method_name, site.lineno, module=site.module
         )
         if warning:
             warnings.append(warning)
             lines.append(f"     {warning}")
+            site_has_warning = True
 
         relational_warning = detect_unchecked_relational_chain(
             source, site.filepath, method_name, site.lineno, module=site.module
@@ -551,6 +566,14 @@ def analyser_chaine_surcharge_methode(
         if relational_warning:
             warnings.append(relational_warning)
             lines.append(f"     {relational_warning}")
+            site_has_warning = True
+
+        if not site_has_warning:
+            lines.append(
+                "     (aucun risque structurel d\u00e9tect\u00e9 par cette heuristique "
+                "pour ce module -- pas de branche non garante ni de cha\u00eene "
+                "relationnelle non v\u00e9rifi\u00e9e trouv\u00e9e)"
+            )
 
         if site.end_lineno:
             snippet_lines = source.splitlines()[site.lineno - 1 : site.end_lineno]

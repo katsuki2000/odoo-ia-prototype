@@ -45,6 +45,21 @@ class ServerActionCodeAnalysis:
     llm_summary: Optional[str] = None
     llm_confidence: Optional[str] = None
 
+    # Bloc 9 gap (2026-08-10, module 6/8, custom_automation_traps / Q5.1):
+    # sudo()/hardcoded-ID detection previously reported flat, unlinked
+    # facts with no record of the enclosing `if` condition that actually
+    # scopes them -- same "extraction loses the guard" class of bug already
+    # fixed once in semgrep_locks_analyzer.py (module 1/8's super() capture,
+    # module 5/8's exception_conditions), a third location this time. On
+    # the real ground truth (`FOURNISSEURS_PRIVILEGIES = [42, 108, 231];
+    # if rec.move_type == 'in_refund' and rec.partner_id.id in
+    # FOURNISSEURS_PRIVILEGIES: rec.sudo().action_post()`), the tool could
+    # say "sudo() detected" and "hardcoded IDs detected" but never state
+    # that the bypass is conditional at all, let alone on WHAT -- exactly
+    # the fact Q5.1 needs ("est-ce que TOUS les avoirs suivent les mêmes
+    # règles ?" -> NON, only in_refund moves from those 3 partners).
+    trigger_conditions: List[str] = field(default_factory=list)
+
 
 # Regex patterns for security-relevant code constructs
 _SUDO_PATTERN = re.compile(r"\.sudo\s*\(")
@@ -55,6 +70,44 @@ _HARDCODED_ID_LIST_PATTERN = re.compile(
 _GETATTR_PATTERN = re.compile(r"\bgetattr\s*\(")
 _EVAL_PATTERN = re.compile(r"\beval\s*\(")
 _EXEC_PATTERN = re.compile(r"\bexec\s*\(")
+_IF_LINE_PATTERN = re.compile(r"^if\s+(.+):\s*$")
+
+
+def _line_number_of(code: str, char_offset: int) -> int:
+    """1-indexed line number containing char_offset in code."""
+    return code.count("\n", 0, char_offset) + 1
+
+
+def _find_enclosing_if_condition(code_lines: List[str], line_no: int) -> Optional[str]:
+    """
+    Best-effort, indentation-based scan backward from line_no (1-indexed)
+    for the nearest enclosing `if ...:` statement whose body contains this
+    line. Deliberately NOT a full AST parse (unlike semgrep_locks_analyzer's
+    guard-capturing visitors, which operate on real Python module source) --
+    ir.actions.server `code` is a free-text data field that may be partial
+    or unusual, and this whole file's design already accepts regex-level,
+    'low confidence' analysis over full parsing (see module docstring).
+    Fails safe: returns None (scoping caveat simply omitted, never a wrong
+    one shown) if indentation doesn't resolve cleanly or no enclosing `if`
+    is found before reaching column 0.
+    """
+    if line_no - 1 >= len(code_lines) or line_no - 1 < 0:
+        return None
+    target_indent = len(code_lines[line_no - 1]) - len(code_lines[line_no - 1].lstrip())
+    for i in range(line_no - 2, -1, -1):
+        line = code_lines[i]
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        indent = len(line) - len(line.lstrip())
+        if indent < target_indent:
+            match = _IF_LINE_PATTERN.match(stripped)
+            if match:
+                return match.group(1).strip()
+            target_indent = indent
+            if indent == 0:
+                return None
+    return None
 
 
 def analyze_server_action_code(
@@ -74,13 +127,27 @@ def analyze_server_action_code(
         result.summary_text = f"Action '{action_xml_id}': No code to analyze."
         return result
 
+    code_lines = code.splitlines()
+
     # 1. Detect sudo() calls
-    sudo_matches = _SUDO_PATTERN.findall(code)
+    sudo_matches = list(_SUDO_PATTERN.finditer(code))
     if sudo_matches:
         result.has_sudo = True
+        # Capture enclosing if-conditions for each sudo() occurrence
+        for m in sudo_matches:
+            line_no = _line_number_of(code, m.start())
+            cond = _find_enclosing_if_condition(code_lines, line_no)
+            if cond and cond not in result.trigger_conditions:
+                result.trigger_conditions.append(cond)
+        cond_clause = ""
+        if result.trigger_conditions:
+            cond_clause = (
+                f" Conditionné par: {'; '.join(result.trigger_conditions)}."
+            )
         result.security_warnings.append(
             f"⚠️ SUDO: L'action '{action_xml_id}' utilise sudo() ({len(sudo_matches)} appels). "
-            f"Cela contourne les règles d'accès (ir.rule) et les ACL. "
+            f"Cela contourne les règles d'accès (ir.rule) et les ACL."
+            f"{cond_clause} "
             f"[Confiance: FAIBLE - logique stockée en données XML]"
         )
 
@@ -98,10 +165,22 @@ def analyze_server_action_code(
             if ids:
                 result.has_hardcoded_ids = True
                 result.hardcoded_id_lists.append(ids)
+                # The list definition itself sits at top-level, but the
+                # meaningful guard is on the *usage* site (the sudo() call
+                # inside the if-block that references this list).  We
+                # already captured that in step 1 above, so we just echo
+                # the same trigger_conditions rather than re-scanning the
+                # declaration line (which is typically unguarded).
+                cond_clause = ""
+                if result.trigger_conditions:
+                    cond_clause = (
+                        f" Conditionné par: {'; '.join(result.trigger_conditions)}."
+                    )
                 result.security_warnings.append(
                     f"⚠️ IDs EN DUR: L'action '{action_xml_id}' contient une liste d'IDs "
                     f"codés en dur: {ids}. Ces enregistrements bénéficient d'un traitement "
-                    f"spécial non documenté dans les modèles Python. "
+                    f"spécial non documenté dans les modèles Python."
+                    f"{cond_clause} "
                     f"[Confiance: FAIBLE - logique stockée en données XML]"
                 )
         except ValueError:
@@ -140,6 +219,12 @@ def analyze_server_action_code(
             # special treatment outside the normal ACL/ir.rule system -- same
             # bypass category as sudo(), marked identically.
             lines.append(f"  - {SENSITIVE_BYPASS_MARKER} IDs en dur: {id_list} → traitement privilégié non documenté")
+
+    if result.trigger_conditions:
+        lines.append(
+            f"  - ⚡ Condition(s) de déclenchement: "
+            + "; ".join(result.trigger_conditions)
+        )
 
     if result.has_group_checks:
         # NOT marked: has_group() is Odoo's normal, documented access-control

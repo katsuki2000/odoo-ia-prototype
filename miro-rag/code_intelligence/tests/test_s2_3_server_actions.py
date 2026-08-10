@@ -141,3 +141,18 @@ class TestServerActionCodeAnalysis:
         # Summary should mention both risks
         assert "sudo" in analysis.summary_text.lower()
         assert "42" in analysis.summary_text
+        # Bloc 9 fix: the enclosing if-guard must be captured so that
+        # Q5.1 can answer "NON, pas tous les avoirs" -- the bypass only
+        # fires for in_refund moves from the 3 privileged partners.
+        assert len(analysis.trigger_conditions) >= 1
+        assert any("in_refund" in c for c in analysis.trigger_conditions), (
+            f"Expected 'in_refund' guard in trigger_conditions, got: {analysis.trigger_conditions}"
+        )
+        # The condition should also appear in the summary text
+        assert "in_refund" in analysis.summary_text, (
+            f"Expected 'in_refund' in summary_text, got: {analysis.summary_text}"
+        )
+        # And in the security warnings themselves
+        assert any("in_refund" in w for w in analysis.security_warnings), (
+            f"Expected 'in_refund' in at least one security_warning"
+        )

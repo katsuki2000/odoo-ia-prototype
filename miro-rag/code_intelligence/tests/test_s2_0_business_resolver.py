@@ -51,6 +51,17 @@ def test_s2_0_static_alias_purchase_request(mock_graph):
     assert "custom.purchase.request" in res.resolved_models
 
 
+def test_s2_0_static_alias_purchase_request_does_not_bundle_purchase_order(mock_graph):
+    """Bloc 9 gap (2026-08-10, module 4/8, bloc9-04a/04c): 'demande d'achat'
+    used to also resolve to the real, unrelated standard Odoo 'purchase.order'
+    model, which drowned out custom.purchase.request's own 10 000e threshold
+    fact under the forced-dispatch hop budget (see contexte.txt section 21).
+    'demande d'achat' is the literal _description of custom.purchase.request
+    itself -- an unambiguous match, not a case needing a second candidate."""
+    res = resolve_business_term("Qui peut valider une demande d'achat de 15000€ ?", mock_graph)
+    assert "purchase.order" not in res.resolved_models
+
+
 def test_s2_0_static_alias_asset_loan(mock_graph):
     res = resolve_business_term("Comment faire une demande de mise à disposition de matériel ?", mock_graph)
     assert res.is_resolved is True
