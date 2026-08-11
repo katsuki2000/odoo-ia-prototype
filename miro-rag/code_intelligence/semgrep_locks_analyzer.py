@@ -26,6 +26,15 @@ class PythonSecurityLockAnalysis:
     # Index-aligned with exception_messages -- see SecurityLockASTVisitor's
     # __init__ comment. Always the same length as exception_messages.
     exception_conditions: List[str] = field(default_factory=list)
+    # Index-aligned with exception_messages, same convention as
+    # exception_conditions. When the enclosing condition is (or starts
+    # with, as the first `and` operand) a bare truthiness check on a
+    # relational field/attribute -- e.g. `if rec.demande_achat_liee_id and
+    # rec.demande_achat_liee_id.montant_estime > 2000:` -- this holds the
+    # unparsed text of that guarding operand (e.g.
+    # "rec.demande_achat_liee_id"), else "". See
+    # _detect_link_guard_field's docstring for why this exists.
+    exception_guard_fields: List[str] = field(default_factory=list)
     has_dynamic_dispatch: bool = False
     dynamic_dispatch_types: List[str] = field(default_factory=list)
     required_groups: List[str] = field(default_factory=list)
@@ -62,6 +71,9 @@ class SecurityLockASTVisitor(ast.NodeVisitor):
         # as a bare message with no visible condition, and gets reasoned
         # about as if it were unconditional (bloc9-05c-no-link-trap).
         self.exception_conditions: List[str] = []
+        # Index-aligned with exception_messages -- see
+        # PythonSecurityLockAnalysis.exception_guard_fields docstring.
+        self.exception_guard_fields: List[str] = []
         self.dynamic_dispatches: List[str] = []
         self.required_groups: List[str] = []
         self._if_test_stack: List[ast.expr] = []
@@ -87,6 +99,74 @@ class SecurityLockASTVisitor(ast.NodeVisitor):
             except Exception:
                 parts.append("?")
         return " and ".join(parts)
+
+    def _detect_link_guard_field(self) -> str:
+        """
+        Detect whether any `if` test currently enclosing the node being
+        visited is -- or begins with, as the first operand of an `and` --
+        a bare truthiness check on a relational field/attribute (NOT a
+        Compare, e.g. not `x > 2000` or `x == y`), such as
+        `if rec.demande_achat_liee_id:` or
+        `if rec.demande_achat_liee_id and rec.demande_achat_liee_id.montant_estime > 2000:`.
+
+        Python's `and` short-circuits on a falsy first operand, so this
+        shape means the WHOLE condition -- and therefore whatever it
+        guards -- can only ever be true when that first operand is truthy
+        (typically: a real linked record is present). Returns the unparsed
+        text of that guarding operand, checking outer tests first (the
+        outermost guard is the binding constraint), or "" if no enclosing
+        `if` has this shape.
+
+        Bloc 9 gap (2026-08-10, bloc9-05c-no-link-trap): the raw condition
+        text alone (via _current_condition_text) already contains enough
+        information to derive this deterministically, but a live run
+        showed the synthesis LLM misreading the short-circuit direction
+        even with the condition quoted to it verbatim -- it concluded the
+        rule "applies when NOT linked", the exact inverse of what the code
+        does. This makes the derived conclusion an explicit, computed fact
+        instead of leaving Python boolean short-circuit reasoning to the
+        small model. Deliberately conservative (same discipline as
+        _extract_amount in rag/graph.py): only the clear, unambiguous shape
+        is flagged -- a guard expressed any other way (e.g. `if not rec.x:
+        return` early-exit, or a helper method) is silently not detected,
+        which is safe (no annotation is added, not a wrong one).
+
+        Bloc 9 gap (module 5/8 fix rerun, 2026-08-11, cross-module
+        contamination on bloc9-05c-no-link-trap): the original second
+        branch matched any `if` test that was merely "not a Compare and
+        not a BoolOp" -- meant to catch a bare `if rec.linked_id:`, but
+        that negative shape also matches an `ast.UnaryOp` such as
+        `if not (user_ok or email_ok):` (custom_purchase_request's own,
+        unrelated approval gate). A live run on a question mentioning both
+        "mise a disposition" and "demande d'achat" -- so both models were
+        legitimately in scope for the same turn -- produced a fabricated
+        "[GARDE DE LIEN: si 'not (user_ok or email_ok)' est vide/absent..."
+        annotation for custom_purchase_request: nonsensical, since a
+        boolean authorization check can never be "vide/absent" the way a
+        Many2one field can. This was not the cross-module scoping bug
+        fixed on 2026-08-11 in rag/graph.py (_scoped_raw_tool_output) --
+        that fix correctly kept this observation in scope, because the
+        question genuinely referenced both models; the bug was in THIS
+        function misclassifying an unrelated boolean condition as a link-
+        guard field in the first place. Narrowed to a positive-shape check
+        (ast.Attribute or ast.Name only) instead of the negative one --
+        the only two node types a bare relational-field/attribute
+        truthiness check can actually be.
+        """
+        for test in self._if_test_stack:  # outer to inner: outermost guard binds first
+            if isinstance(test, ast.BoolOp) and isinstance(test.op, ast.And) and test.values:
+                first = test.values[0]
+                if not isinstance(first, ast.Compare):
+                    try:
+                        return ast.unparse(first)
+                    except Exception:
+                        return ""
+            elif isinstance(test, (ast.Attribute, ast.Name)):
+                try:
+                    return ast.unparse(test)
+                except Exception:
+                    return ""
+        return ""
 
     def visit_Assign(self, node: ast.Assign):
         """Detect hardcoded email/login lists assigned to variables like _VALIDATEURS_EXCEPTIONNELS."""
@@ -134,6 +214,7 @@ class SecurityLockASTVisitor(ast.NodeVisitor):
                     # Index-aligned with exception_messages -- see __init__
                     # docstring comment above for why this exists.
                     self.exception_conditions.append(self._current_condition_text())
+                    self.exception_guard_fields.append(self._detect_link_guard_field())
 
         self.generic_visit(node)
 
@@ -187,6 +268,7 @@ def analyze_python_security_locks(code: str, filepath: str) -> PythonSecurityLoc
         result.hardcoded_logins = visitor.hardcoded_logins
         result.exception_messages = visitor.exception_messages
         result.exception_conditions = visitor.exception_conditions
+        result.exception_guard_fields = visitor.exception_guard_fields
         result.dynamic_dispatch_types = visitor.dynamic_dispatches
         result.required_groups = visitor.required_groups
 
@@ -219,6 +301,7 @@ def analyze_python_security_locks(code: str, filepath: str) -> PythonSecurityLoc
                 # match) -- kept index-aligned with "" rather than left
                 # unset, same convention as the AST path.
                 result.exception_conditions.append("")
+                result.exception_guard_fields.append("")
 
     if not result.required_groups:
         for group_xmlid in _HAS_GROUP_PATTERN.findall(code):
@@ -246,7 +329,18 @@ def analyze_python_security_locks(code: str, filepath: str) -> PythonSecurityLoc
     from code_intelligence.utils import format_file_link, SENSITIVE_BYPASS_MARKER
     line_count = max(1, len(code.splitlines()))
     file_link = format_file_link(filepath, 1, line_count)
-    lines = [f"Analyse des verrous Python ({file_link}) [Confiance: {result.confidence.upper()}]:"]
+    # 2026-08-10 (Bloc 9 gap, module 7/8, bloc9-07 raw check): `result.confidence`
+    # is stored in English ("low"/"high") -- test_s2_5_semgrep_locks.py already
+    # asserts on that exact string, so the stored value itself must not change.
+    # But every OTHER low-confidence message in this codebase (the dynamic-
+    # dispatch inline warning right above, the override-chain warnings in
+    # method_override_resolver.py, etc.) renders "[Confiance: FAIBLE]" in
+    # French -- only this one header line fell back to a raw .upper() of the
+    # English value, producing the inconsistent "[Confiance: LOW]". "high"
+    # deliberately left as-is (translating it too is a separate, broader,
+    # out-of-scope change nothing currently expects or checks for).
+    _confidence_label = "FAIBLE" if result.confidence == "low" else result.confidence.upper()
+    lines = [f"Analyse des verrous Python ({file_link}) [Confiance: {_confidence_label}]:"]
     if result.has_hardcoded_logins:
         # Bloc 7 (J23-24, revised): the ONLY line in this analyzer's output
         # that describes an actual bypass (privileged access granted
@@ -258,12 +352,14 @@ def analyze_python_security_locks(code: str, filepath: str) -> PythonSecurityLoc
         lines.append(f"  - {SENSITIVE_BYPASS_MARKER} Logins/Emails privilégies en dur: {result.hardcoded_logins}")
     if result.exception_messages:
         lines.append(f"  - Messages de verrous (UserError/ValidationError):")
-        # exception_conditions is index-aligned with exception_messages (see
-        # SecurityLockASTVisitor); pad defensively in case some caller ever
-        # builds a PythonSecurityLockAnalysis by hand without it, same
-        # discipline as the rest of this function never trusting shape.
+        # exception_conditions/exception_guard_fields are index-aligned with
+        # exception_messages (see SecurityLockASTVisitor); pad defensively
+        # in case some caller ever builds a PythonSecurityLockAnalysis by
+        # hand without them, same discipline as the rest of this function
+        # never trusting shape.
         conditions = result.exception_conditions or [""] * len(result.exception_messages)
-        for msg, condition in zip(result.exception_messages, conditions):
+        guard_fields = result.exception_guard_fields or [""] * len(result.exception_messages)
+        for msg, condition, guard_field in zip(result.exception_messages, conditions, guard_fields):
             if condition:
                 # Module 5/8 fix (2026-08-10): without this, a raise gated by
                 # an `if` (e.g. "only if a linked purchase request exceeds
@@ -274,6 +370,22 @@ def analyze_python_security_locks(code: str, filepath: str) -> PythonSecurityLoc
                 lines.append(f"    * \"{msg}\" (condition : {condition})")
             else:
                 lines.append(f"    * \"{msg}\"")
+            if guard_field:
+                # Module 5/8 fix, part 2 (2026-08-10, bloc9-05c-no-link-trap):
+                # spelling out the short-circuit CONCLUSION explicitly and
+                # deterministically, rather than leaving the small synthesis
+                # LLM to derive it from the raw condition text -- a live run
+                # showed it misreading the short-circuit direction even with
+                # the condition quoted to it verbatim. Also machine-parseable
+                # by rag/graph.py's _backfill_link_guard_clarifications so
+                # the correct conclusion reaches the final answer
+                # unconditionally, independent of what the LLM said.
+                lines.append(
+                    f"      [GARDE DE LIEN: si '{guard_field}' est vide/absent (aucun "
+                    f"enregistrement lie), cette condition est FAUSSE par court-circuit "
+                    f"Python (evaluation de gauche a droite d'un 'and') -- la regle ci-dessus "
+                    f"NE S'APPLIQUE PAS dans ce cas, quel que soit le reste de la condition.]"
+                )
     if result.required_groups:
         groups_joined = ', '.join(result.required_groups)
         lines.append(f"  - Groupe(s) technique(s) requis detecte(s) (has_group): {groups_joined}")

@@ -402,26 +402,32 @@ def cross_encoder_rerank(
     if not results:
         return []
 
-    try:
-        model = _get_cross_encoder()
-
-        # Truncate documents to keep inference fast and consistent with
-        # the previous 1500-char limit used for the API payload.
-        pairs = [[query, r["document"][:1500]] for r in results]
-
-        scores = model.predict(pairs)
-
-        for i, r in enumerate(results):
-            r["cross_encoder_score"] = float(scores[i])
-
-        results.sort(key=lambda x: x["cross_encoder_score"], reverse=True)
-
-    except Exception as e:
-        logger.error(f"Local cross-encoder reranking failed: {e}")
-        logger.info("Falling back to hybrid search scores.")
-        return results[:top_k]
-
+    # --- TEMPORARILY DISABLED: cross-encoder causes "Illegal instruction"
+    #     on CPUs without AVX2 support.  Remove this block to re-enable. ---
+    logger.info("Cross-encoder reranking SKIPPED (temporarily disabled). "
+                "Returning results ranked by hybrid search scores.")
     return results[:top_k]
+
+    # try:
+    #     model = _get_cross_encoder()
+    #
+    #     # Truncate documents to keep inference fast and consistent with
+    #     # the previous 1500-char limit used for the API payload.
+    #     pairs = [[query, r["document"][:1500]] for r in results]
+    #
+    #     scores = model.predict(pairs)
+    #
+    #     for i, r in enumerate(results):
+    #         r["cross_encoder_score"] = float(scores[i])
+    #
+    #     results.sort(key=lambda x: x["cross_encoder_score"], reverse=True)
+    #
+    # except Exception as e:
+    #     logger.error(f"Local cross-encoder reranking failed: {e}")
+    #     logger.info("Falling back to hybrid search scores.")
+    #     return results[:top_k]
+    #
+    # return results[:top_k]
 
 # ── Full Retrieval Pipeline ─────────────────────────────────────────────────
 

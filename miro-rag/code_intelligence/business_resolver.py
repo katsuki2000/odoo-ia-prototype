@@ -66,6 +66,24 @@ BUSINESS_ALIASES: Dict[str, List[str]] = {
     "demande de conge": ["hr.leave"],
     "demande de congé": ["hr.leave"],
     # Frais
+    # Bloc 9 gap (2026-08-11, module 7/8, bloc9-07c-sudo-scope-trap): the
+    # original alias key was the fixed phrase "remboursement de frais" --
+    # matched as a literal substring, so it never fires on a question that
+    # says "demande de remboursement" (different word order, "de frais"
+    # dropped entirely), which is how a real user just as plausibly phrases
+    # it. Confirmed live: this exact phrasing fell through static alias AND
+    # exact-technical-mention (07c never names the module/model), leaving
+    # only fuzzy matching -- which did not resolve to custom.reimbursement.
+    # request at all, so the forced, structural (no question-wording gate)
+    # analyser_verrous_securite pre-dispatch never ran, and the getattr()
+    # uncertainty guardrail never triggered either -- the synthesis LLM
+    # answered from evaluer_regles_enregistrement alone and asserted the
+    # dangerous inverse ("sans restriction"). Added the bare noun
+    # "remboursement" as its own alias key (zero lexical overlap with the
+    # English technical names, same principle as every other entry here) so
+    # any phrasing containing that single word resolves deterministically,
+    # without needing to guess every possible surrounding phrase.
+    "remboursement": ["custom.reimbursement.request", "hr.expense"],
     "remboursement de frais": ["custom.reimbursement.request", "hr.expense"],
     "note de frais": ["custom.reimbursement.request", "hr.expense"],
     # Automatismes Odoo

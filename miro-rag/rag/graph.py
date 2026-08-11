@@ -13,8 +13,9 @@ import sys
 import json
 import threading
 import time
+from collections import Counter
 from pathlib import Path
-from typing import TypedDict, List, Optional, Any
+from typing import TypedDict, List, Optional, Any, Tuple
 
 # Add parent dir to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -162,6 +163,121 @@ def _strip_degenerate_repetition(text: str) -> str:
     the repeated phrase, as a last resort if a retry still comes back
     degenerate -- never ship a wall of repeated tokens to the user."""
     return _DEGENERATE_REPETITION_RE.sub(r"\1", text)
+
+
+_DEGENERATE_LINE_REPETITION_MIN_REPEATS = 4
+_DEGENERATE_LINE_MIN_LENGTH = 30
+
+
+def _detect_degenerate_line_repetition(text: str) -> bool:
+    """
+    Second, complementary decoding-collapse detector -- live finding
+    (bloc9-06b-technical, 2026-08-10): `_DEGENERATE_REPETITION_RE` above
+    only catches a SHORT (1-3 word) phrase repeating consecutively, since
+    it was written for the original Q1.1 case ("Accountant Manager" x140).
+    It does NOT generalize to a full SENTENCE or bullet line repeating
+    verbatim many times, which is exactly the shape observed live: the
+    same ~40-word "- `xml_id: account.group_account_manager` : Ce groupe
+    est requis..." line repeated ~50 times until the response was cut off
+    mid-word. Same underlying model decoding-collapse failure, just at a
+    coarser granularity that the phrase-level regex structurally cannot
+    catch (its capture group is capped at 3 words).
+
+    Splits the text into lines and flags any single line -- above a
+    minimum length, so short legitimately-repeatable list items (e.g. a
+    short marker on consecutive bullet rows) don't false-positive -- that
+    recurs _DEGENERATE_LINE_REPETITION_MIN_REPEATS+ times anywhere in the
+    text (not necessarily contiguously -- a real synthesis answer does not
+    legitimately repeat a 30+ character sentence four times regardless of
+    spacing, so this is safe to check globally rather than only
+    consecutively).
+    """
+    if not text:
+        return False
+    lines = [ln.strip() for ln in text.splitlines() if len(ln.strip()) >= _DEGENERATE_LINE_MIN_LENGTH]
+    if not lines:
+        return False
+    counts = Counter(lines)
+    return any(c >= _DEGENERATE_LINE_REPETITION_MIN_REPEATS for c in counts.values())
+
+
+def _strip_degenerate_line_repetition(text: str) -> str:
+    """Collapse repeated (near-)identical lines down to their first
+    occurrence, preserving original order -- same last-resort philosophy
+    as `_strip_degenerate_repetition`, at the coarser line granularity."""
+    seen = set()
+    out_lines = []
+    for line in text.splitlines():
+        key = line.strip()
+        if len(key) >= _DEGENERATE_LINE_MIN_LENGTH:
+            if key in seen:
+                continue
+            seen.add(key)
+        out_lines.append(line)
+    return "\n".join(out_lines)
+
+
+_DEGENERATE_BLANK_RUN_RE = re.compile(r"(?:[ \t]*\n){15,}")
+
+
+def _detect_degenerate_blank_run(text: str) -> bool:
+    """
+    Third, complementary decoding-collapse detector -- live finding
+    (bloc9-06c-technical-condition-capture, 2026-08-11): neither
+    `_detect_degenerate_repetition` (short phrase, 6+ consecutive) nor
+    `_detect_degenerate_line_repetition` (a 30+ char line/sentence
+    repeated 4+ times ANYWHERE) catches this shape -- the model instead
+    collapsed into emitting dozens of consecutive blank/whitespace-only
+    lines (observed: ~30+ bare newlines in a row) between two otherwise-
+    normal sentences, which is neither a repeated phrase nor a repeated
+    non-empty line. `_DEGENERATE_LINE_MIN_LENGTH`'s own 30-char floor
+    exists specifically to avoid flagging short legitimate repeated list
+    markers -- it also, as a side effect, filters out every blank line
+    before `_detect_degenerate_line_repetition` even counts them, so this
+    needed its own dedicated detector rather than a threshold tweak to an
+    existing one. Same underlying model decoding-collapse failure mode as
+    the other two, just manifesting as an absence of content instead of a
+    repeated one.
+
+    15+ consecutive blank/whitespace-only lines is far beyond anything a
+    real synthesis answer legitimately produces (normal paragraph spacing
+    is at most 1-2 blank lines between sections) -- chosen with the same
+    "only the clear, unambiguous shape" conservatism as every other
+    deterministic check in this module (see e.g. _detect_link_guard_field
+    in semgrep_locks_analyzer.py).
+    """
+    if not text:
+        return False
+    return bool(_DEGENERATE_BLANK_RUN_RE.search(text))
+
+
+def _strip_degenerate_blank_run(text: str) -> str:
+    """Collapse any run of 3+ consecutive newlines (2+ blank lines) down to
+    a single blank line (2 newlines) -- same last-resort philosophy as the
+    other two strippers. Deliberately not scoped to only the detected
+    15+-line run: a lower-magnitude version of the same collapse (e.g. 4-5
+    blank lines) is still visually broken and worth normalizing whenever
+    this stripper runs at all, and normal prose never legitimately uses
+    more than one blank line for spacing.
+    """
+    return re.sub(r"\n{3,}", "\n\n", text)
+
+
+def _detect_any_degenerate_repetition(text: str) -> bool:
+    """Combined check -- run all three degenerate-repetition detectors,
+    since they catch different granularities of the same underlying
+    decoding-collapse failure mode."""
+    return (
+        _detect_degenerate_repetition(text)
+        or _detect_degenerate_line_repetition(text)
+        or _detect_degenerate_blank_run(text)
+    )
+
+
+def _strip_any_degenerate_repetition(text: str) -> str:
+    """Combined last-resort strip -- apply all three collapsers so no
+    granularity of repeated content survives into the shipped answer."""
+    return _strip_degenerate_blank_run(_strip_degenerate_line_repetition(_strip_degenerate_repetition(text)))
 
 
 _TOOL_USE_FAILED_RE = re.compile(r"'code':\s*'tool_use_failed'.*?'failed_generation':\s*'(.*?)'\s*\}", re.DOTALL)
@@ -1253,6 +1369,50 @@ def _extract_required_groups(raw_tool_output: str) -> List[str]:
     return groups
 
 
+def _scoped_raw_tool_output(
+    tool_observations: List[str],
+    tool_observation_models: List[str],
+    target_models: List[str],
+) -> str:
+    """Bloc 9 gap fix (2026-08-10, bloc9-05c-no-link-trap contamination):
+    the deterministic backfills below (_backfill_missing_required_groups,
+    _backfill_link_guard_clarifications) used to be handed raw_tool_output
+    built from the ENTIRE concatenated tool_observations list -- every hop
+    of the ReAct loop for the whole turn, regardless of which model that
+    hop actually targeted. When business_resolver/the ReAct loop wandered
+    onto an unrelated model in the same turn (confirmed case: a detour
+    through custom.purchase.request while answering a custom.asset.loan
+    question), that unrelated model's OWN [GARDE DE LIEN]/[Groupe(s)
+    technique(s) requis] annotations leaked into a backfill mechanism that
+    is supposed to be a 100%-reliable, model-scoped fact -- the opposite of
+    what "deterministic" is meant to guarantee.
+
+    Restricts the text handed to a backfill to observations recorded
+    (tool_observation_models, index-aligned with tool_observations) against
+    one of target_models, plus any observation whose model could not be
+    determined (empty string -- these are meta/global tool calls, never the
+    source of a per-model contamination risk, so excluding them would only
+    lose legitimate content for no safety benefit). Falls back to the full
+    unscoped concatenation when target_models is empty (unresolved concept
+    -- no scope to restrict to, same behavior as before this fix).
+
+    Deliberately NOT used for raw_tool_output itself (citation verification
+    and dynamic-uncertainty detection still need visibility into every hop
+    of the turn) -- only for the two backfill call sites, which is where
+    cross-model contamination turns into a wrong fact stated with full
+    (undeserved) confidence.
+    """
+    if not target_models:
+        return "\n\n".join(tool_observations)
+    target_set = set(target_models)
+    scoped = [
+        obs
+        for obs, model in zip(tool_observations, tool_observation_models)
+        if not model or model in target_set
+    ]
+    return "\n\n".join(scoped)
+
+
 def _backfill_missing_required_groups(final_answer: str, raw_tool_output: str, question: str) -> str:
     """Deterministic backfill (see module-level comment above
     _REQUIRED_GROUP_LINE_RE for why this is a code-level fix, not a
@@ -1285,6 +1445,519 @@ def _backfill_missing_required_groups(final_answer: str, raw_tool_output: str, q
         + f"\n\n[FAIT DÉTERMINISTIQUE] Groupe(s) technique(s) requis (has_group) "
         f"détecté(s) dans le code pour cette action : {group_list}. Fait extrait "
         f"directement de l'analyse statique du code."
+    )
+
+
+# Bloc 9 gap, found 2026-08-11 (module 1/8 rerun, bloc9-01a-business /
+# bloc9-01b-technical, AFTER the has_group()/cap/truncation fixes above are
+# all confirmed active): two further, distinct dropped-fact gaps on the same
+# 'account.move.action_valider_avoir' override cascade, both traced by
+# reading the raw analyser_chaine_surcharge_methode text directly rather
+# than guessing further --
+#
+#   (a) bloc9-01a-business: the regional module's 20000e relational-chain
+#       finding is present verbatim in the (correctly-sized, post-2200-cap)
+#       forced-dispatch observation, but the synthesized answer for the
+#       BUSINESS-phrased question ("qui a le droit d'approuver...") ignores
+#       it entirely -- not denied, just never used, a two-sentence answer
+#       that only reasons from the has_group() gate. The same raw content
+#       DOES get used correctly for the TECHNICAL-phrased question (01b
+#       enumerates it in full) -- so this isn't a dispatch/truncation
+#       problem, it's the small model treating a risk/warning-shaped
+#       finding as orthogonal to an "approval rights" question instead of
+#       an additional gate on top of the group requirement.
+#
+#   (b) bloc9-01b-technical: the third (base) override site is enumerated
+#       correctly in content but mislabeled -- the LLM calls it "module
+#       'account_move'" instead of "module 'custom_credit_note_approval'",
+#       apparently substituting the shared file basename (all three
+#       override sites live in a same-named account_move.py, only the
+#       directory/module name differs) for the actual module name on the
+#       one entry whose module name is a strict PREFIX of both siblings'
+#       names ("custom_credit_note_approval" vs "..._regional"/"..._vip"),
+#       so it's plausible the model conflated it with the file path token
+#       repeated three times in the raw text rather than confusing it with
+#       a sibling module. Confirmed NOT a recurrence of the original Gap 3
+#       hallucination (no fabricated 4th module name, `custom_credit_note_
+#       approval_global`, appears anywhere in this run) -- a narrower,
+#       different failure: a real module dropped from the text entirely,
+#       not an invented one added.
+#
+# Same deterministic-backfill principle as _backfill_missing_required_
+# groups above, applied to two more fact shapes already present verbatim
+# in the raw tool text: extract directly, append only what's genuinely
+# missing, never override or duplicate a correct synthesis. Word-boundary
+# checked for the module names specifically (plain substring would let
+# 'custom_credit_note_approval' silently pass because it's a literal
+# prefix of the two suffixed sibling names already correctly mentioned --
+# the exact false-positive class check_bloc9_01_credit_note_cascade_e2e.py
+# itself already guards against with its own word-boundary marker check).
+_OVERRIDE_MODULE_RE = re.compile(r"module '([\w.]+)'")
+_OVERRIDE_CHAIN_AMOUNT_RE = re.compile(r"rec\.\w+\s*>\s*(\d[\d\s]*\d)")
+
+
+def _extract_override_modules(raw_tool_output: str) -> List[str]:
+    """Pull every override-cascade module name out of an
+    analyser_chaine_surcharge_methode raw observation ("module 'x'" lines),
+    in first-seen order, deduplicated. Returns [] if no such line is
+    present -- this pattern is specific to that one tool's output shape,
+    so it's a safe no-op on any other observation mixed into the same
+    scoped text."""
+    modules: List[str] = []
+    for match in _OVERRIDE_MODULE_RE.finditer(raw_tool_output):
+        name = match.group(1).strip()
+        if name and name not in modules:
+            modules.append(name)
+    return modules
+
+
+def _word_boundary_present(marker: str, text: str) -> bool:
+    """Same technique (and same false-positive this guards against) as
+    check_bloc9_01_credit_note_cascade_e2e.py's own _word_boundary_present
+    -- a plain substring check would let 'custom_credit_note_approval'
+    silently pass just because it's a literal prefix of
+    'custom_credit_note_approval_regional'/'..._vip', already mentioned
+    correctly elsewhere in the same answer."""
+    return re.search(r"(?<![A-Za-z0-9_])" + re.escape(marker) + r"(?![A-Za-z0-9_])", text) is not None
+
+
+def _backfill_missing_override_modules(final_answer: str, raw_tool_output: str) -> str:
+    """Deterministic backfill for gap (b) above: if the raw override-cascade
+    text names a module (word-boundary) that never made it into the
+    synthesized answer, append it as an explicit, clearly labeled fact.
+    No-op whenever every module is already correctly named -- never
+    duplicates or contradicts a correct synthesis, and deliberately does
+    NOT try to detect or correct a mislabeling (e.g. 'account_move' used in
+    its place) -- same over-trimming caution as the hallucination case in
+    method_override_resolver.py (see contexte.txt section 24): safer to
+    add the missing true fact alongside a wrong label than to try to edit
+    prose the small model already got wrong once.
+
+    Bloc 9 gap, found 2026-08-11 (real pytest run, this backfill's OWN new
+    test against the real bloc9-01b-technical question wording): originally
+    gated on _question_is_approval_related(question), copied from
+    _backfill_missing_required_groups without checking it against the
+    actual question this backfill exists to fix. That question --
+    "...toutes les surcharges de la methode action_valider_avoir..." --
+    never matches _APPROVAL_PATTERN: "valider" is glued to underscores on
+    both sides inside "action_valider_avoir", so \bvalid\w*\b never finds a
+    boundary to match at. The gate would have silently no-op'd on the exact
+    live case this backfill targets, not just in the test. Dropped the
+    gate entirely -- unconditional now, same as _backfill_link_guard_
+    clarifications below (see its own docstring for the same reasoning):
+    the extraction step (modules being non-empty) is already the real
+    relevance guard, a question-wording check on top of that is redundant
+    at best and actively wrong at worst, since in real usage this text
+    only ever reaches scoped_tool_output when the override-cascade tool
+    was actually invoked (forced pre-dispatch, gated on approval wording
+    -- OR the ReAct loop's own free choice on a technical question just
+    like this one, which needs no such wording at all).
+    """
+    modules = _extract_override_modules(raw_tool_output)
+    if not modules:
+        return final_answer
+
+    missing = [m for m in modules if not _word_boundary_present(m, final_answer)]
+    if not missing:
+        return final_answer
+
+    module_list = ", ".join(f"'{m}'" for m in missing)
+    logger.info(
+        "Node [code_intelligence_agent]: backfilling override-cascade module(s) missing "
+        "from synthesized answer (present in raw tool output, dropped/mislabeled by synthesis): %s",
+        module_list,
+    )
+    return (
+        final_answer
+        + f"\n\n[FAIT DÉTERMINISTIQUE] La chaîne de surcharge de méthode inclut "
+        f"également le/les module(s) suivant(s), absent(s) ou mal identifié(s) "
+        f"ci-dessus : {module_list}. Fait extrait directement de l'analyse statique "
+        f"du code."
+    )
+
+
+def _extract_override_chain_amounts(raw_tool_output: str) -> List[str]:
+    """Pull every monetary threshold embedded in a Python comparison inside
+    an override-cascade risk finding (e.g. 'rec.amount_total > 20000'), in
+    first-seen order, deduplicated, whitespace stripped from the digits.
+    Returns [] if no such expression is present. Deliberately scoped to
+    this exact 'rec.<attr> > <digits>' shape (mirrors the real source's
+    own Python syntax, quoted verbatim in the raw tool text) rather than a
+    generic amount pattern -- narrow enough that it will never fire on
+    unrelated prose, at the cost of not generalizing to a differently-
+    worded threshold check on some future module (acceptable: this backfill
+    only needs to catch a threshold ALREADY quoted in the raw text, not
+    invent one)."""
+    amounts: List[str] = []
+    for match in _OVERRIDE_CHAIN_AMOUNT_RE.finditer(raw_tool_output):
+        amount = match.group(1).replace(" ", "").strip()
+        if amount and amount not in amounts:
+            amounts.append(amount)
+    return amounts
+
+
+def _backfill_missing_override_chain_amount(final_answer: str, raw_tool_output: str) -> str:
+    """Deterministic backfill for gap (a) above: if an override-cascade
+    finding's own monetary threshold (already present verbatim in the raw
+    tool text) never made it into the synthesized answer, append it as an
+    explicit, clearly labeled fact -- same append-only, never-override
+    discipline as every other backfill in this module. Checked both with
+    and without a thousands-separator space (the LLM may re-render '20000'
+    as '20 000' when paraphrasing correctly; either form counts as
+    present).
+
+    Bloc 9 gap, found 2026-08-11 (same live pytest run/root cause as
+    _backfill_missing_override_modules above -- see its docstring): also
+    used to be gated on _question_is_approval_related(question), same
+    mistake, same fix -- dropped entirely, unconditional now. The amount
+    this backfill exists to restore (bloc9-01a-business's missing 20000e)
+    happens to come from an APPROVAL-phrased question, so that specific
+    live failure would still have been caught by the old gate -- but
+    leaving the gate in place would have left this backfill silently
+    inert on the exact same technical-question class that broke its
+    sibling function above, for no removed benefit (the amounts-list
+    emptiness check is already the real relevance guard).
+
+    Bloc 9 gap, found 2026-08-11 (module 5/8, bloc9-05c-no-link-trap live
+    run pasted same day as the module 5/8 exception_conditions fix): the
+    _OVERRIDE_CHAIN_AMOUNT_RE pattern ("rec.<attr> > <digits>") is not
+    actually specific to analyser_chaine_surcharge_methode's output shape
+    -- it is generic enough to also match the literal Python condition
+    text semgrep_locks_analyzer.py's exception_conditions now renders
+    ("condition : rec.montant_estime > 10000 and not email_ok", from
+    custom_purchase_request.action_valider's own unrelated 10000e gate).
+    Confirmed live: a custom_asset_loan question that also resolved
+    custom.purchase.request (legitimate -- the two models are linked)
+    picked up a fabricated "la chaine de surcharge de methode contient une
+    condition supplementaire declenchee au-dela de 10000e" fact for a
+    model that has no method-override chain at all. Same class of bug as
+    _backfill_missing_required_groups' account.group_account_invoice noise
+    (contexte.txt section 30) and the Bug 3/Bug 4 contamination cases
+    (contexte.txt sections 26/28) -- a backfill reading text belonging to
+    a different mechanism/tool than the one it was built for. Fixed here
+    by requiring _extract_override_modules(raw_tool_output) to also be
+    non-empty: a genuine override-cascade amount finding never appears in
+    analyser_chaine_surcharge_methode's real output without an
+    accompanying "module 'x'" line in the same text (see
+    _REAL_OVERRIDE_CHAIN_RAW_TEXT in tests/test_graph.py), so this is a
+    safe, narrow precondition -- not a new heuristic, the same
+    extraction-non-empty relevance-guard principle already used
+    everywhere else in this file, just applied to the right extractor.
+    """
+    if not _extract_override_modules(raw_tool_output):
+        return final_answer
+
+    amounts = _extract_override_chain_amounts(raw_tool_output)
+    if not amounts:
+        return final_answer
+
+    def _amount_present(amount: str) -> bool:
+        spaced = f"{amount[:-3]} {amount[-3:]}" if len(amount) > 3 else amount
+        return amount in final_answer or spaced in final_answer
+
+    missing = [a for a in amounts if not _amount_present(a)]
+    if not missing:
+        return final_answer
+
+    amount_list = ", ".join(f"{a}€" for a in missing)
+    logger.info(
+        "Node [code_intelligence_agent]: backfilling override-cascade amount threshold(s) missing "
+        "from synthesized answer (present in raw tool output, dropped by synthesis): %s",
+        amount_list,
+    )
+    return (
+        final_answer
+        + f"\n\n[FAIT DÉTERMINISTIQUE] La chaîne de surcharge de méthode contient "
+        f"une condition supplémentaire déclenchée au-delà de {amount_list}, distincte "
+        f"du groupe requis ci-dessus. Fait extrait directement de l'analyse statique "
+        f"du code."
+    )
+
+
+# Bloc 9 gap, found 2026-08-10 (bloc9-05c-no-link-trap, generalization check
+# 5/8 on custom_asset_loan): the [GARDE DE LIEN] annotation appended by
+# semgrep_locks_analyzer.py (see SecurityLockASTVisitor._detect_link_guard_
+# field docstring) already states the correct short-circuit conclusion in
+# the raw tool text -- but a live run showed the synthesis LLM misreading
+# it anyway, concluding the rule "applies when NOT linked", the exact
+# inverse of the ground truth, DESPITE the condition being quoted correctly
+# elsewhere in the same answer. Unlike the required-groups gap (content
+# silently dropped), this is content present AND read, but reasoned about
+# incorrectly -- so the fix is not "add it if missing" but "always restate
+# the computed conclusion explicitly", the same principle already applied
+# to _format_can_view_amount_fact (a boolean verdict is safer handed to the
+# LLM pre-computed than left for it to (mis)derive from raw material).
+_LINK_GUARD_RE = re.compile(
+    r"\[GARDE DE LIEN: si '([^']+)' est vide/absent .*?NE S'APPLIQUE PAS dans ce cas",
+    re.DOTALL,
+)
+
+# Bloc 9 gap, module 5/8 Bug 2 (2026-08-11, bloc9-05c-no-link-trap). First
+# attempt (same day) only PREPENDED a correction banner ahead of the
+# unchanged wrong prose. Confirmed still failing on a real rerun the same
+# day: the banner fires and logs correctly, but the literal wrong sentence
+# ("s'applique quand meme...") remains fully readable right below it --
+# scripts/check_bloc9_05_asset_loan_e2e.py's forbidden_markers check still
+# flags it, and more importantly a non-technical Discuss end user skimming
+# past a disclaimer would still read the wrong sentence as the answer. This
+# product's stated audience is non-dev (Discuss chat widget, sources hidden
+# behind a collapsed chevron) -- the visible answer must be correct on its
+# own, not correct-only-if-the-reader-notices-the-caveat-first. Revised to
+# surgically replace the exact matched sentence instead of merely flagging
+# it -- narrower than a general rewrite (over-trimming risk already flagged
+# for the hallucination case in method_override_resolver.py, contexte.txt
+# section 24): only the specific confirmed-real contradiction pattern is
+# touched, matched at the single-sentence boundary, nothing else in the
+# answer is altered.
+_LINK_GUARD_CONTRADICTION_PATTERN = re.compile(
+    r"s.?applique\s+(quand\s+meme|tout\s+de\s+meme|malgre|dans\s+tous\s+les\s+cas|"
+    r"de\s+toute\s+facon|independamment|meme\s+sans|meme\s+en\s+l.?absence)"
+)
+
+# Same confirmed-real vocabulary as _LINK_GUARD_CONTRADICTION_PATTERN above,
+# widened to capture the WHOLE sentence containing it (bounded by '.'/'\n' on
+# either side) so the replacement can swap out the entire wrong claim, not
+# just the matched fragment -- leaving fragments of the wrong sentence behind
+# (e.g. "..., quel que soit le montant du materiel, dans le cas ou...") would
+# still read as a wrong claim once stitched to a different ending.
+_LINK_GUARD_CONTRADICTING_SENTENCE_RE = re.compile(
+    r"[^.\n]*s.?applique\s+(?:quand\s+meme|tout\s+de\s+meme|malgre|dans\s+tous\s+les\s+cas|"
+    r"de\s+toute\s+facon|independamment|meme\s+sans|meme\s+en\s+l.?absence)[^.\n]*\.?"
+)
+
+
+def _answer_contradicts_link_guard(final_answer: str) -> bool:
+    """True if final_answer asserts the rule applies despite an absent
+    guard field, the exact inverse of what the link-guard short-circuit
+    always means. Accent-folded (same technique as modules 2/8-5/8's own
+    _fold_accents in their check scripts, imported here rather than
+    reimplemented) since the LLM may re-accent 'meme'/'malgre' when
+    paraphrasing."""
+    from code_intelligence.deterministic_tools import _fold_accents
+    folded = _fold_accents(final_answer.lower())
+    return bool(_LINK_GUARD_CONTRADICTION_PATTERN.search(folded))
+
+
+def _neutralize_contradicting_link_guard_sentence(final_answer: str, guard_fields: List[str]) -> str:
+    """Replace the exact sentence asserting the wrong (inverse) link-guard
+    conclusion with the correct one, in place -- see the module comment
+    above _LINK_GUARD_CONTRADICTING_SENTENCE_RE for why this replaces
+    rather than merely flags. Matches on the accent-folded/lowercased text
+    (same technique as _answer_contradicts_link_guard) but slices the
+    ORIGINAL final_answer at the same offsets: _fold_accents is a 1:1
+    character substitution (NFD decompose + drop combining marks always
+    yields exactly one base character per input character) and .lower()
+    is length-preserving for French text, so match.span() computed on the
+    folded/lowered string lines up with the original string's indices.
+    No-op (returns final_answer unchanged) if no contradicting sentence is
+    found -- callers must still gate this on _answer_contradicts_link_guard
+    for the correct log line, this function alone would just be silently
+    idempotent."""
+    from code_intelligence.deterministic_tools import _fold_accents
+    folded = _fold_accents(final_answer.lower())
+    match = _LINK_GUARD_CONTRADICTING_SENTENCE_RE.search(folded)
+    if not match:
+        return final_answer
+
+    fields_list = ", ".join(f"'{g}'" for g in guard_fields)
+    replacement = (
+        f"La règle NE s'applique PAS en l'absence de {fields_list} "
+        f"(court-circuit Python : un champ vide/absent en première position "
+        f"d'un `and` rend toute la condition fausse)."
+    )
+    start, end = match.span()
+    return final_answer[:start] + replacement + final_answer[end:]
+
+
+def _extract_link_guard_fields(raw_tool_output: str) -> List[str]:
+    """Pull every [GARDE DE LIEN] guarding field name out of the raw tool
+    text, in first-seen order, deduplicated. Returns [] if no such
+    annotation is present."""
+    fields: List[str] = []
+    for match in _LINK_GUARD_RE.finditer(raw_tool_output):
+        name = match.group(1).strip()
+        if name and name not in fields:
+            fields.append(name)
+    return fields
+
+
+_TRIGGER_CONDITION_RE = re.compile(r"\u26a1 Condition\(s\) de d\u00e9clenchement\s*:\s*(.+)")
+_TRIGGER_CONDITION_LITERAL_RE = re.compile(r"'([^']+)'")
+
+
+def _extract_trigger_condition_literals(raw_tool_output: str) -> List[str]:
+    """
+    Bloc 9 gap, module 6/8 (bloc9-06c-technical-condition-capture,
+    2026-08-11): the server-action trigger-condition line
+    (analyser_actions_serveur's "\u26a1 Condition(s) de d\u00e9clenchement:
+    rec.move_type == 'in_refund' and rec.partner_id.id in
+    FOURNISSEURS_PRIVILEGIES") gets correctly PARAPHRASED by the synthesis
+    LLM ("avoirs re\u00e7us de trois fournisseurs sp\u00e9cifiques") but the
+    literal string constant inside the condition ('in_refund') never
+    survives verbatim -- same class of gap as _extract_override_chain_amounts
+    above, at the string-literal granularity instead of the numeric-
+    threshold one.
+
+    Deliberately extracts only the QUOTED STRING LITERALS inside the
+    trigger-condition line, not the whole boolean expression -- backfilling
+    the entire multi-clause condition every time the LLM's (correct,
+    readable) paraphrase doesn't reproduce it byte-for-byte would be noisy
+    and largely redundant; the specific literal token is the actual thing a
+    consultant needs to grep the code for. Returns [] if the line isn't
+    present at all (tool wasn't invoked, or found no trigger condition).
+    """
+    match = _TRIGGER_CONDITION_RE.search(raw_tool_output)
+    if not match:
+        return []
+    literals: List[str] = []
+    for lit_match in _TRIGGER_CONDITION_LITERAL_RE.finditer(match.group(1)):
+        lit = lit_match.group(1)
+        if lit and lit not in literals:
+            literals.append(lit)
+    return literals
+
+
+def _backfill_missing_trigger_condition_literals(final_answer: str, raw_tool_output: str) -> str:
+    """Deterministic backfill, same append-only/never-override discipline
+    as every other backfill in this module: if a server-action's trigger
+    condition contains a quoted string literal (already present verbatim
+    in the raw tool text) that never made it into the synthesized answer,
+    append it as an explicit, clearly labeled fact. No-op whenever every
+    literal is already present -- never duplicates or contradicts a
+    correct synthesis."""
+    literals = _extract_trigger_condition_literals(raw_tool_output)
+    if not literals:
+        return final_answer
+
+    missing = [lit for lit in literals if lit not in final_answer]
+    if not missing:
+        return final_answer
+
+    lit_list = ", ".join(f"`{lit}`" for lit in missing)
+    logger.info(
+        "Node [code_intelligence_agent]: backfilling server-action trigger-condition "
+        "literal(s) missing from synthesized answer (present in raw tool output, "
+        "paraphrased away by synthesis): %s",
+        lit_list,
+    )
+    return (
+        final_answer
+        + f"\n\n[FAIT D\u00c9TERMINISTIQUE] Valeur(s) litt\u00e9rale(s) de la condition de "
+        f"d\u00e9clenchement de l'action serveur, absente(s) de la reformulation "
+        f"ci-dessus : {lit_list}. Fait extrait directement de l'analyse statique "
+        f"du code."
+    )
+
+
+# Bloc 9 gap fix (2026-08-11, module 1/8, bloc9-01c-vip-trap): the
+# SUPER() NON GARDÉ warning from method_override_resolver.py contains two
+# pieces of information the synthesis LLM reliably drops when Groq 413
+# truncation cuts the override-chain observation: (1) the condition field
+# name (e.g. `rec.partner_id.avoir_vip_exempt`) and (2) the fact that
+# super() is called unconditionally after a conditional branch. Same
+# extraction-then-backfill pattern as every other backfill in this module.
+_UNGUARDED_SUPER_RE = re.compile(
+    r"SUPER\(\) NON GARD[ÉE].*?module '([\w.]+)'\).*?"
+    r"branche conditionnelle \(`([^`]+)`\)"
+)
+
+
+def _extract_unguarded_super_findings(raw_tool_output: str) -> List[Tuple[str, str]]:
+    """Extract (module, condition) pairs from SUPER() NON GARDÉ warnings
+    in the override-chain analysis output."""
+    return _UNGUARDED_SUPER_RE.findall(raw_tool_output)
+
+
+def _backfill_missing_unguarded_super(final_answer: str, raw_tool_output: str) -> str:
+    """Deterministic backfill for SUPER() NON GARDÉ warnings from the
+    override-cascade analysis (method_override_resolver.py). Same append-
+    only, never-override discipline as every other backfill: if the raw
+    tool output contains an unguarded-super warning whose condition field
+    (e.g. `avoir_vip_exempt`) is missing from the synthesized answer,
+    append it as a labeled fact. Covers the case where Groq 413 payload
+    truncation drops the override-chain detail before the synthesis LLM
+    ever sees it -- confirmed live on bloc9-01c-vip-trap (2026-08-11)."""
+    findings = _extract_unguarded_super_findings(raw_tool_output)
+    if not findings:
+        return final_answer
+
+    missing_items = []
+    for module, condition in findings:
+        # Extract the terminal field name from the condition expression,
+        # e.g. "avoir_vip_exempt" from "rec.partner_id.avoir_vip_exempt".
+        field_name = condition.rsplit(".", 1)[-1] if "." in condition else condition
+        if field_name not in final_answer:
+            missing_items.append((module, condition))
+
+    if not missing_items:
+        return final_answer
+
+    parts = []
+    for module, condition in missing_items:
+        parts.append(
+            f"module '{module}' : branche conditionnelle `{condition}` "
+            f"avec super() rappelé inconditionnellement (risque d'annulation "
+            f"silencieuse de cette logique)"
+        )
+
+    detail = " ; ".join(parts)
+    logger.info(
+        "Node [code_intelligence_agent]: backfilling SUPER() NON GARDÉ finding(s) "
+        "missing from synthesized answer: %s", detail,
+    )
+    return (
+        final_answer
+        + f"\n\n[FAIT DÉTERMINISTIQUE] SUPER() NON GARDÉ détecté dans la chaîne de "
+        f"surcharge : {detail}. "
+        f"Fait extrait directement de l'analyse statique du code."
+    )
+
+
+def _backfill_link_guard_clarifications(final_answer: str, raw_tool_output: str) -> str:
+    """Deterministic backfill, always appended (not conditional on question
+    wording, unlike _backfill_missing_required_groups) whenever a [GARDE DE
+    LIEN] annotation is present in the raw tool output -- restates the
+    already-computed short-circuit conclusion explicitly as a labeled fact,
+    regardless of what the LLM said, so an incorrect natural-language
+    reading of the raw condition text can never be the only thing the user
+    sees. Idempotent: no-op if the marker sentence is already present
+    (e.g. a future synthesis run that gets it right on its own).
+    """
+    guard_fields = _extract_link_guard_fields(raw_tool_output)
+    if not guard_fields:
+        return final_answer
+
+    marker = "[FAIT DÉTERMINISTIQUE] Court-circuit"
+    if marker in final_answer:
+        return final_answer
+
+    fields_list = ", ".join(f"'{g}'" for g in guard_fields)
+
+    if _answer_contradicts_link_guard(final_answer):
+        logger.warning(
+            "Node [code_intelligence_agent]: synthesis contradicted its own "
+            "link-guard short-circuit conclusion for field(s) %s -- replacing "
+            "the contradicting sentence with the correct conclusion (no longer "
+            "just a banner ahead of the unchanged wrong prose -- see comment "
+            "above _LINK_GUARD_CONTRADICTING_SENTENCE_RE, 2026-08-11 rerun "
+            "confirmed a banner alone still left the wrong sentence readable).",
+            fields_list,
+        )
+        final_answer = _neutralize_contradicting_link_guard_sentence(final_answer, guard_fields)
+
+    logger.info(
+        "Node [code_intelligence_agent]: appending deterministic link-guard "
+        "clarification (short-circuit conclusion) for field(s): %s",
+        fields_list,
+    )
+    return (
+        final_answer
+        + f"\n\n{marker} ET (déterministe) : l'analyse statique du code montre que "
+        f"la condition dépend de {fields_list} en première position d'un `and` -- si ce "
+        f"champ est vide ou absent (aucun enregistrement lié), toute la condition est "
+        f"FAUSSE par court-circuit Python, et la règle correspondante NE S'APPLIQUE PAS, "
+        f"quel que soit le reste de la condition (montant, etc.). Fait extrait directement "
+        f"de l'analyse statique du code, indépendant de toute reformulation en langage naturel."
     )
 
 
@@ -1337,17 +2010,77 @@ def _question_suggests_automation_bypass(question: str) -> bool:
 # and capping the dispatch keeps the forced pre-dispatch scoped to what
 # the question is actually about, same discipline as the other J8/J9
 # structural guards (narrow the expensive step, don't widen the prompt).
-_MAX_OVERRIDE_CASCADE_DISPATCH = 2
+# Bloc 9 gap, found 2026-08-10 (bloc9-01a-business, module 1/8 rerun AFTER
+# the original cap=2 fix from earlier the same day): capping at 2 instead
+# of 1 does not actually solve the problem it was written for whenever
+# EXACTLY 2 candidates are flagged (the common case on a heavily-shared
+# model like account.move: action_valider_avoir -- the one the question is
+# about -- plus exactly one unrelated flagged method from a different
+# customization module, e.g. hr_expense's _compute_commercial_partner_id).
+# The old "no-op when <= cap" guard let BOTH through untouched in that
+# exact case, so the irrelevant second method still consumed a full hop of
+# the tight CI_MAX_HOPS=4 budget for zero value to the question -- confirmed
+# live: hop_count reached 3 from forced pre-dispatch alone (1 verrous_
+# securite + 2 override-cascade) before the ReAct loop even started, only 1
+# hop remained, and CI_MAX_HOPS was hit before evaluer_regles_enregistrement
+# or any further exploration could run, reproducing the exact "noise crowds
+# out the needed fact" failure this cap was meant to prevent in the first
+# place. Lowering the cap to 1 removes the ambiguity entirely: only the
+# single most lexically-relevant flagged method is ever forced-dispatched,
+# freeing a full extra hop for the ReAct loop on every question that
+# triggers this guard, not just ones where more than 2 candidates happened
+# to be flagged.
+_MAX_OVERRIDE_CASCADE_DISPATCH = 1
+
+
+# Bloc 9 gap, found 2026-08-11 (bloc9-07c-sudo-scope-trap, module 7/8 first
+# live run): MAX_MODELS_PER_QUERY's own truncation (config.settings, applied
+# in code_intelligence_agent right after resolve_business_term) was a plain
+# `resolved_models[:MAX_MODELS_PER_QUERY]` slice -- whichever models
+# business_resolver happened to list FIRST survive, with no regard for which
+# one the question is actually about. Confirmed live: a question combining
+# "sudo()" + "remboursement" resolved to multiple candidate models, the
+# truncation dropped custom.reimbursement.request (the one the whole
+# question is about) before the forced-dispatch loops below even ran, and
+# the ReAct loop was left to answer from evaluer_regles_enregistrement alone
+# -- producing a confidently wrong "sans restriction" claim on a getattr()
+# dynamic-dispatch case that should have triggered the dynamic-uncertainty
+# guardrail instead. Same class of fix as _rank_and_cap_override_methods
+# above (narrow an expensive/scarce resource by relevance instead of an
+# arbitrary order), applied one level earlier in the pipeline -- to which
+# MODELS get to compete for the hop budget at all, not just which methods
+# on an already-chosen model do.
+def _rank_and_cap_resolved_models(question: str, resolved_models: List[str], max_models: int) -> List[str]:
+    """Rank resolved model technical names by lexical relevance to the
+    question (dots/underscores turned into spaces, fuzzy-compared to the
+    question text) and keep only the top max_models. No-op (returns the
+    input unchanged) when there are already few enough candidates.
+    """
+    if len(resolved_models) <= max_models:
+        return resolved_models
+    from rapidfuzz import fuzz
+    question_lower = question.lower()
+    scored = [
+        (name, fuzz.token_set_ratio(question_lower, name.replace(".", " ").replace("_", " ").lower()))
+        for name in resolved_models
+    ]
+    scored.sort(key=lambda pair: pair[1], reverse=True)
+    kept = [name for name, _score in scored[:max_models]]
+    logger.warning(
+        "Node [code_intelligence_agent]: Truncating resolved models from %d to "
+        "MAX_MODELS_PER_QUERY (%d), ranked by relevance to the question -- kept: %s.",
+        len(resolved_models), max_models, kept,
+    )
+    return kept
 
 
 def _rank_and_cap_override_methods(question: str, method_names: List[str]) -> List[str]:
     """Rank override-risk-flagged method names by lexical relevance to the
     question (method name with underscores turned into spaces, fuzzy-
     compared to the question text) and keep only the top
-    _MAX_OVERRIDE_CASCADE_DISPATCH. No-op (returns the input unchanged) when
-    there are already few enough candidates -- this only kicks in once a
-    shared model has accumulated more flagged methods than the budget
-    allows, it never reorders or drops anything on an otherwise-small list.
+    _MAX_OVERRIDE_CASCADE_DISPATCH (1 -- see module-level comment above).
+    No-op (returns the input unchanged) when there is already at most one
+    candidate -- nothing to rank or drop in that case.
     """
     if len(method_names) <= _MAX_OVERRIDE_CASCADE_DISPATCH:
         return method_names
@@ -1418,7 +2151,8 @@ _COULD_NOT_RESOLVE_RE = re.compile(
 def _strip_group_resolution_noise(
     tool_observations: List[str],
     resolved_user_group_xmlids: list,
-) -> List[str]:
+    tool_observation_models: List[str],
+):
     """Remove qui_a_acces_a 'could not be resolved' observations that refer
     to LLM-guessed group names, when the real-auth override has already
     injected the demandeur's actual groups into evaluer_regles_enregistrement.
@@ -1444,16 +2178,17 @@ def _strip_group_resolution_noise(
          verdict -- the 'could not be resolved' message is truly obsolete).
     """
     if not resolved_user_group_xmlids:
-        return tool_observations  # No override active, keep everything.
+        return tool_observations, tool_observation_models  # No override active, keep everything.
 
     has_deterministic_fact = any(
         "[FAIT DÉTERMINISTIQUE]" in obs for obs in tool_observations
     )
     if not has_deterministic_fact:
-        return tool_observations  # No authoritative verdict yet, keep everything.
+        return tool_observations, tool_observation_models  # No authoritative verdict yet, keep everything.
 
     cleaned = []
-    for obs in tool_observations:
+    cleaned_models = []
+    for obs, model in zip(tool_observations, tool_observation_models):
         if _COULD_NOT_RESOLVE_RE.search(obs):
             logger.info(
                 "Node [code_intelligence_agent]: Q6.1 fix -- stripping 'could not be "
@@ -1463,7 +2198,8 @@ def _strip_group_resolution_noise(
             )
             continue
         cleaned.append(obs)
-    return cleaned
+        cleaned_models.append(model)
+    return cleaned, cleaned_models
 
 
 def _extract_first_scoped_file_link(text: str) -> str:
@@ -1864,13 +2600,22 @@ def code_intelligence_agent(state: RAGState) -> dict:
 
     # J32-J33: Enforce MAX_MODELS_PER_QUERY limit on resolved models
     if concept.resolved_models and len(concept.resolved_models) > MAX_MODELS_PER_QUERY:
-        logger.warning(
-            "Node [code_intelligence_agent]: Truncating resolved models from %d to MAX_MODELS_PER_QUERY (%d)",
-            len(concept.resolved_models), MAX_MODELS_PER_QUERY,
+        # Bloc 9 gap fix (2026-08-11, bloc9-07c-sudo-scope-trap) -- ranked
+        # by relevance to the question instead of an arbitrary slice, see
+        # _rank_and_cap_resolved_models docstring for the live failure this
+        # replaces.
+        concept.resolved_models = _rank_and_cap_resolved_models(
+            question, concept.resolved_models, MAX_MODELS_PER_QUERY,
         )
-        concept.resolved_models = concept.resolved_models[:MAX_MODELS_PER_QUERY]
 
     tool_observations: list = []
+    # Bloc 9 gap fix (2026-08-10, bloc9-05c-no-link-trap contamination):
+    # index-aligned with tool_observations -- the model_name each
+    # observation actually came from, or "" when unknown. See
+    # _scoped_raw_tool_output for why this exists (deterministic backfills
+    # must not mix facts across models the ReAct loop happened to visit
+    # in the same turn).
+    tool_observation_models: list = []
     omitted_items: list = []  # Bloc 7 (J23-24): OmittedForAuthorization entries
     final_answer = None
     hop_count = 0
@@ -1936,8 +2681,29 @@ def code_intelligence_agent(state: RAGState) -> dict:
                 _t_hop = time.perf_counter()
                 try:
                     forced_observation = str(lock_tool.invoke({"model_name": target_model}))
-                    if len(forced_observation) > 1200:
-                        forced_observation = forced_observation[:1200] + "\n[... Content truncated for LLM context limit ...]"
+                    # Bloc 9 gap, found 2026-08-11 (bloc9-01a-business rerun):
+                    # analyser_verrous_securite aggregates EVERY source file
+                    # touching the model (find_model_source_filepaths), sorted
+                    # alphabetically -- on a heavily-shared model like
+                    # account.move that can be a dozen+ per-file blocks. The
+                    # generic 1200-char cap used by the other two forced
+                    # dispatches (each scoped to a single file/method) was
+                    # silently truncating this aggregated text well before
+                    # reaching a fact from a file that happened to sort late
+                    # -- confirmed live: the has_group()-derived required
+                    # group for custom_credit_note_approval never appeared
+                    # anywhere in tool_observations for the account.move
+                    # question (not even via the _backfill_missing_required_
+                    # groups deterministic backfill below, which reads
+                    # straight from these observations and would have caught
+                    # a synthesis-level drop but cannot recover a fact that
+                    # was never in the text to begin with). Raised only for
+                    # THIS forced dispatch, not the generic per-hop cap in the
+                    # ReAct loop below or the other two forced dispatches,
+                    # since only this one aggregates across a model's full
+                    # file set.
+                    if len(forced_observation) > 3000:
+                        forced_observation = forced_observation[:3000] + "\n[... Content truncated for LLM context limit ...]"
                     # Bloc 7 (J23-24): generalized gating on this forced
                     # dispatch too -- it bypasses the normal ReAct tool
                     # loop, so it must be gated here explicitly rather than
@@ -1951,6 +2717,7 @@ def code_intelligence_agent(state: RAGState) -> dict:
                     )
                     omitted_items.extend(omitted_list)
                     tool_observations.append(forced_observation)
+                    tool_observation_models.append(target_model)
                     hop_count += 1
                     seen_calls.add(call_key)
                     _trace_logger.log_hop(
@@ -2016,6 +2783,7 @@ def code_intelligence_agent(state: RAGState) -> dict:
                     )
                     omitted_items.extend(omitted_list)
                     tool_observations.append(forced_observation)
+                    tool_observation_models.append(target_model)
                     hop_count += 1
                     seen_calls.add(call_key)
                     _trace_logger.log_hop(
@@ -2085,8 +2853,28 @@ def code_intelligence_agent(state: RAGState) -> dict:
                         forced_observation = str(override_tool.invoke({
                             "model_name": target_model, "method_name": method_name,
                         }))
-                        if len(forced_observation) > 1200:
-                            forced_observation = forced_observation[:1200] + "\n[... Content truncated for LLM context limit ...]"
+                        # Bloc 9 gap, found 2026-08-11 (bloc9-01a/01b rerun,
+                        # AFTER both the cap=1 fix and the verrous_securite
+                        # truncation fix above): a 3-module override chain
+                        # (module header + per-module warning block, each
+                        # with a file link and a full explanatory sentence)
+                        # routinely exceeds 1200 chars on its own -- confirmed
+                        # live by the raw check script's own direct call to
+                        # this same tool, which prints ~1400+ chars for
+                        # action_valider_avoir's real 3-module chain. Even
+                        # with cap=1 correctly limiting to ONE forced
+                        # dispatch, that single dispatch's own content was
+                        # still being cut -- e.g. losing the regional
+                        # module's 20000e relational-chain finding, or the
+                        # base module's "no risk detected" closing line,
+                        # depending on where in the chain the cut landed.
+                        # Raised to 2200 (a single method's chain, capped at
+                        # 1 dispatch, needs less headroom than the
+                        # whole-model verrous_securite aggregation above,
+                        # which can span a dozen+ files and was raised to
+                        # 3000).
+                        if len(forced_observation) > 2200:
+                            forced_observation = forced_observation[:2200] + "\n[... Content truncated for LLM context limit ...]"
                         # Bloc 7 (J23-24): same rationale as the two forced
                         # dispatches above -- bypasses the ReAct loop's
                         # gating, so gate here explicitly.
@@ -2099,6 +2887,7 @@ def code_intelligence_agent(state: RAGState) -> dict:
                         )
                         omitted_items.extend(omitted_list)
                         tool_observations.append(forced_observation)
+                        tool_observation_models.append(target_model)
                         hop_count += 1
                         seen_calls.add(call_key)
                         _trace_logger.log_hop(
@@ -2241,6 +3030,7 @@ def code_intelligence_agent(state: RAGState) -> dict:
                         omitted_items.extend(omitted_list)
 
                         tool_observations.append(observation)
+                        tool_observation_models.append(tool_args.get("model_name", ""))
                         # ReAct-loop fix: feed this (already-gated)
                         # observation back as a ToolMessage tied to its
                         # tool_call_id, so the LLM sees the real result --
@@ -2294,6 +3084,7 @@ def code_intelligence_agent(state: RAGState) -> dict:
                                     tool_observations.append(
                                         _format_can_view_amount_fact(amount, can_view)
                                     )
+                                    tool_observation_models.append(tool_args.get("model_name", ""))
                                     logger.info(
                                         "Node [code_intelligence_agent]: Injected deterministic "
                                         "can_view_amount fact for amount=%.0f, result=%s.",
@@ -2307,6 +3098,7 @@ def code_intelligence_agent(state: RAGState) -> dict:
                         logger.error("Tool execution failed (%s): %s", tool_name, te)
                         _error_observation = f"Error executing {tool_name}: {str(te)}"
                         tool_observations.append(_error_observation)
+                        tool_observation_models.append(tool_args.get("model_name", ""))
                         # ReAct-loop fix: surface the failure to the LLM
                         # too, so it doesn't blindly repeat the exact same
                         # failing call on the next iteration.
@@ -2322,8 +3114,8 @@ def code_intelligence_agent(state: RAGState) -> dict:
                 # the real-auth override has already injected the
                 # demandeur's real groups into evaluer_regles_enregistrement
                 # and a deterministic can_view_amount fact is present.
-                tool_observations = _strip_group_resolution_noise(
-                    tool_observations, resolved_user_group_xmlids,
+                tool_observations, tool_observation_models = _strip_group_resolution_noise(
+                    tool_observations, resolved_user_group_xmlids, tool_observation_models,
                 )
                 synthesis_prompt = (
                     f"Original Question: {question}\n\n"
@@ -2420,7 +3212,7 @@ def code_intelligence_agent(state: RAGState) -> dict:
                     _ci_groq_wait += _synth_wait
                     final_answer = final_resp.content
                     _ci_synthesis_time = time.perf_counter() - _t_synthesis
-                    if _detect_degenerate_repetition(final_answer):
+                    if _detect_any_degenerate_repetition(final_answer):
                         logger.warning(
                             "Node [code_intelligence_agent]: degenerate repetition detected in "
                             "synthesis output (%d chars) -- retrying once with an explicit "
@@ -2442,17 +3234,17 @@ def code_intelligence_agent(state: RAGState) -> dict:
                             retry_resp, _retry_wait = _invoke_with_rate_limit(plain_llm, retry_messages, max_retries=2)
                             _llm_call_count += 1  # J46-J48: anti-repetition retry call
                             _ci_groq_wait += _retry_wait
-                            if not _detect_degenerate_repetition(retry_resp.content):
+                            if not _detect_any_degenerate_repetition(retry_resp.content):
                                 final_answer = retry_resp.content
                             else:
                                 logger.error(
                                     "Node [code_intelligence_agent]: synthesis still degenerate "
                                     "after retry -- stripping the repeated run instead of shipping it."
                                 )
-                                final_answer = _strip_degenerate_repetition(final_answer)
+                                final_answer = _strip_any_degenerate_repetition(final_answer)
                         except Exception as retry_e:
                             logger.error("Anti-repetition retry failed: %s", retry_e)
-                            final_answer = _strip_degenerate_repetition(final_answer)
+                            final_answer = _strip_any_degenerate_repetition(final_answer)
                 except Exception as e:
                     logger.error("Synthesis failed: %s", e)
                     final_answer = "\n\n".join(tool_observations)
@@ -2473,7 +3265,42 @@ def code_intelligence_agent(state: RAGState) -> dict:
         # uncertainty path above (that answer is deliberately restricted to
         # "cannot determine with certainty"; appending a required-group fact
         # there would contradict its own point).
-        final_answer = _backfill_missing_required_groups(final_answer, raw_tool_output, question)
+        # Bloc 9 gap fix (2026-08-10, bloc9-05c-no-link-trap contamination):
+        # scope both backfills to the model(s) the question actually
+        # resolved to, instead of the full unscoped raw_tool_output -- see
+        # _scoped_raw_tool_output docstring. raw_tool_output itself stays
+        # unscoped for citation verification / dynamic-uncertainty below.
+        scoped_tool_output = _scoped_raw_tool_output(
+            tool_observations, tool_observation_models, concept.resolved_models,
+        )
+        final_answer = _backfill_missing_required_groups(final_answer, scoped_tool_output, question)
+        # Bloc 9 gap fix (2026-08-11, module 1/8 rerun): same deterministic-
+        # backfill principle, two more applications -- see the comment
+        # above _OVERRIDE_MODULE_RE/_OVERRIDE_CHAIN_AMOUNT_RE for why these
+        # two are separate from the required-groups backfill (different
+        # fact shapes: a module name dropped/mislabeled, and a relational-
+        # chain amount threshold ignored on business-phrased questions).
+        final_answer = _backfill_missing_override_modules(final_answer, scoped_tool_output)
+        final_answer = _backfill_missing_override_chain_amount(final_answer, scoped_tool_output)
+        # Bloc 9 gap fix (2026-08-11, module 6/8, bloc9-06c-technical-
+        # condition-capture): same deterministic-backfill principle applied
+        # to analyser_actions_serveur's trigger-condition literal (e.g.
+        # 'in_refund') instead of the override-cascade's amount/module --
+        # see the comment above _TRIGGER_CONDITION_RE for why only the
+        # quoted literal is backfilled, not the whole condition expression.
+        final_answer = _backfill_missing_trigger_condition_literals(final_answer, scoped_tool_output)
+        # Bloc 9 gap fix (2026-08-11, module 1/8, bloc9-01c-vip-trap):
+        # same deterministic-backfill principle applied to the SUPER() NON
+        # GARDÉ warning from the override-cascade analysis -- the condition
+        # field name (e.g. avoir_vip_exempt) and the super() trap fact are
+        # reliably dropped when Groq 413 truncation cuts the observation.
+        final_answer = _backfill_missing_unguarded_super(final_answer, scoped_tool_output)
+        # Bloc 9 gap fix (2026-08-10, bloc9-05c-no-link-trap): same
+        # deterministic-backfill principle, second application -- see the
+        # comment above _LINK_GUARD_RE for why this one is unconditional
+        # (always appended when the annotation exists) rather than gated on
+        # question wording like the required-groups backfill above.
+        final_answer = _backfill_link_guard_clarifications(final_answer, scoped_tool_output)
 
     from code_intelligence.sourcing_guard import verify_citations, annotate_unverifiable_citations
     sourcing_result = verify_citations(final_answer, raw_tool_output)
@@ -2486,12 +3313,12 @@ def code_intelligence_agent(state: RAGState) -> dict:
     # synthesis-prompt branch above (e.g. ai_msg.content returned directly
     # without any tool call) -- never ship a wall of repeated tokens
     # regardless of which code path produced final_answer.
-    if _detect_degenerate_repetition(final_answer):
+    if _detect_any_degenerate_repetition(final_answer):
         logger.error(
             "Node [code_intelligence_agent]: degenerate repetition detected in final_answer "
             "outside the main synthesis retry path -- stripping before returning."
         )
-        final_answer = _strip_degenerate_repetition(final_answer)
+        final_answer = _strip_any_degenerate_repetition(final_answer)
 
     final_answer += "\n\n[Source: Graphe de Connaissances Code Intelligence]"
 

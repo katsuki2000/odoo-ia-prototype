@@ -213,6 +213,61 @@ def _has_elevated_access(G: nx.DiGraph, model_name: str, user_groups: List[str])
     )
 
 
+def _find_elevating_group(G: nx.DiGraph, model_name: str, user_groups: List[str]) -> Optional[str]:
+    """
+    Bloc 9 gap, found 2026-08-11 (elevated-approver mention dropped by
+    synthesis under Groq rate-limit stress -- confirmed live: the real-
+    auth override log line "overriding LLM-guessed user_groups_json ([])
+    with the real requester groups (['account.group_account_manager'])"
+    shows the elevation was resolved correctly, but the small model's
+    synthesis never stated it in the final answer even though the fact
+    was in its context). This is a pure reliability gap, not a security
+    one -- the demandeur was never denied anything real, since every tool
+    call already used the real override (rag/graph.py's
+    _override_user_groups_arg). rag/graph.py's deterministic backfill for
+    it needs the SPECIFIC group name to state as fact, not just a bool.
+
+    Deliberately duplicates _has_elevated_access's detection logic exactly
+    (same has_group()-source-priority-over-ACL ordering, same conditions)
+    rather than changing that function's return type -- it is a Bloc 7
+    security-gating primitive and stays untouched here. Returns the first
+    matching group xml_id in user_groups order, or None under the exact
+    same conditions _has_elevated_access would return False (including:
+    the ACL grants access to all authenticated users, which is elevation
+    for nobody in particular and not a fact worth singling out).
+    """
+    if not model_name or not user_groups:
+        return None
+
+    from code_intelligence.deterministic_tools import (
+        _eval_single_droit,
+        resolve_group_identifier,
+    )
+
+    source_has_group_ids = _extract_has_group_xmlids_from_source(G, model_name)
+    if source_has_group_ids:
+        candidate_groups = list(source_has_group_ids)
+        for ug in user_groups:
+            resolved = resolve_group_identifier(G, str(ug), candidate_groups)
+            if resolved is not None:
+                return resolved
+        return None
+
+    write_groups, write_auth, _ = _eval_single_droit(G, model_name, "write")
+    unlink_groups, unlink_auth, _ = _eval_single_droit(G, model_name, "unlink")
+    if write_auth or unlink_auth:
+        return None  # Elevated for everyone -- not a distinguishing fact.
+
+    candidate_groups = list(write_groups | unlink_groups)
+    if not candidate_groups:
+        return None
+    for ug in user_groups:
+        resolved = resolve_group_identifier(G, str(ug), candidate_groups)
+        if resolved is not None:
+            return resolved
+    return None
+
+
 def _redact_sensitive_bypass_lines(
     observation: str,
     model_name: str,

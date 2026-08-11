@@ -111,6 +111,25 @@ QUESTIONS = [
             "même, quel que soit le montant du matériel ?"
         ),
         "expected_markers": ["__THRESHOLD__"],
+        # Bug 1 (2026-08-11): this question originally had NO
+        # forbidden_markers at all, and check_e2e() never checked for any
+        # -- so a live run where the synthesized prose asserted the EXACT
+        # inverse of ground truth ("la regle... s'applique quand meme...
+        # quel que soit le montant") still reported "all expected markers
+        # present" and the script's own final line said "E2E confirmed",
+        # because the deterministic [FAIT DETERMINISTIQUE] backfill always
+        # appends '__THRESHOLD__' (2000) regardless of what the prose
+        # above it said. A marker-presence check alone cannot catch a
+        # wrong CONCLUSION, only a missing fact -- this is a different
+        # failure shape from every other module's gaps, which were all
+        # omissions. Confirmed real phrasings from the live run this is
+        # guarding against (kept in French, not paraphrased, so the
+        # forbidden-marker check matches the actual failure mode rather
+        # than a hypothetical one).
+        "forbidden_markers": [
+            "s'applique quand meme",
+            "s'applique tout de meme",
+        ],
     },
 ]
 
@@ -180,16 +199,23 @@ def check_e2e():
         print("-" * 80)
 
         expected_markers = item.get("expected_markers", [])
+        forbidden_markers = item.get("forbidden_markers", [])
         missing = [m for m in expected_markers if not _marker_present(m, answer)]
+        present_forbidden = [m for m in forbidden_markers if _marker_present(m, answer)]
 
         for marker in expected_markers:
             print(f"[{'OK ' if marker not in missing else 'MISSING'}] expected marker: {marker}")
+        for marker in forbidden_markers:
+            print(f"[{'FAIL -- WRONG CONCLUSION' if marker in present_forbidden else 'OK (absent)'}] forbidden marker: {marker}")
 
-        if missing:
-            print(f"[RESULT] {item['id']}: INCOMPLETE -- missing {missing}")
+        if missing or present_forbidden:
+            if missing:
+                print(f"[RESULT] {item['id']}: INCOMPLETE -- missing {missing}")
+            if present_forbidden:
+                print(f"[RESULT] {item['id']}: WRONG CONCLUSION -- forbidden marker(s) present {present_forbidden}")
             all_ok = False
         else:
-            print(f"[RESULT] {item['id']}: all expected markers present.")
+            print(f"[RESULT] {item['id']}: all expected markers present, no forbidden markers.")
         print()
     return all_ok
 
