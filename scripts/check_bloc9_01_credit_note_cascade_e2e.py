@@ -79,8 +79,28 @@ QUESTIONS = [
         "expected_markers_word_boundary": [
             "custom_credit_note_approval",
         ],
+        # Defense-in-depth only (2026-08-12) -- the real fix is
+        # rag/graph.py's _correct_override_cascade_contradictions, which
+        # neutralizes these two sentences in place before the answer ever
+        # reaches this script. Kept here too so a regression in that
+        # neutralization (rather than just a script gap) still fails this
+        # check instead of silently passing: a live run showed the LLM
+        # denying any other override exists ("Aucune autre surcharge n'a
+        # ete detectee...", immediately contradicted by the backfilled
+        # [FAIT DETERMINISTIQUE] two lines below it) and separately
+        # fabricating a specificity-based short-circuit semantic Odoo does
+        # not have ("...si elle ne leve pas d'erreur, les autres ne seront
+        # pas executees") -- see the comment above _OVERRIDE_COUNT_DENIAL_RE
+        # in rag/graph.py for the full diagnosis. Both casings of the
+        # denial checked: _word_boundary_present below is a plain
+        # case-sensitive match, and the live occurrence started a fresh
+        # sentence ("Aucune...") while a paraphrase could plausibly land
+        # it mid-sentence instead.
         "forbidden_markers": [
             "custom_credit_note_approval_global",
+            "Aucune autre surcharge",
+            "aucune autre surcharge",
+            "ne seront pas ex\u00e9cut\u00e9es",
         ],
     },
     {

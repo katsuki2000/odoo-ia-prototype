@@ -18,9 +18,11 @@ from vectorstore.chroma_manager import ChromaManager
 
 logger = logging.getLogger(__name__)
 
-# Default roots if none provided
-from ingestion.ingest_all import CODE_DIR, DOCS_DIR
-DEFAULT_SCAN_ROOTS = [DOCS_DIR, CODE_DIR]
+# Default roots if none provided. 2026-08-12: CODE_DIRS is now a list of
+# real Odoo module directories (fake_data/code/ removed) -- see
+# ingestion/ingest_all.py::_documentary_code_module_dirs() docstring.
+from ingestion.ingest_all import CODE_DIRS, DOCS_DIR
+DEFAULT_SCAN_ROOTS = [DOCS_DIR, *CODE_DIRS]
 
 
 def run_startup_scan(

@@ -20,9 +20,9 @@ def run_module_python_extraction(module_path: Path):
     Run AST python extractors across all .py files in an Odoo module directory.
     Returns summary metrics.
     """
-    py_files = list(module_path.glob("*.py"))
-    if not py_files:
-        py_files = list(module_path.rglob("*.py"))
+    # Real Odoo modules have their Python files under models/, wizard/,
+    # report/, etc. -- always rglob to reach them all.
+    py_files = list(module_path.rglob("*.py"))
 
     total_files = len(py_files)
     parsed_files = 0
@@ -80,8 +80,8 @@ def run_module_python_extraction(module_path: Path):
 
 
 def test_sale_module_integration():
-    """Run integration test on sale module in fake_data/code/sale."""
-    corpus_root = Path(__file__).resolve().parent.parent.parent / "fake_data" / "code"
+    """Run integration test on sale module in addons/sale."""
+    corpus_root = Path("/home/user/odoo-17.0/addons")
     sale_dir = corpus_root / "sale"
 
     assert sale_dir.exists(), f"Corpus sale module dir does not exist: {sale_dir}"
@@ -107,8 +107,8 @@ def test_sale_module_integration():
 
 
 def test_account_module_integration():
-    """Run integration test on account module in fake_data/code/account."""
-    corpus_root = Path(__file__).resolve().parent.parent.parent / "fake_data" / "code"
+    """Run integration test on account module in addons/account."""
+    corpus_root = Path("/home/user/odoo-17.0/addons")
     account_dir = corpus_root / "account"
 
     if account_dir.exists():

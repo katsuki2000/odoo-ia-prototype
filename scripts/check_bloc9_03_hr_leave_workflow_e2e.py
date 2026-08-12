@@ -15,7 +15,7 @@ question, not "can THIS specific person view/approve", so no live Odoo
 group resolution is needed here. Also unlike module 1/8 (three modules
 overriding the same method in cascade), this is a single custom module
 extending ONE core Odoo addon (hr_holidays) that is a full, real Odoo
-core module on disk here -- not a fake_data/code/ stand-in -- so this
+core module on disk here -- not a addons/ stand-in -- so this
 script is also an implicit re-confirmation that the J36 generic
 direct-dependency loading fix (rag/graph.py::get_code_intelligence_graph,
 "Load each custom_* module's DIRECT manifest dependencies too") still

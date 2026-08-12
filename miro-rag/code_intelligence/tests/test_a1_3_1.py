@@ -6,7 +6,7 @@ Tests:
   1. Standard CSV ACL row parsing
   2. Empty group_id handling -> all_authenticated=True, group_id=None
   3. Header variation support (model_id:id vs model_id/id)
-  4. Real CSV test on fake_data/code/account/ir.model.access.csv
+  4. Real CSV test on addons/account/ir.model.access.csv
 """
 
 import tempfile
@@ -73,9 +73,9 @@ access_test,test.access,model_test_model,base.group_system,1,1,1,1
 
 
 def test_real_csv_account_access():
-    """Test parsing real account/ir.model.access.csv file."""
-    corpus_root = Path(__file__).resolve().parent.parent.parent / "fake_data" / "code"
-    csv_file = corpus_root / "account" / "ir.model.access.csv"
+    """Test parsing real account/security/ir.model.access.csv file."""
+    corpus_root = Path("/home/user/odoo-17.0/addons")
+    csv_file = corpus_root / "account" / "security" / "ir.model.access.csv"
 
     if csv_file.exists():
         entries = parse_access_control_csv(csv_file)

@@ -27,13 +27,13 @@ from ingestion.incremental import reindex_if_changed
 from vectorstore.chroma_manager import ChromaManager
 
 DOCS_DIR = PROJECT_ROOT / "fake_data" / "documents"
-CODE_DIR = PROJECT_ROOT / "fake_data" / "code"
+CODE_DIR = Path("/home/user/odoo-17.0/addons") if Path("/home/user/odoo-17.0/addons").exists() else PROJECT_ROOT.parent / "addons"
 
 # Fichiers cibles
 DOC_TARGET = DOCS_DIR / "wiki_approbation.txt"
-CODE_TARGET = CODE_DIR / "stock" / "barcode.py"
-NEW_FILE = CODE_DIR / "stock" / "_test_temp_new_file.py"
-DELETE_TARGET_SOURCE = CODE_DIR / "stock" / "res_users.py"  # court, 1 chunk
+CODE_TARGET = CODE_DIR / "stock" / "models" / "barcode.py"
+NEW_FILE = CODE_DIR / "stock" / "models" / "_test_temp_new_file.py"
+DELETE_TARGET_SOURCE = CODE_DIR / "stock" / "models" / "res_users.py"  # court, 1 chunk
 
 
 def get_hashes(manager: ChromaManager, source: str) -> list[str]:

@@ -8,7 +8,8 @@ Coordinates:
 4. Wiki and markdown chunking (ingestion/wiki_loader.py)
 5. ChromaDB population with embedding and storage (vectorstore/chroma_manager.py)
 
-Runs full ingestion of fake_data/docs/ and fake_data/code/ to ChromaDB.
+Runs full ingestion of fake_data/documents/ (docs) and a curated set of
+real Odoo module directories under ADDONS_ROOT (code) to ChromaDB.
 """
 
 from __future__ import annotations
@@ -34,13 +35,83 @@ from vectorstore.chroma_manager import ChromaManager
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 FAKE_DATA_DIR = PROJECT_ROOT / "fake_data"
 DOCS_DIR = FAKE_DATA_DIR / "documents"
-CODE_DIR = FAKE_DATA_DIR / "code"
 LOGS_DIR = PROJECT_ROOT / "ingestion" / "logs"
+
+# 2026-08-12: fake_data/code/ (synthetic 3-module stand-in corpus) removed
+# by the user -- see contexte.txt / todo/etat_reel.md "sync avec le vrai
+# Odoo". This documentary code-RAG branch is deliberately kept pointed at
+# a REAL corpus rather than deleted outright: it is the documented
+# negative-result baseline for the thesis (RAG documentaire sur du code
+# custom s'est avere insuffisant face a la Code Intelligence deterministe
+# -- real plan.md Bloc 6). Scoped to the SAME module set as
+# rag.graph.get_code_intelligence_graph() (not the full ~700-module
+# ADDONS_ROOT) so the two branches are comparable on identical source
+# material -- see _documentary_code_module_dirs() below.
+ADDONS_ROOT = Path("/home/user/odoo-17.0/addons") if Path("/home/user/odoo-17.0/addons").exists() else PROJECT_ROOT.parent / "addons"
+CORE_MODULES_ALWAYS_LOADED = ["account", "sale", "stock"]
+
+
+def _documentary_code_module_dirs() -> list[Path]:
+    """Real-corpus module directories this documentary RAG branch indexes.
+
+    Mirrors rag.graph.get_code_intelligence_graph()'s module scope (core
+    Odoo modules + miro_ai + every custom_* adversarial module + each
+    custom_* module's DIRECT manifest dependencies, e.g. hr_expense) so the
+    documentary and deterministic branches reason over identical source
+    material. Duplicated here rather than imported from rag.graph to avoid
+    coupling this secondary (intentionally-underperforming, kept as a
+    thesis baseline) branch to the tested deterministic graph-building
+    code path -- if the two ever need to be kept in lockstep, extract a
+    shared helper instead of hand-syncing.
+    """
+    if not ADDONS_ROOT.exists():
+        return []
+
+    from code_intelligence.utils import discover_odoo_modules
+    from code_intelligence.manifest_parser import parse_manifest
+
+    dirs: list[Path] = []
+    seen: set[str] = set()
+
+    def _add(name: str) -> None:
+        if name in seen:
+            return
+        mod_dir = ADDONS_ROOT / name
+        if mod_dir.is_dir() and (mod_dir / "__manifest__.py").exists():
+            dirs.append(mod_dir)
+            seen.add(name)
+
+    for core_name in CORE_MODULES_ALWAYS_LOADED:
+        _add(core_name)
+    _add("miro_ai")
+
+    custom_modules = discover_odoo_modules(ADDONS_ROOT, prefix="custom_")
+    for mod_name in custom_modules:
+        _add(mod_name)
+
+    # Direct manifest dependencies only (J36-equivalent, one level deep --
+    # not the full transitive closure, same reasoning as rag.graph).
+    for mod_name in custom_modules:
+        manifest_p = ADDONS_ROOT / mod_name / "__manifest__.py"
+        try:
+            manifest = parse_manifest(manifest_p)
+        except Exception as e:
+            logger.error("Documentary scope: failed to parse manifest for '%s': %s", mod_name, e)
+            continue
+        for dep_name in manifest.depends:
+            _add(dep_name)
+
+    return dirs
+
 
 # Ensure directories exist BEFORE logging setup
 LOGS_DIR.mkdir(exist_ok=True, parents=True)
 DOCS_DIR.mkdir(exist_ok=True, parents=True)
-CODE_DIR.mkdir(exist_ok=True, parents=True)
+# NOTE: CODE_DIR is intentionally NOT eagerly created here anymore -- it
+# used to be FAKE_DATA_DIR / "code" with an unconditional .mkdir() at
+# import time, which silently resurrected an EMPTY fake_data/code/
+# directory every time this module was imported, defeating its deletion
+# with no error signal at all. See CODE_DIR/CODE_DIRS below.
 
 # Configure logging
 logging.basicConfig(
@@ -53,6 +124,15 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger(__name__)
+
+# Computed once at import: read-only directory listing + manifest parsing,
+# no filesystem mutation (unlike the old CODE_DIR.mkdir()).
+CODE_DIRS: list[Path] = _documentary_code_module_dirs()
+# Backward-compat sentinel for existing `from ingestion.ingest_all import
+# CODE_DIR` call sites and for IngestionOrchestrator.ingest_all()'s own
+# `code_dir` parameter default: None means "use the curated real-corpus
+# scope in CODE_DIRS above", never a single directory anymore.
+CODE_DIR = None
 
 
 class IngestionOrchestrator:
@@ -95,13 +175,13 @@ class IngestionOrchestrator:
         }
 
         self.last_docs_dir: str | Path = DOCS_DIR
-        self.last_code_dir: str | Path = CODE_DIR
+        self.last_code_dir: Optional[str | Path] = CODE_DIR
         self.last_incremental: bool = False
 
     def ingest_all(
         self,
         docs_dir: str | Path = DOCS_DIR,
-        code_dir: str | Path = CODE_DIR,
+        code_dir: Optional[str | Path] = CODE_DIR,
         incremental: bool = False,
     ) -> dict[str, Any]:
         """
@@ -116,7 +196,6 @@ class IngestionOrchestrator:
             Statistics dictionary
         """
         docs_dir_path = Path(docs_dir) if str(docs_dir) != "" else None
-        code_dir_path = Path(code_dir) if str(code_dir) != "" else None
 
         self.last_docs_dir = docs_dir
         self.last_code_dir = code_dir
@@ -133,12 +212,32 @@ class IngestionOrchestrator:
         else:
             logger.warning(f"Docs directory not found or empty: {docs_dir}")
 
-        # Ingest code
-        if code_dir_path and code_dir_path.exists():
-            logger.info(f"\n[CODE] Loading from {code_dir_path}")
-            self._ingest_code_dir(code_dir_path)
+        # Ingest code. Three distinct meanings for code_dir (2026-08-12,
+        # fake_data/code/ removal):
+        #   None (default)  -> curated real-corpus scope, CODE_DIRS (one
+        #                       _ingest_code_dir() call per module dir).
+        #   "" (empty str)  -> explicit skip, unchanged pre-existing sentinel
+        #                       (see clear_and_reingest()/test_clear_and_reingest).
+        #   any other value -> single directory, old rglob-one-dir behavior
+        #                       (unchanged, still used directly by tests).
+        if code_dir is None:
+            if not CODE_DIRS:
+                logger.warning(
+                    "Documentary code scope resolved to zero modules under "
+                    "%s -- nothing ingested. Check ADDONS_ROOT.", ADDONS_ROOT,
+                )
+            for mod_dir in CODE_DIRS:
+                logger.info(f"\n[CODE] Loading module '{mod_dir.name}' from {mod_dir}")
+                self._ingest_code_dir(mod_dir)
+        elif str(code_dir) == "":
+            logger.info("Code ingestion explicitly skipped (code_dir='').")
         else:
-            logger.warning(f"Code directory not found or empty: {code_dir}")
+            code_dir_path = Path(code_dir)
+            if code_dir_path.exists():
+                logger.info(f"\n[CODE] Loading from {code_dir_path}")
+                self._ingest_code_dir(code_dir_path)
+            else:
+                logger.warning(f"Code directory not found or empty: {code_dir}")
 
         # Get final statistics
         docs_stats = self.docs_manager.get_stats()
@@ -556,7 +655,11 @@ def main():
         "--code-dir",
         type=Path,
         default=CODE_DIR,
-        help="Path to code directory",
+        help=(
+            "Path to a single code directory to ingest. If omitted, "
+            "ingests the curated real-corpus module scope (CODE_DIRS -- "
+            "see _documentary_code_module_dirs())."
+        ),
     )
     parser.add_argument(
         "--db-path",

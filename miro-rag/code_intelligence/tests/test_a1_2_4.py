@@ -5,7 +5,7 @@ Unit tests for Task A1.2.4: Parser vues formulaire (arch de ir.ui.view, labels d
 Tests:
   1. ir.ui.view form button extraction (name="action_confirm", string="Confirmer")
   2. Button groups and states attributes extraction
-  3. Real XML test on fake_data/code/sale/sale_order_view.xml
+  3. Real XML test on addons/sale/sale_order_view.xml
 """
 
 import tempfile
@@ -64,9 +64,9 @@ def test_form_view_buttons_extraction():
 
 
 def test_real_xml_sale_order_view():
-    """Test parsing form views from real sale_order_view.xml corpus file."""
-    corpus_root = Path(__file__).resolve().parent.parent.parent / "fake_data" / "code"
-    xml_file = corpus_root / "sale" / "sale_order_view.xml"
+    """Test parsing form views from real sale_order_views.xml corpus file."""
+    corpus_root = Path("/home/user/odoo-17.0/addons")
+    xml_file = corpus_root / "sale" / "views" / "sale_order_views.xml"
 
     if xml_file.exists():
         views = parse_views_from_xml(xml_file)

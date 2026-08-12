@@ -109,22 +109,31 @@ def parse_manifest(manifest_path: Path) -> Optional[OdooManifest]:
     )
 
 
-# ── 2026-08-06 fix: fake_data/code/ core-module manifest gap ─────────────────
+# ── 2026-08-06 fix: core-module manifest gap (originally found against fake_data/code/) ──
 #
 # Root cause (found investigating a wrong method-override execution order on
-# account.move._reverse_moves): fake_data/code/{account,sale,stock}/ simulate
-# Odoo's own "core" addons to give the Code Intelligence corpus something
-# realistic to extend/override, but they are NOT full Odoo modules and ship no
-# __manifest__.py. rag/graph.py::_load_module() used to leave manifest=None
-# in that case, and cross_file_resolver.topological_sort_modules()'s
-# `if mod and mod.manifest:` guard then silently treated the module as having
-# NO dependencies at all -- it never called mod.manifest.depends, it just
-# appended the module to load_order wherever the outer `for name in
-# modules_dict` loop happened to encounter it (i.e. filesystem iteration
-# order, which is not guaranteed to be alphabetical and is not a dependency
-# order). No exception, no warning: `if mod and mod.manifest` is `False` for
-# `mod.manifest is None`, so the whole dependency-following branch is simply
-# skipped.
+# account.move._reverse_moves): a handful of Odoo core addons (account, sale,
+# stock) were, at the time, simulated by a synthetic fake_data/code/ corpus
+# with no __manifest__.py -- rag/graph.py::_load_module() used to leave
+# manifest=None in that case, and cross_file_resolver.topological_sort_
+# modules()'s `if mod and mod.manifest:` guard then silently treated the
+# module as having NO dependencies at all -- it never called
+# mod.manifest.depends, it just appended the module to load_order wherever
+# the outer `for name in modules_dict` loop happened to encounter it (i.e.
+# filesystem iteration order, which is not guaranteed to be alphabetical and
+# is not a dependency order). No exception, no warning: `if mod and
+# mod.manifest` is `False` for `mod.manifest is None`, so the whole
+# dependency-following branch is simply skipped.
+#
+# 2026-08-12 update: the fake_data/code/ synthetic corpus has since been
+# removed entirely -- 'account'/'sale'/'stock' are now loaded directly from
+# the real Odoo 17 corpus (addons_root in rag/graph.py), which always ships
+# a real __manifest__.py for these, so the fallback path below is not
+# expected to fire against them in practice anymore. Kept as a defensive
+# fallback for any future manifest-less directory (or a run without
+# addons_root available) -- the mechanism and the MissingManifestError
+# fail-loudly behavior below remain correct and useful independent of which
+# corpus is in use.
 #
 # That corrupted load_order corrupts everything built from it downstream:
 # graph_builder.py accumulates each Method node's override_sites in load_order
@@ -135,42 +144,41 @@ def parse_manifest(manifest_path: Path) -> Optional[OdooManifest]:
 # wrong method-override execution order -- silently, with no error signal.
 #
 # Fix: never leave manifest=None for a module __load_module() is expected to
-# load. For the handful of well-known fake_data/code/ core modules below,
-# synthesize a manifest with hardcoded, stable, well-known Odoo dependencies
-# (this is standard/public Odoo knowledge, not a guess). For anything else
-# missing a manifest, _load_module() must raise MissingManifestError instead
-# of guessing -- see rag/graph.py.
+# load. For the handful of well-known core modules below, synthesize a
+# manifest with hardcoded, stable, well-known Odoo dependencies (this is
+# standard/public Odoo knowledge, not a guess). For anything else missing a
+# manifest, _load_module() must raise MissingManifestError instead of
+# guessing -- see rag/graph.py.
 
 
 class MissingManifestError(Exception):
     """
     Raised by rag/graph.py::_load_module() when a module directory has no
-    __manifest__.py and is not a known fake_data/code/ core module (see
+    __manifest__.py and is not a known core module (see
     KNOWN_CORE_MODULE_DEPENDS below).
 
     This replaces the previous silent behavior (manifest=None, treated as
     "no dependencies" by topological_sort_modules with zero warning or
     exception). A missing manifest on a real module (miro_ai, custom_*, or
-    any future fake_data/code/ addition) is a corpus bug that must fail
-    loudly -- guessing its dependencies away is exactly what caused the
-    account.move._reverse_moves override-order bug this exception guards
-    against.
+    any other addon) is a corpus bug that must fail loudly -- guessing its
+    dependencies away is exactly what caused the account.move._reverse_moves
+    override-order bug this exception guards against.
     """
 
 
-# Scoped deliberately to the synthetic fake_data/code/ corpus only -- this is
-# NOT a general-purpose Odoo dependency database and must never be consulted
-# for real addons (miro_ai, custom_*, or a real odoo-17.0/addons tree). See
-# rag/graph.py::_load_module(), which only falls back to this mapping when a
-# module has no __manifest__.py at all; a real module with a real manifest
-# always uses its own real `depends`, never this table.
+# Scoped deliberately to the small, well-known set of core Odoo modules this
+# corpus has needed a fallback for historically -- this is NOT a general-
+# purpose Odoo dependency database. See rag/graph.py::_load_module(), which
+# only falls back to this mapping when a module has no __manifest__.py at
+# all; a real module with a real manifest (which 'account'/'sale'/'stock'
+# always have now, loaded from the real addons_root corpus) always uses its
+# own real `depends`, never this table.
 #
 # Dependencies below are the well-known, stable, public Odoo 17 `depends` for
-# these core addons (not inferred from this corpus, not a guess) -- trimmed
-# to the modules actually present or referenceable in fake_data/code/ plus
-# their well-known real-world deps, since a dependency on a module absent
-# from this corpus is harmless (topological_sort_modules already handles an
-# unknown dependency name as a leaf with a warning).
+# these core addons (not inferred from this corpus, not a guess) -- a
+# dependency on a module absent from the loaded corpus is harmless
+# (topological_sort_modules already handles an unknown dependency name as a
+# leaf with a warning).
 KNOWN_CORE_MODULE_DEPENDS: Dict[str, List[str]] = {
     "account": ["base", "product", "mail", "portal", "analytic", "digest", "web"],
     "sale": ["account", "product", "stock", "mail", "portal", "utm", "digest"],
@@ -191,9 +199,10 @@ def synthesize_fallback_manifest(module_name: str, module_dir: Path) -> Optional
     _logger.warning(
         "Module '%s' at %s has no __manifest__.py -- synthesizing a fallback "
         "manifest with hardcoded depends=%s (KNOWN_CORE_MODULE_DEPENDS). This "
-        "fallback is intended ONLY for the fake_data/code/ synthetic core "
-        "corpus; if this warning fires for a real addon, add its real "
-        "__manifest__.py instead of relying on this mapping.",
+        "is a defensive fallback and should not normally fire against the "
+        "real Odoo addons corpus, which ships a real __manifest__.py for "
+        "this module -- if this warning fires unexpectedly, check that "
+        "addons_root actually points at a real, complete Odoo installation.",
         module_name, module_dir, KNOWN_CORE_MODULE_DEPENDS[module_name],
     )
     return OdooManifest(

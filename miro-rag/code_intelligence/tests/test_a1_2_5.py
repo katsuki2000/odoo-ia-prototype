@@ -101,8 +101,8 @@ def test_miro_ai_xml_integration():
 
 
 def test_sale_corpus_xml_integration():
-    """Run XML integration test on fake_data/code/sale."""
-    corpus_root = Path(__file__).resolve().parent.parent.parent / "fake_data" / "code"
+    """Run XML integration test on addons/sale."""
+    corpus_root = Path("/home/user/odoo-17.0/addons")
     sale_dir = corpus_root / "sale"
 
     if sale_dir.exists():

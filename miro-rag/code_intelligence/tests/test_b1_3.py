@@ -52,7 +52,7 @@ def test_chemin_execution_bouton_synthetic():
 def test_chemin_execution_bouton_real_sale():
     """Test chemin_execution_bouton on real sale_order module."""
     root_dir = Path(__file__).resolve().parent.parent.parent.parent
-    corpus_root = Path(__file__).resolve().parent.parent.parent / "fake_data" / "code"
+    corpus_root = Path("/home/user/odoo-17.0/addons")
     sale_dir = corpus_root / "sale"
 
     if sale_dir.exists():

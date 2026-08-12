@@ -121,7 +121,7 @@ def run_benchmark():
     # NOTE (2026-07-29): run_pipeline()/set_graph_ref() ici étaient du code mort --
     # code_intelligence_agent() (rag/graph.py) appelle get_code_intelligence_graph()
     # puis set_graph_ref() lui-même à CHAQUE question, ce qui écrasait silencieusement
-    # ce graphe de 9 modules custom_* avec le graphe complet (fake_data/code + miro_ai
+    # ce graphe de 9 modules custom_* avec le graphe complet (addons + miro_ai
     # + custom_*, ~3775 nœuds) avant que la première question ne soit posée.
     # Le benchmark a donc toujours tourné sur le graphe complet, jamais sur celui-ci --
     # supprimé pour éviter la confusion (cf. logs Sprint 2, 2026-07-29).

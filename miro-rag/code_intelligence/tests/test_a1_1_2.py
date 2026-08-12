@@ -106,17 +106,18 @@ class ProductProduct(models.Model):
 
 
 def test_real_corpus_files():
-    """Test on actual corpus files from fake_data/code."""
-    corpus_root = Path(__file__).resolve().parent.parent.parent / "fake_data" / "code"
+    """Test on actual corpus files from addons."""
+    corpus_root = Path("/home/user/odoo-17.0/addons")
     
-    # 1. Extension test on sale/res_partner.py
-    res_partner_file = corpus_root / "sale" / "res_partner.py"
+    # 1. Extension test on sale/models/res_partner.py
+    res_partner_file = corpus_root / "sale" / "models" / "res_partner.py"
     if res_partner_file.exists():
         decls = extract_odoo_models_from_file(res_partner_file)
         assert any(d.class_name == "ResPartner" and d.inherit == ["res.partner"] for d in decls)
 
-    # 2. Classic inheritance test on sale/sale_order.py
-    sale_order_file = corpus_root / "sale" / "sale_order.py"
+    # 2. Classic inheritance test on sale/models/sale_order.py
+    sale_order_file = corpus_root / "sale" / "models" / "sale_order.py"
     if sale_order_file.exists():
         decls = extract_odoo_models_from_file(sale_order_file)
         assert any(d.class_name == "SaleOrder" and d.name == "sale.order" for d in decls)
+

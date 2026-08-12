@@ -7,6 +7,9 @@ from rag.graph import (
     _format_can_view_amount_fact, _question_suggests_automation_bypass,
     _extract_override_modules, _backfill_missing_override_modules,
     _extract_override_chain_amounts, _backfill_missing_override_chain_amount,
+    _answer_denies_other_overrides, _answer_asserts_override_shortcircuit,
+    _neutralize_override_count_denial, _neutralize_override_shortcircuit_sentence,
+    _correct_override_cascade_contradictions,
 )
 
 # 1. Test fallback when no context is found
@@ -373,5 +376,127 @@ class TestBackfillMissingOverrideChainAmount:
             "was mistaken for an override-cascade finding"
         )
         assert "chaîne de surcharge" not in result.lower()
+
+
+# Bloc 9 gap, module 1/8 (2026-08-12, bloc9-01b-technical): the marker-only
+# E2E check verified the two other override modules were present SOMEWHERE
+# in the final answer (via _backfill_missing_override_modules), but a live
+# run showed the LLM's free prose actively denying they existed ("Aucune
+# autre surcharge n'a été détectée...") and fabricating a specificity-based
+# short-circuit that doesn't exist in Odoo -- see the comment above
+# _OVERRIDE_COUNT_DENIAL_RE in rag/graph.py for the full live-run text.
+class TestOverrideCascadeContradictionCorrection:
+    def test_detects_denial_of_other_overrides(self):
+        answer = (
+            "1. custom_credit_note_approval. Aucune autre surcharge n'a été "
+            "détectée dans les autres modules analysés."
+        )
+        assert _answer_denies_other_overrides(answer) is True
+
+    def test_no_denial_detected_on_clean_answer(self):
+        answer = (
+            "Les 3 modules concernés sont 'custom_credit_note_approval_vip', "
+            "'custom_credit_note_approval_regional' et 'custom_credit_note_approval'."
+        )
+        assert _answer_denies_other_overrides(answer) is False
+
+    def test_detects_fabricated_shortcircuit_claim(self):
+        answer = (
+            "La surcharge la plus spécifique est exécutée en premier ; si "
+            "elle ne lève pas d'erreur, les autres ne seront pas exécutées."
+        )
+        assert _answer_asserts_override_shortcircuit(answer) is True
+
+    def test_no_shortcircuit_false_positive_on_unrelated_error_mention(self):
+        """'erreur' appearing elsewhere in the answer, with no 'ne pas
+        exécutée(s)' clause in the SAME sentence, must not trigger --
+        narrow, confirmed-real vocabulary only, same discipline as
+        _LINK_GUARD_CONTRADICTION_PATTERN."""
+        answer = (
+            "Si les données du formulaire sont invalides, Odoo lève une "
+            "erreur de validation avant l'enregistrement."
+        )
+        assert _answer_asserts_override_shortcircuit(answer) is False
+
+    def test_neutralize_replaces_denial_sentence_with_real_count_and_modules(self):
+        answer = (
+            "1. custom_credit_note_approval, verrou de base. "
+            "2. Aucune autre surcharge n'a été détectée dans les autres "
+            "modules analysés."
+        )
+        modules = [
+            "custom_credit_note_approval_vip",
+            "custom_credit_note_approval_regional",
+            "custom_credit_note_approval",
+        ]
+        result = _neutralize_override_count_denial(answer, modules)
+        assert "aucune autre surcharge" not in result.lower()
+        assert "3 surcharges" in result
+        for m in modules:
+            assert m in result
+
+    def test_neutralize_denial_no_op_when_no_denial_present(self):
+        answer = "Les 3 modules sont correctement listés ci-dessus."
+        result = _neutralize_override_count_denial(answer, ["a", "b", "c"])
+        assert result == answer
+
+    def test_neutralize_replaces_shortcircuit_sentence_with_real_semantics(self):
+        answer = (
+            "En ce qui concerne l'ordre d'exécution, la surcharge la plus "
+            "spécifique est exécutée en premier, et si elle ne lève pas "
+            "d'erreur, les autres ne seront pas exécutées."
+        )
+        modules = [
+            "custom_credit_note_approval_vip",
+            "custom_credit_note_approval_regional",
+            "custom_credit_note_approval",
+        ]
+        result = _neutralize_override_shortcircuit_sentence(answer, modules)
+        assert "ne seront pas" not in result.lower()
+        assert "court-circuit" in result
+        assert "super()" in result
+        # Real execution order restated, vip -> regional -> base.
+        assert result.index("custom_credit_note_approval_vip") < result.index(
+            "custom_credit_note_approval_regional"
+        )
+
+    def test_neutralize_shortcircuit_no_op_when_no_contradiction_present(self):
+        answer = "Les 3 surcharges s'exécutent toutes, chacune appelant super()."
+        result = _neutralize_override_shortcircuit_sentence(answer, ["a", "b", "c"])
+        assert result == answer
+
+    def test_correct_override_cascade_contradictions_end_to_end_on_real_live_case(self):
+        """Reproduces the reported bloc9-01b-technical live failure end to
+        end: both the denial and the fabricated short-circuit claim in the
+        same answer, against the real _REAL_OVERRIDE_CHAIN_RAW_TEXT
+        fixture. Confirms both are corrected in a single pass and neither
+        neutralization interferes with the other."""
+        answer = (
+            "Il existe plusieurs surcharges de la méthode "
+            "action_valider_avoir : 1. custom_credit_note_approval, qui "
+            "applique le verrou de base. 2. Aucune autre surcharge n'a été "
+            "détectée dans les autres modules analysés. Concernant l'ordre "
+            "d'exécution, la surcharge la plus spécifique est exécutée en "
+            "premier ; si elle ne lève pas d'erreur, les autres ne seront "
+            "pas exécutées."
+        )
+        result = _correct_override_cascade_contradictions(answer, _REAL_OVERRIDE_CHAIN_RAW_TEXT)
+        assert "aucune autre surcharge" not in result.lower()
+        assert "ne seront pas" not in result.lower()
+        assert "custom_credit_note_approval_vip" in result
+        assert "custom_credit_note_approval_regional" in result
+
+    def test_no_op_on_single_module_chain_denial_is_not_a_contradiction(self):
+        """A single-override method correctly saying 'no other override
+        exists' is TRUE, not a contradiction -- must not be touched."""
+        single_module_raw = "module 'only_one_module' -- link, no other line"
+        answer = "Aucune autre surcharge n'a été détectée pour cette méthode."
+        result = _correct_override_cascade_contradictions(answer, single_module_raw)
+        assert result == answer
+
+    def test_no_op_when_raw_text_has_no_override_chain_content(self):
+        answer = "Aucune autre surcharge n'a été détectée."
+        result = _correct_override_cascade_contradictions(answer, "rien à voir ici")
+        assert result == answer
 
 

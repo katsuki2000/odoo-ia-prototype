@@ -25,16 +25,16 @@ import jedi
 
 # ── Configuration ─────────────────────────────────────────────────────────────
 
-CORPUS_ROOT = Path(__file__).resolve().parent.parent.parent / "fake_data" / "code"
+CORPUS_ROOT = Path("/home/user/odoo-17.0/addons")
 
 # Representative files for each pattern category
 TEST_FILES = {
-    "sale_order": CORPUS_ROOT / "sale" / "sale_order.py",
-    "res_partner_sale": CORPUS_ROOT / "sale" / "res_partner.py",
-    "account_move": CORPUS_ROOT / "account" / "account_move.py",
-    "stock_picking": CORPUS_ROOT / "stock" / "stock_picking.py",
-    "product_product": CORPUS_ROOT / "sale" / "product_product.py",
-    "sale_order_line": CORPUS_ROOT / "sale" / "sale_order_line.py",
+    "sale_order": CORPUS_ROOT / "sale" / "models" / "sale_order.py",
+    "res_partner_sale": CORPUS_ROOT / "sale" / "models" / "res_partner.py",
+    "account_move": CORPUS_ROOT / "account" / "models" / "account_move.py",
+    "stock_picking": CORPUS_ROOT / "stock" / "models" / "stock_picking.py",
+    "product_product": CORPUS_ROOT / "sale" / "models" / "product_product.py",
+    "sale_order_line": CORPUS_ROOT / "sale" / "models" / "sale_order_line.py",
 }
 
 

@@ -53,7 +53,7 @@ def test_impact_changement_champ_synthetic():
 
 def test_impact_changement_champ_real_sale():
     """Test impact_changement_champ on real sale_order module."""
-    corpus_root = Path(__file__).resolve().parent.parent.parent / "fake_data" / "code"
+    corpus_root = Path("/home/user/odoo-17.0/addons")
     sale_dir = corpus_root / "sale"
 
     if sale_dir.exists():

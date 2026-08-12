@@ -115,7 +115,7 @@ def test_inheritance_cycle_detection():
 def test_integration_a1_a2_real_corpus():
     """Test Task A2.1.5: Full A1+A2 two-pass resolution on real corpus modules."""
     root_dir = Path(__file__).resolve().parent.parent.parent.parent
-    corpus_root = Path(__file__).resolve().parent.parent.parent / "fake_data" / "code"
+    corpus_root = Path("/home/user/odoo-17.0/addons")
 
     modules_dict = {}
 

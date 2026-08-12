@@ -1674,6 +1674,153 @@ def _backfill_missing_override_chain_amount(final_answer: str, raw_tool_output: 
     )
 
 
+# Bloc 9 gap, module 1/8 (2026-08-12, bloc9-01b-technical): the marker-only
+# E2E check (scripts/check_bloc9_01_credit_note_cascade_e2e.py) verifies
+# that expected module names/amounts appear SOMEWHERE in the final answer
+# (via expected_markers, and via the two backfills above when synthesis
+# drops them) -- but never checks whether the LLM's own free prose ABOVE
+# those facts actively contradicts them. Live run confirmed 3/3 by that
+# check (all expected markers present, no forbidden markers) while the
+# free prose still asserted, verbatim: (1) "Aucune autre surcharge n'a été
+# détectée dans les autres modules analysés" -- immediately followed by
+# the [FAIT DÉTERMINISTIQUE] naming the two other override modules that
+# very sentence denies exist -- and (2) a fabricated Odoo execution
+# semantic ("la surcharge la plus spécifique... est exécutée en premier...
+# si elle ne lève pas d'erreur, les autres ne seront pas exécutées"), which
+# is not how Odoo resolves an override chain: there is no such
+# specificity-based short-circuit, and the real order (given by this same
+# tool, vip -> regional -> base here) is never actually used in that
+# sentence. Exactly the same family of bug as Bug 2 already documented for
+# module 5/8 (_LINK_GUARD_CONTRADICTING_SENTENCE_RE): a correct fact
+# appended below a free-text sentence does not, on its own, correct that
+# sentence for a reader reading top-to-bottom -- a Discuss end user reads
+# the wrong claim before ever reaching the fact that contradicts it. Not a
+# script false positive to silence: the check does exactly what it was
+# built to do (verify facts); this is a real quality gap the check was
+# never designed to catch (prose/fact consistency, not fact presence).
+# Same fix shape as module 5/8's Bug 2: detect the specific confirmed-real
+# wrong sentence and replace it in place, do not merely append a fact
+# after it.
+_OVERRIDE_COUNT_DENIAL_RE = re.compile(
+    r"[^.\n]*aucune\s+autre\s+surcharge[^.\n]*\.?"
+)
+
+# Confirmed-real vocabulary only (same discipline as
+# _LINK_GUARD_CONTRADICTION_PATTERN above): the fabricated short-circuit
+# claim found live requires BOTH "erreur" and a "ne (sera|seront) pas
+# exécutée(s)" clause in the same sentence, with "erreur" preceding the
+# verb clause -- matches "si elle ne lève pas d'erreur, les autres ne
+# seront pas exécutées" verbatim. Deliberately narrow (same over-editing
+# caution as every other neutralizer in this file, see the hallucination
+# case in method_override_resolver.py, contexte.txt section 24) rather
+# than a generic "any wrong claim about execution order" detector.
+_OVERRIDE_ORDER_SHORTCIRCUIT_SENTENCE_RE = re.compile(
+    r"[^.\n]*erreur[^.\n]*ne\s+(?:seront|sera)\s+pas\s+executee?s?[^.\n]*\.?"
+)
+
+
+def _answer_denies_other_overrides(final_answer: str) -> bool:
+    """True if final_answer explicitly claims no other override exists --
+    only meaningful as a contradiction when the raw tool output actually
+    lists 2+ modules (checked by the caller, _correct_override_cascade_
+    contradictions). Accent-folded, same technique as
+    _answer_contradicts_link_guard."""
+    from code_intelligence.deterministic_tools import _fold_accents
+    folded = _fold_accents(final_answer.lower())
+    return bool(_OVERRIDE_COUNT_DENIAL_RE.search(folded))
+
+
+def _answer_asserts_override_shortcircuit(final_answer: str) -> bool:
+    """True if final_answer asserts a specificity-based short-circuit
+    ("most specific override runs first, others are skipped if it doesn't
+    raise") that does not exist in Odoo's real override semantics."""
+    from code_intelligence.deterministic_tools import _fold_accents
+    folded = _fold_accents(final_answer.lower())
+    return bool(_OVERRIDE_ORDER_SHORTCIRCUIT_SENTENCE_RE.search(folded))
+
+
+def _neutralize_override_count_denial(final_answer: str, modules: List[str]) -> str:
+    """Replace the exact sentence denying any other override with the real
+    count and module list, in place -- same offset-alignment technique as
+    _neutralize_contradicting_link_guard_sentence (fold+lower is a 1:1,
+    length-preserving transform for French text, so match.span() computed
+    on the folded string lines up with the original). No-op if no such
+    sentence is found."""
+    from code_intelligence.deterministic_tools import _fold_accents
+    folded = _fold_accents(final_answer.lower())
+    match = _OVERRIDE_COUNT_DENIAL_RE.search(folded)
+    if not match:
+        return final_answer
+
+    modules_list = ", ".join(f"'{m}'" for m in modules)
+    replacement = (
+        f"Il existe en réalité {len(modules)} surcharges de cette méthode, "
+        f"dans les modules suivants : {modules_list}."
+    )
+    start, end = match.span()
+    return final_answer[:start] + replacement + final_answer[end:]
+
+
+def _neutralize_override_shortcircuit_sentence(final_answer: str, modules: List[str]) -> str:
+    """Replace the exact sentence asserting a fabricated specificity-based
+    short-circuit with the real execution semantics, in place -- same
+    technique as _neutralize_override_count_denial above. modules must
+    already be in real execution order (as returned by
+    _extract_override_modules, itself sourced from
+    resoudre_chaine_surcharge_methode's reversed load order) -- this
+    function does not reorder them, only restates them."""
+    from code_intelligence.deterministic_tools import _fold_accents
+    folded = _fold_accents(final_answer.lower())
+    match = _OVERRIDE_ORDER_SHORTCIRCUIT_SENTENCE_RE.search(folded)
+    if not match:
+        return final_answer
+
+    order = " → ".join(modules) if modules else "l'ordre indiqué par l'outil"
+    replacement = (
+        f"Odoo n'applique aucun court-circuit basé sur la spécificité ou "
+        f"l'absence d'erreur : les surcharges s'exécutent toutes, dans "
+        f"l'ordre réel {order}, et l'exécution d'une surcharge ne s'arrête "
+        f"que si elle omet d'appeler super() ou lève explicitement une erreur."
+    )
+    start, end = match.span()
+    return final_answer[:start] + replacement + final_answer[end:]
+
+
+def _correct_override_cascade_contradictions(final_answer: str, raw_tool_output: str) -> str:
+    """Entry point wiring the two neutralizations above into the same
+    deterministic-correction discipline as _backfill_link_guard_
+    clarifications: detect a confirmed-real contradiction between the
+    LLM's free prose and the override-cascade facts, and replace the wrong
+    sentence in place rather than only appending a correct fact below it
+    -- an appended fact does not, by itself, correct a wrong sentence a
+    top-to-bottom reader already read. No-op when the raw text does not
+    describe an override chain at all, or describes only a single-module
+    chain (a single override correctly saying "no other override exists"
+    is not a contradiction)."""
+    modules = _extract_override_modules(raw_tool_output)
+
+    if len(modules) > 1 and _answer_denies_other_overrides(final_answer):
+        logger.warning(
+            "Node [code_intelligence_agent]: synthesis denied the existence "
+            "of other overrides while %d modules were present in the raw "
+            "tool output -- replacing the denial sentence with the real "
+            "count and module list.",
+            len(modules),
+        )
+        final_answer = _neutralize_override_count_denial(final_answer, modules)
+
+    if modules and _answer_asserts_override_shortcircuit(final_answer):
+        logger.warning(
+            "Node [code_intelligence_agent]: synthesis asserted a "
+            "fabricated specificity-based short-circuit for the override "
+            "cascade -- replacing the sentence with the real (sequential, "
+            "non-short-circuiting) execution semantics."
+        )
+        final_answer = _neutralize_override_shortcircuit_sentence(final_answer, modules)
+
+    return final_answer
+
+
 # Bloc 9 gap, found 2026-08-10 (bloc9-05c-no-link-trap, generalization check
 # 5/8 on custom_asset_loan): the [GARDE DE LIEN] annotation appended by
 # semgrep_locks_analyzer.py (see SecurityLockASTVisitor._detect_link_guard_
@@ -2251,19 +2398,34 @@ def _load_module(mod_dir: Path) -> tuple:
     code_intelligence/tests/test_mixed_corpus_load_order.py for the
     regression test.
 
+    2026-08-12 fix: the synthetic fake_data/code/ stand-in corpus (hand-
+    maintained partial copies of a few Odoo core modules, used to give the
+    graph something realistic to build a load order over before the real
+    Odoo 17 corpus was wired in as addons_root) has been removed entirely.
+    get_code_intelligence_graph() now loads 'account'/'sale'/'stock'
+    directly from the real corpus, which ships a real __manifest__.py for
+    every module -- so the synthesize-a-fallback-manifest path below is no
+    longer expected to fire for those three in practice. The mechanism
+    itself is kept as a defensive fallback (any future manifest-less
+    directory, or a corpus without addons_root available) rather than
+    removed, since it costs nothing to keep and MissingManifestError's
+    fail-loudly behavior is still the right default for a genuinely
+    unexpected manifest-less module.
+
     Resolution order when __manifest__.py is absent:
-      1. Known fake_data/code/ core module (account/sale/stock) -> synthesize
-         a manifest with its real, well-known, hardcoded `depends`.
-      2. Directory with no .py files at all (e.g. fake_data/code/views/, a
-         loose XML asset folder, not a real Odoo module) -> it can never
-         declare a Model/Method, so it can never appear in a method
-         override_sites list and its position in load_order cannot corrupt
-         override-chain resolution. Safe to treat as a dependency-free leaf.
-      3. Anything else (a real addon -- miro_ai, custom_*, or any future
-         fake_data/code/ module actually containing code) -> raise
-         MissingManifestError instead of guessing. A silently-guessed
-         dependency set for a module we don't actually know is exactly the
-         bug this fix removes.
+      1. A KNOWN_CORE_MODULE_DEPENDS entry (account/sale/stock) -> synthesize
+         a manifest with its real, well-known, hardcoded `depends`. Kept as
+         a defensive fallback; not expected to trigger against the real
+         addons_root corpus, which always ships a real manifest for these.
+      2. Directory with no .py files at all (e.g. a loose XML asset folder,
+         not a real Odoo module) -> it can never declare a Model/Method, so
+         it can never appear in a method override_sites list and its
+         position in load_order cannot corrupt override-chain resolution.
+         Safe to treat as a dependency-free leaf.
+      3. Anything else (a real addon -- miro_ai, custom_*, or any other
+         module actually containing code) -> raise MissingManifestError
+         instead of guessing. A silently-guessed dependency set for a
+         module we don't actually know is exactly the bug this fix removes.
     """
     from code_intelligence.manifest_parser import (
         parse_manifest,
@@ -2305,16 +2467,16 @@ def _load_module(mod_dir: Path) -> tuple:
             else:
                 raise MissingManifestError(
                     f"Module '{module_name}' at {mod_dir} has no __manifest__.py, "
-                    f"contains .py files, and is not a known fake_data/code/ core "
-                    f"module ({sorted(KNOWN_CORE_MODULE_DEPENDS)}). Refusing to "
+                    f"contains .py files, and is not a known core module "
+                    f"({sorted(KNOWN_CORE_MODULE_DEPENDS)}). Refusing to "
                     f"silently treat it as having no dependencies -- this "
                     f"previously produced a wrong module load_order and a wrong "
                     f"method-override execution order with no error signal at "
                     f"all (see manifest_parser.MissingManifestError docstring). "
                     f"If this is a real Odoo module, add its __manifest__.py; if "
-                    f"it's a new fake_data/code/ core module standing in for a "
-                    f"real Odoo core addon, add it to KNOWN_CORE_MODULE_DEPENDS "
-                    f"in code_intelligence/manifest_parser.py."
+                    f"it's a new core module standing in for a real Odoo core "
+                    f"addon, add it to KNOWN_CORE_MODULE_DEPENDS in "
+                    f"code_intelligence/manifest_parser.py."
                 )
     mod = ParsedModule(manifest=manifest)
     for py_f in mod_dir.rglob("*.py"):
@@ -2367,16 +2529,39 @@ def get_code_intelligence_graph():
     from code_intelligence.graph_builder import OdooGraphBuilder
 
     base_dir = Path(__file__).resolve().parent.parent
-    corpus_root = base_dir / "fake_data" / "code"
     addons_root = Path("/home/user/odoo-17.0/addons") if Path("/home/user/odoo-17.0/addons").exists() else base_dir.parent / "addons"
 
     modules_dict = {}
 
-    if corpus_root.exists():
-        for mod_dir in corpus_root.iterdir():
-            if mod_dir.is_dir():
-                name, mod = _load_module(mod_dir)
+    # 2026-08-12 fix: fake_data/code/{account,sale,stock} used to stand in
+    # for these three real Odoo core modules -- hand-maintained, partial
+    # copies that could silently drift from the real Odoo 17 source (see
+    # todo/etat_reel.md for the full writeup). Worse: because this preload
+    # ran BEFORE the J36 direct-dependency loop below, and that loop skips
+    # any dependency name already present in modules_dict, the fake stand-
+    # ins silently pre-empted the real modules every time -- every question
+    # this project has ever answered about account.move reasoned against
+    # the synthetic copy, never the real Odoo 17 source. Removed entirely;
+    # these three are now loaded directly from the real corpus. Still an
+    # explicit preload (not left to the J36 loop alone) because the
+    # account.move._reverse_moves override-chain regression coverage
+    # (test_mixed_corpus_load_order.py) needs 'sale' present even though no
+    # custom_* module's manifest actually depends on it.
+    CORE_MODULES_ALWAYS_LOADED = ["account", "sale", "stock"]
+    if addons_root.exists():
+        for core_name in CORE_MODULES_ALWAYS_LOADED:
+            core_dir = addons_root / core_name
+            if core_dir.is_dir() and (core_dir / "__manifest__.py").exists():
+                name, mod = _load_module(core_dir)
                 modules_dict[name] = mod
+            else:
+                logger.warning(
+                    "Core module '%s' not found (or has no __manifest__.py) under "
+                    "%s -- skipping preload. Some override-chain regression "
+                    "coverage may be reduced; this does not affect custom_* "
+                    "modules, which are always loaded from the real corpus below.",
+                    core_name, addons_root,
+                )
 
     miro_ai_dir = addons_root / "miro_ai"
     if miro_ai_dir.exists():
@@ -2393,8 +2578,8 @@ def get_code_intelligence_graph():
 
         # J36 fix (2026-08-07): custom_* modules routinely _inherit a REAL
         # Odoo core module (e.g. custom_expense_risk_base extends hr.expense
-        # via depends=['hr_expense']) that is neither part of the synthetic
-        # fake_data/code/ corpus nor itself prefixed 'custom_', so it was
+        # via depends=['hr_expense']) that is neither part of the always-
+        # loaded core set above nor itself prefixed 'custom_', so it was
         # never loaded -- the extended model's base declaration (and its
         # real fields/methods) never entered the graph, and every tool call
         # against it returned "model not found" (confirmed root cause of the
@@ -2413,7 +2598,7 @@ def get_code_intelligence_graph():
 
         for dep_name in sorted(direct_deps):
             if dep_name in modules_dict:
-                continue  # already loaded (fake_data/code, miro_ai, or another custom_* module)
+                continue  # already loaded (core preload, miro_ai, or another custom_* module)
             dep_dir = addons_root / dep_name
             if not dep_dir.is_dir() or not (dep_dir / "__manifest__.py").exists():
                 # Not a real loadable addon here (e.g. 'base' ships as a
@@ -2993,8 +3178,42 @@ def code_intelligence_agent(state: RAGState) -> dict:
                     _t_hop = time.perf_counter()  # J30-J31: per-hop timing
                     try:
                         observation = str(tool_map[tool_name].invoke(tool_args))
-                        if len(observation) > 1200:
-                            observation = observation[:1200] + "\n[... Content truncated for LLM context limit ...]"
+                        # Bloc 9 gap, found 2026-08-12 (module 1/8, bloc9-01b-
+                        # technical live rerun): the generic 1200-char cap below
+                        # is fine for most tools, but analyser_chaine_surcharge_
+                        # methode's forced pre-dispatch already needed 2200 (see
+                        # the raised cap on that call site, same rationale) --
+                        # and that forced dispatch is gated on
+                        # _question_is_approval_related(question), which a
+                        # purely technical wording like "quelles sont toutes les
+                        # surcharges ... et dans quel ordre s'exécutent-elles ?"
+                        # never matches (no approval-pattern word appears; same
+                        # underscore-boundary class of gap already fixed for the
+                        # override-modules/override-chain-amount backfills
+                        # above). So this exact question only ever reaches the
+                        # tool via the LLM's OWN free ReAct call here, which
+                        # used to hit the smaller 1200 cap -- confirmed live to
+                        # cut the real 3-module chain (2072 chars) mid-way
+                        # through module 2, before module 3 (the base module,
+                        # 'custom_credit_note_approval') is ever reached. The
+                        # LLM then filled the gap by mislabeling unrelated
+                        # analyser_verrous_securite content as the missing 3rd
+                        # site, and the deterministic backfill couldn't recover
+                        # it either -- it can only re-surface a fact already
+                        # present in the stored observation, and by then it
+                        # genuinely wasn't. Same raised cap as the forced
+                        # dispatch, applied here too, rather than trying to
+                        # widen the approval-pattern gate again (that gate is
+                        # for triggering an EXTRA forced call, not for deciding
+                        # how much of a call the LLM makes on its own to
+                        # truncate -- widening it further risks the same kind
+                        # of over-broad refiring already rejected once for
+                        # _APPROVAL_PATTERN, see the J8/J9 comment above it).
+                        _observation_cap = (
+                            2200 if tool_name == "analyser_chaine_surcharge_methode" else 1200
+                        )
+                        if len(observation) > _observation_cap:
+                            observation = observation[:_observation_cap] + "\n[... Content truncated for LLM context limit ...]"
 
                         # Bloc 7 (J23-24): compute the RuleEvaluationResult
                         # once, unconditionally, whenever this tool ran --
@@ -3281,6 +3500,13 @@ def code_intelligence_agent(state: RAGState) -> dict:
         # fact shapes: a module name dropped/mislabeled, and a relational-
         # chain amount threshold ignored on business-phrased questions).
         final_answer = _backfill_missing_override_modules(final_answer, scoped_tool_output)
+        # Bloc 9 gap fix (2026-08-12, module 1/8, bloc9-01b-technical): fix
+        # the prose ITSELF when it actively contradicts the override-cascade
+        # facts (denies other overrides exist, or fabricates a short-circuit
+        # execution order) -- run right after the module backfill above so
+        # both operate on the same _extract_override_modules() data, before
+        # the (separate) amount backfill appends anything further below.
+        final_answer = _correct_override_cascade_contradictions(final_answer, scoped_tool_output)
         final_answer = _backfill_missing_override_chain_amount(final_answer, scoped_tool_output)
         # Bloc 9 gap fix (2026-08-11, module 6/8, bloc9-06c-technical-
         # condition-capture): same deterministic-backfill principle applied

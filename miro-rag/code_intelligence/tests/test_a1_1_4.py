@@ -115,8 +115,8 @@ class SaleOrder(models.Model):
 
 def test_real_corpus_sale_order_fields():
     """Test field extraction on real sale_order.py corpus file."""
-    corpus_root = Path(__file__).resolve().parent.parent.parent / "fake_data" / "code"
-    sale_order_file = corpus_root / "sale" / "sale_order.py"
+    corpus_root = Path("/home/user/odoo-17.0/addons")
+    sale_order_file = corpus_root / "sale" / "models" / "sale_order.py"
 
     if sale_order_file.exists():
         models_found = extract_odoo_models_from_file(sale_order_file)

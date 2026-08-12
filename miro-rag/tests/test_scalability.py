@@ -16,7 +16,7 @@ def test_scalability_benchmark_under_6_minutes():
     Verify that duplicating the corpus (to reach ~2500+ chunks) and running
     full incremental ingestion completes in < 360 seconds on CPU.
     """
-    # fake_data/code/sale (~220 KB) + fake_data/documents (~112 KB) yields ~319
+    # addons/sale (~220 KB) + fake_data/documents (~112 KB) yields ~319
     # chunks per corpus copy at chunk_size=512 (measured: multiplier=4 -> 1276 chunks).
     # multiplier=9 gives ~2871 chunks (~15% margin over the 2500 target) and measured
     # 270.22s on a prior run — bumping the budget to 360s keeps that same comfortable

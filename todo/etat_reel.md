@@ -223,6 +223,17 @@ Rerun réel pasté par l'utilisateur : `pytest miro-rag/code_intelligence/tests/
 
 ---
 
+## Mise à jour 12/08 -- module 1/8 : rerun réel confirme bloc9-01a corrigé, bloc9-01b encore rouge pour une nouvelle cause racine (plafond générique 1200 caractères), fix appliqué
+
+Première exécution réelle des fixes du 11/08 (pytest + check script), fournie par l'utilisateur : `pytest miro-rag/tests/test_graph.py -v` → **31/31 PASSED**. `python scripts/check_bloc9_01_credit_note_cascade_e2e.py` :
+
+- **`bloc9-01a-business` : CLOS, confirmé vert.** `account.group_account_manager` et `20000` tous deux présents. Un bruit déjà documenté et volontairement non corrigé le 11/08 persiste sans régression (`account.group_account_invoice` backfillé en plus, hors-sujet -- nécessiterait un scoping fichier/module plus fin qu'un scoping par modèle).
+- **`bloc9-01b-technical` : toujours en échec, mais pour une cause racine différente** de celle déjà corrigée le 11/08 (mislabeling `account_move`). Diagnostiquée par mesure directe : le texte brut réel (2072 caractères) tient sous le plafond de 2200 du *forced pre-dispatch* d'`analyser_chaine_surcharge_methode` -- mais ce forced dispatch est gated sur `_question_is_approval_related(question)`, que le phrasing exact de `01b` ("quelles sont toutes les surcharges... et dans quel ordre s'exécutent-elles ?") ne matche jamais. La question ne passe donc que par l'appel libre de la boucle ReAct, soumis au plafond générique à 1200 caractères, partagé par tous les autres outils -- confirmé couper le texte en plein milieu du module régional, avant même d'atteindre le 3ᵉ site (module de base). Le backfill du 11/08 ne peut rien y faire : il ne peut resurfacer qu'un fait déjà présent dans l'observation stockée, et par construction ce fait n'y était plus.
+
+**Fix appliqué** (`Filesystem:edit_file`, diff vérifié avant application) : plafond relevé à 2200 spécifiquement pour `analyser_chaine_surcharge_methode` dans le point d'entrée générique de la boucle ReAct libre (même raisonnement que le plafond déjà en place sur le forced pre-dispatch), plutôt que d'élargir encore `_APPROVAL_PATTERN` (ce gate décide si un appel forcé SUPPLÉMENTAIRE se déclenche, pas de la troncature d'un appel que le LLM fait déjà de lui-même). Pas encore de test pytest dédié (logique inline dans le gros handler ReAct, pas une fonction isolée comme les autres backfills). Détail complet dans `miro-rag/contexte.txt` section 35.
+
+**Non exécuté cette session** (accès filesystem uniquement) : `python scripts/check_bloc9_01_credit_note_cascade_e2e.py` une fois de plus -- un `bloc9-01b-technical` vert (nom du module de base présent, plus de mislabeling `account_move`) confirmerait le diagnostic ; un échec persistant signifierait que l'appel libre du LLM n'est pas la voie réellement empruntée cette fois (p. ex. il pourrait ne plus appeler l'outil du tout), nécessitant un nouveau diagnostic à partir d'une capture brute fraîche.
+
 ## Outils de diagnostic créés en cours de route (hors suite CI)
 - `scripts/check_j34_35_e2e.py` — question réelle contre `custom.deep.document`, vérifie la présence des faits attendus dans la réponse finale.
 - `scripts/check_locks_raw.py` — appelle `analyser_verrous_securite` directement (sans LLM) pour isoler ce que l'outil renvoie vraiment, avant d'accuser la synthèse.

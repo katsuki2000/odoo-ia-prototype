@@ -83,7 +83,7 @@ def test_json_serialization_deserialization():
 def test_workflow_subgraph():
     """Test Task A3.1.5: Workflow state nodes and TRANSITIONS_VIA edges."""
     root_dir = Path(__file__).resolve().parent.parent.parent.parent
-    corpus_root = Path(__file__).resolve().parent.parent.parent / "fake_data" / "code"
+    corpus_root = Path("/home/user/odoo-17.0/addons")
 
     sale_dir = corpus_root / "sale"
     assert sale_dir.exists()
@@ -114,7 +114,7 @@ def test_workflow_subgraph():
 def test_real_corpus_graph_and_5hop_benchmark():
     """Test Tasks A3.1.6 & A3.1.7: 5-hop traversal benchmark (< 50ms) and security path demonstration."""
     root_dir = Path(__file__).resolve().parent.parent.parent.parent
-    corpus_root = Path(__file__).resolve().parent.parent.parent / "fake_data" / "code"
+    corpus_root = Path("/home/user/odoo-17.0/addons")
 
     modules_dict = {}
 

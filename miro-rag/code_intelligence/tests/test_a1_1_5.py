@@ -67,9 +67,9 @@ class SaleOrder(models.Model):
 
 
 def test_real_corpus_res_partner_model_method():
-    """Test @api.model method extraction on real sale/res_partner.py file."""
-    corpus_root = Path(__file__).resolve().parent.parent.parent / "fake_data" / "code"
-    res_partner_file = corpus_root / "sale" / "res_partner.py"
+    """Test @api.model method extraction on real sale/models/res_partner.py file."""
+    corpus_root = Path("/home/user/odoo-17.0/addons")
+    res_partner_file = corpus_root / "sale" / "models" / "res_partner.py"
 
     if res_partner_file.exists():
         models_found = extract_odoo_models_from_file(res_partner_file)
