@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from collections import deque
 from typing import Dict, List, Optional, Set, Any, Tuple
+import ast
 import logging
 
 import networkx as nx
@@ -25,6 +26,417 @@ _logger = logging.getLogger(__name__)
 # for deterministic structural facts (never paraphrased, per plan rule
 # against presenting LLM-derived text as a certain structural fact).
 NOT_FOUND_MARKER = "was not found in the indexed knowledge graph"
+
+
+# ---------------------------------------------------------------------------
+# domain_force evaluator: safe AST parser + three-valued (Kleene) logic
+# ---------------------------------------------------------------------------
+#
+# RuleEvaluationResult.can_view_amount() below only ever looks at the amount
+# threshold via a regex on domain_force. That is not a domain evaluator, it
+# is a single-field heuristic -- as soon as a domain_force mixes an amount
+# condition with anything else (company_id, user_id, partner_id, state...),
+# the regex-based check has no way to know whether those OTHER conditions
+# also matter, and silently fails OPEN (returns True) whenever it can't
+# find an amount pattern it recognizes. This is the confirmed root cause
+# behind Bloc9 08c (todo/etat_reel.md): can_view_amount() fails open on a
+# domain_force it cannot fully parse, which is exactly the kind of
+# unhandled case rules.md Regle 5 says must never be silently folded into
+# the happy path.
+#
+# This section adds an actual domain_force evaluator, used alongside (not
+# yet replacing) can_view_amount():
+#   1. _parse_domain_ast: parses the domain_force string with ast.parse in
+#      'eval' mode and walks the resulting tree WITHOUT ever calling
+#      eval()/exec() on it -- domain_force strings routinely contain
+#      dynamic references (user.company_id.id) that are not valid Python
+#      literals, so ast.literal_eval alone can't handle them, and a raw
+#      eval() would execute arbitrary text pulled out of indexed source
+#      code as code. Every AST node type is matched explicitly; anything
+#      unrecognized raises _DomainParseError instead of being guessed at.
+#   2. _normalize_domain_tokens: reproduces Odoo's own implicit-AND
+#      normalization (leaves with no explicit leading operator are
+#      implicitly AND-ed together).
+#   3. _evaluate_domain_tokens: recursive prefix-notation evaluator using
+#      Kleene three-valued logic (True / False / None="cannot conclude").
+#      Unknown/unresolvable fields propagate as None instead of defaulting
+#      to True (can_view_amount()'s current bug) or to False -- per
+#      rules.md Regle 5, an unhandled case must be surfaced explicitly,
+#      never silently guessed either way.
+#
+# evaluate_domain_force() is the public entry point: given a domain_force
+# string and a context dict of known field values (plus an optional "user"
+# sub-dict for dynamic user.* references, e.g.
+# {"amount": 60000, "user": {"company_id": {"id": 3}}}), it returns
+# (Optional[bool], List[str]) -- the tri-state verdict and the list of
+# field names it could not resolve, so a caller can report exactly which
+# condition is undetermined rather than pretending to a confidence it
+# doesn't have.
+
+
+_DOMAIN_COMPARISON_OPS = {"=", "!=", ">", ">=", "<", "<=", "in", "not in", "like", "ilike"}
+_DOMAIN_LOGICAL_OPS = {"&", "|", "!"}
+
+
+class _DomainParseError(Exception):
+    """Raised internally when domain_force cannot be safely parsed or
+    evaluated. Always caught at the evaluate_domain_force() boundary --
+    callers never see a raw parser exception, only a tri-state None
+    ("cannot conclude")."""
+
+
+class _DynamicRef:
+    """
+    Marks an unevaluated dotted-attribute reference from domain_force, e.g.
+    user.company_id.id -> _DynamicRef(['user', 'company_id', 'id']).
+    Resolved later against the evaluation context's dict-based dotted-path
+    lookup (see _resolve_dynamic_ref) -- never against a real object's
+    __getattr__, so no live Odoo environment is required to evaluate a
+    domain_force abstractly.
+    """
+
+    __slots__ = ("path",)
+
+    def __init__(self, path: List[str]):
+        self.path = path
+
+    def __repr__(self):
+        return ".".join(self.path)
+
+
+def _domain_ast_op(node: ast.AST) -> str:
+    """A leaf's comparison operator must be a plain string constant --
+    anything else means this isn't a well-formed domain leaf."""
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return node.value
+    raise _DomainParseError(f"expected a string constant for operator, got {type(node).__name__}")
+
+
+def _domain_ast_field(node: ast.AST):
+    """
+    The field-name position of a leaf. Normally a plain string (the field
+    being tested against context), but Odoo also uses two literal-
+    comparison idioms that are NOT field references at all:
+      - TRUE_LEAF  (1, '=', 1)  -- always-true marker
+      - FALSE_LEAF (0, '=', 1)  -- always-false marker
+    For these the "field" position is a bare int/bool constant rather than
+    a field name -- returned as-is (not coerced to str) so _evaluate_leaf
+    can recognize and evaluate them as self-contained literal comparisons,
+    never as a context field lookup. Real example confirmed on disk: the
+    old can_view_amount() regex special-cased the string
+    "[(1, '=', 1)]" as an unconditional-True marker; this generalizes that
+    to the actual AST shape instead of a hardcoded string match.
+    """
+    if isinstance(node, ast.Constant) and isinstance(node.value, (str, int, bool)):
+        return node.value
+    raise _DomainParseError(f"expected a string or literal constant for field, got {type(node).__name__}")
+
+
+def _domain_ast_value(node: ast.AST):
+    """
+    The right-hand side of a leaf condition: a literal constant, a list of
+    literals (for 'in'/'not in'), a negative numeric literal, or a
+    dotted-attribute expression like user.company_id.id -- represented as
+    a _DynamicRef and resolved later against the context dict, never
+    evaluated as real Python attribute access.
+    """
+    if isinstance(node, ast.Constant):
+        return node.value
+
+    if isinstance(node, (ast.List, ast.Tuple)):
+        return [_domain_ast_value(e) for e in node.elts]
+
+    if isinstance(node, (ast.Attribute, ast.Name)):
+        path: List[str] = []
+        cur = node
+        while isinstance(cur, ast.Attribute):
+            path.insert(0, cur.attr)
+            cur = cur.value
+        if isinstance(cur, ast.Name):
+            path.insert(0, cur.id)
+            return _DynamicRef(path)
+        raise _DomainParseError("unsupported dotted-attribute base")
+
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.USub):
+        inner = _domain_ast_value(node.operand)
+        if isinstance(inner, (int, float)):
+            return -inner
+        raise _DomainParseError("unary minus on non-numeric literal")
+
+    raise _DomainParseError(f"unsupported value node type: {type(node).__name__}")
+
+
+def _domain_ast_to_token(node: ast.AST):
+    """
+    Convert a single AST node from the parsed domain_force list into a
+    Python-level token: a '&'/'|'/'!' string for a logical operator, or a
+    3-tuple (field, op, value) for a leaf condition. Deliberately does NOT
+    use eval()/exec() anywhere -- every node shape is matched explicitly,
+    so no arbitrary expression coming from indexed source code is ever
+    executed as code, only walked as inert data.
+    """
+    if isinstance(node, ast.Constant):
+        val = node.value
+        if isinstance(val, str) and val in _DOMAIN_LOGICAL_OPS:
+            return val
+        raise _DomainParseError(f"unexpected bare constant at domain top level: {val!r}")
+
+    if isinstance(node, (ast.Tuple, ast.List)):
+        elts = list(node.elts)
+        if len(elts) != 3:
+            raise _DomainParseError(f"leaf condition with {len(elts)} elements, expected 3")
+        leaf_field = _domain_ast_field(elts[0])
+        op = _domain_ast_op(elts[1])
+        if op not in _DOMAIN_COMPARISON_OPS:
+            raise _DomainParseError(f"unsupported comparison operator: {op!r}")
+        value = _domain_ast_value(elts[2])
+        return (leaf_field, op, value)
+
+    raise _DomainParseError(f"unsupported domain element node type: {type(node).__name__}")
+
+
+def _parse_domain_ast(domain_force: str) -> List[Any]:
+    """
+    Safely parse an Odoo domain_force string (e.g.
+    "[('company_id', '=', user.company_id.id)]") into a flat list of
+    tokens ('&'/'|'/'!' strings and leaf 3-tuples), using ast.parse in
+    'eval' mode to build the tree WITHOUT ever calling eval()/exec() on the
+    resulting code -- only ast.AST nodes are walked, never executed.
+    Raises _DomainParseError on anything unsupported (malformed domain,
+    unrecognized node types).
+    """
+    domain_force = (domain_force or "").strip()
+    if not domain_force:
+        return []
+
+    try:
+        tree = ast.parse(domain_force, mode="eval")
+    except SyntaxError as exc:
+        raise _DomainParseError(f"domain_force is not valid Python syntax: {exc}") from exc
+
+    body = tree.body
+    if not isinstance(body, (ast.List, ast.Tuple)):
+        raise _DomainParseError("domain_force root is not a list/tuple")
+
+    return [_domain_ast_to_token(elt) for elt in body.elts]
+
+
+def _normalize_domain_tokens(tokens: List[Any]) -> List[Any]:
+    """
+    Reproduce Odoo's own domain normalization: a domain is prefix-notation
+    logic, but consecutive leaves with no explicit leading operator are
+    implicitly AND-ed together. A fully-formed prefix-notation domain needs
+    (n_leaves - 1) binary operators ('!' is unary and doesn't count); any
+    shortfall is filled by prepending that many '&' tokens at the front,
+    mirroring Odoo's own normalize_domain().
+    """
+    if not tokens:
+        return tokens
+
+    n_leaves = sum(1 for t in tokens if isinstance(t, tuple))
+    n_binary_ops = sum(1 for t in tokens if t in ("&", "|"))
+    missing = (n_leaves - 1) - n_binary_ops
+    if missing > 0:
+        return ["&"] * missing + tokens
+    return tokens
+
+
+def _resolve_dynamic_ref(ref: "_DynamicRef", context: Dict[str, Any]) -> Any:
+    """
+    Resolve a dotted-attribute reference (e.g. user.company_id.id) against
+    the context dict by walking nested dict lookups -- context['user'] is
+    itself expected to be a plain dict (e.g. {'company_id': {'id': 3}}),
+    never a real recordset, so this is dict traversal, not live attribute
+    access. Returns None (unresolved) if any segment of the path is
+    missing from context.
+    """
+    current: Any = context
+    for segment in ref.path:
+        if isinstance(current, dict) and segment in current:
+            current = current[segment]
+        else:
+            return None
+    return current
+
+
+def _resolve_leaf_value(value: Any, context: Dict[str, Any]) -> Any:
+    if isinstance(value, _DynamicRef):
+        return _resolve_dynamic_ref(value, context)
+    if isinstance(value, list):
+        return [_resolve_leaf_value(v, context) for v in value]
+    return value
+
+
+def _evaluate_leaf(field_name: Any, op: str, value: Any, context: Dict[str, Any]) -> Optional[bool]:
+    """
+    Evaluate a single leaf condition against context using Kleene
+    three-valued logic: True/False when both sides resolve, None ("cannot
+    conclude") when the field itself is absent from context, its
+    right-hand side is a dynamic reference that doesn't resolve, or the
+    two sides aren't comparable. An evaluator that cannot resolve a leaf
+    must say so explicitly, per rules.md Regle 5, instead of guessing True
+    or False.
+
+    field_name is usually a field name (str) looked up in context, but two
+    special cases are self-contained and never depend on context at all:
+      - a non-str field_name (int/bool) is Odoo's TRUE_LEAF/FALSE_LEAF
+        literal-comparison idiom (see _domain_ast_field's docstring) --
+        evaluated directly against the literal, not a context lookup.
+      - the leaf ('id', '!=', False) is Odoo's own "any real record has a
+        truthy id" invariant -- unconditionally true by construction, not
+        a context-dependent verdict (matches the marker the old regex-
+        based can_view_amount() special-cased by exact string match).
+    """
+    if not isinstance(field_name, str):
+        left = field_name
+    elif field_name == "id" and op == "!=" and value is False:
+        return True
+    elif field_name not in context:
+        return None
+    else:
+        left = context[field_name]
+
+    if isinstance(value, _DynamicRef):
+        right = _resolve_dynamic_ref(value, context)
+        if right is None:
+            return None
+    else:
+        right = _resolve_leaf_value(value, context)
+
+    try:
+        if op == "=":
+            return left == right
+        if op == "!=":
+            return left != right
+        if op == ">":
+            return left > right
+        if op == ">=":
+            return left >= right
+        if op == "<":
+            return left < right
+        if op == "<=":
+            return left <= right
+        if op == "in":
+            return left in right if right is not None else None
+        if op == "not in":
+            return left not in right if right is not None else None
+    except TypeError:
+        # Field present but not comparable to the resolved RHS (e.g. a
+        # string compared with '>' to a number) -- cannot conclude, never
+        # silently guess a side.
+        return None
+
+    # 'like'/'ilike': text-matching semantics deliberately not implemented
+    # yet (no confirmed adversarial case needs them) -- cannot conclude
+    # rather than pretend a substring match was checked.
+    return None
+
+
+def _kleene_and(a: Optional[bool], b: Optional[bool]) -> Optional[bool]:
+    if a is False or b is False:
+        return False
+    if a is None or b is None:
+        return None
+    return True
+
+
+def _kleene_or(a: Optional[bool], b: Optional[bool]) -> Optional[bool]:
+    if a is True or b is True:
+        return True
+    if a is None or b is None:
+        return None
+    return False
+
+
+def _kleene_not(a: Optional[bool]) -> Optional[bool]:
+    if a is None:
+        return None
+    return not a
+
+
+def _evaluate_domain_tokens(
+    tokens: List[Any], context: Dict[str, Any], unresolved: List[str]
+) -> Optional[bool]:
+    """
+    Recursive evaluator for normalized prefix-notation domain tokens.
+    Consumes tokens left-to-right via a shared cursor (closure over a
+    single-element list so nested recursive calls advance the same
+    cursor) -- same traversal shape as Odoo's own domain evaluator.
+    Appends to `unresolved` (in place) every leaf field name that could
+    not be conclusively evaluated.
+    """
+    cursor = [0]
+
+    def _consume() -> Optional[bool]:
+        if cursor[0] >= len(tokens):
+            raise _DomainParseError("domain_force ran out of tokens (malformed prefix notation)")
+        token = tokens[cursor[0]]
+        cursor[0] += 1
+
+        if token == "&":
+            left = _consume()
+            right = _consume()
+            return _kleene_and(left, right)
+        if token == "|":
+            left = _consume()
+            right = _consume()
+            return _kleene_or(left, right)
+        if token == "!":
+            operand = _consume()
+            return _kleene_not(operand)
+
+        leaf_field, op, value = token
+        result = _evaluate_leaf(leaf_field, op, value, context)
+        if result is None and isinstance(leaf_field, str) and leaf_field not in unresolved:
+            unresolved.append(leaf_field)
+        return result
+
+    if not tokens:
+        # Odoo semantics: an empty domain matches everything.
+        return True
+
+    verdict = _consume()
+    if cursor[0] != len(tokens):
+        raise _DomainParseError("domain_force has trailing unconsumed tokens (malformed)")
+    return verdict
+
+
+def evaluate_domain_force(
+    domain_force: str, context: Dict[str, Any]
+) -> Tuple[Optional[bool], List[str]]:
+    """
+    Public entry point: safely evaluate an Odoo ir.rule domain_force string
+    against a context dict of known field values (e.g. {'amount': 60000,
+    'company_id': 3, 'user': {'company_id': {'id': 3}}}).
+
+    Returns (verdict, unresolved_fields):
+      - verdict is True/False when the domain fully resolves, or None when
+        it cannot be conclusively evaluated (unknown field, unresolved
+        dynamic reference, unsupported operator, or a domain_force that
+        fails to parse).
+      - unresolved_fields lists every leaf field name that contributed to
+        a None verdict, so a caller can report e.g. "company_id could not
+        be determined" as an explicit caveat instead of silently
+        defaulting to allow (can_view_amount()'s current bug, Bloc9 08c)
+        or to deny.
+
+    None is the deliberately safe default on ANY failure -- malformed
+    domain_force, unsupported syntax, unresolvable reference -- per
+    rules.md Regle 5 (no unhandled case may silently fall into a "happy
+    path" outcome).
+    """
+    unresolved: List[str] = []
+    try:
+        tokens = _normalize_domain_tokens(_parse_domain_ast(domain_force))
+        verdict = _evaluate_domain_tokens(tokens, context, unresolved)
+    except _DomainParseError as exc:
+        _logger.warning(
+            "evaluate_domain_force: could not parse/evaluate domain_force %r: %s",
+            domain_force, exc,
+        )
+        return None, unresolved
+
+    return verdict, unresolved
 
 
 @dataclass
@@ -79,6 +491,79 @@ class RuleEvaluationResult:
                 return True
 
         return False
+
+    def can_view_amount_v2(self, context: Dict[str, Any]) -> Tuple[Optional[bool], List[str]]:
+        """
+        Tri-state successor to can_view_amount(): evaluates the FULL
+        domain_force of every applied rule (global AND group) via
+        evaluate_domain_force() instead of a single-field amount regex.
+
+        can_view_amount() only ever looks at an amount threshold and
+        silently returns True whenever a domain_force mixes an amount
+        condition with anything else (company_id, user_id, partner_id...)
+        it doesn't recognize -- confirmed root cause of Bloc9 08c
+        (todo/etat_reel.md): a global company-scoped rule was
+        unconditionally treated as satisfied because the regex found no
+        amount pattern to check, even though the real domain_force also
+        restricted by company_id, which the caller's question explicitly
+        said differed.
+
+        context is the same kind of dict evaluate_domain_force() expects,
+        e.g. {"amount": 60000, "company_id": 3,
+        "user": {"company_id": {"id": 3}}} -- callers supply whatever
+        fields they can determine; fields absent from context resolve to
+        None ("cannot conclude"), never guessed.
+
+        Returns (verdict, unresolved_fields):
+          - verdict is True/False when every applied rule's domain_force
+            fully resolves against context; None when at least one
+            rule could not be conclusively evaluated -- per Kleene
+            semantics, an unresolved leaf poisons an AND unless another
+            leaf already forces False, and poisons an OR unless another
+            leaf already forces True. Same three-valued combination
+            evaluate_domain_force() already uses within a single domain,
+            applied here one level up, across multiple rules.
+          - unresolved_fields is the union of every leaf field name that
+            contributed to a None verdict across all evaluated rules, so
+            a caller can report e.g. "company_id could not be determined"
+            explicitly instead of defaulting to allow.
+
+        Deliberately does NOT replace can_view_amount() -- both coexist so
+        existing callers relying on the bool-only signature are
+        unaffected; callers that need the honest tri-state result (e.g. a
+        rewritten evaluate_access() call site) opt in to this method
+        explicitly.
+        """
+        unresolved: List[str] = []
+
+        # Global rules: AND across ALL of them.
+        global_verdict: Optional[bool] = True
+        for rule in self.applied_global_rules:
+            verdict, rule_unresolved = evaluate_domain_force(rule.domain_force, context)
+            global_verdict = _kleene_and(global_verdict, verdict)
+            for f in rule_unresolved:
+                if f not in unresolved:
+                    unresolved.append(f)
+
+        # Group rules: OR across the group rules the user actually belongs
+        # to (already filtered into applied_group_rules upstream by
+        # evaluer_regles_enregistrement's group-membership check -- this
+        # method never re-derives group membership itself). No applied
+        # group rule at all means the user is NOT restricted by any group
+        # rule, same convention as can_view_amount(): contributes True to
+        # the final AND, not None.
+        if not self.applied_group_rules:
+            group_verdict: Optional[bool] = True
+        else:
+            group_verdict = False
+            for rule in self.applied_group_rules:
+                verdict, rule_unresolved = evaluate_domain_force(rule.domain_force, context)
+                group_verdict = _kleene_or(group_verdict, verdict)
+                for f in rule_unresolved:
+                    if f not in unresolved:
+                        unresolved.append(f)
+
+        return _kleene_and(global_verdict, group_verdict), unresolved
 
 
 FUZZY_GROUP_MATCH_THRESHOLD = 75

@@ -31,14 +31,35 @@ from rag.schemas import (
 )
 from vectorstore.search import get_retriever, retrieve as search_retrieve
 
+# 2026-08-14: LLM client factory + call-retry infra extracted to
+# rag/llm_client.py (see its own module docstring for the full rationale
+# and exact scope). get_chat_llm() is the new provider-aware entry point,
+# used so far only by code_intelligence_agent's two LLM instantiations.
+# Everything else below is re-imported under its original private name
+# purely for backward compatibility: this file's own remaining Groq-only
+# call sites (generate/orm_agent_loop/hybrid_node) and existing test
+# imports (code_intelligence/tests/test_j30_31_latency_budget.py does
+# `from rag.graph import CI_MAX_HOPS, _invoke_with_rate_limit`) both still
+# reference these names unchanged.
+from rag.llm_client import (
+    get_chat_llm,
+    invoke_with_rate_limit as _invoke_with_rate_limit,
+    _parse_reset_seconds,
+    _extract_rate_limit_headers,
+    _ToolCallFallback,
+    _try_recover_tool_use_failed,
+    _reduce_message_context,
+    _TOOL_MSG_HARD_CAP,
+    _TOOL_USE_FAILED_RE,
+    _FAILED_GEN_CALL_RE,
+    _llm_call_lock as _groq_call_lock,
+    _last_llm_call_time as _last_groq_call_time,
+    MIN_LLM_CALL_INTERVAL as MIN_GROQ_CALL_INTERVAL,
+)
+
 logger = logging.getLogger(__name__)
 
 import re
-
-# ── Groq Rate Limiting & Throttle ─────────────────────────────────────────────
-_groq_call_lock = threading.Lock()
-_last_groq_call_time = [0.0]
-MIN_GROQ_CALL_INTERVAL = 5.0  # Enforce 5.0s minimum spacing between LLM calls
 
 
 # ── Bloc 7 fix: real Odoo group DB IDs -> xml_id resolution ──────────────────
@@ -97,42 +118,8 @@ def _resolve_user_group_xmlids(group_ids) -> list:
     return [_GROUP_XMLID_CACHE[g] for g in group_ids if g in _GROUP_XMLID_CACHE]
 
 
-def _parse_reset_seconds(header_value: str, default: float = 20.0) -> float:
-    """
-    Groq's x-ratelimit-reset-* headers come as e.g. '13.42s' or '1m3.42s'.
-    Parse into a plain float number of seconds.
-    """
-    if not header_value:
-        return default
-    match = re.match(r"(?:(\d+)m)?([\d.]+)s", header_value.strip())
-    if not match:
-        return default
-    minutes = float(match.group(1)) if match.group(1) else 0.0
-    seconds = float(match.group(2))
-    return minutes * 60 + seconds
-
-
-def _extract_rate_limit_headers(exc: Exception) -> dict:
-    """
-    Best-effort extraction of Groq rate-limit headers from whatever
-    exception langchain_groq/groq-python raises on a 429.
-    """
-    for attr_path in ("response", "http_response", "resp"):
-        resp = getattr(exc, attr_path, None)
-        if resp is not None and hasattr(resp, "headers"):
-            return dict(resp.headers)
-    cause = getattr(exc, "__cause__", None)
-    if cause is not None:
-        resp = getattr(cause, "response", None)
-        if resp is not None and hasattr(resp, "headers"):
-            return dict(resp.headers)
-    return {}
-
-class _ToolCallFallback:
-    """Stand-in minimal pour un AIMessage : seuls .tool_calls et .content sont lus par la boucle ReAct."""
-    def __init__(self, tool_calls):
-        self.tool_calls = tool_calls
-        self.content = ""
+# _parse_reset_seconds, _extract_rate_limit_headers, _ToolCallFallback:
+# moved to rag/llm_client.py 2026-08-14, imported above.
 
 
 _DEGENERATE_REPETITION_RE = re.compile(r"\b(\w+(?:\s+\w+){0,2})\b(?:[\s,.-]+\1\b){5,}", re.IGNORECASE)
@@ -263,246 +250,92 @@ def _strip_degenerate_blank_run(text: str) -> str:
     return re.sub(r"\n{3,}", "\n\n", text)
 
 
+_DEGENERATE_PREFIX_LENGTH = 60
+_DEGENERATE_PREFIX_MIN_REPEATS = 4
+
+
+def _detect_degenerate_growing_repetition(text: str) -> bool:
+    """
+    Fourth, complementary decoding-collapse detector -- live finding
+    (bloc9-06c-technical-condition-capture, 2026-08-13): none of the other
+    three catch a SNOWBALLING sentence, where each successive line restates
+    the previous one verbatim as a prefix and appends a further clause
+    ("Il n'y a pas de restriction ... pour les avoirs qui ne sont pas
+    associés à une facture de dépense." then "...et qui ne nécessitent pas
+    de mise à jour de la partie commerciale." then a third clause on top of
+    that, etc.). Every line is technically unique character-for-character,
+    so `_detect_degenerate_line_repetition`'s exact-match Counter never
+    trips on it -- but they all share a very long common prefix, which is
+    the same underlying decoding-collapse failure mode restating itself
+    with growing content instead of identical content.
+
+    Flags when `_DEGENERATE_PREFIX_MIN_REPEATS`+ distinct lines (above the
+    same `_DEGENERATE_LINE_MIN_LENGTH` floor as the exact-line detector)
+    share an identical first `_DEGENERATE_PREFIX_LENGTH`-character prefix.
+    60 chars (vs. the exact-line detector's 30-char minimum LINE length) is
+    deliberately longer than a single clause -- keeps this narrow enough
+    that legitimate answers with several distinct `[FAIT DÉTERMINISTIQUE]`
+    lines (which share only the ~23-char label, not 60 chars of actual
+    content) never false-positive; verified functionally against a 4-line
+    legitimate fixture before this was wired in.
+    """
+    if not text:
+        return False
+    lines = [ln.strip() for ln in text.splitlines() if len(ln.strip()) >= _DEGENERATE_LINE_MIN_LENGTH]
+    if not lines:
+        return False
+    prefixes = Counter(ln[:_DEGENERATE_PREFIX_LENGTH] for ln in lines)
+    return any(c >= _DEGENERATE_PREFIX_MIN_REPEATS for c in prefixes.values())
+
+
+def _strip_degenerate_growing_repetition(text: str) -> str:
+    """Collapse a snowballing-sentence run down to its first (shortest)
+    occurrence per shared prefix group, same last-resort philosophy as the
+    other three strippers."""
+    seen_prefixes = set()
+    out_lines = []
+    for line in text.splitlines():
+        key = line.strip()
+        if len(key) >= _DEGENERATE_LINE_MIN_LENGTH:
+            prefix = key[:_DEGENERATE_PREFIX_LENGTH]
+            if prefix in seen_prefixes:
+                continue
+            seen_prefixes.add(prefix)
+        out_lines.append(line)
+    return "\n".join(out_lines)
+
+
 def _detect_any_degenerate_repetition(text: str) -> bool:
-    """Combined check -- run all three degenerate-repetition detectors,
+    """Combined check -- run all four degenerate-repetition detectors,
     since they catch different granularities of the same underlying
     decoding-collapse failure mode."""
     return (
         _detect_degenerate_repetition(text)
         or _detect_degenerate_line_repetition(text)
         or _detect_degenerate_blank_run(text)
+        or _detect_degenerate_growing_repetition(text)
     )
 
 
 def _strip_any_degenerate_repetition(text: str) -> str:
-    """Combined last-resort strip -- apply all three collapsers so no
+    """Combined last-resort strip -- apply all four collapsers so no
     granularity of repeated content survives into the shipped answer."""
-    return _strip_degenerate_blank_run(_strip_degenerate_line_repetition(_strip_degenerate_repetition(text)))
+    return _strip_degenerate_growing_repetition(
+        _strip_degenerate_blank_run(_strip_degenerate_line_repetition(_strip_degenerate_repetition(text)))
+    )
 
 
-_TOOL_USE_FAILED_RE = re.compile(r"'code':\s*'tool_use_failed'.*?'failed_generation':\s*'(.*?)'\s*\}", re.DOTALL)
-_FAILED_GEN_CALL_RE = re.compile(r"<function=(\w+)>(\{.*\})")
+# _TOOL_USE_FAILED_RE, _FAILED_GEN_CALL_RE, _try_recover_tool_use_failed,
+# _TOOL_MSG_HARD_CAP, _reduce_message_context, _invoke_with_rate_limit:
+# all moved to rag/llm_client.py 2026-08-14 (generalized to be
+# provider-aware), imported at the top of this file under their original
+# names for backward compatibility. See rag/llm_client.py's module
+# docstring for the full rationale.
 
 
-def _try_recover_tool_use_failed(exc: Exception):
-    """
-    llama-3.1-8b-instant régresse parfois vers un pattern texte
-    '<function=NOM>{...}' au lieu d'un tool_call structuré, ce que
-    l'API Groq rejette en 400 tool_use_failed. On récupère l'intention
-    par regex plutôt que de perdre le tour.
-    Retourne None si le payload n'est pas récupérable (laisse la place au retry).
-    """
-    msg = str(exc)
-    if "tool_use_failed" not in msg:
-        return None
-    match = _TOOL_USE_FAILED_RE.search(msg)
-    if not match:
-        return None
-    call_match = _FAILED_GEN_CALL_RE.search(match.group(1))
-    if not call_match:
-        return None
-    fn_name, args_raw = call_match.group(1), call_match.group(2)
-    try:
-        args = json.loads(args_raw)
-    except json.JSONDecodeError:
-        return None
-    logger.warning("Récupération d'un tool_call malformé via failed_generation: %s(%s)", fn_name, args)
-    return _ToolCallFallback([{"name": fn_name, "args": args, "id": f"fallback_{fn_name}", "type": "tool_call"}])
+# (dead placeholder removed -- the real invoke_with_rate_limit lives in
+# rag/llm_client.py now, imported as _invoke_with_rate_limit above.)
 
-_TOOL_MSG_HARD_CAP = 400
-
-
-def _reduce_message_context(messages: list) -> list:
-    """
-    Groq 413 (payload too large) has a FIXED request size -- unlike a 429,
-    resending the identical messages after a wait will never succeed, since
-    the token count doesn't change on its own. This shrinks the largest,
-    most compressible part of the payload (ToolMessage and HumanMessage synthesis prompts).
-    """
-    from langchain_core.messages import ToolMessage, HumanMessage
-
-    reduced = []
-    for msg in messages:
-        if (
-            isinstance(msg, ToolMessage)
-            and isinstance(msg.content, str)
-            and len(msg.content) > _TOOL_MSG_HARD_CAP
-        ):
-            reduced.append(
-                ToolMessage(
-                    content=(
-                        msg.content[:_TOOL_MSG_HARD_CAP]
-                        + "\n[... tronqué pour respecter la limite de taille de requête Groq ...]"
-                    ),
-                    tool_call_id=msg.tool_call_id,
-                )
-            )
-        elif (
-            isinstance(msg, SystemMessage)
-            and isinstance(msg.content, str)
-            and len(msg.content) > 1000
-        ):
-            reduced.append(
-                SystemMessage(
-                    content=(
-                        msg.content[:1000]
-                        + "\n[... tronqué pour respecter la limite de taille Groq ...]"
-                    )
-                )
-            )
-        elif (
-            isinstance(msg, HumanMessage)
-            and isinstance(msg.content, str)
-            and len(msg.content) > 1500
-        ):
-            reduced.append(
-                HumanMessage(
-                    content=(
-                        msg.content[:1500]
-                        + "\n[... tronqué pour respecter la limite de taille de requête Groq ...]"
-                    )
-                )
-            )
-        else:
-            reduced.append(msg)
-    return reduced
-
-
-def _invoke_with_rate_limit(llm_with_tools, messages, max_retries: int = 5):
-    """
-    Invoke le LLM Groq avec :
-      - espacement minimal entre appels
-      - backoff dynamique sur 429 (headers x-ratelimit-reset-tokens)
-      - réduction de contexte sur 413 (payload trop gros -- attendre ne sert à rien)
-      - récupération / retry renforcé sur tool_use_failed
-      - retry générique avec backoff exponentiel sur erreurs de connexion transitoires
-
-    Returns (result, wait_seconds) where wait_seconds is the total time spent
-    sleeping for rate-limit backoffs and minimum-interval enforcement -- callers
-    subtract this from wall-clock to get effective (algorithmic) latency.
-    (J30-J31: performance instrumentation.)
-    """
-    context_reduced = False
-    total_wait_seconds = 0.0
-    for attempt in range(max_retries):
-        with _groq_call_lock:
-            elapsed = time.time() - _last_groq_call_time[0]
-            if elapsed < MIN_GROQ_CALL_INTERVAL:
-                gap = MIN_GROQ_CALL_INTERVAL - elapsed
-                time.sleep(gap)
-                total_wait_seconds += gap
-            try:
-                result = llm_with_tools.invoke(messages)
-                _last_groq_call_time[0] = time.time()
-                if hasattr(result, "response_metadata"):
-                    logger.info("GROQ DIAGNOSTIC METADATA: %s", result.response_metadata)
-                return result, total_wait_seconds
-            except Exception as e:
-                _last_groq_call_time[0] = time.time()
-                err_str = str(e)
-
-                # Cas 0 : payload trop gros (413). Groq renvoie aussi
-                # 'code': 'rate_limit_exceeded' sur ce cas, ce qui le faisait
-                # tomber dans le Cas 1 ci-dessous et partir en backoff
-                # exponentiel (5.5s -> 40.5s -> échec) alors que la requête a
-                # une taille FIXE : attendre ne réduit jamais son nombre de
-                # tokens, donc chaque nouvelle tentative répète exactement le
-                # même échec (bug confirmé par test_c1_1.py::
-                # test_end_to_end_code_intelligence_graph_execution : 4
-                # tentatives, ~77s perdues, échec garanti à chaque fois). Ici
-                # on réduit le contexte une seule fois et on retente
-                # immédiatement ; si ça échoue encore, on abandonne sans
-                # backoff supplémentaire.
-                is_too_large = (
-                    "413" in err_str
-                    or "request too large" in err_str.lower()
-                    or "reduce your message size" in err_str.lower()
-                )
-                if is_too_large:
-                    if not context_reduced:
-                        messages = _reduce_message_context(messages)
-                        context_reduced = True
-                        logger.warning(
-                            "Groq payload too large (413, attempt %d/%d) -- contexte réduit, "
-                            "nouvelle tentative immédiate.",
-                            attempt + 1, max_retries,
-                        )
-                        continue
-                    elif attempt < max_retries - 1:
-                        wait_time = 10.0
-                        logger.warning(
-                            "Groq TPM limit still hit after context reduction (attempt %d/%d) -- "
-                            "waiting %.1fs for TPM window reset.",
-                            attempt + 1, max_retries, wait_time,
-                        )
-                        time.sleep(wait_time)
-                        total_wait_seconds += wait_time
-                        continue
-                    logger.error(
-                        "Groq payload still too large after retries -- aborting: %s", err_str,
-                    )
-                    raise
-
-                # Cas 1 : rate limit (comportement existant, inchangé)
-                is_rate_limit = "429" in err_str or "rate_limit" in err_str.lower()
-                if is_rate_limit and attempt < max_retries - 1:
-                    headers = _extract_rate_limit_headers(e)
-                    reset_raw = (
-                        headers.get("x-ratelimit-reset-tokens")
-                        or headers.get("x-ratelimit-reset-requests")
-                    )
-                    wait_time = _parse_reset_seconds(reset_raw, default=2 ** attempt * 5.0)
-                    wait_time += 0.5
-                    logger.warning(
-                        "Groq rate limit hit (attempt %d/%d). Headers: %s. Dynamically waiting %.1fs...",
-                        attempt + 1, max_retries,
-                        {k: v for k, v in headers.items() if "ratelimit" in k.lower()},
-                        wait_time,
-                    )
-                    time.sleep(wait_time)
-                    total_wait_seconds += wait_time
-                    continue
-
-                # Cas 2 : tool_use_failed -- tenter la récupération, sinon retry renforcé
-                if "tool_use_failed" in err_str:
-                    recovered = _try_recover_tool_use_failed(e)
-                    if recovered is not None:
-                        return recovered, total_wait_seconds
-                    if attempt < max_retries - 1:
-                        logger.warning(
-                            "tool_use_failed non récupérable (attempt %d/%d), retry avec instruction renforcée.",
-                            attempt + 1, max_retries,
-                        )
-                        messages = messages + [
-                            SystemMessage(content=(
-                                "RAPPEL STRICT : réponds UNIQUEMENT via un appel d'outil structuré "
-                                "(tool_call). N'écris jamais de pseudo-appel en texte libre du type "
-                                "<function=...>{...}>."
-                            ))
-                        ]
-                        wait_time = 1.0
-                        time.sleep(wait_time)
-                        total_wait_seconds += wait_time
-                        continue
-                    raise
-
-                # Cas 3 : erreurs de connexion transitoires -- retry générique
-                is_connection_error = any(
-                    term in err_str.lower()
-                    for term in ("connection", "timeout", "timed out", "temporarily unavailable")
-                )
-                if is_connection_error and attempt < max_retries - 1:
-                    wait_time = 2 ** attempt * 3.0
-                    logger.warning(
-                        "Erreur de connexion transitoire (attempt %d/%d): %s. Retry dans %.1fs...",
-                        attempt + 1, max_retries, err_str, wait_time,
-                    )
-                    time.sleep(wait_time)
-                    total_wait_seconds += wait_time
-                    continue
-
-                raise
- 
 # ERP metadata types that trigger the data_query branch
 ERP_TYPES = {"sale", "ticket"}
 
@@ -1323,8 +1156,114 @@ def _extract_amount(question: str) -> "Optional[float]":
         return None
 
 
+# Bloc9 08c follow-up, requested 2026-08-13: evaluate_domain_force/
+# can_view_amount_v2 (deterministic_tools.py) were wired into the
+# evaluer_regles_enregistrement short-circuit below on 2026-08-1x, but
+# deliberately WITHOUT company context -- see that call site's own comment
+# ("company/user context is not extracted from the question this session").
+# This closes that specific gap: a qualitative same/different extraction,
+# not an identity lookup. There is no res.company name/id resolver
+# anywhere in this codebase (unlike _resolve_user_group_xmlids for
+# groups), and the live test Odoo instance is documented mono-company
+# (todo/etat_reel.md, Bloc 1: "la limite mono-société de l'environnement
+# de test") -- so a real company NAME or ID can never be resolved against
+# a live second company from natural-language text on this setup. What a
+# question CAN state, and the only thing worth trusting, is the RELATION
+# between the requester's company and the record's company ("la même
+# société" / "une autre société"), which is all evaluate_domain_force's
+# equality-based domain_force leaves (company_id = user.company_id.id)
+# actually need -- the specific numeric ids compared are arbitrary
+# sentinels, only their equality/inequality carries meaning. No mention
+# at all -> {} (unchanged behaviour, amount-only context, same honest
+# None/"cannot conclude" outcome as before this fix for any domain_force
+# that also checks company_id).
+_COMPANY_DIFFERENT_PATTERN = re.compile(
+    r"(?:pas\s+(?:de\s+)?la\s+m[êe]me\s+(?:soci[ée]t[ée]|filiale|entreprise)|"
+    r"(?:une\s+)?autre\s+(?:soci[ée]t[ée]|filiale|entreprise)|"
+    r"(?:soci[ée]t[ée]|filiale|entreprise)\s+(?:est\s+)?diff[ée]rente?)",
+    re.IGNORECASE,
+)
+_COMPANY_SAME_PATTERN = re.compile(
+    r"m[êe]me\s+(?:soci[ée]t[ée]|filiale|entreprise)",
+    re.IGNORECASE,
+)
+
+
+def _extract_company_context(question: str) -> "Dict[str, Any]":
+    """
+    Extract a qualitative same/different-company relation from the
+    question, in the {"company_id": ..., "user": {"company_id": {"id":
+    ...}}} shape evaluate_domain_force()/can_view_amount_v2() expect for
+    a company_id-referencing domain_force leaf (e.g. ['|',
+    ('company_id', '=', False), ('company_id', '=',
+    user.company_id.id)], the real Module 08 rule --
+    code_intelligence/tests/test_s2_9_domain_force_evaluator.py).
+
+    Checks the DIFFERENT pattern first: "pas la même société" contains
+    "même société" as a substring, so SAME must never win on a negated
+    phrasing. Returns {} (no company keys at all, not a guessed value)
+    when the question says nothing about company at all -- absence of
+    information must resolve to unresolved/None downstream, never to a
+    guessed same or different, per rules.md Regle 5.
+    """
+    if _COMPANY_DIFFERENT_PATTERN.search(question):
+        return {"company_id": 1, "user": {"company_id": {"id": 2}}}
+    if _COMPANY_SAME_PATTERN.search(question):
+        return {"company_id": 1, "user": {"company_id": {"id": 1}}}
+    return {}
+
+
 def _question_is_approval_related(question: str) -> bool:
     return bool(_APPROVAL_PATTERN.search(question))
+
+
+# Bloc 9 gap, found 2026-08-13 (native-Odoo-out-of-scope investigation,
+# "qui peut confirmer un devis (sale.order)" question): qui_a_acces_a (the
+# ACL/ir.rule access-matrix tool) had NO forced pre-dispatch at all, unlike
+# analyser_verrous_securite/analyser_actions_serveur/
+# analyser_chaine_surcharge_methode below -- it only ran if the LLM's own
+# free tool choice picked it, which failed here: on a "who can do X"
+# question against a model with no Python lock and no server action, the
+# ReAct loop made one (correctly empty) analyser_verrous_securite call and
+# answered directly, never checking the ACL/ir.rule layer that actually
+# governs access for the overwhelming majority of Odoo models -- which
+# have no Python lock or server action at all; ACL is the DEFAULT
+# access-control mechanism, locks/actions are the exception.
+#
+# Unlike those three tools, gating this on "does the model structurally
+# have something interesting" doesn't make sense here: virtually every
+# real Odoo model has ACL entries, so a structural guard would fire on
+# nearly every question -- not a meaningful filter, and it would burn the
+# tight CI_MAX_HOPS=4 budget on unrelated questions. Gate on the QUESTION
+# SHAPE instead ("qui peut/a le droit/est autorise a ..." -- a small,
+# closed set of French "who can" phrasings) rather than an open-ended list
+# of business verbs (confirmer, valider, demarrer...) that would need a
+# new entry per module forever -- the exact whack-a-mole this project
+# already moved away from for analyser_verrous_securite's own dispatch
+# (module 5/8, 2026-08-10).
+_ACCESS_QUESTION_PATTERN = re.compile(
+    # Original "qui peut/a le droit/est autorisé" patterns
+    r"\bqui\s+(?:a\s+le\s+droit|peut|peux|est\s+autoris\w*)\b|"
+    # Bloc9 08c gap (2026-08-14): "peut-il/elle voir/accéder/consulter"
+    # was not matched -- the question 08c ("Un utilisateur standard ...
+    # peut-il voir un document ...") was never recognized as access-
+    # related, so neither qui_a_acces_a nor evaluer_regles_enregistrement
+    # were force-dispatched. The resolver then guessed model='base',
+    # can_view_amount_v2 got zero rules, and returned True for the wrong
+    # model. This branch covers the inverted-subject French question form
+    # ("peut-il/elle/on voir") in addition to the "qui peut" form above.
+    r"\b(?:peut|peux|pourra|pourrait)[\s-]*(?:il|elle|on|t[\s-]*il|t[\s-]*elle)\s+(?:voir|acc[eé]der|consulter|lire|visualiser)\b|"
+    # "a-t-il/elle le droit/accès/la permission"
+    r"\ba[\s-]*t[\s-]*(?:il|elle)\s+(?:le\s+droit|acc[eè]s|la\s+permission)\b|"
+    # English patterns
+    r"\bwho\s+(?:can|has\s+the\s+right|is\s+authoriz\w*)\b|"
+    r"\b(?:can|may)\s+(?:a\s+user|the\s+user|an?\s+employee)\s+(?:see|view|access|read)\b",
+    re.IGNORECASE,
+)
+
+
+def _question_is_access_related(question: str) -> bool:
+    return bool(_ACCESS_QUESTION_PATTERN.search(question))
 
 
 # Bloc 9 cross-module gap (2026-08-10, modules 1/8, 3/8, 4/8 generalization
@@ -1356,6 +1295,15 @@ _REQUIRED_GROUP_LINE_RE = re.compile(
 )
 
 
+# Bloc 9 gap fix (2026-08-13, module 8/8 follow-up investigation): matches
+# any Odoo group xmlid shape ('<module>.group_<name>') so the grounding
+# validator below can find every group token the LLM mentioned in
+# final_answer, not just the ones matching _REQUIRED_GROUP_LINE_RE (that
+# regex only captures the tool's OWN summary line -- the LLM is free to
+# type a group name anywhere else in its prose).
+_GROUP_XMLID_RE = re.compile(r"\b[a-z][a-z0-9_]*\.group_[a-z0-9_]+\b")
+
+
 def _extract_required_groups(raw_tool_output: str) -> List[str]:
     """Pull every has_group()-derived required group xml_id out of the raw
     tool text, in first-seen order, deduplicated. Returns [] if no such
@@ -1367,6 +1315,139 @@ def _extract_required_groups(raw_tool_output: str) -> List[str]:
             if name and name not in groups:
                 groups.append(name)
     return groups
+
+
+def _flag_ungrounded_group_xmlids(final_answer: str, raw_tool_output: str) -> str:
+    """Bloc 9 gap fix (2026-08-13, module 8/8 follow-up investigation):
+    negative/grounding validator -- the mirror image of every backfill
+    above (which only ever ADD a fact already known to be true). This one
+    only ever FLAGS, never silently strips: same transparency principle
+    already used by verify_citations/annotate_unverifiable_citations right
+    below for the structurally identical problem (an LLM claim with no
+    verified backing in this turn's evidence).
+
+    Grounded set = every group xmlid extracted via _extract_required_groups
+    (the exact same has_group() line format _backfill_missing_required_
+    groups already trusts as authoritative) from this turn's scoped tool
+    output. Any <module>.group_<x>-shaped token in final_answer that is
+    NOT in that set gets flagged -- never removed, since an ungrounded
+    mention may still be legitimate context (e.g. a different threshold's
+    group explained for contrast) that a mechanical substring check cannot
+    distinguish from a genuine hallucination; only a reviewer should act on
+    the flag, not this function.
+
+    Deliberately a no-op when grounded is empty -- a turn where no
+    security-lock tool fired this hop has no reference set to check
+    against, and flagging every group mention as fake in that case would
+    be strictly worse than saying nothing.
+    """
+    grounded = set(_extract_required_groups(raw_tool_output))
+    if not grounded:
+        return final_answer
+
+    mentioned = set(_GROUP_XMLID_RE.findall(final_answer))
+    ungrounded = sorted(mentioned - grounded)
+    if not ungrounded:
+        return final_answer
+
+    group_list = ", ".join(ungrounded)
+    logger.warning(
+        "Node [code_intelligence_agent]: group xmlid(s) mentioned in synthesized "
+        "answer with no has_group() backing in this turn's scoped tool output "
+        "(possible hallucination, flagged not stripped): %s",
+        group_list,
+    )
+    return (
+        final_answer
+        + f"\n\n⚠️ GROUPE(S) NON VÉRIFIÉ(S) : {group_list} mentionné(s) dans la réponse "
+        f"sans correspondance has_group() dans les données produites pour cette question. "
+        f"Ne pas considérer ce(s) groupe(s) comme confirmé(s) sans vérification manuelle."
+    )
+
+
+def _grounded_core_only_groups(final_answer: str, scoped_tool_output: str) -> List[str]:
+    """Bloc 9 gap fix (2026-08-14, module 1/8 follow-up, LLM free-prose
+    'account.group_account_invoice' noise -- see todo/etat_reel.md and
+    contexte.txt section 42/addendum): a THIRD category, orthogonal to
+    _flag_ungrounded_group_xmlids' grounded/ungrounded split above -- a
+    group xmlid can be genuinely grounded (a real has_group() call exists
+    somewhere in this turn's scoped_tool_output) while still being
+    irrelevant, because analyser_verrous_securite (ci_agent_tools.py)
+    aggregates EVERY Python file touching the model with zero custom/core
+    distinction, so a widely-shared core model like account.move always
+    drags in Odoo's own core has_group() checks (e.g.
+    account.group_account_invoice in _post()) alongside the real custom
+    override, in the SAME block the LLM's free synthesis reads verbatim.
+    _restrict_blocks_to_custom_modules already solves this for the
+    deterministic backfill path (_backfill_missing_required_groups) below
+    -- this reuses the exact same file-link classification to compute the
+    narrower 'grounded AND custom' set, so the difference (grounded but
+    ONLY present in a non-custom block) identifies a group the LLM's own
+    free prose cited from core Odoo content that has nothing to do with
+    the custom mechanism this question actually resolved to.
+
+    Deliberately does NOT touch raw_tool_output itself (only the already-
+    computed scoped_tool_output the caller already scoped to the resolved
+    model(s)) -- consistent with the module-level comment above
+    _restrict_blocks_to_custom_modules: raw_tool_output must stay fully
+    unscoped for verify_citations/_force_dynamic_uncertainty_answer, which
+    legitimately need visibility into every real has_group()/getattr()
+    call, core Odoo included.
+    """
+    grounded = set(_extract_required_groups(scoped_tool_output))
+    if not grounded:
+        return []
+    custom_grounded = set(
+        _extract_required_groups(_restrict_blocks_to_custom_modules(scoped_tool_output))
+    )
+    mentioned = set(_GROUP_XMLID_RE.findall(final_answer))
+    return sorted((mentioned & grounded) - custom_grounded)
+
+
+def _strip_core_only_group_mentions(final_answer: str, scoped_tool_output: str) -> str:
+    """Removes, in place, the line or clause naming each group xmlid
+    identified by _grounded_core_only_groups above. Unlike
+    _flag_ungrounded_group_xmlids (a genuine hallucination is flagged, not
+    stripped, since a reviewer should judge whether it is legitimate
+    context) -- a grounded-but-core-only group is definitionally never
+    relevant to a custom-mechanism question, so there is nothing left for
+    a reviewer to adjudicate: removing it is safe.
+
+    A bandeau-only warning was tried and found insufficient for this same
+    shape of problem once already (module 5/8 Bug 2, link-guard
+    contradiction -- see _neutralize_contradicting_link_guard_sentence
+    below): the flagged sentence stays visible and readable underneath the
+    warning, so a downstream check for the specific wrong content still
+    fails. This follows the same in-place-removal precedent, but simpler:
+    there is no template sentence to reconstruct here (unlike the
+    link-guard case, where the correct conclusion had to be restated), so
+    the matched clause/line is dropped rather than replaced -- bounded to
+    '.'/'\\n' on either side (same bounding technique as
+    _LINK_GUARD_CONTRADICTING_SENTENCE_RE below) so only the specific
+    clause naming the group is removed, never a neighboring sentence or
+    bullet.
+
+    No-op when _grounded_core_only_groups returns nothing -- most turns
+    never aggregate a core-Odoo block at all (single-file custom modules
+    are the majority case), so this rarely fires.
+    """
+    core_only = _grounded_core_only_groups(final_answer, scoped_tool_output)
+    if not core_only:
+        return final_answer
+
+    result = final_answer
+    for xmlid in core_only:
+        pattern = re.compile(r"[^.\n]*" + re.escape(xmlid) + r"[^.\n]*\.?\n?")
+        result = pattern.sub("", result)
+    result = re.sub(r"\n{3,}", "\n\n", result)
+
+    logger.warning(
+        "Node [code_intelligence_agent]: stripped grounded-but-core-Odoo-only "
+        "group xmlid(s) from synthesized answer (relevant only to a shared "
+        "core file, not the custom mechanism this question resolved to): %s",
+        ", ".join(core_only),
+    )
+    return result
 
 
 def _scoped_raw_tool_output(
@@ -1413,6 +1494,126 @@ def _scoped_raw_tool_output(
     return "\n\n".join(scoped)
 
 
+_LOCK_CONDITION_LINE_RE = re.compile(
+    r"\*\s*\"[^\"]*\"\s*\(condition\s*:\s*(.*?has_group\([\'\"]([^\'\"]+)[\'\"]\).*?)\)",
+    re.IGNORECASE,
+)
+_AMOUNT_CMP_RE = re.compile(
+    r"(?:rec\.)?amount(?:_total)?\s*(>|>=|<|<=)\s*(\d+(?:\.\d+)?)",
+    re.IGNORECASE,
+)
+
+
+def _extract_required_groups_for_amount(raw_tool_output: str, amount: Optional[float] = None) -> List[str]:
+    """Pull required group xml_ids from raw tool text, filtering by monetary threshold
+    when an explicit amount is provided.
+
+    If amount is None, returns all required groups (unfiltered).
+    If amount is provided, inspects the condition lines associated with has_group('<group>'):
+      - For conditions checking `amount > T` or `amount >= T`: the group is only required
+        if the question's amount exceeds T.
+      - Groups with no numeric threshold condition (unconditional locks) are always retained.
+    """
+    all_groups = _extract_required_groups(raw_tool_output)
+    if amount is None or not all_groups:
+        return all_groups
+
+    group_conditions: Dict[str, List[Tuple[str, float]]] = {}
+    for match in _LOCK_CONDITION_LINE_RE.finditer(raw_tool_output):
+        cond_text = match.group(1)
+        group_name = match.group(2).strip()
+        cmp_match = _AMOUNT_CMP_RE.search(cond_text)
+        if cmp_match:
+            op = cmp_match.group(1)
+            thresh = float(cmp_match.group(2))
+            group_conditions.setdefault(group_name, []).append((op, thresh))
+
+    filtered_groups: List[str] = []
+    for g in all_groups:
+        if g not in group_conditions:
+            filtered_groups.append(g)
+        else:
+            active = False
+            for op, thresh in group_conditions[g]:
+                if op == ">" and amount > thresh:
+                    active = True
+                    break
+                elif op == ">=" and amount >= thresh:
+                    active = True
+                    break
+                elif op == "<" and amount < thresh:
+                    active = True
+                    break
+                elif op == "<=" and amount <= thresh:
+                    active = True
+                    break
+            if active:
+                filtered_groups.append(g)
+
+    return filtered_groups
+
+
+# Bloc 9 gap, documented open in todo/etat_reel.md as "account.group_
+# account_invoice noise" (module 1/8, bloc9-01a-business, found 2026-08-13,
+# left deliberately unfixed at the time -- "necessiterait un scoping
+# fichier/module plus fin qu'un scoping par modele ... delibere ment non
+# traite (risque de sur-edition sans tests dedies)"). Root cause traced by
+# direct inspection of the real source (2026-08-14 follow-up): analyser_
+# verrous_securite (ci_agent_tools.py) aggregates analyze_python_security_
+# locks' summary_text for EVERY Python file touching the model, joined
+# with the same '\n\n' block separator _scoped_raw_tool_output/_extract_
+# security_lock_condition_amounts already rely on -- on a widely-shared
+# core model like account.move, that includes Odoo's own core account/
+# models/account_move.py right alongside the custom override file. Core
+# Odoo's _post() has a real, correctly-attributed has_group('account.
+# group_account_invoice') check (governs posting ANY invoice, confirmed
+# by direct read of /home/user/odoo-17.0/addons/account/models/
+# account_move.py, line ~3941) that has nothing to do with a custom
+# approval-cascade question ("qui a le droit d'approuver un avoir de
+# 25000e") -- genuinely grounded, not a hallucination (_flag_ungrounded_
+# group_xmlids correctly leaves it alone), just out of scope: this
+# product's entire premise (Bloc 9, "Generalisation au code custom") is
+# bypass/governance mechanisms in CUSTOM overlay code, never core Odoo's
+# own standard access control living in a different file that happens to
+# share the model.
+#
+# Each block's own header line already carries a file:// link (see
+# analyze_python_security_locks' use of format_file_link) -- restricting
+# extraction to blocks whose link points under a 'custom_*' addon
+# directory removes this specific noise without touching _extract_
+# required_groups itself (still used unfiltered by _flag_ungrounded_
+# group_xmlids, which must keep seeing core Odoo's real has_group() calls
+# too -- a mention that IS grounded there should never be flagged as a
+# hallucination just because it's irrelevant to this particular question).
+_BLOCK_FILE_LINK_RE = re.compile(r"\(file://([^)#]+)")
+
+
+def _block_is_custom_module_file(block: str) -> bool:
+    """True when this '\n\n'-delimited block's own file:// link (see
+    _BLOCK_FILE_LINK_RE) points at a file under a 'custom_*' addon
+    directory. Returns True (keep the block) whenever no file:// link is
+    found at all -- never silently drops a block this cannot positively
+    classify as core/OCA Odoo, same conservative default as every other
+    scoping guard in this module."""
+    match = _BLOCK_FILE_LINK_RE.search(block)
+    if not match:
+        return True
+    return "/custom_" in match.group(1)
+
+
+def _restrict_blocks_to_custom_modules(raw_tool_output: str) -> str:
+    """Drop blocks whose file:// link points outside a 'custom_*' addon
+    (see _block_is_custom_module_file) before required-group extraction.
+    Scoped narrowly to the required-groups backfill below -- deliberately
+    NOT applied to raw_tool_output/scoped_tool_output themselves (citation
+    verification and _flag_ungrounded_group_xmlids still need to see every
+    real has_group() call, core Odoo included: this filters what counts as
+    a *relevant* fact to backfill, not what counts as *grounded*)."""
+    blocks = raw_tool_output.split("\n\n")
+    kept = [b for b in blocks if _block_is_custom_module_file(b)]
+    return "\n\n".join(kept) if kept else raw_tool_output
+
+
 def _backfill_missing_required_groups(final_answer: str, raw_tool_output: str, question: str) -> str:
     """Deterministic backfill (see module-level comment above
     _REQUIRED_GROUP_LINE_RE for why this is a code-level fix, not a
@@ -1422,11 +1623,26 @@ def _backfill_missing_required_groups(final_answer: str, raw_tool_output: str, q
     labeled fact. No-op whenever every required group is already present
     in the answer -- this never duplicates or contradicts a correct
     synthesis, it only fills a gap.
+
+    Bloc 9 gap fix (2026-08-14, module 8/8, bloc9-08a-business): when the
+    question specifies a monetary amount (e.g. 60 000€), only backfills
+    groups whose threshold is actually reached/triggered for that amount,
+    rather than blindly backfilling higher-threshold groups (e.g. base.group_system
+    requiring > 100k€).
+
+    Bloc 9 gap fix (2026-08-14, module 1/8 follow-up, 'account.group_
+    account_invoice noise'): raw_tool_output is restricted to custom-
+    module blocks (see _restrict_blocks_to_custom_modules) before group
+    extraction, so a core-Odoo has_group() check aggregated onto the same
+    shared model no longer gets backfilled as if it were part of this
+    custom approval mechanism.
     """
     if not _question_is_approval_related(question):
         return final_answer
 
-    required_groups = _extract_required_groups(raw_tool_output)
+    amount = _extract_amount(question)
+    custom_scoped_output = _restrict_blocks_to_custom_modules(raw_tool_output)
+    required_groups = _extract_required_groups_for_amount(custom_scoped_output, amount)
     if not required_groups:
         return final_answer
 
@@ -1596,6 +1812,40 @@ def _extract_override_chain_amounts(raw_tool_output: str) -> List[str]:
     return amounts
 
 
+def _amount_present_in_text(amount: str, text: str) -> bool:
+    """True if `amount` (a bare digit string, e.g. '5000') appears in
+    `text` as a genuine standalone number -- either unspaced ('5000') or
+    with a thousands-separator space ('5 000') -- never as a substring of
+    a larger number (e.g. '25 000' must NOT count as containing '5000').
+
+    Bloc 9 gap, found 2026-08-13 (module 1/8, bloc9-01a-business rerun,
+    AFTER the block-scoping fix for _extract_security_lock_condition_
+    amounts is confirmed working on bloc9-01b/01c): 01a's own question
+    text ('un avoir de 25 000€') gets echoed verbatim in the synthesized
+    answer's opening sentence -- and the old plain `in` substring check
+    (`spaced in final_answer`) treated '5 000' as already present the
+    moment it appeared as a literal substring of '25 000€', so
+    _backfill_missing_security_lock_amount silently no-op'd, believing a
+    fact was already covered when it was never actually stated (the
+    answer never mentions the real 5000e threshold on its own terms).
+    Reproduced directly against the live 01a answer text before this fix
+    (spaced='5 000' found inside '25 000€' -- true positive on the bug,
+    false negative on the actual check) and confirmed absent after it.
+
+    Both call sites (_backfill_missing_override_chain_amount and
+    _backfill_missing_security_lock_amount) previously defined their own
+    identical local `_amount_present` closure with this exact bug --
+    consolidated here as a single shared, digit-boundary-aware
+    implementation instead of fixing the bug twice.
+    """
+    spaced = f"{amount[:-3]} {amount[-3:]}" if len(amount) > 3 else amount
+    for candidate in {amount, spaced}:
+        pattern = r"(?<!\d)" + re.escape(candidate) + r"(?!\d)"
+        if re.search(pattern, text):
+            return True
+    return False
+
+
 def _backfill_missing_override_chain_amount(final_answer: str, raw_tool_output: str) -> str:
     """Deterministic backfill for gap (a) above: if an override-cascade
     finding's own monetary threshold (already present verbatim in the raw
@@ -1651,11 +1901,7 @@ def _backfill_missing_override_chain_amount(final_answer: str, raw_tool_output: 
     if not amounts:
         return final_answer
 
-    def _amount_present(amount: str) -> bool:
-        spaced = f"{amount[:-3]} {amount[-3:]}" if len(amount) > 3 else amount
-        return amount in final_answer or spaced in final_answer
-
-    missing = [a for a in amounts if not _amount_present(a)]
+    missing = [a for a in amounts if not _amount_present_in_text(a, final_answer)]
     if not missing:
         return final_answer
 
@@ -1671,6 +1917,155 @@ def _backfill_missing_override_chain_amount(final_answer: str, raw_tool_output: 
         f"une condition supplémentaire déclenchée au-delà de {amount_list}, distincte "
         f"du groupe requis ci-dessus. Fait extrait directement de l'analyse statique "
         f"du code."
+    )
+
+
+# Bloc 9 gap, module 4/8 (custom_purchase_request, bloc9-04a-business /
+# bloc9-04c-manager-trap, found 2026-08-13 continuing the 11/08 diagnosis
+# in todo/etat_reel.md): action_valider has TWO UserError gates in
+# cascade -- the has_group()/hardcoded-email gate (already covered by
+# _backfill_missing_required_groups above), and a SECOND, amount-gated
+# gate on top ("Au-dela de 10 000 euros, seule la Direction peut valider")
+# that only fires past rec.montant_estime > 10000. Confirmed via direct
+# read of analyze_python_security_locks' own rendering
+# (semgrep_locks_analyzer.py) that this second message, WITH its numeric
+# condition, is reliably present in the raw analyser_verrous_securite
+# observation (single small file, well under the 3000-char cap for this
+# forced dispatch -- truncation already ruled out as a cause here, unlike
+# module 1/8's account.move case) -- but was dropped from the synthesized
+# answer on both the business and manager-trap phrasings (todo/etat_reel.md,
+# "Mise a jour 11/08 (tour suivant)"). Exactly the same failure SHAPE as
+# module 1/8's Gap (a) (a second/risk-gate finding on the SAME model
+# treated as irrelevant to an "approval rights" question by the small
+# synthesis model, despite being present and correctly used on a purely
+# technical phrasing) -- just on a different tool's output, and no
+# analogous backfill existed yet for this exact fact shape (a numeric
+# threshold living inside an exception CONDITION rendered by
+# analyser_verrous_securite, not a group xml_id or an override-module
+# name).
+#
+# Deliberately does NOT reuse _extract_override_chain_amounts (the
+# function, not just the regex): that function's own guard
+# (_extract_override_modules non-empty) is scoped to a DIFFERENT tool's
+# output shape ("module 'x'" lines from analyser_chaine_surcharge_methode)
+# and exists specifically because the bare 'rec.<attr> > <digits>' pattern
+# is generic enough to leak across tools sharing the same Python
+# condition-rendering convention -- see that guard's own docstring, which
+# documents the EXACT REVERSE contamination once already (this very
+# module's 'rec.montant_estime > 10000' condition leaking INTO an
+# unrelated override-cascade amount backfill on a custom_asset_loan
+# question). This function reuses only the shared _OVERRIDE_CHAIN_AMOUNT_RE
+# regex (the Python comparison shape itself is genuinely tool-agnostic),
+# gated on its OWN independent structural marker instead of borrowing a
+# guard built for a sibling tool's output shape.
+_SECURITY_LOCK_MESSAGES_MARKER = "Messages de verrous (UserError/ValidationError):"
+
+
+def _extract_security_lock_condition_amounts(raw_tool_output: str) -> List[str]:
+    """Pull every monetary/numeric threshold embedded in a Python comparison
+    inside an analyser_verrous_securite exception condition (e.g.
+    'rec.montant_estime > 10000'), in first-seen order, deduplicated.
+    Returns [] whenever _SECURITY_LOCK_MESSAGES_MARKER -- the literal
+    header line analyze_python_security_locks always emits once it has at
+    least one exception message -- is absent from the raw text. See the
+    module-level comment above _SECURITY_LOCK_MESSAGES_MARKER for why this
+    does not reuse _extract_override_chain_amounts' own guard.
+
+    Bloc 9 gap, found 2026-08-13 (module 1/8 rerun, bloc9-01a-business /
+    bloc9-01c-vip-trap, AFTER the module 4/8 security-lock backfill above
+    is confirmed working on custom_purchase_request): on account.move, the
+    SAME scoped_tool_output can legitimately contain BOTH this tool's own
+    block (custom_credit_note_approval's real security lock, 'rec.
+    amount_total > 5000') AND an unrelated analyser_chaine_surcharge_
+    methode block (custom_credit_note_approval_regional's override-cascade
+    finding, 'rec.amount_total > 20000') in the same turn, because both
+    tools target account.move and _scoped_raw_tool_output only scopes by
+    MODEL, not by tool/block -- the two blocks share a model, so model-
+    scoping cannot separate them (unlike the module 5/8 cross-MODEL
+    contamination that fix already covers). The old version of this
+    function gated on the marker being present ANYWHERE in the full
+    (already-joined) text, then scanned amounts from the ENTIRE text --
+    so it silently picked up the unrelated 20000 from the override-cascade
+    block and labeled it a "verrou de securite" amount, live-confirmed on
+    both bloc9-01a-business (20000 asserted as the security-lock threshold
+    instead of the real 5000, which never appeared anywhere in the answer)
+    and bloc9-01c-vip-trap (the backfilled 20000 fact directly contradicts
+    the answer's OWN correct prose two lines above it, which cites 5000).
+    Neither the check script's expected_markers (only checks '20000'/
+    'account.group_account_manager' appear somewhere, never which fact
+    they're attributed to) nor the existing test
+    (test_no_op_on_unrelated_rec_comparison_outside_security_lock_text,
+    which only exercises the override-cascade text ALONE, marker absent)
+    covered this combined-block scenario.
+
+    Fixed by scoping the marker check AND the amount scan to the same
+    '\n\n'-delimited block, instead of the whole raw_tool_output string --
+    tool_observations/scoped_tool_output are always joined with '\n\n'
+    (see _scoped_raw_tool_output), and no single tool's own rendering has
+    been observed to contain an internal blank line, so this is a safe,
+    already-implicit block boundary rather than a new assumption.
+    """
+    amounts: List[str] = []
+    for block in raw_tool_output.split("\n\n"):
+        if _SECURITY_LOCK_MESSAGES_MARKER not in block:
+            continue
+        for match in _OVERRIDE_CHAIN_AMOUNT_RE.finditer(block):
+            amount = match.group(1).replace(" ", "").strip()
+            if amount and amount not in amounts:
+                amounts.append(amount)
+    return amounts
+
+
+def _backfill_missing_security_lock_amount(
+    final_answer: str, raw_tool_output: str, question: Optional[str] = None
+) -> str:
+    """Deterministic backfill, symmetric to _backfill_missing_required_groups
+    and _backfill_missing_override_chain_amount, for the fact shape found
+    on module 4/8 (custom_purchase_request): if analyser_verrous_securite's
+    raw exception-condition text names a numeric threshold that never made
+    it into the synthesized answer, append it as an explicit, clearly
+    labeled fact. No-op whenever the threshold is already present (checked
+    with and without a thousands-separator space, same tolerance as
+    _backfill_missing_override_chain_amount) -- never duplicates or
+    contradicts a correct synthesis, only fills a gap.
+
+    Bloc 9 gap fix (2026-08-14, module 8/8 follow-up): when question specifies
+    a monetary amount or is a read visibility rule question (where can_view_amount
+    fact is present), thresholds strictly greater than the question's amount are
+    not triggered and are not backfilled as noise.
+    """
+    if question is not None:
+        if _has_can_view_amount_fact(final_answer):
+            return final_answer
+        amount = _extract_amount(question)
+    else:
+        amount = None
+
+    amounts = _extract_security_lock_condition_amounts(raw_tool_output)
+    if not amounts:
+        return final_answer
+
+    if amount is not None:
+        amounts = [a for a in amounts if float(a) <= amount]
+        if not amounts:
+            return final_answer
+
+    missing = [a for a in amounts if not _amount_present_in_text(a, final_answer)]
+    if not missing:
+        return final_answer
+
+    amount_list = ", ".join(f"{a}€" for a in missing)
+    logger.info(
+        "Node [code_intelligence_agent]: backfilling security-lock condition amount "
+        "threshold(s) missing from synthesized answer (present in raw tool output, "
+        "dropped by synthesis): %s",
+        amount_list,
+    )
+    return (
+        final_answer
+        + f"\n\n[FAIT DÉTERMINISTIQUE] Le verrou de sécurité contient une condition "
+        f"supplémentaire déclenchée au-delà de {amount_list}, distincte du groupe "
+        f"requis ci-dessus. Fait extrait directement de l'analyse statique du code."
     )
 
 
@@ -1701,8 +2096,33 @@ def _backfill_missing_override_chain_amount(final_answer: str, raw_tool_output: 
 # Same fix shape as module 5/8's Bug 2: detect the specific confirmed-real
 # wrong sentence and replace it in place, do not merely append a fact
 # after it.
+#
+# Second confirmed-real denial phrasing added 2026-08-13 (module 1/8
+# rerun, bloc9-01b-technical, same session as the security-lock
+# per-block scoping fix above): "il n'y a pas de surcharges de la
+# methode ... detectees dans les fichiers analyses" -- a STRONGER,
+# more harmful denial than "aucune autre surcharge" (that one at least
+# implies one override is known; this one denies ANY exist at all),
+# live-confirmed immediately followed by the [FAIT DETERMINISTIQUE]
+# naming all three real modules, and by a further hallucinated tangent
+# suggesting the reader grep generic core Odoo files
+# (account/models/account_move.py, account/populate/account_move.py)
+# that have nothing to do with this custom cascade. Coincided with this
+# run being the first to hit a Groq 413 ("payload too large") on EVERY
+# one of the three questions -- plausibly the ReAct-loop ToolMessage
+# being cut to _TOOL_MSG_HARD_CAP=400 chars by _reduce_message_context
+# left the synthesis LLM with too little real tool content to reason
+# from, rather than a synthesis-quality regression on its own. That
+# truncation behavior is a separate, pre-existing, documented tradeoff
+# (see _reduce_message_context/_invoke_with_rate_limit above) -- NOT
+# touched here; widening it would need its own dedicated diagnosis
+# (which tool messages to prioritize keeping, whether 400 chars is
+# still adequate now that scoped_tool_output routinely carries more
+# than one tool's block per turn) rather than a incidental change
+# bundled into this narrower prose-correction fix.
 _OVERRIDE_COUNT_DENIAL_RE = re.compile(
     r"[^.\n]*aucune\s+autre\s+surcharge[^.\n]*\.?"
+    r"|[^.\n]*il\s+n['\u2019]y\s+a\s+pas\s+de\s+surcharges?[^.\n]*detectees?[^.\n]*\.?"
 )
 
 # Confirmed-real vocabulary only (same discipline as
@@ -1996,6 +2416,77 @@ def _backfill_missing_trigger_condition_literals(final_answer: str, raw_tool_out
     )
 
 
+# Bloc 9 gap, module 6/8 (bloc9-06c-technical-condition-capture, found
+# 2026-08-13 -- rerun immediately AFTER the analyser_actions_serveur
+# truncation-cap fix is confirmed active on disk): the cap fix restores
+# sudo()/in_refund to the stored observation and to the final answer
+# (06b/06c both pass on those markers now), but 06c still drops the
+# hardcoded privileged-partner IDs (42, 108, 231) -- present verbatim in
+# the raw tool text ("[CONTOURNEMENT SENSIBLE] IDs en dur: [42, 108, 231]
+# -> traitement privilegie non documente") but never reaching the LLM's
+# paraphrase. Same class of gap as the trigger-condition literal above (a
+# bracketed technical detail the small model summarizes away in favor of
+# prose, e.g. "trois fournisseurs specifiques"), just on the sibling line
+# one row below it in the same finding -- confirmed NOT a truncation
+# symptom this time (the raw check's own direct call already shows "42"
+# present under the now-3000 cap), so a dedicated backfill rather than
+# another cap raise.
+_HARDCODED_IDS_LINE_RE = re.compile(r"IDs en dur\s*:\s*\[([^\]]+)\]")
+
+
+def _extract_hardcoded_id_literals(raw_tool_output: str) -> List[str]:
+    """Pull every hardcoded-ID token out of a server-action bypass finding's
+    \"IDs en dur: [...]\" line, in first-seen order, deduplicated. Returns []
+    if no such line is present -- tool wasn't invoked, the finding was
+    gated out for an unprivileged requester (authorization_gate.py), or no
+    hardcoded-ID bypass exists on this model at all."""
+    match = _HARDCODED_IDS_LINE_RE.search(raw_tool_output)
+    if not match:
+        return []
+    ids: List[str] = []
+    for raw_id in match.group(1).split(","):
+        raw_id = raw_id.strip()
+        if raw_id and raw_id not in ids:
+            ids.append(raw_id)
+    return ids
+
+
+def _backfill_missing_hardcoded_id_literals(final_answer: str, raw_tool_output: str) -> str:
+    """Deterministic backfill, same append-only/never-override discipline as
+    every other backfill in this module: if a server-action's hardcoded-ID
+    bypass list (already present verbatim in the raw tool text) never made
+    it into the synthesized answer, append it as an explicit, clearly
+    labeled fact. No-op whenever every ID is already present -- never
+    duplicates or contradicts a correct synthesis. Reuses
+    _amount_present_in_text for a digit-boundary-safe presence check (an
+    ID is just a bare digit string, e.g. '42' must not count as already
+    present merely because '142' or '420' appears somewhere in the
+    answer) -- same reasoning as its existing use for monetary amounts.
+    """
+    ids = _extract_hardcoded_id_literals(raw_tool_output)
+    if not ids:
+        return final_answer
+
+    missing = [i for i in ids if not _amount_present_in_text(i, final_answer)]
+    if not missing:
+        return final_answer
+
+    id_list = ", ".join(missing)
+    logger.info(
+        "Node [code_intelligence_agent]: backfilling hardcoded privileged-ID "
+        "literal(s) missing from synthesized answer (present in raw tool "
+        "output, paraphrased away by synthesis): %s",
+        id_list,
+    )
+    return (
+        final_answer
+        + f"\n\n[FAIT D\u00c9TERMINISTIQUE] Valeur(s) litt\u00e9rale(s) des identifiants "
+        f"cod\u00e9s en dur b\u00e9n\u00e9ficiant du contournement, absente(s) de la "
+        f"reformulation ci-dessus : {id_list}. Fait extrait directement de "
+        f"l'analyse statique du code."
+    )
+
+
 # Bloc 9 gap fix (2026-08-11, module 1/8, bloc9-01c-vip-trap): the
 # SUPER() NON GARDÉ warning from method_override_resolver.py contains two
 # pieces of information the synthesis LLM reliably drops when Groq 413
@@ -2108,7 +2599,373 @@ def _backfill_link_guard_clarifications(final_answer: str, raw_tool_output: str)
     )
 
 
-def _format_can_view_amount_fact(amount: float, can_view: bool) -> str:
+# Bloc9 08c follow-up (2026-08-14): synthesis-inversion detector for the
+# can_view_amount_v2 deterministic fact, symmetric to module 5/8's Bug 2 fix
+# (_correct_override_cascade_contradictions / _neutralize_contradicting_
+# link_guard_sentence above) but for THIS fact instead of the link-guard
+# short-circuit. The diagnostic logging already added at the injection call
+# site ("Injected deterministic can_view_amount_v2 fact ...") only lets a
+# human distinguish a resolution/wiring gap (model not found, zero rules
+# applied -> would silently default this to True) from a synthesis-level
+# inversion of an otherwise-correct verdict -- it does not fix the inversion
+# case even once the log confirms that's what happened. This closes that
+# second half: if the appended [FAIT DETERMINISTIQUE] disagrees with what
+# the LLM's own free prose asserted earlier in the same answer, replace the
+# wrong sentence in place -- an appended correct fact below a wrong sentence
+# does not, on its own, correct that sentence for a top-to-bottom reader.
+#
+# CUTOFF (found in sandbox testing, 2026-08-14, before this was wired in
+# here): once the can_view_amount_v2 fact itself is appended to final_answer
+# (e.g. "...l'utilisateur PEUT voir cet enregistrement."), the same ALLOW/
+# DENY assertion regex also matches that appended sentence -- an auto-
+# collision where the fact would flag itself as contradicting itself.
+# _split_before_first_fact_marker scans only the free-prose portion of
+# final_answer BEFORE the first "[FAIT" marker to avoid this.
+_CAN_VIEW_ALLOW_ASSERTION_RE = re.compile(
+    r"[^.\n]*\b(?:peut\s+(?:voir|consulter|acc[ée]der)|"
+    r"(?:a|dispose\s+du?)\s+(?:le\s+)?droit\s+de\s+(?:voir|consulter)|"
+    r"est\s+autoris[ée]\s+[àa]\s+(?:voir|consulter|acc[ée]der))[^.\n]*\.?",
+    re.IGNORECASE,
+)
+_CAN_VIEW_DENY_ASSERTION_RE = re.compile(
+    r"[^.\n]*\bne\s+peut\s+pas\s+(?:voir|consulter|acc[ée]der)[^.\n]*\.?"
+    r"|[^.\n]*n[’']a\s+pas\s+(?:le\s+)?droit\s+de\s+(?:voir|consulter)[^.\n]*\.?"
+    r"|[^.\n]*n[’']est\s+pas\s+autoris[ée]\s+[àa]\s+(?:voir|consulter|acc[ée]der)[^.\n]*\.?",
+    re.IGNORECASE,
+)
+_CAN_VIEW_FACT_VERDICT_RE = re.compile(
+    r"can_view_amount\(\)\s*=\s*(True|False)\s*:\s*l.utilisateur\s+(PEUT|NE PEUT PAS)",
+)
+_CAN_VIEW_FACT_INDETERMINATE_MARKER = "can_view_amount_v2() = indéterminé"
+
+
+def _split_before_first_fact_marker(text: str) -> str:
+    """Text portion before the first '[FAIT' marker -- the free-prose
+    synthesis, excluding every deterministic fact appended by the backfills
+    in this module. See the CUTOFF note above _CAN_VIEW_ALLOW_ASSERTION_RE
+    for the auto-collision this avoids."""
+    idx = text.find("[FAIT")
+    return text if idx == -1 else text[:idx]
+
+
+def _extract_can_view_amount_verdict(final_answer: str) -> "Optional[bool]":
+    """True/False when the injected can_view_amount_v2 fact states a
+    definite verdict. Returns None both when no such fact is present at all
+    AND when the fact states the indeterminate case -- callers distinguish
+    the two via _has_can_view_amount_fact separately."""
+    match = _CAN_VIEW_FACT_VERDICT_RE.search(final_answer)
+    if not match:
+        return None
+    return match.group(2) == "PEUT"
+
+
+def _has_can_view_amount_fact(final_answer: str) -> bool:
+    return bool(_CAN_VIEW_FACT_VERDICT_RE.search(final_answer)) or (
+        _CAN_VIEW_FACT_INDETERMINATE_MARKER in final_answer
+    )
+
+
+def _correct_can_view_amount_contradictions(final_answer: str) -> str:
+    """
+    Detect and correct a synthesis-level inversion of the can_view_amount_v2
+    deterministic verdict -- e.g. the fact says NE PEUT PAS (False) but the
+    LLM's own free prose earlier in the same answer asserts the user peut
+    voir, or the fact is indeterminate but the prose still rounds to a
+    definite yes/no. Symmetric, append-after-detect-and-replace discipline
+    to _correct_override_cascade_contradictions above. No-op when no
+    can_view_amount_v2 fact is present at all in final_answer (this tool
+    didn't run this turn, or no amount was extractable from the question).
+    """
+    if not _has_can_view_amount_fact(final_answer):
+        return final_answer
+
+    prose = _split_before_first_fact_marker(final_answer)
+    is_indeterminate = _CAN_VIEW_FACT_INDETERMINATE_MARKER in final_answer
+    verdict = _extract_can_view_amount_verdict(final_answer)
+
+    if is_indeterminate:
+        # A definite allow OR a definite deny in the prose both contradict
+        # an indeterminate verdict -- rounding uncertainty to a yes/no is
+        # exactly what the deterministic fact + synthesis_prompt already
+        # forbid, regardless of which direction the LLM rounded to.
+        match = _CAN_VIEW_ALLOW_ASSERTION_RE.search(prose) or _CAN_VIEW_DENY_ASSERTION_RE.search(prose)
+        if not match:
+            return final_answer
+        replacement = (
+            "Le moteur de règles ne peut pas déterminer avec certitude si "
+            "l'utilisateur peut voir cet enregistrement pour ce montant "
+            "(voir le fait déterministe ci-dessous)."
+        )
+        logger.warning(
+            "Node [code_intelligence_agent]: synthesis asserted a definite "
+            "allow/deny while the can_view_amount_v2 verdict was indéterminé "
+            "-- replacing the sentence with an explicit uncertainty statement "
+            "(_correct_can_view_amount_contradictions)."
+        )
+    elif verdict is True:
+        match = _CAN_VIEW_DENY_ASSERTION_RE.search(prose)
+        if not match:
+            return final_answer
+        replacement = (
+            "L'utilisateur PEUT voir cet enregistrement pour ce montant "
+            "(voir le fait déterministe ci-dessous)."
+        )
+        logger.warning(
+            "Node [code_intelligence_agent]: synthesis asserted the user "
+            "CANNOT view the record while can_view_amount_v2() computed "
+            "True -- replacing the sentence with the correct verdict "
+            "(inversion, _correct_can_view_amount_contradictions)."
+        )
+    elif verdict is False:
+        match = _CAN_VIEW_ALLOW_ASSERTION_RE.search(prose)
+        if not match:
+            return final_answer
+        replacement = (
+            "L'utilisateur NE PEUT PAS voir cet enregistrement pour ce "
+            "montant (voir le fait déterministe ci-dessous)."
+        )
+        logger.warning(
+            "Node [code_intelligence_agent]: synthesis asserted the user "
+            "CAN view the record while can_view_amount_v2() computed "
+            "False -- replacing the sentence with the correct verdict "
+            "(inversion, _correct_can_view_amount_contradictions)."
+        )
+    else:
+        return final_answer
+
+    start, end = match.span()
+    return final_answer[:start] + replacement + final_answer[end:]
+
+
+def _correct_security_lock_threshold_contradictions(
+    final_answer: str, scoped_tool_output: str, question: str
+) -> str:
+    """Bloc 9 gap fix (2026-08-14, module 8/8, bloc9-08a-business):
+    detect and correct synthesis-level inversions of Python security lock
+    threshold logic (has_group() with numeric amount conditions).
+
+    Small synthesis LLMs frequently conflate independent threshold gates
+    (e.g. >50k requires account.group_account_manager, >100k requires base.group_system)
+    by treating them as exclusive authority tiers / upper bounds -- claiming that a
+    manager only has the right up to 50k and cannot validate at 60k, and/or claiming
+    that the higher admin group is required/authorized at 60k.
+
+    This detector reconciles the free prose against the ground-truth lock conditions
+    extracted from scoped_tool_output for the specific monetary amount in question.
+    """
+    from code_intelligence.deterministic_tools import _fold_accents
+
+    amount = _extract_amount(question)
+    if amount is None:
+        return final_answer
+
+    rules: List[Tuple[str, str, float, str]] = []
+    for match in _LOCK_CONDITION_LINE_RE.finditer(scoped_tool_output):
+        cond_text = match.group(1)
+        group_name = match.group(2).strip()
+        cmp_match = _AMOUNT_CMP_RE.search(cond_text)
+        if cmp_match:
+            op = cmp_match.group(1)
+            thresh = float(cmp_match.group(2))
+            rules.append((group_name, op, thresh, cond_text))
+
+    if not rules:
+        return final_answer
+
+    triggered = [
+        (g, op, thresh, cond)
+        for g, op, thresh, cond in rules
+        if (op == ">" and amount > thresh) or (op == ">=" and amount >= thresh)
+    ]
+    higher_untriggered = [
+        (g, op, thresh, cond)
+        for g, op, thresh, cond in rules
+        if op in (">", ">=") and thresh > amount
+    ]
+
+    if not triggered and not higher_untriggered:
+        return final_answer
+
+    prose = _split_before_first_fact_marker(final_answer)
+    suffix = final_answer[len(prose):]
+
+    if "\n\n" in prose:
+        delimiter = "\n\n"
+        chunks = prose.split("\n\n")
+    elif "\n-" in prose or "\n*" in prose:
+        delimiter = "\n"
+        chunks = prose.split("\n")
+    else:
+        delimiter = "\n\n"
+        chunks = [prose]
+
+    amt_s = str(int(amount))
+    amt_sp = f"{int(amount):,}".replace(",", " ")
+    new_chunks = []
+    contradiction_found = False
+
+    for chunk in chunks:
+        c_folded = _fold_accents(chunk.lower())
+        prefix = "- " if chunk.strip().startswith("- ") else ("* " if chunk.strip().startswith("* ") else "")
+        replaced = False
+
+        # Check for triggered group inversion
+        for g, op, thresh, cond in triggered:
+            t_s = str(int(thresh))
+            t_sp = f"{int(thresh):,}".replace(",", " ")
+            g_short = g.split(".")[-1].replace("group_", "")
+
+            group_keywords = [g.lower(), g_short.lower()]
+            if "account" in g.lower() or "comptab" in cond.lower():
+                group_keywords.extend(["comptabilit", "responsable"])
+            if "manager" in g.lower():
+                group_keywords.extend(["manager", "responsable", "gestionnaire"])
+
+            has_group_ref = any(k in c_folded for k in group_keywords)
+            if has_group_ref:
+                is_inv = False
+                if any(w in c_folded for w in ["jusqu", "plafond", "limite"]) and (t_s in c_folded or t_sp in c_folded):
+                    if any(w in c_folded for w in ["n'a pas le droit", "ne peut pas", "ne peut donc pas", "n'est pas autoris", "pas autoris"]):
+                        is_inv = True
+                elif any(w in c_folded for w in ["n'a pas le droit de valider", "ne peut pas valider", "ne peut donc pas valider", "n'est pas autoris"]):
+                    if amt_s in c_folded or amt_sp in c_folded or "ce document" in c_folded or "ce montant" in c_folded:
+                        is_inv = True
+
+                if is_inv:
+                    new_chunks.append(
+                        f"{prefix}Pour un document de {amt_sp}€ (dépassant le seuil de {t_sp}€), "
+                        f"la validation exige d'être membre du groupe `{g}`. "
+                        f"Un membre de ce groupe a donc le droit de valider ce document."
+                    )
+                    replaced = True
+                    contradiction_found = True
+                    break
+
+        if replaced:
+            continue
+
+        # Check for higher untriggered wrongful authority attribution
+        for hg, hop, hthresh, hcond in higher_untriggered:
+            ht_s = str(int(hthresh))
+            ht_sp = f"{int(hthresh):,}".replace(",", " ")
+            hg_short = hg.split(".")[-1].replace("group_", "")
+
+            hg_keywords = [hg.lower(), hg_short.lower()]
+            if "system" in hg.lower() or "admin" in hg.lower():
+                hg_keywords.extend(["administrateur", "system"])
+
+            has_hg_ref = any(k in c_folded for k in hg_keywords)
+            if has_hg_ref:
+                is_wrong = False
+                if ht_s in c_folded or ht_sp in c_folded or "100k" in c_folded or "100 k" in c_folded:
+                    if any(w in c_folded for w in ["a le droit de valider", "peut valider", "est autoris"]):
+                        if amt_s in c_folded or amt_sp in c_folded or "ce document" in c_folded or "ce montant" in c_folded:
+                            is_wrong = True
+
+                if is_wrong:
+                    new_chunks.append(
+                        f"{prefix}Le verrou supérieur (> {ht_sp}€, réservé à `{hg}`) ne s'applique pas "
+                        f"à {amt_sp}€ car le montant est inférieur à {ht_sp}€."
+                    )
+                    replaced = True
+                    contradiction_found = True
+                    break
+
+        if not replaced:
+            new_chunks.append(chunk)
+
+    if not contradiction_found:
+        return final_answer
+
+    logger.warning(
+        "Node [code_intelligence_agent]: synthesis asserted an inverted/contradictory "
+        "security lock threshold verdict for amount %s -- replacing contradictory sentences "
+        "with correct ground-truth evaluation (_correct_security_lock_threshold_contradictions).",
+        amount,
+    )
+    return delimiter.join(new_chunks) + suffix
+
+
+# Bloc9 08c gap, found 2026-08-14 (bloc9-08c-nested-domain-trap, live
+# rerun after the company-context fix): every OTHER deterministic fact
+# injected into tool_observations by this module (required groups,
+# override-chain amount/modules, trigger-condition literals, hardcoded
+# IDs, link-guard clarification) has a matching _backfill_missing_X that
+# guarantees the fact survives into final_answer even when synthesis
+# drops or reworks it. The can_view_amount_v2 fact never had one -- it
+# only ever reached tool_observations (the synthesis LLM's INPUT), and
+# synthesis_prompt explicitly tells the model never to quote the
+# '[FAIT DETERMINISTIQUE]' label or the mechanism name verbatim "as if
+# that were the explanation". A small instruction-following model
+# reliably obeys that by paraphrasing the verdict into free prose
+# instead of copying the exact template -- confirmed on the real
+# bloc9-08c-nested-domain-trap transcript (todo/etat_reel.md): the
+# answer says "can_view_amount() = True... l'utilisateur PEUT voir cet
+# enregistrement", a loose paraphrase (comma + "ce qui signifie que"
+# instead of the exact " : ") that does NOT match
+# _CAN_VIEW_FACT_VERDICT_RE, so _has_can_view_amount_fact() returns
+# False on that real answer and _correct_can_view_amount_contradictions()
+# silently no-ops just above -- an inversion of the actual verdict
+# (confirmed False by direct can_view_amount_v2() replay in sandbox
+# against the real domain_force strings from this run's raw tool output
+# and a correctly-extracted different-company context) reaches the user
+# uncorrected, because the fact it needed to compare the prose against
+# was never actually present in final_answer to compare against.
+#
+# Closes the gap the same way as every sibling backfill: append the
+# exact fact block, recovered verbatim from raw_tool_output (never
+# re-derived or reworded here), when no such fact is already present in
+# final_answer -- so _correct_can_view_amount_contradictions (called
+# right after this one) always has a real fact to check the prose
+# against, whether the LLM echoed one or not.
+def _extract_can_view_amount_fact_block(raw_tool_output: str) -> "Optional[str]":
+    """
+    Return the exact '[FAIT DETERMINISTIQUE] ... can_view_amount_v2 ...'
+    block produced by _format_can_view_amount_fact(), if present anywhere
+    in raw_tool_output, else None. Observations are '\n\n'-joined (see
+    raw_tool_output/_scoped_raw_tool_output), so splitting on that same
+    separator and testing each block with the existing
+    _has_can_view_amount_fact() marker check is enough to recover the
+    block verbatim, without re-deriving or reformatting its wording here.
+    """
+    for block in raw_tool_output.split("\n\n"):
+        if _has_can_view_amount_fact(block):
+            return block.strip()
+    return None
+
+
+def _backfill_missing_can_view_amount_fact(final_answer: str, raw_tool_output: str) -> str:
+    """
+    No-op when final_answer already contains a can_view_amount_v2 fact
+    (LLM echoed or paraphrased it closely enough to match
+    _CAN_VIEW_FACT_VERDICT_RE/_CAN_VIEW_FACT_INDETERMINATE_MARKER) or when
+    raw_tool_output never carried one at all (tool not called this turn,
+    or no amount was extractable from the question -- see the call site
+    in code_intelligence_agent). Otherwise appends the verbatim fact block
+    so the immediately-following _correct_can_view_amount_contradictions()
+    call has an actual fact to reconcile the free prose against, instead
+    of silently no-oping on a fact that only ever existed in the LLM's
+    input, never its output.
+    """
+    if _has_can_view_amount_fact(final_answer):
+        return final_answer
+
+    block = _extract_can_view_amount_fact_block(raw_tool_output)
+    if block is None:
+        return final_answer
+
+    logger.info(
+        "Node [code_intelligence_agent]: backfilling can_view_amount_v2 "
+        "deterministic fact missing from synthesized answer (present in "
+        "raw tool output, dropped/paraphrased by synthesis) -- Bloc9 08c "
+        "gap, 2026-08-14."
+    )
+    return final_answer + "\n\n" + block
+
+
+def _format_can_view_amount_fact(
+    amount: float, can_view: "Optional[bool]", unresolved: "Optional[List[str]]" = None
+) -> str:
     """
     Bloc 9 gap (2026-08-10, bloc9-02b-no-groups): the previous phrasing
     addressed the synthesis LLM directly in second-person imperative
@@ -2127,7 +2984,29 @@ def _format_can_view_amount_fact(amount: float, can_view: bool) -> str:
     standalone function so this specific regression (no imperative
     second-person sentence inside the injected fact) has a fast,
     deterministic unit test independent of the full ReAct loop / LLM.
+
+    Bloc9 08c fix (deterministic_tools.py can_view_amount_v2): can_view is
+    now Optional[bool]. The call site switched from the old regex-based
+    can_view_amount() -- which silently returns True whenever a
+    domain_force condition it cannot parse (e.g. company_id) is present,
+    confirmed root cause of 08c -- to can_view_amount_v2()'s tri-state
+    verdict. can_view=None means at least one applicable rule's
+    domain_force could not be conclusively evaluated against the available
+    context: this is NOT the same as "no restriction found" and must never
+    be phrased as an allow/deny answer. unresolved lists the field name(s)
+    that blocked a conclusive verdict (e.g. ['company_id']), so the fact
+    can name exactly what is missing instead of a generic disclaimer.
     """
+    if can_view is None:
+        fields_str = ", ".join(unresolved) if unresolved else "une ou plusieurs conditions non résolues"
+        return (
+            f"[FAIT DÉTERMINISTIQUE] Pour un montant de {amount:.0f}€, "
+            f"le moteur de règles NE PEUT PAS déterminer si l'utilisateur peut voir "
+            f"cet enregistrement (can_view_amount_v2() = indéterminé) : au moins une "
+            f"règle applicable dépend de {fields_str}, qui ne sont pas connus dans ce "
+            f"contexte. Ne pas affirmer que l'accès est autorisé ou refusé -- signaler "
+            f"explicitement cette incertitude à l'utilisateur."
+        )
     return (
         f"[FAIT DÉTERMINISTIQUE] Pour un montant de {amount:.0f}€, "
         f"le moteur de règles calcule can_view_amount() = {can_view} : "
@@ -2352,6 +3231,63 @@ def _strip_group_resolution_noise(
 def _extract_first_scoped_file_link(text: str) -> str:
     match = re.search(r"\[[^\]]+\]\(file:///[^\)]+#L\d+-L\d+\)", text)
     return match.group(0) if match else ""
+
+
+# Bloc 9 gap (2026-08-13, check_native_odoo_out_of_scope.py on
+# mrp.production): resolve_business_term() correctly returns
+# is_resolved=False when a question names a genuinely out-of-corpus Odoo
+# model (native, untouched by any custom_* module's manifest depends,
+# not in CORE_MODULES_ALWAYS_LOADED) -- but nothing downstream ever acted
+# on that signal. A live run showed the LLM, left with no forced tool
+# dispatch and no resolved model, still trying to be helpful: it opened by
+# correctly stating the model "n'a pas ete trouve dans le graphique de
+# connaissance indexe", then in the SAME answer fabricated a plausible-
+# sounding role-based conclusion ("les utilisateurs qui ont le role
+# 'Gestionnaire de production'...") from its own pretrained Odoo
+# knowledge anyway -- exactly the ungrounded-answer failure this whole
+# system exists to avoid (same self-contradiction shape as module 5/8's
+# Bug 2, different mechanism: no deterministic fact existed here to
+# contradict, the LLM just filled the void itself).
+#
+# Deliberately narrow-scoped, same discipline as _force_dynamic_
+# uncertainty_answer above being gated on specific question vocabulary:
+# only fires when the question contains a dotted lowercase identifier
+# that LOOKS like a real Odoo technical model name (e.g. "mrp.production")
+# -- never on a generic/meta question that doesn't name a specific model
+# at all, where an "I don't recognize this model" decline would itself be
+# wrong. Deliberately does NOT try to detect "is this question about Odoo
+# behavior in general" (that classification problem is exactly what this
+# whole resolver pipeline already exists to solve, imperfectly); this
+# guard only closes the specific confirmed gap: an explicit, unresolved,
+# model-shaped mention.
+_TECHNICAL_MODEL_LOOKALIKE_RE = re.compile(r"\b[a-z][a-z_]*(?:\.[a-z][a-z_]*){1,3}\b")
+
+
+def _force_out_of_scope_model_answer(question: str, concept) -> Optional[str]:
+    """
+    Guardrail: if the business-term resolver could not resolve the
+    question to any model/module AND the question names something that
+    looks like a real Odoo technical model identifier, force an honest
+    decline instead of letting free synthesis fall back to the LLM's own
+    ungrounded general knowledge of Odoo. See the module comment above
+    _TECHNICAL_MODEL_LOOKALIKE_RE for the live failure this closes and why
+    the trigger is scoped this narrowly.
+    """
+    if concept.is_resolved:
+        return None
+    match = _TECHNICAL_MODEL_LOOKALIKE_RE.search(question.lower())
+    if not match:
+        return None
+    model_name = match.group(0)
+    return (
+        f"Le modele '{model_name}' n'est pas present dans le corpus indexe par cet outil "
+        f"(ni personnalise par un module custom_*, ni charge par un autre mecanisme connu de "
+        f"cette instance). Je ne peux donc pas repondre a partir du code reel de cette instance "
+        f"-- toute reponse sur son comportement standard viendrait de connaissances generales "
+        f"sur Odoo, non verifiees contre ce systeme precis, ce que cet outil n'est pas cense faire. "
+        f"Pour verifier vous-meme : consultez la documentation Odoo standard du module concerne, "
+        f"ou demandez a un administrateur d'indexer ce modele si vous en avez besoin regulierement."
+    )
 
 
 def _force_dynamic_uncertainty_answer(question: str, raw_tool_output: str) -> Optional[str]:
@@ -2748,9 +3684,11 @@ def code_intelligence_agent(state: RAGState) -> dict:
         )
 
     # Bind tools to LLM (C.1.1)
-    llm = ChatGroq(
-        model=GROQ_MODEL,
-        api_key=GROQ_API_KEY,
+    # 2026-08-14: routed through get_chat_llm() (rag/llm_client.py) instead
+    # of ChatGroq(...) directly, so LLM_PROVIDER=openrouter (Qwen3-14B) can
+    # be tested on this branch -- the one scripts/check_bloc9_*.py actually
+    # exercises. See llm_client.py's module docstring for exact scope.
+    llm = get_chat_llm(
         temperature=0.0,
         max_retries=0,  # Let _invoke_with_rate_limit handle dynamic header backoff
         max_tokens=1024,
@@ -2762,11 +3700,12 @@ def code_intelligence_agent(state: RAGState) -> dict:
         # millisecond timestamp). That burns through CI_MAX_HOPS in one
         # breath and defeats the messages-accumulation fix above, since
         # there's no LLM call in between the wrong guesses for the model to
-        # actually see and correct from. Groq's chat.completions API
-        # accepts parallel_tool_calls at the top level (default true);
-        # ChatGroq passes unknown kwargs straight through via model_kwargs
-        # (same mechanism already used for frequency_penalty/presence_penalty
-        # on the synthesis LLM below).
+        # actually see and correct from. This is a standard OpenAI Chat
+        # Completions body param (parallel_tool_calls, default true) --
+        # both ChatGroq and ChatOpenAI (OpenRouter) pass unknown kwargs
+        # straight through via model_kwargs (same mechanism already used
+        # for frequency_penalty/presence_penalty on the synthesis LLM
+        # below).
         model_kwargs={"parallel_tool_calls": False},
     )
     set_llm_ref(llm)
@@ -2954,8 +3893,23 @@ def code_intelligence_agent(state: RAGState) -> dict:
                 _t_hop = time.perf_counter()
                 try:
                     forced_observation = str(sa_tool.invoke({"model_name": target_model}))
-                    if len(forced_observation) > 1200:
-                        forced_observation = forced_observation[:1200] + "\n[... Content truncated for LLM context limit ...]"
+                    # Bloc 9 gap fix (2026-08-13, module 6/8, bloc9-06b/06c):
+                    # this dispatch aggregates EVERY ServerAction node on the
+                    # target model (same shape as analyser_verrous_securite's
+                    # forced dispatch above, which needed 3000 for the same
+                    # reason) -- on account.move, 5 boilerplate "Aucun pattern
+                    # de securite detecte" entries precede the one real
+                    # finding (custom_automation_traps), pushing the real
+                    # content (sudo()/hardcoded IDs/trigger condition) past
+                    # the flat 1200 cap this dispatch never had raised, unlike
+                    # its two siblings -- confirmed live: cut mid-word inside
+                    # "sudo()" itself, before the hardcoded-IDs line or the
+                    # trigger-condition line were ever stored, so neither the
+                    # synthesis LLM nor _backfill_missing_trigger_condition_
+                    # literals (which can only re-surface a fact already
+                    # present in the stored observation) ever had a chance.
+                    if len(forced_observation) > 3000:
+                        forced_observation = forced_observation[:3000] + "\n[... Content truncated for LLM context limit ...]"
                     # Bloc 7 (J23-24): same rationale as the
                     # analyser_verrous_securite forced dispatch above --
                     # this bypasses the ReAct loop's gating, so gate here.
@@ -3106,6 +4060,244 @@ def code_intelligence_agent(state: RAGState) -> dict:
                     "must be reported together, not only the first one encountered."
                 )
 
+    # Bloc 9 gap, found 2026-08-13 (native-Odoo-out-of-scope investigation --
+    # see _question_is_access_related/_ACCESS_QUESTION_PATTERN above for
+    # the full rationale): force qui_a_acces_a whenever the question asks
+    # who can/has the right to do something and a model resolved. Unlike
+    # the tools above, this is NOT additionally gated on a structural
+    # guard -- ACL entries exist on nearly every real model, so the
+    # question-shape keyword IS the meaningful filter here.
+    #
+    # 2026-08-13 (Bloc 9, module 8/8, bloc9-08a-business): that blanket
+    # firing generalized badly onto a model that DOES have a Python
+    # security lock. custom.deep.document's action_validate_level2()/
+    # action_final_approve() are gated by has_group() in code, already
+    # force-dispatched to analyser_verrous_securite above -- the DEFAULT
+    # generic read/write/create/unlink ACL matrix is real data (_expand_
+    # inheriting_acl_groups correctly walks the IMPLIES hierarchy: every
+    # group that transitively implies base.group_user genuinely does have
+    # base CRUD access) but answers a DIFFERENT question ("who can read/
+    # write this model at all") than the one asked ("who can VALIDATE a
+    # 60 000€ document", governed by the has_group() gate, not the CRUD
+    # ACL). Confirmed live: qui_a_acces_a's droit='all' matrix (13 unrelated
+    # groups -- hr, purchase, stock, hr_expense, hr_holidays...) got dumped
+    # alongside the correct has_group() finding, and the small synthesis
+    # LLM conflated the two, padding "who can validate" with groups that
+    # only have generic read access. Same failure shape as module 1/8's
+    # Gap (a): a forced dispatch built for the case where NO other
+    # governing mechanism exists (the original out-of-scope fix's actual
+    # target) generalizing onto a model where a MORE SPECIFIC mechanism
+    # already answers the question. Skip qui_a_acces_a's forced dispatch
+    # for a target_model that already got a real (structurally-guarded)
+    # analyser_verrous_securite dispatch above -- the has_group() finding
+    # IS the answer to "who can do this specific action" for that model;
+    # the LLM can still call qui_a_acces_a itself if it genuinely needs the
+    # generic ACL matrix too (e.g. a question that also asks about plain
+    # read access), same as the other two structurally-guarded tools.
+    if concept.is_resolved and concept.resolved_models and _question_is_access_related(question):
+        tool_map = {t.name: t for t in ALL_CI_TOOLS}
+        acl_tool = tool_map.get("qui_a_acces_a")
+        if acl_tool is not None:
+            # 2026-08-14 (Bloc 9, module 8/8, bloc9-08a-business, contexte.txt
+            # section 46, root cause B): the skip below only prevents the
+            # GUARANTEED forced dispatch -- it does not add call_key to
+            # seen_calls, so the "Do not call it again" instruction further
+            # down (gated on `any(k[0] == "qui_a_acces_a" for k in
+            # seen_calls)`) never fires either. The free ReAct LLM is left
+            # completely free to call qui_a_acces_a itself on this exact
+            # model (confirmed live: reasoning_trace.jsonl hop 2, droit=
+            # "write", not the forced-dispatch shape) and re-introduce the
+            # same 13-group parasitic ACL matrix this skip-guard was built
+            # to keep out of tool_observations. Deliberately not closing the
+            # tool off (this skip's own docstring: "Rien n'est retire de la
+            # boite a outils" -- the LLM may still genuinely need the ACL
+            # matrix for a mixed question). Instead, track which models were
+            # skipped so a scoping instruction can be added below regardless
+            # of whether the LLM ends up calling the tool on its own.
+            skipped_lock_governed_models: List[str] = []
+            for target_model in concept.resolved_models:
+                if ("analyser_verrous_securite", target_model) in seen_calls:
+                    logger.info(
+                        "Node [code_intelligence_agent]: skipping deterministic "
+                        "qui_a_acces_a dispatch for '%s' -- a real Python security "
+                        "lock (has_group()) already governs this model's actions, "
+                        "more specific than the generic CRUD ACL matrix.",
+                        target_model,
+                    )
+                    skipped_lock_governed_models.append(target_model)
+                    continue
+                call_key = ("qui_a_acces_a", target_model)
+                if call_key in seen_calls:
+                    continue
+                _t_hop = time.perf_counter()
+                try:
+                    forced_observation = str(acl_tool.invoke({
+                        "model_name": target_model, "droit": "all",
+                    }))
+                    if len(forced_observation) > 3000:
+                        forced_observation = forced_observation[:3000] + "\n[... Content truncated for LLM context limit ...]"
+                    # Bloc 7 (J23-24): same rationale as the forced
+                    # dispatches above -- bypasses the ReAct loop's gating,
+                    # so gate here explicitly.
+                    forced_observation, omitted_list = gate_observation(
+                        tool_name="qui_a_acces_a",
+                        model_name=target_model,
+                        observation=forced_observation,
+                        G=G,
+                        user_groups=resolved_user_group_xmlids,
+                    )
+                    omitted_items.extend(omitted_list)
+                    tool_observations.append(forced_observation)
+                    tool_observation_models.append(target_model)
+                    hop_count += 1
+                    seen_calls.add(call_key)
+                    _trace_logger.log_hop(
+                        trace_id=_trace_id, hop_index=_hop_index,
+                        tool_name="qui_a_acces_a", tool_args={"model_name": target_model, "droit": "all"},
+                        observation=forced_observation, elapsed_ms=(time.perf_counter() - _t_hop) * 1000,
+                    )
+                    _hop_index += 1
+                    logger.info(
+                        "Node [code_intelligence_agent]: Deterministic pre-dispatch of "
+                        "'qui_a_acces_a' for model '%s' (question asks who can/has the "
+                        "right to do something).",
+                        target_model,
+                    )
+                except Exception as te:
+                    logger.error("Deterministic qui_a_acces_a dispatch failed: %s", te)
+            if any(k[0] == "qui_a_acces_a" for k in seen_calls):
+                system_prompt += (
+                    "\n\n[DETERMINISTIC PRE-DISPATCH]\n"
+                    "qui_a_acces_a has already been run for the target model(s) above "
+                    "because the question asks who can/has the right to do something; its "
+                    "ACL and record-rule output is already included in the tool "
+                    "observations. Do not call it again."
+                )
+            if skipped_lock_governed_models:
+                system_prompt += (
+                    "\n\n[SCOPING NOTE -- qui_a_acces_a]\n"
+                    "For the model(s) "
+                    + ", ".join(skipped_lock_governed_models)
+                    + ", a Python security lock (has_group()) already governs the "
+                    "specific action this question asks about; that finding is already "
+                    "included in the tool observations above and is the correct basis "
+                    "for answering who can perform THIS action. If you call "
+                    "qui_a_acces_a for this model anyway, its output answers a "
+                    "DIFFERENT, broader question (generic read/write/create/unlink ACL "
+                    "access to the model as a whole) -- do not use it to determine who "
+                    "can perform the specific action asked about, and do not treat its "
+                    "groups as alternative or additional authorities for that action. "
+                    "Each has_group() threshold in the security lock finding is an "
+                    "independent minimum-requirement gate ('this group is REQUIRED "
+                    "above this amount', meaning members of this group ARE AUTHORIZED to "
+                    "validate above this amount), not an exclusive authority tier or ceiling. "
+                    "A lock whose threshold is higher than the asked amount (e.g. >100000€ when "
+                    "asked about 60000€) does NOT apply to that amount and its group is not required."
+                )
+
+    # Bloc9 08c fix (2026-08-14): force evaluer_regles_enregistrement + the
+    # can_view_amount_v2 deterministic fact when the question is access-
+    # related AND contains a monetary amount AND a model is resolved.
+    # Root cause confirmed by reproduction with logging: when the ReAct
+    # LLM didn't choose to call evaluer_regles_enregistrement itself, the
+    # can_view_amount_v2 code path (inside the ReAct loop's tool-call
+    # handler, lines 4185-4244) was NEVER reached, and the synthesis LLM
+    # hallucinated "can_view_amount() = True" from scratch. This dispatch
+    # guarantees the tri-state fact is computed and injected into
+    # tool_observations regardless of the ReAct LLM's tool selection.
+    if concept.is_resolved and concept.resolved_models and _question_is_access_related(question):
+        _amount_for_rules = _extract_amount(question)
+        if _amount_for_rules is not None:
+            from code_intelligence.ci_agent_tools import evaluer_regles_raw
+            tool_map = {t.name: t for t in ALL_CI_TOOLS}
+            rule_tool = tool_map.get("evaluer_regles_enregistrement")
+            if rule_tool is not None:
+                for target_model in concept.resolved_models:
+                    call_key = ("evaluer_regles_enregistrement", target_model)
+                    if call_key in seen_calls:
+                        continue
+                    _t_hop = time.perf_counter()
+                    try:
+                        import json as _json_dispatch
+                        _dispatch_groups = _json_dispatch.dumps(resolved_user_group_xmlids or [])
+                        forced_observation = str(rule_tool.invoke({
+                            "model_name": target_model,
+                            "user_groups_json": _dispatch_groups,
+                            "droit": "read",
+                        }))
+                        if len(forced_observation) > 3000:
+                            forced_observation = forced_observation[:3000] + "\n[... Content truncated for LLM context limit ...]"
+                        forced_observation, omitted_list = gate_observation(
+                            tool_name="evaluer_regles_enregistrement",
+                            model_name=target_model,
+                            observation=forced_observation,
+                            G=G,
+                            user_groups=resolved_user_group_xmlids,
+                        )
+                        omitted_items.extend(omitted_list)
+                        tool_observations.append(forced_observation)
+                        tool_observation_models.append(target_model)
+                        hop_count += 1
+                        seen_calls.add(call_key)
+
+                        # Now compute can_view_amount_v2 deterministic fact
+                        try:
+                            _dispatch_rule_result = evaluer_regles_raw(
+                                model_name=target_model,
+                                droit="read",
+                                user_groups_json=_dispatch_groups,
+                            )
+                            _dispatch_context = {"amount": _amount_for_rules}
+                            _dispatch_context.update(_extract_company_context(question))
+                            _dispatch_can_view, _dispatch_unresolved = (
+                                _dispatch_rule_result.can_view_amount_v2(_dispatch_context)
+                            )
+                            tool_observations.append(
+                                _format_can_view_amount_fact(
+                                    _amount_for_rules, _dispatch_can_view, _dispatch_unresolved
+                                )
+                            )
+                            tool_observation_models.append(target_model)
+                            logger.info(
+                                "Node [code_intelligence_agent]: Pre-dispatch "
+                                "can_view_amount_v2 fact for model=%s, amount=%.0f, "
+                                "result=%s, unresolved=%s, context=%s, "
+                                "global=%d, group=%d (Bloc9 08c deterministic fix).",
+                                target_model, _amount_for_rules, _dispatch_can_view,
+                                _dispatch_unresolved, _dispatch_context,
+                                len(_dispatch_rule_result.applied_global_rules),
+                                len(_dispatch_rule_result.applied_group_rules),
+                            )
+                        except Exception as ve:
+                            logger.error(
+                                "Pre-dispatch can_view_amount_v2 injection failed: %s", ve
+                            )
+
+                        _trace_logger.log_hop(
+                            trace_id=_trace_id, hop_index=_hop_index,
+                            tool_name="evaluer_regles_enregistrement",
+                            tool_args={"model_name": target_model, "droit": "read"},
+                            observation=forced_observation,
+                            elapsed_ms=(time.perf_counter() - _t_hop) * 1000,
+                        )
+                        _hop_index += 1
+                        logger.info(
+                            "Node [code_intelligence_agent]: Deterministic pre-dispatch of "
+                            "'evaluer_regles_enregistrement' for model '%s' (access-related "
+                            "question with amount=%.0f, Bloc9 08c fix).",
+                            target_model, _amount_for_rules,
+                        )
+                    except Exception as te:
+                        logger.error(
+                            "Deterministic evaluer_regles_enregistrement dispatch failed: %s", te
+                        )
+                if any(k[0] == "evaluer_regles_enregistrement" for k in seen_calls):
+                    system_prompt += (
+                        "\n\n[DETERMINISTIC PRE-DISPATCH]\n"
+                        "evaluer_regles_enregistrement has already been run for the target "
+                        "model(s) above and the can_view_amount_v2 deterministic fact has been "
+                        "injected. Do not call evaluer_regles_enregistrement again."
+                    )
     messages = [
         SystemMessage(content=system_prompt),
         *chat_history[-6:],
@@ -3209,8 +4401,18 @@ def code_intelligence_agent(state: RAGState) -> dict:
                         # truncate -- widening it further risks the same kind
                         # of over-broad refiring already rejected once for
                         # _APPROVAL_PATTERN, see the J8/J9 comment above it).
+                        # Bloc 9 gap fix (2026-08-13, module 6/8): analyser_
+                        # actions_serveur's forced pre-dispatch above needed
+                        # 3000 for the same aggregation reason -- mirror it
+                        # here too, in case the LLM's own free ReAct call
+                        # reaches this tool on a question whose wording
+                        # doesn't satisfy _question_suggests_automation_bypass
+                        # (same class of gap already fixed for
+                        # analyser_chaine_surcharge_methode below).
                         _observation_cap = (
-                            2200 if tool_name == "analyser_chaine_surcharge_methode" else 1200
+                            2200 if tool_name == "analyser_chaine_surcharge_methode"
+                            else 3000 if tool_name == "analyser_actions_serveur"
+                            else 1200
                         )
                         if len(observation) > _observation_cap:
                             observation = observation[:_observation_cap] + "\n[... Content truncated for LLM context limit ...]"
@@ -3299,15 +4501,57 @@ def code_intelligence_agent(state: RAGState) -> dict:
                             amount = _extract_amount(question)
                             if amount is not None:
                                 try:
-                                    can_view = rule_result.can_view_amount(amount)
+                                    # Bloc9 08c fix: can_view_amount() (regex-
+                                    # only, single field) silently returned
+                                    # True whenever a domain_force mixed the
+                                    # amount condition with something it
+                                    # couldn't parse (e.g. company_id) --
+                                    # confirmed root cause of 08c. can_view_
+                                    # amount_v2() evaluates the FULL parsed
+                                    # domain_force via Kleene tri-state logic
+                                    # instead, so an unresolved condition
+                                    # surfaces as None ("cannot conclude"),
+                                    # never as a silent allow.
+                                    #
+                                    # Bloc9 08c follow-up (2026-08-13):
+                                    # company/user context IS now extracted
+                                    # from the question (_extract_company_
+                                    # context, qualitative same/different
+                                    # only -- see that function's own
+                                    # docstring for why an identity lookup
+                                    # isn't possible on this codebase/test
+                                    # instance). A question that says
+                                    # nothing about company still yields {}
+                                    # here, so a company_id-referencing
+                                    # domain_force still resolves to the
+                                    # same honest None ("cannot conclude")
+                                    # as before this follow-up -- no
+                                    # regression on the silent-mention case,
+                                    # only new coverage on the explicit one.
+                                    context = {"amount": amount}
+                                    context.update(_extract_company_context(question))
+                                    can_view, unresolved_fields = rule_result.can_view_amount_v2(
+                                        context
+                                    )
                                     tool_observations.append(
-                                        _format_can_view_amount_fact(amount, can_view)
+                                        _format_can_view_amount_fact(amount, can_view, unresolved_fields)
                                     )
                                     tool_observation_models.append(tool_args.get("model_name", ""))
                                     logger.info(
                                         "Node [code_intelligence_agent]: Injected deterministic "
-                                        "can_view_amount fact for amount=%.0f, result=%s.",
-                                        amount, can_view,
+                                        "can_view_amount_v2 fact for model=%s, amount=%.0f, "
+                                        "result=%s, unresolved=%s, context=%s, "
+                                        "global_rules_applied=%d, group_rules_applied=%d "
+                                        "(Bloc9 08c diagnostic, 2026-08-14: distinguishes a "
+                                        "resolution/wiring gap -- model not found or zero "
+                                        "applied rules would silently default this to True -- "
+                                        "from a synthesis-level inversion of a correct verdict; "
+                                        "bare can_view/unresolved logging alone couldn't tell "
+                                        "the two apart on the bloc9-08c-nested-domain-trap rerun).",
+                                        tool_args.get("model_name", ""), amount, can_view,
+                                        unresolved_fields, context,
+                                        len(rule_result.applied_global_rules),
+                                        len(rule_result.applied_group_rules),
                                     )
                                 except Exception as ve:
                                     logger.error(
@@ -3363,7 +4607,11 @@ def code_intelligence_agent(state: RAGState) -> dict:
                     f"allude to any 'could not be resolved' message from a different tool "
                     f"about group identifiers; those are obsolete artifacts of an earlier "
                     f"resolution step and have been superseded by the deterministic "
-                    f"evaluation. This verdict is a CONCLUSION, not an explanation: you MUST "
+                    f"evaluation. If that verdict says the engine CANNOT determine access "
+                    f"(an indeterminate/'ind\u00e9termin\u00e9' result, listing which condition(s) "
+                    f"could not be resolved), you MUST report that uncertainty explicitly and "
+                    f"MUST NOT state or imply that access is allowed or denied -- do not round "
+                    f"an indeterminate verdict to a yes/no answer. This verdict is a CONCLUSION, not an explanation: you MUST "
                     f"still explain WHY in your answer, using the applicable and ignored rule "
                     f"names/domain_force from the OTHER observations in this same response "
                     f"(e.g. an unconditional group rule that outweighs a capped one via OR, "
@@ -3414,11 +4662,21 @@ def code_intelligence_agent(state: RAGState) -> dict:
                     f"for the rest. When an observation's 'Messages de verrous' section lists "
                     f"more than one message, treat each one as a DISTINCT finding to report -- "
                     f"do not summarize or select only one of them; a second or third message in "
-                    f"that list is exactly as authoritative as the first."
+                    f"that list is exactly as authoritative as the first. When the question "
+                    f"asks who can validate/approve an operation for a specific monetary amount, "
+                    f"evaluate each lock message condition against that specific amount: a lock "
+                    f"whose threshold is exceeded (e.g. >50000€ for a 60000€ document) is triggered "
+                    f"and requires the specified group (meaning members of that group ARE AUTHORIZED to "
+                    f"validate above that amount, and the threshold is a minimum floor where their authority "
+                    f"is required, NOT an upper ceiling where their authority ends). A lock whose threshold "
+                    f"is NOT reached (e.g. >100000€ for a 60000€ document) is not triggered, does not "
+                    f"restrict that amount, and its group is NOT required for that amount."
                 )
                 try:
-                    plain_llm = ChatGroq(
-                        model=GROQ_MODEL, temperature=0.0, max_retries=0, max_tokens=4096,
+                    # 2026-08-14: routed through get_chat_llm() -- see the
+                    # ReAct-loop instantiation above for the full rationale.
+                    plain_llm = get_chat_llm(
+                        temperature=0.0, max_retries=0, max_tokens=4096,
                         # Review finding (Q1.1 benchmark run): mitigate llama-3.1-8b-instant's
                         # decoding-collapse failure mode (see _detect_degenerate_repetition) --
                         # a mild penalty discourages the model from repeating the same token/
@@ -3474,8 +4732,11 @@ def code_intelligence_agent(state: RAGState) -> dict:
             break
 
     raw_tool_output = "\n\n".join(tool_observations)
+    out_of_scope_model_answer = _force_out_of_scope_model_answer(question, concept)
     dynamic_uncertainty_answer = _force_dynamic_uncertainty_answer(question, raw_tool_output)
-    if dynamic_uncertainty_answer:
+    if out_of_scope_model_answer:
+        final_answer = out_of_scope_model_answer
+    elif dynamic_uncertainty_answer:
         final_answer = dynamic_uncertainty_answer
     else:
         # Bloc 9 cross-module gap fix (2026-08-10): deterministic backfill,
@@ -3492,7 +4753,27 @@ def code_intelligence_agent(state: RAGState) -> dict:
         scoped_tool_output = _scoped_raw_tool_output(
             tool_observations, tool_observation_models, concept.resolved_models,
         )
+        # TEMP DEBUG (2026-08-13, requested for bloc9-08 follow-up investigation)
+        # -- remove once the grounding-validator false-negative/false-positive
+        # rate has been checked against a few more real bloc9-08-style runs.
+        logger.info(
+            "Node [code_intelligence_agent]: DEBUG scoped_tool_output for this turn "
+            "(%d chars): %s", len(scoped_tool_output), scoped_tool_output,
+        )
+        # Bloc 9 gap fix (2026-08-14, module 8/8, bloc9-08a-business): detect
+        # and correct synthesis-level inversions of Python security lock
+        # threshold logic (e.g. denying manager authority above threshold or
+        # wrongly attributing authority to higher untriggered admin groups).
+        final_answer = _correct_security_lock_threshold_contradictions(final_answer, scoped_tool_output, question)
         final_answer = _backfill_missing_required_groups(final_answer, scoped_tool_output, question)
+        # Bloc 9 gap fix (2026-08-13, module 4/8, bloc9-04a-business /
+        # bloc9-04c-manager-trap): same deterministic-backfill principle,
+        # applied right after the required-groups backfill above since both
+        # read analyser_verrous_securite's output (as opposed to the
+        # override-cascade family of backfills below, which read
+        # analyser_chaine_surcharge_methode's) -- see the comment above
+        # _SECURITY_LOCK_MESSAGES_MARKER for the fact shape this restores.
+        final_answer = _backfill_missing_security_lock_amount(final_answer, scoped_tool_output, question=question)
         # Bloc 9 gap fix (2026-08-11, module 1/8 rerun): same deterministic-
         # backfill principle, two more applications -- see the comment
         # above _OVERRIDE_MODULE_RE/_OVERRIDE_CHAIN_AMOUNT_RE for why these
@@ -3515,6 +4796,13 @@ def code_intelligence_agent(state: RAGState) -> dict:
         # see the comment above _TRIGGER_CONDITION_RE for why only the
         # quoted literal is backfilled, not the whole condition expression.
         final_answer = _backfill_missing_trigger_condition_literals(final_answer, scoped_tool_output)
+        # Bloc 9 gap fix (2026-08-13, module 6/8, bloc9-06c-technical-
+        # condition-capture): same deterministic-backfill principle applied
+        # to the hardcoded privileged-partner IDs inside the same
+        # analyser_actions_serveur finding -- see the comment above
+        # _HARDCODED_IDS_LINE_RE for why only the bracketed ID tokens are
+        # backfilled, not the surrounding sentence.
+        final_answer = _backfill_missing_hardcoded_id_literals(final_answer, scoped_tool_output)
         # Bloc 9 gap fix (2026-08-11, module 1/8, bloc9-01c-vip-trap):
         # same deterministic-backfill principle applied to the SUPER() NON
         # GARDÉ warning from the override-cascade analysis -- the condition
@@ -3527,6 +4815,41 @@ def code_intelligence_agent(state: RAGState) -> dict:
         # (always appended when the annotation exists) rather than gated on
         # question wording like the required-groups backfill above.
         final_answer = _backfill_link_guard_clarifications(final_answer, scoped_tool_output)
+        # Bloc9 08c follow-up (2026-08-14): symmetric to the override-cascade
+        # contradiction fix above, but for the can_view_amount_v2 fact --
+        # correct a synthesis-level inversion of the deterministic verdict
+        # in place. Deliberately unconditional (no question-wording gate),
+        # same reasoning as every other correction/backfill in this module:
+        # the presence of the fact itself (_has_can_view_amount_fact) is
+        # already the real relevance guard. Placed after the link-guard
+        # backfill (which also appends a '[FAIT' block) so its cutoff logic
+        # never mistakes the link-guard's own block for prose to scan.
+        final_answer = _correct_can_view_amount_contradictions(final_answer)
+        # Bloc 9 gap fix (2026-08-13, module 8/8 follow-up investigation):
+        # a NEGATIVE/grounding validator, unlike every backfill above (which
+        # only ever ADDS a fact known to be true). This one only ever FLAGS,
+        # never silently strips -- same transparency principle already used
+        # by verify_citations/annotate_unverifiable_citations right below for
+        # the structurally identical problem (an LLM claim with no verified
+        # backing in this turn's evidence). Extracts the set of group
+        # xmlids actually grounded in this turn's scoped_tool_output (reusing
+        # _extract_required_groups -- the exact same has_group() line format
+        # _backfill_missing_required_groups already trusts as authoritative),
+        # then flags any <module>.group_<x>-shaped token in final_answer that
+        # isn't in that set. Deliberately a no-op when grounded is empty --
+        # a turn where no security-lock tool fired this hop has no reference
+        # set to check against, and flagging every group mention as fake in
+        # that case would be strictly worse than saying nothing.
+        final_answer = _flag_ungrounded_group_xmlids(final_answer, scoped_tool_output)
+        # Bloc 9 gap fix (2026-08-14, module 1/8 follow-up): distinct from
+        # the flag above -- a group that IS grounded but only in a
+        # non-custom (core Odoo) block of this same scoped_tool_output is
+        # never legitimate content for this question, so it is stripped
+        # rather than merely flagged. See _grounded_core_only_groups /
+        # _strip_core_only_group_mentions docstrings above for the full
+        # rationale and the precedent (module 5/8 Bug 2) for why a flag
+        # alone was not sufficient for this shape of problem.
+        final_answer = _strip_core_only_group_mentions(final_answer, scoped_tool_output)
 
     from code_intelligence.sourcing_guard import verify_citations, annotate_unverifiable_citations
     sourcing_result = verify_citations(final_answer, raw_tool_output)

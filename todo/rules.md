@@ -1,5 +1,4 @@
-
-use of llama 3.1 8B is a must
+pas de fix chirurgical, voir la root cause
 code in english
 don't use emojis
 think first
@@ -337,7 +336,3 @@ Définition des droits (accès total pour tous les utilisateurs internes).
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
 access_mon_modele_user,mon.modele.user,model_mon_modele,base.group_user,1,1,1,1
 ```
-
-
-
-

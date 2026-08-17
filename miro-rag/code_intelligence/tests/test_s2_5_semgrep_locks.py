@@ -60,6 +60,84 @@ class TestHardcodedLockDetection:
         assert "account.group_account_manager" in analysis.required_groups
         assert "account.group_account_manager" in analysis.summary_text
 
+    def test_required_group_attributed_to_enclosing_method_not_file_wide_bloc9_native_odoo(self):
+        """2026-08-13 fix (check_native_odoo_out_of_scope.py, real run on
+        sale.order): required_groups used to be a flat, file-wide bag with
+        no method attribution. On the real sale_order.py, action_confirm()
+        has NO has_group() at all -- the file's only has_group() is in the
+        unrelated _should_be_locked() (post-confirmation read-only locking,
+        not a confirmation gate). The live agent attributed that group to
+        action_confirm() anyway and fabricated a nonexistent method name to
+        go with it. This fixture reproduces that exact two-method shape."""
+        code = textwrap.dedent("""\
+            from odoo import models
+
+            class SaleOrder(models.Model):
+                _name = 'sale.order'
+
+                def action_confirm(self):
+                    self.write({'state': 'sale'})
+                    self.filtered(lambda so: so._should_be_locked()).action_lock()
+                    return True
+
+                def _should_be_locked(self):
+                    self.ensure_one()
+                    return self.create_uid.has_group('sale.group_auto_done_setting')
+        """)
+        analysis = analyze_python_security_locks(code, "addons/sale/models/sale_order.py")
+        assert analysis.required_groups == ["sale.group_auto_done_setting"]
+        assert analysis.required_group_methods == ["_should_be_locked"]
+        attribution_line = next(
+            line for line in analysis.summary_text.splitlines()
+            if "has_group('sale.group_auto_done_setting')" in line and "se trouve dans" in line
+        )
+        assert "_should_be_locked" in attribution_line
+        assert "action_confirm" not in attribution_line
+
+    def test_two_methods_each_with_own_has_group_attributed_separately(self):
+        """Two DIFFERENT groups gated in two different methods must each
+        keep their own, correct method attribution -- not just the single-
+        group case above."""
+        code = textwrap.dedent("""\
+            from odoo import models
+
+            class CustomModel(models.Model):
+                _name = 'custom.model'
+
+                def action_approve(self):
+                    if not self.env.user.has_group('base.group_system'):
+                        return False
+                    return True
+
+                def action_archive(self):
+                    if not self.env.user.has_group('base.group_erp_manager'):
+                        return False
+                    return True
+        """)
+        analysis = analyze_python_security_locks(code, "custom_model/models/custom_model.py")
+        assert analysis.required_groups == ["base.group_system", "base.group_erp_manager"]
+        assert analysis.required_group_methods == ["action_approve", "action_archive"]
+
+    def test_has_group_outside_any_def_leaves_method_name_empty(self):
+        """A has_group() call outside any def -- e.g. inside a field's
+        `default=lambda ...` at class-body level, a real, common Odoo
+        pattern -- must record "" as its method (a Lambda is not a
+        FunctionDef, so it never pushes onto _function_stack) rather than
+        guessing or leaving the two lists misaligned."""
+        code = textwrap.dedent("""\
+            from odoo import models, fields
+
+            class CustomModel(models.Model):
+                _name = 'custom.model'
+                is_manager = fields.Boolean(
+                    default=lambda self: self.env.user.has_group('base.group_user')
+                )
+        """)
+        analysis = analyze_python_security_locks(code, "custom_model/models/custom_model.py")
+        assert analysis.required_groups == ["base.group_user"]
+        assert analysis.required_group_methods == [""]
+        assert "niveau module" in analysis.summary_text
+
     def test_no_has_group_call_leaves_required_groups_empty(self):
         code = textwrap.dedent("""\
             from odoo import models

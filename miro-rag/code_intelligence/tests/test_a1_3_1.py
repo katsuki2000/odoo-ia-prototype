@@ -79,14 +79,21 @@ def test_real_csv_account_access():
 
     if csv_file.exists():
         entries = parse_access_control_csv(csv_file)
-        assert len(entries) == 7
+        # 2026-08-12: this now points at the REAL Odoo 17 account module
+        # (the hand-crafted 7-row fake_data/code fixture, pinned to a
+        # fictitious 'access_account_move' xml_id, was removed -- see
+        # todo/etat_reel.md). The real file has 100+ rows and NO single
+        # 'access_account_move' row -- account.move access is split
+        # across several role-specific rows instead (verified directly:
+        # access_account_move_manager/_readonly/_uinvoice). Pin
+        # structural facts that will survive future Odoo point releases
+        # instead of an exact row count or a specific xml_id guessed from
+        # the old fixture.
+        assert len(entries) > 50
+        assert all(isinstance(e.perm_read, bool) for e in entries)
 
-        move_entry = next((e for e in entries if e.xml_id == "access_account_move"), None)
-        assert move_entry is not None
-        assert move_entry.name == "account.move"
-        assert move_entry.model_id == "model_account_move"
-        assert move_entry.group_id == "account.group_account_user"
-        assert move_entry.perm_read is True
-        assert move_entry.perm_write is True
-        assert move_entry.perm_create is True
-        assert move_entry.perm_unlink is False
+        move_entries = [e for e in entries if e.model_id == "model_account_move"]
+        assert len(move_entries) > 0
+        assert any(
+            e.group_id and "group_account_manager" in e.group_id for e in move_entries
+        )

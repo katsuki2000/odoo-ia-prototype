@@ -111,19 +111,7 @@ Deux ajustements decides le 07/08 avec le maitre de stage, en plus du gating cib
 
 **Critère de fin** : rapport de couverture à trois niveaux (standard / custom synthétique / vrai code — en attente) documenté.
 
----
 
-## Bloc 9bis — Validation en inférence locale (fidélité à la contrainte de confidentialité)
-*Ajouté le 10/08 après revue — gap de couverture, pas un report volontaire. L'ensemble du prototypage à date (B0 à Bloc 9) tourne sur Groq (API cloud), alors que `Miro - MHR, Solutions et Plan d'Execution` écarte explicitement l'option cloud (Option A) pour raison de confidentialité et retient Ollama (dév) → vLLM (prod) comme serveur d'inférence local. Ce bloc n'existait dans aucune version antérieure du plan.*
-
-- **J₁ (à caler)** : Provisionner le matériel local (GPU dédié — avertissement déjà posé dans le document source) et installer Ollama avec un modèle de la même classe de taille (Llama 3.1 8B ou équivalent, quantifié GGUF).
-- **J₂ (à caler)** : Porter la couche d'appel LLM (actuellement client Groq dans `rag/graph.py`) vers Ollama, sans changer la logique métier ni les prompts — isoler le changement au client d'inférence uniquement.
-- **J₃ (à caler)** : Rejouer le jeu adversarial complet (9 questions + les cas ajoutés en Bloc 9) dans cette configuration, et re-mesurer le budget de latence p90 (J30-31) en conditions réelles — le chiffre actuel (p90=6.84s) n'est valide que pour Groq et ne présage pas de la performance locale sur matériel modeste.
-- **J₄ (à caler)** : Documenter l'écart de fiabilité éventuel entre Groq et l'inférence locale (température, quantification, vitesse). L'agent s'appuie déjà lourdement sur du dispatch déterministe pour compenser les limites d'un modèle 8B (B0, J8/J9, Bloc 9) ; un modèle local moins optimisé peut aggraver ce besoin de scaffolding, ou révéler des régressions de synthèse non vues sur Groq.
-
-**Critère de fin** : le pipeline complet tourne sans dépendance à une API cloud, jeu adversarial rejoué avec un taux de réussite comparable documenté, budget de latence re-mesuré en conditions locales réelles. Sans ce bloc clos, le projet démontre que l'*approche* fonctionne mais pas que la contrainte fondatrice (confidentialité via inférence locale) est tenue — à nommer explicitement, pas à laisser implicite.
-
----
 
 ## Bloc 10 — Sprint F : détection de staleness et mise à jour incrémentale
 

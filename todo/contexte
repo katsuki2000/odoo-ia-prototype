@@ -76,3 +76,10 @@ Sprint 3 (Hybrid Router & RAG Integration) Progress:
 - Verified router classification and system prompt structure unit tests (`test_c1_1_tools_binding`, `test_c1_3_system_prompt_structure`) in `test_c_complete.py`.
 - Created interactive benchmark tool runner script `scripts/test_benchmark_tools.py` for user testing across Q2.1, Q3.1, Q5.1, Q6.1/Q6.2, and Q9.1.
 - Generated benchmark comparison report `todo/benchmark_comparison_sprint2.md` documenting accuracy progression from 0% (Sprint 1 baseline) to 100% (Sprint 2/3 deterministic tools & fidelity guard).
+
+Sprint 4 / Bloc 9 (Deep Inheritance Security & Threshold Guards) Progress:
+- Module 8/8 (custom_deep_inheritance_security, bloc9-08a & 08c): Resolved Root Cause A (threshold logic inversion).
+- Added deterministic contradiction corrector `_correct_security_lock_threshold_contradictions` in `rag/graph.py` to reconcile LLM free-prose assertions against AST-extracted lock conditions for specific amounts.
+- Updated `_backfill_missing_security_lock_amount` to be amount-aware (filtering untriggered higher thresholds and no-oping on read visibility questions, resolving the 08c noise).
+- Refined `synthesis_prompt` and scoping instructions on minimum floor vs upper ceiling distinction.
+- Added comprehensive unit tests in `tests/test_graph.py` (136/136 passing).

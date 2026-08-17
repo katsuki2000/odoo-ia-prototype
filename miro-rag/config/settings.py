@@ -10,10 +10,29 @@ if not os.getenv("GROQ_API_KEY"):
     load_dotenv(_ROOT / "env")
 
 # ── LLM ──────────────────────────────────────────────
-LLM_PROVIDER = os.getenv("LLM_PROVIDER", "groq")  # "groq" or "ollama"
+# "groq" (default, existing behavior) | "openrouter" (new, 2026-08-14 --
+# see rag/llm_client.py's module docstring) | "ollama" (NOT YET WIRED UP,
+# Bloc 9bis on hold pending local GPU hardware -- get_chat_llm() raises
+# NotImplementedError rather than silently falling through).
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "groq")
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+# NOTE (2026-08-14): Groq deprecated llama-3.1-8b-instant on 2026-06-17,
+# recommended migration target openai/gpt-oss-20b -- confirmed via web
+# search this session, NOT yet verified against a live call from this
+# environment (no execution access). Left UNCHANGED here deliberately --
+# this is a separate decision from the LLM_PROVIDER/openrouter work below
+# and shouldn't be bundled into it silently. Flagged in contexte.txt /
+# todo/etat_reel.md as a likely-already-broken production path on the
+# groq provider that needs its own check before relying on it further.
 GROQ_MODEL   = "llama-3.1-8b-instant"
+
+# OpenRouter (2026-08-14): interim cloud step for Qwen3-14B, ahead of the
+# eventual local Bloc 9bis target -- same model weights, different host.
+# Free tier: https://openrouter.ai/settings/keys
+OPENROUTER_API_KEY  = os.getenv("OPENROUTER_API_KEY")
+OPENROUTER_MODEL    = os.getenv("OPENROUTER_MODEL", "qwen/qwen3-14b:free")
+OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
 OLLAMA_HOST  = "http://localhost:11434"
 OLLAMA_MODEL = "hermes3"

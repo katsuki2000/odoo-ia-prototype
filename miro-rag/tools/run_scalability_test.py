@@ -31,7 +31,8 @@ logger = logging.getLogger(__name__)
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 FAKE_DATA_DIR = PROJECT_ROOT / "fake_data"
 DOCS_DIR = FAKE_DATA_DIR / "documents"
-CODE_DIR = FAKE_DATA_DIR / "code"
+ODOO_ADDONS_DIR = Path("/home/user/odoo-17.0/addons")
+CODE_DIR = ODOO_ADDONS_DIR if ODOO_ADDONS_DIR.exists() else (FAKE_DATA_DIR / "code")
 
 
 def prepare_duplicated_corpus(target_dir: Path, multiplier: int = 5) -> list[Path]:

@@ -38,6 +38,23 @@ class PythonSecurityLockAnalysis:
     has_dynamic_dispatch: bool = False
     dynamic_dispatch_types: List[str] = field(default_factory=list)
     required_groups: List[str] = field(default_factory=list)
+    # Index-aligned with required_groups (2026-08-13 fix, native-odoo-out-
+    # of-scope check on sale.order): the name of the method enclosing the
+    # has_group() call that produced the corresponding entry in
+    # required_groups, or "" if the call sits outside any method (module
+    # level) or was only found by the line-level regex fallback (which has
+    # no control-flow structure to recover a method name from -- same
+    # convention as exception_conditions' regex-fallback padding above).
+    # Without this, required_groups was a flat, file-wide bag with no way
+    # to tell which method a given has_group() actually gates -- confirmed
+    # root cause of a real hallucination: sale_order.py's action_confirm()
+    # has no has_group() at all, but the file's only has_group() call (in
+    # the unrelated _should_be_locked(), which decides post-confirmation
+    # read-only locking, not who may confirm) got attributed to
+    # action_confirm() by the synthesis LLM, which also fabricated a
+    # nonexistent method name to go with it. See SecurityLockASTVisitor's
+    # _function_stack for how this is populated.
+    required_group_methods: List[str] = field(default_factory=list)
     security_warnings: List[str] = field(default_factory=list)
     confidence: str = "high"
     summary_text: str = ""
@@ -76,12 +93,37 @@ class SecurityLockASTVisitor(ast.NodeVisitor):
         self.exception_guard_fields: List[str] = []
         self.dynamic_dispatches: List[str] = []
         self.required_groups: List[str] = []
+        # Index-aligned with required_groups -- see
+        # PythonSecurityLockAnalysis.required_group_methods docstring.
+        self.required_group_methods: List[str] = []
         self._if_test_stack: List[ast.expr] = []
+        # 2026-08-13 fix (native-odoo-out-of-scope check, sale.order):
+        # tracks the stack of enclosing def/async def names so a has_group()
+        # call can be attributed to the actual method it appears in, instead
+        # of being dumped into a flat, file-wide bag indistinguishable from
+        # has_group() calls in any other, unrelated method of the same file.
+        self._function_stack: List[str] = []
 
     def visit_If(self, node: ast.If):
         self._if_test_stack.append(node.test)
         self.generic_visit(node)
         self._if_test_stack.pop()
+
+    def visit_FunctionDef(self, node: ast.FunctionDef):
+        self._function_stack.append(node.name)
+        self.generic_visit(node)
+        self._function_stack.pop()
+
+    def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef):
+        self._function_stack.append(node.name)
+        self.generic_visit(node)
+        self._function_stack.pop()
+
+    def _current_method_name(self) -> str:
+        """Innermost enclosing def/async def name, or "" at module level
+        (e.g. a has_group() call in a class-body default or a bare module-
+        level function)."""
+        return self._function_stack[-1] if self._function_stack else ""
 
     def _current_condition_text(self) -> str:
         """Unparsed source of every `if` test currently enclosing the node
@@ -244,6 +286,9 @@ class SecurityLockASTVisitor(ast.NodeVisitor):
                 group_xmlid = node.args[0].value
                 if group_xmlid not in self.required_groups:
                     self.required_groups.append(group_xmlid)
+                    # Index-aligned with the append above (first-seen
+                    # dedup) -- see required_group_methods docstring.
+                    self.required_group_methods.append(self._current_method_name())
 
         self.generic_visit(node)
 
@@ -271,6 +316,7 @@ def analyze_python_security_locks(code: str, filepath: str) -> PythonSecurityLoc
         result.exception_guard_fields = visitor.exception_guard_fields
         result.dynamic_dispatch_types = visitor.dynamic_dispatches
         result.required_groups = visitor.required_groups
+        result.required_group_methods = visitor.required_group_methods
 
     except SyntaxError:
         _logger.warning("AST parse failed for %s, falling back to regex analysis", filepath)
@@ -307,6 +353,12 @@ def analyze_python_security_locks(code: str, filepath: str) -> PythonSecurityLoc
         for group_xmlid in _HAS_GROUP_PATTERN.findall(code):
             if group_xmlid not in result.required_groups:
                 result.required_groups.append(group_xmlid)
+                # Regex fallback can't recover the enclosing method (no
+                # control-flow/scope structure available from a flat
+                # pattern match) -- kept index-aligned with "", same
+                # convention as the exception_conditions regex fallback
+                # above.
+                result.required_group_methods.append("")
 
     # 3. Categorize findings
     if result.hardcoded_logins:
@@ -389,6 +441,25 @@ def analyze_python_security_locks(code: str, filepath: str) -> PythonSecurityLoc
     if result.required_groups:
         groups_joined = ', '.join(result.required_groups)
         lines.append(f"  - Groupe(s) technique(s) requis detecte(s) (has_group): {groups_joined}")
+        # 2026-08-13 fix (native-odoo-out-of-scope check on sale.order):
+        # the aggregate line above is a flat, file-wide bag with no
+        # indication of which method each has_group() actually gates --
+        # a real run on sale_order.py attributed the file's ONLY
+        # has_group() (in _should_be_locked(), which governs post-
+        # confirmation read-only locking) to action_confirm() (which has
+        # none at all), and the synthesis LLM even fabricated a nonexistent
+        # method name to justify it. Deliberately kept as ADDITIONAL lines
+        # rather than rewriting the aggregate line itself: rag/graph.py's
+        # _REQUIRED_GROUP_LINE_RE backfill parses that exact line format
+        # and doesn't care about method attribution, so it must stay
+        # untouched -- these lines are purely to stop the small synthesis
+        # LLM from guessing which method a group belongs to.
+        methods = result.required_group_methods or [""] * len(result.required_groups)
+        for group_xmlid, method_name in zip(result.required_groups, methods):
+            if method_name:
+                lines.append(f"    * has_group('{group_xmlid}') se trouve dans la methode '{method_name}()' -- ne pas l'attribuer a une autre methode sans le verifier explicitement dans le code source.")
+            else:
+                lines.append(f"    * has_group('{group_xmlid}') se trouve hors de toute methode (niveau module), ou sa methode englobante n'a pas pu etre determinee.")
     if result.has_dynamic_dispatch:
         lines.append(f"  - Incertitude dynamique ({', '.join(result.dynamic_dispatch_types)}): revue manuelle recommandée")
 

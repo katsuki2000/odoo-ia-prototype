@@ -71,10 +71,19 @@ def test_real_xml_sale_order_view():
     if xml_file.exists():
         views = parse_views_from_xml(xml_file)
         assert len(views) >= 1
-        view = views[0]
-        assert view.model == "sale.order"
-        assert len(view.buttons) > 0
+        assert any(v.model == "sale.order" for v in views)
 
-        btn_confirm = next((b for b in view.buttons if b.name == "action_confirm"), None)
+        # 2026-08-12: this now points at the REAL sale module (the hand-
+        # crafted fake_data/code fixture was removed -- see
+        # todo/etat_reel.md), which declares SEVERAL sale.order views in
+        # this file (e.g. a lightweight 'sale_order_view_activity' view
+        # with no buttons at all) -- views[0] is no longer reliably the
+        # main form view. Search across every parsed view for the button
+        # instead of assuming position/order, which is what the real file
+        # actually guarantees (the button exists SOMEWHERE in this file).
+        all_buttons = [b for v in views for b in v.buttons]
+        assert len(all_buttons) > 0
+
+        btn_confirm = next((b for b in all_buttons if b.name == "action_confirm"), None)
         assert btn_confirm is not None
         assert btn_confirm.string in {"Confirm", "Confirmer"}
