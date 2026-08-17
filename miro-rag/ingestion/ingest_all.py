@@ -647,18 +647,29 @@ def main():
     )
     parser.add_argument(
         "--docs-dir",
-        type=Path,
+        type=str,
         default=DOCS_DIR,
-        help="Path to documents directory",
+        help=(
+            "Path to documents directory. Pass an empty string ('') to "
+            "explicitly skip docs ingestion. Kept as a plain str (not "
+            "Path) for the same reason as --code-dir: Path('') collapses "
+            "to '.', silently defeating the docs_dir='' skip sentinel in "
+            "ingest_all()."
+        ),
     )
     parser.add_argument(
         "--code-dir",
-        type=Path,
+        type=str,
         default=CODE_DIR,
         help=(
-            "Path to a single code directory to ingest. If omitted, "
-            "ingests the curated real-corpus module scope (CODE_DIRS -- "
-            "see _documentary_code_module_dirs())."
+            "Path to a single code directory to ingest. Pass an empty "
+            "string ('') to explicitly skip code ingestion. If omitted "
+            "entirely, ingests the curated real-corpus module scope "
+            "(CODE_DIRS -- see _documentary_code_module_dirs()). Kept as "
+            "a plain str (not Path) so an explicit '' on the command "
+            "line survives as a real empty string -- Path('') collapses "
+            "to '.', silently defeating the code_dir='' skip sentinel "
+            "used by ingest_all()/clear_and_reingest()."
         ),
     )
     parser.add_argument(
@@ -691,7 +702,10 @@ def main():
 
     # Clear if requested
     if args.clear:
-        stats = orchestrator.clear_and_reingest()
+        stats = orchestrator.clear_and_reingest(
+            docs_dir=args.docs_dir,
+            code_dir=args.code_dir,
+        )
     else:
         stats = orchestrator.ingest_all(
             docs_dir=args.docs_dir,

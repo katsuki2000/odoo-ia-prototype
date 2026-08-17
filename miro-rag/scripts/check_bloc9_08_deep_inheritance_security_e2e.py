@@ -103,6 +103,27 @@ def run_all() -> bool:
 
     results = {}
 
+    # 08a-business: question business-phrasee sur l'autorite de validation a
+    # 60 000E (custom.deep.document, action_validate_level2 seuil > 50000
+    # -> account.group_account_manager REQUIS et AUTORISE ; action_final_approve
+    # seuil > 100000 -> base.group_system, INACTIF a ce montant). Question et
+    # signature d'inversion confirmees reelles (verbatim, _QUESTION_60K /
+    # _BAD_VERBATIM_ANSWER dans tests/test_graph.py::TestCorrectSecurityLockThresholdContradictions),
+    # pas une formulation devinee. Cible precisement le bug corrige en
+    # 2026-08-14 (_correct_security_lock_threshold_contradictions, section 48
+    # de contexte.txt) et le skip-guard qui_a_acces_a (section 47).
+    results["08a_business_autorite_validation_60k"] = run_case(
+        "08a-business -- qui a le droit de valider a 60 000€ (piege double-seuil)",
+        "Qui a le droit de valider un document à 60 000€ dans le modèle "
+        "custom.deep.document (module de sécurité à héritage profond) ?",
+        expected_markers=[
+            "account.group_account_manager",
+        ],
+        forbidden_markers=[
+            "n'a pas le droit de valider",
+        ],
+    )
+
     # 08c-shape: société explicitement différente, montant sous 50k (donc
     # la règle de groupe seule laisserait passer -- seule la règle globale
     # de cantonnement société doit bloquer). C'est le cas exact du root

@@ -60,7 +60,56 @@ class CustomNomicEmbeddingFunction(EmbeddingFunction):
         response.raise_for_status()
         data = response.json()
         return data["embeddings"]
-        
+
+
+class LocalNomicEmbeddingFunction(EmbeddingFunction):
+    """
+    Fonction d'embedding locale nomic-embed-text-v1.5, via sentence-transformers
+    (trust_remote_code=True) -- inference 100% locale, sans appel a l'API Atlas.
+
+    Ajoutee le 17/08 suite au 400 de l'API Atlas (quota gratuit de 10M tokens
+    depasse, cf. diagnose_nomic_400.py) : eviter une dependance a un service
+    cloud payant est de toute facon coherent avec l'objectif du projet (IA
+    livrable chez chaque client sans compte/facturation externe a provisionner).
+
+    Le modele (~550 Mo) est charge une seule fois et partage entre instances.
+    """
+
+    _model = None
+
+    def __init__(self, task_type: str = "search_document"):
+        self.task_type = task_type
+        if LocalNomicEmbeddingFunction._model is None:
+            # Threads plafonnes AVANT le premier import de torch : sans ca,
+            # torch prend tous les coeurs disponibles par defaut pour chaque
+            # appel encode(), ce qui a fait geler la machine du 17/08 pendant
+            # la reingestion complete (cf. contexte.txt). 2 threads laisse le
+            # reste du systeme utilisable pendant l'ingestion.
+            os.environ.setdefault("OMP_NUM_THREADS", "2")
+            os.environ.setdefault("MKL_NUM_THREADS", "2")
+
+            from sentence_transformers import SentenceTransformer
+            import torch
+
+            torch.set_num_threads(2)
+
+            logger.info("Chargement du modele d'embedding local nomic-embed-text-v1.5 (premier appel, peut prendre un moment)...")
+            LocalNomicEmbeddingFunction._model = SentenceTransformer(
+                "nomic-ai/nomic-embed-text-v1.5", trust_remote_code=True
+            )
+
+    def name(self) -> str:
+        return "nomic-embed-text-v1.5-local"
+
+    def __call__(self, input: Documents) -> Embeddings:
+        prefix = "search_query: " if self.task_type == "search_query" else "search_document: "
+        prefixed = [f"{prefix}{text}" for text in input]
+        embeddings = LocalNomicEmbeddingFunction._model.encode(
+            prefixed, normalize_embeddings=True
+        )
+        return embeddings.tolist()
+
+
 class ChromaManager:
     """Manages ChromaDB vector store for document chunks."""
 
@@ -111,15 +160,41 @@ class ChromaManager:
         )
 
     def _resolve_embedding_function(self):
-            """Résout la fonction d'embedding à utiliser (Nomic si clé dispo, sinon default)."""
-            nomic_api_key = os.environ.get("NOMIC_API_KEY")
-            if nomic_api_key:
-                return CustomNomicEmbeddingFunction(
-                    model=self.embedding_model,
-                    api_key=nomic_api_key,
-                )
-            logger.warning("NOMIC_API_KEY is not set in environment. Falling back to default embeddings.")
-            return None
+            """Résout la fonction d'embedding à utiliser.
+
+            Local par défaut (nomic-embed-text-v1.5 via sentence-transformers) --
+            plus de dépendance à un quota/paiement API externe. L'API Atlas reste
+            disponible en repli explicite (EMBEDDING_BACKEND=nomic_api + clé) si un
+            besoin de vitesse le justifie plus tard, une fois le budget débloqué.
+            """
+            backend = os.environ.get("EMBEDDING_BACKEND", "local")
+
+            if backend == "nomic_api":
+                nomic_api_key = os.environ.get("NOMIC_API_KEY")
+                if nomic_api_key:
+                    return CustomNomicEmbeddingFunction(
+                        model=self.embedding_model,
+                        api_key=nomic_api_key,
+                    )
+                logger.warning("EMBEDDING_BACKEND=nomic_api mais NOMIC_API_KEY absente. Repli sur le modèle local.")
+
+            try:
+                return LocalNomicEmbeddingFunction()
+            except Exception as e:
+                # Ne PAS avaler l'erreur et retourner None ici : un embedding_function=None
+                # fait retomber ChromaDB sur son propre modele par defaut (all-MiniLM-L6-v2,
+                # 384 dimensions) EN SILENCE, incompatible avec nomic-embed-text-v1.5
+                # (768 dimensions). C'est exactement ce qui s'est passe le 17/08 : dependance
+                # manquante (einops), catch silencieux, ~1h20 d'ingestion faite avec le
+                # mauvais modele sans qu'aucune erreur ne remonte a l'utilisateur. Mieux vaut
+                # un crash net ici qu'un espace vectoriel incoherent qui semble marcher.
+                logger.error(f"Échec du chargement du modèle d'embedding local: {e}")
+                raise RuntimeError(
+                    "Impossible de charger l'embedding local nomic-embed-text-v1.5 "
+                    f"(voir cause ci-dessus). Ingestion arrêtée plutôt que de retomber "
+                    "silencieusement sur le modèle par défaut de ChromaDB (dimensions "
+                    "incompatibles)."
+                ) from e
 
     def add_chunks(
         self,

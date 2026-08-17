@@ -1595,5 +1595,3 @@ class TestBackfillMissingSecurityLockAmountAmountAware:
         assert result == answer
 
 
-
-
