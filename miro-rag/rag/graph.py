@@ -15,7 +15,17 @@ import threading
 import time
 from collections import Counter
 from pathlib import Path
-from typing import TypedDict, List, Optional, Any, Tuple
+from typing import TypedDict, List, Optional, Any, Tuple, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    # Bloc P1 (H1 experiment, todo/plan_architecture_cible.md): only needed
+    # for RAGState's resolved_concept annotation below -- kept out of the
+    # runtime import path, same lazy-import convention this module already
+    # uses everywhere else for code_intelligence.* (see e.g.
+    # resolve_business_concept() and code_intelligence_agent() below, both
+    # of which import code_intelligence.business_resolver locally instead
+    # of at module scope).
+    from code_intelligence.business_resolver import ResolvedConcept
 
 # Add parent dir to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

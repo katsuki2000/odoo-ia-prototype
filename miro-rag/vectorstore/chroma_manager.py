@@ -167,7 +167,16 @@ class ChromaManager:
             disponible en repli explicite (EMBEDDING_BACKEND=nomic_api + clé) si un
             besoin de vitesse le justifie plus tard, une fois le budget débloqué.
             """
-            backend = os.environ.get("EMBEDDING_BACKEND", "local")
+            # 2026-08-18: defaut temporairement bascule sur "local_light" -- cette
+            # machine n'a pas AVX2 (confirme via `lscpu | grep avx`, absent), et
+            # nomic-embed-text-v1.5 en local (PyTorch, 137M params) y tourne a environ
+            # 3s/chunk, mesure sur un run reel multiplier=1 (todo/etat_reel.md,
+            # contexte.txt). Inutilisable en pratique sur le vrai corpus en l'etat.
+            # A repasser sur "local" (nomic-embed-text-v1.5) des que le materiel prevu
+            # arrive -- sauf si un meilleur modele d'embedding est identifie d'ici la.
+            # Le modele nominal du projet reste nomic-embed-text-v1.5 ; ce n'est PAS un
+            # changement de choix de modele, seulement un palliatif materiel temporaire.
+            backend = os.environ.get("EMBEDDING_BACKEND", "local_light")
 
             if backend == "nomic_api":
                 nomic_api_key = os.environ.get("NOMIC_API_KEY")
@@ -177,6 +186,20 @@ class ChromaManager:
                         api_key=nomic_api_key,
                     )
                 logger.warning("EMBEDDING_BACKEND=nomic_api mais NOMIC_API_KEY absente. Repli sur le modèle local.")
+
+            if backend == "local_light":
+                logger.warning(
+                    "EMBEDDING_BACKEND=local_light : utilisation du modele par defaut "
+                    "de ChromaDB (all-MiniLM-L6-v2, 384 dimensions, onnxruntime) au "
+                    "lieu de nomic-embed-text-v1.5 -- palliatif TEMPORAIRE, cette "
+                    "machine n'a pas AVX2 et nomic-embed-text-v1.5 en local (PyTorch) "
+                    "y est trop lent pour le vrai corpus (~3s/chunk mesure). A "
+                    "repasser sur EMBEDDING_BACKEND=local (ou retirer la variable) "
+                    "des que le materiel prevu arrive, sauf meilleur modele trouve "
+                    "d'ici la. Toute collection ChromaDB deja peuplee avec un autre "
+                    "modele doit etre reingeree en entier (dimensions incompatibles)."
+                )
+                return None
 
             try:
                 return LocalNomicEmbeddingFunction()
