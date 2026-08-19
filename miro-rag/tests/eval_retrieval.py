@@ -306,7 +306,7 @@ def main():
         "cross_encoder": "cross-encoder/ms-marco-MiniLM-L-6-v2",
     }
 
-    use_reranker = "--no-reranker" not in sys.argv
+    use_reranker = "--reranker" in sys.argv or (os.getenv("USE_RERANKER", "false").lower() in ("true", "1", "yes") and "--no-reranker" not in sys.argv)
     logger.info(f"Running evaluation (reranker enabled: {use_reranker})...")
     results = evaluate_recall(
         questions, chroma, bm25,

@@ -55,6 +55,11 @@ OLLAMA_MODEL = "gpt-oss:20b"
 # ── ChromaDB ──────────────────────────────────────────
 CHROMA_PATH  = "./vectorstore/chroma_db"
 
+# ── Retrieval / Re-ranking ────────────────────────────
+# Disabled by default to prevent CPU bottlenecks / non-AVX2 freezes.
+# Can be enabled explicitly via environment variable USE_RERANKER=true.
+USE_RERANKER = os.getenv("USE_RERANKER", "false").lower() in ("true", "1", "yes")
+
 # ── FastAPI ───────────────────────────────────────────
 API_HOST = "0.0.0.0"
 API_PORT = 8000

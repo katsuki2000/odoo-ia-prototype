@@ -22608,3 +22608,191 @@ Statistics saved to /home/user/odoo-ia-prototype/miro-rag/ingestion/logs/ingesti
 2026-08-18 11:27:31,546 - __main__ - INFO - By module: {'unknown': 2937, 'account': 5256, 'sale': 1378, 'stock': 3481, 'hr': 512, 'base': 4597}
 2026-08-18 11:27:31,548 - __main__ - INFO - 
 Statistics saved to /home/user/odoo-ia-prototype/miro-rag/ingestion/logs/ingestion_stats.json
+2026-08-19 10:53:56,261 - api.main - INFO - Startup incremental scan: scanning /home/user/odoo-ia-prototype/miro-rag/fake_data/documents and None
+2026-08-19 10:53:56,262 - api.main - INFO - FINISHED startup event in main.py, returning to uvicorn!
+2026-08-19 10:53:56,438 - vectorstore.chroma_manager - WARNING - EMBEDDING_BACKEND=local_light : utilisation du modele par defaut de ChromaDB (all-MiniLM-L6-v2, 384 dimensions, onnxruntime) au lieu de nomic-embed-text-v1.5 -- palliatif TEMPORAIRE, cette machine n'a pas AVX2 et nomic-embed-text-v1.5 en local (PyTorch) y est trop lent pour le vrai corpus (~3s/chunk mesure). A repasser sur EMBEDDING_BACKEND=local (ou retirer la variable) des que le materiel prevu arrive, sauf meilleur modele trouve d'ici la. Toute collection ChromaDB deja peuplee avec un autre modele doit etre reingeree en entier (dimensions incompatibles).
+2026-08-19 10:53:56,450 - vectorstore.chroma_manager - INFO - ChromaDB initialized at /home/user/odoo-ia-prototype/miro-rag/vectorstore/chroma_db with collection 'odoo_docs'
+2026-08-19 10:53:56,465 - vectorstore.chroma_manager - WARNING - EMBEDDING_BACKEND=local_light : utilisation du modele par defaut de ChromaDB (all-MiniLM-L6-v2, 384 dimensions, onnxruntime) au lieu de nomic-embed-text-v1.5 -- palliatif TEMPORAIRE, cette machine n'a pas AVX2 et nomic-embed-text-v1.5 en local (PyTorch) y est trop lent pour le vrai corpus (~3s/chunk mesure). A repasser sur EMBEDDING_BACKEND=local (ou retirer la variable) des que le materiel prevu arrive, sauf meilleur modele trouve d'ici la. Toute collection ChromaDB deja peuplee avec un autre modele doit etre reingeree en entier (dimensions incompatibles).
+2026-08-19 10:53:56,467 - vectorstore.chroma_manager - INFO - ChromaDB initialized at /home/user/odoo-ia-prototype/miro-rag/vectorstore/chroma_db with collection 'odoo_code'
+2026-08-19 10:53:56,468 - ingestion.scheduler - INFO - Running startup incremental scan across roots: [PosixPath('/home/user/odoo-ia-prototype/miro-rag/fake_data/documents'), None]
+2026-08-19 10:55:30,490 - api.main - WARNING - No real Odoo API key in JWT for uid=2 -- ERP/XML-RPC calls will fall back to the admin credential instead of the requester's own rights.
+2026-08-19 10:55:30,588 - rag.graph - INFO - Invoking graph for question: 'Combien de ventes la Societe Dupont a-t-elle realisees ?'
+2026-08-19 10:55:30,593 - rag.graph - INFO - Node [retrieve]: Fetching documents for: Combien de ventes la Societe Dupont a-t-elle realisees ?
+2026-08-19 10:55:30,607 - vectorstore.chroma_manager - WARNING - EMBEDDING_BACKEND=local_light : utilisation du modele par defaut de ChromaDB (all-MiniLM-L6-v2, 384 dimensions, onnxruntime) au lieu de nomic-embed-text-v1.5 -- palliatif TEMPORAIRE, cette machine n'a pas AVX2 et nomic-embed-text-v1.5 en local (PyTorch) y est trop lent pour le vrai corpus (~3s/chunk mesure). A repasser sur EMBEDDING_BACKEND=local (ou retirer la variable) des que le materiel prevu arrive, sauf meilleur modele trouve d'ici la. Toute collection ChromaDB deja peuplee avec un autre modele doit etre reingeree en entier (dimensions incompatibles).
+2026-08-19 10:55:30,609 - vectorstore.chroma_manager - INFO - ChromaDB initialized at /home/user/odoo-ia-prototype/miro-rag/vectorstore/chroma_db with collection 'odoo_docs'
+2026-08-19 10:55:30,622 - vectorstore.chroma_manager - WARNING - EMBEDDING_BACKEND=local_light : utilisation du modele par defaut de ChromaDB (all-MiniLM-L6-v2, 384 dimensions, onnxruntime) au lieu de nomic-embed-text-v1.5 -- palliatif TEMPORAIRE, cette machine n'a pas AVX2 et nomic-embed-text-v1.5 en local (PyTorch) y est trop lent pour le vrai corpus (~3s/chunk mesure). A repasser sur EMBEDDING_BACKEND=local (ou retirer la variable) des que le materiel prevu arrive, sauf meilleur modele trouve d'ici la. Toute collection ChromaDB deja peuplee avec un autre modele doit etre reingeree en entier (dimensions incompatibles).
+2026-08-19 10:55:30,624 - vectorstore.chroma_manager - INFO - ChromaDB initialized at /home/user/odoo-ia-prototype/miro-rag/vectorstore/chroma_db with collection 'odoo_code'
+2026-08-19 10:55:35,638 - vectorstore.search - INFO - BM25 index built with 18161 documents (2 collections)
+2026-08-19 10:55:36,766 - vectorstore.search - INFO - Hybrid search: 200 vector results, 7 BM25 results
+2026-08-19 10:55:36,767 - vectorstore.search - INFO - RRF fusion: 204 results above threshold 0.01
+2026-08-19 10:55:36,767 - vectorstore.search - INFO - Loading local cross-encoder model: cross-encoder/ms-marco-MiniLM-L-6-v2
+2026-08-19 10:55:36,768 - sentence_transformers.base.model - INFO - No device provided, using cpu
+2026-08-19 10:55:36,771 - sentence_transformers.base.model - INFO - No modules.json found for cross-encoder/ms-marco-MiniLM-L-6-v2, initializing a new CrossEncoder model.
+2026-08-19 10:56:21,662 - vectorstore.search - INFO - Retrieval complete: 10 results for query 'Combien de ventes la Societe Dupont a-t-elle realisees ?'
+2026-08-19 10:56:21,668 - rag.graph - INFO - Node [route]: Classifying query type from 10 chunks
+2026-08-19 10:56:21,940 - rag.graph - INFO - Loading graph from disk (mtime 1786601472.3068857 > 0.0)
+2026-08-19 10:56:22,123 - rag.graph - INFO - Knowledge Graph loaded from JSON: 11254 nodes, 10962 edges (version: 2fc60b1)
+2026-08-19 10:56:22,161 - code_intelligence.business_resolver - INFO - Built fuzzy index: 4373 entries from graph (11254 nodes)
+2026-08-19 10:56:22,174 - rag.graph - INFO - Node [route]: Quantitative data query → DONNEES_ERP branch
+2026-08-19 10:56:22,177 - rag.graph - INFO - Node [orm_agent_loop]: Starting ReAct loop for: Combien de ventes la Societe Dupont a-t-elle realisees ?
+2026-08-19 10:56:22,367 - rag.graph - INFO - Node [orm_agent_loop]: Iteration 1/6
+2026-08-19 10:56:23,152 - httpx - INFO - HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-19 10:56:23,239 - rag.graph - INFO - Node [orm_agent_loop]: Calling tool 'get_sale_details' with args {'client': 'Societe Dupont', 'limite': 0, 'statut': 'toutes'}
+2026-08-19 10:56:23,241 - tools.odoo_connector - WARNING - OdooConnector._resolve_password(): no per-request API key in context -- falling back to the admin password. Expected in tests/scripts; on a real API request it means the JWT api_key was missing or not propagated.
+2026-08-19 10:56:23,987 - tools.odoo_connector - INFO - XML-RPC 745.8ms: sale.order.search_read
+2026-08-19 10:56:23,989 - code_intelligence.reasoning_trace_logger - INFO - Reasoning hop [da3369576f05] #0: get_sale_details({'client': 'Societe Dupont', 'limite': 0, 'statut': 'toutes'}) -> 747.28ms
+2026-08-19 10:56:23,989 - rag.graph - INFO - Node [orm_agent_loop]: Iteration 2/6
+2026-08-19 10:56:23,989 - rag.graph - INFO - Node [orm_agent_loop]: Tool observations collected, outputting combined answer.
+2026-08-19 10:56:23,990 - code_intelligence.reasoning_trace_logger - INFO - Reasoning trace [da3369576f05] SUMMARY: branch=donnees_erp hops=1/6 llm_calls=1 total=1812.97ms
+2026-08-19 10:56:23,991 - rag.graph - INFO - Node [format_output]: Formatting final response
+2026-08-19 10:56:23,992 - rag.graph - INFO - {"event": "request_latency", "metrics": {"routing_time": 0.5059828758239746, "generation_time": 1.8129730224609375, "llm_call_count": 1, "hop_count": 1, "total_time": 53.5017454624176}}
+2026-08-19 10:56:24,006 - api.main - WARNING - No real Odoo API key in JWT for uid=2 -- ERP/XML-RPC calls will fall back to the admin credential instead of the requester's own rights.
+2026-08-19 10:56:24,076 - rag.graph - INFO - Invoking graph for question: 'Et pour cette annee ?'
+2026-08-19 10:56:24,078 - rag.graph - INFO - Node [retrieve]: Fetching documents for: Et pour cette annee ?
+2026-08-19 10:56:24,941 - vectorstore.search - INFO - Hybrid search: 200 vector results, 4 BM25 results
+2026-08-19 10:56:24,941 - vectorstore.search - INFO - RRF fusion: 202 results above threshold 0.01
+2026-08-19 10:57:14,337 - vectorstore.search - INFO - Retrieval complete: 10 results for query 'Et pour cette annee ?'
+2026-08-19 10:57:14,401 - rag.graph - INFO - Node [route]: Classifying query type from 10 chunks
+2026-08-19 10:57:14,413 - rag.graph - INFO - Node [route]: ERP ratio = 0/10 (0%)
+2026-08-19 10:57:14,414 - rag.graph - INFO - Node [route]: → DOCUMENTAIRE branch
+2026-08-19 10:57:14,415 - rag.graph - INFO - Node [generate]: Building prompt and calling LLM
+2026-08-19 10:57:15,483 - httpx - INFO - HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 400 Bad Request"
+2026-08-19 10:57:15,484 - rag.graph - WARNING - Structured LLM Generation failed (Error code: 400 - {'error': {'message': 'Tool choice is required, but model did not call a tool', 'type': 'invalid_request_error', 'code': 'tool_use_failed', 'failed_generation': '{\n  "answer": "Je n\'ai pas trouvé cette information dans la base de connaissance interne. Contactez votre responsable technique pour plus de détails.",\n  "sources": [],\n  "confidence": 0.0,\n  "missing_info": null\n}'}}) → falling back to raw invoke
+2026-08-19 10:57:15,814 - httpx - INFO - HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-19 10:57:15,815 - groq._base_client - INFO - Retrying request to /openai/v1/chat/completions in 11.000000 seconds
+2026-08-19 10:57:27,782 - httpx - INFO - HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-19 10:57:27,827 - code_intelligence.reasoning_trace_logger - INFO - Reasoning trace [72af6ab0e3e7] SUMMARY: branch=documentaire hops=0/4 llm_calls=1 total=13410.91ms
+2026-08-19 10:57:27,828 - rag.graph - INFO - Node [format_output]: Formatting final response
+2026-08-19 10:57:27,829 - rag.graph - INFO - {"event": "request_latency", "metrics": {"routing_time": 0.012914657592773438, "generation_time": 13.410906553268433, "llm_call_count": 1, "total_time": 63.822739601135254}}
+2026-08-19 11:06:14,921 - api.main - WARNING - No real Odoo API key in JWT for uid=2 -- ERP/XML-RPC calls will fall back to the admin credential instead of the requester's own rights.
+2026-08-19 11:06:14,986 - rag.graph - INFO - Invoking graph for question: 'Combien de ventes la Societe Dupont a-t-elle realisees ?'
+2026-08-19 11:06:14,989 - rag.graph - INFO - Node [retrieve]: Fetching documents for: Combien de ventes la Societe Dupont a-t-elle realisees ?
+2026-08-19 11:06:16,016 - vectorstore.search - INFO - Hybrid search: 200 vector results, 7 BM25 results
+2026-08-19 11:06:16,017 - vectorstore.search - INFO - RRF fusion: 204 results above threshold 0.01
+2026-08-19 11:06:59,690 - vectorstore.search - INFO - Retrieval complete: 10 results for query 'Combien de ventes la Societe Dupont a-t-elle realisees ?'
+2026-08-19 11:06:59,694 - rag.graph - INFO - Node [route]: Classifying query type from 10 chunks
+2026-08-19 11:06:59,716 - rag.graph - INFO - Node [route]: Quantitative data query → DONNEES_ERP branch
+2026-08-19 11:06:59,719 - rag.graph - INFO - Node [orm_agent_loop]: Starting ReAct loop for: Combien de ventes la Societe Dupont a-t-elle realisees ?
+2026-08-19 11:06:59,792 - rag.graph - INFO - Node [orm_agent_loop]: Iteration 1/6
+2026-08-19 11:07:00,659 - httpx - INFO - HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-19 11:07:00,664 - rag.graph - INFO - Node [orm_agent_loop]: Calling tool 'get_total_sales' with args {'client': 'Societe Dupont'}
+2026-08-19 11:07:00,666 - tools.odoo_connector - WARNING - OdooConnector._resolve_password(): no per-request API key in context -- falling back to the admin password. Expected in tests/scripts; on a real API request it means the JWT api_key was missing or not propagated.
+2026-08-19 11:07:00,709 - tools.odoo_connector - INFO - XML-RPC 42.7ms: sale.order.read_group
+2026-08-19 11:07:00,711 - code_intelligence.reasoning_trace_logger - INFO - Reasoning hop [f3f64be01673] #0: get_total_sales({'client': 'Societe Dupont'}) -> 44.56ms
+2026-08-19 11:07:00,711 - rag.graph - INFO - Node [orm_agent_loop]: Iteration 2/6
+2026-08-19 11:07:00,711 - rag.graph - INFO - Node [orm_agent_loop]: Tool observations collected, outputting combined answer.
+2026-08-19 11:07:00,711 - code_intelligence.reasoning_trace_logger - INFO - Reasoning trace [f3f64be01673] SUMMARY: branch=donnees_erp hops=1/6 llm_calls=1 total=992.70ms
+2026-08-19 11:07:00,712 - rag.graph - INFO - Node [format_output]: Formatting final response
+2026-08-19 11:07:00,713 - rag.graph - INFO - {"event": "request_latency", "metrics": {"routing_time": 0.022170543670654297, "generation_time": 0.9927046298980713, "llm_call_count": 1, "hop_count": 1, "total_time": 45.790579319000244}}
+2026-08-19 11:07:00,727 - api.main - WARNING - No real Odoo API key in JWT for uid=2 -- ERP/XML-RPC calls will fall back to the admin credential instead of the requester's own rights.
+2026-08-19 11:07:00,795 - rag.graph - INFO - Invoking graph for question: 'Et pour cette annee ?'
+2026-08-19 11:07:00,796 - rag.graph - INFO - Node [retrieve]: Fetching documents for: Et pour cette annee ?
+2026-08-19 11:07:01,589 - vectorstore.search - INFO - Hybrid search: 200 vector results, 4 BM25 results
+2026-08-19 11:07:01,590 - vectorstore.search - INFO - RRF fusion: 202 results above threshold 0.01
+2026-08-19 11:07:46,173 - vectorstore.search - INFO - Retrieval complete: 10 results for query 'Et pour cette annee ?'
+2026-08-19 11:07:46,175 - rag.graph - INFO - Node [route]: Classifying query type from 10 chunks
+2026-08-19 11:07:46,187 - rag.graph - INFO - Node [route]: ERP ratio = 0/10 (0%)
+2026-08-19 11:07:46,187 - rag.graph - INFO - Node [route]: → DOCUMENTAIRE branch
+2026-08-19 11:07:46,189 - rag.graph - INFO - Node [generate]: Building prompt and calling LLM
+2026-08-19 11:07:47,385 - httpx - INFO - HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 400 Bad Request"
+2026-08-19 11:07:47,386 - rag.graph - WARNING - Structured LLM Generation failed (Error code: 400 - {'error': {'message': 'Tool choice is required, but model did not call a tool', 'type': 'invalid_request_error', 'code': 'tool_use_failed', 'failed_generation': '{\n  "answer": "Je n\'ai pas trouvé cette information dans la base de connaissance interne. Contactez votre responsable technique pour plus de détails.",\n  "sources": [],\n  "confidence": 0.0,\n  "missing_info": null\n}'}}) → falling back to raw invoke
+2026-08-19 11:07:47,738 - httpx - INFO - HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-19 11:07:47,738 - groq._base_client - INFO - Retrying request to /openai/v1/chat/completions in 12.000000 seconds
+2026-08-19 11:08:00,684 - httpx - INFO - HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-19 11:08:00,687 - code_intelligence.reasoning_trace_logger - INFO - Reasoning trace [cf342cb14412] SUMMARY: branch=documentaire hops=0/4 llm_calls=1 total=14497.99ms
+2026-08-19 11:08:00,688 - rag.graph - INFO - Node [format_output]: Formatting final response
+2026-08-19 11:08:00,689 - rag.graph - INFO - {"event": "request_latency", "metrics": {"routing_time": 0.012621879577636719, "generation_time": 14.497993469238281, "llm_call_count": 1, "total_time": 59.96168661117554}}
+2026-08-19 11:08:59,350 - api.main - INFO - Stopping background periodic scan scheduler...
+2026-08-19 11:09:27,792 - api.main - INFO - Startup incremental scan: scanning /home/user/odoo-ia-prototype/miro-rag/fake_data/documents and None
+2026-08-19 11:09:27,793 - api.main - INFO - FINISHED startup event in main.py, returning to uvicorn!
+2026-08-19 11:09:27,954 - vectorstore.chroma_manager - WARNING - EMBEDDING_BACKEND=local_light : utilisation du modele par defaut de ChromaDB (all-MiniLM-L6-v2, 384 dimensions, onnxruntime) au lieu de nomic-embed-text-v1.5 -- palliatif TEMPORAIRE, cette machine n'a pas AVX2 et nomic-embed-text-v1.5 en local (PyTorch) y est trop lent pour le vrai corpus (~3s/chunk mesure). A repasser sur EMBEDDING_BACKEND=local (ou retirer la variable) des que le materiel prevu arrive, sauf meilleur modele trouve d'ici la. Toute collection ChromaDB deja peuplee avec un autre modele doit etre reingeree en entier (dimensions incompatibles).
+2026-08-19 11:09:27,961 - vectorstore.chroma_manager - INFO - ChromaDB initialized at /home/user/odoo-ia-prototype/miro-rag/vectorstore/chroma_db with collection 'odoo_docs'
+2026-08-19 11:09:27,974 - vectorstore.chroma_manager - WARNING - EMBEDDING_BACKEND=local_light : utilisation du modele par defaut de ChromaDB (all-MiniLM-L6-v2, 384 dimensions, onnxruntime) au lieu de nomic-embed-text-v1.5 -- palliatif TEMPORAIRE, cette machine n'a pas AVX2 et nomic-embed-text-v1.5 en local (PyTorch) y est trop lent pour le vrai corpus (~3s/chunk mesure). A repasser sur EMBEDDING_BACKEND=local (ou retirer la variable) des que le materiel prevu arrive, sauf meilleur modele trouve d'ici la. Toute collection ChromaDB deja peuplee avec un autre modele doit etre reingeree en entier (dimensions incompatibles).
+2026-08-19 11:09:27,976 - vectorstore.chroma_manager - INFO - ChromaDB initialized at /home/user/odoo-ia-prototype/miro-rag/vectorstore/chroma_db with collection 'odoo_code'
+2026-08-19 11:09:27,976 - ingestion.scheduler - INFO - Running startup incremental scan across roots: [PosixPath('/home/user/odoo-ia-prototype/miro-rag/fake_data/documents'), None]
+2026-08-19 11:10:40,949 - api.main - INFO - H1b-i check: session_id=h1b_i_context_check chat_history_len=0
+2026-08-19 11:10:40,949 - api.main - WARNING - No real Odoo API key in JWT for uid=2 -- ERP/XML-RPC calls will fall back to the admin credential instead of the requester's own rights.
+2026-08-19 11:10:41,044 - rag.graph - INFO - Invoking graph for question: 'Combien de ventes la Societe Dupont a-t-elle realisees ?'
+2026-08-19 11:10:41,047 - rag.graph - INFO - Node [retrieve]: Fetching documents for: Combien de ventes la Societe Dupont a-t-elle realisees ?
+2026-08-19 11:10:41,061 - vectorstore.chroma_manager - WARNING - EMBEDDING_BACKEND=local_light : utilisation du modele par defaut de ChromaDB (all-MiniLM-L6-v2, 384 dimensions, onnxruntime) au lieu de nomic-embed-text-v1.5 -- palliatif TEMPORAIRE, cette machine n'a pas AVX2 et nomic-embed-text-v1.5 en local (PyTorch) y est trop lent pour le vrai corpus (~3s/chunk mesure). A repasser sur EMBEDDING_BACKEND=local (ou retirer la variable) des que le materiel prevu arrive, sauf meilleur modele trouve d'ici la. Toute collection ChromaDB deja peuplee avec un autre modele doit etre reingeree en entier (dimensions incompatibles).
+2026-08-19 11:10:41,063 - vectorstore.chroma_manager - INFO - ChromaDB initialized at /home/user/odoo-ia-prototype/miro-rag/vectorstore/chroma_db with collection 'odoo_docs'
+2026-08-19 11:10:41,076 - vectorstore.chroma_manager - WARNING - EMBEDDING_BACKEND=local_light : utilisation du modele par defaut de ChromaDB (all-MiniLM-L6-v2, 384 dimensions, onnxruntime) au lieu de nomic-embed-text-v1.5 -- palliatif TEMPORAIRE, cette machine n'a pas AVX2 et nomic-embed-text-v1.5 en local (PyTorch) y est trop lent pour le vrai corpus (~3s/chunk mesure). A repasser sur EMBEDDING_BACKEND=local (ou retirer la variable) des que le materiel prevu arrive, sauf meilleur modele trouve d'ici la. Toute collection ChromaDB deja peuplee avec un autre modele doit etre reingeree en entier (dimensions incompatibles).
+2026-08-19 11:10:41,078 - vectorstore.chroma_manager - INFO - ChromaDB initialized at /home/user/odoo-ia-prototype/miro-rag/vectorstore/chroma_db with collection 'odoo_code'
+2026-08-19 11:10:45,912 - vectorstore.search - INFO - BM25 index built with 18161 documents (2 collections)
+2026-08-19 11:10:46,811 - vectorstore.search - INFO - Hybrid search: 200 vector results, 7 BM25 results
+2026-08-19 11:10:46,812 - vectorstore.search - INFO - RRF fusion: 204 results above threshold 0.01
+2026-08-19 11:10:46,812 - vectorstore.search - INFO - Loading local cross-encoder model: cross-encoder/ms-marco-MiniLM-L-6-v2
+2026-08-19 11:10:46,813 - sentence_transformers.base.model - INFO - No device provided, using cpu
+2026-08-19 11:10:46,815 - sentence_transformers.base.model - INFO - No modules.json found for cross-encoder/ms-marco-MiniLM-L-6-v2, initializing a new CrossEncoder model.
+2026-08-19 11:11:29,840 - vectorstore.search - INFO - Retrieval complete: 10 results for query 'Combien de ventes la Societe Dupont a-t-elle realisees ?'
+2026-08-19 11:11:29,844 - rag.graph - INFO - Node [route]: Classifying query type from 10 chunks
+2026-08-19 11:11:30,115 - rag.graph - INFO - Loading graph from disk (mtime 1786601472.3068857 > 0.0)
+2026-08-19 11:11:30,317 - rag.graph - INFO - Knowledge Graph loaded from JSON: 11254 nodes, 10962 edges (version: 2fc60b1)
+2026-08-19 11:11:30,356 - code_intelligence.business_resolver - INFO - Built fuzzy index: 4373 entries from graph (11254 nodes)
+2026-08-19 11:11:30,370 - rag.graph - INFO - Node [route]: Quantitative data query → DONNEES_ERP branch
+2026-08-19 11:11:30,373 - rag.graph - INFO - Node [orm_agent_loop]: Starting ReAct loop for: Combien de ventes la Societe Dupont a-t-elle realisees ?
+2026-08-19 11:11:30,556 - rag.graph - INFO - Node [orm_agent_loop]: Iteration 1/6
+2026-08-19 11:11:31,396 - httpx - INFO - HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-19 11:11:31,418 - rag.graph - INFO - Node [orm_agent_loop]: Calling tool 'get_sale_details' with args {'client': 'Dupont', 'limite': 0, 'statut': 'toutes'}
+2026-08-19 11:11:31,420 - tools.odoo_connector - WARNING - OdooConnector._resolve_password(): no per-request API key in context -- falling back to the admin password. Expected in tests/scripts; on a real API request it means the JWT api_key was missing or not propagated.
+2026-08-19 11:11:31,535 - tools.odoo_connector - INFO - XML-RPC 115.9ms: sale.order.search_read
+2026-08-19 11:11:31,536 - tools.odoo_connector - WARNING - OdooConnector._resolve_password(): no per-request API key in context -- falling back to the admin password. Expected in tests/scripts; on a real API request it means the JWT api_key was missing or not propagated.
+2026-08-19 11:11:31,588 - tools.odoo_connector - INFO - XML-RPC 52.0ms: sale.order.line.search_read
+2026-08-19 11:11:31,588 - tools.odoo_connector - WARNING - OdooConnector._resolve_password(): no per-request API key in context -- falling back to the admin password. Expected in tests/scripts; on a real API request it means the JWT api_key was missing or not propagated.
+2026-08-19 11:11:31,621 - tools.odoo_connector - INFO - XML-RPC 32.8ms: sale.order.line.search_read
+2026-08-19 11:11:31,621 - tools.odoo_connector - WARNING - OdooConnector._resolve_password(): no per-request API key in context -- falling back to the admin password. Expected in tests/scripts; on a real API request it means the JWT api_key was missing or not propagated.
+2026-08-19 11:11:31,652 - tools.odoo_connector - INFO - XML-RPC 30.6ms: sale.order.line.search_read
+2026-08-19 11:11:31,652 - tools.odoo_connector - WARNING - OdooConnector._resolve_password(): no per-request API key in context -- falling back to the admin password. Expected in tests/scripts; on a real API request it means the JWT api_key was missing or not propagated.
+2026-08-19 11:11:31,684 - tools.odoo_connector - INFO - XML-RPC 32.3ms: sale.order.line.search_read
+2026-08-19 11:11:31,686 - code_intelligence.reasoning_trace_logger - INFO - Reasoning hop [ef8452d0c982] #0: get_sale_details({'client': 'Dupont', 'limite': 0, 'statut': 'toutes'}) -> 266.17ms
+2026-08-19 11:11:31,686 - rag.graph - INFO - Node [orm_agent_loop]: Iteration 2/6
+2026-08-19 11:11:31,686 - rag.graph - INFO - Node [orm_agent_loop]: Tool observations collected, outputting combined answer.
+2026-08-19 11:11:31,687 - code_intelligence.reasoning_trace_logger - INFO - Reasoning trace [ef8452d0c982] SUMMARY: branch=donnees_erp hops=1/6 llm_calls=1 total=1313.64ms
+2026-08-19 11:11:31,687 - rag.graph - INFO - Node [format_output]: Formatting final response
+2026-08-19 11:11:31,688 - rag.graph - INFO - {"event": "request_latency", "metrics": {"routing_time": 0.5259628295898438, "generation_time": 1.3136358261108398, "llm_call_count": 1, "hop_count": 1, "total_time": 50.73886227607727}}
+2026-08-19 11:11:31,694 - api.main - INFO - H1b-i check: session_id=h1b_i_context_check chat_history_len=2
+2026-08-19 11:11:31,694 - api.main - WARNING - No real Odoo API key in JWT for uid=2 -- ERP/XML-RPC calls will fall back to the admin credential instead of the requester's own rights.
+2026-08-19 11:11:31,763 - rag.graph - INFO - Invoking graph for question: 'Et pour cette annee ?'
+2026-08-19 11:11:31,765 - rag.graph - INFO - Node [retrieve]: Fetching documents for: Et pour cette annee ?
+2026-08-19 11:11:32,596 - vectorstore.search - INFO - Hybrid search: 200 vector results, 4 BM25 results
+2026-08-19 11:11:32,596 - vectorstore.search - INFO - RRF fusion: 202 results above threshold 0.01
+2026-08-19 11:12:16,876 - vectorstore.search - INFO - Retrieval complete: 10 results for query 'Et pour cette annee ?'
+2026-08-19 11:12:16,877 - rag.graph - INFO - Node [route]: Classifying query type from 10 chunks
+2026-08-19 11:12:16,888 - rag.graph - INFO - Node [route]: ERP ratio = 0/10 (0%)
+2026-08-19 11:12:16,888 - rag.graph - INFO - Node [route]: → DOCUMENTAIRE branch
+2026-08-19 11:12:16,889 - rag.graph - INFO - Node [generate]: Building prompt and calling LLM
+2026-08-19 11:12:17,795 - httpx - INFO - HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 400 Bad Request"
+2026-08-19 11:12:17,796 - rag.graph - WARNING - Structured LLM Generation failed (Error code: 400 - {'error': {'message': 'Tool choice is required, but model did not call a tool', 'type': 'invalid_request_error', 'code': 'tool_use_failed', 'failed_generation': '{\n  "answer": "Je n\'ai pas trouvé cette information dans la base de connaissance interne. Contactez votre responsable technique pour plus de détails.",\n  "sources": [],\n  "confidence": 0.0,\n  "missing_info": null\n}'}}) → falling back to raw invoke
+2026-08-19 11:12:18,142 - httpx - INFO - HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-08-19 11:12:18,143 - groq._base_client - INFO - Retrying request to /openai/v1/chat/completions in 14.000000 seconds
+2026-08-19 11:12:33,203 - httpx - INFO - HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-19 11:12:33,205 - code_intelligence.reasoning_trace_logger - INFO - Reasoning trace [42fc256304f9] SUMMARY: branch=documentaire hops=0/4 llm_calls=1 total=16315.84ms
+2026-08-19 11:12:33,207 - rag.graph - INFO - Node [format_output]: Formatting final response
+2026-08-19 11:12:33,208 - rag.graph - INFO - {"event": "request_latency", "metrics": {"routing_time": 0.0112762451171875, "generation_time": 16.31584358215332, "llm_call_count": 1, "total_time": 61.51325535774231}}
+2026-08-19 11:19:50,724 - api.main - INFO - Stopping background periodic scan scheduler...
+2026-08-19 11:20:07,700 - api.main - INFO - Startup incremental scan: scanning /home/user/odoo-ia-prototype/miro-rag/fake_data/documents and None
+2026-08-19 11:20:07,700 - api.main - INFO - FINISHED startup event in main.py, returning to uvicorn!
+2026-08-19 11:20:07,836 - vectorstore.chroma_manager - WARNING - EMBEDDING_BACKEND=local_light : utilisation du modele par defaut de ChromaDB (all-MiniLM-L6-v2, 384 dimensions, onnxruntime) au lieu de nomic-embed-text-v1.5 -- palliatif TEMPORAIRE, cette machine n'a pas AVX2 et nomic-embed-text-v1.5 en local (PyTorch) y est trop lent pour le vrai corpus (~3s/chunk mesure). A repasser sur EMBEDDING_BACKEND=local (ou retirer la variable) des que le materiel prevu arrive, sauf meilleur modele trouve d'ici la. Toute collection ChromaDB deja peuplee avec un autre modele doit etre reingeree en entier (dimensions incompatibles).
+2026-08-19 11:20:07,840 - vectorstore.chroma_manager - INFO - ChromaDB initialized at /home/user/odoo-ia-prototype/miro-rag/vectorstore/chroma_db with collection 'odoo_docs'
+2026-08-19 11:20:07,853 - vectorstore.chroma_manager - WARNING - EMBEDDING_BACKEND=local_light : utilisation du modele par defaut de ChromaDB (all-MiniLM-L6-v2, 384 dimensions, onnxruntime) au lieu de nomic-embed-text-v1.5 -- palliatif TEMPORAIRE, cette machine n'a pas AVX2 et nomic-embed-text-v1.5 en local (PyTorch) y est trop lent pour le vrai corpus (~3s/chunk mesure). A repasser sur EMBEDDING_BACKEND=local (ou retirer la variable) des que le materiel prevu arrive, sauf meilleur modele trouve d'ici la. Toute collection ChromaDB deja peuplee avec un autre modele doit etre reingeree en entier (dimensions incompatibles).
+2026-08-19 11:20:07,855 - vectorstore.chroma_manager - INFO - ChromaDB initialized at /home/user/odoo-ia-prototype/miro-rag/vectorstore/chroma_db with collection 'odoo_code'
+2026-08-19 11:20:07,855 - ingestion.scheduler - INFO - Running startup incremental scan across roots: [PosixPath('/home/user/odoo-ia-prototype/miro-rag/fake_data/documents'), None]
+2026-08-19 12:55:46,123 - api.main - INFO - Startup incremental scan: scanning /home/user/odoo-ia-prototype/miro-rag/fake_data/documents and None
+2026-08-19 12:55:46,128 - api.main - INFO - FINISHED startup event in main.py, returning to uvicorn!
+2026-08-19 12:55:46,372 - vectorstore.chroma_manager - WARNING - EMBEDDING_BACKEND=local_light : utilisation du modele par defaut de ChromaDB (all-MiniLM-L6-v2, 384 dimensions, onnxruntime) au lieu de nomic-embed-text-v1.5 -- palliatif TEMPORAIRE, cette machine n'a pas AVX2 et nomic-embed-text-v1.5 en local (PyTorch) y est trop lent pour le vrai corpus (~3s/chunk mesure). A repasser sur EMBEDDING_BACKEND=local (ou retirer la variable) des que le materiel prevu arrive, sauf meilleur modele trouve d'ici la. Toute collection ChromaDB deja peuplee avec un autre modele doit etre reingeree en entier (dimensions incompatibles).
+2026-08-19 12:55:46,387 - vectorstore.chroma_manager - INFO - ChromaDB initialized at /home/user/odoo-ia-prototype/miro-rag/vectorstore/chroma_db with collection 'odoo_docs'
+2026-08-19 12:55:46,403 - vectorstore.chroma_manager - WARNING - EMBEDDING_BACKEND=local_light : utilisation du modele par defaut de ChromaDB (all-MiniLM-L6-v2, 384 dimensions, onnxruntime) au lieu de nomic-embed-text-v1.5 -- palliatif TEMPORAIRE, cette machine n'a pas AVX2 et nomic-embed-text-v1.5 en local (PyTorch) y est trop lent pour le vrai corpus (~3s/chunk mesure). A repasser sur EMBEDDING_BACKEND=local (ou retirer la variable) des que le materiel prevu arrive, sauf meilleur modele trouve d'ici la. Toute collection ChromaDB deja peuplee avec un autre modele doit etre reingeree en entier (dimensions incompatibles).
+2026-08-19 12:55:46,407 - vectorstore.chroma_manager - INFO - ChromaDB initialized at /home/user/odoo-ia-prototype/miro-rag/vectorstore/chroma_db with collection 'odoo_code'
+2026-08-19 12:55:46,407 - ingestion.scheduler - INFO - Running startup incremental scan across roots: [PosixPath('/home/user/odoo-ia-prototype/miro-rag/fake_data/documents'), None]
+2026-08-19 14:05:24,316 - api.main - INFO - Stopping background periodic scan scheduler...
+{"timestamp": "2026-08-19T13:32:17.166586+00:00", "event_type": "incremental_reindex", "status": "success", "files_processed": ["/tmp/tmpfw5mjpyh/docs/doc_secret_katsuki.txt"], "chunks_added": 1, "chunks_deleted": 0, "time_taken_seconds": 0.9141, "errors": {}, "result": {"added_files": ["/tmp/tmpfw5mjpyh/docs/doc_secret_katsuki.txt"], "updated_files": [], "deleted_files": [], "skipped_files": [], "failed_files": {}, "chunks_added": 1, "chunks_deleted": 0}}
+{"timestamp": "2026-08-19T13:32:19.729500+00:00", "event_type": "incremental_reindex", "status": "success", "files_processed": ["/tmp/tmpfw5mjpyh/docs/doc_secret_katsuki.txt"], "chunks_added": 0, "chunks_deleted": 1, "time_taken_seconds": 0.0274, "errors": {}, "result": {"added_files": [], "updated_files": [], "deleted_files": ["/tmp/tmpfw5mjpyh/docs/doc_secret_katsuki.txt", "/tmp/tmpfw5mjpyh/docs/doc_secret_katsuki.txt"], "skipped_files": [], "failed_files": {}, "chunks_added": 0, "chunks_deleted": 1}}
+{"timestamp": "2026-08-19T13:32:52.217360+00:00", "event_type": "incremental_reindex", "status": "success", "files_processed": ["/tmp/tmp_ux_7ltr/docs/existing.txt"], "chunks_added": 1, "chunks_deleted": 0, "time_taken_seconds": 27.0271, "errors": {}, "result": {"added_files": ["/tmp/tmp_ux_7ltr/docs/existing.txt"], "updated_files": [], "deleted_files": [], "skipped_files": [], "failed_files": {}, "chunks_added": 1, "chunks_deleted": 0}}
+{"timestamp": "2026-08-19T13:43:04.391223+00:00", "event_type": "incremental_reindex", "status": "success", "files_processed": ["/tmp/tmpbwtxm2ji/docs/doc_secret_katsuki.txt"], "chunks_added": 1, "chunks_deleted": 0, "time_taken_seconds": 0.8823, "errors": {}, "result": {"added_files": ["/tmp/tmpbwtxm2ji/docs/doc_secret_katsuki.txt"], "updated_files": [], "deleted_files": [], "skipped_files": [], "failed_files": {}, "chunks_added": 1, "chunks_deleted": 0}}
+{"timestamp": "2026-08-19T13:43:07.046901+00:00", "event_type": "incremental_reindex", "status": "success", "files_processed": ["/tmp/tmpbwtxm2ji/docs/doc_secret_katsuki.txt"], "chunks_added": 0, "chunks_deleted": 1, "time_taken_seconds": 0.032, "errors": {}, "result": {"added_files": [], "updated_files": [], "deleted_files": ["/tmp/tmpbwtxm2ji/docs/doc_secret_katsuki.txt", "/tmp/tmpbwtxm2ji/docs/doc_secret_katsuki.txt"], "skipped_files": [], "failed_files": {}, "chunks_added": 0, "chunks_deleted": 1}}
+{"timestamp": "2026-08-19T13:43:21.277266+00:00", "event_type": "incremental_reindex", "status": "success", "files_processed": ["/tmp/tmpix1sh2t0/docs/existing.txt"], "chunks_added": 1, "chunks_deleted": 0, "time_taken_seconds": 7.6376, "errors": {}, "result": {"added_files": ["/tmp/tmpix1sh2t0/docs/existing.txt"], "updated_files": [], "deleted_files": [], "skipped_files": [], "failed_files": {}, "chunks_added": 1, "chunks_deleted": 0}}
+{"timestamp": "2026-08-19T13:43:28.670333+00:00", "event_type": "incremental_reindex", "status": "success", "files_processed": ["/tmp/tmpix1sh2t0/docs/existing.txt", "/tmp/tmpix1sh2t0/docs/new.txt"], "chunks_added": 1, "chunks_deleted": 0, "time_taken_seconds": 7.3863, "errors": {}, "result": {"added_files": ["/tmp/tmpix1sh2t0/docs/new.txt"], "updated_files": [], "deleted_files": [], "skipped_files": ["/tmp/tmpix1sh2t0/docs/existing.txt"], "failed_files": {}, "chunks_added": 1, "chunks_deleted": 0}}
+{"timestamp": "2026-08-19T13:43:36.606902+00:00", "event_type": "incremental_reindex", "status": "success", "files_processed": ["/tmp/tmp3ub9gmmc/docs/delete_me.txt", "/tmp/tmp3ub9gmmc/docs/keep_me.txt"], "chunks_added": 2, "chunks_deleted": 0, "time_taken_seconds": 7.726, "errors": {}, "result": {"added_files": ["/tmp/tmp3ub9gmmc/docs/delete_me.txt", "/tmp/tmp3ub9gmmc/docs/keep_me.txt"], "updated_files": [], "deleted_files": [], "skipped_files": [], "failed_files": {}, "chunks_added": 2, "chunks_deleted": 0}}
+{"timestamp": "2026-08-19T13:43:41.776170+00:00", "event_type": "incremental_reindex", "status": "success", "files_processed": ["/tmp/tmp3ub9gmmc/docs/delete_me.txt", "/tmp/tmp3ub9gmmc/docs/keep_me.txt"], "chunks_added": 0, "chunks_deleted": 1, "time_taken_seconds": 5.1628, "errors": {}, "result": {"added_files": [], "updated_files": [], "deleted_files": ["/tmp/tmp3ub9gmmc/docs/delete_me.txt"], "skipped_files": ["/tmp/tmp3ub9gmmc/docs/keep_me.txt"], "failed_files": {}, "chunks_added": 0, "chunks_deleted": 1}}
+{"timestamp": "2026-08-19T13:43:51.301682+00:00", "event_type": "incremental_reindex", "status": "success", "files_processed": ["/tmp/tmpgjwd06oz/docs/first.txt", "/tmp/tmpgjwd06oz/docs/second.txt", "/tmp/tmpgjwd06oz/docs/third.txt"], "chunks_added": 3, "chunks_deleted": 0, "time_taken_seconds": 9.2694, "errors": {}, "result": {"added_files": ["/tmp/tmpgjwd06oz/docs/first.txt", "/tmp/tmpgjwd06oz/docs/second.txt", "/tmp/tmpgjwd06oz/docs/third.txt"], "updated_files": [], "deleted_files": [], "skipped_files": [], "failed_files": {}, "chunks_added": 3, "chunks_deleted": 0}}
+{"timestamp": "2026-08-19T13:43:58.034829+00:00", "event_type": "incremental_reindex", "status": "success", "files_processed": ["/tmp/tmpgjwd06oz/docs/first.txt", "/tmp/tmpgjwd06oz/docs/second.txt", "/tmp/tmpgjwd06oz/docs/third.txt"], "chunks_added": 2, "chunks_deleted": 2, "time_taken_seconds": 6.7258, "errors": {}, "result": {"added_files": [], "updated_files": ["/tmp/tmpgjwd06oz/docs/first.txt", "/tmp/tmpgjwd06oz/docs/third.txt"], "deleted_files": [], "skipped_files": ["/tmp/tmpgjwd06oz/docs/second.txt"], "failed_files": {}, "chunks_added": 2, "chunks_deleted": 2}}

@@ -109,3 +109,74 @@ def test_dynamic_dispatch_uncertainty_cannot_be_synthesized_as_certain():
     assert "getattr" in answer
     assert "file:///tmp/reimbursement.py#L1-L31" in answer
     assert "aucune restriction" not in answer.lower()
+
+
+# H1 prototype (2026-08-19, contexte.txt section 60/61 finding F2):
+# business_resolver.py is now invoked once at the top of route(), before
+# any keyword classification, deliberately observational-only (see the
+# comment block at the top of route() in rag/graph.py for the full
+# rationale, including the DOC-08 regression this design was changed to
+# avoid). These tests lock in the two properties that matter for this
+# first step: (1) the resolved concept is genuinely computed and exposed
+# on state, so a later step can build on it without recomputing, and (2)
+# every single existing routing decision -- including the one case that
+# would have broken had business_resolver been allowed to steer
+# route_decision -- is completely unchanged.
+class TestH1BusinessResolverExposedBeforeRoute:
+    def test_resolved_concept_is_present_on_returned_state(self):
+        """Any question at all must come back with a resolved_concept dict
+        (never a missing key), regardless of whether resolution succeeded."""
+        state = {
+            "question": "Comment configurer le module de comptabilité dans Odoo 17 ?",
+            "retrieved_chunks": [],
+            "chat_history": [],
+            "timing": {},
+        }
+        result = route(state)
+        assert "resolved_concept" in result
+        assert isinstance(result["resolved_concept"], dict)
+
+    def test_static_alias_question_resolves_but_does_not_change_the_route(self):
+        """The exact DOC-08 regression case (tests/benchmark_questions.json):
+        'mise à disposition' resolves deterministically via the static alias
+        tier to custom.asset.loan, but the question asks about a wiki-
+        documented SLA, not governance/code -- the correct route stays
+        DOCUMENTAIRE (via the unchanged no-chunks default), proving
+        resolution success is exposed on state without being allowed to
+        steer route_decision in this first step."""
+        state = {
+            "question": "Quel est le délai de traitement pour une demande de mise à disposition ?",
+            "retrieved_chunks": [],
+            "chat_history": [],
+            "timing": {},
+        }
+        result = route(state)
+        concept = result["resolved_concept"]
+        assert concept["is_resolved"] is True
+        assert concept["source_step"] == "static_alias"
+        assert "custom.asset.loan" in concept["resolved_models"]
+        assert result["route"] == "documentaire"
+
+    def test_unresolved_question_still_routes_normally(self):
+        state = {
+            "question": "Quels sont les modules Odoo considérés comme sensibles et qui y a accès ?",
+            "retrieved_chunks": [],
+            "chat_history": [],
+            "timing": {},
+        }
+        result = route(state)
+        assert result["resolved_concept"]["is_resolved"] is False
+        assert result["route"] == "documentaire"
+
+    @pytest.mark.parametrize(
+        "example",
+        FEW_SHOT_ROUTING_EXAMPLES,
+        ids=[ex["question"][:60] for ex in FEW_SHOT_ROUTING_EXAMPLES],
+    )
+    def test_every_few_shot_route_decision_is_unaffected(self, example):
+        """Full non-regression sweep: computing resolved_concept up front
+        must never change any of the 16 already-locked few-shot routing
+        decisions, whether or not business_resolver happens to resolve
+        something on that question."""
+        actual = _route_question(example["question"])
+        assert actual == example["expected_route"]

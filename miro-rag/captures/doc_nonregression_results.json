@@ -2,7 +2,7 @@
   {
     "id": "DOC-01",
     "question": "Comment créer une facture client dans Odoo 17 ?",
-    "answer_snippet": "Pour créer une facture client dans Odoo 17, suivez ces étapes : Aller dans Comptabilité > Clients > Factures > Nouveau. Sélectionner le client, ajouter les lignes de produits, puis cliquer sur Confirm",
+    "answer_snippet": "Pour créer une facture client dans Odoo 17, suivez ces étapes :\n1. Allez dans le menu **Comptabilité** → **Clients** → **Factures**.\n2. Cliquez sur le bouton **Nouveau**.\n3. Sélectionnez le client con",
     "passed": true,
     "matched_keywords": [
       "comptabilité",
@@ -16,12 +16,12 @@
       "manuel_facturation.pdf"
     ],
     "source_found": true,
-    "confidence": 0.95
+    "confidence": 0.85
   },
   {
     "id": "DOC-02",
     "question": "Comment envoyer une facture par email depuis Odoo ?",
-    "answer_snippet": "Pour envoyer une facture par email depuis Odoo, suivez ces étapes : Aller dans la facture confirmée, cliquer sur Envoyer et Imprimer. Odoo générera automatiquement un email avec le PDF de la facture e",
+    "answer_snippet": "Pour envoyer une facture par email depuis Odoo, ouvrez la facture déjà confirmée, puis cliquez sur le bouton **Envoyer et Imprimer**. Odoo génère automatiquement un e‑mail contenant le PDF de la factu",
     "passed": true,
     "matched_keywords": [
       "envoyer et imprimer",
@@ -34,12 +34,12 @@
       "manuel_facturation.pdf"
     ],
     "source_found": true,
-    "confidence": 0.95
+    "confidence": 0.85
   },
   {
     "id": "DOC-03",
     "question": "Comment créer un avoir (note de crédit) dans Odoo ?",
-    "answer_snippet": "Pour créer un avoir (note de crédit) dans Odoo, suivez les étapes suivantes : Depuis la facture confirmée, cliquez sur Avoir. Choisissez la date et le journal, puis confirmez. L'avoir doit être approu",
+    "answer_snippet": "Pour créer un avoir (note de crédit) dans Odoo : \n1. Accédez à **Comptabilité > Clients > Factures**. \n2. Ouvrez la facture client confirmée pour laquelle vous souhaitez émettre un avoir. \n3. Cliquez ",
     "passed": true,
     "matched_keywords": [
       "avoir",
@@ -52,12 +52,12 @@
       "manuel_facturation.pdf"
     ],
     "source_found": true,
-    "confidence": 0.95
+    "confidence": 0.85
   },
   {
     "id": "DOC-04",
     "question": "Comment configurer les relances automatiques dans Odoo ?",
-    "answer_snippet": "Pour configurer les relances automatiques dans Odoo, suivez ces étapes : \n\n1. Allez dans Comptabilité > Configuration > Niveaux de relance.\n2. Sélectionnez le niveau de relance souhaité (rappel doux, ",
+    "answer_snippet": "Pour configurer les relances automatiques dans Odoo, suivez ces étapes :\n1. Accédez à **Comptabilité** > **Configuration** > **Niveaux de relance**.\n2. Créez ou modifiez les niveaux de relance (ex. ra",
     "passed": true,
     "matched_keywords": [
       "relances",
@@ -71,12 +71,12 @@
       "manuel_facturation.pdf"
     ],
     "source_found": true,
-    "confidence": 0.95
+    "confidence": 0.85
   },
   {
     "id": "DOC-05",
     "question": "Qui peut approuver une mise à disposition selon le wiki interne ?",
-    "answer_snippet": "Selon le wiki interne, une demande de mise à disposition doit être approuvée par le Directeur Technique si le montant est inférieur à 500 000 Ar, et par le Directeur Général si le montant est égal ou ",
+    "answer_snippet": "Selon le wiki interne, une demande de mise à disposition est approuvée par le Directeur Technique si le montant est inférieur à 500 000 Ar, et par le Directeur Général si le montant est égal ou supéri",
     "passed": true,
     "matched_keywords": [
       "directeur technique",
@@ -93,7 +93,7 @@
   {
     "id": "DOC-06",
     "question": "Quelle est la procédure de validation d'une facture selon le wiki ?",
-    "answer_snippet": "Une facture est validée comme suit : Créée par le comptable, vérifiée par le Responsable Administratif, envoyée au client uniquement après double validation. Tout avoir doit être approuvé par le Direc",
+    "answer_snippet": "Selon le wiki interne MIRO KE, la validation d’une facture se déroule en plusieurs étapes :\n1. La facture est créée par le comptable.\n2. Elle est vérifiée par le Responsable Administratif.\n3. Elle n’e",
     "passed": true,
     "matched_keywords": [
       "comptable",
@@ -110,7 +110,7 @@
   {
     "id": "DOC-07",
     "question": "Quels sont les modules Odoo considérés comme sensibles et qui y a accès ?",
-    "answer_snippet": "Les modules Odoo considérés comme sensibles sont la Comptabilité et RH. Le module Comptabilité est accessible aux Directeurs et aux Comptables, tandis que le module RH est accessible aux DRH et aux Di",
+    "answer_snippet": "Les modules Odoo considérés comme sensibles sont le module Comptabilité et le module RH. Le module Comptabilité est accessible uniquement aux Directeurs et aux Comptables, tandis que le module RH est ",
     "passed": true,
     "matched_keywords": [
       "comptabilité",
@@ -124,12 +124,12 @@
       "wiki_approbation.txt"
     ],
     "source_found": true,
-    "confidence": 0.95
+    "confidence": 0.85
   },
   {
     "id": "DOC-08",
     "question": "Quel est le délai de traitement pour une demande de mise à disposition ?",
-    "answer_snippet": "48 heures ouvrables\n\n[Source: Documentation Odoo - WIKI INTERNE MIRO KE — Procédure d'approbation des demandes]",
+    "answer_snippet": "Le délai de traitement d’une demande de mise à disposition est de 48 heures ouvrables.\n\n[Source: Documentation Odoo - WIKI INTERNE MIRO KE — Procédure d'approbation des demandes]",
     "passed": true,
     "matched_keywords": [
       "48h",
@@ -141,28 +141,28 @@
       "wiki_approbation.txt"
     ],
     "source_found": true,
-    "confidence": 1.0
+    "confidence": 0.95
   },
   {
     "id": "DOC-09",
     "question": "Qui doit approuver un avoir dans la politique interne de MIRO KE ?",
-    "answer_snippet": "L'avoir doit être approuvé par le Directeur Général selon la politique interne de MIRO KE.\n\n⚠️ *Cette information provient d'un document numérisé dont la qualité de lecture est limitée.*\n\n[Source: Doc",
-    "passed": true,
-    "matched_keywords": [
+    "answer_snippet": "**Qui doit approuver un avoir ?**\n\n- **Base :**\n  - Si le montant total de l’avoir dépasse **5000 €**, la validation est réservée aux utilisateurs appartenant au groupe **account.group_account_manager",
+    "passed": false,
+    "matched_keywords": [],
+    "missing_keywords": [
       "directeur général"
     ],
-    "missing_keywords": [],
     "source_expected": [
       "manuel_facturation.pdf",
       "wiki_approbation.txt"
     ],
-    "source_found": true,
-    "confidence": 0.95
+    "source_found": false,
+    "confidence": 1.0
   },
   {
     "id": "DOC-10",
     "question": "Quels sont les trois niveaux de relance disponibles dans Odoo ?",
-    "answer_snippet": "Les trois niveaux de relance disponibles dans Odoo sont : rappel doux, rappel ferme et mise en demeure.\n\n[Source: Documentation Odoo - /home/user/odoo-ia-prototype/miro-rag/fake_data/documents/manuel_",
+    "answer_snippet": "Les trois niveaux de relance disponibles dans Odoo sont :\n1. Rappel doux\n2. Rappel ferme\n3. Mise en demeure\n\n[Source: Documentation Odoo - /home/user/odoo-ia-prototype/miro-rag/fake_data/documents/man",
     "passed": true,
     "matched_keywords": [
       "rappel doux",
@@ -174,6 +174,6 @@
       "manuel_facturation.pdf"
     ],
     "source_found": true,
-    "confidence": 1.0
+    "confidence": 0.95
   }
 ]

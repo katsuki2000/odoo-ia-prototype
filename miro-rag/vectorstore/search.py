@@ -26,6 +26,7 @@ from rank_bm25 import BM25Okapi
 
 # Add parent directory to path for config imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from config.settings import USE_RERANKER
 from vectorstore.chroma_manager import ChromaManager
 
 logger = logging.getLogger(__name__)
@@ -435,7 +436,7 @@ def retrieve(
     vector_weight: float = 0.6,
     bm25_weight: float = 0.4,
     relevance_threshold: float = 0.3,
-    use_reranker: bool = True,
+    use_reranker: bool = USE_RERANKER,
     where: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     """

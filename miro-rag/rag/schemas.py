@@ -86,3 +86,13 @@ class AssistantResponse(BaseModel):
         default_factory=list,
         description="Bloc 7 (J23-24): elements withheld because the demandeur's rights don't cover them",
     )
+    route: Optional[str] = Field(
+        default=None,
+        description=(
+            "H1c support (todo/plan.md, 2026-08-19): which QueryRoute branch "
+            "actually handled this turn, set centrally in rag/graph.py's "
+            "format_output() node. Lets the caller (api/main.py) persist it "
+            "as next turn's last_route for route()'s sticky-routing fallback "
+            "-- never consumed inside the graph itself."
+        ),
+    )

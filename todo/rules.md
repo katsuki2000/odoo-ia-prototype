@@ -6,7 +6,7 @@ clean code
 find best algorithm
 make the work like it was built by an human. no "plagiat", at least reformulate first
 put all installed packages in requirements(we work in venv)
-put everything you change in contexte.txt
+put everything you change in todo/contexte.txt
 
 
 ## Règle 1 — Tolérance zéro pour la division par zéro

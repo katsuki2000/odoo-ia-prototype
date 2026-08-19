@@ -5,7 +5,8 @@ from rag.schemas import AssistantResponse, LLMResponse
 from types import SimpleNamespace
 
 from rag.graph import (
-    query_graph, generate, format_output, _rank_and_cap_override_methods,
+    query_graph, generate, format_output, _parse_raw_json_answer,
+    _rank_and_cap_override_methods,
     _format_can_view_amount_fact, _question_suggests_automation_bypass,
     _extract_override_modules, _backfill_missing_override_modules,
     _extract_override_chain_amounts, _backfill_missing_override_chain_amount,
@@ -53,6 +54,63 @@ def test_generate_out_of_scope_refuses_before_llm():
     assert len(result["response"].sources) == 0
 
 
+# 1bis. Dette technique (19/08): _parse_raw_json_answer must extract 'answer'
+# from the raw-invoke fallback's JSON text instead of letting it leak to the user.
+
+def test_parse_raw_json_answer_extracts_answer_field():
+    raw = (
+        '{"answer": "Le bouton est grisé car le document est validé.", '
+        '"sources": [{"file": "account_move.py", "lines": "84"}], '
+        '"confidence": 0.9, "missing_info": null}'
+    )
+    assert _parse_raw_json_answer(raw) == "Le bouton est grisé car le document est validé."
+
+
+def test_parse_raw_json_answer_strips_markdown_fence():
+    raw = '```json\n{"answer": "Réponse propre.", "confidence": 0.7}\n```'
+    assert _parse_raw_json_answer(raw) == "Réponse propre."
+
+
+def test_parse_raw_json_answer_returns_none_for_plain_text():
+    # Not JSON-shaped -> caller should fall back to the raw text unchanged.
+    assert _parse_raw_json_answer("Voici une réponse en texte libre.") is None
+
+
+def test_parse_raw_json_answer_returns_none_when_answer_field_missing():
+    assert _parse_raw_json_answer('{"confidence": 0.5}') is None
+
+
+@patch('rag.graph.ChatGroq')
+def test_generate_raw_invoke_fallback_parses_json_answer(mock_chat_groq):
+    # Structured-output call fails -> raw invoke fallback runs. The raw
+    # response.content is JSON text (SYSTEM_PROMPT instructs JSON output) --
+    # generate() must surface only the 'answer' field, not the raw JSON blob.
+    mock_llm_instance = MagicMock()
+    mock_chat_groq.return_value = mock_llm_instance
+    mock_structured_llm = MagicMock()
+    mock_llm_instance.with_structured_output.return_value = mock_structured_llm
+    mock_structured_llm.invoke.side_effect = Exception("Tool choice is required, but model did not call a tool")
+
+    mock_llm_instance.invoke.return_value = SimpleNamespace(
+        content='{"answer": "Le montant est masqué car seuls les responsables financiers peuvent le consulter.", '
+                '"sources": [], "confidence": 0.8, "missing_info": null}'
+    )
+
+    state = {
+        "question": "Pourquoi le montant est caché ?",
+        "chat_history": [],
+        "retrieved_chunks": [
+            {"document": "context", "metadata": {"source": "rule.xml"}}
+        ],
+    }
+    result = generate(state)
+    assert result["response"].answer == (
+        "Le montant est masqué car seuls les responsables financiers peuvent le consulter."
+    )
+    assert '"answer"' not in result["response"].answer
+    assert "missing_info" not in result["response"].answer
+
+
 # 2. Test OCR warning injection
 
 def test_format_output_ocr_warning():
@@ -80,6 +138,51 @@ def test_format_output_clean():
     result = format_output(state)
     assert result["response"].ocr_warning is False
     assert "qualité de lecture est limitée" not in result["response"].answer
+
+
+# 3bis. Dette technique (19/08): OCR warning must not leak onto an answer whose
+# actual (top-ranked) source is a .py file just because an unrelated low-quality
+# scanned PDF was also retrieved in the same batch (live-observed bug).
+def test_format_output_ocr_warning_not_leaked_from_unrelated_chunk():
+    state = {
+        "response": AssistantResponse(answer="Voici la réponse.", confidence=0.8, sources=[]),
+        "retrieved_chunks": [
+            {"document": "def action_confirm(self): ...", "metadata": {
+                "source": "/home/user/odoo-17.0/addons/miro_ai/controllers/main.py",
+                "type": "code_python",
+            }},
+            {"document": "scanned text", "metadata": {
+                "source": "scan.pdf", "ocr_quality": "low", "type": "doc_pdf",
+            }},
+        ],
+        "route": "documentaire",
+    }
+    result = format_output(state)
+    assert result["response"].ocr_warning is False
+    assert "qualité de lecture est limitée" not in result["response"].answer
+    # Sources are still populated from the full retrieved batch -- only the
+    # warning attribution changes, not what's shown as supporting evidence.
+    assert len(result["response"].sources) == 2
+
+
+# 3ter. Dette technique (19/08): warning still fires when the low-quality scan
+# IS the top-ranked / actually-cited source (main_src), not just "present somewhere".
+def test_format_output_ocr_warning_fires_when_primary_chunk_is_low_quality():
+    state = {
+        "response": AssistantResponse(answer="Voici la réponse.", confidence=0.8, sources=[]),
+        "retrieved_chunks": [
+            {"document": "scanned text", "metadata": {
+                "source": "scan.pdf", "ocr_quality": "low", "type": "doc_pdf",
+            }},
+            {"document": "def action_confirm(self): ...", "metadata": {
+                "source": "main.py", "type": "code_python",
+            }},
+        ],
+        "route": "documentaire",
+    }
+    result = format_output(state)
+    assert result["response"].ocr_warning is True
+    assert "qualité de lecture est limitée" in result["response"].answer
 
 # 4. Test full query graph with mocked LLM and retriever
 @patch('rag.graph.ChatGroq')

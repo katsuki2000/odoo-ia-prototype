@@ -384,7 +384,7 @@ avec les preuves.
 **Ne pas confondre** :
 
 - **Evidence Builder** (post-analyse) — construction des preuves pour expliquer la réponse, décrit ci-dessus.
-- **Evidence Check** (pré-analyse) — validation des hypothèses avant l'analyse. Correspond à H3 dans `plan_architecture_cible.md` (conceptuel, non implémenté à ce jour).
+- **Evidence Check** (pré-analyse) — validation des hypothèses avant l'analyse. Correspond à H3 dans `plan.md` (section « Préconditions à valider avant P1/P2 » ; conceptuel, non implémenté à ce jour).
 
 Ce sont deux concepts différents, même si Evidence Check (H3) n'est pas encore implémenté.
 

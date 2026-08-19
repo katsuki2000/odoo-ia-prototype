@@ -282,11 +282,29 @@ def ask_question_v1(request: AskRequestV1, user: dict = Depends(get_current_user
     V1 endpoint for asking questions, using the LangGraph agent.
     """
     from rag.graph import query_graph
+    from rag.session_store import get_session, update_session
     from langchain_core.messages import HumanMessage, AIMessage
 
-    # Note: In a real app, session_id would be used to load chat_history from a DB.
-    # Here we just pass an empty history for now since session management isn't fully implemented in the backend yet.
-    chat_history = [] 
+    # H1b-i (todo/plan.md, Bloc P1 preconditions H1): session_id existed in
+    # this payload already but was never used server-side -- every call ran
+    # with chat_history=[] regardless. Minimal in-memory session store (see
+    # rag/session_store.py) closes that infra gap. resolved_concept is
+    # carried alongside chat_history in the store but not yet consumed here
+    # -- the "reuse last_resolved_concept on an under-specified question"
+    # logic is H1b-ii, deliberately deferred until this persistence layer
+    # is confirmed working.
+    session = get_session(request.session_id)
+    chat_history = session["chat_history"]
+    # H1c (todo/plan.md, 2026-08-19): the previous turn's route for this
+    # session, if any -- passed to query_graph() so route()'s sticky-
+    # routing fallback can reuse it when the current question carries no
+    # keyword signal of its own (see rag/graph.py's
+    # _sticky_route_or_default docstring for the full rationale).
+    last_route = session["last_route"]
+    logging.getLogger(__name__).info(
+        "H1b-i check: session_id=%s chat_history_len=%d last_route=%s",
+        request.session_id, len(chat_history), last_route,
+    )
 
     try:
         if not request.question or not request.question.strip():
@@ -317,11 +335,32 @@ def ask_question_v1(request: AskRequestV1, user: dict = Depends(get_current_user
             uid=request.user_uid,
             api_key=token_api_key,
             user_groups=token_groups,
-            skills=request.skills
+            skills=request.skills,
+            last_route=last_route,
         )
         
         if response.answer == "Une erreur interne s'est produite lors de l'exécution du pipeline.":
             raise HTTPException(status_code=503, detail="Service Unavailable: Upstream provider down.")
+
+        # H1b-i: persist this turn onto the session so the NEXT request with
+        # the same session_id sees it via get_session() above. Only reached
+        # on a genuinely successful turn (every failure path above returns
+        # via HTTPException first) -- a failed turn is never written into
+        # the history. resolved_concept is carried over unchanged for now;
+        # query_graph() does not currently surface a per-turn
+        # resolved_concept back to this caller (see H1b-ii).
+        updated_history = chat_history + [
+            HumanMessage(content=request.question),
+            AIMessage(content=response.answer),
+        ]
+        # H1c: persist the branch this turn actually took (response.route,
+        # set centrally by format_output() in rag/graph.py) as next turn's
+        # last_route -- falls back to the previous value if this turn's
+        # route was somehow never set, rather than silently wiping it.
+        update_session(
+            request.session_id, updated_history, session.get("resolved_concept"),
+            getattr(response, "route", None) or last_route,
+        )
 
         return AskResponseV1(
             answer=response.answer,
