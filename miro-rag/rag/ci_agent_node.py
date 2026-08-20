@@ -21,6 +21,16 @@ from rag.schemas import AssistantResponse, SourceReference
 from rag.routing import (
     RAGState, _is_out_of_scope, OUT_OF_SCOPE_ANSWER,
     _is_massive_extraction_request, _is_prompt_injection,
+    # 2026-08-20 fix: REACT_RECURSION_LIMIT is used directly below (the
+    # ReAct loop's own iteration cap, distinct from CI_MAX_HOPS) but was
+    # never re-imported here after the graph.py -> ci_agent_node.py split
+    # -- NameError at call time, only on the path where no forced
+    # pre-dispatch already produced a final_answer (found via a real
+    # check_bloc9_01_credit_note_cascade_e2e.py run, 01a-business). Same
+    # class of gap as the ci_override_cascade import already documented
+    # above (missed re-export after the module split), not a new failure
+    # mode.
+    REACT_RECURSION_LIMIT,
 )
 from rag.llm_client import (
     get_chat_llm,
@@ -47,31 +57,45 @@ from rag.ci_helpers import (
     _scoped_raw_tool_output,
     _extract_required_groups_for_amount,
     _backfill_missing_required_groups,
-    _backfill_missing_override_modules,
-    _backfill_missing_override_chain_amount,
     _backfill_missing_security_lock_amount,
-    _correct_override_cascade_contradictions,
     _backfill_missing_trigger_condition_literals,
     _backfill_missing_hardcoded_id_literals,
-    _backfill_missing_unguarded_super,
     _backfill_link_guard_clarifications,
     _correct_can_view_amount_contradictions,
     _correct_security_lock_threshold_contradictions,
+    # _correct_override_cascade_contradictions intentionally NOT imported
+    # from here -- see the rag.ci_override_cascade import block below
+    # (2026-08-20 fix: ci_helpers.py's own copy of this function is a
+    # stale duplicate left behind by the ci_override_cascade.py split,
+    # calling _extract_override_modules which was never re-imported into
+    # ci_helpers.py -- NameError at call time, found via pytest).
     _backfill_missing_can_view_amount_fact,
     _format_can_view_amount_fact,
+    _rehydrate_sticky_concept,
     _rank_and_cap_resolved_models,
-    _rank_and_cap_override_methods,
     _override_user_groups_arg,
     _strip_group_resolution_noise,
     _force_out_of_scope_model_answer,
     _force_dynamic_uncertainty_answer,
+)
+
+# ── Backward-compatible re-exports from ci_override_cascade ───────────────────
+# 2026-08-20: relocated out of rag/ci_helpers.py -- see rag/ci_override_cascade.py's
+# docstring. This module's import was not updated at the time, which broke the
+# import chain for anything importing FROM this module (ImportError, found
+# 2026-08-20 alongside the identical gap in rag/graph.py's own import block).
+from rag.ci_override_cascade import (
+    _backfill_missing_override_modules,
+    _backfill_missing_override_chain_amount,
+    _correct_override_cascade_contradictions,
+    _backfill_missing_unguarded_super,
+    _rank_and_cap_override_methods,
     _MAX_OVERRIDE_CASCADE_DISPATCH,
 )
 
 logger = logging.getLogger(__name__)
 
 
-# ── Bloc 7 fix: real Odoo group DB IDs -> xml_id resolution ──────────────────
 # ── Bloc 7 fix: real Odoo group DB IDs -> xml_id resolution ──────────────────
 _GROUP_XMLID_CACHE: dict = {}
 _ADMIN_RPC_CLIENT = None
@@ -292,6 +316,30 @@ def code_intelligence_agent(state: RAGState) -> dict:
     _ci_resolver_time = time.perf_counter() - _t_resolver
     if concept.source_step == "llm_arbitration":
         _llm_call_count += 1  # bounded arbitration call inside resolve_business_term
+
+    # H3 (2026-08-20, todo/contexte.txt): captured BEFORE rehydration --
+    # see rag/evidence_check.py's check_evidence() docstring for why this
+    # must be captured here and passed in explicitly (a successful fresh
+    # resolution and a successful rehydration are indistinguishable from
+    # concept.is_resolved alone once rehydration has already run).
+    _concept_resolved_before_rehydration = concept.is_resolved
+
+    # H1b-ii (todo/contexte.txt section 64/70, 2026-08-20): rehydrate a
+    # sticky resolved_concept from route() when this branch's own
+    # resolution failed -- see _rehydrate_sticky_concept's own docstring
+    # in rag/ci_helpers.py (extracted there 2026-08-20 for unit testing,
+    # tests/test_h1b_ii_sticky_concept.py) for the full rationale.
+    concept = _rehydrate_sticky_concept(concept, state)
+
+    # H3 (2026-08-20, todo/contexte.txt), Phase 1 -- observational only:
+    # compute RESOLU/NON_RESOLU/CONFLIT and log it, but do NOT yet change
+    # tool dispatch, system_prompt content, or gating based on it. See
+    # rag/evidence_check.py's module docstring for the full design and why
+    # this stays observation-only for now (same phasing discipline as H1's
+    # own first step).
+    from rag.evidence_check import check_evidence
+    evidence_status = check_evidence(concept, _concept_resolved_before_rehydration, state)
+    logger.info("Node [code_intelligence_agent]: H3 evidence_status=%s", evidence_status)
 
     # J32-J33: Enforce MAX_MODELS_PER_QUERY limit on resolved models
     if concept.resolved_models and len(concept.resolved_models) > MAX_MODELS_PER_QUERY:
@@ -1521,5 +1569,6 @@ def code_intelligence_agent(state: RAGState) -> dict:
         "raw_answer": final_answer,
         "timing": timing,
         "raw_tool_output": "\n\n".join(tool_observations),
+        "evidence_status": evidence_status,
     }
 

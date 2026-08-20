@@ -50,7 +50,7 @@ sys.path.insert(0, str(project_root))
 sys.path.insert(0, str(project_root / "miro-rag"))
 
 from rag.graph import (
-    code_intelligence_agent, get_code_intelligence_graph,
+    code_intelligence_agent, get_code_intelligence_graph, query_graph,
     _get_admin_rpc_client, _resolve_user_group_xmlids,
 )
 from code_intelligence.ci_agent_tools import ALL_CI_TOOLS, set_graph_ref, evaluer_regles_raw
@@ -210,6 +210,43 @@ def check_e2e(group_map):
     return all_ok
 
 
+def check_e2e_full_pipeline(group_map):
+    """Same questions as check_e2e(), but through query_graph() (the real
+    route() dispatch) instead of calling code_intelligence_agent()
+    directly -- catches routing bugs check_e2e() alone cannot see (see
+    check_bloc9_01_credit_note_cascade_e2e.py::check_e2e_full_pipeline for
+    the full rationale, contexte.txt section 78). Generalized to all 8
+    modules 2026-08-20."""
+    print("=" * 80)
+    print(" FULL PIPELINE (query_graph -> route())")
+    print("=" * 80)
+    all_ok = True
+    for item in QUESTIONS:
+        print(f"\n--- {item['id']} (full pipeline) ---")
+        user_groups = group_map.get(item["user_groups_key"], [])
+        print(f"Question : {item['question']}")
+        print(f"Requester groups: {item['user_groups_key']} -> DB ids {user_groups}")
+        response = query_graph(question=item["question"], user_groups=user_groups)
+        answer = response.answer if response else ""
+        print(f"R\u00e9ponse brute :\n{answer}\n")
+
+        expected_markers = item.get("expected_markers", [])
+        forbidden_markers = item.get("forbidden_markers", [])
+        missing = [m for m in expected_markers if not _marker_present(m, answer)]
+        present_forbidden = [m for m in forbidden_markers if _marker_present(m, answer)]
+        for m in expected_markers:
+            print(f"[{'OK ' if m not in missing else 'MISSING'}] expected marker: {m}")
+        for m in forbidden_markers:
+            print(f"[{'FAIL' if m in present_forbidden else 'OK '}] forbidden marker absent: {m}")
+
+        if missing or present_forbidden:
+            print(f"[RESULT] {item['id']} (full pipeline): FAIL -- missing {missing}, forbidden present {present_forbidden}")
+            all_ok = False
+        else:
+            print(f"[RESULT] {item['id']} (full pipeline): OK")
+    return all_ok
+
+
 def main():
     try:
         region_id, national_id = _resolve_group_ids()
@@ -230,8 +267,10 @@ def main():
     raw_ok = check_raw_tool_output(group_map)
     print()
     e2e_ok = check_e2e(group_map)
+    print()
+    full_pipeline_ok = check_e2e_full_pipeline(group_map)
     print("=" * 80)
-    if raw_ok and e2e_ok:
+    if raw_ok and e2e_ok and full_pipeline_ok:
         print("[BLOC 9 - 2/8] custom_credit_note_visibility_rules: E2E confirmed.")
         sys.exit(0)
     else:

@@ -6,10 +6,17 @@ H1b-i (todo/plan.md, Bloc P1 preconditions H1): minimal session persistence.
 Context: `session_id` already existed in the payload (widget -> controller ->
 FastAPI, see api/main.py AskRequestV1) but was never used server-side --
 every call to query_graph() ran with chat_history=[], regardless of the
-session_id sent. This is not a design decision about business_resolver or
+session_id sent. This was not a design decision about business_resolver or
 H1b-ii's "reuse last_resolved_concept when the question is under-specified"
-logic -- it is the missing infra brick those depend on. H1b-ii is deferred
-until this brick exists and is confirmed working.
+logic -- it was the missing infra brick those depended on.
+
+H1b-ii (2026-08-20, todo/contexte.txt section 64/70) is now implemented on
+top of this brick: `resolved_concept` below IS actively consumed --
+api/main.py reads it into `last_resolved_concept` and passes it to
+query_graph(), which feeds rag/routing.py's _sticky_concept_or_resolve
+fallback. (Superseded note, kept for history: this docstring originally
+said H1b-ii was "deferred until this brick exists" -- that referred to this
+file's own prerequisite status, now satisfied.)
 
 Deliberately the simplest possible implementation for a PoC (explicit
 project decision, not an oversight): a single process-wide dict, guarded by
@@ -71,13 +78,10 @@ def update_session(
 
     Last-write-wins -- no attempt at merging concurrent turns for the same
     session_id, consistent with the "simplest possible PoC" scope of
-    H1b-i. resolved_concept is accepted and stored now so the shape is
-    ready for H1b-ii, even though no caller populates it with a real value
-    yet (query_graph() does not currently surface a per-turn
-    resolved_concept to api/main.py -- see H1b-ii). last_route IS actively
-    populated by the caller now (H1c, 2026-08-19) -- api/main.py passes
-    response.route (set centrally by rag/graph.py's format_output() node)
-    after every successful turn.
+    H1b-i. resolved_concept and last_route are both actively populated by
+    the caller (api/main.py, H1c 2026-08-19 / H1b-ii 2026-08-20) after
+    every successful turn, from response.route/response.resolved_concept
+    (both set centrally by rag/graph.py's format_output() node).
     """
     with _LOCK:
         _SESSIONS[session_id] = {

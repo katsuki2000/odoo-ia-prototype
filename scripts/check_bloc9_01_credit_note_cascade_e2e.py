@@ -49,8 +49,9 @@ project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(project_root))
 sys.path.insert(0, str(project_root / "miro-rag"))
 
-from rag.graph import code_intelligence_agent, get_code_intelligence_graph
+from rag.graph import code_intelligence_agent, get_code_intelligence_graph, query_graph
 from code_intelligence.ci_agent_tools import ALL_CI_TOOLS, set_graph_ref
+from code_intelligence.deterministic_tools import _fold_accents
 
 QUESTIONS = [
     {
@@ -190,16 +191,82 @@ def check_e2e():
     return all_ok
 
 
+def _marker_present_full_pipeline(marker: str, text: str) -> bool:
+    """Accent/case-insensitive substring check for the full-pipeline pass."""
+    return _fold_accents(marker.lower()) in _fold_accents(text.lower())
+
+
+def check_e2e_full_pipeline():
+    """Same 01a/01c intent as check_e2e(), but through query_graph() (the
+    real route() dispatch) instead of calling code_intelligence_agent()
+    directly. check_e2e() alone can never catch a routing bug -- it forces
+    the Code Intelligence path regardless of what route() would have
+    picked. 01c-vip-trap (contexte.txt section 77) is exactly this: it was
+    found misrouted to the branche documentaire by route(), a failure mode
+    check_e2e()'s direct call cannot see. Merged in 2026-08-20 from the
+    now-deleted miro-rag/scripts/check_bloc9_01_credit_note_cascade_e2e.py
+    reconstruction (see contexte.txt section 78) rather than kept as a
+    second, diverging script.
+    """
+    print("=" * 80)
+    print(" FULL PIPELINE (query_graph -> route()) -- same 01a/01c intent, real dispatch")
+    print("=" * 80)
+    all_ok = True
+
+    cases = [
+        {
+            "label": "01a-business (full pipeline)",
+            "question": "Qui a le droit de valider un avoir de plus de 5000\u20ac ?",
+            "expected_markers": ["account.group_account_manager"],
+            "forbidden_markers": ["account.group_account_invoice"],
+        },
+        {
+            "label": "01c-vip-trap (full pipeline)",
+            "question": (
+                "Un avoir pour un client VIP (champ avoir_vip_exempt \u00e0 True sur le "
+                "partenaire) \u00e9chappe-t-il au contr\u00f4le de validation \u00e0 5000\u20ac appliqu\u00e9 "
+                "aux autres avoirs ?"
+            ),
+            "expected_markers": ["5000", "account.group_account_manager"],
+            "forbidden_markers": [],
+        },
+    ]
+
+    for case in cases:
+        print(f"\n--- {case['label']} ---")
+        print(f"Question : {case['question']}")
+        response = query_graph(question=case["question"], user_groups=[])
+        answer = response.answer if response else ""
+        print(f"R\u00e9ponse brute :\n{answer}\n")
+
+        missing = [m for m in case["expected_markers"] if not _marker_present_full_pipeline(m, answer)]
+        present_forbidden = [m for m in case["forbidden_markers"] if _marker_present_full_pipeline(m, answer)]
+        for m in case["expected_markers"]:
+            print(f"[{'OK ' if m not in missing else 'MISSING'}] expected marker: {m}")
+        for m in case["forbidden_markers"]:
+            print(f"[{'FAIL' if m in present_forbidden else 'OK '}] forbidden marker absent: {m}")
+
+        if missing or present_forbidden:
+            print(f"[RESULT] {case['label']}: FAIL -- missing {missing}, forbidden present {present_forbidden}")
+            all_ok = False
+        else:
+            print(f"[RESULT] {case['label']}: OK")
+
+    return all_ok
+
+
 def main():
     raw_ok = check_raw_tool_output()
     print()
     e2e_ok = check_e2e()
+    print()
+    full_pipeline_ok = check_e2e_full_pipeline()
     print("=" * 80)
-    if raw_ok and e2e_ok:
+    if raw_ok and e2e_ok and full_pipeline_ok:
         print("[BLOC 9 - 1/8] custom_credit_note_approval(+regional+vip): E2E confirmed.")
         sys.exit(0)
     else:
-        print("[BLOC 9 - 1/8] custom_credit_note_approval(+regional+vip): GAP FOUND -- see [MISSING] lines above.")
+        print("[BLOC 9 - 1/8] custom_credit_note_approval(+regional+vip): GAP FOUND -- see [MISSING]/[FAIL] lines above.")
         sys.exit(1)
 
 

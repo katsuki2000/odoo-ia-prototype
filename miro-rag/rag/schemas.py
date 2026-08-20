@@ -96,3 +96,32 @@ class AssistantResponse(BaseModel):
             "-- never consumed inside the graph itself."
         ),
     )
+    resolved_concept: Optional[dict] = Field(
+        default=None,
+        description=(
+            "H1b-ii support (todo/contexte.txt section 64/70, 2026-08-20): "
+            "the deterministic business_resolver output for this turn (dict "
+            "form of ResolvedConcept), set centrally in rag/graph.py's "
+            "format_output() node from RAGState.resolved_concept -- itself "
+            "either the current question's own resolution or the previous "
+            "turn's, reused by route()'s _sticky_concept_or_resolve fallback "
+            "when the current question carries no resolvable business term. "
+            "Lets the caller (api/main.py) persist it as next turn's "
+            "last_resolved_concept -- never consumed inside the graph via "
+            "this field itself (nodes read RAGState directly)."
+        ),
+    )
+    evidence_status: Optional[str] = Field(
+        default=None,
+        description=(
+            "H3 support (todo/contexte.txt, 2026-08-20), Phase 1 -- "
+            "observational only: RESOLU/NON_RESOLU/CONFLIT computed by "
+            "rag/evidence_check.py's check_evidence(), set centrally in "
+            "rag/graph.py's format_output() node from RAGState.evidence_status. "
+            "None on every branch except code_intelligence (the only branch "
+            "with a resolved_concept to reconcile). Does not currently affect "
+            "tool dispatch, prompt content, or gating -- surfaced purely for "
+            "measurement against the adversarial benchmark before any future "
+            "step decides what each status should actually change."
+        ),
+    )

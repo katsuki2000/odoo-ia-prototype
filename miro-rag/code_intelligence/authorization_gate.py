@@ -159,6 +159,37 @@ def _extract_has_group_xmlids_from_source(G: nx.DiGraph, model_name: str) -> Set
     return found
 
 
+def _expand_user_groups_ordered(G: nx.DiGraph, user_groups: List[str]) -> List[str]:
+    """
+    Expand user_groups with transitively implied groups while strictly preserving order:
+    1. Explicit user_groups in their original order (deduplicated, first-seen).
+    2. Implied groups (recursively inherited via IMPLIES edges) added afterwards, sorted alphabetically.
+
+    This ensures deterministic behavior for functions like _find_elevating_group()
+    which return the first matching group in user_groups order, while expanding
+    transitive group memberships.
+    """
+    if not user_groups:
+        return []
+
+    from code_intelligence.deterministic_tools import _expand_implied_user_groups
+
+    explicit_seen: Set[str] = set()
+    ordered_groups: List[str] = []
+    for ug in user_groups:
+        s = str(ug)
+        if s not in explicit_seen:
+            explicit_seen.add(s)
+            ordered_groups.append(s)
+
+    implied_set: Set[str] = set()
+    for g in ordered_groups:
+        _expand_implied_user_groups(G, g, implied_set)
+
+    implied_sorted: List[str] = sorted(g for g in implied_set if g not in explicit_seen)
+    return ordered_groups + implied_sorted
+
+
 def _has_elevated_access(G: nx.DiGraph, model_name: str, user_groups: List[str]) -> bool:
     """
     True if the demandeur's real Odoo groups (never LLM-guessed -- see
@@ -178,7 +209,7 @@ def _has_elevated_access(G: nx.DiGraph, model_name: str, user_groups: List[str])
 
     Read-only access, or no resolvable access at all, is NOT elevated.
     """
-    if not model_name:
+    if not model_name or not user_groups:
         return False
 
     from code_intelligence.deterministic_tools import (
@@ -186,14 +217,14 @@ def _has_elevated_access(G: nx.DiGraph, model_name: str, user_groups: List[str])
         resolve_group_identifier,
     )
 
+    expanded_groups = _expand_user_groups_ordered(G, user_groups)
+
     source_has_group_ids = _extract_has_group_xmlids_from_source(G, model_name)
     if source_has_group_ids:
-        if not user_groups:
-            return False
         candidate_groups = list(source_has_group_ids)
         return any(
             resolve_group_identifier(G, str(ug), candidate_groups) is not None
-            for ug in user_groups
+            for ug in expanded_groups
         )
 
     write_groups, write_auth, _ = _eval_single_droit(G, model_name, "write")
@@ -204,12 +235,12 @@ def _has_elevated_access(G: nx.DiGraph, model_name: str, user_groups: List[str])
         return True
 
     candidate_groups = list(write_groups | unlink_groups)
-    if not candidate_groups or not user_groups:
+    if not candidate_groups:
         return False
 
     return any(
         resolve_group_identifier(G, str(ug), candidate_groups) is not None
-        for ug in user_groups
+        for ug in expanded_groups
     )
 
 
@@ -231,10 +262,11 @@ def _find_elevating_group(G: nx.DiGraph, model_name: str, user_groups: List[str]
     (same has_group()-source-priority-over-ACL ordering, same conditions)
     rather than changing that function's return type -- it is a Bloc 7
     security-gating primitive and stays untouched here. Returns the first
-    matching group xml_id in user_groups order, or None under the exact
-    same conditions _has_elevated_access would return False (including:
-    the ACL grants access to all authenticated users, which is elevation
-    for nobody in particular and not a fact worth singling out).
+    matching group xml_id in user_groups order (with implied groups
+    checked afterwards in sorted order), or None under the exact same
+    conditions _has_elevated_access would return False (including: the ACL
+    grants access to all authenticated users, which is elevation for nobody
+    in particular and not a fact worth singling out).
     """
     if not model_name or not user_groups:
         return None
@@ -244,10 +276,12 @@ def _find_elevating_group(G: nx.DiGraph, model_name: str, user_groups: List[str]
         resolve_group_identifier,
     )
 
+    expanded_groups = _expand_user_groups_ordered(G, user_groups)
+
     source_has_group_ids = _extract_has_group_xmlids_from_source(G, model_name)
     if source_has_group_ids:
         candidate_groups = list(source_has_group_ids)
-        for ug in user_groups:
+        for ug in expanded_groups:
             resolved = resolve_group_identifier(G, str(ug), candidate_groups)
             if resolved is not None:
                 return resolved
@@ -261,7 +295,7 @@ def _find_elevating_group(G: nx.DiGraph, model_name: str, user_groups: List[str]
     candidate_groups = list(write_groups | unlink_groups)
     if not candidate_groups:
         return None
-    for ug in user_groups:
+    for ug in expanded_groups:
         resolved = resolve_group_identifier(G, str(ug), candidate_groups)
         if resolved is not None:
             return resolved

@@ -55,8 +55,9 @@ project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(project_root))
 sys.path.insert(0, str(project_root / "miro-rag"))
 
-from rag.graph import code_intelligence_agent, get_code_intelligence_graph
+from rag.graph import code_intelligence_agent, get_code_intelligence_graph, query_graph
 from code_intelligence.ci_agent_tools import ALL_CI_TOOLS, set_graph_ref
+from code_intelligence.deterministic_tools import _fold_accents
 
 TARGET_MODEL = "custom.deep.document"
 
@@ -248,12 +249,98 @@ def check_e2e():
     return all_ok
 
 
+def _marker_present_full_pipeline(marker: str, text: str) -> bool:
+    """Accent/case-insensitive substring check for the full-pipeline pass."""
+    return _fold_accents(marker.lower()) in _fold_accents(text.lower())
+
+
+def check_e2e_full_pipeline():
+    """Same intent as check_e2e(), but through query_graph() (the real
+    route() dispatch) instead of calling code_intelligence_agent()
+    directly -- catches routing bugs the direct call cannot see (see the
+    equivalent note in check_bloc9_01_credit_note_cascade_e2e.py). Also
+    carries two company/threshold combinations the original check_e2e()
+    didn't cover (same company below threshold; different company above
+    the group threshold), to confirm can_view_amount_v2 doesn't invert
+    on either edge once routed through the real pipeline. Merged in
+    2026-08-20 from the now-deleted
+    miro-rag/scripts/check_bloc9_08_deep_inheritance_security_e2e.py
+    reconstruction (see contexte.txt section 78) rather than kept as a
+    second, diverging script.
+    """
+    print("=" * 80)
+    print(" FULL PIPELINE (query_graph -> route()) -- can_view_amount_v2 edge cases")
+    print("=" * 80)
+    all_ok = True
+
+    cases = [
+        {
+            "label": "08a-business (full pipeline, 60k)",
+            "question": (
+                "Qui a le droit de valider un document \u00e0 60 000\u20ac dans le "
+                "mod\u00e8le custom.deep.document (module de s\u00e9curit\u00e9 \u00e0 h\u00e9ritage "
+                "profond) ?"
+            ),
+            "expected_markers": ["account.group_account_manager"],
+            "forbidden_markers": ["n'a pas le droit de valider"],
+        },
+        {
+            "label": "08c-nested-domain-trap (full pipeline, autre soci\u00e9t\u00e9, 30k)",
+            "question": (
+                "Un utilisateur d'une autre soci\u00e9t\u00e9 peut-il voir un document Deep "
+                "de 30000\u20ac appartenant \u00e0 une soci\u00e9t\u00e9 diff\u00e9rente de la sienne ?"
+            ),
+            "expected_markers": ["NE PEUT PAS"],
+            "forbidden_markers": ["PEUT voir cet enregistrement"],
+        },
+        {
+            "label": "m\u00eame soci\u00e9t\u00e9, sous le seuil de groupe (30k) -- doit rester visible",
+            "question": "Un utilisateur de la m\u00eame soci\u00e9t\u00e9 peut-il voir un document Deep de 30000\u20ac ?",
+            "expected_markers": ["PEUT"],
+            "forbidden_markers": ["NE PEUT PAS"],
+        },
+        {
+            "label": "08c bis -- autre soci\u00e9t\u00e9, montant \u00e9lev\u00e9 (80k, au-del\u00e0 du seuil de groupe)",
+            "question": (
+                "Un utilisateur d'une autre soci\u00e9t\u00e9 peut-il consulter un document "
+                "Deep de 80000\u20ac appartenant \u00e0 une soci\u00e9t\u00e9 diff\u00e9rente de la sienne ?"
+            ),
+            "expected_markers": ["NE PEUT PAS"],
+            "forbidden_markers": ["a le droit de voir", "peut consulter"],
+        },
+    ]
+
+    for case in cases:
+        print(f"\n--- {case['label']} ---")
+        print(f"Question : {case['question']}")
+        response = query_graph(question=case["question"], user_groups=[])
+        answer = response.answer if response else ""
+        print(f"R\u00e9ponse brute :\n{answer}\n")
+
+        missing = [m for m in case["expected_markers"] if not _marker_present_full_pipeline(m, answer)]
+        present_forbidden = [m for m in case["forbidden_markers"] if _marker_present_full_pipeline(m, answer)]
+        for m in case["expected_markers"]:
+            print(f"[{'OK ' if m not in missing else 'MISSING'}] expected marker: {m}")
+        for m in case["forbidden_markers"]:
+            print(f"[{'FAIL' if m in present_forbidden else 'OK '}] forbidden marker absent: {m}")
+
+        if missing or present_forbidden:
+            print(f"[RESULT] {case['label']}: FAIL -- missing {missing}, forbidden present {present_forbidden}")
+            all_ok = False
+        else:
+            print(f"[RESULT] {case['label']}: OK")
+
+    return all_ok
+
+
 def main():
     raw_ok = check_raw_tool_output()
     print()
     e2e_ok = check_e2e()
+    print()
+    full_pipeline_ok = check_e2e_full_pipeline()
     print("=" * 80)
-    if raw_ok and e2e_ok:
+    if raw_ok and e2e_ok and full_pipeline_ok:
         print("[BLOC 9 - 8/8] custom_deep_inheritance_security: E2E confirmed.")
         sys.exit(0)
     else:

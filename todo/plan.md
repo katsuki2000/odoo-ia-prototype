@@ -32,3 +32,28 @@ Ces points restent dans le plan source mais **ne doivent consommer aucun jour ci
 
 - **Interoperabilite multi-tenant** — hors scope tant que MiroKE reste l'unique client cible.
 - **Infrastructure locale, POC demonstrable** — hors scope tant que le materiel local n'est pas arrive (voir Bloc P3 pour la validation d'inference locale elle-meme, distincte de ce point d'infrastructure de production).
+
+---
+
+# PARTIE 9 — Perimetre de validation du PoC : module Documentaire implemente mais non score
+
+**Decision (2026-08-19)** : le PoC reste architecture sur 3 branches -- Code Intelligence, ERP, Documentaire (voir le diagramme dans `architecture.md`, non modifie) -- mais l'evaluation principale du PoC ne porte que sur un sous-ensemble explicite de cette architecture.
+
+**Ce qui EST evalue** :
+- Code Intelligence (agent, resolution de business terms, tracabilite des hops)
+- ERP Runtime (donnees reelles, execution)
+- Tracabilite des preuves (dossier de preuves, Evidence Builder)
+
+**Ce qui est implemente mais explicitement HORS du perimetre de l'evaluation principale** :
+- Module Documentaire (RAG classique -- embeddings, reranker, ingestion de documents) -- code non supprime, conserve tel quel, simplement non compte dans le score du PoC.
+- Sa contribution a la branche HYBRIDE de `route()` (cas ou une question combine un terme documentaire/quantitatif) suit la meme regle : implementee, non scoree.
+
+**Pourquoi cette decision, pas une suppression** : le module documentaire ne resout pas le probleme le plus risque du projet -- comprendre le comportement reel d'un code Odoo inconnu -- qui est deja couvert, largement resolu ailleurs (embeddings, reranking, qualite documentaire sont des problemes matures). Le sortir du perimetre de *validation* recentre l'evaluation sur ce qui est original et non demontre ailleurs, sans perdre le code ni la couverture de tests qui en depend deja (`test_hybrid_detects_doc_anchor_not_only_doc_keyword`, cas DOC/HYBRIDE de `tests/test_j18_routing_fewshot.py`).
+
+**Argument de soutenance** : si la question "et les documents internes ?" est posee, la reponse est "l'architecture le permet deja, le module existe (voir le code et les tests), mais l'objectif du PoC etait de valider la comprehension du comportement reel d'Odoo -- la partie la plus risquee et la moins couverte par les solutions existantes". Cette reponse ne tient que si le diagramme et le code documentaire restent visibles et testes -- d'ou le choix de ne rien supprimer.
+
+**Limite a ne pas survendre** : cette decision de perimetre ne change PAS le score actuel de `tests/eval_routing_accuracy.py` (94.6%, 35/37 -- voir `todo/contexte.txt` sections 63bis et 65). Les 2 echecs connus a cette date (DOC-09 "qui doit approuver un avoir", ERP-13 melange procedures+montant) sont des limites du script d'evaluation lui-meme, pas des problemes de qualite documentaire -- ne pas presenter cette decision de perimetre comme la cause d'une amelioration de ce chiffre, le jury peut verifier.
+
+**Non tranche ici, volontairement** : ceci est une decision de *perimetre d'evaluation*, pas de *desactivation runtime*. Si le module documentaire devait un jour etre reellement desactive (pas seulement exclu du score), il faudrait d'abord decider explicitement ce que devient la branche HYBRIDE de `route()` dans `rag/routing.py` (repli sur `donnees_erp` seul, ou sur `documentaire` seul) -- question de routage a part entiere, pas cosmetique, qui n'est pas posee par la decision de ce tour.
+
+**Suggere, non fait ce tour** : adapter `tests/eval_routing_accuracy.py` pour rapporter separement l'accuracy sur le sous-ensemble Code Intelligence/ERP (le perimetre score) et sur le reste (Documentaire/Hybride, hors perimetre), plutot que de melanger les deux dans un seul pourcentage.

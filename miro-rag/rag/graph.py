@@ -171,24 +171,11 @@ from rag.ci_helpers import (
     _block_is_custom_module_file,
     _restrict_blocks_to_custom_modules,
     _backfill_missing_required_groups,
-    _OVERRIDE_MODULE_RE,
     _OVERRIDE_CHAIN_AMOUNT_RE,
-    _extract_override_modules,
-    _word_boundary_present,
-    _backfill_missing_override_modules,
-    _extract_override_chain_amounts,
     _amount_present_in_text,
-    _backfill_missing_override_chain_amount,
     _SECURITY_LOCK_MESSAGES_MARKER,
     _extract_security_lock_condition_amounts,
     _backfill_missing_security_lock_amount,
-    _OVERRIDE_COUNT_DENIAL_RE,
-    _OVERRIDE_ORDER_SHORTCIRCUIT_SENTENCE_RE,
-    _answer_denies_other_overrides,
-    _answer_asserts_override_shortcircuit,
-    _neutralize_override_count_denial,
-    _neutralize_override_shortcircuit_sentence,
-    _correct_override_cascade_contradictions,
     _LINK_GUARD_RE,
     _LINK_GUARD_CONTRADICTION_PATTERN,
     _LINK_GUARD_CONTRADICTING_SENTENCE_RE,
@@ -202,9 +189,6 @@ from rag.ci_helpers import (
     _HARDCODED_IDS_LINE_RE,
     _extract_hardcoded_id_literals,
     _backfill_missing_hardcoded_id_literals,
-    _UNGUARDED_SUPER_RE,
-    _extract_unguarded_super_findings,
-    _backfill_missing_unguarded_super,
     _backfill_link_guard_clarifications,
     _CAN_VIEW_ALLOW_ASSERTION_RE,
     _CAN_VIEW_DENY_ASSERTION_RE,
@@ -219,9 +203,7 @@ from rag.ci_helpers import (
     _backfill_missing_can_view_amount_fact,
     _format_can_view_amount_fact,
     _question_suggests_automation_bypass,
-    _MAX_OVERRIDE_CASCADE_DISPATCH,
     _rank_and_cap_resolved_models,
-    _rank_and_cap_override_methods,
     _override_user_groups_arg,
     _COULD_NOT_RESOLVE_RE,
     _strip_group_resolution_noise,
@@ -229,6 +211,35 @@ from rag.ci_helpers import (
     _TECHNICAL_MODEL_LOOKALIKE_RE,
     _force_out_of_scope_model_answer,
     _force_dynamic_uncertainty_answer,
+)
+
+# ── Backward-compatible re-exports from ci_override_cascade ───────────────────
+# 2026-08-20: this cluster (module-name/threshold-amount extraction+backfill
+# for the override-cascade tool) was relocated out of rag/ci_helpers.py into
+# its own module -- see rag/ci_override_cascade.py's docstring. graph.py's
+# import of these symbols was not updated at the time, which broke this
+# file's own import chain (ImportError on collection, found 2026-08-20
+# running `pytest tests/test_graph.py`) since they no longer exist in
+# rag.ci_helpers. Fixed by importing them from their real, current home.
+from rag.ci_override_cascade import (
+    _OVERRIDE_MODULE_RE,
+    _extract_override_modules,
+    _word_boundary_present,
+    _backfill_missing_override_modules,
+    _extract_override_chain_amounts,
+    _backfill_missing_override_chain_amount,
+    _correct_override_cascade_contradictions,
+    _OVERRIDE_COUNT_DENIAL_RE,
+    _OVERRIDE_ORDER_SHORTCIRCUIT_SENTENCE_RE,
+    _answer_denies_other_overrides,
+    _answer_asserts_override_shortcircuit,
+    _neutralize_override_count_denial,
+    _neutralize_override_shortcircuit_sentence,
+    _UNGUARDED_SUPER_RE,
+    _extract_unguarded_super_findings,
+    _backfill_missing_unguarded_super,
+    _MAX_OVERRIDE_CASCADE_DISPATCH,
+    _rank_and_cap_override_methods,
 )
 
 # ── Backward-compatible re-exports from ci_agent_node ─────────────────────────
@@ -287,6 +298,19 @@ def format_output(state: RAGState) -> dict:
     # the final state.
     if response:
         response.route = route
+        # H1b-ii support (todo/contexte.txt section 64/70, 2026-08-20): same
+        # single central assignment point as response.route above -- surface
+        # this turn's resolved_concept (route()'s output, itself either the
+        # current question's own resolution or the sticky-reused previous
+        # turn's, see _sticky_concept_or_resolve) so api/main.py can persist
+        # it as next turn's last_resolved_concept.
+        response.resolved_concept = state.get("resolved_concept")
+        # H3 support (todo/contexte.txt, 2026-08-20), Phase 1 -- observational
+        # only: same central assignment point, surfaces evidence_status (set
+        # only by code_intelligence_agent, None on every other branch -- see
+        # rag/evidence_check.py's module docstring). Not consumed by any
+        # caller yet, purely for measurement.
+        response.evidence_status = state.get("evidence_status")
 
     if response and chunks and route == QueryRoute.DOCUMENTAIRE.value:
         # OCR Warning Logic.
@@ -371,6 +395,7 @@ def query_graph(
     skills: Optional[dict] = None,
     user_groups: Optional[List[int]] = None,
     last_route: Optional[str] = None,
+    last_resolved_concept: Optional[dict] = None,
 ) -> AssistantResponse:
     """
     Public API to query the graph.
@@ -386,6 +411,13 @@ def query_graph(
     turn. Consumed only by route()'s no-signal fallback branches for
     sticky-routing -- see _sticky_route_or_default's docstring in this
     module for the full rationale and scope.
+    last_resolved_concept: H1b-ii (todo/contexte.txt section 64/70,
+    2026-08-20) -- the previous turn's resolved_concept dict for this
+    session, if the caller has one (typically read from session_store by
+    api/main.py). None on a session's first turn. Consumed only by
+    route()'s _sticky_concept_or_resolve fallback when the current
+    question's own deterministic resolution fails -- see that function's
+    docstring in rag/routing.py for the full rationale and scope.
     """
     import time
     import json
@@ -419,6 +451,7 @@ def query_graph(
             "response": None,
             "user_groups": user_groups or [],
             "last_route": last_route,
+            "last_resolved_concept": last_resolved_concept,
         }
     
         logger.info("Invoking graph for question: '%s'", question)

@@ -301,9 +301,17 @@ def ask_question_v1(request: AskRequestV1, user: dict = Depends(get_current_user
     # keyword signal of its own (see rag/graph.py's
     # _sticky_route_or_default docstring for the full rationale).
     last_route = session["last_route"]
+    # H1b-ii (todo/contexte.txt section 64/70, 2026-08-20): the previous
+    # turn's resolved_concept dict for this session, if any -- passed to
+    # query_graph() so route()'s _sticky_concept_or_resolve fallback can
+    # reuse it when the current question's own deterministic resolution
+    # fails (see rag/routing.py's _sticky_concept_or_resolve docstring for
+    # the full rationale).
+    last_resolved_concept = session["resolved_concept"]
     logging.getLogger(__name__).info(
-        "H1b-i check: session_id=%s chat_history_len=%d last_route=%s",
-        request.session_id, len(chat_history), last_route,
+        "H1b-i check: session_id=%s chat_history_len=%d last_route=%s "
+        "last_resolved_concept=%s",
+        request.session_id, len(chat_history), last_route, last_resolved_concept,
     )
 
     try:
@@ -337,6 +345,7 @@ def ask_question_v1(request: AskRequestV1, user: dict = Depends(get_current_user
             user_groups=token_groups,
             skills=request.skills,
             last_route=last_route,
+            last_resolved_concept=last_resolved_concept,
         )
         
         if response.answer == "Une erreur interne s'est produite lors de l'exécution du pipeline.":
@@ -346,9 +355,7 @@ def ask_question_v1(request: AskRequestV1, user: dict = Depends(get_current_user
         # the same session_id sees it via get_session() above. Only reached
         # on a genuinely successful turn (every failure path above returns
         # via HTTPException first) -- a failed turn is never written into
-        # the history. resolved_concept is carried over unchanged for now;
-        # query_graph() does not currently surface a per-turn
-        # resolved_concept back to this caller (see H1b-ii).
+        # the history.
         updated_history = chat_history + [
             HumanMessage(content=request.question),
             AIMessage(content=response.answer),
@@ -357,8 +364,15 @@ def ask_question_v1(request: AskRequestV1, user: dict = Depends(get_current_user
         # set centrally by format_output() in rag/graph.py) as next turn's
         # last_route -- falls back to the previous value if this turn's
         # route was somehow never set, rather than silently wiping it.
+        # H1b-ii (todo/contexte.txt section 64/70, 2026-08-20): same
+        # fallback discipline for resolved_concept -- response.resolved_
+        # concept is set centrally by the same format_output() node, but
+        # falls back to the previous session value rather than silently
+        # wiping it to None on the (should-never-happen) chance a turn
+        # reaches here without one.
         update_session(
-            request.session_id, updated_history, session.get("resolved_concept"),
+            request.session_id, updated_history,
+            getattr(response, "resolved_concept", None) or last_resolved_concept,
             getattr(response, "route", None) or last_route,
         )
 

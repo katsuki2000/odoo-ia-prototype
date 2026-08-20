@@ -159,6 +159,9 @@ class RAGState(TypedDict):
     user_groups: List[int]  # Real Odoo group ids of the requester (signed JWT, never LLM-guessed)
     resolved_concept: Optional[dict]  # H1 prototype (2026-08-19): deterministic business_resolver output computed in route(), before branch dispatch -- see route()'s own docstring/comment for scope
     last_route: Optional[str]  # H1c (2026-08-19, todo/plan.md): previous turn's QueryRoute value for this session, supplied by the caller (query_graph(), sourced from session_store) -- None on the first turn of a session or when the caller passes none. Consumed only by route()'s no-signal fallback branches for sticky-routing (see _sticky_route_or_default docstring); every keyword-matched branch is unaffected.
+    last_resolved_concept: Optional[dict]  # H1b-ii (2026-08-20, todo/contexte.txt section 64/70): previous turn's resolved_concept dict for this session (AssistantResponse.resolved_concept, round-tripped through session_store), supplied by the caller (query_graph()) -- None on a session's first turn or when the caller passes none. Consumed only by _sticky_concept_or_resolve, mirroring last_route/_sticky_route_or_default exactly; never mutated inside the graph.
+    resolved_concept_reused: bool  # H3 (2026-08-20, todo/contexte.txt): True when route()'s resolved_concept this turn is literally the previous turn's dict, reused as-is by _sticky_concept_or_resolve because the CURRENT question's own text resolved to nothing -- False otherwise (fresh resolution succeeded this turn, or nothing resolved anywhere). Computed by object identity in route() (`is`), never by inspecting resolved_concept's own fields -- deliberately kept OUT of the resolved_concept dict itself, since _rehydrate_sticky_concept (rag/ci_helpers.py) reconstructs a ResolvedConcept dataclass via **dict and silently degrades to unresolved on any unexpected key (see test_sticky_dict_malformed_fields_degrades_without_raising) -- adding a marker key there would silently break H1b-ii's own rehydration. Consumed only by rag/evidence_check.py's check_evidence(), read-only, never mutated after route().
+    evidence_status: Optional[str]  # H3 (2026-08-20, todo/contexte.txt), Phase 1 -- observational only: RESOLU/NON_RESOLU/CONFLIT computed by rag/evidence_check.py's check_evidence(), set only by code_intelligence_agent (None on every other branch, which has no resolved_concept to reconcile). Does not affect tool dispatch, system_prompt content, or gating in this phase -- surfaced purely for measurement (propagated to AssistantResponse.evidence_status by format_output(), same central-assignment pattern as route/resolved_concept). What each status should DO, if anything, is deferred to a follow-up step once measured against the adversarial benchmark.
 
 
 
@@ -282,6 +285,53 @@ def _sticky_route_or_default(state: RAGState, default: str) -> str:
         )
         return last_route
     return default
+
+
+def _sticky_concept_or_resolve(state: RAGState, resolved_concept_dict: dict) -> dict:
+    """
+    H1b-ii (2026-08-20, todo/contexte.txt section 64/70): mirrors
+    _sticky_route_or_default exactly, one level down -- when the CURRENT
+    question's own deterministic resolution (already computed above in
+    route(), with llm=None) failed (is_resolved=False), reuse the
+    PREVIOUS turn's resolved_concept for this session instead of leaving
+    is_resolved=False. Never the reverse: a current-turn resolution that
+    already succeeded always wins untouched -- this can only ever replace
+    a result that was already a total miss, so no currently-locked
+    resolver test can regress (same argument already made for
+    _sticky_route_or_default).
+
+    Deliberately operates strictly on the dict form (post-_asdict), never
+    on the ResolvedConcept dataclass: resolved_concept_dict is the exact
+    JSON/session-store-safe shape route() itself stores on
+    state["resolved_concept"] (see the comment above _asdict's call site
+    for why -- avoids leaking the dataclass type into RAGState's TypedDict
+    contract), and state["last_resolved_concept"] arrives in that same
+    dict shape, round-tripped through AssistantResponse.resolved_concept ->
+    session_store -> here. Calling dataclasses.asdict() on a dict instead
+    of a dataclass instance raises TypeError -- this function's whole
+    point is to never let that mismatch happen by keeping both sides of
+    the comparison as plain dicts. (A caller needing a real ResolvedConcept
+    object back, e.g. ci_agent_node.py's own attribute-based consumption of
+    concept.is_resolved/concept.resolved_models/etc., must reconstruct one
+    explicitly via ResolvedConcept(**the_dict) at its own call site -- this
+    function never does that reconstruction itself.)
+
+    Only reused when the previous concept is itself marked resolved
+    (`is True`, not merely truthy, per rules.md Regle 4/5 discipline) --
+    a stored is_resolved=False, or a corrupted/foreign dict missing the
+    key entirely, must never be echoed back as if it were a real
+    resolution. state.get("last_resolved_concept") is None on a session's
+    first turn or whenever the caller has nothing to offer, in which case
+    this simply returns resolved_concept_dict unchanged (identical
+    behaviour to before this fix).
+    """
+    if resolved_concept_dict.get("is_resolved"):
+        return resolved_concept_dict
+    prev = state.get("last_resolved_concept")
+    if isinstance(prev, dict) and prev.get("is_resolved") is True:
+        logger.info("Node [route]: reusing previous resolved_concept.")
+        return prev
+    return resolved_concept_dict
 
 
 def route(state: RAGState) -> dict:
@@ -415,10 +465,30 @@ def route(state: RAGState) -> dict:
     from dataclasses import asdict as _asdict
     resolved_concept_dict = _asdict(resolved_concept)
 
+    # H1b-ii (2026-08-20, todo/contexte.txt section 64/70): sticky reuse of
+    # the previous turn's resolved_concept when the current question's own
+    # resolution (above) failed -- see _sticky_concept_or_resolve's
+    # docstring for the full rationale and why this MUST run after
+    # _asdict() (dict-only, never the dataclass) rather than before it.
+    resolved_concept_dict = _sticky_concept_or_resolve(state, resolved_concept_dict)
+
+    # H3 (2026-08-20, todo/contexte.txt): was the dict above just reused,
+    # unchanged, from the PREVIOUS turn (i.e. this turn's own text -- both
+    # code_intelligence_agent's real-LLM attempt is downstream and unknown
+    # here, but route()'s own no-LLM attempt specifically -- resolved to
+    # nothing)? Object identity, not a field comparison: _sticky_concept_or_
+    # resolve returns `prev` (== state["last_resolved_concept"]) literally
+    # unchanged when it reuses, and a freshly-resolved dict otherwise -- so
+    # `is` is exact and free, no extra bookkeeping needed. See RAGState's
+    # own field comment above for why this is a separate state key rather
+    # than a marker inside resolved_concept_dict itself.
+    resolved_concept_reused = resolved_concept_dict is state.get("last_resolved_concept")
+
     return {
         "route": route_decision,
         "timing": timing,
         "resolved_concept": resolved_concept_dict,
+        "resolved_concept_reused": resolved_concept_reused,
     }
 
 

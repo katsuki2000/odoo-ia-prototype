@@ -26,6 +26,28 @@ from rag.generate_node import generate
 logger = logging.getLogger(__name__)
 
 
+def _get_chat_groq():
+    """Mock-compatibility fix (2026-08-20, post-refactoring gap found in
+    review): mirrors rag/generate_node.py's helper of the same name.
+
+    Before the rag/graph.py split (todo/contexte.txt section 70), every
+    ChatGroq(...) call site -- documentaire, donnees_erp, hybride -- lived
+    in the same rag.graph namespace, so a single @patch('rag.graph.ChatGroq')
+    covered all of them. The split moved orm_agent_loop()/hybrid_node() into
+    this separate module, which still imported ChatGroq directly from
+    langchain_groq and called it unpatched -- silently making real Groq API
+    calls under a test that believed it was mocked. generate_node.py's
+    branch already carried this same fix; this module never got it. Same
+    mechanism here: prefer rag.graph's ChatGroq if that module is loaded
+    and has been patched, otherwise fall back to the real one.
+    """
+    import sys
+    g = sys.modules.get("rag.graph")
+    if g and hasattr(g, "ChatGroq"):
+        return g.ChatGroq
+    return ChatGroq
+
+
 def orm_agent_loop(state: RAGState) -> dict:
     """
     ReAct agent loop: Reason → call ORM tool → observe → repeat or answer.
@@ -97,7 +119,7 @@ def orm_agent_loop(state: RAGState) -> dict:
         all_tools.extend([get_recent_tickets])
 
     # Re-bind tools dynamically to the LLM
-    llm = ChatGroq(
+    llm = _get_chat_groq()(
         model=GROQ_MODEL,
         api_key=GROQ_API_KEY,
         temperature=0.0,
@@ -218,7 +240,7 @@ def orm_agent_loop(state: RAGState) -> dict:
             "\n\nFournis une réponse finale et concise en français basée uniquement sur ces observations."
         )
         try:
-            plain_llm = ChatGroq(model=GROQ_MODEL, temperature=0.0, max_tokens=512)
+            plain_llm = _get_chat_groq()(model=GROQ_MODEL, temperature=0.0, max_tokens=512)
             final_resp = plain_llm.invoke([HumanMessage(content=synthesis_prompt)])
             _llm_call_count += 1
             final_answer = final_resp.content
@@ -279,7 +301,6 @@ def hybrid_node(state: RAGState) -> dict:
     
     # Combine the two using a final Synthesis LLM
     from langchain_core.messages import HumanMessage
-    from langchain_groq import ChatGroq
     from config.settings import GROQ_MODEL
     
     combine_prompt = (
@@ -291,7 +312,7 @@ def hybrid_node(state: RAGState) -> dict:
     )
     
     try:
-        plain_llm = ChatGroq(model=GROQ_MODEL, temperature=0.3, max_tokens=1024)
+        plain_llm = _get_chat_groq()(model=GROQ_MODEL, temperature=0.3, max_tokens=1024)
         final_resp = plain_llm.invoke([HumanMessage(content=combine_prompt)])
         final_answer = final_resp.content
     except Exception as e:
