@@ -74,12 +74,34 @@ def _fold_accents(s: str) -> str:
 def _marker_present(marker: str, text: str) -> bool:
     return _fold_accents(marker.lower()) in _fold_accents(text.lower())
 
+# Bug B2(a), todo/contexte.txt section 99 (2026-08-21): both questions
+# reformulated to state explicitly that the requester is in the SAME
+# company as the record. Before this change, neither question said
+# anything about company at all, so _extract_company_context(question)
+# returned {} (rag/ci_helpers.py) -- absence of signal, per rules.md
+# Regle 5 -- and the mandatory GLOBAL rule's domain_force
+# (['|', (move_type != out_refund), (company_id == user.company_id.id)])
+# stayed structurally indeterminate for both 02a and 02b: Faux/Inconnu OR
+# Inconnu(company_id) = Inconnu in Kleene logic, since company_id is never
+# resolved. This is not a routing or synthesis bug (see section 99's full
+# Kleene recomputation) -- it is these two questions never supplying a
+# piece of context their own ground-truth rule structurally requires.
+# Adding "même société" lets _COMPANY_SAME_PATTERN resolve company_id, so
+# the global rule's second OR-leaf becomes True -- True OR anything = True
+# in Kleene logic, so the mandatory rule now resolves definitively
+# regardless of move_type, restoring the same expected/forbidden marker
+# contract this script already asserted before Bug B2(a) (section
+# 96/97/98) made the engine honest enough to expose the gap. The oracle
+# (evaluer_regles_raw/can_view_amount(), still the pre-_v2 method, see
+# check_raw_tool_output) is unaffected by this change: it already ignored
+# company_id silently and returned True regardless.
 QUESTIONS = [
     {
         "id": "bloc9-02a-both-groups",
         "question": (
-            "Un utilisateur membre à la fois du groupe régional et du groupe "
-            "national peut-il voir un avoir de 80 000€ ?"
+            "Un utilisateur de la même société, membre à la fois du groupe "
+            "régional et du groupe national, peut-il voir un avoir de "
+            "80 000€ ?"
         ),
         "user_groups_key": "BOTH",
         "expected_markers": [
@@ -93,8 +115,9 @@ QUESTIONS = [
     {
         "id": "bloc9-02b-no-groups",
         "question": (
-            "Un utilisateur qui n'appartient à AUCUN des deux groupes (ni "
-            "régional, ni national) peut-il voir ce même avoir de 80 000€ ?"
+            "Un utilisateur de la même société, qui n'appartient à AUCUN des "
+            "deux groupes (ni régional, ni national), peut-il voir ce même "
+            "avoir de 80 000€ ?"
         ),
         "user_groups_key": "NONE",
         "expected_markers": [

@@ -287,23 +287,25 @@ def check_e2e_full_pipeline():
         {
             "label": "08c-nested-domain-trap (full pipeline, autre soci\u00e9t\u00e9, 30k)",
             "question": (
-                "Un utilisateur d'une autre soci\u00e9t\u00e9 peut-il voir un document Deep "
-                "de 30000\u20ac appartenant \u00e0 une soci\u00e9t\u00e9 diff\u00e9rente de la sienne ?"
+                "Un utilisateur d'une autre soci\u00e9t\u00e9 peut-il voir un enregistrement "
+                "custom.deep.document de 30000\u20ac appartenant \u00e0 une soci\u00e9t\u00e9 "
+                "diff\u00e9rente de la sienne ?"
             ),
             "expected_markers": ["NE PEUT PAS"],
             "forbidden_markers": ["PEUT voir cet enregistrement"],
         },
         {
             "label": "m\u00eame soci\u00e9t\u00e9, sous le seuil de groupe (30k) -- doit rester visible",
-            "question": "Un utilisateur de la m\u00eame soci\u00e9t\u00e9 peut-il voir un document Deep de 30000\u20ac ?",
+            "question": "Un utilisateur de la m\u00eame soci\u00e9t\u00e9 peut-il voir un enregistrement custom.deep.document de 30000\u20ac ?",
             "expected_markers": ["PEUT"],
             "forbidden_markers": ["NE PEUT PAS"],
         },
         {
             "label": "08c bis -- autre soci\u00e9t\u00e9, montant \u00e9lev\u00e9 (80k, au-del\u00e0 du seuil de groupe)",
             "question": (
-                "Un utilisateur d'une autre soci\u00e9t\u00e9 peut-il consulter un document "
-                "Deep de 80000\u20ac appartenant \u00e0 une soci\u00e9t\u00e9 diff\u00e9rente de la sienne ?"
+                "Un utilisateur d'une autre soci\u00e9t\u00e9 peut-il consulter un "
+                "enregistrement custom.deep.document de 80000\u20ac appartenant \u00e0 "
+                "une soci\u00e9t\u00e9 diff\u00e9rente de la sienne ?"
             ),
             "expected_markers": ["NE PEUT PAS"],
             "forbidden_markers": ["a le droit de voir", "peut consulter"],

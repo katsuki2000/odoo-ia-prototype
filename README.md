@@ -1,129 +1,79 @@
-# MIRO RAG - Prototype Assistant IA & Instance Odoo 17.0
+# MIRO RAG - Odoo AI Assistant Prototype
 
-Ce dépôt contient le prototype de l'assistant IA **MIRO RAG**, connecté en temps réel à une base ERP **Odoo 17.0** via XML-RPC. Il s'appuie sur une architecture multi-agents LangGraph combinant le RAG documentaire (procédures et documentation) et le querying en direct de la base de données ERP (Ventes, Comptabilité, Stock, Tickets de Support).
-
----
-
-## 🚀 Guide Rapide de Réplication (Installer la même instance Odoo sur un autre PC)
-
-Pour obtenir **exactement la même instance Odoo 17.0** avec les mêmes données, modules, utilisateurs, commandes de vente et tickets de support sur une autre machine, suivez les étapes ci-dessous.
-
-### 📋 Prérequis
-
-- **Docker** & **Docker Compose**
-- **Python 3.10+** & `pip`
-- **Git**
+MIRO RAG is an intelligent AI assistant connected in real time to an Odoo ERP database via XML-RPC. It features a hybrid multi-agent routing system capable of handling both documentary knowledge questions (RAG vector search) and real-time live ERP database queries (Sales, Accounting, Inventory, Support Tickets).
 
 ---
 
-### 1. Clonage du dépôt et environnement Python
+## Key Features
 
-```bash
-git clone <URL_DU_DEPOT> odoo-ia-prototype
-cd odoo-ia-prototype
+- **Hybrid Routing Graph**: Automatically classifies incoming queries into three execution branches:
+  - **Documentary RAG**: Vector search (ChromaDB + BM25 hybrid search) over company procedures and guidelines.
+  - **ERP Live Data (ReAct Loop)**: Real-time function calling over Odoo XML-RPC endpoints using self-describing English tool schemas.
+  - **Hybrid RAG**: Combines documentation RAG context and live ERP data in a unified response.
+- **Accent-Insensitive Partner Search**: Normalizes French accents (`é`, `è`, `ê`, `à`, `ç`, etc.) into SQL wildcards (`_`) in `ilike` filters, matching `Société Dupont` and `Societe Dupont` interchangeably.
+- **Transparent ERP Sales Status Classification**: Distinguishes between pending proposals (`Devis en cours` / `draft`) and firm sales (`Ventes confirmées` / `sale` / `done`), providing transparent breakdown totals.
+- **Universal Data Source Citation**: Every response systematically appends verifiable data source footers (e.g. `[Source: Odoo ERP - Module Ventes (sale.order)]` or `[Source: Documentation Odoo - Procédures]`).
+- **Defensive Tool Fallback**: Automatically falls back to query active sales orders if confirmed sales return zero records, preventing missing data in complex queries.
 
-# Création et activation de l'environnement virtuel Python
-python3 -m venv .venv
-source .venv/bin/activate
+---
 
-# Installation des dépendances Python
-pip install -r requirements.txt
+## Repository Structure
+
+```
+miro-rag/
+├── rag/
+│   ├── graph.py               # LangGraph multi-agent routing workflow
+│   └── vectorstore/           # Hybrid ChromaDB + BM25 vector index
+├── tools/
+│   ├── odoo_connector.py      # Odoo XML-RPC connection wrapper
+│   ├── odoo_tools.py          # English self-describing tool definitions
+│   ├── full_setup.py          # One-click Odoo database setup script
+│   └── ingest_fake_data.py    # Seed data loader for sales, stock, and tickets
+├── tests/
+│   ├── benchmark_questions.json # 15 standard ERP evaluation questions
+│   └── test_erp_accuracy.py    # Benchmark test runner
+├── captures/
+│   └── erp_accuracy_report.md  # Benchmark accuracy report output
+├── fake_data/                  # JSON seed datasets (sales, stock, tickets)
+├── texte_fr/                   # Documentation markdown files for vector RAG
+└── contexte.txt                # System modification log tracking all changes
 ```
 
 ---
 
-### 2. Configuration des variables d'environnement (`.env`)
+## One-Click Setup & Benchmark Execution
 
-Créez le fichier `miro-rag/.env` avec vos clés d'API (notamment la clé LLM Groq) :
-
-```env
-GROQ_API_KEY=votre_cle_groq_api
-LLM_PROVIDER=groq
-NOMIC_API_KEY=votre_cle_nomic
-HF_TOKEN=votre_token_huggingface
-```
-
----
-
-### 3. Lancement des conteneurs Docker (Odoo 17, PostgreSQL, Qdrant)
-
-Démarrez la pile d'infrastructure Docker située dans `odoo17-dev` :
-
-```bash
-cd ~/odoo-ia-prototype/odoo17-dev
-docker compose up -d
-```
-
-Les services suivants seront alors en cours d'exécution :
-- **Odoo 17.0** : [http://localhost:8069](http://localhost:8069)
-- **Base PostgreSQL 16** (Interne)
-- **Qdrant Vector DB** : Ports 6333 / 6334
-- **Miro RAG API** : Port 8000
-
----
-
-### 4. Initialisation de la Base de Données Odoo via le Navigateur
-
-1. Ouvrez votre navigateur sur **[http://localhost:8069](http://localhost:8069)**.
-2. Si vous accédez à l'écran de création de base de données (*Database Manager*), remplissez le formulaire avec **exactement les paramètres suivants** :
-   - **Database Name** : `odoo-dev` *(Indispensable pour la connexion de l'IA)*
-   - **Email / Login Admin** : `admin`
-   - **Password** : `admin` (ou `odoo`)
-   - **Language** : `French / Français`
-   - **Country** : `Madagascar` (ou votre choix)
-   - **Demo data** : Décoché (les données de test seront injectées proprement par script)
-3. Connectez-vous en tant qu'administrateur (`admin`) et rendez-vous dans le menu **Applications (Apps)** pour installer les modules ERP de base :
-   - **Ventes** (`sale_management`)
-   - **Facturation / Comptabilité** (`account`)
-   - **Projets** (`project`)
-   - **Inventaire / Stock** (`stock`)
-
----
-
-### 5. Ingestion et Configuration Automatique des Données Identiques (`full_setup.py`)
-
-Une fois la base `odoo-dev` créée et les applications activées, lancez le script d'initialisation complet pour peupler automatiquement l'instance Odoo avec les données identiques :
+### 1. Initialize Odoo Environment & Seed Data
+Execute the consolidated setup script to reset the single-company environment (`Company Alpha`), configure the Sales journal (`SJA`), create the manager account (`manager@miro.com`), configure income accounts, and import seed data:
 
 ```bash
 cd ~/odoo-ia-prototype/miro-rag
 python3 tools/full_setup.py
 ```
 
-#### Ce que le script `full_setup.py` crée automatiquement dans Odoo :
-- **Société dédiée** : `Company Alpha`
-- **Journal comptable** : Journal de ventes `SJA` (*Sales Journal*)
-- **Compte de revenus** : Compte `400000` attribué à la catégorie de produits
-- **7 Utilisateurs spécialisés** :
-  - `Alice Admin` (Admin Ventes/Projets)
-  - `Bob Buyer` (Achats/Stock)
-  - `Charlie CRM` (Vendeur)
-  - `Diana Support` (Support Technique)
-  - `Evan Engineer` (Ingénieur Projets)
-  - `Fiona Finance` (Facturation)
-  - `Miro Manager` (`manager@miro.com` / `password123`)
-- **8 Clients (Partenaires)** : *Société Dupont, Madagascar Tech, Telma Madagascar, Groupe Socimex, Brasseries Star, Air Madagascar, Shoprite Madagascar, MIRO KE interne*
-- **10 Produits & Services** : *Implémentation Odoo 17, Formation, Support mensuel, Audit ERP, Migration, Développement sur mesure, Maintenance annuelle, Hébergement Cloud, Intégration API, Consulting*
-- **Commandes de Ventes (Sale Orders)** : Historique d'achats avec statuts devis (`draft`), confirmé (`sale`), facturé (`posted`) et annulé (`cancel`) issus de `fake_data/sales.json`.
-- **Tickets de Support / Projets** : Projet *MIRO Support Tickets* et tâches associées aux clients issues de `fake_data/tickets.json`.
-
----
-
-### 6. Exécution du Benchmark de Précision IA
-
-Pour vérifier que tout fonctionne et que l'assistant IA répond correctement sur votre nouvelle instance :
+### 2. Run Benchmark Evaluation
+Run the automated accuracy evaluation suite against all 15 benchmark questions:
 
 ```bash
 python3 tests/test_erp_accuracy.py
 ```
 
-Le rapport d'évaluation complet sera généré dans `miro-rag/captures/erp_accuracy_report.md`.
+The resulting evaluation report will be generated at `captures/erp_accuracy_report.md`.
 
 ---
 
-## 📁 Structure du Projet
+## Architecture Overview
 
-- **`odoo17-dev/`** : Configuration Docker Compose pour Odoo 17, PostgreSQL 16, Qdrant et le dossier des modules personnalisés `addons/`.
-- **`miro-rag/`** : Code source de l'assistant IA RAG, des outils XML-RPC Odoo, des prompts LangGraph et du moteur d'évaluation.
-- **`miro-rag/tools/full_setup.py`** : Script d'injection unifié et d'initialisation de la base de données `odoo-dev`.
-- **`miro-rag/fake_data/`** : Datasets JSON sources (ventes, tickets, stocks).
-- **`scripts/`** : Benchmarks contradictoires et scripts d'extraction de métadonnées Odoo.
+```
+User Query
+    │
+    ▼
+[Route Classification]
+    ├── DONNEES_ERP    ──► ReAct Agent Loop (Odoo XML-RPC Tools) ──► Verified ERP Data
+    ├── DOCUMENTAIRE   ──► Hybrid RAG Search (ChromaDB + BM25)   ──► Procedure Context
+    └── HYBRIDE        ──► Combined RAG + ReAct Agent Loop       ──► Synthesized Response
+                                                                          │
+                                                                          ▼
+                                                                [format_output]
+                                                        (Appends Source Citations)
+```

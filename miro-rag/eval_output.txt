@@ -1,168 +1,0 @@
-2026-07-09 11:32:50,748 [INFO] Loading benchmark questions from /home/user/odoo-ia-prototype/miro-rag/tests/benchmark_questions.json
-2026-07-09 11:32:50,748 [INFO] Loaded 30 questions
-2026-07-09 11:32:50,748 [INFO] Initializing ChromaManager...
-2026-07-09 11:32:50,869 [INFO] ChromaDB initialized at /home/user/odoo-ia-prototype/miro-rag/vectorstore/chroma_db with collection 'odoo_documents'
-2026-07-09 11:32:50,869 [INFO] Building BM25 index...
-2026-07-09 11:32:51,664 [INFO] BM25 index built with 6055 documents
-2026-07-09 11:32:51,664 [INFO] BM25 index built with 6055 documents
-2026-07-09 11:32:51,664 [INFO] Running evaluation with reranker...
-2026-07-09 11:32:52,126 [INFO] Hybrid search: 15 vector results, 15 BM25 results
-2026-07-09 11:32:52,126 [INFO] RRF fusion: 25 results above threshold 0.30
-2026-07-09 11:32:58,243 [INFO] Loading cross-encoder model: cross-encoder/ms-marco-MiniLM-L-6-v2
-2026-07-09 11:32:58,244 [INFO] No device provided, using cpu
-2026-07-09 11:32:58,711 [INFO] HTTP Request: HEAD https://huggingface.co/cross-encoder/ms-marco-MiniLM-L-6-v2/resolve/main/modules.json "HTTP/1.1 307 Temporary Redirect"
-2026-07-09 11:32:59,051 [INFO] HTTP Request: HEAD https://huggingface.co/cross-encoder/ms-marco-MiniLM-L6-v2/resolve/main/modules.json "HTTP/1.1 404 Not Found"
-Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
-2026-07-09 11:32:59,051 [WARNING] Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
-2026-07-09 11:32:59,051 [INFO] No modules.json found for cross-encoder/ms-marco-MiniLM-L-6-v2, initializing a new CrossEncoder model.
-2026-07-09 11:32:59,374 [INFO] HTTP Request: GET https://huggingface.co/api/models/cross-encoder/ms-marco-MiniLM-L-6-v2 "HTTP/1.1 307 Temporary Redirect"
-2026-07-09 11:32:59,696 [INFO] HTTP Request: GET https://huggingface.co/api/models/cross-encoder/ms-marco-MiniLM-L6-v2 "HTTP/1.1 200 OK"
-2026-07-09 11:33:00,018 [INFO] HTTP Request: HEAD https://huggingface.co/cross-encoder/ms-marco-MiniLM-L-6-v2/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
-2026-07-09 11:33:00,332 [INFO] HTTP Request: HEAD https://huggingface.co/cross-encoder/ms-marco-MiniLM-L6-v2/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
-2026-07-09 11:33:00,387 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/cross-encoder/ms-marco-MiniLM-L6-v2/c5ee24cb16019beea0893ab7796b1df96625c6b8/config.json "HTTP/1.1 200 OK"
-2026-07-09 11:33:00,711 [INFO] HTTP Request: HEAD https://huggingface.co/cross-encoder/ms-marco-MiniLM-L-6-v2/resolve/main/adapter_config.json "HTTP/1.1 307 Temporary Redirect"
-2026-07-09 11:33:01,038 [INFO] HTTP Request: HEAD https://huggingface.co/cross-encoder/ms-marco-MiniLM-L6-v2/resolve/main/adapter_config.json "HTTP/1.1 404 Not Found"
-2026-07-09 11:33:01,375 [INFO] HTTP Request: HEAD https://huggingface.co/cross-encoder/ms-marco-MiniLM-L-6-v2/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
-2026-07-09 11:33:01,696 [INFO] HTTP Request: HEAD https://huggingface.co/cross-encoder/ms-marco-MiniLM-L6-v2/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
-2026-07-09 11:33:01,750 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/cross-encoder/ms-marco-MiniLM-L6-v2/c5ee24cb16019beea0893ab7796b1df96625c6b8/config.json "HTTP/1.1 200 OK"
-Loading weights:   0%|          | 0/105 [00:00<?, ?it/s]Loading weights: 100%|██████████| 105/105 [00:00<00:00, 6255.53it/s]
-2026-07-09 11:33:02,481 [INFO] HTTP Request: HEAD https://huggingface.co/cross-encoder/ms-marco-MiniLM-L-6-v2/resolve/main/processor_config.json "HTTP/1.1 307 Temporary Redirect"
-2026-07-09 11:33:02,799 [INFO] HTTP Request: HEAD https://huggingface.co/cross-encoder/ms-marco-MiniLM-L6-v2/resolve/main/processor_config.json "HTTP/1.1 404 Not Found"
-2026-07-09 11:33:03,117 [INFO] HTTP Request: HEAD https://huggingface.co/cross-encoder/ms-marco-MiniLM-L-6-v2/resolve/main/preprocessor_config.json "HTTP/1.1 307 Temporary Redirect"
-2026-07-09 11:33:03,438 [INFO] HTTP Request: HEAD https://huggingface.co/cross-encoder/ms-marco-MiniLM-L6-v2/resolve/main/preprocessor_config.json "HTTP/1.1 404 Not Found"
-2026-07-09 11:33:03,765 [INFO] HTTP Request: HEAD https://huggingface.co/cross-encoder/ms-marco-MiniLM-L-6-v2/resolve/main/video_preprocessor_config.json "HTTP/1.1 307 Temporary Redirect"
-2026-07-09 11:33:04,094 [INFO] HTTP Request: HEAD https://huggingface.co/cross-encoder/ms-marco-MiniLM-L6-v2/resolve/main/video_preprocessor_config.json "HTTP/1.1 404 Not Found"
-2026-07-09 11:33:04,414 [INFO] HTTP Request: HEAD https://huggingface.co/cross-encoder/ms-marco-MiniLM-L-6-v2/resolve/main/preprocessor_config.json "HTTP/1.1 307 Temporary Redirect"
-2026-07-09 11:33:04,760 [INFO] HTTP Request: HEAD https://huggingface.co/cross-encoder/ms-marco-MiniLM-L6-v2/resolve/main/preprocessor_config.json "HTTP/1.1 404 Not Found"
-2026-07-09 11:33:05,080 [INFO] HTTP Request: HEAD https://huggingface.co/cross-encoder/ms-marco-MiniLM-L-6-v2/resolve/main/tokenizer_config.json "HTTP/1.1 307 Temporary Redirect"
-2026-07-09 11:33:05,396 [INFO] HTTP Request: HEAD https://huggingface.co/cross-encoder/ms-marco-MiniLM-L6-v2/resolve/main/tokenizer_config.json "HTTP/1.1 307 Temporary Redirect"
-2026-07-09 11:33:05,462 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/cross-encoder/ms-marco-MiniLM-L6-v2/c5ee24cb16019beea0893ab7796b1df96625c6b8/tokenizer_config.json "HTTP/1.1 200 OK"
-2026-07-09 11:33:05,784 [INFO] HTTP Request: HEAD https://huggingface.co/cross-encoder/ms-marco-MiniLM-L-6-v2/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
-2026-07-09 11:33:06,102 [INFO] HTTP Request: HEAD https://huggingface.co/cross-encoder/ms-marco-MiniLM-L6-v2/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
-2026-07-09 11:33:06,156 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/cross-encoder/ms-marco-MiniLM-L6-v2/c5ee24cb16019beea0893ab7796b1df96625c6b8/config.json "HTTP/1.1 200 OK"
-2026-07-09 11:33:06,476 [INFO] HTTP Request: HEAD https://huggingface.co/cross-encoder/ms-marco-MiniLM-L-6-v2/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
-2026-07-09 11:33:06,791 [INFO] HTTP Request: HEAD https://huggingface.co/cross-encoder/ms-marco-MiniLM-L6-v2/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
-2026-07-09 11:33:06,845 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/cross-encoder/ms-marco-MiniLM-L6-v2/c5ee24cb16019beea0893ab7796b1df96625c6b8/config.json "HTTP/1.1 200 OK"
-2026-07-09 11:33:07,166 [INFO] HTTP Request: HEAD https://huggingface.co/cross-encoder/ms-marco-MiniLM-L-6-v2/resolve/main/tokenizer_config.json "HTTP/1.1 307 Temporary Redirect"
-2026-07-09 11:33:07,478 [INFO] HTTP Request: HEAD https://huggingface.co/cross-encoder/ms-marco-MiniLM-L6-v2/resolve/main/tokenizer_config.json "HTTP/1.1 307 Temporary Redirect"
-2026-07-09 11:33:07,533 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/cross-encoder/ms-marco-MiniLM-L6-v2/c5ee24cb16019beea0893ab7796b1df96625c6b8/tokenizer_config.json "HTTP/1.1 200 OK"
-2026-07-09 11:33:07,863 [INFO] HTTP Request: GET https://huggingface.co/api/models/cross-encoder/ms-marco-MiniLM-L-6-v2/tree/main/additional_chat_templates?recursive=false&expand=false "HTTP/1.1 307 Temporary Redirect"
-2026-07-09 11:33:08,183 [INFO] HTTP Request: GET https://huggingface.co/api/models/cross-encoder/ms-marco-MiniLM-L6-v2/tree/main/additional_chat_templates?recursive=false&expand=false "HTTP/1.1 404 Not Found"
-2026-07-09 11:33:08,503 [INFO] HTTP Request: GET https://huggingface.co/api/models/cross-encoder/ms-marco-MiniLM-L-6-v2/tree/main?recursive=true&expand=false "HTTP/1.1 307 Temporary Redirect"
-2026-07-09 11:33:08,828 [INFO] HTTP Request: GET https://huggingface.co/api/models/cross-encoder/ms-marco-MiniLM-L6-v2/tree/main?recursive=true&expand=false "HTTP/1.1 200 OK"
-2026-07-09 11:33:08,894 [INFO] Cross-encoder loaded successfully
-Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:04<00:00,  4.90s/it]Batches: 100%|██████████| 1/1 [00:04<00:00,  4.90s/it]
-2026-07-09 11:33:13,794 [INFO] Retrieval complete: 5 results for query 'Comment créer une facture client dans Odoo 17 ?'
-2026-07-09 11:33:13,794 [INFO] Q1 ✅ [pdf] (22130ms): Comment créer une facture client dans Odoo 17 ?
-2026-07-09 11:33:15,069 [INFO] Hybrid search: 15 vector results, 15 BM25 results
-2026-07-09 11:33:15,072 [INFO] RRF fusion: 24 results above threshold 0.30
-Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:05<00:00,  5.25s/it]Batches: 100%|██████████| 1/1 [00:05<00:00,  5.25s/it]
-2026-07-09 11:33:20,323 [INFO] Retrieval complete: 5 results for query 'Comment envoyer une facture par email depuis Odoo ?'
-2026-07-09 11:33:20,323 [INFO] Q2 ✅ [pdf] (6529ms): Comment envoyer une facture par email depuis Odoo ?
-2026-07-09 11:33:20,845 [INFO] Hybrid search: 15 vector results, 15 BM25 results
-2026-07-09 11:33:20,845 [INFO] RRF fusion: 30 results above threshold 0.30
-Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:06<00:00,  6.02s/it]Batches: 100%|██████████| 1/1 [00:06<00:00,  6.02s/it]
-2026-07-09 11:33:26,870 [INFO] Retrieval complete: 5 results for query 'Comment créer un avoir (note de crédit) dans Odoo ?'
-2026-07-09 11:33:26,870 [INFO] Q3 ✅ [pdf] (6547ms): Comment créer un avoir (note de crédit) dans Odoo ?
-2026-07-09 11:33:27,325 [INFO] Hybrid search: 15 vector results, 15 BM25 results
-2026-07-09 11:33:27,325 [INFO] RRF fusion: 28 results above threshold 0.30
-Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:06<00:00,  6.60s/it]Batches: 100%|██████████| 1/1 [00:06<00:00,  6.60s/it]
-2026-07-09 11:33:33,929 [INFO] Retrieval complete: 5 results for query 'Comment configurer les relances automatiques dans Odoo ?'
-2026-07-09 11:33:33,930 [INFO] Q4 ✅ [pdf] (7059ms): Comment configurer les relances automatiques dans Odoo ?
-2026-07-09 11:33:34,415 [INFO] Hybrid search: 15 vector results, 13 BM25 results
-2026-07-09 11:33:34,415 [INFO] RRF fusion: 20 results above threshold 0.30
-Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:04<00:00,  4.05s/it]Batches: 100%|██████████| 1/1 [00:04<00:00,  4.05s/it]
-2026-07-09 11:33:38,466 [INFO] Retrieval complete: 5 results for query 'Qui peut approuver une mise à disposition selon le wiki interne ?'
-2026-07-09 11:33:38,466 [INFO] Q5 ✅ [wiki] (4536ms): Qui peut approuver une mise à disposition selon le wiki inte
-2026-07-09 11:33:38,905 [INFO] Hybrid search: 15 vector results, 15 BM25 results
-2026-07-09 11:33:38,905 [INFO] RRF fusion: 24 results above threshold 0.30
-Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:07<00:00,  7.01s/it]Batches: 100%|██████████| 1/1 [00:07<00:00,  7.01s/it]
-2026-07-09 11:33:45,919 [INFO] Retrieval complete: 5 results for query 'Quelle est la procédure de validation d'une facture selon le wiki ?'
-2026-07-09 11:33:45,919 [INFO] Q6 ✅ [wiki] (7453ms): Quelle est la procédure de validation d'une facture selon le
-2026-07-09 11:33:46,868 [INFO] Hybrid search: 15 vector results, 15 BM25 results
-2026-07-09 11:33:46,868 [INFO] RRF fusion: 27 results above threshold 0.30
-Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:06<00:00,  6.35s/it]Batches: 100%|██████████| 1/1 [00:06<00:00,  6.35s/it]
-2026-07-09 11:33:53,219 [INFO] Retrieval complete: 5 results for query 'Quels sont les modules Odoo considérés comme sensibles et qui y a accès ?'
-2026-07-09 11:33:53,219 [INFO] Q7 ✅ [wiki] (7300ms): Quels sont les modules Odoo considérés comme sensibles et qu
-2026-07-09 11:33:53,863 [INFO] Hybrid search: 15 vector results, 6 BM25 results
-2026-07-09 11:33:53,884 [INFO] RRF fusion: 16 results above threshold 0.30
-Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:03<00:00,  3.37s/it]Batches: 100%|██████████| 1/1 [00:03<00:00,  3.37s/it]
-2026-07-09 11:33:57,271 [INFO] Retrieval complete: 5 results for query 'Quel est le délai de traitement pour une demande de mise à disposition ?'
-2026-07-09 11:33:57,271 [INFO] Q8 ✅ [wiki] (4052ms): Quel est le délai de traitement pour une demande de mise à d
-2026-07-09 11:33:57,725 [INFO] Hybrid search: 15 vector results, 11 BM25 results
-2026-07-09 11:33:57,726 [INFO] RRF fusion: 18 results above threshold 0.30
-Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:03<00:00,  3.69s/it]Batches: 100%|██████████| 1/1 [00:03<00:00,  3.69s/it]
-2026-07-09 11:34:01,420 [INFO] Retrieval complete: 5 results for query 'Qui doit approuver un avoir dans la politique interne de MIRO KE ?'
-2026-07-09 11:34:01,420 [INFO] Q9 ✅ [pdf] (4149ms): Qui doit approuver un avoir dans la politique interne de MIR
-2026-07-09 11:34:02,217 [INFO] Hybrid search: 15 vector results, 15 BM25 results
-2026-07-09 11:34:02,217 [INFO] RRF fusion: 28 results above threshold 0.30
-Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:06<00:00,  6.89s/it]Batches: 100%|██████████| 1/1 [00:06<00:00,  6.89s/it]
-2026-07-09 11:34:09,116 [INFO] Retrieval complete: 5 results for query 'Quels sont les trois niveaux de relance disponibles dans Odoo ?'
-2026-07-09 11:34:09,116 [INFO] Q10 ✅ [pdf] (7697ms): Quels sont les trois niveaux de relance disponibles dans Odo
-2026-07-09 11:34:09,471 [INFO] Hybrid search: 15 vector results, 15 BM25 results
-2026-07-09 11:34:09,471 [INFO] RRF fusion: 27 results above threshold 0.30
-Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:06<00:00,  6.31s/it]Batches: 100%|██████████| 1/1 [00:06<00:00,  6.31s/it]
-2026-07-09 11:34:15,787 [INFO] Retrieval complete: 5 results for query 'Dans quel fichier sont définies les lignes de facture (account.move.line) ?'
-2026-07-09 11:34:15,787 [INFO] Q11 ✅ [code] (6671ms): Dans quel fichier sont définies les lignes de facture (accou
-2026-07-09 11:34:16,417 [INFO] Hybrid search: 15 vector results, 15 BM25 results
-2026-07-09 11:34:16,418 [INFO] RRF fusion: 26 results above threshold 0.30
-Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:05<00:00,  5.74s/it]Batches: 100%|██████████| 1/1 [00:05<00:00,  5.74s/it]
-2026-07-09 11:34:22,166 [INFO] Retrieval complete: 5 results for query 'Quelle classe gère les lignes de commande de vente (sale.order.line) ?'
-2026-07-09 11:34:22,166 [INFO] Q12 ✅ [code] (6378ms): Quelle classe gère les lignes de commande de vente (sale.ord
-2026-07-09 11:34:22,571 [INFO] Hybrid search: 15 vector results, 15 BM25 results
-2026-07-09 11:34:22,572 [INFO] RRF fusion: 30 results above threshold 0.30
-Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:05<00:00,  5.83s/it]Batches: 100%|██████████| 1/1 [00:05<00:00,  5.83s/it]
-2026-07-09 11:34:28,401 [INFO] Retrieval complete: 5 results for query 'Comment est structuré le modèle stock.move ?'
-2026-07-09 11:34:28,402 [INFO] Q13 ✅ [code] (6236ms): Comment est structuré le modèle stock.move ?
-2026-07-09 11:34:28,886 [INFO] Hybrid search: 15 vector results, 15 BM25 results
-2026-07-09 11:34:28,886 [INFO] RRF fusion: 30 results above threshold 0.30
-Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:09<00:00,  9.28s/it]Batches: 100%|██████████| 1/1 [00:09<00:00,  9.28s/it]
-2026-07-09 11:34:38,169 [INFO] Retrieval complete: 5 results for query 'Comment est étendue la classe ResCompany dans le module sale ?'
-2026-07-09 11:34:38,169 [INFO] Q14 ❌ [code] (9768ms): Comment est étendue la classe ResCompany dans le module sale
-2026-07-09 11:34:38,558 [INFO] Hybrid search: 15 vector results, 15 BM25 results
-2026-07-09 11:34:38,558 [INFO] RRF fusion: 29 results above threshold 0.30
-Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:05<00:00,  5.51s/it]Batches: 100%|██████████| 1/1 [00:05<00:00,  5.51s/it]
-2026-07-09 11:34:44,072 [INFO] Retrieval complete: 5 results for query 'Quelle classe gère les commandes de vente (sale.order) ?'
-2026-07-09 11:34:44,072 [INFO] Q15 ✅ [code] (5903ms): Quelle classe gère les commandes de vente (sale.order) ?
-2026-07-09 11:34:44,482 [INFO] Hybrid search: 15 vector results, 15 BM25 results
-2026-07-09 11:34:44,482 [INFO] RRF fusion: 28 results above threshold 0.30
-Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:05<00:00,  5.46s/it]Batches: 100%|██████████| 1/1 [00:05<00:00,  5.46s/it]
-2026-07-09 11:34:49,948 [INFO] Retrieval complete: 5 results for query 'Quel est le rôle du modèle stock.warehouse ?'
-2026-07-09 11:34:49,948 [INFO] Q16 ✅ [code] (5876ms): Quel est le rôle du modèle stock.warehouse ?
-2026-07-09 11:34:50,271 [INFO] Hybrid search: 15 vector results, 15 BM25 results
-2026-07-09 11:34:50,271 [INFO] RRF fusion: 28 results above threshold 0.30
-Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:04<00:00,  4.94s/it]Batches: 100%|██████████| 1/1 [00:04<00:00,  4.94s/it]
-2026-07-09 11:34:55,217 [INFO] Retrieval complete: 5 results for query 'Comment le journal comptable (account.journal) est-il défini ?'
-2026-07-09 11:34:55,218 [INFO] Q17 ✅ [code] (5269ms): Comment le journal comptable (account.journal) est-il défini
-2026-07-09 11:34:55,584 [INFO] Hybrid search: 15 vector results, 15 BM25 results
-2026-07-09 11:34:55,584 [INFO] RRF fusion: 30 results above threshold 0.30
-Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:09<00:00,  9.56s/it]Batches: 100%|██████████| 1/1 [00:09<00:00,  9.56s/it]
-2026-07-09 11:35:05,152 [INFO] Retrieval complete: 5 results for query 'Quels sont les modèles étendus dans le fichier payment_provider.py du module sal'
-2026-07-09 11:35:05,152 [INFO] Q18 ✅ [code] (9934ms): Quels sont les modèles étendus dans le fichier payment_provi
-2026-07-09 11:35:05,502 [INFO] Hybrid search: 15 vector results, 0 BM25 results
-2026-07-09 11:35:05,502 [INFO] RRF fusion: 15 results above threshold 0.30
-Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:02<00:00,  2.80s/it]Batches: 100%|██████████| 1/1 [00:02<00:00,  2.80s/it]
-2026-07-09 11:35:08,306 [INFO] Retrieval complete: 5 results for query 'Raconte-moi une blague sur les ERP.'
-2026-07-09 11:35:08,306 [INFO] Q27 ❌ [hors_perimetre] (3154ms): Raconte-moi une blague sur les ERP.
-2026-07-09 11:35:08,676 [INFO] Hybrid search: 15 vector results, 0 BM25 results
-2026-07-09 11:35:08,676 [INFO] RRF fusion: 15 results above threshold 0.30
-Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:02<00:00,  2.88s/it]Batches: 100%|██████████| 1/1 [00:02<00:00,  2.88s/it]
-2026-07-09 11:35:11,559 [INFO] Retrieval complete: 5 results for query 'Quelle est la recette du gâteau au chocolat ?'
-2026-07-09 11:35:11,560 [INFO] Q28 ❌ [hors_perimetre] (3253ms): Quelle est la recette du gâteau au chocolat ?
-2026-07-09 11:35:11,915 [INFO] Hybrid search: 15 vector results, 0 BM25 results
-2026-07-09 11:35:11,916 [INFO] RRF fusion: 15 results above threshold 0.30
-Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:02<00:00,  2.61s/it]Batches: 100%|██████████| 1/1 [00:02<00:00,  2.61s/it]
-2026-07-09 11:35:14,528 [INFO] Retrieval complete: 5 results for query 'Qui a gagné la Coupe du Monde 2022 ?'
-2026-07-09 11:35:14,528 [INFO] Q29 ❌ [hors_perimetre] (2968ms): Qui a gagné la Coupe du Monde 2022 ?
-2026-07-09 11:35:14,879 [INFO] Hybrid search: 15 vector results, 8 BM25 results
-2026-07-09 11:35:14,879 [INFO] RRF fusion: 22 results above threshold 0.30
-Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:05<00:00,  5.54s/it]Batches: 100%|██████████| 1/1 [00:05<00:00,  5.54s/it]
-2026-07-09 11:35:20,424 [INFO] Retrieval complete: 5 results for query 'Peux-tu m'aider à écrire un poème sur la lune ?'
-2026-07-09 11:35:20,424 [INFO] Q30 ❌ [hors_perimetre] (5896ms): Peux-tu m'aider à écrire un poème sur la lune ?
-2026-07-09 11:35:20,424 [INFO] Report saved to /home/user/odoo-ia-prototype/miro-rag/captures/retrieval_config.md
-2026-07-09 11:35:20,425 [INFO] Overall recall@5: 87.5%
-
-============================================================
-  recall@5 = 87.5%
-  Target (≥ 80%): ✅ MET
-============================================================
