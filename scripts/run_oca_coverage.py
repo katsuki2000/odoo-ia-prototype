@@ -2,11 +2,11 @@ import sys
 import os
 from pathlib import Path
 
-# Add miro-rag to PYTHONPATH
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "miro-rag"))
+project_root = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(project_root))
 
 from code_intelligence.utils import discover_odoo_modules
-from rag.graph import _load_module
+from core.graph import _load_module
 
 def main():
     if len(sys.argv) < 2:

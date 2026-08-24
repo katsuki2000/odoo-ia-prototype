@@ -30,8 +30,8 @@ def test_run_startup_scan_updates_status_and_logs_event(tmp_path):
     }
 
     with (
-        patch("ingestion.scheduler.reindex_if_changed") as mock_reindex,
-        patch("ingestion.scheduler.write_ingestion_event") as mock_write,
+        patch("document_rag.ingestion.scheduler.reindex_if_changed") as mock_reindex,
+        patch("document_rag.ingestion.scheduler.write_ingestion_event") as mock_write,
     ):
         mock_reindex.return_value = {
             "added_files": [str(docs_dir / "startup_doc.txt")],
@@ -69,8 +69,8 @@ def test_run_scheduled_scan_updates_status_and_logs_event(tmp_path):
     }
 
     with (
-        patch("ingestion.scheduler.reindex_if_changed") as mock_reindex,
-        patch("ingestion.scheduler.write_ingestion_event") as mock_write,
+        patch("document_rag.ingestion.scheduler.reindex_if_changed") as mock_reindex,
+        patch("document_rag.ingestion.scheduler.write_ingestion_event") as mock_write,
     ):
         mock_reindex.return_value = {
             "added_files": [],

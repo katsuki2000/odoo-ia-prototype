@@ -1,5 +1,5 @@
 """
-rag/graph.py
+core/graph.py
 
 LangGraph RAG pipeline with hybrid routing.
 Flow:
@@ -8,16 +8,18 @@ Flow:
                    → [hybride]             → hybrid_node            → format_output → END
                    → [code_intelligence]   → code_intelligence_agent → format_output → END
 
-Refactored modular architecture:
-  - rag/degenerate_guards.py : Repetition detection & collapsing guards
-  - rag/routing.py           : Query classification, routing, and input guardrails
-  - rag/generate_node.py     : Documentary RAG branch
-  - rag/orm_agent_node.py    : ORM ReAct agent loop & hybrid pipeline
-  - rag/ci_helpers.py        : Code Intelligence extraction, backfill & contradiction helpers
-  - rag/ci_graph_loader.py   : Knowledge graph loading & caching
-  - rag/ci_agent_node.py     : Code Intelligence ReAct agent node & RPC helpers
-  - rag/llm_client.py        : LLM provider factory & retry infrastructure
-  - rag/graph.py             : StateGraph wiring, nodes, and public API (orchestrator)
+Modular architecture (post-refactoring, section 93 -- paths updated
+2026-08-24 to match the real package layout, see todo/contexte.txt section
+115; this docstring previously still cited the pre-refactor rag/ paths):
+  - core/degenerate_guards.py        : Repetition detection & collapsing guards
+  - core/routing.py                  : Query classification, routing, and input guardrails
+  - document_rag/generate_node.py    : Documentary RAG branch
+  - erp_data/orm_agent_node.py       : ORM ReAct agent loop & hybrid pipeline
+  - code_intelligence/ci_helpers.py      : Code Intelligence extraction, backfill & contradiction helpers
+  - code_intelligence/ci_graph_loader.py : Knowledge graph loading & caching
+  - code_intelligence/ci_agent_node.py   : Code Intelligence ReAct agent node & RPC helpers
+  - core/llm_client.py               : LLM provider factory & retry infrastructure
+  - core/graph.py                    : StateGraph wiring, nodes, and public API (orchestrator)
 """
 
 import json
@@ -46,7 +48,6 @@ from core.schemas import (
     SourceReference,
     LLMResponse,
     QueryRoute,
-    DataQueryIntent,
 )
 
 # ── Backward-compatible re-exports from llm_client ────────────────────────────
@@ -310,7 +311,7 @@ def format_output(state: RAGState) -> dict:
         # H3 support (todo/contexte.txt, 2026-08-20), Phase 1 -- observational
         # only: same central assignment point, surfaces evidence_status (set
         # only by code_intelligence_agent, None on every other branch -- see
-        # rag/evidence_check.py's module docstring). Not consumed by any
+        # core/evidence_check.py's module docstring). Not consumed by any
         # caller yet, purely for measurement.
         response.evidence_status = state.get("evidence_status")
 
@@ -419,7 +420,7 @@ def query_graph(
     api/main.py). None on a session's first turn. Consumed only by
     route()'s _sticky_concept_or_resolve fallback when the current
     question's own deterministic resolution fails -- see that function's
-    docstring in rag/routing.py for the full rationale and scope.
+    docstring in core/routing.py for the full rationale and scope.
     """
     import time
     import json

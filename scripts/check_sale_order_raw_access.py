@@ -15,9 +15,8 @@ from pathlib import Path
 
 project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(project_root))
-sys.path.insert(0, str(project_root / "miro-rag"))
 
-from rag.graph import get_code_intelligence_graph
+from core.graph import get_code_intelligence_graph
 from code_intelligence.ci_agent_tools import ALL_CI_TOOLS, set_graph_ref
 
 G = get_code_intelligence_graph()

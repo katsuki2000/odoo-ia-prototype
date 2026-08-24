@@ -55,7 +55,7 @@ class TestIncrementalIndexation(unittest.TestCase):
 
         first_file.write_text("FIRST DOCUMENT\n\nModified content.", encoding="utf-8")
         third_file.write_text("THIRD DOCUMENT\n\nModified content.", encoding="utf-8")
-        with self.assertLogs("ingestion.incremental", level="INFO") as logs:
+        with self.assertLogs("document_rag.ingestion.incremental", level="INFO") as logs:
             changed = reindex_if_changed([self.docs_dir], self.manager, chunk_size=120, chunk_overlap=10)
 
         self.assertIn(str(first_file.resolve()), changed.get("updated_files", []))
@@ -78,7 +78,7 @@ class TestIncrementalIndexation(unittest.TestCase):
         wrapped_add_chunks = MagicMock(wraps=self.manager.add_chunks)
         self.manager.add_chunks = wrapped_add_chunks
 
-        with self.assertLogs("ingestion.incremental", level="INFO") as logs:
+        with self.assertLogs("document_rag.ingestion.incremental", level="INFO") as logs:
             result = reindex_if_changed([self.docs_dir], self.manager, chunk_size=120, chunk_overlap=10)
 
         self.assertIn(str(deleted_file.resolve()), result.get("deleted_files", []))
@@ -101,7 +101,7 @@ class TestIncrementalIndexation(unittest.TestCase):
         wrapped_add_chunks = MagicMock(wraps=self.manager.add_chunks)
         self.manager.add_chunks = wrapped_add_chunks
 
-        with self.assertLogs("ingestion.incremental", level="INFO") as logs:
+        with self.assertLogs("document_rag.ingestion.incremental", level="INFO") as logs:
             result = reindex_if_changed([self.docs_dir], self.manager, chunk_size=120, chunk_overlap=10)
 
         self.assertIn(str(new_file.resolve()), result.get("added_files", []))

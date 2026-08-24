@@ -28,16 +28,44 @@ def _get_chat_groq():
     return ChatGroq
 
 
+def compute_rag_confidence(chunks: list, is_out_of_scope: bool = False) -> float:
+    """
+    Calcule de façon déterministe un score de confiance (0.0 à 1.0) pour la branche documentaire.
+    - 0.0 si hors périmètre ou aucun document retrouvé
+    - Utilise le score de reranking / similarité du chunk #1 si disponible
+    - Sinon, heuristique déterministe basée sur le nombre de chunks pertinents récupérés
+    """
+    if is_out_of_scope or not chunks:
+        return 0.0
+
+    top_chunk = chunks[0]
+    score = top_chunk.get("score") or top_chunk.get("rerank_score")
+    if score is not None:
+        try:
+            val = float(score)
+            return max(0.0, min(1.0, val))
+        except (ValueError, TypeError):
+            pass
+
+    num = len(chunks)
+    if num >= 3:
+        return 0.90
+    elif num == 2:
+        return 0.80
+    elif num == 1:
+        return 0.70
+    return 0.50
+
+
 def _parse_raw_json_answer(raw_text: str) -> Optional[str]:
     """
     Dette technique (19/08, todo/plan.md Partie 4bis): the raw-invoke
     fallback in generate() calls the LLM with the same SYSTEM_PROMPT used
-    for structured output (rag/prompts.py), which instructs the model to
-    reply with JSON shaped like {"answer": ..., "sources": ...,
-    "confidence": ..., "missing_info": ...}. Before this helper, that raw
-    JSON text was assigned directly to AssistantResponse.answer, so the
-    user saw an escaped JSON blob instead of a sentence whenever the
-    structured-output call failed and this fallback ran.
+    for structured output (core/prompts.py), which instructs the model to
+    reply with JSON shaped like {"answer": ..., "confidence": ...}.
+    Before this helper, that raw JSON text was assigned directly to
+    AssistantResponse.answer, so the user saw an escaped JSON blob instead
+    of a sentence whenever the structured-output call failed and this fallback ran.
 
     Extracts the 'answer' field from that JSON so the fallback path
     produces the same shape of answer as the structured-output path.
@@ -159,7 +187,7 @@ def generate(state: RAGState) -> dict:
             parsed_answer = _parse_raw_json_answer(raw_resp.content)
             response = AssistantResponse(
                 answer=parsed_answer if parsed_answer is not None else raw_resp.content,
-                confidence=0.85,
+                confidence=compute_rag_confidence(chunks),
                 sources=[]
             )
         except Exception as e2:

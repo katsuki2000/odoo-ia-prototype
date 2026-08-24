@@ -63,14 +63,6 @@ if os.path.exists(ui_path):
 
 
 # -- Request and Response Models --
-
-class AskRequest(BaseModel):
-    """Request body for the /ask endpoint."""
-    question: str = Field(..., min_length=1, description="The user's question in natural language")
-    n_results: int = Field(5, ge=1, le=20, description="Number of documents to retrieve")
-    filter_type: Optional[str] = Field(None, description="Filter by document type: wiki, ticket, sale, manual")
-
-
 class AskRequestV1(BaseModel):
     """Request body for /api/v1/ask."""
     question: str = Field(..., min_length=1)
@@ -78,20 +70,6 @@ class AskRequestV1(BaseModel):
     user_uid: int
     company_id: int
     skills: dict[str, bool] = Field(default_factory=dict)
-
-class Source(BaseModel):
-    """A single source document reference."""
-    source: str
-    type: str
-    title: str
-    snippet: Optional[str] = None
-
-
-class AskResponse(BaseModel):
-    """Response body for the /ask endpoint."""
-    answer: str
-    question: str
-    sources: list[Source]
 
 
 class AskResponseV1(BaseModel):
@@ -392,38 +370,6 @@ def ask_question_v1(request: AskRequestV1, user: dict = Depends(get_current_user
             raise HTTPException(status_code=503, detail=f"Service Unavailable: {str(e)}")
         raise HTTPException(status_code=500, detail=f"RAG Graph error: {str(e)}")
 
-
-
-@app.post("/ask", response_model=AskResponse)
-def ask_question(request: AskRequest):
-    """
-    Submit a question to the RAG pipeline.
-
-    Retrieves relevant documents from ChromaDB, builds a context-enriched
-    prompt, and generates an answer via the configured LLM.
-    """
-    from core.pipeline import ask
-
-    where_filter = None
-    if request.filter_type:
-        where_filter = {"type": request.filter_type}
-
-    try:
-        result = ask(
-            question=request.question,
-            n_results=request.n_results,
-            where_filter=where_filter,
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"RAG pipeline error: {str(e)}")
-
-    sources = [Source(**s) for s in result.get("sources", [])]
-
-    return AskResponse(
-        answer=result["answer"],
-        question=result["question"],
-        sources=sources,
-    )
 
 
 @app.post("/reindex", response_model=ReindexResponse)

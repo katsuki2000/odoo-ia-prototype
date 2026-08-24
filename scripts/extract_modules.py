@@ -19,9 +19,9 @@ import logging
 from pathlib import Path
 from collections import Counter
 
-# Add miro-rag to PYTHONPATH
+# Add project root to PYTHONPATH
 project_root = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(project_root / "miro-rag"))
+sys.path.insert(0, str(project_root))
 
 import networkx as nx
 from code_intelligence.manifest_parser import parse_manifest

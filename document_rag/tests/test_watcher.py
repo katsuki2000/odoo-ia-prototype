@@ -40,7 +40,7 @@ class TestDebouncedIngestionHandler(unittest.TestCase):
         target = self.root / "new_doc.txt"
         target.write_text("New document", encoding="utf-8")
 
-        with patch("ingestion.watcher.reindex_if_changed") as reindex:
+        with patch("document_rag.ingestion.watcher.reindex_if_changed") as reindex:
             reindex.return_value = {"added_files": [str(target.resolve())], "chunks_added": 1}
             self.handler.on_created(_Event(str(target)))
 
@@ -57,7 +57,7 @@ class TestDebouncedIngestionHandler(unittest.TestCase):
         target.write_text("Changed document", encoding="utf-8")
         self.handler.debounce_seconds = 0.01
 
-        with patch("ingestion.watcher.Timer") as timer_cls:
+        with patch("document_rag.ingestion.watcher.Timer") as timer_cls:
             first_timer = MagicMock()
             second_timer = MagicMock()
             timer_cls.side_effect = [first_timer, second_timer]
@@ -81,7 +81,7 @@ class TestDebouncedIngestionHandler(unittest.TestCase):
     def test_unsupported_file_is_ignored(self):
         target = self.root / "ignored.tmp"
 
-        with patch("ingestion.watcher.reindex_if_changed") as reindex:
+        with patch("document_rag.ingestion.watcher.reindex_if_changed") as reindex:
             self.handler.on_created(_Event(str(target)))
 
         reindex.assert_not_called()

@@ -1,8 +1,7 @@
 import sys
 from pathlib import Path
 
-# Add miro-rag to PYTHONPATH so we can import code_intelligence
-sys.path.insert(0, "/home/user/odoo-ia-prototype/miro-rag")
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from code_intelligence.utils import discover_odoo_modules
 from core.graph import _load_module

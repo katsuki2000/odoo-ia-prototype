@@ -306,7 +306,7 @@ class TestCrossEncoderRerank(unittest.TestCase):
             {"id": "c", "document": "La gestion des stocks", "metadata": {}, "score": 0.7},
         ]
 
-        with patch("vectorstore.search._get_cross_encoder") as get_encoder:
+        with patch("document_rag.vectorstore.search._get_cross_encoder") as get_encoder:
             get_encoder.return_value.predict.return_value = [0.1, 0.9, 0.2]
             reranked = cross_encoder_rerank("facture Odoo comptabilité", results, top_k=2)
 
@@ -322,7 +322,7 @@ class TestCrossEncoderRerank(unittest.TestCase):
         results = [
             {"id": "a", "document": "test document", "metadata": {}, "score": 1.0},
         ]
-        with patch("vectorstore.search._get_cross_encoder") as get_encoder:
+        with patch("document_rag.vectorstore.search._get_cross_encoder") as get_encoder:
             get_encoder.return_value.predict.return_value = [0.8]
             reranked = cross_encoder_rerank("test", results, top_k=5)
         self.assertEqual(len(reranked), 1)
@@ -361,7 +361,7 @@ class TestRetrievePipeline(unittest.TestCase):
         self.chroma.add_chunks(texts, metadatas)
 
     def test_full_pipeline(self):
-        with patch("vectorstore.search._get_cross_encoder") as get_encoder:
+        with patch("document_rag.vectorstore.search._get_cross_encoder") as get_encoder:
             get_encoder.return_value.predict.return_value = [
                 1.0,
                 0.9,

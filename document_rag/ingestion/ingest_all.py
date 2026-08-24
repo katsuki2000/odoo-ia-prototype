@@ -33,7 +33,16 @@ from document_rag.vectorstore.chroma_manager import ChromaManager
 
 # Paths
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-FAKE_DATA_DIR = PROJECT_ROOT / "document_rag/fake_data"
+# BUGFIX (2026-08-24): was "document_rag/fake_data" -- PROJECT_ROOT already
+# IS document_rag/ (see Path(__file__).resolve().parent.parent above, __file__
+# = document_rag/ingestion/ingest_all.py), so appending "document_rag/fake_data"
+# double-nested into a phantom document_rag/document_rag/fake_data/documents/
+# that DOCS_DIR.mkdir() below silently (re)created empty on every import,
+# while the REAL 10-file corpus sits one level up at document_rag/fake_data/
+# documents/ and was never the default docs_dir actually used unless a caller
+# passed it explicitly (confirmed: no test relies on this default, all pass
+# docs_dir= explicitly -- see document_rag/tests/test_ingest_all.py).
+FAKE_DATA_DIR = PROJECT_ROOT / "fake_data"
 DOCS_DIR = FAKE_DATA_DIR / "documents"
 LOGS_DIR = PROJECT_ROOT / "ingestion" / "logs"
 

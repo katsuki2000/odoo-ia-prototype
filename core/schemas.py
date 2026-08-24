@@ -18,29 +18,6 @@ class QueryRoute(str, Enum):
     HYBRIDE = "hybride"
     CODE_INTELLIGENCE = "code_intelligence"
 
-
-class DataQueryIntent(BaseModel):
-    """Structured intent extracted by the LLM for ERP data queries."""
-    model_config = ConfigDict(strict=True)
-
-    data_source: str = Field(
-        ...,
-        description="The data source to query: 'sales' for sales data, 'tickets' for support tickets"
-    )
-    operation: str = Field(
-        ...,
-        description="The operation to perform: 'sum', 'count', 'filter', 'list', 'max', 'min'"
-    )
-    filters: Dict[str, str] = Field(
-        default_factory=dict,
-        description="Key-value filters to apply, e.g. {'client': 'Société Dupont', 'statut': 'facturé'}"
-    )
-    target_field: str = Field(
-        default="",
-        description="The field to aggregate on, e.g. 'montant' for sum/max/min operations"
-    )
-
-
 class SourceReference(BaseModel):
     """Reference to a source document used for answering."""
     model_config = ConfigDict(strict=True)

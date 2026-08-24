@@ -1835,3 +1835,337 @@ Ce qui confirmerait la fermeture reelle de Bug A (pattern H4) sur les 5 cas d'or
 4. **Renommage Français-Anglais (Phase critique):** Application de la règle "code in english" à tous les outils LangChain. Tous les outils (ex. `evaluer_regles_enregistrement` -> `evaluate_record_rules`, `qui_a_acces_a` -> `who_has_access_to`, `analyser_contraintes_donnees` -> `analyze_data_constraints`), leurs arguments, variables, dataclasses et les noms de leurs fichiers de tests associés ont été traduits, modifiant plus de 55 fichiers (fichiers Python, JSONL, Markdown). Le comportement reste stable: tous les 480 tests ont passé après ce refactoring profond.
 5. **Nettoyage des imports morts:** Suppression d'imports inutilisés dans `rag/graph.py` et `rag/ci_agent_node.py` remontés par l'outil d'audit.
 ---
+
+## Section 111: Audit post-refactoring (Section 93) -- diagnostic complet, AUCUNE ecriture faite ce tour (2026-08-24, session filesystem-only)
+
+**Origine** : mandat de l'utilisateur ("j'ai fait un gros refactoring depuis, check ce qui va pas") -- lecture de `todo/plan.md`, `todo/rules.md`, `todo/architecture.md` et de la fin de `todo/contexte.txt` (jusqu'a la section 110) faite avant toute inspection, conformement a la discipline habituelle. Ceci est un diagnostic pur : aucun fichier n'a ete modifie ce tour, tout ce qui suit attend un mandat explicite avant toute ecriture.
+
+**Perimetre inspecte** : arborescence complete des 4 packages issus du refactoring (`code_intelligence/`, `core/`, `document_rag/`, `erp_data/`), `scripts/` (racine, 23 fichiers), `tests/` (racine), et lecture ligne a ligne de `core/graph.py` (le point d'entree public post-refactor) et `code_intelligence/ci_agent_tools.py` en entier.
+
+**Constat global** : le refactoring interne des packages `core/`/`code_intelligence/`/`document_rag/`/`erp_data/` est propre et coherent -- `core/graph.py` importe correctement depuis les 4 nouveaux packages (`core.schemas`, `core.llm_client`, `core.degenerate_guards`, `core.routing`, `document_rag.generate_node`, `erp_data.orm_agent_node`, `code_intelligence.ci_graph_loader`, `code_intelligence.ci_helpers`, `code_intelligence.ci_override_cascade`, `code_intelligence.ci_agent_node`), et la suite pytest (`pythonpath = .` dans `pytest.ini`) semble avoir ete tenue a jour au fil des sections precedentes (475/475 rapporte section 109). **Le vrai trou du refactoring n'est pas dans le code applicatif lui-meme, mais dans tout ce qui vit EN DEHORS du perimetre couvert par pytest** : les scripts autonomes de `scripts/` et deux points de dette mineure a l'interieur des packages.
+
+### 1. CASSE (execution reelle impossible) -- les 8 scripts `scripts/check_bloc9_0{1-8}_*_e2e.py`
+
+Tous les 8 scripts de confirmation E2E du Bloc 9 (plus `check_j34_35_e2e.py`, `run_adversarial_benchmark.py`, `check_locks_raw.py`, `check_native_odoo_out_of_scope.py`, `check_q6_2_lock_pollution_regression.py`, `check_sale_order_raw_access.py`, `replay_q1_2_vip.py`, `run_oca_coverage.py` -- verifies un par un, meme motif partout) partagent DEUX defauts cumulatifs qui les rendent inexecutables tels quels :
+
+- **(a) `from rag.graph import ...`** : le package `rag/` n'existe plus du tout sur le disque (renomme en `core/` section 93) -- `ImportError: No module named 'rag'` a la premiere ligne d'execution de chacun de ces 14 scripts. Doit devenir `from core.graph import ...`.
+- **(b) `sys.path.insert(0, str(project_root / "miro-rag"))`** : reference a un sous-repertoire `miro-rag/` qui n'existe pas non plus a la racine du depot (confirme par `list_directory` sur `/home/user/odoo-ia-prototype`) -- ligne morte depuis un renommage anterieur au refactoring de la section 93 lui-meme, jamais nettoyee. Sans effet nefaste direct (insert d'un chemin inexistant ne casse rien en soi), mais fausse piste pour quiconque relit le fichier, a supprimer.
+
+**(c) Casse plus grave et plus subtile, propre a 2 scripts** : `check_bloc9_02_credit_note_visibility_e2e.py` importe `evaluer_regles_raw` depuis `code_intelligence.ci_agent_tools` -- **cette fonction n'existe pas sous ce nom**. Le renommage Francais->Anglais de la section 93 ("tous les outils... modifiant plus de 55 fichiers") l'a renommee `evaluate_rules_raw` (confirme par lecture complete de `ci_agent_tools.py`, ligne ~245) mais n'a pas propage ce renommage a ce script -- `ImportError` des le chargement, avant meme la premiere question testee.
+
+**(d) Casse la plus grave, silencieuse cote resultat (pas ImportError mais faux-negatifs systematiques)** : les 8 scripts Bloc 9 appellent tous des noms d'outils EN FRANCAIS via `tool_map.get(...)` -- `analyser_verrous_securite`, `analyser_actions_serveur`, `evaluer_regles_enregistrement`, `qui_a_acces_a`, `analyser_chaine_surcharge_methode`. Le registre reel `ALL_CI_TOOLS` (ci_agent_tools.py, verifie exhaustivement) ne contient plus que les noms ANGLAIS post-renommage section 93 : `analyze_security_locks`, `analyze_server_actions`, `evaluate_record_rules`, `who_has_access_to`, `analyze_method_override_chain`. Chaque `tool_map.get("analyser_...")` renvoie donc `None`, et chaque `check_raw_tool_output()` des 8 scripts imprime `[FAIL] Tool '...' not found in ALL_CI_TOOLS.` au lieu de tester quoi que ce soit -- **ces scripts, meme une fois les imports reparés, ne testeraient plus rien de reel sans une seconde passe de renommage des noms d'outils qu'ils invoquent.** C'est une regression directe et non detectee de la section 93 : le renommage a couvert "plus de 55 fichiers" mais pas ces 8+ scripts de `scripts/`, qui vivent hors du perimetre pytest (`pytest tests/ -v -m "not integration"` ne les execute jamais, ce sont des scripts `if __name__ == "__main__"` autonomes) -- rien dans la suite automatisee ne pouvait detecter cette casse.
+
+**Fichiers confirmes affectes par (a)+(b) (lecture ligne a ligne faite, pas suppose)** : `check_bloc9_01..08_*_e2e.py` (8), `check_j34_35_e2e.py`, `run_adversarial_benchmark.py`, `check_locks_raw.py`, `check_native_odoo_out_of_scope.py`, `check_q6_2_lock_pollution_regression.py`, `check_sale_order_raw_access.py`, `replay_q1_2_vip.py`, `run_oca_coverage.py` -- 16 fichiers.
+Affectes par (d) (noms d'outils francais) : les 8 `check_bloc9_0N_*_e2e.py` uniquement (les autres scripts de la liste n'appellent pas `tool_map.get()` avec un nom francais, ou pas du tout).
+Affecte par (c) : `check_bloc9_02_credit_note_visibility_e2e.py` seul.
+
+**Scripts avec un defaut DIFFERENT (sys.path incomplet, pas de reference a `rag`)** :
+- `scripts/extract_modules.py` : insere seulement `project_root / "miro-rag"` sur `sys.path`, jamais `project_root` lui-meme -- `import networkx`/`from code_intelligence...` echoueraient si `code_intelligence` n'est pas deja resolvable autrement (le repertoire courant n'est pas garanti etre `project_root` a l'execution). A corriger independamment du point (a)/(b) puisqu'il n'importe pas depuis `rag`.
+- `scripts/run_oca_coverage.py` : meme defaut (`miro-rag` seul sur `sys.path`, jamais `project_root`) CUMULE avec le defaut (a) (`from rag.graph import _load_module` -- doit devenir `from core.graph import _load_module`).
+- `scripts/diagnose_nomic_400.py` : `PROJECT_ROOT = Path(__file__).resolve().parent.parent / "miro-rag"` -- repertoire inexistant, `load_dotenv(PROJECT_ROOT / ".env")` echoue silencieusement (pas de `.env` trouve a ce chemin fantome). Doit pointer directement sur `project_root` (sans le `/ "miro-rag"`).
+- `scripts/test_resolver.py` : `sys.path.insert(0, 'miro-rag')` (chemin RELATIF, jamais `project_root` en absolu) -- casse selon le repertoire d'execution, et `miro-rag` n'existe de toute facon pas.
+
+### 2. Fichiers dupliques a l'identique dans `code_intelligence/`
+
+`ci_agent_node.py` et `ci_agent_node_new.py` : **meme taille exacte (102445 octets), meme timestamp de creation/modification** (`Fri Aug 21 2026 16:40:48`) -- confirme via `get_file_info` sur les deux, et premieres lignes identiques (meme docstring stale `"rag/ci_agent_node.py"`). Duplication quasi certaine, deja signalee. `core/graph.py` importe reellement depuis `code_intelligence.ci_agent_node` (pas `_new`) -- `ci_agent_node_new.py` est donc mort, jamais importe nulle part (a confirmer par une recherche de reference avant suppression, mais aucun import de `ci_agent_node_new` trouve dans `core/graph.py`).
+
+### 3. Constante dupliquee dans `ci_agent_tools.py`
+
+`WILDCARD_MODEL_ERROR_MSG` est definie DEUX FOIS a l'identique dans le meme fichier (ligne ~41, juste apres `_require_graph()`, et re-definie ligne ~103 juste avant la section "COMPOSITE TOOLS", avec exactement le meme texte). La seconde definition est une pure redondance sans effet fonctionnel (memes valeurs), mais viole `rules.md` ("clean code") -- confirme par lecture complete du fichier (24 Ko), pas suppose.
+
+### 4. Docstrings de module perimes (chemins pre-refactoring)
+
+Confirmes par lecture directe (pas suppose depuis la memoire) :
+- `core/graph.py` : docstring de tete cite encore `rag/graph.py`, `rag/degenerate_guards.py`, `rag/routing.py`, `rag/generate_node.py`, `rag/orm_agent_node.py`, `rag/ci_helpers.py`, `rag/ci_graph_loader.py`, `rag/ci_agent_node.py`, `rag/llm_client.py` -- alors que ces 9 fichiers vivent maintenant dans `core/`, `document_rag/` ou `erp_data/`. Egalement une reference `rag/graph.py::get_code_intelligence_graph` dans un commentaire de `check_bloc9_03_hr_leave_workflow_e2e.py` et une reference `rag/routing.py` dans la docstring de `query_graph()` elle-meme (parametre `last_route`).
+- `code_intelligence/ci_agent_node_new.py` (et probablement `ci_agent_node.py`, identique) : meme docstring de tete `"rag/ci_agent_node.py"`.
+- `document_rag/scripts/create_pdf.py` : commentaire de premiere ligne `# document_rag/fake_data/documents/create_pdf.py` -- chemin qui ne correspond a l'emplacement reel du fichier (`document_rag/scripts/create_pdf.py`), stale depuis un deplacement anterieur.
+- Plusieurs docstrings de scripts (`run_oca_coverage.py`'s reference implicite, commentaires "Add miro-rag to PYTHONPATH" dans `extract_modules.py`, `report_llm_call_budget.py`, `test_benchmark_tools.py`) decrivent une intention ("miro-rag") qui ne correspond a aucun repertoire reel.
+
+### 5. Anomalies structurelles annexes, non explicitement demandees par l'utilisateur mais trouvees en chemin -- signalees, pas corrigees
+
+- **Pas de `__init__.py`** dans `core/`, `document_rag/`, `erp_data/`, ni dans `erp_data/tests/` (contrairement a `code_intelligence/` et `code_intelligence/tests/`, qui en ont un). Fonctionne actuellement comme "namespace packages" Python 3 implicites (pas d'erreur), mais incoherent avec `code_intelligence/` et potentiellement fragile selon l'outillage (certains linters/IDE, coverage, ou un futur packaging `setup.py`/`pyproject.toml` explicite pourraient s'y fier). A trancher : uniformiser (ajouter les 4 `__init__.py` manquants) ou expliciter le choix inverse.
+- **`document_rag/document_rag/fake_data/documents/`** : sous-repertoire imbrique et VIDE (`document_rag/document_rag/`) a la racine de `document_rag/` -- ressemble a un artefact d'un deplacement/copie accidentel lors du refactoring (creation d'un chemin en double au lieu d'un move propre). Ne contient aucun fichier, candidat a la suppression apres confirmation qu'il est bien mort.
+- **Deux arborescences `vectorstore/chroma_db/` distinctes** sous `document_rag/` : `document_rag/vectorstore/chroma_db/` (13 sous-dossiers UUID) et `document_rag/ingestion/vectorstore/chroma_db/` (1 seul sous-dossier UUID) -- a clarifier laquelle est la source de verite active pour `chroma_manager.py`/`search.py`, l'autre etant potentiellement un residu d'un ancien chemin de configuration avant le refactoring.
+
+**Non fait ce tour (volontairement, en attente de mandat)** : aucune ecriture sur disque. Les scripts `document_rag/scripts/`, `document_rag/tests/`, `erp_data/scripts/`, `erp_data/tests/` n'ont pas ete lus fichier par fichier (seul `document_rag/scripts/create_pdf.py` a ete verifie, cite au point 4) -- possible qu'ils portent le meme defaut (a)/(b) que les scripts de la racine `scripts/`, a verifier avant de considerer l'audit exhaustif sur l'ensemble du depot.
+
+**Proposition de sequencement pour la correction (a valider par l'utilisateur avant toute ecriture, conformement a la discipline du projet)** :
+1. Les 16 scripts casses (a)+(b) : remplacer `from rag.X import` par `from core.X import` (ou le package cible reel selon le symbole), retirer la ligne `sys.path.insert(..., "miro-rag")` morte -- correction mecanique, meme diff shape repete 16 fois, risque faible.
+2. Le renommage francais->anglais des noms d'outils dans les 8 scripts Bloc 9 (d) -- necessite de mapper chaque nom francais vers son equivalent anglais reel dans `ALL_CI_TOOLS` (deja identifie ci-dessus pour les 5 principaux) avant toute ecriture.
+3. L'import casse `evaluer_regles_raw` -> `evaluate_rules_raw` dans le script 02 (c).
+4. Les 2 fichiers dupliques `ci_agent_node.py`/`ci_agent_node_new.py` -- confirmer l'absence totale de reference a `_new` ailleurs dans le depot avant suppression.
+5. La constante dupliquee `WILDCARD_MODEL_ERROR_MSG` -- supprimer la seconde definition.
+6. Docstrings perimes -- mise a jour texte seule, aucun risque fonctionnel.
+7. Anomalies structurelles annexes (point 5) -- decision produit a trancher avec l'utilisateur avant toute suppression/creation de fichier.
+
+---
+
+## Section 112: Audit post-refactoring, suite -- verification des 4 repertoires laisses en suspens en section 111 (2026-08-24, meme session, toujours aucune ecriture de correction)
+
+**Origine** : question directe de l'utilisateur ("tu as pas d'autres corrections a proposer?") apres presentation de la section 111 -- prise comme instruction de terminer l'audit annonce comme incomplet ("Non fait ce tour"), pas comme une demande d'application. Lecture fichier par fichier de `erp_data/scripts/` (2 fichiers), `erp_data/tests/` (4 fichiers), `document_rag/scripts/` (2 fichiers), `document_rag/tests/` (10 fichiers, echantillon de 2 lus en detail + verification cible sur le reste). Toujours aucune ecriture sur disque.
+
+**Bonne nouvelle d'abord** : `erp_data/scripts/check_duplicates.py` et tous les fichiers de `document_rag/tests/` inspectes importent deja correctement depuis les nouveaux packages (`erp_data.odoo_tools`, `document_rag.vectorstore.chroma_manager`, `document_rag.ingestion.ingest_all`, `tools.odoo_connector`) -- ces deux repertoires n'ont PAS le defaut (a)/(b) de la section 111. Le refactoring des imports y est propre.
+
+### 6. Regression de securite non propagee -- mot de passe en clair, meme classe de bug que le fix deja fait section 93
+
+La section 93 (point 3) documente le remplacement du mot de passe en dur de `scripts/check_duplicates.py` par `os.environ.get("ODOO_MANAGER_PASSWORD")`. **Ce fix n'a pas ete propage a ses fichiers freres, dans le meme repertoire ou un repertoire voisin, qui font exactement la meme authentification** :
+- `erp_data/scripts/trace_total_sales.py` : `MANAGER_PASSWORD = "password123"` en clair, ligne 24 -- meme login (`manager@miro.com`), meme pattern d'authentification que `check_duplicates.py` juste a cote, non corrige.
+- `erp_data/tests/test_erp_accuracy.py` : `_manager_password = "password123"` en clair, ligne ~45 -- meme mot de passe, meme login.
+
+Confirme par lecture complete des deux fichiers, pas suppose. Ce sont des scripts de diagnostic/eval autonomes (pas executes par la CI/pytest par defaut de maniere fonctionnelle, `test_erp_accuracy.py` n'a aucune fonction `test_*` donc pytest le collecte sans rien executer), donc ce mot de passe en clair ne pollue pas la suite automatisee -- mais il reste ecrit en clair sur le disque du depot, exactement le risque que le fix de la section 93 visait a eliminer.
+
+### 7. Autre sys.path mort, variante absolue cette fois
+
+`erp_data/tests/test_odoo11.py`, ligne 6 : `sys.path.insert(0, "/home/user/odoo-ia-prototype/miro-rag")` -- meme repertoire fantome `miro-rag` que partout ailleurs en section 111, mais ici en chemin ABSOLU en dur plutot que construit via `Path(__file__).resolve()...`. Sans consequence fonctionnelle immediate (pytest.ini's `pythonpath = .` rend `code_intelligence`/`core` resolvables independamment de cette ligne, donc l'import qui suit -- `from core.graph import _load_module` -- reussit malgre la ligne morte), mais meme categorie de nettoyage que le reste : reference a un repertoire qui n'a jamais existe sous ce nom dans ce depot.
+
+### 8. Cible de `@patch()` cassee dans 2 tests -- classe de bug DIFFERENTE des sections precedentes (chemin de patch, pas chemin d'import)
+
+`document_rag/tests/test_ingest_all.py` contient deux decorateurs :
+```python
+@patch("ingestion.ingest_all.PDFLoader")
+...
+@patch("ingestion.ingest_all.CodeLoader")
+```
+Le module reel post-refactoring est `document_rag.ingestion.ingest_all` (confirme par l'import en tete de fichier : `from document_rag.ingestion.ingest_all import IngestionOrchestrator`), pas `ingestion.ingest_all` tout court -- `ingestion` n'est pas un package top-level de ce depot. `unittest.mock.patch()` resout sa cible par import Python reel au moment de l'execution du test (pas au moment de la collecte) -- ces deux tests precis (`test_ingest_documents_with_pdf_file`, `test_ingest_python_files`) leveraient donc un `ModuleNotFoundError: No module named 'ingestion'` des qu'ils s'executent reellement, invisible tant que personne ne lance cette suite specifique (`pytest document_rag/tests/test_ingest_all.py -v`) -- a verifier en le lancant, cette section ne fait que lire le code, pas l'executer. C'est une regression de refactoring distincte des imports casses de `scripts/` : ici c'est la CIBLE d'un patch (chaine de caracteres), pas une ligne `from X import Y`, donc invisible a une relecture rapide des imports en tete de fichier -- seule une lecture du corps des tests l'a revele.
+
+**Non fait ce tour** : les 6 fichiers restants de `document_rag/tests/` (test_code_and_wiki_loaders.py, test_doc_nonregression.py, test_indexation.py, test_ingestion.py, test_pdf_loader.py, test_scheduler.py, test_search.py, test_watcher.py) n'ont pas ete lus ligne par ligne, seulement les 2 echantillons ci-dessus -- l'audit se declare donc "suffisamment complet pour proposer un plan de correction", pas "exhaustif a 100% du depot".
+
+**Mise a jour de la proposition de sequencement (section 111)** : ajouter deux points independants des 7 deja poses --
+8. Remplacer les 2 mots de passe en clair (`erp_data/scripts/trace_total_sales.py`, `erp_data/tests/test_erp_accuracy.py`) par `os.environ.get("ODOO_MANAGER_PASSWORD")`, meme pattern que le fix section 93.
+9. Corriger les 2 cibles `@patch("ingestion.ingest_all...")` -> `@patch("document_rag.ingestion.ingest_all...")` dans `document_rag/tests/test_ingest_all.py`.
+10. Nettoyer le `sys.path.insert` absolu mort de `erp_data/tests/test_odoo11.py`.
+
+Ces 3 points sont independants des points 1-7 (fichiers differents, pas de risque de conflit d'edition) et peuvent etre traites dans n'importe quel ordre relatif a eux -- mais toujours en attente de mandat explicite avant toute ecriture, aucune n'a ete faite ce tour.
+
+**Suite prevue, mandat recu ("note d'abord, puis verifie")** : verification ligne par ligne des 6 fichiers restants de `document_rag/tests/` explicitement laisses de cote ci-dessus (`test_code_and_wiki_loaders.py`, `test_doc_nonregression.py`, `test_indexation.py`, `test_ingestion.py`, `test_pdf_loader.py`, `test_scheduler.py`, `test_search.py`, `test_watcher.py` -- 8 fichiers en realite, la section precedente en citait 6 par erreur de decompte, a corriger dans le compte rendu qui suivra), a la recherche du meme type de regressions deja trouvees (imports casses vers `rag.`/`miro-rag`, cibles de `@patch()` non mises a jour, mots de passe en clair, ou toute autre casse silencieuse liee au refactoring section 93). Resultat a consigner dans une section 113 une fois la lecture faite.
+
+---
+
+## Section 113: Les 8 fichiers restants de `document_rag/tests/` lus -- decouverte d'un defaut SYSTEMIQUE bien plus etendu que prevu (cibles `@patch()`/`assertLogs()` non renommees) (2026-08-24, meme session)
+
+**Origine** : suite directe de la section 112 ("note d'abord, puis verifie"), lecture complete des 8 fichiers restants de `document_rag/tests/` annonces non lus.
+
+**Verdict global** : 4 fichiers sur 8 sont propres (`test_code_and_wiki_loaders.py`, `test_ingestion.py` -- tous deux confirmes sans aucune reference perimee). Les 4 autres, PLUS `test_indexation.py` deja verifie en section 112, PLUS `test_ingest_all.py` deja verifie en section 111, portent tous la MEME classe de regression que celle identifiee au point 9 de la section 111/112 pour `test_ingest_all.py` -- mais elle est beaucoup plus repandue qu'estime a l'origine. **Ce n'est pas un cas isole, c'est un defaut systemique de la quasi-totalite des tests bases sur `unittest.mock.patch()` dans `document_rag/tests/`.**
+
+### Mecanisme du bug (rappel, meme cause que section 112 point 9)
+
+`unittest.mock.patch("chemin.pointe.vers.symbole")` resout sa cible par un VRAI import Python au moment de l'EXECUTION du test (pas a la collecte) -- contrairement a un `from X import Y` en tete de fichier, une chaine de patch perimee ne provoque aucune erreur visible a la lecture rapide des imports, seulement un `ModuleNotFoundError`/`AttributeError` quand le test s'execute reellement. Tous les fichiers ci-dessous utilisent encore le chemin PRE-refactoring (`ingestion.X`, `vectorstore.search`) au lieu du chemin reel post-refactoring (`document_rag.ingestion.X`, `document_rag.vectorstore.search`).
+
+### Inventaire complet, fichier par fichier, occurrence par occurrence (lecture integrale faite, pas suppose)
+
+- **`document_rag/tests/test_pdf_loader.py`** -- `@patch("ingestion.pdf_loader.PdfReader", ...)` utilise 3 fois (`test_load_and_chunk_metadata`, `test_load_and_chunk_content_hash_unique`, `test_load_and_chunk_ocr_threshold`). Cible reelle : `document_rag.ingestion.pdf_loader.PdfReader`.
+- **`document_rag/tests/test_scheduler.py`** -- `patch("ingestion.scheduler.reindex_if_changed")` et `patch("ingestion.scheduler.write_ingestion_event")`, chacun utilise 2 fois (dans `test_run_startup_scan_updates_status_and_logs_event` et `test_run_scheduled_scan_updates_status_and_logs_event`) -- 4 occurrences au total. Cible reelle : `document_rag.ingestion.scheduler.*`. (Note : les 2 patches `patch("api.main.ChromaManager")`/`patch("api.main.run_scheduled_scan")` dans ce meme fichier NE SONT PAS casses -- `api/` est un package racine non touche par le refactoring section 93, verifie present a la racine du depot.)
+- **`document_rag/tests/test_search.py`** -- `patch("vectorstore.search._get_cross_encoder")` utilise 3 fois (`TestCrossEncoderRerank.test_rerank_reorders_results`, `test_rerank_single`, `TestRetrievePipeline.test_full_pipeline`). Cible reelle : `document_rag.vectorstore.search._get_cross_encoder`.
+- **`document_rag/tests/test_watcher.py`** -- `patch("ingestion.watcher.reindex_if_changed")` utilise 2 fois (`test_created_file_triggers_incremental_reindex`, `test_unsupported_file_is_ignored`) et `patch("ingestion.watcher.Timer")` utilise 1 fois (`test_modified_file_uses_debounce_key_and_reindexes_once`) -- 3 occurrences. Cible reelle : `document_rag.ingestion.watcher.*`.
+- **`document_rag/tests/test_indexation.py`** (deja note section 112, detaille ici) -- `self.assertLogs("ingestion.incremental", level="INFO")` utilise 3 fois. Mecanisme legerement different (pas `@patch`, mais `assertLogs` cible un nom de logger explicite) mais MEME cause racine : `document_rag/ingestion/incremental.py` utilise `logging.getLogger(__name__)`, et `__name__` vaut reellement `document_rag.ingestion.incremental` a l'execution -- pas `ingestion.incremental`. Confirme en lisant `incremental.py` ligne 20 (`logger = logging.getLogger(__name__)`) et en verifiant l'import de tete du meme fichier (`from document_rag.ingestion...`).
+- **`document_rag/tests/test_ingest_all.py`** (deja note section 111/112, integre ici pour le compte total) -- `@patch("ingestion.ingest_all.PDFLoader")`, `@patch("ingestion.ingest_all.CodeLoader")` -- 2 occurrences.
+
+**Total : 18 occurrences reparties sur 6 fichiers** (`test_pdf_loader.py` x3, `test_scheduler.py` x4, `test_search.py` x3, `test_watcher.py` x3, `test_indexation.py` x3, `test_ingest_all.py` x2), toutes de la meme classe de bug (chaine de chemin de patch/logger non mise a jour lors du renommage `ingestion/`/`vectorstore/` -> `document_rag/ingestion/`/`document_rag/vectorstore/`).
+
+**Fichiers confirmes PROPRES (aucune occurrence, lecture integrale faite)** : `test_code_and_wiki_loaders.py`, `test_ingestion.py` (ce dernier n'utilise que `from document_rag.ingestion....` en import direct dans le corps des tests, jamais de `@patch()` par chaine).
+
+**Pourquoi ce defaut est reste invisible jusqu'ici** : comme pour le point (d) de la section 111 (noms d'outils francais dans les scripts Bloc 9), ce type de casse ne produit PAS d'erreur de collecte pytest (`ImportError` au chargement du module de test) -- le fichier de test s'importe sans probleme, seule l'EXECUTION du test concerne echoue. Si `pytest tests/ -v -m "not integration"` (a la racine, sans cibler explicitement `document_rag/tests/`) n'inclut pas ces fichiers dans son perimetre de collecte habituel, ou si personne n'a relance cette suite specifique depuis le refactoring section 93, la casse est restee totalement silencieuse. A verifier : si `document_rag/tests/` fait bien partie du perimetre de `pytest tests/ -v -m "not integration"` tel que documente dans `todo/rules.md`, ou si ce chemin racine `tests/` ne couvre que le dossier `tests/` a la racine du depot (auquel cas `document_rag/tests/` ne serait JAMAIS execute par la commande de reference du projet, et cette casse ne serait detectee que par un `pytest document_rag/tests/ -v` explicite, jamais lance jusqu'ici).
+
+**Mise a jour de la proposition de sequencement (sections 111/112)** : le point 9 pose en section 112 ("corriger les 2 cibles @patch dans test_ingest_all.py") est **remplace et etendu** par :
+9. Corriger les 18 chaines de cible `@patch()`/`assertLogs()` perimees sur les 6 fichiers listes ci-dessus, prefixer chacune de `document_rag.` -- correction mecanique mais nombreuse, meme diff shape repete 18 fois, risque faible fichier par fichier mais volume notable.
+
+**Non fait ce tour** : aucune ecriture. Verification non faite de la portee reelle de `pytest tests/ -v -m "not integration"` sur `document_rag/tests/` (cf. paragraphe ci-dessus) -- necessiterait soit de lire `pytest.ini`/`conftest.py` plus attentivement pour la portee de collecte par defaut, soit de demander a l'utilisateur de lancer `pytest document_rag/tests/ -v` reellement pour confirmer combien de ces 18 occurrences echouent en pratique (une reponse invoquee via une exception `except Exception: pass` dans le code de test environnant pourrait avaler certains de ces echecs silencieusement -- a verifier au cas par cas, pas suppose).
+
+---
+
+## Section 114: Corrections mecaniques des sections 111-113, mandat explicite ("Continue") -- la plupart des points etaient DEJA corriges par une session concurrente avant ce tour (2026-08-24, session filesystem-only)
+
+**Mandat** : "Continue" suite a la presentation du plan de sequencement (sections 111-113). Avant toute ecriture, chaque fichier cite dans l'audit a ete relu individuellement sur le disque reel (pas suppose depuis contexte.txt) -- decouverte que la majorite des points etaient deja resolus entre la redaction des sections 111-113 et ce tour, par une session concurrente non documentee. Seuls les points reellement encore casses, confirmes par lecture directe, ont ete corriges.
+
+**Deja corrige avant ce tour (verifie, rien reecrit)** : la quasi-totalite des imports `rag.` -> `core.`/`document_rag.`/`erp_data.` sur les scripts Bloc 9 (01-08), `check_j34_35_e2e.py`, `check_locks_raw.py`, `check_native_odoo_out_of_scope.py`, `check_q6_2_lock_pollution_regression.py` ; les 5 noms d'outils francais -> anglais dans les `tool_map.get(...)` des 8 scripts Bloc 9 ; l'import `evaluer_regles_raw` -> `evaluate_rules_raw` dans `check_bloc9_02` ; le fichier duplique `ci_agent_node_new.py` (deja deplace dans `_dead_code_pending_deletion/`) ; la constante dupliquee `WILDCARD_MODEL_ERROR_MSG` (une seule definition presente) ; les cibles `@patch()` de `test_pdf_loader.py` (deja correctes). Le depot lui-meme a aussi change de forme entre la redaction de la section 93 et ce tour : `miro-rag/` n'existe plus du tout, tous les packages (`core/`, `code_intelligence/`, `document_rag/`, `erp_data/`) vivent desormais directement a la racine du depot -- coherent avec l'etat deja documente sections 111-113 mais confirme de nouveau ici par `list_directory` avant toute ecriture.
+
+**Reellement corrige ce tour, verifie par lecture individuelle prealable de chaque fichier** :
+
+1. **7 scripts avec import `rag.`/chemin `miro-rag` mort** (le reste du point (a)+(b) de la section 111, non couvert par le rattrapage concurrent) : `scripts/check_sale_order_raw_access.py`, `scripts/replay_q1_2_vip.py`, `scripts/run_oca_coverage.py`, `scripts/run_adversarial_benchmark.py` -- retire `sys.path.insert(..., "miro-rag")` et corrige `from rag.graph import X` en `from core.graph import X` (X = `get_code_intelligence_graph`, `code_intelligence_agent`, `_load_module`, ou `code_intelligence_agent, _get_admin_rpc_client` selon le fichier). `scripts/extract_modules.py` -- n'importait pas depuis `rag.` (confirme, comme note section 111) mais son `sys.path.insert` pointait UNIQUEMENT vers `project_root / "miro-rag"`, jamais `project_root` lui-meme -- corrige pour pointer sur `project_root`. `scripts/diagnose_nomic_400.py` -- `PROJECT_ROOT` incluait le suffixe fantome `/ "miro-rag"`, utilise a la fois pour `sys.path.insert` ET `load_dotenv(PROJECT_ROOT / ".env")` (donc le `.env` reel n'etait jamais charge) -- suffixe retire. `scripts/test_resolver.py` -- `sys.path.insert(0, 'miro-rag')` en chemin RELATIF (cassait selon le repertoire d'execution) -- remplace par un chemin absolu construit via `Path(__file__).resolve().parent.parent`.
+
+2. **2 mots de passe en clair**, meme pattern que le fix deja applique section 93 (`os.environ.get("ODOO_MANAGER_PASSWORD")` + `raise ValueError` si absent) : `erp_data/scripts/trace_total_sales.py` (import `os` ajoute, absent du fichier) et `erp_data/tests/test_erp_accuracy.py` (`os` deja importe, juste la ligne changee).
+
+3. **15 cibles `@patch()`/`assertLogs()` perimees sur 5 fichiers** (pas 18/6 comme estime section 113 -- `test_pdf_loader.py` s'est revele deja propre a la relecture) : `document_rag/tests/test_scheduler.py` (2 occurrences x2 lignes chacune = 4 `patch()`, prefixees `document_rag.ingestion.scheduler.`), `document_rag/tests/test_search.py` (3x `document_rag.vectorstore.search.`), `document_rag/tests/test_watcher.py` (3x `document_rag.ingestion.watcher.`), `document_rag/tests/test_indexation.py` (3x `assertLogs("document_rag.ingestion.incremental", ...)`), `document_rag/tests/test_ingest_all.py` (2x `document_rag.ingestion.ingest_all.`). Les patches `patch("api.main...")` de `test_scheduler.py` confirmes intacts (non touches, `api/` est un package racine non concerne par le refactoring section 93).
+
+4. **`erp_data/tests/test_odoo11.py`** : `sys.path.insert(0, "/home/user/odoo-ia-prototype/miro-rag")` (chemin absolu en dur vers un repertoire fantome) remplace par un chemin construit dynamiquement via `Path(__file__).resolve().parent.parent`.
+
+**Verifie et volontairement laisse en l'etat (pas un bug)** : le commentaire de `check_bloc9_08_deep_inheritance_security_e2e.py` (ligne ~266, "Merged in 2026-08-20 from the now-deleted miro-rag/scripts/...") flagge comme reference perimee en section 111 -- relu en contexte : c'est une note HISTORIQUE correcte ("now-deleted... reconstruction", au passe), pas une reference cassee vers un chemin cense exister aujourd'hui. Rien change.
+
+**Non fait ce tour, toujours en attente d'une decision produit (pas une correction mecanique)** : le point 5 de la section 111 (uniformiser les `__init__.py` manquants dans `core/`/`document_rag/`/`erp_data/`/`erp_data/tests/`, ou expliciter le choix inverse ; supprimer le sous-repertoire vide `document_rag/document_rag/fake_data/documents/` apres confirmation qu'il est bien mort ; clarifier laquelle des deux arborescences `chroma_db/` de `document_rag/` est la source de verite active). Les docstrings de module perimees citant encore `rag/X.py` (point 4 section 111, ex. `core/graph.py`) n'ont pas non plus ete corrigees ce tour -- purement textuel, aucun risque fonctionnel, mais pas fait faute de temps dans ce tour ; a faire dans un prochain tour si souhaite.
+
+**Non execute** (acces filesystem uniquement) : `pytest tests/ -v -m "not integration"` complet, ET `pytest document_rag/tests/ -v` explicitement (la question ouverte en fin de section 113 sur la portee reelle de la commande de reference reste sans reponse -- si `document_rag/tests/` n'est jamais collecte par la commande habituelle, les 15 corrections du point 3 ci-dessus ne seront jamais verifiees par la suite de reference du projet ; a confirmer par l'utilisateur). A faire tourner par l'utilisateur pour clore cette section : verifier zero regression sur la baseline deja confirmee (461/461 en dernier date connue, section 105/109 mentionnent 475/475 apres le fix Bug A -- la baseline exacte au moment de ce tour n'a pas ete revalidee ici), et confirmer explicitement que `document_rag/tests/` est bien execute par au moins une des deux commandes ci-dessus.
+
+---
+
+## Section 115: Cloture de la question ouverte section 113/114 (perimetre reel de `document_rag/tests/`) + suppression de `tests/test_ui.py` (decision produit utilisateur, hors refactoring) (2026-08-24, meme session)
+
+**Origine** : l'utilisateur a fait tourner les deux commandes de reference lui-meme et fourni les logs bruts (pas de resume, sortie pytest complete collee). Aucune ecriture de code faite par Claude ce tour avant la derniere action demandee explicitement.
+
+**Question ouverte de la section 113/114 desormais tranchee** : `pytest document_rag/tests/ -v` a bien tourne separement de `pytest tests/ -v -m "not integration"` (deux blocs "test session starts" distincts dans le log fourni) -- confirmation que `document_rag/tests/` n'est PAS collecte par la commande racine `tests/` et doit etre lance a part. Resultat : **122/122 passed** sur `document_rag/tests/` -- les 15 corrections de cibles `@patch()`/`assertLogs()` du point 3 de la section 114 sont validees a 100%, aucune regression.
+
+**Run racine (`pytest tests/ -v -m "not integration"`)** : **351 passed, 3 deselected, 5 failed**. Les 5 echecs sont entierement localises dans `tests/test_ui.py` (`TestStep10Deliverables` : fichiers `ui/index.html`/`ui/app.js` introuvables, montage FastAPI `/ui` renvoie 404). Aucun echec sur les fixes Bug A / H4 (`test_bugA_h4_concept_suggests_code_intelligence.py` : 10/10 passed) ni sur le reste de la suite (routing, sticky concept/route, degenerate guards, backfills Bloc 9, etc.) -- baseline saine hors `test_ui.py`.
+
+**Cause des 5 echecs `test_ui.py` : pas une regression du refactoring section 93.** L'utilisateur a supprime volontairement le repertoire `ui/` (`index.html`, `app.js`, etc.) -- decision produit : l'interface ne sera plus une UI standalone servie par FastAPI (`/ui`), elle sera integree directement cote Odoo. `tests/test_ui.py` testait cette ancienne UI standalone (Step 10 / Day 1-3 du plan historique) et est donc devenu obsolete par rapport a la nouvelle direction produit, independamment de toute casse de code.
+
+**Action** : l'utilisateur a supprime lui-meme `tests/test_ui.py` (confirme absent du disque par lecture directe). Aucune autre modification de code liee a `ui/` faite ou requise ce tour -- pas de reference a `ui/` ni a `test_ui` trouvee ailleurs dans `contexte.txt`/`plan.md` necessitant une mise a jour immediate au-dela de cette section (a verifier plus tard si `todo/plan.md` mentionne encore le Step 10 UI standalone comme livrable actif).
+
+**Baseline propre desormais** : 351/351 passed sur `tests/` (hors le fichier supprime), 122/122 passed sur `document_rag/tests/` -- total 473 tests passants connus, 0 echec, 3 deselected (integration).
+
+**Verification `todo/plan.md` faite (mandat "oui verifie")** : lecture integrale du fichier (Parties 1 a 11). Aucune mention de "Step 10", "UI standalone", `ui/index.html`, `app.js`, ou du montage `/ui` FastAPI nulle part dans le plan -- ce livrable UI n'etait trace que par `tests/test_ui.py` (deja supprime), jamais formalise comme bloc dans `plan.md` lui-meme. Rien a corriger dans `plan.md` ce tour, aucune ecriture faite dessus.
+
+---
+
+## Section 116: Cloture du dernier point textuel de la section 111 point 4 -- commentaire perime dans check_bloc9_03, docstring de core/graph.py deja propre (2026-08-24, meme session, mandat "continue sur ces points (docstring + commentaire)")
+
+**Origine** : mandat de continuer sur les deux derniers points textuels laisses ouverts section 114 ("les docstrings de module perimees citant encore rag/X.py... n'ont pas non plus ete corrigees ce tour").
+
+**Verification prealable de `core/graph.py` (lecture complete + `grep -n "rag/"` apres copie sur le sandbox, pas suppose)** : la docstring de tete est **deja corrigee** -- elle cite desormais `core/`, `document_rag/`, `erp_data/`, `code_intelligence/` et porte meme une note explicite ("paths updated 2026-08-24 to match the real package layout... this docstring previously still cited the pre-refactor rag/ paths") -- corrigee entre-temps par une session concurrente non documentee dans contexte.txt (meme categorie que les ecarts deja observes section 114). La docstring de `query_graph()` (parametre `last_route`) cite deja `core/routing.py`, egalement deja correcte. Seules 2 occurrences residuelles de `rag/` trouvees dans le fichier (lignes ~222-223, commentaire au-dessus de l'import de `code_intelligence.ci_override_cascade`) : verifiees en contexte, ce sont des notes HISTORIQUES correctes au passe ("this cluster... was relocated out of rag/ci_helpers.py", "ImportError on collection, found 2026-08-20") decrivant un bug de refactoring deja corrige au moment de l'ecriture -- meme cas que le commentaire de `check_bloc9_08` deja tranche section 114, rien change.
+
+**Corrige ce tour** : `scripts/check_bloc9_03_hr_leave_workflow_e2e.py`, commentaire de docstring de tete -- `rag/graph.py::get_code_intelligence_graph` -> `core/graph.py::get_code_intelligence_graph` (reference au fix J36 de chargement des dependances directes). `dryRun: true` puis `dryRun: false` (diff identique), ecriture confirmee par `get_file_info` (modified timestamp mis a jour). Aucun autre `rag/` restant dans ce fichier (import de tete deja `from core.graph import ...`, confirme a la lecture complete avant edition).
+
+**Etat des 2 points textuels de la section 111 point 4 desormais** : le commentaire `check_bloc9_03` est corrige ce tour ; la docstring `core/graph.py` etait deja corrigee avant ce tour (par une session concurrente, pas par erreur d'audit -- confirme par la note de datation presente dans le fichier lui-meme). Plus aucune reference `rag/X.py` perimee connue dans `core/graph.py` ou `check_bloc9_03`.
+
+**Points de la section 111 point 5 toujours non traites (rappel, decision produit, pas mecanique)** : uniformisation des `__init__.py` manquants ; suppression de `document_rag/document_rag/fake_data/documents/` (confirme mort, attend une suppression manuelle par l'utilisateur -- pas d'outil de suppression de repertoire cote Filesystem MCP) ; arbitrage entre les deux arborescences `chroma_db/` de `document_rag/` (diagnostic termine, `document_rag/vectorstore/chroma_db/` identifie comme source de verite active, l'autre candidate a la suppression apres confirmation utilisateur -- ce sont des donnees, pas du code, aucune suppression faite par Claude).
+
+---
+
+## Section 117: Suppressions manuelles confirmees -- `document_rag/document_rag/` et `document_rag/ingestion/vectorstore/chroma_db/` (2026-08-24, meme session)
+
+**Origine** : l'utilisateur a supprime lui-meme les deux repertoires identifies section 111/116 comme morts/residuels, hors de portee du Filesystem MCP (pas d'outil de suppression de repertoire). Verification faite par Claude apres coup, pas suppose.
+
+**Verifie par `list_directory`** :
+- `document_rag/document_rag/` (repertoire fantome imbrique, vide, artefact de deplacement/copie accidentel) : absent du listing de `document_rag/` -- confirme supprime.
+- `document_rag/ingestion/vectorstore/chroma_db/` (residu d'un run isole avec `cwd` different, 1 seul sous-dossier UUID) : le repertoire parent `document_rag/ingestion/vectorstore/` existe toujours mais est desormais VIDE (plus de `chroma_db/` dedans) -- confirme supprime.
+- Source de verite active `document_rag/vectorstore/chroma_db/` : verifiee intacte, toujours 13 sous-dossiers UUID -- non affectee par la suppression, comme attendu.
+
+**Etat des points de la section 111 point 5** : les 2 suppressions de donnees/repertoires morts sont closes. Seul reste ouvert : l'uniformisation des `__init__.py` manquants dans `core/`, `document_rag/`, `erp_data/`, `erp_data/tests/` (decision produit -- ajouter les 4 fichiers manquants pour homogeneite avec `code_intelligence/`, ou expliciter/documenter le choix inverse de namespace packages implicites).
+
+---
+
+## Section 118: Cloture du point `__init__.py` (section 111 point 5) -- deja resolu, aucune ecriture necessaire (2026-08-24, meme session, mandat "oui mtn")
+
+**Origine** : mandat de trancher maintenant le dernier point ouvert de la section 111 point 5 ("uniformiser les `__init__.py` manquants... ou expliciter le choix inverse").
+
+**Verification prealable par `list_directory` sur chaque repertoire cite dans le constat original de la section 111 (pas suppose depuis contexte.txt/memoire)** : `core/__init__.py`, `document_rag/__init__.py`, `erp_data/__init__.py`, `erp_data/tests/__init__.py`, `document_rag/tests/__init__.py` sont **tous deja presents** -- corriges entre-temps par une session concurrente non documentee, meme categorie que les 2 ecarts deja observes sections 114/116 (docstring `core/graph.py`, docstring `query_graph()`). Le constat original de la section 111 ("Pas de `__init__.py` dans core/, document_rag/, erp_data/, ni dans erp_data/tests/") est donc perime.
+
+**Verification etendue (comparaison avec `code_intelligence/`, la reference citee section 111)** : `code_intelligence/evaluation/` (sous-repertoire d'implementation) n'a PAS de `__init__.py` non plus -- meme absence que `document_rag/ingestion/`, `document_rag/vectorstore/`, `document_rag/scripts/`, `erp_data/scripts/`. Le pattern reel observe sur l'ensemble du depot, une fois tous les packages compares (`core/`, `document_rag/`, `erp_data/`, `code_intelligence/`, et leurs `tests/`) est **uniforme et coherent** : chaque package top-level + chaque repertoire `tests/` a un `__init__.py` explicite (package Python classique) ; chaque sous-repertoire d'implementation interne (`scripts/`, `ingestion/`, `vectorstore/`, `evaluation/`) n'en a pas, partout, sans exception -- fonctionnant comme namespace packages Python 3 implicites de maniere identique dans les 4 packages du depot, y compris celui pris comme reference d'origine.
+
+**Decision** : rien a corriger. Ce qui semblait etre une incoherence a la redaction de la section 111 (avant que la session concurrente ne comble les `__init__.py` de premier niveau) est en realite, une fois l'etat actuel du disque relu integralement, un pattern deliberement uniforme a travers tout le depot. Point 5 de la section 111 clos sans ecriture -- tous les points de l'audit sections 111-118 sont desormais fermes.
+
+---
+
+## Section 119: Rejeu live H4 (01c-vip-trap) -- 3 problemes distincts trouves en cascade, tous diagnostiques, 2 corriges (mandat "note dans contexte puis applique") (2026-08-24, meme session)
+
+**Origine** : rejeu live de `scripts/check_bloc9_01_credit_note_cascade_e2e.py` demande par l'utilisateur pour confirmer en conditions reelles le fix Bug A/H4 (sections 106-109). Sortie collee par l'utilisateur (deux tours successifs, apres corrections intermediaires).
+
+### Probleme 1 -- `.env` corrompu par un collage d'email, cause purement environnementale (corrige)
+
+Le fichier `.env` a la racine du depot contenait un en-tete parasite (texte colle depuis un client mail : "Mahalahatse RAILALA", une date, "A moi", "Ce message semble etre en anglais") avant les vraies variables (`GROQ_API_KEY`, `LLM_PROVIDER`, `NOMIC_API_KEY`, `HF_TOKEN`, `GITHUB_TOKEN`). `python-dotenv` echouait a parser les lignes 1, 2, 4, 7 (warnings visibles, non bloquants) -- **corrige** : les 7 lignes parasites retirees via `Filesystem:edit_file` (dryRun puis ecriture reelle), les variables reelles preservees a l'identique.
+
+### Probleme 2 -- `NameError: resolve_business_term` dans `code_intelligence/ci_agent_node.py` (corrige ce tour)
+
+`ci_agent_node.py::run()` ligne 317 appelle `resolve_business_term(question, G, llm=llm)` mais cette fonction n'est importee nulle part dans le fichier -- confirme par lecture complete du bloc d'imports (lignes 1-90), aucune trace du symbole. La fonction existe reellement dans `code_intelligence/business_resolver.py::resolve_business_term` (confirme par lecture directe). Meme classe de bug que 2 gaps deja documentes DANS ce meme fichier par ses propres commentaires (`REACT_RECURSION_LIMIT`, `_correct_override_cascade_contradictions`) -- un re-export manque lors du split modulaire `rag/` -> `core/`/`code_intelligence/`. Root cause directe, pas de comportement cache a investiguer davantage.
+
+### Probleme 3 -- `NameError: SystemMessage`/`HumanMessage` (meme fichier, meme cause, trouve en verifiant les AUTRES symboles utilises avant que le probleme 2 ne soit rejoue) -- corrige ce tour
+
+En verifiant si d'autres symboles du meme fichier souffraient du meme gap avant de proposer le fix du probleme 2, `SystemMessage` (lignes 923, 1322) et `HumanMessage` (lignes 925, 1308, 1321) sont utilises mais jamais importes -- seul `from langchain_core.messages import AIMessage, ToolMessage` (ligne 192, import local a `run()`) existe. Ce `NameError` se serait declenche juste APRES la resolution du probleme 2 (l'appel `resolve_business_term` precede la construction de `messages = [SystemMessage(...), ...]` dans le flot d'execution), donc un rejeu se serait arrete un cran plus loin sans ce second fix -- meme cause racine (import manque post-refactoring), pas un bug nouveau au sens strict.
+
+### Corrections appliquees ce tour, mandat explicite ("note dans contexte puis applique")
+
+1. `code_intelligence/ci_agent_node.py` : ajout de `from code_intelligence.business_resolver import resolve_business_term` au bloc d'imports en tete de fichier (aux cotes de `from code_intelligence.ci_graph_loader import get_code_intelligence_graph`).
+2. `code_intelligence/ci_agent_node.py`, ligne 192 : `from langchain_core.messages import AIMessage, ToolMessage` -> `from langchain_core.messages import AIMessage, ToolMessage, SystemMessage, HumanMessage`.
+
+Les deux corrections sont des ajouts d'imports purs, aucun changement de logique, risque tres faible -- meme profil que les fixes deja fermes sections 114 (imports `rag.` -> `core.`/`document_rag.`/`erp_data.`).
+
+**Non fait ce tour** : rejeu live pour confirmer que ces deux fixes suffisent a faire passer `check_bloc9_01_credit_note_cascade_e2e.py` -- a rejouer par l'utilisateur. Les 4 autres scripts H4 (03, 04, 05) n'ont pas ete rejoues non plus, toujours en attente -- ils beneficieront du meme fix `.env` (deja global au process) mais restent a verifier individuellement pour les deux `NameError` (tous importent depuis le meme `ci_agent_node.py`, donc les deux corrections s'appliquent a tous simultanement, mais pas encore confirme par execution reelle sur les 4 autres cas).
+
+---
+
+## Section 120: `analyze_security_locks` -- tri des `filepaths` custom_* avant core/OCA, cap de troncature inchange (mandat explicite) (2026-08-24, meme session)
+
+**Origine** : mandat explicite de l'utilisateur -- dans `code_intelligence/ci_agent_tools.py::analyze_security_locks`, trier `filepaths` pour que les modules `custom_*` passent avant les fichiers core/OCA au lieu du tri alphabetique brut, afin que si troncature il y a en aval (budget contexte/tokens), ce soit le bruit core/OCA qui saute en premier, jamais le mecanisme custom pertinent -- explicitement sans toucher au cap lui-meme (deja releve plusieurs fois pour d'autres raisons, pattern "augmenter la limite" a ne pas repeter).
+
+**Corrige** : `code_intelligence/ci_agent_tools.py`. Deux nouvelles fonctions module-level ajoutees juste avant `analyze_security_locks` : `_is_custom_module_filepath(filepath)` (True si un segment du chemin commence par `custom_`, convention deja utilisee ailleurs dans le depot -- cf. `scripts/extract_modules.py --prefix custom_` / `code_intelligence/utils.py::discover_odoo_modules(prefix=...)`) et `_sort_filepaths_custom_first(filepaths)` (cle de tri `(not is_custom, filepath)` -- fichiers custom_* d'abord, ordre alphabetique preserve a l'interieur de chaque groupe pour determinisme). `analyze_security_locks` utilise desormais `for fp in _sort_filepaths_custom_first(filepaths):` a la place de `for fp in sorted(filepaths):`. Import `from pathlib import Path` remonte au niveau module (etait importe localement en double dans la fonction, redondant avec l'usage du nouveau helper module-level ; l'import local dans `analyze_security_locks` a ete retire, celui de `find_security_lock_source_files` et `analyze_data_constraints` laisses intacts, hors perimetre du mandat).
+
+**Cap de troncature** : non touche, conformement au mandat -- aucune limite/constante modifiee dans ce tour. Seul l'ORDRE d'iteration des fichiers change ; si un cap existant en aval coupe la liste de resultats, ce sont desormais les fichiers non-custom_* (alphabetiquement en fin de liste triee) qui sont ecartes en premier.
+
+**Perimetre** : uniquement `analyze_security_locks`. Les autres consommateurs de `find_model_source_filepaths`/tri alphabetique brut dans le meme fichier (`analyze_data_constraints`, `find_security_lock_source_files`) n'ont PAS ete touches -- pas demandes par le mandat, a evaluer separement si le meme besoin s'y applique.
+
+**Non fait** : aucun test relance (acces filesystem uniquement, pas d'execution possible cote Claude). A verifier par l'utilisateur : `pytest tests/ -v -m "not integration"` pour confirmer zero regression sur les tests existants de `analyze_security_locks`/`ci_agent_tools.py`, et un cas reel avec un modele ayant a la fois des fichiers `custom_*` et core/OCA pour confirmer visuellement le nouvel ordre.
+
+---
+
+## Section 121: `pytest tests/ -v -m "not integration"` casse en collecte -- `ModuleNotFoundError: No module named 'tests.few_shot_routing_examples'` -- root cause diagnostiquee et corrigee, pas de fix chirurgical (2026-08-24, meme session)
+
+**Origine** : l'utilisateur a fait tourner `pytest tests/ -v -m "not integration"` juste apres le fix de la section 120 pour verifier la non-regression -- 1 erreur de COLLECTE (pas d'echec de test), interrompant tout le run avant meme l'execution des 294 tests selectionnes : `tests/test_j18_routing_fewshot.py` leve `ModuleNotFoundError: No module named 'tests.few_shot_routing_examples'` sur son `from tests.few_shot_routing_examples import (...)`.
+
+**Root cause reellement identifiee, pas de contournement** : `tests/few_shot_routing_examples.py` existe bien sur le disque (verifie par lecture directe, 13131 octets, date du 21/08), donc ce n'est PAS un fichier manquant. Le vrai probleme : `tests/` (le repertoire racine de la suite de tests du depot, distinct des `tests/` internes a `core/`, `document_rag/`, `erp_data/`, `code_intelligence/` deja audites section 118) etait le SEUL des 5 repertoires de tests du depot sans `__init__.py`. Sans lui, en mode d'import pytest par defaut ("prepend"), pytest remonte les repertoires parents tant qu'il trouve des `__init__.py` pour decider ou inserer un chemin dans `sys.path` lors de la collecte d'un fichier de test ; `tests/` n'en ayant pas, c'est `tests/` lui-meme (pas la racine du projet) qui servait de point d'insertion pour importer `test_j18_routing_fewshot.py`. Le fichier fait pourtant un import ABSOLU `from tests.few_shot_routing_examples import (...)`, qui suppose que `tests` est resoluble comme un vrai package depuis la racine -- selon l'ordre de collecte, cette resolution echouait. Meme categorie de constat que la section 118 (uniformite des `__init__.py` a travers le depot), mais cette fois un vrai bug de collecte observe, pas un point textuel deja resolu par une session concurrente.
+
+**Corrige** : creation de `tests/__init__.py` (vide de logique, docstring expliquant la cause reelle) via `Filesystem:write_file`, alignant ce dernier repertoire de tests sur le pattern deja uniforme des 4 autres (`core/tests/`, `document_rag/tests/`, `erp_data/tests/`, `code_intelligence/tests/`, tous avec `__init__.py` depuis la section 118). Avec ce fichier, `tests/` est desormais un package explicite : pytest remonte jusqu'a la racine du projet pour l'insertion `sys.path`, et l'import absolu `from tests.X import Y` de `test_j18_routing_fewshot.py` se resout normalement.
+
+**Verification de non-effet de bord avant ecriture** : lecture de tous les autres fichiers `.py` de `tests/` (`eval_rag.py`, `eval_retrieval.py`, `benchmark_runner.py`, `eval_routing_accuracy.py`, les 4 `manual_check_*.py`) -- aucun ne fait d'import bare (sans prefixe `tests.`) d'un module frere du repertoire ; ceux qui s'executent en standalone (hors pytest) le font via leur propre `sys.path.insert(0, ...)` explicite vers la racine du projet, inchange par l'ajout de `__init__.py`. Seul `test_j18_routing_fewshot.py` referencait `tests.few_shot_routing_examples`, donc aucune autre casse attendue.
+
+**Non fait** : `pytest tests/ -v -m "not integration"` non relance par Claude (acces filesystem uniquement). A confirmer par l'utilisateur que la collecte passe desormais sans erreur et que les 294 tests precedemment selectionnes (+ ceux de `test_j18_routing_fewshot.py` lui-meme, jusque-la jamais executes faute de collecte reussie) s'executent, avec la baseline connue (351/351 hors integration, section 115) a reconfirmer sur ce nouveau total.
+
+**Confirme par l'utilisateur (log colle, meme tour)** : `pytest tests/ -v -m "not integration"` -- collecte OK (354 items / 3 deselected / 351 selected, plus d'erreur de collecte). **351 passed, 3 deselected, 0 failed.** Baseline identique a celle de la section 115 (351/351 hors integration) -- zero regression, ni du fix `tests/__init__.py` de cette section, ni du fix `analyze_security_locks` de la section 120. Les tests de `tests/test_j18_routing_fewshot.py` (56 cas -- few-shot routing x16, conflict policy, H1 business resolver expose-avant-route x16+3, doc-anchor hybride, dynamic dispatch uncertainty) tournent desormais pour de vrai et passent tous, alors qu'ils etaient jusqu'ici bloques en erreur de collecte a chaque run. Section 121 close.
+
+---
+
+## Section 122: Revue de `core/prompts.py` sur demande utilisateur -- 2 docstrings perimees corrigees, 1 point de duplication remonte (pas corrige, decision produit) (2026-08-24, meme session)
+
+**Origine** : l'utilisateur a demande une revue de `core/prompts.py`. Verification prealable que le fichier est bien vivant (pas mort) : `document_rag/generate_node.py::generate()` fait `from core.prompts import build_messages`, branche documentaire, chemins structured-output et fallback raw-invoke.
+
+**Corrige ce tour (mecanique, meme categorie que les sections 114/116/118/121 -- chemins `rag/` jamais mis a jour lors du refacto vers `core/`/`document_rag/`/`erp_data/`/`code_intelligence/`)** :
+1. `core/prompts.py`, docstring de tete : `rag/prompts.py` -> `core/prompts.py`.
+2. `document_rag/generate_node.py`, docstring de `_parse_raw_json_answer` (reference au SYSTEM_PROMPT importe de `core/prompts.py`) : `rag/prompts.py` -> `core/prompts.py`.
+
+**Remonte mais NON corrige ce tour (decision produit, pas mecanique)** : trois formulations differentes du refus "hors perimetre" coexistent dans le pipeline --
+- `core/routing.py::OUT_OF_SCOPE_ANSWER` (retour deterministe cote code, via `_is_out_of_scope`, avant tout appel LLM) : "Cette question ne fait pas partie de mon perimetre. Je suis specialise dans l'assistance et les procedures internes"
+- Regle 4 du `SYSTEM_PROMPT` (`core/prompts.py`) : copie litterale EXACTE du texte ci-dessus, mais demandee au LLM (duplication d'un litteral au lieu d'un import/reference vers la constante Python -- risque de drift silencieux si l'un des deux textes est modifie sans l'autre)
+- Regle 6 du meme `SYSTEM_PROMPT` (section "Regles de reponse") : texte DIFFERENT -- "Cette question depasse mon perimetre. Je suis specialise dans la documentation et les procedures internes de votre entreprise."
+
+Les regles 4 et 6 se recoupent semantiquement (question hors perimetre) mais divergent litteralement, sans critere net pour le LLM sur laquelle produire selon le cas -- fragilise par la nature meme d'une consigne "mets exactement ce texte" adressee a un LLM (risque de paraphrase malgre l'instruction), contrairement au garde-fou deterministe deja en place cote code (`_is_out_of_scope` dans `generate_node.py`, execute avant tout appel LLM). Propose a l'utilisateur : unifier les regles 4/6 sur un seul texte, et faire importer ce texte dans `core/prompts.py` depuis `core.routing.OUT_OF_SCOPE_ANSWER` (verifie sans risque de circularite : `core/routing.py` n'importe pas `core/prompts.py`) plutot que de le dupliquer en litteral. Pas applique ce tour -- change le texte reellement produit par le LLM dans un cas d'usage reel, en attente de validation explicite avant ecriture.
+
+**Non fait** : aucun test relance (acces filesystem uniquement).
+
+---
+
+## Section 123: Unification regles 4/6 hors-perimetre + suppression regle 5 redondante dans core/prompts.py (mandat explicite "2 et 3", suite section 122) (2026-08-24, meme session)
+
+**Origine** : suite directe de la revue section 122 -- deux points remontes mais non corriges ce tour-la, mandat explicite de l'utilisateur pour les traiter tous les deux.
+
+**Point 2 (duplication litterale regles 4/6)** : `core/prompts.py` importe desormais `OUT_OF_SCOPE_ANSWER` depuis `core.routing` (verifie sans circularite : `core/routing.py` n'importe pas `core/prompts.py`, confirme par lecture complete du bloc d'imports de `routing.py`). Les regles 4 et 6 du `SYSTEM_PROMPT` remplacent chacune leur texte litteral en dur par le placeholder `{out_of_scope_answer}`. `build_messages()` (seul point d'appel de `SYSTEM_PROMPT.format(...)`, verifie unique dans le fichier) passe desormais `out_of_scope_answer=OUT_OF_SCOPE_ANSWER` en plus de `context=context_text`. Resultat : une seule source de verite pour le texte hors-perimetre (`core.routing.OUT_OF_SCOPE_ANSWER`), consommee a la fois par le garde-fou deterministe cote code (`_is_out_of_scope`) et par le prompt envoye au LLM (regles 4 et 6, desormais identiques par construction) -- plus de risque de drift silencieux entre les trois copies.
+
+**Point 3 (redondance regle 5 / section confiance)** : la regle 5 des "REGLES IMPORTANTES" ("Evalue ta confiance de 0.0 a 1.0 dans le champ 'confidence'.") supprimee -- consigne deja donnee en detail (avec bareme) par la section "## Evaluation de la confiance" plus bas dans le meme prompt. Aucune perte d'information, juste une repetition retiree.
+
+**Verification faite avant ecriture** : lecture complete de `core/prompts.py` (fichier entier, pas de troncature) pour confirmer qu'aucun autre point d'appel de `SYSTEM_PROMPT.format()` n'existe dans le fichier et que les accolades doublees `{{ }}` du bloc JSON d'exemple (echappement .format()) ne sont pas affectees par l'ajout du nouveau placeholder. Diff verifie via `dryRun: true` puis ecriture reelle en 3 appels `edit_file` (import + regles 4/6, puis build_messages), chacun confirme par le diff retourne.
+
+**Non fait** : aucun test relance (acces filesystem uniquement) -- a verifier par l'utilisateur : `python -c "from core.prompts import build_messages; print(build_messages('test', 'ctx')[0].content)"` pour confirmer que le prompt genere affiche bien le meme texte aux regles 4 et 6, et que `.format()` ne leve pas d'exception (aucune accolade non echappee introduite). Aucune suite pytest dediee identifiee a `core/prompts.py` a ce stade -- a confirmer si une existe.
+
+**Confirme par l'utilisateur (sortie complete collee, meme tour)** : `python -c 'from core.prompts import build_messages; print(build_messages("test", "ctx")[0].content)'` -- aucune exception levee, prompt genere integralement affiche. Regles 4 et 6 verifiees strictement identiques mot pour mot ("Cette question ne fait pas partie de mon perimetre. Je suis specialise dans l'assistance et les procedures internes"). Regle 5 bien absente (enchainement direct regle 4 -> "## Langue"). Bloc JSON d'exemple affiche avec accolades simples intactes (`{`/`}`), confirmant que l'ajout du placeholder `out_of_scope_answer` n'a pas casse l'echappement `{{ }}` existant. Section 123 close, aucun test pytest dedie a `core/prompts.py` recherche ou requis pour cette confirmation.
+
+---
+
+## Section 124: Allegement du system prompt (core/prompts.py) -- fusion des 3 doublons restants + suppression des champs JSON morts, mandat explicite ("oui applique") (2026-08-24, meme session, suite section 122/123)
+
+**Origine** : suite directe de la section 122 (qui avait remonte le point de duplication mais laisse 2 autres doublons non traites -- langue, contexte-only -- en plus du hors-perimetre deja unifie section 123). Mandat de l'utilisateur, en deux temps dans le meme message : direction confirmee sur la confidence auto-declaree (pas d'action ce tour, cf. point ouvert ci-dessous), et mandat explicite pour le diff d'allegement du prompt ("oui applique").
+
+**Diagnostic prealable (lecture complete de `core/prompts.py` refaite, etat reel au disque, pas suppose depuis les sections precedentes)** : le fichier reflete deja integralement l'etat post-section-123 (placeholder `{out_of_scope_answer}` present aux regles 4 et 6, regle 5 confidence deja supprimee) -- confirme avant toute nouvelle edition. Les 3 doublons vises par ce tour :
+1. **Langue** : regle 1 de "REGLES IMPORTANTES" et la section "## Langue" (2 puces) disent la meme chose en des termes differents.
+2. **Contexte-only** : regle 2 de "REGLES IMPORTANTES" ("Base tes reponses ... UNIQUEMENT sur les documents fournis ... ou sur tes outils Odoo") et regle 1 de "## Regles de reponse" ("BASE-TOI UNIQUEMENT sur les documents fournis ... N'invente rien", sans mention des outils Odoo) se recoupent.
+3. **Hors-perimetre** : regle 4 de "REGLES IMPORTANTES" et regle 6 de "## Regles de reponse" pointent deja vers le meme texte (`{out_of_scope_answer}`, unifie section 123) mais restent deux regles separees redondantes -- seule la regle 6 mentionnait le texte, seule la regle 4 mentionnait `confidence: 0.0`.
+
+Plus, hors perimetre des 3 doublons mais mentionne par l'utilisateur : le bloc JSON d'exemple de "## Format de reponse" contenait `sources` (avec `file`/`lines`/`module`/`page`) et `missing_info` -- **aucun des deux n'existe dans `LLMResponse`** (`core/schemas.py`, verifie : seuls `answer` et `confidence`), donc jamais lu cote code -- confirme par lecture de `document_rag/generate_node.py::_parse_raw_json_answer` (parse uniquement `answer`/`confidence` du JSON brut). Le champ `sources` de la reponse finale (`AssistantResponse.sources`) est assemble separement, de maniere deterministe, dans `format_output()` -- jamais issu de ce JSON genere par le LLM.
+
+**Corrige ce tour** (verification `dryRun: true` avant chaque ecriture reelle, comme section 123) :
+1. Regle 1 de "REGLES IMPORTANTES" fusionnee avec la section "## Langue" (desormais supprimee) : "Reponds dans la langue de la question (francais par defaut, anglais ou une autre langue si l'utilisateur te le demande ou te parle dans cette langue) ; si la question melange plusieurs langues, privilegie le francais."
+2. Regle 2 de "REGLES IMPORTANTES" (contexte-only) supprimee ; la regle 1 de "## Regles de reponse" enrichie pour mentionner les outils Odoo ("... sur les documents fournis dans le contexte ci-dessous ou sur tes outils Odoo. N'invente rien."), devenant la seule source de verite pour cette consigne.
+3. Regle 4 de "REGLES IMPORTANTES" (hors-perimetre) supprimee ; la regle 6 de "## Regles de reponse" enrichie pour porter a la fois le texte exact ET la consigne `confidence: 0.0` (les deux etaient auparavant reparties entre les deux regles distinctes).
+4. "REGLES IMPORTANTES" ne porte plus que 2 items (langue fusionnee, salutations -- inchange), renumerotes en consequence.
+5. Bloc JSON d'exemple de "## Format de reponse" reduit a `{{"answer": ..., "confidence": ...}}` (suppression de `sources`/`missing_info` et de leurs sous-champs `file`/`lines`/`module`/`page`), avec une phrase d'instruction explicite ajoutee ("EXACTEMENT ces deux champs, sans en ajouter d'autres -- les sources et le reste de la reponse structuree sont calcules ailleurs, de maniere deterministe") pour que le LLM ne soit pas tente de reproduire une structure qu'il croit necessaire alors qu'elle est batie hors de son controle.
+
+**Point ouvert, NON traite ce tour (direction actee par l'utilisateur, implementation separee)** : la confidence reste pour l'instant auto-declaree par le LLM via le bareme de "## Evaluation de la confiance" -- aucune fonction deterministe de calcul de confidence n'a ete trouvee dans le depot lors de cette investigation (`core/evidence_check.py::check_evidence` calcule un statut RESOLU/NON_RESOLU/CONFLIT specifique a la resolution de concept metier cote code_intelligence, pas une confidence generale de reponse -- verifie par lecture complete du fichier, ce n'est PAS la fonction recherchee). Direction validee par l'utilisateur pour un futur tour : remplacer l'auto-evaluation du LLM par une fonction deterministe que le LLM n'aurait plus qu'a consommer/retourner -- reste a identifier ou concevoir cette fonction (candidats a explorer : score de couverture base sur le nombre/la pertinence des chunks retrouves via `document_rag/vectorstore/search.py` -- `rrf_score`/`cross_encoder_score` deja calcules a ce niveau --, ou un signal equivalent cote `erp_data`/`code_intelligence`). Pas engage ce tour, uniquement note comme direction produit actee.
+
+**Non fait** : aucun test relance (acces filesystem uniquement) -- a verifier par l'utilisateur, meme commande que section 123 (`python -c "from core.prompts import build_messages; print(build_messages('test','ctx')[0].content)"`), pour confirmer l'absence d'exception et relire le prompt final complet.
+
+---

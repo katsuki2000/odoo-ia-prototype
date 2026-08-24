@@ -17,11 +17,14 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
+import os
 from tools.odoo_connector import OdooConnector
 from erp_data.odoo_tools import odoo_uid_ctx, odoo_api_key_ctx, obtenir_total_ventes, obtenir_ca_periode
 
 MANAGER_LOGIN = "manager@miro.com"
-MANAGER_PASSWORD = "password123"
+MANAGER_PASSWORD = os.environ.get("ODOO_MANAGER_PASSWORD")
+if not MANAGER_PASSWORD:
+    raise ValueError("ODOO_MANAGER_PASSWORD environment variable is required")
 
 
 def authenticate_manager(connector: OdooConnector) -> int:

@@ -1,8 +1,9 @@
 import sys
 import json
 import networkx as nx
+from pathlib import Path
 
-sys.path.insert(0, 'miro-rag')
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from code_intelligence.business_resolver import resolve_business_term
 

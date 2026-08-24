@@ -47,13 +47,12 @@ from pathlib import Path
 
 project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(project_root))
-sys.path.insert(0, str(project_root / "miro-rag"))
 
-from rag.graph import (
+from core.graph import (
     code_intelligence_agent, get_code_intelligence_graph, query_graph,
     _get_admin_rpc_client, _resolve_user_group_xmlids,
 )
-from code_intelligence.ci_agent_tools import ALL_CI_TOOLS, set_graph_ref, evaluer_regles_raw
+from code_intelligence.ci_agent_tools import ALL_CI_TOOLS, set_graph_ref, evaluate_rules_raw
 
 TEST_AMOUNT = 80000
 
@@ -149,17 +148,17 @@ def _resolve_group_ids():
 
 def check_raw_tool_output(group_map):
     print("=" * 80)
-    print(" RAW evaluer_regles_enregistrement OUTPUT (account.move, droit=read)")
+    print(" RAW evaluate_record_rules OUTPUT (account.move, droit=read)")
     print("=" * 80)
     G = get_code_intelligence_graph()
     set_graph_ref(G)
 
     all_ok = True
     for label, ids in group_map.items():
-        # evaluer_regles_enregistrement matches against group XML-IDs (e.g.
+        # evaluate_record_rules matches against group XML-IDs (e.g.
         # 'custom_credit_note_visibility_rules.group_avoir_national'), not
         # raw Odoo DB ids -- code_intelligence_agent() normally does this
-        # translation itself (rag/graph.py::_resolve_user_group_xmlids)
+        # translation itself (core/graph.py::_resolve_user_group_xmlids)
         # before any tool call. This raw check bypasses that agent layer on
         # purpose (to isolate the rule engine from synthesis), so it must
         # do the same translation explicitly here, or the DB ids are passed
@@ -167,7 +166,7 @@ def check_raw_tool_output(group_map):
         # strings -- confirmed live 2026-08-10 (AttributeError: 'int' object
         # has no attribute 'rsplit' inside _group_short_name).
         xmlids = _resolve_user_group_xmlids(ids)
-        result = evaluer_regles_raw("account.move", "read", json.dumps(xmlids))
+        result = evaluate_rules_raw("account.move", "read", json.dumps(xmlids))
         print(f"--- requester groups = {label} (ids={ids} -> xmlids={xmlids}) ---")
         print(result.summary_text)
         can_view = result.can_view_amount(TEST_AMOUNT)

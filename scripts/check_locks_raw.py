@@ -14,19 +14,18 @@ from pathlib import Path
 
 project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(project_root))
-sys.path.insert(0, str(project_root / "miro-rag"))
 
-from rag.graph import get_code_intelligence_graph
+from core.graph import get_code_intelligence_graph
 from code_intelligence.ci_agent_tools import ALL_CI_TOOLS, set_graph_ref
 
 G = get_code_intelligence_graph()
 set_graph_ref(G)
 
 tool_map = {t.name: t for t in ALL_CI_TOOLS}
-lock_tool = tool_map["analyser_verrous_securite"]
+lock_tool = tool_map["analyze_security_locks"]
 result = lock_tool.invoke({"model_name": "custom.deep.document"})
 print("=" * 80)
-print("RAW analyser_verrous_securite OUTPUT for custom.deep.document:")
+print("RAW analyze_security_locks OUTPUT for custom.deep.document:")
 print("=" * 80)
 print(result)
 print("=" * 80)

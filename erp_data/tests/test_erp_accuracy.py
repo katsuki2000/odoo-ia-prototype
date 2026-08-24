@@ -41,7 +41,9 @@ def run_erp_evaluation():
     
     from erp_data.odoo_connector import OdooConnector
     _conn = OdooConnector()
-    _manager_password = "password123"
+    _manager_password = os.environ.get("ODOO_MANAGER_PASSWORD")
+    if not _manager_password:
+        raise ValueError("ODOO_MANAGER_PASSWORD environment variable is required")
     manager_uid = _conn.common.authenticate(_conn.db, "manager@miro.com", _manager_password, {})
         
     if not manager_uid:

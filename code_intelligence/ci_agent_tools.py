@@ -10,6 +10,8 @@ import json
 import logging
 from typing import Optional
 
+from pathlib import Path
+
 from langchain_core.tools import tool
 from code_intelligence.utils import resolve_model_xmlref
 from code_intelligence.business_resolver import resolve_business_term
@@ -97,12 +99,6 @@ def _resolve_model_param(model_name: str) -> str:
 
 
 resolve_model_param = _resolve_model_param
-
-
-WILDCARD_MODEL_ERROR_MSG = (
-    "Erreur : le modèle doit être spécifié explicitement (les jokers '*' et "
-    "l'extraction globale de tous les modèles ne sont pas autorisés par la politique de sécurité J32-J33)."
-)
 
 
 # =====================================================================
@@ -440,13 +436,40 @@ def analyze_server_actions(model_name: str) -> str:
     return "\n\n".join(summaries)
 
 
+def _is_custom_module_filepath(filepath: str) -> bool:
+    """True if filepath lives inside a custom_* Odoo module (any path segment
+    starting with 'custom_'), as opposed to a core Odoo or OCA module."""
+    return any(part.startswith("custom_") for part in Path(filepath).parts)
+
+
+def _sort_filepaths_custom_first(filepaths) -> list:
+    """
+    Sort filepaths so custom_* module files are examined before core/OCA
+    files, instead of raw alphabetical order.
+
+    analyze_security_locks reads each file in full and concatenates a
+    per-file summary; when the combined output later gets truncated
+    (context/token budget upstream -- that cap is deliberately NOT touched
+    here, see todo/rules.md: it has already been raised several times and
+    is not the fix for this class of problem), whatever is dropped is
+    whatever comes LAST in this iteration order. Raw alphabetical sorting
+    means a core/OCA path (e.g. 'account/models/...') can sort before a
+    project's actual custom_* module simply by alphabet, pushing the
+    custom mechanism -- the one actually relevant to a security question --
+    out of the response while irrelevant core noise survives. Putting
+    custom_* files first guarantees the opposite: if anything is cut, it's
+    core/OCA noise, never the custom lock/override a user is asking about.
+    Alphabetical order is preserved within each group for determinism.
+    """
+    return sorted(filepaths, key=lambda fp: (not _is_custom_module_filepath(fp), fp))
+
+
 @tool
 def analyze_security_locks(model_name: str) -> str:
     """Analyze Python code for a given model to detect hardcoded security locks, exception messages (UserError/ValidationError), hardcoded email/login lists, and dynamic dispatch uncertainties (getattr/eval/exec)."""
     if _is_wildcard_model(model_name):
         return WILDCARD_MODEL_ERROR_MSG
     from code_intelligence.semgrep_locks_analyzer import analyze_python_security_locks
-    from pathlib import Path
 
     G = _require_graph()
     model_name = _resolve_model_param(model_name)
@@ -460,7 +483,7 @@ def analyze_security_locks(model_name: str) -> str:
         return f"No Python source files located for model '{model_name}'."
 
     summaries = []
-    for fp in sorted(filepaths):
+    for fp in _sort_filepaths_custom_first(filepaths):
         p = Path(fp)
         if p.exists():
             code = p.read_text(encoding="utf-8")

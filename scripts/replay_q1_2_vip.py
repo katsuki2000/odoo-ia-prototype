@@ -21,9 +21,8 @@ from pathlib import Path
 
 project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(project_root))
-sys.path.insert(0, str(project_root / "miro-rag"))
 
-from rag.graph import code_intelligence_agent
+from core.graph import code_intelligence_agent
 
 QUESTION = "Qui a le droit d'approuver un avoir pour un client VIP ?"
 

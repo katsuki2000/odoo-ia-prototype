@@ -17,7 +17,7 @@ overriding the same method in cascade), this is a single custom module
 extending ONE core Odoo addon (hr_holidays) that is a full, real Odoo
 core module on disk here -- not a addons/ stand-in -- so this
 script is also an implicit re-confirmation that the J36 generic
-direct-dependency loading fix (rag/graph.py::get_code_intelligence_graph,
+direct-dependency loading fix (core/graph.py::get_code_intelligence_graph,
 "Load each custom_* module's DIRECT manifest dependencies too") still
 picks up hr_holidays for custom_hr_leave_workflow, the same way it was
 fixed to pick up hr_expense for custom_expense_risk_base.
@@ -55,9 +55,8 @@ from pathlib import Path
 
 project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(project_root))
-sys.path.insert(0, str(project_root / "miro-rag"))
 
-from rag.graph import code_intelligence_agent, get_code_intelligence_graph, query_graph
+from core.graph import code_intelligence_agent, get_code_intelligence_graph, query_graph
 from code_intelligence.ci_agent_tools import ALL_CI_TOOLS, set_graph_ref
 
 TARGET_MODEL = "hr.leave"
@@ -119,14 +118,14 @@ QUESTIONS = [
 
 def check_raw_tool_output():
     print("=" * 80)
-    print(f" RAW analyser_verrous_securite OUTPUT ({TARGET_MODEL})")
+    print(f" RAW analyze_security_locks OUTPUT ({TARGET_MODEL})")
     print("=" * 80)
     G = get_code_intelligence_graph()
     set_graph_ref(G)
     tool_map = {t.name: t for t in ALL_CI_TOOLS}
-    tool = tool_map.get("analyser_verrous_securite")
+    tool = tool_map.get("analyze_security_locks")
     if tool is None:
-        print("[FAIL] Tool 'analyser_verrous_securite' not found in ALL_CI_TOOLS.")
+        print("[FAIL] Tool 'analyze_security_locks' not found in ALL_CI_TOOLS.")
         return False
     result = str(tool.invoke({"model_name": TARGET_MODEL}))
     print(result)

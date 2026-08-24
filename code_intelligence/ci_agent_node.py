@@ -38,6 +38,7 @@ from core.degenerate_guards import (
     _strip_any_degenerate_repetition,
 )
 from code_intelligence.ci_graph_loader import get_code_intelligence_graph
+from code_intelligence.business_resolver import resolve_business_term
 from code_intelligence.ci_helpers import (
     CI_SYSTEM_PROMPT,
     CI_MAX_HOPS,
@@ -189,7 +190,7 @@ class CodeIntelligenceAgentRunner:
         import json as _json
         start_time = time.time()
         
-        from langchain_core.messages import AIMessage, ToolMessage
+        from langchain_core.messages import AIMessage, ToolMessage, SystemMessage, HumanMessage
         
         question = state.get("question", "").strip()
         chat_history = state.get("chat_history", [])

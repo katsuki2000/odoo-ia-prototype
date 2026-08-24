@@ -47,9 +47,8 @@ from pathlib import Path
 
 project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(project_root))
-sys.path.insert(0, str(project_root / "miro-rag"))
 
-from rag.graph import code_intelligence_agent, get_code_intelligence_graph, query_graph
+from core.graph import code_intelligence_agent, get_code_intelligence_graph, query_graph
 from code_intelligence.ci_agent_tools import ALL_CI_TOOLS, set_graph_ref
 from code_intelligence.deterministic_tools import _fold_accents
 
@@ -117,14 +116,14 @@ QUESTIONS = [
 
 def check_raw_tool_output():
     print("=" * 80)
-    print(" RAW analyser_chaine_surcharge_methode OUTPUT (account.move / action_valider_avoir)")
+    print(" RAW analyze_method_override_chain OUTPUT (account.move / action_valider_avoir)")
     print("=" * 80)
     G = get_code_intelligence_graph()
     set_graph_ref(G)
     tool_map = {t.name: t for t in ALL_CI_TOOLS}
-    tool = tool_map.get("analyser_chaine_surcharge_methode")
+    tool = tool_map.get("analyze_method_override_chain")
     if tool is None:
-        print("[FAIL] Tool 'analyser_chaine_surcharge_methode' not found in ALL_CI_TOOLS.")
+        print("[FAIL] Tool 'analyze_method_override_chain' not found in ALL_CI_TOOLS.")
         return False
     result = tool.invoke({"model_name": "account.move", "method_name": "action_valider_avoir"})
     print(result)

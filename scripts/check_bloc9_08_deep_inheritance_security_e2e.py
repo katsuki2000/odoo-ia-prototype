@@ -53,9 +53,8 @@ from pathlib import Path
 
 project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(project_root))
-sys.path.insert(0, str(project_root / "miro-rag"))
 
-from rag.graph import code_intelligence_agent, get_code_intelligence_graph, query_graph
+from core.graph import code_intelligence_agent, get_code_intelligence_graph, query_graph
 from code_intelligence.ci_agent_tools import ALL_CI_TOOLS, set_graph_ref
 from code_intelligence.deterministic_tools import _fold_accents
 
@@ -151,16 +150,16 @@ QUESTIONS = [
 
 def check_raw_tool_output():
     print("=" * 80)
-    print(f" RAW analyser_verrous_securite + evaluer_regles_enregistrement OUTPUT ({TARGET_MODEL})")
+    print(f" RAW analyze_security_locks + evaluate_record_rules OUTPUT ({TARGET_MODEL})")
     print("=" * 80)
     G = get_code_intelligence_graph()
     set_graph_ref(G)
     tool_map = {t.name: t for t in ALL_CI_TOOLS}
     all_ok = True
 
-    lock_tool = tool_map.get("analyser_verrous_securite")
+    lock_tool = tool_map.get("analyze_security_locks")
     if lock_tool is None:
-        print("[FAIL] Tool 'analyser_verrous_securite' not found in ALL_CI_TOOLS.")
+        print("[FAIL] Tool 'analyze_security_locks' not found in ALL_CI_TOOLS.")
         all_ok = False
     else:
         lock_result = str(lock_tool.invoke({"model_name": TARGET_MODEL}))
@@ -179,16 +178,16 @@ def check_raw_tool_output():
                 print(f"[MISSING] raw lock tool does NOT mention {label}: '{marker}'")
                 all_ok = False
 
-    rule_tool = tool_map.get("evaluer_regles_enregistrement")
+    rule_tool = tool_map.get("evaluate_record_rules")
     if rule_tool is None:
-        print("[FAIL] Tool 'evaluer_regles_enregistrement' not found in ALL_CI_TOOLS.")
+        print("[FAIL] Tool 'evaluate_record_rules' not found in ALL_CI_TOOLS.")
         all_ok = False
     else:
         rule_result = str(
             rule_tool.invoke({
                 "model_name": TARGET_MODEL,
                 "user_groups_json": "[\"base.group_user\"]",
-                "droit": "read",
+                "permission": "read",
             })
         )
         print(rule_result)

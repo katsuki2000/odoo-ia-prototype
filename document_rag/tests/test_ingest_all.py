@@ -114,7 +114,7 @@ class TestIngestionOrchestrator(unittest.TestCase):
             # That's okay for unit tests
             pass
 
-    @patch("ingestion.ingest_all.PDFLoader")
+    @patch("document_rag.ingestion.ingest_all.PDFLoader")
     def test_ingest_documents_with_pdf_file(self, mock_pdf_loader):
         """Test ingestion of PDF files with mocked loader."""
         docs_dir = Path(self.temp_dir) / "docs"
@@ -142,7 +142,7 @@ class TestIngestionOrchestrator(unittest.TestCase):
         # Verify PDF loader was called
         mock_instance.load_and_chunk.assert_called()
 
-    @patch("ingestion.ingest_all.CodeLoader")
+    @patch("document_rag.ingestion.ingest_all.CodeLoader")
     def test_ingest_python_files(self, mock_code_loader):
         """Test ingestion of Python files with mocked loader."""
         code_dir = Path(self.temp_dir) / "code"
