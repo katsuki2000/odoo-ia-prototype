@@ -21,11 +21,7 @@ from rapidfuzz import fuzz, process
 
 _logger = logging.getLogger(__name__)
 
-# Static hand-maintained business alias table.
-# ONLY for synonyms with zero lexical overlap between the French business
-# term and the English technical name, where fuzzy matching cannot help.
-# Keep this short — if a term can be found via graph labels, it belongs
-# in the graph, not here.
+
 BUSINESS_ALIASES: Dict[str, List[str]] = {
     # Comptabilité / avoirs
     "avoir": ["account.move"],
@@ -34,25 +30,6 @@ BUSINESS_ALIASES: Dict[str, List[str]] = {
     "facture": ["account.move"],
     "factures": ["account.move"],
     "facturation": ["account.move"],
-    # Achats
-    # Bloc 9 gap (2026-08-10, module 4/8, bloc9-04a/04c): this alias used to
-    # also resolve to the real standard Odoo "purchase.order" model. In
-    # French Odoo terminology "demande d'achat" is not actually a synonym
-    # for "purchase.order" (a bon de commande) -- it is the literal name of
-    # this custom module's own _description ("Demande d'achat interne",
-    # custom_purchase_request/models/purchase_request.py). Forcing both
-    # models through the deterministic pre-dispatch in rag/graph.py meant
-    # every question about this custom approval/threshold workflow also
-    # dragged in the entire unrelated 1101-line standard purchase.order
-    # lock analysis (a different mechanism, different required group) --
-    # confirmed via check_bloc9_04_purchase_request_e2e.py to drown the
-    # 10 000e threshold fact specific to custom.purchase.request in noise,
-    # and in the trap question (bloc9-04c) to make the synthesis answer
-    # off the wrong (irrelevant) model entirely. Zero lexical-overlap
-    # principle from this table's own docstring: custom.purchase.request
-    # is the exact, unambiguous match, so it is the only static alias
-    # target here -- a genuine "bon de commande"/purchase.order question
-    # remains resolvable on its own merits via fuzzy graph matching.
     "demande d'achat": ["custom.purchase.request"],
     "demande d'achats": ["custom.purchase.request"],
     # Prêt matériel
@@ -65,24 +42,6 @@ BUSINESS_ALIASES: Dict[str, List[str]] = {
     "congés": ["hr.leave"],
     "demande de conge": ["hr.leave"],
     "demande de congé": ["hr.leave"],
-    # Frais
-    # Bloc 9 gap (2026-08-11, module 7/8, bloc9-07c-sudo-scope-trap): the
-    # original alias key was the fixed phrase "remboursement de frais" --
-    # matched as a literal substring, so it never fires on a question that
-    # says "demande de remboursement" (different word order, "de frais"
-    # dropped entirely), which is how a real user just as plausibly phrases
-    # it. Confirmed live: this exact phrasing fell through static alias AND
-    # exact-technical-mention (07c never names the module/model), leaving
-    # only fuzzy matching -- which did not resolve to custom.reimbursement.
-    # request at all, so the forced, structural (no question-wording gate)
-    # analyze_security_locks pre-dispatch never ran, and the getattr()
-    # uncertainty guardrail never triggered either -- the synthesis LLM
-    # answered from evaluate_record_rules alone and asserted the
-    # dangerous inverse ("sans restriction"). Added the bare noun
-    # "remboursement" as its own alias key (zero lexical overlap with the
-    # English technical names, same principle as every other entry here) so
-    # any phrasing containing that single word resolves deterministically,
-    # without needing to guess every possible surrounding phrase.
     "remboursement": ["custom.reimbursement.request", "hr.expense"],
     "remboursement de frais": ["custom.reimbursement.request", "hr.expense"],
     "note de frais": ["custom.reimbursement.request", "hr.expense"],
@@ -90,6 +49,9 @@ BUSINESS_ALIASES: Dict[str, List[str]] = {
     "action automatique": ["base.automation"],
     "serveur action": ["ir.actions.server"],
     "server action": ["ir.actions.server"],
+    # Deep inheritance security (bug (b), Bloc 9, plan.md) -- formulation informelle
+    "document deep": ["custom.deep.document"],
+    "deep document": ["custom.deep.document"],
 }
 
 
@@ -99,22 +61,11 @@ def _nfc(s: str) -> str:
 
 BUSINESS_ALIASES_NFC: Dict[str, List[str]] = {_nfc(k): v for k, v in BUSINESS_ALIASES.items()}
 
-# Word-boundary pattern: \w is Unicode-aware by default in Python 3.
-# Prevents "avoir" from matching inside longer unrelated words,
-# while preserving token order for multi-word phrases ("mise à disposition").
 _ALIAS_PATTERNS: Dict[str, re.Pattern] = {
     alias: re.compile(r"(?<!\w)" + re.escape(alias) + r"(?!\w)")
     for alias in BUSINESS_ALIASES_NFC
 }
 
-# Bug #1 (J1) regression note: static alias lookup MUST run before fuzzy
-# matching. Do not reorder these steps — see test_s2_0_alias_not_shadowed_by_fuzzy_single_token.
-
-# --- J2: bounded LLM arbitration ------------------------------------------
-
-# Below this score gap between the top-1 and top-2 fuzzy candidates, the
-# result is considered ambiguous and is escalated to LLM arbitration
-# instead of being returned directly.
 AMBIGUITY_GAP_THRESHOLD = 10.0
 
 _ARBITRATION_SYSTEM_PROMPT = (
@@ -178,10 +129,6 @@ def _llm_arbitrate(query_text: str, candidates: List[str], llm) -> Optional[str]
     if raw in candidates:
         return raw
 
-    # Hallucinated or malformed output (e.g. a model not in the closed
-    # list, or extra text). Never trust it — treat as a failed arbitration,
-    # not a resolved concept, per the plan's "jamais présenté comme fait
-    # structurel certain" rule for LLM-derived results.
     _logger.warning("LLM arbitration returned an out-of-list value: %r (candidates=%r)", raw, candidates)
     return None
 
@@ -241,18 +188,6 @@ def _build_fuzzy_index(G) -> List[Tuple[str, str]]:
                         break
 
         if node_type == "Model":
-            # Gap found 2026-08-06 (custom.deep.document E2E check): the
-            # raw technical model name itself was never indexed, only its
-            # human-readable _description. A question stating the exact
-            # technical name verbatim (e.g. "dans le modèle
-            # custom.deep.document") had no reliable resolution path --
-            # is_resolved stayed False, so every J8/J9/Bloc-9 forced
-            # dispatch (analyze_security_locks, analyze_server_actions,
-            # analyze_method_override_chain) silently never fired, and
-            # the LLM was left to freelance tool selection alone -- exactly
-            # the unreliable behavior J8 exists to remove. Index both the
-            # dotted technical name and its dot-to-space token form so
-            # fuzzy matching (which tokenizes on whitespace) can score it.
             technical_name = data.get("name", node_id.replace("model:", ""))
             if technical_name:
                 index.append((technical_name.lower(), technical_name))
@@ -266,20 +201,6 @@ def _build_fuzzy_index(G) -> List[Tuple[str, str]]:
 
 
 def _find_exact_technical_model_mentions(query_lower: str, G) -> List[str]:
-    """
-    Step 1.5 (added 2026-08-06, same gap as the fuzzy-index fix above):
-    before falling back to fuzzy matching against descriptions/labels,
-    check whether the query mentions a real technical model name verbatim
-    (e.g. "custom.deep.document"). This is strictly more reliable than
-    fuzzy matching for this specific case -- an exact technical identifier
-    in the question is unambiguous and should never depend on how well a
-    model's _description happens to read.
-
-    Returns the list of technical model names found as whole-word
-    substrings (dots included, so "custom.deep.document" won't spuriously
-    match inside a longer dotted identifier). Deliberately does not use
-    fuzzy scoring here -- this is an exact-mention check only.
-    """
     if G is None:
         return []
     found = []
@@ -296,17 +217,6 @@ def _find_exact_technical_model_mentions(query_lower: str, G) -> List[str]:
 
 
 def _fuzzy_match_graph(query: str, G, threshold: int = 75, limit: int = 5) -> List[Tuple[str, float]]:
-    """
-    Match query against graph labels using rapidfuzz token_set_ratio and
-    token_sort_ratio (never a plain ratio on the whole string — per B0 spec).
-
-    Applies a length penalty when the label is much shorter than the query
-    to prevent single-word labels (e.g. field "comment") from scoring 100
-    against long queries where that word happens to appear.
-
-    Returns list of (model_name, best_score) tuples, sorted by score desc,
-    deduplicated by model (keeps the highest score per model).
-    """
     index = _build_fuzzy_index(G)
     if not index:
         return []
@@ -338,21 +248,6 @@ def _fuzzy_match_graph(query: str, G, threshold: int = 75, limit: int = 5) -> Li
 
 
 def resolve_business_term(query_text: str, G=None, llm=None) -> ResolvedConcept:
-    """
-    Resolve natural language query terms to technical Odoo models or modules.
-
-    Args:
-        query_text: Natural language user question.
-        G: Optional NetworkX knowledge graph reference.
-        llm: Optional LangChain-compatible chat client (e.g. graph.py's
-             ChatGroq instance), used only for bounded arbitration when
-             fuzzy matching returns ambiguous candidates. If None,
-             ambiguous cases fall through to "unresolved" rather than
-             guessing.
-
-    Returns:
-        ResolvedConcept object.
-    """
     if not query_text:
         return ResolvedConcept(
             user_term="",
@@ -396,10 +291,6 @@ def resolve_business_term(query_text: str, G=None, llm=None) -> ResolvedConcept:
             reason=f"Matched static aliases: {', '.join(matched_terms)}",
         )
 
-    # Step 1.5 (2026-08-06 fix): exact technical model-name mention.
-    # Strictly more reliable than fuzzy matching when the question already
-    # names the technical identifier verbatim -- see
-    # _find_exact_technical_model_mentions docstring for the gap this closes.
     exact_mentions = _find_exact_technical_model_mentions(clean_query, G)
     if exact_mentions:
         return ResolvedConcept(
@@ -453,8 +344,6 @@ def resolve_business_term(query_text: str, G=None, llm=None) -> ResolvedConcept:
                     ),
                 )
 
-            # LLM declined (NONE / invalid / call failure): fall through to
-            # unresolved rather than silently keeping the fuzzy top-1.
             return ResolvedConcept(
                 user_term=query_text,
                 is_resolved=False,

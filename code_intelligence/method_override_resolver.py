@@ -94,6 +94,47 @@ def _branch_returns_or_raises(stmts: List[ast.stmt]) -> bool:
     return isinstance(stmts[-1], (ast.Return, ast.Raise))
 
 
+_STATE_MUTATING_CALL_NAMES = {"write", "update", "unlink"}
+
+
+def _branch_mutates_record_state(stmts: List[ast.stmt]) -> bool:
+    """True if the branch body writes to a record/self attribute (e.g.
+    `rec.field = ...`, `self.field += ...`) or calls a known state-mutating
+    method (`.write(`, `.update(`, `.unlink(`) anywhere within it, including
+    nested blocks (e.g. a nested `if` that raises on one path and does
+    nothing on the other).
+
+    Root cause fix (2026-08-25, Bloc 9 hallucination gap, sections 139-141):
+    a branch that only computes a LOCAL variable (`n2 = rec.employee_id...`)
+    and then conditionally `raise`s is not actually at risk of being
+    silently clobbered by an unconditional super() call afterwards -- there
+    is no record state for super() to re-apply logic on top of. Local-
+    variable-only assignments (target is a plain ast.Name, not an
+    ast.Attribute) deliberately do NOT count as mutation for this reason.
+    Confirmed against the real custom_hr_leave_workflow.action_approve case
+    (hr_leave.py): the outer `if` body ends in a nested `if ...: raise` with
+    no `else`, so the previous last-statement-only check considered it
+    'non-returning' even though the only thing it can do besides raising is
+    nothing at all -- no field ever gets written. Confirmed still correctly
+    flags the real VIP bug (custom_credit_note_approval_vip.action_valider_avoir,
+    which assigns `rec.avoir_valide_par_id` / `rec.avoir_niveau_appro`, both
+    Attribute targets).
+    """
+    for stmt in stmts:
+        for node in ast.walk(stmt):
+            if isinstance(node, (ast.Assign, ast.AugAssign)):
+                targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+                if any(isinstance(t, ast.Attribute) for t in targets):
+                    return True
+            elif isinstance(node, ast.Call):
+                if (
+                    isinstance(node.func, ast.Attribute)
+                    and node.func.attr in _STATE_MUTATING_CALL_NAMES
+                ):
+                    return True
+    return False
+
+
 class _UnguardedSuperVisitor(ast.NodeVisitor):
     """
     Walks a single method body looking for the exact shape found in the
@@ -107,36 +148,71 @@ class _UnguardedSuperVisitor(ast.NodeVisitor):
           conditional -- i.e. it can re-run parent logic on top of state
           the conditional branch just set, potentially clobbering it.
 
-    This is a heuristic, not full control-flow/data-flow analysis: it
+    Recordset-subtraction guard (found 2026-08-25, real corpus,
+    hr_expense.AccountMove._compute_commercial_partner_id, section 151 of
+    contexte.txt): a conditional inside `for x in <name>:` that mutates
+    state is NOT actually at risk if the later super() call is of the
+    explicit 2-arg form `super(Class, self - <name>)` -- Odoo's recordset
+    subtraction here explicitly excludes the very records the branch just
+    mutated from what super() will re-process. This is a real guard, just
+    expressed as recordset arithmetic instead of return/raise, and is
+    tracked separately per (conditional, super-call) pairing rather than
+    globally, so a genuinely unguarded conditional elsewhere in the same
+    method (paired with a DIFFERENT super() call, or one that excludes a
+    different/no recordset) is still correctly flagged.
+
+    This remains a heuristic, not full control-flow/data-flow analysis: it
     does not verify the super() call and the conditional branch actually
-    touch the same fields, and it will not recognize a guard expressed
-    some other way (e.g. an early top-level `if not cond: return` before
-    the super() call). Scoped intentionally to this one concrete, already
-    -confirmed-real bug shape. Confidence is fixed 'low' by the caller,
-    same convention as server_action_analyzer.py's static regex layer.
+    touch the same fields, it only recognizes the exact `self - <bare
+    name>` subtraction shape (not an inline `.filtered(...)` never bound
+    to a name, nor any other guard expressed some other way, e.g. an early
+    top-level `if not cond: return` before the super() call). Confidence
+    is fixed 'low' by the caller, same convention as
+    server_action_analyzer.py's static regex layer.
     """
 
     def __init__(self, method_name: str):
         self.method_name = method_name
         self._if_depth = 0
-        # (lineno, condition_source) -- condition_source is the unparsed `if`
-        # test, e.g. "rec.avoir_vip_exempt" or "rec.amount_total > 20000",
-        # kept so the caller can cite the actual literal/threshold instead of
-        # only describing the structural shape (Bloc 9 gap, 2026-08-07).
+        self._for_loop_stack: List[str] = []
+        # (lineno, condition_source, enclosing_loop_var) -- condition_source
+        # is the unparsed `if` test, e.g. "rec.avoir_vip_exempt" or
+        # "rec.amount_total > 20000", kept so the caller can cite the actual
+        # literal/threshold instead of only describing the structural shape
+        # (Bloc 9 gap, 2026-08-07). enclosing_loop_var is the bare name this
+        # conditional's `for` loop iterates over (e.g. "own_expense_moves"),
+        # or None if the branch isn't inside a `for x in <bare name>:` loop
+        # -- used to match against a later super() call's excluded
+        # recordset (2026-08-25, section 151).
         self.non_returning_conditionals: List[tuple] = []
-        self.unconditional_super_call_linenos: List[int] = []
+        # (lineno, excluded_recordset_name) -- excluded_recordset_name is
+        # the <name> in `super(Class, self - <name>)`, or None for a
+        # zero-arg super() call or any other second-argument shape.
+        self.unconditional_super_calls: List[tuple] = []
+
+    def visit_For(self, node: ast.For):
+        loop_var = self._filtered_source_name(node.iter)
+        if loop_var:
+            self._for_loop_stack.append(loop_var)
+        self.generic_visit(node)
+        if loop_var:
+            self._for_loop_stack.pop()
 
     def visit_If(self, node: ast.If):
-        if not _branch_returns_or_raises(node.body):
+        if not _branch_returns_or_raises(node.body) and _branch_mutates_record_state(
+            node.body
+        ):
             condition_source = self._safe_unparse(node.test)
-            self.non_returning_conditionals.append((node.lineno, condition_source))
+            loop_var = self._for_loop_stack[-1] if self._for_loop_stack else None
+            self.non_returning_conditionals.append((node.lineno, condition_source, loop_var))
         self._if_depth += 1
         self.generic_visit(node)
         self._if_depth -= 1
 
     def visit_Call(self, node: ast.Call):
         if self._if_depth == 0 and self._is_super_call(node):
-            self.unconditional_super_call_linenos.append(node.lineno)
+            excluded_var = self._extract_excluded_recordset_name(node.func.value)
+            self.unconditional_super_calls.append((node.lineno, excluded_var))
         self.generic_visit(node)
 
     @staticmethod
@@ -145,6 +221,44 @@ class _UnguardedSuperVisitor(ast.NodeVisitor):
             return ast.unparse(node)
         except Exception:
             return "?"
+
+    @staticmethod
+    def _filtered_source_name(node: ast.expr) -> Optional[str]:
+        """If a `for x in <expr>:` loop iterates directly over a bare
+        name (e.g. `for move in own_expense_moves:`), return that name --
+        the candidate 'excluded subset' variable a later
+        `super(Class, self - <name>)` call might reference. Returns None
+        for any other iterable shape (inline `.filtered(...)` never bound
+        to a name, method calls, etc.) -- deliberately conservative, a
+        guard expressed that way is a false negative we accept."""
+        if isinstance(node, ast.Name):
+            return node.id
+        return None
+
+    @staticmethod
+    def _extract_excluded_recordset_name(super_call: ast.Call) -> Optional[str]:
+        """For a `super(Class, expr)` call (explicit 2-arg form), return
+        the name of the recordset excluded from `self` if `expr` is
+        exactly `self - <name>` (ast.BinOp, Sub, left=Name('self'),
+        right=a bare Name) -- the one confirmed real Odoo idiom for
+        guarding a later super() call against re-processing records
+        already mutated by an earlier branch. Returns None for zero-arg
+        super() or any other second-argument shape -- deliberately
+        conservative, same discipline as the rest of this module: a guard
+        expressed some other way is a false negative we accept, not a
+        case we try to guess at."""
+        if len(super_call.args) < 2:
+            return None
+        expr = super_call.args[1]
+        if (
+            isinstance(expr, ast.BinOp)
+            and isinstance(expr.op, ast.Sub)
+            and isinstance(expr.left, ast.Name)
+            and expr.left.id == "self"
+            and isinstance(expr.right, ast.Name)
+        ):
+            return expr.right.id
+        return None
 
     def _is_super_call(self, node: ast.Call) -> bool:
         func = node.func
@@ -157,26 +271,38 @@ class _UnguardedSuperVisitor(ast.NodeVisitor):
             and value.func.id == "super"
         )
 
+    @staticmethod
+    def _is_guarded_pairing(loop_var: Optional[str], excluded_var: Optional[str]) -> bool:
+        """True if this specific (conditional, super-call) pairing is
+        guarded by recordset subtraction -- the conditional's loop
+        iterates over the exact same bare name the super() call excludes
+        via `self - <name>`."""
+        return loop_var is not None and loop_var == excluded_var
+
     @property
     def has_pattern(self) -> bool:
         return any(
-            super_ln > cond_ln
-            for cond_ln, _ in self.non_returning_conditionals
-            for super_ln in self.unconditional_super_call_linenos
+            super_ln > cond_ln and not self._is_guarded_pairing(loop_var, excluded_var)
+            for cond_ln, _, loop_var in self.non_returning_conditionals
+            for super_ln, excluded_var in self.unconditional_super_calls
         )
 
     def get_matching_conditions(self) -> List[str]:
         """Condition texts of every non-returning conditional that is
-        actually followed by an unconditional super() call -- the
-        literal(s) to cite as "the exemption/threshold that can get
-        silently overridden", deduplicated, in source order."""
+        actually followed by a GENUINELY unguarded super() call (i.e. not
+        excluded via recordset subtraction) -- the literal(s) to cite as
+        "the exemption/threshold that can get silently overridden",
+        deduplicated, in source order."""
         seen = set()
         ordered: List[str] = []
-        for cond_ln, cond_text in self.non_returning_conditionals:
-            if any(super_ln > cond_ln for super_ln in self.unconditional_super_call_linenos):
-                if cond_text not in seen:
-                    seen.add(cond_text)
-                    ordered.append(cond_text)
+        for cond_ln, cond_text, loop_var in self.non_returning_conditionals:
+            genuinely_unguarded = any(
+                super_ln > cond_ln and not self._is_guarded_pairing(loop_var, excluded_var)
+                for super_ln, excluded_var in self.unconditional_super_calls
+            )
+            if genuinely_unguarded and cond_text not in seen:
+                seen.add(cond_text)
+                ordered.append(cond_text)
         return ordered
 
 
@@ -537,19 +663,6 @@ def analyze_method_override_chain(
         if not p.exists():
             continue
         source = p.read_text(encoding="utf-8")
-
-        # 2026-08-07: track whether THIS site got a warning line -- without
-        # this, a clean site (no unguarded-super, no unchecked-relational-
-        # chain) ends up as a bare "N. module 'x' -- link" line with zero
-        # elaboration, visually indistinguishable from "not analyzed yet".
-        # Confirmed live (bloc9-01b, 2026-08-07) that the synthesis LLM does
-        # NOT reliably treat that bare line as a real, reportable 3rd
-        # finding -- it fabricates a plausible-looking 4th module with an
-        # invented risk instead of citing the real clean module verbatim.
-        # Making "nothing found" explicit here removes the ambiguity at the
-        # source rather than relying on a synthesis-prompt instruction alone
-        # (that alone was NOT sufficient -- see synthesis_prompt in
-        # rag/graph.py, patched same day but insufficient by itself).
         site_has_warning = False
 
         warning = detect_unguarded_super(
@@ -599,12 +712,23 @@ _LLM_CONFIDENCE_CLOSED_SET = {"high", "medium", "low"}
 
 _INTERPRETATION_SYSTEM_PROMPT = (
     "Tu es un analyste de code Odoo. Un premier passage automatique (analyse AST) a "
-    "d\u00e9j\u00e0 d\u00e9tect\u00e9 qu'une m\u00e9thode surcharg\u00e9e en cascade sur plusieurs modules contient "
-    "un appel `super()` inconditionnel apr\u00e8s une branche conditionnelle sans `return`. "
-    "Ta t\u00e2che est UNIQUEMENT d'interpr\u00e9ter et r\u00e9sumer en une phrase la cons\u00e9quence "
-    "m\u00e9tier concr\u00e8te (quel comportement l'utilisateur observera r\u00e9ellement), et "
-    "d'indiquer ta confiance dans cette interpr\u00e9tation. R\u00e9ponds STRICTEMENT en JSON, "
-    "sans aucun texte avant ou apr\u00e8s, au format exact: "
+    "rep\u00e9r\u00e9 un appel `super()` inconditionnel apr\u00e8s une branche conditionnelle qui "
+    "ne se termine pas directement par un `return`/`raise` \u00e0 son dernier statement -- "
+    "CECI EST UN INDICE BRUT, PAS UN FAIT CONFIRM\u00c9. Cette heuristique statique ne "
+    "v\u00e9rifie ni si la branche modifie r\u00e9ellement un champ de l'enregistrement, ni si "
+    "un `raise`/`return` imbriqu\u00e9 plus loin dans la branche couvre d\u00e9j\u00e0 tous les cas -- "
+    "elle peut donc se tromper. AVANT de r\u00e9sumer une cons\u00e9quence, VERIFIE toi-m\u00eame sur "
+    "le code fourni : (1) la branche \u00e9crit-elle vraiment un champ de l'enregistrement "
+    "(`rec.champ = ...`, `.write(...)`, etc.) sur au moins un chemin qui NE se termine PAS "
+    "par un `return`/`raise` ? Si NON (ex: la branche ne fait que lever une exception ou ne "
+    "rien faire), il n'y a RIEN que le `super()` puisse \u00e9craser -- dis-le explicitement, "
+    "n'invente aucune cons\u00e9quence n\u00e9gative, et mets confidence \u00e0 'low'. (2) Si la "
+    "pr\u00e9misse tient r\u00e9ellement, r\u00e9sume en une phrase la cons\u00e9quence m\u00e9tier concr\u00e8te "
+    "(quel comportement l'utilisateur observera r\u00e9ellement). Ta r\u00e9ponse doit toujours "
+    "\u00eatre coh\u00e9rente avec tout message d'erreur (UserError/ValidationError) visible dans "
+    "le m\u00eame extrait de code -- si un `raise` bloque explicitement un cas, ne dis JAMAIS "
+    "que ce cas est approuv\u00e9 ou que la restriction est annul\u00e9e. R\u00e9ponds STRICTEMENT en "
+    "JSON, sans aucun texte avant ou apr\u00e8s, au format exact: "
     '{"summary": "...", "confidence": "high"|"medium"|"low"}. '
     "N'utilise JAMAIS une autre valeur de confidence que high, medium, ou low."
 )
@@ -634,9 +758,12 @@ def interpret_override_chain_with_llm(
     prompt = (
         f"M\u00e9thode '{model_name}.{method_name}', cha\u00eene de surcharge "
         f"(ordre d'ex\u00e9cution r\u00e9el):\n```python\n{code_block}\n```\n\n"
-        f"Constat d\u00e9tect\u00e9 par analyse statique (AST):\n{detected}\n\n"
-        "R\u00e9sume en une phrase claire le comportement m\u00e9tier r\u00e9ellement observ\u00e9 "
-        "(pas le code), et indique ta confiance."
+        f"Indice brut de l'analyse statique (AST) -- \u00e0 v\u00e9rifier, pas \u00e0 prendre pour "
+        f"acquis:\n{detected}\n\n"
+        "V\u00e9rifie d'abord si cet indice tient reellement (la branche mute-t-elle un champ "
+        "de l'enregistrement sans que ce chemin ne se termine par return/raise ?), puis "
+        "r\u00e9sume en une phrase claire le comportement m\u00e9tier r\u00e9ellement observ\u00e9 (pas le "
+        "code), et indique ta confiance."
     )
 
     try:

@@ -127,7 +127,7 @@ def orm_agent_loop(state: RAGState) -> dict:
     llm_with_tools = llm.bind_tools(all_tools)
 
     system_prompt = (
-        "Tu es MIRO Assistant, l'assistant IA interne spécialisé dans les données ERP Odoo. "
+        "Tu es un assistant IA interne spécialisé dans les données ERP Odoo. "
         "Utilise les outils disponibles pour interroger la base de données en temps réel et réponds avec les informations exactes retournées. "
         "Indique toujours la source exacte des données à la fin de ta réponse (ex: [Source: Odoo ERP - Module ...])."
     )
@@ -158,10 +158,7 @@ def orm_agent_loop(state: RAGState) -> dict:
         except Exception as e:
             _llm_call_count += 1  # attempt still counts against the LLM-call budget
             logger.warning("LLM invoke failed at iteration %d: %s", iteration + 1, e)
-            # ── Recovery: parse malformed tool calls from small models ──
-            # Llama 3.1 8B sometimes generates <function=name>{"arg": "val"}
-            # instead of structured JSON. Groq rejects it with a 400 containing
-            # the raw text in 'failed_generation'. We parse it and continue.
+
             recovered = False
             err_str = str(e)
             if "failed_generation" in err_str:

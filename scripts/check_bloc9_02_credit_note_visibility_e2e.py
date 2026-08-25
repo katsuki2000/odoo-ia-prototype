@@ -65,9 +65,24 @@ def _fold_accents(s: str) -> str:
     check against the unaccented form then reports a false MISSING even
     when the answer is substantively correct -- confirmed live 2026-08-10
     on bloc9-02a-both-groups (LLM wrote 'Avoirs - plafond visibilité
-    régionale' / 'Avoirs - visibilité nationale', both accented)."""
+    régionale' / 'Avoirs - visibilité nationale', both accented).
+
+    Extended 2026-08-25 (todo/contexte.txt section 137): the same false-
+    MISSING failure mode recurs for dashes -- the raw tool text always
+    uses a plain ASCII hyphen ('Avoirs - visibilite nationale'), but the
+    LLM's prose sometimes substitutes a typographic en dash or em dash
+    when quoting the rule name ('Avoirs \u2013 visibilite nationale'),
+    confirmed live on bloc9-02a-both-groups full-pipeline. Same principle
+    as the accent fold: the answer is substantively correct, only the
+    punctuation differs, so the check must not penalize it. En dash
+    (U+2013) and em dash (U+2014) are normalized to a plain ASCII hyphen
+    (U+002D) here, alongside the existing accent fold, rather than in a
+    second separate function -- both are the same class of typographic
+    paraphrase-tolerance fix, and every existing call site already routes
+    through this one function."""
     nfd = unicodedata.normalize("NFD", s)
-    return "".join(c for c in nfd if not unicodedata.combining(c))
+    folded = "".join(c for c in nfd if not unicodedata.combining(c))
+    return folded.replace("\u2013", "-").replace("\u2014", "-")
 
 
 def _marker_present(marker: str, text: str) -> bool:

@@ -17,7 +17,6 @@ ALLOWED_MODELS = {
     "sale.order.line",
     "account.move",
     "stock.quant",
-    "helpdesk.ticket",
     "project.task",
     "res.partner",
     "product.product",

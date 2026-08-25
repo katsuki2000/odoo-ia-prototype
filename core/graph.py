@@ -216,14 +216,6 @@ from code_intelligence.ci_helpers import (
     _force_dynamic_uncertainty_answer,
 )
 
-# ── Backward-compatible re-exports from ci_override_cascade ───────────────────
-# 2026-08-20: this cluster (module-name/threshold-amount extraction+backfill
-# for the override-cascade tool) was relocated out of rag/ci_helpers.py into
-# its own module -- see rag/ci_override_cascade.py's docstring. graph.py's
-# import of these symbols was not updated at the time, which broke this
-# file's own import chain (ImportError on collection, found 2026-08-20
-# running `pytest tests/test_graph.py`) since they no longer exist in
-# rag.ci_helpers. Fixed by importing them from their real, current home.
 from code_intelligence.ci_override_cascade import (
     _OVERRIDE_MODULE_RE,
     _extract_override_modules,
@@ -291,35 +283,12 @@ def format_output(state: RAGState) -> dict:
     chunks = state.get("retrieved_chunks", [])
     route = state.get("route")
 
-    # H1c support (todo/plan.md, 2026-08-19): surface which branch actually
-    # handled this turn back to the caller via AssistantResponse.route, so
-    # api/main.py can persist it as next turn's last_route for route()'s
-    # sticky-routing fallback (_sticky_route_or_default). Single central
-    # assignment point rather than editing generate()/orm_agent_loop()/
-    # hybrid_node()/code_intelligence_agent() individually -- every one of
-    # those already returns through this node before query_graph() sees
-    # the final state.
     if response:
         response.route = route
-        # H1b-ii support (todo/contexte.txt section 64/70, 2026-08-20): same
-        # single central assignment point as response.route above -- surface
-        # this turn's resolved_concept (route()'s output, itself either the
-        # current question's own resolution or the sticky-reused previous
-        # turn's, see _sticky_concept_or_resolve) so api/main.py can persist
-        # it as next turn's last_resolved_concept.
         response.resolved_concept = state.get("resolved_concept")
-        # H3 support (todo/contexte.txt, 2026-08-20), Phase 1 -- observational
-        # only: same central assignment point, surfaces evidence_status (set
-        # only by code_intelligence_agent, None on every other branch -- see
-        # core/evidence_check.py's module docstring). Not consumed by any
-        # caller yet, purely for measurement.
         response.evidence_status = state.get("evidence_status")
 
     if response and chunks and route == QueryRoute.DOCUMENTAIRE.value:
-        # OCR Warning Logic.
-        #
-        # Dette technique (19/08, todo/plan.md Partie 4bis): scope OCR check
-        # to the primary cited chunk (chunks[0]) instead of the whole batch.
         primary_chunk = chunks[0]
         primary_metadata = primary_chunk.get("metadata") or {}
         primary_type = primary_metadata.get("type", "")
@@ -400,28 +369,6 @@ def query_graph(
     last_route: Optional[str] = None,
     last_resolved_concept: Optional[dict] = None,
 ) -> AssistantResponse:
-    """
-    Public API to query the graph.
-    uid: Odoo user id for RBAC passthrough.
-    api_key: Odoo user API key / password for authenticated XML-RPC calls.
-    user_groups: real Odoo group ids of the requester, signed into the JWT
-    by the Odoo controller. Used to evaluate ir.rule record rules against
-    the actual requester, never guessed by the LLM, so Code Intelligence
-    explanations are gated by the real demandeur's rights (Bloc 7).
-    last_route: H1c (todo/plan.md, 2026-08-19) -- the previous turn's
-    QueryRoute value for this session, if the caller has one (typically
-    read from session_store by api/main.py). None on a session's first
-    turn. Consumed only by route()'s no-signal fallback branches for
-    sticky-routing -- see _sticky_route_or_default's docstring in this
-    module for the full rationale and scope.
-    last_resolved_concept: H1b-ii (todo/contexte.txt section 64/70,
-    2026-08-20) -- the previous turn's resolved_concept dict for this
-    session, if the caller has one (typically read from session_store by
-    api/main.py). None on a session's first turn. Consumed only by
-    route()'s _sticky_concept_or_resolve fallback when the current
-    question's own deterministic resolution fails -- see that function's
-    docstring in core/routing.py for the full rationale and scope.
-    """
     import time
     import json
     start_time = time.time()

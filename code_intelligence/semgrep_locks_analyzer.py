@@ -26,34 +26,12 @@ class PythonSecurityLockAnalysis:
     # Index-aligned with exception_messages -- see SecurityLockASTVisitor's
     # __init__ comment. Always the same length as exception_messages.
     exception_conditions: List[str] = field(default_factory=list)
-    # Index-aligned with exception_messages, same convention as
-    # exception_conditions. When the enclosing condition is (or starts
-    # with, as the first `and` operand) a bare truthiness check on a
-    # relational field/attribute -- e.g. `if rec.demande_achat_liee_id and
-    # rec.demande_achat_liee_id.montant_estime > 2000:` -- this holds the
-    # unparsed text of that guarding operand (e.g.
-    # "rec.demande_achat_liee_id"), else "". See
-    # _detect_link_guard_field's docstring for why this exists.
+
     exception_guard_fields: List[str] = field(default_factory=list)
     has_dynamic_dispatch: bool = False
     dynamic_dispatch_types: List[str] = field(default_factory=list)
     required_groups: List[str] = field(default_factory=list)
-    # Index-aligned with required_groups (2026-08-13 fix, native-odoo-out-
-    # of-scope check on sale.order): the name of the method enclosing the
-    # has_group() call that produced the corresponding entry in
-    # required_groups, or "" if the call sits outside any method (module
-    # level) or was only found by the line-level regex fallback (which has
-    # no control-flow structure to recover a method name from -- same
-    # convention as exception_conditions' regex-fallback padding above).
-    # Without this, required_groups was a flat, file-wide bag with no way
-    # to tell which method a given has_group() actually gates -- confirmed
-    # root cause of a real hallucination: sale_order.py's action_confirm()
-    # has no has_group() at all, but the file's only has_group() call (in
-    # the unrelated _should_be_locked(), which decides post-confirmation
-    # read-only locking, not who may confirm) got attributed to
-    # action_confirm() by the synthesis LLM, which also fabricated a
-    # nonexistent method name to go with it. See SecurityLockASTVisitor's
-    # _function_stack for how this is populated.
+ 
     required_group_methods: List[str] = field(default_factory=list)
     security_warnings: List[str] = field(default_factory=list)
     confidence: str = "high"
@@ -76,17 +54,7 @@ class SecurityLockASTVisitor(ast.NodeVisitor):
         self.filepath = filepath
         self.hardcoded_logins: List[str] = []
         self.exception_messages: List[str] = []
-        # Bloc 9 gap (module 5/8, custom_asset_loan, 2026-08-10): index-aligned
-        # with exception_messages -- the unparsed source of every `if` test
-        # enclosing the corresponding raise, outer to inner, joined with
-        # " and " (ALL must hold for the raise to trigger), or "" if the
-        # raise sits outside any `if`. Same pattern as _UnguardedSuperVisitor /
-        # _find_guarding_condition_for_helper_call in method_override_resolver.py
-        # (Module 1/8's fix for the analogous gap on `super()` calls) --
-        # without this, a purely conditional rule (e.g. "only applies if a
-        # linked purchase request exceeds 2000e") reaches the synthesis LLM
-        # as a bare message with no visible condition, and gets reasoned
-        # about as if it were unconditional (bloc9-05c-no-link-trap).
+
         self.exception_conditions: List[str] = []
         # Index-aligned with exception_messages -- see
         # PythonSecurityLockAnalysis.exception_guard_fields docstring.
@@ -97,11 +65,7 @@ class SecurityLockASTVisitor(ast.NodeVisitor):
         # PythonSecurityLockAnalysis.required_group_methods docstring.
         self.required_group_methods: List[str] = []
         self._if_test_stack: List[ast.expr] = []
-        # 2026-08-13 fix (native-odoo-out-of-scope check, sale.order):
-        # tracks the stack of enclosing def/async def names so a has_group()
-        # call can be attributed to the actual method it appears in, instead
-        # of being dumped into a flat, file-wide bag indistinguishable from
-        # has_group() calls in any other, unrelated method of the same file.
+
         self._function_stack: List[str] = []
 
     def visit_If(self, node: ast.If):
@@ -270,17 +234,6 @@ class SecurityLockASTVisitor(ast.NodeVisitor):
             if func_name not in self.dynamic_dispatches:
                 self.dynamic_dispatches.append(func_name)
 
-        # Bloc 9 gap (2026-08-10, bloc9-01a-business): a Python-level guard
-        # like `self.env.user.has_group('account.group_account_manager')`
-        # gates the raise right above it, but the technical group xmlid it
-        # checks was never extracted anywhere in the pipeline -- only the
-        # UserError/ValidationError message text was. A question asking
-        # WHO can approve something got the human-readable message
-        # ("un responsable comptable") but never the technical group
-        # identifier backing it, which is exactly what a governance answer
-        # needs to be actionable/citable. Detects `<expr>.has_group('xml.id')`
-        # regardless of the receiver expression (self.env.user, rec.create_uid,
-        # etc.) -- only the literal string argument is captured.
         if isinstance(node.func, ast.Attribute) and node.func.attr == "has_group":
             if node.args and isinstance(node.args[0], ast.Constant) and isinstance(node.args[0].value, str):
                 group_xmlid = node.args[0].value
@@ -342,10 +295,7 @@ def analyze_python_security_locks(code: str, filepath: str) -> PythonSecurityLoc
             raw_msg = match.group(1).strip("'\"")
             if raw_msg and raw_msg not in result.exception_messages:
                 result.exception_messages.append(raw_msg)
-                # Regex fallback can't recover the enclosing condition (no
-                # control-flow structure available from a flat pattern
-                # match) -- kept index-aligned with "" rather than left
-                # unset, same convention as the AST path.
+
                 result.exception_conditions.append("")
                 result.exception_guard_fields.append("")
 
@@ -353,11 +303,7 @@ def analyze_python_security_locks(code: str, filepath: str) -> PythonSecurityLoc
         for group_xmlid in _HAS_GROUP_PATTERN.findall(code):
             if group_xmlid not in result.required_groups:
                 result.required_groups.append(group_xmlid)
-                # Regex fallback can't recover the enclosing method (no
-                # control-flow/scope structure available from a flat
-                # pattern match) -- kept index-aligned with "", same
-                # convention as the exception_conditions regex fallback
-                # above.
+
                 result.required_group_methods.append("")
 
     # 3. Categorize findings
@@ -381,57 +327,24 @@ def analyze_python_security_locks(code: str, filepath: str) -> PythonSecurityLoc
     from code_intelligence.utils import format_file_link, SENSITIVE_BYPASS_MARKER
     line_count = max(1, len(code.splitlines()))
     file_link = format_file_link(filepath, 1, line_count)
-    # 2026-08-10 (Bloc 9 gap, module 7/8, bloc9-07 raw check): `result.confidence`
-    # is stored in English ("low"/"high") -- test_s2_5_semgrep_locks.py already
-    # asserts on that exact string, so the stored value itself must not change.
-    # But every OTHER low-confidence message in this codebase (the dynamic-
-    # dispatch inline warning right above, the override-chain warnings in
-    # method_override_resolver.py, etc.) renders "[Confiance: FAIBLE]" in
-    # French -- only this one header line fell back to a raw .upper() of the
-    # English value, producing the inconsistent "[Confiance: LOW]". "high"
-    # deliberately left as-is (translating it too is a separate, broader,
-    # out-of-scope change nothing currently expects or checks for).
+
     _confidence_label = "FAIBLE" if result.confidence == "low" else result.confidence.upper()
     lines = [f"Analyse des verrous Python ({file_link}) [Confiance: {_confidence_label}]:"]
     if result.has_hardcoded_logins:
-        # Bloc 7 (J23-24, revised): the ONLY line in this analyzer's output
-        # that describes an actual bypass (privileged access granted
-        # outside Odoo's normal ir.rule/ACL system) rather than ordinary
-        # governance/uncertainty info -- marked so authorization_gate.py
-        # redacts just this line for unprivileged requesters, not the
-        # whole analysis (which also covers legitimate approval-flow
-        # questions that must stay answerable for everyone).
+
         lines.append(f"  - {SENSITIVE_BYPASS_MARKER} Logins/Emails privilégies en dur: {result.hardcoded_logins}")
     if result.exception_messages:
         lines.append(f"  - Security lock messages (UserError/ValidationError):")
-        # exception_conditions/exception_guard_fields are index-aligned with
-        # exception_messages (see SecurityLockASTVisitor); pad defensively
-        # in case some caller ever builds a PythonSecurityLockAnalysis by
-        # hand without them, same discipline as the rest of this function
-        # never trusting shape.
+
         conditions = result.exception_conditions or [""] * len(result.exception_messages)
         guard_fields = result.exception_guard_fields or [""] * len(result.exception_messages)
         for msg, condition, guard_field in zip(result.exception_messages, conditions, guard_fields):
             if condition:
-                # Module 5/8 fix (2026-08-10): without this, a raise gated by
-                # an `if` (e.g. "only if a linked purchase request exceeds
-                # 2000e") reached the synthesis LLM as a bare, apparently
-                # unconditional message -- it then reasoned the rule always
-                # applies (bloc9-05c-no-link-trap), the exact inverse of the
-                # ground truth documented in that adversarial check script.
                 lines.append(f"    * \"{msg}\" (condition : {condition})")
             else:
                 lines.append(f"    * \"{msg}\"")
             if guard_field:
-                # Module 5/8 fix, part 2 (2026-08-10, bloc9-05c-no-link-trap):
-                # spelling out the short-circuit CONCLUSION explicitly and
-                # deterministically, rather than leaving the small synthesis
-                # LLM to derive it from the raw condition text -- a live run
-                # showed it misreading the short-circuit direction even with
-                # the condition quoted to it verbatim. Also machine-parseable
-                # by rag/graph.py's _backfill_link_guard_clarifications so
-                # the correct conclusion reaches the final answer
-                # unconditionally, independent of what the LLM said.
+
                 lines.append(
                     f"      [GARDE DE LIEN: si '{guard_field}' est vide/absent (aucun "
                     f"enregistrement lie), cette condition est FAUSSE par court-circuit "
@@ -441,19 +354,7 @@ def analyze_python_security_locks(code: str, filepath: str) -> PythonSecurityLoc
     if result.required_groups:
         groups_joined = ', '.join(result.required_groups)
         lines.append(f"  - Groupe(s) technique(s) requis detecte(s) (has_group): {groups_joined}")
-        # 2026-08-13 fix (native-odoo-out-of-scope check on sale.order):
-        # the aggregate line above is a flat, file-wide bag with no
-        # indication of which method each has_group() actually gates --
-        # a real run on sale_order.py attributed the file's ONLY
-        # has_group() (in _should_be_locked(), which governs post-
-        # confirmation read-only locking) to action_confirm() (which has
-        # none at all), and the synthesis LLM even fabricated a nonexistent
-        # method name to justify it. Deliberately kept as ADDITIONAL lines
-        # rather than rewriting the aggregate line itself: rag/graph.py's
-        # _REQUIRED_GROUP_LINE_RE backfill parses that exact line format
-        # and doesn't care about method attribution, so it must stay
-        # untouched -- these lines are purely to stop the small synthesis
-        # LLM from guessing which method a group belongs to.
+
         methods = result.required_group_methods or [""] * len(result.required_groups)
         for group_xmlid, method_name in zip(result.required_groups, methods):
             if method_name:

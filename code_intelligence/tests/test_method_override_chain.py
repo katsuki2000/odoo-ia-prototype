@@ -81,6 +81,27 @@ class AccountMove(models.Model):
         return super().action_valider_avoir()
 '''
 
+# Real shape found replaying custom_hr_leave_workflow.action_approve
+# (sections 139-141): the outer `if` body only computes a LOCAL variable
+# (`n2`) and conditionally `raise`s from a NESTED `if` with no `else` --
+# the last statement of the OUTER branch is that nested `if`, not a bare
+# Return/Raise, so the old last-statement-only check considered it
+# 'non-returning'. But the branch never writes any record field: either
+# it raises, or it silently does nothing, so an unconditional super() call
+# afterwards has no state to clobber. Must NOT be flagged.
+HR_LEAVE_SHAPE_SOURCE = '''
+class HrLeave(models.Model):
+    _inherit = 'hr.leave'
+
+    def action_approve(self):
+        for rec in self:
+            if rec.conge_urgence and rec.number_of_days > rec.employee_id.remaining_leaves:
+                n2 = rec.employee_id.parent_id.parent_id.user_id
+                if self.env.user != n2 and not self.env.user.has_group('hr_holidays.group_hr_holidays_manager'):
+                    raise ValidationError("blocked")
+        return super().action_approve()
+'''
+
 
 def test_detect_unguarded_super_flags_vip_shape():
     """The exact real-world bug shape: conditional branch falls through
@@ -109,6 +130,95 @@ def test_detect_unguarded_super_no_false_positive_when_branch_returns():
         GUARDED_SHAPE_SOURCE, "guarded.py", "action_valider_avoir", target_lineno=5, module="guarded_mod"
     )
     assert warning is None
+
+
+def test_detect_unguarded_super_no_false_positive_when_branch_only_raises_no_mutation():
+    """Real hr.leave.action_approve shape (sections 139-141): the outer
+    branch's last statement is a nested `if ... raise` with no `else`, not
+    a bare Return/Raise -- but the branch never writes any record field on
+    either path (raise, or fall through doing nothing), so it is not at
+    risk of being silently clobbered by the unconditional super() call
+    afterwards. Must not flag."""
+    warning = detect_unguarded_super(
+        HR_LEAVE_SHAPE_SOURCE, "hr_leave.py", "action_approve", target_lineno=5, module="custom_hr_leave_workflow"
+    )
+    assert warning is None
+
+
+# Real shape found replaying module 06 (custom_automation_traps) E2E
+# (section 151): a conditional inside `for x in own_expense_moves:`
+# mutates a record field (an ast.Attribute target, same shape as the real
+# VIP bug), but the super() call afterwards is NOT zero-arg -- it is the
+# explicit 2-arg form `super(Class, self - own_expense_moves)`, which
+# excludes the exact records the branch just mutated. This IS a valid
+# guard, just expressed as recordset subtraction instead of return/raise.
+# Must NOT be flagged.
+RECORDSET_SUBTRACTION_GUARD_SHAPE_SOURCE = '''
+class AccountMove(models.Model):
+    _inherit = "account.move"
+
+    def _compute_commercial_partner_id(self):
+        own_expense_moves = self.filtered(lambda move: move.sudo().expense_sheet_id.payment_mode == 'own_account')
+        for move in own_expense_moves:
+            if move.expense_sheet_id.payment_mode == 'own_account':
+                move.commercial_partner_id = move.partner_id
+        super(AccountMove, self - own_expense_moves)._compute_commercial_partner_id()
+'''
+
+
+def test_detect_unguarded_super_no_false_positive_when_super_excludes_mutated_recordset():
+    """Real hr_expense.AccountMove._compute_commercial_partner_id shape
+    (section 151): the branch mutates a record field with no return/raise
+    (same risky shape as VIP on its own), but the later super() call is
+    `super(Class, self - own_expense_moves)` -- explicitly excluding the
+    exact records the branch just mutated from what super() re-processes.
+    Must not flag."""
+    warning = detect_unguarded_super(
+        RECORDSET_SUBTRACTION_GUARD_SHAPE_SOURCE,
+        "account_move.py",
+        "_compute_commercial_partner_id",
+        target_lineno=5,
+        module="hr_expense",
+    )
+    assert warning is None
+
+
+# Same recordset-subtraction shape, but with a SECOND, genuinely unguarded
+# conditional elsewhere in the method (different loop variable, no
+# matching exclusion) -- confirms the guard is tracked per (conditional,
+# super-call) pairing, not globally: recognizing one guarded pairing must
+# not silently suppress a real, distinct bug in the same method.
+RECORDSET_SUBTRACTION_GUARD_WITH_UNRELATED_BUG_SOURCE = '''
+class AccountMove(models.Model):
+    _inherit = "account.move"
+
+    def _compute_commercial_partner_id(self):
+        own_expense_moves = self.filtered(lambda move: move.sudo().expense_sheet_id.payment_mode == 'own_account')
+        for move in own_expense_moves:
+            if move.expense_sheet_id.payment_mode == 'own_account':
+                move.commercial_partner_id = move.partner_id
+        for rec in self:
+            if rec.partner_id.avoir_vip_exempt:
+                rec.avoir_niveau_appro = 'n1'
+        super(AccountMove, self - own_expense_moves)._compute_commercial_partner_id()
+'''
+
+
+def test_detect_unguarded_super_still_flags_genuinely_unrelated_conditional():
+    """The recordset-subtraction guard must only suppress the ONE
+    conditional/super pairing it actually covers -- a second, unrelated
+    conditional (different loop var, `self` not excluded for it) in the
+    same method must still be flagged."""
+    warning = detect_unguarded_super(
+        RECORDSET_SUBTRACTION_GUARD_WITH_UNRELATED_BUG_SOURCE,
+        "account_move.py",
+        "_compute_commercial_partner_id",
+        target_lineno=5,
+        module="hr_expense",
+    )
+    assert warning is not None
+    assert "avoir_vip_exempt" in warning
+    assert "own_account" not in warning
 
 
 def test_execution_order_is_reverse_of_load_order():
@@ -200,6 +310,27 @@ def test_real_corpus_detects_actual_vip_exemption_bug():
     # regional module's super() call precedes its own conditional -- both
     # must stay unflagged (no false positives on the two correct modules).
     assert report.count("SUPER() NON GARD") == 1
+
+
+def test_real_corpus_hr_expense_commercial_partner_id_not_flagged():
+    """Real corpus, not just the synthetic shape above (section 151):
+    hr_expense.AccountMove._compute_commercial_partner_id mutates state
+    inside `for move in own_expense_moves:` with no return/raise, then
+    calls `super(AccountMove, self - own_expense_moves)`, excluding the
+    exact records just mutated -- a valid recordset-subtraction guard.
+    Must not be flagged against the actual native-Odoo file on disk."""
+    filepath = Path("/home/user/odoo-17.0/addons/hr_expense/models/account_move.py")
+    if not filepath.exists():
+        pytest.skip(f"Real file not found at {filepath} -- skipping live corpus test.")
+    source = filepath.read_text(encoding="utf-8")
+    warning = detect_unguarded_super(
+        source,
+        str(filepath),
+        "_compute_commercial_partner_id",
+        target_lineno=16,
+        module="hr_expense",
+    )
+    assert warning is None
 
 
 # ---------------------------------------------------------------------

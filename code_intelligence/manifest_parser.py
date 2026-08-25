@@ -108,49 +108,6 @@ def parse_manifest(manifest_path: Path) -> Optional[OdooManifest]:
         unloaded_data_files=sorted(unloaded_files),
     )
 
-
-# ── 2026-08-06 fix: core-module manifest gap (originally found against fake_data/code/) ──
-#
-# Root cause (found investigating a wrong method-override execution order on
-# account.move._reverse_moves): a handful of Odoo core addons (account, sale,
-# stock) were, at the time, simulated by a synthetic fake_data/code/ corpus
-# with no __manifest__.py -- rag/graph.py::_load_module() used to leave
-# manifest=None in that case, and cross_file_resolver.topological_sort_
-# modules()'s `if mod and mod.manifest:` guard then silently treated the
-# module as having NO dependencies at all -- it never called
-# mod.manifest.depends, it just appended the module to load_order wherever
-# the outer `for name in modules_dict` loop happened to encounter it (i.e.
-# filesystem iteration order, which is not guaranteed to be alphabetical and
-# is not a dependency order). No exception, no warning: `if mod and
-# mod.manifest` is `False` for `mod.manifest is None`, so the whole
-# dependency-following branch is simply skipped.
-#
-# 2026-08-12 update: the fake_data/code/ synthetic corpus has since been
-# removed entirely -- 'account'/'sale'/'stock' are now loaded directly from
-# the real Odoo 17 corpus (addons_root in rag/graph.py), which always ships
-# a real __manifest__.py for these, so the fallback path below is not
-# expected to fire against them in practice anymore. Kept as a defensive
-# fallback for any future manifest-less directory (or a run without
-# addons_root available) -- the mechanism and the MissingManifestError
-# fail-loudly behavior below remain correct and useful independent of which
-# corpus is in use.
-#
-# That corrupted load_order corrupts everything built from it downstream:
-# graph_builder.py accumulates each Method node's override_sites in load_order
-# sequence, and method_override_resolver.resolve_method_override_chain()
-# reverses that sequence assuming it's a real dependency order (Odoo's MRO:
-# the last-loaded/most-dependent module's override runs FIRST). Reversing an
-# order that was never a real dependency order in the first place produces a
-# wrong method-override execution order -- silently, with no error signal.
-#
-# Fix: never leave manifest=None for a module __load_module() is expected to
-# load. For the handful of well-known core modules below, synthesize a
-# manifest with hardcoded, stable, well-known Odoo dependencies (this is
-# standard/public Odoo knowledge, not a guess). For anything else missing a
-# manifest, _load_module() must raise MissingManifestError instead of
-# guessing -- see rag/graph.py.
-
-
 class MissingManifestError(Exception):
     """
     Raised by rag/graph.py::_load_module() when a module directory has no
@@ -165,20 +122,6 @@ class MissingManifestError(Exception):
     override-order bug this exception guards against.
     """
 
-
-# Scoped deliberately to the small, well-known set of core Odoo modules this
-# corpus has needed a fallback for historically -- this is NOT a general-
-# purpose Odoo dependency database. See rag/graph.py::_load_module(), which
-# only falls back to this mapping when a module has no __manifest__.py at
-# all; a real module with a real manifest (which 'account'/'sale'/'stock'
-# always have now, loaded from the real addons_root corpus) always uses its
-# own real `depends`, never this table.
-#
-# Dependencies below are the well-known, stable, public Odoo 17 `depends` for
-# these core addons (not inferred from this corpus, not a guess) -- a
-# dependency on a module absent from the loaded corpus is harmless
-# (topological_sort_modules already handles an unknown dependency name as a
-# leaf with a warning).
 KNOWN_CORE_MODULE_DEPENDS: Dict[str, List[str]] = {
     "account": ["base", "product", "mail", "portal", "analytic", "digest", "web"],
     "sale": ["account", "product", "stock", "mail", "portal", "utm", "digest"],

@@ -1,18 +1,3 @@
-"""
-code_intelligence/atomic_graph_swap.py
-
-Atomic Graph Swap & Storage Engine (Sprint F / Bloc 10 — J40):
-Guarantees zero-downtime, crash-safe, atomic graph swap on POSIX Linux systems.
-
-Strategy:
-1. Write JSON data to a unique temporary file `active.json.tmp.<uuid>` in the target directory.
-2. Force disk flush via `f.flush()` + `os.fsync(f.fileno())`.
-3. Perform atomic replacement via `os.replace(tmp_path, target_path)`.
-   On POSIX Linux, `os.replace` is guaranteed atomic at the kernel/VFS layer.
-   Concurrent readers opening `target_path` will ALWAYS read either the complete
-   previous version or the complete new version -- never a zero-byte or partial file.
-"""
-
 import json
 import os
 import tempfile

@@ -17,18 +17,20 @@ if not os.getenv("GROQ_API_KEY"):
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "groq")
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-# NOTE (2026-08-17): Groq deprecation of llama-3.1-8b-instant (announced
-# 2026-06-17) confirmed via web search this session -- migrated to Groq's
-# own recommended replacement, openai/gpt-oss-20b (MoE, 21B total/3.6B
-# active, tuned for agentic tool-calling, fits 16GB memory quantized --
-# matches this project's actual local-hardware budget for the eventual
-# Bloc 9bis Ollama target, chosen over Qwen3-14B this session specifically
-# because Qwen3-14B's OpenRouter free tier was ALSO found delisted (paid-
-# only, $0.10/$0.22 per M tokens) and the user has no budget right now --
-# see contexte.txt / todo/etat_reel.md for the full decision trail). Not
-# yet verified against a live call from this environment (no execution
-# access here either) -- first real confirmation is the pending user rerun
-# of scripts/check_bloc9_08_deep_inheritance_security_e2e.py.
+# NOTE (2026-08-25): tentative de retour vers llama-3.1-8b-instant testee
+# et abandonnee -- revert vers openai/gpt-oss-20b confirme (cf section 150
+# de contexte.txt). Voir NOTE 2026-08-17 juste en dessous pour le contexte
+# complet du choix de gpt-oss-20b.
+# NOTE (2026-08-17): Groq deprecation de llama-3.1-8b-instant (annonce
+# 2026-06-17) confirmee via recherche web cette session -- migre vers le
+# remplacement recommande par Groq, openai/gpt-oss-20b (MoE, 21B total/3.6B
+# actif, adapte au tool-calling agentique, tient dans 16GB quantifie --
+# correspond au budget materiel local reel de ce projet pour la cible
+# eventuelle Ollama Bloc 9bis, choisi plutot que Qwen3-14B cette session
+# specifiquement parce que le tier gratuit OpenRouter de Qwen3-14B a
+# EGALEMENT ete trouve retire (payant uniquement, $0.10/$0.22 par M
+# tokens) et l'utilisateur n'a pas de budget actuellement -- voir
+# contexte.txt / todo/etat_reel.md pour l'historique complet de decision).
 GROQ_MODEL   = "openai/gpt-oss-20b"
 
 # OpenRouter (2026-08-14): interim cloud step, originally scoped to

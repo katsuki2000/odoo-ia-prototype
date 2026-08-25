@@ -74,10 +74,10 @@ N'utilise jamais la confiance pour masquer une absence de preuve.
 
 Réponds TOUJOURS avec un JSON valide :
 
-{
+{{
   "answer": "...",
   "confidence": 0.0
-}
+}}
 
 # Contexte disponible
 

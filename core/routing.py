@@ -93,6 +93,29 @@ THRESHOLD_QUERY_TERMS = [
     "seuil d'approbation", "plafond", "dépasse-t-il", "depasse-t-il"
 ]
 
+# Bloc 9 gap (2026-08-25, todo/contexte.txt section 130, bloc9-04c/05c):
+# QUANTITATIVE_TERMS contains the bare word "montant", which was added for
+# genuine data-aggregation questions ("quel est le montant total...",
+# "montant moyen...", verified present on ERP-02/03/06/08/09/10/13 of
+# tests/benchmark_questions.json). But the SAME word also appears in a
+# structurally different, non-quantitative construction -- "quel que soit
+# son/le montant" ("regardless of the amount") -- which is a conditional/
+# governance clause about a business rule's SCOPE, not a request for a
+# numeric value. Confirmed live (contexte.txt section 130): both 04c and
+# 05c hit `has_quantitative` on "montant" alone, are shunted to
+# DONNEES_ERP before has_code_intel or the H4 AND-gate (_concept_suggests_
+# code_intelligence, further below) are ever evaluated, and the resulting
+# 0-hop ERP branch hallucinates fabricated Odoo Standard menus/sources.
+# None of the 7 ERP_KEYWORDS/QUANTITATIVE_TERMS-driven benchmark questions
+# above use this "quel que soit"/"quelle que soit" construction (verified
+# term by term against all 30 questions before adding this list), so this
+# exclusion can only ever redirect a decision that was already wrong for
+# this specific grammatical pattern -- same non-regression argument already
+# used for is_threshold_query and the H4 gate itself.
+CONDITIONAL_AMOUNT_TERMS = [
+    "quel que soit", "quelle que soit",
+]
+
 # Bug A / pattern H4 (2026-08-21, todo/contexte.txt sections 93/106/107):
 # consulted ONLY inside the two no-signal fallback branches of route() below
 # (never as a standalone branch, never with higher precedence than any of
@@ -148,6 +171,7 @@ DOC_KEYWORDS_FOLDED = _fold_keywords(DOC_KEYWORDS)
 DATA_TERMS_FOLDED = _fold_keywords(DATA_TERMS)
 DOC_ANCHORS_FOLDED = _fold_keywords(DOC_ANCHORS)
 THRESHOLD_QUERY_TERMS_FOLDED = _fold_keywords(THRESHOLD_QUERY_TERMS)
+CONDITIONAL_AMOUNT_TERMS_FOLDED = _fold_keywords(CONDITIONAL_AMOUNT_TERMS)
 GOVERNANCE_SIGNAL_TERMS_FOLDED = _fold_keywords(GOVERNANCE_SIGNAL_TERMS)
 
 
@@ -495,6 +519,11 @@ def route(state: RAGState) -> dict:
     has_erp = any(kw in question_folded for kw in ERP_KEYWORDS_FOLDED)
     has_quantitative = any(term in question_folded for term in QUANTITATIVE_TERMS_FOLDED)
     is_threshold_query = any(t in question_folded for t in THRESHOLD_QUERY_TERMS_FOLDED)
+    # 2026-08-25 (todo/contexte.txt section 130): see CONDITIONAL_AMOUNT_TERMS'
+    # own comment above -- "quel que soit le/son montant" is a governance-
+    # scope clause, not a request for a numeric value, and must not win
+    # DONNEES_ERP over has_code_intel/the H4 gate below.
+    is_conditional_amount_query = any(t in question_folded for t in CONDITIONAL_AMOUNT_TERMS_FOLDED)
 
     if has_doc_anchor:
         # User explicitly asks about documentation/wiki — documentaire wins
@@ -507,7 +536,7 @@ def route(state: RAGState) -> dict:
     elif is_hybrid:
         logger.info("Node [route]: Query is hybrid → HYBRIDE branch")
         route_decision = QueryRoute.HYBRIDE.value
-    elif has_quantitative and not is_threshold_query:
+    elif has_quantitative and not is_threshold_query and not is_conditional_amount_query:
         # Quantitative record count/sum lookup -> DONNEES_ERP wins over code_intel
         logger.info("Node [route]: Quantitative data query → DONNEES_ERP branch")
         route_decision = QueryRoute.DONNEES_ERP.value

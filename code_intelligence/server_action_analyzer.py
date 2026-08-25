@@ -357,26 +357,6 @@ def interpret_server_action_with_llm(
     analysis.llm_summary = summary
     analysis.llm_confidence = confidence
 
-    # Bloc 7 follow-up (2026-08-21, todo/contexte.txt section 90) : cette
-    # phrase de synthese est generee par le LLM a partir de
-    # analysis.security_warnings (qui contient les IDs/sudo en clair via
-    # _build_interpretation_prompt) -- le LLM peut reformuler librement ces
-    # faits en prose, echappant ainsi a la detection par marqueur litteral
-    # que authorization_gate.py::_redact_sensitive_bypass_lines applique
-    # ligne par ligne. Un run live (bloc9-06a-anonymous-masked, section 90)
-    # a confirme la fuite : "...pour trois fournisseurs codes en dur (IDs
-    # 42, 108, 231)..." dans le corps de la reponse, alors que le footer
-    # d'omission listait pourtant ces memes elements comme masques.
-    #
-    # Pas de detection regex sur le texte libre du LLM ici (une
-    # reformulation en prose echappe facilement a _SUDO_PATTERN/
-    # _HARDCODED_ID_LIST_PATTERN, qui ciblent une syntaxe de code, pas de
-    # la prose) -- le seul signal fiable est que l'analyse statique a DEJA
-    # trouve un bypass sur cette action (has_sudo/has_hardcoded_ids), donc
-    # toute interpretation LLM qui en decoule est per se sensible et taguee
-    # inconditionnellement, meme si son texte ne repete pas litteralement
-    # les valeurs. Fail-closed, meme discipline que le fix
-    # read_precise_source_code (section 89).
     from code_intelligence.utils import SENSITIVE_BYPASS_MARKER
     llm_tag = (
         f"{SENSITIVE_BYPASS_MARKER} "

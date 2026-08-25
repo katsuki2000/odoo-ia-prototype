@@ -705,7 +705,7 @@ class CodeIntelligenceAgentRunner:
                                         user_groups_json=tool_args.get("user_groups_json", "[]"),
                                     )
                                 except Exception as ve:
-                                    logger.error("evaluer_regles_raw computation failed: %s", ve)
+                                    logger.error("evaluate_rules_raw computation failed: %s", ve)
         
 
                             observation, omitted_list = gate_observation(

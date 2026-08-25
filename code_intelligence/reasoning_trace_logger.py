@@ -44,8 +44,10 @@ _logger = logging.getLogger(__name__)
 # J48: generic per-question hop-cap guardrail value used by reports/tests
 # that want to reference the budget without importing rag.graph directly.
 # The Code Intelligence branch enforces its own copy as CI_MAX_HOPS in
-# rag/graph.py (introduced J30-J31 / Bloc 8) -- kept in sync manually,
-# locked by test_j46_j48_reasoning_trace.py::test_hop_cap_matches_ci_max_hops.
+# code_intelligence/ci_helpers.py (introduced J30-J31 / Bloc 8) -- kept
+# in sync manually. No automated test currently guards this invariant
+# (the test that once did, test_j46_j48_reasoning_trace.py, no longer
+# exists in tests/) -- if CI_MAX_HOPS changes, update this constant too.
 MAX_HOPS_PER_QUESTION = 4
 
 

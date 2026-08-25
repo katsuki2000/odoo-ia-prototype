@@ -27,6 +27,8 @@ extra_cases = [
     "démande de congé",          # variante avec accent parasite, doit rester robuste
     "mise à disposition",        # multi-mots, ordre préservé
     "disposition à mise",        # ordre inversé -> ne doit PAS matcher static_alias (sinon alerte faux-positif)
+    "document Deep",             # bug (b) STATUT PARTIELLEMENT REFERME (Bloc 9) -- formulation informelle, doit résoudre vers custom.deep.document
+    "le document Deep",          # même bug, variante avec article -- confirme si le problème tient à la formulation exacte
 ]
 
 print("=== Standard Queries ===")

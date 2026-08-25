@@ -1,29 +1,5 @@
 #!/usr/bin/env python3
-"""
-scripts/report_llm_call_budget.py
 
-Bloc 12 / J48: LLM call budget report.
-
-Reads captures/reasoning_trace.jsonl (written by
-code_intelligence.reasoning_trace_logger.ReasoningTraceLogger from the
-three RAG branches -- documentaire / donnees_erp / code_intelligence) and
-produces:
-
-  1. A per-branch comparison of llm_call_count and hop_count (mean, max,
-     hop-cap-hit rate) -- the actual chiffrage required by J48, computed
-     from real recorded traffic rather than a guessed constant.
-  2. Optionally, the full post-hoc reasoning path (HOP-by-HOP) for one
-     specific trace_id -- the "dashboard/log exploitable pour une question
-     type" required by the Bloc 12 critere de fin.
-
-Usage:
-    python scripts/report_llm_call_budget.py
-    python scripts/report_llm_call_budget.py --trace-id abc123def456
-    python scripts/report_llm_call_budget.py --log-file /path/to/reasoning_trace.jsonl
-
-Outputs a Markdown report to todo/bloc12_llm_call_budget_report.md and
-prints the same summary to stdout.
-"""
 
 import argparse
 import statistics

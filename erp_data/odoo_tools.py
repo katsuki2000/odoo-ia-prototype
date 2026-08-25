@@ -566,14 +566,3 @@ def get_sale_details(client: str = "", statut: str = "toutes", limite: int = 0) 
     except Exception as e:
         return f"Erreur lors de la récupération des détails : {str(e)}"
 
-# --- Backward compatibility aliases ---
-obtenir_total_ventes = get_total_sales
-obtenir_stock_produit = get_product_stock
-obtenir_statut_commande = get_order_status
-obtenir_total_factures = get_total_invoices
-rechercher_client = search_partner
-obtenir_tickets_recents = get_recent_tickets
-lister_produits_en_rupture = list_out_of_stock_products
-obtenir_ca_periode = get_period_revenue
-obtenir_moyenne_ventes = get_average_sales
-obtenir_details_ventes = get_sale_details

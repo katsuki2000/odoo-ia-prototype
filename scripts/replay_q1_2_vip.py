@@ -1,20 +1,5 @@
 #!/usr/bin/env python3
-"""
-scripts/replay_q1_2_vip.py
 
-Rejeu isole de Q1.2 ("Qui a le droit d'approuver un avoir pour un client VIP ?"),
-le cas reel qui a revele le bug override_sites (Bloc 9, trace fb42dd5a1de2 --
-account.move._reverse_moves rapporte comme "2 modules" de facon suspecte /
-tronquee). Le fix (accumulation de tous les sites de surcharge au lieu d'un
-overwrite silencieux) est deja present dans graph_builder.py::
-_add_model_field_method_nodes -- ce script sert a verifier qu'il tient sur
-le cas reel, sans repayer tout le benchmark de 9 questions (couteux en TPM
-Groq) juste pour ce point.
-
-Usage:
-    cd /home/user/odoo-ia-prototype
-    python scripts/replay_q1_2_vip.py
-"""
 
 import sys
 from pathlib import Path
