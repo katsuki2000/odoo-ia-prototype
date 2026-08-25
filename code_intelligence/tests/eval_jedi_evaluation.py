@@ -43,7 +43,7 @@ def separator(title: str) -> str:
 
 
 def test_result(test_name: str, success: bool, details: str) -> dict:
-    status = "✅ PASS" if success else "❌ FAIL"
+    status = " PASS" if success else " FAIL"
     print(f"  {status}  {test_name}")
     if details:
         for line in details.strip().split("\n"):
@@ -385,7 +385,7 @@ def main():
         if not path.exists():
             print(f"  ⚠ Missing: {name} → {path}")
         else:
-            print(f"  ✓ Found: {name} ({path.stat().st_size:,} bytes)")
+            print(f"   Found: {name} ({path.stat().st_size:,} bytes)")
 
     results = []
 
@@ -417,13 +417,13 @@ def main():
     print("  ── What jedi handles (standard Python): ──")
     for r in results:
         if r["success"]:
-            print(f"     ✅ {r['test']}")
+            print(f"      {r['test']}")
 
     print()
     print("  ── What jedi CANNOT handle (needs custom AST visitor): ──")
     for r in results:
         if not r["success"]:
-            print(f"     ❌ {r['test']}")
+            print(f"      {r['test']}")
 
     # Save structured results
     output_path = Path(__file__).parent / "jedi_evaluation_results.json"

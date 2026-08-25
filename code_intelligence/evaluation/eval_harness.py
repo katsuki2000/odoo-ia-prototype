@@ -120,13 +120,6 @@ def run_evaluation() -> Dict[str, Any]:
         # Check for truncated completion
         is_truncated = "finish_reason: length" in answer_text.lower() or len(answer_text) >= 4000
 
-        results.append({
-            "id": tc_id,
-            "category": tc["category"],
-            "hops": tc["hops"],
-            "question": question,
-            "is_trick": is_trick,
-            "route_decision": route_decision,
         ci_effective = timing_info.get("ci_effective_time", round(exec_time, 3))
         ci_groq_wait = timing_info.get("ci_groq_wait_time", 0.0)
 
@@ -214,7 +207,7 @@ def _generate_markdown_report(summary: Dict[str, Any], dataset: Dict[str, Any]):
     report.append("|---|---|---|---|---|---|---|")
 
     for r in summary["results"]:
-        status_icon = "✅ PASS" if r["passed"] else "❌ FAIL"
+        status_icon = " PASS" if r["passed"] else " FAIL"
         report.append(
             f"| `{r['id']}` | `{r['category']}` | {r['question']} | `{r['route_decision']}` | {r['hop_count']} | {status_icon} | {r['exec_time_sec']}s |"
         )

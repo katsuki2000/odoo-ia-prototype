@@ -20,5 +20,5 @@ venv_miro/
 .DS_Store
 Thumbs.db
 # ChromaDB vector store artifacts -- regenerated locally, should never be versioned
-miro-rag/vectorstore/chroma_db/
+document_rag/vectorstore/chroma_db/
 captures/reasoning_trace.jsonl

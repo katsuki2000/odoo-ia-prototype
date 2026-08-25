@@ -145,7 +145,7 @@ def analyze_server_action_code(
                 f" Conditionné par: {'; '.join(result.trigger_conditions)}."
             )
         result.security_warnings.append(
-            f"⚠️ SUDO: L'action '{action_xml_id}' utilise sudo() ({len(sudo_matches)} appels). "
+            f" SUDO: L'action '{action_xml_id}' utilise sudo() ({len(sudo_matches)} appels). "
             f"Cela contourne les règles d'accès (ir.rule) et les ACL."
             f"{cond_clause} "
             f"[Confiance: FAIBLE - logique stockée en données XML]"
@@ -177,7 +177,7 @@ def analyze_server_action_code(
                         f" Conditionné par: {'; '.join(result.trigger_conditions)}."
                     )
                 result.security_warnings.append(
-                    f"⚠️ IDs EN DUR: L'action '{action_xml_id}' contient une liste d'IDs "
+                    f" IDs EN DUR: L'action '{action_xml_id}' contient une liste d'IDs "
                     f"codés en dur: {ids}. Ces enregistrements bénéficient d'un traitement "
                     f"spécial non documenté dans les modèles Python."
                     f"{cond_clause} "
@@ -196,7 +196,7 @@ def analyze_server_action_code(
             result.has_dynamic_dispatch = True
             result.dynamic_dispatch_patterns.append(name)
             result.security_warnings.append(
-                f"⚠️ DISPATCH DYNAMIQUE: L'action '{action_xml_id}' utilise {name}(). "
+                f" DISPATCH DYNAMIQUE: L'action '{action_xml_id}' utilise {name}(). "
                 f"Impossible de déterminer statiquement le comportement exact. "
                 f"[Confiance: FAIBLE - nécessite revue manuelle]"
             )

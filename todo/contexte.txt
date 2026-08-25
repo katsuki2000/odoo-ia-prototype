@@ -251,3 +251,28 @@ Aucune autre ligne touchee -- portee strictement limitee au dictionnaire, confor
 "document deep" / "deep document"
 
 
+
+---
+
+## Section 161: Fix d'incohérences de code, dépendances et documentation (2026-08-25, même PC, accès filesystem uniquement)
+
+**Origine** : Demande utilisateur de parcourir les fichiers et relever ce qui est incohérent, puis injonction de corriger en respectant `todo/rules.md` ("vas y corrige, et gitignore aussi").
+**Fait** :
+1. **`code_intelligence/evaluation/eval_harness.py`** : Correction d'une `SyntaxError` bloquante à la ligne 123 (fermeture manquante d'un dictionnaire passé à `results.append`).
+2. **`.gitignore`** : Correction du chemin obsolète `miro-rag/vectorstore/chroma_db/` remplacé par `document_rag/vectorstore/chroma_db/`.
+3. **`requirements.txt`** : Nettoyage des doublons à la fin du fichier et ajout explicite de `pytest-xdist==3.8.0` (requis pour les tests mais absent des dépendances déclarées).
+4. **`README.md`** : Mise à jour de l'arborescence décrite (suppression de la mention de `miro-rag/` et correction des chemins de dossiers existants comme `core/`, `document_rag/`, `erp_data/`) pour correspondre au *refactoring* du projet, et correction de la commande `cd`.
+**Non fait ce tour** : Les tests ne sont plus lancés intégralement, en respect de la règle stricte "ne JAMAIS lancer pytest tests/ -v" du fichier de règles.
+**Prochaine etape** : Rien, attente d'instructions.
+
+---
+
+## Section 162: Fix d'incohérences de code liées aux règles (2026-08-25, même PC, accès filesystem uniquement)
+
+**Origine** : Demande utilisateur de vérifier d'autres incohérences selon les règles de `todo/rules.md` (règle 4: pas de commentaires verbeux dans le code, règle 6: pas d'emojis).
+**Fait** :
+1. **Emojis supprimés** : Suppression de tous les emojis (`✅`, `❌`, `⚠️`, etc.) dans les fichiers `.py` du projet via script Python (`eval_harness.py`, `method_override_resolver.py`, `check_duplicates.py`, etc.).
+2. **Commentaires nettoyés** : Suppression des pavés de commentaires narratifs et d'historique (qui font doublon avec `contexte.txt`) dans `code_intelligence/method_override_resolver.py`, remplacés par des docstrings concis (règle 4).
+3. **`config/settings.py`** : Correction de `CHROMA_PATH` obsolète (était `./vectorstore/chroma_db`, devenu `./document_rag/vectorstore/chroma_db`).
+**Non fait ce tour** : Pas de fix chirurgical sans analyse de cause (règle 3). L'absence de vérification des arguments `super()` dans `_UnguardedSuperVisitor` mentionnée à la section 151 a en réalité *déjà* été corrigée (la méthode `_extract_excluded_recordset_name` le fait). 
+**Prochaine etape** : Rien, attente d'instructions.

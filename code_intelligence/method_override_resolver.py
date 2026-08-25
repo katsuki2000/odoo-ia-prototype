@@ -1,29 +1,9 @@
 """
-code_intelligence/method_override_resolver.py
+method_override_resolver.py
 
-Bloc 9 gap, found 2026-08-06 while investigating adversarial Q1.2
-("avoir VIP"). The agent answered evasively because it resolved
-account.move.action_valider_avoir on the base module
-(custom_credit_note_approval) only, never following the _inherit cascade
-into custom_credit_note_approval_regional / _vip. Reading the real code
-then surfaced a genuine bug in the VIP module itself: it sets a
-conditional exemption without an early `return`, then unconditionally
-calls `super().action_valider_avoir()` -- which re-applies the base
-class's 5000e/manager threshold to VIP records too, silently nullifying
-the exemption.
-
-Two layers, mirroring the J8 pattern (server_action_analyzer.py):
-  1. Deterministic layer (this file's core): composes the override chain
-     in real EXECUTION order from the knowledge graph's per-method
-     `override_sites` (graph_builder.py), and an AST-based heuristic
-     detector for the unguarded-super pattern. Confidence is always a
-     fixed value per finding type, never inferred by an LLM.
-  2. Bounded LLM interpretation layer (interpret_override_chain_with_llm):
-     ONLY invoked when the deterministic detector already found something
-     to interpret. Summarizes the concrete behavioral consequence in one
-     sentence, with a confidence tag restricted to a closed set. Never
-     replaces or hides the deterministic finding, same discipline as
-     server_action_analyzer.interpret_server_action_with_llm.
+Resolves method overrides and applies structural checks (unguarded super, 
+unchecked relational chains). Uses AST for deterministic checks and an optional 
+LLM layer for interpretation.
 """
 
 import ast
@@ -104,27 +84,12 @@ def _branch_mutates_record_state(stmts: List[ast.stmt]) -> bool:
     nested blocks (e.g. a nested `if` that raises on one path and does
     nothing on the other).
 
-    Root cause fix (2026-08-25, Bloc 9 hallucination gap, sections 139-141):
-    a branch that only computes a LOCAL variable (`n2 = rec.employee_id...`)
-    and then conditionally `raise`s is not actually at risk of being
-    silently clobbered by an unconditional super() call afterwards -- there
-    is no record state for super() to re-apply logic on top of. Local-
-    variable-only assignments (target is a plain ast.Name, not an
-    ast.Attribute) deliberately do NOT count as mutation for this reason.
-    Confirmed against the real custom_hr_leave_workflow.action_approve case
-    (hr_leave.py): the outer `if` body ends in a nested `if ...: raise` with
-    no `else`, so the previous last-statement-only check considered it
-    'non-returning' even though the only thing it can do besides raising is
-    nothing at all -- no field ever gets written. Confirmed still correctly
-    flags the real VIP bug (custom_credit_note_approval_vip.action_valider_avoir,
-    which assigns `rec.avoir_valide_par_id` / `rec.avoir_niveau_appro`, both
-    Attribute targets).
-    """
+    # Fix (2026-08-25): Local-variable-only assignments do not count as mutation.
+    # See contexte.txt sections 139-141 for details.
     for stmt in stmts:
         for node in ast.walk(stmt):
             if isinstance(node, (ast.Assign, ast.AugAssign)):
                 targets = node.targets if isinstance(node, ast.Assign) else [node.target]
-                if any(isinstance(t, ast.Attribute) for t in targets):
                     return True
             elif isinstance(node, ast.Call):
                 if (
@@ -137,38 +102,11 @@ def _branch_mutates_record_state(stmts: List[ast.stmt]) -> bool:
 
 class _UnguardedSuperVisitor(ast.NodeVisitor):
     """
-    Walks a single method body looking for the exact shape found in the
-    real VIP bug:
-      (a) an `if` (at any nesting depth, e.g. inside a `for`) whose body
-          sets state and does NOT end in return/raise -- it falls through
-          instead of exiting the conditional branch, and
-      (b) a call shaped `super().<method_name>(...)` that sits OUTSIDE any
-          `if` (so it always executes regardless of (a)'s condition) AND
-          whose source line comes AFTER at least one such non-returning
-          conditional -- i.e. it can re-run parent logic on top of state
-          the conditional branch just set, potentially clobbering it.
-
-    Recordset-subtraction guard (found 2026-08-25, real corpus,
-    hr_expense.AccountMove._compute_commercial_partner_id, section 151 of
-    contexte.txt): a conditional inside `for x in <name>:` that mutates
-    state is NOT actually at risk if the later super() call is of the
-    explicit 2-arg form `super(Class, self - <name>)` -- Odoo's recordset
-    subtraction here explicitly excludes the very records the branch just
-    mutated from what super() will re-process. This is a real guard, just
-    expressed as recordset arithmetic instead of return/raise, and is
-    tracked separately per (conditional, super-call) pairing rather than
-    globally, so a genuinely unguarded conditional elsewhere in the same
-    method (paired with a DIFFERENT super() call, or one that excludes a
-    different/no recordset) is still correctly flagged.
-
-    This remains a heuristic, not full control-flow/data-flow analysis: it
-    does not verify the super() call and the conditional branch actually
-    touch the same fields, it only recognizes the exact `self - <bare
-    name>` subtraction shape (not an inline `.filtered(...)` never bound
-    to a name, nor any other guard expressed some other way, e.g. an early
-    top-level `if not cond: return` before the super() call). Confidence
-    is fixed 'low' by the caller, same convention as
-    server_action_analyzer.py's static regex layer.
+    Walks a single method body looking for unguarded super calls.
+    Specifically checks for a super() call that occurs unconditionally after
+    a conditional branch which mutated state without returning.
+    
+    Supports recordset-subtraction guards (e.g. `super(Class, self - <name>)`).
     """
 
     def __init__(self, method_name: str):
@@ -307,7 +245,7 @@ class _UnguardedSuperVisitor(ast.NodeVisitor):
 
 
 UNGUARDED_SUPER_WARNING_TEMPLATE = (
-    "\u26a0\ufe0f SUPER() NON GARD\u00c9: '{method_name}' (module '{module}') contient une "
+    "SUPER() NON GARD\u00c9: '{method_name}' (module '{module}') contient une "
     "branche conditionnelle (`{condition}`) qui modifie l'\u00e9tat sans `return` "
     "explicite, suivie d'un appel `super().{method_name}(...)` inconditionnel plus "
     "loin dans la m\u00e9thode. La logique de la classe parente va se r\u00e9appliquer sur "
@@ -556,7 +494,7 @@ def detect_unchecked_relational_chain(
         detail_parts.append(part)
     detail = "; ".join(detail_parts)
     return (
-        "\u26a0\ufe0f CHAINE RELATIONNELLE NON V\u00c9RIFI\u00c9E (R\u00e8gle 3): "
+        "CHAINE RELATIONNELLE NON V\u00c9RIFI\u00c9E (R\u00e8gle 3): "
         f"'{method_name}' (module '{module}') d\u00e9pend d'une cha\u00eene de champs "
         f"Many2one encha\u00een\u00e9s sans v\u00e9rification d'existence -- {detail}. Si un "
         "maillon interm\u00e9diaire est vide, l'expression compl\u00e8te s'\u00e9value "

@@ -82,9 +82,9 @@ def test_routing_accuracy():
     print(f"\nAccuracy: {correct}/{total} ({accuracy:.1f}%)")
     
     if accuracy >= 90.0:
-        print("✅ Target achieved (>= 90%)")
+        print(" Target achieved (>= 90%)")
     else:
-        print("❌ Target missed (< 90%)")
+        print(" Target missed (< 90%)")
 
 if __name__ == "__main__":
     test_routing_accuracy()

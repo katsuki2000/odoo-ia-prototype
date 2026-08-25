@@ -154,7 +154,7 @@ def evaluate_recall(
             "time_ms": round(elapsed * 1000),
         })
 
-        status = "✅" if hit else "❌"
+        status = "" if hit else ""
         logger.info(
             "Q%d %s [%s] (%.0fms): %s",
             i + 1, status, q_type, elapsed * 1000, question_text[:60]
@@ -215,7 +215,7 @@ def generate_report(results: dict, config: dict) -> str:
     for qtype, recall in results["recall_by_type"].items():
         count = len([d for d in results["detailed"] if d["type"] == qtype])
         if count > 0:
-            status = "✅" if recall >= 0.8 else "⚠️"
+            status = "" if recall >= 0.8 else ""
             lines.append(f"| {qtype} | {status} {recall:.1%} | {count} |")
 
     lines.extend([
@@ -233,7 +233,7 @@ def generate_report(results: dict, config: dict) -> str:
     ])
 
     for d in results["detailed"]:
-        status = "✅" if d["hit"] else "❌"
+        status = "" if d["hit"] else ""
         lines.append(
             f"| {d['index']} | {d['type']} | {status} | {d['time_ms']}ms | {d['question']} |"
         )
@@ -254,10 +254,10 @@ def generate_report(results: dict, config: dict) -> str:
     code_recall = results["recall_by_type"].get("code", 0)
 
     if doc_recall >= 0.8 and code_recall >= 0.8:
-        lines.append("**Decision**: ✅ Keep single collection — both doc and code recall are adequate.")
+        lines.append("**Decision**:  Keep single collection — both doc and code recall are adequate.")
     elif abs(doc_recall - code_recall) > 0.3:
         lines.append(
-            f"**Decision**: ⚠️ Consider splitting — doc recall ({doc_recall:.1%}) vs "
+            f"**Decision**:  Consider splitting — doc recall ({doc_recall:.1%}) vs "
             f"code recall ({code_recall:.1%}) shows significant gap."
         )
     else:
@@ -328,7 +328,7 @@ def main():
     print("\n" + "=" * 60)
     print(f"  recall@5 = {results['overall_recall_at_k']:.1%}")
     target_met = results["overall_recall_at_k"] >= 0.8
-    print(f"  Target (≥ 80%): {'✅ MET' if target_met else '❌ NOT MET'}")
+    print(f"  Target (≥ 80%): {' MET' if target_met else ' NOT MET'}")
     print("=" * 60)
 
     return 0 if target_met else 1

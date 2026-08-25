@@ -33,7 +33,7 @@ def authenticate_manager(connector: OdooConnector) -> int:
         raise RuntimeError(f"Échec d'authentification pour {MANAGER_LOGIN}")
     odoo_uid_ctx.set(uid)
     odoo_api_key_ctx.set(MANAGER_PASSWORD)
-    print(f"✅ Authentifié en tant que {MANAGER_LOGIN} — UID: {uid}\n")
+    print(f" Authentifié en tant que {MANAGER_LOGIN} — UID: {uid}\n")
     return uid
 
 

@@ -107,22 +107,22 @@ def main():
     print("=" * 100)
 
     if alias_shadowed:
-        print(f"\n⚠️  {len(alias_shadowed)} requête(s) où le fuzzy-matching a produit un résultat "
+        print(f"\n  {len(alias_shadowed)} requête(s) où le fuzzy-matching a produit un résultat "
               f"SANS RAPPORT avec ce que la table d'alias aurait donné (court-circuit potentiel) :")
         for q, fz, al in alias_shadowed:
             print(f"  - {q!r}")
             print(f"      fuzzy -> {fz}")
             print(f"      alias attendait -> {al}")
     else:
-        print("\n✅ Aucun cas où le fuzzy-matching masque un résultat d'alias sans rapport.")
+        print("\n Aucun cas où le fuzzy-matching masque un résultat d'alias sans rapport.")
 
     if mismatches:
-        print(f"\n⚠️  {len(mismatches)} requête(s) où le résultat final NE CONTIENT PAS "
+        print(f"\n  {len(mismatches)} requête(s) où le résultat final NE CONTIENT PAS "
               f"la cible attendue par la table d'alias :")
         for q, expected, got in mismatches:
             print(f"  - {q!r} : attendu {expected}, obtenu {got}")
     else:
-        print("\n✅ Toutes les requêtes avec alias connu résolvent vers la bonne cible en sortie finale.")
+        print("\n Toutes les requêtes avec alias connu résolvent vers la bonne cible en sortie finale.")
 
     print()
 

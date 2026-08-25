@@ -150,11 +150,6 @@ xxhash==3.8.1
 yarl==1.24.2
 zstandard==0.25.0
 pytest-cov==4.1.0
-rank-bm25
-sentence-transformers
-langchain-groq
-langgraph
-langchain
-PyJWT
+pytest-xdist==3.8.0
 rapidfuzz
 semgrep

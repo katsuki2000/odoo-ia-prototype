@@ -117,7 +117,7 @@ def run_j36_llm_evaluation():
         if is_passed:
             passed += 1
 
-        status_icon = "✅" if is_passed else "❌"
+        status_icon = "" if is_passed else ""
         logger.info("  %s %s — matched %d/%d keywords — %.2fs — confidence=%.2f",
                      status_icon, tc_id, len(matched), len(keywords), exec_time, confidence)
 
@@ -157,7 +157,7 @@ def run_j36_llm_evaluation():
     report.append("|---|---|---|---|---|---|---|")
 
     for r in results:
-        status = "✅ PASS" if r["passed"] else "❌ FAIL"
+        status = " PASS" if r["passed"] else " FAIL"
         kw_str = f"{len(r['matched_keywords'])}/{r['total_keywords']}"
         report.append(
             f"| `{r['id']}` | {r['question'][:60]}... | `{r['route']}` | {kw_str} | {r['exec_time_sec']}s | {r['confidence']} | {status} |"
@@ -166,7 +166,7 @@ def run_j36_llm_evaluation():
     report.append("\n---\n")
     report.append("## Extraits des Réponses LLM\n")
     for r in results:
-        status = "✅" if r["passed"] else "❌"
+        status = "" if r["passed"] else ""
         report.append(f"### {status} {r['id']}: {r['question'][:80]}\n")
         report.append(f"**Route** : `{r['route']}` | **Temps** : {r['exec_time_sec']}s | **Confiance** : {r['confidence']}\n")
         report.append(f"> {r['answer_snippet'][:500]}\n")

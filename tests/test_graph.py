@@ -337,9 +337,9 @@ _REAL_OVERRIDE_CHAIN_RAW_TEXT = (
     "Chaîne de surcharge de 'account.move.action_valider_avoir' (3 modules, "
     "ordre d'exécution réel, pas l'ordre de dépendance):\n"
     "  1. module 'custom_credit_note_approval_vip' -- [account_move.py:L7-L14]\n"
-    "     ⚠️ SUPER() NON GARDÉ: ...\n"
+    "      SUPER() NON GARDÉ: ...\n"
     "  2. module 'custom_credit_note_approval_regional' -- [account_move.py:L9-L15]\n"
-    "     ⚠️ CHAINE RELATIONNELLE NON VÉRIFIÉE (Règle 3): 'action_valider_avoir' "
+    "      CHAINE RELATIONNELLE NON VÉRIFIÉE (Règle 3): 'action_valider_avoir' "
     "dépend d'une chaîne de champs Many2one enchaînés sans vérification "
     "d'existence -- _get_directeur_regional() L20: "
     "`env.user.employee_id.parent_id.parent_id.user_id` "
@@ -1381,7 +1381,7 @@ class TestFlagUngroundedGroupXmlids:
             "valider ce document au-delà de 60 000€."
         )
         result = _flag_ungrounded_group_xmlids(answer, _REAL_CREDIT_NOTE_SECURITY_LOCK_RAW_TEXT)
-        assert "⚠️" in result
+        assert "GROUPE(S) NON VÉRIFIÉ(S)" in result
         assert "sale.group_manager" in result
         # Original prose preserved verbatim -- flagged, never edited/removed.
         assert answer in result
@@ -1430,7 +1430,7 @@ class TestFlagUngroundedGroupXmlids:
         result = _flag_ungrounded_group_xmlids(answer, _REAL_SECURITY_LOCK_RAW_TEXT)
         assert "base.group_system" in result
         # The flagged list must not also name the genuinely grounded group.
-        warning_start = result.index("⚠️")
+        warning_start = result.index("GROUPE(S) NON VÉRIFIÉ(S)")
         assert "purchase.group_purchase_manager" not in result[warning_start:]
 
     def test_never_strips_or_edits_original_answer_text(self):

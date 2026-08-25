@@ -298,7 +298,7 @@ def format_output(state: RAGState) -> dict:
         )
         if has_low_ocr:
             response.ocr_warning = True
-            response.answer += "\n\n⚠️ *Cette information provient d'un document numérisé dont la qualité de lecture est limitée.*"
+            response.answer += "\n\n *Cette information provient d'un document numérisé dont la qualité de lecture est limitée.*"
 
         # Populate sources from chunks if not already set (documentary branch)
         if not response.sources:

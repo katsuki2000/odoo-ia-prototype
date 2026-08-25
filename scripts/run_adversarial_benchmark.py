@@ -247,7 +247,7 @@ def run_benchmark():
         f"| Métrique | Temps Effectif (Algorithmique) | Budget Target | Statut |",
         f"|---|---|---|---|",
         f"| **p50 (Médiane)** | `{p50}s` | — | — |",
-        f"| **p90 (90e Percentile)** | `{p90}s` | `{LATENCY_BUDGET_P90_SECONDS}s` | {'✅ RESPECTÉ' if budget_met else '❌ DÉPASSÉ'} |",
+        f"| **p90 (90e Percentile)** | `{p90}s` | `{LATENCY_BUDGET_P90_SECONDS}s` | {' RESPECTÉ' if budget_met else ' DÉPASSÉ'} |",
         f"| **p95 (95e Percentile)** | `{p95}s` | — | — |",
         f"| **Moyenne** | `{mean_lat}s` | — | — |",
         f"| **Max** | `{max_lat}s` | — | — |",

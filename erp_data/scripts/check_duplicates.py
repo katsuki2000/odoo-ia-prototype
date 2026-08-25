@@ -39,7 +39,7 @@ def authenticate_manager(connector: OdooConnector) -> int:
 
     odoo_uid_ctx.set(uid)
     odoo_api_key_ctx.set(MANAGER_PASSWORD)
-    print(f"✅ Authentifié en tant que {MANAGER_LOGIN} — UID: {uid}\n")
+    print(f" Authentifié en tant que {MANAGER_LOGIN} — UID: {uid}\n")
     return uid
 
 
@@ -61,11 +61,11 @@ def check_sale_orders(connector, uid):
     duplicates = {ref: count for ref, count in counts.items() if count > 1}
 
     if duplicates:
-        print(f"⚠️  Références en double trouvées : {len(duplicates)}")
+        print(f"  Références en double trouvées : {len(duplicates)}")
         for ref, count in sorted(duplicates.items()):
             print(f"    {ref} : {count} occurrences")
     else:
-        print("✅ Aucun doublon de référence trouvé")
+        print(" Aucun doublon de référence trouvé")
 
     total_all = sum(o["amount_total"] for o in orders)
     print(f"\nMontant total (toutes commandes visibles) : {total_all:,.0f} Ar")
@@ -102,11 +102,11 @@ def check_invoices(connector, uid):
     duplicates = {ref: count for ref, count in counts.items() if count > 1}
 
     if duplicates:
-        print(f"⚠️  Origines en double trouvées : {len(duplicates)}")
+        print(f"  Origines en double trouvées : {len(duplicates)}")
         for ref, count in sorted(duplicates.items()):
             print(f"    {ref} : {count} occurrences")
     else:
-        print("✅ Aucun doublon de facture trouvé")
+        print(" Aucun doublon de facture trouvé")
 
     payment_states = Counter(i["payment_state"] for i in invoices)
     print(f"Répartition par statut de paiement : {dict(payment_states)}")
@@ -151,9 +151,9 @@ def check_partner_dupes(connector, uid):
     names = Counter(p["name"] for p in partners)
     duplicates = {name: count for name, count in names.items() if count > 1}
     if duplicates:
-        print(f"⚠️  Clients en double : {duplicates}")
+        print(f"  Clients en double : {duplicates}")
     else:
-        print(f"✅ {len(partners)} clients, aucun doublon de nom")
+        print(f" {len(partners)} clients, aucun doublon de nom")
 
 
 if __name__ == "__main__":
@@ -169,10 +169,10 @@ if __name__ == "__main__":
     print("RÉSUMÉ")
     print("=" * 60)
     if not order_dups and not invoice_dups:
-        print("✅ Aucun doublon de référence détecté — le facteur ~5.7× observé "
+        print(" Aucun doublon de référence détecté — le facteur ~5.7× observé "
               "vient d'ailleurs (logique des outils, agrégation, ou périmètre société).")
         print("   Comparez le 'Montant total Dupont' ci-dessus à la valeur attendue "
               "(12 260 000 Ar) pour voir si le total brut de la base est déjà faux, "
               "ou si le problème est dans l'outil obtenir_total_ventes.")
     else:
-        print("⚠️  Doublons confirmés — nettoyage de la base recommandé.")
+        print("  Doublons confirmés — nettoyage de la base recommandé.")

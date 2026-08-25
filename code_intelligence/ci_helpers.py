@@ -438,7 +438,7 @@ def _flag_ungrounded_group_xmlids(final_answer: str, raw_tool_output: str) -> st
     )
     return (
         final_answer
-        + f"\n\n⚠️ GROUPE(S) NON VÉRIFIÉ(S) : {group_list} mentionné(s) dans la réponse "
+        + f"\n\n GROUPE(S) NON VÉRIFIÉ(S) : {group_list} mentionné(s) dans la réponse "
         f"sans correspondance has_group() dans les données produites pour cette question. "
         f"Ne pas considérer ce(s) groupe(s) comme confirmé(s) sans vérification manuelle."
     )

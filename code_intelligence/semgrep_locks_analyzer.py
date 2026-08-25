@@ -310,7 +310,7 @@ def analyze_python_security_locks(code: str, filepath: str) -> PythonSecurityLoc
     if result.hardcoded_logins:
         result.has_hardcoded_logins = True
         result.security_warnings.append(
-            f"⚠️ LOGINS/EMAILS EN DUR: Fichier '{filepath}' contient des adresses privilégies "
+            f" LOGINS/EMAILS EN DUR: Fichier '{filepath}' contient des adresses privilégies "
             f"codées en dur: {result.hardcoded_logins}. Contourne le système de droits standard Odoo."
         )
 
@@ -318,7 +318,7 @@ def analyze_python_security_locks(code: str, filepath: str) -> PythonSecurityLoc
         result.has_dynamic_dispatch = True
         result.confidence = "low"
         result.security_warnings.append(
-            f"⚠️ DISPATCH DYNAMIQUE: Fichier '{filepath}' utilise {', '.join(result.dynamic_dispatch_types)}(). "
+            f" DISPATCH DYNAMIQUE: Fichier '{filepath}' utilise {', '.join(result.dynamic_dispatch_types)}(). "
             f"La logique d'exécution exacte dépend de paramètres dynamiques et ne peut pas être "
             f"classifiée statiquement avec certitude. [Confiance: FAIBLE]"
         )

@@ -20,23 +20,20 @@ MIRO RAG is an intelligent AI assistant connected in real time to an Odoo ERP da
 ## Repository Structure
 
 ```
-miro-rag/
-├── rag/
-│   ├── graph.py               # LangGraph multi-agent routing workflow
-│   └── vectorstore/           # Hybrid ChromaDB + BM25 vector index
-├── tools/
-│   ├── odoo_connector.py      # Odoo XML-RPC connection wrapper
-│   ├── odoo_tools.py          # English self-describing tool definitions
-│   ├── full_setup.py          # One-click Odoo database setup script
-│   └── ingest_fake_data.py    # Seed data loader for sales, stock, and tickets
-├── tests/
-│   ├── benchmark_questions.json # 15 standard ERP evaluation questions
-│   └── test_erp_accuracy.py    # Benchmark test runner
-├── captures/
-│   └── erp_accuracy_report.md  # Benchmark accuracy report output
-├── fake_data/                  # JSON seed datasets (sales, stock, tickets)
-├── texte_fr/                   # Documentation markdown files for vector RAG
-└── contexte.txt                # System modification log tracking all changes
+odoo-ia-prototype/
+├── api/                        # FastAPI endpoints
+├── captures/                   # Test captures and reports
+├── code_intelligence/          # Code extraction and LLM interpretation
+├── config/                     # Settings and environment handling
+├── core/                       # Core LangGraph (graph.py) and routing logic
+├── document_rag/               # Vector store and RAG ingestion
+│   ├── fake_data/              # JSON seed datasets
+│   └── vectorstore/            # Hybrid ChromaDB + BM25 vector index
+├── erp_data/                   # Odoo XML-RPC tools (odoo_tools.py, odoo_connector.py)
+├── scripts/                    # Maintenance and e2e scripts
+├── tests/                      # Pytest suite
+├── todo/                       # Modification logs (contexte.txt) and rules
+└── tools/                      # General utilities (full_setup.py, clean_demo_data.py)
 ```
 
 ---
@@ -47,7 +44,7 @@ miro-rag/
 Execute the consolidated setup script to reset the single-company environment (`Company Alpha`), configure the Sales journal (`SJA`), create the manager account (`manager@miro.com`), configure income accounts, and import seed data:
 
 ```bash
-cd ~/odoo-ia-prototype/miro-rag
+cd ~/odoo-ia-prototype
 python3 tools/full_setup.py
 ```
 

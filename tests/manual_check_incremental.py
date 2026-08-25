@@ -76,22 +76,22 @@ def test_modification(manager, target_file: Path, label: str) -> bool:
 
         ok = True
         if source_str in result["updated_files"]:
-            print(f"    ✅ {target_file.name} détecté comme modifié")
+            print(f"     {target_file.name} détecté comme modifié")
         else:
-            print(f"    ❌ {target_file.name} PAS détecté comme modifié")
+            print(f"     {target_file.name} PAS détecté comme modifié")
             ok = False
 
         others = [f for f in result["updated_files"] if f != source_str]
         if not others:
-            print("    ✅ Aucun autre fichier affecté")
+            print("     Aucun autre fichier affecté")
         else:
-            print(f"    ❌ Fichiers inattendus mis à jour : {others}")
+            print(f"     Fichiers inattendus mis à jour : {others}")
             ok = False
 
         if hashes_before != hashes_after:
-            print(f"    ✅ Hashes modifiés ({len(hashes_before)} → {len(hashes_after)} chunks)")
+            print(f"     Hashes modifiés ({len(hashes_before)} → {len(hashes_after)} chunks)")
         else:
-            print("    ❌ Hashes inchangés")
+            print("     Hashes inchangés")
             ok = False
 
         return ok
@@ -116,15 +116,15 @@ def test_addition() -> bool:
 
         ok = True
         if source_str in result["added_files"]:
-            print(f"    ✅ {NEW_FILE.name} détecté comme nouveau fichier")
+            print(f"     {NEW_FILE.name} détecté comme nouveau fichier")
         else:
-            print(f"    ❌ {NEW_FILE.name} PAS détecté comme ajouté")
+            print(f"     {NEW_FILE.name} PAS détecté comme ajouté")
             ok = False
 
         if result["chunks_added"] >= 1:
-            print(f"    ✅ {result['chunks_added']} chunk(s) ajouté(s)")
+            print(f"     {result['chunks_added']} chunk(s) ajouté(s)")
         else:
-            print("    ❌ Aucun chunk ajouté")
+            print("     Aucun chunk ajouté")
             ok = False
 
         return ok
@@ -153,16 +153,16 @@ def test_deletion() -> bool:
 
         ok = True
         if source_str in result["deleted_files"]:
-            print(f"    ✅ {DELETE_TARGET_SOURCE.name} détecté comme supprimé")
+            print(f"     {DELETE_TARGET_SOURCE.name} détecté comme supprimé")
         else:
-            print(f"    ❌ {DELETE_TARGET_SOURCE.name} PAS détecté comme supprimé")
+            print(f"     {DELETE_TARGET_SOURCE.name} PAS détecté comme supprimé")
             ok = False
 
         hashes_after = get_hashes(code_manager, source_str)
         if hashes_before and not hashes_after:
-            print(f"    ✅ Chunks retirés de ChromaDB ({len(hashes_before)} → 0)")
+            print(f"     Chunks retirés de ChromaDB ({len(hashes_before)} → 0)")
         else:
-            print(f"    ❌ Chunks toujours présents ({len(hashes_after)})")
+            print(f"     Chunks toujours présents ({len(hashes_after)})")
             ok = False
 
         return ok
@@ -192,7 +192,7 @@ def run_all() -> bool:
     print("RÉSUMÉ")
     print("=" * 60)
     for name, passed in results.items():
-        print(f"  {'✅' if passed else '❌'} {name}")
+        print(f"  {'' if passed else ''} {name}")
 
     return all(results.values())
 
@@ -200,6 +200,6 @@ def run_all() -> bool:
 if __name__ == "__main__":
     success = run_all()
     print("\n" + "=" * 60)
-    print("RÉSULTAT GLOBAL : " + ("✅ TOUS LES TESTS RÉUSSIS" if success else "❌ AU MOINS UN TEST ÉCHOUÉ"))
+    print("RÉSULTAT GLOBAL : " + (" TOUS LES TESTS RÉUSSIS" if success else " AU MOINS UN TEST ÉCHOUÉ"))
     print("=" * 60)
     sys.exit(0 if success else 1)
