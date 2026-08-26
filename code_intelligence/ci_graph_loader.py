@@ -170,6 +170,8 @@ def get_code_intelligence_graph():
     base_dir = Path(__file__).resolve().parent.parent
     addons_root = Path("/home/user/odoo-17.0/addons") if Path("/home/user/odoo-17.0/addons").exists() else base_dir.parent / "addons"
 
+    modules_dict = {}
+
     # Load core Odoo modules (account, sale, stock) directly from addons
     CORE_MODULES_ALWAYS_LOADED = ["account", "sale", "stock"]
     if addons_root.exists():

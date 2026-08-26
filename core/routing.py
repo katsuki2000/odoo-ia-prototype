@@ -18,6 +18,10 @@ if TYPE_CHECKING:
 from langchain_core.messages import BaseMessage
 
 from core.schemas import AssistantResponse, QueryRoute
+from code_intelligence.investigation_plan import (
+    concept_suggests_code_intelligence_v2,
+    generate_investigation_plan,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -89,13 +93,6 @@ CONDITIONAL_AMOUNT_TERMS = [
     "quel que soit", "quelle que soit",
 ]
 
-GOVERNANCE_SIGNAL_TERMS = [
-    "valid",  # covers valider/validée/validation
-    "règle", "s'applique",
-    "échappe",
-    "automatique",
-    "contrôle",
-]
 
 def _fold_accents(text: str) -> str:
     """Strip diacritics for accent-insensitive keyword matching."""
@@ -120,7 +117,6 @@ DATA_TERMS_FOLDED = _fold_keywords(DATA_TERMS)
 DOC_ANCHORS_FOLDED = _fold_keywords(DOC_ANCHORS)
 THRESHOLD_QUERY_TERMS_FOLDED = _fold_keywords(THRESHOLD_QUERY_TERMS)
 CONDITIONAL_AMOUNT_TERMS_FOLDED = _fold_keywords(CONDITIONAL_AMOUNT_TERMS)
-GOVERNANCE_SIGNAL_TERMS_FOLDED = _fold_keywords(GOVERNANCE_SIGNAL_TERMS)
 
 
 OUT_OF_SCOPE_ANSWER = (
@@ -160,6 +156,7 @@ class RAGState(TypedDict):
     last_resolved_concept: Optional[dict]  # Previous turn's resolved concept
     resolved_concept_reused: bool  # True when reusing the previous turn's concept
     evidence_status: Optional[str]  # Sourcing evidence status: RESOLU/NON_RESOLU/CONFLIT
+    investigation_plan: Optional[dict]  # A priori InvestigationPlan (Bloc P1), display-shaped
 
 
 
@@ -267,16 +264,6 @@ def _sticky_concept_or_resolve(state: RAGState, resolved_concept_dict: dict) -> 
     return resolved_concept_dict
 
 
-def _concept_suggests_code_intelligence(question_folded: str, resolved_concept) -> bool:
-    """
-    Check if a resolved concept combined with a governance signal in the question
-    indicates routing to CODE_INTELLIGENCE.
-    """
-    if resolved_concept is None or not getattr(resolved_concept, "is_resolved", False):
-        return False
-    return any(term in question_folded for term in GOVERNANCE_SIGNAL_TERMS_FOLDED)
-
-
 def route(state: RAGState) -> dict:
     """Classify the query using keyword patterns and conflict priorities."""
     import time
@@ -288,8 +275,9 @@ def route(state: RAGState) -> dict:
 
     from code_intelligence.business_resolver import resolve_business_term
     from code_intelligence.ci_graph_loader import get_code_intelligence_graph
+    G = get_code_intelligence_graph()
     resolved_concept = resolve_business_term(
-        state.get("question", ""), get_code_intelligence_graph(), llm=None
+        state.get("question", ""), G, llm=None
     )
 
     # Hybrid check: doc keyword/anchor + quantitative ERP term
@@ -335,10 +323,10 @@ def route(state: RAGState) -> dict:
         logger.info("Node [route]: Query matched explicit ERP keywords → DONNEES_ERP branch")
         route_decision = QueryRoute.DONNEES_ERP.value
     elif not chunks:
-        if _concept_suggests_code_intelligence(question_folded, resolved_concept):
+        if concept_suggests_code_intelligence_v2(state.get("question", ""), resolved_concept, G):
             logger.info(
                 "Node [route]: No chunks, no keyword signal, but resolved_concept "
-                "+ governance-signal term → CODE_INTELLIGENCE branch (Bug A / H4 fix)"
+                "+ classified Code Intelligence intent → CODE_INTELLIGENCE branch (Bloc P1 gate)"
             )
             route_decision = QueryRoute.CODE_INTELLIGENCE.value
         else:
@@ -359,10 +347,10 @@ def route(state: RAGState) -> dict:
         if erp_ratio >= 0.6 and any(term in question_folded for term in DATA_TERMS_FOLDED):
             logger.info("Node [route]: High ERP ratio + data terms → DONNEES_ERP branch")
             route_decision = QueryRoute.DONNEES_ERP.value
-        elif _concept_suggests_code_intelligence(question_folded, resolved_concept):
+        elif concept_suggests_code_intelligence_v2(state.get("question", ""), resolved_concept, G):
             logger.info(
                 "Node [route]: No strong signal, but resolved_concept + "
-                "governance-signal term → CODE_INTELLIGENCE branch"
+                "classified Code Intelligence intent → CODE_INTELLIGENCE branch (Bloc P1 gate)"
             )
             route_decision = QueryRoute.CODE_INTELLIGENCE.value
         else:
@@ -380,11 +368,19 @@ def route(state: RAGState) -> dict:
 
     resolved_concept_reused = resolved_concept_dict is state.get("last_resolved_concept")
 
+    investigation_plan = generate_investigation_plan(
+        question=state.get("question", ""),
+        resolved_concept=resolved_concept,
+        G=G,
+        user_groups=state.get("user_groups"),
+    )
+
     return {
         "route": route_decision,
         "timing": timing,
         "resolved_concept": resolved_concept_dict,
         "resolved_concept_reused": resolved_concept_reused,
+        "investigation_plan": investigation_plan.to_display_dict(),
     }
 
 

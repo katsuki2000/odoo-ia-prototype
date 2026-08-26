@@ -80,6 +80,11 @@ class AskResponseV1(BaseModel):
     sources: list[dict] = Field(default_factory=list)
     confidence: float = 1.0
     ocr_warning: bool = False
+    route: Optional[str] = None
+    evidence_status: Optional[str] = None
+    resolved_concept: Optional[dict] = None
+    omitted_for_authorization: list[dict] = Field(default_factory=list)
+    investigation_plan: Optional[dict] = None
 
 
 class StatsResponse(BaseModel):
@@ -311,13 +316,25 @@ def ask_question_v1(request: AskRequestV1, user: dict = Depends(get_current_user
             getattr(response, "route", None) or last_route,
         )
 
+        omitted_list = []
+        if hasattr(response, "omitted_for_authorization") and response.omitted_for_authorization:
+            omitted_list = [
+                o.model_dump() if hasattr(o, "model_dump") else o
+                for o in response.omitted_for_authorization
+            ]
+
         return AskResponseV1(
             answer=response.answer,
             question=request.question,
             session_id=request.session_id,
             sources=[s.model_dump() for s in response.sources] if hasattr(response, 'sources') else [],
             confidence=response.confidence if hasattr(response, 'confidence') else 1.0,
-            ocr_warning=response.ocr_warning if hasattr(response, 'ocr_warning') else False
+            ocr_warning=response.ocr_warning if hasattr(response, 'ocr_warning') else False,
+            route=getattr(response, "route", None),
+            evidence_status=getattr(response, "evidence_status", None),
+            resolved_concept=getattr(response, "resolved_concept", None),
+            omitted_for_authorization=omitted_list,
+            investigation_plan=getattr(response, "investigation_plan", None),
         )
     except HTTPException:
         raise

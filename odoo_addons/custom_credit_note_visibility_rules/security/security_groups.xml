@@ -1,0 +1,8 @@
+<odoo>
+    <record id="group_avoir_regional" model="res.groups">
+        <field name="name">Avoirs - Visibilite Regionale</field>
+    </record>
+    <record id="group_avoir_national" model="res.groups">
+        <field name="name">Avoirs - Visibilite Nationale</field>
+    </record>
+</odoo>

@@ -274,6 +274,7 @@ def format_output(state: RAGState) -> dict:
         response.route = route
         response.resolved_concept = state.get("resolved_concept")
         response.evidence_status = state.get("evidence_status")
+        response.investigation_plan = state.get("investigation_plan")
 
     if response and chunks and route == QueryRoute.DOCUMENTAIRE.value:
         primary_chunk = chunks[0]
@@ -389,6 +390,7 @@ def query_graph(
             "user_groups": user_groups or [],
             "last_route": last_route,
             "last_resolved_concept": last_resolved_concept,
+            "investigation_plan": None,
         }
     
         logger.info("Invoking graph for question: '%s'", question)

@@ -67,11 +67,6 @@ QUESTIONS = [
             "Dans le modèle account.move, quelles sont toutes les surcharges de "
             "la méthode action_valider_avoir et dans quel ordre s'exécutent-elles ?"
         ),
-        # Word-boundary markers, not bare substrings: a 2026-08-07 live run
-        # produced a hallucinated 4th module "custom_credit_note_approval_
-        # global" that the sourcing guard correctly flagged as unverified,
-        # but the old substring check for "custom_credit_note_approval"
-        # matched INSIDE that fabricated name and silently reported [OK].
         "expected_markers": [
             "custom_credit_note_approval_regional",
             "custom_credit_note_approval_vip",
@@ -79,23 +74,6 @@ QUESTIONS = [
         "expected_markers_word_boundary": [
             "custom_credit_note_approval",
         ],
-        # Defense-in-depth only (2026-08-12) -- the real fix is
-        # rag/graph.py's _correct_override_cascade_contradictions, which
-        # neutralizes these two sentences in place before the answer ever
-        # reaches this script. Kept here too so a regression in that
-        # neutralization (rather than just a script gap) still fails this
-        # check instead of silently passing: a live run showed the LLM
-        # denying any other override exists ("Aucune autre surcharge n'a
-        # ete detectee...", immediately contradicted by the backfilled
-        # [FAIT DETERMINISTIQUE] two lines below it) and separately
-        # fabricating a specificity-based short-circuit semantic Odoo does
-        # not have ("...si elle ne leve pas d'erreur, les autres ne seront
-        # pas executees") -- see the comment above _OVERRIDE_COUNT_DENIAL_RE
-        # in rag/graph.py for the full diagnosis. Both casings of the
-        # denial checked: _word_boundary_present below is a plain
-        # case-sensitive match, and the live occurrence started a fresh
-        # sentence ("Aucune...") while a paraphrase could plausibly land
-        # it mid-sentence instead.
         "forbidden_markers": [
             "custom_credit_note_approval_global",
             "Aucune autre surcharge",
@@ -196,17 +174,6 @@ def _marker_present_full_pipeline(marker: str, text: str) -> bool:
 
 
 def check_e2e_full_pipeline():
-    """Same 01a/01c intent as check_e2e(), but through query_graph() (the
-    real route() dispatch) instead of calling code_intelligence_agent()
-    directly. check_e2e() alone can never catch a routing bug -- it forces
-    the Code Intelligence path regardless of what route() would have
-    picked. 01c-vip-trap  is exactly this: it was
-    found misrouted to the branche documentaire by route(), a failure mode
-    check_e2e()'s direct call cannot see. Merged in 2026-08-20 from the
-    now-deleted miro-rag/scripts/check_bloc9_01_credit_note_cascade_e2e.py
-    reconstruction  rather than kept as a
-    second, diverging script.
-    """
     print("=" * 80)
     print(" FULL PIPELINE (query_graph -> route()) -- same 01a/01c intent, real dispatch")
     print("=" * 80)

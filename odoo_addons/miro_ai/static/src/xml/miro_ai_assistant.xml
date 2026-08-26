@@ -1,0 +1,243 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <!-- ===================================================================== -->
+    <!-- 1. Fullscreen Client Action Assistant Template                        -->
+    <!-- ===================================================================== -->
+    <t t-name="miro_ai.AssistantClientAction">
+        <div class="miro-ai-container o_content">
+            <div class="miro-ai-header">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="miro-ai-title">
+                            <i class="fa fa-magic mr-2 text-primary"/> <span>Assistant MIRO AI</span>
+                        </div>
+                        <div class="miro-ai-subtitle text-muted">
+                            Investigation Code Intelligence, exploration des données ERP et documentation interne.
+                        </div>
+                    </div>
+                    <div class="miro-ai-header-badges">
+                        <span class="badge badge-pill badge-primary px-3 py-2">
+                            <i class="fa fa-shield mr-1"/> Odoo 17 Governance
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="miro-ai-messages" t-ref="messagesContainer">
+                <t t-foreach="state.messages" t-as="msg" t-key="msg.id">
+                    <div t-att-class="'miro-ai-message ' + (msg.sender === 'user' ? 'user-message' : 'bot-message')">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <div class="message-sender" t-esc="msg.sender === 'user' ? 'Vous' : 'MIRO AI'"/>
+                            <t t-if="msg.sender === 'bot' and msg.route">
+                                <div class="miro-meta-badges">
+                                    <span t-att-class="'badge ' + getRouteBadgeClass(msg.route)" t-esc="getRouteLabel(msg.route)"/>
+                                    <span t-if="msg.evidence_status" class="badge badge-info ml-1" t-esc="msg.evidence_status"/>
+                                    <span class="badge badge-light ml-1" t-esc="getConfidencePercent(msg.confidence) + '% conf.'"/>
+                                </div>
+                            </t>
+                        </div>
+
+                        <!-- Main formatted response content -->
+                        <div class="message-content" t-out="msg.formattedContent or msg.content"/>
+
+                        <!-- ========================================================= -->
+                        <!-- Niveau de Vérification Dépliable (Chevron Discuss)        -->
+                        <!-- ========================================================= -->
+                        <t t-if="msg.sender === 'bot' and (msg.investigation_plan or (msg.sources and msg.sources.length > 0) or (msg.omitted_for_authorization and msg.omitted_for_authorization.length > 0))">
+                            <details class="miro-verification-disclosure mt-3">
+                                <summary class="verification-summary">
+                                    <i class="fa fa-chevron-right mr-1 verification-chevron"/>
+                                    <i class="fa fa-search mr-1 text-primary"/>
+                                    <strong>Niveau Vérification &amp; Preuves</strong>
+                                    <span t-if="msg.investigation_plan" class="badge badge-light ml-2">Plan: <t t-esc="msg.investigation_plan.steps ? msg.investigation_plan.steps.length : 0"/> étapes</span>
+                                    <span t-if="msg.sources and msg.sources.length > 0" class="badge badge-light ml-1">Sources: <t t-esc="msg.sources.length"/></span>
+                                    <span t-if="msg.omitted_for_authorization and msg.omitted_for_authorization.length > 0" class="badge badge-warning ml-1">
+                                        <i class="fa fa-lock mr-1"/> <t t-esc="msg.omitted_for_authorization.length"/> masqué(s)
+                                    </span>
+                                </summary>
+
+                                <div class="verification-content p-3 mt-2">
+                                    <!-- A. Plan d'Investigation (Bloc P1) -->
+                                    <t t-if="msg.investigation_plan">
+                                        <div class="verification-section mb-3">
+                                            <div class="section-title text-primary font-weight-bold mb-2">
+                                                <i class="fa fa-list-ol mr-1"/> Plan d'investigation a priori
+                                                <span t-if="msg.investigation_plan.intent" class="badge badge-secondary ml-1" t-esc="msg.investigation_plan.intent"/>
+                                            </div>
+                                            <div t-if="msg.investigation_plan.rationale" class="small text-muted font-italic mb-2" t-esc="msg.investigation_plan.rationale"/>
+                                            <ol class="investigation-steps-list pl-3 mb-0">
+                                                <t t-foreach="msg.investigation_plan.steps or []" t-as="step" t-key="step_index">
+                                                    <li class="mb-2 small">
+                                                        <div class="d-flex align-items-baseline">
+                                                            <strong class="text-dark" t-esc="step.action"/>
+                                                            <span t-if="step.target" class="badge badge-light border ml-1" t-esc="step.target"/>
+                                                            <span t-if="step.behavioral_focus" class="badge badge-primary ml-1" t-esc="step.behavioral_focus"/>
+                                                            <span t-if="step.technical_focus" class="badge badge-info ml-1" t-esc="step.technical_focus"/>
+                                                        </div>
+                                                        <div class="text-muted" t-esc="step.justification"/>
+                                                    </li>
+                                                </t>
+                                            </ol>
+                                        </div>
+                                    </t>
+
+                                    <!-- B. Preuves & Sources citées (Evidence Builder) -->
+                                    <t t-if="msg.sources and msg.sources.length > 0">
+                                        <div class="verification-section mb-3">
+                                            <div class="section-title text-success font-weight-bold mb-2">
+                                                <i class="fa fa-file-text-o mr-1"/> Dossier de preuves &amp; Sources citées (<t t-esc="msg.sources.length"/>)
+                                            </div>
+                                            <ul class="list-unstyled pl-2 mb-0 small">
+                                                <t t-foreach="msg.sources" t-as="src" t-key="src_index">
+                                                    <li class="mb-2 pb-2 border-bottom">
+                                                        <div class="d-flex align-items-center">
+                                                            <i class="fa fa-file-code-o mr-1 text-muted"/>
+                                                            <strong t-esc="src.title or src.source"/>
+                                                            <span t-if="src.doc_type" class="badge badge-light border ml-2" t-esc="src.doc_type"/>
+                                                        </div>
+                                                        <div t-if="src.snippet" class="source-snippet font-monospace bg-light p-2 rounded mt-1 text-dark" t-esc="src.snippet"/>
+                                                    </li>
+                                                </t>
+                                            </ul>
+                                        </div>
+                                    </t>
+
+                                    <!-- C. Éléments masqués pour motif d'autorisation -->
+                                    <t t-if="msg.omitted_for_authorization and msg.omitted_for_authorization.length > 0">
+                                        <div class="verification-section">
+                                            <div class="section-title text-warning font-weight-bold mb-2">
+                                                <i class="fa fa-shield mr-1"/> Éléments masqués pour motif d'autorisation
+                                            </div>
+                                            <ul class="list-unstyled pl-2 mb-0 small">
+                                                <t t-foreach="msg.omitted_for_authorization" t-as="omitted" t-key="omitted_index">
+                                                    <li class="mb-1 text-danger">
+                                                        <i class="fa fa-lock mr-1"/>
+                                                        <strong t-esc="omitted.label"/> :
+                                                        <span class="text-muted" t-esc="omitted.reason"/>
+                                                    </li>
+                                                </t>
+                                            </ul>
+                                        </div>
+                                    </t>
+                                </div>
+                            </details>
+                        </t>
+                    </div>
+                </t>
+
+                <div t-if="state.loading" class="miro-ai-message bot-message loading-indicator">
+                    <i class="fa fa-spinner fa-spin mr-2"/> <span>L'assistant explore le code et synthétise les preuves...</span>
+                </div>
+            </div>
+
+            <div class="miro-ai-input-area">
+                <div class="input-group">
+                    <input type="text" class="form-control" placeholder="Posez une question sur le code, les droits, les workflows ou l'ERP..."
+                           t-model="state.inputQuestion" t-on-keydown="onKeyDown"/>
+                    <div class="input-group-append">
+                        <button class="btn btn-primary" type="button" t-on-click="sendMessage" t-att-disabled="state.loading">
+                            <i class="fa fa-paper-plane"/> Envoyer
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </t>
+
+
+    <!-- ===================================================================== -->
+    <!-- 2. Navbar Systray Toggle & Floating Drawer Template                   -->
+    <!-- ===================================================================== -->
+    <t t-name="miro_ai.SystrayItem">
+        <div class="o_nav_entry miro-systray-container d-flex align-items-center">
+            <!-- Systray Navbar Button -->
+            <a class="miro-systray-btn d-flex align-items-center px-2 py-1 text-decoration-none" role="button" t-on-click="toggleDrawer" title="Assistant MIRO AI">
+                <i class="fa fa-magic text-primary me-1 miro-ai-icon" style="font-size: 1.15rem;"/>
+                <span class="badge bg-primary text-white font-weight-bold px-2 py-1 miro-systray-label" style="font-size: 0.75rem; border-radius: 4px;">MIRO AI</span>
+            </a>
+
+            <!-- Floating Side Drawer Panel -->
+            <div t-if="state.isOpen" class="miro-ai-drawer shadow-lg">
+                <div class="miro-drawer-header d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center">
+                        <i class="fa fa-magic mr-2 text-primary fa-lg"/>
+                        <strong>MIRO AI Assistant</strong>
+                    </div>
+                    <button class="btn btn-sm btn-link text-muted p-0" t-on-click="closeDrawer" title="Fermer">
+                        <i class="fa fa-times fa-lg"/>
+                    </button>
+                </div>
+
+                <!-- Active Document / Model Context Bar -->
+                <div t-if="state.activeModelContext" class="miro-context-bar bg-light px-3 py-1 border-bottom small d-flex align-items-center">
+                    <i class="fa fa-bullseye text-primary mr-1"/>
+                    <span class="text-muted mr-1">Contexte :</span>
+                    <strong class="text-dark" t-esc="state.activeModelContext.displayName"/>
+                    <span class="badge badge-light border ml-1" t-esc="state.activeModelContext.model"/>
+                </div>
+
+                <!-- Drawer Messages Container -->
+                <div class="miro-drawer-messages p-3" t-ref="drawerMessages">
+                    <t t-foreach="state.messages" t-as="msg" t-key="msg.id">
+                        <div t-att-class="'miro-ai-message miro-drawer-message ' + (msg.sender === 'user' ? 'user-message' : 'bot-message')">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <div class="message-sender" t-esc="msg.sender === 'user' ? 'Vous' : 'MIRO AI'"/>
+                                <t t-if="msg.sender === 'bot' and msg.route">
+                                    <span t-att-class="'badge badge-xs ' + getRouteBadgeClass(msg.route)" t-esc="getRouteLabel(msg.route)"/>
+                                </t>
+                            </div>
+                            <div class="message-content small" t-out="msg.formattedContent or msg.content"/>
+
+                            <!-- Foldable Verification Details in Drawer -->
+                            <t t-if="msg.sender === 'bot' and (msg.investigation_plan or (msg.sources and msg.sources.length > 0))">
+                                <details class="miro-verification-disclosure mt-2 small">
+                                    <summary class="verification-summary small">
+                                        <i class="fa fa-chevron-right mr-1 verification-chevron"/>
+                                        <i class="fa fa-search mr-1 text-primary"/> Preuves (<t t-esc="msg.sources ? msg.sources.length : 0"/>)
+                                    </summary>
+                                    <div class="verification-content p-2 mt-1 bg-white rounded border">
+                                        <t t-if="msg.investigation_plan">
+                                            <div class="text-primary font-weight-bold mb-1">Plan d'investigation :</div>
+                                            <ul class="pl-3 mb-2 small text-muted">
+                                                <t t-foreach="msg.investigation_plan.steps or []" t-as="st" t-key="st_index">
+                                                    <li><strong t-esc="st.action"/>: <span t-esc="st.justification"/></li>
+                                                </t>
+                                            </ul>
+                                        </t>
+                                        <t t-if="msg.sources and msg.sources.length > 0">
+                                            <div class="text-success font-weight-bold mb-1">Sources :</div>
+                                            <ul class="pl-3 mb-0 small text-muted">
+                                                <t t-foreach="msg.sources" t-as="s" t-key="s_index">
+                                                    <li><strong t-esc="s.title or s.source"/></li>
+                                                </t>
+                                            </ul>
+                                        </t>
+                                    </div>
+                                </details>
+                            </t>
+                        </div>
+                    </t>
+
+                    <div t-if="state.loading" class="miro-ai-message bot-message loading-indicator small">
+                        <i class="fa fa-spinner fa-spin mr-1"/> <span>Analyse en cours...</span>
+                    </div>
+                </div>
+
+                <!-- Drawer Input Area -->
+                <div class="miro-drawer-input p-2 border-top bg-white">
+                    <div class="input-group input-group-sm">
+                        <input type="text" class="form-control" placeholder="Posez une question..."
+                               t-model="state.inputQuestion" t-on-keydown="onKeyDown"/>
+                        <div class="input-group-append">
+                            <button class="btn btn-primary" type="button" t-on-click="sendMessage" t-att-disabled="state.loading">
+                                <i class="fa fa-paper-plane"/>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </t>
+
+</templates>

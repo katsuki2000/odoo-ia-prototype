@@ -1,0 +1,7 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_miro_ai_settings_user,miro.ai.settings user,model_miro_ai_settings,base.group_user,1,0,0,0
+access_miro_ai_settings_admin,miro.ai.settings admin,model_miro_ai_settings,base.group_system,1,1,1,1
+access_miro_ai_settings_group_admin,miro.ai.settings group admin,model_miro_ai_settings,group_miro_ai_admin,1,1,1,1
+access_miro_ai_log_user,miro.ai.log user,model_miro_ai_log,base.group_user,1,0,0,0
+access_miro_ai_log_admin,miro.ai.log admin,model_miro_ai_log,base.group_system,1,1,1,1
+access_miro_ai_log_group_admin,miro.ai.log group admin,model_miro_ai_log,group_miro_ai_admin,1,1,1,1

@@ -71,3 +71,7 @@ class AssistantResponse(BaseModel):
         default=None,
         description="Sourcing evidence status (RESOLU/NON_RESOLU/CONFLIT)",
     )
+    investigation_plan: Optional[dict] = Field(
+        default=None,
+        description="Structured investigation plan produced before tool execution (Bloc P1)",
+    )
