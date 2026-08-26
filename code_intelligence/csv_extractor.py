@@ -2,7 +2,7 @@
 code_intelligence/csv_extractor.py
 
 CSV ACL extractor for ir.model.access.csv files.
-Implements Story A1.3: Tasks A1.3.1 & A1.3.2 (CSV ACL parsing and empty group_id all_authenticated handling).
+CSV ACL parsing and empty group_id all_authenticated handling).
 """
 
 import csv
@@ -40,7 +40,7 @@ def _parse_perm(val: Optional[str]) -> bool:
 def parse_access_control_csv(filepath: Path) -> List[OdooAccessEntry]:
     """
     Parse an ir.model.access.csv file and extract all ACL entries.
-    Handles empty group_id as all_authenticated=True (A1.3.2).
+    Handles empty group_id as all_authenticated=True 
     """
     if not filepath.exists():
         _logger.warning("ACL CSV file does not exist: %s", filepath)
@@ -79,7 +79,6 @@ def parse_access_control_csv(filepath: Path) -> List[OdooAccessEntry]:
                 group_id = raw_group_id
                 all_authenticated = False
             else:
-                # Key Task A1.3.2 Rule: empty group_id applies to ALL authenticated users
                 group_id = None
                 all_authenticated = True
 

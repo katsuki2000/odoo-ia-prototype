@@ -47,13 +47,6 @@ kubernetes==36.0.2
 langchain==1.3.12
 langchain-core==1.4.9
 langchain-groq==1.1.3
-# 2026-08-14: OpenRouter client (LLM_PROVIDER=openrouter, Qwen3-14B eval) --
-# same langchain-core/OpenAI-compatible client family as langchain-groq.
-# NOT version-pinned: could not verify the exact release compatible with
-# this repo's langchain-core==1.4.9/langchain==1.3.12 without running pip
-# from this environment (no execution access). Pin it after the first real
-# `pip install langchain-openai` resolves cleanly, per the project's own
-# pinning convention for every other dependency in this file.
 langchain-openai
 langchain-protocol==0.0.18
 langchain-text-splitters==1.1.2

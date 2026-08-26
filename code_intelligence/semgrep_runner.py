@@ -3,8 +3,7 @@ code_intelligence/semgrep_runner.py
 
 Subprocess-based Semgrep runner for Odoo Code Intelligence.
 Executes Semgrep rules in --json mode and extracts structured findings
-including exact file paths, line numbers, check_ids, and matching code lines
-for strict sourcing compliance (Bloc 4).
+including exact file paths, line numbers, check_ids, and matching code lines.
 """
 
 import os

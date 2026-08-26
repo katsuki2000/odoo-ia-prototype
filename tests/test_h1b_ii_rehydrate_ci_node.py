@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-H1b-ii (todo/contexte.txt section 64/70, todo/plan.md): unit tests for
+H1b-ii : unit tests for
 rag.ci_helpers._rehydrate_sticky_concept -- extracted 2026-08-20 out of
 code_intelligence_agent() (rag/ci_agent_node.py) specifically so this
 reconstruction step is testable on its own, without mocking the graph,

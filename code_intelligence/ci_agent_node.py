@@ -38,6 +38,7 @@ from code_intelligence.ci_helpers import (
     _question_mentions_amount,
     _extract_amount,
     _extract_company_context,
+    _infer_move_type_context,
     _question_is_approval_related,
     _question_is_access_related,
     _question_suggests_automation_bypass,
@@ -53,12 +54,6 @@ from code_intelligence.ci_helpers import (
     _backfill_link_guard_clarifications,
     _correct_can_view_amount_contradictions,
     _correct_security_lock_threshold_contradictions,
-    # _correct_override_cascade_contradictions intentionally NOT imported
-    # from here -- see the rag.ci_override_cascade import block below
-    # (2026-08-20 fix: ci_helpers.py's own copy of this function is a
-    # stale duplicate left behind by the ci_override_cascade.py split,
-    # calling _extract_override_modules which was never re-imported into
-    # ci_helpers.py -- NameError at call time, found via pytest).
     _backfill_missing_can_view_amount_fact,
     _format_can_view_amount_fact,
     _rehydrate_sticky_concept,
@@ -81,7 +76,7 @@ from code_intelligence.ci_override_cascade import (
 logger = logging.getLogger(__name__)
 
 
-# ── Bloc 7 fix: real Odoo group DB IDs -> xml_id resolution ──────────────────
+# ── Real Odoo group DB IDs -> xml_id resolution ──────────────────────────────
 _GROUP_XMLID_CACHE: dict = {}
 _ADMIN_RPC_CLIENT = None
 _ADMIN_RPC_UID = None
@@ -238,11 +233,10 @@ class CodeIntelligenceAgentRunner:
         set_llm_ref(llm)
         llm_with_tools = llm.bind_tools(ALL_CI_TOOLS)
         
-        # J30-J31: phase timing instrumentation
         _ci_groq_wait = 0.0          # accumulated Groq rate-limit wait (subtracted from wall-clock)
         _ci_per_hop_times: list = []  # per-hop wall-clock durations
         
-        # Story S2.0: Business Term Resolver -- Map natural language concepts to technical Odoo models/modules
+        # Business Term Resolver -- Map natural language concepts to technical Odoo models/modules
         _t_resolver = time.perf_counter()
         concept = resolve_business_term(question, G, llm=llm)
         _ci_resolver_time = time.perf_counter() - _t_resolver
@@ -261,7 +255,7 @@ class CodeIntelligenceAgentRunner:
         
         tool_observations: list = []
         tool_observation_models: list = []
-        omitted_items: list = []  # Bloc 7 (J23-24): OmittedForAuthorization entries
+        omitted_items: list = []  # OmittedForAuthorization entries
         final_answer = None
         hop_count = 0
         seen_calls: set = set()
@@ -413,9 +407,6 @@ class CodeIntelligenceAgentRunner:
                             }))
                             if len(forced_observation) > 2200:
                                 forced_observation = forced_observation[:2200] + "\n[... Content truncated for LLM context limit ...]"
-                            # Bloc 7 (J23-24): same rationale as the two forced
-                            # dispatches above -- bypasses the ReAct loop's
-                            # gating, so gate here explicitly.
                             forced_observation, omitted_list = gate_observation(
                                 tool_name="analyze_method_override_chain",
                                 model_name=target_model,
@@ -485,9 +476,6 @@ class CodeIntelligenceAgentRunner:
                         }))
                         if len(forced_observation) > 3000:
                             forced_observation = forced_observation[:3000] + "\n[... Content truncated for LLM context limit ...]"
-                        # Bloc 7 (J23-24): same rationale as the forced
-                        # dispatches above -- bypasses the ReAct loop's gating,
-                        # so gate here explicitly.
                         forced_observation, omitted_list = gate_observation(
                             tool_name="who_has_access_to",
                             model_name=target_model,
@@ -587,6 +575,7 @@ class CodeIntelligenceAgentRunner:
                                 )
                                 _dispatch_context = {"amount": _amount_for_rules}
                                 _dispatch_context.update(_extract_company_context(question))
+                                _dispatch_context.update(_infer_move_type_context(concept))
                                 _dispatch_can_view, _dispatch_unresolved = (
                                     _dispatch_rule_result.can_view_amount_v2(_dispatch_context)
                                 )
@@ -600,7 +589,7 @@ class CodeIntelligenceAgentRunner:
                                     "Node [code_intelligence_agent]: Pre-dispatch "
                                     "can_view_amount_v2 fact for model=%s, amount=%.0f, "
                                     "result=%s, unresolved=%s, context=%s, "
-                                    "global=%d, group=%d (Bloc9 08c deterministic fix).",
+                                    "global=%d, group=%d.",
                                     target_model, _amount_for_rules, _dispatch_can_view,
                                     _dispatch_unresolved, _dispatch_context,
                                     len(_dispatch_rule_result.applied_global_rules),
@@ -622,7 +611,7 @@ class CodeIntelligenceAgentRunner:
                             logger.info(
                                 "Node [code_intelligence_agent]: Deterministic pre-dispatch of "
                                 "'evaluate_record_rules' for model '%s' (access-related "
-                                "question with amount=%.0f, Bloc9 08c fix).",
+                                "question with amount=%.0f).",
                                 target_model, _amount_for_rules,
                             )
                         except Exception as te:
@@ -650,7 +639,7 @@ class CodeIntelligenceAgentRunner:
             # Single-Pass Composite Execution: 1 Tool Selection turn + 1 Synthesis turn
             try:
                 ai_msg, _wait = _invoke_with_rate_limit(llm_with_tools, messages)
-                _llm_call_count += 1  # J46-J48: tool-selection call
+                _llm_call_count += 1  # tool-selection call
                 _ci_groq_wait += _wait
             except Exception as e:
                 _llm_call_count += 1  # attempt still counts against the LLM-call budget
@@ -682,7 +671,7 @@ class CodeIntelligenceAgentRunner:
                             tool_call_id=tool_id,
                         ))
                     if tool_name in tool_map:
-                        _t_hop = time.perf_counter()  # J30-J31: per-hop timing
+                        _t_hop = time.perf_counter()  # per-hop timing
                         try:
                             observation = str(tool_map[tool_name].invoke(tool_args))
  
@@ -746,6 +735,7 @@ class CodeIntelligenceAgentRunner:
                                     try:
                                         context = {"amount": amount}
                                         context.update(_extract_company_context(question))
+                                        context.update(_infer_move_type_context(concept))
                                         can_view, unresolved_fields = rule_result.can_view_amount_v2(
                                             context
                                         )
@@ -757,13 +747,7 @@ class CodeIntelligenceAgentRunner:
                                             "Node [code_intelligence_agent]: Injected deterministic "
                                             "can_view_amount_v2 fact for model=%s, amount=%.0f, "
                                             "result=%s, unresolved=%s, context=%s, "
-                                            "global_rules_applied=%d, group_rules_applied=%d "
-                                            "(Bloc9 08c diagnostic, 2026-08-14: distinguishes a "
-                                            "resolution/wiring gap -- model not found or zero "
-                                            "applied rules would silently default this to True -- "
-                                            "from a synthesis-level inversion of a correct verdict; "
-                                            "bare can_view/unresolved logging alone couldn't tell "
-                                            "the two apart on the bloc9-08c-nested-domain-trap rerun).",
+                                            "global_rules_applied=%d, group_rules_applied=%d.",
                                             tool_args.get("model_name", ""), amount, can_view,
                                             unresolved_fields, context,
                                             len(rule_result.applied_global_rules),
@@ -889,19 +873,13 @@ class CodeIntelligenceAgentRunner:
                         f"restrict that amount, and its group is NOT required for that amount."
                     )
                     try:
-                        # 2026-08-14: routed through get_chat_llm() -- see the
-                        # ReAct-loop instantiation above for the full rationale.
                         plain_llm = get_chat_llm(
                             temperature=0.0, max_retries=0, max_tokens=4096,
-                            # Review finding (Q1.1 benchmark run): mitigate llama-3.1-8b-instant's
-                            # decoding-collapse failure mode (see _detect_degenerate_repetition) --
-                            # a mild penalty discourages the model from repeating the same token/
-                            # phrase without materially changing normal synthesis quality.
                             model_kwargs={"frequency_penalty": 0.3, "presence_penalty": 0.2},
                         )
                         _t_synthesis = time.perf_counter()
                         final_resp, _synth_wait = _invoke_with_rate_limit(plain_llm, [HumanMessage(content=synthesis_prompt)])
-                        _llm_call_count += 1  # J46-J48: synthesis call
+                        _llm_call_count += 1  # synthesis call
                         _ci_groq_wait += _synth_wait
                         final_answer = final_resp.content
                         _ci_synthesis_time = time.perf_counter() - _t_synthesis
@@ -959,15 +937,11 @@ class CodeIntelligenceAgentRunner:
             scoped_tool_output = _scoped_raw_tool_output(
                 tool_observations, tool_observation_models, concept.resolved_models,
             )
-            # TEMP DEBUG (2026-08-13, requested for bloc9-08 follow-up investigation)
-            # -- remove once the grounding-validator false-negative/false-positive
-            # rate has been checked against a few more real bloc9-08-style runs.
-            logger.info(
-                "Node [code_intelligence_agent]: DEBUG scoped_tool_output for this turn "
-                "(%d chars): %s", len(scoped_tool_output), scoped_tool_output,
-            )
 
             final_answer = _correct_security_lock_threshold_contradictions(final_answer, scoped_tool_output, question)
+
+            final_answer = _backfill_missing_can_view_amount_fact(final_answer, scoped_tool_output)
+
             final_answer = _backfill_missing_required_groups(final_answer, scoped_tool_output, question)
 
             final_answer = _backfill_missing_security_lock_amount(final_answer, scoped_tool_output, question=question)
@@ -1026,7 +1000,7 @@ class CodeIntelligenceAgentRunner:
             omission_separator = chr(10)
             omission_lines = omission_separator.join(f"  - {o.label} : {o.reason}" for o in omitted_for_authorization)
             final_answer += (
-                "\n\n\U0001F512 \u00c9L\u00c9MENT(S) OMIS POUR RAISON D'AUTORISATION (Bloc 7 / J23-24):\n"
+                "\n\n\U0001F512 \u00c9L\u00c9MENT(S) OMIS POUR RAISON D'AUTORISATION:\n"
                 + omission_lines
             )
         
@@ -1048,7 +1022,6 @@ class CodeIntelligenceAgentRunner:
             omitted_for_authorization=omitted_for_authorization,
         )
         
-        # J30-J31: compute effective latency (algorithmic) by subtracting Groq waits
         _ci_total_wall = time.time() - start_time
         _ci_react_loop_time = time.perf_counter() - _t_react_loop if '_t_react_loop' in dir() else 0.0
         _ci_post_time = time.perf_counter() - (_t_react_loop + _ci_react_loop_time) if '_t_react_loop' in dir() else 0.0
@@ -1063,7 +1036,6 @@ class CodeIntelligenceAgentRunner:
         timing["ci_synthesis_time"] = round(_ci_synthesis_time, 3) if '_ci_synthesis_time' in dir() else 0.0
         timing["llm_call_count"] = _llm_call_count
         
-
         _trace_logger.log_summary(
             trace_id=_trace_id, branch="code_intelligence", question=question,
             hop_count=hop_count, llm_call_count=_llm_call_count,
@@ -1077,8 +1049,6 @@ class CodeIntelligenceAgentRunner:
             "raw_tool_output": "\n\n".join(tool_observations),
             "evidence_status": evidence_status,
         }
-        
-        
-
+                
 def code_intelligence_agent(state: RAGState) -> dict:
     return CodeIntelligenceAgentRunner(state).run()

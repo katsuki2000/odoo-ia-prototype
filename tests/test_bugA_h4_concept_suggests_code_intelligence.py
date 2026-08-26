@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Bug A / pattern H4 (todo/contexte.txt sections 93/106/107, todo/plan.md
-Bloc 9 "STATUT ROUVERT"): resolved_concept was computed correctly by
+Bug A / pattern H4 : resolved_concept was computed correctly by
 route() (H1 prototype) but never consulted by the two no-signal fallback
 branches, which always guessed DOCUMENTAIRE (or stuck to whatever the
 previous turn's route was) even when a deterministic, zero-LLM-cost
@@ -9,8 +8,8 @@ business-term resolution (business_resolver.py) had already succeeded.
 Confirmed on 5 real questions across 3 modules (01c, 03a, 03c, 04c, 05c).
 
 Fix (already applied on disk in rag/routing.py by the time this test file
-was written -- see contexte.txt for the "found already applied, catching
-up on todo/rules.md's 'put everything you change in todo/contexte.txt'
+was written -- see  for the "found already applied, catching
+up on todo/rules.md's 'put everything you change in '
 discipline" note): _concept_suggests_code_intelligence(), consulted ONLY
 inside the two pre-existing no-signal fallbacks. Deliberately NOT a bare
 "is_resolved implies CODE_INTELLIGENCE" check -- that was found unsafe
@@ -153,13 +152,13 @@ def test_real_erp_keyword_still_wins_even_if_concept_and_governance_terms_presen
     assert result == QueryRoute.DONNEES_ERP.value
 
 
-# ── The 5 real, originally-confirmed H4 questions (todo/contexte.txt) ─────
+# ── The 5 real, originally-confirmed H4 questions  ─────
 #
 # Pulled verbatim (2026-08-21) from the real scripts/check_bloc9_0{1,3,4,5}_
 # *_e2e.py files (NOT miro-rag/scripts/, which does not hold these -- see
-# contexte.txt section 109) rather than reconstructed from memory/summary,
+#  section 109) rather than reconstructed from memory/summary,
 # per the project's own "evidence-first diagnosis" principle (todo/rules.md/
-# contexte.txt). Weaker assertion than the synthetic cases above ("!=
+# ). Weaker assertion than the synthetic cases above ("!=
 # DOCUMENTAIRE" rather than "== CODE_INTELLIGENCE"): the H4 bug's observable
 # symptom was always a wrong DOCUMENTAIRE default, so "no longer
 # documentaire" is the correct regression guard here -- asserting the exact
@@ -170,7 +169,7 @@ def test_real_erp_keyword_still_wins_even_if_concept_and_governance_terms_presen
 
 _REAL_H4_QUESTIONS = [
     pytest.param(
-        # 01c (todo/contexte.txt): full-pipeline phrasing from
+        # 01c : full-pipeline phrasing from
         # check_bloc9_01_credit_note_cascade_e2e.py::check_e2e_full_pipeline
         # ('01c-vip-trap'). No ERP/DOC/CODE_INTEL keyword list entry present
         # (verified by inspection) -- reaches the no-chunks fallback
@@ -199,7 +198,7 @@ _REAL_H4_QUESTIONS = [
     ),
     pytest.param(
         # 04c (check_bloc9_04_purchase_request_e2e.py). NOTE (2026-08-21,
-        # todo/contexte.txt section 109): unlike the other 4, this question
+        #  section 109): unlike the other 4, this question
         # contains the bare word "montant", which IS a QUANTITATIVE_TERMS
         # entry -- route()'s precedence chain reaches "has_quantitative and
         # not is_threshold_query" (-> DONNEES_ERP) BEFORE the no-signal
@@ -216,7 +215,7 @@ _REAL_H4_QUESTIONS = [
         id="04c-manager-trap",
     ),
     pytest.param(
-        # 05c (check_bloc9_05_asset_loan_e2e.py, 'bloc9-05c-no-link-trap').
+        # 05c (check_bloc9_05_asset_loan_e2e.py, '05c-no-link-trap').
         # No keyword list entry present -- reaches the no-chunks fallback.
         "Si une mise à disposition de matériel n'est reliée à aucune "
         "demande d'achat, la règle de séparation des rôles (bénéficiaire "

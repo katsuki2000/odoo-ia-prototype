@@ -1,7 +1,7 @@
 """
 code_intelligence/tests/test_a1_4_1.py
 
-Unit and integration tests for Story A1.4: JS client-side security checks & full A1 end-to-end integration.
+Unit and Integration tests for JS client-side security checks & full A1 end-to-end integration.
 Tests:
   1. JS user.hasGroup(...) pattern extraction with client_side_only=True
   2. OWL t-if="user.hasGroup(...)" pattern extraction with client_side_only=True

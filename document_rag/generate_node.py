@@ -59,19 +59,8 @@ def compute_rag_confidence(chunks: list, is_out_of_scope: bool = False) -> float
 
 def _parse_raw_json_answer(raw_text: str) -> Optional[str]:
     """
-    Dette technique (19/08, todo/plan.md Partie 4bis): the raw-invoke
-    fallback in generate() calls the LLM with the same SYSTEM_PROMPT used
-    for structured output (core/prompts.py), which instructs the model to
-    reply with JSON shaped like {"answer": ..., "confidence": ...}.
-    Before this helper, that raw JSON text was assigned directly to
-    AssistantResponse.answer, so the user saw an escaped JSON blob instead
-    of a sentence whenever the structured-output call failed and this fallback ran.
-
-    Extracts the 'answer' field from that JSON so the fallback path
-    produces the same shape of answer as the structured-output path.
-    Returns None (never raises) when raw_text isn't the expected JSON
-    shape, so the caller can fall back to the raw text unchanged instead
-    of silently discarding a plain-text answer.
+    Extracts the 'answer' field if the raw text is shaped as JSON.
+    Returns None if raw_text is not JSON.
     """
     if not raw_text or not isinstance(raw_text, str):
         return None
@@ -103,11 +92,7 @@ def generate(state: RAGState) -> dict:
     chunks = state["retrieved_chunks"]
     logger.info("Node [generate]: Building prompt and calling LLM")
 
-    # Bloc 12 / J46-J48: reasoning-trace + LLM-call-budget instrumentation.
-    # "documentaire" is the simplest branch (RAG only, no tool hops) --
-    # it exists as the baseline llm_call_count comparator against
-    # donnees_erp (Function Calling, up to REACT_RECURSION_LIMIT calls)
-    # and code_intelligence (up to CI_MAX_HOPS calls + resolver + synthesis).
+    # Reasoning trace and LLM call tracking
     from code_intelligence.reasoning_trace_logger import ReasoningTraceLogger, new_trace_id
     _trace_id = new_trace_id()
     _trace_logger = ReasoningTraceLogger()
@@ -201,9 +186,6 @@ def generate(state: RAGState) -> dict:
     timing = state.get("timing", {}).copy()
     timing["generation_time"] = time.time() - start_time
     timing["llm_call_count"] = _llm_call_count
-    # Bloc 12 / J46-J48: documentaire branch never makes tool-call hops --
-    # hop_count is always 0 here, which is itself the point of comparison
-    # against donnees_erp / code_intelligence in the J48 budget report.
     _trace_logger.log_summary(
         trace_id=_trace_id, branch="documentaire", question=question,
         hop_count=0, llm_call_count=_llm_call_count,

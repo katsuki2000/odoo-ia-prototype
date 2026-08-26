@@ -22,14 +22,7 @@ _logger = logging.getLogger(__name__)
 
 @dataclass
 class MethodOverrideSite:
-    """One module's override of a given method, in real EXECUTION order
-    (first to run first). Odoo builds each model's final class by
-    prepending the LAST-loaded/most-dependent module's class ahead of
-    earlier ones in the MRO, so the module loaded last runs FIRST and its
-    super() call cascades down towards the module loaded first (usually
-    the one holding `_name`). Execution order is therefore the reverse of
-    manifest-dependency load order (which is how override_sites is stored
-    on the graph -- see graph_builder.py)."""
+    """One module's override of a given method in execution order."""
     module: str
     filepath: str
     lineno: int
@@ -39,15 +32,7 @@ class MethodOverrideSite:
 def resolve_method_override_chain(
     G: nx.DiGraph, model_name: str, method_name: str
 ) -> List[MethodOverrideSite]:
-    """
-    Deterministic: for a given model + method name, return every module
-    that overrides that exact method, ordered by REAL execution order.
-
-    Reads override_sites directly off the graph's Method node (populated
-    in manifest-dependency load order by graph_builder.py) -- no LLM, no
-    file parsing. Returns an empty list if the method isn't found, or is
-    only declared in a single module (nothing to compose an order for).
-    """
+    """Return every module overriding the given method in execution order."""
     method_node_id = f"method:{model_name}.{method_name}"
     if method_node_id not in G:
         return []
@@ -62,13 +47,11 @@ def resolve_method_override_chain(
         )
         for s in raw_sites
     ]
-    return list(reversed(sites))  # load order (as stored) -> execution order
+    return list(reversed(sites))
 
 
 def _branch_returns_or_raises(stmts: List[ast.stmt]) -> bool:
-    """True if the LAST statement of a branch body is a Return or Raise --
-    a proxy for "this branch exits the method instead of falling through
-    to whatever comes after it"."""
+    """True if the last statement of a branch body is a Return or Raise."""
     if not stmts:
         return False
     return isinstance(stmts[-1], (ast.Return, ast.Raise))
@@ -78,18 +61,12 @@ _STATE_MUTATING_CALL_NAMES = {"write", "update", "unlink"}
 
 
 def _branch_mutates_record_state(stmts: List[ast.stmt]) -> bool:
-    """True if the branch body writes to a record/self attribute (e.g.
-    `rec.field = ...`, `self.field += ...`) or calls a known state-mutating
-    method (`.write(`, `.update(`, `.unlink(`) anywhere within it, including
-    nested blocks (e.g. a nested `if` that raises on one path and does
-    nothing on the other).
-
-    # Fix (2026-08-25): Local-variable-only assignments do not count as mutation.
-    # See contexte.txt sections 139-141 for details.
+    """True if the branch mutates record state (attribute assignments or mutation calls)."""
     for stmt in stmts:
         for node in ast.walk(stmt):
             if isinstance(node, (ast.Assign, ast.AugAssign)):
                 targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+                if any(isinstance(t, ast.Attribute) for t in targets):
                     return True
             elif isinstance(node, ast.Call):
                 if (
@@ -103,29 +80,15 @@ def _branch_mutates_record_state(stmts: List[ast.stmt]) -> bool:
 class _UnguardedSuperVisitor(ast.NodeVisitor):
     """
     Walks a single method body looking for unguarded super calls.
-    Specifically checks for a super() call that occurs unconditionally after
-    a conditional branch which mutated state without returning.
-    
-    Supports recordset-subtraction guards (e.g. `super(Class, self - <name>)`).
+    Checks for a super() call occurring unconditionally after a conditional branch
+    which mutated state without returning. Supports recordset-subtraction guards.
     """
 
     def __init__(self, method_name: str):
         self.method_name = method_name
         self._if_depth = 0
         self._for_loop_stack: List[str] = []
-        # (lineno, condition_source, enclosing_loop_var) -- condition_source
-        # is the unparsed `if` test, e.g. "rec.avoir_vip_exempt" or
-        # "rec.amount_total > 20000", kept so the caller can cite the actual
-        # literal/threshold instead of only describing the structural shape
-        # (Bloc 9 gap, 2026-08-07). enclosing_loop_var is the bare name this
-        # conditional's `for` loop iterates over (e.g. "own_expense_moves"),
-        # or None if the branch isn't inside a `for x in <bare name>:` loop
-        # -- used to match against a later super() call's excluded
-        # recordset (2026-08-25, section 151).
         self.non_returning_conditionals: List[tuple] = []
-        # (lineno, excluded_recordset_name) -- excluded_recordset_name is
-        # the <name> in `super(Class, self - <name>)`, or None for a
-        # zero-arg super() call or any other second-argument shape.
         self.unconditional_super_calls: List[tuple] = []
 
     def visit_For(self, node: ast.For):
@@ -162,29 +125,12 @@ class _UnguardedSuperVisitor(ast.NodeVisitor):
 
     @staticmethod
     def _filtered_source_name(node: ast.expr) -> Optional[str]:
-        """If a `for x in <expr>:` loop iterates directly over a bare
-        name (e.g. `for move in own_expense_moves:`), return that name --
-        the candidate 'excluded subset' variable a later
-        `super(Class, self - <name>)` call might reference. Returns None
-        for any other iterable shape (inline `.filtered(...)` never bound
-        to a name, method calls, etc.) -- deliberately conservative, a
-        guard expressed that way is a false negative we accept."""
         if isinstance(node, ast.Name):
             return node.id
         return None
 
     @staticmethod
     def _extract_excluded_recordset_name(super_call: ast.Call) -> Optional[str]:
-        """For a `super(Class, expr)` call (explicit 2-arg form), return
-        the name of the recordset excluded from `self` if `expr` is
-        exactly `self - <name>` (ast.BinOp, Sub, left=Name('self'),
-        right=a bare Name) -- the one confirmed real Odoo idiom for
-        guarding a later super() call against re-processing records
-        already mutated by an earlier branch. Returns None for zero-arg
-        super() or any other second-argument shape -- deliberately
-        conservative, same discipline as the rest of this module: a guard
-        expressed some other way is a false negative we accept, not a
-        case we try to guess at."""
         if len(super_call.args) < 2:
             return None
         expr = super_call.args[1]
@@ -211,10 +157,6 @@ class _UnguardedSuperVisitor(ast.NodeVisitor):
 
     @staticmethod
     def _is_guarded_pairing(loop_var: Optional[str], excluded_var: Optional[str]) -> bool:
-        """True if this specific (conditional, super-call) pairing is
-        guarded by recordset subtraction -- the conditional's loop
-        iterates over the exact same bare name the super() call excludes
-        via `self - <name>`."""
         return loop_var is not None and loop_var == excluded_var
 
     @property
@@ -226,11 +168,6 @@ class _UnguardedSuperVisitor(ast.NodeVisitor):
         )
 
     def get_matching_conditions(self) -> List[str]:
-        """Condition texts of every non-returning conditional that is
-        actually followed by a GENUINELY unguarded super() call (i.e. not
-        excluded via recordset subtraction) -- the literal(s) to cite as
-        "the exemption/threshold that can get silently overridden",
-        deduplicated, in source order."""
         seen = set()
         ordered: List[str] = []
         for cond_ln, cond_text, loop_var in self.non_returning_conditionals:
@@ -259,12 +196,6 @@ UNGUARDED_SUPER_WARNING_TEMPLATE = (
 def detect_unguarded_super(
     source: str, filepath: str, method_name: str, target_lineno: int, module: str = ""
 ) -> Optional[str]:
-    """
-    Deterministic AST heuristic. Returns a warning string if the method
-    definition starting at target_lineno in `source` matches the
-    unguarded-super pattern, None otherwise (including on parse failure or
-    if the method can't be located -- never crashes the caller, same
-    defensive style as the rest of the extractors)."""
     try:
         tree = ast.parse(source, filename=filepath)
     except SyntaxError as e:
@@ -299,7 +230,7 @@ def detect_unguarded_super(
     return None
 
 
-_RELATIONAL_CHAIN_MIN_DEPTH = 4  # e.g. self.env.user.employee_id.parent_id.parent_id.user_id
+_RELATIONAL_CHAIN_MIN_DEPTH = 4
 
 
 def _attribute_chain_depth(node: ast.Attribute) -> int:
@@ -313,8 +244,7 @@ def _attribute_chain_depth(node: ast.Attribute) -> int:
 
 
 def _attribute_chain_names(node: ast.Attribute) -> List[str]:
-    """Collect every attribute name in a chain, base to tip, e.g.
-    `self.env.user.employee_id` -> ['env', 'user', 'employee_id']."""
+    """Collect every attribute name in a chain, base to tip."""
     names = []
     cur = node
     while isinstance(cur, ast.Attribute):
@@ -324,21 +254,6 @@ def _attribute_chain_names(node: ast.Attribute) -> List[str]:
 
 
 class _UncheckedRelationalChainVisitor(ast.NodeVisitor):
-    """
-    rules.md Regle 3 ("Validation des champs relationnels"): never access a
-    Many2one's attributes without first checking it's set. Flags a long
-    chained attribute access (>= _RELATIONAL_CHAIN_MIN_DEPTH hops, e.g.
-    `self.env.user.employee_id.parent_id.parent_id.user_id`) that is never
-    preceded, anywhere else in the same function, by an `if` testing any of
-    the same attribute/name tokens -- meaning nothing guards against an
-    intermediate hop (e.g. `parent_id`) resolving to an empty recordset,
-    which silently evaluates to False/empty instead of raising, and can
-    propagate a wrong "nobody notified" result with no error signal at all.
-
-    Deliberately conservative, same discipline as _UnguardedSuperVisitor:
-    false negatives (a guard expressed some other way, in a different
-    variable, or via try/except) are preferred over false positives.
-    """
 
     def __init__(self):
         self.checked_names: set = set()
@@ -357,8 +272,6 @@ class _UncheckedRelationalChainVisitor(ast.NodeVisitor):
         if depth >= _RELATIONAL_CHAIN_MIN_DEPTH:
             names = _attribute_chain_names(node)
             self.long_chains.append((node.lineno, ".".join(names), names))
-        # Avoid double-counting nested Attribute nodes as separate chains,
-        # but still visit sibling children (call args, etc).
         for child in ast.iter_child_nodes(node):
             if child is not node.value:
                 self.visit(child)
@@ -367,13 +280,6 @@ class _UncheckedRelationalChainVisitor(ast.NodeVisitor):
 def _find_guarding_condition_for_helper_call(
     func: ast.FunctionDef, helper_name: str
 ) -> Optional[str]:
-    """Best-effort: if `func` calls `self.<helper_name>(...)` somewhere
-    inside an `if` block, return the unparsed source of the innermost
-    enclosing `if`'s test -- the literal condition/threshold (e.g.
-    "rec.amount_total > 20000") that actually has to be true to reach the
-    helper, so a finding inside that helper can cite the real trigger
-    instead of only the risky shape. Returns None if the call is
-    unconditional or not found (never raises)."""
     result: Optional[str] = None
 
     class _GuardFinder(ast.NodeVisitor):
@@ -408,29 +314,6 @@ def _find_guarding_condition_for_helper_call(
 def detect_unchecked_relational_chain(
     source: str, filepath: str, method_name: str, target_lineno: int, module: str = ""
 ) -> Optional[str]:
-    """
-    Deterministic AST heuristic (Bloc 9 gap, found 2026-08-06 replaying the
-    Q1.1 "cascade avoirs" benchmark E2E as part of the 8-remaining-modules
-    review). detect_unguarded_super only catches the "unconditional
-    super() after a non-returning conditional" security-lock shape -- it
-    has nothing to say about a plain business-logic override (calls
-    super() FIRST, then adds its own field assignment, which is a SAFE
-    override pattern on its own) that itself violates rules.md Regle 3 by
-    chaining several Many2one hops with no existence check
-    (custom_credit_note_approval_regional._get_directeur_regional:
-    `self.env.user.employee_id.parent_id.parent_id.user_id`, silently
-    False if the hierarchy is incomplete -- exactly the ground-truth risk
-    ("Risque: N+2 non gere si vide") the adversarial benchmark expects
-    surfaced, and which never reached the synthesis LLM because no tool
-    extracted it at all: analyze_security_locks only looks for
-    UserError/ValidationError/sudo/getattr, and the unguarded-super
-    detector doesn't fire here since this override IS guarded (super()
-    runs first, unconditionally, which is the correct pattern).
-
-    Also scans any same-class helper method the target method calls by
-    name (one level, e.g. `self._get_x()`) -- the real bug here lives in
-    a helper, not inline in the overridden method itself.
-    """
     try:
         tree = ast.parse(source, filename=filepath)
     except SyntaxError as e:
@@ -470,10 +353,6 @@ def detect_unchecked_relational_chain(
     for func in candidates:
         guarding_condition = None
         if func is not target_func:
-            # Chain lives in a helper, not the overridden method itself --
-            # find the literal condition/threshold in the caller that
-            # actually gates reaching it (e.g. "rec.amount_total > 20000"),
-            # so the finding cites the real trigger, not just the shape.
             guarding_condition = _find_guarding_condition_for_helper_call(
                 target_func, func.name
             )
@@ -508,31 +387,6 @@ def detect_unchecked_relational_chain(
 def find_methods_with_override_risk_findings(
     G: nx.DiGraph, model_name: str, method_names: List[str]
 ) -> List[str]:
-    """
-    Cheap deterministic pre-filter (no LLM, no full composite tool call):
-    for each candidate method name, resolve its override chain and run
-    BOTH detect_unguarded_super and detect_unchecked_relational_chain over
-    every site's source. Returns only the method names where at least one
-    site matches either pattern.
-
-    Renamed from find_methods_with_unguarded_super (2026-08-06, Bloc 9 gap
-    review) when detect_unchecked_relational_chain was added alongside it
-    -- keeping the old unguarded-super-only name after widening its scope
-    would have been misleading at every call site.
-
-    Exists because find_methods_with_override_cascade (ci_agent_tools.py)
-    only checks "is this method overridden by more than one module" --
-    true for dozens of ordinary methods on a shared model like
-    account.move (write, create, action_post...) with zero real finding.
-    Dispatching the full LLM-backed analyze_method_override_chain for
-    every one of them burns hops and Groq tokens for no signal (confirmed
-    2026-08-06: Q1.1/Q1.2/Q5.1 all hit 17 hops once the forced dispatch
-    was wired on the cascade-only guard alone). This second, cheaper
-    filter narrows the forced dispatch down to methods with an actual
-    finding, same discipline as the other J8/J9 structural guards
-    (find_server_action_nodes): deterministic AST check first, the
-    expensive tool (and its LLM interpretation) only on top of a real hit.
-    """
     hits: List[str] = []
     for method_name in method_names:
         sites = resolve_method_override_chain(G, model_name, method_name)
@@ -554,28 +408,13 @@ def find_methods_with_override_risk_findings(
     return hits
 
 
-# Backward-compatible aliases, kept only for any external caller not yet
-# updated -- new code should use find_methods_with_override_risk_findings.
 find_methods_with_unguarded_super_and_relational_risk = find_methods_with_override_risk_findings
-# 2026-08-07: test_method_override_chain.py (written by a concurrent
-# session the same day as the risk-findings rename) still imports the
-# original pre-rename name directly -- restoring it here rather than
-# editing the test, since the test's own name ("unguarded_super") is the
-# more accurate description of the specific real-corpus case it locks in.
 find_methods_with_unguarded_super = find_methods_with_override_risk_findings
 
 
 def analyze_method_override_chain(
     G: nx.DiGraph, model_name: str, method_name: str, llm=None
 ) -> str:
-    """
-    Composite tool: resolves the override chain for model_name.method_name
-    in real execution order, reads each site's exact source slice, runs
-    the deterministic unguarded-super detector on each, and (only if a
-    warning was found) requests a bounded LLM interpretation. Always
-    source-cited (module + file + line range per site), per project rule
-    ("sourcing obligatoire sur tout \u00e9l\u00e9ment produit").
-    """
     sites = resolve_method_override_chain(G, model_name, method_name)
 
     if not sites:
@@ -679,15 +518,6 @@ def interpret_override_chain_with_llm(
     snippets: List[str],
     llm,
 ) -> Optional[dict]:
-    """
-    Bounded LLM interpretation layer, only called when the deterministic
-    detector already found at least one warning. Mirrors
-    server_action_analyzer.interpret_server_action_with_llm's discipline:
-    fixed JSON shape, closed confidence set, graceful degradation to None
-    on any malformed response, out-of-set confidence, or call failure --
-    never crashes, never guesses, never silently trusts an out-of-spec
-    response.
-    """
     if not warnings or llm is None:
         return None
 

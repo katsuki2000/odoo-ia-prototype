@@ -1,7 +1,7 @@
 """
 code_intelligence/tests/test_a3_1_1.py
 
-Unit and integration tests for Story A3.1: NetworkX Knowledge Graph & Workflow Sub-Graph.
+Unit and Integration tests for NetworkX Knowledge Graph & Workflow Sub-Graph.
 Tests:
   1. NetworkX graph construction (nodes, typed edges)
   2. JSON serialization and deserialization (node_link_data / node_link_graph per DT-4)

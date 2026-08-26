@@ -1,5 +1,5 @@
 """
-Test de validation de la réindexation incrémentale (Sprint 6).
+Test de validation de la réindexation incrémentale ().
 
 Couvre :
 1. Modification d'un fichier doc (odoo_docs) — wiki_approbation.txt

@@ -1,11 +1,9 @@
 """
 code_intelligence/tests/test_analyser_contraintes_donnees.py
 
-Bloc 3 -> agent wiring: unit tests for analyze_data_constraints, the
+ -> agent wiring: unit tests for analyze_data_constraints, the
 tool exposing Semgrep-detected _sql_constraints / relational domain=
-findings to the ReAct agent. Fills the gap noted during J14 (Bloc 3 rules
-existed and passed `semgrep --test`, but no tool exposed them to the
-agent, so Semgrep never contributed to any final answer).
+findings to the ReAct agent. Fills the gap noted during J14 .
 
 Semgrep itself is NOT invoked here (no subprocess, no real .venv semgrep
 binary dependency) -- code_intelligence.semgrep_runner.run_semgrep_analysis
@@ -156,7 +154,7 @@ def test_skips_filepaths_that_do_not_exist_on_disk(monkeypatch, tmp_path):
 
 
 def test_uses_shared_find_model_source_filepaths_helper(graph_with_model_file):
-    """Regression guard against the F-08 class of bug (J7): the model-file
+    """Regression guard against the F-08 class of bug : the model-file
     lookup must be the single shared helper, not a second inline copy."""
     G, py_file = graph_with_model_file
     filepaths = find_model_source_filepaths(G, "sale.order")

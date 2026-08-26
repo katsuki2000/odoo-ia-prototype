@@ -1,11 +1,11 @@
 """
 code_intelligence/graph_staleness_detector.py
 
-Incremental Graph Staleness Detector (Sprint F / Bloc 10 — J37-J39):
+Incremental Graph Staleness Detector:
 - Level 0 (CLEAN): No changes detected.
 - Level 1 (FILE_ONLY): Direct nodes associated with changed files are marked dirty.
-- Level 2 (PROPAGATION): Adjacent dependent nodes/edges (1-hop/2-hop EXTENDS, RESTRICTED_BY, HAS_FIELD) are marked propagated.
-- Level 3 (FULL_REBUILD): Uncovered dynamic patterns (getattr, safe_eval, eval, exec, importlib) or manifest/ACL changes require full graph rebuild. Includes explicit `staleness_reason`.
+- Level 2 (PROPAGATION): Adjacent dependent nodes/edges are marked propagated.
+- Level 3 (FULL_REBUILD): Uncovered dynamic patterns or manifest/ACL changes require full graph rebuild.
 """
 
 import ast

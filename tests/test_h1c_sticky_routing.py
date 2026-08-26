@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-H1c (todo/plan.md preconditions section, 2026-08-19): route() previously
+H1c : route() previously
 decided purely from the current question's own text -- an elliptical
 follow-up with no keyword signal of its own (e.g. "Et pour Lyon ?") always
 fell to the hardcoded DOCUMENTAIRE default, even immediately after a

@@ -1,7 +1,7 @@
 """
 code_intelligence/tests/test_s2_0_business_resolver.py
 
-Unit tests for Story S2.0: Business Term Resolver.
+Unit tests for Business Term Resolver.
 Tests static alias lookup, graph model matching, and unresolved concept fallback.
 """
 
@@ -22,7 +22,7 @@ def mock_graph():
     G.add_node("model:hr.leave", node_type="Model", name="hr.leave")
     G.add_node("module:custom_expense_reimbursement_indirect", node_type="Module", name="custom_expense_reimbursement_indirect")
 
-    # J1 regression fixture: a Field labeled exactly "avoirs" on an unrelated
+    # regression fixture: a Field labeled exactly "avoirs" on an unrelated
     # model (res.partner), mirroring the real bug observed in production
     # ('avoirs' -> fuzzy: res.partner (100.0)). Without this node, the
     # fuzzy index is empty and the ordering bug can never be exercised —
@@ -52,10 +52,10 @@ def test_s2_0_static_alias_purchase_request(mock_graph):
 
 
 def test_s2_0_static_alias_purchase_request_does_not_bundle_purchase_order(mock_graph):
-    """Bloc 9 gap (2026-08-10, module 4/8, bloc9-04a/04c): 'demande d'achat'
+    """ gap (2026-08-10, module 4/8, /04c): 'demande d'achat'
     used to also resolve to the real, unrelated standard Odoo 'purchase.order'
     model, which drowned out custom.purchase.request's own 10 000e threshold
-    fact under the forced-dispatch hop budget (see contexte.txt section 21).
+    fact under the forced-dispatch hop budget .
     'demande d'achat' is the literal _description of custom.purchase.request
     itself -- an unambiguous match, not a case needing a second candidate."""
     res = resolve_business_term("Qui peut valider une demande d'achat de 15000€ ?", mock_graph)
@@ -85,7 +85,7 @@ def test_s2_0_unresolved_concept(mock_graph):
 
 def test_s2_0_alias_not_shadowed_by_fuzzy_single_token(mock_graph):
     """
-    Regression test for Bug #1 (J1): a short/single-token query matching
+    Regression test for Bug #1 (): a short/single-token query matching
     a static alias must resolve via static_alias, never be shadowed by a
     same-score fuzzy match on an unrelated model's Field label.
 
@@ -128,7 +128,7 @@ def test_s2_0_alias_matches_nfd_decomposed_input(mock_graph):
     assert "custom.asset.loan" in res.resolved_models
 
 
-# --- J2: Bounded LLM Arbitration Tests ------------------------------------
+# --- Bounded LLM Arbitration Tests ------------------------------------
 
 class _FakeLLMResponse:
     def __init__(self, content):

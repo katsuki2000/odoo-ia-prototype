@@ -9,7 +9,7 @@ authorization_gate._has_elevated_access) identifies groups by XML-ID
 (module.name), built statically from XML extraction. Without translation,
 every real logged-in user was silently treated as belonging to no group at
 all -- gating and ir.rule evaluation both failed closed for everyone,
-defeating Bloc 7's "filtered by the demandeur's real rights" requirement.
+defeating 's "filtered by the demandeur's real rights" requirement.
 
 These tests mock the RPC layer (no live Odoo needed) to prove:
   1. the bug reproduces with raw, unresolved integer IDs (as they arrive

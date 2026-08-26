@@ -1,7 +1,7 @@
 """
 miro-rag/code_intelligence/tests/test_bloc9_05_link_guard_backfill.py
 
-Bloc 9 gap, module 5/8 (custom_asset_loan, 2026-08-10, bloc9-05c-no-link-trap):
+ gap, module 5/8 (custom_asset_loan, 2026-08-10, ):
 locks in the deterministic backfill layer in rag/graph.py -- _extract_link_guard_fields
 and _backfill_link_guard_clarifications -- the second half of the fix (extraction-layer
 coverage for exception_conditions/exception_guard_fields/[GARDE DE LIEN] itself lives in
@@ -59,7 +59,7 @@ class TestExtractLinkGuardFields:
 
 class TestBackfillLinkGuardClarifications:
     def test_appends_deterministic_fact_when_guard_present(self):
-        """Core regression test (bloc9-05c-no-link-trap): the backfill must
+        """Core regression test (): the backfill must
         ALWAYS append the computed conclusion when a [GARDE DE LIEN]
         annotation exists in the raw tool output -- unconditional on
         question wording. Uses a NEUTRAL (non-contradicting) input here on
@@ -112,7 +112,7 @@ class TestBackfillLinkGuardClarifications:
         assert result == original_answer
 
 
-# Bloc 9 gap, module 5/8 Bug 2 (2026-08-11, bloc9-05c-no-link-trap, fixed last
+# gap, module 5/8 Bug 2 (2026-08-11, 05c-no-link-trap, fixed last
 # per the user's own stated priority order): a live run showed the backfill
 # doing exactly what it was designed to do (append the correct verdict) while
 # the LLM's own prose, directly above it, asserted the opposite conclusion --
@@ -123,7 +123,7 @@ class TestBackfillLinkGuardClarifications:
 # prepends when that happens.
 class TestLinkGuardContradictionDetectionAndCorrection:
     def test_detects_real_confirmed_wrong_polarity_phrasing(self):
-        """Exact phrasing from the live bloc9-05c-no-link-trap failure,
+        """Exact phrasing from the live  failure,
         not a hypothetical paraphrase."""
         wrong = (
             "La règle de séparation des rôles (bénéficiaire différent du "
@@ -185,7 +185,7 @@ class TestNeutralizeContradictingLinkGuardSentence:
     independent of the backfill wiring above."""
 
     def test_replaces_the_real_confirmed_wrong_sentence_verbatim(self):
-        """Exact phrasing from the live bloc9-05c-no-link-trap rerun
+        """Exact phrasing from the live  rerun
         (2026-08-11), not a hypothetical paraphrase -- confirms the
         sentence-boundary regex matches the real failure shape end to end,
         including the trailing subordinate clause after the matched
@@ -213,7 +213,7 @@ class TestNeutralizeContradictingLinkGuardSentence:
 
 
 class TestScopedRawToolOutput:
-    """Bloc 9 gap, module 5/8 continued (2026-08-11, contamination found
+    """ gap, module 5/8 continued (2026-08-11, contamination found
     on 05c-no-link-trap): _extract_link_guard_fields used to be fed the
     ENTIRE raw_tool_output (every hop of the whole ReAct turn), so when
     the loop wandered onto an unrelated model in the same turn (confirmed

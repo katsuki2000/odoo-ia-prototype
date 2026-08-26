@@ -1,7 +1,7 @@
 """
 code_intelligence/tests/test_b1_1.py
 
-Unit tests for Story B1.1: Tool who_has_access_to(model, permission, group_id=None).
+Unit tests for Tool who_has_access_to(model, permission, group_id=None).
 Tests:
   1. Access evaluation for read/write permissions
   2. Group hierarchy expansion (Child group inheriting Parent group via IMPLIES edge)

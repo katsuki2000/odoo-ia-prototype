@@ -2,18 +2,18 @@
 """
 scripts/check_bloc9_07_expense_reimbursement_indirect_e2e.py
 
-Bloc 9 generalization check, 7/8 -- same method as modules 1/8-6/8 (raw
+ generalization check, 7/8 -- same method as modules 1/8-6/8 (raw
 composite-tool output isolated from synthesis, then live end-to-end
 through code_intelligence_agent()), applied to the seventh mechanism:
 custom_expense_reimbursement_indirect (Q9.1) -- structurally UNLIKE every
-other Bloc 9 module: this one deliberately has NO nameable access-control
+other  module: this one deliberately has NO nameable access-control
 mechanism at all (no has_group(), no ir.rule, no sudo(), no hardcoded
 login/ID list, no ir.actions.server). The manifest's own summary says so
 verbatim: "gate de validation non-nommable, sans mecanisme Odoo standard".
 The correct answer to "qui a le droit de valider" is not a group or a
 threshold -- it's an honest statement that the code cannot be classified
 with certainty, per the project's own design rule (stated by the user,
-2026-08-10, logged in contexte.txt/etat_reel.md): when the agent cannot
+2026-08-10, logged in /): when the agent cannot
 answer a question, it should say so and point to how a human could find
 out, rather than staying silent or fabricating a plausible-looking answer.
 
@@ -89,7 +89,7 @@ def _marker_present(marker: str, text: str) -> bool:
 
 QUESTIONS = [
     {
-        "id": "bloc9-07a-business",
+        "id": "",
         "question": (
             "Qui peut valider une demande de remboursement de frais dans "
             "le module custom_expense_reimbursement_indirect ?"
@@ -107,7 +107,7 @@ QUESTIONS = [
         ],
     },
     {
-        "id": "bloc9-07b-technical",
+        "id": "",
         "question": (
             "Dans le modèle custom.reimbursement.request, la méthode "
             "action_valider peut-elle être analysée statiquement avec "
@@ -117,7 +117,7 @@ QUESTIONS = [
         "forbidden_markers": [],
     },
     {
-        "id": "bloc9-07c-sudo-scope-trap",
+        "id": "",
         "question": (
             "Le code d'action_valider contient un appel sudo() -- est-ce "
             "que cela signifie que n'importe qui peut valider une demande "
@@ -225,7 +225,7 @@ def check_e2e_full_pipeline():
     route() dispatch) instead of calling code_intelligence_agent()
     directly -- catches routing bugs check_e2e() alone cannot see (see
     check_bloc9_01_credit_note_cascade_e2e.py::check_e2e_full_pipeline for
-    the full rationale, contexte.txt section 78). Generalized to all 8
+    the full rationale,  section 78). Generalized to all 8
     modules 2026-08-20."""
     print("=" * 80)
     print(" FULL PIPELINE (query_graph -> route())")
@@ -263,10 +263,10 @@ def main():
     full_pipeline_ok = check_e2e_full_pipeline()
     print("=" * 80)
     if raw_ok and e2e_ok and full_pipeline_ok:
-        print("[BLOC 9 - 7/8] custom_expense_reimbursement_indirect: E2E confirmed.")
+        print("[ - 7/8] custom_expense_reimbursement_indirect: E2E confirmed.")
         sys.exit(0)
     else:
-        print("[BLOC 9 - 7/8] custom_expense_reimbursement_indirect: GAP FOUND -- see [MISSING]/[FAIL] lines above.")
+        print("[ - 7/8] custom_expense_reimbursement_indirect: GAP FOUND -- see [MISSING]/[FAIL] lines above.")
         sys.exit(1)
 
 

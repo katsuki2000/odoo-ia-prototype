@@ -2,9 +2,9 @@
 """
 scripts/diagnose_h4_04c_05c_gap.py
 
-Diagnostic script, isolated rejeu -- todo/contexte.txt section 129, suite.
+Diagnostic script, isolated rejeu --  section 129, suite.
 
-Section 129 confirmed the root cause for bloc9-05b (custom.asset.loan,
+Section 129 confirmed the root cause for  (custom.asset.loan,
 "quelles sont toutes les conditions verifiees par action_demarrer"):
 resolved_concept.is_resolved=True but no GOVERNANCE_SIGNAL_TERMS hit ->
 falls through to the documentaire fallback -> clean "no source" answer.
@@ -44,24 +44,24 @@ from code_intelligence.ci_graph_loader import get_code_intelligence_graph
 
 QUESTIONS = [
     (
-        "bloc9-04b-technical",
+        "",
         "Dans le modèle custom.purchase.request, quelles sont toutes "
         "les conditions vérifiées par action_valider ?",
     ),
     (
-        "bloc9-04c-manager-trap",
+        "",
         "Un utilisateur membre du groupe purchase_manager peut-il, à "
         "lui seul, valider n'importe quelle demande d'achat quel que "
         "soit son montant ?",
     ),
     (
-        "bloc9-05a-business",
+        "",
         "Pourquoi je n'arrive pas à démarrer une mise à disposition de "
         "matériel dont je suis à la fois le demandeur d'achat et le "
         "bénéficiaire ?",
     ),
     (
-        "bloc9-05c-no-link-trap",
+        "",
         "Si une mise à disposition de matériel n'est reliée à aucune "
         "demande d'achat, la règle de séparation des rôles "
         "(bénéficiaire différent du demandeur) s'applique-t-elle quand "

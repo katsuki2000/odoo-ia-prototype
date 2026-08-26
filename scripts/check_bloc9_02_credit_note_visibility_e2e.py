@@ -2,7 +2,7 @@
 """
 scripts/check_bloc9_02_credit_note_visibility_e2e.py
 
-Bloc 9 generalization check, 2/8 -- same method as
+ generalization check, 2/8 -- same method as
 check_bloc9_01_credit_note_cascade_e2e.py (raw composite-tool output
 isolated from synthesis, then live end-to-end through
 code_intelligence_agent()), applied to the second mechanism:
@@ -64,15 +64,15 @@ def _fold_accents(s: str) -> str:
     ('visibilité nationale') when paraphrasing. A plain substring marker
     check against the unaccented form then reports a false MISSING even
     when the answer is substantively correct -- confirmed live 2026-08-10
-    on bloc9-02a-both-groups (LLM wrote 'Avoirs - plafond visibilité
+    on  (LLM wrote 'Avoirs - plafond visibilité
     régionale' / 'Avoirs - visibilité nationale', both accented).
 
-    Extended 2026-08-25 (todo/contexte.txt section 137): the same false-
+    Extended 2026-08-25 : the same false-
     MISSING failure mode recurs for dashes -- the raw tool text always
     uses a plain ASCII hyphen ('Avoirs - visibilite nationale'), but the
     LLM's prose sometimes substitutes a typographic en dash or em dash
     when quoting the rule name ('Avoirs \u2013 visibilite nationale'),
-    confirmed live on bloc9-02a-both-groups full-pipeline. Same principle
+    confirmed live on  full-pipeline. Same principle
     as the accent fold: the answer is substantively correct, only the
     punctuation differs, so the check must not penalize it. En dash
     (U+2013) and em dash (U+2014) are normalized to a plain ASCII hyphen
@@ -88,7 +88,7 @@ def _fold_accents(s: str) -> str:
 def _marker_present(marker: str, text: str) -> bool:
     return _fold_accents(marker.lower()) in _fold_accents(text.lower())
 
-# Bug B2(a), todo/contexte.txt section 99 (2026-08-21): both questions
+# Bug B2(a),  section 99 (2026-08-21): both questions
 # reformulated to state explicitly that the requester is in the SAME
 # company as the record. Before this change, neither question said
 # anything about company at all, so _extract_company_context(question)
@@ -111,7 +111,7 @@ def _marker_present(marker: str, text: str) -> bool:
 # company_id silently and returned True regardless.
 QUESTIONS = [
     {
-        "id": "bloc9-02a-both-groups",
+        "id": "",
         "question": (
             "Un utilisateur de la même société, membre à la fois du groupe "
             "régional et du groupe national, peut-il voir un avoir de "
@@ -127,7 +127,7 @@ QUESTIONS = [
         ],
     },
     {
-        "id": "bloc9-02b-no-groups",
+        "id": "",
         "question": (
             "Un utilisateur de la même société, qui n'appartient à AUCUN des "
             "deux groupes (ni régional, ni national), peut-il voir ce même "
@@ -252,7 +252,7 @@ def check_e2e_full_pipeline(group_map):
     route() dispatch) instead of calling code_intelligence_agent()
     directly -- catches routing bugs check_e2e() alone cannot see (see
     check_bloc9_01_credit_note_cascade_e2e.py::check_e2e_full_pipeline for
-    the full rationale, contexte.txt section 78). Generalized to all 8
+    the full rationale,  section 78). Generalized to all 8
     modules 2026-08-20."""
     print("=" * 80)
     print(" FULL PIPELINE (query_graph -> route())")
@@ -308,10 +308,10 @@ def main():
     full_pipeline_ok = check_e2e_full_pipeline(group_map)
     print("=" * 80)
     if raw_ok and e2e_ok and full_pipeline_ok:
-        print("[BLOC 9 - 2/8] custom_credit_note_visibility_rules: E2E confirmed.")
+        print("[ - 2/8] custom_credit_note_visibility_rules: E2E confirmed.")
         sys.exit(0)
     else:
-        print("[BLOC 9 - 2/8] custom_credit_note_visibility_rules: GAP FOUND -- see [MISSING]/[FAIL] lines above.")
+        print("[ - 2/8] custom_credit_note_visibility_rules: GAP FOUND -- see [MISSING]/[FAIL] lines above.")
         sys.exit(1)
 
 

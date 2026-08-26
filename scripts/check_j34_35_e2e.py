@@ -2,13 +2,13 @@
 """
 scripts/check_j34_35_e2e.py
 
-Bloc 8/J34-35 integration sanity check, added 2026-08-06.
+/J34-35 integration sanity check, added 2026-08-06.
 
 test_j34_35_deep_custom_modules.py exercises the extraction/parsing layer
 (manifest_parser, python_extractor, xml_extractor, semgrep_locks_analyzer,
 graph_builder) directly and in isolation against custom_deep_inheritance_
 security -- it never calls code_intelligence_agent() end-to-end the way
-test_j25_26_e2e_purchase_bypass_gate.py does for Bloc 7. Unlike yesterday's
+test_j25_26_e2e_purchase_bypass_gate.py does for . Unlike yesterday's
 gap (a brand-new tool needing an explicit dispatch wire), no plumbing is
 expected to be missing here -- the module sits under /home/user/odoo-17.0/
 addons/ like any other custom module, so the production graph builder picks

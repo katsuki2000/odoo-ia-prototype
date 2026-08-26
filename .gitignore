@@ -9,8 +9,6 @@ __pycache__/
 *.pyd
 
 # --- Virtual Environments ---
-venv/
-venv_miro/
 .venv/
 
 # --- Environment / Secrets ---

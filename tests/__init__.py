@@ -3,8 +3,7 @@ en collecte pytest, pas un simple contournement.
 
 Cause reelle : ce repertoire etait le SEUL des cinq repertoires de tests du
 depot (core/, document_rag/, erp_data/, code_intelligence/, et celui-ci)
-sans __init__.py -- les quatre autres l'ont deja (cf. todo/contexte.txt
-section 118). tests/test_j18_routing_fewshot.py fait un import absolu
+sans __init__.py -- les quatre autres l'ont deja . tests/test_j18_routing_fewshot.py fait un import absolu
 `from tests.few_shot_routing_examples import (...)`, qui suppose que
 `tests` est un vrai package resoluble depuis la racine du projet.
 

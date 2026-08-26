@@ -37,25 +37,10 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 # IS document_rag/ (see Path(__file__).resolve().parent.parent above, __file__
 # = document_rag/ingestion/ingest_all.py), so appending "document_rag/fake_data"
 # double-nested into a phantom document_rag/document_rag/fake_data/documents/
-# that DOCS_DIR.mkdir() below silently (re)created empty on every import,
-# while the REAL 10-file corpus sits one level up at document_rag/fake_data/
-# documents/ and was never the default docs_dir actually used unless a caller
-# passed it explicitly (confirmed: no test relies on this default, all pass
-# docs_dir= explicitly -- see document_rag/tests/test_ingest_all.py).
 FAKE_DATA_DIR = PROJECT_ROOT / "fake_data"
 DOCS_DIR = FAKE_DATA_DIR / "documents"
 LOGS_DIR = PROJECT_ROOT / "ingestion" / "logs"
 
-# 2026-08-12: fake_data/code/ (synthetic 3-module stand-in corpus) removed
-# by the user -- see contexte.txt / todo/etat_reel.md "sync avec le vrai
-# Odoo". This documentary code-RAG branch is deliberately kept pointed at
-# a REAL corpus rather than deleted outright: it is the documented
-# negative-result baseline for the thesis (RAG documentaire sur du code
-# custom s'est avere insuffisant face a la Code Intelligence deterministe
-# -- real plan.md Bloc 6). Scoped to the SAME module set as
-# rag.graph.get_code_intelligence_graph() (not the full ~700-module
-# ADDONS_ROOT) so the two branches are comparable on identical source
-# material -- see _documentary_code_module_dirs() below.
 ADDONS_ROOT = Path("/home/user/odoo-17.0/addons") if Path("/home/user/odoo-17.0/addons").exists() else PROJECT_ROOT.parent / "addons"
 CORE_MODULES_ALWAYS_LOADED = ["account", "sale", "stock"]
 

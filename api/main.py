@@ -263,34 +263,10 @@ def ask_question_v1(request: AskRequestV1, user: dict = Depends(get_current_user
     from core.session_store import get_session, update_session
     from langchain_core.messages import HumanMessage, AIMessage
 
-    # H1b-i (todo/plan.md, Bloc P1 preconditions H1): session_id existed in
-    # this payload already but was never used server-side -- every call ran
-    # with chat_history=[] regardless. Minimal in-memory session store (see
-    # rag/session_store.py) closes that infra gap. resolved_concept is
-    # carried alongside chat_history in the store but not yet consumed here
-    # -- the "reuse last_resolved_concept on an under-specified question"
-    # logic is H1b-ii, deliberately deferred until this persistence layer
-    # is confirmed working.
     session = get_session(request.session_id)
     chat_history = session["chat_history"]
-    # H1c (todo/plan.md, 2026-08-19): the previous turn's route for this
-    # session, if any -- passed to query_graph() so route()'s sticky-
-    # routing fallback can reuse it when the current question carries no
-    # keyword signal of its own (see rag/graph.py's
-    # _sticky_route_or_default docstring for the full rationale).
     last_route = session["last_route"]
-    # H1b-ii (todo/contexte.txt section 64/70, 2026-08-20): the previous
-    # turn's resolved_concept dict for this session, if any -- passed to
-    # query_graph() so route()'s _sticky_concept_or_resolve fallback can
-    # reuse it when the current question's own deterministic resolution
-    # fails (see rag/routing.py's _sticky_concept_or_resolve docstring for
-    # the full rationale).
     last_resolved_concept = session["resolved_concept"]
-    logging.getLogger(__name__).info(
-        "H1b-i check: session_id=%s chat_history_len=%d last_route=%s "
-        "last_resolved_concept=%s",
-        request.session_id, len(chat_history), last_route, last_resolved_concept,
-    )
 
     try:
         if not request.question or not request.question.strip():
@@ -301,18 +277,13 @@ def ask_question_v1(request: AskRequestV1, user: dict = Depends(get_current_user
         if token_uid:
             request.user_uid = token_uid
 
-        # Real per-user Odoo API key and group membership, both signed into
-        # the JWT by the Odoo controller from request.env.user -- never taken
-        # from the request body, which is untrusted client input. Without
-        # these, ERP tool calls and ir.rule evaluation silently ran with
-        # admin rights / LLM-guessed groups instead of the actual requester's.
+        # Real per-user Odoo API key and group membership from JWT
         token_api_key = user.get("api_key")
         token_groups = user.get("groups") or []
         if not token_api_key:
             logging.getLogger(__name__).warning(
                 "No real Odoo API key in JWT for uid=%s -- ERP/XML-RPC calls "
-                "will fall back to the admin credential instead of the "
-                "requester's own rights.", token_uid,
+                "will fall back to the admin credential.", token_uid,
             )
 
         response = query_graph(
@@ -329,25 +300,11 @@ def ask_question_v1(request: AskRequestV1, user: dict = Depends(get_current_user
         if response.answer == "Une erreur interne s'est produite lors de l'exécution du pipeline.":
             raise HTTPException(status_code=503, detail="Service Unavailable: Upstream provider down.")
 
-        # H1b-i: persist this turn onto the session so the NEXT request with
-        # the same session_id sees it via get_session() above. Only reached
-        # on a genuinely successful turn (every failure path above returns
-        # via HTTPException first) -- a failed turn is never written into
-        # the history.
+        # Persist this turn onto the session
         updated_history = chat_history + [
             HumanMessage(content=request.question),
             AIMessage(content=response.answer),
         ]
-        # H1c: persist the branch this turn actually took (response.route,
-        # set centrally by format_output() in rag/graph.py) as next turn's
-        # last_route -- falls back to the previous value if this turn's
-        # route was somehow never set, rather than silently wiping it.
-        # H1b-ii (todo/contexte.txt section 64/70, 2026-08-20): same
-        # fallback discipline for resolved_concept -- response.resolved_
-        # concept is set centrally by the same format_output() node, but
-        # falls back to the previous session value rather than silently
-        # wiping it to None on the (should-never-happen) chance a turn
-        # reaches here without one.
         update_session(
             request.session_id, updated_history,
             getattr(response, "resolved_concept", None) or last_resolved_concept,

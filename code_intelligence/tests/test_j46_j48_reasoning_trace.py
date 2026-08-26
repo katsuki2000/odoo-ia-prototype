@@ -1,13 +1,10 @@
 """
 code_intelligence/tests/test_j46_j48_reasoning_trace.py
 
-Unit tests for Sprint F / Bloc 12 (J46-J48: real scope -- structured logging
-of the agent's own reasoning path (composite tool calls + internal
-traversal, indexed and readable post-hoc) + LLM-call budget comparison
+Unit tests for  /   + LLM-call budget comparison
 across the three RAG branches, and the per-question hop cap guardrail).
 
-Distinct from test_bloc10_incremental_event_logging.py (Bloc 10 /
-J37-J42), which tests KNOWLEDGE GRAPH staleness/recalculation events, not
+Distinct from test_bloc10_incremental_event_logging.py , which tests KNOWLEDGE GRAPH staleness/recalculation events, not
 agent reasoning.
 """
 
@@ -122,7 +119,7 @@ def test_j48_llm_call_budget_report_aggregates_by_branch(tmp_path):
     import sys
     from pathlib import Path
 
-    scripts_dir = Path(__file__).resolve().parents[3] / "scripts"
+    scripts_dir = Path(__file__).resolve().parents[2] / "scripts"
     sys.path.insert(0, str(scripts_dir))
     from report_llm_call_budget import build_budget_report
 
@@ -155,7 +152,7 @@ def test_j48_report_handles_empty_log_gracefully(tmp_path):
     import sys
     from pathlib import Path
 
-    scripts_dir = Path(__file__).resolve().parents[3] / "scripts"
+    scripts_dir = Path(__file__).resolve().parents[2] / "scripts"
     sys.path.insert(0, str(scripts_dir))
     from report_llm_call_budget import build_budget_report
 

@@ -1,7 +1,7 @@
 """
 code_intelligence/tests/test_bloc9_cross_module_computed_fields.py
 
-Bloc 9, second item: "champs calcules cross-module" was the one gap of
+, second item: "champs calcules cross-module" was the one gap of
 the plan's 4 named pistes NOT already covered by the existing 9-10
 adversarial modules (verified by reading every models/*.py in the corpus
 -- custom_deep_inheritance_security covers deep inheritance, nested

@@ -1,8 +1,7 @@
 """
 code_intelligence/tests/test_f08_dedup_groups_server_actions_automations.py
 
-Regression test for the F-08 finding (Bloc 1 / J7 line-by-line security
-review), extended on 2026-08-07.
+Regression test for the F-08 finding , extended on 2026-08-07.
 
 J7 found and fixed F-08 only for `rules`: cross_file_resolver's
 build_module_symbol_registry indexes each record under BOTH its full

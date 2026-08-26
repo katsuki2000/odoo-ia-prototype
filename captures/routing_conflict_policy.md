@@ -1,4 +1,4 @@
-# Bloc 6 — Politique de résolution de conflit inter-branches
+# Politique de résolution de conflit inter-branches
 
 ## Périmètre
 

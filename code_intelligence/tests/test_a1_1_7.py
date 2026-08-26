@@ -1,7 +1,7 @@
 """
 code_intelligence/tests/test_a1_1_7.py
 
-Integration test for Story A1.1: Python structural extraction on full real Odoo modules.
+Integration tests for Python structural extraction on full real Odoo modules.
 Measures extraction coverage on real corpus modules (sale, account, stock).
 Acceptance criterion: >= 90% file parsing and extraction success.
 """

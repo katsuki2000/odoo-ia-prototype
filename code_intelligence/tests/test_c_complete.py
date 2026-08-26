@@ -1,8 +1,7 @@
 """
 code_intelligence/tests/test_c_complete.py
 
-Unit tests for Epic C requirements:
-  - C.1.1: Tool binding & CI agent ReAct loop
+Unit tests for - C.1.1: Tool binding & CI agent ReAct loop
   - C.1.2: Anti-loop guard (duplicate tool + arguments detection)
   - C.1.3: Navigation strategy system prompt
   - C.1.4: Hop counter & partial answer on limit
@@ -35,11 +34,11 @@ def test_c1_1_tools_binding():
         "resolve_technical_name",
         "explain_decision_path",
         "read_source_code",
-        "analyze_data_constraints",  # J13-bis
+        "analyze_data_constraints",  # bis
     }
     assert expected_tools.issubset(tool_names), f"Missing tools: {expected_tools - tool_names}"
     # Count deliberately not pinned to a literal number -- it has drifted
-    # (12 -> 13 with J13-bis's analyze_data_constraints) and would keep
+    # (12 -> 13 with bis's analyze_data_constraints) and would keep
     # drifting with future additions. The issubset check above is the real
     # guarantee; this just documents intent without becoming stale again.
     assert len(ALL_CI_TOOLS) >= len(expected_tools)

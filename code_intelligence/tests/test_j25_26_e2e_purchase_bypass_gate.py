@@ -1,8 +1,8 @@
 """
 code_intelligence/tests/test_j25_26_e2e_purchase_bypass_gate.py
 
-Bloc 7 / J25-J26: end-to-end test of the generalized authorization gate
-(J23-24) on adversarial test case 3 (hardcoded validator bypass), run
+ / J25-J26: end-to-end test of the generalized authorization gate
+ on adversarial test case 3 (hardcoded validator bypass), run
 against the REAL pipeline entry point `code_intelligence_agent()` -- unlike
 test_j23_24_authorization_gate.py, which exercises `gate_observation()` in
 isolation against small hand-built synthetic graphs. This test builds the
@@ -20,7 +20,7 @@ references "demande d'achat" without naming the module explicitly):
   action_valider(): requires purchase.group_purchase_manager OR membership
   in _VALIDATEURS_EXCEPTIONNELS: amounts > 10000 EUR require the latter,
   the group alone is not sufficient -- a hardcoded bypass invisible to the
-  ACL/ir.rule system, exactly what analyze_security_locks + Bloc 7's
+  ACL/ir.rule system, exactly what analyze_security_locks + 's
   gate exist to detect and protect respectively.
 
 GAP FOUND, THEN FIXED (see conversation 2026-08-05): originally,
@@ -39,8 +39,7 @@ Confirmed against real Odoo test users on 2026-08-05: this originally let
 ANY employee holding base.group_user (i.e. every non-portal user, including
 test_nospecial_2026 below, a standard employee with no purchase management
 group at all) sail through the gate as "elevated" -- the hardcoded
-validator emails were NOT hidden from them, even though Bloc 7 (J22's
-decision: "toute explication filtrée selon les droits du demandeur") was
+validator emails were NOT hidden from them, even though   was
 explicitly meant to protect exactly this case.
 
 FIXED the same day: authorization_gate._extract_has_group_xmlids_from_source()
@@ -59,9 +58,26 @@ checks the stricter account.group_account_manager).
 test_purchase_manager_sees_bypass_unhidden is the mirror sanity check: a
 real purchase.group_purchase_manager holder must NOT be gated -- confirming
 the gate (when it does trigger) does not over-restrict a legitimate user.
+
+KNOWN FLAKINESS (todo/contexte.txt sections 193-195, 203, this fix): both
+tests make real Groq LLM calls end-to-end. When run as part of a long
+full suite (this file included via `pytest ... ` without `-m "not
+integration"`), the organization's shared DAILY token quota (TPD) can
+become exhausted by the time these tests run, causing
+_invoke_with_rate_limit's final retry to raise a 429 rate_limit_exceeded
+error that ci_agent_node.py logs and swallows internally ("LLM tool
+selection failed"/"Synthesis failed"). Verified in isolation three times
+over (RPC resolution, full decision path, isolated test rerun -- section
+195): the deterministic gating mechanism itself (_has_elevated_access)
+is sound; the failure is infrastructure quota exhaustion, not a product
+regression. _run() below detects this specific signature in captured
+ERROR logs and skips (never silently passes) rather than asserting on a
+response produced during an LLM outage.
 """
 
 from __future__ import annotations
+
+import logging
 
 import pytest
 
@@ -70,6 +86,17 @@ from core.schemas import AssistantResponse
 
 
 pytestmark = pytest.mark.integration
+
+# Distinctive substrings of a Groq daily-token-quota (TPD) exhaustion,
+# as they appear verbatim in the exception ci_agent_node.py logs at
+# ERROR level ("LLM tool selection failed: %s" / "Synthesis failed: %s").
+# Deliberately narrow (not a bare "error" or "failed" match) so this can
+# only mask a genuine external-quota outage, never a real assertion
+# failure or logic bug in the gating mechanism itself.
+_RATE_LIMIT_EXHAUSTION_SIGNATURES = (
+    "rate_limit_exceeded",
+    "tokens per day",
+)
 
 # Real Odoo test users, verified via admin RPC on 2026-08-05 (see
 # conversation): raw res.groups database IDs as they would arrive from the
@@ -122,7 +149,7 @@ def test_standard_employee_sees_bypass_hidden():
     for email in HARDCODED_VALIDATOR_EMAILS:
         assert email not in response.answer, (
             f"Hardcoded validator email {email!r} leaked to a standard "
-            "employee without purchase management rights -- Bloc 7 gate "
+            "employee without purchase management rights --  gate "
             "did not fire for custom.purchase.request (see module "
             "docstring: base.group_user write ACL is being treated as "
             "'elevated access', which is the wrong proxy for this model)."

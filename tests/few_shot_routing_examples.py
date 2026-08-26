@@ -169,7 +169,7 @@ FEW_SHOT_ROUTING_EXAMPLES = [
 
     # =========================================================================
     # 9. REGRESSION: doc ANCHOR (not a DOC_KEYWORD) + quantitative -> HYBRIDE
-    #    Found in J20-J21 review: is_hybrid only checked DOC_KEYWORDS, so anchors
+    #    Found in review: is_hybrid only checked DOC_KEYWORDS, so anchors
     #    like "où est documenté" / "dans le wiki" / "wiki interne" that are NOT
     #    also in DOC_KEYWORDS silently fell through to DOCUMENTAIRE instead of
     #    HYBRIDE. Only "selon le wiki" worked by coincidence (present in both
@@ -189,7 +189,7 @@ FEW_SHOT_ROUTING_EXAMPLES = [
 
 
 # =============================================================================
-# Conflict resolution policy (J20-J21 implementation reference)
+# Conflict resolution policy 
 # =============================================================================
 CONFLICT_RESOLUTION_POLICY = """
 ## Politique de résolution de conflit inter-branches

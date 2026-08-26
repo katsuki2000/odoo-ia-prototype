@@ -2,7 +2,7 @@
 code_intelligence/xml_extractor.py
 
 AST/XML-based extractor for Odoo XML files.
-Implements Task A1.2.1: Parser ir.rule (domain_force, groups_id, model_id, perm_read/write/create/unlink).
+Parser ir.rule (domain_force, groups_id, model_id, perm_read/write/create/unlink).
 """
 
 import re
@@ -560,7 +560,7 @@ def _extract_buttons_from_arch_elem(arch_elem: ET.Element) -> List[OdooFormButto
 
 def parse_server_actions_from_xml(filepath: Path) -> List[OdooServerActionRecord]:
     """
-    Story S2.3: Parse an Odoo XML file and extract all <record model="ir.actions.server"> declarations.
+    Parse an Odoo XML file and extract all <record model="ir.actions.server"> declarations.
     Captures the 'code' field content that contains executable Python logic.
     """
     if not filepath.exists():
@@ -626,7 +626,7 @@ def parse_server_actions_from_xml(filepath: Path) -> List[OdooServerActionRecord
 
 def parse_base_automations_from_xml(filepath: Path) -> List[OdooBaseAutomationRecord]:
     """
-    Story S2.3: Parse an Odoo XML file and extract all <record model="base.automation"> declarations.
+    Parse an Odoo XML file and extract all <record model="base.automation"> declarations.
     Links automation triggers to their associated ir.actions.server records.
     """
     if not filepath.exists():

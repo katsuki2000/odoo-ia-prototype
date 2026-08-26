@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-2026-08-19 fix (todo/contexte.txt): route()'s keyword lists (ERP_KEYWORDS,
+2026-08-19 fix : route()'s keyword lists (ERP_KEYWORDS,
 CODE_INTEL_KEYWORDS, QUANTITATIVE_TERMS, DOC_KEYWORDS, DATA_TERMS,
 DOC_ANCHORS, THRESHOLD_QUERY_TERMS) were matched with a plain Python `in`
 on the lowercased question, with zero accent normalization -- an accented

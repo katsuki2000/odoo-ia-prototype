@@ -1,6 +1,4 @@
 """
-miro-rag/tools/odoo_connector.py
-
 Odoo XML-RPC connection manager for the RAG AI Prototype.
 Enforces model whitelisting and read-only operations for secure data retrieval.
 """

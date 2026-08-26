@@ -1,7 +1,7 @@
 """
 code_intelligence/tests/test_bloc8_j27_inheritance_cycle_regression.py
 
-Bloc 8 / J27: "Cycles d'héritage — test de non-régression avec cycle
+ / J27: "Cycles d'héritage — test de non-régression avec cycle
 artificiel injecté dans le corpus de test (détection déjà posée en A2, à
 couvrir en non-régression ici)."
 
@@ -23,7 +23,7 @@ sequence rag/graph.py's _load_module()/get_code_intelligence_graph() uses
 for real modules), then query the resulting graph with the actual
 trace_full_inheritance() tool implementation -- proving the whole chain,
 not just the detection step, is cycle-safe. A wall-clock assertion gives
-the "chiffre documenté" the Bloc 8 critère de fin asks for: any regression
+the "chiffre documenté" the  critère de fin asks for: any regression
 that reintroduces unbounded recursion on a cycle would blow well past this
 budget, never just run slightly slower.
 """
@@ -38,7 +38,7 @@ from code_intelligence.deterministic_tools import trace_full_inheritance, QueryS
 
 # Generous budget for a query over a handful of synthetic nodes -- the point
 # is to catch UNBOUNDED recursion (which would hang indefinitely or blow
-# the recursion limit), not to benchmark real latency (that's J30-31).
+# the recursion limit), not to benchmark real latency (that's ).
 _MAX_QUERY_SECONDS = 2.0
 
 

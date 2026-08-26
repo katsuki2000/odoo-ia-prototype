@@ -2,7 +2,7 @@
 """
 scripts/check_bloc9_01_credit_note_cascade_e2e.py
 
-Bloc 9 generalization check, 1/8 -- replicates the check_j34_35_e2e.py
+ generalization check, 1/8 -- replicates the check_j34_35_e2e.py
 method (live end-to-end run through code_intelligence_agent(), not just
 the isolated extraction-layer tests) on the "cascade avoirs" mechanism:
 custom_credit_note_approval (base) + custom_credit_note_approval_regional
@@ -54,7 +54,7 @@ from code_intelligence.deterministic_tools import _fold_accents
 
 QUESTIONS = [
     {
-        "id": "bloc9-01a-business",
+        "id": "",
         "question": "Qui a le droit d'approuver un avoir de 25 000€ pour un client normal (pas VIP) ?",
         "expected_markers": [
             "account.group_account_manager",
@@ -62,7 +62,7 @@ QUESTIONS = [
         ],
     },
     {
-        "id": "bloc9-01b-technical",
+        "id": "",
         "question": (
             "Dans le modèle account.move, quelles sont toutes les surcharges de "
             "la méthode action_valider_avoir et dans quel ordre s'exécutent-elles ?"
@@ -104,7 +104,7 @@ QUESTIONS = [
         ],
     },
     {
-        "id": "bloc9-01c-vip-trap",
+        "id": "",
         "question": "Qui a le droit d'approuver un avoir pour un client VIP, et y a-t-il un piège dans le code ?",
         "expected_markers": [
             "avoir_vip_exempt",
@@ -200,11 +200,11 @@ def check_e2e_full_pipeline():
     real route() dispatch) instead of calling code_intelligence_agent()
     directly. check_e2e() alone can never catch a routing bug -- it forces
     the Code Intelligence path regardless of what route() would have
-    picked. 01c-vip-trap (contexte.txt section 77) is exactly this: it was
+    picked. 01c-vip-trap  is exactly this: it was
     found misrouted to the branche documentaire by route(), a failure mode
     check_e2e()'s direct call cannot see. Merged in 2026-08-20 from the
     now-deleted miro-rag/scripts/check_bloc9_01_credit_note_cascade_e2e.py
-    reconstruction (see contexte.txt section 78) rather than kept as a
+    reconstruction  rather than kept as a
     second, diverging script.
     """
     print("=" * 80)
@@ -262,10 +262,10 @@ def main():
     full_pipeline_ok = check_e2e_full_pipeline()
     print("=" * 80)
     if raw_ok and e2e_ok and full_pipeline_ok:
-        print("[BLOC 9 - 1/8] custom_credit_note_approval(+regional+vip): E2E confirmed.")
+        print("[ - 1/8] custom_credit_note_approval(+regional+vip): E2E confirmed.")
         sys.exit(0)
     else:
-        print("[BLOC 9 - 1/8] custom_credit_note_approval(+regional+vip): GAP FOUND -- see [MISSING]/[FAIL] lines above.")
+        print("[ - 1/8] custom_credit_note_approval(+regional+vip): GAP FOUND -- see [MISSING]/[FAIL] lines above.")
         sys.exit(1)
 
 

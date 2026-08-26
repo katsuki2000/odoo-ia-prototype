@@ -1,7 +1,7 @@
 """
 code_intelligence/tests/test_c1_1.py
 
-Unit and integration tests for Epic C: Router Integration & LangGraph Code Intelligence Node.
+Unit and Integration tests for Router Integration & LangGraph Code Intelligence Node.
 Tests:
   1. 4-Way Routing Classification (DOCUMENTAIRE, DONNEES_ERP, HYBRIDE, CODE_INTELLIGENCE)
   2. End-to-End LangGraph execution for Code Intelligence queries

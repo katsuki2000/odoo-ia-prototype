@@ -1,8 +1,4 @@
-# Fixtures TDD (semgrep --test) pour la règle
-# odoo-sql-constraints-declaration (Bloc 3 / J11).
-#
-# Attention : ne pas décrire ici en toutes lettres le nom des deux
-# annotations attendues par semgrep --test (positive / negative) —
+# Test fixtures for semgrep rule: odoo-sql-constraints-declaration.
 # le parseur de tests scanne tous les commentaires du fichier et
 # confond une explication en prose avec une vraie annotation.
 

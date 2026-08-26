@@ -215,13 +215,13 @@ def test_query_graph_mocked(mock_search_retrieve, mock_get_retriever, mock_chat_
     assert response.sources[0].source == "facture.md"
 
 
-# Bloc 9 gap (2026-08-10, bloc9-01a-business): override-cascade forced
+# gap (2026-08-10, 01a-business): override-cascade forced
 # dispatch must stay scoped to what the question actually asks about on a
 # shared model, instead of dispatching every flagged method regardless of
 # relevance and drowning the one finding that matters in synthesis context.
 class TestRankAndCapOverrideMethods:
     def test_no_op_single_candidate(self):
-        """Bloc 9 gap rerun (2026-08-11): cap lowered from 2 to 1 (see
+        """ gap rerun (2026-08-11): cap lowered from 2 to 1 (see
         module-level comment above _MAX_OVERRIDE_CASCADE_DISPATCH in
         rag/graph.py) -- with only one flagged candidate to begin with,
         there is nothing to rank or drop."""
@@ -240,7 +240,7 @@ class TestRankAndCapOverrideMethods:
         assert result == ["action_valider_avoir"]
 
     def test_two_candidates_still_gets_capped_to_one(self):
-        """Bloc 9 gap, module 1/8 rerun (2026-08-10/11): the exact case that
+        """ gap, module 1/8 rerun (2026-08-10/11): the exact case that
         motivated lowering the cap from 2 to 1 -- exactly 2 flagged
         candidates on a shared model, one relevant and one not. The old
         cap=2 'no-op when <= cap' guard let both through untouched here,
@@ -251,7 +251,7 @@ class TestRankAndCapOverrideMethods:
         assert result == ["action_valider_avoir"]
 
 
-# Bloc 9 gap (2026-08-10, bloc9-02b-no-groups): the deterministic
+# gap (2026-08-10, 02b-no-groups): the deterministic
 # can_view_amount fact injected into tool_observations must stay purely
 # declarative -- a live run showed the synthesis LLM echoing an imperative
 # second-person sentence ('ne doit JAMAIS etre recalcule ... reprendre ce
@@ -278,7 +278,7 @@ class TestFormatCanViewAmountFact:
             assert banned not in lowered, f"found banned imperative phrase: {banned!r}"
 
 
-# Bloc 9 gap (2026-08-10, bloc9-03c-urgente-trap, generalization check 3/8
+# gap (2026-08-10, 03c-urgente-trap, generalization check 3/8
 # on custom_hr_leave_workflow): bare 'automatiq\w*' matched the everyday
 # adverb "automatiquement" ("sa demande est-elle automatiquement validee ?"),
 # an ordinary question about whether something happens without further
@@ -325,8 +325,8 @@ class TestAutomationPatternNoBareAdverbFalsePositive:
         assert _question_suggests_automation_bypass("Comment contourner cette validation ?") is True
 
 
-# Bloc 9 gap, found 2026-08-11 (module 1/8 rerun, bloc9-01a-business /
-# bloc9-01b-technical, after the has_group()/cap/truncation fixes were all
+# gap, found 2026-08-11 (module 1/8 rerun, 01a-business /
+# 01b-technical, after the has_group()/cap/truncation fixes were all
 # confirmed active): two further dropped-fact gaps on the same
 # 'account.move.action_valider_avoir' override cascade -- see the
 # module-level comment above _OVERRIDE_MODULE_RE/_OVERRIDE_CHAIN_AMOUNT_RE
@@ -361,7 +361,7 @@ class TestBackfillMissingOverrideModules:
         assert _extract_override_modules("rien à voir ici") == []
 
     def test_backfills_base_module_dropped_by_mislabeling(self):
-        """Bloc9-01b-technical live failure: base module correctly enumerated
+        """ live failure: base module correctly enumerated
         in content but labeled 'module 'account_move'' instead of its real
         name -- a plain substring check on 'custom_credit_note_approval'
         would (wrongly) still pass because it's a literal prefix of the two
@@ -416,7 +416,7 @@ class TestBackfillMissingOverrideChainAmount:
         assert _extract_override_chain_amounts("rien à voir ici") == []
 
     def test_backfills_amount_dropped_from_business_phrased_answer(self):
-        """Bloc9-01a-business live failure: the regional module's 20000e
+        """ live failure: the regional module's 20000e
         finding is present verbatim in the raw text but never used in the
         synthesized answer for the business-phrased question."""
         answer = (
@@ -453,7 +453,7 @@ class TestBackfillMissingOverrideChainAmount:
         assert result == "réponse courte"
 
     def test_no_op_on_unrelated_rec_comparison_outside_override_chain_text(self):
-        """Bloc 9 gap, found 2026-08-11 (module 5/8, bloc9-05c-no-link-trap
+        """ gap, found 2026-08-11 (module 5/8, 
         live run, same day as module 5/8's exception_conditions fix in
         semgrep_locks_analyzer.py): _OVERRIDE_CHAIN_AMOUNT_RE ('rec.<attr> >
         <digits>') is not actually specific to
@@ -495,7 +495,7 @@ class TestBackfillMissingOverrideChainAmount:
         assert "chaîne de surcharge" not in result.lower()
 
 
-# Bloc 9 gap, module 1/8 (2026-08-12, bloc9-01b-technical): the marker-only
+# gap, module 1/8 (2026-08-12, 01b-technical): the marker-only
 # E2E check verified the two other override modules were present SOMEWHERE
 # in the final answer (via _backfill_missing_override_modules), but a live
 # run showed the LLM's free prose actively denying they existed ("Aucune
@@ -583,7 +583,7 @@ class TestOverrideCascadeContradictionCorrection:
         assert result == answer
 
     def test_correct_override_cascade_contradictions_end_to_end_on_real_live_case(self):
-        """Reproduces the reported bloc9-01b-technical live failure end to
+        """Reproduces the reported  live failure end to
         end: both the denial and the fabricated short-circuit claim in the
         same answer, against the real _REAL_OVERRIDE_CHAIN_RAW_TEXT
         fixture. Confirms both are corrected in a single pass and neither
@@ -617,7 +617,7 @@ class TestOverrideCascadeContradictionCorrection:
         assert result == answer
 
 
-# Bloc 9 gap (2026-08-13, check_native_odoo_out_of_scope.py on
+# gap (2026-08-13, check_native_odoo_out_of_scope.py on
 # mrp.production): resolve_business_term() correctly returns
 # is_resolved=False on a genuinely out-of-corpus native Odoo model, but
 # nothing acted on that signal -- a live run showed the LLM opening by
@@ -659,8 +659,8 @@ class TestForceOutOfScopeModelAnswer:
         assert _force_out_of_scope_model_answer("", concept) is None
 
 
-# Bloc 9 gap, module 4/8 (custom_purchase_request, bloc9-04a-business /
-# bloc9-04c-manager-trap, found 2026-08-13): analyze_security_locks's
+# gap, module 4/8 (custom_purchase_request, 04a-business /
+# 04c-manager-trap, found 2026-08-13): analyze_security_locks's
 # second, amount-gated UserError ("Au-dela de 10 000 euros, seule la
 # Direction peut valider") was reliably present in the raw tool text but
 # dropped from the synthesized answer -- see the module-level comment
@@ -741,7 +741,7 @@ class TestBackfillMissingSecurityLockAmount:
         )
 
     def test_no_op_on_unrelated_amount_in_a_separate_joined_block(self):
-        """Bloc9-01a-business / bloc9-01c-vip-trap live failure (2026-08-13
+        """ /  live failure (2026-08-13
         rerun): the previous test above only proves the override-cascade
         text is clean IN ISOLATION (no marker anywhere in it). On
         account.move, the real scoped_tool_output handed to this function
@@ -754,9 +754,9 @@ class TestBackfillMissingSecurityLockAmount:
         present ANYWHERE in the full string, then scanned the ENTIRE
         string for amounts -- silently absorbing the unrelated 20000 into
         the security-lock backfill and mislabeling it as a 'verrou de
-        securite' amount (live-confirmed: bloc9-01a-business asserted
+        securite' amount (live-confirmed:  asserted
         20000 as the security-lock threshold, and the real 5000 never
-        appeared anywhere in that answer; bloc9-01c-vip-trap's backfilled
+        appeared anywhere in that answer; 's backfilled
         20000 fact directly contradicted its own correct prose two lines
         above, which cited 5000). This test reproduces that exact combined
         shape and locks in per-block scoping as the fix."""
@@ -769,12 +769,12 @@ class TestBackfillMissingSecurityLockAmount:
         )
 
 
-# Bloc 9 gap, found 2026-08-13 (module 1/8, bloc9-01a-business rerun --
+# gap, found 2026-08-13 (module 1/8, 01a-business rerun --
 # AFTER the per-block scoping fix above is confirmed working on
-# bloc9-01b-technical/01c-vip-trap): the real custom_credit_note_approval
+# 01b-technical/01c-vip-trap): the real custom_credit_note_approval
 # security lock (source: /home/user/odoo-17.0/addons/
 # custom_credit_note_approval/models/account_move.py, 'rec.amount_total >
-# 5000 and not has_group(...)') never reached bloc9-01a-business's final
+# 5000 and not has_group(...)') never reached 01a-business's final
 # answer, even though the forced pre-dispatch of analyze_security_locks
 # is unconditional (not gated on question phrasing) and fires identically
 # for 01a/01b/01c. Root cause: _backfill_missing_security_lock_amount's old
@@ -800,7 +800,7 @@ _REAL_CREDIT_NOTE_SECURITY_LOCK_RAW_TEXT = (
 
 class TestAmountPresentInText:
     def test_spaced_amount_not_falsely_matched_inside_larger_echoed_amount(self):
-        """Live bug reproduction: bloc9-01a-business's own answer echoes
+        """Live bug reproduction: 's own answer echoes
         the question's amount ('un avoir de 25 000€'), which contains the
         spaced form of the unrelated real threshold ('5 000') as a bare
         substring. Must NOT count as the 5000€ security-lock fact already
@@ -827,7 +827,7 @@ class TestAmountPresentInText:
 
 class TestBackfillSecurityLockAmountNotMaskedByEchoedQuestionAmount:
     def test_backfills_real_threshold_despite_larger_amount_echoed_in_answer_bloc9_01a(self):
-        """End-to-end reproduction of the live bloc9-01a-business gap:
+        """End-to-end reproduction of the live  gap:
         the answer never states the real 5000€ threshold on its own terms,
         it only echoes the question's 25 000€ -- the backfill must still
         fire and append the real 5000€ fact."""
@@ -850,7 +850,7 @@ class TestBackfillSecurityLockAmountNotMaskedByEchoedQuestionAmount:
         assert result == answer
 
 
-# Bloc 9 gap fix (2026-08-13, module 6/8, bloc9-06c-technical-condition-
+# gap fix (2026-08-13, module 6/8, 06c-technical-condition-
 # capture): fourth degenerate-decoding-collapse shape -- a snowballing
 # sentence where each line restates the previous one as a prefix and
 # appends a further clause, never caught by the exact-line-match detector
@@ -899,7 +899,7 @@ class TestDegenerateGrowingRepetition:
         assert "qui ne sont pas validés par un responsable comptable." in stripped
 
 
-# Bloc 9 gap, module 6/8 (bloc9-06c-technical-condition-capture, found
+# gap, module 6/8 (06c-technical-condition-capture, found
 # 2026-08-13 -- rerun immediately after the analyze_server_actions
 # truncation-cap fix and the degenerate-growing-repetition detector above
 # are both confirmed active on disk, pytest 66/66 green): 06b/06c both
@@ -943,7 +943,7 @@ class TestBackfillMissingHardcodedIds:
         ) == []
 
     def test_backfills_ids_dropped_from_technical_answer_bloc9_06c(self):
-        """Live bloc9-06c-technical-condition-capture failure: 'in_refund'
+        """Live  failure: 'in_refund'
         is correctly present (trigger-condition backfill above already
         covers it) but none of the three hardcoded IDs ever appear."""
         answer = (
@@ -987,7 +987,7 @@ class TestBackfillMissingHardcodedIds:
         assert result == "réponse courte"
 
     def test_gated_out_finding_for_anonymous_requester_yields_no_backfill(self):
-        """Bloc 7-bis gating: an anonymous requester's observation has
+        """ gating: an anonymous requester's observation has
         already had the 'IDs en dur' line redacted by authorization_gate.py
         before this backfill ever sees it (see the module-level comment
         above _HARDCODED_IDS_LINE_RE in rag/graph.py) -- confirms this
@@ -1006,7 +1006,7 @@ class TestBackfillMissingHardcodedIds:
 
 
 class TestQuestionIsAccessRelated:
-    """Bloc 9 gap, 2026-08-13 (native-Odoo-out-of-scope investigation --
+    """ gap, 2026-08-13 (native-Odoo-out-of-scope investigation --
     'qui peut confirmer un devis (sale.order)' returned a thin, uncited
     answer because who_has_access_to had no forced pre-dispatch at all):
     locks in the question-shape pattern that now forces who_has_access_to --
@@ -1046,7 +1046,7 @@ class TestQuestionIsAccessRelated:
             "Qui est le créateur de cet enregistrement ?"
         )
 
-    # Bloc9 08c gap (2026-08-14): "peut-il/elle voir" forms were not matched
+    # 08c gap (2026-08-14): "peut-il/elle voir" forms were not matched
     # by the original pattern, which only recognized "qui peut/a le permission".
     def test_matches_peut_il_voir_bloc9_08c(self):
         """The exact 08c question shape that wasn't matched."""
@@ -1075,7 +1075,7 @@ class TestQuestionIsAccessRelated:
         )
 
 
-# Bloc9 08c follow-up, requested 2026-08-13: _extract_company_context, see
+# 08c follow-up, requested 2026-08-13: _extract_company_context, see
 # rag/graph.py's own module-level comment above the function for why this
 # is qualitative same/different only, never a resolved id/name.
 class TestExtractCompanyContext:
@@ -1125,7 +1125,7 @@ class TestExtractCompanyContext:
         assert result == {"company_id": 1, "user": {"company_id": {"id": 2}}, "company_ids": [2]}
 
     def test_no_company_mention_returns_empty_dict(self):
-        """Q6.1-style question (bloc9-02a-both-groups): no company wording
+        """Q6.1-style question (): no company wording
         at all -- must return {}, not a guessed same/different, so
         can_view_amount_v2's company_id leaf still resolves to the same
         honest None (\"cannot conclude\") it did before this follow-up."""
@@ -1142,7 +1142,7 @@ class TestExtractCompanyContext:
         assert result == {"company_id": 1, "user": {"company_id": {"id": 2}}, "company_ids": [2]}
 
     def test_different_with_copula_est_between_noun_and_adjective_bloc9_08c(self):
-        """Live bug, found 2026-08-13 (bloc9-08c-nested-domain-trap rerun,
+        """Live bug, found 2026-08-13 ( rerun,
         AFTER _extract_company_context/can_view_amount_v2 wiring already
         landed and passed its own 27-test suite): the noun-adjective
         adjacency the previous regex assumed ('entreprise différente')
@@ -1176,7 +1176,7 @@ class TestExtractCompanyContext:
         assert result == {}
 
 
-# Bug B2 fix, section 3/4 (2026-08-21, todo/contexte.txt section 101/102):
+# Bug B2 fix, section 3/4 (2026-08-21,  section 101/102):
 # company_ids must mirror the CURRENT USER's own company (user.company_id.id),
 # never the top-level company_id key (the RECORD's placeholder) -- these are
 # semantically different things a bare vs. dotted dynamic ref resolves to in
@@ -1242,8 +1242,7 @@ class TestExtractCompanyContextCompanyIdsSemantics:
         assert unresolved == []
 
     def test_no_company_mention_leaves_bare_company_ids_domain_force_unresolved(self):
-        """No regression on the silent-mention case (todo/contexte.txt
-        section 96/98 discipline): absence of information must still
+        """No regression on the silent-mention case : absence of information must still
         resolve to None ('cannot conclude'), never a guessed True/False."""
         from code_intelligence.deterministic_tools import evaluate_domain_force
         context = {"amount": 1000}
@@ -1257,7 +1256,7 @@ class TestExtractCompanyContextCompanyIdsSemantics:
         assert "company_ids" in unresolved
 
 
-# Bug B2 fix, section 2 continued (2026-08-21, todo/contexte.txt section
+# Bug B2 fix, section 2 continued (2026-08-21,  section
 # 101/102): the context dict built at both ci_agent_node.py call sites must
 # carry BOTH "amount" and "amount_total" (same value), never a rename --
 # the real corpus has domain_force leaves on both field names for
@@ -1302,7 +1301,7 @@ class TestAmountContextDualKey:
         assert "amount" not in unresolved
 
 
-# Bloc 9 gap, module 8/8 (2026-08-13, follow-up investigation): grounding
+# gap, module 8/8 (2026-08-13, follow-up investigation): grounding
 # validator for group xmlids the LLM mentions in final_answer -- see the
 # module-level docstring above _flag_ungrounded_group_xmlids in
 # rag/graph.py for the full design rationale (flag, never strip; no-op on
@@ -1315,7 +1314,7 @@ class TestAmountContextDualKey:
 # action_validate_level2, 100k-tier base.group_system in
 # action_final_approve) live in the SAME file, so analyze_python_security_
 # locks aggregates both into a single 'Groupe(s) technique(s) requis'
-# summary line. This is the confirmed root cause of the bloc9-08a-business
+# summary line. This is the confirmed root cause of the 08a-business
 # checker-script false positive the user diagnosed (base.group_system is
 # genuinely grounded -- present in this turn's scoped_tool_output -- just
 # attributed to a different threshold than the one asked about; this
@@ -1345,7 +1344,7 @@ _REAL_DEEP_INHERITANCE_SECURITY_RAW_TEXT = (
 
 class TestExtractRequiredGroups:
     def test_extracts_all_groups_from_shared_has_group_summary_line(self):
-        """Bloc9-08a false-positive root cause (see the fixture's own
+        """ false-positive root cause (see the fixture's own
         module-level comment above): both methods' groups live on the same
         summary line because they share a file, so both come out as
         'required' even though only one applies to a 60 000€ question."""
@@ -1365,7 +1364,7 @@ class TestExtractRequiredGroups:
 
 
 class TestFlagUngroundedGroupXmlids:
-    """Bloc 9 gap fix (2026-08-13, module 8/8 follow-up investigation) --
+    """ gap fix (2026-08-13, module 8/8 follow-up investigation) --
     negative/grounding validator, mirror image of _backfill_missing_
     required_groups (which only ever adds a fact already known to be
     true). See rag/graph.py's own docstring above
@@ -1401,7 +1400,7 @@ class TestFlagUngroundedGroupXmlids:
         assert result == answer
 
     def test_bloc9_08a_scenario_not_flagged_grounded_but_misattributed(self):
-        """The bloc9-08a-business checker-script false positive the user
+        """The  checker-script false positive the user
         diagnosed this turn: base.group_system belongs to the 100k-tier
         method (action_final_approve), not the 60k-tier one actually asked
         about -- but it IS genuinely present in this turn's has_group()
@@ -1410,7 +1409,7 @@ class TestFlagUngroundedGroupXmlids:
         misattributed to the wrong threshold' from 'grounded and correctly
         attributed' is a different, harder problem, explicitly out of
         scope for this validator (see its docstring) -- this test locks in
-        that this validator does NOT (and should not) touch bloc9-08a."""
+        that this validator does NOT (and should not) touch ."""
         answer = (
             "Pour un montant de 60 000€, il faut que l'utilisateur soit "
             "membre du groupe account.group_account_manager. Le groupe "
@@ -1440,7 +1439,7 @@ class TestFlagUngroundedGroupXmlids:
 
 
 class TestExtractRequiredGroupsForAmount:
-    """Bloc 9 gap fix (2026-08-14, module 8/8, bloc9-08a-business):
+    """ gap fix (2026-08-14, module 8/8, ):
     tests that required groups extracted from security lock conditions
     are filtered by monetary threshold when an explicit amount is present."""
 
@@ -1469,8 +1468,8 @@ class TestExtractRequiredGroupsForAmount:
         assert "base.group_system" not in result
 
 
-# Bloc 9 gap fix (2026-08-14, module 1/8 follow-up, 'account.group_account_invoice
-# noise', see todo/etat_reel.md -- left deliberately open at the time as
+# gap fix (2026-08-14, module 1/8 follow-up, 'account.group_account_invoice
+# noise', see  -- left deliberately open at the time as
 # cosmetic, 'necessiterait un scoping fichier/module plus fin qu'un scoping
 # par modele'). Real block for Odoo's own core account/models/account_move.py
 # (_post(), line ~3941 on this disk), aggregated alongside the custom
@@ -1507,7 +1506,7 @@ class TestBlockIsCustomModuleFile:
 
 
 class TestRestrictBlocksToCustomModules:
-    """Live reproduction of the bloc9-01a-business noise: on a shared
+    """Live reproduction of the  noise: on a shared
     model like account.move, analyze_security_locks's raw output
     contains both the real custom override block AND Odoo's own core
     block, joined with '\\n\\n' (same separator _scoped_raw_tool_output
@@ -1541,14 +1540,14 @@ class TestRestrictBlocksToCustomModules:
         assert scoped == _REAL_CORE_ACCOUNT_MOVE_SECURITY_LOCK_RAW_TEXT
 
     def test_does_not_affect_deep_inheritance_security_fixture(self):
-        """Non-regression: the existing bloc9-08a fixture already lives
+        """Non-regression: the existing  fixture already lives
         under a custom_* addon, so this new filter must be a no-op on it."""
         scoped = _restrict_blocks_to_custom_modules(_REAL_DEEP_INHERITANCE_SECURITY_RAW_TEXT)
         assert scoped == _REAL_DEEP_INHERITANCE_SECURITY_RAW_TEXT
 
 
 class TestBackfillMissingRequiredGroupsExcludesCoreOdooNoise:
-    """End-to-end reproduction of the live bloc9-01a-business gap
+    """End-to-end reproduction of the live  gap
     (account.group_account_invoice noise): _backfill_missing_required_
     groups must never inject a core-Odoo has_group() check that has
     nothing to do with the custom approval mechanism the question is
@@ -1577,9 +1576,9 @@ class TestBackfillMissingRequiredGroupsExcludesCoreOdooNoise:
         assert "account.group_account_manager" in result
 
 
-# Bloc 9 gap fix (2026-08-14, module 1/8 follow-up, LLM free-prose
-# 'account.group_account_invoice' noise -- see todo/etat_reel.md and
-# contexte.txt section 42/addendum). Live reproduction: bloc9-01a-business's
+# gap fix (2026-08-14, module 1/8 follow-up, LLM free-prose
+# 'account.group_account_invoice' noise -- see  and
+#  section 42/addendum). Live reproduction: 01a-business's
 # own answer, verbatim, listed both groups as required bullets even though
 # only account.group_account_manager belongs to the custom mechanism.
 _REAL_01A_BULLET_ANSWER_WITH_CORE_NOISE = (
@@ -1668,7 +1667,7 @@ class TestStripCoreOnlyGroupMentions:
         )
 
     def test_strips_core_only_bullet_live_reproduction(self):
-        """Live reproduction of the bloc9-01a-business answer verbatim."""
+        """Live reproduction of the  answer verbatim."""
         result = _strip_core_only_group_mentions(
             _REAL_01A_BULLET_ANSWER_WITH_CORE_NOISE, self._combined()
         )
@@ -1723,7 +1722,7 @@ class TestStripCoreOnlyGroupMentions:
 
 
 class TestCorrectSecurityLockThresholdContradictions:
-    """Bloc 9 gap fix (2026-08-14, module 8/8, bloc9-08a-business):
+    """ gap fix (2026-08-14, module 8/8, ):
     tests for _correct_security_lock_threshold_contradictions."""
 
     _BAD_VERBATIM_ANSWER = (
@@ -1800,7 +1799,7 @@ class TestCorrectSecurityLockThresholdContradictions:
 
 
 class TestBackfillMissingSecurityLockAmountAmountAware:
-    """Bloc 9 gap fix (2026-08-14, module 8/8 follow-up):
+    """ gap fix (2026-08-14, module 8/8 follow-up):
     amount-aware tests for _backfill_missing_security_lock_amount."""
 
     def test_does_not_backfill_100k_when_question_amount_is_60k(self):

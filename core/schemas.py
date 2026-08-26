@@ -39,11 +39,7 @@ class LLMResponse(BaseModel):
 
 class OmittedForAuthorization(BaseModel):
     """
-    Bloc 7 / J23-J24: a single element withheld from the answer because
-    the demandeur's real rights don't cover it -- distinct from the
-    confidence/coverage score and from sourcing verification, per the
-    J23-24 requirement not to break the sourcing principle by conflating
-    the two.
+    A single element withheld from the answer because the requester's permissions do not cover it.
     """
     model_config = ConfigDict(strict=True)
 
@@ -61,44 +57,17 @@ class AssistantResponse(BaseModel):
     ocr_warning: bool = Field(default=False, description="True if any of the sources come from a low-quality OCR scan")
     omitted_for_authorization: List[OmittedForAuthorization] = Field(
         default_factory=list,
-        description="Bloc 7 (J23-24): elements withheld because the demandeur's rights don't cover them",
+        description="Elements withheld because the requester's permissions do not cover them",
     )
     route: Optional[str] = Field(
         default=None,
-        description=(
-            "H1c support (todo/plan.md, 2026-08-19): which QueryRoute branch "
-            "actually handled this turn, set centrally in rag/graph.py's "
-            "format_output() node. Lets the caller (api/main.py) persist it "
-            "as next turn's last_route for route()'s sticky-routing fallback "
-            "-- never consumed inside the graph itself."
-        ),
+        description="Which QueryRoute branch handled this turn",
     )
     resolved_concept: Optional[dict] = Field(
         default=None,
-        description=(
-            "H1b-ii support (todo/contexte.txt section 64/70, 2026-08-20): "
-            "the deterministic business_resolver output for this turn (dict "
-            "form of ResolvedConcept), set centrally in rag/graph.py's "
-            "format_output() node from RAGState.resolved_concept -- itself "
-            "either the current question's own resolution or the previous "
-            "turn's, reused by route()'s _sticky_concept_or_resolve fallback "
-            "when the current question carries no resolvable business term. "
-            "Lets the caller (api/main.py) persist it as next turn's "
-            "last_resolved_concept -- never consumed inside the graph via "
-            "this field itself (nodes read RAGState directly)."
-        ),
+        description="Deterministic business_resolver output for this turn",
     )
     evidence_status: Optional[str] = Field(
         default=None,
-        description=(
-            "H3 support (todo/contexte.txt, 2026-08-20), Phase 1 -- "
-            "observational only: RESOLU/NON_RESOLU/CONFLIT computed by "
-            "rag/evidence_check.py's check_evidence(), set centrally in "
-            "rag/graph.py's format_output() node from RAGState.evidence_status. "
-            "None on every branch except code_intelligence (the only branch "
-            "with a resolved_concept to reconcile). Does not currently affect "
-            "tool dispatch, prompt content, or gating -- surfaced purely for "
-            "measurement against the adversarial benchmark before any future "
-            "step decides what each status should actually change."
-        ),
+        description="Sourcing evidence status (RESOLU/NON_RESOLU/CONFLIT)",
     )

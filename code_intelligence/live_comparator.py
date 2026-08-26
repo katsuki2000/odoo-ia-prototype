@@ -2,10 +2,7 @@
 code_intelligence/live_comparator.py
 
 Live Odoo Database Comparator for Odoo Code Intelligence.
-Implements Story A4.1:
-  - A4.1.1: Live XML-RPC queries for ir.model.access, ir.rule, res.groups.
-  - A4.1.2: 5-minute TTL cache with manual invalidation.
-  - A4.1.3: Detailed divergence logic (never a boolean - precise nature of divergence: group added live, domain modified, rule disabled).
+Compares static security graph declarations against live database rules via XML-RPC.
 """
 
 import time
@@ -90,9 +87,8 @@ def compare_static_vs_live_rules(
     live_data: Dict[str, Any]
 ) -> DivergenceComparisonResult:
     """
-    Story A4.1.3: Compares static code security graph against live database rules.
-    Detects precise divergence types: GROUP_ADDED_IN_LIVE, DOMAIN_MODIFIED, RULE_DISABLED_IN_LIVE.
-    NEVER returns a plain boolean.
+    Compares static code security graph against live database rules.
+    Detects divergence types: GROUP_ADDED_IN_LIVE, DOMAIN_MODIFIED, RULE_DISABLED_IN_LIVE.
     """
     divergences: List[DivergenceDetail] = []
 

@@ -1,14 +1,14 @@
 """
 code_intelligence/tests/test_bloc10_j37_39_staleness_detection.py
 
-Unit tests for Bloc 10, J37-J39 — Staleness Detection & Incremental Graph Update.
+Unit tests for , J37-J39 — Staleness Detection & Incremental Graph Update.
 
 Covers the 3 staleness levels:
   Level 1 (FILE)   : detect that a source file changed (hash mismatch).
   Level 2 (EDGE)   : after a module changes, identify cross-module edges that
                      reference nodes from that module and are now potentially stale.
   Level 3 (COVERED): cases not resolvable by local reparse are flagged explicitly
-                     (e.g. cross-module rename — handled by Bloc 11, not here).
+                     (e.g. cross-module rename — handled by , not here).
 
 Critère de fin J37-J39 (from real_plan.md):
   "Implémenter les trois niveaux de mise à jour (recalcul du fichier modifié +
@@ -76,7 +76,7 @@ def _make_graph_with_cross_module_edge() -> nx.DiGraph:
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# J37-J39 — Level 1: File hash staleness detection
+# Level 1: File hash staleness detection
 # ──────────────────────────────────────────────────────────────────────────────
 
 def test_compute_file_hash_is_deterministic(tmp_path):
@@ -169,7 +169,7 @@ def test_detector_detects_deleted_file_as_stale(tmp_path):
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# J37-J39 — Level 2: Cross-module edge invalidation propagation
+# Level 2: Cross-module edge invalidation propagation
 # ──────────────────────────────────────────────────────────────────────────────
 
 def test_detector_propagates_invalidation_to_dependent_modules(tmp_path):
@@ -221,14 +221,14 @@ def test_detector_does_not_flag_edges_within_unchanged_modules(tmp_path):
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# J37-J39 — Level 3: Uncoverable cases are flagged explicitly
+# Level 3: Uncoverable cases are flagged explicitly
 # ──────────────────────────────────────────────────────────────────────────────
 
 def test_detector_flags_potential_rename_as_uncoverable(tmp_path):
     """
     Level 3: when a node disappears from the rebuilt partial graph but its
     source file still exists, the detector flags it as a potential rename
-    (uncoverable without PyRef — Bloc 11).
+    (uncoverable without PyRef — ).
     """
     G = _make_graph_with_cross_module_edge()
     # sale root with a file that was renamed in Python (sale_order → sale_document)

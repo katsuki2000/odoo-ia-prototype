@@ -1,8 +1,8 @@
 """
 code_intelligence/tests/test_method_override_chain.py
 
-Bloc 9 gap, found 2026-08-06 while investigating an evasive answer to
-adversarial Q1.2 ("avoir VIP") in the sprint2 benchmark. Locks the fix:
+ gap, found 2026-08-06 while investigating an evasive answer to
+adversarial Q1.2 ("avoir VIP") in the  benchmark. Locks the fix:
   - graph_builder.py accumulating one Method node's override_sites per
     real declaration site instead of silently overwriting filepath/lineno
     on every module that overrides the same method name (same failure
@@ -255,7 +255,7 @@ def test_no_sites_returns_empty_list():
 
 # ---------------------------------------------------------------------
 # Real-corpus integration test (no mocks): confirms the actual VIP bug
-# found in the sprint2 benchmark is caught end-to-end through the real
+# found in the benchmark is caught end-to-end through the real
 # extraction -> resolution -> graph -> resolver pipeline.
 # ---------------------------------------------------------------------
 
@@ -299,7 +299,7 @@ def test_real_corpus_execution_order_matches_odoo_mro():
 
 
 def test_real_corpus_detects_actual_vip_exemption_bug():
-    """The real bug this whole story was found from: the VIP module's
+    """The real bug this whole  found from: the VIP module's
     override must be flagged, the regional/base ones must not."""
     G = _build_real_registry_and_graph()
     report = analyze_method_override_chain(G, "account.move", "action_valider_avoir")

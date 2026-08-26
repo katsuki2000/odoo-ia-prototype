@@ -19,7 +19,7 @@ def test_unverified_xml_id_in_final_answer_is_flagged():
     assert "fake_module.rule_invented" in result.unverified_xml_ids
 
     annotated = annotate_unverifiable_citations(answer, result)
-    assert " SOURCING NON VÉRIFIÉ (J14)" in annotated
+    assert " SOURCING NON VÉRIFIÉ " in annotated
     assert "fake_module.rule_invented" in annotated
 
 

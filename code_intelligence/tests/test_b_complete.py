@@ -1,13 +1,13 @@
 """
 code_intelligence/tests/test_b_complete.py
 
-Unit tests for B.1.4, B.1.5, B.1.6, Story B.2, and Story A4.1.
+Unit tests for B.1.4, B.1.5, B.1.6, , and .
 Tests:
   1. B.1.4 trace_full_inheritance (_inherit vs _inherits distinction)
   2. B.1.5 describe_workflow (WorkflowState -> TRANSITIONS_VIA)
   3. B.1.6 3-Level Error Management (FOUND, EMPTY, NOT_FOUND)
-  4. Story B.2 Auxiliary Tools (role resolution, module listing, path explanation, 200-line reader limit)
-  5. Story A4.1 Live Comparator & Divergence Detector (TTL cache, non-boolean divergence report)
+  4.  Auxiliary Tools (role resolution, module listing, path explanation, 200-line reader limit)
+  5.  Live Comparator & Divergence Detector (TTL cache, non-boolean divergence report)
 """
 
 import tempfile
@@ -101,7 +101,7 @@ def test_b1_6_3_level_error_management():
 
 
 def test_b2_auxiliary_tools():
-    """Test Story B.2: Role resolution, module listing, path explanation, line limit safeguard."""
+    """Test : Role resolution, module listing, path explanation, line limit safeguard."""
     # B.2.1 Role resolution
     assert resolve_technical_name_to_role("sales_team.group_sale_manager") == "Responsable Ventes"
 
@@ -133,7 +133,7 @@ def test_b2_auxiliary_tools():
 
 
 def test_a4_1_live_comparator_and_cache():
-    """Test Story A4.1: TTL cache and detailed non-boolean divergence report."""
+    """Test : TTL cache and detailed non-boolean divergence report."""
     clear_live_cache()
 
     # TTL Cache test

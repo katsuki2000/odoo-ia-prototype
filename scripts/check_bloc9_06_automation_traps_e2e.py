@@ -2,7 +2,7 @@
 """
 scripts/check_bloc9_06_automation_traps_e2e.py
 
-Bloc 9 generalization check, 6/8 -- same method as modules 1/8-5/8 (raw
+ generalization check, 6/8 -- same method as modules 1/8-5/8 (raw
 composite-tool output isolated from synthesis, then live end-to-end
 through code_intelligence_agent()), applied to the sixth mechanism:
 custom_automation_traps (Q5.1), a data-driven ir.actions.server / sudo()
@@ -12,7 +12,7 @@ Python module source, so it goes through server_action_analyzer.py /
 analyser_actions_serveur, never analyser_verrous_securite.
 
 Ground truth (custom_automation_traps/data/automation_rule.xml, read
-directly from disk, not from real plan.md/etat_reel.md text):
+directly from disk, not from real / text):
   - A base.automation rule on account.move (on_create_or_write) invokes
     an ir.actions.server whose code is:
         FOURNISSEURS_PRIVILEGIES = [42, 108, 231]
@@ -27,11 +27,11 @@ directly from disk, not from real plan.md/etat_reel.md text):
     Q5.1's answer is NON: not all avoirs follow the same rules.
   - This IS a genuine security bypass (sudo() + hardcoded privileged IDs),
     not ordinary governance -- both get SENSITIVE_BYPASS_MARKER-tagged at
-    the source (server_action_analyzer.py) and are subject to Bloc 7-bis
+    the source (server_action_analyzer.py) and are subject to 
     gating (authorization_gate.py) exactly like modules 1/8's/4/8's
     has_group()-derived thresholds are NOT gated, but their hardcoded
     email/ID lists ARE. `_has_elevated_access` for account.move uses the
-    model's OWN has_group() source signal (J25-26 fix) -- which, thanks
+    model's OWN has_group() source signal  -- which, thanks
     to module 1/8's Gap 1 fix (has_group() extraction), now resolves to
     `account.group_account_manager` (from custom_credit_note_approval).
     So: an ANONYMOUS requester should see the bypass mechanism's EXISTENCE
@@ -94,7 +94,7 @@ def _resolve_account_manager_group_id():
 
 QUESTIONS = [
     {
-        "id": "bloc9-06a-anonymous-masked",
+        "id": "",
         "question": (
             "Est-ce que tous les avoirs fournisseurs passent par les "
             "mêmes règles d'approbation ?"
@@ -102,7 +102,7 @@ QUESTIONS = [
         "user_groups": [],
         # Anonymous requester: the bypass mechanism must be flagged as
         # EXISTING (something is being withheld) but its specifics (the
-        # hardcoded IDs) must stay masked -- Bloc 7-bis gating policy
+        # hardcoded IDs) must stay masked -- bis gating policy
         # working correctly. The trigger condition (in_refund) is
         # legitimate governance info, NOT gated (see design decision
         # 2026-08-11).
@@ -110,7 +110,7 @@ QUESTIONS = [
         "forbidden_markers": ["42", "108", "231"],
     },
     {
-        "id": "bloc9-06b-privileged-full-detail",
+        "id": "",
         "question": (
             "Est-ce que tous les avoirs fournisseurs passent par les "
             "mêmes règles d'approbation ?"
@@ -127,7 +127,7 @@ QUESTIONS = [
         "forbidden_markers": [],
     },
     {
-        "id": "bloc9-06c-technical-condition-capture",
+        "id": "",
         "question": (
             "Dans le modèle account.move, quelles sont les conditions qui "
             "déclenchent l'action serveur automatisée définie par "
@@ -239,7 +239,7 @@ def check_e2e_full_pipeline(account_manager_group_id):
     route() dispatch) instead of calling code_intelligence_agent()
     directly -- catches routing bugs check_e2e() alone cannot see (see
     check_bloc9_01_credit_note_cascade_e2e.py::check_e2e_full_pipeline for
-    the full rationale, contexte.txt section 78). Generalized to all 8
+    the full rationale,  section 78). Generalized to all 8
     modules 2026-08-20."""
     print("=" * 80)
     print(" FULL PIPELINE (query_graph -> route())")
@@ -296,10 +296,10 @@ def main():
     full_pipeline_ok = check_e2e_full_pipeline(account_manager_group_id)
     print("=" * 80)
     if raw_ok and e2e_ok and full_pipeline_ok:
-        print("[BLOC 9 - 6/8] custom_automation_traps: E2E confirmed.")
+        print("[ - 6/8] custom_automation_traps: E2E confirmed.")
         sys.exit(0)
     else:
-        print("[BLOC 9 - 6/8] custom_automation_traps: GAP FOUND -- see [MISSING]/[FAIL] lines above.")
+        print("[ - 6/8] custom_automation_traps: GAP FOUND -- see [MISSING]/[FAIL] lines above.")
         sys.exit(1)
 
 

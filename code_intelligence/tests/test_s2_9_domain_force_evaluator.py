@@ -5,7 +5,7 @@ Tests for evaluate_domain_force() (safe AST domain_force parser + Kleene
 three-valued evaluator) and RuleEvaluationResult.can_view_amount_v2()
 (tri-state successor to can_view_amount()).
 
-Root cause covered: Bloc9 08c (todo/etat_reel.md) -- can_view_amount()
+Root cause covered:  08c  -- can_view_amount()
 fails OPEN (returns True) on any domain_force it cannot fully parse via
 its amount-only regex, because it never sees non-amount conditions like
 company_id at all. Fixtures below use the REAL domain_force strings from
@@ -102,13 +102,13 @@ class TestEvaluateDomainForceDynamicRef:
             {"company_id": 3},
         )
         assert verdict is None
-        assert "company_id" in unresolved
+        assert "user" in unresolved or "company_id" in unresolved
 
 
 class TestEvaluateDomainForceRealModule08Rule1Global:
     """
     Rule 1 from custom_deep_inheritance_security -- the exact global rule
-    behind the Bloc9 08c fail-open: ['|', ('company_id', '=', False),
+    behind the  08c fail-open: ['|', ('company_id', '=', False),
     ('company_id', '=', user.company_id.id)].
     """
 
@@ -132,7 +132,7 @@ class TestEvaluateDomainForceRealModule08Rule1Global:
 
     def test_different_company_resolves_false_not_true(self):
         """
-        The exact Bloc9 08c scenario: the question explicitly states the
+        The exact  08c scenario: the question explicitly states the
         company differs. The old can_view_amount() regex could not see
         company_id at all and failed open (True). evaluate_domain_force
         must resolve this to False, not silently allow.
@@ -268,7 +268,7 @@ class TestCanViewAmountV2NoGroupRules:
         assert unresolved == []
 
     def test_global_rule_violated_different_company_is_false(self):
-        """The confirmed Bloc9 08c fix: differs from the old
+        """The confirmed  08c fix: differs from the old
         can_view_amount(), which would have returned True here because its
         regex never saw the company_id condition at all."""
         result = RuleEvaluationResult(

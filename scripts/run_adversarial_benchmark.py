@@ -2,7 +2,7 @@
 """
 scripts/run_adversarial_benchmark.py
 
-Automated Benchmark Runner for Story S1.3 (Agile Sprint 1):
+Automated Benchmark Runner for  (Agile ):
 Executes all test questions from the README of ground truth against the Code Intelligence agent,
 recording verbatim answers, cited sources, tools invoked, and qualitative evaluation.
 
@@ -26,7 +26,7 @@ from core.graph import code_intelligence_agent, _get_admin_rpc_client
 
 def _resolve_bloc7_test_group_ids():
     """
-    Bloc 7 harness fix (2026-08-04): Q6.1/Q6.2 describe a requester who is
+     harness fix (2026-08-04): Q6.1/Q6.2 describe a requester who is
     member of both / neither of group_avoir_regional and group_avoir_national
     (custom_credit_note_visibility_rules), but the benchmark never actually
     passed any user_groups into the pipeline -- state['user_groups'] was
@@ -113,7 +113,7 @@ BENCHMARK_QUESTIONS = [
 
 def run_benchmark():
     print("=" * 80)
-    print(" CODE INTELLIGENCE — AUTOMATED BENCHMARK RUNNER (SPRINT 2)")
+    print(" CODE INTELLIGENCE — AUTOMATED BENCHMARK RUNNER ()")
     print(" Target: 9 Adversarial Test Questions")
     print("=" * 80)
 
@@ -123,11 +123,11 @@ def run_benchmark():
     # ce graphe de 9 modules custom_* avec le graphe complet (addons + miro_ai
     # + custom_*, ~3775 nœuds) avant que la première question ne soit posée.
     # Le benchmark a donc toujours tourné sur le graphe complet, jamais sur celui-ci --
-    # supprimé pour éviter la confusion (cf. logs Sprint 2, 2026-07-29).
+    # supprimé pour éviter la confusion (cf. logs , 2026-07-29).
 
     results = []
 
-    # Bloc 7 harness fix: resolve the real group DB ids once, so Q6.1/Q6.2
+    # harness fix: resolve the real group DB ids once, so Q6.1/Q6.2
     # can be run as the requester their ground truth actually describes
     # instead of silently falling back to an empty (ungrouped) requester.
     try:
@@ -211,15 +211,15 @@ def run_benchmark():
 
     # Save outputs
     root_dir = Path(__file__).resolve().parent.parent
-    todo_dir = root_dir / "todo"
-    todo_dir.mkdir(exist_ok=True)
+    captures_dir = root_dir / "captures"
+    captures_dir.mkdir(exist_ok=True)
 
-    json_report_path = todo_dir / "verbatim_responses_sprint2.json"
+    json_report_path = captures_dir / "verbatim_responses_sprint2.json"
     with open(json_report_path, "w", encoding="utf-8") as f:
         json.dump(results, f, indent=2, ensure_ascii=False)
     print(f"\nSaved JSON verbatim report to: {json_report_path}")
 
-    # Percentile Latency Metrics (J30-J31)
+    # Percentile Latency Metrics 
     import statistics
     from config.settings import LATENCY_BUDGET_P90_SECONDS
 
@@ -239,11 +239,11 @@ def run_benchmark():
 
     # Generate Markdown summary
     md_lines = [
-        "# Rapport Verbatim — Test Adversarial (Sprint 2 / End-to-End Benchmark)\n",
+        "# Rapport Verbatim — Test Adversarial (End-to-End Benchmark)\n",
         f"**Date d'exécution :** {time.strftime('%Y-%m-%d %H:%M:%S')}\n",
         "**Objectif :** Poser les questions test du README à l'agent Code Intelligence et mesurer les réponses verbatim et la latence après instrumentation J30-J31.\n",
         "---",
-        "## Synthèse Latence & Performance (J30-J31)\n",
+        "## Synthèse Latence & Performance \n",
         f"| Métrique | Temps Effectif (Algorithmique) | Budget Target | Statut |",
         f"|---|---|---|---|",
         f"| **p50 (Médiane)** | `{p50}s` | — | — |",
@@ -265,7 +265,7 @@ def run_benchmark():
         )
         md_lines.append("---")
 
-    md_report_path = todo_dir / "verbatim_responses_sprint2.md"
+    md_report_path = captures_dir / "verbatim_responses_sprint2.md"
     with open(md_report_path, "w", encoding="utf-8") as f:
         f.write("\n".join(md_lines))
     print(f"Saved Markdown verbatim report to: {md_report_path}")

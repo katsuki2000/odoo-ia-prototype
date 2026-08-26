@@ -80,11 +80,7 @@ class LocalNomicEmbeddingFunction(EmbeddingFunction):
     def __init__(self, task_type: str = "search_document"):
         self.task_type = task_type
         if LocalNomicEmbeddingFunction._model is None:
-            # Threads plafonnes AVANT le premier import de torch : sans ca,
-            # torch prend tous les coeurs disponibles par defaut pour chaque
-            # appel encode(), ce qui a fait geler la machine du 17/08 pendant
-            # la reingestion complete (cf. contexte.txt). 2 threads laisse le
-            # reste du systeme utilisable pendant l'ingestion.
+            # Limit PyTorch threads to avoid CPU starvation
             os.environ.setdefault("OMP_NUM_THREADS", "2")
             os.environ.setdefault("MKL_NUM_THREADS", "2")
 
@@ -167,15 +163,6 @@ class ChromaManager:
             disponible en repli explicite (EMBEDDING_BACKEND=nomic_api + clé) si un
             besoin de vitesse le justifie plus tard, une fois le budget débloqué.
             """
-            # 2026-08-18: defaut temporairement bascule sur "local_light" -- cette
-            # machine n'a pas AVX2 (confirme via `lscpu | grep avx`, absent), et
-            # nomic-embed-text-v1.5 en local (PyTorch, 137M params) y tourne a environ
-            # 3s/chunk, mesure sur un run reel multiplier=1 (todo/etat_reel.md,
-            # contexte.txt). Inutilisable en pratique sur le vrai corpus en l'etat.
-            # A repasser sur "local" (nomic-embed-text-v1.5) des que le materiel prevu
-            # arrive -- sauf si un meilleur modele d'embedding est identifie d'ici la.
-            # Le modele nominal du projet reste nomic-embed-text-v1.5 ; ce n'est PAS un
-            # changement de choix de modele, seulement un palliatif materiel temporaire.
             backend = os.environ.get("EMBEDDING_BACKEND", "local_light")
 
             if backend == "nomic_api":

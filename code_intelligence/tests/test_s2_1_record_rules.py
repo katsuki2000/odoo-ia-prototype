@@ -1,7 +1,7 @@
 """
 code_intelligence/tests/test_s2_1_record_rules.py
 
-Unit tests for Story S2.1 & S2.2: Odoo Record Rule (ir.rule) Combination Evaluator.
+Unit tests for  & S2.2: Odoo Record Rule (ir.rule) Combination Evaluator.
 Tests Odoo's exact security algorithm:
   - Global rules (no group) are combined with AND across all users.
   - Group rules are combined with OR for groups the user belongs to.

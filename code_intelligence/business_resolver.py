@@ -1,7 +1,7 @@
 """
 code_intelligence/business_resolver.py
 
-Story S2.0: Business Term to Technical Symbol Resolver.
+Business Term to Technical Symbol Resolver.
 Maps natural language functional concepts to technical graph nodes (models, fields, modules).
 
 Resolution Order:
@@ -49,7 +49,7 @@ BUSINESS_ALIASES: Dict[str, List[str]] = {
     "action automatique": ["base.automation"],
     "serveur action": ["ir.actions.server"],
     "server action": ["ir.actions.server"],
-    # Deep inheritance security (bug (b), Bloc 9, plan.md) -- formulation informelle
+    # Deep inheritance security
     "document deep": ["custom.deep.document"],
     "deep document": ["custom.deep.document"],
 }

@@ -1,7 +1,7 @@
 """
 code_intelligence/tests/test_j23_24_authorization_gate.py
 
-Unit tests for Bloc 7 / J23-J24 (REVISED twice, see authorization_gate.py
+Unit tests for  / J23-J24 (REVISED twice, see authorization_gate.py
 module docstring):
 
   1. TARGETED gating -- only lines explicitly tagged SENSITIVE_BYPASS_MARKER
@@ -9,7 +9,7 @@ module docstring):
      content (normal approval groups, has_group() checks, uncertainty
      caveats) must always survive gating untouched, even for a demandeur
      without elevated access -- that's precisely the bug this revision
-     fixes (see git history / real plan.md Bloc 7 J23-24 for the original
+     fixes (see git history / real   J23-24 for the original
      generalized-gating regression found in the first benchmark run).
 
   2. (2026-08-07) ir.rule group rules the demandeur is NOT a member of are
@@ -20,7 +20,7 @@ module docstring):
      identity-gated.
 
 An explicit "élément omis pour raison d'autorisation" state is still kept,
-distinct from sourcing verification (J14) and from the confidence/coverage
+distinct from sourcing verification  and from the confidence/coverage
 score, for the one remaining gated source (SENSITIVE_BYPASS_MARKER).
 """
 

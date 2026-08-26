@@ -1,7 +1,7 @@
 """
 code_intelligence/tests/test_b1_3.py
 
-Unit tests for Story B1.3: Tool button_execution_path(button_label_or_name, model).
+Unit tests for Tool button_execution_path(button_label_or_name, model).
 Tests:
   1. Synthetic workflow button execution path (UI -> Method -> State transition -> Security)
   2. Real graph test on sale_order module button 'Confirm' / 'action_confirm'

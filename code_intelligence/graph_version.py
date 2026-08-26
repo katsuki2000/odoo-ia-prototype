@@ -1,7 +1,7 @@
 """
 code_intelligence/graph_version.py
 
-Graph Versioning & Metadata Manager (Sprint F / Bloc 10 — J41):
+Graph Versioning & Metadata Manager:
 Injects git commit hash, addons hash, schema version, node/edge counts, and generation timestamp
 directly into graph JSON metadata.
 """

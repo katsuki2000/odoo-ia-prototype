@@ -187,10 +187,7 @@ def resolve_technical_name(technical_name: str) -> str:
 def list_involved_modules(model_name: str) -> str:
     """List Odoo modules defining or extending a model, each tagged with its role
     (declares = holds _name, extends = _inherit only). When a model spans several
-    modules, ALL candidates are listed -- do not assume the first one listed is
-    the "real" origin; if the question depends on which module is responsible,
-    ask the user to clarify or state all candidates explicitly rather than
-    picking one yourself (Bloc 8 / J28-29: ambiguous symbols)."""
+    modules, all candidates are listed."""
     from code_intelligence.auxiliary_tools import list_involved_modules_with_role as _impl
     G = _require_graph()
     model_name = _resolve_model_param(model_name)
@@ -303,35 +300,8 @@ def find_model_source_filepaths(G, model_name: str) -> set:
 
 def find_security_lock_source_files(G, model_name: str) -> list:
     """
-    Locate Python source files for the given technical model that contain
-    at least one security-lock finding (hardcoded login/email list,
-    UserError/ValidationError message, dynamic dispatch, or a has_group()
-    check), per semgrep_locks_analyzer.python_source_has_security_findings.
-
-    Extracted as a standalone helper so rag/graph.py's deterministic
-    pre-dispatch guard for analyze_security_locks can check for
-    structural presence WITHOUT re-implementing the detection -- same
-    rationale as find_server_action_nodes/find_methods_with_override_cascade
-    below (F-08 duplication lesson from J7). Unlike those two, there is no
-    graph-node representation of locks (they're computed live from source
-    by semgrep_locks_analyzer, not indexed by graph_builder.py at build
-    time), so this reads the actual files -- still cheap (one AST parse +
-    a few regex passes per file, no LLM), matching the same "a false
-    positive costs ~nothing" philosophy already used for the other guards.
-
-    Added 2026-08-10 (Bloc 9, module 5 gap): the forced dispatch of
-    analyze_security_locks previously relied SOLELY on _APPROVAL_PATTERN
-    keyword matching in the question text -- questions like "pourquoi je
-    n'arrive pas à démarrer..." or "la règle s'applique-t-elle..." contain
-    none of that vocabulary, so the dispatch silently never fired and the
-    LLM was left to freely pick a tool, which it did wrong (hallucinated a
-    malformed method name). This structural guard makes the trigger
-    independent of the question's wording -- if the model has a real
-    Python lock, analyze_security_locks fires no matter how the
-    question is phrased.
-
-    Returns a list of filepaths (str) with at least one finding, empty if
-    the model has no source files or none of them have any finding.
+    Return all source filepaths associated with `model_name` that contain
+    security findings (exception messages, required groups, hardcoded logins/IDs).
     """
     from code_intelligence.semgrep_locks_analyzer import python_source_has_security_findings
     from pathlib import Path

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-H1b-ii (todo/contexte.txt section 64/70, todo/plan.md): unit tests for
+H1b-ii : unit tests for
 rag.routing._sticky_concept_or_resolve -- mirrors test_h1c_sticky_routing.py's
 structure and intent one level down (concept resolution instead of branch
 routing).

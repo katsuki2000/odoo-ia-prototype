@@ -3,7 +3,7 @@ J5 live validation for Odoo ACL + ir.rule semantics.
 
 These tests intentionally call a real Odoo 17 instance through XML-RPC. They
 are skipped only when the live instance or required adversarial fixtures are
-not reachable. The assertions encode the J5 divergences observed in Sprint D:
+not reachable. The assertions encode the J5 divergences observed in :
 ACL denial happens before record-rule evaluation, and Odoo combines applicable
 group ir.rules with OR.
 """

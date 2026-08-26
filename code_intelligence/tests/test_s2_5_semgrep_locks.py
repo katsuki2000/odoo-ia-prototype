@@ -40,7 +40,7 @@ class TestHardcodedLockDetection:
         assert "Vous n'avez pas le permission de valider cette demande d'achat." in analysis.exception_messages[0]
 
     def test_detects_has_group_required_group_bloc9_01a(self):
-        """Bloc 9 gap (2026-08-10, bloc9-01a-business): a has_group() guard's
+        """ gap (2026-08-10, ): a has_group() guard's
         technical group xmlid must be extracted, not only the UserError
         message text -- a governance question needs the citable identifier,
         not only the human-readable sentence."""
@@ -153,8 +153,8 @@ class TestHardcodedLockDetection:
         assert analysis.required_groups == []
 
     def test_captures_nested_if_condition_for_raise_bloc9_05c(self):
-        """Bloc 9 gap (module 5/8, custom_asset_loan, 2026-08-10,
-        bloc9-05c-no-link-trap): a raise guarded by nested `if`s must carry
+        """ gap (module 5/8, custom_asset_loan, 2026-08-10,
+        ): a raise guarded by nested `if`s must carry
         its enclosing condition(s) alongside the message, outer to inner --
         otherwise the rule reads as unconditional and a "does this still
         apply with no linked purchase request?" question gets answered
@@ -214,7 +214,7 @@ class TestHardcodedLockDetection:
         assert "condition :" not in analysis.summary_text
 
     def test_link_guard_field_detected_on_real_asset_loan_shape_bloc9_05c(self):
-        """Bloc 9 gap, part 2 (module 5/8, 2026-08-10, bloc9-05c-no-link-trap):
+        """ gap, part 2 (module 5/8, 2026-08-10, ):
         beyond capturing the raw condition text (previous test), the
         analyzer must also detect the specific short-circuit-guard SHAPE --
         a bare truthiness check on a relational field as the first `and`
@@ -291,8 +291,8 @@ class TestHardcodedLockDetection:
         assert "[GARDE DE LIEN:" in analysis.summary_text
 
     def test_link_guard_field_not_fabricated_for_boolean_auth_check_bloc9_05c_rerun(self):
-        """Bloc 9 gap, module 5/8 fix rerun (2026-08-11, cross-module
-        contamination on bloc9-05c-no-link-trap): a live run on a question
+        """ gap, module 5/8 fix rerun (2026-08-11, cross-module
+        contamination on ): a live run on a question
         mentioning both custom_asset_loan AND custom_purchase_request
         (legitimately, since asset_loan links to a purchase request) showed
         a fabricated "[GARDE DE LIEN: si 'not (user_ok or email_ok)'..."
@@ -339,6 +339,62 @@ class TestHardcodedLockDetection:
         # bug this test guards against. Removed those two assertions;
         # the two above are the real regression guard.
 
+    def test_exception_condition_resolves_opaque_local_names_q3_1_section183(self):
+        """ gap, root cause fix (section 178/183, 2026-08-26): a raw
+        ast.unparse() of the second raise's guarding condition in
+        action_valider() renders as "rec.montant_estime > 10000 and not
+        email_ok" -- opaque to a downstream LLM reader, which then has to
+        guess what email_ok gates on, and can guess wrong (a live run
+        wrongly reattributed the 10000e threshold to the
+        purchase.group_purchase_manager group already seen in the sibling
+        condition, contradicting the ground truth that only logins in
+        _VALIDATEURS_EXCEPTIONNELS can validate above that threshold).
+        _resolve_local_names must substitute both email_ok and user_ok
+        (simple local assignments within action_valider's scope) by their
+        defining expression, one level only, so the rendered condition is
+        self-sufficient and no longer requires the LLM to guess. Mirrors
+        the real custom_purchase_request/models/purchase_request.py source
+        verbatim."""
+        code = textwrap.dedent("""\
+            from odoo import models, fields, api
+            from odoo.exceptions import UserError
+
+
+            class CustomPurchaseRequest(models.Model):
+                _name = 'custom.purchase.request'
+                _VALIDATEURS_EXCEPTIONNELS = ['direction@societe.com', 'daf@societe.com']
+
+                def action_valider(self):
+                    for rec in self:
+                        user_ok = self.env.user.has_group('purchase.group_purchase_manager')
+                        email_ok = self.env.user.login in rec._VALIDATEURS_EXCEPTIONNELS
+                        if not (user_ok or email_ok):
+                            raise UserError("Vous n'avez pas le droit de valider cette demande d'achat.")
+                        if rec.montant_estime > 10000 and not email_ok:
+                            raise UserError("Au-dela de 10 000 euros, seule la Direction peut valider (liste restreinte).")
+        """)
+        analysis = analyze_python_security_locks(code, "custom_purchase_request/models/purchase_request.py")
+        assert len(analysis.exception_conditions) == 2
+        first_condition, second_condition = analysis.exception_conditions
+        # Second condition (the 10000e threshold) must no longer mention
+        # the opaque local name email_ok at all, and must instead expose
+        # its actual source expression -- the fix this test guards against
+        # a regression of.
+        assert "email_ok" not in second_condition
+        assert "self.env.user.login in rec._VALIDATEURS_EXCEPTIONNELS" in second_condition
+        assert "purchase.group_purchase_manager" not in second_condition
+        # First condition (the base access gate) must equally have both
+        # opaque names resolved -- user_ok to the has_group() call, email_ok
+        # to the same login-list membership test as above.
+        assert "user_ok" not in first_condition
+        assert "email_ok" not in first_condition
+        assert "self.env.user.has_group('purchase.group_purchase_manager')" in first_condition
+        assert "self.env.user.login in rec._VALIDATEURS_EXCEPTIONNELS" in first_condition
+        # Rendered summary_text must carry the resolved text too (what the
+        # synthesis LLM actually reads), not just the raw analysis object.
+        assert "email_ok" not in analysis.summary_text
+        assert "user_ok" not in analysis.summary_text
+
     def test_detects_validation_error_messages_q2_1(self):
         """Test Q2.1: Extraction of exact ValidationError exception messages."""
         code = textwrap.dedent("""\
@@ -380,7 +436,7 @@ class TestDynamicDispatchDetection:
         assert "DISPATCH DYNAMIQUE" in analysis.security_warnings[0]
 
     def test_header_confidence_label_is_french_faible_not_english_low_bloc9_07(self):
-        """Bloc 9 gap, module 7/8 (2026-08-10, bloc9-07 raw check): the
+        """ gap, module 7/8 (2026-08-10,  raw check): the
         per-analysis header line ("Analyse des verrous Python (...)
         [Confiance: ...]") used to render the STORED confidence value
         ('low', English) via a raw .upper(), producing the inconsistent

@@ -1,7 +1,7 @@
 """
 code_intelligence/tests/test_a1_2_5.py
 
-Integration test suite for Story A1.2: XML structural extraction on full real Odoo modules.
+Integration tests for XML structural extraction on full real Odoo modules.
 Runs XML extractors (ir.rule, res.groups, act_window, ir.model.fields, menuitems, ir.ui.view) across real XML files.
 """
 

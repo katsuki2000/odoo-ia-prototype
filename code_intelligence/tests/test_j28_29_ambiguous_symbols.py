@@ -1,7 +1,7 @@
 """
 code_intelligence/tests/test_j28_29_ambiguous_symbols.py
 
-Bloc 8 (J28-29): a model declared with _name in one module and extended
+ : a model declared with _name in one module and extended
 via _inherit in one or more OTHER modules is a genuinely ambiguous
 symbol -- there is no single "real" origin module. Before this story,
 graph_builder.py created a single DEFINED_IN edge from decls[0]'s
@@ -34,7 +34,7 @@ def _make_modules_dict():
     """
     Synthetic corpus: 'base_mod' declares custom.foo (_name), and TWO
     other independent modules ('ext_a', 'ext_b') each extend it via
-    _inherit only -- the real-world shape this story targets (a model
+    _inherit only -- the real-world shape this  (a model
     touched by several unrelated customization modules).
     """
     base_decl = OdooModelDeclaration(

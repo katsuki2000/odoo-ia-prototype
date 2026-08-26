@@ -1,8 +1,7 @@
 """
 code_intelligence/js_extractor.py
 
-JS and OWL client-side security check extractor.
-Implements Story A1.4: Task A1.4.1 (extraction of hasGroup and OWL t-if user.hasGroup patterns).
+JS and OWL client-side security check extractor for hasGroup patterns.
 """
 
 import re

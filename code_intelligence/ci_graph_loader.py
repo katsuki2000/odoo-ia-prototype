@@ -170,22 +170,7 @@ def get_code_intelligence_graph():
     base_dir = Path(__file__).resolve().parent.parent
     addons_root = Path("/home/user/odoo-17.0/addons") if Path("/home/user/odoo-17.0/addons").exists() else base_dir.parent / "addons"
 
-    modules_dict = {}
-
-    # 2026-08-12 fix: fake_data/code/{account,sale,stock} used to stand in
-    # for these three real Odoo core modules -- hand-maintained, partial
-    # copies that could silently drift from the real Odoo 17 source (see
-    # todo/etat_reel.md for the full writeup). Worse: because this preload
-    # ran BEFORE the J36 direct-dependency loop below, and that loop skips
-    # any dependency name already present in modules_dict, the fake stand-
-    # ins silently pre-empted the real modules every time -- every question
-    # this project has ever answered about account.move reasoned against
-    # the synthetic copy, never the real Odoo 17 source. Removed entirely;
-    # these three are now loaded directly from the real corpus. Still an
-    # explicit preload (not left to the J36 loop alone) because the
-    # account.move._reverse_moves override-chain regression coverage
-    # (test_mixed_corpus_load_order.py) needs 'sale' present even though no
-    # custom_* module's manifest actually depends on it.
+    # Load core Odoo modules (account, sale, stock) directly from addons
     CORE_MODULES_ALWAYS_LOADED = ["account", "sale", "stock"]
     if addons_root.exists():
         for core_name in CORE_MODULES_ALWAYS_LOADED:

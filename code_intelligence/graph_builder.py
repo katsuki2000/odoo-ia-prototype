@@ -2,13 +2,8 @@
 code_intelligence/graph_builder.py
 
 NetworkX Knowledge Graph Builder for Odoo Code Intelligence.
-Implements Story A3.1:
-  - A3.1.1 & A3.1.2: Node creation (Model, Field, Method, Group, Rule, Module, AccessEntry, WorkflowState).
-  - A3.1.3: Typed edge creation (EXTENDS, DELEGATES_TO, HAS_FIELD, RELATES_TO, COMPUTED_BY, DEPENDS_ON, RESTRICTED_BY, APPLIES_TO_GROUP, IMPLIES, GRANTED_BY, DEFINED_IN).
-  - A3.1.4: JSON Graph Serialization (node_link_data / node_link_graph per DT-4).
-  - A3.1.5: Workflow Sub-Graph (WorkflowState nodes + TRANSITIONS_VIA edges).
-  - B0 (bloc 0 du plan d'agent): Menu nodes + business-language labels (string=/_description)
-    on Field/Model nodes, required as fuzzy-matching targets for the business-name -> technical-name resolver.
+Builds the security and architecture knowledge graph connecting models, fields,
+methods, groups, record rules, menus, and workflow states.
 """
 
 import json
@@ -26,6 +21,7 @@ from code_intelligence.cross_file_resolver import (
     build_module_symbol_registry,
 )
 from code_intelligence.utils import resolve_model_xmlref
+from code_intelligence.semantic_tags import BehavioralTag, TechnicalTag
 
 _logger = logging.getLogger(__name__)
 
@@ -49,6 +45,73 @@ class OdooGraphBuilder:
         self.registry = registry
         self.modules_dict = modules_dict
         self.G = nx.DiGraph()
+        # Bloc P2 Jour 2-3 (todo/plan.md, todo/contexte.txt section 170):
+        # per-build cache of file contents, keyed by filepath, so tagging a
+        # model's several methods (all sharing the same source file) never
+        # re-reads the same file from disk more than once per build_graph()
+        # call. Cleared implicitly every time a new OdooGraphBuilder is
+        # constructed -- never stale across separate builds.
+        self._source_cache: Dict[str, str] = {}
+
+    def _read_source_cached(self, filepath: str) -> str:
+        """Read filepath's full text, cached per build. Returns "" (never
+        raises) when the file can't be read -- same conservative discipline
+        as every other file-read site in this project: a missing/unreadable
+        file degrades a heuristic to "no signal found", never crashes graph
+        construction over an annotation that is explicitly best-effort."""
+        if filepath not in self._source_cache:
+            try:
+                self._source_cache[filepath] = Path(filepath).read_text(encoding="utf-8")
+            except OSError:
+                self._source_cache[filepath] = ""
+        return self._source_cache[filepath]
+
+    def _method_has_group_and_raise(
+        self, filepath: str, lineno: int, end_lineno: Optional[int]
+    ) -> bool:
+        """
+        Bloc P2 Jour 2-3: textual heuristic for BLOCKING_RULE (todo/plan.md
+        line 162's own example: "une methode avec has_group()+raise ->
+        tag blocking_rule"). Deliberately a plain substring check on the
+        method's own source slice, not a full control-flow analysis --
+        same confidence tier as method_override_resolver.py's
+        detect_unguarded_super (textual/AST-shape heuristic, not a proof).
+        This is a coarser signal than that: it only asks "does this method
+        gate something on group membership AND raise an error somewhere",
+        without verifying the raise is actually reachable from the
+        has_group() check (could be a false positive if the two are
+        structurally unrelated within the same method body) or that a
+        raise elsewhere is the only guard (could be a false negative if
+        the block uses a different mechanism, e.g. returning early without
+        an error). Adequate for Jour 2-3's stated purpose -- a coarse
+        semantic tag for retrieval/measurement, not a security verdict on
+        its own; `analyser_verrous_securite`/semgrep_locks_analyzer.py
+        remains the authoritative, condition-level extractor for actual
+        security-lock answers.
+        """
+        if end_lineno is None:
+            return False
+        source = self._read_source_cached(filepath)
+        if not source:
+            return False
+        lines = source.splitlines()
+        if lineno < 1 or end_lineno > len(lines):
+            return False
+        snippet = "\n".join(lines[lineno - 1:end_lineno])
+        return "has_group(" in snippet and "raise " in snippet
+
+    @staticmethod
+    def _domain_force_references_state(domain_force: Optional[str]) -> bool:
+        """Bloc P2 Jour 2-3: textual check for whether a domain_force
+        string references the 'state' field (e.g. `("state", "=", "draft")`)
+        -- used to add WORKFLOW_RULE alongside the always-present
+        VISIBILITY_RULE tag on a Rule node. Plain substring check on the
+        quoted field name, matching how domain_force is stored (raw Python
+        literal source text, not a parsed AST) -- same tier of heuristic
+        as `_method_has_group_and_raise` above."""
+        if not domain_force:
+            return False
+        return "'state'" in domain_force or '"state"' in domain_force
 
     def build_graph(self) -> nx.DiGraph:
         """
@@ -126,6 +189,15 @@ class OdooGraphBuilder:
             model_description = explicit_description or _humanize_technical_name(model_name)
             description_source = "explicit" if explicit_description else "generated"
 
+            # Bloc P2 Jour 2-3: WORKFLOW_RULE when the model declares a
+            # 'state' field -- same detection idiom already used by
+            # _add_workflow_nodes_and_edges below (kept independent rather
+            # than sharing a helper across the two passes since this one
+            # only needs a boolean, not the field object itself).
+            model_behavioral_tags: List[str] = []
+            if any(f.name == "state" for d in decls for f in d.fields):
+                model_behavioral_tags.append(BehavioralTag.WORKFLOW_RULE.value)
+
             self.G.add_node(
                 model_node_id,
                 node_type="Model",
@@ -135,18 +207,11 @@ class OdooGraphBuilder:
                 filepaths=all_filepaths,
                 description=model_description,
                 description_source=description_source,
+                behavioral_tags=model_behavioral_tags,
+                technical_tags=[],
             )
 
-            # Model -> Module DEFINED_IN edges (Bloc 8 / J28-29).
-            # One edge per real declaration site, not a single one picked
-            # from decls[0] -- a model declared with _name in one module
-            # and extended via _inherit in others is a genuinely ambiguous
-            # symbol (which module is "the" origin?), and collapsing it to
-            # decls[0]'s module arbitrarily (order = topological load order,
-            # not authorship) previously hid every other module from
-            # list_involved_modules. Every candidate module is now kept,
-            # tagged with its role, so the agent/user can see and decide
-            # instead of the tool silently picking one.
+            # Model -> Module DEFINED_IN edges: one edge per declaration/extension site
             decl_modules = self.registry.model_modules.get(model_name, [])
             for idx, d in enumerate(decls):
                 if idx >= len(decl_modules):
@@ -172,15 +237,23 @@ class OdooGraphBuilder:
                     fk_field=fk_field
                 )
 
-            # Process fields & methods for this model.
-            # decl_modules (Bloc 8 / J28-29 parallel list) gives the module
-            # name for each decl at the same index -- needed below to tag
-            # each method's override_sites entry with its owning module.
+            # Process fields & methods for this model
             for decl_idx, d in enumerate(decls):
                 mod_name_for_d = decl_modules[decl_idx] if decl_idx < len(decl_modules) else "unknown"
                 # 1. Fields
                 for f in d.fields:
                     field_node_id = f"field:{model_name}.{f.name}"
+                    # Bloc P2 Jour 2-3: a compute= field is both a
+                    # CALCULATION_RULE (behavioral -- it derives a value)
+                    # and a COMPUTED_FIELD (technical -- the concrete Odoo
+                    # mechanism). `store` is deliberately not consulted --
+                    # whether the computed value is persisted doesn't change
+                    # whether it IS a calculation.
+                    field_behavioral_tags: List[str] = []
+                    field_technical_tags: List[str] = []
+                    if f.compute:
+                        field_behavioral_tags.append(BehavioralTag.CALCULATION_RULE.value)
+                        field_technical_tags.append(TechnicalTag.COMPUTED_FIELD.value)
                     self.G.add_node(
                         field_node_id,
                         node_type="Field",
@@ -201,6 +274,8 @@ class OdooGraphBuilder:
                         # intentional label apart from a machine-derived one.
                         label=f.string if f.string else _humanize_technical_name(f.name),
                         label_source="explicit" if f.string else "generated",
+                        behavioral_tags=field_behavioral_tags,
+                        technical_tags=field_technical_tags,
                     )
                     # Model HAS_FIELD Field
                     self.G.add_edge(model_node_id, field_node_id, edge_type="HAS_FIELD")
@@ -224,21 +299,7 @@ class OdooGraphBuilder:
                 # 2. Methods
                 for m in d.methods:
                     method_node_id = f"method:{model_name}.{m.name}"
-                    # Bloc 9 gap (found 2026-08-06, investigating adversarial
-                    # Q1.2 "avoir VIP"): a method overridden in several
-                    # modules in an _inherit cascade (e.g. account.move.
-                    # action_valider_avoir in custom_credit_note_approval /
-                    # _regional / _vip) previously got ONE Method node whose
-                    # filepath/lineno were silently overwritten on every
-                    # pass through this loop -- only the LAST-processed
-                    # decl's site survived, with no trace of the others.
-                    # Same failure shape as the F-08 rule double-indexing
-                    # bug (J7): one node id, multiple real declaration
-                    # sites, naive overwrite. Fix: accumulate every site in
-                    # override_sites (module load order, additive/backward
-                    # compatible -- filepath/lineno below keep their
-                    # existing last-write-wins meaning for callers that
-                    # don't know about override_sites yet).
+                    # Accumulate every override site across module inheritance cascade
                     existing_sites = list(self.G.nodes[method_node_id].get("override_sites", [])) \
                         if method_node_id in self.G else []
                     existing_sites.append({
@@ -247,6 +308,29 @@ class OdooGraphBuilder:
                         "lineno": m.lineno,
                         "end_lineno": getattr(m, "end_lineno", None),
                     })
+                    # Bloc P2 Jour 2-3: BLOCKING_RULE (behavioral) when this
+                    # site's own source contains both has_group() and a
+                    # raise (todo/plan.md line 162's own example). CONSTRAINT
+                    # (technical) when decorated with @api.constrains.
+                    # Checked per-site (not just once for the whole method),
+                    # same reasoning as override_sites itself accumulating
+                    # per declaration -- a method can be blocking in one
+                    # module's override and not in another's.
+                    method_behavioral_tags: List[str] = list(
+                        self.G.nodes[method_node_id].get("behavioral_tags", [])
+                    ) if method_node_id in self.G else []
+                    if self._method_has_group_and_raise(
+                        d.filepath, m.lineno, getattr(m, "end_lineno", None)
+                    ) and BehavioralTag.BLOCKING_RULE.value not in method_behavioral_tags:
+                        method_behavioral_tags.append(BehavioralTag.BLOCKING_RULE.value)
+
+                    method_technical_tags: List[str] = list(
+                        self.G.nodes[method_node_id].get("technical_tags", [])
+                    ) if method_node_id in self.G else []
+                    if any(dec.decorator_type == "constrains" for dec in m.decorators) \
+                            and TechnicalTag.CONSTRAINT.value not in method_technical_tags:
+                        method_technical_tags.append(TechnicalTag.CONSTRAINT.value)
+
                     self.G.add_node(
                         method_node_id,
                         node_type="Method",
@@ -257,6 +341,8 @@ class OdooGraphBuilder:
                         filepath=d.filepath,
                         lineno=m.lineno,
                         override_sites=existing_sites,
+                        behavioral_tags=method_behavioral_tags,
+                        technical_tags=method_technical_tags,
                     )
 
                     # Method DEPENDS_ON Field (from @api.depends)
@@ -269,16 +355,6 @@ class OdooGraphBuilder:
     def _add_security_group_nodes(self):
         """Add Group, Rule, AccessEntry nodes and security edges."""
         # 1. Groups & Group IMPLIES Group hierarchy
-        # F-08 fix (2026-08-07, extending the J7 rule fix to groups):
-        # registry.groups indexes each group under BOTH its full xml_id and
-        # its short xml_id (same mechanism as registry.rules -- see
-        # cross_file_resolver.build_module_symbol_registry). Without this
-        # guard, two Group nodes were built per real group, and a short-key
-        # duplicate has no '.' in it, so any code deriving a module prefix
-        # from it (as the rule-groups and automation loops below already do)
-        # would silently fall back to a wrong/hardcoded prefix. A
-        # fully-qualified key is guaranteed to exist for every group by
-        # construction, so skipping unqualified ones is safe.
         for full_xml_id, grp in self.registry.groups.items():
             if "." not in full_xml_id:
                 continue
@@ -296,26 +372,23 @@ class OdooGraphBuilder:
                 self.G.add_edge(grp_node_id, parent_node_id, edge_type="IMPLIES")
 
         # 2. Rules & Model RESTRICTED_BY Rule -> Rule APPLIES_TO_GROUP Group
-        # Bloc 1 J7 finding F-08: registry.rules indexes each rule under BOTH
-        # its full xml_id and its short xml_id (both keys pointing to the
-        # SAME rule object -- see cross_file_resolver.build_module_symbol_registry).
-        # Iterating .items() naively therefore builds TWO graph nodes per rule,
-        # and the short-key duplicate has no '.' in it, so mod_prefix below
-        # silently fell back to the hardcoded literal "base" instead of the
-        # rule's real module -- producing a hallucinated group reference like
-        # "group:base.group_avoir_regional" that does not exist. Skipping
-        # entries without a '.' is safe: a fully-qualified key is guaranteed
-        # to exist for every rule by construction.
         for full_xml_id, rule in self.registry.rules.items():
             if "." not in full_xml_id:
                 continue
-            # Bloc 1 J7 finding F-06: a rule with active=False in Odoo is
-            # disabled and must not restrict access. Without this check it
-            # was silently included in the graph and evaluated as active by
-            # evaluate_record_rules, producing a phantom restriction.
+            # A rule with active=False is disabled and does not restrict access
             if not getattr(rule, "active", True):
                 continue
             rule_node_id = f"rule:{full_xml_id}"
+            # Bloc P2 Jour 2-3: every ir.rule is a RECORD_RULE (technical --
+            # it IS the concrete artefact) and always at least a
+            # VISIBILITY_RULE (behavioral -- ir.rule's core mechanism is a
+            # domain-based access restriction, matching architecture.md's
+            # "Accès" reasoning block: ACL + Record Rules + Groupes -> Peut
+            # voir/Ne peut pas voir). Additionally WORKFLOW_RULE when the
+            # domain_force gates on the 'state' field.
+            rule_behavioral_tags = [BehavioralTag.VISIBILITY_RULE.value]
+            if self._domain_force_references_state(rule.domain_force):
+                rule_behavioral_tags.append(BehavioralTag.WORKFLOW_RULE.value)
             self.G.add_node(
                 rule_node_id,
                 node_type="Rule",
@@ -328,6 +401,8 @@ class OdooGraphBuilder:
                 perm_write=rule.perm_write,
                 perm_create=rule.perm_create,
                 perm_unlink=rule.perm_unlink,
+                behavioral_tags=rule_behavioral_tags,
+                technical_tags=[TechnicalTag.RECORD_RULE.value],
             )
 
             if rule.model_id:
@@ -354,6 +429,12 @@ class OdooGraphBuilder:
                     perm_create=acl.perm_create,
                     perm_unlink=acl.perm_unlink,
                     all_authenticated=acl.all_authenticated,
+                    # Bloc P2 Jour 2-3: an ir.model.access.csv row is always
+                    # an ACL (technical -- it IS the artefact) and always a
+                    # VISIBILITY_RULE (behavioral -- same "Accès" reasoning
+                    # as Rule above, ACL is the other half of that pair).
+                    behavioral_tags=[BehavioralTag.VISIBILITY_RULE.value],
+                    technical_tags=[TechnicalTag.ACL.value],
                 )
 
                 raw_m = resolve_model_xmlref(acl.model_id)
@@ -383,6 +464,16 @@ class OdooGraphBuilder:
                 model_id=sa.model_id,
                 state=sa.state,
                 code=sa.code,
+                # Bloc P2 Jour 2-3: SERVER_ACTION (technical -- it IS the
+                # artefact). No behavioral tag assigned: an ir.actions.server's
+                # `code` field can contain arbitrary Python (blocking,
+                # notification, workflow transition, or none of these) --
+                # nothing already extracted lets this be determined without
+                # guessing, so behavioral_tags stays empty per rules.md
+                # Regle 5 ("absence d'information -> non resolu, jamais
+                # devine") rather than defaulting to a plausible-sounding tag.
+                behavioral_tags=[],
+                technical_tags=[TechnicalTag.SERVER_ACTION.value],
             )
 
             if sa.model_id:
@@ -406,6 +497,21 @@ class OdooGraphBuilder:
                 name=ba.name,
                 model_id=ba.model_id,
                 trigger=ba.trigger,
+                # Bloc P2 Jour 2-3: tagged CRON (technical) per explicit user
+                # instruction for this Jour 2-3 pass -- disclosed imprecision:
+                # base.automation is NOT literally ir.cron (it can be trigger-
+                # based -- on_create/on_write/etc. -- not just time-based), but
+                # architecture.md's Couche 3 closed technical-tag vocabulary
+                # (record_rule, acl, constraint, computed_field, server_action,
+                # cron) has no dedicated slot for base.automation; CRON is the
+                # closest existing bucket rather than inventing a 7th tag
+                # outside the closed enumeration Jour 1 deliberately fixed.
+                # No behavioral tag: same "don't guess" reasoning as
+                # ServerAction above -- an automation's actual business intent
+                # (notification, workflow, blocking) lives in the ServerAction
+                # it triggers (EXECUTES_ACTION edge), not in this node itself.
+                behavioral_tags=[],
+                technical_tags=[TechnicalTag.CRON.value],
             )
 
             if ba.model_id:
@@ -449,6 +555,14 @@ class OdooGraphBuilder:
                     # menu with no action at all" (expected, no bug) apart from
                     # "has an action reference but it didn't resolve" (real gap).
                     action_ref=menu.action or "",
+                    # Bloc P2 Jour 5 (todo/plan.md, todo/contexte.txt section
+                    # 179): default empty -- populated below once/if the
+                    # target model is resolved (a Menu inherits the tags of
+                    # the Model it opens; a Menu with no resolvable action
+                    # stays untagged, same "no information -> empty, never
+                    # guessed" discipline as everywhere else).
+                    behavioral_tags=[],
+                    technical_tags=[],
                 )
 
                 # Menu -> parent Menu (tree structure, useful for disambiguation later)
@@ -478,6 +592,21 @@ class OdooGraphBuilder:
                 if target_model:
                     model_node_id = f"model:{target_model}"
                     self.G.add_edge(menu_node_id, model_node_id, edge_type="OPENS_MODEL", via=via)
+                    # Bloc P2 Jour 5 (todo/plan.md, todo/contexte.txt section
+                    # 179): a Menu inherits the behavioral/technical tags of
+                    # the Model it opens -- not a new observation, a pure
+                    # propagation of a fact already computed when that
+                    # Model node was built (_add_model_field_method_nodes
+                    # runs before _add_menu_nodes in build_graph()). Copied
+                    # (not referenced) so later mutation of one list can
+                    # never alias the other.
+                    if model_node_id in self.G:
+                        self.G.nodes[menu_node_id]["behavioral_tags"] = list(
+                            self.G.nodes[model_node_id].get("behavioral_tags", [])
+                        )
+                        self.G.nodes[menu_node_id]["technical_tags"] = list(
+                            self.G.nodes[model_node_id].get("technical_tags", [])
+                        )
 
     def _add_workflow_nodes_and_edges(self):
         """
@@ -515,6 +644,15 @@ class OdooGraphBuilder:
                     node_type="WorkflowState",
                     model=model_name,
                     state_value=st,
+                    # Bloc P2 Jour 5 (todo/plan.md, todo/contexte.txt section
+                    # 179): a WorkflowState node only exists because this
+                    # model has a 'state' field -- the same precondition
+                    # that already gives the Model node WORKFLOW_RULE
+                    # (Jour 2-3). Tautological, not a guess: the node's own
+                    # existence proves the tag. No technical tag applies to
+                    # a state value itself.
+                    behavioral_tags=[BehavioralTag.WORKFLOW_RULE.value],
+                    technical_tags=[],
                 )
 
             # Connect state nodes via button transition edges

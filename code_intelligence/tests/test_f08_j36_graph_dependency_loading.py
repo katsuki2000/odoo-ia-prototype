@@ -7,7 +7,7 @@ _inherit a REAL Odoo core module (e.g. custom_expense_risk_base extends
 hr.expense via depends=['hr_expense']) must have that direct dependency's
 own module loaded too, or the extended model's BASE declaration (and its
 real fields) never enters the graph and every tool call against it returns
-"model not found" -- confirmed root cause of the J36 Sprint D replay
+"model not found" -- confirmed root cause of the J36  replay
 failure (0/8, see evaluation/eval_report_j36_expense_risk.md; the pre-fix
 graph is preserved as
 code_intelligence/active_graph.json.stale_pre_f08_j36_fix_20260807 for

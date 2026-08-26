@@ -109,7 +109,7 @@ C'est la **cause numéro un des lenteurs** sur Odoo. Boucler sur des enregistrem
 La solution : utiliser les **méthodes ensemblistes** de l'ORM.
 
 ```python
-# ✅ mapped() — extraire une liste de valeurs
+# mapped() — extraire une liste de valeurs
 emails = records.mapped('partner_id.email')
 
 # ✅ filtered() — trier en mémoire

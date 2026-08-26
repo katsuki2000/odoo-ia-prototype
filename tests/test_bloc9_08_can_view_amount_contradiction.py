@@ -1,7 +1,7 @@
 """
 tests/test_bloc9_08_can_view_amount_contradiction.py
 
-Bloc9 08c follow-up (2026-08-14): tests for _correct_can_view_amount_contradictions
+ 08c follow-up (2026-08-14): tests for _correct_can_view_amount_contradictions
 and its helpers (rag/graph.py) -- the synthesis-inversion detector/neutralizer
 for the can_view_amount_v2 deterministic fact, symmetric to module 5/8's Bug 2
 fix (_correct_override_cascade_contradictions).
@@ -116,7 +116,7 @@ class TestNoOpCases:
         assert _correct_can_view_amount_contradictions(text) == text
 
     def test_no_op_on_correct_answer_matching_real_08c_scenario(self):
-        """The real Bloc9 08c fixture: a correct answer should never be
+        """The real  08c fixture: a correct answer should never be
         altered by this corrector."""
         fact_block = _format_can_view_amount_fact(60000, False)
         text = (
@@ -128,7 +128,7 @@ class TestNoOpCases:
 
 
 class TestInversionCaseFactFalseProseAllows:
-    """The exact Bloc9 08c failure shape: engine says False, LLM prose says
+    """The exact  08c failure shape: engine says False, LLM prose says
     the user peut voir."""
 
     def test_replaces_allow_sentence_when_fact_is_false(self):

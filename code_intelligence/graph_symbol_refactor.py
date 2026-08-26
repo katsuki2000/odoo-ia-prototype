@@ -1,13 +1,8 @@
 """
 code_intelligence/graph_symbol_refactor.py
 
-Incremental Symbol & Model Rename Handler (Sprint F / Bloc 11 — J43-J45):
+Incremental Symbol & Model Rename Handler:
 Detects and processes symbol/model renames across the Odoo Code Intelligence knowledge graph.
-
-Key Features:
-1. AST Diff / Symbol Rename Detection: Detects when a model `_name` or field name changes in a Python file (e.g. `custom.asset.loan` -> `custom.asset.lending`) while preserving Python class identity or structural similarity.
-2. Incremental Node Rewiring: Atomically renames node IDs in NetworkX DiGraph, rewires all incoming & outgoing edges (DEFINED_IN, EXTENDS, RESTRICTED_BY, HAS_FIELD, RELATES_TO), and preserves node metadata.
-3. Avoids Full Rebuild: Upgrades Level 3 "uncoverable rename" into an incremental Level 2 refactoring update.
 """
 
 from dataclasses import dataclass, field

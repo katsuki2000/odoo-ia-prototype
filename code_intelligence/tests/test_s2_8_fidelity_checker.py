@@ -1,7 +1,7 @@
 """
 code_intelligence/tests/test_s2_8_fidelity_checker.py
 
-Unit tests for Story S2.8: Fidelity Checker & Anti-Hallucination Guard.
+Unit tests for Fidelity Checker & Anti-Hallucination Guard.
 Ensures that querying unknown/absent models or symbols explicitly returns an
 'absent from corpus' status message instead of fallbacks or hallucinated answers.
 """

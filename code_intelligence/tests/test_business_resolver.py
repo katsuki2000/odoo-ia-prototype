@@ -84,6 +84,63 @@ def test_known_alias_resolves_to_expected_model(sample_graph, query, expected_mo
     assert result.confidence == 1.0
 
 
+# ---------------------------------------------------------------------------
+# "document deep" / "deep document" static aliases (fix (b2), bug (b) du
+# -  sections 159-163). Avant ce fix, "document Deep"
+# restait unresolved et "le document Deep" matchait a tort par fuzzy sur
+# ai.document (confiance non nulle, mauvais modele). Les deux formes sont
+# desormais des alias statiques directs vers custom.deep.document.
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("query", [
+    "document deep",
+    "deep document",
+    "document Deep",
+    "Document Deep",
+    "DEEP DOCUMENT",
+    "le document Deep",
+    "un enregistrement du document Deep",
+])
+def test_document_deep_alias_resolves_to_custom_deep_document(query):
+    result = resolve_business_term(query, None)
+    assert result.is_resolved
+    assert "custom.deep.document" in result.resolved_models
+    assert result.source_step == "static_alias"
+    assert result.confidence == 1.0
+
+
+def test_document_deep_alias_does_not_regress_to_fuzzy_false_positive_ai_document():
+    """
+    Regression guard for the exact bug found in  section 159:
+    "le document Deep" used to fuzzy-match ai.document (wrong model, non-zero
+    confidence) because Step 2 (fuzzy) indexes the "document" token shared
+    with ai.document's label, and no competing candidate was close enough to
+    trip the ambiguity guard. The static alias (Step 1) must now short-circuit
+    Step 2 entirely for this query, so ai.document must never appear.
+    """
+    G = nx.DiGraph()
+    G.add_node("model:ai.document", node_type="Model",
+               name="ai.document", description="AI Document")
+    G.add_node("model:custom.deep.document", node_type="Model",
+               name="custom.deep.document", description="Deep Inheritance Document Base")
+
+    result = resolve_business_term("le document Deep", G)
+
+    assert result.is_resolved
+    assert result.source_step == "static_alias"
+    assert result.resolved_models == ["custom.deep.document"]
+    assert "ai.document" not in result.resolved_models
+
+
+def test_document_deep_alias_word_boundaries_not_triggered_by_unrelated_word():
+    """'deep' alone must not be an alias key (per the decision in
+     section 159/160 to avoid over-generic false positives);
+    a sentence using 'deep' as an unrelated English word must not resolve
+    via this alias pair."""
+    result = resolve_business_term("this is a deep dive into something else", None)
+    assert result.source_step != "static_alias" or "custom.deep.document" not in result.resolved_models
+
+
 def test_alias_matching_is_case_insensitive():
     result = resolve_business_term("AVOIR", None)
     assert result.is_resolved
@@ -158,7 +215,7 @@ def test_clear_top1_fuzzy_match_does_not_invoke_llm(sample_graph):
 
 
 def test_menu_label_resolves_via_opens_model_edge(sample_graph):
-    """Menu.name -> OPENS_MODEL -> Model is one of the three indexed label sources (J1)."""
+    """Menu.name -> OPENS_MODEL -> Model is one of the three indexed label sources ."""
     result = resolve_business_term("conges", sample_graph)
     # "conges" (no accent) matches BUSINESS_ALIASES["conges"] directly too,
     # so this also exercises the alias path; the point is it must resolve
@@ -168,7 +225,7 @@ def test_menu_label_resolves_via_opens_model_edge(sample_graph):
 
 
 # ---------------------------------------------------------------------------
-# Ambiguous cases -- bounded LLM arbitration (J2)
+# Ambiguous cases -- bounded LLM arbitration ()
 # ---------------------------------------------------------------------------
 
 def test_ambiguous_fuzzy_match_without_llm_is_unresolved(sample_graph):
@@ -193,7 +250,7 @@ def test_ambiguous_fuzzy_match_with_llm_picking_valid_candidate(sample_graph):
     assert result.resolved_models == ["res.partner"]
     assert result.confidence == 0.6, (
         "LLM-derived resolutions must be tagged with bounded/low confidence, "
-        "never presented as a certain structural fact (per plan Bloc 2 spirit)."
+        "never presented as a certain structural fact (per plan  spirit)."
     )
     mock_llm.invoke.assert_called_once()
 
@@ -303,7 +360,7 @@ def test_removed_overgeneric_aliases_stay_removed():
 # or a business alias. Found via a live E2E check on custom.deep.document,
 # whose description ("Deep Inheritance Document Base") does not reliably
 # fuzzy-match a question that instead names the model verbatim -- silently
-# leaving is_resolved False and disabling every J8/J9/Bloc-9 forced dispatch.
+# leaving is_resolved False and disabling every Bloc-9 forced dispatch.
 # ---------------------------------------------------------------------------
 
 def test_exact_technical_model_mention_resolves_even_with_unrelated_description(sample_graph):

@@ -2,11 +2,7 @@
 code_intelligence/cross_file_resolver.py
 
 Two-Pass Cross-File Reference Resolver for Odoo Code Intelligence.
-Implements Story A2.1:
-  - A2.1.1: Topological sorting of modules by manifest depends + Pass 1 symbol indexation.
-  - A2.1.2: Pass 2 ordered reference resolution (model inheritance, fields, security rules, group hierarchy).
-  - A2.1.3: Categorized unresolved reference registry (absent_from_corpus, core_odoo_out_of_scope, probable_typo).
-  - A2.1.4: Inheritance cycle detection with visited tracking.
+Handles topological sorting of modules, symbol indexation, and reference resolution.
 """
 
 import re
@@ -114,10 +110,7 @@ class ParsedModule:
 class ResolvedSymbolRegistry:
     # Key = model_name (e.g. "sale.order"), Value = List of declarations across modules
     models: Dict[str, List[OdooModelDeclaration]] = field(default_factory=dict)
-    # Bloc 8 (J28-29): Key = model_name, Value = List of module names, in the
-    # SAME order as models[model_name] (one module name per declaration) --
-    # lets graph_builder create one DEFINED_IN edge per real declaration
-    # site instead of arbitrarily picking decls[0]'s filepath.
+    # Key = model_name, Value = List of module names matching models[model_name] order
     model_modules: Dict[str, List[str]] = field(default_factory=dict)
     # Key = full_xml_id (e.g. "base.group_user" or "sale.group_sale_manager"), Value = Record
     groups: Dict[str, OdooGroupRecord] = field(default_factory=dict)
@@ -158,22 +151,6 @@ def topological_sort_modules(modules_dict: Dict[str, ParsedModule]) -> List[str]
                 for dep in mod.manifest.depends:
                     visit(dep, chain + [m_name])
             elif mod is not None:
-                # 2026-08-06 fix: this used to be silent (`if mod and
-                # mod.manifest` simply False for manifest=None), which let a
-                # module with real, unresolved dependencies get appended to
-                # load_order by filesystem/dict iteration order instead of by
-                # its actual depends -- corrupting load_order and, downstream,
-                # every method-override execution order derived from it (see
-                # rag/graph.py::_load_module and manifest_parser.py::
-                # MissingManifestError for the full fix). rag/graph.py's real
-                # corpus loader now always supplies a manifest (real, hardcoded
-                # fallback for known core modules, or raises) so this branch
-                # should be unreachable there; it stays reachable here only for
-                # callers/tests that intentionally construct
-                # ParsedModule(manifest=None, ...) for cases where dependency
-                # order genuinely doesn't matter (e.g. a single isolated
-                # module) -- for those this module is still, correctly,
-                # treated as a dependency-free leaf, just no longer silently.
                 _logger.warning(
                     "Module '%s' has no manifest (or no manifest.depends) -- "
                     "treating it as having NO dependencies for load-order "
@@ -219,10 +196,6 @@ def build_module_symbol_registry(modules_dict: Dict[str, ParsedModule]) -> Resol
                 if model_key not in registry.models:
                     registry.models[model_key] = []
                 registry.models[model_key].append(decl)
-                # Bloc 8 (J28-29): record mod_name in lockstep with the decl
-                # just appended above -- same index in both lists -- so
-                # graph_builder can zip them back together per-declaration
-                # instead of guessing a module from decl.filepath.
                 if model_key not in registry.model_modules:
                     registry.model_modules[model_key] = []
                 registry.model_modules[model_key].append(mod_name)
@@ -306,7 +279,7 @@ def build_module_symbol_registry(modules_dict: Dict[str, ParsedModule]) -> Resol
             for parent_grp_ref in grp.implied_ids:
                 _resolve_group_reference(mod_name, grp.filepath, parent_grp_ref, registry)
 
-    # ── Cycle Detection (A2.1.4) ──────────────────────────────────────────────
+    # ── Cycle Detection ──────────────────────────────────────────────
     _detect_inheritance_cycles(registry)
 
     return registry

@@ -135,7 +135,7 @@ class CodeLoader:
                 chunk, ast_info.get("functions", [])
             )
 
-            # Trouver la classe principale du fichier (pour les métadonnées)
+            # find the main class of the file (metadata)
             main_class = ast_info["classes"][0] if ast_info["classes"] else {}
 
             chunk_metadata.update(

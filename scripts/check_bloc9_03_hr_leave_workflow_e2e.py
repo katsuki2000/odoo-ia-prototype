@@ -2,7 +2,7 @@
 """
 scripts/check_bloc9_03_hr_leave_workflow_e2e.py
 
-Bloc 9 generalization check, 3/8 -- same method as
+ generalization check, 3/8 -- same method as
 check_bloc9_01_credit_note_cascade_e2e.py / check_bloc9_02_credit_note_
 visibility_e2e.py (raw composite-tool output isolated from synthesis,
 then live end-to-end through code_intelligence_agent()), applied to the
@@ -23,7 +23,7 @@ picks up hr_holidays for custom_hr_leave_workflow, the same way it was
 fixed to pick up hr_expense for custom_expense_risk_base.
 
 Ground truth (custom_hr_leave_workflow/models/hr_leave.py, read directly
-from disk, not from real plan.md/etat_reel.md text):
+from disk, not from real / text):
   - `_check_solde_conge` (api.constrains): if number_of_days > solde AND
     NOT conge_urgence, raise ValidationError telling the user to check
     'Demande urgente' to submit for exceptional N+2 validation instead.
@@ -80,7 +80,7 @@ def _marker_present(marker: str, text: str) -> bool:
 
 QUESTIONS = [
     {
-        "id": "bloc9-03a-business",
+        "id": "",
         "question": (
             "Pourquoi je n'arrive pas à valider ma demande de congé alors "
             "que j'ai coché 'urgente' ?"
@@ -91,7 +91,7 @@ QUESTIONS = [
         ],
     },
     {
-        "id": "bloc9-03b-technical",
+        "id": "",
         "question": (
             "Dans le modèle hr.leave, quels sont tous les verrous "
             "de validation d'une demande de congé ?"
@@ -102,7 +102,7 @@ QUESTIONS = [
         ],
     },
     {
-        "id": "bloc9-03c-urgente-trap",
+        "id": "",
         "question": (
             "Si un employé coche 'urgente' sur une demande de congé qui "
             "dépasse son solde restant, sa demande est-elle automatiquement "
@@ -184,7 +184,7 @@ def check_e2e_full_pipeline():
     route() dispatch) instead of calling code_intelligence_agent()
     directly -- catches routing bugs check_e2e() alone cannot see (see
     check_bloc9_01_credit_note_cascade_e2e.py::check_e2e_full_pipeline for
-    the full rationale, contexte.txt section 78). Generalized to all 8
+    the full rationale,  section 78). Generalized to all 8
     modules 2026-08-20."""
     print("=" * 80)
     print(" FULL PIPELINE (query_graph -> route())")
@@ -218,10 +218,10 @@ def main():
     full_pipeline_ok = check_e2e_full_pipeline()
     print("=" * 80)
     if raw_ok and e2e_ok and full_pipeline_ok:
-        print("[BLOC 9 - 3/8] custom_hr_leave_workflow: E2E confirmed.")
+        print("[ - 3/8] custom_hr_leave_workflow: E2E confirmed.")
         sys.exit(0)
     else:
-        print("[BLOC 9 - 3/8] custom_hr_leave_workflow: GAP FOUND -- see [MISSING]/[FAIL] lines above.")
+        print("[ - 3/8] custom_hr_leave_workflow: GAP FOUND -- see [MISSING]/[FAIL] lines above.")
         sys.exit(1)
 
 

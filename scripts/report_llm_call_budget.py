@@ -46,7 +46,7 @@ def build_budget_report(log_filepath: Path = None) -> str:
     summaries = logger.read_recent(limit=100000, record_type="SUMMARY")
 
     lines = [
-        "# Rapport Bloc 12 / J48 -- Budget LLM par branche\n",
+        "# Rapport - Budget LLM par branche\n",
         f"**Source :** `{logger.log_filepath}`\n",
         f"**Nombre total de questions tracees :** {len(summaries)}\n",
         "---\n",
@@ -103,7 +103,7 @@ def build_budget_report(log_filepath: Path = None) -> str:
         )
 
     lines.append(
-        f"\n*Plafond de sauts par question (J48) : `code_intelligence` applique "
+        f"\n*Plafond de sauts par question  : `code_intelligence` applique "
         f"`CI_MAX_HOPS=4` (rag/graph.py), `donnees_erp` applique "
         f"`REACT_RECURSION_LIMIT=6`, `documentaire` ne fait jamais de hop (0 par construction). "
         f"Valeur generique de reference : `MAX_HOPS_PER_QUESTION={MAX_HOPS_PER_QUESTION}` "
@@ -150,7 +150,7 @@ def print_trace(trace_id: str, log_filepath: Path = None) -> None:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Bloc 12 / J48 LLM call budget report.")
+    parser = argparse.ArgumentParser(description=" / J48 LLM call budget report.")
     parser.add_argument("--trace-id", help="Print the full reasoning path for one trace_id instead of the aggregate report.")
     parser.add_argument("--log-file", help="Override the reasoning_trace.jsonl path.")
     args = parser.parse_args()
@@ -167,7 +167,7 @@ def main():
     root_dir = Path(__file__).resolve().parent.parent
     todo_dir = root_dir / "todo"
     todo_dir.mkdir(exist_ok=True)
-    out_path = todo_dir / "bloc12_llm_call_budget_report.md"
+    out_path = todo_dir / ".md"
     out_path.write_text(report, encoding="utf-8")
     print(f"\nSaved report to: {out_path}")
 

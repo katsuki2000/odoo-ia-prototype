@@ -77,7 +77,7 @@ def test_active_company_context_restricts_to_authorized_company(
 ):
     """Company context enforces the user's authorized-company boundary.
 
-    NOTE (J6 environment limitation): odoo-dev is single-company (Company
+    NOTE : odoo-dev is single-company (Company
     Alpha, id=1). This cannot validate that record VISIBILITY differs
     between two companies the user is authorized for -- that would need a
     genuine multi-company fixture with test_both_2026 granted access to a

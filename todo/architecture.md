@@ -2,7 +2,7 @@
 
 ## Vision
 
-Construire une IA capable d'expliquer le comportement réel d'une instance Odoo(17 pour l'instant), y compris ses modules natifs, OCA et custom, sans dépendre de la documentation existante.
+Construire une IA capable d'expliquer le comportement réel d'une instance Odoo 17, y compris ses modules natifs, OCA et custom, sans dépendre de la documentation existante.
 
 L'IA doit pouvoir répondre à :
 

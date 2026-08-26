@@ -1,7 +1,7 @@
 """
 code_intelligence/tests/test_j37_j42_staleness_and_atomic_swap.py
 
-Unit & Concurrency Tests for Sprint F / Bloc 10 (J37-J42):
+Unit & Concurrency Tests for  /  :
 - J37: Level 1 File-only staleness detector.
 - J38: Level 2 Dependency edge propagation (EXTENDS, RESTRICTED_BY, HAS_FIELD).
 - J39: Level 3 Uncovered dynamic pattern detection (getattr, safe_eval, eval, manifest, ACL) + staleness_reason.

@@ -1,7 +1,7 @@
 """
 code_intelligence/tests/test_a2_1_1.py
 
-Unit and integration tests for Story A2.1: Two-Pass Cross-File Reference Resolution.
+Unit and Integration tests for Two-Pass Cross-File Reference Resolution.
 Tests:
   1. Topological sort of modules based on manifest depends
   2. Two-pass symbol indexing and reference resolution

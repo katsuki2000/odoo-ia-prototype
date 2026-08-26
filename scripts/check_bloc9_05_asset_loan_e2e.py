@@ -2,7 +2,7 @@
 """
 scripts/check_bloc9_05_asset_loan_e2e.py
 
-Bloc 9 generalization check, 5/8 -- same method as modules 1/8-4/8
+ generalization check, 5/8 -- same method as modules 1/8-4/8
 (raw composite-tool output isolated from synthesis, then live end-to-end
 through code_intelligence_agent()), applied to the fifth mechanism:
 custom_asset_loan, a cross-model relational business rule (no has_group(),
@@ -11,7 +11,7 @@ modules 1/8-4/8, all of which gated on group membership and/or a
 privileged-login bypass list).
 
 Ground truth (custom_asset_loan/models/asset_loan.py, read directly from
-disk, not from real plan.md/etat_reel.md text):
+disk, not from real / text):
   - `action_demarrer`: for each record, IF the loan is linked to a
     purchase request (`demande_achat_liee_id` set) AND that linked
     request's `montant_estime > 2000`, THEN the loan's `beneficiaire_id`
@@ -85,7 +85,7 @@ def _marker_present(marker: str, text: str) -> bool:
 
 QUESTIONS = [
     {
-        "id": "bloc9-05a-business",
+        "id": "",
         "question": (
             "Pourquoi je n'arrive pas à démarrer une mise à disposition de "
             "matériel dont je suis à la fois le demandeur d'achat et le "
@@ -94,7 +94,7 @@ QUESTIONS = [
         "expected_markers": ["__THRESHOLD__", "demandeur"],
     },
     {
-        "id": "bloc9-05b-technical",
+        "id": "",
         "question": (
             "Dans le modèle custom.asset.loan, quelles sont toutes les "
             "conditions vérifiées par action_demarrer ?"
@@ -102,7 +102,7 @@ QUESTIONS = [
         "expected_markers": ["__THRESHOLD__", "demandeur"],
     },
     {
-        "id": "bloc9-05c-no-link-trap",
+        "id": "",
         "question": (
             "Si une mise à disposition de matériel n'est reliée à aucune "
             "demande d'achat, la règle de séparation des rôles "
@@ -224,7 +224,7 @@ def check_e2e_full_pipeline():
     route() dispatch) instead of calling code_intelligence_agent()
     directly -- catches routing bugs check_e2e() alone cannot see (see
     check_bloc9_01_credit_note_cascade_e2e.py::check_e2e_full_pipeline for
-    the full rationale, contexte.txt section 78). Generalized to all 8
+    the full rationale,  section 78). Generalized to all 8
     modules 2026-08-20."""
     print("=" * 80)
     print(" FULL PIPELINE (query_graph -> route())")
@@ -262,10 +262,10 @@ def main():
     full_pipeline_ok = check_e2e_full_pipeline()
     print("=" * 80)
     if raw_ok and e2e_ok and full_pipeline_ok:
-        print("[BLOC 9 - 5/8] custom_asset_loan: E2E confirmed.")
+        print("[ - 5/8] custom_asset_loan: E2E confirmed.")
         sys.exit(0)
     else:
-        print("[BLOC 9 - 5/8] custom_asset_loan: GAP FOUND -- see [MISSING]/[FAIL] lines above.")
+        print("[ - 5/8] custom_asset_loan: GAP FOUND -- see [MISSING]/[FAIL] lines above.")
         sys.exit(1)
 
 

@@ -1,7 +1,7 @@
 """
 code_intelligence/tests/test_a1_3_1.py
 
-Unit tests for Story A1.3 (Tasks A1.3.1 & A1.3.2): CSV ACL parsing & empty group_id handling.
+Unit tests for  (Tasks A1.3.1 & A1.3.2): CSV ACL parsing & empty group_id handling.
 Tests:
   1. Standard CSV ACL row parsing
   2. Empty group_id handling -> all_authenticated=True, group_id=None
@@ -82,7 +82,7 @@ def test_real_csv_account_access():
         # 2026-08-12: this now points at the REAL Odoo 17 account module
         # (the hand-crafted 7-row fake_data/code fixture, pinned to a
         # fictitious 'access_account_move' xml_id, was removed -- see
-        # todo/etat_reel.md). The real file has 100+ rows and NO single
+        # ). The real file has 100+ rows and NO single
         # 'access_account_move' row -- account.move access is split
         # across several role-specific rows instead (verified directly:
         # access_account_move_manager/_readonly/_uinvoice). Pin

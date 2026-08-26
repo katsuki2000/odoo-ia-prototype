@@ -32,7 +32,7 @@ odoo-ia-prototype/
 ├── erp_data/                   # Odoo XML-RPC tools (odoo_tools.py, odoo_connector.py)
 ├── scripts/                    # Maintenance and e2e scripts
 ├── tests/                      # Pytest suite
-├── todo/                       # Modification logs (contexte.txt) and rules
+├── todo/                       # Project documentation and guidelines
 └── tools/                      # General utilities (full_setup.py, clean_demo_data.py)
 ```
 

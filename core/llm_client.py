@@ -39,12 +39,7 @@ def get_chat_llm(
 
     if LLM_PROVIDER == "ollama":
         raise NotImplementedError(
-            "LLM_PROVIDER=ollama is not wired up yet -- Bloc 9bis (local "
-            "inference validation) is on hold pending GPU hardware. See "
-            "todo/real plan.md, Bloc 9bis. OPENROUTER_MODEL currently "
-            "defaults to the same model family (qwen/qwen3-14b) you would "
-            "eventually run locally via Ollama, as an interim cloud "
-            "validation step -- see llm_client.py's own module docstring."
+            "LLM_PROVIDER=ollama is not configured yet. Please use 'groq' or 'openrouter'."
         )
 
     raise ValueError(

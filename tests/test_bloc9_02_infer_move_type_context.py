@@ -2,7 +2,7 @@
 """
 tests/test_bloc9_02_infer_move_type_context.py
 
-Bug B2 (module 02, todo/contexte.txt section 96 -> 98, option (a) chosen
+Bug B2 (module 02,  section 96 -> 98, option (a) chosen
 and implemented): rag.ci_helpers._infer_move_type_context.
 
 Investigation (section 98) found the matched business alias was never
@@ -110,7 +110,7 @@ class TestNoGuessOnAmbiguityOrMissingSignal:
 
 class TestIntegrationWithCanViewAmountV2:
     """End-to-end sanity check: the inferred move_type actually resolves
-    module 02's real global rule (todo/contexte.txt section 96), instead
+    module 02's real global rule , instead
     of poisoning the Kleene OR the way an empty context does."""
 
     def test_module_02_global_rule_resolves_with_inferred_move_type(self):

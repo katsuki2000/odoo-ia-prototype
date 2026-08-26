@@ -2,13 +2,13 @@
 """
 scripts/check_bloc9_08_deep_inheritance_security_e2e.py
 
-Bloc 9 generalization check, 8/8 (2026-08-13) -- same method as modules
+ generalization check, 8/8 (2026-08-13) -- same method as modules
 1/8-7/8 (raw composite-tool output isolated from synthesis, then live
 end-to-end through code_intelligence_agent()), applied to the eighth and
 final mechanism this reconciliation identified: custom_deep_inheritance_security.
 
 RECONCILIATION NOTE (closes the "7 mécanismes vs 9 dossiers" open item,
-etat_reel.md): 14 real custom_* folders exist under /home/user/odoo-17.0/addons.
+): 14 real custom_* folders exist under /home/user/odoo-17.0/addons.
 Grouped by distinct business mechanism:
   1-7. Already covered by scripts/check_bloc9_01..07_*.py (credit_note_approval
        +regional+vip, credit_note_visibility_rules, hr_leave_workflow,
@@ -16,8 +16,8 @@ Grouped by distinct business mechanism:
   8.   custom_expense_risk_alert/base/score (3 folders, 1 mechanism) --
        ALREADY covered, but via a differently-named script
        (eval_j36_expense_risk_llm.py, confirmed 8/8 on 2026-08-07), not the
-       bloc9-0N naming convention -- which is exactly why it was invisible
-       to a naive "do we have a bloc9-0N script for every folder" audit.
+        naming convention -- which is exactly why it was invisible
+       to a naive "do we have a  script for every folder" audit.
   9.   custom_modern_theme -- confirmed EMPTY directory (stub, never built,
        0 files). Legitimately out of scope, not a real gap.
   10.  custom_deep_inheritance_security -- had extraction-layer unit tests
@@ -81,7 +81,7 @@ def _marker_present(marker: str, text: str) -> bool:
 
 QUESTIONS = [
     {
-        "id": "bloc9-08a-business",
+        "id": "",
         # Amount (60000) clears the Level2 threshold (50000) but NOT the
         # Level5 threshold (100000) -- only account.group_account_manager
         # should be named, never base.group_system (the double-threshold
@@ -103,7 +103,7 @@ QUESTIONS = [
         "forbidden_markers": [],
     },
     {
-        "id": "bloc9-08b-technical",
+        "id": "",
         # Both thresholds/groups must be distinctly surfaced -- neither
         # dropped nor merged into one.
         "question": (
@@ -120,7 +120,7 @@ QUESTIONS = [
         "forbidden_markers": [],
     },
     {
-        "id": "bloc9-08c-nested-domain-trap",
+        "id": "",
         # The real reason a cross-company user is denied is the GLOBAL
         # company-cantonment rule, independent of the group rule's nested
         # amount/user_id OR. Loose marker check (semantic yes/no grading
@@ -264,7 +264,7 @@ def check_e2e_full_pipeline():
     on either edge once routed through the real pipeline. Merged in
     2026-08-20 from the now-deleted
     miro-rag/scripts/check_bloc9_08_deep_inheritance_security_e2e.py
-    reconstruction (see contexte.txt section 78) rather than kept as a
+    reconstruction  rather than kept as a
     second, diverging script.
     """
     print("=" * 80)
@@ -342,10 +342,10 @@ def main():
     full_pipeline_ok = check_e2e_full_pipeline()
     print("=" * 80)
     if raw_ok and e2e_ok and full_pipeline_ok:
-        print("[BLOC 9 - 8/8] custom_deep_inheritance_security: E2E confirmed.")
+        print("[ - 8/8] custom_deep_inheritance_security: E2E confirmed.")
         sys.exit(0)
     else:
-        print("[BLOC 9 - 8/8] custom_deep_inheritance_security: GAP FOUND -- see [MISSING]/[FAIL] lines above.")
+        print("[ - 8/8] custom_deep_inheritance_security: GAP FOUND -- see [MISSING]/[FAIL] lines above.")
         sys.exit(1)
 
 

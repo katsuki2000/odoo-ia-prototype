@@ -1,7 +1,7 @@
 """
 code_intelligence/tests/test_s2_7_sourcing.py
 
-Unit tests for Story S2.7: Structural Sourcing & File+Line Traceability.
+Unit tests for Structural Sourcing & File+Line Traceability.
 Ensures deterministic tools and security analyzers include clickable file links
 and line references in markdown format [file.py:L12-34](file:///abs/path#L12-L34).
 """

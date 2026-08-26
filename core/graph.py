@@ -7,19 +7,6 @@ Flow:
                    → [donnees_erp]         → orm_agent_loop         → format_output → END
                    → [hybride]             → hybrid_node            → format_output → END
                    → [code_intelligence]   → code_intelligence_agent → format_output → END
-
-Modular architecture (post-refactoring, section 93 -- paths updated
-2026-08-24 to match the real package layout, see todo/contexte.txt section
-115; this docstring previously still cited the pre-refactor rag/ paths):
-  - core/degenerate_guards.py        : Repetition detection & collapsing guards
-  - core/routing.py                  : Query classification, routing, and input guardrails
-  - document_rag/generate_node.py    : Documentary RAG branch
-  - erp_data/orm_agent_node.py       : ORM ReAct agent loop & hybrid pipeline
-  - code_intelligence/ci_helpers.py      : Code Intelligence extraction, backfill & contradiction helpers
-  - code_intelligence/ci_graph_loader.py : Knowledge graph loading & caching
-  - code_intelligence/ci_agent_node.py   : Code Intelligence ReAct agent node & RPC helpers
-  - core/llm_client.py               : LLM provider factory & retry infrastructure
-  - core/graph.py                    : StateGraph wiring, nodes, and public API (orchestrator)
 """
 
 import json

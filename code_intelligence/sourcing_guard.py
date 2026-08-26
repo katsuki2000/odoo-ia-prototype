@@ -1,23 +1,8 @@
 """
 code_intelligence/sourcing_guard.py
 
-Bloc 4 / J14: mechanical (not eye-balled) verification that every citation
-in the agent's final answer corresponds to something the tools actually
-produced for THIS question.
-
-Ground truth = raw_tool_output (the pre-synthesis, deterministic tool text
--- same trusted signal already used for Bloc 0's keyword checks). The
-synthesis LLM can quote a citation correctly, paraphrase it, or invent one
-that looks plausible but was never in any tool output; this guard catches
-that mechanically instead of relying on someone reading the answer and
-judging a citation "by eye".
-
-NOTE: as of J14, no Semgrep-sourced tool is wired into ALL_CI_TOOLS
-(ci_agent_tools.py) -- Semgrep findings (Bloc 3) never reach a final
-answer today, so this guard currently only has file:// and xml_id
-citations to verify against ir.rule / Python-lock / server-action tool
-output. It will pick up Semgrep citations for free once such a tool
-exists, as long as it also emits file:///...#L-L citations.
+Mechanical verification that every citation in the agent's final answer corresponds
+to citations produced in the raw tool output for the question.
 """
 
 from __future__ import annotations

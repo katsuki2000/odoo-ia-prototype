@@ -2,14 +2,14 @@
 """
 scripts/check_bloc9_04_purchase_request_e2e.py
 
-Bloc 9 generalization check, 4/8 -- same method as modules 1/8-3/8 (raw
+ generalization check, 4/8 -- same method as modules 1/8-3/8 (raw
 composite-tool output isolated from synthesis, then live end-to-end
 through code_intelligence_agent()), applied to the fourth mechanism:
 custom_purchase_request, a hardcoded-email approval bypass on a single
 custom model (Q3.1 of scripts/run_adversarial_benchmark.py).
 
 Ground truth (custom_purchase_request/models/purchase_request.py, read
-directly from disk, not from real plan.md/etat_reel.md text):
+directly from disk, not from real / text):
   - `action_valider`: a requester may validate if EITHER they hold
     `purchase.group_purchase_manager` OR their login is in the hardcoded
     `_VALIDATEURS_EXCEPTIONNELS` list (direction@societe.com,
@@ -26,14 +26,14 @@ directly from disk, not from real plan.md/etat_reel.md text):
     bypass `semgrep_locks_analyzer.py` tags with `SENSITIVE_BYPASS_MARKER`
     (hardcoded logins) -- distinct from module 1/8's "20000" gap, this
     module's own dedicated regression is whether the AUTHORIZATION GATE
-    (Bloc 7 / J23-24, authorization_gate.py) correctly keeps the emails
+     correctly keeps the emails
     themselves out of an anonymous/ungrouped requester's answer while
     still surfacing the group name and the 10 000e threshold (governance,
-    never gated) -- exactly the same split the Bloc 7-bis benchmark rerun
+    never gated) -- exactly the same split the  benchmark rerun
     already confirmed once for Q3.1 in the general adversarial benchmark
-    (see todo/etat_reel.md, Bloc 7-bis section); this script re-checks it
+    ; this script re-checks it
     with the dedicated raw + business + technical + trap methodology used
-    for the rest of Bloc 9, not just the one fixed benchmark question.
+    for the rest of , not just the one fixed benchmark question.
 
 No live Odoo group resolution needed here (same as module 3/8): all
 three questions below run as an anonymous/ungrouped requester
@@ -66,6 +66,25 @@ TARGET_MODEL = "custom.purchase.request"
 # substring, same defensive stance as _AMOUNT_PATTERN in rag/graph.py.
 _THRESHOLD_RE = re.compile(r"10\s?000")
 
+# gap (2026-08-26, section 183/186): the previous version of this
+# script only ever checked for the PRESENCE of the group xmlid and the
+# threshold marker, never that the answer correctly states the group is
+# INSUFFICIENT above that threshold -- so it would have passed even on
+# the exact wrong answer diagnosed in section 178 ("l'autorite requise
+# est donc les utilisateurs appartenant au groupe
+# purchase.group_purchase_manager"), which directly contradicts the
+# ground truth ("Le groupe purchase_manager ne suffit pas >10000E. Seuls
+# logins dans _VALIDATEURS_EXCEPTIONNELS peuvent valider"). This marker
+# closes that blind spot: any ONE of these phrases signals the answer
+# correctly conveys insufficiency, without requiring an exact wording
+# match (the synthesis LLM paraphrases this governance point in several
+# equivalent ways across runs).
+_GROUP_INSUFFICIENT_RE = re.compile(
+    r"(ne suffit pas|insuffisant|pas suffisant|liste restreinte|"
+    r"seule la direction|ne suffisent pas)",
+    re.IGNORECASE,
+)
+
 HARDCODED_EMAILS = ["direction@societe.com", "daf@societe.com"]
 
 
@@ -81,21 +100,24 @@ def _fold_accents(s: str) -> str:
 def _marker_present(marker: str, text: str) -> bool:
     if marker == "__THRESHOLD__":
         return bool(_THRESHOLD_RE.search(text))
+    if marker == "__GROUP_INSUFFICIENT__":
+        return bool(_GROUP_INSUFFICIENT_RE.search(_fold_accents(text)))
     return _fold_accents(marker.lower()) in _fold_accents(text.lower())
 
 
 QUESTIONS = [
     {
-        "id": "bloc9-04a-business",
+        "id": "",
         "question": "Qui a le droit d'approuver une demande d'achat de 15 000€ ?",
         "expected_markers": [
             "purchase.group_purchase_manager",
             "__THRESHOLD__",
+            "__GROUP_INSUFFICIENT__",
         ],
         "forbidden_markers": HARDCODED_EMAILS,
     },
     {
-        "id": "bloc9-04b-technical",
+        "id": "",
         "question": (
             "Dans le modèle custom.purchase.request, quelles sont toutes "
             "les conditions vérifiées par action_valider ?"
@@ -103,11 +125,12 @@ QUESTIONS = [
         "expected_markers": [
             "purchase.group_purchase_manager",
             "__THRESHOLD__",
+            "__GROUP_INSUFFICIENT__",
         ],
         "forbidden_markers": HARDCODED_EMAILS,
     },
     {
-        "id": "bloc9-04c-manager-trap",
+        "id": "",
         "question": (
             "Un utilisateur membre du groupe purchase_manager peut-il, à "
             "lui seul, valider n'importe quelle demande d'achat quel que "
@@ -116,6 +139,7 @@ QUESTIONS = [
         "expected_markers": [
             "purchase.group_purchase_manager",
             "__THRESHOLD__",
+            "__GROUP_INSUFFICIENT__",
         ],
         "forbidden_markers": HARDCODED_EMAILS,
     },
@@ -149,7 +173,7 @@ def check_raw_tool_output():
         "required group (has_group extraction)": "purchase.group_purchase_manager",
         "hardcoded email 1 (raw, pre-gating)": "direction@societe.com",
         "hardcoded email 2 (raw, pre-gating)": "daf@societe.com",
-        # Bloc 9 gap (2026-08-10, module 4/8): this used to check for a
+        # gap (2026-08-10, module 4/8): this used to check for a
         # literal 'LOGINS/EMAILS EN DUR' substring, which never matched --
         # the analyzer's actual line reads "Logins/Emails privilégies en
         # dur" (note "privilégies"), and the real source-of-truth tag
@@ -216,7 +240,7 @@ def check_e2e_full_pipeline():
     route() dispatch) instead of calling code_intelligence_agent()
     directly -- catches routing bugs check_e2e() alone cannot see (see
     check_bloc9_01_credit_note_cascade_e2e.py::check_e2e_full_pipeline for
-    the full rationale, contexte.txt section 78). Generalized to all 8
+    the full rationale,  section 78). Generalized to all 8
     modules 2026-08-20."""
     print("=" * 80)
     print(" FULL PIPELINE (query_graph -> route())")
@@ -254,10 +278,10 @@ def main():
     full_pipeline_ok = check_e2e_full_pipeline()
     print("=" * 80)
     if raw_ok and e2e_ok and full_pipeline_ok:
-        print("[BLOC 9 - 4/8] custom_purchase_request: E2E confirmed.")
+        print("[ - 4/8] custom_purchase_request: E2E confirmed.")
         sys.exit(0)
     else:
-        print("[BLOC 9 - 4/8] custom_purchase_request: GAP FOUND -- see [MISSING]/[FAIL] lines above.")
+        print("[ - 4/8] custom_purchase_request: GAP FOUND -- see [MISSING]/[FAIL] lines above.")
         sys.exit(1)
 
 

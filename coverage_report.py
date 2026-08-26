@@ -1,7 +1,7 @@
 """
 coverage_report.py
 
-Mesure le taux de couverture des données B0 (labels métier) sur le graphe
+Mesure le taux de couverture des données(labels métier) sur le graphe
 de connaissances déjà généré : knowledge_graph.json.
 
 Usage :

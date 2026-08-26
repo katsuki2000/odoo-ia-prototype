@@ -141,7 +141,7 @@ class TestServerActionCodeAnalysis:
         # Summary should mention both risks
         assert "sudo" in analysis.summary_text.lower()
         assert "42" in analysis.summary_text
-        # Bloc 9 fix: the enclosing if-guard must be captured so that
+        # fix: the enclosing if-guard must be captured so that
         # Q5.1 can answer "NON, pas tous les avoirs" -- the bypass only
         # fires for in_refund moves from the 3 privileged partners.
         assert len(analysis.trigger_conditions) >= 1

@@ -1,5 +1,5 @@
 """
-H1b-i (todo/plan.md, section "Preconditions a valider avant P1/P2", H1) --
+H1b-i  --
 verification manuelle #2 : deux appels successifs au meme session_id via
 /api/v1/ask, la deuxieme question depend du contexte du premier tour.
 

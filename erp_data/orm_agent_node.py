@@ -27,20 +27,7 @@ logger = logging.getLogger(__name__)
 
 
 def _get_chat_groq():
-    """Mock-compatibility fix (2026-08-20, post-refactoring gap found in
-    review): mirrors rag/generate_node.py's helper of the same name.
-
-    Before the rag/graph.py split (todo/contexte.txt section 70), every
-    ChatGroq(...) call site -- documentaire, donnees_erp, hybride -- lived
-    in the same rag.graph namespace, so a single @patch('core.graph.ChatGroq')
-    covered all of them. The split moved orm_agent_loop()/hybrid_node() into
-    this separate module, which still imported ChatGroq directly from
-    langchain_groq and called it unpatched -- silently making real Groq API
-    calls under a test that believed it was mocked. generate_node.py's
-    branch already carried this same fix; this module never got it. Same
-    mechanism here: prefer rag.graph's ChatGroq if that module is loaded
-    and has been patched, otherwise fall back to the real one.
-    """
+    """Returns the patched ChatGroq if loaded in core.graph, else real ChatGroq."""
     import sys
     g = sys.modules.get("core.graph")
     if g and hasattr(g, "ChatGroq"):
@@ -75,10 +62,7 @@ def orm_agent_loop(state: RAGState) -> dict:
     chat_history = state.get("chat_history", [])
     logger.info("Node [orm_agent_loop]: Starting ReAct loop for: %s", question)
 
-    # Bloc 12 / J46-J48: reasoning-trace + LLM-call-budget instrumentation.
-    # "donnees_erp" is the Function Calling branch -- llm_call_count here
-    # is directly comparable to "documentaire" (generate, 1-2 calls) and
-    # "code_intelligence" (code_intelligence_agent, resolver + hops + synthesis).
+    # Reasoning trace and LLM call tracking
     from code_intelligence.reasoning_trace_logger import ReasoningTraceLogger, new_trace_id
     _trace_id = new_trace_id()
     _trace_logger = ReasoningTraceLogger()

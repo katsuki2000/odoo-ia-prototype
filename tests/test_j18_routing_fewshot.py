@@ -52,7 +52,7 @@ def test_few_shot_routing(example):
 
 
 def test_conflict_policy_is_explicit_and_ordered():
-    """Bloc 6 requires a documented conflict policy, not only branch selection."""
+    """ requires a documented conflict policy, not only branch selection."""
     assert ROUTING_CONFLICT_PRIORITY == (
         "code_intelligence",
         "donnees_erp",
@@ -111,7 +111,7 @@ def test_dynamic_dispatch_uncertainty_cannot_be_synthesized_as_certain():
     assert "aucune restriction" not in answer.lower()
 
 
-# H1 prototype (2026-08-19, contexte.txt section 60/61 finding F2):
+# H1 prototype (2026-08-19,  section 60/61 finding F2):
 # business_resolver.py is now invoked once at the top of route(), before
 # any keyword classification, deliberately observational-only (see the
 # comment block at the top of route() in rag/graph.py for the full

@@ -1,7 +1,7 @@
 """
 code_intelligence/tests/test_j22bis_button_availability_gate.py
 
-Bloc 7-bis (revision 2026-08-07): real button availability for "comment
+ (revision 2026-08-07): real button availability for "comment
 faire X ?" questions.
 
   button_execution_path (deterministic_tools.py) now accepts an optional
@@ -20,14 +20,13 @@ faire X ?" questions.
   user_groups_json the LLM proposes is discarded in favor of the real
   requester's resolved groups.
 
-This file was referenced in real plan.md / etat_reel.md (Bloc 7-bis entry,
-2026-08-07) as an existing regression lock, but was never actually created
+This file was referenced in real  /   as an existing regression lock, but was never actually created
 on disk -- confirmed 2026-08-07 via `pytest ... -v` returning "no tests
 ran" / "file or directory not found". The underlying code
 (deterministic_tools.button_execution_path,
 _requester_satisfies_required_groups, rag.graph._override_user_groups_arg)
 IS present and wired into ci_agent_tools.py / CI_SYSTEM_PROMPT rule 6 --
-only this test file itself was missing. See etat_reel.md for the note on
+only this test file itself was missing. See  for the note on
 this gap.
 """
 
@@ -127,7 +126,7 @@ def test_no_user_groups_argument_keeps_prior_behavior_unchanged():
 
 
 def test_tolerant_group_resolution_short_name_matches_required_group():
-    """Reuses resolve_group_identifier (Bloc 1) rather than a strict exact
+    """Reuses resolve_group_identifier  rather than a strict exact
     match: a demandeur-supplied short group name (no module prefix) must
     still resolve against a fully-qualified required_groups entry, exactly
     like who_has_access_to and evaluate_record_rules already tolerate."""
@@ -163,7 +162,7 @@ def test_override_user_groups_arg_applies_to_button_execution_path():
     """core.graph._override_user_groups_arg must discard whatever
     user_groups_json the LLM proposed for button_execution_path and
     replace it with the real, resolved demandeur groups -- same treatment
-    already locked in for evaluate_record_rules (J23-24)."""
+    already locked in for evaluate_record_rules ."""
     from core.graph import _override_user_groups_arg
 
     llm_guessed_args = {"button_name": "Valider", "model_name": "account.move", "user_groups_json": '["made_up_group"]'}

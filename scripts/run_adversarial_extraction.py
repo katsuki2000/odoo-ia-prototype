@@ -2,7 +2,7 @@
 """
 scripts/run_adversarial_extraction.py
 
-Extraction pipeline runner for Story S1.2 (Agile Sprint 1):
+Extraction pipeline runner for  (Agile ):
 Runs the full Code Intelligence extraction pipeline over the 9 adversarial test modules
 installed in odoo17-dev/addons.
 
@@ -57,7 +57,7 @@ def run_extraction():
     addons_dir = Path("/home/user/odoo-17.0/addons")
 
     print("=" * 80)
-    print(" CODE INTELLIGENCE - EXTRACTION PIPELINE (STORY S1.2 / S2.3)")
+    print(" CODE INTELLIGENCE - EXTRACTION PIPELINE ( / S2.3)")
     print(" Target: 9 Adversarial Test Modules")
     print("=" * 80)
 

@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
 """
 H3 (Evidence Check), Phase 1 -- observational only (2026-08-20,
-todo/contexte.txt).
+).
 
 Design decision made explicitly with the maitre de stage: H3 sits AFTER
 route() (code_intelligence_agent), never before -- it never changes
 route_decision. See rag/evidence_check.py's module docstring for the full
 rationale (rejected alternative: H3 before route() collapses into H4, the
-least-evidenced hypothesis from contexte.txt section 60/61).
+least-evidenced hypothesis from  section 60/61).
 
 This file locks two distinct things:
   1. rag.evidence_check.check_evidence() itself -- the RESOLU/NON_RESOLU/
@@ -118,7 +118,7 @@ def test_resolved_concept_reused_false_on_first_turn_no_last_concept():
 
 def test_resolved_concept_reused_false_when_current_question_resolves_itself():
     """"mise a disposition" resolves via a static alias on its own (the
-    exact DOC-08 term, contexte.txt section 62) -- must not be flagged as
+    exact DOC-08 term,  section 62) -- must not be flagged as
     reused even though a last_resolved_concept is offered, since this
     turn's own text is what produced the resolution."""
     last_concept = dataclasses.asdict(_resolved(user_term="autre chose", models=["hr.leave"]))

@@ -67,7 +67,7 @@ def test_xmlrpc_client_timing_logging(caplog):
 def test_odoo_connector_timing_logging(caplog):
     """J30-J31: verify OdooConnector instruments search_read timing."""
     import logging
-    from tools.odoo_connector import OdooConnector
+    from erp_data.odoo_connector import OdooConnector
 
     connector = OdooConnector()
     connector.models = MagicMock()

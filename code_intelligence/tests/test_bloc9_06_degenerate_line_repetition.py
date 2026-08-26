@@ -1,14 +1,14 @@
 """
 miro-rag/code_intelligence/tests/test_bloc9_06_degenerate_line_repetition.py
 
-Bloc 9 gap, module 6/8 (custom_automation_traps, 2026-08-10, bloc9-06b-technical):
+ gap, module 6/8 (custom_automation_traps, 2026-08-10, ):
 locks in the LINE-level degenerate-repetition guard added to rag/graph.py, plus
 basic coverage for the pre-existing PHRASE-level guard, which had zero pytest
 coverage before this file despite already being live in production.
 
 Live finding: llama-3.1-8b-instant's decoding-collapse failure mode (documented
 since the Q1.1 benchmark run as "Accountant Manager" repeated ~140x) recurred in
-a NEW shape during bloc9-06b-technical -- not a short repeated phrase this time,
+a NEW shape during  -- not a short repeated phrase this time,
 but the same ~40-word bullet line ("- `xml_id: account.group_account_manager` :
 Ce groupe est requis...") repeated ~50 times until the response was cut off
 mid-word. The existing `_DEGENERATE_REPETITION_RE` regex structurally cannot
@@ -34,7 +34,7 @@ from core.graph import (
 )
 
 
-# The actual repeated line shape observed live in bloc9-06b-technical
+# The actual repeated line shape observed live in 06b-technical
 # (2026-08-10), verbatim shape (shortened repeat count for test speed --
 # the live case repeated it ~50 times, 5 is well past the detection
 # threshold of 4).
@@ -57,7 +57,7 @@ _CLEAN_ANSWER = (
 class TestDetectDegenerateLineRepetition:
     def test_flags_real_repeated_bullet_line_shape(self):
         """Core regression test: the exact live failure shape from
-        bloc9-06b-technical must now be caught."""
+         must now be caught."""
         text = "\n".join([_REAL_DEGENERATE_LINE] * 5)
         assert _detect_degenerate_line_repetition(text) is True
 

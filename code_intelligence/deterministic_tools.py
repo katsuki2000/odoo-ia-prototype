@@ -2,10 +2,8 @@
 code_intelligence/deterministic_tools.py
 
 Specialized Deterministic Graph Query Tools for Odoo Code Intelligence.
-Implements Epic B:
-  - Story B1.1: who_has_access_to(model, permission, group_id=None)
-  - Story B1.2: field_change_impact(field_name, model)
-  - Story B1.3: button_execution_path(button_label_or_name, model)
+Provides tools for access evaluation, field impact analysis, button execution paths,
+and ir.rule evaluation.
 """
 
 from dataclasses import dataclass, field
@@ -19,6 +17,8 @@ import networkx as nx
 import unicodedata
 from rapidfuzz import fuzz
 
+from code_intelligence.semantic_tag_query import tags_for_node_attrs
+
 _logger = logging.getLogger(__name__)
 
 # Shared literal marker for "model/field not found in graph" messages.
@@ -31,47 +31,9 @@ NOT_FOUND_MARKER = "was not found in the indexed knowledge graph"
 # ---------------------------------------------------------------------------
 # domain_force evaluator: safe AST parser + three-valued (Kleene) logic
 # ---------------------------------------------------------------------------
-#
-# RuleEvaluationResult.can_view_amount() below only ever looks at the amount
-# threshold via a regex on domain_force. That is not a domain evaluator, it
-# is a single-field heuristic -- as soon as a domain_force mixes an amount
-# condition with anything else (company_id, user_id, partner_id, state...),
-# the regex-based check has no way to know whether those OTHER conditions
-# also matter, and silently fails OPEN (returns True) whenever it can't
-# find an amount pattern it recognizes. This is the confirmed root cause
-# behind Bloc9 08c (todo/etat_reel.md): can_view_amount() fails open on a
-# domain_force it cannot fully parse, which is exactly the kind of
-# unhandled case rules.md Regle 5 says must never be silently folded into
-# the happy path.
-#
-# This section adds an actual domain_force evaluator, used alongside (not
-# yet replacing) can_view_amount():
-#   1. _parse_domain_ast: parses the domain_force string with ast.parse in
-#      'eval' mode and walks the resulting tree WITHOUT ever calling
-#      eval()/exec() on it -- domain_force strings routinely contain
-#      dynamic references (user.company_id.id) that are not valid Python
-#      literals, so ast.literal_eval alone can't handle them, and a raw
-#      eval() would execute arbitrary text pulled out of indexed source
-#      code as code. Every AST node type is matched explicitly; anything
-#      unrecognized raises _DomainParseError instead of being guessed at.
-#   2. _normalize_domain_tokens: reproduces Odoo's own implicit-AND
-#      normalization (leaves with no explicit leading operator are
-#      implicitly AND-ed together).
-#   3. _evaluate_domain_tokens: recursive prefix-notation evaluator using
-#      Kleene three-valued logic (True / False / None="cannot conclude").
-#      Unknown/unresolvable fields propagate as None instead of defaulting
-#      to True (can_view_amount()'s current bug) or to False -- per
-#      rules.md Regle 5, an unhandled case must be surfaced explicitly,
-#      never silently guessed either way.
-#
-# evaluate_domain_force() is the public entry point: given a domain_force
-# string and a context dict of known field values (plus an optional "user"
-# sub-dict for dynamic user.* references, e.g.
-# {"amount": 60000, "user": {"company_id": {"id": 3}}}), it returns
-# (Optional[bool], List[str]) -- the tri-state verdict and the list of
-# field names it could not resolve, so a caller can report exactly which
-# condition is undetermined rather than pretending to a confidence it
-# doesn't have.
+# Evaluates domain_force expressions safely with Kleene 3-valued logic (True/False/None).
+# Handles complex leaf expressions, prefix Polish notation, implicit AND, and dynamic refs.
+# evaluate_domain_force() is the public entry point: returns (Optional[bool], List[str]).
 
 
 _DOMAIN_COMPARISON_OPS = {"=", "!=", ">", ">=", "<", "<=", "in", "not in", "like", "ilike"}
@@ -288,21 +250,7 @@ def _evaluate_leaf(field_name: Any, op: str, value: Any, context: Dict[str, Any]
         based can_view_amount() special-cased by exact string match).
 
     Returns (verdict, missing_names): missing_names lists every context
-    key this leaf actually needed but couldn't get, so a caller reports
-    the piece of external knowledge genuinely absent -- never just the
-    left-side ORM field name by default. Fix for todo/contexte.txt section
-    103/104: for a leaf like ('company_id', 'in', company_ids), the LEFT
-    side ('company_id') is an Odoo ORM field name a natural-language
-    question never states directly; the RIGHT side, when it's a dynamic
-    reference (company_ids, user.company_id.id...), is the actual context
-    a caller supplies (e.g. "the user's accessible companies"). The old
-    version only ever reported the left-side name and never attempted to
-    resolve the right side once the left side had already failed --
-    silently hiding the dynamic reference's own name from `unresolved`
-    even when it was equally or more responsible for the None verdict.
-    Always non-empty exactly when the returned verdict is None (the
-    invariant _evaluate_domain_tokens below now relies on throughout the
-    recursive combination).
+    key this leaf needed but couldn't get.
     """
     missing: List[str] = []
 
@@ -352,16 +300,9 @@ def _evaluate_leaf(field_name: Any, op: str, value: Any, context: Dict[str, Any]
                 return None, ([name] if name else [])
             return left not in right, []
     except TypeError:
-        # Field present but not comparable to the resolved RHS (e.g. a
-        # string compared with '>' to a number) -- cannot conclude, never
-        # silently guess a side. Still report the field name: this is a
-        # genuinely unresolvable leaf, same as the missing-context case.
         name = field_name if isinstance(field_name, str) else None
         return None, ([name] if name else [])
 
-    # 'like'/'ilike': text-matching semantics deliberately not implemented
-    # yet (no confirmed adversarial case needs them) -- cannot conclude
-    # rather than pretend a substring match was checked.
     name = field_name if isinstance(field_name, str) else None
     return None, ([name] if name else [])
 
@@ -393,28 +334,9 @@ def _evaluate_domain_tokens(
 ) -> Optional[bool]:
     """
     Recursive evaluator for normalized prefix-notation domain tokens.
-    Consumes tokens left-to-right via a shared cursor (closure over a
-    single-element list so nested recursive calls advance the same
-    cursor) -- same traversal shape as Odoo's own domain evaluator.
+    Consumes tokens left-to-right via a shared cursor.
     Appends to `unresolved` (in place) every leaf field/reference name
-    that genuinely contributed to the FINAL None verdict.
-
-    Fix for todo/contexte.txt section 103/104: the previous version
-    appended a leaf's unresolved name unconditionally, the moment that
-    single leaf itself failed to resolve -- even when a sibling under the
-    same '|' had already resolved definitively to True (making the whole
-    OR True regardless, per Kleene semantics), or under the same '&' had
-    already resolved definitively to False. A leaf whose own unresolved-
-    ness never actually changes the final combined verdict is not a
-    genuine caveat -- reporting it anyway contradicts evaluate_domain_
-    force's own documented contract ("every leaf field name that
-    CONTRIBUTED to a None verdict"). Each level of the recursion now
-    returns its own (verdict, local_unresolved) pair instead of mutating
-    a single shared list unconditionally; a parent node only keeps a
-    child's local_unresolved when that child's own verdict is None (the
-    invariant _evaluate_leaf maintains: local_unresolved is non-empty iff
-    verdict is None), and discards it entirely once the parent's own
-    combined verdict is definitively True or False.
+    that genuinely contributed to the final None verdict.
     """
     cursor = [0]
 
@@ -478,19 +400,9 @@ def evaluate_domain_force(
 
     Returns (verdict, unresolved_fields):
       - verdict is True/False when the domain fully resolves, or None when
-        it cannot be conclusively evaluated (unknown field, unresolved
-        dynamic reference, unsupported operator, or a domain_force that
-        fails to parse).
+        it cannot be conclusively evaluated.
       - unresolved_fields lists every leaf field name that contributed to
-        a None verdict, so a caller can report e.g. "company_id could not
-        be determined" as an explicit caveat instead of silently
-        defaulting to allow (can_view_amount()'s current bug, Bloc9 08c)
-        or to deny.
-
-    None is the deliberately safe default on ANY failure -- malformed
-    domain_force, unsupported syntax, unresolvable reference -- per
-    rules.md Regle 5 (no unhandled case may silently fall into a "happy
-    path" outcome).
+        a None verdict.
     """
     unresolved: List[str] = []
     try:
@@ -512,6 +424,15 @@ class RuleDetail:
     rule_name: str
     domain_force: str
     groups: List[str]
+    # Bloc P2 Jour 4 (todo/plan.md, todo/contexte.txt section 172): the
+    # Rule node's own behavioral_tags/technical_tags (graph_builder.py,
+    # Bloc P2 Jour 2-3), copied through so who_has_access_to and
+    # evaluate_record_rules callers can query e.g. "is this a
+    # workflow_rule" without a second graph lookup. Always at least
+    # ["visibility_rule", "record_rule"] for any Rule node (see
+    # graph_builder.py), empty only for a caller that never went through
+    # a real Rule node (e.g. a hand-built RuleDetail in a test).
+    tags: List[str] = field(default_factory=list)
 
 
 @dataclass
@@ -561,45 +482,12 @@ class RuleEvaluationResult:
 
     def can_view_amount_v2(self, context: Dict[str, Any]) -> Tuple[Optional[bool], List[str]]:
         """
-        Tri-state successor to can_view_amount(): evaluates the FULL
-        domain_force of every applied rule (global AND group) via
-        evaluate_domain_force() instead of a single-field amount regex.
-
-        can_view_amount() only ever looks at an amount threshold and
-        silently returns True whenever a domain_force mixes an amount
-        condition with anything else (company_id, user_id, partner_id...)
-        it doesn't recognize -- confirmed root cause of Bloc9 08c
-        (todo/etat_reel.md): a global company-scoped rule was
-        unconditionally treated as satisfied because the regex found no
-        amount pattern to check, even though the real domain_force also
-        restricted by company_id, which the caller's question explicitly
-        said differed.
-
-        context is the same kind of dict evaluate_domain_force() expects,
-        e.g. {"amount": 60000, "company_id": 3,
-        "user": {"company_id": {"id": 3}}} -- callers supply whatever
-        fields they can determine; fields absent from context resolve to
-        None ("cannot conclude"), never guessed.
+        Evaluates the full domain_force of every applied rule (global AND group) via
+        evaluate_domain_force() using Kleene three-valued logic.
 
         Returns (verdict, unresolved_fields):
-          - verdict is True/False when every applied rule's domain_force
-            fully resolves against context; None when at least one
-            rule could not be conclusively evaluated -- per Kleene
-            semantics, an unresolved leaf poisons an AND unless another
-            leaf already forces False, and poisons an OR unless another
-            leaf already forces True. Same three-valued combination
-            evaluate_domain_force() already uses within a single domain,
-            applied here one level up, across multiple rules.
-          - unresolved_fields is the union of every leaf field name that
-            contributed to a None verdict across all evaluated rules, so
-            a caller can report e.g. "company_id could not be determined"
-            explicitly instead of defaulting to allow.
-
-        Deliberately does NOT replace can_view_amount() -- both coexist so
-        existing callers relying on the bool-only signature are
-        unaffected; callers that need the honest tri-state result (e.g. a
-        rewritten evaluate_access() call site) opt in to this method
-        explicitly.
+          - verdict: True/False when conclusively resolved, None when uncertain.
+          - unresolved_fields: list of field names that could not be determined.
         """
         unresolved: List[str] = []
 
@@ -782,6 +670,7 @@ def evaluate_record_rules(
                     rule_name=rule_node.get("name", ""),
                     domain_force=rule_node.get("domain_force", ""),
                     groups=rule_groups,
+                    tags=tags_for_node_attrs(rule_node),
                 )
             )
 
@@ -795,29 +684,10 @@ def evaluate_record_rules(
 
     def _user_belongs_to_rule_group(user_groups_set: set, rule_groups: List[str]) -> bool:
         """
-        Tolerant membership check between user-supplied group identifiers
-        and a rule's group xml_ids.
-
-        Tried in order, from most to least strict, per plan Bloc 1's rule
-        against reimplementing Odoo's security engine by hand -- this only
-        widens WHICH identifier counts as a match, it never touches the
-        AND/OR combination algorithm itself:
-          1. Exact match on the full xml_id (what Odoo itself uses).
-          2. Short-name match (part after the last '.'), e.g. the LLM
-             supplies "group_avoir_national" instead of the fully-qualified
-             "custom_credit_note_visibility_rules.group_avoir_national".
-          3. Fuzzy match against the group's human-readable display name
-             (e.g. "Avoirs - Visibilite Nationale"), e.g. the LLM supplies
-             a bare business word like "national" extracted straight from
-             the user's question rather than any technical identifier.
-
-        Real bug found via J4 benchmark analysis: the LLM populating
-        user_groups_json in evaluate_record_rules's tool call
-        supplied ["regional", "national"] verbatim from the question text
-        for Q6.1/Q6.2 -- neither the xml_id nor its short name, just a
-        paraphrase. Step 3 (fuzzy match against the group's display name)
-        is what's needed to catch this specific case; steps 1-2 alone are
-        insufficient. See test_group_membership_fuzzy_matches_display_name.
+        Tolerant membership check between user-supplied group identifiers and rule group xml_ids:
+          1. Exact match on the full xml_id.
+          2. Short-name match.
+          3. Fuzzy match against the group's display name.
         """
         # Step 1: exact match
         if user_groups_set.intersection(rule_groups):
@@ -859,16 +729,6 @@ def evaluate_record_rules(
         lines.append("  - Règles de Groupe applicables: Aucune (l'utilisateur n'appartient à aucun des groupes visés)")
 
     if ignored_group:
-        # 2026-08-07 fix: include domain_force here too, same as the
-        # applied-rules lines above -- omitting it silently hid the actual
-        # scope/threshold (e.g. a 500000e regional cap) of a governance
-        # rule the demandeur isn't a member of, even though the 2026-08-07
-        # Bloc 7-bis revision (see authorization_gate.py / etat_reel.md)
-        # explicitly decided this content is governance, not a bypass, and
-        # must never be gated. Found via test_j23_24_authorization_gate.py::
-        # test_ignored_group_rule_details_are_never_redacted actually being
-        # run for the first time on 2026-08-07 (previously never executed
-        # on this machine -- no execution access before that session).
         lines.append("  - Règles de Groupe ignorées (non-membre): " + ", ".join([f"{r.rule_name} [{r.domain_force}]" for r in ignored_group]))
 
     if applied_group:
@@ -953,6 +813,7 @@ def _eval_single_permission(G: nx.DiGraph, model_name: str, permission: str, gro
                         rule_name=rule_node.get("name", ""),
                         domain_force=rule_node.get("domain_force", ""),
                         groups=rule_groups,
+                        tags=tags_for_node_attrs(rule_node),
                     )
                 )
 
@@ -966,7 +827,7 @@ def who_has_access_to(
     group_id: Optional[str] = None
 ) -> AccessEvaluationResult:
     """
-    Story B1.1: Evaluates access rights for a given model and permission type.
+    Evaluates access rights for a given model and permission type.
     Combines CSV ACLs, ir.rule domain_force expressions, res.groups implied hierarchy, and JS client checks.
     Supports permission='all' to evaluate all 4 permissions in a single pass.
     """
@@ -1066,6 +927,11 @@ class FieldImpactResult:
     propagation_depth: int = 0
     relational_target: Optional[str] = None
     compute_method: Optional[str] = None
+    # Bloc P2 Jour 4 (todo/plan.md, todo/contexte.txt section 172): this
+    # field's own behavioral_tags/technical_tags (graph_builder.py, Bloc
+    # P2 Jour 2-3) -- e.g. ["calculation_rule", "computed_field"] for a
+    # compute= field, [] for a plain stored field.
+    field_tags: List[str] = field(default_factory=list)
     summary_text: str = ""
 
 
@@ -1166,16 +1032,8 @@ def field_change_impact(
     max_depth: int = 10,
 ) -> FieldImpactResult:
     """
-    Story B1.2: Analyzes upstream dependencies and downstream impact of modifying a field.
+    Analyzes upstream dependencies and downstream impact of modifying a field.
     Traces COMPUTED_BY, DEPENDS_ON, and RELATES_TO edges on the Knowledge Graph.
-
-    Multi-hop BFS propagation (max_depth=10 by default): transitively discovers
-    all downstream computed fields reachable through any chain of
-    DEPENDS_ON / COMPUTED_BY edges, not just one hop.
-
-    Reads the 'trigger_path' edge attribute on DEPENDS_ON edges to surface the
-    full dotted @api.depends path (e.g. 'employee_id.department_id') in
-    upstream_trigger_paths and summary_text.
     """
     field_node = f"field:{model_name}.{field_name}"
 
@@ -1226,6 +1084,7 @@ def field_change_impact(
         propagation_depth=depth_reached,
         relational_target=relational_target,
         compute_method=compute_method,
+        field_tags=tags_for_node_attrs(f_data),
         summary_text=summary,
     )
 
@@ -1240,15 +1099,15 @@ class ButtonExecutionPathResult:
     required_groups: List[str] = field(default_factory=list)
     execution_steps: List[str] = field(default_factory=list)
     summary_text: str = ""
-    # "comment faire X" gating (Bloc 7 extension, 2026-08-07): whether the
-    # REAL demandeur (never LLM-guessed, see rag/graph.py's
-    # _override_user_groups_arg) can actually use this button, mirroring
-    # what Odoo's own UI would already do (button invisible/greyed out for
-    # a user outside required_groups). None when user_groups was not
-    # supplied to button_execution_path() -- distinct from True/False,
-    # since "unknown" must never be reported as "available".
+    # Whether the button is available to the requester
     available_to_requester: Optional[bool] = None
     unavailable_reason: str = ""
+    # Bloc P2 Jour 4 (todo/plan.md, todo/contexte.txt section 172): the
+    # called method's own behavioral_tags/technical_tags (graph_builder.py,
+    # Bloc P2 Jour 2-3) -- e.g. ["blocking_rule"] when the method's source
+    # contains both has_group() and a raise. Empty when the method node
+    # was not found (method_exists=False) or carries no tag.
+    method_tags: List[str] = field(default_factory=list)
 
 
 def _requester_satisfies_required_groups(
@@ -1290,17 +1149,8 @@ def button_execution_path(
     user_groups: Optional[List[str]] = None,
 ) -> ButtonExecutionPathResult:
     """
-    Story B1.3: Traces step-by-step workflow execution path for a UI button click.
+    Traces step-by-step workflow execution path for a UI button click.
     Combines UI View Button -> Python Method -> Workflow State Transition -> Security Rules.
-
-    user_groups (Bloc 7 extension, 2026-08-07): when supplied, also answers
-    "comment faire X ?" honestly for the REAL demandeur -- if the button's
-    required_groups don't include any group the demandeur belongs to, the
-    action is reported as NOT available to them, mirroring what Odoo's own
-    UI already enforces (invisible/greyed-out button), rather than walking
-    them through a mechanism they cannot actually trigger. Optional and
-    defaults to None (skip the check) so existing callers that don't pass
-    it keep their prior behavior unchanged.
     """
     model_node = f"model:{model_name}"
 
@@ -1347,6 +1197,7 @@ def button_execution_path(
 
     method_node_id = f"method:{model_name}.{method_name}"
     method_exists = method_node_id in G
+    method_tags = tags_for_node_attrs(G.nodes[method_node_id]) if method_exists else []
 
     # Build execution steps
     execution_steps.append(f"1. UI Click: User clicks button '{button_label_or_name}' on form view of '{model_name}'.")
@@ -1403,6 +1254,7 @@ def button_execution_path(
         summary_text=summary,
         available_to_requester=available_to_requester,
         unavailable_reason=unavailable_reason,
+        method_tags=method_tags,
     )
 
 
@@ -1419,6 +1271,11 @@ class InheritanceChainResult:
     extension_parents: List[str] = field(default_factory=list)
     delegation_parents: Dict[str, str] = field(default_factory=dict)
     full_ancestors: List[str] = field(default_factory=list)
+    # Bloc P2 Jour 4 (todo/plan.md, todo/contexte.txt section 172): the
+    # queried model's own behavioral_tags/technical_tags (graph_builder.py,
+    # Bloc P2 Jour 2-3) -- e.g. ["workflow_rule"] when the model has a
+    # `state` field. Empty when the model was not found in the graph.
+    model_tags: List[str] = field(default_factory=list)
     summary_text: str = ""
 
 
@@ -1428,6 +1285,11 @@ class WorkflowProcessResult:
     status: QueryStatus = QueryStatus.NOT_FOUND
     states: List[str] = field(default_factory=list)
     transitions: List[Dict[str, Any]] = field(default_factory=list)
+    # Bloc P2 Jour 4 (todo/plan.md, todo/contexte.txt section 172): the
+    # queried model's own behavioral_tags/technical_tags (graph_builder.py,
+    # Bloc P2 Jour 2-3) -- e.g. ["workflow_rule"] when the model has a
+    # `state` field. Empty when the model was not found in the graph.
+    model_tags: List[str] = field(default_factory=list)
     summary_text: str = ""
 
 
@@ -1436,8 +1298,7 @@ def trace_full_inheritance(
     model_name: str
 ) -> InheritanceChainResult:
     """
-    Story B.1.4: Traverses full inheritance chain distinguishing _inherit extension vs _inherits delegation.
-    Handles 3-level error management (B.1.6).
+    Traverses full inheritance chain distinguishing _inherit extension vs _inherits delegation.
     """
     model_node = f"model:{model_name}"
 
@@ -1484,10 +1345,13 @@ def trace_full_inheritance(
                         queue.append(parent_m)
                         full_ancestors.append(parent_m)
 
+    model_tags = tags_for_node_attrs(G.nodes[model_node])
+
     if not extension_parents and not delegation_parents:
         return InheritanceChainResult(
             model_name=model_name,
             status=QueryStatus.EMPTY,
+            model_tags=model_tags,
             summary_text=f"Model '{model_name}' exists in the index but does not inherit from any other models."
         )
 
@@ -1507,6 +1371,7 @@ def trace_full_inheritance(
         extension_parents=sorted(list(extension_parents)),
         delegation_parents=delegation_parents,
         full_ancestors=full_ancestors,
+        model_tags=model_tags,
         summary_text=summary,
     )
 
@@ -1516,8 +1381,7 @@ def describe_workflow(
     model_name: str
 ) -> WorkflowProcessResult:
     """
-    Story B.1.5: Traverses WorkflowState -> TRANSITIONS_VIA -> WorkflowState edges.
-    Handles 3-level error management (B.1.6).
+    Traverses WorkflowState -> TRANSITIONS_VIA -> WorkflowState edges.
     """
     model_node = f"model:{model_name}"
 
@@ -1551,11 +1415,14 @@ def describe_workflow(
                     "required_groups": edge_data.get("groupe_requis", []),
                 })
 
+    model_tags = tags_for_node_attrs(G.nodes[model_node])
+
     if not transitions:
         return WorkflowProcessResult(
             model_name=model_name,
             status=QueryStatus.EMPTY,
             states=sorted(list(states)),
+            model_tags=model_tags,
             summary_text=f"Model '{model_name}' exists in the index but has no explicit workflow state transitions defined."
         )
 
@@ -1574,6 +1441,7 @@ def describe_workflow(
         status=QueryStatus.FOUND,
         states=sorted(list(states)),
         transitions=transitions,
+        model_tags=model_tags,
         summary_text=summary,
     )
 

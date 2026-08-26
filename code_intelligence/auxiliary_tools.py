@@ -1,12 +1,12 @@
 """
 code_intelligence/auxiliary_tools.py
 
-Auxiliary Tools for Odoo Code Intelligence.
-Implements Story B.2:
-  - B.2.1: resolve_technical_name_to_role(technical_name)
-  - B.2.2: list_involved_modules(G, model_name)
-  - B.2.3: explain_decision_path(path_nodes)
-  - B.2.4: read_precise_source_code(filepath, line_start, line_end)
+Auxiliary Tools for Odoo Code Intelligence:
+  - resolve_technical_name_to_role(technical_name)
+  - list_involved_modules(G, model_name)
+  - list_involved_modules_with_role(G, model_name)
+  - explain_decision_path(path_nodes)
+  - read_precise_source_code(filepath, line_start, line_end)
 """
 
 from pathlib import Path
@@ -36,38 +36,18 @@ TECHNICAL_TO_BUSINESS_ROLES: Dict[str, str] = {
 
 
 def resolve_technical_name_to_role(technical_name: str) -> str:
-    """
-    Story B.2.1: Resolves technical group XML-ID to human-readable business role.
-    """
+    """Resolves technical group XML-ID to human-readable business role."""
     clean_id = technical_name.strip()
     if clean_id in TECHNICAL_TO_BUSINESS_ROLES:
         return TECHNICAL_TO_BUSINESS_ROLES[clean_id]
 
-    # Fallback formatting: group_sale_manager -> Sale Manager
     short_id = clean_id.split(".")[-1] if "." in clean_id else clean_id
     formatted = short_id.replace("group_", "").replace("_", " ").title()
     return formatted
 
 
 def list_involved_modules(G: nx.DiGraph, model_name: str) -> List[str]:
-    """
-    Story B.2.2: Lists all modules that define or extend a given model.
-
-    Note: this returns a flat, unordered-role list for backward
-    compatibility with existing callers/tests. Since Bloc 8 (J28-29),
-    graph_builder.py creates one DEFINED_IN edge per real declaration site
-    (not just decls[0]'s module), so this can legitimately return several
-    modules for a model that is declared in one and extended in others.
-    Callers that need to distinguish "declares" from "extends" per module
-    (e.g. to present ambiguous-symbol candidates to the agent/user) should
-    use list_involved_modules_with_role() instead.
-
-    The previous field->module fallback (for when no DEFINED_IN edge was
-    found) is removed here: it walked field nodes looking for a `module:`
-    neighbor, but no such edge is ever created by graph_builder (fields
-    only carry HAS_FIELD/COMPUTED_BY/RELATES_TO edges) -- it never found
-    anything and was silently dead code.
-    """
+    """Lists all modules that define or extend a given model."""
     model_node = f"model:{model_name}"
     if model_node not in G:
         return []
@@ -84,21 +64,8 @@ def list_involved_modules(G: nx.DiGraph, model_name: str) -> List[str]:
 
 def list_involved_modules_with_role(G: nx.DiGraph, model_name: str) -> List[Tuple[str, str]]:
     """
-    Bloc 8 (J28-29): ambiguous-symbol variant of list_involved_modules().
-
-    A model declared with `_name` in one module and extended via
-    `_inherit` in one or more other modules is a genuinely ambiguous
-    symbol from the agent's point of view -- there is no single "correct"
-    origin module. Rather than silently picking the first declaration
-    found (the bug this story fixes -- graph_builder.py previously took
-    decls[0]'s module only), this returns EVERY candidate module together
-    with its role for this model:
-      - "declares": the module whose class sets `_name` for this model.
-      - "extends":   a module that only extends it via `_inherit` (no
-                     `_name` in that declaration).
-    Callers (the `list_involved_modules` @tool wrapper, in particular)
-    must present all candidates to the agent/user and let them decide,
-    never collapse this list to one entry themselves.
+    Returns every candidate module defining or extending the model together
+    with its role ('declares' or 'extends').
     """
     model_node = f"model:{model_name}"
     if model_node not in G:
@@ -114,9 +81,7 @@ def list_involved_modules_with_role(G: nx.DiGraph, model_name: str) -> List[Tupl
 
 
 def explain_decision_path(G: nx.DiGraph, path_nodes: List[str]) -> str:
-    """
-    Story B.2.3: Translates a sequence of nodes/edges into step-by-step natural language.
-    """
+    """Translates a sequence of nodes/edges into step-by-step natural language."""
     if not path_nodes:
         return "No path specified."
 
@@ -152,30 +117,7 @@ def explain_decision_path(G: nx.DiGraph, path_nodes: List[str]) -> str:
 
 
 def read_precise_source_code(filepath_str: str, line_start: int, line_end: int, max_lines: int = 200) -> str:
-    """
-    Story B.2.4: Targeted source code reader with max line limit safeguard.
-
-    Bloc 7 follow-up (2026-08-21, todo/contexte.txt section 86) : ce lecteur
-    de code source brut ne passait jamais par un analyseur (semgrep_locks_
-    analyzer.py / server_action_analyzer.py), donc ne pouvait jamais porter
-    SENSITIVE_BYPASS_MARKER -- une ligne contenant un contournement reel
-    (sudo(), IDs/emails codes en dur) etait renvoyee telle quelle a l'agent
-    ReAct, hors de portee de la redaction d'authorization_gate.py, quels que
-    soient les droits reels du demandeur. Chaque ligne selectionnee est
-    desormais scannee avec les MEMES patterns deja fiables utilises par les
-    analyseurs (reimportes, pas redefinis) ; une ligne qui matche est taguee
-    avec le meme marqueur partage -- authorization_gate.py::gate_observation
-    (deja appele generiquement sur CHAQUE outil dans la boucle ReAct de
-    ci_agent_node.py) la redacte alors exactement comme il le fait deja pour
-    les sorties des deux analyseurs, sans aucun changement necessaire dans
-    authorization_gate.py lui-meme.
-
-    Cet outil ne recoit jamais de model_name (seulement un chemin de
-    fichier) -- gate_observation() est donc toujours appele avec
-    model_name="", ce qui fait echouer _has_elevated_access() a False pour
-    tout demandeur (fail-closed assume, voir todo/contexte.txt section 86
-    pour la justification complete).
-    """
+    """Targeted source code reader with max line limit safeguard and sensitive pattern flagging."""
     from code_intelligence.utils import SENSITIVE_BYPASS_MARKER
     from code_intelligence.server_action_analyzer import (
         _SUDO_PATTERN,

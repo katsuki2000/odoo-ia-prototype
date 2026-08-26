@@ -2,7 +2,7 @@
 """
 tests/test_bloc9_02_backfill_can_view_amount_wiring.py
 
-Bug B1 (module 02, todo/contexte.txt section 96, fixed section 97):
+Bug B1 (module 02,  section 96, fixed section 97):
 _backfill_missing_can_view_amount_fact (rag/ci_helpers.py) was written,
 unit-tested implicitly via its own docstring contract, and imported into
 rag/ci_agent_node.py -- but never actually CALLED anywhere in that file.

@@ -75,7 +75,7 @@ def test_real_xml_sale_order_view():
 
         # 2026-08-12: this now points at the REAL sale module (the hand-
         # crafted fake_data/code fixture was removed -- see
-        # todo/etat_reel.md), which declares SEVERAL sale.order views in
+        # ), which declares SEVERAL sale.order views in
         # this file (e.g. a lightweight 'sale_order_view_activity' view
         # with no buttons at all) -- views[0] is no longer reliably the
         # main form view. Search across every parsed view for the button

@@ -1,7 +1,7 @@
 """
 code_intelligence/tests/test_j36_sprint_d_expense_risk_replay.py
 
-J36 — Sprint D élargi sur le corpus custom_expense_risk_* :
+J36 —  élargi sur le corpus custom_expense_risk_* :
 Rejoue les questions de gouvernance du benchmark adversarial directement
 sur les outils déterministes (pas de LLM) pour valider que l'agent
 Code Intelligence produit les bonnes réponses structurelles sur les

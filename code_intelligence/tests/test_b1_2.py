@@ -1,7 +1,7 @@
 """
 code_intelligence/tests/test_b1_2.py
 
-Unit tests for Story B1.2: Tool field_change_impact(field_name, model).
+Unit tests for Tool field_change_impact(field_name, model).
 Tests:
   1. Upstream dependencies (trigger fields that cause recomputation)
   2. Downstream impact (computed fields recomputed when this field changes)

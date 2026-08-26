@@ -7,9 +7,10 @@ Stories S2.5 & S2.6: Security lock & dynamic uncertainty analysis for Python cod
 """
 
 import ast
+import copy
 import re
 from dataclasses import dataclass, field
-from typing import List, Set, Optional
+from typing import Dict, List, Set, Optional
 
 import logging
 
@@ -67,6 +68,12 @@ class SecurityLockASTVisitor(ast.NodeVisitor):
         self._if_test_stack: List[ast.expr] = []
 
         self._function_stack: List[str] = []
+        # Stack of {name: defining_expr} per enclosing function scope, used
+        # to resolve opaque local boolean variables (e.g. `email_ok`) back
+        # to their source expression when rendering condition text -- see
+        # _resolve_local_names below. One dict per function nesting level,
+        # pushed/popped alongside _function_stack.
+        self._local_var_defs: List[Dict[str, ast.expr]] = []
 
     def visit_If(self, node: ast.If):
         self._if_test_stack.append(node.test)
@@ -75,12 +82,16 @@ class SecurityLockASTVisitor(ast.NodeVisitor):
 
     def visit_FunctionDef(self, node: ast.FunctionDef):
         self._function_stack.append(node.name)
+        self._local_var_defs.append({})
         self.generic_visit(node)
+        self._local_var_defs.pop()
         self._function_stack.pop()
 
     def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef):
         self._function_stack.append(node.name)
+        self._local_var_defs.append({})
         self.generic_visit(node)
+        self._local_var_defs.pop()
         self._function_stack.pop()
 
     def _current_method_name(self) -> str:
@@ -89,19 +100,53 @@ class SecurityLockASTVisitor(ast.NodeVisitor):
         level function)."""
         return self._function_stack[-1] if self._function_stack else ""
 
+    def _resolve_local_names(self, node: ast.expr) -> ast.expr:
+        """
+        Return a copy of `node` with any Name(Load) reference to a locally
+        assigned variable (e.g. `email_ok`) substituted by a copy of its
+        defining expression, one level only -- names appearing INSIDE the
+        substituted expression itself are never further resolved. This
+        matches the rest of this file's deliberately conservative, not
+        full-data-flow stance (see _current_condition_text/_detect_link_
+        guard_field docstrings).
+
+        Exists because a raw `ast.unparse()` of a condition like
+        `rec.montant_estime > 10000 and not email_ok` leaves `email_ok`
+        opaque to a downstream LLM reader, which then has to guess what it
+        gates on -- and can guess wrong (e.g. attributing it to an
+        unrelated has_group() check seen in a sibling condition). Resolving
+        it to its actual source expression (`self.env.user.login in
+        rec._VALIDATEURS_EXCEPTIONNELS`) removes the guess entirely.
+        """
+        if not self._local_var_defs:
+            return node
+        local_map = self._local_var_defs[-1]
+        if not local_map:
+            return node
+
+        class _NameResolver(ast.NodeTransformer):
+            def visit_Name(inner_self, n: ast.Name):
+                if isinstance(n.ctx, ast.Load) and n.id in local_map:
+                    return copy.deepcopy(local_map[n.id])
+                return n
+
+        return _NameResolver().visit(copy.deepcopy(node))
+
     def _current_condition_text(self) -> str:
         """Unparsed source of every `if` test currently enclosing the node
-        being visited, outer to inner. Same limitation as method_override_
-        resolver.py's _GuardFinder: does not distinguish the `if` body from
-        its `orelse` (a raise reached only via `else` would be mis-described
-        as gated by the positive condition) -- deliberately conservative,
-        not full control-flow analysis."""
+        being visited, outer to inner, with locally-assigned names resolved
+        to their defining expression (see _resolve_local_names). Same
+        limitation as method_override_resolver.py's _GuardFinder: does not
+        distinguish the `if` body from its `orelse` (a raise reached only
+        via `else` would be mis-described as gated by the positive
+        condition) -- deliberately conservative, not full control-flow
+        analysis."""
         if not self._if_test_stack:
             return ""
         parts = []
         for test in self._if_test_stack:
             try:
-                parts.append(ast.unparse(test))
+                parts.append(ast.unparse(self._resolve_local_names(test)))
             except Exception:
                 parts.append("?")
         return " and ".join(parts)
@@ -116,48 +161,9 @@ class SecurityLockASTVisitor(ast.NodeVisitor):
         `if rec.demande_achat_liee_id and rec.demande_achat_liee_id.montant_estime > 2000:`.
 
         Python's `and` short-circuits on a falsy first operand, so this
-        shape means the WHOLE condition -- and therefore whatever it
-        guards -- can only ever be true when that first operand is truthy
-        (typically: a real linked record is present). Returns the unparsed
-        text of that guarding operand, checking outer tests first (the
-        outermost guard is the binding constraint), or "" if no enclosing
-        `if` has this shape.
-
-        Bloc 9 gap (2026-08-10, bloc9-05c-no-link-trap): the raw condition
-        text alone (via _current_condition_text) already contains enough
-        information to derive this deterministically, but a live run
-        showed the synthesis LLM misreading the short-circuit direction
-        even with the condition quoted to it verbatim -- it concluded the
-        rule "applies when NOT linked", the exact inverse of what the code
-        does. This makes the derived conclusion an explicit, computed fact
-        instead of leaving Python boolean short-circuit reasoning to the
-        small model. Deliberately conservative (same discipline as
-        _extract_amount in rag/graph.py): only the clear, unambiguous shape
-        is flagged -- a guard expressed any other way (e.g. `if not rec.x:
-        return` early-exit, or a helper method) is silently not detected,
-        which is safe (no annotation is added, not a wrong one).
-
-        Bloc 9 gap (module 5/8 fix rerun, 2026-08-11, cross-module
-        contamination on bloc9-05c-no-link-trap): the original second
-        branch matched any `if` test that was merely "not a Compare and
-        not a BoolOp" -- meant to catch a bare `if rec.linked_id:`, but
-        that negative shape also matches an `ast.UnaryOp` such as
-        `if not (user_ok or email_ok):` (custom_purchase_request's own,
-        unrelated approval gate). A live run on a question mentioning both
-        "mise a disposition" and "demande d'achat" -- so both models were
-        legitimately in scope for the same turn -- produced a fabricated
-        "[GARDE DE LIEN: si 'not (user_ok or email_ok)' est vide/absent..."
-        annotation for custom_purchase_request: nonsensical, since a
-        boolean authorization check can never be "vide/absent" the way a
-        Many2one field can. This was not the cross-module scoping bug
-        fixed on 2026-08-11 in rag/graph.py (_scoped_raw_tool_output) --
-        that fix correctly kept this observation in scope, because the
-        question genuinely referenced both models; the bug was in THIS
-        function misclassifying an unrelated boolean condition as a link-
-        guard field in the first place. Narrowed to a positive-shape check
-        (ast.Attribute or ast.Name only) instead of the negative one --
-        the only two node types a bare relational-field/attribute
-        truthiness check can actually be.
+        shape means the whole condition can only be true when that first operand is truthy.
+        Returns the unparsed text of that guarding operand, checking outer tests first,
+        or "" if no enclosing `if` has this shape.
         """
         for test in self._if_test_stack:  # outer to inner: outermost guard binds first
             if isinstance(test, ast.BoolOp) and isinstance(test.op, ast.And) and test.values:
@@ -175,7 +181,10 @@ class SecurityLockASTVisitor(ast.NodeVisitor):
         return ""
 
     def visit_Assign(self, node: ast.Assign):
-        """Detect hardcoded email/login lists assigned to variables like _VALIDATEURS_EXCEPTIONNELS."""
+        """Detect hardcoded email/login lists assigned to variables like _VALIDATEURS_EXCEPTIONNELS,
+        and record simple single-target local assignments (within a function scope) so that
+        _resolve_local_names can later substitute opaque names like `email_ok` back to their
+        defining expression in rendered condition text."""
         # Check if right-hand side is a List/Tuple of string literals
         if isinstance(node.value, (ast.List, ast.Tuple, ast.Set)):
             str_elts = []
@@ -187,6 +196,13 @@ class SecurityLockASTVisitor(ast.NodeVisitor):
             emails = [s for s in str_elts if _EMAIL_PATTERN.match(s)]
             if emails:
                 self.hardcoded_logins.extend(emails)
+
+        if (
+            self._local_var_defs
+            and len(node.targets) == 1
+            and isinstance(node.targets[0], ast.Name)
+        ):
+            self._local_var_defs[-1][node.targets[0].id] = node.value
 
         self.generic_visit(node)
 
@@ -373,25 +389,8 @@ def analyze_python_security_locks(code: str, filepath: str) -> PythonSecurityLoc
 
 def python_source_has_security_findings(code: str, filepath: str = "<unknown>") -> bool:
     """
-    Cheap boolean wrapper around analyze_python_security_locks: True if the
-    file has ANY finding (hardcoded login/email list, UserError/
-    ValidationError message, dynamic dispatch, or a has_group() check).
-
-    Deliberately reuses the full analysis rather than re-implementing a
-    faster short-circuit scan -- two independent detectors for "does this
-    file have a lock" is exactly the F-08/J7 duplication mistake this
-    codebase already paid for once. The full analysis is already cheap
-    (one AST parse + a few regex passes, no LLM), so there's no real
-    performance reason to duplicate it.
-
-    Added 2026-08-10 (Bloc 9, module 5 gap): used as the structural
-    pre-dispatch guard for analyze_security_locks in rag/graph.py, so
-    that forced dispatch no longer depends on the question's wording
-    matching _APPROVAL_PATTERN -- questions like "pourquoi je n'arrive pas
-    à démarrer..." or "la règle s'applique-t-elle..." contain none of that
-    vocabulary, so the keyword-only trigger silently never fired and the
-    LLM was left to pick a tool on its own, which it did wrong (hallucinated
-    a malformed method name instead of finding the real Python lock).
+    Checks if the Python code has any security findings:
+    hardcoded logins/emails, exception messages, dynamic dispatch, or required groups.
     """
     result = analyze_python_security_locks(code, filepath)
     return bool(

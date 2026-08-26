@@ -1,7 +1,7 @@
 """
 code_intelligence/tests/test_j43_j45_symbol_rename_refactoring.py
 
-Unit & Integration tests for Sprint F / Bloc 11 (J43-J45: Renommage & Intégration PyRef):
+Unit & Integration tests for  /  :
 1. Verifies model rename detection via AST class identity matching.
 2. Verifies graph node rewiring (old node ID -> new node ID) preserving attributes and incoming/outgoing edges.
 3. Verifies non-rebuild incremental refactoring for model renames (custom.asset.loan -> custom.asset.lending).

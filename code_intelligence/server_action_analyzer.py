@@ -1,15 +1,12 @@
 """
 code_intelligence/server_action_analyzer.py
 
-Story S2.4: Static analysis of ir.actions.server 'code' fields.
+Static analysis of ir.actions.server 'code' fields.
 Detects security-relevant patterns:
   - sudo() calls (privilege escalation)
   - has_group() checks (group-based conditional logic)
   - Hardcoded ID lists (partner/user IDs, bypasses)
-  - eval/exec/getattr (dynamic dispatch, high uncertainty)
-
-All results are tagged with confidence='low' because server action code
-is data-driven (not traditional Python source) and may be modified at runtime.
+  - eval/exec/getattr (dynamic dispatch)
 """
 
 import json
@@ -36,28 +33,11 @@ class ServerActionCodeAnalysis:
     confidence: str = "low"
     summary_text: str = ""
 
-    # J8 -- bounded LLM interpretation layer, kept as SEPARATE fields from
-    # the static `confidence` above. Never merge or overwrite the static
-    # value: an LLM misjudging risk (e.g. reporting "high" confidence on
-    # code it actually misunderstood) must never silently replace or hide
-    # the conservative static safety net. None means the LLM pass was
-    # skipped (no warnings to interpret) or failed/was rejected.
+    # LLM interpretation layer, separate from static confidence
     llm_summary: Optional[str] = None
     llm_confidence: Optional[str] = None
 
-    # Bloc 9 gap (2026-08-10, module 6/8, custom_automation_traps / Q5.1):
-    # sudo()/hardcoded-ID detection previously reported flat, unlinked
-    # facts with no record of the enclosing `if` condition that actually
-    # scopes them -- same "extraction loses the guard" class of bug already
-    # fixed once in semgrep_locks_analyzer.py (module 1/8's super() capture,
-    # module 5/8's exception_conditions), a third location this time. On
-    # the real ground truth (`FOURNISSEURS_PRIVILEGIES = [42, 108, 231];
-    # if rec.move_type == 'in_refund' and rec.partner_id.id in
-    # FOURNISSEURS_PRIVILEGIES: rec.sudo().action_post()`), the tool could
-    # say "sudo() detected" and "hardcoded IDs detected" but never state
-    # that the bypass is conditional at all, let alone on WHAT -- exactly
-    # the fact Q5.1 needs ("est-ce que TOUS les avoirs suivent les mêmes
-    # règles ?" -> NON, only in_refund moves from those 3 partners).
+    # Enclosing conditions scoping the action
     trigger_conditions: List[str] = field(default_factory=list)
 
 
@@ -209,15 +189,10 @@ def analyze_server_action_code(
     ]
 
     if result.has_sudo:
-        # Bloc 7 (J23-24, revised): sudo() is a genuine bypass of ir.rule/ACL,
-        # not ordinary governance info -- marked for source-level redaction.
         lines.append(f"  - {SENSITIVE_BYPASS_MARKER} SUDO détecté: Contournement des droits d'accès via sudo()")
 
     if result.has_hardcoded_ids:
         for id_list in result.hardcoded_id_lists:
-            # Bloc 7 (J23-24, revised): hardcoded ID lists grant undocumented
-            # special treatment outside the normal ACL/ir.rule system -- same
-            # bypass category as sudo(), marked identically.
             lines.append(f"  - {SENSITIVE_BYPASS_MARKER} IDs en dur: {id_list} → traitement privilégié non documenté")
 
     if result.trigger_conditions:

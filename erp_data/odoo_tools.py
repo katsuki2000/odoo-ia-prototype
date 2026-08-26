@@ -1,6 +1,4 @@
 """
-miro-rag/tools/odoo_tools.py
-
 LangChain @tool definitions for Odoo XML-RPC operations.
 These tools are exposed to the AI for function calling.
 Refactored to English function signatures per project rules.
