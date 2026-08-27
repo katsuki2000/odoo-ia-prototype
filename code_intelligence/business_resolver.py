@@ -35,6 +35,14 @@ BUSINESS_ALIASES: Dict[str, List[str]] = {
     # Prêt matériel
     "mise a disposition": ["custom.asset.loan"],
     "mise à disposition": ["custom.asset.loan"],
+    # Section 228 (todo/contexte.txt) : alias manquants, question H4 reelle
+    # ("Quelles sont les regles de visibilite pour les prets de materiel ?")
+    # ne matchait aucun alias existant -- "mise a disposition" seul ne couvre
+    # pas le vocabulaire "pret(s) de materiel".
+    "pret de materiel": ["custom.asset.loan"],
+    "prêt de matériel": ["custom.asset.loan"],
+    "prets de materiel": ["custom.asset.loan"],
+    "prêts de matériel": ["custom.asset.loan"],
     # Congés
     "conge": ["hr.leave"],
     "congé": ["hr.leave"],
@@ -52,6 +60,13 @@ BUSINESS_ALIASES: Dict[str, List[str]] = {
     # Deep inheritance security
     "document deep": ["custom.deep.document"],
     "deep document": ["custom.deep.document"],
+    # Section 228 (todo/contexte.txt) : forme plurielle manquante -- la
+    # frontiere de mot stricte du pattern d'alias ne tolere pas le "s" du
+    # pluriel intercale ("documents deep" ne matchait ni "document deep" ni
+    # "deep document"), reproduit par une question H4 reelle ("Un employe
+    # peut-il voir les documents deep sans autorisation ?").
+    "documents deep": ["custom.deep.document"],
+    "deep documents": ["custom.deep.document"],
 }
 
 
@@ -67,6 +82,16 @@ _ALIAS_PATTERNS: Dict[str, re.Pattern] = {
 }
 
 AMBIGUITY_GAP_THRESHOLD = 10.0
+
+# Section 228 (todo/contexte.txt), option (b): candidate shortlist used ONLY
+# when the strict fuzzy pass (threshold above, in _fuzzy_match_graph's default
+# argument) finds nothing at all -- see the "else" branch in
+# resolve_business_term below for the full rationale (length_penalty makes the
+# strict threshold unreachable for long questions matched against short
+# indexed labels). Never auto-accepted: only ever used to build a bounded
+# closed list for _llm_arbitrate.
+WIDENED_CANDIDATE_THRESHOLD = 30
+WIDENED_CANDIDATE_LIMIT = 8
 
 _ARBITRATION_SYSTEM_PROMPT = (
     "Tu es un composant de résolution de symboles techniques Odoo. "
@@ -355,6 +380,43 @@ def resolve_business_term(query_text: str, G=None, llm=None) -> ResolvedConcept:
                     f"and LLM arbitration did not select one."
                 ),
             )
+        else:
+            # Section 228 (todo/contexte.txt), option (b): the strict
+            # threshold above, combined with _fuzzy_match_graph's
+            # length_penalty, is mathematically unreachable for long
+            # natural-language questions matched against short indexed
+            # labels (verified by hand for 2 real H4 failures -- required
+            # raw score > 100, impossible). Rather than lowering the strict
+            # threshold globally (would start auto-accepting weak matches
+            # WITHOUT LLM confirmation -- a correctness regression), a
+            # second, deliberately loose fuzzy pass builds a bounded
+            # candidate shortlist ONLY for LLM arbitration -- the LLM still
+            # never picks outside this closed list (same _llm_arbitrate
+            # contract as the ambiguous-strict-match case above), and a
+            # chosen candidate is explicitly lower confidence than that case.
+            widened_results = _fuzzy_match_graph(
+                clean_query, G,
+                threshold=WIDENED_CANDIDATE_THRESHOLD,
+                limit=WIDENED_CANDIDATE_LIMIT,
+            )
+            if widened_results:
+                widened_models = [model for model, _score in widened_results]
+                chosen = _llm_arbitrate(query_text, widened_models, llm)
+                if chosen is not None:
+                    return ResolvedConcept(
+                        user_term=query_text,
+                        resolved_models=[chosen],
+                        confidence=0.5,  # lower than "llm_arbitration": candidate list itself is weak evidence, not just ambiguous among strong matches
+                        source_step="llm_arbitration_widened",
+                        is_resolved=True,
+                        reason=(
+                            f"No candidate reached the strict fuzzy threshold; widened "
+                            f"low-threshold candidates "
+                            f"({', '.join(f'{m} ({s:.0f})' for m, s in widened_results)}) "
+                            f"-> LLM chose '{chosen}'. Low-confidence LLM interpretation "
+                            f"over a weak candidate shortlist, not a certain structural fact."
+                        ),
+                    )
 
     # Step 4: Unresolved concept fallback
     return ResolvedConcept(

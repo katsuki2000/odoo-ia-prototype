@@ -16,6 +16,10 @@ from typing import List, Optional
 import networkx as nx
 
 from code_intelligence.utils import format_file_link
+from code_intelligence.semgrep_locks_analyzer import (
+    analyze_python_security_locks,
+    extract_method_security_constraints,
+)
 
 _logger = logging.getLogger(__name__)
 
@@ -457,6 +461,13 @@ def analyze_method_override_chain(
             warnings.append(relational_warning)
             lines.append(f"     {relational_warning}")
             site_has_warning = True
+
+        security_analysis = analyze_python_security_locks(source, site.filepath)
+        site_constraints = extract_method_security_constraints(
+            security_analysis, site.lineno, site.end_lineno or site.lineno
+        )
+        for constraint in site_constraints:
+            lines.append(f"     {constraint}")
 
         if not site_has_warning:
             lines.append(

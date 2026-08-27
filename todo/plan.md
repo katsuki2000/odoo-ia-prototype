@@ -168,7 +168,7 @@ Ces deux gaps conditionnent la lisibilite et l'auditabilite du systeme pour un n
 ---
 
 ## Bloc P3 — Inference locale (ex-Bloc 9bis)
-*Deja nomme "le point le plus important" — resitue ici apres P1/P2 parce que le planner et l'ontologie doivent etre stables avant de changer le modele qui les consomme*
+*Deja nommé "le point le plus important" — resitué ici apres P1/P2 parce que le planner et l'ontologie doivent etre stables avant de changer le modele qui les consomme*
 
 - **Jour 1** : Confirmer le materiel local disponible (GPU, VRAM) — condition bloquante deja documentee dans `config/settings.py`. Modele local cible mis a jour depuis la version initiale de ce plan : Qwen3-14B via Ollama (le choix `gpt-oss:20b` en local reste egalement une option coherente cloud/local, voir PARTIE 5).
 - **Jour 2-3** : Cabler `get_chat_llm("ollama")` (actuellement `NotImplementedError` volontaire) une fois le materiel confirme.

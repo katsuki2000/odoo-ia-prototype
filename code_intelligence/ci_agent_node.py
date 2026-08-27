@@ -276,7 +276,7 @@ class CodeIntelligenceAgentRunner:
                 f"{' | '.join(resolved_info)}.\n"
                 f"Use these exact technical identifiers when invoking composite tools."
             )
-        if concept.is_resolved and concept.resolved_models:
+        if concept.is_resolved and concept.resolved_models and hop_count < CI_MAX_HOPS:
             from code_intelligence.forced_dispatch_predicates import security_locks_targets
             tool_map = {t.name: t for t in ALL_CI_TOOLS}
             lock_tool = tool_map.get("analyze_security_locks")
@@ -313,6 +313,13 @@ class CodeIntelligenceAgentRunner:
                             "'analyze_security_locks' for model '%s' (structural lock finding present).",
                             target_model,
                         )
+                        if hop_count >= CI_MAX_HOPS:
+                            logger.warning(
+                                "Node [code_intelligence_agent]: CI_MAX_HOPS (%d) reached during "
+                                "deterministic pre-dispatch (analyze_security_locks) -- breaking.",
+                                CI_MAX_HOPS,
+                            )
+                            break
                     except Exception as te:
                         logger.error("Deterministic analyze_security_locks dispatch failed: %s", te)
                 if any(k[0] == "analyze_security_locks" for k in seen_calls):
@@ -325,7 +332,7 @@ class CodeIntelligenceAgentRunner:
                         "evaluate_record_rules)."
                     )
         
-        if concept.is_resolved and concept.resolved_models:
+        if concept.is_resolved and concept.resolved_models and hop_count < CI_MAX_HOPS:
             from code_intelligence.forced_dispatch_predicates import server_actions_targets
             tool_map = {t.name: t for t in ALL_CI_TOOLS}
             sa_tool = tool_map.get("analyze_server_actions")
@@ -363,6 +370,13 @@ class CodeIntelligenceAgentRunner:
                             "wording + ServerAction nodes present).",
                             target_model,
                         )
+                        if hop_count >= CI_MAX_HOPS:
+                            logger.warning(
+                                "Node [code_intelligence_agent]: CI_MAX_HOPS (%d) reached during "
+                                "deterministic pre-dispatch (analyze_server_actions) -- breaking.",
+                                CI_MAX_HOPS,
+                            )
+                            break
                     except Exception as te:
                         logger.error("Deterministic analyze_server_actions dispatch failed: %s", te)
                 if any(k[0] == "analyze_server_actions" for k in seen_calls):
@@ -372,7 +386,7 @@ class CodeIntelligenceAgentRunner:
                         "above because the question suggests automation/bypass logic; its output "
                         "is already included in the tool observations. Do not call it again."
                     )
-        if concept.is_resolved and concept.resolved_models:
+        if concept.is_resolved and concept.resolved_models and hop_count < CI_MAX_HOPS:
             from code_intelligence.forced_dispatch_predicates import override_chain_targets
             tool_map = {t.name: t for t in ALL_CI_TOOLS}
             override_tool = tool_map.get("analyze_method_override_chain")
@@ -413,6 +427,13 @@ class CodeIntelligenceAgentRunner:
                             "+ real override cascade present).",
                             target_model, method_name,
                         )
+                        if hop_count >= CI_MAX_HOPS:
+                            logger.warning(
+                                "Node [code_intelligence_agent]: CI_MAX_HOPS (%d) reached during "
+                                "deterministic pre-dispatch (analyze_method_override_chain) -- breaking.",
+                                CI_MAX_HOPS,
+                            )
+                            break
                     except Exception as te:
                         logger.error("Deterministic analyze_method_override_chain dispatch failed: %s", te)
                 if any(k[0] == "analyze_method_override_chain" for k in seen_calls):
@@ -431,7 +452,7 @@ class CodeIntelligenceAgentRunner:
                         "must be reported together, not only the first one encountered."
                     )
         
-        if concept.is_resolved and concept.resolved_models and _question_is_access_related(question):
+        if concept.is_resolved and concept.resolved_models and _question_is_access_related(question) and hop_count < CI_MAX_HOPS:
             from code_intelligence.forced_dispatch_predicates import security_locks_targets, who_has_access_targets
             tool_map = {t.name: t for t in ALL_CI_TOOLS}
             acl_tool = tool_map.get("who_has_access_to")
@@ -487,6 +508,13 @@ class CodeIntelligenceAgentRunner:
                             "right to do something).",
                             target_model,
                         )
+                        if hop_count >= CI_MAX_HOPS:
+                            logger.warning(
+                                "Node [code_intelligence_agent]: CI_MAX_HOPS (%d) reached during "
+                                "deterministic pre-dispatch (who_has_access_to) -- breaking.",
+                                CI_MAX_HOPS,
+                            )
+                            break
                     except Exception as te:
                         logger.error("Deterministic who_has_access_to dispatch failed: %s", te)
                 if any(k[0] == "who_has_access_to" for k in seen_calls):
@@ -518,7 +546,7 @@ class CodeIntelligenceAgentRunner:
                         "A lock whose threshold is higher than the asked amount (e.g. >100000€ when "
                         "asked about 60000€) does NOT apply to that amount and its group is not required."
                     )
-        if concept.is_resolved and concept.resolved_models and _question_is_access_related(question):
+        if concept.is_resolved and concept.resolved_models and _question_is_access_related(question) and hop_count < CI_MAX_HOPS:
             _amount_for_rules = _extract_amount(question)
             if _amount_for_rules is not None:
                 from code_intelligence.ci_agent_tools import evaluate_rules_raw
@@ -601,6 +629,13 @@ class CodeIntelligenceAgentRunner:
                                 "question with amount=%.0f).",
                                 target_model, _amount_for_rules,
                             )
+                            if hop_count >= CI_MAX_HOPS:
+                                logger.warning(
+                                    "Node [code_intelligence_agent]: CI_MAX_HOPS (%d) reached during "
+                                    "deterministic pre-dispatch (evaluate_record_rules) -- breaking.",
+                                    CI_MAX_HOPS,
+                                )
+                                break
                         except Exception as te:
                             logger.error(
                                 "Deterministic evaluate_record_rules dispatch failed: %s", te

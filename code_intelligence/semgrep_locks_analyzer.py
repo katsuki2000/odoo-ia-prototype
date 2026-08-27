@@ -29,11 +29,19 @@ class PythonSecurityLockAnalysis:
     exception_conditions: List[str] = field(default_factory=list)
 
     exception_guard_fields: List[str] = field(default_factory=list)
+    # Index-aligned with exception_messages -- source line of the `raise`
+    # statement itself. 0 means unknown (regex-fallback path, no AST
+    # available). Lets a caller attribute one exception finding to one
+    # specific method override site -- see extract_method_security_constraints.
+    exception_linenos: List[int] = field(default_factory=list)
     has_dynamic_dispatch: bool = False
     dynamic_dispatch_types: List[str] = field(default_factory=list)
     required_groups: List[str] = field(default_factory=list)
  
     required_group_methods: List[str] = field(default_factory=list)
+    # Index-aligned with required_groups -- source line of the has_group()
+    # call itself. Same 0-means-unknown convention as exception_linenos.
+    required_group_linenos: List[int] = field(default_factory=list)
     security_warnings: List[str] = field(default_factory=list)
     confidence: str = "high"
     summary_text: str = ""
@@ -60,11 +68,17 @@ class SecurityLockASTVisitor(ast.NodeVisitor):
         # Index-aligned with exception_messages -- see
         # PythonSecurityLockAnalysis.exception_guard_fields docstring.
         self.exception_guard_fields: List[str] = []
+        # Index-aligned with exception_messages -- see
+        # PythonSecurityLockAnalysis.exception_linenos docstring.
+        self.exception_linenos: List[int] = []
         self.dynamic_dispatches: List[str] = []
         self.required_groups: List[str] = []
         # Index-aligned with required_groups -- see
         # PythonSecurityLockAnalysis.required_group_methods docstring.
         self.required_group_methods: List[str] = []
+        # Index-aligned with required_groups -- see
+        # PythonSecurityLockAnalysis.required_group_linenos docstring.
+        self.required_group_linenos: List[int] = []
         self._if_test_stack: List[ast.expr] = []
 
         self._function_stack: List[str] = []
@@ -237,6 +251,7 @@ class SecurityLockASTVisitor(ast.NodeVisitor):
                     # docstring comment above for why this exists.
                     self.exception_conditions.append(self._current_condition_text())
                     self.exception_guard_fields.append(self._detect_link_guard_field())
+                    self.exception_linenos.append(node.lineno)
 
         self.generic_visit(node)
 
@@ -258,6 +273,7 @@ class SecurityLockASTVisitor(ast.NodeVisitor):
                     # Index-aligned with the append above (first-seen
                     # dedup) -- see required_group_methods docstring.
                     self.required_group_methods.append(self._current_method_name())
+                    self.required_group_linenos.append(node.lineno)
 
         self.generic_visit(node)
 
@@ -283,9 +299,11 @@ def analyze_python_security_locks(code: str, filepath: str) -> PythonSecurityLoc
         result.exception_messages = visitor.exception_messages
         result.exception_conditions = visitor.exception_conditions
         result.exception_guard_fields = visitor.exception_guard_fields
+        result.exception_linenos = visitor.exception_linenos
         result.dynamic_dispatch_types = visitor.dynamic_dispatches
         result.required_groups = visitor.required_groups
         result.required_group_methods = visitor.required_group_methods
+        result.required_group_linenos = visitor.required_group_linenos
 
     except SyntaxError:
         _logger.warning("AST parse failed for %s, falling back to regex analysis", filepath)
@@ -314,6 +332,7 @@ def analyze_python_security_locks(code: str, filepath: str) -> PythonSecurityLoc
 
                 result.exception_conditions.append("")
                 result.exception_guard_fields.append("")
+                result.exception_linenos.append(0)
 
     if not result.required_groups:
         for group_xmlid in _HAS_GROUP_PATTERN.findall(code):
@@ -321,6 +340,7 @@ def analyze_python_security_locks(code: str, filepath: str) -> PythonSecurityLoc
                 result.required_groups.append(group_xmlid)
 
                 result.required_group_methods.append("")
+                result.required_group_linenos.append(0)
 
     # 3. Categorize findings
     if result.hardcoded_logins:
@@ -399,3 +419,63 @@ def python_source_has_security_findings(code: str, filepath: str = "<unknown>") 
         or result.dynamic_dispatch_types
         or result.required_groups
     )
+
+
+def extract_method_security_constraints(
+    analysis: PythonSecurityLockAnalysis, lineno: int, end_lineno: int
+) -> List[str]:
+    """
+    Filter a file-level PythonSecurityLockAnalysis down to only the security
+    lock findings (has_group requirements, UserError/ValidationError guards)
+    physically located within [lineno, end_lineno] -- i.e. inside one specific
+    method override site, not the whole file.
+
+    Exists because analyze_security_locks (the composite tool) reports every
+    security finding in a file as one flat, file-scoped dump: when a file
+    defines several methods, or a method is overridden alongside other
+    methods in the same module, that dump does not say which finding belongs
+    to which override. analyze_method_override_chain already resolves the
+    real per-module execution order and line ranges (MethodOverrideSite) --
+    this function lets it attach each site's own security constraints
+    directly, instead of leaving that correlation to the reader (or the
+    synthesis LLM) to guess from a global, file-scoped dump.
+
+    Findings with an unknown line (0, from the regex-fallback path where no
+    AST was parsable) are excluded -- they cannot be attributed to any
+    specific site, and attaching them to every site would misattribute them
+    more often than it would help.
+    """
+    constraints: List[str] = []
+
+    for group_xmlid, method_name, group_lineno in zip(
+        analysis.required_groups,
+        analysis.required_group_methods,
+        analysis.required_group_linenos,
+    ):
+        if group_lineno and lineno <= group_lineno <= end_lineno:
+            location = f"dans '{method_name}()'" if method_name else "a cette ligne"
+            constraints.append(
+                f"VERROU RATTACHE AU SITE: has_group('{group_xmlid}') requis {location}."
+            )
+
+    exception_conditions = analysis.exception_conditions or [""] * len(analysis.exception_messages)
+    exception_guard_fields = analysis.exception_guard_fields or [""] * len(analysis.exception_messages)
+    for message, condition, guard_field, exc_lineno in zip(
+        analysis.exception_messages,
+        exception_conditions,
+        exception_guard_fields,
+        analysis.exception_linenos,
+    ):
+        if exc_lineno and lineno <= exc_lineno <= end_lineno:
+            text = f'VERROU RATTACHE AU SITE: "{message}"'
+            if condition:
+                text += f" (condition : {condition})"
+            if guard_field:
+                text += (
+                    f" [GARDE DE LIEN: si '{guard_field}' est vide/absent, cette "
+                    f"condition est FAUSSE par court-circuit Python -- la regle NE "
+                    f"S'APPLIQUE PAS dans ce cas.]"
+                )
+            constraints.append(text)
+
+    return constraints

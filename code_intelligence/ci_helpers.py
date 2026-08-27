@@ -260,32 +260,59 @@ def _flag_ungrounded_group_xmlids(final_answer: str, raw_tool_output: str) -> st
 
 
 def _grounded_core_only_groups(final_answer: str, scoped_tool_output: str) -> List[str]:
-    """Find group XML-IDs that are grounded only in core Odoo files rather than custom modules."""
+    """Find group XML-IDs that are grounded only in core Odoo files rather
+    than custom modules, but ONLY when a competing custom-module group is
+    ALSO present in this turn's scoped tool output (i.e. a custom override
+    exists and should take precedence over the core default in the
+    synthesized answer).
+
+    When no custom-module group is present at all, a core-only group is not
+    a suspicious/unreliable mention to strip -- it is the correct default
+    answer for questions governed entirely by base Odoo access control
+    (e.g. a non-VIP client, or any case where no custom_* override applies).
+    Treating "grounded only in core" as inherently unreliable regardless of
+    context was flagging exactly the fact these questions need (confirmed
+    live regression: account.group_account_manager stripped from every
+    answer about the no-override / normal-client case)."""
     grounded = set(_extract_required_groups(scoped_tool_output))
     if not grounded:
         return []
     custom_grounded = set(
         _extract_required_groups(_restrict_blocks_to_custom_modules(scoped_tool_output))
     )
+    if not custom_grounded:
+        # No custom-module rule competes with the core one(s) -- nothing to
+        # strip; the core group(s) are the only, and correct, answer.
+        return []
     mentioned = set(_GROUP_XMLID_RE.findall(final_answer))
     return sorted((mentioned & grounded) - custom_grounded)
 
 
 def _strip_core_only_group_mentions(final_answer: str, scoped_tool_output: str) -> str:
-    """Remove in place clauses mentioning group XML-IDs that belong only to core Odoo files."""
+    """Remove whole paragraphs/bullets mentioning group XML-IDs that are
+    superseded by a competing custom-module group in this turn (see
+    _grounded_core_only_groups).
+
+    Deliberately removes at PARAGRAPH granularity (split on blank lines)
+    rather than a clause-level regex: a clause-level '[^.\\n]*<xmlid>[^.\\n]*\\.?'
+    pattern stops at the FIRST '.' in either direction, which false-triggers
+    on periods that are not sentence boundaries (file paths like
+    'account_move.py', abbreviations, citation line ranges) -- confirmed live
+    regression: this produced answers truncated mid-sentence with orphaned
+    closing parentheses. Paragraph boundaries (blank lines) are unambiguous
+    in this markdown-formatted synthesis output, so this can never cut a
+    sentence or citation in half."""
     core_only = _grounded_core_only_groups(final_answer, scoped_tool_output)
     if not core_only:
         return final_answer
 
-    result = final_answer
-    for xmlid in core_only:
-        pattern = re.compile(r"[^.\n]*" + re.escape(xmlid) + r"[^.\n]*\.?\n?")
-        result = pattern.sub("", result)
-    result = re.sub(r"\n{3,}", "\n\n", result)
+    paragraphs = final_answer.split("\n\n")
+    kept = [p for p in paragraphs if not any(xmlid in p for xmlid in core_only)]
+    result = "\n\n".join(kept)
 
     logger.warning(
         "Node [code_intelligence_agent]: stripped grounded-but-core-Odoo-only "
-        "group xmlid(s) from synthesized answer: %s",
+        "group xmlid(s) from synthesized answer (whole paragraph removed): %s",
         ", ".join(core_only),
     )
     return result

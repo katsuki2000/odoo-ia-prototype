@@ -169,6 +169,37 @@ class OdooRpcClient:
         )
         return {rec["res_id"]: f"{rec['module']}.{rec['name']}" for rec in records}
 
+    def resolve_xmlids_to_ids(self, uid: int, xmlids: List[str]) -> Dict[str, int]:
+        """
+        Forward-resolve fully-qualified xml_ids (module.name) to their live
+        database IDs on this Odoo instance, via ir.model.data -- symmetric
+        counterpart to get_group_xmlids (reverse lookup). One RPC call
+        regardless of batch size.
+
+        Not group-specific: works for any model's xml_id. xml_ids with no
+        matching ir.model.data entry are simply absent from the returned
+        dict -- callers must treat a missing key as "could not resolve",
+        never guess or fabricate one. Raw numeric IDs are machine-specific
+        (res_id depends on this instance's module install order); resolving
+        by xml_id at request time instead is what keeps tests portable
+        across machines (todo/rules.md).
+        """
+        if not xmlids:
+            return {}
+        pairs = []
+        for xmlid in xmlids:
+            if "." not in xmlid:
+                raise OdooRpcError(f"xml_id must be fully qualified as 'module.name', got {xmlid!r}.")
+            module, name = xmlid.split(".", 1)
+            pairs.append((module, name))
+        domain: List[Any] = ["|"] * (len(pairs) - 1)
+        for module, name in pairs:
+            domain += ["&", ("module", "=", module), ("name", "=", name)]
+        records = self.execute_kw(
+            uid, "ir.model.data", "search_read", [domain], {"fields": ["module", "name", "res_id"]},
+        )
+        return {f"{rec['module']}.{rec['name']}": rec["res_id"] for rec in records}
+
     @staticmethod
     def _validate_operation(operation: str) -> None:
         if operation not in VALID_OPERATIONS:

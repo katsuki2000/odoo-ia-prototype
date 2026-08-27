@@ -167,16 +167,32 @@ def get_code_intelligence_graph():
     from code_intelligence.cross_file_resolver import build_module_symbol_registry
     from code_intelligence.graph_builder import OdooGraphBuilder
 
-    base_dir = Path(__file__).resolve().parent.parent
-    addons_root = Path("/home/user/odoo-17.0/addons") if Path("/home/user/odoo-17.0/addons").exists() else base_dir.parent / "addons"
+    from config.settings import CORE_ADDONS_PATH, CUSTOM_ADDONS_PATH
+
+    core_addons_root = Path(CORE_ADDONS_PATH)
+    custom_addons_root = Path(CUSTOM_ADDONS_PATH)
 
     modules_dict = {}
 
+    if not core_addons_root.exists():
+        logger.warning(
+            "CORE_ADDONS_PATH '%s' does not exist -- skipping core Odoo module "
+            "preload (account/sale/stock). Set CORE_ADDONS_PATH in .env to "
+            "point at a real Odoo addons/ directory.", core_addons_root,
+        )
+    if not custom_addons_root.exists():
+        logger.warning(
+            "CUSTOM_ADDONS_PATH '%s' does not exist -- skipping miro_ai and "
+            "custom_* module discovery entirely (the graph will be built "
+            "without any business module). Set CUSTOM_ADDONS_PATH in .env to "
+            "point at this repo's odoo_addons/ directory.", custom_addons_root,
+        )
+
     # Load core Odoo modules (account, sale, stock) directly from addons
     CORE_MODULES_ALWAYS_LOADED = ["account", "sale", "stock"]
-    if addons_root.exists():
+    if core_addons_root.exists():
         for core_name in CORE_MODULES_ALWAYS_LOADED:
-            core_dir = addons_root / core_name
+            core_dir = core_addons_root / core_name
             if core_dir.is_dir() and (core_dir / "__manifest__.py").exists():
                 name, mod = _load_module(core_dir)
                 modules_dict[name] = mod
@@ -185,20 +201,20 @@ def get_code_intelligence_graph():
                     "Core module '%s' not found (or has no __manifest__.py) under "
                     "%s -- skipping preload. Some override-chain regression "
                     "coverage may be reduced; this does not affect custom_* "
-                    "modules, which are always loaded from the real corpus below.",
-                    core_name, addons_root,
+                    "modules, which are always loaded from CUSTOM_ADDONS_PATH below.",
+                    core_name, core_addons_root,
                 )
 
-    miro_ai_dir = addons_root / "miro_ai"
+    miro_ai_dir = custom_addons_root / "miro_ai"
     if miro_ai_dir.exists():
         name, mod = _load_module(miro_ai_dir)
         modules_dict[name] = mod
 
     # Load adversarial custom_* modules for end-to-end benchmark support
-    if addons_root.exists():
-        custom_modules = discover_odoo_modules(addons_root, prefix="custom_")
+    if custom_addons_root.exists():
+        custom_modules = discover_odoo_modules(custom_addons_root, prefix="custom_")
         for mod_name in custom_modules:
-            mod_dir = addons_root / mod_name
+            mod_dir = custom_addons_root / mod_name
             name, mod = _load_module(mod_dir)
             modules_dict[name] = mod
 
@@ -225,7 +241,10 @@ def get_code_intelligence_graph():
         for dep_name in sorted(direct_deps):
             if dep_name in modules_dict:
                 continue  # already loaded (core preload, miro_ai, or another custom_* module)
-            dep_dir = addons_root / dep_name
+            # A custom_* module's direct dependency is a core Odoo addon
+            # (hr_expense, mail, product, ...), so it lives under
+            # CORE_ADDONS_PATH, not alongside the custom_* sources.
+            dep_dir = core_addons_root / dep_name
             if not dep_dir.is_dir() or not (dep_dir / "__manifest__.py").exists():
                 # Not a real loadable addon here (e.g. 'base' ships as a
                 # single file in this corpus, not a module directory) --

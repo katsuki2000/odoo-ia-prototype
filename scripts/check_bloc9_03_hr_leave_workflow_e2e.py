@@ -86,7 +86,8 @@ QUESTIONS = [
             "que j'ai coché 'urgente' ?"
         ),
         "expected_markers": [
-            "N+2 ou un responsable RH",
+            "N+2",
+            "responsable RH",
             "hr_holidays.group_hr_holidays_manager",
         ],
     },

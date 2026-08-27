@@ -178,6 +178,13 @@ _GOVERNANCE_PATTERNS = [
     r"\b(approbation|approuver|valider|validation|signer|signature)\b",
     r"\b(plafond|seuil|limite\s+montant|depasse|dépasse)\b",
     r"\b(masqu[eé]|cach[eé]|invisible|visibilit[eé])\b",
+    # Section 208-bis: troubleshooting questions ("je n'arrive pas à démarrer/valider")
+    # express an access/governance problem even without explicit governance keywords.
+    r"(?:n.arrive|ne\s+(?:peut|peux|parvien[st])\s+pas|impossible|empeche|empêche)\s.*?(?:demarrer|démarrer|valider|approuver|confirmer|creer|créer|modifier|supprimer|lancer)",
+    # Section 208-bis: explicit condition inspection ("conditions vérifiées par action_X")
+    r"\bconditions?\s+(?:verifiees?|vérifiées?|requises?|necessaires?|nécessaires?)\b",
+    # Section 208-bis: direct method name reference (action_demarrer, action_valider, etc.)
+    r"\baction_[a-z_]+\b",
 ]
 
 _WORKFLOW_PATTERNS = [
@@ -397,26 +404,34 @@ def generate_investigation_plan(
         has_security_lock_source = True  # conservative: assume present without a graph to check against
         has_server_action_nodes = False
         has_override_cascade = False
+        has_who_has_access_target = is_access_related  # conservative: assume present without a graph to check against
         if G is not None:
             try:
                 from code_intelligence.forced_dispatch_predicates import (
                     security_locks_targets,
                     server_actions_targets,
                     override_chain_targets,
+                    who_has_access_targets,
                 )
-                has_security_lock_source = primary_model in security_locks_targets(concept, G)
-                has_server_action_nodes = primary_model in server_actions_targets(question, concept, G)
+                has_security_lock_source = primary_model in security_locks_targets(resolved_concept, G)
+                has_server_action_nodes = primary_model in server_actions_targets(question, resolved_concept, G)
                 has_override_cascade = any(
-                    m == primary_model for m, _ in override_chain_targets(question, concept, G)
+                    m == primary_model for m, _ in override_chain_targets(question, resolved_concept, G)
                 )
+                has_who_has_access_target = primary_model in who_has_access_targets(question, resolved_concept, G)
             except Exception:
                 # Never let a graph-lookup failure break plan generation --
                 # degrade to the conservative defaults set above.
                 pass
 
-        # 1. ACL permissions -- gated on the same access-related detector as
-        # who_has_access_to's real forced pre-dispatch.
-        if is_access_related:
+        # 1. ACL permissions -- gated on the SAME shared predicate
+        # (who_has_access_targets) as who_has_access_to's real forced
+        # pre-dispatch, which additionally excludes any model already more
+        # specifically governed by a real Python security lock (section 226
+        # fix: this step previously used the raw is_access_related detector
+        # alone, promising who_has_access_to even for lock-governed models
+        # that real dispatch always skips in favor of analyze_security_locks).
+        if has_who_has_access_target:
             steps.append(
                 InvestigationStep(
                     action=PlanAction.WHO_HAS_ACCESS_TO,
@@ -505,18 +520,34 @@ def generate_investigation_plan(
             # fallback above. Can legitimately happen when a governance-worded
             # question resolves to a model with no lock source, no override
             # cascade, no server actions, and no access/amount signal
-            # recognized by the shared detectors.
+            # recognized by the shared detectors (e.g. a question whose
+            # vocabulary -- "règles", "visibilité", "sécurité"... -- reads as
+            # governance-flavored to the intent classifier but never trips any
+            # of the 6 stricter shared gates). Section 230 (todo/contexte.txt):
+            # this fallback previously defaulted to WHO_HAS_ACCESS_TO
+            # unconditionally, which could promise a step the real forced
+            # dispatch would never fire whenever who_has_access_targets()
+            # itself excludes the model -- a coherence violation of the exact
+            # same class already fixed for step 1 in section 226.
+            # READ_SOURCE_CODE is used here instead because it carries no
+            # shared-gate coherence contract on the execution side (it is not
+            # one of the 6 actions in _CHECKED_ACTIONS, see
+            # test_bloc_p1_j6_plan_execution_coherence.py) -- an honest "no
+            # specific shared signal fired, fall back to manual source
+            # inspection" step, rather than a false promise that a specific
+            # composite tool would fire.
             steps.append(
                 InvestigationStep(
-                    action=PlanAction.WHO_HAS_ACCESS_TO,
+                    action=PlanAction.READ_SOURCE_CODE,
                     target=primary_model,
                     justification=(
                         f"Aucun signal d'accès/approbation/automatisation/verrou structurel "
                         f"détecté par les détecteurs partagés pour {primary_model} -- "
-                        f"vérification de base des permissions par défaut"
+                        f"inspection manuelle du code source recommandée en l'absence de "
+                        f"correspondance avec un outil composite déterministe"
                     ),
-                    behavioral_focus=BehavioralTag.VISIBILITY_RULE,
-                    technical_focus=TechnicalTag.ACL,
+                    behavioral_focus=None,
+                    technical_focus=None,
                 )
             )
 

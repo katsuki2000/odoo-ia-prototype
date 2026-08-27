@@ -27,6 +27,15 @@ OLLAMA_MODEL = "gpt-oss:20b"
 # ── ChromaDB ──────────────────────────────────────────
 CHROMA_PATH  = "./document_rag/vectorstore/chroma_db"
 
+# -- Code Intelligence corpus paths ----------------------
+# Machine-dependent: must come from env, never hardcoded (todo/rules.md).
+# Fallback is computed relative to this repo's own location, not a
+# hardcoded absolute path, so it stays portable on any machine that
+# follows the sibling-directory layout documented in README.md
+# (~/odoo-ia-prototype next to ~/odoo-17.0).
+CORE_ADDONS_PATH = os.getenv("CORE_ADDONS_PATH") or str(_ROOT.parent / "odoo-17.0" / "addons")
+CUSTOM_ADDONS_PATH = os.getenv("CUSTOM_ADDONS_PATH") or str(_ROOT / "odoo_addons")
+
 # ── Retrieval / Re-ranking ────────────────────────────
 # Disabled by default to prevent CPU bottlenecks / non-AVX2 freezes.
 # Can be enabled explicitly via environment variable USE_RERANKER=true.

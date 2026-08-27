@@ -2,7 +2,7 @@
   "metadata": {
     "git_commit": "unknown_commit",
     "addons_hash": "",
-    "generated_at": "2026-08-26T11:46:16.295915+00:00",
+    "generated_at": "2026-08-27T09:37:27.773449+00:00",
     "graph_schema_version": 3,
     "node_count": 11254,
     "edge_count": 10962
@@ -54,7 +54,7 @@
         "depends": [
           "base"
         ],
-        "filepath": "/home/user/odoo-17.0/addons/miro_ai/__manifest__.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/miro_ai/__manifest__.py",
         "id": "module:miro_ai"
       },
       {
@@ -63,7 +63,7 @@
         "depends": [
           "custom_purchase_request"
         ],
-        "filepath": "/home/user/odoo-17.0/addons/custom_asset_loan/__manifest__.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_asset_loan/__manifest__.py",
         "id": "module:custom_asset_loan"
       },
       {
@@ -73,7 +73,7 @@
           "account",
           "base_automation"
         ],
-        "filepath": "/home/user/odoo-17.0/addons/custom_automation_traps/__manifest__.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_automation_traps/__manifest__.py",
         "id": "module:custom_automation_traps"
       },
       {
@@ -83,7 +83,7 @@
           "account",
           "hr"
         ],
-        "filepath": "/home/user/odoo-17.0/addons/custom_credit_note_approval/__manifest__.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_credit_note_approval/__manifest__.py",
         "id": "module:custom_credit_note_approval"
       },
       {
@@ -93,7 +93,7 @@
           "custom_credit_note_approval",
           "hr"
         ],
-        "filepath": "/home/user/odoo-17.0/addons/custom_credit_note_approval_regional/__manifest__.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_credit_note_approval_regional/__manifest__.py",
         "id": "module:custom_credit_note_approval_regional"
       },
       {
@@ -102,7 +102,7 @@
         "depends": [
           "custom_credit_note_approval_regional"
         ],
-        "filepath": "/home/user/odoo-17.0/addons/custom_credit_note_approval_vip/__manifest__.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_credit_note_approval_vip/__manifest__.py",
         "id": "module:custom_credit_note_approval_vip"
       },
       {
@@ -111,7 +111,7 @@
         "depends": [
           "custom_credit_note_approval"
         ],
-        "filepath": "/home/user/odoo-17.0/addons/custom_credit_note_visibility_rules/__manifest__.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_credit_note_visibility_rules/__manifest__.py",
         "id": "module:custom_credit_note_visibility_rules"
       },
       {
@@ -121,7 +121,7 @@
           "base",
           "account"
         ],
-        "filepath": "/home/user/odoo-17.0/addons/custom_deep_inheritance_security/__manifest__.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_deep_inheritance_security/__manifest__.py",
         "id": "module:custom_deep_inheritance_security"
       },
       {
@@ -130,7 +130,7 @@
         "depends": [
           "base"
         ],
-        "filepath": "/home/user/odoo-17.0/addons/custom_expense_reimbursement_indirect/__manifest__.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_expense_reimbursement_indirect/__manifest__.py",
         "id": "module:custom_expense_reimbursement_indirect"
       },
       {
@@ -139,7 +139,7 @@
         "depends": [
           "custom_expense_risk_score"
         ],
-        "filepath": "/home/user/odoo-17.0/addons/custom_expense_risk_alert/__manifest__.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_expense_risk_alert/__manifest__.py",
         "id": "module:custom_expense_risk_alert"
       },
       {
@@ -148,7 +148,7 @@
         "depends": [
           "hr_expense"
         ],
-        "filepath": "/home/user/odoo-17.0/addons/custom_expense_risk_base/__manifest__.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_expense_risk_base/__manifest__.py",
         "id": "module:custom_expense_risk_base"
       },
       {
@@ -157,7 +157,7 @@
         "depends": [
           "custom_expense_risk_base"
         ],
-        "filepath": "/home/user/odoo-17.0/addons/custom_expense_risk_score/__manifest__.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_expense_risk_score/__manifest__.py",
         "id": "module:custom_expense_risk_score"
       },
       {
@@ -166,7 +166,7 @@
         "depends": [
           "hr_holidays"
         ],
-        "filepath": "/home/user/odoo-17.0/addons/custom_hr_leave_workflow/__manifest__.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_hr_leave_workflow/__manifest__.py",
         "id": "module:custom_hr_leave_workflow"
       },
       {
@@ -175,7 +175,7 @@
         "depends": [
           "purchase"
         ],
-        "filepath": "/home/user/odoo-17.0/addons/custom_purchase_request/__manifest__.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_purchase_request/__manifest__.py",
         "id": "module:custom_purchase_request"
       },
       {
@@ -995,7 +995,7 @@
           "/home/user/odoo-17.0/addons/sale/wizard/res_config_settings.py",
           "/home/user/odoo-17.0/addons/stock/models/res_config_settings.py",
           "/home/user/odoo-17.0/addons/base/models/res_config.py",
-          "/home/user/odoo-17.0/addons/miro_ai/models/res_config_settings.py",
+          "/home/user/odoo-ia-prototype/odoo_addons/miro_ai/models/res_config_settings.py",
           "/home/user/odoo-17.0/addons/purchase/models/res_config_settings.py",
           "/home/user/odoo-17.0/addons/hr/models/res_config_settings.py",
           "/home/user/odoo-17.0/addons/hr_expense/models/res_config_settings.py"
@@ -1116,7 +1116,7 @@
           "/home/user/odoo-17.0/addons/account/models/account_journal_dashboard.py",
           "/home/user/odoo-17.0/addons/account/models/account_journal.py",
           "/home/user/odoo-17.0/addons/account/populate/account_journal.py",
-          "/home/user/odoo-17.0/addons/custom_credit_note_approval/models/account_journal.py",
+          "/home/user/odoo-ia-prototype/odoo_addons/custom_credit_note_approval/models/account_journal.py",
           "/home/user/odoo-17.0/addons/hr_expense/models/account_journal_dashboard.py"
         ],
         "description": "Journal",
@@ -3685,7 +3685,7 @@
         "compute": null,
         "related": null,
         "store": true,
-        "filepath": "/home/user/odoo-17.0/addons/miro_ai/models/res_config_settings.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/miro_ai/models/res_config_settings.py",
         "label": "URL API MIRO RAG",
         "label_source": "explicit",
         "behavioral_tags": [],
@@ -3702,7 +3702,7 @@
         "compute": null,
         "related": null,
         "store": true,
-        "filepath": "/home/user/odoo-17.0/addons/miro_ai/models/res_config_settings.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/miro_ai/models/res_config_settings.py",
         "label": "Jeton API MIRO RAG",
         "label_source": "explicit",
         "behavioral_tags": [],
@@ -4509,9 +4509,9 @@
           "/home/user/odoo-17.0/addons/account/populate/account_move.py",
           "/home/user/odoo-17.0/addons/sale/models/account_move.py",
           "/home/user/odoo-17.0/addons/purchase/models/account_invoice.py",
-          "/home/user/odoo-17.0/addons/custom_credit_note_approval/models/account_move.py",
-          "/home/user/odoo-17.0/addons/custom_credit_note_approval_regional/models/account_move.py",
-          "/home/user/odoo-17.0/addons/custom_credit_note_approval_vip/models/account_move.py",
+          "/home/user/odoo-ia-prototype/odoo_addons/custom_credit_note_approval/models/account_move.py",
+          "/home/user/odoo-ia-prototype/odoo_addons/custom_credit_note_approval_regional/models/account_move.py",
+          "/home/user/odoo-ia-prototype/odoo_addons/custom_credit_note_approval_vip/models/account_move.py",
           "/home/user/odoo-17.0/addons/hr_expense/models/account_move.py"
         ],
         "description": "Journal Entry",
@@ -5097,7 +5097,7 @@
           "/home/user/odoo-17.0/addons/base/populate/res_partner.py",
           "/home/user/odoo-17.0/addons/purchase/models/res_partner.py",
           "/home/user/odoo-17.0/addons/hr/models/res_partner.py",
-          "/home/user/odoo-17.0/addons/custom_credit_note_approval_vip/models/res_partner.py",
+          "/home/user/odoo-ia-prototype/odoo_addons/custom_credit_note_approval_vip/models/res_partner.py",
           "/home/user/odoo-17.0/addons/hr_holidays/models/res_partner.py"
         ],
         "description": "Contact",
@@ -14083,7 +14083,7 @@
         "compute": null,
         "related": null,
         "store": true,
-        "filepath": "/home/user/odoo-17.0/addons/custom_credit_note_approval/models/account_move.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_credit_note_approval/models/account_move.py",
         "label": "Validé par",
         "label_source": "explicit",
         "behavioral_tags": [],
@@ -14100,7 +14100,7 @@
         "compute": null,
         "related": null,
         "store": true,
-        "filepath": "/home/user/odoo-17.0/addons/custom_credit_note_approval/models/account_move.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_credit_note_approval/models/account_move.py",
         "label": "Avoir Niveau Appro",
         "label_source": "generated",
         "behavioral_tags": [],
@@ -14113,24 +14113,24 @@
         "model": "account.move",
         "api_model": false,
         "is_instance_method": true,
-        "filepath": "/home/user/odoo-17.0/addons/custom_credit_note_approval_vip/models/account_move.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_credit_note_approval_vip/models/account_move.py",
         "lineno": 7,
         "override_sites": [
           {
             "module": "custom_credit_note_approval",
-            "filepath": "/home/user/odoo-17.0/addons/custom_credit_note_approval/models/account_move.py",
+            "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_credit_note_approval/models/account_move.py",
             "lineno": 13,
             "end_lineno": 22
           },
           {
             "module": "custom_credit_note_approval_regional",
-            "filepath": "/home/user/odoo-17.0/addons/custom_credit_note_approval_regional/models/account_move.py",
+            "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_credit_note_approval_regional/models/account_move.py",
             "lineno": 9,
             "end_lineno": 15
           },
           {
             "module": "custom_credit_note_approval_vip",
-            "filepath": "/home/user/odoo-17.0/addons/custom_credit_note_approval_vip/models/account_move.py",
+            "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_credit_note_approval_vip/models/account_move.py",
             "lineno": 7,
             "end_lineno": 14
           }
@@ -14151,7 +14151,7 @@
         "compute": null,
         "related": null,
         "store": true,
-        "filepath": "/home/user/odoo-17.0/addons/custom_credit_note_approval_regional/models/account_move.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_credit_note_approval_regional/models/account_move.py",
         "label": "Directeur regional notifie",
         "label_source": "explicit",
         "behavioral_tags": [],
@@ -14164,12 +14164,12 @@
         "model": "account.move",
         "api_model": false,
         "is_instance_method": true,
-        "filepath": "/home/user/odoo-17.0/addons/custom_credit_note_approval_regional/models/account_move.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_credit_note_approval_regional/models/account_move.py",
         "lineno": 17,
         "override_sites": [
           {
             "module": "custom_credit_note_approval_regional",
-            "filepath": "/home/user/odoo-17.0/addons/custom_credit_note_approval_regional/models/account_move.py",
+            "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_credit_note_approval_regional/models/account_move.py",
             "lineno": 17,
             "end_lineno": 21
           }
@@ -27215,7 +27215,7 @@
         "compute": null,
         "related": null,
         "store": true,
-        "filepath": "/home/user/odoo-17.0/addons/custom_credit_note_approval/models/account_journal.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_credit_note_approval/models/account_journal.py",
         "label": "Departement",
         "label_source": "explicit",
         "behavioral_tags": [],
@@ -33047,9 +33047,9 @@
         "delegations_dict": {},
         "filepaths": [
           "/home/user/odoo-17.0/addons/hr_expense/models/hr_expense.py",
-          "/home/user/odoo-17.0/addons/custom_expense_risk_base/models/hr_expense.py",
-          "/home/user/odoo-17.0/addons/custom_expense_risk_score/models/hr_expense.py",
-          "/home/user/odoo-17.0/addons/custom_expense_risk_alert/models/hr_expense.py"
+          "/home/user/odoo-ia-prototype/odoo_addons/custom_expense_risk_base/models/hr_expense.py",
+          "/home/user/odoo-ia-prototype/odoo_addons/custom_expense_risk_score/models/hr_expense.py",
+          "/home/user/odoo-ia-prototype/odoo_addons/custom_expense_risk_alert/models/hr_expense.py"
         ],
         "description": "Expense",
         "description_source": "explicit",
@@ -55583,7 +55583,7 @@
         "compute": null,
         "related": null,
         "store": true,
-        "filepath": "/home/user/odoo-17.0/addons/custom_credit_note_approval_vip/models/res_partner.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_credit_note_approval_vip/models/res_partner.py",
         "label": "Client VIP - avoirs sans seuil",
         "label_source": "explicit",
         "behavioral_tags": [],
@@ -125844,7 +125844,7 @@
         "inherits_list": [],
         "delegations_dict": {},
         "filepaths": [
-          "/home/user/odoo-17.0/addons/miro_ai/models/miro_ai_settings.py"
+          "/home/user/odoo-ia-prototype/odoo_addons/miro_ai/models/miro_ai_settings.py"
         ],
         "description": "MIRO AI - Paramètres et Configuration",
         "description_source": "explicit",
@@ -125862,7 +125862,7 @@
         "compute": null,
         "related": null,
         "store": true,
-        "filepath": "/home/user/odoo-17.0/addons/miro_ai/models/miro_ai_settings.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/miro_ai/models/miro_ai_settings.py",
         "label": "Nom de configuration",
         "label_source": "explicit",
         "behavioral_tags": [],
@@ -125879,7 +125879,7 @@
         "compute": null,
         "related": null,
         "store": true,
-        "filepath": "/home/user/odoo-17.0/addons/miro_ai/models/miro_ai_settings.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/miro_ai/models/miro_ai_settings.py",
         "label": "Actif",
         "label_source": "explicit",
         "behavioral_tags": [],
@@ -125896,7 +125896,7 @@
         "compute": null,
         "related": null,
         "store": true,
-        "filepath": "/home/user/odoo-17.0/addons/miro_ai/models/miro_ai_settings.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/miro_ai/models/miro_ai_settings.py",
         "label": "Société",
         "label_source": "explicit",
         "behavioral_tags": [],
@@ -125913,7 +125913,7 @@
         "compute": null,
         "related": null,
         "store": true,
-        "filepath": "/home/user/odoo-17.0/addons/miro_ai/models/miro_ai_settings.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/miro_ai/models/miro_ai_settings.py",
         "label": "URL de l'API MIRO RAG",
         "label_source": "explicit",
         "behavioral_tags": [],
@@ -125930,7 +125930,7 @@
         "compute": null,
         "related": null,
         "store": true,
-        "filepath": "/home/user/odoo-17.0/addons/miro_ai/models/miro_ai_settings.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/miro_ai/models/miro_ai_settings.py",
         "label": "Jeton Secret API (JWT Secret)",
         "label_source": "explicit",
         "behavioral_tags": [],
@@ -125947,7 +125947,7 @@
         "compute": null,
         "related": null,
         "store": true,
-        "filepath": "/home/user/odoo-17.0/addons/miro_ai/models/miro_ai_settings.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/miro_ai/models/miro_ai_settings.py",
         "label": "Compétence : Ventes (sale)",
         "label_source": "explicit",
         "behavioral_tags": [],
@@ -125964,7 +125964,7 @@
         "compute": null,
         "related": null,
         "store": true,
-        "filepath": "/home/user/odoo-17.0/addons/miro_ai/models/miro_ai_settings.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/miro_ai/models/miro_ai_settings.py",
         "label": "Compétence : Stocks (stock)",
         "label_source": "explicit",
         "behavioral_tags": [],
@@ -125981,7 +125981,7 @@
         "compute": null,
         "related": null,
         "store": true,
-        "filepath": "/home/user/odoo-17.0/addons/miro_ai/models/miro_ai_settings.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/miro_ai/models/miro_ai_settings.py",
         "label": "Compétence : Comptabilité (account)",
         "label_source": "explicit",
         "behavioral_tags": [],
@@ -125998,7 +125998,7 @@
         "compute": null,
         "related": null,
         "store": true,
-        "filepath": "/home/user/odoo-17.0/addons/miro_ai/models/miro_ai_settings.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/miro_ai/models/miro_ai_settings.py",
         "label": "Compétence : Support / Tickets (helpdesk)",
         "label_source": "explicit",
         "behavioral_tags": [],
@@ -126011,12 +126011,12 @@
         "model": "miro.ai.settings",
         "api_model": true,
         "is_instance_method": false,
-        "filepath": "/home/user/odoo-17.0/addons/miro_ai/models/miro_ai_settings.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/miro_ai/models/miro_ai_settings.py",
         "lineno": 68,
         "override_sites": [
           {
             "module": "miro_ai",
-            "filepath": "/home/user/odoo-17.0/addons/miro_ai/models/miro_ai_settings.py",
+            "filepath": "/home/user/odoo-ia-prototype/odoo_addons/miro_ai/models/miro_ai_settings.py",
             "lineno": 68,
             "end_lineno": 83
           }
@@ -126031,7 +126031,7 @@
         "inherits_list": [],
         "delegations_dict": {},
         "filepaths": [
-          "/home/user/odoo-17.0/addons/miro_ai/models/miro_ai_log.py"
+          "/home/user/odoo-ia-prototype/odoo_addons/miro_ai/models/miro_ai_log.py"
         ],
         "description": "MIRO AI - Journal d'audit des requêtes RAG",
         "description_source": "explicit",
@@ -126051,7 +126051,7 @@
         "compute": null,
         "related": null,
         "store": true,
-        "filepath": "/home/user/odoo-17.0/addons/miro_ai/models/miro_ai_log.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/miro_ai/models/miro_ai_log.py",
         "label": "Question posée",
         "label_source": "explicit",
         "behavioral_tags": [],
@@ -126068,7 +126068,7 @@
         "compute": null,
         "related": null,
         "store": true,
-        "filepath": "/home/user/odoo-17.0/addons/miro_ai/models/miro_ai_log.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/miro_ai/models/miro_ai_log.py",
         "label": "Réponse générée",
         "label_source": "explicit",
         "behavioral_tags": [],
@@ -126085,7 +126085,7 @@
         "compute": null,
         "related": null,
         "store": true,
-        "filepath": "/home/user/odoo-17.0/addons/miro_ai/models/miro_ai_log.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/miro_ai/models/miro_ai_log.py",
         "label": "Utilisateur",
         "label_source": "explicit",
         "behavioral_tags": [],
@@ -126102,7 +126102,7 @@
         "compute": null,
         "related": null,
         "store": true,
-        "filepath": "/home/user/odoo-17.0/addons/miro_ai/models/miro_ai_log.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/miro_ai/models/miro_ai_log.py",
         "label": "Société",
         "label_source": "explicit",
         "behavioral_tags": [],
@@ -126119,7 +126119,7 @@
         "compute": null,
         "related": null,
         "store": true,
-        "filepath": "/home/user/odoo-17.0/addons/miro_ai/models/miro_ai_log.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/miro_ai/models/miro_ai_log.py",
         "label": "ID de Session",
         "label_source": "explicit",
         "behavioral_tags": [],
@@ -126136,7 +126136,7 @@
         "compute": null,
         "related": null,
         "store": true,
-        "filepath": "/home/user/odoo-17.0/addons/miro_ai/models/miro_ai_log.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/miro_ai/models/miro_ai_log.py",
         "label": "Temps de réponse (ms)",
         "label_source": "explicit",
         "behavioral_tags": [],
@@ -126153,7 +126153,7 @@
         "compute": null,
         "related": null,
         "store": true,
-        "filepath": "/home/user/odoo-17.0/addons/miro_ai/models/miro_ai_log.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/miro_ai/models/miro_ai_log.py",
         "label": "Sources (JSON brut)",
         "label_source": "explicit",
         "behavioral_tags": [],
@@ -126170,7 +126170,7 @@
         "compute": "_compute_sources_count",
         "related": null,
         "store": true,
-        "filepath": "/home/user/odoo-17.0/addons/miro_ai/models/miro_ai_log.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/miro_ai/models/miro_ai_log.py",
         "label": "Nb Sources",
         "label_source": "explicit",
         "behavioral_tags": [
@@ -126187,12 +126187,12 @@
         "model": "miro.ai.log",
         "api_model": false,
         "is_instance_method": true,
-        "filepath": "/home/user/odoo-17.0/addons/miro_ai/models/miro_ai_log.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/miro_ai/models/miro_ai_log.py",
         "lineno": 72,
         "override_sites": [
           {
             "module": "miro_ai",
-            "filepath": "/home/user/odoo-17.0/addons/miro_ai/models/miro_ai_log.py",
+            "filepath": "/home/user/odoo-ia-prototype/odoo_addons/miro_ai/models/miro_ai_log.py",
             "lineno": 72,
             "end_lineno": 82
           }
@@ -126211,7 +126211,7 @@
         "compute": null,
         "related": null,
         "store": true,
-        "filepath": "/home/user/odoo-17.0/addons/miro_ai/models/miro_ai_log.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/miro_ai/models/miro_ai_log.py",
         "label": "Statut",
         "label_source": "explicit",
         "behavioral_tags": [],
@@ -126224,12 +126224,12 @@
         "model": "miro.ai.log",
         "api_model": true,
         "is_instance_method": false,
-        "filepath": "/home/user/odoo-17.0/addons/miro_ai/models/miro_ai_log.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/miro_ai/models/miro_ai_log.py",
         "lineno": 85,
         "override_sites": [
           {
             "module": "miro_ai",
-            "filepath": "/home/user/odoo-17.0/addons/miro_ai/models/miro_ai_log.py",
+            "filepath": "/home/user/odoo-ia-prototype/odoo_addons/miro_ai/models/miro_ai_log.py",
             "lineno": 85,
             "end_lineno": 100
           }
@@ -130422,7 +130422,7 @@
         "inherits_list": [],
         "delegations_dict": {},
         "filepaths": [
-          "/home/user/odoo-17.0/addons/custom_purchase_request/models/purchase_request.py"
+          "/home/user/odoo-ia-prototype/odoo_addons/custom_purchase_request/models/purchase_request.py"
         ],
         "description": "Demande d'achat interne",
         "description_source": "explicit",
@@ -130440,7 +130440,7 @@
         "compute": null,
         "related": null,
         "store": true,
-        "filepath": "/home/user/odoo-17.0/addons/custom_purchase_request/models/purchase_request.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_purchase_request/models/purchase_request.py",
         "label": "Name",
         "label_source": "generated",
         "behavioral_tags": [],
@@ -130457,7 +130457,7 @@
         "compute": null,
         "related": null,
         "store": true,
-        "filepath": "/home/user/odoo-17.0/addons/custom_purchase_request/models/purchase_request.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_purchase_request/models/purchase_request.py",
         "label": "Demandeur Id",
         "label_source": "generated",
         "behavioral_tags": [],
@@ -130474,7 +130474,7 @@
         "compute": null,
         "related": null,
         "store": true,
-        "filepath": "/home/user/odoo-17.0/addons/custom_purchase_request/models/purchase_request.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_purchase_request/models/purchase_request.py",
         "label": "Montant Estime",
         "label_source": "generated",
         "behavioral_tags": [],
@@ -130491,7 +130491,7 @@
         "compute": null,
         "related": null,
         "store": true,
-        "filepath": "/home/user/odoo-17.0/addons/custom_purchase_request/models/purchase_request.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_purchase_request/models/purchase_request.py",
         "label": "Etat",
         "label_source": "generated",
         "behavioral_tags": [],
@@ -130508,7 +130508,7 @@
         "compute": null,
         "related": null,
         "store": true,
-        "filepath": "/home/user/odoo-17.0/addons/custom_purchase_request/models/purchase_request.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_purchase_request/models/purchase_request.py",
         "label": "Justification",
         "label_source": "generated",
         "behavioral_tags": [],
@@ -130521,12 +130521,12 @@
         "model": "custom.purchase.request",
         "api_model": false,
         "is_instance_method": true,
-        "filepath": "/home/user/odoo-17.0/addons/custom_purchase_request/models/purchase_request.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_purchase_request/models/purchase_request.py",
         "lineno": 22,
         "override_sites": [
           {
             "module": "custom_purchase_request",
-            "filepath": "/home/user/odoo-17.0/addons/custom_purchase_request/models/purchase_request.py",
+            "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_purchase_request/models/purchase_request.py",
             "lineno": 22,
             "end_lineno": 23
           }
@@ -130541,12 +130541,12 @@
         "model": "custom.purchase.request",
         "api_model": false,
         "is_instance_method": true,
-        "filepath": "/home/user/odoo-17.0/addons/custom_purchase_request/models/purchase_request.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_purchase_request/models/purchase_request.py",
         "lineno": 25,
         "override_sites": [
           {
             "module": "custom_purchase_request",
-            "filepath": "/home/user/odoo-17.0/addons/custom_purchase_request/models/purchase_request.py",
+            "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_purchase_request/models/purchase_request.py",
             "lineno": 25,
             "end_lineno": 33
           }
@@ -130563,7 +130563,7 @@
         "inherits_list": [],
         "delegations_dict": {},
         "filepaths": [
-          "/home/user/odoo-17.0/addons/custom_asset_loan/models/asset_loan.py"
+          "/home/user/odoo-ia-prototype/odoo_addons/custom_asset_loan/models/asset_loan.py"
         ],
         "description": "Mise a disposition de materiel",
         "description_source": "explicit",
@@ -130581,7 +130581,7 @@
         "compute": null,
         "related": null,
         "store": true,
-        "filepath": "/home/user/odoo-17.0/addons/custom_asset_loan/models/asset_loan.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_asset_loan/models/asset_loan.py",
         "label": "Name",
         "label_source": "generated",
         "behavioral_tags": [],
@@ -130598,7 +130598,7 @@
         "compute": null,
         "related": null,
         "store": true,
-        "filepath": "/home/user/odoo-17.0/addons/custom_asset_loan/models/asset_loan.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_asset_loan/models/asset_loan.py",
         "label": "Beneficiaire Id",
         "label_source": "generated",
         "behavioral_tags": [],
@@ -130615,7 +130615,7 @@
         "compute": null,
         "related": null,
         "store": true,
-        "filepath": "/home/user/odoo-17.0/addons/custom_asset_loan/models/asset_loan.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_asset_loan/models/asset_loan.py",
         "label": "Materiel",
         "label_source": "generated",
         "behavioral_tags": [],
@@ -130632,7 +130632,7 @@
         "compute": null,
         "related": null,
         "store": true,
-        "filepath": "/home/user/odoo-17.0/addons/custom_asset_loan/models/asset_loan.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_asset_loan/models/asset_loan.py",
         "label": "Date Debut",
         "label_source": "generated",
         "behavioral_tags": [],
@@ -130649,7 +130649,7 @@
         "compute": null,
         "related": null,
         "store": true,
-        "filepath": "/home/user/odoo-17.0/addons/custom_asset_loan/models/asset_loan.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_asset_loan/models/asset_loan.py",
         "label": "Date Fin",
         "label_source": "generated",
         "behavioral_tags": [],
@@ -130666,7 +130666,7 @@
         "compute": null,
         "related": null,
         "store": true,
-        "filepath": "/home/user/odoo-17.0/addons/custom_asset_loan/models/asset_loan.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_asset_loan/models/asset_loan.py",
         "label": "Demande Achat Liee Id",
         "label_source": "generated",
         "behavioral_tags": [],
@@ -130683,7 +130683,7 @@
         "compute": null,
         "related": null,
         "store": true,
-        "filepath": "/home/user/odoo-17.0/addons/custom_asset_loan/models/asset_loan.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_asset_loan/models/asset_loan.py",
         "label": "Etat",
         "label_source": "generated",
         "behavioral_tags": [],
@@ -130696,12 +130696,12 @@
         "model": "custom.asset.loan",
         "api_model": false,
         "is_instance_method": true,
-        "filepath": "/home/user/odoo-17.0/addons/custom_asset_loan/models/asset_loan.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_asset_loan/models/asset_loan.py",
         "lineno": 20,
         "override_sites": [
           {
             "module": "custom_asset_loan",
-            "filepath": "/home/user/odoo-17.0/addons/custom_asset_loan/models/asset_loan.py",
+            "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_asset_loan/models/asset_loan.py",
             "lineno": 20,
             "end_lineno": 30
           }
@@ -138828,7 +138828,7 @@
         ],
         "delegations_dict": {},
         "filepaths": [
-          "/home/user/odoo-17.0/addons/custom_deep_inheritance_security/models/deep_document.py"
+          "/home/user/odoo-ia-prototype/odoo_addons/custom_deep_inheritance_security/models/deep_document.py"
         ],
         "description": "Deep Inheritance Document Base",
         "description_source": "explicit",
@@ -138848,7 +138848,7 @@
         "compute": null,
         "related": null,
         "store": true,
-        "filepath": "/home/user/odoo-17.0/addons/custom_deep_inheritance_security/models/deep_document.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_deep_inheritance_security/models/deep_document.py",
         "label": "Name",
         "label_source": "explicit",
         "behavioral_tags": [],
@@ -138865,7 +138865,7 @@
         "compute": null,
         "related": null,
         "store": true,
-        "filepath": "/home/user/odoo-17.0/addons/custom_deep_inheritance_security/models/deep_document.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_deep_inheritance_security/models/deep_document.py",
         "label": "Amount",
         "label_source": "explicit",
         "behavioral_tags": [],
@@ -138882,7 +138882,7 @@
         "compute": null,
         "related": null,
         "store": true,
-        "filepath": "/home/user/odoo-17.0/addons/custom_deep_inheritance_security/models/deep_document.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_deep_inheritance_security/models/deep_document.py",
         "label": "State",
         "label_source": "generated",
         "behavioral_tags": [],
@@ -138899,7 +138899,7 @@
         "compute": null,
         "related": null,
         "store": true,
-        "filepath": "/home/user/odoo-17.0/addons/custom_deep_inheritance_security/models/deep_document.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_deep_inheritance_security/models/deep_document.py",
         "label": "Company",
         "label_source": "explicit",
         "behavioral_tags": [],
@@ -138916,7 +138916,7 @@
         "compute": null,
         "related": null,
         "store": true,
-        "filepath": "/home/user/odoo-17.0/addons/custom_deep_inheritance_security/models/deep_document.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_deep_inheritance_security/models/deep_document.py",
         "label": "User",
         "label_source": "explicit",
         "behavioral_tags": [],
@@ -138933,7 +138933,7 @@
         "compute": "_compute_risk_score",
         "related": null,
         "store": true,
-        "filepath": "/home/user/odoo-17.0/addons/custom_deep_inheritance_security/models/deep_document.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_deep_inheritance_security/models/deep_document.py",
         "label": "Risk Score",
         "label_source": "explicit",
         "behavioral_tags": [
@@ -138950,12 +138950,12 @@
         "model": "custom.deep.document",
         "api_model": false,
         "is_instance_method": true,
-        "filepath": "/home/user/odoo-17.0/addons/custom_deep_inheritance_security/models/deep_document.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_deep_inheritance_security/models/deep_document.py",
         "lineno": 22,
         "override_sites": [
           {
             "module": "custom_deep_inheritance_security",
-            "filepath": "/home/user/odoo-17.0/addons/custom_deep_inheritance_security/models/deep_document.py",
+            "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_deep_inheritance_security/models/deep_document.py",
             "lineno": 22,
             "end_lineno": 24
           }
@@ -138974,7 +138974,7 @@
         "compute": null,
         "related": null,
         "store": true,
-        "filepath": "/home/user/odoo-17.0/addons/custom_deep_inheritance_security/models/deep_document.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_deep_inheritance_security/models/deep_document.py",
         "label": "Level 2 Notes",
         "label_source": "explicit",
         "behavioral_tags": [],
@@ -138987,12 +138987,12 @@
         "model": "custom.deep.document",
         "api_model": false,
         "is_instance_method": true,
-        "filepath": "/home/user/odoo-17.0/addons/custom_deep_inheritance_security/models/deep_document.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_deep_inheritance_security/models/deep_document.py",
         "lineno": 32,
         "override_sites": [
           {
             "module": "custom_deep_inheritance_security",
-            "filepath": "/home/user/odoo-17.0/addons/custom_deep_inheritance_security/models/deep_document.py",
+            "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_deep_inheritance_security/models/deep_document.py",
             "lineno": 32,
             "end_lineno": 36
           }
@@ -139013,7 +139013,7 @@
         "compute": null,
         "related": null,
         "store": true,
-        "filepath": "/home/user/odoo-17.0/addons/custom_deep_inheritance_security/models/deep_document.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_deep_inheritance_security/models/deep_document.py",
         "label": "Level 3 Flag",
         "label_source": "explicit",
         "behavioral_tags": [],
@@ -139030,7 +139030,7 @@
         "compute": null,
         "related": null,
         "store": true,
-        "filepath": "/home/user/odoo-17.0/addons/custom_deep_inheritance_security/models/deep_document.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_deep_inheritance_security/models/deep_document.py",
         "label": "Supervisor",
         "label_source": "explicit",
         "behavioral_tags": [],
@@ -139047,7 +139047,7 @@
         "compute": null,
         "related": null,
         "store": true,
-        "filepath": "/home/user/odoo-17.0/addons/custom_deep_inheritance_security/models/deep_document.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_deep_inheritance_security/models/deep_document.py",
         "label": "Final Approval Date",
         "label_source": "explicit",
         "behavioral_tags": [],
@@ -139060,12 +139060,12 @@
         "model": "custom.deep.document",
         "api_model": false,
         "is_instance_method": true,
-        "filepath": "/home/user/odoo-17.0/addons/custom_deep_inheritance_security/models/deep_document.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_deep_inheritance_security/models/deep_document.py",
         "lineno": 56,
         "override_sites": [
           {
             "module": "custom_deep_inheritance_security",
-            "filepath": "/home/user/odoo-17.0/addons/custom_deep_inheritance_security/models/deep_document.py",
+            "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_deep_inheritance_security/models/deep_document.py",
             "lineno": 56,
             "end_lineno": 60
           }
@@ -139082,7 +139082,7 @@
         "inherits_list": [],
         "delegations_dict": {},
         "filepaths": [
-          "/home/user/odoo-17.0/addons/custom_expense_reimbursement_indirect/models/reimbursement.py"
+          "/home/user/odoo-ia-prototype/odoo_addons/custom_expense_reimbursement_indirect/models/reimbursement.py"
         ],
         "description": "Demande de remboursement de frais",
         "description_source": "explicit",
@@ -139100,7 +139100,7 @@
         "compute": null,
         "related": null,
         "store": true,
-        "filepath": "/home/user/odoo-17.0/addons/custom_expense_reimbursement_indirect/models/reimbursement.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_expense_reimbursement_indirect/models/reimbursement.py",
         "label": "Demandeur",
         "label_source": "explicit",
         "behavioral_tags": [],
@@ -139117,7 +139117,7 @@
         "compute": null,
         "related": null,
         "store": true,
-        "filepath": "/home/user/odoo-17.0/addons/custom_expense_reimbursement_indirect/models/reimbursement.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_expense_reimbursement_indirect/models/reimbursement.py",
         "label": "Montant",
         "label_source": "explicit",
         "behavioral_tags": [],
@@ -139134,7 +139134,7 @@
         "compute": null,
         "related": null,
         "store": true,
-        "filepath": "/home/user/odoo-17.0/addons/custom_expense_reimbursement_indirect/models/reimbursement.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_expense_reimbursement_indirect/models/reimbursement.py",
         "label": "Motif",
         "label_source": "explicit",
         "behavioral_tags": [],
@@ -139151,7 +139151,7 @@
         "compute": null,
         "related": null,
         "store": true,
-        "filepath": "/home/user/odoo-17.0/addons/custom_expense_reimbursement_indirect/models/reimbursement.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_expense_reimbursement_indirect/models/reimbursement.py",
         "label": "Etat",
         "label_source": "explicit",
         "behavioral_tags": [],
@@ -139164,12 +139164,12 @@
         "model": "custom.reimbursement.request",
         "api_model": false,
         "is_instance_method": true,
-        "filepath": "/home/user/odoo-17.0/addons/custom_expense_reimbursement_indirect/models/reimbursement.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_expense_reimbursement_indirect/models/reimbursement.py",
         "lineno": 25,
         "override_sites": [
           {
             "module": "custom_expense_reimbursement_indirect",
-            "filepath": "/home/user/odoo-17.0/addons/custom_expense_reimbursement_indirect/models/reimbursement.py",
+            "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_expense_reimbursement_indirect/models/reimbursement.py",
             "lineno": 25,
             "end_lineno": 35
           }
@@ -139184,12 +139184,12 @@
         "model": "custom.reimbursement.request",
         "api_model": false,
         "is_instance_method": true,
-        "filepath": "/home/user/odoo-17.0/addons/custom_expense_reimbursement_indirect/models/reimbursement.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_expense_reimbursement_indirect/models/reimbursement.py",
         "lineno": 37,
         "override_sites": [
           {
             "module": "custom_expense_reimbursement_indirect",
-            "filepath": "/home/user/odoo-17.0/addons/custom_expense_reimbursement_indirect/models/reimbursement.py",
+            "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_expense_reimbursement_indirect/models/reimbursement.py",
             "lineno": 37,
             "end_lineno": 39
           }
@@ -140932,7 +140932,7 @@
         "compute": null,
         "related": null,
         "store": true,
-        "filepath": "/home/user/odoo-17.0/addons/custom_expense_risk_base/models/hr_expense.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_expense_risk_base/models/hr_expense.py",
         "label": "Justificatif manquant",
         "label_source": "explicit",
         "behavioral_tags": [],
@@ -140949,7 +140949,7 @@
         "compute": null,
         "related": null,
         "store": true,
-        "filepath": "/home/user/odoo-17.0/addons/custom_expense_risk_base/models/hr_expense.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_expense_risk_base/models/hr_expense.py",
         "label": "Nombre de relances",
         "label_source": "explicit",
         "behavioral_tags": [],
@@ -140966,7 +140966,7 @@
         "compute": "_compute_risk_score",
         "related": null,
         "store": true,
-        "filepath": "/home/user/odoo-17.0/addons/custom_expense_risk_score/models/hr_expense.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_expense_risk_score/models/hr_expense.py",
         "label": "Score de risque",
         "label_source": "explicit",
         "behavioral_tags": [
@@ -140983,12 +140983,12 @@
         "model": "hr.expense",
         "api_model": false,
         "is_instance_method": true,
-        "filepath": "/home/user/odoo-17.0/addons/custom_expense_risk_score/models/hr_expense.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_expense_risk_score/models/hr_expense.py",
         "lineno": 21,
         "override_sites": [
           {
             "module": "custom_expense_risk_score",
-            "filepath": "/home/user/odoo-17.0/addons/custom_expense_risk_score/models/hr_expense.py",
+            "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_expense_risk_score/models/hr_expense.py",
             "lineno": 21,
             "end_lineno": 29
           }
@@ -141007,7 +141007,7 @@
         "compute": "_compute_alerte_conformite",
         "related": null,
         "store": true,
-        "filepath": "/home/user/odoo-17.0/addons/custom_expense_risk_alert/models/hr_expense.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_expense_risk_alert/models/hr_expense.py",
         "label": "Alerte conformite",
         "label_source": "explicit",
         "behavioral_tags": [
@@ -141024,12 +141024,12 @@
         "model": "hr.expense",
         "api_model": false,
         "is_instance_method": true,
-        "filepath": "/home/user/odoo-17.0/addons/custom_expense_risk_alert/models/hr_expense.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_expense_risk_alert/models/hr_expense.py",
         "lineno": 29,
         "override_sites": [
           {
             "module": "custom_expense_risk_alert",
-            "filepath": "/home/user/odoo-17.0/addons/custom_expense_risk_alert/models/hr_expense.py",
+            "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_expense_risk_alert/models/hr_expense.py",
             "lineno": 29,
             "end_lineno": 33
           }
@@ -143599,7 +143599,7 @@
         "filepaths": [
           "/home/user/odoo-17.0/addons/hr_holidays/models/hr_leave.py",
           "/home/user/odoo-17.0/addons/hr_holidays/populate/hr_leave.py",
-          "/home/user/odoo-17.0/addons/custom_hr_leave_workflow/models/hr_leave.py"
+          "/home/user/odoo-ia-prototype/odoo_addons/custom_hr_leave_workflow/models/hr_leave.py"
         ],
         "description": "Time Off",
         "description_source": "explicit",
@@ -145973,7 +145973,7 @@
         "model": "hr.leave",
         "api_model": false,
         "is_instance_method": true,
-        "filepath": "/home/user/odoo-17.0/addons/custom_hr_leave_workflow/models/hr_leave.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_hr_leave_workflow/models/hr_leave.py",
         "lineno": 20,
         "override_sites": [
           {
@@ -145984,7 +145984,7 @@
           },
           {
             "module": "custom_hr_leave_workflow",
-            "filepath": "/home/user/odoo-17.0/addons/custom_hr_leave_workflow/models/hr_leave.py",
+            "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_hr_leave_workflow/models/hr_leave.py",
             "lineno": 20,
             "end_lineno": 28
           }
@@ -146427,7 +146427,7 @@
         "compute": null,
         "related": null,
         "store": true,
-        "filepath": "/home/user/odoo-17.0/addons/custom_hr_leave_workflow/models/hr_leave.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_hr_leave_workflow/models/hr_leave.py",
         "label": "Demande urgente",
         "label_source": "explicit",
         "behavioral_tags": [],
@@ -146440,12 +146440,12 @@
         "model": "hr.leave",
         "api_model": false,
         "is_instance_method": true,
-        "filepath": "/home/user/odoo-17.0/addons/custom_hr_leave_workflow/models/hr_leave.py",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_hr_leave_workflow/models/hr_leave.py",
         "lineno": 11,
         "override_sites": [
           {
             "module": "custom_hr_leave_workflow",
-            "filepath": "/home/user/odoo-17.0/addons/custom_hr_leave_workflow/models/hr_leave.py",
+            "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_hr_leave_workflow/models/hr_leave.py",
             "lineno": 11,
             "end_lineno": 18
           }
@@ -154565,7 +154565,7 @@
         "xml_id": "miro_ai.rule_miro_ai_settings_company",
         "name": "MIRO AI Settings Multi-Company",
         "domain_force": "[('company_id', 'in', company_ids)]",
-        "filepath": "/home/user/odoo-17.0/addons/miro_ai/security/miro_ai_security.xml",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/miro_ai/security/miro_ai_security.xml",
         "lineno": 28,
         "perm_read": true,
         "perm_write": true,
@@ -154584,7 +154584,7 @@
         "xml_id": "miro_ai.rule_miro_ai_log_user",
         "name": "MIRO AI Log : Voir ses requêtes",
         "domain_force": "['&', ('user_id', '=', user.id), ('company_id', 'in', company_ids)]",
-        "filepath": "/home/user/odoo-17.0/addons/miro_ai/security/miro_ai_security.xml",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/miro_ai/security/miro_ai_security.xml",
         "lineno": 35,
         "perm_read": true,
         "perm_write": true,
@@ -154603,7 +154603,7 @@
         "xml_id": "miro_ai.rule_miro_ai_log_admin",
         "name": "MIRO AI Log : Admin voit tout",
         "domain_force": "[('company_id', 'in', company_ids)]",
-        "filepath": "/home/user/odoo-17.0/addons/miro_ai/security/miro_ai_security.xml",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/miro_ai/security/miro_ai_security.xml",
         "lineno": 43,
         "perm_read": true,
         "perm_write": true,
@@ -154945,7 +154945,7 @@
         "xml_id": "custom_credit_note_approval.rule_avoir_visibilite_departement",
         "name": "Avoirs - visibilite par departement (sauf managers)",
         "domain_force": "['|', ('move_type', '!=', 'out_refund'), '|', ('invoice_user_id', '=', user.id), ('journal_id.department_id', '=', user.employee_id.department_id.id)]",
-        "filepath": "/home/user/odoo-17.0/addons/custom_credit_note_approval/security/security_rules.xml",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_credit_note_approval/security/security_rules.xml",
         "lineno": 2,
         "perm_read": true,
         "perm_write": true,
@@ -154964,7 +154964,7 @@
         "xml_id": "custom_credit_note_visibility_rules.rule_avoir_multi_societe",
         "name": "Avoirs - cantonnement societe (regle globale, sans groupe)",
         "domain_force": "['|', ('move_type', '!=', 'out_refund'), ('company_id', '=', user.company_id.id)]",
-        "filepath": "/home/user/odoo-17.0/addons/custom_credit_note_visibility_rules/security/ir_rule_layered.xml",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_credit_note_visibility_rules/security/ir_rule_layered.xml",
         "lineno": 2,
         "perm_read": true,
         "perm_write": true,
@@ -154983,7 +154983,7 @@
         "xml_id": "custom_credit_note_visibility_rules.rule_avoir_visibilite_regionale",
         "name": "Avoirs - plafond visibilite regionale (50000e)",
         "domain_force": "['|', ('move_type', '!=', 'out_refund'), ('amount_total', '<=', 50000)]",
-        "filepath": "/home/user/odoo-17.0/addons/custom_credit_note_visibility_rules/security/ir_rule_layered.xml",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_credit_note_visibility_rules/security/ir_rule_layered.xml",
         "lineno": 8,
         "perm_read": true,
         "perm_write": true,
@@ -155002,7 +155002,7 @@
         "xml_id": "custom_credit_note_visibility_rules.rule_avoir_visibilite_nationale",
         "name": "Avoirs - visibilite nationale (illimitee)",
         "domain_force": "[(1, '=', 1)]",
-        "filepath": "/home/user/odoo-17.0/addons/custom_credit_note_visibility_rules/security/ir_rule_layered.xml",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_credit_note_visibility_rules/security/ir_rule_layered.xml",
         "lineno": 15,
         "perm_read": true,
         "perm_write": true,
@@ -155021,7 +155021,7 @@
         "xml_id": "custom_deep_inheritance_security.rule_deep_document_company",
         "name": "Documents Profonds - Cantonnement Société",
         "domain_force": "['|', ('company_id', '=', False), ('company_id', '=', user.company_id.id)]",
-        "filepath": "/home/user/odoo-17.0/addons/custom_deep_inheritance_security/security/security_rules.xml",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_deep_inheritance_security/security/security_rules.xml",
         "lineno": 5,
         "perm_read": true,
         "perm_write": true,
@@ -155040,7 +155040,7 @@
         "xml_id": "custom_deep_inheritance_security.rule_deep_document_complex_nested",
         "name": "Documents Profonds - Règle Imbriquée Complexe",
         "domain_force": "['&', '|', ('amount', '<=', 50000), ('user_id', '=', user.id), ('company_id', '=', user.company_id.id)]",
-        "filepath": "/home/user/odoo-17.0/addons/custom_deep_inheritance_security/security/security_rules.xml",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/custom_deep_inheritance_security/security/security_rules.xml",
         "lineno": 13,
         "perm_read": true,
         "perm_write": true,
@@ -198815,7 +198815,7 @@
         "xml_id": "miro_ai.menu_miro_ai_root",
         "name": "MIRO Assistant",
         "sequence": 50,
-        "filepath": "/home/user/odoo-17.0/addons/miro_ai/views/miro_ai_menus.xml",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/miro_ai/views/miro_ai_menus.xml",
         "action_ref": "",
         "behavioral_tags": [],
         "technical_tags": [],
@@ -198826,7 +198826,7 @@
         "xml_id": "miro_ai.menu_miro_ai_chat",
         "name": "Discussion Assistant",
         "sequence": 10,
-        "filepath": "/home/user/odoo-17.0/addons/miro_ai/views/miro_ai_menus.xml",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/miro_ai/views/miro_ai_menus.xml",
         "action_ref": "action_miro_ai_assistant",
         "behavioral_tags": [],
         "technical_tags": [],
@@ -198837,7 +198837,7 @@
         "xml_id": "miro_ai.menu_miro_ai_log",
         "name": "Journal des requêtes",
         "sequence": 20,
-        "filepath": "/home/user/odoo-17.0/addons/miro_ai/views/miro_ai_menus.xml",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/miro_ai/views/miro_ai_menus.xml",
         "action_ref": "action_miro_ai_log",
         "behavioral_tags": [
           "workflow_rule"
@@ -198850,7 +198850,7 @@
         "xml_id": "miro_ai.menu_miro_ai_config",
         "name": "Configuration",
         "sequence": 100,
-        "filepath": "/home/user/odoo-17.0/addons/miro_ai/views/miro_ai_menus.xml",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/miro_ai/views/miro_ai_menus.xml",
         "action_ref": "",
         "behavioral_tags": [],
         "technical_tags": [],
@@ -198861,7 +198861,7 @@
         "xml_id": "miro_ai.menu_miro_ai_settings_action",
         "name": "Paramètres",
         "sequence": 10,
-        "filepath": "/home/user/odoo-17.0/addons/miro_ai/views/miro_ai_menus.xml",
+        "filepath": "/home/user/odoo-ia-prototype/odoo_addons/miro_ai/views/miro_ai_menus.xml",
         "action_ref": "action_miro_ai_settings",
         "behavioral_tags": [],
         "technical_tags": [],

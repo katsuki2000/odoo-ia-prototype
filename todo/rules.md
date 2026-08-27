@@ -1,4 +1,5 @@
 corrige tout ce qui ne respecte pas ces règles
+faut que le projet soit scalable et interoperable : pas de "ça marche sur ma machine" -- aucun chemin absolu, ID numerique (ir.model.data/xml_id a la place), ou config specifique a un poste code en dur ; toute valeur machine-dependante passe par .env/variable d'env avec un fallback explicite (skip propre) si absente. cf. todo/contexte.txt sections 217 (chemins corpus) et 219 (IDs res.groups) pour deux cas reels de violation de cette regle
 plan est le plan à suivre, ça doit etre  une feuille de rout, doit pas etre pollué, le changement devrait etrer rare
 pas de fix chirurgical, voir la root cause
 ne remplis pas de commentaire dans le code , écris que si c necessaire et sois bref, tu as deja deja contexte et readme pour les details
