@@ -68,8 +68,6 @@ HF_TOKEN=hf_YOUR_HF_TOKEN_HERE
 EOF
 ```
 
-> **IMPORTANT** : The `.env` file is in `.gitignore` and is never pushed to GitHub. You must recreate it on each new machine with your own keys.
-
 ### Step 4 : Install Odoo 17 (if not already present)
 
 ```bash

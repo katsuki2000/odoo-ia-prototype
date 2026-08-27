@@ -17,9 +17,10 @@ from code_intelligence.semgrep_locks_analyzer import analyze_python_security_loc
 from code_intelligence.auxiliary_tools import list_involved_modules_with_role
 from code_intelligence.graph_builder import OdooGraphBuilder
 from code_intelligence.cross_file_resolver import ParsedModule, build_module_symbol_registry
+from code_intelligence.tests._corpus_paths import CUSTOM_ADDONS_PATH
 
 
-MODULE_PATH = Path("/home/user/odoo-17.0/addons/custom_deep_inheritance_security")
+MODULE_PATH = CUSTOM_ADDONS_PATH / "custom_deep_inheritance_security"
 
 
 def test_manifest_parsing():

@@ -32,6 +32,7 @@ from code_intelligence.cross_file_resolver import (
     topological_sort_modules,
     build_module_symbol_registry,
 )
+from code_intelligence.tests._corpus_paths import CORE_ADDONS_PATH, CUSTOM_ADDONS_PATH
 
 
 def test_topological_sort():
@@ -115,12 +116,11 @@ def test_inheritance_cycle_detection():
 def test_integration_a1_a2_real_corpus():
     """Test Task A2.1.5: Full A1+A2 two-pass resolution on real corpus modules."""
     root_dir = Path(__file__).resolve().parent.parent.parent.parent
-    corpus_root = Path("/home/user/odoo-17.0/addons")
 
     modules_dict = {}
 
     # Load miro_ai module
-    miro_ai_dir = Path("/home/user/odoo-17.0/addons") / "miro_ai"
+    miro_ai_dir = CUSTOM_ADDONS_PATH / "miro_ai"
     if miro_ai_dir.exists():
         manifest = parse_manifest(miro_ai_dir / "__manifest__.py")
         if manifest:
@@ -139,8 +139,8 @@ def test_integration_a1_a2_real_corpus():
             modules_dict["miro_ai"] = mod
 
     # Load sale module
-    sale_dir = corpus_root / "sale"
-    if sale_dir.exists():
+    sale_dir = CORE_ADDONS_PATH / "sale" if CORE_ADDONS_PATH else None
+    if sale_dir and sale_dir.exists():
         manifest_p = sale_dir / "__manifest__.py"
         manifest = parse_manifest(manifest_p) if manifest_p.exists() else OdooManifest(module_name="sale", filepath="", depends=["base"])
         mod = ParsedModule(manifest=manifest)

@@ -13,6 +13,7 @@ from code_intelligence.python_extractor import (
     extract_odoo_models_from_file,
     ModelRelationType,
 )
+from code_intelligence.tests._corpus_paths import CORE_ADDONS_PATH
 
 
 def run_module_python_extraction(module_path: Path):
@@ -81,10 +82,11 @@ def run_module_python_extraction(module_path: Path):
 
 def test_sale_module_integration():
     """Run integration test on sale module in addons/sale."""
-    corpus_root = Path("/home/user/odoo-17.0/addons")
-    sale_dir = corpus_root / "sale"
-
-    assert sale_dir.exists(), f"Corpus sale module dir does not exist: {sale_dir}"
+    if CORE_ADDONS_PATH is None:
+        pytest.skip("ODOO_CORE_ADDONS_PATH not set -- no real Odoo core corpus on this machine.")
+    sale_dir = CORE_ADDONS_PATH / "sale"
+    if not sale_dir.exists():
+        pytest.skip(f"Corpus sale module dir does not exist: {sale_dir}")
 
     metrics = run_module_python_extraction(sale_dir)
 
@@ -108,8 +110,9 @@ def test_sale_module_integration():
 
 def test_account_module_integration():
     """Run integration test on account module in addons/account."""
-    corpus_root = Path("/home/user/odoo-17.0/addons")
-    account_dir = corpus_root / "account"
+    if CORE_ADDONS_PATH is None:
+        pytest.skip("ODOO_CORE_ADDONS_PATH not set -- no real Odoo core corpus on this machine.")
+    account_dir = CORE_ADDONS_PATH / "account"
 
     if account_dir.exists():
         metrics = run_module_python_extraction(account_dir)

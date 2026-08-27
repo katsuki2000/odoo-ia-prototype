@@ -167,6 +167,11 @@ _GOVERNANCE_PATTERNS = [
     r"\bqui\s+a\s+(le\s+)?(droit|acces|accès|permission|pouvoir)\b",
     r"\bqui\s+est\s+autoris[eé]\b",
     r"\b(peut|peuvent)[-\s](il|elle|on|ils|elles)\s+(voir|acceder|accéder|modifier|supprimer|creer|créer)\b",
+    # Section 214: non-inverted French construction ("un utilisateur peut voir",
+    # subject before the verb) -- the pattern above only covers the inverted
+    # interrogative form ("peut-il voir"). Both ask the same access/permission
+    # question; only the word order differs.
+    r"\b(peut|peuvent)\s+(voir|acceder|accéder|modifier|supprimer|creer|créer|valider|approuver)\b",
     r"\b(a|ont)[-\s]t[-\s](il|elle|ils|elles)\s+le\s+droit\b",
     r"\b(verrou|verrouill[eé]|bloqu[eé]|interdit|restreint)\b",
     r"\b(regle|règle|ir\.rule|ir_rule|securite|sécurité|acl|permission)\b",
@@ -352,38 +357,108 @@ def generate_investigation_plan(
     # ── Intent-Specific Investigation Step Strategy ──────────────────────────
 
     if intent == QuestionIntent.GOVERNANCE_SECURITY:
-        # 1. ACL permissions
-        steps.append(
-            InvestigationStep(
-                action=PlanAction.WHO_HAS_ACCESS_TO,
-                target=primary_model,
-                justification=f"Évaluer la matrice des droits d'accès ACL (ir.model.access) pour {primary_model}",
-                behavioral_focus=BehavioralTag.VISIBILITY_RULE,
-                technical_focus=TechnicalTag.ACL,
-            )
+        # Bloc P1 Jour 6 (todo/contexte.txt section 209): these gates now reuse
+        # the EXACT SAME predicate functions as the real deterministic
+        # pre-dispatch in code_intelligence/ci_agent_node.py, instead of a
+        # second, independently-drifting set of regexes/keyword lists. This
+        # closes the plan/execution divergence found before Jour 6 (e.g. a
+        # question using "modifier"/"supprimer" was classified GOVERNANCE_SECURITY
+        # by intent but never triggered who_has_access_to in real dispatch,
+        # which only recognizes "voir/accéder/consulter/lire/visualiser").
+        # Scope of this alignment, per explicit decision: only the 4 categories
+        # already identified as common and stable across both sides (accès,
+        # approbation/gouvernance, automatisation/contournement, verrous
+        # structurels) -- the QuestionIntent classification itself (which
+        # bucket a question falls into) stays a Planner-only heuristic, since
+        # it has no operational equivalent on the execution side.
+        from code_intelligence.ci_helpers import (
+            _question_is_access_related,
+            _question_is_approval_related,
+            _question_suggests_automation_bypass,
+            _extract_amount,
         )
-        # 2. Record rules
-        steps.append(
-            InvestigationStep(
-                action=PlanAction.EVALUATE_RECORD_RULES,
-                target=primary_model,
-                justification=f"Évaluer les règles d'enregistrement actives (ir.rule) et filtrages multi-sociétés sur {primary_model}",
-                behavioral_focus=BehavioralTag.VISIBILITY_RULE,
-                technical_focus=TechnicalTag.RECORD_RULE,
+
+        is_access_related = _question_is_access_related(question)
+        is_approval_related = _question_is_approval_related(question)
+        is_automation_bypass = _question_suggests_automation_bypass(question)
+        amount = _extract_amount(question)
+
+        # Structural graph checks -- mirror the same structural guards used by
+        # ci_agent_node.py's forced pre-dispatch (find_security_lock_source_files/
+        # find_server_action_nodes/find_methods_with_override_cascade) so the
+        # plan never promises a step the real dispatch structurally cannot
+        # fire. Bloc P1 Jour 6 (todo/contexte.txt section 210): call the same
+        # forced_dispatch_predicates wrapper functions the real pre-dispatch
+        # uses, instead of a second, independently-maintained per-model loop
+        # around the same underlying ci_agent_tools finders. Conservative
+        # defaults below apply whenever G is unavailable (e.g. unit tests
+        # exercising generate_investigation_plan without a real graph) --
+        # never crash plan generation on a missing graph.
+        has_security_lock_source = True  # conservative: assume present without a graph to check against
+        has_server_action_nodes = False
+        has_override_cascade = False
+        if G is not None:
+            try:
+                from code_intelligence.forced_dispatch_predicates import (
+                    security_locks_targets,
+                    server_actions_targets,
+                    override_chain_targets,
+                )
+                has_security_lock_source = primary_model in security_locks_targets(concept, G)
+                has_server_action_nodes = primary_model in server_actions_targets(question, concept, G)
+                has_override_cascade = any(
+                    m == primary_model for m, _ in override_chain_targets(question, concept, G)
+                )
+            except Exception:
+                # Never let a graph-lookup failure break plan generation --
+                # degrade to the conservative defaults set above.
+                pass
+
+        # 1. ACL permissions -- gated on the same access-related detector as
+        # who_has_access_to's real forced pre-dispatch.
+        if is_access_related:
+            steps.append(
+                InvestigationStep(
+                    action=PlanAction.WHO_HAS_ACCESS_TO,
+                    target=primary_model,
+                    justification=f"Évaluer la matrice des droits d'accès ACL (ir.model.access) pour {primary_model}",
+                    behavioral_focus=BehavioralTag.VISIBILITY_RULE,
+                    technical_focus=TechnicalTag.ACL,
+                )
             )
-        )
-        # 3. Python security locks
-        steps.append(
-            InvestigationStep(
-                action=PlanAction.ANALYZE_SECURITY_LOCKS,
-                target=primary_model,
-                justification=f"Scanner les verrous Python, exceptions levées et contournements de groupe dans {primary_model}",
-                behavioral_focus=BehavioralTag.BLOCKING_RULE,
-                technical_focus=TechnicalTag.CONSTRAINT,
+
+        # 2. Record rules -- real dispatch additionally requires an
+        # extractable monetary amount before firing evaluate_record_rules.
+        if is_access_related and amount is not None:
+            steps.append(
+                InvestigationStep(
+                    action=PlanAction.EVALUATE_RECORD_RULES,
+                    target=primary_model,
+                    justification=f"Évaluer les règles d'enregistrement actives (ir.rule) et filtrages multi-sociétés sur {primary_model}",
+                    behavioral_focus=BehavioralTag.VISIBILITY_RULE,
+                    technical_focus=TechnicalTag.RECORD_RULE,
+                )
             )
-        )
-        # 4. If amount present, add can_view_amount_v2 step
-        if any(w in question.lower() for w in ("montant", "€", "euro", "seuil", "plafond", "000")):
+
+        # 3. Python security locks -- real dispatch fires this independently
+        # of question wording, gated only by the structural presence of
+        # lock-relevant source files on the model.
+        if has_security_lock_source:
+            steps.append(
+                InvestigationStep(
+                    action=PlanAction.ANALYZE_SECURITY_LOCKS,
+                    target=primary_model,
+                    justification=f"Scanner les verrous Python, exceptions levées et contournements de groupe dans {primary_model}",
+                    behavioral_focus=BehavioralTag.BLOCKING_RULE,
+                    technical_focus=TechnicalTag.CONSTRAINT,
+                )
+            )
+
+        # 4. can_view_amount_v2 -- tightly coupled to evaluate_record_rules in
+        # real dispatch (same access-related + amount gate); replaces the
+        # previous ad hoc keyword list ("montant", "€", "000"...) with the
+        # same shared amount extractor used everywhere else in the pipeline.
+        if is_access_related and amount is not None:
             steps.append(
                 InvestigationStep(
                     action=PlanAction.CAN_VIEW_AMOUNT,
@@ -391,6 +466,57 @@ def generate_investigation_plan(
                     justification=f"Calculer le verdict déterministe de visibilité avec montant sur {primary_model}",
                     behavioral_focus=BehavioralTag.VISIBILITY_RULE,
                     technical_focus=TechnicalTag.RECORD_RULE,
+                )
+            )
+
+        # 5. Method override chain -- real dispatch fires this when the
+        # question reads as approval-related AND a real override cascade
+        # exists on the model (new step for this branch: previously only
+        # reachable via the CALCULATION_LOGIC/INHERITANCE_STRUCTURE intents,
+        # even though real dispatch triggers it independently of intent).
+        if is_approval_related and has_override_cascade:
+            steps.append(
+                InvestigationStep(
+                    action=PlanAction.ANALYZE_METHOD_OVERRIDE_CHAIN,
+                    target=primary_model,
+                    justification=f"Vérifier si un override cascade dilue ou contredit une condition d'approbation sur {primary_model}",
+                    behavioral_focus=BehavioralTag.APPROVAL_RULE,
+                    technical_focus=None,
+                )
+            )
+
+        # 6. Server actions -- real dispatch fires this when the question
+        # suggests an automation/bypass AND ServerAction nodes exist on the
+        # model (new step for this branch, same rationale as #5 above).
+        if is_automation_bypass and has_server_action_nodes:
+            steps.append(
+                InvestigationStep(
+                    action=PlanAction.ANALYZE_SERVER_ACTIONS,
+                    target=primary_model,
+                    justification=f"Vérifier si une action serveur ou automatisation contourne la condition évoquée sur {primary_model}",
+                    behavioral_focus=BehavioralTag.NOTIFICATION_RULE,
+                    technical_focus=TechnicalTag.SERVER_ACTION,
+                )
+            )
+
+        if not steps:
+            # Never ship an empty plan for a governance-classified question --
+            # same "always at least one step" contract as the no-model
+            # fallback above. Can legitimately happen when a governance-worded
+            # question resolves to a model with no lock source, no override
+            # cascade, no server actions, and no access/amount signal
+            # recognized by the shared detectors.
+            steps.append(
+                InvestigationStep(
+                    action=PlanAction.WHO_HAS_ACCESS_TO,
+                    target=primary_model,
+                    justification=(
+                        f"Aucun signal d'accès/approbation/automatisation/verrou structurel "
+                        f"détecté par les détecteurs partagés pour {primary_model} -- "
+                        f"vérification de base des permissions par défaut"
+                    ),
+                    behavioral_focus=BehavioralTag.VISIBILITY_RULE,
+                    technical_focus=TechnicalTag.ACL,
                 )
             )
 

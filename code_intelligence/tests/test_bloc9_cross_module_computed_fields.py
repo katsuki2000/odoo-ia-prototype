@@ -44,9 +44,10 @@ from code_intelligence.deterministic_tools import field_change_impact
 from code_intelligence.graph_builder import OdooGraphBuilder
 from code_intelligence.manifest_parser import parse_manifest
 from code_intelligence.python_extractor import extract_odoo_models_from_file
+from code_intelligence.tests._corpus_paths import CUSTOM_ADDONS_PATH
 
 
-ADDONS_PATH = Path("/home/user/odoo-17.0/addons")
+ADDONS_PATH = CUSTOM_ADDONS_PATH
 REAL_MODULES = [
     "custom_expense_risk_base",
     "custom_expense_risk_score",

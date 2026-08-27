@@ -303,3 +303,219 @@ Ecart net, mesurable, verifie avant d'ecrire la moindre assertion (pas de test i
 **Tests** : 332 passed, 0 failed. DOC-08 et tous H4 verts.
 
 **Statut** : `GOVERNANCE_SIGNAL_TERMS` et `_concept_suggests_code_intelligence` n'existent plus dans le code executable. Critere de fin Bloc P1 satisfait.
+
+---
+
+## Section 209: Constat -- cablage backend du Jour 5 (exposition d'`investigation_plan` dans `AssistantResponse`) deja present sur disque, jamais documente ici -- ecart de tracabilite du journal, pas un ecart de sequencement (2026-08-27, nouveau PC/chemin `/media/donnee/projets/odoo-ia-prototype`, acces filesystem uniquement)
+
+**Origine** : reprise de session sur un nouveau PC. Avant toute action, relecture de `contexte.txt` (jusqu'a la section 208) et de `plan.md` en entier, conformement a la discipline du projet.
+
+**Constat (lecture directe de `core/graph.py::format_output`)** :
+```python
+if response:
+    response.route = route
+    response.resolved_concept = state.get("resolved_concept")
+    response.evidence_status = state.get("evidence_status")
+    response.investigation_plan = state.get("investigation_plan")
+```
+Cette ligne propage deja `state["investigation_plan"]` (produit par `route()` via `generate_investigation_plan(...).to_display_dict()`, confirme present dans `core/routing.py::route()` par lecture directe) jusqu'a `AssistantResponse.investigation_plan` -- exactement l'objectif backend du Bloc P1 Jour 5 ("exposer le plan dans la reponse finale").
+
+**Ecart identifie** : ni la section 205 (qui liste precisement 3 fichiers modifies : `investigation_plan.py`, `core/schemas.py`, le fichier de tests) ni la section 208 (qui liste 3 actions precises : fix regression DOC-08, migration d'un script, nettoyage de `__pycache__`) ne mentionnent une modification de `core/graph.py`/`format_output`. Cette ligne existe donc sur disque sans trace ecrite de quand ni par quelle session elle a ete ajoutee -- soit une omission de journalisation lors d'une session anterieure, soit une reutilisation du pattern deja etabli pour `resolved_concept`/`evidence_status` (ajoutes lors de blocs anterieurs) faite en meme temps que l'ajout du champ au schema (section 205) sans etre listee separement. Aucune investigation git/historique menee pour trancher lequel -- constat de lecture seul, aucune ecriture.
+
+**Ce n'est PAS un ecart de sequencement P1/P2** (contrairement a une hypothese initiale de cette session, formulee avant lecture complete de `plan.md` et de `contexte.txt` sections 168-181/204) -- ecartee : Bloc P2, sections 168-181, etait deja clos et re-confirme 36/36 en section 204 avant que P1 Jour 1-2 (section 205) ne commence. L'ordre P2->P1->P3 de la PARTIE 11 du plan a bien ete respecte.
+
+**Portee** : le volet backend du Jour 5 est fonctionnellement satisfait (le plan est bien un champ serialise de `AssistantResponse`, pret a etre consomme). Le volet UI du Jour 5 (afficher le plan dans le chevron "niveau verification" du widget Discuss) reste hors perimetre de ce depot (l'UI standalone a ete retiree, integration Odoo non entamee -- voir memoire de session). Reste donc a faire pour cloturer P1 : le Jour 6 dans son integralite (test de coherence plan/execution, rejeu du benchmark adversarial complet des 8 modules Bloc 9, verification ciblee H4 + DOC-08).
+
+**Non fait ce tour** : aucune ecriture de code. Le fix de `classify_question_intent` (workflow de validation, section precedente de cette meme session) est sans rapport avec ce constat.
+
+**Prochaine etape** : Bloc P1 Jour 6 -- concevoir et ecrire un test de coherence plan/execution (le plan produit par `generate_investigation_plan()` correspond-il aux outils reellement invoques par `code_intelligence_agent` sur les memes questions ?), puis rejouer le benchmark adversarial complet (8 modules Bloc 9) et verifier specifiquement l'absence de regression sur les 5 questions H4 et le contre-exemple DOC-08.
+
+---
+
+## Section 210: Constat -- `code_intelligence/forced_dispatch_predicates.py` (module de detection partagee Plan/execution, Jour 6) deja present sur disque et deja cable des 2 cotes pour 3 des 4 categories -- 2 points de duplication residuelle identifies, aucune ecriture ce tour, decision utilisateur obtenue pour les traiter (option 1 : fonctions de detection partagees, puis test de coherence) (2026-08-27, meme PC, acces filesystem uniquement)
+
+**Origine** : reprise de session -- relecture de `contexte.txt` (jusqu'a la section 209) et `plan.md` en entier conformement a la discipline du projet, puis lecture directe de `code_intelligence/forced_dispatch_predicates.py`, `investigation_plan.py`, et `ci_agent_node.py` pour verifier l'etat reel avant toute action, suite a une note ecarte de journalisation deja relevee section 209.
+
+**Constat (lecture directe)** : `forced_dispatch_predicates.py` existe deja sur disque (docstring citant explicitement "todo/contexte.txt section 209-210 (Bloc P1 Jour 6)"), sans qu'aucune section 210 n'existe encore dans ce journal -- meme pattern d'ecart de tracabilite que la section 209 (travail effectue, jamais journalise ici). Le module expose 4 fonctions -- une par categorie stable identifiee (acces : `who_has_access_targets`, approbation/gouvernance : `override_chain_targets`, automatisation/contournement : `server_actions_targets`, verrous structurels : `security_locks_targets`) -- chacune reutilisant les memes detecteurs de `ci_helpers.py` (`_question_is_access_related`, `_question_is_approval_related`, `_question_suggests_automation_bypass`) que le pre-dispatch reel.
+
+**Cablage cote execution (`ci_agent_node.py`)** : 3 des 4 fonctions sont deja importees et utilisees telles quelles dans les blocs de pre-dispatch deterministe (`security_locks_targets`, `server_actions_targets`, `override_chain_targets`). Le 4e bloc (dispatch de `who_has_access_to`) N'IMPORTE PAS `who_has_access_targets` -- il reimplemente en ligne exactement la meme logique (`_question_is_access_related(question)` puis exclusion des modeles deja `security_locks_targets`-gouvernes), sans passer par la fonction partagee censee etre la source unique de verite pour cette categorie.
+
+**Cablage cote Planner (`investigation_plan.py::generate_investigation_plan`, branche `GOVERNANCE_SECURITY`)** : le commentaire inline de cette branche revendique explicitement la reutilisation des "EXACT SAME predicate functions" que le pre-dispatch reel, et importe bien les 3 detecteurs de bas niveau de `ci_helpers.py` -- mais pour les verifications structurelles (presence de fichiers de verrou / noeuds ServerAction / cascade d'override), il rappelle directement `find_security_lock_source_files`/`find_server_action_nodes`/`find_methods_with_override_cascade` de `ci_agent_tools.py` dans un bloc `try/except` local, au lieu d'appeler directement `security_locks_targets`/`server_actions_targets`/`override_chain_targets` de `forced_dispatch_predicates.py`. C'est une duplication de l'enveloppe (le "pour chaque modele resolu, verifier ceci"), pas des detecteurs eux-memes -- moins grave que si les regex avaient diverge, mais toujours deux implementations paralleles d'une meme regle a maintenir.
+
+**Portee** : le risque de derive concret vise par le Jour 6 (une categorie ou le Planner et l'execution reelle en viendraient a diverger silencieusement) est deja largement referme pour les detecteurs eux-memes -- les 4 fonctions de `forced_dispatch_predicates.py` sont la source unique de verite et sont deja utilisees par au moins un des deux cotes chacune. Les 2 points releves ci-dessus sont des residus de duplication d'enveloppe, pas des divergences de regle deja constatees -- mais restent exactement le type de duplication que la regle du projet ("reduction de duplication avant changement de comportement") demande de traiter avant d'ecrire le test de coherence Jour 6, pour que ce test verifie un cablage reellement unifie plutot que deux chemins paralleles qui se trouvent actuellement d'accord par coincidence.
+
+**Decision utilisateur (ce tour)** : option 1 retenue -- garder les fonctions de detection deja partagees pour les 4 categories communes/stables (acces, approbation/gouvernance, automatisation/contournement, verrous structurels), ne PAS toucher aux heuristiques specifiques au Planner qui n'ont pas d'equivalent cote execution (la classification `QuestionIntent` elle-meme, deja documentee comme Planner-only dans le commentaire existant de `generate_investigation_plan`), puis ecrire le test de coherence Jour 6 une fois cette factorisation completee.
+
+**Non fait ce tour** : aucune ecriture de code -- diagnostic seul. Les 2 diffs proposes (faire utiliser `who_has_access_targets` par le bloc `who_has_access_to` de `ci_agent_node.py` ; faire utiliser `security_locks_targets`/`server_actions_targets`/`override_chain_targets` par `generate_investigation_plan` au lieu de rappeler directement les fonctions de `ci_agent_tools.py`) restent a rediger et executer en dryRun avant application. Le test de coherence Jour 6 lui-meme (comparer le plan produit et les outils reellement invoques sur les memes questions) reste a concevoir.
+
+**Prochaine etape** : rediger les 2 diffs cibles (dryRun puis edit reel sur mandat), rejouer la suite pytest ciblee sur `code_intelligence/tests/test_bloc_p1_j1_2_investigation_plan.py` et les fichiers de tests touchant le pre-dispatch (`test_j8_deterministic_dispatch.py`, `test_s2_9_domain_force_evaluator.py`) pour verifier l'absence de regression, puis ecrire le test de coherence plan/execution du Jour 6.
+
+---
+
+## Section 211: Diff 1/2 (mandat "oui commence par 1") -- `ci_agent_node.py`, bloc `who_has_access_to` cable sur `who_has_access_targets` -- dryRun puis edit reel, fichier relu integralement + `py_compile` OK -- EN ATTENTE d'execution reelle par l'utilisateur (2026-08-27, meme PC, acces filesystem uniquement)
+
+**Origine** : mandat explicite ("oui commence par 1") -- diff 1 propose section 210.
+
+**Correctif ecrit (dryRun puis edit reel via `Filesystem:edit_file`, un seul fichier, une seule zone touchee)** : dans le bloc de pre-dispatch deterministe de `who_has_access_to` (`ci_agent_node.py`), la boucle qui decidait "sur quels modeles dispatcher" en filtrant `concept.resolved_models` contre `_lock_governed_models` en ligne est remplacee par un appel direct a `who_has_access_targets(question, concept, G)` (import ajoute depuis `forced_dispatch_predicates`). `skipped_lock_governed_models` (utilisee ensuite pour la note `[SCOPING NOTE]` du system prompt) est desormais calculee par comprehension de liste au lieu d'un `continue` dans la boucle de dispatch -- meme resultat, plus de duplication de la regle d'exclusion elle-meme. Garde exterieure `_question_is_access_related(question)` conservee telle quelle (evite l'import/la construction de `tool_map` quand la question n'est pas access-related ; `who_has_access_targets` refait de toute facon ce meme test en interne, donc aucune perte de coherence a la garder aussi a l'exterieur).
+
+**Verification post-edit** : fichier entier relu (`Filesystem:read_text_file`, pas de `view_range` -- fichier copie puis compare visuellement) -- seule la zone attendue est modifiee, tout le reste identique caractere pour caractere (imports, les 3 autres blocs de pre-dispatch inchanges, boucle ReAct, synthese, backfills, timing). Fichier copie vers le filesystem de Claude (`copy_file_user_to_claude`) et `python3 -m py_compile` -- OK, aucune erreur de syntaxe.
+
+**Non fait ce tour** : aucune execution reelle (acces filesystem uniquement) -- ni la suite pytest ciblee, ni le diff 2 (`investigation_plan.py` vers les 3 fonctions de `forced_dispatch_predicates.py`), qui reste a rediger sur mandat separe.
+
+**Prochaine etape** : l'utilisateur rejoue la suite pytest ciblee (`test_j8_deterministic_dispatch.py`, `test_s2_9_domain_force_evaluator.py`, et tout autre fichier touchant `who_has_access_to`/le pre-dispatch) et colle la sortie complete -- attendu : zero regression, le comportement observable etant inchange. Si confirme, passer au diff 2.
+
+---
+
+## Section 212: Diff 1/2 CONFIRME sans regression par execution reelle -- 3/3 et 27/27 verts -- passage au diff 2 (2026-08-27, meme PC, sortie complete collee par l'utilisateur)
+
+**Origine** : l'utilisateur a execute `pytest code_intelligence/tests/test_j8_deterministic_dispatch.py` et `pytest code_intelligence/tests/test_s2_9_domain_force_evaluator.py -v` apres le correctif de la section 211 et colle la sortie complete.
+
+**Resultat** : `3 passed in 77.13s` (test_j8_deterministic_dispatch.py) et `27 passed in 0.93s` (test_s2_9_domain_force_evaluator.py) -- aucune regression. Confirme que le remplacement de la boucle d'exclusion en ligne par `who_has_access_targets(question, concept, G)` dans le bloc de pre-dispatch de `who_has_access_to` (section 211) ne change aucun comportement observable teste.
+
+**Portee** : diff 1/2 desormais clos -- corrige (section 211) et verrouille par execution reelle (cette section). Passage au diff 2 (`investigation_plan.py::generate_investigation_plan`, branche `GOVERNANCE_SECURITY` : remplacer les 3 appels directs a `find_security_lock_source_files`/`find_server_action_nodes`/`find_methods_with_override_cascade` de `ci_agent_tools.py` par des appels a `security_locks_targets`/`server_actions_targets`/`override_chain_targets` de `forced_dispatch_predicates.py`).
+
+**Non fait ce tour** : aucune ecriture -- constat d'execution uniquement.
+
+**Prochaine etape** : rediger le diff 2 (dryRun puis edit reel), relire le fichier entier, verifier `py_compile`, puis demander a l'utilisateur de rejouer `pytest code_intelligence/tests/test_bloc_p1_j1_2_investigation_plan.py -v`.
+
+---
+
+## Section 213: Diff 2/2 -- `investigation_plan.py::generate_investigation_plan` (branche GOVERNANCE_SECURITY) cable sur `security_locks_targets`/`server_actions_targets`/`override_chain_targets` au lieu des finders bruts de `ci_agent_tools.py` -- dryRun puis edit reel, `py_compile` OK -- EN ATTENTE d'execution reelle par l'utilisateur (2026-08-27, meme PC, acces filesystem uniquement)
+
+**Origine** : diff 2 propose section 210, mandat implicite de la sequence "2 diffs" deja actee (section 210/211), diff 1 confirme sans regression (section 212).
+
+**Correctif ecrit (dryRun puis edit reel via `Filesystem:edit_file`, un seul fichier, un seul bloc touche)** : dans `generate_investigation_plan`, branche `GOVERNANCE_SECURITY`, les 3 verifications structurelles (`has_security_lock_source`, `has_server_action_nodes`, `has_override_cascade`) rappelaient directement `find_security_lock_source_files`/`find_server_action_nodes`/`find_methods_with_override_cascade` de `ci_agent_tools.py` -- remplace par un appel aux 3 fonctions partagees de `forced_dispatch_predicates.py` (`security_locks_targets`, `server_actions_targets`, `override_chain_targets`) puis test d'appartenance de `primary_model` au resultat.
+
+**Verification d'equivalence semantique (avant edit, pas seulement apres)** : `security_locks_targets(concept, G)` n'a aucune condition sur le libelle de la question (comme l'ancien `find_security_lock_source_files` direct) -- equivalence stricte. `server_actions_targets(question, concept, G)` et `override_chain_targets(question, concept, G)` embarquent en interne le meme gate que l'appelant (`_question_suggests_automation_bypass`/`_question_is_approval_related`) -- mais comme ces deux booleens structurels ne sont utilises plus loin que dans des conditions composees deja gardees explicitement par `is_automation_bypass`/`is_approval_related` (`if is_automation_bypass and has_server_action_nodes:` / `if is_approval_related and has_override_cascade:`), le gate desormais duplique a l'interieur de la fonction partagee ne change pas le resultat de la conjonction -- verifie a la main avant d'ecrire le diff, pas suppose.
+
+**Verification post-edit** : fichier copie vers le filesystem de Claude et `python3 -m py_compile` -- OK, aucune erreur de syntaxe. Diff `edit_file` confirme qu'aucune autre ligne du fichier n'est touchee (les enums, schemas Pydantic, `classify_question_intent`, et les autres branches d'intention restent identiques).
+
+**Non fait ce tour** : aucune execution reelle (acces filesystem uniquement) -- la suite `test_bloc_p1_j1_2_investigation_plan.py` (24 tests, section 206) n'a pas ete rejouee pour confirmer l'absence de regression malgre l'equivalence verifiee par lecture. Le test de coherence plan/execution du Jour 6 lui-meme reste a concevoir -- desormais le moment naturel de le faire, les deux cotes (Planner et execution) partageant enfin le meme point d'entree pour les 4 categories stables.
+
+**Prochaine etape** : l'utilisateur rejoue `pytest code_intelligence/tests/test_bloc_p1_j1_2_investigation_plan.py -v` et colle la sortie complete -- attendu : 24/24 verts, sans regression. Si confirme, les 2 diffs de factorisation (section 210) sont clos ; concevoir et ecrire le test de coherence plan/execution du Jour 6.
+
+---
+
+## Section 214: Diffs 1 et 2 CONFIRMES sans regression -- 23/24 verts, l'unique echec est PREEXISTANT et SANS RAPPORT avec les 2 diffs de factorisation (touche `classify_question_intent`, fonction non modifiee par cette session) -- root cause probable identifiee par lecture (section 208), non corrigee, en attente de decision utilisateur (2026-08-27, meme PC, sortie complete collee par l'utilisateur)
+
+**Origine** : l'utilisateur a execute `pytest code_intelligence/tests/test_bloc_p1_j1_2_investigation_plan.py -v` apres le diff 2 (section 213) et colle la sortie complete.
+
+**Resultat brut** : `1 failed, 23 passed in 1.04s`. Seul echec : `test_classify_question_intent_patterns[Est-ce qu'un utilisateur peut voir ce document ?-governance_security]` -- attendu `GOVERNANCE_SECURITY`, obtenu `DOCUMENTARY_POLICY`.
+
+**Verification explicite de l'absence de lien avec les diffs 210-213** : l'echec porte sur `classify_question_intent()` -- ni le diff 1 (`ci_agent_node.py`, boucle `who_has_access_to`) ni le diff 2 (`generate_investigation_plan`, verifications structurelles `has_security_lock_source`/`has_server_action_nodes`/`has_override_cascade`) ne touchent cette fonction, verifie par lecture directe des deux diffs appliques (aucune ligne de `classify_question_intent` dans l'un ou l'autre). Les 23 autres tests du fichier -- dont les 4 tests `test_generate_investigation_plan_*` qui exercent directement la branche modifiee par le diff 2 -- sont tous verts, confirmant l'equivalence semantique du diff 2 pour les 4 cas couverts (gouvernance+montant, workflow, calcul, concept non resolu).
+
+**Cause probable de l'echec (lecture directe, non corrigee)** : la section 208 a delibrement remplace le fallback par defaut de `classify_question_intent` -- avant : un concept resolu sans pattern explicite retombait sur `GOVERNANCE_SECURITY` (regression DOC-08) ; depuis section 208 : retour universel vers `DOCUMENTARY_POLICY` quand aucun pattern ne matche. Le cas de test en echec ("Est-ce qu'un utilisateur peut voir ce document ?") ne matche aucun `_GOVERNANCE_PATTERNS` actuel -- en particulier le pattern le plus proche, `r"\b(peut|peuvent)[-\s](il|elle|on|ils|elles)\s+(voir|...)\b"`, exige la tournure inversee "peut-il/peut-elle voir", absente ici ("un utilisateur peut voir", sujet avant le verbe). Ce cas ne passait donc qu'a la faveur de l'ancien fallback, avant le changement delibere de la section 208 -- le test parametrise n'a apparemment jamais ete mis a jour en consequence. Hypothese de lecture, non confirmee par l'historique git (non consulte ce tour).
+
+**Portee** : les diffs 1 et 2 (sections 211/213) sont desormais consideres clos et verrouilles par execution reelle -- la factorisation des 4 categories partagees (acces, approbation/gouvernance, automatisation/contournement, verrous structurels) entre le Planner et le pre-dispatch reel est complete, sans regression imputable. L'echec releve ici est un ecart distinct, deja latent depuis la section 208, mis en lumiere seulement maintenant par ce rejeu -- **hors mandat de ce tour** (factorisation des detecteurs, pas revision des patterns de `classify_question_intent`).
+
+**Non fait ce tour** : aucune ecriture pour corriger cet ecart -- ni mise a jour du pattern regex, ni mise a jour du cas de test attendu. Le test de coherence plan/execution du Jour 6 reste a concevoir.
+
+**Prochaine etape** : decision utilisateur -- (a) traiter cet ecart isole maintenant (choisir entre etendre `_GOVERNANCE_PATTERNS` pour couvrir "sujet + peut/peuvent + voir/acceder/..." sans inversion, ou mettre a jour l'attente du test s'il s'avere que `DOCUMENTARY_POLICY` est en realite le bon comportement pour ce cas precis) ; (b) le laisser en dette technique separee et enchainer directement sur la conception du test de coherence plan/execution du Jour 6.
+
+---
+
+## Section 215: Ecart section 214 CORRIGE -- `_GOVERNANCE_PATTERNS` etendu avec la construction francaise non inversee ("sujet peut/peuvent voir/...") -- dryRun puis edit reel, `py_compile` OK + simulation manuelle des 14 cas critiques -- EN ATTENTE d'execution reelle par l'utilisateur (2026-08-27, meme PC, acces filesystem uniquement)
+
+**Origine** : mandat explicite ("a") -- decision de traiter l'ecart de la section 214 maintenant plutot que de le laisser en dette separee.
+
+**Diagnostic prealable** : le test en echec attend `GOVERNANCE_SECURITY` pour "Est-ce qu'un utilisateur peut voir ce document ?", ce qui est semantiquement correct (question de permission/visibilite) -- le bon correctif est donc d'etendre le pattern manquant, pas de corriger l'attente du test. Le pattern existant `r"\b(peut|peuvent)[-\s](il|elle|on|ils|elles)\s+(voir|...)\b"` exige la tournure inversee francaise ("peut-il voir") -- absente ici, la question utilisant "Est-ce que + sujet + peut + verbe" (pas d'inversion).
+
+**Correctif ecrit (dryRun puis edit reel via `Filesystem:edit_file`, un seul fichier, une seule ligne ajoutee)** : nouveau pattern ajoute a `_GOVERNANCE_PATTERNS` dans `investigation_plan.py` : `r"\b(peut|peuvent)\s+(voir|acceder|accéder|modifier|supprimer|creer|créer|valider|approuver)\b"` -- couvre la construction non inversee ("un utilisateur peut voir", sujet avant le verbe), en plus de "valider"/"approuver" pour couvrir des formulations similaires non testees explicitement mais dans le meme esprit.
+
+**Verification d'impact (avant edit, sur les 14 questions concernees par les patterns gouvernance/workflow -- pas seulement le cas en echec)** : simulation manuelle en Python de `_fold_accents` + comptage `governance_hits`/`workflow_hits` sur les 11 cas de `test_classify_question_intent_patterns` + les 3 questions utilisees par `test_generate_investigation_plan_*` -- tous les resultats correspondent a l'intention attendue, y compris les 2 cas ou `workflow_hits>=1` ET `governance_hits` a augmente (la logique de decision fait deja gagner le workflow des que `workflow_hits>=1`, independamment de `governance_hits` -- verifie, pas suppose). `py_compile` OK.
+
+**Non fait ce tour** : aucune execution reelle de la suite pytest (acces filesystem uniquement) -- la simulation manuelle n'est pas un substitut a l'execution reelle du fichier de test complet (imports reels, autres fonctions du module, comportement de `ResolvedConcept`, etc., non exerces par cette simulation isolee des seules regex).
+
+**Prochaine etape** : l'utilisateur rejoue `pytest code_intelligence/tests/test_bloc_p1_j1_2_investigation_plan.py -v` et colle la sortie complete -- attendu : 24/24 verts cette fois. Si confirme, les diffs 1, 2, et ce correctif de pattern sont tous clos ; concevoir et ecrire le test de coherence plan/execution du Jour 6.
+
+---
+
+## Section 216: Diffs 1, 2, et correctif de pattern (section 215) TOUS CONFIRMES sans regression -- 24/24 verts -- factorisation Plan/execution (4 categories) et l'ecart de pattern preexistant sont clos (2026-08-27, meme PC, sortie complete collee par l'utilisateur)
+
+**Origine** : l'utilisateur a execute `pytest code_intelligence/tests/test_bloc_p1_j1_2_investigation_plan.py -v` apres le correctif de la section 215 et colle la sortie complete.
+
+**Resultat** : `24 passed in 0.23s` -- tous les tests verts, y compris `test_classify_question_intent_patterns[Est-ce qu'un utilisateur peut voir ce document ?-governance_security]` (le cas en echec section 214, desormais corrige).
+
+**Portee** : l'ensemble du chantier de factorisation ouvert section 210 est desormais clos et verrouille par execution reelle :
+- Diff 1 (section 211/212) : `ci_agent_node.py`, bloc `who_has_access_to` cable sur `who_has_access_targets`.
+- Diff 2 (section 213/214) : `investigation_plan.py::generate_investigation_plan` cable sur `security_locks_targets`/`server_actions_targets`/`override_chain_targets`.
+- Correctif de pattern (section 215/216) : `_GOVERNANCE_PATTERNS` etendu a la construction francaise non inversee, ecart preexistant depuis la section 208 mis en lumiere par le rejeu de la section 214.
+
+Les 4 categories stables (acces, approbation/gouvernance, automatisation/contournement, verrous structurels) partagent desormais un unique point de verite (`forced_dispatch_predicates.py`) cote Planner ET cote execution reelle -- le risque de derive silencieuse vise par le Jour 6 est ferme pour ces 4 categories.
+
+**Non fait ce tour** : aucune ecriture -- constat d'execution uniquement. Pas de rejeu de la suite complete `code_intelligence/tests/` (461 tests) pour verifier l'absence de regression au-dela de ce seul fichier -- les 2 diffs et le correctif de pattern sont geographiquement isoles (un bloc de `ci_agent_node.py`, un bloc + une ligne de `investigation_plan.py`), mais aucune confirmation formelle sur l'ensemble de la suite n'a ete faite depuis.
+
+**Prochaine etape** : decision utilisateur -- (a) rejouer `pytest code_intelligence/tests/ -v` (suite complete, ~461 tests, PAS `pytest tests/ -v` -- interdit sur cette machine, cf. `todo/rules.md`) pour une derniere confirmation avant de considerer la factorisation totalement close ; (b) passer directement a la conception du test de coherence plan/execution du Jour 6 (le plan produit par `generate_investigation_plan()` correspond-il aux outils reellement invoques par `code_intelligence_agent` sur les memes questions ?).
+
+---
+
+## Section 217: Option (a) executee -- 12 echecs sur 461, TOUS des effets de la migration de poste (chemins corpus Odoo en dur), AUCUN lie a la factorisation P1 Jour 6 -- root cause corrigee (constante partagee `_corpus_paths.py` + variable d'env machine-dependante), 5 fichiers de tests + `.env` modifies, `py_compile` OK -- EN ATTENTE d'execution reelle par l'utilisateur (2026-08-27, meme PC, sortie complete collee par l'utilisateur)
+
+**Origine** : l'utilisateur a execute `pytest code_intelligence/tests/ -v` (option (a), section 216) et colle la sortie complete.
+
+**Resultat brut** : `12 failed, 426 passed, 47 skipped`.
+
+**Verification prioritaire (avant tout diagnostic)** : aucun des 12 echecs ne touche `investigation_plan.py`, `ci_agent_node.py`, `forced_dispatch_predicates.py` ni `classify_question_intent` -- les diffs 1, 2 et le correctif de pattern (sections 211-216) restent confirmes clos et sans regression.
+
+**Diagnostic (lecture directe des fichiers de test avant toute ecriture)** : 11 des 12 echecs partagent une seule cause racine -- plusieurs fichiers de `code_intelligence/tests/` codaient en dur `Path("/home/user/odoo-17.0/addons")` comme racine du corpus Odoo. Ce chemin est un artefact de l'ancien poste ; sur celui-ci, il n'existe pas du tout (absent des repertoires autorises du connector filesystem, verifie). Deux corpus distincts existent reellement sur ce poste, a des emplacements differents de l'ancien chemin unique :
+- Corpus custom (miro_ai, tous les `custom_*`) : `/media/donnee/projets/odoo-ia-prototype/odoo_addons/` -- dans le repo, identique sur toute machine.
+- Corpus core Odoo (`sale`, `account`, etc.) : `/media/donnee/Programs/odoo-17.0/addons/` -- installation Odoo 17 reelle, hors repo, chemin different par poste de travail (confirme par l'utilisateur : `/home/user/odoo-17.0/...` sur l'autre poste). `odoo.conf` de cette installation confirme que le serveur Odoo reel charge deja les deux chemins (`addons_path` inclut `.../odoo-17.0/addons` ET `.../odoo-ia-prototype/odoo_addons`).
+
+Fichiers/tests affectes par ce chemin en dur : `test_a1_1_7.py` (`test_sale_module_integration`), `test_a2_1_1.py` (`test_integration_a1_a2_real_corpus`), `test_a3_1_1.py` (`test_workflow_subgraph`, `test_real_corpus_graph_and_5hop_benchmark`), `test_bloc9_cross_module_computed_fields.py` (2 tests), `test_j34_35_deep_custom_modules.py` (4 tests).
+
+Le 12e echec, `test_j25_26_e2e_purchase_bypass_gate.py::test_standard_employee_sees_bypass_hidden` (marque `integration`, execute car la commande n'avait pas `-m "not integration"` -- correct, seul `pytest tests/ -v` sans filtre est interdit), est distinct : log "none of the demandeur's 6 group ID(s) resolved to an xml_id" -- `OdooRpcClient` pointe par defaut sur `ODOO_URL=http://localhost:8069`/`ODOO_DB=odoo-dev` ; sur ce poste temporaire, la base Odoo est probablement absente ou fraiche, sans les utilisateurs/groupes de test aux memes IDs numeriques que l'ancien poste. Meme famille que la "KNOWN FLAKINESS" deja documentee dans le docstring du fichier (dependance infra live, pas regression produit) -- signature differente (0/6 resolu, pas un epuisement de quota Groq TPD). Aucune ecriture faite pour ce 12e cas -- hors perimetre de ce tour (necessite une decision/configuration Odoo live separee, pas un correctif de code).
+
+**Correctif ecrit pour les 11 echecs de chemin (root cause, pas rustine par fichier -- conforme a `todo/rules.md`)** :
+1. Nouveau fichier `code_intelligence/tests/_corpus_paths.py` : expose `CUSTOM_ADDONS_PATH` (calcule relativement au projet, `Path(__file__).resolve().parents[2] / "odoo_addons"` -- aucune variable d'env necessaire, identique sur toute machine) et `CORE_ADDONS_PATH` (lu depuis la variable d'env `ODOO_CORE_ADDONS_PATH`, `None` si absente).
+2. `.env` : ajout de `ODOO_CORE_ADDONS_PATH=/media/donnee/Programs/odoo-17.0/addons` (machine-dependant, `.env` deja gitignore -- verifie avant ecriture). L'autre poste devra definir sa propre valeur (`/home/user/odoo-17.0/addons`) dans son propre `.env` local.
+3. `test_a1_1_7.py`, `test_a2_1_1.py`, `test_a3_1_1.py`, `test_bloc9_cross_module_computed_fields.py`, `test_j34_35_deep_custom_modules.py` : tous les chemins en dur remplaces par `CORE_ADDONS_PATH`/`CUSTOM_ADDONS_PATH`. Pour les tests dependant du corpus core (`sale`) sans garde de skip existante (`test_sale_module_integration`, `test_workflow_subgraph`), ajout d'un `pytest.skip(...)` explicite si `CORE_ADDONS_PATH` est `None` ou si le module n'existe pas -- aligne sur le pattern deja etabli par `test_account_module_integration` (corpus externe/machine-dependant = skip gracieux, jamais d'assertion dure). Les tests sur le corpus custom (in-repo, cense toujours etre present) gardent leurs assertions dures inchangees -- aucune degradation de rigueur la ou le corpus est garanti present.
+
+**Verification post-edit** : les 5 fichiers de tests + `_corpus_paths.py` relus integralement (`Filesystem:read_multiple_files`) -- seules les zones attendues sont modifiees. Fichiers copies vers le filesystem de Claude et `python3 -m py_compile` sur les 6 fichiers -- OK, aucune erreur de syntaxe.
+
+**Constat annexe (hors mandat, non corrige)** : `test_j34_35_deep_custom_modules.py::test_graph_builder_5level_inheritance_edges` contient un corps de fonction duplique (les 4 dernieres lignes -- construction du registre/graphe/roles et les 2 assertions -- apparaissent deux fois de suite, effet idempotent donc sans impact sur le resultat du test). Preexistant, non introduit par cette session (l'edit de cette session n'a touche que le bloc d'imports et la ligne `MODULE_PATH` en tete de fichier, verifie par diff). Signale ici pour tracabilite, non corrige -- hors perimetre de ce tour (correction de chemins), necessite mandat separe.
+
+**Non fait ce tour** : aucune execution reelle de la suite pytest (acces filesystem uniquement). Le 12e echec (`test_j25_26...`) n'a recu aucun correctif de code -- necessite une decision utilisateur sur l'environnement Odoo live (demarrer le serveur / verifier la base `odoo-dev` / recreer les utilisateurs de test) avant de pouvoir le rejouer utilement. La duplication de code relevee ci-dessus n'a pas ete corrigee.
+
+**Prochaine etape** : l'utilisateur rejoue `pytest code_intelligence/tests/ -v` et colle la sortie complete -- attendu : 11 des 12 echecs precedents resolus (`sale_dir`/`account_dir`/`miro_ai_dir`/`custom_expense_risk_*`/`custom_deep_inheritance_security` tous desormais resolus aux bons chemins), le 12e (`test_j25_26...`, integration Odoo live) restant en l'etat sauf decision separee sur l'environnement Odoo. Si confirme sans nouvelle regression, decider : (a) traiter le 12e echec (config Odoo live) ; (b) corriger la duplication de code relevee dans `test_j34_35_deep_custom_modules.py` ; (c) passer a la conception du test de coherence plan/execution du Jour 6 (P1).
+
+---
+
+## Section 218: Correctif de chemins (section 217) CONFIRME sans regression -- 11/11 echecs de chemin resolus, seul le 12e (integration Odoo live, hors mandat) subsiste avec un diagnostic plus precis -- root cause du 12e desormais confirmee (pas seulement suspectee) : 6 IDs de groupes non resolus + epuisement reel du quota Groq pendant l'attente (2026-08-27, meme PC, sortie complete collee par l'utilisateur)
+
+**Origine** : l'utilisateur a execute `pytest code_intelligence/tests/ -v` apres le correctif de chemins (section 217) et colle la sortie complete.
+
+**Resultat brut** : `1 failed, 437 passed, 47 skipped`. Les 437 passed incluent explicitement les 11 tests precedemment en echec de chemin -- verifie ligne par ligne dans la sortie collee : `test_j34_35_deep_custom_modules.py` (5/5 PASSED, y compris `test_graph_builder_5level_inheritance_edges` malgre sa duplication de corps deja signalee, toujours sans impact), et les tests de `test_a1_1_7.py`/`test_a2_1_1.py`/`test_a3_1_1.py`/`test_bloc9_cross_module_computed_fields.py` n'apparaissent plus du tout dans la section FAILURES.
+
+**Portee** : le correctif de la section 217 (constante partagee `_corpus_paths.py` + `ODOO_CORE_ADDONS_PATH` dans `.env`) est desormais clos et verrouille par execution reelle -- aucune regression introduite, les 11 echecs de migration de poste sont resolus a la racine.
+
+**Seul echec restant, diagnostic affine (toujours hors mandat de code)** : `test_j25_26_e2e_purchase_bypass_gate.py::test_standard_employee_sees_bypass_hidden`. Le log capture desormais DEUX warnings distincts, alors que le tour precedent n'en montrait qu'un :
+1. `none of the demandeur's 6 group ID(s) resolved to an xml_id -- gating will fail closed for this request` -- confirme le diagnostic de la section 217 (base Odoo de ce poste sans les xml_ids de groupes attendus pour `STANDARD_EMPLOYEE_GROUP_IDS`).
+2. **Nouveau, non observe au tour precedent** : `Rate limit hit (attempt 1/5)` sur `core.llm_client` -- `x-ratelimit-remaining-tokens: 2151` sur une limite de 8000, attente dynamique de 44.4s avant retry. Ce n'est plus une simple hypothese de flakiness par analogie au docstring (comme suppose section 217) -- c'est desormais un epuisement de quota Groq **reellement observe** dans cette meme execution, exactement le mecanisme deja documente dans le docstring du fichier (`_RATE_LIMIT_EXHAUSTION_SIGNATURES`). Le test echoue avant meme que ce retry ne se resolve (ou se resout mais avec un contexte deja degrade) : `omitted_for_authorization` revient vide alors que le gate d'autorisation ne peut pas fonctionner correctement tant que le groupe de l'utilisateur n'est pas resolu (cause racine n°1), independamment du quota.
+
+**Analyse de cumul des deux causes** : les deux causes ne sont pas concurrentes mais cumulatives sur ce poste temporaire -- (1) la base Odoo locale n'a pas les xml_ids attendus pour `test_nospecial_2026`, ce qui a lui seul suffit a faire echouer le gate (`gating will fail closed`, donc `omitted_for_authorization` ne se peuple pas comme attendu) ; (2) le quota Groq partage de l'organisation est proche de l'epuisement pendant cette execution, ce qui est le signal de flakiness deja anticipe et gere par le fichier de test lui-meme (`_run()` est cense skip, pas echouer, sur ce signal -- a verifier : le test a echoue par `AssertionError`, pas par skip, donc soit le retry a fini par reussir avant la capture du log ERROR attendu par `_run()`, soit la logique de detection de skip ne couvre pas ce cas precis de warning WARNING au lieu d'un ERROR loggue par `ci_agent_node.py`).
+
+**Non fait ce tour** : aucune ecriture -- constat d'execution et diagnostic affine uniquement, toujours hors mandat de code (necessite une decision utilisateur sur l'environnement Odoo live : verifier/recreer les utilisateurs de test dans la base `odoo-dev` de ce poste, et/ou attendre le renouvellement du quota Groq avant de rejouer ce test isolement).
+
+**Prochaine etape** : decision utilisateur -- (a) laisser ce test en dette technique connue (infra live, pas regression produit, deja documente comme tel dans son propre docstring) et clore ce chantier de migration de poste ici ; (b) investiguer pourquoi `_run()` n'a pas intercepte ce cas comme un skip malgre le rate limit observe (le pattern de detection `_RATE_LIMIT_EXHAUSTION_SIGNATURES` ne matche peut-etre que les logs ERROR de `ci_agent_node.py`, pas le WARNING de `core.llm_client`) ; (c) corriger la duplication de code relevee dans `test_j34_35_deep_custom_modules.py::test_graph_builder_5level_inheritance_edges` (section 217, toujours non corrigee) ; (d) passer a la conception du test de coherence plan/execution du Jour 6 (P1).
+
+---
+
+## Section 219: Diagnostic approfondi du 12e echec (`test_standard_employee_sees_bypass_hidden`) -- cause racine n1 identifiee avec precision : IDs numeriques bruts de `res.groups` codes en dur dans le test, figes sur l'ancienne machine -- `tools/` (`full_setup.py`) ecarte comme solution suffisante -- AUCUNE ECRITURE, discussion uniquement, poursuite prevue sur l'autre PC (2026-08-27, ce PC, acces filesystem uniquement)
+
+**Origine** : l'utilisateur demande si `tools/` (repertoire vu sur ce poste, but affiche "avoir exactement la meme chose partout") peut resoudre le probleme d'infra live du 12e echec (section 218).
+
+**Lecture effectuee** : `tools/full_setup.py` (cree Company Alpha, 7 users demo dont bob@alpha.com/manager@miro.com, clients, produits, sales orders, tickets), `tools/create_manager.py`, et `code_intelligence/tests/test_j25_26_e2e_purchase_bypass_gate.py` en entier (docstring + corps des 2 tests).
+
+**Constat cle** : le test n'utilise jamais de login Odoo -- il injecte directement des IDs numeriques bruts de `res.groups` codes en dur dans le fichier (`STANDARD_EMPLOYEE_GROUP_IDS = [26, 1, 13, 6, 59, 7]`, `PURCHASE_MANAGER_GROUP_IDS = [42, 69, 57, 1, 13, 6, 68, 59, 7, 56, 41]`), "verified via admin RPC on 2026-08-05" (docstring) -- artefact fige de l'ancienne base. Sur une base fraiche (ce poste), le mapping ID numerique -> xml_id depend de l'ordre d'installation des modules et sera tres probablement different, ce qui explique le warning `none of the demandeur's 6 group ID(s) resolved to an xml_id` (deja diagnostique section 217/218, precision supplementaire apportee ici : la cause exacte est l'usage d'IDs bruts au lieu d'une resolution par xml_id, pas seulement "la base n'a pas les bons users").
+
+**`tools/full_setup.py` ecarte comme solution suffisante pour CE test** : il peuple des donnees de demo metier (societe/clients/produits/commandes/tickets) et cree des logins (Bob Buyer, etc.), mais ne cree jamais `test_nospecial_2026`, et meme pour bob@alpha.com ne garantit aucun mapping vers les IDs numeriques precis codes en dur dans le test -- les groupes standard (`purchase.group_purchase_manager`, `account.group_account_invoice`, etc.) existent des que les apps correspondantes (Purchase/Accounting/Mail/Project/Stock/Sales) sont installees, independamment de `full_setup.py`. Precondition reelle non verifiee ce tour : ces apps sont-elles installees sur la base `odoo-dev` de ce poste ? Ni confirmee ni infirmee -- aucun script RPC de verification ecrit ce tour.
+
+**Deux options de correction identifiees, non tranchees** :
+- (A) root cause (conforme `todo/rules.md`, "pas de fix chirurgical") : refactorer le test pour resoudre les 2 listes de groupes par xml_id au moment de l'execution (RPC `ir.model.data`) au lieu d'IDs numeriques codes en dur -- elimine definitivement cette classe de bug a chaque migration de poste, sur le meme principe que le fix `_corpus_paths.py` (section 217) pour les chemins de corpus.
+- (B) rustine locale : garder les listes en dur mais les regenerer pour cette base precise (creer `test_nospecial_2026` via une variante de `full_setup.py`, relire les vrais IDs, les recopier dans le test) -- pas la root cause, a refaire a chaque nouvelle machine.
+
+**Decision utilisateur (ce tour)** : (A) retenue en principe, mais **aucune ecriture faite** -- l'utilisateur va poursuivre ce chantier sur l'autre PC (poste habituel). Consignation demandee explicitement pour reprise ulterieure.
+
+**Non fait ce tour** : aucun script de verification des modules installes ecrit, aucun diff (A) redige, aucune execution. Discussion et diagnostic uniquement.
+
+**Prochaine etape (sur l'autre PC)** : (1) verifier si Purchase/Accounting/Mail/Project/Stock/Sales sont installes sur la base `odoo-dev` de ce poste-ci -- non necessaire si l'autre PC a deja ces apps installees (poste habituel, probablement deja configure) ; (2) rediger et appliquer le diff (A) -- resolution dynamique par xml_id des 2 listes de groupes dans `test_j25_26_e2e_purchase_bypass_gate.py`, en remplacement des IDs numeriques codes en dur ; (3) rejouer le test isolement (`pytest code_intelligence/tests/test_j25_26_e2e_purchase_bypass_gate.py -v -m integration`) pour confirmer sans regression, en dehors d'un run complet pour eviter l'epuisement de quota Groq (cause n2 cumulative, section 218).

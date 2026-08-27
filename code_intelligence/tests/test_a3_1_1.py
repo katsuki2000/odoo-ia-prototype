@@ -32,13 +32,14 @@ from code_intelligence.graph_builder import (
     load_graph_from_json,
     benchmark_graph_traversal,
 )
+from code_intelligence.tests._corpus_paths import CORE_ADDONS_PATH, CUSTOM_ADDONS_PATH
 
 
 def test_graph_construction_and_typed_edges():
     """Test NetworkX node and typed edge creation (A3.1.2 & A3.1.3)."""
     # Create synthetic parsed module
     mod = ParsedModule(
-        manifest=parse_manifest(Path("/home/user/odoo-17.0/addons") / "miro_ai" / "__manifest__.py")
+        manifest=parse_manifest(CUSTOM_ADDONS_PATH / "miro_ai" / "__manifest__.py")
     )
     
     modules_dict = {"miro_ai": mod}
@@ -83,12 +84,14 @@ def test_json_serialization_deserialization():
 def test_workflow_subgraph():
     """Test Task A3.1.5: Workflow state nodes and TRANSITIONS_VIA edges."""
     root_dir = Path(__file__).resolve().parent.parent.parent.parent
-    corpus_root = Path("/home/user/odoo-17.0/addons")
+    if CORE_ADDONS_PATH is None:
+        pytest.skip("ODOO_CORE_ADDONS_PATH not set -- no real Odoo core corpus on this machine.")
 
-    sale_dir = corpus_root / "sale"
-    assert sale_dir.exists()
+    sale_dir = CORE_ADDONS_PATH / "sale"
+    if not sale_dir.exists():
+        pytest.skip(f"Corpus sale module dir does not exist: {sale_dir}")
 
-    mod = ParsedModule(manifest=parse_manifest(sale_dir / "__manifest__.py") if (sale_dir / "__manifest__.py").exists() else parse_manifest(Path("/home/user/odoo-17.0/addons") / "miro_ai" / "__manifest__.py"))
+    mod = ParsedModule(manifest=parse_manifest(sale_dir / "__manifest__.py") if (sale_dir / "__manifest__.py").exists() else parse_manifest(CUSTOM_ADDONS_PATH / "miro_ai" / "__manifest__.py"))
     for py_file in sale_dir.rglob("*.py"):
         mod.models.extend(extract_odoo_models_from_file(py_file))
     for xml_file in sale_dir.rglob("*.xml"):
@@ -114,12 +117,11 @@ def test_workflow_subgraph():
 def test_real_corpus_graph_and_5hop_benchmark():
     """Test Tasks A3.1.6 & A3.1.7: 5-hop traversal benchmark (< 50ms) and security path demonstration."""
     root_dir = Path(__file__).resolve().parent.parent.parent.parent
-    corpus_root = Path("/home/user/odoo-17.0/addons")
 
     modules_dict = {}
 
     # Load miro_ai
-    miro_ai_dir = Path("/home/user/odoo-17.0/addons") / "miro_ai"
+    miro_ai_dir = CUSTOM_ADDONS_PATH / "miro_ai"
     if miro_ai_dir.exists():
         manifest = parse_manifest(miro_ai_dir / "__manifest__.py")
         if manifest:

@@ -69,8 +69,6 @@ from code_intelligence.ci_override_cascade import (
     _backfill_missing_override_chain_amount,
     _correct_override_cascade_contradictions,
     _backfill_missing_unguarded_super,
-    _rank_and_cap_override_methods,
-    _MAX_OVERRIDE_CASCADE_DISPATCH,
 )
 
 logger = logging.getLogger(__name__)
@@ -279,13 +277,11 @@ class CodeIntelligenceAgentRunner:
                 f"Use these exact technical identifiers when invoking composite tools."
             )
         if concept.is_resolved and concept.resolved_models:
-            from code_intelligence.ci_agent_tools import find_security_lock_source_files
+            from code_intelligence.forced_dispatch_predicates import security_locks_targets
             tool_map = {t.name: t for t in ALL_CI_TOOLS}
             lock_tool = tool_map.get("analyze_security_locks")
             if lock_tool is not None:
-                for target_model in concept.resolved_models:
-                    if not find_security_lock_source_files(G, target_model):
-                        continue  # structural guard: nothing to say, skip silently
+                for target_model in security_locks_targets(concept, G):
                     call_key = ("analyze_security_locks", target_model)
                     if call_key in seen_calls:
                         continue
@@ -329,18 +325,12 @@ class CodeIntelligenceAgentRunner:
                         "evaluate_record_rules)."
                     )
         
-        if (
-            concept.is_resolved
-            and concept.resolved_models
-            and _question_suggests_automation_bypass(question)
-        ):
-            from code_intelligence.ci_agent_tools import find_server_action_nodes
+        if concept.is_resolved and concept.resolved_models:
+            from code_intelligence.forced_dispatch_predicates import server_actions_targets
             tool_map = {t.name: t for t in ALL_CI_TOOLS}
             sa_tool = tool_map.get("analyze_server_actions")
             if sa_tool is not None:
-                for target_model in concept.resolved_models:
-                    if not find_server_action_nodes(G, target_model):
-                        continue  # structural guard: nothing to say, skip silently
+                for target_model in server_actions_targets(question, concept, G):
                     call_key = ("analyze_server_actions", target_model)
                     if call_key in seen_calls:
                         continue
@@ -382,58 +372,49 @@ class CodeIntelligenceAgentRunner:
                         "above because the question suggests automation/bypass logic; its output "
                         "is already included in the tool observations. Do not call it again."
                     )
-        if (
-            concept.is_resolved
-            and concept.resolved_models
-            and _question_is_approval_related(question)
-        ):
-            from code_intelligence.ci_agent_tools import find_methods_with_override_cascade
-            from code_intelligence.method_override_resolver import find_methods_with_override_risk_findings
+        if concept.is_resolved and concept.resolved_models:
+            from code_intelligence.forced_dispatch_predicates import override_chain_targets
             tool_map = {t.name: t for t in ALL_CI_TOOLS}
             override_tool = tool_map.get("analyze_method_override_chain")
             if override_tool is not None:
-                for target_model in concept.resolved_models:
-                    candidate_methods = find_methods_with_override_cascade(G, target_model)
-                    flagged_methods = find_methods_with_override_risk_findings(G, target_model, candidate_methods)
-                    flagged_methods = _rank_and_cap_override_methods(question, flagged_methods)
-                    for method_name in flagged_methods:
-                        call_key = ("analyze_method_override_chain", target_model, method_name)
-                        if call_key in seen_calls:
-                            continue
-                        _t_hop = time.perf_counter()
-                        try:
-                            forced_observation = str(override_tool.invoke({
-                                "model_name": target_model, "method_name": method_name,
-                            }))
-                            if len(forced_observation) > 2200:
-                                forced_observation = forced_observation[:2200] + "\n[... Content truncated for LLM context limit ...]"
-                            forced_observation, omitted_list = gate_observation(
-                                tool_name="analyze_method_override_chain",
-                                model_name=target_model,
-                                observation=forced_observation,
-                                G=G,
-                                user_groups=resolved_user_group_xmlids,
-                            )
-                            omitted_items.extend(omitted_list)
-                            tool_observations.append(forced_observation)
-                            tool_observation_models.append(target_model)
-                            hop_count += 1
-                            seen_calls.add(call_key)
-                            _trace_logger.log_hop(
-                                trace_id=_trace_id, hop_index=_hop_index,
-                                tool_name="analyze_method_override_chain",
-                                tool_args={"model_name": target_model, "method_name": method_name},
-                                observation=forced_observation, elapsed_ms=(time.perf_counter() - _t_hop) * 1000,
-                            )
-                            _hop_index += 1
-                            logger.info(
-                                "Node [code_intelligence_agent]: Deterministic pre-dispatch of "
-                                "'analyze_method_override_chain' for '%s.%s' (approval wording "
-                                "+ real override cascade present).",
-                                target_model, method_name,
-                            )
-                        except Exception as te:
-                            logger.error("Deterministic analyze_method_override_chain dispatch failed: %s", te)
+                for target_model, method_name in override_chain_targets(question, concept, G):
+                    call_key = ("analyze_method_override_chain", target_model, method_name)
+                    if call_key in seen_calls:
+                        continue
+                    _t_hop = time.perf_counter()
+                    try:
+                        forced_observation = str(override_tool.invoke({
+                            "model_name": target_model, "method_name": method_name,
+                        }))
+                        if len(forced_observation) > 2200:
+                            forced_observation = forced_observation[:2200] + "\n[... Content truncated for LLM context limit ...]"
+                        forced_observation, omitted_list = gate_observation(
+                            tool_name="analyze_method_override_chain",
+                            model_name=target_model,
+                            observation=forced_observation,
+                            G=G,
+                            user_groups=resolved_user_group_xmlids,
+                        )
+                        omitted_items.extend(omitted_list)
+                        tool_observations.append(forced_observation)
+                        tool_observation_models.append(target_model)
+                        hop_count += 1
+                        seen_calls.add(call_key)
+                        _trace_logger.log_hop(
+                            trace_id=_trace_id, hop_index=_hop_index,
+                            tool_name="analyze_method_override_chain",
+                            tool_args={"model_name": target_model, "method_name": method_name},
+                            observation=forced_observation, elapsed_ms=(time.perf_counter() - _t_hop) * 1000,
+                        )
+                        _hop_index += 1
+                        logger.info(
+                            "Node [code_intelligence_agent]: Deterministic pre-dispatch of "
+                            "'analyze_method_override_chain' for '%s.%s' (approval wording "
+                            "+ real override cascade present).",
+                            target_model, method_name,
+                        )
+                    except Exception as te:
+                        logger.error("Deterministic analyze_method_override_chain dispatch failed: %s", te)
                 if any(k[0] == "analyze_method_override_chain" for k in seen_calls):
                     system_prompt += (
                         "\n\n[DETERMINISTIC PRE-DISPATCH]\n"
@@ -451,21 +432,27 @@ class CodeIntelligenceAgentRunner:
                     )
         
         if concept.is_resolved and concept.resolved_models and _question_is_access_related(question):
+            from code_intelligence.forced_dispatch_predicates import security_locks_targets, who_has_access_targets
             tool_map = {t.name: t for t in ALL_CI_TOOLS}
             acl_tool = tool_map.get("who_has_access_to")
             if acl_tool is not None:
-                skipped_lock_governed_models: List[str] = []
-                for target_model in concept.resolved_models:
-                    if ("analyze_security_locks", target_model) in seen_calls:
-                        logger.info(
-                            "Node [code_intelligence_agent]: skipping deterministic "
-                            "who_has_access_to dispatch for '%s' -- a real Python security "
-                            "lock (has_group()) already governs this model's actions, "
-                            "more specific than the generic CRUD ACL matrix.",
-                            target_model,
-                        )
-                        skipped_lock_governed_models.append(target_model)
-                        continue
+                _lock_governed_models = set(security_locks_targets(concept, G))
+                skipped_lock_governed_models: List[str] = [
+                    m for m in concept.resolved_models if m in _lock_governed_models
+                ]
+                for target_model in skipped_lock_governed_models:
+                    logger.info(
+                        "Node [code_intelligence_agent]: skipping deterministic "
+                        "who_has_access_to dispatch for '%s' -- a real Python security "
+                        "lock (has_group()) already governs this model's actions, "
+                        "more specific than the generic CRUD ACL matrix.",
+                        target_model,
+                    )
+                # Bloc P1 Jour 6 (todo/contexte.txt section 210): which models to
+                # actually dispatch on is now decided by the same shared predicate
+                # the Investigation Planner uses, instead of a second, separately
+                # maintained exclusion loop reaching the same result.
+                for target_model in who_has_access_targets(question, concept, G):
                     call_key = ("who_has_access_to", target_model)
                     if call_key in seen_calls:
                         continue
