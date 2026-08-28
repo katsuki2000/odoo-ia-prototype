@@ -16,6 +16,12 @@ from langchain_groq import ChatGroq
 from config.settings import GROQ_MODEL
 from core.schemas import AssistantResponse, LLMResponse
 from core.routing import RAGState, _is_out_of_scope, OUT_OF_SCOPE_ANSWER
+# Section 263 (todo/contexte.txt): multi-key Groq rotation / rate-limit
+# retry, same mechanism already used by the Code Intelligence branch.
+from core.llm_client import (
+    invoke_with_rate_limit as _invoke_with_rate_limit,
+    _current_groq_key,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +32,16 @@ def _get_chat_groq():
     if g and hasattr(g, "ChatGroq"):
         return g.ChatGroq
     return ChatGroq
+
+
+def _build_groq_llm(**kwargs):
+    """Construct a ChatGroq client bound to the CURRENT rotation-index Groq
+    key (core.llm_client._current_groq_key()) instead of relying on
+    ChatGroq's own default (single, env-var-only) key resolution. Keeps
+    going through _get_chat_groq() so existing @patch('core.graph.ChatGroq')
+    unit tests (tests/test_graph.py) remain unaffected -- only the
+    constructor args change, not which class gets instantiated."""
+    return _get_chat_groq()(model=GROQ_MODEL, api_key=_current_groq_key(), **kwargs)
 
 
 def compute_rag_confidence(chunks: list, is_out_of_scope: bool = False) -> float:
@@ -145,13 +161,19 @@ def generate(state: RAGState) -> dict:
     messages = build_messages(question, context_text, chat_history)
 
     _llm_call_count = 0
-    ChatGroqCls = _get_chat_groq()
     try:
-        llm = ChatGroqCls(model=GROQ_MODEL, temperature=0.3, max_tokens=1024)
+        llm = _build_groq_llm(temperature=0.3, max_retries=0, max_tokens=1024)
         # Enforce structured output to match our schema
-        structured_llm = llm.with_structured_output(LLMResponse)
-        
-        llm_resp = structured_llm.invoke(messages)
+        _structured_llm_box = [llm.with_structured_output(LLMResponse)]
+
+        def _rebuild_structured_llm():
+            fresh = _build_groq_llm(temperature=0.3, max_retries=0, max_tokens=1024)
+            _structured_llm_box[0] = fresh.with_structured_output(LLMResponse)
+            return _structured_llm_box[0]
+
+        llm_resp, _wait = _invoke_with_rate_limit(
+            _structured_llm_box[0], messages, rebuild_llm=_rebuild_structured_llm,
+        )
         _llm_call_count += 1
         response = AssistantResponse(
             answer=llm_resp.answer,
@@ -161,8 +183,15 @@ def generate(state: RAGState) -> dict:
     except Exception as e:
         logger.warning("Structured LLM Generation failed (%s) → falling back to raw invoke", e)
         try:
-            llm = ChatGroqCls(model=GROQ_MODEL, temperature=0.3, max_tokens=1024)
-            raw_resp = llm.invoke(messages)
+            _plain_llm_box = [_build_groq_llm(temperature=0.3, max_retries=0, max_tokens=1024)]
+
+            def _rebuild_plain_llm():
+                _plain_llm_box[0] = _build_groq_llm(temperature=0.3, max_retries=0, max_tokens=1024)
+                return _plain_llm_box[0]
+
+            raw_resp, _wait2 = _invoke_with_rate_limit(
+                _plain_llm_box[0], messages, rebuild_llm=_rebuild_plain_llm,
+            )
             _llm_call_count += 1
             # Bloc P4bis fix (19/08): the prompt instructs JSON output, so
             # raw_resp.content is JSON text (see _parse_raw_json_answer

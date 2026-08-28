@@ -13,6 +13,13 @@ if not os.getenv("GROQ_API_KEY"):
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "groq")
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+# GROQ_API_KEYS : rotation automatique des que la cle courante est en
+# rate-limit (core/llm_client.py). Retombe sur GROQ_API_KEY seule si la
+# variable liste n'est pas definie (compat installs a une seule cle).
+_groq_keys_raw = os.getenv("GROQ_API_KEYS", "")
+GROQ_API_KEYS = [k.strip() for k in _groq_keys_raw.split(",") if k.strip()]
+if not GROQ_API_KEYS and GROQ_API_KEY:
+    GROQ_API_KEYS = [GROQ_API_KEY]
 
 GROQ_MODEL   = "openai/gpt-oss-20b"
 

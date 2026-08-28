@@ -1,24 +1,4 @@
 # -*- coding: utf-8 -*-
-"""
-2026-08-19 fix : route()'s keyword lists (ERP_KEYWORDS,
-CODE_INTEL_KEYWORDS, QUANTITATIVE_TERMS, DOC_KEYWORDS, DATA_TERMS,
-DOC_ANCHORS, THRESHOLD_QUERY_TERMS) were matched with a plain Python `in`
-on the lowercased question, with zero accent normalization -- an accented
-keyword (e.g. "cette année") silently never matched an unaccented question
-("cette annee"). Found live while investigating a suspected conversational-
-context gap (manual_check_session_persistence.py sending "Et pour cette
-annee ?"): the missing accent, not a missing chat_history mechanism, was
-the actual cause of that specific case falling to documentaire instead of
-donnees_erp.
-
-This file locks the fix (_fold_accents + the seven *_FOLDED lists in
-rag/graph.py) at two levels: the folding function itself, and the exact
-regression case that surfaced the bug -- WITHOUT claiming this fixes every
-elliptical follow-up question. A question with no keyword at all, accented
-or not (e.g. "Et pour Lyon ?"), is a distinct, still-open gap (session
-context / H1c), deliberately asserted as UNCHANGED below rather than
-silently left uncovered.
-"""
 import pytest
 from core.graph import (
     _fold_accents,
@@ -133,11 +113,3 @@ def test_accented_and_unaccented_variants_route_identically(accented, unaccented
     route_accented = _route_question(accented)
     route_unaccented = _route_question(unaccented)
     assert route_accented == route_unaccented == expected_route
-
-
-# THRESHOLD_QUERY_TERMS note: "dépasse-t-il"/"depasse-t-il" were already
-# BOTH hand-listed as separate literal entries in THRESHOLD_QUERY_TERMS
-# before this fix (see rag/graph.py) -- the one list that had already
-# worked around the missing accent-folding by manual duplication. No
-# dedicated diagnostic pair needed here; _fold_keywords() still folds it
-# like every other list, it's just redundant-safe rather than newly fixed.

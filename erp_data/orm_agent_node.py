@@ -22,6 +22,12 @@ from config.settings import GROQ_MODEL, GROQ_API_KEY
 from core.schemas import AssistantResponse, SourceReference
 from core.routing import RAGState, REACT_RECURSION_LIMIT, _is_out_of_scope, OUT_OF_SCOPE_ANSWER
 from document_rag.generate_node import generate
+# Section 263 (todo/contexte.txt): multi-key Groq rotation / rate-limit
+# retry, same mechanism already used by the Code Intelligence branch.
+from core.llm_client import (
+    invoke_with_rate_limit as _invoke_with_rate_limit,
+    _current_groq_key,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +39,14 @@ def _get_chat_groq():
     if g and hasattr(g, "ChatGroq"):
         return g.ChatGroq
     return ChatGroq
+
+
+def _build_groq_llm(**kwargs):
+    """Construct a ChatGroq client bound to the CURRENT rotation-index Groq
+    key (core.llm_client._current_groq_key()), same pattern as
+    document_rag/generate_node.py -- keeps going through _get_chat_groq()
+    so any future @patch('core.graph.ChatGroq') test remains compatible."""
+    return _get_chat_groq()(model=GROQ_MODEL, api_key=_current_groq_key(), **kwargs)
 
 
 def orm_agent_loop(state: RAGState) -> dict:
@@ -103,12 +117,13 @@ def orm_agent_loop(state: RAGState) -> dict:
         all_tools.extend([get_recent_tickets])
 
     # Re-bind tools dynamically to the LLM
-    llm = _get_chat_groq()(
-        model=GROQ_MODEL,
-        api_key=GROQ_API_KEY,
-        temperature=0.0,
-    )
-    llm_with_tools = llm.bind_tools(all_tools)
+    llm = _build_groq_llm(temperature=0.0, max_retries=0)
+    _tool_llm_box = [llm.bind_tools(all_tools)]
+
+    def _rebuild_tool_llm():
+        fresh = _build_groq_llm(temperature=0.0, max_retries=0)
+        _tool_llm_box[0] = fresh.bind_tools(all_tools)
+        return _tool_llm_box[0]
 
     system_prompt = (
         "Tu es un assistant IA interne spécialisé dans les données ERP Odoo. "
@@ -137,7 +152,9 @@ def orm_agent_loop(state: RAGState) -> dict:
             break
 
         try:
-            ai_msg = llm_with_tools.invoke(messages)
+            ai_msg, _wait = _invoke_with_rate_limit(
+                _tool_llm_box[0], messages, rebuild_llm=_rebuild_tool_llm,
+            )
             _llm_call_count += 1
         except Exception as e:
             _llm_call_count += 1  # attempt still counts against the LLM-call budget
@@ -221,8 +238,16 @@ def orm_agent_loop(state: RAGState) -> dict:
             "\n\nFournis une réponse finale et concise en français basée uniquement sur ces observations."
         )
         try:
-            plain_llm = _get_chat_groq()(model=GROQ_MODEL, temperature=0.0, max_tokens=512)
-            final_resp = plain_llm.invoke([HumanMessage(content=synthesis_prompt)])
+            _synth_llm_box = [_build_groq_llm(temperature=0.0, max_retries=0, max_tokens=512)]
+
+            def _rebuild_synth_llm():
+                _synth_llm_box[0] = _build_groq_llm(temperature=0.0, max_retries=0, max_tokens=512)
+                return _synth_llm_box[0]
+
+            final_resp, _wait3 = _invoke_with_rate_limit(
+                _synth_llm_box[0], [HumanMessage(content=synthesis_prompt)],
+                rebuild_llm=_rebuild_synth_llm,
+            )
             _llm_call_count += 1
             final_answer = final_resp.content
         except Exception as e:
@@ -293,8 +318,16 @@ def hybrid_node(state: RAGState) -> dict:
     )
     
     try:
-        plain_llm = _get_chat_groq()(model=GROQ_MODEL, temperature=0.3, max_tokens=1024)
-        final_resp = plain_llm.invoke([HumanMessage(content=combine_prompt)])
+        _combine_llm_box = [_build_groq_llm(temperature=0.3, max_retries=0, max_tokens=1024)]
+
+        def _rebuild_combine_llm():
+            _combine_llm_box[0] = _build_groq_llm(temperature=0.3, max_retries=0, max_tokens=1024)
+            return _combine_llm_box[0]
+
+        final_resp, _wait4 = _invoke_with_rate_limit(
+            _combine_llm_box[0], [HumanMessage(content=combine_prompt)],
+            rebuild_llm=_rebuild_combine_llm,
+        )
         final_answer = final_resp.content
     except Exception as e:
         logger.error("Hybrid combine failed: %s", e)

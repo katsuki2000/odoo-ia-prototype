@@ -7,14 +7,14 @@ Validates read-only enforcement, whitelist protection, and accurate date parsing
 
 import pytest
 from erp_data.odoo_tools import (
-    obtenir_total_ventes,
-    obtenir_stock_produit,
-    obtenir_statut_commande,
-    obtenir_total_factures,
-    rechercher_client,
-    obtenir_tickets_recents,
-    lister_produits_en_rupture,
-    obtenir_ca_periode,
+    get_total_sales,
+    get_product_stock,
+    get_order_status,
+    get_total_invoices,
+    search_partner,
+    get_recent_tickets,
+    list_out_of_stock_products,
+    get_period_revenue,
     connector,
     _get_current_uid
 )
@@ -48,51 +48,51 @@ class TestOdooTools:
     
     def test_obtenir_total_ventes(self):
         """Test sales aggregation tool."""
-        res = obtenir_total_ventes.invoke({'client': 'Rakoto', 'periode': 'cette annee'})
+        res = get_total_sales.invoke({'client': 'Rakoto', 'periode': 'cette annee'})
         assert isinstance(res, str)
         # Assuming either a number or a fallback message
         assert "Ar" in res or "Aucune vente" in res
 
     def test_obtenir_stock_produit(self):
         """Test stock quantity tool."""
-        res = obtenir_stock_produit.invoke({'produit': 'Laptop'})
+        res = get_product_stock.invoke({'produit': 'Laptop'})
         assert isinstance(res, str)
         assert "stock" in res.lower()
 
     def test_obtenir_statut_commande(self):
         """Test order status tool."""
         # 'S00001' might not exist in all environments, but it should return a safe string
-        res = obtenir_statut_commande.invoke({'reference': 'S00001'})
+        res = get_order_status.invoke({'reference': 'S00001'})
         assert isinstance(res, str)
         assert "statut" in res or "n'existe pas" in res
 
     def test_obtenir_total_factures(self):
         """Test invoice aggregation tool."""
-        res = obtenir_total_factures.invoke({'client': 'Rakoto', 'statut': 'impayé'})
+        res = get_total_invoices.invoke({'client': 'Rakoto', 'statut': 'impayé'})
         assert isinstance(res, str)
         assert "Ar" in res or "Aucune facture" in res
 
     def test_rechercher_client(self):
         """Test client search tool."""
-        res = rechercher_client.invoke({'nom': 'Rakoto'})
+        res = search_partner.invoke({'nom': 'Rakoto'})
         assert isinstance(res, str)
         assert "trouvé" in res or "Aucun client" in res
 
     def test_obtenir_tickets_recents(self):
         """Test support tickets tool."""
-        res = obtenir_tickets_recents.invoke({'client': 'Rakoto', 'limite': 2})
+        res = get_recent_tickets.invoke({'client': 'Rakoto', 'limite': 2})
         assert isinstance(res, str)
         assert "ticket" in res.lower()
 
     def test_lister_produits_en_rupture(self):
         """Test out of stock tool."""
-        res = lister_produits_en_rupture.invoke({})
+        res = list_out_of_stock_products.invoke({})
         assert isinstance(res, str)
         assert "produit" in res.lower()
 
     def test_obtenir_ca_periode(self):
         """Test revenue tool."""
-        res = obtenir_ca_periode.invoke({'periode': '2024'})
+        res = get_period_revenue.invoke({'periode': '2024'})
         assert isinstance(res, str)
         assert "chiffre d'affaires" in res.lower() or "ca" in res.lower()
 

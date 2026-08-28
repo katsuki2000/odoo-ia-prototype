@@ -4,19 +4,23 @@ test_resolver_fuzzy_vs_alias.py
 J1/J2 — Vérifie si le fuzzy-matching (Step 1) produit des faux-positifs qui
 court-circuitent la table d'alias (Step 2) avant qu'elle n'ait sa chance.
 
+Loads the graph the same way the rest of the system does
+(get_code_intelligence_graph(), cached JSON or rebuilt from source per
+config.settings' CORE_ADDONS_PATH/CUSTOM_ADDONS_PATH) instead of a
+machine-specific path, so this script runs unmodified on any checkout.
+
 Usage:
-    python3 test_resolver_fuzzy_vs_alias.py /home/user/odoo-17.0/addons/knowledge_graph/knowledge_graph.json
+    python3 test_resolver_fuzzy_vs_alias.py
 """
 import sys
-import json
-import networkx as nx
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from code_intelligence.business_resolver import (
     resolve_business_term, _fuzzy_match_graph, BUSINESS_ALIASES, _build_fuzzy_index
 )
+from code_intelligence.ci_graph_loader import get_code_intelligence_graph
 
 # Requêtes tirées directement des 9 questions adversariales + variantes courtes
 # qui stressent le cas "terme court, risque de faux-positif fuzzy"
@@ -45,17 +49,8 @@ TEST_QUERIES = [
 ]
 
 
-def load_graph(filepath: Path) -> nx.DiGraph:
-    data = json.loads(filepath.read_text(encoding="utf-8"))
-    return nx.node_link_graph(data)
-
-
 def main():
-    if len(sys.argv) != 2:
-        print("Usage: python3 test_resolver_fuzzy_vs_alias.py /chemin/vers/knowledge_graph.json")
-        sys.exit(1)
-
-    G = load_graph(Path(sys.argv[1]))
+    G = get_code_intelligence_graph()
     print(f"Graphe chargé : {G.number_of_nodes()} nœuds, {G.number_of_edges()} arêtes\n")
 
     index = _build_fuzzy_index(G)

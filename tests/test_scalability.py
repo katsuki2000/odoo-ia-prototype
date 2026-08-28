@@ -1,7 +1,5 @@
 """
 tests/test_scalability.py
-
-Step 5b Day 4 verification:
 Scalability test duplicating corpus content (~2500+ chunks), running full ingestion,
 and verifying it completes in under 6 minutes (< 360 seconds) with correct chunk statistics.
 """

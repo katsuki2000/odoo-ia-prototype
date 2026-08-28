@@ -1,13 +1,6 @@
 """
 code_intelligence/tests/test_j8_llm_server_action_interpretation.py
 
-J8 -- Bounded LLM interpretation of ir.actions.server 'code' fields,
-layered on top of the existing regex-based static analysis (never
-replacing it). Per plan  J8: "lecture LLM bornée du champ code avec
-tag de confiance obligatoire". The static confidence (always 'low', see
-server_action_analyzer.py docstring) and the LLM-derived confidence are
-kept as two DISTINCT fields, never merged -- an LLM misjudging risk as
-"high" must never silently override or hide the static safety net.
 """
 from types import SimpleNamespace
 from unittest.mock import Mock

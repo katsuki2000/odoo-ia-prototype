@@ -138,12 +138,28 @@ def _llm_arbitrate(query_text: str, candidates: List[str], llm) -> Optional[str]
 
     try:
         from langchain_core.messages import SystemMessage, HumanMessage
+        # Section 263 (todo/contexte.txt): route through the same
+        # multi-key Groq rotation / rate-limit retry wrapper already used
+        # by the Code Intelligence branch (core/llm_client.py), instead of
+        # calling llm.invoke() directly. rebuild_llm rebuilds a plain
+        # (non-tool-bound) client via get_chat_llm() -- reasonable default
+        # for a short, single-shot arbitration call -- so a 429 on the
+        # injected `llm` rotates to the next configured GROQ_API_KEYS entry
+        # instead of failing this arbitration outright.
+        from core.llm_client import get_chat_llm, invoke_with_rate_limit
 
         prompt = _build_arbitration_prompt(query_text, candidates)
-        response = llm.invoke([
+        messages = [
             SystemMessage(content=_ARBITRATION_SYSTEM_PROMPT),
             HumanMessage(content=prompt),
-        ])
+        ]
+
+        def _rebuild_arbitration_llm():
+            return get_chat_llm(temperature=0.0, max_retries=0)
+
+        response, _wait = invoke_with_rate_limit(
+            llm, messages, rebuild_llm=_rebuild_arbitration_llm,
+        )
         raw = (response.content or "").strip()
     except Exception:
         _logger.exception("LLM arbitration call failed for query=%r candidates=%r", query_text, candidates)
@@ -241,6 +257,51 @@ def _find_exact_technical_model_mentions(query_lower: str, G) -> List[str]:
     return found
 
 
+def _specificity_score(technical_name: str, query_lower: str) -> Tuple[int, int, int, int]:
+    """Deterministic specificity score for an exact technical model mention,
+    higher is more specific/relevant. Compared as a tuple (segments, length,
+    custom_prefix, occurrences) -- see rank_by_specificity's docstring for
+    the rationale (todo/contexte.txt section 2xx)."""
+    segments = technical_name.count(".") + 1
+    length = len(technical_name)
+    is_custom = 1 if technical_name.startswith(("custom.", "x_")) else 0
+    pattern = r"(?<!\w)" + re.escape(technical_name.lower()) + r"(?!\w)"
+    occurrences = len(re.findall(pattern, query_lower))
+    return (segments, length, is_custom, occurrences)
+
+
+def rank_by_specificity(matches: List[str], query_lower: str) -> List[str]:
+    """
+    Arbitrate between several exact technical model mentions found verbatim
+    in the same question, instead of treating every exact match as equally
+    valid (todo/contexte.txt section 2xx).
+
+    Root cause: multiple exact matches can coexist in one query (e.g. a
+    generic name like 'base' alongside a specific one like
+    'custom.deep.document') with nothing choosing the more relevant one --
+    the naive fix (blacklisting 'base') is ad hoc and would need to be
+    re-applied for every future generic technical name ('mail', 'stock',
+    'account', ...). The real signal is that matches are not equally
+    informative: more segments, longer, custom/business-prefixed, and more
+    frequently mentioned all indicate higher relevance.
+
+    Deterministic criteria, most to least significant:
+      1. number of dot-segments (custom.deep.document > base)
+      2. technical name length
+      3. presence of a business/custom prefix (custom., x_)
+      4. number of verbatim occurrences in the question
+
+    Only the strictly best-scoring match(es) are kept; ties (identical score
+    tuple) are all kept rather than picking one arbitrarily. With a single
+    match, this is a no-op.
+    """
+    if len(matches) <= 1:
+        return matches
+    scored = [(m, _specificity_score(m, query_lower)) for m in matches]
+    top_score = max(score for _m, score in scored)
+    return [m for m, score in scored if score == top_score]
+
+
 def _fuzzy_match_graph(query: str, G, threshold: int = 75, limit: int = 5) -> List[Tuple[str, float]]:
     index = _build_fuzzy_index(G)
     if not index:
@@ -317,6 +378,13 @@ def resolve_business_term(query_text: str, G=None, llm=None) -> ResolvedConcept:
         )
 
     exact_mentions = _find_exact_technical_model_mentions(clean_query, G)
+    if len(exact_mentions) > 1:
+        # Section 2xx (todo/contexte.txt), option 2: several exact technical
+        # mentions can coexist in one query (e.g. a generic name like 'base'
+        # alongside a specific one like 'custom.deep.document') -- arbitrate
+        # by specificity instead of returning every exact match as equally
+        # valid. See rank_by_specificity's docstring for the rationale.
+        exact_mentions = rank_by_specificity(exact_mentions, clean_query)
     if exact_mentions:
         return ResolvedConcept(
             user_term=query_text,

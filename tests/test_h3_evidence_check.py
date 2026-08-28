@@ -1,8 +1,5 @@
 # -*- coding: utf-8 -*-
 """
-H3 (Evidence Check), Phase 1 -- observational only (2026-08-20,
-).
-
 Design decision made explicitly with the maitre de stage: H3 sits AFTER
 route() (code_intelligence_agent), never before -- it never changes
 route_decision. See rag/evidence_check.py's module docstring for the full

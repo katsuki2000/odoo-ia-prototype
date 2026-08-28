@@ -259,6 +259,16 @@ def _flag_ungrounded_group_xmlids(final_answer: str, raw_tool_output: str) -> st
     )
 
 
+# Sentence-boundary splitter for _strip_core_only_group_mentions: a period
+# (or !/?) followed by whitespace then a capital letter. Requiring the
+# trailing capital letter is what keeps this safe against file paths/
+# citations like 'account_move.py' (never followed by whitespace + a
+# capital letter), unlike the earlier clause-level regex this replaces
+# (see _strip_core_only_group_mentions' own docstring for the live
+# regression that motivated dropping that approach).
+_SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+(?=[A-Z\u00c0\u00c2\u00c4\u00c9\u00c8\u00ca\u00cb\u00ce\u00cf\u00d4\u00d6\u00d9\u00db\u00dc\u00c7])")
+
+
 def _grounded_core_only_groups(final_answer: str, scoped_tool_output: str) -> List[str]:
     """Find group XML-IDs that are grounded only in core Odoo files rather
     than custom modules, but ONLY when a competing custom-module group is
@@ -289,30 +299,80 @@ def _grounded_core_only_groups(final_answer: str, scoped_tool_output: str) -> Li
 
 
 def _strip_core_only_group_mentions(final_answer: str, scoped_tool_output: str) -> str:
-    """Remove whole paragraphs/bullets mentioning group XML-IDs that are
-    superseded by a competing custom-module group in this turn (see
-    _grounded_core_only_groups).
+    """Remove mentions of group XML-IDs that are superseded by a competing
+    custom-module group in this turn (see _grounded_core_only_groups),
+    scoped to the smallest unit that is safe to drop as a whole.
 
-    Deliberately removes at PARAGRAPH granularity (split on blank lines)
-    rather than a clause-level regex: a clause-level '[^.\\n]*<xmlid>[^.\\n]*\\.?'
-    pattern stops at the FIRST '.' in either direction, which false-triggers
-    on periods that are not sentence boundaries (file paths like
-    'account_move.py', abbreviations, citation line ranges) -- confirmed live
-    regression: this produced answers truncated mid-sentence with orphaned
-    closing parentheses. Paragraph boundaries (blank lines) are unambiguous
-    in this markdown-formatted synthesis output, so this can never cut a
-    sentence or citation in half."""
+    Granularity, in order of preference:
+      1. Paragraph (split on blank lines) if it does not contain any
+         core-only xmlid at all -- kept untouched, no further splitting.
+      2. Within a paragraph that DOES contain a core-only xmlid: if the
+         paragraph is a bullet/list block (more than one line, at least
+         one line starting with '-' or '*'), drop only the offending
+         list line(s) -- list items are independent units, so dropping
+         one can never cut another mid-sentence. This is the case a pure
+         whole-paragraph removal got wrong (confirmed live: a two-bullet
+         paragraph naming both a core-only group to drop and a competing
+         custom group to keep lost BOTH bullets, since they share one
+         '\n'-joined block with no blank line between them).
+      3. Within a paragraph that contains a core-only xmlid and is a
+         single line (no internal '\n' at all): split on sentence
+         boundaries (period/!/? followed by whitespace then a capital
+         letter) and drop only the offending sentence(s). This is safer
+         than a naive clause-level regex stopping at the FIRST '.' in
+         either direction (the earlier, since-reverted approach): that
+         regex false-triggered on periods that are not sentence
+         boundaries (file paths like 'account_move.py', abbreviations,
+         citation line ranges), confirmed live to truncate answers
+         mid-sentence with orphaned closing parentheses. Requiring a
+         following capital letter after the period+whitespace avoids that
+         failure mode: 'account_move.py' is never followed by whitespace
+         then a capital letter, so it never looks like a sentence break.
+      4. Any other shape (multiple lines, no bullet markers -- an
+         unrecognized format) falls back to the original coarse
+         whole-paragraph removal: the conservative default when this
+         function cannot positively classify the paragraph's internal
+         structure, same discipline as every other scoping guard in this
+         module (see e.g. _block_is_custom_module_file).
+
+    If every line/sentence in a paragraph is offending, the whole
+    paragraph is dropped, matching the previous behavior for that case.
+    """
     core_only = _grounded_core_only_groups(final_answer, scoped_tool_output)
     if not core_only:
         return final_answer
 
-    paragraphs = final_answer.split("\n\n")
-    kept = [p for p in paragraphs if not any(xmlid in p for xmlid in core_only)]
-    result = "\n\n".join(kept)
+    def _contains_core_only(fragment: str) -> bool:
+        return any(xmlid in fragment for xmlid in core_only)
+
+    kept_paragraphs = []
+    for para in final_answer.split("\n\n"):
+        if not _contains_core_only(para):
+            kept_paragraphs.append(para)
+            continue
+
+        lines = para.split("\n")
+        if len(lines) > 1 and any(l.strip().startswith(("-", "*")) for l in lines):
+            kept_lines = [l for l in lines if not _contains_core_only(l)]
+            if kept_lines:
+                kept_paragraphs.append("\n".join(kept_lines))
+            # else: every list item in this paragraph was offending --
+            # drop the whole (now-empty) paragraph, same as case 4 below.
+        elif len(lines) == 1:
+            sentences = _SENTENCE_SPLIT_RE.split(para)
+            kept_sentences = [s for s in sentences if not _contains_core_only(s)]
+            if kept_sentences:
+                kept_paragraphs.append(" ".join(kept_sentences))
+            # else: every sentence in this paragraph was offending --
+            # drop the whole (now-empty) paragraph.
+        # else: multi-line, non-bullet shape this function cannot safely
+        # subdivide -- fall through and drop the whole paragraph (case 4).
+
+    result = "\n\n".join(kept_paragraphs)
 
     logger.warning(
         "Node [code_intelligence_agent]: stripped grounded-but-core-Odoo-only "
-        "group xmlid(s) from synthesized answer (whole paragraph removed): %s",
+        "group xmlid(s) from synthesized answer: %s",
         ", ".join(core_only),
     )
     return result
@@ -980,19 +1040,78 @@ def _correct_security_lock_threshold_contradictions(
     return delimiter.join(new_chunks) + suffix
 
 
-def _extract_can_view_amount_fact_block(raw_tool_output: str) -> "Optional[str]":
+def _extract_can_view_amount_fact_block(
+    raw_tool_output: str,
+    tool_observation_models: "Optional[List[str]]" = None,
+    target_models: "Optional[List[str]]" = None,
+) -> "Optional[str]":
     """
     Return the exact '[FAIT DETERMINISTIQUE] ... can_view_amount_v2 ...'
     block produced by _format_can_view_amount_fact(), if present anywhere
     in raw_tool_output, else None.
+
+    Section 2xx (todo/contexte.txt) hardening: taking the FIRST block that
+    matches the fact pattern is order-dependent and silently picks the
+    wrong model's verdict whenever raw_tool_output carries more than one
+    can_view_amount_v2 block (e.g. a multi-model resolution). When the
+    caller can supply tool_observation_models (parallel to the blocks
+    produced by "\n\n".join(tool_observations)) and target_models (the
+    resolved model(s) the caller actually cares about), the block is
+    selected by explicit model association instead of chance ordering:
+      - Candidates are blocks carrying a fact AND whose paired model is in
+        target_models.
+      - Exactly one distinct candidate model -> return it, unambiguous.
+      - Several distinct candidate models (legitimate multi-model query)
+        -> log a warning and return the most recently computed one (the
+        last observation appended is the last evaluation performed), which
+        is deterministic even if not a full per-model backfill.
+      - No candidate matches target_models at all -> fall through to the
+        untargeted scan below rather than returning None outright.
+    When tool_observation_models/target_models are not supplied (legacy
+    callers), behaviour is unchanged except that finding more than one
+    fact block is now logged instead of silently resolved.
     """
-    for block in raw_tool_output.split("\n\n"):
-        if _has_can_view_amount_fact(block):
-            return block.strip()
-    return None
+    blocks = raw_tool_output.split("\n\n")
+
+    if tool_observation_models is not None and target_models:
+        target_set = set(target_models)
+        candidates = [
+            (block, model)
+            for block, model in zip(blocks, tool_observation_models)
+            if _has_can_view_amount_fact(block) and model in target_set
+        ]
+        if candidates:
+            distinct_models = {model for _block, model in candidates}
+            if len(distinct_models) > 1:
+                logger.warning(
+                    "Node [code_intelligence_agent]: %d distinct resolved "
+                    "models each produced a can_view_amount_v2 fact block "
+                    "(%s) -- backfilling with the most recently computed "
+                    "one instead of an arbitrary first match.",
+                    len(distinct_models), sorted(distinct_models),
+                )
+                return candidates[-1][0].strip()
+            return candidates[0][0].strip()
+
+    matches = [block for block in blocks if _has_can_view_amount_fact(block)]
+    if not matches:
+        return None
+    if len(matches) > 1:
+        logger.warning(
+            "Node [code_intelligence_agent]: %d can_view_amount_v2 fact "
+            "blocks found with no model association available -- taking "
+            "the first one (order-dependent). Pass tool_observation_models "
+            "and target_models to disambiguate.", len(matches),
+        )
+    return matches[0].strip()
 
 
-def _backfill_missing_can_view_amount_fact(final_answer: str, raw_tool_output: str) -> str:
+def _backfill_missing_can_view_amount_fact(
+    final_answer: str,
+    raw_tool_output: str,
+    tool_observation_models: "Optional[List[str]]" = None,
+    target_models: "Optional[List[str]]" = None,
+) -> str:
     """
     No-op when final_answer already contains a can_view_amount_v2 fact
     (LLM echoed or paraphrased it closely enough to match
@@ -1004,11 +1123,20 @@ def _backfill_missing_can_view_amount_fact(final_answer: str, raw_tool_output: s
     call has an actual fact to reconcile the free prose against, instead
     of silently no-oping on a fact that only ever existed in the LLM's
     input, never its output.
+
+    tool_observation_models/target_models are optional and, when passed,
+    let _extract_can_view_amount_fact_block pick the block belonging to the
+    actually resolved model(s) instead of the first one found by chance
+    ordering -- see that function's docstring (section 2xx hardening).
     """
     if _has_can_view_amount_fact(final_answer):
         return final_answer
 
-    block = _extract_can_view_amount_fact_block(raw_tool_output)
+    block = _extract_can_view_amount_fact_block(
+        raw_tool_output,
+        tool_observation_models=tool_observation_models,
+        target_models=target_models,
+    )
     if block is None:
         return final_answer
 

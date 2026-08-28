@@ -23,9 +23,9 @@ else:
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from core.graph import query_graph
 from erp_data.odoo_tools import (
-    obtenir_total_ventes,
-    obtenir_total_factures,
-    obtenir_tickets_recents
+    get_total_sales,
+    get_total_invoices,
+    get_recent_tickets
 )
 
 logging.basicConfig(level=logging.ERROR)

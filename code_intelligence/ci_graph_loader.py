@@ -135,6 +135,49 @@ def _load_module(mod_dir: Path) -> tuple:
     return mod_dir.name, mod
 
 
+def _graph_filepaths_resolve_locally(G, sample_size: int = 20) -> bool:
+    """
+    Sanity-check that a graph loaded from GRAPH_JSON_PATH actually points at
+    real files on THIS machine, not at absolute paths baked in from
+    whatever machine last built (or committed) the JSON.
+
+    active_graph.json is a serialized build artifact: every Model node's
+    `filepaths` entry is an absolute path resolved at build time on
+    whichever machine ran the build. If that JSON is shared between
+    machines (backup, shared drive, or -- as happened here -- committed to
+    git and checked out elsewhere), a graph built on machine A silently
+    carries paths that do not exist on machine B. Nothing about the mtime-
+    based cache check above can catch this: the file is real and recent,
+    it just points at the wrong filesystem. Every downstream tool that
+    does Path(fp).exists() (analyze_security_locks, analyze_data_
+    constraints, find_security_lock_source_files, ...) then silently
+    returns nothing, for every model, with no error surfaced anywhere
+    (see todo/contexte.txt for the real incident this caused).
+
+    Samples up to `sample_size` Model-node filepaths and checks whether ANY
+    of them exist on disk. If none do, the cache is almost certainly
+    foreign to this machine and must not be trusted. An empty sample (a
+    graph with no Model filepaths at all) is not itself treated as
+    invalid -- there is nothing to validate against, so it passes.
+    """
+    sampled = 0
+    for _, attrs in G.nodes(data=True):
+        if attrs.get("node_type") != "Model":
+            continue
+        for fp in attrs.get("filepaths", []):
+            sampled += 1
+            if Path(fp).exists():
+                return True
+            if sampled >= sample_size:
+                return False
+    # Loop exhausted without hitting sample_size: either no Model filepaths
+    # existed at all (sampled == 0, nothing to validate against, pass), or
+    # fewer than sample_size were found and NONE resolved (sampled > 0,
+    # fail -- this is the exact case the foreign-machine bug hits when a
+    # small/synthetic corpus has under sample_size filepaths total).
+    return sampled == 0
+
+
 def get_code_intelligence_graph():
     """Lazy-load and cache Knowledge Graph for Code Intelligence node."""
     global _CACHED_CODE_INTEL_GRAPH, _CACHED_GRAPH_MTIME
@@ -150,11 +193,23 @@ def get_code_intelligence_graph():
                 logger.info("Loading graph from disk (mtime %s > %s)", current_mtime, _CACHED_GRAPH_MTIME)
                 data_dict = atomic_read_json(GRAPH_JSON_PATH)
                 G, metadata = deserialize_graph_with_metadata(data_dict)
-                _CACHED_CODE_INTEL_GRAPH = G
-                _CACHED_GRAPH_MTIME = current_mtime
-                logger.info("Knowledge Graph loaded from JSON: %d nodes, %d edges (version: %s)", 
-                            G.number_of_nodes(), G.number_of_edges(), metadata.get("git_commit", "unknown"))
-                return _CACHED_CODE_INTEL_GRAPH
+
+                if _graph_filepaths_resolve_locally(G):
+                    _CACHED_CODE_INTEL_GRAPH = G
+                    _CACHED_GRAPH_MTIME = current_mtime
+                    logger.info("Knowledge Graph loaded from JSON: %d nodes, %d edges (version: %s)", 
+                                G.number_of_nodes(), G.number_of_edges(), metadata.get("git_commit", "unknown"))
+                    return _CACHED_CODE_INTEL_GRAPH
+                else:
+                    logger.warning(
+                        "Graph loaded from %s has Model filepaths that do not "
+                        "exist on this machine -- this JSON was almost "
+                        "certainly built (or last committed) on a different "
+                        "machine. Discarding this cache instead of silently "
+                        "serving broken paths, and rebuilding from source. "
+                        "See todo/contexte.txt for the incident this guards "
+                        "against.", GRAPH_JSON_PATH,
+                    )
     except Exception as e:
         logger.error("Failed to load graph from %s: %s", GRAPH_JSON_PATH, e)
         # Fall back to building it

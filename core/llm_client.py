@@ -9,6 +9,7 @@ from langchain_core.messages import SystemMessage, HumanMessage, ToolMessage
 from config.settings import (
     LLM_PROVIDER,
     GROQ_API_KEY,
+    GROQ_API_KEYS,
     GROQ_MODEL,
     OPENROUTER_API_KEY,
     OPENROUTER_MODEL,
@@ -16,6 +17,39 @@ from config.settings import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+# ── Groq multi-key rotation ────────────────────────────────────────────────
+# Advances once through GROQ_API_KEYS (no wraparound) when the active key
+# hits a rate limit -- invoke_with_rate_limit() drives the rotation, this
+# module only holds the shared index so every caller sees the same key.
+
+_groq_key_lock = threading.Lock()
+_groq_key_index = [0]
+
+
+def _current_groq_key() -> "str | None":
+    if not GROQ_API_KEYS:
+        return GROQ_API_KEY
+    with _groq_key_lock:
+        idx = min(_groq_key_index[0], len(GROQ_API_KEYS) - 1)
+        return GROQ_API_KEYS[idx]
+
+
+def _rotate_groq_key() -> bool:
+    """Advance to the next configured Groq key. Returns False once already
+    on the last one (no wraparound -- callers fall back to waiting out the
+    rate limit on that last key, the pre-existing behaviour)."""
+    with _groq_key_lock:
+        old = _groq_key_index[0]
+        if old + 1 >= len(GROQ_API_KEYS):
+            return False
+        _groq_key_index[0] = old + 1
+        logger.warning(
+            "Groq API key %d/%d exhausted -- rotating to key %d/%d.",
+            old + 1, len(GROQ_API_KEYS), old + 2, len(GROQ_API_KEYS),
+        )
+        return True
 
 
 # ── Provider-agnostic client factory ──────────────────────────────────────
@@ -30,7 +64,7 @@ def get_chat_llm(
     if LLM_PROVIDER == "groq":
         return ChatGroq(
             model=GROQ_MODEL,
-            api_key=GROQ_API_KEY,
+            api_key=_current_groq_key(),
             temperature=temperature,
             max_tokens=max_tokens,
             max_retries=max_retries,
@@ -158,7 +192,13 @@ def _reduce_message_context(messages: list) -> list:
     return reduced
 
 
-def invoke_with_rate_limit(llm_with_tools, messages, max_retries: int = 5):
+def invoke_with_rate_limit(llm_with_tools, messages, max_retries: int = 5, rebuild_llm=None):
+    """rebuild_llm: optional zero-arg callable returning a freshly-built
+    client (e.g. re-bound to tools) once _rotate_groq_key() has moved to the
+    next configured key. When provided, a rate limit rotates to the next key
+    and retries immediately (no wait) before ever falling back to the
+    dynamic-header wait below -- that wait remains the behaviour once the
+    last configured key is also rate-limited."""
     context_reduced = False
     total_wait_seconds = 0.0
     for attempt in range(max_retries):
@@ -210,8 +250,19 @@ def invoke_with_rate_limit(llm_with_tools, messages, max_retries: int = 5):
                     )
                     raise
 
-                # Cas 1 : rate limit (comportement existant, inchangé)
+                # Cas 1 : rate limit -- essaie d'abord de tourner sur la
+                # cle Groq suivante (retry immediat, pas d'attente) ; ne
+                # retombe sur l'attente dynamique par headers (comportement
+                # pre-existant, inchange) que lorsque la derniere cle
+                # configuree est elle aussi en rate-limit.
                 is_rate_limit = "429" in err_str or "rate_limit" in err_str.lower()
+                if is_rate_limit and rebuild_llm is not None and _rotate_groq_key():
+                    llm_with_tools = rebuild_llm()
+                    logger.warning(
+                        "Rate limit hit (attempt %d/%d) -- rotated to next Groq key, retrying immediately.",
+                        attempt + 1, max_retries,
+                    )
+                    continue
                 if is_rate_limit and attempt < max_retries - 1:
                     headers = _extract_rate_limit_headers(e)
                     reset_raw = (

@@ -23,3 +23,13 @@ document_rag/vectorstore/chroma_db/
 captures/reasoning_trace.jsonl
 # Ingestion logs -- machine-specific
 document_rag/ingestion/logs/
+
+# Code Intelligence knowledge graph cache -- a serialized build artifact
+# that bakes in absolute filesystem paths resolved at build time (every
+# Model node's filepaths). Committing it lets one machine's absolute paths
+# silently overwrite another machine's on checkout -- see todo/contexte.txt
+# for the real incident this caused (analyze_security_locks and friends
+# returning nothing for every model, on any machine that doesn't match
+# whoever last built/committed this file). Always regenerate locally via
+# scripts/rebuild_graph.py instead of relying on a committed copy.
+code_intelligence/active_graph.json

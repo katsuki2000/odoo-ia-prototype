@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-J18-J19: Test suite for the routing function against the few-shot adversarial
+Test suite for the routing function against the few-shot adversarial
 examples at branch boundaries. Validates that the conflict resolution policy
 (CODE_INTELLIGENCE > DONNEES_ERP > HYBRIDE > DOCUMENTAIRE) is correctly
 implemented by the keyword-based router.

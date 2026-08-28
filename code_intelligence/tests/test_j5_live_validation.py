@@ -23,6 +23,7 @@ from code_intelligence.graph_builder import OdooGraphBuilder
 from code_intelligence.live_rule_validator import validate_live_rule_prediction
 from code_intelligence.odoo_rpc_client import OdooRpcClient
 from code_intelligence.xml_extractor import parse_groups_from_xml, parse_ir_rules_from_xml
+from config.settings import CUSTOM_ADDONS_PATH
 
 
 pytestmark = pytest.mark.integration
@@ -39,7 +40,7 @@ ACCOUNT_MOVE_80K_REFUND_DOMAIN = [
 @pytest.fixture(scope="module")
 
 def real_security_graph() -> nx.DiGraph:
-    addons_root = Path("/home/user/odoo-17.0/addons")
+    addons_root = Path(CUSTOM_ADDONS_PATH)
     module_names = ("custom_credit_note_approval", "custom_credit_note_visibility_rules")
     modules = {}
 

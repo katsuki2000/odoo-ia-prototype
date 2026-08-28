@@ -83,14 +83,24 @@ _ADMIN_RPC_UID = None
 def _get_admin_rpc_client():
     """Lazy singleton admin XML-RPC client + uid, reused across requests --
     pure static-metadata lookups only (group xml_id resolution), never used
-    for anything requiring the actual requester's own rights."""
+    for anything requiring the actual requester's own rights.
+
+    core.graph holds an independent copy of these globals (re-imported by
+    name); a reset on that copy is now mirrored here too, so a stale client
+    left over from an earlier test can never leak through (contexte.txt
+    section 256).
+    """
     global _ADMIN_RPC_CLIENT, _ADMIN_RPC_UID
     import sys
     g_mod = sys.modules.get("core.graph")
-    target_client = getattr(g_mod, "_ADMIN_RPC_CLIENT", None) if g_mod is not None else _ADMIN_RPC_CLIENT
-    target_uid = getattr(g_mod, "_ADMIN_RPC_UID", None) if g_mod is not None else _ADMIN_RPC_UID
-    if target_client is not None:
-        return target_client, target_uid
+    if g_mod is not None:
+        target_client = getattr(g_mod, "_ADMIN_RPC_CLIENT", None)
+        target_uid = getattr(g_mod, "_ADMIN_RPC_UID", None)
+        if target_client is not None:
+            _ADMIN_RPC_CLIENT, _ADMIN_RPC_UID = target_client, target_uid
+            return target_client, target_uid
+        _ADMIN_RPC_CLIENT = None
+        _ADMIN_RPC_UID = None
 
     if _ADMIN_RPC_CLIENT is None:
         from code_intelligence.odoo_rpc_client import OdooRpcClient
@@ -229,7 +239,16 @@ class CodeIntelligenceAgentRunner:
             model_kwargs={"parallel_tool_calls": False},
         )
         set_llm_ref(llm)
-        llm_with_tools = llm.bind_tools(ALL_CI_TOOLS)
+        _tool_llm_box = [llm.bind_tools(ALL_CI_TOOLS)]
+
+        def _rebuild_tool_llm():
+            fresh = get_chat_llm(
+                temperature=0.0, max_retries=0, max_tokens=1024,
+                model_kwargs={"parallel_tool_calls": False},
+            )
+            set_llm_ref(fresh)
+            _tool_llm_box[0] = fresh.bind_tools(ALL_CI_TOOLS)
+            return _tool_llm_box[0]
         
         _ci_groq_wait = 0.0          # accumulated Groq rate-limit wait (subtracted from wall-clock)
         _ci_per_hop_times: list = []  # per-hop wall-clock durations
@@ -658,15 +677,49 @@ class CodeIntelligenceAgentRunner:
         
         _t_react_loop = time.perf_counter()
         for iteration in range(0 if final_answer else REACT_RECURSION_LIMIT):
-            # Single-Pass Composite Execution: 1 Tool Selection turn + 1 Synthesis turn
-            try:
-                ai_msg, _wait = _invoke_with_rate_limit(llm_with_tools, messages)
-                _llm_call_count += 1  # tool-selection call
-                _ci_groq_wait += _wait
-            except Exception as e:
-                _llm_call_count += 1  # attempt still counts against the LLM-call budget
-                logger.error("LLM tool selection failed: %s", e)
+            # J251 fix (todo/contexte.txt section 250-251): the deterministic
+            # pre-dispatch blocks above each break their OWN loop once
+            # hop_count reaches CI_MAX_HOPS, but nothing previously stopped
+            # THIS ReAct loop from still invoking llm_with_tools for at least
+            # one more iteration when the hop budget was already exhausted
+            # by pre-dispatch (final_answer stays None in that case, so the
+            # `range(0 if final_answer else REACT_RECURSION_LIMIT)` guard
+            # above never skipped the loop). REACT_RECURSION_LIMIT (6) is a
+            # distinct, looser bound on raw LLM back-and-forth turns -- it was
+            # never meant to substitute for CI_MAX_HOPS (4) as the tool-call
+            # budget. Confirmed live: this let the LLM re-invoke
+            # evaluate_record_rules against its own explicit
+            # "[DETERMINISTIC PRE-DISPATCH] ... Do not call it again" system
+            # prompt instruction, injecting a second, contradictory
+            # [FAIT DETERMINISTIQUE] that the final synthesis then echoed
+            # (module 08 question 3, section 250). Skipping the tool-selection
+            # call outright once the budget is already spent -- instead of
+            # only checking hop_count AFTER a tool call executes, as the
+            # existing check below still correctly does for the case where
+            # the cap is reached DURING this loop -- closes the gap at its
+            # root: no second call is ever issued, nothing to reconcile
+            # after the fact.
+            if hop_count >= CI_MAX_HOPS:
+                logger.info(
+                    "Node [code_intelligence_agent]: hop budget already "
+                    "exhausted (%d/%d) before this ReAct iteration -- "
+                    "skipping tool-selection call, synthesizing directly "
+                    "from the tool observations already gathered.",
+                    hop_count, CI_MAX_HOPS,
+                )
                 ai_msg = None
+            else:
+                # Single-Pass Composite Execution: 1 Tool Selection turn + 1 Synthesis turn
+                try:
+                    ai_msg, _wait = _invoke_with_rate_limit(
+                        _tool_llm_box[0], messages, rebuild_llm=_rebuild_tool_llm,
+                    )
+                    _llm_call_count += 1  # tool-selection call
+                    _ci_groq_wait += _wait
+                except Exception as e:
+                    _llm_call_count += 1  # attempt still counts against the LLM-call budget
+                    logger.error("LLM tool selection failed: %s", e)
+                    ai_msg = None
         
             if ai_msg and getattr(ai_msg, "tool_calls", None):
                 messages.append(ai_msg)
@@ -895,12 +948,21 @@ class CodeIntelligenceAgentRunner:
                         f"restrict that amount, and its group is NOT required for that amount."
                     )
                     try:
-                        plain_llm = get_chat_llm(
-                            temperature=0.0, max_retries=0, max_tokens=4096,
-                            model_kwargs={"frequency_penalty": 0.3, "presence_penalty": 0.2},
-                        )
+                        _plain_llm_box = [None]
+
+                        def _rebuild_plain_llm():
+                            _plain_llm_box[0] = get_chat_llm(
+                                temperature=0.0, max_retries=0, max_tokens=4096,
+                                model_kwargs={"frequency_penalty": 0.3, "presence_penalty": 0.2},
+                            )
+                            return _plain_llm_box[0]
+
+                        _rebuild_plain_llm()
                         _t_synthesis = time.perf_counter()
-                        final_resp, _synth_wait = _invoke_with_rate_limit(plain_llm, [HumanMessage(content=synthesis_prompt)])
+                        final_resp, _synth_wait = _invoke_with_rate_limit(
+                            _plain_llm_box[0], [HumanMessage(content=synthesis_prompt)],
+                            rebuild_llm=_rebuild_plain_llm,
+                        )
                         _llm_call_count += 1  # synthesis call
                         _ci_groq_wait += _synth_wait
                         final_answer = final_resp.content
@@ -924,7 +986,10 @@ class CodeIntelligenceAgentRunner:
                                 )),
                             ]
                             try:
-                                retry_resp, _retry_wait = _invoke_with_rate_limit(plain_llm, retry_messages, max_retries=2)
+                                retry_resp, _retry_wait = _invoke_with_rate_limit(
+                                    _plain_llm_box[0], retry_messages, max_retries=2,
+                                    rebuild_llm=_rebuild_plain_llm,
+                                )
                                 _llm_call_count += 1  # J46-J48: anti-repetition retry call
                                 _ci_groq_wait += _retry_wait
                                 if not _detect_any_degenerate_repetition(retry_resp.content):
@@ -959,10 +1024,25 @@ class CodeIntelligenceAgentRunner:
             scoped_tool_output = _scoped_raw_tool_output(
                 tool_observations, tool_observation_models, concept.resolved_models,
             )
+            # Section 2xx (todo/contexte.txt): kept aligned 1:1 with the blocks
+            # in scoped_tool_output (same filter as _scoped_raw_tool_output) so
+            # _backfill_missing_can_view_amount_fact can pick the fact block
+            # belonging to the actually resolved model(s) instead of the first
+            # can_view_amount_v2 block found by chance ordering.
+            _scoped_target_set = set(concept.resolved_models) if concept.resolved_models else None
+            scoped_tool_observation_models = [
+                model
+                for obs, model in zip(tool_observations, tool_observation_models)
+                if not _scoped_target_set or not model or model in _scoped_target_set
+            ]
 
             final_answer = _correct_security_lock_threshold_contradictions(final_answer, scoped_tool_output, question)
 
-            final_answer = _backfill_missing_can_view_amount_fact(final_answer, scoped_tool_output)
+            final_answer = _backfill_missing_can_view_amount_fact(
+                final_answer, scoped_tool_output,
+                tool_observation_models=scoped_tool_observation_models,
+                target_models=concept.resolved_models,
+            )
 
             final_answer = _backfill_missing_required_groups(final_answer, scoped_tool_output, question)
 

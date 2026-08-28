@@ -17,9 +17,9 @@ sys.path.insert(0, str(project_root / "miro-rag"))
 from scripts.extract_modules import run_pipeline
 from code_intelligence.ci_agent_tools import (
     set_graph_ref,
-    evaluer_regles_enregistrement,
-    analyser_actions_serveur,
-    analyser_verrous_securite,
+    evaluate_record_rules,
+    analyze_server_actions,
+    analyze_security_locks,
 )
 
 ADVERSARIAL_MODULES = [
@@ -49,25 +49,25 @@ def run_interactive_tests():
     print("\n" + "=" * 80)
     print(" [Q2.1] Leave Error Message (ValidationError / UserError)")
     print("=" * 80)
-    print(analyser_verrous_securite.invoke({"model_name": "hr.leave"}))
+    print(analyze_security_locks.invoke({"model_name": "hr.leave"}))
 
     print("\n" + "=" * 80)
     print(" [Q3.1] Hardcoded Email Bypass (_VALIDATEURS_EXCEPTIONNELS)")
     print("=" * 80)
-    print(analyser_verrous_securite.invoke({"model_name": "custom.purchase.request"}))
+    print(analyze_security_locks.invoke({"model_name": "custom.purchase.request"}))
 
     print("\n" + "=" * 80)
     print(" [Q5.1] Server Action Sudo Bypass & Hardcoded IDs (ir.actions.server)")
     print("=" * 80)
-    print(analyser_actions_serveur.invoke({"model_name": "account.move"}))
+    print(analyze_server_actions.invoke({"model_name": "account.move"}))
 
     print("\n" + "=" * 80)
     print(" [Q6.1 & Q6.2] Record Rules AND/OR Engine (ir.rule)")
     print("=" * 80)
     print(
-        evaluer_regles_enregistrement.invoke({
+        evaluate_record_rules.invoke({
             "model_name": "account.move",
-            "droit": "read",
+            "permission": "read",
             "user_groups_json": '["account.group_account_user"]',
         })
     )
@@ -75,7 +75,7 @@ def run_interactive_tests():
     print("\n" + "=" * 80)
     print(" [Q9.1] Dynamic Uncertainty (getattr)")
     print("=" * 80)
-    print(analyser_verrous_securite.invoke({"model_name": "custom.reimbursement.request"}))
+    print(analyze_security_locks.invoke({"model_name": "custom.reimbursement.request"}))
     print("=" * 80)
 
 

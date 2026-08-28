@@ -54,9 +54,6 @@ def test_generate_out_of_scope_refuses_before_llm():
     assert len(result["response"].sources) == 0
 
 
-# 1bis. Dette technique (19/08): _parse_raw_json_answer must extract 'answer'
-# from the raw-invoke fallback's JSON text instead of letting it leak to the user.
-
 def test_parse_raw_json_answer_extracts_answer_field():
     raw = (
         '{"answer": "Le bouton est grisé car le document est validé.", '
@@ -140,9 +137,6 @@ def test_format_output_clean():
     assert "qualité de lecture est limitée" not in result["response"].answer
 
 
-# 3bis. Dette technique (19/08): OCR warning must not leak onto an answer whose
-# actual (top-ranked) source is a .py file just because an unrelated low-quality
-# scanned PDF was also retrieved in the same batch (live-observed bug).
 def test_format_output_ocr_warning_not_leaked_from_unrelated_chunk():
     state = {
         "response": AssistantResponse(answer="Voici la réponse.", confidence=0.8, sources=[]),
@@ -165,8 +159,6 @@ def test_format_output_ocr_warning_not_leaked_from_unrelated_chunk():
     assert len(result["response"].sources) == 2
 
 
-# 3ter. Dette technique (19/08): warning still fires when the low-quality scan
-# IS the top-ranked / actually-cited source (main_src), not just "present somewhere".
 def test_format_output_ocr_warning_fires_when_primary_chunk_is_low_quality():
     state = {
         "response": AssistantResponse(answer="Voici la réponse.", confidence=0.8, sources=[]),
@@ -215,10 +207,6 @@ def test_query_graph_mocked(mock_search_retrieve, mock_get_retriever, mock_chat_
     assert response.sources[0].source == "facture.md"
 
 
-# gap (2026-08-10, 01a-business): override-cascade forced
-# dispatch must stay scoped to what the question actually asks about on a
-# shared model, instead of dispatching every flagged method regardless of
-# relevance and drowning the one finding that matters in synthesis context.
 class TestRankAndCapOverrideMethods:
     def test_no_op_single_candidate(self):
         """ gap rerun (2026-08-11): cap lowered from 2 to 1 (see
@@ -251,12 +239,6 @@ class TestRankAndCapOverrideMethods:
         assert result == ["action_valider_avoir"]
 
 
-# gap (2026-08-10, 02b-no-groups): the deterministic
-# can_view_amount fact injected into tool_observations must stay purely
-# declarative -- a live run showed the synthesis LLM echoing an imperative
-# second-person sentence ('ne doit JAMAIS etre recalcule ... reprendre ce
-# verdict tel quel') verbatim as its entire final answer, with no actual
-# explanation, once that instruction was embedded directly in the fact text.
 class TestFormatCanViewAmountFact:
     def test_contains_deterministic_marker_and_verdict(self):
         text = _format_can_view_amount_fact(80000, True)
@@ -278,16 +260,7 @@ class TestFormatCanViewAmountFact:
             assert banned not in lowered, f"found banned imperative phrase: {banned!r}"
 
 
-# gap (2026-08-10, 03c-urgente-trap, generalization check 3/8
-# on custom_hr_leave_workflow): bare 'automatiq\w*' matched the everyday
-# adverb "automatiquement" ("sa demande est-elle automatiquement validee ?"),
-# an ordinary question about whether something happens without further
-# action -- nothing to do with ir.actions.server/base.automation/sudo()
-# bypass logic. On a model with real ServerAction nodes this forced an
-# irrelevant analyze_server_actions dispatch, consuming a hop of the
-# tight CI_MAX_HOPS=4 budget and crowding out a needed fact (has_group()
-# required group) from the synthesis answer -- same failure shape as
-# module 1/8's Gap 2, different trigger.
+
 class TestAutomationPatternNoBareAdverbFalsePositive:
     def test_bare_automatiquement_does_not_trigger(self):
         question = (
@@ -325,14 +298,6 @@ class TestAutomationPatternNoBareAdverbFalsePositive:
         assert _question_suggests_automation_bypass("Comment contourner cette validation ?") is True
 
 
-# gap, found 2026-08-11 (module 1/8 rerun, 01a-business /
-# 01b-technical, after the has_group()/cap/truncation fixes were all
-# confirmed active): two further dropped-fact gaps on the same
-# 'account.move.action_valider_avoir' override cascade -- see the
-# module-level comment above _OVERRIDE_MODULE_RE/_OVERRIDE_CHAIN_AMOUNT_RE
-# in rag/graph.py for the full live-run diagnosis. Fixture text below
-# mirrors the real analyze_method_override_chain output verbatim
-# (3-module chain, same wording as the confirmed live raw check).
 _REAL_OVERRIDE_CHAIN_RAW_TEXT = (
     "Chaîne de surcharge de 'account.move.action_valider_avoir' (3 modules, "
     "ordre d'exécution réel, pas l'ordre de dépendance):\n"

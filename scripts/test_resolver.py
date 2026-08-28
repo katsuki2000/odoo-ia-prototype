@@ -1,14 +1,13 @@
 import sys
-import json
-import networkx as nx
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from code_intelligence.business_resolver import resolve_business_term
+from code_intelligence.ci_graph_loader import get_code_intelligence_graph
 
 print("Loading graph...")
-G = nx.node_link_graph(json.loads(open('/home/user/odoo-17.0/addons/knowledge_graph/knowledge_graph.json').read()))
+G = get_code_intelligence_graph()
 print(f"Graph: {G.number_of_nodes()} nodes\n")
 
 queries = [
