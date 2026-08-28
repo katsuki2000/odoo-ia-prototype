@@ -3,12 +3,13 @@ name: OCA Coverage Pipeline
 on:
   push:
     paths:
-      - 'miro-rag/code_intelligence/**'
+      - 'code_intelligence/**'
       - 'scripts/run_oca_coverage.py'
   pull_request:
     paths:
-      - 'miro-rag/code_intelligence/**'
+      - 'code_intelligence/**'
       - 'scripts/run_oca_coverage.py'
+  workflow_dispatch:
 
 jobs:
   oca-coverage:
@@ -25,7 +26,6 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pytest networkx
 
       - name: Clone OCA sample modules
         run: |
@@ -34,7 +34,16 @@ jobs:
           git clone --depth 1 -b 17.0 https://github.com/OCA/account-financial-reporting.git
           git clone --depth 1 -b 17.0 https://github.com/OCA/sale-workflow.git
           git clone --depth 1 -b 17.0 https://github.com/OCA/server-tools.git
+          git clone --depth 1 -b 17.0 https://github.com/OCA/server-ux.git
+          git clone --depth 1 -b 17.0 https://github.com/OCA/purchase-workflow.git
+          git clone --depth 1 -b 17.0 https://github.com/OCA/hr.git
+          git clone --depth 1 -b 17.0 https://github.com/OCA/account-invoicing.git
+          git clone --depth 1 -b 17.0 https://github.com/OCA/stock-logistics-warehouse.git
+          git clone --depth 1 -b 17.0 https://github.com/OCA/partner-contact-management.git
+          git clone --depth 1 -b 17.0 https://github.com/OCA/reporting-engine.git
+          git clone --depth 1 -b 17.0 https://github.com/OCA/web.git
+          git clone --depth 1 -b 17.0 https://github.com/OCA/project.git
 
       - name: Run coverage script
         run: |
-          PYTHONPATH=miro-rag python scripts/run_oca_coverage.py tests/oca_sample
+          python scripts/run_oca_coverage.py tests/oca_sample
