@@ -35,6 +35,18 @@ CHROMA_PATH  = "./document_rag/vectorstore/chroma_db"
 # (~/odoo-ia-prototype next to ~/odoo-17.0).
 CORE_ADDONS_PATH = os.getenv("CORE_ADDONS_PATH") or str(_ROOT.parent / "odoo-17.0" / "addons")
 CUSTOM_ADDONS_PATH = os.getenv("CUSTOM_ADDONS_PATH") or str(_ROOT / "odoo_addons")
+# Core FRAMEWORK addons (base, web, ...) -- in a standard Odoo git checkout
+# these live under <repo>/odoo/addons/, a SIBLING of <repo>/addons/ (which is
+# what CORE_ADDONS_PATH points at, the community addons repo -- account/
+# sale/stock live there, but base/web do not). Added 2026-08-27 (contexte.txt
+# section 246): custom_* modules that depend on 'base' directly (miro_ai,
+# custom_deep_inheritance_security, custom_expense_reimbursement_indirect)
+# were silently never getting it loaded, since it was never found under
+# CORE_ADDONS_PATH and ci_graph_loader.py had no second root to try.
+# Fallback computed relative to CORE_ADDONS_PATH's parent (the repo root),
+# matching the standard Odoo checkout layout -- portable, not a hardcoded
+# absolute path; override explicitly via env if a given install differs.
+CORE_FRAMEWORK_ADDONS_PATH = os.getenv("CORE_FRAMEWORK_ADDONS_PATH") or str(Path(CORE_ADDONS_PATH).parent / "odoo" / "addons")
 
 # ── Retrieval / Re-ranking ────────────────────────────
 # Disabled by default to prevent CPU bottlenecks / non-AVX2 freezes.

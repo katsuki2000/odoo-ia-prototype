@@ -9,7 +9,7 @@ Coordinates:
 5. ChromaDB population with embedding and storage (vectorstore/chroma_manager.py)
 
 Runs full ingestion of document_rag/fake_data/documents/ (docs) and a curated set of
-real Odoo module directories under ADDONS_ROOT (code) to ChromaDB.
+real Odoo module directories under CORE_ADDONS_ROOT/CUSTOM_ADDONS_ROOT (code) to ChromaDB.
 """
 
 from __future__ import annotations
@@ -30,6 +30,7 @@ from document_rag.ingestion.code_loader import CodeLoader, load_python_directory
 from document_rag.ingestion.pdf_loader import PDFLoader, load_pdf_directory
 from document_rag.ingestion.wiki_loader import WikiLoader, load_wiki_directory
 from document_rag.vectorstore.chroma_manager import ChromaManager
+from config.settings import CORE_ADDONS_PATH, CUSTOM_ADDONS_PATH
 
 # Paths
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -41,7 +42,15 @@ FAKE_DATA_DIR = PROJECT_ROOT / "fake_data"
 DOCS_DIR = FAKE_DATA_DIR / "documents"
 LOGS_DIR = PROJECT_ROOT / "ingestion" / "logs"
 
-ADDONS_ROOT = Path("/home/user/odoo-17.0/addons") if Path("/home/user/odoo-17.0/addons").exists() else PROJECT_ROOT.parent / "addons"
+# BUGFIX (section 242, todo/contexte.txt): was a hardcoded absolute path
+# (Path("/home/user/odoo-17.0/addons")) with a fallback to a nonexistent
+# sibling "addons" directory (the real one is "odoo_addons") -- same class
+# of rule violation (todo/rules.md, no hardcoded absolute paths) already
+# fixed in code_intelligence/ci_graph_loader.py (section 231). Now reads
+# the same two machine-specific env vars via config.settings, each with
+# its own portable fallback.
+CORE_ADDONS_ROOT = Path(CORE_ADDONS_PATH)
+CUSTOM_ADDONS_ROOT = Path(CUSTOM_ADDONS_PATH)
 CORE_MODULES_ALWAYS_LOADED = ["account", "sale", "stock"]
 
 
@@ -58,8 +67,22 @@ def _documentary_code_module_dirs() -> list[Path]:
     code path -- if the two ever need to be kept in lockstep, extract a
     shared helper instead of hand-syncing.
     """
-    if not ADDONS_ROOT.exists():
+    # Two distinct roots now, mirroring ci_graph_loader.py (section 231/242):
+    # core Odoo modules (account/sale/stock) and their custom_* modules'
+    # direct dependencies live under CORE_ADDONS_ROOT, while miro_ai and
+    # every custom_* adversarial module live under CUSTOM_ADDONS_ROOT.
+    if not CUSTOM_ADDONS_ROOT.exists():
+        logger.warning(
+            "CUSTOM_ADDONS_ROOT '%s' does not exist -- documentary code scope "
+            "will be empty (no miro_ai, no custom_* modules).", CUSTOM_ADDONS_ROOT,
+        )
         return []
+    if not CORE_ADDONS_ROOT.exists():
+        logger.warning(
+            "CORE_ADDONS_ROOT '%s' does not exist -- core Odoo modules "
+            "(account/sale/stock) and custom_* direct dependencies will be "
+            "skipped in the documentary code scope.", CORE_ADDONS_ROOT,
+        )
 
     from code_intelligence.utils import discover_odoo_modules
     from code_intelligence.manifest_parser import parse_manifest
@@ -67,33 +90,37 @@ def _documentary_code_module_dirs() -> list[Path]:
     dirs: list[Path] = []
     seen: set[str] = set()
 
-    def _add(name: str) -> None:
+    def _add(name: str, root: Path) -> None:
         if name in seen:
             return
-        mod_dir = ADDONS_ROOT / name
+        mod_dir = root / name
         if mod_dir.is_dir() and (mod_dir / "__manifest__.py").exists():
             dirs.append(mod_dir)
             seen.add(name)
 
-    for core_name in CORE_MODULES_ALWAYS_LOADED:
-        _add(core_name)
-    _add("miro_ai")
+    if CORE_ADDONS_ROOT.exists():
+        for core_name in CORE_MODULES_ALWAYS_LOADED:
+            _add(core_name, CORE_ADDONS_ROOT)
+    _add("miro_ai", CUSTOM_ADDONS_ROOT)
 
-    custom_modules = discover_odoo_modules(ADDONS_ROOT, prefix="custom_")
+    custom_modules = discover_odoo_modules(CUSTOM_ADDONS_ROOT, prefix="custom_")
     for mod_name in custom_modules:
-        _add(mod_name)
+        _add(mod_name, CUSTOM_ADDONS_ROOT)
 
     # Direct manifest dependencies only (J36-equivalent, one level deep --
-    # not the full transitive closure, same reasoning as rag.graph).
-    for mod_name in custom_modules:
-        manifest_p = ADDONS_ROOT / mod_name / "__manifest__.py"
-        try:
-            manifest = parse_manifest(manifest_p)
-        except Exception as e:
-            logger.error("Documentary scope: failed to parse manifest for '%s': %s", mod_name, e)
-            continue
-        for dep_name in manifest.depends:
-            _add(dep_name)
+    # not the full transitive closure, same reasoning as rag.graph). A
+    # custom_* module's direct dependency is a core Odoo addon (hr_expense,
+    # mail, product, ...), so it lives under CORE_ADDONS_ROOT.
+    if CORE_ADDONS_ROOT.exists():
+        for mod_name in custom_modules:
+            manifest_p = CUSTOM_ADDONS_ROOT / mod_name / "__manifest__.py"
+            try:
+                manifest = parse_manifest(manifest_p)
+            except Exception as e:
+                logger.error("Documentary scope: failed to parse manifest for '%s': %s", mod_name, e)
+                continue
+            for dep_name in manifest.depends:
+                _add(dep_name, CORE_ADDONS_ROOT)
 
     return dirs
 
@@ -217,8 +244,9 @@ class IngestionOrchestrator:
         if code_dir is None:
             if not CODE_DIRS:
                 logger.warning(
-                    "Documentary code scope resolved to zero modules under "
-                    "%s -- nothing ingested. Check ADDONS_ROOT.", ADDONS_ROOT,
+                    "Documentary code scope resolved to zero modules (core=%s, "
+                    "custom=%s) -- nothing ingested. Check CORE_ADDONS_PATH/"
+                    "CUSTOM_ADDONS_PATH in .env.", CORE_ADDONS_ROOT, CUSTOM_ADDONS_ROOT,
                 )
             for mod_dir in CODE_DIRS:
                 logger.info(f"\n[CODE] Loading module '{mod_dir.name}' from {mod_dir}")

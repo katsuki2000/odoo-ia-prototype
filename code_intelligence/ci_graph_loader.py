@@ -167,10 +167,11 @@ def get_code_intelligence_graph():
     from code_intelligence.cross_file_resolver import build_module_symbol_registry
     from code_intelligence.graph_builder import OdooGraphBuilder
 
-    from config.settings import CORE_ADDONS_PATH, CUSTOM_ADDONS_PATH
+    from config.settings import CORE_ADDONS_PATH, CUSTOM_ADDONS_PATH, CORE_FRAMEWORK_ADDONS_PATH
 
     core_addons_root = Path(CORE_ADDONS_PATH)
     custom_addons_root = Path(CUSTOM_ADDONS_PATH)
+    core_framework_addons_root = Path(CORE_FRAMEWORK_ADDONS_PATH)
 
     modules_dict = {}
 
@@ -246,11 +247,23 @@ def get_code_intelligence_graph():
             # CORE_ADDONS_PATH, not alongside the custom_* sources.
             dep_dir = core_addons_root / dep_name
             if not dep_dir.is_dir() or not (dep_dir / "__manifest__.py").exists():
-                # Not a real loadable addon here (e.g. 'base' ships as a
-                # single file in this corpus, not a module directory) --
-                # skip rather than guess; topological_sort_modules already
-                # treats an unresolved dependency name as a harmless leaf.
-                continue
+                # Not under the community addons root -- try the core
+                # FRAMEWORK root (odoo/addons/, e.g. 'base'/'web') as a
+                # second guess before giving up. 2026-08-27 (section 246):
+                # 'base' in particular lives there in a standard Odoo git
+                # checkout, not under CORE_ADDONS_PATH -- it was silently
+                # skipped entirely before this, even when a custom_* module
+                # (miro_ai, custom_deep_inheritance_security,
+                # custom_expense_reimbursement_indirect) explicitly depends
+                # on it.
+                fallback_dir = core_framework_addons_root / dep_name
+                if fallback_dir.is_dir() and (fallback_dir / "__manifest__.py").exists():
+                    dep_dir = fallback_dir
+                else:
+                    # Genuinely not found under either root -- skip rather
+                    # than guess; topological_sort_modules already treats an
+                    # unresolved dependency name as a harmless leaf.
+                    continue
             try:
                 name, mod = _load_module(dep_dir)
                 modules_dict[name] = mod

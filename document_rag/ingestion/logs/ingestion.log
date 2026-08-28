@@ -23010,3 +23010,558 @@ Statistics saved to /home/user/odoo-ia-prototype/miro-rag/ingestion/logs/ingesti
 2026-08-26 16:27:11,162 - document_rag.vectorstore.chroma_manager - WARNING - EMBEDDING_BACKEND=local_light : utilisation du modele par defaut de ChromaDB (all-MiniLM-L6-v2, 384 dimensions, onnxruntime) au lieu de nomic-embed-text-v1.5 -- palliatif TEMPORAIRE, cette machine n'a pas AVX2 et nomic-embed-text-v1.5 en local (PyTorch) y est trop lent pour le vrai corpus (~3s/chunk mesure). A repasser sur EMBEDDING_BACKEND=local (ou retirer la variable) des que le materiel prevu arrive, sauf meilleur modele trouve d'ici la. Toute collection ChromaDB deja peuplee avec un autre modele doit etre reingeree en entier (dimensions incompatibles).
 2026-08-26 16:27:11,164 - document_rag.vectorstore.chroma_manager - INFO - ChromaDB initialized at /home/user/odoo-ia-prototype/document_rag/vectorstore/chroma_db with collection 'odoo_code'
 2026-08-26 16:27:11,164 - document_rag.ingestion.scheduler - INFO - Running startup incremental scan across roots: [PosixPath('/home/user/odoo-ia-prototype/document_rag/fake_data/documents'), None]
+2026-08-27 21:40:15,314 - document_rag.vectorstore.chroma_manager - WARNING - EMBEDDING_BACKEND=local_light : utilisation du modele par defaut de ChromaDB (all-MiniLM-L6-v2, 384 dimensions, onnxruntime) au lieu de nomic-embed-text-v1.5 -- palliatif TEMPORAIRE, cette machine n'a pas AVX2 et nomic-embed-text-v1.5 en local (PyTorch) y est trop lent pour le vrai corpus (~3s/chunk mesure). A repasser sur EMBEDDING_BACKEND=local (ou retirer la variable) des que le materiel prevu arrive, sauf meilleur modele trouve d'ici la. Toute collection ChromaDB deja peuplee avec un autre modele doit etre reingeree en entier (dimensions incompatibles).
+2026-08-27 21:40:15,341 - document_rag.vectorstore.chroma_manager - INFO - ChromaDB initialized at /media/donnee/projets/odoo-ia-prototype/document_rag/vectorstore/chroma_db with collection 'odoo_docs'
+2026-08-27 21:40:15,368 - document_rag.vectorstore.chroma_manager - WARNING - EMBEDDING_BACKEND=local_light : utilisation du modele par defaut de ChromaDB (all-MiniLM-L6-v2, 384 dimensions, onnxruntime) au lieu de nomic-embed-text-v1.5 -- palliatif TEMPORAIRE, cette machine n'a pas AVX2 et nomic-embed-text-v1.5 en local (PyTorch) y est trop lent pour le vrai corpus (~3s/chunk mesure). A repasser sur EMBEDDING_BACKEND=local (ou retirer la variable) des que le materiel prevu arrive, sauf meilleur modele trouve d'ici la. Toute collection ChromaDB deja peuplee avec un autre modele doit etre reingeree en entier (dimensions incompatibles).
+2026-08-27 21:40:15,370 - document_rag.vectorstore.chroma_manager - INFO - ChromaDB initialized at /media/donnee/projets/odoo-ia-prototype/document_rag/vectorstore/chroma_db with collection 'odoo_code'
+2026-08-27 21:40:15,370 - __main__ - INFO - Clearing collection...
+2026-08-27 21:40:15,632 - document_rag.vectorstore.chroma_manager - INFO - Deleted collection odoo_docs
+2026-08-27 21:40:15,632 - document_rag.vectorstore.chroma_manager - WARNING - EMBEDDING_BACKEND=local_light : utilisation du modele par defaut de ChromaDB (all-MiniLM-L6-v2, 384 dimensions, onnxruntime) au lieu de nomic-embed-text-v1.5 -- palliatif TEMPORAIRE, cette machine n'a pas AVX2 et nomic-embed-text-v1.5 en local (PyTorch) y est trop lent pour le vrai corpus (~3s/chunk mesure). A repasser sur EMBEDDING_BACKEND=local (ou retirer la variable) des que le materiel prevu arrive, sauf meilleur modele trouve d'ici la. Toute collection ChromaDB deja peuplee avec un autre modele doit etre reingeree en entier (dimensions incompatibles).
+2026-08-27 21:40:16,054 - document_rag.vectorstore.chroma_manager - INFO - Deleted collection odoo_code
+2026-08-27 21:40:16,054 - document_rag.vectorstore.chroma_manager - WARNING - EMBEDDING_BACKEND=local_light : utilisation du modele par defaut de ChromaDB (all-MiniLM-L6-v2, 384 dimensions, onnxruntime) au lieu de nomic-embed-text-v1.5 -- palliatif TEMPORAIRE, cette machine n'a pas AVX2 et nomic-embed-text-v1.5 en local (PyTorch) y est trop lent pour le vrai corpus (~3s/chunk mesure). A repasser sur EMBEDDING_BACKEND=local (ou retirer la variable) des que le materiel prevu arrive, sauf meilleur modele trouve d'ici la. Toute collection ChromaDB deja peuplee avec un autre modele doit etre reingeree en entier (dimensions incompatibles).
+2026-08-27 21:40:16,265 - __main__ - INFO - Collection cleared.
+2026-08-27 21:40:16,265 - __main__ - INFO - ============================================================
+2026-08-27 21:40:16,266 - __main__ - INFO - Starting full document ingestion
+2026-08-27 21:40:16,266 - __main__ - INFO - ============================================================
+2026-08-27 21:40:16,267 - __main__ - INFO - 
+[DOCS] Loading from /media/donnee/projets/odoo-ia-prototype/document_rag/fake_data/documents
+2026-08-27 21:40:16,269 - __main__ - INFO - Found 4 PDF files
+2026-08-27 21:40:23,673 - __main__ - INFO -   Processing: Facture brouillon (_ 35).pdf
+2026-08-27 21:40:23,674 - document_rag.ingestion.pdf_loader - INFO - Loading PDF: /media/donnee/projets/odoo-ia-prototype/document_rag/fake_data/documents/Facture brouillon (_ 35).pdf
+2026-08-27 21:40:23,762 - document_rag.ingestion.pdf_loader - INFO - Low text extraction ratio (1.05%), attempting OCR
+2026-08-27 21:40:24,162 - document_rag.ingestion.pdf_loader - INFO - Converted 1 pages for OCR
+2026-08-27 21:40:24,211 - document_rag.ingestion.pdf_loader - WARNING - OCR failed on page 1: tesseract is not installed or it's not in your PATH. See README file for more information.
+2026-08-27 21:40:24,214 - document_rag.ingestion.pdf_loader - INFO - Created 1 chunks from /media/donnee/projets/odoo-ia-prototype/document_rag/fake_data/documents/Facture brouillon (_ 35).pdf
+2026-08-27 21:40:25,384 - document_rag.vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-08-27 21:40:25,384 - __main__ - INFO -     Added 1 chunks (OCR: False)
+2026-08-27 21:40:25,385 - __main__ - INFO -   Processing: facture_scannee.pdf
+2026-08-27 21:40:25,385 - document_rag.ingestion.pdf_loader - INFO - Loading PDF: /media/donnee/projets/odoo-ia-prototype/document_rag/fake_data/documents/facture_scannee.pdf
+2026-08-27 21:40:25,406 - document_rag.ingestion.pdf_loader - INFO - Low text extraction ratio (0.00%), attempting OCR
+2026-08-27 21:40:25,581 - document_rag.ingestion.pdf_loader - INFO - Converted 1 pages for OCR
+2026-08-27 21:40:25,898 - document_rag.ingestion.pdf_loader - WARNING - OCR failed on page 1: tesseract is not installed or it's not in your PATH. See README file for more information.
+2026-08-27 21:40:25,899 - document_rag.ingestion.pdf_loader - WARNING - No text extracted from /media/donnee/projets/odoo-ia-prototype/document_rag/fake_data/documents/facture_scannee.pdf
+2026-08-27 21:40:25,900 - __main__ - WARNING -     No chunks extracted from facture_scannee.pdf
+2026-08-27 21:40:25,900 - __main__ - INFO -   Processing: FAC_2025_00039.pdf
+2026-08-27 21:40:25,901 - document_rag.ingestion.pdf_loader - INFO - Loading PDF: /media/donnee/projets/odoo-ia-prototype/document_rag/fake_data/documents/FAC_2025_00039.pdf
+2026-08-27 21:40:26,114 - document_rag.ingestion.pdf_loader - INFO - Low text extraction ratio (1.33%), attempting OCR
+2026-08-27 21:40:26,211 - document_rag.ingestion.pdf_loader - INFO - Converted 1 pages for OCR
+2026-08-27 21:40:26,522 - document_rag.ingestion.pdf_loader - WARNING - OCR failed on page 1: tesseract is not installed or it's not in your PATH. See README file for more information.
+2026-08-27 21:40:26,526 - document_rag.ingestion.pdf_loader - INFO - Created 1 chunks from /media/donnee/projets/odoo-ia-prototype/document_rag/fake_data/documents/FAC_2025_00039.pdf
+2026-08-27 21:40:27,445 - document_rag.vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-08-27 21:40:27,445 - __main__ - INFO -     Added 1 chunks (OCR: False)
+2026-08-27 21:40:27,445 - __main__ - INFO -   Processing: manuel_facturation.pdf
+2026-08-27 21:40:27,446 - document_rag.ingestion.pdf_loader - INFO - Loading PDF: /media/donnee/projets/odoo-ia-prototype/document_rag/fake_data/documents/manuel_facturation.pdf
+2026-08-27 21:40:27,471 - document_rag.ingestion.pdf_loader - INFO - Created 1 chunks from /media/donnee/projets/odoo-ia-prototype/document_rag/fake_data/documents/manuel_facturation.pdf
+2026-08-27 21:40:28,277 - document_rag.vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-08-27 21:40:28,278 - __main__ - INFO -     Added 1 chunks (OCR: False)
+2026-08-27 21:40:28,278 - __main__ - INFO - PDF ingestion took 12.01s
+2026-08-27 21:40:28,279 - __main__ - INFO - Found 5 .txt and 1 .md files
+2026-08-27 21:40:28,279 - __main__ - INFO -   Processing: wiki_approbation.txt
+2026-08-27 21:40:28,280 - document_rag.ingestion.wiki_loader - INFO - Loading text file: /media/donnee/projets/odoo-ia-prototype/document_rag/fake_data/documents/wiki_approbation.txt
+2026-08-27 21:40:28,299 - document_rag.ingestion.wiki_loader - INFO - Created 1 chunks from /media/donnee/projets/odoo-ia-prototype/document_rag/fake_data/documents/wiki_approbation.txt
+2026-08-27 21:40:29,160 - document_rag.vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-08-27 21:40:29,161 - __main__ - INFO -     Added 1 chunks
+2026-08-27 21:40:29,161 - __main__ - INFO -   Processing: wiki_gestion_stocks.txt
+2026-08-27 21:40:29,162 - document_rag.ingestion.wiki_loader - INFO - Loading text file: /media/donnee/projets/odoo-ia-prototype/document_rag/fake_data/documents/wiki_gestion_stocks.txt
+2026-08-27 21:40:29,180 - document_rag.ingestion.wiki_loader - INFO - Created 2 chunks from /media/donnee/projets/odoo-ia-prototype/document_rag/fake_data/documents/wiki_gestion_stocks.txt
+2026-08-27 21:40:30,133 - document_rag.vectorstore.chroma_manager - INFO - Added 2 chunks to ChromaDB
+2026-08-27 21:40:30,133 - __main__ - INFO -     Added 2 chunks
+2026-08-27 21:40:30,133 - __main__ - INFO -   Processing: wiki_onboarding_rh.txt
+2026-08-27 21:40:30,134 - document_rag.ingestion.wiki_loader - INFO - Loading text file: /media/donnee/projets/odoo-ia-prototype/document_rag/fake_data/documents/wiki_onboarding_rh.txt
+2026-08-27 21:40:30,154 - document_rag.ingestion.wiki_loader - INFO - Created 2 chunks from /media/donnee/projets/odoo-ia-prototype/document_rag/fake_data/documents/wiki_onboarding_rh.txt
+2026-08-27 21:40:31,092 - document_rag.vectorstore.chroma_manager - INFO - Added 2 chunks to ChromaDB
+2026-08-27 21:40:31,092 - __main__ - INFO -     Added 2 chunks
+2026-08-27 21:40:31,092 - __main__ - INFO -   Processing: wiki_processus_vente.txt
+2026-08-27 21:40:31,093 - document_rag.ingestion.wiki_loader - INFO - Loading text file: /media/donnee/projets/odoo-ia-prototype/document_rag/fake_data/documents/wiki_processus_vente.txt
+2026-08-27 21:40:31,120 - document_rag.ingestion.wiki_loader - INFO - Created 2 chunks from /media/donnee/projets/odoo-ia-prototype/document_rag/fake_data/documents/wiki_processus_vente.txt
+2026-08-27 21:40:32,068 - document_rag.vectorstore.chroma_manager - INFO - Added 2 chunks to ChromaDB
+2026-08-27 21:40:32,069 - __main__ - INFO -     Added 2 chunks
+2026-08-27 21:40:32,069 - __main__ - INFO -   Processing: wiki_securite_it.txt
+2026-08-27 21:40:32,069 - document_rag.ingestion.wiki_loader - INFO - Loading text file: /media/donnee/projets/odoo-ia-prototype/document_rag/fake_data/documents/wiki_securite_it.txt
+2026-08-27 21:40:32,094 - document_rag.ingestion.wiki_loader - INFO - Created 2 chunks from /media/donnee/projets/odoo-ia-prototype/document_rag/fake_data/documents/wiki_securite_it.txt
+2026-08-27 21:40:33,117 - document_rag.vectorstore.chroma_manager - INFO - Added 2 chunks to ChromaDB
+2026-08-27 21:40:33,118 - __main__ - INFO -     Added 2 chunks
+2026-08-27 21:40:33,119 - __main__ - INFO -   Processing: Miro - SMA, MMT, JHR, Miro K.E., Protocoles IA et Codage Défensif, v1.1, 2026-06-04.md
+2026-08-27 21:40:33,119 - document_rag.ingestion.wiki_loader - INFO - Loading markdown file: /media/donnee/projets/odoo-ia-prototype/document_rag/fake_data/documents/Miro - SMA, MMT, JHR, Miro K.E., Protocoles IA et Codage Défensif, v1.1, 2026-06-04.md
+2026-08-27 21:40:33,174 - document_rag.ingestion.wiki_loader - INFO - Created 14 chunks from /media/donnee/projets/odoo-ia-prototype/document_rag/fake_data/documents/Miro - SMA, MMT, JHR, Miro K.E., Protocoles IA et Codage Défensif, v1.1, 2026-06-04.md
+2026-08-27 21:40:35,612 - document_rag.vectorstore.chroma_manager - INFO - Added 14 chunks to ChromaDB
+2026-08-27 21:40:35,612 - __main__ - INFO -     Added 14 chunks
+2026-08-27 21:40:35,613 - __main__ - INFO - Wiki ingestion took 7.33s
+2026-08-27 21:40:35,613 - __main__ - INFO - 
+[CODE] Loading module 'miro_ai' from /media/donnee/projets/odoo-ia-prototype/odoo_addons/miro_ai
+2026-08-27 21:40:35,620 - __main__ - INFO - Found 8 Python files
+2026-08-27 21:40:35,621 - __main__ - INFO -   Processing: __init__.py
+2026-08-27 21:40:35,622 - document_rag.ingestion.code_loader - INFO - Loading Python file: /media/donnee/projets/odoo-ia-prototype/odoo_addons/miro_ai/__init__.py
+2026-08-27 21:40:35,623 - document_rag.ingestion.code_loader - INFO - Created 1 chunks from /media/donnee/projets/odoo-ia-prototype/odoo_addons/miro_ai/__init__.py
+2026-08-27 21:40:36,702 - document_rag.vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-08-27 21:40:36,702 - __main__ - INFO -     Added 1 chunks
+2026-08-27 21:40:36,703 - __main__ - INFO -   Processing: __manifest__.py
+2026-08-27 21:40:36,703 - document_rag.ingestion.code_loader - INFO - Loading Python file: /media/donnee/projets/odoo-ia-prototype/odoo_addons/miro_ai/__manifest__.py
+2026-08-27 21:40:36,725 - document_rag.ingestion.code_loader - INFO - Created 2 chunks from /media/donnee/projets/odoo-ia-prototype/odoo_addons/miro_ai/__manifest__.py
+2026-08-27 21:40:37,671 - document_rag.vectorstore.chroma_manager - INFO - Added 2 chunks to ChromaDB
+2026-08-27 21:40:37,672 - __main__ - INFO -     Added 2 chunks
+2026-08-27 21:40:37,672 - __main__ - INFO -   Processing: controllers/main.py
+2026-08-27 21:40:37,673 - document_rag.ingestion.code_loader - INFO - Loading Python file: /media/donnee/projets/odoo-ia-prototype/odoo_addons/miro_ai/controllers/main.py
+2026-08-27 21:40:37,709 - document_rag.ingestion.code_loader - INFO - Created 14 chunks from /media/donnee/projets/odoo-ia-prototype/odoo_addons/miro_ai/controllers/main.py
+2026-08-27 21:40:40,107 - document_rag.vectorstore.chroma_manager - INFO - Added 14 chunks to ChromaDB
+2026-08-27 21:40:40,108 - __main__ - INFO -     Added 14 chunks
+2026-08-27 21:40:40,108 - __main__ - INFO -   Processing: controllers/__init__.py
+2026-08-27 21:40:40,109 - document_rag.ingestion.code_loader - INFO - Loading Python file: /media/donnee/projets/odoo-ia-prototype/odoo_addons/miro_ai/controllers/__init__.py
+2026-08-27 21:40:40,110 - document_rag.ingestion.code_loader - INFO - Created 1 chunks from /media/donnee/projets/odoo-ia-prototype/odoo_addons/miro_ai/controllers/__init__.py
+2026-08-27 21:40:40,993 - document_rag.vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-08-27 21:40:40,994 - __main__ - INFO -     Added 1 chunks
+2026-08-27 21:40:40,995 - __main__ - INFO -   Processing: models/miro_ai_log.py
+2026-08-27 21:40:40,995 - document_rag.ingestion.code_loader - INFO - Loading Python file: /media/donnee/projets/odoo-ia-prototype/odoo_addons/miro_ai/models/miro_ai_log.py
+2026-08-27 21:40:41,023 - document_rag.ingestion.code_loader - INFO - Created 5 chunks from /media/donnee/projets/odoo-ia-prototype/odoo_addons/miro_ai/models/miro_ai_log.py
+2026-08-27 21:40:42,415 - document_rag.vectorstore.chroma_manager - INFO - Added 5 chunks to ChromaDB
+2026-08-27 21:40:42,415 - __main__ - INFO -     Added 5 chunks
+2026-08-27 21:40:42,416 - __main__ - INFO -   Processing: models/miro_ai_settings.py
+2026-08-27 21:40:42,416 - document_rag.ingestion.code_loader - INFO - Loading Python file: /media/donnee/projets/odoo-ia-prototype/odoo_addons/miro_ai/models/miro_ai_settings.py
+2026-08-27 21:40:42,445 - document_rag.ingestion.code_loader - INFO - Created 4 chunks from /media/donnee/projets/odoo-ia-prototype/odoo_addons/miro_ai/models/miro_ai_settings.py
+2026-08-27 21:40:43,625 - document_rag.vectorstore.chroma_manager - INFO - Added 4 chunks to ChromaDB
+2026-08-27 21:40:43,625 - __main__ - INFO -     Added 4 chunks
+2026-08-27 21:40:43,625 - __main__ - INFO -   Processing: models/res_config_settings.py
+2026-08-27 21:40:43,626 - document_rag.ingestion.code_loader - INFO - Loading Python file: /media/donnee/projets/odoo-ia-prototype/odoo_addons/miro_ai/models/res_config_settings.py
+2026-08-27 21:40:43,627 - document_rag.ingestion.code_loader - INFO - Created 1 chunks from /media/donnee/projets/odoo-ia-prototype/odoo_addons/miro_ai/models/res_config_settings.py
+2026-08-27 21:40:44,448 - document_rag.vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-08-27 21:40:44,449 - __main__ - INFO -     Added 1 chunks
+2026-08-27 21:40:44,449 - __main__ - INFO -   Processing: models/__init__.py
+2026-08-27 21:40:44,450 - document_rag.ingestion.code_loader - INFO - Loading Python file: /media/donnee/projets/odoo-ia-prototype/odoo_addons/miro_ai/models/__init__.py
+2026-08-27 21:40:44,451 - document_rag.ingestion.code_loader - INFO - Created 1 chunks from /media/donnee/projets/odoo-ia-prototype/odoo_addons/miro_ai/models/__init__.py
+2026-08-27 21:40:45,283 - document_rag.vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-08-27 21:40:45,283 - __main__ - INFO -     Added 1 chunks
+2026-08-27 21:40:45,292 - __main__ - INFO - Python ingestion took 9.67s
+2026-08-27 21:40:45,323 - __main__ - INFO - Found 5 XML files
+2026-08-27 21:40:45,326 - __main__ - INFO -   Processing: security/miro_ai_security.xml
+2026-08-27 21:40:45,326 - document_rag.ingestion.code_loader - INFO - Loading XML file: /media/donnee/projets/odoo-ia-prototype/odoo_addons/miro_ai/security/miro_ai_security.xml
+2026-08-27 21:40:45,345 - document_rag.ingestion.code_loader - INFO - Created 6 chunks from /media/donnee/projets/odoo-ia-prototype/odoo_addons/miro_ai/security/miro_ai_security.xml
+2026-08-27 21:40:46,806 - document_rag.vectorstore.chroma_manager - INFO - Added 6 chunks to ChromaDB
+2026-08-27 21:40:46,806 - __main__ - INFO -     Added 6 chunks
+2026-08-27 21:40:46,807 - __main__ - INFO -   Processing: views/miro_ai_log_views.xml
+2026-08-27 21:40:46,808 - document_rag.ingestion.code_loader - INFO - Loading XML file: /media/donnee/projets/odoo-ia-prototype/odoo_addons/miro_ai/views/miro_ai_log_views.xml
+2026-08-27 21:40:46,828 - document_rag.ingestion.code_loader - INFO - Created 4 chunks from /media/donnee/projets/odoo-ia-prototype/odoo_addons/miro_ai/views/miro_ai_log_views.xml
+2026-08-27 21:40:48,085 - document_rag.vectorstore.chroma_manager - INFO - Added 4 chunks to ChromaDB
+2026-08-27 21:40:48,085 - __main__ - INFO -     Added 4 chunks
+2026-08-27 21:40:48,085 - __main__ - INFO -   Processing: views/miro_ai_menus.xml
+2026-08-27 21:40:48,086 - document_rag.ingestion.code_loader - INFO - Loading XML file: /media/donnee/projets/odoo-ia-prototype/odoo_addons/miro_ai/views/miro_ai_menus.xml
+2026-08-27 21:40:48,105 - document_rag.ingestion.code_loader - INFO - Created 1 chunks from /media/donnee/projets/odoo-ia-prototype/odoo_addons/miro_ai/views/miro_ai_menus.xml
+2026-08-27 21:40:48,912 - document_rag.vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-08-27 21:40:48,912 - __main__ - INFO -     Added 1 chunks
+2026-08-27 21:40:48,912 - __main__ - INFO -   Processing: views/miro_ai_settings_views.xml
+2026-08-27 21:40:48,913 - document_rag.ingestion.code_loader - INFO - Loading XML file: /media/donnee/projets/odoo-ia-prototype/odoo_addons/miro_ai/views/miro_ai_settings_views.xml
+2026-08-27 21:40:48,940 - document_rag.ingestion.code_loader - INFO - Created 3 chunks from /media/donnee/projets/odoo-ia-prototype/odoo_addons/miro_ai/views/miro_ai_settings_views.xml
+2026-08-27 21:40:50,121 - document_rag.vectorstore.chroma_manager - INFO - Added 3 chunks to ChromaDB
+2026-08-27 21:40:50,121 - __main__ - INFO -     Added 3 chunks
+2026-08-27 21:40:50,125 - __main__ - INFO -   Processing: static/src/xml/miro_ai_assistant.xml
+2026-08-27 21:40:50,125 - document_rag.ingestion.code_loader - INFO - Loading XML file: /media/donnee/projets/odoo-ia-prototype/odoo_addons/miro_ai/static/src/xml/miro_ai_assistant.xml
+2026-08-27 21:40:50,202 - document_rag.ingestion.code_loader - INFO - Created 31 chunks from /media/donnee/projets/odoo-ia-prototype/odoo_addons/miro_ai/static/src/xml/miro_ai_assistant.xml
+2026-08-27 21:40:54,585 - document_rag.vectorstore.chroma_manager - INFO - Added 31 chunks to ChromaDB
+2026-08-27 21:40:54,586 - __main__ - INFO -     Added 31 chunks
+2026-08-27 21:40:54,588 - __main__ - INFO - XML ingestion took 9.27s
+2026-08-27 21:40:54,594 - __main__ - INFO - Found 1 JS files
+2026-08-27 21:40:54,599 - __main__ - INFO -   Processing: static/src/js/miro_ai.js
+2026-08-27 21:40:54,600 - document_rag.ingestion.code_loader - INFO - Loading JavaScript file: /media/donnee/projets/odoo-ia-prototype/odoo_addons/miro_ai/static/src/js/miro_ai.js
+2026-08-27 21:40:54,660 - document_rag.ingestion.code_loader - INFO - Created 20 chunks from /media/donnee/projets/odoo-ia-prototype/odoo_addons/miro_ai/static/src/js/miro_ai.js
+2026-08-27 21:40:58,006 - document_rag.vectorstore.chroma_manager - INFO - Added 20 chunks to ChromaDB
+2026-08-27 21:40:58,007 - __main__ - INFO -     Added 20 chunks
+2026-08-27 21:40:58,009 - __main__ - INFO - JS ingestion took 3.41s
+2026-08-27 21:40:58,015 - __main__ - INFO - Found 1 CSV files
+2026-08-27 21:40:58,017 - __main__ - INFO -   Processing: security/ir.model.access.csv
+2026-08-27 21:40:58,018 - document_rag.ingestion.code_loader - INFO - Loading CSV file: /media/donnee/projets/odoo-ia-prototype/odoo_addons/miro_ai/security/ir.model.access.csv
+2026-08-27 21:40:58,037 - document_rag.ingestion.code_loader - INFO - Created 1 chunks from /media/donnee/projets/odoo-ia-prototype/odoo_addons/miro_ai/security/ir.model.access.csv
+2026-08-27 21:40:58,815 - document_rag.vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-08-27 21:40:58,815 - __main__ - INFO -     Added 1 chunks
+2026-08-27 21:40:58,819 - __main__ - INFO - CSV ingestion took 0.80s
+2026-08-27 21:40:58,819 - __main__ - INFO - 
+[CODE] Loading module 'custom_asset_loan' from /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_asset_loan
+2026-08-27 21:40:58,821 - __main__ - INFO - Found 4 Python files
+2026-08-27 21:40:58,822 - __main__ - INFO -   Processing: __init__.py
+2026-08-27 21:40:58,823 - document_rag.ingestion.code_loader - INFO - Loading Python file: /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_asset_loan/__init__.py
+2026-08-27 21:40:58,823 - document_rag.ingestion.code_loader - INFO - Created 1 chunks from /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_asset_loan/__init__.py
+2026-08-27 21:40:59,592 - document_rag.vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-08-27 21:40:59,593 - __main__ - INFO -     Added 1 chunks
+2026-08-27 21:40:59,593 - __main__ - INFO -   Processing: __manifest__.py
+2026-08-27 21:40:59,593 - document_rag.ingestion.code_loader - INFO - Loading Python file: /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_asset_loan/__manifest__.py
+2026-08-27 21:40:59,595 - document_rag.ingestion.code_loader - INFO - Created 1 chunks from /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_asset_loan/__manifest__.py
+2026-08-27 21:41:00,415 - document_rag.vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-08-27 21:41:00,416 - __main__ - INFO -     Added 1 chunks
+2026-08-27 21:41:00,416 - __main__ - INFO -   Processing: models/asset_loan.py
+2026-08-27 21:41:00,417 - document_rag.ingestion.code_loader - INFO - Loading Python file: /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_asset_loan/models/asset_loan.py
+2026-08-27 21:41:00,434 - document_rag.ingestion.code_loader - INFO - Created 2 chunks from /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_asset_loan/models/asset_loan.py
+2026-08-27 21:41:01,525 - document_rag.vectorstore.chroma_manager - INFO - Added 2 chunks to ChromaDB
+2026-08-27 21:41:01,525 - __main__ - INFO -     Added 2 chunks
+2026-08-27 21:41:01,525 - __main__ - INFO -   Processing: models/__init__.py
+2026-08-27 21:41:01,526 - document_rag.ingestion.code_loader - INFO - Loading Python file: /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_asset_loan/models/__init__.py
+2026-08-27 21:41:01,526 - document_rag.ingestion.code_loader - INFO - Created 1 chunks from /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_asset_loan/models/__init__.py
+2026-08-27 21:41:02,269 - document_rag.vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-08-27 21:41:02,269 - __main__ - INFO -     Added 1 chunks
+2026-08-27 21:41:02,270 - __main__ - INFO - Python ingestion took 3.45s
+2026-08-27 21:41:02,272 - __main__ - INFO - Found 1 XML files
+2026-08-27 21:41:02,273 - __main__ - INFO -   Processing: views/asset_loan_views.xml
+2026-08-27 21:41:02,273 - document_rag.ingestion.code_loader - INFO - Loading XML file: /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_asset_loan/views/asset_loan_views.xml
+2026-08-27 21:41:02,291 - document_rag.ingestion.code_loader - INFO - Created 2 chunks from /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_asset_loan/views/asset_loan_views.xml
+2026-08-27 21:41:03,184 - document_rag.vectorstore.chroma_manager - INFO - Added 2 chunks to ChromaDB
+2026-08-27 21:41:03,184 - __main__ - INFO -     Added 2 chunks
+2026-08-27 21:41:03,185 - __main__ - INFO - XML ingestion took 0.91s
+2026-08-27 21:41:03,188 - __main__ - INFO - Found 1 CSV files
+2026-08-27 21:41:03,189 - __main__ - INFO -   Processing: security/ir.model.access.csv
+2026-08-27 21:41:03,189 - document_rag.ingestion.code_loader - INFO - Loading CSV file: /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_asset_loan/security/ir.model.access.csv
+2026-08-27 21:41:03,191 - document_rag.ingestion.code_loader - INFO - Created 1 chunks from /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_asset_loan/security/ir.model.access.csv
+2026-08-27 21:41:04,047 - document_rag.vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-08-27 21:41:04,047 - __main__ - INFO -     Added 1 chunks
+2026-08-27 21:41:04,048 - __main__ - INFO - CSV ingestion took 0.86s
+2026-08-27 21:41:04,048 - __main__ - INFO - 
+[CODE] Loading module 'custom_automation_traps' from /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_automation_traps
+2026-08-27 21:41:04,049 - __main__ - INFO - Found 2 Python files
+2026-08-27 21:41:04,050 - __main__ - INFO -   Processing: __init__.py
+2026-08-27 21:41:04,050 - document_rag.ingestion.code_loader - INFO - Loading Python file: /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_automation_traps/__init__.py
+2026-08-27 21:41:04,051 - document_rag.ingestion.code_loader - INFO - Created 1 chunks from /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_automation_traps/__init__.py
+2026-08-27 21:41:04,807 - document_rag.vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-08-27 21:41:04,807 - __main__ - INFO -     Added 1 chunks
+2026-08-27 21:41:04,808 - __main__ - INFO -   Processing: __manifest__.py
+2026-08-27 21:41:04,808 - document_rag.ingestion.code_loader - INFO - Loading Python file: /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_automation_traps/__manifest__.py
+2026-08-27 21:41:04,809 - document_rag.ingestion.code_loader - INFO - Created 1 chunks from /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_automation_traps/__manifest__.py
+2026-08-27 21:41:05,693 - document_rag.vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-08-27 21:41:05,693 - __main__ - INFO -     Added 1 chunks
+2026-08-27 21:41:05,694 - __main__ - INFO - Python ingestion took 1.64s
+2026-08-27 21:41:05,695 - __main__ - INFO - Found 1 XML files
+2026-08-27 21:41:05,696 - __main__ - INFO -   Processing: data/automation_rule.xml
+2026-08-27 21:41:05,696 - document_rag.ingestion.code_loader - INFO - Loading XML file: /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_automation_traps/data/automation_rule.xml
+2026-08-27 21:41:05,707 - document_rag.ingestion.code_loader - INFO - Created 2 chunks from /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_automation_traps/data/automation_rule.xml
+2026-08-27 21:41:06,644 - document_rag.vectorstore.chroma_manager - INFO - Added 2 chunks to ChromaDB
+2026-08-27 21:41:06,644 - __main__ - INFO -     Added 2 chunks
+2026-08-27 21:41:06,645 - __main__ - INFO - XML ingestion took 0.95s
+2026-08-27 21:41:06,647 - __main__ - INFO - 
+[CODE] Loading module 'custom_credit_note_approval' from /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_credit_note_approval
+2026-08-27 21:41:06,649 - __main__ - INFO - Found 5 Python files
+2026-08-27 21:41:06,649 - __main__ - INFO -   Processing: __init__.py
+2026-08-27 21:41:06,651 - document_rag.ingestion.code_loader - INFO - Loading Python file: /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_credit_note_approval/__init__.py
+2026-08-27 21:41:06,652 - document_rag.ingestion.code_loader - INFO - Created 1 chunks from /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_credit_note_approval/__init__.py
+2026-08-27 21:41:07,413 - document_rag.vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-08-27 21:41:07,413 - __main__ - INFO -     Added 1 chunks
+2026-08-27 21:41:07,414 - __main__ - INFO -   Processing: __manifest__.py
+2026-08-27 21:41:07,414 - document_rag.ingestion.code_loader - INFO - Loading Python file: /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_credit_note_approval/__manifest__.py
+2026-08-27 21:41:07,415 - document_rag.ingestion.code_loader - INFO - Created 1 chunks from /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_credit_note_approval/__manifest__.py
+2026-08-27 21:41:08,171 - document_rag.vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-08-27 21:41:08,171 - __main__ - INFO -     Added 1 chunks
+2026-08-27 21:41:08,173 - __main__ - INFO -   Processing: models/account_journal.py
+2026-08-27 21:41:08,173 - document_rag.ingestion.code_loader - INFO - Loading Python file: /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_credit_note_approval/models/account_journal.py
+2026-08-27 21:41:08,175 - document_rag.ingestion.code_loader - INFO - Created 1 chunks from /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_credit_note_approval/models/account_journal.py
+2026-08-27 21:41:08,930 - document_rag.vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-08-27 21:41:08,931 - __main__ - INFO -     Added 1 chunks
+2026-08-27 21:41:08,932 - __main__ - INFO -   Processing: models/account_move.py
+2026-08-27 21:41:08,932 - document_rag.ingestion.code_loader - INFO - Loading Python file: /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_credit_note_approval/models/account_move.py
+2026-08-27 21:41:08,957 - document_rag.ingestion.code_loader - INFO - Created 1 chunks from /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_credit_note_approval/models/account_move.py
+2026-08-27 21:41:09,842 - document_rag.vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-08-27 21:41:09,842 - __main__ - INFO -     Added 1 chunks
+2026-08-27 21:41:09,843 - __main__ - INFO -   Processing: models/__init__.py
+2026-08-27 21:41:09,845 - document_rag.ingestion.code_loader - INFO - Loading Python file: /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_credit_note_approval/models/__init__.py
+2026-08-27 21:41:09,846 - document_rag.ingestion.code_loader - INFO - Created 1 chunks from /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_credit_note_approval/models/__init__.py
+2026-08-27 21:41:10,650 - document_rag.vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-08-27 21:41:10,650 - __main__ - INFO -     Added 1 chunks
+2026-08-27 21:41:10,652 - __main__ - INFO - Python ingestion took 4.00s
+2026-08-27 21:41:10,654 - __main__ - INFO - Found 1 XML files
+2026-08-27 21:41:10,655 - __main__ - INFO -   Processing: security/security_rules.xml
+2026-08-27 21:41:10,656 - document_rag.ingestion.code_loader - INFO - Loading XML file: /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_credit_note_approval/security/security_rules.xml
+2026-08-27 21:41:10,657 - document_rag.ingestion.code_loader - INFO - Created 1 chunks from /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_credit_note_approval/security/security_rules.xml
+2026-08-27 21:41:11,550 - document_rag.vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-08-27 21:41:11,550 - __main__ - INFO -     Added 1 chunks
+2026-08-27 21:41:11,551 - __main__ - INFO - XML ingestion took 0.90s
+2026-08-27 21:41:11,553 - __main__ - INFO - Found 1 CSV files
+2026-08-27 21:41:11,554 - __main__ - INFO -   Processing: security/ir.model.access.csv
+2026-08-27 21:41:11,555 - document_rag.ingestion.code_loader - INFO - Loading CSV file: /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_credit_note_approval/security/ir.model.access.csv
+2026-08-27 21:41:11,557 - document_rag.ingestion.code_loader - INFO - Created 1 chunks from /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_credit_note_approval/security/ir.model.access.csv
+2026-08-27 21:41:12,391 - document_rag.vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-08-27 21:41:12,391 - __main__ - INFO -     Added 1 chunks
+2026-08-27 21:41:12,392 - __main__ - INFO - CSV ingestion took 0.84s
+2026-08-27 21:41:12,392 - __main__ - INFO - 
+[CODE] Loading module 'custom_credit_note_approval_regional' from /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_credit_note_approval_regional
+2026-08-27 21:41:12,394 - __main__ - INFO - Found 4 Python files
+2026-08-27 21:41:12,394 - __main__ - INFO -   Processing: __init__.py
+2026-08-27 21:41:12,395 - document_rag.ingestion.code_loader - INFO - Loading Python file: /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_credit_note_approval_regional/__init__.py
+2026-08-27 21:41:12,395 - document_rag.ingestion.code_loader - INFO - Created 1 chunks from /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_credit_note_approval_regional/__init__.py
+2026-08-27 21:41:13,240 - document_rag.vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-08-27 21:41:13,240 - __main__ - INFO -     Added 1 chunks
+2026-08-27 21:41:13,240 - __main__ - INFO -   Processing: __manifest__.py
+2026-08-27 21:41:13,241 - document_rag.ingestion.code_loader - INFO - Loading Python file: /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_credit_note_approval_regional/__manifest__.py
+2026-08-27 21:41:13,242 - document_rag.ingestion.code_loader - INFO - Created 1 chunks from /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_credit_note_approval_regional/__manifest__.py
+2026-08-27 21:41:14,208 - document_rag.vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-08-27 21:41:14,208 - __main__ - INFO -     Added 1 chunks
+2026-08-27 21:41:14,209 - __main__ - INFO -   Processing: models/account_move.py
+2026-08-27 21:41:14,210 - document_rag.ingestion.code_loader - INFO - Loading Python file: /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_credit_note_approval_regional/models/account_move.py
+2026-08-27 21:41:14,229 - document_rag.ingestion.code_loader - INFO - Created 1 chunks from /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_credit_note_approval_regional/models/account_move.py
+2026-08-27 21:41:15,239 - document_rag.vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-08-27 21:41:15,239 - __main__ - INFO -     Added 1 chunks
+2026-08-27 21:41:15,239 - __main__ - INFO -   Processing: models/__init__.py
+2026-08-27 21:41:15,240 - document_rag.ingestion.code_loader - INFO - Loading Python file: /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_credit_note_approval_regional/models/__init__.py
+2026-08-27 21:41:15,240 - document_rag.ingestion.code_loader - INFO - Created 1 chunks from /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_credit_note_approval_regional/models/__init__.py
+2026-08-27 21:41:16,172 - document_rag.vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-08-27 21:41:16,176 - __main__ - INFO -     Added 1 chunks
+2026-08-27 21:41:16,177 - __main__ - INFO - Python ingestion took 3.78s
+2026-08-27 21:41:16,184 - __main__ - INFO - 
+[CODE] Loading module 'custom_credit_note_approval_vip' from /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_credit_note_approval_vip
+2026-08-27 21:41:16,186 - __main__ - INFO - Found 5 Python files
+2026-08-27 21:41:16,187 - __main__ - INFO -   Processing: __init__.py
+2026-08-27 21:41:16,187 - document_rag.ingestion.code_loader - INFO - Loading Python file: /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_credit_note_approval_vip/__init__.py
+2026-08-27 21:41:16,188 - document_rag.ingestion.code_loader - INFO - Created 1 chunks from /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_credit_note_approval_vip/__init__.py
+2026-08-27 21:41:17,059 - document_rag.vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-08-27 21:41:17,059 - __main__ - INFO -     Added 1 chunks
+2026-08-27 21:41:17,059 - __main__ - INFO -   Processing: __manifest__.py
+2026-08-27 21:41:17,060 - document_rag.ingestion.code_loader - INFO - Loading Python file: /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_credit_note_approval_vip/__manifest__.py
+2026-08-27 21:41:17,061 - document_rag.ingestion.code_loader - INFO - Created 1 chunks from /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_credit_note_approval_vip/__manifest__.py
+2026-08-27 21:41:17,886 - document_rag.vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-08-27 21:41:17,887 - __main__ - INFO -     Added 1 chunks
+2026-08-27 21:41:17,887 - __main__ - INFO -   Processing: models/account_move.py
+2026-08-27 21:41:17,888 - document_rag.ingestion.code_loader - INFO - Loading Python file: /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_credit_note_approval_vip/models/account_move.py
+2026-08-27 21:41:17,889 - document_rag.ingestion.code_loader - INFO - Created 1 chunks from /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_credit_note_approval_vip/models/account_move.py
+2026-08-27 21:41:18,716 - document_rag.vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-08-27 21:41:18,716 - __main__ - INFO -     Added 1 chunks
+2026-08-27 21:41:18,717 - __main__ - INFO -   Processing: models/res_partner.py
+2026-08-27 21:41:18,717 - document_rag.ingestion.code_loader - INFO - Loading Python file: /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_credit_note_approval_vip/models/res_partner.py
+2026-08-27 21:41:18,719 - document_rag.ingestion.code_loader - INFO - Created 1 chunks from /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_credit_note_approval_vip/models/res_partner.py
+2026-08-27 21:41:19,564 - document_rag.vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-08-27 21:41:19,564 - __main__ - INFO -     Added 1 chunks
+2026-08-27 21:41:19,565 - __main__ - INFO -   Processing: models/__init__.py
+2026-08-27 21:41:19,565 - document_rag.ingestion.code_loader - INFO - Loading Python file: /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_credit_note_approval_vip/models/__init__.py
+2026-08-27 21:41:19,567 - document_rag.ingestion.code_loader - INFO - Created 1 chunks from /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_credit_note_approval_vip/models/__init__.py
+2026-08-27 21:41:20,420 - document_rag.vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-08-27 21:41:20,420 - __main__ - INFO -     Added 1 chunks
+2026-08-27 21:41:20,421 - __main__ - INFO - Python ingestion took 4.23s
+2026-08-27 21:41:20,423 - __main__ - INFO - 
+[CODE] Loading module 'custom_credit_note_visibility_rules' from /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_credit_note_visibility_rules
+2026-08-27 21:41:20,424 - __main__ - INFO - Found 2 Python files
+2026-08-27 21:41:20,425 - __main__ - INFO -   Processing: __init__.py
+2026-08-27 21:41:20,425 - document_rag.ingestion.code_loader - INFO - Loading Python file: /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_credit_note_visibility_rules/__init__.py
+2026-08-27 21:41:20,428 - document_rag.ingestion.code_loader - INFO - Created 1 chunks from /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_credit_note_visibility_rules/__init__.py
+2026-08-27 21:41:21,284 - document_rag.vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-08-27 21:41:21,284 - __main__ - INFO -     Added 1 chunks
+2026-08-27 21:41:21,285 - __main__ - INFO -   Processing: __manifest__.py
+2026-08-27 21:41:21,285 - document_rag.ingestion.code_loader - INFO - Loading Python file: /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_credit_note_visibility_rules/__manifest__.py
+2026-08-27 21:41:21,287 - document_rag.ingestion.code_loader - INFO - Created 1 chunks from /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_credit_note_visibility_rules/__manifest__.py
+2026-08-27 21:41:22,128 - document_rag.vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-08-27 21:41:22,128 - __main__ - INFO -     Added 1 chunks
+2026-08-27 21:41:22,129 - __main__ - INFO - Python ingestion took 1.70s
+2026-08-27 21:41:22,130 - __main__ - INFO - Found 2 XML files
+2026-08-27 21:41:22,131 - __main__ - INFO -   Processing: security/ir_rule_layered.xml
+2026-08-27 21:41:22,131 - document_rag.ingestion.code_loader - INFO - Loading XML file: /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_credit_note_visibility_rules/security/ir_rule_layered.xml
+2026-08-27 21:41:22,132 - document_rag.ingestion.code_loader - INFO - Created 3 chunks from /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_credit_note_visibility_rules/security/ir_rule_layered.xml
+2026-08-27 21:41:23,229 - document_rag.vectorstore.chroma_manager - INFO - Added 3 chunks to ChromaDB
+2026-08-27 21:41:23,229 - __main__ - INFO -     Added 3 chunks
+2026-08-27 21:41:23,230 - __main__ - INFO -   Processing: security/security_groups.xml
+2026-08-27 21:41:23,230 - document_rag.ingestion.code_loader - INFO - Loading XML file: /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_credit_note_visibility_rules/security/security_groups.xml
+2026-08-27 21:41:23,231 - document_rag.ingestion.code_loader - INFO - Created 2 chunks from /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_credit_note_visibility_rules/security/security_groups.xml
+2026-08-27 21:41:24,184 - document_rag.vectorstore.chroma_manager - INFO - Added 2 chunks to ChromaDB
+2026-08-27 21:41:24,184 - __main__ - INFO -     Added 2 chunks
+2026-08-27 21:41:24,184 - __main__ - INFO - XML ingestion took 2.05s
+2026-08-27 21:41:24,186 - __main__ - INFO - 
+[CODE] Loading module 'custom_deep_inheritance_security' from /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_deep_inheritance_security
+2026-08-27 21:41:24,187 - __main__ - INFO - Found 4 Python files
+2026-08-27 21:41:24,187 - __main__ - INFO -   Processing: __init__.py
+2026-08-27 21:41:24,188 - document_rag.ingestion.code_loader - INFO - Loading Python file: /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_deep_inheritance_security/__init__.py
+2026-08-27 21:41:24,188 - document_rag.ingestion.code_loader - INFO - Created 1 chunks from /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_deep_inheritance_security/__init__.py
+2026-08-27 21:41:25,019 - document_rag.vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-08-27 21:41:25,020 - __main__ - INFO -     Added 1 chunks
+2026-08-27 21:41:25,021 - __main__ - INFO -   Processing: __manifest__.py
+2026-08-27 21:41:25,022 - document_rag.ingestion.code_loader - INFO - Loading Python file: /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_deep_inheritance_security/__manifest__.py
+2026-08-27 21:41:25,024 - document_rag.ingestion.code_loader - INFO - Created 1 chunks from /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_deep_inheritance_security/__manifest__.py
+2026-08-27 21:41:25,898 - document_rag.vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-08-27 21:41:25,898 - __main__ - INFO -     Added 1 chunks
+2026-08-27 21:41:25,898 - __main__ - INFO -   Processing: models/deep_document.py
+2026-08-27 21:41:25,899 - document_rag.ingestion.code_loader - INFO - Loading Python file: /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_deep_inheritance_security/models/deep_document.py
+2026-08-27 21:41:25,926 - document_rag.ingestion.code_loader - INFO - Created 2 chunks from /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_deep_inheritance_security/models/deep_document.py
+2026-08-27 21:41:27,040 - document_rag.vectorstore.chroma_manager - INFO - Added 2 chunks to ChromaDB
+2026-08-27 21:41:27,040 - __main__ - INFO -     Added 2 chunks
+2026-08-27 21:41:27,040 - __main__ - INFO -   Processing: models/__init__.py
+2026-08-27 21:41:27,041 - document_rag.ingestion.code_loader - INFO - Loading Python file: /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_deep_inheritance_security/models/__init__.py
+2026-08-27 21:41:27,041 - document_rag.ingestion.code_loader - INFO - Created 1 chunks from /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_deep_inheritance_security/models/__init__.py
+2026-08-27 21:41:27,840 - document_rag.vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-08-27 21:41:27,840 - __main__ - INFO -     Added 1 chunks
+2026-08-27 21:41:27,841 - __main__ - INFO - Python ingestion took 3.65s
+2026-08-27 21:41:27,842 - __main__ - INFO - Found 1 XML files
+2026-08-27 21:41:27,843 - __main__ - INFO -   Processing: security/security_rules.xml
+2026-08-27 21:41:27,843 - document_rag.ingestion.code_loader - INFO - Loading XML file: /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_deep_inheritance_security/security/security_rules.xml
+2026-08-27 21:41:27,862 - document_rag.ingestion.code_loader - INFO - Created 2 chunks from /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_deep_inheritance_security/security/security_rules.xml
+2026-08-27 21:41:28,794 - document_rag.vectorstore.chroma_manager - INFO - Added 2 chunks to ChromaDB
+2026-08-27 21:41:28,794 - __main__ - INFO -     Added 2 chunks
+2026-08-27 21:41:28,795 - __main__ - INFO - XML ingestion took 0.95s
+2026-08-27 21:41:28,797 - __main__ - INFO - Found 1 CSV files
+2026-08-27 21:41:28,797 - __main__ - INFO -   Processing: security/ir.model.access.csv
+2026-08-27 21:41:28,798 - document_rag.ingestion.code_loader - INFO - Loading CSV file: /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_deep_inheritance_security/security/ir.model.access.csv
+2026-08-27 21:41:28,798 - document_rag.ingestion.code_loader - INFO - Created 1 chunks from /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_deep_inheritance_security/security/ir.model.access.csv
+2026-08-27 21:41:29,617 - document_rag.vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-08-27 21:41:29,618 - __main__ - INFO -     Added 1 chunks
+2026-08-27 21:41:29,619 - __main__ - INFO - CSV ingestion took 0.82s
+2026-08-27 21:41:29,619 - __main__ - INFO - 
+[CODE] Loading module 'custom_expense_reimbursement_indirect' from /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_expense_reimbursement_indirect
+2026-08-27 21:41:29,620 - __main__ - INFO - Found 4 Python files
+2026-08-27 21:41:29,621 - __main__ - INFO -   Processing: __init__.py
+2026-08-27 21:41:29,621 - document_rag.ingestion.code_loader - INFO - Loading Python file: /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_expense_reimbursement_indirect/__init__.py
+2026-08-27 21:41:29,622 - document_rag.ingestion.code_loader - INFO - Created 1 chunks from /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_expense_reimbursement_indirect/__init__.py
+2026-08-27 21:41:30,405 - document_rag.vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-08-27 21:41:30,406 - __main__ - INFO -     Added 1 chunks
+2026-08-27 21:41:30,406 - __main__ - INFO -   Processing: __manifest__.py
+2026-08-27 21:41:30,406 - document_rag.ingestion.code_loader - INFO - Loading Python file: /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_expense_reimbursement_indirect/__manifest__.py
+2026-08-27 21:41:30,407 - document_rag.ingestion.code_loader - INFO - Created 1 chunks from /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_expense_reimbursement_indirect/__manifest__.py
+2026-08-27 21:41:31,207 - document_rag.vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-08-27 21:41:31,208 - __main__ - INFO -     Added 1 chunks
+2026-08-27 21:41:31,209 - __main__ - INFO -   Processing: models/reimbursement.py
+2026-08-27 21:41:31,209 - document_rag.ingestion.code_loader - INFO - Loading Python file: /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_expense_reimbursement_indirect/models/reimbursement.py
+2026-08-27 21:41:31,213 - document_rag.ingestion.code_loader - INFO - Created 2 chunks from /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_expense_reimbursement_indirect/models/reimbursement.py
+2026-08-27 21:41:32,175 - document_rag.vectorstore.chroma_manager - INFO - Added 2 chunks to ChromaDB
+2026-08-27 21:41:32,175 - __main__ - INFO -     Added 2 chunks
+2026-08-27 21:41:32,175 - __main__ - INFO -   Processing: models/__init__.py
+2026-08-27 21:41:32,176 - document_rag.ingestion.code_loader - INFO - Loading Python file: /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_expense_reimbursement_indirect/models/__init__.py
+2026-08-27 21:41:32,176 - document_rag.ingestion.code_loader - INFO - Created 1 chunks from /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_expense_reimbursement_indirect/models/__init__.py
+2026-08-27 21:41:33,064 - document_rag.vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-08-27 21:41:33,064 - __main__ - INFO -     Added 1 chunks
+2026-08-27 21:41:33,065 - __main__ - INFO - Python ingestion took 3.44s
+2026-08-27 21:41:33,069 - __main__ - INFO - Found 1 CSV files
+2026-08-27 21:41:33,071 - __main__ - INFO -   Processing: security/ir.model.access.csv
+2026-08-27 21:41:33,071 - document_rag.ingestion.code_loader - INFO - Loading CSV file: /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_expense_reimbursement_indirect/security/ir.model.access.csv
+2026-08-27 21:41:33,072 - document_rag.ingestion.code_loader - INFO - Created 1 chunks from /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_expense_reimbursement_indirect/security/ir.model.access.csv
+2026-08-27 21:41:33,906 - document_rag.vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-08-27 21:41:33,906 - __main__ - INFO -     Added 1 chunks
+2026-08-27 21:41:33,907 - __main__ - INFO - CSV ingestion took 0.84s
+2026-08-27 21:41:33,907 - __main__ - INFO - 
+[CODE] Loading module 'custom_expense_risk_alert' from /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_expense_risk_alert
+2026-08-27 21:41:33,908 - __main__ - INFO - Found 4 Python files
+2026-08-27 21:41:33,908 - __main__ - INFO -   Processing: __init__.py
+2026-08-27 21:41:33,909 - document_rag.ingestion.code_loader - INFO - Loading Python file: /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_expense_risk_alert/__init__.py
+2026-08-27 21:41:33,909 - document_rag.ingestion.code_loader - INFO - Created 1 chunks from /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_expense_risk_alert/__init__.py
+2026-08-27 21:41:34,729 - document_rag.vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-08-27 21:41:34,730 - __main__ - INFO -     Added 1 chunks
+2026-08-27 21:41:34,730 - __main__ - INFO -   Processing: __manifest__.py
+2026-08-27 21:41:34,731 - document_rag.ingestion.code_loader - INFO - Loading Python file: /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_expense_risk_alert/__manifest__.py
+2026-08-27 21:41:34,733 - document_rag.ingestion.code_loader - INFO - Created 1 chunks from /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_expense_risk_alert/__manifest__.py
+2026-08-27 21:41:35,684 - document_rag.vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-08-27 21:41:35,684 - __main__ - INFO -     Added 1 chunks
+2026-08-27 21:41:35,686 - __main__ - INFO -   Processing: models/hr_expense.py
+2026-08-27 21:41:35,686 - document_rag.ingestion.code_loader - INFO - Loading Python file: /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_expense_risk_alert/models/hr_expense.py
+2026-08-27 21:41:35,703 - document_rag.ingestion.code_loader - INFO - Created 3 chunks from /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_expense_risk_alert/models/hr_expense.py
+2026-08-27 21:41:36,776 - document_rag.vectorstore.chroma_manager - INFO - Added 3 chunks to ChromaDB
+2026-08-27 21:41:36,777 - __main__ - INFO -     Added 3 chunks
+2026-08-27 21:41:36,778 - __main__ - INFO -   Processing: models/__init__.py
+2026-08-27 21:41:36,778 - document_rag.ingestion.code_loader - INFO - Loading Python file: /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_expense_risk_alert/models/__init__.py
+2026-08-27 21:41:36,779 - document_rag.ingestion.code_loader - INFO - Created 1 chunks from /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_expense_risk_alert/models/__init__.py
+2026-08-27 21:41:37,618 - document_rag.vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-08-27 21:41:37,618 - __main__ - INFO -     Added 1 chunks
+2026-08-27 21:41:37,619 - __main__ - INFO - Python ingestion took 3.71s
+2026-08-27 21:41:37,620 - __main__ - INFO - 
+[CODE] Loading module 'custom_expense_risk_base' from /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_expense_risk_base
+2026-08-27 21:41:37,621 - __main__ - INFO - Found 4 Python files
+2026-08-27 21:41:37,622 - __main__ - INFO -   Processing: __init__.py
+2026-08-27 21:41:37,622 - document_rag.ingestion.code_loader - INFO - Loading Python file: /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_expense_risk_base/__init__.py
+2026-08-27 21:41:37,623 - document_rag.ingestion.code_loader - INFO - Created 1 chunks from /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_expense_risk_base/__init__.py
+2026-08-27 21:41:38,588 - document_rag.vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-08-27 21:41:38,588 - __main__ - INFO -     Added 1 chunks
+2026-08-27 21:41:38,589 - __main__ - INFO -   Processing: __manifest__.py
+2026-08-27 21:41:38,590 - document_rag.ingestion.code_loader - INFO - Loading Python file: /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_expense_risk_base/__manifest__.py
+2026-08-27 21:41:38,592 - document_rag.ingestion.code_loader - INFO - Created 1 chunks from /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_expense_risk_base/__manifest__.py
+2026-08-27 21:41:39,541 - document_rag.vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-08-27 21:41:39,541 - __main__ - INFO -     Added 1 chunks
+2026-08-27 21:41:39,542 - __main__ - INFO -   Processing: models/hr_expense.py
+2026-08-27 21:41:39,543 - document_rag.ingestion.code_loader - INFO - Loading Python file: /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_expense_risk_base/models/hr_expense.py
+2026-08-27 21:41:39,566 - document_rag.ingestion.code_loader - INFO - Created 1 chunks from /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_expense_risk_base/models/hr_expense.py
+2026-08-27 21:41:40,404 - document_rag.vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-08-27 21:41:40,405 - __main__ - INFO -     Added 1 chunks
+2026-08-27 21:41:40,405 - __main__ - INFO -   Processing: models/__init__.py
+2026-08-27 21:41:40,405 - document_rag.ingestion.code_loader - INFO - Loading Python file: /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_expense_risk_base/models/__init__.py
+2026-08-27 21:41:40,406 - document_rag.ingestion.code_loader - INFO - Created 1 chunks from /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_expense_risk_base/models/__init__.py
+2026-08-27 21:41:41,298 - document_rag.vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-08-27 21:41:41,298 - __main__ - INFO -     Added 1 chunks
+2026-08-27 21:41:41,299 - __main__ - INFO - Python ingestion took 3.68s
+2026-08-27 21:41:41,310 - __main__ - INFO - 
+[CODE] Loading module 'custom_expense_risk_score' from /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_expense_risk_score
+2026-08-27 21:41:41,312 - __main__ - INFO - Found 4 Python files
+2026-08-27 21:41:41,313 - __main__ - INFO -   Processing: __init__.py
+2026-08-27 21:41:41,313 - document_rag.ingestion.code_loader - INFO - Loading Python file: /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_expense_risk_score/__init__.py
+2026-08-27 21:41:41,314 - document_rag.ingestion.code_loader - INFO - Created 1 chunks from /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_expense_risk_score/__init__.py
+2026-08-27 21:41:42,362 - document_rag.vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-08-27 21:41:42,363 - __main__ - INFO -     Added 1 chunks
+2026-08-27 21:41:42,363 - __main__ - INFO -   Processing: __manifest__.py
+2026-08-27 21:41:42,363 - document_rag.ingestion.code_loader - INFO - Loading Python file: /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_expense_risk_score/__manifest__.py
+2026-08-27 21:41:42,365 - document_rag.ingestion.code_loader - INFO - Created 1 chunks from /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_expense_risk_score/__manifest__.py
+2026-08-27 21:41:43,284 - document_rag.vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-08-27 21:41:43,284 - __main__ - INFO -     Added 1 chunks
+2026-08-27 21:41:43,285 - __main__ - INFO -   Processing: models/hr_expense.py
+2026-08-27 21:41:43,286 - document_rag.ingestion.code_loader - INFO - Loading Python file: /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_expense_risk_score/models/hr_expense.py
+2026-08-27 21:41:43,307 - document_rag.ingestion.code_loader - INFO - Created 2 chunks from /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_expense_risk_score/models/hr_expense.py
+2026-08-27 21:41:44,285 - document_rag.vectorstore.chroma_manager - INFO - Added 2 chunks to ChromaDB
+2026-08-27 21:41:44,285 - __main__ - INFO -     Added 2 chunks
+2026-08-27 21:41:44,285 - __main__ - INFO -   Processing: models/__init__.py
+2026-08-27 21:41:44,286 - document_rag.ingestion.code_loader - INFO - Loading Python file: /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_expense_risk_score/models/__init__.py
+2026-08-27 21:41:44,287 - document_rag.ingestion.code_loader - INFO - Created 1 chunks from /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_expense_risk_score/models/__init__.py
+2026-08-27 21:41:45,131 - document_rag.vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-08-27 21:41:45,132 - __main__ - INFO -     Added 1 chunks
+2026-08-27 21:41:45,132 - __main__ - INFO - Python ingestion took 3.82s
+2026-08-27 21:41:45,134 - __main__ - INFO - 
+[CODE] Loading module 'custom_hr_leave_workflow' from /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_hr_leave_workflow
+2026-08-27 21:41:45,135 - __main__ - INFO - Found 4 Python files
+2026-08-27 21:41:45,136 - __main__ - INFO -   Processing: __init__.py
+2026-08-27 21:41:45,136 - document_rag.ingestion.code_loader - INFO - Loading Python file: /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_hr_leave_workflow/__init__.py
+2026-08-27 21:41:45,137 - document_rag.ingestion.code_loader - INFO - Created 1 chunks from /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_hr_leave_workflow/__init__.py
+2026-08-27 21:41:46,007 - document_rag.vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-08-27 21:41:46,007 - __main__ - INFO -     Added 1 chunks
+2026-08-27 21:41:46,008 - __main__ - INFO -   Processing: __manifest__.py
+2026-08-27 21:41:46,009 - document_rag.ingestion.code_loader - INFO - Loading Python file: /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_hr_leave_workflow/__manifest__.py
+2026-08-27 21:41:46,010 - document_rag.ingestion.code_loader - INFO - Created 1 chunks from /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_hr_leave_workflow/__manifest__.py
+2026-08-27 21:41:46,964 - document_rag.vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-08-27 21:41:46,964 - __main__ - INFO -     Added 1 chunks
+2026-08-27 21:41:46,965 - __main__ - INFO -   Processing: models/hr_leave.py
+2026-08-27 21:41:46,965 - document_rag.ingestion.code_loader - INFO - Loading Python file: /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_hr_leave_workflow/models/hr_leave.py
+2026-08-27 21:41:46,984 - document_rag.ingestion.code_loader - INFO - Created 2 chunks from /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_hr_leave_workflow/models/hr_leave.py
+2026-08-27 21:41:47,977 - document_rag.vectorstore.chroma_manager - INFO - Added 2 chunks to ChromaDB
+2026-08-27 21:41:47,977 - __main__ - INFO -     Added 2 chunks
+2026-08-27 21:41:47,978 - __main__ - INFO -   Processing: models/__init__.py
+2026-08-27 21:41:47,978 - document_rag.ingestion.code_loader - INFO - Loading Python file: /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_hr_leave_workflow/models/__init__.py
+2026-08-27 21:41:47,979 - document_rag.ingestion.code_loader - INFO - Created 1 chunks from /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_hr_leave_workflow/models/__init__.py
+2026-08-27 21:41:48,795 - document_rag.vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-08-27 21:41:48,796 - __main__ - INFO -     Added 1 chunks
+2026-08-27 21:41:48,797 - __main__ - INFO - Python ingestion took 3.66s
+2026-08-27 21:41:48,802 - __main__ - INFO - 
+[CODE] Loading module 'custom_purchase_request' from /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_purchase_request
+2026-08-27 21:41:48,807 - __main__ - INFO - Found 4 Python files
+2026-08-27 21:41:48,810 - __main__ - INFO -   Processing: __init__.py
+2026-08-27 21:41:48,811 - document_rag.ingestion.code_loader - INFO - Loading Python file: /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_purchase_request/__init__.py
+2026-08-27 21:41:48,814 - document_rag.ingestion.code_loader - INFO - Created 1 chunks from /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_purchase_request/__init__.py
+2026-08-27 21:41:49,721 - document_rag.vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-08-27 21:41:49,721 - __main__ - INFO -     Added 1 chunks
+2026-08-27 21:41:49,722 - __main__ - INFO -   Processing: __manifest__.py
+2026-08-27 21:41:49,723 - document_rag.ingestion.code_loader - INFO - Loading Python file: /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_purchase_request/__manifest__.py
+2026-08-27 21:41:49,724 - document_rag.ingestion.code_loader - INFO - Created 1 chunks from /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_purchase_request/__manifest__.py
+2026-08-27 21:41:50,531 - document_rag.vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-08-27 21:41:50,531 - __main__ - INFO -     Added 1 chunks
+2026-08-27 21:41:50,532 - __main__ - INFO -   Processing: models/purchase_request.py
+2026-08-27 21:41:50,533 - document_rag.ingestion.code_loader - INFO - Loading Python file: /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_purchase_request/models/purchase_request.py
+2026-08-27 21:41:50,552 - document_rag.ingestion.code_loader - INFO - Created 2 chunks from /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_purchase_request/models/purchase_request.py
+2026-08-27 21:41:51,488 - document_rag.vectorstore.chroma_manager - INFO - Added 2 chunks to ChromaDB
+2026-08-27 21:41:51,489 - __main__ - INFO -     Added 2 chunks
+2026-08-27 21:41:51,490 - __main__ - INFO -   Processing: models/__init__.py
+2026-08-27 21:41:51,490 - document_rag.ingestion.code_loader - INFO - Loading Python file: /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_purchase_request/models/__init__.py
+2026-08-27 21:41:51,492 - document_rag.ingestion.code_loader - INFO - Created 1 chunks from /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_purchase_request/models/__init__.py
+2026-08-27 21:41:52,365 - document_rag.vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-08-27 21:41:52,366 - __main__ - INFO -     Added 1 chunks
+2026-08-27 21:41:52,368 - __main__ - INFO - Python ingestion took 3.56s
+2026-08-27 21:41:52,371 - __main__ - INFO - Found 1 XML files
+2026-08-27 21:41:52,374 - __main__ - INFO -   Processing: views/purchase_request_views.xml
+2026-08-27 21:41:52,375 - document_rag.ingestion.code_loader - INFO - Loading XML file: /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_purchase_request/views/purchase_request_views.xml
+2026-08-27 21:41:52,393 - document_rag.ingestion.code_loader - INFO - Created 2 chunks from /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_purchase_request/views/purchase_request_views.xml
+2026-08-27 21:41:53,408 - document_rag.vectorstore.chroma_manager - INFO - Added 2 chunks to ChromaDB
+2026-08-27 21:41:53,409 - __main__ - INFO -     Added 2 chunks
+2026-08-27 21:41:53,409 - __main__ - INFO - XML ingestion took 1.04s
+2026-08-27 21:41:53,412 - __main__ - INFO - Found 1 CSV files
+2026-08-27 21:41:53,413 - __main__ - INFO -   Processing: security/ir.model.access.csv
+2026-08-27 21:41:53,413 - document_rag.ingestion.code_loader - INFO - Loading CSV file: /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_purchase_request/security/ir.model.access.csv
+2026-08-27 21:41:53,414 - document_rag.ingestion.code_loader - INFO - Created 1 chunks from /media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_purchase_request/security/ir.model.access.csv
+2026-08-27 21:41:54,241 - document_rag.vectorstore.chroma_manager - INFO - Added 1 chunks to ChromaDB
+2026-08-27 21:41:54,241 - __main__ - INFO -     Added 1 chunks
+2026-08-27 21:41:54,242 - __main__ - INFO - CSV ingestion took 0.83s
+2026-08-27 21:41:54,302 - __main__ - INFO - 
+============================================================
+2026-08-27 21:41:54,302 - __main__ - INFO - INGESTION COMPLETE
+2026-08-27 21:41:54,303 - __main__ - INFO - ============================================================
+2026-08-27 21:41:54,303 - __main__ - INFO - Total chunks indexed: 198
+2026-08-27 21:41:54,303 - __main__ - INFO - By type: {'code_python': 87, 'code_xml': 59, 'code_js': 20, 'code_csv': 6, 'doc_pdf': 3, 'doc_wiki': 23}
+2026-08-27 21:41:54,303 - __main__ - INFO - By module: {'unknown': 198}
+2026-08-27 21:41:54,304 - __main__ - INFO - 
+Statistics saved to /media/donnee/projets/odoo-ia-prototype/document_rag/ingestion/logs/ingestion_stats.json
