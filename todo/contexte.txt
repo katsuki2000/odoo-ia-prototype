@@ -3092,3 +3092,285 @@ ResolvedConcept(user_term='avoir', resolved_models=['account.move'], resolved_mo
 **Tests** : 17 tests dans `tests/test_html_sanitizer.py` couvrant headings, listes, inline, blocs, reproduction exacte de la capture Bug A, passthrough Markdown pur. 30 tests passes au total (html_sanitizer + bug_a_markdown_only_output + plan_route_conflict), 0 failed.
 
 **Fichiers modifies** : `core/html_sanitizer.py` (nouveau), `core/graph.py` (import + appel dans format_output), `odoo_addons/miro_ai/models/miro_ai_log.py` (fields.Html -> fields.Text), `tests/test_html_sanitizer.py` (nouveau).
+
+---
+
+## Section 388: CONFIRMATION -- les 2 hunks Bug A few-shot (section 386/387) sont bien ecrits sur le disque, sur les 4 branches. Constat par lecture directe, aucun code touche ce tour (2026-08-31, acces filesystem uniquement)
+
+**Origine** : la section 387 (mandat d'ecriture des 2 hunks restants -- `ci_helpers.py`, `orm_agent_node.py` x2) n'a jamais ete suivie d'une confirmation ecrite dans ce journal -- le tour a bascule directement sur le diagnostic puis le fix root-cause du Bug A (fields.Html -> fields.Text, meme section 387 dupliquee). Statut d'ecriture verifie ce tour par lecture complete des fichiers concernes, plutot que suppose depuis le journal seul.
+
+**Constat** : les 4 branches portent desormais la meme discipline (interdiction HTML negative + exemple positif Markdown) :
+- `core/prompts.py::SYSTEM_PROMPT` (documentaire) : deja confirme section 383/384.
+- `code_intelligence/ci_helpers.py::CI_SYSTEM_PROMPT` regle 7 (code_intelligence) : **present** -- exemple `### Analyse des droits d'acces` (gras + lien source file://), suivi de la phrase "No raw HTML tag appears anywhere in this example".
+- `erp_data/orm_agent_node.py::orm_agent_loop()` `system_prompt` (donnees_erp) : **present** -- exemple `**Chiffre d'affaires total** : 12 450€ [Source: Odoo ERP - Module Ventes]`.
+- `erp_data/orm_agent_node.py::hybrid_node()` `combine_prompt` (hybride) : **present** -- exemple `### Procedure et donnees` avec etape numerotee + puce.
+
+**Non fait ce tour** : aucune ecriture (constat de lecture seul). Aucune execution pytest. Aucun rejeu live specifique a ces 2 branches (donnees_erp/hybride) pour confirmer l'absence de HTML brut en conditions reelles -- seule la branche documentaire (section 384) et code_intelligence (section 378, indirectement) ont ete rejouees jusqu'ici.
+
+**Prochaine etape** : reprendre la liste en attente (section 384/386) -- patch alias "avoir" (option b), duplication de sources (section 381), verification cache navigateur Bug B (section 376), ou autre priorite utilisateur.
+
+---
+
+## Section 389: Bug A CONFIRME EN CONDITIONS REELLES par l'utilisateur (question "comment creer un devis?", branche Documentaire) -- reponse entierement en Markdown propre, aucune balise HTML brute affichee. Duplication de sources (section 381) RECONFIRMEE dans le meme transcript, toujours pas diagnostiquee (2026-08-31, acces filesystem uniquement, transcript colle par l'utilisateur)
+
+**Bug A -- confirmation** : reponse affichee (titres numerotes, listes a puces, gras) sans aucune trace de balise HTML litterale (`<h5>`, `<strong>`, etc.) -- contraste net avec les captures des sections 375/378/384. Corrobore le fix root-cause section 387 (`fields.Html` -> `fields.Text` sur `miro_ai_log.py` + `core/html_sanitizer.py` + few-shot prompt sur les 4 branches, confirme ecrit section 388). Aucune action supplementaire requise sur Bug A a ce stade sauf nouvelle regression signalee.
+
+**Duplication de sources -- reconfirmee** : le bloc "Sources :" de ce transcript liste deux fois la meme entree ("WIKI INTERNE MIRO KE — Processus de vente et CRM"), identique au symptome deja note section 381 sur un autre transcript (meme titre de document duplique). Deuxieme echantillon independant -- ecarte l'hypothese d'un incident isole. Diagnostic toujours non engage (cause possible : non-deduplication de plusieurs chunks du meme document source, a l'affichage frontend ou dans `format_output()`/`_verify_used_sources()` cote backend -- a verifier).
+
+**Non fait ce tour** : aucun code touche (confirmation + reconfirmation seules). Diagnostic de la duplication de sources non engage (aucun mandat recu ce tour).
+
+**Prochaine etape** : mandat utilisateur pour engager le diagnostic de la duplication de sources (localiser la cause -- backend `format_output()`/`_verify_used_sources()` vs frontend `miro_ai.js`/template -- avant tout correctif), ou autre priorite de la liste en attente (patch alias "avoir", cache navigateur Bug B).
+
+---
+
+## Section 390: Mandat recu -- diagnostiquer la duplication de sources (sections 381, 389). JOURNAL AVANT CODE TOUCHE, aucune lecture/ecriture encore effectuee ce tour (2026-08-31, acces filesystem uniquement)
+
+**Origine** : suite directe de la section 389 -- l'utilisateur choisit ce point sur la liste en attente plutot que le patch alias "avoir" ou le cache Bug B.
+
+**Perimetre d'investigation prevu** : tracer la construction du bloc `sources` sur la branche Documentaire (celle des 2 echantillons connus, sections 381/389) depuis la retrieval (`document_rag/vectorstore/search.py::retrieve()`) jusqu'a l'affichage frontend (`odoo_addons/miro_ai/static/src/js/miro_ai.js` / template `miro_ai_assistant.xml`), en passant par `document_rag/generate_node.py::generate()`, `core/graph.py::format_output()`, `api/main.py::ask_question_v1()`, `odoo_addons/miro_ai/controllers/main.py::ask()`. Hypothese de depart (section 381) : non-deduplication de plusieurs chunks du meme document source -- a confirmer ou infirmer par lecture directe plutot que supposee.
+
+**Non fait ce tour (a ce point du journal)** : aucune lecture de code encore effectuee. Suite immediate : lecture de la chaine ci-dessus dans l'ordre.
+
+---
+
+## Section 391: Duplication de sources -- ROOT CAUSE CONFIRMEE : `document_rag/generate_node.py::_verify_used_sources()` cree une `SourceReference` par alias de chunk cite, sans regrouper par document source. Aucune dedup ailleurs dans la chaine (backend ni frontend). JOURNAL AVANT FIX (2026-08-31, acces filesystem uniquement)
+
+**Origine** : suite directe de la section 390 -- lecture de la chaine retrieval -> generation -> affichage.
+
+**Root cause identifiee** : `_verify_used_sources()` (`document_rag/generate_node.py`) construit une `SourceReference` pour chaque alias de chunk retrouve que le LLM cite comme utilise, sans deduplication par document source. Si le retrieval remonte 2 chunks distincts issus du meme document (2 sections du meme wiki, cas type "WIKI INTERNE MIRO KE" sections 381/389) et que le LLM cite les 2 alias dans sa reponse, `_verify_used_sources()` produit 2 `SourceReference` portant le meme titre -- d'ou le doublon observe dans le bloc "Sources :".
+
+**Verifications complementaires effectuees ce tour** :
+- `core/graph.py::format_output()` : aucune deduplication sur `response.sources` -- transmet la liste telle que recue de `_verify_used_sources()`, confirme que le probleme est bien en amont et non a cette couche.
+- Frontend (`odoo_addons/miro_ai/static/src/js/miro_ai.js` / template `miro_ai_assistant.xml`) : aucune dedup manquante identifiee -- le rendu affiche fidelement la liste recue du backend, ecarte l'hypothese d'un correctif cote affichage.
+
+**Conclusion** : la chaine complete (retrieval -> `_verify_used_sources()` -> `format_output()` -> frontend) a ete parcourue -- aucune couche ne deduplique par document source. Le point de correction naturel est `_verify_used_sources()` : regrouper les `SourceReference` par document source (et non par alias de chunk) avant de construire la liste finale.
+
+**Non fait ce tour** : aucun code touche (diagnostic seul, conformement au mandat "journal avant fix"). Correctif non propose ni ecrit.
+
+**Prochaine etape** : proposer le diff de correction sur `_verify_used_sources()` (regroupement par document source, strategie de merge a definir -- ex. garder la premiere occurrence ou fusionner les alias/sections citees sous une seule entree), puis dry-run et tests avant ecriture reelle.
+
+---
+
+## Section 392: Duplication de sources -- FIX ECRIT ET VALIDE : dedup par `(source, title)` dans `_verify_used_sources()`, premiere occurrence conservee, aucun changement de schema. 3 nouveaux tests verts. Suite complete relancee : 449 passed / 3 failed, les 3 echecs confirmes non lies au fix (2026-08-31)
+
+**Decision utilisateur (suite section 391)** : option 1 stricte retenue (pas de fusion de snippet -- option 1.5 ecartee). Lecture prealable de `core/schemas.py::SourceReference` (`source`, `doc_type`, `title`, `snippet`, `page` optionnel jamais peuple sur cette branche) : confirme l'absence de granularite structuree (chunk_id/section/page) a preserver, donc le schema n'imposait pas la fusion. Argument utilisateur retenu : la question a laquelle repond le bloc "Sources :" est "d'ou vient l'information", pas "quels passages exacts" -- l'Evidence Builder (chunk_ids/pages/offsets) est un chantier separe, delibere ment non demarre ici.
+
+**Fix ecrit** (`document_rag/generate_node.py::_verify_used_sources()`) : ajout d'un `seen_docs` set garde par `dedup_key = (source_val, title)` dans la boucle de construction des `SourceReference` -- premiere occurrence (ordre de retrieval / `alias_map`) conservee, alias suivants du meme document ignores. Aucun changement de schema Pydantic (`core/schemas.py` intact). Docstring de la fonction mise a jour pour documenter le comportement et le choix explicite de ne pas fusionner les snippets.
+
+**Tests ecrits** (`tests/test_graph.py`, classe `TestVerifyUsedSourcesDedup`, import direct de `_verify_used_sources` depuis `document_rag.generate_node`) :
+- `test_two_aliases_same_document_collapse_to_one_source` : 2 alias -> meme `(source, title)` -> 1 seule `SourceReference`, snippet du premier alias conserve (pas de fusion).
+- `test_distinct_documents_are_not_collapsed` : 2 documents distincts -> 2 entrees, non-regression.
+- `test_same_source_path_but_different_title_not_collapsed` : meme `source` mais `title` different -> pas de fusion (garde-fou sur la cle composite, pas `source` seul).
+
+**Validation** :
+- `python3 -m py_compile` sur `generate_node.py` modifie : OK (verifie via copie sandbox Claude).
+- `pytest tests/test_graph.py -k "VerifyUsedSourcesDedup or format_output or query_graph" -v` : 8 passed (les 3 nouveaux tests + les tests existants sur `format_output`/`query_graph` qui touchent aussi `sources`, non regresses).
+- Suite complete (`pytest tests/`, incluant apparemment les tests `@pytest.mark.integration` cette fois -- pas de `-m "not integration"` applique sur ce run) : 449 passed, 3 failed. Les 3 echecs analyses et confirmes SANS LIEN avec ce fix :
+  1. `test_api_v1_ingestion_status_reports_stats_and_watcher_state` : `AttributeError: 'list' object has no attribute 'is_file'` dans `api/main.py::_count_supported_files()` -- bug de nesting de liste preexistant, fichier non touche par ce tour.
+  2. `test_e2e_live_add_delete_query_cycle` : `assert 0 > 0` sur `response.sources` -- le mock du test construit `LLMResponse(answer=..., confidence=0.98)` SANS `used_sources`, qui retombe donc sur le defaut `[]`. `_verify_used_sources([], alias_map)` retourne `[]` par design ("empty declared list", comportement documente et inchange par ce fix) -- defaut du test (used_sources non peuple sur le mock), pas une regression de la dedup.
+  3. `test_scalability_benchmark_under_6_minutes` : `FileNotFoundError` sur `document_rag/fake_data/code` -- dossier de fixture manquant sur le disque, environnemental, sans rapport avec le code touche.
+
+**Fichiers modifies** : `document_rag/generate_node.py` (`_verify_used_sources()` + docstring), `tests/test_graph.py` (import `_verify_used_sources` + classe `TestVerifyUsedSourcesDedup`, 3 tests).
+
+**Non fait ce tour** : les 3 echecs non lies ne sont pas corriges (hors perimetre de ce mandat, a traiter separement si priorite utilisateur). Pas de re-run avec `-m "not integration"` pour confirmer le chiffre exact de la suite quotidienne (88s/~430 tests habituels) -- le run relate inclut au moins un test integration (`test_e2e_live_add_delete_query_cycle`).
+
+**Prochaine etape** : mandat utilisateur -- cloturer ce chantier (duplication de sources RESOLU) et reprendre la liste en attente (patch alias "avoir", cache navigateur Bug B, single_company_cleanup.py + J5/J6, Bloc 9 E2E), ou traiter un des 3 echecs sans lien releves ce tour, ou prioriser le classifieur LLM unique evoque par l'utilisateur (routing) comme suggere en fin de section precedente.
+
+---
+
+## Section 393: `single_company_cleanup.py` + J5/J6 -- CONFIRMATION FINALE EMPIRIQUE, chantier declare CLOS -- execution reelle par l'utilisateur, no-op idempotent + 21/21 passed (2026-08-31)
+
+**Origine** : reprise du point "single_company_cleanup.py + J5/J6" en tete de la liste en attente (section 392). Avant execution, recoupement du journal fait par cette session (acces filesystem seul, pas de RPC) : sections 321-324 (29/08) avaient deja declare ce chantier CLOS (21 passed) sur la base d'une resolution dynamique des `company_id`/groupes dans les tests, tandis qu'une session parallele du jour meme (section 370, format abrege, dupliquee deux fois dans le journal) rapportait une execution de `scripts/single_company_cleanup.py` ayant bute sur 2 faults (`res.users`, `website`) puis un "rejeu reussi" apres restauration manuelle de l'acces admin via psql -- coherent avec le script lu sur disque, qui integre deja ces 2 correctifs (admin traite en dernier dans la boucle de migration, `try/except` sur la recherche du modele `website`). Ambiguite non levee par la seule lecture : un reset de donnees demo avait egalement eu lieu le meme jour (sections 363-365, `tools/full_setup.py` modifie et rejoue), risque plausible de reintroduction de 'My Company'. Script idempotent par construction -- relance sans risque pour trancher empiriquement plutot que de se fier a la seule lecture du journal.
+
+**Execution reelle (utilisateur, poste Mahalahatse)** :
+1. `python3 scripts/single_company_cleanup.py` -> `'My Company' not found -- already removed, nothing to do.` -- confirme que le nettoyage etait deja effectif (pas de reintroduction par le reset `full_setup.py` de la section 365), no-op idempotent comme prevu par le script.
+2. `pytest code_intelligence/tests/test_j5_live_validation.py code_intelligence/tests/test_j6_context_validation.py -v` -> **21 passed in 35.60s**, 0 skip, 0 erreur, 0 echec -- reconfirme independamment le resultat de la section 323/324 sur l'etat actuel reel de l'instance (pas suppose depuis le journal).
+
+**Conclusion** : chantier `single_company_cleanup.py` + J5/J6 CONFIRME CLOS sur preuve directe de ce tour, cloture les sections 321-324/370 avec une verification empirique fraiche plutot qu'une simple lecture retrospective du journal. Aucun code touche ce tour (execution + confirmation seules).
+
+**Non fait ce tour** : rejeu de la suite complete `pytest tests/` (perimetre de ce tour = J5/J6 uniquement, conforme au mandat recu). Bloc 9 E2E (modules restants au-dela de custom_hr_leave_workflow/custom_purchase_request) non repris ce tour.
+
+**Prochaine etape** : mandat utilisateur -- reprendre la liste en attente (patch alias "avoir", cache navigateur Bug B, Bloc 9 E2E sur les modules restants), ou prioriser le classifieur LLM unique (routing) evoque en fin de section 391.
+
+---
+
+## Section 394: Classifieur LLM unique (routing) -- Tranche 1 ECRITE : classify_question_intent_llm() + resolve_question_intent() dans code_intelligence/investigation_plan.py, nouveau code isole, RIEN de cable dans route()/generate_investigation_plan() (2026-08-31)
+
+**Origine** : mandat utilisateur pour le design en 3 tranches propose ce tour (classifieur LLM + fallback / cablage route()+generate_investigation_plan() / tests+non-regression), avec instruction explicite de ne traiter que la Tranche 1 ce tour.
+
+**Lecture prealable (regle du projet)** : todo/contexte.txt (tail 150, sections 385-393) puis todo/plan.md (Bloc P1, contrainte de conception "remplacer GOVERNANCE_SIGNAL_TERMS par un mecanisme plus robuste") puis todo/rules.md, avant toute ecriture. Relecture de code_intelligence/investigation_plan.py (QuestionIntent, classify_question_intent() existant, PlanGenerationSource), code_intelligence/business_resolver.py (_llm_arbitrate(), patron de reference pour un appel LLM borne avec fallback deterministe explicite) et document_rag/generate_node.py (patron with_structured_output() + invoke_with_rate_limit()) pour rester coherent avec les 2 patrons deja etablis dans le projet plutot que d'en inventer un troisieme.
+
+**Code ecrit** (`code_intelligence/investigation_plan.py`, nouvelle section entre `concept_suggests_code_intelligence_v2()` et `generate_investigation_plan()`) :
+- `IntentClassificationLLMResponse(BaseModel)` : schema Pydantic strict borne a un seul champ `intent: QuestionIntent` -- meme vocabulaire ferme que `classify_question_intent()`, jamais de texte libre.
+- `classify_question_intent_llm(question) -> Optional[QuestionIntent]` : appel Groq unique via `get_chat_llm()` + `.with_structured_output()` + `invoke_with_rate_limit()` (memes briques que `generate_node.py`/`_llm_arbitrate()`). `max_retries=1` choisi deliberement (ecart documente en docstring par rapport aux 5 retries par defaut de `_llm_arbitrate()`) : ce classifieur a toujours un filet deterministe immediat contrairement a l'arbitrage de concept, donc pas de raison d'attendre un backoff de rate-limit avant de basculer sur le fallback. Try/except large : toute exception (timeout, 429, sortie structuree invalide, autre) est loggee en warning et retourne None, jamais remontee.
+- `IntentResolution` (dataclass) : `intent`, `source` ("llm"|"fallback_keyword"), `fallback_reason`.
+- `resolve_question_intent(question, resolved_concept, G) -> IntentResolution` : tente `classify_question_intent_llm()`, retombe sur `classify_question_intent()` existant (non modifie, ni renomme, ni touche dans sa logique interne) en cas d'echec, avec `logger.warning("INTENT_FALLBACK reason=... question=... resolved_intent=...")`.
+
+**Non fait ce tour (conforme au mandat "Tranche 1 seulement")** : aucun cablage dans `core/routing.py::route()` ni dans `generate_investigation_plan()` -- ces deux fonctions et `classify_question_intent()` restent bit-a-bit identiques a avant ce tour. Aucun nouveau fichier de test ecrit (Tranche 3). Aucune execution pytest (Tranche 3, et rappel regle : jamais `pytest tests/ -v` complet sur cette machine).
+
+**Verification effectuee** : `python3 -m py_compile` sur le fichier modifie via copie sandbox Claude (`copy_file_user_to_claude` + `bash_tool`) -- COMPILE_OK, aucune erreur de syntaxe.
+
+**Fichiers modifies** : `code_intelligence/investigation_plan.py` (ajout seul, aucune ligne existante supprimee/modifiee).
+
+**Prochaine etape** : mandat utilisateur pour la Tranche 2 (cablage `route()`/`generate_investigation_plan()`, table `INTENT_TO_ROUTE`, parametre optionnel `intent` sur `generate_investigation_plan()`) ou la Tranche 3 (tests dedies + rejeu cible, jamais la suite complete).
+
+---
+
+## Section 395: Classifieur LLM unique (routing) -- CONSTAT : Tranche 2 deja ecrite et cablee sur le disque (non journalisee par la session qui l'a produite) + Tranche 3 ecrite ce tour (tests dedies classify_question_intent_llm/resolve_question_intent) (2026-08-31)
+
+**Origine** : mandat utilisateur "pars sur la Tranche 2" (cablage `route()`/`generate_investigation_plan()`). Lecture prealable de todo/contexte.txt (tail, section 394) puis todo/plan.md puis todo/rules.md, conformement a la regle du projet.
+
+**Constat avant toute ecriture** : `core/routing.py` et `code_intelligence/investigation_plan.py` portaient deja, au moment de la lecture, l'integralite du cablage decrit pour la Tranche 2 -- `route()` appelle `resolve_question_intent()` une seule fois (plus de double classification), derive la route via une table `INTENT_TO_ROUTE` fermee, passe l'intent deja resolu a `generate_investigation_plan(..., intent=intent)` (parametre deja present dans la fonction, docstring dediee), applique la couche HYBRIDE uniquement en aval d'une route `documentaire`/`donnees_erp` derivee, et redefinit le sticky-routing sur le cas `DOCUMENTARY_POLICY sans ancre explicite`. Un fichier de test `code_intelligence/tests/test_bloc_p1_j7_plan_route_conflict.py` existait egalement, avec `.pyc` compile (donc deja execute au moins une fois), couvrant `validate_plan_against_route()` (mecanisme anterieur a cette Tranche 2, section 385-387, mais reutilise par le cablage actuel de `route()`).
+
+**Preuve de datation** : mtime de `core/routing.py` (22:08:53) et `code_intelligence/investigation_plan.py` (22:06:27) tous deux POSTERIEURS a la derniere entree de ce journal au moment de la lecture (section 394, mtime 22:01:07 du fichier journal lui-meme). Aucune section du journal ne documente ce cablage -- violation de la regle "put everything you change in todo/contexte.txt" par la session qui l'a ecrit, quelle qu'elle soit.
+
+**Verification effectuee ce tour** : `python3 -m py_compile` sur `core/routing.py` et `code_intelligence/investigation_plan.py` (copie sandbox Claude) -- COMPILE_OK, aucune erreur de syntaxe sur les deux fichiers. Lecture ligne a ligne des deux fichiers effectuee (pas seulement un diff) pour confirmer que le contenu correspond bien au design en 3 tranches valide par l'utilisateur en debut de tour, avant de decider de la suite -- confirme correspondre.
+
+**Decision utilisateur suite au constat** : documenter l'etat trouve (cette section) puis passer directement a la Tranche 3, sans reecrire la Tranche 2 deja en place.
+
+**Tranche 3 ecrite ce tour** : nouveau fichier `code_intelligence/tests/test_intent_llm_classifier_and_resolution.py` -- couverture dediee de `classify_question_intent_llm()` et `resolve_question_intent()` (Tranche 1), non couverte par `test_bloc_p1_j1_2_investigation_plan.py` (qui ne teste que `classify_question_intent()`, le filet deterministe inchange) ni par `test_bloc_p1_j7_plan_route_conflict.py` (qui teste `validate_plan_against_route()`, une couche differente). Patron de mock aligne sur `test_business_resolver.py` (seul autre appel LLM borne du projet documente par un test), adapte a la forme reelle de l'appel (`with_structured_output().invoke()` retournant un objet `.intent`, et non `.invoke()` retournant un objet `.content`) :
+- `test_llm_classifier_returns_intent_on_success` / `test_llm_classifier_passes_the_question_to_the_llm` : cas nominal.
+- `test_llm_classifier_returns_none_on_generic_exception` / `_on_timeout` / `_on_malformed_structured_output` : les 3 cas d'echec explicitement demandes par le mandat initial (exception generique, timeout, sortie structuree invalide) -- les 3 degradent en `None`, jamais de propagation d'exception.
+- `test_llm_classifier_returns_none_on_empty_question_without_calling_llm` : garde-fou question vide, aucun appel LLM gaspille.
+- `test_llm_classifier_logs_a_warning_on_failure` : verifie le log d'avertissement sur echec (via `caplog`).
+- `test_resolve_uses_llm_result_when_available` : `resolve_question_intent()` cas nominal, `source="llm"`.
+- `test_resolve_falls_back_to_keyword_classifier_on_any_llm_failure` (parametrise sur les 3 memes echecs) : verifie le repli vers `classify_question_intent()` inchange, `source="fallback_keyword"`, `fallback_reason` peuple.
+- `test_resolve_fallback_logs_intent_fallback_warning` : verifie le log `INTENT_FALLBACK` specifique.
+- `test_resolve_passes_resolved_concept_and_graph_to_fallback_only` : confirme que `resolved_concept`/`G` (consommes uniquement par le filet deterministe, pas par l'appel LLM lui-meme) survivent correctement a l'orchestration lors d'un repli.
+
+**Verification effectuee** : `python3 -m py_compile` sur le nouveau fichier de test (copie sandbox Claude) -- COMPILE_OK. Pas d'execution pytest reelle (aucune capacite d'execution sur la machine utilisateur depuis cette session filesystem-only, comme les sessions precedentes de ce type -- voir sections 321-324/393 pour le meme constat sur d'autres chantiers).
+
+**Non fait ce tour** : aucun rejeu pytest reel (`test_bloc_p1_j1_2/j6/j7`, `test_j18_routing_fewshot.py`, le nouveau fichier de ce tour, ni la suite cible plus large) -- necessite une execution reelle par l'utilisateur, cette session n'ayant acces qu'au filesystem. Existence confirmee de `tests/test_j18_routing_fewshot.py` (77 cas mentionnes dans le mandat initial) mais contenu non relu en detail ce tour -- a verifier lors du rejeu reel si son attente sur le comportement de `route()` est toujours coherente avec le cablage Tranche 2 deja en place (le fichier n'a pas ete modifie ce tour).
+
+**Fichiers modifies** : aucun fichier existant touche. Ajout seul : `code_intelligence/tests/test_intent_llm_classifier_and_resolution.py` (nouveau).
+
+**Prochaine etape** : mandat utilisateur -- rejeu reel (poste utilisateur) de `test_intent_llm_classifier_and_resolution.py` (nouveau), `test_bloc_p1_j1_2_investigation_plan.py`, `test_bloc_p1_j6_plan_execution_coherence.py`, `test_bloc_p1_j7_plan_route_conflict.py`, `tests/test_j18_routing_fewshot.py`, puis confirmation/cloture de la Tranche 2+3 sur cette base -- jamais `pytest tests/ -v` complet sur cette machine (regle du projet).
+
+---
+
+## Section 396: Rejeu reel demande section 395 EFFECTUE par l'utilisateur -- 2 suites, 5 echecs distincts, 2 causes racines identifiees : (a) `classify_question_intent_llm()` echoue systematiquement (bug Groq tool-call), (b) `route()` Tranche 2 (`INTENT_TO_ROUTE`) diverge du calibrage few-shot existant en repli `fallback_keyword`. JOURNAL AVANT FIX, aucun code touche (2026-08-31, transcript colle par l'utilisateur)
+
+**Origine** : suite directe du rejeu demande en fin de section 395 -- `test_bloc_p1_j7_plan_route_conflict.py` et `tests/test_j18_routing_fewshot.py` executes reellement par l'utilisateur.
+
+**Resultats bruts** :
+- `code_intelligence/tests/test_bloc_p1_j7_plan_route_conflict.py -v` : 39 passed, **1 failed** -> `test_route_neutralizes_workflow_plan_on_documentaire_branch`.
+- `tests/test_j18_routing_fewshot.py -v` : 53 passed, **4 failed** (2 questions distinctes, chacune echouant dans 2 classes de test qui repetent la meme assertion) -> "Quel est le montant total des ventes de janvier 2026 ?" (attendu `donnees_erp`, obtenu `code_intelligence`) et "Combien d'avoirs ont ete approuves sans passer par le responsable comptable ?" (attendu `donnees_erp`, obtenu `documentaire`).
+
+**Cause racine (a) -- bug Groq tool-call sur le classifieur LLM** : dans les 5 echecs, le log capture montre systematiquement `classify_question_intent_llm failed` suivi de `groq.BadRequestError: ... Tool call validation failed: attempted to call tool 'classify_question_intent_llm' which was not in request.tools`. Le modele Groq tente d'appeler un tool portant exactement le nom de la fonction Python appelante, absent des tools envoyes -- signe que l'appel (`get_chat_llm().with_structured_output(IntentClassificationLLMResponse)` dans `classify_question_intent_llm()`) resout en pratique vers un mode tool-calling avec un nom de tool derive a tort du nom de la fonction, plutot que le mode structured-output pur attendu (schema `IntentClassificationLLMResponse`). Consequence : `classify_question_intent_llm()` echoue a 100% des appels observes ce tour (5/5) ; `resolve_question_intent()` retombe systematiquement sur `classify_question_intent()` (`source="fallback_keyword"`) -- le chemin LLM n'a jamais ete reellement exerce par ce rejeu, seul son filet de secours l'a ete.
+
+**Cause racine (b) -- desaccord entre `INTENT_TO_ROUTE` (Tranche 2) et le calibrage few-shot historique** : meme avec repli systematique vers l'ancien classifieur keyword (logique inchangee, confirme section 394), les 5 echecs montrent que `route()` (cablage Tranche 2 trouve deja ecrit sur disque, non journalise par son auteur -- section 395) derive desormais la route via la table `INTENT_TO_ROUTE` a partir de l'intent resolu, et non plus via la logique `DOC_KEYWORDS`/keyword anterieure qui avait ete calibree par les 77 cas de `tests/test_j18_routing_fewshot.py` et par `test_bloc_p1_j7...`. Sur les 3 questions en cause :
+  - "comment creer une demande de facture ?" -> intent `workflow_state` -> route `code_intelligence` (attendu : `documentaire` via `DOC_KEYWORDS` 'comment' -- c'est precisement le cas que `validate_plan_against_route()` etait cense neutraliser cote *plan*, pas reorienter cote *route*).
+  - "Quel est le montant total des ventes de janvier 2026 ?" -> intent `calculation_logic` -> route `code_intelligence` (attendu : `donnees_erp`).
+  - "Combien d'avoirs ... ?" -> intent `documentary_policy` -> route `documentaire` (attendu : `donnees_erp`).
+
+**Interpretation** : le cablage Tranche 2 a change la source de verite de la decision de route, passant d'une logique `DOC_KEYWORDS`/keyword directe a une derivation par table depuis l'intent -- changement jamais valide contre les 77 cas few-shot existants avant ce rejeu. C'est exactement ce que la Tranche 3 (tests dedies + rejeu cible) devait verifier ; le rejeu revele un desaccord reel entre les deux logiques de routing sur au moins 3/77 cas few-shot, plus 1/40 cas sur le test plan/route.
+
+**Non fait ce tour** : aucun code touche (rejeu + analyse seule, conforme a la regle "journal avant fix"). Aucune decision prise sur laquelle des deux logiques (`DOC_KEYWORDS`/keyword historique vs `INTENT_TO_ROUTE` Tranche 2) doit l'emporter en cas de desaccord, ni sur la cause exacte du bug Groq tool-call (a investiguer dans `core/llm_client.py::get_chat_llm()` / la construction de `.with_structured_output()` dans `classify_question_intent_llm()`, en comparant au patron fonctionnel de `business_resolver.py::_llm_arbitrate()` et `document_rag/generate_node.py`).
+
+**Prochaine etape** : mandat utilisateur sur priorite -- (1) diagnostiquer et corriger le bug Groq tool-call qui empeche `classify_question_intent_llm()` de fonctionner reellement, (2) arbitrer le desaccord de routing entre `INTENT_TO_ROUTE` (Tranche 2) et la logique `DOC_KEYWORDS`/keyword historique calibree par les 77 cas few-shot (corriger la table, ou restaurer la priorite `DOC_KEYWORDS` avec l'intent en signal secondaire -- a definir), ou (3) les deux en parallele si priorite utilisateur.
+
+---
+
+## Section 397: Mandat recu -- traiter (a) et (b) en parallele. (a) hypothese root-cause identifiee (methode Groq tool-calling par defaut potentiellement peu fiable pour openai/gpt-oss-20b, alternative dediee `method="json_schema"` documentee dans la lib installee) + script diagnostic ecrit, PAS ENCORE EXECUTE. (b) confirmation lecture : `route()` (Tranche 2) a INTEGRALEMENT remplace la cascade `CODE_INTEL_KEYWORDS`/`ERP_KEYWORDS` -- ce ne sont plus des signaux de routage actifs, seule `DOC_KEYWORDS_FOLDED` survit (uniquement pour la couche HYBRIDE). JOURNAL AVANT FIX, aucun code de production touche (2026-08-31)
+
+**Origine** : mandat utilisateur "les deux dans ce tour" suite a la section 396.
+
+**(a) -- lecture de `core/llm_client.py`, `code_intelligence/investigation_plan.py::classify_question_intent_llm()`, `code_intelligence/business_resolver.py::_llm_arbitrate()` (patron alternatif sans tool-calling, texte libre + parsing), `document_rag/generate_node.py::generate()` (meme patron `with_structured_output()` que le classifieur, mais avec fallback try/except vers un `invoke()` brut en cas d'echec -- si ce fallback se declenche silencieusement en production, personne ne l'aurait remarque, seul un warning log le trace).**
+
+Copie sandbox + lecture de `.venv/lib/python3.13/site-packages/langchain_groq/chat_models.py::with_structured_output()` : confirme que pour `method="function_calling"` (le defaut, utilise implicitement par `classify_question_intent_llm()` qui ne precise pas `method=`), le nom de tool force via `tool_choice` est derive de `convert_to_openai_tool(schema)["function"]["name"]` -- pour `IntentClassificationLLMResponse`, ce nom DOIT etre `"IntentClassificationLLMResponse"`, jamais `"classify_question_intent_llm"` (le nom de la fonction Python appelante, observe dans l'erreur Groq des 5 echecs section 396). La divergence entre le nom demande et le nom que le modele tente d'appeler n'est donc pas explicable par la construction du tool cote `langchain_groq` -- reste a confirmer empiriquement cote modele/Groq.
+
+**Piste concrete trouvee dans la docstring de la lib installee** : `with_structured_output()` documente explicitement -- "Strict mode is only supported for `openai/gpt-oss-20b` and `openai/gpt-oss-120b`" pour `method="json_schema"`, et note "Behavior changed in langchain-groq 0.3.8 : Added support for Groq's dedicated structured output feature via `method="json_schema"`". `config/settings.py::GROQ_MODEL = "openai/gpt-oss-20b"` -- EXACTEMENT le modele pour lequel Groq a ajoute une API de structured-output dediee, distincte du tool-calling force (`method="function_calling"`, le defaut actuellement utilise partout dans le projet -- `classify_question_intent_llm()` ET `generate_node.py::generate()`). Hypothese de travail : le tool-calling force est struct-out peu fiable pour ce modele sur Groq, et la lib installee propose deja un chemin alternatif documente et supporte specifiquement pour `openai/gpt-oss-20b`.
+
+**Script diagnostic ecrit** : `scripts/diagnose_intent_llm_tool_call.py` -- reproduit l'appel `classify_question_intent_llm()` en isolation sur la question section 396 ("comment creer une demande de facture ?"), affiche (1) le nom de tool que `convert_to_openai_tool()` derive reellement du schema, (2) le resultat/exception brut avec `method="function_calling"` (comportement actuel), (3) le resultat/exception brut avec `method="json_schema"` (hypothese de fix). Ne modifie aucun fichier -- lecture seule + appels Groq reels. PAS ENCORE EXECUTE (necessite le poste utilisateur, cle Groq + acces reseau).
+
+**(b) -- lecture complete de `core/routing.py`.** Confirme (pas suppose) : la docstring de `route()` declare explicitement remplacer "route()'s own `CODE_INTEL_KEYWORDS`/`ERP_KEYWORDS`/`DOC_KEYWORDS` cascade" par la resolution d'intent unique (`resolve_question_intent()` + `INTENT_TO_ROUTE`). Verification par lecture ligne a ligne du corps de `route()` : `CODE_INTEL_KEYWORDS_FOLDED` et `ERP_KEYWORDS_FOLDED` sont definis (module-level, lignes ~120-140) mais n'apparaissent nulle part dans le corps de `route()` -- code mort, jamais reference. Seul `DOC_KEYWORDS_FOLDED` survit, mais uniquement comme co-signal de la couche HYBRIDE (`is_hybrid = (DOC_KEYWORDS_FOLDED ou DOC_ANCHORS_FOLDED) ET QUANTITATIVE_TERMS_FOLDED`), jamais comme determinant primaire de route.
+
+**Conclusion (b)** : ce n'est pas un cablage partiel/oublie -- c'est un remplacement architectural complet et deliberement documente (justification explicite dans la docstring : "eliminates the plan/route divergence at its root"). Les 3 questions en echec section 396 ne revelent donc pas un bug de cablage, mais un DESACCORD DE FOND jamais valide entre l'ancienne semantique (calibree par les 77 cas few-shot de `tests/test_j18_routing_fewshot.py`, cascade `CODE_INTEL_KEYWORDS`/`ERP_KEYWORDS`/`DOC_KEYWORDS` avec `ROUTING_CONFLICT_PRIORITY`) et la nouvelle semantique (mapping `INTENT_TO_ROUTE` un-a-un depuis `QuestionIntent`, sans notion de priorite inter-branche explicite). Decision d'arbitrage necessaire, PAS prise ce tour :
+  - Option A : ajuster `INTENT_TO_ROUTE` et/ou `classify_question_intent()`/`classify_question_intent_llm()` pour que les intents resolus sur les 3 cas en echec redonnent la route attendue par les few-shot (corriger le nouveau systeme vers l'ancien contrat).
+  - Option B : accepter le nouveau comportement comme la version a jour du contrat de routage, et mettre a jour `tests/test_j18_routing_fewshot.py` (les 3 cas + tout autre cas divergent decouvert) pour refleter la semantique Tranche 2 (le nouveau systeme EST le contrat).
+  - Option C : reintroduire `CODE_INTEL_KEYWORDS`/`ERP_KEYWORDS`/`ROUTING_CONFLICT_PRIORITY` comme override explicite au-dessus du mapping `INTENT_TO_ROUTE`, plutot que de choisir entre A et B (hybride).
+
+**Non fait ce tour** : script diagnostic (a) non execute (necessite poste utilisateur). Aucune decision d'arbitrage (b) prise ni codee -- les 3 options ci-dessus sont presentees pour mandat utilisateur, aucun choix par defaut. Aucun fichier de production touche (seul ajout : `scripts/diagnose_intent_llm_tool_call.py`, nouveau fichier, aucune ligne existante modifiee).
+
+**Fichiers modifies** : aucun fichier existant touche. Ajout seul : `scripts/diagnose_intent_llm_tool_call.py` (nouveau, diagnostic).
+
+**Prochaine etape** : (a) l'utilisateur execute `python3 scripts/diagnose_intent_llm_tool_call.py` depuis la racine du repo et colle la sortie -- confirmera ou infirmera l'hypothese `method="json_schema"` avant tout diff sur `classify_question_intent_llm()` (et potentiellement `generate_node.py::generate()`, meme patron). (b) mandat utilisateur sur l'option A/B/C d'arbitrage routing ci-dessus.
+
+---
+
+## Section 398: Decision utilisateur (b) : Option B (nouveau contrat = source de verite, tests few-shot mis a jour au cas par cas -- jamais en bloc), AVEC revue fonctionnelle prealable de chacun des 3 cas avant tout changement. Revue faite : 2/3 cas sont des VRAIS BUGS du nouveau classifieur (a corriger), pas des tests obsoletes. + DECOUVERTE : collision de numerotation "Section 396" -- `investigation_plan.py` cite deja une correction "Section 396" (elision "combien d'avoirs") jamais journalisee sous ce numero, distincte de mon propre Section 396 (rejeu pytest). JOURNAL AVANT FIX, aucun code de production touche (2026-08-31)
+
+**Origine** : reponse utilisateur a la question d'arbitrage (b) -- Option B retenue, avec regle explicite : "un test few-shot n'est pas sacre : s'il encode une ancienne decision devenue volontairement obsolete, on met a jour le test ; si le nouveau routage degrade le resultat metier, on corrige le classifieur". Revue case-par-case demandee avant toute modification en masse.
+
+**Revue fonctionnelle des 3 cas (section 396)** :
+
+1. "comment creer une demande de facture ?" -- ancien : `documentaire`. nouveau : `code_intelligence` (intent `workflow_state`, via le fallback Step 8 de `classify_question_intent()` -- `resolved_concept` = account.move (alias "facture"), signal faible "comment" present dans `_WEAK_PROCESS_SIGNALS`, tag `WORKFLOW_RULE` sur account.move -> intent force). Analyse metier : c'est une question de type "comment faire, en tant qu'utilisateur" (procedure), pas une question d'inspection de code (etats/transitions/boutons internes) -- Code Intelligence repondrait par une analyse de la structure du workflow dans le code, pas par un guide utilisateur pas-a-pas. **`documentaire` est la reponse metier correcte -- le nouveau routage degrade le resultat. Classifieur en cause, pas le test.** Root cause : le garde-fou Step 8 (section 379, cense eviter les faux positifs comme "avoir"/homonyme) reste trop permissif quand le signal faible est un mot-cle explicitement how-to ("comment") plutot qu'un signal de processus metier neutre ("ca se passe comment", "fonctionnement") -- distinction non faite actuellement.
+
+2. "Quel est le montant total des ventes de janvier 2026 ?" -- ancien : `donnees_erp`. nouveau : `code_intelligence` (intent `calculation_logic`). Root cause identifiee par lecture de `classify_question_intent()` : Step 4 (`_CALCULATION_PATTERNS`, contient le pattern generique `montant\s+total|somme|prix|taxe|tva|pourcentage`) est teste et matche AVANT Step 7 (`_ERP_DATA_PATTERNS`, qui contient le pattern plus specifique `montant\s+total\s+des\s+ventes`) -- l'ordre de la cascade fait gagner le pattern generique le moins pertinent. **`donnees_erp` est la reponse metier correcte (question d'agregation sur donnees live, pas de logique de calcul dans le code) -- bug d'ordonnancement dans le classifieur, pas le test.**
+
+3. "Combien d'avoirs ont ete approuves sans passer par le responsable comptable ?" -- ancien : `donnees_erp`. nouveau : `documentaire` (intent `documentary_policy`, fallback keyword -- aucune categorie n'a matche avant le defaut Step 9). **Anomalie constatee en relisant `code_intelligence/investigation_plan.py` (pas seulement suppose) : `_ERP_DATA_PATTERNS` contient DEJA le pattern `combien\s+d(?:e\b|['\u2019])`, cense couvrir "combien d'avoirs" (elision), avec un commentaire citant explicitement **"Section 396 (todo/contexte.txt)"** comme origine de cette correction -- alors que MA section 396 (ce tour) documente le rejeu pytest, pas une correction de regex. COLLISION DE NUMEROTATION : une autre session a deja ecrit et journalise (ou pas) une correction sous un numero "396" qui n'existe pas sous ce contenu dans le journal actuel -- meme classe de traceability gap que sections 210/282/348/370 (deja documentee comme pattern recurrent). Consequence directe : le fichier `investigation_plan.py` a change de maniere concurrente ENTRE le rejeu pytest qui a produit l'echec (transcript colle par l'utilisateur, section 396) ET ma lecture de ce tour -- le pattern qui semblait manquant au moment du test pourrait deja etre corrige sur le disque actuel. Impossible de conclure sans nouveau rejeu.
+
+**Non fait ce tour** : aucun code touche (analyse seule). Cas 1 et 2 identifies comme bugs reels du classifieur (candidats a un fix Option-A-style, sous l'Option B globale retenue) -- correctifs non encore ecrits, en attente de mandat. Cas 3 : conclusion suspendue -- necessite un rejeu frais de `tests/test_j18_routing_fewshot.py` (au minimum le cas "Combien d'avoirs...") pour verifier si le pattern d'elision deja present sur le disque resout deja le probleme, avant de diagnostiquer plus loin. La collision de numerotation elle-meme n'est pas resolue (aucune section "396" alternative retrouvee dans le journal a ce jour -- soit elle n'a jamais ete ecrite malgre le commentaire code qui la cite, soit elle existe sous un autre numero a rechercher).
+
+**Fichiers modifies** : aucun.
+
+**Prochaine etape** : mandat utilisateur -- (1) rejeu utilisateur de `tests/test_j18_routing_fewshot.py` (au minimum le cas "avoirs") pour trancher le cas 3 sur preuve fraiche ; (2) mandat pour ecrire les correctifs des cas 1 (garde-fou Step 8 trop permissif sur "comment") et 2 (ordre `_CALCULATION_PATTERNS` avant `_ERP_DATA_PATTERNS`) ; (3) recherche de la "vraie" section 396 citee par le commentaire code (grep sur le journal ou sur l'historique, si disponible) pour combler l'ecart de tracabilite avant qu'il ne se reproduise.
+
+---
+
+## Section 399: Mandat recu -- cas 1 et 2 corriges (fix ecrit + verifie), cas 3 (collision section 396) traite sur les deux fronts demandes : (a) grep exhaustif du journal confirme l'absence de toute autre section 396 -- pur traceability gap, non resolu et non resolvable par lecture seule ; (b) rejeu isole de `classify_question_intent()` (sandbox, hors pytest reel) confirme que le pattern d'elision deja sur le disque resout deja le cas 3. Code de production modifie (2026-08-31)
+
+**Origine** : mandat utilisateur "Cas 1 et 2 : corrige les deux" + "Cas 3 : les deux" (comprendre : rejeu de preuve + recherche de la vraie section 396), suite a la section 398.
+
+**(3a) Recherche de la "vraie" section 396** : copie de `todo/contexte.txt` vers le sandbox Claude, `grep -n "[Ss]ection 396"` exhaustif sur le fichier entier. Resultat : AUCUNE autre occurrence de contenu "Section 396" que ma propre section (rejeu pytest, ligne 3251) et ses mentions ulterieures (sections 397/398). Grep complementaire sur "elision"/"combien d'avoirs"/"ERP_DATA_PATTERNS" : aucune section journalisee sous un autre numero ne documente cette correction non plus. Verifie egalement que le sandbox Claude n'a pas acces au depot git de l'utilisateur (pas d'historique consultable depuis cette session). **Conclusion (3a)** : la collision de numerotation n'est PAS resolue par manque de trace -- c'est un vrai trou de tracabilite, meme classe que 210/282/348/370 deja documentee. Le pattern d'elision a ete ecrit et applique au disque par une session anterieure sans jamais etre journalise sous aucun numero.
+
+**(3b) Verification fraiche du cas 3 (sans rejeu pytest reel -- filesystem-only, pas d'acces venv/Odoo sur cette machine)** : script Python isole reconstruisant `_GOVERNANCE_PATTERNS`/`_WORKFLOW_PATTERNS`/`_ERP_DATA_PATTERNS` copies verbatim depuis le fichier tel que lu sur le disque (avant toute modification de ce tour), execute sur "Combien d'avoirs ont ete approuves sans passer par le responsable comptable ?" -- 0 hit governance, 0 hit workflow, 1 hit ERP (le pattern d'elision `combien\s+d(?:e\b|['\u2019])` matche bien "combien d'avoirs"). **Conclusion (3b)** : le cas 3 est deja resolu sur le disque actuel -- la question atteint desormais Step 7 (`ERP_DATA_QUERY`) avant meme d'atteindre Step 8/9, confirmant empiriquement (mais pas via pytest reel) que le pattern deja present resout le probleme observe dans le transcript colle section 396. Recommandation : un rejeu reel de `tests/test_j18_routing_fewshot.py::test_few_shot_routing` (cas "avoirs") par l'utilisateur reste la confirmation definitive (chemin LLM/Groq et graphe reel non exerces par cette simulation), mais rien ne suggere qu'il echouera.
+
+**Cas 1 -- fix ecrit** (`code_intelligence/investigation_plan.py`, `_WEAK_PROCESS_SIGNALS`) : suppression de `comment` de la liste de signaux faibles du Step 8. Root cause (section 398) : `comment` est un marqueur explicite de question how-to/procedurale ("comment creer une demande de facture ?"), distinct des signaux de processus neutres ("ca marche", "se passe", "fonctionnement") qui legitiment Step 8 pour de vraies questions de processus ("et pour les conges, ca se passe comment ?", section 379 -- toujours couvert par "se passe" seul, donc aucune regression sur le cas legitime qui a motive Step 8). Sans `comment`, `_WEAK_PROCESS_SIGNALS` ne matche plus "comment creer une demande de facture ?", qui retombe donc en Step 9 (`DOCUMENTARY_POLICY`) -- corrige `test_route_neutralizes_workflow_plan_on_documentaire_branch` (section 396) qui echouait car `route()` (Tranche 2) derivait desormais `code_intelligence` (via `INTENT_TO_ROUTE[WORKFLOW_STATE]`) au lieu de `documentaire`.
+
+**Cas 2 -- fix ecrit** (`code_intelligence/investigation_plan.py`, cascade `classify_question_intent()`) : `_CALCULATION_PATTERNS` scinde en deux groupes -- `_CALCULATION_CODE_PATTERNS` (vocabulaire code-mecanique sans ambiguite : calcule/formule/compute/depend/impact/recalcul, verifie en premier, Step 4, inchange) et `_CALCULATION_AMOUNT_PATTERNS` (vocabulaire financier generique ambigu : montant total/somme/prix/taxe/tva/pourcentage, deplace en Step 7bis, verifie APRES `_ERP_DATA_PATTERNS` desormais en Step 7). Root cause (section 398) : le pattern generique "montant total" gagnait systematiquement contre le pattern plus specifique "montant total des ventes" du seul fait de l'ordre de la cascade -- reordonnancement structurel (pattern specifique avant pattern generique), pas un patch chirurgical sur un cas precis.
+
+**Discipline de pre-edition respectee** : lecture complete du fichier avant toute modification ; 2 `dryRun` relus (diffs propres, aucun changement collateral) avant ecriture reelle des 2 fixes + 1 correction de commentaire obsolete (Step 8 citait encore l'ancien nom `_CALCULATION_PATTERNS`, mis a jour vers `_CALCULATION_CODE_PATTERNS`/`_CALCULATION_AMOUNT_PATTERNS`) ; relecture complete post-edit depuis le disque utilisateur -- confirme, aucune regression textuelle. Copie sandbox + `python3 -m py_compile` -> `PY_COMPILE_OK`.
+
+**Verification fonctionnelle effectuee (isolee, sans venv/Groq/graphe reel)** : chargement du module reel post-fix via `importlib` avec stubs minimaux pour `pydantic`/`code_intelligence.business_resolver`/`code_intelligence.semantic_tags`/`core.schemas` (dependances non disponibles/non pertinentes en sandbox), execution de `classify_question_intent()` sur 9 cas : les 3 cas litigieux de la section 396 (tous desormais conformes a l'attendu metier) + 6 cas de non-regression tires directement de `tests/test_bloc_p1_j1_2_investigation_plan.py` et `tests/few_shot_routing_examples.py` (questions "montant"-porteuses attendues en `governance_security`/`calculation_logic`/`erp_data_query`, pour s'assurer que le reordonnancement du cas 2 ne les fait pas basculer). **9/9 conformes.**
+
+**Non fait ce tour** : aucun rejeu pytest reel (necessite le poste utilisateur -- venv, Odoo, cle Groq). La verification fonctionnelle ci-dessus est une reconstruction fidele mais isolee de la cascade reelle, pas une execution de la suite de tests elle-meme. Collision de numerotation "section 396" non resolue (confirmee irresolvable par lecture seule -- necessiterait l'historique git ou la memoire de la session qui a ecrit le fix d'elision, ni l'un ni l'autre accessibles depuis cette session filesystem-only).
+
+**Fichiers modifies** : `code_intelligence/investigation_plan.py` (`_WEAK_PROCESS_SIGNALS` : suppression de "comment" ; `_CALCULATION_PATTERNS` scinde en `_CALCULATION_CODE_PATTERNS`/`_CALCULATION_AMOUNT_PATTERNS` + cascade reordonnancee ; commentaire Step 8 mis a jour pour citer les nouveaux noms de constantes).
+
+**Prochaine etape** : mandat utilisateur -- rejeu reel par l'utilisateur de `tests/test_j18_routing_fewshot.py` (suite complete few-shot, 77 cas) et `code_intelligence/tests/test_bloc_p1_j7_plan_route_conflict.py` pour confirmer en conditions reelles (Groq/graphe) les 2 correctifs de ce tour, avant cloture definitive des cas 1/2/3 de la section 396.
+
+---
+
+## Section 400: Rejeu reel utilisateur de `tests/test_j18_routing_fewshot.py` -- 57 passed, 0 failed (contre 53 passed/4 failed section 396). Cas 2 (montant total des ventes) et cas 3 (avoirs elision) CONFIRMES CLOS sur preuve fraiche (2026-08-31)
+
+**Origine** : suite directe de la section 399 -- rejeu demande pour confirmer en conditions reelles (Groq/graphe) les 2 correctifs geometriques (cascade `_CALCULATION_CODE_PATTERNS`/`_CALCULATION_AMOUNT_PATTERNS` reordonnancee, `_WEAK_PROCESS_SIGNALS` sans "comment") et la resolution deja empirique du cas 3 (pattern d'elision).
+
+**Resultat** : `pytest tests/test_j18_routing_fewshot.py` -> **57 passed in 271.68s**, 0 failed, 0 skip. A comparer au rejeu section 396 (53 passed, 4 failed) sur le meme fichier (collecte 57 items desormais contre 57 -- meme total, donc pas d'ajout/suppression de cas entre les deux rejeux, uniquement un changement de resultat sur les cas precedemment en echec).
+
+**Conclusion** : les 2 questions few-shot en echec section 396 ("Quel est le montant total des ventes de janvier 2026 ?" et "Combien d'avoirs ont ete approuves sans passer par le responsable comptable ?", chacune echouant dans 2 classes de test, soit les 4 echecs) passent desormais. **Cas 2 (ordre `_CALCULATION_AMOUNT_PATTERNS`/`_ERP_DATA_PATTERNS`) et cas 3 (collision section 396, resolution empirique du pattern d'elision) CONFIRMES CLOS sur preuve d'execution reelle**, au-dela de la simulation isolee de la section 399.
+
+**Non fait ce tour** : cas 1 ("comment creer une demande de facture ?", fix `_WEAK_PROCESS_SIGNALS`) non confirme par ce rejeu -- ce fichier ne contient pas ce cas precis parmi ses 77 exemples few-shot ; sa confirmation reelle necessite `code_intelligence/tests/test_bloc_p1_j7_plan_route_conflict.py::test_route_neutralizes_workflow_plan_on_documentaire_branch` (marque `@pytest.mark.integration`, necessite le graphe Code Intelligence reel), pas encore rejoue par l'utilisateur ce tour. Collision de numerotation "section 396" toujours non resolue (aucun changement sur ce point, cf. section 399 (3a)).
+
+**Fichiers modifies** : aucun (rejeu seul).
+
+**Prochaine etape** : mandat utilisateur -- rejeu de `code_intelligence/tests/test_bloc_p1_j7_plan_route_conflict.py` (au minimum `test_route_neutralizes_workflow_plan_on_documentaire_branch`) pour confirmer le cas 1 en conditions reelles et clore definitivement les 3 cas de la section 396.
+
+---
+
+## Section 401: Rejeu reel utilisateur de `code_intelligence/tests/test_bloc_p1_j7_plan_route_conflict.py` -- 10 passed, 0 failed, y compris `test_route_neutralizes_workflow_plan_on_documentaire_branch` (le test integration qui echouait section 396). Cas 1 CONFIRME CLOS -- les 3 cas de la section 396 sont desormais clos sur preuve d'execution reelle (2026-08-31)
+
+**Origine** : suite directe de la section 400 -- dernier rejeu manquant pour confirmer le cas 1 (fix `_WEAK_PROCESS_SIGNALS` sans "comment") en conditions reelles (graphe Code Intelligence reel, test marque `@pytest.mark.integration`).
+
+**Resultat** : `pytest code_intelligence/tests/test_bloc_p1_j7_plan_route_conflict.py -v` -> **10 passed in 15.49s**, 0 failed, 0 skip -- notamment `test_route_neutralizes_workflow_plan_on_documentaire_branch` PASSED (echouait seul, 39 passed/1 failed, section 396). Reproduction reelle de "comment creer une demande de facture ?" a travers `route()` : `route_decision` resout desormais `documentaire` (et non plus `code_intelligence` via `INTENT_TO_ROUTE[WORKFLOW_STATE]`), plan associe a `steps=[]`, conforme a l'invariant teste.
+
+**Bilan des 3 cas (section 396) -- CLOTURE DEFINITIVE** :
+- **Cas 1** (`_WEAK_PROCESS_SIGNALS` sans "comment") : CONFIRME CLOS ce tour (10/10 passed, test integration reel).
+- **Cas 2** (cascade `_CALCULATION_CODE_PATTERNS`/`_CALCULATION_AMOUNT_PATTERNS` reordonnancee) : CONFIRME CLOS section 400 (57/57 passed sur `test_j18_routing_fewshot.py`).
+- **Cas 3** (collision de numerotation "section 396", pattern d'elision "combien d'avoirs") : CONFIRME CLOS section 400 sur le plan fonctionnel (le pattern deja present resout le cas) ; la collision de numerotation elle-meme reste un trou de tracabilite non comble (aucune trace alternative retrouvee, section 399 (3a)) mais n'affecte plus aucun comportement observable.
+
+**Non fait ce tour** : aucun code touche (rejeu seul). La collision de numerotation "section 396" reste un fait historique non resolu -- accepte comme tel, ajoute a la liste deja documentee (210/282/348/370) plutot que force a une fausse resolution.
+
+**Fichiers modifies** : aucun (rejeu seul).
+
+**Prochaine etape** : mandat utilisateur -- reprendre la liste en attente (Tranche 1 (a) du bug Groq tool-call sur `classify_question_intent_llm()`, script `scripts/diagnose_intent_llm_tool_call.py` ecrit section 397 mais jamais execute ; ou tout autre chantier priorise par l'utilisateur).

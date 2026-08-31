@@ -21,6 +21,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from code_intelligence.business_resolver import ResolvedConcept
 from code_intelligence.semantic_tags import BehavioralTag, TechnicalTag
+from core.schemas import QueryRoute
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +54,32 @@ class QuestionIntent(str, Enum):
     ERP_DATA_QUERY = "erp_data_query"               # Live records, counts, aggregations
     DOCUMENTARY_POLICY = "documentary_policy"       # Wiki, general guidelines, how-to
     GENERAL_CODE_INQUIRY = "general_code_inquiry"   # Other technical inspections
+
+
+# Bloc P1 Tranche 2 (todo/contexte.txt section 394+): closed mapping from
+# QuestionIntent to QueryRoute, replacing route()'s own keyword cascade as
+# the single source of truth for the route decision. GOVERNANCE_SECURITY /
+# WORKFLOW_STATE / CALCULATION_LOGIC / INHERITANCE_STRUCTURE /
+# AUTOMATION_ACTION map to code_intelligence, matching the pre-existing 5
+# categories classify_question_intent() could already produce for that
+# branch. GENERAL_CODE_INQUIRY is a 6th, newly-REACHABLE category once the
+# LLM classifier is in play (classify_question_intent()'s regex cascade
+# never actually returns it -- its step 9 default is DOCUMENTARY_POLICY) --
+# mapped here to code_intelligence as well, consistent with its own "other
+# technical inspection" docstring semantics and the other 5 CI-domain
+# categories, as an explicit interpretation of the original 3-tranche
+# design note ("5 intents -> code_intelligence") rather than a silent
+# extension of it.
+INTENT_TO_ROUTE: Dict[QuestionIntent, str] = {
+    QuestionIntent.GOVERNANCE_SECURITY: QueryRoute.CODE_INTELLIGENCE.value,
+    QuestionIntent.WORKFLOW_STATE: QueryRoute.CODE_INTELLIGENCE.value,
+    QuestionIntent.CALCULATION_LOGIC: QueryRoute.CODE_INTELLIGENCE.value,
+    QuestionIntent.INHERITANCE_STRUCTURE: QueryRoute.CODE_INTELLIGENCE.value,
+    QuestionIntent.AUTOMATION_ACTION: QueryRoute.CODE_INTELLIGENCE.value,
+    QuestionIntent.GENERAL_CODE_INQUIRY: QueryRoute.CODE_INTELLIGENCE.value,
+    QuestionIntent.ERP_DATA_QUERY: QueryRoute.DONNEES_ERP.value,
+    QuestionIntent.DOCUMENTARY_POLICY: QueryRoute.DOCUMENTAIRE.value,
+}
 
 
 class PlanGenerationSource(str, Enum):
@@ -210,8 +237,20 @@ _WORKFLOW_PATTERNS = [
     r"\b(brouillon|draft|confirme|confirmé|annule|annulé|valide|validé)\b",
 ]
 
-_CALCULATION_PATTERNS = [
+_CALCULATION_CODE_PATTERNS = [
     r"\b(calcul[eé]|formule|compute|d[eé]pend|impact|recalcul)\b",
+]
+
+# Section 399 (todo/contexte.txt): split off from the group above. Bare
+# financial vocabulary ("montant total", "somme", "taxe"...) is ambiguous
+# between a code-level computation question and a live-data aggregation
+# question -- "montant total des ventes" is answered by an ORM query, not a
+# compute-field trace. Checked AFTER _ERP_DATA_PATTERNS in the cascade below
+# so the more specific aggregation phrasing gets first refusal; kept as its
+# own group rather than folded into _ERP_DATA_PATTERNS since it still
+# legitimately signals CALCULATION_LOGIC when no ERP-specific pattern
+# matches first (e.g. "pourquoi ce prix est-il différent ?").
+_CALCULATION_AMOUNT_PATTERNS = [
     r"\b(montant\s+total|somme|prix|taxe|tva|pourcentage)\b",
 ]
 
@@ -225,8 +264,14 @@ _AUTOMATION_PATTERNS = [
     r"\b(automatiquement|en\s+arriere[- ]plan|tache\s+planifiee|tâche\s+planifiée)\b",
 ]
 
+# Section 396 (todo/contexte.txt) : la premiere alternative geraint mal
+# l'elision francaise -- "combien\s+de" (litteral) ne matche jamais
+# "combien d'avoirs", puisque le francais contracte "de" en "d'" devant un
+# mot commencant par une voyelle. "combien\s+d(?:e\b|['\u2019])" couvre les
+# deux formes : "combien de X" (X consonne) et "combien d'X" (X voyelle,
+# apostrophe droite ou typographique).
 _ERP_DATA_PATTERNS = [
-    r"\b(combien\s+de|liste\s+des|donne[- ]moi\s+les|quels\s+sont\s+les\s+(derniers|clients|factures|devis|avoirs))\b",
+    r"\b(combien\s+d(?:e\b|['\u2019])|liste\s+des|donne[- ]moi\s+les|quels\s+sont\s+les\s+(derniers|clients|factures|devis|avoirs))\b",
     r"\b(montant\s+total\s+des\s+ventes|chiffre\s+d'affaires|ca\s+de|dans\s+la\s+base)\b",
 ]
 
@@ -242,17 +287,25 @@ _DOC_ANCHOR_PATTERNS = [
 # WORKFLOW_STATE for "pour avoir du code de qualité" purely because
 # account.move carries the WORKFLOW_RULE tag, with zero textual signal in the
 # question itself. Step 8 is only ever reached once _GOVERNANCE_PATTERNS,
-# _WORKFLOW_PATTERNS, _CALCULATION_PATTERNS, _INHERITANCE_PATTERNS,
-# _AUTOMATION_PATTERNS, _ERP_DATA_PATTERNS and _DOC_ANCHOR_PATTERNS have ALL
-# already failed to match -- so requiring one of those same strict patterns
-# again would be vacuous. This list is intentionally looser: generic
+# _WORKFLOW_PATTERNS, _CALCULATION_CODE_PATTERNS, _INHERITANCE_PATTERNS,
+# _AUTOMATION_PATTERNS, _ERP_DATA_PATTERNS, _CALCULATION_AMOUNT_PATTERNS and
+# _DOC_ANCHOR_PATTERNS have ALL already failed to match -- so requiring one
+# of those same strict patterns again would be vacuous. This list is intentionally looser: generic
 # process-inquiry wording ("comment ça marche", "quelle est la procédure")
 # that a legitimate workflow-adjacent question (e.g. "et pour les congés, ça
 # se passe comment ?") would carry even without naming "workflow"/"étape"
 # explicitly, while a sentence that merely happens to contain a homonymic
 # alias ("avoir", "pour avoir...") without any process wording will not.
+# Section 399 (todo/contexte.txt): "comment" removed from this list -- it is
+# an explicit how-to marker ("comment créer une demande de facture ?") that
+# signals a procedural/documentary question, not a process-state inquiry.
+# Conflating the two let Step 8 promote plain how-to questions to
+# WORKFLOW_STATE whenever the resolved model carried a WORKFLOW_RULE tag
+# (section 385/398). The remaining signals ("se passe", "ça marche"...)
+# already cover Step 8's legitimate case ("ça se passe comment ?", section
+# 379) without relying on "comment" alone.
 _WEAK_PROCESS_SIGNALS = [
-    r"\b(comment|process|processus|procedure|procédure|demarche|démarche|deroulement|déroulement|fonctionne|fonctionnement|se\s+passe|ca\s+marche|ça\s+marche)\b",
+    r"\b(process|processus|procedure|procédure|demarche|démarche|deroulement|déroulement|fonctionne|fonctionnement|se\s+passe|ca\s+marche|ça\s+marche)\b",
 ]
 
 
@@ -297,8 +350,10 @@ def classify_question_intent(
     if governance_hits >= 1:
         return QuestionIntent.GOVERNANCE_SECURITY
 
-    # 4. Check calculation / compute patterns
-    if any(re.search(p, folded) for p in _CALCULATION_PATTERNS):
+    # 4. Check unambiguous calculation/compute code patterns (code-mechanic
+    # vocabulary only -- see _CALCULATION_AMOUNT_PATTERNS, checked later,
+    # for the ambiguous financial-vocabulary group).
+    if any(re.search(p, folded) for p in _CALCULATION_CODE_PATTERNS):
         return QuestionIntent.CALCULATION_LOGIC
 
     # 5. Check inheritance / override patterns
@@ -309,9 +364,19 @@ def classify_question_intent(
     if any(re.search(p, folded) for p in _AUTOMATION_PATTERNS):
         return QuestionIntent.AUTOMATION_ACTION
 
-    # 7. Check quantitative / ERP live data patterns
+    # 7. Check quantitative / ERP live data patterns. Section 399
+    # (todo/contexte.txt): moved ahead of the ambiguous
+    # _CALCULATION_AMOUNT_PATTERNS group (step 7bis) -- "montant total des
+    # ventes de janvier 2026" previously won as CALCULATION_LOGIC via the
+    # generic "montant total" pattern before this more specific aggregation
+    # pattern ever got a chance to match.
     if any(re.search(p, folded) for p in _ERP_DATA_PATTERNS):
         return QuestionIntent.ERP_DATA_QUERY
+
+    # 7bis. Check ambiguous calculation/financial-amount vocabulary, now that
+    # the more specific ERP aggregation patterns above have had first refusal.
+    if any(re.search(p, folded) for p in _CALCULATION_AMOUNT_PATTERNS):
+        return QuestionIntent.CALCULATION_LOGIC
 
     # 8. Concept + Graph Tag affinity fallback
     # Section 379 (todo/contexte.txt): a resolved_concept's tag is a
@@ -367,6 +432,122 @@ def concept_suggests_code_intelligence_v2(
     return True
 
 
+# ── Bounded LLM Intent Classifier + Fallback Orchestration (Tranche 1) ───────
+#
+# Bloc P1 mandate (todo/contexte.txt section 394+): classify_question_intent()
+# above is a hand-tuned regex/keyword classifier -- accurate on the known H4
+# cases but not generalizable to new phrasing without adding a new pattern
+# every time. This section adds a bounded, structured-output LLM classifier
+# over the SAME closed QuestionIntent vocabulary, with classify_question_intent()
+# kept completely untouched as the deterministic safety net. Tranche 1 scope
+# only: new code, nothing wired into route()/generate_investigation_plan() yet
+# (Tranche 2).
+
+class IntentClassificationLLMResponse(BaseModel):
+    """Bounded structured output for classify_question_intent_llm() -- a
+    single QuestionIntent value, never free text."""
+    model_config = ConfigDict(strict=True)
+
+    intent: QuestionIntent = Field(
+        ...,
+        description="Classified semantic intent of the user question, exactly one of the closed QuestionIntent vocabulary",
+    )
+
+
+_INTENT_CLASSIFICATION_SYSTEM_PROMPT = (
+    "Tu es un classifieur d'intention pour un assistant Odoo. Classe la question "
+    "utilisateur dans EXACTEMENT une des categories suivantes :\n"
+    "- governance_security : acces, permissions, droits, regles de visibilite, verrous, approbation\n"
+    "- workflow_state : etapes, statuts, transitions, boutons de validation\n"
+    "- calculation_logic : champs calcules, formules, montants, dependances de calcul\n"
+    "- inheritance_structure : heritage de modeles, surcharges Python, chaine MRO\n"
+    "- automation_action : actions automatiques, crons, declencheurs\n"
+    "- erp_data_query : donnees ERP en direct (listes, comptages, agregations, chiffres)\n"
+    "- documentary_policy : politique generale, guide utilisateur, procedure documentee, question generale ou de courtoisie\n"
+    "- general_code_inquiry : autre inspection technique du code, ne correspondant a aucune categorie ci-dessus\n"
+    "Reponds uniquement avec la categorie choisie, jamais une categorie hors de cette liste."
+)
+
+
+def classify_question_intent_llm(question: str) -> Optional[QuestionIntent]:
+    """
+    Bounded LLM intent classification (Bloc P1, todo/contexte.txt section 394+).
+
+    Single-shot, structured-output Groq call constrained to the closed
+    QuestionIntent vocabulary -- same with_structured_output pattern as
+    document_rag/generate_node.py::generate(). Never raises: any failure
+    (timeout, rate limit, malformed structured output, or any other
+    exception) is caught and reported as None. Callers MUST fall back to
+    the deterministic classify_question_intent() above on None -- see
+    resolve_question_intent() below, which does exactly that.
+
+    max_retries=1 (single attempt, no rate-limit key rotation/wait loop) is
+    a deliberate departure from business_resolver._llm_arbitrate's default
+    (5 retries via invoke_with_rate_limit): arbitrate() has no equivalent
+    deterministic fallback (an unresolved concept is a dead end), whereas
+    this classifier always has classify_question_intent() ready to take
+    over immediately -- burning up to a minute of rate-limit backoff before
+    giving up would only delay the user for zero benefit.
+    """
+    if not question or not question.strip():
+        return None
+
+    try:
+        from langchain_core.messages import SystemMessage, HumanMessage
+        from core.llm_client import get_chat_llm, invoke_with_rate_limit
+
+        llm = get_chat_llm(temperature=0.0, max_retries=0)
+        structured_llm = llm.with_structured_output(IntentClassificationLLMResponse)
+        messages = [
+            SystemMessage(content=_INTENT_CLASSIFICATION_SYSTEM_PROMPT),
+            HumanMessage(content=f'Question utilisateur : "{question}"'),
+        ]
+        result, _wait = invoke_with_rate_limit(structured_llm, messages, max_retries=1)
+        return result.intent
+    except Exception:
+        logger.warning("classify_question_intent_llm failed for question=%r", question, exc_info=True)
+        return None
+
+
+@dataclass
+class IntentResolution:
+    """Result of resolve_question_intent(): which QuestionIntent was chosen
+    and by which mechanism, so callers/logs can distinguish an LLM-classified
+    turn from a fallback-classified one (measurability, not just a decision)."""
+    intent: QuestionIntent
+    source: str  # "llm" | "fallback_keyword"
+    fallback_reason: Optional[str] = None
+
+
+def resolve_question_intent(
+    question: str,
+    resolved_concept: Optional[ResolvedConcept] = None,
+    G: Optional[Any] = None,
+) -> IntentResolution:
+    """
+    Orchestrates intent resolution for a single question: attempts the
+    bounded LLM classifier first, falls back to the deterministic
+    classify_question_intent() (untouched, same signature/behavior as
+    before) on any LLM failure.
+
+    Tranche 1 (todo/contexte.txt section 394+): new code only. Not yet
+    called from route() or generate_investigation_plan() -- that wiring is
+    Tranche 2, to keep this tranche isolated and independently testable
+    without touching existing routing/plan-generation behavior.
+    """
+    llm_intent = classify_question_intent_llm(question)
+    if llm_intent is not None:
+        return IntentResolution(intent=llm_intent, source="llm")
+
+    fallback_intent = classify_question_intent(question, resolved_concept, G)
+    reason = "LLM classification unavailable or failed -- see prior warning log"
+    logger.warning(
+        "INTENT_FALLBACK reason=%s question=%r resolved_intent=%s",
+        reason, question, fallback_intent.value,
+    )
+    return IntentResolution(intent=fallback_intent, source="fallback_keyword", fallback_reason=reason)
+
+
 # ── Deterministic Semantic Planner (A priori Plan Construction) ──────────────
 
 def generate_investigation_plan(
@@ -374,6 +555,7 @@ def generate_investigation_plan(
     resolved_concept: Optional[ResolvedConcept] = None,
     G: Optional[Any] = None,
     user_groups: Optional[List[int]] = None,
+    intent: Optional[QuestionIntent] = None,
 ) -> InvestigationPlan:
     """
     Constructs an explicit, serializable InvestigationPlan BEFORE tool execution.
@@ -382,10 +564,20 @@ def generate_investigation_plan(
       1. Resolved concept models (from business_resolver)
       2. Question semantic intent
       3. Graph Couche 3 tags (BehavioralTag / TechnicalTag)
+
+    `intent`: Bloc P1 Tranche 2 (todo/contexte.txt section 394+) -- optional,
+    defaults to None. When the caller (route()) has already resolved the
+    intent via resolve_question_intent(), passing it here skips this
+    function's own classify_question_intent() call, eliminating the double
+    classification at its root rather than only detecting the divergence
+    after the fact via validate_plan_against_route(). When None (default),
+    behavior is byte-for-byte unchanged from before this parameter existed --
+    existing callers (tests) that never pass `intent` are unaffected.
     """
     target_models = resolved_concept.resolved_models if (resolved_concept and resolved_concept.is_resolved) else []
     primary_model = target_models[0] if target_models else ""
-    intent = classify_question_intent(question, resolved_concept, G)
+    if intent is None:
+        intent = classify_question_intent(question, resolved_concept, G)
     steps: List[InvestigationStep] = []
 
     if not primary_model:

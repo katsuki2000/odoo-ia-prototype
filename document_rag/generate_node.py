@@ -74,6 +74,18 @@ def _verify_used_sources(used_source_aliases: list, alias_map: dict) -> list:
       no chunk-listing fallback should apply downstream.
     - unknown alias(es): logged as a distinct 'invalid_used_sources'
       warning and excluded; if nothing valid remains, also returns [].
+
+    Deduplicated by (source, title) -- section 391/392 (todo/contexte.txt):
+    two aliases citing two different chunks of the same source document
+    (e.g. two sections of the same wiki page) previously produced two
+    SourceReference entries with the same displayed title. The first
+    occurrence (in alias_map / retrieval order) wins; later chunks from an
+    already-seen document are dropped rather than added as a duplicate
+    entry. Deliberately NOT a snippet merge -- the UI question this answers
+    is "which document was this drawn from", not "which exact passages",
+    so no synthetic concatenated snippet is created. Fine-grained
+    chunk/page/offset evidence is left to a future dedicated Evidence
+    Builder model rather than folded into SourceReference here.
     """
     if not used_source_aliases:
         return []
@@ -98,15 +110,22 @@ def _verify_used_sources(used_source_aliases: list, alias_map: dict) -> list:
         return []
 
     verified = []
+    seen_docs = set()
     for alias, chunk in alias_map.items():
         if alias in valid_aliases:
             meta = chunk.get("metadata") or {}
             doc = chunk.get("document", "")
             snippet = doc[:100] + "..." if len(doc) > 100 else doc
+            title = source_display_title(meta)
+            source_val = meta.get("source", "unknown")
+            dedup_key = (source_val, title)
+            if dedup_key in seen_docs:
+                continue
+            seen_docs.add(dedup_key)
             verified.append(SourceReference(
-                source=meta.get("source", "unknown"),
+                source=source_val,
                 doc_type=meta.get("type", "document"),
-                title=source_display_title(meta),
+                title=title,
                 snippet=snippet,
             ))
     return verified

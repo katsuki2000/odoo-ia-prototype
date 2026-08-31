@@ -26,6 +26,7 @@ from core.graph import (
     _grounded_core_only_groups, _strip_core_only_group_mentions,
     _correct_security_lock_threshold_contradictions,
 )
+from document_rag.generate_node import _verify_used_sources
 
 # 1. Test fallback when no context is found
 def test_generate_fallback():
@@ -1789,5 +1790,60 @@ class TestBackfillMissingSecurityLockAmountAmountAware:
             answer, _REAL_DEEP_INHERITANCE_SECURITY_RAW_TEXT, question=q
         )
         assert result == answer
+
+
+class TestVerifyUsedSourcesDedup:
+    """Section 391/392 (todo/contexte.txt): _verify_used_sources() must
+    deduplicate by (source, title) so that two chunks retrieved from the
+    same source document (e.g. two sections of the same wiki page), each
+    cited via a distinct alias, produce a single SourceReference rather
+    than a visible duplicate entry in the 'Sources :' block."""
+
+    def test_two_aliases_same_document_collapse_to_one_source(self):
+        alias_map = {
+            "S1": {"document": "Premiere section du wiki vente...", "metadata": {
+                "source": "wiki_vente.md", "type": "wiki",
+                "title": "WIKI INTERNE MIRO KE — Processus de vente et CRM",
+            }},
+            "S2": {"document": "Deuxieme section, meme document...", "metadata": {
+                "source": "wiki_vente.md", "type": "wiki",
+                "title": "WIKI INTERNE MIRO KE — Processus de vente et CRM",
+            }},
+        }
+        result = _verify_used_sources(["S1", "S2"], alias_map)
+        assert len(result) == 1
+        assert result[0].source == "wiki_vente.md"
+        assert result[0].title == "WIKI INTERNE MIRO KE — Processus de vente et CRM"
+        # First occurrence (retrieval order) wins -- S2's snippet is
+        # dropped rather than merged into a synthetic combined snippet.
+        assert result[0].snippet.startswith("Premiere section")
+
+    def test_distinct_documents_are_not_collapsed(self):
+        alias_map = {
+            "S1": {"document": "Contenu A", "metadata": {
+                "source": "doc_a.md", "type": "wiki", "title": "Doc A",
+            }},
+            "S2": {"document": "Contenu B", "metadata": {
+                "source": "doc_b.md", "type": "wiki", "title": "Doc B",
+            }},
+        }
+        result = _verify_used_sources(["S1", "S2"], alias_map)
+        assert len(result) == 2
+        assert {s.title for s in result} == {"Doc A", "Doc B"}
+
+    def test_same_source_path_but_different_title_not_collapsed(self):
+        """Belt-and-suspenders: dedup key is (source, title), not source
+        alone -- a metadata inconsistency giving two different titles for
+        the same file path should not silently merge them."""
+        alias_map = {
+            "S1": {"document": "Contenu A", "metadata": {
+                "source": "multi_title.md", "type": "wiki", "title": "Titre A",
+            }},
+            "S2": {"document": "Contenu B", "metadata": {
+                "source": "multi_title.md", "type": "wiki", "title": "Titre B",
+            }},
+        }
+        result = _verify_used_sources(["S1", "S2"], alias_map)
+        assert len(result) == 2
 
 

@@ -19,8 +19,10 @@ from langchain_core.messages import BaseMessage
 
 from core.schemas import AssistantResponse, QueryRoute
 from code_intelligence.investigation_plan import (
-    concept_suggests_code_intelligence_v2,
+    INTENT_TO_ROUTE,
+    QuestionIntent,
     generate_investigation_plan,
+    resolve_question_intent,
     validate_plan_against_route,
 )
 
@@ -281,97 +283,71 @@ def _sticky_concept_or_resolve(state: RAGState, resolved_concept_dict: dict) -> 
 
 
 def route(state: RAGState) -> dict:
-    """Classify the query using keyword patterns and conflict priorities."""
+    """
+    Classify the query via intent-based routing (Bloc P1 Tranche 2,
+    todo/contexte.txt section 394+).
+
+    Replaces the previous two independently-maintained classifiers --
+    route()'s own CODE_INTEL_KEYWORDS/ERP_KEYWORDS/DOC_KEYWORDS cascade plus
+    the chunk-based ERP-ratio fallback, and generate_investigation_plan()'s
+    separate classify_question_intent() call -- with a SINGLE
+    resolve_question_intent() call whose result feeds both the route
+    decision (via INTENT_TO_ROUTE) and the investigation plan (via the
+    `intent` parameter added to generate_investigation_plan()). This
+    eliminates the plan/route divergence at its root instead of only
+    detecting it after the fact: validate_plan_against_route() below is
+    kept as a defensive net, but on this path the two are now derived from
+    the same classification, so it has no real conflict left to catch.
+    """
     import time
     start_time = time.time()
-    chunks = state.get("retrieved_chunks", [])
-    question = state.get("question", "").lower()
-    question_folded = _fold_accents(question)
-    logger.info("Node [route]: Classifying query type from %d chunks", len(chunks))
+    question_raw = state.get("question", "")
+    question_folded = _fold_accents(question_raw.lower())
+    logger.info("Node [route]: Classifying query type via intent resolution")
 
     from code_intelligence.business_resolver import resolve_business_term
     from code_intelligence.ci_graph_loader import get_code_intelligence_graph
     G = get_code_intelligence_graph()
-    resolved_concept = resolve_business_term(
-        state.get("question", ""), G, llm=None
-    )
+    resolved_concept = resolve_business_term(question_raw, G, llm=None)
 
-    # Hybrid check: doc keyword/anchor + quantitative ERP term
-    is_hybrid = (
-        any(kw in question_folded for kw in DOC_KEYWORDS_FOLDED) or any(a in question_folded for a in DOC_ANCHORS_FOLDED)
-    ) and any(term in question_folded for term in QUANTITATIVE_TERMS_FOLDED)
+    intent_resolution = resolve_question_intent(question_raw, resolved_concept, G)
+    intent = intent_resolution.intent
+    logger.info("Node [route]: intent=%s source=%s", intent.value, intent_resolution.source)
 
-    # Conflict resolution priority:
-    # 1. Explicit doc anchors override everything (user explicitly asks for wiki/policy doc)
-    # 2. Quantitative data queries ("combien", "montant total des...", "nombre de...") -> DONNEES_ERP,
-    #    UNLESS it's explicitly asking about a governance threshold ("dépasse-t-il le seuil", "quel est le plafond")
-    # 3. CODE_INTELLIGENCE > DONNEES_ERP > HYBRIDE > DOCUMENTAIRE
     has_doc_anchor = any(anchor in question_folded for anchor in DOC_ANCHORS_FOLDED)
-    has_code_intel = any(kw in question_folded for kw in CODE_INTEL_KEYWORDS_FOLDED)
-    has_erp = any(kw in question_folded for kw in ERP_KEYWORDS_FOLDED)
-    has_quantitative = any(term in question_folded for term in QUANTITATIVE_TERMS_FOLDED)
-    is_threshold_query = any(t in question_folded for t in THRESHOLD_QUERY_TERMS_FOLDED)
-    is_conditional_amount_query = any(t in question_folded for t in CONDITIONAL_AMOUNT_TERMS_FOLDED)
+    derived_route = INTENT_TO_ROUTE.get(intent, QueryRoute.DOCUMENTAIRE.value)
 
-    if has_doc_anchor:
-        # User explicitly asks about documentation/wiki — documentaire wins
-        if is_hybrid:
-            logger.info("Node [route]: Doc anchor + quantitative → HYBRIDE branch")
-            route_decision = QueryRoute.HYBRIDE.value
-        else:
-            logger.info("Node [route]: Explicit doc anchor → DOCUMENTAIRE branch")
-            route_decision = QueryRoute.DOCUMENTAIRE.value
-    elif is_hybrid:
-        logger.info("Node [route]: Query is hybrid → HYBRIDE branch")
-        route_decision = QueryRoute.HYBRIDE.value
-    elif has_quantitative and not is_threshold_query and not is_conditional_amount_query:
-        # Quantitative record count/sum lookup -> DONNEES_ERP wins over code_intel
-        logger.info("Node [route]: Quantitative data query → DONNEES_ERP branch")
-        route_decision = QueryRoute.DONNEES_ERP.value
-    elif has_code_intel:
-        # Code intelligence wins over doc/erp for governance questions
-        logger.info("Node [route]: Query matched Code Intelligence keywords → CODE_INTELLIGENCE branch")
-        route_decision = QueryRoute.CODE_INTELLIGENCE.value
-    elif any(kw in question_folded for kw in DOC_KEYWORDS_FOLDED):
-        logger.info("Node [route]: Query matched explicit doc keywords → DOCUMENTAIRE branch")
-        route_decision = QueryRoute.DOCUMENTAIRE.value
-    elif has_erp:
-        logger.info("Node [route]: Query matched explicit ERP keywords → DONNEES_ERP branch")
-        route_decision = QueryRoute.DONNEES_ERP.value
-    elif not chunks:
-        if concept_suggests_code_intelligence_v2(state.get("question", ""), resolved_concept, G):
-            logger.info(
-                "Node [route]: No chunks, no keyword signal, but resolved_concept "
-                "+ classified Code Intelligence intent → CODE_INTELLIGENCE branch (Bloc P1 gate)"
-            )
-            route_decision = QueryRoute.CODE_INTELLIGENCE.value
-        else:
-            route_decision = _sticky_route_or_default(state, QueryRoute.DOCUMENTAIRE.value)
-            logger.info("Node [route]: No chunks, no keyword signal → %s", route_decision)
+    if intent == QuestionIntent.DOCUMENTARY_POLICY and not has_doc_anchor:
+        # Sticky-routing redefinition (Tranche 2): DOCUMENTARY_POLICY without
+        # an explicit anchor is the classifier's own "nothing more specific
+        # matched" bucket (classify_question_intent()'s step 9 default, and
+        # the LLM prompt's equivalent catch-all) -- the same case sticky
+        # routing previously covered as "no keyword signal". An EXPLICIT
+        # anchor ("selon le wiki...") is a real signal, not an absence of
+        # one, so it is excluded here and always routes to documentaire
+        # directly below, unaffected by session history -- preserves the
+        # pre-existing DOC-08 guarantee that an explicit wiki/policy
+        # reference always wins.
+        route_decision = _sticky_route_or_default(state, QueryRoute.DOCUMENTAIRE.value)
+        logger.info(
+            "Node [route]: DOCUMENTARY_POLICY, no explicit anchor -> sticky/default (%s)",
+            route_decision,
+        )
     else:
-        # Count how many chunks come from ERP data sources
-        erp_count = 0
-        for chunk in chunks:
-            meta = chunk.get("metadata") or {}
-            chunk_type = meta.get("type", "").lower().strip()
-            if chunk_type in ERP_TYPES:
-                erp_count += 1
+        route_decision = derived_route
 
-        erp_ratio = erp_count / len(chunks) if len(chunks) > 0 else 0
-        logger.info("Node [route]: ERP ratio = %d/%d (%.0f%%)", erp_count, len(chunks), erp_ratio * 100)
-
-        if erp_ratio >= 0.6 and any(term in question_folded for term in DATA_TERMS_FOLDED):
-            logger.info("Node [route]: High ERP ratio + data terms → DONNEES_ERP branch")
-            route_decision = QueryRoute.DONNEES_ERP.value
-        elif concept_suggests_code_intelligence_v2(state.get("question", ""), resolved_concept, G):
-            logger.info(
-                "Node [route]: No strong signal, but resolved_concept + "
-                "classified Code Intelligence intent → CODE_INTELLIGENCE branch (Bloc P1 gate)"
-            )
-            route_decision = QueryRoute.CODE_INTELLIGENCE.value
-        else:
-            route_decision = _sticky_route_or_default(state, QueryRoute.DOCUMENTAIRE.value)
-            logger.info("Node [route]: No strong signal (erp_ratio fallback) → %s", route_decision)
+    # HYBRIDE layer: a lightweight pass applied ONLY on top of a documentaire/
+    # donnees_erp derived route, never on code_intelligence -- priority
+    # unchanged from before this rewrite (CODE_INTELLIGENCE always wins
+    # outright). Reuses the pre-existing doc-anchor/keyword + quantitative-
+    # term heuristic, itself untouched.
+    if route_decision in (QueryRoute.DOCUMENTAIRE.value, QueryRoute.DONNEES_ERP.value):
+        is_hybrid = (
+            any(kw in question_folded for kw in DOC_KEYWORDS_FOLDED) or has_doc_anchor
+        ) and any(term in question_folded for term in QUANTITATIVE_TERMS_FOLDED)
+        if is_hybrid:
+            logger.info("Node [route]: doc-anchor/keyword + quantitative term -> HYBRIDE layer")
+            route_decision = QueryRoute.HYBRIDE.value
 
     timing = state.get("timing", {}).copy()
     timing["routing_time"] = time.time() - start_time
@@ -384,19 +360,18 @@ def route(state: RAGState) -> dict:
 
     resolved_concept_reused = resolved_concept_dict is state.get("last_resolved_concept")
 
+    # Tranche 2: reuse the SAME `intent` already resolved above -- skips
+    # generate_investigation_plan()'s own classify_question_intent() call
+    # entirely via its new `intent` parameter (see investigation_plan.py),
+    # instead of relying on validate_plan_against_route() to catch a
+    # divergence after the fact.
     investigation_plan = generate_investigation_plan(
-        question=state.get("question", ""),
+        question=question_raw,
         resolved_concept=resolved_concept,
         G=G,
         user_groups=state.get("user_groups"),
+        intent=intent,
     )
-    # Section 385/386 (todo/contexte.txt): generate_investigation_plan() runs
-    # its OWN independent intent classification (classify_question_intent()),
-    # which can diverge from route_decision above (two separately-maintained
-    # classifiers -- see the docstring on validate_plan_against_route()).
-    # Reconcile before returning so a route that never executes
-    # InvestigationStep actions (documentaire/donnees_erp/hybride) never
-    # ships a Code Intelligence plan it will never run.
     investigation_plan = validate_plan_against_route(investigation_plan, route_decision)
 
     return {
