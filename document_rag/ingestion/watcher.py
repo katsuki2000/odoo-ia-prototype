@@ -31,7 +31,14 @@ logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_DOCS_DIR = PROJECT_ROOT / "document_rag/fake_data" / "documents"
-DEFAULT_CODE_DIR = PROJECT_ROOT / "document_rag/fake_data" / "code"
+# BUGFIX (todo/contexte.txt section 347): was PROJECT_ROOT / "document_rag/
+# fake_data/code" -- that directory was removed 2026-08-12 (see BUGFIX
+# comment in ingest_all.py), so the watcher was silently watching a code
+# path outside the real curated scope (CODE_DIRS, one dir per Odoo module
+# under CORE_ADDONS_ROOT/CUSTOM_ADDONS_ROOT). Import the real scope instead
+# of hardcoding a second, stale notion of "the code directory".
+from document_rag.ingestion.ingest_all import CODE_DIRS as _WATCHED_CODE_DIRS
+DEFAULT_CODE_DIR = list(_WATCHED_CODE_DIRS)
 
 
 @dataclass
@@ -224,9 +231,14 @@ class IngestionWatcher:
         if Observer is None:
             raise ImportError("watchdog is required to run ingestion watcher")
 
+        # Section 349 (todo/contexte.txt): decision produit permanente --
+        # le watcher de la branche RAG documentaire ne surveille plus le
+        # code par defaut (Code Intelligence s'en charge separement).
+        # DEFAULT_CODE_DIR reste defini plus haut pour un usage explicite
+        # (watched_paths=[...]) mais n'est plus dans le defaut implicite.
         self.watched_paths = [
             Path(path).resolve()
-            for path in (watched_paths or [DEFAULT_DOCS_DIR, DEFAULT_CODE_DIR])
+            for path in (watched_paths or [DEFAULT_DOCS_DIR])
         ]
         self.handler = DebouncedIngestionHandler(
             docs_manager=docs_manager,
@@ -302,7 +314,12 @@ def main() -> int:
         "paths",
         nargs="*",
         type=Path,
-        default=[DEFAULT_DOCS_DIR, DEFAULT_CODE_DIR],
+        # Section 349 (todo/contexte.txt): default changed -- the
+        # documentary RAG watcher no longer watches code by default
+        # (permanent product decision, mirrors ingest_all.py). Pass
+        # explicit paths (including DEFAULT_CODE_DIR entries) to opt back
+        # in for a one-off run.
+        default=[DEFAULT_DOCS_DIR],
         help="Directories to watch recursively",
     )
     parser.add_argument(

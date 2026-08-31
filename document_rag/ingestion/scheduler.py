@@ -18,11 +18,16 @@ from document_rag.vectorstore.chroma_manager import ChromaManager
 
 logger = logging.getLogger(__name__)
 
-# Default roots if none provided. 2026-08-12: CODE_DIRS is now a list of
-# real Odoo module directories (fake_data/code/ removed) -- see
-# ingestion/ingest_all.py::_documentary_code_module_dirs() docstring.
-from document_rag.ingestion.ingest_all import CODE_DIRS, DOCS_DIR
-DEFAULT_SCAN_ROOTS = [DOCS_DIR, *CODE_DIRS]
+# Default roots if none provided. Section 349 (todo/contexte.txt):
+# decision produit permanente -- le scan periodique/demarrage de la
+# branche RAG documentaire ne balaie plus le code par defaut (Code
+# Intelligence s'en charge separement). CODE_DIRS n'est plus importe ici
+# (plus utilise) ; un appelant qui veut toujours scanner du code doit
+# passer des `roots` explicites (ex. import direct de CODE_DIRS depuis
+# ingest_all.py) a run_startup_scan()/run_scheduled_scan()/
+# PeriodicScanScheduler.
+from document_rag.ingestion.ingest_all import DOCS_DIR
+DEFAULT_SCAN_ROOTS = [DOCS_DIR]
 
 
 def run_startup_scan(

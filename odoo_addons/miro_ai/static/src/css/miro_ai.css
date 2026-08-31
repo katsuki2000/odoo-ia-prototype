@@ -2,6 +2,7 @@
 
 /* ── Conteneur Principal (Action Client Pleine Page) ── */
 .miro-ai-container {
+    position: relative;
     display: flex;
     flex-direction: column;
     height: 100%;
@@ -235,6 +236,73 @@ details[open] .verification-chevron {
 
 .user-message .miro-link {
     color: #ffffff;
+}
+
+/* ── Panneau Historique des Conversations ── */
+.miro-history-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(15, 23, 42, 0.35);
+    z-index: 20;
+    display: flex;
+    justify-content: flex-end;
+}
+
+.miro-history-panel {
+    width: 380px;
+    max-width: 90%;
+    height: 100%;
+    background: #ffffff;
+    box-shadow: -6px 0 20px rgba(0, 0, 0, 0.15);
+    display: flex;
+    flex-direction: column;
+    animation: miroFadeIn 0.2s ease-out;
+}
+
+.miro-history-panel-header {
+    padding: 14px 18px;
+    border-bottom: 1px solid #e2e8f0;
+    background-color: #f8fafc;
+}
+
+.miro-history-panel-body {
+    flex: 1;
+    overflow-y: auto;
+}
+
+.miro-history-item {
+    padding: 12px 18px;
+    border-bottom: 1px solid #f1f5f9;
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+}
+
+.miro-history-item:hover {
+    background-color: #f1f5f9;
+}
+
+.miro-history-item-preview {
+    color: #1e293b;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.miro-drawer-history {
+    flex: 1;
+    overflow-y: auto;
+    background-color: #f8fafc;
+}
+
+.miro-drawer-history .miro-history-item {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    margin-bottom: 6px;
 }
 
 /* ── Systray Item & Floating Drawer ── */

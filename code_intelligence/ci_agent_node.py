@@ -62,6 +62,7 @@ from code_intelligence.ci_helpers import (
     _strip_group_resolution_noise,
     _force_out_of_scope_model_answer,
     _force_dynamic_uncertainty_answer,
+    _tool_call_key,
 )
 
 from code_intelligence.ci_override_cascade import (
@@ -72,6 +73,29 @@ from code_intelligence.ci_override_cascade import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+# ── Human-readable labels for sources built from tool observations ─────────
+# (section: réponses trop techniques, todo/contexte.txt) -- used only for
+# SourceReference.title in the dépliant; falls back to the raw tool name
+# for anything not listed here (e.g. new tools added later).
+_CI_TOOL_DISPLAY_NAMES = {
+    "analyze_security_locks": "Verrous de sécurité (code Python)",
+    "analyze_server_actions": "Actions serveur / automatisations",
+    "analyze_method_override_chain": "Chaîne de surcharge de méthode",
+    "who_has_access_to": "Matrice d'accès (ACL)",
+    "evaluate_record_rules": "Règles d'enregistrement (ir.rule)",
+    "can_view_amount_v2": "Vérification déterministe du montant",
+    "analyze_data_constraints": "Contraintes de données (Semgrep)",
+    "field_change_impact": "Impact de modification de champ",
+    "button_execution_path": "Chemin d'exécution du bouton",
+    "trace_full_inheritance": "Héritage complet du modèle",
+    "describe_workflow": "Workflow (états)",
+    "resolve_technical_name": "Résolution de rôle technique",
+    "list_involved_modules": "Modules impliqués",
+    "explain_decision_path": "Explication du chemin de décision",
+    "read_source_code": "Lecture de code source",
+}
 
 
 # ── Real Odoo group DB IDs -> xml_id resolution ──────────────────────────────
@@ -272,6 +296,7 @@ class CodeIntelligenceAgentRunner:
         
         tool_observations: list = []
         tool_observation_models: list = []
+        tool_observation_tools: list = []  # which tool produced each observation, aligned 1:1
         omitted_items: list = []  # OmittedForAuthorization entries
         final_answer = None
         hop_count = 0
@@ -301,7 +326,7 @@ class CodeIntelligenceAgentRunner:
             lock_tool = tool_map.get("analyze_security_locks")
             if lock_tool is not None:
                 for target_model in security_locks_targets(concept, G):
-                    call_key = ("analyze_security_locks", target_model)
+                    call_key = _tool_call_key("analyze_security_locks", {"model_name": target_model})
                     if call_key in seen_calls:
                         continue
                     _t_hop = time.perf_counter()
@@ -319,6 +344,7 @@ class CodeIntelligenceAgentRunner:
                         omitted_items.extend(omitted_list)
                         tool_observations.append(forced_observation)
                         tool_observation_models.append(target_model)
+                        tool_observation_tools.append("analyze_security_locks")
                         hop_count += 1
                         seen_calls.add(call_key)
                         _trace_logger.log_hop(
@@ -357,7 +383,7 @@ class CodeIntelligenceAgentRunner:
             sa_tool = tool_map.get("analyze_server_actions")
             if sa_tool is not None:
                 for target_model in server_actions_targets(question, concept, G):
-                    call_key = ("analyze_server_actions", target_model)
+                    call_key = _tool_call_key("analyze_server_actions", {"model_name": target_model})
                     if call_key in seen_calls:
                         continue
                     _t_hop = time.perf_counter()
@@ -375,6 +401,7 @@ class CodeIntelligenceAgentRunner:
                         omitted_items.extend(omitted_list)
                         tool_observations.append(forced_observation)
                         tool_observation_models.append(target_model)
+                        tool_observation_tools.append("analyze_server_actions")
                         hop_count += 1
                         seen_calls.add(call_key)
                         _trace_logger.log_hop(
@@ -411,7 +438,7 @@ class CodeIntelligenceAgentRunner:
             override_tool = tool_map.get("analyze_method_override_chain")
             if override_tool is not None:
                 for target_model, method_name in override_chain_targets(question, concept, G):
-                    call_key = ("analyze_method_override_chain", target_model, method_name)
+                    call_key = _tool_call_key("analyze_method_override_chain", {"model_name": target_model, "method_name": method_name})
                     if call_key in seen_calls:
                         continue
                     _t_hop = time.perf_counter()
@@ -431,6 +458,7 @@ class CodeIntelligenceAgentRunner:
                         omitted_items.extend(omitted_list)
                         tool_observations.append(forced_observation)
                         tool_observation_models.append(target_model)
+                        tool_observation_tools.append("analyze_method_override_chain")
                         hop_count += 1
                         seen_calls.add(call_key)
                         _trace_logger.log_hop(
@@ -493,7 +521,7 @@ class CodeIntelligenceAgentRunner:
                 # the Investigation Planner uses, instead of a second, separately
                 # maintained exclusion loop reaching the same result.
                 for target_model in who_has_access_targets(question, concept, G):
-                    call_key = ("who_has_access_to", target_model)
+                    call_key = _tool_call_key("who_has_access_to", {"model_name": target_model})
                     if call_key in seen_calls:
                         continue
                     _t_hop = time.perf_counter()
@@ -513,6 +541,7 @@ class CodeIntelligenceAgentRunner:
                         omitted_items.extend(omitted_list)
                         tool_observations.append(forced_observation)
                         tool_observation_models.append(target_model)
+                        tool_observation_tools.append("who_has_access_to")
                         hop_count += 1
                         seen_calls.add(call_key)
                         _trace_logger.log_hop(
@@ -573,7 +602,7 @@ class CodeIntelligenceAgentRunner:
                 rule_tool = tool_map.get("evaluate_record_rules")
                 if rule_tool is not None:
                     for target_model in concept.resolved_models:
-                        call_key = ("evaluate_record_rules", target_model)
+                        call_key = _tool_call_key("evaluate_record_rules", {"model_name": target_model})
                         if call_key in seen_calls:
                             continue
                         _t_hop = time.perf_counter()
@@ -597,6 +626,7 @@ class CodeIntelligenceAgentRunner:
                             omitted_items.extend(omitted_list)
                             tool_observations.append(forced_observation)
                             tool_observation_models.append(target_model)
+                            tool_observation_tools.append("evaluate_record_rules")
                             hop_count += 1
                             seen_calls.add(call_key)
         
@@ -619,6 +649,7 @@ class CodeIntelligenceAgentRunner:
                                     )
                                 )
                                 tool_observation_models.append(target_model)
+                                tool_observation_tools.append("can_view_amount_v2")
                                 logger.info(
                                     "Node [code_intelligence_agent]: Pre-dispatch "
                                     "can_view_amount_v2 fact for model=%s, amount=%.0f, "
@@ -733,6 +764,24 @@ class CodeIntelligenceAgentRunner:
         
                     tool_args = _override_user_groups_arg(tool_name, tool_args, resolved_user_group_xmlids)
         
+                    _dup_call_key = _tool_call_key(tool_name, tool_args)
+                    if _dup_call_key is not None and _dup_call_key in seen_calls:
+                        logger.info(
+                            "Node [code_intelligence_agent]: LLM re-requested '%s' for %s "
+                            "despite a prior dispatch for the same target -- its observation "
+                            "is already present above, skipping re-execution.",
+                            tool_name, _dup_call_key[1:],
+                        )
+                        messages.append(ToolMessage(
+                            content=(
+                                f"'{tool_name}' a deja ete execute pour cette cible plus haut "
+                                "dans cette analyse ; son observation est deja disponible "
+                                "ci-dessus, ne la rappelle pas."
+                            ),
+                            tool_call_id=tool_id,
+                        ))
+                        continue
+        
                     logger.info("Node [code_intelligence_agent]: Single-Dispatch invoking '%s' with args %s", tool_name, tool_args)
                     tool_map = {t.name: t for t in ALL_CI_TOOLS}
                     if tool_name not in tool_map:
@@ -784,10 +833,13 @@ class CodeIntelligenceAgentRunner:
         
                             tool_observations.append(observation)
                             tool_observation_models.append(tool_args.get("model_name", ""))
+                            tool_observation_tools.append(tool_name)
 
                             messages.append(ToolMessage(content=observation, tool_call_id=tool_id))
                             _ci_per_hop_times.append(time.perf_counter() - _t_hop)  # J30-J31
                             hop_count += 1
+                            if _dup_call_key is not None:
+                                seen_calls.add(_dup_call_key)
 
                             _trace_logger.log_hop(
                                 trace_id=_trace_id, hop_index=_hop_index, tool_name=tool_name,
@@ -818,6 +870,7 @@ class CodeIntelligenceAgentRunner:
                                             _format_can_view_amount_fact(amount, can_view, unresolved_fields)
                                         )
                                         tool_observation_models.append(tool_args.get("model_name", ""))
+                                        tool_observation_tools.append("can_view_amount_v2")
                                         logger.info(
                                             "Node [code_intelligence_agent]: Injected deterministic "
                                             "can_view_amount_v2 fact for model=%s, amount=%.0f, "
@@ -837,6 +890,7 @@ class CodeIntelligenceAgentRunner:
                             _error_observation = f"Error executing {tool_name}: {str(te)}"
                             tool_observations.append(_error_observation)
                             tool_observation_models.append(tool_args.get("model_name", ""))
+                            tool_observation_tools.append(tool_name)
                             # ReAct-loop fix: surface the failure to the LLM
                             # too, so it doesn't blindly repeat the exact same
                             # failing call on the next iteration.
@@ -852,8 +906,8 @@ class CodeIntelligenceAgentRunner:
                     # the real-auth override has already injected the
                     # demandeur's real groups into evaluate_record_rules
                     # and a deterministic can_view_amount fact is present.
-                    tool_observations, tool_observation_models = _strip_group_resolution_noise(
-                        tool_observations, resolved_user_group_xmlids, tool_observation_models,
+                    tool_observations, tool_observation_models, tool_observation_tools = _strip_group_resolution_noise(
+                        tool_observations, resolved_user_group_xmlids, tool_observation_models, tool_observation_tools,
                     )
                     synthesis_prompt = (
                         f"Original Question: {question}\n\n"
@@ -1106,16 +1160,24 @@ class CodeIntelligenceAgentRunner:
                 + omission_lines
             )
         
-        # Build sources from tool observations
+        # Build sources from tool observations -- one SourceReference per
+        # tool call, with the FULL observation text as snippet (not a
+        # 150-char stub), so the dépliant ("Niveau Vérification & Preuves")
+        # can show the real deterministic evidence (verrous, conditions,
+        # citations file/xml_id) that used to be duplicated into the main
+        # answer text instead (todo/contexte.txt: réponses trop techniques).
         sources = []
-        for obs in tool_observations:
-            if obs and str(obs).strip():
-                sources.append(SourceReference(
-                    source="Code Intelligence Graph",
-                    doc_type="code_graph",
-                    title="Graphe de Connaissances Odoo",
-                    snippet=str(obs)[:150],
-                ))
+        for obs, model, tname in zip(tool_observations, tool_observation_models, tool_observation_tools):
+            if not obs or not str(obs).strip():
+                continue
+            display_tool = _CI_TOOL_DISPLAY_NAMES.get(tname, tname or "outil inconnu")
+            title = f"{display_tool} — {model}" if model else display_tool
+            sources.append(SourceReference(
+                source=f"code_intelligence:{tname or 'unknown'}:{model or 'unknown'}",
+                doc_type="code_graph",
+                title=title,
+                snippet=str(obs),
+            ))
         
         response = AssistantResponse(
             answer=final_answer,

@@ -70,6 +70,31 @@ BUSINESS_ALIASES: Dict[str, List[str]] = {
 }
 
 
+# Section 307-310 (todo/contexte.txt) : lexique de synonymes FR pour les
+# modeles Odoo natifs, delibrement SEPARE de BUSINESS_ALIASES (mecanisme
+# different -- celui-ci alimente l'index fuzzy du Step 2, il n'est jamais
+# teste en priorite/deterministe comme BUSINESS_ALIASES au Step 1). Portee
+# Phase 1 restreinte aux 4 entrees ci-dessous, chacune validee empiriquement
+# via scripts/test_resolver.py (sections 307-310) : la requete correspondante
+# etait un `unresolved` PROPRE (reason="No business alias or graph model
+# match found."), sans aucun candidat concurrent existant a ce jour. Des
+# candidats plus courts/ambigus ("achat" seul, "stock" seul, "reception"
+# seul, "produit" seul) ont ete explicitement exclus de cette Phase 1 --
+# ils sont deja noyes dans plusieurs modeles a score quasi identique dans
+# l'index existant (5+ candidats a 100 pour "stock"/"reception", 5 candidats
+# a 86 pour "produit"), et l'ajout d'un synonyme supplementaire n'y cree pas
+# de gagnant net -- au contraire, "achat" seul creerait une egalite exacte a
+# 100 avec un label de champ existant sur custom.asset.loan (root cause
+# tracee section 309). Ne pas y ajouter d'entree sans repeter la meme mesure
+# prealable (dump reason via _fuzzy_match_graph/resolve_business_term).
+NATIVE_MODEL_SYNONYMS: Dict[str, List[str]] = {
+    "sale.order": ["commande de vente", "devis", "vente"],
+    "purchase.order": ["commande d'achat"],
+    "stock.picking": ["livraison"],
+    "stock.move": ["mouvement de stock"],
+}
+
+
 def _nfc(s: str) -> str:
     return unicodedata.normalize("NFC", s)
 
@@ -235,6 +260,20 @@ def _build_fuzzy_index(G) -> List[Tuple[str, str]]:
                 spaced = technical_name.replace(".", " ").replace("_", " ")
                 if spaced != technical_name:
                     index.append((spaced.lower(), technical_name))
+
+    # Section 307-310 (todo/contexte.txt) : injection des synonymes FR pour
+    # les modeles Odoo natifs (Phase 1), au meme titre que les entrees
+    # Model.description/Field.label/Menu.name ci-dessus -- meme forme de
+    # tuple (label.lower(), model_name), meme scorer, aucun traitement
+    # prioritaire. Garde G.has_node() pour ne pas injecter silencieusement
+    # un synonyme sur un modele absent du graphe charge (ex. module non
+    # installe sur cette instance) -- un synonyme fantome pointant vers un
+    # modele inexistant serait pire qu'une absence de synonyme.
+    for model_name, synonyms in NATIVE_MODEL_SYNONYMS.items():
+        if not G.has_node(f"model:{model_name}"):
+            continue
+        for synonym in synonyms:
+            index.append((synonym.lower(), model_name))
 
     _FUZZY_INDEX_CACHE[cache_key] = index
     _logger.info("Built fuzzy index: %d entries from graph (%d nodes)", len(index), G.number_of_nodes())

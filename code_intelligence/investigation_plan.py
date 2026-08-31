@@ -341,7 +341,30 @@ def generate_investigation_plan(
     steps: List[InvestigationStep] = []
 
     if not primary_model:
-        # Fallback plan when no specific model is resolved
+        # Section 289 (todo/contexte.txt): a missing resolved model does NOT by
+        # itself justify a Code Intelligence investigation plan -- a pure
+        # greeting ("Bonjour"), an off-topic question, or any documentary/ERP
+        # query with no resolvable model must not receive a fabricated
+        # WHO_HAS_ACCESS_TO<unknown_model> plan (previous behavior: this
+        # branch fired unconditionally for ANY question with no model, which
+        # is exactly the case for "Bonjour"). Mirrors the SAME
+        # DOCUMENTARY_POLICY/ERP_DATA_QUERY exclusion already used by
+        # concept_suggests_code_intelligence_v2() for the resolved-concept
+        # case, instead of introducing a second, independently-drifting
+        # boundary.
+        if intent in (QuestionIntent.DOCUMENTARY_POLICY, QuestionIntent.ERP_DATA_QUERY):
+            return InvestigationPlan(
+                question=question,
+                intent=intent,
+                target_models=[],
+                steps=[],
+                rationale="Aucun signal Code Intelligence détecté et aucun modèle résolu -- pas de plan d'investigation applicable",
+                confidence=1.0,
+                source=PlanGenerationSource.FALLBACK_HEURISTIC,
+            )
+        # Fallback plan when no specific model is resolved, but the intent
+        # itself still reads as a Code Intelligence domain (e.g. a governance
+        # question whose business_resolver lookup failed to match a model).
         steps.append(
             InvestigationStep(
                 action=PlanAction.WHO_HAS_ACCESS_TO,
@@ -637,6 +660,29 @@ def generate_investigation_plan(
                 behavioral_focus=BehavioralTag.NOTIFICATION_RULE,
                 technical_focus=TechnicalTag.SERVER_ACTION,
             )
+        )
+
+    elif intent in (QuestionIntent.DOCUMENTARY_POLICY, QuestionIntent.ERP_DATA_QUERY):
+        # Section 327-329 (todo/contexte.txt): DOC-08 guard, symmetric case.
+        # The `if not primary_model:` branch above already refuses to fabricate
+        # a Code Intelligence plan for a documentary/ERP-data question with no
+        # resolved model. This mirrors the same guard for the opposite case --
+        # a model IS resolved (e.g. "mise à disposition" -> custom.asset.loan)
+        # but the question's classified intent is still DOCUMENTARY_POLICY or
+        # ERP_DATA_QUERY (e.g. "qui en a le droit ?", missed by the governance
+        # regex due to the intercalated "en"). A resolved concept alone must not
+        # imply a governance/code investigation plan, regardless of which side
+        # (model vs. intent) is missing. Previously fell through to the `else`
+        # fallback below and emitted an unconditional WHO_HAS_ACCESS_TO plan
+        # even though the real route taken is `documentaire`, not Code Intelligence.
+        return InvestigationPlan(
+            question=question,
+            intent=intent,
+            target_models=target_models,
+            steps=[],
+            rationale="Intention documentaire/ERP malgré un modèle résolu -- pas de plan Code Intelligence applicable (DOC-08)",
+            confidence=resolved_concept.confidence if resolved_concept else 1.0,
+            source=PlanGenerationSource.FALLBACK_HEURISTIC,
         )
 
     else:

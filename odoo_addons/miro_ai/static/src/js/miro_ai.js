@@ -2,7 +2,11 @@
 
 import { registry } from "@web/core/registry";
 import { Component, useState, useRef, onPatched, onMounted } from "@odoo/owl";
+import { markup } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
+
+const ASSISTANT_INITIAL_CONTENT = "Bonjour ! Je suis MIRO AI, votre assistant Code Intelligence, ERP et documentaire sur Odoo 17. Comment puis-je vous aider aujourd'hui ?";
+const SYSTRAY_INITIAL_CONTENT = "Bonjour ! Posez votre question ou interrogez-moi sur le document actif.";
 
 /**
  * Shared Markdown Formatter for MIRO AI responses.
@@ -55,6 +59,64 @@ export function formatMarkdown(text) {
     return parts.join('');
 }
 
+/**
+ * Builds a chat message object with sensible defaults for all optional
+ * verification fields (sources, route, plan, etc.), so callers only need
+ * to override what actually differs (avoids repeating the same shape
+ * everywhere a message is pushed).
+ */
+function createMessage(id, sender, content, extra = {}) {
+    return Object.assign({
+        id,
+        sender,
+        content,
+        formattedContent: markup(formatMarkdown(content)),
+        sources: [],
+        route: null,
+        confidence: 1.0,
+        evidence_status: null,
+        omitted_for_authorization: [],
+        investigation_plan: null,
+    }, extra);
+}
+
+/**
+ * Rebuilds an ordered message list from a backend conversation history
+ * (list of question/answer turns) so a past session can be resumed like
+ * a fresh chat. Shared between the fullscreen assistant and the systray
+ * drawer, which both persist/replay history the same way.
+ */
+function buildMessagesFromHistory(history) {
+    const messages = [];
+    let nextId = 1;
+    for (const turn of history || []) {
+        messages.push(createMessage(nextId++, "user", turn.question || ""));
+        messages.push(createMessage(nextId++, "bot", turn.answer || "", {
+            sources: turn.sources || [],
+            route: turn.route || null,
+            confidence: turn.confidence !== undefined && turn.confidence !== null ? turn.confidence : 1.0,
+            evidence_status: turn.evidence_status || null,
+            omitted_for_authorization: turn.omitted_for_authorization || [],
+            investigation_plan: turn.investigation_plan || null,
+        }));
+    }
+    return { messages, nextId };
+}
+
+/**
+ * Formats an Odoo UTC "create_date" ISO string (naive, no timezone suffix)
+ * for display in the user's local time.
+ */
+function formatSessionDate(isoString) {
+    if (!isoString) return "";
+    try {
+        const date = new Date(isoString.endsWith("Z") ? isoString : isoString + "Z");
+        return date.toLocaleString();
+    } catch (e) {
+        return isoString;
+    }
+}
+
 
 /**
  * Fullscreen Client Action Assistant Component.
@@ -68,27 +130,15 @@ export class MiroAiAssistant extends Component {
         this.actionService = useService("action");
         this.messagesContainer = useRef("messagesContainer");
 
-        const initialContent = "Bonjour ! Je suis MIRO AI, votre assistant Code Intelligence, ERP et documentaire sur Odoo 17. Comment puis-je vous aider aujourd'hui ?";
-
         this.state = useState({
-            messages: [
-                {
-                    id: 1,
-                    sender: "bot",
-                    content: initialContent,
-                    formattedContent: formatMarkdown(initialContent),
-                    sources: [],
-                    route: null,
-                    confidence: 1.0,
-                    evidence_status: null,
-                    omitted_for_authorization: [],
-                    investigation_plan: null,
-                }
-            ],
+            messages: [createMessage(1, "bot", ASSISTANT_INITIAL_CONTENT)],
             inputQuestion: "",
             loading: false,
             sessionId: "odoo_session_" + Date.now(),
             nextMsgId: 2,
+            showHistory: false,
+            loadingSessions: false,
+            sessions: [],
         });
 
         onPatched(() => {
@@ -96,6 +146,59 @@ export class MiroAiAssistant extends Component {
                 this.messagesContainer.el.scrollTop = this.messagesContainer.el.scrollHeight;
             }
         });
+    }
+
+    formatSessionDate(isoString) {
+        return formatSessionDate(isoString);
+    }
+
+    startNewConversation() {
+        this.state.messages = [createMessage(1, "bot", ASSISTANT_INITIAL_CONTENT)];
+        this.state.nextMsgId = 2;
+        this.state.sessionId = "odoo_session_" + Date.now();
+        this.state.showHistory = false;
+    }
+
+    toggleHistory() {
+        this.state.showHistory = !this.state.showHistory;
+        if (this.state.showHistory) {
+            this.loadSessions();
+        }
+    }
+
+    async loadSessions() {
+        this.state.loadingSessions = true;
+        try {
+            const sessions = await this.rpc("/miro_ai/sessions", {});
+            this.state.sessions = sessions || [];
+        } catch (error) {
+            console.error("Erreur chargement historique MIRO AI:", error);
+            this.notification.add("Impossible de charger l'historique des conversations.", { type: "danger" });
+        } finally {
+            this.state.loadingSessions = false;
+        }
+    }
+
+    async loadSession(sessionId) {
+        if (!sessionId || this.state.loading) {
+            return;
+        }
+        this.state.loading = true;
+        try {
+            const history = await this.rpc("/miro_ai/history", { session_id: sessionId });
+            const { messages, nextId } = buildMessagesFromHistory(history);
+            if (messages.length) {
+                this.state.messages = messages;
+                this.state.nextMsgId = nextId;
+            }
+            this.state.sessionId = sessionId;
+            this.state.showHistory = false;
+        } catch (error) {
+            console.error("Erreur chargement session MIRO AI:", error);
+            this.notification.add("Impossible de charger cette conversation.", { type: "danger" });
+        } finally {
+            this.state.loading = false;
+        }
     }
 
     onKeyDown(ev) {
@@ -136,19 +239,7 @@ export class MiroAiAssistant extends Component {
             return;
         }
 
-        const userMsgId = this.state.nextMsgId++;
-        this.state.messages.push({
-            id: userMsgId,
-            sender: "user",
-            content: question,
-            formattedContent: formatMarkdown(question),
-            sources: [],
-            route: null,
-            confidence: 1.0,
-            evidence_status: null,
-            omitted_for_authorization: [],
-            investigation_plan: null,
-        });
+        this.state.messages.push(createMessage(this.state.nextMsgId++, "user", question));
         this.state.inputQuestion = "";
         this.state.loading = true;
 
@@ -159,19 +250,14 @@ export class MiroAiAssistant extends Component {
             });
 
             if (response && response.answer) {
-                const botMsgId = this.state.nextMsgId++;
-                this.state.messages.push({
-                    id: botMsgId,
-                    sender: "bot",
-                    content: response.answer,
-                    formattedContent: formatMarkdown(response.answer),
+                this.state.messages.push(createMessage(this.state.nextMsgId++, "bot", response.answer, {
                     sources: response.sources || [],
                     route: response.route || null,
                     confidence: response.confidence !== undefined ? response.confidence : 1.0,
                     evidence_status: response.evidence_status || null,
                     omitted_for_authorization: response.omitted_for_authorization || [],
                     investigation_plan: response.investigation_plan || null,
-                });
+                }));
                 if (response.session_id) {
                     this.state.sessionId = response.session_id;
                 }
@@ -180,20 +266,11 @@ export class MiroAiAssistant extends Component {
             }
         } catch (error) {
             console.error("Erreur MIRO AI:", error);
-            const errorMsgId = this.state.nextMsgId++;
             const errMsg = "Désolé, une erreur est survenue lors de la communication avec l'assistant MIRO AI. Veuillez vérifier la connexion ou consulter le journal d'erreurs.";
-            this.state.messages.push({
-                id: errorMsgId,
-                sender: "bot",
-                content: errMsg,
-                formattedContent: formatMarkdown(errMsg),
-                sources: [],
-                route: null,
+            this.state.messages.push(createMessage(this.state.nextMsgId++, "bot", errMsg, {
                 confidence: 0.0,
                 evidence_status: "ERROR",
-                omitted_for_authorization: [],
-                investigation_plan: null,
-            });
+            }));
             this.notification.add("Erreur de connexion à l'assistant MIRO AI.", { type: "danger" });
         } finally {
             this.state.loading = false;
@@ -221,22 +298,12 @@ export class MiroAiSystray extends Component {
             loading: false,
             inputQuestion: "",
             sessionId: "systray_session_" + Date.now(),
-            messages: [
-                {
-                    id: 1,
-                    sender: "bot",
-                    content: "Bonjour ! Posez votre question ou interrogez-moi sur le document actif.",
-                    formattedContent: formatMarkdown("Bonjour ! Posez votre question ou interrogez-moi sur le document actif."),
-                    sources: [],
-                    route: null,
-                    confidence: 1.0,
-                    evidence_status: null,
-                    omitted_for_authorization: [],
-                    investigation_plan: null,
-                }
-            ],
+            messages: [createMessage(1, "bot", SYSTRAY_INITIAL_CONTENT)],
             nextMsgId: 2,
             activeModelContext: null,
+            showHistory: false,
+            loadingSessions: false,
+            sessions: [],
         });
 
         this.drawerMessages = useRef("drawerMessages");
@@ -246,6 +313,59 @@ export class MiroAiSystray extends Component {
                 this.drawerMessages.el.scrollTop = this.drawerMessages.el.scrollHeight;
             }
         });
+    }
+
+    formatSessionDate(isoString) {
+        return formatSessionDate(isoString);
+    }
+
+    startNewConversation() {
+        this.state.messages = [createMessage(1, "bot", SYSTRAY_INITIAL_CONTENT)];
+        this.state.nextMsgId = 2;
+        this.state.sessionId = "systray_session_" + Date.now();
+        this.state.showHistory = false;
+    }
+
+    toggleHistory() {
+        this.state.showHistory = !this.state.showHistory;
+        if (this.state.showHistory) {
+            this.loadSessions();
+        }
+    }
+
+    async loadSessions() {
+        this.state.loadingSessions = true;
+        try {
+            const sessions = await this.rpc("/miro_ai/sessions", {});
+            this.state.sessions = sessions || [];
+        } catch (error) {
+            console.error("Erreur chargement historique MIRO AI Systray:", error);
+            this.notification.add("Impossible de charger l'historique des conversations.", { type: "danger" });
+        } finally {
+            this.state.loadingSessions = false;
+        }
+    }
+
+    async loadSession(sessionId) {
+        if (!sessionId || this.state.loading) {
+            return;
+        }
+        this.state.loading = true;
+        try {
+            const history = await this.rpc("/miro_ai/history", { session_id: sessionId });
+            const { messages, nextId } = buildMessagesFromHistory(history);
+            if (messages.length) {
+                this.state.messages = messages;
+                this.state.nextMsgId = nextId;
+            }
+            this.state.sessionId = sessionId;
+            this.state.showHistory = false;
+        } catch (error) {
+            console.error("Erreur chargement session MIRO AI Systray:", error);
+            this.notification.add("Impossible de charger cette conversation.", { type: "danger" });
+        } finally {
+            this.state.loading = false;
+        }
     }
 
     toggleDrawer() {
@@ -326,19 +446,7 @@ export class MiroAiSystray extends Component {
             }
         }
 
-        const userMsgId = this.state.nextMsgId++;
-        this.state.messages.push({
-            id: userMsgId,
-            sender: "user",
-            content: this.state.inputQuestion.trim(),
-            formattedContent: formatMarkdown(this.state.inputQuestion.trim()),
-            sources: [],
-            route: null,
-            confidence: 1.0,
-            evidence_status: null,
-            omitted_for_authorization: [],
-            investigation_plan: null,
-        });
+        this.state.messages.push(createMessage(this.state.nextMsgId++, "user", this.state.inputQuestion.trim()));
         this.state.inputQuestion = "";
         this.state.loading = true;
 
@@ -349,19 +457,14 @@ export class MiroAiSystray extends Component {
             });
 
             if (response && response.answer) {
-                const botMsgId = this.state.nextMsgId++;
-                this.state.messages.push({
-                    id: botMsgId,
-                    sender: "bot",
-                    content: response.answer,
-                    formattedContent: formatMarkdown(response.answer),
+                this.state.messages.push(createMessage(this.state.nextMsgId++, "bot", response.answer, {
                     sources: response.sources || [],
                     route: response.route || null,
                     confidence: response.confidence !== undefined ? response.confidence : 1.0,
                     evidence_status: response.evidence_status || null,
                     omitted_for_authorization: response.omitted_for_authorization || [],
                     investigation_plan: response.investigation_plan || null,
-                });
+                }));
                 if (response.session_id) {
                     this.state.sessionId = response.session_id;
                 }
@@ -370,20 +473,11 @@ export class MiroAiSystray extends Component {
             }
         } catch (error) {
             console.error("Erreur MIRO AI Systray:", error);
-            const errorMsgId = this.state.nextMsgId++;
             const errMsg = "Erreur de communication avec l'assistant MIRO AI.";
-            this.state.messages.push({
-                id: errorMsgId,
-                sender: "bot",
-                content: errMsg,
-                formattedContent: formatMarkdown(errMsg),
-                sources: [],
-                route: null,
+            this.state.messages.push(createMessage(this.state.nextMsgId++, "bot", errMsg, {
                 confidence: 0.0,
                 evidence_status: "ERROR",
-                omitted_for_authorization: [],
-                investigation_plan: null,
-            });
+            }));
             this.notification.add("Erreur de connexion MIRO AI.", { type: "danger" });
         } finally {
             this.state.loading = false;

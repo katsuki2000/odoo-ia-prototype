@@ -201,10 +201,42 @@ def test_generate_investigation_plan_calculation():
 
 
 def test_generate_investigation_plan_unresolved_concept_fallback():
+    """
+    Contrat modifié (todo/contexte.txt section 289, Bug B) : un modèle non
+    résolu ne justifie plus a lui seul un plan d'investigation fabriqué.
+    Cette question générique ("Question sans modèle identifié") ne porte
+    aucun signal Code Intelligence explicite -- classify_question_intent()
+    retombe sur QuestionIntent.DOCUMENTARY_POLICY (etape 9, fallback par
+    defaut), qui declenche desormais la branche steps=[] de
+    generate_investigation_plan() plutot que l'ancien fallback
+    WHO_HAS_ACCESS_TO<unknown_model> systematique (cause racine du bug
+    "Bonjour" -- un plan who_has_access_to absurde genere pour une simple
+    salutation). Ancien comportement teste ici avant ce correctif :
+    `len(plan.steps) >= 1`. Nouveau comportement attendu : `steps == []`.
+    """
     plan = generate_investigation_plan(
         question="Question sans modèle identifié",
         resolved_concept=None,
     )
     assert plan.source == PlanGenerationSource.FALLBACK_HEURISTIC
+    assert plan.steps == []
+    assert plan.target_models == []
+
+
+def test_generate_investigation_plan_unresolved_concept_with_ci_signal_still_produces_step():
+    """
+    Contrepartie du test ci-dessus (section 289) : quand le modèle n'est pas
+    résolu MAIS que la question porte un signal Code Intelligence explicite
+    (ici gouvernance -- "qui a le droit"), le fallback WHO_HAS_ACCESS_TO sur
+    <unknown_model> reste le comportement voulu -- seule la branche
+    "aucun signal" (DOCUMENTARY_POLICY / ERP_DATA_QUERY) a été neutralisée.
+    """
+    plan = generate_investigation_plan(
+        question="Qui a le droit de valider ce document ?",
+        resolved_concept=None,
+    )
+    assert plan.source == PlanGenerationSource.FALLBACK_HEURISTIC
     assert len(plan.steps) >= 1
+    assert plan.steps[0].action == PlanAction.WHO_HAS_ACCESS_TO
+    assert plan.steps[0].target == "<unknown_model>"
     assert plan.target_models == []

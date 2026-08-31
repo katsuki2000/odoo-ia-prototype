@@ -63,6 +63,42 @@ CI_SYSTEM_PROMPT = (
 # Maximum hops allowed per question.
 CI_MAX_HOPS = 4
 
+# Composite tools whose dedup key is only (tool_name, model_name) -- the
+# deterministic pre-dispatch blocks in ci_agent_node.py already key on
+# exactly this for these tools.
+_MODEL_KEYED_TOOLS = frozenset({
+    "analyze_security_locks",
+    "analyze_server_actions",
+    "who_has_access_to",
+    "evaluate_record_rules",
+})
+
+
+def _tool_call_key(tool_name: str, tool_args: "Dict[str, Any]") -> "Optional[Tuple]":
+    """Single source of truth for the seen_calls dedup key, shared between
+    the deterministic pre-dispatch blocks and the LLM-driven ReAct tool
+    calls in ci_agent_node.py -- both must agree on what counts as "the
+    same call" so the ReAct loop can refuse to re-execute a composite tool
+    the pre-dispatch stage (or an earlier ReAct iteration) already ran for
+    the same target, instead of only telling the LLM not to via the system
+    prompt and hoping it complies (todo/contexte.txt section 250-251:
+    a small synthesis LLM does not reliably follow that instruction).
+
+    Returns None for tools/args this dedup scheme does not apply to (e.g.
+    analyze_method_override_chain missing a method_name, or any tool
+    outside the composite set above) -- callers must treat None as "not
+    dedupable" rather than as a real key.
+    """
+    model_name = tool_args.get("model_name")
+    if not model_name:
+        return None
+    if tool_name == "analyze_method_override_chain":
+        method_name = tool_args.get("method_name")
+        return (tool_name, model_name, method_name) if method_name else None
+    if tool_name in _MODEL_KEYED_TOOLS:
+        return (tool_name, model_name)
+    return None
+
 # Deterministic patterns for tool triggers
 _AMOUNT_PATTERN = re.compile(r"\d[\d\s.,]*\d\s*(?:€|eur(?:os?)?\b)", re.IGNORECASE)
 _APPROVAL_PATTERN = re.compile(
@@ -1225,21 +1261,36 @@ def _strip_group_resolution_noise(
     tool_observations: List[str],
     resolved_user_group_xmlids: list,
     tool_observation_models: List[str],
+    tool_observation_tools: Optional[List[str]] = None,
 ):
     """Remove who_has_access_to 'could not be resolved' observations that refer
-    to LLM-guessed group names when real requester groups have already been evaluated."""
+    to LLM-guessed group names when real requester groups have already been evaluated.
+
+    tool_observation_tools is an optional third list kept aligned 1:1 with
+    tool_observations/tool_observation_models (section: 'réponses trop
+    techniques', todo/contexte.txt -- tracks which tool produced each
+    observation, for building real sources instead of a generic stub).
+    Optional and filtered in lockstep only when provided, so any other
+    caller relying on the original 2-list contract keeps working unchanged.
+    """
     if not resolved_user_group_xmlids:
-        return tool_observations, tool_observation_models
+        if tool_observation_tools is None:
+            return tool_observations, tool_observation_models
+        return tool_observations, tool_observation_models, tool_observation_tools
 
     has_deterministic_fact = any(
         "[FAIT DÉTERMINISTIQUE]" in obs for obs in tool_observations
     )
     if not has_deterministic_fact:
-        return tool_observations, tool_observation_models
+        if tool_observation_tools is None:
+            return tool_observations, tool_observation_models
+        return tool_observations, tool_observation_models, tool_observation_tools
 
     cleaned = []
     cleaned_models = []
-    for obs, model in zip(tool_observations, tool_observation_models):
+    cleaned_tools = [] if tool_observation_tools is not None else None
+    _tools_iter = tool_observation_tools if tool_observation_tools is not None else [None] * len(tool_observations)
+    for obs, model, tname in zip(tool_observations, tool_observation_models, _tools_iter):
         if _COULD_NOT_RESOLVE_RE.search(obs):
             logger.info(
                 "Node [code_intelligence_agent]: stripping 'could not be "
@@ -1249,7 +1300,11 @@ def _strip_group_resolution_noise(
             continue
         cleaned.append(obs)
         cleaned_models.append(model)
-    return cleaned, cleaned_models
+        if cleaned_tools is not None:
+            cleaned_tools.append(tname)
+    if tool_observation_tools is None:
+        return cleaned, cleaned_models
+    return cleaned, cleaned_models, cleaned_tools
 
 
 def _extract_first_scoped_file_link(text: str) -> str:

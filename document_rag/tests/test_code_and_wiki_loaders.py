@@ -32,16 +32,30 @@ class TestCodeLoaderPython(unittest.TestCase):
         self.assertIsNotNone(self.loader.splitter)
 
     def test_extract_module_name(self):
-        """Test module name extraction from file path."""
+        """Test module name extraction, derived structurally from scan_root
+        (todo/contexte.txt sections 356/358) -- replaces the old hardcoded
+        whitelist (account/sale/stock/base/hr) that predated the curated
+        CODE_DIRS scope and couldn't recognize miro_ai/custom_* modules.
+        """
         test_cases = [
-            (Path("/home/user/account/models.py"), "account"),
-            (Path("/home/user/sale/models.py"), "sale"),
-            (Path("/home/user/stock/models.py"), "stock"),
-            (Path("/home/user/project/models.py"), "unknown"),
+            # module = first path segment relative to scan_root, whatever
+            # its name -- no longer limited to a fixed keyword list.
+            (Path("/repo/addons/account/models.py"), Path("/repo/addons"), "account"),
+            (Path("/repo/addons/sale/models.py"), Path("/repo/addons"), "sale"),
+            (
+                Path("/repo/odoo_addons/custom_expense_reimbursement_indirect/models.py"),
+                Path("/repo/odoo_addons"),
+                "custom_expense_reimbursement_indirect",
+            ),
+            (Path("/repo/odoo_addons/miro_ai/models.py"), Path("/repo/odoo_addons"), "miro_ai"),
+            # No scan_root -> unknown (can't derive structurally).
+            (Path("/home/user/account/models.py"), None, "unknown"),
+            # file_path not actually under scan_root -> unknown.
+            (Path("/home/user/project/models.py"), Path("/repo/addons"), "unknown"),
         ]
 
-        for path, expected_module in test_cases:
-            module = self.loader._extract_module_name(path)
+        for path, scan_root, expected_module in test_cases:
+            module = self.loader._extract_module_name(path, scan_root)
             self.assertEqual(module, expected_module)
 
     def test_extract_ast_info_simple(self):

@@ -1,14 +1,10 @@
 {
-  "total_chunks": 198,
+  "total_chunks": 27,
   "by_type": {
-    "code_python": 87,
-    "code_xml": 59,
-    "code_js": 20,
-    "code_csv": 6,
-    "doc_pdf": 3,
+    "doc_pdf": 4,
     "doc_wiki": 23
   },
   "by_module": {
-    "unknown": 198
+    "unknown": 27
   }
 }

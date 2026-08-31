@@ -57,6 +57,7 @@ Ne mentionne le statut que si cela aide l'utilisateur à comprendre la situation
 1. Cite toujours les sources utilisées.
 2. Si plusieurs sources confirment la même information, mentionne-les toutes.
 3. Si une partie seulement de la réponse est documentée, distingue clairement ce qui est confirmé de ce qui ne l'est pas.
+4. Chaque bloc de contexte ci-dessous commence par un marqueur "[Source Sx]" (S1, S2, ...) -- un alias court propre à ce tour, jamais un identifiant stable ou un chemin de fichier. Dans ta réponse structurée, remplis "used_sources" avec la liste des alias Sx des blocs que tu as RÉELLEMENT utilisés pour écrire "answer" -- jamais un alias que tu n'as pas exploité, jamais un alias inventé.
 
 # Confiance
 
@@ -76,7 +77,8 @@ Réponds TOUJOURS avec un JSON valide :
 
 {{
   "answer": "...",
-  "confidence": 0.0
+  "confidence": 0.0,
+  "used_sources": ["S1", "S3"]
 }}
 
 # Contexte disponible

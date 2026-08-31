@@ -3,10 +3,10 @@ core/graph.py
 
 LangGraph RAG pipeline with hybrid routing.
 Flow:
-  retrieve → route → [documentaire]        → generate               → format_output → END
-                   → [donnees_erp]         → orm_agent_loop         → format_output → END
-                   → [hybride]             → hybrid_node            → format_output → END
-                   → [code_intelligence]   → code_intelligence_agent → format_output → END
+  smalltalk_gate → out_of_scope_gate → retrieve → route → [documentaire]        → generate               → format_output → END
+                                                         → [donnees_erp]         → orm_agent_loop         → format_output → END
+                                                         → [hybride]             → hybrid_node            → format_output → END
+                                                         → [code_intelligence]   → code_intelligence_agent → format_output → END
 """
 
 import json
@@ -28,6 +28,7 @@ from langgraph.graph import StateGraph, START, END
 
 from config.settings import USE_RERANKER
 from document_rag.vectorstore.search import get_retriever, retrieve as search_retrieve
+from core.smalltalk import classify_smalltalk, SMALLTALK_RESPONSES
 
 # ── Backward-compatible re-exports from schemas ──────────────────────────────
 from core.schemas import (
@@ -35,6 +36,7 @@ from core.schemas import (
     SourceReference,
     LLMResponse,
     QueryRoute,
+    source_display_title,
 )
 
 # ── Backward-compatible re-exports from llm_client ────────────────────────────
@@ -239,6 +241,65 @@ logger = logging.getLogger(__name__)
 
 # ── Pipeline Nodes ────────────────────────────────────────────────────────────
 
+def smalltalk_gate(state: RAGState) -> dict:
+    """
+    Deterministic pre-retrieval gate for pure smalltalk (greetings,
+    thanks, farewells) -- todo/contexte.txt section 294. No GREETING
+    route exists in QueryRoute, so an unclassified question used to fall
+    through to the DOCUMENTAIRE default and still run retrieve() first
+    (retrieve() is unconditional, before route() even runs) -- this node
+    intercepts pure smalltalk BEFORE retrieve() so it never happens for
+    these questions. Never rewrites `question` -- only classify_smalltalk()
+    is consulted, downstream nodes still see the original question.
+    """
+    question = state.get("question", "")
+    kind = classify_smalltalk(question)
+    if kind is None:
+        return {}
+
+    logger.info("Node [smalltalk_gate]: pure smalltalk detected (%s) -- skipping retrieve()/route()", kind)
+    response = AssistantResponse(
+        answer=SMALLTALK_RESPONSES[kind],
+        sources=[],
+        confidence=1.0,
+    )
+    return {"response": response, "route": "smalltalk", "retrieved_chunks": [], "investigation_plan": None}
+
+
+def smalltalk_decision(state: RAGState) -> str:
+    """Return the conditional-edge key out of smalltalk_gate."""
+    return "format_output" if state.get("response") is not None else "out_of_scope_gate"
+
+
+def out_of_scope_gate(state: RAGState) -> dict:
+    """
+    Deterministic pre-retrieval gate for questions matching OUT_OF_SCOPE_TERMS
+    (todo/contexte.txt sections 360-361). generate()'s own _is_out_of_scope
+    fast-fail only ran after retrieve()/route() had already executed for
+    every out-of-scope question, paying for a retrieval call it never used --
+    the same waste smalltalk_gate already closed for pure smalltalk. This
+    node intercepts them before retrieve() runs, same pattern as
+    smalltalk_gate. generate()'s own check is left in place as a
+    defense-in-depth safety net.
+    """
+    question = state.get("question", "")
+    if not _is_out_of_scope(question):
+        return {}
+
+    logger.info("Node [out_of_scope_gate]: out-of-scope question detected -- skipping retrieve()/route()")
+    response = AssistantResponse(
+        answer=OUT_OF_SCOPE_ANSWER,
+        sources=[],
+        confidence=0.0,
+    )
+    return {"response": response, "route": "out_of_scope", "retrieved_chunks": [], "investigation_plan": None}
+
+
+def out_of_scope_decision(state: RAGState) -> str:
+    """Return the conditional-edge key out of out_of_scope_gate."""
+    return "format_output" if state.get("response") is not None else "retrieve"
+
+
 def retrieve(state: RAGState) -> dict:
     """Retrieve relevant documents for the query."""
     import time
@@ -299,14 +360,14 @@ def format_output(state: RAGState) -> dict:
                 sources.append(SourceReference(
                     source=meta.get("source", "unknown"),
                     doc_type=meta.get("type", "document"),
-                    title=meta.get("title", meta.get("source", "unknown")),
+                    title=source_display_title(meta),
                     snippet=snippet
                 ))
             response.sources = sources
             
         if response.sources and "[Source:" not in response.answer:
             main_src = response.sources[0].title or response.sources[0].source
-            response.answer += f"\n\n[Source: Documentation Odoo - {main_src}]"
+            response.answer += f"\n\n[Source: Documentation ERP - {main_src}]"
 
     return {"response": response}
 
@@ -318,6 +379,8 @@ def build_graph() -> StateGraph:
     workflow = StateGraph(RAGState)
 
     # Add nodes
+    workflow.add_node("smalltalk_gate", smalltalk_gate)
+    workflow.add_node("out_of_scope_gate", out_of_scope_gate)
     workflow.add_node("retrieve", retrieve)
     workflow.add_node("route", route)
     workflow.add_node("generate", generate)
@@ -327,7 +390,15 @@ def build_graph() -> StateGraph:
     workflow.add_node("format_output", format_output)
 
     # Edges
-    workflow.add_edge(START, "retrieve")
+    workflow.add_edge(START, "smalltalk_gate")
+    workflow.add_conditional_edges("smalltalk_gate", smalltalk_decision, {
+        "format_output": "format_output",
+        "out_of_scope_gate": "out_of_scope_gate",
+    })
+    workflow.add_conditional_edges("out_of_scope_gate", out_of_scope_decision, {
+        "format_output": "format_output",
+        "retrieve": "retrieve",
+    })
     workflow.add_edge("retrieve", "route")
 
     # Conditional routing

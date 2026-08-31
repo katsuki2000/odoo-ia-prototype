@@ -22,20 +22,25 @@ from code_intelligence.tests.test_j5_live_validation import (
 pytestmark = pytest.mark.integration
 
 
+CONTEXT_VARIANTS = [
+    ("no_context", lambda alpha_id: {}),
+    ("company_only", lambda alpha_id: {"allowed_company_ids": [alpha_id]}),
+    ("company_and_lang", lambda alpha_id: {"allowed_company_ids": [alpha_id], "lang": "en_US"}),
+    ("company_and_date", lambda alpha_id: {"allowed_company_ids": [alpha_id], "date": "2020-01-01"}),
+]
+
+
 @pytest.mark.parametrize(
-    "context",
-    [
-        {},
-        {"allowed_company_ids": [1]},
-        {"allowed_company_ids": [1], "lang": "en_US"},
-        {"allowed_company_ids": [1], "date": "2020-01-01"},
-    ],
+    "context_builder",
+    [builder for _, builder in CONTEXT_VARIANTS],
+    ids=[label for label, _ in CONTEXT_VARIANTS],
 )
 def test_q6_combined_groups_are_stable_across_available_contexts(
-    live_client: OdooRpcClient, context: dict
+    live_client: OdooRpcClient, alpha_company_id: int, context_builder
 ):
     """Q6.1 remains allowed; context must not be mistaken for group OR logic."""
     uid = _authenticate(live_client, "test_both_2026")
+    context = context_builder(alpha_company_id)
     record_ids = live_client.search_as_user(
         uid,
         "account.move",
@@ -49,14 +54,16 @@ def test_q6_combined_groups_are_stable_across_available_contexts(
 
 
 @pytest.mark.parametrize(
-    "context",
-    [{}, {"allowed_company_ids": [1]}],
+    "context_builder",
+    [lambda cid: {}, lambda cid: {"allowed_company_ids": [cid]}],
+    ids=["no_context", "with_invalid_company"],
 )
 def test_q6_no_group_acl_denial_is_not_a_context_effect(
-    live_client: OdooRpcClient, context: dict
+    live_client: OdooRpcClient, invalid_company_id: int, context_builder
 ):
     """Q6.2 stays ACL-denied regardless of the available company context."""
     uid = _authenticate(live_client, "test_no_group_2026")
+    context = context_builder(invalid_company_id)
 
     with pytest.raises(xmlrpc.client.Fault) as excinfo:
         live_client.search_as_user(
@@ -73,22 +80,22 @@ def test_q6_no_group_acl_denial_is_not_a_context_effect(
 
 
 def test_active_company_context_restricts_to_authorized_company(
-    live_client: OdooRpcClient,
+    live_client: OdooRpcClient, alpha_company_id: int, invalid_company_id: int,
 ):
     """Company context enforces the user's authorized-company boundary.
 
-    NOTE : odoo-dev is single-company (Company
-    Alpha, id=1). This cannot validate that record VISIBILITY differs
-    between two companies the user is authorized for -- that would need a
-    genuine multi-company fixture with test_both_2026 granted access to a
-    second company, which does not exist here. What IS validated: the
-    company-context boundary is enforced at all (an authorized company
-    succeeds, an unauthorized one is rejected by Odoo before any ir.rule
-    evaluation happens) -- a distinct, real property, not a substitute for
-    the original multi-company visibility claim. Documented here rather
-    than silently asserting coverage the live environment cannot provide,
-    per the same principle as
-    test_live_context_inventory_does_not_overclaim_language_or_date_coverage.
+    NOTE : odoo-dev est reellement mono-societe (Company Alpha -- decision
+    utilisateur, todo/contexte.txt section 321/322 ; 'My Company' a ete
+    archivee). Ce test ne peut donc plus valider une difference de
+    VISIBILITE entre deux societes reellement autorisees -- ca demanderait
+    un fixture multi-societe explicite avec test_both_2026 autorise sur une
+    seconde societe, qui n'existe plus par choix de conception. Ce qui EST
+    valide : la frontiere de contexte societe est bien appliquee (une
+    societe autorisee reussit, un id de societe invalide est rejete par
+    Odoo avant toute evaluation ir.rule) -- une propriete distincte et
+    reelle, pas un substitut a la revendication de visibilite multi-societe
+    originale. alpha_company_id et invalid_company_id sont resolus
+    dynamiquement (jamais un id code en dur), cf. conftest.py.
     """
     uid = _authenticate(live_client, "test_both_2026")
     assert live_client.check_access_rights(uid, "account.move", "read") is True
@@ -97,7 +104,7 @@ def test_active_company_context_restricts_to_authorized_company(
         uid,
         "account.move",
         ACCOUNT_MOVE_80K_REFUND_DOMAIN,
-        context={"allowed_company_ids": [1]},
+        context={"allowed_company_ids": [alpha_company_id]},
         limit=5,
     )
     assert authorized_ids
@@ -107,7 +114,7 @@ def test_active_company_context_restricts_to_authorized_company(
             uid,
             "account.move",
             ACCOUNT_MOVE_80K_REFUND_DOMAIN,
-            context={"allowed_company_ids": [2]},
+            context={"allowed_company_ids": [invalid_company_id]},
             limit=5,
         )
     fault_msg = excinfo.value.faultString.lower()

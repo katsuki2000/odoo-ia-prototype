@@ -1,13 +1,18 @@
 """
 Retrieval Evaluation — recall@5 on benchmark questions.
 
-Evaluates the hybrid search + re-ranking pipeline against the
-benchmark question set from tests/benchmark_questions.json.
+Evaluates the document RAG hybrid search + re-ranking pipeline (odoo_docs
+collection only) against the benchmark question set from
+tests/benchmark_questions.json.
+
+todo/contexte.txt sections 349-354: Code Intelligence now owns code
+questions exclusively, RAG is docs-only (odoo_code is never populated by
+default). "code_source" benchmark questions are therefore skipped here,
+the same way "erp_chiffre" questions already were -- both are owned by
+other subsystems, not by this retrieval pipeline.
 
 Computes:
 - recall@5 for document questions
-- recall@5 for code questions
-- Overall recall@5
 - Per-question detailed results
 
 Outputs results to captures/retrieval_config.md
@@ -75,7 +80,7 @@ def evaluate_recall(
     Returns:
         Evaluation results dict
     """
-    results_by_type = {"doc": [], "code": [], "erp": [], "edge": [], "other": []}
+    results_by_type = {"doc": [], "erp": [], "edge": [], "other": []}
     detailed = []
     total_time = 0.0
 
@@ -89,8 +94,10 @@ def evaluate_recall(
         if not question_text:
             continue
 
-        # Skip ERP questions (they need ORM, not RAG)
-        if q_type == "erp":
+        # Skip ERP questions (they need ORM, not RAG) and code questions
+        # (Code Intelligence owns these exclusively -- todo/contexte.txt
+        # sections 349-354, odoo_code is never populated by this pipeline).
+        if q_type in ("erp", "code"):
             continue
 
         # Retrieve
@@ -166,9 +173,10 @@ def evaluate_recall(
         if hits:
             recall_by_type[qtype] = sum(hits) / len(hits)
 
-    # Overall recall (doc + code only, as per plan)
-    doc_code_hits = results_by_type["doc"] + results_by_type["code"]
-    overall_recall = sum(doc_code_hits) / len(doc_code_hits) if doc_code_hits else 0.0
+    # Overall recall (doc only -- code questions are out of scope for this
+    # pipeline since todo/contexte.txt sections 349-354, see module docstring)
+    doc_hits = results_by_type["doc"]
+    overall_recall = sum(doc_hits) / len(doc_hits) if doc_hits else 0.0
 
     return {
         "overall_recall_at_k": overall_recall,
@@ -242,26 +250,15 @@ def generate_report(results: dict, config: dict) -> str:
         "",
         "---",
         "",
-        "## Collection Decision",
+        "## Scope",
         "",
-        "> Based on evaluation results. If text/code confusion is observed,",
-        "> split into separate ChromaDB collections. Otherwise, keep one.",
+        "> Single `odoo_docs` collection, permanent (todo/contexte.txt sections ",
+        "> 349-354): Code Intelligence owns code questions exclusively, this ",
+        "> pipeline is a docs-only, last-resort RAG fallback. `code_source` ",
+        "> benchmark questions are excluded from evaluation above, not scored ",
+        "> as failures.",
         "",
     ])
-
-    # Decision based on results
-    doc_recall = results["recall_by_type"].get("doc", 0)
-    code_recall = results["recall_by_type"].get("code", 0)
-
-    if doc_recall >= 0.8 and code_recall >= 0.8:
-        lines.append("**Decision**:  Keep single collection — both doc and code recall are adequate.")
-    elif abs(doc_recall - code_recall) > 0.3:
-        lines.append(
-            f"**Decision**:  Consider splitting — doc recall ({doc_recall:.1%}) vs "
-            f"code recall ({code_recall:.1%}) shows significant gap."
-        )
-    else:
-        lines.append("**Decision**: Keep single collection for now, monitor after further data ingestion.")
 
     return "\n".join(lines)
 
@@ -277,12 +274,11 @@ def main():
 
     logger.info("Loaded %d questions", len(questions))
 
-    # Initialize retrieval components
-    logger.info("Initializing ChromaManager (odoo_docs + odoo_code)...")
-    chroma = [
-        ChromaManager(collection_name="odoo_docs"),
-        ChromaManager(collection_name="odoo_code"),
-    ]
+    # Initialize retrieval components. Single odoo_docs collection, mirrors
+    # search.py::get_retriever() (todo/contexte.txt sections 349-354: RAG
+    # is docs-only, odoo_code is never populated by default).
+    logger.info("Initializing ChromaManager (odoo_docs)...")
+    chroma = ChromaManager(collection_name="odoo_docs")
 
     logger.info("Building BM25 index...")
     bm25 = BM25Index()
@@ -295,12 +291,16 @@ def main():
         )
         sys.exit(1)
 
-    # Run evaluation
+    # Run evaluation. vector_weight/bm25_weight are informational only --
+    # retrieve() hardcodes 0.7/0.3 internally since section 354 (the former
+    # is_code_query routing removal), the parameters below are dead for any
+    # caller that doesn't set them explicitly. Kept in sync here so the
+    # report doesn't display stale/misleading values.
     config = {
         "vector_top_k": 12,
         "bm25_top_k": 12,
-        "vector_weight": 0.6,
-        "bm25_weight": 0.4,
+        "vector_weight": 0.7,
+        "bm25_weight": 0.3,
         "rrf_k": 60,
         "relevance_threshold": 0.3,
         "cross_encoder": "cross-encoder/ms-marco-MiniLM-L-6-v2",

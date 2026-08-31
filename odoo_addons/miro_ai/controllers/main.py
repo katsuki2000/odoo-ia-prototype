@@ -139,6 +139,16 @@ class MiroAiController(http.Controller):
                 data = resp.json()
                 answer_str = data.get('answer', 'Aucune réponse renvoyée par le RAG.')
                 sources_list = data.get('sources', [])
+                # Métadonnées d'investigation (route, confiance, plan, éléments masqués)
+                # nécessaires pour reconstruire fidèlement l'historique (miro.ai.log.get_session_history)
+                metadata_dict = {
+                    'route': data.get('route'),
+                    'confidence': data.get('confidence', 1.0),
+                    'evidence_status': data.get('evidence_status'),
+                    'resolved_concept': data.get('resolved_concept'),
+                    'omitted_for_authorization': data.get('omitted_for_authorization', []),
+                    'investigation_plan': data.get('investigation_plan'),
+                }
                 # Enregistrement du journal d'audit en succès
                 try:
                     request.env['miro.ai.log'].sudo().log_query(
@@ -147,7 +157,8 @@ class MiroAiController(http.Controller):
                         session_id=effective_session,
                         response_time_ms=elapsed_ms,
                         sources=sources_list,
-                        state='success'
+                        state='success',
+                        metadata=metadata_dict
                     )
                 except Exception as log_err:
                     _logger.warning("Erreur lors de l'enregistrement du journal MIRO AI: %s", log_err)
@@ -206,11 +217,6 @@ class MiroAiController(http.Controller):
                 'answer': err_msg,
                 'sources': []
             }
-
-            return {
-                'answer': err_msg,
-                'sources': []
-            }
         finally:
             # La clé API est éphémère et n'a plus de raison d'exister une fois
             # l'appel terminé (succès, erreur HTTP ou exception réseau) : la
@@ -223,3 +229,15 @@ class MiroAiController(http.Controller):
                         "MIRO AI: échec de révocation de la clé API pour uid=%s: %s",
                         uid, revoke_err,
                     )
+
+    @http.route('/miro_ai/sessions', type='json', auth='user', methods=['POST'])
+    def sessions(self, limit=30, **kwargs):
+        """Liste les conversations MIRO AI récentes visibles par l'utilisateur courant."""
+        return request.env['miro.ai.log'].get_sessions(limit=limit)
+
+    @http.route('/miro_ai/history', type='json', auth='user', methods=['POST'])
+    def history(self, session_id=None, **kwargs):
+        """Reconstitue l'historique complet d'une conversation MIRO AI donnée."""
+        if not session_id:
+            return []
+        return request.env['miro.ai.log'].get_session_history(session_id)

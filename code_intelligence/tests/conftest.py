@@ -55,3 +55,35 @@ def live_client() -> OdooRpcClient:
         pytest.skip("No live 80k customer credit note found for live validation.")
 
     return client
+
+
+@pytest.fixture(scope="module")
+def alpha_company_id(live_client: OdooRpcClient) -> int:
+    """Resout 'Company Alpha' par NOM plutot que par id code en dur -- les ids
+    ne sont pas stables entre les deux machines du projet (todo/rules.md,
+    interoperabilite). Todo/contexte.txt section 321/322 : un id code en dur
+    (=1) a casse des tests J6 des que 'My Company' (qui etait id=1) a ete
+    archivee et que Company Alpha (id=2 sur cette instance, mais pas
+    garanti ailleurs) est devenue l'unique societe active.
+    """
+    admin_uid = live_client.authenticate_admin()
+    ids = live_client.execute_kw(
+        admin_uid, "res.company", "search", [[("name", "=", "Company Alpha")]], {"limit": 1},
+    )
+    if not ids:
+        pytest.skip("Company 'Company Alpha' not found -- run tools/full_setup.py first.")
+    return int(ids[0])
+
+
+@pytest.fixture(scope="module")
+def invalid_company_id(live_client: OdooRpcClient) -> int:
+    """Id garanti ne correspondre a AUCUN res.company reel, calcule
+    dynamiquement (max des ids existants + marge) plutot que code en dur --
+    utilise pour declencher le rejet Odoo 'unauthorized/invalid company'
+    sans dependre d'une societe archivee ou etrangere specifique.
+    """
+    admin_uid = live_client.authenticate_admin()
+    ids = live_client.execute_kw(
+        admin_uid, "res.company", "search", [[]], {"context": {"active_test": False}},
+    )
+    return (max(ids) if ids else 0) + 1000

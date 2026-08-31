@@ -4,6 +4,7 @@ rag/schemas.py
 Pydantic models for structured RAG output.
 """
 
+import os
 from enum import Enum
 from typing import Dict, List, Optional
 from pydantic import BaseModel, ConfigDict, Field
@@ -29,12 +30,37 @@ class SourceReference(BaseModel):
     page: Optional[int] = Field(default=None, description="Page number if applicable (e.g., for PDFs)")
 
 
+def source_display_title(meta: dict) -> str:
+    """
+    User-facing title for a chunk's metadata -- section 338 (todo/contexte.txt):
+    ingestion stores the absolute file path as 'source' (separate, unfixed
+    debt), so falling back to it directly leaks the local filesystem layout
+    into the answer text. Falls back to the basename instead when 'title' is
+    absent, never the full path.
+    """
+    title = meta.get("title")
+    if title:
+        return title
+    return os.path.basename(meta.get("source", "unknown"))
+
+
 class LLMResponse(BaseModel):
     """Internal model for the LLM output before formatting."""
     model_config = ConfigDict(strict=True)
     
     answer: str = Field(..., description="The main text of the assistant's answer in French")
     confidence: float = Field(..., ge=0.0, le=1.0, description="Confidence score of the answer from 0.0 to 1.0")
+    used_sources: List[str] = Field(
+        default_factory=list,
+        description=(
+            "Short per-turn source aliases (e.g. 'S1', 'S2', matching the "
+            "'[Source Sx]' markers in the supplied context) that were "
+            "actually drawn on to write 'answer'. Aliases are local to this "
+            "single call, never a stable id or file path -- section 336 "
+            "(todo/contexte.txt), lets format_output() show only chunks "
+            "genuinely used instead of every chunk retrieved."
+        ),
+    )
 
 
 class OmittedForAuthorization(BaseModel):

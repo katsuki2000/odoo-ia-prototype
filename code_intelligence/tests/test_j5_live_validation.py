@@ -83,9 +83,14 @@ def test_regional_user_has_live_billing_group_and_write_acl(live_client: OdooRpc
         [users[0]["groups_id"]],
         {"fields": ["name"]},
     )
-    groups_by_id = {group["id"]: group["name"] for group in groups}
-    assert groups_by_id[26] == "Billing"
-    assert groups_by_id[70] == "Avoirs - Visibilite Regionale"
+    # Compare par NOM plutot que par id res.groups code en dur -- les ids de
+    # res.groups dependent de l'ordre d'installation des modules, jamais
+    # stables entre les deux machines du projet (todo/rules.md,
+    # interoperabilite ; meme famille de fix que alpha_company_id/
+    # invalid_company_id dans conftest.py, todo/contexte.txt section 321/322).
+    group_names = {group["name"] for group in groups}
+    assert "Billing" in group_names
+    assert "Avoirs - Visibilite Regionale" in group_names
 
     uid = _authenticate(live_client, "test_regional_2026")
     assert live_client.check_access_rights(uid, "account.move", "read") is True

@@ -42,6 +42,17 @@ CHROMA_PATH  = "./document_rag/vectorstore/chroma_db"
 # (~/odoo-ia-prototype next to ~/odoo-17.0).
 CORE_ADDONS_PATH = os.getenv("CORE_ADDONS_PATH") or str(_ROOT.parent / "odoo-17.0" / "addons")
 CUSTOM_ADDONS_PATH = os.getenv("CUSTOM_ADDONS_PATH") or str(_ROOT / "odoo_addons")
+
+# -- RAG documentary source path ----------------------
+# Machine-dependent by convention (todo/rules.md, same pattern as the two
+# addons paths above): configurable via env, with a portable fallback
+# computed relative to this repo's own location, never a hardcoded
+# absolute path. Points at the real (non-fake) documents corpus used by
+# the documentary RAG branch (todo/contexte.txt section 351-352):
+# document_rag/fake_data/documents/ was the original placeholder location
+# and is no longer populated -- document_rag/documents/ is the real
+# corpus going forward.
+RAG_DOCS_PATH = os.getenv("RAG_DOCS_PATH") or str(_ROOT / "document_rag" / "documents")
 # Core FRAMEWORK addons (base, web, ...) -- in a standard Odoo git checkout
 # these live under <repo>/odoo/addons/, a SIBLING of <repo>/addons/ (which is
 # what CORE_ADDONS_PATH points at, the community addons repo -- account/
@@ -59,6 +70,26 @@ CORE_FRAMEWORK_ADDONS_PATH = os.getenv("CORE_FRAMEWORK_ADDONS_PATH") or str(Path
 # Disabled by default to prevent CPU bottlenecks / non-AVX2 freezes.
 # Can be enabled explicitly via environment variable USE_RERANKER=true.
 USE_RERANKER = os.getenv("USE_RERANKER", "false").lower() in ("true", "1", "yes")
+
+# Absolute cosine similarity floor applied in vector_search() before any
+# result is allowed into the RRF fusion (todo/contexte.txt section
+# 292/293, Bug C root cause: vector_search() had no relevance floor at
+# all, only a top_k truncation, so on a small corpus (e.g. ~198 documents)
+# it handed back near-arbitrary neighbors even for an unrelated question
+# like "Bonjour" -- and RRF's rank-based normalization then dressed those
+# irrelevant matches up with high-looking fused scores). Calibrated
+# empirically via scripts/_diag_vector_similarity_floor.py on 2026-08-29:
+# off-topic queries ("Bonjour", "Hello") topped out around 0.19 raw cosine
+# similarity, while a genuinely relevant query ("Comment créer une facture
+# ?") stayed above 0.24 even at its 15th-best match -- 0.20 sits in that
+# gap with margin on both sides.
+# CAUTION -- embedding-backend dependent: measured on the all-MiniLM-L6-v2
+# model (384 dim) used by the current EMBEDDING_BACKEND=local_light
+# temporary fallback (see chroma_manager.py). NOT portable to
+# nomic-embed-text-v1.5 (768 dim, different embedding space) -- re-run the
+# diagnostic script and update this value (or override via env) whenever
+# EMBEDDING_BACKEND changes.
+VECTOR_SIMILARITY_FLOOR = float(os.getenv("VECTOR_SIMILARITY_FLOOR", "0.20"))
 
 # ── FastAPI ───────────────────────────────────────────
 API_HOST = "0.0.0.0"

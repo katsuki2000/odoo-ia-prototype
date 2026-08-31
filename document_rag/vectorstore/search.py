@@ -14,6 +14,7 @@ Usage:
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import re
@@ -26,7 +27,7 @@ from rank_bm25 import BM25Okapi
 
 # Add parent directory to path for config imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from config.settings import USE_RERANKER
+from config.settings import USE_RERANKER, VECTOR_SIMILARITY_FLOOR
 from document_rag.vectorstore.chroma_manager import ChromaManager
 
 logger = logging.getLogger(__name__)
@@ -182,6 +183,7 @@ def vector_search(
     query: str,
     top_k: int = 12,
     where: dict[str, Any] | None = None,
+    min_similarity: float = VECTOR_SIMILARITY_FLOOR,
 ) -> list[dict[str, Any]]:
     """
     Vector similarity search via ChromaDB.
@@ -193,9 +195,20 @@ def vector_search(
         query: Search query text
         top_k: Number of results to return
         where: Optional ChromaDB metadata filter
+        min_similarity: Absolute cosine similarity floor (todo/contexte.txt
+            section 292/293, Bug C root cause). ChromaDB's n_results only
+            truncates a ranked list -- it never checks whether a result is
+            actually relevant, so on a small corpus a query with no real
+            match (e.g. a greeting) still returns near-arbitrary neighbors
+            with a real-looking rank. Filtering here, upstream of RRF, is
+            required because RRF fuses RANKS rather than similarity
+            values, so an irrelevant result can still end up with a high
+            fused score. See VECTOR_SIMILARITY_FLOOR in config/settings.py
+            for how this default was calibrated.
 
     Returns:
-        List of result dicts with id, document, metadata, similarity score
+        List of result dicts with id, document, metadata, similarity score,
+        restricted to results at or above min_similarity.
     """
     managers = chroma_manager if isinstance(chroma_manager, list) else [chroma_manager]
 
@@ -210,6 +223,8 @@ def vector_search(
             )
             continue
         for item in raw.get("results", []):
+            if item["similarity"] < min_similarity:
+                continue
             results.append({
                 "id": item["id"],
                 "document": item["document"],
@@ -319,6 +334,7 @@ def hybrid_search(
     vector_weight: float = 0.6,
     bm25_weight: float = 0.4,
     relevance_threshold: float = 0.3,
+    min_similarity: float = VECTOR_SIMILARITY_FLOOR,
     where: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     """
@@ -332,13 +348,16 @@ def hybrid_search(
         vector_weight: Weight for vector results in RRF
         bm25_weight: Weight for BM25 results in RRF
         relevance_threshold: Minimum RRF score to keep
+        min_similarity: Absolute cosine similarity floor passed through to
+            vector_search() (see its docstring; todo/contexte.txt section
+            292/293, Bug C root cause)
         where: Optional ChromaDB metadata filter for vector search
 
     Returns:
         Fused results sorted by combined RRF score
     """
     # Run both searches in parallel (sequentially here, but independent)
-    vec_results = vector_search(chroma_manager, query, top_k=top_k, where=where)
+    vec_results = vector_search(chroma_manager, query, top_k=top_k, where=where, min_similarity=min_similarity)
     bm25_results_ = bm25_search(bm25_index, query, top_k=top_k)
 
     logger.info(
@@ -436,6 +455,7 @@ def retrieve(
     vector_weight: float = 0.6,
     bm25_weight: float = 0.4,
     relevance_threshold: float = 0.3,
+    min_similarity: float = VECTOR_SIMILARITY_FLOOR,
     use_reranker: bool = USE_RERANKER,
     where: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
@@ -451,7 +471,12 @@ def retrieve(
         bm25_index: Built BM25Index instance (created and built if None)
         vector_weight: Weight for vector results in RRF
         bm25_weight: Weight for BM25 results in RRF
-        relevance_threshold: Minimum RRF score to keep
+        relevance_threshold: Minimum RRF score to keep (RRF-level; operates
+            on rank-based fused scores, not real similarity -- see Bug C,
+            todo/contexte.txt section 292)
+        min_similarity: Absolute cosine similarity floor applied upstream
+            in vector_search(), before RRF even sees the candidates (Bug C
+            root cause, todo/contexte.txt section 292/293)
         use_reranker: Whether to apply cross-encoder re-ranking
         where: Optional ChromaDB metadata filter
 
@@ -467,25 +492,20 @@ def retrieve(
         bm25_index = BM25Index()
         bm25_index.build_from_chroma(chroma_manager)
 
-    # Query intent classification for dynamic weights and collection routing
-    query_lower = query.lower()
-    code_keywords = ["classe", "modèle", "fichier", ".py", "sale.", "stock.", "account.",
-                     "méthode", "fonction", "héritage", "inherit", "_name", "def ", "class ",
-                     "structuré", "étendue", "défini", "gère"]
-    is_code_query = any(kw in query_lower for kw in code_keywords)
-
-    if is_code_query:
-        vector_weight = 0.3
-        bm25_weight = 0.7
-        # Si on a une liste de managers, ne garder que le code manager
-        if isinstance(chroma_manager, list) and len(chroma_manager) > 1:
-            chroma_manager_for_search = [chroma_manager[1]]  # odoo_code only
-        else:
-            chroma_manager_for_search = chroma_manager
-    else:
-        vector_weight = 0.7
-        bm25_weight = 0.3
-        chroma_manager_for_search = chroma_manager
+    # Section 349-350 (todo/contexte.txt): the documentary RAG branch no
+    # longer ingests code (Code Intelligence owns code exclusively; RAG is
+    # docs-only, last-resort fallback). The former is_code_query routing
+    # to a second 'odoo_code' collection is dead weight now -- that
+    # collection is never populated by default, so the branch always
+    # queried an empty collection. Root cause fixed at the source
+    # (get_retriever() below no longer builds an odoo_code manager at
+    # all), so this function now always searches the single docs
+    # collection it is given, with the weights previously reserved for
+    # the documentary case (vector-heavy, since prose favors semantic
+    # over keyword matching).
+    vector_weight = 0.7
+    bm25_weight = 0.3
+    chroma_manager_for_search = chroma_manager
 
     # Step 1+2: Hybrid search (vector + BM25 + RRF)
     # Retrieve more candidates than needed for re-ranking
@@ -498,7 +518,13 @@ def retrieve(
         top_k=max(100, candidate_count),
         vector_weight=vector_weight,
         bm25_weight=bm25_weight,
-        relevance_threshold=0.01,  # Lower threshold to keep more items for top_k truncation
+        # RRF fuses ranks, not relevance -- kept permissive on purpose,
+        # since real filtering now happens upstream via min_similarity
+        # (Bug C root cause, todo/contexte.txt section 292/293). This
+        # threshold's only remaining job is to keep enough candidates
+        # around for the top_k truncation once irrelevant ones are gone.
+        relevance_threshold=0.01,
+        min_similarity=min_similarity,
         where=where,
     )
 
@@ -517,29 +543,90 @@ def retrieve(
         len(final_results), query[:80]
     )
 
+    # Section 289/290 (todo/contexte.txt), point (2) -- Bug C instrumentation.
+    # Structured trace of the FINAL results actually handed to generate():
+    # question, candidate pool size before/after rerank, and per-result
+    # rank/id/score/score_type/source/type. Goal: confirm or infirm
+    # empirically whether low-signal questions (e.g. "Bonjour") receive
+    # irrelevant chunks (e.g. frontend source code cited for a greeting)
+    # because of an overly permissive retrieval pipeline, rather than
+    # deducing it from code reading alone. Mirrors the same
+    # json.dumps({"event": ...}) structured-log convention already used by
+    # core/graph.py::query_graph() for latency metrics.
+    # Bug A (todo/contexte.txt section 289/292) -- top1 chunk excerpt, bounded
+    # to avoid log bloat. Lets the exact text handed to generate() be
+    # inspected directly instead of deducing whether literal HTML entities
+    # (e.g. &#039;, <br/>) originate from the indexed chunk itself, the LLM,
+    # or a later rendering step.
+    top1_excerpt = None
+    if final_results:
+        top1 = final_results[0]
+        top1_excerpt = {
+            "id": top1.get("id"),
+            "source": (top1.get("metadata") or {}).get("source", "unknown"),
+            "type": (top1.get("metadata") or {}).get("type", "unknown"),
+            "score": top1.get("cross_encoder_score", top1.get("rrf_score", top1.get("score"))),
+            "text_excerpt": (top1.get("document") or "")[:400],
+        }
+
+    try:
+        logger.info(json.dumps({
+            "event": "retrieval_trace",
+            "question": query,
+            "vector_weight": vector_weight,
+            "bm25_weight": bm25_weight,
+            "candidate_count_before_rerank": len(fused_results),
+            "final_count": len(final_results),
+            "reranker_used": bool(use_reranker and len(fused_results) > 1),
+            "top1": top1_excerpt,
+            "results": [
+                {
+                    "rank": i + 1,
+                    "id": r.get("id"),
+                    "score": r.get("cross_encoder_score", r.get("rrf_score", r.get("score"))),
+                    "score_type": (
+                        "cross_encoder" if "cross_encoder_score" in r
+                        else "rrf" if "rrf_score" in r
+                        else "raw"
+                    ),
+                    "source": (r.get("metadata") or {}).get("source", "unknown"),
+                    "type": (r.get("metadata") or {}).get("type", "unknown"),
+                }
+                for i, r in enumerate(final_results)
+            ],
+        }))
+    except Exception as e:
+        # Never let tracing/logging failures break the retrieval pipeline itself.
+        logger.warning("retrieval_trace logging failed (non-blocking): %s", e)
+
     return final_results
 
 
 # ── Convenience: Singleton manager for reuse ─────────────────────────────────
 
-_shared_chroma: list[ChromaManager] | None = None
+_shared_chroma: ChromaManager | None = None
 _shared_bm25: BM25Index | None = None
 
 
-def get_retriever() -> tuple[list[ChromaManager], BM25Index]:
+def get_retriever() -> tuple[ChromaManager, BM25Index]:
     """
-    Get or create shared ChromaManager and BM25Index instances.
+    Get or create the shared ChromaManager and BM25Index instances.
+
+    Section 349-350 (todo/contexte.txt): documentary RAG now searches only
+    the 'odoo_docs' collection -- Code Intelligence owns code exclusively,
+    RAG is a docs-only, last-resort fallback. No 'odoo_code' manager is
+    built here anymore: it was never populated by default since that
+    decision, so building it unconditionally on every startup was dead
+    weight (an extra ChromaDB connection plus an always-empty slice of
+    every BM25 index rebuild).
 
     Returns:
-        Tuple of (list[ChromaManager], BM25Index) ready for use
+        Tuple of (ChromaManager, BM25Index) ready for use
     """
     global _shared_chroma, _shared_bm25
 
     if _shared_chroma is None:
-        _shared_chroma = [
-            ChromaManager(collection_name="odoo_docs"),
-            ChromaManager(collection_name="odoo_code"),
-        ]
+        _shared_chroma = ChromaManager(collection_name="odoo_docs")
 
     if _shared_bm25 is None or not _shared_bm25.is_built:
         _shared_bm25 = BM25Index()

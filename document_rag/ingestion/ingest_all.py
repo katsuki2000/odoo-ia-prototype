@@ -8,8 +8,11 @@ Coordinates:
 4. Wiki and markdown chunking (ingestion/wiki_loader.py)
 5. ChromaDB population with embedding and storage (vectorstore/chroma_manager.py)
 
-Runs full ingestion of document_rag/fake_data/documents/ (docs) and a curated set of
-real Odoo module directories under CORE_ADDONS_ROOT/CUSTOM_ADDONS_ROOT (code) to ChromaDB.
+Runs full ingestion of the RAG_DOCS_PATH documents corpus (docs; defaults to
+document_rag/documents/, see config.settings) and a curated set of real Odoo
+module directories under CORE_ADDONS_ROOT/CUSTOM_ADDONS_ROOT (code) to
+ChromaDB. Code ingestion is skipped by default (todo/contexte.txt section
+349) -- pass an explicit code_dir to opt back in.
 """
 
 from __future__ import annotations
@@ -29,17 +32,20 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from document_rag.ingestion.code_loader import CodeLoader, load_python_directory, load_xml_directory, load_js_directory
 from document_rag.ingestion.pdf_loader import PDFLoader, load_pdf_directory
 from document_rag.ingestion.wiki_loader import WikiLoader, load_wiki_directory
+from document_rag.ingestion.scan_root import resolve_scan_root
 from document_rag.vectorstore.chroma_manager import ChromaManager
-from config.settings import CORE_ADDONS_PATH, CUSTOM_ADDONS_PATH
+from config.settings import CORE_ADDONS_PATH, CUSTOM_ADDONS_PATH, RAG_DOCS_PATH
 
 # Paths
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-# BUGFIX (2026-08-24): was "document_rag/fake_data" -- PROJECT_ROOT already
-# IS document_rag/ (see Path(__file__).resolve().parent.parent above, __file__
-# = document_rag/ingestion/ingest_all.py), so appending "document_rag/fake_data"
-# double-nested into a phantom document_rag/document_rag/fake_data/documents/
-FAKE_DATA_DIR = PROJECT_ROOT / "fake_data"
-DOCS_DIR = FAKE_DATA_DIR / "documents"
+# BUGFIX (section 351-352, todo/contexte.txt): DOCS_DIR used to be a
+# hardcoded FAKE_DATA_DIR / "documents" (fake_data/documents/), a
+# placeholder corpus that is no longer populated. Now reads from
+# config.settings.RAG_DOCS_PATH (env-overridable, portable fallback to
+# document_rag/documents/, the real corpus) -- same class of rule
+# violation (todo/rules.md, no hardcoded paths) already fixed for the
+# addons paths (section 231/242).
+DOCS_DIR = Path(RAG_DOCS_PATH)
 LOGS_DIR = PROJECT_ROOT / "ingestion" / "logs"
 
 # BUGFIX (section 242, todo/contexte.txt): was a hardcoded absolute path
@@ -196,13 +202,25 @@ class IngestionOrchestrator:
         }
 
         self.last_docs_dir: str | Path = DOCS_DIR
-        self.last_code_dir: Optional[str | Path] = CODE_DIR
+        # Section 349 (todo/contexte.txt): decision produit permanente --
+        # la branche RAG documentaire n'ingere plus jamais de code (Code
+        # Intelligence s'en charge separement). Defaut "" (skip explicite),
+        # plus CODE_DIR (None = scope curate CODE_DIRS) -- CODE_DIRS reste
+        # defini plus bas pour compat/usage explicite, juste plus jamais
+        # le defaut.
+        self.last_code_dir: Optional[str | Path] = ""
         self.last_incremental: bool = False
 
     def ingest_all(
         self,
         docs_dir: str | Path = DOCS_DIR,
-        code_dir: Optional[str | Path] = CODE_DIR,
+        # Section 349 (todo/contexte.txt): defaut change de CODE_DIR (None
+        # = scope curate CODE_DIRS) a "" (skip explicite) -- decision
+        # produit permanente, la branche RAG documentaire n'ingere plus le
+        # code. Un appelant qui veut toujours ingerer du code doit
+        # desormais le demander explicitement via code_dir=CODE_DIR ou un
+        # chemin precis.
+        code_dir: Optional[str | Path] = "",
         incremental: bool = False,
     ) -> dict[str, Any]:
         """
@@ -293,7 +311,7 @@ class IngestionOrchestrator:
             logger.info(f"Found {len(pdf_files)} PDF files")
             start = time.time()
             try:
-                self._load_and_ingest_pdfs(docs_dir)
+                self._load_and_ingest_pdfs(docs_dir, scan_root=docs_dir)
             except Exception as e:
                 logger.error(f"Error loading PDFs: {e}")
             elapsed = time.time() - start
@@ -307,7 +325,7 @@ class IngestionOrchestrator:
             logger.info(f"Found {len(txt_files)} .txt and {len(md_files)} .md files")
             start = time.time()
             try:
-                self._load_and_ingest_wiki(docs_dir)
+                self._load_and_ingest_wiki(docs_dir, scan_root=docs_dir)
             except Exception as e:
                 logger.error(f"Error loading wiki files: {e}")
             elapsed = time.time() - start
@@ -320,13 +338,19 @@ class IngestionOrchestrator:
             logger.warning(f"Code directory not found: {code_dir}")
             return
 
+        # `source` metadata must stay relative to the shared addons root
+        # (not code_dir itself, usually a single module directory) so two
+        # modules with a same-named file (e.g. models/__init__.py) never
+        # collide on `source` (todo/contexte.txt section 347).
+        scan_root = resolve_scan_root(code_dir, [CORE_ADDONS_ROOT, CUSTOM_ADDONS_ROOT]) or code_dir
+
         # Load Python files
         py_files = list(code_dir.rglob("*.py"))
         if py_files:
             logger.info(f"Found {len(py_files)} Python files")
             start = time.time()
             try:
-                self._load_and_ingest_python(code_dir)
+                self._load_and_ingest_python(code_dir, scan_root=scan_root)
             except Exception as e:
                 logger.error(f"Error loading Python files: {e}")
             elapsed = time.time() - start
@@ -339,7 +363,7 @@ class IngestionOrchestrator:
             logger.info(f"Found {len(xml_files)} XML files")
             start = time.time()
             try:
-                self._load_and_ingest_xml(code_dir)
+                self._load_and_ingest_xml(code_dir, scan_root=scan_root)
             except Exception as e:
                 logger.error(f"Error loading XML files: {e}")
             elapsed = time.time() - start
@@ -352,7 +376,7 @@ class IngestionOrchestrator:
             logger.info(f"Found {len(js_files)} JS files")
             start = time.time()
             try:
-                self._load_and_ingest_js(code_dir)
+                self._load_and_ingest_js(code_dir, scan_root=scan_root)
             except Exception as e:
                 logger.error(f"Error loading JS files: {e}")
             elapsed = time.time() - start
@@ -365,14 +389,14 @@ class IngestionOrchestrator:
             logger.info(f"Found {len(csv_files)} CSV files")
             start = time.time()
             try:
-                self._load_and_ingest_csv(code_dir)
+                self._load_and_ingest_csv(code_dir, scan_root=scan_root)
             except Exception as e:
                 logger.error(f"Error loading CSV files: {e}")
             elapsed = time.time() - start
             self.stats["load_times"]["csv"] = elapsed
             logger.info(f"CSV ingestion took {elapsed:.2f}s")
 
-    def _load_and_ingest_pdfs(self, docs_dir: Path) -> None:
+    def _load_and_ingest_pdfs(self, docs_dir: Path, scan_root: Optional[Path] = None) -> None:
         """Load and ingest PDF documents."""
         loader = PDFLoader(
             chunk_size=self.chunk_size,
@@ -382,7 +406,7 @@ class IngestionOrchestrator:
         for pdf_file in docs_dir.glob("*.pdf"):
             try:
                 logger.info(f"  Processing: {pdf_file.name}")
-                result = loader.load_and_chunk(pdf_file)
+                result = loader.load_and_chunk(pdf_file, scan_root=scan_root)
 
                 chunks = result["chunks"]
                 metadatas = result["metadatas"]
@@ -407,7 +431,7 @@ class IngestionOrchestrator:
             except Exception as e:
                 logger.error(f"  Error processing {pdf_file.name}: {e}")
 
-    def _load_and_ingest_wiki(self, docs_dir: Path) -> None:
+    def _load_and_ingest_wiki(self, docs_dir: Path, scan_root: Optional[Path] = None) -> None:
         """Load and ingest wiki/markdown documents."""
         loader = WikiLoader(
             chunk_size=self.chunk_size,
@@ -417,7 +441,7 @@ class IngestionOrchestrator:
         for txt_file in docs_dir.glob("*.txt"):
             try:
                 logger.info(f"  Processing: {txt_file.name}")
-                result = loader.load_text_file(txt_file)
+                result = loader.load_text_file(txt_file, scan_root=scan_root)
 
                 chunks = result["chunks"]
                 metadatas = result["metadatas"]
@@ -438,7 +462,7 @@ class IngestionOrchestrator:
         for md_file in docs_dir.glob("*.md"):
             try:
                 logger.info(f"  Processing: {md_file.name}")
-                result = loader.load_markdown_file(md_file)
+                result = loader.load_markdown_file(md_file, scan_root=scan_root)
 
                 chunks = result["chunks"]
                 metadatas = result["metadatas"]
@@ -456,7 +480,7 @@ class IngestionOrchestrator:
             except Exception as e:
                 logger.error(f"  Error processing {md_file.name}: {e}")
 
-    def _load_and_ingest_python(self, code_dir: Path) -> None:
+    def _load_and_ingest_python(self, code_dir: Path, scan_root: Optional[Path] = None) -> None:
         """Load and ingest Python code files."""
         loader = CodeLoader(
             chunk_size=self.chunk_size,
@@ -474,7 +498,7 @@ class IngestionOrchestrator:
 
             try:
                 logger.info(f"  Processing: {py_file.relative_to(code_dir)}")
-                result = loader.load_python_file(py_file)
+                result = loader.load_python_file(py_file, scan_root=scan_root)
 
                 chunks = result["chunks"]
                 metadatas = result["metadatas"]
@@ -503,7 +527,7 @@ class IngestionOrchestrator:
             except Exception as e:
                 logger.error(f"  Error processing {py_file}: {e}")
 
-    def _load_and_ingest_xml(self, code_dir: Path) -> None:
+    def _load_and_ingest_xml(self, code_dir: Path, scan_root: Optional[Path] = None) -> None:
         """Load and ingest XML code files."""
         loader = CodeLoader(
             chunk_size=self.chunk_size,
@@ -520,7 +544,7 @@ class IngestionOrchestrator:
                 continue
             try:
                 logger.info(f"  Processing: {xml_file.relative_to(code_dir)}")
-                result = loader.load_xml_file(xml_file)
+                result = loader.load_xml_file(xml_file, scan_root=scan_root)
 
                 chunks = result["chunks"]
                 metadatas = result["metadatas"]
@@ -549,7 +573,7 @@ class IngestionOrchestrator:
             except Exception as e:
                 logger.error(f"  Error processing {xml_file}: {e}")
 
-    def _load_and_ingest_js(self, code_dir: Path) -> None:
+    def _load_and_ingest_js(self, code_dir: Path, scan_root: Optional[Path] = None) -> None:
         """Load and ingest JavaScript code files."""
         loader = CodeLoader(
             chunk_size=self.chunk_size,
@@ -566,7 +590,7 @@ class IngestionOrchestrator:
                 continue
             try:
                 logger.info(f"  Processing: {js_file.relative_to(code_dir)}")
-                result = loader.load_js_file(js_file)
+                result = loader.load_js_file(js_file, scan_root=scan_root)
 
                 chunks = result["chunks"]
                 metadatas = result["metadatas"]
@@ -595,7 +619,7 @@ class IngestionOrchestrator:
             except Exception as e:
                 logger.error(f"  Error processing {js_file}: {e}")
 
-    def _load_and_ingest_csv(self, code_dir: Path) -> None:
+    def _load_and_ingest_csv(self, code_dir: Path, scan_root: Optional[Path] = None) -> None:
         """Load and ingest CSV code files."""
         loader = CodeLoader(
             chunk_size=self.chunk_size,
@@ -605,7 +629,7 @@ class IngestionOrchestrator:
         for csv_file in code_dir.rglob("*.csv"):
             try:
                 logger.info(f"  Processing: {csv_file.relative_to(code_dir)}")
-                result = loader.load_csv_file(csv_file)
+                result = loader.load_csv_file(csv_file, scan_root=scan_root)
 
                 chunks = result["chunks"]
                 metadatas = result["metadatas"]
@@ -682,16 +706,23 @@ def main():
     parser.add_argument(
         "--code-dir",
         type=str,
-        default=CODE_DIR,
+        # Section 349 (todo/contexte.txt): default changed from CODE_DIR to
+        # "" -- the documentary RAG branch no longer ingests code by
+        # default (permanent product decision: Code Intelligence owns
+        # code, this RAG branch owns documents only). Pass --code-dir
+        # explicitly (a path, or CODE_DIR's sentinel value None isn't
+        # expressible on the CLI) to opt back into code ingestion for a
+        # one-off run.
+        default="",
         help=(
-            "Path to a single code directory to ingest. Pass an empty "
-            "string ('') to explicitly skip code ingestion. If omitted "
-            "entirely, ingests the curated real-corpus module scope "
-            "(CODE_DIRS -- see _documentary_code_module_dirs()). Kept as "
-            "a plain str (not Path) so an explicit '' on the command "
-            "line survives as a real empty string -- Path('') collapses "
-            "to '.', silently defeating the code_dir='' skip sentinel "
-            "used by ingest_all()/clear_and_reingest()."
+            "Path to a single code directory to ingest. Empty by default "
+            "('') -- the documentary RAG branch no longer ingests code "
+            "(section 349, todo/contexte.txt). Pass an explicit directory "
+            "path to opt back in for a one-off run. Kept as a plain str "
+            "(not Path) so an explicit '' on the command line survives as "
+            "a real empty string -- Path('') collapses to '.', silently "
+            "defeating the code_dir='' skip sentinel used by "
+            "ingest_all()/clear_and_reingest()."
         ),
     )
     parser.add_argument(

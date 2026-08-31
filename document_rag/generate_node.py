@@ -14,7 +14,7 @@ from typing import Optional
 from langchain_groq import ChatGroq
 
 from config.settings import GROQ_MODEL
-from core.schemas import AssistantResponse, LLMResponse
+from core.schemas import AssistantResponse, LLMResponse, SourceReference, source_display_title
 from core.routing import RAGState, _is_out_of_scope, OUT_OF_SCOPE_ANSWER
 # Section 263 (todo/contexte.txt): multi-key Groq rotation / rate-limit
 # retry, same mechanism already used by the Code Intelligence branch.
@@ -42,6 +42,74 @@ def _build_groq_llm(**kwargs):
     unit tests (tests/test_graph.py) remain unaffected -- only the
     constructor args change, not which class gets instantiated."""
     return _get_chat_groq()(model=GROQ_MODEL, api_key=_current_groq_key(), **kwargs)
+
+
+def _build_source_aliases(chunks: list) -> dict:
+    """
+    Build a short, per-call alias map (S1, S2, ...) over the retrieved
+    chunks -- section 336 (todo/contexte.txt): the LLM is never shown the
+    raw ChromaDB chunk id (which embeds the ingesting machine's absolute
+    file path and can run to ~170 characters), only these small aliases.
+    Rebuilt fresh on every generate() call from `chunks` (a plain local
+    dict, never module-level state) -- never persisted or reused across
+    turns, so an alias can never silently end up pointing at a different
+    chunk on a later call.
+    """
+    return {f"S{i + 1}": chunk for i, chunk in enumerate(chunks)}
+
+
+def _verify_used_sources(used_source_aliases: list, alias_map: dict) -> list:
+    """
+    Deterministic verification of the LLM's declared 'used_sources'
+    (per-call aliases such as 'S1', from `_build_source_aliases()`)
+    against the aliases actually offered in this turn's context (section
+    331-333, 336, todo/contexte.txt) -- the LLM's list is never trusted
+    blindly.
+
+    Three explicit outcomes:
+    - full/partial match: only the verified aliases become SourceReference
+      entries, in retrieval order (the order `alias_map` was built in).
+    - empty declared list: returns [] (format_output()'s existing
+      chunk-listing fallback takes over downstream).
+    - unknown alias(es): logged as a distinct 'invalid_used_sources'
+      warning and excluded; if nothing valid remains, also returns [] and
+      the same fallback applies.
+    """
+    if not used_source_aliases:
+        return []
+
+    valid_aliases = []
+    invalid_aliases = []
+    seen = set()
+    for alias in used_source_aliases:
+        if alias not in alias_map:
+            invalid_aliases.append(alias)
+        elif alias not in seen:
+            valid_aliases.append(alias)
+            seen.add(alias)
+
+    if invalid_aliases:
+        logger.warning(
+            "invalid_used_sources: LLM cited unknown source alias(es) %s (available aliases: %s)",
+            invalid_aliases, list(alias_map.keys()),
+        )
+
+    if not valid_aliases:
+        return []
+
+    verified = []
+    for alias, chunk in alias_map.items():
+        if alias in valid_aliases:
+            meta = chunk.get("metadata") or {}
+            doc = chunk.get("document", "")
+            snippet = doc[:100] + "..." if len(doc) > 100 else doc
+            verified.append(SourceReference(
+                source=meta.get("source", "unknown"),
+                doc_type=meta.get("type", "document"),
+                title=source_display_title(meta),
+                snippet=snippet,
+            ))
+    return verified
 
 
 def compute_rag_confidence(chunks: list, is_out_of_scope: bool = False) -> float:
@@ -147,14 +215,14 @@ def generate(state: RAGState) -> dict:
 
     from core.prompts import build_messages
 
-    # Build context text
+    # Build context text -- section 336 (todo/contexte.txt): expose only
+    # short per-call aliases (S1, S2, ...) to the LLM, never the raw
+    # ChromaDB chunk id (absolute path + hash, unwieldy for citation).
+    alias_map = _build_source_aliases(chunks)
     context_text = ""
-    for i, chunk in enumerate(chunks):
+    for alias, chunk in alias_map.items():
         doc_text = chunk.get("document", "")
-        # Coding rule: dict.get for metadata
-        metadata = chunk.get("metadata") or {}
-        source = metadata.get("source", "unknown")
-        context_text += f"[Source {i+1}: {source}]\n{doc_text}\n\n"
+        context_text += f"[Source {alias}]\n{doc_text}\n\n"
 
     # Build memory + prompt
     chat_history = state.get("chat_history", [])
@@ -178,7 +246,7 @@ def generate(state: RAGState) -> dict:
         response = AssistantResponse(
             answer=llm_resp.answer,
             confidence=llm_resp.confidence,
-            sources=[]
+            sources=_verify_used_sources(llm_resp.used_sources, alias_map)
         )
     except Exception as e:
         logger.warning("Structured LLM Generation failed (%s) → falling back to raw invoke", e)

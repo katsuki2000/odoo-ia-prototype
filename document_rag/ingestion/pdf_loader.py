@@ -34,6 +34,8 @@ except ImportError:
 
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
+from document_rag.ingestion.scan_root import compute_source
+
 logger = logging.getLogger(__name__)
 
 
@@ -78,6 +80,7 @@ class PDFLoader:
         self,
         pdf_path: str | Path,
         metadata: Optional[dict[str, Any]] = None,
+        scan_root: Optional[str | Path] = None,
     ) -> dict[str, Any]:
         """
         Load a PDF and chunk it with OCR detection.
@@ -85,6 +88,9 @@ class PDFLoader:
         Args:
             pdf_path: Path to PDF file
             metadata: Optional metadata to add to all chunks
+            scan_root: Logical root `source` is made relative to (see
+                document_rag/ingestion/scan_root.py). Falls back to the
+                absolute path when omitted.
 
         Returns:
             Dictionary with:
@@ -103,7 +109,7 @@ class PDFLoader:
 
         # Initialize metadata
         base_metadata = metadata or {}
-        base_metadata.setdefault("source", str(pdf_path))
+        base_metadata.setdefault("source", compute_source(pdf_path, scan_root))
         base_metadata.setdefault("type", "doc_pdf")
         base_metadata["file_size"] = pdf_path.stat().st_size
 
@@ -291,6 +297,7 @@ def load_pdf_directory(
     directory: str | Path,
     chunk_size: int = 512,
     chunk_overlap: int = 50,
+    scan_root: Optional[str | Path] = None,
 ) -> list[dict[str, Any]]:
     """
     Load all PDFs from a directory.
@@ -299,6 +306,8 @@ def load_pdf_directory(
         directory: Path to directory containing PDFs
         chunk_size: Chunk size for splitting
         chunk_overlap: Chunk overlap for splitting
+        scan_root: Logical root `source` is made relative to. Defaults to
+            `directory` itself when omitted.
 
     Returns:
         List of document dictionaries with chunks and metadatas
@@ -307,13 +316,14 @@ def load_pdf_directory(
     if not directory.is_dir():
         raise ValueError(f"Directory not found: {directory}")
 
+    root = Path(scan_root) if scan_root is not None else directory
     loader = PDFLoader(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
     documents = []
 
     for pdf_file in directory.glob("*.pdf"):
         try:
             logger.info(f"Processing {pdf_file.name}...")
-            result = loader.load_and_chunk(pdf_file)
+            result = loader.load_and_chunk(pdf_file, scan_root=root)
             documents.append(result)
         except Exception as e:
             logger.error(f"Error processing {pdf_file}: {e}")

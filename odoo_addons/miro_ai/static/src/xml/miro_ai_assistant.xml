@@ -16,10 +16,49 @@
                             Investigation Code Intelligence, exploration des données ERP et documentation interne.
                         </div>
                     </div>
-                    <div class="miro-ai-header-badges">
+                    <div class="miro-ai-header-badges d-flex align-items-center">
+                        <button class="btn btn-sm btn-outline-secondary mr-2" type="button" t-on-click="startNewConversation" title="Nouvelle conversation">
+                            <i class="fa fa-plus mr-1"/> Nouvelle conversation
+                        </button>
+                        <button class="btn btn-sm btn-outline-secondary mr-2" type="button" t-on-click="toggleHistory" title="Historique des conversations">
+                            <i class="fa fa-history mr-1"/> Historique
+                        </button>
                         <span class="badge badge-pill badge-primary px-3 py-2">
                             <i class="fa fa-shield mr-1"/> Odoo 17 Governance
                         </span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ================================================================= -->
+            <!-- Panneau Historique des Conversations (Bloc UX)                     -->
+            <!-- ================================================================= -->
+            <div t-if="state.showHistory" class="miro-history-overlay" t-on-click="toggleHistory">
+                <div class="miro-history-panel" t-on-click.stop="">
+                    <div class="miro-history-panel-header d-flex justify-content-between align-items-center">
+                        <strong><i class="fa fa-history mr-2"/>Conversations précédentes</strong>
+                        <button class="btn btn-sm btn-link text-muted p-0" t-on-click="toggleHistory" title="Fermer">
+                            <i class="fa fa-times"/>
+                        </button>
+                    </div>
+                    <div class="miro-history-panel-body">
+                        <div t-if="state.loadingSessions" class="text-muted text-center p-3">
+                            <i class="fa fa-spinner fa-spin mr-1"/> Chargement...
+                        </div>
+                        <div t-elif="state.sessions.length === 0" class="text-muted text-center p-3">
+                            Aucune conversation enregistrée.
+                        </div>
+                        <t t-else="">
+                            <div t-foreach="state.sessions" t-as="session" t-key="session.session_id"
+                                 class="miro-history-item" t-on-click="() => this.loadSession(session.session_id)">
+                                <div class="miro-history-item-preview" t-esc="session.preview"/>
+                                <div class="miro-history-item-meta text-muted small">
+                                    <span t-esc="formatSessionDate(session.last_activity)"/>
+                                    <span class="mx-1">·</span>
+                                    <span t-esc="session.message_count + ' échange(s)'"/>
+                                </div>
+                            </div>
+                        </t>
                     </div>
                 </div>
             </div>
@@ -164,21 +203,50 @@
                         <i class="fa fa-magic mr-2 text-primary fa-lg"/>
                         <strong>MIRO AI Assistant</strong>
                     </div>
-                    <button class="btn btn-sm btn-link text-muted p-0" t-on-click="closeDrawer" title="Fermer">
-                        <i class="fa fa-times fa-lg"/>
-                    </button>
+                    <div class="d-flex align-items-center">
+                        <button class="btn btn-sm btn-link text-muted p-0 mr-2" t-on-click="startNewConversation" title="Nouvelle conversation">
+                            <i class="fa fa-plus"/>
+                        </button>
+                        <button class="btn btn-sm btn-link text-muted p-0 mr-2" t-on-click="toggleHistory" title="Historique">
+                            <i class="fa fa-history"/>
+                        </button>
+                        <button class="btn btn-sm btn-link text-muted p-0" t-on-click="closeDrawer" title="Fermer">
+                            <i class="fa fa-times fa-lg"/>
+                        </button>
+                    </div>
                 </div>
 
                 <!-- Active Document / Model Context Bar -->
-                <div t-if="state.activeModelContext" class="miro-context-bar bg-light px-3 py-1 border-bottom small d-flex align-items-center">
+                <div t-if="!state.showHistory and state.activeModelContext" class="miro-context-bar bg-light px-3 py-1 border-bottom small d-flex align-items-center">
                     <i class="fa fa-bullseye text-primary mr-1"/>
                     <span class="text-muted mr-1">Contexte :</span>
                     <strong class="text-dark" t-esc="state.activeModelContext.displayName"/>
                     <span class="badge badge-light border ml-1" t-esc="state.activeModelContext.model"/>
                 </div>
 
+                <!-- Compact History List -->
+                <div t-if="state.showHistory" class="miro-drawer-history p-2">
+                    <div t-if="state.loadingSessions" class="text-muted text-center p-3 small">
+                        <i class="fa fa-spinner fa-spin mr-1"/> Chargement...
+                    </div>
+                    <div t-elif="state.sessions.length === 0" class="text-muted text-center p-3 small">
+                        Aucune conversation enregistrée.
+                    </div>
+                    <t t-else="">
+                        <div t-foreach="state.sessions" t-as="session" t-key="session.session_id"
+                             class="miro-history-item" t-on-click="() => this.loadSession(session.session_id)">
+                            <div class="miro-history-item-preview small" t-esc="session.preview"/>
+                            <div class="miro-history-item-meta text-muted small">
+                                <span t-esc="formatSessionDate(session.last_activity)"/>
+                                <span class="mx-1">·</span>
+                                <span t-esc="session.message_count + ' échange(s)'"/>
+                            </div>
+                        </div>
+                    </t>
+                </div>
+
                 <!-- Drawer Messages Container -->
-                <div class="miro-drawer-messages p-3" t-ref="drawerMessages">
+                <div t-if="!state.showHistory" class="miro-drawer-messages p-3" t-ref="drawerMessages">
                     <t t-foreach="state.messages" t-as="msg" t-key="msg.id">
                         <div t-att-class="'miro-ai-message miro-drawer-message ' + (msg.sender === 'user' ? 'user-message' : 'bot-message')">
                             <div class="d-flex justify-content-between align-items-center mb-1">
@@ -197,10 +265,10 @@
                                         <i class="fa fa-search mr-1 text-primary"/> Preuves (<t t-esc="msg.sources ? msg.sources.length : 0"/>)
                                     </summary>
                                     <div class="verification-content p-2 mt-1 bg-white rounded border">
-                                        <t t-if="msg.investigation_plan">
+                                        <t t-if="msg.investigation_plan and msg.investigation_plan.steps and msg.investigation_plan.steps.length">
                                             <div class="text-primary font-weight-bold mb-1">Plan d'investigation :</div>
                                             <ul class="pl-3 mb-2 small text-muted">
-                                                <t t-foreach="msg.investigation_plan.steps or []" t-as="st" t-key="st_index">
+                                                <t t-foreach="msg.investigation_plan.steps" t-as="st" t-key="st_index">
                                                     <li><strong t-esc="st.action"/>: <span t-esc="st.justification"/></li>
                                                 </t>
                                             </ul>
@@ -225,7 +293,7 @@
                 </div>
 
                 <!-- Drawer Input Area -->
-                <div class="miro-drawer-input p-2 border-top bg-white">
+                <div t-if="!state.showHistory" class="miro-drawer-input p-2 border-top bg-white">
                     <div class="input-group input-group-sm">
                         <input type="text" class="form-control" placeholder="Posez une question..."
                                t-model="state.inputQuestion" t-on-keydown="onKeyDown"/>

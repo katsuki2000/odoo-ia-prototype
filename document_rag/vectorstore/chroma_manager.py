@@ -386,13 +386,21 @@ class ChromaManager:
                 except Exception:
                     type_stats[doc_type] = 0
 
-            # Count by module
+            # Count by module. `module` is an Odoo-code-only concept (see
+            # code_loader.py::_extract_module_name()) -- document chunks
+            # (PDF/wiki) never carry this key and structurally never will.
+            # Chunks without it are excluded rather than bucketed under a
+            # fabricated "unknown" (todo/contexte.txt section 353/354):
+            # for a docs-only collection that produced a misleading
+            # {'unknown': N} for every single chunk, N being 100% of the
+            # collection, with zero real information content.
             module_stats = {}
             try:
                 results = self.collection.get(include=["metadatas"])
                 for metadata in results.get("metadatas", []):
-                    module = metadata.get("module", "unknown")
-                    module_stats[module] = module_stats.get(module, 0) + 1
+                    module = metadata.get("module")
+                    if module:
+                        module_stats[module] = module_stats.get(module, 0) + 1
             except Exception:
                 pass
 

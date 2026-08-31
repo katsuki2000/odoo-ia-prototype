@@ -24,6 +24,8 @@ from tree_sitter import Language, Node, Parser
 import tree_sitter_javascript as tsjs
 import tree_sitter_xml as tsxml
 
+from document_rag.ingestion.scan_root import compute_source
+
 logger = logging.getLogger(__name__)
 
 # Tree-sitter languages are loaded once at module level (parsing setup is
@@ -80,6 +82,7 @@ class CodeLoader:
         self,
         file_path: str | Path,
         metadata: Optional[dict[str, Any]] = None,
+        scan_root: Optional[str | Path] = None,
     ) -> dict[str, Any]:
         """
         Load and chunk a Python file with AST metadata.
@@ -87,6 +90,9 @@ class CodeLoader:
         Args:
             file_path: Path to Python file
             metadata: Optional base metadata
+            scan_root: Logical root `source` is made relative to (see
+                document_rag/ingestion/scan_root.py). Falls back to the
+                absolute path when omitted.
 
         Returns:
             Dictionary with chunks, metadatas, and ast_summary
@@ -105,14 +111,14 @@ class CodeLoader:
             source_code = f.read()
 
         base_metadata = metadata or {}
-        base_metadata.setdefault("source", str(file_path))
+        base_metadata.setdefault("source", compute_source(file_path, scan_root))
         base_metadata.setdefault("type", "code_python")
-        base_metadata.setdefault("module", self._extract_module_name(file_path))
+        base_metadata.setdefault("module", self._extract_module_name(file_path, scan_root))
 
         ast_info = self._extract_ast_info(source_code)
 
         # Construire un header résumant le fichier pour le retrieval
-        file_header = self._build_python_file_header(file_path, ast_info)
+        file_header = self._build_python_file_header(file_path, ast_info, scan_root=scan_root)
 
         # Préfixer le header au code source avant le chunking
         # pour que le premier chunk contienne toujours le résumé du fichier
@@ -166,6 +172,7 @@ class CodeLoader:
         self,
         file_path: str | Path,
         metadata: Optional[dict[str, Any]] = None,
+        scan_root: Optional[str | Path] = None,
     ) -> dict[str, Any]:
         """
         Load and chunk an XML file using tree-sitter structural parsing.
@@ -177,6 +184,9 @@ class CodeLoader:
         Args:
             file_path: Path to XML file
             metadata: Optional base metadata
+            scan_root: Logical root `source` is made relative to (see
+                document_rag/ingestion/scan_root.py). Falls back to the
+                absolute path when omitted.
 
         Returns:
             Dictionary with chunks, metadatas, and xml_summary
@@ -195,9 +205,9 @@ class CodeLoader:
             xml_content = f.read()
 
         base_metadata = metadata or {}
-        base_metadata.setdefault("source", str(file_path))
+        base_metadata.setdefault("source", compute_source(file_path, scan_root))
         base_metadata.setdefault("type", "code_xml")
-        base_metadata.setdefault("module", self._extract_module_name(file_path))
+        base_metadata.setdefault("module", self._extract_module_name(file_path, scan_root))
 
         elements = self._split_xml_by_records(xml_content)
 
@@ -332,6 +342,7 @@ class CodeLoader:
         self,
         file_path: str | Path,
         metadata: Optional[dict[str, Any]] = None,
+        scan_root: Optional[str | Path] = None,
     ) -> dict[str, Any]:
         """
         Load and chunk a JavaScript file using tree-sitter structural
@@ -345,6 +356,9 @@ class CodeLoader:
         Args:
             file_path: Path to JS file
             metadata: Optional base metadata
+            scan_root: Logical root `source` is made relative to (see
+                document_rag/ingestion/scan_root.py). Falls back to the
+                absolute path when omitted.
 
         Returns:
             Dictionary with chunks, metadatas, and js_summary
@@ -363,9 +377,9 @@ class CodeLoader:
             source_code = f.read()
 
         base_metadata = metadata or {}
-        base_metadata.setdefault("source", str(file_path))
+        base_metadata.setdefault("source", compute_source(file_path, scan_root))
         base_metadata.setdefault("type", "code_js")
-        base_metadata.setdefault("module", self._extract_module_name(file_path))
+        base_metadata.setdefault("module", self._extract_module_name(file_path, scan_root))
 
         units = self._split_js_by_units(source_code)
 
@@ -496,6 +510,7 @@ class CodeLoader:
         self,
         file_path: str | Path,
         metadata: Optional[dict[str, Any]] = None,
+        scan_root: Optional[str | Path] = None,
     ) -> dict[str, Any]:
         """
         Load and chunk a CSV file (e.g. Odoo ir.model.access.csv).
@@ -503,6 +518,9 @@ class CodeLoader:
         Args:
             file_path: Path to CSV file
             metadata: Optional base metadata
+            scan_root: Logical root `source` is made relative to (see
+                document_rag/ingestion/scan_root.py). Falls back to the
+                absolute path when omitted.
 
         Returns:
             Dictionary with chunks, metadatas, and csv_summary
@@ -518,9 +536,9 @@ class CodeLoader:
             content = f.read()
 
         base_metadata = metadata or {}
-        base_metadata.setdefault("source", str(file_path))
+        base_metadata.setdefault("source", compute_source(file_path, scan_root))
         base_metadata.setdefault("type", "code_csv")
-        base_metadata.setdefault("module", self._extract_module_name(file_path))
+        base_metadata.setdefault("module", self._extract_module_name(file_path, scan_root))
 
         csv_splitter = RecursiveCharacterTextSplitter.from_tiktoken_encoder(
             chunk_size=self.chunk_size,
@@ -566,11 +584,43 @@ class CodeLoader:
             # Fallback heuristic if the tokenizer isn't accessible for any reason.
             return len(text) // 4
 
-    def _extract_module_name(self, file_path: Path) -> str:
-        """Extract module name from file path (e.g., 'account', 'sale')."""
-        for part in file_path.parts:
-            if part in ("account", "sale", "stock", "base", "hr"):
-                return part
+    def _extract_module_name(
+        self, file_path: Path, scan_root: Optional[Path] = None
+    ) -> str:
+        """Extract module name from file path.
+
+        Derived structurally from scan_root rather than a fixed keyword
+        list: ingest_all.py::_ingest_code_dir() always calls each loader
+        with scan_root resolved to the shared addons root (CORE_ADDONS_ROOT
+        or CUSTOM_ADDONS_ROOT, see resolve_scan_root() in scan_root.py),
+        and every code_dir it walks IS itself a single module directory
+        (mod_dir = addons_root / module_name, see CODE_DIRS in
+        ingest_all.py) -- so the first path segment relative to scan_root
+        is the module name, by construction of that layout, for ANY module
+        actually curated (account/sale/stock, miro_ai, every custom_*
+        module and its direct dependencies -- todo/contexte.txt sections
+        347-350).
+
+        Replaces a hardcoded whitelist ("account"/"sale"/"stock"/"base"/
+        "hr") that predated the curated CODE_DIRS scope and silently fell
+        back to "unknown" for miro_ai, every custom_* module, and any
+        dependency outside that stale list (todo/contexte.txt sections
+        356/358) -- a chunk from a real, correctly-ingested module was
+        being mislabeled as if it belonged to no module at all.
+
+        Falls back to "unknown" when no scan_root is given (e.g. a loader
+        called directly, outside the ingest_all.py orchestration) or when
+        file_path isn't actually under scan_root -- same fallback the old
+        whitelist used for anything it didn't recognize, just triggered by
+        a structural check instead of a fixed keyword list.
+        """
+        if scan_root is not None:
+            try:
+                rel = Path(file_path).resolve().relative_to(Path(scan_root).resolve())
+            except ValueError:
+                rel = None
+            if rel is not None and rel.parts:
+                return rel.parts[0]
         return "unknown"
 
     def _extract_ast_info(self, source_code: str) -> dict[str, Any]:
@@ -659,7 +709,12 @@ class CodeLoader:
                 found.append(name)
         return found
 
-    def _build_python_file_header(self, file_path: Path, ast_info: dict[str, Any]) -> str:
+    def _build_python_file_header(
+        self,
+        file_path: Path,
+        ast_info: dict[str, Any],
+        scan_root: Optional[Path] = None,
+    ) -> str:
         """
         Build a natural-language header summarizing a Python file.
 
@@ -668,7 +723,7 @@ class CodeLoader:
         contents (module name, classes, Odoo model names).
         """
         parts = []
-        module = self._extract_module_name(file_path)
+        module = self._extract_module_name(file_path, scan_root)
         filename = file_path.name
 
         parts.append(f"# Fichier: {filename} | Module Odoo: {module}")
@@ -706,12 +761,14 @@ def load_python_directory(
     directory: str | Path,
     chunk_size: int = 512,
     chunk_overlap: int = 50,
+    scan_root: Optional[str | Path] = None,
 ) -> list[dict[str, Any]]:
     """Load all Python files from a directory."""
     directory = Path(directory)
     if not directory.is_dir():
         raise ValueError(f"Directory not found: {directory}")
 
+    root = Path(scan_root) if scan_root is not None else directory
     loader = CodeLoader(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
     documents = []
 
@@ -720,7 +777,7 @@ def load_python_directory(
             continue
         try:
             logger.info(f"Processing {py_file.name}...")
-            result = loader.load_python_file(py_file)
+            result = loader.load_python_file(py_file, scan_root=root)
             documents.append(result)
         except Exception as e:
             logger.error(f"Error processing {py_file}: {e}")
@@ -733,19 +790,21 @@ def load_xml_directory(
     directory: str | Path,
     chunk_size: int = 512,
     chunk_overlap: int = 50,
+    scan_root: Optional[str | Path] = None,
 ) -> list[dict[str, Any]]:
     """Load all XML files from a directory."""
     directory = Path(directory)
     if not directory.is_dir():
         raise ValueError(f"Directory not found: {directory}")
 
+    root = Path(scan_root) if scan_root is not None else directory
     loader = CodeLoader(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
     documents = []
 
     for xml_file in directory.rglob("*.xml"):
         try:
             logger.info(f"Processing {xml_file.name}...")
-            result = loader.load_xml_file(xml_file)
+            result = loader.load_xml_file(xml_file, scan_root=root)
             documents.append(result)
         except Exception as e:
             logger.error(f"Error processing {xml_file}: {e}")
@@ -758,12 +817,14 @@ def load_js_directory(
     directory: str | Path,
     chunk_size: int = 512,
     chunk_overlap: int = 50,
+    scan_root: Optional[str | Path] = None,
 ) -> list[dict[str, Any]]:
     """Load all JavaScript files from a directory."""
     directory = Path(directory)
     if not directory.is_dir():
         raise ValueError(f"Directory not found: {directory}")
 
+    root = Path(scan_root) if scan_root is not None else directory
     loader = CodeLoader(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
     documents = []
 
@@ -772,7 +833,7 @@ def load_js_directory(
             continue
         try:
             logger.info(f"Processing {js_file.name}...")
-            result = loader.load_js_file(js_file)
+            result = loader.load_js_file(js_file, scan_root=root)
             documents.append(result)
         except Exception as e:
             logger.error(f"Error processing {js_file}: {e}")
