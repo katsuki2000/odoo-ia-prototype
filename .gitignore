@@ -33,4 +33,5 @@ document_rag/ingestion/logs/
 # whoever last built/committed this file). Always regenerate locally via
 # scripts/rebuild_graph.py instead of relying on a committed copy.
 code_intelligence/active_graph.json
-/media/donnee/projets/odoo-ia-prototype/document_rag/vectorstore/chroma_db
+document_rag/vectorstore/chroma_db
+
