@@ -13,6 +13,7 @@ investigation plans before tool execution.
 from dataclasses import asdict, dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional
+import logging
 import re
 import unicodedata
 
@@ -20,6 +21,8 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from code_intelligence.business_resolver import ResolvedConcept
 from code_intelligence.semantic_tags import BehavioralTag, TechnicalTag
+
+logger = logging.getLogger(__name__)
 
 
 # ── Closed Action Vocabulary (The 9 core tools + composite mechanisms) ────────
@@ -127,6 +130,18 @@ class InvestigationPlan(BaseModel):
         default=PlanGenerationSource.DETERMINISTIC_SEMANTIC,
         description="Mechanism used to generate the plan",
     )
+    plan_route_conflict: bool = Field(
+        default=False,
+        description=(
+            "True when validate_plan_against_route() neutralized this plan's "
+            "steps because route_decision never executes InvestigationStep "
+            "actions (todo/contexte.txt section 385/386)"
+        ),
+    )
+    conflict_detail: Optional[str] = Field(
+        default=None,
+        description="Human-readable explanation of the plan/route conflict, if any",
+    )
 
     def to_display_dict(self) -> Dict[str, Any]:
         """Format the plan for Discuss UI verification widget and API exposure."""
@@ -136,6 +151,8 @@ class InvestigationPlan(BaseModel):
             "rationale": self.rationale,
             "source": self.source.value,
             "confidence": self.confidence,
+            "plan_route_conflict": self.plan_route_conflict,
+            "conflict_detail": self.conflict_detail,
             "steps": [
                 {
                     "step_index": idx + 1,
@@ -218,6 +235,26 @@ _DOC_ANCHOR_PATTERNS = [
     r"\b(ou\s+est\s+documente|où\s+est\s+documenté|politique\s+interne)\b",
 ]
 
+# Section 379 (todo/contexte.txt): weak process-inquiry signals for Step 8's
+# "Concept + Graph Tag affinity" fallback. A resolved_concept alone (even at
+# confidence=1.0) is NOT proof of intent -- section 378 documented "avoir" as
+# a static alias matching the common French verb, which let Step 8 return
+# WORKFLOW_STATE for "pour avoir du code de qualité" purely because
+# account.move carries the WORKFLOW_RULE tag, with zero textual signal in the
+# question itself. Step 8 is only ever reached once _GOVERNANCE_PATTERNS,
+# _WORKFLOW_PATTERNS, _CALCULATION_PATTERNS, _INHERITANCE_PATTERNS,
+# _AUTOMATION_PATTERNS, _ERP_DATA_PATTERNS and _DOC_ANCHOR_PATTERNS have ALL
+# already failed to match -- so requiring one of those same strict patterns
+# again would be vacuous. This list is intentionally looser: generic
+# process-inquiry wording ("comment ça marche", "quelle est la procédure")
+# that a legitimate workflow-adjacent question (e.g. "et pour les congés, ça
+# se passe comment ?") would carry even without naming "workflow"/"étape"
+# explicitly, while a sentence that merely happens to contain a homonymic
+# alias ("avoir", "pour avoir...") without any process wording will not.
+_WEAK_PROCESS_SIGNALS = [
+    r"\b(comment|process|processus|procedure|procédure|demarche|démarche|deroulement|déroulement|fonctionne|fonctionnement|se\s+passe|ca\s+marche|ça\s+marche)\b",
+]
+
 
 def classify_question_intent(
     question: str,
@@ -277,14 +314,25 @@ def classify_question_intent(
         return QuestionIntent.ERP_DATA_QUERY
 
     # 8. Concept + Graph Tag affinity fallback
+    # Section 379 (todo/contexte.txt): a resolved_concept's tag is a
+    # model-side signal, never a substitute for question-side intent -- see
+    # section 378 ("avoir" -> account.move -> WORKFLOW_RULE misfiring on
+    # "pour avoir du code de qualité", zero textual signal present). This
+    # fallback now additionally requires a weak process-inquiry signal in the
+    # question text (_WEAK_PROCESS_SIGNALS) before trusting the tag affinity;
+    # without it, execution falls through to step 9 (neutral
+    # DOCUMENTARY_POLICY) instead of manufacturing an intent from the model
+    # side alone.
     if resolved_concept and resolved_concept.is_resolved and G is not None:
-        for model_name in resolved_concept.resolved_models:
-            model_node = f"model:{model_name}"
-            if model_node in G:
-                # If model has workflow state nodes or behavioral tags
-                b_tags = G.nodes[model_node].get("behavioral_tags", [])
-                if BehavioralTag.WORKFLOW_RULE.value in b_tags:
-                    return QuestionIntent.WORKFLOW_STATE
+        has_weak_process_signal = any(re.search(p, folded) for p in _WEAK_PROCESS_SIGNALS)
+        if has_weak_process_signal:
+            for model_name in resolved_concept.resolved_models:
+                model_node = f"model:{model_name}"
+                if model_node in G:
+                    # If model has workflow state nodes or behavioral tags
+                    b_tags = G.nodes[model_node].get("behavioral_tags", [])
+                    if BehavioralTag.WORKFLOW_RULE.value in b_tags:
+                        return QuestionIntent.WORKFLOW_STATE
 
     # 9. No explicit code intelligence signal found, regardless of concept resolution.
     # DOC-08 protection: a resolved concept alone (e.g. "mise à disposition" → custom.asset.loan)
@@ -708,3 +756,67 @@ def generate_investigation_plan(
         confidence=resolved_concept.confidence if resolved_concept else 1.0,
         source=PlanGenerationSource.DETERMINISTIC_SEMANTIC,
     )
+
+
+# ── Plan/Route Coherence Validation (todo/contexte.txt section 385/386) ──────
+#
+# route() (core/routing.py) and classify_question_intent() (this module) are
+# two INDEPENDENTLY-maintained classifiers -- one keyword-based (route()'s
+# own if/elif chain), one concept+intent-based (classify_question_intent(),
+# called from generate_investigation_plan() above). They can and do diverge:
+# section 385 traced a real case ("comment créer une demande de facture ?")
+# where the word "comment" sent route_decision to DOCUMENTAIRE (DOC_KEYWORDS)
+# while the SAME word sent classify_question_intent() to WORKFLOW_STATE via
+# _WEAK_PROCESS_SIGNALS + account.move's WORKFLOW_RULE tag -- producing a
+# full Code Intelligence investigation plan attached to a documentary answer
+# that never executes a single InvestigationStep.
+#
+# Only the "code_intelligence" branch of core/graph.py's StateGraph (the
+# code_intelligence_agent node) ever executes InvestigationStep actions.
+# documentaire (generate), donnees_erp (orm_agent_loop) and hybride
+# (hybrid_node) never do -- hybrid_node only orchestrates the documentary and
+# ERP branches (erp_data/orm_agent_node.py), never code_intelligence_agent.
+# A plan promising steps on those branches is not cosmetic: it actively
+# misinforms anyone inspecting the a priori plan, which is the entire point
+# of Bloc P1.
+#
+# Explicit decision (section 386): detect and flag the conflict rather than
+# silently overwriting plan.steps. A silent overwrite would hide how often
+# the two classifiers actually disagree; an explicit plan_route_conflict/
+# conflict_detail field keeps the divergence observable and measurable,
+# ahead of any future decision to merge the two classifiers.
+
+_ROUTES_WITHOUT_CI_EXECUTION = {"documentaire", "donnees_erp", "hybride"}
+
+
+def validate_plan_against_route(plan: InvestigationPlan, route_decision: str) -> InvestigationPlan:
+    """
+    Reconciles the Planner's independently-classified InvestigationPlan
+    against the route actually dispatched by route_decision() (core/routing.py).
+
+    - "code_intelligence": plan is authorized as-is -- this IS the branch
+      that executes InvestigationStep actions.
+    - "documentaire" / "donnees_erp" / "hybride": none of these branches ever
+      execute an InvestigationStep. A non-empty plan here is a genuine
+      plan/route conflict (see module docstring above), not a valid a priori
+      plan -- neutralized to steps=[] with plan_route_conflict=True, while
+      `intent`/`rationale` are preserved unchanged so the divergence stays
+      visible for measurement rather than silently disappearing.
+    """
+    if route_decision == "code_intelligence":
+        return plan
+
+    if route_decision in _ROUTES_WITHOUT_CI_EXECUTION and plan.steps:
+        conflict_detail = (
+            f"PLAN_ROUTE_CONFLICT: planned_intent={plan.intent.value} a produit "
+            f"{len(plan.steps)} étape(s) Code Intelligence, mais route_decision="
+            f"{route_decision} n'exécute jamais d'InvestigationStep -- plan neutralisé (steps=[])."
+        )
+        logger.warning(conflict_detail)
+        return plan.model_copy(update={
+            "steps": [],
+            "plan_route_conflict": True,
+            "conflict_detail": conflict_detail,
+        })
+
+    return plan

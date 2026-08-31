@@ -1,7 +1,7 @@
 """
-rag/schemas.py
+core/schemas.py
 
-Pydantic models for structured RAG output.
+Pydantic models for structured output.
 """
 
 import os

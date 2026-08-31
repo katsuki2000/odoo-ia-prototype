@@ -1,5 +1,5 @@
 """
-rag/routing.py
+core/routing.py
 
 Query classification, routing, and input guardrails.
 
@@ -21,6 +21,7 @@ from core.schemas import AssistantResponse, QueryRoute
 from code_intelligence.investigation_plan import (
     concept_suggests_code_intelligence_v2,
     generate_investigation_plan,
+    validate_plan_against_route,
 )
 
 logger = logging.getLogger(__name__)
@@ -135,6 +136,17 @@ OUT_OF_SCOPE_TERMS = {
     "lune",
 }
 
+# Pure arithmetic expression (e.g. "8+9", "12 * 3 =", "8+9?") -- no keyword
+# signal, no business concept, and was previously falling through to
+# sticky-routing (_sticky_route_or_default), inheriting the last turn's
+# branch instead of being recognized as out-of-scope. See
+# todo/contexte.txt section 373.
+_ARITHMETIC_ONLY_RE = re.compile(
+    r"^\s*\d+(?:[.,]\d+)?\s*[+\-*/]\s*\d+(?:[.,]\d+)?"
+    r"(?:\s*[+\-*/]\s*\d+(?:[.,]\d+)?)*"
+    r"(?:\s*=\s*\d*(?:[.,]\d+)?)?\s*\??\s*$"
+)
+
 REACT_RECURSION_LIMIT = 6
 
 
@@ -157,6 +169,7 @@ class RAGState(TypedDict):
     resolved_concept_reused: bool  # True when reusing the previous turn's concept
     evidence_status: Optional[str]  # Sourcing evidence status: RESOLU/NON_RESOLU/CONFLIT
     investigation_plan: Optional[dict]  # A priori InvestigationPlan (Bloc P1), display-shaped
+    sources_fallback_eligible: Optional[bool]  # True only when generate()'s raw (non-structured) LLM fallback was used
 
 
 
@@ -167,6 +180,9 @@ def _is_out_of_scope(question: str) -> bool:
     normalized_question = question.lower().strip()
     if not normalized_question:
         return False
+
+    if _ARITHMETIC_ONLY_RE.match(normalized_question):
+        return True
 
     return any(term in normalized_question for term in OUT_OF_SCOPE_TERMS)
 
@@ -374,6 +390,14 @@ def route(state: RAGState) -> dict:
         G=G,
         user_groups=state.get("user_groups"),
     )
+    # Section 385/386 (todo/contexte.txt): generate_investigation_plan() runs
+    # its OWN independent intent classification (classify_question_intent()),
+    # which can diverge from route_decision above (two separately-maintained
+    # classifiers -- see the docstring on validate_plan_against_route()).
+    # Reconcile before returning so a route that never executes
+    # InvestigationStep actions (documentaire/donnees_erp/hybride) never
+    # ships a Code Intelligence plan it will never run.
+    investigation_plan = validate_plan_against_route(investigation_plan, route_decision)
 
     return {
         "route": route_decision,
