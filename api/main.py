@@ -1,9 +1,8 @@
 """
 api/main.py
 
-FastAPI REST endpoint for the MIRO RAG assistant.
-Exposes the RAG pipeline as an HTTP API so that the Odoo module
-and other clients can query the knowledge base.
+FastAPI REST endpoint for the MIRO assistant.
+Exposes the pipeline as an HTTP API 
 
 Endpoints:
     POST /ask          - Submit a question and receive an AI-generated answer
@@ -30,7 +29,7 @@ from api.auth import get_current_user
 from config.settings import API_HOST, API_PORT
 import asyncio
 import logging
-from document_rag.ingestion.ingest_all import CODE_DIR, CODE_DIRS, DOCS_DIR, IngestionOrchestrator
+from document_rag.ingestion.ingest_all import CODE_DIR, DOCS_DIR, IngestionOrchestrator
 from document_rag.ingestion.incremental import reindex_if_changed
 from document_rag.ingestion.logging_utils import now_iso, start_timer, write_ingestion_event
 from document_rag.ingestion.watcher import DEFAULT_CODE_DIR, DEFAULT_DOCS_DIR
@@ -402,13 +401,11 @@ def reindex_v1(request: ReindexRequestV1):
 
     try:
         if request.scope == "incremental":
-            # Bug (section 330, todo/contexte.txt): CODE_DIR is an intentional
-            # None sentinel meant only for IngestionOrchestrator.ingest_all()/
-            # clear_and_reingest(), which know how to interpret it ("use the
-            # curated CODE_DIRS scope"). reindex_if_changed()/_scan_supported_files()
-            # expect real paths, not the sentinel -- CODE_DIRS (the actual curated
-            # module directory list) must be unpacked here instead.
-            roots = [target_path] if target_path else [DOCS_DIR, *CODE_DIRS]
+            # Section 349/376 (todo/contexte.txt): la branche RAG documentaire
+            # n'ingere plus le code par defaut -- ce defaut incluait encore
+            # CODE_DIRS ici, contournant la decision deja appliquee a
+            # ingest_all.py/watcher.py/scheduler.py.
+            roots = [target_path] if target_path else [DOCS_DIR]
             result = reindex_if_changed(roots, docs_manager=manager, code_manager=manager)
         elif request.scope == "full":
             orchestrator = IngestionOrchestrator(
@@ -480,9 +477,9 @@ def trigger_scheduled_scan():
     """Manually trigger one execution of the 6-hour scheduled periodic incremental scan."""
     try:
         manager = ChromaManager()
-        # Bug (section 330, todo/contexte.txt): see reindex_v1() above -- CODE_DIR
-        # is a None sentinel, not a real path; CODE_DIRS is the curated module list.
-        result = run_scheduled_scan([DOCS_DIR, *CODE_DIRS], docs_manager=manager, code_manager=manager, status_dict=LAST_INGESTION_STATUS)
+        # Section 349/376 (todo/contexte.txt): aligne sur le defaut sans code
+        # de la branche RAG documentaire (plus de CODE_DIRS ici).
+        result = run_scheduled_scan([DOCS_DIR], docs_manager=manager, code_manager=manager, status_dict=LAST_INGESTION_STATUS)
         return ScheduledScanResponse(
             status="success",
             scan_type="periodic_incremental_scan",
@@ -546,11 +543,16 @@ async def _startup_scan_and_scheduler() -> None:
 
     try:
         import threading
-        # Bug (section 330, todo/contexte.txt): CODE_DIR is a None sentinel (see
-        # reindex_v1() above), not a real scan root -- CODE_DIRS (curated module
-        # directory list) unpacked here instead. Passing CODE_DIR directly used
-        # to crash reindex_if_changed() with a TypeError on every startup.
-        startup_roots = [DOCS_DIR, *CODE_DIRS]
+        # Section 349/376 (todo/contexte.txt): la branche RAG documentaire
+        # n'ingere plus le code par defaut -- ce point d'entree (le serveur
+        # reellement deploye en production) importait encore CODE_DIRS et
+        # relancait un scan du code Odoo core/custom a chaque demarrage,
+        # contournant le defaut deja corrige dans
+        # ingest_all.py/watcher.py/scheduler.py (section 349). CODE_DIRS
+        # reste disponible pour un usage explicite (ex. POST
+        # /api/v1/reindex avec scope=full et aucun path -- inchange, hors
+        # mandat de ce correctif) mais n'est plus dans un defaut implicite.
+        startup_roots = [DOCS_DIR]
         logger.info("Startup incremental scan: scanning %s", startup_roots)
         t = threading.Thread(
             target=run_startup_scan,
@@ -563,11 +565,11 @@ async def _startup_scan_and_scheduler() -> None:
         logger.exception("Startup incremental scan failed: %s", exc)
 
     if SCHEDULER_INSTANCE is None:
-        # Bug (section 330, todo/contexte.txt): same CODE_DIR-sentinel-as-literal-
-        # root bug as above -- CODE_DIRS unpacked instead.
+        # Section 349/376 (todo/contexte.txt): idem startup_roots ci-dessus --
+        # plus de CODE_DIRS dans le defaut de la tache periodique 6h.
         SCHEDULER_INSTANCE = PeriodicScanScheduler(
             interval_hours=6,
-            roots=[DOCS_DIR, *CODE_DIRS],
+            roots=[DOCS_DIR],
             docs_manager=None,
             code_manager=None,
             status_dict=LAST_INGESTION_STATUS,

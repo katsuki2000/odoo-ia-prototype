@@ -57,7 +57,17 @@ CI_SYSTEM_PROMPT = (
     "THIS demandeur. If it says NON DISPONIBLE / available_to_requester is false, your answer "
     "MUST say plainly that the demandeur does not have this option in the interface and, if the "
     "observation names the required group(s), who they should contact instead -- do NOT walk them "
-    "through the button/method mechanism as if they could trigger it themselves."
+    "through the button/method mechanism as if they could trigger it themselves.\n"
+    "7. OUTPUT FORMAT RULE: Write the final answer in Markdown ONLY (**bold**, *italic*, \"-\" bullet "
+    "lists, \"##\"/\"###\" headings, \"[text](url)\" links -- the file:// citations from rule 3 above "
+    "already use this link syntax). NEVER emit raw HTML tags (no <strong>, <br>, <div>, <em>, <ul>, "
+    "etc.), even mixed in with Markdown. The rendering engine only interprets Markdown; any HTML tag "
+    "is shown to the user as literal, unreadable text.\n"
+    "Example of correctly formatted output:\n"
+    "### Analyse des droits d'acces\n\n"
+    "- **Groupe requis** : `account.group_account_manager`\n"
+    "- **Source** : [security/ir.model.access.csv:L12](file:///path#L12)\n\n"
+    "No raw HTML tag appears anywhere in this example -- only Markdown headings, bold, and bullets."
 )
 
 # Maximum hops allowed per question.

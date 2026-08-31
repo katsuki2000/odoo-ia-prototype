@@ -124,11 +124,13 @@ class ChromaManager:
             collection_name: Name of the collection
         """
         if db_path is None:
-            db_path = os.path.join(
-                os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                "vectorstore",
-                "chroma_db",
-            )
+            # BUGFIX (todo/contexte.txt): utilisait un calcul os.path.dirname
+            # en dur, divergent du CHROMA_PATH de config.settings (deja
+            # importe ci-dessus mais jamais consomme jusqu'ici) -- deux
+            # sources de verite pour le meme chemin, cause du store
+            # fantome document_rag/vectorstore/chroma_db vs vectorstore/
+            # chroma_db (racine) peuple par erreur par ingest_all.py.
+            db_path = CHROMA_PATH
 
         self.db_path = Path(db_path)
         self.db_path.mkdir(parents=True, exist_ok=True)
@@ -513,11 +515,10 @@ class ChromaManager:
 
 def get_chroma_client():
     """Get a persistent ChromaDB client."""
-    db_path = os.path.join(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-        "vectorstore",
-        "chroma_db",
-    )
+    # BUGFIX (todo/contexte.txt): meme divergence que ChromaManager.__init__
+    # ci-dessus, corrigee de la meme facon (CHROMA_PATH, seule source de
+    # verite desormais).
+    db_path = CHROMA_PATH
     os.makedirs(db_path, exist_ok=True)
     client = chromadb.PersistentClient(path=db_path)
     return client

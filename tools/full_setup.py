@@ -5,7 +5,7 @@ tools/full_setup.py
 Consolidated single setup script to populate a fresh Odoo 17 database (SINGLE COMPANY):
 1. Single Company (Company Alpha) + Sales Journal + Income Account
 2. 6 Specialized users + 1 Miro Manager user, all linked to Company Alpha
-3. Clients (res.partner), products (product.template), sales orders (sales.json), tickets (tickets.json)
+3. Clients (res.partner), products (product.template)
 
 Architecture note: Multi-company (multiple res.company records in one single database)
 was intentionally simplified. At MiroKE, each client company integrated with Odoo has its
@@ -15,21 +15,20 @@ databases rather than multiple res.company records in one DB.
 Includes fixes for:
 - Sales journal creation (account.journal type sale)
 - Income account creation (account.account code 400000) and product category assignment
-- Sales order cancellation for 'annul' status
-- Task partner_id resolution for support tickets
+
+Note (2026-08-31, section 363): Sales Orders / Support Tickets seeding via
+document_rag/fake_data/{sales,tickets}.json was removed -- fake_data/ was
+intentionally dropped from the project, replaced by document_rag/documents/.
+Those steps are permanent dead code as of this removal, not a bug.
 """
 
 import xmlrpc.client
-import json
 import sys
-import os
 
 URL = "http://localhost:8069"
 DB = "odoo-dev"
 USERNAME = "admin"
 PASSWORDS_TO_TRY = ["admin", "odoo"]
-
-FAKE_DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "document_rag/fake_data")
 
 
 # --- Connection ---
@@ -258,146 +257,10 @@ def setup_products(models, uid, pwd):
     return product_ids
 
 
-# --- Step 5: Sales Orders ---
-
-def setup_sales_orders(models, uid, pwd, alpha_id, client_ids, product_ids, charlie_uid):
-    print("\n--- Step 5: Creating Sales Orders ---")
-    sales_file = os.path.join(FAKE_DATA_DIR, "sales.json")
-    with open(sales_file, 'r', encoding='utf-8') as f:
-        sales_data = json.load(f)
-
-    for sale in sales_data:
-        so_name = f"SO-MIRO-{sale['id']:04d}"
-        existing = models.execute_kw(DB, uid, pwd, 'sale.order', 'search',
-                                     [[('client_order_ref', '=', so_name)]])
-        if existing:
-            print(f"  -> Sale Order '{so_name}' already exists (ID: {existing[0]})")
-            continue
-
-        partner_id = client_ids.get(sale['client'])
-        product_id = product_ids.get(sale['produit'])
-        if not partner_id or not product_id:
-            print(f"  Warning: Skipping SO {so_name} due to missing partner or product")
-            continue
-
-        so_vals = {
-            'partner_id': partner_id,
-            'date_order': sale['date'],
-            'client_order_ref': so_name,
-            'company_id': alpha_id,
-            'user_id': charlie_uid or uid,
-            'order_line': [(0, 0, {
-                'product_id': product_id,
-                'product_uom_qty': 1,
-                'price_unit': sale['montant'],
-                'name': sale['produit'],
-            })],
-        }
-
-        try:
-            so_id = models.execute_kw(DB, uid, pwd, 'sale.order', 'create', [so_vals])
-            print(f"  Created Sale Order '{so_name}' (ID: {so_id}) - {sale['client']} / {sale['produit']} / {sale['montant']:,} Ar")
-
-            if sale.get('statut') == 'facturé':
-                try:
-                    models.execute_kw(DB, uid, pwd, 'sale.order', 'action_confirm', [[so_id]])
-                    # Re-write date_order because action_confirm overwrites date_order with current timestamp
-                    dt_val = sale['date'] + " 10:00:00" if len(sale['date']) == 10 else sale['date']
-                    models.execute_kw(DB, uid, pwd, 'sale.order', 'write', [[so_id], {'date_order': dt_val}])
-                    print(f"    Confirmed SO {so_name}")
-                    try:
-                        context = {'active_model': 'sale.order', 'active_ids': [so_id], 'active_id': so_id}
-                        wizard_id = models.execute_kw(DB, uid, pwd, 'sale.advance.payment.inv', 'create', [{}], {'context': context})
-                        try:
-                            models.execute_kw(DB, uid, pwd, 'sale.advance.payment.inv', 'create_invoices', [[wizard_id]], {'context': context})
-                        except xmlrpc.client.Fault as e:
-                            if "cannot marshal None" not in str(e):
-                                raise
-
-                        so_data = models.execute_kw(DB, uid, pwd, 'sale.order', 'read', [[so_id]], {'fields': ['invoice_ids']})
-                        inv_ids = so_data[0]['invoice_ids']
-                        if inv_ids:
-                            models.execute_kw(DB, uid, pwd, 'account.move', 'action_post', [inv_ids])
-                            print(f"      -> Invoiced & Posted (Invoice IDs: {inv_ids})")
-                    except Exception as inv_err:
-                        print(f"      -> Invoicing failed: {inv_err}")
-                except Exception as e:
-                    print(f"    Warning: Could not confirm/invoice SO {so_name}: {e}")
-            elif sale.get('statut') == 'annulé':
-                try:
-                    models.execute_kw(DB, uid, pwd, 'sale.order', 'action_cancel', [[so_id]])
-                    print(f"    Cancelled SO {so_name}")
-                except Exception as e:
-                    print(f"    Warning: Could not cancel SO {so_name}: {e}")
-        except Exception as e:
-            print(f"  Warning: Could not create SO {so_name}: {e}")
-
-
-# --- Step 6: Support Project & Tickets ---
-
-def setup_tickets(models, uid, pwd, alpha_id, client_ids, diana_uid, evan_uid):
-    print("\n--- Step 6: Creating Support Project & Tasks ---")
-    project_id = find_or_create(models, uid, pwd, 'project.project',
-                                [('name', '=', 'MIRO Support Tickets')],
-                                {'name': 'MIRO Support Tickets',
-                                 'company_id': alpha_id,
-                                 'user_id': evan_uid or uid,
-                                 'description': 'Tickets de support technique internes et clients'},
-                                label="Project 'MIRO Support Tickets'")
-
-    tickets_file = os.path.join(FAKE_DATA_DIR, "tickets.json")
-    with open(tickets_file, 'r', encoding='utf-8') as f:
-        tickets_data = json.load(f)
-
-    assignees = [a for a in [diana_uid, evan_uid] if a]
-
-    for i, ticket in enumerate(tickets_data):
-        task_name = f"[TK-{ticket['id']:03d}] {ticket['titre']}"
-        existing = models.execute_kw(DB, uid, pwd, 'project.task', 'search',
-                                     [[('name', '=', task_name)]])
-        if existing:
-            print(f"  -> Task '{task_name}' already exists (ID: {existing[0]})")
-            continue
-
-        assignee = assignees[i % len(assignees)] if assignees else uid
-
-        partner_id = client_ids.get(ticket['client'])
-        if not partner_id:
-            print(f"  Warning: Client '{ticket['client']}' not found in client_ids for ticket {task_name}")
-
-        description = (
-            f"<p><strong>Client:</strong> {ticket['client']}</p>"
-            f"<p><strong>Description:</strong> {ticket['description']}</p>"
-            f"<hr/>"
-            f"<p><strong>Solution:</strong> {ticket['solution']}</p>"
-        )
-
-        task_vals = {
-            'name': task_name,
-            'project_id': project_id,
-            'user_ids': [(6, 0, [assignee])],
-            'partner_id': partner_id,
-            'description': description,
-            'date_deadline': ticket['date'],
-            'company_id': alpha_id,
-            'state': '1_done' if ticket['statut'] == 'résolu' else '01_in_progress',
-        }
-
-        try:
-            task_id = models.execute_kw(DB, uid, pwd, 'project.task', 'create', [task_vals])
-            assignee_name = "Diana Support" if assignee == diana_uid else "Evan Engineer"
-            status_label = "Resolved" if ticket['statut'] == 'résolu' else "In Progress"
-            print(f"  Created Task '{task_name}' (ID: {task_id}) -> {assignee_name} [{status_label}]")
-        except Exception as e:
-            print(f"  Warning: Could not create task: {e}")
-
-    return project_id
-
-
 # --- Main ---
 
 def main():
-    print("Full Setup (Single Company): Company + Journal + Users + Clients + Products + Sales + Tickets")
+    print("Full Setup (Single Company): Company + Journal + Users + Clients + Products")
     print("=" * 90)
     uid, pwd, models = get_connection()
 
@@ -413,20 +276,12 @@ def main():
 
     client_ids = setup_clients(models, uid, pwd, alpha_id)
     product_ids = setup_products(models, uid, pwd)
-    setup_sales_orders(models, uid, pwd, alpha_id, client_ids, product_ids, charlie_uid)
-    project_id = setup_tickets(models, uid, pwd, alpha_id, client_ids, diana_uid, evan_uid)
 
     print("\n" + "=" * 90)
     print("Setup Completed Successfully! Database contains:")
-    so_count = models.execute_kw(DB, uid, pwd, 'sale.order', 'search_count',
-                                 [[('client_order_ref', 'like', 'SO-MIRO')]])
-    task_count = models.execute_kw(DB, uid, pwd, 'project.task', 'search_count',
-                                   [[('project_id', '=', project_id)]])
     print(f"  - {len(client_ids)} Clients")
     print(f"  - {len(product_ids)} Products/Services")
-    print(f"  - {so_count} Sales Orders")
-    print(f"  - {task_count} Support Tickets")
-    print("\nCheck live records in Odoo -> Sales -> Orders / Project -> Tasks")
+    print("\nCheck live records in Odoo -> Sales -> Customers / Sales -> Products")
 
 
 if __name__ == "__main__":

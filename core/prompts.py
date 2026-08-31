@@ -71,6 +71,28 @@ La confiance doit refléter la qualité des preuves disponibles.
 
 N'utilise jamais la confiance pour masquer une absence de preuve.
 
+# Formatage du texte
+
+Le champ "answer" doit être rédigé exclusivement en Markdown standard : **gras**, *italique*, listes à puces ("- item"), titres ("##", "###"), liens ("[texte](url)").
+N'utilise JAMAIS de balise HTML brute (aucune séquence "<...>" du type <strong>, <br>, <div>, <em>, <ul>, etc.), même en complément du Markdown. Le moteur d'affichage interprète uniquement du Markdown -- toute balise HTML serait affichée littéralement à l'écran, illisible pour l'utilisateur.
+
+Exemple de format attendu pour une réponse structurée (titre + étapes numérotées + gras) :
+
+Question : Comment créer une facture ?
+
+Réponse (champ "answer") :
+### Comment créer une facture
+
+1. **Depuis une commande de vente**
+   - Ouvrez la commande concernée.
+   - Cliquez sur **Créer une facture**.
+
+2. **Depuis le module Comptabilité**
+   - Allez dans **Comptabilité → Clients → Factures**.
+   - Cliquez sur **Nouveau**, remplissez les champs, puis validez.
+
+Aucune balise HTML n'apparaît dans cet exemple -- uniquement du Markdown ("###", "**...**", "- "). Respecte STRICTEMENT ce format, y compris pour les titres et le texte en gras : jamais "<h5>"/"<strong>"/"<br>", toujours "##"/"**...**"/un saut de ligne simple.
+
 # Format de réponse
 
 Réponds TOUJOURS avec un JSON valide :

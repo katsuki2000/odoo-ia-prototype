@@ -1,7 +1,7 @@
 """
 code_intelligence/tests/test_a1_1_2.py
 
-Unit tests for Task A1.1.2: Visiteur AST (_name, _inherit, _inherits distinction).
+Unit tests for Visiteur AST (_name, _inherit, _inherits distinction).
 Tests 3 cases:
   1. Extension (_inherit alone without _name) -> ModelRelationType.EXTENSION
   2. Classic Inheritance (_name + _inherit) -> ModelRelationType.CLASSIC_INHERITANCE

@@ -32,38 +32,23 @@ OLLAMA_HOST  = "http://localhost:11434"
 OLLAMA_MODEL = "gpt-oss:20b"
 
 # ── ChromaDB ──────────────────────────────────────────
-CHROMA_PATH  = "./document_rag/vectorstore/chroma_db"
+# BUGFIX (todo/contexte.txt): CHROMA_PATH etait une string relative nue
+# ("./document_rag/vectorstore/chroma_db"), non ancree a _ROOT et jamais
+# reellement consommee par chroma_manager.py/ingest_all.py (chacun avait
+# son propre defaut code en dur, divergent) -- meme classe de violation
+# todo/rules.md (no hardcoded paths) deja corrigee pour CORE_ADDONS_PATH/
+# RAG_DOCS_PATH. Ancree a _ROOT + env-overridable pour rester coherent
+# avec ces deux-la, et desormais reellement le seul chemin utilise par
+# les deux points d'entree (ingestion et recherche).
+CHROMA_PATH = os.getenv("CHROMA_PATH") or str(_ROOT / "document_rag" / "vectorstore" / "chroma_db")
 
 # -- Code Intelligence corpus paths ----------------------
-# Machine-dependent: must come from env, never hardcoded (todo/rules.md).
-# Fallback is computed relative to this repo's own location, not a
-# hardcoded absolute path, so it stays portable on any machine that
-# follows the sibling-directory layout documented in README.md
-# (~/odoo-ia-prototype next to ~/odoo-17.0).
 CORE_ADDONS_PATH = os.getenv("CORE_ADDONS_PATH") or str(_ROOT.parent / "odoo-17.0" / "addons")
 CUSTOM_ADDONS_PATH = os.getenv("CUSTOM_ADDONS_PATH") or str(_ROOT / "odoo_addons")
 
 # -- RAG documentary source path ----------------------
-# Machine-dependent by convention (todo/rules.md, same pattern as the two
-# addons paths above): configurable via env, with a portable fallback
-# computed relative to this repo's own location, never a hardcoded
-# absolute path. Points at the real (non-fake) documents corpus used by
-# the documentary RAG branch (todo/contexte.txt section 351-352):
-# document_rag/fake_data/documents/ was the original placeholder location
-# and is no longer populated -- document_rag/documents/ is the real
-# corpus going forward.
 RAG_DOCS_PATH = os.getenv("RAG_DOCS_PATH") or str(_ROOT / "document_rag" / "documents")
-# Core FRAMEWORK addons (base, web, ...) -- in a standard Odoo git checkout
-# these live under <repo>/odoo/addons/, a SIBLING of <repo>/addons/ (which is
-# what CORE_ADDONS_PATH points at, the community addons repo -- account/
-# sale/stock live there, but base/web do not). Added 2026-08-27 (contexte.txt
-# section 246): custom_* modules that depend on 'base' directly (miro_ai,
-# custom_deep_inheritance_security, custom_expense_reimbursement_indirect)
-# were silently never getting it loaded, since it was never found under
-# CORE_ADDONS_PATH and ci_graph_loader.py had no second root to try.
-# Fallback computed relative to CORE_ADDONS_PATH's parent (the repo root),
-# matching the standard Odoo checkout layout -- portable, not a hardcoded
-# absolute path; override explicitly via env if a given install differs.
+
 CORE_FRAMEWORK_ADDONS_PATH = os.getenv("CORE_FRAMEWORK_ADDONS_PATH") or str(Path(CORE_ADDONS_PATH).parent / "odoo" / "addons")
 
 # ── Retrieval / Re-ranking ────────────────────────────
@@ -71,24 +56,6 @@ CORE_FRAMEWORK_ADDONS_PATH = os.getenv("CORE_FRAMEWORK_ADDONS_PATH") or str(Path
 # Can be enabled explicitly via environment variable USE_RERANKER=true.
 USE_RERANKER = os.getenv("USE_RERANKER", "false").lower() in ("true", "1", "yes")
 
-# Absolute cosine similarity floor applied in vector_search() before any
-# result is allowed into the RRF fusion (todo/contexte.txt section
-# 292/293, Bug C root cause: vector_search() had no relevance floor at
-# all, only a top_k truncation, so on a small corpus (e.g. ~198 documents)
-# it handed back near-arbitrary neighbors even for an unrelated question
-# like "Bonjour" -- and RRF's rank-based normalization then dressed those
-# irrelevant matches up with high-looking fused scores). Calibrated
-# empirically via scripts/_diag_vector_similarity_floor.py on 2026-08-29:
-# off-topic queries ("Bonjour", "Hello") topped out around 0.19 raw cosine
-# similarity, while a genuinely relevant query ("Comment créer une facture
-# ?") stayed above 0.24 even at its 15th-best match -- 0.20 sits in that
-# gap with margin on both sides.
-# CAUTION -- embedding-backend dependent: measured on the all-MiniLM-L6-v2
-# model (384 dim) used by the current EMBEDDING_BACKEND=local_light
-# temporary fallback (see chroma_manager.py). NOT portable to
-# nomic-embed-text-v1.5 (768 dim, different embedding space) -- re-run the
-# diagnostic script and update this value (or override via env) whenever
-# EMBEDDING_BACKEND changes.
 VECTOR_SIMILARITY_FLOOR = float(os.getenv("VECTOR_SIMILARITY_FLOOR", "0.20"))
 
 # ── FastAPI ───────────────────────────────────────────

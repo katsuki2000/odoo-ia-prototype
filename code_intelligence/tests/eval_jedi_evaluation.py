@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-A1.1.1 — jedi integration test on real Odoo corpus.
+jedi integration test on real Odoo corpus.
 
 Purpose: Evaluate what jedi CAN and CANNOT resolve on Odoo code patterns.
 This script systematically tests jedi on:
@@ -51,7 +51,7 @@ def test_result(test_name: str, success: bool, details: str) -> dict:
     return {"test": test_name, "success": success, "details": details}
 
 
-# ── Test 1: Standard Python — imports and definitions ─────────────────────────
+# ── Test 1: Standard Python — imports and definitions ──────
 
 def test_standard_python_imports(results: list):
     """Test that jedi can resolve standard Python imports in Odoo files."""
@@ -203,7 +203,7 @@ def test_field_comodel(results: list):
     source = TEST_FILES["sale_order"].read_text()
     script = jedi.Script(source, path=str(TEST_FILES["sale_order"]))
 
-    # Line 58: comodel_name='res.company',
+    # comodel_name='res.company',
     try:
         refs = script.goto(58, 25)  # position on 'res.company' string
         results.append(test_result(
@@ -214,7 +214,7 @@ def test_field_comodel(results: list):
     except Exception as e:
         results.append(test_result("Resolve comodel_name", False, str(e)))
 
-    # Line 206-210: order_line = fields.One2many(comodel_name='sale.order.line', inverse_name='order_id')
+    # order_line = fields.One2many(comodel_name='sale.order.line', inverse_name='order_id')
     try:
         refs2 = script.goto(207, 25)
         results.append(test_result(
@@ -266,12 +266,12 @@ def test_super_in_inherit(results: list):
     """Test if jedi can resolve super() calls when class uses _inherit."""
     print(separator("TEST 7: super() resolution in _inherit context"))
 
-    # res_partner.py line 54: return super()._can_edit_name() and ...
+    # res_partner.py : return super()._can_edit_name() and ...
     source = TEST_FILES["res_partner_sale"].read_text()
     script = jedi.Script(source, path=str(TEST_FILES["res_partner_sale"]))
 
     try:
-        # Line 54: super()._can_edit_name()
+        # super()._can_edit_name()
         refs = script.goto(54, 22)  # position on '_can_edit_name'
         has_real_base = any(
             r.full_name and 'res_partner' in str(r.module_path or '')
@@ -296,7 +296,7 @@ def test_fields_selection_external(results: list):
     source = TEST_FILES["sale_order"].read_text()
     script = jedi.Script(source, path=str(TEST_FILES["sale_order"]))
 
-    # Line 68: state = fields.Selection(selection=SALE_ORDER_STATE, ...)
+    # state = fields.Selection(selection=SALE_ORDER_STATE, ...)
     # SALE_ORDER_STATE is defined at line 22 in the same file
     try:
         refs = script.goto(68, 30)  # position on SALE_ORDER_STATE
@@ -358,7 +358,7 @@ def test_cross_file_project(results: list):
         ))
 
         # Try completions for self.env
-        # Line 41: self.env['sale.order'].sudo().search(
+        # self.env['sale.order'].sudo().search(
         completions = script.complete(41, 17)  # after 'self.env'
         results.append(test_result(
             "Cross-file: complete after self.env",
@@ -383,7 +383,7 @@ def main():
     # Verify corpus exists
     for name, path in TEST_FILES.items():
         if not path.exists():
-            print(f"  ⚠ Missing: {name} → {path}")
+            print(f"  Missing: {name} → {path}")
         else:
             print(f"   Found: {name} ({path.stat().st_size:,} bytes)")
 

@@ -117,6 +117,8 @@ from document_rag.generate_node import (
     generate,
 )
 
+from core.html_sanitizer import sanitize_html_to_markdown
+
 # ── Backward-compatible re-exports from orm_agent_node ────────────────────────
 from erp_data.orm_agent_node import (
     orm_agent_loop,
@@ -336,6 +338,7 @@ def format_output(state: RAGState) -> dict:
         response.resolved_concept = state.get("resolved_concept")
         response.evidence_status = state.get("evidence_status")
         response.investigation_plan = state.get("investigation_plan")
+        response.answer = sanitize_html_to_markdown(response.answer)
 
     if response and chunks and route == QueryRoute.DOCUMENTAIRE.value:
         primary_chunk = chunks[0]
@@ -349,8 +352,14 @@ def format_output(state: RAGState) -> dict:
             response.ocr_warning = True
             response.answer += "\n\n *Cette information provient d'un document numérisé dont la qualité de lecture est limitée.*"
 
-        # Populate sources from chunks if not already set (documentary branch)
-        if not response.sources:
+        # Best-effort fallback: only populate sources from the retrieved
+        # chunks when generate() itself reports it lost source tracking
+        # (raw, non-structured LLM fallback -- see generate_node.py). An
+        # empty response.sources with this flag False/absent means the
+        # structured LLM explicitly used none of the retrieved chunks
+        # (e.g. a not-found refusal), which must stay unsourced rather
+        # than be backfilled with chunks the answer never relied on.
+        if not response.sources and state.get("sources_fallback_eligible"):
             sources = []
             for chunk in chunks:
                 meta = chunk.get("metadata") or {}

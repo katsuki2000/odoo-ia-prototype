@@ -117,6 +117,7 @@ def test_format_output_ocr_warning():
             {"document": "test doc", "metadata": {"source": "scan.pdf", "ocr_quality": "low", "type": "pdf"}}
         ],
         "route": "documentaire",
+        "sources_fallback_eligible": True,
     }
     result = format_output(state)
     assert result["response"].ocr_warning is True
@@ -150,6 +151,7 @@ def test_format_output_ocr_warning_not_leaked_from_unrelated_chunk():
             }},
         ],
         "route": "documentaire",
+        "sources_fallback_eligible": True,
     }
     result = format_output(state)
     assert result["response"].ocr_warning is False
@@ -195,7 +197,8 @@ def test_query_graph_mocked(mock_search_retrieve, mock_get_retriever, mock_chat_
     
     mock_structured_llm.invoke.return_value = LLMResponse(
         answer="Pour créer une facture, cliquez sur Nouveau.",
-        confidence=0.95
+        confidence=0.95,
+        used_sources=["S1"],
     )
     
     response = query_graph("Comment créer une facture ?")

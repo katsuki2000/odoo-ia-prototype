@@ -125,7 +125,7 @@ Ces deux gaps conditionnent la lisibilite et l'auditabilite du systeme pour un n
 
 ---
 
-## Bloc P1 — Investigation Planner explicite
+## Bloc P1 — Investigation Planner explicite — CLOS (marqueur pose 31/08 sur mandat direct de l'utilisateur, voir reserve ci-dessous)
 *Ferme le premier ecart architecture.md — priorite haute, conditionne la lisibilite du raisonnement pour un non-developpeur*
 
 **Contrainte de conception ajoutée : le planner doit remplacer le gate ad hoc actuel de `core/routing.py` (`GOVERNANCE_SIGNAL_TERMS`, une liste de mots-clés calibrée a la main sur les 5 questions H4 connues) par un mécanisme plus robuste et generalisable pour arbitrer entre le signal deterministe de `business_resolver` (`resolved_concept`, deja calculé en tete de `route()`) et les autres signaux de routage -- probablement une combinaison ponderée de `resolved_concept.confidence` et d'une classification structurée de l'intention de la question (gouvernance/comportement vs information factuelle), plutot qu'une liste de mots-cles etendue au coup par coup a chaque nouveau cas H4-like decouvert. Cette contrainte s'ajoute aux jours ci-dessous, elle ne les remplace pas.
@@ -142,7 +142,9 @@ Ces deux gaps conditionnent la lisibilite et l'auditabilite du systeme pour un n
 - **Jour 3-4 (implementation)** : FAIT. `generate_investigation_plan()` implemente, sortie Pydantic contrainte, jamais de texte libre.
 - **Jour 5 (exposition dans la reponse finale)** : PARTIEL. Le champ `investigation_plan` est cable cote backend (`AssistantResponse`, peuple par `core/routing.py::route()`). Non confirme ce tour : rendu reel dans le widget Discuss cote frontend (niveau verification depliable).
 - **Jour 6 (tests de coherence)** : FAIT et confirme par execution reelle (voir todo/contexte.txt sections 226-262) sur son perimetre (4 categories partagees, 5 questions H4), critere d'inclusion `planned_tools ⊆ executed_tools`.
-- **Consequence** : Bloc P1 reste SANS marqueur `CLOS` -- il manque uniquement la confirmation Jour 5 cote frontend et un rejeu confirme des 2 suites de tests pour statuer definitivement, non faits sur ce tour (mandat utilisateur limite a la documentation retroactive du choix Jour 1-2).
+- **Consequence** : Bloc P1 restait SANS marqueur `CLOS` jusqu'a ce tour -- il manquait la confirmation Jour 5 cote frontend et un rejeu confirme des 2 suites de tests.
+
+**Marqueur CLOS pose (31/08, mandat direct utilisateur, voir todo/contexte.txt section 373/suite)** : Jours 1-2/3-4/6 restent faits et confirmes (inchange ci-dessus). **Reserve explicite non levee** : la confirmation Jour 5 cote frontend (rendu reel du plan dans le widget Discuss) n'a jamais ete verifiee visuellement, et les 2 suites de tests (`test_bloc_p1_j1_2_investigation_plan.py`, `test_bloc_p1_j6_plan_execution_coherence.py`) n'ont pas ete rejouees dans le cadre de cette cloture. Le marqueur est pose sur mandat explicite, pas sur preuve complete au sens habituel du projet (todo/rules.md : aucune story declaree terminee sans reexecution du benchmark) -- si un doute survient plus tard sur ce bloc, cette reserve doit etre levee par un rejeu reel avant de s'y fier pleinement.
 
 ---
 

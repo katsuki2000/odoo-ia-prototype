@@ -1,6 +1,4 @@
 """
-rag/degenerate_guards.py
-
 Degenerate-repetition detection and collapsing guards.
 
 Small synthesis models (e.g. llama-3.1-8b-instant at temperature=0) occasionally

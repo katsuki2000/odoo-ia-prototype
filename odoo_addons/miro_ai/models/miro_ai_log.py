@@ -22,10 +22,10 @@ class MiroAiLog(models.Model):
         readonly=True,
         help='Texte brut de la question envoyée par l\'utilisateur au RAG.'
     )
-    answer = fields.Html(
+    answer = fields.Text(
         string='Réponse générée',
         readonly=True,
-        help='Réponse mise en forme (Markdown transformé en HTML ou texte brut) renvoyée par le RAG.'
+        help='Réponse en Markdown renvoyée par le RAG (convertie en HTML côté frontend par formatMarkdown).'
     )
     user_id = fields.Many2one(
         'res.users',

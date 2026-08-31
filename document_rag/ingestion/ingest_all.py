@@ -26,7 +26,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 # Add PROJECT_ROOT to python path before imports
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from document_rag.ingestion.code_loader import CodeLoader, load_python_directory, load_xml_directory, load_js_directory
@@ -34,10 +34,10 @@ from document_rag.ingestion.pdf_loader import PDFLoader, load_pdf_directory
 from document_rag.ingestion.wiki_loader import WikiLoader, load_wiki_directory
 from document_rag.ingestion.scan_root import resolve_scan_root
 from document_rag.vectorstore.chroma_manager import ChromaManager
-from config.settings import CORE_ADDONS_PATH, CUSTOM_ADDONS_PATH, RAG_DOCS_PATH
+from config.settings import CHROMA_PATH, CORE_ADDONS_PATH, CUSTOM_ADDONS_PATH, RAG_DOCS_PATH
 
 # Paths
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 # BUGFIX (section 351-352, todo/contexte.txt): DOCS_DIR used to be a
 # hardcoded FAKE_DATA_DIR / "documents" (fake_data/documents/), a
 # placeholder corpus that is no longer populated. Now reads from
@@ -46,7 +46,13 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 # violation (todo/rules.md, no hardcoded paths) already fixed for the
 # addons paths (section 231/242).
 DOCS_DIR = Path(RAG_DOCS_PATH)
-LOGS_DIR = PROJECT_ROOT / "ingestion" / "logs"
+# BUGFIX (todo/contexte.txt): LOGS_DIR pointait vers PROJECT_ROOT / "ingestion"
+# / "logs" (racine), divergent de l'historique reel accumule dans
+# document_rag/ingestion/logs/ (10+ MB de ingestion.log) -- meme classe de
+# divergence que CHROMA_PATH (deux chemins pour la meme donnee, l'un des
+# deux ephemere/non canonique). Le dossier code vit sous document_rag/
+# ingestion/, ses logs doivent y rester aussi.
+LOGS_DIR = PROJECT_ROOT / "document_rag" / "ingestion" / "logs"
 
 # BUGFIX (section 242, todo/contexte.txt): was a hardcoded absolute path
 # (Path("/home/user/odoo-17.0/addons")) with a fallback to a nonexistent
@@ -728,7 +734,14 @@ def main():
     parser.add_argument(
         "--db-path",
         type=Path,
-        default=PROJECT_ROOT / "vectorstore" / "chroma_db",
+        # BUGFIX (todo/contexte.txt): defaut etait PROJECT_ROOT / "vectorstore"
+        # / "chroma_db" (racine), divergent du defaut historique reellement
+        # utilise par ChromaManager()/search.py (document_rag/vectorstore/
+        # chroma_db). Ce mismatch a fait peupler un store fantome a la
+        # racine, invisible pour la recherche en production. CHROMA_PATH
+        # est desormais la seule source de verite, partagee par les deux
+        # points d'entree.
+        default=CHROMA_PATH,
         help="Path to ChromaDB storage",
     )
     parser.add_argument(

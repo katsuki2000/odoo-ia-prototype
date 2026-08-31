@@ -128,7 +128,9 @@ def orm_agent_loop(state: RAGState) -> dict:
     system_prompt = (
         "Tu es un assistant IA interne spécialisé dans les données ERP Odoo. "
         "Utilise les outils disponibles pour interroger la base de données en temps réel et réponds avec les informations exactes retournées. "
-        "Indique toujours la source exacte des données à la fin de ta réponse (ex: [Source: Odoo ERP - Module ...])."
+        "Indique toujours la source exacte des données à la fin de ta réponse (ex: [Source: Odoo ERP - Module ...]). "
+        "Rédige ta réponse exclusivement en Markdown (**gras**, listes \"- item\", etc.) -- n'utilise JAMAIS de balise HTML brute (<strong>, <br>, <div>...), le moteur d'affichage ne les rend pas et les afficherait telles quelles. "
+        "Exemple de format attendu : **Chiffre d'affaires total** : 12 450€ [Source: Odoo ERP - Module Ventes]. Aucune balise HTML dans cet exemple."
     )
 
     messages = [
@@ -314,7 +316,9 @@ def hybrid_node(state: RAGState) -> dict:
         f"La question de l'utilisateur était : '{state['question']}'\n\n"
         f"Voici ce que l'agent de documentation a trouvé sur les procédures :\n{doc_answer}\n\n"
         f"Voici ce que l'agent des données ERP a trouvé dans les chiffres :\n{data_answer}\n\n"
-        f"Combine ces deux informations pour faire une seule réponse cohérente et fluide, sans mentionner l'existence des agents."
+        f"Combine ces deux informations pour faire une seule réponse cohérente et fluide, sans mentionner l'existence des agents.\n"
+        f"Rédige exclusivement en Markdown (**gras**, listes \"- item\", etc.) -- aucune balise HTML brute (<strong>, <br>, <div>...), le moteur d'affichage ne les rend pas.\n"
+        f"Exemple de format attendu :\n### Procédure et données\n\n1. **Étape** : description courte\n- Donnée associée : valeur\n\nAucune balise HTML dans cet exemple."
     )
     
     try:

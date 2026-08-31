@@ -1,6 +1,6 @@
 # miro-rag/code_intelligence/domain_relational.py
 """
-TDD Fixture for J12 Semgrep rule: odoo-relational-domain-declaration.
+odoo-relational-domain-declaration.
 Tests fields.Many2one and fields.Many2many declarations containing domain= attributes.
 """
 

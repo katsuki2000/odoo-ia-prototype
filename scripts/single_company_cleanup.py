@@ -73,6 +73,10 @@ def main() -> None:
         [["|", ("company_id", "=", old_id), ("company_ids", "in", [old_id])]],
         {"context": {"active_test": False}},
     )
+    # Defer updating the admin user (uid=2) until the very end so it doesn't lose access
+    # to other users in company 1 before they are migrated.
+    stray_user_ids = sorted(stray_user_ids, key=lambda u: u == admin_uid)
+    
     for uid in stray_user_ids:
         user = client.execute_kw(
             admin_uid, "res.users", "read", [[uid]],
@@ -90,14 +94,20 @@ def main() -> None:
     # mais Odoo refuse d'archiver une societe tant qu'un site actif y pointe ("My Website",
     # confirme empiriquement -- Fault 2 rencontre a l'execution). Reassigne plutot que de toucher
     # au site lui-meme (non destructif).
-    website_ids = client.execute_kw(
-        admin_uid, "website", "search", [[("company_id", "=", old_id)]],
-    )
-    for website_id in website_ids:
-        client.execute_kw(
-            admin_uid, "website", "write", [[website_id], {"company_id": new_id}],
+    try:
+        website_ids = client.execute_kw(
+            admin_uid, "website", "search", [[("company_id", "=", old_id)]],
         )
-        print(f"  -> Reassigned website (ID: {website_id}) to company_id={new_id}")
+        for website_id in website_ids:
+            client.execute_kw(
+                admin_uid, "website", "write", [[website_id], {"company_id": new_id}],
+            )
+            print(f"  -> Reassigned website (ID: {website_id}) to company_id={new_id}")
+    except Exception as e:
+        if "doesn't exist" in str(e):
+            print("  -> Website module not installed, skipping website reassignment.")
+        else:
+            raise
 
     # Delete reel non tente : 47 comptes + 8 journaux + l'entrepot demo sont aussi scopes sur
     # company_id=1 (todo/contexte.txt section 321), chacun avec sa propre contrainte FK

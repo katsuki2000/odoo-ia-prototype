@@ -1,5 +1,5 @@
 """
-rag/generate_node.py
+generate_node.py
 
 Documentary RAG branch -- generates structured answers from retrieved
 document chunks using Groq (or the configured LLM provider).
@@ -69,11 +69,11 @@ def _verify_used_sources(used_source_aliases: list, alias_map: dict) -> list:
     Three explicit outcomes:
     - full/partial match: only the verified aliases become SourceReference
       entries, in retrieval order (the order `alias_map` was built in).
-    - empty declared list: returns [] (format_output()'s existing
-      chunk-listing fallback takes over downstream).
+    - empty declared list: returns [] -- this means the LLM reported that
+      no retrieved chunk was actually used (e.g. a not-found refusal), so
+      no chunk-listing fallback should apply downstream.
     - unknown alias(es): logged as a distinct 'invalid_used_sources'
-      warning and excluded; if nothing valid remains, also returns [] and
-      the same fallback applies.
+      warning and excluded; if nothing valid remains, also returns [].
     """
     if not used_source_aliases:
         return []
@@ -229,6 +229,15 @@ def generate(state: RAGState) -> dict:
     messages = build_messages(question, context_text, chat_history)
 
     _llm_call_count = 0
+    # True only when the structured-output call failed and we fell back to
+    # a raw, unstructured LLM invoke -- the only case where we genuinely
+    # lose the ability to know which chunks the answer drew on, so showing
+    # the retrieved chunks as best-effort candidate sources downstream
+    # (format_output()) is justified. Never set when the structured call
+    # succeeds: there, an empty sources list means the LLM itself reported
+    # using none of the retrieved chunks (e.g. a not-found refusal), and
+    # that must stay empty rather than be backfilled from chunks.
+    sources_fallback_eligible = False
     try:
         llm = _build_groq_llm(temperature=0.3, max_retries=0, max_tokens=1024)
         # Enforce structured output to match our schema
@@ -261,17 +270,13 @@ def generate(state: RAGState) -> dict:
                 _plain_llm_box[0], messages, rebuild_llm=_rebuild_plain_llm,
             )
             _llm_call_count += 1
-            # Bloc P4bis fix (19/08): the prompt instructs JSON output, so
-            # raw_resp.content is JSON text (see _parse_raw_json_answer
-            # docstring) -- parse the 'answer' field out of it instead of
-            # showing the raw JSON blob to the user. Falls back to the raw
-            # text unchanged if it isn't the expected JSON shape.
             parsed_answer = _parse_raw_json_answer(raw_resp.content)
             response = AssistantResponse(
                 answer=parsed_answer if parsed_answer is not None else raw_resp.content,
                 confidence=compute_rag_confidence(chunks),
                 sources=[]
             )
+            sources_fallback_eligible = True
         except Exception as e2:
             logger.error("Raw LLM Generation also failed: %s", e2)
             response = AssistantResponse(
@@ -288,5 +293,10 @@ def generate(state: RAGState) -> dict:
         hop_count=0, llm_call_count=_llm_call_count,
         total_time_ms=timing["generation_time"] * 1000,
     )
-    return {"response": response, "raw_answer": response.answer if response else "", "timing": timing}
+    return {
+        "response": response,
+        "raw_answer": response.answer if response else "",
+        "timing": timing,
+        "sources_fallback_eligible": sources_fallback_eligible,
+    }
 
