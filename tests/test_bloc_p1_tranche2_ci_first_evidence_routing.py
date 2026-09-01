@@ -1,0 +1,325 @@
+# -*- coding: utf-8 -*-
+"""
+Bloc P1 -- reorientation CI-d'abord / RAG-en-dernier-recours (Tranche 3,
+todo/contexte.txt section 405-409).
+
+Couverture dediee du cablage trouve deja ecrit sur le disque (Tranche 2,
+constat section 408) et jusqu'ici sans aucun test dedie (recherche par
+pattern `*ci_evidence*`/`*tranche_2*` sur l'arborescence complete, aucun
+resultat) :
+
+  - core/graph.py::ci_evidence_decision()   -- l'edge conditionnelle post-CI
+    qui decide format_output (SUFFICIENT) vs generate/RAG (!= SUFFICIENT).
+  - core/graph.py::build_graph()            -- le cablage structurel reel du
+    StateGraph (qui va vers code_intelligence_agent, qui va vers
+    orm_agent_loop, que hybrid_node n'est plus un noeud du graphe).
+  - core/graph.py::format_output()          -- la distinction
+    `ci_fell_back_to_rag` (le drapeau qui evite d'attribuer a tort les
+    chunks universels de retrieve() a une reponse que CI a produite
+    lui-meme quand son verdict est SUFFICIENT).
+
+Ni classify_question_intent()/resolve_question_intent() (deja couverts par
+tests/test_j18_routing_fewshot.py, code_intelligence/tests/test_intent_llm_
+classifier_and_resolution.py) ni assess_evidence_sufficiency() elle-meme
+(deja couverte par code_intelligence/tests/test_evidence_sufficiency.py,
+12/12 confirme section 407) ne sont retestes ici -- ce fichier teste
+uniquement le CABLAGE qui les relie, la seule couche encore non testee.
+"""
+import pytest
+
+from core.graph import (
+    ci_evidence_decision,
+    format_output,
+    build_graph,
+    hybrid_node,
+)
+from core.evidence_sufficiency import (
+    assess_evidence_sufficiency,
+    EvidenceSufficiencyStatus,
+)
+from core.schemas import AssistantResponse, QueryRoute
+
+
+# ── A. ci_evidence_decision() -- edge conditionnelle post-CI ───────────────
+
+def test_ci_evidence_decision_absent_key_stays_on_format_output():
+    """Les 3 refus precoces de code_intelligence_agent (out-of-scope, prompt
+    injection, extraction massive) retournent avant que
+    assess_evidence_sufficiency() ne tourne jamais -- ci_evidence_sufficiency
+    est donc absent du state pour ces cas. Ce sont des refus deliberes, pas
+    des verdicts d'insuffisance de preuve : rejouer le RAG dessus serait
+    activement faux, pas seulement redondant (docstring de la fonction)."""
+    assert ci_evidence_decision({}) == "format_output"
+
+
+def test_ci_evidence_decision_none_value_stays_on_format_output():
+    """Meme garde-fou que ci-dessus, mais avec la cle presente et explicitement
+    None plutot qu'absente -- les deux formes doivent etre traitees pareil."""
+    assert ci_evidence_decision({"ci_evidence_sufficiency": None}) == "format_output"
+
+
+def test_ci_evidence_decision_sufficient_stays_on_format_output():
+    state = {"ci_evidence_sufficiency": {"status": EvidenceSufficiencyStatus.SUFFICIENT.value}}
+    assert ci_evidence_decision(state) == "format_output"
+
+
+def test_ci_evidence_decision_insufficient_falls_back_to_generate():
+    state = {"ci_evidence_sufficiency": {"status": EvidenceSufficiencyStatus.INSUFFICIENT.value}}
+    assert ci_evidence_decision(state) == "generate"
+
+
+def test_ci_evidence_decision_conflicting_stays_on_format_output():
+    """todo/contexte.txt sections 419-420 -- reversal of the earlier rule
+    (see git history of this test): the user explicitly reformulated the
+    desired role of CONFLICTING (section 419) -- it must never be silently
+    arbitrated or hand it to the generic doc-RAG fallback, which has no
+    knowledge of the two (or more) competing code-evidence facts that
+    triggered it. code_intelligence_agent now builds its own final_answer
+    for this case as a deterministic, non-arbitrating exposition of every
+    disagreeing fact (ci_helpers.py::_format_conflicting_evidence_answer),
+    so CONFLICTING gets its OWN dedicated destination here, identical to
+    SUFFICIENT's -- no longer merged into INSUFFICIENT's path."""
+    state = {"ci_evidence_sufficiency": {"status": EvidenceSufficiencyStatus.CONFLICTING.value}}
+    assert ci_evidence_decision(state) == "format_output"
+
+
+def test_ci_evidence_decision_conflicting_is_traceable_not_silent(caplog):
+    """Contrainte utilisateur explicite (section 419-420) : CONFLICTING ne
+    doit pas disparaitre silencieusement du log au pretexte qu'il partage
+    desormais sa destination avec SUFFICIENT -- le statut et les raisons
+    doivent rester visibles pour que ce chemin dedie reste auditable comme
+    un choix delibere, pas un accident de l'egalite de destination."""
+    import logging
+    state = {
+        "ci_evidence_sufficiency": {
+            "status": EvidenceSufficiencyStatus.CONFLICTING.value,
+            "reasons": ["deux constats deterministes se contredisent (hypothetique)"],
+        }
+    }
+    with caplog.at_level(logging.INFO):
+        result = ci_evidence_decision(state)
+    assert result == "format_output"
+    assert any(
+        "conflicting" in record.getMessage().lower()
+        and "deux constats deterministes se contredisent" in record.getMessage()
+        for record in caplog.records
+    ), "le statut CONFLICTING et ses raisons doivent apparaitre dans le log, pas disparaitre silencieusement"
+
+
+def test_ci_evidence_decision_insufficient_is_logged(caplog):
+    import logging
+    state = {
+        "ci_evidence_sufficiency": {
+            "status": EvidenceSufficiencyStatus.INSUFFICIENT.value,
+            "reasons": ["no tool observations gathered (hop_count == 0)"],
+        }
+    }
+    with caplog.at_level(logging.INFO):
+        ci_evidence_decision(state)
+    assert any("insufficient" in record.getMessage().lower() for record in caplog.records)
+
+
+@pytest.mark.parametrize(
+    "tool_observations,hop_count,final_answer,expected_decision",
+    [
+        # SUFFICIENT: au moins une observation pertinente, aucun marqueur
+        # d'incertitude dans la reponse finale.
+        (
+            ["Verrou trouve : has_group('account.group_account_manager') requis au-dela de 5000."],
+            1,
+            "Le responsable comptable doit approuver au-dela de 5000.",
+            "format_output",
+        ),
+        # INSUFFICIENT: aucun outil execute (hop_count == 0).
+        (
+            [],
+            0,
+            "Je n'ai pas de données disponibles dans le graphe de connaissances pour répondre à cette question.",
+            "generate",
+        ),
+        # INSUFFICIENT: outils executes, mais aucune observation pertinente
+        # (que des "not found").
+        (
+            ["Model 'custom.unknown.model' was not found in the indexed knowledge graph."],
+            1,
+            "Je n'ai pas trouve d'information pertinente.",
+            "generate",
+        ),
+    ],
+)
+def test_ci_evidence_decision_matches_assess_evidence_sufficiency_end_to_end(
+    tool_observations, hop_count, final_answer, expected_decision,
+):
+    """Test d'integration cible (pas un mock) entre les deux fonctions reelles
+    des Tranches 1 et 2 -- assess_evidence_sufficiency() (Tranche 1,
+    core/evidence_sufficiency.py) produit le verdict, ci_evidence_decision()
+    (Tranche 2, core/graph.py) le consomme via son .to_display_dict(). Ce
+    test attrape une derive de schema entre les deux modules qu'un test
+    purement unitaire sur des dicts a la main (groupe A ci-dessus) ne
+    verrait pas -- ex. un renommage de champ 'status' d'un cote sans l'autre."""
+    result = assess_evidence_sufficiency(tool_observations, hop_count, final_answer)
+    state = {"ci_evidence_sufficiency": result.to_display_dict()}
+    assert ci_evidence_decision(state) == expected_decision
+
+
+# ── B. build_graph() -- cablage structurel du StateGraph ────────────────────
+
+@pytest.fixture(scope="module")
+def compiled_graph_view():
+    """Compile le graphe reel (build_graph()) et retourne sa representation
+    introspectable (app.get_graph()) -- pas un mock, le vrai cablage produit
+    par ce module. Necessite le graphe Code Intelligence reel et les
+    dependances du projet (marque integration implicitement par cette
+    dependance, comme test_bloc_p1_j7_plan_route_conflict.py)."""
+    app = build_graph()
+    return app.get_graph()
+
+
+def _edge_targets(graph_view, source: str) -> set:
+    return {edge.target for edge in graph_view.edges if edge.source == source}
+
+
+@pytest.mark.integration
+def test_route_dispatches_documentaire_hybride_code_intelligence_to_ci_agent(compiled_graph_view):
+    """Contrainte utilisateur (1) : le routeur amont ne doit plus etre le
+    decideur principal a 4 branches -- DOCUMENTAIRE/HYBRIDE/CODE_INTELLIGENCE
+    doivent tous les 3 converger vers le meme noeud code_intelligence_agent
+    cote graphe, quelle que soit la classification amont."""
+    targets = _edge_targets(compiled_graph_view, "route")
+    assert targets == {"code_intelligence_agent", "orm_agent_loop"}, (
+        f"route() ne doit dispatcher que vers ces 2 noeuds de premier niveau "
+        f"(CI ou ERP pur), pas vers 4 branches distinctes -- trouve : {targets}"
+    )
+
+
+@pytest.mark.integration
+def test_donnees_erp_is_the_only_route_reaching_orm_agent_loop_directly(compiled_graph_view):
+    """Le seul chemin de premier niveau vers orm_agent_loop doit venir de
+    route -- confirme que DONNEES_ERP reste le seul cas qui court-circuite
+    code_intelligence_agent, conformement au plan (Domaine B, donnees
+    pures)."""
+    incoming_sources = {edge.source for edge in compiled_graph_view.edges if edge.target == "orm_agent_loop"}
+    assert incoming_sources == {"route"}
+
+
+@pytest.mark.integration
+def test_code_intelligence_agent_only_reaches_format_output_or_generate(compiled_graph_view):
+    """Post-CI, il ne doit exister que 2 destinations possibles -- pas de
+    3e branche cachee reintroduite en aval. Verrouille la forme de l'edge
+    conditionnelle cablee par ci_evidence_decision()."""
+    targets = _edge_targets(compiled_graph_view, "code_intelligence_agent")
+    assert targets == {"format_output", "generate"}
+
+
+@pytest.mark.integration
+def test_orm_agent_loop_reaches_format_output_directly_bypassing_evidence_gate(compiled_graph_view):
+    """Le chemin ERP pur (Domaine B) ne passe jamais par
+    assess_evidence_sufficiency()/ci_evidence_decision() -- c'est un chemin
+    de premier niveau distinct, pas un cas particulier de CI. Une seule
+    destination attendue, jamais 'generate'."""
+    targets = _edge_targets(compiled_graph_view, "orm_agent_loop")
+    assert targets == {"format_output"}
+
+
+@pytest.mark.integration
+def test_generate_reaches_format_output(compiled_graph_view):
+    assert _edge_targets(compiled_graph_view, "generate") == {"format_output"}
+
+
+@pytest.mark.integration
+def test_hybrid_node_is_not_wired_into_the_compiled_graph(compiled_graph_view):
+    """hybrid_node (erp_data/orm_agent_node.py) reste importable pour
+    compatibilite ascendante (verifie par l'import en tete de ce fichier)
+    mais ne doit plus etre un noeud du graphe compile -- son role est repris
+    naturellement par le fallback CI -> RAG (module docstring de
+    core/graph.py)."""
+    assert callable(hybrid_node), "hybrid_node doit rester importable/appelable independamment du graphe"
+    assert "hybrid_node" not in compiled_graph_view.nodes
+
+
+# ── C. format_output() -- distinction ci_fell_back_to_rag ──────────────────
+
+def _low_ocr_chunk():
+    return {
+        "document": "texte numerise",
+        "metadata": {"source": "scan.pdf", "type": "pdf", "ocr_quality": "low"},
+    }
+
+
+def test_format_output_no_ocr_leak_when_ci_answer_is_sufficient():
+    """Regression cible directement citee par le docstring de format_output() :
+    quand code_intelligence_agent a tourne ce tour ET que son verdict est
+    SUFFICIENT (donc generate() n'a jamais produit cette reponse), les
+    chunks universels de retrieve() -- sans rapport avec les observations
+    d'outil de CI -- ne doivent PAS se voir attribuer un avertissement OCR
+    qui ne les concerne pas."""
+    state = {
+        "response": AssistantResponse(answer="Reponse de CI.", confidence=1.0, sources=[]),
+        "retrieved_chunks": [_low_ocr_chunk()],
+        "route": QueryRoute.CODE_INTELLIGENCE.value,
+        "ci_evidence_sufficiency": {"status": EvidenceSufficiencyStatus.SUFFICIENT.value},
+    }
+    result = format_output(state)
+    assert result["response"].ocr_warning is not True
+    assert "qualité de lecture est limitée" not in result["response"].answer
+
+
+def test_format_output_ocr_warning_applies_when_ci_fell_back_to_rag():
+    """Cas symetrique : CI a tourne mais son verdict est != SUFFICIENT, donc
+    generate() (RAG) a reellement produit cette reponse -- l'avertissement
+    OCR redevient legitime, meme si route est reste 'code_intelligence'
+    (le routeur amont ne reflete plus qui a produit la reponse sous le
+    cablage CI-d'abord)."""
+    state = {
+        "response": AssistantResponse(answer="Reponse RAG de repli.", confidence=0.5, sources=[]),
+        "retrieved_chunks": [_low_ocr_chunk()],
+        "route": QueryRoute.CODE_INTELLIGENCE.value,
+        "ci_evidence_sufficiency": {"status": EvidenceSufficiencyStatus.INSUFFICIENT.value},
+    }
+    result = format_output(state)
+    assert result["response"].ocr_warning is True
+    assert "qualité de lecture est limitée" in result["response"].answer
+
+
+def test_format_output_documentaire_route_without_ci_sufficiency_no_longer_leaks_ocr():
+    """todo/contexte.txt section 414 -- ce test remplace l'ancienne version qui
+    verrouillait (a tort) une fuite comme "non-regression du chemin DOCUMENTAIRE
+    historique". Sous le graphe compile actuel (build_graph(), sections 405-408),
+    route == 'documentaire' + chunks presents + ci_evidence_sufficiency ABSENT
+    n'est plus atteignable que via l'un des 3 refus precoces de
+    code_intelligence_agent (out-of-scope / prompt-injection / extraction
+    massive -- les seuls chemins qui retournent avant qu'assess_evidence_
+    sufficiency() ne tourne). Dans ce cas, `response` porte un message de
+    refus delibere, sans aucun rapport avec les chunks universels de
+    retrieve() -- l'avertissement OCR NE DOIT PAS s'y attacher. L'ancienne
+    assertion (ocr_warning is True) reproduisait exactement ce faux positif."""
+    state = {
+        "response": AssistantResponse(answer="Cette question sort du perimetre de MIRO AI.", confidence=0.0, sources=[]),
+        "retrieved_chunks": [_low_ocr_chunk()],
+        "route": QueryRoute.DOCUMENTAIRE.value,
+    }
+    result = format_output(state)
+    assert result["response"].ocr_warning is not True
+    assert "qualité de lecture est limitée" not in result["response"].answer
+
+
+def test_format_output_conflicting_does_not_count_as_fell_back_to_rag():
+    """todo/contexte.txt sections 419-420: reversal of the earlier version of
+    this test. CONFLICTING no longer shares INSUFFICIENT's '!= SUFFICIENT'
+    treatment here -- code_intelligence_agent's own answer for a CONFLICTING
+    verdict is now a deterministic dual-evidence exposition it produced
+    itself (ci_helpers.py::_format_conflicting_evidence_answer), NOT
+    generate()'s RAG output (ci_evidence_decision() routes CONFLICTING to
+    format_output directly, never to generate()) -- so the universal
+    retrieve() chunks' OCR warning must NOT attach to it, exactly the same
+    false-attribution this module's docstring already forbids for the
+    SUFFICIENT case just above."""
+    state = {
+        "response": AssistantResponse(answer="Preuves contradictoires exposees par CI.", confidence=0.5, sources=[]),
+        "retrieved_chunks": [_low_ocr_chunk()],
+        "route": QueryRoute.CODE_INTELLIGENCE.value,
+        "ci_evidence_sufficiency": {"status": EvidenceSufficiencyStatus.CONFLICTING.value},
+    }
+    result = format_output(state)
+    assert result["response"].ocr_warning is not True
+    assert "qualité de lecture est limitée" not in result["response"].answer

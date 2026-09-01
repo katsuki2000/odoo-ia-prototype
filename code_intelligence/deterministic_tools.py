@@ -18,6 +18,7 @@ import unicodedata
 from rapidfuzz import fuzz
 
 from code_intelligence.semantic_tag_query import tags_for_node_attrs
+from core.evidence import Evidence, EvidenceSourceType, make_evidence
 
 _logger = logging.getLogger(__name__)
 
@@ -444,6 +445,12 @@ class RuleEvaluationResult:
     ignored_group_rules: List[RuleDetail] = field(default_factory=list)
     effective_domain_summary: str = ""
     summary_text: str = ""
+    # B0 pilot (todo/contexte.txt sections 426-428): structured Evidence
+    # produced at the source, one per rule actually evaluated (global,
+    # applied group, or ignored group). Populated by evaluate_record_rules()
+    # below. Not yet consumed downstream (B2/B3) -- exposed here so the
+    # Evidence Builder has something real to wire into once it exists.
+    evidence: List[Evidence] = field(default_factory=list)
 
     def can_view_amount(self, amount: float) -> bool:
         """
@@ -623,6 +630,71 @@ def resolve_group_identifier(G: nx.DiGraph, user_group: str, candidate_full_xml_
     return None
 
 
+def _build_record_rules_evidence(
+    model_name: str,
+    permission: str,
+    user_groups: List[str],
+    applied_global: List[RuleDetail],
+    applied_group: List[RuleDetail],
+    ignored_group: List[RuleDetail],
+) -> List[Evidence]:
+    """
+    B0 pilot (todo/contexte.txt sections 426-428): generate one Evidence per
+    rule actually evaluated, at the source, instead of leaving the caller to
+    parse summary_text back into facts. Each rule's applied/ignored status
+    depends on user_groups, so that context goes in scope rather than being
+    baked into the claim string. confidence="HIGH" reflects that this is a
+    deterministic graph read (static AST-derived domain_force/groups), not
+    an LLM-interpreted heuristic -- same vocabulary CI already uses
+    elsewhere (analyze_data_constraints's [Confiance: HIGH] tag).
+    """
+    scope = {"user_groups": sorted(user_groups)}
+    evidence: List[Evidence] = []
+
+    for rule in applied_global:
+        evidence.append(make_evidence(
+            source_type=EvidenceSourceType.CODE,
+            claim=(
+                f"Global ir.rule '{rule.rule_name}' unconditionally restricts "
+                f"{permission} access on '{model_name}' (AND-combined with every other rule)"
+            ),
+            source=f"rule:{rule.rule_xml_id}",
+            value=rule.domain_force,
+            confidence="HIGH",
+            scope=scope,
+        ))
+
+    for rule in applied_group:
+        evidence.append(make_evidence(
+            source_type=EvidenceSourceType.CODE,
+            claim=(
+                f"Group ir.rule '{rule.rule_name}' applies to the requester and "
+                f"potentially restricts {permission} access on '{model_name}' "
+                f"(OR-combined with other applied group rules)"
+            ),
+            source=f"rule:{rule.rule_xml_id}",
+            value=rule.domain_force,
+            confidence="HIGH",
+            scope=scope,
+        ))
+
+    for rule in ignored_group:
+        evidence.append(make_evidence(
+            source_type=EvidenceSourceType.CODE,
+            claim=(
+                f"Group ir.rule '{rule.rule_name}' exists on '{model_name}' but does NOT "
+                f"apply to the requester (not a member of any of its groups: "
+                f"{', '.join(rule.groups)})"
+            ),
+            source=f"rule:{rule.rule_xml_id}",
+            value=rule.domain_force,
+            confidence="HIGH",
+            scope=scope,
+        ))
+
+    return evidence
+
+
 def evaluate_record_rules(
     G: nx.DiGraph,
     model_name: str,
@@ -747,6 +819,10 @@ def evaluate_record_rules(
 
     summary_text = "\n".join(lines)
 
+    evidence = _build_record_rules_evidence(
+        model_name, permission, user_groups, applied_global, applied_group, ignored_group
+    )
+
     return RuleEvaluationResult(
         model_name=model_name,
         user_groups=user_groups,
@@ -755,6 +831,7 @@ def evaluate_record_rules(
         ignored_group_rules=ignored_group,
         effective_domain_summary=summary_text,
         summary_text=summary_text,
+        evidence=evidence,
     )
 
 

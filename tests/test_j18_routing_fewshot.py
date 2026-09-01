@@ -5,10 +5,30 @@ examples at branch boundaries. Validates that the conflict resolution policy
 (CODE_INTELLIGENCE > DONNEES_ERP > HYBRIDE > DOCUMENTAIRE) is correctly
 implemented by the keyword-based router.
 
-These tests run the route() function in isolation (no LLM, no retrieval)
-to verify deterministic keyword matching. Each test case corresponds to
-one of the 16 few-shot examples in few_shot_routing_examples.py.
+These tests run route() with the bounded LLM intent classifier forced
+unavailable (see _force_deterministic_intent_classifier below), so what
+actually gets exercised is the deterministic classify_question_intent()
+fallback -- no live network call, no retrieval. Each test case corresponds
+to one of the few-shot examples in few_shot_routing_examples.py, which is
+a golden-master SPEC of the intended conflict-resolution policy, not a
+recording of whatever the LLM classifier currently happens to produce.
+
+todo/contexte.txt section 411: Bloc P1 Tranche 2 (section 394+) wired
+route() through resolve_question_intent(), which tries the real Groq LLM
+classifier FIRST and only falls back to classify_question_intent() on
+failure -- without this forced fallback, every route() call here silently
+started making live, non-deterministic, ~3.7s-per-call network requests,
+and 5 of these 67 cases diverged from the golden-master spec (confirmed
+section 404/411: the LLM classifies them into a different QuestionIntent
+than the hand-tuned keyword cascade). That LLM-vs-spec divergence is a
+separate, already-tracked, still-open concern (section 404, options A-D
+never mandated) and is deliberately NOT re-litigated by this file --
+forcing the fallback here restores this module's original, documented
+purpose (a deterministic spec of the keyword-based policy) instead of
+silently rewriting the spec to match today's LLM output.
 """
+from unittest.mock import patch
+
 import pytest
 from core.graph import (
     ROUTING_CONFLICT_PRIORITY,
@@ -19,6 +39,23 @@ from tests.few_shot_routing_examples import (
     CONFLICT_RESOLUTION_POLICY,
     FEW_SHOT_ROUTING_EXAMPLES,
 )
+
+
+@pytest.fixture(autouse=True)
+def _force_deterministic_intent_classifier():
+    """
+    Forces every route() call in this module through the deterministic
+    classify_question_intent() fallback by making the bounded LLM
+    classifier report unavailable (returns None) -- the same signal
+    classify_question_intent_llm() itself returns on any real failure (see
+    its own docstring in code_intelligence/investigation_plan.py). This is
+    a deliberate, documented mock restoring this module's original scope
+    (module docstring above), not a silent bypass of a bug: the LLM
+    classifier's real behavior on these same cases is covered separately
+    (todo/contexte.txt section 404/411).
+    """
+    with patch("code_intelligence.investigation_plan.classify_question_intent_llm", return_value=None):
+        yield
 
 
 def _route_question(question: str) -> str:
@@ -143,7 +180,15 @@ class TestH1BusinessResolverExposedBeforeRoute:
         documented SLA, not governance/code -- the correct route stays
         DOCUMENTAIRE (via the unchanged no-chunks default), proving
         resolution success is exposed on state without being allowed to
-        steer route_decision in this first step."""
+        steer route_decision in this first step.
+
+        Relies on _force_deterministic_intent_classifier (module-level
+        autouse fixture) to reach classify_question_intent()'s own DOC-08
+        guard (step 9 default, todo/contexte.txt section 411): the bounded
+        LLM classifier does not receive resolved_concept at all and, left
+        unforced, classified this exact wording as CODE_INTELLIGENCE
+        instead (section 404/411) -- a separate, already-tracked concern,
+        not a regression of the DOC-08 guard this test protects."""
         state = {
             "question": "Quel est le délai de traitement pour une demande de mise à disposition ?",
             "retrieved_chunks": [],
@@ -158,6 +203,12 @@ class TestH1BusinessResolverExposedBeforeRoute:
         assert result["route"] == "documentaire"
 
     def test_unresolved_question_still_routes_normally(self):
+        """Relies on _force_deterministic_intent_classifier (module-level
+        autouse fixture, todo/contexte.txt section 411): the bounded LLM
+        classifier, left unforced, classified this exact wording as
+        CODE_INTELLIGENCE instead of DOCUMENTAIRE (section 404/411) --
+        a separate, already-tracked concern, not a regression of the
+        unresolved-concept default this test protects."""
         state = {
             "question": "Quels sont les modules Odoo considérés comme sensibles et qui y a accès ?",
             "retrieved_chunks": [],

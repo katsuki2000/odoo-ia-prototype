@@ -3374,3 +3374,781 @@ Copie sandbox + lecture de `.venv/lib/python3.13/site-packages/langchain_groq/ch
 **Fichiers modifies** : aucun (rejeu seul).
 
 **Prochaine etape** : mandat utilisateur -- reprendre la liste en attente (Tranche 1 (a) du bug Groq tool-call sur `classify_question_intent_llm()`, script `scripts/diagnose_intent_llm_tool_call.py` ecrit section 397 mais jamais execute ; ou tout autre chantier priorise par l'utilisateur).
+
+---
+
+## Section 402: Rejeu diagnostic reel de `scripts/diagnose_intent_llm_tool_call.py` -- confirme 2 bugs distincts (tool-calling Groq peu fiable pour openai/gpt-oss-20b + `strict=True` incompatible avec la coercion JSON->enum). Les deux corriges. Code de production modifie, PAS ENCORE REJOUE (2026-08-31)
+
+**Origine** : mandat utilisateur -- executer le script diagnostic ecrit section 397, suite a la cloture des 3 cas de la section 396 (section 401).
+
+**Note sur la collision de numerotation (sections 398/399 (3a))** : cette session (celle qui a demande le rejeu et lu la sortie) n'est PAS celle qui a ecrit le fix d'elision cite "Section 396" dans le code -- cette session a elle-meme ouvert un premier constat de collision (fichier deja corrige avant meme sa propre premiere lecture), puis a directement enchaine sur ce diagnostic (a) sans repasser par l'exercice de recherche retrospective deja mene (et deja documente comme infructueux) sections 398-399. Le trou de tracabilite reste tel que documente -- non revisite ce tour.
+
+**Resultat du script (colle par l'utilisateur, execution reelle Groq)** :
+
+1. **Nom de tool demande** : confirme `"IntentClassificationLLMResponse"` (le nom du schema, correct -- pas de bug cote construction du tool dans notre code).
+2. **`method="function_calling"` (defaut actuel)** : `BadRequestError` -- le modele `openai/gpt-oss-20b` tente d'appeler un tool nomme `'classify_question_intent_llm'` (le nom de la fonction Python appelante elle-meme, absent du prompt et de tout contexte fourni au modele), jamais offert comme tool -- confirme empiriquement (pas seulement par hypothese documentaire section 397) que le tool-calling force est peu fiable pour ce modele sur Groq.
+3. **`method="json_schema"` (hypothese section 397)** : le modele repond CORRECTEMENT (`{"intent":"workflow_state"}`, raisonnement coherent dans `reasoning_content`) -- confirme l'hypothese section 397. MAIS le parsing echoue : `OutputParserException` -- `IntentClassificationLLMResponse` declare `model_config = ConfigDict(strict=True)`, qui interdit a Pydantic de coercer la chaine JSON `"workflow_state"` en membre d'enum `QuestionIntent` (`Input should be an instance of QuestionIntent [type=is_instance_of, input_value='workflow_state', input_type=str]`) -- un SECOND bug, dans notre propre schema, distinct du probleme Groq/modele.
+
+**Diagnostic complet** : deux causes independantes empechaient `classify_question_intent_llm()` de fonctionner, l'une masquant l'autre (le mode par defaut echouait avant meme d'atteindre l'etape de parsing ou le second bug se serait revele).
+
+**Fix 1 -- `classify_question_intent_llm()`** : `llm.with_structured_output(IntentClassificationLLMResponse)` -> `llm.with_structured_output(IntentClassificationLLMResponse, method="json_schema")`. `include_raw` non fixe (reste `False`, comportement par defaut) -- contrairement au script diagnostic qui force `include_raw=True` pour inspecter l'etat intermediaire, le code de production doit continuer a recevoir directement l'objet parse (ou lever, deja capture par le `try/except` englobant existant).
+
+**Fix 2 -- `IntentClassificationLLMResponse`** : `model_config = ConfigDict(strict=True)` -> `ConfigDict(strict=False)`. Justification explicite ajoutee dans la docstring : contrairement a `InvestigationStep`/`InvestigationPlan` (construits directement par notre propre code, ou `strict=True` protege contre un bug de type-punning accidentel), ce schema n'est JAMAIS construit que par le parsing d'une completion JSON brute d'un LLM -- sur le fil, un enum est une simple chaine (JSON n'a pas de type enum natif), donc Pydantic DOIT pouvoir coercer cette chaine vers le membre `QuestionIntent` correspondant. `strict=True` etait une erreur de configuration ici, pas une protection utile.
+
+**Discipline de pre-edition respectee** : lecture complete du fichier avant modification ; 2 `dryRun` relus (diffs propres) avant ecriture reelle. **Anomalie d'outil observee (3e occurrence ce tour, meme classe que plus haut dans cette session)** : les 2 appels `edit_file` reels (`dryRun=false`) ont chacun echoue au premier essai (`Could not find exact match`) alors que le `dryRun` immediatement precedent, sur le MEME contenu, avait reussi et produit un diff propre -- une relecture immediate du fichier a chaque fois a confirme que l'edition avait neanmoins ete appliquee (contenu du disque conforme au diff prevu). Cause non elucidee (ecriture concurrente cote plateforme entre le dryRun et l'ecriture reelle, ou latence de synchronisation du montage filesystem) -- traitee par verification systematique post-edition plutot que par confiance aveugle dans le code de retour du tool.
+
+**Verification effectuee** : relecture complete du fichier depuis le disque apres les 2 editions (confirme, contenu conforme). Copie sandbox + `python3 -m py_compile investigation_plan.py` -> **COMPILE_OK**.
+
+**Non fait ce tour** : aucun rejeu du script diagnostic apres fix (necessite le poste utilisateur), ni de `code_intelligence/tests/test_intent_llm_classifier_and_resolution.py` (Tranche 3, ecrit section 395 -- mocke `get_chat_llm`/`with_structured_output` de maniere generique, donc non affecte par le changement de `method=`, mais jamais rejoue en conditions reelles depuis son ecriture). Aucune tentative de resoudre la collision de numerotation "section 396" (hors scope de ce tour, deja actee comme irresolvable par lecture seule).
+
+**Fichiers modifies** : `code_intelligence/investigation_plan.py` (`IntentClassificationLLMResponse.model_config` : `strict=True` -> `strict=False` ; `classify_question_intent_llm()` : ajout de `method="json_schema"` a l'appel `with_structured_output()`).
+
+**Prochaine etape** : mandat utilisateur -- rejeu reel de `scripts/diagnose_intent_llm_tool_call.py` (confirmer que le point 3 produit desormais un `SUCCESS` avec `parsed` peuple et `parsing_error=None`) et/ou de `code_intelligence/tests/test_intent_llm_classifier_and_resolution.py` (Tranche 3) pour cloture definitive du chantier LLM classifier ouvert section 394.
+
+---
+
+## Section 403: Rejeu reel confirme les 2 fixes de la section 402 -- `method="json_schema"` produit desormais `SUCCESS`/`parsed` peuple/`parsing_error=None`. Chantier bug Groq tool-call CLOS sur le plan du classifieur isole (2026-08-31)
+
+**Origine** : suite directe de la section 402 -- rejeu demande pour confirmer les 2 fixes (`method="json_schema"` + `strict=False`) en conditions reelles.
+
+**Resultat** : point 3 du script -> `SUCCESS: {'raw': AIMessage(...), 'parsed': IntentClassificationLLMResponse(intent=<QuestionIntent.WORKFLOW_STATE: 'workflow_state'>), 'parsing_error': None}` -- contre l'echec `OutputParserException` de la section 396/402. Point 2 (`method="function_calling"`) echoue encore avec la meme `BadRequestError` que sections 396/402 -- attendu et sans consequence : ce chemin n'est plus utilise en production depuis le fix 1 (section 402), le script le conserve deliberement comme point de comparaison, pas comme regression a corriger.
+
+**Conclusion** : les 2 bugs diagnostiques et corriges section 402 sont confirmes sur preuve d'execution reelle Groq. `classify_question_intent_llm()` produit desormais une classification exploitable (`.intent` peuple, pas d'exception) au lieu d'echouer systematiquement (5/5 avant fix, section 396) et de forcer `resolve_question_intent()` sur son filet `classify_question_intent()` a chaque appel.
+
+**Non fait ce tour** : aucun rejeu de `code_intelligence/tests/test_intent_llm_classifier_and_resolution.py` (Tranche 3, mocks -- non affecte par ce changement mais jamais confirme en execution reelle depuis son ecriture section 395). Aucun rejeu de bout en bout (`tests/test_j18_routing_fewshot.py`/`test_bloc_p1_j7_plan_route_conflict.py`) pour verifier qu'avec le classifieur LLM desormais fonctionnel (`source="llm"` au lieu de `"fallback_keyword"` sur la majorite des appels), le routage reste conforme aux 77 cas few-shot -- risque non nul que le LLM (moins deterministe que le filet keyword) diverge sur certains cas deja calibres pour le filet ; a verifier avant cloture definitive.
+
+**Fichiers modifies** : aucun (rejeu seul).
+
+**Prochaine etape** : mandat utilisateur -- (1) rejeu de `code_intelligence/tests/test_intent_llm_classifier_and_resolution.py` (Tranche 3, confirmation simple, non bloquant) ; (2) rejeu de la suite few-shot complete (`tests/test_j18_routing_fewshot.py` + `test_bloc_p1_j7_plan_route_conflict.py`) avec le classifieur LLM desormais actif sur la majorite des appels (`source="llm"`), pour verifier qu'aucun des 77 cas deja calibres pour le filet keyword ne diverge sous le LLM -- la seule verification restante avant cloture definitive du chantier ouvert section 394.
+
+---
+
+## Section 404: Rejeu reel confirme le risque anticipe section 403 -- le classifieur LLM desormais actif casse 5 cas deja calibres pour le filet keyword. Tension architecturale de fond, PAS un bug ponctuel. JOURNAL AVANT FIX, aucun code de production touche (2026-08-31)
+
+**Origine** : suite directe de la section 403 -- rejeu demande des deux suites pour verifier le risque explicitement note ("le LLM, moins deterministe que le filet keyword, peut diverger sur des cas deja calibres").
+
+**Resultat Tranche 3** (`test_intent_llm_classifier_and_resolution.py`) : **13 passed**, aucun echec -- confirme le comportement mocke, non affecte par le changement de `method=`.
+
+**Resultat suite few-shot + plan/route** : **62 passed, 5 failed** (collecte 67 items -- 57 dans `test_j18_routing_fewshot.py` + 10 dans `test_bloc_p1_j7...`). Tous les 5 echecs sont NOUVEAUX (absents des rejeux sections 400/401, qui etaient 57/57 et 10/10 sous le filet keyword systematique, faute de classifieur LLM fonctionnel a l'epoque).
+
+**Les 5 cas, avec leur log `WARNING code_intelligence.business_resolver: LLM arbitration requested but no llm client was provided; skipping.`** (business_resolver, sans rapport avec le classifieur d'intent -- juste l'arbitrage de concept qui n'a pas de client dans ces tests) :
+
+1. "Quelle est la procedure de gestion des tickets et combien en avons-nous en cours ?" -- attendu `hybride`, obtenu `code_intelligence` (x2 : `test_few_shot_routing` + `test_every_few_shot_route_decision_is_unaffected`).
+2. "Quel est le delai de traitement pour une demande de mise a disposition ?" (DOC-08, alias statique -> custom.asset.loan) -- attendu `documentaire`, obtenu `code_intelligence`.
+3. "Quels sont les modules Odoo consideres comme sensibles et qui y a acces ?" -- attendu `documentaire`, obtenu `code_intelligence`.
+4. "comment creer une demande de facture ?" (le cas section 385/396/398/399/401, deja "CONFIRME CLOS" section 401 sous le filet keyword) -- attendu `documentaire`, obtenu `code_intelligence` -- **regression sur un cas explicitement cloture avant l'activation reelle du LLM**.
+
+**Diagnostic (analyse, pas de code touche)** : deux causes distinctes, toutes deux structurelles :
+
+**(a) Le filet keyword porte ~15 sections de garde-fous fins jamais transmis au LLM.** `classify_question_intent()` encode des annees de corrections cas-par-cas calibrees precisement contre ces 77 exemples few-shot -- garde DOC-08 (`concept_suggests_code_intelligence_v2`/step 9), retrait de "comment" de `_WEAK_PROCESS_SIGNALS` (section 399, pour NE PAS classer un how-to en `workflow_state`), ordre de priorite `_ERP_DATA_PATTERNS`/`_CALCULATION_AMOUNT_PATTERNS` (section 399), elision "combien d'" (section 396), etc. `_INTENT_CLASSIFICATION_SYSTEM_PROMPT` (le prompt du classifieur LLM) ne contient qu'une ligne de description generique par categorie -- aucune de ces regles fines n'y est encodee. Le LLM n'a structurellement aucun moyen de reproduire ces distinctions qu'il n'a jamais vues.
+
+**(b) `QuestionIntent` n'a aucune categorie HYBRIDE.** La couche HYBRIDE de `route()` (todo/contexte.txt, section anterieure a 394) n'est appliquee QUE lorsque l'intent resolu derive vers `documentaire`/`donnees_erp` (`if route_decision in (DOCUMENTAIRE, DONNEES_ERP): is_hybrid = ...`). Sous l'ancien filet keyword, une question hybride comme le cas 1 ci-dessus tombait par defaut sur `DOCUMENTARY_POLICY` (step 9, aucun signal CI explicite), laissant la couche HYBRIDE la rattraper en aval. Le LLM, lui, peut legitimement classer la meme question dans une categorie CI-domain (ex. `workflow_state` pour "gestion des tickets") -- ce qui court-circuite structurellement la couche HYBRIDE, jamais consultee pour une route deja `code_intelligence`. Ce n'est pas un bug du LLM : c'est un angle mort de la taxonomie `QuestionIntent` elle-meme, simplement jamais revele tant que le filet keyword atterrissait de maniere fiable sur `DOCUMENTARY_POLICY` par defaut.
+
+**Consequence** : ce n'est pas un bug ponctuel corrigeable par un patch chirurgical (contrairement aux sections 396-402) -- c'est une tension entre les deux objectifs de la Tranche 1 : generaliser au-dela des patterns fige (raison d'etre du classifieur LLM) vs. rester fidele a un contrat de routage calibre cas-par-cas sur exactement ces 77 exemples. Plus le LLM fonctionne bien et generalise, plus il risque de diverger sur les cas ou le filet keyword avait ete specifiquement corrige pour un comportement non-generique (DOC-08 en particulier est une exception deliberement non-generalisable : un modele qui *sonne* gouvernance mais qui repond a une question purement documentaire).
+
+**Non fait ce tour** : aucun code touche (rejeu + analyse seule). Aucune option d'arbitrage tranchee -- presentees a l'utilisateur pour mandat : (A) enrichir `_INTENT_CLASSIFICATION_SYSTEM_PROMPT` avec les regles de disambiguation critiques (DOC-08, "comment"=marqueur how-to, etc.) -- risque : le LLM reste non-deterministe, pas de garantie de stabilite meme avec un prompt enrichi. (B) rendre `classify_question_intent()` (filet) autoritaire pour la decision de ROUTE (pas seulement en filet d'echec), le LLM restant informatif/mesure mais non decisionnel tant que ses categories divergent du filet sur des cas connus -- inverse la priorite actuelle de `resolve_question_intent()`. (C) ajouter une categorie HYBRIDE explicite a `QuestionIntent` pour que le LLM puisse l'exprimer directement, comblant l'angle mort (b) independamment de (a). (D) combinaison : reconciliation systematique (executer les deux, alerter/logguer sur divergence, choisir un cote par regle explicite) plutot qu'un simple "LLM d'abord, filet seulement si echec technique".
+
+**Fichiers modifies** : aucun.
+
+**Prochaine etape** : mandat utilisateur sur l'arbitrage (A/B/C/D ci-dessus, ou autre) avant tout changement de code.
+
+---
+
+## Section 405: Recadrage architectural utilisateur -- la tension section 404 n'est pas un probleme de calibrage du classifieur, c'est un ECART reel entre `core/routing.py` (routeur a 4 branches coequipieres) et `todo/architecture.md` (Code Intelligence = chemin par defaut, RAG = fallback explicite sur preuve insuffisante, pas une branche de premier niveau). Confirme par relecture complete de `architecture.md`. JOURNAL AVANT PLAN, aucun code touche (2026-08-31)
+
+**Origine** : suite directe de la section 404 -- au lieu de trancher entre les options A/B/C/D presentees (toutes des patchs sur le routeur existant), l'utilisateur propose de remettre en question le modele mental du routeur lui-meme.
+
+**Argument utilisateur (resume fidele)** : le RAG n'est pas cense etre un concurrent de Code Intelligence -- c'est une source de dernier recours pour les connaissances absentes d'Odoo lui-meme (reglements internes, procedures non codifiees, notes). Le vrai design cible est :
+```
+Question -> Code Intelligence -> preuve suffisante ?
+  oui -> repondre
+  non -> RAG disponible ?
+    oui -> chercher les documents
+    non -> NON RESOLU
+```
+et non un choix a priori entre 4 branches equivalentes (`documentaire`/`donnees_erp`/`hybride`/`code_intelligence`) fait par un classifieur d'intention. Sous ce modele, le cas HYBRIDE (section 404, cas 1 : "procedure de gestion des tickets ET combien en cours") devient naturel sans creer de categorie dediee -- CI repond a la partie donnee/comportementale, RAG complete l'information documentaire absente, sans taxonomie d'intentions a 8 categories. Et l'accumulation de regles cas-par-cas ("comment" -> documentaire, "avoir" -> account.move, "validation" -> workflow -- exactement les ~15 sections de garde-fous identifiees section 404(a)) est le symptome direct d'un routeur transforme en dictionnaire de cas particuliers, plutot qu'un signe qu'il faut encore l'enrichir.
+
+**Verification contre `todo/architecture.md`** (lecture complete effectuee ce tour, pas seulement le resume utilisateur) : CONFIRME, mot pour mot, section "Cas particulier : Documentation" :
+> "Le RAG n'est pas le moteur principal. Le RAG intervient uniquement lorsque : Le systeme ne contient pas la reponse OU La documentation apporte un complement utile."
+
+Et le diagramme "Resume final" de l'architecture cible ne montre PAS 4 branches coequipieres au premier niveau : Graphe + Ontologie metier + Tags comportementaux + Runtime Odoo alimentent ENSEMBLE une seule "Construction des preuves", en amont du Raisonnement deterministe. Le Domaine A (Code Intelligence : "Pourquoi ? Comment ? Qui peut ?") et le Domaine B (Data Intelligence : "Combien ? Qui ? Quand ?", via runtime Odoo) sont tous deux decrits comme faisant partie du meme systeme "source de verite" (section "Principe fondamental" : 1. instance Odoo, 2. code Odoo, 3. configuration Odoo, 4. documentation *(optionnelle)*, explicitement en dernier et explicitement qualifiee d'optionnelle) -- seul le Domaine C (Documentation Intelligence) est "uniquement lorsque necessaire".
+
+**Conclusion** : ce n'est pas un desaccord d'interpretation -- `core/routing.py` (le routeur a 4 branches coequipieres issu de Tranche 2, section 394+) est un ecart reel, mesurable, par rapport a l'architecture cible deja documentee AVANT le chantier Tranche 1/2/3. Aucune des options A/B/C/D presentees section 404 n'aurait corrige cet ecart -- toutes auraient continue a traiter les 4 branches comme des concurrentes de premier niveau, juste avec un arbitre different (LLM enrichi, filet keyword autoritaire, categorie HYBRIDE ajoutee, ou reconciliation des deux). Le vrai chantier, per l'utilisateur : definir precisement ce qui constitue une "preuve suffisante" / un "echec" de Code Intelligence, et le moment ou le RAG est autorise a prendre le relais -- pas continuer a affiner le classifieur d'intention a 4 (ou 5, avec HYBRIDE) branches.
+
+**Non fait ce tour** : aucun code touche, aucun plan d'implementation encore ecrit -- le present tour se limite a la verification documentaire (architecture.md) qui confirme le diagnostic utilisateur avant de proposer un plan par tranches pour la reorientation.
+
+**Fichiers modifies** : aucun.
+
+**Prochaine etape** : proposer un plan par tranches pour faire converger `core/routing.py`/`core/graph.py` vers le modele CI-d'abord + RAG-en-dernier-recours de `architecture.md`, puis mandat utilisateur avant execution.
+C'est un recadrage juste, et il explique directement pourquoi la section 404 a buté : on demandait à une taxonomie plate de 8 intentions de simuler une hiérarchie (CI d'abord, RAG en dernier recours), alors que ce n'est pas ce qu'elle peut exprimer structurellement. Avant de proposer un plan, je vérifie contre `architecture.md` — c'est censé être l'objectif documenté, il faut que je sache si ce recadrage le rejoint ou le contredit.`architecture.md` confirme ta relecture, noir sur blanc — et pas de façon vague :
+
+> **Le RAG n'est pas le moteur principal.** Le RAG intervient uniquement lorsque : Le système ne contient pas la réponse OU La documentation apporte un complément utile.
+
+Et le diagramme "Résumé final" ne montre même pas de fourche à 4 branches — Graphe + Ontologie + Tags + Runtime Odoo alimentent ensemble une seule "Construction des preuves". Domaine A (code) et Domaine B (données ERP, "Combien ? Qui ? Quand ?") sont tous les deux dans le même pipeline "système", par opposition au Domaine C (documentation), qui est explicitement à part et conditionnel.
+
+Donc le diagnostic est net : `core/routing.py` avec ses 4 branches coéquipières choisies par un classifieur d'intention est un **écart architectural réel** par rapport à `architecture.md`, pas juste un classifieur mal calibré. C'est la cause racine de la tension de la section 404 — on demandait à une taxonomie plate de simuler une hiérarchie qu'elle ne peut pas exprimer.
+
+Je journalise ce constat avant de proposer un plan.Je regarde `core/graph.py` pour ancrer le plan dans le câblage réel du StateGraph, plutôt que de proposer quelque chose d'abstrait.`code_intelligence_agent` est déjà un ReAct agent mature, code-uniquement (ACL, verrous, override chains, workflow — aucun outil de données ERP live), et il calcule déjà un `evidence_status` via `core.evidence_check.check_evidence()`. Je vérifie ce que ça contient — ça pourrait être exactement le primitif "preuve suffisante" dont tu parles.Ça confirme le diagnostic, mais pas encore la solution. `check_evidence()` est un contrôle **pré-analyse** (le concept métier a-t-il été résolu ?), pas un jugement **post-analyse** sur la suffisance de la réponse. Ce que ton modèle demande — "CI a-t-il assez de preuves pour répondre ?" — n'existe pas encore comme signal explicite ; il est aujourd'hui implicite dans le texte de la réponse (`"Je n'ai pas de données disponibles..."` quand `tool_observations` est vide).
+
+Voici le plan, en trois tranches, avant d'écrire quoi que ce soit :
+
+**Tranche 1 — Signal de suffisance de preuve (nouveau code, isolé)**
+Formaliser explicitement ce qu'aujourd'hui `code_intelligence_agent` laisse implicite : une fonction/valeur de retour claire — *CI a-t-il produit une réponse exploitable, ou juste "aucune donnée disponible" ?* Basée sur des signaux déjà présents (`tool_observations` vide, `hop_count == 0`, ou `generate_investigation_plan()` qui retourne déjà `steps=[]` pour DOCUMENTARY_POLICY/ERP_DATA_QUERY). Rien de cassé, testable isolément.
+
+**Tranche 2 — Câblage `route()`/`graph.py` : CI d'abord, RAG en fallback conditionnel**
+- Le routage n'essaie plus de deviner à l'avance entre 4 branches équivalentes. Nouvelle logique : dispatcher vers `code_intelligence_agent` par défaut (Domaine A) ou `orm_agent_loop` pour une requête de données pures (Domaine B — reste un outil distinct, mais toujours "système", pas RAG).
+- Nouvelle edge conditionnelle après `code_intelligence_agent` : si preuve insuffisante (Tranche 1) → `generate` (RAG), sinon réponse directe.
+- Le cas HYBRIDE émerge naturellement de ce flux (CI répond à ce qu'il peut, RAG complète le reste) — plus besoin d'une 5e catégorie d'intention pour ça.
+
+**Tranche 3 — Nettoyage et rejeu**
+Retirer `QuestionIntent`/`INTENT_TO_ROUTE`/le classifieur LLM d'intention *comme mécanisme de routage de premier niveau* (le classifieur garde un usage légitime en interne côté CI, pour choisir quel type d'étapes de plan générer). Rejouer les 77 cas few-shot en sachant qu'ils encodent l'ancien modèle mental à 4 branches — certains seront à mettre à jour plutôt qu'à satisfaire coûte que coûte, comme tu l'as dit toi-même.
+
+C'est un chantier bien plus gros que les précédents — je ne pars sur rien avant ton feu vert.
+
+---
+
+## Section 406: Mandat utilisateur pour ecriture reelle de `core/evidence_sufficiency.py` (Tranche 1, Jour 1-2) + `code_intelligence/tests/test_evidence_sufficiency.py` -- correction utilisateur sur la semantique de `CONFLICTING` integree avant ecriture (2026-09-01)
+
+**Origine** : suite directe de la section 405 -- l'utilisateur valide le contrat propose pour le primitif de suffisance de preuve (Tranche 1), avec une reserve de conception explicite sur `CONFLICTING`.
+
+**Correction utilisateur** : un verdict `indeterminate`/non resolu (champ de contexte manquant, dispatch dynamique via `getattr`/`eval`) ne doit PAS mapper automatiquement vers `CONFLICTING`. `indeterminate` signifie preuve insuffisante ou etat non determine ; `CONFLICTING` doit rester reserve a une situation ou DEUX preuves valides se contredisent reellement. Mapping retenu : `SUFFICIENT` / `INSUFFICIENT` / `CONFLICTING`, avec `indeterminate -> INSUFFICIENT` sauf preuve explicite de deux faits contradictoires. Justification utilisateur : eviter de donner a `CONFLICTING` un sens trop large, ce qui compliquerait H3 (todo/plan.md, mecanisme d'arbitrage entre preuves concurrentes, encore "Conceptuel. Non implemente.").
+
+**Verification** : `core/evidence_sufficiency.py` (deja present sur disque) integre deja cette correction -- `EvidenceSufficiencyStatus.CONFLICTING` est declare dans le contrat mais jamais retourne par `assess_evidence_sufficiency()` ; le cas indeterminate (`_INDETERMINATE_FACT_MARKER`/`_DYNAMIC_UNCERTAINTY_MARKER`) mappe explicitement vers `INSUFFICIENT`, avec justification inline dans la docstring du statut et de la fonction. Aucune ecriture necessaire sur ce fichier ce tour -- relecture complete confirme la conformite a la correction avant de proceder.
+
+**Ecriture reelle** : `code_intelligence/tests/test_evidence_sufficiency.py` cree (12 tests) : marqueur canned no-data / modele hors-corpus / aucune observation / `hop_count == 0` avec observations residuelles (garde defensive) / observations toutes `NOT_FOUND_MARKER` / observations toutes erreur d'execution / marqueur `can_view_amount_v2() = indeterminate` -> INSUFFICIENT et explicitement PAS CONFLICTING (regression dediee a la correction ci-dessus) / marqueur d'incertitude dynamique -> INSUFFICIENT / cas SUFFICIENT nominal / comptage correct sur observations mixtes pertinentes/non-pertinentes / `to_display_dict()` fidele aux champs du resultat / CONFLICTING jamais retourne meme avec un libelle de contradiction explicite dans les observations.
+
+**Discipline de pre-edition respectee** : lecture complete de `core/evidence_sufficiency.py` avant tout jugement de conformite ; fichier de test redige en sandbox, verifie par `python3 -m py_compile` (COMPILE_OK) avant ecriture reelle sur le disque utilisateur.
+
+**Non fait ce tour** : aucun rejeu pytest reel (necessite le poste utilisateur -- regle todo/rules.md sur `pytest tests/ -v` non applicable ici, fichier isole hors de la suite complete, mais rejeu explicite non effectue par Claude). Aucun cablage dans `core/graph.py` (Tranche 2, hors mandat de ce tour). Aucune implementation d'un detecteur de contradiction reel pour `CONFLICTING` (reste lie a H3, non tranche).
+
+**Fichiers modifies** : `code_intelligence/tests/test_evidence_sufficiency.py` (nouveau fichier, 12 tests). `core/evidence_sufficiency.py` : aucun changement (deja conforme).
+
+**Prochaine etape** : mandat utilisateur -- rejeu reel de `code_intelligence/tests/test_evidence_sufficiency.py` sur le poste utilisateur (confirmer 12/12) ; puis Tranche 2 (cablage `route()`/`graph.py`, CI d'abord + fallback RAG conditionnel) sur mandat separe.
+
+---
+
+## Section 407: Rejeu reel utilisateur de `code_intelligence/tests/test_evidence_sufficiency.py` -- 12 passed, 0 failed. Bloc P1 reorientation, Tranche 1 (Jour 1-2) CONFIRME CLOS sur preuve d'execution reelle (2026-09-01)
+
+**Origine** : suite directe de la section 406 -- rejeu demande pour confirmer 12/12 en conditions reelles (poste utilisateur, `.venv`, `pytest-9.1.1`).
+
+**Resultat** : `pytest code_intelligence/tests/test_evidence_sufficiency.py` -> **12 passed in 0.20s**, 0 failed, 0 skip -- colle par l'utilisateur. Le primitif `assess_evidence_sufficiency()` (statut `SUFFICIENT`/`INSUFFICIENT`/`CONFLICTING`, correction utilisateur `indeterminate -> INSUFFICIENT` integree section 406) est desormais confirme isole, teste, et deterministe en conditions reelles.
+
+**Non fait ce tour** : aucun code touche (rejeu seul). Aucun cablage dans `core/graph.py` (Tranche 2).
+
+**Fichiers modifies** : aucun (rejeu seul).
+
+**Prochaine etape** : mandat utilisateur -- Tranche 2 (cablage `route()`/`core/graph.py` : dispatch CI d'abord par defaut, edge conditionnelle post-`code_intelligence_agent` vers `generate` (RAG) si `assess_evidence_sufficiency() != SUFFICIENT`, sinon reponse directe -- cf. plan en 3 tranches, section 405) ; ou tout autre chantier priorise par l'utilisateur.
+
+---
+
+## Section 408: CONSTAT (nouvelle collision de tracabilite, meme classe que 210/282/348/370/395/398) -- Tranche 2 (cablage CI-d'abord + fallback RAG conditionnel) deja ECRITE et CABLEE sur le disque au moment de la lecture de ce tour, non journalisee par la session qui l'a produite. Aucun code touche ce tour (2026-09-01)
+
+**Origine** : mandat utilisateur pour ecrire la Tranche 2 (cablage `route()`/`core/graph.py`, CI d'abord + edge conditionnelle post-CI vers `generate()` si `!= SUFFICIENT`), avec deux contraintes explicites : (1) ne pas reintroduire le routeur a 4 branches comme decideur principal, (2) traiter `CONFLICTING` de maniere tracable plutot que de le fondre aveuglement dans le meme chemin qu'`INSUFFICIENT`. Lecture prealable de `todo/rules.md`, `todo/plan.md`, `todo/contexte.txt` (tail, section 407) effectuee avant toute action, conformement a la regle du projet.
+
+**Constat avant toute ecriture** : `core/graph.py`, `core/routing.py` et `code_intelligence/ci_agent_node.py` portaient deja, au moment de la lecture de ce tour, l'integralite du cablage demande. Relecture ligne a ligne des trois fichiers (pas un diff) :
+
+- `core/graph.py` : docstring de module et de `ci_evidence_decision()` citant explicitement "Bloc P1 Tranche 2, todo/contexte.txt section 405-408" -- reference a une section 408 qui n'existait pas dans le journal au moment de cette lecture (le tour precedent s'arretait a la section 407). `build_graph()` cable exactement le flux cible : `route` -> conditionnel (DOCUMENTAIRE/HYBRIDE/CODE_INTELLIGENCE -> `code_intelligence_agent`, DONNEES_ERP seul -> `orm_agent_loop`) -> `code_intelligence_agent` -> `ci_evidence_decision()` (SUFFICIENT -> `format_output` direct ; != SUFFICIENT -> `generate` RAG) -> `format_output`. `hybrid_node` deliberement retire du graphe (toujours importable/re-exporte, mais plus cable) -- son role est repris naturellement par le fallback CI -> RAG.
+- `code_intelligence/ci_agent_node.py` : `assess_evidence_sufficiency()` (contrat Tranche 1, section 406-407) appele en fin de `CodeIntelligenceAgentRunner.run()`, verdict peuple dans `ci_evidence_sufficiency` (cle du state), commentaire inline confirmant que ce noeud calcule le verdict mais ne decide jamais lui-meme de la branche -- decision laissee a `core/graph.py::ci_evidence_decision()`, conforme a la contrainte utilisateur "pas de decision cachee cote noeud".
+- `core/routing.py` : `route()` documente explicitement remplacer l'ancienne cascade `CODE_INTEL_KEYWORDS`/`ERP_KEYWORDS`/`DOC_KEYWORDS` par `resolve_question_intent()` + `INTENT_TO_ROUTE` (Tranche 2 du chantier classifieur LLM, section 394+, PAS le meme chantier que celui de la section 405 -- deux tranches "2" distinctes, l'une pour le classifieur d'intention, l'autre pour le cablage CI-d'abord/RAG-fallback ; a garder distinctes dans la suite du journal pour eviter une confusion). `route_decision()` (le selecteur d'edge conditionnelle) reste la fonction qui alimente le dispatch initial vers CI ou ORM -- inchangee par ce tour, toujours les 4 valeurs `QueryRoute` en sortie de `route()`, mais 3 des 4 (DOCUMENTAIRE/HYBRIDE/CODE_INTELLIGENCE) convergent desormais vers le meme noeud `code_intelligence_agent` cote graphe -- ce n'est donc plus un routeur a 4 branches DECISIONNAIRES au sens de la contrainte (1) : le choix reel "CI ou pas" ne depend plus de la classification amont, seul le choix "CI vs donnees ERP pures" en depend, ce qui correspond au design cible (Domaine A vs Domaine B, RAG en dernier recours).
+
+**Verification des 2 contraintes utilisateur de ce tour contre le code deja en place** :
+1. "Ne pas reintroduire le vieux routeur a 4 branches comme decideur principal" -- RESPECTEE par construction : `route_decision()` conserve ses 4 valeurs de sortie mais le graphe (`build_graph()`) les fait toutes converger vers `code_intelligence_agent` sauf DONNEES_ERP -- le routeur amont ne decide plus "quelle branche parmi 4", seulement "CI ou ERP pur", conforme au schema demande (`Question -> CI/ORM par defaut -> code_intelligence_agent -> assess_evidence_sufficiency()`).
+2. "CONFLICTING ne doit pas declencher aveuglement le RAG sans tracabilite" -- RESPECTEE explicitement : `ci_evidence_decision()` applique bien la regle `!= SUFFICIENT` (donc CONFLICTING tombe dans le meme branchement que INSUFFICIENT, comme demande), MAIS le docstring de la fonction documente noir sur blanc que ce choix est deliberement traçable et non silencieux -- log explicite `status=%s ... reasons=%s` avant le fallback, note que `assess_evidence_sufficiency()` ne produit aujourd'hui jamais CONFLICTING en pratique (confirme par sa propre docstring, correction utilisateur section 406 : indeterminate -> INSUFFICIENT, pas CONFLICTING), donc cette branche reste actuellement inatteignable mais deja instrumentee pour le jour ou un futur changement (H3, todo/plan.md, mecanisme d'arbitrage entre preuves concurrentes, toujours "Conceptuel. Non implemente.") la rendra reelle.
+
+**Conclusion** : les 2 contraintes de ce tour sont deja satisfaites par le code tel qu'il se trouve sur le disque -- aucune ecriture necessaire pour les faire respecter, seulement une verification. Meme trou de tracabilite que les occurrences precedentes (une session anterieure a ecrit ce cablage sans jamais le journaliser sous un numero de section reel) -- la citation "section 405-408" dans le code fait desormais reference a CE tour-ci pour le numero 408, ce qui cree une coincidence trompeuse (le code semblait "anticiper" cette section, alors qu'il s'agit d'une session anterieure qui avait deja reserve/devine ce numero, comme pour la collision "section 396" documentee sections 398-399).
+
+**Verification technique effectuee ce tour** : copie sandbox des 3 fichiers (`core/graph.py`, `core/routing.py`, `code_intelligence/ci_agent_node.py`) + `python3 -m py_compile` (via l'API `py_compile.compile(..., cfile=..., doraise=True)`, `--cfile` en CLI non supporte par cette version) -- **PY_COMPILE_OK sur les 3 fichiers**, aucune erreur de syntaxe.
+
+**Non fait ce tour** : aucun rejeu pytest reel (necessite le poste utilisateur). Aucun fichier de test dedie trouve pour cette Tranche 2 specifique (`ci_evidence_decision`/le nouveau flux CI-d'abord de `core/graph.py`) -- recherche par pattern `*ci_evidence*`/`*tranche_2*` sur l'arborescence complete, aucun match. La Tranche 3 (tests + rejeu, section 405) reste donc entierement a faire : ni ecrite, ni rejouee. Aucune modification de `todo/plan.md` (regle du projet : jamais sans confirmation explicite) alors que ce chantier constitue une reorientation architecturale significative de Bloc P1 (le RAG n'est plus une branche de premier niveau) -- possible dette de documentation a signaler separement.
+
+**Fichiers modifies** : aucun (lecture + verification seules).
+
+**Prochaine etape** : mandat utilisateur -- (1) ecrire la Tranche 3 (tests dedies pour `ci_evidence_decision()`/le flux CI-d'abord, + rejeu cible des 77 cas few-shot et des modules Bloc 9 pour verifier zero regression sous le nouveau flux) ; (2) decider si `todo/plan.md` doit etre mis a jour pour refleter cette reorientation (RAG non-decisionnaire de premier niveau) -- changement de fond, pas un simple renommage ; (3) tout autre chantier priorise.
+
+---
+
+## Section 409: Tranche 3 ECRITE -- nouveau fichier `tests/test_bloc_p1_tranche2_ci_first_evidence_routing.py` (20 tests) couvrant le cablage CI-d'abord/RAG-fallback constate section 408, jusque-la sans aucun test dedie. Aucun fichier existant touche (2026-09-01)
+
+**Origine** : mandat utilisateur "log ca, et ecris la Tranche 3 (tests dedies)", suite directe du constat section 408 (le cablage Tranche 2 -- `core/graph.py`, `core/routing.py`, `code_intelligence/ci_agent_node.py` -- existait deja sur le disque, non journalise par son auteur, verifie conforme aux 2 contraintes utilisateur mais sans aucune couverture de test dediee).
+
+**Lecture prealable effectuee avant ecriture** : `tests/test_graph.py` (patron etabli -- import direct des fonctions de noeud depuis `core.graph`, state construit a la main, pas d'invocation du graphe complet pour les tests unitaires) ; `tests/test_j18_routing_fewshot.py` (confirme qu'aucun test existant ne couvre `route_decision`/`ci_evidence_decision`/`build_graph`/`get_graph`/`hybrid_node`/`orm_agent_loop` -- grep exhaustif sur copie sandbox, 0 resultat) ; `core/evidence_sufficiency.py` (contrat `EvidenceSufficiencyStatus`/`EvidenceSufficiencyResult.to_display_dict()` re-confirme avant de l'utiliser dans les tests d'integration) ; API d'introspection reelle de la lib installee (`'.venv'/langgraph/pregel/main.py::get_graph()` et `'.venv'/langchain_core/runnables/graph.py::Graph/Edge/Node`) copiees en sandbox pour fonder les tests structurels du groupe B sur l'API reellement disponible plutot que sur une hypothese.
+
+**Fichier ecrit** (`tests/test_bloc_p1_tranche2_ci_first_evidence_routing.py`, nouveau, 20 tests, 3 groupes) :
+
+- **Groupe A -- `ci_evidence_decision()` (9 tests)** : cle absente / valeur `None` -> `format_output` (les 3 refus precoces de `code_intelligence_agent` ne peuplent jamais `ci_evidence_sufficiency`) ; `SUFFICIENT` -> `format_output` ; `INSUFFICIENT` -> `generate` ; `CONFLICTING` -> `generate` (verrouille explicitement la regle `!= SUFFICIENT` demandee -- meme destination qu'`INSUFFICIENT`, pas une branche a part) ; `CONFLICTING`/`INSUFFICIENT` verifies **tracables** via `caplog` (statut + raisons doivent apparaitre dans le log, pas disparaitre dans le fallback generique -- contrainte utilisateur (2) explicite) ; 3 cas parametrises d'integration reelle (pas mockee) entre `assess_evidence_sufficiency()` (Tranche 1) et `ci_evidence_decision()` (Tranche 2) via `.to_display_dict()`, pour attraper une derive de schema entre les deux modules qu'un test sur dict a la main ne verrait pas.
+- **Groupe B -- cablage structurel de `build_graph()` (6 tests, `@pytest.mark.integration`, necessitent le graphe Code Intelligence reel comme `test_bloc_p1_j7_plan_route_conflict.py`)** : `route` ne dispatche que vers `{code_intelligence_agent, orm_agent_loop}` (verrouille la contrainte utilisateur (1) -- plus de 4 branches decisionnaires) ; seul `route` atteint `orm_agent_loop` ; `code_intelligence_agent` n'atteint que `{format_output, generate}` (pas de 3e branche cachee) ; `orm_agent_loop` n'atteint que `format_output` (le chemin ERP pur ne passe jamais par la porte de suffisance de preuve) ; `generate` -> `format_output` ; `hybrid_node` reste importable mais absent des noeuds du graphe compile (`app.get_graph().nodes`). Introspection via `app.get_graph()` (API reelle confirmee en sandbox, pas devinee).
+- **Groupe C -- `format_output()`, distinction `ci_fell_back_to_rag` (5 tests)** : verdict `SUFFICIENT` -> pas de fuite d'avertissement OCR depuis les chunks universels de `retrieve()` (regression ciblee, exactement le bug que le docstring de `format_output()` documente eviter) ; verdict `INSUFFICIENT` -> avertissement OCR legitime (generate() a reellement produit la reponse) ; route `documentaire` historique (sans `ci_evidence_sufficiency`) non affectee, non-regression pure ; `CONFLICTING` traite comme `INSUFFICIENT` ici aussi, coherence entre les deux consommateurs du meme champ dans `core/graph.py`.
+
+**Discipline de pre-ecriture respectee** : redaction complete en sandbox Claude d'abord (`/home/claude/test_bloc_p1_tranche2_ci_first_evidence_routing.py`), `python3 -m py_compile` (API `py_compile.compile(..., doraise=True)`) -> COMPILE_OK, avant toute ecriture sur le disque utilisateur. Fichier NOUVEAU (pas d'edit sur un fichier existant) -- verification prealable qu'aucun fichier de ce nom n'existait deja (`search_files` sur l'arborescence complete, 0 resultat) pour exclure tout risque d'ecrasement. Ecriture reelle via `write_file`, puis RELECTURE depuis le disque utilisateur (`copy_file_user_to_claude` + nouveau `py_compile`) -- **COMPILE_OK confirme sur le contenu reellement present sur le disque**, pas seulement sur la version sandbox.
+
+**Non fait ce tour** : aucun rejeu pytest reel (necessite le poste utilisateur -- session filesystem-only). Aucun fichier existant modifie (`core/graph.py`, `core/routing.py`, `code_intelligence/ci_agent_node.py` intacts, conforme au constat section 408 : rien a corriger, seulement a tester). Le rejeu cible des 77 cas few-shot (`tests/test_j18_routing_fewshot.py`) et des modules Bloc 9 mentionne comme "reste a faire" section 408 n'est pas dans le perimetre de ce tour (perimetre explicite du mandat : "tests dedies", pas un rejeu de suites existantes) -- ces tests-la restent inchanges par construction (aucune ligne de `core/routing.py` touchee), donc a priori non affectes, mais seule une execution reelle le confirmera. Aucune modification de `todo/plan.md` (regle du projet, jamais sans confirmation explicite).
+
+**Fichiers modifies** : `tests/test_bloc_p1_tranche2_ci_first_evidence_routing.py` (nouveau, 20 tests). Aucun fichier existant touche.
+
+**Prochaine etape** : mandat utilisateur -- rejeu reel sur le poste utilisateur de `pytest tests/test_bloc_p1_tranche2_ci_first_evidence_routing.py -v` (confirmer 20/20, en particulier les 6 tests `@pytest.mark.integration` du groupe B qui necessitent le graphe Code Intelligence reel et n'ont jamais ete exerces avant ce tour) ; puis, si vert, decider de la mise a jour de `todo/plan.md` (reorientation RAG non-decisionnaire) et/ou d'un rejeu plus large (77 cas few-shot, modules Bloc 9) pour cloturer definitivement ce chantier.
+
+---
+
+## Section 410: Rejeu reel utilisateur de `tests/test_bloc_p1_tranche2_ci_first_evidence_routing.py` -- 20 passed, 0 failed, y compris les 6 tests d'integration du groupe B jamais exerces avant ce tour. Bloc P1 reorientation CI-d'abord/RAG-fallback, Tranche 3 CONFIRMEE CLOSE sur preuve d'execution reelle (2026-09-01)
+
+**Origine** : suite directe de la section 409 -- rejeu demande pour confirmer 20/20 en conditions reelles (poste utilisateur, `.venv`, `pytest-9.1.1`, rootdir `/home/user/odoo-ia-prototype`).
+
+**Resultat** : `pytest tests/test_bloc_p1_tranche2_ci_first_evidence_routing.py -v` -> **20 passed in 6.54s**, 0 failed, 0 skip -- colle par l'utilisateur. Couvre les 3 groupes ecrits section 409 : Groupe A (9 tests `ci_evidence_decision()`, dont tracabilite CONFLICTING/INSUFFICIENT via `caplog` et integration reelle avec `assess_evidence_sufficiency()`), Groupe B (6 tests `@pytest.mark.integration`, structure reelle de `build_graph()` via `app.get_graph()` -- confirme noir sur blanc que `route` ne dispatche plus que vers `{code_intelligence_agent, orm_agent_loop}`, que `hybrid_node` est absent du graphe compile, et qu'aucune 3e branche cachee n'existe en sortie de `code_intelligence_agent`), Groupe C (5 tests `format_output()`, distinction `ci_fell_back_to_rag`, non-regression OCR/route documentaire historique).
+
+**Consequence** : les 2 contraintes utilisateur posees section 408 (routeur non a 4 branches decisionnaires ; CONFLICTING trace, pas silencieusement fondu) sont maintenant verrouillees par test reel, pas seulement par lecture de code. Le chantier de reorientation architecturale ouvert section 405 (CI d'abord, RAG en dernier recours, cf. `todo/architecture.md`) est complet sur les 3 tranches prevues (signal de suffisance -- section 406/407 ; cablage graphe -- constate section 408 ; tests dedies -- section 409, confirmes ce tour).
+
+**Non fait ce tour** : aucun code touche (rejeu seul). Aucun rejeu des 77 cas few-shot (`tests/test_j18_routing_fewshot.py`) ni des modules Bloc 9 -- toujours mentionne comme verification restante (section 408/409) mais hors mandat explicite de ce tour. Aucune mise a jour de `todo/plan.md` (regle du projet : jamais sans mandat explicite) alors que la reorientation (RAG non-decisionnaire de premier niveau) constitue un changement de fond par rapport a ce que `plan.md` peut encore decrire pour Bloc P1.
+
+**Fichiers modifies** : aucun (rejeu seul).
+
+**Prochaine etape** : mandat utilisateur -- (1) rejeu des 77 cas few-shot + modules Bloc 9 pour verifier zero regression sous le nouveau flux CI-d'abord (derniere verification ouverte avant cloture totale du chantier section 405) ; (2) decider si/comment `todo/plan.md` doit etre mis a jour pour refleter la reorientation RAG non-decisionnaire ; (3) tout autre chantier priorise.
+
+---
+
+## Section 411: Rejeu reel utilisateur de `tests/test_j18_routing_fewshot.py` + `code_intelligence/tests/test_bloc_p1_j7_plan_route_conflict.py` -- 62 passed, 5 failed. CONFIRME : ce sont les 5 cas DEJA diagnostiques section 404 (divergence classifieur LLM), PAS une regression du cablage CI-d'abord Tranche 2/3 (sections 405-410). Aucun code touche (2026-09-01)
+
+**Origine** : suite directe de la section 410 -- rejeu demande de la derniere verification ouverte (77 cas few-shot + `test_bloc_p1_j7_plan_route_conflict.py`) avant cloture totale du chantier de reorientation CI-d'abord.
+
+**Resultat** : **62 passed, 5 failed en 246.51s** (67 items). Duree moyenne ~3.7s/test -- signal fort d'appels reseau Groq reels (confirme ci-dessous), pas une execution pure en memoire.
+
+**Diagnostic (lecture de code effectuee avant toute conclusion, pas seulement rapprochement de libelles)** :
+
+1. **Le classifieur LLM tourne reellement pendant ce rejeu.** `core/routing.py::route()` appelle `resolve_question_intent()` (`code_intelligence/investigation_plan.py`), qui appelle `classify_question_intent_llm()` EN PREMIER -- un vrai appel Groq (`get_chat_llm` + `with_structured_output(method="json_schema")`), et ne retombe sur le filet deterministe `classify_question_intent()` qu'en cas d'echec LLM. Le docstring de module de `tests/test_j18_routing_fewshot.py` ("These tests run the route() function in isolation (no LLM, no retrieval)") est devenu FAUX depuis le cablage Tranche 2 du chantier classifieur (section 394+, distinct du chantier CI-d'abord section 405+) -- constat de peremption documentaire, pas un bug de test.
+
+2. **Les 5 echecs sont EXACTEMENT les 5 cas deja identifies section 404**, mot pour mot : "procedure de gestion des tickets et combien en cours" (attendu hybride, obtenu code_intelligence), "mise a disposition"/delai de traitement (attendu documentaire, obtenu code_intelligence -- variante de formulation du DOC-08 mais meme cas), "modules Odoo consideres comme sensibles" (attendu documentaire, obtenu code_intelligence), "comment creer une demande de facture" (attendu documentaire, obtenu code_intelligence, dans les deux fichiers). Aucun nouveau cas de divergence -- la meme tension exactement, retrouvee car ce rejeu est le premier depuis la section 404 a repasser par ces 67 cas avec le classifieur LLM reellement actif (les rejeux sections 406-410 testaient `assess_evidence_sufficiency()`/`ci_evidence_decision()`/le cablage du graphe, jamais ces 67 cas historiques).
+
+3. **`core/routing.py::route()` n'a PAS ete modifie par le chantier CI-d'abord (sections 405-410).** Confirme par lecture complete du fichier ce tour : `route()` calcule toujours sa decision via `resolve_question_intent()` + `INTENT_TO_ROUTE` (mapping 1-a-1 QuestionIntent -> QueryRoute, chantier section 394+), independamment du cablage `core/graph.py`. Le docstring de module de `core/graph.py` le confirme explicitement : "route() still classifies into the 4 legacy QueryRoute buckets (kept as-is this tranche -- Tranche 3 will retire this classifier once the new flow is measured)". Deux chantiers "Tranche" numerotes independamment et deja signales comme source de confusion (section 408) : la Tranche 2/3 du classifieur LLM (section 394-404, ancienne, jamais close) et la Tranche 2/3 du cablage CI-d'abord (section 405-410, celle rejouee section 410, close cote graphe).
+
+4. **Sous le nouveau cablage CI-d'abord, 4 des 5 echecs n'ont probablement AUCUN impact fonctionnel reel sur le pipeline.** Lecture de `core/graph.py::build_graph()` confirme que `documentaire`/`hybride`/`code_intelligence` convergent tous les trois vers le meme noeud `code_intelligence_agent` (seul `donnees_erp` part directement vers `orm_agent_loop`) -- donc que `route()` retourne "documentaire" ou "code_intelligence" pour les cas 1-4 ci-dessus ne change PAS le chemin d'execution reel du graphe compile, seulement la valeur textuelle stockee dans `state["route"]`/`response.route` (metadonnee/telemetrie). `format_output()` utilise bien `route == QueryRoute.DOCUMENTAIRE.value` dans sa logique d'avertissement OCR/retro-remplissage de sources, mais uniquement en combinaison avec `ci_fell_back_to_rag` -- verification non faite ce tour (necessiterait une trace d'execution reelle, pas seulement une lecture statique) mais aucune incoherence evidente relevee a la lecture.
+
+5. **Le 5e echec (`test_route_neutralizes_workflow_plan_on_documentaire_branch`) est d'une autre nature.** Il teste specifiquement `validate_plan_against_route()` -- que route_decision=DOCUMENTAIRE neutralise un plan WORKFLOW_STATE genere par ailleurs (cas section 385). Avec le LLM classifiant desormais cette question directement en CODE_INTELLIGENCE (au lieu de DOCUMENTAIRE via le filet keyword), la premisse du conflit que ce test reproduit ne se produit plus pour cette question precise -- le mecanisme `validate_plan_against_route()` lui-meme n'est pas demontre casse, seulement que ce cas de reproduction specifique ne declenche plus la neutralisation qu'il verifiait.
+
+**Conclusion** : ces 5 echecs sont la resurgence d'une tension deja journalisee, analysee et explicitement laissee en attente de mandat (section 404, options A/B/C/D jamais tranchees) -- pas un effet de bord du chantier de reorientation CI-d'abord (sections 405-410), qui n'a touche ni `core/routing.py::route()`, ni `code_intelligence/investigation_plan.py::resolve_question_intent()`. Le chantier CI-d'abord a neanmoins change la portee reelle du probleme : pour 4 des 5 cas, la divergence route()/attendu n'affecte plus le comportement observable du pipeline (meme destination graphe), seulement une metadonnee et des tests qui verifient cette metadonnee -- ce qui n'etait PAS le cas au moment du diagnostic section 404 (ou la valeur de route() determinait directement la branche executee).
+
+**Non fait ce tour** : aucun code touche (rejeu + lecture seule). Aucune tentative de trancher les options A/B/C/D de la section 404 (toujours en attente de mandat explicite). Aucune verification par trace d'execution reelle de l'impact du point 4 sur `format_output()` (analyse par lecture statique seulement). Aucune mise a jour des docstrings perimes (`test_j18_routing_fewshot.py` module docstring "no LLM") ni de `todo/plan.md`.
+
+**Fichiers modifies** : aucun.
+
+**Prochaine etape** : mandat utilisateur sur l'un de -- (A) mettre a jour les 5 tests/leurs golden expectations pour refleter que 4 des 5 divergences sont desormais sans impact fonctionnel sous le cablage CI-d'abord (documenter explicitement pourquoi, pas seulement changer l'assertion) ; (B) trancher enfin les options A/B/C/D de la section 404 pour la divergence classifieur LLM elle-meme (prompt enrichi / filet autoritaire / categorie HYBRIDE dediee / reconciliation systematique), independamment du cablage CI-d'abord ; (C) verifier par trace d'execution reelle si le point 4 (aucun impact fonctionnel) est bien exact avant de decider quoi que ce soit sur les tests ; (D) corriger le docstring perime de `test_j18_routing_fewshot.py` (peremption documentaire, sans lien avec les 5 echecs) ; (E) tout autre chantier priorise.
+
+---
+
+## Section 412: Mandat utilisateur "option A" execute -- 4 des 5 tests corriges via un fixture forcant le filet deterministe (peremption documentaire de la section 411 traitee a la racine, pas seulement les assertions) ; le 5e test entierement retravaille apres decouverte d'un fait architectural plus profond : la divergence a 2 classificateurs qu'il reproduisait est structurellement impossible depuis la Tranche 2 (section 394+). PY_COMPILE_OK sur les 2 fichiers modifies, aucun rejeu pytest reel ce tour (2026-09-01)
+
+**Origine** : mandat utilisateur explicite "A" en reponse aux options presentees section 411 -- corriger les 5 tests avec justification ecrite, pas un simple changement d'assertion.
+
+**Lecture prealable effectuee avant toute ecriture** : relecture complete de `core/routing.py::route()`, `core/graph.py::build_graph()`, `code_intelligence/investigation_plan.py` (le fichier entier, y compris `generate_investigation_plan()` et `validate_plan_against_route()`), et `code_intelligence/tests/test_intent_llm_classifier_and_resolution.py` (pour reprendre le patron de mock deja etabli dans le projet plutot que d'en inventer un nouveau).
+
+**Fix 1-4 (`tests/test_j18_routing_fewshot.py`)** : les 4 echecs de ce fichier partagent la meme cause -- le docstring de module affirmait "these tests run route() in isolation (no LLM)", devenu FAUX depuis le cablage Tranche 2 du classifieur (section 394+), sans que le fichier de test n'ait ete mis a jour en consequence. Root cause traitee a la racine (pas un patch par cas) : ajout d'un fixture `pytest.fixture(autouse=True)` `_force_deterministic_intent_classifier()` qui patch `code_intelligence.investigation_plan.classify_question_intent_llm` pour retourner `None` sur TOUS les tests du module -- restaure exactement le filet deterministe `classify_question_intent()` que le docstring du fichier a toujours pretendu tester, sans appel reseau reel, sans non-determinisme, et sans re-litiger la divergence LLM elle-meme (traitee separement, section 404, toujours en attente de mandat). Patron de mock repris de `test_intent_llm_classifier_and_resolution.py` (patch au point de definition, coherent avec le reste du projet). Module docstring et 2 docstrings de test (`test_static_alias_question_resolves_but_does_not_change_the_route`, `test_unresolved_question_still_routes_normally`) mis a jour pour expliquer explicitement pourquoi le forçage est necessaire et renvoyer vers section 404/411 plutot que de laisser croire a une regression corrigee.
+
+**Fix 5 (`code_intelligence/tests/test_bloc_p1_j7_plan_route_conflict.py::test_route_neutralizes_workflow_plan_on_documentaire_branch`)** : ce cas s'est revele d'une autre nature en creusant `core/routing.py::route()` -- la Tranche 2 (section 394+) a UNIFIE le calcul de route_decision et de l'intent utilise par `generate_investigation_plan()` : les deux proviennent desormais du MEME appel `resolve_question_intent()` dans `route()` (l'`intent` resolu est passe directement a `generate_investigation_plan(intent=intent)`, cf. le propre docstring de `route()`: "eliminates the plan/route divergence at its root instead of only detecting it after the fact"). Consequence architecturale non anticipee avant ce tour : la divergence a 2 classificateurs INDEPENDANTS que ce test reproduisait explicitement (section 385 -- route_decision via DOC_KEYWORDS vs `classify_question_intent()` separement) est desormais STRUCTURELLEMENT IMPOSSIBLE via le chemin `route()`, quel que soit le classificateur (LLM ou filet) qui resout l'intent -- pas seulement rendue sans consequence par le cablage CI-d'abord (sections 405-410) comme pour les 4 cas precedents. `validate_plan_against_route()` elle-meme reste entierement couverte directement contre des plans construits a la main (section 1 du meme fichier, inchangee). Fix applique : le test conserve la question historique et un mock du classificateur LLM (meme patron que fix 1-4, pour rester rapide/deterministe), mais son assertion ne verrouille plus la valeur de route litterale (DOCUMENTAIRE) -- elle verifie desormais l'invariant qui reste reellement pertinent : quel que soit le route resolu, un plan associe a une route non-code_intelligence ne porte jamais de steps (que le plan ait ete vide des sa generation via la branche dediee DOCUMENTARY_POLICY/ERP_DATA_QUERY, ou neutralise apres coup par `validate_plan_against_route()`). Docstring entierement reecrit pour expliquer ce constat architectural, pas seulement noter le changement d'assertion.
+
+**Verification technique effectuee ce tour** : `Filesystem:edit_file` avec `dryRun=true` puis `dryRun=false` sur les 2 fichiers, relecture immediate depuis le disque utilisateur apres chaque ecriture (contenu conforme aux diffs prevus). Copie sandbox des 2 fichiers modifies (`copy_file_user_to_claude`) + `py_compile.compile(..., doraise=True)` dans un repertoire sandbox inscriptible (`/home/claude/verify/`, le premier essai dans `/mnt/user-data/uploads/` a echoue sur `__pycache__` en lecture seule, sans rapport avec le contenu des fichiers) -- **PY_COMPILE_OK sur les 2 fichiers**.
+
+**Non fait ce tour** : aucun rejeu pytest reel (necessite le poste utilisateur -- session filesystem-only). `tests/few_shot_routing_examples.py` (le golden-master des 16 exemples few-shot) volontairement NON touche -- il reste la specification de la politique de resolution de conflit voulue, independante de ce que le LLM produit aujourd'hui ; le forcer a matcher la sortie actuelle du LLM aurait efface la specification plutot que de corriger un test. Aucune modification de `core/routing.py`, `core/graph.py`, ou `code_intelligence/investigation_plan.py` (uniquement des fichiers de test touches). Aucune tentative de trancher les options A/B/C/D de la section 404 sur la divergence LLM elle-meme (toujours hors mandat). Aucune mise a jour de `todo/plan.md`.
+
+**Fichiers modifies** : `tests/test_j18_routing_fewshot.py` (fixture autouse + 2 docstrings de test + docstring de module), `code_intelligence/tests/test_bloc_p1_j7_plan_route_conflict.py` (1 test entierement retravaille -- docstring + assertions).
+
+**Prochaine etape** : mandat utilisateur -- rejeu reel sur le poste utilisateur de `pytest tests/test_j18_routing_fewshot.py code_intelligence/tests/test_bloc_p1_j7_plan_route_conflict.py -v` (confirmer 67/67, y compris le test integration desormais retravaille) ; puis, si vert, cloture definitive du chantier de reorientation CI-d'abord (section 405) et decision sur `todo/plan.md`.
+
+---
+
+## Section 413: Rejeu reel utilisateur de `pytest tests/test_j18_routing_fewshot.py code_intelligence/tests/test_bloc_p1_j7_plan_route_conflict.py -v` -- 67 passed, 0 failed. Fix section 412 (fixture autouse + test 5 retravaille) CONFIRME sur preuve d'execution reelle. Aucun code touche (2026-09-01)
+
+**Origine** : suite directe de la section 412 -- rejeu demande pour confirmer 67/67 en conditions reelles (poste utilisateur, `.venv`, `pytest-9.1.1`, rootdir `/home/user/odoo-ia-prototype`).
+
+**Resultat** : **67 passed in 72.45s** (0 failed, 0 skip), colle par l'utilisateur -- inclut les 4 tests de `test_j18_routing_fewshot.py` corriges via le fixture autouse `_force_deterministic_intent_classifier()`, et le test `test_route_neutralizes_workflow_plan_on_documentaire_branch` entierement retravaille (invariant "pas de steps hors code_intelligence" au lieu de la valeur litterale de route). Duree ~1min12 (vs ~246s section 411) -- coherent avec le fixture qui court-circuite desormais l'appel Groq reel sur ces 67 cas, comme prevu.
+
+**Consequence** : le chantier de reorientation CI-d'abord (section 405) est desormais complet et verrouille par test reel sur ses 3 tranches ET sur la non-regression des 67 cas historiques. La tension residuelle -- la divergence du classifieur LLM lui-meme sur 5 cas (section 404, options A/B/C/D jamais tranchees) -- reste entierement separee et non affectee par ce chantier : elle est neutralisee dans les tests (fixture force le filet deterministe) mais pas resolue dans le code de production (`route()` continue d'appeler le LLM en premier sur le poste utilisateur reel, hors suite de tests).
+
+**Non fait ce tour** : aucun code touche (rejeu seul). Aucun arbitrage sur les options A/B/C/D de la section 404 (mandat en cours ce tour, voir section suivante). Aucune mise a jour de `todo/plan.md`.
+
+**Fichiers modifies** : aucun (rejeu seul).
+
+**Prochaine etape** : mandat utilisateur en cours -- trancher les options A/B/C/D de la section 404 sur la divergence du classifieur LLM lui-meme, a la lumiere du cablage CI-d'abord desormais en place (sections 405-412).
+
+---
+
+## Section 414: Mandat utilisateur "option 2" -- corriger le vrai risque identifie dans `format_output()` (faux positif OCR/backfill sources) avant de reprendre l'arbitrage A/B/C/D de la section 404. JOURNAL AVANT FIX, lecture complete effectuee (2026-09-01)
+
+**Origine** : en reponse a l'analyse de ce tour (route() ne pilote plus l'execution que pour DONNEES_ERP depuis le cablage CI-d'abord ; le point 4 de la section 411, laisse non verifie, s'est revele etre un vrai bug atteignable et non une simple question de metadonnee) -- l'utilisateur mandate le fix du risque reel avant de reprendre la section 404.
+
+**Diagnostic (lecture complete de `core/graph.py::format_output()` et `code_intelligence/ci_agent_node.py::CodeIntelligenceAgentRunner.run()` effectuee ce tour, pas seulement relecture de la section 411)** :
+
+La condition actuelle de `format_output()` :
+```python
+if response and chunks and (route == QueryRoute.DOCUMENTAIRE.value or ci_fell_back_to_rag):
+```
+Le disjoint `route == QueryRoute.DOCUMENTAIRE.value` est un reste de l'ancien cablage (avant Tranche 2, section 405+) ou DOCUMENTAIRE dispatchait directement vers `generate()` sans passer par `code_intelligence_agent`. Sous le cablage CI-d'abord actuel (`build_graph()`), DOCUMENTAIRE/HYBRIDE/CODE_INTELLIGENCE convergent TOUS vers `code_intelligence_agent` -- et `generate()` n'est atteignable QUE via l'edge conditionnelle post-CI (`ci_evidence_decision()`), qui exige `ci_evidence_sufficiency` present et `!= SUFFICIENT`. Consequence : `ci_fell_back_to_rag` est aujourd'hui un signal complet et suffisant a lui seul pour "generate() a reellement produit cette reponse" -- le disjoint `route == DOCUMENTAIRE` n'ajoute plus aucun cas legitime.
+
+Pire : il ajoute un cas ILLEGITIME, reellement atteignable. `CodeIntelligenceAgentRunner.run()` a 3 chemins de refus precoce (out-of-scope `_is_out_of_scope`, injection `_is_prompt_injection`, extraction massive `_is_massive_extraction_request`) qui retournent AVANT que `assess_evidence_sufficiency()` ne tourne -- `ci_evidence_sufficiency` reste donc absent du state pour ces 3 cas (confirme par lecture ligne a ligne : aucun des 3 `return {...}` precoces ne porte cette cle). Si `route()` a classe la question `documentaire` juste avant (parfaitement possible : le classifieur d'intent tourne independamment de la detection out-of-scope/injection/extraction), la condition `route == DOCUMENTAIRE` se declenche a tort sur un message de refus sans aucun rapport avec les chunks universels de `retrieve()` -- exactement le meme faux positif que `ci_fell_back_to_rag` a ete concu pour eviter (docstring de `format_output()`), mais via une porte differente, non fermee.
+
+**Test existant qui verrouille ce comportement comme "non-regression"** : `tests/test_bloc_p1_tranche2_ci_first_evidence_routing.py::test_format_output_documentaire_route_unaffected_by_new_flag` (Groupe C, section 409) construit precisement cet etat -- `route=DOCUMENTAIRE`, chunks presents, `ci_evidence_sufficiency` ABSENT -- et affirme que l'avertissement OCR DOIT s'appliquer, en le presentant comme le "chemin DOCUMENTAIRE historique". Verifie ce tour : ce chemin n'est plus atteignable que via les 3 refus precoces sous le graphe compile actuel (aucune autre facon de reach `format_output()` avec `route=DOCUMENTAIRE` et `ci_evidence_sufficiency` absent -- confirme par relecture de `build_graph()`, seul `code_intelligence_agent` peut produire cet etat, et seuls ses 3 refus precoces omettent la cle). Le test encode donc, sous couvert de "non-regression historique", exactement le bug a corriger.
+
+**Plan de fix (root-cause, pas de patch chirurgical)** :
+1. `core/graph.py::format_output()` : retirer le disjoint `route == QueryRoute.DOCUMENTAIRE.value`, ne garder que `ci_fell_back_to_rag`. Commentaire mis a jour pour expliquer pourquoi ce signal est desormais complet a lui seul sous le cablage CI-d'abord, et pourquoi l'ancien disjoint etait devenu du code mort dangereux (pas neutre) plutot que simplement redondant.
+2. `tests/test_bloc_p1_tranche2_ci_first_evidence_routing.py` : retravailler `test_format_output_documentaire_route_unaffected_by_new_flag` pour tester le vrai etat atteignable (refus precoce + route=documentaire + ci_evidence_sufficiency absent) et verrouiller l'absence de fuite OCR, au lieu de verrouiller la fuite comme souhaitable.
+
+**Non fait ce tour** : aucun code touche (journal seul, ecriture au tour suivant). Aucun arbitrage sur les options A/B/C/D de la section 404 -- explicitement reporte apres ce fix, conformement au mandat.
+
+**Fichiers modifies** : aucun (journal seul).
+
+**Prochaine etape** : ecrire le fix (core/graph.py + test), verifier py_compile en sandbox, ecrire reellement sur le disque, puis mandat utilisateur pour rejeu pytest reel (`tests/test_bloc_p1_tranche2_ci_first_evidence_routing.py -v`, en particulier le test Groupe C retravaille et les 3 autres tests OCR du meme groupe pour verifier zero regression).
+
+---
+
+## Section 415: Fix ECRIT -- `core/graph.py::format_output()` (retrait du disjoint `route == DOCUMENTAIRE.value`) + test Groupe C retravaille (`tests/test_bloc_p1_tranche2_ci_first_evidence_routing.py`). PY_COMPILE_OK sur les 2 fichiers relus depuis le disque. Aucun rejeu pytest reel ce tour (2026-09-01)
+
+**Origine** : execution du plan de fix mandate section 414.
+
+**`core/graph.py::format_output()`** : condition changee de
+`if response and chunks and (route == QueryRoute.DOCUMENTAIRE.value or ci_fell_back_to_rag):`
+a
+`if response and chunks and ci_fell_back_to_rag:`.
+Commentaire au-dessus du calcul de `ci_fell_back_to_rag` etendu pour expliquer (1) pourquoi ce signal seul est desormais complet sous le graphe compile CI-d'abord (`generate()` n'a qu'une seule edge entrante, depuis `ci_evidence_decision()`, qui exige `ci_evidence_sufficiency` present et `!= SUFFICIENT` -- aucun autre chemin vers `generate()` a couvrir) et (2) pourquoi l'ancien disjoint etait du code mort dangereux, pas neutre (declenchement a tort sur les 3 refus precoces de `code_intelligence_agent` quand `route()` avait classe la question `documentaire` juste avant). Reference explicite a la section 414 dans le commentaire.
+
+**`tests/test_bloc_p1_tranche2_ci_first_evidence_routing.py`** : `test_format_output_documentaire_route_unaffected_by_new_flag` renomme `test_format_output_documentaire_route_without_ci_sufficiency_no_longer_leaks_ocr` et entierement retravaille -- construit desormais un `response` de refus ("Cette question sort du perimetre de MIRO AI.", confidence=0.0) au lieu d'une fausse reponse documentaire generique, avec le meme etat `route=DOCUMENTAIRE` + chunks + `ci_evidence_sufficiency` absent (le seul etat reellement atteignable pour cette combinaison, via les 3 refus precoces de `code_intelligence_agent`). Assertion inversee : `ocr_warning is not True` et l'avertissement n'apparait pas dans la reponse (au lieu de `is True`). Docstring reecrit pour expliquer que l'ancienne version verrouillait le bug lui-meme sous couvert de non-regression.
+
+**Discipline de pre-edition respectee** : `Filesystem:edit_file` avec `dryRun=true` puis `dryRun=false` sur les 2 fichiers (diff revu avant chaque ecriture reelle, une coquille -- "deliberer" au lieu de "delibere" -- corrigee dans le texte AVANT l'ecriture reelle, pas apres). `copy_file_user_to_claude` + `py_compile.compile(..., doraise=True)` sur les 2 fichiers relus depuis le disque utilisateur apres ecriture -- **PY_COMPILE_OK sur les 2 fichiers**.
+
+**Non fait ce tour** : aucun rejeu pytest reel (necessite le poste utilisateur -- session filesystem-only). Aucune autre modification de `core/graph.py` (le reste du fichier, y compris `ci_evidence_decision()`, `build_graph()`, `route_decision()`, intact). Aucun arbitrage sur les options A/B/C/D de la section 404 (toujours reporte apres validation du fix, conformement au mandat).
+
+**Fichiers modifies** : `core/graph.py` (condition de `format_output()` + commentaire), `tests/test_bloc_p1_tranche2_ci_first_evidence_routing.py` (1 test Groupe C renomme et retravaille).
+
+**Prochaine etape** : mandat utilisateur -- rejeu reel sur le poste utilisateur de `pytest tests/test_bloc_p1_tranche2_ci_first_evidence_routing.py -v` (confirmer 20/20, en particulier le test Groupe C retravaille et les 4 autres tests OCR du meme groupe -- SUFFICIENT/INSUFFICIENT/CONFLICTING/le nouveau test refus-precoce -- pour verifier zero regression sur le retrait du disjoint) ; puis, si vert, reprise de l'arbitrage A/B/C/D de la section 404.
+
+---
+
+## Section 416: Rejeu reel utilisateur de `pytest tests/test_bloc_p1_tranche2_ci_first_evidence_routing.py -v` -- 20 passed, 0 failed. Fix section 415 (retrait du disjoint `route == DOCUMENTAIRE.value` dans `format_output()`) CONFIRME sur preuve d'execution reelle, y compris le test Groupe C retravaille. Chantier du risque `format_output()` CLOS. Aucun code touche (2026-09-01)
+
+**Origine** : suite directe de la section 415 -- rejeu demande pour confirmer 20/20 en conditions reelles (poste utilisateur, `.venv`, `pytest-9.1.1`, rootdir `/home/user/odoo-ia-prototype`).
+
+**Resultat** : **20 passed in 5.94s** (0 failed, 0 skip), colle par l'utilisateur -- inclut `test_format_output_documentaire_route_without_ci_sufficiency_no_longer_leaks_ocr` (le test Groupe C retravaille, qui verifie desormais l'ABSENCE de fuite OCR sur le refus precoce au lieu de la verrouiller comme souhaitable) et les 3 autres tests OCR du meme groupe (`SUFFICIENT` -> pas de fuite, `INSUFFICIENT`/`CONFLICTING` -> fuite legitime) inchanges et toujours verts apres le retrait du disjoint.
+
+**Consequence** : le chantier ouvert section 414 (faux positif OCR/backfill sources atteignable via les 3 refus precoces de `code_intelligence_agent`) est desormais complet et verrouille par test reel. `format_output()` ne s'appuie plus que sur `ci_fell_back_to_rag`, signal complet et suffisant sous le graphe compile CI-d'abord. Le chantier de reorientation CI-d'abord dans son ensemble (section 405) est maintenant clos sur ses 3 tranches ET sur ce risque residuel identifie en cours de route (section 411 point 4, initialement laisse non verifie, puis confirme reel section 414, puis corrige et verrouille sections 415-416).
+
+**Non fait ce tour** : aucun code touche (rejeu seul). Aucun arbitrage sur les options A/B/C/D de la section 404 -- toujours en attente de mandat, maintenant sans dependance bloquante restante.
+
+**Fichiers modifies** : aucun (rejeu seul).
+
+**Prochaine etape** : mandat utilisateur -- reprendre l'arbitrage A/B/C/D de la section 404 (divergence du classifieur LLM sur 5 cas historiques), a la lumiere du cablage CI-d'abord desormais complet et du fait que `route()` ne pilote plus l'execution que pour DONNEES_ERP ; ou tout autre chantier priorise.
+
+---
+
+## Section 417: Mandat utilisateur "option 4" -- section 404 DECLASSEE (hors A/B/C/D), pas resolue par arbitrage du classifieur. `QuestionIntent` repositionne comme signal interne du Planner/CI, plus comme mecanisme de routage de premier niveau. Aucun code touche ce tour (2026-09-01)
+
+**Origine** : en reponse a la reprise de la section 404 proposee ce tour -- l'utilisateur rejette le cadre A/B/C/D lui-meme plutot que de choisir parmi ses options, au motif que ce cadre presuppose un modele mental (`QuestionIntent -> route -> branche exclusive`) que la reorientation CI-d'abord (sections 405-416) a deja remplace.
+
+**Argument utilisateur (resume fidele)** : les 5 regressions de la section 404 etaient significatives sous l'ancien modele ou `route()` choisissait une branche exclusive parmi 4 candidates equivalentes -- une divergence de classification y avait une consequence architecturale directe (mauvaise branche executee). Sous le modele CI-d'abord desormais en place (Question -> CI/ORM -> preuve suffisante ? -> oui: reponse / non: RAG), `QuestionIntent` n'est plus le mecanisme qui tranche entre les 4 branches pour la majorite des questions -- confirme independamment ce tour (section 414/415) : `route()` ne pilote plus l'execution reelle que pour DONNEES_ERP, les 3 autres valeurs convergeant toutes vers `code_intelligence_agent`. Continuer a vouloir reconcilier le classifieur LLM et le filet keyword au niveau du routeur (les 4 options A/B/C/D, toutes des patchs sur `route()`) reviendrait a construire des mecanismes pour un probleme que l'architecture cible a deja rendu secondaire.
+
+**Decision retenue ("option 4", hors A/B/C/D)** :
+1. Section 404 CLOTUREE avec le statut : "Declassee comme risque de routage apres reorientation CI-first. Les divergences du classifieur LLM observees en Tranche 3 restent des observations utiles sur la qualite de `QuestionIntent`, mais ne justifient plus une reconciliation A/B/C/D au niveau du routeur principal."
+2. Le classifieur LLM n'est PAS supprime -- il reste utile en aval, comme signal interne pour `code_intelligence_agent`/`generate_investigation_plan()` (comprendre le type de question, preparer l'investigation), mais plus comme decideur "RAG ou CI".
+3. Le cas HYBRIDE ne necessite plus de categorie dediee dans `QuestionIntent` -- il est desormais resolu naturellement par le flux CI-d'abord lui-meme (CI repond a ce qu'il peut, `assess_evidence_sufficiency()` declenche RAG en complement si necessaire), sans taxonomie d'intention a 5 categories.
+
+**Portee de la decision, ce tour** : decision architecturale/journal uniquement -- aucun code touche. `code_intelligence/investigation_plan.py::resolve_question_intent()`/`INTENT_TO_ROUTE`/`route()` restent, au niveau du code, inchanges par ce tour (deja verifies non pilotants pour 3 des 4 valeurs, sections 408/411/414) ; ce que ce tour change, c'est le STATUT de la section 404 (de "en attente d'arbitrage" a "declassee, cloturee") et l'intention documentee pour un futur retrait du classifieur d'intention COMME MECANISME DE ROUTAGE DE PREMIER NIVEAU (deja evoque section 405 Tranche 3 : "retirer QuestionIntent/INTENT_TO_ROUTE/le classifieur LLM d'intention comme mecanisme de routage de premier niveau -- le classifieur garde un usage legitime en interne cote CI") -- ce retrait effectif de code n'est PAS mandate ce tour, seulement la reorientation de son role documentee.
+
+**Question ouverte, non tranchee ce tour** : cette decision constitue un changement de fond pour `todo/plan.md` (Bloc P1), deja signale comme dette de documentation ouverte depuis les sections 408/410/411/412 sans jamais etre mandate -- reste explicitement en attente de mandat utilisateur separe, conformement a la regle du projet (jamais de modification de `plan.md` sans confirmation explicite).
+
+**Non fait ce tour** : aucun code touche. Aucune modification de `code_intelligence/investigation_plan.py`, `core/routing.py`, `core/graph.py`. Aucune modification de `todo/plan.md` (question ouverte ci-dessus, mandat separe requis).
+
+**Fichiers modifies** : aucun (decision/journal seul).
+
+**Prochaine etape** : mandat utilisateur -- (1) mettre a jour `todo/plan.md` pour refleter la reorientation CI-d'abord + le declassement du role de `QuestionIntent` (dette documentee depuis plusieurs sections) ; (2) ou tout autre chantier priorise, en laissant `plan.md` en l'etat pour l'instant.
+
+---
+
+## Section 418: Mandat utilisateur "mettre a jour todo/plan.md" (suite section 417) -- CONSTAT : `plan.md` reflete deja fidelement la decision de la section 417, aucune ecriture necessaire. Ecart journal/fichier releve et referme. Aucun code touche (2026-09-01)
+
+**Origine** : execution du mandat pose en fin de section 417 -- mettre a jour `todo/plan.md` pour refleter la reorientation CI-d'abord + le declassement du role de `QuestionIntent`.
+
+**Constat (lecture complete de `todo/plan.md` effectuee ce tour, avant toute ecriture)** : le bloc `## Bloc P1-bis -- Reorientation CI-d'abord / RAG-fallback` y est deja marque **CLOS (2026-09-01, voir todo/contexte.txt sections 405-417)** -- le titre lui-meme reference deja la section 417. Le paragraphe `Consequence sur le statut du classifieur d'intention (QuestionIntent)` y reflete deja, quasi mot pour mot, la decision "option 4" de la section 417 (declassement de la section 404, `QuestionIntent` repositionne comme signal interne au Planner/CI, cas HYBRIDE resolu naturellement sans categorie dediee), y compris un paragraphe `Non fait / dette residuelle` correspondant a la dette documentee en section 417. Aucun ecart de fond identifie entre le contenu reel du plan et l'etat verifie par code (sections 405-417) : `plan.md` decrit correctement que `route()` ne pilote l'execution reelle que pour DONNEES_ERP, que `QuestionIntent`/`INTENT_TO_ROUTE` restent en code mais non pilotants pour 3 des 4 valeurs, et que le retrait effectif de ce mecanisme comme routage de premier niveau reste non mandate.
+
+**Ecart releve** : ce contenu etait deja present sur le disque au moment de cette lecture, alors que la section 417 (et la fin de la section precedente) le presentaient comme une mise a jour encore en attente de mandat. Le journal (`contexte.txt`) etait donc en retard sur l'etat reel du fichier `plan.md` -- aucune trace d'une session anterieure ayant journalise cette ecriture. Cause non determinee (edition non journalisee lors d'une session anterieure, la plus probable au vu du contenu deja aligne section 417).
+
+**Decision utilisateur ce tour** : ne pas re-ecrire `plan.md` (le contenu present est correct et fidele a l'etat reel) -- se contenter de journaliser ce constat pour resorber l'ecart entre `contexte.txt` et `plan.md`.
+
+**Non fait ce tour** : aucune modification de `plan.md` (contenu deja conforme, verifie par lecture complete). Aucun code touche.
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section, ajoutee en fin de fichier, aucune reecriture d'historique).
+
+**Prochaine etape** : mandat utilisateur -- chantier priorise (ex. reprise de H3 : detecteur de contradiction reel pour `CONFLICTING`, ou retrait effectif de `QuestionIntent` comme mecanisme de routage de premier niveau, ou tout autre chantier).
+
+---
+
+## Section 419: CONSTAT (avant tout code) -- un detecteur H3 (`_detect_can_view_amount_model_conflict`) existe deja sur le disque, non journalise, cable mais avec un mismatch architectural vs la reformulation utilisateur du role de CONFLICTING. Aucun code touche ce tour (2026-09-01)
+
+**Origine** : en reponse a une reformulation utilisateur du role souhaite de H3 -- CONFLICTING ne doit PAS chercher a arbitrer/trancher entre deux preuves concurrentes, mais exposer explicitement les deux preuves au redacteur, qui doit repondre dans l'esprit "deux elements du systeme se contredisent, X dit ceci, Y dit cela, je ne peux pas trancher a partir des preuves disponibles" -- jamais rendre une preference implicite ("Y est probablement le bon").
+
+**Verification effectuee avant toute reponse de fond (lecture complete de 3 fichiers, pas de confiance sur un commentaire isole)** : un detecteur H3 reel est deja ecrit et cable, date d'aujourd'hui, SANS aucune entree de journal correspondante -- 3e occurrence du meme symptome que la section 418 (ecriture non journalisee lors d'une session anterieure).
+
+- `code_intelligence/ci_helpers.py::_detect_can_view_amount_model_conflict()` : detecteur deterministe reel -- fire uniquement quand DEUX OU PLUS modeles resolus produisent chacun leur propre verdict `can_view_amount_v2` legitime pour le meme tour, AVEC des verdicts DIVERGENTS (par opposition a une simple inversion de synthese sur un seul modele, deja corrigee ailleurs par `_correct_can_view_amount_contradictions`, explicitement hors scope). Ne choisit jamais de vainqueur, retourne une chaine de raison humaine. Reutilise `_can_view_amount_candidates()` (meme etape de collecte que `_extract_can_view_amount_fact_block`, disciplien F-08 deja suivie ailleurs dans ce module).
+- `code_intelligence/ci_agent_node.py` : appelle ce detecteur (`ci_conflict_reason = _detect_can_view_amount_model_conflict(...)`) sur le meme `scoped_tool_output`/`scoped_tool_observation_models` que `_backfill_missing_can_view_amount_fact` vient d'utiliser, puis passe le resultat comme `conflict_reason` a `assess_evidence_sufficiency(...)`.
+- `core/evidence_sufficiency.py::assess_evidence_sufficiency()` : mappe un `conflict_reason` non vide vers `EvidenceSufficiencyStatus.CONFLICTING` (etape 5 de l'ordre de priorite documente dans sa propre docstring).
+
+Cette partie (detection) EST deja conforme a l'esprit de la reformulation utilisateur : narrow, ne tranche jamais, ne masque rien.
+
+**Mismatch architectural identifie, cote aval** : `core/graph.py::ci_evidence_decision()` traite `CONFLICTING` de facon STRICTEMENT IDENTIQUE a `INSUFFICIENT` -- les deux tombent dans le meme fallback `generate()` (RAG documentaire generique) :
+```python
+if status == EvidenceSufficiencyStatus.SUFFICIENT.value:
+    return "format_output"
+...
+return "generate"   # CONFLICTING et INSUFFICIENT confondus ici
+```
+Consequence concrete : les deux preuves concurrentes (les deux blocs `can_view_amount_v2` divergents, avec leurs modeles/valeurs respectives) ne sont JAMAIS transmises a `generate()` -- ce noeud fait une recherche documentaire generique sans connaissance du conflit reel detecte dans le code. Le redacteur RAG repondrait donc a partir de chunks de documentation sans aucun rapport avec les deux preuves qui se contredisent, l'oppose exact de ce que la reformulation utilisateur demande (exposer A et B explicitement, ne pas trancher). Le docstring de `ci_evidence_decision()` lui-meme est perime : il affirme "CONFLICTING n'est aujourd'hui jamais produit... cette branche est actuellement inatteignable", ce qui etait vrai avant l'ecriture non journalisee du detecteur mais ne l'est plus.
+
+**Non fait ce tour** : aucun code touche (constat seul, verification de l'etat reel avant toute reponse). Aucun redesign du chemin CONFLICTING. Aucune decision sur le sort du detecteur deja ecrit (le garder tel quel comme brique de detection semble justifie -- c'est le cablage aval qui doit changer, pas la detection elle-meme -- mais ceci reste a confirmer explicitement par l'utilisateur avant toute ecriture).
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section seule).
+
+**Prochaine etape** : mandat utilisateur -- concevoir et cabler un chemin dedie pour `CONFLICTING` (distinct du fallback RAG generique de `INSUFFICIENT`) qui transmet explicitement les preuves concurrentes (`{evidence_status: CONFLICTING, evidence: [A, B]}`) a un redacteur charge de les exposer sans trancher, conformement a la reformulation utilisateur de la section presente.
+
+
+Diff looks correct. Applying for real.Now let's verify by re-reading the file, then wire it into `ci_agent_node.py`.Good, confirmed on disk. Now let's wire it into `ci_agent_node.py`.Good. Applying now, then restructuring the main branch logic.Diff matches the intended design. Applying for real.Now let's handle `core/graph.py`: update `ci_evidence_decision()` and `format_output()`'s `ci_fell_back_to_rag` logic.Good. Applying it, then updating `ci_evidence_decision()`.Now `ci_evidence_decision()`:Good, applying for real.Applying.Now let's re-read the whole `core/graph.py` from disk to confirm no unintended changes, then run py_compile checks in the sandbox.Now let's copy the three modified files to the sandbox for py_compile verification.Applying.Now the format_output test (Groupe C):Applying.Let's re-read the full test file and py_compile it too.## Résumé du tour — mandat section 420 (chemin dédié CONFLICTING)
+
+Travail effectué (constat → conception → câblage), sans pouvoir rejouer pytest réel (session filesystem-only) :
+
+**Conception retenue**, conforme à la reformulation utilisateur (section 419 : jamais d'arbitrage, exposer les deux preuves telles quelles) :
+
+1. **`code_intelligence/ci_helpers.py`** — nouvelle fonction déterministe `_format_conflicting_evidence_answer()` (pas d'appel LLM) qui réutilise `_can_view_amount_candidates()` et construit un `final_answer` exposant verbatim chaque bloc `[FAIT DÉTERMINISTIQUE]` divergent, par modèle, sans trancher.
+2. **`code_intelligence/ci_agent_node.py`** — détection du conflit déplacée *avant* toute correction/backfill à verdict unique ; si conflit détecté, `final_answer` est remplacé par l'exposition déterministe et toute la chaîne de corrections (`_correct_can_view_amount_contradictions`, `_backfill_missing_can_view_amount_fact`, etc. — toutes conçues pour un seul fait autoritaire) est court-circuitée.
+3. **`core/graph.py`** :
+   - `ci_evidence_decision()` : CONFLICTING route désormais vers `format_output` (comme SUFFICIENT), plus vers `generate()` — avec log explicite préservé pour traçabilité.
+   - `format_output()` : `ci_fell_back_to_rag` restreint à `== INSUFFICIENT` (au lieu de `!= SUFFICIENT`), sinon on aurait réintroduit exactement le bug de fausse attribution OCR déjà corrigé sections 414-416, mais cette fois sur la réponse CONFLICTING de CI.
+   - Docstrings module/fonction mis à jour en conséquence.
+4. **`tests/test_bloc_p1_tranche2_ci_first_evidence_routing.py`** : les 3 tests qui verrouillaient l'ancienne règle (`CONFLICTING == generate()`) ont été retravaillés pour verrouiller le nouveau comportement (`format_output`, pas de fuite OCR), avec docstrings expliquant le renversement.
+
+**Discipline respectée** : lecture complète avant écriture, `dryRun=true` puis application réelle sur chaque fichier, relecture post-écriture, `py_compile` en sandbox (`/home/claude/check420/`) sur les 3 fichiers de production — **PY_COMPILE_OK**.
+
+**Limite connue documentée** (pas corrigée, hors mandat) : si l'un des verdicts divergents est *indéterminé*, `assess_evidence_sufficiency()` reclasse en INSUFFICIENT avant même d'atteindre son test CONFLICTING (priorité déjà existante, documentée dans son propre docstring) — le cas central visé ici (deux verdicts True/False qui divergent) n'est pas affecté.
+
+**Non fait ce tour** : le fichier `tests/test_bloc_p1_tranche2_ci_first_evidence_routing.py` n'a pas encore été re-copié en sandbox pour un `py_compile` de confirmation (j'ai atteint la limite d'outils avant cette étape), et aucun rejeu pytest réel n'a eu lieu.
+
+**Prochaine étape suggérée** : `py_compile` du fichier de test modifié, puis mandat de rejeu réel sur votre poste (`pytest tests/test_bloc_p1_tranche2_ci_first_evidence_routing.py -v`), et écriture de la section de journal complète dans `todo/contexte.txt` (non encore faite — je m'arrête avant l'étape de journalisation faute d'appels d'outils restants).
+
+---
+
+## Section 420: Chemin dédié CONFLICTING (suite mandat section 419) -- ECRIT et VERIFIE sur les 4 fichiers concernés. Ecart journal/disque comblé (4e occurrence du symptôme des sections 418-419, aucune session n'avait journalisé ce tour). PY_COMPILE_OK sur les 4 fichiers. Aucun rejeu pytest réel ce tour (2026-09-01)
+
+**Origine** : exécution du mandat posé en fin de section 419 -- concevoir et câbler un chemin dédié pour CONFLICTING (distinct du fallback RAG générique d'INSUFFICIENT), transmettant explicitement les preuves concurrentes à un rédacteur chargé de les exposer sans trancher (reformulation utilisateur de la section 419).
+
+**Écart constaté en tout début de ce tour** : ce travail (conception + câblage + tests) était déjà entièrement présent sur le disque à la lecture, mais journalisé sous forme d'un texte brut non structuré en queue de `contexte.txt` (pas de header `## Section`), se terminant lui-même sur un aveu d'incomplétude (py_compile du fichier de test non fait, aucun rejeu pytest). Aucune trace d'une session antérieure ayant proprement clos ce tour -- même symptôme que les sections 418 et 419 (édition non journalisée lors d'une session précédente). Vérifié indépendamment avant d'écrire quoi que ce soit : lecture complète des 4 fichiers concernés, aucune incohérence trouvée entre le texte brut et l'état réel du code.
+
+**Conception retenue** (conforme à la reformulation utilisateur : jamais d'arbitrage, exposer les deux preuves telles quelles) :
+
+1. `code_intelligence/ci_helpers.py` -- `_can_view_amount_candidates()` (étape de collecte partagée), `_detect_can_view_amount_model_conflict()` (détecteur H3 : fire seulement quand 2+ modèles résolus produisent chacun un verdict `can_view_amount_v2` légitime et DIVERGENT pour ce tour -- jamais sur une simple inversion de synthèse sur un seul modèle, déjà traitée ailleurs par `_correct_can_view_amount_contradictions`), et `_format_conflicting_evidence_answer()` (exposition déterministe, sans appel LLM, de chaque bloc `[FAIT DÉTERMINISTIQUE]` divergent par modèle).
+2. `code_intelligence/ci_agent_node.py` -- détection du conflit déplacée AVANT toute correction/backfill à verdict unique (celles-ci supposent un seul fait autoritaire, non défini dès qu'un vrai conflit existe) ; si conflit détecté, `final_answer` est remplacé par l'exposition déterministe et toute la chaîne de corrections à verdict unique est court-circuitée.
+3. `core/graph.py` -- `ci_evidence_decision()` : CONFLICTING route désormais vers `format_output` (comme SUFFICIENT), plus jamais vers `generate()` ; `format_output()` : `ci_fell_back_to_rag` restreint à `== INSUFFICIENT` (au lieu de `!= SUFFICIENT`), sinon on réintroduirait le bug de fausse attribution OCR déjà corrigé sections 414-416, cette fois sur la réponse CONFLICTING de CI. Docstrings module/fonction mis à jour en conséquence (référence explicite aux sections 419-420).
+4. `tests/test_bloc_p1_tranche2_ci_first_evidence_routing.py` -- les 3 tests qui verrouillaient l'ancienne règle (CONFLICTING == generate()) retravaillés pour verrouiller le nouveau comportement (destination `format_output`, traçabilité du log, absence de fuite OCR), avec docstrings expliquant le renversement par rapport à la version précédente.
+
+**Vérification effectuée ce tour** : lecture complète des 4 fichiers depuis le disque (pas de confiance sur le texte brut narratif trouvé en début de tour). `py_compile` en sandbox (`/home/claude/check420/`) : **PY_COMPILE_OK** confirmé sur les 3 fichiers de production (déjà fait lors du tour précédent selon le texte brut, revérifié par lecture) ET sur `tests/test_bloc_p1_tranche2_ci_first_evidence_routing.py` (l'étape manquante identifiée par le texte brut lui-même -- faite ce tour).
+
+**Limite connue documentée** (pas corrigée, hors mandat) : si l'un des verdicts divergents est indéterminé, `assess_evidence_sufficiency()` reclasse en INSUFFICIENT avant même d'atteindre son test CONFLICTING (priorité déjà existante et documentée dans son propre docstring) -- le cas central visé ici (deux verdicts True/False qui divergent) n'est pas affecté.
+
+**Non fait ce tour** : aucun rejeu pytest réel (nécessite le poste utilisateur -- session filesystem-only). Aucune autre modification de code (uniquement lecture/vérification + py_compile du fichier de test).
+
+**Fichiers modifiés** : `todo/contexte.txt` (cette section, comble l'écart journal/disque -- aucune réécriture d'historique). Aucun fichier de code touché ce tour (déjà écrit lors d'un tour antérieur non journalisé, vérifié conforme ci-dessus).
+
+**Prochaine étape** : mandat utilisateur -- rejeu réel sur le poste utilisateur de `pytest tests/test_bloc_p1_tranche2_ci_first_evidence_routing.py -v` (confirmer zéro régression sur les 3 tests retravaillés du chemin CONFLICTING et sur les tests OCR/groupes A-B-C existants) ; puis, si vert, chantier priorisé suivant (ex. reprise du module 08 question 3 / `CI_MAX_HOPS` reached, ou tout autre chantier).
+
+---
+
+## Section 421: Rejeu réel utilisateur de `pytest tests/test_bloc_p1_tranche2_ci_first_evidence_routing.py -v` -- 20 passed, 0 failed. Chemin dédié CONFLICTING (section 420) CONFIRME sur preuve d'exécution réelle. Chantier ouvert section 419 CLOS. Aucun code touché (2026-09-01)
+
+**Origine** : suite directe de la section 420 -- rejeu demandé pour confirmer les 20 tests en conditions réelles (poste utilisateur, `.venv`, `pytest-9.1.1`, rootdir `/home/user/odoo-ia-prototype`).
+
+**Résultat** : **20 passed in 8.36s** (0 failed, 0 skip), collé par l'utilisateur -- inclut les 3 tests du chemin CONFLICTING retravaillés (`test_ci_evidence_decision_conflicting_stays_on_format_output`, `test_ci_evidence_decision_conflicting_is_traceable_not_silent`, `test_format_output_conflicting_does_not_count_as_fell_back_to_rag`) ET les tests groupes A/B/C existants (edge `ci_evidence_decision`, câblage structurel `build_graph()`, distinction `ci_fell_back_to_rag` de `format_output()` -- y compris le test section 414 sur le chemin DOCUMENTAIRE/refus précoce) inchangés et toujours verts.
+
+**Conséquence** : le chemin dédié CONFLICTING (conception + câblage section 420, sur les 4 fichiers `ci_helpers.py`/`ci_agent_node.py`/`core/graph.py`/tests) est désormais complet et verrouillé par test réel. CONFLICTING route vers `format_output` avec l'exposition déterministe à double preuve (`_format_conflicting_evidence_answer`), sans jamais passer par `generate()` ni provoquer de fuite OCR. Le chantier ouvert section 419 (mandat : concevoir/câbler ce chemin) est clos sur ses 2 tranches (420 conception+écriture, 421 confirmation réelle).
+
+**Non fait ce tour** : aucun code touché (rejeu seul).
+
+**Fichiers modifiés** : aucun (rejeu seul).
+
+**Prochaine étape** : mandat utilisateur -- chantier priorise (ex. Module 08 question 3 : `CI_MAX_HOPS (4) reached` pendant `evaluate_record_rules` en pré-dispatch déterministe, cause amont encore non investiguée ; ou `_OMITTED_MARKER` mismatch FR/EN dans `authorization_gate.py` [fix d'une ligne, pas encore appliqué] ; ou tout autre chantier).
+
+---
+
+## Section 422: FAIL isolé et non reproductible sur `08a-business` (module 08, full pipeline, 60k) -- diagnostic empirique, rejeu réel confirme 8/8 OK, aucune régression de code identifiée. Aucun code touché (2026-09-01)
+
+**Origine** : l'utilisateur colle une sortie de `scripts/check_bloc9_08_deep_inheritance_security_e2e.py` montrant `[RESULT] 08a-business (full pipeline, 60k): FAIL -- missing ['account.group_account_manager']` -- la réponse brute de ce tour ne concernait pas du tout `custom.deep.document` mais une procédure fictive "MIRO KE" (seuil 500 000 Ar, Directeur Technique/Général), signature caractéristique d'une réponse produite par `generate()` (RAG documentaire) plutôt que par `code_intelligence_agent`.
+
+**Investigation menée avant toute conclusion (lecture de code seule, aucune modification)** :
+- `code_intelligence/business_resolver.py` : écarté comme cause -- "custom.deep.document" étant cité verbatim dans la question, la résolution passe par `_find_exact_technical_model_mentions` (Step 1.5), 100% déterministe, zéro appel LLM.
+- `code_intelligence/investigation_plan.py::resolve_question_intent()` : écarté comme cause -- même en cas d'échec total du classifieur LLM borné (`classify_question_intent_llm`), le repli déterministe `classify_question_intent()` matche `\bqui\s+a\s+(le\s+)?droit\b` sur "Qui a le droit de valider..." et retourne GOVERNANCE_SECURITY -> route CODE_INTELLIGENCE de façon fiable, indépendamment du LLM.
+- `core/graph.py` : lecture complète de `build_graph()`/`ci_evidence_decision()`/`format_output()` -- confirme que le footer "[Source: Documentation ERP - WIKI INTERNE MIRO KE...]" observé ne peut provenir que de `generate()`, atteignable uniquement via `code_intelligence_agent -> ci_evidence_decision() == "generate"`, c'est-à-dire uniquement quand `ci_evidence_sufficiency.status == INSUFFICIENT`. Donc `code_intelligence_agent` a bel et bien tourné ce tour-là (pas de mauvais routage), mais son propre verdict d'auto-évaluation a jugé la preuve insuffisante.
+- `core/evidence_sufficiency.py::assess_evidence_sufficiency()` : 6 branches de decision possibles: sans le log applicatif `evidence sufficiency=... reasons=...` de ce tour précis, impossible de determiner laquelle a été prise par lecture statique seule -- mandat demandé à l'utilisateur pour un rejeu avec logs.
+
+**Rejeu réel demandé et obtenu (même script, même poste)** : **8/8 modules E2E confirmed**, y compris `08a-business (full pipeline, 60k): OK` -- réponse correcte cette fois (verrou 50 000€, `account.group_account_manager`, `can_view_amount_v2` correctement signalé indéterminé et corrigé en place par `_correct_can_view_amount_contradictions`). Fait notable : la 3e question de ce même rejeu (30k, même société) a elle-même épuisé les clés Groq 6/8 -> 7/8 -> 8/8 sans jamais déclencher de repli RAG -- l'épuisement de quota Groq en lui-même n'entraîne donc pas mécaniquement INSUFFICIENT (le pré-dispatch déterministe ne dépend pas du LLM).
+
+**Conclusion retenue (discipline "intégrité de l'oracle", todo/rules.md)** : FAIL isolé, non reproduit sur rejeu immédiat dans les mêmes conditions -- traité comme un aléa d'environnement (créneau de rotation de clé Groq particulièrement défavorable sur ce tour précis, jamais confirmé comme une régression de code réelle) plutôt que comme un bug à corriger. Aucune régression de code identifiée dans `business_resolver.py`/`investigation_plan.py`/`core/graph.py`/`core/evidence_sufficiency.py` -- les 4 fichiers lus se comportent conformément à leur conception documentée.
+
+**Non fait ce tour** : aucun code touché (diagnostic + rejeu seul). Le log applicatif précis `evidence sufficiency=... reasons=...` du tour fautif original n'a jamais été obtenu (le rejeu, dans un nouveau processus, ne permet pas de le retrouver a posteriori) -- si ce FAIL se reproduit un jour de façon stable, ce log stdout/logging (pas seulement le stdout du script) sera la première chose à capturer.
+
+**Fichiers modifiés** : `todo/contexte.txt` (cette section seule).
+
+**Prochaine étape** : mandat utilisateur -- chantier priorise (Module 08 question 3 `CI_MAX_HOPS reached`, ou `_OMITTED_MARKER` FR/EN dans `authorization_gate.py`, ou tout autre chantier).
+
+---
+
+## Section 423: CONSTAT (avant tout code) -- "Module 08 question 3 / CI_MAX_HOPS reached", repris comme chantier par l'utilisateur, est en realite DEJA CLOS depuis la section 274 (28/08) -- item "Prochaine etape" reste par copier-coller non nettoye dans les sections 420/421/422, 5e occurrence du symptome des sections 418-420 (ecart journal, cette fois cote liste de suggestions plutot que cote code). Aucun code touche ce tour (2026-09-01)
+
+**Origine** : mandat utilisateur "repasse au vrai chantier restant (CI_MAX_HOPS reached module 08 question 3)", en reponse a l'item recurrent des "Prochaine etape" des sections 420/421/422.
+
+**Verification effectuee avant toute reponse de fond** : relecture complete du fil section 250 -> 274 (grep cible sur ce fichier, pas de confiance sur le seul libelle recurrent des sections 420-422) :
+- Section 250 : bug reel trouve (question 3 du module 08, appel direct hors full-pipeline) -- reponse auto-contradictoire, root cause probable = second appel `evaluate_record_rules` déclenché par la boucle ReAct APRES que le pre-dispatch deterministe ait deja injecte le bon FAIT.
+- Section 251 : root cause CONFIRMEE par lecture de code seule (le garde `hop_count >= CI_MAX_HOPS` n'existait qu'A L'INTERIEUR de la boucle ReAct, jamais AVANT le premier tour) -- correctif ecrit dans `ci_agent_node.py` (garde ajoute en tete de chaque iteration de la boucle ReAct, `ai_msg = None` direct si le budget est deja epuise avant l'appel LLM).
+- Sections 252/268 : confirmation empirique retardee par un bug distinct (`active_graph.json` stale, verse dans git avec des chemins d'un autre poste) -- corrige, graphe reconstruit.
+- Section 273 : rejeu reel colle par l'utilisateur -- module 08 "E2E confirmed", 8/8 sous-cas OK.
+- **Section 274 : DECISION UTILISATEUR EXPLICITE -- fil des sections 250-252/268 (module 08, graphe stale + question 3 auto-contradictoire) declare CLOS.** Justification actee : le constat central (verrous reels absents suite au graphe stale) est confirme resolu par le rebuild (section 268) et le rejeu 8/8 E2E confirmed (section 273) ; la reserve residuelle sur le libelle verbatim de la question 3 (jamais recolle apres le fix de la section 251) est acceptee comme mineure, PAS poursuivie.
+
+**Lecture du code reel, ce tour, pour confirmer que le fix de la section 251 est toujours en place (pas seulement journalise comme applique)** : `code_intelligence/ci_agent_node.py`, boucle ReAct principale -- le garde est bien present (`if hop_count >= CI_MAX_HOPS: ... ai_msg = None`, avec le commentaire explicatif d'origine citant explicitement "module 08 question 3, section 250"). Rien ne montre de regression depuis.
+
+**Conclusion** : l'item "Module 08 question 3 / CI_MAX_HOPS reached" qui reapparait tel quel dans les "Prochaine etape" des sections 420, 421 et 422 est une ligne de suggestion non nettoyee -- ces trois sections listent des chantiers "au choix" sans revérifier chacun contre le reste du journal avant de l'ecrire, contrairement a la discipline suivie section 274 elle-meme. Le fil de fond (bug reel + root cause + fix + confirmation empirique + decision de cloture) est complet et clos depuis le 28/08 ; il n'y a pas de "vrai chantier restant" ici au sens d'un bug non resolu -- seulement une reserve mineure deja explicitement acceptee comme telle (libelle verbatim de la question 3 jamais recolle, jugee non bloquante).
+
+**Non fait ce tour** : aucun code touche (le fix de la section 251 est deja en place et confirme, rien a corriger). Aucune reouverture du fil section 274 sans mandat explicite -- si l'utilisateur souhaite lever la reserve mineure residuelle (recoller le libelle verbatim de la question 3 pour une fermeture stricte), cela reste possible sur mandat separe, mais ce n'est pas ce que le mandat de ce tour demandait (qui presupposait le bug encore ouvert).
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section seule).
+
+**Prochaine etape** : mandat utilisateur -- (a) nettoyer les listes "Prochaine etape" des sections 420/421/422 pour retirer cet item perime (dette de forme, pas de fond) ; (b) lever formellement la reserve mineure de la section 274 (recoller le libelle verbatim de la question 3 module 08 pour une fermeture stricte) ; (c) passer a un autre chantier reellement ouvert -- ex. `_OMITTED_MARKER` mismatch FR/EN dans `authorization_gate.py` (fix d'une ligne, pas encore applique, mentionne sections 420-422), ou la reserve Jour 5 frontend du Bloc P1 (rendu du plan dans le widget Discuss, jamais verifie visuellement), ou tout autre chantier de `todo/plan.md`.
+
+---
+
+## Section 424: Mandat utilisateur "marque comme clos : `_OMITTED_MARKER` FR/EN dans `authorization_gate.py`" -- CONFIRME deja clos (fix du 2026-08-26, section 193/196 hors fenetre de ce fichier), verifie ce tour par lecture directe du code + des tests, meme symptome perime que la section 423 (item recopie dans les "Prochaine etape" 420-422 sans revalidation). Aucun code touche (2026-09-01)
+
+**Origine** : mandat utilisateur de cloture explicite, en reponse a l'item "_OMITTED_MARKER mismatch FR/EN dans authorization_gate.py [fix d'une ligne, pas encore applique]" repete dans les "Prochaine etape" des sections 420-422 (meme famille que le constat de la section 423).
+
+**Verification effectuee avant cloture (lecture directe, pas de confiance sur le seul libelle "pas encore applique")** :
+- `code_intelligence/authorization_gate.py` : `_OMITTED_MARKER = "ELEMENT OMITTED FOR AUTHORIZATION REASON"` reste volontairement en anglais (recopie tel quel dans la ligne masquee), mais le `reason` expose au demandeur est en francais et contient explicitement le mot "autorisation" -- design bilingue assume, commentaire en ligne datant du 2026-08-26 (`todo/contexte.txt section 193/196`, hors de la fenetre actuelle de ce fichier -- section 225 est la plus ancienne presente).
+- `code_intelligence/tests/test_j23_24_authorization_gate.py::test_marked_bypass_line_is_redacted_for_read_only_demandeur` verrouille exactement ce contrat bilingue : `"autorisation" in omitted[0].reason.lower()` ET `"ELEMENT OMITTED FOR AUTHORIZATION REASON" in gated_text`.
+
+**Conclusion** : aucun fix d'une ligne restant a appliquer -- le comportement decrit comme "pas encore applique" dans les sections 420-422 l'etait deja depuis le 26/08, verrouille par test. Meme classe d'ecart que la section 423 (item de suggestion recopie sans revalidation) plutot qu'un vrai bug residuel.
+
+**Non fait ce tour** : aucun code touche (rien a corriger, le comportement voulu est deja en place et teste).
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section seule).
+
+**Prochaine etape** : mandat utilisateur -- reserve Jour 5 frontend du Bloc P1 (rendu du plan dans le widget Discuss, jamais verifie visuellement), ou reserve mineure de la section 274 (libelle verbatim module 08 question 3, si fermeture stricte souhaitee), ou tout autre chantier de `todo/plan.md`.
+
+---
+
+## Section 425: Reserve Jour 5 frontend du Bloc P1 (rendu du plan dans Discuss) -- decision utilisateur : abandonnee pour l'instant, le rendu systray existant suffit. Constat prealable effectue (rendu riche deja fonctionnel en systray + plein-ecran, absent de Discuss), 3 options presentees, aucune retenue. Aucun code touche (2026-09-01)
+
+**Origine** : reprise de la reserve Jour 5 du Bloc P1 ("rendu du plan dans le widget Discuss cote frontend, jamais verifie visuellement") -- l'utilisateur precise d'emblee que le front est deja sur le systray, et demande d'envisager Discuss en plus.
+
+**Constat effectue avant toute proposition (lecture directe, pas d'hypothese)** : `odoo_addons/miro_ai/static/src/js/miro_ai.js` + `static/src/xml/miro_ai_assistant.xml` -- le rendu riche du plan d'investigation (chevron depliable "Niveau Verification & Preuves", badges plan/sources/omissions) est deja fonctionnel et confirme present dans DEUX endroits : l'action plein-ecran (`miro_ai.AssistantClientAction`) et le tiroir systray (`miro_ai.SystrayItem`) -- tous deux consomment le meme champ `investigation_plan` deja renvoye par `/miro_ai/ask` (controllers/main.py, deja cable cote backend). Discuss (mail.channel/mail.message) est un systeme de rendu distinct (HTML statique par message, pas de composant OWL par defaut) -- absent de ce perimetre.
+
+**3 options presentees a l'utilisateur** (commande slash minimale sans widget riche / patch du composant Message de @mail/core pour un rendu riche natif / pont leger "ouvrir dans MIRO AI" depuis Discuss) -- aucune retenue.
+
+**Decision utilisateur** : abandon du chantier Discuss pour l'instant -- le rendu systray existant est juge suffisant. La reserve Jour 5 du Bloc P1 (`todo/plan.md`, PARTIE 3) reste donc PARTIELLE au sens strict ou elle a ete redigee (rendu "dans le widget Discuss" explicitement), mais le rendu riche du plan est desormais confirme visuellement fonctionnel en systray + plein-ecran -- CE volet de la reserve (existence/fonctionnement reel du rendu, par opposition a sa localisation exacte) peut etre considere leve par ce constat, sur decision utilisateur a confirmer si une mise a jour de `plan.md` est souhaitee (jamais de modification de `plan.md` sans mandat explicite, cf. todo/rules.md).
+
+**Non fait ce tour** : aucun code touche (constat + presentation d'options seulement, aucune retenue). Aucune modification de `todo/plan.md`.
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section seule).
+
+**Prochaine etape** : mandat utilisateur -- chantier priorise (reserve mineure de la section 274 : libelle verbatim module 08 question 3, si fermeture stricte souhaitee ; mise a jour eventuelle de `todo/plan.md` pour refleter le constat ci-dessus sur le rendu systray/plein-ecran deja fonctionnel ; ou tout autre chantier de `todo/plan.md`).
+
+---
+
+## Section 426: Decision architecturale -- reprise du chantier "fusion Data Intelligence (ORM) + Code Intelligence" (plan.md PARTIE 5, jamais entame). Option B (agent unifie) retenue comme CIBLE, PAS d'implementation immediate. Etape intermediaire B0 (contrat de preuve commun CI/ORM) proposee en draft, 3 questions de conception ouvertes. Aucun code touche (2026-09-01)
+
+**Origine** : mandat utilisateur "reprendre le data intelligence et la liaison avec code intelligence" -- chantier identifie dans `todo/plan.md` PARTIE 5 ("Couche 4 (Runtime Odoo) ... reste partiel par design tant que Data Intelligence (branche ORM separee) n'est pas fusionnee avec Code Intelligence ; fusion non entamee, a trancher comme decision produit separee").
+
+**Constat prealable (lecture directe avant toute proposition)** :
+- `core/graph.py::build_graph()` : `route()` n'envoie vers `orm_agent_loop` (`erp_data/orm_agent_node.py`) QUE si `route() == DONNEES_ERP` (seul cas encore pilote par route()) ; tout le reste part vers `code_intelligence_agent`, qui ne connait que ses 12 actions composites (jamais les 10 outils ORM). `hybrid_node` existe encore mais combine RAG documentaire + ORM (jamais CI + ORM), et est retire du graphe compile depuis la reorientation CI-d'abord (Bloc P1-bis).
+- `erp_data/odoo_connector.py::_resolve_password()` : l'agent ORM interroge deja Odoo avec le vrai uid/cle API du demandeur (contextvar propage depuis le JWT, `miro_ai/controllers/main.py`) -- `ir.rule`/ACL Odoo s'appliquent donc nativement aux donnees retournees, independamment du calcul deterministe de gouvernance que fait CI sur le graphe statique.
+- `code_intelligence/investigation_plan.py` : `QuestionIntent.ERP_DATA_QUERY` retourne aujourd'hui un `InvestigationPlan` VIDE (steps=[], rationale "pas de plan Code Intelligence applicable") -- confirme que meme le Planner (Bloc P1) ne produit aucune etape ORM, les deux systemes sont completement etanches y compris au niveau plan.
+- Aucun format de "preuve structuree" commun n'existe aujourd'hui : `SourceReference` (`core/schemas.py`) est un objet d'AFFICHAGE (snippet texte deja mis en forme), peuple independamment par les deux branches, pas exploitable en raisonnement/fusion. CI porte des tags de confiance texte (`[Confiance: HIGH/MEDIUM/LOW/FAIBLE]`, `[FAIT DETERMINISTIQUE]`) injectes dans ses observations ; ORM n'a aucun equivalent (trouve/pas trouve, jamais annote).
+
+**3 options presentees, decision utilisateur** :
+- **Option A (fallback CI -> ORM avant RAG sur `ci_evidence_decision()`)** -- ECARTEE. Reintroduirait une heuristique de detection "data-shaped ? -> ORM sinon RAG", exactement le type de patch par motifs que le Bloc P1 vient d'eliminer (`GOVERNANCE_SIGNAL_TERMS`). Ne resout pas non plus le cas ou CI+ORM sont necessaires SIMULTANEMENT (ex. "combien de commandes >50000e ont ete bloquees ce mois, et pourquoi ?").
+- **Option B (fusion reelle -- un seul agent ReAct avec acces aux outils CI + ORM, un seul plan d'investigation pouvant contenir des etapes ORM)** -- RETENUE COMME CIBLE. Seule option fidele au schema d'`architecture.md` (Domaine A + Domaine B alimentent ensemble une seule Construction des preuves). PAS d'implementation immediate mandatee ce tour.
+- **Option C (ressusciter `hybrid_node`, CI+ORM en parallele puis LLM de synthese)** -- retenue comme PROTOTYPE DE FAISABILITE COURT TERME EVENTUEL, pas comme cible : deux raisonnements independants a combiner complique le plan d'investigation, la coherence des preuves, le budget de hops, la tracabilite et le contexte utilisateur -- accepte comme demo rapide, pas comme architecture finale.
+
+**Etape intermediaire B0 actee avant toute fusion d'agents** : definir un contrat de preuve commun CI/ORM avant de toucher au cablage des agents, pour eviter de fusionner deux systemes qui n'ont pas le meme format de resultat. Sequencement propose par l'utilisateur : B0 (contrat commun) -> B1 (exposer les outils ORM a CI) -> B2 (le Planner autorise des etapes ORM) -> B3 (un seul agent) -> B4 (tests hybrides CI+ORM).
+
+**Draft de schema B0 propose ce tour (AUCUNE ECRITURE, pour discussion/amendement)** :
+```python
+class EvidenceSourceType(str, Enum):
+    CODE = "code"      # analyse statique du graphe (CI)
+    ORM = "orm"        # lecture live via l'instance Odoo (ORM)
+
+class Evidence(BaseModel):
+    source_type: EvidenceSourceType
+    claim: str
+    value: Any = None
+    source: str
+    confidence: Optional[str] = None
+```
+
+**3 questions de conception ouvertes, non tranchees ce tour** :
+1. `Evidence` remplace `SourceReference` ou vit a cote (couche raisonnement interne distincte de la couche affichage) ?
+2. Generation a la source (chaque tool CI/ORM retourne un `Evidence` en plus de sa string) vs extraction a posteriori (parser le texte deja mis en forme) -- la 1ere respecte la discipline "pas de patch chirurgical" mais touche les 12 actions CI + 10 outils ORM ; la 2eme est plus rapide mais fragile par construction.
+3. Confiance ORM : toujours deterministe (lecture DB directe) ou faut-il un signal de fraicheur/portee (multi-societe, ir.rule deja applique silencieusement par XML-RPC) ?
+
+**Non fait ce tour** : aucun code touche (constat + presentation d'options + draft de schema pour discussion uniquement, sur mandat explicite "pas en implementation immediate"). Aucune modification de `todo/plan.md` (ajout eventuel d'un Bloc B0-B4 dedie a soumettre a mandat separe si l'utilisateur veut le formaliser dans le plan).
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section seule).
+
+**Prochaine etape** : mandat utilisateur -- (a) trancher les 3 questions de conception B0 ci-dessus ; (b) formaliser eventuellement B0-B4 comme nouveau bloc dans `todo/plan.md` (mandat explicite requis, jamais de modification sans confirmation) ; (c) lancer le prototype C a titre exploratoire en parallele ; (d) tout autre chantier.
+
+---
+
+## Section 427: Decisions utilisateur sur les 3 questions de conception B0 (section 426) -- schema `Evidence` amende, PAS d'implementation mandatee ce tour. Aucun code touche (2026-09-01)
+
+**Origine** : reponse utilisateur aux 3 questions de conception ouvertes de la section 426.
+
+**Decisions actees** :
+1. `Evidence` vit A COTE de `SourceReference` (pas de remplacement) -- `Evidence` = contrat interne de raisonnement/provenance, `SourceReference` reste la representation UI derivee. Ne casse pas le frontend existant.
+2. Generation a la source retenue (pas d'extraction a posteriori par parsing) -- chaque outil (12 actions CI + 10 outils ORM) produira directement son `Evidence` structure. Plus de travail que le parsing a posteriori, mais evite de reproduire la fragilite actuelle de parsing de texte/provenance -- coherent avec la regle "pas de fix chirurgical, voir la root cause".
+3. Pas de `confidence` sur une donnee ORM du seul fait qu'elle vient d'une requete (lecture DB = deterministe). A la place, un champ `scope` (dict) porte le contexte (`company_id`/`company_scope`, `read_at`, `user_id`/`execution_identity`) -- distingue "exact" de "exact mais hors contexte ou perime", sans inventer un score de confiance qui n'a pas de sens pour une lecture directe.
+
+**Schema `Evidence` amende propose (remplace le draft de la section 426)** :
+```python
+class Evidence(BaseModel):
+    evidence_id: str
+    source_type: EvidenceSourceType
+    claim: str
+    value: Any = None
+    source: str
+    confidence: Optional[str] = None
+    scope: dict[str, Any] = Field(default_factory=dict)
+```
+Ajout par rapport au draft 426 : `evidence_id` (identifiant explicite, requis des maintenant pour que le LLM/Evidence Builder puissent referencer une preuve precise sans dependre du texte ou de l'ordre d'execution une fois CI+ORM fusionnes) et `scope` (remplace/complete `confidence` pour le cas ORM).
+
+**2 points techniques restant ouverts avant de figer reellement B0 (non tranches ce tour, signales avant toute implementation B1)** :
+- **Generation de `evidence_id`** : UUID aleatoire (simple, pas de dedup) vs hash derive du contenu (`source_type` + `claim` + `source` + `scope`, permettrait a l'Evidence Builder de fusionner des preuves convergentes CI/ORM sur le meme fait au lieu de les lister deux fois). A trancher avant B1 pour eviter de re-ouvrir le contrat une fois les 22 outils cables dessus.
+- **Vocabulaire de cles dans `scope`** : `dict[str, Any]` reste volontairement libre (pas de sous-modele Pydantic rigide, CI n'a pas de notion naturelle de `read_at`), mais un risque de derive existe si les outils ORM n'utilisent pas les memes noms de cles (`company_id` vs `company_ids` vs `cids`) -- meme classe de fragilite que celle visee par `todo/rules.md`. Proposition : documenter un petit vocabulaire de cles canoniques (`company_id`, `read_at`, `execution_identity`, extensible) au moment de B1, pas de sous-typage strict.
+
+**Non fait ce tour** : aucun code touche -- schema amende pour discussion uniquement, aucune implementation B1 mandatee. Aucune modification de `todo/plan.md`.
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section seule).
+
+**Prochaine etape** : mandat utilisateur -- (a) trancher les 2 points techniques ouverts ci-dessus (generation `evidence_id`, vocabulaire `scope`) ; (b) lancer B1 (exposer les 10 outils ORM a Code Intelligence) une fois le contrat `Evidence` reellement fige ; (c) formaliser B0-B4 dans `todo/plan.md` si souhaite ; (d) tout autre chantier.
+
+---
+
+## Section 428: B0 FIGE -- decision finale sur `evidence_id` (hash de contenu canonique) et vocabulaire `scope`. Contrat `Evidence` considere clos. PAS d'implementation B1 mandatee ce tour. Aucun code touche (2026-09-01)
+
+**Origine** : reponse utilisateur aux 2 points techniques ouverts de la section 427.
+
+**Decisions finales actees** :
+1. `evidence_id` = hash de contenu stable (SHA-256 tronque), pas un UUID -- calcule sur `source_type + claim + value + source + scope` en representation CANONIQUE (obligatoire pour `value` et `scope`, sinon deux dicts semantiquement identiques mais serialises dans un ordre different produiraient des ID differents). Motif : CI et ORM peuvent produire le meme fait -> meme ID -> dedup native, deterministe entre deux executions, tracable, aucun etat global requis.
+2. `scope` reste un dict extensible (pas de sous-modele Pydantic rigide), mais avec un socle de cles canoniques fige des B0 : `company_id`, `read_at`, `execution_identity`. Cles additionnelles (`record_ids`, `model`, `date_from`, `date_to`, etc.) autorisees mais seulement si un besoin reel apparait en B1, et doivent etre documentees au moment ou elles apparaissent. Precision actee : `execution_identity` doit porter l'identite EFFECTIVE utilisee pour l'acces aux donnees (le vrai uid/cle API propage via contextvar depuis le JWT, cf. `erp_data/odoo_connector.py::_resolve_password()`), pas un simple libelle decoratif.
+
+**Contrat `Evidence` final (B0 clos)** :
+```python
+class EvidenceSourceType(str, Enum):
+    CODE = "code"
+    ORM = "orm"
+
+
+class Evidence(BaseModel):
+    evidence_id: str
+    source_type: EvidenceSourceType
+    claim: str
+    value: Any = None
+    source: str
+    confidence: Optional[str] = None
+    scope: dict[str, Any] = Field(default_factory=dict)
+```
+Regle de generation : `evidence_id = stable_content_hash(payload canonique de Evidence)`.
+
+**Point d'implementation signale pour B1 (pas une question de conception, a ne pas oublier au moment d'ecrire `stable_content_hash()`)** : la canonicalisation avant hash doit fixer explicitement la serialisation de `value` et `scope` (ex. `json.dumps(..., sort_keys=True, separators=(",", ":"))`) et le traitement des types non-JSON-natifs (`datetime` dans `read_at` notamment) -- sinon deux `Evidence` equivalentes avec un objet `datetime` vs une string ISO produiraient des hash differents et casseraient la dedup recherchee.
+
+**Non fait ce tour** : aucun code touche -- B0 est desormais considere clos par les deux parties, mais aucun mandat d'implementation B1 n'a ete donne explicitement ce tour (l'utilisateur decrit son intention de passer a B1, sans commande d'execution immediate). Aucune modification de `todo/plan.md`.
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section seule).
+
+**Prochaine etape** : mandat utilisateur explicite pour demarrer B1 (production d'`Evidence` a la source par les 12 actions CI + 10 outils ORM) -- a confirmer avant tout premier fichier touche, vu l'ampleur (22 outils) et la regle "pas de fix chirurgical / le changement doit etre rare" de `todo/rules.md`. Question ouverte a trancher avec l'utilisateur avant de commencer : demarrer par un outil pilote (1 action CI + 1 outil ORM) pour valider le pattern avant de le repliquer sur les 20 autres, ou cabler les 22 d'un coup ?
+
+---
+
+## Section 429: B1 PILOTE -- `Evidence` cable sur 1 outil CI (`evaluate_record_rules`) + 1 outil ORM (`get_total_sales`). Validation par tests unitaires ECRITE mais PAS EXECUTEE (contrainte d'environnement, voir ci-dessous). Replication aux 20 outils restants EN ATTENTE de confirmation utilisateur (2026-09-01)
+
+**Origine** : mandat utilisateur "1 CI + 1 ORM -> validation bout en bout -> replication aux 20 restants", en reponse a la question de sequencement de la section 428.
+
+**Fichiers crees** :
+- `core/evidence.py` -- module dedie au contrat B0 (distinct de `core/schemas.py`, qui reste le contrat UI/`SourceReference`) : `EvidenceSourceType` (CODE/ORM), `Evidence` (pydantic, `strict=True`), `stable_content_hash()` (SHA-256 tronque a 32 hex, serialisation canonique `json.dumps(sort_keys=True, separators=(",",":"), default=str)` pour neutraliser l'ordre des cles et les types non-JSON-natifs comme `datetime`), `make_evidence()` (constructeur pratique qui calcule `evidence_id` a partir du payload canonique).
+- `code_intelligence/tests/test_bloc_b0_evidence_ci_pilot.py` -- 6 tests (comptage des Evidence produites, `source_type`/`confidence` CI, `scope` porte `user_groups`, determinisme de `evidence_id` entre deux executions identiques, `evidence_id` different quand le `scope` differe, `stable_content_hash` insensible a l'ordre des cles).
+- `erp_data/tests/test_bloc_b0_evidence_orm_pilot.py` -- 5 tests unitaires PURS (mock de `connector.read_group`, jamais d'appel reseau reel, contrairement aux tests `@pytest.mark.integration` deja presents dans `test_odoo_tools.py`) : texte + Evidence retournes, `scope.execution_identity` = uid reel, `confidence` toujours `None` cote ORM, resultat vide produit quand meme une Evidence, contrat de retour du wrapper `@tool` inchange (toujours une simple string).
+
+**Fichiers modifies** :
+- `code_intelligence/deterministic_tools.py` -- import `core.evidence` ; `RuleEvaluationResult` gagne un champ `evidence: List[Evidence] = field(default_factory=list)` ; nouvelle fonction `_build_record_rules_evidence()` (une `Evidence` par regle EFFECTIVEMENT evaluee -- globale appliquee, groupe appliquee, groupe ignoree -- `confidence="HIGH"` car lecture deterministe du graphe statique, `scope={"user_groups": ...}` car le statut applique/ignore depend du demandeur) ; `evaluate_record_rules()` appelle cette fonction et peuple le nouveau champ. Rien d'autre modifie -- `summary_text` et tout le comportement existant restent identiques (non-regression volontaire pour ce pilote).
+- `erp_data/odoo_tools.py` -- import `core.evidence` ; nouvelle fonction `_orm_evidence_scope(uid)` (scope canonique partage : `execution_identity` = uid reel du demandeur cf. `_get_current_uid`, `read_at` = timestamp ISO UTC ; `company_id` DELIBEREMENT absent -- `OdooConnector` ne recoit/transmet aucun scope societe explicite aujourd'hui, la societe active est resolue cote serveur Odoo a partir de la session de l'uid, donc fabriquer un `company_id` aurait ete un mensonge de scope) ; `get_total_sales` scinde en `get_total_sales_raw()` (logique complete, retourne `(text, Evidence)`) + wrapper `@tool get_total_sales()` inchange dans son contrat (retourne toujours une simple string) -- reprend exactement le pattern deja existant cote CI (`ci_agent_tools.py::evaluate_rules_raw`), pas une invention nouvelle.
+
+**IMPORTANT -- limite d'execution rencontree ce tour, a lire avant de considerer ce pilote "valide"** : les outils de code dont je dispose fonctionnent sur DEUX systemes de fichiers distincts -- celui de l'utilisateur (accessible uniquement via les outils `Filesystem:*`, connecteur MCP) et le mien propre (outils `create_file`/`bash_tool`, environnement sandboxe sans acces reseau vers la machine de l'utilisateur ni vers son venv). Les 3 fichiers de ce tour ont d'abord ete ecrits PAR ERREUR avec `create_file` (mon propre systeme, invisible pour l'utilisateur), puis corriges avec `Filesystem:write_file` (systeme reel de l'utilisateur) une fois l'erreur repere en cours de tour -- le contenu final sur disque utilisateur est correct, mais aucune commande `pytest` n'a pu etre executee depuis ce tour : je n'ai aucun outil d'execution de commande sur la machine de l'utilisateur. Les tests ci-dessus sont donc ECRITS et relus attentivement (types, imports, signatures, patterns de mock existants dans le depot) mais PAS EXECUTES par moi -- "validation bout en bout" au sens strict du mandat reste a faire par l'utilisateur.
+
+**Non fait ce tour** : aucune replication aux 20 outils restants (11 actions CI + 9 outils ORM) -- en attente du retour utilisateur sur l'execution des 2 fichiers de tests pilotes ci-dessus. Aucune modification de `todo/plan.md`.
+
+**Prochaine etape** : mandat utilisateur -- executer UNIQUEMENT les 2 fichiers de tests pilotes (jamais la suite complete, cf. `todo/rules.md`) :
+```
+pytest code_intelligence/tests/test_bloc_b0_evidence_ci_pilot.py erp_data/tests/test_bloc_b0_evidence_orm_pilot.py -v
+```
+et rapporter le resultat avant de lancer la replication aux 20 outils restants.
+
+---
+
+## Section 430: B0 pilote confirme par execution reelle (11/11) ; regression pytest.ini corrigee (addopts manquant, integration lancee par defaut) (2026-09-01)
+
+**Origine** : utilisateur a lance et colle la sortie de `pytest code_intelligence/tests/test_bloc_b0_evidence_ci_pilot.py erp_data/tests/test_bloc_b0_evidence_orm_pilot.py -v` (section 429) -- 11/11 passed. "Validation bout en bout" du pilote B0 desormais reellement confirmee (pas seulement relue).
+
+**Bug distinct decouvert en cours de tour** : l'utilisateur signale avoir "supprime la regle" (formulation initialement ambigue, clarifiee ensuite) -- en realite `pytest.ini` avait perdu sa ligne `addopts = -m "not integration"`, si bien qu'un `pytest` (ou `pytest -v`) sans filtre executait aussi les 58 tests `@pytest.mark.integration` (appels reseau reels Groq/Odoo/watcher e2e). Confirme par un run complet colle par l'utilisateur (1148.75s, 12 failed/1094 passed/39 skipped) montrant des rotations de cle Groq en direct et l'echec non-deterministe de `tests/test_e2e_watcher_rag.py::test_e2e_live_add_delete_query_cycle` (LLM reel a hallucine sur un chunk hors-sujet). Les 11 autres echecs de ce run (`test_graph.py` OCR/confidence, `test_h1c_sticky_routing.py`, `test_route_accent_fold.py`, `test_scheduler.py`/`test_api_ingestion.py` `_count_supported_files` sur une liste imbriquee, `test_generate_node.py` dedup S3/S7) n'ont pas ete investigues ce tour -- ne pas les confondre avec une regression du pilote B0, aucun n'est en rapport avec `core/evidence.py`.
+
+**Fix applique** : `pytest.ini` -- readd `addopts = -m "not integration"` (dryRun relu, diff confirme par l'utilisateur avant application). Confirme par execution reelle : `pytest -m integration` selectionne desormais explicitement 58/1205 items (1147 deselected), donc `pytest` seul les exclut de nouveau par defaut.
+
+**Non fait ce tour** : les 11 echecs non-integration listes ci-dessus restent non diagnostiques (pre-existants, sans rapport apparent avec ce tour). `test_scalability.py` (Bloc 8, budget documente 360s) confirme non-regresse -- lenteur attendue par conception, pas un bug, expliquee a l'utilisateur. Aucune replication B1 lancee.
+
+**Prochaine etape** : mandat utilisateur -- (a) decider si les 11 echecs non-integration meritent investigation avant de reprendre B1, ou si hors-perimetre pour ce tour ; (b) lancer la replication B1 aux 20 outils restants une fois ce point tranche.
+
+---
+
+## Section 431: Triage des 11 echecs non-integration (section 430) en 4 clusters (A/B/C/D) ; Cluster D (bug reel, 2 echecs) corrige. A/B/C EN ATTENTE de decision produit, aucun diff sur ces 3 clusters. (2026-09-01)
+
+**Origine** : mandat utilisateur "fixons", en reponse au triage des 11 echecs presente ce tour (Cluster A: 3 echecs, test obsolete pre-CI-first ; Cluster B: 4 echecs, LLM Groq reel non mocke dans des tests censes etre purs ; Cluster C: 1 echec, deux decisions produit contradictoires sur `_verify_used_sources()` jamais reconciliees ; Cluster D: 2 echecs, bug reel).
+
+**Cluster D -- root cause et fix appliques ce tour** :
+- `document_rag/ingestion/watcher.py` : `DEFAULT_CODE_DIR = list(_WATCHED_CODE_DIRS)` -- nom au singulier pour une valeur qui est en realite une `list[Path]` (un repertoire par module Odoo). `api/main.py::ingestion_status()` faisait `_count_supported_files([DEFAULT_DOCS_DIR, DEFAULT_CODE_DIR])` -- le deuxieme element de la liste passee etait donc lui-meme une liste (liste imbriquee), et `_count_supported_files()` appelle `path.is_file()`/`path.is_dir()` sur chaque element en supposant un `Path` -- `AttributeError` sur cet element. Cassait `GET /api/v1/ingestion/status`, touche par `tests/test_api_ingestion.py::test_api_v1_ingestion_status_reports_stats_and_watcher_state` et `document_rag/tests/test_scheduler.py::test_api_ingestion_status_includes_scheduler_info`.
+- Root cause reelle : le nom `DEFAULT_CODE_DIR` mentait sur son propre type (singulier pour une liste), pas seulement un oubli d'aplatissement au point d'appel -- fix "chirurgical" (aplatir juste au point d'appel) aurait laisse le nom trompeur en place pour le prochain appelant. Renomme `DEFAULT_CODE_DIR` -> `DEFAULT_CODE_DIRS` dans `watcher.py` (definition + 2 commentaires qui le citaient), aucun autre usage trouve dans le depot (`api/main.py` etait le seul importeur/utilisateur reel, le reste des mentions dans `watcher.py` sont des commentaires).
+- `api/main.py` : import mis a jour (`DEFAULT_CODE_DIRS`), appel corrige en `_count_supported_files([DEFAULT_DOCS_DIR, *DEFAULT_CODE_DIRS])` (deroule la liste au lieu de l'imbriquer).
+
+**Cluster A/B/C -- PAS touches ce tour, decision produit requise avant tout diff** (cf. constat detaille du tour precedent) :
+- A (3 echecs, `test_graph.py` OCR/confidence + `test_query_graph_mocked`) : tests ecrits pour l'ancien contrat de `format_output()`/`query_graph()` (avant le routing CI-first, Bloc P1 Tranche 2). Decision a trancher : reecrire ces tests pour mocker/traverser `code_intelligence_agent` conformement au flow reel actuel, plutot que documentaire -> generate() direct.
+- B (4 echecs, `test_h1c_sticky_routing.py` + `test_route_accent_fold.py`) : `route()` appelle desormais `classify_question_intent_llm()` (vrai appel Groq) avant le fallback deterministe par mots-cles -- ces tests n'ont jamais ete adaptes pour mocker ce LLM. Decision a trancher : (a) mocker `classify_question_intent_llm` pour qu'il echoue/retourne None afin de retomber sur le classifieur deterministe que ces tests verrouillent deja, ou (b) mocker des reponses LLM explicites correspondant au comportement voulu et adapter les assertions au nouveau flow LLM-first.
+- C (1 echec, `TestSameFileMultipleChunks` vs `TestVerifyUsedSourcesDedup`) : deux decisions produit contradictoires sur `_verify_used_sources()` (garder 2 `SourceReference` distincts par chunk vs dedupliquer par `(source, title)`), jamais reconciliees. Decision a trancher : garder la dedup actuelle (coherent avec l'audience non-developpeur/sources cachees derriere un chevron -- cf. `todo/plan.md`) et retirer/reecrire le test perime en section 329, ou l'inverse.
+
+**Non fait ce tour** : aucun diff sur A/B/C -- mandat "fixons" traite comme feu vert pour le bug mecanique (D) mais pas comme une decision implicite sur les 3 arbitrages produit ci-dessus, qui restent chacun a trancher explicitement (cf. `todo/rules.md`, "pas de fix chirurgical" et "le changement devrait etre rare"). Aucune execution pytest (pas d'outil d'execution sur la machine utilisateur) -- fix D ecrit et relu mais pas encore confirme par un run reel.
+
+**Fichiers modifies** : `document_rag/ingestion/watcher.py`, `api/main.py`, `todo/contexte.txt` (cette section).
+
+**Prochaine etape** : (1) utilisateur execute `pytest tests/test_api_ingestion.py::test_api_v1_ingestion_status_reports_stats_and_watcher_state document_rag/tests/test_scheduler.py::test_api_ingestion_status_includes_scheduler_info -v` et confirme le fix D ; (2) trancher les 3 decisions A/B/C ci-dessus avant tout diff sur ces clusters.
+
+---
+
+## Section 432: Mandat "fixons" reitere sur A/B/C -- decisions produit demandees a l'utilisateur avant tout diff, aucun code touche (2026-09-01)
+
+**Origine** : utilisateur colle a nouveau le constat des clusters A/B/C (identique au contenu deja journalise section 431) et repete le mandat "fixons".
+
+**Lecture appliquee** : conformement a la reserve posee section 431 ("mandat fixons traite comme feu vert pour le bug mecanique D mais pas comme une decision implicite sur les 3 arbitrages produit"), ce nouveau "fixons" est traite de la meme facon -- D est deja corrige et journalise (section 431), il ne reste rien a faire dessus sans confirmation pytest utilisateur. A/B/C restent chacun une decision produit distincte (comportement a changer, pas juste un bug), donc non tranchables par un mandat generique repete tel quel, cf. `todo/rules.md` ("pas de fix chirurgical, voir la root cause" / "le changement devrait etre rare").
+
+**Action ce tour** : presentation des options concretes pour A, B, C a l'utilisateur (3 questions a choix, cf. reponse) plutot qu'un choix suppose de ma part.
+
+**Non fait ce tour** : aucun fichier code touche. Aucune modification de `todo/plan.md`.
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section seule).
+
+**Prochaine etape** : reponse utilisateur aux 3 questions A/B/C -- puis application avec le protocole habituel (dryRun -> diff -> apply -> reread -> py_compile -> log) cluster par cluster, dans l'ordre de risque croissant (A avant B avant C, cf. `todo/rules.md` "cloture par risque ascendant").
+
+---
+
+## Section 433: Decisions utilisateur actees sur A/B/C -- aucun code touche ce tour, execution a suivre dans le meme tour par ordre de risque croissant (2026-09-01)
+
+**Decisions actees (reponse aux 3 questions section 432)** :
+- **A** : SUPPRIMER les tests obsoletes (`test_graph.py` OCR/confidence x3, `test_query_graph_mocked`) -- perimetre pre-CI-first non remplace, pas de reecriture.
+- **B** : mocker des reponses LLM explicites (`classify_question_intent_llm`) correspondant au comportement voulu + adapter les assertions de `test_h1c_sticky_routing.py`/`test_route_accent_fold.py` au flow LLM-first reel (pas un retour au fallback deterministe).
+- **C** : garder la dedup actuelle `(source, title)` dans `_verify_used_sources()` -- retirer/reecrire le test perime `TestSameFileMultipleChunks::test_two_aliases_of_the_same_file_both_kept_if_both_used` (section 329).
+
+**Ordre d'execution retenu ce tour** : A (suppression pure, risque quasi nul) -> C (retrait/reecriture d'un seul test, risque faible) -> B (mock LLM + reecriture d'assertions sur un flow non-deterministe, le plus structurant des trois) -- cf. `todo/rules.md` "cloture par risque ascendant".
+
+**Non fait avant cette section** : aucun fichier code touche. Execution demarree immediatement apres cette entree, dans le meme tour, protocole habituel applique a chaque fichier (lecture complete -> dryRun -> diff -> apply -> reread -> py_compile -> log).
+

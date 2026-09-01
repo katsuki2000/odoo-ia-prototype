@@ -32,7 +32,7 @@ import logging
 from document_rag.ingestion.ingest_all import CODE_DIR, DOCS_DIR, IngestionOrchestrator
 from document_rag.ingestion.incremental import reindex_if_changed
 from document_rag.ingestion.logging_utils import now_iso, start_timer, write_ingestion_event
-from document_rag.ingestion.watcher import DEFAULT_CODE_DIR, DEFAULT_DOCS_DIR
+from document_rag.ingestion.watcher import DEFAULT_CODE_DIRS, DEFAULT_DOCS_DIR
 from document_rag.ingestion.scheduler import PeriodicScanScheduler, run_scheduled_scan, run_startup_scan
 from document_rag.vectorstore.chroma_manager import ChromaManager
 
@@ -465,7 +465,7 @@ def ingestion_status():
     return IngestionStatusResponse(
         last_ingestion_time=LAST_INGESTION_STATUS.get("last_ingestion_time"),
         total_chunks=int(stats.get("total_chunks", 0) or 0),
-        files_monitored=_count_supported_files([DEFAULT_DOCS_DIR, DEFAULT_CODE_DIR]),
+        files_monitored=_count_supported_files([DEFAULT_DOCS_DIR, *DEFAULT_CODE_DIRS]),
         watcher_status=watcher_status,
         scheduler_status=LAST_INGESTION_STATUS.get("scheduler_status"),
         last_scan_type=LAST_INGESTION_STATUS.get("last_scan_type"),

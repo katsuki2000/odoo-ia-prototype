@@ -1,6 +1,4 @@
 """
-rag/ci_helpers.py
-
 Code Intelligence deterministic helpers.
 
 Extraction, backfill, contradiction-neutralization, and grounding
@@ -1086,6 +1084,205 @@ def _correct_security_lock_threshold_contradictions(
     return delimiter.join(new_chunks) + suffix
 
 
+def _can_view_amount_candidates(
+    raw_tool_output: str,
+    tool_observation_models: "Optional[List[str]]",
+    target_models: "Optional[List[str]]",
+) -> "List[Tuple[str, str]]":
+    """Shared candidate-collection step for both _extract_can_view_amount_fact_block
+    (picks ONE block to backfill the answer with) and
+    _detect_can_view_amount_model_conflict (H3, todo/plan.md -- flags when MORE
+    THAN ONE distinct model's verdict is a legitimate candidate this turn) --
+    kept as a single source of truth for what counts as 'a can_view_amount_v2
+    fact block associated with a target model', so the two never drift apart
+    on what they each consider a candidate (same F-08 duplication discipline
+    this module already follows elsewhere, e.g. NOT_FOUND_MARKER above).
+
+    Returns [] when tool_observation_models/target_models are not both
+    supplied, or when no block in raw_tool_output carries a fact associated
+    with a target model -- callers fall back to their own untargeted scan in
+    that case (see _extract_can_view_amount_fact_block below).
+    """
+    if tool_observation_models is None or not target_models:
+        return []
+    blocks = raw_tool_output.split("\n\n")
+    target_set = set(target_models)
+    return [
+        (block, model)
+        for block, model in zip(blocks, tool_observation_models)
+        if _has_can_view_amount_fact(block) and model in target_set
+    ]
+
+
+def _extract_can_view_amount_verdict_label(block: str) -> str:
+    """Human-readable verdict label ('PEUT' / 'NE PEUT PAS' / 'ind\u00e9termin\u00e9')
+    for a single can_view_amount_v2 fact block -- used only to build a
+    CONFLICTING reason string (_detect_can_view_amount_model_conflict), never
+    to drive any answer or correction itself."""
+    if _CAN_VIEW_FACT_INDETERMINATE_MARKER in block:
+        return "ind\u00e9termin\u00e9"
+    match = _CAN_VIEW_FACT_VERDICT_RE.search(block)
+    return match.group(2) if match else "inconnu"
+
+
+def _detect_can_view_amount_model_conflict(
+    raw_tool_output: str,
+    tool_observation_models: "Optional[List[str]]" = None,
+    target_models: "Optional[List[str]]" = None,
+) -> "Optional[str]":
+    """
+    H3 (todo/plan.md, Bloc P1-bis -- \"Tester un mecanisme d'arbitrage entre
+    preuves concurrentes\"), first real deterministic signal wired into
+    core/evidence_sufficiency.py::assess_evidence_sufficiency() as its
+    `conflict_reason` parameter (todo/contexte.txt section 418+).
+
+    Deliberately narrow in scope: a genuine CONFLICTING case is TWO OR MORE
+    resolved models each producing their OWN legitimate, independently-
+    computed can_view_amount_v2 verdict for this turn, with DIFFERING
+    outcomes -- as opposed to a single model's verdict that the LLM's own
+    prose merely misstated (a synthesis-inversion bug, already corrected in
+    place by _correct_can_view_amount_contradictions elsewhere in this
+    module, and explicitly out of scope for CONFLICTING per
+    EvidenceSufficiencyStatus's own docstring: an already-corrected
+    synthesis slip is not \"two valid findings disagreeing\").
+
+    _extract_can_view_amount_fact_block (below) already detects this exact
+    situation -- see its own docstring, \"several distinct candidate models\"
+    -- but only LOGS a warning and silently picks the most recently computed
+    one to backfill the answer with, discarding the other model's equally
+    valid finding without ever surfacing the disagreement past that log
+    line. This function reuses the same candidate-collection step
+    (_can_view_amount_candidates) purely to DETECT the same situation and
+    report it as a reason string -- it never picks a winner itself, that
+    remains _extract_can_view_amount_fact_block's job.
+
+    Returns None when fewer than 2 distinct target models produced a
+    can_view_amount_v2 fact this turn, OR when they did but reached the SAME
+    verdict (independent agreement across models is not a conflict). Returns
+    a human-readable reason string otherwise.
+    """
+    candidates = _can_view_amount_candidates(raw_tool_output, tool_observation_models, target_models)
+    if not candidates:
+        return None
+
+    verdict_by_model: "Dict[str, str]" = {}
+    for block, model in candidates:
+        # Last-seen wins per model -- consistent with
+        # _extract_can_view_amount_fact_block's own "most recently computed"
+        # tie-break for a single model producing more than one block
+        # (re-evaluation across hops), not itself a cross-model conflict.
+        verdict_by_model[model] = _extract_can_view_amount_verdict_label(block)
+
+    distinct_verdicts = set(verdict_by_model.values())
+    if len(verdict_by_model) < 2 or len(distinct_verdicts) < 2:
+        return None
+
+    detail = ", ".join(f"{model}: {verdict}" for model, verdict in sorted(verdict_by_model.items()))
+    logger.warning(
+        "Node [code_intelligence_agent]: %d resolved models produced DIVERGENT "
+        "can_view_amount_v2 verdicts this turn (%s) -- flagging as CONFLICTING "
+        "evidence (H3) rather than silently picking one.",
+        len(verdict_by_model), detail,
+    )
+    return (
+        f"{len(verdict_by_model)} mod\u00e8les r\u00e9solus ont produit des verdicts "
+        f"can_view_amount_v2 divergents pour cette question ({detail}) -- preuves "
+        f"concurrentes, aucun vainqueur choisi automatiquement."
+    )
+
+
+def _format_conflicting_evidence_answer(
+    raw_tool_output: str,
+    tool_observation_models: "Optional[List[str]]" = None,
+    target_models: "Optional[List[str]]" = None,
+) -> "Optional[str]":
+    """
+    H3 dedicated CONFLICTING path (todo/contexte.txt sections 419-420, user
+    reformulation of the desired role of CONFLICTING): builds
+    code_intelligence_agent's final_answer directly and deterministically
+    -- NO LLM synthesis call -- whenever
+    _detect_can_view_amount_model_conflict() has already fired for this
+    turn.
+
+    Explicit user requirement (section 419): CONFLICTING must never
+    arbitrate between the two (or more) disagreeing can_view_amount_v2
+    verdicts, nor let an implicit preference show through ("Y est
+    probablement le bon") -- each model's own verdict block must be
+    exposed to the reader as-is, in the spirit of "X dit ceci, Y dit
+    cela, je ne peux pas trancher a partir des preuves disponibles". A
+    free-form LLM synthesis call is deliberately NOT used for this case:
+    the existing synthesis_prompt (ci_agent_node.py) instructs the model
+    that a '[FAIT DETERMINISTIQUE]' observation is THE authoritative
+    verdict -- written for exactly one such fact per turn, undefined once
+    two DIFFERENT facts both claim that authority. Routing this case
+    through that prompt would silently reintroduce the arbitration the
+    user explicitly rejected (an LLM given two contradictory 'authoritative'
+    facts has no defined way to reconcile them without picking one).
+
+    Reuses _can_view_amount_candidates() -- the same candidate-collection
+    step _detect_can_view_amount_model_conflict() itself uses just above --
+    so the evidence exposed here and the conflict signal that triggered
+    this call are always computed over identical inputs, never a second,
+    independently-scoped re-derivation (same F-08 duplication discipline
+    this module already follows elsewhere).
+
+    Returns None when fewer than 2 distinct candidate models are found --
+    mirrors _detect_can_view_amount_model_conflict()'s own None contract.
+    Callers must already have confirmed a conflict was detected (via that
+    function) before calling this one; this function does not re-derive
+    that decision, only formats it.
+
+    Known scope limit, deliberately not addressed here (out of this
+    mandate): if one of the divergent verdicts is itself the
+    'indeterminate' case (_CAN_VIEW_FACT_INDETERMINATE_MARKER), the block
+    this function embeds verbatim still carries that marker, so a
+    downstream core/evidence_sufficiency.py::assess_evidence_sufficiency()
+    call over this final_answer will hit its own step-4
+    indeterminate-marker check BEFORE reaching step 5's conflict_reason
+    check, and reclassify the turn as INSUFFICIENT instead of CONFLICTING
+    -- per that function's own documented priority order ('this still wins
+    over (5) below ... an undetermined verdict is a stronger/prior signal
+    than a cross-model disagreement'), which pre-dates this function and is
+    not altered by it. The primary case this function targets -- two (or
+    more) models each producing their own definite True/False verdict that
+    disagree -- is unaffected by this limit.
+    """
+    candidates = _can_view_amount_candidates(raw_tool_output, tool_observation_models, target_models)
+    if not candidates:
+        return None
+
+    # Last-seen wins per model -- same tie-break as
+    # _detect_can_view_amount_model_conflict's own verdict_by_model
+    # collection immediately above, so the set of models/blocks exposed
+    # here always matches exactly what the conflict signal was computed
+    # from.
+    block_by_model: "Dict[str, str]" = {}
+    for block, model in candidates:
+        block_by_model[model] = block.strip()
+
+    if len(block_by_model) < 2:
+        return None
+
+    evidence_sections = "\n\n".join(
+        f"**Mod\u00e8le `{model}`** :\n{block}"
+        for model, block in sorted(block_by_model.items())
+    )
+
+    return (
+        "## Preuves contradictoires d\u00e9tect\u00e9es\n\n"
+        f"{len(block_by_model)} mod\u00e8les r\u00e9solus produisent chacun leur propre "
+        "verdict d\u00e9terministe pour cette question, et ces verdicts ne sont pas "
+        "d'accord entre eux. Les deux constats sont pr\u00e9sent\u00e9s ci-dessous "
+        "int\u00e9gralement, sans qu'aucun des deux ne soit \u00e9cart\u00e9 ou privil\u00e9gi\u00e9 "
+        "automatiquement :\n\n"
+        f"{evidence_sections}\n\n"
+        "Le moteur ne peut pas trancher entre ces preuves concurrentes \u00e0 "
+        "partir des \u00e9l\u00e9ments disponibles pour cette question. Une "
+        "v\u00e9rification manuelle est n\u00e9cessaire pour d\u00e9terminer laquelle "
+        "s'applique r\u00e9ellement \u00e0 ce cas."
+    )
+
+
 def _extract_can_view_amount_fact_block(
     raw_tool_output: str,
     tool_observation_models: "Optional[List[str]]" = None,
@@ -1116,28 +1313,29 @@ def _extract_can_view_amount_fact_block(
     When tool_observation_models/target_models are not supplied (legacy
     callers), behaviour is unchanged except that finding more than one
     fact block is now logged instead of silently resolved.
+
+    Note (H3, todo/contexte.txt section 418+): the multi-model divergence
+    detected below is now ALSO surfaced as a genuine CONFLICTING signal by
+    _detect_can_view_amount_model_conflict, which reuses the same
+    _can_view_amount_candidates() step -- this function's own behavior
+    (still silently picking the most recent block to backfill with) is
+    unchanged; only a NEW, separate detector call at the ci_agent_node.py
+    call site now also reports the disagreement instead of only this log line.
     """
     blocks = raw_tool_output.split("\n\n")
-
-    if tool_observation_models is not None and target_models:
-        target_set = set(target_models)
-        candidates = [
-            (block, model)
-            for block, model in zip(blocks, tool_observation_models)
-            if _has_can_view_amount_fact(block) and model in target_set
-        ]
-        if candidates:
-            distinct_models = {model for _block, model in candidates}
-            if len(distinct_models) > 1:
-                logger.warning(
-                    "Node [code_intelligence_agent]: %d distinct resolved "
-                    "models each produced a can_view_amount_v2 fact block "
-                    "(%s) -- backfilling with the most recently computed "
-                    "one instead of an arbitrary first match.",
-                    len(distinct_models), sorted(distinct_models),
-                )
-                return candidates[-1][0].strip()
-            return candidates[0][0].strip()
+    candidates = _can_view_amount_candidates(raw_tool_output, tool_observation_models, target_models)
+    if candidates:
+        distinct_models = {model for _block, model in candidates}
+        if len(distinct_models) > 1:
+            logger.warning(
+                "Node [code_intelligence_agent]: %d distinct resolved "
+                "models each produced a can_view_amount_v2 fact block "
+                "(%s) -- backfilling with the most recently computed "
+                "one instead of an arbitrary first match.",
+                len(distinct_models), sorted(distinct_models),
+            )
+            return candidates[-1][0].strip()
+        return candidates[0][0].strip()
 
     matches = [block for block in blocks if _has_can_view_amount_fact(block)]
     if not matches:

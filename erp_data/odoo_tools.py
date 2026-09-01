@@ -1,14 +1,15 @@
 """
 LangChain @tool definitions for Odoo XML-RPC operations.
 These tools are exposed to the AI for function calling.
-Refactored to English function signatures per project rules.
 """
 
-from typing import Optional, Dict, Any, List
+from datetime import datetime, timezone
+from typing import Optional, Dict, Any, List, Tuple
 import logging
 from langchain_core.tools import tool
 from erp_data.odoo_connector import OdooConnector
 from tools.date_utils import parse_period
+from core.evidence import Evidence, EvidenceSourceType, make_evidence
 import contextvars
 
 logger = logging.getLogger(__name__)
@@ -47,6 +48,23 @@ def _get_current_uid() -> int:
         _cached_uid = connector.authenticate("admin")
     return _cached_uid
 
+def _orm_evidence_scope(uid: int) -> dict:
+    """
+    B0 pilot (todo/contexte.txt sections 426-428): canonical scope shared by
+    every ORM tool's Evidence. execution_identity is the real requester uid
+    (see _get_current_uid's docstring) -- the identity Odoo's own ir.rule/
+    ACL enforcement actually used for this read, not a decorative label.
+    company_id is deliberately omitted here: OdooConnector does not
+    currently pass or receive an explicit company scope (Odoo resolves the
+    active company server-side from the uid's session) -- adding a
+    fabricated company_id would misrepresent what this tool actually knows.
+    """
+    return {
+        "execution_identity": uid,
+        "read_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+
 def _normalize_client_name(client: str) -> str:
     if not client:
         return ""
@@ -61,15 +79,13 @@ def _normalize_client_name(client: str) -> str:
     })
     return client.translate(trans)
 
-@tool
-def get_total_sales(client: str = "", periode: str = "", statut: str = "toutes") -> str:
+def get_total_sales_raw(client: str = "", periode: str = "", statut: str = "toutes") -> Tuple[str, Evidence]:
     """
-    Get the total sales amount filtered by client, period, and status.
-
-    Args:
-        client: Client name. Leave empty ("") or "tous" for all clients.
-        periode: Optional time period filter (e.g. 'ce mois', '2025'). Leave empty string ("") for all time unless a specific period is explicitly mentioned in the user query.
-        statut: Order status filter ('confirmees', 'brouillon', 'toutes'). Default: 'toutes'.
+    Execute get_total_sales and return both the display string and the
+    structured Evidence (B0 pilot, todo/contexte.txt sections 426-428).
+    Exposed separately from the @tool wrapper so a future Evidence Builder
+    (B2/B3) can call it directly and reuse the result object, the same
+    pattern already used on the CI side by ci_agent_tools.evaluate_rules_raw.
     """
     statut_normalized = statut.lower().strip()
 
@@ -92,6 +108,9 @@ def get_total_sales(client: str = "", periode: str = "", statut: str = "toutes")
         domain.append(("date_order", "<=", end_str))
 
     uid = _get_current_uid()
+    scope = _orm_evidence_scope(uid)
+    client_label = f" pour {client}" if client and client.lower() not in ["tous les clients", "tous", ""] else ""
+
     results = connector.read_group(
         uid=uid,
         model="sale.order",
@@ -101,12 +120,40 @@ def get_total_sales(client: str = "", periode: str = "", statut: str = "toutes")
     )
 
     if not results or not results[0].get("amount_total"):
-        client_label = f" pour {client}" if client and client.lower() not in ["tous les clients", "tous", ""] else ""
-        return f"Aucune vente trouvée{client_label} (statut: {statut})."
+        text = f"Aucune vente trouvée{client_label} (statut: {statut})."
+        evidence = make_evidence(
+            source_type=EvidenceSourceType.ORM,
+            claim=f"No sale.order matches client={client or 'all'}, period={periode or 'all'}, statut={statut}",
+            source="sale.order:read_group(amount_total:sum)",
+            value=None,
+            scope=scope,
+        )
+        return text, evidence
 
     total = results[0]["amount_total"]
-    client_label = f" pour {client}" if client and client.lower() not in ["tous les clients", "tous", ""] else ""
-    return f"Le total des ventes{client_label} (statut: {statut}) est de {total:.2f} Ar.\n[Source: Odoo ERP - Module Ventes (sale.order)]"
+    text = f"Le total des ventes{client_label} (statut: {statut}) est de {total:.2f} Ar.\n[Source: Odoo ERP - Module Ventes (sale.order)]"
+    evidence = make_evidence(
+        source_type=EvidenceSourceType.ORM,
+        claim=f"Total sales amount for client={client or 'all'}, period={periode or 'all'}, statut={statut}",
+        source="sale.order:read_group(amount_total:sum)",
+        value=total,
+        scope=scope,
+    )
+    return text, evidence
+
+
+@tool
+def get_total_sales(client: str = "", periode: str = "", statut: str = "toutes") -> str:
+    """
+    Get the total sales amount filtered by client, period, and status.
+
+    Args:
+        client: Client name. Leave empty ("") or "tous" for all clients.
+        periode: Optional time period filter (e.g. 'ce mois', '2025'). Leave empty string ("") for all time unless a specific period is explicitly mentioned in the user query.
+        statut: Order status filter ('confirmees', 'brouillon', 'toutes'). Default: 'toutes'.
+    """
+    text, _evidence = get_total_sales_raw(client, periode, statut)
+    return text
 
 @tool
 def get_product_stock(produit: str) -> str:

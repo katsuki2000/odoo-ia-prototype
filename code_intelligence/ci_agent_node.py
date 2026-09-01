@@ -15,6 +15,7 @@ from typing import List, Optional, Any
 
 
 from core.schemas import AssistantResponse, SourceReference
+from core.evidence_sufficiency import assess_evidence_sufficiency
 from core.routing import (
     RAGState, _is_out_of_scope, OUT_OF_SCOPE_ANSWER,
     _is_massive_extraction_request, _is_prompt_injection,
@@ -55,6 +56,8 @@ from code_intelligence.ci_helpers import (
     _correct_can_view_amount_contradictions,
     _correct_security_lock_threshold_contradictions,
     _backfill_missing_can_view_amount_fact,
+    _detect_can_view_amount_model_conflict,
+    _format_conflicting_evidence_answer,
     _format_can_view_amount_fact,
     _rehydrate_sticky_concept,
     _rank_and_cap_resolved_models,
@@ -1069,6 +1072,7 @@ class CodeIntelligenceAgentRunner:
         raw_tool_output = "\n\n".join(tool_observations)
         out_of_scope_model_answer = _force_out_of_scope_model_answer(question, concept)
         dynamic_uncertainty_answer = _force_dynamic_uncertainty_answer(question, raw_tool_output)
+        ci_conflict_reason = None
         if out_of_scope_model_answer:
             final_answer = out_of_scope_model_answer
         elif dynamic_uncertainty_answer:
@@ -1090,38 +1094,77 @@ class CodeIntelligenceAgentRunner:
                 if not _scoped_target_set or not model or model in _scoped_target_set
             ]
 
-            final_answer = _correct_security_lock_threshold_contradictions(final_answer, scoped_tool_output, question)
-
-            final_answer = _backfill_missing_can_view_amount_fact(
-                final_answer, scoped_tool_output,
+            # H3 dedicated CONFLICTING path (todo/contexte.txt sections
+            # 419-420, user reformulation): detected BEFORE any of the
+            # single-verdict backfill/correction calls below run, so a
+            # genuine cross-model disagreement is exposed as-is rather than
+            # being silently resolved toward one side by functions written
+            # for the single-verdict case -- _backfill_missing_can_view_
+            # amount_fact picks only ONE block to backfill with, and
+            # _correct_can_view_amount_contradictions extracts only the
+            # FIRST verdict via regex .search(); both assume a single
+            # authoritative fact, undefined once two different models each
+            # claim that authority for the same turn. Computed from the
+            # SAME scoped_tool_output/scoped_tool_observation_models pair
+            # every branch below uses -- never a second, independently-
+            # scoped re-derivation. See _detect_can_view_amount_model_
+            # conflict's own docstring for why this stays narrow (cross-
+            # model can_view_amount_v2 divergence only, not a general
+            # contradiction detector).
+            ci_conflict_reason = _detect_can_view_amount_model_conflict(
+                scoped_tool_output,
                 tool_observation_models=scoped_tool_observation_models,
                 target_models=concept.resolved_models,
             )
 
-            final_answer = _backfill_missing_required_groups(final_answer, scoped_tool_output, question)
+            if ci_conflict_reason:
+                # Deterministic, non-arbitrating exposition of both (or
+                # more) disagreeing facts -- see
+                # _format_conflicting_evidence_answer's own docstring.
+                # Skips every backfill/correction below on purpose: those
+                # all operate on free-form synthesis prose written under
+                # the assumption of a single authoritative fact, which no
+                # longer holds once a real conflict has been confirmed for
+                # this turn -- running them against this deterministic
+                # exposition text would risk reintroducing an implicit
+                # preference the user explicitly asked never to show
+                # (section 419).
+                final_answer = _format_conflicting_evidence_answer(
+                    scoped_tool_output,
+                    tool_observation_models=scoped_tool_observation_models,
+                    target_models=concept.resolved_models,
+                ) or final_answer
+            else:
+                final_answer = _correct_security_lock_threshold_contradictions(final_answer, scoped_tool_output, question)
 
-            final_answer = _backfill_missing_security_lock_amount(final_answer, scoped_tool_output, question=question)
+                final_answer = _backfill_missing_can_view_amount_fact(
+                    final_answer, scoped_tool_output,
+                    tool_observation_models=scoped_tool_observation_models,
+                    target_models=concept.resolved_models,
+                )
 
-            final_answer = _backfill_missing_override_modules(final_answer, scoped_tool_output)
+                final_answer = _backfill_missing_required_groups(final_answer, scoped_tool_output, question)
 
-            final_answer = _correct_override_cascade_contradictions(final_answer, scoped_tool_output)
-            final_answer = _backfill_missing_override_chain_amount(final_answer, scoped_tool_output)
+                final_answer = _backfill_missing_security_lock_amount(final_answer, scoped_tool_output, question=question)
 
-            final_answer = _backfill_missing_trigger_condition_literals(final_answer, scoped_tool_output)
- 
-            final_answer = _backfill_missing_hardcoded_id_literals(final_answer, scoped_tool_output)
- 
- 
-            final_answer = _backfill_missing_unguarded_super(final_answer, scoped_tool_output)
- 
- 
-            final_answer = _backfill_link_guard_clarifications(final_answer, scoped_tool_output)
- 
-            final_answer = _correct_can_view_amount_contradictions(final_answer)
+                final_answer = _backfill_missing_override_modules(final_answer, scoped_tool_output)
 
-            final_answer = _flag_ungrounded_group_xmlids(final_answer, scoped_tool_output)
- 
-            final_answer = _strip_core_only_group_mentions(final_answer, scoped_tool_output)
+                final_answer = _correct_override_cascade_contradictions(final_answer, scoped_tool_output)
+                final_answer = _backfill_missing_override_chain_amount(final_answer, scoped_tool_output)
+
+                final_answer = _backfill_missing_trigger_condition_literals(final_answer, scoped_tool_output)
+
+                final_answer = _backfill_missing_hardcoded_id_literals(final_answer, scoped_tool_output)
+
+                final_answer = _backfill_missing_unguarded_super(final_answer, scoped_tool_output)
+
+                final_answer = _backfill_link_guard_clarifications(final_answer, scoped_tool_output)
+
+                final_answer = _correct_can_view_amount_contradictions(final_answer)
+
+                final_answer = _flag_ungrounded_group_xmlids(final_answer, scoped_tool_output)
+
+                final_answer = _strip_core_only_group_mentions(final_answer, scoped_tool_output)
         
         from code_intelligence.sourcing_guard import verify_citations, annotate_unverifiable_citations
         sourcing_result = verify_citations(final_answer, raw_tool_output)
@@ -1135,7 +1178,23 @@ class CodeIntelligenceAgentRunner:
                 "outside the main synthesis retry path -- stripping before returning."
             )
             final_answer = _strip_any_degenerate_repetition(final_answer)
-        
+
+        # Bloc P1 Tranche 2 (todo/contexte.txt section 405-408): post-analysis
+        # verdict on THIS branch's own synthesized answer, evaluated before the
+        # '[Source: ...]' footer/omission block are appended (neither is part
+        # of the actual synthesized content assess_evidence_sufficiency() is
+        # meant to judge). Drives core/graph.py's post-CI conditional edge --
+        # never decided here, this node only computes and reports the verdict.
+        ci_evidence_sufficiency = assess_evidence_sufficiency(
+            tool_observations, hop_count, final_answer,
+            conflict_reason=ci_conflict_reason,
+        )
+        logger.info(
+            "Node [code_intelligence_agent]: evidence sufficiency=%s (relevant=%d/%d) reasons=%s",
+            ci_evidence_sufficiency.status.value, ci_evidence_sufficiency.relevant_observation_count,
+            ci_evidence_sufficiency.total_observation_count, ci_evidence_sufficiency.reasons,
+        )
+
         final_answer += "\n\n[Source: Graphe de Connaissances Code Intelligence]"
         
 
@@ -1212,6 +1271,7 @@ class CodeIntelligenceAgentRunner:
             "timing": timing,
             "raw_tool_output": "\n\n".join(tool_observations),
             "evidence_status": evidence_status,
+            "ci_evidence_sufficiency": ci_evidence_sufficiency.to_display_dict(),
         }
                 
 def code_intelligence_agent(state: RAGState) -> dict:

@@ -38,7 +38,7 @@ DEFAULT_DOCS_DIR = PROJECT_ROOT / "document_rag/fake_data" / "documents"
 # under CORE_ADDONS_ROOT/CUSTOM_ADDONS_ROOT). Import the real scope instead
 # of hardcoding a second, stale notion of "the code directory".
 from document_rag.ingestion.ingest_all import CODE_DIRS as _WATCHED_CODE_DIRS
-DEFAULT_CODE_DIR = list(_WATCHED_CODE_DIRS)
+DEFAULT_CODE_DIRS = list(_WATCHED_CODE_DIRS)
 
 
 @dataclass
@@ -234,7 +234,7 @@ class IngestionWatcher:
         # Section 349 (todo/contexte.txt): decision produit permanente --
         # le watcher de la branche RAG documentaire ne surveille plus le
         # code par defaut (Code Intelligence s'en charge separement).
-        # DEFAULT_CODE_DIR reste defini plus haut pour un usage explicite
+        # DEFAULT_CODE_DIRS reste defini plus haut pour un usage explicite
         # (watched_paths=[...]) mais n'est plus dans le defaut implicite.
         self.watched_paths = [
             Path(path).resolve()
@@ -317,7 +317,7 @@ def main() -> int:
         # Section 349 (todo/contexte.txt): default changed -- the
         # documentary RAG watcher no longer watches code by default
         # (permanent product decision, mirrors ingest_all.py). Pass
-        # explicit paths (including DEFAULT_CODE_DIR entries) to opt back
+        # explicit paths (including DEFAULT_CODE_DIRS entries) to opt back
         # in for a one-off run.
         default=[DEFAULT_DOCS_DIR],
         help="Directories to watch recursively",

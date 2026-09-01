@@ -35,6 +35,7 @@
 ## Bloc 6 — Routeur et conflit inter-branches — CLOS
 
 - J18-J21 (20-25/08). Politique de resolution de conflit code-prime-sur-RAG.
+- **Addendum (2026-09-01, voir Bloc P1-bis, PARTIE 3)** : le modele "4 branches coequipieres" decrit ci-dessus a ete substantiellement reoriente par le chantier CI-d'abord/RAG-fallback (todo/contexte.txt sections 405-416) -- `route()` ne pilote plus l'execution reelle que pour l'arbitrage DONNEES_ERP vs le reste, les 3 autres branches convergeant vers un flux unique Code Intelligence avec fallback RAG conditionnel. La politique "code-prime-sur-RAG" citee ci-dessus reste pertinente pour ce seul arbitrage residuel.
 
 ## Bloc 7 — Controle d'acces sur la reponse + Bloc 7-bis — CLOS
 
@@ -121,7 +122,7 @@ Ces deux gaps conditionnent la lisibilite et l'auditabilite du systeme pour un n
 
 **Se rattache à** : se situe avant Code Intelligence Engine dans le pipeline — donc temporellement a l'opposé d'Evidence Builder, qui intervient après. Voir la note de desambiguation Evidence Check / Evidence Builder dans `architecture.md`.
 
-**Statut** : Conceptuel. Non implementé.
+**Statut** : Conceptuel au niveau de l'arbitrage reel (aucun detecteur de contradiction implemente a ce jour). **Mise a jour (2026-09-01, voir Bloc P1-bis ci-dessous, todo/contexte.txt sections 406-416)** : le schema/contrat existe desormais et est cable en aval -- `core/evidence_sufficiency.py::EvidenceSufficiencyStatus.CONFLICTING` est un statut de premiere classe (distinct d'`INSUFFICIENT`/`indeterminate`, correction utilisateur section 406), et `core/graph.py::ci_evidence_decision()` le trace explicitement par log avant fallback RAG. En pratique, `assess_evidence_sufficiency()` ne retourne jamais `CONFLICTING` aujourd'hui (aucune logique de detection de contradiction reelle n'existe encore) -- la branche est instrumentee et testee (`tests/test_bloc_p1_tranche2_ci_first_evidence_routing.py`, Groupe A) mais actuellement inatteignable. Reste a faire pour clore H3 : le detecteur lui-meme (deux preuves valides reellement contradictoires).
 
 ---
 
@@ -145,6 +146,23 @@ Ces deux gaps conditionnent la lisibilite et l'auditabilite du systeme pour un n
 - **Consequence** : Bloc P1 restait SANS marqueur `CLOS` jusqu'a ce tour -- il manquait la confirmation Jour 5 cote frontend et un rejeu confirme des 2 suites de tests.
 
 **Marqueur CLOS pose (31/08, mandat direct utilisateur, voir todo/contexte.txt section 373/suite)** : Jours 1-2/3-4/6 restent faits et confirmes (inchange ci-dessus). **Reserve explicite non levee** : la confirmation Jour 5 cote frontend (rendu reel du plan dans le widget Discuss) n'a jamais ete verifiee visuellement, et les 2 suites de tests (`test_bloc_p1_j1_2_investigation_plan.py`, `test_bloc_p1_j6_plan_execution_coherence.py`) n'ont pas ete rejouees dans le cadre de cette cloture. Le marqueur est pose sur mandat explicite, pas sur preuve complete au sens habituel du projet (todo/rules.md : aucune story declaree terminee sans reexecution du benchmark) -- si un doute survient plus tard sur ce bloc, cette reserve doit etre levee par un rejeu reel avant de s'y fier pleinement.
+
+---
+
+## Bloc P1-bis — Reorientation CI-d'abord / RAG-fallback (alignement architecture.md) — CLOS (2026-09-01, voir todo/contexte.txt sections 405-417)
+
+**Origine** : ecart constate entre `core/routing.py` (routeur a 4 branches coequipieres, issu du chantier classifieur LLM section 394+) et le modele cible d'`architecture.md` -- "Le RAG n'est pas le moteur principal. Le RAG intervient uniquement lorsque : le systeme ne contient pas la reponse OU la documentation apporte un complement utile." Confirme par relecture complete d'`architecture.md` (section 405), qui ne montre pas 4 branches coequipieres au premier niveau mais Code Intelligence + Data Intelligence (Domaines A/B) alimentant ensemble une seule "Construction des preuves", RAG (Domaine C) intervenant uniquement en dernier recours.
+
+**Contenu livre, 3 tranches** :
+- **Tranche 1** (sections 406-407) : nouveau primitif `core/evidence_sufficiency.py::assess_evidence_sufficiency()` -- statut `SUFFICIENT`/`INSUFFICIENT`/`CONFLICTING`. Correction utilisateur integree : un verdict `indeterminate` (champ de contexte manquant, dispatch dynamique non resolu) mappe vers `INSUFFICIENT`, PAS `CONFLICTING` -- reserve a une situation ou deux preuves valides se contredisent reellement (lien H3 ci-dessus). 12/12 tests confirmes en conditions reelles (section 407).
+- **Tranche 2** (constat section 408 -- deja ecrite et cablee sur le disque au moment de la lecture, non journalisee par son auteur, verifiee conforme aux contraintes utilisateur) : `core/graph.py::build_graph()` -- `route` ne dispatche plus qu'entre `code_intelligence_agent` (DOCUMENTAIRE/HYBRIDE/CODE_INTELLIGENCE convergent vers le meme noeud) et `orm_agent_loop` (DONNEES_ERP seul) ; nouvelle edge conditionnelle `ci_evidence_decision()` apres `code_intelligence_agent` : `SUFFICIENT` -> reponse directe (`format_output`), sinon (`INSUFFICIENT` ou `CONFLICTING`, trace explicitement par log) -> `generate` (RAG). `hybrid_node` retire du graphe compile (reste importable ; son role est repris par le fallback CI->RAG).
+- **Tranche 3** (sections 409-410) : `tests/test_bloc_p1_tranche2_ci_first_evidence_routing.py` (nouveau fichier, 20 tests, 3 groupes -- decision `ci_evidence_decision()` y compris tracabilite CONFLICTING/INSUFFICIENT via `caplog` ; structure reelle du graphe compile via `app.get_graph()` -- confirme que `route` ne dispatche plus que vers 2 noeuds, `hybrid_node` absent des noeuds compiles ; non-regression `format_output()`/OCR). 20/20 confirmes en conditions reelles (section 410).
+
+**Bug reel trouve et corrige en cours de route** (sections 414-416) : `format_output()` portait un disjoint mort `route == QueryRoute.DOCUMENTAIRE.value` (reste de l'ancien cablage pre-Tranche 2), atteignable a tort via les 3 refus precoces de `code_intelligence_agent` (out-of-scope / injection / extraction massive, qui ne peuplent jamais `ci_evidence_sufficiency`) -- faux positif d'avertissement OCR/backfill de sources sur un simple message de refus, si `route()` avait classe la question `documentaire` juste avant. Disjoint retire ; `ci_fell_back_to_rag` seul est desormais un signal complet et suffisant sous le graphe compile CI-d'abord (`generate()` n'a plus qu'une seule edge entrante). Le test qui verrouillait ce comportement comme "non-regression historique" a ete retravaille pour verrouiller l'absence de fuite au lieu de la fuite elle-meme. Confirme 20/20 (section 416).
+
+**Consequence sur le statut du classifieur d'intention (`QuestionIntent`)** : les 5 divergences connues entre classifieur LLM et filet keyword (todo/contexte.txt section 404, rejouees section 411 -- 62 passed/5 failed) sont **declassees** comme risque de routage (decision utilisateur "option 4", section 417, hors du cadre d'options A/B/C/D initialement propose) -- sous le cablage CI-d'abord, `route()` ne pilote plus l'execution reelle que pour DONNEES_ERP (les 3 autres valeurs convergent vers le meme noeud `code_intelligence_agent`), donc une divergence de classification n'a plus de consequence architecturale directe pour la majorite des questions. `QuestionIntent` n'est pas supprime -- repositionne comme signal interne au Planner/CI (comprendre le type de question, preparer l'investigation via `generate_investigation_plan()`), plus comme decideur de routage "RAG ou CI" de premier niveau. Le cas HYBRIDE ne necessite plus de categorie dediee dans `QuestionIntent` -- resolu naturellement par le flux CI-d'abord (CI repond a ce qu'il peut, RAG complete en aval si `assess_evidence_sufficiency() != SUFFICIENT`), sans taxonomie d'intention a 5 categories. Les 5 tests correspondants ont ete corriges a la racine (fixture autouse forcant le filet deterministe pour 4 d'entre eux, 1 entierement retravaille pour verifier un invariant structurel plutot qu'une valeur de route litterale) -- 67/67 confirmes (section 413).
+
+**Non fait / dette residuelle** : retrait effectif de `QuestionIntent`/`INTENT_TO_ROUTE`/le classifieur LLM comme mecanisme de routage de premier niveau (evoque comme possibilite depuis la section 405, jamais mandate au niveau code) -- seul le STATUT/role documente a change ce chantier, pas le code de `investigation_plan.py`/`routing.py` lui-meme (`resolve_question_intent()`/`INTENT_TO_ROUTE` restent en place, verifies non pilotants pour 3 des 4 valeurs). `tests/few_shot_routing_examples.py` (golden-master des 16 exemples) volontairement non touche -- reste la specification de la politique de resolution de conflit voulue, independante de la sortie actuelle du LLM. Docstring perime de `test_j18_routing_fewshot.py` ("no LLM, no retrieval") neutralise par un fixture autouse plutot que reecrit en profondeur.
 
 ---
 
@@ -206,6 +224,7 @@ Ces deux gaps conditionnent la lisibilite et l'auditabilite du systeme pour un n
 | B0-Bloc 9 | Couches 1-2, Evidence Builder, Raisonnement deterministe, Preuves | `real plan.md` Blocs 0-9 |
 | P0 | (vérification, prérequis d'hygiene de suivi) | `plan_architecture_cible.md` P0 |
 | P1 | Investigation Planner | `plan_architecture_cible.md` P1 |
+| P1-bis | Alignement RAG-en-dernier-recours (Domaine C) sur Couche 4/Construction des preuves | (nouveau, sans equivalent dans `plan_architecture_cible.md` -- issu d'un ecart constate a l'usage, section 405) |
 | P2 | Couche 3 — Couche semantique (ontologie metier + tags) | `plan_architecture_cible.md` P2 |
 | P3 | Confidentialite fondatrice (inference locale) | `real plan.md` Bloc 9bis / `plan_architecture_cible.md` P3 |
 | P4 | Generalisation multi-version | `real plan.md` Bloc 13 / `plan_architecture_cible.md` P4 |

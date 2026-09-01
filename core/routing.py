@@ -172,6 +172,7 @@ class RAGState(TypedDict):
     evidence_status: Optional[str]  # Sourcing evidence status: RESOLU/NON_RESOLU/CONFLIT
     investigation_plan: Optional[dict]  # A priori InvestigationPlan (Bloc P1), display-shaped
     sources_fallback_eligible: Optional[bool]  # True only when generate()'s raw (non-structured) LLM fallback was used
+    ci_evidence_sufficiency: Optional[dict]  # Post-analysis CI answer sufficiency verdict (Bloc P1 Tranche 2, core/evidence_sufficiency.py) -- drives the CI-first/RAG-fallback conditional edge in core/graph.py
 
 
 

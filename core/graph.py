@@ -1,12 +1,31 @@
 """
 core/graph.py
 
-LangGraph RAG pipeline with hybrid routing.
+LangGraph RAG pipeline -- CI-first, RAG-as-last-resort (Bloc P1 Tranche 2,
+todo/contexte.txt section 405-408; architecture.md's target design).
+
+route() still classifies into the 4 legacy QueryRoute buckets (kept as-is
+this tranche -- Tranche 3 will retire this classifier once the new flow is
+measured), but DOCUMENTAIRE/HYBRIDE/CODE_INTELLIGENCE now all dispatch to
+code_intelligence_agent FIRST; only DONNEES_ERP still dispatches directly
+to orm_agent_loop (kept as a genuine first-level path for pure ERP data
+queries, per plan). code_intelligence_agent's own post-analysis verdict
+(core/evidence_sufficiency.py::assess_evidence_sufficiency()) decides what
+happens next: SUFFICIENT and CONFLICTING both stay on
+code_intelligence_agent's own answer; only INSUFFICIENT falls back to
+generate() (RAG) (todo/contexte.txt sections 419-420 -- CONFLICTING used
+to share INSUFFICIENT's fallback under a literal '!= SUFFICIENT' rule, but
+now gets its own dedicated path: code_intelligence_agent builds a
+deterministic, non-arbitrating exposition of the disagreeing evidence
+itself, see ci_evidence_decision()'s own docstring for why generate()
+would discard that exposition). hybrid_node is no longer wired into the
+graph (its function is left importable, unused).
+
 Flow:
-  smalltalk_gate → out_of_scope_gate → retrieve → route → [documentaire]        → generate               → format_output → END
-                                                         → [donnees_erp]         → orm_agent_loop         → format_output → END
-                                                         → [hybride]             → hybrid_node            → format_output → END
-                                                         → [code_intelligence]   → code_intelligence_agent → format_output → END
+  smalltalk_gate → out_of_scope_gate → retrieve → route →
+    [donnees_erp]                                   → orm_agent_loop          → format_output → END
+    [documentaire/hybride/code_intelligence]         → code_intelligence_agent → (sufficiency == SUFFICIENT or CONFLICTING) → format_output → END
+                                                                                → (sufficiency == INSUFFICIENT)              → generate       → format_output → END
 """
 
 import json
@@ -29,6 +48,7 @@ from langgraph.graph import StateGraph, START, END
 from config.settings import USE_RERANKER
 from document_rag.vectorstore.search import get_retriever, retrieve as search_retrieve
 from core.smalltalk import classify_smalltalk, SMALLTALK_RESPONSES
+from core.evidence_sufficiency import EvidenceSufficiencyStatus
 
 # ── Backward-compatible re-exports from schemas ──────────────────────────────
 from core.schemas import (
@@ -333,14 +353,57 @@ def format_output(state: RAGState) -> dict:
     chunks = state.get("retrieved_chunks", [])
     route = state.get("route")
 
+    ci_sufficiency = state.get("ci_evidence_sufficiency")
+    # Bloc P1 Tranche 2 (narrowed further section 420, see below): True only
+    # when code_intelligence_agent ran AND its own verdict was INSUFFICIENT,
+    # i.e. generate() (RAG) actually produced this turn's answer as a
+    # fallback -- NOT merely "CI ran this turn"
+    # (SUFFICIENT never touches generate(), so treating ci_sufficiency's mere
+    # presence as "documentaire-like" here would wrongly attribute the
+    # universal retrieve() step's chunks -- unrelated to CI's own tool
+    # evidence -- to an answer CI produced itself, e.g. a false OCR warning
+    # below).
+    #
+    # todo/contexte.txt section 414: under the CI-first graph (build_graph(),
+    # sections 405-408), this flag alone is now a COMPLETE signal for "did
+    # generate()/RAG actually produce this answer" -- generate() has exactly
+    # one incoming edge in the compiled graph, from code_intelligence_agent's
+    # own post-analysis verdict via ci_evidence_decision(), which requires
+    # ci_evidence_sufficiency to be present and != SUFFICIENT. There is no
+    # other path to generate() left to cover. A prior `or route ==
+    # QueryRoute.DOCUMENTAIRE.value` disjunct here was dead-and-dangerous
+    # legacy from before Tranche 2 (when DOCUMENTAIRE dispatched straight to
+    # generate() without CI): it added no legitimate case (every real
+    # generate()-produced answer already sets ci_fell_back_to_rag), but did
+    # add an illegitimate one -- code_intelligence_agent's 3 early-refusal
+    # paths (out-of-scope/prompt-injection/massive-extraction) return before
+    # ci_evidence_sufficiency is ever computed, so a question route()
+    # happened to classify as documentaire but that CI then refused early
+    # would wrongly get the universal retrieve() chunks' OCR-quality/source
+    # attached to an unrelated refusal message -- removed rather than
+    # special-cased, since the underlying signal (ci_fell_back_to_rag) is
+    # already correct and complete on its own.
+    # todo/contexte.txt section 420: narrowed from '!= SUFFICIENT' to
+    # '== INSUFFICIENT' -- CONFLICTING no longer falls back to generate()
+    # (RAG) at all (see ci_evidence_decision() below), so treating it as
+    # "fell back to RAG" here would be exactly the same false-attribution
+    # bug section 414/415 already fixed for the DOCUMENTAIRE-route disjunct:
+    # code_intelligence_agent's own dual-evidence exposition (built by
+    # code_intelligence/ci_helpers.py::_format_conflicting_evidence_answer,
+    # wired from ci_agent_node.py) would wrongly get the universal
+    # retrieve() step's OCR-quality/source attached to an answer that never
+    # used those chunks at all.
+    ci_fell_back_to_rag = bool(ci_sufficiency) and ci_sufficiency.get("status") == EvidenceSufficiencyStatus.INSUFFICIENT.value
+
     if response:
         response.route = route
         response.resolved_concept = state.get("resolved_concept")
         response.evidence_status = state.get("evidence_status")
         response.investigation_plan = state.get("investigation_plan")
+        response.ci_evidence_sufficiency = ci_sufficiency
         response.answer = sanitize_html_to_markdown(response.answer)
 
-    if response and chunks and route == QueryRoute.DOCUMENTAIRE.value:
+    if response and chunks and ci_fell_back_to_rag:
         primary_chunk = chunks[0]
         primary_metadata = primary_chunk.get("metadata") or {}
         primary_type = primary_metadata.get("type", "")
@@ -381,10 +444,70 @@ def format_output(state: RAGState) -> dict:
     return {"response": response}
 
 
+def ci_evidence_decision(state: RAGState) -> str:
+    """
+    Post-CI conditional edge (Bloc P1 Tranche 2, todo/contexte.txt section
+    405-408): SUFFICIENT stays on code_intelligence_agent's own answer;
+    INSUFFICIENT falls back to generate() (RAG), matching architecture.md's
+    CI-first, RAG-as-last-resort model.
+
+    Absent ci_evidence_sufficiency (the three early-refusal paths inside
+    code_intelligence_agent -- out-of-scope, prompt injection, massive
+    extraction -- return before the primitive ever runs) always stays on
+    format_output: those are deliberate refusals, not evidence-insufficiency
+    verdicts, and re-running RAG on a prompt-injection attempt or an
+    out-of-scope question would be actively wrong, not merely redundant.
+
+    CONFLICTING (todo/contexte.txt sections 419-420 -- reverses the literal
+    '!= SUFFICIENT' rule from section 405/408): now gets its OWN dedicated
+    destination, format_output, distinct from INSUFFICIENT's generic RAG
+    fallback -- per an explicit user reformulation (section 419):
+    CONFLICTING must never be silently arbitrated or handed to a doc-RAG
+    fallback that has no knowledge of the two (or more) competing
+    code-evidence facts that triggered it. code_intelligence_agent itself
+    now builds its own final_answer, for this case, as an explicit,
+    non-arbitrating exposition of every disagreeing fact
+    (code_intelligence/ci_helpers.py::_format_conflicting_evidence_answer(),
+    called from ci_agent_node.py whenever
+    _detect_can_view_amount_model_conflict() fires) -- so CONFLICTING now
+    stays on that answer, exactly like SUFFICIENT, rather than falling
+    through to generate() and discarding it in favor of an unrelated
+    generic document search (the concrete bug identified in section 419's
+    constat: neither competing fact was ever transmitted to generate()
+    under the old '!= SUFFICIENT' wiring).
+
+    Traceability: CONFLICTING's status/reasons are still explicitly logged
+    below even though its destination is now the same as SUFFICIENT's, so
+    this branch stays visible and auditable as a deliberate, dedicated path
+    rather than disappearing silently into the SUFFICIENT case by accident
+    of the equality check.
+    """
+    sufficiency = state.get("ci_evidence_sufficiency")
+    if not sufficiency:
+        return "format_output"
+    status = sufficiency.get("status")
+    if status == EvidenceSufficiencyStatus.SUFFICIENT.value:
+        return "format_output"
+    if status == EvidenceSufficiencyStatus.CONFLICTING.value:
+        logger.info(
+            "Node [route: post-CI]: evidence sufficiency=%s -- dedicated "
+            "conflicting-evidence path, staying on code_intelligence_agent's "
+            "own dual-evidence answer (NOT falling back to generate()). reasons=%s",
+            status, sufficiency.get("reasons"),
+        )
+        return "format_output"
+    logger.info(
+        "Node [route: post-CI]: evidence sufficiency=%s -- falling back to RAG (generate). reasons=%s",
+        status, sufficiency.get("reasons"),
+    )
+    return "generate"
+
+
 # ── Graph Construction ────────────────────────────────────────────────────────
 
 def build_graph() -> StateGraph:
-    """Build and compile the RAG LangGraph with hybrid routing."""
+    """Build and compile the RAG LangGraph -- CI-first, RAG-as-last-resort
+    (see module docstring)."""
     workflow = StateGraph(RAGState)
 
     # Add nodes
@@ -394,9 +517,15 @@ def build_graph() -> StateGraph:
     workflow.add_node("route", route)
     workflow.add_node("generate", generate)
     workflow.add_node("orm_agent_loop", orm_agent_loop)
-    workflow.add_node("hybrid_node", hybrid_node)
     workflow.add_node("code_intelligence_agent", code_intelligence_agent)
     workflow.add_node("format_output", format_output)
+    # hybrid_node (erp_data/orm_agent_node.py) is deliberately NOT registered
+    # here (Bloc P1 Tranche 2, todo/contexte.txt section 405-408): the
+    # HYBRIDE route now dispatches to code_intelligence_agent like
+    # DOCUMENTAIRE/CODE_INTELLIGENCE, and its own natural fallback to
+    # generate() covers what hybrid_node used to hand-orchestrate. The
+    # function itself is untouched and still importable/re-exported below
+    # for backward compatibility -- only its graph wiring is removed here.
 
     # Edges
     workflow.add_edge(START, "smalltalk_gate")
@@ -410,18 +539,27 @@ def build_graph() -> StateGraph:
     })
     workflow.add_edge("retrieve", "route")
 
-    # Conditional routing
+    # Conditional routing -- CI-first: DOCUMENTAIRE/HYBRIDE/CODE_INTELLIGENCE
+    # all dispatch to code_intelligence_agent (see module docstring);
+    # DONNEES_ERP alone still dispatches straight to orm_agent_loop, kept as
+    # a first-level path for pure ERP data queries.
     workflow.add_conditional_edges("route", route_decision, {
-        QueryRoute.DOCUMENTAIRE.value: "generate",
+        QueryRoute.DOCUMENTAIRE.value: "code_intelligence_agent",
         QueryRoute.DONNEES_ERP.value: "orm_agent_loop",
-        QueryRoute.HYBRIDE.value: "hybrid_node",
+        QueryRoute.HYBRIDE.value: "code_intelligence_agent",
         QueryRoute.CODE_INTELLIGENCE.value: "code_intelligence_agent",
+    })
+
+    # Post-CI: SUFFICIENT and CONFLICTING both stay on CI's own answer;
+    # only INSUFFICIENT falls back to generate() (RAG) -- see
+    # ci_evidence_decision() above (todo/contexte.txt sections 419-420).
+    workflow.add_conditional_edges("code_intelligence_agent", ci_evidence_decision, {
+        "format_output": "format_output",
+        "generate": "generate",
     })
 
     workflow.add_edge("generate", "format_output")
     workflow.add_edge("orm_agent_loop", "format_output")
-    workflow.add_edge("hybrid_node", "format_output")
-    workflow.add_edge("code_intelligence_agent", "format_output")
     workflow.add_edge("format_output", END)
 
     return workflow.compile()

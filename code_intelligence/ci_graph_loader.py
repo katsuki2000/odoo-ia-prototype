@@ -21,51 +21,6 @@ GRAPH_JSON_PATH = Path(__file__).resolve().parent.parent / "code_intelligence" /
 
 
 def _load_module(mod_dir: Path) -> tuple:
-    """Load a single Odoo module directory into a ParsedModule.
-
-    2026-08-06 fix (account.move._reverse_moves override-order bug): a
-    missing __manifest__.py must NEVER silently become manifest=None here.
-    cross_file_resolver.topological_sort_modules() only follows a module's
-    real dependencies when `mod.manifest` is truthy -- manifest=None made it
-    treat the module as a dependency-free leaf with no warning at all,
-    corrupting load_order (and everything built from it: graph_builder's
-    per-method override_sites, and method_override_resolver's reversal of
-    that order into Odoo's real MRO execution order) whenever a module with
-    real dependencies had no manifest on disk. See
-    code_intelligence/manifest_parser.py::KNOWN_CORE_MODULE_DEPENDS /
-    MissingManifestError for the full writeup and
-    code_intelligence/tests/test_mixed_corpus_load_order.py for the
-    regression test.
-
-    2026-08-12 fix: the synthetic fake_data/code/ stand-in corpus (hand-
-    maintained partial copies of a few Odoo core modules, used to give the
-    graph something realistic to build a load order over before the real
-    Odoo 17 corpus was wired in as addons_root) has been removed entirely.
-    get_code_intelligence_graph() now loads 'account'/'sale'/'stock'
-    directly from the real corpus, which ships a real __manifest__.py for
-    every module -- so the synthesize-a-fallback-manifest path below is no
-    longer expected to fire for those three in practice. The mechanism
-    itself is kept as a defensive fallback (any future manifest-less
-    directory, or a corpus without addons_root available) rather than
-    removed, since it costs nothing to keep and MissingManifestError's
-    fail-loudly behavior is still the right default for a genuinely
-    unexpected manifest-less module.
-
-    Resolution order when __manifest__.py is absent:
-      1. A KNOWN_CORE_MODULE_DEPENDS entry (account/sale/stock) -> synthesize
-         a manifest with its real, well-known, hardcoded `depends`. Kept as
-         a defensive fallback; not expected to trigger against the real
-         addons_root corpus, which always ships a real manifest for these.
-      2. Directory with no .py files at all (e.g. a loose XML asset folder,
-         not a real Odoo module) -> it can never declare a Model/Method, so
-         it can never appear in a method override_sites list and its
-         position in load_order cannot corrupt override-chain resolution.
-         Safe to treat as a dependency-free leaf.
-      3. Anything else (a real addon -- miro_ai, custom_*, or any other
-         module actually containing code) -> raise MissingManifestError
-         instead of guessing. A silently-guessed dependency set for a
-         module we don't actually know is exactly the bug this fix removes.
-    """
     from code_intelligence.manifest_parser import (
         parse_manifest,
         synthesize_fallback_manifest,
@@ -274,7 +229,6 @@ def get_code_intelligence_graph():
             name, mod = _load_module(mod_dir)
             modules_dict[name] = mod
 
-        # J36 fix (2026-08-07): custom_* modules routinely _inherit a REAL
         # Odoo core module (e.g. custom_expense_risk_base extends hr.expense
         # via depends=['hr_expense']) that is neither part of the always-
         # loaded core set above nor itself prefixed 'custom_', so it was

@@ -445,8 +445,23 @@ def concept_suggests_code_intelligence_v2(
 
 class IntentClassificationLLMResponse(BaseModel):
     """Bounded structured output for classify_question_intent_llm() -- a
-    single QuestionIntent value, never free text."""
-    model_config = ConfigDict(strict=True)
+    single QuestionIntent value, never free text.
+
+    Section 402 (todo/contexte.txt): strict=False (not strict=True as on
+    InvestigationStep/InvestigationPlan above). Those two are constructed
+    directly by our own code, where strict=True is a useful guard against an
+    accidental type-punning bug. This model is ONLY ever populated by parsing
+    an LLM's raw JSON completion (method="json_schema", diagnosed section
+    397/402) -- on the wire, an enum is just a string (there is no JSON enum
+    type), so Pydantic MUST be allowed to coerce that string into the
+    QuestionIntent member. Under strict=True, Pydantic refuses this coercion
+    and raises OutputParserException on every single call
+    (`Input should be an instance of QuestionIntent [type=is_instance_of,
+    input_value='workflow_state', input_type=str]`) -- confirmed by
+    scripts/diagnose_intent_llm_tool_call.py's method="json_schema" run,
+    which otherwise returned a correct, valid completion.
+    """
+    model_config = ConfigDict(strict=False)
 
     intent: QuestionIntent = Field(
         ...,
@@ -497,7 +512,23 @@ def classify_question_intent_llm(question: str) -> Optional[QuestionIntent]:
         from core.llm_client import get_chat_llm, invoke_with_rate_limit
 
         llm = get_chat_llm(temperature=0.0, max_retries=0)
-        structured_llm = llm.with_structured_output(IntentClassificationLLMResponse)
+        # Section 402 (todo/contexte.txt): method="json_schema" (Groq's
+        # dedicated Structured Output API, documented as supported for
+        # openai/gpt-oss-20b/120b since langchain-groq 0.3.8) instead of the
+        # default method="function_calling" (forced tool-calling). Diagnosed
+        # via scripts/diagnose_intent_llm_tool_call.py: function_calling
+        # failed 100% of the time (5/5, section 396) with Groq rejecting a
+        # tool call the model itself hallucinated under a name
+        # ("classify_question_intent_llm", the calling Python function's own
+        # name) that was never offered as a tool -- the requested tool name
+        # was correctly "IntentClassificationLLMResponse" (verified by the
+        # diagnostic script's step 1), so this is a model-side tool-calling
+        # reliability issue for this model family on Groq, not a bug in how
+        # this function builds its tool. method="json_schema" bypasses forced
+        # tool-calling entirely and, once combined with
+        # IntentClassificationLLMResponse's strict=False (same section 402),
+        # both produces a correct completion AND parses it successfully.
+        structured_llm = llm.with_structured_output(IntentClassificationLLMResponse, method="json_schema")
         messages = [
             SystemMessage(content=_INTENT_CLASSIFICATION_SYSTEM_PROMPT),
             HumanMessage(content=f'Question utilisateur : "{question}"'),

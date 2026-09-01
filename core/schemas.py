@@ -101,3 +101,13 @@ class AssistantResponse(BaseModel):
         default=None,
         description="Structured investigation plan produced before tool execution (Bloc P1)",
     )
+    ci_evidence_sufficiency: Optional[dict] = Field(
+        default=None,
+        description=(
+            "Post-analysis CI answer sufficiency verdict (SUFFICIENT/INSUFFICIENT/"
+            "CONFLICTING, core/evidence_sufficiency.py) -- only set when the "
+            "code_intelligence_agent branch ran this turn. Set regardless of "
+            "whether the RAG fallback fired, so the original CI verdict stays "
+            "traceable even when the final answer came from generate() instead."
+        ),
+    )
