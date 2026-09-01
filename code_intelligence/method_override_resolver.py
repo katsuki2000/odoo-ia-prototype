@@ -9,9 +9,9 @@ LLM layer for interpretation.
 import ast
 import json
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 import networkx as nx
 
@@ -20,6 +20,7 @@ from code_intelligence.semgrep_locks_analyzer import (
     analyze_python_security_locks,
     extract_method_security_constraints,
 )
+from core.evidence import Evidence, EvidenceSourceType, make_evidence
 
 _logger = logging.getLogger(__name__)
 
@@ -31,6 +32,26 @@ class MethodOverrideSite:
     filepath: str
     lineno: int
     end_lineno: Optional[int] = None
+
+
+@dataclass
+class MethodOverrideChainResult:
+    """
+    Composed override-chain analysis: summary_text is byte-for-byte what
+    analyze_method_override_chain() has always returned (str contract
+    unchanged for the existing wrapper/tests), plus structured Evidence
+    covering the facts this function itself computes (override sites,
+    unguarded-super / unchecked-relational-chain findings per site).
+
+    Security-lock findings (has_group/exception constraints) surfaced
+    inline in summary_text via extract_method_security_constraints() are
+    deliberately NOT duplicated here as Evidence -- they are already
+    emitted by semgrep_locks_analyzer.analyze_python_security_locks()'s own
+    Evidence when analyze_security_locks() runs on the same file; re-
+    emitting them here would produce two Evidence objects for one fact.
+    """
+    summary_text: str
+    evidence: List[Evidence] = field(default_factory=list)
 
 
 def resolve_method_override_chain(
@@ -416,16 +437,86 @@ find_methods_with_unguarded_super_and_relational_risk = find_methods_with_overri
 find_methods_with_unguarded_super = find_methods_with_override_risk_findings
 
 
-def analyze_method_override_chain(
+def _build_override_chain_evidence_no_sites(model_name: str, method_name: str) -> List[Evidence]:
+    return [make_evidence(
+        source_type=EvidenceSourceType.CODE,
+        claim=(
+            f"Method '{model_name}.{method_name}' is not overridden across "
+            f"multiple modules (single declaration, or method not found in "
+            f"the graph)"
+        ),
+        source=f"override_chain:{model_name}:{method_name}:no_sites",
+        value=0,
+        confidence="HIGH",
+        scope={},
+    )]
+
+
+def _build_override_chain_site_evidence(
+    model_name: str, method_name: str, idx: int, total: int, site: MethodOverrideSite
+) -> Evidence:
+    scope: Dict[str, Any] = {}
+    if site.lineno:
+        scope["lineno"] = site.lineno
+    return make_evidence(
+        source_type=EvidenceSourceType.CODE,
+        claim=(
+            f"Method '{model_name}.{method_name}' is overridden by module "
+            f"'{site.module}' (execution order position {idx}/{total})"
+        ),
+        source=f"override_chain:{model_name}:{method_name}:site:{site.module}",
+        value=site.module,
+        confidence="HIGH",
+        scope=scope,
+    )
+
+
+def _build_override_chain_check_evidence(
+    model_name: str, method_name: str, site: MethodOverrideSite,
+    check_name: str, warning: Optional[str],
+) -> Evidence:
+    scope: Dict[str, Any] = {}
+    if site.lineno:
+        scope["lineno"] = site.lineno
+    if warning:
+        return make_evidence(
+            source_type=EvidenceSourceType.CODE,
+            claim=(
+                f"Module '{site.module}' override of "
+                f"'{model_name}.{method_name}' has a {check_name} finding"
+            ),
+            source=f"override_chain:{model_name}:{method_name}:{check_name}:{site.module}",
+            value=warning,
+            confidence="LOW",
+            scope=scope,
+        )
+    return make_evidence(
+        source_type=EvidenceSourceType.CODE,
+        claim=(
+            f"Module '{site.module}' override of "
+            f"'{model_name}.{method_name}' has no {check_name} finding"
+        ),
+        source=f"override_chain:{model_name}:{method_name}:{check_name}:{site.module}",
+        value=None,
+        confidence="HIGH",
+        scope=scope,
+    )
+
+
+def _compose_method_override_chain(
     G: nx.DiGraph, model_name: str, method_name: str, llm=None
-) -> str:
+) -> MethodOverrideChainResult:
     sites = resolve_method_override_chain(G, model_name, method_name)
 
     if not sites:
-        return (
+        text = (
             f"'{method_name}' n'est pas surcharg\u00e9e dans plusieurs modules pour "
             f"'{model_name}' (rien \u00e0 composer -- une seule d\u00e9claration, ou m\u00e9thode "
             f"introuvable dans le graphe)."
+        )
+        return MethodOverrideChainResult(
+            summary_text=text,
+            evidence=_build_override_chain_evidence_no_sites(model_name, method_name),
         )
 
     lines = [
@@ -435,10 +526,14 @@ def analyze_method_override_chain(
 
     warnings: List[str] = []
     snippets_for_llm: List[str] = []
+    evidence: List[Evidence] = []
 
     for idx, site in enumerate(sites, start=1):
         link = format_file_link(site.filepath, site.lineno, site.end_lineno or site.lineno)
         lines.append(f"  {idx}. module '{site.module}' -- {link}")
+        evidence.append(
+            _build_override_chain_site_evidence(model_name, method_name, idx, len(sites), site)
+        )
 
         p = Path(site.filepath)
         if not p.exists():
@@ -449,6 +544,9 @@ def analyze_method_override_chain(
         warning = detect_unguarded_super(
             source, site.filepath, method_name, site.lineno, module=site.module
         )
+        evidence.append(_build_override_chain_check_evidence(
+            model_name, method_name, site, "unguarded_super", warning
+        ))
         if warning:
             warnings.append(warning)
             lines.append(f"     {warning}")
@@ -457,6 +555,9 @@ def analyze_method_override_chain(
         relational_warning = detect_unchecked_relational_chain(
             source, site.filepath, method_name, site.lineno, module=site.module
         )
+        evidence.append(_build_override_chain_check_evidence(
+            model_name, method_name, site, "unchecked_relational_chain", relational_warning
+        ))
         if relational_warning:
             warnings.append(relational_warning)
             lines.append(f"     {relational_warning}")
@@ -493,7 +594,19 @@ def analyze_method_override_chain(
                 f"distincte de la confiance statique ci-dessus]: {interpretation['summary']}"
             )
 
-    return "\n".join(lines)
+    return MethodOverrideChainResult(summary_text="\n".join(lines), evidence=evidence)
+
+
+def analyze_method_override_chain(
+    G: nx.DiGraph, model_name: str, method_name: str, llm=None
+) -> str:
+    return _compose_method_override_chain(G, model_name, method_name, llm=llm).summary_text
+
+
+def analyze_method_override_chain_with_evidence(
+    G: nx.DiGraph, model_name: str, method_name: str, llm=None
+) -> MethodOverrideChainResult:
+    return _compose_method_override_chain(G, model_name, method_name, llm=llm)
 
 
 _LLM_CONFIDENCE_CLOSED_SET = {"high", "medium", "low"}

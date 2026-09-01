@@ -28,13 +28,27 @@ This file locks:
   4. An invalid/foreign last_route value is never echoed back as a route.
 """
 import pytest
+from unittest.mock import patch
 from core.graph import route, _sticky_route_or_default, _VALID_ROUTES
 from core.schemas import QueryRoute
+from code_intelligence.investigation_plan import QuestionIntent
 
 
-def _route_question(question: str, last_route=None, chunks=None) -> str:
-    """Same helper as test_route_accent_fold.py's _route_question, extended
-    with the two new inputs this fix introduces."""
+def _route_question(question: str, mocked_intent: QuestionIntent, last_route=None, chunks=None) -> str:
+    """Same helper as test_route_accent_fold.py's _route_question (Cluster B
+    fix, todo/contexte.txt sections 430-433): route() calls
+    resolve_question_intent(), which attempts a real, bounded Groq LLM
+    classifier BEFORE falling back to the deterministic keyword classifier.
+    Left unmocked, every test in this file depended on live network access
+    and non-deterministic classification -- confirmed live (a run without
+    this mock misclassified both "Et pour Lyon ?" as erp_data_query instead
+    of the intended documentary_policy fallback, and "Quelle est la
+    procedure de validation ?" as governance_security instead of
+    documentary_policy, for unrelated reasons of LLM ambiguity on
+    "validation"). Per the same explicit decision as test_route_accent_fold.py
+    (section 433): mock classify_question_intent_llm with an EXPLICIT intent
+    matching the classification the production LLM is expected to return for
+    that question."""
     state = {
         "question": question,
         "retrieved_chunks": chunks if chunks is not None else [],
@@ -42,7 +56,11 @@ def _route_question(question: str, last_route=None, chunks=None) -> str:
         "timing": {},
         "last_route": last_route,
     }
-    return route(state)["route"]
+    with patch(
+        "code_intelligence.investigation_plan.classify_question_intent_llm",
+        return_value=mocked_intent,
+    ):
+        return route(state)["route"]
 
 
 # ── _sticky_route_or_default unit behavior ─────────────────────────────────
@@ -85,7 +103,7 @@ def test_elliptical_followup_no_chunks_sticks_to_last_route():
     (the "elif not chunks" branch) and a last_route from a previous
     donnees_erp turn, the question should now stick to donnees_erp
     instead of defaulting to documentaire."""
-    result = _route_question("Et pour Lyon ?", last_route="donnees_erp", chunks=[])
+    result = _route_question("Et pour Lyon ?", QuestionIntent.DOCUMENTARY_POLICY, last_route="donnees_erp", chunks=[])
     assert result == "donnees_erp"
 
 
@@ -94,13 +112,13 @@ def test_elliptical_followup_no_chunks_still_defaults_on_first_turn():
     session) -- must be byte-for-byte the same behavior as before this
     fix: defaults to documentaire. This is the regression guard for the
     overwhelming majority of real traffic (every session's first turn)."""
-    assert _route_question("Et pour Lyon ?", last_route=None, chunks=[]) == "documentaire"
+    assert _route_question("Et pour Lyon ?", QuestionIntent.DOCUMENTARY_POLICY, last_route=None, chunks=[]) == "documentaire"
 
 
 def test_elliptical_followup_sticks_to_code_intelligence():
     """Sticky-routing must work for every branch, not just donnees_erp --
     a follow-up after a code_intelligence turn should stick there too."""
-    result = _route_question("Et pour ce cas ?", last_route="code_intelligence", chunks=[])
+    result = _route_question("Et pour ce cas ?", QuestionIntent.DOCUMENTARY_POLICY, last_route="code_intelligence", chunks=[])
     assert result == "code_intelligence"
 
 
@@ -114,21 +132,28 @@ def test_erp_ratio_fallback_branch_also_sticks():
         {"document": "texte de procedure", "metadata": {"type": "wiki"}},
         {"document": "autre texte", "metadata": {"type": "wiki"}},
     ]
-    result = _route_question("Et sinon ?", last_route="hybride", chunks=chunks)
+    result = _route_question("Et sinon ?", QuestionIntent.DOCUMENTARY_POLICY, last_route="hybride", chunks=chunks)
     assert result == "hybride"
 
 
 # ── Sticky-routing must never override a real keyword match ───────────────
 
-@pytest.mark.parametrize("question, expected_route", [
-    ("Qui a accès à ce module ?", "code_intelligence"),
-    ("Combien de tickets sont en cours ?", "donnees_erp"),
-    ("Quelle est la procédure de validation ?", "documentaire"),
+@pytest.mark.parametrize("question, mocked_intent, expected_route", [
+    ("Qui a accès à ce module ?", QuestionIntent.GOVERNANCE_SECURITY, "code_intelligence"),
+    ("Combien de tickets sont en cours ?", QuestionIntent.ERP_DATA_QUERY, "donnees_erp"),
+    ("Quelle est la procédure de validation ?", QuestionIntent.DOCUMENTARY_POLICY, "documentaire"),
 ])
-def test_keyword_match_wins_over_contrary_last_route(question, expected_route):
+def test_keyword_match_wins_over_contrary_last_route(question, mocked_intent, expected_route):
     """A question that matches a real keyword list must route exactly as
     it always did, regardless of what last_route says -- even when
     last_route explicitly points somewhere else. Sticky-routing only ever
-    fires in the two zero-signal fallback branches, never here."""
+    fires in the two zero-signal fallback branches, never here.
+
+    Third case ("procédure de validation", mocked DOCUMENTARY_POLICY):
+    exercises the has_documentary_anchor() fix directly -- "procédure" is
+    an explicit anchor (code_intelligence/investigation_plan.py's
+    _DOC_ANCHOR_PATTERNS), so has_doc_anchor=True keeps route_decision on
+    the derived documentaire route, never falling into the sticky branch
+    at all regardless of what last_route says."""
     for contrary_route in _VALID_ROUTES - {expected_route}:
-        assert _route_question(question, last_route=contrary_route, chunks=[]) == expected_route
+        assert _route_question(question, mocked_intent, last_route=contrary_route, chunks=[]) == expected_route

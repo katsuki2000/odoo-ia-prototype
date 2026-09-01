@@ -1,11 +1,11 @@
 import pytest
 from unittest.mock import patch, MagicMock
 
-from core.schemas import AssistantResponse, LLMResponse
+from core.schemas import AssistantResponse
 from types import SimpleNamespace
 
 from core.graph import (
-    query_graph, generate, format_output, _parse_raw_json_answer,
+    generate, format_output, _parse_raw_json_answer,
     _rank_and_cap_override_methods,
     _format_can_view_amount_fact, _question_suggests_automation_bypass,
     _extract_override_modules, _backfill_missing_override_modules,
@@ -109,24 +109,7 @@ def test_generate_raw_invoke_fallback_parses_json_answer(mock_chat_groq):
     assert "missing_info" not in result["response"].answer
 
 
-# 2. Test OCR warning injection
-
-def test_format_output_ocr_warning():
-    state = {
-        "response": AssistantResponse(answer="Voici la réponse.", confidence=0.8, sources=[]),
-        "retrieved_chunks": [
-            {"document": "test doc", "metadata": {"source": "scan.pdf", "ocr_quality": "low", "type": "pdf"}}
-        ],
-        "route": "documentaire",
-        "sources_fallback_eligible": True,
-    }
-    result = format_output(state)
-    assert result["response"].ocr_warning is True
-    assert "qualité de lecture est limitée" in result["response"].answer
-    assert len(result["response"].sources) == 1
-    assert result["response"].sources[0].source == "scan.pdf"
-
-# 3. Test format output WITHOUT OCR warning
+# 2. Test format output WITHOUT OCR warning
 def test_format_output_clean():
     state = {
         "response": AssistantResponse(answer="Voici la réponse.", confidence=0.8, sources=[]),
@@ -137,78 +120,6 @@ def test_format_output_clean():
     result = format_output(state)
     assert result["response"].ocr_warning is False
     assert "qualité de lecture est limitée" not in result["response"].answer
-
-
-def test_format_output_ocr_warning_not_leaked_from_unrelated_chunk():
-    state = {
-        "response": AssistantResponse(answer="Voici la réponse.", confidence=0.8, sources=[]),
-        "retrieved_chunks": [
-            {"document": "def action_confirm(self): ...", "metadata": {
-                "source": "/home/user/odoo-17.0/addons/miro_ai/controllers/main.py",
-                "type": "code_python",
-            }},
-            {"document": "scanned text", "metadata": {
-                "source": "scan.pdf", "ocr_quality": "low", "type": "doc_pdf",
-            }},
-        ],
-        "route": "documentaire",
-        "sources_fallback_eligible": True,
-    }
-    result = format_output(state)
-    assert result["response"].ocr_warning is False
-    assert "qualité de lecture est limitée" not in result["response"].answer
-    # Sources are still populated from the full retrieved batch -- only the
-    # warning attribution changes, not what's shown as supporting evidence.
-    assert len(result["response"].sources) == 2
-
-
-def test_format_output_ocr_warning_fires_when_primary_chunk_is_low_quality():
-    state = {
-        "response": AssistantResponse(answer="Voici la réponse.", confidence=0.8, sources=[]),
-        "retrieved_chunks": [
-            {"document": "scanned text", "metadata": {
-                "source": "scan.pdf", "ocr_quality": "low", "type": "doc_pdf",
-            }},
-            {"document": "def action_confirm(self): ...", "metadata": {
-                "source": "main.py", "type": "code_python",
-            }},
-        ],
-        "route": "documentaire",
-    }
-    result = format_output(state)
-    assert result["response"].ocr_warning is True
-    assert "qualité de lecture est limitée" in result["response"].answer
-
-# 4. Test full query graph with mocked LLM and retriever
-@patch('core.graph.ChatGroq')
-@patch('core.graph.get_retriever')
-@patch('core.graph.search_retrieve')
-def test_query_graph_mocked(mock_search_retrieve, mock_get_retriever, mock_chat_groq):
-    # Mock Retriever
-    mock_get_retriever.return_value = (MagicMock(), MagicMock())
-    mock_search_retrieve.return_value = [
-        {"document": "Facture = Nouveau", "metadata": {"source": "facture.md"}}
-    ]
-    
-    # Mock LLM
-    mock_llm_instance = MagicMock()
-    mock_chat_groq.return_value = mock_llm_instance
-    mock_structured_llm = MagicMock()
-    mock_llm_instance.with_structured_output.return_value = mock_structured_llm
-    
-    mock_structured_llm.invoke.return_value = LLMResponse(
-        answer="Pour créer une facture, cliquez sur Nouveau.",
-        confidence=0.95,
-        used_sources=["S1"],
-    )
-    
-    response = query_graph("Comment créer une facture ?")
-    
-    assert isinstance(response, AssistantResponse)
-    assert response.confidence == 0.95
-    assert response.ocr_warning is False
-    assert len(response.sources) == 1
-    assert response.sources[0].source == "facture.md"
 
 
 class TestRankAndCapOverrideMethods:

@@ -10,9 +10,11 @@ import ast
 import copy
 import re
 from dataclasses import dataclass, field
-from typing import Dict, List, Set, Optional
+from typing import Any, Dict, List, Set, Optional
 
 import logging
+
+from core.evidence import Evidence, EvidenceSourceType, make_evidence
 
 _logger = logging.getLogger(__name__)
 
@@ -45,6 +47,19 @@ class PythonSecurityLockAnalysis:
     security_warnings: List[str] = field(default_factory=list)
     confidence: str = "high"
     summary_text: str = ""
+
+    # B1 (todo/contexte.txt section 452+, tool 7/24, 2/4 Analyse CI):
+    # structured Evidence produced at the source -- one per security-relevant
+    # category actually checked, always asserted explicitly whether found or
+    # not (same convention as the 5 Composites CI and analyze_server_actions).
+    # Unlike analyze_server_actions (confidence="LOW" fixed tool-wide),
+    # confidence here follows the epistemic nature of each fact: HIGH for
+    # directly observed AST facts (hardcoded_logins/exception_messages/
+    # required_groups), LOW only for a positive dynamic_dispatch finding
+    # (HIGH when explicitly absent) -- see _build_security_lock_evidence()
+    # docstring for the full arbitrage. Populated by
+    # analyze_python_security_locks() below.
+    evidence: List[Evidence] = field(default_factory=list)
 
 
 # Regex fallback for email pattern detection
@@ -278,6 +293,176 @@ class SecurityLockASTVisitor(ast.NodeVisitor):
         self.generic_visit(node)
 
 
+def _build_security_lock_evidence(
+    filepath: str,
+    hardcoded_logins: List[str],
+    exception_messages: List[str],
+    exception_conditions: List[str],
+    exception_guard_fields: List[str],
+    exception_linenos: List[int],
+    required_groups: List[str],
+    required_group_methods: List[str],
+    required_group_linenos: List[int],
+    dynamic_dispatch_types: List[str],
+) -> List[Evidence]:
+    """
+    B1 (todo/contexte.txt section 452+, tool 7/24, 2/4 Analyse CI): structured
+    Evidence produced at the source, one per security-relevant category
+    actually checked, always asserted explicitly whether found or not (same
+    "fait explicite si negatif" convention as the 5 Composites CI and
+    analyze_server_actions).
+
+    Unlike analyze_server_actions (fixed confidence="LOW" throughout, an
+    arbitrage specific to that tool's data-driven, runtime-modifiable input),
+    confidence here follows the epistemic nature of each *fact*, not a single
+    tool-wide constant:
+      - hardcoded_logins / exception_messages / required_groups: HIGH --
+        these are directly observed AST facts (a literal string list, a
+        raise statement, a has_group() call) parsed once from real module
+        source. What conclusion a caller draws from the surrounding control
+        flow is a separate question from whether the fact itself was
+        observed with certainty.
+      - dynamic_dispatch: LOW when present -- PythonSecurityLockAnalysis.
+        confidence already degrades to "low" in this case, because getattr/
+        eval/exec make the actual runtime behaviour unknowable statically --
+        but HIGH when explicitly absent, since the *absence* of getattr/
+        eval/exec in the source is itself a certain, directly observed fact
+        (same asymmetry the tool-level confidence field already encodes).
+
+    scope carries only keys that are actually known -- no lineno=0, no
+    method="" placeholder (rule agreed for this tool): "lineno" for
+    exception/group findings when the AST path produced a real line number
+    (0 means the regex-fallback path ran instead, no AST available), "method"
+    for group findings when the enclosing method was resolved (has_group()
+    at module level, or an unresolved enclosing scope, leaves it "").
+    hardcoded_logins and dynamic_dispatch carry no such per-occurrence
+    location data (the visitor doesn't track it for these two categories),
+    so their scope stays {} -- an honestly empty scope, not an artificial one.
+    """
+    evidence: List[Evidence] = []
+
+    # 1. hardcoded_logins
+    if hardcoded_logins:
+        evidence.append(make_evidence(
+            source_type=EvidenceSourceType.CODE,
+            claim=(
+                f"File '{filepath}' contains hardcoded privileged login(s)/"
+                f"email(s): {hardcoded_logins}"
+            ),
+            source=f"security_lock:{filepath}:hardcoded_logins",
+            value=hardcoded_logins,
+            confidence="HIGH",
+            scope={},
+        ))
+    else:
+        evidence.append(make_evidence(
+            source_type=EvidenceSourceType.CODE,
+            claim=f"File '{filepath}' contains no hardcoded login/email",
+            source=f"security_lock:{filepath}:hardcoded_logins",
+            value=None,
+            confidence="HIGH",
+            scope={},
+        ))
+
+    # 2. exception_messages (one Evidence per raise site)
+    if exception_messages:
+        conditions = exception_conditions or [""] * len(exception_messages)
+        guard_fields = exception_guard_fields or [""] * len(exception_messages)
+        linenos = exception_linenos or [0] * len(exception_messages)
+        for i, (message, condition, guard_field, lineno) in enumerate(
+            zip(exception_messages, conditions, guard_fields, linenos)
+        ):
+            claim = f"File '{filepath}' raises UserError/ValidationError \"{message}\""
+            if condition:
+                claim += f" (condition: {condition})"
+            if guard_field:
+                claim += f" (link-guarded on '{guard_field}')"
+            scope: Dict[str, Any] = {}
+            if lineno:
+                scope["lineno"] = lineno
+            # Disambiguator: real lineno when known, else the list index --
+            # the regex-fallback path (lineno=0) still needs a unique source
+            # per finding, and list order is stable for identical input code.
+            disambiguator = lineno if lineno else i
+            evidence.append(make_evidence(
+                source_type=EvidenceSourceType.CODE,
+                claim=claim,
+                source=f"security_lock:{filepath}:exception:{disambiguator}",
+                value=message,
+                confidence="HIGH",
+                scope=scope,
+            ))
+    else:
+        evidence.append(make_evidence(
+            source_type=EvidenceSourceType.CODE,
+            claim=(
+                f"File '{filepath}' raises no UserError/ValidationError with "
+                f"an extractable message"
+            ),
+            source=f"security_lock:{filepath}:exception",
+            value=None,
+            confidence="HIGH",
+            scope={},
+        ))
+
+    # 3. required_groups (one Evidence per has_group() requirement)
+    if required_groups:
+        methods = required_group_methods or [""] * len(required_groups)
+        linenos = required_group_linenos or [0] * len(required_groups)
+        for group_xmlid, method_name, lineno in zip(required_groups, methods, linenos):
+            claim = f"File '{filepath}' requires group '{group_xmlid}' via has_group()"
+            if method_name:
+                claim += f" in method '{method_name}()'"
+            scope: Dict[str, Any] = {}
+            if method_name:
+                scope["method"] = method_name
+            if lineno:
+                scope["lineno"] = lineno
+            evidence.append(make_evidence(
+                source_type=EvidenceSourceType.CODE,
+                claim=claim,
+                source=f"security_lock:{filepath}:group:{group_xmlid}",
+                value=group_xmlid,
+                confidence="HIGH",
+                scope=scope,
+            ))
+    else:
+        evidence.append(make_evidence(
+            source_type=EvidenceSourceType.CODE,
+            claim=f"File '{filepath}' contains no has_group() requirement",
+            source=f"security_lock:{filepath}:group",
+            value=None,
+            confidence="HIGH",
+            scope={},
+        ))
+
+    # 4. dynamic_dispatch (one Evidence per pattern type, or one negative fact)
+    if dynamic_dispatch_types:
+        for pattern_name in dynamic_dispatch_types:
+            evidence.append(make_evidence(
+                source_type=EvidenceSourceType.CODE,
+                claim=(
+                    f"File '{filepath}' uses dynamic dispatch via {pattern_name}(), "
+                    f"not statically classifiable"
+                ),
+                source=f"security_lock:{filepath}:dynamic_dispatch:{pattern_name}",
+                value=pattern_name,
+                confidence="LOW",
+                scope={},
+            ))
+    else:
+        evidence.append(make_evidence(
+            source_type=EvidenceSourceType.CODE,
+            claim=f"File '{filepath}' uses no dynamic dispatch (getattr/eval/exec)",
+            source=f"security_lock:{filepath}:dynamic_dispatch",
+            value=None,
+            confidence="HIGH",
+            scope={},
+        ))
+
+    return evidence
+
+
 def analyze_python_security_locks(code: str, filepath: str) -> PythonSecurityLockAnalysis:
     """
     Analyze Python source code for hardcoded security locks, exception messages,
@@ -287,6 +472,18 @@ def analyze_python_security_locks(code: str, filepath: str) -> PythonSecurityLoc
 
     if not code or not code.strip():
         result.summary_text = f"File '{filepath}': Empty code."
+        result.evidence = _build_security_lock_evidence(
+            filepath,
+            hardcoded_logins=[],
+            exception_messages=[],
+            exception_conditions=[],
+            exception_guard_fields=[],
+            exception_linenos=[],
+            required_groups=[],
+            required_group_methods=[],
+            required_group_linenos=[],
+            dynamic_dispatch_types=[],
+        )
         return result
 
     # 1. AST Parsing
@@ -341,6 +538,19 @@ def analyze_python_security_locks(code: str, filepath: str) -> PythonSecurityLoc
 
                 result.required_group_methods.append("")
                 result.required_group_linenos.append(0)
+
+    result.evidence = _build_security_lock_evidence(
+        filepath,
+        hardcoded_logins=result.hardcoded_logins,
+        exception_messages=result.exception_messages,
+        exception_conditions=result.exception_conditions,
+        exception_guard_fields=result.exception_guard_fields,
+        exception_linenos=result.exception_linenos,
+        required_groups=result.required_groups,
+        required_group_methods=result.required_group_methods,
+        required_group_linenos=result.required_group_linenos,
+        dynamic_dispatch_types=result.dynamic_dispatch_types,
+    )
 
     # 3. Categorize findings
     if result.hardcoded_logins:

@@ -22,6 +22,7 @@ from code_intelligence.investigation_plan import (
     INTENT_TO_ROUTE,
     QuestionIntent,
     generate_investigation_plan,
+    has_documentary_anchor,
     resolve_question_intent,
     validate_plan_against_route,
 )
@@ -315,7 +316,24 @@ def route(state: RAGState) -> dict:
     intent = intent_resolution.intent
     logger.info("Node [route]: intent=%s source=%s", intent.value, intent_resolution.source)
 
-    has_doc_anchor = any(anchor in question_folded for anchor in DOC_ANCHORS_FOLDED)
+    # Fix (Cluster B, test_h1c_sticky_routing.py::test_keyword_match_wins_over_contrary_last_route):
+    # this used to be `any(anchor in question_folded for anchor in
+    # DOC_ANCHORS_FOLDED)` -- a SEPARATE, narrower literal-substring list
+    # maintained only in this file, which had drifted out of sync with the
+    # actual anchor detection used to classify DOCUMENTARY_POLICY in the
+    # first place (code_intelligence/investigation_plan.py's
+    # _DOC_ANCHOR_PATTERNS, e.g. it recognizes "procédure"/"documentation"/
+    # "guide utilisateur", none of which DOC_ANCHORS listed). A question
+    # like "Quelle est la procédure de validation ?" was correctly classified
+    # DOCUMENTARY_POLICY via an explicit anchor, but this local check missed
+    # it, wrongly treating the question as "no signal" and letting
+    # sticky-routing override an explicitly-anchored classification. Now
+    # reuses has_documentary_anchor() -- the SAME function that produced the
+    # DOCUMENTARY_POLICY classification -- as the single source of truth,
+    # instead of two independently-maintained anchor definitions. DOC_ANCHORS/
+    # DOC_ANCHORS_FOLDED above are kept only for backward-compat imports
+    # (tests, re-exports) and are no longer used to compute this flag.
+    has_doc_anchor = has_documentary_anchor(question_folded)
     derived_route = INTENT_TO_ROUTE.get(intent, QueryRoute.DOCUMENTAIRE.value)
 
     if intent == QuestionIntent.DOCUMENTARY_POLICY and not has_doc_anchor:

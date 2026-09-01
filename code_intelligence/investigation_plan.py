@@ -280,6 +280,25 @@ _DOC_ANCHOR_PATTERNS = [
     r"\b(ou\s+est\s+documente|où\s+est\s+documenté|politique\s+interne)\b",
 ]
 
+
+def has_documentary_anchor(folded_question: str) -> bool:
+    """Single source of truth for "does this question carry an explicit
+    documentary anchor" (wiki/documentation/guide utilisateur/procédure/
+    politique interne). Takes an already accent-folded, lowercased question
+    (see _fold_accents above).
+
+    Extracted so core/routing.py::route() can reuse the EXACT SAME anchor
+    detection used by classify_question_intent() step 1 below, instead of
+    maintaining its own separate, narrower DOC_ANCHORS literal-substring
+    list (core/routing.py) that had silently drifted out of sync -- the
+    root cause of a real bug: a question anchored via "procédure"
+    (recognized here) was classified DOCUMENTARY_POLICY correctly, but
+    route()'s OWN anchor check used a list that did not include "procédure",
+    so it wrongly treated the question as having "no signal" and let
+    sticky-routing override an explicitly-anchored classification.
+    """
+    return any(re.search(p, folded_question) for p in _DOC_ANCHOR_PATTERNS)
+
 # Section 379 (todo/contexte.txt): weak process-inquiry signals for Step 8's
 # "Concept + Graph Tag affinity" fallback. A resolved_concept alone (even at
 # confidence=1.0) is NOT proof of intent -- section 378 documented "avoir" as
@@ -321,7 +340,7 @@ def classify_question_intent(
     folded = _fold_accents(question)
 
     # 1. Check explicit documentary anchors (e.g. DOC-08)
-    if any(re.search(p, folded) for p in _DOC_ANCHOR_PATTERNS):
+    if has_documentary_anchor(folded):
         # Unless it specifically asks a quantitative query alongside
         if not any(re.search(p, folded) for p in _ERP_DATA_PATTERNS):
             return QuestionIntent.DOCUMENTARY_POLICY

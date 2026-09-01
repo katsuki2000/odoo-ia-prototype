@@ -12,9 +12,11 @@ Detects security-relevant patterns:
 import json
 import re
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 import logging
+
+from core.evidence import Evidence, EvidenceSourceType, make_evidence
 
 _logger = logging.getLogger(__name__)
 
@@ -39,6 +41,18 @@ class ServerActionCodeAnalysis:
 
     # Enclosing conditions scoping the action
     trigger_conditions: List[str] = field(default_factory=list)
+
+    # B1 replication of the B0 pilot (todo/contexte.txt section 450+, tool
+    # 6/24, 1/4 Analyse CI): structured Evidence produced at the source --
+    # one per security-relevant category actually checked, always asserted
+    # explicitly whether found or not (same convention as the 5 Composites
+    # CI). confidence="LOW" (Evidence contract casing) on every fact here,
+    # a deliberate divergence from the Composites' fixed confidence="HIGH":
+    # this tool reads ir.actions.server 'code', which is data that can be
+    # modified at runtime, unlike the graph-derived structural facts the
+    # Composites read (arbitrage documented in todo/contexte.txt for this
+    # tool). Populated by analyze_server_action_code() below.
+    evidence: List[Evidence] = field(default_factory=list)
 
 
 # Regex patterns for security-relevant code constructs
@@ -90,6 +104,135 @@ def _find_enclosing_if_condition(code_lines: List[str], line_no: int) -> Optiona
     return None
 
 
+def _build_server_action_evidence(
+    action_xml_id: str,
+    has_sudo: bool,
+    trigger_conditions: List[str],
+    sudo_call_count: int,
+    hardcoded_id_lists: List[List[int]],
+    dynamic_dispatch_patterns: List[str],
+    group_checks: List[str],
+) -> List[Evidence]:
+    """
+    B1 (todo/contexte.txt section 450+, tool 6/24, 1/4 Analyse CI): one
+    Evidence per security-relevant category actually checked by the regex
+    pass, always asserted explicitly whether the category was found or not
+    -- same "fait explicite si negatif" convention as who_has_access_to /
+    button_execution_path / trace_full_inheritance / describe_workflow.
+
+    confidence="LOW" on every fact here (Evidence contract casing,
+    HIGH/MEDIUM/LOW) -- deliberate divergence from the 5 Composites CI's
+    fixed confidence="HIGH": this tool reads ir.actions.server 'code',
+    which is data stored in a record and can be modified at runtime by a
+    functional admin, unlike the graph-derived structural facts (models/
+    fields/methods/rules parsed once from source) the Composites read. Per
+    the explicit arbitrage on this point (todo/contexte.txt): no
+    normalization to HIGH for cross-tool consistency -- the existing
+    ServerActionCodeAnalysis.confidence="low" (internal dataclass field,
+    untouched by this change) already carries this distinction on purpose.
+
+    Deliberately does NOT expose llm_summary/llm_confidence here --
+    interpret_server_action_with_llm() always runs strictly after this
+    function (bounded LLM interpretation layer, a separate concern) and is
+    never folded into the static Evidence set, same separation the
+    dataclass itself already enforces between its two confidence fields.
+    """
+    scope: Dict[str, Any] = {}
+    evidence: List[Evidence] = []
+
+    if has_sudo:
+        cond_clause = ""
+        if trigger_conditions:
+            cond_clause = f", conditioned by: {'; '.join(trigger_conditions)}"
+        evidence.append(make_evidence(
+            source_type=EvidenceSourceType.CODE,
+            claim=(
+                f"Server action '{action_xml_id}' calls sudo() ({sudo_call_count} call(s)), "
+                f"bypassing ir.rule and ACL checks{cond_clause}"
+            ),
+            source=f"server_action:{action_xml_id}:sudo",
+            value=sudo_call_count,
+            confidence="LOW",
+            scope=scope,
+        ))
+    else:
+        evidence.append(make_evidence(
+            source_type=EvidenceSourceType.CODE,
+            claim=f"Server action '{action_xml_id}' does not call sudo()",
+            source=f"server_action:{action_xml_id}:sudo",
+            value=None,
+            confidence="LOW",
+            scope=scope,
+        ))
+
+    if hardcoded_id_lists:
+        for ids in hardcoded_id_lists:
+            evidence.append(make_evidence(
+                source_type=EvidenceSourceType.CODE,
+                claim=f"Server action '{action_xml_id}' contains a hardcoded ID list: {ids}",
+                source=f"server_action:{action_xml_id}:hardcoded_ids",
+                value=ids,
+                confidence="LOW",
+                scope=scope,
+            ))
+    else:
+        evidence.append(make_evidence(
+            source_type=EvidenceSourceType.CODE,
+            claim=f"Server action '{action_xml_id}' contains no hardcoded ID list",
+            source=f"server_action:{action_xml_id}:hardcoded_ids",
+            value=None,
+            confidence="LOW",
+            scope=scope,
+        ))
+
+    if dynamic_dispatch_patterns:
+        for pattern_name in dynamic_dispatch_patterns:
+            evidence.append(make_evidence(
+                source_type=EvidenceSourceType.CODE,
+                claim=(
+                    f"Server action '{action_xml_id}' uses dynamic dispatch via "
+                    f"{pattern_name}(), not statically classifiable"
+                ),
+                source=f"server_action:{action_xml_id}:dynamic_dispatch:{pattern_name}",
+                value=pattern_name,
+                confidence="LOW",
+                scope=scope,
+            ))
+    else:
+        evidence.append(make_evidence(
+            source_type=EvidenceSourceType.CODE,
+            claim=f"Server action '{action_xml_id}' uses no dynamic dispatch (getattr/eval/exec)",
+            source=f"server_action:{action_xml_id}:dynamic_dispatch",
+            value=None,
+            confidence="LOW",
+            scope=scope,
+        ))
+
+    if group_checks:
+        evidence.append(make_evidence(
+            source_type=EvidenceSourceType.CODE,
+            claim=(
+                f"Server action '{action_xml_id}' checks group membership via has_group() "
+                f"for: {', '.join(sorted(group_checks))}"
+            ),
+            source=f"server_action:{action_xml_id}:group_checks",
+            value=sorted(group_checks),
+            confidence="LOW",
+            scope=scope,
+        ))
+    else:
+        evidence.append(make_evidence(
+            source_type=EvidenceSourceType.CODE,
+            claim=f"Server action '{action_xml_id}' contains no has_group() check",
+            source=f"server_action:{action_xml_id}:group_checks",
+            value=None,
+            confidence="LOW",
+            scope=scope,
+        ))
+
+    return evidence
+
+
 def analyze_server_action_code(
     code: str,
     action_xml_id: str,
@@ -105,6 +248,15 @@ def analyze_server_action_code(
 
     if not code or not code.strip():
         result.summary_text = f"Action '{action_xml_id}': No code to analyze."
+        result.evidence = _build_server_action_evidence(
+            action_xml_id,
+            has_sudo=False,
+            trigger_conditions=[],
+            sudo_call_count=0,
+            hardcoded_id_lists=[],
+            dynamic_dispatch_patterns=[],
+            group_checks=[],
+        )
         return result
 
     code_lines = code.splitlines()
@@ -216,6 +368,16 @@ def analyze_server_action_code(
 
     if not result.security_warnings:
         lines.append("  - Aucun pattern de sécurité détecté dans le code.")
+
+    result.evidence = _build_server_action_evidence(
+        action_xml_id,
+        has_sudo=result.has_sudo,
+        trigger_conditions=result.trigger_conditions,
+        sudo_call_count=len(sudo_matches),
+        hardcoded_id_lists=result.hardcoded_id_lists,
+        dynamic_dispatch_patterns=result.dynamic_dispatch_patterns,
+        group_checks=result.has_group_checks,
+    )
 
     result.summary_text = "\n".join(lines)
     return result

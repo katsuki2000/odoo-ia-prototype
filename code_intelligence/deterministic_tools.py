@@ -844,6 +844,76 @@ class AccessEvaluationResult:
     active_rules: List[RuleDetail] = field(default_factory=list)
     client_side_checks: List[Dict[str, Any]] = field(default_factory=list)
     summary_text: str = ""
+    # B1 replication of the B0 pilot (todo/contexte.txt sections 426-440):
+    # structured Evidence produced at the source, one per ACL grant fact
+    # and one per active ir.rule found for the permission(s) evaluated.
+    # Populated by who_has_access_to() below.
+    evidence: List[Evidence] = field(default_factory=list)
+
+
+def _build_access_evidence(
+    model_name: str,
+    permission: str,
+    allowed_groups: Set[str],
+    all_authenticated: bool,
+    active_rules: List[RuleDetail],
+    group_id: Optional[str] = None,
+) -> List[Evidence]:
+    """
+    B1 (todo/contexte.txt section 440): one Evidence for the ACL grant fact
+    (who is granted `permission` at all), plus one Evidence per active
+    ir.rule found for this model/permission (a rule that CAN further
+    restrict access, regardless of any single requester's membership --
+    who_has_access_to answers "who has access in general", not "does this
+    requester have access", unlike evaluate_record_rules). scope carries
+    group_id only when the caller narrowed the query to one group -- the
+    ACL/rule facts themselves are not requester-specific.
+    """
+    scope: Dict[str, Any] = {"group_id": group_id} if group_id else {}
+    evidence: List[Evidence] = []
+
+    if all_authenticated:
+        evidence.append(make_evidence(
+            source_type=EvidenceSourceType.CODE,
+            claim=f"ACL grants {permission} access on '{model_name}' to all authenticated users",
+            source=f"acl:{model_name}:{permission}",
+            value=True,
+            confidence="HIGH",
+            scope=scope,
+        ))
+    elif allowed_groups:
+        evidence.append(make_evidence(
+            source_type=EvidenceSourceType.CODE,
+            claim=f"ACL grants {permission} access on '{model_name}' to groups: {', '.join(sorted(allowed_groups))}",
+            source=f"acl:{model_name}:{permission}",
+            value=sorted(allowed_groups),
+            confidence="HIGH",
+            scope=scope,
+        ))
+    else:
+        evidence.append(make_evidence(
+            source_type=EvidenceSourceType.CODE,
+            claim=f"No ACL explicitly grants {permission} access on '{model_name}'",
+            source=f"acl:{model_name}:{permission}",
+            value=None,
+            confidence="HIGH",
+            scope=scope,
+        ))
+
+    for rule in active_rules:
+        evidence.append(make_evidence(
+            source_type=EvidenceSourceType.CODE,
+            claim=(
+                f"ir.rule '{rule.rule_name}' can further restrict {permission} access "
+                f"on '{model_name}' (groups: {', '.join(rule.groups) if rule.groups else 'global, applies to all'})"
+            ),
+            source=f"rule:{rule.rule_xml_id}",
+            value=rule.domain_force,
+            confidence="HIGH",
+            scope=scope,
+        ))
+
+    return evidence
 
 
 def _eval_single_permission(G: nx.DiGraph, model_name: str, permission: str, group_id: Optional[str] = None):
@@ -922,6 +992,7 @@ def who_has_access_to(
         all_allowed: Set[str] = set()
         all_rules: List[RuleDetail] = []
         all_auth = False
+        all_evidence: List[Evidence] = []
 
         for p in ["read", "write", "create", "unlink"]:
             grps, auth, rules = _eval_single_permission(G, model_name, p, group_id)
@@ -929,6 +1000,7 @@ def who_has_access_to(
             all_rules.extend(rules)
             if auth:
                 all_auth = True
+            all_evidence.extend(_build_access_evidence(model_name, p, grps, auth, rules, group_id))
             
             grp_str = "All authenticated users" if auth else (", ".join(sorted(grps)) if grps else "None")
             rights_summary.append(f"[{p.upper()}]: {grp_str} (Rules: {len(rules)})")
@@ -942,6 +1014,7 @@ def who_has_access_to(
             all_authenticated_access=all_auth,
             active_rules=all_rules,
             summary_text=summary,
+            evidence=all_evidence,
         )
 
     # Single permission evaluation
@@ -991,6 +1064,7 @@ def who_has_access_to(
         active_rules=active_rules,
         client_side_checks=[],
         summary_text=summary,
+        evidence=_build_access_evidence(model_name, permission, allowed_groups, all_authenticated, active_rules, group_id),
     )
 
 
@@ -1010,6 +1084,11 @@ class FieldImpactResult:
     # compute= field, [] for a plain stored field.
     field_tags: List[str] = field(default_factory=list)
     summary_text: str = ""
+    # B1 replication of the B0 pilot (todo/contexte.txt sections 426-441):
+    # structured Evidence produced at the source, one per upstream trigger
+    # dependency and one per downstream computed field discovered by the
+    # BFS. Populated by field_change_impact() below.
+    evidence: List[Evidence] = field(default_factory=list)
 
 
 # ---------- helpers for multi-hop BFS ----------
@@ -1102,6 +1181,49 @@ def _collect_upstream_triggers(
     return upstream_triggers, trigger_paths
 
 
+def _build_field_impact_evidence(
+    model_name: str,
+    field_name: str,
+    upstream_triggers: Set[str],
+    upstream_trigger_paths: Dict[str, str],
+    downstream_field_nodes: Set[str],
+) -> List[Evidence]:
+    """
+    B1 (todo/contexte.txt section 440+, tool 2/24): one Evidence per
+    upstream trigger dependency (the fact that this computed field
+    recomputes when a given trigger field changes) and one Evidence per
+    downstream computed field discovered by the BFS (the fact that
+    changing this field propagates to recompute that other field). Both
+    are deterministic graph reads (DEPENDS_ON / COMPUTED_BY edges), so
+    CODE / HIGH like the B0/B1 precedents. Unlike who_has_access_to there
+    is no requester-specific context (no group_id equivalent), so scope
+    stays empty for every fact here.
+    """
+    evidence: List[Evidence] = []
+
+    for trig in sorted(upstream_triggers):
+        trigger_path = upstream_trigger_paths.get(trig, trig)
+        evidence.append(make_evidence(
+            source_type=EvidenceSourceType.CODE,
+            claim=f"'{model_name}.{field_name}' is recomputed when '{trigger_path}' changes",
+            source=f"depends_on:{model_name}.{field_name}:{trig}",
+            value=trigger_path,
+            confidence="HIGH",
+        ))
+
+    for dn in sorted(downstream_field_nodes):
+        short_name = _field_to_short_name(dn)
+        evidence.append(make_evidence(
+            source_type=EvidenceSourceType.CODE,
+            claim=f"Changing '{model_name}.{field_name}' triggers recomputation of '{short_name}'",
+            source=dn,
+            value=short_name,
+            confidence="HIGH",
+        ))
+
+    return evidence
+
+
 def field_change_impact(
     G: nx.DiGraph,
     field_name: str,
@@ -1163,6 +1285,9 @@ def field_change_impact(
         compute_method=compute_method,
         field_tags=tags_for_node_attrs(f_data),
         summary_text=summary,
+        evidence=_build_field_impact_evidence(
+            model_name, field_name, upstream_triggers, trigger_paths, downstream_field_nodes
+        ),
     )
 
 
@@ -1185,6 +1310,12 @@ class ButtonExecutionPathResult:
     # contains both has_group() and a raise. Empty when the method node
     # was not found (method_exists=False) or carries no tag.
     method_tags: List[str] = field(default_factory=list)
+    # B1 replication of the B0 pilot (todo/contexte.txt sections 426-444):
+    # structured Evidence produced at the source -- method invocation,
+    # state transition (or its absence), button-level security requirement
+    # (or its absence), and requester availability when user_groups was
+    # supplied. Populated by button_execution_path() below.
+    evidence: List[Evidence] = field(default_factory=list)
 
 
 def _requester_satisfies_required_groups(
@@ -1217,6 +1348,95 @@ def _requester_satisfies_required_groups(
         resolve_group_identifier(G, ug, required_groups) is not None
         for ug in user_group_set
     )
+
+
+def _build_button_execution_evidence(
+    button_label_or_name: str,
+    model_name: str,
+    method_name: str,
+    method_exists: bool,
+    origin_states: Set[str],
+    target_state: str,
+    required_groups: Set[str],
+    user_groups: Optional[List[str]],
+    available_to_requester: Optional[bool],
+) -> List[Evidence]:
+    """
+    B1 (todo/contexte.txt section 440+, tool 3/24): four structural facts,
+    each always asserted explicitly rather than silently omitted when
+    negative (same convention as who_has_access_to's "No ACL explicitly
+    grants..." branch) -- method invocation, state transition (or its
+    absence), button-level security requirement (or its absence), and
+    requester availability only when user_groups was actually supplied
+    (that one carries scope, the other three are requester-agnostic
+    structural facts).
+    """
+    evidence: List[Evidence] = []
+
+    evidence.append(make_evidence(
+        source_type=EvidenceSourceType.CODE,
+        claim=(
+            f"Button '{button_label_or_name}' on '{model_name}' calls method "
+            f"'{method_name}()' (method_exists={method_exists})"
+        ),
+        source=f"method:{model_name}.{method_name}",
+        value=method_name,
+        confidence="HIGH",
+    ))
+
+    if origin_states and target_state:
+        origins_str = ", ".join(sorted(origin_states))
+        evidence.append(make_evidence(
+            source_type=EvidenceSourceType.CODE,
+            claim=(
+                f"Button '{button_label_or_name}' transitions '{model_name}' "
+                f"from [{origins_str}] to '{target_state}'"
+            ),
+            source=f"transition:{model_name}:{method_name}",
+            value=target_state,
+            confidence="HIGH",
+        ))
+    else:
+        evidence.append(make_evidence(
+            source_type=EvidenceSourceType.CODE,
+            claim=f"Button '{button_label_or_name}' on '{model_name}' triggers no workflow state transition",
+            source=f"transition:{model_name}:{method_name}",
+            value=None,
+            confidence="HIGH",
+        ))
+
+    if required_groups:
+        grp_str = ", ".join(sorted(required_groups))
+        evidence.append(make_evidence(
+            source_type=EvidenceSourceType.CODE,
+            claim=f"Button '{button_label_or_name}' on '{model_name}' is restricted to groups: {grp_str}",
+            source=f"button_security:{model_name}:{method_name}",
+            value=sorted(required_groups),
+            confidence="HIGH",
+        ))
+    else:
+        evidence.append(make_evidence(
+            source_type=EvidenceSourceType.CODE,
+            claim=f"Button '{button_label_or_name}' on '{model_name}' carries no button-level group restriction",
+            source=f"button_security:{model_name}:{method_name}",
+            value=None,
+            confidence="HIGH",
+        ))
+
+    if user_groups is not None:
+        evidence.append(make_evidence(
+            source_type=EvidenceSourceType.CODE,
+            claim=(
+                f"Button '{button_label_or_name}' on '{model_name}' is "
+                f"{'available' if available_to_requester else 'NOT available'} to this requester"
+            ),
+            source=f"button_availability:{model_name}:{method_name}",
+            value=available_to_requester,
+            confidence="HIGH",
+            scope={"user_groups": sorted(user_groups)},
+        ))
+
+    return evidence
 
 
 def button_execution_path(
@@ -1332,6 +1552,11 @@ def button_execution_path(
         available_to_requester=available_to_requester,
         unavailable_reason=unavailable_reason,
         method_tags=method_tags,
+        evidence=_build_button_execution_evidence(
+            button_label_or_name, model_name, method_name, method_exists,
+            origin_states, target_state, required_groups,
+            user_groups, available_to_requester,
+        ),
     )
 
 
@@ -1354,6 +1579,16 @@ class InheritanceChainResult:
     # `state` field. Empty when the model was not found in the graph.
     model_tags: List[str] = field(default_factory=list)
     summary_text: str = ""
+    # B1 replication of the B0 pilot (todo/contexte.txt sections 426-446):
+    # structured Evidence produced at the source -- one per direct EXTENDS
+    # (_inherit) parent and one per direct DELEGATES_TO (_inherits) parent,
+    # or a single explicit "no inheritance" fact when neither is found.
+    # Populated by trace_full_inheritance() below. Deliberately limited to
+    # the model's DIRECT parents (the actual graph edges read), not the
+    # full transitive ancestor closure -- same convention as
+    # who_has_access_to's active_rules (one Evidence per edge actually
+    # read, not per derived/aggregated fact).
+    evidence: List[Evidence] = field(default_factory=list)
 
 
 @dataclass
@@ -1368,6 +1603,119 @@ class WorkflowProcessResult:
     # `state` field. Empty when the model was not found in the graph.
     model_tags: List[str] = field(default_factory=list)
     summary_text: str = ""
+    # B1 replication of the B0 pilot (todo/contexte.txt sections 426-447):
+    # structured Evidence produced at the source -- one per TRANSITIONS_VIA
+    # edge found (the full step: origin state, target state, button,
+    # method, required groups), or a single explicit "no transitions"
+    # fact when the model has no workflow state machine at all. Populated
+    # by describe_workflow() below.
+    evidence: List[Evidence] = field(default_factory=list)
+
+
+def _build_workflow_evidence(
+    model_name: str,
+    transitions: List[Dict[str, Any]],
+) -> List[Evidence]:
+    """
+    B1 (todo/contexte.txt section 440+, tool 5/24, last composite CI): one
+    Evidence per TRANSITIONS_VIA edge actually found -- each transition is
+    a single structural fact bundling origin state, target state, the
+    button/method that fires it, and any button-level group restriction
+    (already the unit describe_workflow's own summary_text steps_text
+    walks one-by-one), or a single explicit "no transitions" fact when the
+    model carries no workflow state machine at all -- same always-assert-
+    explicitly convention as who_has_access_to/button_execution_path/
+    trace_full_inheritance. No requester context here (describe_workflow
+    takes no user_groups param, unlike button_execution_path), so scope
+    stays empty for every fact.
+    """
+    evidence: List[Evidence] = []
+
+    for tr in transitions:
+        origin = tr.get("origin_state", "")
+        target = tr.get("target_state", "")
+        method = tr.get("method_name", "")
+        button = tr.get("button_label", "")
+        req_groups = tr.get("required_groups", [])
+
+        claim = (
+            f"Model '{model_name}' transitions from '{origin}' to '{target}' "
+            f"via button '{button}' (calls '{method}()')"
+        )
+        if req_groups:
+            claim += f", restricted to groups: {', '.join(req_groups)}"
+
+        evidence.append(make_evidence(
+            source_type=EvidenceSourceType.CODE,
+            claim=claim,
+            source=f"transition:{model_name}:{method}:{origin}:{target}",
+            value=target,
+            confidence="HIGH",
+        ))
+
+    if not transitions:
+        evidence.append(make_evidence(
+            source_type=EvidenceSourceType.CODE,
+            claim=f"Model '{model_name}' has no explicit workflow state transitions defined",
+            source=f"workflow:{model_name}",
+            value=None,
+            confidence="HIGH",
+        ))
+
+    return evidence
+
+
+def _build_inheritance_evidence(
+    model_name: str,
+    extension_parents: Set[str],
+    delegation_parents: Dict[str, str],
+) -> List[Evidence]:
+    """
+    B1 (todo/contexte.txt section 440+, tool 4/24): one Evidence per direct
+    EXTENDS (_inherit) parent and one per direct DELEGATES_TO (_inherits)
+    parent, or a single explicit "no inheritance" fact when neither is
+    found -- same always-assert-explicitly convention as who_has_access_to
+    and button_execution_path (never silently omit a negative fact).
+    Deliberately limited to the model's DIRECT parents (the actual EXTENDS/
+    DELEGATES_TO edges read from the model's own node), not the full
+    transitive full_ancestors BFS closure -- one Evidence per edge actually
+    read, not per derived/aggregated fact, matching who_has_access_to's
+    active_rules convention. No requester context here (no group_id/
+    user_groups equivalent), so scope stays empty for every fact.
+    """
+    evidence: List[Evidence] = []
+
+    for parent in sorted(extension_parents):
+        evidence.append(make_evidence(
+            source_type=EvidenceSourceType.CODE,
+            claim=f"Model '{model_name}' extends '{parent}' via _inherit",
+            source=f"extends:{model_name}:{parent}",
+            value=parent,
+            confidence="HIGH",
+        ))
+
+    for parent, fk_field in sorted(delegation_parents.items()):
+        evidence.append(make_evidence(
+            source_type=EvidenceSourceType.CODE,
+            claim=(
+                f"Model '{model_name}' delegates to '{parent}' via _inherits "
+                f"(foreign key '{fk_field}')"
+            ),
+            source=f"delegates_to:{model_name}:{parent}",
+            value=fk_field,
+            confidence="HIGH",
+        ))
+
+    if not extension_parents and not delegation_parents:
+        evidence.append(make_evidence(
+            source_type=EvidenceSourceType.CODE,
+            claim=f"Model '{model_name}' does not inherit from any other model (no _inherit or _inherits)",
+            source=f"inherits:{model_name}",
+            value=None,
+            confidence="HIGH",
+        ))
+
+    return evidence
 
 
 def trace_full_inheritance(
@@ -1429,7 +1777,8 @@ def trace_full_inheritance(
             model_name=model_name,
             status=QueryStatus.EMPTY,
             model_tags=model_tags,
-            summary_text=f"Model '{model_name}' exists in the index but does not inherit from any other models."
+            summary_text=f"Model '{model_name}' exists in the index but does not inherit from any other models.",
+            evidence=_build_inheritance_evidence(model_name, extension_parents, delegation_parents),
         )
 
     ext_str = ", ".join(sorted(extension_parents)) if extension_parents else "None"
@@ -1450,6 +1799,7 @@ def trace_full_inheritance(
         full_ancestors=full_ancestors,
         model_tags=model_tags,
         summary_text=summary,
+        evidence=_build_inheritance_evidence(model_name, extension_parents, delegation_parents),
     )
 
 
@@ -1500,7 +1850,8 @@ def describe_workflow(
             status=QueryStatus.EMPTY,
             states=sorted(list(states)),
             model_tags=model_tags,
-            summary_text=f"Model '{model_name}' exists in the index but has no explicit workflow state transitions defined."
+            summary_text=f"Model '{model_name}' exists in the index but has no explicit workflow state transitions defined.",
+            evidence=_build_workflow_evidence(model_name, transitions),
         )
 
     steps_text = []
@@ -1520,6 +1871,7 @@ def describe_workflow(
         transitions=transitions,
         model_tags=model_tags,
         summary_text=summary,
+        evidence=_build_workflow_evidence(model_name, transitions),
     )
 
 

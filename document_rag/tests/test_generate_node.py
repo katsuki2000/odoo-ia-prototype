@@ -9,8 +9,9 @@ brut (chemin absolu + hash) mais un alias court propre au tour (S1, S2,
 2. used_sources partiellement invalide -> seules les valides apparaissent + warning
 3. used_sources entierement invalide -> sources=[] + fallback historique
 4. aucun used_sources -> fallback historique
-5. plusieurs chunks du meme fichier -> l'identite du chunk est conservee,
-   pas seulement le nom du fichier
+5. plusieurs chunks du meme fichier -> deduplique en une seule
+   SourceReference (source, title) -- section 391/392, remplace l'ancien
+   contrat "identite du chunk conservee" de la section 329
 6. les alias sont strictement locaux au tour -- aucun etat partage entre
    deux appels de _build_source_aliases()
 7. cas limites explicites (S1 valide / S99 inexistant / combinaison des deux)
@@ -165,12 +166,18 @@ class TestNoUsedSources(unittest.TestCase):
 
 
 class TestSameFileMultipleChunks(unittest.TestCase):
-    """5. plusieurs chunks du meme fichier -> identite du chunk conservee,
-    pas seulement le nom du fichier (cf. section 329). Reprend le cas
-    concret discute avec l'utilisateur : asset_loan.py cite deux fois
-    via des alias differents (S3/S7 dans un contexte a 10 chunks)."""
+    """5. plusieurs chunks du meme fichier -> deduplique par (source, title)
+    en une seule SourceReference (section 391/392, todo/contexte.txt).
+    Cette classe verrouillait a l'origine (section 329) le contrat inverse
+    ("identite du chunk conservee, pas seulement le nom du fichier") --
+    contrat depuis explicitement remplace par la dedup (cf. section 391/392
+    et TestVerifyUsedSourcesDedup dans tests/test_graph.py, qui couvre deja
+    ce mecanisme sur un autre fixture). Le test ci-dessous reprend le cas
+    concret original (asset_loan.py cite deux fois via des alias differents,
+    S3/S7 dans un contexte a 10 chunks) mais verrouille desormais le
+    comportement actuel plutot que celui, perime, qu'il verrouillait."""
 
-    def test_two_aliases_of_the_same_file_both_kept_if_both_used(self):
+    def test_two_aliases_of_the_same_file_dedup_to_one_source_first_wins(self):
         chunks = (
             [_make_chunk(f"filler_{i}", source=f"filler_{i}.txt") for i in range(2)]
             + [_make_chunk("asset_loan.py_3_hash1", source="asset_loan.py", document="chunk 4")]
@@ -184,10 +191,11 @@ class TestSameFileMultipleChunks(unittest.TestCase):
 
         result = _verify_used_sources(["S3", "S7"], alias_map)
 
-        self.assertEqual(len(result), 2)
-        self.assertEqual([r.source for r in result], ["asset_loan.py", "asset_loan.py"])
+        # Meme (source, title) -> deduplique a 1 SourceReference ; premiere
+        # occurrence (ordre de recuperation, S3) l'emporte, S7 est ecarte.
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0].source, "asset_loan.py")
         self.assertEqual(result[0].snippet, "chunk 4")
-        self.assertEqual(result[1].snippet, "chunk 9")
 
     def test_only_one_alias_of_the_same_file_cited_excludes_the_other(self):
         chunks = [

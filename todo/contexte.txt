@@ -4152,3 +4152,432 @@ et rapporter le resultat avant de lancer la replication aux 20 outils restants.
 
 **Non fait avant cette section** : aucun fichier code touche. Execution demarree immediatement apres cette entree, dans le meme tour, protocole habituel applique a chaque fichier (lecture complete -> dryRun -> diff -> apply -> reread -> py_compile -> log).
 
+---
+
+## Section 434: Cluster A execute (tests/test_graph.py) -- ecriture concurrente detectee et terminee (2026-09-01)
+
+**Origine** : mandat "corrige" + rappel "il y a deja un plan dans contexte" (sections 431-433 deja actees). Poursuite de l'ordre A -> C -> B retenu section 433.
+
+**Constat d'ecriture concurrente** : a la relecture fraiche de `tests/test_graph.py` avant edition (regle "lire avant d'agir"), 3 des 4 tests obsoletes du Cluster A etaient deja retires (imports `LLMResponse`/`query_graph` deja nettoyes, `test_format_output_ocr_warning` et `test_query_graph_mocked` deja absents) -- un process externe/concurrent a deja partiellement execute ce meme plan entre la fin du tour precedent et celui-ci. Seul `test_format_output_ocr_warning_not_leaked_from_unrelated_chunk` restait present (le process concurrent s'est visiblement arrete avant de le retirer) -- ses assertions sont devenues fausses sous le flow CI-first actuel (`ocr_warning`/`sources` ne sont plus popules hors `ci_fell_back_to_rag`), meme cause racine que les 3 autres deja retires.
+
+**Action ce tour** : retrait de `test_format_output_ocr_warning_not_leaked_from_unrelated_chunk` (dryRun -> diff confirme -> apply -> reread -> `python3 -m py_compile` OK dans `/home/claude/check431/`). Cluster A desormais complet : les 4 tests obsoletes du perimetre pre-CI-first sont retires, aucune reecriture (conforme a la decision section 433 "SUPPRIMER", pas de perimetre de remplacement).
+
+**Note environnementale** : les repertoires autorises `Filesystem:*` ont change entre le tour precedent et celui-ci (`/home/user/odoo-ia-prototype` -> `/media/donnee/projets/odoo-ia-prototype`, plus un nouveau projet `SmartHealth` jamais mentionne avant). Signale a l'utilisateur en reponse ce tour -- pas bloquant pour l'execution (le contenu de `contexte.txt` relu au nouveau chemin est coherent et a jour), mais a clarifier si ce n'est pas un changement volontaire cote utilisateur.
+
+**Non fait ce tour** : Cluster C et B pas encore executes (a suivre dans ce meme tour, ordre retenu section 433).
+
+**Fichiers modifies** : `tests/test_graph.py`, `todo/contexte.txt` (cette section).
+
+**Prochaine etape** : Cluster C (`document_rag/tests/test_generate_node.py`), puis Cluster B (mocks LLM dans `test_h1c_sticky_routing.py`/`test_route_accent_fold.py`).
+
+---
+
+## Section 435: Cluster C execute (document_rag/tests/test_generate_node.py) -- test perime reecrit, pas simplement supprime (2026-09-01)
+
+**Origine** : suite directe de la section 434, meme mandat "corrige"/plan deja acte (sections 431-433).
+
+**Constat** : relecture fraiche de `document_rag/tests/test_generate_node.py` avant edition -- aucune ecriture concurrente detectee ce coup-ci, fichier identique a l'etat lu au tour precedent.
+
+**Action** : `TestSameFileMultipleChunks::test_two_aliases_of_the_same_file_both_kept_if_both_used` (section 329, verrouillait l'ancien contrat "2 SourceReference distincts pour 2 alias du meme fichier") -- choix de REECRIRE plutot que retirer purement : conserve le fixture concret original (asset_loan.py, S3/S7) mais verrouille desormais le comportement actuel (dedup (source, title) -> 1 seul resultat, premiere occurrence gagne), renomme `test_two_aliases_of_the_same_file_dedup_to_one_source_first_wins`. Docstrings module-level (point 5) et classe mises a jour pour ne plus affirmer un contrat perime. `test_only_one_alias_of_the_same_file_cited_excludes_the_other` inchange (pas de collision de dedup, toujours valide). dryRun -> diff confirme -> apply -> reread -> `python3 -m py_compile` OK (`/home/claude/check431/`).
+
+**Non fait ce tour** : Cluster B pas encore execute.
+
+**Fichiers modifies** : `document_rag/tests/test_generate_node.py`, `todo/contexte.txt` (cette section).
+
+**Prochaine etape** : Cluster B -- mocker `classify_question_intent_llm` (`code_intelligence/investigation_plan.py`) dans `tests/test_h1c_sticky_routing.py` et `tests/test_route_accent_fold.py` avec des reponses explicites correspondant au comportement attendu, assertions adaptees au flow LLM-first reel (pas de retour au fallback deterministe).
+
+---
+
+## Section 436: Cluster B, `tests/test_route_accent_fold.py` termine ; `tests/test_h1c_sticky_routing.py` BLOQUE -- divergence structurelle decouverte (pas un simple gap de mock), mandat utilisateur requis avant de continuer (2026-09-01)
+
+**Origine** : suite de la section 435 (Cluster C clos), poursuite du plan A->C->B (section 433).
+
+**`tests/test_route_accent_fold.py` -- FAIT** : `_route_question()` prend desormais un parametre `mocked_intent: QuestionIntent` explicite et patch `code_intelligence.investigation_plan.classify_question_intent_llm` (`return_value=mocked_intent`) pour la duree de l'appel a `route()`. Intents mockes choisis pour reproduire le comportement de production attendu par question (pas un retour au fallback deterministe -- le mock EST le point d'entree LLM-first, rendu deterministe pour le test) : `ERP_DATA_QUERY` pour "cette annee", `DOCUMENTARY_POLICY` pour le follow-up elliptique et les 2 cas HYBRIDE (la couche HYBRIDE reste un post-traitement deterministe par mots-cles, non affecte par le LLM), `GOVERNANCE_SECURITY` pour le cas CODE_INTEL_KEYWORDS. dryRun -> diff -> apply -> reread -> `python3 -m py_compile` OK.
+
+**`tests/test_h1c_sticky_routing.py` -- BLOQUE, decouverte en cours d'execution** : en construisant les intents mockes pour `test_keyword_match_wins_over_contrary_last_route` (3 cas parametrises, doivent tous route() vers leur cible attendue MEME avec un `last_route` contraire), le 3e cas ("Quelle est la procedure de validation ?" -> attendu `documentaire`) s'avere IRREALISABLE par mock seul, quel que soit l'intent mocke -- ce n'est plus un probleme de mock LLM mais une divergence structurelle reelle dans `route()` (`core/routing.py`) :
+
+- `route()` ne bypasse le sticky-routing pour la branche documentaire QUE si `intent == DOCUMENTARY_POLICY and has_doc_anchor` (`has_doc_anchor` = match contre `DOC_ANCHORS_FOLDED`, une liste courte : "selon le wiki", "ou est documente", etc.).
+- "Quelle est la procedure de validation ?" ne matche AUCUN `DOC_ANCHORS` -- meme si l'intent mocke est `DOCUMENTARY_POLICY`, `has_doc_anchor=False`, donc la question tombe dans la branche sticky/default (`_sticky_route_or_default`) et HERITE du `last_route` contraire au lieu de router en `documentaire`.
+- Avant Tranche 2, c'etait `DOC_KEYWORDS` (liste plus large, incluant "procedure", "comment", "qui peut"...) qui faisait foi comme signal de mot-cle explicite empechant tout sticky-override -- ce role n'existe plus dans `route()` actuel : `DOC_KEYWORDS_FOLDED` n'est desormais utilise QUE pour la couche HYBRIDE (en combinaison avec un terme quantitatif), jamais seul pour proteger contre le sticky-routing sur la branche documentaire pure.
+- Consequence : une question documentaire avec un signal de mot-cle explicite mais SANS ancre au sens strict ("procedure de validation", "comment creer une facture ?", "qui peut valider un devis ?"...) peut aujourd'hui se faire detourner par le sticky-routing vers la branche d'un tour precedent -- exactement le symptome que Ayan avait signale en debut d'analyse ("'procedure de validation' route vers code_intelligence au lieu de documentaire"), sauf que la cause reelle n'est pas une simple divergence de classification LLM ponctuelle : c'est un trou structurel dans la condition de bypass du sticky-routing qui existe QUELLE QUE SOIT la valeur retournee par le LLM.
+
+**Decision requise avant de poursuivre le Cluster B** (2 options, pas tranchees ce tour) :
+(a) Corriger `route()` (`core/routing.py`) pour elargir la condition de bypass du sticky-routing au-dela du seul `has_doc_anchor` -- ex. inclure un signal DOC_KEYWORDS explicite (`comment`, `procedure`, `qui peut`...), pas seulement DOC_ANCHORS -- ce qui restaurerait le comportement original teste par ce cas ; c'est un changement de comportement de PRODUCTION, pas juste un test, et sort du perimetre initial "corriger les 11 echecs" tel que defini.
+(b) Adapter l'assertion de ce 3e cas parametrise pour refleter le comportement REEL actuel (une question DOCUMENTARY_POLICY sans DOC_ANCHOR explicite EST soumise au sticky-routing, donc `last_route` contraire l'emporte desormais) -- traite comme une decouverte de la vraie portee du refactor Tranche 2, pas comme une regression a corriger.
+
+**Non fait ce tour** : `tests/test_h1c_sticky_routing.py` pas touche -- en attente de la decision (a) vs (b) ci-dessus avant tout diff, cf. `todo/rules.md` ("pas de fix chirurgical, voir la root cause" -- corriger l'assertion sans savoir si (a) doit d'abord fixer la production serait exactement ce genre de patch).
+
+**Fichiers modifies** : `tests/test_route_accent_fold.py`, `todo/contexte.txt` (cette section).
+
+**Prochaine etape** : reponse utilisateur (a) vs (b) sur `test_keyword_match_wins_over_contrary_last_route`'s 3e cas, puis finir `tests/test_h1c_sticky_routing.py` (le reste du fichier -- 6 des 9 assertions/tests routing -- ne presente pas ce probleme et est mockable directement avec `DOCUMENTARY_POLICY`/`GOVERNANCE_SECURITY`/`ERP_DATA_QUERY` selon le meme pattern que ci-dessus).
+
+---
+
+## Section 437: Cluster B CLOS -- root cause reelle identifiee, corrigee a la racine par une source de verite unique (2026-09-01) [PART1/3]
+
+**Origine** : reprise de la decision (a) vs (b) laissee ouverte section 436. Avant de trancher, investigation du code reel (core/routing.py, code_intelligence/investigation_plan.py).
+
+**Root cause reelle (differente de (a)/(b))** : route() ne fait plus tourner de cascade DOC_KEYWORDS/CODE_INTEL_KEYWORDS/ERP_KEYWORDS -- classification via resolve_question_intent() (LLM borne + fallback). Le vrai bug : deux listes d'ancres documentaires independantes, jamais synchronisees -- investigation_plan.py::_DOC_ANCHOR_PATTERNS (reelle, inclut procedure/documentation/guide utilisateur) vs core/routing.py::DOC_ANCHORS (etroite, utilisee seulement pour has_doc_anchor dans route()). "Procedure de validation" est classifiee DOCUMENTARY_POLICY via la liste 1, mais route() recalcule has_doc_anchor avec la liste 2 (ne contient pas procedure) -> False -> sticky-routing ecrase a tort la classification. Meme classe de bug que sections 385-386, interne cette fois a une seule question.
+
+**Correctif applique (source de verite unique)** : (1) investigation_plan.py -- extraction de has_documentary_anchor(folded_question) base sur _DOC_ANCHOR_PATTERNS, classify_question_intent() etape 1 reecrite pour l'appeler. (2) core/routing.py -- import de has_documentary_anchor, has_doc_anchor dans route() recalcule via cette fonction partagee au lieu de DOC_ANCHORS_FOLDED. DOC_ANCHORS/DOC_ANCHORS_FOLDED conservees pour compat imports seulement (re-export core/graph.py, import test_route_accent_fold.py) -- ne pilotent plus has_doc_anchor. Verifie avant application : les 5 entrees de DOC_ANCHORS sont toutes couvertes par _DOC_ANCHOR_PATTERNS (sur-ensemble strict), aucune regression possible sur l'usage HYBRIDE existant.
+
+**Proposition utilisateur ecartee en cours de tour** : has_documentary_anchor = (intent == DOCUMENTARY_POLICY) identifiee comme circulaire -- dans la branche exacte ou has_doc_anchor est consultee (if intent == DOCUMENTARY_POLICY and not has_doc_anchor), cette definition aurait rendu has_doc_anchor toujours vrai, donc plus jamais de sticky-routing, y compris pour le cas H1c legitime ("Et pour Lyon ?"). Signale avant d'ecrire le correctif retenu, qui preserve la distinction "ancre explicite" (jamais sticky) vs "DOCUMENTARY_POLICY par defaut sans signal" (sticky autorise).
+
+**tests/test_h1c_sticky_routing.py termine** (dernier fichier du Cluster B, bloque depuis section 436) : meme traitement que test_route_accent_fold.py -- _route_question() etend sa signature avec mocked_intent: QuestionIntent, patch classify_question_intent_llm pour la duree de l'appel route(). Intents mockes : DOCUMENTARY_POLICY pour les 4 cas sticky + le 3e cas parametrise ("procedure de validation", exercice direct du fix) ; GOVERNANCE_SECURITY/ERP_DATA_QUERY pour les 2 autres cas parametrises (deja corrects avant le fix, verifies non-regresses).
+
+**Confirme par execution reelle, colle par l'utilisateur** : test_h1c_sticky_routing.py 15/15 passed ; test_route_accent_fold.py 14/14 passed (deja confirme section 436) ; test_j18_routing_fewshot.py 57/57 passed (non-regression, gros consommateur independant de route()).
+
+**Cluster B desormais CLOS dans son integralite** (les 4 echecs de la section 431 couverts par test_h1c_sticky_routing.py + test_route_accent_fold.py). Root cause plus etroite et precise que (a)/(b) de la section 436 -- ni un elargissement volontaire du perimetre de bypass, ni une simple adaptation d'assertion a un comportement degrade accepte, mais une correction de bug reel a la racine (deduplication de deux definitions d'ancre divergentes), sans effet de bord (verifie par non-regression test_j18_routing_fewshot.py).
+
+**Non fait ce tour** : aucune modification de todo/plan.md. Clusters A/C deja clos (sections 434-435) ; Cluster D toujours en attente de confirmation pytest utilisateur (pytest tests/test_api_ingestion.py::test_api_v1_ingestion_status_reports_stats_and_watcher_state document_rag/tests/test_scheduler.py::test_api_ingestion_status_includes_scheduler_info -v, jamais rapporte depuis la section 431).
+
+**Fichiers modifies** : code_intelligence/investigation_plan.py, core/routing.py, tests/test_h1c_sticky_routing.py, todo/contexte.txt (cette section).
+
+**Prochaine etape** : mandat utilisateur -- (a) confirmer Cluster D (pytest ci-dessus, jamais rapporte) pour clore formellement le triage complet des 11 echecs de la section 430 ; (b) reprendre la replication B1 (Evidence sur les 20 outils restants -- 11 actions CI + 9 outils ORM -- suspendue depuis la section 430 le temps de regler ce triage de tests) ; (c) tout autre chantier.
+
+---
+
+## Section 438: Cluster D confirme par execution reelle (2/2 passed) -- triage complet des 11 echecs de la section 430 desormais CLOS sur ses 4 clusters A/B/C/D. (2026-09-01)
+
+**Origine** : suite de la section 437 -- confirmation demandee pour le fix D (renommage DEFAULT_CODE_DIR -> DEFAULT_CODE_DIRS + correction de l'appel imbrique dans api/main.py, applique section 431).
+
+**Resultat** : pytest tests/test_api_ingestion.py::test_api_v1_ingestion_status_reports_stats_and_watcher_state document_rag/tests/test_scheduler.py::test_api_ingestion_status_includes_scheduler_info -v -- 2 passed in 63.27s (0 failed). Colle par l'utilisateur.
+
+---
+
+## Section 439: Reprise B1 (mandat "b") -- reconnaissance disque AVANT tout code : perimetre reel diverge du chiffre journalise "11 CI + 9 ORM". Aucun code touche (2026-09-01)
+
+**Origine** : mandat utilisateur "b" (reprendre la replication B1 aux 20 outils restants, cf. section 437/438).
+
+**Lecture fraiche effectuee avant tout diff (regle "lire avant d'agir")** :
+- `code_intelligence/ci_agent_tools.py::ALL_CI_TOOLS` contient reellement **14 outils** (pas 12 comme le sous-entendait le chiffre "11 restants" de la section 429/437) : 6 composites (`who_has_access_to`, `evaluate_record_rules` [pilote, deja fait], `field_change_impact`, `button_execution_path`, `trace_full_inheritance`, `describe_workflow`), 4 outils d'analyse (`analyze_server_actions`, `analyze_security_locks`, `analyze_method_override_chain`, `analyze_data_constraints`), 4 auxiliaires (`resolve_technical_name`, `list_involved_modules`, `explain_decision_path`, `read_source_code`). Le docstring du module lui-meme est perime ("9 Code Intelligence tools (5 composite + 4 auxiliary)") -- ne reflete ni 9 ni 12, encore un ecart journal/disque du meme type que les sections 423/424. **13 outils CI restent donc a cabler, pas 11.**
+- `erp_data/odoo_tools.py` contient **10 outils ORM** au total : `get_total_sales` (pilote, deja fait) + 9 restants (`get_product_stock`, `get_order_status`, `get_total_invoices`, `search_partner`, `get_recent_tickets`, `list_out_of_stock_products`, `get_period_revenue`, `get_average_sales`, `get_sale_details`). Ce chiffre-la est conforme au journal (9 ORM restants).
+
+**Ecart signale avant de commencer** : 13 CI + 9 ORM = 22 outils restants (pas 20). Root cause probable de l'ecart : les 4 outils auxiliaires (`resolve_technical_name`, `list_involved_modules`, `explain_decision_path`, `read_source_code`) n'ont peut-etre jamais ete comptes dans le perimetre B1 initial (ce sont des lookups/formatters, pas des evaluateurs de fait comme `evaluate_record_rules` ou `who_has_access_to`) -- mais ceci n'a jamais ete tranche explicitement, seulement suppose par un chiffre ("11") jamais reconcilie contre le disque.
+
+**Non fait ce tour** : aucun code touche -- reconnaissance seule. Question de perimetre posee a l'utilisateur avant tout diff (cf. reponse ce tour) : inclure ou non les 4 auxiliaires dans B1, et ordre de cablage retenu pour le reste.
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section seule).
+
+**Prochaine etape** : reponse utilisateur sur le perimetre exact (10 outils "evaluateurs" seulement, ou les 14 CI + 10 ORM = 24) et sur l'ordre de cablage, puis execution outil par outil selon le protocole habituel (lecture -> dryRun -> diff -> apply -> reread -> py_compile -> log).
+
+---
+
+## Section 440: Decisions utilisateur actees sur le perimetre et l'ordre B1 -- aucun code touche ce tour, execution demarre juste apres (2026-09-01)
+
+**Decisions actees (reponse aux 2 questions section 439)** :
+- **Perimetre** : les 4 outils auxiliaires SONT inclus -- perimetre complet confirme = 14 outils CI + 10 outils ORM = 24 au total, 22 restants apres le pilote (evaluate_record_rules + get_total_sales).
+- **Ordre** : un outil a la fois, validation pytest utilisateur demandee apres CHAQUE outil (pas de batch), sequence Composites CI -> Analyse CI -> Auxiliaires CI -> ORM. Justification utilisateur : plus lent en apparence, plus sur pour arriver a un etat stable (coherent avec todo/rules.md "pas de fix chirurgical"/"changement rare" -- chaque outil est ici traite comme un changement isole et verifie avant le suivant).
+
+**Ordre exact retenu (24 outils, pilote exclu)** :
+1. Composites CI (5) : `who_has_access_to`, `field_change_impact`, `button_execution_path`, `trace_full_inheritance`, `describe_workflow`
+2. Analyse CI (4) : `analyze_server_actions`, `analyze_security_locks`, `analyze_method_override_chain`, `analyze_data_constraints`
+3. Auxiliaires CI (4) : `resolve_technical_name`, `list_involved_modules`, `explain_decision_path`, `read_source_code`
+4. ORM (9) : `get_product_stock`, `get_order_status`, `get_total_invoices`, `search_partner`, `get_recent_tickets`, `list_out_of_stock_products`, `get_period_revenue`, `get_average_sales`, `get_sale_details`
+
+**Non fait ce tour** : aucun code touche -- decisions actees seulement. Execution demarre immediatement apres cette entree, meme tour, en commencant par `who_has_access_to` (protocole habituel : lecture -> dryRun -> diff -> apply -> reread -> py_compile -> tests ecrits -> log, puis attente confirmation pytest utilisateur avant l'outil suivant).
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section seule).
+
+---
+
+## Section 441: who_has_access_to (1/24) -- Evidence deja implemente + teste sur disque a la relecture, code non retouche ce tour -- verification seule avant confirmation pytest (2026-09-01)
+
+**Origine** : mandat "vas y" -- demarrage de who_has_access_to selon l'ordre section 440.
+
+**Constat a la lecture fraiche (avant tout diff, regle "lire avant d'agir")** : `code_intelligence/deterministic_tools.py` contient deja `AccessEvaluationResult.evidence`, `_build_access_evidence()` et le cablage dans `who_has_access_to()` (permission unique + permission='all'), suivant exactement le contrat B0 (`core/evidence.py`, `make_evidence`/`stable_content_hash`). `code_intelligence/tests/test_bloc_b1_evidence_who_has_access_to.py` existe deja, 8 tests couvrant : count single-permission avec regle active, source_type/confidence, absence de grant ACL (evidence explicite quand meme), agregation 'all' sur 4 permissions (8 evidences), scope avec/sans group_id, determinisme de evidence_id, modele introuvable -> evidence=[]. Aucun des deux fichiers n'a ete modifie ce tour -- deja present avant cette entree (cf. principe "sessions paralleles", todo/contexte.txt section 43x et memoire).
+
+**Verification effectuee ce tour** : relecture ligne a ligne de `_build_access_evidence()` et `who_has_access_to()` contre les 8 assertions du fichier de test (ordre d'ajout ACL-evidence puis rule-evidence, valeurs par defaut `perm_attr` True/False selon ACL vs Rule, scope `{"group_id": ...}` conditionnel) -- coherent sur les 8 cas, aucune divergence trouvee. `py_compile` sur les deux fichiers (copies) : OK, aucune erreur de syntaxe.
+
+**Non fait ce tour** : aucune execution pytest reelle (pas d'acces shell sur la machine utilisateur depuis cette session, seulement Filesystem). Conformement a la regle "aucun fix n'est clos sans confirmation d'execution reelle", who_has_access_to n'est PAS considere clos tant que `pytest code_intelligence/tests/test_bloc_b1_evidence_who_has_access_to.py -v` n'a pas ete lance et colle par l'utilisateur.
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section seule) -- `deterministic_tools.py` et le fichier de test n'ont pas ete touches ce tour (deja presents).
+
+**Prochaine etape** : utilisateur lance `pytest code_intelligence/tests/test_bloc_b1_evidence_who_has_access_to.py -v` (et idealement le fichier B0 pilote en non-regression) ; confirmation -> outil 2/24 (`field_change_impact`) ; echec -> diagnostic avant tout autre diff.
+
+---
+
+## Section 442: who_has_access_to CLOS (1/24) -- confirme par execution reelle -- passage a field_change_impact (2/24) (2026-09-01)
+
+**Resultat colle par l'utilisateur** : `pytest code_intelligence/tests/test_bloc_b1_evidence_who_has_access_to.py -v` -- 8 passed in 4.91s (0 failed). Non-regression `pytest code_intelligence/tests/test_bloc_b0_evidence_ci_pilot.py` -- 6 passed in 0.72s (0 failed).
+
+**who_has_access_to (1/24) desormais CLOS** dans la replication B1. Prochain outil de l'ordre retenu (section 440, Composites CI) : `field_change_impact`.
+
+**Non fait ce tour** : aucun code touche -- confirmation seule. Lecture fraiche de `field_change_impact()` a demarrer immediatement apres cette entree, meme protocole (lecture -> dryRun -> diff -> apply -> reread -> py_compile -> tests -> log -> attente pytest utilisateur).
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section seule).
+
+**Prochaine etape** : lecture de `field_change_impact()` dans `code_intelligence/deterministic_tools.py` et de son eventuel test existant, avant tout diff.
+
+---
+
+## Section 443: field_change_impact (2/24) -- Evidence implemente + teste, code touche ce tour, attente confirmation pytest (2026-09-01)
+
+**Origine** : suite section 442 -- `field_change_impact` n'avait, a la relecture, ni `evidence` sur `FieldImpactResult` ni fichier de test (contrairement a `who_has_access_to`, deja fait avant ce tour). Travail reel effectue ici, pas une simple verification.
+
+**Design retenu** : deux categories de faits, symetriques a who_has_access_to mais sans contexte demandeur (pas d'equivalent group_id) -- scope reste `{}` partout :
+- 1 Evidence par trigger amont (`_collect_upstream_triggers`) : claim "'{model}.{field}' is recomputed when '{trigger_path ou trig}' changes", source `depends_on:{model}.{field}:{trig}`, value = trigger_path si present sinon le nom court.
+- 1 Evidence par champ calcule aval trouve par le BFS multi-hop (`_bfs_downstream`) : claim "Changing '{model}.{field}' triggers recomputation of '{short_name}'", source = id complet du noeud field aval, value = nom court.
+
+**Fichiers modifies** :
+- `code_intelligence/deterministic_tools.py` : ajout `FieldImpactResult.evidence: List[Evidence]` ; nouvelle fonction `_build_field_impact_evidence()` (avant `field_change_impact`) ; cablage dans le `return FieldImpactResult(...)` de `field_change_impact()`.
+- `code_intelligence/tests/test_bloc_b1_evidence_field_change_impact.py` (nouveau) : 8 tests sur graphe synthetique a la main (`risk_score` avec 3 triggers amont dont 1 avec trigger_path pointe, 1 champ aval `alerte_conformite` a 1 hop) -- count, source_type/confidence, trigger_path pointe vs nom court, evidence aval, scope toujours vide, determinisme evidence_id, champ introuvable -> evidence=[].
+
+**Protocole suivi** : dryRun -> diff verifie -> apply -> reread disque (deux fichiers) -> `py_compile` OK sur `deterministic_tools.py` (copie) -- le fichier de test n'a pas ete compile en conditions reelles (pas d'environnement complet cote sandbox Claude, dependances du paquet `code_intelligence`/`core` non disponibles hors machine utilisateur), verification faite par relecture manuelle ligne a ligne des 8 assertions contre le code.
+
+**Non fait ce tour** : aucune execution pytest reelle. field_change_impact (2/24) n'est PAS clos tant que `pytest code_intelligence/tests/test_bloc_b1_evidence_field_change_impact.py -v` n'a pas ete lance et colle par l'utilisateur (regle "aucun fix n'est clos sans confirmation d'execution reelle").
+
+**Prochaine etape** : utilisateur lance `pytest code_intelligence/tests/test_bloc_b1_evidence_field_change_impact.py -v` (et idealement `test_bloc9_cross_module_computed_fields.py` + `test_bloc_b1_evidence_who_has_access_to.py` en non-regression, puisque field_change_impact et deterministic_tools.py sont touches) ; confirmation -> outil 3/24 (`button_execution_path`) ; echec -> diagnostic avant tout autre diff.
+
+---
+
+## Section 444: field_change_impact CLOS (2/24) -- confirme par execution reelle -- passage a button_execution_path (3/24) (2026-09-01)
+
+**Resultat colle par l'utilisateur** : `pytest code_intelligence/tests/test_bloc_b1_evidence_field_change_impact.py -v` -- 8 passed in 0.73s (0 failed). Non-regression `pytest code_intelligence/tests/test_bloc9_cross_module_computed_fields.py code_intelligence/tests/test_bloc_b1_evidence_who_has_access_to.py -v` -- 13 passed in 1.62s (0 failed ; 34 warnings DeprecationWarning ast.Str/ast.NameConstant dans python_extractor.py, preexistants, sans rapport avec ce tour).
+
+**field_change_impact (2/24) desormais CLOS.** Prochain outil de l'ordre retenu (section 440, Composites CI) : `button_execution_path`.
+
+**Non fait ce tour** : aucun code touche -- confirmation seule. Lecture fraiche de `button_execution_path()` a demarrer immediatement apres cette entree, meme protocole.
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section seule).
+
+**Prochaine etape** : lecture de `button_execution_path()` dans `code_intelligence/deterministic_tools.py` et de son eventuel test existant, avant tout diff.
+
+---
+
+## Section 445: button_execution_path (3/24) -- Evidence implemente + teste, code touche ce tour, attente confirmation pytest (2026-09-01)
+
+**Origine** : suite section 444 -- ni `evidence` sur `ButtonExecutionPathResult` ni fichier de test dedie a la relecture (seul `test_j22bis_button_availability_gate.py` existait, sur `available_to_requester`, pas sur Evidence).
+
+**Design retenu** : 4 faits possibles, toujours asserts explicitement meme quand negatifs (meme convention que who_has_access_to) :
+1. Invocation de methode (toujours) : claim mentionne method_exists, source `method:{model}.{method}`, value = nom de methode.
+2. Transition d'etat (toujours) : si origin_states+target_state trouves, value=target_state ; sinon fait explicite "triggers no workflow state transition", value=None. source `transition:{model}:{method}`.
+3. Exigence de securite bouton (toujours) : liste de groupes requis si non vide, sinon fait explicite "carries no button-level group restriction", value=None. source `button_security:{model}:{method}`.
+4. Disponibilite pour le demandeur (seulement si `user_groups` fourni, contrairement aux 3 premiers qui sont agnostiques du demandeur) : value=bool, scope=`{"user_groups": sorted(user_groups)}` -- seule evidence a porter du scope ici.
+
+**Fichiers modifies** :
+- `code_intelligence/deterministic_tools.py` : ajout `ButtonExecutionPathResult.evidence` ; nouvelle fonction `_build_button_execution_evidence()` (avant `button_execution_path`) ; cablage dans le `return ButtonExecutionPathResult(...)`.
+- `code_intelligence/tests/test_bloc_b1_evidence_button_execution_path.py` (nouveau) : 9 tests sur le meme graphe synthetique que `test_j22bis_button_availability_gate.py::_build_graph_with_button` (reutilise, pas duplique) -- count avec/sans user_groups, source_type/confidence, fait explicite absence de restriction, scope de la disponibilite, valeur/claim de la transition, fait explicite absence de transition (label ne matchant aucune edge), determinisme evidence_id, modele introuvable -> evidence=[].
+
+**Protocole suivi** : dryRun -> diff verifie -> apply -> reread disque (deux fichiers) -> `py_compile` OK sur les deux (copies) -- relecture manuelle des 9 assertions contre le code (matching du label "Valider"/method_name, `_requester_satisfies_required_groups` pour le cas non-membre -> False, defauts `groupe_requis=[]`).
+
+**Non fait ce tour** : aucune execution pytest reelle. button_execution_path (3/24) n'est PAS clos tant que `pytest code_intelligence/tests/test_bloc_b1_evidence_button_execution_path.py -v` n'a pas ete lance et colle par l'utilisateur.
+
+**Prochaine etape** : utilisateur lance `pytest code_intelligence/tests/test_bloc_b1_evidence_button_execution_path.py -v` (et idealement `test_j22bis_button_availability_gate.py` + `test_b1_3.py` en non-regression, puisque `ButtonExecutionPathResult`/`deterministic_tools.py` sont touches) ; confirmation -> outil 4/24 (`trace_full_inheritance`) ; echec -> diagnostic avant tout autre diff.
+
+---
+
+## Section 446: button_execution_path CLOS (3/24) -- confirme par execution reelle -- passage a trace_full_inheritance (4/24) (2026-09-01)
+
+**Resultat colle par l'utilisateur** : `pytest code_intelligence/tests/test_bloc_b1_evidence_button_execution_path.py -v` -- 9 passed in 0.89s (0 failed). Non-regression `pytest code_intelligence/tests/test_j22bis_button_availability_gate.py code_intelligence/tests/test_b1_3.py -v` -- 10 passed in 31.02s (0 failed).
+
+**button_execution_path (3/24) desormais CLOS.** Prochain outil de l'ordre retenu (section 440, Composites CI) : `trace_full_inheritance`.
+
+**Non fait ce tour** : aucun code touche -- confirmation seule. Lecture fraiche de `trace_full_inheritance()` a demarrer immediatement apres cette entree, meme protocole.
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section seule).
+
+**Prochaine etape** : lecture de `trace_full_inheritance()` dans `code_intelligence/deterministic_tools.py` et de son eventuel test existant, avant tout diff.
+
+---
+
+## Section 447: trace_full_inheritance (4/24) -- Evidence implemente + teste, code touche ce tour, attente confirmation pytest (2026-09-01)
+
+**Origine** : suite section 446 -- a la relecture, `InheritanceChainResult` portait deja le champ `evidence` (commentaire "B1 replication ... sections 426-446") mais `trace_full_inheritance()` ne le peuplait dans AUCUNE de ses 3 branches (NOT_FOUND, EMPTY, FOUND) -- champ declare mais jamais cable, meme ecart de nature que celui trouve section 439 (chiffre journalise vs realite disque). Aucun fichier de test dedie n'existait (seul `test_bloc8_j27_inheritance_cycle_regression.py` existait, sur la non-regression cycles, pas sur Evidence).
+
+**Design retenu** : symetrique a `_build_field_impact_evidence` (pas de contexte demandeur, scope reste `{}` partout) mais avec la convention "fait explicite si negatif" de who_has_access_to/button_execution_path :
+- 1 Evidence par parent EXTENDS direct (`_inherit`) : claim "Model '{model}' extends '{parent}' via _inherit", source `extends:{model}:{parent}`, value = nom du parent.
+- 1 Evidence par parent DELEGATES_TO direct (`_inherits`) : claim mentionne le fk_field, source `delegates_to:{model}:{parent}`, value = fk_field (pas le nom du parent, contrairement a EXTENDS).
+- Si aucun des deux : 1 Evidence explicite "n'herite d'aucun autre modele", source `inherits:{model}`, value=None.
+- Deliberement limite aux parents DIRECTS (edges EXTENDS/DELEGATES_TO lus depuis le noeud du modele lui-meme), jamais la fermeture transitive `full_ancestors` du BFS -- meme convention que active_rules de who_has_access_to (un Evidence par edge reellement lu, pas par fait derive/agrege).
+
+**Fichiers modifies** :
+- `code_intelligence/deterministic_tools.py` : nouvelle fonction `_build_inheritance_evidence()` (avant `trace_full_inheritance`) ; cablage dans les 2 `return InheritanceChainResult(...)` qui en avaient besoin (EMPTY et FOUND -- NOT_FOUND garde `evidence=[]` par defaut du dataclass, aucun changement necessaire la).
+- `code_intelligence/tests/test_bloc_b1_evidence_trace_full_inheritance.py` (nouveau) : 9 tests sur un graphe synthetique construit a la main (`child.mixed` avec 2 EXTENDS + 1 DELEGATES_TO simultanement, `child.leaf` sans aucune relation, `model.missing` absent du graphe) -- count mixte, source_type/confidence, claim/value des 2 parents EXTENDS, claim/value (fk_field) du parent DELEGATES_TO, fait explicite d'absence d'heritage, scope toujours vide (sur les 2 modeles presents), determinisme de evidence_id, modele introuvable -> evidence=[].
+
+**Protocole suivi** : dryRun -> diff verifie -> apply -> reread disque (deterministic_tools.py, verification complete des 3 branches de trace_full_inheritance) -> `py_compile` OK sur un stub minimal reconstruit dans le sandbox (Evidence/make_evidence/_build_inheritance_evidence isoles, dependances reelles du paquet non disponibles hors machine utilisateur) + smoke-test des 3 branches (extension seule, delegation seule, aucune -> comptes 1/1/1, et cas mixte -> 3) -- OK. `py_compile` egalement OK sur le fichier de test complet (memes limites d'environnement, verification par relecture manuelle des 9 assertions contre le code pour le reste).
+
+**Non fait ce tour** : aucune execution pytest reelle. trace_full_inheritance (4/24) n'est PAS clos tant que `pytest code_intelligence/tests/test_bloc_b1_evidence_trace_full_inheritance.py -v` n'a pas ete lance et colle par l'utilisateur (regle "aucun fix n'est clos sans confirmation d'execution reelle").
+
+**Fichiers modifies** : `code_intelligence/deterministic_tools.py`, `code_intelligence/tests/test_bloc_b1_evidence_trace_full_inheritance.py`, `todo/contexte.txt` (cette section).
+
+**Prochaine etape** : utilisateur lance `pytest code_intelligence/tests/test_bloc_b1_evidence_trace_full_inheritance.py -v` (et idealement `test_bloc8_j27_inheritance_cycle_regression.py` en non-regression, puisque `InheritanceChainResult`/`deterministic_tools.py` sont touches) ; confirmation -> outil 5/24 (`describe_workflow`, dernier composite CI) ; echec -> diagnostic avant tout autre diff.
+
+---
+
+## Section 448: trace_full_inheritance CLOS (4/24) -- confirme par execution reelle -- passage a describe_workflow (5/24, dernier composite CI) (2026-09-01)
+
+**Resultat colle par l'utilisateur** : `pytest code_intelligence/tests/test_bloc_b1_evidence_trace_full_inheritance.py -v` -- 9 passed in 0.76s (0 failed). Non-regression `pytest code_intelligence/tests/test_bloc8_j27_inheritance_cycle_regression.py -v` -- 3 passed in 0.98s (0 failed).
+
+**trace_full_inheritance (4/24) desormais CLOS.** Prochain outil de l'ordre retenu (section 440, Composites CI) : `describe_workflow` -- dernier des 5 composites avant de passer a la categorie Analyse CI (4 outils).
+
+**Non fait ce tour** : aucun code touche -- confirmation seule. Lecture fraiche de `describe_workflow()` a demarrer immediatement apres cette entree, meme protocole.
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section seule).
+
+**Prochaine etape** : lecture de `describe_workflow()` dans `code_intelligence/deterministic_tools.py` et de son eventuel test existant, avant tout diff.
+
+---
+
+## Section 449: describe_workflow (5/24, dernier composite CI) -- Evidence implemente + teste, code touche ce tour, attente confirmation pytest (2026-09-01)
+
+**Origine** : suite section 448 -- a la relecture, `WorkflowProcessResult` (contrairement a `InheritanceChainResult`) ne portait AUCUN champ `evidence` du tout, pas meme declare-non-cable -- ni le champ, ni la fonction de construction, ni de fichier de test dedie n'existaient.
+
+**Design retenu** : 1 Evidence par edge TRANSITIONS_VIA reellement trouve (chaque transition est un seul fait structurel regroupant etat origine, etat cible, bouton/methode, et restriction de groupe eventuelle -- deja l'unite que le steps_text du summary_text parcourt une par une), ou 1 fait explicite "aucune transition" si le modele ne porte aucune machine a etats -- meme convention "fait explicite si negatif" que who_has_access_to/button_execution_path/trace_full_inheritance :
+- claim = "Model '{model}' transitions from '{origin}' to '{target}' via button '{label}' (calls '{method}()')", et si required_groups non vide, suffixe ", restricted to groups: {...}" -- un seul Evidence porte les 2 informations (transition + securite), pas 2 Evidence separes, car c'est un seul edge TRANSITIONS_VIA source.
+- source = `transition:{model}:{method}:{origin}:{target}`, value = etat cible.
+- Si aucune transition : claim explicite "has no explicit workflow state transitions defined", source `workflow:{model}`, value=None.
+- Pas de contexte demandeur (describe_workflow ne prend pas de user_groups, contrairement a button_execution_path) -- scope reste `{}` partout.
+
+**Fichiers modifies** :
+- `code_intelligence/deterministic_tools.py` : ajout `WorkflowProcessResult.evidence: List[Evidence]` (champ absent avant ce tour) ; nouvelle fonction `_build_workflow_evidence()` (placee juste apres le dataclass, avant `_build_inheritance_evidence`) ; cablage dans les 2 `return WorkflowProcessResult(...)` qui en avaient besoin (EMPTY et FOUND -- NOT_FOUND garde `evidence=[]` par defaut du dataclass).
+- `code_intelligence/tests/test_bloc_b1_evidence_describe_workflow.py` (nouveau) : 8 tests sur un graphe synthetique construit a la main (`hr.expense` avec 2 transitions -- draft->submitted sans restriction, submitted->approved restreinte a `group_hr_manager` -- et `hr.leave` sans aucune transition, `model.missing` absent du graphe) -- count, source_type/confidence, claim/value transition non restreinte, claim mentionnant la restriction de groupe, fait explicite d'absence de transitions, scope toujours vide (sur les 2 modeles presents), determinisme de evidence_id, modele introuvable -> evidence=[].
+
+**Protocole suivi** : dryRun -> diff verifie -> apply -> reread disque complet du fichier (verification des 2 dataclasses `InheritanceChainResult`/`WorkflowProcessResult`, `_build_workflow_evidence`, `_build_inheritance_evidence`, et les 3 fonctions completes `trace_full_inheritance`/`describe_workflow`) -> `py_compile` OK sur un stub minimal reconstruit dans le sandbox (Evidence/make_evidence/_build_workflow_evidence isoles) + smoke-test des 3 branches (vide -> 1 fait ; 1 transition sans groupe -> claim sans "restricted to groups" ; 2 transitions dont 1 restreinte -> 2 faits, le bon contient la restriction) -- OK. `py_compile` egalement OK sur le fichier de test complet.
+
+**Non fait ce tour** : aucune execution pytest reelle. describe_workflow (5/24) n'est PAS clos tant que `pytest code_intelligence/tests/test_bloc_b1_evidence_describe_workflow.py -v` n'a pas ete lance et colle par l'utilisateur (regle "aucun fix n'est clos sans confirmation d'execution reelle").
+
+**Fichiers modifies** : `code_intelligence/deterministic_tools.py`, `code_intelligence/tests/test_bloc_b1_evidence_describe_workflow.py`, `todo/contexte.txt` (cette section).
+
+**Prochaine etape** : utilisateur lance `pytest code_intelligence/tests/test_bloc_b1_evidence_describe_workflow.py -v` ; confirmation -> les 5 Composites CI sont CLOS, passage a la categorie Analyse CI (4 outils, section 440 : `analyze_server_actions`, `analyze_security_locks`, `analyze_method_override_chain`, `analyze_data_constraints`), a demarrer par `analyze_server_actions` (1/4 Analyse, 6/24 global) ; echec -> diagnostic avant tout autre diff.
+
+---
+
+## Section 450: describe_workflow CLOS (5/24) -- les 5 Composites CI sont desormais TOUS clos -- passage a la categorie Analyse CI, demarrage analyze_server_actions (6/24) (2026-09-01)
+
+**Resultat colle par l'utilisateur** : `pytest code_intelligence/tests/test_bloc_b1_evidence_describe_workflow.py -v` -- 8 passed in 1.05s (0 failed).
+
+**describe_workflow (5/24) desormais CLOS.** Les 5 Composites CI de l'ordre retenu (section 440) sont maintenant tous clos : `who_has_access_to` (441-442), `field_change_impact` (443-444), `button_execution_path` (445-446), `trace_full_inheritance` (447-448), `describe_workflow` (449-450). Passage a la 2e categorie : Analyse CI (4 outils) -- `analyze_server_actions`, `analyze_security_locks`, `analyze_method_override_chain`, `analyze_data_constraints`. Premier outil : `analyze_server_actions` (1/4 Analyse, 6/24 global).
+
+**Non fait ce tour** : aucun code touche -- confirmation seule. Lecture fraiche de `analyze_server_actions()` a demarrer immediatement apres cette entree, meme protocole (lecture -> dryRun -> diff -> apply -> reread -> py_compile -> tests ecrits -> log -> attente confirmation pytest utilisateur).
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section seule).
+
+**Prochaine etape** : lecture de `analyze_server_actions()` dans `code_intelligence/deterministic_tools.py` (ou tout autre module ou elle serait definie, a verifier -- pas d'hypothese sur le fichier avant lecture) et de son eventuel test existant, avant tout diff.
+
+---
+
+## Section 451: analyze_server_actions (6/24, 1/4 Analyse CI) -- arbitrage confidence + Evidence implemente + teste, code touche ce tour, attente confirmation pytest (2026-09-01)
+
+**Origine** : suite section 450 -- `analyze_server_actions()` n'est pas dans `deterministic_tools.py` mais dans `code_intelligence/server_action_analyzer.py` (`analyze_server_action_code()`, appelee par le wrapper `@tool analyze_server_actions` de `ci_agent_tools.py`). Categorie differente des 5 Composites CI : analyse regex statique du champ `code` d'un `ir.actions.server`, donnee configurable en base et modifiable a l'execution, pas une lecture de graphe deterministe sur du code source parse une fois.
+
+**Arbitrage confidence (discussion prealable avec l'utilisateur)** : le dataclass `ServerActionCodeAnalysis` porte deja `confidence: str = "low"`, fixe et intentionnel (docstring : "Confidence is always 'low' because server action code is data-driven and can be modified at runtime"). Trois options presentees (A: uniformiser en HIGH, B: preserver "low" tel quel, C: taxonomie commune). **Decision utilisateur : option B** -- pas de normalisation semantique pendant le cablage, on reproduit le comportement existant, harmonisation eventuelle du modele de confiance reportee a plus tard. Sous-question de casse tranchee separement : le champ interne du dataclass (`"low"`, minuscule) reste intouche : c'est le champ `Evidence.confidence` (contrat partage, casse documentee `HIGH/MEDIUM/LOW`) qui recoit **`confidence="LOW"`** (majuscule) sur chaque fait construit ici -- divergence deliberee par rapport au `confidence="HIGH"` fixe des 5 Composites CI, tracee dans le docstring de `_build_server_action_evidence()`.
+
+**Design retenu** : 4 categories de faits, toujours assertees explicitement (meme convention "fait explicite si negatif" que who_has_access_to/button_execution_path/trace_full_inheritance/describe_workflow) :
+1. `sudo()` : positif (avec `trigger_conditions` dans le claim si trouvees, value=nombre d'appels) ou absence explicite.
+2. IDs en dur : un Evidence par liste trouvee (value=la liste elle-meme), ou absence explicite.
+3. Dispatch dynamique : un Evidence par pattern (`getattr`/`eval`/`exec`), ou absence explicite (1 seul fait negatif, pas par pattern).
+4. `has_group()` checks : positif (value=liste triee des groupes) ou absence explicite -- gouvernance normale, pas un bypass, mais fait structurel comme les autres.
+
+Toujours `source_type=CODE`, `confidence="LOW"`, `source` de la forme `server_action:{xml_id}:{categorie}` (et `:{pattern_name}` en suffixe pour le dispatch dynamique positif, pour distinguer plusieurs patterns), `scope={}` partout (pas de contexte demandeur). La couche `llm_summary`/`llm_confidence` (remplie separement par `interpret_server_action_with_llm()`) reste hors Evidence, jamais melangee a la couche statique -- separation deja imposee par le dataclass lui-meme.
+
+Branche "code vide" (early return) : cablee elle aussi avec les 4 faits negatifs, plutot que de laisser `evidence=[]` par defaut -- coherent avec le fait qu'un code vide EST une absence verifiee de chaque categorie, pas une non-verification.
+
+**Fichiers modifies** :
+- `code_intelligence/server_action_analyzer.py` : import `Dict`/`Any`/`Evidence`/`EvidenceSourceType`/`make_evidence` ; ajout `ServerActionCodeAnalysis.evidence: List[Evidence]` ; nouvelle fonction `_build_server_action_evidence()` (avant `analyze_server_action_code`) ; cablage dans les 2 points de sortie de `analyze_server_action_code()` (branche "code vide" et fin de fonction, avec `sudo_call_count=len(sudo_matches)`).
+- `code_intelligence/tests/test_bloc_b1_evidence_analyze_server_actions.py` (nouveau) : 12 tests sur code synthetique -- code vide (4 faits negatifs), code propre sans pattern, sudo positif avec trigger_condition + comptage multi-appels, 2 listes d'IDs en dur (2 Evidence), 2 patterns de dispatch dynamique simultanes (2 Evidence) + absence (1 seul fait negatif), has_group positif/negatif, scope toujours vide, determinisme de evidence_id, et le cas adversarial complet Q5.1 (meme code que `test_s2_3_server_actions.py`, verifie que `confidence="low"` statique reste intouche et que les 4 Evidence ont la bonne forme).
+
+**Protocole suivi** : dryRun -> diff verifie (5 edits) -> apply -> reread disque complet du fichier -> `py_compile` OK (copie dans le sandbox) -- smoke-test reel effectue cette fois (pas seulement relecture manuelle) : reconstruction d'un stub fonctionnel de `core/evidence.py` (pydantic installe dans le sandbox, `pip install pydantic --break-system-packages`) + `code_intelligence/utils.py` (SENSITIVE_BYPASS_MARKER), puis execution reelle de `analyze_server_action_code()` sur 3 cas (code vide, tous patterns presents, code neutre) -- comportement conforme au design dans les 3 cas. `py_compile` egalement OK sur le fichier de test complet (copie dans le sandbox).
+
+**Non fait ce tour** : aucune execution pytest reelle (le smoke-test sandbox n'est pas un remplacement -- dependances reelles du paquet `code_intelligence`/`core` completes non disponibles hors machine utilisateur, meme limite que les tours precedents). analyze_server_actions (6/24) n'est PAS clos tant que `pytest code_intelligence/tests/test_bloc_b1_evidence_analyze_server_actions.py -v` n'a pas ete lance et colle par l'utilisateur (regle "aucun fix n'est clos sans confirmation d'execution reelle").
+
+**Fichiers modifies** : `code_intelligence/server_action_analyzer.py`, `code_intelligence/tests/test_bloc_b1_evidence_analyze_server_actions.py`, `todo/contexte.txt` (cette section).
+
+**Prochaine etape** : utilisateur lance `pytest code_intelligence/tests/test_bloc_b1_evidence_analyze_server_actions.py -v` (et idealement `test_s2_3_server_actions.py` + `test_f08_dedup_groups_server_actions_automations.py` en non-regression, puisque `ServerActionCodeAnalysis`/`server_action_analyzer.py` sont touches) ; confirmation -> outil 7/24 (`analyze_security_locks`, 2/4 Analyse CI) ; echec -> diagnostic avant tout autre diff.
+
+---
+
+## Section 452: analyze_server_actions CLOS (6/24) -- confirme par execution reelle -- passage a analyze_security_locks (7/24, 2/4 Analyse CI) (2026-09-01)
+
+**Resultat colle par l'utilisateur** : `pytest code_intelligence/tests/test_bloc_b1_evidence_analyze_server_actions.py -v` -- 13 passed in 0.34s (0 failed). Non-regression `pytest code_intelligence/tests/test_s2_3_server_actions.py code_intelligence/tests/test_f08_dedup_groups_server_actions_automations.py -v` -- 12 passed in 1.00s (0 failed).
+
+**analyze_server_actions (6/24) desormais CLOS.** Prochain outil de la categorie Analyse CI (section 450) : `analyze_security_locks` (7/24, 2/4 Analyse).
+
+**Non fait ce tour** : aucun code touche -- confirmation seule. Lecture fraiche de `analyze_security_locks` (probablement `code_intelligence/semgrep_locks_analyzer.py::analyze_python_security_locks`, deja apercu dans le wrapper `ci_agent_tools.py` -- a confirmer par lecture directe, pas d'hypothese) et de son eventuel test existant, avant tout diff.
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section seule).
+
+**Prochaine etape** : lecture de `analyze_python_security_locks()` (ou l'equivalent reel) dans `code_intelligence/semgrep_locks_analyzer.py` et de son eventuel test existant, avant tout diff.
+
+---
+
+## Section 453: analyze_security_locks (7/24, 2/4 Analyse CI) -- confidence par fait + Evidence implemente + teste, code touche ce tour, attente confirmation pytest (2026-09-01)
+
+**Origine** : suite section 452 -- l'outil reel est `analyze_python_security_locks()` dans `code_intelligence/semgrep_locks_analyzer.py` (le wrapper `@tool analyze_security_locks` de `ci_agent_tools.py` l'appelle) -- confirme par lecture directe. `PythonSecurityLockAnalysis` ne portait aucun champ `evidence`. Deja parse par un vrai visiteur AST (`SecurityLockASTVisitor`) qui alimente 4 familles de champs index-alignes : `hardcoded_logins` (liste plate, pas de lineno/methode traces), `exception_messages`/`exception_conditions`/`exception_guard_fields`/`exception_linenos`, `required_groups`/`required_group_methods`/`required_group_linenos`, `dynamic_dispatch_types` (pas de lineno/methode traces).
+
+**Arbitrage confidence (discussion prealable avec l'utilisateur, table validee)** :
+
+| Categorie | Evidence | Confiance |
+|---|---|---|
+| `hardcoded_logins` | presence/absence explicite | `HIGH` |
+| `exception_messages` | un Evidence par verrou detecte | `HIGH` |
+| `required_groups` | un Evidence par groupe requis | `HIGH` |
+| `dynamic_dispatch` | presence detectee | `LOW` |
+| `dynamic_dispatch` absent | absence explicite | `HIGH` |
+
+Principe retenu, distinct de l'arbitrage `analyze_server_actions` (confidence="LOW" fixe tool-wide) : **la confidence de l'Evidence est le niveau de certitude du fait rapporte, pas la confidence globale de l'outil.** L'existence d'un `getattr()`/`eval()`/`exec()` est un fait observable avec certitude, mais le design retenu maintient la *presence* de dynamic_dispatch a `LOW` (le comportement d'execution reste indetermine statiquement, meme si le pattern lui-meme est vu avec certitude -- coherent avec `PythonSecurityLockAnalysis.confidence` qui degrade deja a `"low"` dans ce cas precis) ; son *absence* est un fait negatif observe avec certitude -> `HIGH`. Les 3 autres categories restent `HIGH` dans les deux sens (positif et negatif) car ce sont des faits AST directement observes (liste litterale, `raise`, `has_group()`), independants de ce que le flux de controle en fait ensuite.
+
+**Scope** : `scope={"method": "..."}` / `scope={"lineno": 123}` uniquement quand l'information est reellement connue -- **pas de scope vide artificiel, pas de lineno=0, pas de method=""**. `hardcoded_logins` et `dynamic_dispatch` n'ont pas de tracage par occurrence (le visiteur ne le fait pas pour ces deux categories) -> `scope={}` (vide honnetement, pas artificiel). `exception_messages` : `scope["lineno"]` seulement si `exception_linenos[i] != 0` (0 = chemin de repli regex, pas d'AST disponible). `required_groups` : `scope["method"]` seulement si le nom de methode a ete resolu (non vide), `scope["lineno"]` seulement si connu -- les deux peuvent coexister (les deux sont traces par le visiteur pour cette categorie).
+
+**Design retenu** : `claim` reste stable et lisible (pas de `claim="Group X required in method validate_order at line 123"` gonfle), les metadonnees structurees vont dans `scope`. Un Evidence par occurrence reellement trouvee pour `exception_messages`/`required_groups`/`dynamic_dispatch` (positif), sinon un seul fait negatif explicite par categorie (meme convention "fait explicite si negatif" que les 5 Composites CI et `analyze_server_actions`). `hardcoded_logins` reste un seul Evidence positif/negatif (liste plate en amont, pas plusieurs listes distinctes comme les `hardcoded_id_lists` de `analyze_server_actions`).
+
+**Fichiers modifies** :
+- `code_intelligence/semgrep_locks_analyzer.py` : import `Any`/`Evidence`/`EvidenceSourceType`/`make_evidence` ; ajout `PythonSecurityLockAnalysis.evidence: List[Evidence]` ; nouvelle fonction `_build_security_lock_evidence()` (avant `analyze_python_security_locks`) ; cablage aux 2 points de sortie de `analyze_python_security_locks()` (branche "code vide" et fin de fonction, apres la section 2 "Regex fallback / reinforcement", avant la section 3 "Categorize findings").
+- `code_intelligence/tests/test_bloc_b1_evidence_analyze_security_locks.py` (nouveau) : 15 tests -- code vide (4 faits negatifs), code propre (4 faits negatifs), hardcoded_logins positif (valeur+confidence HIGH+scope vide), exceptions (2 Evidence avec scope lineno, negatif explicite, chemin de repli regex sans lineno=0 dans le scope), required_groups (positif avec method+lineno, negatif, has_group() niveau module -> pas de cle "method"), dynamic_dispatch (positif LOW x2 patterns, negatif HIGH), discipline de scope (aucun lineno=0 ni method="" ne fuite, sur un cas mixte a 3 categories positives) + determinisme evidence_id, cas adversarial complet a 4 categories positives simultanees (verifie que `PythonSecurityLockAnalysis.confidence="low"` (champ dataclass existant) reste intouche).
+
+**Protocole suivi** : dryRun -> diff verifie (4 edits) -> apply -> reread disque complet du fichier -> `py_compile` OK (copie dans le sandbox) -- smoke-test reel effectue (reconstruction d'un stub fonctionnel de `core/evidence.py` (pydantic installe dans le sandbox) + `code_intelligence/utils.py` (SENSITIVE_BYPASS_MARKER, format_file_link)), puis execution reelle de `analyze_python_security_locks()` sur 2 cas (code vide, code mixte a 5 faits) -- comportement conforme au design dans les 2 cas, verifie manuellement (source/value/confidence/scope de chaque Evidence affiche et relu). Le fichier de test complet a ete copie dans le meme sandbox et **execute reellement via pytest** (15 passed in 0.13s) -- pas seulement `py_compile`, contrairement a certains tours precedents ou seule la relecture manuelle completait le `py_compile`.
+
+**Non fait ce tour** : aucune execution pytest reelle **sur la machine utilisateur** (le smoke-test + l'execution pytest sandbox ne sont pas un remplacement -- dependances reelles du paquet `code_intelligence`/`core` completes non disponibles hors machine utilisateur, meme limite que les tours precedents). analyze_security_locks (7/24) n'est PAS clos tant que `pytest code_intelligence/tests/test_bloc_b1_evidence_analyze_security_locks.py -v` n'a pas ete lance et colle par l'utilisateur (regle "aucun fix n'est clos sans confirmation d'execution reelle").
+
+**Fichiers modifies** : `code_intelligence/semgrep_locks_analyzer.py`, `code_intelligence/tests/test_bloc_b1_evidence_analyze_security_locks.py`, `todo/contexte.txt` (cette section).
+
+**Prochaine etape** : utilisateur lance `pytest code_intelligence/tests/test_bloc_b1_evidence_analyze_security_locks.py -v` (et idealement toute suite de non-regression existante sur `semgrep_locks_analyzer.py`/`PythonSecurityLockAnalysis`, a identifier par l'utilisateur -- aucun fichier de ce type n'a ete localise cote Claude sur cette machine) ; confirmation -> outil 8/24 (`analyze_method_override_chain`, 3/4 Analyse CI) ; echec -> diagnostic avant tout autre diff.
+
+---
+
+## Section 454: analyze_security_locks CLOS (7/24) -- confirme par execution reelle -- non-regression restante a lancer avant passage a analyze_method_override_chain (8/24, 3/4 Analyse CI) (2026-09-01)
+
+**Resultat colle par l'utilisateur** : `pytest code_intelligence/tests/test_bloc_b1_evidence_analyze_security_locks.py -v` -- 15 passed in 0.37s (0 failed).
+
+**analyze_security_locks (7/24) desormais CLOS.** Listing du dossier `tests/` fait apres coup (non fait avant le tour precedent, corrige ici) : deux fichiers de non-regression reels existent pour ce module et n'ont pas encore ete relances depuis le cablage Evidence -- `test_s2_5_semgrep_locks.py` (comportement S2.5/S2.6 pre-existant de `semgrep_locks_analyzer.py`) et `test_method_security_constraints.py` (couvre `extract_method_security_constraints()`, touche indirectement par ce fichier bien que sa logique propre n'ait pas ete modifiee ce tour). Recommande avant de considerer ce chantier totalement sans risque de regression : `pytest code_intelligence/tests/test_s2_5_semgrep_locks.py code_intelligence/tests/test_method_security_constraints.py -v`.
+
+**Non fait ce tour** : aucun code touche -- confirmation seule, plus le listing du dossier tests (correction du gap de la section 453, qui n'avait pas localise ces deux fichiers). Lecture fraiche de `analyze_method_override_chain` a demarrer immediatement apres la confirmation de non-regression (ou en parallele si l'utilisateur prefere avancer sans attendre), meme protocole.
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section seule).
+
+**Prochaine etape** : utilisateur lance `pytest code_intelligence/tests/test_s2_5_semgrep_locks.py code_intelligence/tests/test_method_security_constraints.py -v` en non-regression ; en parallele ou ensuite, lecture de `analyze_method_override_chain` (probablement `code_intelligence/method_override_resolver.py`, deja mentionne dans les sections precedentes pour `_UnguardedSuperVisitor` -- a confirmer par lecture directe, pas d'hypothese) et de son eventuel test existant, avant tout diff.
+
+---
+
+## Section 455: non-regression analyze_security_locks confirmee -- passage a analyze_method_override_chain (8/24, 3/4 Analyse CI) (2026-09-01)
+
+**Resultat colle par l'utilisateur** : `pytest code_intelligence/tests/test_s2_5_semgrep_locks.py code_intelligence/tests/test_method_security_constraints.py -v` -- 26 passed in 0.85s (0 failed). Comportement pre-existant de `semgrep_locks_analyzer.py` (S2.5/S2.6) et de `extract_method_security_constraints()` intouches par le cablage Evidence de la section 453.
+
+**analyze_security_locks (7/24) confirme sans risque de regression residuel connu.** Passage a l'outil suivant de la categorie Analyse CI (section 450) : `analyze_method_override_chain` (8/24, 3/4 Analyse).
+
+**Non fait ce tour** : aucun code touche -- confirmation seule. Lecture fraiche de `analyze_method_override_chain` a demarrer immediatement apres cette entree, meme protocole (lecture -> dryRun -> diff -> apply -> reread -> py_compile -> tests ecrits -> log -> attente confirmation pytest utilisateur, en listant le dossier `tests/` par mots-cles AVANT de logger la clotire, pour eviter le gap de la section 453).
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section seule).
+
+**Prochaine etape** : lecture de `analyze_method_override_chain` (wrapper `ci_agent_tools.py` a verifier en premier pour trouver le module reel -- probablement `code_intelligence/method_override_resolver.py`, deja mentionne section 439 pour `_UnguardedSuperVisitor`, mais a confirmer par lecture directe, pas d'hypothese) et de son eventuel test existant, avant tout diff.
+
+---
+
+## Section 456: analyze_method_override_chain (8/24, 3/4 Analyse CI) -- lecture faite, divergence structurelle trouvee (pas de dataclass, retour str brut) -- arbitrage requis avant tout diff (2026-09-01)
+
+**Origine** : suite section 455 -- lecture directe de `code_intelligence/ci_agent_tools.py` confirme que le wrapper `@tool analyze_method_override_chain` appelle `code_intelligence.method_override_resolver.analyze_method_override_chain(G, model_name, method_name, llm=_LLM_REF)` et retourne sa valeur telle quelle (pas de `.summary_text`). Lecture de `method_override_resolver.py` : contrairement aux 6 outils Evidence deja cables (5 Composites + `analyze_server_actions`/`analyze_security_locks`), cette fonction ne retourne PAS un dataclass -- elle construit directement une `str` (liste `lines` jointe par `\n`) melant sites de surcharge, avertissements `detect_unguarded_super`/`detect_unchecked_relational_chain`, contraintes de securite (`extract_method_security_constraints`), et une interpretation LLM optionnelle en fin de texte.
+
+**Lecture de `code_intelligence/tests/test_method_override_chain.py`** : 12 tests existants (unitaires synthetiques + integration corpus reel `custom_credit_note_approval*`/`hr_expense`), tous manipulant le retour de `analyze_method_override_chain()` comme une `str` brute (`assert "..." in report`, `report.count(...)`). Aucun ne reference de dataclass ni de champ `evidence`.
+
+**Divergence structurelle, arbitrage requis avant tout diff** (meme esprit que les tables de confidence des sections 451/453, mais ici sur la forme du retour, pas la confiance) :
+
+- **Option A -- migrer vers un dataclass** (`MethodOverrideChainAnalysis` avec `.summary_text` + `.evidence: List[Evidence]`, meme forme que `ServerActionCodeAnalysis`/`PythonSecurityLockAnalysis`). Coherent avec le pattern deja etabli partout ailleurs, mais rayon d'impact large : casse la signature actuelle (str), oblige a retoucher le wrapper `ci_agent_tools.py` (ajouter `.summary_text`) ET les 12 tests existants de `test_method_override_chain.py` (`report.summary_text` au lieu de `report`), alors qu'aucun de ces tests ne porte sur Evidence -- risque de regression sur un fichier de tests deja verrouille contre un vrai bug de production (le cas VIP).
+- **Option B -- fonction Evidence separee et independante** (ex. `build_method_override_chain_evidence()` dans le meme module), qui recompose independamment les memes constats (sites, warnings, contraintes) en `List[Evidence]`, sans toucher `analyze_method_override_chain()` existant. Zero impact sur l'API/tests actuels, mais duplique une partie de la boucle de composition deja ecrite dans `analyze_method_override_chain()` -- deux endroits a maintenir en synchronisation si la logique de detection change plus tard (contraire a "pas de fix chirurgical, voir la root cause" de todo/rules.md).
+- **Option C (recommandee)** -- extraire la boucle de composition dans une fonction interne unique qui construit sites/warnings/contraintes UNE SEULE FOIS et produit les deux vues (texte + `List[Evidence]`) a partir de la meme iteration ; `analyze_method_override_chain()` existant devient un mince wrapper qui appelle cette fonction interne et ne retourne que le texte (signature ET comportement observable inchanges, 12 tests existants intouches, wrapper `ci_agent_tools.py` intouche) ; une nouvelle fonction exposee (nom a valider, ex. `analyze_method_override_chain_with_evidence()`) retourne les deux. Une seule source de verite pour la logique de detection, aucune regression sur l'existant.
+
+**Non fait ce tour** : aucun code touche -- lecture seule, en attente d'arbitrage utilisateur sur l'option (A/B/C) avant tout dryRun/diff.
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section seule).
+
+**Prochaine etape** : arbitrage utilisateur sur la forme du retour (A/B/C) ; une fois tranche, conception du detail (quels faits deviennent des `Evidence` -- sites de surcharge eux-memes ? avertissements unguarded-super/chaine relationnelle ? contraintes de securite deja remontees par `analyze_security_locks`, risque de doublon d'Evidence a trancher aussi) avant tout dryRun.
+
