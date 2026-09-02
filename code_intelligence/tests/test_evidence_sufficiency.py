@@ -72,6 +72,27 @@ def test_all_observations_execution_error_is_insufficient():
     )
     assert result.status is EvidenceSufficiencyStatus.INSUFFICIENT
     assert result.relevant_observation_count == 0
+    # todo/contexte.txt sections 485-486 (Chantier 1) : une exception
+    # d'execution capturee doit aussi lever le flag dedie, distinct du
+    # statut -- c'est precisement le scenario qui masquait une panne outil
+    # derriere un INSUFFICIENT generique avant ce correctif.
+    assert result.has_execution_failure is True
+
+
+def test_relevant_observation_alongside_execution_error_is_sufficient_but_flagged():
+    # todo/contexte.txt section 486 : has_execution_failure est calcule
+    # independamment du statut final -- SUFFICIENT quand au moins une
+    # observation reste exploitable, meme si une autre a echoue.
+    result = assess_evidence_sufficiency(
+        tool_observations=[
+            "group_purchase_manager has write access to purchase.request",
+            "Error executing analyze_security_locks: timeout",
+        ],
+        hop_count=2,
+        final_answer="Le groupe Purchase Manager a acces en ecriture.",
+    )
+    assert result.status is EvidenceSufficiencyStatus.SUFFICIENT
+    assert result.has_execution_failure is True
 
 
 def test_indeterminate_fact_marker_is_insufficient_not_conflicting():
@@ -134,6 +155,10 @@ def test_to_display_dict_matches_result_fields():
         "reasons": result.reasons,
         "relevant_observation_count": 1,
         "total_observation_count": 1,
+        # todo/contexte.txt section 486 : nouvelle cle du contrat, doit
+        # rester exposee dans to_display_dict() (consommee par
+        # core/graph.py::ci_evidence_decision()).
+        "has_execution_failure": False,
     }
 
 

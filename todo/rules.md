@@ -12,3 +12,5 @@ make the work like it was built by an human. no "plagiat", at least reformulate 
 put all installed packages in requirements(we work in venv)
 put everything you change in todo/contexte.txt
 ne JAMAIS lancer pytest tests/ -v (suite complète) tel quel sur cette machine -- prend plus de 30 min et fait planter la machine (pas d'AVX2, cf todo/contexte.txt section 85).
+300 lignes  par fichier max, sauf pour les tests
+meme convention de nommage(snake_case dans notre cas)

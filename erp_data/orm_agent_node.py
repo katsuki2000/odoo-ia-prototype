@@ -1,5 +1,5 @@
 """
-rag/orm_agent_node.py
+orm_agent_node.py
 
 ORM ReAct agent loop (ERP data queries) and hybrid pipeline node.
 

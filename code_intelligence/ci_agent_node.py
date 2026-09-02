@@ -77,6 +77,12 @@ from code_intelligence.ci_override_cascade import (
 
 logger = logging.getLogger(__name__)
 
+_EXECUTION_FAILURE_NOTICE = (
+    "\n\n[ATTENTION] Une ou plusieurs analyses Code Intelligence n'ont pas pu "
+    "s'ex\u00e9cuter correctement pour cette question (panne technique d'un ou "
+    "plusieurs outils). La r\u00e9ponse ci-dessus peut donc \u00eatre incompl\u00e8te ; "
+    "n'y voyez pas une absence confirm\u00e9e d'information."
+)
 
 # ── Human-readable labels for sources built from tool observations ─────────
 # (section: réponses trop techniques, todo/contexte.txt) -- used only for
@@ -1195,6 +1201,22 @@ class CodeIntelligenceAgentRunner:
             ci_evidence_sufficiency.total_observation_count, ci_evidence_sufficiency.reasons,
         )
 
+        # todo/contexte.txt sections 485-486 (Chantier 1) : quand une ou
+        # plusieurs observations de ce tour sont une exception d'execution
+        # capturee (Groq quota/tool-use failure, erreur connecteur -- voir
+        # _EXECUTION_ERROR_MARKER dans core/evidence_sufficiency.py) plutot
+        # qu'une absence de preuve authentique, core/graph.py::
+        # ci_evidence_decision() garde deliberement cette reponse sur
+        # format_output (jamais de repli silencieux vers generate()/RAG, qui
+        # masquerait la panne derriere une reponse documentaire generique).
+        # Rester sur format_output ne suffit pas a lui seul a "signaler
+        # explicitement" l'erreur (mandat San Goku, section 486) -- sans ce
+        # paragraphe, la reponse CI (repli generique ou synthese sur un texte
+        # d'erreur brut) ne le fait pas d'elle-meme. Ajoute AVANT le suffixe
+        # de source, jamais apres (le suffixe doit rester le dernier element).
+        if ci_evidence_sufficiency.has_execution_failure:
+            final_answer += _EXECUTION_FAILURE_NOTICE
+
         final_answer += "\n\n[Source: Graphe de Connaissances Code Intelligence]"
         
 
@@ -1215,7 +1237,7 @@ class CodeIntelligenceAgentRunner:
             omission_separator = chr(10)
             omission_lines = omission_separator.join(f"  - {o.label} : {o.reason}" for o in omitted_for_authorization)
             final_answer += (
-                "\n\n\U0001F512 \u00c9L\u00c9MENT(S) OMIS POUR RAISON D'AUTORISATION:\n"
+                "\n\n[ACCES RESTREINT] \u00c9L\u00c9MENT(S) OMIS POUR RAISON D'AUTORISATION:\n"
                 + omission_lines
             )
         

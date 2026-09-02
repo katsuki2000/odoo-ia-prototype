@@ -1,8 +1,7 @@
 """
 core/evidence.py
 
-B0 contract (todo/contexte.txt sections 426-428): Evidence is the internal
-reasoning/provenance object produced directly by Code Intelligence (static
+Evidence is the internal reasoning/provenance object produced directly by Code Intelligence (static
 graph analysis) and ORM (live Odoo reads) tools. It lives alongside
 SourceReference (core/schemas.py), not instead of it -- SourceReference
 stays the UI-facing citation derived later for display, Evidence is the

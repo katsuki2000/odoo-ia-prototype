@@ -489,9 +489,7 @@ def analyze_data_constraints(model_name: str) -> str:
     pattern matching, not LLM interpretation -- high confidence."""
     if _is_wildcard_model(model_name):
         return WILDCARD_MODEL_ERROR_MSG
-    from pathlib import Path
-    from code_intelligence.semgrep_runner import run_semgrep_analysis
-    from code_intelligence.utils import format_file_link
+    from code_intelligence.data_constraints_analyzer import analyze_data_constraints_from_filepaths
 
     G = _require_graph()
     model_name = _resolve_model_param(model_name)
@@ -503,32 +501,8 @@ def analyze_data_constraints(model_name: str) -> str:
     if not filepaths:
         return f"No Python source files located for model '{model_name}'."
 
-    config_dir = Path(__file__).resolve().parent / "semgrep_rules"
-    all_matches = []
-    for fp in sorted(filepaths):
-        p = Path(fp)
-        if not p.exists():
-            continue
-        all_matches.extend(run_semgrep_analysis(p, config_dir))
-
-    if not all_matches:
-        return (
-            f"No _sql_constraints or relational domain= patterns detected for "
-            f"model '{model_name}' [Confiance: HIGH -- static pattern match, "
-            f"deterministic]."
-        )
-
-    lines = [
-        f"Analyse des contraintes de données (Semgrep) pour '{model_name}' "
-        f"[Confiance: HIGH -- correspondance de motif statique, déterministe]:"
-    ]
-    for match in all_matches:
-        link = format_file_link(match.filepath, match.start_line, match.end_line)
-        lines.append(f"  - {link} ({match.check_id}): {match.message}")
-        if match.lines:
-            lines.append(f"    ```\n    {match.lines}\n    ```")
-
-    return "\n".join(lines)
+    result = analyze_data_constraints_from_filepaths(model_name, filepaths)
+    return result.summary_text
 
 
 # =====================================================================

@@ -9,11 +9,14 @@ Auxiliary Tools for Odoo Code Intelligence:
   - read_precise_source_code(filepath, line_start, line_end)
 """
 
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Any, Tuple
 import logging
 
 import networkx as nx
+
+from core.evidence import Evidence, EvidenceSourceType, make_evidence
 
 _logger = logging.getLogger(__name__)
 
@@ -62,10 +65,15 @@ def list_involved_modules(G: nx.DiGraph, model_name: str) -> List[str]:
     return sorted(list(modules)) if modules else ["base"]
 
 
-def list_involved_modules_with_role(G: nx.DiGraph, model_name: str) -> List[Tuple[str, str]]:
+def _read_defined_in_edges(G: nx.DiGraph, model_name: str) -> List[Tuple[str, str]]:
     """
-    Returns every candidate module defining or extending the model together
-    with its role ('declares' or 'extends').
+    Read the REAL DEFINED_IN edges of a model node -- module + role
+    ('declares' or 'extends'), in graph iteration order, no sorting, no
+    fallback. Single source of truth for both
+    list_involved_modules_with_role() (display, with its ['base',
+    'unknown'] fallback applied on top) and
+    list_involved_modules_with_evidence() (Evidence must never assert that
+    fallback as a fact -- see its own docstring).
     """
     model_node = f"model:{model_name}"
     if model_node not in G:
@@ -77,7 +85,84 @@ def list_involved_modules_with_role(G: nx.DiGraph, model_name: str) -> List[Tupl
         if edge_data.get("edge_type") == "DEFINED_IN" and neighbor.startswith("module:"):
             entries.append((neighbor.replace("module:", ""), edge_data.get("role", "unknown")))
 
+    return entries
+
+
+def list_involved_modules_with_role(G: nx.DiGraph, model_name: str) -> List[Tuple[str, str]]:
+    """
+    Returns every candidate module defining or extending the model together
+    with its role ('declares' or 'extends').
+    """
+    model_node = f"model:{model_name}"
+    if model_node not in G:
+        return []
+
+    entries = _read_defined_in_edges(G, model_name)
     return sorted(entries) if entries else [("base", "unknown")]
+
+
+@dataclass
+class InvolvedModulesResult:
+    """
+    Composed involved-modules analysis: modules is tuple-for-tuple what
+    list_involved_modules_with_role() has always returned (contract
+    unchanged for the existing wrapper/tool/tests), plus structured
+    Evidence covering the REAL DEFINED_IN edges read from the graph.
+
+    The ['base', 'unknown'] fallback used for display when no real edge is
+    found is a UI convenience, not a fact -- it is never asserted as
+    Evidence. When no real edge exists, evidence instead carries a single
+    explicit negative fact (see _build_involved_modules_evidence).
+    """
+    modules: List[Tuple[str, str]]
+    evidence: List[Evidence] = field(default_factory=list)
+
+
+def _build_involved_modules_evidence(
+    model_name: str, entries: List[Tuple[str, str]]
+) -> List[Evidence]:
+    if not entries:
+        return [make_evidence(
+            source_type=EvidenceSourceType.CODE,
+            claim=(
+                f"No DEFINED_IN edge found for model '{model_name}' in the "
+                f"indexed knowledge graph (model not found, or found with "
+                f"no declares/extends edge)"
+            ),
+            source=f"involved_modules:{model_name}:no_edges",
+            value=0,
+            confidence="HIGH",
+            scope={},
+        )]
+
+    evidence: List[Evidence] = []
+    for module, role in entries:
+        evidence.append(make_evidence(
+            source_type=EvidenceSourceType.CODE,
+            claim=f"Module '{module}' {role} model '{model_name}'",
+            source=f"involved_modules:{model_name}:{module}",
+            value=role,
+            confidence="HIGH",
+            scope={},
+        ))
+    return evidence
+
+
+def list_involved_modules_with_evidence(G: nx.DiGraph, model_name: str) -> InvolvedModulesResult:
+    """
+    Same public list as list_involved_modules_with_role(), plus structured
+    Evidence for the real DEFINED_IN edges backing it (fallback excluded,
+    see InvolvedModulesResult docstring).
+    """
+    entries = _read_defined_in_edges(G, model_name)
+    if f"model:{model_name}" not in G:
+        modules: List[Tuple[str, str]] = []
+    else:
+        modules = sorted(entries) if entries else [("base", "unknown")]
+    return InvolvedModulesResult(
+        modules=modules,
+        evidence=_build_involved_modules_evidence(model_name, entries),
+    )
 
 
 def explain_decision_path(G: nx.DiGraph, path_nodes: List[str]) -> str:

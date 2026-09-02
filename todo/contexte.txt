@@ -4581,3 +4581,701 @@ Principe retenu, distinct de l'arbitrage `analyze_server_actions` (confidence="L
 
 **Prochaine etape** : arbitrage utilisateur sur la forme du retour (A/B/C) ; une fois tranche, conception du detail (quels faits deviennent des `Evidence` -- sites de surcharge eux-memes ? avertissements unguarded-super/chaine relationnelle ? contraintes de securite deja remontees par `analyze_security_locks`, risque de doublon d'Evidence a trancher aussi) avant tout dryRun.
 
+---
+
+## Section 457: analyze_method_override_chain (8/24, 3/4 Analyse CI) -- Evidence implemente selon Option C + teste, code touche ce tour, attente confirmation pytest (2026-09-01)
+
+**Arbitrage utilisateur** : Option C confirmee ("c").
+
+**Implementation** dans `code_intelligence/method_override_resolver.py` :
+- Nouveau dataclass `MethodOverrideChainResult(summary_text: str, evidence: List[Evidence])`.
+- Corps historique de `analyze_method_override_chain()` renomme en fonction interne `_compose_method_override_chain()`, qui construit `lines` (texte) ET `evidence` dans la MEME iteration (une seule boucle sur `sites`, pas de duplication de logique) et retourne `MethodOverrideChainResult`.
+- `analyze_method_override_chain()` redevient un mince wrapper : `return _compose_method_override_chain(...).summary_text` -- signature ET comportement observable strictement inchanges (confirme par test : `result.summary_text == analyze_method_override_chain(...)` sur chaque cas, plus le smoke-test manuel ci-dessous).
+- Nouvelle fonction exposee `analyze_method_override_chain_with_evidence()` -- meme signature, retourne le `MethodOverrideChainResult` complet.
+- `ci_agent_tools.py` (wrapper `@tool`) intouche -- appelle toujours `analyze_method_override_chain()`, aucune modification necessaire.
+
+**Evidence produite** (helpers `_build_override_chain_evidence_no_sites`, `_build_override_chain_site_evidence`, `_build_override_chain_check_evidence`) :
+- Cas `no_sites` : 1 fait negatif explicite, confidence HIGH.
+- Par site resolu (meme si le fichier n'existe pas sur disque) : 1 Evidence "site" (module, position dans l'ordre d'execution reel `idx/total`, confidence HIGH -- fait structurel issu du graphe, pas d'une heuristique).
+- Par site DONT le fichier existe : 2 Evidence supplementaires (`unguarded_super`, `unchecked_relational_chain`), toujours explicites positif/negatif -- LOW si positif (coherent avec le `[Confiance: FAIBLE]` deja present dans le texte du warning lui-meme), HIGH si negatif (absence certaine). Si le fichier n'existe pas, ces 2 Evidence sont omises pour ce site (miroir exact du texte, qui saute aussi ces lignes dans ce cas).
+- **Decision de non-duplication** (evite le doublon avec `analyze_security_locks`) : les contraintes de securite (`has_group`/exceptions) restent visibles inline dans `summary_text` via `extract_method_security_constraints()` comme avant, mais ne sont PAS re-emises comme Evidence par ce tool -- elles le sont deja par `analyze_python_security_locks()` quand ce tool tourne sur le meme fichier. Verifie par un test dedie (`TestOverrideChainEvidenceNoSecurityLockDuplication`).
+
+**Verification en sandbox** (`/home/claude/check456/`) avant ecriture disque :
+1. Copie exacte du fichier modifie + ses dependances reelles (`semgrep_locks_analyzer.py`, `core/evidence.py`, `code_intelligence/utils.py`) -- `py_compile` OK sur les 4.
+2. Smoke-test d'execution reelle (pas seulement syntaxe) : graphe synthetique a 2 sites (forme VIP + forme regionale), verifie que (a) le texte public reste identique bit-a-bit, (b) 6 Evidence generees avec la bonne confidence par categorie, (c) cas `no_sites` -> 1 Evidence HIGH, (d) `evidence_id` stable entre deux appels identiques (determinisme).
+3. Suite de 13 tests unitaires dediee ecrite et executee en sandbox avant ecriture sur le disque projet : 13/13 passed (un bug d'hypothese dans un test -- ordre d'execution attendu inverse a la realite de `resolve_method_override_chain()` qui inverse l'ordre du graphe -- corrige avant ecriture finale, pas un bug de production).
+
+**Fichiers modifies** :
+- `code_intelligence/method_override_resolver.py` (dryRun puis application confirmee, relecture disque post-ecriture faite -- voir diff applique ce tour).
+- `code_intelligence/tests/test_bloc_b1_evidence_analyze_method_override_chain.py` (nouveau fichier, 13 tests, ecrit directement -- deja valide en sandbox avant ecriture).
+- `todo/contexte.txt` (cette section).
+
+**Non fait ce tour** : aucune execution pytest sur le vrai disque projet (seulement en sandbox avec des copies) -- l'environnement d'execution reel de San Goku (`.venv`, `pytest.ini`) n'est pas accessible depuis ce tour. Non-regression sur les 12 tests existants de `test_method_override_chain.py` NON reverifiee directement (le smoke-test sandbox et les tests neufs le couvrent indirectement via `summary_text == analyze_method_override_chain(...)`, mais pas les 12 tests eux-memes).
+
+**Prochaine etape** : San Goku execute `pytest code_intelligence/tests/test_method_override_chain.py code_intelligence/tests/test_bloc_b1_evidence_analyze_method_override_chain.py -v` sur le vrai disque (non-regression des 12 existants + validation des 13 nouveaux) et colle le resultat pour cloture officielle du tool 8/24 ; puis passage au tool 9/24 (a determiner parmi les 16 CI tools restants).
+
+---
+
+## Section 458: analyze_method_override_chain (8/24, 3/4 Analyse CI) -- CLOS, non-regression confirmee sur le vrai disque (2026-09-01)
+
+**Resultat colle par l'utilisateur** : `pytest code_intelligence/tests/test_method_override_chain.py code_intelligence/tests/test_bloc_b1_evidence_analyze_method_override_chain.py -v` -> 23 passed, 3 skipped (0 failed). Les 3 skips sont les tests corpus reel deja connus comme skip-si-absent (`custom_credit_note_approval` non present dans cet environnement) -- pas une regression. Les 10 autres tests de `test_method_override_chain.py` (contrat `str` public) passent sans modification, et les 13 nouveaux tests Evidence passent tous.
+
+**Tool 8/24, 3/4 Analyse CI : CLOS.**
+
+**Prochaine etape** : passage au tool 9/24 -- choisir le prochain outil parmi les 16 CI tools restants (ordre de risque croissant, cf. discipline etablie section 190+), lecture directe du code et de son eventuel test existant avant tout diff.
+
+---
+
+## Section 459: candidat 9/24 propose (analyze_button_availability) -- deja traite sous un autre nom, PAS dans les 16 restants (2026-09-01)
+
+**Demande** : San Goku propose de continuer avec `analyze_button_availability` / disponibilite reelle des boutons pour le tool 9/24.
+
+**Verification par lecture directe** (pas d'hypothese) : il n'existe pas de fonction `analyze_button_availability` dans le code. La disponibilite reelle d'un bouton (`available_to_requester`, `unavailable_reason`, texte "Disponibilite reelle : OUI/NON") est deja implementee dans `button_execution_path()` (`code_intelligence/deterministic_tools.py`), confirmee par lecture de `code_intelligence/tests/test_j22bis_button_availability_gate.py` (8 tests, tolerance de resolution de groupe via `resolve_group_identifier`, override reel des groupes demandeur dans `core/graph.py::_override_user_groups_arg`).
+
+Ce tool est DEJA ferme : `code_intelligence/tests/test_bloc_b1_evidence_button_execution_path.py` existe et son docstring le confirme explicitement -- "Third of the 5 composite CI tools" -- donc deja couvert par le lot des 5 Composites CI ferme avant le debut du lot Analyse CI (qui a commence par `analyze_server_actions`, 6/24). `analyze_button_availability` n'est donc PAS un des 16 CI tools restants -- c'est le meme outil que `button_execution_path`, deja clos avec Evidence.
+
+**Non fait ce tour** : aucun code touche, aucun diff -- lecture de verification seule, en attente que San Goku propose un autre candidat pour le 9/24 parmi les CI tools reellement non traites.
+
+**Prochaine etape** : San Goku propose un autre candidat pour le tool 9/24.
+
+---
+
+## Section 460: tool 9/24 choisi par Claude ("je te laisse choisir") -- list_involved_modules, lecture faite, design Evidence avant diff (2026-09-01)
+
+**Choix** : San Goku delegue le choix. Inventaire par lecture directe de `ci_agent_tools.py::ALL_CI_TOOLS` (14 entrees) croise avec les fichiers `test_bloc_b1_evidence_*.py` existants et les champs `evidence` deja presents dans les dataclasses de `deterministic_tools.py` :
+
+Deja fermes (Evidence confirmee par lecture directe du code, pas seulement de la memoire) : `who_has_access_to`, `field_change_impact`, `button_execution_path`, `trace_full_inheritance`, `describe_workflow` (5 composites) + `analyze_server_actions`, `analyze_security_locks`, `analyze_method_override_chain` (3 Analyse CI) + `evaluate_record_rules` (Evidence deja presente depuis le pilote B0, sections 426-428, meme si non numerote dans la serie 1-24).
+
+Restants dans `ALL_CI_TOOLS` sans `evidence` : `list_involved_modules`, `analyze_data_constraints`, `resolve_technical_name`, `explain_decision_path`, `read_source_code`.
+
+**Tool choisi : `list_involved_modules`** (backed par `list_involved_modules_with_role()` dans `code_intelligence/auxiliary_tools.py`). Justification (ordre de risque croissant) :
+- Lecture de graphe pure (une boucle sur `G.neighbors(model_node)` filtrant les aretes `DEFINED_IN`), aucun sous-processus externe, aucune dependance a un fichier source sur disque -- le plus simple candidat restant.
+- `analyze_data_constraints` ecarte pour ce tour : toute sa logique est inline dans le wrapper `@tool` de `ci_agent_tools.py` (pas de fonction testable separee dans un module dedie comme les autres), invoque `run_semgrep_analysis` (sous-processus semgrep) -- refactor + risque plus eleves, a traiter a part.
+- `resolve_technical_name` et `explain_decision_path` ecartes : purs lookups/reformulations de faits deja connus (dict statique ou re-narration d'un chemin donne en entree), pas de nouvelle lecture de graphe -- probablement hors perimetre des 24 (rien a affirmer comme Evidence qui ne soit deja affirme ailleurs).
+- `read_source_code` ecarte : lecteur brut de fichier, ne produit aucune affirmation analytique (pas de `claim` a faire) -- hors perimetre Evidence par nature.
+
+**Lecture de l'existant** : aucun fichier de test pour `auxiliary_tools.py` ou pour `list_involved_modules_with_role` -- confirme par recherche (`code_intelligence/tests/*auxiliary*`, `*involved_modules*` : aucun resultat sur les 70+ fichiers de tests existants). Terrain vierge, aucune non-regression a proteger au niveau tests, seulement le contrat de retour de la fonction elle-meme.
+
+**Divergence structurelle identique a la section 456** : `list_involved_modules_with_role()` retourne `List[Tuple[str, str]]`, pas un dataclass -- meme situation que `analyze_method_override_chain` avant la section 457. Reutilisation directe de l'Option C deja tranchee et validee ("c") : extraction d'un helper interne `_read_defined_in_edges()` lisant les aretes reelles une seule fois, la fonction publique existante `list_involved_modules_with_role()` en reste un mince wrapper (comportement observable inchange, y compris son fallback `[("base", "unknown")]` quand aucune arete reelle n'est trouvee), nouvelle fonction `list_involved_modules_with_evidence()` exposant le dataclass complet.
+
+**Point d'honnetete specifique a ce tool** : le fallback `[("base", "unknown")]` de la fonction existante est une DEVINETTE d'affichage (pas une arete reelle lue), conservee uniquement pour compatibilite du texte affiche a l'utilisateur. L'Evidence ne doit JAMAIS refleter ce fallback comme un fait -- `_build_involved_modules_evidence()` travaille exclusivement sur les entrees REELLES retournees par `_read_defined_in_edges()` (avant application du fallback), et emet un fait negatif explicite ("aucune arete DEFINED_IN trouvee") quand cette liste reelle est vide, jamais "declare le module base".
+
+**Non fait ce tour** : aucun code touche -- design seul, avant tout dryRun.
+
+**Prochaine etape** : implementation (helpers Evidence + refactor Option C), verification sandbox (py_compile + smoke-test d'execution reelle), suite de tests dediee ecrite et executee en sandbox, puis ecriture sur le disque projet.
+
+---
+
+## Section 461: list_involved_modules (9/24, 1/5 Auxiliaire CI) -- implemente, verifie en sandbox, ecrit sur le disque projet, EN ATTENTE de non-regression sur le vrai disque (2026-09-02)
+
+**Implementation** dans `code_intelligence/auxiliary_tools.py`, meme arbitrage Option C que la section 456/457 (`analyze_method_override_chain`) :
+- Nouveau helper interne `_read_defined_in_edges(G, model_name)` -- lit les VRAIES aretes `DEFINED_IN` (module + role `declares`/`extends`), aucun tri, aucun fallback. Seule source de verite, reutilisee par les deux fonctions publiques.
+- `list_involved_modules_with_role()` redevient un mince wrapper : meme garde `model_node not in G -> []`, puis `sorted(entries) if entries else [("base", "unknown")]` sur le resultat du helper -- signature ET comportement observable strictement inchanges (confirme par test : `result.modules == list_involved_modules_with_role(...)` sur chaque cas).
+- Nouveau dataclass `InvolvedModulesResult(modules: List[Tuple[str, str]], evidence: List[Evidence])`.
+- Nouvelle fonction exposee `list_involved_modules_with_evidence()` -- reproduit exactement la meme branche `model_node not in G` que le wrapper existant pour `.modules` (voir bug trouve en sandbox ci-dessous), et construit l'Evidence separement via `_build_involved_modules_evidence()`.
+- `ci_agent_tools.py` (wrapper `@tool` `list_involved_modules`) intouche -- appelle toujours `list_involved_modules_with_role()`, aucune modification necessaire.
+
+**Evidence produite** (`_build_involved_modules_evidence`) :
+- Aucune arete reelle trouvee (modele absent du graphe OU present sans arete `DEFINED_IN`) : 1 fait negatif explicite, confidence HIGH, `value=0`. Le libelle couvre EXPLICITEMENT les deux sous-cas ("model not found, or found with no declares/extends edge") -- meme discipline que le `no_sites` de la section 456, qui collapse deja "methode non trouvee" et "aucun site" dans un seul fait explicite plutot que de laisser une ambiguite.
+- Par arete `DEFINED_IN` reelle : 1 Evidence (module, role exact `declares`/`extends` comme `value`), confidence HIGH -- fait structurel issu du graphe, pas d'une heuristique.
+- **Point d'honnetete verifie par test** : le fallback d'affichage `[("base", "unknown")]` (utilise uniquement pour `.modules` quand aucune arete reelle n'existe) n'est JAMAIS reflete dans l'Evidence -- teste explicitement (`test_fallback_never_asserted_as_evidence`, verifie que ni "base" ni "unknown" n'apparaissent dans le `claim`).
+
+**Bug reel trouve et corrige en sandbox, avant toute ecriture disque** (root cause, pas fix chirurgical) : la premiere version de `list_involved_modules_with_evidence()` appliquait le fallback `[("base", "unknown")]` a `.modules` des que `entries` etait vide -- y compris quand le modele est carrement ABSENT du graphe, cas ou `list_involved_modules_with_role()` retourne `[]` (pas le fallback). Divergence de contrat detectee par le smoke-test sandbox lui-meme (`assert r.modules == []` a echoue, `.modules` valait `[("base","unknown")]`). Corrige a la racine : `list_involved_modules_with_evidence()` reproduit desormais la meme garde `f"model:{model_name}" not in G` que le wrapper existant avant d'appliquer le fallback, independamment de ce que l'Evidence affirme par ailleurs (l'Evidence, elle, reste la meme dans les deux sous-cas -- voir ci-dessus).
+
+**Verification en sandbox** (`/home/claude/check461/`) avant ecriture disque :
+1. Copie du fichier modifie + sa dependance reelle (`core/evidence.py`) -- `py_compile` OK sur les deux.
+2. Smoke-test d'execution reelle (pas seulement syntaxe) : 4 cas -- modele absent, modele present sans arete (fallback), 2 modules reels (`declares`+`extends`), arete non-`DEFINED_IN`/non-module ignoree -- plus determinisme de `evidence_id` entre deux appels identiques. C'est ce smoke-test qui a revele le bug ci-dessus avant qu'il n'atteigne le disque projet.
+3. Suite de 9 tests unitaires dediee ecrite et executee en sandbox : 9/9 passed, avant toute ecriture sur le disque projet.
+
+**Fichiers modifies** :
+- `code_intelligence/auxiliary_tools.py` (dryRun puis application confirmee via diff affiche).
+- `code_intelligence/tests/test_bloc_b1_evidence_list_involved_modules.py` (nouveau fichier, 9 tests, ecrit directement -- deja valide en sandbox avant ecriture, aucun fichier de test preexistant pour `auxiliary_tools.py` sur ce module d'apres la section 460).
+- `todo/contexte.txt` (cette section).
+
+**Non fait ce tour** : aucune execution pytest sur le vrai disque projet (seulement en sandbox avec des copies) -- l'environnement d'execution reel de San Goku (`.venv`, `pytest.ini`) n'est pas accessible depuis ce tour. Non-regression sur `test_ci_agent_tools_resolution.py` (qui exerce `ci_agent_tools._resolve_model_param`, independant de ce changement mais dans le meme module voisin) et sur tout autre test touchant `list_involved_modules_with_role` NON reverifiee directement sur le vrai disque.
+
+**Prochaine etape** : San Goku execute `pytest code_intelligence/tests/test_bloc_b1_evidence_list_involved_modules.py code_intelligence/tests/test_ci_agent_tools_resolution.py -v` sur le vrai disque (validation des 9 nouveaux tests + non-regression du voisin le plus proche) et colle le resultat pour cloture officielle du tool 9/24 ; puis passage au tool 10/24 (a choisir parmi les 15 CI tools restants : `analyze_data_constraints`, `resolve_technical_name`, `explain_decision_path`, `read_source_code` -- ces 3 derniers deja ecartes section 460 comme probablement hors perimetre Evidence par nature, a confirmer ou rouvrir explicitement avant de les traiter).
+
+---
+
+## Section 462: list_involved_modules (9/24, 1/5 Auxiliaire CI) -- CLOS, non-regression confirmee sur le vrai disque (2026-09-02)
+
+**Resultat colle par l'utilisateur** : `pytest code_intelligence/tests/test_bloc_b1_evidence_list_involved_modules.py code_intelligence/tests/test_ci_agent_tools_resolution.py -v` -> 14 passed (0 failed). Les 9 nouveaux tests Evidence passent tous ; les 5 tests preexistants de `test_ci_agent_tools_resolution.py` (contrat `_resolve_model_param`, module voisin) passent sans modification -- aucune regression.
+
+**Tool 9/24, 1/5 Auxiliaire CI : CLOS.**
+
+**Prochaine etape** : passage au tool 10/24. Candidat propose par continuite du raisonnement section 460 (ordre de risque croissant) : `analyze_data_constraints` -- seul candidat restant dont toute la logique est encore inline dans le wrapper `@tool` de `ci_agent_tools.py` (pas de fonction testable separee dans un module dedie comme les 9 tools deja clos), et qui invoque un sous-processus externe (`run_semgrep_analysis`) -- donc refactor + risque plus eleves que list_involved_modules, mais seul candidat restant qui produit reellement des `claim` factuels nouveaux (correspondances Semgrep _sql_constraints/domain=) au sens Evidence. Les 3 autres (`resolve_technical_name`, `explain_decision_path`, `read_source_code`) restent ecartes comme hors perimetre Evidence par nature (purs lookups/reformulations ou lecture brute sans affirmation analytique) sauf decision explicite contraire de San Goku.
+
+---
+
+## Section 463: analyze_data_constraints (10/24, 2/5 Auxiliaire CI) -- lecture faite, design Evidence propose, DEUX points d'arbitrage avant tout diff (2026-09-02)
+
+**Origine** : San Goku confirme le candidat 10/24 (`analyze_data_constraints`) et propose un premier decoupage Evidence + plan de tests. Avant tout dryRun : lecture directe de `ci_agent_tools.py::analyze_data_constraints`, `semgrep_runner.py::run_semgrep_analysis`, `core/evidence.py`, et du fichier de test existant `test_analyze_data_constraints.py` (aucun rename par rapport a l'ancien nom cite dans son propre docstring perime -- confirme deja present, pas a creer).
+
+**Confirmation de la divergence structurelle deja anticipee section 460** : contrairement aux 9 tools deja clos, `analyze_data_constraints` n'a AUCUN module dedie (`server_action_analyzer.py`, `semgrep_locks_analyzer.py`, `method_override_resolver.py`, `auxiliary_tools.py` existent chacun pour leur tool -- rien d'equivalent ici). Toute la logique (guard modele/fichiers, boucle semgrep par fichier, formatage citation) vit dans le corps du `@tool` lui-meme. Verifie par lecture de `core/graph.py` (26 Ko, lu integralement) : `analyze_data_constraints` n'a aucun consommateur en dehors du binding ReAct generique (`ALL_CI_TOOLS`) et du fichier de test -- donc, contrairement a `analyze_method_override_chain` (section 456) et `list_involved_modules_with_role` (section 460), il n'existe PAS de deuxieme fonction publique preexistante dont le contrat `str` doit etre reproduit a l'identique en parallele. Une seule fonction nouvelle suffit.
+
+**Proposition de structure (Option C generalisee, plus large que les 2 precedentes)** : nouveau module `code_intelligence/data_constraints_analyzer.py` (miroir des modules-freres), contenant :
+- Dataclass `DataConstraintsAnalysis(model_name, matches: List[SemgrepMatch], summary_text, evidence: List[Evidence])`.
+- Fonction unique `analyze_data_constraints_for_model(G, model_name, config_dir=None)` qui reprend tel quel le corps actuel du `@tool` (guard modele absent, guard aucun fichier source, boucle `run_semgrep_analysis` par fichier trie, formatage des lignes citees) et construit `summary_text` ET `evidence` dans la MEME iteration -- pas de duplication de la boucle de composition, meme discipline que sections 456/461.
+- `ci_agent_tools.py::analyze_data_constraints` devient un mince wrapper : conserve uniquement le guard `_is_wildcard_model` (deja present, specifique a la surface `@tool`), puis appelle `analyze_data_constraints_for_model(...).summary_text` -- texte public strictement inchange (a verifier par test : `result.summary_text == analyze_data_constraints.invoke(...)` sur chaque cas de `test_analyze_data_constraints.py`, comme fait pour les 2 tools precedents).
+
+**Mapping Evidence propose (aligne sur le format deja etabli par `_build_security_lock_evidence`)** :
+- 1 Evidence par `SemgrepMatch` reel trouve (tous fichiers confondus) : `claim` = "File '{filepath}' has a {check_id} finding at line {start_line}: {message}", `value` = `match.lines` (extrait brut du code), `source` = `f"data_constraints:{filepath}:{check_id}:{start_line}"`, `confidence="HIGH"` (correspondance de motif statique deterministe -- coherent avec le `[Confiance: HIGH]` deja affiche dans le texte), `scope={"lineno": start_line, "end_lineno": end_line}`. Pas de distinction manuelle SQL vs domain= necessaire : `check_id` (`odoo-sql-constraints-declaration` / `odoo-relational-domain-declaration`) porte deja cette information dans le claim, aucune re-classification a inventer.
+- Absence de correspondance (across tous les fichiers analyses, filepaths existants sur disque) : 1 fait negatif explicite, confidence HIGH, meme convention `no_sites`/`no_hardcoded_logins` que les tools precedents.
+- Cas `model_node not in G` et `aucun filepath source` : PAS d'Evidence emise (le texte actuel est un message d'erreur/absence structurelle, pas une analyse Semgrep -- meme choix que le early-return `[]` de `list_involved_modules_with_role` avant application de son fallback).
+
+**Point d'arbitrage 1 -- decoupage module** : confirmer la creation de `data_constraints_analyzer.py` (alignement avec les modules-freres, deviation de l'architecture actuelle qui est un cas isole) plutot qu'un simple helper interne ajoute directement dans `ci_agent_tools.py` (modification plus locale, mais laisse `ci_agent_tools.py` porter une vraie logique d'analyse alors que son role documente est uniquement le wiring `@tool` -- incoherent avec le reste du fichier).
+
+**Point d'arbitrage 2 -- fait nouveau, pas anticipe par San Goku, trouve en lisant `semgrep_runner.py`** : `run_semgrep_analysis()` retourne `[]` aussi bien quand Semgrep tourne et ne trouve reellement rien QUE quand Semgrep echoue (exception, timeout 30s, `returncode` hors `{0,1}`, JSON invalide) -- les deux cas sont indiscernables au niveau de son retour actuel (`_logger.error`/`_logger.warning` cote serveur seulement, jamais remonte a l'appelant). Consequence deja presente AVANT ce chantier Evidence : `test_no_patterns_detected_reports_high_confidence_deterministic` verrouille deja le texte "[Confiance: HIGH -- ... deterministic]" meme dans le cas d'un echec Semgrep silencieux -- un residu d'honnetete deja errone dans le contrat texte existant, pas introduit par ce tour. Construire l'Evidence directement sur `all_matches` (comme propose ci-dessus) HERITERAIT cette meme ambiguite : un Evidence negatif "confidence HIGH, aucune contrainte" serait fabrique meme si Semgrep a en realite echoue -- exactement le risque que San Goku signale lui-meme dans son message ("Semgrep indisponible/echec -> pas de preuve fabriquee"). Corriger cela proprement demanderait de changer le contrat de retour de `run_semgrep_analysis` (distinguer echec de vide), hors perimetre de ce diff 10/24 et risque de regression sur `test_semgrep_runner.py`/les fixtures `semgrep --test` existantes. **Recommandation** : traiter ce tour uniquement l'Evidence positive (matches reels, jamais fabriques) et NE PAS emettre d'Evidence negative "HIGH confidence, aucune contrainte" -- a la place, un fait negatif explicite mais SANS confidence HIGH forcee sur l'absence globale (ex. confidence non affirmee / absence d'Evidence plutot qu'une fausse certitude), le texte public (`summary_text`) restant inchange pour ne pas casser `test_no_patterns_detected_reports_high_confidence_deterministic`. La correction de fond de `run_semgrep_analysis` (distinguer echec/vide) est consignee ici comme dette residuelle separee, a mandater explicitement si voulue.
+
+**Non fait ce tour** : aucun code touche -- lecture et design seuls. En attente d'arbitrage explicite de San Goku sur les 2 points ci-dessus avant tout dryRun.
+
+**Prochaine etape** : San Goku tranche (1) creation du module dedie ou helper interne, et (2) traitement de l'ambiguite echec/vide de Semgrep pour l'Evidence negative (recommandation ci-dessus : pas de confidence HIGH fabriquee sur l'absence globale) ; puis implementation (helpers Evidence + refactor), verification sandbox (py_compile + smoke-test d'execution reelle avec Semgrep mocke, comme le fait deja `test_analyze_data_constraints.py`), suite de tests dediee ecrite et executee en sandbox, puis ecriture sur le disque projet.
+
+---
+
+## Section 464: analyze_data_constraints (10/24, 2/5 Auxiliaire CI) -- implemente, verifie en sandbox (bug reel trouve et corrige), ecrit sur le disque projet, EN ATTENTE de non-regression sur le vrai disque (2026-09-02)
+
+**Arbitrage utilisateur** : les 2 points de la section 463 tranches tels que recommande -- (1) module dedie `data_constraints_analyzer.py` cree ; (2) aucune Evidence negative fabriquee a partir de `[]`, `summary_text` inchange, dette Semgrep (`run_semgrep_analysis` ne distingue pas `NO_MATCH` de `EXECUTION_ERROR`) consignee separement ci-dessous, non traitee ce tour.
+
+**Implementation** :
+- Nouveau fichier `code_intelligence/data_constraints_analyzer.py` : dataclass `DataConstraintsAnalysis(model_name, matches: List[SemgrepMatch], summary_text, evidence: List[Evidence])` ; `_compose_data_constraints_summary()` reproduit tel quel le texte de l'ancienne implementation inline (aucune reformulation) ; `_build_data_constraints_evidence()` construit 1 Evidence par `SemgrepMatch` reel (jamais a partir d'une liste vide) ; fonction publique unique `analyze_data_constraints_from_filepaths(model_name, filepaths, config_dir=None)` qui construit les deux dans la meme boucle de collecte des matches -- pas de duplication.
+- Contrairement aux 2 tools precedents (456/461), la resolution de filepaths (`model_node not in G`, `find_model_source_filepaths`) reste dans `ci_agent_tools.py::analyze_data_constraints`, PAS dans le nouveau module -- ce module ne lit jamais le graphe lui-meme, il consomme une liste de filepaths deja resolue. Choix delibere (voir section 463) : aligne sur le seul autre module qui, comme celui-ci, ne fait pas remonter le graphe jusqu'a son coeur (`semgrep_locks_analyzer.py` prend `code`/`filepath` en argument, jamais `G`).
+- `ci_agent_tools.py::analyze_data_constraints` (le `@tool`) : refactor cible (pas une reecriture complete du fichier) -- seul le corps de cette fonction est touche, guard `_is_wildcard_model` et les 2 guards structurels (`model_node not in G`, `not filepaths`) inchanges, la boucle Semgrep + formatage est remplacee par un seul appel a `analyze_data_constraints_from_filepaths(...).summary_text`. Diff applique via `dryRun` puis confirme, relecture disque post-ecriture faite (lignes 480-560 verifiees) -- texte des 2 messages d'erreur structurels et docstring du `@tool` strictement inchanges.
+
+**Bug reel trouve et corrige en sandbox, avant toute ecriture disque** (root cause, pas fix chirurgical) : la premiere version du nouveau module faisait `from code_intelligence.semgrep_runner import run_semgrep_analysis` en haut de fichier (import direct de la fonction). Or les 8 tests existants de `test_analyze_data_constraints.py` (et les nouveaux tests Evidence) monkeypatchent `code_intelligence.semgrep_runner.run_semgrep_analysis` en modifiant l'attribut du MODULE -- un `from ... import fonction` fige la reference au moment du PREMIER import du module (mis en cache par Python), donc un test s'executant apres le premier appel reel de l'outil ne voit jamais le monkeypatch d'un test suivant : le nom local reste fige sur la valeur presente au tout premier import. Detecte en sandbox non pas par le premier essai (qui utilisait un `importlib.reload()` artificiel masquant le probleme), mais par une reproduction deliberee : la version fautive re-testee dans le vrai harnais pytest (sans reload) a fait echouer 7/15 tests par contamination entre tests. Corrige a la racine en importatnt le MODULE (`from code_intelligence import semgrep_runner`) et en appelant `semgrep_runner.run_semgrep_analysis(...)` de facon qualifiee -- meme convention de lazy-import-par-module deja utilisee partout ailleurs dans `ci_agent_tools.py` pour cette meme raison de testabilite. Confirme par re-execution : 15/15 passed apres correction.
+
+**Verification en sandbox** (`/home/claude/check463/`) avant ecriture disque :
+1. Reconstruction de l'arborescence de packages necessaire (`code_intelligence/`, `core/`) avec copies reelles de `semgrep_runner.py`, `core/evidence.py`, `business_resolver.py` (stub minimal -- non pertinent pour ce tool, evite juste l'erreur d'import), `ci_agent_tools.py` (version reduite au strict necessaire pour ce tool -- PAS la version appliquee sur le disque projet, qui elle ne touche que le corps d'`analyze_data_constraints`) -- `py_compile` OK sur tous les fichiers.
+2. Smoke-test d'execution reelle : cas vide (aucune Evidence, texte inchange), cas 2 matches (2 Evidence HIGH, scope correct, check_id dans le claim), determinisme de `evidence_id`, filepath absent sur disque (jamais appele).
+3. Suite pytest complete (copie de `test_analyze_data_constraints.py` existant, moins le test `test_ci_system_prompt_mentions_the_tool` qui tire `core/graph.py` -- dependances lourdes non pertinentes pour ce refactor, ce test reste valide et sera rejoue tel quel sur le vrai disque) + nouvelle suite dediee `test_bloc_b1_evidence_analyze_data_constraints.py` (7 tests) : 15/15 passed en sandbox avec le vrai harnais `monkeypatch` (pas de reload).
+
+**Fichiers modifies** :
+- `code_intelligence/data_constraints_analyzer.py` (nouveau fichier, ecrit directement -- deja valide en sandbox).
+- `code_intelligence/ci_agent_tools.py` (dryRun puis application confirmee -- diff cible sur le seul corps d'`analyze_data_constraints`, relecture disque post-ecriture faite).
+- `code_intelligence/tests/test_bloc_b1_evidence_analyze_data_constraints.py` (nouveau fichier, 7 tests, ecrit directement -- deja valide en sandbox).
+- `todo/contexte.txt` (cette section).
+
+**Dette Semgrep consignee separement (section 463, non traitee ce tour)** : `run_semgrep_analysis()` (`semgrep_runner.py`) ne distingue pas un resultat reellement vide d'un echec d'execution (exception/timeout/JSON invalide) -- les deux retournent `[]`. Consequence : `summary_text` peut afficher "[Confiance: HIGH -- ... deterministic]" meme apres un echec Semgrep silencieux (comportement preexistant, verrouille par `test_no_patterns_detected_reports_high_confidence_deterministic`, non introduit par ce chantier). A mandater explicitement si une correction est voulue (distinguer `NO_MATCH`/`EXECUTION_ERROR` dans le contrat de retour).
+
+**Non fait ce tour** : aucune execution pytest sur le vrai disque projet (seulement en sandbox avec des copies) -- l'environnement d'execution reel de San Goku (`.venv`, `pytest.ini`) n'est pas accessible depuis ce tour.
+
+**Prochaine etape** : San Goku execute `pytest code_intelligence/tests/test_analyze_data_constraints.py code_intelligence/tests/test_bloc_b1_evidence_analyze_data_constraints.py -v` sur le vrai disque (non-regression des 9 tests existants -- 8 deja verifies en sandbox + `test_ci_system_prompt_mentions_the_tool` non rejoue en sandbox -- et validation des 7 nouveaux) et colle le resultat pour cloture officielle du tool 10/24 ; puis passage au tool 11/24 (a choisir parmi les 14 CI tools restants apres exclusion des 3 hors perimetre deja notes -- `resolve_technical_name`, `explain_decision_path`, `read_source_code`).
+
+---
+
+## Section 465: analyze_data_constraints (10/24, 2/5 Auxiliaire CI) -- CLOS, non-regression confirmee sur le vrai disque (2026-09-02)
+
+**Resultat colle par l'utilisateur** : `pytest code_intelligence/tests/test_analyze_data_constraints.py code_intelligence/tests/test_bloc_b1_evidence_analyze_data_constraints.py -v` -> 16 passed (0 failed). Les 9 tests preexistants (dont `test_ci_system_prompt_mentions_the_tool`, non rejoue en sandbox) passent sans modification ; les 7 nouveaux tests Evidence passent tous -- aucune regression.
+
+**Tool 10/24, 2/5 Auxiliaire CI : CLOS.**
+
+**Prochaine etape** : passage au tool 11/24, a choisir parmi les 14 CI tools restants (exclusion deja actee de `resolve_technical_name`, `explain_decision_path`, `read_source_code` -- hors perimetre Evidence par nature, sauf decision explicite contraire de San Goku). Lecture directe du code et de son eventuel test existant avant toute proposition de design.
+
+---
+
+## Section 466: get_average_sales (11/24 -- ORM 1/9, premiere replication B1 hors du pilote B0) -- implemente, verifie en sandbox, ecrit sur le disque projet, EN ATTENTE de non-regression sur le vrai disque (2026-09-02)
+
+**Origine** : San Goku redirige explicitement le 11/24 vers le lot ORM plutot que de rouvrir un des 3 auxiliaires CI deja ecartes (`resolve_technical_name`, `explain_decision_path`, `read_source_code`). Lecture directe de `erp_data/odoo_tools.py` et de l'historique B0 (sections 426-430) : le B0 pilote avait scinde les 20 outils restants en 11 actions CI + **9 outils ORM**, dont un seul (`get_total_sales`) porte deja une Evidence. Les 9 ORM restants (`get_product_stock`, `get_order_status`, `get_total_invoices`, `search_partner`, `get_recent_tickets`, `list_out_of_stock_products`, `get_period_revenue`, `get_average_sales`, `get_sale_details`) n'en ont aucune.
+
+**Tri par risque croissant propose et retenu** : `get_average_sales` choisi comme candidat le plus proche structurellement du pilote deja valide (`get_total_sales_raw` -- meme famille `read_group(amount_total)`, pas de fallback multi-modele, pas de gestion d'ambiguite multi-clients), donc le risque de divergence de contrat le plus faible pour etendre le pattern Evidence ORM au-dela du pilote isole.
+
+**Design propose et arbitrage utilisateur ("oui")** : contrairement a `get_total_sales_raw` (aucun `try/except`), `get_average_sales` avait tout son corps enveloppe dans un `try/except`. Arbitrage retenu -- deplacer le `try/except` dans le wrapper `@tool` uniquement, `_raw` laisse remonter toute exception sans l'attraper. Motif : garder un contrat de retour homogene entre tous les outils ORM Evidence-ifies (`Tuple[str, Evidence]`, jamais `Optional[Evidence]`), et surtout ne jamais fabriquer une Evidence (meme negative) a partir d'un echec technique -- meme logique d'honnetete que la dette Semgrep deja consignee au tool 10/24 (`NO_MATCH` vs `EXECUTION_ERROR`).
+
+**Implementation** dans `erp_data/odoo_tools.py` (pas de nouveau module -- contrairement au cote CI, les fonctions `*_raw` ORM vivent directement dans `odoo_tools.py`, aligne sur `get_total_sales_raw` deja present dans ce meme fichier) :
+- Nouvelle fonction `get_average_sales_raw(client, periode)` -- reprend le corps actuel tel quel (domain, `read_group(amount_total:avg)`, branchement global/par-client), construit `text` ET `evidence` dans la meme fonction, ne catch aucune exception.
+- `@tool get_average_sales(...)` devient un mince wrapper : `try: text, _evidence = get_average_sales_raw(...); return text / except Exception as e: return f"Erreur..."` -- reproduit exactement le texte d'erreur existant, seul le lieu du `try/except` a change (deplace de `_raw` vers le wrapper).
+- Evidence : resultat vide -> 1 fait negatif explicite (`confidence=None`, jamais `HIGH` cote ORM, conforme au contrat deja pose dans `core/evidence.py`) ; resultat trouve -> 1 Evidence avec `value=moyenne`, meme gabarit de `claim` que `get_total_sales_raw` ("Average sale amount for client=..., period=..."). `source="sale.order:read_group(amount_total:avg)"`, `scope=_orm_evidence_scope(uid)` (reutilise tel quel, aucune modification de ce helper partage).
+- Bug preexistant repere mais NON corrige ce tour (non-regression volontaire, deja signale dans le design section precedente) : le guard `groupby=[...] if client and client.lower() not in ["tous", ""] else []` n'inclut pas `"tous les clients"`, contrairement aux guards `domain`/branche de retour juste au-dessus qui eux le font -- comportement observable existant conserve a l'identique.
+
+**Verification en sandbox** (`/home/claude/check_orm1/`) avant ecriture disque :
+1. Reconstruction de l'arborescence de packages necessaire (`erp_data/`, `core/`, `tools/`) avec copies reelles de `odoo_tools.py` (version modifiee), `core/evidence.py`, `erp_data/odoo_connector.py`, `tools/date_utils.py` -- `py_compile` OK sur les 4 fichiers.
+2. Smoke-test d'execution reelle (7 cas) : moyenne globale trouvee, moyenne par client trouvee, resultat vide (fait negatif, pas de confidence HIGH fabriquee), determinisme de `evidence_id` a scope identique (read_at fige -- **point note en cours de verification** : deux appels reels successifs SANS figer le temps produisent legitimement deux `evidence_id` differents, `read_at` faisant partie du scope reel ; ce n'est pas une regression, juste une propriete du contrat deja pose section 428, pas testee comme telle par le pilote B0 lui-meme), contrat du wrapper `@tool` inchange (retourne toujours une string), wrapper `@tool` capture toujours bien une exception connecteur (non-regression du comportement observable), `_raw` propage l'exception sans jamais fabriquer d'Evidence dessus.
+3. Suite pytest dediee `test_bloc_b1_evidence_get_average_sales.py` (8 tests) executee avec le vrai harnais pytest (pas de reload) : 8/8 passed en sandbox.
+
+**Fichiers modifies** :
+- `erp_data/odoo_tools.py` (dryRun puis application confirmee, diff cible sur le seul bloc `get_average_sales`, relecture disque post-ecriture faite -- lignes 480-560+ verifiees, reste du fichier inchange).
+- `erp_data/tests/test_bloc_b1_evidence_get_average_sales.py` (nouveau fichier, 8 tests, ecrit directement -- deja valide en sandbox avant ecriture).
+- `todo/contexte.txt` (cette section).
+
+**Non fait ce tour** : aucune execution pytest sur le vrai disque projet (seulement en sandbox avec des copies) -- l'environnement d'execution reel de San Goku (`.venv`, `pytest.ini`) n'est pas accessible depuis ce tour. Les 8 autres outils ORM (`get_product_stock`, `get_order_status`, `get_total_invoices`, `search_partner`, `get_recent_tickets`, `list_out_of_stock_products`, `get_period_revenue`, `get_sale_details`) restent sans Evidence.
+
+**Prochaine etape** : San Goku execute `pytest erp_data/tests/test_bloc_b1_evidence_get_average_sales.py erp_data/tests/test_bloc_b0_evidence_orm_pilot.py -v` sur le vrai disque (validation des 8 nouveaux tests + non-regression du pilote B0 voisin le plus proche) et colle le resultat pour cloture officielle du tool 11/24 / ORM 1/9 ; puis choix du prochain outil (CI 12/24 parmi les 14 CI restants, ou ORM 2/9 parmi les 8 outils ORM restants -- a trancher par San Goku).
+
+---
+
+## Section 467: get_average_sales (11/24 -- ORM 1/9) -- CLOS, non-regression confirmee sur le vrai disque (2026-09-02)
+
+**Resultat colle par l'utilisateur** : `pytest erp_data/tests/test_bloc_b1_evidence_get_average_sales.py erp_data/tests/test_bloc_b0_evidence_orm_pilot.py -v` -> 13 passed (0 failed). Les 8 nouveaux tests Evidence passent tous ; les 5 tests preexistants du pilote B0 (`get_total_sales_raw`, voisin le plus proche dans `erp_data/odoo_tools.py`) passent sans modification -- aucune regression.
+
+**Tool 11/24 -- ORM 1/9 (get_average_sales) : CLOS.**
+
+**Bilan Bloc B1 a date** : 11/24 outils traites au total -- cote CI : 5 Composites + `evaluate_record_rules` (pilote B0) + 3 Analyse CI + 2 Auxiliaire CI (10/24) ; cote ORM : `get_total_sales` (pilote B0) + `get_average_sales` (2/9, dont 1 pilote + 1 replication B1).
+
+**Prochaine etape** : choix du prochain outil par San Goku -- CI 12/24 (parmi les 14 CI tools restants, exclusion deja actee de `resolve_technical_name`/`explain_decision_path`/`read_source_code`) ou ORM 2/9 (parmi les 8 outils ORM restants : `get_product_stock`, `get_order_status`, `get_total_invoices`, `search_partner`, `get_recent_tickets`, `list_out_of_stock_products`, `get_period_revenue`, `get_sale_details`). Lecture directe du code et de son eventuel test existant avant toute proposition de design, quel que soit le lot choisi.
+
+---
+
+## Section 468: get_product_stock (12/24 -- ORM 2/9) -- design confirme par San Goku, implementation deja presente sur le disque (collision de session parallele), suite de tests dediee ecrite en sandbox (2026-09-02)
+
+**Origine** : San Goku confirme explicitement les 2 points de design proposes pour `get_product_stock` : (1) une Evidence par fait brut retourne par `read_group` (`quantity`, `reserved_quantity`), `available` restant un calcul derive sans Evidence propre ; (2) meme deplacement du `try/except` que `get_average_sales` (wrapper `@tool` seul, `_raw` ne catch rien) -- plus la restriction explicite de l'Evidence a `results[0]` uniquement (aucune transformation des resultats ignores en preuve), et la convention du resultat vide (1 Evidence negative, `confidence=None`, `value=None`, `claim="No stock.quant matches product={produit}"`).
+
+**Constat par lecture directe du disque, AVANT tout dryRun** (meme discipline que les collisions deja documentees section 408/460 -- lire le disque avant d'ecrire) : `get_product_stock_raw()` existe DEJA dans `erp_data/odoo_tools.py`, avec une docstring qui reference explicitement "todo/contexte.txt section 468+" -- implementee par une session anterieure non journalisee, mais avant meme la redaction de cette section. Verification point par point contre les 2 points confirmes par San Goku ci-dessus :
+- **Point (a)** : CONFORME -- `evidence_qty` (`claim="Total quantity in stock for product={produit}"`, `value=qty`) et `evidence_reserved` (`claim="Reserved quantity in stock for product={produit}"`, `value=reserved`) sont deux `Evidence` distinctes ; `available = qty - reserved` n'apparait que dans `text`, jamais comme `value` d'une Evidence.
+- **Point (b) try/except** : CONFORME -- `get_product_stock_raw()` ne catch aucune exception (docstring l'explicite : "Deliberately never catches connector exceptions itself"), le `try/except` vit uniquement dans le wrapper `@tool get_product_stock`.
+- **Point (b) restriction results[0]** : CONFORME -- `qty = results[0].get(...)`, `reserved = results[0].get(...)` ; aucune boucle sur les autres entrees de `results`, confirme par un cas de test dedie (resultats multiples, seul `results[0]` reflete en texte ET en Evidence).
+- **Point (b) resultat vide** : CONFORME exact -- `text = f"Le produit '{produit}' n'a pas été trouvé en stock."`, 1 seule Evidence (`value=None`, `confidence=None` via `make_evidence` sans argument `confidence`, `claim=f"No stock.quant matches product={produit}"`).
+
+**Divergence de forme deja anticipee par la docstring elle-meme (pas une deviation, un choix deja tranche en amont de cette confirmation)** : contrairement a `get_total_sales_raw`/`get_average_sales_raw` (`Tuple[str, Evidence]`), `get_product_stock_raw` retourne `Tuple[str, List[Evidence]]` -- 2 elements independants pour un resultat trouve, 1 seul pour un resultat vide/absence. Design deja explicite dans la docstring et coherent avec le point (a) confirme ci-dessus (1 Evidence par fait brut, pas par appel).
+
+**Aucun diff applique a `erp_data/odoo_tools.py`** -- rien a corriger, le code sur le disque correspond deja exactement au design confirme.
+
+**Travail reellement effectue ce tour** : verification (`erp_data/tests/`) qu'aucun fichier de test dedie n'existe encore pour `get_product_stock_raw` (absent de la liste des fichiers `test_bloc_b1_evidence_*`/`test_bloc_b0_*`) -- terrain vierge comme `list_involved_modules` en son temps (section 460). Suite de 9 tests ecrite en miroir de `test_bloc_b1_evidence_get_average_sales.py` (memes conventions : mock de `connector.read_group`, `odoo_uid_ctx` set/reset explicite, pas de dependance a un Odoo reel) :
+1. resultat trouve -> texte + 2 Evidence.
+2. les 2 Evidence couvrent separement quantity et reserved_quantity, jamais `available` (70.0) comme `value`.
+3. resultat vide -> exactement 1 Evidence negative (pas 2).
+4. resultats multiples -> seul `results[0]` reflete (texte ET evidence), le second match (999.0) n'apparait nulle part.
+5. aucune confidence jamais fixee (deterministe ORM, decision B0 section 426).
+6. scope porte `execution_identity`/`read_at`, jamais `company_id` fabrique.
+7. contrat de retour du wrapper `@tool` inchange (string).
+8. wrapper `@tool` catch toujours les exceptions connecteur (non-regression du texte d'erreur).
+9. `_raw` propage les exceptions sans jamais fabriquer d'Evidence dessus.
+
+**Verification en sandbox** (`/home/claude/check468/`) avant ecriture disque :
+1. Copie reelle (via `copy_file_user_to_claude`) de `odoo_tools.py`, `core/evidence.py`, `erp_data/odoo_connector.py`, `tools/date_utils.py` -- `py_compile` OK sur les 4, import du module OK.
+2. Smoke-test manuel (6 cas, hors harnais pytest) : trouve/2 evidence, vide/1 evidence negative, multiple/results[0] seul, wrapper catch exception, `_raw` propage sans fabriquer, determinisme d'`evidence_id` (meme constat que section 466 -- `read_at` non fige fait legitimement varier l'id entre deux appels reels, pas une regression).
+3. Suite pytest dediee (9 tests ci-dessus) executee avec le vrai harnais pytest (`python3 -m pytest`, pas de reload artificiel) : 9/9 passed en sandbox.
+
+**Fichiers modifies** :
+- `erp_data/tests/test_bloc_b1_evidence_get_product_stock.py` (nouveau fichier, 9 tests, ecrit directement -- deja valide en sandbox avant ecriture, aucun code de production touche).
+- `todo/contexte.txt` (cette section).
+
+**Non fait ce tour** : aucune execution pytest sur le vrai disque projet (seulement en sandbox avec des copies) -- l'environnement d'execution reel de San Goku (`.venv`, `pytest.ini`) n'est pas accessible depuis ce tour.
+
+**Prochaine etape** : San Goku execute `pytest erp_data/tests/test_bloc_b1_evidence_get_product_stock.py erp_data/tests/test_bloc_b0_evidence_orm_pilot.py -v` sur le vrai disque (validation des 9 nouveaux tests + non-regression du pilote B0 voisin le plus proche) et colle le resultat pour cloture officielle du tool 12/24 -- ORM 2/9 (`get_product_stock`) ; puis choix du prochain outil (CI 13/24 parmi les 14 CI restants, ou ORM 3/9 parmi les 7 outils ORM restants : `get_order_status`, `get_total_invoices`, `search_partner`, `get_recent_tickets`, `list_out_of_stock_products`, `get_period_revenue`, `get_sale_details`).
+
+---
+
+## Section 469: get_product_stock (12/24 -- ORM 2/9) -- CLOS, non-regression confirmee sur le vrai disque (2026-09-02)
+
+**Resultat colle par l'utilisateur** : `pytest erp_data/tests/test_bloc_b1_evidence_get_product_stock.py erp_data/tests/test_bloc_b0_evidence_orm_pilot.py -v` -> 14 passed (0 failed). Les 9 nouveaux tests Evidence passent tous ; les 5 tests preexistants du pilote B0 (`get_total_sales_raw`, voisin le plus proche dans `erp_data/odoo_tools.py`) passent sans modification -- aucune regression.
+
+**Tool 12/24 -- ORM 2/9 (get_product_stock) : CLOS.**
+
+**Bilan Bloc B1 a date** : 12/24 outils traites au total -- cote CI : 5 Composites + `evaluate_record_rules` (pilote B0) + 3 Analyse CI + 2 Auxiliaire CI (10/24) ; cote ORM : `get_total_sales` (pilote B0) + `get_average_sales` + `get_product_stock` (3/9, dont 1 pilote + 2 replications B1).
+
+**Prochaine etape** : choix du prochain outil par San Goku -- CI 13/24 (parmi les 14 CI tools restants, exclusion deja actee de `resolve_technical_name`/`explain_decision_path`/`read_source_code`) ou ORM 3/9 (parmi les 7 outils ORM restants : `get_order_status`, `get_total_invoices`, `search_partner`, `get_recent_tickets`, `list_out_of_stock_products`, `get_period_revenue`, `get_sale_details`). Lecture directe du code et de son eventuel test existant avant toute proposition de design, quel que soit le lot choisi.
+
+---
+
+## Section 470: get_order_status (13/24 -- ORM 3/9) -- implemente, verifie en sandbox, ecrit sur le disque projet, EN ATTENTE de non-regression sur le vrai disque (2026-09-02)
+
+**Origine** : San Goku choisit de rester cote ORM et propose `get_order_status` avant les outils plus complexes -- premiere forme non-`read_group` de la serie (lookup exact `search_read` sur un enregistrement unique, fait qualitatif plutot qu'agregat numerique). Ordre annonce pour la suite : `get_order_status` -> `search_partner` -> `list_out_of_stock_products` -> `get_recent_tickets` -> `get_total_invoices`/`get_period_revenue` -> `get_sale_details`.
+
+**Lecture directe du disque AVANT tout dryRun** : pas de collision cette fois -- `get_order_status` etait encore sous sa forme originale (tout inline dans le `@tool`, aucune fonction `_raw`), confirme identique a la lecture initiale de ce meme tool en debut de session. Aucun fichier de test dedie Evidence preexistant (`erp_data/tests/` ne contient que les integration tests generiques de `test_odoo_tools.py`) -- terrain vierge.
+
+**Design propose et arbitrage utilisateur ("oui")** :
+- **Point 1 -- quels faits deviennent Evidence** : le code demande `fields=["state", "amount_total", "partner_id"]` mais `text` n'affirme jamais `amount_total` (champ mort preexistant, non introduit par ce chantier, non touche). Seuls 2 faits sont reellement affirmes : `state` (valeur BRUTE Odoo, ex. `"sale"` -- pas `state_fr`, qui est un habillage d'affichage de ce meme fait, pas un fait independant) et `partner_id` (nom du client). Retenu : 2 Evidence, aucune sur `amount_total` -- meme discipline que "ne jamais transformer un fait ignore/non affirme en preuve" deja appliquee sur les resultats multiples de `get_product_stock`.
+- **Point 2** : meme pattern que `get_average_sales`/`get_product_stock` -- `try/except` deplace dans le wrapper `@tool` seul, `_raw` ne catch rien. Domain exact (`name = reference`) ne devrait jamais retourner plus d'un enregistrement en pratique, mais discipline defensive conservee : seul `records[0]` est utilise si jamais plusieurs reviennent. Cas vide -> 1 Evidence negative, `confidence=None`, `value=None`, `claim="No sale.order matches name={reference}"`.
+
+**Implementation** dans `erp_data/odoo_tools.py` :
+- Nouvelle fonction `get_order_status_raw(reference)` -- reprend le corps actuel tel quel (domain exact, `search_read(state, amount_total, partner_id)`, `state_mapping` FR inchange), construit `text` ET les 2 Evidence dans la meme fonction, ne catch aucune exception.
+- `@tool get_order_status(...)` devient un mince wrapper : `try: text, _evidence = get_order_status_raw(...); return text / except Exception as e: return f"Erreur..."` -- reproduit exactement le texte d'erreur existant, seul le lieu du `try/except` a change.
+- `source="sale.order:search_read(state,partner_id)"` -- premiere convention de `source` pour un tool bati sur `search_read` plutot que `read_group` (les 3 tools ORM precedents utilisaient tous `read_group`).
+
+**Verification en sandbox** (`/home/claude/check468/`) avant ecriture disque :
+1. Diff redige et applique sur une copie sandbox du fichier reel (`odoo_tools.py`) via substitution textuelle exacte de l'ancien bloc `@tool get_order_status` -- `py_compile` OK.
+2. Smoke-test d'execution reelle (4 cas) : resultat trouve (texte + 2 Evidence, `state` brut `"sale"` en Evidence -- pas la traduction FR, `amount_total` jamais reflete), resultat vide (1 Evidence negative), wrapper `@tool` catch toujours l'exception connecteur, `_raw` propage sans fabriquer d'Evidence.
+3. Suite pytest dediee (11 tests, cf. liste ci-dessous) executee avec le vrai harnais pytest en sandbox : 11/11 passed.
+
+**Suite de tests** (`test_bloc_b1_evidence_get_order_status.py`, miroir de `test_bloc_b1_evidence_get_product_stock.py`) : texte+2 Evidence ; Evidence porte l'etat BRUT et non `state_fr` ; Evidence couvre le partner separement ; `amount_total` jamais asserte ; resultat vide -> 1 Evidence negative exactement ; resultats multiples -> seul `results[0]` reflete (texte ET Evidence) ; aucune confidence jamais fixee ; scope porte `execution_identity`/`read_at`, jamais `company_id` ; contrat de retour du wrapper inchange (string) ; wrapper catch toujours les exceptions connecteur ; `_raw` propage sans fabriquer.
+
+**Fichiers modifies** :
+- `erp_data/odoo_tools.py` (dryRun puis application confirmee via diff affiche, relecture du diff faite avant application).
+- `erp_data/tests/test_bloc_b1_evidence_get_order_status.py` (nouveau fichier, 11 tests, ecrit directement -- deja valide en sandbox avant ecriture).
+- `todo/contexte.txt` (cette section).
+
+**Non fait ce tour** : aucune execution pytest sur le vrai disque projet (seulement en sandbox avec des copies) -- l'environnement d'execution reel de San Goku (`.venv`, `pytest.ini`) n'est pas accessible depuis ce tour. Les 6 autres outils ORM restants (`get_total_invoices`, `search_partner`, `get_recent_tickets`, `list_out_of_stock_products`, `get_period_revenue`, `get_sale_details`) restent sans Evidence.
+
+**Prochaine etape** : San Goku execute `pytest erp_data/tests/test_bloc_b1_evidence_get_order_status.py erp_data/tests/test_bloc_b1_evidence_get_product_stock.py -v` sur le vrai disque (validation des 11 nouveaux tests + non-regression du voisin ORM le plus proche) et colle le resultat pour cloture officielle du tool 13/24 -- ORM 3/9 (`get_order_status`) ; puis passage a `search_partner` (ORM 4/9) selon l'ordre annonce par San Goku.
+
+---
+
+## Section 471: get_order_status (13/24 -- ORM 3/9) -- CLOS, non-regression confirmee sur le vrai disque (2026-09-02)
+
+**Resultat colle par l'utilisateur** : `pytest erp_data/tests/test_bloc_b1_evidence_get_order_status.py erp_data/tests/test_bloc_b1_evidence_get_product_stock.py -v` -> 20 passed (0 failed). Les 11 nouveaux tests Evidence (`get_order_status`) passent tous ; les 9 tests preexistants du voisin ORM le plus proche (`get_product_stock`, 12/24) passent sans modification -- aucune regression.
+
+**Tool 13/24 -- ORM 3/9 (get_order_status) : CLOS.**
+
+**Bilan Bloc B1 a date** : 13/24 outils traites au total -- cote CI : 5 Composites + `evaluate_record_rules` (pilote B0) + 3 Analyse CI + 2 Auxiliaire CI (10/24) ; cote ORM : `get_total_sales` (pilote B0) + `get_average_sales` + `get_product_stock` + `get_order_status` (4/9, dont 1 pilote + 3 replications B1).
+
+**Prochaine etape** : passage a `search_partner` (ORM 4/9) selon l'ordre annonce section 470 (`get_order_status` -> `search_partner` -> `list_out_of_stock_products` -> `get_recent_tickets` -> `get_total_invoices`/`get_period_revenue` -> `get_sale_details`). Lecture directe du code de `search_partner` et de son eventuel test existant avant toute proposition de design (verifier au prealable absence de collision de session parallele, cf. sections 408/460/468).
+
+---
+
+## Section 472: search_partner (14/24 -- ORM 4/9, premiere forme multi-resultats) -- implemente, verifie en sandbox, ecrit sur le disque projet, EN ATTENTE de non-regression sur le vrai disque (2026-09-02)
+
+**Origine** : suite de l'ordre annonce section 470. Lecture directe du disque AVANT tout dryRun -- pas de collision : `search_partner` etait encore sous sa forme originale (tout inline dans le `@tool`, aucune fonction `_raw`), aucun fichier de test Evidence dedie preexistant -- terrain vierge.
+
+**Constat sur le code existant** : `res.partner:search_read(name,email,phone,city)`, filtre `ilike` sur `name`, aucune limite `search_read` cote requete -- tous les enregistrements sont recuperes puis tronques a 5 cote Python pour l'affichage. Contrairement aux 3 tools ORM precedents (un seul enregistrement source, meme en cas de resultats multiples ignores au-dela de `results[0]`), `search_partner` est une recherche multi-resultats PAR NATURE : jusqu'a 5 partenaires distincts peuvent etre reellement affirmes dans `text` en meme temps.
+
+**Design propose et arbitrage utilisateur (choix explicite parmi 3 options)** : granularite retenue -- **1 Evidence par partenaire reellement affiche** (jamais au-dela de la troncature a 5 existante), chaque Evidence portant les 3 faits de contact (`email`, `phone`, `city`) ensemble comme un seul `value` structure (dict), plutot que : (a) une seule Evidence globale listant tous les partenaires, ou (b) une Evidence par champ et par partenaire (aurait fait exploser le volume, jusqu'a 15 Evidence pour 5 partenaires). `claim=f"Contact details for partner={partner_name}"`. Meme discipline try/except que les 3 tools precedents : `search_partner_raw` ne catch rien, le wrapper `@tool` seul.
+
+**Implementation** dans `erp_data/odoo_tools.py` :
+- Nouvelle fonction `search_partner_raw(nom)` -- reprend le corps actuel tel quel (domain `ilike` sur `name`, `search_read(name,email,phone,city)`, troncature a 5 pour l'affichage), construit `text` ET la liste d'Evidence (une par partenaire affiche) dans la meme fonction, ne catch aucune exception.
+- `@tool search_partner(...)` devient un mince wrapper : `try: text, _evidence = search_partner_raw(...); return text / except Exception as e: return f"Erreur..."` -- reproduit exactement le texte d'erreur existant.
+- Cas vide -> 1 Evidence negative, `confidence=None`, `value=None`, `claim="No res.partner matches name={nom}"` -- meme convention que les 3 tools precedents.
+- Cas > 5 resultats -> seuls les 5 premiers (`records[:5]`, deja la logique d'affichage preexistante) recoivent une Evidence ; les entrees au-dela ne sont ni affichees ni couvertes par une Evidence (meme discipline "ne jamais fabriquer une preuve sur un fait ignore" que `get_product_stock_raw`/`get_order_status_raw`).
+- Champs manquants (`email`/`phone`/`city` a `None`) -> `"N/A"` dans le dict `value` de l'Evidence, identique au texte affiche (pas de divergence entre ce que `text` affirme et ce que l'Evidence couvre).
+
+**Verification en sandbox** (`/home/claude/check471/`) avant ecriture disque :
+1. Copie reelle (via `copy_file_user_to_claude`) de `odoo_tools.py`, `core/evidence.py`, `erp_data/odoo_connector.py`, `tools/date_utils.py` -- `py_compile` OK sur les 4, import du module OK.
+2. Smoke-test manuel (6 cas) : trouve/N Evidence (2 partenaires -> 2 Evidence), vide/1 Evidence negative, >5 resultats -> exactement 5 Evidence (troncature respectee), wrapper `@tool` catch toujours l'exception connecteur, `_raw` propage sans fabriquer d'Evidence, scope porte `execution_identity`/`read_at` correctement.
+3. Suite pytest dediee (10 tests, cf. liste ci-dessous) executee avec le vrai harnais pytest en sandbox : 10/10 passed.
+
+**Suite de tests** (`test_bloc_b1_evidence_search_partner.py`, miroir des conventions `test_bloc_b1_evidence_get_order_status.py`) : texte+N Evidence (2 partenaires) ; Evidence porte les 3 champs de contact comme un seul dict `value` (pas 3 Evidence separees) ; champs manquants -> "N/A" coherent texte/Evidence ; resultat vide -> 1 Evidence negative exactement ; >5 resultats -> exactement 5 Evidence, aucune sur les entrees tronquees ; aucune confidence jamais fixee ; scope porte `execution_identity`/`read_at`, jamais `company_id` ; contrat de retour du wrapper inchange (string) ; wrapper catch toujours les exceptions connecteur ; `_raw` propage sans fabriquer.
+
+**Fichiers modifies** :
+- `erp_data/odoo_tools.py` (dryRun puis application confirmee via diff affiche, relecture disque post-ecriture faite -- diff limite au seul bloc `search_partner`, reste du fichier inchange).
+- `erp_data/tests/test_bloc_b1_evidence_search_partner.py` (nouveau fichier, 10 tests, ecrit directement -- deja valide en sandbox avant ecriture, relecture disque post-ecriture faite).
+- `todo/contexte.txt` (cette section).
+
+**Non fait ce tour** : aucune execution pytest sur le vrai disque projet (seulement en sandbox avec des copies) -- l'environnement d'execution reel de San Goku (`.venv`, `pytest.ini`) n'est pas accessible depuis ce tour. Les 5 autres outils ORM restants (`get_total_invoices`, `get_recent_tickets`, `list_out_of_stock_products`, `get_period_revenue`, `get_sale_details`) restent sans Evidence.
+
+**Prochaine etape** : San Goku execute `pytest erp_data/tests/test_bloc_b1_evidence_search_partner.py erp_data/tests/test_bloc_b1_evidence_get_order_status.py -v` sur le vrai disque (validation des 10 nouveaux tests + non-regression du voisin ORM le plus proche) et colle le resultat pour cloture officielle du tool 14/24 -- ORM 4/9 (`search_partner`) ; puis passage a `list_out_of_stock_products` (ORM 5/9) selon l'ordre annonce.
+
+---
+
+## Section 473: search_partner (14/24 -- ORM 4/9) -- CLOS, non-regression confirmee sur le vrai disque (2026-09-02)
+
+**Resultat colle par l'utilisateur** : `pytest erp_data/tests/test_bloc_b1_evidence_search_partner.py erp_data/tests/test_bloc_b1_evidence_get_order_status.py -v` -> 21 passed (0 failed). Les 10 nouveaux tests Evidence (`search_partner`) passent tous ; les 11 tests preexistants du voisin ORM le plus proche (`get_order_status`, 13/24) passent sans modification -- aucune regression.
+
+**Tool 14/24 -- ORM 4/9 (search_partner) : CLOS.**
+
+**Bilan Bloc B1 a date** : 14/24 outils traites au total -- cote CI : 5 Composites + `evaluate_record_rules` (pilote B0) + 3 Analyse CI + 2 Auxiliaire CI (10/24) ; cote ORM : `get_total_sales` (pilote B0) + `get_average_sales` + `get_product_stock` + `get_order_status` + `search_partner` (5/9, dont 1 pilote + 4 replications B1).
+
+**Prochaine etape** : passage a `list_out_of_stock_products` (ORM 5/9) selon l'ordre annonce section 470 (`get_order_status` -> `search_partner` -> `list_out_of_stock_products` -> `get_recent_tickets` -> `get_total_invoices`/`get_period_revenue` -> `get_sale_details`). Lecture directe du code de `list_out_of_stock_products` et de son eventuel test existant avant toute proposition de design (verifier au prealable absence de collision de session parallele, cf. sections 408/460/468).
+
+---
+
+## Section 474: list_out_of_stock_products (15/24 -- ORM 5/9, premier cas 'vide' positif) -- implemente, verifie en sandbox, ecrit sur le disque projet, EN ATTENTE de non-regression sur le vrai disque (2026-09-02)
+
+**Origine** : suite de l'ordre annonce section 470. Lecture directe du disque AVANT tout dryRun -- pas de collision : `list_out_of_stock_products` etait encore sous sa forme originale, aucun fichier de test Evidence dedie preexistant -- terrain vierge.
+
+**Constat structurel nouveau** : contrairement aux 4 tools ORM precedents, `read_group` ici est INTEGRALEMENT non filtre (`domain=[]`) et retourne tous les produits -- le critere `quantity<=0` est applique cote Python, pas dans la requete. Consequence : une liste `rupture_products` vide n'est PAS "aucune donnee ne correspond a la requete" (comme le cas vide des 4 tools precedents) mais un fait positif reel -- la requete a reussi et zero produit satisfait le critere.
+
+**Design propose et arbitrage utilisateur (2 points, choix explicite)** :
+1. Granularite : **1 Evidence par produit reellement affiche** (max 10, troncature preexistante inchangee), jamais au-dela -- meme discipline que `search_partner`/`get_product_stock`. `claim=f"Product {name} is out of stock (quantity<=0)"`, `value=quantite_reelle` (0 ou negative).
+2. Cas "0 produit en rupture" : **Evidence POSITIVE** (`value=0`, pas `None`), `claim="No stock.quant product has quantity<=0"` -- rompt deliberement avec la convention `value=None`/negative des 4 tools precedents car la semantique est differente ici (succes de requete + absence de correspondance au filtre Python, pas absence de donnees).
+3. Meme discipline try/except que les 4 tools precedents : `list_out_of_stock_products_raw` ne catch rien, le wrapper `@tool` seul.
+
+**Implementation** dans `erp_data/odoo_tools.py` :
+- Nouvelle fonction `list_out_of_stock_products_raw()` -- reprend le corps actuel tel quel (domain vide, `read_group(quantity:sum)` groupe par `product_id`, filtre Python `quantity<=0`), construit `text` ET la liste d'Evidence (une par produit affiche, ou l'Evidence positive unique) dans la meme fonction, ne catch aucune exception. `rupture_products` devient une liste de tuples `(nom, quantite)` au lieu de juste les noms, pour porter la valeur reelle dans l'Evidence.
+- `@tool list_out_of_stock_products()` devient un mince wrapper : `try: text, _evidence = list_out_of_stock_products_raw(); return text / except Exception as e: return f"Erreur..."` -- reproduit exactement le texte d'erreur existant.
+
+**Verification en sandbox** (`/home/claude/check471/`) avant ecriture disque :
+1. `py_compile` OK sur `odoo_tools.py` modifie.
+2. Smoke-test manuel (6 cas) : rupture partielle (2/3 produits, evidence sur les 2 seulement), zero rupture -> Evidence positive `value=0`, >10 produits en rupture -> exactement 10 Evidence + troncature texte, wrapper `@tool` catch toujours l'exception connecteur, `_raw` propage sans fabriquer, scope/confidence corrects.
+3. Suite pytest dediee (9 tests, cf. liste ci-dessous) executee avec le vrai harnais pytest en sandbox : 9/9 passed.
+
+**Suite de tests** (`test_bloc_b1_evidence_list_out_of_stock_products.py`, miroir des conventions precedentes) : texte+N Evidence (2 produits en rupture sur 3) ; Evidence porte la quantite reelle (0.0, -2.0) ; cas zero rupture -> 1 Evidence POSITIVE (`value=0`, jamais `None`) ; >10 produits -> exactement 10 Evidence, aucune sur les entrees tronquees ; aucune confidence jamais fixee ; scope porte `execution_identity`/`read_at`, jamais `company_id` ; contrat de retour du wrapper inchange (string) ; wrapper catch toujours les exceptions connecteur ; `_raw` propage sans fabriquer.
+
+**Fichiers modifies** :
+- `erp_data/odoo_tools.py` (dryRun puis application confirmee via diff affiche, relecture disque post-ecriture faite -- diff limite au seul bloc `list_out_of_stock_products`, reste du fichier inchange).
+- `erp_data/tests/test_bloc_b1_evidence_list_out_of_stock_products.py` (nouveau fichier, 9 tests, ecrit directement -- deja valide en sandbox avant ecriture, relecture disque post-ecriture faite).
+- `todo/contexte.txt` (cette section).
+
+**Non fait ce tour** : aucune execution pytest sur le vrai disque projet (seulement en sandbox avec des copies). Les 4 autres outils ORM restants (`get_total_invoices`, `get_recent_tickets`, `get_period_revenue`, `get_sale_details`) restent sans Evidence.
+
+**Prochaine etape** : San Goku execute `pytest erp_data/tests/test_bloc_b1_evidence_list_out_of_stock_products.py erp_data/tests/test_bloc_b1_evidence_search_partner.py -v` sur le vrai disque (validation des 9 nouveaux tests + non-regression du voisin ORM le plus proche) et colle le resultat pour cloture officielle du tool 15/24 -- ORM 5/9 (`list_out_of_stock_products`) ; puis passage a `get_recent_tickets` (ORM 6/9) selon l'ordre annonce.
+
+---
+
+## Section 475: list_out_of_stock_products (15/24 -- ORM 5/9) -- CLOS, non-regression confirmee sur le vrai disque (2026-09-02)
+
+**Resultat colle par l'utilisateur** : `pytest erp_data/tests/test_bloc_b1_evidence_list_out_of_stock_products.py erp_data/tests/test_bloc_b1_evidence_search_partner.py -v` -> 19 passed (0 failed). Les 9 nouveaux tests Evidence (`list_out_of_stock_products`) passent tous ; les 10 tests preexistants du voisin ORM le plus proche (`search_partner`, 14/24) passent sans modification -- aucune regression.
+
+**Tool 15/24 -- ORM 5/9 (list_out_of_stock_products) : CLOS.**
+
+**Bilan Bloc B1 a date** : 15/24 outils traites au total -- cote CI : 5 Composites + `evaluate_record_rules` (pilote B0) + 3 Analyse CI + 2 Auxiliaire CI (10/24) ; cote ORM : `get_total_sales` (pilote B0) + `get_average_sales` + `get_product_stock` + `get_order_status` + `search_partner` + `list_out_of_stock_products` (6/9, dont 1 pilote + 5 replications B1).
+
+**Prochaine etape** : passage a `get_recent_tickets` (ORM 6/9) selon l'ordre annonce section 470 (`get_order_status` -> `search_partner` -> `list_out_of_stock_products` -> `get_recent_tickets` -> `get_total_invoices`/`get_period_revenue` -> `get_sale_details`). Lecture directe du code de `get_recent_tickets` et de son eventuel test existant avant toute proposition de design (verifier au prealable absence de collision de session parallele, cf. sections 408/460/468).
+
+---
+
+## Section 476: get_recent_tickets (16/24 -- ORM 6/9, premiere branche AMBIGUITE + premier champ fetch-mais-jamais-affiche) -- implemente, verifie en sandbox, ecrit sur le disque projet, EN ATTENTE de non-regression sur le vrai disque (2026-09-02)
+
+**Origine** : suite de l'ordre annonce section 475. Lecture directe du disque AVANT tout dryRun -- pas de collision : `get_recent_tickets` etait encore sous sa forme originale (tout inline dans le `@tool`, aucune fonction `_raw`), aucun fichier de test Evidence dedie preexistant -- terrain vierge.
+
+**Constat structurel nouveau** : deux points inedits par rapport aux 5 tools ORM precedents.
+1. Une branche `AMBIGUITE` : quand `client` matche plusieurs partenaires distincts, la fonction interrompt l'affichage et retourne un message demandant de preciser -- aucun ticket n'est reellement affirme dans ce cas.
+2. `date_deadline` est fetche par le `search_read` et sert UNIQUEMENT au tri (`records.sort(...)`) -- il n'apparait jamais dans le texte affiche (`result_lines` n'utilise que `state`, `partner_name`, `name`, `create_date`). Repere par Claude avant tout design (le premier jet de San Goku listait `date_deadline` comme 4e fait d'Evidence) -- signale et corrige avant implementation, cf. echange precedent.
+
+**Design propose et arbitrage utilisateur (valide explicitement)** :
+1. Granularite : **1 Evidence par ticket reellement affiche** (borne par `display_limit`, jamais au-dela), meme discipline que les 5 tools precedents. Chaque Evidence porte les 3 faits reellement affirmes dans `text` ensemble comme un seul `value` dict structure -- **`state`, `partner`, `create_date`** -- meme pattern que le dict de contact de `search_partner_raw`. `date_deadline` EXCLU de l'Evidence (fetche pour le tri seulement, jamais affirme dans `text`) -- meme discipline que `amount_total` dans `get_order_status_raw`. `claim=f"Ticket details for name={ticket_name}"`, `name` sert d'identifiant dans le `claim`, jamais un fait Evidence separe.
+2. Branche `AMBIGUITE` : **aucune Evidence** (`evidence_list == []`) -- le code n'affirme aucun fait sur un ticket precis, seulement qu'une entree `client` est ambigue ; les partenaires intermediaires utilises pour detecter l'ambiguite ne sont pas transformes en preuve utilisateur.
+3. Cas vide (`Aucun ticket trouve`) : 1 Evidence negative (`value=None`), meme convention que les 5 tools precedents (contrairement au cas positif de `list_out_of_stock_products_raw`, ici l'absence de resultat est bien "aucune donnee ne correspond a la requete", pas un fait positif).
+4. Meme discipline try/except que les 5 tools precedents : `get_recent_tickets_raw` ne catch rien (y compris l'appel `search_read`), le wrapper `@tool` seul catch les exceptions connecteur.
+
+**Implementation** dans `erp_data/odoo_tools.py` :
+- Nouvelle fonction `get_recent_tickets_raw(client, limite, statut)` -- reprend le corps actuel tel quel (construction du domain, resolution du statut FR->state Odoo, tri sur `date_deadline`/`create_date`, troncature a `display_limit`), construit `text` ET la liste d'Evidence dans la meme fonction, ne catch aucune exception.
+- `@tool get_recent_tickets(...)` devient un mince wrapper : `try: text, _evidence = get_recent_tickets_raw(...); return text / except Exception as e: return f"Erreur..."` -- reproduit exactement le texte d'erreur existant.
+- Branche AMBIGUITE : `return text, []` au lieu d'un simple `return text` -- seul changement de forme, comportement/texte identiques a l'original.
+- Cas vide -> 1 Evidence negative, `confidence=None`, `value=None`, `claim=f"No project.task matches client={client or 'all'}, statut={statut or 'all'}"`.
+- Boucle d'affichage -> pour chaque ticket affiche, Evidence avec `value={"state":..., "partner":..., "create_date":...}` -- `date_str` et `partner_name` calcules exactement comme dans `text` (memes valeurs "N/A" en cas de champ manquant, pas de divergence texte/Evidence).
+- `source="project.task:search_read(state,create_date,partner_id)"` -- exclut `date_deadline` et `name` de la chaine `source` (meme convention que `get_order_status_raw` excluant `amount_total`), reflete uniquement les champs effectivement portes par l'Evidence.
+
+**Verification en sandbox** (`/home/claude/check476/`) avant ecriture disque :
+1. Copie reelle (via `copy_file_user_to_claude`) de `odoo_tools.py`, `core/evidence.py`, `erp_data/odoo_connector.py`, `tools/date_utils.py` -- `py_compile` OK, import du module OK.
+2. Smoke-test manuel (7 cas) : normal 2 tickets -> 2 Evidence coherentes texte/Evidence ; vide -> 1 Evidence negative ; AMBIGUITE -> 0 Evidence, texte inchange ; `limite=2` sur 3 tickets -> exactement 2 Evidence (troncature respectee) ; champs manquants -> "N/A" coherent texte/Evidence des deux cotes ; wrapper `@tool` catch toujours l'exception connecteur ; `_raw` propage sans fabriquer d'Evidence.
+3. Suite pytest dediee (12 tests, cf. liste ci-dessous) executee avec le vrai harnais pytest en sandbox : 12/12 passed.
+
+**Suite de tests** (`test_bloc_b1_evidence_get_recent_tickets.py`, miroir des conventions `test_bloc_b1_evidence_search_partner.py`) : texte+N Evidence (2 tickets) ; Evidence porte `state`/`partner`/`create_date` comme un seul dict `value` ; `date_deadline` JAMAIS dans l'Evidence ni dans le texte (test dedie) ; champs manquants -> "N/A" coherent texte/Evidence ; resultat vide -> 1 Evidence negative exactement ; branche AMBIGUITE -> liste d'Evidence vide (test dedie, coeur de ce chantier) ; troncature par `limite` -> Evidence seulement sur les tickets affiches ; aucune confidence jamais fixee ; scope porte `execution_identity`/`read_at`, jamais `company_id` ; contrat de retour du wrapper inchange (string) ; wrapper catch toujours les exceptions connecteur ; `_raw` propage sans fabriquer.
+
+**Fichiers modifies** :
+- `erp_data/odoo_tools.py` (dryRun puis application confirmee via diff affiche, relecture disque post-ecriture faite -- diff limite au seul bloc `get_recent_tickets`, reste du fichier inchange).
+- `erp_data/tests/test_bloc_b1_evidence_get_recent_tickets.py` (nouveau fichier, 12 tests, deja valide en sandbox avant ecriture -- premiere tentative d'ecriture faite par erreur sur le disque Claude via `create_file` au lieu du disque projet via `Filesystem:write_file` ; erreur repérée immediatement a la relecture -- ENOENT -- et corrigee dans le meme tour ; relecture disque projet post-ecriture confirmee correcte).
+- `todo/contexte.txt` (cette section).
+
+**Non fait ce tour** : aucune execution pytest sur le vrai disque projet (seulement en sandbox avec des copies) -- l'environnement d'execution reel de San Goku (`.venv`, `pytest.ini`) n'est pas accessible depuis ce tour. Les 3 autres outils ORM restants (`get_total_invoices`, `get_period_revenue`, `get_sale_details`) restent sans Evidence.
+
+**Prochaine etape** : San Goku execute `pytest erp_data/tests/test_bloc_b1_evidence_get_recent_tickets.py erp_data/tests/test_bloc_b1_evidence_list_out_of_stock_products.py -v` sur le vrai disque (validation des 12 nouveaux tests + non-regression du voisin ORM le plus proche) et colle le resultat pour cloture officielle du tool 16/24 -- ORM 6/9 (`get_recent_tickets`) ; puis passage a `get_total_invoices`/`get_period_revenue` selon l'ordre annonce.
+
+---
+
+## Section 477: get_recent_tickets (16/24 -- ORM 6/9) -- CLOS, non-regression confirmee sur le vrai disque (2026-09-02)
+
+**Resultat colle par l'utilisateur** : `pytest erp_data/tests/test_bloc_b1_evidence_get_recent_tickets.py erp_data/tests/test_bloc_b1_evidence_list_out_of_stock_products.py -v` -> 21 passed (0 failed). Les 12 nouveaux tests Evidence (`get_recent_tickets`) passent tous ; les 9 tests preexistants du voisin ORM le plus proche (`list_out_of_stock_products`, 15/24) passent sans modification -- aucune regression.
+
+**Tool 16/24 -- ORM 6/9 (get_recent_tickets) : CLOS.**
+
+**Bilan Bloc B1 a date** : 16/24 outils traites au total -- cote CI : 5 Composites + `evaluate_record_rules` (pilote B0) + 3 Analyse CI + 2 Auxiliaire CI (10/24) ; cote ORM : `get_total_sales` (pilote B0) + `get_average_sales` + `get_product_stock` + `get_order_status` + `search_partner` + `list_out_of_stock_products` + `get_recent_tickets` (7/9, dont 1 pilote + 6 replications B1).
+
+**Prochaine etape** : passage a `get_total_invoices`/`get_period_revenue` (ORM 8-9/9) selon l'ordre annonce section 470 (`get_order_status` -> `search_partner` -> `list_out_of_stock_products` -> `get_recent_tickets` -> `get_total_invoices`/`get_period_revenue` -> `get_sale_details`). Lecture directe du code de `get_total_invoices` et de son eventuel test existant avant toute proposition de design (verifier au prealable absence de collision de session parallele, cf. sections 408/460/468).
+
+---
+
+## Section 478: get_total_invoices (17/24 -- ORM 8/9, collision de session parallele detectee et documentee retroactivement) -- CLOS, confirme sur le vrai disque (2026-09-02)
+
+**Origine** : a l'ouverture de ce tour, lecture directe du disque AVANT toute proposition de design pour `get_total_invoices` (discipline habituelle, cf. sections 408/460/468) -- collision detectee : `get_total_invoices_raw` etait DEJA implemente dans `erp_data/odoo_tools.py` (docstring citant explicitement "Design confirmed with Trunk (ORM 8/9 decision table)") et `erp_data/tests/test_bloc_b1_evidence_get_total_invoices.py` (11 tests) existait deja sur le disque, cree posterieurement au dernier `modified` connu de `contexte.txt` -- aucune section ne documentait ce travail. Ecart signale explicitement a San Goku avant toute ecriture (discipline section 3 des pratiques).
+
+**Verification menee ce tour** : lecture complete du code sur le vrai disque projet (`odoo_tools.py`) et du fichier de test -- l'implementation correspond exactement a ce que testent les 11 tests (branche globale = 1 Evidence somme Python sur N lignes read_group ; branche client-specifique = 1 Evidence ; branche AMBIGUITE = liste vide ; branche fallback sale.order = source `sale.order:read_group(amount_total:sum)`, jamais account.move ; branche totalement vide (account.move ET sale.order vides) = 1 Evidence negative a source COMPOSITE `"account.move:... [empty] ; sale.order:... [empty]"`, jamais account.move seul ; aucune confidence jamais fixee ; scope `execution_identity`/`read_at` sans `company_id` ; wrapper `@tool` catch toujours les exceptions connecteur ; `_raw` propage sans fabriquer).
+
+**Resultat colle par l'utilisateur** : `pytest erp_data/tests/test_bloc_b1_evidence_get_total_invoices.py erp_data/tests/test_bloc_b1_evidence_get_order_status.py -v` -> 22 passed (0 failed). Les 11 nouveaux tests Evidence (`get_total_invoices`) passent tous ; les 11 tests preexistants du voisin ORM le plus proche (`get_order_status`, 13/24) passent sans modification -- aucune regression.
+
+**Tool 17/24 -- ORM 8/9 (get_total_invoices) : CLOS.** Cloture documentee retroactivement (implementation faite par une session parallele non tracee dans `contexte.txt` avant ce tour) -- confirmee par re-lecture directe du code sur le vrai disque et par le resultat pytest reel colle par San Goku, pas par simple confiance dans le docstring.
+
+**Limitation pre-existante identifiee, PAS corrigee ce tour** (hors mandat) : la requete de fallback `sale.order` dans `get_total_invoices_raw` ne reapplique pas les filtres `client`/`statut` de la requete `account.move` -- c'est une lecture globale "ventes confirmees a ce jour". Documente dans le docstring de la fonction elle-meme comme limitation connue, honnete dans le `claim` de l'Evidence associee.
+
+**Bilan Bloc B1 a date** : 17/24 outils traites au total -- cote CI : 5 Composites + `evaluate_record_rules` (pilote B0) + 3 Analyse CI + 2 Auxiliaire CI (10/24) ; cote ORM : `get_total_sales` (pilote B0) + `get_average_sales` + `get_product_stock` + `get_order_status` + `search_partner` + `list_out_of_stock_products` + `get_recent_tickets` + `get_total_invoices` (8/9, dont 1 pilote + 7 replications B1).
+
+**Prochaine etape** : passage a `get_period_revenue` (ORM 9/9, dernier outil ORM du Bloc B1) selon l'ordre annonce section 470. `get_period_revenue` reste sous sa forme originale (pas de `_raw`, pas d'Evidence, try/except englobant toute la fonction) -- pas de collision detectee sur ce tool a ce stade. Lecture directe du code de `get_period_revenue` et de son eventuel test existant avant toute proposition de design (verifier au prealable absence de collision de session parallele, cf. sections 408/460/468/478).
+
+---
+
+## Section 479: get_period_revenue (18/24 -- ORM 9/9, DERNIER outil ORM du Bloc B1) -- implemente, verifie en sandbox, ecrit sur le disque projet, EN ATTENTE de non-regression sur le vrai disque (2026-09-02)
+
+**Origine** : suite de l'ordre annonce section 478. Lecture directe du disque AVANT tout dryRun -- pas de collision : `get_period_revenue` etait encore sous sa forme originale (tout inline dans le `@tool`, try/except englobant toute la fonction), aucun fichier de test Evidence dedie preexistant -- terrain vierge.
+
+**Constat structurel** : meme forme de branches que `get_total_invoices_raw` (section 478) -- agregation `account.move` avec fallback `sale.order` identique en cas de vide -- avec deux differences propres a cet outil : (1) aucun filtre `client` n'existe sur `get_period_revenue` -> aucune branche AMBIGUITE possible ici (contrairement a `get_total_invoices_raw`) ; (2) contrairement au fallback de `get_total_invoices_raw` (limitation pre-existante documentee section 478 : ne reapplique PAS les filtres de la requete account.move), le fallback `sale.order` de cet outil REAPPLIQUE bien la fenetre de dates (`fb_domain` reprend `date_range` sur `date_order`) -- l'Evidence du fallback peut donc honnetement decrire une portee sur la meme periode, pas une lecture globale.
+
+**Design applique** (symetrique a `get_total_invoices_raw`, sections d'Evidence sans branche AMBIGUITE) :
+1. Branche pleine (`results` non vide) : somme Python sur N lignes (par `company_id`) = **1 Evidence**, `source="account.move:read_group(amount_total:sum, groupby=company_id)"`.
+2. Branche fallback `sale.order` (account.move vide, fallback trouve) : **1 Evidence**, `source="sale.order:read_group(amount_total:sum)"` -- jamais account.move, meme si le texte affiche reutilise (quirk pre-existant, non touche) le suffixe `[Source: ... (account.move)]`.
+3. Branche totalement vide (account.move ET sale.order vides) : **1 Evidence negative**, `value=None`, `source` composite `"account.move:... [empty] ; sale.order:... [empty]"`.
+4. Meme discipline try/except que tous les outils ORM precedents : `get_period_revenue_raw` ne catch rien, le wrapper `@tool` seul catch les exceptions connecteur.
+
+**Verification en sandbox** (`/home/claude/check478/`) avant ecriture disque :
+1. Copie reelle (via `copy_file_user_to_claude`) de `odoo_tools.py`, `core/evidence.py`, `erp_data/odoo_connector.py`, `tools/date_utils.py` -- `py_compile` OK, import du module OK.
+2. Smoke-test manuel (7 cas) : branche pleine 2 societes -> 1 Evidence somme 350.0 ; branche fallback -> 1 Evidence source sale.order, jamais account.move ; branche totalement vide -> 1 Evidence negative source composite ; aucune confidence jamais fixee ; scope `execution_identity`/`read_at` sans `company_id` ; wrapper `@tool` catch toujours l'exception connecteur ; `_raw` propage sans fabriquer d'Evidence.
+3. Suite pytest dediee (10 tests, cf. liste ci-dessous) executee avec le vrai harnais pytest en sandbox : 10/10 passed.
+
+**Suite de tests** (`test_bloc_b1_evidence_get_period_revenue.py`, miroir des conventions `test_bloc_b1_evidence_get_total_invoices.py` moins la branche AMBIGUITE) : branche pleine somme N lignes -> 1 Evidence ; branche societe unique -> 1 Evidence ; branche fallback sale.order -> source sale.order jamais account.move ; branche totalement vide -> 1 Evidence negative source composite ; aucune Evidence negative separee pour sale.order seul ; aucune confidence jamais fixee ; scope porte `execution_identity`/`read_at`, jamais `company_id` ; contrat de retour du wrapper inchange (string) ; wrapper catch toujours les exceptions connecteur ; `_raw` propage sans fabriquer.
+
+**Fichiers modifies** :
+- `erp_data/odoo_tools.py` (dryRun puis application confirmee via diff affiche, relecture disque post-ecriture faite -- diff limite au seul bloc `get_period_revenue`, reste du fichier inchange).
+- `erp_data/tests/test_bloc_b1_evidence_get_period_revenue.py` (nouveau fichier, 10 tests, deja valide en sandbox avant ecriture -- premiere tentative d'ecriture faite par erreur sur le disque Claude via `create_file` au lieu du disque projet via `Filesystem:write_file` ; erreur repérée immediatement a la relecture -- ENOENT -- et corrigee dans le meme tour via `Filesystem:write_file`, meme type d'erreur que section 476 ; relecture disque projet post-ecriture confirmee correcte, taille 7646 octets).
+- `todo/contexte.txt` (cette section).
+
+**Non fait ce tour** : aucune execution pytest sur le vrai disque projet (seulement en sandbox avec des copies) -- l'environnement d'execution reel de San Goku (`.venv`, `pytest.ini`) n'est pas accessible depuis ce tour.
+
+**Bloc B1 -- volet ORM (9/9) DESORMAIS COMPLET sur le disque** (en attente de confirmation pytest reelle) : `get_total_sales` (pilote B0) + `get_average_sales` + `get_product_stock` + `get_order_status` + `search_partner` + `list_out_of_stock_products` + `get_recent_tickets` + `get_total_invoices` + `get_period_revenue` (9/9). Seul `get_sale_details` (hors volet ORM des 9, cote Composites/Auxiliaire non couvert par cet inventaire) reste explicitement hors scope de ce chantier ORM.
+
+**Prochaine etape** : San Goku execute `pytest erp_data/tests/test_bloc_b1_evidence_get_period_revenue.py erp_data/tests/test_bloc_b1_evidence_get_total_invoices.py -v` sur le vrai disque (validation des 10 nouveaux tests + non-regression du voisin ORM le plus proche) et colle le resultat pour cloture officielle du tool 18/24 -- ORM 9/9 (`get_period_revenue`), DERNIER outil ORM du Bloc B1. A cloturer, faire le bilan global Bloc B1 (18/24) et determiner la suite (relecture plan.md pour la prochaine cible hors ORM).
+
+---
+
+## Section 480: get_period_revenue (18/24 -- ORM 9/9) -- CLOS, non-regression confirmee sur le vrai disque -- VOLET ORM DU BLOC B1 COMPLET (2026-09-02)
+
+**Resultat colle par l'utilisateur** : `pytest erp_data/tests/test_bloc_b1_evidence_get_period_revenue.py erp_data/tests/test_bloc_b1_evidence_get_total_invoices.py -v` -> 21 passed (0 failed). Les 10 nouveaux tests Evidence (`get_period_revenue`) passent tous ; les 11 tests preexistants du voisin ORM le plus proche (`get_total_invoices`, 17/24) passent sans modification -- aucune regression.
+
+**Tool 18/24 -- ORM 9/9 (get_period_revenue) : CLOS.**
+
+**VOLET ORM DU BLOC B1 (9/9) OFFICIELLEMENT COMPLET** : `get_total_sales` (pilote B0) + `get_average_sales` + `get_product_stock` + `get_order_status` + `search_partner` + `list_out_of_stock_products` + `get_recent_tickets` + `get_total_invoices` + `get_period_revenue` -- 9/9 outils ORM ont desormais une Evidence-ification `_raw`/wrapper confirmee par pytest reel sur le disque projet, sans aucune regression cumulee a chaque etape.
+
+**Bilan global Bloc B1 a date** : 18/24 outils traites au total -- cote CI : 5 Composites + `evaluate_record_rules` (pilote B0) + 3 Analyse CI + 2 Auxiliaire CI (10/24, INCHANGE depuis section 470, aucun chantier CI ouvert dans cette serie de tours) ; cote ORM : 9/9 COMPLET (dont 1 pilote B0 + 8 replications B1, dont 1 cloturee retroactivement -- section 478 -- suite a une collision de session parallele documentee). 6/24 outils restent hors des deux volets ci-dessus (a verifier contre l'inventaire complet des 24 dans `plan.md`/section 470 d'origine : `get_sale_details` en fait probablement partie, jamais touche dans cette serie de tours ORM).
+
+**Prochaine etape** : le volet ORM annonce (section 470 : 9 outils dans l'ordre `get_order_status -> search_partner -> list_out_of_stock_products -> get_recent_tickets -> get_total_invoices/get_period_revenue -> get_sale_details`) mentionnait `get_sale_details` comme faisant partie de la sequence -- a verifier : lecture de `plan.md` et de la liste complete des 24 outils (section d'origine du Bloc B1, avant section 470) pour confirmer si `get_sale_details` est bien le 6e outil ORM restant ou s'il est classe differemment, et determiner officiellement la prochaine cible parmi les 6 outils non couverts.
+
+---
+
+## Section 481: get_sale_details (19/24 -- dernier outil ORM, collision de session parallele detectee et documentee retroactivement) -- CLOS, confirme sur le vrai disque (2026-09-02)
+
+**Origine** : a l'ouverture de ce tour, lecture directe du disque AVANT toute proposition de design pour `get_sale_details` (discipline habituelle, cf. sections 408/460/468/478) -- collision detectee : `get_sale_details_raw` etait DEJA implemente dans `erp_data/odoo_tools.py` (docstring citant explicitement "Design confirme avec Ray", section 481+) et `erp_data/tests/test_bloc_b1_evidence_get_sale_details.py` (13 tests) existait deja sur le disque, cree par une session parallele non tracee dans `contexte.txt` (qui s'arretait a la section 480, CLOS/ORM 9/9 "complet" sans `get_sale_details`). Ecart signale explicitement a San Goku avant toute ecriture.
+
+**Verification menee ce tour** : lecture complete du code sur le vrai disque projet (`odoo_tools.py`) et du fichier de test, confrontee point par point a la table de decision A-E validee par San Goku dans ce tour :
+- A `total_sum` : aucune Evidence dediee (agregation derivee) -- conforme.
+- B produits : 2 Evidence par commande affichee, sources distinctes `sale.order:search_read(...)` et `sale.order.line:search_read(product_id)` -- conforme.
+- C aucune ligne / aucun produit resolu : `value=[]` positif dans les deux cas, mais `source` differencie selon qu'une 2e requete a reellement eu lieu (`sale.order:search_read(order_line)` si `order_line` vide des le depart, jamais tentee ; `sale.order.line:search_read(product_id)` si la requete a eu lieu sans rien resoudre) -- conforme, nuance de provenance deja geree correctement dans le code existant.
+- D fallback intra-modele : `source` suit le domaine reellement responsable des records utilises (`[domaine=statut]` vs `[domaine=state!=cancel (repli)]`) ; Evidence negative composite (`[empty] ; [empty]`) uniquement quand statut != "toutes" et que les deux domaines ont reellement ete tentes et sont vides ; aucun fallback tente quand statut == "toutes" -- conforme.
+- E `date_order` : fetche pour rien nulle part dans `text`, exclu de toute Evidence et de tout `source` -- conforme.
+- Discipline try/except : `get_sale_details_raw` ne catch rien (y compris la lecture imbriquee `sale.order.line`), le wrapper `@tool` seul catch les exceptions connecteur -- conforme.
+
+Aucun ecart trouve entre l'implementation deja presente sur le disque et la table de decision validee dans ce tour.
+
+**Resultat colle par l'utilisateur** : `pytest erp_data/tests/test_bloc_b1_evidence_get_sale_details.py erp_data/tests/test_bloc_b1_evidence_get_period_revenue.py -v` -> 24 passed (0 failed). Les 13 nouveaux tests Evidence (`get_sale_details`) passent tous ; les 11 tests preexistants du voisin ORM le plus proche (`get_period_revenue`, 18/24) passent sans modification -- aucune regression.
+
+**Tool 19/24 -- get_sale_details : CLOS.** Cloture documentee retroactivement (implementation faite par une session parallele non tracee dans `contexte.txt` avant ce tour) -- confirmee par re-lecture directe du code sur le vrai disque et par le resultat pytest reel colle par San Goku, meme discipline que la cloture retroactive de la section 478.
+
+**Bilan global Bloc B1 a date** : 19/24 outils traites au total -- cote CI : 5 Composites + `evaluate_record_rules` (pilote B0) + 3 Analyse CI + 2 Auxiliaire CI (10/24, INCHANGE depuis section 470) ; cote ORM : 9/9 + `get_sale_details` desormais couverts (dont 1 pilote B0 + 9 replications B1, dont 2 cloturees retroactivement -- sections 478 et 481 -- suite a des collisions de session parallele documentees).
+
+**Prochaine etape** : 5 outils restent hors des deux volets ci-dessus sur les 24 du Bloc B1. Lecture de `plan.md` et de la liste complete des 24 outils pour identifier officiellement ces 5 outils restants et determiner la prochaine cible.
+
+---
+
+## Section 482: Bloc B1 CLOS a 21/24 -- inventaire exact reconstitue par grep sur le journal (section 440), 3 outils actes hors perimetre par decision utilisateur explicite (2026-09-02)
+
+**Origine** : la "prochaine etape" de la section 481 ("5 outils restent") reposait sur une extrapolation non verifiee de la section 480 ("6/24 outils restent, a verifier"). `plan.md` ne contient pas l'inventaire des 24 outils (releve seulement dans `contexte.txt`) -- inventaire retrouve par grep sur une copie du journal (`section 440`, seule source faisant foi) plutot que par relecture manuelle sequentielle.
+
+**Inventaire exact des 24 (section 440), confronte a l'etat reel du disque** :
+- Pilotes B0 (2, hors decompte /24) : `evaluate_record_rules`, `get_total_sales` -- deja Evidence-ifies avant B1.
+- Composites CI (5) : `who_has_access_to`, `field_change_impact`, `button_execution_path`, `trace_full_inheritance`, `describe_workflow` -- CLOS (sections 441-450).
+- Analyse CI (4) : `analyze_server_actions`, `analyze_security_locks`, `analyze_method_override_chain`, `analyze_data_constraints` -- CLOS (sections 451-458, 463-465).
+- Auxiliaires CI (4) : `list_involved_modules` CLOS (sections 460-462) ; `resolve_technical_name`, `explain_decision_path`, `read_source_code` -- JAMAIS traites, ecartes a repetition (sections 460/462/465) comme hors perimetre Evidence par nature (purs lookups/reformulations ou lecture brute de fichier, aucune affirmation analytique produisant un `claim`), decision jamais formellement tranchee jusqu'a ce tour.
+- ORM (9) : les 9 -- CLOS (sections 466-481, dont 2 clotures retroactives suite a collision de session parallele -- 478, 481).
+
+**Correction du chiffre "5 outils restent" de la section 481** : la valeur exacte etait 3, pas 5 -- `resolve_technical_name`, `explain_decision_path`, `read_source_code`. Le "10/24" cote CI cite en boucle depuis la section 470 (5 Composites + 3 Analyse + 2 Auxiliaire) etait lui-meme un chiffre errone/perime par rapport a l'etat reel du disque (4 Analyse CI et 1 Auxiliaire CI etaient en realite clos, pas 3+2) -- ecart du meme type que ceux deja rencontres sections 423/424/439, jamais reconcilie avant ce tour faute d'avoir grep l'inventaire source (section 440) au lieu de relire les bilans intermediaires qui le recopiaient de tour en tour sans le revrifier.
+
+**Decision utilisateur (ce tour)** : les 3 outils restants sont actes HORS PERIMETRE DEFINITIF -- pas une exclusion provisoire en attente de decision comme documente jusqu'ici, mais une decision explicite et finale. Aucune Evidence ne sera construite pour `resolve_technical_name`, `explain_decision_path`, `read_source_code`.
+
+**BLOC B1 (Evidence-ification des outils ORM/CI) DESORMAIS CLOS, a 21/24** (24 = 22 outils du perimetre B1 + 2 pilotes B0 deja faits avant B1 ; 21 = 19 replications B1 + les 2 pilotes deja comptes ailleurs -- en decompte propre : 5 Composites + 4 Analyse + 1 Auxiliaire + 9 ORM = 19 replications B1, + 2 pilotes B0 = 21 outils avec Evidence sur les 24 de l'inventaire total, les 3 restants actes hors perimetre).
+
+**Non fait ce tour** : aucun code touche -- decision de perimetre et cloture documentaire seules.
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section seule).
+
+**Prochaine etape** : Bloc B1 clos, retour a la sequence P1 (CLOS) -> **P2** (Couche Ontologie + tags semantiques explicites, `todo/plan.md`) selon l'ordre de sequencement retenu (PARTIE 7 de `plan.md` : "P2 puis P1 puis P3"). Lecture de `graph_builder.py` et de la liste fermee de tags comportementaux/techniques d'`architecture.md` (Jour 1 de P2) avant toute proposition de design.
+
+---
+
+## Section 483: Bloc P2 (Couche Ontologie + tags semantiques) decouvert deja entierement implemente sur le disque (Jours 1-5), confirme par execution pytest reelle -- CLOS dans plan.md -- ecart de tracabilite majeur signale (sections 1-224 absentes de contexte.txt) (2026-09-02)
+
+**Origine** : lecture directe AVANT toute proposition de design pour P2 (discipline habituelle) -- `architecture.md` (vocabulaire cible des tags) et `code_intelligence/graph_builder.py`. Constat immediat : `graph_builder.py` importe deja `BehavioralTag`/`TechnicalTag` depuis `code_intelligence/semantic_tags.py` et pose des tags sur Rule/AccessEntry/Field/Method/Model/WorkflowState/Menu, avec des commentaires inline citant explicitement "Bloc P2 Jour 2-3"/"Jour 5" et des references `todo/contexte.txt section 170/172/174/179`.
+
+**Verification menee ce tour** : lecture complete de `semantic_tags.py` (vocabulaire ferme, conforme exactement a architecture.md, Jour 1 fait) et de `code_intelligence/tests/` -- les 4 fichiers de test correspondant exactement aux 4 jours du bloc existent deja : `test_semantic_tags.py` (Jour 1), `test_bloc_p2_j2_3_graph_tagging.py` (Jour 2-3), `test_bloc_p2_j4_composite_tools_tag_exposure.py` (Jour 4, expose les tags sur les 5 outils composites via de nouveaux champs dataclass par defaut vides), `test_bloc_p2_j5_ontology_coverage.py` (Jour 5, couverture de l'ontologie -- `Group`/`Module` deliberement non tagues par decision actee, faute de signal exploitable sans deviner ; `WorkflowState`/`Menu` tagues, ce dernier par pure propagation des tags du Model qu'il ouvre). Le docstring de ce dernier fichier indiquait lui-meme "Not executed in this session" -- jamais confirme par pytest reel avant ce tour.
+
+**Ecart de tracabilite majeur trouve et signale a San Goku AVANT toute cloture** : les references `todo/contexte.txt section 170/172/174/179` dans le code sont anterieures a la section 225, qui est la toute premiere section presente dans le `contexte.txt` actuellement sur le disque. Les sections 1-224 sont absentes du fichier, alors que ce meme `plan.md` cite par ailleurs des sections comme 43x/92/128-163 comme ayant existe a un moment donne -- incoherence non elucidee (rotation/archivage du fichier vs perte reelle des donnees), distincte des collisions de session parallele deja rencontrees (le travail lui-meme semble avoir ete correctement journalise en son temps, mais ce journal-la n'est plus present sur le disque aujourd'hui). Consigne pour memoire, aucune action corrective prise ce tour -- hors mandat, a traiter separement si la tracabilite de ces sections redevient necessaire.
+
+**Resultat colle par l'utilisateur** : `pytest code_intelligence/tests/test_semantic_tags.py code_intelligence/tests/test_bloc_p2_j2_3_graph_tagging.py code_intelligence/tests/test_bloc_p2_j4_composite_tools_tag_exposure.py code_intelligence/tests/test_bloc_p2_j5_ontology_coverage.py -v` -> 40 passed (0 failed). Les 4/4 Jours de P2 confirmes par execution reelle.
+
+**BLOC P2 DESORMAIS CLOS** dans `todo/plan.md` (marqueur pose ce tour, avec le detail du statut reel et la reserve de tracabilite ci-dessus reportes dans le corps du bloc lui-meme). **Reserve explicite non levee** : le benchmark adversarial complet (8 modules Bloc 9) n'a pas ete rejoue specifiquement pour cette cloture -- seuls les 4 fichiers de tests P2 dedies ont ete executes. Meme discipline de reserve que la cloture du Bloc P1 (section 373).
+
+**Non fait ce tour** : aucun code touche (deja present) -- verification, execution pytest, cloture documentaire (`plan.md` + cette section) seulement. Aucune investigation de la cause de l'absence des sections 1-224 de `contexte.txt`.
+
+**Fichiers modifies** : `todo/plan.md` (marqueur CLOS + statut + reserves sur le bloc P2), `todo/contexte.txt` (cette section).
+
+**Prochaine etape** : selon l'ordre de sequencement retenu (PARTIE 7 de `plan.md`, "P2 puis P1 puis P3"), P1 et P2 sont desormais tous deux CLOS -- reste **P3** (materiel local a trancher, precondition (iii) jamais levee) et **Bloc P4 -- Inference locale** (Qwen3-14B via Ollama) comme prochaine cible naturelle. Decision utilisateur requise : (a) enchainer sur P4/materiel local ; (b) rejouer d'abord le benchmark adversarial complet pour lever la reserve P2 ci-dessus ; (c) investiguer l'absence des sections 1-224 de `contexte.txt` ; (d) autre priorite.
+
+---
+
+## Section 484: Reserve de tracabilite de la section 483 levee -- suppression des sections 1-224 de contexte.txt CONFIRMEE VOLONTAIRE par San Goku (fichier devenu trop volumineux) (2026-09-02)
+
+**Confirmation utilisateur** : les sections 1-224 ont ete supprimees deliberement de `contexte.txt`, motif taille de fichier -- pas une perte de donnees accidentelle, pas un symptome de collision de session parallele. Ecart signale section 483 desormais explique et clos sans action corrective necessaire. Consequence pratique a retenir pour la suite : les references a des sections anterieures a 225 dans les commentaires de code (ex. `graph_builder.py`, `semantic_tags.py`, fichiers de tests P2) resteront non verifiables directement dans `contexte.txt` -- a traiter comme une limite connue de la tracabilite historique, pas comme un signal d'alerte a chaque fois qu'elle reapparait.
+
+**Non fait ce tour** : aucun code touche.
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section seule).
+
+**Prochaine etape** : decision utilisateur en attente sur la suite -- P3 (materiel local) vs Bloc P4 (inference locale Qwen3-14B/Ollama) vs autre priorite (cf. options (a)/(b)/(d) de la section 483, (c) desormais resolue).
+
+---
+
+## Section 485: Masquage d'erreurs CI decouvert via rejeu du benchmark adversarial (script 7/8) -- root cause identifiee, PAS ENCORE CORRIGE, en attente de confirmation du perimetre exact (2026-09-02)
+
+**Origine** : San Goku a rejoue le benchmark adversarial pour lever la reserve P2 (option (b) de la section 483). Le resultat de `scripts/check_bloc9_07_expense_reimbursement_indirect_e2e.py` (module 7/8, custom_expense_reimbursement_indirect) a revele un cas ou une panne d'outil (quota/tool-use failure) semble etre masquee et traitee comme une absence de preuve, avec retombee silencieuse vers le RAG documentaire ("information introuvable").
+
+**Ecart de vocabulaire signale a San Goku avant tout code** : la formulation initiale du chantier (etats `CI_SUCCESS`/`CI_UNAVAILABLE`/`CI_ERROR`) ne correspond a aucun etat du code actuel. L'enum reelle est `core/evidence_sufficiency.py::EvidenceSufficiencyStatus` = `SUFFICIENT` / `INSUFFICIENT` / `CONFLICTING` (H3, sections 405-420). Il n'existe aucun etat distinct pour une panne d'infrastructure -- c'est precisement le trou a combler, pas un etat existant a corriger.
+
+**Root cause confirmee par lecture directe du code (avant toute proposition de design)** :
+1. `code_intelligence/ci_agent_node.py`, boucle ReAct : un `except Exception as te:` autour de `tool_map[tool_name].invoke(tool_args)` capture toute panne (quota Groq, tool-use failed, erreur connecteur) et pousse `f"Error executing {tool_name}: {str(te)}"` dans `tool_observations`, sans autre signal.
+2. `core/evidence_sufficiency.py::_NON_EVIDENCE_OBSERVATION_MARKERS` contient litteralement la sous-chaine `"Error executing"`, au meme titre que `NOT_FOUND_MARKER` -- `_is_relevant_observation()` traite donc une panne d'infrastructure exactement comme une absence legitime de resultat ("pas trouve dans le graphe").
+3. Si toutes les observations du tour tombent dans ce cas, `assess_evidence_sufficiency()` renvoie `INSUFFICIENT` avec une raison generique ("tool(s) executed, no relevant evidence found"), indiscernable d'un vrai cas negatif.
+4. `core/graph.py::ci_evidence_decision()` route tout `INSUFFICIENT` vers `generate()` (RAG) sans aucune distinction -- le RAG documentaire repond alors sans savoir qu'un outil CI a reellement casse.
+
+**Plan propose par San Goku (a valider avant implementation)** :
+1. Chantier 1 (prioritaire) : distinguer dans `assess_evidence_sufficiency()` une observation d'echec d'execution (panne) d'une observation de recherche negative authentique (rien trouve) -- probablement un nouveau statut ou a minima une raison/flag dedie qui empeche `generate()` de repondre comme si de rien n'etait ; un test de non-regression reproduisant precisement le scenario quota/tool-use failure du module 7/8.
+2. Chantier 2 (separe, plus tard) : revoir la politique de `_DYNAMIC_UNCERTAINTY_MARKER` / `_INDETERMINATE_FACT_MARKER` (actuellement mappes sur INSUFFICIENT) -- decider si une incertitude dynamique justifie reellement le meme fallback RAG que le reste.
+
+**Non fait ce tour** : aucun code touche -- lecture (`ci_agent_node.py`, `core/evidence_sufficiency.py`, `core/graph.py`, `scripts/check_bloc9_07_expense_reimbursement_indirect_e2e.py`) et diagnostic seulement.
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section seule).
+
+**Prochaine etape** : confirmation de San Goku sur (a) le perimetre exact du nouveau statut/signal a introduire pour une panne d'outil CI (nom, ou il doit intervenir dans le flux, comportement attendu de `generate()`/`format_output` quand il est present) et (b) l'ordre : Chantier 1 seul pour l'instant, Chantier 2 explicitement hors mandat de ce tour. Lecture du test existant (s'il y en a un) et de `assess_evidence_sufficiency()`/`ci_evidence_decision()` en detail avant tout dryRun.
+
+---
+
+## Section 486: Decision San Goku sur le signal de panne d'outil CI -- flag separe `has_execution_failure`, perimetre Chantier 1 seul (2026-09-02)
+
+**Decision utilisateur (ce tour, reponse a la section 485)** :
+(a) PAS de 4e statut `UNAVAILABLE` -- `EvidenceSufficiencyStatus` garde sa semantique actuelle (suffisance de preuve, pas sante d'execution). A la place : `EvidenceSufficiencyResult.has_execution_failure: bool`, flag independant du `status`.
+(b) Perimetre : Chantier 1 uniquement (distinguer panne d'execution vs absence de preuve authentique + empecher le masquage silencieux). Chantier 2 (`_DYNAMIC_UNCERTAINTY_MARKER`/`_INDETERMINATE_FACT_MARKER`) explicitement hors mandat, arbitrage separe apres validation de ce correctif.
+
+**Comportement cible acte** :
+- `INSUFFICIENT` + `has_execution_failure=False` -> inchange : reponse CI + fallback RAG possible (`ci_evidence_decision()` route vers `generate()` comme aujourd'hui).
+- `INSUFFICIENT` + `has_execution_failure=True` -> ne JAMAIS traiter comme une simple absence de preuve : pas de fallback RAG silencieux (qui masquerait la panne derriere une reponse documentaire generique) ; l'erreur CI doit etre explicitement signalee dans la reponse retournee a l'utilisateur.
+
+**Design retenu (lecture prealable de `core/evidence_sufficiency.py`, `core/graph.py::ci_evidence_decision()`, `code_intelligence/ci_agent_node.py` faite ce tour)** :
+1. `core/evidence_sufficiency.py` : extraire le marqueur `"Error executing"` (deja present, en dur, dans `_NON_EVIDENCE_OBSERVATION_MARKERS`) vers une constante nommee dediee (`_EXECUTION_ERROR_MARKER`), reutilisee aux deux endroits -- pas de duplication (lecon F-08). Nouvelle fonction `_has_execution_failure(tool_observations)` : substring-match sur cette seule constante, calculee independamment de et AVANT les branches de priorite existantes (elle doit pouvoir etre vraie quel que soit le `status` final -- SUFFICIENT si certaines observations ont echoue mais d'autres ont abouti, INSUFFICIENT si toutes ont echoue, etc.). `EvidenceSufficiencyResult` gagne le champ `has_execution_failure: bool = False`, reporte dans `to_display_dict()`. Chaque `return EvidenceSufficiencyResult(...)` de `assess_evidence_sufficiency()` (les 6 branches) doit desormais passer ce flag calcule une seule fois en tete de fonction.
+2. `core/graph.py::ci_evidence_decision()` : nouvelle branche AVANT le fallback generique vers `generate()` -- si `status == INSUFFICIENT` ET `sufficiency.get("has_execution_failure")`, rester sur `format_output` (comme SUFFICIENT/CONFLICTING) plutot que d'aller vers `generate()`, avec un log dedie (meme discipline de tracabilite que CONFLICTING, section 419-420) pour que ce choix reste auditable et ne disparaisse pas silencieusement dans le cas INSUFFICIENT generique.
+3. `code_intelligence/ci_agent_node.py` : quand `ci_evidence_sufficiency.has_execution_failure` est vrai, ajouter un paragraphe explicite a `final_answer` (avant le suffixe `[Source: Graphe de Connaissances Code Intelligence]`) signalant qu'une ou plusieurs analyses CI n'ont pas pu s'executer correctement -- sans ce paragraphe, rester sur `format_output` ne suffit pas a "signaler explicitement" l'erreur, la reponse CI actuelle (fallback generique ou synthese sur un texte d'erreur brut) ne le fait pas d'elle-meme.
+
+**Tests** : etendre `code_intelligence/tests/test_evidence_sufficiency.py` (test existant de la primitive, section 407, 12/12 confirme) avec le flag sur les cas pertinents (dont le test deja existant `test_all_observations_execution_error_is_insufficient`, et `test_to_display_dict_matches_result_fields` a mettre a jour pour la nouvelle cle) ; nouveau fichier dedie `tests/test_bloc_p1_execution_failure_signal.py` (miroir des conventions de `tests/test_bloc_p1_tranche2_ci_first_evidence_routing.py`) pour le cablage `ci_evidence_decision()` + le scenario de reference explicitement mandate par San Goku : reproduction du cas panne quota/tool-use failure du script 7/8 (`scripts/check_bloc9_07_expense_reimbursement_indirect_e2e.py`, constat section 485).
+
+**Non fait ce tour avant cette section** : aucun code touche -- lecture complete des 3 fichiers cibles et du test existant, redaction du plan seule. dryRun a suivre sur chacun des 3 fichiers avant toute ecriture reelle.
+
+**Prochaine etape** : implementer dans l'ordre 1 (`evidence_sufficiency.py`) -> 2 (`graph.py`) -> 3 (`ci_agent_node.py`) -> tests, chaque edit precede d'un dryRun et d'une relecture disque fraiche de l'ancre `oldText`.
+
+---
+
+## Section 487: Constat disque -- etapes 1 (`evidence_sufficiency.py`) et 2 (`graph.py`) de la section 486 DEJA ecrites sur le disque, etape 3 (`ci_agent_node.py`) et tests restants (2026-09-02)
+
+**Origine** : relecture disque fraiche AVANT toute ecriture (discipline habituelle), a l'ouverture de ce tour -- confirmation demandee de San Goku (reponse exacte a la section 486, options (a)/(b) deja tranchees) recue en debut de tour.
+
+**Constat** : `core/evidence_sufficiency.py` porte deja integralement le design de la section 486 -- `_EXECUTION_ERROR_MARKER` extrait en constante dediee, `_has_execution_failure()` calculee en tete de fonction et propagee aux 6 branches de retour, `EvidenceSufficiencyResult.has_execution_failure: bool = False` + `to_display_dict()` mis a jour. `core/graph.py::ci_evidence_decision()` porte deja la branche dediee (`INSUFFICIENT` + `has_execution_failure=True` -> reste sur `format_output`, log dedie) et `format_output()` exclut deja ce cas de `ci_fell_back_to_rag`. Meme pattern de divergence disque/journal que les sections 478/481/483 (implementation faite sans trace dans ce fichier) -- aucune collision de session parallele signalee cette fois, simplement non journalise avant ce tour.
+
+**Reste a faire (confirme par lecture directe, rien fait ce tour avant cette section)** :
+1. `code_intelligence/ci_agent_node.py` : AUCUN paragraphe explicite de signalement d'echec d'execution n'est ajoute a `final_answer` (grep negatif sur `n'a pas pu`/`n'ont pas pu`/`execution_failure`/`panne`) -- point 3 du design section 486 non fait.
+2. `code_intelligence/tests/test_evidence_sufficiency.py` : `test_to_display_dict_matches_result_fields` compare `display` a un dict litteral SANS la cle `has_execution_failure` -- cassera contre le code reel actuel qui l'inclut desormais ; `test_all_observations_execution_error_is_insufficient` ne verifie pas encore `has_execution_failure is True`.
+3. `tests/test_bloc_p1_execution_failure_signal.py` (miroir de `tests/test_bloc_p1_tranche2_ci_first_evidence_routing.py`) : fichier inexistant, a creer -- cablage `ci_evidence_decision()` + scenario de reference (panne quota/tool-use failure, script 7/8, section 485).
+
+**Non fait ce tour avant cette section** : aucun code touche -- lecture des 3 fichiers cibles (`evidence_sufficiency.py`, `graph.py`, `ci_agent_node.py`) et de `test_evidence_sufficiency.py`, verification de l'absence de `tests/test_bloc_p1_execution_failure_signal.py` seules.
+
+**Prochaine etape** : implementer dans l'ordre 3 (`ci_agent_node.py`, paragraphe de signalement) -> mise a jour de `test_evidence_sufficiency.py` -> creation de `tests/test_bloc_p1_execution_failure_signal.py`, chaque edit precede d'un dryRun.
+---
+
+## Section 488: Chantier 1 (has_execution_failure) -- finalisation : emojis corriges, constante extraite, test d'integration cree (2026-09-02)
+
+**Origine** : confirmation de San Goku sur le design section 486 (flag separe `has_execution_failure`, pas de 4e statut, perimetre Chantier 1 seul). Constat section 487 : etapes 1 (`evidence_sufficiency.py`) et 2 (`graph.py`) deja ecrites sur le disque, etape 3 (`ci_agent_node.py`) partiellement faite (paragraphe present mais avec emoji), tests manquants.
+
+**Corrections appliquees ce tour** :
+
+1. `code_intelligence/ci_agent_node.py` : extraction du texte de signalement d'echec d'execution en constante nommee `_EXECUTION_FAILURE_NOTICE` (F-08, pas de duplication entre le code et les tests). Remplacement de l'emoji `\u26a0\ufe0f` par `[ATTENTION]` et de `\U0001F512` par `[ACCES RESTREINT]` (violation de rules.md : "don't use emojis"). Le `if ci_evidence_sufficiency.has_execution_failure: final_answer += _EXECUTION_FAILURE_NOTICE` reference desormais la constante au lieu de dupliquer la string inline.
+
+2. `tests/test_bloc_p1_execution_failure_signal.py` (nouveau, 9 tests) :
+   - `TestCiEvidenceDecisionRouting` (5 tests) : verifie le routage `ci_evidence_decision()` pour les 5 cas (INSUFFICIENT+failure -> format_output, INSUFFICIENT sans failure -> generate, SUFFICIENT -> format_output, CONFLICTING -> format_output, absence de sufficiency -> format_output).
+   - `TestScript7Scenario` (3 tests) : reproduction du scenario script 7/8 (section 485) -- toutes observations en panne -> INSUFFICIENT+failure -> format_output ; crash partiel avec preuve -> SUFFICIENT+failure -> format_output ; vrai negatif sans crash -> INSUFFICIENT -> generate.
+   - `TestAttentionParagraph` (1 test) : verifie que `_EXECUTION_FAILURE_NOTICE` contient `[ATTENTION]`.
+
+**Tests** : 22/22 passed (`test_bloc_p1_execution_failure_signal.py` 9/9 + `test_evidence_sufficiency.py` 13/13).
+
+**Fichiers modifies** : `code_intelligence/ci_agent_node.py` (constante extraite, emojis corriges), `tests/test_bloc_p1_execution_failure_signal.py` (nouveau), `todo/contexte.txt` (cette section).

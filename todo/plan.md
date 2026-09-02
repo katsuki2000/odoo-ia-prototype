@@ -166,7 +166,7 @@ Ces deux gaps conditionnent la lisibilite et l'auditabilite du systeme pour un n
 
 ---
 
-## Bloc P2 — Couche Ontologie + tags semantiques explicites
+## Bloc P2 — Couche Ontologie + tags semantiques explicites — CLOS (2026-09-02, voir todo/contexte.txt section 483)
 *Ferme le second ecart architecture.md*
 - **Jour 1** : Definir la liste fermée des tags comportementaux (`visibility_rule`, `blocking_rule`, `calculation_rule`, `workflow_rule`, `approval_rule`, `notification_rule`) et techniques (`record_rule`, `acl`, `constraint`, `computed_field`, `server_action`, `cron`) d'`architecture.md`, comme enumeration dans le code (pas en dur dispersée).
 - **Jour 2-3** : Annoter chaque noeud pertinent du graphe (`graph_builder.py`) avec ces tags au moment de la construction — derives de ce que l'extraction sait deja (un `Rule` node vient de `ir.rule` -> tag `record_rule` + `visibility_rule` ; un `AccessEntry` -> tag `acl` ; une methode avec `has_group()`+`raise` -> tag `blocking_rule`, etc.). Reutiliser la classification deja faite implicitement par le choix d'outil comme point de depart.
@@ -174,6 +174,10 @@ Ces deux gaps conditionnent la lisibilite et l'auditabilite du systeme pour un n
 - **Jour 5** : Tests de couverture — chaque type de noeud produit par l'extraction a-t-il au moins un tag ? Detecter les noeuds non classes (gap de couverture de l'ontologie elle-meme). Rejouer le benchmark adversarial complet.
 
 **Critere de fin** : 100% des noeuds Rule/AccessEntry/Method-avec-verrou/ServerAction du graphe portent au moins un tag comportemental et un tag technique ; aucune regression sur le benchmark.
+
+**Statut reel a la cloture (2026-09-02)** : Jours 1-5 tous implementes et confirmes par execution pytest reelle (`test_semantic_tags.py`, `test_bloc_p2_j2_3_graph_tagging.py`, `test_bloc_p2_j4_composite_tools_tag_exposure.py`, `test_bloc_p2_j5_ontology_coverage.py` -- 40/40 passed). Decouvert deja substantiellement implemente sur le disque (session(s) anterieure(s) non retracables -- voir reserve ci-dessous), verifie ligne a ligne contre le code reel avant cloture, pas seulement suppose depuis les docstrings. Jour 5 : `Group`/`Module` restent deliberement sans tag (aucun signal exploitable sans deviner, decision actee) ; `WorkflowState`/`Menu` tagues (le second par pure propagation des tags du `Model` qu'il ouvre). **Reserve non levee** : le benchmark adversarial complet (8 modules Bloc 9) n'a pas ete rejoue specifiquement dans le cadre de cette cloture -- seuls les 4 fichiers de tests P2 dedies ont ete confirmes.
+
+**Reserve de tracabilite (sans rapport avec le contenu du bloc lui-meme)** : les commentaires du code source citent des sections `todo/contexte.txt` (170, 172, 174, 179) anterieures a la section 225, qui est actuellement la premiere section presente dans le fichier `contexte.txt` sur le disque. Les sections 1-224 sont absentes du fichier actuel alors que ce meme `plan.md` cite des sections comme 43x/92/128-163 comme ayant existe -- ecart signale a l'utilisateur, cause non elucidee (rotation/archivage du fichier vs perte reelle), a investiguer separement si la tracabilite historique de ces sections redevient necessaire.
 
 ---
 

@@ -116,13 +116,24 @@ _INDETERMINATE_FACT_MARKER = "can_view_amount_v2() = indeterminate"
 # trace_full_inheritance, describe_workflow) rather than re-defined here --
 # same F-08 duplication lesson the rest of this codebase already follows
 # (see e.g. find_model_source_filepaths's own docstring in ci_agent_tools.py).
+# Marks a single tool observation as a captured execution exception (the
+# ReAct loop's `except Exception as te:` in code_intelligence/ci_agent_node.py,
+# f"Error executing {tool_name}: {str(te)}") rather than a clean tool run
+# that legitimately found nothing. Named separately from
+# _NON_EVIDENCE_OBSERVATION_MARKERS (which still includes it below) so
+# _has_execution_failure() below has a single, non-duplicated source of
+# truth for this one marker (F-08 duplication lesson) -- a tool crash and a
+# clean not-found result are both "non-evidence" for the relevance check,
+# but only the former is an execution failure for has_execution_failure.
+_EXECUTION_ERROR_MARKER = "Error executing"
+
 _NON_EVIDENCE_OBSERVATION_MARKERS = [
     NOT_FOUND_MARKER,                                          # "was not found in the indexed knowledge graph"
     "in the indexed knowledge graph",                          # covers list_involved_modules' own phrasing ("... in the indexed knowledge graph.")
     "No Python source files located for model",                # analyze_security_locks / analyze_data_constraints
     "No server actions (ir.actions.server) found for model",   # analyze_server_actions
     "No security analysis results for model",                  # analyze_security_locks (files existed but none readable)
-    "Error executing",                                         # tool raised an exception at call time
+    _EXECUTION_ERROR_MARKER,                                    # tool raised an exception at call time
 ]
 
 
@@ -137,6 +148,7 @@ class EvidenceSufficiencyResult:
     reasons: List[str] = field(default_factory=list)
     relevant_observation_count: int = 0
     total_observation_count: int = 0
+    has_execution_failure: bool = False
 
     def to_display_dict(self) -> dict:
         return {
@@ -144,6 +156,7 @@ class EvidenceSufficiencyResult:
             "reasons": list(self.reasons),
             "relevant_observation_count": self.relevant_observation_count,
             "total_observation_count": self.total_observation_count,
+            "has_execution_failure": self.has_execution_failure,
         }
 
 
@@ -153,6 +166,21 @@ def _is_relevant_observation(observation: str) -> bool:
     if not observation or not observation.strip():
         return False
     return not any(marker in observation for marker in _NON_EVIDENCE_OBSERVATION_MARKERS)
+
+
+def _has_execution_failure(tool_observations: List[str]) -> bool:
+    """True if at least one observation this turn is a captured ReAct-loop
+    execution exception (code_intelligence/ci_agent_node.py's
+    `except Exception as te:` -> f"Error executing {tool_name}: {str(te)}"),
+    as opposed to a clean tool run that legitimately found nothing.
+
+    Computed independently of and before the priority branches below: it
+    must be able to hold regardless of the final status (e.g. SUFFICIENT
+    when some observations failed but others still produced relevant
+    evidence, INSUFFICIENT when every observation failed) -- see
+    todo/contexte.txt section 486.
+    """
+    return any(_EXECUTION_ERROR_MARKER in o for o in tool_observations)
 
 
 def assess_evidence_sufficiency(
@@ -216,18 +244,19 @@ def assess_evidence_sufficiency(
     """
     reasons: List[str] = []
     total = len(tool_observations)
+    execution_failure = _has_execution_failure(tool_observations)
 
     if _NO_DATA_MARKER in final_answer:
         reasons.append("agent emitted its canned no-data fallback answer")
-        return EvidenceSufficiencyResult(EvidenceSufficiencyStatus.INSUFFICIENT, reasons, 0, total)
+        return EvidenceSufficiencyResult(EvidenceSufficiencyStatus.INSUFFICIENT, reasons, 0, total, execution_failure)
 
     if _OUT_OF_SCOPE_MODEL_MARKER in final_answer:
         reasons.append("agent declined: target model not indexed in this instance's corpus")
-        return EvidenceSufficiencyResult(EvidenceSufficiencyStatus.INSUFFICIENT, reasons, 0, total)
+        return EvidenceSufficiencyResult(EvidenceSufficiencyStatus.INSUFFICIENT, reasons, 0, total, execution_failure)
 
     if total == 0 or hop_count == 0:
         reasons.append("no tool observations gathered (hop_count == 0)")
-        return EvidenceSufficiencyResult(EvidenceSufficiencyStatus.INSUFFICIENT, reasons, 0, total)
+        return EvidenceSufficiencyResult(EvidenceSufficiencyStatus.INSUFFICIENT, reasons, 0, total, execution_failure)
 
     relevant = [o for o in tool_observations if _is_relevant_observation(o)]
     if not relevant:
@@ -236,7 +265,7 @@ def assess_evidence_sufficiency(
             f"'not found' / execution-error / empty result -- tool(s) executed, "
             f"no relevant evidence found"
         )
-        return EvidenceSufficiencyResult(EvidenceSufficiencyStatus.INSUFFICIENT, reasons, 0, total)
+        return EvidenceSufficiencyResult(EvidenceSufficiencyStatus.INSUFFICIENT, reasons, 0, total, execution_failure)
 
     if _INDETERMINATE_FACT_MARKER in final_answer or _DYNAMIC_UNCERTAINTY_MARKER in final_answer:
         reasons.append(
@@ -246,7 +275,7 @@ def assess_evidence_sufficiency(
             "rather than CONFLICTING (see EvidenceSufficiencyStatus docstring, H3)"
         )
         return EvidenceSufficiencyResult(
-            EvidenceSufficiencyStatus.INSUFFICIENT, reasons, len(relevant), total,
+            EvidenceSufficiencyStatus.INSUFFICIENT, reasons, len(relevant), total, execution_failure,
         )
 
     if conflict_reason:
@@ -256,7 +285,7 @@ def assess_evidence_sufficiency(
             f"disagreement (H3): {conflict_reason}"
         )
         return EvidenceSufficiencyResult(
-            EvidenceSufficiencyStatus.CONFLICTING, reasons, len(relevant), total,
+            EvidenceSufficiencyStatus.CONFLICTING, reasons, len(relevant), total, execution_failure,
         )
 
     reasons.append(
@@ -264,5 +293,5 @@ def assess_evidence_sufficiency(
         f"hop_count={hop_count}, no unresolved/ambiguous marker in the final answer"
     )
     return EvidenceSufficiencyResult(
-        EvidenceSufficiencyStatus.SUFFICIENT, reasons, len(relevant), total,
+        EvidenceSufficiencyStatus.SUFFICIENT, reasons, len(relevant), total, execution_failure,
     )

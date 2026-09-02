@@ -393,7 +393,17 @@ def format_output(state: RAGState) -> dict:
     # wired from ci_agent_node.py) would wrongly get the universal
     # retrieve() step's OCR-quality/source attached to an answer that never
     # used those chunks at all.
-    ci_fell_back_to_rag = bool(ci_sufficiency) and ci_sufficiency.get("status") == EvidenceSufficiencyStatus.INSUFFICIENT.value
+    # todo/contexte.txt section 486: same false-attribution risk for
+    # INSUFFICIENT + has_execution_failure=True -- ci_evidence_decision()
+    # now keeps that case on format_output too (never reaching generate()),
+    # so it must be excluded here exactly like CONFLICTING, or a tool crash
+    # would wrongly get the universal retrieve() chunks' OCR-quality/source
+    # attached to an answer that never used them.
+    ci_fell_back_to_rag = (
+        bool(ci_sufficiency)
+        and ci_sufficiency.get("status") == EvidenceSufficiencyStatus.INSUFFICIENT.value
+        and not ci_sufficiency.get("has_execution_failure")
+    )
 
     if response:
         response.route = route
@@ -481,6 +491,18 @@ def ci_evidence_decision(state: RAGState) -> str:
     this branch stays visible and auditable as a deliberate, dedicated path
     rather than disappearing silently into the SUFFICIENT case by accident
     of the equality check.
+
+    has_execution_failure (todo/contexte.txt section 485-486): an
+    INSUFFICIENT verdict caused by a captured tool-execution exception
+    (Groq quota/tool-use failure, connector error) is NOT a genuine absence
+    of evidence -- silently falling back to generate() here would produce a
+    confident-looking documentary answer while masking the fact that a CI
+    analysis actually crashed mid-turn. This case gets the same dedicated
+    format_output destination as CONFLICTING, for the same reason: RAG has
+    no knowledge of the failure and must not paper over it. Checked before
+    the generic INSUFFICIENT fallback below so it wins regardless of which
+    of assess_evidence_sufficiency()'s INSUFFICIENT branches produced the
+    verdict.
     """
     sufficiency = state.get("ci_evidence_sufficiency")
     if not sufficiency:
@@ -493,6 +515,14 @@ def ci_evidence_decision(state: RAGState) -> str:
             "Node [route: post-CI]: evidence sufficiency=%s -- dedicated "
             "conflicting-evidence path, staying on code_intelligence_agent's "
             "own dual-evidence answer (NOT falling back to generate()). reasons=%s",
+            status, sufficiency.get("reasons"),
+        )
+        return "format_output"
+    if status == EvidenceSufficiencyStatus.INSUFFICIENT.value and sufficiency.get("has_execution_failure"):
+        logger.info(
+            "Node [route: post-CI]: evidence sufficiency=%s with has_execution_failure=True -- "
+            "dedicated execution-failure path, staying on code_intelligence_agent's own answer "
+            "(NOT falling back to generate(), which would silently mask the tool crash). reasons=%s",
             status, sufficiency.get("reasons"),
         )
         return "format_output"

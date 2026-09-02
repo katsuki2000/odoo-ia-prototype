@@ -1,0 +1,125 @@
+"""
+code_intelligence/data_constraints_analyzer.py
+
+Tool 10/24, 2/5 Auxiliaire CI (todo/contexte.txt section 463+): extracts
+_sql_constraints and relational domain= findings for a model via static
+Semgrep analysis, and produces structured Evidence alongside the existing
+summary_text contract of analyze_data_constraints.
+
+Evidence is built ONLY from real SemgrepMatch results. run_semgrep_analysis()
+returns [] both on a genuine empty result and on a Semgrep execution failure
+(exception, timeout, non-0/1 return code, invalid JSON) -- these two cases
+are indistinguishable at its current return contract (todo/contexte.txt
+section 463, decision confirmed same section). No negative Evidence is
+fabricated from an empty match list for this reason; only positive Evidence
+(one per real match) is produced here. Fixing run_semgrep_analysis's
+success/failure ambiguity is out of scope for this module (separate,
+explicitly logged debt).
+
+Filepath resolution (which model this is, which files belong to it) stays
+in ci_agent_tools.py's find_model_source_filepaths, as for every other
+analyzer module in this package -- this module only consumes an already-
+resolved filepath list, it does not read the knowledge graph itself.
+"""
+
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Iterable, List, Optional
+
+from core.evidence import Evidence, EvidenceSourceType, make_evidence
+from code_intelligence import semgrep_runner
+from code_intelligence.semgrep_runner import SemgrepMatch
+from code_intelligence.utils import format_file_link
+
+
+@dataclass
+class DataConstraintsAnalysis:
+    """Result of analyzing a model's source files for _sql_constraints and
+    relational domain= declarations via Semgrep."""
+    model_name: str
+    matches: List[SemgrepMatch] = field(default_factory=list)
+    summary_text: str = ""
+    evidence: List[Evidence] = field(default_factory=list)
+
+
+def _build_data_constraints_evidence(matches: List[SemgrepMatch]) -> List[Evidence]:
+    """
+    One Evidence per real SemgrepMatch, confidence=HIGH (static deterministic
+    pattern match, consistent with the [Confiance: HIGH] already shown in
+    summary_text). check_id (e.g. odoo-sql-constraints-declaration vs
+    odoo-relational-domain-declaration) already carries the SQL-constraint
+    vs domain= distinction -- no separate classification is rebuilt here,
+    per todo/contexte.txt section 463/464 decision.
+
+    No negative Evidence for an empty match list -- see module docstring.
+    """
+    evidence: List[Evidence] = []
+    for match in matches:
+        claim = (
+            f"File '{match.filepath}' has a {match.check_id} finding at "
+            f"line {match.start_line}: {match.message}"
+        )
+        evidence.append(make_evidence(
+            source_type=EvidenceSourceType.CODE,
+            claim=claim,
+            source=f"data_constraints:{match.filepath}:{match.check_id}:{match.start_line}",
+            value=match.lines,
+            confidence="HIGH",
+            scope={"lineno": match.start_line, "end_lineno": match.end_line},
+        ))
+    return evidence
+
+
+def _compose_data_constraints_summary(model_name: str, matches: List[SemgrepMatch]) -> str:
+    """Build summary_text exactly as ci_agent_tools.py's previous inline
+    implementation did -- text contract strictly unchanged."""
+    if not matches:
+        return (
+            f"No _sql_constraints or relational domain= patterns detected for "
+            f"model '{model_name}' [Confiance: HIGH -- static pattern match, "
+            f"deterministic]."
+        )
+
+    lines = [
+        f"Analyse des contraintes de données (Semgrep) pour '{model_name}' "
+        f"[Confiance: HIGH -- correspondance de motif statique, déterministe]:"
+    ]
+    for match in matches:
+        link = format_file_link(match.filepath, match.start_line, match.end_line)
+        lines.append(f"  - {link} ({match.check_id}): {match.message}")
+        if match.lines:
+            lines.append(f"    ```\n    {match.lines}\n    ```")
+
+    return "\n".join(lines)
+
+
+def analyze_data_constraints_from_filepaths(
+    model_name: str,
+    filepaths: Iterable[str],
+    config_dir: Optional[Path] = None,
+) -> DataConstraintsAnalysis:
+    """
+    Run Semgrep across the given (already-resolved) filepaths and build both
+    summary_text and Evidence in a single pass over the collected matches --
+    no duplicated composition loop.
+
+    config_dir defaults to code_intelligence/semgrep_rules, same location
+    the previous inline implementation used (this module also lives in
+    code_intelligence/, so the relative path is unchanged).
+    """
+    if config_dir is None:
+        config_dir = Path(__file__).resolve().parent / "semgrep_rules"
+
+    all_matches: List[SemgrepMatch] = []
+    for fp in sorted(filepaths):
+        p = Path(fp)
+        if not p.exists():
+            continue
+        all_matches.extend(semgrep_runner.run_semgrep_analysis(p, config_dir))
+
+    return DataConstraintsAnalysis(
+        model_name=model_name,
+        matches=all_matches,
+        summary_text=_compose_data_constraints_summary(model_name, all_matches),
+        evidence=_build_data_constraints_evidence(all_matches),
+    )
