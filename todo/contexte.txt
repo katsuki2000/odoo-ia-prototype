@@ -5880,3 +5880,52 @@ Le test direct prouve que `uid=2` (admin) + `password="admin"` fonctionne parfai
 **Limitation connue** : le retry admin contourne l'isolation par utilisateur (ir.rule/ACL) -- toutes les requetes ERP s'executent effectivement avec les droits admin. Pour une isolation reelle, il faudrait soit passer le mot de passe Odoo de l'utilisateur dans le JWT (pas la cle API), soit corriger le scope de la cle API pour permettre l'auth XML-RPC. C'est un choix d'architecture a trancher separement.
 
 **Fichiers modifies** : `erp_data/odoo_connector.py`, `erp_data/orm_agent_node.py`, `todo/contexte.txt`.
+Je confirme l’extension aux deux outils.
+Le contrat doit être cohérent :
+
+get_total_sales(statut)
+get_average_sales(statut)
+        ↓
+_resolve_statut(statut)
+        ↓
+même domaine Odoo
+        ↓
+scope explicite dans les deux sorties
+
+
+Et je garderais toutes = commandes non annulées, puisque c’est déjà le comportement effectif de get_total_sales.
+Le point important découvert pendant ta lecture est même plus large : annulees est actuellement un vrai bug silencieux. Il faut donc le corriger dans le même changement, puisque la logique commune est précisément ce qui permet de supprimer cette divergence.
+Je donnerais donc le mandat suivant :
+Refactoriser le périmètre des ventes autour de _resolve_statut(), faire accepter statut à get_average_sales, corriger le mapping annulees, et expliciter le scope dans les résultats des deux outils.
+Pour get_average_sales, le __count est pertinent pour rendre la preuve plus lisible :
+
+Moyenne des ventes
+Scope : commandes non annulées
+Nombre : 19
+Moyenne : ...
+
+
+Et pour get_total_sales :
+
+Total des ventes
+Scope : commandes non annulées
+Total : ...
+
+
+Je ne chercherais pas à faire de __count une nouvelle source de vérité : il sert uniquement à contextualiser la valeur déjà calculée.
+Un détail que je verrouillerais dans les tests
+Ne teste pas seulement les textes. Il faut aussi vérifier le domaine réellement transmis à Odoo pour chaque valeur :
+
+toutes      → draft, sent, sale, done
+confirmees  → sale, done
+brouillon   → draft, sent
+annulees    → cancel
+
+
+et le cas :
+
+statut inconnu → comportement explicitement défini
+
+
+Ton fallback = toutes est acceptable, mais il faut que ce soit un comportement contractuel testé, pas un effet de else.
+Donc oui : touche get_total_sales côté domaine ET côté sortie, et aligne get_average_sales sur exactement le même contrat.
