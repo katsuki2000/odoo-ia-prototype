@@ -10,11 +10,13 @@ live Odoo instance, unlike the existing @pytest.mark.integration tests in
 test_odoo_tools.py.
 """
 
+import pytest
 from unittest.mock import patch
 
 from erp_data.odoo_tools import (
     get_average_sales_raw,
     get_average_sales,
+    get_total_sales_raw,
     odoo_uid_ctx,
 )
 from core.evidence import Evidence, EvidenceSourceType
@@ -148,3 +150,79 @@ def test_get_average_sales_raw_propagates_exceptions_without_fabricating_evidenc
             odoo_uid_ctx.reset(token)
 
     assert raised
+
+
+# -----------------------------------------------------------------------------
+# _resolve_statut() domain contract (todo/contexte.txt section 516)
+# -----------------------------------------------------------------------------
+# Same mandate as test_bloc_b0_evidence_orm_pilot.py's equivalent block:
+# verify the real `domain` sent to Odoo's read_group() for each statut
+# value, not just the rendered string -- plus the cross-tool guarantee that
+# get_total_sales and get_average_sales share the exact same domain for a
+# given statut, since that identical-domain contract is the whole point of
+# routing both through the single _resolve_statut() source of truth.
+
+@pytest.mark.parametrize("statut,expected_states", [
+    ("toutes", ["draft", "sent", "sale", "done"]),
+    ("confirmees", ["sale", "done"]),
+    ("brouillon", ["draft", "sent"]),
+    ("annulees", ["cancel"]),
+])
+def test_get_average_sales_raw_domain_matches_statut_contract(statut, expected_states):
+    """Each statut value must produce exactly the Odoo state domain agreed
+    in the contract -- in particular 'annulees' must resolve to ['cancel']
+    only (todo/contexte.txt section 516)."""
+    with patch("erp_data.odoo_tools.connector.read_group") as mock_read_group:
+        mock_read_group.return_value = [{"amount_total": 100.0}]
+        token = odoo_uid_ctx.set(1)
+        try:
+            get_average_sales_raw(client="", periode="toutes", statut=statut)
+        finally:
+            odoo_uid_ctx.reset(token)
+
+    called_domain = mock_read_group.call_args.kwargs["domain"]
+    assert called_domain == [("state", "in", expected_states)]
+
+
+def test_get_average_sales_raw_unknown_statut_falls_back_to_toutes_domain():
+    """An unrecognized statut string is a defined contractual behavior
+    (fallback to the 'toutes' domain), not an accidental effect of an
+    else branch -- verified here against the real domain, not just prose."""
+    with patch("erp_data.odoo_tools.connector.read_group") as mock_read_group:
+        mock_read_group.return_value = [{"amount_total": 100.0}]
+        token = odoo_uid_ctx.set(1)
+        try:
+            get_average_sales_raw(client="", periode="toutes", statut="n'importe quoi")
+        finally:
+            odoo_uid_ctx.reset(token)
+
+    called_domain = mock_read_group.call_args.kwargs["domain"]
+    assert called_domain == [("state", "in", ["draft", "sent", "sale", "done"])]
+
+
+@pytest.mark.parametrize("statut", ["toutes", "confirmees", "brouillon", "annulees"])
+def test_get_total_sales_and_get_average_sales_share_identical_domain_per_statut(statut):
+    """Explicit contract from San Goku's mandate: get_total_sales and
+    get_average_sales must transmit the exact same Odoo domain for a given
+    statut -- both route through the single _resolve_statut() source of
+    truth, this test proves it end-to-end rather than assuming it from
+    reading the shared function alone."""
+    with patch("erp_data.odoo_tools.connector.read_group") as mock_rg_total:
+        mock_rg_total.return_value = [{"amount_total": 100.0}]
+        token = odoo_uid_ctx.set(1)
+        try:
+            get_total_sales_raw(client="", periode="", statut=statut)
+        finally:
+            odoo_uid_ctx.reset(token)
+        total_domain = mock_rg_total.call_args.kwargs["domain"]
+
+    with patch("erp_data.odoo_tools.connector.read_group") as mock_rg_avg:
+        mock_rg_avg.return_value = [{"amount_total": 100.0}]
+        token = odoo_uid_ctx.set(1)
+        try:
+            get_average_sales_raw(client="", periode="toutes", statut=statut)
+        finally:
+            odoo_uid_ctx.reset(token)
+        avg_domain = mock_rg_avg.call_args.kwargs["domain"]
+
+    assert total_domain == avg_domain

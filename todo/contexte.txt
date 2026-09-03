@@ -5929,3 +5929,129 @@ statut inconnu → comportement explicitement défini
 
 Ton fallback = toutes est acceptable, mais il faut que ce soit un comportement contractuel testé, pas un effet de else.
 Donc oui : touche get_total_sales côté domaine ET côté sortie, et aligne get_average_sales sur exactement le même contrat.
+
+---
+
+## Section 516: Refactor _resolve_statut() -- verification (lecture seule) : le code est deja conforme au mandat, mais la couverture de test explicitement exigee (domaine reel par statut) est absente -- PC change confirme, fil Access Denied 508-515 clos par San Goku (2026-09-03)
+
+**Contexte** : reprise de session sur un nouvel environnement/PC (racines accessibles desormais `/media/donnee/projets/odoo-ia-prototype`, `/media/donnee/Programs/odoo-17.0`, `/media/donnee/projets/SmartHealth`). San Goku confirme (1) changement de PC (2) le fil "Access Denied" sections 508-515 (autre PC, root cause = isolation transactionnelle PostgreSQL, corrige section 515) est deja resolu sur ce disque via `git pull` (3) mandat : reprendre le refactor `_resolve_statut()` "si necessaire".
+
+**Verification effectuee** : lecture complete de `erp_data/odoo_tools.py`. Le refactor demande dans le mandat colle en fin de fichier (avant cette section) est **deja implemente** :
+- `_resolve_statut(statut)` existe, source unique partagee par `get_total_sales_raw` et `get_average_sales_raw`.
+- Domaines conformes au contrat exige : `toutes` -> `[draft, sent, sale, done]`, `confirmees` -> `[sale, done]`, `brouillon` -> `[draft, sent]`, `annulees` -> `[cancel]` (le bug silencieux `annulees` retombant sur `toutes`, mentionne dans le mandat, est corrige -- branche explicite).
+- Statut inconnu -> repli explicite sur `toutes`, documente comme comportement contractuel dans la docstring (pas un effet de `else` non intentionnel).
+- `get_average_sales` accepte desormais `statut` (n'ignore plus le parametre comme avant le mandat) et partage exactement le meme domaine que `get_total_sales` pour un `statut` donne.
+- Scope explicite dans les deux sorties texte (`Scope : {scope_label}`, via `STATUT_SCOPE_LABELS`).
+- `get_average_sales` affiche desormais `Nombre : {count}` (le `__count` d'Odoo) en plus de la moyenne -- conforme au format exact demande ("Moyenne des ventes / Scope / Nombre / Moyenne").
+
+**Ecart identifie par rapport au mandat** : San Goku a explicitement demande une exigence de test precise -- *"Ne teste pas seulement les textes. Il faut aussi verifier le domaine reellement transmis a Odoo pour chaque valeur [...] et le cas statut inconnu -> comportement explicitement defini [...] il faut que ce soit un comportement contractuel teste"*. Lecture de `erp_data/tests/test_bloc_b0_evidence_orm_pilot.py` et `erp_data/tests/test_bloc_b1_evidence_get_average_sales.py` (les deux fichiers de tests couvrant ces deux outils) : AUCUN test n'inspecte l'argument `domain` reellement passe a `connector.read_group()` -- tous les tests mockent `read_group` et n'assertent que sur le `text`/`Evidence` en sortie, jamais sur l'appel entrant. Aucun test ne couvre les 4 valeurs de `statut` (`confirmees`/`brouillon`/`annulees`/`toutes`) ni le cas "statut inconnu". Recherche `*resolve_statut*` dans tout le projet : aucun fichier de test dedie. Donc : **le code du refactor est fait, mais la garantie de non-regression explicitement exigee par le mandat ne l'est pas encore**.
+
+**Anomalie de process notee en passant (pas d'action requise)** : la fin de `todo/contexte.txt` avant cette section contient une transcription brute d'echange (San Goku / assistant) collee sans le formatage `## Section NNN` habituel -- vraisemblablement le refactor a ete implemente pendant/apres cet echange sans qu'une section de cloture n'ait ete journalisee sur ce disque avant le `git pull`. Numerotation reprise a 516 (au-dela du plus haut numero reel rencontre, 515 ; les sections 489/490 visibles plus loin dans le fichier sont un residu d'un merge/pull anterieur, non chronologique a cet endroit -- non traite ici, hors mandat).
+
+**Non fait ce tour** : aucun code touche, aucun test ecrit -- lecture seule + journalisation, conformement a rules.md.
+
+**Fichiers lus** : `erp_data/odoo_tools.py` (entier), `erp_data/tests/test_odoo_tools.py`, `erp_data/tests/test_bloc_b0_evidence_orm_pilot.py`, `erp_data/tests/test_bloc_b1_evidence_get_average_sales.py`, listing de `erp_data/tests/`.
+
+**Prochaine etape** : proposition faite a San Goku d'ecrire la couverture de test manquante (nouveau fichier, p.ex. `erp_data/tests/test_resolve_statut_domain_contract.py`, ou extension des deux fichiers existants) verifiant explicitement : (1) le `domain` reel transmis a `read_group` pour chacune des 4 valeurs de `statut` (2) le cas statut inconnu -> repli `toutes` (3) le partage strict du meme domaine entre `get_total_sales_raw` et `get_average_sales_raw` pour un `statut` donne. En attente de confirmation/mandat avant ecriture.
+
+---
+
+## Section 517: Refactor _resolve_statut() -- couverture de test manquante ajoutee, extension des deux fichiers existants comme mandate (2026-09-03)
+
+**Origine** : San Goku confirme l'option "extension des deux fichiers existants" (pas de nouveau fichier) pour combler l'ecart identifie section 516.
+
+**Tests ajoutes** (dryRun -> diff verifie -> ecriture -> relecture, sur les deux fichiers) :
+
+1. `erp_data/tests/test_bloc_b0_evidence_orm_pilot.py` : ajout de `import pytest`, plus deux tests inspectant `mock_read_group.call_args.kwargs["domain"]` (l'appel REEL a `connector.read_group`, pas seulement le texte de sortie) :
+   - `test_get_total_sales_raw_domain_matches_statut_contract` (parametrise sur les 4 valeurs de statut : `toutes` -> `[draft,sent,sale,done]`, `confirmees` -> `[sale,done]`, `brouillon` -> `[draft,sent]`, `annulees` -> `[cancel]`).
+   - `test_get_total_sales_raw_unknown_statut_falls_back_to_toutes_domain` (statut inconnu -> domaine `toutes`, comportement contractuel).
+
+2. `erp_data/tests/test_bloc_b1_evidence_get_average_sales.py` : ajout de `import pytest` et de `get_total_sales_raw` a l'import existant, plus trois tests :
+   - `test_get_average_sales_raw_domain_matches_statut_contract` (meme parametrisation sur les 4 statuts, meme verification du `domain` reel).
+   - `test_get_average_sales_raw_unknown_statut_falls_back_to_toutes_domain`.
+   - `test_get_total_sales_and_get_average_sales_share_identical_domain_per_statut` (parametrise sur les 4 statuts) : verifie de bout en bout, pas seulement par lecture du code partage, que `get_total_sales_raw` et `get_average_sales_raw` transmettent EXACTEMENT le meme `domain` a `read_group` pour un statut donne -- le contrat explicitement exige par San Goku ("aligne get_average_sales sur exactement le meme contrat").
+
+**Limite de verification rencontree** : `py_compile` sandbox impossible sur cet environnement -- `bash_tool` n'a acces ni a `/media/donnee/...` ni a aucun chemin de ce PC (meme limitation que celle deja rencontree avec l'environnement precedent, `bash_tool` reste un sandbox isole sans acces aux disques connectes via le connecteur Filesystem). Verification faite ce tour : relecture complete des deux fichiers via `read_text_file` (tail) confirmant le contenu exact ecrit, mais aucune execution reelle (ni py_compile, ni pytest) n'a pu etre effectuee depuis cette session.
+
+**Non fait ce tour** : aucune execution de test (ni cible, ni suite complete -- rappel rules.md : jamais `pytest tests/ -v` complet). Le nouveau fichier `test_resolve_statut_domain_contract.py` envisage section 516 n'a pas ete cree (San Goku a choisi l'extension des fichiers existants a la place).
+
+**Fichiers modifies** : `erp_data/tests/test_bloc_b0_evidence_orm_pilot.py`, `erp_data/tests/test_bloc_b1_evidence_get_average_sales.py`, `todo/contexte.txt` (cette section).
+
+**Prochaine etape** : San Goku execute localement (PAS la suite complete) :
+```
+pytest erp_data/tests/test_bloc_b0_evidence_orm_pilot.py erp_data/tests/test_bloc_b1_evidence_get_average_sales.py -v
+```
+et colle le resultat. Si tout passe : le refactor `_resolve_statut()` (code + tests) peut etre considere clos. Si echec : root cause a etablir avant tout correctif (meme discipline que d'habitude).
+
+---
+
+## Section 518: Refactor _resolve_statut() -- CLOS : 27/27 tests passes (dont les 9 nouveaux de la section 517) (2026-09-03)
+
+**Resultat colle par San Goku** : `pytest erp_data/tests/test_bloc_b0_evidence_orm_pilot.py erp_data/tests/test_bloc_b1_evidence_get_average_sales.py -v` -> `27 passed in 0.82s`, aucun echec, aucun skip. Les 9 nouveaux tests de la section 517 passent tous, y compris la parametrisation complete sur les 4 statuts (`toutes`/`confirmees`/`brouillon`/`annulees`) pour : le domaine reel de `get_total_sales_raw`, le domaine reel de `get_average_sales_raw`, et le partage strict de domaine entre les deux outils. Les tests statut-inconnu passent egalement pour les deux outils.
+
+**Etat final du chantier** : mandat "Refactoriser le perimetre des ventes autour de _resolve_statut(), faire accepter statut a get_average_sales, corriger le mapping annulees, et expliciter le scope dans les resultats des deux outils" (donne en fin de section pre-516) -- code deja conforme (verifie section 516), couverture de test manquante comblee et validee par execution reelle (sections 517-518). Rien de connu ne reste ouvert sur ce chantier precis.
+
+**Non fait ce tour** : aucune modification de code ou de test -- cloture par lecture du resultat colle par San Goku.
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section uniquement).
+
+**Prochaine etape** : aucune sur ce chantier -- clos. Mandat de San Goku attendu sur le prochain sujet a traiter.
+
+---
+
+## Section 519: Dette technique notee -- deux ecarts de coherence dans get_average_sales_raw, non traites (hors perimetre B1) (2026-09-03)
+
+**Origine** : reperes en relisant erp_data/odoo_tools.py juste apres la cloture du chantier _resolve_statut() (sections 516-518), pendant la reprise de session avec bascule de poste (/home/user/odoo-ia-prototype -> /media/donnee/projets/odoo-ia-prototype).
+
+**Ecarts** :
+1. Dans get_average_sales_raw, la condition du `groupby` (`client.lower() not in ["tous", ""]`) n'est pas alignee avec celle du `domain` juste au-dessus (`client.lower() not in ["tous les clients", "tous", ""]`) -- meme incoherence sur la condition du `label`. Un client="tous les clients" ne filtre pas le domaine mais groupe quand meme par partner_id, et recoit le libelle "pour {client_name}" au lieu du libelle global.
+2. get_average_sales_raw n'applique pas le correctif "fin de journee" sur `date_range[1]` (`+ " 23:59:59"` si la valeur ne contient pas d'heure) deja present dans get_total_sales_raw -- une periode sans heure explicite peut exclure silencieusement les commandes du dernier jour de la moyenne, alors que le total les inclut.
+
+**Decision San Goku** : journaliser, ne pas corriger maintenant -- le chantier _resolve_statut() est quasiment clos (sections 516-518), pas de raison d'ouvrir un mini-chantier fonctionnel supplementaire a ce stade du bloc.
+
+**Statut** : non traite, hors perimetre B1.
+
+**Fichiers modifies** : todo/contexte.txt (cette section uniquement).
+
+**Prochaine etape** : aucune sur ce point precis -- reste ouvert pour un futur mandat explicite si besoin. Mandat de San Goku attendu sur le sujet suivant.
+
+---
+
+## Section 520: Bloc P3.1 -- decouverte que le Bloc P3 (plan.md, pipeline d'extraction/couverture OCA) est deja CLOS depuis le 2026-08-28 (sections 277-280, marqueur manquant dans plan.md), et que ce que San Goku demande maintenant (banc de questions reelles + triage des echecs) est un chantier DISTINCT, jamais fait -- script de selection semi-systematique ecrit (2026-09-03)
+
+**Origine** : San Goku confirme vouloir attaquer un des 3 blocs restants (P3/P4/P5, P4 et P5 bloques sur materiel/acces) et decrit une methodologie precise pour P3 ("Code OCA reel -> Questions reelles -> CI -> Mesure des succes/echecs", triage par capacite plutot que par module, P3.1 = 10 modules x 5 questions = 50 cas en premier passage).
+
+**Verification faite avant tout code (discipline habituelle)** : lecture de `scripts/run_oca_coverage.py` + grep complet de `contexte.txt` sur "OCA"/"run_oca_coverage" -- confirme que le Bloc P3 TEL QUE SCAFFOLDE dans `plan.md` (pipeline CI + rapport de couverture d'EXTRACTION) est deja termine et confirme 3 fois independamment (sandbox, poste local, GitHub Actions run #8) : 12 depots OCA reels, 537 modules decouverts/extraits, 0 echec (sections 277-280, 2026-08-28). `plan.md` n'a jamais recu de marqueur `CLOS` sur ce point -- ecart de tracabilite pur, signale mais non corrige ce tour (hors mandat).
+
+**Mais** lecture complete de `run_oca_coverage.py` confirme qu'il ne mesure QUE le succes du parsing statique (le graphe se construit sans exception, comptage brut d'entites) -- il n'invoque jamais l'agent CI, ne pose aucune question. Ce que San Goku demande maintenant (banc de questions metier reelles + triage des echecs par capacite : ACL/Rules/Workflow/Inheritance/Constraints/Server Actions) est un chantier distinct qui n'existe nulle part sur le disque ni dans le journal.
+
+**Action ce tour (P3.1, etape 1/3 -- selection, pas encore de questions ni d'execution CI)** : ecriture de `scripts/categorize_oca_modules.py` (nouveau fichier, verifie absent avant creation) -- reutilise le meme chargeur que `run_oca_coverage.py` (`code_intelligence.ci_graph_loader._load_module`) pour classer les 537 modules OCA par categorie fonctionnelle a partir de signaux structurels deja extraits (aucune IA, aucune devinette) : securite (rules x2 + acl), workflow (champ Selection 'state'), heritage (classes EXTENSION pure = _inherit sans _name), server_actions (nombre de ir.actions.server), contraintes (@api.constrains), vue/UI (vues+groupes sans rule ni constrains), reporting (depot reporting-engine). Objectif explicite : eviter le biais signale par San Goku (choisir a la main des modules dont le nom "sonne" deja fort en CI, ex. sale_tier_validation/sale_exception, produirait un benchmark optimiste) -- la selection sort d'un classement objectif, pas d'une lecture de noms de modules.
+
+**Verifie ce tour** : `python3 -m py_compile` OK (sandbox Claude, verification syntaxique uniquement -- memes limites deja documentees ailleurs, aucune execution reelle possible depuis cette session : le script tourne sur les 537 modules du poste utilisateur, hors de portee du sandbox/bash_tool). Relecture du fichier depuis le disque utilisateur apres ecriture, contenu confirme conforme.
+
+**Non fait ce tour** : aucune execution reelle du script (San Goku doit le lancer). Aucune question ecrite. Aucun mandat encore donne sur la repartition exacte des 10 modules parmi les 7 categories identifiees (7 categories pour 10 modules ne se divise pas uniformement -- a trancher une fois les resultats du script en main).
+
+**Fichiers modifies** : `scripts/categorize_oca_modules.py` (nouveau), `todo/contexte.txt` (cette section).
+
+**Prochaine etape** : San Goku execute `python scripts/categorize_oca_modules.py tests/oca_sample` dans son venv et colle la sortie complete. Sur cette base : choisir 1-2 modules par categorie (avec decision sur la repartition 7 categories/10 modules), puis etape 2/3 (ecrire les ~5 questions standardisees par module/categorie), puis etape 3/3 (executer reellement via MIRO AI/`query_graph()` et trianguler les echecs -- necessite Groq, donc execution par San Goku, pas par ce sandbox).
+
+---
+
+## Section 521: Bloc P3.1 -- dataset des 50 questions (10 modules x 5) trouve DEJA COMPLET sur disque (`tests/oca_p3_1_question_bank.json`), sans section de journalisation correspondante -- ecart de tracabilite type deja documente ; les 3 derniers modules (stock_archive_constraint, auditlog, kpi) verifies ce tour contre le code source reel, aucune correction necessaire (2026-09-03)
+
+**Origine** : San Goku mandate de terminer stock_archive_constraint/auditlog/kpi "avec la meme methode (lecture du code reel avant d'ecrire les questions)" puis de livrer le dataset complet des 50 cas et de journaliser.
+
+**Constat avant tout travail** : lecture de `tests/oca_p3_1_question_bank.json` -- le fichier existe deja et contient les 50 questions completes (10 modules x 5, gabarit Q1..Q5 = security/workflow/inheritance/ui/constraints), y compris les 3 modules cibles de ce mandat. Aucune section de contexte.txt (jusqu'a la section 520 relue en tete de session) ne documente ni la creation de ce fichier ni le travail sur les 7 premiers modules (purchase_request, animal, base_tier_validation, stock_inventory, sale_order_type, account_invoice_section_sale_order, database_cleanup). Meme pattern que la dette de tracabilite deja rencontree sur d'autres chantiers : artefact present sur disque, trouvaille non journalisee avant ce tour.
+
+**Verification effectuee ce tour (les 3 modules mandates, lecture directe du code reel, pas de confiance aveugle dans le JSON existant)** :
+- **stock_archive_constraint** (`tests/oca_sample/stock-logistics-warehouse/stock_archive_constraint/`) : listing du module confirme l'absence de dossiers `security/` et `views/` (SAC-Q1, SAC-Q4). Lecture complete de `models/product_product.py` et `models/stock_location.py` : les 6 methodes `@api.constrains('active')` (3 par modele) et le garde partage `_skip_check_archive_constraint_condition` correspondent exactement aux 5 reponses de reference (SAC-Q1 a SAC-Q5) -- aucun ecart.
+- **auditlog** (`tests/oca_sample/server-tools/auditlog/`) : lecture complete de `models/rule.py` (`AuditlogRule` : `_name` seul, pas de `_inherit` du modele cible ; `subscribe()` -> `write()` -> `_register_hook()` -> `_patch_methods()` -> `setattr` sur la classe Python ; `_sql_constraints = [('model_uniq', 'unique(model_id)', ...)]`). Lecture de `security/ir.model.access.csv` (group_auditlog_user = perm_read=1 seul sur auditlog.rule, group_auditlog_manager = 1,1,1,1) et de `views/auditlog_view.xml` (champ `action_id` avec `groups="base.group_no_one"`). Les 5 reponses de reference (AL-Q1 a AL-Q5) confirmees exactes, y compris la distinction fine "aucun `_inherit`, patch dynamique par `setattr`" (AL-Q3).
+- **kpi** (`tests/oca_sample/reporting-engine/kpi/`) : lecture complete de `models/kpi.py` (`_name='kpi'`, `_inherit=['mail.thread','mail.activity.mixin']` uniquement ; `is_sql_or_ddl_statement()`/`RE_SELECT_QUERY` ; `_get_kpi_value()` ; `update_kpi_value()`/`compute_kpi_value()`). Lecture de `security/ir.model.access.csv` (access_kpi_user=1,0,0,0 vs access_kpi_manager=1,1,1,1, et le detail `access_base_external_dbsource_manager` accordant perm_write/create/unlink=1 a `base.group_user` malgre son nom). Lecture de `data/kpi_data.xml` (`ir_cron_kpi_action`, `user_id=base.user_root`, horaire, `model.update_kpi_value()`) et de `views/kpi_views.xml` (page "Computation" entiere avec `groups="kpi.group_kpi_manager"`, englobant `kpi_type`/`dbsource_id`/`kpi_code`/`periodicity*`). Les 5 reponses de reference (KPI-Q1 a KPI-Q5) confirmees exactes, y compris le piege "kpi_type=='python' echappe totalement au garde regex" (KPI-Q5).
+
+**Resultat** : 0 correction necessaire sur les 15 questions des 3 modules verifies ce tour -- le contenu deja present sur disque etait deja ancre dans le code reel, conforme a la methode exigee. Les 7 autres modules (35 questions restantes) n'ont pas ete re-verifies ce tour (hors mandat explicite de cette session ; deja marques comme bases sur code reel dans les champs `verification` du JSON, a auditer si un doute emerge plus tard).
+
+**Non fait ce tour** : aucune modification du fichier `tests/oca_p3_1_question_bank.json` (deja conforme, aucune correction a apporter). Aucune execution reelle via MIRO AI/`query_graph()` (etape 3/3 du plan P3.1, necessite Groq -- toujours hors de portee de ce sandbox, San Goku devra l'executer). Le script `scripts/categorize_oca_modules.py` (section 520) n'a toujours pas ete relance/confirme execute par San Goku -- sans lien direct avec ce tour puisque la selection des 10 modules etait deja actee dans le JSON trouve.
+
+**Fichiers lus** : `tests/oca_p3_1_question_bank.json` (entier), `tests/oca_sample/stock-logistics-warehouse/stock_archive_constraint/` (listing + `models/product_product.py` + `models/stock_location.py`), `tests/oca_sample/server-tools/auditlog/` (listing + `models/rule.py` + `security/ir.model.access.csv` + `views/auditlog_view.xml`), `tests/oca_sample/reporting-engine/kpi/` (listing + `models/kpi.py` + `security/ir.model.access.csv` + `data/kpi_data.xml` + `views/kpi_views.xml`).
+
+**Prochaine etape** : dataset des 50 cas livre a San Goku dans cette meme reponse (question/capability/difficulty/expected_tools/reponse de reference/localisation, pour les 10 modules). Etape suivante du plan P3.1 (section 520) : San Goku (ou une session avec acces Groq) execute reellement les 50 questions via `query_graph()`/MIRO AI et triangule les echecs par capacite -- non fait, hors de portee de ce sandbox.

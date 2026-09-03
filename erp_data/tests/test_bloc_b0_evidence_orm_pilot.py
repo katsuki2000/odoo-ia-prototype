@@ -10,6 +10,7 @@ instance, unlike the existing @pytest.mark.integration tests in
 test_odoo_tools.py.
 """
 
+import pytest
 from unittest.mock import patch
 
 from erp_data.odoo_tools import get_total_sales_raw, odoo_uid_ctx
@@ -94,3 +95,50 @@ def test_get_total_sales_tool_wrapper_unchanged_return_contract():
             odoo_uid_ctx.reset(token)
 
     assert isinstance(result, str)
+
+
+# -----------------------------------------------------------------------------
+# _resolve_statut() domain contract (todo/contexte.txt section 516)
+# -----------------------------------------------------------------------------
+# San Goku's mandate was explicit: text-only assertions are not enough --
+# the actual `domain` sent to Odoo's read_group() must be verified for each
+# statut value, not just the rendered string. These tests inspect the real
+# call args passed to the mocked connector.read_group, not its return value.
+
+@pytest.mark.parametrize("statut,expected_states", [
+    ("toutes", ["draft", "sent", "sale", "done"]),
+    ("confirmees", ["sale", "done"]),
+    ("brouillon", ["draft", "sent"]),
+    ("annulees", ["cancel"]),
+])
+def test_get_total_sales_raw_domain_matches_statut_contract(statut, expected_states):
+    """Each statut value must produce exactly the Odoo state domain agreed
+    in the contract -- in particular 'annulees' must resolve to ['cancel']
+    only, not silently fall through to the 'toutes' domain (the bug this
+    refactor fixed, todo/contexte.txt section 516)."""
+    with patch("erp_data.odoo_tools.connector.read_group") as mock_read_group:
+        mock_read_group.return_value = [{"amount_total": 100.0}]
+        token = odoo_uid_ctx.set(1)
+        try:
+            get_total_sales_raw(client="", periode="", statut=statut)
+        finally:
+            odoo_uid_ctx.reset(token)
+
+    called_domain = mock_read_group.call_args.kwargs["domain"]
+    assert called_domain == [("state", "in", expected_states)]
+
+
+def test_get_total_sales_raw_unknown_statut_falls_back_to_toutes_domain():
+    """An unrecognized statut string is a defined contractual behavior
+    (fallback to the 'toutes' domain), not an accidental effect of an
+    else branch -- verified here against the real domain, not just prose."""
+    with patch("erp_data.odoo_tools.connector.read_group") as mock_read_group:
+        mock_read_group.return_value = [{"amount_total": 100.0}]
+        token = odoo_uid_ctx.set(1)
+        try:
+            get_total_sales_raw(client="", periode="", statut="n'importe quoi")
+        finally:
+            odoo_uid_ctx.reset(token)
+
+    called_domain = mock_read_group.call_args.kwargs["domain"]
+    assert called_domain == [("state", "in", ["draft", "sent", "sale", "done"])]
