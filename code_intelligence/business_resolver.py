@@ -261,14 +261,7 @@ def _build_fuzzy_index(G) -> List[Tuple[str, str]]:
                 if spaced != technical_name:
                     index.append((spaced.lower(), technical_name))
 
-    # Section 307-310 (todo/contexte.txt) : injection des synonymes FR pour
-    # les modeles Odoo natifs (Phase 1), au meme titre que les entrees
-    # Model.description/Field.label/Menu.name ci-dessus -- meme forme de
-    # tuple (label.lower(), model_name), meme scorer, aucun traitement
-    # prioritaire. Garde G.has_node() pour ne pas injecter silencieusement
-    # un synonyme sur un modele absent du graphe charge (ex. module non
-    # installe sur cette instance) -- un synonyme fantome pointant vers un
-    # modele inexistant serait pire qu'une absence de synonyme.
+    # injection des synonymes FR pour les modeles Odoo natifs (Phase 1), au meme titre que les entrees Model.description/Field.label/Menu.name ci-dessus -- meme forme de tuple (label.lower(), model_name), meme scorer, aucun traitement prioritaire. Garde G.has_node() pour ne pas injecter silencieusement un synonyme sur un modele absent du graphe charge (ex. module non installe sur cette instance) -- un synonyme fantome pointant vers un modele inexistant serait pire qu'une absence de synonyme.
     for model_name, synonyms in NATIVE_MODEL_SYNONYMS.items():
         if not G.has_node(f"model:{model_name}"):
             continue
@@ -418,11 +411,7 @@ def resolve_business_term(query_text: str, G=None, llm=None) -> ResolvedConcept:
 
     exact_mentions = _find_exact_technical_model_mentions(clean_query, G)
     if len(exact_mentions) > 1:
-        # Section 2xx (todo/contexte.txt), option 2: several exact technical
-        # mentions can coexist in one query (e.g. a generic name like 'base'
-        # alongside a specific one like 'custom.deep.document') -- arbitrate
-        # by specificity instead of returning every exact match as equally
-        # valid. See rank_by_specificity's docstring for the rationale.
+        # Section 2xx (todo/contexte.txt), option 2: several exact technical mentions can coexist in one query (e.g. a generic name like 'base' alongside a specific one like 'custom.deep.document') -- arbitrate by specificity instead of returning every exact match as equally valid. See rank_by_specificity's docstring for the rationale.
         exact_mentions = rank_by_specificity(exact_mentions, clean_query)
     if exact_mentions:
         return ResolvedConcept(
@@ -459,8 +448,7 @@ def resolve_business_term(query_text: str, G=None, llm=None) -> ResolvedConcept:
                     reason=f"Fuzzy matched graph labels: {', '.join(f'{m} ({s:.0f})' for m, s in fuzzy_results)}",
                 )
 
-            # Step 3: Bounded LLM Candidate Selection (only reached on
-            # genuine ambiguity — never for a clear top-1 fuzzy match).
+            # Step 3: Bounded LLM Candidate Selection (only reached on genuine ambiguity — never for a clear top-1 fuzzy match).
             chosen = _llm_arbitrate(query_text, top_models, llm)
             if chosen is not None:
                 return ResolvedConcept(
@@ -488,19 +476,7 @@ def resolve_business_term(query_text: str, G=None, llm=None) -> ResolvedConcept:
                 ),
             )
         else:
-            # Section 228 (todo/contexte.txt), option (b): the strict
-            # threshold above, combined with _fuzzy_match_graph's
-            # length_penalty, is mathematically unreachable for long
-            # natural-language questions matched against short indexed
-            # labels (verified by hand for 2 real H4 failures -- required
-            # raw score > 100, impossible). Rather than lowering the strict
-            # threshold globally (would start auto-accepting weak matches
-            # WITHOUT LLM confirmation -- a correctness regression), a
-            # second, deliberately loose fuzzy pass builds a bounded
-            # candidate shortlist ONLY for LLM arbitration -- the LLM still
-            # never picks outside this closed list (same _llm_arbitrate
-            # contract as the ambiguous-strict-match case above), and a
-            # chosen candidate is explicitly lower confidence than that case.
+            # the strict threshold above, combined with _fuzzy_match_graph's length_penalty, is mathematically unreachable for long natural-language questions matched against short indexed labels (verified by hand for 2 real H4 failures -- required raw score > 100, impossible). Rather than lowering the strict threshold globally (would start auto-accepting weak matches WITHOUT LLM confirmation -- a correctness regression), a second, deliberately loose fuzzy pass builds a bounded candidate shortlist ONLY for LLM arbitration -- the LLM still never picks outside this closed list (same _llm_arbitrate contract as the ambiguous-strict-match case above), and a chosen candidate is explicitly lower confidence than that case.
             widened_results = _fuzzy_match_graph(
                 clean_query, G,
                 threshold=WIDENED_CANDIDATE_THRESHOLD,

@@ -13,7 +13,36 @@ from code_intelligence.utils import (
     resolve_model_xmlref,
     discover_odoo_modules,
     compute_addons_hash,
+    format_xml_id_citation,
+    format_xml_id_citations,
 )
+
+
+def test_format_xml_id_citation_valid_identifier():
+    """Bug 1 (todo/contexte.txt section 490, option A): a real
+    module-qualified xml_id gets the exact 'xml_id: ' prefix
+    sourcing_guard._XML_ID_PATTERN looks for as ground truth."""
+    assert format_xml_id_citation("account.group_account_manager") == (
+        "xml_id: account.group_account_manager"
+    )
+
+
+def test_format_xml_id_citation_rejects_unqualified_identifier():
+    """No dot -- not a real xml_id, never emitted as a citation token
+    (would never match sourcing_guard's own pattern anyway)."""
+    assert format_xml_id_citation("group_account_manager") == ""
+    assert format_xml_id_citation("") == ""
+    assert format_xml_id_citation(None) == ""
+
+
+def test_format_xml_id_citations_joins_with_spaces_not_commas():
+    """Each token space-joined, never comma-joined -- sourcing_guard's
+    _XML_ID_PATTERN stops at the first non-identifier character, so a
+    comma-joined list would only ever yield the first id as ground truth."""
+    result = format_xml_id_citations(
+        ["account.group_account_manager", "sales_team.group_sale_manager", "bare_name"]
+    )
+    assert result == "xml_id: account.group_account_manager xml_id: sales_team.group_sale_manager"
 
 
 def test_resolve_model_xmlref():

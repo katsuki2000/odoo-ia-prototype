@@ -85,7 +85,16 @@ class MiroAiController(http.Controller):
                 [('user_id', '=', uid), ('name', '=', key_name)],
                 order='create_date desc', limit=1,
             )
+            # Commit immédiat : l'appel FastAPI ci-dessous déclenche un second
+            # aller-retour XML-RPC vers Odoo, qui ouvre son propre curseur.
+            # Sous READ COMMITTED, cette seconde transaction ne peut pas voir
+            # l'INSERT tant qu'il n'est pas commité ici -- sans ce commit, la
+            # clé n'existe pas encore pour la requête RPC et l'authentification
+            # échoue systématiquement avec AccessDenied.
+            request.env.cr.commit()
         except Exception as key_err:
+            rpc_api_key = None
+            apikey_record = None
             _logger.error("MIRO AI: échec de génération de la clé API pour uid=%s: %s", uid, key_err)
 
         # Génération du JWT (sub et uid, company_id, groups, clé API réelle, expiration 1h)
@@ -224,11 +233,21 @@ class MiroAiController(http.Controller):
             if apikey_record:
                 try:
                     apikey_record._remove()
+                    # Commit immédiat, symétrique du commit fait a la
+                    # génération : la révocation ne doit pas rester en
+                    # attente du commit global de fin de requête d'Odoo,
+                    # sinon la clé resterait visible/utilisable par toute
+                    # autre transaction jusque-la.
+                    request.env.cr.commit()
                 except Exception as revoke_err:
                     _logger.warning(
                         "MIRO AI: échec de révocation de la clé API pour uid=%s: %s",
                         uid, revoke_err,
                     )
+                    try:
+                        request.env.cr.rollback()
+                    except Exception:
+                        pass
 
     @http.route('/miro_ai/sessions', type='json', auth='user', methods=['POST'])
     def sessions(self, limit=30, **kwargs):

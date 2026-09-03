@@ -42,13 +42,7 @@ for q in extra_cases:
     r = resolve_business_term(q, G)
     print(f"Q: {q!r:25s} -> source={r.source_step:18s}, modèles={r.resolved_models}, résolu={r.is_resolved}")
 
-# Section 307 (todo/contexte.txt) : mesure prealable AVANT toute ecriture de
-# NATIVE_MODEL_SYNONYMS -- diagnostic du mismatch linguistique de l'index
-# fuzzy (_build_fuzzy_index indexe Model.description/Field.label/Menu.name,
-# probablement en anglais pour les modeles Odoo natifs) sur les modeles
-# candidats de la Phase 1 proposee par l'utilisateur (Vente/Achat/Stock).
-# Lecture seule : aucun code de production touche, ce script ne fait
-# qu'appeler resolve_business_term() en lecture sur le graphe deja charge.
+# mesure prealable AVANT toute ecriture de NATIVE_MODEL_SYNONYMS -- diagnostic du mismatch linguistique de l'index fuzzy (_build_fuzzy_index indexe Model.description/Field.label/Menu.name, probablement en anglais pour les modeles Odoo natifs) sur les modeles candidats de la Phase 1 proposee par l'utilisateur (Vente/Achat/Stock). Lecture seule : aucun code de production touche, ce script ne fait qu'appeler resolve_business_term() en lecture sur le graphe deja charge.
 native_model_candidates = [
     "qui peut valider une commande de vente",
     "qui peut approuver une commande d'achat",
@@ -88,13 +82,13 @@ for q in native_model_candidates:
 # appelle une fonction privee du module en lecture, ne modifie rien.
 from code_intelligence.business_resolver import _build_fuzzy_index
 
-print("\n=== Section 308 : entrees d'index contenant 'achat' ===")
+print("\n=== entrees d'index contenant 'achat' ===")
 idx = _build_fuzzy_index(G)
 for label, model in idx:
     if "achat" in label:
         print(f"  model={model!r:35s} <- label={label!r}")
 
-print("\n=== Section 308 : entrees d'index contenant 'stock' ===")
+print("\n=== entrees d'index contenant 'stock' ===")
 for label, model in idx:
     if "stock" in label:
         print(f"  model={model!r:35s} <- label={label!r}")

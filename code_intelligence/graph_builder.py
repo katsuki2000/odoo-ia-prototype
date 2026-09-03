@@ -133,18 +133,7 @@ class OdooGraphBuilder:
                 depends = mod.manifest.depends
                 filepath = mod.manifest.filepath
             else:
-                # 2026-08-06 fix: same silent-swallow shape as the
-                # topological_sort_modules bug this mirrors (see
-                # cross_file_resolver.py / manifest_parser.py::
-                # MissingManifestError) -- `depends`/`filepath` used to
-                # fall back to [] / "" with zero signal whenever a module
-                # had no manifest. rag/graph.py::_load_module() no longer
-                # produces manifest=None for real corpus modules (it
-                # synthesizes a real fallback or raises), so this branch
-                # should be unreachable in production; it's kept only for
-                # callers/tests that intentionally build
-                # ParsedModule(manifest=None, ...), now with a warning
-                # instead of silence so a real regression here is visible.
+                # same silent-swallow shape as the topological_sort_modules bug this mirrors (see cross_file_resolver.py / manifest_parser.py:: MissingManifestError) -- `depends`/`filepath` used to fall back to [] / "" with zero signal whenever a module had no manifest. rag/graph.py::_load_module() no longer produces manifest=None for real corpus modules (it synthesizes a real fallback or raises), so this branch should be unreachable in production; it's kept only for callers/tests that intentionally build ParsedModule(manifest=None, ...), now with a warning instead of silence so a real regression here is visible.
                 depends = []
                 filepath = ""
                 if mod is not None:
@@ -179,12 +168,7 @@ class OdooGraphBuilder:
             # Collect source filepaths for this model across declarations
             all_filepaths = list(dict.fromkeys(d.filepath for d in decls if d.filepath))
 
-            # B0: business-language description (_description = "...").
-            # Usually only set on the base declaration (the one with _name); extensions
-            # rarely redeclare it, so take the first non-empty value found across decls.
-            # Same ~50% gap as fields, same fallback: humanize the technical model name
-            # (e.g. custom.credit.note.approval.regional -> "Custom Credit Note Approval
-            # Regional") rather than leaving the resolver with nothing to match.
+            # business-language description (_description = "..."). Usually only set on the base declaration (the one with _name); extensions rarely redeclare it, so take the first non-empty value found across decls. Same ~50% gap as fields, same fallback: humanize the technical model name (e.g. custom.credit.note.approval.regional -> "Custom Credit Note Approval Regional") rather than leaving the resolver with nothing to match.
             explicit_description = next((d.description for d in decls if d.description), None)
             model_description = explicit_description or _humanize_technical_name(model_name)
             description_source = "explicit" if explicit_description else "generated"

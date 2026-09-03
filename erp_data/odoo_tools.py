@@ -79,6 +79,45 @@ def _normalize_client_name(client: str) -> str:
     })
     return client.translate(trans)
 
+
+STATUT_SCOPE_LABELS = {
+    "confirmees": "commandes confirmées",
+    "brouillon": "devis en brouillon",
+    "annulees": "commandes annulées",
+    "toutes": "commandes non annulées",
+}
+
+
+def _resolve_statut(statut: str) -> Tuple[List[str], str]:
+    """
+    Single source of truth for mapping a user-facing statut string to Odoo
+    sale.order states, shared by get_total_sales_raw and get_average_sales_raw
+    so both tools always query the exact same domain for the same statut
+    (todo/contexte.txt: 'annulees' previously fell through to the default
+    branch and silently queried the same states as 'toutes' -- fixed here
+    by giving it its own explicit branch).
+
+    Unknown statut values fall back to 'toutes' -- a defined contractual
+    behavior, not an accidental effect of an else branch.
+    """
+    statut_normalized = (statut or "").lower().strip()
+
+    if statut_normalized in ("confirmees", "confirmée", "confirmées", "confirmee"):
+        canonical = "confirmees"
+        states = ["sale", "done"]
+    elif statut_normalized in ("brouillon", "en cours", "draft"):
+        canonical = "brouillon"
+        states = ["draft", "sent"]
+    elif statut_normalized in ("annulees", "annulée", "annulées", "annulee", "annulé", "cancel"):
+        canonical = "annulees"
+        states = ["cancel"]
+    else:
+        canonical = "toutes"
+        states = ["draft", "sent", "sale", "done"]
+
+    return states, STATUT_SCOPE_LABELS[canonical]
+
+
 def get_total_sales_raw(client: str = "", periode: str = "", statut: str = "toutes") -> Tuple[str, Evidence]:
     """
     Execute get_total_sales and return both the display string and the
@@ -87,15 +126,7 @@ def get_total_sales_raw(client: str = "", periode: str = "", statut: str = "tout
     (B2/B3) can call it directly and reuse the result object, the same
     pattern already used on the CI side by ci_agent_tools.evaluate_rules_raw.
     """
-    statut_normalized = statut.lower().strip()
-
-    if statut_normalized in ("confirmees", "confirmée", "confirmées", "confirmee"):
-        states = ["sale", "done"]
-    elif statut_normalized in ("brouillon", "en cours", "draft"):
-        states = ["draft", "sent"]
-    else:
-        states = ["draft", "sent", "sale", "done"]
-
+    states, scope_label = _resolve_statut(statut)
     domain = [("state", "in", states)]
 
     if client and client.lower() not in ["tous les clients", "tous", ""]:
@@ -120,7 +151,7 @@ def get_total_sales_raw(client: str = "", periode: str = "", statut: str = "tout
     )
 
     if not results or not results[0].get("amount_total"):
-        text = f"Aucune vente trouvée{client_label} (statut: {statut})."
+        text = f"Aucune vente trouvée{client_label}.\nScope : {scope_label}"
         evidence = make_evidence(
             source_type=EvidenceSourceType.ORM,
             claim=f"No sale.order matches client={client or 'all'}, period={periode or 'all'}, statut={statut}",
@@ -131,7 +162,12 @@ def get_total_sales_raw(client: str = "", periode: str = "", statut: str = "tout
         return text, evidence
 
     total = results[0]["amount_total"]
-    text = f"Le total des ventes{client_label} (statut: {statut}) est de {total:.2f} Ar.\n[Source: Odoo ERP - Module Ventes (sale.order)]"
+    text = (
+        f"Total des ventes{client_label}\n"
+        f"Scope : {scope_label}\n"
+        f"Total : {total:.2f} Ar\n"
+        f"[Source: Odoo ERP - Module Ventes (sale.order)]"
+    )
     evidence = make_evidence(
         source_type=EvidenceSourceType.ORM,
         claim=f"Total sales amount for client={client or 'all'}, period={periode or 'all'}, statut={statut}",
@@ -150,7 +186,7 @@ def get_total_sales(client: str = "", periode: str = "", statut: str = "toutes")
     Args:
         client: Client name. Leave empty ("") or "tous" for all clients.
         periode: Optional time period filter (e.g. 'ce mois', '2025'). Leave empty string ("") for all time unless a specific period is explicitly mentioned in the user query.
-        statut: Order status filter ('confirmees', 'brouillon', 'toutes'). Default: 'toutes'.
+        statut: Order status filter ('confirmees', 'brouillon', 'annulees', 'toutes'). Default: 'toutes'.
     """
     text, _evidence = get_total_sales_raw(client, periode, statut)
     return text
@@ -869,21 +905,29 @@ def get_period_revenue(periode: str) -> str:
     except Exception as e:
         return f"Erreur lors du calcul du CA : {str(e)}"
 
-def get_average_sales_raw(client: str = "", periode: str = "toutes") -> Tuple[str, Evidence]:
+def get_average_sales_raw(client: str = "", periode: str = "toutes", statut: str = "toutes") -> Tuple[str, Evidence]:
     """
     Execute get_average_sales and return both the display string and the
     structured Evidence (B1 replication of the B0 pilot -- ORM 1/9, todo/
     contexte.txt sections 429/436+). Exposed separately from the @tool
     wrapper so a future Evidence Builder can call it directly, same pattern
-    already used for get_total_sales_raw. Deliberately never catches
-    connector exceptions itself -- the @tool wrapper below owns the
-    try/except, so this function's return type stays a strict
+    already used for get_total_sales_raw. `statut` shares the exact same
+    domain resolution as get_total_sales_raw via _resolve_statut() so both
+    tools always query the same states for the same statut value (todo/
+    contexte.txt: this tool previously hardcoded ["sale", "done"],
+    silently ignoring statut and diverging from get_total_sales). The
+    record count returned by Odoo's read_group (__count) is surfaced in
+    `text` only to make the average's basis legible -- it is not a new
+    Evidence, just context for the value already computed. Deliberately
+    never catches connector exceptions itself -- the @tool wrapper below
+    owns the try/except, so this function's return type stays a strict
     Tuple[str, Evidence] (never Optional[Evidence]), and no Evidence is
     ever fabricated from a technical failure.
     """
     uid = _get_current_uid()
     scope = _orm_evidence_scope(uid)
-    domain = [("state", "in", ["sale", "done"])]
+    states, scope_label = _resolve_statut(statut)
+    domain = [("state", "in", states)]
     if client and client.lower() not in ["tous les clients", "tous", ""]:
         domain.append(("partner_id.name", "ilike", _normalize_client_name(client)))
 
@@ -901,27 +945,34 @@ def get_average_sales_raw(client: str = "", periode: str = "toutes") -> Tuple[st
     )
 
     if not results:
-        text = f"Aucune vente trouvée pour calculer la moyenne."
+        text = f"Aucune vente trouvée pour calculer la moyenne.\nScope : {scope_label}"
         evidence = make_evidence(
             source_type=EvidenceSourceType.ORM,
-            claim=f"No sale.order matches to compute average for client={client or 'all'}, period={periode or 'all'}",
+            claim=f"No sale.order matches to compute average for client={client or 'all'}, period={periode or 'all'}, statut={statut}",
             source="sale.order:read_group(amount_total:avg)",
             value=None,
             scope=scope,
         )
         return text, evidence
 
+    moyenne = results[0].get("amount_total", 0.0)
+    count = results[0].get("__count", 0)
     if not client or client.lower() in ["tous", ""]:
-        moyenne = results[0].get("amount_total", 0.0)
-        text = f"Le montant moyen d'une vente est de {moyenne:.2f} Ar.\n[Source: Odoo ERP - Module Ventes (sale.order)]"
+        label = "Moyenne des ventes"
     else:
-        moyenne = results[0].get("amount_total", 0.0)
         client_name = results[0].get("partner_id")[1] if results[0].get("partner_id") else client
-        text = f"Le montant moyen d'une vente pour {client_name} est de {moyenne:.2f} Ar.\n[Source: Odoo ERP - Module Ventes (sale.order)]"
+        label = f"Moyenne des ventes pour {client_name}"
+    text = (
+        f"{label}\n"
+        f"Scope : {scope_label}\n"
+        f"Nombre : {count}\n"
+        f"Moyenne : {moyenne:.2f} Ar\n"
+        f"[Source: Odoo ERP - Module Ventes (sale.order)]"
+    )
 
     evidence = make_evidence(
         source_type=EvidenceSourceType.ORM,
-        claim=f"Average sale amount for client={client or 'all'}, period={periode or 'all'}",
+        claim=f"Average sale amount for client={client or 'all'}, period={periode or 'all'}, statut={statut}",
         source="sale.order:read_group(amount_total:avg)",
         value=moyenne,
         scope=scope,
@@ -930,16 +981,17 @@ def get_average_sales_raw(client: str = "", periode: str = "toutes") -> Tuple[st
 
 
 @tool
-def get_average_sales(client: str = "", periode: str = "toutes") -> str:
+def get_average_sales(client: str = "", periode: str = "toutes", statut: str = "toutes") -> str:
     """
     Get average sale amount for a client or overall.
     
     Args:
         client: Client name (Optional).
         periode: Time period (Optional).
+        statut: Order status filter ('confirmees', 'brouillon', 'annulees', 'toutes'). Default: 'toutes'.
     """
     try:
-        text, _evidence = get_average_sales_raw(client, periode)
+        text, _evidence = get_average_sales_raw(client, periode, statut)
         return text
     except Exception as e:
         return f"Erreur lors du calcul de la moyenne : {str(e)}"

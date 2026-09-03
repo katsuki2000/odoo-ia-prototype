@@ -9,7 +9,11 @@ import logging
 import re
 from typing import List, Tuple
 
-from code_intelligence.ci_helpers import _amount_present_in_text, _OVERRIDE_CHAIN_AMOUNT_RE
+from code_intelligence.ci_helpers import (
+    _amount_present_in_text,
+    _match_near_truncation,
+    _OVERRIDE_CHAIN_AMOUNT_RE,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +68,12 @@ def _extract_override_chain_amounts(raw_tool_output: str) -> List[str]:
     an override-cascade risk finding in first-seen order, deduplicated."""
     amounts: List[str] = []
     for match in _OVERRIDE_CHAIN_AMOUNT_RE.finditer(raw_tool_output):
+        if _match_near_truncation(raw_tool_output, match.start(), match.end()):
+            # Evidence-first (section 503-505): a value sitting right next
+            # to a truncation marker is real (never a partial token, see
+            # _truncate_observation) but its surrounding condition may be
+            # incomplete -- don't backfill it as a fully-grounded fact.
+            continue
         amount = match.group(1).replace(" ", "").strip()
         if amount and amount not in amounts:
             amounts.append(amount)

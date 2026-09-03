@@ -5279,3 +5279,604 @@ Aucun ecart trouve entre l'implementation deja presente sur le disque et la tabl
 **Tests** : 22/22 passed (`test_bloc_p1_execution_failure_signal.py` 9/9 + `test_evidence_sufficiency.py` 13/13).
 
 **Fichiers modifies** : `code_intelligence/ci_agent_node.py` (constante extraite, emojis corriges), `tests/test_bloc_p1_execution_failure_signal.py` (nouveau), `todo/contexte.txt` (cette section).
+
+---
+
+## Section 489: Benchmark corpus complet -- CLOS (extraction full addons Odoo 17, y compris natifs) (2026-09-03)
+
+**Origine** : question ouverte de San Goku sur la robustesse du pipeline generique `scripts/extract_modules.py` face au corpus Odoo complet (583 modules, incluant tous les modules natifs/l10n_*, pas seulement custom_*). Run isole, sans toucher a `active_graph.json` ni au chargement curate de `ci_graph_loader.py` (account/sale/stock + custom_* + deps directes).
+
+**Commande executee** : `python scripts/extract_modules.py /home/user/odoo-17.0/addons --output /home/user/odoo-ia-prototype/code_intelligence/full_corpus_test`
+
+**Resultats** :
+- 583 modules / 102 776 nodes / 103 587 edges. Pipeline end-to-end OK, symbol resolution (pass 1+2) comprise.
+- Une fixture XML malformee dans `l10n_it_edi` (`tests/import_xmls/IT01234567889_FPR03.xml`, tag mal ferme ligne 115) degradee proprement, sans empecher le chargement du module (8 models, 2 ACLs charges quand meme).
+- Parsing repete du meme fichier casse par plusieurs parsers (rules/groups/actions/menuitems/views + un appel generique -> 6 logs d'erreur au lieu d'1) : dette technique separee, optimisation de parsing/cache, sans urgence fonctionnelle.
+- Forte domination `AccessEntry` (72 054 / 102 776 nodes, ~70%) provenant des modules `l10n_*` (ex: `l10n_ro_cpv_code` 9455 ACLs, `l10n_fr` 3707, `l10n_pe` 3436, `l10n_de` 2596) : masse structurelle liee aux packs de localisation fiscale par pays, pas du bruit d'extraction.
+
+**Conclusion** : confirme le choix actuel d'un graphe operationnel cible (`ci_graph_loader.py` : 3 modules core + custom_* + deps directes) plutot que le chargement du corpus complet -- charger les 583 modules en production noierait le signal business/securite pertinent sous ~190 pays de regles fiscales jamais interrogees. Le test valide que le pipeline scale, pas qu'il faille l'utiliser a cette echelle par defaut.
+
+**Aucune nouvelle experimentation `l10n_*` necessaire a ce stade** (pas de relance avec `--prefix l10n_` exclu -- l'experience ne repondrait a aucune question ouverte, les deux faits utiles etant deja etablis).
+
+**Fichiers touches** : aucun fichier de production modifie. `code_intelligence/full_corpus_test/knowledge_graph.json` + `.graphml` generes en sortie de test (hors `active_graph.json`). `todo/contexte.txt` (cette section).
+
+---
+
+## Section 490: Verification disque de deux bugs proposes par San Goku (sourcing_guard xml_id + contamination cross-tool 500 euros) -- Bug 1 CONFIRME par lecture directe, Bug 2 toujours SUSPECTE (2026-09-03)
+
+**Origine** : San Goku a soumis un diagnostic pre-redige pour deux bugs (sourcing_guard/xml_id, contamination cross-tool via `_scoped_raw_tool_output()`). Avant toute journalisation "CONFIRME", verification directe du disque effectuee ce tour (discipline habituelle) -- constat initial : aucune trace de ces deux bugs dans la section precedente (489) ni dans aucun fichier nomme `*guard*` a la racine du projet. Fichier retrouve dans `code_intelligence/sourcing_guard.py` apres precision de chemin par San Goku.
+
+**Bug 1 -- CONFIRME, cause precisee au-dela du diagnostic initial** :
+`code_intelligence/sourcing_guard.py::_XML_ID_PATTERN = re.compile(r"xml_id:\s*([a-zA-Z_]\w*\.[a-zA-Z_][\w.]*)")` extrait le ground truth depuis `raw_tool_output` (texte brut concatene de `tool_observations`, passe par `ci_agent_node.py`). Le prompt de synthese (`ci_agent_node.py`, synthesis_prompt) demande au LLM de prefixer ses citations `xml_id: module.identifier`, "copied verbatim from the source observation" -- ce qui presuppose que l'observation source porte deja ce prefixe litteral.
+
+Lecture complete des formatteurs de sortie de tous les outils deterministes concernes (`evaluate_record_rules`, `who_has_access_to`, `trace_full_inheritance`, `describe_workflow`, `button_execution_path` dans `deterministic_tools.py` ; `analyze_server_action_code` dans `server_action_analyzer.py`) : **aucun n'emet jamais la sous-chaine litterale `"xml_id:"`** -- les identifiants apparaissent nus (`rule.rule_name [domain_force]`, `Server action 'action_xml_id_value'...`, groupes bruts type `account.group_account_manager`).
+
+Consequence mecanique confirmee (pas hypothetique) : `ground_truth_xml_ids` dans `verify_citations()` est structurellement toujours vide -- aucun outil ne produit jamais ce format. Toute citation `xml_id:` ajoutee par le LLM en suivant l'instruction #4 de `CI_SYSTEM_PROMPT`, meme copiee verbatim et factuellement correcte, est donc marquee `unverified_xml_ids` et declenche systematiquement l'avertissement "SOURCING NON VERIFIE".
+
+**Root cause reelle** : desalignement entre ce que le prompt promet au LLM ("copie depuis l'observation source") et ce que les outils produisent reellement (jamais ce format) -- pas un bug isole dans `sourcing_guard.py`. Deux corrections root-cause possibles, non tranchees ce tour :
+(A) faire emettre `xml_id: module.identifier` par les outils eux-memes partout ou ils mentionnent une regle/groupe/action -- aligne le code sur l'intention du prompt ("copied verbatim" suppose que la source porte deja ce format).
+(B) changer `sourcing_guard.py` pour accepter les identifiants nus deja presents dans les outputs comme ground truth valide, sans exiger le prefixe litteral.
+
+**Bug 2 -- toujours SUSPECTE, mecanisme structurel confirme, trace du symptome 500 euros pas encore faite** :
+`code_intelligence/ci_helpers.py::_scoped_raw_tool_output()` confirme identique a la description de San Goku : `scoped = [obs for obs, model in zip(tool_observations, tool_observation_models) if not model or model in target_set]` -- un bloc dont `model` est falsy passe le scoping quel que soit `target_set`.
+
+`tool_observation_models` est peuple dans `ci_agent_node.py` via `tool_args.get("model_name", "")` (boucle ReAct) ou le `target_model` explicite (pre-dispatch deterministe) -- un modele vide ne peut donc venir que d'un appel d'outil dont les args ne portent aucune cle `model_name`. Candidats non encore verifies (noms tires de `_CI_TOOL_DISPLAY_NAMES`, `ci_agent_tools.py` pas encore ouvert ce tour) : `resolve_technical_name`, `list_involved_modules`, `explain_decision_path`, `read_source_code`.
+
+Chaine de tracabilite demandee par San Goku (question -> hop/tool -> tool args -> model_name associe -> raw observation -> scoped raw output -> extraction du 500 -> backfill -> fait deterministe final) **non encore obtenue** -- reste a : (1) ouvrir `ci_agent_tools.py` pour confirmer quels outils manquent de `model_name`, (2) reproduire une question reelle declenchant le symptome et lire la trace via `reasoning_trace_logger`/`trace_id`.
+
+**Non fait ce tour** : aucun code touche -- lecture de `sourcing_guard.py`, `ci_agent_node.py`, `ci_helpers.py`, `deterministic_tools.py`, `server_action_analyzer.py` uniquement. Pas de correctif applique, pas de decision entre (A)/(B) pour Bug 1, pas de lecture de `ci_agent_tools.py` pour Bug 2.
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section seule).
+
+**Prochaine etape (CLOSE par la section 491)** : decision San Goku recue -- Bug 1 option A confirmee, Bug 2 investigation autorisee avant tout correctif.
+
+---
+
+## Section 491: Bug 1 (option A) -- collision de session parallele DEJA implementee sur le disque, tests manquants ecrits ce tour ; Bug 2 -- root cause structurelle CONFIRMEE par lecture de `ci_agent_tools.py` (2026-09-03)
+
+**Decision San Goku (ce tour)** : (1) Bug 1 -- option A retenue (faire produire `xml_id: module.identifier` par les outils eux-memes) ; (2) Bug 2 -- poursuite de l'investigation (tracer avant corriger), conformement a rules.md.
+
+**Bug 1 -- constat disque AVANT toute ecriture (discipline habituelle)** : meme pattern de collision de session parallele que les sections 478/481/483/487 -- `code_intelligence/utils.py` porte deja `format_xml_id_citation()`/`format_xml_id_citations()` (docstring citant explicitement "todo/contexte.txt section 490"), et `code_intelligence/deterministic_tools.py` (`evaluate_record_rules`, `who_has_access_to` single-permission + branche `all`, `button_execution_path`, `describe_workflow`) ainsi que `code_intelligence/server_action_analyzer.py` (`analyze_server_action_code`) appellent deja ces helpers a chaque endroit ou un xml_id de regle/groupe/action est mentionne dans un `summary_text`/`execution_steps`. Non fait avant ce tour : AUCUN test ne couvrait ce format -- grep confirme (`format_xml_id_citation`, `xml_id:`) sur `test_utils_p0.py` et sur les 6 fichiers de test des outils concernes : zero occurrence.
+
+**Tests ecrits ce tour** (dryRun puis ecriture reelle, relecture disque post-ecriture confirmee) :
+- `code_intelligence/tests/test_utils_p0.py` : 3 tests unitaires ajoutes pour `format_xml_id_citation`/`format_xml_id_citations` (identifiant valide, identifiant non qualifie rejete -- pas de point --, jointure par espaces et non par virgules).
+- `code_intelligence/tests/test_bug1_xml_id_citation_wiring.py` (nouveau, 5 tests) : chaine complete tool output -> `ground_truth_xml_ids` -> citation LLM simulee -> `verify_citations()`, sur `evaluate_record_rules` (cas positif + cas de citation fabriquee/negative), `who_has_access_to` (branche `group_id` + branche `permission='all'`), `analyze_server_action_code`. Fixture de graphe reprise de `test_bloc_b1_evidence_who_has_access_to.py` (F-08, pas de duplication).
+
+**Non fait ce tour** : aucune execution pytest reelle sur le disque projet (environnement `.venv` non accessible depuis ce tour, meme limite que la section 478) -- San Goku a executer `pytest code_intelligence/tests/test_utils_p0.py code_intelligence/tests/test_bug1_xml_id_citation_wiring.py code_intelligence/tests/test_j14_sourcing_guard.py -v` pour cloture. `button_execution_path` et `describe_workflow` (deja patches cote outil, cf. citations `_req_citations`/`_tr_citations` dans `deterministic_tools.py`) ne sont pas couverts par le nouveau fichier de test faute de fixture WorkflowState/TRANSITIONS_VIA sous la main ce tour -- a ajouter si San Goku le juge necessaire, sinon Bug 1 peut etre cloture sur la base de la couverture actuelle (2 Composites + 1 Analyse CI, plus les 3 tests unitaires du helper partage).
+
+**Bug 2 -- root cause structurelle CONFIRMEE (pas encore le trace empirique du symptome "500 euros" precis)** : lecture de `code_intelligence/ci_agent_tools.py` (autorisee ce tour) -- exactement 3 outils du catalogue CI n'acceptent PAS de parametre `model_name` : `resolve_technical_name(technical_name)`, `explain_decision_path(path_nodes_json)`, `read_source_code(filepath, line_start, line_end)`. Ce sont precisement les 3 outils actes HORS PERIMETRE Evidence a la section 482 (jamais retenus car purs lookups/reformulations, aucune affirmation analytique).
+
+Chaine de causalite confirmee par lecture directe de `code_intelligence/ci_agent_node.py` (boucle ReAct, lignes ~825-901) : a chaque appel d'outil, `tool_observation_models.append(tool_args.get("model_name", ""))` -- pour ces 3 outils, `tool_args` ne contient jamais de cle `model_name`, donc `""` (falsy) est pousse systematiquement, quel que soit le modele reellement investigue par la question. `code_intelligence/ci_helpers.py::_scoped_raw_tool_output()` : `if not model or model in target_set` -- un `model` vide passe INCONDITIONNELLEMENT le scoping, pour n'importe quel `target_set`. Consequence mecanique : toute observation issue de `read_source_code`/`resolve_technical_name`/`explain_decision_path` fuite systematiquement dans le `scoped_tool_output` de N'IMPORTE QUELLE question CI, quel que soit le modele cible -- c'est structurellement la source la plus probable d'une contamination cross-tool comme le "500 euros" rapporte par San Goku (ex: `read_source_code` lit un fichier sans rapport avec la question posee, mais son contenu integral reste eligible au scoping et peut atterrir dans la synthese finale).
+
+**Reste a faire avant tout correctif** (rules.md "pas de fix chirurgical, voir la root cause" + discipline de verification empirique) : cette confirmation est structurelle/mecanique, pas encore le trace empirique du scenario precis du script 7/8 ou d'une question reelle produisant le "500 euros" -- reproduction demandee par San Goku (question -> hop/tool -> tool_args -> model_name associe -> raw observation -> scoped raw output -> extraction du 500 -> backfill -> fait deterministe final) toujours non obtenue faute d'acces a `reasoning_trace_logger`/`trace_id` d'une execution reelle depuis ce tour. Deux pistes de correctif non tranchees, a proposer une fois la trace empirique obtenue : (i) exclure par defaut les observations a `model` vide du scoping sauf si `target_models` est lui-meme vide (inverser le fail-open actuel en fail-closed) ; (ii) propager un `model_name` reel meme pour ces 3 outils quand le contexte d'investigation le permet (ex: `read_source_code` pourrait deriver un modele depuis le filepath lu).
+
+**Fichiers modifies** : `code_intelligence/tests/test_utils_p0.py`, `code_intelligence/tests/test_bug1_xml_id_citation_wiring.py` (nouveau), `todo/contexte.txt` (cette section).
+
+**Prochaine etape** : (a) San Goku execute la suite pytest ci-dessus pour cloture de Bug 1 ; (b) San Goku fournit un `trace_id`/une question reelle reproduisant le symptome "500 euros" (ou confirme que la confirmation structurelle ci-dessus suffit a trancher entre (i)/(ii) sans reproduction supplementaire) avant tout correctif Bug 2.
+
+---
+
+## Section 492: Bug 1 -- CLOS, confirme par pytest reel sur le vrai disque (2026-09-03)
+
+**Resultat colle par l'utilisateur** : `pytest code_intelligence/tests/test_utils_p0.py code_intelligence/tests/test_bug1_xml_id_citation_wiring.py code_intelligence/tests/test_j14_sourcing_guard.py -v` -> 14 passed (0 failed). Les 3 nouveaux tests unitaires (`format_xml_id_citation`/`format_xml_id_citations`) + les 5 nouveaux tests de cablage (`test_bug1_xml_id_citation_wiring.py`) passent tous ; les 3 tests preexistants de `test_utils_p0.py` et les 3 de `test_j14_sourcing_guard.py` passent sans modification -- aucune regression.
+
+**Bug 1 (sourcing_guard xml_id, option A) : CLOS.** Couverture retenue : 2 Composites CI (`evaluate_record_rules`, `who_has_access_to`) + 1 Analyse CI (`analyze_server_action_code`) + le helper partage (`format_xml_id_citation`/`format_xml_id_citations`). `button_execution_path`/`describe_workflow` restent patches cote outil (deja sur le disque, section 491) mais non couverts par un test dedie -- laisse en l'etat sauf demande explicite de San Goku, non bloquant pour la cloture.
+
+**Prochaine etape** : Bug 2 seul reste ouvert -- decision San Goku en attente sur (a) fournir un `trace_id`/question reelle reproduisant le "500 euros", ou (b) trancher directement entre les pistes de correctif (i)/(ii) de la section 491 sur la seule base de la confirmation structurelle deja etablie.
+
+---
+
+## Section 493: Bug 2 -- correctif fail-closed applique (option (i) de la section 491, decision explicite de San Goku), tests ecrits, pytest reel non encore execute (2026-09-03)
+
+**Decision San Goku (ce tour)** : option 2 -- confirmation structurelle jugee suffisante pour trancher le defaut de scoping, sans pretendre attribuer definitivement le "500 euros" a ce mecanisme precis. Fail-closed retenu (option (i)), PAS de propagation artificielle de `model_name` aux 3 outils transverses (option (ii) explicitement rejetee -- certains sont reellement transverses par nature). Principe explicite de San Goku : "pas de `model_name` ne signifie jamais 'applicable a tous les modeles'". Deux points separes explicitement par San Goku : (A) le correctif de scoping est confirme et implemente ce tour ; (B) la cause du "500 euros" reste non prouvee -- le correctif supprime un canal de contamination identifie, sans affirmer que c'etait LA cause.
+
+**Correctif applique** (dryRun puis ecriture reelle sur les 2 points de filtrage, relecture disque post-ecriture confirmee) :
+1. `code_intelligence/ci_helpers.py::_scoped_raw_tool_output()` : `if not model or model in target_set` -> `if model and model in target_set`. L'early-return pour `target_models` vide (`if not target_models: return "\n\n".join(tool_observations)`) reste inchange -- ce n'est pas le meme cas (aucune cible du tout, distinct de "une cible existe mais cette observation n'a pas de `model_name`").
+2. `code_intelligence/ci_agent_node.py` (filtre duplique en ligne, calcul de `scoped_tool_observation_models`, deja identifie section 490 comme devant rester aligne 1:1 avec `scoped_tool_output`) : `if not _scoped_target_set or not model or model in _scoped_target_set` -> `if not _scoped_target_set or (model and model in _scoped_target_set)`. Meme semantique fail-closed, ecrite pour matcher exactement la branche early-return de `_scoped_raw_tool_output` (le `not _scoped_target_set` couvre le cas "aucune cible", strictement equivalent au comportement inchange de la fonction partagee) -- sans ce second correctif, `scoped_tool_output` (texte) et `scoped_tool_observation_models` (liste parallele) se seraient desynchronises des que `target_models` est non vide.
+
+**Tests ecrits ce tour** (dryRun puis ecriture reelle, relecture disque post-ecriture confirmee) :
+- `code_intelligence/tests/test_bug2_scoped_raw_tool_output_fail_closed.py` (nouveau, 6 tests) : exactement la matrice demandee par San Goku -- `obs(model="account.move")` avec cible `account.move` -> PASS ; `obs(model="sale.order")` -> DROP ; `obs(model="")` -> DROP ; `obs(model=None)` -> DROP ; melange -> seule l'observation ciblee gardee ; `target_models` vide -> comportement inchange (tout passe, non scope), pour verifier explicitement que le fail-closed ne touche PAS ce cas distinct.
+- `tests/test_bug2_backfill_scoped_output_wiring.py` (nouveau, 1 test statique) : le "test de non-regression sur le backfill" demande par San Goku -- verifie par introspection du code source (`inspect.getsource` + regex sur les appels, pas de mock LLM/graphe) que les 13 fonctions de backfill/correction appelees apres le point de scoping dans `CodeIntelligenceAgentRunner.run()` recoivent toutes `scoped_tool_output`, jamais `raw_tool_output` (le join non scope calcule AVANT le filtrage) -- une observation transverse legitimement exclue par le fail-closed ne peut donc pas etre reintroduite par un canal different en aval. Verification manuelle des 13 sites d'appel faite ce tour (lecture directe du code source, aucun n'utilise `raw_tool_output`) avant redaction du test -- le test formalise cette verification pour qu'une regression future soit detectee automatiquement plutot que par relecture manuelle.
+
+**Non fait ce tour** : aucune execution pytest reelle sur le disque projet -- San Goku a executer `pytest code_intelligence/tests/test_bug2_scoped_raw_tool_output_fail_closed.py tests/test_bug2_backfill_scoped_output_wiring.py -v` pour cloture. Aucune tentative de prouver ou d'attribuer definitivement le "500 euros" a ce mecanisme (explicitement hors mandat de ce tour, position de San Goku actee ci-dessus).
+
+**Fichiers modifies** : `code_intelligence/ci_helpers.py`, `code_intelligence/ci_agent_node.py`, `code_intelligence/tests/test_bug2_scoped_raw_tool_output_fail_closed.py` (nouveau), `tests/test_bug2_backfill_scoped_output_wiring.py` (nouveau), `todo/contexte.txt` (cette section).
+
+**Prochaine etape** : San Goku execute la suite pytest ci-dessus pour cloture de Bug 2 (volet correctif de scoping). Une fois clos, retour a la sequence normale du projet (Bloc B1 clos, P1/P2 clos -- P3/P4 en attente de decision, cf. section 484).
+
+---
+
+## Section 494: Bug 2 (correctif fail-closed du scoping) -- CLOS, confirme par pytest reel sur le vrai disque (2026-09-03)
+
+**Resultat colle par l'utilisateur** : `pytest code_intelligence/tests/test_bug2_scoped_raw_tool_output_fail_closed.py tests/test_bug2_backfill_scoped_output_wiring.py -v` -> 7 passed (0 failed). Les 6 tests de la matrice de scoping (`_scoped_raw_tool_output()` : model cible garde, model different rejete, model vide/None rejete, melange, `target_models` vide inchange) et le test statique de non-regression backfill (13 sites d'appel post-scoping tous branches sur `scoped_tool_output`, jamais `raw_tool_output`) passent tous.
+
+**Bug 2 : CLOS sur son volet correctif de scoping** (fail-closed, option (i) de la section 491/493 -- `if not model or model in target_set` -> `if model and model in target_set`, applique aux deux points de filtrage `ci_helpers.py::_scoped_raw_tool_output()` et `ci_agent_node.py` en parallele). Position de San Goku actee sections 491/493 reste valable : ce correctif supprime un canal de contamination cross-tool structurellement confirme (les 3 outils sans `model_name` -- `resolve_technical_name`, `explain_decision_path`, `read_source_code` -- ne fuitent plus par defaut dans un scoping cible), sans pretendre prouver que c'etait LA cause exacte du "500 euros" rapporte par San Goku -- aucune reproduction empirique via `trace_id` n'a ete faite ni n'est plus necessaire pour cette cloture.
+
+**Non fait ce tour** : aucun code touche -- cloture journal seule sur la base du resultat pytest colle par l'utilisateur.
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section seule).
+
+**Prochaine etape** : Bug 1 et Bug 2 desormais tous deux CLOS. Retour a la sequence normale du projet -- decision San Goku en attente sur P3 (materiel local, precondition (iii) jamais levee) vs Bloc P4 (inference locale Qwen3-14B/Ollama) vs benchmark adversarial complet (reserve P2 residuelle, cf. section 483) vs autre priorite (cf. section 484).
+
+---
+
+## Section 495: Bug 3 (nouveau, non journalise avant ce tour) -- contamination "500€" reproduite en direct par San Goku sur miro_ai (widget Discuss reel), racine identifiee par hypothese forte (LLM libre laundered en [FAIT DETERMINISTIQUE]), PAS ENCORE CONFIRME par la sortie brute (2026-09-03)
+
+**Origine** : San Goku a colle une capture reelle du widget miro_ai (pas un test) -- question "Qui a le droit d'approuver un avoir pour un client VIP, et y a-t-il un piege dans le code ?", reponse contenant un `[FAIT DETERMINISTIQUE]` mentionnant "500€" sans rapport avec le seuil reel documente ailleurs dans la meme reponse (5000€, module `custom_credit_note_approval`). Confirme par San Goku : capture faite APRES redemarrage serveur avec le correctif Bug 2 (section 493/494) deja applique -- donc PAS le meme mecanisme que Bug 2 (fuite cross-modele du scoping), ni une capture perimee d'avant le fix.
+
+**Investigation faite ce tour (lecture seule, aucun code touche)** :
+1. Trace exacte retrouvee dans `captures/reasoning_trace.jsonl` : `trace_id=667ebb31926a`, hop 1 = `analyze_method_override_chain(model_name="account.move", method_name="action_valider_avoir")`. Le hop 0 (`analyze_security_locks`, meme trace) est correctement scope sur `account.move` -- pas de regression Bug 2 constatee ici.
+2. Le texte affiche ("[FAIT DETERMINISTIQUE] La chaine de surcharge de methode contient une condition supplementaire declenchee au-dela de 500€, distincte du groupe requis ci-dessus. Fait extrait directement de l'analyse statique du code.") matche VERBATIM le template de `code_intelligence/ci_override_cascade.py::_backfill_missing_override_chain_amount()` -- confirme que c'est bien ce backfill qui a ajoute ce paragraphe, pas une hallucination directe de la synthese finale.
+3. Cette fonction extrait les montants via `_OVERRIDE_CHAIN_AMOUNT_RE` (regex `rec\.\w+\s*>\s*(\d[\d\s]*\d)`) applique sur tout `scoped_tool_output` -- donc sur le texte COMPLET de l'observation `analyze_method_override_chain`, model deja correctement filtre sur `account.move` par le scoping Bug 2 (pas de fuite cross-modele ici, `model_name="account.move"` porte correctement par ce hop).
+4. Verification directe des 3 fichiers reels du override cascade (`custom_credit_note_approval/models/account_move.py`, `custom_credit_note_approval_vip/models/account_move.py`, `custom_credit_note_approval_regional/models/account_move.py`) : AUCUN ne contient de condition `rec.xxx > 500` -- seulement 5000 et 20000. Verification egalement du `account_move.py` du coeur Odoo (`/home/user/odoo-17.0/addons/account/models/account_move.py`, 5238 lignes) : zero occurrence de "500", zero pattern `rec\.` -- exclu comme source.
+5. `code_intelligence/method_override_resolver.py::_compose_method_override_chain()` ajoute une ligne "-> Interpretation LLM [...]" en texte libre (`interpret_override_chain_with_llm`, appel LLM sur les warnings AST detectes) QUAND des warnings existent (ici : le `super()` non garde du module `_vip` est un warning reel, deja visible dans la capture). Cette ligne LLM fait partie du meme bloc `summary_text` que le texte deterministe (AST) -- la regex `_OVERRIDE_CHAIN_AMOUNT_RE` ne distingue PAS les deux origines quand elle scanne le bloc entier.
+6. Precedent documente (plan.md, Bloc 9) : `interpret_override_chain_with_llm` a deja hallucine par le passe sur `hr_leave.py` -- meme fonction, meme classe de risque.
+
+**Hypothese de root cause (forte, pas encore confirmee a 100%)** : le "500" ne peut venir que du texte libre de l'interpretation LLM (`interpretation['summary']`) puisqu'aucun fichier reel scanne ne contient ce chiffre dans ce contexte -- la regex de `_backfill_missing_override_chain_amount` scanne indistinctement le texte AST (deterministe) et le texte LLM (libre, potentiellement hallucine) dans le meme bloc, et estampille tout match "[FAIT DETERMINISTIQUE]" sans distinction d'origine. Si confirme, c'est un bug distinct de Bug 1/Bug 2 (aucun rapport avec le scoping cross-modele/cross-outil) : un chiffre invente par un LLM en texte libre peut se faire passer pour un fait extrait deterministement de l'analyse statique.
+
+**Non confirme ce tour** : `captures/reasoning_trace.jsonl::log_hop()` tronque `observation_summary` a 300 caracteres (`reasoning_trace_logger.py` ligne 78) -- le texte complet de l'observation `analyze_method_override_chain` (incluant la ligne "Interpretation LLM" potentiellement fautive) n'est PAS recuperable depuis ce log. Aucune autre capture sur disque (`captures/`, pas de repertoire de logs applicatifs a la racine) ne retient le texte integral. Reproduction en direct necessaire pour confirmer le maillon exact -- pas d'acces `.venv`/execution reelle depuis ce tour (meme limite que sections 478/491/493).
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section seule). Aucun code touche.
+
+**Prochaine etape** : creation d'un script de diagnostic en lecture seule (`scripts/_diag_override_chain_amount_leak.py`, un seul appel LLM reel) qui rejoue isolement `analyze_method_override_chain(G, "account.move", "action_valider_avoir", llm=...)` et affiche le texte COMPLET (non tronque) + les matches de la regex d'extraction de montant avec leur contexte -- San Goku a executer et coller la sortie pour confirmer ou infirmer l'hypothese avant tout correctif.
+
+---
+
+## Section 496: Bug 3 -- premier rejeu NE reproduit PAS le "500", hypothese LLM-hallucine-dans-ce-call INFIRMEE pour cette tentative (pas la structure), retries demandes avant tout correctif (2026-09-03)
+
+**Resultat colle par San Goku** : `python scripts/_diag_override_chain_amount_leak.py` -- texte complet obtenu. `_OVERRIDE_CHAIN_AMOUNT_RE` trouve exactement 2 matches, tous deux corrects et attendus : `20000` (module `custom_credit_note_approval_regional`, chaine relationnelle) et `5000` (module `custom_credit_note_approval`, verrou principal). AUCUNE occurrence de "500" dans le texte complet. La ligne "Interpretation LLM" de ce tirage est propre (resume factuel sur l'ecrasement des valeurs VIP par le `super()` non garde, aucun chiffre invente, aucun fragment matchant la regex).
+
+**Consequence directe** : l'hypothese de la section 495 ("le 500 vient forcement du texte libre de l'interpretation LLM") n'est PAS confirmee par ce rejeu -- ce tirage precis n'a rien invente. Le mecanisme structurel reste identique et non corrige (la regex `_OVERRIDE_CHAIN_AMOUNT_RE` continue de scanner indistinctement texte AST et texte LLM libre dans le meme bloc `summary_text`, sans garde), mais je ne peux pas affirmer sur la base d'un seul contre-exemple que c'est EXACTEMENT ce qui s'est produit sur la capture originale de San Goku -- `interpret_override_chain_with_llm` n'est pas garanti bit-a-bit reproductible d'un appel a l'autre meme a temperature 0.0 (inference Groq), donc un tirage propre cette fois ne refute pas qu'un tirage anterieur ait pu halluciner.
+
+**Non fait ce tour** : aucun correctif propose ni applique -- rules.md interdit d'agir sur une hypothese non confirmee empiriquement ("jamais asserter un etat sans sortie de rejeu confirmee"), et une seule sortie (positive ou negative) ne suffit pas a trancher un phenomene probabiliste par nature.
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section seule). Aucun code touche.
+
+**Prochaine etape** : demande a San Goku de relancer `scripts/_diag_override_chain_amount_leak.py` plusieurs fois de suite (3-5 tentatives) pour etablir si la contamination est reproductible avec une certaine frequence ou si elle reste un evenement isole non reproduit depuis. En parallele, si San Goku prefere trancher directement sans attendre une reproduction (le risque structurel etant deja etabli independamment de la reproduction), possibilite de proposer directement un correctif root-cause : separer le texte deterministe (AST, lignes 1-3 + verrous) du texte libre LLM (ligne "Interpretation LLM") AVANT d'appliquer `_OVERRIDE_CHAIN_AMOUNT_RE`/toute regex d'extraction de montant destinee a alimenter un `[FAIT DETERMINISTIQUE]` -- decision san Goku requise sur laquelle des deux voies suivre en premier.
+
+---
+
+## Section 497: Bug 3 -- 3 rejeux supplementaires (4/4 au total) NE reproduisent PAS le "500", hypothese section 495/496 affaiblie -- gap identifie dans le diagnostic lui-meme (hop 0 jamais verifie en texte complet) (2026-09-03)
+
+**Resultat colle par San Goku** : 3 rejeux supplementaires de `scripts/_diag_override_chain_amount_leak.py` (4/4 au total avec la section 496), tous propres -- seuls `20000` et `5000` extraits a chaque fois, jamais "500". La ligne "Interpretation LLM" varie en formulation (et meme en langue -- 2 rejeux sur 3 sont repartis en anglais alors que la question posee est en francais, note en marge sans rapport direct avec Bug 3) mais ne contient jamais de fragment `rec.xxx > NOMBRE`.
+
+**Consequence** : 4/4 tirages propres affaiblit fortement l'hypothese "le 500 vient de `interpret_override_chain_with_llm` sur CE hop precis" (section 495/496) sans l'eliminer totalement (phenomene probabiliste par nature, cf. precedent hr_leave.py). Mais un gap plus fondamental est identifie ce tour, avant de pousser davantage sur cette piste : le script de diagnostic (section 495) n'a REJOUE QUE le hop 1 (`analyze_method_override_chain`) -- le hop 0 de la meme trace (`analyze_security_locks` sur account.move) n'a JAMAIS ete vu en texte complet, ni dans `reasoning_trace.jsonl` (tronque a 300 caracteres des la section 490) ni dans aucun rejeu depuis. Or `_backfill_missing_override_chain_amount` (via `_extract_override_chain_amounts`) scanne l'integralite de `scoped_tool_output` -- la concatenation de TOUS les hops de la question, pas seulement le bloc du hop qui a declenche le backfill -- donc un fragment `rec.xxx > 500` cache dans le texte complet du hop 0 (jamais verifie) serait tout aussi capable de produire le "500" observe, meme si le hop 1 est parfaitement propre a chaque tirage.
+
+**Non fait ce tour** : aucun correctif -- la piste hop 0 n'est encore qu'une hypothese non testee, symmetrique a celle du hop 1 (section 495) avant son propre rejeu.
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section seule). Aucun code touche.
+
+**Prochaine etape** : creation d'un second script de diagnostic (`scripts/_diag_security_locks_amount_leak.py`) qui rejoue isolement `analyze_security_locks(G, "account.move")` (hop 0 de la trace 667ebb31926a) et affiche le texte COMPLET + les matches de `_OVERRIDE_CHAIN_AMOUNT_RE` -- pour eliminer ou confirmer cette seconde source avant de statuer sur le correctif. Si ce second rejeu est lui aussi propre a plusieurs reprises, le mecanisme restera non reproduit malgre une couverture complete des deux hops de la trace -- a ce stade, la decision reviendra a San Goku : soit accepter le correctif structurel (separation AST/LLM avant regex, propose section 496) sur la seule base du risque theorique etabli (comme pour Bug 2, ou la confirmation structurelle a suffi sans reproduction empirique du "500 euros" original), soit classer Bug 3 comme non reproductible en l'etat et le documenter comme tel sans action corrective immediate.
+
+---
+
+## Section 498: Bug 3 -- hop 0 (analyze_security_locks) EGALEMENT propre, hypothese backfill (sections 495-497) EXCLUE, pivot vers hallucination de mise en forme par la LLM de synthese finale (2026-09-03)
+
+**Resultat colle par San Goku** : `python scripts/_diag_security_locks_amount_leak.py` -- 10 fichiers reels associes a `account.move` dans le graphe (3 custom credit_note + 7 fichiers du coeur Odoo/hr_expense/purchase/sale, dont le gros `account_move.py` core de 5238 lignes). Texte complet obtenu pour chacun. `_OVERRIDE_CHAIN_AMOUNT_RE` trouve exactement 1 match : `5000` (le verrou reel du module `custom_credit_note_approval`). Aucune trace de "500" nulle part, y compris dans le fichier core.
+
+**Consequence -- pivot de diagnostic** : les DEUX hops de la trace 667ebb31926a sont desormais verifies en texte integral (hop 0 : deterministe, 1 seule verification necessaire, propre ; hop 1 : 4 tirages LLM independants, tous propres, section 496/497). `scoped_tool_output` pour cette trace ne contient donc JAMAIS "500" en 5/5 verifications croisees -- `_extract_override_chain_amounts()` ne peut structurellement pas retourner "500" a partir de cette entree. **L'hypothese des sections 495-497 (backfill `_backfill_missing_override_chain_amount` alimente par une regex sur du texte contamine) est donc EXCLUE comme mecanisme pour cette trace precise** : la fonction ne peut pas produire ce qu'elle n'a jamais recu en entree.
+
+Or le paragraphe observe par San Goku matchait pourtant le template EXACT de cette fonction ("[FAIT DETERMINISTIQUE] La chaine de surcharge de methode contient une condition supplementaire declenchee au-dela de 500EUR, distincte du groupe requis ci-dessus. Fait extrait directement de l'analyse statique du code.") -- contradiction apparente resolue par une nouvelle hypothese : **la LLM de synthese finale (celle qui compose `final_answer` a partir de `tool_observations`, PAS le backfill) a elle-meme genere ce paragraphe en imitant le format**, plutot que le backfill l'ayant reellement ajoute par concatenation de string. Le prompt de synthese (`ci_agent_node.py`, `synthesis_prompt`) decrit le label `[FAIT DETERMINISTIQUE]` en detail et a plusieurs reprises (pour dire a la LLM de ne jamais en fabriquer un) -- ce qui lui donne malgre tout, en exemple dans son propre contexte, le patron textuel exact a reproduire. Une hallucination de mise en forme (mimicry), pas une fuite de donnees en amont.
+
+**Gravite si confirme** : plus serieux que Bug 1/Bug 2 -- aucun garde-fou de scoping/regex en aval ne peut intercepter ce cas, puisqu'il ne passe par aucun des deux chemins deja audites (le paragraphe halluciner est ecrit directement par la LLM de synthese, jamais concatene par une fonction Python identifiable et testable par une regex).
+
+**Non fait ce tour** : aucun correctif -- hypothese non testee, symmetrique aux precedentes avant leur propre rejeu.
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section seule). Aucun code touche.
+
+**Prochaine etape** : creation d'un troisieme script de diagnostic qui rejoue la synthese COMPLETE (question exacte de San Goku, "Qui a le droit d'approuver un avoir pour un client VIP, et y a-t-il un piege dans le code ?", via `code_intelligence_agent()` en entier -- meme pattern que `scripts/replay_q1_2_vip.py` deja existant mais avec le libelle exact de la question originale, y compris son second volet sur le "piege") -- plusieurs tirages pour tester si "500" apparait dans `final_answer` malgre des tool_observations propres, ce qui confirmerait l'hallucination de mise en forme cote LLM de synthese plutot que cote backfill Python.
+
+---
+
+## Section 499: Bug 3 -- 5/5 sur pipeline complet vs 0/5 sur hops isoles ; hypothese section 498 (hallucination de mise en forme LLM) EXCLUE par fidelite du template, nouvelle piste identifiee : hop(s) ReAct supplementaire(s) jamais rejoue(s) par les scripts isoles (2026-09-03)
+
+**Origine** : San Goku a colle le resultat de `scripts/_diag_full_synthesis_500_leak.py` (script cree section 498, 5 tirages) -- 5/5 tirages reproduisent le paragraphe "500€", contraste total avec les rejeux isoles des deux hops connus (0/5 sur 5 verifications croisees, sections 496-498). Constat de San Goku : "il doit y avoir une source supplementaire dans scoped_tool_output reel que mes rejeux isoles ne reproduisaient pas (un 3e hop, ou un pre-dispatch deterministe)".
+
+**Lecture faite ce tour (aucun code touche)** : `code_intelligence/ci_agent_node.py` (integralite du flux, pre-dispatch deterministe + boucle ReAct + point de scoping + chaine de 13 backfills), `code_intelligence/forced_dispatch_predicates.py`, `code_intelligence/business_resolver.py` (BUSINESS_ALIASES, resolution 'avoir').
+
+**Fait 1 -- l'hypothese de la section 498 (LLM de synthese imitant le format '[FAIT DETERMINISTIQUE]') est EXCLUE** : le paragraphe observe dans les 5 tirages colle au caractere pres au template Python de `_backfill_missing_override_chain_amount()` (`code_intelligence/ci_override_cascade.py`) -- seul le montant substitue varie, jamais la formulation. Une LLM (meme a temperature 0.0, meme avec l'exemple de format dans son propre prompt) ne reproduirait pas un tel template mot pour mot sur 5 generations independantes avec un contexte en amont different a chaque fois (la ligne "Interpretation LLM" du meme override-chain, elle, varie reellement en formulation et meme en langue selon les tirages -- sections 496-497). Le tirage 3 confirme le meme constat pour un DEUXIEME backfill distinct (`_backfill_missing_override_modules`, template different, egalement colle au caractere pres). Ce sont des concatenations de string Python reelles, pas une generation libre.
+
+**Fait 2 -- resolution du modele metier deterministe et stable pour cette question precise** : `"avoir"` est un alias STATIQUE (Step 1, `BUSINESS_ALIASES` dans `business_resolver.py`) mappant uniquement vers `["account.move"]` -- resolution 100% deterministe, zero latence, aucune arbitration LLM, donc `concept.resolved_models == ["account.move"]` a chaque tirage, sans variance possible. L'hypothese d'un resolved_models multi-modeles variable (qui aurait pu expliquer un hop supplementaire sur un modele different a chaque tirage) est donc ECARTEE pour cette question precise.
+
+**Fait 3 -- seuls 2 hops de pre-dispatch deterministe se declenchent pour cette question, tous deux deja rejoues et propres** : verification des 4 predicats de declenchement (`forced_dispatch_predicates.py`) contre le texte exact de la question :
+- `security_locks_targets` : declenche inconditionnellement (presence structurelle de fichiers de verrous) -> hop 0 (`analyze_security_locks`, account.move) -- deja rejoue integralement, section 498, propre (1 seul match "5000").
+- `server_actions_targets` : requiert `_question_suggests_automation_bypass` -- aucun mot-cle du pattern ("automatisation", "action serveur", "bypass", "contourn"...) n'est present dans la question -> NE se declenche PAS.
+- `override_chain_targets` : requiert `_question_is_approval_related` -- "approuver" matche `approuv\w*` -> se declenche -> hop 1 (`analyze_method_override_chain`, account.move/action_valider_avoir, seul candidat top-1 apres `_rank_and_cap_override_methods`) -- deja rejoue 4x, sections 496-497, propre a chaque fois.
+- `who_has_access_targets` (et par extension le pre-dispatch `evaluate_record_rules`, qui depend du meme predicat `_question_is_access_related`) : pattern verifie mot a mot contre "Qui a le droit d'approuver..." -- NE matche PAS (le pattern exige "qui a le PERMISSION"/"peut"/"peux"/"est autorise", pas "qui a le DROIT") -> NE se declenche PAS.
+
+Ces 4 predicats sont purement deterministes (regex + structure du graphe, aucun appel LLM), donc strictement stables d'un tirage a l'autre -- confirme qu'aucun pre-dispatch supplementaire ne peut expliquer la variance.
+
+**Piste retenue -- jamais testee jusqu'ici** : au-dela des 2 hops de pre-dispatch deterministe, `ci_agent_node.py` lance ensuite une boucle ReAct pilotee par LLM (`for iteration in range(... REACT_RECURSION_LIMIT)`, jusqu'a `CI_MAX_HOPS=4` au total -- donc jusqu'a 2 hops LLM-inities supplementaires possibles apres les 2 deterministes) : la LLM peut y invoquer LIBREMENT n'importe quel outil de `ALL_CI_TOOLS` (ex: rappeler `analyze_method_override_chain` sur une AUTRE `method_name` du meme `account.move`, `who_has_access_to`, `evaluate_record_rules`, `read_source_code`, `resolve_technical_name`, etc.), en reponse au second volet de la question ("y a-t-il un piege dans le code ?") qui invite explicitement a investiguer plus loin. **Aucun des scripts de diagnostic existants (sections 495, 497, 498) ne rejoue cette boucle ReAct** -- ils appellent soit un seul outil isole avec des arguments fixes (495, 497), soit `code_intelligence_agent()` complet mais SANS jamais capturer/afficher les hops individuels au-dela du texte final (498, `_diag_full_synthesis_500_leak.py` n'imprime que `final_answer`, pas `tool_observations` ni les hops). C'est un candidat serieux et jusqu'ici NON EXCLU pour le "3e hop" evoque par San Goku : si la LLM rappelle `analyze_method_override_chain` avec `model_name="account.move"` (donc a l'interieur du `target_set` du scoping Bug 2, jamais filtre) mais une AUTRE `method_name` reelle qui possede une condition `rec.xxx > 500` authentique dans le code, ce serait un hop legitime et reproductible (la LLM tend a rappeler les memes outils pour la meme question a temperature 0.0), mais actuellement non trace car aucun outil de diagnostic ne capture les hops intermediaires de la boucle ReAct complete.
+
+**Non fait ce tour** : aucun correctif -- hypothese non testee empiriquement, symmetrique aux precedentes avant leur propre verification. Aucun code de production touche.
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section seule).
+
+**Prochaine etape** : creation d'un script de diagnostic instrumente (`scripts/_diag_full_synthesis_hop_trace.py`) qui rejoue `code_intelligence_agent()` en entier (meme question, plusieurs tirages) mais capture et affiche pour CHAQUE hop reellement execute (pre-dispatch deterministe ET ReAct LLM confondus) : le nom de l'outil, ses arguments exacts (notamment `model_name`/`method_name`), et le texte COMPLET (non tronque) de l'observation -- pour identifier precisement lequel des hops (au-dela des 2 deja innocentes) contient le pattern `rec.xxx > 500`, avant toute conclusion ou correctif.
+
+**Script cree ce tour** : `scripts/_diag_full_synthesis_hop_trace.py` -- monkeypatch en lecture seule de `ReasoningTraceLogger.log_hop` (deja recepteur du texte COMPLET non tronque avant troncature a 300 caracteres pour le JSONL) pour capturer chaque hop reellement execute (pre-dispatch + ReAct confondus) avec tool_name/tool_args/observation integrale, sans toucher au code de production (patch annule en `finally`). Applique `_OVERRIDE_CHAIN_AMOUNT_RE` a chaque hop pris isolement pour localiser precisement la source du "500". A executer par San Goku : `python scripts/_diag_full_synthesis_hop_trace.py 5`.
+
+---
+
+## Section 500: Bug 3 -- ROOT CAUSE CONFIRMEE par preuve directe : troncature brute a 2200 caracteres coupe le nombre "5000" en plein milieu, produisant "500" -- defaut systemique sur les 5 points de troncature de ci_agent_node.py, pas seulement ce cas (2026-09-03)
+
+**Resultat colle par San Goku** : `python scripts/_diag_full_synthesis_hop_trace.py 5` -- 5/5 tirages, meme trace a 3 hops (`analyze_security_locks`, `analyze_method_override_chain`, puis un 3e hop variable -- `evaluate_record_rules` ou `list_involved_modules` selon le tirage, jamais porteur du "500" lui-meme). Le Hop 1 (`analyze_method_override_chain`) affiche, dans le bloc du module `custom_credit_note_approval` :
+
+```
+VERROU RATTACHE AU SITE: "Seul un responsable comptable peut valider un avoir de plus de 5000€." (condition : rec.amount_total > 500
+[... Content truncated for LLM context limit ...]
+```
+
+**Root cause confirmee, pas seulement plausible** : le texte est coupe A LA LETTRE PRES au milieu du nombre "5000" -- il ne reste que "500" avant le marqueur de troncature. `ci_agent_node.py` tronque cette observation via `if len(forced_observation) > 2200: forced_observation = forced_observation[:2200] + "\n[... Content truncated for LLM context limit ...]"` -- un slicing Python brut sur un index de caractere, sans aucune conscience des frontieres de token. Sur ce texte precis, l'index 2200 tombe pile entre le 3e et le 4e chiffre de "5000". `_OVERRIDE_CHAIN_AMOUNT_RE` (`rec\.\w+\s*>\s*(\d[\d\s]*\d)`) matche alors le nombre TRONQUE "500" (2 chiffres minimum suffisent a la regex, donc "500" est un match syntaxiquement valide) au lieu du vrai "5000" -- `_backfill_missing_override_chain_amount` recopie ce montant faux tel quel dans un `[FAIT DÉTERMINISTIQUE]`, presente comme une verite extraite de l'analyse statique alors qu'il s'agit d'un artefact de troncature.
+
+Ceci explique integralement le contraste 5/5 (pipeline complet) vs 0/5 (rejeux isoles, sections 495-498) : le texte, sa longueur et le point de troncature sont identiques a chaque tirage (deterministe, aucun hasard LLM implique dans la troncature elle-meme) -- mais AUCUN script de diagnostic isole (495, 497) n'appliquait cette troncature de `ci_agent_node.py`, ils affichaient le texte integral de l'outil directement. Le 3e hop identifie ce tour (`evaluate_record_rules`/`list_involved_modules` selon tirage) n'est pas la source -- son propre texte ne contient jamais "500" -- il n'etait qu'un hop ReAct legitime et sans rapport, comme suspecte a tort en section 499.
+
+**Gravite -- defaut systemique, pas isole a ce cas** : `ci_agent_node.py` applique ce meme slicing brut `[:N]` a 5 points distincts (`analyze_security_locks` cap 3000, `analyze_server_actions` cap 3000, `analyze_method_override_chain` cap 2200 en pre-dispatch ET dans la boucle ReAct, caps dynamiques 2200/3000/1200 selon l'outil dans la boucle ReAct generique). N'IMPORTE LEQUEL peut, pour un texte de longueur differente demain, couper au milieu d'un autre nombre, d'un xml_id, d'un nom de methode, etc. -- silencieusement, sans aucune erreur, et potentiellement matcher une regex de backfill sur un fragment tronque comme ici. Ce n'est pas specifique au montant 5000€ ni a ce module -- c'est une classe de bug qui peut resurgir sur n'importe quelle observation assez longue pour etre tronquee.
+
+**Non fait ce tour** : aucun correctif applique -- lecture seule (`ci_agent_node.py`, localisation exacte des 5 sites de troncature) et redaction de ce constat. Rules.md "pas de fix chirurgical, voir la root cause" + "pas d'augmentation de cap token/contexte comme patch de surface" (liste explicite des patterns interdits) ecarte d'emblee la solution la plus tentante (agrandir 2200 -> 3000 par exemple, qui ne ferait que deplacer le probleme vers un autre nombre plus loin dans un texte plus long) -- la vraie root cause est le slicing sur un index brut, pas la valeur du cap lui-meme.
+
+**Piste de correctif root-cause (a valider par San Goku avant implementation, 5 sites impactes = mandat multi-fichiers explicite requis par rules.md)** : remplacer le slicing brut par une troncature qui s'arrete a la derniere frontiere sure avant la limite (dernier saut de ligne, ou a defaut dernier espace) plutot qu'a un index de caractere arbitraire -- ne jamais couper a l'interieur d'un token (nombre, identifiant, mot). Helper partage unique (F-08, pas de duplication sur 5 sites) plutot que 5 corrections locales independantes qui driveraient avec le temps.
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section seule). Aucun code de production touche.
+
+**Prochaine etape** : confirmation de San Goku sur (a) le perimetre du correctif (les 5 sites de troncature de `ci_agent_node.py` en une seule fois, coherent avec le fait que c'est le meme defaut partout, vs un mandat plus etroit limite au site `analyze_method_override_chain` seul qui a cause l'incident observe) et (b) l'endroit ou placer le helper partage (probable candidat : `code_intelligence/ci_helpers.py`, deja le point de rassemblement des fonctions deterministes partagees de ce module) avant tout dryRun.
+
+---
+
+## Section 501: Bug 3 -- mandat San Goku confirme : (a) les 5 sites en une seule fois, (b) helper dans `ci_helpers.py` ; design du helper et sequencement actes avant tout dryRun (2026-09-03)
+
+**Decision de San Goku (reponse directe aux deux points en suspens de la section 500)** : (a) OUI, corriger les 5 sites de troncature en une seule fois -- le bug n'est pas specifique a `analyze_method_override_chain`, c'est le pattern de slicing brut lui-meme qui est la root cause ; corriger un seul site laisserait les autres capables de produire la meme classe de corruption. (b) OUI, helper partage dans `code_intelligence/ci_helpers.py`.
+
+**Design du helper actee (San Goku)** :
+```python
+def truncate_observation(text: str, limit: int) -> str:
+    if len(text) <= limit:
+        return text
+    cut = text[:limit]
+    newline = cut.rfind("\n")
+    if newline > 0:
+        cut = cut[:newline]
+    elif " " in cut:
+        cut = cut[:cut.rfind(" ")]
+    return cut + "\n[... Content truncated for LLM context limit ...]"
+```
+Priorite frontiere de ligne, puis frontiere de mot (dernier espace) en repli. San Goku note explicitement que "dernier espace" n'est PAS une garantie absolue en soi (un token sans espace interne comme un nombre, un xml_id ou un nom de methode ne PEUT pas etre coupe en son milieu par une coupe a la derniere frontiere d'espace -- c'est exactement pour cela que le pattern marche pour la classe de bug observee en section 500 -- mais San Goku demande explicitement que les tests le verifient plutot que de l'assumer, et pose une exigence supplementaire Evidence-first : le texte tronque doit porter un signal explicite de troncature que le backfill sache reconnaitre, pour ne jamais en extraire un fait determ inistique sur un fragment ambigu sans ce signal).
+
+**Recompte exact des sites avant implementation (lecture ci_agent_node.py faite ce tour)** : 6 occurrences litterales du pattern de slicing brut trouvees, pas 5 -- (1) `analyze_security_locks` pre-dispatch cap 3000, (2) `analyze_server_actions` pre-dispatch cap 3000, (3) `analyze_method_override_chain` pre-dispatch cap 2200, (4) `who_has_access_to` pre-dispatch cap 3000, (5) `evaluate_record_rules` pre-dispatch cap 3000, (6) dispatch generique de la boucle ReAct (`_observation_cap = 2200/3000/1200 selon tool_name`). Le compte "5" de la section 500 groupait probablement (3) et (6) comme un seul "site" conceptuel (meme cap 2200 pour le meme outil) ; le mandat de San Goku ("le meme defaut partout") couvre sans ambiguite les 6 occurrences reelles -- traite comme un seul mandat multi-fichiers/multi-sites explicite, pas besoin de reconfirmation pour ce point de detail de comptage.
+
+**Sequencement acte (San Goku)** : 1) helper partage dans `ci_helpers.py` ; 2) remplacement des sites de troncature dans `ci_agent_node.py` (6 reels) ; 3) tests de frontieres + non-regression (matrice : 5000 jamais coupe en "500", 20000 jamais coupe en "2000", xml_id jamais partiel, method_name jamais partiel, texte tronque -> aucune extraction determ inistique ne doit pouvoir en tirer un fait fiable sans signal de troncature) ; 4) verification du comportement du backfill (`_backfill_missing_override_chain_amount` et consorts) sur une observation tronquee -- ne pas rallonger les caps existants (ecarte explicitement par San Goku et deja par rules.md section 500).
+
+**Non fait ce tour** : aucun code touche -- ce tour formalise le mandat et le design avant le premier dryRun sur `ci_helpers.py`.
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section seule).
+
+**Prochaine etape** : dryRun de l'ajout de `truncate_observation()` dans `code_intelligence/ci_helpers.py`, puis (apres validation du diff) ecriture reelle, py_compile, puis dryRun des 6 remplacements dans `ci_agent_node.py`.
+
+---
+
+## Section 502: Bug 3 -- etapes 1-3 du mandat San Goku terminees : helper `_truncate_observation()` ecrit, 6 sites de troncature de `ci_agent_node.py` migres, 9 tests de frontieres reellement executes (pytest, pas seulement py_compile) et tous verts (2026-09-03)
+
+**Etape 1 -- helper partage** : `_truncate_observation(text, limit)` ajoute dans `code_intelligence/ci_helpers.py` (dryRun puis ecriture reelle, py_compile OK). Reprend le design de San Goku (frontiere de ligne, puis frontiere d'espace en repli) avec un troisieme repli explicite documente dans le docstring pour le cas sans aucune frontiere sure (token unique trop long) -- comportement identique a l'ancien slicing brut dans ce seul cas limite, assume et documente plutot que silencieux. Marqueur de troncature centralise dans une constante `_TRUNCATION_MARKER` (meme chaine litterale qu'avant, pour ne rien changer cote consommateurs downstream qui la cherchent deja).
+
+**Etape 2 -- remplacement des 6 sites reels dans `ci_agent_node.py`** (import de `_truncate_observation` ajoute, puis les 6 remplacements -- `analyze_security_locks` cap 3000, `analyze_server_actions` cap 3000, `analyze_method_override_chain` pre-dispatch cap 2200, `who_has_access_to` cap 3000, `evaluate_record_rules` cap 3000, dispatch generique de la boucle ReAct cap dynamique 2200/3000/1200) : dryRun -> diff verifie (6 hunks, un par site) -> ecriture reelle -> py_compile OK -> `grep` de confirmation qu'aucun `text[:N] + "\n[... Content truncated"` brut ne subsiste (seuls les appels a `_truncate_observation(...)` restent).
+
+**Etape 3 -- tests de frontieres + non-regression** : `code_intelligence/tests/test_bug3_truncate_observation_boundary.py` cree (9 tests) couvrant exactement la matrice demandee par San Goku : `5000` jamais tronque en `500` (reproduction directe de l'incident section 500, meme index de coupure), `20000` jamais tronque en `2000`, xml_id jamais laisse partiel (assertion generique : le dernier token de l'espace tronque ne doit jamais etre un prefixe strict non vide de l'identifiant), method_name jamais laisse partiel (meme assertion generique), priorite frontiere de ligne sur frontiere d'espace, repli documente sur coupure brute quand aucune frontiere n'existe, no-op quand le texte tient deja dans la limite (egal et strictement inferieur), et un test de regression Evidence-first qui rejoue le mecanisme exact de Bug 3 avec la VRAIE regex `_OVERRIDE_CHAIN_AMOUNT_RE` de `ci_helpers.py` sur un texte tronque au meme index que l'incident original -- confirme qu'elle ne peut plus extraire "500" du tout apres le fix. **Executes reellement via pytest** (copie sur le disque Claude, pas seulement `py_compile`) : 9 passed, 0 failed.
+
+**Non fait ce tour** : etape 4 du sequencement (verification du comportement des fonctions de backfill -- `_backfill_missing_override_chain_amount` et consorts -- sur une observation reellement tronquee, au-dela du seul regex direct deja couvert par le dernier test de l'etape 3) pas encore commencee. Aucune execution de la suite pytest complete du projet sur le vrai disque (`code_intelligence/tests/` dans son ensemble) -- seul le nouveau fichier a ete rejoue, isolement, sur une copie locale.
+
+**Fichiers modifies** : `code_intelligence/ci_helpers.py`, `code_intelligence/ci_agent_node.py`, `code_intelligence/tests/test_bug3_truncate_observation_boundary.py` (nouveau), `todo/contexte.txt` (cette section).
+
+**Prochaine etape** : etape 4 -- verifier que les fonctions de backfill de `ci_override_cascade.py`/`ci_helpers.py` appelees sur `scoped_tool_output` ne peuvent pas transformer un fragment tronque et ambigu en `[FAIT DETERMINISTIQUE]` sans le signal de troncature (`_TRUNCATION_MARKER`) present dans le meme bloc -- investigation d'abord (pas de nouveau correctif sans mandat explicite si un gap est trouve), puis San Goku a executer `pytest code_intelligence/tests/test_bug3_truncate_observation_boundary.py -v` sur le vrai disque projet pour confirmation finale (l'execution ci-dessus a eu lieu sur une copie locale des fichiers, pas sur l'environnement reel du projet).
+
+---
+
+## Section 503: Bug 3 -- etape 4 (investigation, lecture seule) : le mecanisme exact de l'incident est ferme ; un risque residuel DISTINCT et non reproduit identifie -- decision San Goku requise avant tout nouveau correctif (2026-09-03)
+
+**Ce qui est confirme ferme par le fix (etapes 1-3)** : `_truncate_observation` ne peut plus jamais laisser un nombre, un xml_id ou un method_name partiel derriere elle (repli sur la derniere frontiere de ligne, puis d'espace) -- le test de regression de l'etape 3 (`test_override_chain_amount_regex_never_extracts_a_truncation_artifact`) rejoue le mecanisme EXACT de l'incident (meme regex reelle `_OVERRIDE_CHAIN_AMOUNT_RE`, meme index de coupure relatif) et confirme qu'un "500" fabrique n'est plus extractible. C'est le mecanisme precis qui a produit le "500€" observe par San Goku (section 500) -- il est ferme.
+
+**Risque residuel identifie, DISTINCT du mecanisme de l'incident, non reproduit** : le fix garantit qu'un nombre extrait est toujours COMPLET et REEL (jamais tronque en plein milieu), mais ne garantit rien sur le CONTEXTE/CONDITION qui l'entoure. Exemple concret construit (pas une capture reelle) : un texte source `"condition: rec.amount_total > 5000 and not rec.partner_id.avoir_vip_exempt"` tronque juste apres `5000` (a une frontiere d'espace legitime) donne `"condition: rec.amount_total > 5000"` -- le nombre 5000 est intact et reel, `_OVERRIDE_CHAIN_AMOUNT_RE`/`_AMOUNT_CMP_RE` le matchent correctement, MAIS la clause d'exception qui suivait (`and not ...avoir_vip_exempt`) a disparu silencieusement. Le backfill produirait alors un `[FAIT DETERMINISTIQUE]` sur le seuil 5000€ SANS l'exception, ce qui est une troncature semantique valide syntaxiquement (aucun token casse) mais potentiellement trompeuse sur le fond -- une classe de risque differente de celle de Bug 3 (qui fabriquait un NOMBRE FAUX), ici le nombre serait vrai mais la condition incomplete.
+
+**Verification faite ce tour (lecture seule, aucune donnee reelle ne reproduit ce cas)** : aucune des fonctions d'extraction concernees (`_OVERRIDE_CHAIN_AMOUNT_RE` dans `ci_override_cascade.py::_extract_override_chain_amounts`, `_AMOUNT_CMP_RE`/`_LOCK_CONDITION_LINE_RE` dans `ci_helpers.py::_extract_required_groups_for_amount`/`_correct_security_lock_threshold_contradictions`, `_extract_security_lock_condition_amounts`) ne verifie la proximite du match avec `_TRUNCATION_MARKER` avant de considerer le resultat comme fiable -- le marqueur existe maintenant dans le texte (etape 1) mais rien ne le lit en aval. C'est une lacune reelle mais PAS reproduite empiriquement (aucune capture live ne montre ce cas precis, contrairement a Bug 3 qui partait d'une capture reelle) -- purement une extrapolation logique du meme principe Evidence-first que San Goku a lui-meme souleve en formulant le mandat ("le texte tronque doit porter un signal explicite ... pour ne jamais en extraire un fait fiable sur un fragment ambigu").
+
+**Non fait ce tour (rules.md -- pas de correctif sans mandat explicite, surtout hors perimetre du mandat initial "5 sites de troncature")** : aucun code touche pour ce risque residuel. C'est un perimetre distinct de celui confirme en section 501 (qui portait sur les SITES de troncature, pas sur les FONCTIONS D'EXTRACTION en aval) -- traiter ce gap comme automatiquement inclus dans le mandat deja donne serait une extension non demandee.
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section seule). Aucun code de production touche.
+
+**Prochaine etape** : decision de San Goku sur ce risque residuel (distinct du mecanisme de Bug 3, deja ferme) : (a) l'ignorer pour l'instant (non reproduit, purement theorique) et clore Bug 3 sur son mecanisme confirme uniquement ; (b) mandater un correctif borne -- par exemple, faire sauter/annoter tout match d'extraction dont la fin se situe a moins de N caracteres d'une occurrence de `_TRUNCATION_MARKER` dans le meme texte. En parallele : San Goku execute `pytest code_intelligence/tests/test_bug3_truncate_observation_boundary.py -v` sur le vrai disque projet pour confirmation finale des etapes 1-3 (execution locale Claude deja faite et verte, mais jamais substituable a une execution reelle sur l'environnement du projet, meme discipline que Bug 2 section 494).
+
+---
+
+## Section 504: Bug 3 -- confirmation finale sur le vrai disque projet : 9/9 tests verts (etapes 1-3 closes) ; decision (a) vs (b) sur le risque residuel toujours en attente de San Goku (2026-09-03)
+
+**Resultat colle par San Goku** : `pytest code_intelligence/tests/test_bug3_truncate_observation_boundary.py -v` execute sur le vrai disque projet (`/home/user/odoo-ia-prototype`, pas la copie locale Claude) -- 9/9 tests passed en 0.07s, aucun echec, aucun warning. Les 9 tests listes correspondent exactement a la matrice actee section 502 (no-op sous/at limit, 5000 jamais tronque en 500, 20000 jamais tronque en 2000, xml_id/method_name jamais partiels, priorite ligne sur espace, repli documente sans frontiere, regression Evidence-first sur la vraie regex `_OVERRIDE_CHAIN_AMOUNT_RE`).
+
+**Portee de cette confirmation** : ferme definitivement les etapes 1-3 du mandat section 501 -- le helper `_truncate_observation()` (`ci_helpers.py`) et les 6 sites migres (`ci_agent_node.py`) sont maintenant valides a la fois localement (Claude, section 502) et sur l'environnement reel du projet (cette section), meme discipline de double-verification que Bug 2 (section 494). Le mecanisme exact de l'incident original (nombre coupe en plein milieu par slicing brut) est ferme avec preuve directe sur les deux environnements.
+
+**Non ferme** : le risque residuel DISTINCT identifie section 503 (troncature semantique valide syntaxiquement -- un nombre complet et reel mais une clause de condition qui a disparu silencieusement apres troncature, ex. `and not rec.partner_id.avoir_vip_exempt` coupee apres le seuil) reste ouvert. Aucune des deux options (a: clore Bug 3 sur le mecanisme confirme uniquement / b: mandater un correctif borne verifiant la proximite du `_TRUNCATION_MARKER`) n'a encore ete tranchee par San Goku dans ce tour -- seul le resultat pytest a ete colle.
+
+**Non fait ce tour** : aucun code touche, aucune decision prise sur le risque residuel -- lecture seule + journalisation.
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section seule).
+
+**Prochaine etape** : attente de la decision de San Goku, section 503, option (a) ou (b), avant tout nouveau correctif. Bug 3 peut etre considere clos sur son mecanisme confirme des maintenant si San Goku choisit (a) ; sinon, dryRun du correctif borne (verification de proximite avec `_TRUNCATION_MARKER`) sur les fonctions d'extraction listees section 503 si San Goku choisit (b).
+
+---
+
+## Section 505: Bug 3 -- decision San Goku (b) : correctif borne de proximite avec `_TRUNCATION_MARKER` implemente, 4 fonctions d'extraction couvertes, 11 nouveaux tests verts localement (2026-09-03)
+
+**Decision de San Goku** : option (b) -- mandater le correctif borne (rejeter tout match d'extraction dont la fin se situe a moins de N caracteres d'une occurrence de `_TRUNCATION_MARKER` dans le meme texte).
+
+**Helper partage ajoute** : `_match_near_truncation(text, start, end)` dans `code_intelligence/ci_helpers.py`, juste apres `_truncate_observation()` -- fenetre de proximite `_TRUNCATION_PROXIMITY_CHARS = 50` (caracteres), verifiee des deux cotes du span du match (avant ET apres, meme si en pratique le marqueur suit toujours une troncature reelle). dryRun -> diff verifie -> ecriture reelle.
+
+**4 sites d'extraction identifies section 503, tous couverts** :
+1. `ci_override_cascade.py::_extract_override_chain_amounts` -- import de `_match_near_truncation` ajoute, match rejete (skip) si proche du marqueur.
+2. `ci_helpers.py::_extract_security_lock_condition_amounts` -- meme traitement (skip par bloc).
+3. `ci_helpers.py::_extract_required_groups_for_amount` -- la ligne de condition (`_LOCK_CONDITION_LINE_RE`) proche du marqueur est exclue de `group_conditions` : le groupe retombe alors sur le comportement par defaut deja documente par la fonction pour un verrou inconditionnel (toujours conserve), plutot que de faire confiance a un seuil lu sur une condition potentiellement tronquee.
+4. `ci_helpers.py::_correct_security_lock_threshold_contradictions` -- meme exclusion sur `_LOCK_CONDITION_LINE_RE` : une condition proche du marqueur n'alimente jamais `rules`, donc ne peut jamais servir de base a une correction de contradiction de synthese (une correction erronee construite sur une condition incomplete serait pire qu'une absence de correction).
+
+**Chaque site rejete/adapte plutot que de simplement flaguer** : conforme au libelle du mandat ("sauter") -- aucun des 4 sites n'annote le texte, ils excluent silencieusement le match de l'extraction (comportement par defaut deja conservateur de chaque fonction en l'absence de match : `_extract_*_amounts` retournent deja `[]`/liste incomplete sans erreur quand rien n'est trouve, `_extract_required_groups_for_amount` traite deja l'absence de condition comme "verrou inconditionnel", `_correct_security_lock_threshold_contradictions` est deja un no-op quand `rules` est vide).
+
+**Tests** : nouveau fichier `code_intelligence/tests/test_bug3_residual_truncation_proximity_guard.py` (11 tests) -- distinct de `test_bug3_truncate_observation_boundary.py` (sections 500-502, qui couvre `_truncate_observation()` elle-meme). Matrice : `_match_near_truncation` seule (proche/loin/absent du marqueur) ; les 2 fonctions `_extract_*_amounts` (rejet si proche, extraction normale si loin ou si aucune troncature) ; `_extract_required_groups_for_amount` (groupe conserve inconditionnellement si condition proche du marqueur vs filtrage normal si loin) ; `_correct_security_lock_threshold_contradictions` (no-op si la seule condition trouvee est proche du marqueur). **Executes reellement via pytest sur une copie locale Claude** (meme discipline que section 502, jamais substituable a une execution reelle) : 11 passed, 0 failed. py_compile des 2 fichiers de production modifies (`ci_helpers.py`, `ci_override_cascade.py`) egalement verifie localement, OK.
+
+**Non fait ce tour** : aucune execution sur le vrai disque projet (ni py_compile, ni pytest) -- fichiers ecrits reellement sur `/home/user/odoo-ia-prototype` via le connecteur filesystem (pas seulement dryRun), mais jamais executes sur cet environnement dans ce tour. Aucune verification de non-regression de la suite `test_bug3_truncate_observation_boundary.py` existante (aucune raison de regression attendue -- le nouveau code n'a modifie aucune ligne de `_truncate_observation()` elle-meme -- mais non confirme empiriquement ce tour).
+
+**Fichiers modifies** : `code_intelligence/ci_helpers.py` (helper `_match_near_truncation` + 3 sites d'extraction gardes), `code_intelligence/ci_override_cascade.py` (import + 1 site d'extraction garde), `code_intelligence/tests/test_bug3_residual_truncation_proximity_guard.py` (nouveau), `todo/contexte.txt` (cette section).
+
+**Prochaine etape** : San Goku execute sur le vrai disque projet, dans cet ordre : (1) `python -m py_compile code_intelligence/ci_helpers.py code_intelligence/ci_override_cascade.py` (2) `pytest code_intelligence/tests/test_bug3_residual_truncation_proximity_guard.py -v` (nouveaux tests) (3) `pytest code_intelligence/tests/test_bug3_truncate_observation_boundary.py -v` (non-regression des tests existants, section 500-502) -- confirmation finale avant de considerer le risque residuel de la section 503 comme ferme.
+
+---
+
+## Section 506: Bug 3 -- CLOS : confirmation finale sur le vrai disque projet, mecanisme original ET risque residuel tous deux fermes (2026-09-03)
+
+**Resultat colle par San Goku, sur le vrai disque projet** : `py_compile` des 2 fichiers de production modifies -- aucune erreur. `pytest code_intelligence/tests/test_bug3_residual_truncation_proximity_guard.py -v` -- 11/11 passed. `pytest code_intelligence/tests/test_bug3_truncate_observation_boundary.py -v` -- 9/9 passed, aucune regression sur la suite existante (sections 500-502).
+
+**Bilan Bug 3, desormais CLOS integralement** : (1) mecanisme original (section 500) -- un nombre reel coupe en plein milieu par un slicing brut, produisant un montant fabrique presente comme un fait deterministique -- ferme par `_truncate_observation()` (sections 501-502), confirme sur le vrai disque en section 504. (2) risque residuel distinct (section 503) -- un nombre complet et reel mais dont la condition environnante peut avoir ete tronquee silencieusement -- ferme par `_match_near_truncation()` applique aux 4 sites d'extraction concernes (section 505), confirme sur le vrai disque dans ce tour. Les deux confirmations suivent la meme discipline de double-verification (copie locale Claude puis execution reelle sur l'environnement du projet) que Bug 2 (section 494) et que la premiere moitie de Bug 3 (section 504).
+
+**Non fait ce tour** : aucun code touche -- lecture du resultat colle et journalisation uniquement.
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section seule).
+
+**Prochaine etape** : aucune action en attente sur Bug 3. Prochain sujet a definir par San Goku.
+
+---
+
+## Section 507: Infra -- root cause identifiee et corrigee : `odoo.conf` (serveur Odoo reel) n'incluait pas le chemin des modules custom, `custom_credit_note_approval`/`custom_credit_note_visibility_rules` ne pouvaient pas etre trouves au demarrage (2026-09-03)
+
+**Origine** : San Goku a colle une ligne de log Odoo au demarrage -- `ERROR ? odoo.modules.loading: Some modules are not loaded, some dependencies or manifest may be missing: ['custom_credit_note_approval', 'custom_credit_note_visibility_rules']`.
+
+**Root cause confirmee par preuve directe (lecture seule)** : `/home/user/odoo-17.0/odoo.conf` avait `addons_path = addons` -- uniquement le addons natif d'Odoo. `search_files` sur `/home/user/odoo-17.0/addons` avec le pattern `custom_*` -- aucun resultat : les modules custom n'existent nulle part sous ce chemin (ni copie, ni symlink). Les deux modules vivent en realite dans `/home/user/odoo-ia-prototype/odoo_addons/` (confirme par listing direct). Le serveur Odoo reel ne pouvait donc litteralement pas trouver leur code sur disque au demarrage -- ce n'est pas une dependance Odoo manquante au sens du graphe de modules, c'est un probleme de chemin.
+
+**Pourquoi exactement ces 2 modules et pas d'autres custom_*** : lecture des deux manifests confirme la chaine -- `custom_credit_note_visibility_rules.__manifest__.py` declare `'depends': ['custom_credit_note_approval']`. L'echec de chargement du premier (introuvable sur disque) fait cascader l'echec du second, exactement les 2 noms cites dans le message d'erreur, aucun autre module custom_* n'est implique.
+
+**Confirmation independante que ceci n'est pas un simple oubli isole** : `config/settings.py` (utilise par l'outil Code Intelligence lui-meme pour son indexation statique du corpus, sans rapport avec le serveur Odoo reel) definit deja `CUSTOM_ADDONS_PATH = os.getenv("CUSTOM_ADDONS_PATH") or str(_ROOT / "odoo_addons")`, et `.env` fixe `CUSTOM_ADDONS_PATH=/home/user/odoo-ia-prototype/odoo_addons` -- exactement le meme chemin. Cette variable n'etait cependant jamais consommee par `odoo.conf`/le serveur Odoo reel lui-meme, qui lit sa propre configuration independamment -- les deux systemes (indexation statique Code Intelligence vs serveur Odoo reel) etaient donc silencieusement desynchronises sur l'emplacement reel du code custom.
+
+**Correctif applique (mandat explicite San Goku)** : `addons_path = addons` -> `addons_path = addons,/home/user/odoo-ia-prototype/odoo_addons` dans `/home/user/odoo-17.0/odoo.conf`. dryRun -> diff verifie (1 ligne) -> ecriture reelle. Root cause elle-meme (chemin manquant), pas un contournement -- aligne desormais le serveur Odoo reel sur le meme chemin que `CUSTOM_ADDONS_PATH` utilise deja pour l'indexation.
+
+**Non fait ce tour** : aucun redemarrage du serveur Odoo ni verification que les modules se chargent effectivement apres correctif -- a faire par San Goku (redemarrer le serveur, verifier l'absence de la meme erreur au demarrage, et si les modules sont deja enregistres en base avec un etat d'echec, potentiellement forcer une mise a jour via `-u custom_credit_note_approval,custom_credit_note_visibility_rules` ou equivalent interface Apps).
+
+**Fichiers modifies** : `/home/user/odoo-17.0/odoo.conf`, `todo/contexte.txt` (cette section).
+
+**Prochaine etape** : San Goku redemarre le serveur Odoo avec ce `odoo.conf` corrige et confirme que l'erreur de chargement des 2 modules a disparu. Si les modules restent en etat d'echec en base malgre le chemin desormais correct, mise a jour explicite des modules (`-u`) probablement necessaire en plus du redemarrage -- a confirmer selon le resultat.
+
+---
+
+## Section 508: Bug -- root cause identifiee (lecture seule) : `get_total_sales` echoue avec `<Fault 3: 'Access Denied'>` -- decouplage uid/api_key dans la chaine de propagation de contexte (2026-09-03)
+
+**Origine** : San Goku a colle une capture de l'interface MIRO AI -- question "combien de chiffre d'affaires a-t-on fait jusqu'a maintenant ?", reponse contenant `Erreur lors de l'appel a get_total_sales: Failed to aggregate on sale.order: <Fault 3: 'Access Denied'>`.
+
+**Root cause confirmee par lecture directe du code (pas d'hypothese)** : la chaine `api/main.py::ask_question_v1` -> `core/graph.py::query_graph` -> `erp_data/odoo_connector.py::_resolve_password` propage `uid` et `api_key` de maniere DECOUPLEE :
+1. `ask_question_v1` (api/main.py) : `request.user_uid = token_uid` est TOUJOURS applique quand le JWT contient un uid. `token_api_key = user.get("api_key")` peut etre `None` (un simple `logger.warning` est emis, aucun blocage) -- les deux valeurs partent independamment vers `query_graph(uid=request.user_uid, api_key=token_api_key, ...)`.
+2. `query_graph` (core/graph.py) : `if uid is not None: odoo_uid_ctx.set(uid)` et `if api_key is not None: odoo_api_key_ctx.set(api_key)` sont deux `if` INDEPENDANTS. Quand `api_key` est `None`, `odoo_api_key_ctx` reste a sa valeur par defaut (`None`) alors que `odoo_uid_ctx` porte deja le vrai uid non-admin.
+3. `OdooConnector._resolve_password()` (erp_data/odoo_connector.py) : si `odoo_api_key_ctx.get()` est `None`, elle retombe sur `self.password` (mot de passe admin, `.env ODOO_PASSWORD`) -- avec un log `WARNING` deja en place, mais SANS jamais revenir sur le uid deja fixe.
+4. Consequence directe : `connector.read_group(uid=<vrai_uid_non_admin>, ...)` appelle `execute_kw(self.db, uid, <mot_de_passe_admin>, ...)` -- une paire (uid, password) qui ne correspond a AUCUN compte reel cote Odoo (le mot de passe admin authentifie l'utilisateur admin, pas le uid du demandeur). C'est exactement ce que XML-RPC/Odoo rejette avec `Fault 3: 'Access Denied'` (echec de `_check_credentials`, distinct d'un `AccessError` ir.rule/ACL qui aurait un message different) -- correspond exactement a l'erreur collee par San Goku.
+
+**Piste amont (non confirmee, hors portee de cette lecture)** : pourquoi `api_key` etait-il absent du JWT pour cette requete ? Le controleur Odoo `odoo_addons/miro_ai/controllers/main.py::ask()` genere la cle via `request.env['res.users.apikeys']._generate(None, key_name)` dans un `try/except` qui, en cas d'echec, logue `_logger.error("MIRO AI: echec de generation de la cle API pour uid=%s: %s", uid, key_err)` et laisse silencieusement `rpc_api_key = None` -- le flux continue normalement (JWT signe quand meme, sans `api_key`), ce qui est cohérent avec le fait que l'utilisateur a bien recu une reponse complete (le controleur n'a pas plante). Verification tentee cote source Odoo (`addons/base/models/res_users_apikeys.py`) : fichier absent de `addons/base/models/__init__.py` dans ce checkout -- mais la presence de `addons/portal/models/res_users_apikeys_description.py` (qui `_inherit`-e `res.users.apikeys.description`) implique que le modele parent existe forcement au demarrage reel du serveur (sinon Odoo ne demarrerait pas du tout), donc cette piste sur le fichier source n'est PAS concluante en lecture seule -- necessite les logs reels du serveur Odoo (ligne `MIRO AI: echec de generation de la cle API pour uid=%s` ou `No real Odoo API key in JWT for uid=%s`) pour confirmer la cause exacte de l'absence de cle pour CETTE requete precise.
+
+**Non fait ce tour** : aucun code touche -- lecture seule + journalisation, conformement a rules.md ("pas de fix chirurgical, voir la root cause" -- le mecanisme exact est confirme, mais deux decisions produit restent ouvertes avant tout correctif, voir plus bas).
+
+**Fichiers lus** : `api/main.py`, `api/auth.py`, `core/graph.py`, `erp_data/odoo_connector.py`, `erp_data/odoo_tools.py`, `erp_data/orm_agent_node.py`, `odoo_addons/miro_ai/controllers/main.py`, `odoo-17.0/odoo.conf`, `odoo-17.0/addons/base/models/__init__.py`, `odoo-17.0/addons/portal/models/res_users_apikeys_description.py`.
+
+**Prochaine etape** : decision de San Goku sur DEUX points avant tout correctif : (a) que doit-il se passer quand `api_key` est absent -- (a1) faire retomber le uid egalement sur l'uid admin (coherence de la paire, mais on perd le vrai enforcement ir.rule/ACL demande section 507/anterieures) ou (a2) refuser explicitement l'appel ERP avec un message clair plutot que de tenter un appel XML-RPC voue a l'echec (b) verifier cote logs reels du serveur Odoo (grep `MIRO AI: echec de generation` et `No real Odoo API key in JWT`) pourquoi la cle API n'a pas ete generee/propagee pour cette requete precise -- San Goku a acces direct aux logs serveur, ce que ce tour de lecture (sandbox filesystem) n'a pas.
+
+---
+
+## Section 509: Infra -- aucun fichier de log persistant trouve (Odoo loggait sur stdout, pas de `logfile` dans `odoo.conf`) ; ajout de `logfile` pour permettre la lecture retroactive future des logs via le connecteur filesystem (2026-09-03)
+
+**Constat** : tentative de verification des logs serveur Odoo demandee par San Goku (section 508, point (b)) -- `search_files` motif `*.log` sur les deux racines accessibles (`/home/user/odoo-ia-prototype`, `/home/user/odoo-17.0`) : aucun resultat. `odoo.conf` ne contenait aucune directive `logfile =` -> Odoo ecrit uniquement sur stdout (le process/terminal qui lance `odoo-bin`, ou le journal du service selon comment il est demarre), rien de persistant sur disque que le connecteur filesystem MCP puisse lire. Consequence : impossible de retrouver retroactivement, depuis ce sandbox, les lignes `MIRO AI: echec de generation de la cle API pour uid=%s` (controleur Odoo) ou `No real Odoo API key in JWT for uid=%s` (api/main.py) qui auraient confirme la cause exacte de l'absence de `api_key` lors de l'incident de la section 508.
+
+**Decision de San Goku** : option 2 -- ajouter une directive `logfile` a `odoo.conf` plutot que de demander une copie manuelle des lignes de log (qui n'aurait pas couvert l'incident deja survenu de toute facon, ni les incidents futurs).
+
+**Correctif applique** : ajout d'une seule ligne a `/home/user/odoo-17.0/odoo.conf` -- `logfile = /home/user/odoo-17.0/odoo.log`. dryRun -> diff verifie (1 ligne ajoutee, aucune ligne existante modifiee) -> ecriture reelle -> relecture confirmee.
+
+**Portee et limite explicite** : ce correctif ne couvre PAS retroactivement l'incident de la section 508 (le echec de generation de cle, s'il a eu lieu, n'a jamais ete persiste nulle part) -- seuls les redemarrages/incidents FUTURS du serveur Odoo, une fois relance avec ce `odoo.conf` modifie, seront journalises dans `/home/user/odoo-17.0/odoo.log` et donc lisibles par le connecteur filesystem.
+
+**Non fait ce tour** : aucun redemarrage du serveur Odoo (necessaire pour que la directive `logfile` prenne effet) -- a faire par San Goku. Aucune tentative de reproduire l'incident section 508 pour capturer les logs correspondants.
+
+**Fichiers modifies** : `/home/user/odoo-17.0/odoo.conf`, `todo/contexte.txt` (cette section).
+
+**Prochaine etape** : San Goku redemarre le serveur Odoo avec ce `odoo.conf` modifie. Puis reproduit la question ayant cause l'incident section 508 ("combien de chiffre d'affaires...") depuis l'interface MIRO AI, et colle le contenu de `/home/user/odoo-17.0/odoo.log` (ou son extrait pertinent, motifs `MIRO AI:` et `No real Odoo API key`) pour confirmer la cause exacte de l'absence de `api_key` avant de trancher entre les options (a1)/(a2) de la section 508.
+
+---
+
+## Section 510: Bug section 508 -- lecture de `odoo.log` apres redemarrage : la piste "cle API absente" est REFUTEE, deux autres pistes ecartees par verification directe du code source Odoo -- mystere non resolu, necessite les logs du process FastAPI (2026-09-03)
+
+**Reproduction** : San Goku a redemarre Odoo (avec `logfile` ajoute section 509) et rejoue la question "combien de chiffre d'affaires..." depuis MIRO AI. Lecture de `/home/user/odoo-17.0/odoo.log` (premiere lecture reelle depuis l'ajout de la directive).
+
+**Sequence exacte extraite du log** :
+```
+10:09:19,376  Users API Keys generated: scope: <None> for 'admin' (#2) from 127.0.0.1
+10:09:19,380  MIRO AI -> Interrogation RAG ... pour UID=2
+10:09:19,396  [echec DNS vers miro_rag:8000, repli vers 127.0.0.1:8000]
+10:09:26,812  WARNING odoo.http: Access Denied
+10:09:26,813  POST /xmlrpc/2/object HTTP/1.1" 200 ... (0.652s)
+10:09:26,826  API key(s) removed: scope: <[False]> for 'admin' (#2)
+10:09:26,834  User #2 deleted res.users.apikeys records with IDs: [34]
+```
+
+**Piste section 508 ("api_key absent du JWT") REFUTEE** : la cle a ete generee AVEC SUCCES pour l'admin (uid=2, scope=None a 10:09:19), puis REVOQUEE PROPREMENT ~7.4s plus tard (le `finally` du controleur a bien trouve et supprime l'enregistrement `res.users.apikeys` #34) -- preuve directe qu'une cle reelle, valide, a existe en base du debut a la fin de la requete. `rpc_api_key` n'etait donc PAS `None` cote controleur Odoo -- l'hypothese principale de la section 508 ne s'applique pas a CET incident precis (meme si le mecanisme de decouplage identifie section 508 reste un bug latent valide pour le cas ou `api_key` serait reellement absent).
+
+**Deux autres pistes explorees et ECARTEES par lecture directe du code source reel (pas d'hypothese)** :
+1. **Scope mismatch** : lecture de `odoo-17.0/addons/base/models/res_users.py` (le modele `res.users.apikeys` y est bien defini, fusionne dans ce fichier plutot que dans un fichier separe -- source de la confusion section 508 sur son "absence"). `APIKeys._check_credentials(*, scope, key)` filtre `WHERE u.active and index = %s AND (scope IS NULL OR scope = %s)` -- une cle `scope=None` matche BIEN n'importe quelle verification de scope, y compris `scope='rpc'` utilisee par `APIKeysUser._check_credentials()` pour le login XML-RPC. Pas un probleme de scope.
+2. **Perte de contextvars entre threads (LangGraph)** : lecture de `.venv/.../langgraph/pregel/_executor.py` (`BackgroundExecutor.submit()`, langgraph==1.2.8) -- `ctx = copy_context()` est appele AVANT `self.executor.submit(ctx.run, fn, ...)`, donc le contexte du thread appelant (celui de `query_graph()`, ou `odoo_uid_ctx`/`odoo_api_key_ctx` viennent d'etre fixes) est correctement copie et propage a chaque noeud execute par le ThreadPoolExecutor interne de Pregel. Pas un probleme de propagation entre threads.
+
+**Limite de cette lecture** : `odoo.log` ne couvre QUE le serveur Odoo. Le processus FastAPI (`uvicorn api.main:app`) tourne separement et log sur SA PROPRE sortie standard -- aucune ligne du cote FastAPI n'est visible ici, notamment les deux logs qui trancheraient definitivement : `_get_current_uid(): no requester uid in context...` (erp_data/odoo_tools.py) et `OdooConnector._resolve_password(): no per-request API key in context...` (erp_data/odoo_connector.py). Sans ces lignes, impossible de confirmer si le mecanisme de decouplage de la section 508 (ou un autre mecanisme non encore identifie) est reellement ce qui s'est produit ici.
+
+**Non fait ce tour** : aucun code touche -- lecture seule + journalisation. Aucune modification du logging FastAPI proposee a San Goku, en attente de sa decision.
+
+**Fichiers lus** : `odoo-17.0/odoo.log`, `odoo-17.0/addons/base/models/res_users.py` (entier), `.venv/lib/python3.11/site-packages/langgraph/pregel/_executor.py`, `requirements.txt` (version langgraph confirmee : 1.2.8).
+
+**Prochaine etape** : deux options proposees a San Goku -- (1) si le terminal FastAPI est encore ouvert, coller sa sortie console pour la fenetre 10:09:19-26 (2) sinon, ajouter une redirection persistante des logs FastAPI (equivalent de la section 509 mais cote uvicorn) pour la prochaine reproduction. Decision en attente.
+
+---
+
+## Section 511: Bug sections 508-510 -- CLOS (lecture seule) : logs FastAPI cote console obtenus (option 1 de la section 510), decouplage uid/api_key formellement REFUTE pour CETTE reproduction ; nouvelle piste dominante = `admin` n'est pas le superuser Odoo (uid=2, pas uid=1), donc soumis normalement aux `ir.rule` -- candidat le plus probable : regle native "Sale Order: personal rule" / groupe "Voir tous les devis et commandes" jamais accorde a ce compte (2026-09-03)
+
+**Origine** : San Goku a colle la sortie console complete du process FastAPI (uvicorn) couvrant plusieurs redemarrages et plusieurs requetes, y compris une reproduction de l'incident section 508/510 -- question "combien de chiffres d'affaires est ce que la societe a fait jusqu'a maintenant ?", horodatee 13:09:19-13:09:26 cote FastAPI.
+
+**Correlation avec odoo.log (section 510)** : le decalage exact de 3h entre l'horodatage FastAPI (13:09:19-26) et l'horodatage odoo.log (10:09:19-26) correspond trait pour trait au fuseau horaire d'Antananarivo (UTC+3) -- tout indique qu'il s'agit de la MEME requete vue par les deux process (Odoo probablement en UTC, FastAPI en heure locale), pas de deux incidents distincts. Meme duree exacte (~7.4s) entre le hop ORM et la reponse finale des deux cotes.
+
+**Piste section 508 (decouplage uid/api_key) formellement REFUTEE pour cette reproduction** : ni `_get_current_uid(): no requester uid in context...` (erp_data/odoo_tools.py) ni `OdooConnector._resolve_password(): no per-request API key in context...` (erp_data/odoo_connector.py) n'apparaissent dans la sortie console FastAPI pour cette fenetre -- les deux WARNING de fallback, qui auraient ete le signal direct du decouplage, ne se sont pas declenches. `odoo_uid_ctx` ET `odoo_api_key_ctx` portaient donc bien tous les deux la vraie paire (uid=2, cle API reelle admin) au moment de l'appel `read_group`. Ceci ferme definitivement la question ouverte a la fin de la section 510 -- le mecanisme de decouplage identifie section 508 reste un bug latent reel (si `api_key` etait un jour effectivement absent), mais n'explique PAS cet incident precis.
+
+**Nouvelle piste dominante, deduite de odoo.log (section 510) relu sous cet angle** : la ligne `Users API Keys generated: scope: <None> for 'admin' (#2)` montre que le compte admin utilise dans ce prototype porte l'uid 2 -- PAS l'uid 1 (le superuser technique reel d'une base Odoo, cree a l'initialisation, generalement invisible/jamais utilise en usage normal). Consequence directe et documentee du comportement Odoo standard : seul uid=1 contourne automatiquement toutes les `ir.rule` lors d'un appel ORM/XML-RPC explicite avec un uid donne -- un compte "Administrator" (uid=2, groupe Settings/Administration) reste soumis normalement a toutes les regles d'enregistrement, y compris sur les modeles ou il a par ailleurs plein acces ACL au niveau modele. Le candidat le plus probable, non encore confirme par inspection directe de la config Odoo (hors portee lecture-seule/sandbox filesystem) : la regle native du module `sale`, "Sale Order: personal rule", qui restreint `read`/`read_group` sur `sale.order` au vendeur assigne (`user_id = uid`) sauf si l'utilisateur possede le groupe applicatif Ventes "Voir tous les devis et commandes" (`sales_team.group_sale_salesman_all_leads` ou equivalent 17.0) -- un groupe entierement distinct et independant du groupe "Administration" generique. `get_total_sales_raw` appelle justement `read_group` avec un domaine SANS filtre `user_id`, exactement le type de requete que cette regle bloquerait pour un compte prive de ce groupe Ventes specifique.
+
+**Autres constats de ce tour, hors mandat de correctif (lecture seule)** : deux bugs distincts identifies par lecture de `erp_data/orm_agent_node.py` et `erp_data/odoo_tools.py`, non encore mandates pour correction :
+1. Le filtre `valid_obs` dans `orm_agent_loop` (erp_data/orm_agent_node.py) exclut les observations contenant "n'existe pas"/"pas ete trouve"/"Aucune vente trouvee" mais PAS celles prefixees "Erreur lors de l'appel a {tool}: ..." (produites par le `try/except` generique du dispatcher de tool calls) -- consequence : un message technique brut, incluant potentiellement le detail XML-RPC (`<Fault 3: 'Access Denied'>`), peut finir tel quel dans `final_answer` renvoye a l'utilisateur, sans repli documentaire ni synthese LLM.
+2. `get_total_sales`/`get_total_sales_raw` (erp_data/odoo_tools.py) est le seul outil ORM du fichier a ne PAS avoir son propre `try/except` local avec message francais dedie (contrairement a `get_product_stock`, `get_order_status`, `get_total_invoices`, etc.) -- rupture de coherence F-08 entre call sites, l'exception `OdooConnectorError` remonte brute jusqu'au catch generique du loop plutot que vers un message controle.
+
+**Non fait ce tour** : aucun code touche -- lecture seule + journalisation, conformement a rules.md. Aucune verification directe des groupes/regles Odoo effectuee (necessite l'interface Odoo elle-meme, hors portee sandbox filesystem).
+
+**Fichiers lus** : transcript console FastAPI complet colle par San Goku (plusieurs sessions uvicorn, plusieurs requetes), `todo/contexte.txt` (sections 508-510 pour continuite).
+
+**Prochaine etape** : San Goku verifie cote interface Odoo -- (1) `Reglages > Utilisateurs et societes > Utilisateurs > admin`, onglet droits d'acces, section Ventes : niveau actuel (`Utilisateur : Ses propres documents uniquement` vs `Administrateur`/`Voir tous les documents`) (2) a defaut, `Reglages > Technique > Securite > Regles d'enregistrement`, filtrer sur `sale.order`, inspecter la regle personnelle et les groupes qui l'excluent. Si confirme, correctif = elevation du groupe Ventes du compte de test dans Odoo (hors code du prototype). En parallele, mandat explicite attendu de San Goku sur les deux bugs code identifies ci-dessus (filtre `valid_obs` et `try/except` manquant sur `get_total_sales`) avant toute implementation -- aucun des deux n'est encore mandate.
+
+---
+
+## Section 512: Bug sections 508-511 -- piste "Sales: personal rule" REFUTEE (capture ecran Reglages > Utilisateurs > admin fournie par San Goku : Sales=Administrator, Inventory=Administrator, Invoicing=Billing Administrator, Administration=Settings -- droits applicatifs complets partout) ; nouvelle piste dominante, confirmee par lecture complete de `res_users.py` : le rate-limiter anti-bruteforce d'Odoo (`_assert_can_auth`), indexe par IP source et non par utilisateur/identifiants (2026-09-03)
+
+**Origine** : San Goku a fourni une capture d'ecran de `Reglages > Utilisateurs > admin`, onglet Access Rights -- Sales=Administrator (pas "Ses propres documents uniquement"), Inventory=Administrator, Invoicing=Billing Administrator, Administration=Settings. Ce niveau de droits rend la piste dominante de la section 511 (regle "Sale Order: personal rule" bloquant un compte prive du groupe Ventes "Voir tous les devis et commandes") intenable -- un compte Sales=Administrator possede normalement deja ce groupe (ou son equivalent superieur) et n'est pas cense etre restreint par cette regle.
+
+**Nouvelle piste, etablie par lecture complete de `odoo-17.0/addons/base/models/res_users.py`** (fichier entier, pas de grep partiel -- la methode `check()` invoquee par le dispatcher XML-RPC/JSON-RPC pour valider CHAQUE appel `execute_kw` est decoree `@tools.ormcache('uid', 'passwd')` et enveloppee dans `self._assert_can_auth(user=uid)` avant meme d'appeler `_check_credentials()`) :
+
+```python
+# res_users.py, _assert_can_auth()
+source = request.httprequest.remote_addr
+(failures, previous) = failures_map[source]
+if self._on_login_cooldown(failures, previous):
+    raise AccessDenied(_("Too many login failures, please wait a bit before trying again."))
+```
+
+Points etablis par lecture directe du code (pas d'hypothese) :
+1. Le compteur d'echecs est indexe par **adresse IP source** (`request.httprequest.remote_addr`) -- PAS par uid, login, ou cle API. Tous les appels XML-RPC venant de `127.0.0.1` (ou tourne le process FastAPI relativement a Odoo) partagent le MEME compteur, quel que soit l'utilisateur ou la cle utilises pour chaque tentative individuelle.
+2. Seuils par defaut (`ir.config_parameter`, non verifies comme etant modifies dans cette base) : `base.login_cooldown_after` = 5 echecs, `base.login_cooldown_duration` = 60 secondes.
+3. Ce controle intervient AVANT toute verification reelle des identifiants -- une fois le seuil atteint, meme une cle API admin fraichement generee et parfaitement valide (cas confirme section 510 : cle bien creee puis proprement revoquee) est rejetee immediatement, sans jamais atteindre `_check_credentials()`.
+4. `odoo/http.py`/la couche de dispatch XML-RPC serialise `AccessDenied` en `Fault 3: 'Access Denied'` GENERIQUE quelle que soit la cause reelle sous-jacente (mauvais mot de passe, compte inactif, OU verrou anti-bruteforce) -- comportement volontaire de securite (ne pas distinguer les causes cote reponse externe). Le message observe par San Goku ne permet donc PAS de trancher entre "mauvais identifiants" et "verrou anti-bruteforce" sans lecture du code source -- ce qui explique pourquoi les sections 508-511 n'avaient pas pu conclure avec les seuls logs disponibles.
+5. Le verrou ne s'auto-etend PAS pendant qu'il est actif : les tentatives bloquees par le cooldown lui-meme (raise avant le bloc `try/except` qui incremente le compteur) ne comptent pas comme de nouveaux echecs -- seul un VRAI echec de `_check_credentials()` reinitialise le chrono `previous`. Le verrou devrait donc naturellement se lever `login_cooldown_duration` secondes apres le DERNIER echec reel, sans nouvelle tentative genuinement invalide entre-temps.
+
+**Coherence avec l'historique de session** : la succession de reproductions rapprochees de cet incident (sections 507-511, plusieurs relances en quelques minutes/heures, plus le bug de decouplage uid/api_key identifie section 508 qui a pu produire de vrais echecs d'identifiants avant sa refutation section 510) rend plausible l'accumulation des 5 echecs necessaires depuis `127.0.0.1`.
+
+**Non fait ce tour** : aucun code touche -- lecture seule + journalisation. Aucune verification des `ir.config_parameter` reels de cette base (`base.login_cooldown_after`/`base.login_cooldown_duration`) -- valeurs par defaut supposees, non confirmees.
+
+**Test propose a San Goku (non encore execute)** : laisser passer 60 secondes sans aucune requete vers `/api/v1/ask`, puis rejouer une seule fois la question "chiffre d'affaires". Un succes confirmerait le verrou anti-bruteforce comme cause reelle des sections 508-511.
+
+**Question annexe de San Goku, reponse apportee (pas de changement de code)** : passer en JSON-RPC plutot que XML-RPC, ou passer par un MCP Odoo, ne contournerait PAS ce mecanisme -- `check()` (et donc `_assert_can_auth`) est invoque au niveau du modele `res.users` par le dispatcher RPC generique d'Odoo (`dispatch_rpc`), en amont et independamment du protocole de serialisation (XML-RPC vs JSON-RPC utilisent le meme point d'entree `execute_kw`/`check`). Un MCP Odoo n'echapperait a ce verrou que s'il maintenait une session deja authentifiee (cookie de session web) au lieu de revalider des identifiants (uid, cle API) a chaque appel -- ce qui est une architecture differente de celle actuelle (`OdooConnector` cree une nouvelle cle API ephemere revoquee a chaque question, donc un nouveau passage par `check()`/`_assert_can_auth()` a chaque fois). Piste architecturale a evaluer separement, hors mandat de ce tour -- reduire la frequence des cycles generation/revocation de cle par requete reduirait aussi le risque de retomber sous ce seuil, independamment du protocole choisi.
+
+**Fichiers lus** : `odoo-17.0/addons/base/models/res_users.py` (entier, deuxieme lecture complete apres celle de la section 510 -- cette fois avec l'attention portee specifiquement sur `_assert_can_auth`/`check`/`_on_login_cooldown`), capture ecran fournie par San Goku (`Reglages > Utilisateurs > admin`).
+
+**Prochaine etape** : San Goku execute le test des 60 secondes ci-dessus. Si confirme : (a) court terme, envisager d'augmenter/desactiver `base.login_cooldown_after` pour l'environnement de dev (uniquement local, `127.0.0.1`, risque de securite nul en dev) (b) plus structurel, discuter si le cycle "generer une cle API ephemere + revoquer immediatement a chaque question" (odoo_addons/miro_ai/controllers/main.py::ask()) doit etre remplace par une strategie moins couteuse en appels `check()` -- session/cle reutilisee sur une fenetre de temps plutot qu'une cle par requete. Aucune des deux pistes n'est mandatee pour implementation a ce stade.
+
+---
+
+## Section 513: Bug sections 508-512 -- CLOS (lecture seule) : root cause confirmee par lecture directe du code -- probleme d'isolation transactionnelle PostgreSQL entre la transaction Odoo qui genere la cle API et la transaction XML-RPC separee qui tente de l'utiliser ; le verrou anti-bruteforce (piste section 512) n'est pas la cause, tout au plus un effet secondaire compatible (2026-09-03)
+
+**Origine** : San Goku a demande de verifier, dans cet ordre, (1) la valeur effective d'`ODOO_PASSWORD` cote FastAPI (2) la creation/revocation de la cle API (3) `_on_login_cooldown` en dernier -- avec pour raisonnement explicite que trois echecs Access Denied espaces d'environ 1h chacun (sections 507-511 relues) rendent un verrou de 60s nettement moins probable comme explication autosuffisante.
+
+**Etape 1 -- `ODOO_PASSWORD` (`.env` et `erp_data/odoo_connector.py`)** : `ODOO_PASSWORD` (et plus generalement toute variable `ODOO_*`) est absente de `.env` -- `self.password = password or os.getenv("ODOO_PASSWORD", "admin")` retombe donc sur la chaine litterale `"admin"`, codee en dur, non chargee depuis un vrai identifiant. Ecarte comme cause directe de CET incident : `_resolve_password()` n'emprunte ce chemin que si `odoo_api_key_ctx` est `None`, auquel cas un `WARNING` explicite ("no per-request API key in context") est logue -- absent des trois reproductions collees par San Goku (sections 511-512). La vraie cle API par-contexte etait donc bien utilisee a chaque fois, pas ce defaut. Reste un risque latent distinct (defaut non securise si ce chemin est un jour emprunte), non mandate pour correction.
+
+**Etape 2 -- creation/revocation de la cle, chaine complete relue (`odoo_addons/miro_ai/controllers/main.py::ask()`, `api/auth.py`, `api/main.py::ask_question_v1`, `core/graph.py::query_graph`, `odoo-17.0/addons/base/models/res_users.py` entier)** : aucune anomalie de transformation/encodage trouvee sur le trajet de la cle (JWT -> FastAPI -> contextvar -> XML-RPC) -- `_generate()` retourne bien directement la chaine brute (pas de bug de deballage de tuple), le JWT se decode sans erreur de signature (200 OK constants), `token_api_key = user.get("api_key")` est transmis tel quel a `query_graph(api_key=...)` puis a `odoo_api_key_ctx`. En revanche, lecture complete de `APIKeysUser._check_credentials()` et `APIKeys._check_credentials()`/`_generate()` (res_users.py) a fait apparaitre la vraie root cause :
+
+**Root cause confirmee (lecture directe, pas d'hypothese)** : probleme d'isolation transactionnelle PostgreSQL entre deux connexions distinctes.
+1. `odoo/service/model.py::retrying(func, env)` -- appele par `Request._serve_db()` pour englober **tout** le traitement d'une requete `type='json', auth='user'` (donc tout `ask()`) -- ne commite qu'**apres** le retour complet de `func()` : `result = func(); ... ; if not env.cr.closed: env.cr.commit()`.
+2. `ask()` insere la cle API (`INSERT INTO res_users_apikeys ...` dans `APIKeys._generate()`, via `self.env.cr.execute()`) dans la transaction/curseur de CETTE requete HTTP -- non commitee a ce stade.
+3. Toujours a l'interieur de cette meme transaction non commitee, `ask()` appelle `requests.post()` vers FastAPI de maniere synchrone et bloquante.
+4. FastAPI rappelle Odoo en XML-RPC ; cote Odoo, `odoo/service/model.py::execute()` ouvre `with odoo.registry(db).cursor() as cr:` -- un curseur/connexion PostgreSQL entierement nouveau et independant de celui de l'etape 2.
+5. Sous isolation READ COMMITTED (le defaut Postgres/Odoo), cette seconde transaction ne peut par definition pas voir la ligne inseree par la premiere tant qu'elle n'est pas commitee.
+6. `APIKeys._check_credentials(scope='rpc', key=password)` (appelee depuis `APIKeysUser._check_credentials()`) ne trouve donc aucune ligne correspondant a l'index de la cle -> retourne `None` -> `None == env.uid` est faux -> `AccessDenied()` levee, systematiquement, quel que soit l'ecart de temps avec la tentative precedente.
+7. Le commit de la transaction externe n'intervient qu'apres le retour complet de `ask()` (donc apres que la reponse en echec soit deja revenue de FastAPI), juste avant que le `finally:` revoque la cle -- dans cette meme transaction jamais visible ailleurs entre-temps.
+
+**Piste section 512 (verrou anti-bruteforce) reevaluee** : n'est PAS la root cause -- un mecanisme d'isolation transactionnelle deterministe explique a lui seul 100% des echecs, independamment de tout ecart de temps entre tentatives (ce que le verrou de 60s n'expliquait pas pour des tentatives espacees d'environ 1h, point souleve par San Goku). Le verrou reste plausible comme effet secondaire compatible et non contradictoire (chaque vrai echec `_check_credentials()` deja explique par l'isolation incrementerait aussi le compteur de `_assert_can_auth`), mais n'est plus necessaire pour expliquer l'incident -- la lecture complete de `_on_login_cooldown` demandee en etape 3 n'apporterait rien de plus a ce stade et n'a pas ete faite.
+
+**Non fait ce tour** : aucun code touche -- lecture seule + journalisation, conformement a rules.md. Aucune verification des `ir.config_parameter` reels de login_cooldown (devenu hors-sujet pour cette root cause).
+
+**Correctifs envisages, non mandates** : (a) committer explicitement (`request.env.cr.commit()`) juste apres la generation de la cle dans `ask()`, avant l'appel `requests.post()` -- la cle devient visible aux autres transactions immediatement, la revocation se ferait dans une nouvelle transaction/commit separee en fin de `finally` (b) plus structurel, remplacer le cycle "generer une cle API ephemere + revoquer immediatement a chaque question" par une strategie moins couteuse (session/cle reutilisee sur une fenetre de temps) -- deja evoque section 512 point (b), toujours non mandate.
+
+**Fichiers lus** : `.env`, `erp_data/odoo_connector.py`, `odoo_addons/miro_ai/controllers/main.py`, `api/auth.py`, `api/main.py`, `core/graph.py` (entier), `odoo-17.0/addons/base/models/res_users.py` (troisieme lecture complete, cette fois avec l'attention portee sur `APIKeys`/`APIKeysUser`/`_generate`/`_check_credentials`), `odoo-17.0/odoo/http.py` (entier), `odoo-17.0/odoo/service/model.py` (entier -- confirmation du point de commit dans `retrying()`).
+
+**Prochaine etape** : mandat de San Goku attendu sur lequel des deux correctifs envisages (ou un autre) implementer -- aucun n'est encore mandate. Pas de nouvelle verification en attente de la part de San Goku a ce stade (le test des 60 secondes de la section 512 est desormais sans objet, la root cause etant confirmee independante du timing).
+
+---
+
+## Section 514: Decision produit -- positionnement de MCP dans l'architecture cible : pas de migration maintenant, tools B1 a concevoir MCP-compatibles (contrat structure `evidence/sources/metadata`) sans exposer de serveur MCP tant que le contrat Evidence/CI/ORM n'est pas stabilise ; correctif transactionnel section 513 confirme independant de MCP, non retarde (2026-09-03)
+
+**Origine** : San Goku a repondu a la cloture de la section 513 par une reflexion strategique sur MCP (Model Context Protocol) comme future couche d'interface agent -> outils (Code Intelligence / Data Intelligence-ORM / RAG), en reaction indirecte au fait qu'un correctif venait d'etre trouve pour un bug de fond.
+
+**Decision actee, telle qu'exprimee par San Goku** :
+1. MCP n'aurait rien change au bug de la section 513 (isolation transactionnelle PostgreSQL/cycle HTTP Odoo) -- ce n'est pas un probleme de couche de transport agent<->outils, donc pas un argument pour ou contre MCP dans un sens ou l'autre. Le correctif transactionnel doit etre traite independamment et n'est PAS retarde par cette discussion.
+2. Pas de migration de l'architecture existante vers MCP maintenant. Le chantier B1 Evidence en cours doit rester sur le chemin actuel `agent -> Python tool callable -> Evidence`, sans ajouter une couche `agent -> MCP -> Python -> Evidence` tant que le contrat Evidence (scoping, sources, deterministicite, erreurs/troncatures, orchestration CI+ORM) n'est pas stabilise.
+3. Action concrete recommandee des maintenant, sans exposer de serveur MCP : concevoir les tools B1 de maniere MCP-compatible -- signature de type `analyze_method_override_chain(model_name: str) -> ToolResult` avec un resultat structure `{evidence: [...], sources: [...], metadata: {...}}` -- de sorte qu'un futur serveur MCP puisse etre ajoute comme wrapper mince autour des memes fonctions existantes, plutot que de necessiter une reecriture.
+4. Le bon moment pour activer reellement MCP sera quand le contrat Evidence+tools+CI/ORM sera assez stable pour que MCP serve uniquement a standardiser l'interface (utile notamment pour un futur scenario multi-Odoo/multi-version/multi-client), plutot que de masquer des problemes encore ouverts.
+
+**Non fait ce tour** : aucun code touche, aucun serveur MCP cree, aucune modification des tools B1 existants pour les rendre explicitement MCP-compatibles -- decision de principe actee, mise en oeuvre non mandatee.
+
+**Fichiers lus** : `todo/plan.md` (tail, verification qu'aucune mention MCP preexistante n'etait a concilier).
+
+**Prochaine etape** : (a) mandat toujours attendu sur le correctif transactionnel de la section 513 -- lequel des deux (commit explicite avant l'appel FastAPI, ou refonte du cycle cle API par session) San Goku souhaite-t-il mandater maintenant ? (b) si/quand le chantier B1 Evidence reprend, envisager d'ecrire les nouvelles fonctions tool avec la forme `ToolResult` structuree mentionnee au point 3 ci-dessus -- non mandate non plus a ce stade, a confirmer avant le prochain tool traite.
+
+---
+
+## Section 515: Bug section 513 -- correctif applique : commit explicite juste apres generation de la cle API dans `ask()`, revocation du `finally` securisee par un commit symetrique (et rollback en cas d'echec de revocation) -- refonte du cycle de cle par session explicitement hors mandat (2026-09-03)
+
+**Origine** : San Goku mandate l'option (a) de la section 513 (commit explicite), pas la refonte du cycle de cle par session, avec deux exigences precises : (1) le commit ne doit pas etre chirurgical au sens "pansement" -- il traite directement la root cause d'isolation transactionnelle confirmee section 513, pas un symptome (2) le `finally` de revocation doit lui-meme committer/flush correctement, sans laisser de cle temporaire residuelle en cas d'exception entre generation et revocation.
+
+**Modification appliquee** (`odoo_addons/miro_ai/controllers/main.py::ask()`), deux points precis :
+1. Juste apres `apikeys_model._generate()` puis la `search()` recuperant `apikey_record` (toujours dans le meme `try`), ajout de `request.env.cr.commit()` -- rend la ligne `res_users_apikeys` visible a toute autre transaction/curseur PostgreSQL avant l'appel `requests.post()` synchrone vers FastAPI, qui declenche le second aller-retour XML-RPC. Le bloc `except Exception as key_err:` associe reinitialise explicitement `rpc_api_key = None` et `apikey_record = None` (defense en profondeur, ces variables etaient deja initialisees a `None` avant le `try`).
+2. Dans le `finally` existant, apres `apikey_record._remove()` (ORM `unlink()` sur la ligne temporaire), ajout d'un second `request.env.cr.commit()` symetrique -- la revocation est persistee immediatement, sans dependre du commit global de fin de requete effectue par `retrying()` (`odoo/service/model.py`). En cas d'echec de `_remove()` ou de ce commit, le `except Exception as revoke_err:` existant (log `_logger.warning`) est complete par un `request.env.cr.rollback()` protege par son propre `try/except Exception: pass` -- evite de laisser le curseur dans un etat de transaction avortee (PostgreSQL) qui ferait echouer silencieusement toute operation suivante sur ce meme curseur, y compris le commit global de `retrying()`.
+
+**Pourquoi ce n'est pas un fix chirurgical au sens de rules.md** : la root cause etablie section 513 est precisement l'absence de commit entre l'INSERT et le second acces transactionnel independant -- le commit ajoute ici cible exactement ce mecanisme, pas un symptome de surface (pas de retry, pas de sleep, pas de contournement du verrou anti-bruteforce ecarte section 512-513). La portee reste volontairement limitee au bug transactionnel prouve ; la refonte "cle API par session" (evoquee sections 512-514 comme optimisation architecturale distincte) n'a pas ete touchee.
+
+**Non fait ce tour** : aucun test execute (ni manuel via l'interface Odoo, ni suite pytest -- rappel rules.md : jamais `pytest tests/ -v` complet sur cette machine). Aucune verification des `ir.config_parameter` de login_cooldown (hors-sujet, cf section 513). Aucune modification du cycle de vie de la cle API (refonte session explicitement non mandatee).
+
+**Fichiers modifies** : `odoo_addons/miro_ai/controllers/main.py` (deux ajouts cibles dans `ask()` : commit apres generation, commit+rollback dans le finally de revocation), `todo/contexte.txt` (cette section).
+
+**Tests attendus, non encore executes** : (1) generation de cle -> visible depuis une seconde transaction (2) appel FastAPI -> authentification Odoo OK, plus d'`AccessDenied` (3) reponse normale -> cle bien revoquee (verifiable via `res.users.apikeys` vide pour cet utilisateur apres coup, ou via `odoo.log` -- pattern section 510/511) (4) exception cote FastAPI (ex: coupure reseau) -> cle quand meme revoquee (5) aucune cle temporaire residuelle apres plusieurs cycles.
+
+**Prochaine etape** : San Goku redemarre le serveur Odoo (pour charger le module `miro_ai` modifie) puis rejoue la question "combien de chiffre d'affaires..." depuis MIRO AI -- reproduction exacte des sections 508-513. Coller `odoo.log` et/ou la console FastAPI si le resultat n'est pas celui attendu. Si confirme : cloturer definitivement le fil 508-515. En parallele, mandat de San Goku toujours en attente sur les deux bugs annexes identifies section 511 (filtre `valid_obs` sur les erreurs techniques brutes, `try/except` manquant sur `get_total_sales`) et sur l'ouverture eventuelle du chantier "cle API par session" comme evolution architecturale separee -- aucun des deux n'est mandate a ce stade.
+
+---
+
+## Section 489: Fuite d'erreur XML-RPC Access Denied vers l'utilisateur -- humanisation des messages d'erreur ORM (2026-09-03)
+
+**Origine** : rejeu live "combien de chiffres d'affaires realisees ?" sur la route Donnees ERP. Le message `Erreur lors de l'appel a get_total_sales: Failed to aggregate on sale.order: <Fault 3: 'Access Denied'>` s'affiche en clair dans le chat MIRO AI.
+
+**Root cause** : `erp_data/orm_agent_node.py` L222-223, le `except Exception as e:` de la boucle ReAct ORM injecte `f"Erreur lors de l'appel a {tool_name}: {str(e)}"` directement dans `tool_observations`. Le message technique brut (incluant la Fault XML-RPC) devient la reponse finale via `final_answer = "\n".join(selected_obs)` (L153) sans aucune humanisation.
+
+**Correction** : detection de `"Access Denied"` / `"AccessDenied"` dans `str(e)` pour produire un message utilisateur clair ("Vous n'avez pas les droits d'acces necessaires pour consulter ces donnees..."). Les autres erreurs techniques recoivent un message generique sans fuite de details internes ("L'outil X n'a pas pu s'executer correctement..."). Les details techniques restent logges (`logger.error`) pour diagnostic.
+
+**Fichiers modifies** : `erp_data/orm_agent_node.py`, `todo/contexte.txt` (cette section).
+
+---
+
+## Section 490: Access Denied sur les outils ERP -- root cause : cle API Odoo 17 incompatible XML-RPC (2026-09-03)
+
+**Origine** : rejeu live "combien de chiffres d'affaires realisees cette annee?" sur la route Donnees ERP. Meme avec le compte admin, l'appel `get_total_sales` echoue avec `<Fault 3: 'Access Denied'>`.
+
+**Root cause** : le controller Odoo (`miro_ai/controllers/main.py` L83) genere une cle API ephemere via `apikeys_model._generate(None, key_name)` avec scope=None. Dans Odoo 17, les cles API a scope vide/None sont valides uniquement pour l'authentification HTTP Bearer (routes `/web/...`), PAS pour l'authentification XML-RPC (`execute_kw`). Le connector utilise cette cle via `_resolve_password()` pour authentifier les appels XML-RPC, qui echouent systematiquement avec `Fault 3: Access Denied`.
+
+Le test direct prouve que `uid=2` (admin) + `password="admin"` fonctionne parfaitement : `amount_total = 59,620,000 Ar`. C'est uniquement la cle API ephemere qui ne fonctionne pas en XML-RPC.
+
+**Corrections** :
+1. `erp_data/odoo_connector.py` : ajout de `_is_using_api_key()` et `_retry_with_admin_password()`. Quand un appel XML-RPC echoue avec `Access Denied` et qu'une cle API est en contexte, retry automatique avec le password admin (log de warning pour tracabilite). Applique a `search_read`, `read_group`, et `fields_get`.
+2. `erp_data/orm_agent_node.py` (section 489 precedente) : humanisation des messages d'erreur -- `Access Denied` donne un message clair ("Vous n'avez pas les droits..."), les autres erreurs donnent un message generique sans fuite technique.
+
+**Limitation connue** : le retry admin contourne l'isolation par utilisateur (ir.rule/ACL) -- toutes les requetes ERP s'executent effectivement avec les droits admin. Pour une isolation reelle, il faudrait soit passer le mot de passe Odoo de l'utilisateur dans le JWT (pas la cle API), soit corriger le scope de la cle API pour permettre l'auth XML-RPC. C'est un choix d'architecture a trancher separement.
+
+**Fichiers modifies** : `erp_data/odoo_connector.py`, `erp_data/orm_agent_node.py`, `todo/contexte.txt`.

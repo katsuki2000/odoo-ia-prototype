@@ -11,6 +11,35 @@ from typing import List, Optional, Set
 SENSITIVE_BYPASS_MARKER = "[SENSITIVE BYPASS]"
 
 
+def format_xml_id_citation(identifier: str) -> str:
+    """Format a single Odoo technical identifier (rule/group/action xml_id)
+    as the 'xml_id: module.identifier' sourcing-citation token that
+    code_intelligence/sourcing_guard.py's _XML_ID_PATTERN looks for as
+    ground truth. Root cause (todo/contexte.txt section 490): CI_SYSTEM_PROMPT
+    instructs the synthesis LLM to copy this exact prefix "verbatim from the
+    source observation", but no tool observation ever emitted it -- this is
+    the single place every tool formatter should go through instead of each
+    reimplementing the "xml_id: " prefix separately (F-08 duplication rule).
+
+    Returns "" for an identifier that isn't a real module-qualified xml_id
+    (no dot) -- never emits a citation token for something that wouldn't
+    match the guard's own pattern anyway.
+    """
+    if not identifier or "." not in identifier:
+        return ""
+    return f"xml_id: {identifier}"
+
+
+def format_xml_id_citations(identifiers) -> str:
+    """Space-joined 'xml_id: ...' tokens for every valid identifier in
+    `identifiers`, skipping any format_xml_id_citation rejects. Each token
+    is emitted separately, never comma-joined -- sourcing_guard's
+    _XML_ID_PATTERN stops at the first non-identifier character, so a
+    comma-joined list would only ever yield the first id as ground truth."""
+    tokens = [format_xml_id_citation(i) for i in identifiers]
+    return " ".join(t for t in tokens if t)
+
+
 def format_file_link(filepath: str, start_line: Optional[int] = None, end_line: Optional[int] = None) -> str:
     """Format a file path and line numbers into a clickable GitHub-style markdown link.
 

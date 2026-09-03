@@ -18,6 +18,7 @@ import unicodedata
 from rapidfuzz import fuzz
 
 from code_intelligence.semantic_tag_query import tags_for_node_attrs
+from code_intelligence.utils import format_xml_id_citation, format_xml_id_citations
 from core.evidence import Evidence, EvidenceSourceType, make_evidence
 
 _logger = logging.getLogger(__name__)
@@ -789,19 +790,23 @@ def evaluate_record_rules(
             else:
                 ignored_group.append(rule)
 
+    # Bug 1 fix (todo/contexte.txt section 490, option A): each rule's own
+    # rule_xml_id is exactly the kind of identifier CI_SYSTEM_PROMPT tells
+    # the synthesis LLM to cite with an 'xml_id: ...' prefix -- emit that
+    # ground truth token here so sourcing_guard.py can actually verify it.
     lines = [f"Évaluation des règles d'enregistrement (ir.rule) pour '{model_name}':"]
     if applied_global:
-        lines.append("  - Règles Globales (ET pour tous): " + ", ".join([f"{r.rule_name} [{r.domain_force}]" for r in applied_global]))
+        lines.append("  - Règles Globales (ET pour tous): " + ", ".join([f"{r.rule_name} [{r.domain_force}] ({format_xml_id_citation(r.rule_xml_id)})" for r in applied_global]))
     else:
         lines.append("  - Règles Globales: Aucune")
 
     if applied_group:
-        lines.append("  - Règles de Groupe applicables (combinées en OU): " + ", ".join([f"{r.rule_name} [{r.domain_force}]" for r in applied_group]))
+        lines.append("  - Règles de Groupe applicables (combinées en OU): " + ", ".join([f"{r.rule_name} [{r.domain_force}] ({format_xml_id_citation(r.rule_xml_id)})" for r in applied_group]))
     else:
         lines.append("  - Règles de Groupe applicables: Aucune (l'utilisateur n'appartient à aucun des groupes visés)")
 
     if ignored_group:
-        lines.append("  - Règles de Groupe ignorées (non-membre): " + ", ".join([f"{r.rule_name} [{r.domain_force}]" for r in ignored_group]))
+        lines.append("  - Règles de Groupe ignorées (non-membre): " + ", ".join([f"{r.rule_name} [{r.domain_force}] ({format_xml_id_citation(r.rule_xml_id)})" for r in ignored_group]))
 
     if applied_group:
         lines.append(
@@ -1003,7 +1008,11 @@ def who_has_access_to(
             all_evidence.extend(_build_access_evidence(model_name, p, grps, auth, rules, group_id))
             
             grp_str = "All authenticated users" if auth else (", ".join(sorted(grps)) if grps else "None")
-            rights_summary.append(f"[{p.upper()}]: {grp_str} (Rules: {len(rules)})")
+            # Bug 1 fix (todo/contexte.txt section 490, option A): emit
+            # 'xml_id: ...' ground truth for each group xml_id named here.
+            _grp_citations = format_xml_id_citations(sorted(grps)) if (grps and not auth) else ""
+            _grp_suffix = f" ({_grp_citations})" if _grp_citations else ""
+            rights_summary.append(f"[{p.upper()}]: {grp_str} (Rules: {len(rules)}){_grp_suffix}")
 
         summary = f"Access Matrix for '{model_name}':\n" + "\n".join(rights_summary)
 
@@ -1041,10 +1050,13 @@ def who_has_access_to(
         else:
             has_access = all_authenticated or (resolved_group_id is not None)
             display_id = resolved_group_id or group_id
+            # Bug 1 fix (todo/contexte.txt section 490, option A): emit
+            # 'xml_id: ...' ground truth for the resolved group xml_id.
+            _display_citation = format_xml_id_citation(display_id)
             summary = (
-                f"Group '{display_id}' HAS {permission.upper()} access to '{model_name}'."
+                f"Group '{display_id}' HAS {permission.upper()} access to '{model_name}'. ({_display_citation})"
                 if has_access
-                else f"Group '{display_id}' DOES NOT HAVE {permission.upper()} access to '{model_name}'."
+                else f"Group '{display_id}' DOES NOT HAVE {permission.upper()} access to '{model_name}'. ({_display_citation})"
             )
     else:
         if all_authenticated:
@@ -1054,7 +1066,14 @@ def who_has_access_to(
         else:
             grp_str = "No groups explicitly granted"
 
-        summary = f"Model '{model_name}' [{permission.upper()}]: Granted to {grp_str}. Active Rules: {len(active_rules)}."
+        # Bug 1 fix (todo/contexte.txt section 490, option A): emit
+        # 'xml_id: ...' ground truth for each group xml_id named above.
+        _allowed_citations = (
+            format_xml_id_citations(sorted(allowed_groups))
+            if (allowed_groups and not all_authenticated) else ""
+        )
+        _allowed_suffix = f" ({_allowed_citations})" if _allowed_citations else ""
+        summary = f"Model '{model_name}' [{permission.upper()}]: Granted to {grp_str}.{_allowed_suffix} Active Rules: {len(active_rules)}."
 
     return AccessEvaluationResult(
         model_name=model_name,
@@ -1508,7 +1527,10 @@ def button_execution_path(
 
     if required_groups:
         grp_str = ", ".join(sorted(required_groups))
-        execution_steps.append(f"4. Security Requirement: Button restricted to groups [{grp_str}].")
+        # Bug 1 fix (todo/contexte.txt section 490, option A): emit
+        # 'xml_id: ...' ground truth for each required-group xml_id.
+        _req_citations = format_xml_id_citations(sorted(required_groups))
+        execution_steps.append(f"4. Security Requirement: Button restricted to groups [{grp_str}]. ({_req_citations})")
     else:
         execution_steps.append(f"4. Security Requirement: No button-level group restriction specified.")
 
@@ -1857,9 +1879,13 @@ def describe_workflow(
     steps_text = []
     for idx, tr in enumerate(transitions, 1):
         grp_str = ", ".join(tr["required_groups"]) if tr["required_groups"] else "All Users"
+        # Bug 1 fix (todo/contexte.txt section 490, option A): emit
+        # 'xml_id: ...' ground truth for each required-group xml_id.
+        _tr_citations = format_xml_id_citations(tr["required_groups"]) if tr["required_groups"] else ""
+        _tr_suffix = f" ({_tr_citations})" if _tr_citations else ""
         steps_text.append(
             f"Step {idx}: [{tr['origin_state']}] -> [{tr['target_state']}] "
-            f"via Button '{tr['button_label']}' (Method: `{tr['method_name']}()`, Role: [{grp_str}])"
+            f"via Button '{tr['button_label']}' (Method: `{tr['method_name']}()`, Role: [{grp_str}]){_tr_suffix}"
         )
 
     summary = f"Workflow Process for '{model_name}' ({len(transitions)} transitions):\n" + "\n".join(steps_text)

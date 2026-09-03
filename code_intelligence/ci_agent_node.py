@@ -47,6 +47,7 @@ from code_intelligence.ci_helpers import (
     _flag_ungrounded_group_xmlids,
     _strip_core_only_group_mentions,
     _scoped_raw_tool_output,
+    _truncate_observation,
     _extract_required_groups_for_amount,
     _backfill_missing_required_groups,
     _backfill_missing_security_lock_amount,
@@ -341,8 +342,7 @@ class CodeIntelligenceAgentRunner:
                     _t_hop = time.perf_counter()
                     try:
                         forced_observation = str(lock_tool.invoke({"model_name": target_model}))
-                        if len(forced_observation) > 3000:
-                            forced_observation = forced_observation[:3000] + "\n[... Content truncated for LLM context limit ...]"
+                        forced_observation = _truncate_observation(forced_observation, 3000)
                         forced_observation, omitted_list = gate_observation(
                             tool_name="analyze_security_locks",
                             model_name=target_model,
@@ -398,8 +398,7 @@ class CodeIntelligenceAgentRunner:
                     _t_hop = time.perf_counter()
                     try:
                         forced_observation = str(sa_tool.invoke({"model_name": target_model}))
-                        if len(forced_observation) > 3000:
-                            forced_observation = forced_observation[:3000] + "\n[... Content truncated for LLM context limit ...]"
+                        forced_observation = _truncate_observation(forced_observation, 3000)
                         forced_observation, omitted_list = gate_observation(
                             tool_name="analyze_server_actions",
                             model_name=target_model,
@@ -455,8 +454,7 @@ class CodeIntelligenceAgentRunner:
                         forced_observation = str(override_tool.invoke({
                             "model_name": target_model, "method_name": method_name,
                         }))
-                        if len(forced_observation) > 2200:
-                            forced_observation = forced_observation[:2200] + "\n[... Content truncated for LLM context limit ...]"
+                        forced_observation = _truncate_observation(forced_observation, 2200)
                         forced_observation, omitted_list = gate_observation(
                             tool_name="analyze_method_override_chain",
                             model_name=target_model,
@@ -538,8 +536,7 @@ class CodeIntelligenceAgentRunner:
                         forced_observation = str(acl_tool.invoke({
                             "model_name": target_model, "permission": "all",
                         }))
-                        if len(forced_observation) > 3000:
-                            forced_observation = forced_observation[:3000] + "\n[... Content truncated for LLM context limit ...]"
+                        forced_observation = _truncate_observation(forced_observation, 3000)
                         forced_observation, omitted_list = gate_observation(
                             tool_name="who_has_access_to",
                             model_name=target_model,
@@ -623,8 +620,7 @@ class CodeIntelligenceAgentRunner:
                                 "user_groups_json": _dispatch_groups,
                                 "permission": "read",
                             }))
-                            if len(forced_observation) > 3000:
-                                forced_observation = forced_observation[:3000] + "\n[... Content truncated for LLM context limit ...]"
+                            forced_observation = _truncate_observation(forced_observation, 3000)
                             forced_observation, omitted_list = gate_observation(
                                 tool_name="evaluate_record_rules",
                                 model_name=target_model,
@@ -813,8 +809,7 @@ class CodeIntelligenceAgentRunner:
                                 else 3000 if tool_name == "analyze_server_actions"
                                 else 1200
                             )
-                            if len(observation) > _observation_cap:
-                                observation = observation[:_observation_cap] + "\n[... Content truncated for LLM context limit ...]"
+                            observation = _truncate_observation(observation, _observation_cap)
         
                             rule_result = None
                             if tool_name == "evaluate_record_rules":
@@ -1094,10 +1089,16 @@ class CodeIntelligenceAgentRunner:
             # belonging to the actually resolved model(s) instead of the first
             # can_view_amount_v2 block found by chance ordering.
             _scoped_target_set = set(concept.resolved_models) if concept.resolved_models else None
+            # Fail-closed (todo/contexte.txt section 492, Bug 2): mirrors
+            # _scoped_raw_tool_output()'s own fail-closed filter exactly --
+            # a falsy model is only kept when there is no target set at all
+            # (matches _scoped_raw_tool_output's early-return branch for an
+            # empty target_models); once a target set exists, a falsy model
+            # is dropped, never treated as "applies to every model".
             scoped_tool_observation_models = [
                 model
                 for obs, model in zip(tool_observations, tool_observation_models)
-                if not _scoped_target_set or not model or model in _scoped_target_set
+                if not _scoped_target_set or (model and model in _scoped_target_set)
             ]
 
             # H3 dedicated CONFLICTING path (todo/contexte.txt sections

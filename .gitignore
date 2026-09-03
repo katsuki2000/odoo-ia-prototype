@@ -33,4 +33,4 @@ document_rag/ingestion/logs/
 # whoever last built/committed this file). Always regenerate locally via
 # scripts/rebuild_graph.py instead of relying on a committed copy.
 code_intelligence/active_graph.json
-
+code_intelligence/full_corpus_test/

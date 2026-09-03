@@ -334,9 +334,15 @@ def analyze_server_action_code(
             )
 
     # Build summary text
-    from code_intelligence.utils import SENSITIVE_BYPASS_MARKER
+    from code_intelligence.utils import SENSITIVE_BYPASS_MARKER, format_xml_id_citation
+    # Bug 1 fix (todo/contexte.txt section 490, option A): the action's own
+    # xml_id is exactly the kind of identifier CI_SYSTEM_PROMPT tells the
+    # synthesis LLM to cite with an 'xml_id: ...' prefix -- emit that ground
+    # truth token so sourcing_guard.py can actually verify it.
+    _action_citation = format_xml_id_citation(action_xml_id)
     lines = [
         f"Analyse du code de l'action serveur '{action_xml_id}' "
+        f"({_action_citation}) "
         f"[Confiance: FAIBLE - logique en données XML, modifiable à l'exécution]:"
     ]
 
@@ -356,7 +362,9 @@ def analyze_server_action_code(
     if result.has_group_checks:
         # NOT marked: has_group() is Odoo's normal, documented access-control
         # mechanism -- legitimate governance info, not a bypass.
-        lines.append(f"  - Vérifications de groupes: {', '.join(result.has_group_checks)}")
+        from code_intelligence.utils import format_xml_id_citations
+        _group_citations = format_xml_id_citations(result.has_group_checks)
+        lines.append(f"  - Vérifications de groupes: {', '.join(result.has_group_checks)} ({_group_citations})")
 
     if result.has_dynamic_dispatch:
         # NOT marked: this is a confidence/uncertainty caveat ("can't be sure

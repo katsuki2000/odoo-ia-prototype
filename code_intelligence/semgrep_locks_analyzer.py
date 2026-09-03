@@ -570,7 +570,7 @@ def analyze_python_security_locks(code: str, filepath: str) -> PythonSecurityLoc
         )
 
     # 4. Summary Text
-    from code_intelligence.utils import format_file_link, SENSITIVE_BYPASS_MARKER
+    from code_intelligence.utils import format_file_link, format_xml_id_citation, SENSITIVE_BYPASS_MARKER
     line_count = max(1, len(code.splitlines()))
     file_link = format_file_link(filepath, 1, line_count)
 
@@ -603,10 +603,16 @@ def analyze_python_security_locks(code: str, filepath: str) -> PythonSecurityLoc
 
         methods = result.required_group_methods or [""] * len(result.required_groups)
         for group_xmlid, method_name in zip(result.required_groups, methods):
+            # Bug 1 fix (todo/contexte.txt section 490, option A): emit the
+            # 'xml_id: ...' ground-truth token sourcing_guard.py's
+            # _XML_ID_PATTERN looks for, since this group xml_id is exactly
+            # the kind of identifier CI_SYSTEM_PROMPT tells the synthesis
+            # LLM to cite with that prefix.
+            citation = format_xml_id_citation(group_xmlid)
             if method_name:
-                lines.append(f"    * has_group('{group_xmlid}') se trouve dans la methode '{method_name}()' -- ne pas l'attribuer a une autre methode sans le verifier explicitement dans le code source.")
+                lines.append(f"    * has_group('{group_xmlid}') se trouve dans la methode '{method_name}()' -- ne pas l'attribuer a une autre methode sans le verifier explicitement dans le code source. ({citation})")
             else:
-                lines.append(f"    * has_group('{group_xmlid}') se trouve hors de toute methode (niveau module), ou sa methode englobante n'a pas pu etre determinee.")
+                lines.append(f"    * has_group('{group_xmlid}') se trouve hors de toute methode (niveau module), ou sa methode englobante n'a pas pu etre determinee. ({citation})")
     if result.has_dynamic_dispatch:
         lines.append(f"  - Incertitude dynamique ({', '.join(result.dynamic_dispatch_types)}): revue manuelle recommandée")
 

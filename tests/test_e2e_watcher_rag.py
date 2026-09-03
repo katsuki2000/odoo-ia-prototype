@@ -1,7 +1,5 @@
 """
 tests/test_e2e_watcher_rag.py
-
-Step 5b Day 4 verification:
 End-to-end validation: drop a new document into monitored directory, verify incremental reindex
 indexes it and the assistant/retrieval pipeline answers correctly.
 Delete the document, verify incremental reindex removes it and the assistant says it doesn't know / no results.

@@ -107,6 +107,93 @@ def _tool_call_key(tool_name: str, tool_args: "Dict[str, Any]") -> "Optional[Tup
         return (tool_name, model_name)
     return None
 
+
+# ── Shared observation-truncation helper (todo/contexte.txt section 500-501, Bug 3) ─
+# Marker appended whenever an observation is cut for context-length reasons.
+# Downstream deterministic extraction (see code_intelligence/ci_override_cascade.py)
+# can check for this marker to avoid treating a fragment adjacent to it as a
+# reliable fact -- same literal string previously hardcoded at each of the 6
+# truncation call sites in ci_agent_node.py, now defined once here.
+_TRUNCATION_MARKER = "\n[... Content truncated for LLM context limit ...]"
+
+
+def _truncate_observation(text: str, limit: int) -> str:
+    """Truncate `text` to at most `limit` characters without ever cutting
+    inside a token (a number, an xml_id, a method/field name, a word).
+
+    Root cause fixed here (todo/contexte.txt section 500, Bug 3): the raw
+    `text[:limit]` slicing previously used at every truncation site in
+    ci_agent_node.py cuts on a bare character index, with zero awareness of
+    token boundaries. On one real capture this cut the digit sequence
+    "5000" down to "500" mid-number, and a downstream regex
+    (_OVERRIDE_CHAIN_AMOUNT_RE) then matched the truncated "500" as if it
+    were a real amount, which a backfill function stamped into the answer
+    as a "[FAIT DETERMINISTIQUE]". This is not specific to that one amount,
+    module, or tool -- any sufficiently long observation truncated at any
+    of the (now shared) call sites could cut through any token the same way.
+
+    Strategy, in order of preference:
+      1. Cut back to the last newline before `limit`, if one exists --
+         keeps whole lines intact, the safest boundary.
+      2. Otherwise cut back to the last space before `limit` -- a token
+         with no internal whitespace (a number, an xml_id, a
+         dotted/underscored identifier) cannot straddle a space, so this
+         can never leave a partial token dangling off the cut edge.
+      3. If neither a newline nor a space exists before `limit` (a single
+         very long unbroken token), fall back to the raw index cut -- there
+         is no safe boundary to retreat to, and refusing to truncate at all
+         would defeat the purpose of the cap.
+
+    Always appends _TRUNCATION_MARKER when truncation actually occurred, so
+    callers scanning the returned text for a truncation signal (Evidence-
+    first: never treat a fact extracted next to this marker as reliable
+    without checking for it first) have a single, consistent string to look
+    for.
+    """
+    if len(text) <= limit:
+        return text
+
+    cut = text[:limit]
+    newline = cut.rfind("\n")
+    if newline > 0:
+        cut = cut[:newline]
+    else:
+        space = cut.rfind(" ")
+        if space > 0:
+            cut = cut[:space]
+        # else: no safe boundary before `limit` at all -- keep the raw
+        # index cut (`cut` already equals text[:limit] in that case).
+
+    return cut + _TRUNCATION_MARKER
+
+
+# Proximity window (characters) used by _match_near_truncation below --
+# generous enough to survive the marker's own leading newline and bracket
+# text, narrow enough not to reject matches elsewhere in a long block that
+# happens to also contain a truncation marker somewhere unrelated.
+_TRUNCATION_PROXIMITY_CHARS = 50
+
+
+def _match_near_truncation(text: str, start: int, end: int) -> bool:
+    """True if the [start, end) span in `text` sits within
+    _TRUNCATION_PROXIMITY_CHARS characters of a _TRUNCATION_MARKER
+    occurrence, on either side.
+
+    Evidence-first guard (todo/contexte.txt section 503-505, Bug 3
+    residual risk): _truncate_observation() above already guarantees a
+    truncated token is never split mid-word/mid-number, but a cut can
+    still land right after a complete, real value and silently drop the
+    rest of its surrounding condition (e.g. an `and not rec.xxx` exception
+    clause following a threshold comparison). A value extracted right next
+    to a truncation marker is real but its CONTEXT may be incomplete --
+    callers use this to refuse extracting a fact from such a match rather
+    than treating it as fully grounded.
+    """
+    window_start = max(0, start - _TRUNCATION_PROXIMITY_CHARS)
+    window_end = min(len(text), end + _TRUNCATION_PROXIMITY_CHARS)
+    return _TRUNCATION_MARKER in text[window_start:window_end]
+
+
 # Deterministic patterns for tool triggers
 _AMOUNT_PATTERN = re.compile(r"\d[\d\s.,]*\d\s*(?:€|eur(?:os?)?\b)", re.IGNORECASE)
 _APPROVAL_PATTERN = re.compile(
@@ -427,14 +514,25 @@ def _scoped_raw_tool_output(
     tool_observation_models: List[str],
     target_models: List[str],
 ) -> str:
-    """Restrict raw tool output to observations relevant to target_models."""
+    """Restrict raw tool output to observations relevant to target_models.
+
+    Fail-closed (todo/contexte.txt section 492, Bug 2): an observation with
+    no model_name (falsy) is EXCLUDED whenever target_models is non-empty --
+    the absence of a model attribution is never treated as "applies to every
+    model". Root cause: resolve_technical_name/explain_decision_path/
+    read_source_code never carry a model_name (ci_agent_tools.py has no
+    such parameter for these 3), so their observations used to leak into
+    the scoped context of any question regardless of the model actually
+    being investigated -- the previous `not model` branch turned that
+    missing information into an implicit authorization to pass scoping.
+    """
     if not target_models:
         return "\n\n".join(tool_observations)
     target_set = set(target_models)
     scoped = [
         obs
         for obs, model in zip(tool_observations, tool_observation_models)
-        if not model or model in target_set
+        if model and model in target_set
     ]
     return "\n\n".join(scoped)
 
@@ -465,6 +563,13 @@ def _extract_required_groups_for_amount(raw_tool_output: str, amount: Optional[f
 
     group_conditions: Dict[str, List[Tuple[str, float]]] = {}
     for match in _LOCK_CONDITION_LINE_RE.finditer(raw_tool_output):
+        if _match_near_truncation(raw_tool_output, match.start(), match.end()):
+            # Evidence-first (section 503-505): a condition line cut off by
+            # truncation may be missing part of its own text (e.g. a
+            # trailing exception clause) -- treat this group as unconditional
+            # (always retained below) rather than trust a possibly-incomplete
+            # threshold read off a truncated condition.
+            continue
         cond_text = match.group(1)
         group_name = match.group(2).strip()
         cmp_match = _AMOUNT_CMP_RE.search(cond_text)
@@ -586,6 +691,8 @@ def _extract_security_lock_condition_amounts(raw_tool_output: str) -> List[str]:
         if _SECURITY_LOCK_MESSAGES_MARKER not in block:
             continue
         for match in _OVERRIDE_CHAIN_AMOUNT_RE.finditer(block):
+            if _match_near_truncation(block, match.start(), match.end()):
+                continue
             amount = match.group(1).replace(" ", "").strip()
             if amount and amount not in amounts:
                 amounts.append(amount)
@@ -959,6 +1066,12 @@ def _correct_security_lock_threshold_contradictions(
 
     rules: List[Tuple[str, str, float, str]] = []
     for match in _LOCK_CONDITION_LINE_RE.finditer(scoped_tool_output):
+        if _match_near_truncation(scoped_tool_output, match.start(), match.end()):
+            # Evidence-first (section 503-505): don't correct the synthesis
+            # against a condition that may itself be missing text to a
+            # truncation cut -- a wrong correction built on an incomplete
+            # condition would be worse than leaving the sentence unflagged.
+            continue
         cond_text = match.group(1)
         group_name = match.group(2).strip()
         cmp_match = _AMOUNT_CMP_RE.search(cond_text)

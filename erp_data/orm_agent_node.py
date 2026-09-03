@@ -220,8 +220,19 @@ def orm_agent_loop(state: RAGState) -> dict:
                     tool_map = {t.name: t for t in all_tools}
                     observation = tool_map[tool_name].invoke(tool_args)
                 except Exception as e:
-                    observation = f"Erreur lors de l'appel à {tool_name}: {str(e)}"
-                    logger.error("Tool call error: %s", e)
+                    err_str = str(e)
+                    logger.error("Tool call error for %s: %s", tool_name, e)
+                    if "Access Denied" in err_str or "AccessDenied" in err_str:
+                        observation = (
+                            f"Vous n'avez pas les droits d'acces necessaires pour "
+                            f"consulter ces donnees ({tool_name}). Contactez votre "
+                            f"administrateur Odoo pour obtenir les permissions requises."
+                        )
+                    else:
+                        observation = (
+                            f"L'outil {tool_name} n'a pas pu s'executer correctement. "
+                            f"Veuillez reessayer ou reformuler votre question."
+                        )
 
             tool_observations.append(observation)
             _trace_logger.log_hop(
