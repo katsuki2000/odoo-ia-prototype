@@ -65,7 +65,7 @@
 
             <div class="miro-ai-messages" t-ref="messagesContainer">
                 <t t-foreach="state.messages" t-as="msg" t-key="msg.id">
-                    <div t-att-class="'miro-ai-message ' + (msg.sender === 'user' ? 'user-message' : 'bot-message')">
+                    <div t-att-class="'miro-ai-message ' + (msg.sender === 'user' ? 'user-message' : 'bot-message') + (msg.cancelled ? ' cancelled-message' : '')">
                         <div class="d-flex justify-content-between align-items-center mb-1">
                             <div class="message-sender" t-esc="msg.sender === 'user' ? 'Vous' : 'MIRO AI'"/>
                             <t t-if="msg.sender === 'bot' and msg.route">
@@ -175,8 +175,11 @@
                     <input type="text" class="form-control" placeholder="Posez une question sur le code, les droits, les workflows ou l'ERP..."
                            t-model="state.inputQuestion" t-on-keydown="onKeyDown"/>
                     <div class="input-group-append">
-                        <button class="btn btn-primary" type="button" t-on-click="sendMessage" t-att-disabled="state.loading">
+                        <button t-if="!state.loading" class="btn btn-primary" type="button" t-on-click="sendMessage">
                             <i class="fa fa-paper-plane"/> Envoyer
+                        </button>
+                        <button t-else="" class="btn btn-outline-danger" type="button" t-on-click="cancelRequest" title="Annuler la question en cours">
+                            <i class="fa fa-stop"/> Annuler
                         </button>
                     </div>
                 </div>
@@ -248,7 +251,7 @@
                 <!-- Drawer Messages Container -->
                 <div t-if="!state.showHistory" class="miro-drawer-messages p-3" t-ref="drawerMessages">
                     <t t-foreach="state.messages" t-as="msg" t-key="msg.id">
-                        <div t-att-class="'miro-ai-message miro-drawer-message ' + (msg.sender === 'user' ? 'user-message' : 'bot-message')">
+                        <div t-att-class="'miro-ai-message miro-drawer-message ' + (msg.sender === 'user' ? 'user-message' : 'bot-message') + (msg.cancelled ? ' cancelled-message' : '')">
                             <div class="d-flex justify-content-between align-items-center mb-1">
                                 <div class="message-sender" t-esc="msg.sender === 'user' ? 'Vous' : 'MIRO AI'"/>
                                 <t t-if="msg.sender === 'bot' and msg.route">
@@ -298,8 +301,11 @@
                         <input type="text" class="form-control" placeholder="Posez une question..."
                                t-model="state.inputQuestion" t-on-keydown="onKeyDown"/>
                         <div class="input-group-append">
-                            <button class="btn btn-primary" type="button" t-on-click="sendMessage" t-att-disabled="state.loading">
+                            <button t-if="!state.loading" class="btn btn-primary" type="button" t-on-click="sendMessage">
                                 <i class="fa fa-paper-plane"/>
+                            </button>
+                            <button t-else="" class="btn btn-outline-danger" type="button" t-on-click="cancelRequest" title="Annuler la question en cours">
+                                <i class="fa fa-stop"/>
                             </button>
                         </div>
                     </div>

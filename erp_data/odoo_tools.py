@@ -191,6 +191,80 @@ def get_total_sales(client: str = "", periode: str = "", statut: str = "toutes")
     text, _evidence = get_total_sales_raw(client, periode, statut)
     return text
 
+def get_order_count_raw(client: str = "", periode: str = "", statut: str = "toutes") -> Tuple[str, Evidence]:
+    """
+    Execute get_order_count and return both the display string and the
+    structured Evidence (todo/contexte.txt: dedicated counting tool, added
+    after comparing against extending get_sale_details_raw -- rejected
+    because its per-order sale.order.line lookup makes it an N+1-query
+    design built for itemized detail, not a global count; a count needs
+    a single read_group aggregation instead, same shape as
+    get_total_sales_raw but with fields=[] so Odoo returns __count alone
+    with no sum/avg attached). Shares _resolve_statut() and parse_period()
+    with get_total_sales_raw so 'combien de commandes' and 'quel montant'
+    always agree on the same domain for a given statut/periode. Exposed
+    separately from the @tool wrapper for the same reason as every other
+    _raw ORM function in this file: a future Evidence Builder can call it
+    directly and reuse the result object.
+    """
+    states, scope_label = _resolve_statut(statut)
+    domain = [("state", "in", states)]
+
+    if client and client.lower() not in ["tous les clients", "tous", ""]:
+        domain.append(("partner_id.name", "ilike", _normalize_client_name(client)))
+
+    date_range = parse_period(periode) if periode else None
+    if date_range:
+        domain.append(("date_order", ">=", date_range[0]))
+        end_str = date_range[1] if " " in date_range[1] else date_range[1] + " 23:59:59"
+        domain.append(("date_order", "<=", end_str))
+
+    uid = _get_current_uid()
+    scope = _orm_evidence_scope(uid)
+    client_label = f" pour {client}" if client and client.lower() not in ["tous les clients", "tous", ""] else ""
+
+    results = connector.read_group(
+        uid=uid,
+        model="sale.order",
+        domain=domain,
+        fields=[],
+        groupby=[],
+    )
+
+    count = results[0].get("__count", 0) if results else 0
+
+    text = (
+        f"Nombre de commandes{client_label}\n"
+        f"Scope : {scope_label}\n"
+        f"Nombre : {count}\n"
+        f"[Source: Odoo ERP - Module Ventes (sale.order)]"
+    )
+    evidence = make_evidence(
+        source_type=EvidenceSourceType.ORM,
+        claim=f"Order count for client={client or 'all'}, period={periode or 'all'}, statut={statut}",
+        source="sale.order:read_group(__count)",
+        value=count,
+        scope=scope,
+    )
+    return text, evidence
+
+
+@tool
+def get_order_count(client: str = "", periode: str = "", statut: str = "toutes") -> str:
+    """
+    Get the number of sales orders filtered by client, period, and status.
+
+    Args:
+        client: Client name. Leave empty ("") or "tous" for all clients.
+        periode: Optional time period filter (e.g. 'ce mois', 'le mois dernier', '2025'). Leave empty string ("") for all time unless a specific period is explicitly mentioned in the user query.
+        statut: Order status filter ('confirmees', 'brouillon', 'annulees', 'toutes'). Default: 'toutes'.
+    """
+    try:
+        text, _evidence = get_order_count_raw(client, periode, statut)
+        return text
+    except Exception as e:
+        return f"Erreur lors du comptage des commandes : {str(e)}"
+
 def get_product_stock_raw(produit: str) -> Tuple[str, List[Evidence]]:
     """
     Execute get_product_stock and return both the display string and the
@@ -511,27 +585,92 @@ def get_total_invoices(client: str = "", statut: str = "toutes") -> str:
     except Exception as e:
         return f"Erreur lors de la récupération des factures : {str(e)}"
 
-def search_partner_raw(nom: str) -> Tuple[str, List[Evidence]]:
+def search_partner_raw(nom: str = "", limite: int = 0) -> Tuple[str, List[Evidence]]:
     """
     Execute search_partner and return both the display string and the
     structured Evidence list (B1 replication -- ORM 4/9, todo/contexte.txt
-    section 471+). Unlike the single-record lookups (get_order_status,
-    get_product_stock), this tool is a multi-result search by construction
-    (`ilike` on a partial name) -- up to 5 partners can be displayed in
-    `text` at once (pre-existing truncation, unchanged here). Granularity
-    confirmed by San Goku: one Evidence per partner actually displayed
-    (never per ignored/truncated match beyond the first 5), each Evidence
-    carrying the 3 contact facts (email, phone, city) together as a single
-    structured `value` dict rather than 3 separate Evidence per partner --
-    avoids exploding the Evidence count on a search that can legitimately
-    surface several clients at once. Deliberately never catches connector
-    exceptions itself -- the @tool wrapper below owns the try/except, so no
-    Evidence is ever fabricated from a technical failure (same discipline
-    as every other ORM Evidence tool so far).
+    section 471+; limite param added section 533). Unlike the
+    single-record lookups (get_order_status, get_product_stock), this tool
+    is a multi-result search by construction (`ilike` on a partial name).
+    Display count is now controlled by `limite`, mirroring the exact same
+    convention already used by get_sale_details_raw/get_recent_tickets_raw:
+    0 means no cap (every matching partner is displayed), a positive value
+    caps display to that many. Section 532 surfaced the previous hardcoded
+    `records[:5]` as a real usability problem (10 real clients found, only
+    5 ever shown, no way for the caller to ask for more) -- not just a
+    display quirk, since the LLM/caller had no lever to request the full
+    list short of manually narrowing the name search. Granularity
+    confirmed by San Goku (471, still holds): one Evidence per partner
+    actually displayed (never per truncated match beyond the effective
+    display limit), each Evidence carrying the 3 contact facts (email,
+    phone, city) together as a single structured `value` dict rather than
+    3 separate Evidence per partner -- avoids exploding the Evidence count
+    on a search that can legitimately surface several clients at once.
+    Deliberately never catches connector exceptions itself -- the @tool
+    wrapper below owns the try/except, so no Evidence is ever fabricated
+    from a technical failure (same discipline as every other ORM Evidence
+    tool so far).
+
+    Domain adds ("user_ids", "=", False) -- todo/contexte.txt section 528/529:
+    res.partner is Odoo's unified model for commercial contacts AND
+    internal/portal login accounts (res.users.partner_id). Without this
+    filter, internal accounts (Administrator, and any user created via
+    tools/full_setup.py's "Specialized Users" step) surfaced alongside real
+    clients. customer_rank was considered and rejected -- verified live
+    (section 529) to give both a false positive (an internal user with
+    customer_rank=1) and false negatives (real clients with
+    customer_rank=0, since sale-order seeding was removed in section 363)
+    on this instance's actual data. user_ids=False matched cleanly instead:
+    every account created via res.users (hence every internal/portal login)
+    has a non-empty user_ids, and none of the real clients seeded directly
+    as res.partner in full_setup.py do.
+
+    Domain also excludes self-company res.partner records -- todo/
+    contexte.txt section 535/536: verified live (odoo-bin shell) that
+    "Company Alpha" (id 7) is exactly res.company('Company Alpha').partner_id
+    -- the operating company's own address record, not a client -- and that
+    it has user_ids=[] just like a real client, so the existing filter above
+    does not catch it. "My Company" (id 1) IS a real res.company (verified
+    live, section 538: env['res.company'].with_context(active_test=False)
+    ...  -> ('My Company', active=False, partner_id=1)) -- not an orphaned
+    partner as first assumed in section 536. It is archived (active=False),
+    which is exactly why the res.company read below must pass
+    context={"active_test": False}: Odoo's default active_test=True would
+    silently omit it, letting its partner slip back into the results
+    despite this exclusion mechanism -- confirmed as a real gap in
+    conditions reelles (section 538) before this context kwarg was added.
+    With that context, this fetch does cover any partner ID ever
+    referenced by any res.company, active or archived, past or present
+    configuration, not just the currently active one. "MIRO KE interne"
+    is explicitly NOT touched by this exclusion -- verified in
+    tools/full_setup.py::setup_clients() to be a deliberately seeded client
+    entry, structurally identical to the other 7 real clients (same
+    company_type/company_id), not a self-company partner -- its
+    "interne"-sounding name is a seed-data naming choice, not a technical
+    signal, and excluding it was never in scope for this fix (San Goku,
+    section 536: maitre de stage sign-off covers only the res.company
+    whitelist addition below, not a broader client-list curation).
+    res.company is not otherwise exposed as a queryable tool -- this
+    function is the only caller of connector.search_read(model="res.company").
     """
     uid = _get_current_uid()
     scope = _orm_evidence_scope(uid)
-    domain = [("name", "ilike", _normalize_client_name(nom))]
+
+    companies = connector.search_read(
+        uid=uid,
+        model="res.company",
+        domain=[],
+        fields=["partner_id"],
+        context={"active_test": False},
+    )
+    company_partner_ids = [c["partner_id"][0] for c in companies if c.get("partner_id")]
+
+    domain = [
+        ("name", "ilike", _normalize_client_name(nom)),
+        ("user_ids", "=", False),
+    ]
+    if company_partner_ids:
+        domain.append(("id", "not in", company_partner_ids))
 
     records = connector.search_read(
         uid=uid,
@@ -551,8 +690,10 @@ def search_partner_raw(nom: str) -> Tuple[str, List[Evidence]]:
         )
         return text, [evidence]
 
-    displayed = records[:5]
-    result_lines = [f"{len(records)} client(s) trouvé(s) :"]
+    total_count = len(records)
+    display_limit = limite if limite > 0 else total_count
+    displayed = records[:display_limit]
+    result_lines = [f"{total_count} client(s) trouvé(s) :"]
     evidences = []
     for r in displayed:
         partner_name = r.get("name")
@@ -568,8 +709,8 @@ def search_partner_raw(nom: str) -> Tuple[str, List[Evidence]]:
             scope=scope,
         ))
 
-    if len(records) > 5:
-        result_lines.append("... (résultats tronqués, précisez la recherche)")
+    if total_count > display_limit:
+        result_lines.append("... (résultats tronqués, précisez la recherche ou demandez la liste complète)")
 
     result_lines.append("[Source: Odoo ERP - Contacts (res.partner)]")
     text = "\n".join(result_lines)
@@ -577,15 +718,17 @@ def search_partner_raw(nom: str) -> Tuple[str, List[Evidence]]:
 
 
 @tool
-def search_partner(nom: str) -> str:
+def search_partner(nom: str = "", limite: int = 0) -> str:
     """
-    Search for a client or partner by name to get contact details.
+    Search for a commercial client by name to get contact details.
+    Excludes internal Odoo user/admin accounts (see search_partner_raw).
     
     Args:
-        nom: Client name or partial name to search.
+        nom: Client name or partial name to search. Leave empty ("") to list all commercial clients.
+        limite: Max number of clients to display (0 for all matching clients). Default: 0.
     """
     try:
-        text, _evidence = search_partner_raw(nom)
+        text, _evidence = search_partner_raw(nom, limite)
         return text
     except Exception as e:
         return f"Erreur lors de la recherche du client : {str(e)}"

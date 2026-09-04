@@ -70,6 +70,7 @@ def orm_agent_loop(state: RAGState) -> dict:
         get_period_revenue,
         get_average_sales,
         get_sale_details,
+        get_order_count,
     )
 
     question = state["question"]
@@ -105,7 +106,7 @@ def orm_agent_loop(state: RAGState) -> dict:
     
     # Skill filtering
     if skills.get("ventes", True):
-        all_tools.extend([get_total_sales, get_order_status, get_period_revenue, get_average_sales, get_sale_details])
+        all_tools.extend([get_total_sales, get_order_status, get_period_revenue, get_average_sales, get_sale_details, get_order_count])
         
     if skills.get("stocks", True):
         all_tools.extend([get_product_stock, list_out_of_stock_products])
@@ -226,7 +227,7 @@ def orm_agent_loop(state: RAGState) -> dict:
                         observation = (
                             f"Vous n'avez pas les droits d'acces necessaires pour "
                             f"consulter ces donnees ({tool_name}). Contactez votre "
-                            f"administrateur Odoo pour obtenir les permissions requises."
+                            f"administrateur pour obtenir les permissions requises."
                         )
                     else:
                         observation = (

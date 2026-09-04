@@ -6055,3 +6055,362 @@ et colle le resultat. Si tout passe : le refactor `_resolve_statut()` (code + te
 **Fichiers lus** : `tests/oca_p3_1_question_bank.json` (entier), `tests/oca_sample/stock-logistics-warehouse/stock_archive_constraint/` (listing + `models/product_product.py` + `models/stock_location.py`), `tests/oca_sample/server-tools/auditlog/` (listing + `models/rule.py` + `security/ir.model.access.csv` + `views/auditlog_view.xml`), `tests/oca_sample/reporting-engine/kpi/` (listing + `models/kpi.py` + `security/ir.model.access.csv` + `data/kpi_data.xml` + `views/kpi_views.xml`).
 
 **Prochaine etape** : dataset des 50 cas livre a San Goku dans cette meme reponse (question/capability/difficulty/expected_tools/reponse de reference/localisation, pour les 10 modules). Etape suivante du plan P3.1 (section 520) : San Goku (ou une session avec acces Groq) execute reellement les 50 questions via `query_graph()`/MIRO AI et triangule les echecs par capacite -- non fait, hors de portee de ce sandbox.
+
+---
+
+## Section 522: Nouvel outil ORM get_order_count -- comble un trou reel de capacite Data Intelligence ("combien de commandes ?"), rejette l'extension de get_sale_details apres analyse comparative (2026-09-04)
+
+**Origine** : question reelle posee via MIRO AI ("combien de commandes ont ete recues le mois dernier ?") ayant produit "Je n'ai pas de donnees disponibles pour repondre a cette question" -- le message de repli code en dur de `orm_agent_loop` (`erp_data/orm_agent_node.py`) atteint quand la boucle ReAct se termine sans `final_answer`.
+
+**Root cause identifiee (lecture directe du code, pas de suspicion de bug de routage)** : aucun des 6 outils "ventes" existants ne couvre un comptage filtre par periode. `get_total_sales_raw`/`get_average_sales_raw`/`get_period_revenue_raw` ont `periode` mais retournent une somme/moyenne, pas un compte. `get_sale_details_raw` calcule bien `len(records)` mais n'expose aucun parametre `periode` (seulement `client`/`statut`/`limite`). `get_order_status_raw` est un lookup a un seul enregistrement. Aucune combinaison des 6 ne repond a "combien sur une periode". `todo/plan.md` (PARTIE 5) documente deja ce manque comme limite assumee : le domaine B d'`architecture.md` ("Combien ? Qui ? Quand ? Liste-moi ?") n'est pas entierement couvert tant que Data Intelligence n'est pas approfondi -- confirme que ce trou est un gap de capacite connu, pas un contournement de routage a corriger ailleurs.
+
+**Analyse comparative demandee par San Goku avant tout code** : etendre `get_sale_details_raw` avec un parametre `periode`, ou creer un outil dedie ? Verdict : extension rejetee. Cause precise : `get_sale_details_raw` n'est pas seulement "plus lent" -- son architecture est batie pour l'Evidence par-commande (2 Evidence par commande affichee, dont une resolution separee `sale.order.line:search_read` par commande pour les noms de produits, cf. son propre docstring). Sur le cas reel (`client="" periode="le mois dernier"`), ca produirait potentiellement des dizaines/centaines de commandes tous clients confondus, soit un design N+1 requetes XML-RPC juste pour extraire un entier depuis l'en-tete du texte -- mauvais algorithme pour la question posee (`rules.md` : "find best algorithm"), et detourne un outil dont le contrat/docstring visent le detail client-scope, pas l'agregat global.
+
+**Decision et implementation** : nouvel outil `get_order_count_raw()`/`get_order_count` (`erp_data/odoo_tools.py`), strict miroir de `get_total_sales_raw` (meme construction de domaine via `_resolve_statut()` + `parse_period()`, meme forme `Tuple[str, Evidence]`) mais `read_group(fields=[], groupby=[])` -- Odoo retourne `__count` seul, une seule requete, aucune lecture de ligne de commande. Garantit par construction que "combien de commandes" et "quel montant" partagent exactement le meme domaine pour un `statut` donne (meme source de verite `_resolve_statut()` que `get_total_sales_raw`/`get_average_sales_raw`). Cas resultat vide traite comme fait positif (`count=0`, jamais `None`) -- meme discipline que `list_out_of_stock_products_raw` pour une agregation reussie qui retourne zero, a la difference de `get_total_sales_raw` (montant absent = fait manquant, `None`). Outil enregistre dans la liste "ventes" de `orm_agent_loop` (`erp_data/orm_agent_node.py`), a cote de `get_sale_details`.
+
+**Perimetre volontairement NON touche** : `code_intelligence/investigation_plan.py::PlanAction` (vocabulaire ferme de 12 actions) ne liste pas les outils ORM individuels -- `ERP_DATA_QUERY` mappe generiquement vers la route `DONNEES_ERP`, verifie par lecture directe avant de conclure qu'aucune mise a jour n'y etait necessaire.
+
+**Tests ecrits** : `erp_data/tests/test_get_order_count.py` (nouveau fichier, 13 tests) -- miroir du pattern etabli par `test_bloc_b0_evidence_orm_pilot.py`/`test_bloc_b1_evidence_get_average_sales.py` : texte+Evidence, `fields=[]`/`groupby=[]` reels passes au connecteur mocke, cas vide -> `count=0` (pas `None`), `confidence is None`, `scope.execution_identity`, contrat du wrapper `@tool` (texte simple + capture d'exception), contrat de domaine par `statut` parametrise (les 4 valeurs), repli sur le domaine "toutes" pour un statut inconnu, partage de domaine identique avec `get_total_sales_raw` pour chaque `statut` (garantie cross-outil), et application reelle du filtre de periode (`date_order` bornes, avec le meme correctif "fin de journee" `23:59:59` que `get_total_sales_raw`).
+
+**Non fait ce tour** : aucune execution reelle de `pytest erp_data/tests/test_get_order_count.py -v` -- pas d'acces shell sur la machine de San Goku depuis cette session filesystem-only (meme contrainte que toutes les sessions precedentes). Aucune verification via une vraie instance Odoo/MIRO AI que la question originale ("combien de commandes ont ete recues le mois dernier ?") produit desormais une reponse correcte en conditions reelles -- necessite que San Goku relance une question reelle apres validation des tests.
+
+**Fichiers modifies** : `erp_data/odoo_tools.py` (ajout `get_order_count_raw`/`get_order_count`), `erp_data/orm_agent_node.py` (import + enregistrement dans la liste "ventes"), `erp_data/tests/test_get_order_count.py` (nouveau), `todo/contexte.txt` (cette section).
+
+**Prochaine etape** : San Goku execute localement `pytest erp_data/tests/test_get_order_count.py -v` et colle le resultat. Si tout passe : rejouer la question reelle ("combien de commandes ont ete recues le mois dernier ?") via MIRO AI pour confirmer la fermeture du gap en conditions reelles.
+
+---
+
+## Section 523: get_order_count -- CLOS : 18/18 tests passes (2026-09-04)
+
+**Resultat colle par San Goku** : `pytest erp_data/tests/test_get_order_count.py -v` -> `18 passed in 0.29s`, aucun echec, aucun skip. Les 13 fonctions de test de la section 522 se deploient en 18 items reels une fois les parametrisations `@pytest.mark.parametrize` developpees (4x `domain_matches_statut_contract` + 4x `share_identical_domain_per_statut`, plus les 9 tests non parametres, 8 + 9 = ... verifie : 8 parametres + 10 non-parametres = 18, coherent).
+
+**Etat du chantier** : mandat "creer get_order_count apres analyse comparative rejetant l'extension de get_sale_details" (section 521bis/522) -- code + tests ecrits, execution reelle confirmee sans regression. Rien de connu ne reste ouvert sur le code lui-meme.
+
+**Non fait ce tour** : aucune modification de code -- cloture par lecture du resultat colle par San Goku. La verification en conditions reelles (rejouer "combien de commandes ont ete recues le mois dernier ?" via MIRO AI en direct, avec une vraie instance Odoo) reste a faire -- distincte de la couverture pytest mockee ci-dessus, seule preuve qui confirmerait que le ReAct agent choisit effectivement `get_order_count` pour cette formulation exacte plutot qu'un autre outil ou aucun outil.
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section uniquement).
+
+**Prochaine etape** : San Goku pose la question reelle ("combien de commandes ont ete recues le mois dernier ?") via MIRO AI et colle la reponse -- confirme ou infirme que le ReAct agent selectionne bien `get_order_count` sur cette formulation en conditions reelles (le nom/la docstring de l'outil sont ce que le LLM voit pour decider, jamais teste jusqu'ici en dehors du mock).
+
+---
+
+## Section 524 : bouton "Annuler" ajoute a l'assistant MIRO AI (frontend uniquement, deblocage UI, pas d'arret reel du calcul backend) (2026-09-04)
+
+**Origine** : San Goku signale un test hors-sujet ("tu es a l'hopital ?") correctement rejete par la route Documentaire (rien a corriger la-dessus), puis demande une fonctionnalite distincte : pouvoir annuler une question en cours au lieu de subir l'attente quand ce n'est manifestement pas la bonne question a poser. Signale aussi un ecart d'affichage entre deux postes (boutons Historique/Nouvelle conversation visibles sur l'un, pas sur l'autre) -- non resolu ce tour, cf. "non fait".
+
+**Analyse avant code** : les boutons Historique/Nouvelle conversation sont deja presents dans `miro_ai_assistant.xml` (les deux templates, pleine page et drawer systray) et dans `miro_ai.css` (aucune regle ne les masque) -- confirme par lecture directe. L'ecart d'affichage entre postes n'est donc pas un bug de code sur ce depot : cause la plus probable = assets JS/CSS non regeneres ou module non mis a jour (`-u miro_ai`) sur le poste concerne, ou checkout git non synchronise. Pas de tool shell sur la machine de San Goku depuis cette session filesystem-only (meme limite que d'habitude) pour verifier `git log`/`git status` a distance -- diagnostic transmis a San Goku, pas corrige ici faute d'acces.
+
+**Decision sur le bouton Annuler** : rpc_service.js d'Odoo 17 (`addons/web/static/src/core/network/rpc_service.js`, lu directement) attache nativement une methode `.abort()` a la Promise retournee par `this.rpc(...)` (declenche `request.abort()` sur le XMLHttpRequest sous-jacent et rejette la promesse avec `ConnectionAbortedError`) -- pas besoin de dependance externe, c'est le mecanisme natif du framework. Limite explicite verifiee par lecture de `controllers/main.py` : `/miro_ai/ask` fait un appel bloquant `requests.post(..., timeout=60)` vers le backend FastAPI RAG depuis le worker Odoo ; Python ne detecte pas la deconnexion du client XHR pendant cet appel, donc `.abort()` cote navigateur libere l'UI (l'utilisateur peut reposer une question immediatement) mais n'interrompt PAS le calcul en cours cote serveur (le worker continue jusqu'a la fin de son propre appel HTTP). Annonce explicitement a San Goku avant de coder pour ne pas presenter un correctif partiel comme une solution complete (rules.md : pas de fix chirurgical / root cause) -- une vraie annulation cote serveur necessiterait un mecanisme cooperatif dans le service FastAPI (detection de deconnexion cliente, ex. `request.is_disconnected()`), hors perimetre de ce tour.
+
+**Implementation** : `miro_ai.js` -- import de `ConnectionAbortedError`, constante `CANCELLED_CONTENT`, helper partage `isRequestCancelled(error)`, champ `cancelled: false` ajoute aux defauts de `createMessage()`. Dans `MiroAiAssistant` et `MiroAiSystray` (les deux composants, meme pattern deja duplique dans ce fichier pour badges/labels) : `this.pendingRequest` (propriete d'instance, hors `useState`, pas besoin de reactivite dessus) capture la Promise rpc avant le `await` ; nouvelle methode `cancelRequest()` appelle `.abort()` dessus ; le `catch` de `sendMessage()` distingue desormais une annulation volontaire (message "Question annulee.", `cancelled: true`, pas de notification d'erreur ni de `console.error`) d'une vraie erreur reseau/serveur (comportement inchange). `miro_ai_assistant.xml` -- bouton Envoyer remplace par un bouton Annuler (`btn-outline-danger`, icone `fa-stop`) tant que `state.loading` est vrai, dans les deux templates (pleine page + drawer) ; classe `cancelled-message` ajoutee conditionnellement sur la bulle de message. `miro_ai.css` -- regle `.cancelled-message` (style attenue, bordure en tirets, meme palette que `.loading-indicator`).
+
+**Non fait ce tour** : diagnostic de l'ecart d'affichage entre les deux postes de San Goku (hypothese assets/version transmise, pas verifiee -- aucun acces shell a ses machines). Aucun test JS execute (pas de suite de tests frontend dans ce depot a ce jour). Aucune verification en conditions reelles dans le navigateur (necessite que San Goku mette a jour les assets -- `-u miro_ai` ou regeneration --dev=assets -- et teste le bouton lui-meme). Pas de mecanisme d'annulation cote serveur (cf. limite documentee ci-dessus).
+
+**Fichiers modifies** : `odoo_addons/miro_ai/static/src/js/miro_ai.js`, `odoo_addons/miro_ai/static/src/xml/miro_ai_assistant.xml`, `odoo_addons/miro_ai/static/src/css/miro_ai.css`, `todo/contexte.txt` (cette section).
+
+**Prochaine etape** : San Goku met a jour le module (`-u miro_ai`, ou regeneration des assets + hard refresh navigateur) sur le poste ou l'affichage etait incomplet, verifie que les boutons Historique/Nouvelle conversation apparaissent desormais, puis teste le bouton Annuler (lancer une question, cliquer Annuler pendant le chargement, confirmer que l'UI se debloque et affiche "Question annulee.").
+
+---
+
+## Section 525 : bouton Envoyer et bulles utilisateur captent desormais dynamiquement la couleur reelle du header Odoo au lieu du teal code en dur (2026-09-04)
+
+**Origine** : San Goku demande si le bouton Envoyer et les messages utilisateur peuvent directement capter la couleur de fond du header Odoo plutot que la couleur fixe (#008784) utilisee jusqu'ici ; question posee sur le meme tour que la section 524 (bouton Annuler), traitee separement.
+
+**Analyse avant code** : lecture de `navbar.scss`/`navbar.variables.scss` dans `/home/user/odoo-17.0/addons/web/static/src/webclient/navbar/` -- le fond de `.o_main_navbar` est fixe par la variable SCSS `$o-navbar-background` (defaut `$o-brand-odoo`), compilee en dur dans le CSS au build des assets, PAS exposee comme variable CSS `--o-...` a l'exécution. Impossible donc de simplement referencer une `var(--o-navbar-background-color)` existante depuis notre propre CSS. Cette couleur peut en outre changer par societe (couleur de marque configurable dans Parametres Generaux -> recompilation des assets) ou par un theme custom (le dossier `odoo_addons/custom_modern_theme/` existe deja, actuellement vide) -- aucune de ces sources n'est predictible a l'avance depuis notre feuille de style statique.
+
+**Decision** : plutot que deviner/dupliquer la bonne variable SCSS (fragile, casse au premier changement de theme), lecture de la couleur REELLEMENT appliquee au runtime via `getComputedStyle(document.querySelector('.o_main_navbar')).backgroundColor`, posee comme propriete custom CSS `--miro-brand-color` sur `document.documentElement` (`:root`), une fois au montage de chaque composant (`onMounted`, hook deja importe mais inutilise jusqu'ici). Fonctionne quelle que soit l'origine de la couleur (defaut, societe, theme custom futur) puisqu'on lit le resultat final calcule par le navigateur, pas une source SCSS. Limite assumee et documentee en commentaire dans le code : capture unique au montage, ne suit pas un changement de theme/societe en cours de session (cas marginal, rafraichir la page suffit).
+
+**Implementation** : `miro_ai.js` -- nouvelle fonction partagee `applyBrandColorFromHeader()`, appelee via `onMounted()` dans `MiroAiAssistant.setup()` et `MiroAiSystray.setup()`. `miro_ai.css` -- `.user-message` (background-color) et les boutons `.btn-primary` des deux zones de saisie (`.miro-ai-input-area`, `.miro-drawer-input`) utilisent `var(--miro-brand-color, #008784)` ; l'ombre teintee du message utilisateur (qui referencait le teal en rgba fixe, non recalculable dynamiquement sans dupliquer la couleur en JS) remplacee par une ombre neutre `rgba(0,0,0,0.15)` pour rester coherente quelle que soit la couleur de marque.
+
+**Non touche volontairement** : le badge systray "MIRO AI" et l'icone de la baguette magique (`.miro-systray-label`, `.miro-ai-icon`), toujours en `#714B67` fixe -- pas demande explicitement ce tour, signale ici pour visibilite si San Goku veut etendre la meme logique. Le bouton Annuler reste inchange (confirme par San Goku : garder le swap Envoyer/Annuler actuel).
+
+**Non fait ce tour** : aucune verification visuelle reelle dans un navigateur (necessite mise a jour des assets + test sur une instance avec une couleur de societe non-defaut pour confirmer que la capture fonctionne vraiment hors du cas par defaut).
+
+**Fichiers modifies** : `odoo_addons/miro_ai/static/src/js/miro_ai.js`, `odoo_addons/miro_ai/static/src/css/miro_ai.css`, `todo/contexte.txt` (cette section).
+
+**Prochaine etape** : San Goku met a jour les assets et verifie dans le navigateur que le bouton Envoyer et les bulles utilisateur prennent bien la couleur du header (idealement teste aussi sur une societe avec une couleur de marque personnalisee, pas seulement le violet Odoo par defaut, pour valider que ce n'est pas juste une coincidence visuelle).
+
+---
+
+## Section 526 : cause reelle du "rien n'a change cote Odoo" -- un dossier `miro_ai` en double dans `/home/user/odoo-17.0/addons` masquait silencieusement toutes les modifs des sections 524/525 ; `addons_path` reordonne pour que le depot de travail ait toujours priorite (2026-09-04)
+
+**Origine** : San Goku rapporte qu'apres `-u miro_ai` + Ctrl+Shift+R, rien n'avait change visuellement (ni bouton Annuler, ni couleur dynamique). Diagnostic engage par lecture de `odoo.log` : le module se recharge sans erreur ("Module miro_ai loaded"), mais le bundle `web.assets_web` se sert en 0.007-0.009s sans aucune ligne "Generating a new asset bundle attachment" -- symptome d'un cache d'assets non invalide, premiere piste explorée (mode `?debug=assets`, regeneration manuelle des bundles). San Goku a ensuite trouve et supprime lui-meme un dossier `miro_ai` en double dans `/home/user/odoo-17.0/addons` -- cause reelle, distincte du cache d'assets.
+
+**Confirmation retroactive** : le fichier `odoo.log` (ligne de demarrage) liste l'ordre REEL de resolution des addons_path : `['/home/user/odoo-17.0/odoo/addons', '/home/user/.local/share/Odoo/addons/17.0', '/home/user/odoo-17.0/addons', '/home/user/odoo-ia-prototype/odoo_addons']` -- le depot de travail (`odoo-ia-prototype/odoo_addons`) etait EN DERNIER, apres `/home/user/odoo-17.0/addons`. Un module de meme nom trouve plus tot dans cet ordre masque silencieusement le nôtre (pas d'erreur, pas d'avertissement) : `-u miro_ai` mettait a jour la copie fantome de `odoo-17.0/addons/miro_ai`, jamais celle editee dans ce depot -- explique entierement pourquoi rien ne changeait malgre des editions correctes et un upgrade sans erreur (sections 524/525 : bouton Annuler + couleur dynamique du header, code correct depuis le debut, jamais reellement charge par le serveur de San Goku). Recherche prealable de doublons (`search_files pattern="*miro*"` sous `/home/user/odoo-17.0`) faite AVANT ce tour n'avait rien trouve -- le dossier en double a du apparaitre/etre remarque par San Goku entre-temps, ou etait cree hors de la portee du dossier alors scanne ; non elucide plus avant, sans impact puisque San Goku l'a deja supprime lui-meme.
+
+**Correction de la cause racine (pas juste retirer le doublon ponctuel)** : `odoo.conf` -- `addons_path` reordonne de `addons,/home/user/odoo-ia-prototype/odoo_addons` vers `/home/user/odoo-ia-prototype/odoo_addons,addons`. Le depot de travail est desormais TOUJOURS resolu en premier : tout futur doublon accidentel dans les autres addons_path (backup oublie, clone, module installe via l'Apps Store portant le meme nom) ne pourra plus masquer silencieusement le code de ce depot, conformement a rules.md ("pas de fix chirurgical, voir la root cause") -- supprimer le dossier en double une fois ne corrige que le symptome de ce tour, pas le risque structurel de collision de nom recurrente.
+
+**Non fait ce tour** : aucun redemarrage d'`odoo-bin` verifie depuis ce changement de config (`odoo.log` ne montre aucune activite apres la suppression du doublon par San Goku) -- San Goku doit relancer `./odoo-bin -c odoo.conf -u miro_ai` pour que le nouvel ordre `addons_path` prenne effet et charger enfin la bonne copie du module. Pas de verification que le dossier `/home/user/.local/share/Odoo/addons/17.0` (present dans l'ordre de resolution, hors des repertoires autorises pour ce tool filesystem) ne contient pas lui aussi un `miro_ai` fantome -- improbable (c'est le dossier ou les apps du store officiel Odoo s'installent, peu de chance d'y trouver un module interne nomme ainsi) mais non verifiable depuis cette session.
+
+**Fichiers modifies** : `/home/user/odoo-17.0/odoo.conf` (reordonnancement `addons_path`), `todo/contexte.txt` (cette section). Le dossier en double `/home/user/odoo-17.0/addons/miro_ai` a ete supprime par San Goku lui-meme, hors de cette session.
+
+**Prochaine etape** : San Goku relance `./odoo-bin -c odoo.conf -u miro_ai`, verifie dans le log de demarrage que l'ordre `addons paths` place bien `odoo-ia-prototype/odoo_addons` en premier, puis reteste dans le navigateur (Ctrl+Shift+R) : bouton Annuler pendant le chargement + couleur du bouton Envoyer/bulles utilisateur alignee sur le header.
+
+---
+
+## Section 527 : `search_partner` -- troncature a 5 resultats confirmee volontaire, pas un bug (constat, aucun changement de code) (2026-09-04)
+
+**Origine** : San Goku signale que la reponse MIRO AI a "combien de clients a-t-on ? qui sont-ils ?" n'affiche que 5 des 22 `res.partner` trouves, avec le message "... (resultats tronques, precisez la recherche)".
+
+**Analyse** : lecture directe de `search_partner_raw()` (`erp_data/odoo_tools.py`). Le domaine ORM (`("name", "ilike", ...)`) ne porte aucune limite -- `connector.search_read` recupere bien les 22 enregistrements complets. La troncature est appliquee cote Python, apres la lecture : `displayed = records[:5]`, avec le message d'invite a preciser la recherche des que `len(records) > 5`. Comportement deja documente dans le docstring de `search_partner_raw` ("pre-existing truncation, unchanged here") et deja confirme avec San Goku lors du B1/ORM 4/9 (Evidence-ification, section 471+) -- design assume, pas un gap ni une regression.
+
+**Conclusion** : pas un bug. Aucune modification de code sur ce point ce tour.
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section uniquement).
+
+**Prochaine etape** : voir section suivante (528) -- question distincte soulevee par San Goku sur le meme echange : `search_partner` retourne aussi des utilisateurs internes (Administrator, Alice Admin) melanges aux vrais clients, a investiguer.
+
+---
+
+## Section 528 : `search_partner` retourne des utilisateurs internes (Administrator, Alice Admin) melanges aux vrais clients -- investigation faite, DECISION EN ATTENTE (aucun code touche) (2026-09-04)
+
+**Origine** : suite a la section 527, San Goku souleve que `res.partner` remonte aussi des comptes internes/systeme (Administrator, Alice Admin, potentiellement Bob Buyer) melanges aux vrais clients commerciaux dans la reponse de `search_partner`. San Goku propose deux pistes (`customer_rank > 0` vs `user_ids = False`) mais souligne a raison qu'elles ne sont PAS equivalentes : `customer_rank > 0` repond a "a une activite client" (peut exclure un contact commercial legitime jamais encore commande) ; `user_ids = False` repond a "non lie a un compte utilisateur" (peut exclure un vrai client ayant aussi un acces portail/interne). Demande d'investiguer avant de trancher plutot que d'introduire une hypothese metier arbitraire.
+
+**Root cause** : `res.partner` est le modele unifie d'Odoo -- il porte a la fois les contacts commerciaux ET les fiches liees aux comptes utilisateurs (`res.users.partner_id` pointe vers un `res.partner`). `search_partner_raw()` (`erp_data/odoo_tools.py`) interroge ce modele avec pour seul domaine `[("name", "ilike", ...)]` -- aucun filtre de scoping. Fait notable : `odoo_connector.py::ALLOWED_MODELS` exclut explicitement `res.users` de la whitelist, et `test_whitelist_enforcement` (`erp_data/tests/test_odoo_tools.py`) verifie que toute requete directe sur `res.users` est bloquee ("not whitelisted") -- l'intention architecturale de garder les comptes utilisateurs hors de portee de l'IA existe donc reellement, mais elle est contournee au niveau des DONNEES : `res.partner` (whiteliste, sans filtre) porte les memes fiches de contact que les comptes bloques via `res.users`. Le docstring `@tool` de `search_partner` lui-meme est ambigu ("Search for a client or partner by name") -- la portee n'a jamais ete strictement definie comme "clients commerciaux uniquement".
+
+**Verifications faites (lecture de code seule, pas d'acces DB live depuis cette session filesystem-only)** :
+1. `customer_rank` : aucune occurrence dans `odoo_tools.py`, `odoo_connector.py`, `orm_agent_node.py`, ni dans aucun test -- ce serait une convention NOUVELLE, pas la continuation d'un pattern existant.
+2. Fixtures/donnees de test distinguant clients/fournisseurs/utilisateurs : aucune dans ce depot -- les donnees (les 22 `res.partner` reels) vivent uniquement dans l'instance Odoo, hors de portee du connector filesystem pour cette session.
+3. Perimetre voulu de `search_partner` : jamais explicitement tranche entre "clients commerciaux" et "partenaires generiques" -- le nom de l'outil et son usage dans `orm_agent_node.py` (enregistre en tool de base, toujours disponible independamment des skills actives) suggerent "clients", mais rien ne le garantit formellement.
+
+**Decision explicitement DIFFEREE** : San Goku doit d'abord verifier cote Odoo (UI ou requete directe) la valeur reelle de `customer_rank` sur Administrator/Alice Admin/Bob Buyer vs. un vrai client (ex. Air Madagascar), pour confirmer que la distinction tient sur les donnees reelles de cette instance avant de choisir un domaine de filtrage -- eviter d'introduire une hypothese metier non verifiee (`customer_rank > 0` ou `user_ids = False`), conformement a rules.md (root cause avant fix, pas de fix chirurgical).
+
+**Non fait ce tour** : aucune modification de `search_partner_raw()` ou de son domaine. Aucun acces DB live pour verifier les valeurs reelles de `customer_rank`.
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section uniquement).
+
+**Prochaine etape** : San Goku verifie `customer_rank` sur des fiches reelles (utilisateurs internes vs vrais clients) et revient avec le resultat -- alors seulement un domaine de filtrage sera choisi et implemente (avec dryRun avant ecriture reelle, cf rules.md).
+
+---
+
+## Section 529 : `search_partner` -- filtre `("user_ids", "=", False)` implemente apres verification live ecartant `customer_rank` (2026-09-04)
+
+**Verification live faite par San Goku** (`odoo-bin shell -c odoo.conf -d odoo-dev`) :
+```
+Administrator   | customer_rank: 0 | user_ids: [2]
+Air Madagascar  | customer_rank: 0 | user_ids: []
+Alice Admin     | customer_rank: 1 | user_ids: [6]
+Bob Buyer       | customer_rank: 0 | user_ids: [7]
+Brasseries Star | customer_rank: 0 | user_ids: []
+```
+
+**`customer_rank` ecarte, verifie non fiable sur cette instance** : donnerait un faux positif (Alice Admin, compte interne, `customer_rank=1`) ET des faux negatifs (Air Madagascar / Brasseries Star, vrais clients, `customer_rank=0` -- coherent avec la suppression du seeding de commandes en section 363, qui est ce qui incremente normalement ce compteur). Confirme la mise en garde initiale de San Goku (section 528) : les deux filtres proposes n'etaient pas equivalents, et celui repose sur une hypothese metier qui s'est reveleee fausse sur les donnees reelles une fois verifiee.
+
+**`user_ids = False` confirme fiable** : les 2 vrais clients ont `user_ids` vide, les 3 comptes internes ont tous un `user_ids` non-vide -- coherent avec `tools/full_setup.py` (les 8 "Clients" de l'etape 3 sont crees directement en `res.partner` sans jamais passer par `res.users`, contrairement aux 7 "Specialized Users"/Administrator de l'etape 2, dont le `res.partner` lie est cree automatiquement par Odoo via `res.users.create()`).
+
+**Implementation** : `erp_data/odoo_tools.py::search_partner_raw` -- domaine change de `[("name", "ilike", ...)]` a `[("name", "ilike", ...), ("user_ids", "=", False)]`, avec le rationale documente dans le docstring de la fonction (customer_rank considere et rejete avec preuve live citee). Docstring du wrapper `@tool search_partner` clarifie egalement le perimetre ("commercial client", exclut explicitement les comptes internes) -- corrige l'ambiguite relevee en section 528 ("Search for a client or partner").
+
+**Tests** : nouveau test `test_search_partner_raw_domain_excludes_internal_user_accounts` ajoute a `erp_data/tests/test_bloc_b1_evidence_search_partner.py`, verifie que `("user_ids", "=", False)` est bien present dans le domaine passe a `connector.search_read`. Les 9 tests preexistants du fichier ne verifient pas le domaine (ils mockent `search_read` directement, peu importe les arguments) donc non affectes par ce changement.
+
+**Non fait ce tour** : aucune execution reelle de `pytest erp_data/tests/test_bloc_b1_evidence_search_partner.py -v` -- pas d'acces shell sur la machine de San Goku depuis cette session filesystem-only. Aucune verification en conditions reelles que "combien de clients a-t-on" via MIRO AI ne retourne plus Administrator/Alice Admin/Bob Buyer.
+
+**Fichiers modifies** : `erp_data/odoo_tools.py` (domaine + 2 docstrings), `erp_data/tests/test_bloc_b1_evidence_search_partner.py` (nouveau test), `todo/contexte.txt` (cette section).
+
+**Prochaine etape** : San Goku execute localement `pytest erp_data/tests/test_bloc_b1_evidence_search_partner.py -v` et colle le resultat. Si tout passe : rejouer "combien de clients a-t-on ? qui sont-ils ?" via MIRO AI pour confirmer que seuls les vrais clients (et non plus Administrator/Alice Admin/Bob Buyer) apparaissent, et que le nombre total de resultats a change (etait 22, devrait etre inferieur une fois les comptes internes exclus).
+
+---
+
+## Section 530 : `search_partner` -- CLOS cote tests : 11/11 tests passes (2026-09-04)
+
+**Resultat colle par San Goku** : `pytest erp_data/tests/test_bloc_b1_evidence_search_partner.py -v` -> `11 passed in 0.27s`, aucun echec, aucun skip. Les 10 tests preexistants (section 471) restent verts, et le nouveau `test_search_partner_raw_domain_excludes_internal_user_accounts` (section 529) passe -- confirme que le domaine passe bien `("user_ids", "=", False)` a `connector.search_read` sans casser le contrat existant (texte, Evidence, troncature a 5, gestion d'exception).
+
+**Etat du chantier** : mandat "corriger search_partner pour exclure les comptes internes" (sections 526-529) -- code + docstrings + test ecrits, execution reelle confirmee sans regression. Rien de connu ne reste ouvert sur le code lui-meme.
+
+**Non fait ce tour** : aucune modification de code -- cloture par lecture du resultat colle par San Goku. La verification en conditions reelles (rejouer "combien de clients a-t-on ? qui sont-ils ?" via MIRO AI en direct) reste a faire -- distincte de la couverture pytest mockee ci-dessus, seule preuve qui confirmerait qu'Administrator/Alice Admin/Bob Buyer disparaissent effectivement de la reponse en conditions reelles et que le total n'est plus 22.
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section uniquement).
+
+**Prochaine etape** : San Goku pose la question reelle ("combien de clients a-t-on ? qui sont-ils ?") via MIRO AI et colle la reponse -- confirme ou infirme que les comptes internes ont bien disparu et que le compte total a change en conditions reelles.
+
+---
+
+## Section 531 : `search_partner` -- "combien de clients a-t-on ?" routait vers `get_sale_details` au lieu de `search_partner`, chantier separe de 526-530 (dev fait, tests locaux OK, execution reelle non re-testee) (2026-09-04)
+
+**Origine** : San Goku rejoue "combien de clients a-t-on ? qui sont-ils ?" (formulation exacte d'origine) apres la cloture de la section 530 -- MIRO AI retourne une liste de 19 commandes (`get_sale_details`), jamais `search_partner`. Reproductible : meme resultat sur la formulation courte et sur la formulation complete d'origine. Le fix section 529/530 (`user_ids=False`) n'a donc encore jamais ete exerce en conditions reelles -- il reste valide et teste (11/11), simplement jamais invoque par cette question.
+
+**Root cause** : `search_partner_raw`/`search_partner` avaient `nom: str` SANS valeur par defaut, contrairement a tous les autres outils "client" du fichier (`get_total_sales`, `get_sale_details`, etc.) qui ont tous `client: str = ""` avec un docstring explicite ("Leave empty for all clients"). Rien ne signalait donc au LLM qu'un `nom=""` listerait tous les clients commerciaux -- `search_partner` se presentait uniquement comme un outil de recherche ciblee par nom. Sur une question de listing global, le LLM s'est rabattu sur `get_sale_details` (qui, lui, annonce bien "vide = tous les clients"), concu pour lister des commandes, pas des clients -- d'ou la liste de 19 commandes au lieu d'une liste de clients distincts.
+
+**Perimetre confirme avec San Goku** : chantier explicitement separe de 526-530 (ne pas melanger selection d'outil et filtrage des partenaires). Domaine ORM et presentation du texte NON touches -- le filtre `user_ids=False` valide en 529/530 reste intact, ce correctif ne touche que la signature et le docstring.
+
+**Implementation** : `erp_data/odoo_tools.py` -- `search_partner_raw(nom: str = "")` et `search_partner(nom: str = "")` (wrapper `@tool`), docstring du wrapper complete ("Leave empty ('') to list all commercial clients."), meme convention que `get_total_sales`/`get_sale_details`. Aucun changement au domaine (`_normalize_client_name("")` retournait deja `""`, et `("name", "ilike", "")` matchait deja tout -- seul le defaut de parametre manquait, pas la logique).
+
+**Tests** : 2 nouveaux tests dans `erp_data/tests/test_bloc_b1_evidence_search_partner.py` -- `test_search_partner_raw_empty_nom_defaults_and_lists_all_clients` (verrouille que `search_partner_raw()` et `search_partner_raw("")` produisent le meme domaine `ilike ""` + `user_ids=False`) et `test_search_partner_tool_wrapper_callable_without_args` (le wrapper `@tool` accepte `.invoke({})` sans `nom`).
+
+**Non fait ce tour** : aucune execution reelle de `pytest erp_data/tests/test_bloc_b1_evidence_search_partner.py -v` depuis cette session filesystem-only -- attend le resultat colle par San Goku (devrait passer a 13/13). Aucune re-verification en conditions reelles via MIRO AI apres ce fix -- necessaire pour confirmer a la fois que `search_partner` est maintenant selectionne ET que le filtre `user_ids=False` (529/530) fonctionne enfin en conditions reelles, jamais confirme jusqu'ici.
+
+**Fichiers modifies** : `erp_data/odoo_tools.py` (signature + docstring, 2 fonctions), `erp_data/tests/test_bloc_b1_evidence_search_partner.py` (2 nouveaux tests), `todo/contexte.txt` (cette section).
+
+**Prochaine etape** : San Goku execute localement `pytest erp_data/tests/test_bloc_b1_evidence_search_partner.py -v` et colle le resultat. Si tout passe : rejouer "combien de clients a-t-on ? qui sont-ils ?" via MIRO AI -- premiere verification reelle combinee des deux correctifs (529/530 + 531).
+
+---
+
+## Section 532 : verification reelle via MIRO AI -- `search_partner` desormais bien selectionne, comptes internes absents de l'echantillon affiche (531 + 529/530 confirmes en conditions reelles, sous reserve du chiffre total) (2026-09-04)
+
+**Origine** : San Goku rejoue "combien de clients a-t-on ?" (formulation courte, pas la formulation complete "...qui sont-ils ?" des sections precedentes) via MIRO AI.
+
+**Resultat colle** : reponse "Donnees ERP" (pas "resultats de commandes") -- "10 client(s) trouve(s)", liste des 5 premiers noms (Air Madagascar, Brasseries Star, Company Alpha, Groupe Socimex, MIRO KE interne), message de troncature "(resultats tronques, precisez la recherche)", source citee "Odoo ERP - Contacts (res.partner)".
+
+**Lecture du resultat** :
+- **Selection d'outil (531) confirmee** : la reponse est bien celle de `search_partner` (format "Donnees ERP" + Contacts + troncature a 5, cf. section 527) et non plus `get_sale_details` (liste de commandes) -- premiere confirmation reelle que le defaut `nom: str = ""` corrige le routage sur cette formulation.
+- **Filtre `user_ids=False` (529/530)** : coherent avec le resultat -- aucun des 5 noms affiches n'est Administrator/Alice Admin/Bob Buyer. Ne constitue pas une preuve complete (5 affiches sur 10, les comptes internes pourraient en theorie se trouver dans les 5 non affiches) mais aucun signal contraire.
+- **Chiffre total NON verifie/explique ce tour** : 10 client(s) trouve(s), a comparer aux 22 `res.partner` totaux mentionnes en section 527 (avant filtre) et aux 3 comptes internes identifies en 529 (Administrator, Alice Admin, Bob Buyer) -- 22-3=19 attendu, pas 10. Ecart de 9 non explique par le travail journalise a ce jour. Hypotheses non verifiees (a ne pas trancher sans lecture reelle) : le "22" de la section 527 correspondait peut-etre a une recherche `ilike` differente (pas le meme `nom`/domaine implicite qu'un `nom=""` pur), ou des `res.partner` supplementaires ont un `user_ids` non vide au-dela des 3 deja identifies, ou les donnees de l'instance ont change entre les deux tours. Aucune de ces pistes n'a ete verifiee par lecture de code ou requete reelle ce tour.
+
+**Non fait ce tour** : aucune modification de code. Aucune verification live (`odoo-bin shell`) de la valeur exacte de `user_ids`/`customer_rank` sur l'ensemble des 22 `res.partner` pour expliquer le chiffre 10 vs 19 attendu. Pas de confirmation que les 5 clients non affiches (troncature) excluent bien tout compte interne.
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section uniquement).
+
+**Prochaine etape** : si San Goku veut lever le doute sur le chiffre (10 au lieu de 19 attendu), verification live conseillee : `odoo-bin shell` -> compter les `res.partner` avec `user_ids=False` correspondant au domaine reel utilise par `search_partner_raw`, comparer au chiffre 22 de la section 527 pour confirmer si c'etait deja un sous-ensemble filtre par un `ilike` non vide plutot qu'un total brut. Sinon, chantier 526-531 considere fonctionnellement clos sur les deux points testes (selection d'outil + exclusion des comptes internes).
+
+---
+
+## Section 533 : `search_partner` -- troncature dure a 5 remplacee par un parametre `limite` (0 = tout afficher), aligne sur `get_sale_details`/`get_recent_tickets` (2026-09-04)
+
+**Origine** : San Goku confirme que le chiffre 10 (section 532) est correct ("le reste des 22 sont probablement les utilisateurs"), mais signale que le vrai probleme est la troncature d'affichage a 5 (`records[:5]` code en dur, section 527 : design assume a l'epoque, jamais reevalue depuis).
+
+**Analyse avant code** : lecture de `search_partner_raw`/`search_partner` (`erp_data/odoo_tools.py`) -- `nom: str` (puis `nom: str = ""` depuis 531) n'exposait aucun controle du nombre de resultats affiches, contrairement a `get_sale_details_raw`/`get_recent_tickets_raw` qui ont deja un `limite: int = 0` (0 = pas de plafond, tout afficher). Deux options presentees a San Goku : (A) aligner `search_partner` sur ce meme patron `limite`, (B) retirer simplement la troncature dure sans parametre. San Goku choisit A -- coherence architecturale avec les deux autres outils deja parametres de la meme facon.
+
+**Implementation** : `erp_data/odoo_tools.py` -- `search_partner_raw(nom: str = "", limite: int = 0)` et `search_partner(nom: str = "", limite: int = 0)` (wrapper `@tool`, docstring Args complete). Logique interne : `display_limit = limite if limite > 0 else total_count` (meme forme que `get_recent_tickets_raw`), `displayed = records[:display_limit]`, message de troncature affiche seulement si `total_count > display_limit`. Comportement par defaut change : un appel sans `limite` affiche desormais TOUS les clients trouves (plus de plafond implicite a 5) -- exactement le changement demande. Domaine ORM (`user_ids=False`, section 529) et toute la logique de filtrage NON touches.
+
+**Tests** : `erp_data/tests/test_bloc_b1_evidence_search_partner.py` -- l'ancien test `test_search_partner_raw_more_than_five_results_only_first_five_get_evidence` (qui verrouillait l'ancien comportement par defaut a 5) remplace par 3 nouveaux tests : `test_search_partner_raw_default_limite_zero_shows_all_no_truncation` (7 records mockes -> 7 Evidence, pas de message de troncature), `test_search_partner_raw_explicit_limite_still_truncates_with_evidence_bounded` (verrouille que `limite=5` explicite reproduit l'ancien comportement de troncature), `test_search_partner_tool_wrapper_forwards_limite` (le wrapper `@tool` transmet bien `limite` a `_raw`, pas seulement `nom`).
+
+**Verification faite ce tour** : `python3 -m py_compile` sur les deux fichiers modifies (`odoo_tools.py`, `test_bloc_b1_evidence_search_partner.py`) via sandbox Claude -- syntaxe valide sur les deux. Lecture disque post-ecriture des deux fichiers confirmant que le contenu ecrit correspond au diff attendu.
+
+**Non fait ce tour** : aucune execution reelle de `pytest erp_data/tests/test_bloc_b1_evidence_search_partner.py -v` -- pas d'acces shell sur la machine de San Goku depuis cette session filesystem-only (attendu : 13 tests, dont les 10 preexistants inchanges + les 3 nouveaux remplacant l'unique test retire, net +2 vs les 11 de la section 530). Aucune verification en conditions reelles via MIRO AI que "combien de clients a-t-on ?" affiche desormais les 10 clients sans troncature.
+
+**Fichiers modifies** : `erp_data/odoo_tools.py` (signature + docstring + logique d'affichage, 2 fonctions), `erp_data/tests/test_bloc_b1_evidence_search_partner.py` (1 test retire, 3 tests ajoutes), `todo/contexte.txt` (cette section).
+
+**Prochaine etape** : San Goku execute localement `pytest erp_data/tests/test_bloc_b1_evidence_search_partner.py -v` et colle le resultat. Si tout passe : rejouer "combien de clients a-t-on ?" via MIRO AI pour confirmer que les 10 clients s'affichent desormais sans troncature.
+
+---
+
+## Section 534 : `search_partner` -- CLOS cote tests : 15/15 tests passes (2026-09-04)
+
+**Resultat colle par San Goku** : `pytest erp_data/tests/test_bloc_b1_evidence_search_partner.py -v` -> `15 passed in 0.43s`, aucun echec, aucun skip. Les 3 nouveaux tests de la section 533 passent (`test_search_partner_raw_default_limite_zero_shows_all_no_truncation`, `test_search_partner_raw_explicit_limite_still_truncates_with_evidence_bounded`, `test_search_partner_tool_wrapper_forwards_limite`), ainsi que les 12 tests preexistants (les 10 de la section 471 + les 2 de la section 531).
+
+**Correction d'une erreur d'estimation du tour precedent** : la section 533 annoncait "attendu : 13 tests" -- calcul errone, oubliant que la section 531 avait deja porte le total de 11 (530) a 13. Le vrai calcul : 11 (530) + 2 (531) = 13, puis 533 retire 1 test et en ajoute 3 (net +2) = 15. Le resultat reel (15) est correct ; c'est l'estimation journalisee en 533 qui etait fausse. Note pour la discipline de journalisation : verifier l'arithmetique du delta de tests avant de l'annoncer, pas juste au moment de le constater.
+
+**Etat du chantier** : mandat "remplacer la troncature dure a 5 de search_partner par un parametre limite" (section 533, choix A confirme par San Goku) -- code + docstrings + tests ecrits, execution reelle confirmee sans regression.
+
+**Non fait ce tour** : aucune modification de code -- cloture par lecture du resultat colle par San Goku. La verification en conditions reelles (rejouer "combien de clients a-t-on ?" via MIRO AI en direct, confirmer que les 10 clients s'affichent sans troncature) reste a faire.
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section uniquement).
+
+**Prochaine etape** : San Goku pose la question reelle ("combien de clients a-t-on ?") via MIRO AI et colle la reponse -- confirme ou infirme que les 10 clients s'affichent desormais tous, sans le message "resultats tronques".
+
+---
+
+## Section 535 : `search_partner` -- verification reelle via MIRO AI confirme la fin de la troncature, chantier 526-533 CLOS (2026-09-04)
+
+**Origine** : San Goku rejoue "QUI sont nos clients?" via MIRO AI apres la cloture des tests (section 534).
+
+**Resultat colle** : "10 client(s) trouve(s) :" suivi des 10 noms complets (Air Madagascar, Brasseries Star, Company Alpha, Groupe Socimex, MIRO KE interne, Madagascar Tech, My Company, Shoprite Madagascar, Societe Dupont, Telma Madagascar) -- aucun message de troncature, source "Odoo ERP - Contacts (res.partner)".
+
+**Confirmation** : le correctif de la section 533 (`limite: int = 0` remplacant `records[:5]` code en dur) fonctionne en conditions reelles -- les 10 clients s'affichent desormais integralement en un seul appel, sans qu'aucun parametre `limite` explicite n'ait ete necessaire cote LLM (comportement par defaut). Chantier ouvert en section 526 (double dossier miro_ai masquant les modifs), traversant 527-533 (troncature signalee -> filtre user_ids -> bug de selection d'outil -> troncature de nouveau signalee -> parametre limite), desormais verifie de bout en bout en conditions reelles.
+
+**Observation non demandee, non traitee ce tour** : la liste affichee contient "MIRO KE interne" et "My Company" -- noms evoquant des entites internes/techniques plutot que des clients commerciaux externes (a distinguer des comptes utilisateur Administrator/Alice/Bob deja exclus en 529, qui est un probleme distinct : ceci concerne des `res.partner` eux-memes, pas des comptes lies a un `res.users`). Non souleve par San Goku, non investigue -- signale ici uniquement pour visibilite si San Goku souhaite un jour affiner le perimetre "clients commerciaux" au-dela du filtre `user_ids=False`.
+
+**Non fait ce tour** : aucune modification de code -- cloture par lecture du resultat colle par San Goku. Aucune investigation sur "MIRO KE interne"/"My Company" (observation ci-dessus, hors mandat).
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section uniquement).
+
+**Prochaine etape** : aucune en attente sur ce chantier (526-533) -- fonctionnellement clos (selection d'outil, filtre comptes internes, troncature, tous verifies en conditions reelles). San Goku peut passer au prochain chantier de la liste "sur l'horizon" (Bloc B1 ORM 13/24+, clusters de tests A/B/C, etc.) ou soulever l'observation "MIRO KE interne"/"My Company" ci-dessus s'il souhaite l'adresser.
+
+---
+
+## Section 536 : investigation + implementation -- exclusion des partenaires-societes ("Company Alpha", "My Company") de `search_partner`, apres sign-off explicite du maitre de stage pour whitelister `res.company` en lecture seule (2026-09-04)
+
+**Origine** : suite a l'observation de la section 535 ("MIRO KE interne"/"My Company" dans la liste des clients), San Goku demande d'investiguer.
+
+**Investigation (lecture de code seule avant toute verification live)** :
+- `tools/full_setup.py::setup_clients()` (Etape 3) cree explicitement "MIRO KE interne" dans le meme lot que les 7 autres vrais clients (meme `company_type='company'`, meme `company_id`) -- c'est une donnee de seed deliberee, pas un artefact technique. Son nom "interne" est un choix de contenu du jeu de test, aucun champ ne la distingue structurellement des vrais clients. Hors perimetre de toute correction technique.
+- "Company Alpha" et "My Company" n'apparaissent nulle part dans `setup_clients()`. Hypothese formulee : ce sont les `res.partner` auto-generes par Odoo pour chaque `res.company` (le "carnet d'adresses" de la societe elle-meme).
+- Blocage identifie : `res.company` n'etait pas dans `ALLOWED_MODELS` (`odoo_connector.py`) -- impossible de verifier l'hypothese par lecture de code seule.
+
+**Verification live (odoo-bin shell, faite par San Goku)** :
+```
+env['res.company'].search([]).mapped(lambda c: (c.name, c.partner_id.id, c.partner_id.name))
+-> [('Company Alpha', 7, 'Company Alpha')]
+
+env['res.partner'].search([('name','in',['Company Alpha','My Company','MIRO KE interne'])]).mapped(lambda p: (p.id, p.name, p.user_ids.ids))
+-> [(7, 'Company Alpha', []), (17, 'MIRO KE interne', []), (1, 'My Company', [])]
+```
+Confirme : "Company Alpha" (id 7) EST exactement `res.company('Company Alpha').partner_id` -- la seule societe existante dans cette instance (single-company, cf. docstring `full_setup.py`). "My Company" (id 1) est un partenaire-societe **orphelin** -- aucune `res.company` actuelle ne pointe vers lui (tres probablement la societe de demo par defaut d'Odoo, renommee/supprimee sans nettoyage de son partner). Les deux ont `user_ids=[]`, donc le filtre existant (section 529) ne les attrapait pas.
+
+**Decision et sign-off** : San Goku confirme explicitement ("CONFIRME") avoir l'autorite du maitre de stage pour elargir `ALLOWED_MODELS` -- changement explicitement identifie comme relevant de cette autorite dans le projet (elargit ce que l'IA peut interroger). Option A retenue (whitelist `res.company` + exclusion dynamique) plutot qu'une liste noire de noms codee en dur (fragile) ou l'inaction.
+
+**Implementation** :
+- `erp_data/odoo_connector.py` -- `res.company` ajoute a `ALLOWED_MODELS`, commente explicitement comme lecture seule, sign-off maitre de stage cite, perimetre limite (jamais expose comme outil interrogeable directement -- seul `search_partner_raw` l'utilise).
+- `erp_data/odoo_tools.py::search_partner_raw` -- avant de construire le domaine `res.partner`, une lecture `search_read(model="res.company", fields=["partner_id"])` recupere tous les `partner_id` jamais references par une societe (active ou orpheline -- le meme mecanisme couvre "My Company" sans cas special). Domaine etendu avec `("id", "not in", company_partner_ids)` uniquement si la liste est non vide (jamais de clause `not in []` fabriquee). Docstring de la fonction mise a jour, citant explicitement le statut "hors perimetre" de "MIRO KE interne" (verifie ne pas etre un partenaire-societe).
+
+**Tests** : `erp_data/tests/test_bloc_b1_evidence_search_partner.py` -- le test de comptage d'appels (`test_search_partner_raw_empty_nom_defaults_and_lists_all_clients`) corrige de `call_count == 2` a `call_count == 4` (2 invocations x 2 appels desormais par invocation). Deux nouveaux tests ajoutes : `test_search_partner_raw_excludes_self_company_partners_from_domain` (verrouille que les `partner_id` de `res.company` atteignent bien le domaine `res.partner` via un `side_effect` distinguant les deux modeles appeles) et `test_search_partner_raw_no_company_exclusion_clause_when_no_companies` (aucune clause `not in` fabriquee quand `res.company` ne retourne rien). Total : 17 tests dans ce fichier (15 de la section 534 + 2 nouveaux). Verifie que `test_odoo_tools.py` (tests d'integration existants) n'est pas affecte -- ne teste jamais la composition exacte de `ALLOWED_MODELS`, seulement que `res.users` reste bloque.
+
+**Verification faite ce tour** : `python3 -m py_compile` sur les 3 fichiers modifies (`odoo_connector.py`, `odoo_tools.py`, `test_bloc_b1_evidence_search_partner.py`) via sandbox Claude -- syntaxe valide sur les trois. Lecture disque post-ecriture des trois fichiers confirmant que le contenu ecrit correspond au diff attendu.
+
+**Non fait ce tour** : aucune execution reelle de `pytest erp_data/tests/test_bloc_b1_evidence_search_partner.py -v` -- pas d'acces shell sur la machine de San Goku depuis cette session filesystem-only (attendu : 17/17). Aucune verification en conditions reelles via MIRO AI que "Company Alpha"/"My Company" ont disparu de la liste (le total devrait passer de 10 a 8 -- les 8 vrais clients de `setup_clients()`, y compris "MIRO KE interne" toujours present puisque non touche par ce fix).
+
+**Fichiers modifies** : `erp_data/odoo_connector.py` (ALLOWED_MODELS), `erp_data/odoo_tools.py` (search_partner_raw : requete res.company + exclusion domaine + docstring), `erp_data/tests/test_bloc_b1_evidence_search_partner.py` (1 test corrige, 2 tests ajoutes), `todo/contexte.txt` (cette section).
+
+**Prochaine etape** : San Goku execute localement `pytest erp_data/tests/test_bloc_b1_evidence_search_partner.py -v` et colle le resultat (attendu : 17/17). Si tout passe : rejouer "qui sont nos clients ?" via MIRO AI pour confirmer que "Company Alpha" et "My Company" ont disparu (total attendu : 8, incluant toujours "MIRO KE interne" -- volontairement non touche par ce fix).
+
+---
+
+## Section 537 : `search_partner` -- CLOS cote tests : 17/17 tests passes, exclusion res.company (2026-09-04)
+
+**Resultat colle par San Goku** : `pytest erp_data/tests/test_bloc_b1_evidence_search_partner.py -v` -> `17 passed in 0.33s`, aucun echec, aucun skip. Les 15 tests preexistants (section 534) restent verts, et les 2 nouveaux de la section 536 passent (`test_search_partner_raw_excludes_self_company_partners_from_domain`, `test_search_partner_raw_no_company_exclusion_clause_when_no_companies`).
+
+**Etat du chantier** : mandat "exclure les partenaires-societes (Company Alpha/My Company) de search_partner, via whitelist res.company sur sign-off maitre de stage" (section 536) -- code + docstrings + tests ecrits, execution reelle confirmee sans regression. Rien de connu ne reste ouvert sur le code lui-meme.
+
+**Non fait ce tour** : aucune modification de code -- cloture par lecture du resultat colle par San Goku. La verification en conditions reelles via MIRO AI ("qui sont nos clients ?", total attendu : 8, incluant toujours "MIRO KE interne") reste a faire -- seule preuve qui confirmerait que "Company Alpha"/"My Company" disparaissent effectivement en conditions reelles.
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section uniquement).
+
+**Prochaine etape** : San Goku pose la question reelle ("qui sont nos clients ?") via MIRO AI et colle la reponse -- confirme ou infirme que "Company Alpha" et "My Company" ont disparu et que le total est passe de 10 a 8.
+
+---
+
+## Section 538 : `search_partner` -- "My Company" (societe archivee) echappait a l'exclusion res.company, `active_test=False` ajoute sur la lecture res.company (2026-09-04)
+
+**Origine** : San Goku rejoue "qui sont nos clients ?" apres la cloture de la section 537 -- MIRO AI retourne 9 clients (pas 8 attendus). "Company Alpha" a bien disparu, mais "My Company" est toujours present.
+
+**Root cause (verifiee live, pas supposee)** : `odoo-bin shell` --
+```
+env['res.company'].with_context(active_test=False).search([]).mapped(lambda c: (c.name, c.active, c.partner_id.id))
+-> [('Company Alpha', True, 7), ('My Company', False, 1)]
+```
+"My Company" EST une `res.company` reelle (pas un partenaire orphelin comme suppose en section 536) -- simplement `active=False`. `connector.search_read(model="res.company", domain=[])` applique le comportement par defaut d'Odoo (`active_test=True` implicite), donc ne voit jamais les societes archivees -- `company_partner_ids` ne contenait donc jamais le partner_id de "My Company", d'ou son maintien dans les resultats malgre le mecanisme cense l'exclure. Le docstring de section 536 ("any partner ID ever referenced by any res.company, past or present configuration") etait donc inexact tel qu'implemente -- ecart jamais verifie en conditions reelles avant ce tour (exactement le type d'ecart que la discipline de confirmation empirique du projet est censee attraper).
+
+**Decision** : pas de nouveau modele a whitelister, pas de liste noire de noms (explicitement ecartee en 536) -- fix a la racine du mecanisme existant. `context={"active_test": False}` ajoute a l'appel `connector.search_read(model="res.company", ...)` -- Odoo expose `context` comme kwarg special sur tout appel RPC (`odoo/api.py::call_kw` l'extrait de kwargs et applique `with_context` avant execution), et `OdooConnector.search_read` le transmet deja tel quel via `**extra_kwargs` -- aucun changement necessaire cote `odoo_connector.py`. Coherent avec le sign-off deja donne en section 536 (meme modele, meme but) : correction du mecanisme pour qu'il fasse reellement ce que son docstring pretendait deja faire, pas un elargissement de perimetre supplementaire.
+
+**Implementation prevue** : `erp_data/odoo_tools.py::search_partner_raw` -- ajout de `context={"active_test": False}` a l'appel `connector.search_read(model="res.company", ...)`. Docstring mis a jour pour refleter honnetement le mecanisme reel (societes archivees explicitement couvertes via ce context, pas seulement "toute configuration passee ou presente" en l'air). Nouveau test dans `erp_data/tests/test_bloc_b1_evidence_search_partner.py` verrouillant que l'appel `res.company` porte bien `context={"active_test": False}`.
+
+**Non fait ce tour (a ce point du journal)** : code pas encore ecrit -- section journalisee avant modification, discipline "journal avant code" du projet.
+
+---
+
+## Section 539 : `search_partner` -- CLOS cote tests : 18/18 tests passes, fix `active_test=False` (2026-09-04)
+
+**Resultat colle par San Goku** : `pytest erp_data/tests/test_bloc_b1_evidence_search_partner.py -v` -> `18 passed in 0.34s`, aucun echec, aucun skip. Les 17 tests preexistants (section 537) restent verts, et le nouveau `test_search_partner_raw_company_read_uses_active_test_false_context` (section 538) passe -- confirme que l'appel `res.company` porte bien `context={"active_test": False}`.
+
+**Etat du chantier** : mandat "corriger l'exclusion res.company pour couvrir les societes archivees (My Company)" (section 538) -- code + docstring + test ecrits, execution reelle confirmee sans regression. Rien de connu ne reste ouvert sur le code lui-meme.
+
+**Non fait ce tour** : aucune modification de code -- cloture par lecture du resultat colle par San Goku. La verification en conditions reelles via MIRO AI ("qui sont nos clients ?", total attendu desormais : 8) reste a faire -- seule preuve qui confirmerait que "My Company" disparait effectivement en conditions reelles, le total 9 constate en section 538 etant l'ecart qui a motive ce fix.
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section uniquement).
+
+**Prochaine etape** : San Goku pose la question reelle ("qui sont nos clients ?") via MIRO AI et colle la reponse -- confirme ou infirme que "My Company" a disparu et que le total est passe de 9 a 8. Si confirme : chantier 526-538 (selection d'outil, filtre comptes internes, troncature, exclusion res.company y compris archivees) considere fonctionnellement clos de bout en bout.
+
+---
+
+## Section 540 : `search_partner` -- verification reelle via MIRO AI confirme la disparition de "My Company", chantier 526-538 CLOS de bout en bout (2026-09-04)
+
+**Origine** : San Goku rejoue "qui sont nos clients ?" via MIRO AI apres la cloture des tests (section 539).
+
+**Resultat colle** : "8 client(s) trouve(s) :" -- Air Madagascar, Brasseries Star, Groupe Socimex, MIRO KE interne, Madagascar Tech, Shoprite Madagascar, Societe Dupont, Telma Madagascar. Ni "Company Alpha" ni "My Company" n'apparaissent. Aucun message de troncature. Source "Odoo ERP - Contacts (res.partner)".
+
+**Confirmation** : le total est exactement 8, comme attendu depuis la section 536 (les 7 vrais clients de `setup_clients()` + "MIRO KE interne", volontairement non touche). Le fix `active_test=False` (section 538) fonctionne en conditions reelles -- "My Company" (societe archivee, id 1) est desormais bien exclu, aux cotes de "Company Alpha" (societe active, id 7, deja confirme en section 532). Chantier ouvert en section 526 (double dossier miro_ai), traversant 527-539 (troncature -> filtre user_ids -> bug de selection d'outil -> troncature de nouveau -> parametre limite -> exclusion res.company -> societe archivee non couverte -> active_test=False), desormais verifie de bout en bout en conditions reelles sur tous les points souleves.
+
+**Non fait ce tour** : aucune modification de code -- cloture par lecture du resultat colle par San Goku.
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section uniquement).
+
+**Prochaine etape** : aucune en attente sur ce chantier (526-539) -- fonctionnellement clos (selection d'outil, filtre comptes internes, troncature, exclusion res.company active et archivee, tous verifies en conditions reelles). San Goku peut passer au prochain chantier de la liste "sur l'horizon" (Bloc B1 ORM 13/24+, etc.).

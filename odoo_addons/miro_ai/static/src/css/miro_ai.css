@@ -66,10 +66,10 @@
 
 .user-message {
     align-self: flex-end;
-    background-color: #008784;
+    background-color: var(--miro-brand-color, #008784);
     color: #ffffff;
     border-bottom-right-radius: 2px;
-    box-shadow: 0 2px 4px rgba(0, 135, 132, 0.2);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
 }
 
 .user-message .message-sender {
@@ -101,10 +101,23 @@
     border: 1px solid #e2e8f0;
 }
 
+.miro-ai-input-area .btn-primary,
+.miro-drawer-input .btn-primary {
+    background-color: var(--miro-brand-color, #008784);
+    border-color: var(--miro-brand-color, #008784);
+}
+
 .loading-indicator {
     font-style: italic;
     color: #64748b;
     background-color: #f1f5f9;
+}
+
+.cancelled-message {
+    font-style: italic;
+    color: #64748b;
+    background-color: #f1f5f9;
+    border-style: dashed;
 }
 
 /* ── Badges de Routage & Confiance ── */

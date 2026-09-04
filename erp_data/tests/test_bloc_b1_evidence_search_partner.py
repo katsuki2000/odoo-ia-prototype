@@ -103,10 +103,144 @@ def test_search_partner_raw_empty_result_produces_single_negative_evidence():
     assert evidence.claim == "No res.partner matches name=Personne"
 
 
-def test_search_partner_raw_more_than_five_results_only_first_five_get_evidence():
-    """Pre-existing display truncation to 5 results is unchanged -- the
-    Evidence list must never cover a partner beyond that truncation, since
-    text never asserts anything about the ignored matches."""
+def test_search_partner_raw_domain_excludes_internal_user_accounts():
+    """todo/contexte.txt section 528/529: res.partner mixes commercial
+    contacts with internal/portal login accounts. Verified live that
+    customer_rank is not a reliable discriminator on this instance's data
+    (false positive on an internal account, false negatives on real
+    clients) -- user_ids=False is. Domain must always carry this filter
+    alongside the name search."""
+    with patch("erp_data.odoo_tools.connector.search_read") as mock_search_read:
+        mock_search_read.return_value = []
+        token = odoo_uid_ctx.set(1)
+        try:
+            search_partner_raw("Air")
+        finally:
+            odoo_uid_ctx.reset(token)
+
+    called_domain = mock_search_read.call_args.kwargs["domain"]
+    assert ("user_ids", "=", False) in called_domain
+
+
+def test_search_partner_raw_empty_nom_defaults_and_lists_all_clients():
+    """todo/contexte.txt section 531: 'combien de clients a-t-on ?' routed
+    to get_sale_details instead of search_partner because nom had no
+    default -- nothing told the LLM that an empty nom means 'all clients'.
+    Fix is signature/docstring only (nom: str = ""); domain/presentation
+    unchanged (San Goku, section 531: keep the validated user_ids filter
+    exactly as-is). This test locks that nom='' still reaches
+    connector.search_read with the same ilike+user_ids domain shape, called
+    both explicitly and via the new default."""
+    with patch("erp_data.odoo_tools.connector.search_read") as mock_search_read:
+        mock_search_read.return_value = []
+        token = odoo_uid_ctx.set(1)
+        try:
+            search_partner_raw()
+            explicit_domain = None
+            search_partner_raw("")
+            explicit_domain = mock_search_read.call_args.kwargs["domain"]
+        finally:
+            odoo_uid_ctx.reset(token)
+
+    assert ("name", "ilike", "") in explicit_domain
+    assert ("user_ids", "=", False) in explicit_domain
+    assert mock_search_read.call_count == 4  # 2 invocations x (res.company + res.partner) since section 536
+
+
+def test_search_partner_raw_excludes_self_company_partners_from_domain():
+    """todo/contexte.txt section 535/536: search_partner_raw first reads
+    res.company (whitelisted with explicit maitre de stage sign-off, see
+    odoo_connector.ALLOWED_MODELS) to collect every partner_id ever
+    referenced by a company, and excludes those from the res.partner
+    search domain. Verified live (536) that self-company partners (e.g.
+    'Company Alpha', id 7) pass the pre-existing user_ids=False filter
+    just like a real client would, since they carry no user_ids either.
+    This test locks that the res.company partner_ids actually reach the
+    res.partner domain as an ('id', 'not in', [...]) clause."""
+    def fake_search_read(uid, model, domain, fields, **kwargs):
+        if model == "res.company":
+            return [
+                {"partner_id": [7, "Company Alpha"]},
+                {"partner_id": [1, "My Company"]},
+            ]
+        return []
+
+    with patch("erp_data.odoo_tools.connector.search_read", side_effect=fake_search_read) as mock_search_read:
+        token = odoo_uid_ctx.set(1)
+        try:
+            search_partner_raw("")
+        finally:
+            odoo_uid_ctx.reset(token)
+
+    partner_calls = [c for c in mock_search_read.call_args_list if c.kwargs.get("model") == "res.partner"]
+    assert len(partner_calls) == 1
+    called_domain = partner_calls[0].kwargs["domain"]
+    assert ("id", "not in", [7, 1]) in called_domain
+    assert ("user_ids", "=", False) in called_domain
+
+
+def test_search_partner_raw_company_read_uses_active_test_false_context():
+    """todo/contexte.txt section 538: verified live (odoo-bin shell) that
+    'My Company' is a real but archived (active=False) res.company, not an
+    orphaned partner as first assumed in section 536. Odoo's default
+    active_test=True would silently omit it from the res.company read,
+    letting its partner slip back into search_partner's results despite
+    the exclusion mechanism. This locks that the res.company call always
+    carries context={'active_test': False} so archived companies are seen
+    too."""
+    with patch("erp_data.odoo_tools.connector.search_read") as mock_search_read:
+        mock_search_read.return_value = []
+        token = odoo_uid_ctx.set(1)
+        try:
+            search_partner_raw("")
+        finally:
+            odoo_uid_ctx.reset(token)
+
+    company_calls = [c for c in mock_search_read.call_args_list if c.kwargs.get("model") == "res.company"]
+    assert len(company_calls) == 1
+    assert company_calls[0].kwargs.get("context") == {"active_test": False}
+
+
+def test_search_partner_raw_no_company_exclusion_clause_when_no_companies():
+    """When res.company returns nothing (or entries with no partner_id),
+    no fabricated ('id', 'not in', []) clause should ever be appended --
+    an empty exclusion list is a no-op, not a real filter."""
+    with patch("erp_data.odoo_tools.connector.search_read") as mock_search_read:
+        mock_search_read.return_value = []
+        token = odoo_uid_ctx.set(1)
+        try:
+            search_partner_raw("")
+        finally:
+            odoo_uid_ctx.reset(token)
+
+    called_domain = mock_search_read.call_args.kwargs["domain"]
+    assert not any(clause[0] == "id" and clause[1] == "not in" for clause in called_domain)
+
+
+def test_search_partner_tool_wrapper_callable_without_args():
+    """The @tool wrapper must also accept no args (LangChain sees nom as
+    optional now) -- mirrors the other client-scoped tools' 'client: str =
+    \"\"' convention (get_total_sales, get_sale_details, etc.)."""
+    with patch("erp_data.odoo_tools.connector.search_read") as mock_search_read:
+        mock_search_read.return_value = [
+            {"name": "Air Madagascar", "email": "e", "phone": "p", "city": "c"}
+        ]
+        token = odoo_uid_ctx.set(1)
+        try:
+            result = search_partner.invoke({})
+        finally:
+            odoo_uid_ctx.reset(token)
+
+    assert isinstance(result, str)
+    assert "Air Madagascar" in result
+
+
+def test_search_partner_raw_default_limite_zero_shows_all_no_truncation():
+    """todo/contexte.txt section 533: hardcoded records[:5] replaced by a
+    limite param (0 = no cap), same convention as get_sale_details_raw/
+    get_recent_tickets_raw. Default call (no limite passed) must now show
+    every matching partner, with one Evidence per displayed partner and no
+    truncation message."""
     with patch("erp_data.odoo_tools.connector.search_read") as mock_search_read:
         mock_search_read.return_value = [
             {"name": f"Client{i}", "email": "e", "phone": "p", "city": "c"}
@@ -118,10 +252,49 @@ def test_search_partner_raw_more_than_five_results_only_first_five_get_evidence(
         finally:
             odoo_uid_ctx.reset(token)
 
+    assert len(evidence_list) == 7
+    assert "précisez la recherche" not in text
+    assert any(e.claim == "Contact details for partner=Client6" for e in evidence_list)
+
+
+def test_search_partner_raw_explicit_limite_still_truncates_with_evidence_bounded():
+    """A positive limite still caps display and Evidence together, same
+    discipline as before section 533 (just now opt-in via the param
+    instead of a hardcoded 5)."""
+    with patch("erp_data.odoo_tools.connector.search_read") as mock_search_read:
+        mock_search_read.return_value = [
+            {"name": f"Client{i}", "email": "e", "phone": "p", "city": "c"}
+            for i in range(7)
+        ]
+        token = odoo_uid_ctx.set(1)
+        try:
+            text, evidence_list = search_partner_raw("Client", limite=5)
+        finally:
+            odoo_uid_ctx.reset(token)
+
     assert len(evidence_list) == 5
     assert "précisez la recherche" in text
     assert all(e.claim != "Contact details for partner=Client5" for e in evidence_list)
     assert all(e.claim != "Contact details for partner=Client6" for e in evidence_list)
+
+
+def test_search_partner_tool_wrapper_forwards_limite():
+    """The @tool wrapper must forward limite to search_partner_raw, not
+    just nom."""
+    with patch("erp_data.odoo_tools.connector.search_read") as mock_search_read:
+        mock_search_read.return_value = [
+            {"name": f"Client{i}", "email": "e", "phone": "p", "city": "c"}
+            for i in range(7)
+        ]
+        token = odoo_uid_ctx.set(1)
+        try:
+            result = search_partner.invoke({"nom": "Client", "limite": 3})
+        finally:
+            odoo_uid_ctx.reset(token)
+
+    assert "3 client" not in result  # sanity: total_count (7) must not be conflated with limite (3)
+    assert "7 client(s) trouvé(s)" in result
+    assert "précisez la recherche" in result
 
 
 def test_search_partner_raw_no_confidence_set():

@@ -19,6 +19,10 @@ ALLOWED_MODELS = {
     "res.partner",
     "product.product",
     "ir.module.module",
+    "res.company",  # todo/contexte.txt section 536: read-only, whitelisted with
+    # explicit maitre de stage sign-off, solely to let search_partner_raw
+    # exclude self-company res.partner records (e.g. "Company Alpha") from
+    # client search results -- never exposed as a directly queryable tool.
 }
 
 class OdooConnectorError(Exception):

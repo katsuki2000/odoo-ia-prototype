@@ -4,9 +4,21 @@ import { registry } from "@web/core/registry";
 import { Component, useState, useRef, onPatched, onMounted } from "@odoo/owl";
 import { markup } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
+import { ConnectionAbortedError } from "@web/core/network/rpc_service";
 
 const ASSISTANT_INITIAL_CONTENT = "Bonjour ! Je suis MIRO AI, votre assistant Code Intelligence, ERP et documentaire sur Odoo 17. Comment puis-je vous aider aujourd'hui ?";
 const SYSTRAY_INITIAL_CONTENT = "Bonjour ! Posez votre question ou interrogez-moi sur le document actif.";
+const CANCELLED_CONTENT = "Question annulée.";
+
+/**
+ * True when an rpc() promise was interrupted by promise.abort() (cf.
+ * cancelRequest() in both chat components) rather than by a real network
+ * or server failure -- lets sendMessage() skip the generic error bubble
+ * and notification for a cancellation the user asked for themselves.
+ */
+function isRequestCancelled(error) {
+    return error instanceof ConnectionAbortedError;
+}
 
 /**
  * Shared Markdown Formatter for MIRO AI responses.
@@ -95,6 +107,7 @@ function createMessage(id, sender, content, extra = {}) {
         evidence_status: null,
         omitted_for_authorization: [],
         investigation_plan: null,
+        cancelled: false,
     }, extra);
 }
 
@@ -135,6 +148,27 @@ function formatSessionDate(isoString) {
     }
 }
 
+/**
+ * Reads the Odoo backend header's actual rendered background color
+ * (whatever it resolves to: default brand purple, a custom per-company
+ * theme color, a future theme module override, etc.) and exposes it as
+ * a CSS custom property on the document root, so MIRO AI's send button
+ * and user-message bubbles can match it via var(--miro-brand-color, ...)
+ * instead of a color hardcoded here that would drift from the real theme.
+ * Read once at mount time (cf. onMounted in both chat components) --
+ * does not track live theme/company changes mid-session.
+ */
+function applyBrandColorFromHeader() {
+    const navbar = document.querySelector(".o_main_navbar");
+    if (!navbar) {
+        return;
+    }
+    const bg = window.getComputedStyle(navbar).backgroundColor;
+    if (bg) {
+        document.documentElement.style.setProperty("--miro-brand-color", bg);
+    }
+}
+
 
 /**
  * Fullscreen Client Action Assistant Component.
@@ -147,6 +181,7 @@ export class MiroAiAssistant extends Component {
         this.notification = useService("notification");
         this.actionService = useService("action");
         this.messagesContainer = useRef("messagesContainer");
+        this.pendingRequest = null;
 
         this.state = useState({
             messages: [createMessage(1, "bot", ASSISTANT_INITIAL_CONTENT)],
@@ -164,6 +199,8 @@ export class MiroAiAssistant extends Component {
                 this.messagesContainer.el.scrollTop = this.messagesContainer.el.scrollHeight;
             }
         });
+
+        onMounted(() => applyBrandColorFromHeader());
     }
 
     formatSessionDate(isoString) {
@@ -251,6 +288,18 @@ export class MiroAiAssistant extends Component {
         return Math.round(confidence * 100);
     }
 
+    /**
+     * Aborts the in-flight /miro_ai/ask request (cf. rpc_service.js
+     * promise.abort()). Only unblocks the UI client-side -- the Odoo
+     * worker's blocking call to the FastAPI RAG backend keeps running
+     * server-side until it returns, this is not a true kill-switch.
+     */
+    cancelRequest() {
+        if (this.pendingRequest && typeof this.pendingRequest.abort === "function") {
+            this.pendingRequest.abort();
+        }
+    }
+
     async sendMessage() {
         const question = this.state.inputQuestion.trim();
         if (!question || this.state.loading) {
@@ -261,11 +310,14 @@ export class MiroAiAssistant extends Component {
         this.state.inputQuestion = "";
         this.state.loading = true;
 
+        const rpcPromise = this.rpc("/miro_ai/ask", {
+            question: question,
+            session_id: this.state.sessionId,
+        });
+        this.pendingRequest = rpcPromise;
+
         try {
-            const response = await this.rpc("/miro_ai/ask", {
-                question: question,
-                session_id: this.state.sessionId,
-            });
+            const response = await rpcPromise;
 
             if (response && response.answer) {
                 this.state.messages.push(createMessage(this.state.nextMsgId++, "bot", response.answer, {
@@ -283,14 +335,21 @@ export class MiroAiAssistant extends Component {
                 throw new Error("Réponse vide de l'assistant.");
             }
         } catch (error) {
-            console.error("Erreur MIRO AI:", error);
-            const errMsg = "Désolé, une erreur est survenue lors de la communication avec l'assistant MIRO AI. Veuillez vérifier la connexion ou consulter le journal d'erreurs.";
-            this.state.messages.push(createMessage(this.state.nextMsgId++, "bot", errMsg, {
-                confidence: 0.0,
-                evidence_status: "ERROR",
-            }));
-            this.notification.add("Erreur de connexion à l'assistant MIRO AI.", { type: "danger" });
+            if (isRequestCancelled(error)) {
+                this.state.messages.push(createMessage(this.state.nextMsgId++, "bot", CANCELLED_CONTENT, {
+                    cancelled: true,
+                }));
+            } else {
+                console.error("Erreur MIRO AI:", error);
+                const errMsg = "Désolé, une erreur est survenue lors de la communication avec l'assistant MIRO AI. Veuillez vérifier la connexion ou consulter le journal d'erreurs.";
+                this.state.messages.push(createMessage(this.state.nextMsgId++, "bot", errMsg, {
+                    confidence: 0.0,
+                    evidence_status: "ERROR",
+                }));
+                this.notification.add("Erreur de connexion à l'assistant MIRO AI.", { type: "danger" });
+            }
         } finally {
+            this.pendingRequest = null;
             this.state.loading = false;
         }
     }
@@ -310,6 +369,7 @@ export class MiroAiSystray extends Component {
         this.rpc = useService("rpc");
         this.notification = useService("notification");
         this.actionService = useService("action");
+        this.pendingRequest = null;
 
         this.state = useState({
             isOpen: false,
@@ -331,6 +391,8 @@ export class MiroAiSystray extends Component {
                 this.drawerMessages.el.scrollTop = this.drawerMessages.el.scrollHeight;
             }
         });
+
+        onMounted(() => applyBrandColorFromHeader());
     }
 
     formatSessionDate(isoString) {
@@ -448,6 +510,18 @@ export class MiroAiSystray extends Component {
         return Math.round(confidence * 100);
     }
 
+    /**
+     * Aborts the in-flight /miro_ai/ask request (cf. rpc_service.js
+     * promise.abort()). Only unblocks the UI client-side -- the Odoo
+     * worker's blocking call to the FastAPI RAG backend keeps running
+     * server-side until it returns, this is not a true kill-switch.
+     */
+    cancelRequest() {
+        if (this.pendingRequest && typeof this.pendingRequest.abort === "function") {
+            this.pendingRequest.abort();
+        }
+    }
+
     async sendMessage() {
         let question = this.state.inputQuestion.trim();
         if (!question || this.state.loading) {
@@ -468,11 +542,14 @@ export class MiroAiSystray extends Component {
         this.state.inputQuestion = "";
         this.state.loading = true;
 
+        const rpcPromise = this.rpc("/miro_ai/ask", {
+            question: question,
+            session_id: this.state.sessionId,
+        });
+        this.pendingRequest = rpcPromise;
+
         try {
-            const response = await this.rpc("/miro_ai/ask", {
-                question: question,
-                session_id: this.state.sessionId,
-            });
+            const response = await rpcPromise;
 
             if (response && response.answer) {
                 this.state.messages.push(createMessage(this.state.nextMsgId++, "bot", response.answer, {
@@ -490,14 +567,21 @@ export class MiroAiSystray extends Component {
                 throw new Error("Réponse vide de l'assistant.");
             }
         } catch (error) {
-            console.error("Erreur MIRO AI Systray:", error);
-            const errMsg = "Erreur de communication avec l'assistant MIRO AI.";
-            this.state.messages.push(createMessage(this.state.nextMsgId++, "bot", errMsg, {
-                confidence: 0.0,
-                evidence_status: "ERROR",
-            }));
-            this.notification.add("Erreur de connexion MIRO AI.", { type: "danger" });
+            if (isRequestCancelled(error)) {
+                this.state.messages.push(createMessage(this.state.nextMsgId++, "bot", CANCELLED_CONTENT, {
+                    cancelled: true,
+                }));
+            } else {
+                console.error("Erreur MIRO AI Systray:", error);
+                const errMsg = "Erreur de communication avec l'assistant MIRO AI.";
+                this.state.messages.push(createMessage(this.state.nextMsgId++, "bot", errMsg, {
+                    confidence: 0.0,
+                    evidence_status: "ERROR",
+                }));
+                this.notification.add("Erreur de connexion MIRO AI.", { type: "danger" });
+            }
         } finally {
+            this.pendingRequest = null;
             this.state.loading = false;
         }
     }
