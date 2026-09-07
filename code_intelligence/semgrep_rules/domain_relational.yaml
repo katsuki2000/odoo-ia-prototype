@@ -10,3 +10,22 @@ rules:
     severity: INFO
     languages:
       - python
+
+  - id: odoo-relational-ondelete-declaration
+    patterns:
+      - pattern-either:
+          - pattern: "$FIELD = fields.Many2one(..., ondelete=$ONDELETE, ...)"
+          - pattern: "$FIELD = fields.Many2many(..., ondelete=$ONDELETE, ...)"
+    message: "Odoo relational field '$FIELD' specifies an ondelete integrity constraint: $ONDELETE"
+    severity: INFO
+    languages:
+      - python
+
+  - id: odoo-selection-constraint-declaration
+    patterns:
+      - pattern: "$FIELD = fields.Selection($SELECTION, ..., required=True, ...)"
+    message: "Odoo Selection field '$FIELD' defines restricted value choices: $SELECTION (required=True)"
+    severity: INFO
+    languages:
+      - python
+

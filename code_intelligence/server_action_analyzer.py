@@ -25,6 +25,11 @@ _logger = logging.getLogger(__name__)
 class ServerActionCodeAnalysis:
     """Result of analyzing an ir.actions.server code field."""
     action_xml_id: str
+    action_type: str = "server_action"
+    action_name: str = ""
+    user_id: str = ""
+    interval_number: int = 1
+    interval_type: str = ""
     has_sudo: bool = False
     has_hardcoded_ids: bool = False
     hardcoded_id_lists: List[List[int]] = field(default_factory=list)
@@ -236,18 +241,35 @@ def _build_server_action_evidence(
 def analyze_server_action_code(
     code: str,
     action_xml_id: str,
+    action_type: str = "server_action",
+    action_name: str = "",
+    user_id: str = "",
+    interval_number: int = 1,
+    interval_type: str = "",
 ) -> ServerActionCodeAnalysis:
     """
-    Analyze an ir.actions.server code field for security-relevant patterns.
+    Analyze an ir.actions.server or ir.cron code field for security-relevant patterns.
 
     Returns a ServerActionCodeAnalysis with detected patterns, warnings,
     and a human-readable summary. Confidence is always 'low' because
     server action code is data-driven and can be modified at runtime.
     """
-    result = ServerActionCodeAnalysis(action_xml_id=action_xml_id)
+    result = ServerActionCodeAnalysis(
+        action_xml_id=action_xml_id,
+        action_type=action_type,
+        action_name=action_name,
+        user_id=user_id,
+        interval_number=interval_number,
+        interval_type=interval_type,
+    )
 
     if not code or not code.strip():
-        result.summary_text = f"Action '{action_xml_id}': No code to analyze."
+        if action_type == "cron":
+            interval_str = f", intervalle: {interval_number} {interval_type}" if interval_type else ""
+            user_str = f", utilisateur: {user_id}" if user_id else ""
+            result.summary_text = f"Action planifiée (ir.cron) '{action_xml_id}'{interval_str}{user_str}: Aucun code à analyser."
+        else:
+            result.summary_text = f"Action '{action_xml_id}': No code to analyze."
         result.evidence = _build_server_action_evidence(
             action_xml_id,
             has_sudo=False,
@@ -340,11 +362,27 @@ def analyze_server_action_code(
     # synthesis LLM to cite with an 'xml_id: ...' prefix -- emit that ground
     # truth token so sourcing_guard.py can actually verify it.
     _action_citation = format_xml_id_citation(action_xml_id)
-    lines = [
-        f"Analyse du code de l'action serveur '{action_xml_id}' "
-        f"({_action_citation}) "
-        f"[Confiance: FAIBLE - logique en données XML, modifiable à l'exécution]:"
-    ]
+    if action_type == "cron":
+        name_info = f" '{action_name}'" if action_name else ""
+        lines = [
+            f"Action planifiée (ir.cron){name_info} '{action_xml_id}' "
+            f"({_action_citation}) "
+            f"[Confiance: FAIBLE - logique en données XML, modifiable à l'exécution]:",
+            f"  - Type: Action récurrente planifiée (ir.cron)",
+        ]
+        if interval_type:
+            lines.append(f"  - Périodicité / Intervalle: toutes les {interval_number} {interval_type}")
+        if user_id:
+            user_desc = " (droits superutilisateur/root)" if user_id in ("base.user_root", "user_root") else ""
+            lines.append(f"  - Utilisateur d'exécution (droits): {user_id}{user_desc}")
+        if code and code.strip():
+            lines.append(f"  - Code Python exécuté: {code.strip()}")
+    else:
+        lines = [
+            f"Analyse du code de l'action serveur '{action_xml_id}' "
+            f"({_action_citation}) "
+            f"[Confiance: FAIBLE - logique en données XML, modifiable à l'exécution]:"
+        ]
 
     if result.has_sudo:
         lines.append(f"  - {SENSITIVE_BYPASS_MARKER} SUDO détecté: Contournement des droits d'accès via sudo()")
@@ -355,7 +393,7 @@ def analyze_server_action_code(
 
     if result.trigger_conditions:
         lines.append(
-            f"  - ⚡ Condition(s) de déclenchement: "
+            f"  - Condition(s) de déclenchement: "
             + "; ".join(result.trigger_conditions)
         )
 
@@ -374,7 +412,7 @@ def analyze_server_action_code(
             f"→ comportement non classifiable statiquement"
         )
 
-    if not result.security_warnings:
+    if not result.security_warnings and action_type != "cron":
         lines.append("  - Aucun pattern de sécurité détecté dans le code.")
 
     result.evidence = _build_server_action_evidence(

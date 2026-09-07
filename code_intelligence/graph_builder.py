@@ -121,6 +121,7 @@ class OdooGraphBuilder:
         self._add_model_field_method_nodes()
         self._add_security_group_nodes()
         self._add_workflow_nodes_and_edges()
+        self._add_view_button_nodes_and_edges()
         self._add_menu_nodes()
 
         return self.G
@@ -324,6 +325,7 @@ class OdooGraphBuilder:
                         is_instance_method=m.is_instance_method,
                         filepath=d.filepath,
                         lineno=m.lineno,
+                        end_lineno=getattr(m, "end_lineno", None) or (m.lineno + 30),
                         override_sites=existing_sites,
                         behavioral_tags=method_behavioral_tags,
                         technical_tags=method_technical_tags,
@@ -448,6 +450,10 @@ class OdooGraphBuilder:
                 model_id=sa.model_id,
                 state=sa.state,
                 code=sa.code,
+                action_type=getattr(sa, "action_type", "server_action"),
+                user_id=getattr(sa, "user_id", ""),
+                interval_number=getattr(sa, "interval_number", 1),
+                interval_type=getattr(sa, "interval_type", ""),
                 # Bloc P2 Jour 2-3: SERVER_ACTION (technical -- it IS the
                 # artefact). No behavioral tag assigned: an ir.actions.server's
                 # `code` field can contain arbitrary Python (blocking,
@@ -539,6 +545,7 @@ class OdooGraphBuilder:
                     # menu with no action at all" (expected, no bug) apart from
                     # "has an action reference but it didn't resolve" (real gap).
                     action_ref=menu.action or "",
+                    groups=[(g if "." in g else f"{mod_name}.{g}") for g in menu.groups],
                     # Bloc P2 Jour 5 (todo/plan.md, todo/contexte.txt section
                     # 179): default empty -- populated below once/if the
                     # target model is resolved (a Menu inherits the tags of
@@ -548,6 +555,10 @@ class OdooGraphBuilder:
                     behavioral_tags=[],
                     technical_tags=[],
                 )
+
+                for g in menu.groups:
+                    group_full = g if "." in g else f"{mod_name}.{g}"
+                    self.G.add_edge(menu_node_id, f"group:{group_full}", edge_type="APPLIES_TO_GROUP")
 
                 # Menu -> parent Menu (tree structure, useful for disambiguation later)
                 if menu.parent:
@@ -660,6 +671,43 @@ class OdooGraphBuilder:
                         label_bouton=btn.string,
                         groupe_requis=btn.groups,
                     )
+
+    def _add_view_button_nodes_and_edges(self):
+        """
+        Extract form view buttons and index them as Button nodes and HAS_BUTTON edges.
+        Captures stat buttons, smart buttons, and general view buttons with their
+        groups and invisible visibility rules.
+        """
+        for mod in self.modules_dict.values():
+            for view in mod.views:
+                model_name = view.model
+                if not model_name:
+                    continue
+                model_node_id = f"model:{model_name}"
+                for btn in view.buttons:
+                    if not btn.name:
+                        continue
+                    button_node_id = f"button:{model_name}.{btn.name}"
+                    if not self.G.has_node(button_node_id):
+                        self.G.add_node(
+                            button_node_id,
+                            node_type="Button",
+                            name=btn.name,
+                            label=btn.string,
+                            groups=btn.groups,
+                            invisible=btn.invisible,
+                            model=model_name,
+                        )
+                    if self.G.has_node(model_node_id):
+                        self.G.add_edge(
+                            model_node_id,
+                            button_node_id,
+                            edge_type="HAS_BUTTON",
+                            method_name=btn.name,
+                            label_bouton=btn.string,
+                            groupe_requis=btn.groups,
+                            invisible=btn.invisible,
+                        )
 
 
 def save_graph_to_json(G: nx.DiGraph, filepath: Path):

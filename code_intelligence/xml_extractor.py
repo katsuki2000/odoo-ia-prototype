@@ -55,7 +55,7 @@ class OdooActionRecord:
 
 @dataclass
 class OdooServerActionRecord:
-    """Represents an ir.actions.server record extracted from XML data files."""
+    """Represents an ir.actions.server or ir.cron record extracted from XML data files."""
     xml_id: str
     filepath: str
     lineno: int
@@ -64,6 +64,10 @@ class OdooServerActionRecord:
     state: str = "code"
     code: str = ""
     groups_id: List[str] = field(default_factory=list)
+    action_type: str = "server_action"  # 'server_action' or 'cron'
+    user_id: str = ""
+    interval_number: int = 1
+    interval_type: str = ""
 
 
 @dataclass
@@ -109,6 +113,7 @@ class OdooFormButton:
     type: str = "object"
     states: str = ""
     groups: List[str] = field(default_factory=list)
+    invisible: str = ""
 
 
 @dataclass
@@ -553,6 +558,7 @@ def _extract_buttons_from_arch_elem(arch_elem: ET.Element) -> List[OdooFormButto
                     type=btn_type,
                     states=btn_states,
                     groups=btn_groups,
+                    invisible=btn_invisible,
                 )
             )
     return buttons
@@ -578,7 +584,7 @@ def parse_server_actions_from_xml(filepath: Path) -> List[OdooServerActionRecord
 
     for record in root.findall(".//record"):
         model_attr = record.attrib.get("model")
-        if model_attr != "ir.actions.server":
+        if model_attr not in ("ir.actions.server", "ir.cron"):
             continue
 
         xml_id = record.attrib.get("id", "")
@@ -586,6 +592,7 @@ def parse_server_actions_from_xml(filepath: Path) -> List[OdooServerActionRecord
             xml_id=xml_id,
             filepath=str(filepath),
             lineno=0,
+            action_type="cron" if model_attr == "ir.cron" else "server_action",
         )
 
         for field_elem in record.findall("field"):
@@ -618,6 +625,15 @@ def parse_server_actions_from_xml(filepath: Path) -> List[OdooServerActionRecord
                     sa.groups_id.append(field_ref)
                 if field_eval:
                     sa.groups_id.extend(extract_refs_from_eval(field_eval))
+            elif field_name == "user_id":
+                sa.user_id = field_ref or (extract_refs_from_eval(field_eval)[0] if field_eval and extract_refs_from_eval(field_eval) else field_text)
+            elif field_name == "interval_number":
+                try:
+                    sa.interval_number = int(field_text or (field_eval if field_eval else 1))
+                except Exception:
+                    pass
+            elif field_name == "interval_type":
+                sa.interval_type = field_text or (field_eval.strip("'\"") if field_eval else "")
 
         actions.append(sa)
 

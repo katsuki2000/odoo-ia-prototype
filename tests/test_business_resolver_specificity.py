@@ -102,7 +102,7 @@ class TestRankBySpecificity:
 
 class TestSpecificityScore:
     def test_segments_length_prefix_occurrences_tuple(self):
-        segments, length, is_custom, occurrences = _specificity_score(
+        is_explicit, has_context, is_domain, segments, length, is_custom, occurrences = _specificity_score(
             "custom.deep.document", "voir custom.deep.document"
         )
         assert segments == 3

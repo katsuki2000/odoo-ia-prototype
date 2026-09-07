@@ -181,7 +181,7 @@ Ces deux gaps conditionnent la lisibilite et l'auditabilite du systeme pour un n
 
 ---
 
-## Bloc P3 — Suite de regression OCA 
+## Bloc P3 — Suite de regression OCA — CLOS (marqueur pose 04/09, voir todo/contexte.txt sections 277-280, 520)
 
 - **J53-J56** : Mettre en place le pipeline en CI, declenche a chaque modification de l'extracteur ou du registre Semgrep, sur un echantillon large et croissant de vrais modules OCA (branche 17.0).
 - **J57** : Premier rapport de couverture representatif sur cet echantillon, comparé au jeu des 9 cas fixes.
@@ -189,6 +189,10 @@ Ces deux gaps conditionnent la lisibilite et l'auditabilite du systeme pour un n
 **Note (11/08) — choix d'outillage d'evaluation** : un framework LLM-judge (DéepEval, RAGAS, etc.) n'apporterait pas de valeur ajoutée nette a ce stade (verification deterministe contre verite terrain connue, pas jugement semantique). Le bon moment est ici (volume OCA), pas avant. A réevaluer si le volume du jeu adversarial croit significativement avant ce bloc.
 
 **Critere de fin** : CI operationnelle et declenchée automatiquement, premier rapport de couverture OCA produit.
+
+**Statut reel a la cloture (verifie ce tour, 04/09)** : critere de fin atteint tel qu'ecrit ci-dessus. `.github/workflows/ci.yml` (`OCA Coverage Pipeline`) declenche `scripts/run_oca_coverage.py` a chaque modification de `code_intelligence/**` ou du script lui-meme (push/PR/workflow_dispatch) -- clone 12 depots OCA reels (branche 17.0 : account-financial-reporting, sale-workflow, server-tools, server-ux, purchase-workflow, hr, account-invoicing, stock-logistics-warehouse, partner-contact-management, reporting-engine, web, project). Rapport de couverture confirme 3 fois independamment (sandbox, poste local, run GitHub Actions #8, todo/contexte.txt sections 277-280) : 537 modules decouverts/extraits, 0 echec. Marqueur `CLOS` absent jusqu'ici par pur oubli de traçabilite (constate section 520), pas par travail manquant -- corrige ce tour sans nouveau code.
+
+**Ne pas confondre avec le Bloc P3.1 (chantier distinct, todo/contexte.txt sections 520-521, EN COURS)** : P3 mesure uniquement le succes du PARSING statique (le graphe se construit sans exception) -- il n'invoque jamais l'agent CI et ne pose aucune question metier. P3.1 est un chantier separe et non couvert par ce marqueur : banc de 50 questions reelles (10 modules OCA x 5, categorises par capacite -- securite/workflow/heritage/server_actions/contraintes/vue-UI/reporting) destine a mesurer la reussite fonctionnelle de l'agent CI sur du code OCA reel, pas seulement l'extraction. Etat P3.1 : selection des modules (`scripts/categorize_oca_modules.py`) et dataset des 50 questions (`tests/oca_p3_1_question_bank.json`, verifie contre le code reel) tous deux ecrits ; **execution reelle des 50 questions via `query_graph()`/MIRO AI + triage des echecs par capacite reste a faire** (necessite Groq, hors de portee d'une session filesystem-only).
 
 ---
 ## Bloc P4 — Inference locale

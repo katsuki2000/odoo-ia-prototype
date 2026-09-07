@@ -210,31 +210,43 @@ _GOVERNANCE_PATTERNS = [
     r"\bqui\s+peut\b",
     r"\bqui\s+a\s+(le\s+)?(droit|acces|accès|permission|pouvoir)\b",
     r"\bqui\s+est\s+autoris[eé]\b",
-    r"\b(peut|peuvent)[-\s](il|elle|on|ils|elles)\s+(voir|acceder|accéder|modifier|supprimer|creer|créer)\b",
+    r"\b(peut|peuvent)[-\s](?:t[-\s])?(il|elle|on|ils|elles)\s+(?:\w+\s+)?(?:voir|acceder|accéder|modifier|supprimer|creer|créer|declencher|déclencher|lancer|executer|exécuter|faire|purger|utiliser)\b",
     # Section 214: non-inverted French construction ("un utilisateur peut voir",
     # subject before the verb) -- the pattern above only covers the inverted
     # interrogative form ("peut-il voir"). Both ask the same access/permission
     # question; only the word order differs.
-    r"\b(peut|peuvent)\s+(voir|acceder|accéder|modifier|supprimer|creer|créer|valider|approuver)\b",
+    r"\b(peut|peuvent)\s+(?:\w+\s+)?(?:voir|acceder|accéder|modifier|supprimer|creer|créer|declencher|déclencher|lancer|executer|exécuter|faire|purger|valider|approuver|utiliser)\b",
     r"\b(a|ont)[-\s]t[-\s](il|elle|ils|elles)\s+le\s+droit\b",
-    r"\b(verrou|verrouill[eé]|bloqu[eé]|interdit|restreint)\b",
+    r"\b(verrou|verrouill[eé]|bloqu[eé]|interdit|restreint|non[\s-]modifiable|lecture[\s-]seule|readonly)\b",
     r"\b(regle|règle|ir\.rule|ir_rule|securite|sécurité|acl|permission)\b",
+    r"\b(?:base\.group_\w+|group_[a-z0-9_]+)\b",
     r"\b(approbation|approuver|valider|validation|signer|signature)\b",
     r"\b(plafond|seuil|limite\s+montant|depasse|dépasse)\b",
     r"\b(masqu[eé]|cach[eé]|invisible|visibilit[eé])\b",
+    r"\b(?:n['’]|ne\s+)(?:apparait|appara[iî]t|s['’]affiche)\b",
+    r"\b(?:apparait|appara[iî]t|s['’]affiche)[-\s]t?[-\s]*(?:il|elle|ils|elles)?\s+pas\b",
+    r"\b(?:n['’]est\s+pas|pas|non)\s+visible\b",
+    r"\b(?:empecher|empêcher|bloquer|interdire|restreindre)\s+l['’]acces\b",
     # Section 208-bis: troubleshooting questions ("je n'arrive pas à démarrer/valider")
     # express an access/governance problem even without explicit governance keywords.
     r"(?:n.arrive|ne\s+(?:peut|peux|parvien[st])\s+pas|impossible|empeche|empêche)\s.*?(?:demarrer|démarrer|valider|approuver|confirmer|creer|créer|modifier|supprimer|lancer)",
+    r"(?:empeche|empêche|bloque|interdit|propose)\s.*?(?:supprimer|suppression|modifier|modification|creer|créer|creation|création)",
     # Section 208-bis: explicit condition inspection ("conditions vérifiées par action_X")
     r"\bconditions?\s+(?:verifiees?|vérifiées?|requises?|necessaires?|nécessaires?)\b",
     # Section 208-bis: direct method name reference (action_demarrer, action_valider, etc.)
     r"\baction_[a-z_]+\b",
+    r"\b(que\s+se\s+passe[-\s]t[-\s]il|qu['’]arrive[-\s]t[-\s]il)\s+(?:si|lorsqu|quand)\b",
+    r"\bvaleur\s+non\s+reconnue\b",
 ]
 
 _WORKFLOW_PATTERNS = [
     r"\b(etape|étape|workflow|cycle\s+de\s+vie|statut|etat|état)\b",
     r"\b(transition|passer\s+de|bouton|action_valider|action_)\b",
-    r"\b(brouillon|draft|confirme|confirmé|annule|annulé|valide|validé)\b",
+    r"\b(brouillon|draft|confirm[eé]e?s?|annul[eé]e?s?|valid[eé]e?s?)\b",
+    r"\b(dans\s+quel\s+cas|dans\s+quelles\s+conditions)\b",
+    r"\b(?:g[eé]n[eé]ration|cr[eé]ation)\s+(?:de\s+|d['’]\s*)?(?:facture|commande|livraison|section)\b",
+    r"\b(determine|détermine)[-\s]t[-\s]il\b",
+    r"\b(proposer?|recherche)\s+a\s+la\s+purge\b",
 ]
 
 _CALCULATION_CODE_PATTERNS = [
@@ -255,7 +267,11 @@ _CALCULATION_AMOUNT_PATTERNS = [
 ]
 
 _INHERITANCE_PATTERNS = [
-    r"\b(heritage|héritage|inherit|override|surcharge|cascade|mro|classe\s+mere|classe\s+parente)\b",
+    r"\b(heritage|héritage|inherit|override|surcharg[eé]e?s?|surcharger|cascade|mro|classe\s+m[eè]re|classe\s+parente)\b",
+    r"\b(r[eé]utilise[-\s]t[-\s]il|[eé]tend[-\s]t[-\s]il|modifie[-\s]t[-\s]il)\b",
+    r"\bmod[eè]le\s+(?:concret|abstrait|standard|natif|existant)\b",
+    r"\b(?:propres?|nouveaux?)\s+mod[eè]les?\b",
+    r"\b(?:mod[eè]les?|champs?|m[eé]thodes?)\s+(?:sont\s+)?(?:modifi[eé]e?s?|[eé]tendue?s?)\b",
     r"\b(super\(|arbre\s+d'heritage|arbre\s+d'héritage)\b",
 ]
 
@@ -529,30 +545,21 @@ def classify_question_intent_llm(question: str) -> Optional[QuestionIntent]:
     try:
         from langchain_core.messages import SystemMessage, HumanMessage
         from core.llm_client import get_chat_llm, invoke_with_rate_limit
+        from config.settings import GROQ_API_KEYS
 
-        llm = get_chat_llm(temperature=0.0, max_retries=0)
-        # Section 402 (todo/contexte.txt): method="json_schema" (Groq's
-        # dedicated Structured Output API, documented as supported for
-        # openai/gpt-oss-20b/120b since langchain-groq 0.3.8) instead of the
-        # default method="function_calling" (forced tool-calling). Diagnosed
-        # via scripts/diagnose_intent_llm_tool_call.py: function_calling
-        # failed 100% of the time (5/5, section 396) with Groq rejecting a
-        # tool call the model itself hallucinated under a name
-        # ("classify_question_intent_llm", the calling Python function's own
-        # name) that was never offered as a tool -- the requested tool name
-        # was correctly "IntentClassificationLLMResponse" (verified by the
-        # diagnostic script's step 1), so this is a model-side tool-calling
-        # reliability issue for this model family on Groq, not a bug in how
-        # this function builds its tool. method="json_schema" bypasses forced
-        # tool-calling entirely and, once combined with
-        # IntentClassificationLLMResponse's strict=False (same section 402),
-        # both produces a correct completion AND parses it successfully.
-        structured_llm = llm.with_structured_output(IntentClassificationLLMResponse, method="json_schema")
+        def _make_structured_llm():
+            base_llm = get_chat_llm(temperature=0.0, max_retries=0)
+            return base_llm.with_structured_output(IntentClassificationLLMResponse, method="json_schema")
+
+        structured_llm = _make_structured_llm()
         messages = [
             SystemMessage(content=_INTENT_CLASSIFICATION_SYSTEM_PROMPT),
             HumanMessage(content=f'Question utilisateur : "{question}"'),
         ]
-        result, _wait = invoke_with_rate_limit(structured_llm, messages, max_retries=1)
+        retries = max(len(GROQ_API_KEYS), 3) if GROQ_API_KEYS else 3
+        result, _wait = invoke_with_rate_limit(
+            structured_llm, messages, max_retries=retries, rebuild_llm=_make_structured_llm
+        )
         return result.intent
     except Exception:
         logger.warning("classify_question_intent_llm failed for question=%r", question, exc_info=True)
@@ -575,16 +582,21 @@ def resolve_question_intent(
     G: Optional[Any] = None,
 ) -> IntentResolution:
     """
-    Orchestrates intent resolution for a single question: attempts the
-    bounded LLM classifier first, falls back to the deterministic
-    classify_question_intent() (untouched, same signature/behavior as
-    before) on any LLM failure.
+    Orchestrates intent resolution for a single question.
 
-    Tranche 1 (todo/contexte.txt section 394+): new code only. Not yet
-    called from route() or generate_investigation_plan() -- that wiring is
-    Tranche 2, to keep this tranche isolated and independently testable
-    without touching existing routing/plan-generation behavior.
+    Deterministic doc-anchor override (DOC-08): when the question carries an
+    explicit documentary anchor (wiki/procedure/documentation...) AND is not
+    simultaneously an ERP aggregation query, short-circuit to DOCUMENTARY_POLICY
+    before the LLM even runs -- the LLM classifier sometimes misroutes these
+    to code_intelligence because the question also mentions "validation".
+
+    Otherwise: attempts the bounded LLM classifier first, falls back to the
+    deterministic classify_question_intent() on any LLM failure.
     """
+    folded = _fold_accents(question)
+    if has_documentary_anchor(folded) and not any(re.search(p, folded) for p in _ERP_DATA_PATTERNS):
+        return IntentResolution(intent=QuestionIntent.DOCUMENTARY_POLICY, source="deterministic_semantic")
+
     llm_intent = classify_question_intent_llm(question)
     if llm_intent is not None:
         return IntentResolution(intent=llm_intent, source="llm")

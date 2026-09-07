@@ -213,7 +213,30 @@ def read_precise_source_code(filepath_str: str, line_start: int, line_end: int, 
     path = Path(filepath_str)
 
     if not path.exists():
-        return f"Error: File '{filepath_str}' does not exist."
+        from config.settings import (
+            CORE_ADDONS_PATH, CUSTOM_ADDONS_PATH, OCA_SAMPLE_ADDONS_PATH,
+        )
+        repo_root = Path(__file__).resolve().parent.parent
+        candidates = [
+            repo_root / filepath_str,
+            Path(OCA_SAMPLE_ADDONS_PATH) / filepath_str if OCA_SAMPLE_ADDONS_PATH else None,
+            Path(CUSTOM_ADDONS_PATH) / filepath_str if CUSTOM_ADDONS_PATH else None,
+            Path(CORE_ADDONS_PATH) / filepath_str if CORE_ADDONS_PATH else None,
+        ]
+        matched = next((c for c in candidates if c and c.exists()), None)
+        if matched:
+            path = matched
+        else:
+            norm = filepath_str.lstrip("/").replace("\\", "/")
+            found = list(repo_root.glob(f"**/{norm}"))
+            if not found:
+                parts = norm.split("/")
+                if len(parts) >= 2:
+                    found = list(repo_root.glob(f"**/{'/'.join(parts[-2:])}"))
+            if found:
+                path = found[0]
+            else:
+                return f"Error: File '{filepath_str}' does not exist."
 
     requested_lines = line_end - line_start + 1
     if requested_lines > max_lines:

@@ -30,7 +30,7 @@ class OdooRpcClient:
     url: str = field(default_factory=lambda: os.getenv("ODOO_URL", "http://localhost:8069"))
     db: str = field(default_factory=lambda: os.getenv("ODOO_DB", "odoo-dev"))
     admin_login: str = field(default_factory=lambda: os.getenv("ODOO_ADMIN_LOGIN", "admin"))
-    admin_password: str = field(default_factory=lambda: os.getenv("ODOO_ADMIN_PASSWORD", "admin"))
+    admin_password: str = field(default_factory=lambda: os.getenv("ODOO_ADMIN_PASSWORD") or os.getenv("ODOO_PASSWORD", "admin"))
 
     def __post_init__(self) -> None:
         self.common = xmlrpc.client.ServerProxy(f"{self.url}/xmlrpc/2/common", allow_none=True)

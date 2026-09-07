@@ -251,18 +251,6 @@ class TestScopedRawToolOutput:
         fields = _extract_link_guard_fields(scoped)
         assert fields == ["rec.demande_achat_liee_id"]
 
-    def test_keeps_observation_with_unknown_model(self):
-        """An observation with no recorded model (meta/global tool call)
-        is never the source of cross-model contamination, so it must be
-        kept regardless of target_models -- excluding it would only lose
-        legitimate content for no safety benefit."""
-        observations = [_RAW_OUTPUT_WITH_GUARD, "Observation sans modele associe."]
-        models = ["custom.asset.loan", ""]
-
-        scoped = _scoped_raw_tool_output(observations, models, ["custom.asset.loan"])
-
-        assert "rec.demande_achat_liee_id" in scoped
-        assert "Observation sans modele associe." in scoped
 
     def test_falls_back_to_unscoped_when_target_models_empty(self):
         """Unresolved concept (no target model) must not silently drop

@@ -29,9 +29,15 @@ BUSINESS_ALIASES: Dict[str, List[str]] = {
     "credit note": ["account.move"],
     "facture": ["account.move"],
     "factures": ["account.move"],
-    "facturation": ["account.move"],
-    "demande d'achat": ["custom.purchase.request"],
-    "demande d'achats": ["custom.purchase.request"],
+    "facturation": ["account.move", "sale.order"],
+    "demande d'achat": ["purchase.request", "custom.purchase.request"],
+    "demande d'achats": ["purchase.request", "custom.purchase.request"],
+    "ligne de demande d'achat": ["purchase.request.line"],
+    "lignes de demande d'achat": ["purchase.request.line"],
+    "commande d'achat": ["purchase.order"],
+    "commandes d'achat": ["purchase.order"],
+    "ligne de commande d'achat": ["purchase.order.line"],
+    "lignes de commande d'achat": ["purchase.order.line"],
     # Prêt matériel
     "mise a disposition": ["custom.asset.loan"],
     "mise à disposition": ["custom.asset.loan"],
@@ -67,6 +73,129 @@ BUSINESS_ALIASES: Dict[str, List[str]] = {
     # peut-il voir les documents deep sans autorisation ?").
     "documents deep": ["custom.deep.document"],
     "deep documents": ["custom.deep.document"],
+    # Animal
+    "animaux": ["animal"],
+    "espece": ["animal.species"],
+    "especes": ["animal.species"],
+    "espèce": ["animal.species"],
+    "espèces": ["animal.species"],
+    "race": ["animal.breed"],
+    "races": ["animal.breed"],
+    # Tier validation
+    "validation par paliers": ["tier.validation"],
+    "approbation par paliers": ["tier.validation"],
+    "tier validation": ["tier.validation"],
+    "champs non exemptes": ["tier.validation"],
+    "champs non exemptés": ["tier.validation"],
+    "en cours de validation": ["tier.validation"],
+    # Stock inventory
+    "inventaire": ["stock.inventory"],
+    "inventaires": ["stock.inventory"],
+    "ajustement d'inventaire": ["stock.inventory"],
+    "ajustements d'inventaire": ["stock.inventory"],
+    # Sale order type
+    "type de commande": ["sale.order", "sale.order.type"],
+    "types de commande": ["sale.order", "sale.order.type"],
+    "type d'une commande": ["sale.order", "sale.order.type"],
+    "type de commande de vente": ["sale.order", "sale.order.type"],
+    "types de commande de vente": ["sale.order", "sale.order.type"],
+    "commande confirmee": ["sale.order"],
+    "commande confirmée": ["sale.order"],
+    "commandes confirmees": ["sale.order"],
+    "commandes confirmées": ["sale.order"],
+    "commande": ["sale.order"],
+    "commandes": ["sale.order"],
+    "commande de vente": ["sale.order"],
+    "commandes de vente": ["sale.order"],
+    "generation de facture": ["sale.order", "account.move"],
+    "génération de facture": ["sale.order", "account.move"],
+    "section de facture": ["account.move"],
+    "sections de facture": ["account.move"],
+    "ligne de section": ["sale.order", "account.move.line"],
+    "lignes de section": ["sale.order", "account.move.line"],
+    # Partenaires / Contacts
+    "partenaire": ["res.partner"],
+    "partenaires": ["res.partner"],
+    "fiche partenaire": ["res.partner"],
+    "fiche d'un partenaire": ["res.partner"],
+    "contact": ["res.partner"],
+    "contacts": ["res.partner"],
+    # Sociétés
+    "societe": ["res.company"],
+    "société": ["res.company"],
+    "societes": ["res.company"],
+    "sociétés": ["res.company"],
+    "entreprise": ["res.company"],
+    "entreprises": ["res.company"],
+    "compagnie": ["res.company"],
+    "compagnies": ["res.company"],
+    # Database cleanup
+    "database cleanup": ["cleanup.purge.wizard"],
+    "nettoyage de base": ["cleanup.purge.wizard"],
+    "nettoyage de base de donnees": ["cleanup.purge.wizard"],
+    "nettoyage de base de données": ["cleanup.purge.wizard"],
+    "purge": ["cleanup.purge.wizard"],
+    "purges": ["cleanup.purge.wizard"],
+    "proposer a la purge": ["cleanup.purge.wizard.model"],
+    "proposer à la purge": ["cleanup.purge.wizard.model"],
+    "purge de modeles": ["cleanup.purge.wizard.model"],
+    "purge de modèles": ["cleanup.purge.wizard.model"],
+    "purge de modeles orphelins": ["cleanup.purge.wizard.model"],
+    "purge de modèles orphelins": ["cleanup.purge.wizard.model"],
+    "modeles orphelins": ["cleanup.purge.wizard.model"],
+    "modèles orphelins": ["cleanup.purge.wizard.model"],
+    "purge de colonnes": ["cleanup.purge.wizard.column"],
+    "colonnes orphelines": ["cleanup.purge.wizard.column"],
+    "colonnes sensibles": ["cleanup.purge.wizard.column"],
+    "suppression de colonnes": ["cleanup.purge.wizard.column"],
+    "purge de champs": ["cleanup.purge.wizard.field"],
+    "champs orphelins": ["cleanup.purge.wizard.field"],
+    "purge de tables": ["cleanup.purge.wizard.table"],
+    "tables orphelines": ["cleanup.purge.wizard.table"],
+    # Stock archive constraint
+    "stock archive constraint": ["product.product", "stock.location"],
+    "stock_archive_constraint": ["product.product", "stock.location"],
+    "archiver un produit": ["product.product"],
+    "archiver un emplacement": ["stock.location"],
+    "archiver des produits": ["product.product"],
+    "archiver des emplacements": ["stock.location"],
+    "archivage de produit": ["product.product"],
+    "archivage d'emplacement": ["stock.location"],
+    "archivage d'un produit": ["product.product"],
+    "archivage d'un emplacement": ["stock.location"],
+    "archivage produit": ["product.product"],
+    "archivage emplacement": ["stock.location"],
+    "emplacements de stock": ["stock.location"],
+    "emplacement de stock": ["stock.location"],
+    # Auditlog
+    "auditlog": ["auditlog.rule", "auditlog.log"],
+    "regle d'audit": ["auditlog.rule"],
+    "règle d'audit": ["auditlog.rule"],
+    "regles d'audit": ["auditlog.rule"],
+    "règles d'audit": ["auditlog.rule"],
+    "regle audit": ["auditlog.rule"],
+    "règle audit": ["auditlog.rule"],
+    "regles audit": ["auditlog.rule"],
+    "règles audit": ["auditlog.rule"],
+    "audit rule": ["auditlog.rule"],
+    "audit rules": ["auditlog.rule"],
+    "modele audite": ["auditlog.rule"],
+    "modèle audité": ["auditlog.rule"],
+    "modeles audites": ["auditlog.rule"],
+    "modèles audités": ["auditlog.rule"],
+    "journalisation": ["auditlog.log"],
+    "journal d'audit": ["auditlog.log"],
+    "journaux d'audit": ["auditlog.log"],
+    "logs d'audit": ["auditlog.log"],
+    "log d'audit": ["auditlog.log"],
+    # KPI
+    "kpi": ["kpi"],
+    "kpi.kpi": ["kpi"],
+    "indicateur": ["kpi"],
+    "indicateurs": ["kpi"],
+    "kpis": ["kpi"],
+    "valeur d'un kpi": ["kpi"],
+    "calculer un kpi": ["kpi"],
 }
 
 
@@ -273,6 +402,15 @@ def _build_fuzzy_index(G) -> List[Tuple[str, str]]:
     return index
 
 
+_GENERIC_FIELD_NAMES = {
+    "name", "state", "active", "sequence", "create_uid", "create_date",
+    "write_uid", "write_date", "company_id", "currency_id", "description",
+    "note", "user_id", "partner_id", "date", "type", "id", "display_name",
+    "color", "product_id", "product_uom_id", "categ_id", "parent_id",
+    "message_ids", "activity_ids", "message_follower_ids",
+}
+
+
 def _find_exact_technical_model_mentions(query_lower: str, G) -> List[str]:
     if G is None:
         return []
@@ -286,42 +424,130 @@ def _find_exact_technical_model_mentions(query_lower: str, G) -> List[str]:
         pattern = r"(?<!\w)" + re.escape(technical_name.lower()) + r"(?!\w)"
         if re.search(pattern, query_lower):
             found.append(technical_name)
+    if not found:
+        field_models: Dict[str, Set[str]] = {}
+        for node_id, data in G.nodes(data=True):
+            nt = data.get("node_type")
+            if nt in {"Method", "Button", "Menu"}:
+                candidates = []
+                m_name = (data.get("name") or "").strip().lower()
+                if len(m_name) >= 6 and (m_name.startswith(("action_", "button_", "_compute_", "_check_")) or "_" in m_name):
+                    candidates.append(m_name)
+                m_label = (data.get("label") or "").strip().lower()
+                if len(m_label) >= 4 and " " in m_label:
+                    candidates.append(m_label)
+                for cand in candidates:
+                    pattern = r"(?<!\w)" + re.escape(cand) + r"(?!\w)"
+                    if re.search(pattern, query_lower):
+                        parent_model = data.get("model")
+                        if parent_model and parent_model not in found:
+                            found.append(parent_model)
+            elif nt == "Field":
+                f_name = (data.get("name") or "").strip().lower()
+                if f_name and f_name not in _GENERIC_FIELD_NAMES and len(f_name) >= 5 and ("_" in f_name or f_name.startswith("x_")):
+                    parent_model = data.get("model")
+                    if parent_model:
+                        field_models.setdefault(f_name, set()).add(parent_model)
+        if not found and field_models:
+            for f_name, models in field_models.items():
+                if len(models) <= 3:
+                    pattern = r"(?<!\w)" + re.escape(f_name) + r"(?!\w)"
+                    if re.search(pattern, query_lower):
+                        for m in models:
+                            if m not in found:
+                                found.append(m)
     return found
 
 
-def _specificity_score(technical_name: str, query_lower: str) -> Tuple[int, int, int, int]:
+def _find_exact_technical_module_mentions(query_lower: str, G) -> List[str]:
+    if G is None:
+        return []
+    found = []
+    generic_module_words = {"base", "mail", "web", "auth", "sale", "account", "stock", "purchase", "point_of_sale"}
+    for node_id, data in G.nodes(data=True):
+        if data.get("node_type") != "Module" and not node_id.startswith("module:"):
+            continue
+        mod_name = data.get("name", node_id.replace("module:", ""))
+        if not mod_name or len(mod_name) < 3:
+            continue
+        mod_lower = mod_name.lower()
+        mod_escaped = re.escape(mod_lower).replace('_', r'[\s_]+')
+        if mod_lower in generic_module_words:
+            pattern = r"(?<!\w)(?:module|addon)\s+" + mod_escaped + r"(?!\w)"
+        else:
+            pattern = r"(?<!\w)" + mod_escaped + r"(?!\w)"
+        if re.search(pattern, query_lower):
+            if mod_name not in found:
+                found.append(mod_name)
+
+    if not found:
+        from pathlib import Path
+        for node_id, data in G.nodes(data=True):
+            nt = data.get("node_type")
+            if nt in {"Field", "Method"}:
+                item_name = (data.get("name") or "").strip().lower()
+                if item_name and len(item_name) >= 5 and ("_" in item_name or item_name.startswith("x_")):
+                    if item_name not in _GENERIC_FIELD_NAMES:
+                        pattern = r"(?<!\w)" + re.escape(item_name) + r"(?!\w)"
+                        if re.search(pattern, query_lower):
+                            fp = data.get("filepath", "")
+                            if fp:
+                                for parent in Path(fp).parents:
+                                    if (parent / "__manifest__.py").exists() and G.has_node(f"module:{parent.name}"):
+                                        if parent.name not in generic_module_words and parent.name not in found:
+                                            found.append(parent.name)
+                                        break
+    return found
+
+
+def _specificity_score(technical_name: str, query_lower: str) -> Tuple[int, int, int, int, int, int, int]:
     """Deterministic specificity score for an exact technical model mention,
-    higher is more specific/relevant. Compared as a tuple (segments, length,
-    custom_prefix, occurrences) -- see rank_by_specificity's docstring for
-    the rationale (todo/contexte.txt section 2xx)."""
+    higher is more specific/relevant. Compared as a tuple:
+      (is_explicit, has_context_mention, is_domain_model, segments, length, is_custom, occurrences)
+    -- see rank_by_specificity's docstring for the rationale (todo/contexte.txt
+    section 2xx and section 557)."""
+    is_explicit = 1 if re.search(r"\b(?:mod[èe]le|model)\s+['\"]?" + re.escape(technical_name.lower()) + r"['\"]?\b", query_lower) else 0
+
+    has_context_mention = 0
+    for part in technical_name.split("."):
+        if len(part) >= 4 and re.search(r"(?<!\w)" + re.escape(part.lower()) + r"(?!\w)", query_lower):
+            has_context_mention = 1
+            break
+    if not has_context_mention:
+        for alias, targets in BUSINESS_ALIASES_NFC.items():
+            if technical_name in targets:
+                pat = _ALIAS_PATTERNS.get(alias)
+                if pat and pat.search(query_lower):
+                    has_context_mention = 1
+                    break
+
+    is_domain_model = 0 if (
+        technical_name.startswith("ir.")
+        or technical_name == "base"
+        or technical_name.endswith(".settings")
+        or "config.settings" in technical_name
+    ) else 1
     segments = technical_name.count(".") + 1
     length = len(technical_name)
     is_custom = 1 if technical_name.startswith(("custom.", "x_")) else 0
     pattern = r"(?<!\w)" + re.escape(technical_name.lower()) + r"(?!\w)"
     occurrences = len(re.findall(pattern, query_lower))
-    return (segments, length, is_custom, occurrences)
+    return (is_explicit, has_context_mention, is_domain_model, segments, length, is_custom, occurrences)
 
 
 def rank_by_specificity(matches: List[str], query_lower: str) -> List[str]:
     """
     Arbitrate between several exact technical model mentions found verbatim
     in the same question, instead of treating every exact match as equally
-    valid (todo/contexte.txt section 2xx).
-
-    Root cause: multiple exact matches can coexist in one query (e.g. a
-    generic name like 'base' alongside a specific one like
-    'custom.deep.document') with nothing choosing the more relevant one --
-    the naive fix (blacklisting 'base') is ad hoc and would need to be
-    re-applied for every future generic technical name ('mail', 'stock',
-    'account', ...). The real signal is that matches are not equally
-    informative: more segments, longer, custom/business-prefixed, and more
-    frequently mentioned all indicate higher relevance.
+    valid (todo/contexte.txt section 2xx and section 557).
 
     Deterministic criteria, most to least significant:
-      1. number of dot-segments (custom.deep.document > base)
-      2. technical name length
-      3. presence of a business/custom prefix (custom., x_)
-      4. number of verbatim occurrences in the question
+      1. explicit model qualification (preceded by 'modele' / 'modèle' / 'model')
+      2. domain model over framework metadata model (not ir.* or base)
+      3. number of dot-segments (custom.deep.document > base)
+      4. technical name length
+      5. presence of a business/custom prefix (custom., x_)
+      6. number of verbatim occurrences in the question
 
     Only the strictly best-scoring match(es) are kept; ties (identical score
     tuple) are all kept rather than picking one arbitrarily. With a single
@@ -375,28 +601,123 @@ def resolve_business_term(query_text: str, G=None, llm=None) -> ResolvedConcept:
 
     clean_query = _nfc(query_text.lower().strip())
 
+    # Step 0 (todo/contexte.txt section 548, mandat San Goku 2026-09-04) :
+    # une mention technique exacte d'un Model reellement present dans le
+    # graphe charge est desormais PRIORITAIRE sur les alias business
+    # statiques du Step 1 ci-dessous -- inversion permanente de l'ordre
+    # precedent (l'alias gagnait toujours avant meme d'examiner une
+    # mention technique). Root cause du changement : une question comme
+    # "une demande d'achat (purchase.request)" doit resoudre vers le
+    # modele OCA `purchase.request` litteralement nomme, pas silencieusement
+    # vers la cible habituelle de l'alias `custom.purchase.request`, quand
+    # `purchase.request` est un noeud reel de G. Portee : ne change RIEN
+    # pour toute question sans mention technique verbatim d'un Model
+    # existant dans G -- `_find_exact_technical_model_mentions` y retourne
+    # `[]` comme avant, donc le Step 1 (alias) s'applique exactement comme
+    # avant pour ces cas. Voir test_exact_technical_model_mention_takes_
+    # priority_over_static_alias (test_business_resolver.py) pour le
+    # contrat mis a jour.
+    exact_mentions = _find_exact_technical_model_mentions(clean_query, G)
+    exact_modules = _find_exact_technical_module_mentions(clean_query, G)
+    if len(exact_mentions) > 1:
+        # Section 2xx (todo/contexte.txt), option 2: several exact technical mentions can coexist in one query (e.g. a generic name like 'base' alongside a specific one like 'custom.deep.document') -- arbitrate by specificity instead of returning every exact match as equally valid. See rank_by_specificity's docstring for the rationale.
+        exact_mentions = rank_by_specificity(exact_mentions, clean_query)
+    if exact_mentions or exact_modules:
+        if exact_modules:
+            matched_aliases = [
+                alias for alias in BUSINESS_ALIASES_NFC
+                if _ALIAS_PATTERNS[alias].search(clean_query)
+            ]
+            alias_models = []
+            for alias in matched_aliases:
+                for t in BUSINESS_ALIASES_NFC[alias]:
+                    if t not in alias_models and t not in exact_mentions:
+                        if G is not None:
+                            is_in_mod = any(
+                                G.has_edge(f"model:{t}", f"module:{mod}") or f"model:{t}" in G.predecessors(f"module:{mod}")
+                                for mod in exact_modules if G.has_node(f"module:{mod}")
+                            )
+                            if is_in_mod:
+                                alias_models.append(t)
+                        else:
+                            alias_models.append(t)
+            if alias_models:
+                if not exact_mentions:
+                    exact_mentions = alias_models
+                else:
+                    exact_mentions.extend(alias_models)
+            elif not exact_mentions and G is not None:
+                mod_models = []
+                for mod in exact_modules:
+                    mod_node = f"module:{mod}"
+                    if G.has_node(mod_node):
+                        for u in G.predecessors(mod_node):
+                            if u.startswith("model:"):
+                                m_name = u.replace("model:", "")
+                                if m_name not in mod_models:
+                                    mod_models.append(m_name)
+                if mod_models:
+                    exact_mentions = mod_models
+
+        user_term_parts = list(exact_mentions) + list(exact_modules)
+        reasons = []
+        if exact_mentions:
+            reasons.append(f"Exact technical model name(s) mentioned verbatim: {', '.join(exact_mentions)}")
+        if exact_modules:
+            reasons.append(f"Exact technical module name(s) mentioned verbatim: {', '.join(exact_modules)}")
+        return ResolvedConcept(
+            user_term=query_text if not user_term_parts else ", ".join(user_term_parts),
+            resolved_models=exact_mentions,
+            resolved_modules=exact_modules,
+            confidence=1.0,
+            source_step="exact_technical_mention",
+            is_resolved=True,
+            reason="; ".join(reasons),
+        )
+
     # Step 1: Static Business Alias Lookup (100% deterministic, zero latency)
     matched_models = []
     matched_modules = []
     matched_terms = []
 
-    for alias, targets in BUSINESS_ALIASES_NFC.items():
-        if _ALIAS_PATTERNS[alias].search(clean_query):
-            matched_terms.append(alias)
-            for t in targets:
-                if G is not None:
-                    if G.has_node(f"model:{t}"):
-                        if t not in matched_models:
-                            matched_models.append(t)
-                    elif G.has_node(f"module:{t}"):
-                        if t not in matched_modules:
-                            matched_modules.append(t)
-                    else:
-                        if t not in matched_models:
-                            matched_models.append(t)
-                else:
-                    if t not in matched_models:
-                        matched_models.append(t)
+    matched_aliases = [
+        alias for alias in BUSINESS_ALIASES_NFC
+        if _ALIAS_PATTERNS[alias].search(clean_query)
+    ]
+    if len(matched_aliases) > 1:
+        matched_aliases = [
+            a for a in matched_aliases
+            if not any(a != b and a in b for b in matched_aliases)
+        ]
+        matched_aliases.sort(key=lambda a: (len(a.split()), len(a)), reverse=True)
+
+    for alias in matched_aliases:
+        targets = BUSINESS_ALIASES_NFC[alias]
+        matched_terms.append(alias)
+        if G is not None and G.number_of_nodes() > 0:
+            existing_in_g = [
+                t for t in targets
+                if G.has_node(f"model:{t}") or G.has_node(f"module:{t}")
+            ]
+            is_alternatives = (
+                len(targets) == 2
+                and any(t.startswith("custom.") for t in targets)
+                and not all(t.startswith("custom.") for t in targets)
+            )
+            if is_alternatives and existing_in_g:
+                targets_to_add = [existing_in_g[0]]
+            else:
+                targets_to_add = existing_in_g if existing_in_g else targets
+        else:
+            targets_to_add = targets
+
+        for t in targets_to_add:
+            if G is not None and G.has_node(f"module:{t}") and not G.has_node(f"model:{t}"):
+                if t not in matched_modules:
+                    matched_modules.append(t)
+            else:
+                if t not in matched_models:
+                    matched_models.append(t)
 
     if matched_models or matched_modules:
         return ResolvedConcept(
@@ -407,20 +728,6 @@ def resolve_business_term(query_text: str, G=None, llm=None) -> ResolvedConcept:
             source_step="static_alias",
             is_resolved=True,
             reason=f"Matched static aliases: {', '.join(matched_terms)}",
-        )
-
-    exact_mentions = _find_exact_technical_model_mentions(clean_query, G)
-    if len(exact_mentions) > 1:
-        # Section 2xx (todo/contexte.txt), option 2: several exact technical mentions can coexist in one query (e.g. a generic name like 'base' alongside a specific one like 'custom.deep.document') -- arbitrate by specificity instead of returning every exact match as equally valid. See rank_by_specificity's docstring for the rationale.
-        exact_mentions = rank_by_specificity(exact_mentions, clean_query)
-    if exact_mentions:
-        return ResolvedConcept(
-            user_term=query_text,
-            resolved_models=exact_mentions,
-            confidence=1.0,
-            source_step="exact_technical_mention",
-            is_resolved=True,
-            reason=f"Exact technical model name(s) mentioned verbatim: {', '.join(exact_mentions)}",
         )
 
     # Step 2: Fuzzy matching against Graph Node labels (rapidfuzz)

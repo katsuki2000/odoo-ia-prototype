@@ -7,6 +7,7 @@ including exact file paths, line numbers, check_ids, and matching code lines.
 """
 
 import os
+import sys
 import json
 import shutil
 import subprocess
@@ -30,9 +31,12 @@ class SemgrepMatch:
 
 def _find_semgrep_binary() -> str:
     """Locate semgrep binary in .venv or system PATH."""
-    venv_semgrep = Path(__file__).resolve().parent.parent.parent / ".venv" / "bin" / "semgrep"
+    venv_semgrep = Path(sys.executable).parent / "semgrep"
     if venv_semgrep.exists():
         return str(venv_semgrep)
+    candidate = Path(__file__).resolve().parent.parent / ".venv" / "bin" / "semgrep"
+    if candidate.exists():
+        return str(candidate)
     which_semgrep = shutil.which("semgrep")
     if which_semgrep:
         return which_semgrep

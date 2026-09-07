@@ -10,7 +10,7 @@ import ast
 import copy
 import re
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Set, Optional
+from typing import Any, Dict, List, Set, Optional, Tuple
 
 import logging
 
@@ -44,6 +44,7 @@ class PythonSecurityLockAnalysis:
     # Index-aligned with required_groups -- source line of the has_group()
     # call itself. Same 0-means-unknown convention as exception_linenos.
     required_group_linenos: List[int] = field(default_factory=list)
+    static_filters: List[Tuple[str, str, int, int]] = field(default_factory=list)
     security_warnings: List[str] = field(default_factory=list)
     confidence: str = "high"
     summary_text: str = ""
@@ -94,6 +95,7 @@ class SecurityLockASTVisitor(ast.NodeVisitor):
         # Index-aligned with required_groups -- see
         # PythonSecurityLockAnalysis.required_group_linenos docstring.
         self.required_group_linenos: List[int] = []
+        self.static_filters: List[Tuple[str, str, int, int]] = []
         self._if_test_stack: List[ast.expr] = []
 
         self._function_stack: List[str] = []
@@ -226,6 +228,22 @@ class SecurityLockASTVisitor(ast.NodeVisitor):
             if emails:
                 self.hardcoded_logins.extend(emails)
 
+        for target in node.targets:
+            if isinstance(target, ast.Name):
+                name = target.id
+                name_lower = name.lower()
+                if any(k in name_lower for k in ("blacklist", "whitelist", "exclude", "excluded", "sensitive")):
+                    try:
+                        val = ast.literal_eval(node.value)
+                    except Exception:
+                        try:
+                            val = ast.unparse(node.value)
+                        except Exception:
+                            val = "..."
+                    start_l = node.lineno
+                    end_l = getattr(node, "end_lineno", start_l)
+                    self.static_filters.append((name, str(val), start_l, end_l))
+
         if (
             self._local_var_defs
             and len(node.targets) == 1
@@ -236,42 +254,59 @@ class SecurityLockASTVisitor(ast.NodeVisitor):
         self.generic_visit(node)
 
     def visit_Raise(self, node: ast.Raise):
-        """Extract exact UserError and ValidationError exception message strings."""
+        """Extract exact UserError, ValidationError, AccessDenied and AccessError exceptions."""
+        func_name = ""
         if isinstance(node.exc, ast.Call):
-            func_name = ""
             if isinstance(node.exc.func, ast.Name):
                 func_name = node.exc.func.id
             elif isinstance(node.exc.func, ast.Attribute):
                 func_name = node.exc.func.attr
+        elif isinstance(node.exc, ast.Name):
+            func_name = node.exc.id
+        elif isinstance(node.exc, ast.Attribute):
+            func_name = node.exc.attr
 
-            if func_name in {"ValidationError", "UserError"}:
-                message = None
-                if node.exc.args:
-                    first_arg = node.exc.args[0]
-                    if isinstance(first_arg, ast.Constant) and isinstance(first_arg.value, str):
-                        message = first_arg.value.strip()
-                    elif isinstance(first_arg, ast.BinOp) and isinstance(first_arg.left, ast.Constant):
-                        # e.g. "Msg %s" % var -> extract template
-                        if isinstance(first_arg.left.value, str):
-                            message = first_arg.left.value.strip()
-                    elif isinstance(first_arg, ast.JoinedStr):
-                        # f-string -> extract literal text parts
-                        parts = [p.value for p in first_arg.values if isinstance(p, ast.Constant) and isinstance(p.value, str)]
-                        if parts:
-                            message = "".join(parts).strip()
+        if func_name in {"ValidationError", "UserError", "AccessDenied", "AccessError"}:
+            message = (
+                self._extract_exception_str(node.exc.args[0])
+                if (isinstance(node.exc, ast.Call) and node.exc.args)
+                else func_name
+            )
 
-                if message is not None:
-                    self.exception_messages.append(message)
-                    # Index-aligned with exception_messages -- see __init__
-                    # docstring comment above for why this exists.
-                    self.exception_conditions.append(self._current_condition_text())
-                    self.exception_guard_fields.append(self._detect_link_guard_field())
-                    self.exception_linenos.append(node.lineno)
+            if message is not None:
+                self.exception_messages.append(message)
+                # Index-aligned with exception_messages -- see __init__
+                # docstring comment above for why this exists.
+                self.exception_conditions.append(self._current_condition_text())
+                self.exception_guard_fields.append(self._detect_link_guard_field())
+                self.exception_linenos.append(node.lineno)
 
         self.generic_visit(node)
 
+    def _extract_exception_str(self, node: ast.AST) -> Optional[str]:
+        """Extract literal string from an exception argument, unwrapping Odoo's _() translation calls."""
+        if isinstance(node, ast.Constant) and isinstance(node.value, str):
+            return node.value.strip()
+        if isinstance(node, ast.Call):
+            if (isinstance(node.func, ast.Name) and node.func.id == "_") or (
+                isinstance(node.func, ast.Attribute) and node.func.attr == "_"
+            ):
+                if node.args:
+                    return self._extract_exception_str(node.args[0])
+        if isinstance(node, ast.BinOp):
+            return self._extract_exception_str(node.left)
+        if isinstance(node, ast.JoinedStr):
+            parts = [
+                p.value
+                for p in node.values
+                if isinstance(p, ast.Constant) and isinstance(p.value, str)
+            ]
+            if parts:
+                return "".join(parts).strip()
+        return None
+
     def visit_Call(self, node: ast.Call):
-        """Detect dynamic dispatch calls: getattr, eval, exec."""
+        """Detect dynamic dispatch calls and permission/group checks."""
         func_name = ""
         if isinstance(node.func, ast.Name):
             func_name = node.func.id
@@ -289,6 +324,16 @@ class SecurityLockASTVisitor(ast.NodeVisitor):
                     # dedup) -- see required_group_methods docstring.
                     self.required_group_methods.append(self._current_method_name())
                     self.required_group_linenos.append(node.lineno)
+
+        if isinstance(node.func, ast.Attribute) and node.func.attr == "ref":
+            if node.args and isinstance(node.args[0], ast.Constant) and isinstance(node.args[0].value, str):
+                val = node.args[0].value
+                if "group" in val:
+                    group_xmlid = val
+                    if group_xmlid not in self.required_groups:
+                        self.required_groups.append(group_xmlid)
+                        self.required_group_methods.append(self._current_method_name())
+                        self.required_group_linenos.append(node.lineno)
 
         self.generic_visit(node)
 
@@ -501,6 +546,7 @@ def analyze_python_security_locks(code: str, filepath: str) -> PythonSecurityLoc
         result.required_groups = visitor.required_groups
         result.required_group_methods = visitor.required_group_methods
         result.required_group_linenos = visitor.required_group_linenos
+        result.static_filters = visitor.static_filters
 
     except SyntaxError:
         _logger.warning("AST parse failed for %s, falling back to regex analysis", filepath)
@@ -598,25 +644,28 @@ def analyze_python_security_locks(code: str, filepath: str) -> PythonSecurityLoc
                     f"NE S'APPLIQUE PAS dans ce cas, quel que soit le reste de la condition.]"
                 )
     if result.required_groups:
-        groups_joined = ', '.join(result.required_groups)
-        lines.append(f"  - Groupe(s) technique(s) requis detecte(s) (has_group): {groups_joined}")
-
         methods = result.required_group_methods or [""] * len(result.required_groups)
+        action_groups = [g for g, m in zip(result.required_groups, methods) if m]
+        if action_groups:
+            groups_joined = ', '.join(action_groups)
+            lines.append(f"  - Groupe(s) technique(s) requis detecte(s) (has_group): {groups_joined}")
+            for group_xmlid, method_name in zip(result.required_groups, methods):
+                if method_name:
+                    citation = format_xml_id_citation(group_xmlid)
+                    lines.append(f"    * has_group('{group_xmlid}') se trouve dans la methode '{method_name}()' -- ne pas l'attribuer a une autre methode sans le verifier explicitement dans le code source. ({citation})")
         for group_xmlid, method_name in zip(result.required_groups, methods):
-            # Bug 1 fix (todo/contexte.txt section 490, option A): emit the
-            # 'xml_id: ...' ground-truth token sourcing_guard.py's
-            # _XML_ID_PATTERN looks for, since this group xml_id is exactly
-            # the kind of identifier CI_SYSTEM_PROMPT tells the synthesis
-            # LLM to cite with that prefix.
-            citation = format_xml_id_citation(group_xmlid)
-            if method_name:
-                lines.append(f"    * has_group('{group_xmlid}') se trouve dans la methode '{method_name}()' -- ne pas l'attribuer a une autre methode sans le verifier explicitement dans le code source. ({citation})")
-            else:
-                lines.append(f"    * has_group('{group_xmlid}') se trouve hors de toute methode (niveau module), ou sa methode englobante n'a pas pu etre determinee. ({citation})")
+            if not method_name:
+                citation = format_xml_id_citation(group_xmlid)
+                lines.append(f"  - has_group('{group_xmlid}') se trouve hors de toute methode (niveau module, ex: valeur par defaut d'un champ UI) -- NE PAS interpreter comme un verrou d'acces ou de modification du modele. ({citation})")
+    if result.static_filters:
+        for f_name, f_val, s_line, e_line in result.static_filters:
+            link = format_file_link(filepath, s_line, e_line)
+            lines.append(f"  - Filtre d'exclusion statique '{f_name}' ({link}): {f_val}")
+
     if result.has_dynamic_dispatch:
         lines.append(f"  - Incertitude dynamique ({', '.join(result.dynamic_dispatch_types)}): revue manuelle recommandée")
 
-    if not result.security_warnings and not result.exception_messages:
+    if not result.security_warnings and not result.exception_messages and not result.static_filters:
         lines.append("  - Aucun verrou spécifique ni incertitude dynamique détecté.")
 
     result.summary_text = "\n".join(lines)
@@ -626,7 +675,7 @@ def analyze_python_security_locks(code: str, filepath: str) -> PythonSecurityLoc
 def python_source_has_security_findings(code: str, filepath: str = "<unknown>") -> bool:
     """
     Checks if the Python code has any security findings:
-    hardcoded logins/emails, exception messages, dynamic dispatch, or required groups.
+    hardcoded logins/emails, exception messages, dynamic dispatch, required groups, or static exclusion filters.
     """
     result = analyze_python_security_locks(code, filepath)
     return bool(
@@ -634,6 +683,7 @@ def python_source_has_security_findings(code: str, filepath: str = "<unknown>") 
         or result.exception_messages
         or result.dynamic_dispatch_types
         or result.required_groups
+        or result.static_filters
     )
 
 

@@ -1,0 +1,22 @@
+rules:
+  - id: odoo-api-constrains-declaration
+    languages: [python]
+    severity: INFO
+    message: >
+      Odoo @api.constrains Python constraint detected. Validates data integrity across specified fields.
+    patterns:
+      - pattern: |
+          @api.constrains(...)
+          def $METHOD(self, ...):
+              ...
+
+  - id: odoo-unrecognized-value-exception
+    languages: [python]
+    severity: INFO
+    message: "Odoo Python validation raises exception on unrecognized or invalid value: $MSG"
+    patterns:
+      - pattern: "raise $ERR(_($MSG))"
+      - metavariable-regex:
+          metavariable: $ERR
+          regex: "^(UserError|ValidationError)$"
+

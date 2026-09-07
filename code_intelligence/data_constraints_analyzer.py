@@ -22,6 +22,7 @@ analyzer module in this package -- this module only consumes an already-
 resolved filepath list, it does not read the knowledge graph itself.
 """
 
+import ast
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterable, List, Optional
@@ -84,13 +85,69 @@ def _compose_data_constraints_summary(model_name: str, matches: List[SemgrepMatc
         f"Analyse des contraintes de données (Semgrep) pour '{model_name}' "
         f"[Confiance: HIGH -- correspondance de motif statique, déterministe]:"
     ]
-    for match in matches:
+    from code_intelligence.ci_agent_tools import _is_custom_module_filepath
+    def _constraint_priority(m: SemgrepMatch) -> tuple:
+        is_custom = _is_custom_module_filepath(m.filepath)
+        has_constrain = (
+            "constrain" in m.check_id
+            or "selection" in m.check_id
+            or "exception" in m.check_id
+            or "filter" in m.check_id
+        )
+        return (not is_custom, not has_constrain)
+
+    sorted_matches = sorted(matches, key=_constraint_priority)
+    for match in sorted_matches:
         link = format_file_link(match.filepath, match.start_line, match.end_line)
         lines.append(f"  - {link} ({match.check_id}): {match.message}")
         if match.lines:
             lines.append(f"    ```\n    {match.lines}\n    ```")
 
     return "\n".join(lines)
+
+
+def _extract_static_exclusion_filters(filepath: Path) -> List[SemgrepMatch]:
+    """Extract static exclusion dictionaries/lists/sets (blacklist, whitelist, exclude, etc.)
+    defined at class or module level, returning them as structured SemgrepMatch objects."""
+    matches: List[SemgrepMatch] = []
+    try:
+        content = filepath.read_text(encoding="utf-8")
+        tree = ast.parse(content)
+        source_lines = content.splitlines()
+    except Exception:
+        return []
+
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.ClassDef, ast.Module)):
+            for stmt in node.body:
+                if isinstance(stmt, ast.Assign):
+                    for target in stmt.targets:
+                        if isinstance(target, ast.Name):
+                            name = target.id
+                            name_lower = name.lower()
+                            if any(k in name_lower for k in ("blacklist", "whitelist", "exclude", "excluded", "sensitive")):
+                                try:
+                                    evaluated_val = ast.literal_eval(stmt.value)
+                                except Exception:
+                                    try:
+                                        evaluated_val = ast.unparse(stmt.value)
+                                    except Exception:
+                                        evaluated_val = "..."
+                                start_l = stmt.lineno
+                                end_l = getattr(stmt, "end_lineno", start_l)
+                                code_slice = "\n".join(source_lines[start_l - 1 : end_l])
+                                class_prefix = f"{node.name}." if isinstance(node, ast.ClassDef) else ""
+                                matches.append(
+                                    SemgrepMatch(
+                                        filepath=str(filepath),
+                                        start_line=start_l,
+                                        end_line=end_l,
+                                        check_id="odoo-static-exclusion-filter",
+                                        message=f"Static exclusion filter '{class_prefix}{name}': {repr(evaluated_val)}",
+                                        lines=code_slice,
+                                    )
+                                )
+    return matches
 
 
 def analyze_data_constraints_from_filepaths(
@@ -116,6 +173,7 @@ def analyze_data_constraints_from_filepaths(
         if not p.exists():
             continue
         all_matches.extend(semgrep_runner.run_semgrep_analysis(p, config_dir))
+        all_matches.extend(_extract_static_exclusion_filters(p))
 
     return DataConstraintsAnalysis(
         model_name=model_name,

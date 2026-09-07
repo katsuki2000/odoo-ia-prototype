@@ -9,6 +9,8 @@ specific failure modes of small synthesis LLMs.
 
 import json
 import logging
+import os
+from pathlib import Path
 import re
 from typing import List, Optional, Tuple, Dict, Any
 
@@ -27,6 +29,11 @@ CI_SYSTEM_PROMPT = (
     "   - For ir.rule record rules and group-based RECORD visibility: invoke `evaluate_record_rules` (authoritative).\n"
     "   - For automated actions, ir.actions.server, or sudo() bypasses: invoke `analyze_server_actions`.\n"
     "   - For SQL uniqueness constraints (_sql_constraints) or relational field domain= filters (Many2one/Many2many): invoke `analyze_data_constraints`.\n"
+    "   - For workflows, state machine transitions, or states/stages on a model: invoke `describe_workflow`.\n"
+    "   - For model inheritance, extensions, mixins, or parent models: invoke `trace_full_inheritance`.\n"
+    "   - For method overrides, super() chains, or behavior modifications across modules (e.g. write, create, unlink, compute methods): invoke `analyze_method_override_chain`.\n"
+    "   - For UI buttons, form actions, or menu visibility/restrictions: invoke `button_execution_path`.\n"
+    "   - For inspecting precise Python implementation, method logic, dynamic validation hooks (e.g. write, get_view, _check_*), or configuration model fields when abstract mixins or dynamic behaviors are analyzed: invoke `read_source_code` with the filepath and line range.\n"
     "2. DO NOT make generic fallbacks. Synthesize the tool observations directly.\n"
     "3. Always cite source file links: [file.py:L12-L25](file:///path#L12-L25).\n"
     "   NEVER reuse this placeholder text itself as a citation -- only cite a file:// link "
@@ -79,6 +86,10 @@ _MODEL_KEYED_TOOLS = frozenset({
     "analyze_server_actions",
     "who_has_access_to",
     "evaluate_record_rules",
+    "describe_workflow",
+    "trace_full_inheritance",
+    "list_involved_modules",
+    "analyze_data_constraints",
 })
 
 
@@ -103,6 +114,9 @@ def _tool_call_key(tool_name: str, tool_args: "Dict[str, Any]") -> "Optional[Tup
     if tool_name == "analyze_method_override_chain":
         method_name = tool_args.get("method_name")
         return (tool_name, model_name, method_name) if method_name else None
+    if tool_name == "button_execution_path":
+        btn = tool_args.get("button_name") or tool_args.get("button_identifier")
+        return (tool_name, model_name, btn) if btn else None
     if tool_name in _MODEL_KEYED_TOOLS:
         return (tool_name, model_name)
     return None
@@ -202,7 +216,7 @@ _APPROVAL_PATTERN = re.compile(
 )
 _AUTOMATION_PATTERN = re.compile(
     r"\b(?:mêmes?\s+règles?|systématiq\w*|actions?\s+automatiques?|automatisation\w*|"
-    r"actions?\s+serveur|bypass|contourn\w*)\b",
+    r"actions?\s+serveur|bypass|contourn\w*|p[eé]riodiq\w*|cron\b|planifi[eé]\w*|scheduler|recalcul\w*)\b",
     re.IGNORECASE,
 )
 
@@ -257,10 +271,12 @@ def _extract_company_context(question: str) -> "Dict[str, Any]":
     Extract a qualitative same/different-company relation from the question.
     Returns {} if no company relation is specified.
     """
+    primary_id = int(os.getenv("ODOO_PRIMARY_COMPANY_ID", "1"))
+    secondary_id = int(os.getenv("ODOO_SECONDARY_COMPANY_ID", "2"))
     if _COMPANY_DIFFERENT_PATTERN.search(question):
-        return {"company_id": 1, "user": {"company_id": {"id": 2}}, "company_ids": [2]}
+        return {"company_id": primary_id, "user": {"company_id": {"id": secondary_id}}, "company_ids": [secondary_id]}
     if _COMPANY_SAME_PATTERN.search(question):
-        return {"company_id": 1, "user": {"company_id": {"id": 1}}, "company_ids": [1]}
+        return {"company_id": primary_id, "user": {"company_id": {"id": primary_id}}, "company_ids": [primary_id]}
     return {}
 
 
@@ -328,10 +344,12 @@ def _question_is_approval_related(question: str) -> bool:
 _ACCESS_QUESTION_PATTERN = re.compile(
     # French "qui peut / a la permission / est autorisé" patterns
     r"\bqui\s+(?:a\s+le\s+permission|peut|peux|est\s+autoris\w*)\b|"
-    # Inverted-subject French question form ("peut-il/elle/on voir")
-    r"\b(?:peut|peux|pourra|pourrait)[\s-]*(?:il|elle|on|t[\s-]*il|t[\s-]*elle)\s+(?:voir|acc[eé]der|consulter|lire|visualiser)\b|"
+    # Inverted-subject French question form ("peut-il/elle/on voir/déclencher/lancer...")
+    r"\b(?:peut|peux|pourra|pourrait)[\s-]*(?:il|elle|on|t[\s-]*il|t[\s-]*elle)\s+(?:\w+\s+)?(?:voir|acc[eé]der|consulter|lire|visualiser|d[eé]clencher|lancer|ex[eé]cuter|faire|cr[eé]er|modifier|supprimer|purger|utiliser)\b|"
     # "a-t-il/elle la permission / accès"
     r"\ba[\s-]*t[\s-]*(?:il|elle)\s+(?:le\s+permission|acc[eè]s|la\s+permission)\b|"
+    # Direct security rules / ACL / permissions / groups questions
+    r"\b(?:ir\.rule|record\s+rules?|acl|acls|ir\.model\.access|droits?\s+d['’]acc[eè]s|permissions?|base\.group_\w+|group_[a-z0-9_]+)\b|"
     # English patterns
     r"\bwho\s+(?:can|has\s+the\s+right|is\s+authoriz\w*)\b|"
     r"\b(?:can|may)\s+(?:a\s+user|the\s+user|an?\s+employee)\s+(?:see|view|access|read)\b",
@@ -342,6 +360,69 @@ _ACCESS_QUESTION_PATTERN = re.compile(
 def _question_is_access_related(question: str) -> bool:
     """True if the question is asking about access permissions or visibility."""
     return bool(_ACCESS_QUESTION_PATTERN.search(question))
+
+
+_WORKFLOW_QUESTION_PATTERN = re.compile(
+    r"\b(?:workflow|cycle\s+de\s+vie|machine\s+[aà]\s+[eé]tats?|state\s+machine)\b|"
+    r"\b(?:passage|passer)\s+(?:d['’][^.\n]+?\s+)?de\s+l['’][eé]tat\b|"
+    r"\b(?:transition|changement)\s+d['’][eé]tat\b|"
+    r"\b(?:[eé]tat\s+source|[eé]tat\s+cible|champ\s+d['’][eé]tat|champ\s+state|workflow\s+d['’][eé]tats?)\b|"
+    r"\b(?:lifecycle|state\s+transition)\b",
+    re.IGNORECASE,
+)
+
+
+def _question_is_workflow_related(question: str) -> bool:
+    """True if question investigates workflow state transitions or states."""
+    return bool(_WORKFLOW_QUESTION_PATTERN.search(question))
+
+
+_INHERITANCE_QUESTION_PATTERN = re.compile(
+    r"\b(?:_inherit|_inherits|h[eé]ritage|inheritance)\b|"
+    r"\b[eé]tend(?:-il)?\b|"
+    r"\b(?:surcharg[eé]\w*|override\w*)\b|"
+    r"\bmod[eè]le\s+(?:concret|abstrait|standard|natif|existant)\b|"
+    r"\b(?:propres?|nouveaux?)\s+mod[eè]les?\b|"
+    r"\bactive-t-il\b|"
+    r"\bquels?\s+mod[eè]les?\s+sont\s+modifi[eé]s?\b|"
+    r"\br[eé]utilise-t-il\b|"
+    r"\bmodifie(?:-t-il)?\s+le\s+comportement\b",
+    re.IGNORECASE,
+)
+
+
+def _question_is_inheritance_related(question: str) -> bool:
+    """True if question inquires about model inheritance, mixins, or extensions."""
+    return bool(_INHERITANCE_QUESTION_PATTERN.search(question))
+
+
+_METHOD_OR_OVERRIDE_PATTERN = re.compile(
+    r"\b(?:m[eé]thodes?|surcharg\w*|override\w*|super\(\))\b|"
+    r"\bchanger\s+.*?\bpeut\s+modifier\b|"
+    r"\bmodifie(?:-t-il)?\s+le\s+comportement\b|"
+    r"\b(?:write|create|unlink|_compute_\w+|button_\w+|action_\w+)\b",
+    re.IGNORECASE,
+)
+
+
+def _question_is_method_or_override_related(question: str) -> bool:
+    """True if question inquires about method behavior, overrides, or write-time field mutations."""
+    return bool(_METHOD_OR_OVERRIDE_PATTERN.search(question))
+
+
+_CONSTRAINTS_QUESTION_PATTERN = re.compile(
+    r"\b(?:contraintes?|_?sql_constraints?|api\.constrains?)\b|"
+    r"\b(?:r[eè]gle|condition|v[eé]rification)\s+(?:empeche|bloque|interdit)\b|"
+    r"\b(?:empeche|bloque|interdit|empechent|bloquent|interdisent|empechant|empêche|empêchent|empêchant)\b(?:[^,\.!?\n]{0,50}?)\b(?:de\s+\w+|d['’]\w+)\b|"
+    r"\b(?:valeur\s+non\s+reconnue|valeur\s+invalide|unrecognized)\b|"
+    r"\b(?:que\s+se\s+passe[-\s]t[-\s]il|qu['’]arrive[-\s]t[-\s]il)\s+(?:si|lorsqu|quand)\b",
+    re.IGNORECASE,
+)
+
+
+def _question_is_constraint_related(question: str) -> bool:
+    """True if question investigates model data constraints, validation rules, or write blockers."""
+    return bool(_CONSTRAINTS_QUESTION_PATTERN.search(question))
 
 
 _REQUIRED_GROUP_LINE_RE = re.compile(
@@ -365,8 +446,27 @@ def _extract_required_groups(raw_tool_output: str) -> List[str]:
 
 def _flag_ungrounded_group_xmlids(final_answer: str, raw_tool_output: str) -> str:
     """Flag any group XML-ID mentioned in final_answer that is not grounded
-    in the raw tool observations for this turn."""
-    grounded = set(_extract_required_groups(raw_tool_output))
+    in the raw tool observations for this turn.
+
+    Section 550 (todo/contexte.txt, mandat San Goku 2026-09-04, option a) :
+    'grounded' now covers TWO distinct deterministic sources, not just
+    has_group() -- ACL/rule groups cited by who_has_access_to (and
+    evaluate_record_rules) via the 'xml_id: module.identifier' citation
+    token (format_xml_id_citation, code_intelligence/utils.py) are an
+    equally legitimate, equally deterministic ground truth, just a
+    different mechanism than a Python has_group() call. Before this fix,
+    every genuine ACL-sourced group was mislabeled 'GROUPE(S) NON
+    VERIFIE(S)' whenever no has_group() call also existed for the same
+    group in this turn's tool output -- confirmed live (todo/contexte.txt
+    sections 547/549): PR-Q1, custom.purchase.request WRITE ACL, 14
+    genuine ACL groups wrongly flagged because only one of them also had a
+    has_group() lock (a completely different action: validation, not
+    write). Reuses sourcing_guard's own _XML_ID_PATTERN (source-agnostic,
+    already the ground-truth reader for this exact citation token) rather
+    than duplicating a second identical regex (F-08 duplication rule).
+    """
+    from code_intelligence.sourcing_guard import _XML_ID_PATTERN
+    grounded = set(_extract_required_groups(raw_tool_output)) | set(_XML_ID_PATTERN.findall(raw_tool_output))
     if not grounded:
         return final_answer
 
@@ -608,16 +708,27 @@ _BLOCK_FILE_LINK_RE = re.compile(r"\(file://([^)#]+)")
 
 
 def _block_is_custom_module_file(block: str) -> bool:
-    """True when this '\n\n'-delimited block's own file:// link (see
-    _BLOCK_FILE_LINK_RE) points at a file under a 'custom_*' addon
-    directory. Returns True (keep the block) whenever no file:// link is
-    found at all -- never silently drops a block this cannot positively
-    classify as core/OCA Odoo, same conservative default as every other
-    scoping guard in this module."""
+    """True when this '\n\n'-delimited block's own file link points to an
+    installed/downstream module rather than core Odoo framework."""
     match = _BLOCK_FILE_LINK_RE.search(block)
     if not match:
         return True
-    return "/custom_" in match.group(1)
+    from config.settings import CORE_ADDONS_PATH, CORE_FRAMEWORK_ADDONS_PATH, CUSTOM_ADDONS_PATH
+    try:
+        resolved = Path(match.group(1)).resolve()
+        if CUSTOM_ADDONS_PATH and Path(CUSTOM_ADDONS_PATH).resolve() in resolved.parents:
+            return True
+        if CORE_ADDONS_PATH and Path(CORE_ADDONS_PATH).resolve() in resolved.parents:
+            return False
+        if CORE_FRAMEWORK_ADDONS_PATH and Path(CORE_FRAMEWORK_ADDONS_PATH).resolve() in resolved.parents:
+            return False
+    except Exception:
+        pass
+    path_parts = Path(match.group(1)).parts
+    core_dirs = {"odoo/addons", "base", "web"}
+    if any(c in path_parts for c in core_dirs):
+        return False
+    return True
 
 
 def _restrict_blocks_to_custom_modules(raw_tool_output: str) -> str:
@@ -708,6 +819,8 @@ def _backfill_missing_security_lock_amount(
     """
     if question is not None:
         if _has_can_view_amount_fact(final_answer):
+            return final_answer
+        if not (_question_is_approval_related(question) or _extract_amount(question) is not None):
             return final_answer
         amount = _extract_amount(question)
     else:
@@ -896,10 +1009,17 @@ def _backfill_missing_hardcoded_id_literals(final_answer: str, raw_tool_output: 
     )
 
 
-def _backfill_link_guard_clarifications(final_answer: str, raw_tool_output: str) -> str:
+def _backfill_link_guard_clarifications(final_answer: str, raw_tool_output: str, question: Optional[str] = None) -> str:
     """Deterministic backfill whenever a [GARDE DE LIEN] annotation is present in raw tool output."""
     guard_fields = _extract_link_guard_fields(raw_tool_output)
     if not guard_fields:
+        return final_answer
+
+    if question is not None and not any(
+        re.search(rf"\b{re.escape(g.lower())}\b", question.lower())
+        or re.search(rf"\b{re.escape(g.lower())}\b", final_answer.lower())
+        for g in guard_fields
+    ):
         return final_answer
 
     marker = "[FAIT DÉTERMINISTIQUE] Court-circuit"
@@ -1537,8 +1657,29 @@ def _rank_and_cap_resolved_models(question: str, resolved_models: List[str], max
         return resolved_models
     from rapidfuzz import fuzz
     question_lower = question.lower()
+
+    _BILINGUAL_EXPANSIONS = {
+        "rule": "regle règle",
+        "log": "journal logs audit",
+        "wizard": "assistant",
+        "user": "utilisateur",
+        "partner": "partenaire contact",
+        "company": "societe société entreprise",
+        "move": "mouvement",
+        "quant": "quantite quantité stock",
+        "line": "ligne",
+    }
+
+    def _model_text(m_name: str) -> str:
+        parts = m_name.replace(".", " ").replace("_", " ").lower().split()
+        expanded_parts = list(parts)
+        for p in parts:
+            if p in _BILINGUAL_EXPANSIONS:
+                expanded_parts.append(_BILINGUAL_EXPANSIONS[p])
+        return " ".join(expanded_parts)
+
     scored = [
-        (name, fuzz.token_set_ratio(question_lower, name.replace(".", " ").replace("_", " ").lower()))
+        (name, fuzz.token_set_ratio(question_lower, _model_text(name)))
         for name in resolved_models
     ]
     scored.sort(key=lambda pair: pair[1], reverse=True)
@@ -1706,19 +1847,33 @@ def _rehydrate_sticky_concept(concept, state: dict):
         return concept
 
     sticky = state.get("resolved_concept")
-    if not isinstance(sticky, dict):
-        return concept
+    if isinstance(sticky, dict):
+        if sticky.get("is_resolved") is True:
+            try:
+                from code_intelligence.business_resolver import ResolvedConcept
+                return ResolvedConcept(**sticky)
+            except Exception:
+                logger.debug(
+                    "_rehydrate_sticky_concept: reconstruction from sticky dict "
+                    "failed (unexpected shape), degrading to original concept"
+                )
+                return concept
 
-    if sticky.get("is_resolved") is not True:
-        return concept
+    mod = state.get("module")
+    if mod and isinstance(mod, str):
+        try:
+            from code_intelligence.business_resolver import ResolvedConcept
+            target_models = state.get("target_models", [])
+            return ResolvedConcept(
+                user_term=mod,
+                resolved_models=list(target_models) if target_models else [],
+                resolved_modules=[mod],
+                confidence=1.0,
+                source_step="state_module",
+                is_resolved=True,
+                reason=f"Resolved from state module: {mod}",
+            )
+        except Exception:
+            pass
 
-    try:
-        from code_intelligence.business_resolver import ResolvedConcept
-        rebuilt = ResolvedConcept(**sticky)
-        return rebuilt
-    except Exception:
-        logger.debug(
-            "_rehydrate_sticky_concept: reconstruction from sticky dict "
-            "failed (unexpected shape), degrading to original concept"
-        )
-        return concept
+    return concept

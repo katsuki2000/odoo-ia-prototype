@@ -18,7 +18,7 @@ import unicodedata
 from rapidfuzz import fuzz
 
 from code_intelligence.semantic_tag_query import tags_for_node_attrs
-from code_intelligence.utils import format_xml_id_citation, format_xml_id_citations
+from code_intelligence.utils import format_file_link, format_xml_id_citation, format_xml_id_citations
 from core.evidence import Evidence, EvidenceSourceType, make_evidence
 
 _logger = logging.getLogger(__name__)
@@ -1458,6 +1458,172 @@ def _build_button_execution_evidence(
     return evidence
 
 
+def _find_field_in_xml_views(
+    G: nx.DiGraph,
+    model_name: str,
+    field_identifier: str,
+    user_groups: Optional[List[str]] = None,
+) -> Optional[ButtonExecutionPathResult]:
+    """Search XML form views for field definitions matching field_identifier (name or label)
+    and extract UI constraints (readonly, invisible, required, groups)."""
+    import xml.etree.ElementTree as ET
+    from pathlib import Path
+
+    clean_id = field_identifier.strip().lower()
+    matched_field_name = None
+    matched_field_label = None
+
+    model_node = f"model:{model_name}"
+    if model_node in G:
+        for _, v, d in G.out_edges(model_node, data=True):
+            if d.get("edge_type") == "HAS_FIELD":
+                fnode = G.nodes.get(v, {})
+                fname = fnode.get("name", "")
+                flabel = fnode.get("label", "")
+                if clean_id in (fname.lower(), flabel.lower()):
+                    matched_field_name = fname
+                    matched_field_label = flabel or fname
+                    break
+
+    if not matched_field_name and model_node in G:
+        import re
+        FR_EN = {
+            "nom": "name", "personnalise": "custom", "personnalisé": "custom",
+            "section": "section", "facture": "invoice", "factures": "invoice",
+            "vente": "sale", "commande": "order", "type": "type",
+            "statut": "state", "etat": "state", "état": "state",
+            "date": "date", "montant": "amount", "prix": "price",
+            "societe": "company", "société": "company", "partenaire": "partner",
+            "ligne": "line", "lignes": "line", "champ": "field",
+        }
+        words = set(re.findall(r"\w+", clean_id.lower()))
+        en_words = {FR_EN.get(w, w) for w in words} | words
+        candidates = []
+        for _, v, d in G.out_edges(model_node, data=True):
+            if d.get("edge_type") == "HAS_FIELD":
+                fnode = G.nodes.get(v, {})
+                fname = fnode.get("name", "")
+                flabel = fnode.get("label", "")
+                ftokens = set(re.findall(r"\w+", fname.lower())) | set(re.findall(r"\w+", flabel.lower()))
+                score = len(en_words & ftokens)
+                if score > 1:
+                    candidates.append((score, fname, flabel))
+        if candidates:
+            candidates.sort(reverse=True, key=lambda c: c[0])
+            matched_field_name = candidates[0][1]
+            matched_field_label = candidates[0][2] or matched_field_name
+
+    if not matched_field_name:
+        if clean_id.replace("_", "").isalnum():
+            matched_field_name = clean_id
+            matched_field_label = field_identifier
+
+    if not matched_field_name:
+        return None
+
+    candidate_dirs = set()
+    for m_node, m_data in G.nodes(data=True):
+        if m_data.get("node_type") == "Module":
+            mfp = m_data.get("filepath")
+            if mfp:
+                vdir = Path(mfp).parent / "views"
+                if vdir.exists():
+                    candidate_dirs.add(vdir)
+
+    view_matches = []
+    for vdir in candidate_dirs:
+        for xml_file in vdir.glob("*.xml"):
+            try:
+                content = xml_file.read_text(encoding="utf-8")
+                if f'name="{matched_field_name}"' not in content and f"name='{matched_field_name}'" not in content:
+                    continue
+                root = ET.fromstring(content)
+                for rec in root.findall(".//record"):
+                    if rec.attrib.get("model") != "ir.ui.view":
+                        continue
+                    rec_id = rec.attrib.get("id", "")
+                    parent_map = {c: p for p in rec.iter() for c in p}
+                    for fld in rec.findall(f'.//field[@name="{matched_field_name}"]'):
+                        attrs = dict(fld.attrib)
+                        curr = fld
+                        ancestor_with_constraints = None
+                        while curr in parent_map:
+                            curr = parent_map[curr]
+                            for k in ("groups", "invisible", "readonly", "required"):
+                                if k in curr.attrib and k not in attrs:
+                                    attrs[k] = curr.attrib[k]
+                                    if not ancestor_with_constraints:
+                                        ancestor_with_constraints = curr
+                        if "readonly" in attrs or "invisible" in attrs or "required" in attrs or "groups" in attrs:
+                            lines = content.splitlines()
+                            ln = 1
+                            ancestor_name = ancestor_with_constraints.attrib.get("name", "") if ancestor_with_constraints is not None else ""
+                            for idx, l in enumerate(lines, 1):
+                                if ancestor_name and f'name="{ancestor_name}"' in l:
+                                    ln = idx
+                                    break
+                                if f'name="{matched_field_name}"' in l or f"name='{matched_field_name}'" in l:
+                                    ln = idx
+                                    break
+                            link = format_file_link(str(xml_file), ln, min(len(lines), ln + 6))
+                            view_matches.append((rec_id, str(xml_file), ln, attrs, link))
+            except Exception:
+                continue
+
+    if not view_matches:
+        return None
+
+    view_matches.sort(key=lambda x: (0 if ("/addons/" not in x[1] or "oca" in x[1]) else 1, x[0]))
+    rec_id, xml_file, ln, attrs, link = view_matches[0]
+
+    readonly_cond = attrs.get("readonly", "")
+    invisible_cond = attrs.get("invisible", "")
+    required_cond = attrs.get("required", "")
+    groups_cond = attrs.get("groups", "")
+
+    steps = [
+        f"1. UI Field Declaration: Champ '{matched_field_name}' ({matched_field_label}) dans la vue '{rec_id}' (modèle '{model_name}').",
+        f"2. Source XML: Déclaré dans {link}.",
+    ]
+    if readonly_cond:
+        steps.append(f"3. Condition Readonly: readonly=\"{readonly_cond}\" -- le champ devient non modifiable sous cette condition.")
+    if required_cond:
+        steps.append(f"4. Condition Required: required=\"{required_cond}\".")
+    if invisible_cond:
+        steps.append(f"5. Condition Invisible: invisible=\"{invisible_cond}\".")
+    if groups_cond:
+        _grp_citations = format_xml_id_citations([g.strip() for g in groups_cond.split(",") if g.strip()])
+        steps.append(f"6. Groupes requis: groups=\"{groups_cond}\" ({_grp_citations}).")
+
+    summary_parts = [
+        f"Champ '{matched_field_name}' ({matched_field_label}) sur la vue '{rec_id}' ({link}) du modèle '{model_name}':"
+    ]
+    if readonly_cond:
+        summary_parts.append(f"Non modifiable (readonly) lorsque: readonly=\"{readonly_cond}\".")
+    if required_cond:
+        summary_parts.append(f"Requis lorsque: required=\"{required_cond}\".")
+    if invisible_cond:
+        summary_parts.append(f"Invisible lorsque: invisible=\"{invisible_cond}\".")
+    if groups_cond:
+        _grp_citations = format_xml_id_citations([g.strip() for g in groups_cond.split(",") if g.strip()])
+        summary_parts.append(f"Restreint aux groupes: [{groups_cond}] ({_grp_citations}).")
+    else:
+        summary_parts.append("Aucune restriction par groupe sur ce champ.")
+
+    req_groups_list = [g.strip() for g in groups_cond.split(",") if g.strip()] if groups_cond else []
+    return ButtonExecutionPathResult(
+        button_identifier=field_identifier,
+        model_name=model_name,
+        method_name="",
+        origin_states=[],
+        target_state="",
+        required_groups=req_groups_list,
+        execution_steps=steps,
+        summary_text=" ".join(summary_parts),
+        evidence=[],
+    )
+
+
 def button_execution_path(
     G: nx.DiGraph,
     button_label_or_name: str,
@@ -1465,8 +1631,8 @@ def button_execution_path(
     user_groups: Optional[List[str]] = None,
 ) -> ButtonExecutionPathResult:
     """
-    Traces step-by-step workflow execution path for a UI button click.
-    Combines UI View Button -> Python Method -> Workflow State Transition -> Security Rules.
+    Traces step-by-step workflow execution path for a UI button click or UI field inspection.
+    Combines UI View Button/Field -> Python Method -> Workflow State Transition -> Security Rules.
     """
     model_node = f"model:{model_name}"
 
@@ -1484,30 +1650,85 @@ def button_execution_path(
     required_groups: Set[str] = set()
     execution_steps: List[str] = []
 
-    # Search workflow transition edges
+    # Search workflow transition edges with scored matching (exact match prioritizes over substring)
+    candidate_transitions = []
+    target_clean = button_label_or_name.strip().lower()
     for u, v, edge_data in G.edges(data=True):
         if edge_data.get("edge_type") == "TRANSITIONS_VIA":
-            m_name = edge_data.get("method_name", "")
-            btn_label = edge_data.get("label_bouton", "")
+            # If the state node has a model prefix, it must match model_name
+            state_val = u.replace("state:", "")
+            if "." in state_val:
+                edge_model = state_val.rsplit(".", 1)[0]
+                if edge_model != model_name:
+                    continue
 
-            # Match button by method name or label
-            if (
-                button_label_or_name.lower() in m_name.lower()
-                or button_label_or_name.lower() in btn_label.lower()
-                or m_name.lower() in button_label_or_name.lower()
-            ):
+            m_name = (edge_data.get("method_name") or "").strip()
+            btn_label = (edge_data.get("label_bouton") or "").strip()
+            m_lower = m_name.lower()
+            lbl_lower = btn_label.lower()
+
+            score = 0
+            if target_clean == m_lower or (lbl_lower and target_clean == lbl_lower):
+                score = 3
+            elif (lbl_lower and target_clean in lbl_lower) or (m_lower and target_clean in m_lower):
+                score = 2
+            elif (m_lower and m_lower in target_clean) or (lbl_lower and lbl_lower in target_clean):
+                score = 1
+
+            if score > 0:
+                candidate_transitions.append((score, m_name, u, v, edge_data))
+
+    if candidate_transitions:
+        max_score = max(c[0] for c in candidate_transitions)
+        best_candidates = [c for c in candidate_transitions if c[0] == max_score]
+        chosen_method = best_candidates[0][1]
+        for score, m_name, u, v, edge_data in best_candidates:
+            if m_name == chosen_method:
                 method_name = m_name
                 orig_st = u.replace(f"state:{model_name}.", "").replace("state:", "")
                 targ_st = v.replace(f"state:{model_name}.", "").replace("state:", "")
-
                 origin_states.add(orig_st)
                 target_state = targ_st
-
                 groups_req = edge_data.get("groupe_requis", [])
                 if isinstance(groups_req, list):
                     required_groups.update(groups_req)
 
-    # If method_name not found via workflow edges, search direct method nodes
+    invisible_condition = ""
+    # Search HAS_BUTTON edges linked to this model if not found via workflow edges
+    if not method_name:
+        model_node_id = f"model:{model_name}"
+        if model_node_id in G:
+            candidate_buttons = []
+            for _, _, edge_data in G.out_edges(model_node_id, data=True):
+                if edge_data.get("edge_type") == "HAS_BUTTON":
+                    m_name = (edge_data.get("method_name") or "").strip()
+                    btn_label = (edge_data.get("label_bouton") or "").strip()
+                    m_lower = m_name.lower()
+                    lbl_lower = btn_label.lower()
+                    score = 0
+                    if target_clean == m_lower or (lbl_lower and target_clean == lbl_lower):
+                        score = 3
+                    elif (lbl_lower and target_clean in lbl_lower) or (m_lower and target_clean in m_lower):
+                        score = 2
+                    elif (m_lower and m_lower in target_clean) or (lbl_lower and lbl_lower in target_clean):
+                        score = 1
+                    if score > 0:
+                        candidate_buttons.append((score, m_name, edge_data))
+            if candidate_buttons:
+                candidate_buttons.sort(key=lambda x: x[0], reverse=True)
+                _, method_name, edge_data = candidate_buttons[0]
+                groups_req = edge_data.get("groupe_requis", [])
+                if isinstance(groups_req, list):
+                    required_groups.update(groups_req)
+                invisible_condition = edge_data.get("invisible", "")
+
+    # If neither transition nor button edge matched, check if identifier refers to a field in XML views
+    if not method_name:
+        field_view_res = _find_field_in_xml_views(G, model_name, button_label_or_name, user_groups=user_groups)
+        if field_view_res is not None:
+            return field_view_res
+
+    # If method_name not found via workflow or button edges, search direct method nodes
     if not method_name:
         method_name = button_label_or_name if button_label_or_name.startswith("action_") or button_label_or_name.startswith("_") else f"action_{button_label_or_name.lower()}"
 
@@ -1515,31 +1736,181 @@ def button_execution_path(
     method_exists = method_node_id in G
     method_tags = tags_for_node_attrs(G.nodes[method_node_id]) if method_exists else []
 
+    # If not found via buttons/methods/transitions, check dynamic view hooks or Menu nodes
+    if not method_exists and not origin_states and not invisible_condition:
+        # Check if dynamic view injection (get_view / fields_view_get) overrides exist on this model
+        get_view_id = f"method:{model_name}.get_view"
+        fvg_id = f"method:{model_name}.fields_view_get"
+        view_hook_id = get_view_id if get_view_id in G else (fvg_id if fvg_id in G else None)
+        if view_hook_id:
+            hook_data = G.nodes[view_hook_id]
+            hook_name = hook_data.get("name", "get_view")
+            hook_fp = hook_data.get("filepath", "")
+            hook_line = hook_data.get("lineno", 0)
+            hook_sites = hook_data.get("override_sites") or []
+            end_line = hook_sites[0].get("end_lineno", hook_line + 48) if hook_sites else (hook_line + 48)
+            hook_file_link = format_file_link(hook_fp, hook_line, end_line)
+            dynamic_summary = (
+                f"Button '{button_label_or_name}' on '{model_name}': No static XML button declaration found in views. "
+                f"Dynamic View Injection Detected: Method '{model_name}.{hook_name}' is overridden at {hook_file_link}. "
+                f"In Odoo, models overriding {hook_name}() dynamically inject buttons, labels, and widgets into the view arch "
+                f"at runtime (via xpath on /form/header/button, QWeb rendering, or _tier_validation_manual_config) "
+                f"without declaring them in static XML view files."
+            )
+            return ButtonExecutionPathResult(
+                button_identifier=button_label_or_name,
+                model_name=model_name,
+                method_name=hook_name,
+                origin_states=[],
+                target_state="",
+                required_groups=[],
+                execution_steps=[
+                    f"1. Dynamic View Injection: Method '{model_name}.{hook_name}()' dynamically processes form view XML.",
+                    f"2. Source Hook: Defined at {hook_file_link}.",
+                    f"3. Runtime XPath: Injects dynamic buttons into form header at runtime without static XML view declaration.",
+                ],
+                summary_text=dynamic_summary,
+                evidence=[],
+            )
+
+        target_modules = set()
+        model_node = f"model:{model_name}"
+        if model_node in G:
+            for neighbor in G.neighbors(model_node):
+                edge_data = G.get_edge_data(model_node, neighbor) or {}
+                if edge_data.get("edge_type") == "DEFINED_IN":
+                    target_modules.add(neighbor.replace("module:", ""))
+        if not target_modules:
+            target_modules.add(model_name.split(".")[0])
+
+        btn_clean = button_label_or_name.strip().lower()
+        scored_menus = []
+        for node_id, data in G.nodes(data=True):
+            if data.get("node_type") == "Menu":
+                m_name = (data.get("name") or "").strip()
+                m_xml_id = (data.get("xml_id") or "").strip()
+                m_mod = m_xml_id.split(".")[0] if "." in m_xml_id else ""
+                name_match = (btn_clean == m_name.lower()) or (len(btn_clean) >= 3 and btn_clean in m_name.lower())
+                id_match = (btn_clean == m_xml_id.lower()) or (len(btn_clean) >= 3 and btn_clean in m_xml_id.lower())
+                if not (name_match or id_match):
+                    continue
+                score = 0
+                if m_mod in target_modules:
+                    score += 10
+                if btn_clean == m_name.lower():
+                    score += 5
+                if btn_clean == m_xml_id.lower():
+                    score += 3
+                scored_menus.append((score, node_id, data))
+
+        if scored_menus:
+            scored_menus.sort(key=lambda x: x[0], reverse=True)
+            _score, menu_id, menu_data = scored_menus[0]
+            menu_name = menu_data.get("name", button_label_or_name)
+            menu_xml_id = menu_data.get("xml_id", "")
+            menu_fp = menu_data.get("filepath", "")
+            menu_groups = menu_data.get("groups", [])
+            grp_str = ", ".join(sorted(menu_groups)) if menu_groups else "None"
+            req_citations = format_xml_id_citations(sorted(menu_groups)) if menu_groups else ""
+            citations_str = f" ({req_citations})" if req_citations else ""
+
+            menu_lineno = 1
+            end_lineno = 10
+            if menu_fp:
+                from pathlib import Path
+                p = Path(menu_fp)
+                if p.exists():
+                    try:
+                        import re
+                        m_txt = p.read_text(encoding="utf-8")
+                        rec_id = menu_xml_id.split(".")[-1]
+                        m_pos = re.search(r"id=[\"']" + re.escape(rec_id) + r"[\"']", m_txt)
+                        if m_pos:
+                            menu_lineno = m_txt[:m_pos.start()].count("\n") + 1
+                            after = m_txt[m_pos.start():]
+                            close_tag = after.find("</record>")
+                            if close_tag != -1:
+                                end_lineno = menu_lineno + after[:close_tag].count("\n")
+                            else:
+                                end_lineno = menu_lineno + 6
+                    except Exception:
+                        pass
+            menu_link = f"[{Path(menu_fp).name}:L{menu_lineno}-L{end_lineno}](file://{menu_fp}#L{menu_lineno}-L{end_lineno})" if menu_fp else menu_fp
+
+            menu_steps = [
+                f"1. UI Menu: User navigates to menu item '{menu_name}' (id: {menu_xml_id}).",
+                f"2. File Declaration: Declared in {menu_link}.",
+                f"3. Security Requirement: Menu restricted to groups [{grp_str}].{citations_str}",
+            ]
+            menu_summary = (
+                f"Menu '{menu_name}' (id: {menu_xml_id}) in {menu_link}: "
+                f"Restricted to groups [{grp_str}].{citations_str} "
+                f"Only users belonging to these groups have visibility to this menu item."
+            )
+            return ButtonExecutionPathResult(
+                button_identifier=button_label_or_name,
+                model_name=model_name,
+                method_name="",
+                origin_states=[],
+                target_state="",
+                required_groups=sorted(menu_groups),
+                execution_steps=menu_steps,
+                summary_text=menu_summary,
+                evidence=[],
+            )
+
     # Build execution steps
-    execution_steps.append(f"1. UI Click: User clicks button '{button_label_or_name}' on form view of '{model_name}'.")
-    execution_steps.append(f"2. Method Invocation: Calls Python method '{method_name}()' (Defined: {method_exists}).")
-
-    if origin_states and target_state:
-        orig_str = ", ".join(sorted(origin_states))
-        execution_steps.append(f"3. State Transition: Transitions model '{model_name}' state from [{orig_str}] -> '{target_state}'.")
+    if not method_exists and not origin_states and not invisible_condition:
+        execution_steps.append(f"1. UI Search: Button or UI element '{button_label_or_name}' was not found in XML views for '{model_name}'.")
+        execution_steps.append(f"2. Method Lookup: Candidate method '{method_name}()' is not defined on model '{model_name}'.")
+        execution_steps.append("3. State Transition: None.")
+        execution_steps.append("4. Security Requirement: None.")
+        summary = (
+            f"Button or UI element '{button_label_or_name}' on '{model_name}': "
+            f"Neither button declaration nor method '{method_name}()' found in knowledge graph. "
+            f"Transition: [] -> ''. "
+            f"Required Groups: [None]."
+        )
     else:
-        execution_steps.append(f"3. State Transition: Executes method logic without state machine transition.")
+        method_link_str = f"Defined: {method_exists}"
+        if method_exists and method_node_id in G:
+            m_node = G.nodes[method_node_id]
+            m_fp = m_node.get("filepath", "")
+            m_line = m_node.get("lineno", 0)
+            m_sites = m_node.get("override_sites") or []
+            m_end = m_sites[0].get("end_lineno", m_line + 30) if m_sites else (m_line + 30)
+            if m_fp:
+                m_link = format_file_link(m_fp, m_line, m_end)
+                method_link_str = f"Defined at {m_link}"
+        execution_steps.append(f"1. UI Click: User clicks button '{button_label_or_name}' on form view of '{model_name}'.")
+        execution_steps.append(f"2. Method Invocation: Calls Python method '{method_name}()' ({method_link_str}).")
 
-    if required_groups:
-        grp_str = ", ".join(sorted(required_groups))
-        # Bug 1 fix (todo/contexte.txt section 490, option A): emit
-        # 'xml_id: ...' ground truth for each required-group xml_id.
-        _req_citations = format_xml_id_citations(sorted(required_groups))
-        execution_steps.append(f"4. Security Requirement: Button restricted to groups [{grp_str}]. ({_req_citations})")
-    else:
-        execution_steps.append(f"4. Security Requirement: No button-level group restriction specified.")
+        if origin_states and target_state:
+            orig_str = ", ".join(sorted(origin_states))
+            execution_steps.append(f"3. State Transition: Transitions model '{model_name}' state from [{orig_str}] -> '{target_state}'.")
+        else:
+            execution_steps.append(f"3. State Transition: Executes method logic without state machine transition.")
 
-    summary = (
-        f"Button '{button_label_or_name}' on '{model_name}': "
-        f"Calls '{method_name}()'. "
-        f"Transition: [{', '.join(sorted(origin_states))}] -> '{target_state}'. "
-        f"Required Groups: [{', '.join(sorted(required_groups)) if required_groups else 'None'}]."
-    )
+        if required_groups:
+            grp_str = ", ".join(sorted(required_groups))
+            # Bug 1 fix (todo/contexte.txt section 490, option A): emit
+            # 'xml_id: ...' ground truth for each required-group xml_id.
+            _req_citations = format_xml_id_citations(sorted(required_groups))
+            execution_steps.append(f"4. Security Requirement: Button restricted to groups [{grp_str}]. ({_req_citations})")
+        else:
+            execution_steps.append(f"4. Security Requirement: No button-level group restriction specified.")
+
+        if invisible_condition:
+            execution_steps.append(f"5. Visibility Condition: Button invisible condition '{invisible_condition}'.")
+
+        summary = (
+            f"Button '{button_label_or_name}' on '{model_name}': "
+            f"Calls '{method_name}()' ({method_link_str}). "
+            f"Transition: [{', '.join(sorted(origin_states))}] -> '{target_state}'. "
+            f"Required Groups: [{', '.join(sorted(required_groups)) if required_groups else 'None'}]."
+        )
+        if invisible_condition:
+            summary += f" Visibility: invisible='{invisible_condition}'."
 
     available_to_requester: Optional[bool] = None
     unavailable_reason = ""
@@ -1806,12 +2177,48 @@ def trace_full_inheritance(
     ext_str = ", ".join(sorted(extension_parents)) if extension_parents else "None"
     del_str = ", ".join([f"{m} (via {fk})" for m, fk in delegation_parents.items()]) if delegation_parents else "None"
 
+    mixins = [p for p in extension_parents if p.endswith(".mixin") or p in ("mail.thread", "mail.activity.mixin", "rating.mixin", "portal.mixin", "utm.mixin", "image.mixin", "avatar.mixin")]
+    business_parents = [p for p in extension_parents if p not in mixins]
+    nature_str = ""
+    if extension_parents:
+        if not business_parents:
+            nature_str = f" Nature: Nouveau modèle déclarant son propre _name='{model_name}' avec mixins techniques uniquement ({', '.join(sorted(mixins))}), pas d'extension d'un modèle métier existant."
+        else:
+            nature_str = f" Nature: Extension de modèle(s) métier ({', '.join(sorted(business_parents))})."
+
     summary = (
         f"Inheritance Chain for '{model_name}': "
         f"Extensions (_inherit): [{ext_str}]. "
         f"Delegations (_inherits): [{del_str}]. "
-        f"Full Ancestor Chain: [{', '.join(full_ancestors)}]."
+        f"Full Ancestor Chain: [{', '.join(full_ancestors)}].{nature_str}"
     )
+
+    filepaths = G.nodes[model_node].get("filepaths", [])
+    if filepaths:
+        from pathlib import Path
+        from code_intelligence.ci_agent_tools import _is_custom_module_filepath
+        sorted_filepaths = sorted(filepaths, key=lambda f: not _is_custom_module_filepath(f))
+        src_links = []
+        for fp in sorted_filepaths:
+            p = Path(fp)
+            lineno = 1
+            line_count = 50
+            if p.exists():
+                try:
+                    text = p.read_text(encoding="utf-8")
+                    line_count = max(1, len(text.splitlines()))
+                    pos = re.search(r"(?:_name|_inherit)\s*=\s*['\"]" + re.escape(model_name) + r"['\"]", text)
+                    if pos:
+                        before = text[:pos.start()]
+                        class_matches = list(re.finditer(r"class\s+\w+", before))
+                        if class_matches:
+                            class_pos = class_matches[-1].start()
+                            lineno = text[:class_pos].count("\n") + 1
+                except Exception:
+                    pass
+            end_line = min(lineno + 80, line_count)
+            src_links.append(f"[{p.name}:L{lineno}-L{end_line}](file://{fp}#L{lineno}-L{end_line})")
+        summary += f" Declared in: {', '.join(src_links)}."
 
     return InheritanceChainResult(
         model_name=model_name,

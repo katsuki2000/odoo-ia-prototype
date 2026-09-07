@@ -37,9 +37,17 @@ def _word_boundary_present(marker: str, text: str) -> bool:
     return re.search(r"(?<![A-Za-z0-9_])" + re.escape(marker) + r"(?![A-Za-z0-9_])", text) is not None
 
 
-def _backfill_missing_override_modules(final_answer: str, raw_tool_output: str) -> str:
+def _backfill_missing_override_modules(final_answer: str, raw_tool_output: str, question: str = "") -> str:
     """If the raw override-cascade text names a module that never made it into the
     synthesized answer, append it as an explicit, clearly labeled fact."""
+    if question:
+        from code_intelligence.ci_helpers import (
+            _question_is_inheritance_related,
+            _question_is_method_or_override_related,
+        )
+        if not (_question_is_inheritance_related(question) or _question_is_method_or_override_related(question)):
+            return final_answer
+
     modules = _extract_override_modules(raw_tool_output)
     if not modules:
         return final_answer
@@ -67,12 +75,14 @@ def _extract_override_chain_amounts(raw_tool_output: str) -> List[str]:
     """Pull every monetary threshold embedded in a Python comparison inside
     an override-cascade risk finding in first-seen order, deduplicated."""
     amounts: List[str] = []
-    for match in _OVERRIDE_CHAIN_AMOUNT_RE.finditer(raw_tool_output):
-        if _match_near_truncation(raw_tool_output, match.start(), match.end()):
-            # Evidence-first (section 503-505): a value sitting right next
-            # to a truncation marker is real (never a partial token, see
-            # _truncate_observation) but its surrounding condition may be
-            # incomplete -- don't backfill it as a fully-grounded fact.
+    override_sections = re.findall(
+        r"(?:Cha[iî]ne de surcharge|Override chain).*?(?=\n\n(?:[A-Z\u00c0-\u00dc]|$))",
+        raw_tool_output,
+        re.DOTALL | re.IGNORECASE,
+    )
+    search_text = "\n".join(override_sections) if override_sections else ""
+    for match in _OVERRIDE_CHAIN_AMOUNT_RE.finditer(search_text):
+        if _match_near_truncation(search_text, match.start(), match.end()):
             continue
         amount = match.group(1).replace(" ", "").strip()
         if amount and amount not in amounts:

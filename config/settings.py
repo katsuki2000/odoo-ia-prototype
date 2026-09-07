@@ -21,15 +21,15 @@ GROQ_API_KEYS = [k.strip() for k in _groq_keys_raw.split(",") if k.strip()]
 if not GROQ_API_KEYS and GROQ_API_KEY:
     GROQ_API_KEYS = [GROQ_API_KEY]
 
-GROQ_MODEL   = "openai/gpt-oss-20b"
+GROQ_MODEL   = os.getenv("GROQ_MODEL", "openai/gpt-oss-20b")
 
 OPENROUTER_API_KEY  = os.getenv("OPENROUTER_API_KEY")
 OPENROUTER_MODEL    = os.getenv("OPENROUTER_MODEL", "qwen/qwen3-14b:free")
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
 
-OLLAMA_HOST  = "http://localhost:11434"
-OLLAMA_MODEL = "gpt-oss:20b"
+OLLAMA_HOST  = os.getenv("OLLAMA_HOST", "http://localhost:11434")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "gpt-oss:20b")
 
 # ── ChromaDB ──────────────────────────────────────────
 # BUGFIX (todo/contexte.txt): CHROMA_PATH etait une string relative nue
@@ -45,6 +45,16 @@ CHROMA_PATH = os.getenv("CHROMA_PATH") or str(_ROOT / "document_rag" / "vectorst
 # -- Code Intelligence corpus paths ----------------------
 CORE_ADDONS_PATH = os.getenv("CORE_ADDONS_PATH") or str(_ROOT.parent / "odoo-17.0" / "addons")
 CUSTOM_ADDONS_PATH = os.getenv("CUSTOM_ADDONS_PATH") or str(_ROOT / "odoo_addons")
+
+# Bloc P3.1 (todo/contexte.txt section 546, mandat San Goku 2026-09-04) :
+# chemin optionnel vers le corpus OCA echantillonne pour le banc de 50
+# questions CI (tests/oca_p3_1_question_bank.json). None par defaut --
+# aucun changement de comportement pour la production tant que cette
+# variable n'est pas positionnee dans .env. Quand elle l'est,
+# code_intelligence/ci_graph_loader.py charge en plus les 10 modules OCA
+# nommes dans OCA_SAMPLE_MODULE_REPOS (module -> repo), en plus du corpus
+# metier reel (CUSTOM_ADDONS_PATH) -- un ajout, jamais un remplacement.
+OCA_SAMPLE_ADDONS_PATH = os.getenv("OCA_SAMPLE_ADDONS_PATH") or None
 
 # -- RAG documentary source path ----------------------
 RAG_DOCS_PATH = os.getenv("RAG_DOCS_PATH") or str(_ROOT / "document_rag" / "documents")

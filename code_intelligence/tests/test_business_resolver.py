@@ -379,15 +379,18 @@ def test_exact_technical_model_mention_resolves_even_with_unrelated_description(
 
 
 def test_exact_technical_model_mention_takes_priority_over_static_alias():
-    """When BOTH a static alias and a distinct exact technical mention are
-    present, static alias still wins (Step 1 runs first, unchanged) --
-    this test just documents that ordering explicitly for a mixed query."""
+    """todo/contexte.txt section 548 (mandat San Goku 2026-09-04) : quand un
+    alias business ET une mention technique exacte distincte sont presents,
+    la mention technique exacte gagne desormais (Step 0, avant le Step 1
+    alias) -- inversion permanente de l'ordre precedent. Dans ce cas precis
+    les deux visent le meme modele (account.move), donc seul source_step
+    change ; resolved_models reste identique."""
     G = nx.DiGraph()
     G.add_node("model:account.move", node_type="Model", name="account.move", description="")
     result = resolve_business_term("un avoir concernant le modèle account.move", G)
     assert result.is_resolved
     assert result.resolved_models == ["account.move"]
-    assert result.source_step == "static_alias"
+    assert result.source_step == "exact_technical_mention"
 
 
 def test_exact_technical_model_mention_does_not_match_substring_of_longer_identifier():

@@ -10,8 +10,10 @@ and authorization gating to answer governance/access/code questions.
 
 import json
 import logging
+import re
 import time
 from typing import List, Optional, Any
+from pathlib import Path
 
 
 from core.schemas import AssistantResponse, SourceReference
@@ -42,6 +44,9 @@ from code_intelligence.ci_helpers import (
     _infer_move_type_context,
     _question_is_approval_related,
     _question_is_access_related,
+    _question_is_workflow_related,
+    _question_is_inheritance_related,
+    _question_is_constraint_related,
     _question_suggests_automation_bypass,
     _extract_required_groups,
     _flag_ungrounded_group_xmlids,
@@ -157,6 +162,12 @@ def _resolve_user_group_xmlids(group_ids) -> list:
 
     if not group_ids:
         return []
+
+    # If any group_id is already an xml_id string (contains a dot or non-numeric), populate cache directly
+    for g in group_ids:
+        if isinstance(g, str) and ("." in g or not g.isdigit()):
+            cache[g] = g
+            _GROUP_XMLID_CACHE[g] = g
 
     uncached = [g for g in group_ids if g not in cache]
     if uncached:
@@ -297,8 +308,16 @@ class CodeIntelligenceAgentRunner:
         concept = _rehydrate_sticky_concept(concept, state)
         from core.evidence_check import check_evidence
         evidence_status = check_evidence(concept, _concept_resolved_before_rehydration, state)
-        logger.info("Node [code_intelligence_agent]: H3 evidence_status=%s", evidence_status)
-        
+        if concept.is_resolved and concept.resolved_modules and not concept.resolved_models and G is not None:
+            for mod in concept.resolved_modules:
+                mod_node = f"module:{mod}"
+                if mod_node in G:
+                    for u, v, d in G.in_edges(mod_node, data=True):
+                        if u.startswith("model:") and d.get("edge_type") == "DEFINED_IN":
+                            m_name = u.split("model:", 1)[1]
+                            if m_name not in concept.resolved_models:
+                                concept.resolved_models.append(m_name)
+
         if concept.resolved_models and len(concept.resolved_models) > MAX_MODELS_PER_QUERY:
             concept.resolved_models = _rank_and_cap_resolved_models(
                 question, concept.resolved_models, MAX_MODELS_PER_QUERY,
@@ -317,8 +336,49 @@ class CodeIntelligenceAgentRunner:
             resolved_info = []
             if concept.resolved_models:
                 resolved_info.append(f"Target Models: {', '.join(concept.resolved_models)}")
+                if G is not None and not concept.resolved_modules:
+                    from code_intelligence.ci_agent_tools import _is_custom_module_filepath
+                    all_custom_mods = []
+                    for rm in concept.resolved_models:
+                        if not G.has_node(f"model:{rm}"):
+                            continue
+                        rm_mods = set()
+                        for v in G.neighbors(f"model:{rm}"):
+                            if v.startswith("module:"):
+                                mod_data = G.nodes[v]
+                                fp = mod_data.get("filepath", "")
+                                if _is_custom_module_filepath(fp):
+                                    rm_mods.add(v.replace("module:", ""))
+                        if rm_mods:
+                            all_custom_mods.append(rm_mods)
+                    if all_custom_mods:
+                        common_mods = set.intersection(*all_custom_mods) if len(all_custom_mods) > 1 else all_custom_mods[0]
+                        candidate_mods = list(common_mods if common_mods else all_custom_mods[0])
+                        q_words = set(re.findall(r"\w+", question.lower()))
+                        def _mod_rank(m):
+                            parts = set(m.split("_"))
+                            return (len(parts.intersection(q_words)), len(m))
+                        candidate_mods.sort(key=_mod_rank, reverse=True)
+                        for mod_name in candidate_mods[:1]:
+                            mod_node = f"module:{mod_name}"
+                            mod_models = [
+                                p.replace("model:", "") for p in G.predecessors(mod_node)
+                                if p.startswith("model:") and "tester" not in p
+                            ]
+                            if len(mod_models) >= 1:
+                                resolved_info.append(f"Module '{mod_name}' defines/extends models: {', '.join(sorted(mod_models))}")
             if concept.resolved_modules:
                 resolved_info.append(f"Target Modules: {', '.join(concept.resolved_modules)}")
+                if G is not None:
+                    for mod_name in concept.resolved_modules:
+                        mod_node = f"module:{mod_name}"
+                        if G.has_node(mod_node):
+                            in_mods = [
+                                u.replace("model:", "") for u in G.predecessors(mod_node)
+                                if u.startswith("model:")
+                            ]
+                            if in_mods:
+                                resolved_info.append(f"Module '{mod_name}' defines/extends models: {', '.join(sorted(in_mods))}")
             confidence_tag = (
                 f" (LLM-arbitrated, confidence={concept.confidence})"
                 if concept.source_step == "llm_arbitration"
@@ -330,12 +390,12 @@ class CodeIntelligenceAgentRunner:
                 f"{' | '.join(resolved_info)}.\n"
                 f"Use these exact technical identifiers when invoking composite tools."
             )
-        if concept.is_resolved and concept.resolved_models and hop_count < CI_MAX_HOPS:
+        if concept.is_resolved and concept.resolved_models and hop_count < CI_MAX_HOPS and not _question_is_inheritance_related(question):
             from code_intelligence.forced_dispatch_predicates import security_locks_targets
             tool_map = {t.name: t for t in ALL_CI_TOOLS}
             lock_tool = tool_map.get("analyze_security_locks")
             if lock_tool is not None:
-                for target_model in security_locks_targets(concept, G):
+                for target_model in security_locks_targets(concept, G)[:1]:
                     call_key = _tool_call_key("analyze_security_locks", {"model_name": target_model})
                     if call_key in seen_calls:
                         continue
@@ -424,6 +484,36 @@ class CodeIntelligenceAgentRunner:
                             "wording + ServerAction nodes present).",
                             target_model,
                         )
+                        _match_links = re.findall(r"\((file:///[^#\)]+)#L(\d+)-L(\d+)\)", forced_observation)
+                        for _m_link in _match_links:
+                            if hop_count >= CI_MAX_HOPS:
+                                break
+                            _read_tool = tool_map.get("read_source_code")
+                            if _read_tool is not None:
+                                _fp = _m_link[0].replace("file://", "")
+                                _ls = int(_m_link[1])
+                                _le = int(_m_link[2])
+                                _read_key = ("read_source_code", _fp, _ls, _le)
+                                if _read_key not in seen_calls:
+                                    try:
+                                        _read_obs = str(_read_tool.invoke({
+                                            "filepath": _fp, "line_start": _ls, "line_end": _le,
+                                        }))
+                                        _read_obs = _truncate_observation(_read_obs, 4000)
+                                        tool_observations.append(_read_obs)
+                                        tool_observation_models.append(target_model)
+                                        tool_observation_tools.append("read_source_code")
+                                        hop_count += 1
+                                        seen_calls.add(_read_key)
+                                        _trace_logger.log_hop(
+                                            trace_id=_trace_id, hop_index=_hop_index,
+                                            tool_name="read_source_code",
+                                            tool_args={"filepath": _fp, "line_start": _ls, "line_end": _le},
+                                            observation=_read_obs, elapsed_ms=(time.perf_counter() - _t_hop) * 1000,
+                                        )
+                                        _hop_index += 1
+                                    except Exception as re_err:
+                                        logger.error("Auto read_source_code after analyze_server_actions failed: %s", re_err)
                         if hop_count >= CI_MAX_HOPS:
                             logger.warning(
                                 "Node [code_intelligence_agent]: CI_MAX_HOPS (%d) reached during "
@@ -481,6 +571,40 @@ class CodeIntelligenceAgentRunner:
                             "+ real override cascade present).",
                             target_model, method_name,
                         )
+                        _match_link = re.search(r"\((file:///[^#\)]+)#L(\d+)-L(\d+)\)", forced_observation)
+                        if _match_link and hop_count < CI_MAX_HOPS:
+                            _read_tool = tool_map.get("read_source_code")
+                            if _read_tool is not None:
+                                _fp = _match_link.group(1).replace("file://", "")
+                                _ls = int(_match_link.group(2))
+                                _le = int(_match_link.group(3))
+                                _read_key = ("read_source_code", _fp, _ls, _le)
+                                if _read_key not in seen_calls:
+                                    try:
+                                        _read_obs = str(_read_tool.invoke({
+                                            "filepath": _fp, "line_start": _ls, "line_end": _le,
+                                        }))
+                                        _read_obs = _truncate_observation(_read_obs, 4000)
+                                        tool_observations.append(_read_obs)
+                                        tool_observation_models.append(target_model)
+                                        tool_observation_tools.append("read_source_code")
+                                        hop_count += 1
+                                        seen_calls.add(_read_key)
+                                        _trace_logger.log_hop(
+                                            trace_id=_trace_id, hop_index=_hop_index,
+                                            tool_name="read_source_code",
+                                            tool_args={"filepath": _fp, "line_start": _ls, "line_end": _le},
+                                            observation=_read_obs,
+                                            elapsed_ms=0.0,
+                                        )
+                                        _hop_index += 1
+                                        logger.info(
+                                            "Node [code_intelligence_agent]: Deterministic follow-up dispatch of "
+                                            "'read_source_code' for '%s' lines %d-%d.",
+                                            _fp, _ls, _le,
+                                        )
+                                    except Exception as _re:
+                                        logger.error("Deterministic read_source_code dispatch failed: %s", _re)
                         if hop_count >= CI_MAX_HOPS:
                             logger.warning(
                                 "Node [code_intelligence_agent]: CI_MAX_HOPS (%d) reached during "
@@ -490,7 +614,7 @@ class CodeIntelligenceAgentRunner:
                             break
                     except Exception as te:
                         logger.error("Deterministic analyze_method_override_chain dispatch failed: %s", te)
-                if any(k[0] == "analyze_method_override_chain" for k in seen_calls):
+                if any(k and k[0] == "analyze_method_override_chain" for k in seen_calls):
                     system_prompt += (
                         "\n\n[DETERMINISTIC PRE-DISPATCH]\n"
                         "analyze_method_override_chain has already been run for the "
@@ -527,7 +651,7 @@ class CodeIntelligenceAgentRunner:
                 # actually dispatch on is now decided by the same shared predicate
                 # the Investigation Planner uses, instead of a second, separately
                 # maintained exclusion loop reaching the same result.
-                for target_model in who_has_access_targets(question, concept, G):
+                for target_model in who_has_access_targets(question, concept, G)[:1]:
                     call_key = _tool_call_key("who_has_access_to", {"model_name": target_model})
                     if call_key in seen_calls:
                         continue
@@ -602,12 +726,11 @@ class CodeIntelligenceAgentRunner:
                     )
         if concept.is_resolved and concept.resolved_models and _question_is_access_related(question) and hop_count < CI_MAX_HOPS:
             _amount_for_rules = _extract_amount(question)
-            if _amount_for_rules is not None:
-                from code_intelligence.ci_agent_tools import evaluate_rules_raw
-                tool_map = {t.name: t for t in ALL_CI_TOOLS}
-                rule_tool = tool_map.get("evaluate_record_rules")
-                if rule_tool is not None:
-                    for target_model in concept.resolved_models:
+            from code_intelligence.ci_agent_tools import evaluate_rules_raw
+            tool_map = {t.name: t for t in ALL_CI_TOOLS}
+            rule_tool = tool_map.get("evaluate_record_rules")
+            if rule_tool is not None:
+                    for target_model in concept.resolved_models[:1]:
                         call_key = _tool_call_key("evaluate_record_rules", {"model_name": target_model})
                         if call_key in seen_calls:
                             continue
@@ -635,40 +758,41 @@ class CodeIntelligenceAgentRunner:
                             hop_count += 1
                             seen_calls.add(call_key)
         
-                            # Now compute can_view_amount_v2 deterministic fact
-                            try:
-                                _dispatch_rule_result = evaluate_rules_raw(
-                                    model_name=target_model,
-                                    permission="read",
-                                    user_groups_json=_dispatch_groups,
-                                )
-                                _dispatch_context = {"amount": _amount_for_rules}
-                                _dispatch_context.update(_extract_company_context(question))
-                                _dispatch_context.update(_infer_move_type_context(concept))
-                                _dispatch_can_view, _dispatch_unresolved = (
-                                    _dispatch_rule_result.can_view_amount_v2(_dispatch_context)
-                                )
-                                tool_observations.append(
-                                    _format_can_view_amount_fact(
-                                        _amount_for_rules, _dispatch_can_view, _dispatch_unresolved
+                            # Now compute can_view_amount_v2 deterministic fact if amount specified
+                            if _amount_for_rules is not None:
+                                try:
+                                    _dispatch_rule_result = evaluate_rules_raw(
+                                        model_name=target_model,
+                                        permission="read",
+                                        user_groups_json=_dispatch_groups,
                                     )
-                                )
-                                tool_observation_models.append(target_model)
-                                tool_observation_tools.append("can_view_amount_v2")
-                                logger.info(
-                                    "Node [code_intelligence_agent]: Pre-dispatch "
-                                    "can_view_amount_v2 fact for model=%s, amount=%.0f, "
-                                    "result=%s, unresolved=%s, context=%s, "
-                                    "global=%d, group=%d.",
-                                    target_model, _amount_for_rules, _dispatch_can_view,
-                                    _dispatch_unresolved, _dispatch_context,
-                                    len(_dispatch_rule_result.applied_global_rules),
-                                    len(_dispatch_rule_result.applied_group_rules),
-                                )
-                            except Exception as ve:
-                                logger.error(
-                                    "Pre-dispatch can_view_amount_v2 injection failed: %s", ve
-                                )
+                                    _dispatch_context = {"amount": _amount_for_rules}
+                                    _dispatch_context.update(_extract_company_context(question))
+                                    _dispatch_context.update(_infer_move_type_context(concept))
+                                    _dispatch_can_view, _dispatch_unresolved = (
+                                        _dispatch_rule_result.can_view_amount_v2(_dispatch_context)
+                                    )
+                                    tool_observations.append(
+                                        _format_can_view_amount_fact(
+                                            _amount_for_rules, _dispatch_can_view, _dispatch_unresolved
+                                        )
+                                    )
+                                    tool_observation_models.append(target_model)
+                                    tool_observation_tools.append("can_view_amount_v2")
+                                    logger.info(
+                                        "Node [code_intelligence_agent]: Pre-dispatch "
+                                        "can_view_amount_v2 fact for model=%s, amount=%.0f, "
+                                        "result=%s, unresolved=%s, context=%s, "
+                                        "global=%d, group=%d.",
+                                        target_model, _amount_for_rules, _dispatch_can_view,
+                                        _dispatch_unresolved, _dispatch_context,
+                                        len(_dispatch_rule_result.applied_global_rules),
+                                        len(_dispatch_rule_result.applied_group_rules),
+                                    )
+                                except Exception as ve:
+                                    logger.error(
+                                        "Pre-dispatch can_view_amount_v2 injection failed: %s", ve
+                                    )
         
                             _trace_logger.log_hop(
                                 trace_id=_trace_id, hop_index=_hop_index,
@@ -680,9 +804,8 @@ class CodeIntelligenceAgentRunner:
                             _hop_index += 1
                             logger.info(
                                 "Node [code_intelligence_agent]: Deterministic pre-dispatch of "
-                                "'evaluate_record_rules' for model '%s' (access-related "
-                                "question with amount=%.0f).",
-                                target_model, _amount_for_rules,
+                                "'evaluate_record_rules' for model '%s' (access/rules-related question).",
+                                target_model,
                             )
                             if hop_count >= CI_MAX_HOPS:
                                 logger.warning(
@@ -695,13 +818,479 @@ class CodeIntelligenceAgentRunner:
                             logger.error(
                                 "Deterministic evaluate_record_rules dispatch failed: %s", te
                             )
-                    if any(k[0] == "evaluate_record_rules" for k in seen_calls):
+                    if any(k and k[0] == "evaluate_record_rules" for k in seen_calls):
                         system_prompt += (
                             "\n\n[DETERMINISTIC PRE-DISPATCH]\n"
                             "evaluate_record_rules has already been run for the target "
                             "model(s) above and the can_view_amount_v2 deterministic fact has been "
                             "injected. Do not call evaluate_record_rules again."
                         )
+
+        # Workflow states and transitions deterministic pre-dispatch
+        if concept.is_resolved and concept.resolved_models and _question_is_workflow_related(question) and hop_count < CI_MAX_HOPS:
+            tool_map = {t.name: t for t in ALL_CI_TOOLS}
+            wf_tool = tool_map.get("describe_workflow")
+            if wf_tool is not None:
+                for target_model in concept.resolved_models:
+                    call_key = _tool_call_key("describe_workflow", {"model_name": target_model})
+                    if call_key in seen_calls:
+                        continue
+                    _t_hop = time.perf_counter()
+                    try:
+                        forced_obs = str(wf_tool.invoke({"model_name": target_model}))
+                        forced_obs = _truncate_observation(forced_obs, 3000)
+                        tool_observations.append(forced_obs)
+                        tool_observation_models.append(target_model)
+                        tool_observation_tools.append("describe_workflow")
+                        hop_count += 1
+                        if call_key is not None:
+                            seen_calls.add(call_key)
+                        _trace_logger.log_hop(
+                            trace_id=_trace_id, hop_index=_hop_index,
+                            tool_name="describe_workflow",
+                            tool_args={"model_name": target_model},
+                            observation=forced_obs,
+                            elapsed_ms=(time.perf_counter() - _t_hop) * 1000,
+                        )
+                        _hop_index += 1
+                        logger.info(
+                            "Node [code_intelligence_agent]: Deterministic pre-dispatch of "
+                            "'describe_workflow' for model '%s'.",
+                            target_model,
+                        )
+                        if hop_count >= CI_MAX_HOPS:
+                            break
+                    except Exception as te:
+                        logger.error("Deterministic describe_workflow dispatch failed: %s", te)
+                if any(k and k[0] == "describe_workflow" for k in seen_calls):
+                    system_prompt += (
+                        "\n\n[DETERMINISTIC PRE-DISPATCH]\n"
+                        "describe_workflow has already been run for the target model(s) above; "
+                        "its workflow state and transition structure is already included in the tool "
+                        "observations. Do not call describe_workflow again."
+                    )
+
+        # Model inheritance, mixins, and declaring modules deterministic pre-dispatch
+        if concept.is_resolved and (concept.resolved_models or concept.resolved_modules) and _question_is_inheritance_related(question) and hop_count < CI_MAX_HOPS:
+            tool_map = {t.name: t for t in ALL_CI_TOOLS}
+            inherit_tool = tool_map.get("trace_full_inheritance")
+            mod_tool = tool_map.get("list_involved_modules")
+            
+            target_mods_to_inspect = list(concept.resolved_modules)
+            if not target_mods_to_inspect and G is not None:
+                from code_intelligence.ci_agent_tools import _is_custom_module_filepath
+                all_custom_mods = []
+                for rm in concept.resolved_models:
+                    if not G.has_node(f"model:{rm}"):
+                        continue
+                    rm_mods = set()
+                    for v in G.neighbors(f"model:{rm}"):
+                        if v.startswith("module:"):
+                            mod_data = G.nodes[v]
+                            fp = mod_data.get("filepath", "")
+                            if _is_custom_module_filepath(fp):
+                                rm_mods.add(v.replace("module:", ""))
+                    if rm_mods:
+                        all_custom_mods.append(rm_mods)
+                if all_custom_mods:
+                    common_mods = set.intersection(*all_custom_mods) if len(all_custom_mods) > 1 else all_custom_mods[0]
+                    candidate_mods = list(common_mods if common_mods else all_custom_mods[0])
+                    q_words = set(re.findall(r"\w+", question.lower()))
+                    def _mod_rank(m):
+                        parts = set(m.split("_"))
+                        return (len(parts.intersection(q_words)), len(m))
+                    candidate_mods.sort(key=_mod_rank, reverse=True)
+                    if candidate_mods:
+                        target_mods_to_inspect.append(candidate_mods[0])
+
+            if mod_tool is not None:
+                for t_mod in target_mods_to_inspect:
+                    if hop_count >= CI_MAX_HOPS:
+                        break
+                    call_key = ("list_involved_modules", t_mod)
+                    if call_key not in seen_calls:
+                        _t_hop = time.perf_counter()
+                        try:
+                            forced_obs = str(mod_tool.invoke({"model_name": t_mod}))
+                            forced_obs = _truncate_observation(forced_obs, 3000)
+                            tool_observations.append(forced_obs)
+                            tool_observation_models.append(t_mod)
+                            tool_observation_tools.append("list_involved_modules")
+                            hop_count += 1
+                            seen_calls.add(call_key)
+                            _trace_logger.log_hop(
+                                trace_id=_trace_id, hop_index=_hop_index,
+                                tool_name="list_involved_modules",
+                                tool_args={"model_name": t_mod},
+                                observation=forced_obs,
+                                elapsed_ms=(time.perf_counter() - _t_hop) * 1000,
+                            )
+                            _hop_index += 1
+                            logger.info(
+                                "Node [code_intelligence_agent]: Deterministic pre-dispatch of "
+                                "'list_involved_modules' for module '%s'.",
+                                t_mod,
+                            )
+                        except Exception as te:
+                            logger.error("Deterministic list_involved_modules dispatch for module failed: %s", te)
+
+            for target_model in concept.resolved_models:
+                if inherit_tool is not None and hop_count < CI_MAX_HOPS:
+                    call_key = _tool_call_key("trace_full_inheritance", {"model_name": target_model})
+                    if call_key not in seen_calls:
+                        _t_hop = time.perf_counter()
+                        try:
+                            forced_obs = str(inherit_tool.invoke({"model_name": target_model}))
+                            forced_obs = _truncate_observation(forced_obs, 3000)
+                            tool_observations.append(forced_obs)
+                            tool_observation_models.append(target_model)
+                            tool_observation_tools.append("trace_full_inheritance")
+                            hop_count += 1
+                            if call_key is not None:
+                                seen_calls.add(call_key)
+                            _trace_logger.log_hop(
+                                trace_id=_trace_id, hop_index=_hop_index,
+                                tool_name="trace_full_inheritance",
+                                tool_args={"model_name": target_model},
+                                observation=forced_obs,
+                                elapsed_ms=(time.perf_counter() - _t_hop) * 1000,
+                            )
+                            _hop_index += 1
+                            logger.info(
+                                "Node [code_intelligence_agent]: Deterministic pre-dispatch of "
+                                "'trace_full_inheritance' for model '%s'.",
+                                target_model,
+                            )
+                            from code_intelligence.ci_agent_tools import _is_custom_module_filepath
+                            all_links = re.findall(r"\((file:///[^#\)]+)#L(\d+)-L(\d+)\)", forced_obs)
+                            chosen_link = None
+                            if concept.resolved_modules:
+                                for link_url, ls_s, le_s in all_links:
+                                    fp_clean = link_url.replace("file://", "")
+                                    if any(f"/{m}/" in fp_clean for m in concept.resolved_modules):
+                                        chosen_link = (link_url, ls_s, le_s)
+                                        break
+                            if not chosen_link:
+                                for link_url, ls_s, le_s in all_links:
+                                    fp_clean = link_url.replace("file://", "")
+                                    if _is_custom_module_filepath(fp_clean):
+                                        chosen_link = (link_url, ls_s, le_s)
+                                        break
+                            if not chosen_link and all_links:
+                                chosen_link = all_links[0]
+
+                            if chosen_link:
+                                _read_tool = tool_map.get("read_source_code")
+                                if _read_tool is not None:
+                                    _fp = chosen_link[0].replace("file://", "")
+                                    _ls = max(1, int(chosen_link[1]))
+                                    _le = int(chosen_link[2])
+                                    try:
+                                        _read_obs = str(_read_tool.invoke({
+                                            "filepath": _fp,
+                                            "line_start": _ls,
+                                            "line_end": _le,
+                                        }))
+                                        _read_obs = _truncate_observation(_read_obs, 2500)
+                                        tool_observations.append(_read_obs)
+                                        tool_observation_models.append(target_model)
+                                        tool_observation_tools.append("read_source_code")
+                                        _trace_logger.log_hop(
+                                            trace_id=_trace_id, hop_index=_hop_index,
+                                            tool_name="read_source_code",
+                                            tool_args={"filepath": _fp, "line_start": _ls, "line_end": _le},
+                                            observation=_read_obs, elapsed_ms=0,
+                                        )
+                                        _hop_index += 1
+                                    except Exception as re_err:
+                                        logger.error("Auto read_source_code after trace_full_inheritance failed: %s", re_err)
+                        except Exception as te:
+                            logger.error("Deterministic trace_full_inheritance dispatch failed: %s", te)
+                if mod_tool is not None and not target_mods_to_inspect and hop_count < CI_MAX_HOPS:
+                    call_key = _tool_call_key("list_involved_modules", {"model_name": target_model})
+                    if call_key not in seen_calls:
+                        _t_hop = time.perf_counter()
+                        try:
+                            forced_obs = str(mod_tool.invoke({"model_name": target_model}))
+                            forced_obs = _truncate_observation(forced_obs, 3000)
+                            tool_observations.append(forced_obs)
+                            tool_observation_models.append(target_model)
+                            tool_observation_tools.append("list_involved_modules")
+                            hop_count += 1
+                            if call_key is not None:
+                                seen_calls.add(call_key)
+                            _trace_logger.log_hop(
+                                trace_id=_trace_id, hop_index=_hop_index,
+                                tool_name="list_involved_modules",
+                                tool_args={"model_name": target_model},
+                                observation=forced_obs,
+                                elapsed_ms=(time.perf_counter() - _t_hop) * 1000,
+                            )
+                            _hop_index += 1
+                            logger.info(
+                                "Node [code_intelligence_agent]: Deterministic pre-dispatch of "
+                                "'list_involved_modules' for model '%s'.",
+                                target_model,
+                            )
+                        except Exception as te:
+                            logger.error("Deterministic list_involved_modules dispatch failed: %s", te)
+            if any(k and k[0] in {"trace_full_inheritance", "list_involved_modules"} for k in seen_calls):
+                system_prompt += (
+                    "\n\n[DETERMINISTIC PRE-DISPATCH]\n"
+                    "trace_full_inheritance and list_involved_modules have already been run for the "
+                    "target model(s) above; model hierarchy, mixins, and declaring/extending modules "
+                    "are already included in the tool observations. Do not call them again."
+                )
+
+        _ui_match = re.search(r"\b(?:bouton|button|menu|menuitem|champ|field)s?\s+(?:statistique\s+)?['\"«]([^'\"»]+)['\"»]", question, re.IGNORECASE)
+        if not _ui_match:
+            _ui_match = re.search(r"\b(?:bouton|button|menu|champ|field)s?\s+(?:de\s+|d['’]\s*)?([a-zA-Z0-9_]+)\b", question, re.IGNORECASE)
+        if not _ui_match:
+            _ui_match = re.search(r"\b(?:voir\s+ou\s+configurer|voir\s+ou\s+modifier|voir|configurer|modifier|afficher|masquer)\s+(?:le|la|l['’]|les)?\s*([^?]+?)\s+sur\s+(?:la\s+fiche|le\s+formulaire|la\s+vue)", question, re.IGNORECASE)
+        _UI_NAME_STOPWORDS = {
+            "visible", "visibles", "invisible", "invisibles",
+            "specifique", "specifiques", "spécifique", "spécifiques",
+            "particulier", "particuliers", "particuliere", "particulières", "particulière",
+            "dedie", "dedies", "dédié", "dédiés", "dediee", "dédiée", "dediees", "dédiées",
+            "nouveau", "nouveaux", "nouvelle", "nouvelles",
+            "ajoute", "ajoutes", "ajouté", "ajoutés", "ajoutee", "ajoutée", "ajoutees", "ajoutées",
+            "cree", "crees", "créé", "créés", "creee", "créée", "creees", "créées",
+            "supplementaire", "supplementaires", "supplémentaire", "supplémentaires",
+            "personnalise", "personnalises", "personnalisé", "personnalisés",
+            "existant", "existants", "existante", "existantes",
+            "present", "presents", "présent", "présents", "presente", "présente", "presentes", "présentes",
+            "special", "speciaux", "spécial", "spéciaux", "speciale", "spéciale", "speciales", "spéciales",
+            "custom", "new", "existing", "specific", "dedicated", "added", "created",
+            "un", "une", "des", "le", "la", "les", "ce", "cette", "ces", "dans", "sur",
+        }
+        if _ui_match and _ui_match.group(1).strip().lower() in _UI_NAME_STOPWORDS:
+            _ui_match = None
+
+        # Module-level UI / views inquiry deterministic pre-dispatch
+        _module_ui_match = re.search(
+            r"\b(?:modifie(?:-t-il)?\s+(?:une\s+)?vue|ajoute(?:-t-il)?\s+(?:un\s+)?bouton|dossier\s+views|vue\s+xml|interface)\b",
+            question,
+            re.IGNORECASE,
+        )
+        if concept.is_resolved and concept.resolved_modules and _module_ui_match and hop_count < CI_MAX_HOPS:
+            tool_map = {t.name: t for t in ALL_CI_TOOLS}
+            mod_tool = tool_map.get("list_involved_modules")
+            read_tool = tool_map.get("read_source_code")
+            for t_mod in concept.resolved_modules:
+                if hop_count >= CI_MAX_HOPS:
+                    break
+                if mod_tool is not None:
+                    call_key = ("list_involved_modules", t_mod)
+                    if call_key not in seen_calls:
+                        _t_hop = time.perf_counter()
+                        try:
+                            forced_obs = str(mod_tool.invoke({"model_name": t_mod}))
+                            forced_obs = _truncate_observation(forced_obs, 3000)
+                            tool_observations.append(forced_obs)
+                            tool_observation_models.append(t_mod)
+                            tool_observation_tools.append("list_involved_modules")
+                            hop_count += 1
+                            seen_calls.add(call_key)
+                            _trace_logger.log_hop(
+                                trace_id=_trace_id, hop_index=_hop_index,
+                                tool_name="list_involved_modules",
+                                tool_args={"model_name": t_mod},
+                                observation=forced_obs,
+                                elapsed_ms=(time.perf_counter() - _t_hop) * 1000,
+                            )
+                            _hop_index += 1
+                            logger.info(
+                                "Node [code_intelligence_agent]: Deterministic pre-dispatch of "
+                                "'list_involved_modules' for module '%s' in UI check.",
+                                t_mod,
+                            )
+                        except Exception as te:
+                            logger.error("Deterministic list_involved_modules dispatch for module failed: %s", te)
+
+                if G is not None and read_tool is not None and hop_count < CI_MAX_HOPS:
+                    mod_data = G.nodes.get(f"module:{t_mod}", {})
+                    mod_manifest_fp = mod_data.get("filepath", "")
+                    if mod_manifest_fp and Path(mod_manifest_fp).exists():
+                        manifest_p = Path(mod_manifest_fp)
+                        _read_key = ("read_source_code", str(manifest_p), 1, 40)
+                        if _read_key not in seen_calls:
+                            _t_hop = time.perf_counter()
+                            try:
+                                _obs = str(read_tool.invoke({"filepath": str(manifest_p), "line_start": 1, "line_end": 40}))
+                                _obs = _truncate_observation(_obs, 4000)
+                                views_dir = manifest_p.parent / "views"
+                                if not views_dir.exists():
+                                    _obs += f"\n\n[Module Structure]: Le dossier '{views_dir.name}/' n'existe pas dans le module '{t_mod}'. Aucune vue XML ni bouton declare."
+                                tool_observations.append(_obs)
+                                tool_observation_models.append(t_mod)
+                                tool_observation_tools.append("read_source_code")
+                                hop_count += 1
+                                seen_calls.add(_read_key)
+                                _trace_logger.log_hop(
+                                    trace_id=_trace_id, hop_index=_hop_index,
+                                    tool_name="read_source_code",
+                                    tool_args={"filepath": str(manifest_p), "line_start": 1, "line_end": 40},
+                                    observation=_obs,
+                                    elapsed_ms=(time.perf_counter() - _t_hop) * 1000,
+                                )
+                                _hop_index += 1
+                                logger.info(
+                                    "Node [code_intelligence_agent]: Deterministic pre-dispatch of "
+                                    "'read_source_code' for manifest of '%s' in UI check.",
+                                    t_mod,
+                                )
+                            except Exception as re_err:
+                                logger.error("Auto read manifest in module UI check failed: %s", re_err)
+
+        if concept.is_resolved and concept.resolved_models and _ui_match and hop_count < CI_MAX_HOPS:
+            _ui_name = _ui_match.group(1).strip()
+            tool_map = {t.name: t for t in ALL_CI_TOOLS}
+            btn_tool = tool_map.get("button_execution_path")
+            if btn_tool is not None:
+                for target_model in concept.resolved_models:
+                    call_key = _tool_call_key("button_execution_path", {"button_name": _ui_name, "model_name": target_model})
+                    if call_key in seen_calls:
+                        continue
+                    _t_hop = time.perf_counter()
+                    try:
+                        import json as _json_dispatch
+                        _dispatch_groups = _json_dispatch.dumps(resolved_user_group_xmlids or [])
+                        forced_observation = str(btn_tool.invoke({
+                            "button_name": _ui_name,
+                            "model_name": target_model,
+                            "user_groups_json": _dispatch_groups,
+                        }))
+                        forced_observation = _truncate_observation(forced_observation, 3000)
+                        tool_observations.append(forced_observation)
+                        tool_observation_models.append(target_model)
+                        tool_observation_tools.append("button_execution_path")
+                        hop_count += 1
+                        if call_key is not None:
+                            seen_calls.add(call_key)
+                        _trace_logger.log_hop(
+                            trace_id=_trace_id, hop_index=_hop_index,
+                            tool_name="button_execution_path",
+                            tool_args={"button_name": _ui_name, "model_name": target_model},
+                            observation=forced_observation,
+                            elapsed_ms=(time.perf_counter() - _t_hop) * 1000,
+                        )
+                        _hop_index += 1
+                        logger.info(
+                            "Node [code_intelligence_agent]: Deterministic pre-dispatch of "
+                            "'button_execution_path' for element '%s' on model '%s'.",
+                            _ui_name, target_model,
+                        )
+                        _match_link = re.search(r"\((file:///[^#\)]+)#L(\d+)-L(\d+)\)", forced_observation)
+                        if _match_link and hop_count < CI_MAX_HOPS:
+                            _read_tool = tool_map.get("read_source_code")
+                            if _read_tool is not None:
+                                _fp = _match_link.group(1).replace("file://", "")
+                                _ls = int(_match_link.group(2))
+                                _le = int(_match_link.group(3))
+                                _read_key = ("read_source_code", _fp, _ls, _le)
+                                if _read_key not in seen_calls:
+                                    try:
+                                        _read_obs = str(_read_tool.invoke({
+                                            "filepath": _fp, "line_start": _ls, "line_end": _le,
+                                        }))
+                                        _read_obs = _truncate_observation(_read_obs, 4000)
+                                        tool_observations.append(_read_obs)
+                                        tool_observation_models.append(target_model)
+                                        tool_observation_tools.append("read_source_code")
+                                        hop_count += 1
+                                        seen_calls.add(_read_key)
+                                        _trace_logger.log_hop(
+                                            trace_id=_trace_id, hop_index=_hop_index,
+                                            tool_name="read_source_code",
+                                            tool_args={"filepath": _fp, "line_start": _ls, "line_end": _le},
+                                            observation=_read_obs, elapsed_ms=(time.perf_counter() - _t_hop) * 1000,
+                                        )
+                                        _hop_index += 1
+                                    except Exception as re_err:
+                                        logger.error("Auto read_source_code after button_execution_path failed: %s", re_err)
+                        if "not found" not in forced_observation.lower():
+                            break
+                        if hop_count >= CI_MAX_HOPS:
+                            break
+                    except Exception as te:
+                        logger.error("Deterministic button_execution_path dispatch failed: %s", te)
+
+        # Data constraints deterministic pre-dispatch
+        if concept.is_resolved and concept.resolved_models and _question_is_constraint_related(question) and hop_count < CI_MAX_HOPS:
+            tool_map = {t.name: t for t in ALL_CI_TOOLS}
+            constraint_tool = tool_map.get("analyze_data_constraints")
+            if constraint_tool is not None:
+                for target_model in concept.resolved_models:
+                    call_key = _tool_call_key("analyze_data_constraints", {"model_name": target_model})
+                    if call_key in seen_calls:
+                        continue
+                    _t_hop = time.perf_counter()
+                    try:
+                        forced_obs = str(constraint_tool.invoke({"model_name": target_model}))
+                        forced_obs = _truncate_observation(forced_obs, 3500)
+                        tool_observations.append(forced_obs)
+                        tool_observation_models.append(target_model)
+                        tool_observation_tools.append("analyze_data_constraints")
+                        hop_count += 1
+                        if call_key is not None:
+                            seen_calls.add(call_key)
+                        _trace_logger.log_hop(
+                            trace_id=_trace_id, hop_index=_hop_index,
+                            tool_name="analyze_data_constraints",
+                            tool_args={"model_name": target_model},
+                            observation=forced_obs,
+                            elapsed_ms=(time.perf_counter() - _t_hop) * 1000,
+                        )
+                        _hop_index += 1
+                        logger.info(
+                            "Node [code_intelligence_agent]: Deterministic pre-dispatch of "
+                            "'analyze_data_constraints' for model '%s'.",
+                            target_model,
+                        )
+                        if "odoo-static-exclusion-filter" in forced_obs and hop_count < CI_MAX_HOPS:
+                            _match_link = re.search(r"\(file://([^#\)]+)#L(\d+)-L(\d+)\)\s+\(odoo-static-exclusion-filter\)", forced_obs)
+                            if _match_link:
+                                _read_tool = tool_map.get("read_source_code")
+                                if _read_tool is not None:
+                                    _fp = _match_link.group(1)
+                                    _ls = max(1, int(_match_link.group(2)) - 5)
+                                    _le = int(_match_link.group(3)) + 35
+                                    _read_key = ("read_source_code", _fp, _ls, _le)
+                                    if _read_key not in seen_calls:
+                                        try:
+                                            _read_obs = str(_read_tool.invoke({
+                                                "filepath": _fp, "line_start": _ls, "line_end": _le,
+                                            }))
+                                            _read_obs = _truncate_observation(_read_obs, 4000)
+                                            tool_observations.append(_read_obs)
+                                            tool_observation_models.append(target_model)
+                                            tool_observation_tools.append("read_source_code")
+                                            hop_count += 1
+                                            seen_calls.add(_read_key)
+                                            _trace_logger.log_hop(
+                                                trace_id=_trace_id, hop_index=_hop_index,
+                                                tool_name="read_source_code",
+                                                tool_args={"filepath": _fp, "line_start": _ls, "line_end": _le},
+                                                observation=_read_obs, elapsed_ms=(time.perf_counter() - _t_hop) * 1000,
+                                            )
+                                            _hop_index += 1
+                                        except Exception as re_err:
+                                            logger.error("Auto read_source_code after analyze_data_constraints failed: %s", re_err)
+                        if hop_count >= CI_MAX_HOPS:
+                            break
+                    except Exception as te:
+                        logger.error("Deterministic analyze_data_constraints dispatch failed: %s", te)
+                if any(k and k[0] == "analyze_data_constraints" for k in seen_calls):
+                    system_prompt += (
+                        "\n\n[DETERMINISTIC PRE-DISPATCH]\n"
+                        "analyze_data_constraints has already been run for the target model(s) above; "
+                        "its SQL uniqueness and relational domain rules are already included in the "
+                        "tool observations. Do not call analyze_data_constraints again."
+                    )
+
+        if tool_observations:
+            system_prompt += "\n\n[PRIOR TOOL OBSERVATIONS]\n" + "\n---\n".join(tool_observations)
+
         messages = [
             SystemMessage(content=system_prompt),
             *chat_history[-6:],
@@ -805,9 +1394,10 @@ class CodeIntelligenceAgentRunner:
                             observation = str(tool_map[tool_name].invoke(tool_args))
  
                             _observation_cap = (
-                                2200 if tool_name == "analyze_method_override_chain"
-                                else 3000 if tool_name == "analyze_server_actions"
-                                else 1200
+                                6000 if tool_name == "read_source_code"
+                                else 2200 if tool_name == "analyze_method_override_chain"
+                                else 3500 if tool_name in {"analyze_server_actions", "analyze_data_constraints", "analyze_security_locks"}
+                                else 2500
                             )
                             observation = _truncate_observation(observation, _observation_cap)
         
@@ -1003,7 +1593,22 @@ class CodeIntelligenceAgentRunner:
                         f"validate above that amount, and the threshold is a minimum floor where their authority "
                         f"is required, NOT an upper ceiling where their authority ends). A lock whose threshold "
                         f"is NOT reached (e.g. >100000€ for a 60000€ document) is not triggered, does not "
-                        f"restrict that amount, and its group is NOT required for that amount."
+                        f"restrict that amount, and its group is NOT required for that amount. "
+                        f"If the question asks where an approval, workflow, or validation mechanism is configured "
+                        f"('où est-ce configuré ?'), identify the configuration/definition model declared by the module "
+                        f"(e.g. models named *.definition or *.config such as `tier.definition`) where definition records, "
+                        f"review types (individual/reviewer_id, group/reviewer_group_id, or field/reviewer_field_id), and "
+                        f"validation tiers are configured per target model, contrasting this configuration with runtime "
+                        f"transaction records (such as `tier.review`) and mixin evaluation methods (such as `can_review` / "
+                        f"`_get_sequences_to_approve`). "
+                        f"If the question asks how buttons or UI elements appear dynamically or without being declared in the XML view "
+                        f"('sans être déclarés dans la vue XML', 'apparaissent automatiquement'), explain that no XML button is statically declared; "
+                        f"the mixin overrides `get_view()` (or `fields_view_get()`) in Python to dynamically inject QWeb templates into the view "
+                        f"arch at runtime via xpath (e.g. `_tier_validation_buttons_xpath` on `/form/header/button[last()]` for `_add_tier_validation_buttons`, "
+                        f"and `/form/sheet` for `_add_tier_validation_label` and `_add_tier_validation_reviews`), controlled by `_tier_validation_manual_config`. "
+                        f"When answering access or deletion permissions questions (e.g. 'qui peut créer... qui peut supprimer...'), "
+                        f"report both the ACL group permissions (CREATE vs UNLINK), any global ir.rule multi-company restrictions, "
+                        f"and any Python-level locks (such as `unlink()` restricting deletion to specific states like 'draft')."
                     )
                     try:
                         _plain_llm_box = [None]
@@ -1154,7 +1759,7 @@ class CodeIntelligenceAgentRunner:
 
                 final_answer = _backfill_missing_security_lock_amount(final_answer, scoped_tool_output, question=question)
 
-                final_answer = _backfill_missing_override_modules(final_answer, scoped_tool_output)
+                final_answer = _backfill_missing_override_modules(final_answer, scoped_tool_output, question=question)
 
                 final_answer = _correct_override_cascade_contradictions(final_answer, scoped_tool_output)
                 final_answer = _backfill_missing_override_chain_amount(final_answer, scoped_tool_output)
@@ -1165,7 +1770,7 @@ class CodeIntelligenceAgentRunner:
 
                 final_answer = _backfill_missing_unguarded_super(final_answer, scoped_tool_output)
 
-                final_answer = _backfill_link_guard_clarifications(final_answer, scoped_tool_output)
+                final_answer = _backfill_link_guard_clarifications(final_answer, scoped_tool_output, question=question)
 
                 final_answer = _correct_can_view_amount_contradictions(final_answer)
 

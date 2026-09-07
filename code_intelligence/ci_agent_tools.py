@@ -164,7 +164,7 @@ def trace_full_inheritance(model_name: str) -> str:
 
 @tool
 def describe_workflow(model_name: str) -> str:
-    """Get ordered workflow state machine transitions for an Odoo model."""
+    """Inspect workflow states, state field, and state machine transitions for an Odoo model."""
     from code_intelligence.deterministic_tools import describe_workflow as _impl
     G = _require_graph()
     model_name = _resolve_model_param(model_name)
@@ -187,10 +187,22 @@ def resolve_technical_name(technical_name: str) -> str:
 def list_involved_modules(model_name: str) -> str:
     """List Odoo modules defining or extending a model, each tagged with its role
     (declares = holds _name, extends = _inherit only). When a model spans several
-    modules, all candidates are listed."""
+    modules, all candidates are listed. If a module name is provided, lists all models
+    defined or extended by that module."""
     from code_intelligence.auxiliary_tools import list_involved_modules_with_role as _impl
     G = _require_graph()
     model_name = _resolve_model_param(model_name)
+    mod_node = f"module:{model_name}"
+    if not G.has_node(f"model:{model_name}") and G.has_node(mod_node):
+        models_with_role = []
+        for pred in G.predecessors(mod_node):
+            if pred.startswith("model:"):
+                m = pred.replace("model:", "")
+                edge = G.get_edge_data(pred, mod_node) or {}
+                role = edge.get("role", "extends")
+                models_with_role.append(f"{m} ({role})")
+        if models_with_role:
+            return f"Module '{model_name}' defines or extends the following models: {', '.join(sorted(models_with_role))}."
     entries = _impl(G, model_name)
     if entries:
         formatted = ", ".join(f"{mod} ({role})" for mod, role in entries)
@@ -280,8 +292,6 @@ def find_model_source_filepaths(G, model_name: str) -> set:
         return set()
 
     filepaths = set(G.nodes[model_node].get("filepaths", []))
-    if filepaths:
-        return filepaths
 
     for u, v, attrs in G.edges(data=True):
         if attrs.get("edge_type") == "HAS_FIELD" and u == model_node:
@@ -294,6 +304,12 @@ def find_model_source_filepaths(G, model_name: str) -> set:
             f_path = attrs.get("filepath", "")
             if f_path:
                 filepaths.add(f_path)
+
+    # Include source filepaths from inherited models (EXTENDS edges)
+    for _, target_node, attrs in G.out_edges(model_node, data=True):
+        if attrs.get("edge_type") == "EXTENDS" and target_node.startswith("model:"):
+            parent_fps = G.nodes[target_node].get("filepaths", [])
+            filepaths.update(parent_fps)
 
     return filepaths
 
@@ -309,6 +325,8 @@ def find_security_lock_source_files(G, model_name: str) -> list:
     filepaths = find_model_source_filepaths(G, model_name)
     hit_files = []
     for fp in sorted(filepaths):
+        if not _is_custom_module_filepath(fp):
+            continue
         p = Path(fp)
         if not p.exists():
             continue
@@ -395,21 +413,100 @@ def analyze_server_actions(model_name: str) -> str:
     if not sa_nodes:
         return f"No server actions (ir.actions.server) found for model '{model_name}'."
 
+    import re
+    from code_intelligence.utils import format_file_link
+
     summaries = []
     for node_id, attrs in sa_nodes:
         xml_id = attrs.get("xml_id", node_id)
         code = attrs.get("code", "")
-        analysis = analyze_server_action_code(code, xml_id)
+        action_type = attrs.get("action_type", "server_action")
+        name = attrs.get("name", "")
+        user_id = attrs.get("user_id", "")
+        interval_number = attrs.get("interval_number", 1)
+        interval_type = attrs.get("interval_type", "")
+
+        analysis = analyze_server_action_code(
+            code=code,
+            action_xml_id=xml_id,
+            action_type=action_type,
+            action_name=name,
+            user_id=user_id,
+            interval_number=interval_number,
+            interval_type=interval_type,
+        )
         analysis = interpret_server_action_with_llm(analysis, code, _LLM_REF)
-        summaries.append(analysis.summary_text)
+        summary = analysis.summary_text
+        if analysis.llm_summary:
+            summary += f"\n  - Interprétation: {analysis.llm_summary}"
+
+        # If code calls a method on model, e.g. model.<method_name>()
+        invoked_methods = re.findall(r"\b(?:model|records?|self)\.([a-zA-Z0-9_]+)\s*\(", code)
+        for m_name in invoked_methods:
+            m_node_id = f"method:{model_name}.{m_name}"
+            if m_node_id in G:
+                m_attrs = G.nodes[m_node_id]
+                m_fp = m_attrs.get("filepath")
+                m_start = m_attrs.get("lineno", 1)
+                m_end = m_attrs.get("end_lineno") or (m_start + 30)
+                if m_fp:
+                    m_link = format_file_link(m_fp, m_start, m_end)
+                    summary += f"\n  - Méthode Python appelée: {m_name}() (Defined at {m_link})"
+
+                    # Inspect sub-methods up to depth 2
+                    queue = [(m_name, m_fp, m_start, m_end, 1)]
+                    visited_m = {m_name}
+                    while queue:
+                        curr_m, curr_fp, curr_start, curr_end, depth = queue.pop(0)
+                        if depth > 2:
+                            break
+                        try:
+                            p = Path(curr_fp)
+                            if p.exists():
+                                src_lines = p.read_text(encoding="utf-8").splitlines()
+                                curr_code = "\n".join(src_lines[max(0, curr_start - 1):min(len(src_lines), curr_end)])
+                                sub_calls = re.findall(r"\b(?:obj|self|record)\.([a-zA-Z0-9_]+)\s*\(", curr_code)
+                                for sub_m in sub_calls:
+                                    if sub_m in visited_m:
+                                        continue
+                                    visited_m.add(sub_m)
+                                    sub_node_id = f"method:{model_name}.{sub_m}"
+                                    if sub_node_id in G:
+                                        sub_attrs = G.nodes[sub_node_id]
+                                        sub_fp = sub_attrs.get("filepath")
+                                        sub_start = sub_attrs.get("lineno", 1)
+                                        sub_end = sub_attrs.get("end_lineno") or (sub_start + 30)
+                                        if sub_fp:
+                                            sub_link = format_file_link(sub_fp, sub_start, sub_end)
+                                            indent = "  " * depth
+                                            summary += f"\n{indent}  -> Sous-méthode appelée: {sub_m}() (Defined at {sub_link})"
+                                            queue.append((sub_m, sub_fp, sub_start, sub_end, depth + 1))
+                        except Exception:
+                            pass
+
+        summaries.append(summary)
 
     return "\n\n".join(summaries)
 
 
 def _is_custom_module_filepath(filepath: str) -> bool:
-    """True if filepath lives inside a custom_* Odoo module (any path segment
-    starting with 'custom_'), as opposed to a core Odoo or OCA module."""
-    return any(part.startswith("custom_") for part in Path(filepath).parts)
+    """True if filepath belongs to a downstream/installed module rather than the core Odoo framework."""
+    from config.settings import CORE_ADDONS_PATH, CORE_FRAMEWORK_ADDONS_PATH, CUSTOM_ADDONS_PATH
+    try:
+        resolved = Path(filepath).resolve()
+        if CUSTOM_ADDONS_PATH and Path(CUSTOM_ADDONS_PATH).resolve() in resolved.parents:
+            return True
+        if CORE_ADDONS_PATH and Path(CORE_ADDONS_PATH).resolve() in resolved.parents:
+            return False
+        if CORE_FRAMEWORK_ADDONS_PATH and Path(CORE_FRAMEWORK_ADDONS_PATH).resolve() in resolved.parents:
+            return False
+    except Exception:
+        pass
+    path_parts = Path(filepath).parts
+    core_dirs = {"odoo/addons", "base", "web"}
+    if any(c in path_parts for c in core_dirs):
+        return False
+    return True
 
 
 def _sort_filepaths_custom_first(filepaths) -> list:
