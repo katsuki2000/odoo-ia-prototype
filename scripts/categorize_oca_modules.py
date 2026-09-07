@@ -1,7 +1,7 @@
 """
 scripts/categorize_oca_modules.py
 
-Bloc P3.1 (todo/contexte.txt, mandat San Goku, 2026-09-03) -- selection
+selection
 semi-systematique de modules OCA candidats pour le premier banc de
 questions CI (10 modules x 5 questions = 50 cas), stratifie par
 categorie fonctionnelle plutot que choisi a la main sur des noms

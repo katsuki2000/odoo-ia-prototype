@@ -69,6 +69,14 @@ class AskRequestV1(BaseModel):
     user_uid: int
     company_id: int
     skills: dict[str, bool] = Field(default_factory=dict)
+    active_model: Optional[str] = Field(
+        default=None,
+        description="Technical model name of the Odoo record open in the systray at ask-time (H2, todo/contexte.txt section 569-571)",
+    )
+    active_id: Optional[int] = Field(
+        default=None,
+        description="Record id of active_model, propagated alongside it",
+    )
 
 
 class AskResponseV1(BaseModel):
@@ -299,6 +307,8 @@ def ask_question_v1(request: AskRequestV1, user: dict = Depends(get_current_user
             skills=request.skills,
             last_route=last_route,
             last_resolved_concept=last_resolved_concept,
+            active_model=request.active_model,
+            active_id=request.active_id,
         )
         
         if response.answer == "Une erreur interne s'est produite lors de l'exécution du pipeline.":

@@ -6,7 +6,6 @@ import { markup } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
 import { ConnectionAbortedError } from "@web/core/network/rpc_service";
 
-const ASSISTANT_INITIAL_CONTENT = "Bonjour ! Je suis MIRO AI, votre assistant Code Intelligence, ERP et documentaire sur Odoo 17. Comment puis-je vous aider aujourd'hui ?";
 const SYSTRAY_INITIAL_CONTENT = "Bonjour ! Posez votre question ou interrogez-moi sur le document actif.";
 const CANCELLED_CONTENT = "Question annulée.";
 
@@ -168,194 +167,6 @@ function applyBrandColorFromHeader() {
         document.documentElement.style.setProperty("--miro-brand-color", bg);
     }
 }
-
-
-/**
- * Fullscreen Client Action Assistant Component.
- */
-export class MiroAiAssistant extends Component {
-    static template = "miro_ai.AssistantClientAction";
-
-    setup() {
-        this.rpc = useService("rpc");
-        this.notification = useService("notification");
-        this.actionService = useService("action");
-        this.messagesContainer = useRef("messagesContainer");
-        this.pendingRequest = null;
-
-        this.state = useState({
-            messages: [createMessage(1, "bot", ASSISTANT_INITIAL_CONTENT)],
-            inputQuestion: "",
-            loading: false,
-            sessionId: "odoo_session_" + Date.now(),
-            nextMsgId: 2,
-            showHistory: false,
-            loadingSessions: false,
-            sessions: [],
-        });
-
-        onPatched(() => {
-            if (this.messagesContainer.el) {
-                this.messagesContainer.el.scrollTop = this.messagesContainer.el.scrollHeight;
-            }
-        });
-
-        onMounted(() => applyBrandColorFromHeader());
-    }
-
-    formatSessionDate(isoString) {
-        return formatSessionDate(isoString);
-    }
-
-    startNewConversation() {
-        this.state.messages = [createMessage(1, "bot", ASSISTANT_INITIAL_CONTENT)];
-        this.state.nextMsgId = 2;
-        this.state.sessionId = "odoo_session_" + Date.now();
-        this.state.showHistory = false;
-    }
-
-    toggleHistory() {
-        this.state.showHistory = !this.state.showHistory;
-        if (this.state.showHistory) {
-            this.loadSessions();
-        }
-    }
-
-    async loadSessions() {
-        this.state.loadingSessions = true;
-        try {
-            const sessions = await this.rpc("/miro_ai/sessions", {});
-            this.state.sessions = sessions || [];
-        } catch (error) {
-            console.error("Erreur chargement historique MIRO AI:", error);
-            this.notification.add("Impossible de charger l'historique des conversations.", { type: "danger" });
-        } finally {
-            this.state.loadingSessions = false;
-        }
-    }
-
-    async loadSession(sessionId) {
-        if (!sessionId || this.state.loading) {
-            return;
-        }
-        this.state.loading = true;
-        try {
-            const history = await this.rpc("/miro_ai/history", { session_id: sessionId });
-            const { messages, nextId } = buildMessagesFromHistory(history);
-            if (messages.length) {
-                this.state.messages = messages;
-                this.state.nextMsgId = nextId;
-            }
-            this.state.sessionId = sessionId;
-            this.state.showHistory = false;
-        } catch (error) {
-            console.error("Erreur chargement session MIRO AI:", error);
-            this.notification.add("Impossible de charger cette conversation.", { type: "danger" });
-        } finally {
-            this.state.loading = false;
-        }
-    }
-
-    onKeyDown(ev) {
-        if (ev.key === "Enter" && !ev.shiftKey) {
-            ev.preventDefault();
-            this.sendMessage();
-        }
-    }
-
-    getRouteBadgeClass(route) {
-        switch (route) {
-            case "code_intelligence": return "badge-code-intelligence";
-            case "donnees_erp": return "badge-donnees-erp";
-            case "documentaire": return "badge-documentaire";
-            case "hybride": return "badge-hybride";
-            default: return "badge-secondary";
-        }
-    }
-
-    getRouteLabel(route) {
-        switch (route) {
-            case "code_intelligence": return "Code Intelligence";
-            case "donnees_erp": return "Données ERP";
-            case "documentaire": return "Documentaire";
-            case "hybride": return "Hybride";
-            default: return route || "Général";
-        }
-    }
-
-    getConfidencePercent(confidence) {
-        if (confidence === null || confidence === undefined) return 100;
-        return Math.round(confidence * 100);
-    }
-
-    /**
-     * Aborts the in-flight /miro_ai/ask request (cf. rpc_service.js
-     * promise.abort()). Only unblocks the UI client-side -- the Odoo
-     * worker's blocking call to the FastAPI RAG backend keeps running
-     * server-side until it returns, this is not a true kill-switch.
-     */
-    cancelRequest() {
-        if (this.pendingRequest && typeof this.pendingRequest.abort === "function") {
-            this.pendingRequest.abort();
-        }
-    }
-
-    async sendMessage() {
-        const question = this.state.inputQuestion.trim();
-        if (!question || this.state.loading) {
-            return;
-        }
-
-        this.state.messages.push(createMessage(this.state.nextMsgId++, "user", question));
-        this.state.inputQuestion = "";
-        this.state.loading = true;
-
-        const rpcPromise = this.rpc("/miro_ai/ask", {
-            question: question,
-            session_id: this.state.sessionId,
-        });
-        this.pendingRequest = rpcPromise;
-
-        try {
-            const response = await rpcPromise;
-
-            if (response && response.answer) {
-                this.state.messages.push(createMessage(this.state.nextMsgId++, "bot", response.answer, {
-                    sources: response.sources || [],
-                    route: response.route || null,
-                    confidence: response.confidence !== undefined ? response.confidence : 1.0,
-                    evidence_status: response.evidence_status || null,
-                    omitted_for_authorization: response.omitted_for_authorization || [],
-                    investigation_plan: response.investigation_plan || null,
-                }));
-                if (response.session_id) {
-                    this.state.sessionId = response.session_id;
-                }
-            } else {
-                throw new Error("Réponse vide de l'assistant.");
-            }
-        } catch (error) {
-            if (isRequestCancelled(error)) {
-                this.state.messages.push(createMessage(this.state.nextMsgId++, "bot", CANCELLED_CONTENT, {
-                    cancelled: true,
-                }));
-            } else {
-                console.error("Erreur MIRO AI:", error);
-                const errMsg = "Désolé, une erreur est survenue lors de la communication avec l'assistant MIRO AI. Veuillez vérifier la connexion ou consulter le journal d'erreurs.";
-                this.state.messages.push(createMessage(this.state.nextMsgId++, "bot", errMsg, {
-                    confidence: 0.0,
-                    evidence_status: "ERROR",
-                }));
-                this.notification.add("Erreur de connexion à l'assistant MIRO AI.", { type: "danger" });
-            }
-        } finally {
-            this.pendingRequest = null;
-            this.state.loading = false;
-        }
-    }
-}
-
-registry.category("actions").add("miro_ai.action_assistant", MiroAiAssistant);
 
 
 /**
@@ -523,29 +334,31 @@ export class MiroAiSystray extends Component {
     }
 
     async sendMessage() {
-        let question = this.state.inputQuestion.trim();
+        const question = this.state.inputQuestion.trim();
         if (!question || this.state.loading) {
             return;
         }
 
-        // Contextual enrichment if user is currently looking at a record
-        if (this.state.activeModelContext && this.state.activeModelContext.model) {
-            const ctxModel = this.state.activeModelContext.model;
-            // Only prepend context if not already mentioned in question
-            if (!question.toLowerCase().includes(ctxModel.toLowerCase())) {
-                // Keep the prompt human-friendly while grounding technical model
-                question = `[Contexte: modèle ${ctxModel}] ` + question;
-            }
-        }
-
-        this.state.messages.push(createMessage(this.state.nextMsgId++, "user", this.state.inputQuestion.trim()));
+        this.state.messages.push(createMessage(this.state.nextMsgId++, "user", question));
         this.state.inputQuestion = "";
         this.state.loading = true;
 
-        const rpcPromise = this.rpc("/miro_ai/ask", {
+        // H2 (todo/contexte.txt section 569-571): active_model/active_id sent
+        // as structured RPC fields, no longer diluted into a free-text
+        // "[Contexte: modèle X]" prefix concatenated into `question` itself --
+        // downstream deterministic components (business_resolver,
+        // classify_question_intent) can now consume it reliably instead of
+        // parsing it back out of prose.
+        const rpcPayload = {
             question: question,
             session_id: this.state.sessionId,
-        });
+        };
+        if (this.state.activeModelContext && this.state.activeModelContext.model) {
+            rpcPayload.active_model = this.state.activeModelContext.model;
+            rpcPayload.active_id = this.state.activeModelContext.id;
+        }
+
+        const rpcPromise = this.rpc("/miro_ai/ask", rpcPayload);
         this.pendingRequest = rpcPromise;
 
         try {

@@ -604,6 +604,8 @@ def query_graph(
     user_groups: Optional[List[int]] = None,
     last_route: Optional[str] = None,
     last_resolved_concept: Optional[dict] = None,
+    active_model: Optional[str] = None,
+    active_id: Optional[int] = None,
 ) -> AssistantResponse:
     import time
     import json
@@ -639,6 +641,8 @@ def query_graph(
             "last_route": last_route,
             "last_resolved_concept": last_resolved_concept,
             "investigation_plan": None,
+            "active_model": active_model,
+            "active_id": active_id,
         }
     
         logger.info("Invoking graph for question: '%s'", question)

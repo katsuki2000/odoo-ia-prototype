@@ -1,24 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <!-- Action Client pour le Chat Assistant OWL -->
-    <record id="action_miro_ai_assistant" model="ir.actions.client">
-        <field name="name">Assistant MIRO AI</field>
-        <field name="tag">miro_ai.action_assistant</field>
-    </record>
-
     <!-- Menu Principal MIRO AI -->
     <menuitem id="menu_miro_ai_root"
               name="MIRO Assistant"
               sequence="50"
               web_icon="miro_ai,static/description/icon.png"
               groups="base.group_user"/>
-
-    <!-- Sous-menu Chat Assistant (ouvre l'interface client action) -->
-    <menuitem id="menu_miro_ai_chat"
-              name="Discussion Assistant"
-              parent="menu_miro_ai_root"
-              action="action_miro_ai_assistant"
-              sequence="10"/>
 
     <!-- Sous-menu Journal des requêtes IA -->
     <menuitem id="menu_miro_ai_log"

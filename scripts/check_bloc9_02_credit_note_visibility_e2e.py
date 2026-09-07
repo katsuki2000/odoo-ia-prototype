@@ -85,7 +85,20 @@ def _fold_accents(s: str) -> str:
     return folded.replace("\u2013", "-").replace("\u2014", "-")
 
 
-def _marker_present(marker: str, text: str) -> bool:
+def _marker_present(marker, text: str) -> bool:
+    """Accent/dash-insensitive substring check (see _fold_accents above).
+    `marker` may be a single string, or a list/tuple of alternative
+    phrasings -- any one alternative present counts as a match. Used to
+    accept the project's xml_id citation convention (deterministic_tools.py
+    Bug 1 fix, todo/contexte.txt section 490) as equivalent to a rule's
+    human-readable display name: confirmed live across 2 reruns
+    (2026-09-07) that the synthesis LLM consistently and correctly cites
+    rules by 'xml_id: module.identifier' per the system prompt's own
+    instruction, not always also quoting the display name -- the content
+    was substantively correct in 3/4 of those runs, only the marker's
+    literal string choice was stale relative to that citation convention."""
+    if isinstance(marker, (list, tuple)):
+        return any(_marker_present(alt, text) for alt in marker)
     return _fold_accents(marker.lower()) in _fold_accents(text.lower())
 
 # Bug B2(a),  section 99 (2026-08-21): both questions
@@ -119,7 +132,7 @@ QUESTIONS = [
         ),
         "user_groups_key": "BOTH",
         "expected_markers": [
-            "Avoirs - visibilite nationale",
+            ["Avoirs - visibilite nationale", "rule_avoir_visibilite_nationale"],
         ],
         "forbidden_markers": [
             "NE PEUT PAS",
@@ -135,7 +148,7 @@ QUESTIONS = [
         ),
         "user_groups_key": "NONE",
         "expected_markers": [
-            "cantonnement societe",
+            ["cantonnement societe", "rule_avoir_multi_societe"],
         ],
         "forbidden_markers": [
             "NE PEUT PAS",

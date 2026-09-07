@@ -79,9 +79,25 @@ _THRESHOLD_RE = re.compile(r"10\s?000")
 # correctly conveys insufficiency, without requiring an exact wording
 # match (the synthesis LLM paraphrases this governance point in several
 # equivalent ways across runs).
+# gap 2 (2026-09-07, rejeu benchmark adversarial reserve 573a) : les 6
+# alternatives ci-dessus supposent toutes une formulation "le groupe est
+# insuffisant" -- mais la synthese peut tout aussi legitimement exprimer
+# la meme conclusion depuis le point de vue de l'utilisateur ("vous/il
+# NE PEUT PAS valider... au-dela de ce seuil", "doit etre dans la liste
+# pour les montants superieurs"), confirme live 2x (direct + full
+# pipeline) sur la question 04c ("un membre de purchase_manager peut-il
+# a lui seul valider... quel que soit son montant") -- le contenu etait
+# correct dans les deux runs, seul le choix de formulation du marker
+# etait trop etroit. Meme classe de dette que les fixes 1/8/2/8, cette
+# fois sur la voix (sujet=le groupe vs sujet=l'utilisateur) plutot que
+# l'espacement ou la convention xml_id. Pas d'alternative accentuee
+# necessaire ici : le texte compare est toujours passe par _fold_accents
+# avant le match (voir _marker_present), donc 'etre'/'a' suffisent.
 _GROUP_INSUFFICIENT_RE = re.compile(
     r"(ne suffit pas|insuffisant|pas suffisant|liste restreinte|"
-    r"seule la direction|ne suffisent pas)",
+    r"seule la direction|ne suffisent pas|"
+    r"ne peut pas.{0,80}(valider|approuver)|"
+    r"doit etre dans la liste)",
     re.IGNORECASE,
 )
 

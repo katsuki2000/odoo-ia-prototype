@@ -591,7 +591,7 @@ def _fuzzy_match_graph(query: str, G, threshold: int = 75, limit: int = 5) -> Li
     return sorted_results[:limit]
 
 
-def resolve_business_term(query_text: str, G=None, llm=None) -> ResolvedConcept:
+def resolve_business_term(query_text: str, G=None, llm=None, active_model: Optional[str] = None) -> ResolvedConcept:
     if not query_text:
         return ResolvedConcept(
             user_term="",
@@ -728,6 +728,27 @@ def resolve_business_term(query_text: str, G=None, llm=None) -> ResolvedConcept:
             source_step="static_alias",
             is_resolved=True,
             reason=f"Matched static aliases: {', '.join(matched_terms)}",
+        )
+
+    # Step 1.5 (H2, todo/contexte.txt section 569-571): ambient UI context
+    # (active_model, propagated end-to-end from the Odoo systray's currently
+    # open record) is used ONLY once the question's own text has already
+    # failed to resolve anything on its own (Step 0 exact mention, Step 1
+    # alias) -- an explicit business term typed by the user always wins over
+    # ambient context, never the reverse. Also requires the model to be a
+    # real node in the loaded graph, so a stale/foreign active_model (e.g. a
+    # model from a module not indexed on this instance) is silently ignored
+    # rather than fabricating a false resolution. Confidence is deliberately
+    # below the two textual-match steps above (1.0): this is inferred from
+    # UI navigation, not asserted by the question itself.
+    if active_model and G is not None and G.has_node(f"model:{active_model}"):
+        return ResolvedConcept(
+            user_term=query_text,
+            resolved_models=[active_model],
+            confidence=0.9,
+            source_step="active_context",
+            is_resolved=True,
+            reason=f"No textual match in the question itself; resolved from active UI context (model={active_model})",
         )
 
     # Step 2: Fuzzy matching against Graph Node labels (rapidfuzz)

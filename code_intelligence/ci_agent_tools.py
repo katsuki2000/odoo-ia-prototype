@@ -13,7 +13,7 @@ from typing import Optional
 from pathlib import Path
 
 from langchain_core.tools import tool
-from code_intelligence.utils import resolve_model_xmlref
+from code_intelligence.utils import resolve_model_xmlref, SENSITIVE_BYPASS_MARKER
 from code_intelligence.business_resolver import resolve_business_term
 
 _logger = logging.getLogger(__name__)
@@ -416,7 +416,7 @@ def analyze_server_actions(model_name: str) -> str:
     import re
     from code_intelligence.utils import format_file_link
 
-    summaries = []
+    entries = []
     for node_id, attrs in sa_nodes:
         xml_id = attrs.get("xml_id", node_id)
         code = attrs.get("code", "")
@@ -435,10 +435,16 @@ def analyze_server_actions(model_name: str) -> str:
             interval_number=interval_number,
             interval_type=interval_type,
         )
+        # interpret_server_action_with_llm() already appends llm_summary into
+        # analysis.summary_text itself (server_action_analyzer.py), correctly
+        # prefixed with SENSITIVE_BYPASS_MARKER when has_sudo/has_hardcoded_ids
+        # is true. Re-appending it here a second time, unmarked, created an
+        # unredacted duplicate of the same content that authorization_gate.py's
+        # line-based SENSITIVE_BYPASS_MARKER filter could not catch (root cause
+        # of the custom_automation_traps 6/8 anonymous-requester leak: the LLM's
+        # paraphrase restates the hardcoded IDs it saw in its own prompt input).
         analysis = interpret_server_action_with_llm(analysis, code, _LLM_REF)
         summary = analysis.summary_text
-        if analysis.llm_summary:
-            summary += f"\n  - Interprétation: {analysis.llm_summary}"
 
         # If code calls a method on model, e.g. model.<method_name>()
         invoked_methods = re.findall(r"\b(?:model|records?|self)\.([a-zA-Z0-9_]+)\s*\(", code)
@@ -484,9 +490,10 @@ def analyze_server_actions(model_name: str) -> str:
                         except Exception:
                             pass
 
-        summaries.append(summary)
+        entries.append((xml_id, _is_custom_server_action_module(G, xml_id), summary))
 
-    return "\n\n".join(summaries)
+    entries = _sort_server_action_entries_custom_first(entries)
+    return "\n\n".join(summary for _, _, summary in entries)
 
 
 def _is_custom_module_filepath(filepath: str) -> bool:
@@ -507,6 +514,63 @@ def _is_custom_module_filepath(filepath: str) -> bool:
     if any(c in path_parts for c in core_dirs):
         return False
     return True
+
+
+def _is_custom_server_action_module(G, xml_id: str) -> bool:
+    """
+    True if the ServerAction's owning module (the xml_id prefix before the
+    first '.') resolves to a custom/downstream module rather than core
+    Odoo/OCA.
+
+    ServerAction nodes carry no filepath of their own (see
+    graph_builder.py::_add_security_group_nodes) -- only xml_id, so this
+    resolves the owning Module node instead (Module nodes DO carry the
+    manifest's filepath, see graph_builder.py::_add_module_nodes) and
+    reuses _is_custom_module_filepath's own env-driven CUSTOM_ADDONS_PATH
+    check on that path. No module-name prefix or list is hardcoded here --
+    same discipline as _is_custom_module_filepath itself (todo/rules.md:
+    machine-dependent values go through .env, never a literal path/name).
+    """
+    if "." not in xml_id:
+        return False
+    module_name = xml_id.split(".", 1)[0]
+    module_node = f"module:{module_name}"
+    if module_node not in G:
+        return False
+    module_filepath = G.nodes[module_node].get("filepath", "")
+    if not module_filepath:
+        return False
+    return _is_custom_module_filepath(module_filepath)
+
+
+def _sort_server_action_entries_custom_first(entries: list) -> list:
+    """
+    Sort analyzed server action summaries so custom_* module actions and
+    any action flagged SENSITIVE_BYPASS_MARKER during analysis come before
+    plain native Odoo/OCA actions, instead of raw graph iteration order.
+
+    Same principle as _sort_filepaths_custom_first (analyze_security_locks)
+    and the _is_custom_module_filepath sort already applied to
+    trace_full_inheritance's source links (todo/contexte.txt): when the
+    joined summaries get truncated downstream (context/token budget
+    upstream, deliberately NOT raised here per todo/rules.md), whatever is
+    dropped is whatever comes LAST in this join order.
+
+    Sorting happens on the finished summaries (entries built after
+    analyze_server_action_code() already ran), not on the raw ServerAction
+    nodes beforehand: a native Odoo/OCA action carrying a real
+    sudo()/hardcoded-ID bypass (SENSITIVE_BYPASS_MARKER in its summary) is
+    exactly as important to keep as a custom_* action -- the marker IS the
+    security signal, module origin is only a structural proxy for it, so
+    either one alone is enough to sort an entry first. Each entry is
+    (xml_id, is_custom, summary); alphabetical order on xml_id is preserved
+    within each priority group for determinism.
+    """
+    def _priority(entry):
+        xml_id, is_custom, summary = entry
+        has_bypass_marker = SENSITIVE_BYPASS_MARKER in summary
+        return (not (is_custom or has_bypass_marker), xml_id)
+    return sorted(entries, key=_priority)
 
 
 def _sort_filepaths_custom_first(filepaths) -> list:

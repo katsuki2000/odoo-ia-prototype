@@ -116,6 +116,10 @@ Ces deux gaps conditionnent la lisibilite et l'auditabilite du systeme pour un n
 
 **Statut** : Non validé.
 
+**Mise a jour (07/09, voir todo/contexte.txt sections 569-572)** : diagnostic complet fait (4 points de rupture confirmes par lecture directe), assistant plein-ecran supprime sur mandat pmm pour restreindre H2 au seul systray, design (b)/(c) propose et valide par pmm, puis implemente bout-en-bout (miro_ai.js -> controllers/main.py -> api/main.py::AskRequestV1 -> core/graph.py::query_graph()/RAGState -> code_intelligence/business_resolver.py::resolve_business_term(), nouveau Step 1.5 "active_context"). Le prefixe texte-libre `[Contexte: modele X]` est retire, remplace par les champs structures `active_model`/`active_id`. 4 tests unitaires ecrits sur le nouveau Step 1.5. **Statut toujours "Non validé" au sens strict du projet** : session filesystem-only, aucun des tests (nouveaux ou de regression) n'a ete reellement execute -- H2 passe donc de "non teste, trou structurel" a "implemente, en attente de confirmation par execution reelle" (voir section 572 pour le detail exact et la reserve explicite).
+
+**Mise a jour (07/09, voir todo/contexte.txt section 573)** : `code_intelligence/tests/test_business_resolver.py` rejoue en conditions reelles par pmm -- 46/46 passed (42 preexistants + 4 nouveaux Step 1.5), aucune regression. Statut affine : **implemente et confirme au niveau unitaire (resolver)**, mais **pas encore "Valide" au sens plein** -- reste a couvrir avant cloture : (a) rejeu du benchmark adversarial complet avec ce chantier explicitement en tete (aucune regression attendue a priori, jamais verifie explicitement) ; (b) test end-to-end reel systray -> controller -> API -> graph -> resolver sur une instance Odoo/FastAPI vivante ; (c) verification visuelle du bandeau de contexte dans le widget Discuss.
+
 ---
 
 ### H3. Tester un mecanisme d'arbitrage entre preuves concurrentes
@@ -192,10 +196,10 @@ Ces deux gaps conditionnent la lisibilite et l'auditabilite du systeme pour un n
 
 **Statut reel a la cloture (verifie ce tour, 04/09)** : critere de fin atteint tel qu'ecrit ci-dessus. `.github/workflows/ci.yml` (`OCA Coverage Pipeline`) declenche `scripts/run_oca_coverage.py` a chaque modification de `code_intelligence/**` ou du script lui-meme (push/PR/workflow_dispatch) -- clone 12 depots OCA reels (branche 17.0 : account-financial-reporting, sale-workflow, server-tools, server-ux, purchase-workflow, hr, account-invoicing, stock-logistics-warehouse, partner-contact-management, reporting-engine, web, project). Rapport de couverture confirme 3 fois independamment (sandbox, poste local, run GitHub Actions #8, todo/contexte.txt sections 277-280) : 537 modules decouverts/extraits, 0 echec. Marqueur `CLOS` absent jusqu'ici par pur oubli de traçabilite (constate section 520), pas par travail manquant -- corrige ce tour sans nouveau code.
 
-**Ne pas confondre avec le Bloc P3.1 (chantier distinct, todo/contexte.txt sections 520-521, EN COURS)** : P3 mesure uniquement le succes du PARSING statique (le graphe se construit sans exception) -- il n'invoque jamais l'agent CI et ne pose aucune question metier. P3.1 est un chantier separe et non couvert par ce marqueur : banc de 50 questions reelles (10 modules OCA x 5, categorises par capacite -- securite/workflow/heritage/server_actions/contraintes/vue-UI/reporting) destine a mesurer la reussite fonctionnelle de l'agent CI sur du code OCA reel, pas seulement l'extraction. Etat P3.1 : selection des modules (`scripts/categorize_oca_modules.py`) et dataset des 50 questions (`tests/oca_p3_1_question_bank.json`, verifie contre le code reel) tous deux ecrits ; **execution reelle des 50 questions via `query_graph()`/MIRO AI + triage des echecs par capacite reste a faire** (necessite Groq, hors de portee d'une session filesystem-only).
+**Ne pas confondre avec le Bloc P3.1 (chantier distinct, todo/contexte.txt sections 520-521, CLOS -- voir sections 557-566)** : P3 mesure uniquement le succes du PARSING statique (le graphe se construit sans exception) -- il n'invoque jamais l'agent CI et ne pose aucune question metier. P3.1 est un chantier separe et non couvert par le marqueur P3 ci-dessus : banc de 50 questions reelles (10 modules OCA x 5, categorises par capacite -- securite/workflow/heritage/server_actions/contraintes/vue-UI/reporting) destine a mesurer la reussite fonctionnelle de l'agent CI sur du code OCA reel, pas seulement l'extraction. Etat P3.1 : selection des modules (`scripts/categorize_oca_modules.py`) et dataset des 50 questions (`tests/oca_p3_1_question_bank.json`, verifie contre le code reel) tous deux ecrits ; **execution reelle des 50 questions via `query_graph()`/MIRO AI faite et confirmee** -- 10/10 modules, 50/50 questions validees, confiance 1.0, 0 echec a trier par capacite (purchase_request, animal, base_tier_validation, stock_inventory, sale_order_type, account_invoice_section_sale_order, database_cleanup, stock_archive_constraint, auditlog, kpi -- detail module par module todo/contexte.txt sections 557-566). Date de cloture non retracee precisement dans ce tour (travail effectue lors d'une session anterieure) -- a preciser si besoin.
 
 ---
-## Bloc P4 — Inference locale
+## Bloc P4 — Inference locale — **EN PAUSE (mise de cote explicite sur mandat pmm, voir todo/contexte.txt section 568, 07/09) : ne pas reprendre sans mandat explicite de reprise**
 *Deja nommé "le point le plus important" — resitué ici après P1/P2 parce que le planner et l'ontologie doivent etre stables avant de changer le modele qui les consomme*
 
 - **Jour 1** : Confirmer le materiel local disponible (GPU, VRAM) — condition bloquante deja documentée dans `config/settings.py`. Modele local cible mis a jour depuis la version initiale de ce plan : Qwen3-14B via Ollama .
@@ -206,7 +210,7 @@ Ces deux gaps conditionnent la lisibilite et l'auditabilite du systeme pour un n
 **Critere de fin** : benchmark adversarial complet rejoué et documenté en conditions 100% locales, chiffre de latence réel (pas extrapole) — la contrainte de confidentialite fondatrice du projet enfin demontrée en pratique.
 
 ---
-## Bloc P5 — Vrai code MiroKE
+## Bloc P5 — Vrai code MiroKE — **EN PAUSE (mise de cote explicite sur mandat pmm, voir todo/contexte.txt section 568, 07/09) : ne pas reprendre sans mandat explicite de reprise**
 *Non daté — bloqué par l'acces, pas par la conception*
 
 - **Jour A** : Detection de version (`__manifest__.py`), montage d'une instance Odoo de la bonne version avec le vrai corpus.
@@ -218,7 +222,7 @@ Ces deux gaps conditionnent la lisibilite et l'auditabilite du systeme pour un n
 
 ---
 
-## Bloc 16 — Marge, consolidation, memoire
+## Bloc 16 — Marge, consolidation, memoire — **EN PAUSE (mise de cote explicite sur mandat pmm, voir todo/contexte.txt section 568, 07/09) : ne pas reprendre sans mandat explicite de reprise**
 
 - **J76-J85** : Redaction du memoire (sections restantes), consolidation des rapports de benchmark en annexes, relecture.
 - **J86-J90** : Relecture finale, preparation de la soutenance, derniere non-regression complete avant remise.

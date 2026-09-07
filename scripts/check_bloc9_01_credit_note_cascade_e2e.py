@@ -122,6 +122,27 @@ def _word_boundary_present(marker: str, text: str) -> bool:
     return re.search(r'(?<![A-Za-z0-9_])' + re.escape(marker) + r'(?![A-Za-z0-9_])', text) is not None
 
 
+def _normalize_ws(s: str) -> str:
+    return re.sub(r'\s+', '', s)
+
+
+def _marker_present(marker: str, text: str) -> bool:
+    """Case-insensitive substring check tolerant to French thousand-
+    separator spaces (e.g. "20000" must also match "20 000",
+    "20\u00a0000") -- same technique already used in
+    check_bloc9_04_purchase_request_e2e.py / check_bloc9_05_asset_loan_e2e.py
+    (regex) and check_bloc9_08_deep_inheritance_security_e2e.py (retry
+    with whitespace stripped), applied here to close the same class of
+    false negative confirmed live on marker "20000" (2026-09-07, question
+    01a -- the answer correctly wrote "20 000 \u20ac", the plain `in`
+    check did not tolerate the space)."""
+    m = marker.lower()
+    t = text.lower()
+    if m in t:
+        return True
+    return _normalize_ws(m) in _normalize_ws(t)
+
+
 def check_e2e():
     all_ok = True
     for item in QUESTIONS:
@@ -145,7 +166,7 @@ def check_e2e():
         wb_markers = item.get("expected_markers_word_boundary", [])
         forbidden_markers = item.get("forbidden_markers", [])
 
-        missing = [m for m in plain_markers if m not in answer]
+        missing = [m for m in plain_markers if not _marker_present(m, answer)]
         missing += [m for m in wb_markers if not _word_boundary_present(m, answer)]
         present_forbidden = [m for m in forbidden_markers if _word_boundary_present(m, answer)]
 
@@ -169,8 +190,14 @@ def check_e2e():
 
 
 def _marker_present_full_pipeline(marker: str, text: str) -> bool:
-    """Accent/case-insensitive substring check for the full-pipeline pass."""
-    return _fold_accents(marker.lower()) in _fold_accents(text.lower())
+    """Accent/case-insensitive substring check for the full-pipeline pass,
+    plus the same French-thousands-separator whitespace tolerance as
+    _marker_present() above (see its docstring)."""
+    m = _fold_accents(marker.lower())
+    t = _fold_accents(text.lower())
+    if m in t:
+        return True
+    return _normalize_ws(m) in _normalize_ws(t)
 
 
 def check_e2e_full_pipeline():

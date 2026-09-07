@@ -174,6 +174,8 @@ class RAGState(TypedDict):
     investigation_plan: Optional[dict]  # A priori InvestigationPlan (Bloc P1), display-shaped
     sources_fallback_eligible: Optional[bool]  # True only when generate()'s raw (non-structured) LLM fallback was used
     ci_evidence_sufficiency: Optional[dict]  # Post-analysis CI answer sufficiency verdict (Bloc P1 Tranche 2, core/evidence_sufficiency.py) -- drives the CI-first/RAG-fallback conditional edge in core/graph.py
+    active_model: Optional[str]  # H2 (todo/contexte.txt section 569-571): technical model name of the Odoo record open in the systray at ask-time, propagated end-to-end from miro_ai.js -- consumed as an ambient-context override in business_resolver.resolve_business_term()
+    active_id: Optional[int]  # H2: record id of active_model, propagated alongside it (not yet consumed downstream of route() -- reserved for a future per-record, not just per-model, signal)
 
 
 
@@ -311,7 +313,12 @@ def route(state: RAGState) -> dict:
     from code_intelligence.business_resolver import resolve_business_term
     from code_intelligence.ci_graph_loader import get_code_intelligence_graph
     G = get_code_intelligence_graph()
-    resolved_concept = resolve_business_term(question_raw, G, llm=None)
+    # H2 (todo/contexte.txt section 569-571): active_model is only ever an
+    # ambient-context OVERRIDE inside resolve_business_term() itself (Step
+    # 1.5, tried only after the question's own text failed to resolve
+    # anything) -- passing it here does not change route()'s own priority
+    # logic below in any way.
+    resolved_concept = resolve_business_term(question_raw, G, llm=None, active_model=state.get("active_model"))
 
     intent_resolution = resolve_question_intent(question_raw, resolved_concept, G)
     intent = intent_resolution.intent

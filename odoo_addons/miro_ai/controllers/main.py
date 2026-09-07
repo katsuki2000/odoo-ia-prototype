@@ -48,7 +48,7 @@ class MiroAiController(http.Controller):
         }
 
     @http.route('/miro_ai/ask', type='json', auth='user', methods=['POST'])
-    def ask(self, question=None, session_id=None, **kwargs):
+    def ask(self, question=None, session_id=None, active_model=None, active_id=None, **kwargs):
         """
         Reçoit la question du frontend Odoo, signe un jeton JWT d'authentification
         et interroge le backend FastAPI MIRO RAG.
@@ -119,7 +119,13 @@ class MiroAiController(http.Controller):
             "session_id": effective_session,
             "user_uid": uid,
             "company_id": company_id,
-            "groups": groups
+            "groups": groups,
+            # H2 (todo/contexte.txt section 569-571): structured UI context
+            # from the systray's detectActiveContext(), replacing the former
+            # free-text "[Contexte: modèle X]" prefix concatenated into
+            # `question` itself.
+            "active_model": active_model,
+            "active_id": active_id,
         }
 
         start_time = time.time()
