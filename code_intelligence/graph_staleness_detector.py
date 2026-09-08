@@ -121,7 +121,7 @@ def build_file_hash_index(files: Union[List[Path], Path, str]) -> Dict[str, str]
 
 def _detect_dynamic_uncovered_patterns(filepath: Path) -> Optional[str]:
     """
-    J39: Scan a changed Python file for uncovered dynamic constructs
+    Scan a changed Python file for uncovered dynamic constructs
     that invalidate local static analysis (getattr, safe_eval, eval, exec, importlib).
     Returns the reason string if found, else None.
     """
@@ -216,7 +216,7 @@ def analyze_changes(
     changed_modules_override: Optional[List[str]] = None,
 ) -> StalenessReport:
     """
-    Main Staleness Detector entry point (J37-J39):
+    Main Staleness Detector entry point :
     Analyses a list of changed filepaths against graph G and returns a StalenessReport.
     """
     if not changed_filepaths:

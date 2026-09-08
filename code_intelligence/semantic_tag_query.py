@@ -1,18 +1,10 @@
 """
 code_intelligence/semantic_tag_query.py
 
-Bloc P2 Jour 4 (todo/plan.md, todo/contexte.txt section 172): shared query
-surface over the behavioral_tags/technical_tags attributes that
-graph_builder.py (Bloc P2 Jour 2-3) already writes onto Rule, AccessEntry,
-Field, Method, ServerAction, AutomationRule, and Model nodes.
-
-Gives the 5 composite tools (who_has_access_to, field_change_impact,
-button_execution_path, trace_full_inheritance, describe_workflow --
-ci_agent_tools.py's "COMPOSITE TOOLS (B.1.1 - B.1.5)" section) a single
-place to ask "which nodes related to this model carry tag X", instead of
+Gives the 5 composite tools a single place to ask "which nodes related to this model carry tag X", instead of
 each one re-implementing its own node-to-model traversal. Same rationale
 as find_model_source_filepaths/find_server_action_nodes in
-ci_agent_tools.py (F-08 duplication lesson from J7): one lookup, not N
+ci_agent_tools.py : one lookup, not N
 divergent copies of it.
 
 Deliberately does NOT change the dispatch logic in core/routing.py or

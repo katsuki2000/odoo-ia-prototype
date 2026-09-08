@@ -1,10 +1,5 @@
 """
 Degenerate-repetition detection and collapsing guards.
-
-Small synthesis models (e.g. llama-3.1-8b-instant at temperature=0) occasionally
-collapse into decoding loops -- the same word, phrase, line, or blank-line run
-repeated dozens of times. These guards detect and strip those patterns as a
-last resort before shipping an answer to the user.
 """
 
 import re

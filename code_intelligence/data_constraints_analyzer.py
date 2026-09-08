@@ -1,27 +1,3 @@
-"""
-code_intelligence/data_constraints_analyzer.py
-
-Tool 10/24, 2/5 Auxiliaire CI (todo/contexte.txt section 463+): extracts
-_sql_constraints and relational domain= findings for a model via static
-Semgrep analysis, and produces structured Evidence alongside the existing
-summary_text contract of analyze_data_constraints.
-
-Evidence is built ONLY from real SemgrepMatch results. run_semgrep_analysis()
-returns [] both on a genuine empty result and on a Semgrep execution failure
-(exception, timeout, non-0/1 return code, invalid JSON) -- these two cases
-are indistinguishable at its current return contract (todo/contexte.txt
-section 463, decision confirmed same section). No negative Evidence is
-fabricated from an empty match list for this reason; only positive Evidence
-(one per real match) is produced here. Fixing run_semgrep_analysis's
-success/failure ambiguity is out of scope for this module (separate,
-explicitly logged debt).
-
-Filepath resolution (which model this is, which files belong to it) stays
-in ci_agent_tools.py's find_model_source_filepaths, as for every other
-analyzer module in this package -- this module only consumes an already-
-resolved filepath list, it does not read the knowledge graph itself.
-"""
-
 import ast
 from dataclasses import dataclass, field
 from pathlib import Path

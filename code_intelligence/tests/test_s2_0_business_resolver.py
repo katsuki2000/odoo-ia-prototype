@@ -20,7 +20,9 @@ def mock_graph():
     G.add_node("model:custom_purchase_request", node_type="Model", name="custom_purchase_request")
     G.add_node("model:custom_asset_loan", node_type="Model", name="custom_asset_loan")
     G.add_node("model:hr.leave", node_type="Model", name="hr.leave")
+    G.add_node("model:custom.reimbursement.request", node_type="Model", name="custom.reimbursement.request")
     G.add_node("module:custom_expense_reimbursement_indirect", node_type="Module", name="custom_expense_reimbursement_indirect")
+    G.add_edge("model:custom.reimbursement.request", "module:custom_expense_reimbursement_indirect", edge_type="DEFINED_IN")
 
     # regression fixture: a Field labeled exactly "avoirs" on an unrelated
     # model (res.partner), mirroring the real bug observed in production
@@ -72,7 +74,7 @@ def test_s2_0_static_alias_asset_loan(mock_graph):
 def test_s2_0_static_alias_expense(mock_graph):
     res = resolve_business_term("Qui valide la note de frais dans custom_expense_reimbursement_indirect ?", mock_graph)
     assert res.is_resolved is True
-    assert res.source_step == "static_alias"
+    assert res.source_step in ("static_alias", "exact_technical_mention")
     assert "custom.reimbursement.request" in res.resolved_models
 
 

@@ -99,6 +99,6 @@ def annotate_unverifiable_citations(final_answer: str, result: SourcingVerificat
 
     return (
         final_answer
-        + "\n\n SOURCING NON VÉRIFIÉ (J14): " + " ; ".join(warnings)
+        + "\n\n SOURCING NON VÉRIFIÉ : " + " ; ".join(warnings)
         + ". Ne pas considérer ces éléments comme confirmés pour cette question."
     )

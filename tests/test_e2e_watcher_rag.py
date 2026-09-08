@@ -73,7 +73,8 @@ def test_e2e_live_add_delete_query_cycle():
                 
                 mock_structured_llm.invoke.return_value = LLMResponse(
                     answer="Le code secret de validation Odoo RAG est ALPHA-9988-OMEGA.",
-                    confidence=0.98
+                    confidence=0.98,
+                    used_sources=["S1"],
                 )
                 
                 response = query_graph("Quel est le code secret de validation ?")
@@ -94,8 +95,16 @@ def test_e2e_live_add_delete_query_cycle():
 
         # ── Step 6: Verify query_graph falls back safely when document is gone
         with patch("core.graph.get_retriever") as mock_get_retriever, \
+             patch("core.graph.code_intelligence_agent") as mock_ci, \
              patch("core.graph.ChatGroq") as mock_groq_cls:
-            
+
+            mock_ci.return_value = {
+                "ci_evidence_sufficiency": {
+                    "status": "insufficient",
+                    "reasons": ["no code intel evidence"],
+                    "has_execution_failure": False,
+                }
+            }
             mock_get_retriever.return_value = (MagicMock(), MagicMock())
             with patch("core.graph.search_retrieve", side_effect=lambda query, top_k, chroma_manager=None, bm25_index=None, use_reranker=True, where=None: retrieve(query, top_k=top_k, chroma_manager=manager, where=where)):
                 response_after_delete = query_graph("Quel est le code secret Katsuki ?")

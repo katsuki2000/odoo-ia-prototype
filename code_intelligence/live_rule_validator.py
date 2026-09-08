@@ -1,5 +1,5 @@
 """
-J5 live-vs-deterministic validator for Odoo ACL and ir.rule behavior.
+live-vs-deterministic validator for Odoo ACL and ir.rule behavior.
 
 This module deliberately compares the deterministic graph prediction against
 Odoo's own XML-RPC behavior. It does not attempt to replace Odoo's security
@@ -265,7 +265,7 @@ def _format_summary(
         f"{ref.xml_id or 'no_xml_id'}#{ref.record_id}:{ref.name}" for ref in live_rule_refs
     )
     return (
-        f"J5 live validation for {user_login} on {model_name}/{operation}: "
+        f"live validation for {user_login} on {model_name}/{operation}: "
         f"deterministic_acl={deterministic_acl_allowed}, "
         f"deterministic_ir_rule={deterministic_record_rule_allowed}, "
         f"deterministic_allowed={deterministic_allowed}, "

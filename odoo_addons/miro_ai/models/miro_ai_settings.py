@@ -6,7 +6,10 @@ Modèle de configuration pour l'assistant MIRO AI.
 Permet de configurer l'URL de l'API RAG, le jeton d'authentification et d'activer/désactiver
 les catégories de compétences (Ventes, Stocks, Comptabilité, Tickets).
 """
+import logging
 from odoo import models, fields, api
+
+_logger = logging.getLogger(__name__)
 
 
 class MiroAiSettings(models.Model):
@@ -69,8 +72,10 @@ class MiroAiSettings(models.Model):
         """Récupère la configuration active pour la société courante ou en crée une par défaut."""
         config = self.search([('company_id', '=', self.env.company.id)], limit=1)
         if not config:
+            _logger.info("miro.ai.settings: aucune config spécifique à la société %s, recherche globale", self.env.company.id)
             config = self.search([], limit=1)
         if not config:
+            _logger.info("miro.ai.settings: aucune config trouvée, création des paramètres par défaut")
             config = self.create({
                 'name': 'Configuration MIRO RAG principale',
                 'api_url': 'http://127.0.0.1:8000',

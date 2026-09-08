@@ -34,7 +34,7 @@ def detect_model_renames(
     filepath: str,
 ) -> List[SymbolRename]:
     """
-    J43-J45: Compare existing models in graph G associated with filepath
+    Compare existing models in graph G associated with filepath
     against newly extracted AST model declarations to identify renamed models.
     Identifies renames when Python class_name matches but _name changed.
     """

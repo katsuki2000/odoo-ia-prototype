@@ -160,12 +160,6 @@ def _redact_sensitive_bypass_lines(
         omitted.append(OmittedItem(
             label=f"{label}{model_suffix}",
             reason=(
-                # Bilingual on purpose (fix 2026-08-26, todo/contexte.txt section 193/196) :
-                # _OMITTED_MARKER reste en anglais tel quel (recopié tel quel dans la ligne
-                # masquée de gated_text, teste littéralement par
-                # test_marked_bypass_line_is_redacted_for_read_only_demandeur), mais le motif
-                # exposé au demandeur doit être compréhensible et contenir le mot français
-                # "autorisation" (teste par le meme test, `"autorisation" in reason.lower()`).
                 f"Élément omis pour raison d'autorisation ({_OMITTED_MARKER}) : cette ligne "
                 "décrit un mécanisme de contournement de sécurité (accès privilégié codé en "
                 "dur, sudo(), ou traitement non documenté hors des ACL/ir.rule standards) et "

@@ -1,5 +1,5 @@
 """
-Odoo XML-RPC connection manager for the RAG AI Prototype.
+Odoo XML-RPC connection manager for the AI.
 Enforces model whitelisting and read-only operations for secure data retrieval.
 """
 

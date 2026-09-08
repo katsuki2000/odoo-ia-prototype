@@ -1,31 +1,8 @@
 """
 core/graph.py
 
-LangGraph RAG pipeline -- CI-first, RAG-as-last-resort (Bloc P1 Tranche 2,
-todo/contexte.txt section 405-408; architecture.md's target design).
-
-route() still classifies into the 4 legacy QueryRoute buckets (kept as-is
-this tranche -- Tranche 3 will retire this classifier once the new flow is
-measured), but DOCUMENTAIRE/HYBRIDE/CODE_INTELLIGENCE now all dispatch to
-code_intelligence_agent FIRST; only DONNEES_ERP still dispatches directly
-to orm_agent_loop (kept as a genuine first-level path for pure ERP data
-queries, per plan). code_intelligence_agent's own post-analysis verdict
-(core/evidence_sufficiency.py::assess_evidence_sufficiency()) decides what
-happens next: SUFFICIENT and CONFLICTING both stay on
-code_intelligence_agent's own answer; only INSUFFICIENT falls back to
-generate() (RAG) (todo/contexte.txt sections 419-420 -- CONFLICTING used
-to share INSUFFICIENT's fallback under a literal '!= SUFFICIENT' rule, but
-now gets its own dedicated path: code_intelligence_agent builds a
-deterministic, non-arbitrating exposition of the disagreeing evidence
-itself, see ci_evidence_decision()'s own docstring for why generate()
-would discard that exposition). hybrid_node is no longer wired into the
-graph (its function is left importable, unused).
-
-Flow:
-  smalltalk_gate → out_of_scope_gate → retrieve → route →
-    [donnees_erp]                                   → orm_agent_loop          → format_output → END
-    [documentaire/hybride/code_intelligence]         → code_intelligence_agent → (sufficiency == SUFFICIENT or CONFLICTING) → format_output → END
-                                                                                → (sufficiency == INSUFFICIENT)              → generate       → format_output → END
+LangGraph RAG pipeline -- CI-first, RAG-as-last-resort.
+Orchestrates StateGraph compilation, node dispatch, and pipeline querying.
 """
 
 import json
@@ -38,509 +15,49 @@ from typing import List, Optional, TYPE_CHECKING
 if TYPE_CHECKING:
     from code_intelligence.business_resolver import ResolvedConcept
 
-# Add parent dir to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from langchain_groq import ChatGroq
 from langchain_core.messages import BaseMessage
 from langgraph.graph import StateGraph, START, END
 
-from config.settings import USE_RERANKER
 from document_rag.vectorstore.search import get_retriever, retrieve as search_retrieve
-from core.smalltalk import classify_smalltalk, SMALLTALK_RESPONSES
-from core.evidence_sufficiency import EvidenceSufficiencyStatus
+from core.schemas import AssistantResponse, QueryRoute
+from core.routing import RAGState, route, route_decision
+from document_rag.generate_node import generate
+from erp_data.orm_agent_node import orm_agent_loop
+from code_intelligence.ci_agent_node import code_intelligence_agent
 
-# ── Backward-compatible re-exports from schemas ──────────────────────────────
-from core.schemas import (
-    AssistantResponse,
-    SourceReference,
-    LLMResponse,
-    QueryRoute,
-    source_display_title,
+from core.graph_nodes import (
+    smalltalk_gate,
+    smalltalk_decision,
+    out_of_scope_gate,
+    out_of_scope_decision,
+    retrieve,
+    format_output,
+    ci_evidence_decision,
 )
 
-# ── Backward-compatible re-exports from llm_client ────────────────────────────
-from core.llm_client import (
-    get_chat_llm,
-    invoke_with_rate_limit as _invoke_with_rate_limit,
-    _parse_reset_seconds,
-    _extract_rate_limit_headers,
-    _ToolCallFallback,
-    _try_recover_tool_use_failed,
-    _reduce_message_context,
-    _TOOL_MSG_HARD_CAP,
-    _TOOL_USE_FAILED_RE,
-    _FAILED_GEN_CALL_RE,
-    _llm_call_lock as _groq_call_lock,
-    _last_llm_call_time as _last_groq_call_time,
-    MIN_LLM_CALL_INTERVAL as MIN_GROQ_CALL_INTERVAL,
-)
-
-# ── Backward-compatible re-exports from degenerate_guards ─────────────────────
-from core.degenerate_guards import (
-    _DEGENERATE_REPETITION_RE,
-    _DEGENERATE_LINE_REPETITION_MIN_REPEATS,
-    _DEGENERATE_LINE_MIN_LENGTH,
-    _DEGENERATE_BLANK_RUN_RE,
-    _DEGENERATE_PREFIX_LENGTH,
-    _DEGENERATE_PREFIX_MIN_REPEATS,
-    _detect_degenerate_repetition,
-    _strip_degenerate_repetition,
-    _detect_degenerate_line_repetition,
-    _strip_degenerate_line_repetition,
-    _detect_degenerate_blank_run,
-    _strip_degenerate_blank_run,
-    _detect_degenerate_growing_repetition,
-    _strip_degenerate_growing_repetition,
-    _detect_any_degenerate_repetition,
-    _strip_any_degenerate_repetition,
-)
-
-# ── Backward-compatible re-exports from routing ───────────────────────────────
-from core.routing import (
-    RAGState,
-    ERP_TYPES,
-    ROUTING_CONFLICT_PRIORITY,
-    ERP_KEYWORDS,
-    ERP_KEYWORDS_FOLDED,
-    CODE_INTEL_KEYWORDS,
-    CODE_INTEL_KEYWORDS_FOLDED,
-    QUANTITATIVE_TERMS,
-    QUANTITATIVE_TERMS_FOLDED,
-    DOC_KEYWORDS,
-    DOC_KEYWORDS_FOLDED,
-    DATA_TERMS,
-    DATA_TERMS_FOLDED,
-    DOC_ANCHORS,
-    DOC_ANCHORS_FOLDED,
-    THRESHOLD_QUERY_TERMS,
-    THRESHOLD_QUERY_TERMS_FOLDED,
-    _fold_accents,
-    _fold_keywords,
-    OUT_OF_SCOPE_ANSWER,
-    OUT_OF_SCOPE_TERMS,
-    REACT_RECURSION_LIMIT,
-    _is_out_of_scope,
-    _MASSIVE_EXTRACTION_PATTERNS,
-    _PROMPT_INJECTION_PATTERNS,
-    _is_massive_extraction_request,
-    _is_prompt_injection,
-    _VALID_ROUTES,
-    _sticky_route_or_default,
-    route,
-    route_decision,
-)
-
-# ── Backward-compatible re-exports from generate_node ─────────────────────────
-from document_rag.generate_node import (
-    _parse_raw_json_answer,
-    generate,
-)
-
-from core.html_sanitizer import sanitize_html_to_markdown
-
-# ── Backward-compatible re-exports from orm_agent_node ────────────────────────
-from erp_data.orm_agent_node import (
-    orm_agent_loop,
-    hybrid_node,
-)
-
-# ── Backward-compatible re-exports from ci_graph_loader ───────────────────────
-from code_intelligence.ci_graph_loader import (
-    _CACHED_CODE_INTEL_GRAPH,
-    _CACHED_GRAPH_MTIME,
-    GRAPH_JSON_PATH,
-    _load_module,
-    get_code_intelligence_graph,
-)
-
-# ── Backward-compatible re-exports from ci_helpers ────────────────────────────
-from code_intelligence.ci_helpers import (
-    CI_SYSTEM_PROMPT,
-    CI_MAX_HOPS,
-    _AMOUNT_PATTERN,
-    _APPROVAL_PATTERN,
-    _AUTOMATION_PATTERN,
-    _question_mentions_amount,
-    _extract_amount,
-    _COMPANY_DIFFERENT_PATTERN,
-    _COMPANY_SAME_PATTERN,
-    _extract_company_context,
-    _MOVE_TYPE_ALIAS_MAP,
-    _infer_move_type_context,
-    _question_is_approval_related,
-    _ACCESS_QUESTION_PATTERN,
-    _question_is_access_related,
-    _REQUIRED_GROUP_LINE_RE,
-    _GROUP_XMLID_RE,
-    _extract_required_groups,
-    _flag_ungrounded_group_xmlids,
-    _grounded_core_only_groups,
-    _strip_core_only_group_mentions,
-    _scoped_raw_tool_output,
-    _LOCK_CONDITION_LINE_RE,
-    _AMOUNT_CMP_RE,
-    _extract_required_groups_for_amount,
-    _BLOCK_FILE_LINK_RE,
-    _block_is_custom_module_file,
-    _restrict_blocks_to_custom_modules,
-    _backfill_missing_required_groups,
-    _OVERRIDE_CHAIN_AMOUNT_RE,
-    _amount_present_in_text,
-    _SECURITY_LOCK_MESSAGES_MARKER,
-    _extract_security_lock_condition_amounts,
-    _backfill_missing_security_lock_amount,
-    _LINK_GUARD_RE,
-    _LINK_GUARD_CONTRADICTION_PATTERN,
-    _LINK_GUARD_CONTRADICTING_SENTENCE_RE,
-    _answer_contradicts_link_guard,
-    _neutralize_contradicting_link_guard_sentence,
-    _extract_link_guard_fields,
-    _TRIGGER_CONDITION_RE,
-    _TRIGGER_CONDITION_LITERAL_RE,
-    _extract_trigger_condition_literals,
-    _backfill_missing_trigger_condition_literals,
-    _HARDCODED_IDS_LINE_RE,
-    _extract_hardcoded_id_literals,
-    _backfill_missing_hardcoded_id_literals,
-    _backfill_link_guard_clarifications,
-    _CAN_VIEW_ALLOW_ASSERTION_RE,
-    _CAN_VIEW_DENY_ASSERTION_RE,
-    _CAN_VIEW_FACT_VERDICT_RE,
-    _CAN_VIEW_FACT_INDETERMINATE_MARKER,
-    _split_before_first_fact_marker,
-    _extract_can_view_amount_verdict,
-    _has_can_view_amount_fact,
-    _correct_can_view_amount_contradictions,
-    _correct_security_lock_threshold_contradictions,
-    _extract_can_view_amount_fact_block,
-    _backfill_missing_can_view_amount_fact,
-    _format_can_view_amount_fact,
-    _question_suggests_automation_bypass,
-    _rank_and_cap_resolved_models,
-    _override_user_groups_arg,
-    _COULD_NOT_RESOLVE_RE,
-    _strip_group_resolution_noise,
-    _extract_first_scoped_file_link,
-    _TECHNICAL_MODEL_LOOKALIKE_RE,
-    _force_out_of_scope_model_answer,
-    _force_dynamic_uncertainty_answer,
-)
-
-from code_intelligence.ci_override_cascade import (
-    _OVERRIDE_MODULE_RE,
-    _extract_override_modules,
-    _word_boundary_present,
-    _backfill_missing_override_modules,
-    _extract_override_chain_amounts,
-    _backfill_missing_override_chain_amount,
-    _correct_override_cascade_contradictions,
-    _OVERRIDE_COUNT_DENIAL_RE,
-    _OVERRIDE_ORDER_SHORTCIRCUIT_SENTENCE_RE,
-    _answer_denies_other_overrides,
-    _answer_asserts_override_shortcircuit,
-    _neutralize_override_count_denial,
-    _neutralize_override_shortcircuit_sentence,
-    _UNGUARDED_SUPER_RE,
-    _extract_unguarded_super_findings,
-    _backfill_missing_unguarded_super,
-    _MAX_OVERRIDE_CASCADE_DISPATCH,
-    _rank_and_cap_override_methods,
-)
-
-# ── Backward-compatible re-exports from ci_agent_node ─────────────────────────
-from code_intelligence.ci_agent_node import (
-    _GROUP_XMLID_CACHE,
-    _ADMIN_RPC_CLIENT,
-    _ADMIN_RPC_UID,
-    _get_admin_rpc_client,
-    _resolve_user_group_xmlids,
-    code_intelligence_agent,
-)
+# Backward-compatible re-exports for legacy callers and tests
+import core.graph_compat as _graph_compat
+from core.graph_compat import *
 
 logger = logging.getLogger(__name__)
 
 
-# ── Pipeline Nodes ────────────────────────────────────────────────────────────
-
-def smalltalk_gate(state: RAGState) -> dict:
-    """
-    Deterministic pre-retrieval gate for pure smalltalk (greetings,
-    thanks, farewells) -- todo/contexte.txt section 294. No GREETING
-    route exists in QueryRoute, so an unclassified question used to fall
-    through to the DOCUMENTAIRE default and still run retrieve() first
-    (retrieve() is unconditional, before route() even runs) -- this node
-    intercepts pure smalltalk BEFORE retrieve() so it never happens for
-    these questions. Never rewrites `question` -- only classify_smalltalk()
-    is consulted, downstream nodes still see the original question.
-    """
-    question = state.get("question", "")
-    kind = classify_smalltalk(question)
-    if kind is None:
-        return {}
-
-    logger.info("Node [smalltalk_gate]: pure smalltalk detected (%s) -- skipping retrieve()/route()", kind)
-    response = AssistantResponse(
-        answer=SMALLTALK_RESPONSES[kind],
-        sources=[],
-        confidence=1.0,
-    )
-    return {"response": response, "route": "smalltalk", "retrieved_chunks": [], "investigation_plan": None}
-
-
-def smalltalk_decision(state: RAGState) -> str:
-    """Return the conditional-edge key out of smalltalk_gate."""
-    return "format_output" if state.get("response") is not None else "out_of_scope_gate"
-
-
-def out_of_scope_gate(state: RAGState) -> dict:
-    """
-    Deterministic pre-retrieval gate for questions matching OUT_OF_SCOPE_TERMS
-    (todo/contexte.txt sections 360-361). generate()'s own _is_out_of_scope
-    fast-fail only ran after retrieve()/route() had already executed for
-    every out-of-scope question, paying for a retrieval call it never used --
-    the same waste smalltalk_gate already closed for pure smalltalk. This
-    node intercepts them before retrieve() runs, same pattern as
-    smalltalk_gate. generate()'s own check is left in place as a
-    defense-in-depth safety net.
-    """
-    question = state.get("question", "")
-    if not _is_out_of_scope(question):
-        return {}
-
-    logger.info("Node [out_of_scope_gate]: out-of-scope question detected -- skipping retrieve()/route()")
-    response = AssistantResponse(
-        answer=OUT_OF_SCOPE_ANSWER,
-        sources=[],
-        confidence=0.0,
-    )
-    return {"response": response, "route": "out_of_scope", "retrieved_chunks": [], "investigation_plan": None}
-
-
-def out_of_scope_decision(state: RAGState) -> str:
-    """Return the conditional-edge key out of out_of_scope_gate."""
-    return "format_output" if state.get("response") is not None else "retrieve"
-
-
-def retrieve(state: RAGState) -> dict:
-    """Retrieve relevant documents for the query."""
-    import time
-    start_time = time.time()
-    question = state["question"]
-    logger.info("Node [retrieve]: Fetching documents for: %s", question)
-    
-    try:
-        chroma_manager, bm25_index = get_retriever()
-        chunks = search_retrieve(
-            query=question, 
-            top_k=10, 
-            chroma_manager=chroma_manager,
-            bm25_index=bm25_index,
-            use_reranker=USE_RERANKER
-        )
-    except Exception as e:
-        logger.error("Error during retrieval: %s", e)
-        chunks = []
-        
-    return {"retrieved_chunks": chunks}
-
-
-def format_output(state: RAGState) -> dict:
-    """Format and clean up the final output (e.g. OCR warnings)."""
-    logger.info("Node [format_output]: Formatting final response")
-    
-    response = state.get("response")
-    chunks = state.get("retrieved_chunks", [])
-    route = state.get("route")
-
-    ci_sufficiency = state.get("ci_evidence_sufficiency")
-    # Bloc P1 Tranche 2 (narrowed further section 420, see below): True only
-    # when code_intelligence_agent ran AND its own verdict was INSUFFICIENT,
-    # i.e. generate() (RAG) actually produced this turn's answer as a
-    # fallback -- NOT merely "CI ran this turn"
-    # (SUFFICIENT never touches generate(), so treating ci_sufficiency's mere
-    # presence as "documentaire-like" here would wrongly attribute the
-    # universal retrieve() step's chunks -- unrelated to CI's own tool
-    # evidence -- to an answer CI produced itself, e.g. a false OCR warning
-    # below).
-    #
-    # todo/contexte.txt section 414: under the CI-first graph (build_graph(),
-    # sections 405-408), this flag alone is now a COMPLETE signal for "did
-    # generate()/RAG actually produce this answer" -- generate() has exactly
-    # one incoming edge in the compiled graph, from code_intelligence_agent's
-    # own post-analysis verdict via ci_evidence_decision(), which requires
-    # ci_evidence_sufficiency to be present and != SUFFICIENT. There is no
-    # other path to generate() left to cover. A prior `or route ==
-    # QueryRoute.DOCUMENTAIRE.value` disjunct here was dead-and-dangerous
-    # legacy from before Tranche 2 (when DOCUMENTAIRE dispatched straight to
-    # generate() without CI): it added no legitimate case (every real
-    # generate()-produced answer already sets ci_fell_back_to_rag), but did
-    # add an illegitimate one -- code_intelligence_agent's 3 early-refusal
-    # paths (out-of-scope/prompt-injection/massive-extraction) return before
-    # ci_evidence_sufficiency is ever computed, so a question route()
-    # happened to classify as documentaire but that CI then refused early
-    # would wrongly get the universal retrieve() chunks' OCR-quality/source
-    # attached to an unrelated refusal message -- removed rather than
-    # special-cased, since the underlying signal (ci_fell_back_to_rag) is
-    # already correct and complete on its own.
-    # todo/contexte.txt section 420: narrowed from '!= SUFFICIENT' to
-    # '== INSUFFICIENT' -- CONFLICTING no longer falls back to generate()
-    # (RAG) at all (see ci_evidence_decision() below), so treating it as
-    # "fell back to RAG" here would be exactly the same false-attribution
-    # bug section 414/415 already fixed for the DOCUMENTAIRE-route disjunct:
-    # code_intelligence_agent's own dual-evidence exposition (built by
-    # code_intelligence/ci_helpers.py::_format_conflicting_evidence_answer,
-    # wired from ci_agent_node.py) would wrongly get the universal
-    # retrieve() step's OCR-quality/source attached to an answer that never
-    # used those chunks at all.
-    # todo/contexte.txt section 486: same false-attribution risk for
-    # INSUFFICIENT + has_execution_failure=True -- ci_evidence_decision()
-    # now keeps that case on format_output too (never reaching generate()),
-    # so it must be excluded here exactly like CONFLICTING, or a tool crash
-    # would wrongly get the universal retrieve() chunks' OCR-quality/source
-    # attached to an answer that never used them.
-    ci_fell_back_to_rag = (
-        bool(ci_sufficiency)
-        and ci_sufficiency.get("status") == EvidenceSufficiencyStatus.INSUFFICIENT.value
-        and not ci_sufficiency.get("has_execution_failure")
-    )
-
-    if response:
-        response.route = route
-        response.resolved_concept = state.get("resolved_concept")
-        response.evidence_status = state.get("evidence_status")
-        response.investigation_plan = state.get("investigation_plan")
-        response.ci_evidence_sufficiency = ci_sufficiency
-        response.answer = sanitize_html_to_markdown(response.answer)
-
-    if response and chunks and ci_fell_back_to_rag:
-        primary_chunk = chunks[0]
-        primary_metadata = primary_chunk.get("metadata") or {}
-        primary_type = primary_metadata.get("type", "")
-        has_low_ocr = (
-            primary_metadata.get("ocr_quality") == "low"
-            and primary_type in ("doc_pdf", "pdf")
-        )
-        if has_low_ocr:
-            response.ocr_warning = True
-            response.answer += "\n\n *Cette information provient d'un document numérisé dont la qualité de lecture est limitée.*"
-
-        # Best-effort fallback: only populate sources from the retrieved
-        # chunks when generate() itself reports it lost source tracking
-        # (raw, non-structured LLM fallback -- see generate_node.py). An
-        # empty response.sources with this flag False/absent means the
-        # structured LLM explicitly used none of the retrieved chunks
-        # (e.g. a not-found refusal), which must stay unsourced rather
-        # than be backfilled with chunks the answer never relied on.
-        if not response.sources and state.get("sources_fallback_eligible"):
-            sources = []
-            for chunk in chunks:
-                meta = chunk.get("metadata") or {}
-                doc = chunk.get("document", "")
-                snippet = doc[:100] + "..." if len(doc) > 100 else doc
-                
-                sources.append(SourceReference(
-                    source=meta.get("source", "unknown"),
-                    doc_type=meta.get("type", "document"),
-                    title=source_display_title(meta),
-                    snippet=snippet
-                ))
-            response.sources = sources
-            
-        if response.sources and "[Source:" not in response.answer:
-            main_src = response.sources[0].title or response.sources[0].source
-            response.answer += f"\n\n[Source: Documentation ERP - {main_src}]"
-
-    return {"response": response}
-
-
-def ci_evidence_decision(state: RAGState) -> str:
-    """
-    Post-CI conditional edge (Bloc P1 Tranche 2, todo/contexte.txt section
-    405-408): SUFFICIENT stays on code_intelligence_agent's own answer;
-    INSUFFICIENT falls back to generate() (RAG), matching architecture.md's
-    CI-first, RAG-as-last-resort model.
-
-    Absent ci_evidence_sufficiency (the three early-refusal paths inside
-    code_intelligence_agent -- out-of-scope, prompt injection, massive
-    extraction -- return before the primitive ever runs) always stays on
-    format_output: those are deliberate refusals, not evidence-insufficiency
-    verdicts, and re-running RAG on a prompt-injection attempt or an
-    out-of-scope question would be actively wrong, not merely redundant.
-
-    CONFLICTING (todo/contexte.txt sections 419-420 -- reverses the literal
-    '!= SUFFICIENT' rule from section 405/408): now gets its OWN dedicated
-    destination, format_output, distinct from INSUFFICIENT's generic RAG
-    fallback -- per an explicit user reformulation (section 419):
-    CONFLICTING must never be silently arbitrated or handed to a doc-RAG
-    fallback that has no knowledge of the two (or more) competing
-    code-evidence facts that triggered it. code_intelligence_agent itself
-    now builds its own final_answer, for this case, as an explicit,
-    non-arbitrating exposition of every disagreeing fact
-    (code_intelligence/ci_helpers.py::_format_conflicting_evidence_answer(),
-    called from ci_agent_node.py whenever
-    _detect_can_view_amount_model_conflict() fires) -- so CONFLICTING now
-    stays on that answer, exactly like SUFFICIENT, rather than falling
-    through to generate() and discarding it in favor of an unrelated
-    generic document search (the concrete bug identified in section 419's
-    constat: neither competing fact was ever transmitted to generate()
-    under the old '!= SUFFICIENT' wiring).
-
-    Traceability: CONFLICTING's status/reasons are still explicitly logged
-    below even though its destination is now the same as SUFFICIENT's, so
-    this branch stays visible and auditable as a deliberate, dedicated path
-    rather than disappearing silently into the SUFFICIENT case by accident
-    of the equality check.
-
-    has_execution_failure (todo/contexte.txt section 485-486): an
-    INSUFFICIENT verdict caused by a captured tool-execution exception
-    (Groq quota/tool-use failure, connector error) is NOT a genuine absence
-    of evidence -- silently falling back to generate() here would produce a
-    confident-looking documentary answer while masking the fact that a CI
-    analysis actually crashed mid-turn. This case gets the same dedicated
-    format_output destination as CONFLICTING, for the same reason: RAG has
-    no knowledge of the failure and must not paper over it. Checked before
-    the generic INSUFFICIENT fallback below so it wins regardless of which
-    of assess_evidence_sufficiency()'s INSUFFICIENT branches produced the
-    verdict.
-    """
-    sufficiency = state.get("ci_evidence_sufficiency")
-    if not sufficiency:
-        return "format_output"
-    status = sufficiency.get("status")
-    if status == EvidenceSufficiencyStatus.SUFFICIENT.value:
-        return "format_output"
-    if status == EvidenceSufficiencyStatus.CONFLICTING.value:
-        logger.info(
-            "Node [route: post-CI]: evidence sufficiency=%s -- dedicated "
-            "conflicting-evidence path, staying on code_intelligence_agent's "
-            "own dual-evidence answer (NOT falling back to generate()). reasons=%s",
-            status, sufficiency.get("reasons"),
-        )
-        return "format_output"
-    if status == EvidenceSufficiencyStatus.INSUFFICIENT.value and sufficiency.get("has_execution_failure"):
-        logger.info(
-            "Node [route: post-CI]: evidence sufficiency=%s with has_execution_failure=True -- "
-            "dedicated execution-failure path, staying on code_intelligence_agent's own answer "
-            "(NOT falling back to generate(), which would silently mask the tool crash). reasons=%s",
-            status, sufficiency.get("reasons"),
-        )
-        return "format_output"
-    logger.info(
-        "Node [route: post-CI]: evidence sufficiency=%s -- falling back to RAG (generate). reasons=%s",
-        status, sufficiency.get("reasons"),
-    )
-    return "generate"
+def __getattr__(name: str):
+    """Dynamic fallback for backward-compatible re-exports from graph_compat."""
+    if hasattr(_graph_compat, name):
+        return getattr(_graph_compat, name)
+    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
 
 
 # ── Graph Construction ────────────────────────────────────────────────────────
 
 def build_graph() -> StateGraph:
-    """Build and compile the RAG LangGraph -- CI-first, RAG-as-last-resort
-    (see module docstring)."""
+    """Build and compile the RAG LangGraph -- CI-first, RAG-as-last-resort."""
     workflow = StateGraph(RAGState)
 
-    # Add nodes
     workflow.add_node("smalltalk_gate", smalltalk_gate)
     workflow.add_node("out_of_scope_gate", out_of_scope_gate)
     workflow.add_node("retrieve", retrieve)
@@ -549,13 +66,6 @@ def build_graph() -> StateGraph:
     workflow.add_node("orm_agent_loop", orm_agent_loop)
     workflow.add_node("code_intelligence_agent", code_intelligence_agent)
     workflow.add_node("format_output", format_output)
-    # hybrid_node (erp_data/orm_agent_node.py) is deliberately NOT registered
-    # here (Bloc P1 Tranche 2, todo/contexte.txt section 405-408): the
-    # HYBRIDE route now dispatches to code_intelligence_agent like
-    # DOCUMENTAIRE/CODE_INTELLIGENCE, and its own natural fallback to
-    # generate() covers what hybrid_node used to hand-orchestrate. The
-    # function itself is untouched and still importable/re-exported below
-    # for backward compatibility -- only its graph wiring is removed here.
 
     # Edges
     workflow.add_edge(START, "smalltalk_gate")
@@ -569,10 +79,7 @@ def build_graph() -> StateGraph:
     })
     workflow.add_edge("retrieve", "route")
 
-    # Conditional routing -- CI-first: DOCUMENTAIRE/HYBRIDE/CODE_INTELLIGENCE
-    # all dispatch to code_intelligence_agent (see module docstring);
-    # DONNEES_ERP alone still dispatches straight to orm_agent_loop, kept as
-    # a first-level path for pure ERP data queries.
+    # Conditional routing -- CI-first
     workflow.add_conditional_edges("route", route_decision, {
         QueryRoute.DOCUMENTAIRE.value: "code_intelligence_agent",
         QueryRoute.DONNEES_ERP.value: "orm_agent_loop",
@@ -580,9 +87,7 @@ def build_graph() -> StateGraph:
         QueryRoute.CODE_INTELLIGENCE.value: "code_intelligence_agent",
     })
 
-    # Post-CI: SUFFICIENT and CONFLICTING both stay on CI's own answer;
-    # only INSUFFICIENT falls back to generate() (RAG) -- see
-    # ci_evidence_decision() above (todo/contexte.txt sections 419-420).
+    # Post-CI: SUFFICIENT and CONFLICTING stay on CI's answer; INSUFFICIENT falls back to RAG
     workflow.add_conditional_edges("code_intelligence_agent", ci_evidence_decision, {
         "format_output": "format_output",
         "generate": "generate",
@@ -607,17 +112,15 @@ def query_graph(
     active_model: Optional[str] = None,
     active_id: Optional[int] = None,
 ) -> AssistantResponse:
-    import time
-    import json
+    """Execute the compiled graph with the provided question and context."""
     start_time = time.time()
-    
+
     if chat_history is None:
         chat_history = []
     if skills is None:
         skills = {}
 
     from erp_data.odoo_tools import odoo_uid_ctx, odoo_api_key_ctx
-    # Propagate the uid and api_key to tools via contextvars
     uid_token = None
     api_key_token = None
     if uid is not None:
@@ -644,22 +147,21 @@ def query_graph(
             "active_model": active_model,
             "active_id": active_id,
         }
-    
+
         logger.info("Invoking graph for question: '%s'", question)
         final_state = app.invoke(initial_state)
-        
-        # Logging structured latency
+
         timing = final_state.get("timing", {})
         timing["total_time"] = time.time() - start_time
         logger.info(json.dumps({"event": "request_latency", "metrics": timing}))
-        
+
         return final_state["response"]
     except Exception as e:
         logger.error("Graph execution failed: %s", e)
         return AssistantResponse(
             answer="Une erreur interne s'est produite lors de l'exécution du pipeline.",
             sources=[],
-            confidence=0.0
+            confidence=0.0,
         )
     finally:
         if uid_token:

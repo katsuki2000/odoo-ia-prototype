@@ -6,8 +6,11 @@ Modèle de journal d'audit et d'historique des requêtes MIRO AI (Step 11 Day 4)
 Enregistre chaque question posée, la réponse générée par le RAG, les sources citées,
 le temps de réponse et l'utilisateur à l'origine de la requête pour traçabilité et débogage.
 """
-from odoo import models, fields, api
 import json
+import logging
+from odoo import models, fields, api
+
+_logger = logging.getLogger(__name__)
 
 
 class MiroAiLog(models.Model):
@@ -82,8 +85,14 @@ class MiroAiLog(models.Model):
                     data = json.loads(rec.sources_text)
                     if isinstance(data, list):
                         count = len(data)
-                except Exception:
+                    else:
+                        _logger.warning("miro.ai.log: sources_text pour l'ID %s n'est pas une liste JSON", rec.id)
+                        count = 0
+                except Exception as e:
+                    _logger.warning("miro.ai.log: échec du décodage JSON de sources_text pour l'ID %s: %s", rec.id, e)
                     count = 0
+            else:
+                count = 0
             rec.sources_count = count
 
     @api.model
@@ -113,6 +122,7 @@ class MiroAiLog(models.Model):
         l'utilisateur courant. Non-sudo : le ir.rule existant
         (rule_miro_ai_log_user) filtre déjà sur l'utilisateur, la sécurité
         est donc héritée par construction plutôt que revalidée ici.
+        Évite le piège N+1 en calculant les comptages de messages via read_group.
         """
         logs = self.search([], order='create_date desc', limit=scan_limit)
         sessions = []
@@ -126,10 +136,30 @@ class MiroAiLog(models.Model):
                 'session_id': session_id,
                 'preview': (log.question or '')[:120],
                 'last_activity': log.create_date.isoformat() if log.create_date else None,
-                'message_count': self.search_count([('session_id', '=', session_id)]),
+                'message_count': 0,
             })
             if len(sessions) >= limit:
                 break
+
+        target_session_ids = [s['session_id'] for s in sessions]
+        if target_session_ids:
+            try:
+                grouped_counts = self.read_group(
+                    [('session_id', 'in', target_session_ids)],
+                    ['session_id'],
+                    ['session_id']
+                )
+                counts = {
+                    g.get('session_id'): g.get('session_id_count', g.get('__count', 0))
+                    for g in grouped_counts
+                    if g.get('session_id')
+                }
+            except Exception as e:
+                _logger.warning("miro.ai.log: échec du calcul groupé des sessions: %s", e)
+                counts = {}
+            for s in sessions:
+                s['message_count'] = counts.get(s['session_id'], 0)
+
         return sessions
 
     @api.model
@@ -148,14 +178,22 @@ class MiroAiLog(models.Model):
             if log.metadata_text:
                 try:
                     metadata = json.loads(log.metadata_text)
-                except Exception:
+                except Exception as e:
+                    _logger.warning("miro.ai.log: échec parsing metadata_text (id=%s): %s", log.id, e)
                     metadata = {}
+            else:
+                metadata = {}
+
             sources = []
             if log.sources_text:
                 try:
                     sources = json.loads(log.sources_text)
-                except Exception:
+                except Exception as e:
+                    _logger.warning("miro.ai.log: échec parsing sources_text (id=%s): %s", log.id, e)
                     sources = []
+            else:
+                sources = []
+
             history.append({
                 'question': log.question,
                 'answer': log.answer,

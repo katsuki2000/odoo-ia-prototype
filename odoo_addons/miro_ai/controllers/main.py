@@ -134,6 +134,8 @@ class MiroAiController(http.Controller):
             candidate_urls.append("http://127.0.0.1:8000")
         elif api_url in ("http://127.0.0.1:8000", "http://127.0.0.1:8000/"):
             candidate_urls.append("http://localhost:8000")
+        else:
+            _logger.debug("MIRO AI: URL candidate unique configurée: %s", api_url)
 
         resp = None
         last_error = None

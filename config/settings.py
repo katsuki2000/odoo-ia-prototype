@@ -13,9 +13,7 @@ if not os.getenv("GROQ_API_KEY"):
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "groq")
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-# GROQ_API_KEYS : rotation automatique des que la cle courante est en
-# rate-limit (core/llm_client.py). Retombe sur GROQ_API_KEY seule si la
-# variable liste n'est pas definie (compat installs a une seule cle).
+# GROQ_API_KEYS : rotation automatique des que la cle courante est en rate-limit (core/llm_client.py). Retombe sur GROQ_API_KEY seule si la variable liste n'est pas definie (compat installs a une seule cle).
 _groq_keys_raw = os.getenv("GROQ_API_KEYS", "")
 GROQ_API_KEYS = [k.strip() for k in _groq_keys_raw.split(",") if k.strip()]
 if not GROQ_API_KEYS and GROQ_API_KEY:
@@ -28,32 +26,26 @@ OPENROUTER_MODEL    = os.getenv("OPENROUTER_MODEL", "qwen/qwen3-14b:free")
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
 
-OLLAMA_HOST  = os.getenv("OLLAMA_HOST", "http://localhost:11434")
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "gpt-oss:20b")
+# Local LLM settings (Ollama, vLLM, llama.cpp, LM Studio, LocalAI)
+OLLAMA_HOST        = os.getenv("OLLAMA_HOST", "http://localhost:11434")
+OLLAMA_MODEL       = os.getenv("OLLAMA_MODEL", "gpt-oss:20b")
+LOCAL_LLM_BASE_URL = os.getenv("LOCAL_LLM_BASE_URL", f"{OLLAMA_HOST}/v1")
+LOCAL_LLM_MODEL    = os.getenv("LOCAL_LLM_MODEL", OLLAMA_MODEL)
+LOCAL_LLM_API_KEY  = os.getenv("LOCAL_LLM_API_KEY", "ollama")
+
+# ── Embeddings ─────────────────────────────────────────
+EMBEDDING_BACKEND        = os.getenv("EMBEDDING_BACKEND", "local_light").lower()
+EMBEDDING_MODEL_NAME     = os.getenv("EMBEDDING_MODEL", "nomic-ai/nomic-embed-text-v1.5")
+LOCAL_EMBEDDING_BASE_URL = os.getenv("LOCAL_EMBEDDING_BASE_URL", f"{OLLAMA_HOST}/v1")
+LOCAL_EMBEDDING_MODEL    = os.getenv("LOCAL_EMBEDDING_MODEL", "all-minilm:latest")
+LOCAL_EMBEDDING_API_KEY  = os.getenv("LOCAL_EMBEDDING_API_KEY", "ollama")
 
 # ── ChromaDB ──────────────────────────────────────────
-# BUGFIX (todo/contexte.txt): CHROMA_PATH etait une string relative nue
-# ("./document_rag/vectorstore/chroma_db"), non ancree a _ROOT et jamais
-# reellement consommee par chroma_manager.py/ingest_all.py (chacun avait
-# son propre defaut code en dur, divergent) -- meme classe de violation
-# todo/rules.md (no hardcoded paths) deja corrigee pour CORE_ADDONS_PATH/
-# RAG_DOCS_PATH. Ancree a _ROOT + env-overridable pour rester coherent
-# avec ces deux-la, et desormais reellement le seul chemin utilise par
-# les deux points d'entree (ingestion et recherche).
 CHROMA_PATH = os.getenv("CHROMA_PATH") or str(_ROOT / "document_rag" / "vectorstore" / "chroma_db")
 
 # -- Code Intelligence corpus paths ----------------------
 CORE_ADDONS_PATH = os.getenv("CORE_ADDONS_PATH") or str(_ROOT.parent / "odoo-17.0" / "addons")
 CUSTOM_ADDONS_PATH = os.getenv("CUSTOM_ADDONS_PATH") or str(_ROOT / "odoo_addons")
-
-# Bloc P3.1 (todo/contexte.txt section 546, mandat San Goku 2026-09-04) :
-# chemin optionnel vers le corpus OCA echantillonne pour le banc de 50
-# questions CI (tests/oca_p3_1_question_bank.json). None par defaut --
-# aucun changement de comportement pour la production tant que cette
-# variable n'est pas positionnee dans .env. Quand elle l'est,
-# code_intelligence/ci_graph_loader.py charge en plus les 10 modules OCA
-# nommes dans OCA_SAMPLE_MODULE_REPOS (module -> repo), en plus du corpus
-# metier reel (CUSTOM_ADDONS_PATH) -- un ajout, jamais un remplacement.
 OCA_SAMPLE_ADDONS_PATH = os.getenv("OCA_SAMPLE_ADDONS_PATH") or None
 
 # -- RAG documentary source path ----------------------
@@ -82,9 +74,7 @@ LATENCY_BUDGET_XMLRPC_MS = 5000         # Single XML-RPC call
 # ── Security & Extraction Safeguards──────────────────────
 MAX_MODELS_PER_QUERY = 3
 MASSIVE_EXTRACTION_REFUSAL_MSG = (
-    "La demande dépasse le périmètre d'analyse autorisé. L'analyse de sécurité "
-    "est limitée à 3 modèles maximum par requête afin d'éviter l'extraction "
-    "massive de données."
+    "La demande dépasse le périmètre d'analyse autorisé."
 )
 PROMPT_INJECTION_REFUSAL_MSG = (
     "Demande non autorisée : les consignes système et politiques de sécurité "

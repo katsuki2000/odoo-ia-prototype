@@ -76,7 +76,7 @@ def _extract_override_chain_amounts(raw_tool_output: str) -> List[str]:
     an override-cascade risk finding in first-seen order, deduplicated."""
     amounts: List[str] = []
     override_sections = re.findall(
-        r"(?:Cha[iî]ne de surcharge|Override chain).*?(?=\n\n(?:[A-Z\u00c0-\u00dc]|$))",
+        r"(?:Cha[iî]ne de surcharge|Override chain).*?(?=\n\n[A-Z\u00c0-\u00dc]|\Z)",
         raw_tool_output,
         re.DOTALL | re.IGNORECASE,
     )

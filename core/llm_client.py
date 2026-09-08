@@ -1,7 +1,9 @@
+"""LLM client factory and retry/rate-limit wrapper."""
+
 import logging
-import re
 import threading
 import time
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from langchain_groq import ChatGroq
 from langchain_core.messages import SystemMessage, HumanMessage, ToolMessage
@@ -14,21 +16,36 @@ from config.settings import (
     OPENROUTER_API_KEY,
     OPENROUTER_MODEL,
     OPENROUTER_BASE_URL,
+    LOCAL_LLM_BASE_URL,
+    LOCAL_LLM_MODEL,
+    LOCAL_LLM_API_KEY,
+)
+from core.llm_retry import (
+    ToolCallFallback,
+    ToolCallFallback as _ToolCallFallback,
+    parse_reset_seconds,
+    parse_reset_seconds as _parse_reset_seconds,
+    extract_rate_limit_headers,
+    extract_rate_limit_headers as _extract_rate_limit_headers,
+    try_recover_tool_use_failed,
+    try_recover_tool_use_failed as _try_recover_tool_use_failed,
+    reduce_message_context,
+    reduce_message_context as _reduce_message_context,
+    _TOOL_MSG_HARD_CAP,
+    _TOOL_USE_FAILED_RE,
+    _FAILED_GEN_CALL_RE,
 )
 
 logger = logging.getLogger(__name__)
 
 
 # ── Groq multi-key rotation ────────────────────────────────────────────────
-# Advances once through GROQ_API_KEYS (no wraparound) when the active key
-# hits a rate limit -- invoke_with_rate_limit() drives the rotation, this
-# module only holds the shared index so every caller sees the same key.
-
 _groq_key_lock = threading.Lock()
 _groq_key_index = [0]
 
 
-def _current_groq_key() -> "str | None":
+def _current_groq_key() -> Optional[str]:
+    """Return the currently active Groq API key."""
     if not GROQ_API_KEYS:
         return GROQ_API_KEY
     with _groq_key_lock:
@@ -37,9 +54,7 @@ def _current_groq_key() -> "str | None":
 
 
 def _rotate_groq_key() -> bool:
-    """Advance to the next configured Groq key. Returns False once already
-    on the last one (no wraparound -- callers fall back to waiting out the
-    rate limit on that last key, the pre-existing behaviour)."""
+    """Advance to the next configured Groq key. Returns False once on the last key."""
     with _groq_key_lock:
         old = _groq_key_index[0]
         if old + 1 >= len(GROQ_API_KEYS):
@@ -52,153 +67,92 @@ def _rotate_groq_key() -> bool:
         return True
 
 
+def _get_chat_groq():
+    """Return patched ChatGroq if loaded in core.graph, else real ChatGroq."""
+    import sys
+    g = sys.modules.get("core.graph")
+    if g and hasattr(g, "ChatGroq"):
+        return g.ChatGroq
+    return ChatGroq
+
+
 # ── Provider-agnostic client factory ──────────────────────────────────────
 
 def get_chat_llm(
     *,
+    provider: Optional[str] = None,
+    model: Optional[str] = None,
+    base_url: Optional[str] = None,
+    api_key: Optional[str] = None,
     temperature: float = 0.0,
-    max_tokens: "int | None" = None,
+    max_tokens: Optional[int] = None,
     max_retries: int = 0,
-    model_kwargs: "dict | None" = None,
+    model_kwargs: Optional[dict] = None,
 ):
-    if LLM_PROVIDER == "groq":
-        return ChatGroq(
-            model=GROQ_MODEL,
-            api_key=_current_groq_key(),
+    """Construct an LLM client according to the configured or requested provider.
+
+    Supported providers:
+    - 'groq': Groq Cloud API with multi-key rotation
+    - 'local' / 'ollama' / 'vllm' / 'openai_compatible': Local OpenAI-compatible API
+    - 'openrouter': OpenRouter API via ChatOpenAI
+    """
+    active_provider = (provider or LLM_PROVIDER or "groq").lower().strip()
+
+    if active_provider == "groq":
+        groq_cls = _get_chat_groq()
+        return groq_cls(
+            model=model or GROQ_MODEL,
+            api_key=api_key or _current_groq_key(),
             temperature=temperature,
             max_tokens=max_tokens,
             max_retries=max_retries,
             model_kwargs=model_kwargs or {},
         )
 
-    if LLM_PROVIDER == "ollama":
-        raise NotImplementedError(
-            "LLM_PROVIDER=ollama is not configured yet. Please use 'groq' or 'openrouter'."
+    if active_provider in ("local", "ollama", "vllm", "openai_compatible", "lmstudio", "llamacpp"):
+        from langchain_openai import ChatOpenAI
+        return ChatOpenAI(
+            model=model or LOCAL_LLM_MODEL,
+            base_url=base_url or LOCAL_LLM_BASE_URL,
+            api_key=api_key or LOCAL_LLM_API_KEY,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            max_retries=max_retries,
+            model_kwargs=model_kwargs or {},
+        )
+
+    if active_provider == "openrouter":
+        from langchain_openai import ChatOpenAI
+        return ChatOpenAI(
+            model=model or OPENROUTER_MODEL,
+            base_url=base_url or OPENROUTER_BASE_URL,
+            api_key=api_key or OPENROUTER_API_KEY,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            max_retries=max_retries,
+            model_kwargs=model_kwargs or {},
         )
 
     raise ValueError(
-        f"Unknown LLM_PROVIDER={LLM_PROVIDER!r} -- expected 'groq', "
-        f"'openrouter', or 'ollama' (config/settings.py)."
+        f"Unknown LLM_PROVIDER={active_provider!r} -- expected 'groq', "
+        f"'local' (or 'ollama', 'vllm', 'openai_compatible'), or 'openrouter'."
     )
+
+
+# ── Invocation wrapper with rate limiting & error recovery ─────────────────
 
 _llm_call_lock = threading.Lock()
 _last_llm_call_time = [0.0]
 MIN_LLM_CALL_INTERVAL = 5.0  # Enforce 5.0s minimum spacing between LLM calls
 
 
-def _parse_reset_seconds(header_value: str, default: float = 20.0) -> float:
-    if not header_value:
-        return default
-    match = re.match(r"(?:(\d+)m)?([\d.]+)s", header_value.strip())
-    if not match:
-        return default
-    minutes = float(match.group(1)) if match.group(1) else 0.0
-    seconds = float(match.group(2))
-    return minutes * 60 + seconds
-
-
-def _extract_rate_limit_headers(exc: Exception) -> dict:
-    for attr_path in ("response", "http_response", "resp"):
-        resp = getattr(exc, attr_path, None)
-        if resp is not None and hasattr(resp, "headers"):
-            return dict(resp.headers)
-    cause = getattr(exc, "__cause__", None)
-    if cause is not None:
-        resp = getattr(cause, "response", None)
-        if resp is not None and hasattr(resp, "headers"):
-            return dict(resp.headers)
-    return {}
-
-
-class _ToolCallFallback:
-    """Stand-in minimal pour un AIMessage : seuls .tool_calls et .content sont lus par la boucle ReAct."""
-    def __init__(self, tool_calls):
-        self.tool_calls = tool_calls
-        self.content = ""
-
-
-_TOOL_USE_FAILED_RE = re.compile(r"'code':\s*'tool_use_failed'.*?'failed_generation':\s*'(.*?)'\s*\}", re.DOTALL)
-_FAILED_GEN_CALL_RE = re.compile(r"<function=(\w+)>(\{.*\})")
-
-
-def _try_recover_tool_use_failed(exc: Exception):
-    msg = str(exc)
-    if "tool_use_failed" not in msg:
-        return None
-    match = _TOOL_USE_FAILED_RE.search(msg)
-    if not match:
-        return None
-    call_match = _FAILED_GEN_CALL_RE.search(match.group(1))
-    if not call_match:
-        return None
-    fn_name, args_raw = call_match.group(1), call_match.group(2)
-    try:
-        import json
-        args = json.loads(args_raw)
-    except Exception:
-        return None
-    logger.warning("Récupération d'un tool_call malformé via failed_generation: %s(%s)", fn_name, args)
-    return _ToolCallFallback([{"name": fn_name, "args": args, "id": f"fallback_{fn_name}", "type": "tool_call"}])
-
-
-_TOOL_MSG_HARD_CAP = 400
-
-
-def _reduce_message_context(messages: list) -> list:
-    reduced = []
-    for msg in messages:
-        if (
-            isinstance(msg, ToolMessage)
-            and isinstance(msg.content, str)
-            and len(msg.content) > _TOOL_MSG_HARD_CAP
-        ):
-            reduced.append(
-                ToolMessage(
-                    content=(
-                        msg.content[:_TOOL_MSG_HARD_CAP]
-                        + "\n[... tronqué pour respecter la limite de taille de requête ...]"
-                    ),
-                    tool_call_id=msg.tool_call_id,
-                )
-            )
-        elif (
-            isinstance(msg, SystemMessage)
-            and isinstance(msg.content, str)
-            and len(msg.content) > 1000
-        ):
-            reduced.append(
-                SystemMessage(
-                    content=(
-                        msg.content[:1000]
-                        + "\n[... tronqué pour respecter la limite de taille ...]"
-                    )
-                )
-            )
-        elif (
-            isinstance(msg, HumanMessage)
-            and isinstance(msg.content, str)
-            and len(msg.content) > 1500
-        ):
-            reduced.append(
-                HumanMessage(
-                    content=(
-                        msg.content[:1500]
-                        + "\n[... tronqué pour respecter la limite de taille de requête ...]"
-                    )
-                )
-            )
-        else:
-            reduced.append(msg)
-    return reduced
-
-
-def invoke_with_rate_limit(llm_with_tools, messages, max_retries: int = 5, rebuild_llm=None):
-    """rebuild_llm: optional zero-arg callable returning a freshly-built
-    client (e.g. re-bound to tools) once _rotate_groq_key() has moved to the
-    next configured key. When provided, a rate limit rotates to the next key
-    and retries immediately (no wait) before ever falling back to the
-    dynamic-header wait below -- that wait remains the behaviour once the
-    last configured key is also rate-limited."""
+def invoke_with_rate_limit(
+    llm_with_tools,
+    messages: list,
+    max_retries: int = 5,
+    rebuild_llm: Optional[Callable[[], Any]] = None,
+) -> Tuple[Any, float]:
+    """Execute LLM invocation with spacing, context truncation, and key rotation on rate limits."""
     context_reduced = False
     total_wait_seconds = 0.0
     for attempt in range(max_retries):
@@ -245,16 +199,9 @@ def invoke_with_rate_limit(llm_with_tools, messages, max_retries: int = 5, rebui
                         time.sleep(wait_time)
                         total_wait_seconds += wait_time
                         continue
-                    logger.error(
-                        "Payload still too large after retries -- aborting: %s", err_str,
-                    )
+                    logger.error("Payload still too large after retries -- aborting: %s", err_str)
                     raise
 
-                # Cas 1 : rate limit -- essaie d'abord de tourner sur la
-                # cle Groq suivante (retry immediat, pas d'attente) ; ne
-                # retombe sur l'attente dynamique par headers (comportement
-                # pre-existant, inchange) que lorsque la derniere cle
-                # configuree est elle aussi en rate-limit.
                 is_rate_limit = "429" in err_str or "rate_limit" in err_str.lower()
                 if is_rate_limit and rebuild_llm is not None and _rotate_groq_key():
                     llm_with_tools = rebuild_llm()
@@ -281,7 +228,6 @@ def invoke_with_rate_limit(llm_with_tools, messages, max_retries: int = 5, rebui
                     total_wait_seconds += wait_time
                     continue
 
-                # Cas 2 : tool_use_failed (Groq) -- tenter la récupération, sinon retry renforcé
                 if "tool_use_failed" in err_str:
                     recovered = _try_recover_tool_use_failed(e)
                     if recovered is not None:
@@ -304,7 +250,6 @@ def invoke_with_rate_limit(llm_with_tools, messages, max_retries: int = 5, rebui
                         continue
                     raise
 
-                # Cas 3 : erreurs de connexion transitoires -- retry générique
                 is_connection_error = any(
                     term in err_str.lower()
                     for term in ("connection", "timeout", "timed out", "temporarily unavailable")

@@ -47,16 +47,7 @@ class ServerActionCodeAnalysis:
     # Enclosing conditions scoping the action
     trigger_conditions: List[str] = field(default_factory=list)
 
-    # B1 replication of the B0 pilot (todo/contexte.txt section 450+, tool
-    # 6/24, 1/4 Analyse CI): structured Evidence produced at the source --
-    # one per security-relevant category actually checked, always asserted
-    # explicitly whether found or not (same convention as the 5 Composites
-    # CI). confidence="LOW" (Evidence contract casing) on every fact here,
-    # a deliberate divergence from the Composites' fixed confidence="HIGH":
-    # this tool reads ir.actions.server 'code', which is data that can be
-    # modified at runtime, unlike the graph-derived structural facts the
-    # Composites read (arbitrage documented in todo/contexte.txt for this
-    # tool). Populated by analyze_server_action_code() below.
+    # structured Evidence produced at the source -- one per security-relevant category actually checked, always asserted explicitly whether found or not (same convention as the 5 Composites CI). confidence="LOW" (Evidence contract casing) on every fact here, a deliberate divergence from the Composites' fixed confidence="HIGH": this tool reads ir.actions.server 'code', which is data that can be modified at runtime, unlike the graph-derived structural facts the Composites read (arbitrage documented in todo/contexte.txt for this tool). Populated by analyze_server_action_code() below.
     evidence: List[Evidence] = field(default_factory=list)
 
 
