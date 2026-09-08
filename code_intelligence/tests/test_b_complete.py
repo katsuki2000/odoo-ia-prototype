@@ -35,7 +35,7 @@ from code_intelligence.live_comparator import (
     compare_static_vs_live_rules,
 )
 from code_intelligence.cross_file_resolver import ResolvedSymbolRegistry
-from code_intelligence.xml_extractor import OdooRuleRecord
+from code_intelligence.extractor.xml_extractor import OdooRuleRecord
 
 
 def test_b1_4_suivre_heritage_complet():

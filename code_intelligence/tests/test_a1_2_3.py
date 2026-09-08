@@ -11,7 +11,7 @@ Tests:
 import tempfile
 from pathlib import Path
 
-from code_intelligence.xml_extractor import (
+from code_intelligence.extractor.xml_extractor import (
     parse_xml_fields_from_xml,
     parse_menuitems_from_xml,
 )

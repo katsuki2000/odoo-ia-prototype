@@ -54,13 +54,13 @@ from code_intelligence.cross_file_resolver import (
     topological_sort_modules,
 )
 from code_intelligence.graph_builder import OdooGraphBuilder
-from code_intelligence.manifest_parser import (
+from code_intelligence.extractor.manifest_parser import (
     KNOWN_CORE_MODULE_DEPENDS,
     MissingManifestError,
     synthesize_fallback_manifest,
 )
 from code_intelligence.method_override_resolver import resolve_method_override_chain
-from code_intelligence.python_extractor import (
+from code_intelligence.extractor.python_extractor import (
     OdooMethodDeclaration,
     OdooModelDeclaration,
 )

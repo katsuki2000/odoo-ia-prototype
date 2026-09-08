@@ -3,7 +3,7 @@ tests/test_bug2_backfill_scoped_output_wiring.py
 
 Bug 2 non-regression (todo/contexte.txt section 492): static wiring check
 that every backfill/correction call downstream of the fail-closed scoping
-fix in CodeIntelligenceAgentRunner.run() is fed exclusively through
+fix in postprocess.py::build_final_response() is fed exclusively through
 scoped_tool_output -- never through the unscoped raw_tool_output variable
 (the tool_observations join computed BEFORE scoping). A call site silently
 switched back to raw_tool_output would reintroduce every falsy-model
@@ -19,12 +19,20 @@ truth passed to sourcing_guard.verify_citations() -- that call is a
 citation-verification concern (checking what the LLM cited against
 everything the tools actually produced), not a content-backfill channel,
 and is explicitly excluded from this check.
+
+Updated for the ci_agent_node.py refactor (todo/contexte.txt): the
+scoping call and the backfill/correction calls used to live together in
+CodeIntelligenceAgentRunner.run(); they now live in
+code_intelligence/ci_agent_node/postprocess.py, split across
+build_final_response() (scoping) and _apply_backfill_chain() (the actual
+calls, extracted to keep build_final_response under the project's
+300-line file budget). The invariant this test locks is unchanged.
 """
 
 import inspect
 import re
 
-from code_intelligence.ci_agent_node import CodeIntelligenceAgentRunner
+from code_intelligence.ci_agent_node.postprocess import build_final_response, _apply_backfill_chain
 
 _BACKFILL_AND_CORRECTION_FUNCS = [
     "_backfill_missing_required_groups",
@@ -44,11 +52,18 @@ _BACKFILL_AND_CORRECTION_FUNCS = [
 
 
 def test_all_backfill_and_correction_calls_use_scoped_tool_output():
-    source = inspect.getsource(CodeIntelligenceAgentRunner.run)
+    source = inspect.getsource(build_final_response)
     _, marker, post_scoping = source.partition(
         "scoped_tool_output = _scoped_raw_tool_output("
     )
-    assert marker, "scoping call not found in CodeIntelligenceAgentRunner.run source -- test is stale"
+    assert marker, "scoping call not found in build_final_response source -- test is stale"
+
+    # _apply_backfill_chain runs entirely after the scoping point above --
+    # it is only ever invoked from build_final_response's non-conflicting
+    # branch, fed scoped_tool_output -- and is where every backfill/
+    # correction call now actually lives (extracted out of
+    # build_final_response for the ci_agent_node.py refactor).
+    post_scoping += "\n" + inspect.getsource(_apply_backfill_chain)
 
     for func_name in _BACKFILL_AND_CORRECTION_FUNCS:
         calls = list(re.finditer(re.escape(func_name) + r"\(([^)]*)\)", post_scoping))

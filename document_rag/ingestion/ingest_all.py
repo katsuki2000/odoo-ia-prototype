@@ -97,7 +97,7 @@ def _documentary_code_module_dirs() -> list[Path]:
         )
 
     from code_intelligence.utils import discover_odoo_modules
-    from code_intelligence.manifest_parser import parse_manifest
+    from code_intelligence.extractor.manifest_parser import parse_manifest
 
     dirs: list[Path] = []
     seen: set[str] = set()

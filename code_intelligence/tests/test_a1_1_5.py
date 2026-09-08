@@ -12,7 +12,7 @@ Tests 3 cases + real corpus file:
 import tempfile
 from pathlib import Path
 
-from code_intelligence.python_extractor import extract_odoo_models_from_file
+from code_intelligence.extractor.python_extractor import extract_odoo_models_from_file
 
 
 def test_method_context_extraction():

@@ -18,11 +18,11 @@ import networkx as nx
 import pytest
 
 from code_intelligence.cross_file_resolver import ParsedModule, build_module_symbol_registry
-from code_intelligence.csv_extractor import parse_access_control_csv
+from code_intelligence.extractor.csv_extractor import parse_access_control_csv
 from code_intelligence.graph_builder import OdooGraphBuilder
 from code_intelligence.live_rule_validator import validate_live_rule_prediction
 from code_intelligence.odoo_rpc_client import OdooRpcClient
-from code_intelligence.xml_extractor import parse_groups_from_xml, parse_ir_rules_from_xml
+from code_intelligence.extractor.xml_extractor import parse_groups_from_xml, parse_ir_rules_from_xml
 from config.settings import CUSTOM_ADDONS_PATH
 
 

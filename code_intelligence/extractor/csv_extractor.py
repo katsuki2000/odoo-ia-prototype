@@ -1,8 +1,8 @@
 """
-code_intelligence/csv_extractor.py
+code_intelligence/extractor/csv_extractor.py
 
 CSV ACL extractor for ir.model.access.csv files.
-CSV ACL parsing and empty group_id all_authenticated handling).
+CSV ACL parsing and empty group_id all_authenticated handling.
 """
 
 import csv
@@ -108,3 +108,11 @@ def parse_access_control_csv(filepath: Path) -> List[OdooAccessEntry]:
         _logger.error("Error parsing ACL CSV %s: %s", filepath, e)
 
     return entries
+
+
+__all__ = [
+    "OdooAccessEntry",
+    "_parse_perm",
+    "parse_access_control_csv",
+]
+

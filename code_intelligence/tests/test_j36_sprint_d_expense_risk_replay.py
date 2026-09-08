@@ -26,8 +26,8 @@ from code_intelligence.deterministic_tools import (
     NOT_FOUND_MARKER,
 )
 from code_intelligence.graph_builder import OdooGraphBuilder
-from code_intelligence.manifest_parser import parse_manifest
-from code_intelligence.python_extractor import extract_odoo_models_from_file
+from code_intelligence.extractor.manifest_parser import parse_manifest
+from code_intelligence.extractor.python_extractor import extract_odoo_models_from_file
 
 
 ADDONS_PATH = Path("/home/user/odoo-17.0/addons")

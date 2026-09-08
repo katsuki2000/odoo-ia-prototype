@@ -1,14 +1,14 @@
 """
-code_intelligence/js_extractor.py
+code_intelligence/extractor/js_extractor.py
 
 JS and OWL client-side security check extractor for hasGroup patterns.
 """
 
+import logging
 import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List
-import logging
 
 _logger = logging.getLogger(__name__)
 

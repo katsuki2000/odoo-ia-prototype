@@ -46,7 +46,7 @@ sys.path.insert(0, str(project_root))
 
 from code_intelligence.utils import discover_odoo_modules
 from code_intelligence.ci_graph_loader import _load_module
-from code_intelligence.python_extractor import ModelRelationType
+from code_intelligence.extractor.python_extractor import ModelRelationType
 
 
 def score_module(mod):

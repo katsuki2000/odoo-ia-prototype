@@ -10,9 +10,9 @@ Unit & Integration tests for J34-J35 (Generalization to Deep Custom Modules):
 
 from pathlib import Path
 import pytest
-from code_intelligence.manifest_parser import parse_manifest
-from code_intelligence.python_extractor import extract_odoo_models_from_file
-from code_intelligence.xml_extractor import parse_ir_rules_from_xml
+from code_intelligence.extractor.manifest_parser import parse_manifest
+from code_intelligence.extractor.python_extractor import extract_odoo_models_from_file
+from code_intelligence.extractor.xml_extractor import parse_ir_rules_from_xml
 from code_intelligence.semgrep_locks_analyzer import analyze_python_security_locks
 from code_intelligence.auxiliary_tools import list_involved_modules_with_role
 from code_intelligence.graph_builder import OdooGraphBuilder

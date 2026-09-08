@@ -11,7 +11,7 @@ Tests:
 import tempfile
 from pathlib import Path
 
-from code_intelligence.xml_extractor import parse_views_from_xml
+from code_intelligence.extractor.xml_extractor import parse_views_from_xml
 
 
 def test_form_view_buttons_extraction():

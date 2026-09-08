@@ -11,7 +11,7 @@ Tests:
 import tempfile
 from pathlib import Path
 
-from code_intelligence.manifest_parser import parse_manifest
+from code_intelligence.extractor.manifest_parser import parse_manifest
 
 
 def test_manifest_parsing_and_unloaded_detection():

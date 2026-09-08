@@ -37,12 +37,12 @@ from pathlib import Path
 
 import pytest
 
-from code_intelligence.python_extractor import (
+from code_intelligence.extractor.python_extractor import (
     OdooModelDeclaration,
     OdooFieldDeclaration,
     OdooMethodDeclaration,
 )
-from code_intelligence.xml_extractor import (
+from code_intelligence.extractor.xml_extractor import (
     OdooRuleRecord,
     OdooGroupRecord,
     OdooServerActionRecord,
@@ -51,7 +51,7 @@ from code_intelligence.xml_extractor import (
     OdooViewRecord,
     OdooFormButton,
 )
-from code_intelligence.csv_extractor import OdooAccessEntry
+from code_intelligence.extractor.csv_extractor import OdooAccessEntry
 from code_intelligence.cross_file_resolver import ParsedModule, build_module_symbol_registry
 from code_intelligence.graph_builder import OdooGraphBuilder
 
@@ -65,7 +65,7 @@ from code_intelligence.graph_builder import OdooGraphBuilder
 ALL_KNOWN_NODE_TYPES = {
     "Module", "Model", "Field", "Method", "Group",
     "Rule", "AccessEntry", "ServerAction", "AutomationRule",
-    "Menu", "WorkflowState",
+    "Menu", "WorkflowState", "Button",
 }
 
 # Node types whose nodes carry a behavioral_tags/technical_tags
@@ -85,8 +85,8 @@ TAG_CAPABLE_NODE_TYPES = {
 # navigational nodes with no justifiable tag signal identified (Module:
 # nothing extracted maps to a tag; Group: only ever referenced BY
 # Rule/AccessEntry, never the reverse, no non-guessed signal of its
-# own). See module docstring.
-NON_TAG_CAPABLE_NODE_TYPES = {"Module", "Group"}
+# own; Button: form view action button with no tags). See module docstring.
+NON_TAG_CAPABLE_NODE_TYPES = {"Module", "Group", "Button"}
 
 METHOD_SOURCE = """class CustomTestFull(models.Model):
     _name = "custom.test.full"

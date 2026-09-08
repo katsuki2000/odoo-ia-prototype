@@ -27,18 +27,18 @@ corpus parse) so each assertion targets exactly one tool's tag exposure.
 
 import pytest
 
-from code_intelligence.python_extractor import (
+from code_intelligence.extractor.python_extractor import (
     OdooModelDeclaration,
     OdooFieldDeclaration,
     OdooMethodDeclaration,
     OdooMethodDecoration,
 )
-from code_intelligence.xml_extractor import (
+from code_intelligence.extractor.xml_extractor import (
     OdooRuleRecord,
     OdooServerActionRecord,
     OdooBaseAutomationRecord,
 )
-from code_intelligence.csv_extractor import OdooAccessEntry
+from code_intelligence.extractor.csv_extractor import OdooAccessEntry
 from code_intelligence.cross_file_resolver import ParsedModule, build_module_symbol_registry
 from code_intelligence.graph_builder import OdooGraphBuilder
 from code_intelligence.semantic_tags import BehavioralTag, TechnicalTag

@@ -11,7 +11,7 @@ from typing import Dict, List, Set, Tuple, Optional, Any
 import logging
 import networkx as nx
 
-from code_intelligence.python_extractor import OdooModelDeclaration
+from code_intelligence.extractor.python_extractor import OdooModelDeclaration
 
 _logger = logging.getLogger(__name__)
 

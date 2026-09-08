@@ -22,7 +22,7 @@ from code_intelligence.cross_file_resolver import (
     ParsedModule,
     build_module_symbol_registry,
 )
-from code_intelligence.python_extractor import OdooModelDeclaration
+from code_intelligence.extractor.python_extractor import OdooModelDeclaration
 from code_intelligence.graph_builder import OdooGraphBuilder
 from code_intelligence.auxiliary_tools import (
     list_involved_modules,

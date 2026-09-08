@@ -7478,3 +7478,145 @@ Deux runs avec rotation se repartissent 1 OK/1 MISSING ; trois runs sans rotatio
 **A ne pas confondre avec le bug CI_MAX_HOPS deja root-cause** (memoire de session : collision du nom commun francais "base" avec le modele technique abstrait `base` dans `_find_exact_technical_model_mentions()`, module 08 Q3) -- ce nouveau signal survient sur un outil different (`analyze_server_actions`, pas le pre-dispatch generique sur mention technique), un module different (06, `custom_automation_traps`), sans lien etabli a ce jour avec la collision "base". A verifier explicitement avant de supposer une meme cause : peut-etre un vrai budget de hops insuffisant pour ce module (plusieurs server actions a analyser, dont l'action privilegiee), peut-etre une autre boucle/duplication consommant des hops inutilement.
 
 **Non fait ce tour** : aucun code touche. Root cause du `CI_MAX_HOPS` sur `analyze_server_actions` (module 06) non investiguee -- necessite une lecture du pre-dispatch deterministe dans `ci_agent_node.py` (ou equivalent) pour ce module/cette question avant tout diff, conformement au principe root-cause-avant-fix. Mandat explicite requis avant d'ouvrir ce fichier en ecriture.
+---
+
+## Section 584 - Refactorisation modulaire de deterministic_tools.py : decoupage en sous-package code_intelligence/deterministic/ respectant la regle 15 (< 300 lignes/fichier), facade retrocompatible (2026-09-07)
+
+**Contexte et motivation** : `code_intelligence/deterministic_tools.py` contenait 2 353 lignes, violant massivement la regle 15 de `todo/rules.md` (300 lignes par fichier max). Sur demande explicite de refactorisation de l'utilisateur ("commence par deterministic"), le fichier a ete entierement decoupe en un sous-package modulaire `code_intelligence/deterministic/`, tout en maintenant une facade `deterministic_tools.py` reexportant l'integralite des 50 fonctions/classes/constantes historiques.
+
+**Decomposition realisee dans `code_intelligence/deterministic/`** :
+1. `common.py` (15 lignes) : Constante partagee `NOT_FOUND_MARKER` et enumeration `QueryStatus`.
+2. `domain_parser.py` (176 lignes) : Parser AST securise (sans `eval`/`exec`) pour `domain_force`, conversion en tokens et normalisation prefixe Odoo.
+3. `domain_evaluator.py` (233 lignes) : Evaluateur en logique Kleene tri-valuee (`True`/`False`/`None`) avec resolution de references dynamiques dict et point d'entree `evaluate_domain_force()`.
+4. `group_resolver.py` (147 lignes) : Normalisation, suppression de prefixe `group_`, pliage d'accents, fuzzy matching sur `res.groups`, `resolve_group_identifier()`, `_expand_implied_user_groups()` et `_expand_inheriting_acl_groups()`.
+5. `record_rules_models.py` (106 lignes) : Structures de donnees `RuleDetail` et `RuleEvaluationResult` avec helpers d'evaluation monetaire `can_view_amount()` et `can_view_amount_v2()`.
+6. `record_rules.py` (218 lignes) : Moteur d'evaluation des regles d'enregistrement `evaluate_record_rules()` et construction d'Evidence `_build_record_rules_evidence()`.
+7. `access_evaluator.py` (242 lignes) : Moteur d'evaluation des droits d'acces modele/ACL `who_has_access_to()` et construction d'Evidence `_build_access_evidence()`.
+8. `field_impact.py` (203 lignes) : Analyse d'impact multi-hop BFS amont/aval des champs calcules `field_change_impact()` et `_build_field_impact_evidence()`.
+9. `button_path_models.py` (111 lignes) : Dataclass `ButtonExecutionPathResult` et builder d'Evidence structuree `_build_button_execution_evidence()`.
+10. `xml_view_finder.py` (177 lignes) : Inspection des contraintes de vues XML (readonly, invisible, required, groups) `_find_field_in_xml_views()`.
+11. `menu_view_finder.py` (144 lignes) : Detection de hooks dynamiques (`get_view`/`fields_view_get`) et items de menu `search_dynamic_view_or_menus()`.
+12. `button_path.py` (246 lignes) : Tracage de chemin d'execution des boutons UI `button_execution_path()` et validation de permissions demandeur `_requester_satisfies_required_groups()`.
+13. `inheritance_chain.py` (192 lignes) : Parcours BFS de chaine d'heritage `_inherit` vs `_inherits` `trace_full_inheritance()` et `_build_inheritance_evidence()`.
+14. `workflow_process.py` (142 lignes) : Graphe d'etats de workflow `describe_workflow()` et `_build_workflow_evidence()`.
+15. `__init__.py` (97 lignes) : Exportations du package `code_intelligence.deterministic`.
+16. `code_intelligence/deterministic_tools.py` (148 lignes) : Facade legere retrocompatible reexportant tous les symboles d'origine.
+
+**Verification de non-regression** :
+- Conformite regle 15 : Les 16 fichiers sont strictement sous les 250 lignes (budget < 300 lignes respecte partout).
+- Tests cibles executes via `.venv/bin/pytest` :
+  - `test_b1_1.py`, `test_b1_2.py`, `test_b1_3.py`, `test_s2_1_record_rules.py`, `test_s2_9_domain_force_evaluator.py` : 42/42 passed.
+  - `test_bloc8_j27_inheritance_cycle_regression.py` : 3/3 passed.
+  - `test_j23_24_authorization_gate.py` : 8/8 passed.
+  - `test_j22bis_button_availability_gate.py` : 8/8 passed.
+  - `test_bloc_b0_evidence_ci_pilot.py`, `test_bloc_b1_evidence_button_execution_path.py`, `test_bloc_b1_evidence_field_change_impact.py`, `test_bloc_b1_evidence_who_has_access_to.py`, `test_b2_move_type_context_injection.py` : 40/40 passed.
+  - `test_b_complete.py`, `test_bug1_xml_id_citation_wiring.py`, `test_evidence_sufficiency.py`, `test_bloc_p2_j4_composite_tools_tag_exposure.py`, `test_bloc9_cross_module_computed_fields.py` : 43 passed (3 skipped).
+  - `test_ci_agent_tools_resolution.py`, `test_j36_sprint_d_expense_risk_replay.py` : 5 passed (8 skipped).
+  - Au total : plus de 140 tests valides avec 0 echec et 0 regression.
+
+---
+
+## Section 585 - Audit des references ci_agent_node (tests/scripts/api) post-modularisation & correction du cablage backfill dans postprocess.py (2026-09-08)
+
+**Contexte** : Suite a la modularisation de `code_intelligence/ci_agent_node.py` en un sous-package `code_intelligence/ci_agent_node/` (24 sous-modules tous < 230 lignes, reexportant la surface publique via `__init__.py`), un grep des references a `ci_agent_node` dans `tests/`, `scripts/`, `api/` a ete audite :
+- `tests/test_bloc9_02_backfill_can_view_amount_wiring.py` : mentions historiques en docstrings/commentaires uniquement. Tests 100% verts.
+- `tests/test_bloc9_02_infer_move_type_context.py` : mention en docstring uniquement. Tests 100% verts.
+- `tests/test_bloc_p1_execution_failure_signal.py` : import `_EXECUTION_FAILURE_NOTICE` depuis `code_intelligence.ci_agent_node` (reexporte par `__init__.py`). Tests 100% verts.
+- `tests/test_bug2_backfill_scoped_output_wiring.py` : controle statique de non-regression sur le scoping fail-closed de `scoped_tool_output` sur la chaine de backfill.
+- `tests/test_h1b_ii_rehydrate_ci_node.py` : mentions en docstring/nom de test, import direct depuis `ci_helpers`. Tests 100% verts.
+- `tests/test_graph.py` & `scripts/verify_groq_key_rotation_live.py` : commentaires/docstrings uniquement.
+
+**Correction apportee sur `code_intelligence/ci_agent_node/postprocess.py`** :
+Lors du deplacement de la chaine de backfill dans `postprocess.py::_apply_backfill_chain()`, l'appel a `_backfill_missing_can_view_amount_fact` (bien importe a la ligne 31) avait ete omis de la fonction, provoquant l'echec du test statique `test_bug2_backfill_scoped_output_wiring.py`.
+- `_apply_backfill_chain()` a ete corrigee pour recevoir `scoped_tool_observation_models` et `target_models`, et executer `_backfill_missing_can_view_amount_fact` juste apres `_correct_security_lock_threshold_contradictions`, conformement a l'ordre exact verrouille en session 97.
+- La branche non-conflictuante de `build_final_response()` transmet ces arguments.
+
+**Resultats des tests** :
+- `tests/test_bug2_backfill_scoped_output_wiring.py` : 1/1 passed.
+- `tests/test_bloc9_02_backfill_can_view_amount_wiring.py` : 6/6 passed.
+- `tests/test_bloc9_02_infer_move_type_context.py` : 15/15 passed.
+- `tests/test_bloc_p1_execution_failure_signal.py` : 9/9 passed.
+- `tests/test_h1b_ii_rehydrate_ci_node.py` : 12/12 passed.
+- Suite consolidee : 43/43 tests passed sans regression.
+
+---
+
+## Section 586 - Refactorisation modulaire des extracteurs dans `code_intelligence/extractor/` (2026-09-08)
+
+**Contexte** :
+- `code_intelligence/xml_extractor.py` comportait 704 lignes (violation de la Regle 15 : limite de 300 lignes par fichier).
+- `code_intelligence/python_extractor.py` comportait 324 lignes (violation de la Regle 15) et declenchait 3 594 DeprecationWarnings sur Python 3.13 a cause de l'evaluation de `ast.Str` et `ast.NameConstant`.
+- A la demande de l'utilisateur ("how about adding a folder 'extractor'?", confirme par "oui"), l'ensemble des extracteurs a ete structure au sein du nouveau package `code_intelligence/extractor/`.
+
+**Structure du nouveau sous-package `code_intelligence/extractor/`** :
+1. `python_models.py` (76 lignes) : Dataclasses et enums d'extraction AST (`ModelRelationType`, `OdooFieldDeclaration`, `OdooMethodDecoration`, `OdooMethodDeclaration`, `OdooModelDeclaration`).
+2. `python_extractor.py` (257 lignes) : Visiteur AST `OdooClassVisitor` et fonction `extract_odoo_models_from_file()`. Utilisation exclusive de `ast.Constant` pour la resolution des litteraux sous Python 3.8+, eliminant completement les 3 594 warnings.
+3. `xml_models.py` (149 lignes) : Dataclasses XML (`OdooRuleRecord`, `OdooGroupRecord`, `OdooActionRecord`, `OdooServerActionRecord`, `OdooBaseAutomationRecord`, `OdooXmlFieldRecord`, `OdooMenuItemRecord`, `OdooFormButton`, `OdooViewRecord`) et fonctions utilitaires `parse_eval_bool`, `extract_refs_from_eval`.
+4. `xml_rules_groups.py` (163 lignes) : Extracteurs XML pour les regles de securite (`parse_ir_rules_from_xml`) et les groupes utilisateurs (`parse_groups_from_xml`).
+5. `xml_actions.py` (212 lignes) : Extracteurs XML pour `ir.actions.act_window` (`parse_actions_from_xml`), `ir.actions.server` / `ir.cron` (`parse_server_actions_from_xml`), et `base.automation` (`parse_base_automations_from_xml`).
+6. `xml_views.py` (232 lignes) : Extracteurs XML pour les vues et boutons (`parse_views_from_xml`, `_extract_buttons_from_arch_elem`), elements de menu (`parse_menuitems_from_xml`), et champs de donnees (`parse_xml_fields_from_xml`).
+7. `xml_extractor.py` (57 lignes) : Interface agregee interne pour le sous-systeme d'extraction XML.
+8. `csv_extractor.py` (110 lignes) : Extracteur des regles ACL CSV `ir.model.access.csv` (`parse_access_control_csv`, `OdooAccessEntry`, `_parse_perm`).
+9. `js_extractor.py` (110 lignes) : Extracteur des controles de securite hasGroup cote client JS/OWL (`parse_client_group_checks`, `OdooClientGroupCheck`).
+10. `manifest_parser.py` (136 lignes) : Analyseur de manifestes `__manifest__.py` et detection des fichiers non charges (`parse_manifest`, `synthesize_fallback_manifest`, `OdooManifest`, `MissingManifestError`, `KNOWN_CORE_MODULE_DEPENDS`).
+11. `__init__.py` (117 lignes) : Point d'entree unifie du package `code_intelligence.extractor`.
+
+**Nettoyage complet des imports et suppression des fichiers racines (Option B)** :
+- A la demande de l'utilisateur ("b"), l'ensemble des imports des 5 anciens modules (`csv_extractor`, `manifest_parser`, `python_extractor`, `xml_extractor`, `js_extractor`) a ete migre directement vers `code_intelligence.extractor.*` a travers **41 fichiers** (code source `ci_graph_loader.py`, `cross_file_resolver.py`, `graph_symbol_refactor.py`, `ingest_all.py`, 3 scripts d'extraction et 34 fichiers de tests).
+- Les 5 fichiers de facade a la racine de `code_intelligence/` ont ete definitivement supprimes :
+  - `code_intelligence/csv_extractor.py` (supprime)
+  - `code_intelligence/js_extractor.py` (supprime)
+  - `code_intelligence/manifest_parser.py` (supprime)
+  - `code_intelligence/python_extractor.py` (supprime)
+  - `code_intelligence/xml_extractor.py` (supprime)
+- Plus aucun import obsolete ne subsiste dans le depot (controle grep 100% propre).
+- Correction ontologique dans `test_bloc_p2_j5_ontology_coverage.py` : ajout du type `"Button"` (introduit dans `graph_builder.py` pour le parcours d'execution des boutons) dans `ALL_KNOWN_NODE_TYPES` et `NON_TAG_CAPABLE_NODE_TYPES`.
+
+**Validation et Tests de non-regression** :
+- Conformite Regle 15 : Tous les 11 fichiers du package `code_intelligence/extractor/` sont strictement sous les 270 lignes (< 300 lignes).
+- `code_intelligence/tests/test_a1_*.py` : 29/29 tests passes en 3.02s (0 warnings au lieu de 3 594).
+- `test_a2_1_1.py`, `test_a3_1_1.py`, `test_action_extension_merge.py`, `test_f08_dedup_groups_server_actions_automations.py` : 15/15 tests passes en 2.33s.
+- `test_b1_1.py`, `test_b1_2.py`, `test_b1_3.py`, `test_bloc8_j27_*.py`, `test_bloc9_cross_*.py`, `test_method_override_chain.py`, `test_mixed_corpus_load_order.py`, `test_s2_3_server_actions.py` : 39 passes, 12 skipped en 23.00s.
+- `test_bloc_p2_j5_ontology_coverage.py` : 9/9 passes en 0.82s.
+- `test_b_complete.py`, `test_bloc_p2_j2_3_graph_tagging.py`, `test_bloc_p2_j4_composite_tools_tag_exposure.py`, `test_j5_live_validation.py`, `test_j28_29_ambiguous_symbols.py`, `test_j34_35_deep_custom_modules.py`, `test_j36_sprint_d_expense_risk_replay.py`, `test_j43_j45_symbol_rename_refactoring.py` : 56 passes, 21 skipped en 1.98s.
+- `test_bug2_backfill_scoped_output_wiring.py`, `test_bloc9_02_backfill_can_view_amount_wiring.py`, `test_bloc_p1_execution_failure_signal.py` : 16/16 passes en 18.97s.
+- Bilan global : plus de 160 tests unitaires et d'integration verifies avec 100% de succes.
+
+---
+
+## Section 587 - Refactorisation modulaire du sous-systeme de graphe dans `code_intelligence/graph/` (2026-09-08)
+
+**Contexte** :
+- `code_intelligence/graph_builder.py` (747 lignes), `code_intelligence/cross_file_resolver.py` (393 lignes), et `code_intelligence/ci_graph_loader.py` (384 lignes) depassaient tous le seuil de 300 lignes fixe par la Regle 15.
+- A la demande de l'utilisateur ("graph"), le sous-systeme de resolution et construction de graphe a ete modularise au sein du nouveau package `code_intelligence/graph/`.
+
+**Structure du nouveau package `code_intelligence/graph/`** :
+1. `models.py` (87 lignes) : Modeles de donnees et registres (`ParsedModule`, `ResolvedSymbolRegistry`, `UnresolvedCategory`, `UnresolvedReference`, `CORE_BASE_MODULES`).
+2. `symbol_merger.py` (54 lignes) : Fonctions de fusion d'extensions de records XML (`_merge_action`, `_merge_server_action`, `_merge_rule`, `_merge_group`).
+3. `topological_sort.py` (51 lignes) : Tri topologique des dependances de modules (`topological_sort_modules`).
+4. `cycle_detector.py` (59 lignes) : Detection des cycles d'heritage inter-modeles (`_detect_inheritance_cycles`).
+5. `symbol_resolver.py` (214 lignes) : Resolution inter-fichiers en deux passes (`build_module_symbol_registry`, `_resolve_model_reference`, `_resolve_group_reference`, `_categorize_unresolved`).
+6. `serialization.py` (57 lignes) : Serialisation/deserialisation JSON NetworkX et benchmark (`save_graph_to_json`, `load_graph_from_json`, `benchmark_graph_traversal`).
+7. `security_nodes.py` (154 lignes) : Creation des noeuds et arretes de securite (`add_security_group_nodes` : groupes, regles de securite `ir.rule`, ACLs CSV `ir.model.access.csv`, actions serveur et automatisations).
+8. `ui_nodes.py` (173 lignes) : Creation des noeuds et arretes d'interface et de workflow (`add_menu_nodes`, `add_workflow_nodes_and_edges`, `add_view_button_nodes_and_edges`).
+9. `builder.py` (281 lignes) : Constructeur principal `OdooGraphBuilder`, indexation des modeles, champs, methodes, et heuristiques textuelles (`_humanize_technical_name`, `_method_has_group_and_raise`, `_domain_force_references_state`).
+10. `disk_loader.py` (102 lignes) : Chargement individuel de module depuis le disque (`_load_module`) et verification de portabilite locale (`_graph_filepaths_resolve_locally`).
+11. `loader.py` (195 lignes) : Orchestration du chargement paresseux et du cache memoire/disque (`get_code_intelligence_graph`, `_GRAPH_BUILD_LOCK`, decouverte core/custom/OCA).
+12. `__init__.py` (67 lignes) : Point d'entree unifie du package `code_intelligence.graph`.
+
+**Facades retrocompatibles maintenues a la racine de `code_intelligence/`** :
+- `code_intelligence/cross_file_resolver.py` (46 lignes) : Reexporte les modeles, le tri topologique et la resolution de symboles.
+- `code_intelligence/graph_builder.py` (24 lignes) : Reexporte `OdooGraphBuilder`, `_humanize_technical_name` et les fonctions de serialisation.
+- `code_intelligence/ci_graph_loader.py` (22 lignes) : Reexporte `get_code_intelligence_graph`, `GRAPH_JSON_PATH`, `_load_module`, `_graph_filepaths_resolve_locally`, `_CACHED_CODE_INTEL_GRAPH`, et `_CACHED_GRAPH_MTIME`.
+
+**Validation et Tests de non-regression** :
+- Conformite Regle 15 : Les 15 fichiers sont tous strictement sous les 285 lignes (< 300 lignes).
+- `test_a2_1_1.py`, `test_a3_1_1.py`, `test_action_extension_merge.py`, `test_f08_dedup_groups_server_actions_automations.py`, `test_bloc_p2_j5_ontology_coverage.py`, `test_bloc_p2_j2_3_graph_tagging.py`, `test_bloc8_j27_inheritance_cycle_regression.py` : 39/39 passed en 2.71s.
+- `test_mixed_corpus_load_order.py`, `test_b1_1.py`, `test_b1_2.py`, `test_b1_3.py` : 13 passed, 8 skipped en 21.28s.
+- `test_bug2_backfill_scoped_output_wiring.py`, `test_bloc9_02_backfill_can_view_amount_wiring.py`, `test_bloc_p1_execution_failure_signal.py`, `test_a1_1_2.py`, `test_a2_1_1.py`, `test_a3_1_1.py` : 28/28 passed en 22.06s.
+- Test d'import `import core.graph` : valide avec succes (reexportations de variables de cache preservees).
+- Bilan global : plus de 80 tests cibles verifies sans aucune regression.
+
+
+
+

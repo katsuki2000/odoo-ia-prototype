@@ -28,14 +28,14 @@ import pytest
 
 from code_intelligence.cross_file_resolver import ParsedModule, build_module_symbol_registry
 from code_intelligence.graph_builder import OdooGraphBuilder
-from code_intelligence.manifest_parser import parse_manifest
+from code_intelligence.extractor.manifest_parser import parse_manifest
 from code_intelligence.method_override_resolver import (
     analyze_method_override_chain,
     detect_unguarded_super,
     find_methods_with_unguarded_super,
     resolve_method_override_chain,
 )
-from code_intelligence.python_extractor import extract_odoo_models_from_file
+from code_intelligence.extractor.python_extractor import extract_odoo_models_from_file
 
 
 # ---------------------------------------------------------------------

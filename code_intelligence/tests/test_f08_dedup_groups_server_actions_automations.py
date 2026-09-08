@@ -24,8 +24,8 @@ base_automations in graph_builder.py::_add_security_group_nodes.
 
 from code_intelligence.cross_file_resolver import ParsedModule, build_module_symbol_registry
 from code_intelligence.graph_builder import OdooGraphBuilder
-from code_intelligence.manifest_parser import OdooManifest
-from code_intelligence.xml_extractor import (
+from code_intelligence.extractor.manifest_parser import OdooManifest
+from code_intelligence.extractor.xml_extractor import (
     OdooGroupRecord,
     OdooServerActionRecord,
     OdooBaseAutomationRecord,

@@ -1,82 +1,21 @@
 """
-code_intelligence/python_extractor.py
+code_intelligence/extractor/python_extractor.py
 
 AST-based extractor for Python Odoo files.
 Implements Task A1.1.2: Visiteur AST pour _name, _inherit, _inherits.
 """
 
 import ast
-from dataclasses import dataclass, field
-from enum import Enum
 from pathlib import Path
-from typing import List, Dict, Optional, Union, Set
+from typing import List, Optional, Union
 
-
-class ModelRelationType(Enum):
-    BASE = "BASE"            # _name defined, no _inherit
-    EXTENSION = "EXTENSION"   # _inherit without _name (modifies existing model)
-    CLASSIC_INHERITANCE = "CLASSIC_INHERITANCE" # _name + _inherit (creates new model inheriting from existing)
-    DELEGATION = "DELEGATION" # _inherits dict (delegation via foreign key, e.g. product.product -> product.template)
-
-
-@dataclass
-class OdooFieldDeclaration:
-    name: str
-    field_type: str
-    comodel_name: Optional[str] = None
-    inverse_name: Optional[str] = None
-    relation_table: Optional[str] = None
-    column1: Optional[str] = None
-    column2: Optional[str] = None
-    related: Optional[str] = None
-    compute: Optional[str] = None
-    store: bool = True
-    string: Optional[str] = None
-
-
-@dataclass
-class OdooMethodDecoration:
-    decorator_type: str
-    trigger_fields: List[str] = field(default_factory=list)
-
-
-@dataclass
-class OdooMethodDeclaration:
-    name: str
-    lineno: int
-    decorators: List[OdooMethodDecoration] = field(default_factory=list)
-    api_model: bool = False
-    is_instance_method: bool = True
-    # End line number of the method source AST node if available
-    end_lineno: Optional[int] = None
-
-
-@dataclass
-class OdooModelDeclaration:
-    class_name: str
-    filepath: str
-    lineno: int
-    name: Optional[str] = None
-    inherit: List[str] = field(default_factory=list)
-    inherits: Dict[str, str] = field(default_factory=dict)
-    description: Optional[str] = None
-    methods: List[OdooMethodDeclaration] = field(default_factory=list)
-    fields: List[OdooFieldDeclaration] = field(default_factory=list)
-
-    @property
-    def relation_types(self) -> Set[ModelRelationType]:
-        types = set()
-        if self.name and not self.inherit:
-            types.add(ModelRelationType.BASE)
-        elif not self.name and self.inherit:
-            types.add(ModelRelationType.EXTENSION)
-        elif self.name and self.inherit:
-            types.add(ModelRelationType.CLASSIC_INHERITANCE)
-
-        if self.inherits:
-            types.add(ModelRelationType.DELEGATION)
-
-        return types
+from .python_models import (
+    ModelRelationType,
+    OdooFieldDeclaration,
+    OdooMethodDecoration,
+    OdooMethodDeclaration,
+    OdooModelDeclaration,
+)
 
 
 class OdooClassVisitor(ast.NodeVisitor):
@@ -90,11 +29,11 @@ class OdooClassVisitor(ast.NodeVisitor):
         self.declarations: List[OdooModelDeclaration] = []
 
     def visit_ClassDef(self, node: ast.ClassDef):
-        # We check if class looks like an Odoo model class (inherits from models.Model/TransientModel/AbstractModel or has _name/_inherit)
+        # We check if class looks like an Odoo model class
         model_decl = self._extract_odoo_model_declaration(node)
         if model_decl and (model_decl.name or model_decl.inherit or model_decl.inherits):
             self.declarations.append(model_decl)
-        
+
         # Continue visiting nested structures if any
         self.generic_visit(node)
 
@@ -111,7 +50,7 @@ class OdooClassVisitor(ast.NodeVisitor):
                     if isinstance(target, ast.Name):
                         attr_name = target.id
                         val = self._extract_ast_value(stmt.value)
-                        
+
                         if attr_name == "_name" and isinstance(val, str):
                             decl.name = val
                         elif attr_name == "_inherit":
@@ -120,7 +59,6 @@ class OdooClassVisitor(ast.NodeVisitor):
                             elif isinstance(val, list):
                                 decl.inherit = [v for v in val if isinstance(v, str)]
                         elif attr_name == "_inherits" and isinstance(val, dict):
-                            # val is dict mapping parent_model -> field_name
                             clean_inherits = {}
                             for k, v in val.items():
                                 if isinstance(k, str) and isinstance(v, str):
@@ -136,7 +74,7 @@ class OdooClassVisitor(ast.NodeVisitor):
                 method_decl = self._extract_method_declaration(stmt)
                 if method_decl:
                     decl.methods.append(method_decl)
-                            
+
         return decl
 
     def _extract_field_declaration(self, field_name: str, call_node: ast.Call) -> Optional[OdooFieldDeclaration]:
@@ -287,10 +225,6 @@ class OdooClassVisitor(ast.NodeVisitor):
         """Extract literal values from AST nodes (strings, booleans, lists, dicts)."""
         if isinstance(node, ast.Constant):
             return node.value
-        elif hasattr(ast, 'Str') and isinstance(node, ast.Str):
-            return node.s
-        elif hasattr(ast, 'NameConstant') and isinstance(node, ast.NameConstant):
-            return node.value
         elif isinstance(node, (ast.List, ast.Tuple)):
             res = []
             for elt in node.elts:
@@ -321,3 +255,15 @@ def extract_odoo_models_from_file(filepath: Path) -> List[OdooModelDeclaration]:
     except Exception as e:
         print(f"Error parsing {filepath}: {e}")
         return []
+
+
+__all__ = [
+    "ModelRelationType",
+    "OdooFieldDeclaration",
+    "OdooMethodDecoration",
+    "OdooMethodDeclaration",
+    "OdooModelDeclaration",
+    "OdooClassVisitor",
+    "extract_odoo_models_from_file",
+]
+

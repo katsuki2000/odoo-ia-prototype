@@ -15,7 +15,7 @@ from code_intelligence.cross_file_resolver import (
     build_module_symbol_registry,
     ParsedModule,
 )
-from code_intelligence.xml_extractor import OdooActionRecord
+from code_intelligence.extractor.xml_extractor import OdooActionRecord
 
 
 def _fake_module(actions, depends=None):
