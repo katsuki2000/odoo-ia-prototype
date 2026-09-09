@@ -9,7 +9,7 @@ the upstream LLM did not follow the system-prompt hint.
 import networkx as nx
 import pytest
 
-from code_intelligence import ci_agent_tools
+from code_intelligence.ci_agent_node import agent_tools as ci_agent_tools
 
 
 @pytest.fixture
@@ -64,7 +64,7 @@ def test_qui_a_acces_a_resolves_business_term_end_to_end(sample_graph_with_alias
         return _FakeResult()
 
     monkeypatch.setattr(
-        "code_intelligence.deterministic_tools.who_has_access_to", _fake_impl
+        "code_intelligence.deterministic.access_evaluator.who_has_access_to", _fake_impl
     )
 
     ci_agent_tools.who_has_access_to.invoke({"model_name": "avoir", "permission": "read"})

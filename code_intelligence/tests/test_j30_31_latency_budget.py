@@ -50,7 +50,7 @@ def test_ci_max_hops_value():
 def test_xmlrpc_client_timing_logging(caplog):
     """J30-J31: verify XML-RPC client instruments execute_kw timing."""
     import logging
-    from code_intelligence.odoo_rpc_client import OdooRpcClient
+    from code_intelligence.live.rpc_client import OdooRpcClient
 
     client = OdooRpcClient()
     client._password_by_uid[1] = "admin"

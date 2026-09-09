@@ -347,26 +347,24 @@ class TestErrorHandling(unittest.TestCase):
 
     def test_corrupt_file_handling(self):
         """Test handling of corrupt files."""
-        from document_rag.ingestion.code_loader import CodeLoader
+        from document_rag.ingestion.pdf_loader import PDFLoader
 
-        loader = CodeLoader()
+        loader = PDFLoader()
 
-        # Create file with invalid syntax
         with tempfile.NamedTemporaryFile(
-            suffix=".py", mode="w", delete=False
+            suffix=".pdf", mode="wb", delete=False
         ) as f:
-            f.write("def broken(:\n    pass")  # Syntax error
+            f.write(b"not a valid pdf content")
             f.flush()
-            py_path = f.name
+            pdf_path = f.name
 
         try:
-            # Should not crash, returns empty AST info
-            result = loader.load_python_file(py_path)
+            result = loader.load_and_chunk(pdf_path)
             self.assertIsNotNone(result)
             self.assertIn("chunks", result)
 
         finally:
-            os.unlink(py_path)
+            os.unlink(pdf_path)
 
 
 if __name__ == "__main__":

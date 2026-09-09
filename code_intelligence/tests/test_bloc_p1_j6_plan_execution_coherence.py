@@ -59,8 +59,8 @@ import logging
 import pytest
 
 from code_intelligence.business_resolver import resolve_business_term
-from code_intelligence.ci_helpers import _question_is_access_related, _extract_amount
-from code_intelligence.investigation_plan import (
+from code_intelligence.ci_agent_node.helpers import _question_is_access_related, _extract_amount
+from code_intelligence.investigation import (
     PlanAction,
     QuestionIntent,
     generate_investigation_plan,
@@ -80,7 +80,7 @@ def real_graph():
     consistent with todo/rules.md's scalability/portability rule (no
     machine-specific hard requirement).
     """
-    from code_intelligence.ci_graph_loader import get_code_intelligence_graph
+    from code_intelligence.graph import get_code_intelligence_graph
 
     try:
         G = get_code_intelligence_graph()
@@ -135,7 +135,7 @@ def _real_dispatch_targets(question: str, concept, G) -> dict:
     ci_agent_node.py and generate_investigation_plan()). Never invokes a
     tool or an LLM -- pure predicate evaluation, same as the Planner itself.
     """
-    from code_intelligence.forced_dispatch_predicates import (
+    from code_intelligence.ci_agent_node.forced_dispatch_predicates import (
         security_locks_targets,
         server_actions_targets,
         override_chain_targets,

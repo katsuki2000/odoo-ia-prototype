@@ -1,3 +1,4 @@
+from code_intelligence.tests._corpus_paths import CORE_ADDONS_PATH, CUSTOM_ADDONS_PATH
 """
 code_intelligence/tests/test_b1_3.py
 
@@ -15,9 +16,9 @@ from code_intelligence.extractor.manifest_parser import parse_manifest
 
 from code_intelligence.extractor.python_extractor import extract_odoo_models_from_file
 from code_intelligence.extractor.xml_extractor import parse_views_from_xml
-from code_intelligence.cross_file_resolver import ParsedModule, build_module_symbol_registry
-from code_intelligence.graph_builder import OdooGraphBuilder
-from code_intelligence.deterministic_tools import button_execution_path
+from code_intelligence.graph import ParsedModule, build_module_symbol_registry
+from code_intelligence.graph import OdooGraphBuilder
+from code_intelligence.deterministic.button_path import button_execution_path
 
 
 def test_button_execution_path_synthetic():
@@ -52,12 +53,12 @@ def test_button_execution_path_synthetic():
 def test_button_execution_path_real_sale():
     """Test button_execution_path on real sale_order module."""
     root_dir = Path(__file__).resolve().parent.parent.parent.parent
-    corpus_root = Path("/home/user/odoo-17.0/addons")
+    corpus_root = CORE_ADDONS_PATH
     sale_dir = corpus_root / "sale"
 
     if sale_dir.exists():
         manifest_p = sale_dir / "__manifest__.py"
-        manifest = parse_manifest(manifest_p) if manifest_p.exists() else parse_manifest(Path("/home/user/odoo-17.0/addons") / "miro_ai" / "__manifest__.py")
+        manifest = parse_manifest(manifest_p) if manifest_p.exists() else parse_manifest(CUSTOM_ADDONS_PATH / "miro_ai" / "__manifest__.py")
         mod = ParsedModule(manifest=manifest)
         for py_file in sale_dir.rglob("*.py"):
             mod.models.extend(extract_odoo_models_from_file(py_file))

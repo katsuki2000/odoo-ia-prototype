@@ -18,14 +18,8 @@ from document_rag.vectorstore.chroma_manager import ChromaManager
 
 logger = logging.getLogger(__name__)
 
-# Default roots if none provided. Section 349 (todo/contexte.txt):
-# decision produit permanente -- le scan periodique/demarrage de la
-# branche RAG documentaire ne balaie plus le code par defaut (Code
-# Intelligence s'en charge separement). CODE_DIRS n'est plus importe ici
-# (plus utilise) ; un appelant qui veut toujours scanner du code doit
-# passer des `roots` explicites (ex. import direct de CODE_DIRS depuis
-# ingest_all.py) a run_startup_scan()/run_scheduled_scan()/
-# PeriodicScanScheduler.
+# Default roots if none provided: document RAG is docs-only.
+# Code Intelligence manages code analysis separately.
 from document_rag.ingestion.ingest_all import DOCS_DIR
 DEFAULT_SCAN_ROOTS = [DOCS_DIR]
 

@@ -1,3 +1,4 @@
+from code_intelligence.tests._corpus_paths import CORE_ADDONS_PATH
 """
 code_intelligence/tests/test_a1_2_4.py
 
@@ -65,7 +66,7 @@ def test_form_view_buttons_extraction():
 
 def test_real_xml_sale_order_view():
     """Test parsing form views from real sale_order_views.xml corpus file."""
-    corpus_root = Path("/home/user/odoo-17.0/addons")
+    corpus_root = CORE_ADDONS_PATH
     xml_file = corpus_root / "sale" / "views" / "sale_order_views.xml"
 
     if xml_file.exists():

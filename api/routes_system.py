@@ -25,7 +25,7 @@ def health_check():
 def health_check_v1():
     """V1 health check verifying underlying services."""
     from document_rag.vectorstore.chroma_manager import get_chroma_client
-    from tools.odoo_connector import OdooConnector
+    from erp_data.odoo_connector import OdooConnector
 
     status = {"status": "ok", "services": {}}
 
@@ -74,7 +74,7 @@ def health_check_v1():
 @router.get("/api/v1/modules", response_model=ModuleCoverageResponse)
 def get_modules():
     """Get module coverage data comparing installed Odoo modules against AI capabilities."""
-    from tools.odoo_connector import OdooConnector
+    from erp_data.odoo_connector import OdooConnector
     try:
         connector = OdooConnector()
         uid = connector.authenticate("admin")

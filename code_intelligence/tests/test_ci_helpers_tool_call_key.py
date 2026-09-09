@@ -31,7 +31,7 @@ _tool_call_key()'s own return values, which is what actually needs to stay
 correct for the section 342 fix to hold.
 """
 
-from code_intelligence.ci_helpers import _tool_call_key, _MODEL_KEYED_TOOLS
+from code_intelligence.ci_agent_node.helpers import _tool_call_key, _MODEL_KEYED_TOOLS
 
 
 # ── Model-keyed composite tools (analyze_security_locks, analyze_server_actions,
@@ -69,15 +69,19 @@ class TestModelKeyedTools:
         behave like the key entirely absent, not like a real (tool, '') key."""
         assert _tool_call_key("who_has_access_to", {"model_name": ""}) is None
 
-    def test_all_four_model_keyed_tools_covered(self):
+    def test_all_model_keyed_tools_covered(self):
         """Locks in the exact tool set the dedup scheme applies to --
-        a regression here (e.g. a fifth composite tool added without being
+        a regression here (e.g. a composite tool added without being
         added to _MODEL_KEYED_TOOLS) would silently stop being deduped."""
         assert _MODEL_KEYED_TOOLS == frozenset({
             "analyze_security_locks",
             "analyze_server_actions",
             "who_has_access_to",
             "evaluate_record_rules",
+            "describe_workflow",
+            "trace_full_inheritance",
+            "list_involved_modules",
+            "analyze_data_constraints",
         })
         for tool_name in _MODEL_KEYED_TOOLS:
             key = _tool_call_key(tool_name, {"model_name": "account.move"})
@@ -140,9 +144,6 @@ class TestOutOfScopeTools:
         assert _tool_call_key(
             "button_execution_path", {"model_name": "account.move", "method_name": "action_post"}
         ) is None
-
-    def test_analyze_data_constraints_never_deduped(self):
-        assert _tool_call_key("analyze_data_constraints", {"model_name": "account.move"}) is None
 
     def test_unknown_tool_name_never_deduped(self):
         assert _tool_call_key("some_future_tool", {"model_name": "account.move"}) is None

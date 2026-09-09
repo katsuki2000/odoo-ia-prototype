@@ -15,26 +15,24 @@ from pathlib import Path
 import pytest
 import networkx as nx
 
-from code_intelligence.deterministic_tools import (
-    QueryStatus,
-    trace_full_inheritance,
-    describe_workflow,
-    who_has_access_to,
-    field_change_impact,
-    button_execution_path,
-)
-from code_intelligence.auxiliary_tools import (
+from code_intelligence.deterministic.common import QueryStatus
+from code_intelligence.deterministic.inheritance_chain import trace_full_inheritance
+from code_intelligence.deterministic.workflow_process import describe_workflow
+from code_intelligence.deterministic.access_evaluator import who_has_access_to
+from code_intelligence.deterministic.field_impact import field_change_impact
+from code_intelligence.deterministic.button_path import button_execution_path
+from code_intelligence.ci_agent_node.auxiliary_tools import (
     resolve_technical_name_to_role,
     list_involved_modules,
     explain_decision_path,
     read_precise_source_code,
 )
-from code_intelligence.live_comparator import (
+from code_intelligence.live.comparator import (
     clear_live_cache,
     fetch_live_model_security,
     compare_static_vs_live_rules,
 )
-from code_intelligence.cross_file_resolver import ResolvedSymbolRegistry
+from code_intelligence.graph import ResolvedSymbolRegistry
 from code_intelligence.extractor.xml_extractor import OdooRuleRecord
 
 

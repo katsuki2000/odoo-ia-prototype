@@ -24,12 +24,12 @@ logging.basicConfig(level=logging.INFO, format="%(name)s: %(message)s")
 
 from core.graph import query_graph
 from core.routing import _fold_accents
-from code_intelligence.investigation_plan import (
+from code_intelligence.investigation import (
     concept_suggests_code_intelligence_v2,
     classify_question_intent,
 )
 from code_intelligence.business_resolver import resolve_business_term
-from code_intelligence.ci_graph_loader import get_code_intelligence_graph
+from code_intelligence.graph import get_code_intelligence_graph
 
 QUESTIONS = [
     (

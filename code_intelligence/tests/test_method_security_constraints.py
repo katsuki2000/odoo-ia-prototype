@@ -22,8 +22,8 @@ import textwrap
 import networkx as nx
 import pytest
 
-from code_intelligence.method_override_resolver import analyze_method_override_chain
-from code_intelligence.semgrep_locks_analyzer import (
+from code_intelligence.overrides import analyze_method_override_chain
+from code_intelligence.security import (
     analyze_python_security_locks,
     extract_method_security_constraints,
 )

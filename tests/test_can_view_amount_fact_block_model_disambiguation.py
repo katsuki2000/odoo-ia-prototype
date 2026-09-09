@@ -25,7 +25,7 @@ This file locks:
 """
 import pytest
 
-from code_intelligence.ci_helpers import (
+from code_intelligence.ci_agent_node.helpers import (
     _extract_can_view_amount_fact_block,
     _backfill_missing_can_view_amount_fact,
     _format_can_view_amount_fact,

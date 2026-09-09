@@ -10,8 +10,8 @@ todo/contexte.txt). Behavior unchanged.
 import logging
 import time
 
-from code_intelligence.authorization_gate import gate_observation
-from code_intelligence.ci_helpers import (
+from code_intelligence.security.gate import gate_observation
+from .helpers import (
     _truncate_observation,
     _tool_call_key,
     _question_is_inheritance_related,
@@ -29,7 +29,7 @@ def dispatch_security_locks(ctx: DispatchContext) -> None:
     ):
         return
 
-    from code_intelligence.forced_dispatch_predicates import security_locks_targets
+    from .forced_dispatch_predicates import security_locks_targets
 
     lock_tool = ctx.tool_map.get("analyze_security_locks")
     if lock_tool is None:

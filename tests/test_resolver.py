@@ -4,7 +4,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from code_intelligence.business_resolver import resolve_business_term
-from code_intelligence.ci_graph_loader import get_code_intelligence_graph
+from code_intelligence.graph import get_code_intelligence_graph
 
 print("Loading graph...")
 G = get_code_intelligence_graph()

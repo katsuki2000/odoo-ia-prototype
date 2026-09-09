@@ -15,12 +15,6 @@ from pathlib import Path
 import sys
 from typing import Any, Optional
 
-from document_rag.ingestion.code_loader import (
-    CodeLoader,
-    load_js_directory,
-    load_python_directory,
-    load_xml_directory,
-)
 from document_rag.ingestion.ingest_config import (
     CODE_DIR,
     CODE_DIRS,
@@ -32,13 +26,6 @@ from document_rag.ingestion.ingest_config import (
     PROJECT_ROOT,
     documentary_code_module_dirs,
     setup_ingestion_logging,
-)
-from document_rag.ingestion.ingest_handlers_code import (
-    ingest_code_dir,
-    load_and_ingest_csv,
-    load_and_ingest_js,
-    load_and_ingest_python,
-    load_and_ingest_xml,
 )
 from document_rag.ingestion.ingest_handlers_doc import (
     ingest_documents_dir,
@@ -93,7 +80,7 @@ class IngestionOrchestrator:
         code_dir: Optional[str | Path] = "",
         incremental: bool = False,
     ) -> dict[str, Any]:
-        """Ingest all documents from docs and code directories."""
+        """Ingest all documents from docs directory."""
         docs_dir_path = Path(docs_dir) if str(docs_dir) != "" else None
 
         self.last_docs_dir = docs_dir
@@ -110,24 +97,8 @@ class IngestionOrchestrator:
         else:
             logger.warning(f"Docs directory not found or empty: {docs_dir}")
 
-        if code_dir is None:
-            if not CODE_DIRS:
-                logger.warning(
-                    "Documentary code scope resolved to zero modules (core=%s, "
-                    "custom=%s) -- nothing ingested.", CORE_ADDONS_ROOT, CUSTOM_ADDONS_ROOT,
-                )
-            for mod_dir in CODE_DIRS:
-                logger.info(f"\n[CODE] Loading module '{mod_dir.name}' from {mod_dir}")
-                self._ingest_code_dir(mod_dir)
-        elif str(code_dir) == "":
-            logger.info("Code ingestion explicitly skipped (code_dir='').")
-        else:
-            code_dir_path = Path(code_dir)
-            if code_dir_path.exists():
-                logger.info(f"\n[CODE] Loading from {code_dir_path}")
-                self._ingest_code_dir(code_dir_path)
-            else:
-                logger.warning(f"Code directory not found or empty: {code_dir}")
+        if code_dir:
+            logger.info("Code ingestion skipped (handled by code_intelligence).")
 
         docs_stats = self.docs_manager.get_stats()
         code_stats = self.code_manager.get_stats()
@@ -150,10 +121,6 @@ class IngestionOrchestrator:
         """Ingest PDF, markdown, and text files."""
         ingest_documents_dir(docs_dir, self.docs_manager, self.stats, self.chunk_size, self.chunk_overlap)
 
-    def _ingest_code_dir(self, code_dir: Path) -> None:
-        """Ingest Python, XML, and JS code files."""
-        ingest_code_dir(code_dir, self.code_manager, self.stats, self.chunk_size, self.chunk_overlap)
-
     def _load_and_ingest_pdfs(self, docs_dir: Path, scan_root: Optional[Path] = None) -> None:
         target_mod = sys.modules.get("document_rag.ingestion.ingest_all")
         loader_cls = getattr(target_mod, "PDFLoader", PDFLoader) if target_mod else PDFLoader
@@ -163,26 +130,6 @@ class IngestionOrchestrator:
         target_mod = sys.modules.get("document_rag.ingestion.ingest_all")
         loader_cls = getattr(target_mod, "WikiLoader", WikiLoader) if target_mod else WikiLoader
         load_and_ingest_wiki(loader_cls, self.docs_manager, self.stats, docs_dir, self.chunk_size, self.chunk_overlap, scan_root)
-
-    def _load_and_ingest_python(self, code_dir: Path, scan_root: Optional[Path] = None) -> None:
-        target_mod = sys.modules.get("document_rag.ingestion.ingest_all")
-        loader_cls = getattr(target_mod, "CodeLoader", CodeLoader) if target_mod else CodeLoader
-        load_and_ingest_python(loader_cls, self.code_manager, self.stats, code_dir, self.chunk_size, self.chunk_overlap, scan_root)
-
-    def _load_and_ingest_xml(self, code_dir: Path, scan_root: Optional[Path] = None) -> None:
-        target_mod = sys.modules.get("document_rag.ingestion.ingest_all")
-        loader_cls = getattr(target_mod, "CodeLoader", CodeLoader) if target_mod else CodeLoader
-        load_and_ingest_xml(loader_cls, self.code_manager, self.stats, code_dir, self.chunk_size, self.chunk_overlap, scan_root)
-
-    def _load_and_ingest_js(self, code_dir: Path, scan_root: Optional[Path] = None) -> None:
-        target_mod = sys.modules.get("document_rag.ingestion.ingest_all")
-        loader_cls = getattr(target_mod, "CodeLoader", CodeLoader) if target_mod else CodeLoader
-        load_and_ingest_js(loader_cls, self.code_manager, self.stats, code_dir, self.chunk_size, self.chunk_overlap, scan_root)
-
-    def _load_and_ingest_csv(self, code_dir: Path, scan_root: Optional[Path] = None) -> None:
-        target_mod = sys.modules.get("document_rag.ingestion.ingest_all")
-        loader_cls = getattr(target_mod, "CodeLoader", CodeLoader) if target_mod else CodeLoader
-        load_and_ingest_csv(loader_cls, self.code_manager, self.stats, code_dir, self.chunk_size, self.chunk_overlap, scan_root)
 
     def clear_and_reingest(
         self,
@@ -226,14 +173,10 @@ __all__ = [
     "CODE_DIR",
     "PROJECT_ROOT",
     "PDFLoader",
-    "CodeLoader",
     "WikiLoader",
     "ChromaManager",
     "load_pdf_directory",
     "load_wiki_directory",
-    "load_python_directory",
-    "load_xml_directory",
-    "load_js_directory",
     "resolve_scan_root",
     "documentary_code_module_dirs",
     "setup_ingestion_logging",

@@ -1,17 +1,14 @@
 """
-Test de validation de la réindexation incrémentale ().
+Test de validation de la réindexation incrémentale documentaire.
 
 Couvre :
-1. Modification d'un fichier doc (odoo_docs) — wiki_approbation.txt
-2. Modification d'un fichier code (odoo_code) — stock/barcode.py
-3. Ajout d'un nouveau fichier
-4. Suppression d'un fichier existant
-
-Pour chaque cas : vérifie que seuls les chunks concernés sont régénérés,
-sans affecter les autres sources.
+1. Modification d'un fichier doc texte (odoo_docs) — wiki_approbation.txt
+2. Modification d'un fichier doc markdown (odoo_docs)
+3. Ajout d'un nouveau fichier doc
+4. Suppression d'un fichier doc existant
 
 Usage :
-    python miro-rag/tests/test_incremental.py
+    python tests/manual_check_incremental.py
 """
 
 from __future__ import annotations
@@ -25,15 +22,14 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from document_rag.ingestion.incremental import reindex_if_changed
 from document_rag.vectorstore.chroma_manager import ChromaManager
+from config.settings import RAG_DOCS_PATH
 
-DOCS_DIR = PROJECT_ROOT / "document_rag/fake_data" / "documents"
-CODE_DIR = Path("/home/user/odoo-17.0/addons") if Path("/home/user/odoo-17.0/addons").exists() else PROJECT_ROOT.parent / "addons"
+DOCS_DIR = Path(RAG_DOCS_PATH)
 
 # Fichiers cibles
 DOC_TARGET = DOCS_DIR / "wiki_approbation.txt"
-CODE_TARGET = CODE_DIR / "stock" / "models" / "barcode.py"
-NEW_FILE = CODE_DIR / "stock" / "models" / "_test_temp_new_file.py"
-DELETE_TARGET_SOURCE = CODE_DIR / "stock" / "models" / "res_users.py"  # court, 1 chunk
+NEW_FILE = DOCS_DIR / "_test_temp_new_doc.txt"
+DELETE_TARGET = DOCS_DIR / "_test_temp_doc_to_delete.txt"
 
 
 def get_hashes(manager: ChromaManager, source: str) -> list[str]:
@@ -44,15 +40,14 @@ def get_hashes(manager: ChromaManager, source: str) -> list[str]:
     return sorted(str(m.get("content_hash", "")) for m in results.get("metadatas", []))
 
 
-def sync(docs_manager, code_manager):
+def sync(docs_manager: ChromaManager) -> dict:
     return reindex_if_changed(
-        roots=[DOCS_DIR, CODE_DIR],
+        roots=[DOCS_DIR],
         docs_manager=docs_manager,
-        code_manager=code_manager,
     )
 
 
-def test_modification(manager, target_file: Path, label: str) -> bool:
+def test_modification(manager: ChromaManager, target_file: Path, label: str) -> bool:
     print(f"\n--- Test modification : {label} ({target_file.name}) ---")
     source_str = str(target_file.resolve())
     original = target_file.read_text(encoding="utf-8")
@@ -60,10 +55,9 @@ def test_modification(manager, target_file: Path, label: str) -> bool:
     shutil.copy(target_file, backup)
 
     docs_manager = ChromaManager(collection_name="odoo_docs")
-    code_manager = ChromaManager(collection_name="odoo_code")
 
     try:
-        sync(docs_manager, code_manager)  # référence
+        sync(docs_manager)
         hashes_before = get_hashes(manager, source_str)
 
         target_file.write_text(
@@ -71,7 +65,7 @@ def test_modification(manager, target_file: Path, label: str) -> bool:
             encoding="utf-8",
         )
 
-        result = sync(docs_manager, code_manager)
+        result = sync(docs_manager)
         hashes_after = get_hashes(manager, source_str)
 
         ok = True
@@ -98,21 +92,20 @@ def test_modification(manager, target_file: Path, label: str) -> bool:
     finally:
         shutil.copy(backup, target_file)
         backup.unlink()
-        sync(docs_manager, code_manager)
+        sync(docs_manager)
 
 
 def test_addition() -> bool:
     print(f"\n--- Test ajout : {NEW_FILE.name} ---")
     source_str = str(NEW_FILE.resolve())
     docs_manager = ChromaManager(collection_name="odoo_docs")
-    code_manager = ChromaManager(collection_name="odoo_code")
 
     try:
         NEW_FILE.write_text(
-            "# Fichier temporaire de test\nclass TestModel:\n    pass\n",
+            "Titre du document de test\nContenu temporaire pour le test d'ajout incrémental.\n",
             encoding="utf-8",
         )
-        result = sync(docs_manager, code_manager)
+        result = sync(docs_manager)
 
         ok = True
         if source_str in result["added_files"]:
@@ -131,34 +124,32 @@ def test_addition() -> bool:
     finally:
         if NEW_FILE.exists():
             NEW_FILE.unlink()
-        sync(docs_manager, code_manager)  # nettoie les chunks orphelins de NEW_FILE
+        sync(docs_manager)
 
 
 def test_deletion() -> bool:
-    print(f"\n--- Test suppression : {DELETE_TARGET_SOURCE.name} ---")
-    source_str = str(DELETE_TARGET_SOURCE.resolve())
-    backup = DELETE_TARGET_SOURCE.with_suffix(".py.bak")
-    original = DELETE_TARGET_SOURCE.read_text(encoding="utf-8")
-    shutil.copy(DELETE_TARGET_SOURCE, backup)
-
+    print(f"\n--- Test suppression : {DELETE_TARGET.name} ---")
+    source_str = str(DELETE_TARGET.resolve())
     docs_manager = ChromaManager(collection_name="odoo_docs")
-    code_manager = ChromaManager(collection_name="odoo_code")
 
     try:
-        sync(docs_manager, code_manager)  # référence, fichier présent
-        hashes_before = get_hashes(code_manager, source_str)
+        # Créer et indexer le fichier d'abord
+        DELETE_TARGET.write_text("Document temporaire à supprimer.", encoding="utf-8")
+        sync(docs_manager)
+        hashes_before = get_hashes(docs_manager, source_str)
 
-        DELETE_TARGET_SOURCE.unlink()
-        result = sync(docs_manager, code_manager)
+        # Supprimer le fichier
+        DELETE_TARGET.unlink()
+        result = sync(docs_manager)
 
         ok = True
         if source_str in result["deleted_files"]:
-            print(f"     {DELETE_TARGET_SOURCE.name} détecté comme supprimé")
+            print(f"     {DELETE_TARGET.name} détecté comme supprimé")
         else:
-            print(f"     {DELETE_TARGET_SOURCE.name} PAS détecté comme supprimé")
+            print(f"     {DELETE_TARGET.name} PAS détecté comme supprimé")
             ok = False
 
-        hashes_after = get_hashes(code_manager, source_str)
+        hashes_after = get_hashes(docs_manager, source_str)
         if hashes_before and not hashes_after:
             print(f"     Chunks retirés de ChromaDB ({len(hashes_before)} → 0)")
         else:
@@ -167,32 +158,29 @@ def test_deletion() -> bool:
 
         return ok
     finally:
-        DELETE_TARGET_SOURCE.write_text(original, encoding="utf-8")
-        backup.unlink()
-        sync(docs_manager, code_manager)  # ré-indexe le fichier restauré
+        if DELETE_TARGET.exists():
+            DELETE_TARGET.unlink()
+        sync(docs_manager)
 
 
 def run_all() -> bool:
     print("=" * 60)
-    print("TEST — Réindexation incrémentale (couverture complète)")
+    print("TEST — Réindexation incrémentale documentaire")
     print("=" * 60)
 
+    docs_manager = ChromaManager(collection_name="odoo_docs")
     results = {
-        "modification (doc)": test_modification(
-            ChromaManager(collection_name="odoo_docs"), DOC_TARGET, "doc"
-        ),
-        "modification (code)": test_modification(
-            ChromaManager(collection_name="odoo_code"), CODE_TARGET, "code"
-        ),
-        "ajout": test_addition(),
-        "suppression": test_deletion(),
+        "modification (doc txt)": test_modification(docs_manager, DOC_TARGET, "txt"),
+        "ajout (doc)": test_addition(),
+        "suppression (doc)": test_deletion(),
     }
 
     print("\n" + "=" * 60)
     print("RÉSUMÉ")
     print("=" * 60)
     for name, passed in results.items():
-        print(f"  {'' if passed else ''} {name}")
+        status = "[OK]" if passed else "[FAIL]"
+        print(f"  {status} {name}")
 
     return all(results.values())
 
@@ -200,6 +188,6 @@ def run_all() -> bool:
 if __name__ == "__main__":
     success = run_all()
     print("\n" + "=" * 60)
-    print("RÉSULTAT GLOBAL : " + (" TOUS LES TESTS RÉUSSIS" if success else " AU MOINS UN TEST ÉCHOUÉ"))
+    print("RÉSULTAT GLOBAL : " + ("TOUS LES TESTS RÉUSSIS" if success else "AU MOINS UN TEST ÉCHOUÉ"))
     print("=" * 60)
     sys.exit(0 if success else 1)

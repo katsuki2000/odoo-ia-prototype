@@ -4,8 +4,6 @@ import logging
 import time
 from typing import Optional
 
-from langchain_groq import ChatGroq
-
 from config.settings import GROQ_MODEL
 from core.schemas import AssistantResponse, LLMResponse, SourceReference
 from core.routing import RAGState, _is_out_of_scope, OUT_OF_SCOPE_ANSWER
@@ -26,19 +24,8 @@ from document_rag.generate_helpers import (
 
 logger = logging.getLogger(__name__)
 
-
-def _get_chat_groq():
-    """Return patched ChatGroq if loaded in core.graph, else real ChatGroq."""
-    import sys
-    g = sys.modules.get("core.graph")
-    if g and hasattr(g, "ChatGroq"):
-        return g.ChatGroq
-    return ChatGroq
-
-
-def _build_groq_llm(**kwargs):
-    """Construct an LLM client using the central get_chat_llm factory."""
-    return get_chat_llm(**kwargs)
+# Backward-compatible alias
+_build_groq_llm = get_chat_llm
 
 
 def generate(state: RAGState) -> dict:
@@ -48,7 +35,7 @@ def generate(state: RAGState) -> dict:
     chunks = state["retrieved_chunks"]
     logger.info("Node [generate]: Building prompt and calling LLM")
 
-    from code_intelligence.reasoning_trace_logger import ReasoningTraceLogger, new_trace_id
+    from core.reasoning_trace_logger import ReasoningTraceLogger, new_trace_id
     _trace_id = new_trace_id()
     _trace_logger = ReasoningTraceLogger()
 
@@ -82,7 +69,7 @@ def generate(state: RAGState) -> dict:
         )
         return {"response": response, "raw_answer": response.answer, "timing": timing}
 
-    from core.prompts import build_messages
+    from document_rag.prompts import build_rag_messages as build_messages
 
     alias_map = _build_source_aliases(chunks)
     context_text = ""

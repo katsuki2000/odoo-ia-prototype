@@ -22,11 +22,11 @@ fully-empty branch -- never sourced from account.move alone.
 
 from unittest.mock import patch
 
-from erp_data.odoo_tools import (
+from erp_data.tools.accounting import (
     get_total_invoices_raw,
     get_total_invoices,
-    odoo_uid_ctx,
 )
+from erp_data.odoo_context import odoo_uid_ctx
 from core.evidence import Evidence, EvidenceSourceType
 
 
@@ -34,7 +34,7 @@ def test_global_branch_sums_rows_into_single_evidence():
     """N read_group rows (one per partner) still produce exactly 1
     Evidence -- the Python sum() is the calculation method for the single
     'total' fact the text actually asserts, not a fact-per-row."""
-    with patch("erp_data.odoo_tools.connector.read_group") as mock_rg:
+    with patch("erp_data._odoo_helpers.connector.read_group") as mock_rg:
         mock_rg.return_value = [
             {"partner_id": [1, "Rakoto"], "amount_total": 100.0},
             {"partner_id": [2, "Randria"], "amount_total": 250.0},
@@ -55,7 +55,7 @@ def test_global_branch_sums_rows_into_single_evidence():
 
 
 def test_client_specific_branch_single_result_evidence():
-    with patch("erp_data.odoo_tools.connector.read_group") as mock_rg:
+    with patch("erp_data._odoo_helpers.connector.read_group") as mock_rg:
         mock_rg.return_value = [
             {"partner_id": [1, "Rakoto"], "amount_total": 999.0},
         ]
@@ -77,7 +77,7 @@ def test_client_specific_branch_single_result_evidence():
 def test_ambiguite_branch_produces_no_evidence():
     """No total is ever presented to the user on this branch -- an
     Evidence here would assert a fact the text never actually states."""
-    with patch("erp_data.odoo_tools.connector.read_group") as mock_rg:
+    with patch("erp_data._odoo_helpers.connector.read_group") as mock_rg:
         mock_rg.return_value = [
             {"partner_id": [1, "Rakoto Jean"], "amount_total": 100.0},
             {"partner_id": [2, "Rakoto Paul"], "amount_total": 200.0},
@@ -96,7 +96,7 @@ def test_sale_order_fallback_branch_sources_from_sale_order_not_account_move():
     """The value's real provenance is sale.order -- Evidence.source must
     reflect that, never account.move, even though the text prose does not
     currently render a '[Source: ...]' suffix on this branch."""
-    with patch("erp_data.odoo_tools.connector.read_group") as mock_rg:
+    with patch("erp_data._odoo_helpers.connector.read_group") as mock_rg:
         mock_rg.side_effect = [
             [],  # account.move: empty
             [{"amount_total": 5000.0}],  # sale.order fallback: found
@@ -121,7 +121,7 @@ def test_fully_empty_branch_negative_evidence_has_composite_source():
     account.move alone, which would misrepresent what was actually
     checked (the sale.order attempt is real, even if the text never
     surfaces it as its own fact)."""
-    with patch("erp_data.odoo_tools.connector.read_group") as mock_rg:
+    with patch("erp_data._odoo_helpers.connector.read_group") as mock_rg:
         mock_rg.side_effect = [
             [],  # account.move: empty
             [],  # sale.order fallback: also empty
@@ -145,7 +145,7 @@ def test_fully_empty_branch_no_separate_negative_evidence_for_sale_order():
     """Only 1 Evidence total on this branch -- no second, standalone
     negative Evidence for the sale.order attempt on its own, since the
     final text never surfaces that attempt as a distinct fact."""
-    with patch("erp_data.odoo_tools.connector.read_group") as mock_rg:
+    with patch("erp_data._odoo_helpers.connector.read_group") as mock_rg:
         mock_rg.side_effect = [[], []]
         token = odoo_uid_ctx.set(1)
         try:
@@ -159,7 +159,7 @@ def test_fully_empty_branch_no_separate_negative_evidence_for_sale_order():
 def test_no_confidence_ever_set():
     """B0 decision (core/evidence.py): a deterministic ORM read never
     carries a confidence score, across every branch."""
-    with patch("erp_data.odoo_tools.connector.read_group") as mock_rg:
+    with patch("erp_data._odoo_helpers.connector.read_group") as mock_rg:
         mock_rg.return_value = [{"partner_id": [1, "X"], "amount_total": 1.0}]
         token = odoo_uid_ctx.set(1)
         try:
@@ -171,7 +171,7 @@ def test_no_confidence_ever_set():
 
 
 def test_evidence_scope_carries_execution_identity_not_company_id():
-    with patch("erp_data.odoo_tools.connector.read_group") as mock_rg:
+    with patch("erp_data._odoo_helpers.connector.read_group") as mock_rg:
         mock_rg.return_value = [{"partner_id": [1, "X"], "amount_total": 1.0}]
         token = odoo_uid_ctx.set(42)
         try:
@@ -186,7 +186,7 @@ def test_evidence_scope_carries_execution_identity_not_company_id():
 
 
 def test_tool_wrapper_unchanged_return_contract():
-    with patch("erp_data.odoo_tools.connector.read_group") as mock_rg:
+    with patch("erp_data._odoo_helpers.connector.read_group") as mock_rg:
         mock_rg.return_value = [{"partner_id": [1, "X"], "amount_total": 1.0}]
         token = odoo_uid_ctx.set(1)
         try:
@@ -198,7 +198,7 @@ def test_tool_wrapper_unchanged_return_contract():
 
 
 def test_tool_wrapper_still_catches_connector_exceptions():
-    with patch("erp_data.odoo_tools.connector.read_group") as mock_rg:
+    with patch("erp_data._odoo_helpers.connector.read_group") as mock_rg:
         mock_rg.side_effect = RuntimeError("boom")
         token = odoo_uid_ctx.set(1)
         try:
@@ -210,7 +210,7 @@ def test_tool_wrapper_still_catches_connector_exceptions():
 
 
 def test_raw_propagates_exceptions_without_fabricating_evidence():
-    with patch("erp_data.odoo_tools.connector.read_group") as mock_rg:
+    with patch("erp_data._odoo_helpers.connector.read_group") as mock_rg:
         mock_rg.side_effect = RuntimeError("boom")
         token = odoo_uid_ctx.set(1)
         try:

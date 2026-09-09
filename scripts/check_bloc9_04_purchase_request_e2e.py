@@ -1,48 +1,6 @@
 #!/usr/bin/env python3
 """
-scripts/check_bloc9_04_purchase_request_e2e.py
-
- generalization check, 4/8 -- same method as modules 1/8-3/8 (raw
-composite-tool output isolated from synthesis, then live end-to-end
-through code_intelligence_agent()), applied to the fourth mechanism:
-custom_purchase_request, a hardcoded-email approval bypass on a single
-custom model (Q3.1 of scripts/run_adversarial_benchmark.py).
-
-Ground truth (custom_purchase_request/models/purchase_request.py, read
-directly from disk, not from real / text):
-  - `action_valider`: a requester may validate if EITHER they hold
-    `purchase.group_purchase_manager` OR their login is in the hardcoded
-    `_VALIDATEURS_EXCEPTIONNELS` list (direction@societe.com,
-    daf@societe.com) -- otherwise UserError "Vous n'avez pas le droit de
-    valider cette demande d'achat.".
-  - A SECOND, separate gate on top: if `montant_estime > 10000` AND the
-    requester is NOT one of the hardcoded emails, a second UserError fires
-    ("Au-dela de 10 000 euros, seule la Direction peut valider (liste
-    restreinte).") -- i.e. above 10 000e, `purchase.group_purchase_manager`
-    membership alone is NOT sufficient, only the hardcoded list is. This is
-    the trap: a plausible wrong read of the code is "purchase manager can
-    always validate".
-  - The hardcoded email list is exactly the kind of privileged-access
-    bypass `semgrep_locks_analyzer.py` tags with `SENSITIVE_BYPASS_MARKER`
-    (hardcoded logins) -- distinct from module 1/8's "20000" gap, this
-    module's own dedicated regression is whether the AUTHORIZATION GATE
-     correctly keeps the emails
-    themselves out of an anonymous/ungrouped requester's answer while
-    still surfacing the group name and the 10 000e threshold (governance,
-    never gated) -- exactly the same split the  benchmark rerun
-    already confirmed once for Q3.1 in the general adversarial benchmark
-    ; this script re-checks it
-    with the dedicated raw + business + technical + trap methodology used
-    for the rest of , not just the one fixed benchmark question.
-
-No live Odoo group resolution needed here (same as module 3/8): all
-three questions below run as an anonymous/ungrouped requester
-(state['user_groups'] omitted, same convention as modules 1/8 and 3/8),
-so the hardcoded emails MUST stay masked -- if a run of this script
-generalizes to a group-aware questionnaire later, this file should also
-gain the same "run as a real purchase manager / real Direction member"
-variants module 2/8 built for groups, but that is out of scope for the
-first, ungrouped confirmation pass done here.
+E2E verification for custom_purchase_request authorization bypass.
 """
 
 import re
@@ -54,7 +12,7 @@ project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(project_root))
 
 from core.graph import code_intelligence_agent, get_code_intelligence_graph, query_graph
-from code_intelligence.ci_agent_tools import ALL_CI_TOOLS, set_graph_ref
+from code_intelligence.ci_agent_node.agent_tools import ALL_CI_TOOLS, set_graph_ref
 from code_intelligence.utils import SENSITIVE_BYPASS_MARKER
 
 TARGET_MODEL = "custom.purchase.request"
@@ -177,7 +135,7 @@ def check_raw_tool_output():
     print(result)
     print("-" * 80)
 
-    # Raw tool call bypasses authorization_gate.py entirely (that gating
+    # Raw tool call bypasses security/gate.py entirely (that gating
     # happens in rag/graph.py's forced-dispatch/ReAct wiring, not inside
     # the tool itself) -- so at THIS layer the hardcoded emails and the
     # SENSITIVE_BYPASS_MARKER tag MUST be present, confirming the
@@ -195,7 +153,7 @@ def check_raw_tool_output():
         # dur" (note "privilégies"), and the real source-of-truth tag
         # gating downstream depends on is the shared
         # code_intelligence.utils.SENSITIVE_BYPASS_MARKER constant
-        # ('[CONTOURNEMENT SENSIBLE]', see authorization_gate.py), not this
+        # ('[CONTOURNEMENT SENSIBLE]', see security/gate.py), not this
         # ad hoc substring. Check the actual constant instead of a
         # hand-copied string that had already drifted from it.
         "SENSITIVE_BYPASS_MARKER tag present": SENSITIVE_BYPASS_MARKER,

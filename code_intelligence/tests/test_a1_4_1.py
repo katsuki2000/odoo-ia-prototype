@@ -1,3 +1,4 @@
+from code_intelligence.tests._corpus_paths import CORE_ADDONS_PATH, CUSTOM_ADDONS_PATH
 """
 code_intelligence/tests/test_a1_4_1.py
 
@@ -77,7 +78,7 @@ export class SaleDashboard extends Component {
 def test_end_to_end_a1_module_extraction():
     """Test Task A1.4.2: End-to-end integration test across full A1 extractors (Python, XML, CSV, JS, Manifest)."""
     root_dir = Path(__file__).resolve().parent.parent.parent.parent
-    mod_dir = Path("/home/user/odoo-17.0/addons") / "miro_ai"
+    mod_dir = CUSTOM_ADDONS_PATH / "miro_ai"
 
     if mod_dir.exists():
         manifest_path = mod_dir / "__manifest__.py"

@@ -23,7 +23,7 @@ from pathlib import Path
 import networkx as nx
 import pytest
 
-from code_intelligence.graph_staleness_detector import (
+from code_intelligence.graph.staleness_detector import (
     StalenessLevel,
     STALENESS_LEVEL_FILE,
     STALENESS_LEVEL_EDGE,

@@ -31,7 +31,7 @@ import pytest
 from unittest.mock import patch
 from core.graph import route, _sticky_route_or_default, _VALID_ROUTES
 from core.schemas import QueryRoute
-from code_intelligence.investigation_plan import QuestionIntent
+from code_intelligence.investigation import QuestionIntent
 
 
 def _route_question(question: str, mocked_intent: QuestionIntent, last_route=None, chunks=None) -> str:
@@ -57,7 +57,7 @@ def _route_question(question: str, mocked_intent: QuestionIntent, last_route=Non
         "last_route": last_route,
     }
     with patch(
-        "code_intelligence.investigation_plan.classify_question_intent_llm",
+        "code_intelligence.investigation.classify_question_intent_llm",
         return_value=mocked_intent,
     ):
         return route(state)["route"]

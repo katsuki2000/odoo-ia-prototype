@@ -127,7 +127,7 @@ class TestPDFLoader(unittest.TestCase):
             mock_page.extract_text.return_value = "Sample content " * 50
 
             with patch(
-                "ingestion.pdf_loader.PdfReader", return_value=mock_reader
+                "document_rag.ingestion.pdf_loader.PdfReader", return_value=mock_reader
             ):
                 result = self.loader.load_and_chunk(pdf_path)
 
@@ -170,7 +170,7 @@ class TestPDFLoader(unittest.TestCase):
             mock_page.extract_text.return_value = text
 
             with patch(
-                "ingestion.pdf_loader.PdfReader", return_value=mock_reader
+                "document_rag.ingestion.pdf_loader.PdfReader", return_value=mock_reader
             ):
                 result = self.loader.load_and_chunk(pdf_path)
 
@@ -198,7 +198,7 @@ class TestPDFLoader(unittest.TestCase):
             mock_page.extract_text.return_value = "x" * 10
 
             with patch(
-                "ingestion.pdf_loader.PdfReader", return_value=mock_reader
+                "document_rag.ingestion.pdf_loader.PdfReader", return_value=mock_reader
             ):
                 with patch.object(
                     loader, "_extract_text_via_ocr", return_value="OCR text"
@@ -230,7 +230,7 @@ class TestPDFLoader(unittest.TestCase):
             mock_page.extract_text.return_value = "Sample content. " * 100
 
             with patch(
-                "ingestion.pdf_loader.PdfReader", return_value=mock_reader
+                "document_rag.ingestion.pdf_loader.PdfReader", return_value=mock_reader
             ):
                 result = self.loader.load_and_chunk(pdf_path)
 

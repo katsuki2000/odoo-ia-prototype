@@ -9,8 +9,8 @@ and line references in markdown format [file.py:L12-34](file:///abs/path#L12-L34
 import pytest
 from pathlib import Path
 from code_intelligence.utils import format_file_link
-from code_intelligence.semgrep_locks_analyzer import analyze_python_security_locks
-from code_intelligence.server_action_analyzer import analyze_server_action_code
+from code_intelligence.security import analyze_python_security_locks
+from code_intelligence.server_actions import analyze_server_action_code
 
 
 class TestStructuralSourcing:

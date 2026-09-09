@@ -56,7 +56,7 @@ project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(project_root))
 
 from core.graph import code_intelligence_agent, get_code_intelligence_graph, query_graph
-from code_intelligence.ci_agent_tools import ALL_CI_TOOLS, set_graph_ref
+from code_intelligence.ci_agent_node.agent_tools import ALL_CI_TOOLS, set_graph_ref
 from code_intelligence.utils import SENSITIVE_BYPASS_MARKER
 
 TARGET_MODEL = "custom.asset.loan"
@@ -153,7 +153,7 @@ def check_raw_tool_output():
     # message IS present AND that nothing gets (mis)tagged as a security
     # bypass here. A SENSITIVE_BYPASS_MARKER false positive on a purely
     # relational business rule would itself be a real gating bug (it
-    # would make authorization_gate.py redact legitimate governance
+    # would make security/gate.py redact legitimate governance
     # content for no reason), so this is a genuine negative assertion,
     # not filler.
     checks_present = {

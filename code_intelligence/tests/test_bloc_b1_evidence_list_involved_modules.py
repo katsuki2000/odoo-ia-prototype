@@ -23,7 +23,7 @@ Evidence shape covered:
 
 import networkx as nx
 
-from code_intelligence.auxiliary_tools import (
+from code_intelligence.ci_agent_node.auxiliary_tools import (
     list_involved_modules_with_role,
     list_involved_modules_with_evidence,
 )

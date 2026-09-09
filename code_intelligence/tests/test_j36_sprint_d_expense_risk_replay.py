@@ -1,3 +1,4 @@
+from code_intelligence.tests._corpus_paths import CORE_ADDONS_PATH
 """
 code_intelligence/tests/test_j36_sprint_d_expense_risk_replay.py
 
@@ -20,17 +21,15 @@ from pathlib import Path
 
 import pytest
 
-from code_intelligence.cross_file_resolver import ParsedModule, build_module_symbol_registry
-from code_intelligence.deterministic_tools import (
-    field_change_impact,
-    NOT_FOUND_MARKER,
-)
-from code_intelligence.graph_builder import OdooGraphBuilder
+from code_intelligence.graph import ParsedModule, build_module_symbol_registry
+from code_intelligence.deterministic.field_impact import field_change_impact
+from code_intelligence.deterministic.common import NOT_FOUND_MARKER
+from code_intelligence.graph import OdooGraphBuilder
 from code_intelligence.extractor.manifest_parser import parse_manifest
 from code_intelligence.extractor.python_extractor import extract_odoo_models_from_file
 
 
-ADDONS_PATH = Path("/home/user/odoo-17.0/addons")
+ADDONS_PATH = CORE_ADDONS_PATH
 DATASET_PATH = Path(__file__).resolve().parent.parent / "evaluation" / "test_dataset_expense_risk.json"
 
 EXPENSE_MODULES = [

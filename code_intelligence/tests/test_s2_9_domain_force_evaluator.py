@@ -22,11 +22,8 @@ security_rules.xml (module 08, custom_deep_document), not invented text:
 
 import pytest
 
-from code_intelligence.deterministic_tools import (
-    RuleDetail,
-    RuleEvaluationResult,
-    evaluate_domain_force,
-)
+from code_intelligence.deterministic.record_rules_models import RuleDetail, RuleEvaluationResult
+from code_intelligence.deterministic.domain_evaluator import evaluate_domain_force
 
 
 # ---------------------------------------------------------------------------

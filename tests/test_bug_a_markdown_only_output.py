@@ -17,9 +17,9 @@ cannot verify actual model compliance -- only that the contract is stated.
 """
 import re
 
-from core.prompts import SYSTEM_PROMPT
+from document_rag.prompts import DOCUMENTARY_RAG_SYSTEM_PROMPT
 from core.routing import OUT_OF_SCOPE_ANSWER
-from code_intelligence.ci_helpers import CI_SYSTEM_PROMPT
+from code_intelligence.ci_agent_node.prompts import CI_SYSTEM_PROMPT
 
 
 # A prompt instruction telling the LLM not to use HTML tags, and to use
@@ -33,14 +33,14 @@ _ENGLISH_MARKDOWN_MARKER_RE = re.compile(r"\bMarkdown\b", re.IGNORECASE)
 
 
 def test_documentaire_system_prompt_forbids_raw_html():
-    """core/prompts.py::SYSTEM_PROMPT (documentaire branch, document_rag/generate_node.py)
+    """document_rag/prompts.py::DOCUMENTARY_RAG_SYSTEM_PROMPT (documentaire branch, document_rag/generate_node.py)
     must explicitly instruct the LLM to answer in Markdown only, never raw HTML."""
-    rendered = SYSTEM_PROMPT.format(context="CTX", out_of_scope_answer=OUT_OF_SCOPE_ANSWER)
+    rendered = DOCUMENTARY_RAG_SYSTEM_PROMPT.format(context="CTX", out_of_scope_answer=OUT_OF_SCOPE_ANSWER)
     assert _FRENCH_MARKDOWN_MARKER_RE.search(rendered), (
-        "SYSTEM_PROMPT must instruct the LLM to use Markdown formatting"
+        "DOCUMENTARY_RAG_SYSTEM_PROMPT must instruct the LLM to use Markdown formatting"
     )
     assert _FRENCH_NO_HTML_MARKER_RE.search(rendered), (
-        "SYSTEM_PROMPT must explicitly forbid raw HTML tags in the answer"
+        "DOCUMENTARY_RAG_SYSTEM_PROMPT must explicitly forbid raw HTML tags in the answer"
     )
     # Sanity: the instructional text itself illustrates forbidden tags
     # (e.g. "<strong>") as prose examples -- that's expected and fine, this
@@ -48,7 +48,7 @@ def test_documentaire_system_prompt_forbids_raw_html():
 
 
 def test_code_intelligence_system_prompt_forbids_raw_html():
-    """code_intelligence/ci_helpers.py::CI_SYSTEM_PROMPT (code_intelligence branch)
+    """code_intelligence/ci_agent_node/prompts.py::CI_SYSTEM_PROMPT (code_intelligence branch)
     must carry the same Markdown-only contract -- Bug A was reproduced on
     this branch too (todo/contexte.txt section 378)."""
     assert _ENGLISH_MARKDOWN_MARKER_RE.search(CI_SYSTEM_PROMPT)
@@ -56,24 +56,21 @@ def test_code_intelligence_system_prompt_forbids_raw_html():
 
 
 def test_donnees_erp_and_hybride_prompts_forbid_raw_html():
-    """erp_data/orm_agent_node.py's local system_prompt (donnees_erp branch)
-    and combine_prompt (hybride branch) are built inline inside their
-    respective functions rather than as importable module-level constants
-    -- read the source directly and assert the instruction text is present,
-    rather than re-deriving the prompts by re-implementing the function
-    bodies (which would just duplicate the source instead of testing it)."""
+    """erp_data/prompts.py's ORM_AGENT_SYSTEM_PROMPT (donnees_erp branch)
+    and build_hybrid_combine_prompt (hybride branch) must carry the
+    Markdown-only / no-HTML contract (todo/contexte.txt section 382)."""
     import inspect
-    from erp_data import orm_agent_node
+    from erp_data import prompts
 
-    source = inspect.getsource(orm_agent_node)
+    source = inspect.getsource(prompts)
 
-    # Both inline prompts (orm_agent_loop's system_prompt, hybrid_node's
-    # combine_prompt) were extended with the same Markdown-only / no-HTML
-    # instruction text (section 382) -- assert it appears at least twice
-    # (once per prompt) rather than pinning down the exact prompt boundary.
+    # Both prompts (orm_agent_loop's system_prompt and hybrid_node's
+    # combine_prompt) are housed in erp_data/prompts.py with the Markdown-only
+    # / no-HTML instruction text (section 382) -- assert it appears at least
+    # twice (once per prompt).
     occurrences = source.count("balise HTML brute")
     assert occurrences >= 2, (
         "Expected the Markdown-only / no-raw-HTML instruction in both "
-        "orm_agent_loop's system_prompt and hybrid_node's combine_prompt "
-        f"(erp_data/orm_agent_node.py) -- found {occurrences} occurrence(s)."
+        "ORM_AGENT_SYSTEM_PROMPT and build_hybrid_combine_prompt "
+        f"(erp_data/prompts.py) -- found {occurrences} occurrence(s)."
     )

@@ -1,3 +1,4 @@
+from code_intelligence.tests._corpus_paths import CORE_ADDONS_PATH
 """
 code_intelligence/tests/test_a1_3_1.py
 
@@ -74,7 +75,7 @@ access_test,test.access,model_test_model,base.group_system,1,1,1,1
 
 def test_real_csv_account_access():
     """Test parsing real account/security/ir.model.access.csv file."""
-    corpus_root = Path("/home/user/odoo-17.0/addons")
+    corpus_root = CORE_ADDONS_PATH
     csv_file = corpus_root / "account" / "security" / "ir.model.access.csv"
 
     if csv_file.exists():

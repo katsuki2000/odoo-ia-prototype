@@ -12,7 +12,7 @@ from core.evidence_sufficiency import (
     EvidenceSufficiencyStatus,
     assess_evidence_sufficiency,
 )
-from code_intelligence.deterministic_tools import NOT_FOUND_MARKER
+from code_intelligence.deterministic.common import NOT_FOUND_MARKER
 
 
 def test_canned_no_data_answer_is_insufficient():

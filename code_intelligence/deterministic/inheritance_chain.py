@@ -11,7 +11,7 @@ from typing import Dict, List, Set
 import networkx as nx
 
 from code_intelligence.deterministic.common import NOT_FOUND_MARKER, QueryStatus
-from code_intelligence.semantic_tag_query import tags_for_node_attrs
+from code_intelligence.ontology.query import tags_for_node_attrs
 from core.evidence import Evidence, EvidenceSourceType, make_evidence
 
 
@@ -156,7 +156,7 @@ def trace_full_inheritance(
 
     filepaths = G.nodes[model_node].get("filepaths", [])
     if filepaths:
-        from code_intelligence.ci_agent_tools import _is_custom_module_filepath
+        from code_intelligence.ci_agent_node.agent_tools import _is_custom_module_filepath
         sorted_filepaths = sorted(filepaths, key=lambda f: not _is_custom_module_filepath(f))
         src_links = []
         for fp in sorted_filepaths:

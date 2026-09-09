@@ -41,7 +41,7 @@ def _get_admin_rpc_client():
         _ADMIN_RPC_UID = None
 
     if _ADMIN_RPC_CLIENT is None:
-        from code_intelligence.odoo_rpc_client import OdooRpcClient
+        from code_intelligence.live.rpc_client import OdooRpcClient
         client = OdooRpcClient()
         _ADMIN_RPC_UID = client.authenticate_admin()
         _ADMIN_RPC_CLIENT = client

@@ -5,7 +5,7 @@ Unit tests for J14 Sourcing Guard (code_intelligence/sourcing_guard.py).
 Mechanically verifies file citation ranges, bare file links, and xml_id citations.
 """
 
-from code_intelligence.sourcing_guard import (
+from code_intelligence.ci_agent_node.sourcing_guard import (
     verify_citations,
     annotate_unverifiable_citations,
 )

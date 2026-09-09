@@ -1,1099 +1,5 @@
 # Log of Changes and Modifications
 
-
-
-## Section 563 : Bloc P3.1 -- Validation complete du module database_cleanup (DC-Q1 a DC-Q5) : detection AccessDenied/AccessError, decouverte d'heritage abstrait, extraction de filtres statiques blacklist et enrichissement des contraintes (2026-09-06)
-
-Le module 7 du banc OCA Bloc P3.1 (`database_cleanup`, server-tools) a ete entierement audite et valide sur les 5 dimensions (Securite, Workflow, Heritage, UI, Contraintes).
-
-### Ameliorations architecturales implementees :
-
-1. **Detection robuste de AccessDenied / AccessError et `self.env.ref("group_...")` (`semgrep_locks_analyzer.py`)** :
-   - Prise en charge des exceptions de securite `AccessDenied` et `AccessError` levees en tant qu'identifiants directs (`ast.Name`) ou instanciations (`ast.Call`).
-   - Analyse AST des appels a `self.env.ref("...")` referencant des XML IDs de groupes de securite (ex: `base.group_erp_manager` dans `create()` de `purge_wizard.py:L1-L91`), enregistrant les groupes requis au niveau de la methode.
-
-2. **Resolution des fichiers sources par heritage abstrait (`ci_agent_tools.py`)** :
-   - Mise a jour de `find_model_source_filepaths` pour traverser les relations `EXTENDS` du graphe de connaissances, permettant aux modeles transients heritant de classes abstraites (`cleanup.purge.wizard.model` -> `cleanup.purge.wizard`) d'inclure les fichiers sources de la classe parente (`purge_wizard.py`).
-
-3. **Plages de lignes exactes et liens de citation pour les menus XML (`deterministic_tools.py`)** :
-   - `button_execution_path` extrait precisement les balises `<record id="...">` a `</record>` pour les menus et actions XML, generant des citations exactes avec plage de lignes (`[menu.xml:L3-L9](file://...)`), eliminant ainsi les avertissements de citations non verifiees.
-
-4. **Resolution de la ligne de declaration de classe dans `trace_full_inheritance` (`deterministic_tools.py`)** :
-   - `trace_full_inheritance` localise la ligne exacte de declaration de classe (`Declared in: [filename:Lstart-Lend](...)`), avec lecture automatique du code source environnant dans `ci_agent_node.py` et suppression des sauts redondants vers `list_involved_modules`.
-
-5. **Extraction statique AST des filtres d'exclusion et listes noires (`data_constraints_analyzer.py`, `semgrep_locks_analyzer.py`)** :
-   - Extraction des dictionnaires/listes statiques d'exclusion (`blacklist`, `whitelist`, `exclude`, `excluded`, `sensitive`) definis au niveau classe ou module (ex: `CleanupPurgeWizardColumn.blacklist` dans `purge_columns.py:L69-L73`).
-   - Enregistrement sous l'identifiant `odoo-static-exclusion-filter` dans `DataConstraintsAnalysis` et hierarchisation prioritaire dans le synthese de contraintes.
-   - Declenchement automatique de `read_source_code` autour des filtres statiques dans le pre-dispatch deterministe de `ci_agent_node.py`, fournissant au LLM la logique complete d'utilisation (ex: `get_orphaned_columns()`).
-
-6. **Generalisation de la detection des questions de contraintes (`ci_helpers.py`)** :
-   - Extension du motif `_CONSTRAINTS_QUESTION_PATTERN` pour autoriser des syntagmes nominaux intercalaires (`empeche l'assistant de proposer ...`), garantissant l'activation du pre-dispatch de contraintes sur les formulations indirectes.
-
-### Bilan module database_cleanup (Bloc P3.1) :
-- DC-Q1 (Securite : groupe requis reel malgre perm_create=1 dans ir.model.access.csv) : VALIDE (100%, 3.2s, Confiance 1.0)
-- DC-Q2 (Workflow : critere de proposition orpheline et UserError si vide) : VALIDE (100%, 14.7s, Confiance 1.0)
-- DC-Q3 (Heritage : reutilisation de cleanup.purge.line et modification de ir.model/ir.model.fields) : VALIDE (100%, 20.7s, Confiance 1.0)
-- DC-Q4 (UI : visibilite menu_database_cleanup vs verrou Python create()) : VALIDE (100%, 8.8s, Confiance 1.0)
-- DC-Q5 (Contraintes : CleanupPurgeWizardColumn.blacklist excluant res_users.password) : VALIDE (100%, Confiance 1.0)
-
-**Bilan cumule Bloc P3.1 (7/10 modules, 35/50 questions)** :
-- Module 1 `purchase_request` : 5/5 (100%)
-- Module 2 `animal` : 5/5 (100%)
-- Module 3 `base_tier_validation` : 5/5 (100%)
-- Module 4 `stock_inventory` : 5/5 (100%)
-- Module 5 `sale_order_type` : 5/5 (100%)
-- Module 6 `account_invoice_section_sale_order` : 5/5 (100%)
-- Module 7 `database_cleanup` : 5/5 (100%)
-- Total valide : 35/35 questions traitees (100% succes)
-
-**Prochaine etape** : Passer au module 8 du banc P3.1 : module `stock_archive_constraint` (questions SAC-Q1 a SAC-Q5).
-
-## Section 564 - Validation complete du module 8 (stock_archive_constraint) du banc P3.1 (8/10 modules, 40/50 questions)
-
-### Correctifs architecturaux et ameliorations realises :
-1. **Filtrage des adjectifs qualificatifs dans l'extraction d'identifiants UI (`_UI_NAME_STOPWORDS` dans `ci_agent_node.py`)** :
-   - Les formulations comme "bouton visible", "champ specifique" ou "bouton nouveau" provoquaient la capture erronee d'adjectifs ("visible", "specifique") comme noms d'elements d'interface.
-   - Ajout d'une table exhaustive `_UI_NAME_STOPWORDS` (visible, invisible, specifique, particulier, dedie, nouveau, ajoute, cree, supplementaire, personnalise, existant, present, special, custom, new, etc.) invalidant les fausses correspondances.
-
-2. **Fiabilisation de `button_execution_path` (`deterministic_tools.py`) en cas d'absence d'element** :
-   - Auparavant, lorsque ni transition, ni bouton, ni methode, ni injection dynamique, ni menu ne correspondait, le resume affichait faussement `Calls 'action_{identifiant}()'`, induisant le LLM en erreur.
-   - Correction : emission d'un statut explicite de non-existence (`Neither button declaration nor method found in knowledge graph`) et etapes d'execution reflectant la recherche infructueuse.
-
-3. **Pre-dispatch deterministe pour l'inspection UI au niveau module (`ci_agent_node.py`)** :
-   - Pour les questions portant sur la presence de vues ou boutons au niveau module, declenchement coordonne de `list_involved_modules(t_mod)` et lecture de `__manifest__.py`.
-   - Verification structurelle du systeme de fichiers de l'addon : notification explicite lorsque le dossier `views/` est absent et qu'aucune vue XML n'est declaree dans le manifeste.
-
-4. **Priorisation des modules custom/OCA dans le tri des chemins de `trace_full_inheritance` (`ci_agent_node.py`)** :
-   - Utilisation de `_is_custom_module_filepath(fp)` pour trier les fichiers sources par ordre de pertinence, placant les modeles de l'addon OCA cible (`stock_archive_constraint/models/...`) en tete de traitement plutot que les extensions Odoo core (`addons/account/...`).
-   - Economie du budget de sauts (`hop_count`) lors de la lecture automatique de code source consecutive au tracing d'heritage, permettant l'exploration complete de plusieurs modeles cibles (`product.product` et `stock.location`).
-
-5. **Securisation des frontieres de mots du Link Guard (`ci_helpers.py`)** :
-   - Remplacement de la detection brute par sous-chaine par une expression reguliere a frontiere de mots `rf"\b{re.escape(g.lower())}\b"`, eliminant les faux positifs sur les mots francais contenant 'res' (ex: restriction, responsabilite, resultat).
-
-### Bilan module stock_archive_constraint (Bloc P3.1) :
-- SAC-Q1 (Securite : absence d'ACL / ir.rule specifiques sur product.product et stock.location) : VALIDE (100%, Confiance 1.0)
-- SAC-Q2 (Workflow : declenchement a l'ecriture write({'active': False}) via @api.constrains) : VALIDE (100%, Confiance 1.0)
-- SAC-Q3 (Heritage : extension pure _inherit de 2 modeles standard, 0 nouveau modele, 7 methodes) : VALIDE (100%, Confiance 1.0)
-- SAC-Q4 (UI : absence de dossier views/ et de bouton visible directement dans l'interface) : VALIDE (100%, Confiance 1.0)
-- SAC-Q5 (Contraintes : 3 verifications quants/moves/move_lines et duplication miroir sur stock.location) : VALIDE (100%, Confiance 1.0)
-
-**Bilan cumule Bloc P3.1 (8/10 modules, 40/50 questions)** :
-- Module 1 `purchase_request` : 5/5 (100%)
-- Module 2 `animal` : 5/5 (100%)
-- Module 3 `base_tier_validation` : 5/5 (100%)
-- Module 4 `stock_inventory` : 5/5 (100%)
-- Module 5 `sale_order_type` : 5/5 (100%)
-- Module 6 `account_invoice_section_sale_order` : 5/5 (100%)
-- Module 7 `database_cleanup` : 5/5 (100%)
-- Module 8 `stock_archive_constraint` : 5/5 (100%)
-- Total valide : 40/40 questions traitees (100% succes)
-
-**Prochaine etape** : Passer au module 9 du banc P3.1 : module `auditlog` (questions AL-Q1 a AL-Q5).
-
-## Section 565 - Validation complete du module 9 (auditlog) du banc P3.1 (9/10 modules, 45/50 questions)
-
-### Correctifs architecturaux et ameliorations realises :
-1. **Scoring et priorisation des correspondances exactes dans `button_execution_path` (`deterministic_tools.py`)** :
-   - Auparavant, la recherche par sous-chaine brute `in` permettait a un bouton comme `unsubscribe` d'ecraser un bouton `subscribe` lorsque le nom etait contenu dans l'autre.
-   - Mise en place d'un systeme de scoring deterministe a 3 niveaux (3=exact match nom/label, 2=label/methode contient la cible, 1=cible contient le label/methode), garantissant que les correspondances exactes ont une priorite absolue sur les sous-chaines.
-
-2. **Injection du lien source exact de methode dans `button_execution_path` (`deterministic_tools.py`)** :
-   - Lorsque la methode Python appelee par le bouton existe dans le graphe, emission du lien de source exacte `[rule.py:L766-L784](file:///...#L766-L784)` dans les etapes d'execution et le resume.
-   - Declenchement automatique downstream de `read_source_code` dans `ci_agent_node.py` (L1057), fournissant au LLM le corps complet de la methode executee (ex: creation du raccourci `ir.actions.act_window` ("View logs") et ecriture de `state='subscribed'` dans `subscribe()`).
-
-3. **Expansion lexicale bilingue dans le classement de modeles (`ci_helpers.py`)** :
-   - Dans `_rank_and_cap_resolved_models`, les noms de modeles techniques anglophones sont augmentes de leurs equivalents francophones metier (`rule` -> `regle règle`, `log` -> `journal logs audit`, `move` -> `mouvement`, `user` -> `utilisateur`, etc.).
-   - Empeche l'eviction de modeles pertinents (ex: `auditlog.rule`) lors du plafonnement a `MAX_MODELS_PER_QUERY` quand la question est formulee en francais ("regle d'audit").
-
-4. **Enrichissement de `BUSINESS_ALIASES` pour les modules auditlog et kpi (`business_resolver.py`)** :
-   - Ajout d'alias fonctionnels complets pour `auditlog` : `regle d'audit`, `règle d'audit`, `audit rule`, `journalisation`, `log d'audit`, `modele audite`, `modèles audités` -> `auditlog.rule`, `auditlog.log`.
-   - Ajout d'alias fonctionnels pour `kpi` : `kpi`, `indicateur`, `indicateurs`, `valeur d'un kpi`, `calculer un kpi` -> `kpi`.
-
-### Bilan module auditlog (Bloc P3.1) :
-- AL-Q1 (Securite : permission CREATE refusee a group_auditlog_user, reservee a manager/system) : VALIDE (100%, Confiance 1.0)
-- AL-Q2 (Workflow : clic sur Subscribe, creation ir.actions.act_window View logs et bascule subscribed) : VALIDE (100%, Confiance 1.0)
-- AL-Q3 (Heritage : aucun _inherit classique sur les modeles audites, patch dynamique en memoire) : VALIDE (100%, Confiance 1.0)
-- AL-Q4 (UI : visibilite du champ action_id restreinte au groupe base.group_no_one) : VALIDE (100%, Confiance 1.0)
-- AL-Q5 (Contraintes : unicite unique(model_id) via _sql_constraints sur auditlog.rule) : VALIDE (100%, Confiance 1.0)
-
-**Bilan cumule Bloc P3.1 (9/10 modules, 45/50 questions)** :
-- Module 1 `purchase_request` : 5/5 (100%)
-- Module 2 `animal` : 5/5 (100%)
-- Module 3 `base_tier_validation` : 5/5 (100%)
-- Module 4 `stock_inventory` : 5/5 (100%)
-- Module 5 `sale_order_type` : 5/5 (100%)
-- Module 6 `account_invoice_section_sale_order` : 5/5 (100%)
-- Module 7 `database_cleanup` : 5/5 (100%)
-- Module 8 `stock_archive_constraint` : 5/5 (100%)
-- Module 9 `auditlog` : 5/5 (100%)
-- Total valide : 45/45 questions traitees (100% succes)
-
-## Section 566 - Validation complete du module 10 (kpi) et cloture a 100% du banc Bloc P3.1 (10/10 modules, 50/50 questions)
-
-### Correctifs architecturaux et ameliorations realises :
-1. **Prise en charge complete des actions planifiees ir.cron dans l'extracteur XML et le graphe (`xml_extractor.py`, `graph_builder.py`)** :
-   - En Odoo 17, `ir.cron` herite d'`ir.actions.server`. `xml_extractor.py` a ete etendu pour extraire a la fois `ir.actions.server` et `ir.cron`, en capturant les attributs specifiques `action_type="cron"`, `user_id`, `interval_number` et `interval_type`.
-   - `graph_builder.py` cree desormais des noeuds `ServerAction` enrichis avec ces metadonnees et lie les crons a leurs modeles cibles via `TARGETS_MODEL`.
-   - Ajout de l'attribut `end_lineno` sur les noeuds `Method` dans `graph_builder.py` pour un scoping precis des fonctions Python.
-
-2. **Formatage et analyse statique enrichie des actions planifiees (`server_action_analyzer.py`)** :
-   - `analyze_server_action_code` accepte desormais les parametres `action_type`, `action_name`, `user_id`, `interval_number` et `interval_type`.
-   - Emission structuree des details du cron (periodicite, utilisateur d'execution et droits superutilisateur/root `base.user_root`, code Python execute).
-   - Nettoyage des emojis residuels sur les conditions de declenchement pour stricte conformite avec la Regle 7.
-
-3. **Chaine d'appels de methodes et sous-methodes Python dans `analyze_server_actions` (`ci_agent_tools.py`)** :
-   - Lorsqu'une action serveur ou un cron invoque `model.<methode>()` (ex: `model.update_kpi_value()`), le tool resout la methode cible dans le graphe et emet son lien source cliquable `(Defined at [kpi.py:L209-L229])`.
-   - Inspection recursive jusqu'a la profondeur 2 pour deceler les sous-methodes appelees sur `obj`/`self`/`record` (`update_kpi_value -> compute_kpi_value -> _get_kpi_value`), tracant automatiquement la totalite du flux d'execution.
-
-4. **Pre-dispatch deterministe elargi aux taches periodiques et lecture automatique du code source (`ci_helpers.py`, `ci_agent_node.py`)** :
-   - Extension de `_AUTOMATION_PATTERN` dans `ci_helpers.py` pour reconnaitre les termes `periodiq*`, `cron`, `planifie*`, `scheduler`, `recalcul*`.
-   - Injection de la detection automatique des liens de code source `(Defined at ...)` dans le bloc de pre-dispatch de `analyze_server_actions` dans `ci_agent_node.py`, alimentant directement le LLM avec le corps des methodes executees sans gaspillage de tours ReAct.
-
-5. **Clarification de la nature du modele (mixins techniques vs modeles metier) dans `trace_full_inheritance` (`deterministic_tools.py`)** :
-   - Distingue explicitement les mixins abstraits (`mail.thread`, `mail.activity.mixin`, `*.mixin`) des extensions de modeles metier standards.
-   - Si un modele declare son propre `_name` avec uniquement des mixins en `_inherit`, le tool indique explicitement : `Nature: Nouveau modele declarant son propre _name='...' avec mixins techniques uniquement, pas d'extension d'un modele metier existant`.
-   - Evite le piege classique d'assimilation des mixins a une extension d'un modele standard.
-
-### Bilan module kpi (Bloc P3.1) :
-- KPI-Q1 (Securite : modification de kpi_code reservee au groupe kpi.group_kpi_manager) : VALIDE (100%, Confiance 1.0)
-- KPI-Q2 (Workflow : recalcul periodique via ir.cron ir_cron_kpi_action sous base.user_root) : VALIDE (100%, Confiance 1.0)
-- KPI-Q3 (Heritage : nouveau modele avec mixins techniques uniquement, aucun modele metier etendu) : VALIDE (100%, Confiance 1.0)
-- KPI-Q4 (UI : visibilite de kpi_code restreinte par page Computation portant groups=kpi.group_kpi_manager) : VALIDE (100%, Confiance 1.0)
-- KPI-Q5 (Contraintes : regex RE_SELECT_QUERY / is_sql_or_ddl_statement empechant requetes destructives) : VALIDE (100%, Confiance 1.0)
-
----
-
-### Bilan final complet du Banc OCA Bloc P3.1 (10/10 modules, 50/50 questions - 100% SUCCES) :
-1. Module 1 `purchase_request` (purchase-workflow) : 5/5 validees (100%)
-2. Module 2 `animal` (partner-contact-management) : 5/5 validees (100%)
-3. Module 3 `base_tier_validation` (server-ux) : 5/5 validees (100%)
-4. Module 4 `stock_inventory` (stock-logistics-warehouse) : 5/5 validees (100%)
-5. Module 5 `sale_order_type` (sale-workflow) : 5/5 validees (100%)
-6. Module 6 `account_invoice_section_sale_order` (account-invoicing) : 5/5 validees (100%)
-7. Module 7 `database_cleanup` (server-tools) : 5/5 validees (100%)
-8. Module 8 `stock_archive_constraint` (stock-logistics-warehouse) : 5/5 validees (100%)
-9. Module 9 `auditlog` (server-tools) : 5/5 validees (100%)
-10. Module 10 `kpi` (reporting-engine) : 5/5 validees (100%)
-
-Total global : 50 questions sur 50 validees avec une confiance de 1.0 et conformite complete avec les verifications et references architecturales.
-
-## Section 567 - Mise a jour plan.md suite a la cloture reelle du banc P3.1 (mandat pmm)
-
-Constat : `plan.md` (note de cloture du Bloc P3, 04/09) documentait encore P3.1 comme "execution reelle des 50 questions... reste a faire", perime depuis les sections 564-566 (banc complet 50/50, 100%). Mandat pmm : mettre plan.md a jour pour refleter cet etat reel, sans autre modification.
-
-Action : ajout d'un statut explicite P3.1 CLOS sous la note de cloture du Bloc P3 dans `plan.md`, referencant les sections 564-566 (10/10 modules, 50/50 questions, 100% succes, confiance 1.0), et remplacement de la phrase "execution reelle... reste a faire" par la confirmation de cloture.
-
-## Section 568 - Mandat pmm : mise en pause explicite des Blocs P4, P5 et 16
-
-Mandat pmm : les Blocs P4 (Inference locale, bloque materiel, rien entame), P5 (Vrai code MiroKE, bloque par l'acces a l'instance/corpus reel, rien entame) et 16 (Memoire -- redaction/consolidation/soutenance, pas commence) doivent etre mis de cote pour l'instant. pmm indiquera explicitement quand il sera pret a les reprendre -- aucune reprise autonome de ces 3 blocs sans nouveau mandat.
-
-Action : annotation de `plan.md` sur ces 3 blocs (statut EN PAUSE / mis de cote sur mandat pmm, pas de travail a entreprendre dessus jusqu'a nouvel ordre), sans suppression du contenu existant.
-
-## Section 569 - H2 (active_model/active_id) : diagnostic complet par lecture seule -- chaine de propagation cassee a 4 points distincts, dont un contournement texte-libre deja en place cote frontend. AUCUN code touche ce tour (2026-09-07)
-
-**Origine** : mandat pmm de reprendre H2 ("Tester active_model/active_id", plan.md, statut "Non valide"). Aucune trace de H2 dans le journal (grep vide sur active_model/active_id avant ce tour) -- terrain vierge, confirme par lecture directe du code plutot que par hypothese.
-
-**Chaine tracee de bout en bout, 4 points de rupture confirmes** :
-1. `odoo_addons/miro_ai/static/src/js/miro_ai.js::MiroAiSystray` -- `detectActiveContext()` existe deja et capture `controller.action.res_model`/`res_id` via `actionService.currentController` a l'ouverture du tiroir systray (`activeModelContext` dans le state). MAIS `sendMessage()` ne l'envoie jamais comme champ structure : il est concatene comme PREFIXE TEXTE LIBRE dans la question elle-meme (`"[Contexte: modele ${ctxModel}] " + question`), uniquement si le nom du modele n'apparait pas deja litteralement dans le texte. Contournement fragile deja en place, pas une absence totale de signal -- mais illisible pour tout composant deterministe en aval (business_resolver, classify_question_intent) qui ne voit qu'un prefixe textuel parmi d'autres mots.
-2. `odoo_addons/miro_ai/controllers/main.py::ask()` -- signature `(self, question=None, session_id=None, **kwargs)` : aucun parametre `active_model`/`active_id` accepte ni transmis dans le `payload` envoye au backend FastAPI (seuls `question`, `session_id`, `user_uid`, `company_id`, `groups`).
-3. `api/main.py::AskRequestV1` (Pydantic) -- aucun champ `active_model`/`active_id` ; `ask_question_v1()` n'appelle `query_graph()` qu'avec `question`/`chat_history`/`uid`/`api_key`/`user_groups`/`skills`/`last_route`/`last_resolved_concept`.
-4. `core/graph.py::query_graph()` -- signature et `initial_state` du graphe LangGraph ne portent aucun champ `active_model`/`active_id` ; rien a consommer meme si les 3 points precedents etaient corriges.
-
-**Conclusion du diagnostic** : H2 n'est pas seulement "non teste", c'est un vrai trou structurel confirme sur toute la chaine (frontend -> controleur Odoo -> API FastAPI -> graphe LangGraph). Le seul signal existant aujourd'hui est le contournement texte-libre du point 1, deja fragile par construction (heuristique "si le nom du modele n'apparait pas deja dans la question", aucune garantie que le LLM/le business_resolver en tienne compte de maniere fiable).
-
-**Non fait ce tour** : aucun design de correctif propose, aucun code touche -- lecture seule, diagnostic uniquement, conforme a la regle "pas de fix chirurgical, voir la root cause" (implique ici d'attendre une decision de perimetre avant tout dryRun, vu que 4 fichiers/composants distincts sont impliques).
-
-**Fichiers lus (aucun modifie)** : `odoo_addons/miro_ai/static/src/js/miro_ai.js`, `odoo_addons/miro_ai/controllers/main.py`, `api/main.py`, `core/graph.py`.
-
-**Prochaine etape** : mandat pmm sur le perimetre et la conception avant tout dryRun -- (a) quels appelants doivent propager active_model/active_id (systray uniquement, ou aussi l'assistant plein-ecran qui n'a actuellement AUCUNE detection de contexte, meme pas le contournement texte-libre du systray) ; (b) remplacer le contournement texte-libre existant par un champ structure de bout en bout, ou le conserver en complement ; (c) ce que le backend doit en faire concretement (business_resolver ? pre-dispatch deterministe ? juste un signal de confiance supplementaire pour route()/classify_question_intent() ?) -- lie a la motivation H2 du plan ("Semantic Understanding en entree, Couche 4 -- Runtime Odoo en aval").
-
-## Section 570 - Mandat pmm : SUPPRIMER l'assistant plein-ecran, FOCUS H2 sur le systray uniquement (2026-09-07)
-
-**Mandat pmm (reponse au point (a) de la section 569)** : supprimer entierement l'assistant plein-ecran (`MiroAiAssistant`, action client `miro_ai.action_assistant`) -- ne pas le garder en parallele. H2 (active_model/active_id) se concentre desormais exclusivement sur le systray (`MiroAiSystray`), seul point d'entree restant.
-
-**Perimetre de suppression identifie par lecture (avant tout diff)** :
-1. `odoo_addons/miro_ai/static/src/js/miro_ai.js` -- classe `MiroAiAssistant` entiere (setup, startNewConversation, toggleHistory, loadSessions, loadSession, onKeyDown, getRouteBadgeClass, getRouteLabel, getConfidencePercent, cancelRequest, sendMessage) + son `registry.category("actions").add("miro_ai.action_assistant", MiroAiAssistant)`. Fonctions partagees (`formatMarkdown`, `createMessage`, `buildMessagesFromHistory`, `formatSessionDate`, `applyBrandColorFromHeader`, `isRequestCancelled`) conservees -- utilisees aussi par `MiroAiSystray`.
-2. `odoo_addons/miro_ai/static/src/xml/miro_ai_assistant.xml` -- bloc `<t t-name="miro_ai.AssistantClientAction">` entier (section 1 du fichier) retire ; bloc `<t t-name="miro_ai.SystrayItem">` (section 2) conserve intact.
-3. `odoo_addons/miro_ai/views/miro_ai_menus.xml` -- record `action_miro_ai_assistant` (ir.actions.client) et menuitem `menu_miro_ai_chat` ("Discussion Assistant") retires. Menu racine `menu_miro_ai_root` conserve (porte toujours Journal des requetes + Configuration).
-
-**Verification faite avant diff** : aucune reference a `action_miro_ai_assistant`/`MiroAiAssistant`/`AssistantClientAction` trouvee ailleurs dans le module (`security/miro_ai_security.xml`, `security/ir.model.access.csv`, `__manifest__.py` -- ce dernier reference les fichiers JS/XML par chemin, pas par nom de classe/template interne, donc aucun changement necessaire cote manifest) ni dans `tests/` (aucun test pytest ne couvre l'UI Odoo cote frontend/JS, hors perimetre des suites existantes). Suppression donc localisee a ces 3 fichiers, sans effet de bord attendu sur le reste du projet.
-
-**Non fait ce tour** : aucun dryRun encore soumis -- ce message journalise le perimetre exact avant de le faire, conformement a la regle "journal avant de toucher au code".
-
-**Prochaine etape** : dryRun des 3 fichiers (dans l'ordre JS -> XML -> menus), relecture des diffs, ecriture reelle si conformes, puis reprise du design H2 (points (b)/(c) de la section 569) desormais restreint au seul systray.
-
-## Section 571 - Suppression assistant plein-ecran : constat que 2 des 3 fichiers etaient deja propres, seul menus.xml restait a corriger -- dryRun + ecriture reelle faits ce tour (2026-09-07)
-
-**Suite immediate de la section 570 (execution du dryRun annonce)**. Avant tout diff, relecture reelle des 3 fichiers cibles :
-1. `odoo_addons/miro_ai/static/src/js/miro_ai.js` -- **deja propre** : la classe `MiroAiAssistant` et son `registry.category("actions").add("miro_ai.action_assistant", ...)` sont absents du fichier tel qu'il existe sur le disque. Seule `MiroAiSystray` (+ les fonctions partagees `formatMarkdown`/`createMessage`/`buildMessagesFromHistory`/`formatSessionDate`/`applyBrandColorFromHeader`/`isRequestCancelled`) y figurent. Aucune modification necessaire.
-2. `odoo_addons/miro_ai/static/src/xml/miro_ai_assistant.xml` -- **deja propre** : ne contient plus que `<t t-name="miro_ai.SystrayItem">`, le bloc `<t t-name="miro_ai.AssistantClientAction">` est absent. Aucune modification necessaire.
-3. `odoo_addons/miro_ai/views/miro_ai_menus.xml` -- **seul fichier reellement modifie ce tour** : contenait encore le record `action_miro_ai_assistant` (ir.actions.client, tag `miro_ai.action_assistant`) et le menuitem `menu_miro_ai_chat` ("Discussion Assistant") qui le referencait -- une reference pendante vers un tag client-action que le JS ne registre plus (le menu aurait echoue silencieusement/leve une erreur a l'ouverture). Les deux blocs retires. `menu_miro_ai_root` et les 3 autres menuitems (Journal des requetes, Configuration, Parametres) intacts.
-
-**Constat** (coherent avec le pattern deja observe plusieurs fois dans ce journal, ex. sections 282-283, 405-410) : le travail sur les fichiers JS/XML avait deja ete fait lors d'une session anterieure non tracee dans ce journal -- seule la partie manquante (menus.xml) restait reellement a faire. Verifie par lecture directe avant tout diff, pas suppose depuis l'etat documente en section 570.
-
-**Verification post-edit** : `miro_ai_menus.xml` relu integralement apres ecriture -- XML bien forme, plus aucune reference a `action_miro_ai_assistant`/`menu_miro_ai_chat` dans le fichier. Recherche des memes identifiants dans `__manifest__.py`, `security/miro_ai_security.xml`, `security/ir.model.access.csv` (deja faite section 570) : aucune reference, confirmee toujours valable puisque ces fichiers n'ont pas change depuis.
-
-**Non fait ce tour** : aucun redemarrage/rechargement reel du module Odoo pour confirmer que le menu se comporte comme attendu a l'execution (pas d'instance Odoo lancee ce tour) -- verification faite par lecture statique uniquement, conforme au perimetre filesystem-only de la session. Design H2 (points (b)/(c) de la section 569) pas encore attaque -- prochaine etape immediate.
-
-## Section 572 - H2 (active_model/active_id) : propagation structuree bout-en-bout implementee sur les 4 points de rupture + business_resolver, mandat pmm valide -- tests ecrits, PAS executes ce tour (session filesystem-only, aucun acces bash au projet) (2026-09-07)
-
-**Mandat pmm** : validation explicite ("oui je valide") de la proposition de design (b)/(c) formulee en reponse a la section 571 -- (b) remplacer entierement le prefixe texte-libre par des champs structures (pas de coexistence des deux mecanismes) ; (c) les consommer comme un override de haute confiance DANS `resolve_business_term()` lui-meme (nouveau `Step 1.5`), pas via une nouvelle liste de mots-cles -- reutilise l'infrastructure de consommation de `resolved_concept` deja en place (investigation_plan, route_decision, outils CI) au lieu d'ajouter un chemin de donnees parallele.
-
-**5 fichiers modifies, dans l'ordre JS -> controller -> Pydantic -> graph/routing -> resolver (le point de consommation reel)** :
-
-1. `odoo_addons/miro_ai/static/src/js/miro_ai.js::MiroAiSystray.sendMessage()` -- suppression totale de la concatenation `"[Contexte: modele X] " + question` (bloc `if (!question.toLowerCase().includes(...))`). `activeModelContext.model`/`.id` desormais envoyes comme champs structures `active_model`/`active_id` du payload RPC `/miro_ai/ask`, uniquement quand `activeModelContext` est present -- `question` n'est plus jamais reecrite.
-2. `odoo_addons/miro_ai/controllers/main.py::MiroAiController.ask()` -- signature etendue (`active_model=None, active_id=None`), propages tels quels dans le `payload` JSON envoye a `POST {api_url}/api/v1/ask`.
-3. `api/main.py::AskRequestV1` -- 2 nouveaux champs Pydantic optionnels (`active_model: Optional[str]`, `active_id: Optional[int]`, defaut `None`) ; `ask_question_v1()` les passe a `query_graph(active_model=request.active_model, active_id=request.active_id)`.
-4. `core/graph.py::query_graph()` -- 2 nouveaux parametres optionnels, injectes dans `initial_state` (`"active_model"`, `"active_id"`). `core/routing.py::RAGState` (TypedDict) etendu des 2 memes champs (commentaires inline sur leur origine/consommation). `route()` transmet desormais `active_model=state.get("active_model")` a `resolve_business_term()` -- `active_id` n'est PAS encore consomme en aval (reserve explicitement en commentaire pour un futur signal par-enregistrement, pas seulement par-modele -- aucun consommateur actuel n'en a besoin, donc pas de plomberie morte au-dela du state).
-5. `code_intelligence/business_resolver.py::resolve_business_term()` -- **le seul point de consommation reel**, nouveau parametre optionnel `active_model: Optional[str] = None` (positionnel-compatible : ajoute en dernier, tous les appels existants positionnels/`llm=`-keyword restent valides). Nouveau `Step 1.5`, insere APRES le Step 1 (alias statique) et AVANT le Step 2 (fuzzy matching) : si `active_model` est fourni ET correspond a un noeud `model:` reellement present dans le graphe charge, retourne un `ResolvedConcept` resolu directement (`source_step="active_context"`, `confidence=0.9` -- deliberement sous les 1.0 des Steps 0/1 textuels, puisque c'est infere de la navigation UI et non affirme par la question elle-meme). Place APRES Steps 0/1 (jamais avant) : un terme metier explicitement tape par l'utilisateur gagne toujours sur le contexte ambiant, jamais l'inverse -- si la question contient un alias/une mention technique vers un AUTRE modele que celui affiche a l'ecran, ce signal textuel l'emporte sans jamais consulter `active_model`. Garde `G.has_node(f"model:{active_model}")` : un `active_model` perime/etranger (ex. module non installe/indexe sur cette instance) est silencieusement ignore plutot que de fabriquer une fausse resolution -- tombe alors normalement vers Step 2 (fuzzy) puis Step 4 (unresolved).
-
-**Tests ecrits** (`code_intelligence/tests/test_business_resolver.py`, 4 nouveaux, avant toute execution reelle contre le vrai graphe) :
-- `test_active_model_resolves_when_question_carries_no_signal` : question sans aucun signal textuel + `active_model="hr.leave"` (present dans le graphe synthetique du fixture `sample_graph`) -> resolu, `source_step="active_context"`, `confidence=0.9`.
-- `test_active_model_ignored_when_question_resolves_via_alias` : question "un avoir" (alias vers `account.move`) + `active_model="res.partner"` (contradictoire) -> l'alias gagne, `resolved_models == ["account.move"]`, `source_step="static_alias"` -- verrouille la priorite texte-explicite > contexte-ambiant.
-- `test_active_model_ignored_when_not_a_real_graph_node` : `active_model="custom.unknown.model"` absent du graphe -> ignore, retombe sur `unresolved` (aucun autre signal dans la question de test).
-- `test_active_model_ignored_without_graph` : `G=None` -> `active_model` non verifiable, jamais fait confiance aveuglement, retombe sur `unresolved`.
-
-**Non fait ce tour, a lever avant de considerer H2 clos** : cette session est filesystem-only (uniquement les tools Filesystem MCP -- pas d'acces bash au projet ni a une instance Odoo/Python reelle) -- **aucun des 4 tests ci-dessus, ni la suite `test_business_resolver.py` existante (regression), n'a ete reellement execute ce tour**. Relecture manuelle attentive de chaque diff faite (voir dry-run/diffs de ce tour), mais conformement a la regle transverse du plan ("aucune story declaree terminee sans reexecution du benchmark"), H2 reste au statut "implemente, non confirme par execution reelle" tant qu'une session avec acces pytest n'a pas rejoue au minimum `code_intelligence/tests/test_business_resolver.py` en entier (pas seulement les 4 nouveaux tests -- verifier aussi qu'aucune regression n'a ete introduite sur les tests existants du meme fichier, en particulier ceux du Step 0/Step 1 juste avant le nouveau Step 1.5) et idealement un test end-to-end reel (systray -> controller -> API -> graph -> resolver) sur une instance Odoo/FastAPI vivante, jamais fait a ce jour pour H2. Verification du rendu reel du contexte dans le widget Discuss (bandeau "Contexte : ..." deja existant cote XML, inchange par ce tour) egalement non refaite.
-
-**Prochaine etape** : des qu'une session avec acces d'execution (pytest) est disponible, rejouer `code_intelligence/tests/test_business_resolver.py` en entier, puis le sous-ensemble pertinent du benchmark adversarial (au minimum les modules dont le resolved_concept peut interagir avec `active_context` -- a determiner). Lever la reserve ci-dessus avant de marquer H2 comme valide dans plan.md.
-
-## Section 573 - H2 : `test_business_resolver.py` rejoue en conditions reelles par pmm, 46/46 passed -- confirme sans regression, aucun code touche ce tour (2026-09-07)
-
-**Execution reelle fournie par pmm** (poste local, `.venv`, hors session filesystem-only) :
-```
-pytest code_intelligence/tests/test_business_resolver.py
-...
-collected 46 items
-code_intelligence/tests/test_business_resolver.py ............................................. [ 97%]
-.                                                                                               [100%]
-========================================= 46 passed in 20.54s =========================================
-```
-46 items = 42 tests preexistants (Steps 0/1/2/3/4, exact_technical_mention, alias, fuzzy, ambiguite, LLM arbitration) + les 4 nouveaux tests `active_context`/Step 1.5 introduits section 572. Aucun echec, aucune regression sur les Steps 0/1 juste avant le nouveau Step 1.5 -- confirme que l'insertion du nouveau step (apres l'alias, avant le fuzzy) n'a perturbe aucun chemin de resolution existant.
-
-**Ce que cette confirmation couvre, et ce qu'elle ne couvre pas encore** : leve la premiere moitie de la reserve posee section 572 (le fichier de tests unitaires du resolver, cible reelle de la modification). Ne couvre PAS : (a) le sous-ensemble du benchmark adversarial mentionne comme "a determiner" en section 572 (aucun module des 10/10 Bloc P3.1 ni des 8/8 Bloc 9 ne dependait jusqu'ici de `active_model`, donc aucune regression attendue de ce cote -- mais jamais rejoue explicitement avec ce chantier en tete) ; (b) un test end-to-end reel systray -> controller -> API -> graph -> resolver sur une instance Odoo/FastAPI vivante ; (c) le rendu visuel reel du bandeau de contexte dans le widget Discuss. H2 passe donc de "implemente, non confirme par execution reelle" a "implemente et confirme au niveau unitaire (resolver), non confirme au niveau end-to-end (chaine complete Odoo->FastAPI)" -- statut intermediaire, pas encore "valide" au sens plein du plan.
-
-## Section 574 - Rejeu benchmark adversarial (reserve section 573a) : faux negatif trouve et corrige dans scripts/check_bloc9_01_credit_note_cascade_e2e.py -- fragilite de test, aucun code metier touche (2026-09-07)
-
-**Origine** : pmm a colle la sortie reelle d'un rerun de `scripts/check_bloc9_01_credit_note_cascade_e2e.py` (1/8 du rejeu du benchmark adversarial complet evoque comme reserve (a) en section 573). Resultat : `[ - 1/8] ... GAP FOUND` -- question 01a ("Qui a le droit d'approuver un avoir de 25 000e pour un client normal ?") signalait le marker `"20000"` MISSING.
-
-**Diagnostic** : la reponse synthetisee contenait bien le seuil du module regional, correctement formule -- *"les avoirs > 20 000 e"* (espace, convention francaise des milliers). Le contenu est correct ; c'est `check_e2e()` qui comparait `marker not in answer` en substring brut sur `"20000"` (sans espace) sans aucune normalisation. Faux negatif de test, pas de regression fonctionnelle -- confirme en relisant la reponse brute collee par pmm.
-
-**Audit des 7 autres scripts check_bloc9_0X_*_e2e.py (mandat pmm explicite "verifier s'il y a le meme probleme dans les autres")** : scripts 4/8 (`_THRESHOLD_RE = re.compile(r"10\s?000")`) et 5/8 (`r"2\s?000"`) geraient deja la tolerance aux espaces via regex degee. Script 8/8 avait deja corrige exactement la meme classe de faux negatif le 2026-08-13 (`_marker_present` avec retry sans espaces, docstring explicite citant "50 000e" vs "50000"). Scripts 2/8, 3/8, 6/8, 7/8 n'ont aucun marker numerique a 4+ chiffres soumis a ce risque -- non concernes. Root cause confirmee : script 1/8 etait le seul des 8 a n'avoir jamais recu cette correction deja etablie ailleurs dans le projet.
-
-**Fix applique** (dryRun puis ecriture reelle, mandat pmm "corriger ce script") : ajout de `_normalize_ws()` + `_marker_present()` dans `check_bloc9_01_credit_note_cascade_e2e.py`, meme technique que le script 8/8 (case-fold + substring direct, puis retry avec tous les espaces retires des deux cotes si le premier essai echoue). `check_e2e()` route desormais ses `plain_markers` via `_marker_present()` au lieu du `in` brut. `_marker_present_full_pipeline()` (utilise par `check_e2e_full_pipeline()`) etendue avec la meme tolerance aux espaces, en plus de son fold accents existant (`_fold_accents` de `deterministic_tools.py`) -- meme risque latent sur les markers "5000" des questions 01a/01c full-pipeline, jamais exerce ce tour par chance de formulation LLM mais meme classe de fragilite. Verification post-edit : fichier relu integralement, bien forme, aucune trace de l'ancien check brut.
-
-**Non fait ce tour** : le script corrige n'a pas ete reexecute (session filesystem-only, pas d'acces bash/pytest) -- la correction est verifiee par relecture manuelle du diff et par coherence avec le pattern deja confirme en conditions reelles sur le script 8/8, pas par une reexecution live de celui-ci. Reserve (a) de la section 573 (rejeu du benchmark adversarial complet, modules 2/8 a 8/8 restants) toujours non levee au-dela de cet audit ponctuel.
-
-## Section 575 - Rejeu module 2/8 (custom_credit_note_visibility_rules) : gap distinct du 1/8, potentiellement une vraie hallucination de synthese LLM, pas un artefact de test -- diagnostic fait, mandat pmm de rejouer avant tout code (2026-09-07)
-
-**Origine** : pmm a colle la sortie reelle de `scripts/check_bloc9_02_credit_note_visibility_e2e.py`. `check_raw_tool_output` passe (OK) mais `check_e2e`/`check_e2e_full_pipeline` echouent sur les 2 questions (BOTH et NONE), marker manquant a chaque fois ("Avoirs - visibilite nationale" / "cantonnement societe").
-
-**Diagnostic (lecture de `deterministic_tools.py::evaluate_record_rules` + `ci_agent_node.py`)** : le raw tool output est correct et bien sourcé (les 2 regles globales, dont `Avoirs - cantonnement societe` avec son xml_id, sont bien listees). Le probleme est en aval, dans la synthese LLM :
-- Question BOTH : la reponse cite `[evaluate_record_rules output](file:///path#L1-L20)` -- un lien fabrique (`path` litteral), pas le format `xml_id: module.identifier` exige par le prompt systeme pour ce type de citation. Le garde-fou J14 (`sourcing_guard.py::verify_citations`) l'a detecte correctement et a annexe l'avertissement `SOURCING NON VERIFIE` -- ce garde-fou fonctionne comme prevu. Mais le contenu reste maigre : la regle `Avoirs - visibilite nationale` n'est jamais nommee explicitement.
-- Question NONE : plus grave -- la reponse affirme *« Regles Globales : Aucune »* en la citant comme si c'etait une citation du tool, alors que cette phrase n'existe nulle part dans le raw output (qui liste bien 2 regles globales actives). Fabrication pure du LLM, probable confusion entre "Regles de Groupe applicables : Aucune" (reellement present) et les regles globales.
-
-**Root cause probable, non confirmee** : contrairement au fix du script 1/8, aucun backfill deterministe n'existe dans `ci_agent_node.py` pour reinjecter le NOM de la regle globale/groupe responsable du verdict `can_view_amount` -- seul le verdict booleen est backfille (`_backfill_missing_can_view_amount_fact`), jamais la regle qui l'explique. Le prompt de synthese demande au petit modele Groq (`openai/gpt-oss-20b`, sujet a rotation sur 8 cles + rate-limits frequents dans les deux runs colles) de le faire correctement sans filet.
-
-**Mandat pmm** : rejouer le script tel quel 1-2 fois avant tout code, pour distinguer une hallucination ponctuelle (rotation/rate-limit Groq degradant la qualite d'une cle a l'autre) d'un vrai defaut systemique necessitant un backfill deterministe (meme pattern que `_backfill_missing_can_view_amount_fact`). Session filesystem-only -- pmm doit fournir les rejeux, aucune execution possible de ce cote.
-
-**Non fait ce tour** : aucun code touche. En attente des rejeux colles par pmm avant toute decision de fix.
-
-## Section 576 - Rejeux 2/8 confirment : pas une hallucination, un marker de test perime face a la convention xml_id -- fix applique (2026-09-07)
-
-**Rejeux fournis par pmm (2 runs complets)** : sur les 4 occurrences de la question BOTH (direct x2, full-pipeline x2), le marker `"Avoirs - visibilite nationale"` est MISSING 4/4 -- mais le contenu est correct dans au moins 3/4 (run 2 en particulier : raisonnement OR explicite et correct, citant `rule_avoir_visibilite_nationale` par xml_id). Sur la question NONE, 3/4 OK, le seul MISSING (run1 pipeline) a la meme cause. Conclusion : **pas une hallucination systemique** -- la LLM de synthese cite systematiquement par `xml_id: module.identifier` (conformement a l'instruction du prompt systeme et a la convention introduite par le "Bug 1 fix" de la section 490 de `deterministic_tools.py`), jamais garantie de citer aussi le nom d'affichage humain de la regle. Les markers du script 2/8 etaient rediges avant cette convention et n'ont jamais ete mis a jour -- meme classe de dette que le fix du script 1/8 (section 574), cette fois sur le format de citation plutot que l'espacement des milliers.
-
-**Point distinct, intermittent, non traite** : la fausse citation `file:///path#L1-L20` (question BOTH, run1 direct+pipeline uniquement, absente du run2) reste un artefact mineur deja neutralise sans danger par le garde-fou J14 (`sourcing_guard.py`) qui l'annexe en avertissement explicite plutot que de laisser passer une fausse source silencieuse. Non traite ce tour (mandat pmm limite au marker de test) -- a rouvrir separement si ca redevient genant.
-
-**Fix applique** (mandat pmm "accepter le xml_id comme alternative valide") : `_marker_present()` dans `check_bloc9_02_credit_note_visibility_e2e.py` accepte desormais soit une chaine unique, soit une liste d'alternatives (matching OR, recursif). `expected_markers` des 2 questions mis a jour : `["Avoirs - visibilite nationale", "rule_avoir_visibilite_nationale"]` et `["cantonnement societe", "rule_avoir_multi_societe"]`. dryRun puis ecriture reelle, fichier relu integralement post-edit -- bien forme, la comparaison `marker not in missing` reste valide sur des listes (egalite Python standard).
-
-**Non fait ce tour** : script non reexecute (session filesystem-only). Reserve (a) section 573 (modules 3/8 a 8/8) toujours ouverte.
-
-## Section 577 - Nouvelle session, meme mandat ("accepter le xml_id comme alternative valide au nom d'affichage") : deja applique section 576, verifie contre le disque, aucun code touche (2026-09-07)
-
-**Collision de session** (meme pattern que sections 85/107/135/136/158/170/171) : mandat pmm recu identique a celui deja execute section 576. Avant tout code, relecture complete des 8 scripts `check_bloc9_0[1-8]_*_e2e.py` pour (a) confirmer l'etat reel de `check_bloc9_02_credit_note_visibility_e2e.py` et (b) verifier si un autre script porte la meme classe de marker (nom d'affichage d'un `ir.rule` attendu tel quel dans une reponse synthetisee par LLM, sans alternative xml_id).
-
-**Constat** : `check_bloc9_02_credit_note_visibility_e2e.py` porte deja integralement le fix (`_marker_present()` accepte liste d'alternatives OR-recursif ; `expected_markers` des 2 questions BOTH/NONE deja sous forme `[nom_affichage, xml_id]`) -- rien a refaire. Audit des 7 autres scripts (1/8, 3/8-8/8) : aucun n'attend un nom d'affichage de regle `ir.rule` comme marker de reponse synthetisee -- 1/8 verifie des noms de module/montants/groupes, 3/8-7/8 verifient des messages d'exception/groupes/montants (aucun `evaluate_record_rules`), 8/8 verifie bien un nom de regle (`cantonnement`) mais uniquement dans `check_raw_tool_output()` (sortie brute du tool, jamais reformulee par la LLM de synthese -- pas expose au meme risque de derive de citation). Aucun autre script concerne par cette classe de dette.
-
-**Non fait ce tour** : aucun code touche, rien a modifier -- mandat deja satisfait sur le disque.
-
-## Section 578 - Reprise benchmark adversarial (reserve section 573a) : module 3/8 (custom_hr_leave_workflow) rejoue par pmm, confirme sans regression (2026-09-07)
-
-**Sortie reelle collee par pmm** : `python scripts/check_bloc9_03_hr_leave_workflow_e2e.py`. Raw tool output : 3/3 checks OK (message solde, message N+2/responsable RH, groupe `hr_holidays.group_hr_holidays_manager`). `check_e2e` : 3/3 questions, tous les markers presents, aucun MISSING. `check_e2e_full_pipeline` : 3/3 OK (2 rotations de cle Groq en cours de route -- 1/8 puis 2/8 epuisees -- sans impact sur le contenu des reponses). Sortie finale : `[ - 3/8] custom_hr_leave_workflow: E2E confirmed.` Aucun gap, aucun code touche.
-
-**Prochaine etape** : rejeu module 4/8 (`check_bloc9_04_purchase_request_e2e.py`), reste de la reserve (a) section 573 (modules 4/8 a 8/8).
-
-## Section 579 - Rejeu module 4/8 (custom_purchase_request) : gap marker `__GROUP_INSUFFICIENT__` trop etroit sur la question 04c, fix applique (2026-09-07)
-
-**Sortie reelle collee par pmm** : `python scripts/check_bloc9_04_purchase_request_e2e.py`. Raw tool output : 6/6 OK. Questions 04a/04b : 3/3 OK (direct + full pipeline). Question 04c ("un membre de purchase_manager peut-il, a lui seul, valider... quel que soit son montant ?") : `__GROUP_INSUFFICIENT__` MISSING 2/2 (direct + full pipeline), alors que le contenu des deux reponses est correct ("ne peut pas valider une demande d'achat dont le montant estime depasse 10 000 e", "il doit etre dans la liste d'exceptions pour les montants superieurs") -- confirme sur 2 LLM differents (rotation de cle Groq entre les deux runs), donc pas une hallucination ponctuelle d'une cle degradee.
-
-**Diagnostic** : `_GROUP_INSUFFICIENT_RE` (6 alternatives) suppose toujours une formulation "le groupe est insuffisant" (sujet=le groupe). La synthese peut legitimement exprimer la meme conclusion depuis le point de vue de l'utilisateur (sujet=l'utilisateur, "il NE PEUT PAS valider... au-dela de ce seuil") -- formulation absente des 6 alternatives existantes. Meme classe de dette que les fixes 1/8 (espacement)/2/8 (xml_id) : marker de test trop etroit par rapport a une formulation correcte et legitime, pas un defaut fonctionnel.
-
-**Fix applique** (mandat pmm "corrige direct") : 2 alternatives ajoutees a `_GROUP_INSUFFICIENT_RE` dans `check_bloc9_04_purchase_request_e2e.py` -- `ne peut pas.{0,80}(valider|approuver)` et `doit etre dans la liste` (sans accent, le texte compare passe deja par `_fold_accents` avant le match). dryRun puis ecriture reelle, fichier relu integralement post-edit -- bien forme. `python3 -m py_compile` confirme (copie via `copy_file_user_to_claude`, compile dans `/tmp/` pour contourner le read-only de `/mnt/user-data/uploads/__pycache__`).
-
-**Non fait ce tour** : script non reexecute (session filesystem-only) -- fix non confirme en conditions reelles. Reserve (a) section 573 (modules 5/8 a 8/8) toujours ouverte.
-
-## Section 580 - `analyze_server_actions` (ci_agent_tools.py) : bug reel trouve et corrige -- appel a une fonction de tri jamais definie (`_sort_server_action_nodes_custom_first`), remplace par un tri post-analyse custom_*/SENSITIVE_BYPASS_MARKER-first, non hardcode (2026-09-07)
-
-**Origine** : mandat khalel -- trier les entrees de `analyze_server_actions` pour que les modules `custom_*` et/ou les actions taguees `SENSITIVE_BYPASS_MARKER` passent avant les actions Odoo natives, meme principe que `_is_custom_module_filepath`/`_sort_filepaths_custom_first` deja utilise par `trace_full_inheritance` et `analyze_security_locks` -- si troncature en aval il y a, elle doit couper du contenu Odoo generique, jamais du contenu metier custom ou une vraie faille de securite. Contrainte explicite : la detection "custom" ne doit jamais etre hardcodee.
-
-**Constat avant tout code (lecture du fichier avant diff, disque relu directement)** : `analyze_server_actions` (ci_agent_tools.py) appelait deja `_sort_server_action_nodes_custom_first(sa_nodes)` -- mais cette fonction n'etait definie NULLE PART dans le fichier ni ailleurs dans le projet (verifie par lecture complete de `ci_agent_tools.py`, seule `_sort_filepaths_custom_first` existe, pour `analyze_security_locks`). C'etait donc un vrai bug latent (NameError garanti au premier appel reel de l'outil `analyze_server_actions` sur un modele ayant des server actions) -- pas une simple amelioration a apporter, une fonction manquante appelee en production. Root cause probable : trace laissee par une session anterieure non journalisee (meme classe de collision que sections 85/107/135/136/158/170/171/577), le mandat a ete initie mais jamais termine.
-
-**Contrainte "pas de hardcode" verifiee sur l'existant** : `_is_custom_module_filepath` (deja en place, reference par le mandat) resout deja `CUSTOM_ADDONS_PATH`/`CORE_ADDONS_PATH`/`CORE_FRAMEWORK_ADDONS_PATH` via `config/settings.py` (elles-memes lues depuis `.env`, avec fallback explicite si absentes) -- aucun nom de module ni chemin n'y est en dur. `.env` de cette machine (`/home/user/odoo-ia-prototype/.env`) verifie : `CORE_ADDONS_PATH`/`CUSTOM_ADDONS_PATH` bien positionnes ici. khalel a signale avoir oublie de synchroniser `.env` entre ses deux postes (`/home/user/...` vs `/media/donnee/...`) -- sans consequence sur ce tour (session filesystem-only limitee a ce poste, ou les variables sont presentes), mais a verifier sur l'autre poste avant d'y executer quoi que ce soit touchant a Code Intelligence : si `CUSTOM_ADDONS_PATH` y est absent/perime, `_is_custom_module_filepath` degrade silencieusement vers `core_dirs = {"odoo/addons", "base", "web"}` (heuristique de secours deja existante, inchangee par ce tour) plutot que de planter -- pas un blocage, mais un signal potentiellement moins fiable a surveiller.
-
-**Difficulte specifique a `analyze_server_actions` (pourquoi pas une simple reprise de `_sort_filepaths_custom_first`)** : contrairement aux filepaths bruts consommes par `analyze_security_locks`, un noeud `ServerAction` ne porte PAS de `filepath` propre (verifie dans `graph_builder.py::_add_security_group_nodes` -- attrs : `xml_id`, `name`, `model_id`, `state`, `code`, `action_type`, `user_id`, `interval_number`, `interval_type`, tags ; aucun `filepath`). Et le critere `SENSITIVE_BYPASS_MARKER` n'existe qu'APRES l'analyse (`analyze_server_action_code()`), jamais sur le noeud brut avant. Un tri pre-analyse des noeuds bruts (ce que faisait l'appel casse) ne peut donc physiquement pas honorer le critere SENSITIVE_BYPASS_MARKER du mandat.
-
-**Fix applique** (dryRun puis ecriture reelle, `code_intelligence/ci_agent_tools.py`) :
-1. `analyze_server_actions` restructure : le tri ne porte plus sur les noeuds bruts avant analyse, mais sur les resumes deja produits (boucle d'analyse inchangee, seul le append final change) -- chaque entree devient `(xml_id, is_custom, summary)`, triee juste avant le `"\n\n".join(...)` final. Root cause du choix : trier apres analyse est la seule facon de satisfaire les DEUX criteres du mandat (custom_* ET SENSITIVE_BYPASS_MARKER) au meme endroit, sans dupliquer la logique de detection sudo/hardcoded-ids deja dans `server_action_analyzer.py` (regle F-08 anti-duplication deja citee plusieurs fois dans ce journal).
-2. `_is_custom_server_action_module(G, xml_id)` (nouvelle fonction) : deduit le module proprietaire depuis le prefixe de `xml_id` (avant le premier `.`), resout le noeud `module:<prefixe>` (qui LUI porte un `filepath`, celui du manifest -- voir `graph_builder.py::_add_module_nodes`), puis reutilise `_is_custom_module_filepath()` tel quel sur ce filepath. Aucun nom de module ni chemin hardcode -- 100% derive du graphe + de `config.settings`.
-3. `_sort_server_action_entries_custom_first(entries)` (nouvelle fonction) : cle de tri `(not (is_custom or has_bypass_marker), xml_id)` -- un module custom_* OU une action portant `SENSITIVE_BYPASS_MARKER` dans son resume passe avant le reste ; alphabetique par `xml_id` a l'interieur de chaque groupe pour le determinisme (meme convention que `_sort_filepaths_custom_first`).
-4. Import ajoute : `SENSITIVE_BYPASS_MARKER` depuis `code_intelligence.utils` (deja le seul point de definition de la constante, reutilise tel quel).
-5. Les deux nouvelles fonctions placees juste apres `_is_custom_module_filepath` (avant `_sort_filepaths_custom_first`), regroupees avec les fonctions de tri soeurs pour la lisibilite.
-
-**Verification post-edit** : fichier relu integralement apres ecriture -- bien forme, plus aucune reference a `_sort_server_action_nodes_custom_first` (l'appel casse a disparu, aucune autre occurrence trouvee ailleurs dans le projet). `python3 -m py_compile` confirme (copie via `copy_file_user_to_claude`, compile dans `/tmp/pycheck/`).
-
-**Non fait ce tour** : script/outil non reexecute en conditions reelles (session filesystem-only, pas d'acces bash/pytest sur le vrai graphe) -- correction verifiee par relecture manuelle du diff + compilation syntaxique uniquement, pas par un appel reel de `analyze_server_actions` sur un modele ayant des server actions custom ET natifs. A confirmer des qu'une session avec acces pytest est disponible (aucun test existant ne couvre ce chemin de tri -- `test_bloc_b1_evidence_analyze_server_actions.py` et `test_s2_3_server_actions.py` testent uniquement `analyze_server_action_code()`/`server_action_analyzer.py`, pas le wrapper `ci_agent_tools.analyze_server_actions` ni son tri -- un test dedie serait a ecrire). Rappel a khalel : synchroniser `.env` entre les deux postes avant toute session Code Intelligence sur `/media/donnee/projets/odoo-ia-prototype/`.
-
-## Section 581 - Diagnostic LEAK test 6/8 (custom_automation_traps, groups=[]) : root cause confirmee (double-append non marque dans ci_agent_tools.py::analyze_server_actions) MAIS fix deja present sur le disque -- aucun code touche ce tour, collision de session de plus (2026-09-07)
-
-**Origine** : diagnostic colle par khalel (hors de cette session) localisant la fuite du test `check_bloc9_06_automation_traps_e2e.py` (requester `groups=[]` : marker attendu `OMIS` present, mais markers interdits `42/108/231` presents aussi -- LEAK confirme) -- root cause identifiee comme une duplication dans `ci_agent_tools.py::analyze_server_actions` : `interpret_server_action_with_llm()` (`server_action_analyzer.py`) ajoute deja `llm_summary` a `analysis.summary_text`, correctement prefixe par `SENSITIVE_BYPASS_MARKER` quand `has_sudo`/`has_hardcoded_ids` est vrai ; un second append, non marque, dupliquait le meme contenu -- `authorization_gate.py::_redact_sensitive_bypass_lines()` filtre ligne par ligne UNIQUEMENT les lignes portant le marqueur, donc la copie non marquee passait intacte jusqu'a la synthese LLM, qui la recopiait dans sa reponse (paraphrase du texte brut vu dans son propre prompt).
-
-**Mandat de ce tour** : verifier qu'il n'y a pas d'autre raison au second append avant de le supprimer, avant tout diff.
-
-**Constat par lecture directe du disque (avant tout code)** : `ci_agent_tools.py::analyze_server_actions` ne contient PLUS de second append -- une seule affectation `summary = analysis.summary_text` juste apres l'appel a `interpret_server_action_with_llm()`, accompagnee d'un commentaire explicatif (au passe) documentant exactement le bug decrit ci-dessus et citant nommement le leak 6/8 comme root cause. Le fix est donc deja applique sur le disque, sans trace dans ce journal (meme classe de collision que sections 85/107/135/136/158/170/171/577/578 -- travail fait lors d'une session anterieure non tracee ici).
-
-**Verification qu'aucune autre raison ne justifiait ce second append (mandat explicite de ce tour)** : lecture de `server_action_analyzer.py::interpret_server_action_with_llm()` -- confirme que `llm_summary` est deja integre dans `summary_text` (avec tag conditionnel `SENSITIVE_BYPASS_MARKER` si `has_sudo`/`has_hardcoded_ids`), donc le wrapper n'a besoin de rien ajouter de plus. Lecture de `authorization_gate.py::_redact_sensitive_bypass_lines()` -- confirme le filtrage strictement ligne-par-ligne sur la presence du marqueur, coherent avec le diagnostic (une ligne non marquee n'est jamais consideree). Recherche des tests couvrant ce chemin (`test_bloc_b1_evidence_analyze_server_actions.py`, `tests/test_j8_llm_server_action_interpretation.py`) : aucun ne teste le wrapper `ci_agent_tools.analyze_server_actions` ni son (ex-)double append -- ils couvrent uniquement `analyze_server_action_code()`/`interpret_server_action_with_llm()` au niveau unitaire, donc rien qui aurait pu dependre de l'ancien texte non marque "- Interpretation: ...". `check_bloc9_06_automation_traps_e2e.py` relu integralement : ses attentes (`check_raw_tool_output` exige la presence du marqueur dans la sortie brute ; `check_e2e`/`check_e2e_full_pipeline` sur `groups=[]` exigent `OMIS` present et `42/108/231` absents) sont exactement satisfaites par l'etat actuel du code (seule occurrence de `42/108/231` provient de la ligne `security_warnings` marquee dans `analyze_server_action_code()`, elle-meme redigee par `_redact_sensitive_bypass_lines()`). Aucune autre raison trouvee au double-append -- pure duplication, sans fonction distincte.
-
-**Non fait ce tour** : aucun code modifie (rien a modifier). Script non reexecute (session filesystem-only, pas d'acces pytest/bash sur le vrai graphe) -- le fix reste donc, comme le tri de la section 580 dans le meme fichier, "verifie par lecture, non confirme par execution reelle du test 6/8". A khalel : si une execution reelle de `check_bloc9_06_automation_traps_e2e.py` est disponible, la coller ici pour lever cette reserve.
-
-**Prochaine etape** : en attente d'un rejeu reel du script 6/8 (comme pour les modules 1/8-5/8, section 573 et suivantes) pour clore definitivement ce point.
-
-## Section 582 - Rejeu module 6/8 (custom_automation_traps) : GAP distinct de celui diagnostique en 581 -- MISSING (pas LEAK), correle temporellement a un 429 Groq pendant l'appel d'interpretation LLM -- diagnostic fait, aucun code touche, rejeu isole demande avant conclusion (2026-09-07)
-
-**Sortie reelle collee par khalel** (`python scripts/check_bloc9_06_automation_traps_e2e.py`, rejeu attendu depuis la fin de la section 581). Resultat global : `[ - 6/8] custom_automation_traps: GAP FOUND`.
-
-**Detail des checks** : `check_raw_tool_output` OK (marqueur SENSITIVE_BYPASS_MARKER present dans la sortie brute, comme attendu). `check_e2e` (dispatch direct, hors pipeline complet) : 3/3 OK, y compris la question 'tous les avoirs...' avec `groups=[28]` -- marker `in_refund` present, aucun marker interdit fuite. Le seul echec est dans `check_e2e_full_pipeline` : question 'Est-ce que tous les avoirs fournisseurs passent par les memes regles d'approbation ?' avec `groups=[28]` -- `[MISSING] expected marker: in_refund`, `[RESULT] FAIL -- missing ['in_refund'], leaked []`. Aucune fuite (contrairement au gap diagnostique en section 581) : cette fois le contenu sensible reste correctement gate, mais une des deux conditions de declenchement (`rec.move_type == 'in_refund'`) est absente de la synthese alors que l'autre (`rec.partner_id.id in FOURNISSEURS_PRIVILEGIES`, sudo) est bien presente.
-
-**Correlation temporelle relevee (avant toute conclusion)** : juste avant cette execution precise, le log montre `LLM interpretation call failed for action='custom_automation_traps.ir_action_server_avoir_fournisseur_privilegie': Error code: 429 ... rate_limit_exceeded (openai/gpt-oss-20b, TPM 8000)` suivi de `Groq API key 3/8 exhausted -- rotating to key 4/8`. Le meme dispatch direct (hors pipeline complet), pour la MEME question et le MEME `groups=[28]`, executee plus tot dans le meme run sans 429 signale a proximite immediate, a produit une reponse complete avec `in_refund` present. Le run full-pipeline suivant (meme groups, question 'Dans le modele account.move, quelles sont les conditions...') execute juste apres une nouvelle rotation de cle (4/8 -> 5/8) est lui OK, `in_refund` present.
-
-**Lecture** : meme pattern que le module 08a (`business`, deja flague suspect-flaky dans les principes de ce journal) -- un gap ponctuel correle a un evenement de rate-limit/rotation de cle Groq n'est pas confirme comme bug tant qu'il n'est pas reproduit hors de ce contexte degrade. Ici l'indice est plus direct qu'en 08a : le 429 touche precisement l'appel d'interpretation LLM de CETTE action serveur, juste avant la synthese qui omet une de ses deux conditions -- coherent avec une degradation de la reponse LLM sous pression de rate-limit plutot qu'un defaut de code (aucun changement recent sur `analyze_server_actions`/`interpret_server_action_with_llm` depuis les sections 580/581, dont l'etat a ete relu et confirme correct en 581).
-
-**Non fait ce tour, mandat pour la suite** : aucun code touche -- conformement au principe 'isolation avant conclusion de bug' deja applique en 575/576, la question 'tous les avoirs...' + `groups=[28]` doit etre rejouee en isolation (script cible sur cette seule question, plusieurs repetitions) pour distinguer une vraie regression de synthese (omission systematique de `in_refund` en full-pipeline) d'un artefact ponctuel de degradation Groq sous 429. Si le rejeu isole confirme l'omission de facon repetee et independante des rotations de cle, root cause probable a investiguer : le prompt de synthese full-pipeline (different du dispatch direct) perd la condition `move_type` lors d'une reponse degradee/retried -- possible absence de backfill deterministe pour cette condition specifique (meme classe de lacune que celle diagnostiquee en section 575 pour le nom de regle, jamais backfille que le verdict booleen).
-
----
-
-## Section 583 - Rejeu isole (5x) de la question 'tous les avoirs...' groups=[28] : hypothese 429/rotation Groq (section 582) INVALIDEE sur cet echantillon -- nouvelle piste plus probable trouvee, non encore diagnostiquee (2026-09-07)
-
-**Sortie reelle collee par pmm** (`scripts/check_bloc9_06b_isolation_in_refund.py`, meme question + `groups=[28]` rejouee 5 fois d'affilee, mandat exact demande en fin de section 582). Resultat : `in_refund present in 3/5 runs -> [False, True, True, False, True]` -- `[RESULT] Inconsistent across reruns -- flaky, needs further investigation`.
-
-**Verification de l'hypothese 429/rotation Groq posee en section 582** : correlation testee run par run.
-- Run 1 (MISSING) : aucune rotation/429 visible dans le log juste avant la reponse.
-- Run 2 (OK) : rotation cle 1/8->2/8 + retry rate-limit juste avant la reponse.
-- Run 3 (OK) : aucune rotation/429 visible.
-- Run 4 (MISSING) : rotation cle 2/8->3/8 + retry rate-limit juste avant la reponse.
-- Run 5 (OK) : aucune rotation/429 visible.
-Deux runs avec rotation se repartissent 1 OK/1 MISSING ; trois runs sans rotation se repartissent 2 OK/1 MISSING. Aucune correlation nette entre 429/rotation de cle et l'omission de `in_refund` sur cet echantillon -- **hypothese de la section 582 non confirmee**, a traiter comme fausse piste probable plutot qu'a approfondir davantage sous cet angle.
-
-**Fait nouveau, distinct de l'omission flaky elle-meme, et lui potentiellement plus pertinent** : la ligne `Node [code_intelligence_agent]: CI_MAX_HOPS (4) reached during deterministic pre-dispatch (analyze_server_actions) -- breaking.` apparait de facon identique dans **5/5 runs**, systematiquement juste avant la synthese -- contrairement a la presence d'`in_refund` (flaky), ce signal-la est parfaitement reproductible. Il n'avait pas ete releve dans les sections 581/582 (les sorties collees a l'epoque n'incluaient pas ce log ou n'y avait pas ete prete attention). Hypothese de travail, non verifiee : le pre-dispatch deterministe de `analyze_server_actions` pour ce module/cette question n'atteint jamais son terme normal (butte systematiquement sur `CI_MAX_HOPS`) et bascule vers une phase de synthese travaillant sur un etat/contexte partiel -- ce qui expliquerait plus naturellement une omission intermittente de la condition `move_type == 'in_refund'` qu'une degradation Groq (le contenu manquant serait deja absent ou instable en amont du LLM, pas perdu par un LLM degrade en aval).
-
-**A ne pas confondre avec le bug CI_MAX_HOPS deja root-cause** (memoire de session : collision du nom commun francais "base" avec le modele technique abstrait `base` dans `_find_exact_technical_model_mentions()`, module 08 Q3) -- ce nouveau signal survient sur un outil different (`analyze_server_actions`, pas le pre-dispatch generique sur mention technique), un module different (06, `custom_automation_traps`), sans lien etabli a ce jour avec la collision "base". A verifier explicitement avant de supposer une meme cause : peut-etre un vrai budget de hops insuffisant pour ce module (plusieurs server actions a analyser, dont l'action privilegiee), peut-etre une autre boucle/duplication consommant des hops inutilement.
-
-**Non fait ce tour** : aucun code touche. Root cause du `CI_MAX_HOPS` sur `analyze_server_actions` (module 06) non investiguee -- necessite une lecture du pre-dispatch deterministe dans `ci_agent_node.py` (ou equivalent) pour ce module/cette question avant tout diff, conformement au principe root-cause-avant-fix. Mandat explicite requis avant d'ouvrir ce fichier en ecriture.
----
-
-## Section 584 - Refactorisation modulaire de deterministic_tools.py : decoupage en sous-package code_intelligence/deterministic/ respectant la regle 15 (< 300 lignes/fichier), facade retrocompatible (2026-09-07)
-
-**Contexte et motivation** : `code_intelligence/deterministic_tools.py` contenait 2 353 lignes, violant massivement la regle 15 de `todo/rules.md` (300 lignes par fichier max). Sur demande explicite de refactorisation de l'utilisateur ("commence par deterministic"), le fichier a ete entierement decoupe en un sous-package modulaire `code_intelligence/deterministic/`, tout en maintenant une facade `deterministic_tools.py` reexportant l'integralite des 50 fonctions/classes/constantes historiques.
-
-**Decomposition realisee dans `code_intelligence/deterministic/`** :
-1. `common.py` (15 lignes) : Constante partagee `NOT_FOUND_MARKER` et enumeration `QueryStatus`.
-2. `domain_parser.py` (176 lignes) : Parser AST securise (sans `eval`/`exec`) pour `domain_force`, conversion en tokens et normalisation prefixe Odoo.
-3. `domain_evaluator.py` (233 lignes) : Evaluateur en logique Kleene tri-valuee (`True`/`False`/`None`) avec resolution de references dynamiques dict et point d'entree `evaluate_domain_force()`.
-4. `group_resolver.py` (147 lignes) : Normalisation, suppression de prefixe `group_`, pliage d'accents, fuzzy matching sur `res.groups`, `resolve_group_identifier()`, `_expand_implied_user_groups()` et `_expand_inheriting_acl_groups()`.
-5. `record_rules_models.py` (106 lignes) : Structures de donnees `RuleDetail` et `RuleEvaluationResult` avec helpers d'evaluation monetaire `can_view_amount()` et `can_view_amount_v2()`.
-6. `record_rules.py` (218 lignes) : Moteur d'evaluation des regles d'enregistrement `evaluate_record_rules()` et construction d'Evidence `_build_record_rules_evidence()`.
-7. `access_evaluator.py` (242 lignes) : Moteur d'evaluation des droits d'acces modele/ACL `who_has_access_to()` et construction d'Evidence `_build_access_evidence()`.
-8. `field_impact.py` (203 lignes) : Analyse d'impact multi-hop BFS amont/aval des champs calcules `field_change_impact()` et `_build_field_impact_evidence()`.
-9. `button_path_models.py` (111 lignes) : Dataclass `ButtonExecutionPathResult` et builder d'Evidence structuree `_build_button_execution_evidence()`.
-10. `xml_view_finder.py` (177 lignes) : Inspection des contraintes de vues XML (readonly, invisible, required, groups) `_find_field_in_xml_views()`.
-11. `menu_view_finder.py` (144 lignes) : Detection de hooks dynamiques (`get_view`/`fields_view_get`) et items de menu `search_dynamic_view_or_menus()`.
-12. `button_path.py` (246 lignes) : Tracage de chemin d'execution des boutons UI `button_execution_path()` et validation de permissions demandeur `_requester_satisfies_required_groups()`.
-13. `inheritance_chain.py` (192 lignes) : Parcours BFS de chaine d'heritage `_inherit` vs `_inherits` `trace_full_inheritance()` et `_build_inheritance_evidence()`.
-14. `workflow_process.py` (142 lignes) : Graphe d'etats de workflow `describe_workflow()` et `_build_workflow_evidence()`.
-15. `__init__.py` (97 lignes) : Exportations du package `code_intelligence.deterministic`.
-16. `code_intelligence/deterministic_tools.py` (148 lignes) : Facade legere retrocompatible reexportant tous les symboles d'origine.
-
-**Verification de non-regression** :
-- Conformite regle 15 : Les 16 fichiers sont strictement sous les 250 lignes (budget < 300 lignes respecte partout).
-- Tests cibles executes via `.venv/bin/pytest` :
-  - `test_b1_1.py`, `test_b1_2.py`, `test_b1_3.py`, `test_s2_1_record_rules.py`, `test_s2_9_domain_force_evaluator.py` : 42/42 passed.
-  - `test_bloc8_j27_inheritance_cycle_regression.py` : 3/3 passed.
-  - `test_j23_24_authorization_gate.py` : 8/8 passed.
-  - `test_j22bis_button_availability_gate.py` : 8/8 passed.
-  - `test_bloc_b0_evidence_ci_pilot.py`, `test_bloc_b1_evidence_button_execution_path.py`, `test_bloc_b1_evidence_field_change_impact.py`, `test_bloc_b1_evidence_who_has_access_to.py`, `test_b2_move_type_context_injection.py` : 40/40 passed.
-  - `test_b_complete.py`, `test_bug1_xml_id_citation_wiring.py`, `test_evidence_sufficiency.py`, `test_bloc_p2_j4_composite_tools_tag_exposure.py`, `test_bloc9_cross_module_computed_fields.py` : 43 passed (3 skipped).
-  - `test_ci_agent_tools_resolution.py`, `test_j36_sprint_d_expense_risk_replay.py` : 5 passed (8 skipped).
-  - Au total : plus de 140 tests valides avec 0 echec et 0 regression.
-
----
-
-## Section 585 - Audit des references ci_agent_node (tests/scripts/api) post-modularisation & correction du cablage backfill dans postprocess.py (2026-09-08)
-
-**Contexte** : Suite a la modularisation de `code_intelligence/ci_agent_node.py` en un sous-package `code_intelligence/ci_agent_node/` (24 sous-modules tous < 230 lignes, reexportant la surface publique via `__init__.py`), un grep des references a `ci_agent_node` dans `tests/`, `scripts/`, `api/` a ete audite :
-- `tests/test_bloc9_02_backfill_can_view_amount_wiring.py` : mentions historiques en docstrings/commentaires uniquement. Tests 100% verts.
-- `tests/test_bloc9_02_infer_move_type_context.py` : mention en docstring uniquement. Tests 100% verts.
-- `tests/test_bloc_p1_execution_failure_signal.py` : import `_EXECUTION_FAILURE_NOTICE` depuis `code_intelligence.ci_agent_node` (reexporte par `__init__.py`). Tests 100% verts.
-- `tests/test_bug2_backfill_scoped_output_wiring.py` : controle statique de non-regression sur le scoping fail-closed de `scoped_tool_output` sur la chaine de backfill.
-- `tests/test_h1b_ii_rehydrate_ci_node.py` : mentions en docstring/nom de test, import direct depuis `ci_helpers`. Tests 100% verts.
-- `tests/test_graph.py` & `scripts/verify_groq_key_rotation_live.py` : commentaires/docstrings uniquement.
-
-**Correction apportee sur `code_intelligence/ci_agent_node/postprocess.py`** :
-Lors du deplacement de la chaine de backfill dans `postprocess.py::_apply_backfill_chain()`, l'appel a `_backfill_missing_can_view_amount_fact` (bien importe a la ligne 31) avait ete omis de la fonction, provoquant l'echec du test statique `test_bug2_backfill_scoped_output_wiring.py`.
-- `_apply_backfill_chain()` a ete corrigee pour recevoir `scoped_tool_observation_models` et `target_models`, et executer `_backfill_missing_can_view_amount_fact` juste apres `_correct_security_lock_threshold_contradictions`, conformement a l'ordre exact verrouille en session 97.
-- La branche non-conflictuante de `build_final_response()` transmet ces arguments.
-
-**Resultats des tests** :
-- `tests/test_bug2_backfill_scoped_output_wiring.py` : 1/1 passed.
-- `tests/test_bloc9_02_backfill_can_view_amount_wiring.py` : 6/6 passed.
-- `tests/test_bloc9_02_infer_move_type_context.py` : 15/15 passed.
-- `tests/test_bloc_p1_execution_failure_signal.py` : 9/9 passed.
-- `tests/test_h1b_ii_rehydrate_ci_node.py` : 12/12 passed.
-- Suite consolidee : 43/43 tests passed sans regression.
-
----
-
-## Section 586 - Refactorisation modulaire des extracteurs dans `code_intelligence/extractor/` (2026-09-08)
-
-**Contexte** :
-- `code_intelligence/xml_extractor.py` comportait 704 lignes (violation de la Regle 15 : limite de 300 lignes par fichier).
-- `code_intelligence/python_extractor.py` comportait 324 lignes (violation de la Regle 15) et declenchait 3 594 DeprecationWarnings sur Python 3.13 a cause de l'evaluation de `ast.Str` et `ast.NameConstant`.
-- A la demande de l'utilisateur ("how about adding a folder 'extractor'?", confirme par "oui"), l'ensemble des extracteurs a ete structure au sein du nouveau package `code_intelligence/extractor/`.
-
-**Structure du nouveau sous-package `code_intelligence/extractor/`** :
-1. `python_models.py` (76 lignes) : Dataclasses et enums d'extraction AST (`ModelRelationType`, `OdooFieldDeclaration`, `OdooMethodDecoration`, `OdooMethodDeclaration`, `OdooModelDeclaration`).
-2. `python_extractor.py` (257 lignes) : Visiteur AST `OdooClassVisitor` et fonction `extract_odoo_models_from_file()`. Utilisation exclusive de `ast.Constant` pour la resolution des litteraux sous Python 3.8+, eliminant completement les 3 594 warnings.
-3. `xml_models.py` (149 lignes) : Dataclasses XML (`OdooRuleRecord`, `OdooGroupRecord`, `OdooActionRecord`, `OdooServerActionRecord`, `OdooBaseAutomationRecord`, `OdooXmlFieldRecord`, `OdooMenuItemRecord`, `OdooFormButton`, `OdooViewRecord`) et fonctions utilitaires `parse_eval_bool`, `extract_refs_from_eval`.
-4. `xml_rules_groups.py` (163 lignes) : Extracteurs XML pour les regles de securite (`parse_ir_rules_from_xml`) et les groupes utilisateurs (`parse_groups_from_xml`).
-5. `xml_actions.py` (212 lignes) : Extracteurs XML pour `ir.actions.act_window` (`parse_actions_from_xml`), `ir.actions.server` / `ir.cron` (`parse_server_actions_from_xml`), et `base.automation` (`parse_base_automations_from_xml`).
-6. `xml_views.py` (232 lignes) : Extracteurs XML pour les vues et boutons (`parse_views_from_xml`, `_extract_buttons_from_arch_elem`), elements de menu (`parse_menuitems_from_xml`), et champs de donnees (`parse_xml_fields_from_xml`).
-7. `xml_extractor.py` (57 lignes) : Interface agregee interne pour le sous-systeme d'extraction XML.
-8. `csv_extractor.py` (110 lignes) : Extracteur des regles ACL CSV `ir.model.access.csv` (`parse_access_control_csv`, `OdooAccessEntry`, `_parse_perm`).
-9. `js_extractor.py` (110 lignes) : Extracteur des controles de securite hasGroup cote client JS/OWL (`parse_client_group_checks`, `OdooClientGroupCheck`).
-10. `manifest_parser.py` (136 lignes) : Analyseur de manifestes `__manifest__.py` et detection des fichiers non charges (`parse_manifest`, `synthesize_fallback_manifest`, `OdooManifest`, `MissingManifestError`, `KNOWN_CORE_MODULE_DEPENDS`).
-11. `__init__.py` (117 lignes) : Point d'entree unifie du package `code_intelligence.extractor`.
-
-**Nettoyage complet des imports et suppression des fichiers racines (Option B)** :
-- A la demande de l'utilisateur ("b"), l'ensemble des imports des 5 anciens modules (`csv_extractor`, `manifest_parser`, `python_extractor`, `xml_extractor`, `js_extractor`) a ete migre directement vers `code_intelligence.extractor.*` a travers **41 fichiers** (code source `ci_graph_loader.py`, `cross_file_resolver.py`, `graph_symbol_refactor.py`, `ingest_all.py`, 3 scripts d'extraction et 34 fichiers de tests).
-- Les 5 fichiers de facade a la racine de `code_intelligence/` ont ete definitivement supprimes :
-  - `code_intelligence/csv_extractor.py` (supprime)
-  - `code_intelligence/js_extractor.py` (supprime)
-  - `code_intelligence/manifest_parser.py` (supprime)
-  - `code_intelligence/python_extractor.py` (supprime)
-  - `code_intelligence/xml_extractor.py` (supprime)
-- Plus aucun import obsolete ne subsiste dans le depot (controle grep 100% propre).
-- Correction ontologique dans `test_bloc_p2_j5_ontology_coverage.py` : ajout du type `"Button"` (introduit dans `graph_builder.py` pour le parcours d'execution des boutons) dans `ALL_KNOWN_NODE_TYPES` et `NON_TAG_CAPABLE_NODE_TYPES`.
-
-**Validation et Tests de non-regression** :
-- Conformite Regle 15 : Tous les 11 fichiers du package `code_intelligence/extractor/` sont strictement sous les 270 lignes (< 300 lignes).
-- `code_intelligence/tests/test_a1_*.py` : 29/29 tests passes en 3.02s (0 warnings au lieu de 3 594).
-- `test_a2_1_1.py`, `test_a3_1_1.py`, `test_action_extension_merge.py`, `test_f08_dedup_groups_server_actions_automations.py` : 15/15 tests passes en 2.33s.
-- `test_b1_1.py`, `test_b1_2.py`, `test_b1_3.py`, `test_bloc8_j27_*.py`, `test_bloc9_cross_*.py`, `test_method_override_chain.py`, `test_mixed_corpus_load_order.py`, `test_s2_3_server_actions.py` : 39 passes, 12 skipped en 23.00s.
-- `test_bloc_p2_j5_ontology_coverage.py` : 9/9 passes en 0.82s.
-- `test_b_complete.py`, `test_bloc_p2_j2_3_graph_tagging.py`, `test_bloc_p2_j4_composite_tools_tag_exposure.py`, `test_j5_live_validation.py`, `test_j28_29_ambiguous_symbols.py`, `test_j34_35_deep_custom_modules.py`, `test_j36_sprint_d_expense_risk_replay.py`, `test_j43_j45_symbol_rename_refactoring.py` : 56 passes, 21 skipped en 1.98s.
-- `test_bug2_backfill_scoped_output_wiring.py`, `test_bloc9_02_backfill_can_view_amount_wiring.py`, `test_bloc_p1_execution_failure_signal.py` : 16/16 passes en 18.97s.
-- Bilan global : plus de 160 tests unitaires et d'integration verifies avec 100% de succes.
-
----
-
-## Section 587 - Refactorisation modulaire du sous-systeme de graphe dans `code_intelligence/graph/` (2026-09-08)
-
-**Contexte** :
-- `code_intelligence/graph_builder.py` (747 lignes), `code_intelligence/cross_file_resolver.py` (393 lignes), et `code_intelligence/ci_graph_loader.py` (384 lignes) depassaient tous le seuil de 300 lignes fixe par la Regle 15.
-- A la demande de l'utilisateur ("graph"), le sous-systeme de resolution et construction de graphe a ete modularise au sein du nouveau package `code_intelligence/graph/`.
-
-**Structure du nouveau package `code_intelligence/graph/`** :
-1. `models.py` (87 lignes) : Modeles de donnees et registres (`ParsedModule`, `ResolvedSymbolRegistry`, `UnresolvedCategory`, `UnresolvedReference`, `CORE_BASE_MODULES`).
-2. `symbol_merger.py` (54 lignes) : Fonctions de fusion d'extensions de records XML (`_merge_action`, `_merge_server_action`, `_merge_rule`, `_merge_group`).
-3. `topological_sort.py` (51 lignes) : Tri topologique des dependances de modules (`topological_sort_modules`).
-4. `cycle_detector.py` (59 lignes) : Detection des cycles d'heritage inter-modeles (`_detect_inheritance_cycles`).
-5. `symbol_resolver.py` (214 lignes) : Resolution inter-fichiers en deux passes (`build_module_symbol_registry`, `_resolve_model_reference`, `_resolve_group_reference`, `_categorize_unresolved`).
-6. `serialization.py` (57 lignes) : Serialisation/deserialisation JSON NetworkX et benchmark (`save_graph_to_json`, `load_graph_from_json`, `benchmark_graph_traversal`).
-7. `security_nodes.py` (154 lignes) : Creation des noeuds et arretes de securite (`add_security_group_nodes` : groupes, regles de securite `ir.rule`, ACLs CSV `ir.model.access.csv`, actions serveur et automatisations).
-8. `ui_nodes.py` (173 lignes) : Creation des noeuds et arretes d'interface et de workflow (`add_menu_nodes`, `add_workflow_nodes_and_edges`, `add_view_button_nodes_and_edges`).
-9. `builder.py` (281 lignes) : Constructeur principal `OdooGraphBuilder`, indexation des modeles, champs, methodes, et heuristiques textuelles (`_humanize_technical_name`, `_method_has_group_and_raise`, `_domain_force_references_state`).
-10. `disk_loader.py` (102 lignes) : Chargement individuel de module depuis le disque (`_load_module`) et verification de portabilite locale (`_graph_filepaths_resolve_locally`).
-11. `loader.py` (195 lignes) : Orchestration du chargement paresseux et du cache memoire/disque (`get_code_intelligence_graph`, `_GRAPH_BUILD_LOCK`, decouverte core/custom/OCA).
-12. `__init__.py` (67 lignes) : Point d'entree unifie du package `code_intelligence.graph`.
-
-**Facades retrocompatibles maintenues a la racine de `code_intelligence/`** :
-- `code_intelligence/cross_file_resolver.py` (46 lignes) : Reexporte les modeles, le tri topologique et la resolution de symboles.
-- `code_intelligence/graph_builder.py` (24 lignes) : Reexporte `OdooGraphBuilder`, `_humanize_technical_name` et les fonctions de serialisation.
-- `code_intelligence/ci_graph_loader.py` (22 lignes) : Reexporte `get_code_intelligence_graph`, `GRAPH_JSON_PATH`, `_load_module`, `_graph_filepaths_resolve_locally`, `_CACHED_CODE_INTEL_GRAPH`, et `_CACHED_GRAPH_MTIME`.
-
-**Validation et Tests de non-regression** :
-- Conformite Regle 15 : Les 15 fichiers sont tous strictement sous les 285 lignes (< 300 lignes).
-- `test_a2_1_1.py`, `test_a3_1_1.py`, `test_action_extension_merge.py`, `test_f08_dedup_groups_server_actions_automations.py`, `test_bloc_p2_j5_ontology_coverage.py`, `test_bloc_p2_j2_3_graph_tagging.py`, `test_bloc8_j27_inheritance_cycle_regression.py` : 39/39 passed en 2.71s.
-- `test_mixed_corpus_load_order.py`, `test_b1_1.py`, `test_b1_2.py`, `test_b1_3.py` : 13 passed, 8 skipped en 21.28s.
-- `test_bug2_backfill_scoped_output_wiring.py`, `test_bloc9_02_backfill_can_view_amount_wiring.py`, `test_bloc_p1_execution_failure_signal.py`, `test_a1_1_2.py`, `test_a2_1_1.py`, `test_a3_1_1.py` : 28/28 passed en 22.06s.
-- Test d'import `import core.graph` : valide avec succes (reexportations de variables de cache preservees).
-- Bilan global : plus de 80 tests cibles verifies sans aucune regression.
-
-
-
-
-
----
-
-## Section 588 - Refactorisation modulaire de `erp_data/odoo_tools.py` par domaine fonctionnel (2026-09-08)
-
-**Contexte** :
-- `erp_data/odoo_tools.py` comptait 1338 lignes, depassant largement le plafond de 300 lignes impose par la Regle 15 de `todo/rules.md`.
-- Refactorisation complete par domaine fonctionnel sans regression fonctionnelle ni rupture d'API.
-
-**Sous-modules crees dans `erp_data/`** :
-1. `_odoo_helpers.py` (110 lignes) :
-   - Singleton `connector = OdooConnector()`, `odoo_uid_ctx`, `odoo_api_key_ctx`.
-   - `get_current_uid()`, `orm_evidence_scope()`, `normalize_client_name()`, `is_all_clients()`, `client_label()`.
-   - `build_sale_domain()`, `resolve_statut()`, `STATUT_SCOPE_LABELS`.
-   - Helper `parse_period` avec delegation dynamique pour supporter le patching unitaire `patch("erp_data.odoo_tools.parse_period")`.
-2. `tools_sales.py` (288 lignes) :
-   - Outils vente : `get_total_sales`, `get_order_count`, `get_average_sales`, `get_sale_details` (et leurs homologues `_raw`).
-   - Facteurs communs de construction de domaine et de resolution de statut factorises via `_odoo_helpers`.
-3. `tools_inventory.py` (182 lignes) :
-   - Outils stocks et suivi : `get_product_stock`, `get_order_status`, `list_out_of_stock_products` (et leurs homologues `_raw`).
-4. `tools_accounting.py` (188 lignes) :
-   - Outils comptables : `get_total_invoices`, `get_period_revenue` (et leurs homologues `_raw`).
-5. `tools_crm.py` (178 lignes) :
-   - Outils CRM et tickets : `search_partner`, `get_recent_tickets` (et leurs homologues `_raw`).
-6. `odoo_tools.py` (106 lignes) :
-   - Facade de reexportation exhaustive preservant 100% de la retrocompatibilite pour tous les appelants externes (`core/graph.py`, `orm_agent_node.py`, scripts et suite de tests).
-   - Exporte tous les symboles publics, internes (`_get_current_uid`, `_resolve_statut`, etc.) et alias historiques (`obtenir_total_ventes`, `obtenir_ca_periode`).
-
-**Conformite aux regles (`todo/rules.md`)** :
-- Regle 15 : Tous les fichiers crees et refactores sont strictement sous la barre des 300 lignes (110, 288, 182, 188, 178, 106).
-- Regle 5 : Commentaires concis, pas de blabla superflu dans le code.
-- Regle 6 : Code et docstrings rediges en anglais.
-- Regle 7 : Aucun emoji utilise.
-- Regle 9 : Code propre et modulaire, separation des responsabilites (separation of concerns).
-- Regle 13 : Documentation complete consigne dans cette section.
-- Regle 14 : Verification ciblee effectuee via `pytest erp_data/tests/ -v -m "not integration"`.
-- Regle 16 : Convention de nommage snake_case appliquee sur tous les modules et fonctions.
-
-**Resultats des tests** :
-- `erp_data/tests/` : 141 tests executes, 141 passes, 0 echec (20 deselectionnes car taggues integration).
-
----
-
-## Section 589 - Refactorisation modulaire de `code_intelligence/method_override_resolver.py` (2026-09-08)
-
-**Contexte** :
-- `code_intelligence/method_override_resolver.py` comptait 792 lignes, depassant la limite de 300 lignes imposee par la Regle 15 de `todo/rules.md`.
-- Refactorisation en sous-modules acycliques specialises sans rupture d'API ni regression.
-
-**Sous-modules crees dans `code_intelligence/`** :
-1. `override_types.py` (45 lignes) :
-   - Modeles de donnees (`MethodOverrideSite`, `MethodOverrideChainResult`).
-   - Resolution topologique d'ordre d'execution dans le graphe (`resolve_method_override_chain`).
-2. `override_unguarded_super.py` (177 lignes) :
-   - Heuristique statique AST pour les appels `super()` inconditionnels non gardes (`detect_unguarded_super`, `_UnguardedSuperVisitor`, `UNGUARDED_SUPER_WARNING_TEMPLATE`, `_branch_returns_or_raises`, `_branch_mutates_record_state`).
-3. `override_relational_chains.py` (189 lignes) :
-   - Heuristique statique AST pour les chaines de champs relationnels Many2one non verifiees (`detect_unchecked_relational_chain`, `_UncheckedRelationalChainVisitor`, `_find_guarding_condition_for_helper_call`, `find_methods_with_override_risk_findings`).
-4. `override_llm_interpreter.py` (97 lignes) :
-   - Couche d'interpretation metier par LLM des anomalies AST detectees (`interpret_override_chain_with_llm`, `_INTERPRETATION_SYSTEM_PROMPT`, `_LLM_CONFIDENCE_CLOSED_SET`).
-5. `override_composer.py` (296 lignes) :
-   - Construction d'Evidence (`_build_override_chain_evidence_no_sites`, `_build_override_chain_site_evidence`, `_build_override_chain_check_evidence`).
-   - Composition des chaines de surcharge et overview des methodes calculees (`_compose_method_override_chain`, `_compose_compute_methods_overview`, `analyze_method_override_chain`, `analyze_method_override_chain_with_evidence`).
-6. `method_override_resolver.py` (87 lignes) :
-   - Facade reexportant l'integralite des symboles publics et internes pour 100% de retrocompatibilite avec tous les modules et tests existants.
-
-**Conformite aux regles (`todo/rules.md`)** :
-- Regle 15 : Tous les fichiers sont strictement sous la limite de 300 lignes (45, 177, 189, 97, 296, 87).
-- Regle 5 : Commentaires brefs et cibles.
-- Regle 6 : Code et docstrings en anglais.
-- Regle 7 : Aucun emoji.
-- Regle 9 : Clean code et architecture en DAG sans cycle d'importation.
-- Regle 13 : Contexte documente dans cette section.
-- Regle 14 : Tests cibles executes sans lancer la suite complete.
-- Regle 16 : Convention de nommage snake_case.
-
-**Resultats des tests** :
-- `test_bloc_b1_evidence_analyze_method_override_chain.py`, `test_method_security_constraints.py`, `test_method_override_chain.py`, `test_mixed_corpus_load_order.py` : 40 passed, 10 skipped en 9.87s (100% de succes).
-
----
-
-## Section 590 - Refactorisation modulaire de `erp_data/orm_agent_node.py` (2026-09-08)
-
-**Contexte** :
-- `erp_data/orm_agent_node.py` comptait 372 lignes, depassant la limite de 300 lignes imposee par la Regle 15 de `todo/rules.md`.
-- Contrainte specifique : `tests/test_bug_a_markdown_only_output.py` verifie par `inspect.getsource(orm_agent_node)` que le texte "balise HTML brute" apparait au moins deux fois directement dans le code source d'`orm_agent_node.py` (prompts inline d'`orm_agent_loop` et `hybrid_node`).
-
-**Sous-module cree dans `erp_data/`** :
-1. `orm_agent_helpers.py` (138 lignes) :
-   - Client Groq avec rotation multi-cle (`_get_chat_groq`, `_build_groq_llm`).
-   - Filtrage des outils selon les competences actives (`resolve_orm_tools`).
-   - Recuperation des appels d'outils malformes suite a des erreurs de generation Groq (`recover_malformed_tool_call`).
-   - Execution d'appel d'outil securisee avec humanisation des messages d'erreur (`execute_tool_call`).
-   - Synthese forcee lorsque la limite de recursion ReAct est atteinte (`force_final_synthesis`).
-2. `orm_agent_node.py` (230 lignes) :
-   - Boucle ReAct principale `orm_agent_loop` allegee et clarifiee.
-   - Noeud d'orchestration hybride `hybrid_node`.
-   - Les deux prompts inline interdisant les balises HTML brutes demeurent in situ pour garantir la conformite avec le test de non-regression Bug A.
-
-**Conformite aux regles (`todo/rules.md`)** :
-- Regle 15 : Les deux fichiers sont strictement sous la limite de 300 lignes (230 lignes pour `orm_agent_node.py`, 138 lignes pour `orm_agent_helpers.py`).
-- Regle 5 : Commentaires concis, pas de blabla.
-- Regle 6 : Code et docstrings en anglais.
-- Regle 7 : Aucun emoji.
-- Regle 9 : Code propre et separation nette entre boucle d'agent et helpers d'execution.
-- Regle 13 : Contexte consigne dans cette section.
-- Regle 14 : Tests cibles executes sans lancer la suite complete.
-- Regle 16 : Convention de nommage snake_case.
-
-**Resultats des tests** :
-- `test_bug_a_markdown_only_output.py`, `test_bloc_p1_tranche2_ci_first_evidence_routing.py` : 17 passed, 6 deselected en 4.69s.
-- `erp_data/tests/` : 141 passed, 20 deselected en 7.85s (100% de succes).
-
----
-
-## Section 591 - Refactorisation modulaire de `api/main.py` (2026-09-08)
-
-**Contexte** :
-- `api/main.py` comptait 604 lignes, depassant le seuil de 300 lignes impose par la Regle 15 de `todo/rules.md`.
-- Refactorisation de l'API FastAPI en sous-modules de routes et schemas specialises.
-
-**Sous-modules crees dans `api/`** :
-1. `schemas.py` (93 lignes) :
-   - Modeles Pydantic de requete et reponse (`AskRequestV1`, `AskResponseV1`, `StatsResponse`, `ReindexResponse`, `ReindexRequestV1`, `ReindexResponseV1`, `IngestionStatusResponse`, `ScheduledScanResponse`, `ModuleCoverageResponse`).
-2. `routes_system.py` (107 lignes) :
-   - Endpoints de sante, statistiques, couverture de modules et redirection root (`/`, `/health`, `/api/v1/health`, `/stats`, `/api/v1/modules`).
-3. `routes_ask.py` (93 lignes) :
-   - Endpoint principal de requete RAG agentique (`/api/v1/ask`).
-4. `routes_ingestion.py` (220 lignes) :
-   - Endpoints de reindexation et monitoring d'ingestion (`/reindex`, `/api/v1/reindex`, `/api/v1/ingestion/status`, `/api/v1/ingestion/scheduled-scan`).
-   - Resolution dynamique `_main_ref` pour garantir la compatibilite avec les patches unitaires sur `api.main` (`ChromaManager`, `reindex_if_changed`, `write_ingestion_event`, `run_scheduled_scan`, `LAST_INGESTION_STATUS`).
-5. `main.py` (148 lignes) :
-   - Initialisation FastAPI, middleware CORS, montage des fichiers statiques `/ui`.
-   - Evenements de cycle de vie (startup/shutdown).
-   - Reexportations exhaustives des routes, schemas et symboles patches pour les tests unitaires.
-
-**Conformite aux regles (`todo/rules.md`)** :
-- Regle 15 : Tous les fichiers de `api/` sont strictement sous 300 lignes (25, 148, 93, 220, 107, 93).
-- Regle 6 : Code et docstrings en anglais.
-- Regle 7 : Aucun emoji.
-- Regle 9 : Separation des responsabilites et modularite.
-- Regle 13 : Contexte documente dans cette section.
-- Regle 14 : Tests cibles executes sans lancer la suite complete.
-
-**Resultats des tests** :
-- `tests/test_api_ingestion.py`, `document_rag/tests/test_scheduler.py` : 8 passed en 15.43s (100% succes).
-
----
-
-## Section 592 - Abstraction et preparation de la migration vers les modeles locaux (2026-09-08)
-
-**Contexte** :
-- L'utilisateur a demande de preparer la transition vers les modeles locaux (Ollama, vLLM, llama.cpp, LM Studio, etc.) et de supprimer le couplage dur a Groq afin de pouvoir basculer facilement via configuration.
-- En parallele, `core/llm_client.py` (323 lignes) et `document_rag/generate_node.py` (322 lignes) depassaient le plafond strict des 300 lignes impose par la Regle 15 de `todo/rules.md`.
-
-**Actions realisees** :
-1. `config/settings.py` (96 lignes) :
-   - Ajout des variables de configuration locales interoperables : `LOCAL_LLM_BASE_URL` (defaut: `${OLLAMA_HOST}/v1`), `LOCAL_LLM_MODEL`, `LOCAL_LLM_API_KEY`.
-   - Support des providers : `'groq'` (defaut), `'local'` (ou synonymes `'ollama'`, `'vllm'`, `'openai_compatible'`, `'lmstudio'`, `'llamacpp'`), et `'openrouter'`.
-2. `core/llm_retry.py` (121 lignes) :
-   - Extraction des utilitaires de reduction de contexte et recuperation de requetes rate-limitees (`reduce_message_context`, `extract_rate_limit_headers`, `parse_reset_seconds`, `try_recover_tool_use_failed`, `ToolCallFallback`).
-3. `core/llm_client.py` (268 lignes) :
-   - Factory provider-agnostique `get_chat_llm(provider=..., model=..., base_url=..., api_key=..., temperature=..., max_tokens=...)`.
-   - Quand `LLM_PROVIDER="local"` (ou specifie), instancie dynamiquement `ChatOpenAI` (deja installe dans `.venv`) connecte au endpoint OpenAI-compatible local.
-   - Quand `LLM_PROVIDER="groq"`, continue d'utiliser `ChatGroq` avec support de rotation multi-cle et compatibilite avec les mocks de tests unitaires via `_get_chat_groq()`.
-   - Reexportation de tous les symboles d'origine pour assurer une retrocompatibilite a 100%.
-4. `document_rag/generate_helpers.py` (95 lignes) & `document_rag/generate_node.py` (152 lignes) :
-   - Modularisation des fonctions pures de gestion de citations et score de confiance.
-   - Raccordement de `_build_groq_llm` a la factory `get_chat_llm` pour la branche documentaire.
-5. `erp_data/orm_agent_helpers.py` (139 lignes) :
-   - Raccordement de la branche ORM agent a `get_chat_llm`.
-6. `api/routes_system.py` (124 lignes) :
-   - `/api/v1/health` inspecte desormais `LLM_PROVIDER` : en mode local, rapporte `status["services"]["llm"] = "ok (local: ...)"` sans degrader le statut pour cause d'absence de cle Groq.
-7. `tools/odoo_connector.py` (5 lignes) :
-   - Facade re-exportant `OdooConnector` depuis `erp_data.odoo_connector`.
-8. `.env_exemple` :
-   - Ajout d'exemples commentes montrant comment basculer sur un modele local via `LLM_PROVIDER=local`.
-9. `tests/test_local_llm_provider.py` (93 lignes) :
-   - 9 tests unitaires validant l'instanciation correcte de `ChatOpenAI` en mode local, les alias de provider, OpenRouter, la bascule par variables d'environnement et le health check v1.
-
-**Conformite aux regles (`todo/rules.md`)** :
-- Regle 15 : Tous les fichiers crees et modifies sont strictement sous 300 lignes.
-- Regle 6 : Code et docstrings en anglais.
-- Regle 7 : Aucun emoji.
-- Regle 13 : Contexte documente dans cette section.
-- Regle 14 : Tests executes de maniere ciblee avec `-m "not integration"`.
-
-**Resultats des tests** :
-- `tests/test_local_llm_provider.py` : 9 passed en 7.91s.
-- `tests/test_bug_a_markdown_only_output.py`, `tests/test_api_ingestion.py` : 6 passed en 11.28s.
-- `erp_data/tests/` : 141 passed en 8.73s.
-- `tests/test_graph.py` : 150 passed en 11.41s.
-
----
-
-## Section 593 - Modularisation de ChromaDB et support des embeddings locaux sans AVX (2026-09-08)
-
-**Contexte** :
-- L'utilisateur a valide la priorite #1 (embeddings locaux air-gapped) en precisant la contrainte materielle de sa machine de dev : absence d'instructions CPU AVX/AVX2 (`asvx`), motivant le choix de `EMBEDDING_BACKEND=local_light` dans `.env`.
-- En parallele, `document_rag/vectorstore/chroma_manager.py` (598 lignes) depassait le plafond des 300 lignes impose par la Regle 15 de `todo/rules.md`.
-
-**Actions realisees** :
-1. `document_rag/vectorstore/embedding_functions.py` (202 lignes) :
-   - Extraction de `CustomNomicEmbeddingFunction` (API cloud Nomic Atlas) et generalisation de `LocalSentenceTransformerEmbeddingFunction` (supporte n'importe quel modele HuggingFace ou chemin de poids local specifie via `EMBEDDING_MODEL`, ex: `BAAI/bge-m3`, `all-mpnet-base-v2`, etc.).
-   - Ajout de `LocalServerEmbeddingFunction` : client HTTP appelant un serveur d'embedding OpenAI-compatible ou Ollama (`/v1/embeddings` ou `/api/embeddings`). N'effectue aucun calcul vectoriel sur le CPU local, permettant de deporter l'inference vectorielle sur une machine distante ou un conteneur GPU local sans dependance AVX2 sur l'hote applicatif.
-   - Fonction `resolve_embedding_function()` : supporte `local_light` (retourne `None` pour activer le modele ONNX `all-MiniLM-L6-v2` 384 dims natif de Chroma, parfaitement optimise et non bloque par AVX2), `local_server` (ou `ollama`, `openai_compatible`), `nomic_api`, et `local` (charge dynamiquement `EMBEDDING_MODEL` via sentence-transformers sans aucun hardcoding).
-2. `document_rag/vectorstore/chroma_helpers.py` (96 lignes) :
-   - Extraction des fonctions de validation de metadonnees (`clean_metadata`) et formatage de resultats (`format_query_results`).
-   - Fonctions wrappers historiques (`get_chroma_client`, `get_or_create_collection`, `add_documents`, `query_collection`, `reset_collection`, `get_collection_stats`).
-3. `document_rag/vectorstore/chroma_manager.py` (225 lignes, reduit de 598 a 225 lignes) :
-   - Classe `ChromaManager` alliee aux modules specialises, instanciee dynamiquement avec `EMBEDDING_MODEL` ou fallback `EMBEDDING_MODEL_NAME`.
-4. `config/settings.py` (103 lignes) :
-   - Ajout de `EMBEDDING_BACKEND`, `EMBEDDING_MODEL_NAME`, `LOCAL_EMBEDDING_BASE_URL`, `LOCAL_EMBEDDING_MODEL`, `LOCAL_EMBEDDING_API_KEY`.
-5. `.env_exemple` :
-   - Documentation detaillee des backends d'embeddings avec avertissement explicite sur l'absence d'AVX/AVX2 (`local_light` recommande en CPU local sans AVX).
-6. `document_rag/tests/test_embedding_functions.py` (114 lignes) :
-   - 8 tests unitaires verifiant la resolution de `local_light`, `local_server`, les formats OpenAI et Ollama, l'instanciation dynamique d'un modele personnalise avec `backend=local`, et la gestion des erreurs.
-
-**Conformite aux regles (`todo/rules.md`)** :
-- Regle 15 : Tous les fichiers de `document_rag/vectorstore/` sont desormais strictement sous 300 lignes (202, 96, 225).
-- Regle 2 : Aucune dependance materielle ou chemin/modele en dur ; support de n'importe quel modele via `EMBEDDING_MODEL`.
-- Regle 6 : Code et docstrings en anglais.
-- Regle 7 : Aucun emoji.
-- Regle 13 : Contexte documente dans cette section.
-- Regle 14 : Tests executes de maniere ciblee sans lancer la suite complete.
-
-**Resultats des tests** :
-- `document_rag/tests/test_embedding_functions.py` : 8 passed en 0.81s.
-- `document_rag/tests/test_chroma_manager.py` : 16 passed en 8.67s (100% de succes).
-
----
-
-## Section 594 - Migration FastAPI lifespan et modularisation de `core/routing.py` (2026-09-08)
-
-**Contexte** :
-- Poursuite du plan d'amelioration de l'application :
-  1. Migration des gestionnaires de cycle de vie FastAPI de `@app.on_event("startup")` / `@app.on_event("shutdown")` (deprecies) vers le context manager standard `lifespan(app: FastAPI)` dans `api/main.py`.
-  2. Modularisation de `core/routing.py` (417 lignes), depassant la limite de 300 lignes de la Regle 15 de `todo/rules.md`.
-
-**Actions realisees** :
-1. `api/main.py` (148 lignes) :
-   - Remplacement de `@app.on_event("startup")` et `@app.on_event("shutdown")` par `@asynccontextmanager async def lifespan(app: FastAPI)`.
-   - Disparition complete des avertissements `DeprecationWarning` de Starlette/FastAPI lors de l'execution de l'API et des tests d'ingestion.
-2. `core/routing_keywords.py` (110 lignes) :
-   - Extraction des listes de mots-cles (`ERP_KEYWORDS`, `CODE_INTEL_KEYWORDS`, `DOC_KEYWORDS`, etc.), des fonctions de repliement d'accents (`_fold_accents`, `_fold_keywords`) et des constantes de priorite/hors-perimetre.
-3. `core/routing_guards.py` (75 lignes) :
-   - Extraction des regles deterministes de securite et regex d'extraction massive / injection (`_is_out_of_scope`, `_is_massive_extraction_request`, `_is_prompt_injection`).
-4. `core/routing.py` (188 lignes, ramene de 417 a 188 lignes) :
-   - Reexportations de compatibilite avec l'ensemble des modules consommateurs.
-   - Fonctions de routage sticky et decisionnelles (`_sticky_route_or_default`, `_sticky_concept_or_resolve`, `route`, `route_decision`).
-
-**Conformite aux regles (`todo/rules.md`)** :
-- Regle 15 : `core/routing_keywords.py` (110), `core/routing_guards.py` (75) et `core/routing.py` (188) sont strictement sous 300 lignes.
-- Regle 6 : Code et docstrings en anglais.
-- Regle 7 : Aucun emoji.
-- Regle 13 : Contexte documente dans cette section.
-- Regle 14 : Tests executes de maniere ciblee sans lancer la suite complete.
-
-**Resultats des tests** :
-- `tests/test_api_ingestion.py` : 3 passed en 30.88s (0 warning).
-- `tests/test_out_of_scope_gate.py`, `tests/test_h1b_ii_sticky_concept.py` : 25 passed en 8.99s (100% de succes).
-
----
-
-## Section 595 - Modularisation de `core/graph.py` et durcissement des tests d'integration (2026-09-08)
-
-**Contexte** :
-- `core/graph.py` comptait 668 lignes, depassant largement la limite des 300 lignes prescrite par la Regle 15 de `todo/rules.md`.
-- Le fichier accumulait deux responsabilites distinctes :
-  1. L'orchestration LangGraph (`build_graph()` et le point d'entree `query_graph()`).
-  2. L'implementation des noeuds du pipeline (`smalltalk_gate`, `out_of_scope_gate`, `retrieve`, `format_output`, `ci_evidence_decision`).
-  3. Une longue liste de reexportations historiques de compatibilite utilisees par d'anciens scripts et suites de tests.
-
-**Actions realisees** :
-1. `core/graph_compat.py` (209 lignes) :
-   - Regroupement des reexportations backward-compatible (schemas, llm_client, degenerate_guards, routing, generate_node, html_sanitizer, orm_agent_node, ci_graph_loader, ci_helpers, ci_override_cascade, ci_agent_node).
-   - Export dynamique via `__all__` garantissant que les appels historiques `from core.graph import ...` restent 100% operationnels.
-2. `core/graph_nodes.py` (190 lignes) :
-   - Extraction des noeuds du pipeline et des fonctions de decision : `smalltalk_gate`, `smalltalk_decision`, `out_of_scope_gate`, `out_of_scope_decision`, `retrieve`, `format_output`, `ci_evidence_decision`.
-   - Resolution dynamique des fonctions `get_retriever` et `search_retrieve` pour respecter les mocks de tests (`patch("core.graph.get_retriever")`).
-3. `core/graph.py` (170 lignes, reduit de 668 a 170 lignes) :
-   - Assemblage LangGraph (`build_graph`) et point d'entree d'execution (`query_graph`) avec propagation de contexte RPC/API key.
-   - Delegation automatique via `__getattr__` vers `core.graph_compat`.
-4. Corrections d'interoperabilite decouvertes lors des tests :
-   - `document_rag/vectorstore/chroma_manager.py` (227 lignes) : Elimination de la valeur `None` dans le dictionnaire de metadonnees de la collection Chroma (`Cannot convert Python object to MetadataValue` rejete par le backend Rust).
-   - `code_intelligence/investigation_plan.py` : Durcissement de `classify_question_intent_llm()` pour valider que `result.intent` est bien une instance de `QuestionIntent` (evitant l'echec de validation Pydantic lorsqu'un mock retourne un `MagicMock` non configure).
-   - `tests/test_e2e_watcher_rag.py` : Ajout de `used_sources=["S1"]` dans le mock de reponse structuree et mock du fallback CI.
-
-**Conformite aux regles (`todo/rules.md`)** :
-- Regle 15 : `core/graph.py` (170), `core/graph_nodes.py` (190), `core/graph_compat.py` (209), `chroma_manager.py` (227) sont strictement sous les 300 lignes.
-- Regle 6 : Code et docstrings en anglais.
-- Regle 7 : Aucun emoji.
-- Regle 13 : Contexte documente dans cette section.
-- Regle 14 : Tests cibles avec `-m "not integration"`.
-
-**Resultats des tests** :
-- `tests/test_graph.py` : 150 passed en 14.15s.
-- `tests/test_e2e_watcher_rag.py` : 1 passed (cycle e2e d'ingestion/suppression/retrieval valide).
-- Suites groupees (`test_graph.py`, `test_smalltalk_gate.py`, `test_bloc_p1_tranche2_ci_first_evidence_routing.py`, `test_bloc_p1_execution_failure_signal.py`, `test_out_of_scope_gate.py`, `test_route_accent_fold.py`, `test_h1c_sticky_routing.py`, `test_j18_routing_fewshot.py`) : 332 passed en 2m 12s (100% succes).
-
----
-
-## Section 596 - Modularisation de `code_intelligence/ci_helpers.py` (2026-09-08)
-
-**Contexte** :
-- `code_intelligence/ci_helpers.py` contenait 1 886 lignes, enfreignant gravement la Regle 15 de `todo/rules.md` (300 lignes par fichier max).
-- Il regroupait des responsabilites etenduement divergentes : heuristiques de prompt et de troncature, extracteurs d'intentions et contextes metier, gardes de groupes et d'acces Odoo, verrous de securite et link guards, verificateurs deterministes de visibilite `can_view_amount`, et utilitaires de dispatch d'agents.
-
-**Actions realisees** :
-Decomposition en 7 modules autonomes formant un graphe acyclique direct (DAG sans dependance circulaire) :
-1. `code_intelligence/ci_prompt_and_heuristics.py` (127 lignes) :
-   - `CI_SYSTEM_PROMPT`, `CI_MAX_HOPS`, `_MODEL_KEYED_TOOLS`, `_tool_call_key`.
-   - Heuristiques de troncature securisee sans coupe intra-token (`_truncate_observation`, `_match_near_truncation`, `_TRUNCATION_MARKER`).
-2. `code_intelligence/ci_context_extractors.py` (216 lignes) :
-   - Detection et extraction de montants (`_extract_amount`), relations societes (`_extract_company_context`), mapping des types de mouvements comptables (`_infer_move_type_context`).
-   - Classification par motifs de questions (approval, access, workflow, inheritance, method override, data constraints).
-   - Reconstitution de concept sticky (`_rehydrate_sticky_concept`).
-3. `code_intelligence/ci_access_guards.py` (254 lignes) :
-   - Extraction et filtrage de groupes requis `has_group` (`_extract_required_groups`, `_extract_required_groups_for_amount`).
-   - Signalement des groupes non grounded (`_flag_ungrounded_group_xmlids`), suppression des mentions de groupes core supprantes (`_strip_core_only_group_mentions`).
-   - Filtrage et restriction aux modules personnalises (`_block_is_custom_module_file`, `_restrict_blocks_to_custom_modules`, `_scoped_raw_tool_output`, `_backfill_missing_required_groups`).
-4. `code_intelligence/ci_link_guards.py` (191 lignes) :
-   - Detection et neutralisation des contradictions de court-circuit link-guard (`_answer_contradicts_link_guard`, `_neutralize_contradicting_link_guard_sentence`, `_backfill_link_guard_clarifications`).
-   - Extraction et backfill des litteraux de declenchement et d'IDs en dur d'actions serveur (`_extract_trigger_condition_literals`, `_backfill_missing_trigger_condition_literals`, `_extract_hardcoded_id_literals`, `_backfill_missing_hardcoded_id_literals`).
-5. `code_intelligence/ci_security_locks.py` (232 lignes) :
-   - Extraction et backfill des seuils numeriques de verrous de securite (`_extract_security_lock_condition_amounts`, `_backfill_missing_security_lock_amount`).
-   - Correction des inversions et contradictions de seuils de verrous de securite (`_correct_security_lock_threshold_contradictions`).
-6. `code_intelligence/ci_can_view_verifier.py` (271 lignes) :
-   - Analyse et conciliation de visibilite `can_view_amount_v2` (`_extract_can_view_amount_verdict`, `_has_can_view_amount_fact`, `_correct_can_view_amount_contradictions`).
-   - Detection de conflits deterministes entre modeles resolus (`_detect_can_view_amount_model_conflict`) et mise en forme de reponse non-arbitree (`_format_conflicting_evidence_answer`).
-   - Extraction et mise en forme des blocs de faits declaratifs (`_extract_can_view_amount_fact_block`, `_backfill_missing_can_view_amount_fact`, `_format_can_view_amount_fact`).
-7. `code_intelligence/ci_dispatch_utils.py` (169 lignes) :
-   - Detection d'actions automatiques (`_question_suggests_automation_bypass`), reclassement par similarite lexicale des modeles resolus (`_rank_and_cap_resolved_models`).
-   - Surcharge d'arguments de groupes (`_override_user_groups_arg`), nettoyage du bruit de resolution (`_strip_group_resolution_noise`).
-   - Reponses forcees pour modeles non indexes (`_force_out_of_scope_model_answer`) et incertitude dynamique (`_force_dynamic_uncertainty_answer`).
-8. `code_intelligence/ci_helpers.py` (125 lignes, ramene de 1 886 a 125 lignes) :
-   - Facade reexportant l'integralite des symboles publics et prives via `__all__`, preservant une retrocompatibilite totale a 100% pour les tests et appelants externes.
-
-**Conformite aux regles (`todo/rules.md`)** :
-- Regle 15 : Les 8 fichiers sont strictement sous la barre des 300 lignes (max: 271 lignes pour `ci_can_view_verifier.py`).
-- Regle 6 : Code et docstrings en anglais.
-- Regle 7 : Aucun emoji.
-- Regle 13 : Contexte trace dans cette section.
-- Regle 14 : Suites ciblees avec `-m "not integration"`.
-
-**Resultats des tests** :
-- `code_intelligence/tests/` (Batch 1 : bloc9_05, bloc9_06, bloc9_07, j22bis, j23_24, j30_31, j32_33, j8) : 90 passed en 11.51s.
-- `code_intelligence/tests/` (Batch 2 : bloc9_08, h1b_ii, c_complete, c1_1, analyze_data_constraints) : 50 passed en 2m 13s.
-- `tests/test_graph.py` : 150 passed en 11.99s.
-
----
-
-## Section 597 - Modularisation de `code_intelligence/business_resolver.py` (2026-09-08)
-
-**Contexte** :
-- `code_intelligence/business_resolver.py` comptait 822 lignes, depassant la limite de 300 lignes prescrite par la Regle 15 de `todo/rules.md`.
-- Le fichier cumulait la definition volumineuse des dictionnaires d'alias metier et synonymes Odoo, la correspondance floue (fuzzy matching) et recherche de mentions exactes dans le graphe Neo4j, l'arbitrage par LLM avec invite structuree et seuils de score, ainsi que l'orchestration de resolution du terme metier.
-
-**Actions realisees** :
-Decomposition en 4 sous-modules autonomes dans une architecture DAG sans cycle :
-1. `code_intelligence/business_aliases.py` (197 lignes) :
-   - Dictionnaires `BUSINESS_ALIASES` et `NATIVE_MODEL_SYNONYMS`.
-   - Normalisation NFC (`_nfc`) et dictionnaire normalise `BUSINESS_ALIASES_NFC`.
-   - Motifs regex pre-compiles `_ALIAS_PATTERNS` avec frontieres de mots et gestion des apostrophes.
-2. `code_intelligence/business_resolver_matching.py` (259 lignes) :
-   - Dataclass `ResolvedConcept`.
-   - Indexation et matching flou (`_build_fuzzy_index`, `_fuzzy_match_graph`).
-   - Extraction des mentions techniques exactes de modeles et modules (`_find_exact_technical_model_mentions`, `_find_exact_technical_module_mentions`).
-   - Calcul de specificite et classement (`_specificity_score`, `rank_by_specificity`).
-3. `code_intelligence/business_resolver_arbitration.py` (72 lignes) :
-   - Constantes d'arbitrage (`_ARBITRATION_MAX_CANDIDATES`, `_AMBIGUITY_SCORE_THRESHOLD`).
-   - Invite systeme d'arbitrage `_ARBITRATION_SYSTEM_PROMPT` et constructeur d'invite `_build_arbitration_prompt`.
-   - Arbitrage LLM `_llm_arbitrate` avec parseur JSON robuste et revalidation sur les candidats autorises.
-4. `code_intelligence/business_resolver.py` (283 lignes, ramene de 822 a 283 lignes) :
-   - Facade reexportant l'integralite des symboles publics et internes via `__all__`.
-   - Orchestration principale `resolve_business_term()` (resolution exacte, resolution d'alias, resolution floue de fallback, arbitrage LLM en cas d'ambiguite).
-5. Mise a jour du fixture de test `code_intelligence/tests/test_s2_0_business_resolver.py` pour integrer le modele `custom.reimbursement.request` et l'arete `DEFINED_IN` vers le module indirect.
-
-**Conformite aux regles (`todo/rules.md`)** :
-- Regle 15 : Tous les modules sont < 300 lignes (`business_resolver.py`: 283, `business_aliases.py`: 197, `business_resolver_matching.py`: 259, `business_resolver_arbitration.py`: 72).
-- Regle 6 : Code et docstrings en anglais.
-- Regle 7 : Aucun emoji.
-- Regle 13 : Contexte trace dans cette section.
-- Regle 14 : Tests cibles avec `-m "not integration"`.
-
-**Resultats des tests** :
-- `code_intelligence/tests/test_business_resolver.py`, `test_resolver_fuzzy_vs_alias.py`, `test_s2_0_business_resolver.py`, `tests/test_business_resolver_specificity.py`, `tests/test_resolver.py` : 71 passed en 65.42s (100% de succes).
-
----
-
-## Section 598 - Modularisation de `code_intelligence/investigation_plan.py` (2026-09-08)
-
-**Contexte** :
-- `code_intelligence/investigation_plan.py` contenait 1 079 lignes, enfreignant la Regle 15 de `todo/rules.md` (300 lignes max par fichier).
-- Il concentrait des domaines fonctionnels hautement disparates :
-  1. Le vocabulaire d'actions fermees (`PlanAction`), les enums d'intentions (`QuestionIntent`), et les modeles Pydantic (`InvestigationStep`, `InvestigationPlan`).
-  2. Le classifieur deterministe a base de cascades regex et de tags ontologiques du graphe Neo4j (`classify_question_intent`).
-  3. Le classifieur d'intention borne par LLM et son orchestration avec repli deterministe (`classify_question_intent_llm`, `resolve_question_intent`).
-  4. La logique detaillee de formulation des etapes d'investigation par type d'intention (`plan_governance_security`, `plan_workflow_state`, etc.).
-  5. L'assemblage du plan (`generate_investigation_plan`) et la validation de coherence plan/route (`validate_plan_against_route`).
-
-**Actions realisees** :
-Partitionnement en 5 sous-modules concis organisant un DAG sans cycle :
-1. `code_intelligence/investigation_plan_schemas.py` (183 lignes) :
-   - Enums `PlanAction`, `QuestionIntent`, `PlanGenerationSource`.
-   - Dictionnaire de routage ferme `INTENT_TO_ROUTE`.
-   - Modeles Pydantic `InvestigationStep` et `InvestigationPlan` (avec serialisation `to_display_dict`).
-   - Normalisation d'accents `_fold_accents`.
-2. `code_intelligence/investigation_plan_classifier.py` (205 lignes) :
-   - Dictionnaires d'expressions regulieres par domaine (`_GOVERNANCE_PATTERNS`, `_WORKFLOW_PATTERNS`, `_CALCULATION_CODE_PATTERNS`, `_CALCULATION_AMOUNT_PATTERNS`, `_INHERITANCE_PATTERNS`, `_AUTOMATION_PATTERNS`, `_ERP_DATA_PATTERNS`, `_DOC_ANCHOR_PATTERNS`, `_WEAK_PROCESS_SIGNALS`).
-   - Fonctions d'ancrage et de classification deterministe : `has_documentary_anchor()`, `classify_question_intent()`, `concept_suggests_code_intelligence_v2()`.
-   - Resolution dynamique des mocks de tests via `sys.modules`.
-3. `code_intelligence/investigation_plan_llm.py` (140 lignes) :
-   - Modele de reponse structuree `IntentClassificationLLMResponse`.
-   - Invite systeme de classification `_INTENT_CLASSIFICATION_SYSTEM_PROMPT`.
-   - `classify_question_intent_llm()` : appel unique structure avec repli immediat sans boucle de retry (`max_retries=1`).
-   - Dataclass `IntentResolution` et orchestration `resolve_question_intent()`.
-   - Resolution dynamique des fonctions patchees pour compatibilite parfaite des suites de tests.
-4. `code_intelligence/investigation_plan_builders.py` (240 lignes) :
-   - Constructeurs d'etapes d'investigation : `plan_governance_security()`, `plan_workflow_state()`, `plan_calculation_logic()`, `plan_inheritance_structure()`, `plan_automation_action()`, `plan_general_code_inquiry()`.
-   - Alignement strict avec les predicats partages de dispatch force (`forced_dispatch_predicates`).
-5. `code_intelligence/investigation_plan.py` (185 lignes, reduit de 1 079 a 185 lignes) :
-   - Facade reexportant l'ensemble des symboles via `__all__`.
-   - Orchestration d'assemblage `generate_investigation_plan()`.
-   - Reconciliation de coherence `validate_plan_against_route()` neutralisant les etapes CI pour les routes sans execution.
-
-**Conformite aux regles (`todo/rules.md`)** :
-- Regle 15 : Tous les 5 fichiers sont strictement sous la limite de 300 lignes (185, 183, 205, 140, 240).
-- Regle 6 : Code et docstrings en anglais.
-- Regle 7 : Aucun emoji.
-- Regle 13 : Contexte documente dans cette section.
-- Regle 14 : Tests cibles avec `-m "not integration"`.
-
-**Resultats des tests** :
-- `test_intent_llm_classifier_and_resolution.py` : 13 passed en 60.52s.
-- `test_j18_routing_fewshot.py` : 57 passed en 147.93s.
-- `test_bloc_p1_j1_2_investigation_plan.py`, `test_bloc_p1_j7_plan_route_conflict.py`, `test_h1c_sticky_routing.py`, `test_route_accent_fold.py`, `test_smalltalk_gate.py`, `test_out_of_scope_gate.py` : 136 passed en 32.28s (100% de succes sur les 206 tests).
-
----
-
-## Section 599 - Modularisation de `document_rag/ingestion/code_loader.py` (2026-09-08)
-
-**Contexte** :
-- `document_rag/ingestion/code_loader.py` comptait 842 lignes, depassant la limite de 300 lignes prescrite par la Regle 15 de `todo/rules.md`.
-- Il regroupait dans une classe monolithique `CodeLoader` le traitement de 4 formats distincts : parsing AST de fichiers Python, parsing syntaxique tree-sitter de balises XML Odoo (`<record>` et `<template>`), parsing tree-sitter de composants JS/OWL et fonctions, ainsi que le decoupage de tables CSV (`ir.model.access.csv`), en plus des fonctions utilitaires de repertoire.
-
-**Actions realisees** :
-Decomposition en 5 modules specialises selon les formats traites :
-1. `document_rag/ingestion/code_loader_common.py` (39 lignes) :
-   - `compute_hash()` : empreinte SHA-256 tronquee a 12 caracteres.
-   - `estimate_tokens()` : estimation heuristique et via tokenizer tiktoken du nombre de tokens.
-   - `extract_module_name()` : extraction structurelle du nom de module Odoo basee sur `scan_root`.
-2. `document_rag/ingestion/code_loader_python.py` (239 lignes) :
-   - Analyseur AST Python `_ASTCollector` extrayant classes, modeles Odoo (`_name`, `_inherit`), methodes, et docstrings.
-   - Fonctions de formatage d'entete et de correlation (`build_python_file_header`, `find_ast_elements_in_chunk`).
-   - Implementation `load_python_file_impl` et iterateur de dossier `load_python_directory`.
-3. `document_rag/ingestion/code_loader_xml.py` (196 lignes) :
-   - Chargeur et grammaire tree-sitter XML (`_XML_LANGUAGE`, `_XML_RECORD_TAGS`).
-   - Extracteurs d'attributs et de balises (`xml_element_tag`, `xml_element_attr`, `split_xml_by_records`).
-   - Implementation `load_xml_file_impl` et iterateur de dossier `load_xml_directory`.
-4. `document_rag/ingestion/code_loader_js_csv.py` (252 lignes) :
-   - Chargeur et grammaire tree-sitter JavaScript (`_JS_LANGUAGE`, `_JS_UNIT_NODE_TYPES`).
-   - Extracteurs de composants OWL et fonctions JS (`js_unit_name`, `split_js_by_units`, `load_js_file_impl`, `load_js_directory`).
-   - Chargeur dedie aux fichiers CSV (`load_csv_file_impl`).
-5. `document_rag/ingestion/code_loader.py` (208 lignes, reduit de 842 a 208 lignes) :
-   - Classe facade unifiee `CodeLoader` delegant de maniere transparente aux implementations specialisees.
-   - Preservation de l'ensemble des methodes d'instance historiques et reexportations globales (`__all__`).
-
-**Conformite aux regles (`todo/rules.md`)** :
-- Regle 15 : Tous les 5 fichiers sont strictement sous les 300 lignes (208, 39, 239, 196, 252).
-- Regle 6 : Code et docstrings en anglais.
-- Regle 7 : Aucun emoji.
-- Regle 13 : Contexte trace dans cette section.
-- Regle 14 : Tests cibles avec `-m "not integration"`.
-
-**Resultats des tests** :
-- `document_rag/tests/test_code_and_wiki_loaders.py` : 28 passed en 10.05s.
-- `document_rag/tests/test_ingestion.py`, `test_ingest_all.py` : 24 passed en 29.99s (100% de succes sur les 52 tests).
-
----
-
-## Section 600 - Modularisation de `document_rag/ingestion/ingest_all.py` (2026-09-08)
-
-**Contexte** :
-- `document_rag/ingestion/ingest_all.py` comptait 793 lignes, depassant largement la limite des 300 lignes prescrite par la Regle 15 de `todo/rules.md`.
-- Il cumulait la definition des repertoires et modules documentaires Odoo, l'orchestration principale d'ingestion multimodale ChromaDB, le parcours et parsing batch pour chaque format (PDF, Wiki, Python, XML, JS, CSV), et le point d'entree CLI `main()`.
-
-**Actions realisees** :
-Decomposition modulaire en 5 composants specialises respectant l'architecture DAG et le contrat de mocks de tests :
-1. `document_rag/ingestion/ingest_config.py` (102 lignes) :
-   - Constantes de chemins canoniques (`DOCS_DIR`, `LOGS_DIR`, `CORE_ADDONS_ROOT`, `CUSTOM_ADDONS_ROOT`, `CORE_MODULES_ALWAYS_LOADED`).
-   - Resolution structurelle du perimetre des modules documentaires : `documentary_code_module_dirs()`, `CODE_DIRS`, et sentinelle `CODE_DIR`.
-   - Initialisation du logging d'ingestion `setup_ingestion_logging()`.
-2. `document_rag/ingestion/ingest_handlers_doc.py` (156 lignes) :
-   - Traitement batch et alimentation vectorielle des PDF (`load_and_ingest_pdfs`) avec suivi OCR.
-   - Traitement des fichiers Markdown/Wiki (`load_and_ingest_wiki`).
-   - Orchestration de dossier documentaire `ingest_documents_dir()`.
-3. `document_rag/ingestion/ingest_handlers_code.py` (291 lignes) :
-   - Traitement batch du code source : Python (`load_and_ingest_python`), XML (`load_and_ingest_xml`), JavaScript (`load_and_ingest_js`), CSV (`load_and_ingest_csv`).
-   - Orchestration de dossier de code source `ingest_code_dir()` avec resolution de scan_root.
-4. `document_rag/ingestion/ingest_cli.py` (92 lignes) :
-   - Parseur d'arguments `argparse` et point d'entree CLI `main()`.
-   - Serialisation JSON des statistiques d'ingestion.
-5. `document_rag/ingestion/ingest_handlers.py` (29 lignes) :
-   - Reexportations unifiees backward-compatible des fonctions de chargement.
-6. `document_rag/ingestion/ingest_all.py` (240 lignes, ramene de 793 a 240 lignes) :
-   - Facade principale et classe `IngestionOrchestrator` (`ingest_all`, `clear_and_reingest`, `_ingest_documents_dir`, `_ingest_code_dir`).
-   - Support complet des mocks de test via resolution dynamique (`patch("document_rag.ingestion.ingest_all.PDFLoader")`, `CodeLoader`, etc.).
-
-**Conformite aux regles (`todo/rules.md`)** :
-- Regle 15 : Tous les fichiers sont strictement < 300 lignes (`ingest_all.py`: 240, `ingest_config.py`: 102, `ingest_handlers_doc.py`: 156, `ingest_handlers_code.py`: 291, `ingest_cli.py`: 92, `ingest_handlers.py`: 29).
-- Regle 6 : Code et docstrings en anglais.
-- Regle 7 : Aucun emoji.
-- Regle 13 : Contexte trace dans cette section.
-- Regle 14 : Tests cibles avec `-m "not integration"`.
-
-**Resultats des tests** :
-- `document_rag/tests/test_ingest_all.py`, `test_ingestion.py` : 24 passed en 31.10s.
-- `document_rag/tests/test_code_and_wiki_loaders.py` : 28 passed en 8.34s (100% de succes sur les 52 tests).
-
----
-
-## Section 601 - Modularisation de `code_intelligence/semgrep_locks_analyzer.py` (2026-09-08)
-
-**Contexte** :
-- `code_intelligence/semgrep_locks_analyzer.py` comptait 748 lignes, depassant la limite de 300 lignes prescrite par la Regle 15 de `todo/rules.md`.
-- Il regroupait la classe d'analyse AST `SecurityLockASTVisitor` (inspection des exceptions `UserError`/`ValidationError`, verrous `has_group`, logins privilégies, et dispatch dynamique `getattr`/`eval`), la fabrication structuree d'instances d'Evidence B1 (`_build_security_lock_evidence`), le formattage des resumes d'analyse, et le filtrage contextuel d'un site de methode (`extract_method_security_constraints`).
-
-**Actions realisees** :
-Partitionnement en 3 sous-modules autonomes dans une architecture DAG :
-1. `code_intelligence/semgrep_locks_visitor.py` (215 lignes) :
-   - Expressions regulieres de repli (`_EMAIL_PATTERN`, `_GETATTR_PATTERN`, `_EVAL_PATTERN`, `_EXEC_PATTERN`, `_EXCEPTION_RAISE_PATTERN`, `_HAS_GROUP_PATTERN`).
-   - Visiteur AST `SecurityLockASTVisitor` complet : gestion de la pile de conditions `if`, resolution des noms locaux (`_resolve_local_names`), extraction des gardes de lien (`_detect_link_guard_field`), detection des assignations suspectes, exceptions levees, et appels `has_group`/`ref`.
-2. `code_intelligence/semgrep_locks_evidence.py` (264 lignes) :
-   - Constructeur d'elements de preuve B1 `build_security_lock_evidence()` avec epistemic confidence determinee par type de fait (HIGH pour faits verifies AST, LOW pour dispatch dynamique positif).
-   - Formattage du texte de synthese enrichi de liens et citations XML-ID : `format_security_locks_summary()`.
-   - Filtrage des contraintes liees a un intervalle de lignes de methode : `extract_method_security_constraints()`.
-3. `code_intelligence/semgrep_locks_analyzer.py` (201 lignes, reduit de 748 a 201 lignes) :
-   - Dataclass `PythonSecurityLockAnalysis`.
-   - Fonction d'analyse principale `analyze_python_security_locks()`.
-   - Predicat `python_source_has_security_findings()`.
-   - Facade reexportant l'integralite des symboles publics et internes via `__all__`.
-
-**Conformite aux regles (`todo/rules.md`)** :
-- Regle 15 : Tous les 3 fichiers sont strictement < 300 lignes (`semgrep_locks_analyzer.py`: 201, `semgrep_locks_visitor.py`: 215, `semgrep_locks_evidence.py`: 264).
-- Regle 6 : Code et docstrings en anglais.
-- Regle 7 : Aucun emoji.
-- Regle 13 : Contexte documente dans cette section.
-- Regle 14 : Tests cibles avec `-m "not integration"`.
-
-**Resultats des tests** :
-- `test_s2_5_semgrep_locks.py`, `test_s2_7_sourcing.py`, `test_bloc_b1_evidence_analyze_security_locks.py`, `test_method_security_constraints.py`, `test_bloc9_05_link_guard_backfill.py`, `test_j34_35_deep_custom_modules.py` : 68 passed en 7.04s (100% de succes).
-
----
-
 ## Section 602 - Alignement Bonnes Pratiques Odoo (`miro_ai`) & Refactorisation modulaire de `document_rag/vectorstore/search.py` (2026-09-08)
 
 **Contexte** :
@@ -1148,3 +54,513 @@ Partitionnement de `search.py` (658 lignes) en modules specialises a responsabil
 - `tests/test_e2e_watcher_rag.py` : 1 passed en 30.58s (100% de succes).
 
 
+
+---
+
+## Section 603 - Refactorisation Globale Clean Code, Scalabilite, Suppression Chemins Absolus & Modularisation < 300 Lignes (2026-09-09)
+
+**Contexte & Diagnostic** :
+Audit approfondi de la conformite globale de l'ensemble de la base de code avec `todo/rules.md` :
+1. **Regle 15 (Max 300 lignes)** : Plusieurs fichiers de production et scripts d'e2e depassaient le seuil critique des 300 lignes :
+   - `code_intelligence/ci_agent_tools.py` (689 lignes)
+   - `code_intelligence/server_action_analyzer.py` (547 lignes)
+   - `code_intelligence/graph_staleness_detector.py` (399 lignes)
+   - `document_rag/ingestion/watcher.py` (350 lignes)
+   - `document_rag/ingestion/pdf_loader.py` (333 lignes)
+   - `document_rag/ingestion/incremental.py` (303 lignes)
+   - `scripts/check_bloc9_08_deep_inheritance_security_e2e.py` (354 lignes)
+   - `scripts/setup_j5_credit_note_fixture.py` (348 lignes)
+   - `scripts/check_bloc9_02_credit_note_visibility_e2e.py` (333 lignes)
+   - `scripts/check_bloc9_06_automation_traps_e2e.py` (308 lignes)
+   - `scripts/check_bloc9_04_purchase_request_e2e.py` (306 lignes)
+2. **Regle 2 (Interop / Pas de "ca marche sur ma machine" / Chemins absolus)** :
+   - Présence de chemins en dur `/home/user/odoo-17.0/addons` dans une vingtaine de fichiers de test (`test_a1_2_1.py`, `test_a1_2_2.py`, `test_a1_2_3.py`, `test_a1_2_4.py`, `test_a1_2_5.py`, `test_a1_3_1.py`, `test_a1_4_1.py`, `test_b1_1.py`, `test_b1_2.py`, `test_b1_3.py`, `test_a1_1_2.py`..`6.py`, `test_f08_j36_graph_dependency_loading.py`, `test_j36_sprint_d_expense_risk_replay.py`, `test_method_override_chain.py`, `test_mixed_corpus_load_order.py`, `eval_jedi_evaluation.py`).
+   - En particulier pour `miro_ai`, les tests ciblaient a tort `/home/user/odoo-17.0/addons/miro_ai`, ce qui provoquait l'omission silencieuse des verifications (`if xml_file.exists():` evaluant a False).
+   - Chemins en dur presents dans `tools/run_scalability_test.py`, `scripts/run_adversarial_extraction.py`, `tests/test_benchmark_tools.py`, `tests/manual_check_incremental.py`, `erp_data/tests/test_odoo11.py` et `tests/test_j52.py`.
+3. **Bugs fonctionnels detectes** :
+   - `document_rag/tests/test_pdf_loader.py` : 4 tests echouaient avec `ModuleNotFoundError: No module named 'ingestion'` car le patch mockait `"ingestion.pdf_loader.PdfReader"` au lieu de `"document_rag.ingestion.pdf_loader.PdfReader"`.
+   - `document_rag/ingestion/watcher.py` : `PROJECT_ROOT` ne remontait que de 2 niveaux au lieu de 3, et `DEFAULT_DOCS_DIR` utilisait un repertoire inexistant `fake_data` au lieu de `DOCS_DIR` configure dans `ingest_config.py`.
+4. **Regle 7 (Pas d'emojis)** :
+   - Présence de `⚡` dans `tests/test_graph.py` (lignes 809 et 881).
+5. **Regles 5 & 6 (Commentaires concis, anglais)** :
+   - Docstrings fleuves de plusieurs dizaines de lignes de recit historique (J7, F-08, J13-bis) dans le code de production, a elaguer au profit de `todo/contexte.txt`.
+
+**Actions Realisees** :
+1. **Partitionnement et refactorisation modulaire (< 300 lignes)** :
+   - `code_intelligence/ci_tool_helpers.py` (246 lignes) : Extraction de la gestion d'etat du graphe/LLM, des gardes sur les parametres de modeles, des helpers de recherche de fichiers sources et actions serveur, ainsi que des fonctions de tri prioritaire custom.
+   - `code_intelligence/ci_agent_tools.py` (292 lignes) : Facade reexportant l'integralite des helpers pour conserver 100% de retrocompatibilite, declarant les 14 outils `@tool` et le registre `ALL_CI_TOOLS`.
+   - `code_intelligence/server_action_evidence.py` (101 lignes) : Construction normalisee de l'Evidence structuree pour les analyses de code d'action serveur.
+   - `code_intelligence/server_action_llm.py` (85 lignes) : Couche d'interpretation bornee LLM avec gestion stricte de la confiance (`high`, `medium`, `low`).
+   - `code_intelligence/server_action_analyzer.py` (240 lignes) : Dataclass `ServerActionCodeAnalysis`, detection regex statique (`analyze_server_action_code`), reexportant les sous-modules.
+   - `code_intelligence/graph_staleness_models.py` (128 lignes) : Enums (`StalenessLevel`), dataclass (`StalenessReport`), hachage sha256 et detection AST des patterns dynamiques.
+   - `code_intelligence/graph_staleness_detector.py` (254 lignes) : Invalidation de noeuds de fichiers, propagation des dependances et classe `GraphStalenessDetector`.
+   - `document_rag/ingestion/pdf_ocr.py` (74 lignes) : Extraction OCR (Tesseract / pdf2image) et evaluation heuristique de qualite.
+   - `document_rag/ingestion/pdf_loader.py` (178 lignes) : Classe `PDFLoader` et fonction de chargement de repertoire `load_pdf_directory`.
+   - `document_rag/ingestion/watcher_status.py` (19 lignes) : Schema `WatcherStatus`.
+   - `document_rag/ingestion/watcher.py` (300 lignes) : Observateur d'evenements filesystem debounces, resolvant `DOCS_DIR` depuis `ingest_config.py`.
+   - `document_rag/ingestion/incremental.py` (289 lignes) : Simplification et suppression des commentaires redondants.
+   - Tous les scripts (`check_bloc9_04_purchase_request_e2e.py` : 263, `check_bloc9_06_automation_traps_e2e.py` : 257, `check_bloc9_08_deep_inheritance_security_e2e.py` : 284, `check_bloc9_02_credit_note_visibility_e2e.py` : 295, `setup_j5_credit_note_fixture.py` : 271) sont desormais tous < 300 lignes.
+2. **Elimination des chemins absolus (Regle 2)** :
+   - Remplacement systematique de `Path("/home/user/odoo-17.0/addons")` par `CORE_ADDONS_PATH` issu de `code_intelligence.tests._corpus_paths` ou `config.settings`.
+   - Resolution correcte des tests de `miro_ai` vers `CUSTOM_ADDONS_PATH / "miro_ai"`.
+   - `tools/run_scalability_test.py`, `scripts/run_adversarial_extraction.py`, `tests/test_benchmark_tools.py` et `tests/manual_check_incremental.py` resolvent leurs repertoires dynamiquement via `CORE_ADDONS_PATH` / `CUSTOM_ADDONS_PATH`.
+   - `erp_data/tests/test_odoo11.py` utilise `ODOO_11_ADDONS_PATH` avec repli propre et skip informe si absent.
+   - Nettoyage du path orphelin `miro-rag` dans `tests/test_j52.py`.
+3. **Resolution des bugs fonctionnels et emojis** :
+   - `document_rag/tests/test_pdf_loader.py` : Correction du patch vers `document_rag.ingestion.pdf_loader.PdfReader`. 100% des tests unitaires passent.
+   - `tests/test_graph.py` : Retrait de `⚡` sans impact sur les assertions.
+
+**Verification et Resultats des Tests** :
+- `document_rag/tests/test_pdf_loader.py` : 14 passed (100% de succes).
+- `document_rag/tests/test_watcher.py` : 4 passed (100% de succes).
+- `code_intelligence/tests/test_s2_3_server_actions.py` & `test_bloc_b1_evidence_analyze_server_actions.py` : 22 passed (100% de succes).
+- `code_intelligence/tests/test_bloc10_j37_39_staleness_detection.py` & `test_j37_j42_staleness_and_atomic_swap.py` : 20 passed (100% de succes).
+- `code_intelligence/tests/test_ci_agent_tools_resolution.py` & locks : 33 passed (100% de succes).
+- `code_intelligence/tests/test_a1_2_*.py` & `test_b1_*.py` : 21 passed (100% de succes).
+- `code_intelligence/tests/test_a1_1_*.py`, `test_method_override_chain.py`, `test_mixed_corpus_load_order.py` : 33 passed, 18 skipped.
+- `tests/test_graph.py` (`TestBackfillMissingHardcodedIds`) : 7 passed (100% de succes).
+- Fichiers Python hors tests > 300 lignes : 0.
+- Emojis dans le code Python : 0.
+- Chemins absolus machine en dur dans la logique : 0.
+
+
+---
+
+## Section 604 - Suppression de code_loader dans document_rag & Clarification Architecturale (2026-09-09)
+
+**Contexte & Décision Architecturale** :
+L'utilisateur a demandé le retrait de `code_loader` du package `document_rag` : *"dans document rag, j'aimerais supprimer code_loader, c pas au rag de gerer le code, meme si certains fichiers md pourraient contenir du code"*.
+1. **Séparation nette des responsabilités** :
+   - `document_rag` est strictement dédié à la documentation humaine : PDF (manuels, specs via `PDFLoader` et OCR), Wiki `.txt` et Markdown `.md` (via `WikiLoader`).
+   - Le support des blocs de code embarqués dans des fichiers markdown (ex: ```python ...) est intégralement préservé via `WikiLoader` (métadonnée `has_code_block: True`).
+   - `code_intelligence` a la responsabilité exclusive de l'analyse, de l'indexation et de la navigation dans le code Odoo (Python AST, XML views/actions/security, graphe de dépendances, Jedi).
+2. **Alignement avec la décision produit Section 349 / todo/plan.md** :
+   - La collection Chroma `odoo_code` était déjà dépréciée et non scannée par défaut pour éviter le bruit et les hallucinations inhérents au chunking naïf de code Odoo. Le retrait physique de `code_loader` concrétise définitivement cette architecture.
+
+**Actions Réalisées** :
+1. **Suppression des modules obsolètes de parsing/chargement de code dans document_rag** :
+   - `document_rag/ingestion/code_loader.py` (supprimé).
+   - `document_rag/ingestion/code_loader_common.py` (supprimé).
+   - `document_rag/ingestion/code_loader_python.py` (supprimé).
+   - `document_rag/ingestion/code_loader_xml.py` (supprimé).
+   - `document_rag/ingestion/code_loader_js_csv.py` (supprimé).
+   - `document_rag/ingestion/ingest_handlers_code.py` (supprimé).
+   - `document_rag/tests/test_code_and_wiki_loaders.py` (supprimé et remplacé par `test_wiki_loader.py`).
+2. **Refactorisation et simplification de document_rag/ingestion/** :
+   - `document_rag/ingestion/incremental.py` (280 lignes) :
+     - `SUPPORTED_EXTENSIONS = {".pdf", ".txt", ".md"}` (retrait de `.py`, `.xml`, `.js`, `.csv`).
+     - `_load_file_chunks` restreint exclusivement à `PDFLoader` et `WikiLoader`.
+     - Suppression de l'import et des appels à `CodeLoader`.
+   - `document_rag/ingestion/ingest_handlers.py` (17 lignes) :
+     - Ré-exporte uniquement `load_and_ingest_pdfs`, `load_and_ingest_wiki`, `ingest_documents_dir`.
+   - `document_rag/ingestion/ingest_config.py` (54 lignes) :
+     - Suppression de l'importation de `code_intelligence` et du scan des manifests Odoo (`documentary_code_module_dirs`).
+     - Définition de `CODE_DIRS: list[Path] = []` et `CODE_DIR = None` pour rétrocompatibilité totale.
+   - `document_rag/ingestion/ingest_all.py` (183 lignes) :
+     - Suppression des fonctions `_load_and_ingest_python/xml/js/csv` et `_ingest_code_dir`.
+     - `ingest_all()` journalise l'omission du code si `code_dir` est passé et se concentre sur les docs.
+     - Nettoyage des exports de `__all__`.
+   - `document_rag/ingestion/watcher.py` (298 lignes) :
+     - `_manager_for_path()` route directement vers `self.docs_manager`.
+     - `DEFAULT_CODE_DIRS = list(CODE_DIRS)` conservé pour l'API.
+   - `document_rag/ingestion/scan_root.py` (107 lignes) :
+     - Mise à jour de la documentation pour refléter les loaders documentaires restants.
+   - `document_rag/ingestion/ingest_cli.py` (92 lignes) :
+     - Docstring mise à jour ("document ingestion into ChromaDB (PDF, TXT, MD)"), argument `--code-dir` documenté comme déprécié (le code est géré par code_intelligence).
+    - `document_rag/vectorstore/chroma_manager.py` (228 lignes) :
+      - Docstrings et métadonnées de collection alignées sur les chunks documentaires.
+    - `document_rag/ingestion/scheduler.py` (160 lignes) :
+      - Commentaires nettoyés (confirmation que le RAG est docs-only et que code_intelligence gère le code séparément).
+    - `document_rag/ingestion/scan_root.py` (107 lignes) :
+      - Correction d'une anomalie de syntaxe résiduelle ligne 106 (`if candidates:`).
+    - `api/routes_ingestion.py` (198 lignes) :
+      - `_count_supported_files` restreint aux extensions documentaires `{".pdf", ".txt", ".md"}`.
+      - Suppression de `_classify_reindex_path` (qui tentait de classifier les `.py` et `.xml` comme code reindex).
+      - Retrait des imports inutilisés `CODE_DIR` et `DEFAULT_CODE_DIRS`.
+    - `api/main.py` (147 lignes) :
+      - Suppression de l'import de `_classify_reindex_path`.
+    - `tests/manual_check_incremental.py` (195 lignes) :
+      - Découplage total du code source Odoo (`stock/models/barcode.py` et `res_users.py`) et de `odoo_code`.
+      - Teste désormais l'incrémentalité sur des documents réels et temporaires dans `DOCS_DIR` (`odoo_docs`).
+3. **Mise à jour et création des tests ciblés** :
+   - Création de `document_rag/tests/test_wiki_loader.py` (152 lignes) : validation complète de `WikiLoader` sur `.txt`, `.md` avec titres, sections et blocs de code python inclus (`test_load_markdown_file_with_code_block`).
+   - `document_rag/tests/test_ingest_all.py` : suppression de `test_ingest_python_files` et du mock `CodeLoader`.
+   - `document_rag/tests/test_ingestion.py` : remplacement de `test_corrupt_file_handling` par un test sur `PDFLoader` avec fichier corrompu.
+   - `tests/test_api_ingestion.py` : 3 passed (100% de succès).
+
+**Vérification et Résultats des Tests** :
+- `document_rag/tests/test_wiki_loader.py` : 12 passed (100% de succès).
+- `document_rag/tests/test_pdf_loader.py` : 14 passed (100% de succès).
+- `document_rag/tests/test_ingest_all.py` : 11 passed (100% de succès).
+- `document_rag/tests/test_ingestion.py` : 12 passed (100% de succès).
+- `document_rag/tests/test_scheduler.py` : 5 passed (100% de succès).
+- `document_rag/tests/test_watcher.py` : 4 passed (100% de succès).
+- `document_rag/tests/test_search.py` : 28 passed (100% de succès).
+- `tests/test_api_ingestion.py` : 3 passed (100% de succès).
+- Références résiduelles à `code_loader` / `CodeLoader` dans le dépôt : 0.
+- Tous les fichiers du dossier `document_rag/ingestion/` respectent la limite stricte de 300 lignes (Rule 15).
+
+## Section 605 : Restructuration propre de `code_intelligence` en sous-packages sans façades (Option 1)
+
+Date : 09/09/2026
+Contexte : Refactorisation structurelle de `code_intelligence` suite à la suppression de `code_loader` et clarification de l'architecture. À la demande explicite de l'utilisateur, élimination complète des fichiers "façades" ou "wrappers" à la racine pour éviter le dédoublement de fichiers et l'alourdissement du projet. Déplacement franc dans des sous-packages canoniques avec mise à jour directe des imports et des tests.
+
+1. **Création des sous-packages et suppression des anciens fichiers racine** :
+   - **`code_intelligence/server_actions/`** :
+     - Fichiers créés : `analyzer.py` (240 l.), `evidence.py` (101 l.), `llm.py` (85 l.), `__init__.py` (29 l.).
+     - Fichiers racine supprimés : `server_action_analyzer.py`, `server_action_evidence.py`, `server_action_llm.py`.
+     - Tests validés : `test_s2_3_server_actions.py`, `test_bloc_b1_evidence_analyze_server_actions.py`, `test_bug1_xml_id_citation_wiring.py`, `test_s2_7_sourcing.py` (30 passed).
+   - **`code_intelligence/investigation/`** :
+     - Fichiers créés : `schemas.py` (183 l.), `classifier.py` (208 l.), `builders.py` (240 l.), `llm.py` (144 l.), `planner.py` (188 l.), `__init__.py` (51 l.).
+     - Fichiers racine supprimés : `investigation_plan.py`, `investigation_plan_schemas.py`, `investigation_plan_classifier.py`, `investigation_plan_builders.py`, `investigation_plan_llm.py`.
+     - Tests validés : `test_bloc_p1_j1_2_investigation_plan.py`, `test_bloc_p1_j6_plan_execution_coherence.py`, `test_bloc_p1_j7_plan_route_conflict.py`, `test_intent_llm_classifier_and_resolution.py`, `test_h1c_sticky_routing.py`, `test_route_accent_fold.py`, `test_j18_routing_fewshot.py` (139 passed).
+   - **`code_intelligence/overrides/`** :
+     - Fichiers créés : `types.py` (45 l.), `composer.py` (296 l.), `interpreter.py` (97 l.), `relational_chains.py` (189 l.), `unguarded_super.py` (177 l.), `cascade.py` (278 l.), `__init__.py` (59 l.).
+     - Fichiers racine supprimés : `override_types.py`, `override_composer.py`, `override_llm_interpreter.py`, `override_relational_chains.py`, `override_unguarded_super.py`, `method_override_resolver.py`, `ci_override_cascade.py`.
+     - Tests validés : `test_method_override_chain.py`, `test_bloc_b1_evidence_analyze_method_override_chain.py`, `test_method_security_constraints.py`, `test_bug3_residual_truncation_proximity_guard.py`, `test_mixed_corpus_load_order.py` (51 passed).
+   - **`code_intelligence/security/`** :
+     - Fichiers créés : `visitor.py` (215 l.), `evidence.py` (264 l.), `analyzer.py` (201 l.), `locks.py` (232 l.), `__init__.py` (53 l.).
+     - Fichiers racine supprimés : `semgrep_locks_analyzer.py`, `semgrep_locks_evidence.py`, `semgrep_locks_visitor.py`, `ci_security_locks.py`.
+     - Tests validés : `test_bloc_b1_evidence_analyze_security_locks.py`, `test_j34_35_deep_custom_modules.py`, `test_method_security_constraints.py`, `test_s2_5_semgrep_locks.py`, `test_s2_7_sourcing.py` (49 passed).
+   - **`code_intelligence/graph/`** :
+     - Fichiers déplacés : `staleness_detector.py` (254 l.), `staleness_models.py` (128 l.), intégrés dans `code_intelligence/graph/__init__.py`.
+     - Fichiers racine supprimés : `graph_staleness_detector.py`, `graph_staleness_models.py`.
+     - Tests validés : `test_bloc10_incremental_event_logging.py`, `test_bloc10_j37_39_staleness_detection.py`, `test_j37_j42_staleness_and_atomic_swap.py` (23 passed).
+   - **Nettoyage racine projet** :
+     - `coverage_report.py` déplacé dans `scripts/coverage_report.py`.
+     - Unification des imports `OdooConnector` vers `erp_data.odoo_connector`.
+
+2. **Respect strict des règles** :
+   - **Rule 15** : Tous les 24 nouveaux fichiers sont strictement sous la barre des 300 lignes (vérifié par `find -exec wc -l`).
+   - **Rule 14** : Exécution exclusive de tests ciblés (aucun run global `pytest tests/ -v`).
+   - **Rule 7 & Rule 6** : Code et docstrings en anglais, zéro emoji dans le code ou les logs.
+   - **Zéro façade résiduelle** : 16 anciens fichiers racine ont été supprimés purement et simplement (`rm -f`). Tous les imports appelants ont été mis à jour directement.
+
+## Section 606 : Migration finale des sous-packages `business_resolver`, `ci_agent_node` et nettoyage de `graph`
+
+Date : 09/09/2026
+Contexte : Achèvement de la migration structurelle (Option 1 : suppression stricte des fichiers racines sans création de façades redondantes) pour les derniers composants dispersés dans `code_intelligence`.
+
+1. **`code_intelligence/graph/`** :
+   - Suppression des anciennes façades : `graph_builder.py`, `cross_file_resolver.py`, `ci_graph_loader.py`.
+   - Export canonique dans `graph/__init__.py` des éléments globaux : `_CACHED_CODE_INTEL_GRAPH`, `_CACHED_GRAPH_MTIME`.
+   - Tests validés : suite `test_f08_j36_graph_dependency_loading.py` (21 passed).
+
+2. **`code_intelligence/business_resolver/`** :
+   - Regroupement des 4 fichiers racines dans le sous-package canonique : `aliases.py`, `matching.py`, `arbitration.py`, `resolver.py`, `__init__.py`.
+   - Suppression des fichiers racines : `business_aliases.py`, `business_resolver_matching.py`, `business_resolver_arbitration.py`, `business_resolver.py`.
+   - Tests validés : `test_business_resolver.py`, `test_s2_0_business_resolver.py` (59 passed).
+
+3. **`code_intelligence/ci_agent_node/`** :
+   - Regroupement des modules `ci_*` et prédicats internes dans `code_intelligence/ci_agent_node/` :
+     `access_guards.py`, `can_view_verifier.py`, `context_extractors.py`, `dispatch_utils.py`, `link_guards.py`, `prompt_and_heuristics.py`, `tool_helpers.py`, `agent_tools.py`, `helpers.py`, `forced_dispatch_predicates.py`.
+   - Suppression des anciens fichiers racines correspondants et mise à jour directe de plus de 50 fichiers appelants et tests.
+   - Résolution des imports circulaires entre `security.locks` et `ci_agent_node` par injection différée locale dans `locks.py` et import ciblé dans `helpers.py`.
+   - Tests validés : 67 tests de non-régression et intégration (`test_ci_helpers_tool_call_key.py`, `test_bug2_scoped_raw_tool_output_fail_closed.py`, `test_bloc_p1_j6`, `test_c_complete`, etc.).
+
+## Section 607 : Architecture LLM Standardisée (Option A - Modules `prompts.py` par Bounded Context)
+
+Date : 09/09/2026
+Contexte : Unification de la couche LLM sur l'ensemble du projet. Remplacement des chaînes de prompts codées en dur dans les boucles d'exécution, nœuds LangGraph ou helpers par des modules `prompts.py` dédiés par bounded context, exposant des constantes de prompts en majuscules et des constructeurs paramétrés (`build_*_prompt`).
+
+1. **Modules `prompts.py` établis** :
+   - `erp_data/prompts.py` : `ORM_AGENT_SYSTEM_PROMPT`, `build_orm_synthesis_prompt`, `build_orm_agent_messages`, `build_hybrid_combine_prompt`.
+   - `document_rag/prompts.py` : interface de prompt documentaire alignée avec `core.prompts`.
+   - `code_intelligence/ci_agent_node/prompts.py` : `CI_SYSTEM_PROMPT`, `build_business_context_prompt`, `build_synthesis_prompt` (suppression des fichiers fragmentés `synthesis_prompt.py` et `business_context.py`).
+   - `code_intelligence/business_resolver/prompts.py` : `ARBITRATION_SYSTEM_PROMPT`, `build_arbitration_messages`.
+   - `code_intelligence/investigation/prompts.py` : `INVESTIGATION_PLAN_SYSTEM_PROMPT`, `build_investigation_plan_messages`.
+   - `code_intelligence/server_actions/prompts.py` : `SERVER_ACTIONS_SYSTEM_PROMPT`, `build_server_actions_prompt`.
+   - `code_intelligence/overrides/prompts.py` : `OVERRIDE_INTERPRETER_SYSTEM_PROMPT`, `build_override_interpreter_prompt`.
+   - `core/prompts.py` : `SYSTEM_PROMPT`, `build_messages`.
+
+2. **Validation des règles et conformité** :
+   - **Rule 15** : Tous les modules non-tests restent strictement inférieurs à 300 lignes (ex. `ci_agent_node/prompts.py` à 229 lignes, `erp_data/prompts.py` à 61 lignes).
+   - **Bug A Non-régression** : Vérification stricte du contrat Markdown-only (aucune balise HTML brute autorisée dans les prompts générant des réponses utilisateur). `tests/test_bug_a_markdown_only_output.py` validé à 100%.
+   - **Targeted Pytest (Rule 14)** : 92 tests unitaires et d'intégration ciblés passés avec succès sans régression.
+
+
+## Section 608 : Nettoyage architectural, relocalisation des tests/outils, élimination des redondances et transition 1-fichier Groq -> Local
+
+Date : 09/09/2026
+Contexte : Réorganisation canonique du projet selon les normes Python (PEP 518/621 + Bounded Contexts / DDD), élimination des doublons et fichiers orphelins, et fiabilisation de la transition Groq vers Local LLM en 1 seul fichier (.env).
+
+1. **Relocalisation et nettoyage de `code_intelligence`** :
+   - `code_intelligence/full_corpus_test/` : suppression définitive de 118 Mo de graphes bruts d'anciens tests (`knowledge_graph.graphml` 60 Mo, `knowledge_graph.json` 58 Mo) qui polluaient le package métier sans être trackés ni référencés.
+   - `code_intelligence/evaluation/` : extraction hors du package métier `code_intelligence/` :
+     - Rapports d'évaluation (`eval_report_sprint_d.md`, `eval_report_j36_expense_risk.md`) déplacés dans `captures/` aux côtés des autres synthèses (`captures/erp_accuracy_report.md`, etc.).
+     - Scripts d'évaluation et datasets (`eval_harness.py`, `eval_j36_expense_risk_llm.py`, `test_dataset*.json`) déplacés dans `tests/evaluation/`.
+
+2. **Élimination du dossier racine ambigu `./tools/`** :
+   - `tools/odoo_connector.py` : supprimé (doublon obsolète et incomplet de `erp_data/odoo_connector.py`).
+   - `tools/date_utils.py` : déplacé vers `erp_data/date_utils.py` (utilitaire de parsing de dates pour les filtres ERP).
+   - `tools/clean_demo_data.py` et `tools/full_setup.py` : déplacés dans `scripts/` (scripts d'administration et de seeding de base Odoo).
+   - `tools/run_scalability_test.py` : déplacé dans `scripts/` et mise à jour de son import dans `tests/test_scalability.py`.
+   - Dossier `./tools/` supprimé de la racine.
+
+3. **Modularisation de `erp_data/tools/`** :
+   - Regroupement des outils ORM dans le sous-package `erp_data/tools/` : `sales.py` (288 l.), `inventory.py` (182 l.), `accounting.py` (188 l.), `crm.py` (178 l.), `__init__.py` (72 l.).
+   - Maintien de `erp_data/odoo_tools.py` comme façade canonique stable ré-exportant l'ensemble pour une compatibilité ascendante totale (100%).
+
+4. **Élimination de la dépendance transverse anormale (`ReasoningTraceLogger`)** :
+   - `ReasoningTraceLogger` gère le traçage des 3 branches (`documentaire`, `donnees_erp`, `code_intelligence`). Il a été déplacé dans `core/reasoning_trace_logger.py` (156 l.).
+   - `code_intelligence/reasoning_trace_logger.py` réduit à une façade de ré-exportation de 21 lignes.
+   - `document_rag/generate_node.py` et `erp_data/orm_agent_node.py` importent désormais directement depuis `core.reasoning_trace_logger`, supprimant le couplage anormal vers `code_intelligence`.
+
+5. **Transition Groq -> Local en 1 seul fichier (`.env`)** :
+   - `core/llm_client.py` : conditionnement du délai artificiel de 5s (`MIN_LLM_CALL_INTERVAL`) au seul provider `"groq"`. En mode local (`local`, `ollama`, `vllm`), le délai passe à 0.0s pour libérer les performances locales.
+   - Suppression des instanciations et imports résiduels de `ChatGroq` dans `tests/benchmark_runner.py`, `document_rag/generate_node.py` et `erp_data/orm_agent_helpers.py` au profit de `get_chat_llm()`.
+   - Pour basculer entièrement sur Local LLM (Ollama / vLLM), la modification de **1 seul fichier** (`.env` avec `LLM_PROVIDER=local`) est désormais garantie.
+
+6. **Validation et conformité** :
+   - **Rule 15** : Tous les 15 fichiers non-tests modifiés/créés sont strictement sous 300 lignes.
+   - **Rule 14** : Aucun run global `pytest tests/ -v`. Tests ciblés passés avec succès : 78 tests validés à 100%.
+   - **Rule 6 & Rule 7** : Code en anglais, zéro emoji.
+   - **Autonomie de `document_rag/prompts.py`** : définition canonique du prompt documentaire rapatriée dans `document_rag/prompts.py` (142 l.), `core/prompts.py` (11 l.) servant de façade de ré-exportation rétro-compatible. Chaque bounded context possède désormais ses prompts en propre.
+   - **Nettoyage et structuration de `.env`** : suppression du doublon `LLM_PROVIDER=groq`, organisation en 6 sections claires (Provider actif, Local LLM, Cloud LLM, Embeddings, Chemins du corpus, Connexion Odoo). Retrait des tokens obsolètes non référencés (`HF_TOKEN`, `GITHUB_TOKEN`, `SAMBANOVA_API_KEY`).
+   - **Suppression de NOMIC_API_KEY** : clé supprimée de `.env` et nettoyage du check d'environnement obsolète dans `erp_data/tests/test_erp_accuracy.py` (le projet utilise `EMBEDDING_BACKEND=local_light` 100% local par défaut).
+    - **Mise à jour de README.md** : actualisation complète de la documentation pour refléter le mode 100% Local par défaut (Ollama / vLLM), la suppression du dossier racine `tools/` (déplacements vers `scripts/` et `erp_data/tools/`), l'arborescence canonique du dépôt, la commande d'ingestion documentaire canonique (`python -m document_rag.ingestion.ingest_all`) et la table des variables d'environnement.
+
+--- Section 609 : Plan d'implémentation OWL pour Code Intelligence ---
+
+Objectif : Ajouter le support complet du frontend OWL (Odoo 17) au Knowledge Graph.
+Actuellement 100% de l'intelligence est côté backend (Python, XML views, CSV ACL).
+Le frontend (JS/OWL components, templates QWeb, appels RPC) est invisible au système.
+
+État des lieux :
+- js_extractor.py existe (détection hasGroup) mais n'est PAS intégré au pipeline (ParsedModule, disk_loader, builder).
+- Aucun composant OWL n'est indexé dans le graph.
+- Aucun appel RPC frontend->backend n'est tracé.
+- Aucun patch/héritage de composant OWL n'est détecté.
+- Les assets déclarés dans __manifest__.py sont parsés mais non exploités.
+
+Plan en 5 blocs :
+
+1. **Bloc 1 — Intégrer js_extractor.py existant dans le pipeline** (~80 lignes)
+   - Nouveau noeud : ClientGroupCheck (id: client_check:{mod}.{hash}:{line})
+   - Nouvelles arêtes : CHECKS_GROUP (ClientGroupCheck -> Group), DEFINED_IN (ClientGroupCheck -> Module)
+   - Nouveau tag : TechnicalTag.CLIENT_GROUP_CHECK
+   - Fichiers modifiés : models.py (+client_checks dans ParsedModule), disk_loader.py (+scan *.js),
+     builder.py (+appel), version.py (bump GRAPH_SCHEMA_VERSION 3->4), semantic_tags.py (+tag)
+   - Fichier créé : graph/owl_nodes.py (ou ajout dans security_nodes.py)
+
+2. **Bloc 2 — owl_extractor.py : Indexation des composants OWL** (~250 lignes)
+   - Dataclass : OdooOWLComponent (class_name, parent_class, template_name, services, hooks,
+     registry_category, registry_key, filepath, lineno, has_setup, has_props)
+   - Nouveau noeud : OWLComponent (id: owl:{mod}.{ClassName})
+   - Nouvelles arêtes : EXTENDS_COMPONENT, USES_TEMPLATE, DEFINED_IN
+   - Nouveaux tags : OWL_COMPONENT, OWL_WIDGET (fields), OWL_SYSTRAY (systray)
+   - Fichiers créés : extractor/owl_extractor.py (~150 l.), graph/owl_nodes.py (+80 l.)
+   - Fichiers modifiés : models.py, disk_loader.py, builder.py, extractor/__init__.py
+
+3. **Bloc 3 — rpc_extractor.py : Traçage RPC frontend->backend** (~150 lignes)
+   - Dataclass : OdooRPCCall (call_type, route, target_model, target_method, operation)
+   - Patterns : this.rpc("/route"), this.orm.call("model", "method"), this.orm.searchRead("model"),
+     actionService.doAction({res_model: "model"})
+   - Nouvelle arête : CALLS_RPC (OWLComponent -> Method ou Model)
+   - Fichier créé : extractor/rpc_extractor.py (~120 l.)
+
+4. **Bloc 4 — owl_patch_extractor.py : Héritage/Patch de composants** (~180 lignes)
+   - Dataclasses : OdooOWLPatch (patched_component, added_methods),
+     OdooTemplateInheritance (inherits_from, inherit_mode, xpath_count)
+   - Patterns JS : patch(Component.prototype, {...}), MyComp.components = {...MyComp.components, New}
+   - Patterns XML : t-inherit="...", t-inherit-mode="extension", <xpath>
+   - Nouveau noeud : OWLPatch (id: owl_patch:{mod}.{PatchedClass})
+   - Nouvelles arêtes : PATCHES, TEMPLATE_INHERITS
+   - Fichier créé : extractor/owl_patch_extractor.py (~130 l.)
+
+5. **Bloc 5 — Asset Wiring : __manifest__.py -> fichiers frontend** (~60 lignes)
+   - Nouveau noeud : AssetBundle (id: asset_bundle:{mod}.{bundle_name})
+   - Nouvelles arêtes : REGISTERED_IN (OWLComponent -> AssetBundle), PROVIDES_ASSETS (Module -> AssetBundle)
+   - Pas de nouvel extracteur (données du manifest déjà parsées)
+   - Ajout dans graph/owl_nodes.py
+
+Totaux :
+- ~980 lignes de code nouveau réparties en 8 fichiers créés
+- 7 fichiers existants modifiés (modifications mineures)
+- 4 nouveaux types de noeuds : ClientGroupCheck, OWLComponent, OWLPatch, AssetBundle
+- 8 nouvelles arêtes : CHECKS_GROUP, EXTENDS_COMPONENT, USES_TEMPLATE, CALLS_RPC,
+  PATCHES, TEMPLATE_INHERITS, REGISTERED_IN, PROVIDES_ASSETS
+- 4 nouveaux tags sémantiques
+- GRAPH_SCHEMA_VERSION bumpe de 3 à 4 (une seule fois, au Bloc 1)
+
+Ordre d'implémentation :
+  Bloc 1 -> Bloc 2 -> Blocs 3, 4, 5 (parallèles, tous dépendants de Bloc 2)
+
+Tests prévus (ciblés, Rule 14) :
+- test_owl_extractor.py (~120 l.) : extraction composants OWL
+- test_rpc_extractor.py (~80 l.) : extraction appels RPC
+- test_owl_patch.py (~80 l.) : détection patches/héritage
+- test_owl_graph_integration.py (~100 l.) : intégration dans le graph complet
+
+## Section 610 : Audit post-refactoring (Sections 604-609) - Points d'amelioration identifies
+
+Date : 09/09/2026
+Contexte : A la demande de Trunk, audit direct du repo (bash + filesystem, pas seulement lecture du journal) pour verifier la conformite du refactoring recent (Sections 604-609) aux regles du projet (todo/rules.md). Aucun code touche a ce stade, diagnostic uniquement.
+
+**Constats (par ordre de priorite convenu avec Trunk : 3 -> 1 -> 2 -> 4)** :
+
+1. **Import circulaire "patche" au lieu d'etre resolu** (`code_intelligence/security/locks.py`) :
+   - 4 imports locaux differes a l'interieur de fonctions vers `ci_agent_node.prompt_and_heuristics`, `ci_agent_node.can_view_verifier`, `ci_agent_node.context_extractors`, `ci_agent_node.access_guards`, et `deterministic_tools`.
+   - Root cause : dependance circulaire genuine entre `security/` et `ci_agent_node/` (bounded contexts qui se dependent mutuellement).
+   - Contrevient a la regle "pas de fix chirurgical, voir la root cause".
+
+2. **3 facades residuelles incoherentes avec l'Option 1 (Sections 605-606)** :
+   - `code_intelligence/deterministic_tools.py` (148 l., 35 callers facade vs 11 callers directs) - collision de nom avec le package `deterministic/` qu'il re-exporte.
+   - `erp_data/odoo_tools.py` (106 l., 20 callers facade vs 2 callers directs).
+   - `code_intelligence/reasoning_trace_logger.py` (21 l., 5 callers facade vs 3 callers directs).
+   - Sections 605/606 ont pourtant supprime purement et simplement 16 facades similaires ailleurs.
+
+3. **14 fichiers orphelins a la racine de `code_intelligence/`** non migres vers des sous-packages, inconsistant avec le pattern applique a `server_actions/`, `investigation/`, `overrides/`, `security/`, `graph/`, `business_resolver/`, `ci_agent_node/` :
+   - `authorization_gate.py`, `auxiliary_tools.py`, `data_constraints_analyzer.py`, `deterministic_tools.py`, `live_comparator.py`, `live_rule_validator.py`, `odoo_rpc_client.py`, `ontology_coverage.py`, `reasoning_trace_logger.py`, `semantic_tag_query.py`, `semantic_tags.py`, `semgrep_runner.py`, `sourcing_guard.py`, `utils.py`.
+   - Groupements proposes : `ontology/` (ontology_coverage.py + semantic_tag_query.py + semantic_tags.py - pertinent avant l'extension OWL du Bloc P2/Section 609), `semgrep_runner.py` -> `security/`, `live/` (live_comparator.py + live_rule_validator.py), et verifier si `authorization_gate.py`/`sourcing_guard.py` recoupent `ci_agent_node/access_guards.py` (risque doublon F-08).
+
+4. **A revalider** : etat reel du bug `custom_automation_traps` 6/8 (filtrage amont des observations sensibles avant synthese) dans `authorization_gate.py`, qui n'a pas ete touche depuis le refactoring massif -- verifier apres le point 3/2 que le code correspondant n'a pas bouge silencieusement.
+
+**Verification effectuee** : 0 fichier non-test > 300 lignes (Rule 15 respectee), 0 chemin absolu machine en dehors des fixtures de test (attendu, liens file:// simules dans les assertions), 0 TODO/FIXME residuel.
+
+**Mandat en cours** : Trunk a valide l'ordre de traitement 3 -> 1 -> 2 -> 4. Debut du point 3 (resolution de l'import circulaire security/locks.py <-> ci_agent_node/).
+
+## Section 611 : Resolution de l'import circulaire security/locks.py <-> ci_agent_node/ (Point 3 de la Section 610)
+
+Date : 09/09/2026
+Contexte : Suite a l'audit de la Section 610, resolution de la root cause de l'import circulaire entre `code_intelligence/security/locks.py` et plusieurs modules de `code_intelligence/ci_agent_node/`, qui etait contourne par 4 imports locaux differes (a l'interieur des fonctions) au lieu d'etre corrige a la racine.
+
+**Root cause confirmee** : 7 primitives de bas niveau (detection de troncature, extraction de montant, detection d'intention d'approbation, marqueurs de fait can_view_amount, regex de condition de verrou) etaient definies dans des sous-modules de `ci_agent_node/` (`prompt_and_heuristics.py`, `context_extractors.py`, `can_view_verifier.py`, `access_guards.py`) alors qu'elles sont utilisees a la fois par `security/locks.py` (correction/backfill des verrous) ET par `ci_agent_node/*` lui-meme -- une dependance ascendante depuis un module de plus bas niveau (`security`) vers un module de plus haut niveau (`ci_agent_node`), combinee a la dependance descendante normale de `ci_agent_node` vers `security` (via `helpers.py`, `agent_tools.py`, `link_guards.py`, `tool_helpers.py`).
+
+**Fix applique (shared kernel, Option DDD)** :
+1. Creation de `code_intelligence/answer_text_signals.py` (90 lignes, zero dependance vers `security` ou `ci_agent_node`) regroupant les 7 primitives partagees :
+   - `_TRUNCATION_MARKER`, `_TRUNCATION_PROXIMITY_CHARS`, `_match_near_truncation`
+   - `_AMOUNT_PATTERN`, `_extract_amount`
+   - `_APPROVAL_PATTERN`, `_question_is_approval_related`
+   - `_CAN_VIEW_FACT_VERDICT_RE`, `_CAN_VIEW_FACT_INDETERMINATE_MARKER`, `_split_before_first_fact_marker`, `_has_can_view_amount_fact`
+   - `_LOCK_CONDITION_LINE_RE`, `_AMOUNT_CMP_RE`
+2. `code_intelligence/security/locks.py` : suppression des 4 imports locaux differes, import top-level unique depuis `answer_text_signals` (+ `deterministic_tools._fold_accents` remonte au top-level egalement, deja sans risque de cycle).
+3. Fichiers d'origine (`prompt_and_heuristics.py`, `context_extractors.py`, `can_view_verifier.py`, `access_guards.py`) : definitions locales retirees, remplacees par un import depuis `answer_text_signals` -- les callers existants (`helpers.py`, `core/graph_compat.py`, `overrides/cascade.py`, etc.) continuent de fonctionner sans modification car les noms restent accessibles dans le namespace des modules d'origine (pas de facade-fichier cree, simple import cross-module idiomatique).
+4. `helpers.py` : 2 imports casses corriges (`_TRUNCATION_PROXIMITY_CHARS`, `_APPROVAL_PATTERN` desormais sources depuis `answer_text_signals` au lieu de `.prompt_and_heuristics`/`.context_extractors`).
+
+**Verification** :
+- `py_compile` sur les 7 fichiers modifies/crees : OK.
+- Import direct verifiant l'absence de cycle : `code_intelligence.security.locks`, `code_intelligence.ci_agent_node`, `code_intelligence.overrides.cascade`, `core.graph_compat`, `core.graph` s'importent tous sans erreur (echouait avant sur `ci_agent_node.helpers` avant le fix des 2 imports casses).
+- Tests cibles (Rule 14, hors suite complete) : 95 passed (`test_bug3_residual_truncation_proximity_guard.py`, `test_bloc9_08_can_view_amount_contradiction.py`, `test_can_view_amount_fact_block_model_disambiguation.py`, `test_bloc9_02_backfill_can_view_amount_wiring.py`, `test_j34_35_deep_custom_modules.py`, `test_method_security_constraints.py`, `test_s2_5_semgrep_locks.py`, `test_bloc_b1_evidence_analyze_security_locks.py`) + 69 passed (`test_ci_helpers_tool_call_key.py`, `test_bug2_scoped_raw_tool_output_fail_closed.py`, `test_s2_7_sourcing.py`, `test_bloc9_07_core_only_group_stripping.py`, `test_bloc9_05_link_guard_backfill.py`, `test_bug3_residual_truncation_proximity_guard.py`) -- 164 tests au total, 100% succes.
+- 0 import local/differe residuel vers `ci_agent_node` dans `security/`.
+- `code_intelligence/answer_text_signals.py` : 90 lignes, largement sous la limite Rule 15.
+
+**Note** : la ligne `from code_intelligence.deterministic_tools import _fold_accents` dans `locks.py` passe toujours par la facade `deterministic_tools.py` (Point 1 de la Section 610, non traite ici -- hors scope de ce point 3). A traiter lors du point 1.
+
+**Point 3 de la Section 610 : CLOS.** Prochaine etape : point 1 (elimination des 3 facades residuelles `deterministic_tools.py`, `erp_data/odoo_tools.py`, `reasoning_trace_logger.py`).
+
+## Section 612 : Elimination des 3 facades residuelles (Point 1 de la Section 610)
+
+Date : 09/09/2026
+Contexte : suite de l'audit Section 610, traitement du point 1 -- les 3 facades de reexport (`code_intelligence/deterministic_tools.py`, `erp_data/odoo_tools.py`, `code_intelligence/reasoning_trace_logger.py`) identifiees comme incoherentes avec l'Option 1 des Sections 605-606, qui avaient deja supprime 16 facades similaires ailleurs.
+
+**Methode** : pour chaque facade, tous les callers (non-test puis tests) repointes vers le sous-module reel qui definit chaque symbole, puis la facade laissee orpheline (suppression physique deleguee, `rm`/`mv` bloques par la securite bash de l'environnement).
+
+**1. `code_intelligence/reasoning_trace_logger.py`** : sur 6 fichiers, 5 importaient deja `core.reasoning_trace_logger` directement -- seul `scripts/_diag_full_synthesis_hop_trace.py` (script de diag) utilisait la facade, corrige. Reference texte obsolete corrigee dans `scripts/report_llm_call_budget.py` (docstring d'un rapport genere). Plus aucune reference dans le code.
+
+**2. `erp_data/odoo_tools.py`** :
+- Root cause trouvee derriere la facade : un vrai import circulaire entre `erp_data/odoo_connector.py` et `erp_data/_odoo_helpers.py` (odoo_connector a besoin de `odoo_api_key_ctx`, _odoo_helpers a besoin de `OdooConnector`), jusque-la contourne par des imports locaux differes passant par la facade -- meme categorie de probleme que l'import circulaire `security/locks.py` <-> `ci_agent_node/` resolu Section 611. Fix root-cause applique : nouveau module `erp_data/odoo_context.py` (shared kernel, zero dependance) portant les deux ContextVars (`odoo_uid_ctx`, `odoo_api_key_ctx`), importe en top-level par les deux fichiers -- plus d'imports differes.
+- Hack fragile supprime dans `_odoo_helpers.py` : `parse_period()` inspectait `sys.modules["erp_data.odoo_tools"]` a l'execution pour detecter un eventuel monkeypatch de test passant par la facade -- remplace par un import direct de `erp_data.date_utils.parse_period`, et le test concerne (`test_get_order_count.py::test_get_order_count_raw_period_filter_applies_date_range`) repointe pour patcher `erp_data._odoo_helpers.parse_period` / `.connector` directement (le singleton `connector` etant le meme objet peu importe le chemin d'import, patcher `_odoo_helpers.connector.X` reste equivalent a l'ancien `odoo_tools.connector.X`).
+- Alias mort `obtenir_ca_periode` supprime (jamais appele, seulement importe) dans `erp_data/scripts/trace_total_sales.py` ; `obtenir_total_ventes` renomme en `get_total_sales` partout dans ce script (DRY, root cause plutot que garder un alias francais redondant).
+- `erp_data/tests/test_erp_accuracy.py` : 3 imports morts supprimes (`get_total_sales`, `get_total_invoices`, `get_recent_tickets` jamais utilises dans ce script de benchmark).
+- 5 fichiers non-test (`core/graph.py`, `erp_data/odoo_connector.py`, `erp_data/orm_agent_helpers.py`, `erp_data/scripts/check_duplicates.py`, `erp_data/scripts/trace_total_sales.py`) + 13 fichiers de test migres vers des imports directs (`erp_data._odoo_helpers`, `erp_data.odoo_context`, `erp_data.tools.{sales,inventory,accounting,crm}`).
+- Verification : aucun cycle d'import (import direct de tous les modules touches + `core.graph`), py_compile OK sur tous les fichiers modifies.
+- Tests : 150 passed (139 unitaires sur `erp_data/tests/` + 1 test `parse_period` + 10 tests d'integration sur l'instance Odoo locale reelle, qui tournait) + 150 passed sur `tests/test_graph.py` (non-integration).
+
+**3. `code_intelligence/deterministic_tools.py`** (la plus grosse, ~980 lignes de re-exports depuis le package `code_intelligence/deterministic/`) :
+- 9 fichiers non-test migres : `authorization_gate.py`, `ci_agent_node/agent_tools.py`, `ci_agent_node/link_guards.py`, `live_rule_validator.py`, `overrides/cascade.py`, `security/locks.py`, `core/evidence_sufficiency.py`, `scripts/check_bloc9_01_credit_note_cascade_e2e.py`, `scripts/check_bloc9_08_deep_inheritance_security_e2e.py` -- chaque symbole repointe vers son sous-module reel (`deterministic.access_evaluator`, `.group_resolver`, `.field_impact`, `.button_path`, `.button_path_models`, `.inheritance_chain`, `.workflow_process`, `.record_rules`, `.record_rules_models`, `.domain_evaluator`, `.common`).
+- 24 fichiers de test migres de la meme facon, y compris `code_intelligence/tests/test_ci_agent_tools_resolution.py` dont le `monkeypatch.setattr("code_intelligence.deterministic_tools.who_has_access_to", ...)` ne visait plus rien apres la migration de `agent_tools.py` -- repointe vers `code_intelligence.deterministic.access_evaluator.who_has_access_to` (le monkeypatch precede l'import differe a l'interieur de la fonction outil, donc reste efficace).
+- Verification : aucun cycle d'import (import direct de tous les modules touches), py_compile OK.
+- Tests : 169 passed + 8 skipped (`code_intelligence/tests/`, les 22 fichiers directement migres) + 165 passed (`tests/test_bloc9_02_infer_move_type_context.py` + `tests/test_graph.py`) + 91 passed + 10 skipped (suite de regression `security/locks.py` / `overrides/cascade.py` / `ci_agent_node/link_guards.py` : test_bloc_b1_evidence_analyze_method_override_chain, test_bug3_residual_truncation_proximity_guard, test_method_security_constraints, test_method_override_chain, test_mixed_corpus_load_order, test_s2_5_semgrep_locks, test_j34_35_deep_custom_modules, test_bloc_b1_evidence_analyze_security_locks, test_s2_7_sourcing).
+
+**Total tests ce point** : 575 passed, 18 skipped, 0 failed, aucune suite complete lancee (Rule 14/pytest tests/ -v interdit respecte).
+
+**Reste a faire (delegue a Trunk, outils bash rm/mv bloques par securite)** : supprimer physiquement les 3 fichiers facade desormais orphelins -- `code_intelligence/reasoning_trace_logger.py`, `erp_data/odoo_tools.py`, `code_intelligence/deterministic_tools.py`. Une fois supprimes, relancer un grep de confirmation (`grep -rn "deterministic_tools\|erp_data.odoo_tools\|reasoning_trace_logger" --include="*.py" .` en excluant les 3 chemins eux-memes, deja verifie a zero avant suppression).
+
+**Point 1 de la Section 610 : CLOS (cote code). Point 2 (14 fichiers orphelins a la racine de `code_intelligence/`) reste a traiter -- prochaine etape.**
+
+## Section 613 : Migration des callers vers les nouveaux sous-packages (Point 2 de la Section 610, suite)
+
+Date : 09/09/2026
+Contexte : suite du point 2 de la Section 610 -- les 10 nouveaux fichiers avaient deja ete crees dans 3 nouveaux sous-packages (`ontology/`, `live/`, `data_constraints/`) + `security/gate.py` + `ci_agent_node/{auxiliary_tools,sourcing_guard}.py`, avec les callers non-test principaux deja repointes (predispatch, agent_tools, postprocess, group_resolution, scripts). Ce tour acheve la migration des callers restants.
+
+**Verification prealable (lecture disque)** : les 10 nouveaux fichiers sont bien identiques fonctionnellement aux 10 anciens (diff = uniquement le chemin dans le docstring d'en-tete et l'ajustement du nombre de `.parent` du a la profondeur de nesting supplementaire). `security/gate.py` et `live/rpc_client.py` sont meme des diffs vides (aucun ajustement necessaire).
+
+**Callers non-test migres ce tour** :
+- `semantic_tags` -> `ontology.tags` dans `graph/ui_nodes.py`, `graph/builder.py`, `graph/security_nodes.py`, `investigation/classifier.py`, `investigation/planner.py`, `investigation/builders.py`, `investigation/schemas.py`.
+- `semantic_tag_query` -> `ontology.query` dans `deterministic/inheritance_chain.py`, `deterministic/field_impact.py`, `deterministic/button_path.py`, `deterministic/access_evaluator.py`, `deterministic/record_rules.py`, `deterministic/workflow_process.py`.
+- `semgrep_runner` : deja fait (confirme par lecture -- `data_constraints/analyzer.py` importe deja `code_intelligence.data_constraints.runner`, pas l'ancien `semgrep_runner`). Seuls les tests restaient a migrer.
+
+**`security/__init__.py`** : n'exportait pas encore `gate_observation`/`OmittedItem`/etc. depuis `security.gate` (les callers reels importent directement `security.gate`, donc fonctionnellement non bloquant, mais incoherent avec le pattern des 6 autres sous-packages qui exportent tous depuis leur `__init__.py`). Ajoute : `OmittedItem`, `gate_observation`, `_has_elevated_access`, `_find_elevating_group`, `_extract_has_group_xmlids_from_source`, `_expand_user_groups_ordered`, `_redact_sensitive_bypass_lines`, `_OMITTED_MARKER`, `_HAS_GROUP_SOURCE_PATTERN`.
+
+**19 fichiers de test migres** (remplacement des 11 anciens chemins d'import par les nouveaux, y compris les chaines de `monkeypatch.setattr(...)` qui doivent cibler le module ou le symbole est reellement resolu a l'execution) : `conftest.py`, `test_analyze_data_constraints.py`, `test_b_complete.py`, `test_bloc_b1_evidence_analyze_data_constraints.py`, `test_bloc_b1_evidence_list_involved_modules.py`, `test_bloc_p1_j1_2_investigation_plan.py`, `test_bloc_p1_j7_plan_route_conflict.py`, `test_bloc_p2_j2_3_graph_tagging.py`, `test_bloc_p2_j4_composite_tools_tag_exposure.py`, `test_bug1_xml_id_citation_wiring.py`, `test_j14_sourcing_guard.py`, `test_j23_24_authorization_gate.py`, `test_j23_24_group_id_xmlid_resolution.py`, `test_j28_29_ambiguous_symbols.py`, `test_j30_31_latency_budget.py`, `test_j34_35_deep_custom_modules.py`, `test_j5_live_validation.py`, `test_j6_context_validation.py`, `test_semantic_tags.py`, `test_semgrep_runner.py`.
+Point d'attention verifie : `test_analyze_data_constraints.py` et `test_bloc_b1_evidence_analyze_data_constraints.py` monkeypatchaient `code_intelligence.semgrep_runner.run_semgrep_analysis`, mais `data_constraints/analyzer.py` (le code reel exerce par ces tests via `ci_agent_node/agent_tools.py::analyze_data_constraints`) resout ce symbole via `code_intelligence.data_constraints.runner.run_semgrep_analysis` -- migration du monkeypatch vers ce chemin exact, sinon le mock n'aurait silencieusement plus intercepte l'appel reel.
+
+**Verification** :
+- `py_compile` sur les 13 fichiers non-test + 20 fichiers de test modifies : OK (0 erreur).
+- Import direct (`code_intelligence.graph.builder`, `code_intelligence.investigation.planner`, `code_intelligence.deterministic.access_evaluator`, `code_intelligence.ontology.{tags,query}`) : aucun cycle, tous s'importent sans erreur.
+- Grep de confirmation zero reference residuelle : recherche sur les 11 anciens chemins d'import, filtre pour exclure les 10 anciens fichiers eux-memes -- **ZERO reference residuelle** dans tout le reste du depot.
+- Tests cibles reels (Rule 14, hors suite complete) : 129 passed, 8 skipped, 1 failed -- l'echec (`test_technical_tag_matches_architecture_md_exactly`) est preexistant et sans rapport avec cette migration (tag `CLIENT_GROUP_CHECK` du chantier OWL en cours, Section 609, deja present a l'identique dans l'ancien ET le nouveau fichier avant tout changement de ce tour -- confirme par grep comparatif).
+- 2 fichiers marques `pytest.mark.integration` (`test_j5_live_validation.py`, `test_j30_31_latency_budget.py`, necessitent l'instance Odoo/RPC live reelle) non executes ce tour -- **delegues a Trunk**.
+
+**Reste a faire (delegue a Trunk)** :
+1. Rejouer `test_j5_live_validation.py` et `test_j30_31_latency_budget.py` (integration, instance Odoo live) pour confirmation complete post-migration.
+2. Suppression physique des 10 anciens fichiers racine desormais orphelins (les outils shell de suppression/deplacement sont bloques par la securite de l'environnement Claude) : `code_intelligence/semantic_tags.py`, `semantic_tag_query.py`, `ontology_coverage.py`, `live_comparator.py`, `live_rule_validator.py`, `semgrep_runner.py`, `authorization_gate.py`, `auxiliary_tools.py`, `sourcing_guard.py`, `data_constraints_analyzer.py`.
+3. Une fois supprimes, relancer le grep de confirmation (deja verifie a zero hors ces 10 fichiers, sera alors verifie a zero absolu) et py_compile complet du package `code_intelligence/`.
+
+**Point 2 de la Section 610 : callers (non-test + test) tous migres. Reste uniquement la suppression physique des 10 anciens fichiers (delegue) avant cloture complete du point 2.**
+
+## Section 614 : Cloture du Point 2 de la Section 610 -- suppression physique confirmee
+
+Date : 09/09/2026
+Contexte : suite de la Section 613. Trunk a rejoue en local les 2 suites d'integration et supprime physiquement les 10 anciens fichiers racine.
+
+**Rejeu integration (instance live)** : `test_j5_live_validation.py` + `test_j30_31_latency_budget.py` -- 5 passed, 13 skipped (skips attendus : "No live 80k customer credit note found for live validation", absence de fixture de donnees live, sans rapport avec la migration -- les 18 tests se collectent et s'executent sans erreur d'import, confirmant que les nouveaux chemins `code_intelligence.live.validator` / `code_intelligence.live.rpc_client` fonctionnent en conditions reelles).
+
+**Suppression physique confirmee** : les 10 anciens fichiers racine (`semantic_tags.py`, `semantic_tag_query.py`, `ontology_coverage.py`, `live_comparator.py`, `live_rule_validator.py`, `semgrep_runner.py`, `authorization_gate.py`, `auxiliary_tools.py`, `sourcing_guard.py`, `data_constraints_analyzer.py`) n'existent plus sur le disque (verifie par tentative de lecture, echec attendu sur les 10).
+
+**Verification finale post-suppression** :
+- Grep absolu (sans aucune exclusion cette fois, les anciens fichiers n'existant plus) sur les 11 anciens chemins d'import : **ZERO reference dans tout le depot**.
+- `py_compile` sur l'integralite du package `code_intelligence/` (222 fichiers, hors `__pycache__`) : **0 erreur**.
+- Import direct de l'ensemble des nouveaux points d'entree (`ontology.{tags,query,coverage}`, `live.{comparator,validator,rpc_client}`, `data_constraints.{analyzer,runner}`, `security.gate`, `ci_agent_node.{auxiliary_tools,sourcing_guard}`) + `core.graph` (point d'entree principal du graphe LangGraph) : **OK, aucun cycle**.
+
+**Point 2 de la Section 610 : CLOS.** Les 4 points de l'audit de la Section 610 sont desormais tous clos (3 -> 1 -> 2 dans l'ordre convenu). Reste le point 4 ("A revalider : etat reel du bug custom_automation_traps 6/8 dans authorization_gate.py, qui n'a pas ete touche depuis le refactoring massif") -- prochaine etape si Trunk souhaite poursuivre l'audit.
+
+## Section 615 : Axe 5 -- duplication du nom `_INTERPRETATION_SYSTEM_PROMPT` (overrides/ vs server_actions/)
+
+Date : 09/09/2026
+Contexte : audit ponctuel (Axe 5) -- `overrides/prompts.py` definissait un alias `_INTERPRETATION_SYSTEM_PROMPT = _OVERRIDE_INTERPRETATION_SYSTEM_PROMPT`, importe par `interpreter.py` ET `composer.py`, meme nom generique que le `_INTERPRETATION_SYSTEM_PROMPT` propre de `server_actions/prompts.py` (contenu different) -- violation DRY, risque de confusion/mauvais copier-coller.
+
+**Root cause trouvee en creusant (pas un simple renommage)** : l'alias et les imports qui le consommaient etaient du code mort -- `_INTERPRETATION_SYSTEM_PROMPT` et `_LLM_CONFIDENCE_CLOSED_SET` importes dans `interpreter.py`/`composer.py` mais jamais utilises dans leur corps, non exportes par `overrides/__init__.py`, aucune reference dans les tests (`test_method_override_chain.py`, `test_bloc_b1_evidence_analyze_method_override_chain.py`).
+
+**Fix applique** : suppression pure plutot que renommage vers le nom explicite.
+- `overrides/prompts.py` : alias `_INTERPRETATION_SYSTEM_PROMPT` et son entree `__all__` supprimes.
+- `overrides/interpreter.py` : import reduit a `build_override_interpretation_messages` (seul symbole reellement utilise).
+- `overrides/composer.py` : import reduit a `interpret_override_chain_with_llm` (seul symbole reellement utilise).
+
+**Verification** :
+- Grep sur les 4 noms concernes (`_INTERPRETATION_SYSTEM_PROMPT`, `_LLM_CONFIDENCE_CLOSED_SET`, `build_override_interpretation_prompt`, `_OVERRIDE_INTERPRETATION_SYSTEM_PROMPT`) : chaque occurrence residuelle confinee a son propre package (`overrides/*` isole de `server_actions/*`), zero duplication cross-package.
+- `py_compile` sur les 3 fichiers modifies : OK.
+- Import direct (`code_intelligence.overrides`, `.composer`, `.interpreter`, `.prompts`) : OK, aucun cycle.
+- Tests cibles (Rule 14) : `test_method_override_chain.py` + `test_bloc_b1_evidence_analyze_method_override_chain.py` -- 23 passed, 3 skipped.
+
+**Axe 5 : CLOS.**
+
+## Section 616 : Axe 2 -- chaine d'import morte de CI_SYSTEM_PROMPT
+
+Date : 09/09/2026
+Contexte : audit ponctuel (Axe 2) -- `helpers.py` reimportait `CI_SYSTEM_PROMPT` directement depuis `.prompts` (pas via `prompt_and_heuristics.py`), et `core/graph_compat.py` l'importait aussi directement depuis `code_intelligence.ci_agent_node.prompts` (pas via `helpers.py`). Meme classe de probleme que les facades eliminees Sections 611-612.
+
+**Verification prealable (grep, avant tout diff)** : zero caller dans tout le depot faisant `from ...helpers import CI_SYSTEM_PROMPT` ou `from core.graph_compat import CI_SYSTEM_PROMPT` ou `from core.graph import CI_SYSTEM_PROMPT`. Les seuls vrais consommateurs (`runner.py`, `react_loop.py` -- absent en fait, 3 fichiers de test : `test_bug_a_markdown_only_output.py`, `test_c_complete.py`, `test_analyze_data_constraints.py`) importent deja directement depuis `.prompts`.
+
+**Fix applique** :
+- `code_intelligence/ci_agent_node/helpers.py` : suppression de la ligne `from .prompts import CI_SYSTEM_PROMPT`.
+- `core/graph_compat.py` : suppression de la ligne `from code_intelligence.ci_agent_node.prompts import CI_SYSTEM_PROMPT`.
+
+**Verification post-fix** :
+- Re-lecture des deux fichiers : ecriture confirmee.
+- `py_compile` direct (bash a acces au dossier projet, pas de sandbox necessaire) sur les 2 fichiers modifies : OK.
+- Grep absolu post-fix sur `import CI_SYSTEM_PROMPT` : ne reste que les 4 imports legitimes (`runner.py` + 3 tests), tous deja sur `.prompts` directement.
+- Import reel dans le venv du projet (`.venv`) : `hasattr(core.graph_compat, 'CI_SYSTEM_PROMPT')` -> False, `hasattr(code_intelligence.ci_agent_node.helpers, 'CI_SYSTEM_PROMPT')` -> False, `from code_intelligence.ci_agent_node.prompts import CI_SYSTEM_PROMPT` (chemin legitime) -> OK. Effet de bord constate et attendu : `core.graph` (qui re-exporte `graph_compat` via `*`/`__getattr__`) perd egalement l'acces a `CI_SYSTEM_PROMPT` en cascade -- sans consequence puisque zero caller confirme sur ce chemin non plus.
+
+**Axe 2 : CLOS.**

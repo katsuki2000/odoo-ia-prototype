@@ -39,7 +39,7 @@ logger = logging.getLogger(__name__)
 
 
 class ChromaManager:
-    """Manages ChromaDB vector store for document and code chunks."""
+    """Manages ChromaDB vector store for document chunks."""
 
     def __init__(
         self,
@@ -59,7 +59,7 @@ class ChromaManager:
 
         col_metadata = {
             "hnsw:space": "cosine",
-            "description": "Odoo documents and code chunks",
+            "description": "Odoo document chunks",
         }
         if self.embedding_model:
             col_metadata["embedding_model"] = str(self.embedding_model)
@@ -204,7 +204,7 @@ class ChromaManager:
                 metadata={
                     "embedding_model": self.embedding_model,
                     "hnsw:space": "cosine",
-                    "description": "Odoo documents and code chunks",
+                    "description": "Odoo document chunks",
                 },
             )
         except Exception as e:

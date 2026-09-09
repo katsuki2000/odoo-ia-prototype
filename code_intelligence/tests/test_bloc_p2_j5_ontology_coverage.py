@@ -52,8 +52,8 @@ from code_intelligence.extractor.xml_extractor import (
     OdooFormButton,
 )
 from code_intelligence.extractor.csv_extractor import OdooAccessEntry
-from code_intelligence.cross_file_resolver import ParsedModule, build_module_symbol_registry
-from code_intelligence.graph_builder import OdooGraphBuilder
+from code_intelligence.graph import ParsedModule, build_module_symbol_registry
+from code_intelligence.graph import OdooGraphBuilder
 
 # The complete, closed set of node_type values OdooGraphBuilder can
 # currently produce, per direct reading of graph_builder.py's five

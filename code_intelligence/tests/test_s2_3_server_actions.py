@@ -16,7 +16,7 @@ from code_intelligence.extractor.xml_extractor import (
     OdooServerActionRecord,
     OdooBaseAutomationRecord,
 )
-from code_intelligence.server_action_analyzer import (
+from code_intelligence.server_actions import (
     analyze_server_action_code,
     ServerActionCodeAnalysis,
 )

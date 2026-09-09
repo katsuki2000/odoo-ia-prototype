@@ -1,84 +1,8 @@
 #!/usr/bin/env python3
 """
-scripts/setup_j5_credit_note_fixture.py
-
-Population idempotente de la donnee metier manquante pour
-code_intelligence/tests/conftest.py::live_client (fixture partagee entre
-test_j5_live_validation.py et test_j6_context_validation.py) :
-un account.move (move_type='out_refund', amount_total >= 80000) que la
-fixture cherche en base reelle avant de laisser tourner les 21 tests J5/J6.
-
-Volontairement SEPARE de scripts/setup_j5_security_test_users.py (qui ne
-cree que les 3 comptes utilisateurs) -- cf. todo/contexte.txt section 316 :
-aucun script existant ne creait cette donnee, tools/full_setup.py ne cree
-que des sale.order/factures standard, jamais d'avoir (out_refund).
-
-Complication non triviale, documentee ici pour ne pas la re-decouvrir :
-trois ir.rule s'appliquent en AND sur account.move pour test_regional_2026
-et test_both_2026 (tous deux dans account.group_account_invoice) :
-
-  1. rule_avoir_multi_societe (globale, sans groupe) :
-     company_id = user.company_id.id
-
-  2. rule_avoir_visibilite_departement (custom_credit_note_approval,
-     attachee a account.group_account_invoice -- donc s'applique aux DEUX
-     users test) : move_type != out_refund OR invoice_user_id = user.id
-     OR journal_id.department_id = user.employee_id.department_id.id.
-     Comme move_type = out_refund et que invoice_user_id ne peut valoir
-     qu'UN seul des deux users a la fois, la seule branche exploitable
-     pour que les DEUX users passent est le departement : le journal de
-     l'avoir et l'employe de CHAQUE user doivent partager le meme
-     hr.department.
-
-  3. rule_avoir_visibilite_regionale / rule_avoir_visibilite_nationale
-     (OR entre elles selon groupe -- deja couverte par les groupes poses
-     par setup_j5_security_test_users.py).
-
-D'ou la sequence : departement dedie -> lie aux DEUX employes (test_regional_2026,
-test_both_2026) -> lie au journal de vente existant (reutilise celui de
-tools/full_setup.py, pas de nouveau journal) -> avoir cree dessus.
-
-test_no_group_2026 n'a pas besoin d'employe/departement : bloque en amont
-par l'ACL (ir.model.access.csv restreint account.move a
-account.group_account_invoice, qu'il n'a pas) -- la regle 2 ne le concerne
-meme pas.
-
-Mot de passe/connexion : meme OdooRpcClient que setup_j5_security_test_users.py,
-aucune duplication.
-
-Complication supplementaire decouverte a l'execution reelle (post section 318,
-action_post de l'avoir echoue avec "Missing required account on accountable
-line") : Company Alpha n'a JAMAIS eu de compte client (asset_receivable) --
-tools/full_setup.py ne cree qu'un plan comptable minimal fait a la main (le
-seul compte scope company_id=Alpha est 400000, revenu). Le compte "Account
-Receivable" (121000) present sur 'Societe Dupont' appartient a une AUTRE
-societe -- inutilisable pour la ligne contrepartie automatique que Odoo tente
-de generer sous company_id=Alpha. Trou preexistant (pas cause par ce script),
-jamais exerce avant parce que rien n'avait encore cree de facture/avoir
-passant par la contrepartie auto de ce partenaire sous cette societe.
-
-Fix : creation du compte 411000 (asset_receivable, company_id=Alpha, meme
-schema que 400000) + pose de property_account_receivable_id sur 'Societe
-Dupont'. Premiere tentative (voir todo/contexte.txt section 319) : ecrire
-cette property comme Fiona (account.group_account_invoice), sur l'hypothese
-que le scope societe d'une property ir.property suit le company_id de
-l'utilisateur qui ecrit -- ECHEC REEL a l'execution (section 320) : Fiona
-n'a aucun droit d'ecriture sur res.partner sur cette instance (Fault 4,
-groupes requis -- Contact Creation, Inventory/Purchase/Sales Administrator,
-Recruitment Officer -- aucun ne recoupe account.group_account_invoice).
-Fix corrige : ecrire comme admin (qui a les droits) en forcant
-explicitement le contexte `allowed_company_ids=[company_id]` sur l'appel --
-c'est CE contexte qui determine self.env.company cote serveur (donc la
-societe sur laquelle la property company-dependent est stockee), pas
-l'identite ou le company_id par defaut de l'utilisateur qui ecrit. Le
-compte 121000 existant pour l'autre societe reste intact -- aucun effet de
-bord cross-societe.
-
-Lecture seule vis-a-vis du code de production : ce script ne modifie aucun
-fichier de code_intelligence/ ou odoo_addons/, uniquement l'etat de la base
-Odoo live (hr.department, hr.employee, account.journal.department_id,
-account.account, res.partner, account.move), au meme titre que
-tools/full_setup.py.
+Setup credit note fixture for J5/J6 live client tests.
+Creates an account.move (move_type='out_refund', amount_total >= 80000)
+with required accounts and department associations in Company Alpha.
 """
 
 import sys
@@ -87,7 +11,7 @@ from pathlib import Path
 project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(project_root))
 
-from code_intelligence.odoo_rpc_client import OdooRpcClient, OdooRpcError  # noqa: E402
+from code_intelligence.live.rpc_client import OdooRpcClient, OdooRpcError  # noqa: E402
 
 COMPANY_NAME = "Company Alpha"
 DEPARTMENT_NAME = "Avoirs Test (J5/J6)"

@@ -30,8 +30,8 @@ def get_code_intelligence_graph():
         if GRAPH_JSON_PATH.exists():
             current_mtime = GRAPH_JSON_PATH.stat().st_mtime
             if _CACHED_CODE_INTEL_GRAPH is None or current_mtime > _CACHED_GRAPH_MTIME:
-                from code_intelligence.atomic_graph_swap import atomic_read_json
-                from code_intelligence.graph_version import deserialize_graph_with_metadata
+                from .atomic_swap import atomic_read_json
+                from .version import deserialize_graph_with_metadata
 
                 logger.info("Loading graph from disk (mtime %s > %s)", current_mtime, _CACHED_GRAPH_MTIME)
                 data_dict = atomic_read_json(GRAPH_JSON_PATH)
@@ -171,8 +171,8 @@ def get_code_intelligence_graph():
     _CACHED_CODE_INTEL_GRAPH = builder.build_graph()
 
     try:
-        from code_intelligence.atomic_graph_swap import atomic_write_json
-        from code_intelligence.graph_version import serialize_graph_with_metadata
+        from .atomic_swap import atomic_write_json
+        from .version import serialize_graph_with_metadata
         data_dict = serialize_graph_with_metadata(_CACHED_CODE_INTEL_GRAPH)
         atomic_write_json(data_dict, GRAPH_JSON_PATH)
         _CACHED_GRAPH_MTIME = GRAPH_JSON_PATH.stat().st_mtime

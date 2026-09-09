@@ -17,7 +17,7 @@ from core.degenerate_guards import (
     _detect_any_degenerate_repetition,
     _strip_any_degenerate_repetition,
 )
-from code_intelligence.ci_helpers import (
+from .helpers import (
     _scoped_raw_tool_output,
     _flag_ungrounded_group_xmlids,
     _strip_core_only_group_mentions,
@@ -34,7 +34,7 @@ from code_intelligence.ci_helpers import (
     _force_out_of_scope_model_answer,
     _force_dynamic_uncertainty_answer,
 )
-from code_intelligence.ci_override_cascade import (
+from code_intelligence.overrides import (
     _backfill_missing_override_modules,
     _backfill_missing_override_chain_amount,
     _correct_override_cascade_contradictions,
@@ -139,7 +139,7 @@ def build_final_response(
                 target_models=concept.resolved_models,
             )
 
-    from code_intelligence.sourcing_guard import verify_citations, annotate_unverifiable_citations
+    from code_intelligence.ci_agent_node.sourcing_guard import verify_citations, annotate_unverifiable_citations
     sourcing_result = verify_citations(final_answer, raw_tool_output)
     if not sourcing_result.is_fully_verified:
         logger.warning("Node [code_intelligence_agent]: Unverified citations -- %s", sourcing_result)

@@ -10,7 +10,7 @@ agent reasoning.
 
 import pytest
 
-from code_intelligence.reasoning_trace_logger import (
+from core.reasoning_trace_logger import (
     ReasoningTraceLogger,
     MAX_HOPS_PER_QUESTION,
     new_trace_id,

@@ -6,7 +6,7 @@ project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(project_root))
 
 from code_intelligence.utils import discover_odoo_modules
-from code_intelligence.ci_graph_loader import _load_module
+from code_intelligence.graph import _load_module
 
 def main():
     if len(sys.argv) < 2:

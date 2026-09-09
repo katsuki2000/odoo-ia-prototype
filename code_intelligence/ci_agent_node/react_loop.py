@@ -12,14 +12,14 @@ import time
 
 from langchain_core.messages import SystemMessage, HumanMessage
 
-from code_intelligence.ci_helpers import _strip_group_resolution_noise, _force_dynamic_uncertainty_answer
+from .helpers import _strip_group_resolution_noise, _force_dynamic_uncertainty_answer
 from core.llm_client import get_chat_llm, invoke_with_rate_limit as _invoke_with_rate_limit
 from core.degenerate_guards import (
     _detect_any_degenerate_repetition,
     _strip_any_degenerate_repetition,
 )
 from code_intelligence.ci_agent_node.dispatch_context import DispatchContext
-from code_intelligence.ci_agent_node.synthesis_prompt import build_synthesis_prompt
+from .prompts import build_synthesis_prompt
 from code_intelligence.ci_agent_node.tool_call_execution import execute_tool_calls
 
 logger = logging.getLogger(__name__)

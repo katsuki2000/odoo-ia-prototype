@@ -16,8 +16,8 @@ from collections import Counter
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from tools.odoo_connector import OdooConnector
-from erp_data.odoo_tools import odoo_uid_ctx, odoo_api_key_ctx
+from erp_data.odoo_connector import OdooConnector
+from erp_data.odoo_context import odoo_uid_ctx, odoo_api_key_ctx
 
 MANAGER_LOGIN = "manager@miro.com"
 import os
@@ -173,6 +173,6 @@ if __name__ == "__main__":
               "vient d'ailleurs (logique des outils, agrégation, ou périmètre société).")
         print("   Comparez le 'Montant total Dupont' ci-dessus à la valeur attendue "
               "(12 260 000 Ar) pour voir si le total brut de la base est déjà faux, "
-              "ou si le problème est dans l'outil obtenir_total_ventes.")
+              "ou si le problème est dans l'outil get_total_sales.")
     else:
         print("  Doublons confirmés — nettoyage de la base recommandé.")

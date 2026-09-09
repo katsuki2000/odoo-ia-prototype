@@ -18,16 +18,16 @@ derived subtraction, never asserted as its own Evidence.
 
 from unittest.mock import patch
 
-from erp_data.odoo_tools import (
+from erp_data.tools.inventory import (
     get_product_stock_raw,
     get_product_stock,
-    odoo_uid_ctx,
 )
+from erp_data.odoo_context import odoo_uid_ctx
 from core.evidence import Evidence, EvidenceSourceType
 
 
 def test_get_product_stock_raw_returns_text_and_two_evidence():
-    with patch("erp_data.odoo_tools.connector.read_group") as mock_read_group:
+    with patch("erp_data._odoo_helpers.connector.read_group") as mock_read_group:
         mock_read_group.return_value = [
             {"quantity": 100.0, "reserved_quantity": 30.0, "product_id": [1, "Widget"]}
         ]
@@ -52,7 +52,7 @@ def test_get_product_stock_raw_returns_text_and_two_evidence():
 def test_get_product_stock_raw_evidence_covers_quantity_and_reserved_separately():
     """quantity and reserved_quantity are each an independent raw fact --
     available is arithmetic on those facts, not a third Evidence."""
-    with patch("erp_data.odoo_tools.connector.read_group") as mock_read_group:
+    with patch("erp_data._odoo_helpers.connector.read_group") as mock_read_group:
         mock_read_group.return_value = [
             {"quantity": 100.0, "reserved_quantity": 30.0, "product_id": [1, "Widget"]}
         ]
@@ -77,7 +77,7 @@ def test_get_product_stock_raw_empty_result_produces_single_negative_evidence():
     Evidence (absence of a match), not just silently dropped -- same
     convention already established by get_total_sales_raw/
     get_average_sales_raw. Exactly one negative Evidence, not two."""
-    with patch("erp_data.odoo_tools.connector.read_group") as mock_read_group:
+    with patch("erp_data._odoo_helpers.connector.read_group") as mock_read_group:
         mock_read_group.return_value = []
         token = odoo_uid_ctx.set(1)
         try:
@@ -97,7 +97,7 @@ def test_get_product_stock_raw_multiple_results_only_covers_results_zero():
     """When read_group returns more than one product (partial name match),
     only results[0] is reflected in text (pre-existing behavior) -- the
     Evidence must never cover the ignored matches either."""
-    with patch("erp_data.odoo_tools.connector.read_group") as mock_read_group:
+    with patch("erp_data._odoo_helpers.connector.read_group") as mock_read_group:
         mock_read_group.return_value = [
             {"quantity": 10.0, "reserved_quantity": 2.0, "product_id": [1, "Widget A"]},
             {"quantity": 999.0, "reserved_quantity": 999.0, "product_id": [2, "Widget B"]},
@@ -118,7 +118,7 @@ def test_get_product_stock_raw_multiple_results_only_covers_results_zero():
 def test_get_product_stock_raw_no_confidence_set():
     """B0 decision (todo/contexte.txt section 426): a deterministic ORM
     read never carries a confidence score."""
-    with patch("erp_data.odoo_tools.connector.read_group") as mock_read_group:
+    with patch("erp_data._odoo_helpers.connector.read_group") as mock_read_group:
         mock_read_group.return_value = [
             {"quantity": 5.0, "reserved_quantity": 1.0, "product_id": [1, "X"]}
         ]
@@ -132,7 +132,7 @@ def test_get_product_stock_raw_no_confidence_set():
 
 
 def test_get_product_stock_raw_evidence_scope_carries_execution_identity():
-    with patch("erp_data.odoo_tools.connector.read_group") as mock_read_group:
+    with patch("erp_data._odoo_helpers.connector.read_group") as mock_read_group:
         mock_read_group.return_value = [
             {"quantity": 5.0, "reserved_quantity": 1.0, "product_id": [1, "X"]}
         ]
@@ -150,7 +150,7 @@ def test_get_product_stock_raw_evidence_scope_carries_execution_identity():
 
 def test_get_product_stock_tool_wrapper_unchanged_return_contract():
     """The @tool wrapper must still return a plain string."""
-    with patch("erp_data.odoo_tools.connector.read_group") as mock_read_group:
+    with patch("erp_data._odoo_helpers.connector.read_group") as mock_read_group:
         mock_read_group.return_value = [
             {"quantity": 5.0, "reserved_quantity": 1.0, "product_id": [1, "X"]}
         ]
@@ -168,7 +168,7 @@ def test_get_product_stock_tool_wrapper_still_catches_connector_exceptions():
     """Non-regression of the original try/except: it lives in the @tool
     wrapper, not in _raw -- the observable error-string behavior on a
     connector failure must be identical to before this Evidence-ification."""
-    with patch("erp_data.odoo_tools.connector.read_group") as mock_read_group:
+    with patch("erp_data._odoo_helpers.connector.read_group") as mock_read_group:
         mock_read_group.side_effect = RuntimeError("boom")
         token = odoo_uid_ctx.set(1)
         try:
@@ -183,7 +183,7 @@ def test_get_product_stock_raw_propagates_exceptions_without_fabricating_evidenc
     """_raw must never swallow a connector exception itself -- doing so
     would risk fabricating an Evidence (e.g. a false negative) from a
     technical failure rather than a real absence of data."""
-    with patch("erp_data.odoo_tools.connector.read_group") as mock_read_group:
+    with patch("erp_data._odoo_helpers.connector.read_group") as mock_read_group:
         mock_read_group.side_effect = RuntimeError("boom")
         token = odoo_uid_ctx.set(1)
         try:

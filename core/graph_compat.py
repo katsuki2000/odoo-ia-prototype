@@ -96,7 +96,7 @@ from erp_data.orm_agent_node import (
     hybrid_node,
 )
 
-from code_intelligence.ci_graph_loader import (
+from code_intelligence.graph import (
     _CACHED_CODE_INTEL_GRAPH,
     _CACHED_GRAPH_MTIME,
     GRAPH_JSON_PATH,
@@ -104,8 +104,7 @@ from code_intelligence.ci_graph_loader import (
     get_code_intelligence_graph,
 )
 
-from code_intelligence.ci_helpers import (
-    CI_SYSTEM_PROMPT,
+from code_intelligence.ci_agent_node.helpers import (
     CI_MAX_HOPS,
     _AMOUNT_PATTERN,
     _APPROVAL_PATTERN,
@@ -176,7 +175,7 @@ from code_intelligence.ci_helpers import (
     _force_dynamic_uncertainty_answer,
 )
 
-from code_intelligence.ci_override_cascade import (
+from code_intelligence.overrides.cascade import (
     _OVERRIDE_MODULE_RE,
     _extract_override_modules,
     _word_boundary_present,

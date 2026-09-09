@@ -1,3 +1,4 @@
+from code_intelligence.tests._corpus_paths import CORE_ADDONS_PATH
 """
 code_intelligence/tests/test_a1_1_2.py
 
@@ -107,7 +108,7 @@ class ProductProduct(models.Model):
 
 def test_real_corpus_files():
     """Test on actual corpus files from addons."""
-    corpus_root = Path("/home/user/odoo-17.0/addons")
+    corpus_root = CORE_ADDONS_PATH
     
     # 1. Extension test on sale/models/res_partner.py
     res_partner_file = corpus_root / "sale" / "models" / "res_partner.py"

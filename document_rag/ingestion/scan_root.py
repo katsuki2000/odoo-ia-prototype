@@ -1,7 +1,7 @@
 """
 Canonical scan-root definitions and helpers shared by the ingestion
-pipeline (ingest_all.py, incremental.py, watcher.py) and the 3 loaders
-(wiki_loader.py, code_loader.py, pdf_loader.py).
+pipeline (ingest_all.py, incremental.py, watcher.py) and loaders
+(wiki_loader.py, pdf_loader.py).
 
 Root cause fixed here (todo/contexte.txt sections 336/338/347): loaders
 used to store `source` metadata as the absolute filesystem path of the
@@ -101,6 +101,7 @@ def resolve_absolute_source(
         joined = Path(candidate).resolve() / source_path
         if joined.parent.exists():
             return joined
+
 
     if candidates:
         return Path(candidates[0]).resolve() / source_path

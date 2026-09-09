@@ -9,7 +9,7 @@ see todo/contexte.txt). Behavior unchanged.
 import logging
 import time
 
-from code_intelligence.ci_helpers import (
+from .helpers import (
     _truncate_observation,
     _tool_call_key,
     _question_is_workflow_related,

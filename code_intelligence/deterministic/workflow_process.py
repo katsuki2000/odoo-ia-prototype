@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Set
 import networkx as nx
 
 from code_intelligence.deterministic.common import NOT_FOUND_MARKER, QueryStatus
-from code_intelligence.semantic_tag_query import tags_for_node_attrs
+from code_intelligence.ontology.query import tags_for_node_attrs
 from code_intelligence.utils import format_xml_id_citations
 from core.evidence import Evidence, EvidenceSourceType, make_evidence
 

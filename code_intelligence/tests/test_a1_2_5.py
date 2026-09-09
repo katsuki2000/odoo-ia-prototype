@@ -1,3 +1,4 @@
+from code_intelligence.tests._corpus_paths import CORE_ADDONS_PATH, CUSTOM_ADDONS_PATH
 """
 code_intelligence/tests/test_a1_2_5.py
 
@@ -79,7 +80,7 @@ def run_module_xml_extraction(module_path: Path):
 def test_miro_ai_xml_integration():
     """Run XML integration test on odoo17-dev/addons/miro_ai."""
     root_dir = Path(__file__).resolve().parent.parent.parent.parent
-    mod_dir = Path("/home/user/odoo-17.0/addons") / "miro_ai"
+    mod_dir = CUSTOM_ADDONS_PATH / "miro_ai"
 
     if mod_dir.exists():
         metrics = run_module_xml_extraction(mod_dir)
@@ -102,7 +103,7 @@ def test_miro_ai_xml_integration():
 
 def test_sale_corpus_xml_integration():
     """Run XML integration test on addons/sale."""
-    corpus_root = Path("/home/user/odoo-17.0/addons")
+    corpus_root = CORE_ADDONS_PATH
     sale_dir = corpus_root / "sale"
 
     if sale_dir.exists():

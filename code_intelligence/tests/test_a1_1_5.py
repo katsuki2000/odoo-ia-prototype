@@ -1,3 +1,4 @@
+from code_intelligence.tests._corpus_paths import CORE_ADDONS_PATH
 """
 code_intelligence/tests/test_a1_1_5.py
 
@@ -68,7 +69,7 @@ class SaleOrder(models.Model):
 
 def test_real_corpus_res_partner_model_method():
     """Test @api.model method extraction on real sale/models/res_partner.py file."""
-    corpus_root = Path("/home/user/odoo-17.0/addons")
+    corpus_root = CORE_ADDONS_PATH
     res_partner_file = corpus_root / "sale" / "models" / "res_partner.py"
 
     if res_partner_file.exists():

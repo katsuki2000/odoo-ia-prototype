@@ -31,7 +31,7 @@ project's convention for extracted pure helpers (see
 test_ci_helpers_tool_call_key.py, test_bug2_scoped_raw_tool_output_fail_closed.py).
 """
 
-from code_intelligence.ci_helpers import (
+from code_intelligence.ci_agent_node.helpers import (
     _truncate_observation,
     _TRUNCATION_MARKER,
     _OVERRIDE_CHAIN_AMOUNT_RE,

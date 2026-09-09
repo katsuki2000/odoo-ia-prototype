@@ -1,3 +1,4 @@
+from code_intelligence.tests._corpus_paths import CORE_ADDONS_PATH
 """
 code_intelligence/tests/test_mixed_corpus_load_order.py
 
@@ -48,25 +49,25 @@ from pathlib import Path
 
 import pytest
 
-from code_intelligence.cross_file_resolver import (
+from code_intelligence.graph import (
     ParsedModule,
     build_module_symbol_registry,
     topological_sort_modules,
 )
-from code_intelligence.graph_builder import OdooGraphBuilder
+from code_intelligence.graph import OdooGraphBuilder
 from code_intelligence.extractor.manifest_parser import (
     KNOWN_CORE_MODULE_DEPENDS,
     MissingManifestError,
     synthesize_fallback_manifest,
 )
-from code_intelligence.method_override_resolver import resolve_method_override_chain
+from code_intelligence.overrides import resolve_method_override_chain
 from code_intelligence.extractor.python_extractor import (
     OdooMethodDeclaration,
     OdooModelDeclaration,
 )
 from core.graph import _load_module
 
-ADDONS_PATH = Path("/home/user/odoo-17.0/addons")
+ADDONS_PATH = CORE_ADDONS_PATH
 CORE_MODULES = ["account", "sale", "stock"]
 CUSTOM_MODULES = [
     "custom_credit_note_approval",

@@ -12,7 +12,7 @@ import logging
 import re
 import time
 
-from code_intelligence.ci_helpers import (
+from .helpers import (
     _truncate_observation,
     _tool_call_key,
     _question_is_constraint_related,

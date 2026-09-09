@@ -9,7 +9,7 @@ if TYPE_CHECKING:
     from code_intelligence.business_resolver import ResolvedConcept
 
 from core.schemas import AssistantResponse, QueryRoute
-from code_intelligence.investigation_plan import (
+from code_intelligence.investigation import (
     INTENT_TO_ROUTE,
     QuestionIntent,
     generate_investigation_plan,
@@ -113,7 +113,7 @@ def route(state: RAGState) -> dict:
     logger.info("Node [route]: Classifying query type via intent resolution")
 
     from code_intelligence.business_resolver import resolve_business_term
-    from code_intelligence.ci_graph_loader import get_code_intelligence_graph
+    from code_intelligence.graph import get_code_intelligence_graph
     G = get_code_intelligence_graph()
 
     resolved_concept = resolve_business_term(

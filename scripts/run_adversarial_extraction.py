@@ -34,8 +34,8 @@ from code_intelligence.extractor.xml_extractor import (
     parse_views_from_xml,
 )
 from code_intelligence.extractor.csv_extractor import parse_access_control_csv
-from code_intelligence.cross_file_resolver import ParsedModule, build_module_symbol_registry
-from code_intelligence.graph_builder import OdooGraphBuilder
+from code_intelligence.graph import ParsedModule, build_module_symbol_registry
+from code_intelligence.graph import OdooGraphBuilder
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("adversarial_extraction")
@@ -54,7 +54,9 @@ ADVERSARIAL_MODULE_NAMES = [
 
 
 def run_extraction():
-    addons_dir = Path("/home/user/odoo-17.0/addons")
+    from config.settings import CUSTOM_ADDONS_PATH, CORE_ADDONS_PATH
+    custom_root = Path(CUSTOM_ADDONS_PATH)
+    core_root = Path(CORE_ADDONS_PATH)
 
     print("=" * 80)
     print(" CODE INTELLIGENCE - EXTRACTION PIPELINE ( / S2.3)")
@@ -64,7 +66,9 @@ def run_extraction():
     modules_dict = {}
 
     for mod_name in ADVERSARIAL_MODULE_NAMES:
-        mod_dir = addons_dir / mod_name
+        mod_dir = custom_root / mod_name
+        if not mod_dir.exists():
+            mod_dir = core_root / mod_name
         if not mod_dir.exists():
             print(f"[WARNING] Module directory not found: {mod_dir}")
             continue

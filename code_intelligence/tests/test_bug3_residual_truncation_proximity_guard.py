@@ -14,7 +14,7 @@ incomplete because the cut landed nearby.
 
 import pytest
 
-from code_intelligence.ci_helpers import (
+from code_intelligence.ci_agent_node.helpers import (
     _TRUNCATION_MARKER,
     _match_near_truncation,
     _extract_security_lock_condition_amounts,
@@ -22,7 +22,7 @@ from code_intelligence.ci_helpers import (
     _correct_security_lock_threshold_contradictions,
     _SECURITY_LOCK_MESSAGES_MARKER,
 )
-from code_intelligence.ci_override_cascade import _extract_override_chain_amounts
+from code_intelligence.overrides import _extract_override_chain_amounts
 
 
 # ── _match_near_truncation itself ────────────────────────────────────────

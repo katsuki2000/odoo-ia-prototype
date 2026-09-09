@@ -1,14 +1,10 @@
 """
-File watcher for automated ingestion.
-
-Watches document/code directories, debounces file events, and updates ChromaDB
-through the incremental indexing path.
+File watcher for automated ingestion into ChromaDB.
 """
 
 from __future__ import annotations
 
 import argparse
-from dataclasses import asdict, dataclass
 import logging
 from pathlib import Path
 import signal
@@ -17,6 +13,7 @@ from threading import Lock, Timer
 from typing import Any, Iterable
 
 from document_rag.ingestion.incremental import SUPPORTED_EXTENSIONS, reindex_if_changed
+from document_rag.ingestion.ingest_config import CODE_DIRS, DOCS_DIR
 from document_rag.ingestion.logging_utils import start_timer, write_ingestion_event
 from document_rag.vectorstore.chroma_manager import ChromaManager
 
@@ -29,32 +26,11 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_DOCS_DIR = PROJECT_ROOT / "document_rag/fake_data" / "documents"
-# BUGFIX (todo/contexte.txt section 347): was PROJECT_ROOT / "document_rag/
-# fake_data/code" -- that directory was removed 2026-08-12 (see BUGFIX
-# comment in ingest_all.py), so the watcher was silently watching a code
-# path outside the real curated scope (CODE_DIRS, one dir per Odoo module
-# under CORE_ADDONS_ROOT/CUSTOM_ADDONS_ROOT). Import the real scope instead
-# of hardcoding a second, stale notion of "the code directory".
-from document_rag.ingestion.ingest_all import CODE_DIRS as _WATCHED_CODE_DIRS
-DEFAULT_CODE_DIRS = list(_WATCHED_CODE_DIRS)
+DEFAULT_DOCS_DIR = DOCS_DIR
+DEFAULT_CODE_DIRS = list(CODE_DIRS)
 
 
-@dataclass
-class WatcherStatus:
-    """Runtime status exposed to later API endpoints."""
-
-    watched_paths: list[str]
-    watcher_running: bool
-    last_event_path: str | None = None
-    last_event_type: str | None = None
-    last_result: dict[str, Any] | None = None
-    errors: list[str] | None = None
-
-    def to_dict(self) -> dict[str, Any]:
-        """Return a JSON-serializable status payload."""
-        return asdict(self)
+from document_rag.ingestion.watcher_status import WatcherStatus
 
 
 class DebouncedIngestionHandler(FileSystemEventHandler):
@@ -81,36 +57,28 @@ class DebouncedIngestionHandler(FileSystemEventHandler):
         self.errors: list[str] = []
 
     def on_created(self, event: Any) -> None:
-        """Schedule indexing for a newly created file."""
         self._schedule_event(event, "upsert")
 
     def on_modified(self, event: Any) -> None:
-        """Schedule indexing for a modified file."""
         self._schedule_event(event, "upsert")
 
     def on_moved(self, event: Any) -> None:
-        """Delete old source chunks and index the destination file."""
         src_path = getattr(event, "src_path", "")
         dest_path = getattr(event, "dest_path", "")
         self._schedule_path(src_path, "delete", is_directory=getattr(event, "is_directory", False))
         self._schedule_path(dest_path, "upsert", is_directory=getattr(event, "is_directory", False))
 
     def on_deleted(self, event: Any) -> None:
-        """Schedule deletion for a removed file."""
         self._schedule_event(event, "delete")
 
     def stop(self) -> None:
-        """Cancel pending timers."""
         with self._lock:
             for timer in self._timers.values():
                 timer.cancel()
             self._timers.clear()
 
     def _manager_for_path(self, path: Path) -> ChromaManager:
-        """Route a file path to its docs or code ChromaManager, mirroring incremental.py."""
-        if path.suffix.lower() in {".pdf", ".txt", ".md"}:
-            return self.docs_manager
-        return self.code_manager
+        return self.docs_manager
 
     def _schedule_event(self, event: Any, action: str) -> None:
         path = getattr(event, "src_path", "")
@@ -145,9 +113,6 @@ class DebouncedIngestionHandler(FileSystemEventHandler):
 
         if process_now:
             self._process_path(path, action, is_directory)
-            return
-
-        logger.info("Scheduled %s for %s after %.1fs", action, path, self.debounce_seconds)
 
     def _process_path(self, path: Path, action: str, is_directory: bool = False) -> None:
         started_at = start_timer()
@@ -185,7 +150,7 @@ class DebouncedIngestionHandler(FileSystemEventHandler):
                     )
                     return
 
-                target_roots = [path] if not is_directory else [path]
+                target_roots = [path]
                 self.last_result = reindex_if_changed(
                     target_roots,
                     docs_manager=self.docs_manager,
@@ -231,11 +196,6 @@ class IngestionWatcher:
         if Observer is None:
             raise ImportError("watchdog is required to run ingestion watcher")
 
-        # Section 349 (todo/contexte.txt): decision produit permanente --
-        # le watcher de la branche RAG documentaire ne surveille plus le
-        # code par defaut (Code Intelligence s'en charge separement).
-        # DEFAULT_CODE_DIRS reste defini plus haut pour un usage explicite
-        # (watched_paths=[...]) mais n'est plus dans le defaut implicite.
         self.watched_paths = [
             Path(path).resolve()
             for path in (watched_paths or [DEFAULT_DOCS_DIR])
@@ -251,7 +211,6 @@ class IngestionWatcher:
         self.running = False
 
     def start(self) -> None:
-        """Start watching existing paths recursively."""
         for path in self.watched_paths:
             if not path.exists():
                 logger.warning("Watcher path does not exist: %s", path)
@@ -263,7 +222,6 @@ class IngestionWatcher:
         self.running = True
 
     def stop(self) -> None:
-        """Stop observer and pending debounce timers."""
         self.handler.stop()
         if self.running:
             self.observer.stop()
@@ -271,7 +229,6 @@ class IngestionWatcher:
         self.running = False
 
     def status(self) -> dict[str, Any]:
-        """Return current watcher status."""
         return WatcherStatus(
             watched_paths=[str(path) for path in self.watched_paths],
             watcher_running=self.running,
@@ -283,12 +240,10 @@ class IngestionWatcher:
 
 
 def _is_supported_source(path: Path) -> bool:
-    """Return True if the watcher should process this file path."""
     return path.suffix.lower() in SUPPORTED_EXTENSIONS
 
 
 def run_forever(watched_paths: Iterable[str | Path] | None = None) -> None:
-    """Run the watcher until SIGINT/SIGTERM."""
     watcher = IngestionWatcher(watched_paths=watched_paths)
     should_stop = False
 
@@ -308,17 +263,11 @@ def run_forever(watched_paths: Iterable[str | Path] | None = None) -> None:
 
 
 def main() -> int:
-    """CLI entry point for the ingestion watcher."""
-    parser = argparse.ArgumentParser(description="Watch fake_data docs/code and update ChromaDB")
+    parser = argparse.ArgumentParser(description="Watch docs/code and update ChromaDB")
     parser.add_argument(
         "paths",
         nargs="*",
         type=Path,
-        # Section 349 (todo/contexte.txt): default changed -- the
-        # documentary RAG watcher no longer watches code by default
-        # (permanent product decision, mirrors ingest_all.py). Pass
-        # explicit paths (including DEFAULT_CODE_DIRS entries) to opt back
-        # in for a one-off run.
         default=[DEFAULT_DOCS_DIR],
         help="Directories to watch recursively",
     )

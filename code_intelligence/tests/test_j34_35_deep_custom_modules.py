@@ -13,10 +13,10 @@ import pytest
 from code_intelligence.extractor.manifest_parser import parse_manifest
 from code_intelligence.extractor.python_extractor import extract_odoo_models_from_file
 from code_intelligence.extractor.xml_extractor import parse_ir_rules_from_xml
-from code_intelligence.semgrep_locks_analyzer import analyze_python_security_locks
-from code_intelligence.auxiliary_tools import list_involved_modules_with_role
-from code_intelligence.graph_builder import OdooGraphBuilder
-from code_intelligence.cross_file_resolver import ParsedModule, build_module_symbol_registry
+from code_intelligence.security import analyze_python_security_locks
+from code_intelligence.ci_agent_node.auxiliary_tools import list_involved_modules_with_role
+from code_intelligence.graph import OdooGraphBuilder
+from code_intelligence.graph import ParsedModule, build_module_symbol_registry
 from code_intelligence.tests._corpus_paths import CUSTOM_ADDONS_PATH
 
 

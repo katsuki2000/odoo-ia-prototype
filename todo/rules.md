@@ -15,3 +15,5 @@ ne JAMAIS lancer pytest tests/ -v (suite complète) tel quel sur cette machine -
 300 lignes  par fichier max, sauf pour les tests
 meme convention de nommage(snake_case pour les fichiers et PascalCase pour les classes, camel case pour les variables)
 DRY (Don't Repeat Yourself)
+respect d'architecture LLM recommandé 
+a clean architecture with subpackages and packages

@@ -13,8 +13,8 @@ import time
 
 from langchain_core.messages import ToolMessage
 
-from code_intelligence.authorization_gate import gate_observation
-from code_intelligence.ci_helpers import (
+from code_intelligence.security.gate import gate_observation
+from .helpers import (
     _truncate_observation,
     _tool_call_key,
     _extract_amount,
@@ -83,7 +83,7 @@ def execute_tool_calls(ctx: DispatchContext, ai_msg, messages: list) -> None:
                 rule_result = None
                 if tool_name == "evaluate_record_rules":
                     try:
-                        from code_intelligence.ci_agent_tools import evaluate_rules_raw
+                        from .agent_tools import evaluate_rules_raw
 
                         rule_result = evaluate_rules_raw(
                             model_name=tool_args.get("model_name", ""),

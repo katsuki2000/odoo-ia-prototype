@@ -17,7 +17,7 @@ guess on ambiguity or on a non-static-alias resolution path).
 import pytest
 
 from code_intelligence.business_resolver import ResolvedConcept
-from code_intelligence.ci_helpers import _infer_move_type_context
+from code_intelligence.ci_agent_node.helpers import _infer_move_type_context
 
 
 def _static_alias(user_term: str, models=None) -> ResolvedConcept:
@@ -114,7 +114,7 @@ class TestIntegrationWithCanViewAmountV2:
     of poisoning the Kleene OR the way an empty context does."""
 
     def test_module_02_global_rule_resolves_with_inferred_move_type(self):
-        from code_intelligence.deterministic_tools import RuleDetail, RuleEvaluationResult
+        from code_intelligence.deterministic.record_rules_models import RuleDetail, RuleEvaluationResult
 
         global_rule = RuleDetail(
             rule_xml_id="custom_credit_note_visibility_rules.rule_avoir_cantonnement_societe",
@@ -146,7 +146,7 @@ class TestIntegrationWithCanViewAmountV2:
         is mentioned in the question either (_extract_company_context also
         returns {} there), so BOTH leaves of the OR are unresolved and the
         rule cannot conclude."""
-        from code_intelligence.deterministic_tools import RuleDetail, RuleEvaluationResult
+        from code_intelligence.deterministic.record_rules_models import RuleDetail, RuleEvaluationResult
 
         global_rule = RuleDetail(
             rule_xml_id="custom_credit_note_visibility_rules.rule_avoir_cantonnement_societe",
@@ -174,7 +174,7 @@ class TestIntegrationWithCanViewAmountV2:
         still never guessed -- if the question also depends on company
         context, the verdict correctly stays indeterminate rather than
         silently resolving on move_type alone."""
-        from code_intelligence.deterministic_tools import RuleDetail, RuleEvaluationResult
+        from code_intelligence.deterministic.record_rules_models import RuleDetail, RuleEvaluationResult
 
         global_rule = RuleDetail(
             rule_xml_id="custom_credit_note_visibility_rules.rule_avoir_cantonnement_societe",

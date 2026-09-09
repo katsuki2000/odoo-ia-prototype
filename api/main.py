@@ -56,7 +56,6 @@ from api.routes_ingestion import (
     reindex_v1,
     ingestion_status,
     trigger_scheduled_scan,
-    _classify_reindex_path,
     _count_supported_files,
     _get_watcher_status,
 )

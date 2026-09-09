@@ -15,10 +15,10 @@ from api.schemas import (
     ScheduledScanResponse,
 )
 from document_rag.ingestion.incremental import reindex_if_changed
-from document_rag.ingestion.ingest_all import CODE_DIR, DOCS_DIR, IngestionOrchestrator
+from document_rag.ingestion.ingest_all import DOCS_DIR, IngestionOrchestrator
 from document_rag.ingestion.logging_utils import now_iso, start_timer, write_ingestion_event
 from document_rag.ingestion.scheduler import run_scheduled_scan
-from document_rag.ingestion.watcher import DEFAULT_CODE_DIRS, DEFAULT_DOCS_DIR
+from document_rag.ingestion.watcher import DEFAULT_DOCS_DIR
 from document_rag.vectorstore.chroma_manager import ChromaManager
 
 logger = logging.getLogger(__name__)
@@ -93,19 +93,11 @@ def reindex_v1(request: ReindexRequestV1):
                 chroma_db_path=manager.db_path,
                 collection_name=manager.collection_name,
             )
-            if target_path:
-                docs_dir, code_dir = _classify_reindex_path(target_path)
-                result = orchestrator.clear_and_reingest(
-                    docs_dir=docs_dir,
-                    code_dir=code_dir,
-                    incremental=False,
-                )
-            else:
-                result = orchestrator.clear_and_reingest(
-                    docs_dir=DOCS_DIR,
-                    code_dir=CODE_DIR,
-                    incremental=False,
-                )
+            docs_dir = (target_path.parent if target_path.is_file() else target_path) if target_path else DOCS_DIR
+            result = orchestrator.clear_and_reingest(
+                docs_dir=docs_dir,
+                incremental=False,
+            )
         else:
             raise HTTPException(status_code=400, detail=f"Unsupported reindex scope: {request.scope}")
 
@@ -148,7 +140,7 @@ def ingestion_status():
     return IngestionStatusResponse(
         last_ingestion_time=status_dict.get("last_ingestion_time"),
         total_chunks=int(stats.get("total_chunks", 0) or 0),
-        files_monitored=_count_supported_files([DEFAULT_DOCS_DIR, *DEFAULT_CODE_DIRS]),
+        files_monitored=_count_supported_files([DEFAULT_DOCS_DIR]),
         watcher_status=watcher_status,
         scheduler_status=status_dict.get("scheduler_status"),
         last_scan_type=status_dict.get("last_scan_type"),
@@ -174,23 +166,9 @@ def trigger_scheduled_scan():
         raise HTTPException(status_code=500, detail=f"Scheduled scan failed: {str(exc)}")
 
 
-def _classify_reindex_path(target_path: Path) -> tuple[Path | str, Path | str]:
-    """Classify a full-reindex path as docs or code input for the orchestrator."""
-    if target_path.suffix.lower() in {".py", ".xml"}:
-        return "", target_path.parent
-
-    if target_path.is_dir():
-        has_code = any(target_path.rglob("*.py")) or any(target_path.rglob("*.xml"))
-        has_docs = any(target_path.rglob("*.pdf")) or any(target_path.rglob("*.txt")) or any(target_path.rglob("*.md"))
-        if has_code and not has_docs:
-            return "", target_path
-
-    return target_path.parent if target_path.is_file() else target_path, ""
-
-
 def _count_supported_files(paths: list[Path]) -> int:
     """Count files monitored by the ingestion watcher."""
-    supported_extensions = {".pdf", ".txt", ".md", ".py", ".xml"}
+    supported_extensions = {".pdf", ".txt", ".md"}
     count = 0
     for path in paths:
         if path.is_file() and path.suffix.lower() in supported_extensions:

@@ -1,56 +1,6 @@
 #!/usr/bin/env python3
 """
-scripts/check_bloc9_06_automation_traps_e2e.py
-
- generalization check, 6/8 -- same method as modules 1/8-5/8 (raw
-composite-tool output isolated from synthesis, then live end-to-end
-through code_intelligence_agent()), applied to the sixth mechanism:
-custom_automation_traps (Q5.1), a data-driven ir.actions.server / sudo()
-bypass -- structurally different again from modules 1/8-5/8: the risky
-logic lives in an XML `code` field (base.automation trigger), not in
-Python module source, so it goes through server_action_analyzer.py /
-analyser_actions_serveur, never analyser_verrous_securite.
-
-Ground truth (custom_automation_traps/data/automation_rule.xml, read
-directly from disk, not from real / text):
-  - A base.automation rule on account.move (on_create_or_write) invokes
-    an ir.actions.server whose code is:
-        FOURNISSEURS_PRIVILEGIES = [42, 108, 231]
-        for rec in records:
-            if rec.move_type == 'in_refund' and rec.partner_id.id in FOURNISSEURS_PRIVILEGIES:
-                rec.sudo().action_post()
-  - i.e. avoirs fournisseurs (in_refund moves) from 3 hardcoded partner
-    IDs are auto-posted via sudo(), bypassing EVERY approval mechanism
-    from module 1/8's cascade (has_group threshold, N+2 relational chain,
-    VIP exemption) entirely -- sudo() ignores ir.rule/ACL, and this
-    server action runs before any of those checks would even apply.
-    Q5.1's answer is NON: not all avoirs follow the same rules.
-  - This IS a genuine security bypass (sudo() + hardcoded privileged IDs),
-    not ordinary governance -- both get SENSITIVE_BYPASS_MARKER-tagged at
-    the source (server_action_analyzer.py) and are subject to 
-    gating (authorization_gate.py) exactly like modules 1/8's/4/8's
-    has_group()-derived thresholds are NOT gated, but their hardcoded
-    email/ID lists ARE. `_has_elevated_access` for account.move uses the
-    model's OWN has_group() source signal  -- which, thanks
-    to module 1/8's Gap 1 fix (has_group() extraction), now resolves to
-    `account.group_account_manager` (from custom_credit_note_approval).
-    So: an ANONYMOUS requester should see the bypass mechanism's EXISTENCE
-    (a redacted line naming the category) but NOT its specifics (42, 108,
-    231); the trigger condition (`in_refund`) is governance info visible
-    to all (not tagged SENSITIVE_BYPASS_MARKER). A requester WITH
-    account.group_account_manager should
-    see everything, matching Q5.1's literal benchmark "expected" text.
-  - Real, non-application-code gap fixed earlier in this same session
-    (2026-08-11), confirmed by another instance also on disk: sudo()/
-    hardcoded-ID detection in server_action_analyzer.py previously
-    reported flat, unlinked facts with no record of the enclosing `if`
-    condition scoping them -- `_find_enclosing_if_condition` +
-    `trigger_conditions` now attach "rec.move_type == 'in_refund' and
-    rec.partner_id.id in FOURNISSEURS_PRIVILEGIES" to both the sudo AND
-    the hardcoded-ID warnings. This script's raw check asserts that fix
-    holds end-to-end (via the real @tool wrapper, not just the unit-level
-    analyze_server_action_code() call already covered by
-    test_s2_3_server_actions.py::test_full_adversarial_code_q5_1).
+E2E verification for custom_automation_traps server action bypass.
 """
 
 import re
@@ -62,7 +12,7 @@ project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(project_root))
 
 from core.graph import code_intelligence_agent, get_code_intelligence_graph, query_graph, _get_admin_rpc_client
-from code_intelligence.ci_agent_tools import ALL_CI_TOOLS, set_graph_ref
+from code_intelligence.ci_agent_node.agent_tools import ALL_CI_TOOLS, set_graph_ref
 from code_intelligence.utils import SENSITIVE_BYPASS_MARKER
 
 TARGET_MODEL = "account.move"

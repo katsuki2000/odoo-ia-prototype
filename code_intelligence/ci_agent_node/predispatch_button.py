@@ -13,7 +13,7 @@ import logging
 import re
 import time
 
-from code_intelligence.ci_helpers import _truncate_observation, _tool_call_key
+from .helpers import _truncate_observation, _tool_call_key
 from code_intelligence.ci_agent_node.dispatch_context import DispatchContext
 from code_intelligence.ci_agent_node.ui_patterns import extract_ui_element_name
 

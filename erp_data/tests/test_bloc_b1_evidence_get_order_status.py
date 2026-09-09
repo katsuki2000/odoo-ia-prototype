@@ -16,16 +16,16 @@ qualitative fact (order state) rather than a numeric sum.
 
 from unittest.mock import patch
 
-from erp_data.odoo_tools import (
+from erp_data.tools.inventory import (
     get_order_status_raw,
     get_order_status,
-    odoo_uid_ctx,
 )
+from erp_data.odoo_context import odoo_uid_ctx
 from core.evidence import Evidence, EvidenceSourceType
 
 
 def test_get_order_status_raw_returns_text_and_two_evidence():
-    with patch("erp_data.odoo_tools.connector.search_read") as mock_search_read:
+    with patch("erp_data._odoo_helpers.connector.search_read") as mock_search_read:
         mock_search_read.return_value = [
             {"state": "sale", "amount_total": 999.0, "partner_id": [1, "Rakoto"]}
         ]
@@ -50,7 +50,7 @@ def test_get_order_status_raw_evidence_carries_raw_state_not_french_label():
     """The Evidence must carry Odoo's own raw state value (e.g. "sale"),
     not the display-only French translation (state_fr) -- the translation
     is a rendering of the same fact, not an independent one."""
-    with patch("erp_data.odoo_tools.connector.search_read") as mock_search_read:
+    with patch("erp_data._odoo_helpers.connector.search_read") as mock_search_read:
         mock_search_read.return_value = [
             {"state": "sale", "amount_total": 999.0, "partner_id": [1, "Rakoto"]}
         ]
@@ -67,7 +67,7 @@ def test_get_order_status_raw_evidence_carries_raw_state_not_french_label():
 
 
 def test_get_order_status_raw_evidence_covers_partner_separately():
-    with patch("erp_data.odoo_tools.connector.search_read") as mock_search_read:
+    with patch("erp_data._odoo_helpers.connector.search_read") as mock_search_read:
         mock_search_read.return_value = [
             {"state": "draft", "amount_total": 100.0, "partner_id": [2, "Randria"]}
         ]
@@ -85,7 +85,7 @@ def test_get_order_status_raw_evidence_covers_partner_separately():
 def test_get_order_status_raw_never_asserts_amount_total_as_evidence():
     """amount_total is fetched by the query but never displayed in text --
     no Evidence must be fabricated for a fact the text never asserts."""
-    with patch("erp_data.odoo_tools.connector.search_read") as mock_search_read:
+    with patch("erp_data._odoo_helpers.connector.search_read") as mock_search_read:
         mock_search_read.return_value = [
             {"state": "sale", "amount_total": 12345.67, "partner_id": [1, "Rakoto"]}
         ]
@@ -103,7 +103,7 @@ def test_get_order_status_raw_empty_result_produces_single_negative_evidence():
     """Even a 'order not found' outcome is itself a fact worth recording
     as Evidence (absence of a match), not just silently dropped -- same
     convention already established by the read_group-based ORM tools."""
-    with patch("erp_data.odoo_tools.connector.search_read") as mock_search_read:
+    with patch("erp_data._odoo_helpers.connector.search_read") as mock_search_read:
         mock_search_read.return_value = []
         token = odoo_uid_ctx.set(1)
         try:
@@ -124,7 +124,7 @@ def test_get_order_status_raw_multiple_results_only_covers_results_zero():
     an exact name match should return at most one record in practice, if
     more than one is ever returned, only results[0] is reflected -- the
     Evidence must never cover the ignored entries either."""
-    with patch("erp_data.odoo_tools.connector.search_read") as mock_search_read:
+    with patch("erp_data._odoo_helpers.connector.search_read") as mock_search_read:
         mock_search_read.return_value = [
             {"state": "draft", "amount_total": 10.0, "partner_id": [1, "A"]},
             {"state": "cancel", "amount_total": 999.0, "partner_id": [2, "B"]},
@@ -145,7 +145,7 @@ def test_get_order_status_raw_multiple_results_only_covers_results_zero():
 def test_get_order_status_raw_no_confidence_set():
     """B0 decision (todo/contexte.txt section 426): a deterministic ORM
     read never carries a confidence score."""
-    with patch("erp_data.odoo_tools.connector.search_read") as mock_search_read:
+    with patch("erp_data._odoo_helpers.connector.search_read") as mock_search_read:
         mock_search_read.return_value = [
             {"state": "sale", "amount_total": 1.0, "partner_id": [1, "X"]}
         ]
@@ -159,7 +159,7 @@ def test_get_order_status_raw_no_confidence_set():
 
 
 def test_get_order_status_raw_evidence_scope_carries_execution_identity():
-    with patch("erp_data.odoo_tools.connector.search_read") as mock_search_read:
+    with patch("erp_data._odoo_helpers.connector.search_read") as mock_search_read:
         mock_search_read.return_value = [
             {"state": "sale", "amount_total": 1.0, "partner_id": [1, "X"]}
         ]
@@ -177,7 +177,7 @@ def test_get_order_status_raw_evidence_scope_carries_execution_identity():
 
 def test_get_order_status_tool_wrapper_unchanged_return_contract():
     """The @tool wrapper must still return a plain string."""
-    with patch("erp_data.odoo_tools.connector.search_read") as mock_search_read:
+    with patch("erp_data._odoo_helpers.connector.search_read") as mock_search_read:
         mock_search_read.return_value = [
             {"state": "sale", "amount_total": 1.0, "partner_id": [1, "X"]}
         ]
@@ -195,7 +195,7 @@ def test_get_order_status_tool_wrapper_still_catches_connector_exceptions():
     """Non-regression of the original try/except: it lives in the @tool
     wrapper, not in _raw -- the observable error-string behavior on a
     connector failure must be identical to before this Evidence-ification."""
-    with patch("erp_data.odoo_tools.connector.search_read") as mock_search_read:
+    with patch("erp_data._odoo_helpers.connector.search_read") as mock_search_read:
         mock_search_read.side_effect = RuntimeError("boom")
         token = odoo_uid_ctx.set(1)
         try:
@@ -210,7 +210,7 @@ def test_get_order_status_raw_propagates_exceptions_without_fabricating_evidence
     """_raw must never swallow a connector exception itself -- doing so
     would risk fabricating an Evidence (e.g. a false negative) from a
     technical failure rather than a real absence of data."""
-    with patch("erp_data.odoo_tools.connector.search_read") as mock_search_read:
+    with patch("erp_data._odoo_helpers.connector.search_read") as mock_search_read:
         mock_search_read.side_effect = RuntimeError("boom")
         token = odoo_uid_ctx.set(1)
         try:

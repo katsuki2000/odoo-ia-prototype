@@ -26,7 +26,7 @@ from unittest.mock import Mock, patch
 import pytest
 
 from code_intelligence.business_resolver import ResolvedConcept
-from code_intelligence.investigation_plan import (
+from code_intelligence.investigation import (
     IntentResolution,
     QuestionIntent,
     classify_question_intent,

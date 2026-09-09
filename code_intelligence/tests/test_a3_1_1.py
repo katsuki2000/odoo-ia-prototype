@@ -25,8 +25,8 @@ from code_intelligence.extractor.xml_extractor import (
     parse_views_from_xml,
 )
 from code_intelligence.extractor.csv_extractor import parse_access_control_csv
-from code_intelligence.cross_file_resolver import ParsedModule, build_module_symbol_registry
-from code_intelligence.graph_builder import (
+from code_intelligence.graph import ParsedModule, build_module_symbol_registry
+from code_intelligence.graph import (
     OdooGraphBuilder,
     save_graph_to_json,
     load_graph_from_json,

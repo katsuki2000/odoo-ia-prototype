@@ -36,8 +36,8 @@ from code_intelligence.extractor.xml_extractor import (
     parse_views_from_xml,
 )
 from code_intelligence.extractor.csv_extractor import parse_access_control_csv
-from code_intelligence.cross_file_resolver import ParsedModule, build_module_symbol_registry
-from code_intelligence.graph_builder import OdooGraphBuilder
+from code_intelligence.graph import ParsedModule, build_module_symbol_registry
+from code_intelligence.graph import OdooGraphBuilder
 from code_intelligence.utils import discover_odoo_modules, compute_addons_hash
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")

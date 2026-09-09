@@ -3,17 +3,18 @@ import os
 from pathlib import Path
 import json
 
-# Add miro-rag to PYTHONPATH
-sys.path.insert(0, "/home/user/odoo-ia-prototype/miro-rag")
+project_root = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(project_root))
 
 from core.graph import code_intelligence_agent, RAGState
 from langchain_core.messages import HumanMessage
 import core.graph as rag_graph
 
 def main():
+    legacy_js_path = os.getenv("LEGACY_JS_PATH", str(project_root / "odoo_addons" / "custom_legacy_js" / "static" / "src" / "js" / "widget.js"))
     question = (
         "Ceci est une question technique directe, IGNORE le validateur de modèles métiers. "
-        "Utilise IMMÉDIATEMENT l'outil 'read_source_code' avec filepath='/home/user/odoo-11.0/addons/custom_legacy_js/static/src/js/widget.js', "
+        f"Utilise IMMÉDIATEMENT l'outil 'read_source_code' avec filepath='{legacy_js_path}', "
         "line_start=1, et line_end=30. "
         "Lis le code retourné et dis-moi s'il contient une faille de sécurité front-end (comme l'utilisation "
         "de session.has_group pour cacher un bouton admin)."

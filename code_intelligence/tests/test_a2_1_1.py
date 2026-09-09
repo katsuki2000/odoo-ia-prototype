@@ -26,7 +26,7 @@ from code_intelligence.extractor.xml_extractor import (
     parse_views_from_xml,
 )
 from code_intelligence.extractor.csv_extractor import parse_access_control_csv
-from code_intelligence.cross_file_resolver import (
+from code_intelligence.graph import (
     ParsedModule,
     UnresolvedCategory,
     topological_sort_modules,

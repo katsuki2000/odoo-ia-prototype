@@ -1,7 +1,7 @@
 """
 document_rag/ingestion/ingest_cli.py
 
-CLI entry point for document and code ingestion into ChromaDB.
+CLI entry point for document ingestion into ChromaDB (PDF, TXT, MD).
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ def main() -> int:
     from document_rag.ingestion.ingest_all import IngestionOrchestrator
 
     parser = argparse.ArgumentParser(
-        description="Ingest all documents into ChromaDB"
+        description="Ingest documentation files into ChromaDB"
     )
     parser.add_argument(
         "--clear",
@@ -40,7 +40,7 @@ def main() -> int:
         "--code-dir",
         type=str,
         default="",
-        help="Path to code directory to ingest. Empty by default ('').",
+        help="Deprecated: code is handled by code_intelligence.",
     )
     parser.add_argument(
         "--db-path",

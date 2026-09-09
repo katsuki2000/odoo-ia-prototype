@@ -13,20 +13,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Verify Nomic Key is loaded
-nomic_key = os.environ.get("NOMIC_API_KEY")
-if not nomic_key:
-    print("WARNING: NOMIC_API_KEY not found in environment variables!")
-else:
-    print("NOMIC_API_KEY successfully loaded from environment.")
-
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from core.graph import query_graph
-from erp_data.odoo_tools import (
-    get_total_sales,
-    get_total_invoices,
-    get_recent_tickets
-)
 
 logging.basicConfig(level=logging.ERROR)
 

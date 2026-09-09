@@ -17,13 +17,13 @@ from core.routing import (
     REACT_RECURSION_LIMIT,
 )
 from core.llm_client import get_chat_llm
-from code_intelligence.ci_graph_loader import get_code_intelligence_graph
+from code_intelligence.graph import get_code_intelligence_graph
 from code_intelligence.business_resolver import resolve_business_term
-from code_intelligence.ci_helpers import CI_SYSTEM_PROMPT, CI_MAX_HOPS, _rank_and_cap_resolved_models
+from .helpers import CI_MAX_HOPS, _rank_and_cap_resolved_models
 from code_intelligence.ci_agent_node.group_resolution import _resolve_user_group_xmlids
 from code_intelligence.ci_agent_node.early_refusal import build_early_refusal_response
 from code_intelligence.ci_agent_node.dispatch_context import DispatchContext
-from code_intelligence.ci_agent_node.business_context import build_business_context_prompt
+from .prompts import CI_SYSTEM_PROMPT, build_business_context_prompt
 from code_intelligence.ci_agent_node.predispatch_chain import run_predispatch_chain
 from code_intelligence.ci_agent_node.react_loop import run_react_loop
 from code_intelligence.ci_agent_node.postprocess import build_final_response
@@ -43,7 +43,7 @@ class CodeIntelligenceAgentRunner:
         chat_history = state.get("chat_history", [])
         logger.info("Node [code_intelligence_agent]: Starting ReAct loop for: %s", question)
 
-        from code_intelligence.reasoning_trace_logger import ReasoningTraceLogger, new_trace_id
+        from core.reasoning_trace_logger import ReasoningTraceLogger, new_trace_id
         trace_id = new_trace_id()
         trace_logger = ReasoningTraceLogger()
 
@@ -74,8 +74,8 @@ class CodeIntelligenceAgentRunner:
 
         # Initialize the knowledge graph and inject into tool wrappers
         G = get_code_intelligence_graph()
-        from code_intelligence.ci_agent_tools import ALL_CI_TOOLS, set_graph_ref, set_llm_ref
-        from code_intelligence.authorization_gate import gate_observation, OmittedItem
+        from .agent_tools import ALL_CI_TOOLS, set_graph_ref, set_llm_ref
+        from code_intelligence.security.gate import gate_observation, OmittedItem
         set_graph_ref(G)
 
         resolved_user_group_xmlids = _resolve_user_group_xmlids(state.get("user_groups", []))
@@ -113,7 +113,7 @@ class CodeIntelligenceAgentRunner:
         if concept.source_step == "llm_arbitration":
             llm_call_count += 1
         concept_resolved_before_rehydration = concept.is_resolved
-        from code_intelligence.ci_helpers import _rehydrate_sticky_concept
+        from .helpers import _rehydrate_sticky_concept
         from core.evidence_check import check_evidence
         concept = _rehydrate_sticky_concept(concept, state)
         evidence_status = check_evidence(concept, concept_resolved_before_rehydration, state)

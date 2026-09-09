@@ -35,9 +35,9 @@ from code_intelligence.extractor.xml_extractor import (
     OdooBaseAutomationRecord,
 )
 from code_intelligence.extractor.csv_extractor import OdooAccessEntry
-from code_intelligence.cross_file_resolver import ParsedModule, build_module_symbol_registry
-from code_intelligence.graph_builder import OdooGraphBuilder
-from code_intelligence.semantic_tags import BehavioralTag, TechnicalTag
+from code_intelligence.graph import ParsedModule, build_module_symbol_registry
+from code_intelligence.graph import OdooGraphBuilder
+from code_intelligence.ontology.tags import BehavioralTag, TechnicalTag
 
 METHOD_SOURCE = """class CustomTestPlain(models.Model):
     _name = "custom.test.plain"

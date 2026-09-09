@@ -20,7 +20,7 @@ These tests mock the RPC layer (no live Odoo needed) to prove:
 import networkx as nx
 import pytest
 
-from code_intelligence.authorization_gate import gate_observation, _has_elevated_access
+from code_intelligence.security.gate import gate_observation, _has_elevated_access
 
 
 def _build_graph_with_acl(model_name: str, write_group_xmlid: str) -> nx.DiGraph:
@@ -90,7 +90,7 @@ def test_resolve_user_group_xmlids_translates_via_rpc(monkeypatch):
             return {gid: catalog[gid] for gid in group_ids if gid in catalog}
 
     monkeypatch.setattr(
-        "code_intelligence.odoo_rpc_client.OdooRpcClient",
+        "code_intelligence.live.rpc_client.OdooRpcClient",
         lambda: _FakeRpcClient(),
     )
     # Reset module-level singleton/cache so the monkeypatched client is used.
@@ -123,7 +123,7 @@ def test_resolve_user_group_xmlids_fails_closed_on_unresolvable_id(monkeypatch):
             return {}  # nothing resolves
 
     monkeypatch.setattr(
-        "code_intelligence.odoo_rpc_client.OdooRpcClient",
+        "code_intelligence.live.rpc_client.OdooRpcClient",
         lambda: _FakeRpcClient(),
     )
     monkeypatch.setattr(graph_module, "_ADMIN_RPC_CLIENT", None)

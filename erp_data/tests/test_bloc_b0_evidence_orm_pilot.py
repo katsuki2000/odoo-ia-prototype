@@ -13,12 +13,13 @@ test_odoo_tools.py.
 import pytest
 from unittest.mock import patch
 
-from erp_data.odoo_tools import get_total_sales_raw, odoo_uid_ctx
+from erp_data.tools.sales import get_total_sales_raw, get_total_sales
+from erp_data.odoo_context import odoo_uid_ctx
 from core.evidence import Evidence, EvidenceSourceType
 
 
 def test_get_total_sales_raw_returns_text_and_evidence():
-    with patch("erp_data.odoo_tools.connector.read_group") as mock_read_group:
+    with patch("erp_data._odoo_helpers.connector.read_group") as mock_read_group:
         mock_read_group.return_value = [{"amount_total": 125000.0}]
         token = odoo_uid_ctx.set(7)
         try:
@@ -37,7 +38,7 @@ def test_get_total_sales_raw_evidence_scope_carries_execution_identity():
     """execution_identity must be the real requester uid, per B0's decision
     (todo/contexte.txt section 428) that it represent the identity actually
     used for the ORM read, not a decorative label."""
-    with patch("erp_data.odoo_tools.connector.read_group") as mock_read_group:
+    with patch("erp_data._odoo_helpers.connector.read_group") as mock_read_group:
         mock_read_group.return_value = [{"amount_total": 500.0}]
         token = odoo_uid_ctx.set(42)
         try:
@@ -53,7 +54,7 @@ def test_get_total_sales_raw_evidence_scope_carries_execution_identity():
 def test_get_total_sales_raw_no_confidence_set():
     """B0 decision (todo/contexte.txt section 426): a deterministic ORM
     read never carries a confidence score."""
-    with patch("erp_data.odoo_tools.connector.read_group") as mock_read_group:
+    with patch("erp_data._odoo_helpers.connector.read_group") as mock_read_group:
         mock_read_group.return_value = [{"amount_total": 500.0}]
         token = odoo_uid_ctx.set(1)
         try:
@@ -67,7 +68,7 @@ def test_get_total_sales_raw_no_confidence_set():
 def test_get_total_sales_raw_empty_result_still_produces_evidence():
     """Even a 'no data found' outcome is itself a fact worth recording as
     Evidence (absence of a match), not just silently dropped."""
-    with patch("erp_data.odoo_tools.connector.read_group") as mock_read_group:
+    with patch("erp_data._odoo_helpers.connector.read_group") as mock_read_group:
         mock_read_group.return_value = []
         token = odoo_uid_ctx.set(1)
         try:
@@ -84,9 +85,7 @@ def test_get_total_sales_tool_wrapper_unchanged_return_contract():
     """The @tool wrapper must still return a plain string -- B0 explicitly
     keeps the existing tool contract intact (todo/contexte.txt section
     426, decision 1: no breaking change to the frontend/agent contract)."""
-    from erp_data.odoo_tools import get_total_sales
-
-    with patch("erp_data.odoo_tools.connector.read_group") as mock_read_group:
+    with patch("erp_data._odoo_helpers.connector.read_group") as mock_read_group:
         mock_read_group.return_value = [{"amount_total": 10.0}]
         token = odoo_uid_ctx.set(1)
         try:
@@ -116,7 +115,7 @@ def test_get_total_sales_raw_domain_matches_statut_contract(statut, expected_sta
     in the contract -- in particular 'annulees' must resolve to ['cancel']
     only, not silently fall through to the 'toutes' domain (the bug this
     refactor fixed, todo/contexte.txt section 516)."""
-    with patch("erp_data.odoo_tools.connector.read_group") as mock_read_group:
+    with patch("erp_data._odoo_helpers.connector.read_group") as mock_read_group:
         mock_read_group.return_value = [{"amount_total": 100.0}]
         token = odoo_uid_ctx.set(1)
         try:
@@ -132,7 +131,7 @@ def test_get_total_sales_raw_unknown_statut_falls_back_to_toutes_domain():
     """An unrecognized statut string is a defined contractual behavior
     (fallback to the 'toutes' domain), not an accidental effect of an
     else branch -- verified here against the real domain, not just prose."""
-    with patch("erp_data.odoo_tools.connector.read_group") as mock_read_group:
+    with patch("erp_data._odoo_helpers.connector.read_group") as mock_read_group:
         mock_read_group.return_value = [{"amount_total": 100.0}]
         token = odoo_uid_ctx.set(1)
         try:

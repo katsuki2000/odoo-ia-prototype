@@ -5,7 +5,7 @@ and verifying it completes in under 6 minutes (< 360 seconds) with correct chunk
 """
 
 import pytest
-from tools.run_scalability_test import run_scalability_benchmark
+from scripts.run_scalability_test import run_scalability_benchmark
 
 
 @pytest.mark.integration

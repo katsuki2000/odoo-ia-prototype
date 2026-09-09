@@ -39,7 +39,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import List
 
-from code_intelligence.deterministic_tools import NOT_FOUND_MARKER
+from code_intelligence.deterministic.common import NOT_FOUND_MARKER
 
 
 class EvidenceSufficiencyStatus(str, Enum):
@@ -109,7 +109,7 @@ _INDETERMINATE_FACT_MARKER = "can_view_amount_v2() = indeterminate"
 # confirmed absence), not a failed lookup, and are deliberately NOT included
 # here.
 #
-# NOT_FOUND_MARKER is imported from deterministic_tools.py (its own existing
+# NOT_FOUND_MARKER is imported from deterministic/common.py (its own existing
 # single source of truth for "model/field not found in graph", already used
 # verbatim by 6 of the 9 composite tools: who_has_access_to,
 # evaluate_record_rules, field_change_impact, button_execution_path,

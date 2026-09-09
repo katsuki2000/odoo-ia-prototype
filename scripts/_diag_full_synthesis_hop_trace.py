@@ -14,7 +14,7 @@ extra hop must come from the LLM-driven ReAct loop that runs afterwards
 This script reruns the same question through code_intelligence_agent() but
 monkeypatches ReasoningTraceLogger.log_hop -- a read-only instrumentation
 point that already receives the FULL, non-truncated observation text before
-reasoning_trace_logger.py truncates it to 300 chars for the JSONL summary
+core/reasoning_trace_logger.py truncates it to 300 chars for the JSONL summary
 (see log_hop's own observation_summary=(observation or "")[:300]) -- to
 capture every hop actually executed this run, in order, with its tool name,
 exact args, and complete observation text. No production code is modified;
@@ -35,8 +35,8 @@ project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(project_root))
 
 from core.graph import code_intelligence_agent
-from code_intelligence.reasoning_trace_logger import ReasoningTraceLogger
-from code_intelligence.ci_helpers import _OVERRIDE_CHAIN_AMOUNT_RE
+from core.reasoning_trace_logger import ReasoningTraceLogger
+from code_intelligence.ci_agent_node.helpers import _OVERRIDE_CHAIN_AMOUNT_RE
 
 QUESTION = "Qui a le droit d'approuver un avoir pour un client VIP, et y a-t-il un piège dans le code ?"
 

@@ -120,7 +120,7 @@ def query_graph(
     if skills is None:
         skills = {}
 
-    from erp_data.odoo_tools import odoo_uid_ctx, odoo_api_key_ctx
+    from erp_data._odoo_helpers import odoo_uid_ctx, odoo_api_key_ctx
     uid_token = None
     api_key_token = None
     if uid is not None:

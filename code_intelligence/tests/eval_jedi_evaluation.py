@@ -1,3 +1,4 @@
+from code_intelligence.tests._corpus_paths import CORE_ADDONS_PATH
 #!/usr/bin/env python3
 """
 jedi integration test on real Odoo corpus.
@@ -25,7 +26,7 @@ import jedi
 
 # ── Configuration ─────────────────────────────────────────────────────────────
 
-CORPUS_ROOT = Path("/home/user/odoo-17.0/addons")
+CORPUS_ROOT = CORE_ADDONS_PATH
 
 # Representative files for each pattern category
 TEST_FILES = {

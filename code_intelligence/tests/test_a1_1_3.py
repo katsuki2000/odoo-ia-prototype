@@ -1,3 +1,4 @@
+from code_intelligence.tests._corpus_paths import CORE_ADDONS_PATH
 """
 code_intelligence/tests/test_a1_1_3.py
 
@@ -71,7 +72,7 @@ class SaleOrder(models.Model):
 
 def test_real_corpus_sale_order_decorators():
     """Test decorator extraction on real sale_order.py corpus file."""
-    corpus_root = Path("/home/user/odoo-17.0/addons")
+    corpus_root = CORE_ADDONS_PATH
     sale_order_file = corpus_root / "sale" / "models" / "sale_order.py"
 
     if sale_order_file.exists():

@@ -62,7 +62,7 @@ class OdooConnector:
         auth mock this was meant to remove -- so it's logged loudly instead
         of happening silently.
         """
-        from erp_data.odoo_tools import odoo_api_key_ctx
+        from erp_data._odoo_helpers import odoo_api_key_ctx
         ctx_key = odoo_api_key_ctx.get()
         if ctx_key is not None:
             return ctx_key
@@ -95,7 +95,7 @@ class OdooConnector:
             raise OdooConnectorError(f"Model {model} is not whitelisted for AI queries.")
 
     def _is_using_api_key(self) -> bool:
-        from erp_data.odoo_tools import odoo_api_key_ctx
+        from erp_data._odoo_helpers import odoo_api_key_ctx
         return odoo_api_key_ctx.get() is not None
 
     def _retry_with_admin_password(self, uid, model, method, args, kwargs=None):

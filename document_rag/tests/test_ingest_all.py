@@ -142,35 +142,6 @@ class TestIngestionOrchestrator(unittest.TestCase):
         # Verify PDF loader was called
         mock_instance.load_and_chunk.assert_called()
 
-    @patch("document_rag.ingestion.ingest_all.CodeLoader")
-    def test_ingest_python_files(self, mock_code_loader):
-        """Test ingestion of Python files with mocked loader."""
-        code_dir = Path(self.temp_dir) / "code"
-        code_dir.mkdir(exist_ok=True)
-
-        # Create a test Python file
-        py_file = code_dir / "test.py"
-        py_file.write_text("def test_func():\n    pass")
-
-        # Mock the code loader
-        mock_instance = MagicMock()
-        mock_code_loader.return_value = mock_instance
-        mock_instance.load_python_file.return_value = {
-            "chunks": ["def test_func():\n    pass"],
-            "metadatas": [
-                {
-                    "source": "test.py",
-                    "type": "code_python",
-                    "module": "unknown",
-                }
-            ],
-            "ast_summary": {"classes": [], "functions": ["test_func"]},
-        }
-
-        self.orchestrator._ingest_code_dir(code_dir)
-
-        # Verify code loader was called
-        mock_instance.load_python_file.assert_called()
 
     def test_clear_and_reingest(self):
         """Test clearing and re-ingesting."""

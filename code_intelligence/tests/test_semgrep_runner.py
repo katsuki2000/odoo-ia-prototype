@@ -6,7 +6,7 @@ Verifies subprocess execution of Semgrep with --json output and structured Semgr
 """
 
 from pathlib import Path
-from code_intelligence.semgrep_runner import run_semgrep_analysis
+from code_intelligence.data_constraints.runner import run_semgrep_analysis
 
 
 def test_semgrep_runner_sql_constraints():

@@ -21,7 +21,7 @@ from core.graph import (
     _is_prompt_injection,
     code_intelligence_agent,
 )
-from code_intelligence.ci_agent_tools import (
+from code_intelligence.ci_agent_node.agent_tools import (
     who_has_access_to,
     evaluate_record_rules,
     analyze_security_locks,

@@ -12,7 +12,6 @@ import logging
 from pathlib import Path
 from typing import Any, Iterable
 
-from document_rag.ingestion.code_loader import CodeLoader
 from document_rag.ingestion.logging_utils import start_timer, write_ingestion_event
 from document_rag.ingestion.pdf_loader import PDFLoader
 from document_rag.ingestion.scan_root import DEFAULT_SCAN_ROOT_CANDIDATES, compute_source, resolve_scan_root
@@ -21,7 +20,7 @@ from document_rag.vectorstore.chroma_manager import ChromaManager
 
 logger = logging.getLogger(__name__)
 
-SUPPORTED_EXTENSIONS = {".pdf", ".txt", ".md", ".py", ".xml", ".js", ".csv"}
+SUPPORTED_EXTENSIONS = {".pdf", ".txt", ".md"}
 SKIP_PARTS = {"__pycache__", "venv", ".venv", ".git", "site-packages", ".pytest_cache"}
 
 
@@ -67,21 +66,8 @@ def reindex_if_changed(
     code_manager = code_manager or ChromaManager(collection_name="odoo_code")
     result = IncrementalResult()
 
-    # Defensive hardening (section 330, todo/contexte.txt): str(None) == "None",
-    # a truthy non-empty string, so the old `if str(root)` filter alone let a
-    # literal None slip through to Path(None), which raises TypeError. Explicit
-    # `root is not None` guard added as belt-and-suspenders against any future
-    # None entering `roots` from a not-yet-audited call site (real root cause
-    # of the observed crash was in api/main.py, fixed separately -- this is a
-    # hardening of the function's own contract, not a substitute for that fix).
     root_paths = [Path(root).resolve() for root in roots if root is not None and str(root)]
     current_files = _scan_supported_files(root_paths)
-    # `source` metadata is relative to the logical scan root the file lives
-    # under (docs root or an addons root, see scan_root.py) -- independent
-    # of `roots` above, which only controls what gets scanned/deleted here
-    # (e.g. the watcher passes a single file as its "root"). Resolved once
-    # per file and reused for both the source string and the loader call
-    # below so they can never disagree (todo/contexte.txt section 347).
     current_scan_roots = {
         file_path: resolve_scan_root(file_path, DEFAULT_SCAN_ROOT_CANDIDATES)
         for file_path in current_files
@@ -204,14 +190,6 @@ def _load_file(
         loaded = WikiLoader(chunk_size=chunk_size, chunk_overlap=chunk_overlap).load_text_file(file_path, scan_root=scan_root)
     elif suffix == ".md":
         loaded = WikiLoader(chunk_size=chunk_size, chunk_overlap=chunk_overlap).load_markdown_file(file_path, scan_root=scan_root)
-    elif suffix == ".py":
-        loaded = CodeLoader(chunk_size=chunk_size, chunk_overlap=chunk_overlap).load_python_file(file_path, scan_root=scan_root)
-    elif suffix == ".xml":
-        loaded = CodeLoader(chunk_size=chunk_size, chunk_overlap=chunk_overlap).load_xml_file(file_path, scan_root=scan_root)
-    elif suffix == ".js":
-        loaded = CodeLoader(chunk_size=chunk_size, chunk_overlap=chunk_overlap).load_js_file(file_path, scan_root=scan_root)
-    elif suffix == ".csv":
-        loaded = CodeLoader(chunk_size=chunk_size, chunk_overlap=chunk_overlap).load_csv_file(file_path, scan_root=scan_root)
     else:
         raise ValueError(f"Unsupported file type: {file_path.suffix}")
 

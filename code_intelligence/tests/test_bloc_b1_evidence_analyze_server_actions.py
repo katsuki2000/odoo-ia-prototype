@@ -14,7 +14,7 @@ evidence_id determinism.
 
 import textwrap
 
-from code_intelligence.server_action_analyzer import analyze_server_action_code
+from code_intelligence.server_actions import analyze_server_action_code
 
 
 class TestServerActionEvidenceEmptyCode:

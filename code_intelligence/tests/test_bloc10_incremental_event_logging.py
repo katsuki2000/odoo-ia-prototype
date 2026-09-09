@@ -17,13 +17,13 @@ import time
 import pytest
 from pathlib import Path
 
-from code_intelligence.incremental_event_logger import (
+from code_intelligence.graph import (
     IncrementalEvent,
     IncrementalEventLogger,
     record_incremental_update,
     LATENCY_BUDGET_PARTIAL_RECALC_SECONDS,
 )
-from code_intelligence.graph_staleness_detector import analyze_changes
+from code_intelligence.graph import analyze_changes
 import networkx as nx
 
 

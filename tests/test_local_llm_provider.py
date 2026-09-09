@@ -86,7 +86,7 @@ def test_health_check_v1_local_provider_healthy():
     with patch("config.settings.LLM_PROVIDER", "local"), \
          patch("config.settings.LOCAL_LLM_BASE_URL", "http://localhost:11434/v1"), \
          patch("document_rag.vectorstore.chroma_manager.get_chroma_client") as mock_chroma, \
-         patch("tools.odoo_connector.OdooConnector") as mock_odoo:
+         patch("erp_data.odoo_connector.OdooConnector") as mock_odoo:
         mock_chroma.return_value.heartbeat.return_value = 1
         mock_odoo.return_value.authenticate.return_value = 2
 
@@ -94,3 +94,14 @@ def test_health_check_v1_local_provider_healthy():
         assert status["status"] == "ok"
         assert "local" in status["services"]["llm"]
         assert "local" in status["services"]["groq"]
+
+
+def test_rate_limit_spacing_skipped_for_local():
+    """Verify invoke_with_rate_limit does not sleep 5s when provider is local."""
+    from core.llm_client import _get_min_interval
+    with patch("core.llm_client.LLM_PROVIDER", "local"):
+        assert _get_min_interval() == 0.0
+
+    with patch("core.llm_client.LLM_PROVIDER", "groq"):
+        assert _get_min_interval() == 5.0
+

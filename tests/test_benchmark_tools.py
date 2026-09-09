@@ -15,7 +15,7 @@ sys.path.insert(0, str(project_root))
 sys.path.insert(0, str(project_root / "miro-rag"))
 
 from scripts.extract_modules import run_pipeline
-from code_intelligence.ci_agent_tools import (
+from code_intelligence.ci_agent_node.agent_tools import (
     set_graph_ref,
     evaluate_record_rules,
     analyze_server_actions,
@@ -36,7 +36,8 @@ ADVERSARIAL_MODULES = [
 
 
 def run_interactive_tests():
-    addons_dir = Path("/home/user/odoo-17.0/addons")
+    from config.settings import CUSTOM_ADDONS_PATH, CORE_ADDONS_PATH
+    addons_dir = Path(CUSTOM_ADDONS_PATH) if Path(CUSTOM_ADDONS_PATH).exists() else Path(CORE_ADDONS_PATH)
     output_dir = project_root / "tmp_test_graph"
 
     print("=" * 80)

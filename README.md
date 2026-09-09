@@ -1,6 +1,8 @@
-# MIRO RAG - Odoo AI Assistant Prototype
+# MIRO AI - Odoo AI Assistant
 
-MIRO RAG is an intelligent AI assistant connected in real time to an Odoo 17 ERP database via XML-RPC. It features a hybrid multi-agent routing system (LangGraph) capable of handling documentary knowledge questions (RAG vector search), real-time live ERP database queries, and deep Code Intelligence analysis (governance, security, workflow inspection).
+MIRO AI is an intelligent AI assistant connected in real time to an Odoo 17 ERP database via XML-RPC. It features a hybrid multi-agent routing system (LangGraph) capable of handling documentary knowledge questions (RAG vector search), real-time live ERP database queries, and deep Code Intelligence analysis (governance, security, workflow inspection).
+
+The system can run **100% locally and offline** (via Ollama or vLLM) [I temporarely use cloud inference (Groq)].
 
 ---
 
@@ -8,21 +10,16 @@ MIRO RAG is an intelligent AI assistant connected in real time to an Odoo 17 ERP
 
 | Dependency | Version | Notes |
 |---|---|---|
-| **Python** | 3.11+ | Tested on Python 3.11.2 (Debian) |
-| **PostgreSQL** | 14+ | For Odoo database |
+| **Python** | 3.11+ | Tested on Python 3.11.2 (Debian / Linux) |
+| **PostgreSQL** | 14+ | Database server for Odoo |
 | **Odoo 17 Community** | 17.0 | Source install at `~/odoo-17.0` |
-| **Git** | any | |
-| **OS** | Linux (Debian/Ubuntu recommended) | |
+| **Git** | any | Version control |
+| **OS** | Linux | Debian/Ubuntu recommended |
 
-### External API Keys Required
+### LLM and Embedding Providers
 
-| Variable | Provider | Purpose |
-|---|---|---|
-| `GROQ_API_KEY` | [Groq](https://console.groq.com/) | Main LLM provider (free tier available) |
-| `NOMIC_API_KEY` | [Nomic](https://atlas.nomic.ai/) | Embedding model for ChromaDB vectorization |
-| `HF_TOKEN` | [Hugging Face](https://huggingface.co/settings/tokens) | Tokenizer downloads (optional, for reranker) |
+* **100% Local Mode (Recommended)** : No external API keys required. Uses a local inference engine (such as [Ollama](https://ollama.com/) or [vLLM](https://github.com/vllm-project/vllm)) and ChromaDB's built-in ONNX embedding model (`all-MiniLM-L6-v2`) running locally on CPU.
 
----
 
 ## Complete Setup Guide (New Machine)
 
@@ -55,18 +52,32 @@ pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-### Step 3 : Create the `.env` file
+### Step 3 : Configure the `.env` file
 
-Create `~/odoo-ia-prototype/.env` with your own API keys:
+Copy the example configuration or create your `.env`:
 
 ```bash
-cat > .env << 'EOF'
-GROQ_API_KEY=gsk_YOUR_GROQ_API_KEY_HERE
-LLM_PROVIDER=groq
-NOMIC_API_KEY=nk-YOUR_NOMIC_API_KEY_HERE
-HF_TOKEN=hf_YOUR_HF_TOKEN_HERE
-EOF
+cp .env_exemple .env
 ```
+
+**For 100% Local execution (Ollama / vLLM)**:
+```dotenv
+LLM_PROVIDER=local
+LOCAL_LLM_BASE_URL=http://localhost:11434/v1
+LOCAL_LLM_MODEL=gpt-oss:20b
+LOCAL_LLM_API_KEY=ollama
+EMBEDDING_BACKEND=local_light
+```
+
+**For Cloud execution (Groq)**:
+```dotenv
+LLM_PROVIDER=groq
+GROQ_MODEL=openai/gpt-oss-20b
+GROQ_API_KEY=gsk_YOUR_GROQ_API_KEY_HERE
+EMBEDDING_BACKEND=local_light
+```
+
+*(You can switch between local and cloud at any time by changing `LLM_PROVIDER` in `.env`).*
 
 ### Step 4 : Install Odoo 17 (if not already present)
 
@@ -93,7 +104,7 @@ sudo -u postgres createdb -O odoo odoo-dev
 
 ### Step 6 : Configure Odoo (`odoo.conf`)
 
-Create or copy `~/odoo-17.0/odoo.conf`. Make sure to include the `odoo_addons` folder from this repository in your `addons_path`:
+Create or update `~/odoo-17.0/odoo.conf`. Ensure the `odoo_addons` folder from this repository is included in your `addons_path`:
 
 ```ini
 [options]
@@ -108,38 +119,30 @@ addons_path = addons,/home/user/odoo-ia-prototype/odoo_addons
 
 ### Step 7 : Verify the custom Odoo modules
 
-All custom modules (`miro_ai` and the 14 `custom_*` business modules) are already bundled inside this repository in the `odoo_addons/` directory. 
-Because you added them to your `addons_path` in Step 6, Odoo will automatically detect them without needing any symlinks or copying.
-
-**Custom modules included**:
-`miro_ai`, `custom_asset_loan`, `custom_automation_traps`, `custom_credit_note_approval`, `custom_credit_note_approval_regional`, `custom_credit_note_approval_vip`, `custom_credit_note_visibility_rules`, `custom_deep_inheritance_security`, `custom_expense_reimbursement_indirect`, `custom_expense_risk_alert`, `custom_expense_risk_base`, `custom_expense_risk_score`, `custom_hr_leave_workflow`, `custom_modern_theme`, `custom_purchase_request`
+All custom modules (`miro_ai` and the 14 `custom_*` business modules) are bundled inside this repository in `odoo_addons/`. Because you added them to `addons_path` in Step 6, Odoo detects them automatically.
 
 ### Step 8 : Initialize Odoo and install modules
 
 ```bash
 cd ~/odoo-17.0
 
-# First run: initialize the database with base module
+# Initialize database with base module
 python3 odoo-bin -c odoo.conf -d odoo-dev -i base --stop-after-init
 
 # Install miro_ai module
 python3 odoo-bin -c odoo.conf -d odoo-dev -i miro_ai --stop-after-init
 
-# Install all custom modules (one command)
-python3 odoo-bin -c odoo.conf -d odoo-dev \
-  -i custom_asset_loan,custom_automation_traps,custom_credit_note_approval,custom_credit_note_approval_regional,custom_credit_note_approval_vip,custom_credit_note_visibility_rules,custom_deep_inheritance_security,custom_expense_reimbursement_indirect,custom_expense_risk_alert,custom_expense_risk_base,custom_expense_risk_score,custom_hr_leave_workflow,custom_purchase_request \
-  --stop-after-init
-```
+# Install all custom business modules
 
-### Step 9 : Seed ERP data and configure the environment
+
+### Step 9 : Seed ERP data and configure the instance
 
 ```bash
 cd ~/odoo-ia-prototype
 source .venv/bin/activate
 
-# Run the consolidated setup script (creates Company Alpha, sales journal,
-# manager account, seed data for sales/tickets)
-python3 tools/full_setup.py
+# Consolidated setup script : this is a test purpose script (Company Alpha, sales journal, users, products, demo data), the projects should work on your own data
+python3 scripts/full_setup.py
 ```
 
 ### Step 10 : Rebuild the Code Intelligence Knowledge Graph
@@ -151,19 +154,16 @@ source .venv/bin/activate
 python3 scripts/rebuild_graph.py
 ```
 
-This will scan all Odoo addons and generate `code_intelligence/active_graph.json` (~7.7 MB, ~11,000 nodes). This file **is** versioned in git, but should be rebuilt on a new machine if the custom modules have changed.
+This scans all Odoo addons and generates `code_intelligence/active_graph.json` 
 
 ### Step 11 : Ingest documents into the vector store (ChromaDB)
-
-The ChromaDB vector store (`document_rag/vectorstore/chroma_db/`) is in `.gitignore` and must be rebuilt locally:
 
 ```bash
 cd ~/odoo-ia-prototype
 source .venv/bin/activate
 
-# The vectorstore is automatically built on first API startup,
-# or you can trigger it manually:
-python3 -c "from document_rag.vectorstore.search import get_retriever; get_retriever()"
+# Index all internal documents (PDFs, markdown, text files) into ChromaDB
+python3 -m document_rag.ingestion.ingest_all
 ```
 
 ---
@@ -177,9 +177,9 @@ cd ~/odoo-17.0
 python3 odoo-bin -c odoo.conf
 ```
 
-Odoo will be available at **http://localhost:8069** (login: `admin` / password: `admin`).
+Odoo is available at **http://localhost:8069** 
 
-### Terminal 2 : Start the FastAPI backend (MIRO RAG)
+### Terminal 2 : Start the FastAPI backend (MIRO AI)
 
 ```bash
 cd ~/odoo-ia-prototype
@@ -187,107 +187,97 @@ source .venv/bin/activate
 uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-The API will be available at:
-- **http://localhost:8000** (API root)
-- **http://localhost:8000/docs** (Swagger interactive documentation)
+The API is available at:
+* **http://localhost:8000** (API root & health check)
+* **http://localhost:8000/docs** (Swagger interactive documentation)
 
-### Using the Odoo interface
+### Using the Odoo Interface
 
-Once both servers are running:
-1. Open **http://localhost:8069** in your browser
-2. Look for the **MIRO AI** button (purple badge) in the top-right navbar (Systray)
-3. Click it to open the floating AI assistant drawer
-4. Ask questions in French about your Odoo instance
-
-The MIRO AI Systray button automatically detects the current Odoo context (active model, record ID) and includes it in queries.
+Once both services are running:
+1. Open **http://localhost:8069** in your browser.
+2. Click the **MIRO AI** button (purple badge) in the top-right navbar (Systray).
+3. The AI assistant drawer opens, automatically contextualized to the current model and record.
+4. Ask your questions in natural language.
 
 ---
 
 ## Running Tests
 
+To run tests without risking AVX2 freezes on CPU, use targeted pytest invocations:
+
 ```bash
 cd ~/odoo-ia-prototype
 source .venv/bin/activate
 
-# Run the unit test suite (SAFE -- no external calls)
-pytest tests/ -v -m "not integration"
+# Run targeted test suites
+pytest tests/test_local_llm_provider.py -v
+pytest erp_data/tests/test_odoo_tools.py -v
+pytest code_intelligence/tests/test_j46_j48_reasoning_trace.py -v
 
-# NEVER run `pytest tests/ -v` (full suite) -- it calls external LLM/Odoo
-# services and can crash the machine. Always use -m "not integration".
+# Run non-integration unit tests safely
+pytest tests/ -m "not integration"
 ```
 
-Expected: **332 passed, 0 failed, 3 deselected**.
+> [!NOTE]
+> Never run an unconstrained `pytest tests/ -v` on resource-limited machines without AVX2, as full graph traversals take over 30 minutes. Always target specific test modules or use `-m "not integration"`.
 
 ---
 
 ## Repository Structure
 
-```
+```text
 odoo-ia-prototype/
-├── api/                        # FastAPI endpoints (main.py, auth.py)
-├── captures/                   # Test captures and benchmark reports
-├── code_intelligence/          # Code Intelligence engine
-│   ├── active_graph.json       # Knowledge Graph (rebuilt via scripts/rebuild_graph.py)
-│   ├── business_resolver.py    # Concept resolution (user terms -> Odoo models)
-│   ├── ci_agent_node.py        # LangGraph CI agent node
-│   ├── ci_graph_loader.py      # Graph builder from Odoo source files
-│   ├── investigation_plan.py   # Bloc P1: Investigation Planner & Intent Classifier
-│   ├── semantic_tags.py        # Couche 3: BehavioralTag / TechnicalTag ontology
-│   └── tests/                  # CI-specific unit tests
-├── config/                     # Settings and environment handling
-│   └── settings.py             # All config (LLM, ChromaDB, latency budgets)
-├── core/                       # Core pipeline
-│   ├── graph.py                # LangGraph RAG pipeline (build_graph, query_graph)
-│   ├── routing.py              # Query classification & keyword routing
-│   ├── schemas.py              # AssistantResponse, QueryRoute, SourceReference
-│   └── llm_client.py           # LLM client with rate limiting
-├── document_rag/               # Vector store and RAG ingestion
-│   ├── fake_data/              # JSON seed datasets (sales.json, tickets.json)
-│   └── vectorstore/            # Hybrid ChromaDB + BM25 vector index
-├── erp_data/                   # Odoo XML-RPC tools
-│   ├── odoo_connector.py       # XML-RPC connection manager
-│   ├── odoo_tools.py           # LangChain tool definitions
-│   └── orm_agent_node.py       # ReAct agent loop for ERP queries
-├── scripts/                    # Maintenance scripts
-│   ├── rebuild_graph.py        # Rebuild active_graph.json from Odoo source
-│   └── diagnose_h4_04c_05c_gap.py  # Diagnostic script for routing gaps
-├── tests/                      # Pytest suite (332 unit tests)
-├── todo/                       # Project documentation
-│   ├── plan.md                 # Roadmap (DO NOT MODIFY without explicit mandate)
-│   ├── rules.md                # Development rules
-│   ├── contexte.txt            # Change log (append-only)
-│   └── pratiques_odoo.md       # Odoo 17 coding guidelines
-├── tools/                      # Setup utilities
-│   ├── full_setup.py           # One-click Odoo environment setup
-│   └── clean_demo_data.py      # Demo data cleanup
-├── .env                        # API keys (NOT versioned, see .gitignore)
-├── .gitignore
-├── pytest.ini
-├── requirements.txt            # 147 Python dependencies (pinned versions)
-└── README.md
-```
-
----
-
-## Architecture Overview
-
-```
-User Query (Odoo Systray / API /api/v1/ask)
-    │
-    ▼
-[retrieve] ──► ChromaDB + BM25 hybrid search
-    │
-    ▼
-[route] ──► Keyword classification + business_resolver + Investigation Planner
-    │
-    ├── DONNEES_ERP      ──► ReAct Agent Loop (Odoo XML-RPC Tools) ──► Verified ERP Data
-    ├── DOCUMENTAIRE     ──► LLM Generation with RAG context       ──► Procedure Answer
-    ├── HYBRIDE          ──► Combined RAG + ReAct Agent Loop       ──► Synthesized Response
-    └── CODE_INTELLIGENCE ──► CI Agent (Graph + Source Analysis)   ──► Governance Answer
-                                                                          │
-                                                                          ▼
-                                                                [format_output]
-                                                        (Sources, Evidence, Plan)
+├── api/                        # FastAPI REST exposition (main.py, auth.py, routes_*.py)
+├── captures/                   # Test captures, verbatim responses, evaluation reports
+├── code_intelligence/          # Code Intelligence bounded context
+│   ├── active_graph.json       # Serialized Knowledge Graph (NetworkX)
+│   ├── business_resolver/      # Business terms to technical models resolution
+│   ├── ci_agent_node/          # LangGraph Code Intelligence agent & @tool wrappers
+│   ├── deterministic/          # Deterministic evaluators (ACL, record rules, buttons)
+│   ├── extractor/              # AST extractors (Python, XML views, actions, CSV)
+│   ├── graph/                  # Knowledge graph loader, staleness, atomic swap
+│   ├── investigation/          # Intent classifier and investigation planner
+│   ├── overrides/              # Method override inheritance chains (_inherit)
+│   ├── security/               # Security locks and Semgrep static analysis
+│   └── server_actions/         # Server action static and LLM analysis
+├── config/                     # Application configuration
+│   └── settings.py             # Settings loader, defaults, latency budgets
+├── core/                       # Shared system kernel
+│   ├── llm_client.py           # Provider-agnostic LLM factory (Local / Groq / OpenRouter)
+│   ├── reasoning_trace_logger.py # Cross-branch reasoning trace logger (JSONL)
+│   ├── graph.py                # LangGraph StateGraph pipeline orchestrator
+│   ├── routing.py              # Query router (documentary, ERP, CI, hybrid)
+│   └── schemas.py              # Canonical Pydantic schemas (AssistantResponse, etc.)
+├── document_rag/               # Documentary RAG bounded context
+│   ├── documents/              # Source business documents and procedures (PDF, text)
+│   ├── ingestion/              # Ingestion pipeline, PDF OCR, filesystem watcher
+│   ├── prompts.py              # Documentary RAG system prompts and message builders
+│   └── vectorstore/            # ChromaDB manager, BM25 hybrid search, embeddings
+├── erp_data/                   # Runtime Odoo data bounded context
+│   ├── date_utils.py           # French date expressions parser for domain filters
+│   ├── odoo_connector.py       # XML-RPC client with user contextVar authentication
+│   ├── odoo_tools.py           # Backward-compatible facade for ORM query tools
+│   ├── orm_agent_node.py       # LangGraph ReAct agent loop for ERP queries
+│   └── tools/                  # Domain query tools (sales, inventory, accounting, crm)
+├── odoo_addons/                # Custom Odoo 17 modules (miro_ai + 14 business modules)
+├── scripts/                    # Maintenance, seeding, and diagnostic CLI scripts
+│   ├── full_setup.py           # Database initialization and demo seeding
+│   ├── clean_demo_data.py      # Database cleanup script
+│   ├── rebuild_graph.py        # Rebuild active_graph.json from source addons
+│   └── run_scalability_test.py # Ingestion scalability benchmark runner
+├── tests/                      # Automated test suite
+│   ├── evaluation/             # Benchmark harnesses, datasets, and replay suites
+│   ├── test_local_llm_provider.py # Provider switching and local mode unit tests
+│   └── ...                     # Targeted unit and regression tests
+├── todo/                       # Specifications, roadmap, rules, and change logs
+│   ├── architecture.md         # Target system architecture
+│   ├── contexte.txt            # Chronological change log
+│   ├── plan.md                 # Project roadmap
+│   └── rules.md                # Development rules and guidelines
+├── .env                        # Local environment variables (gitignored)
+├── .env_exemple                # Reference environment template
+├── pytest.ini                  # Pytest runner configuration
+└── requirements.txt            # Pinned Python package dependencies
 ```
 
 ---
@@ -298,43 +288,31 @@ User Query (Odoo Systray / API /api/v1/ask)
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
-| `GROQ_API_KEY` | Yes | - | Groq API key for LLM calls |
-| `LLM_PROVIDER` | No | `groq` | LLM provider (`groq`, `openrouter`, `ollama`) |
-| `NOMIC_API_KEY` | Yes | - | Nomic API key for embeddings |
-| `HF_TOKEN` | No | - | Hugging Face token (for reranker model) |
-| `OPENROUTER_API_KEY` | No | - | OpenRouter API key (alternative LLM) |
-| `ODOO_URL` | No | `http://localhost:8069` | Odoo XML-RPC URL |
+| `LLM_PROVIDER` | No | `local` | LLM backend: `local` (Ollama / vLLM) or `groq` / `openrouter` |
+| `LOCAL_LLM_BASE_URL` | If local | `http://localhost:11434/v1` | Local OpenAI-compatible API base URL |
+| `LOCAL_LLM_MODEL` | If local | `gpt-oss:20b` | Model name on the local engine (e.g. `llama3.1`, `qwen2.5:14b`) |
+| `LOCAL_LLM_API_KEY` | If local | `ollama` | API key placeholder for local endpoint |
+| `GROQ_API_KEY` | If Groq | - | Primary Groq API key |
+| `GROQ_API_KEYS` | No | - | Comma-separated list of Groq keys for automatic rate-limit rotation |
+| `GROQ_MODEL` | No | `openai/gpt-oss-20b` | Groq cloud model identifier |
+| `EMBEDDING_BACKEND` | No | `local_light` | Embedding engine: `local_light` (Chroma ONNX), `ollama`, `local` |
+| `LOCAL_EMBEDDING_BASE_URL` | If ollama embed | `http://localhost:11434/v1` | Local embedding server URL |
+| `LOCAL_EMBEDDING_MODEL` | If ollama embed | `all-minilm:latest` | Local embedding model name (e.g. `nomic-embed-text`) |
+| `CORE_ADDONS_PATH` | No | `../odoo-17.0/addons` | Path to core Odoo addons |
+| `CUSTOM_ADDONS_PATH` | No | `./odoo_addons` | Path to custom addons |
+| `RAG_DOCS_PATH` | No | `./document_rag/documents` | Path to source documents for RAG indexing |
+| `ODOO_URL` | No | `http://localhost:8069` | Odoo XML-RPC server URL |
 | `ODOO_DB` | No | `odoo-dev` | Odoo database name |
-| `ODOO_PASSWORD` | No | `admin` | Odoo admin password |
-| `JWT_SECRET` | No | `default_insecure_secret_for_dev` | JWT signing secret for API auth |
-| `USE_RERANKER` | No | `false` | Enable cross-encoder reranking (CPU-intensive) |
-
-### Odoo MIRO AI Settings
-
-After installing the `miro_ai` module in Odoo, go to **Settings > MIRO AI** to configure:
-- **API URL** : `http://127.0.0.1:8000` (default, points to the local FastAPI backend)
-- **API Token** : JWT secret shared between Odoo and FastAPI
-
----
-
-## Key Development Rules (from `todo/rules.md`)
-
-- `todo/plan.md` is the roadmap. Changes should be rare and require explicit mandate.
-- No surgical fixes -- always find the root cause.
-- Minimal comments in code. Code in English.
-- All packages must be in `requirements.txt`.
-- Log every change in `todo/contexte.txt`.
-- **NEVER run `pytest tests/ -v`** (full suite). Always use `pytest tests/ -v -m "not integration"`.
+| `ODOO_ADMIN_PASSWORD` | No | `admin` | Admin password for initial seeding and RPC fallback |
 
 ---
 
 ## Troubleshooting
 
-| Problem | Solution |
-|---|---|
-| `ConnectionError` when asking MIRO AI in Odoo | Make sure the FastAPI backend is running (`uvicorn api.main:app --port 8000`) |
-| MIRO AI icon not visible in Odoo navbar | Run `python3 odoo-bin -c odoo.conf -u miro_ai --stop-after-init` then Ctrl+F5 in browser |
-| `ModuleNotFoundError` when running tests | Make sure you're in the venv: `source .venv/bin/activate` |
-| ChromaDB empty / no retrieval results | Rebuild the vectorstore (see Step 11 above) |
-| `active_graph.json` not found | Run `python3 scripts/rebuild_graph.py` |
-| Odoo database connection refused | Check PostgreSQL is running: `sudo systemctl start postgresql` |
+| Problem | Cause | Solution |
+|---|---|---|
+| `ConnectionRefusedError` on ask | Local LLM engine (Ollama/vLLM) is not running | Start your local engine (`ollama serve`) or switch `LLM_PROVIDER=groq` in `.env` |
+| `InvalidDimensionException` in ChromaDB | Switched embedding model without re-indexing | Run `rm -rf document_rag/vectorstore/chroma_db` then `python3 -m document_rag.ingestion.ingest_all` |
+| `active_graph.json` not found | Graph has not been built on this machine | Run `python3 scripts/rebuild_graph.py` |
+| MIRO AI button not visible in Odoo | Module not loaded or browser cache | Run `python3 odoo-bin -c odoo.conf -d odoo-dev -u miro_ai --stop-after-init` and refresh with Ctrl+F5 |
+| `OdooConnectorError`: Authentication failed | Odoo is down or credentials do not match | Verify PostgreSQL is running and check `ODOO_URL` / `ODOO_PASSWORD` in `.env` |

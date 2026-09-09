@@ -6,19 +6,19 @@ Validates read-only enforcement, whitelist protection, and accurate date parsing
 """
 
 import pytest
-from erp_data.odoo_tools import (
-    get_total_sales,
+from erp_data.tools.sales import get_total_sales
+from erp_data.tools.inventory import (
     get_product_stock,
     get_order_status,
-    get_total_invoices,
-    search_partner,
-    get_recent_tickets,
     list_out_of_stock_products,
-    get_period_revenue,
-    connector,
-    _get_current_uid
 )
-from tools.date_utils import parse_period
+from erp_data.tools.accounting import get_total_invoices, get_period_revenue
+from erp_data.tools.crm import search_partner, get_recent_tickets
+from erp_data._odoo_helpers import (
+    connector,
+    get_current_uid as _get_current_uid,
+)
+from erp_data.date_utils import parse_period
 from erp_data.odoo_connector import OdooConnectorError
 
 # -----------------------------------------------------------------------------

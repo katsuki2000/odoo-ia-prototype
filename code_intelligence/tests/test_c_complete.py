@@ -14,11 +14,11 @@ from core.schemas import QueryRoute, AssistantResponse
 from core.graph import (
     build_graph,
     code_intelligence_agent,
-    CI_SYSTEM_PROMPT,
-    CI_MAX_HOPS,
     RAGState
 )
-from code_intelligence.ci_agent_tools import ALL_CI_TOOLS
+from code_intelligence.ci_agent_node.prompts import CI_SYSTEM_PROMPT
+from code_intelligence.ci_agent_node.prompt_and_heuristics import CI_MAX_HOPS
+from code_intelligence.ci_agent_node.agent_tools import ALL_CI_TOOLS
 
 
 def test_c1_1_tools_binding():

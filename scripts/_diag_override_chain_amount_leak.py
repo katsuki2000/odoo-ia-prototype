@@ -20,8 +20,8 @@ from pathlib import Path
 project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(project_root))
 
-from code_intelligence.ci_graph_loader import get_code_intelligence_graph
-from code_intelligence.method_override_resolver import analyze_method_override_chain
+from code_intelligence.graph import get_code_intelligence_graph
+from code_intelligence.overrides import analyze_method_override_chain
 from core.llm_client import get_chat_llm
 
 _OVERRIDE_CHAIN_AMOUNT_RE = re.compile(r"rec\.\w+\s*>\s*(\d[\d\s]*\d)")

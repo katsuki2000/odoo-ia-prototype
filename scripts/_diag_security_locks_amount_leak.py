@@ -26,9 +26,9 @@ from pathlib import Path
 project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(project_root))
 
-from code_intelligence.ci_graph_loader import get_code_intelligence_graph
-from code_intelligence.ci_agent_tools import find_model_source_filepaths, _sort_filepaths_custom_first
-from code_intelligence.semgrep_locks_analyzer import analyze_python_security_locks
+from code_intelligence.graph import get_code_intelligence_graph
+from code_intelligence.ci_agent_node.agent_tools import find_model_source_filepaths, _sort_filepaths_custom_first
+from code_intelligence.security import analyze_python_security_locks
 
 _OVERRIDE_CHAIN_AMOUNT_RE = re.compile(r"rec\.\w+\s*>\s*(\d[\d\s]*\d)")
 

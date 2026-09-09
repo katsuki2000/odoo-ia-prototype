@@ -5,7 +5,6 @@ import logging
 import re
 from typing import Any, Dict, List, Optional, Tuple
 
-from langchain_groq import ChatGroq
 from langchain_core.messages import HumanMessage
 
 from config.settings import GROQ_MODEL
@@ -13,36 +12,34 @@ from core.llm_client import invoke_with_rate_limit, _current_groq_key, get_chat_
 
 logger = logging.getLogger(__name__)
 
+# Backward-compatible aliases
+_build_groq_llm = get_chat_llm
+
 
 def _get_chat_groq():
-    """Return patched ChatGroq if loaded in core.graph, else real ChatGroq."""
     import sys
     g = sys.modules.get("core.graph")
     if g and hasattr(g, "ChatGroq"):
         return g.ChatGroq
+    from langchain_groq import ChatGroq
     return ChatGroq
-
-
-def _build_groq_llm(**kwargs):
-    """Construct LLM client bound to configured provider."""
-    return get_chat_llm(**kwargs)
 
 
 def resolve_orm_tools(skills: Dict[str, Any]) -> List[Any]:
     """Return enabled ORM tools based on active skills."""
-    from erp_data.odoo_tools import (
-        search_partner,
+    from erp_data.tools.crm import search_partner, get_recent_tickets
+    from erp_data.tools.sales import (
         get_total_sales,
-        get_order_status,
-        get_period_revenue,
         get_average_sales,
         get_sale_details,
         get_order_count,
+    )
+    from erp_data.tools.inventory import (
+        get_order_status,
         get_product_stock,
         list_out_of_stock_products,
-        get_total_invoices,
-        get_recent_tickets,
     )
+    from erp_data.tools.accounting import get_period_revenue, get_total_invoices
 
     all_tools = [search_partner]
     if skills.get("ventes", True):
@@ -113,11 +110,8 @@ def execute_tool_call(
 def force_final_synthesis(question: str, tool_observations: List[str]) -> Tuple[str, int]:
     """Synthesize final answer when ReAct iteration limit is reached."""
     logger.warning("Node [orm_agent_loop]: Recursion limit reached. Forcing final answer.")
-    synthesis_prompt = (
-        f"Question originale : {question}\n\n"
-        f"Observations collectées :\n" + "\n".join(tool_observations) +
-        "\n\nFournis une réponse finale et concise en français basée uniquement sur ces observations."
-    )
+    from erp_data.prompts import build_orm_synthesis_prompt
+    synthesis_prompt = build_orm_synthesis_prompt(question, tool_observations)
     llm_calls = 0
     try:
         synth_box = [_build_groq_llm(temperature=0.0, max_retries=0, max_tokens=512)]

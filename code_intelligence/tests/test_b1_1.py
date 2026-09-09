@@ -1,3 +1,4 @@
+from code_intelligence.tests._corpus_paths import CORE_ADDONS_PATH, CUSTOM_ADDONS_PATH
 """
 code_intelligence/tests/test_b1_1.py
 
@@ -18,9 +19,9 @@ from code_intelligence.extractor.manifest_parser import parse_manifest
 from code_intelligence.extractor.python_extractor import extract_odoo_models_from_file
 from code_intelligence.extractor.xml_extractor import parse_ir_rules_from_xml, parse_groups_from_xml
 from code_intelligence.extractor.csv_extractor import parse_access_control_csv
-from code_intelligence.cross_file_resolver import ParsedModule, build_module_symbol_registry
-from code_intelligence.graph_builder import OdooGraphBuilder
-from code_intelligence.deterministic_tools import who_has_access_to
+from code_intelligence.graph import ParsedModule, build_module_symbol_registry
+from code_intelligence.graph import OdooGraphBuilder
+from code_intelligence.deterministic.access_evaluator import who_has_access_to
 
 
 def test_qui_a_acces_a_synthetic():
@@ -62,7 +63,7 @@ def test_qui_a_acces_a_synthetic():
 def test_qui_a_acces_a_real_miro_ai():
     """Test who_has_access_to on real miro_ai module graph."""
     root_dir = Path(__file__).resolve().parent.parent.parent.parent
-    mod_dir = Path("/home/user/odoo-17.0/addons") / "miro_ai"
+    mod_dir = CUSTOM_ADDONS_PATH / "miro_ai"
 
     if mod_dir.exists():
         manifest = parse_manifest(mod_dir / "__manifest__.py")

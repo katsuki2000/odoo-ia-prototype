@@ -19,16 +19,16 @@ get_order_status_raw.
 
 from unittest.mock import patch
 
-from erp_data.odoo_tools import (
+from erp_data.tools.crm import (
     get_recent_tickets_raw,
     get_recent_tickets,
-    odoo_uid_ctx,
 )
+from erp_data.odoo_context import odoo_uid_ctx
 from core.evidence import Evidence, EvidenceSourceType
 
 
 def test_get_recent_tickets_raw_returns_text_and_one_evidence_per_ticket():
-    with patch("erp_data.odoo_tools.connector.search_read") as mock_search_read:
+    with patch("erp_data._odoo_helpers.connector.search_read") as mock_search_read:
         mock_search_read.return_value = [
             {"name": "Ticket A", "state": "01_in_progress", "create_date": "2026-08-01 10:00:00", "date_deadline": "2026-08-05", "partner_id": [1, "Client Alpha"]},
             {"name": "Ticket B", "state": "1_done", "create_date": "2026-07-20 09:00:00", "date_deadline": "2026-07-25", "partner_id": [2, "Client Beta"]},
@@ -55,7 +55,7 @@ def test_get_recent_tickets_raw_evidence_carries_state_partner_create_date_as_si
     displayed ticket, carrying state/partner/create_date together as a
     single structured value -- same pattern as search_partner_raw's
     contact dict."""
-    with patch("erp_data.odoo_tools.connector.search_read") as mock_search_read:
+    with patch("erp_data._odoo_helpers.connector.search_read") as mock_search_read:
         mock_search_read.return_value = [
             {"name": "Ticket A", "state": "01_in_progress", "create_date": "2026-08-01 10:00:00", "date_deadline": "2026-08-05", "partner_id": [1, "Client Alpha"]},
         ]
@@ -75,7 +75,7 @@ def test_get_recent_tickets_raw_never_includes_date_deadline_in_evidence():
     """date_deadline is fetched and used for sorting only -- it is never
     displayed in `text`, so it must never be fabricated into Evidence,
     same discipline as amount_total's exclusion in get_order_status_raw."""
-    with patch("erp_data.odoo_tools.connector.search_read") as mock_search_read:
+    with patch("erp_data._odoo_helpers.connector.search_read") as mock_search_read:
         mock_search_read.return_value = [
             {"name": "Ticket A", "state": "01_in_progress", "create_date": "2026-08-01 10:00:00", "date_deadline": "2026-08-05", "partner_id": [1, "Client Alpha"]},
         ]
@@ -91,7 +91,7 @@ def test_get_recent_tickets_raw_never_includes_date_deadline_in_evidence():
 
 
 def test_get_recent_tickets_raw_missing_fields_display_as_na_in_both_text_and_evidence():
-    with patch("erp_data.odoo_tools.connector.search_read") as mock_search_read:
+    with patch("erp_data._odoo_helpers.connector.search_read") as mock_search_read:
         mock_search_read.return_value = [
             {"name": "Ticket X", "state": None, "create_date": None, "date_deadline": None, "partner_id": False},
         ]
@@ -106,7 +106,7 @@ def test_get_recent_tickets_raw_missing_fields_display_as_na_in_both_text_and_ev
 
 
 def test_get_recent_tickets_raw_empty_result_produces_single_negative_evidence():
-    with patch("erp_data.odoo_tools.connector.search_read") as mock_search_read:
+    with patch("erp_data._odoo_helpers.connector.search_read") as mock_search_read:
         mock_search_read.return_value = []
         token = odoo_uid_ctx.set(1)
         try:
@@ -128,7 +128,7 @@ def test_get_recent_tickets_raw_ambiguity_branch_produces_no_evidence():
     caller to disambiguate a client -- so it must return an empty Evidence
     list, never Evidence built from the intermediate records used to
     detect the ambiguity."""
-    with patch("erp_data.odoo_tools.connector.search_read") as mock_search_read:
+    with patch("erp_data._odoo_helpers.connector.search_read") as mock_search_read:
         mock_search_read.return_value = [
             {"name": "Ticket A", "state": "01_in_progress", "create_date": "2026-08-01", "date_deadline": "2026-08-05", "partner_id": [1, "Client Alpha SA"]},
             {"name": "Ticket B", "state": "1_done", "create_date": "2026-07-20", "date_deadline": "2026-07-25", "partner_id": [2, "Client Alpha SARL"]},
@@ -146,7 +146,7 @@ def test_get_recent_tickets_raw_ambiguity_branch_produces_no_evidence():
 def test_get_recent_tickets_raw_limite_truncation_only_displayed_tickets_get_evidence():
     """Evidence must never cover a ticket beyond display_limit, since text
     never asserts anything about the ignored matches."""
-    with patch("erp_data.odoo_tools.connector.search_read") as mock_search_read:
+    with patch("erp_data._odoo_helpers.connector.search_read") as mock_search_read:
         mock_search_read.return_value = [
             {"name": "T1", "state": "a", "create_date": "2026-08-03", "date_deadline": "2026-08-06", "partner_id": [1, "C1"]},
             {"name": "T2", "state": "b", "create_date": "2026-08-02", "date_deadline": "2026-08-05", "partner_id": [2, "C2"]},
@@ -166,7 +166,7 @@ def test_get_recent_tickets_raw_limite_truncation_only_displayed_tickets_get_evi
 def test_get_recent_tickets_raw_no_confidence_set():
     """B0 decision (todo/contexte.txt section 426): a deterministic ORM
     read never carries a confidence score."""
-    with patch("erp_data.odoo_tools.connector.search_read") as mock_search_read:
+    with patch("erp_data._odoo_helpers.connector.search_read") as mock_search_read:
         mock_search_read.return_value = [
             {"name": "T1", "state": "a", "create_date": "2026-08-03", "date_deadline": "2026-08-06", "partner_id": [1, "C1"]},
         ]
@@ -180,7 +180,7 @@ def test_get_recent_tickets_raw_no_confidence_set():
 
 
 def test_get_recent_tickets_raw_evidence_scope_carries_execution_identity():
-    with patch("erp_data.odoo_tools.connector.search_read") as mock_search_read:
+    with patch("erp_data._odoo_helpers.connector.search_read") as mock_search_read:
         mock_search_read.return_value = [
             {"name": "T1", "state": "a", "create_date": "2026-08-03", "date_deadline": "2026-08-06", "partner_id": [1, "C1"]},
         ]
@@ -198,7 +198,7 @@ def test_get_recent_tickets_raw_evidence_scope_carries_execution_identity():
 
 def test_get_recent_tickets_tool_wrapper_unchanged_return_contract():
     """The @tool wrapper must still return a plain string."""
-    with patch("erp_data.odoo_tools.connector.search_read") as mock_search_read:
+    with patch("erp_data._odoo_helpers.connector.search_read") as mock_search_read:
         mock_search_read.return_value = [
             {"name": "T1", "state": "a", "create_date": "2026-08-03", "date_deadline": "2026-08-06", "partner_id": [1, "C1"]},
         ]
@@ -216,7 +216,7 @@ def test_get_recent_tickets_tool_wrapper_still_catches_connector_exceptions():
     """Non-regression of the original try/except: it lives in the @tool
     wrapper, not in _raw -- the observable error-string behavior on a
     connector failure must be identical to before this Evidence-ification."""
-    with patch("erp_data.odoo_tools.connector.search_read") as mock_search_read:
+    with patch("erp_data._odoo_helpers.connector.search_read") as mock_search_read:
         mock_search_read.side_effect = RuntimeError("boom")
         token = odoo_uid_ctx.set(1)
         try:
@@ -231,7 +231,7 @@ def test_get_recent_tickets_raw_propagates_exceptions_without_fabricating_eviden
     """_raw must never swallow a connector exception itself -- doing so
     would risk fabricating an Evidence (e.g. a false negative) from a
     technical failure rather than a real absence of data."""
-    with patch("erp_data.odoo_tools.connector.search_read") as mock_search_read:
+    with patch("erp_data._odoo_helpers.connector.search_read") as mock_search_read:
         mock_search_read.side_effect = RuntimeError("boom")
         token = odoo_uid_ctx.set(1)
         try:

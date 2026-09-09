@@ -1,3 +1,4 @@
+from code_intelligence.tests._corpus_paths import CORE_ADDONS_PATH
 """
 code_intelligence/tests/test_f08_j36_graph_dependency_loading.py
 
@@ -37,9 +38,9 @@ from pathlib import Path
 
 import pytest
 
-from code_intelligence.deterministic_tools import field_change_impact
+from code_intelligence.deterministic.field_impact import field_change_impact
 
-ADDONS_ROOT = Path("/home/user/odoo-17.0/addons")
+ADDONS_ROOT = CORE_ADDONS_PATH
 
 
 @pytest.fixture(scope="module")

@@ -1,5 +1,5 @@
 """
-Script de traçage : obtenir_total_ventes et obtenir_ca_periode en conditions réelles.
+Script de traçage : get_total_sales en conditions réelles.
 
 Compare :
 1. Ce que l'outil retourne réellement (via .invoke(), comme le fait l'agent)
@@ -18,8 +18,9 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 import os
-from tools.odoo_connector import OdooConnector
-from erp_data.odoo_tools import odoo_uid_ctx, odoo_api_key_ctx, obtenir_total_ventes, obtenir_ca_periode
+from erp_data.odoo_connector import OdooConnector
+from erp_data._odoo_helpers import odoo_uid_ctx, odoo_api_key_ctx
+from erp_data.tools.sales import get_total_sales
 
 MANAGER_LOGIN = "manager@miro.com"
 MANAGER_PASSWORD = os.environ.get("ODOO_MANAGER_PASSWORD")
@@ -39,16 +40,16 @@ def authenticate_manager(connector: OdooConnector) -> int:
 
 def trace_tool_call():
     print("=" * 60)
-    print("1. APPEL RÉEL DE L'OUTIL obtenir_total_ventes")
+    print("1. APPEL RÉEL DE L'OUTIL get_total_sales")
     print("=" * 60)
 
     # Appel global, sans client (comme pour ERP-08)
-    result_global = obtenir_total_ventes.invoke({"client": "", "periode": ""})
-    print(f"obtenir_total_ventes(client='', periode='') →\n{result_global}\n")
+    result_global = get_total_sales.invoke({"client": "", "periode": ""})
+    print(f"get_total_sales(client='', periode='') →\n{result_global}\n")
 
     # Appel pour Dupont spécifiquement (comme pour ERP-01/ERP-10)
-    result_dupont = obtenir_total_ventes.invoke({"client": "Dupont", "periode": ""})
-    print(f"obtenir_total_ventes(client='Dupont', periode='') →\n{result_dupont}\n")
+    result_dupont = get_total_sales.invoke({"client": "Dupont", "periode": ""})
+    print(f"get_total_sales(client='Dupont', periode='') →\n{result_dupont}\n")
 
 
 def trace_raw_read_group(connector, uid):
@@ -96,7 +97,7 @@ def trace_dupont_domain(connector, uid):
     print("3. DOMAINE DUPONT — reproduction du filtre client")
     print("=" * 60)
 
-    # Domaine typique utilisé dans obtenir_total_ventes pour filtrer par client
+    # Domaine typique utilisé dans get_total_sales pour filtrer par client
     domain = [
         ("state", "in", ["sale", "done"]),
         ("partner_id.name", "ilike", "Dupont"),

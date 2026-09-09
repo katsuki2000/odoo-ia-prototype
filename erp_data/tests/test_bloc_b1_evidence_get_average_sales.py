@@ -13,17 +13,17 @@ test_odoo_tools.py.
 import pytest
 from unittest.mock import patch
 
-from erp_data.odoo_tools import (
+from erp_data.tools.sales import (
     get_average_sales_raw,
     get_average_sales,
     get_total_sales_raw,
-    odoo_uid_ctx,
 )
+from erp_data.odoo_context import odoo_uid_ctx
 from core.evidence import Evidence, EvidenceSourceType
 
 
 def test_get_average_sales_raw_returns_text_and_evidence_global():
-    with patch("erp_data.odoo_tools.connector.read_group") as mock_read_group:
+    with patch("erp_data._odoo_helpers.connector.read_group") as mock_read_group:
         mock_read_group.return_value = [{"amount_total": 4200.5}]
         token = odoo_uid_ctx.set(3)
         try:
@@ -40,7 +40,7 @@ def test_get_average_sales_raw_returns_text_and_evidence_global():
 
 
 def test_get_average_sales_raw_returns_text_and_evidence_per_client():
-    with patch("erp_data.odoo_tools.connector.read_group") as mock_read_group:
+    with patch("erp_data._odoo_helpers.connector.read_group") as mock_read_group:
         mock_read_group.return_value = [{"amount_total": 999.99, "partner_id": [5, "Rakoto"]}]
         token = odoo_uid_ctx.set(9)
         try:
@@ -58,7 +58,7 @@ def test_get_average_sales_raw_empty_result_produces_negative_evidence():
     """Even a 'no data found' outcome is itself a fact worth recording as
     Evidence (absence of a match), not just silently dropped -- same
     convention already established by get_total_sales_raw."""
-    with patch("erp_data.odoo_tools.connector.read_group") as mock_read_group:
+    with patch("erp_data._odoo_helpers.connector.read_group") as mock_read_group:
         mock_read_group.return_value = []
         token = odoo_uid_ctx.set(1)
         try:
@@ -75,7 +75,7 @@ def test_get_average_sales_raw_empty_result_produces_negative_evidence():
 def test_get_average_sales_raw_no_confidence_set():
     """B0 decision (todo/contexte.txt section 426): a deterministic ORM
     read never carries a confidence score."""
-    with patch("erp_data.odoo_tools.connector.read_group") as mock_read_group:
+    with patch("erp_data._odoo_helpers.connector.read_group") as mock_read_group:
         mock_read_group.return_value = [{"amount_total": 500.0}]
         token = odoo_uid_ctx.set(1)
         try:
@@ -87,7 +87,7 @@ def test_get_average_sales_raw_no_confidence_set():
 
 
 def test_get_average_sales_raw_evidence_scope_carries_execution_identity():
-    with patch("erp_data.odoo_tools.connector.read_group") as mock_read_group:
+    with patch("erp_data._odoo_helpers.connector.read_group") as mock_read_group:
         mock_read_group.return_value = [{"amount_total": 500.0}]
         token = odoo_uid_ctx.set(42)
         try:
@@ -103,7 +103,7 @@ def test_get_average_sales_raw_evidence_scope_carries_execution_identity():
 def test_get_average_sales_tool_wrapper_unchanged_return_contract():
     """The @tool wrapper must still return a plain string -- same contract
     guarantee already established for get_total_sales."""
-    with patch("erp_data.odoo_tools.connector.read_group") as mock_read_group:
+    with patch("erp_data._odoo_helpers.connector.read_group") as mock_read_group:
         mock_read_group.return_value = [{"amount_total": 10.0}]
         token = odoo_uid_ctx.set(1)
         try:
@@ -120,7 +120,7 @@ def test_get_average_sales_tool_wrapper_still_catches_connector_exceptions():
     @tool wrapper instead of _raw (arbitration point 1, todo/contexte.txt
     section 466), but the observable error-string behavior on a connector
     failure must be identical to before this refactor."""
-    with patch("erp_data.odoo_tools.connector.read_group") as mock_read_group:
+    with patch("erp_data._odoo_helpers.connector.read_group") as mock_read_group:
         mock_read_group.side_effect = RuntimeError("boom")
         token = odoo_uid_ctx.set(1)
         try:
@@ -137,7 +137,7 @@ def test_get_average_sales_raw_propagates_exceptions_without_fabricating_evidenc
     technical failure rather than a real absence of data, the same
     honesty concern already flagged for the Semgrep NO_MATCH/
     EXECUTION_ERROR ambiguity in tool 10/24."""
-    with patch("erp_data.odoo_tools.connector.read_group") as mock_read_group:
+    with patch("erp_data._odoo_helpers.connector.read_group") as mock_read_group:
         mock_read_group.side_effect = RuntimeError("boom")
         token = odoo_uid_ctx.set(1)
         try:
@@ -172,7 +172,7 @@ def test_get_average_sales_raw_domain_matches_statut_contract(statut, expected_s
     """Each statut value must produce exactly the Odoo state domain agreed
     in the contract -- in particular 'annulees' must resolve to ['cancel']
     only (todo/contexte.txt section 516)."""
-    with patch("erp_data.odoo_tools.connector.read_group") as mock_read_group:
+    with patch("erp_data._odoo_helpers.connector.read_group") as mock_read_group:
         mock_read_group.return_value = [{"amount_total": 100.0}]
         token = odoo_uid_ctx.set(1)
         try:
@@ -188,7 +188,7 @@ def test_get_average_sales_raw_unknown_statut_falls_back_to_toutes_domain():
     """An unrecognized statut string is a defined contractual behavior
     (fallback to the 'toutes' domain), not an accidental effect of an
     else branch -- verified here against the real domain, not just prose."""
-    with patch("erp_data.odoo_tools.connector.read_group") as mock_read_group:
+    with patch("erp_data._odoo_helpers.connector.read_group") as mock_read_group:
         mock_read_group.return_value = [{"amount_total": 100.0}]
         token = odoo_uid_ctx.set(1)
         try:
@@ -207,7 +207,7 @@ def test_get_total_sales_and_get_average_sales_share_identical_domain_per_statut
     statut -- both route through the single _resolve_statut() source of
     truth, this test proves it end-to-end rather than assuming it from
     reading the shared function alone."""
-    with patch("erp_data.odoo_tools.connector.read_group") as mock_rg_total:
+    with patch("erp_data._odoo_helpers.connector.read_group") as mock_rg_total:
         mock_rg_total.return_value = [{"amount_total": 100.0}]
         token = odoo_uid_ctx.set(1)
         try:
@@ -216,7 +216,7 @@ def test_get_total_sales_and_get_average_sales_share_identical_domain_per_statut
             odoo_uid_ctx.reset(token)
         total_domain = mock_rg_total.call_args.kwargs["domain"]
 
-    with patch("erp_data.odoo_tools.connector.read_group") as mock_rg_avg:
+    with patch("erp_data._odoo_helpers.connector.read_group") as mock_rg_avg:
         mock_rg_avg.return_value = [{"amount_total": 100.0}]
         token = odoo_uid_ctx.set(1)
         try:

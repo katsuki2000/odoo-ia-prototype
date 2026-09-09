@@ -1,3 +1,4 @@
+from code_intelligence.tests._corpus_paths import CORE_ADDONS_PATH
 """
 code_intelligence/tests/test_method_override_chain.py
 
@@ -26,10 +27,10 @@ from pathlib import Path
 
 import pytest
 
-from code_intelligence.cross_file_resolver import ParsedModule, build_module_symbol_registry
-from code_intelligence.graph_builder import OdooGraphBuilder
+from code_intelligence.graph import ParsedModule, build_module_symbol_registry
+from code_intelligence.graph import OdooGraphBuilder
 from code_intelligence.extractor.manifest_parser import parse_manifest
-from code_intelligence.method_override_resolver import (
+from code_intelligence.overrides import (
     analyze_method_override_chain,
     detect_unguarded_super,
     find_methods_with_unguarded_super,
@@ -259,7 +260,7 @@ def test_no_sites_returns_empty_list():
 # extraction -> resolution -> graph -> resolver pipeline.
 # ---------------------------------------------------------------------
 
-ADDONS_PATH = Path("/home/user/odoo-17.0/addons")
+ADDONS_PATH = CORE_ADDONS_PATH
 REAL_MODULES = [
     "custom_credit_note_approval",
     "custom_credit_note_approval_regional",
@@ -319,7 +320,7 @@ def test_real_corpus_hr_expense_commercial_partner_id_not_flagged():
     calls `super(AccountMove, self - own_expense_moves)`, excluding the
     exact records just mutated -- a valid recordset-subtraction guard.
     Must not be flagged against the actual native-Odoo file on disk."""
-    filepath = Path("/home/user/odoo-17.0/addons/hr_expense/models/account_move.py")
+    filepath = CORE_ADDONS_PATH / "hr_expense" / "models" / "account_move.py"
     if not filepath.exists():
         pytest.skip(f"Real file not found at {filepath} -- skipping live corpus test.")
     source = filepath.read_text(encoding="utf-8")
@@ -387,7 +388,7 @@ def test_real_corpus_unguarded_super_filter_matches_full_report():
     the full composite tool's own finding: action_valider_avoir flagged,
     nothing else invented."""
     G = _build_real_registry_and_graph()
-    from code_intelligence.ci_agent_tools import find_methods_with_override_cascade
+    from code_intelligence.ci_agent_node.agent_tools import find_methods_with_override_cascade
 
     candidates = find_methods_with_override_cascade(G, "account.move")
     flagged = find_methods_with_unguarded_super(G, "account.move", candidates)

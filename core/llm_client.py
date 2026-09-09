@@ -143,7 +143,12 @@ def get_chat_llm(
 
 _llm_call_lock = threading.Lock()
 _last_llm_call_time = [0.0]
-MIN_LLM_CALL_INTERVAL = 5.0  # Enforce 5.0s minimum spacing between LLM calls
+MIN_LLM_CALL_INTERVAL = 5.0  # Enforce 5.0s minimum spacing between LLM calls for Groq
+
+
+def _get_min_interval() -> float:
+    provider = (LLM_PROVIDER or "groq").lower().strip()
+    return MIN_LLM_CALL_INTERVAL if provider == "groq" else 0.0
 
 
 def invoke_with_rate_limit(
@@ -155,11 +160,12 @@ def invoke_with_rate_limit(
     """Execute LLM invocation with spacing, context truncation, and key rotation on rate limits."""
     context_reduced = False
     total_wait_seconds = 0.0
+    min_interval = _get_min_interval()
     for attempt in range(max_retries):
         with _llm_call_lock:
             elapsed = time.time() - _last_llm_call_time[0]
-            if elapsed < MIN_LLM_CALL_INTERVAL:
-                gap = MIN_LLM_CALL_INTERVAL - elapsed
+            if min_interval > 0 and elapsed < min_interval:
+                gap = min_interval - elapsed
                 time.sleep(gap)
                 total_wait_seconds += gap
             try:

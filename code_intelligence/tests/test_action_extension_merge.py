@@ -11,7 +11,7 @@ and sales_team.crm_team_action_pipeline patterns.
 
 import pytest
 
-from code_intelligence.cross_file_resolver import (
+from code_intelligence.graph import (
     build_module_symbol_registry,
     ParsedModule,
 )

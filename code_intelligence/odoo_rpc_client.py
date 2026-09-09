@@ -1,6 +1,4 @@
 """
-Small XML-RPC client used by J5 live security validation tests.
-
 The methods intentionally mirror the Odoo security operations under test:
 authenticate a real user, check ACLs through check_access_rights, then query
 records as that same user so ir.rule filtering is evaluated by Odoo itself.

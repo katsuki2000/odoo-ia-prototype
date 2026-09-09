@@ -11,8 +11,8 @@ import logging
 import re
 import time
 
-from code_intelligence.authorization_gate import gate_observation
-from code_intelligence.ci_helpers import _truncate_observation, _tool_call_key
+from code_intelligence.security.gate import gate_observation
+from .helpers import _truncate_observation, _tool_call_key
 from code_intelligence.ci_agent_node.dispatch_context import DispatchContext
 
 logger = logging.getLogger(__name__)
@@ -22,7 +22,7 @@ def dispatch_override_chain(ctx: DispatchContext) -> None:
     if not (ctx.concept.is_resolved and ctx.concept.resolved_models and not ctx.hop_budget_exhausted):
         return
 
-    from code_intelligence.forced_dispatch_predicates import override_chain_targets
+    from .forced_dispatch_predicates import override_chain_targets
 
     override_tool = ctx.tool_map.get("analyze_method_override_chain")
     if override_tool is None:

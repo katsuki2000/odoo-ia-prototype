@@ -13,11 +13,11 @@ aucun acces a une instance Odoo reelle.
 
 from unittest.mock import patch
 
-from erp_data.odoo_tools import (
+from erp_data.tools.sales import (
     get_sale_details_raw,
     get_sale_details,
-    odoo_uid_ctx,
 )
+from erp_data.odoo_context import odoo_uid_ctx
 from core.evidence import Evidence, EvidenceSourceType
 
 
@@ -25,7 +25,7 @@ def test_single_order_with_products_two_evidence():
     """Une commande avec produits resolus -> 2 Evidence : une pour les
     faits sale.order, une pour les produits sale.order.line -- sources
     distinctes, jamais un dict fusionne."""
-    with patch("erp_data.odoo_tools.connector.search_read") as mock_sr:
+    with patch("erp_data._odoo_helpers.connector.search_read") as mock_sr:
         mock_sr.side_effect = [
             [{"name": "S001", "partner_id": [1, "Rakoto"], "date_order": "2026-01-01",
               "amount_total": 500.0, "state": "sale", "order_line": [10, 11]}],
@@ -57,7 +57,7 @@ def test_order_state_value_is_raw_not_french_label():
     """Le `value` porte l'etat brut Odoo (ex. 'sale'), pas le libelle
     francais affiche dans le texte -- meme discipline que
     get_order_status_raw : une traduction n'est pas un second fait."""
-    with patch("erp_data.odoo_tools.connector.search_read") as mock_sr:
+    with patch("erp_data._odoo_helpers.connector.search_read") as mock_sr:
         mock_sr.side_effect = [
             [{"name": "S001", "partner_id": [1, "Rakoto"], "date_order": "2026-01-01",
               "amount_total": 10.0, "state": "sale", "order_line": []}],
@@ -76,7 +76,7 @@ def test_multiple_orders_total_sum_has_no_dedicated_evidence():
     """Le total agrege est une arithmetique sur des faits deja couverts
     par les Evidence par-commande -- aucune Evidence dediee pour le total
     lui-meme, meme principe que `available` dans get_product_stock_raw."""
-    with patch("erp_data.odoo_tools.connector.search_read") as mock_sr:
+    with patch("erp_data._odoo_helpers.connector.search_read") as mock_sr:
         mock_sr.side_effect = [
             [
                 {"name": "S001", "partner_id": [1, "Rakoto"], "date_order": "2026-01-01",
@@ -103,7 +103,7 @@ def test_no_order_lines_at_all_positive_evidence_sourced_from_sale_order():
     reste positive (value=[]) mais sa source doit refleter que le fait
     est connu depuis la lecture sale.order elle-meme, pas une lecture
     sale.order.line qui n'a jamais eu lieu."""
-    with patch("erp_data.odoo_tools.connector.search_read") as mock_sr:
+    with patch("erp_data._odoo_helpers.connector.search_read") as mock_sr:
         mock_sr.side_effect = [
             [{"name": "S002", "partner_id": [1, "Rakoto"], "date_order": "2026-01-01",
               "amount_total": 0.0, "state": "draft", "order_line": []}],
@@ -126,7 +126,7 @@ def test_lines_fetched_but_no_product_resolved_sourced_from_sale_order_line():
     ne resout aucun product_id -- l'Evidence reste positive (value=[])
     mais avec la source sale.order.line, puisque la requete a reellement
     eu lieu, contrairement au cas precedent."""
-    with patch("erp_data.odoo_tools.connector.search_read") as mock_sr:
+    with patch("erp_data._odoo_helpers.connector.search_read") as mock_sr:
         mock_sr.side_effect = [
             [{"name": "S003", "partner_id": [1, "Rakoto"], "date_order": "2026-01-01",
               "amount_total": 10.0, "state": "draft", "order_line": [20]}],
@@ -149,7 +149,7 @@ def test_fallback_success_sources_from_broader_domain():
     """Domaine primaire (filtre statut) vide, fallback (state!=cancel)
     trouve des records -- la source doit suivre le domaine reellement
     responsable (le fallback), jamais le domaine primaire."""
-    with patch("erp_data.odoo_tools.connector.search_read") as mock_sr:
+    with patch("erp_data._odoo_helpers.connector.search_read") as mock_sr:
         mock_sr.side_effect = [
             [],
             [{"name": "S010", "partner_id": [1, "Randria"], "date_order": "2026-01-01",
@@ -171,7 +171,7 @@ def test_both_domains_empty_negative_evidence_has_composite_source():
     """Quand statut != 'toutes' et que le domaine primaire ET le fallback
     sont reellement vides, la source negative doit nommer les deux
     domaines tentes -- meme discipline que get_total_invoices_raw."""
-    with patch("erp_data.odoo_tools.connector.search_read") as mock_sr:
+    with patch("erp_data._odoo_helpers.connector.search_read") as mock_sr:
         mock_sr.side_effect = [[], []]
         token = odoo_uid_ctx.set(1)
         try:
@@ -192,7 +192,7 @@ def test_statut_toutes_empty_no_fallback_attempted_single_domain_source():
     """statut == 'toutes' -> le domaine 'toutes' est deja le plus large,
     aucun fallback n'est tente -- une seule requete search_read, source
     a un seul domaine sur le cas negatif."""
-    with patch("erp_data.odoo_tools.connector.search_read") as mock_sr:
+    with patch("erp_data._odoo_helpers.connector.search_read") as mock_sr:
         mock_sr.side_effect = [[]]
         token = odoo_uid_ctx.set(1)
         try:
@@ -210,7 +210,7 @@ def test_date_order_excluded_from_every_evidence():
     """date_order est fetche mais jamais affirme dans `text` -- exclu de
     toute Evidence (value) et de tout `source`, meme discipline que
     date_deadline/amount_total dans les tools precedents."""
-    with patch("erp_data.odoo_tools.connector.search_read") as mock_sr:
+    with patch("erp_data._odoo_helpers.connector.search_read") as mock_sr:
         mock_sr.side_effect = [
             [{"name": "S001", "partner_id": [1, "Rakoto"], "date_order": "2026-05-05",
               "amount_total": 10.0, "state": "sale", "order_line": []}],
@@ -229,7 +229,7 @@ def test_date_order_excluded_from_every_evidence():
 
 
 def test_no_confidence_ever_set():
-    with patch("erp_data.odoo_tools.connector.search_read") as mock_sr:
+    with patch("erp_data._odoo_helpers.connector.search_read") as mock_sr:
         mock_sr.side_effect = [
             [{"name": "S001", "partner_id": [1, "X"], "date_order": "2026-01-01",
               "amount_total": 1.0, "state": "sale", "order_line": []}],
@@ -244,7 +244,7 @@ def test_no_confidence_ever_set():
 
 
 def test_evidence_scope_carries_execution_identity_not_company_id():
-    with patch("erp_data.odoo_tools.connector.search_read") as mock_sr:
+    with patch("erp_data._odoo_helpers.connector.search_read") as mock_sr:
         mock_sr.side_effect = [
             [{"name": "S001", "partner_id": [1, "X"], "date_order": "2026-01-01",
               "amount_total": 1.0, "state": "sale", "order_line": []}],
@@ -262,7 +262,7 @@ def test_evidence_scope_carries_execution_identity_not_company_id():
 
 
 def test_tool_wrapper_unchanged_return_contract():
-    with patch("erp_data.odoo_tools.connector.search_read") as mock_sr:
+    with patch("erp_data._odoo_helpers.connector.search_read") as mock_sr:
         mock_sr.side_effect = [
             [{"name": "S001", "partner_id": [1, "X"], "date_order": "2026-01-01",
               "amount_total": 1.0, "state": "sale", "order_line": []}],
@@ -277,7 +277,7 @@ def test_tool_wrapper_unchanged_return_contract():
 
 
 def test_tool_wrapper_still_catches_connector_exceptions():
-    with patch("erp_data.odoo_tools.connector.search_read") as mock_sr:
+    with patch("erp_data._odoo_helpers.connector.search_read") as mock_sr:
         mock_sr.side_effect = RuntimeError("boom")
         token = odoo_uid_ctx.set(1)
         try:
@@ -289,7 +289,7 @@ def test_tool_wrapper_still_catches_connector_exceptions():
 
 
 def test_raw_propagates_exceptions_without_fabricating_evidence():
-    with patch("erp_data.odoo_tools.connector.search_read") as mock_sr:
+    with patch("erp_data._odoo_helpers.connector.search_read") as mock_sr:
         mock_sr.side_effect = RuntimeError("boom")
         token = odoo_uid_ctx.set(1)
         try:

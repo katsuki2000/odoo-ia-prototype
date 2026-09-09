@@ -57,7 +57,7 @@ def run_doc_nonregression():
     print(f"S13 Documentary Non-Regression Test")
     print(f"Running {total} documentary questions...\n")
 
-    from tools.odoo_connector import OdooConnector
+    from erp_data.odoo_connector import OdooConnector
     _conn = OdooConnector()
     _password = "password123"
     uid = _conn.common.authenticate(_conn.db, "manager@miro.com", _password, {})

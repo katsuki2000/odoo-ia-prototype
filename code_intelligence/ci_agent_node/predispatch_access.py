@@ -12,8 +12,8 @@ import logging
 import time
 from typing import List
 
-from code_intelligence.authorization_gate import gate_observation
-from code_intelligence.ci_helpers import (
+from code_intelligence.security.gate import gate_observation
+from .helpers import (
     _truncate_observation,
     _tool_call_key,
     _question_is_access_related,
@@ -31,7 +31,7 @@ def dispatch_who_has_access_to(ctx: DispatchContext) -> None:
     ):
         return
 
-    from code_intelligence.forced_dispatch_predicates import security_locks_targets, who_has_access_targets
+    from .forced_dispatch_predicates import security_locks_targets, who_has_access_targets
 
     acl_tool = ctx.tool_map.get("who_has_access_to")
     if acl_tool is None:

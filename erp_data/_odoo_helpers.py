@@ -1,30 +1,17 @@
 """Shared helpers for ORM tool modules."""
 
-import contextvars
 import logging
 from datetime import datetime, timezone
 from typing import List, Tuple
 
 from erp_data.odoo_connector import OdooConnector
+from erp_data.odoo_context import odoo_uid_ctx, odoo_api_key_ctx
 from core.evidence import Evidence, EvidenceSourceType, make_evidence
-from tools.date_utils import parse_period as _base_parse_period
+from erp_data.date_utils import parse_period
 
 logger = logging.getLogger(__name__)
 
-
-def parse_period(periode: str):
-    import sys
-    ot = sys.modules.get("erp_data.odoo_tools")
-    if ot and "parse_period" in ot.__dict__:
-        fn = ot.__dict__["parse_period"]
-        if fn is not parse_period:
-            return fn(periode)
-    return _base_parse_period(periode)
-
 connector = OdooConnector()
-
-odoo_uid_ctx = contextvars.ContextVar('odoo_uid', default=None)
-odoo_api_key_ctx = contextvars.ContextVar('odoo_api_key', default=None)
 
 _cached_uid = None
 

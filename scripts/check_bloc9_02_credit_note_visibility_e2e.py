@@ -1,43 +1,6 @@
 #!/usr/bin/env python3
 """
-scripts/check_bloc9_02_credit_note_visibility_e2e.py
-
- generalization check, 2/8 -- same method as
-check_bloc9_01_credit_note_cascade_e2e.py (raw composite-tool output
-isolated from synthesis, then live end-to-end through
-code_intelligence_agent()), applied to the second mechanism:
-custom_credit_note_visibility_rules, an ir.rule AND/OR combination
-puzzle on account.move (Q6.1/Q6.2 of scripts/run_adversarial_benchmark.py).
-
-Ground truth (security/ir_rule_layered.xml + security_groups.xml):
-  - Global rule (no group, AND for everyone): company scoping only
-    ("Avoirs - cantonnement societe") -- no amount restriction.
-  - Group rule "Avoirs - plafond visibilite regionale (50000e)", attached
-    to group_avoir_regional: amount_total <= 50000.
-  - Group rule "Avoirs - visibilite nationale (illimitee)", attached to
-    group_avoir_national: domain_force [(1, '=', 1)] -- unconditional.
-  - Group rules combine in OR across the groups the requester belongs to;
-    a group rule the requester does NOT belong to is simply ignored, not
-    counted as a restriction.
-
-Q6.1 (member of BOTH groups) on an 80 000e avoir: the unconditional
-national rule alone already grants access via OR, regardless of the
-regional 50k cap -- access is allowed (RuleEvaluationResult.can_view_amount
-must return True).
-
-Q6.2 (member of NEITHER group) on the same 80 000e avoir: no group rule
-applies at all (both are ignored, not violated), so only the global
-company-scoping rule remains -- which carries no amount condition. Access
-is allowed too, for a structurally different reason than Q6.1 (absence of
-restriction, not an OR win) -- this is the trap: it is easy to wrongly
-conclude "no group -> more restricted" when the real Odoo semantics are
-the opposite (no group rule is simply not evaluated at all).
-
-Unlike script 1/8, this mechanism needs a real requester identity (real
-Odoo group ids from a live instance, not just a question in French) --
-group_map resolution mirrors scripts/run_adversarial_benchmark.py's
-_resolve_bloc7_test_group_ids() exactly, reusing rag.graph's lazy admin
-RPC singleton rather than opening a second admin connection.
+E2E verification for custom_credit_note_visibility_rules.
 """
 
 import json
@@ -52,7 +15,7 @@ from core.graph import (
     code_intelligence_agent, get_code_intelligence_graph, query_graph,
     _get_admin_rpc_client, _resolve_user_group_xmlids,
 )
-from code_intelligence.ci_agent_tools import ALL_CI_TOOLS, set_graph_ref, evaluate_rules_raw
+from code_intelligence.ci_agent_node.agent_tools import ALL_CI_TOOLS, set_graph_ref, evaluate_rules_raw
 
 TEST_AMOUNT = 80000
 

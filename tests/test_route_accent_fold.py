@@ -10,7 +10,7 @@ from core.graph import (
     THRESHOLD_QUERY_TERMS, THRESHOLD_QUERY_TERMS_FOLDED,
     route,
 )
-from code_intelligence.investigation_plan import QuestionIntent
+from code_intelligence.investigation import QuestionIntent
 
 
 def _route_question(question: str, mocked_intent: QuestionIntent) -> str:
@@ -18,7 +18,7 @@ def _route_question(question: str, mocked_intent: QuestionIntent) -> str:
     chunks/history, return only the route decision.
 
     Cluster B fix (todo/contexte.txt sections 430-433): route() now calls
-    resolve_question_intent() (code_intelligence/investigation_plan.py),
+    resolve_question_intent() (code_intelligence/investigation/llm.py),
     which attempts a real, bounded Groq LLM classifier
     (classify_question_intent_llm) BEFORE falling back to the deterministic
     keyword classifier these tests originally locked in. Left unmocked,
@@ -37,7 +37,7 @@ def _route_question(question: str, mocked_intent: QuestionIntent) -> str:
         "timing": {},
     }
     with patch(
-        "code_intelligence.investigation_plan.classify_question_intent_llm",
+        "code_intelligence.investigation.classify_question_intent_llm",
         return_value=mocked_intent,
     ):
         return route(state)["route"]

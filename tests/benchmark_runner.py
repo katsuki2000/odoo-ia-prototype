@@ -13,7 +13,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent))
 
 from dotenv import load_dotenv
-from langchain_groq import ChatGroq
+from core.llm_client import get_chat_llm
 from langchain_core.messages import HumanMessage, SystemMessage
 
 load_dotenv()
@@ -110,8 +110,7 @@ def run_benchmark():
         print(f"Benchmarking: {model_name}")
         print(f"{'='*60}")
 
-        llm = ChatGroq(
-            api_key=os.getenv("GROQ_API_KEY"),
+        llm = get_chat_llm(
             model=model_id,
             temperature=0.1,
             max_tokens=1024,

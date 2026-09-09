@@ -11,8 +11,8 @@ import json as _json_dispatch
 import logging
 import time
 
-from code_intelligence.authorization_gate import gate_observation
-from code_intelligence.ci_helpers import (
+from code_intelligence.security.gate import gate_observation
+from .helpers import (
     _truncate_observation,
     _tool_call_key,
     _question_is_access_related,
@@ -34,7 +34,7 @@ def dispatch_evaluate_record_rules(ctx: DispatchContext) -> None:
     ):
         return
 
-    from code_intelligence.ci_agent_tools import evaluate_rules_raw
+    from .agent_tools import evaluate_rules_raw
 
     amount_for_rules = _extract_amount(ctx.question)
     rule_tool = ctx.tool_map.get("evaluate_record_rules")

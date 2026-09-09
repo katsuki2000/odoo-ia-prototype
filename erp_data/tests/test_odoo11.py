@@ -6,8 +6,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from code_intelligence.utils import discover_odoo_modules
 from core.graph import _load_module
 
+import os
 def main():
-    addons_path = Path("/home/user/odoo-11.0/addons")
+    addons_path = Path(os.getenv("ODOO_11_ADDONS_PATH") or (Path(__file__).resolve().parent.parent.parent.parent / "odoo-11.0" / "addons"))
+    if not addons_path.exists():
+        print(f"Odoo 11 addons path '{addons_path}' does not exist, skipping.")
+        return
     print(f"Discovering modules in {addons_path}...")
     modules = discover_odoo_modules(addons_path)
     print(f"Discovered {len(modules)} modules.")

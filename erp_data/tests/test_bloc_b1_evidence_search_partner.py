@@ -17,16 +17,16 @@ displayed in `text` at once, each backed by its own Evidence.
 
 from unittest.mock import patch
 
-from erp_data.odoo_tools import (
+from erp_data.tools.crm import (
     search_partner_raw,
     search_partner,
-    odoo_uid_ctx,
 )
+from erp_data.odoo_context import odoo_uid_ctx
 from core.evidence import Evidence, EvidenceSourceType
 
 
 def test_search_partner_raw_returns_text_and_one_evidence_per_partner():
-    with patch("erp_data.odoo_tools.connector.search_read") as mock_search_read:
+    with patch("erp_data._odoo_helpers.connector.search_read") as mock_search_read:
         mock_search_read.return_value = [
             {"name": "Rakoto", "email": "rakoto@x.com", "phone": "111", "city": "Tana"},
             {"name": "Randria", "email": "randria@x.com", "phone": "222", "city": "Fianar"},
@@ -52,7 +52,7 @@ def test_search_partner_raw_evidence_carries_contact_fields_as_single_dict_value
     """Design confirmed by San Goku (section 471): one Evidence per
     displayed partner, carrying email/phone/city together as a single
     structured value rather than 3 separate Evidence per partner."""
-    with patch("erp_data.odoo_tools.connector.search_read") as mock_search_read:
+    with patch("erp_data._odoo_helpers.connector.search_read") as mock_search_read:
         mock_search_read.return_value = [
             {"name": "Rakoto", "email": "rakoto@x.com", "phone": "111", "city": "Tana"},
         ]
@@ -69,7 +69,7 @@ def test_search_partner_raw_evidence_carries_contact_fields_as_single_dict_value
 
 
 def test_search_partner_raw_missing_fields_display_as_na_in_both_text_and_evidence():
-    with patch("erp_data.odoo_tools.connector.search_read") as mock_search_read:
+    with patch("erp_data._odoo_helpers.connector.search_read") as mock_search_read:
         mock_search_read.return_value = [
             {"name": "Rakoto", "email": None, "phone": None, "city": None},
         ]
@@ -87,7 +87,7 @@ def test_search_partner_raw_empty_result_produces_single_negative_evidence():
     """Even a 'no match' outcome is itself a fact worth recording as
     Evidence (absence of a match), not just silently dropped -- same
     convention already established by the other ORM tools."""
-    with patch("erp_data.odoo_tools.connector.search_read") as mock_search_read:
+    with patch("erp_data._odoo_helpers.connector.search_read") as mock_search_read:
         mock_search_read.return_value = []
         token = odoo_uid_ctx.set(1)
         try:
@@ -110,7 +110,7 @@ def test_search_partner_raw_domain_excludes_internal_user_accounts():
     (false positive on an internal account, false negatives on real
     clients) -- user_ids=False is. Domain must always carry this filter
     alongside the name search."""
-    with patch("erp_data.odoo_tools.connector.search_read") as mock_search_read:
+    with patch("erp_data._odoo_helpers.connector.search_read") as mock_search_read:
         mock_search_read.return_value = []
         token = odoo_uid_ctx.set(1)
         try:
@@ -131,7 +131,7 @@ def test_search_partner_raw_empty_nom_defaults_and_lists_all_clients():
     exactly as-is). This test locks that nom='' still reaches
     connector.search_read with the same ilike+user_ids domain shape, called
     both explicitly and via the new default."""
-    with patch("erp_data.odoo_tools.connector.search_read") as mock_search_read:
+    with patch("erp_data._odoo_helpers.connector.search_read") as mock_search_read:
         mock_search_read.return_value = []
         token = odoo_uid_ctx.set(1)
         try:
@@ -165,7 +165,7 @@ def test_search_partner_raw_excludes_self_company_partners_from_domain():
             ]
         return []
 
-    with patch("erp_data.odoo_tools.connector.search_read", side_effect=fake_search_read) as mock_search_read:
+    with patch("erp_data._odoo_helpers.connector.search_read", side_effect=fake_search_read) as mock_search_read:
         token = odoo_uid_ctx.set(1)
         try:
             search_partner_raw("")
@@ -188,7 +188,7 @@ def test_search_partner_raw_company_read_uses_active_test_false_context():
     the exclusion mechanism. This locks that the res.company call always
     carries context={'active_test': False} so archived companies are seen
     too."""
-    with patch("erp_data.odoo_tools.connector.search_read") as mock_search_read:
+    with patch("erp_data._odoo_helpers.connector.search_read") as mock_search_read:
         mock_search_read.return_value = []
         token = odoo_uid_ctx.set(1)
         try:
@@ -205,7 +205,7 @@ def test_search_partner_raw_no_company_exclusion_clause_when_no_companies():
     """When res.company returns nothing (or entries with no partner_id),
     no fabricated ('id', 'not in', []) clause should ever be appended --
     an empty exclusion list is a no-op, not a real filter."""
-    with patch("erp_data.odoo_tools.connector.search_read") as mock_search_read:
+    with patch("erp_data._odoo_helpers.connector.search_read") as mock_search_read:
         mock_search_read.return_value = []
         token = odoo_uid_ctx.set(1)
         try:
@@ -221,7 +221,7 @@ def test_search_partner_tool_wrapper_callable_without_args():
     """The @tool wrapper must also accept no args (LangChain sees nom as
     optional now) -- mirrors the other client-scoped tools' 'client: str =
     \"\"' convention (get_total_sales, get_sale_details, etc.)."""
-    with patch("erp_data.odoo_tools.connector.search_read") as mock_search_read:
+    with patch("erp_data._odoo_helpers.connector.search_read") as mock_search_read:
         mock_search_read.return_value = [
             {"name": "Air Madagascar", "email": "e", "phone": "p", "city": "c"}
         ]
@@ -241,7 +241,7 @@ def test_search_partner_raw_default_limite_zero_shows_all_no_truncation():
     get_recent_tickets_raw. Default call (no limite passed) must now show
     every matching partner, with one Evidence per displayed partner and no
     truncation message."""
-    with patch("erp_data.odoo_tools.connector.search_read") as mock_search_read:
+    with patch("erp_data._odoo_helpers.connector.search_read") as mock_search_read:
         mock_search_read.return_value = [
             {"name": f"Client{i}", "email": "e", "phone": "p", "city": "c"}
             for i in range(7)
@@ -261,7 +261,7 @@ def test_search_partner_raw_explicit_limite_still_truncates_with_evidence_bounde
     """A positive limite still caps display and Evidence together, same
     discipline as before section 533 (just now opt-in via the param
     instead of a hardcoded 5)."""
-    with patch("erp_data.odoo_tools.connector.search_read") as mock_search_read:
+    with patch("erp_data._odoo_helpers.connector.search_read") as mock_search_read:
         mock_search_read.return_value = [
             {"name": f"Client{i}", "email": "e", "phone": "p", "city": "c"}
             for i in range(7)
@@ -281,7 +281,7 @@ def test_search_partner_raw_explicit_limite_still_truncates_with_evidence_bounde
 def test_search_partner_tool_wrapper_forwards_limite():
     """The @tool wrapper must forward limite to search_partner_raw, not
     just nom."""
-    with patch("erp_data.odoo_tools.connector.search_read") as mock_search_read:
+    with patch("erp_data._odoo_helpers.connector.search_read") as mock_search_read:
         mock_search_read.return_value = [
             {"name": f"Client{i}", "email": "e", "phone": "p", "city": "c"}
             for i in range(7)
@@ -300,7 +300,7 @@ def test_search_partner_tool_wrapper_forwards_limite():
 def test_search_partner_raw_no_confidence_set():
     """B0 decision (todo/contexte.txt section 426): a deterministic ORM
     read never carries a confidence score."""
-    with patch("erp_data.odoo_tools.connector.search_read") as mock_search_read:
+    with patch("erp_data._odoo_helpers.connector.search_read") as mock_search_read:
         mock_search_read.return_value = [
             {"name": "X", "email": "x", "phone": "1", "city": "c"}
         ]
@@ -314,7 +314,7 @@ def test_search_partner_raw_no_confidence_set():
 
 
 def test_search_partner_raw_evidence_scope_carries_execution_identity():
-    with patch("erp_data.odoo_tools.connector.search_read") as mock_search_read:
+    with patch("erp_data._odoo_helpers.connector.search_read") as mock_search_read:
         mock_search_read.return_value = [
             {"name": "X", "email": "x", "phone": "1", "city": "c"}
         ]
@@ -332,7 +332,7 @@ def test_search_partner_raw_evidence_scope_carries_execution_identity():
 
 def test_search_partner_tool_wrapper_unchanged_return_contract():
     """The @tool wrapper must still return a plain string."""
-    with patch("erp_data.odoo_tools.connector.search_read") as mock_search_read:
+    with patch("erp_data._odoo_helpers.connector.search_read") as mock_search_read:
         mock_search_read.return_value = [
             {"name": "X", "email": "x", "phone": "1", "city": "c"}
         ]
@@ -350,7 +350,7 @@ def test_search_partner_tool_wrapper_still_catches_connector_exceptions():
     """Non-regression of the original try/except: it lives in the @tool
     wrapper, not in _raw -- the observable error-string behavior on a
     connector failure must be identical to before this Evidence-ification."""
-    with patch("erp_data.odoo_tools.connector.search_read") as mock_search_read:
+    with patch("erp_data._odoo_helpers.connector.search_read") as mock_search_read:
         mock_search_read.side_effect = RuntimeError("boom")
         token = odoo_uid_ctx.set(1)
         try:
@@ -365,7 +365,7 @@ def test_search_partner_raw_propagates_exceptions_without_fabricating_evidence()
     """_raw must never swallow a connector exception itself -- doing so
     would risk fabricating an Evidence (e.g. a false negative) from a
     technical failure rather than a real absence of data."""
-    with patch("erp_data.odoo_tools.connector.search_read") as mock_search_read:
+    with patch("erp_data._odoo_helpers.connector.search_read") as mock_search_read:
         mock_search_read.side_effect = RuntimeError("boom")
         token = odoo_uid_ctx.set(1)
         try:

@@ -15,7 +15,7 @@ from code_intelligence.deterministic.group_resolver import (
     resolve_group_identifier,
 )
 from code_intelligence.deterministic.record_rules_models import RuleDetail
-from code_intelligence.semantic_tag_query import tags_for_node_attrs
+from code_intelligence.ontology.query import tags_for_node_attrs
 from code_intelligence.utils import format_xml_id_citation, format_xml_id_citations
 from core.evidence import Evidence, EvidenceSourceType, make_evidence
 
