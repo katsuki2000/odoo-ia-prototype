@@ -564,3 +564,70 @@ Contexte : audit ponctuel (Axe 2) -- `helpers.py` reimportait `CI_SYSTEM_PROMPT`
 - Import reel dans le venv du projet (`.venv`) : `hasattr(core.graph_compat, 'CI_SYSTEM_PROMPT')` -> False, `hasattr(code_intelligence.ci_agent_node.helpers, 'CI_SYSTEM_PROMPT')` -> False, `from code_intelligence.ci_agent_node.prompts import CI_SYSTEM_PROMPT` (chemin legitime) -> OK. Effet de bord constate et attendu : `core.graph` (qui re-exporte `graph_compat` via `*`/`__getattr__`) perd egalement l'acces a `CI_SYSTEM_PROMPT` en cascade -- sans consequence puisque zero caller confirme sur ce chemin non plus.
 
 **Axe 2 : CLOS.**
+
+## Section 617 : Revalidation statique du Point 4 de la Section 610 (bug custom_automation_traps 6/8)
+
+Date : 09/09/2026
+Contexte : dernier point ouvert de l'audit Section 610. Objectif : verifier que le mecanisme de filtrage amont des observations sensibles avant synthese (authorization_gate.py au moment du diagnostic) n'a pas bouge silencieusement pendant les Sections 611-616 (resolution import circulaire, elimination facades, migration sous-packages).
+
+**Tracage git** : `authorization_gate.py` renomme en 2 temps -- d'abord `miro-rag/code_intelligence/` -> `code_intelligence/` (commit b4c3929, sans rapport), puis `code_intelligence/authorization_gate.py` -> `code_intelligence/security/gate.py` (commit f6b80ae, Section 613/614, similarity index 91%). Diff du rename : uniquement 3 chemins d'import corriges (`ci_agent_tools` -> `ci_agent_node.agent_tools`, `deterministic_tools` -> `deterministic.access_evaluator`/`.group_resolver`, x2) -- **zero changement de logique**. L'ancien fichier racine n'existe plus sur disque (confirme Section 614).
+
+**Verification du wiring "filtrage amont avant synthese"** : `gate_observation()` (dans `security/gate.py`, 186 lignes) reste appelee a 6 points d'entree cote predispatch/tool-execution, tous en amont de la synthese LLM :
+- `ci_agent_node/predispatch_record_rules.py`, `predispatch_server_actions.py`, `predispatch_security_locks.py`, `predispatch_access.py`, `predispatch_override_chain.py`, `tool_call_execution.py` (import top-level) + `runner.py` (import differe, cas prevu/legitime).
+`_redact_sensitive_bypass_lines()` (le coeur du mecanisme -- masque les lignes marquees `SENSITIVE_BYPASS_MARKER` si le demandeur n'a pas d'acces eleve sur le modele) intacte, meme logique qu'au diagnostic initial.
+
+**Tests unitaires rejoues (rapides, non-integration)** : `test_j23_24_authorization_gate.py` (8) + `test_j23_24_group_id_xmlid_resolution.py` (4) + `test_f08_dedup_groups_server_actions_automations.py` (3) + `test_j8_deterministic_dispatch.py` (3) -- **18 passed, 0 failed**.
+
+**Non rejoue (delegue a Trunk -- necessite instance Odoo live + appels LLM reels, plusieurs questions x 2 pipelines)** : `scripts/check_bloc9_06_automation_traps_e2e.py` (E2E complet : raw tool output + `code_intelligence_agent()` direct + `query_graph()`/`route()` complet, 3 questions dont verification anti-leak `forbidden_markers` sur IDs codes en dur). Commande : `.venv/bin/python3 scripts/check_bloc9_06_automation_traps_e2e.py`.
+
+**Conclusion (statique)** : le code du bug 6/8 n'a pas bouge silencieusement -- seul un rename mecanique avec correction d'imports a eu lieu, verifie ligne par ligne. La confirmation E2E complete reste conditionnee au rejeu delegue ci-dessus.
+
+**Point 4 de la Section 610 : verification statique CLOSE. Confirmation E2E en attente du rejeu par Trunk.** Les 4 points de l'audit Section 610 sont donc desormais tous traites (statiquement pour le point 4).
+
+## Section 618 : Rejeu E2E du Point 4 (bug custom_automation_traps 6/8) -- confirmation partielle
+
+Date : 09/09/2026
+Contexte : rejeu par Trunk de `scripts/check_bloc9_06_automation_traps_e2e.py` (delegue Section 617, RPC Odoo live + LLM requis).
+
+**Resultat** : exit 0, "[ - 6/8] custom_automation_traps: E2E confirmed." Mais **confirmation partielle, pas totale** :
+- Odoo RPC inaccessible au moment du rejeu (`[Errno 111] Connection refused` sur `_resolve_account_manager_group_id()`) -> `account.group_account_manager` DB id non resolu -> **06b et 06c skippes** (2 des 3 scenarios), seul 06a (requeteur anonyme, `user_groups=[]`) execute, et ce dans les 2 pipelines (`code_intelligence_agent()` direct + `query_graph()`/`route()` complet).
+- 06a : **PASS integral** sur les 2 pipelines -- marqueur attendu `OMIS` present, les 3 marqueurs interdits (`42`, `108`, `231`, les IDs codes en dur) **absents** de la reponse finale malgre leur presence confirmee dans l'observation brute pre-gating (`check_raw_tool_output` : marqueurs de contournement de securite + IDs + `in_refund` tous presents + tag `SENSITIVE_BYPASS_MARKER` avant gating). Confirme que `gate_observation()` filtre bien en amont de la synthese pour un demandeur sans acces eleve.
+- 06b (demandeur `ACCOUNT_MANAGER`, verifie que le detail n'est PAS masque pour un acces eleve) et 06c (contenu de gouvernance `in_refund` non gate pour un tiers) : **non executes**, donc le cas "acces eleve => pas de redaction" (`test_marked_bypass_line_is_not_redacted_for_elevated_demandeur`, deja couvert unitairement Section 617) n'a pas ete revalide en conditions E2E reelles.
+
+**Conclusion** : le chemin critique du bug 6/8 (redaction pour demandeur non-privilegie, upstream de la synthese) est confirme E2E, coherent avec la verification statique + les 18 tests unitaires de la Section 617. Le chemin complementaire (non-redaction pour demandeur privilegie) reste couvert uniquement par le test unitaire, pas par l'E2E live -- a rejouer avec l'instance Odoo up si Trunk veut la confirmation E2E complete.
+
+**Point 4 de la Section 610 : CLOS pour le scenario principal (06a) ; 06b/06c en attente d'Odoo live pour cloture totale.** Les 4 points de l'audit Section 610 sont donc tous traites.
+
+## Section 619 : Rejeu E2E complet (Odoo live) -- cloture totale du Point 4 / audit Section 610
+
+Date : 09/09/2026
+Contexte : Odoo redemarre par Trunk, rejeu complet de `scripts/check_bloc9_06_automation_traps_e2e.py` (les 2 scenarios skippes en Section 618, 06b/06c, tournent desormais).
+
+**Resultat : exit 0, "E2E confirmed", les 3 scenarios executes sur les 2 pipelines (`code_intelligence_agent()` direct + `query_graph()`/`route()`), 100% des marqueurs attendus/interdits corrects.**
+
+- **06a (requeteur anonyme, `user_groups=[]`)** : deja confirme Section 618, inchangé -- redaction complete, `OMIS` present, `42`/`108`/`231` absents.
+- **06b/06c (requeteur `account.group_account_manager`, groupe DB id 28 resolu via RPC)** : **PASS sur les 2 pipelines** -- le detail n'est PAS masque pour ce demandeur : la reponse finale contient explicitement les 3 IDs prives (42, 108, 231), le mecanisme `sudo()`, et la condition `in_refund`. Confirme en conditions E2E reelles le chemin complementaire de `_has_elevated_access()` (deja couvert unitairement par `test_marked_bypass_line_is_not_redacted_for_elevated_demandeur`, jamais revalide en E2E live jusqu'ici faute d'Odoo disponible).
+
+**Synthese des 2 chemins du gate desormais confirmes en E2E reel** :
+1. Demandeur non-privilegie -> `gate_observation()` redige les lignes marquees `SENSITIVE_BYPASS_MARKER`, remplace par `[ELEMENT OMITTED FOR AUTHORIZATION REASON]`, le detail (IDs, sudo) n'atteint jamais la synthese LLM.
+2. Demandeur avec acces eleve sur le modele (`account.group_account_manager` ici) -> aucune redaction, detail complet transmis a la synthese.
+
+**Point 4 de la Section 610 : CLOS (statique + unitaire + E2E complet, les 2 chemins).** Les 4 points de l'audit Section 610 (3 -> 1 -> 2 -> 4) sont desormais **integralement clos**, confirmation E2E totale comprise. Audit Section 610 termine.
+
+## Section 620 : Assainissement du prompt documentaire et rétablissement du contrat Markdown-only
+
+Date : 09/09/2026
+Contexte : Clarification du rôle de `document_rag/prompts.py` et assainissement des résidus du prototype monolithique.
+Root cause : Lors du refactoring initial vers l'architecture tri-branche (Bounded Contexts), l'ancien `core/prompts.py` a été déplacé vers `document_rag/prompts.py` en conservant des mentions multi-branches inadaptées ("outils Odoo", "analyse déterministe du code", salutations) et en perdant par inadvertance la clause d'interdiction des balises HTML brutes (Bug A).
+
+1. **Assainissement de `document_rag/prompts.py`** :
+   - Recentrage strict sur la responsabilité documentaire : l'agent ne s'appuie que sur les extraits documentaires fournis dans le contexte.
+   - Suppression des références parasites aux outils Odoo et à l'analyse de code.
+   - Restauration de la section de formatage Markdown standard avec interdiction formelle des balises HTML brutes.
+2. **Conformité Markdown de `erp_data/prompts.py`** :
+   - Restauration de la clause anti-balise HTML brute dans `ORM_AGENT_SYSTEM_PROMPT` et `build_hybrid_combine_prompt`.
+3. **Restauration de la façade rétrocompatible `core/prompts.py`** :
+   - Fichier minimal ré-exportant les symboles canoniques pour préserver la compatibilité ascendante.
+4. **Validation des tests** :
+   - `tests/test_bug_a_markdown_only_output.py` : 3/3 tests passés avec succès.
+
