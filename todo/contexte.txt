@@ -631,3 +631,48 @@ Root cause : Lors du refactoring initial vers l'architecture tri-branche (Bounde
 4. **Validation des tests** :
    - `tests/test_bug_a_markdown_only_output.py` : 3/3 tests passés avec succès.
 
+
+## Section 621 : Cloture definitive des orphelins racine de code_intelligence/ (Point 2/3 de la Section 610, reliquat)
+
+Date : 10/09/2026
+Contexte : reprise de session sur la machine /media/donnee/projets/odoo-ia-prototype. Verification disque initiale : cette copie s'est reveleee plus avancee que celle lue precedemment (Section 620 deja presente, points 1/2/3/4 de l'audit Section 610 tous clos par Trunk/session precedente). Audit des 14 fichiers orphelins racine de la Section 610 (point 3) pour reliquat non traite.
+
+**Constat** : sur les 14 fichiers orphelins originaux, 12 etaient deja traites (10 supprimes Section 614, 2 via facades Section 612 -- deterministic_tools.py, reasoning_trace_logger.py). 2 restaient non audites :
+
+1. **code_intelligence/odoo_rpc_client.py** (207 l.) : confirme doublon fonctionnel exact de live/rpc_client.py (diff = 2 lignes de docstring uniquement, cree lors de la migration Section 613 sans que l'ancien fichier racine soit efface). Grep de callers reels : zero reference dans tout le depot (hors bruit .venv). Suppression physique deleguee a Trunk (commande shell de suppression bloquee par la securite de l'environnement Claude) puis confirmee.
+2. **code_intelligence/utils.py** (165 l.) : verifie a de vrais callers actifs (~13 fichiers non-test : deterministic/, ci_agent_node/, graph/, security/, server_actions/, overrides/, scripts). Aucun regroupement n'avait ete propose pour lui a la Section 610 (contrairement aux 12 autres). Analyse : il joue un role de shared-kernel racine legitime, au meme titre que answer_text_signals.py (Section 611) -- laisse en l'etat, pas un orphelin a migrer.
+
+**Verification post-suppression** :
+- Grep absolu "odoo_rpc_client" sur tout le depot : zero reference residuelle.
+- py_compile sur l'integralite du package code_intelligence/ (hors __pycache__) : 0 erreur.
+
+**Point 2/3 de la Section 610 : CLOS definitivement, reliquat des 14 orphelins racine integralement traite (12 migres/supprimes, 2 legitimement conserves en racine : utils.py et answer_text_signals.py).**
+
+## Section 622 : Ouverture du Bloc de wiring Evidence (Bloc B1 -> consommation reelle) -- diagnostic complet, arbitrage requis avant tout diff
+
+Date : 10/09/2026
+Contexte : suite a la demande de verification du statut "Bloc B1 (instrumentation ORM, tools 13/24+) marque comme clos". Verification approfondie (lecture disque + git log --follow sur todo/contexte.txt, les sections d'origine 440-459+ ayant disparu de la copie actuelle du journal, seul l'historique git les conserve).
+
+**Constat 1 -- Bloc B1 est bien clos au sens strict ou il a ete defini** : les 24 outils (5 Composites CI + 4 Analyse CI + 1 outil Auxiliaire CI (list_involved_modules) + evaluate_record_rules en pilote B0 hors decompte, cote CI ; 9 outils ORM + get_total_sales en pilote B0 hors decompte, cote ORM -- get_order_count existe egalement avec Evidence mais n'a jamais eu son propre fichier test_bloc_b1_evidence_*, statut a clarifier) ont chacun une fonction interne (`_impl()` cote CI, `*_raw()` cote ORM) qui construit une `List[Evidence]` (ou `Evidence` seule pour les 2 pilotes B0 `get_total_sales_raw`/`get_order_count_raw`, forme plus ancienne jamais alignee sur le `List[Evidence]` devenu la norme a partir de B1) correctement testee en isolation (tests colles par l'utilisateur a chaque etape, protocole "aucun fix clos sans confirmation pytest reelle" scrupuleusement suivi).
+
+**Constat 2 -- MAIS zero consommateur reel de ces Evidence dans le pipeline en production** :
+- Cote ORM : chaque wrapper `@tool` public (`get_total_sales`, `get_order_count`, `get_average_sales`, etc. dans `erp_data/tools/*.py`) fait `text, _evidence = xxx_raw(...); return text` -- l'Evidence est calculee puis jetee immediatement, jamais transmise a `execute_tool_call()` (`erp_data/orm_agent_helpers.py`) qui n'invoque que le `@tool` (donc ne voit jamais que `text`).
+- Cote CI : meme pattern -- les wrappers `@tool` de `code_intelligence/ci_agent_node/agent_tools.py` (ex. `who_has_access_to`) retournent `_impl(...).summary_text`, jamais `.evidence`.
+- Grep exhaustif de `\.evidence\b` sur tout le depot (hors tests et hors les modules qui la construisent) : zero occurrence dans `core/evidence_sufficiency.py`, `core/graph.py`, `orm_agent_node.py`, `orm_agent_helpers.py`, ou tout autre point d'entree du pipeline reel.
+
+**Constat 3 -- deux mecanismes de provenance deja vivants et independants d'Evidence, a ne pas confondre avec le "wiring" a faire** :
+1. `core/evidence_sufficiency.py::assess_evidence_sufficiency()` (Bloc P1, decision CI-d'abord vs fallback RAG) fonctionne entierement par correspondance de sous-chaines sur les `tool_observations` (texte brut des `summary_text`), independamment de tout objet `Evidence` structure.
+2. `code_intelligence/ci_agent_node/sourcing_guard.py` (verification mecanique des citations `xml_id:`/`file:///...#Lx-Ly` dans la reponse finale du LLM contre le texte brut des observations) est le veritable mecanisme de tracabilite deja en production et deja largement teste (`test_s2_7_sourcing.py`, `test_j14_sourcing_guard.py`) -- lui non plus ne consomme aucun objet `Evidence`.
+
+**Conclusion** : le "dossier de preuves" decrit dans `architecture.md` comme *"probablement la brique la plus importante pour l'adoption"* n'est aujourd'hui realise par AUCUN des deux mecanismes en place (ni evidence_sufficiency, ni sourcing_guard, tous deux bases sur du texte) -- les 24 `Evidence` structurees de Bloc B1 sont une brique orpheline, produite et testee, mais qui n'alimente rien de visible ou de decisionnel.
+
+**Decision utilisateur** : ouvrir un vrai bloc de wiring (nom provisoire : Bloc B2 -- Consommation des Evidence) plutot que de considerer Bloc B1 comme terminant le chantier. Aucun code touche ce tour -- diagnostic seul, en attente de conception/arbitrage (memes principes que les arbitrages A/B/C historiques du Bloc B1, ex. section 456) avant tout dryRun.
+
+**Question ouverte pour la prochaine etape (a trancher avec l'utilisateur avant tout diff)** : quelle destination pour les Evidence structurees ? Pistes non exclusives, a arbitrer :
+  (a) Nouveau champ structure sur la reponse finale (ex. `AssistantResponse.evidence_dossier: List[Evidence]`, distinct de `sources: List[SourceReference]` deja existant sur `AssistantResponse`, cf. `core/schemas.py`) -- rendu par l'UI comme "dossier de preuves" deplie, sans toucher au texte de la reponse ni a sourcing_guard.
+  (b) Alimenter `assess_evidence_sufficiency()` avec les vraies Evidence en plus des `tool_observations` textuels, pour remplacer une partie de la logique par sous-chaines par une logique sur objets structures (risque : rayon d'impact large sur un module deja mature et lourdement teste, contrevient au risque de regression deja identifie a la section 456 pour un cas similaire).
+  (c) Les deux, mais dans cet ordre (a) puis (b), pour ne pas coupler la premiere brique utile (dossier de preuves affichable) a un refactor risque d'un module de decision deja en production.
+
+**Fichiers modifies ce tour** : `todo/contexte.txt` (cette section seule).
+
+**Prochaine etape** : arbitrage utilisateur sur (a)/(b)/(c) ci-dessus, puis conception detaillee (ou les `_raw()`/`_impl()` doivent transmettre leur `Evidence` -- probablement en retournant desormais le tuple complet au lieu de le tronquer dans le wrapper `@tool`, plus un point de collecte unique cote ReAct loop CI et ORM) avant tout dryRun.
