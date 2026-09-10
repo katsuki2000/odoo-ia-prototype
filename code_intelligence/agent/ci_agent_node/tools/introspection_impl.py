@@ -1,7 +1,8 @@
 """
-code_intelligence/ci_agent_node/auxiliary_tools.py
+code_intelligence/ci_agent_node/tools/introspection_impl.py
 
-Auxiliary Tools for Odoo Code Intelligence:
+Introspection tool implementations Deferred-imported by introspection.py's
+@tool wrappers, same pattern as the other tools/*.py submodules.
   - resolve_technical_name_to_role(technical_name)
   - list_involved_modules(G, model_name)
   - list_involved_modules_with_role(G, model_name)

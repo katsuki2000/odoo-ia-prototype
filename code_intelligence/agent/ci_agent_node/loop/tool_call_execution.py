@@ -85,7 +85,7 @@ def execute_tool_calls(ctx: DispatchContext, ai_msg, messages: list) -> None:
                 rule_result = None
                 if tool_name == "evaluate_record_rules":
                     try:
-                        from code_intelligence.agent.ci_agent_node.context.agent_tools import evaluate_rules_raw
+                        from code_intelligence.agent.ci_agent_node.tools import evaluate_rules_raw
 
                         rule_result = evaluate_rules_raw(
                             model_name=tool_args.get("model_name", ""),

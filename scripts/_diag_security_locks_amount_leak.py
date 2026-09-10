@@ -27,7 +27,7 @@ project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(project_root))
 
 from code_intelligence.knowledge_rules.graph import get_code_intelligence_graph
-from code_intelligence.agent.ci_agent_node.context.agent_tools import find_model_source_filepaths, _sort_filepaths_custom_first
+from code_intelligence.agent.ci_agent_node.context.tool_helpers import find_model_source_filepaths, _sort_filepaths_custom_first
 from code_intelligence.knowledge_rules.security import analyze_python_security_locks
 
 _OVERRIDE_CHAIN_AMOUNT_RE = re.compile(r"rec\.\w+\s*>\s*(\d[\d\s]*\d)")

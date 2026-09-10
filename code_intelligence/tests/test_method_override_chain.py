@@ -388,7 +388,7 @@ def test_real_corpus_unguarded_super_filter_matches_full_report():
     the full composite tool's own finding: action_valider_avoir flagged,
     nothing else invented."""
     G = _build_real_registry_and_graph()
-    from code_intelligence.agent.ci_agent_node.context.agent_tools import find_methods_with_override_cascade
+    from code_intelligence.agent.ci_agent_node.context.tool_helpers import find_methods_with_override_cascade
 
     candidates = find_methods_with_override_cascade(G, "account.move")
     flagged = find_methods_with_unguarded_super(G, "account.move", candidates)

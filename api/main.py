@@ -20,45 +20,14 @@ from fastapi.staticfiles import StaticFiles
 
 from config.settings import API_HOST, API_PORT
 from document_rag.ingestion.ingest_all import DOCS_DIR
-from document_rag.ingestion.incremental import reindex_if_changed
-from document_rag.ingestion.logging_utils import write_ingestion_event
 from document_rag.ingestion.scheduler import (
     PeriodicScanScheduler,
-    run_scheduled_scan,
     run_startup_scan,
 )
-from document_rag.vectorstore.chroma_manager import ChromaManager
 
-from api.schemas import (
-    AskRequestV1,
-    AskResponseV1,
-    StatsResponse,
-    ReindexResponse,
-    ReindexRequestV1,
-    ReindexResponseV1,
-    IngestionStatusResponse,
-    ScheduledScanResponse,
-    ModuleCoverageResponse,
-)
 from api import routes_system
 from api import routes_ask
 from api import routes_ingestion
-from api.routes_system import (
-    root,
-    health_check,
-    health_check_v1,
-    get_modules,
-    get_stats,
-)
-from api.routes_ask import ask_question_v1
-from api.routes_ingestion import (
-    reindex,
-    reindex_v1,
-    ingestion_status,
-    trigger_scheduled_scan,
-    _count_supported_files,
-    _get_watcher_status,
-)
 
 logger = logging.getLogger(__name__)
 

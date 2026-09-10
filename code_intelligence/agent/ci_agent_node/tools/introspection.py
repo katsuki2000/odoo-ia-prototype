@@ -22,14 +22,14 @@ from core.evidence.evidence_collector import record_evidence
 @tool
 def resolve_technical_name(technical_name: str) -> str:
     """Resolve technical group XML-ID (e.g. sales_team.group_sale_manager) to business role name."""
-    from code_intelligence.agent.ci_agent_node.context.auxiliary_tools import resolve_technical_name_to_role as _impl
+    from code_intelligence.agent.ci_agent_node.tools.introspection_impl import resolve_technical_name_to_role as _impl
     return _impl(technical_name)
 
 
 @tool
 def list_involved_modules(model_name: str) -> str:
     """List Odoo modules defining or extending a model, each tagged with its role."""
-    from code_intelligence.agent.ci_agent_node.context.auxiliary_tools import list_involved_modules_with_evidence as _impl
+    from code_intelligence.agent.ci_agent_node.tools.introspection_impl import list_involved_modules_with_evidence as _impl
     G = _require_graph()
     model_name = _resolve_model_param(model_name)
     mod_node = f"module:{model_name}"
@@ -60,7 +60,7 @@ def list_involved_modules(model_name: str) -> str:
 @tool
 def explain_decision_path(path_nodes_json: str) -> str:
     """Explain graph path (JSON list of node IDs) in natural language."""
-    from code_intelligence.agent.ci_agent_node.context.auxiliary_tools import explain_decision_path as _impl
+    from code_intelligence.agent.ci_agent_node.tools.introspection_impl import explain_decision_path as _impl
     G = _require_graph()
     try:
         path_nodes = json.loads(path_nodes_json)
@@ -77,7 +77,7 @@ def explain_decision_path(path_nodes_json: str) -> str:
 @tool
 def read_source_code(filepath: str, line_start: int, line_end: int) -> str:
     """Read precise slice of source code lines (max 200 lines)."""
-    from code_intelligence.agent.ci_agent_node.context.auxiliary_tools import read_precise_source_code as _impl
+    from code_intelligence.agent.ci_agent_node.tools.introspection_impl import read_precise_source_code as _impl
     return _impl(filepath, line_start, line_end)
 
 

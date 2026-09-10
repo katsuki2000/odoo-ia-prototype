@@ -17,11 +17,9 @@ if TYPE_CHECKING:
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from langchain_groq import ChatGroq
 from langchain_core.messages import BaseMessage
 from langgraph.graph import StateGraph, START, END
 
-from document_rag.vectorstore.search import get_retriever, retrieve as search_retrieve
 from core.schemas import AssistantResponse, QueryRoute
 from core.routing.routing import RAGState, route, route_decision
 from document_rag.generate_node import generate

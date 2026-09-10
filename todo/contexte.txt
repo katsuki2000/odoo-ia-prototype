@@ -1331,3 +1331,104 @@ Contexte : mandat Trunk ("2 supprime") execute -- mais investigation avant suppr
 
 **Prochaine etape** : remonter cette correction a Trunk, attendre arbitrage sur (a) le point de commit du chantier de restructuration en cours, (b) confirmation du Jour 5 du Bloc 17.
 
+## Section (suite) : Checkpoint git -- 158 fichiers non commites securises en un commit
+
+Date : 10/09/2026
+Contexte : mandat Trunk ("oui commite") suite a la recommandation de la section precedente.
+
+**Verification avant commit** : `pytest tests/ code_intelligence/tests/ --collect-only -q` -- **1266 tests collectes, 0 erreur** (coherent avec le dernier chiffre confirme sain dans l'INCIDENT Section 640). Aucune casse d'import detectee malgre l'ampleur du diff.
+
+**Commit** : `git add -A && git commit` -- un seul commit englobant tout l'etat non commite (chantier `code_intelligence/` en cours, demarrage de la scission `core/` en sous-paquets `core/{evidence,graph,llm,output,routing,session}/`, plus mes 2 fixes monkeypatch et les entrees de journal de cette session). Hash `131a351`. Message detaille le contenu et pointe vers ce journal pour le detail. **Choix assume** : un commit de checkpoint global plutot que plusieurs commits separes par chantier -- l'urgence etait de sortir de l'etat "158 fichiers non commites" (risque de perte reconnu par le projet lui-meme, cf. INCIDENT Section 640) avant tout autre travail, pas de reconstituer une historique git granulaire a posteriori sur un travail que je n'ai pas menes dans son ensemble.
+
+**Etat confirme apres commit** : `git status --short` -- 0 fichier en attente. `git log --oneline -3` confirme le commit en tete sur la branche `feat/code-intelligence`.
+
+**Fichiers modifies ce tour** : aucun code touche -- uniquement `git add`/`git commit` (englobant le travail deja en place) et `todo/contexte.txt` (cette section).
+
+**Prochaine etape** : confirmation du Jour 5 du Bloc 17 (tests dedies + non-regression benchmark complet), a verifier au prochain tour.
+
+## Section 657 - Dead Code Audit & Cleanup Pre-J5 Bloc 17 (2026-09-10)
+
+**Contexte** : audit systematique du code mort avant J5 Bloc 17 -- 3 sous-agents paralleles (core modules, tests/scripts, init/import chains).
+
+**Changements** :
+
+1. **api/main.py** : suppression de 15 imports morts (schemas, route handlers, modules non utilises dans le body). Seuls `DOCS_DIR`, `PeriodicScanScheduler`, `run_startup_scan` et les 3 modules router restent.
+
+2. **core/graph/graph.py** : suppression de 2 imports morts (`ChatGroq` deja re-exporte via `graph_compat`, `get_retriever`/`search_retrieve` utilises dans `graph_nodes.py` pas ici).
+
+3. **core/evidence/__init__.py** : suppression de 11 re-exports de symboles prives (`_canonical_json`, `_NO_DATA_MARKER`, `_OUT_OF_SCOPE_MODEL_MARKER`, etc.) -- aucun module externe ne les importait via `core.evidence`.
+
+4. **code_intelligence/agent/ci_agent_node/context/agent_tools.py** : SUPPRIME. 14 @tool definitions etaient des doublons exacts du package `tools/` (access.py, structure.py, introspection.py, analysis.py). Violation DRY + 315 lignes (>300). Les ~30 callers ont ete rediriges vers les sources canoniques : `tools/` pour les tool functions/ALL_CI_TOOLS, `context/tool_helpers.py` pour les helpers (set_graph_ref, find_model_source_filepaths, etc.).
+
+5. **2 scripts** : suppression de l'import mort `ALL_CI_TOOLS` dans `check_native_odoo_out_of_scope.py` et `check_q6_2_lock_pollution_regression.py`.
+
+**Fichiers modifies** :
+- SUPPRIME : `code_intelligence/agent/ci_agent_node/context/agent_tools.py`
+- `api/main.py`, `core/graph/graph.py`, `core/evidence/__init__.py`
+- `code_intelligence/agent/ci_agent_node/loop/runner.py`, `loop/tool_call_execution.py`
+- `code_intelligence/agent/ci_agent_node/predispatch/forced_dispatch_predicates.py`, `predispatch_inheritance.py`, `predispatch_record_rules.py`
+- `code_intelligence/agent/ci_agent_node/context/module_inference.py`
+- `code_intelligence/knowledge_rules/data_constraints/analyzer.py`, `security/gate.py`
+- 7 tests (test_analyze_data_constraints, test_c_complete, test_j32_33, test_j8_deterministic_dispatch, test_method_override_chain, test_s2_8_fidelity_checker, test_ci_agent_tools_resolution, test_j28_29_ambiguous_symbols, test_benchmark_tools, test_bloc_b2_full_wiring, test_bloc_b2_pilot_wiring)
+- 12 scripts (check_bloc9_01..08, check_locks_raw, check_native_odoo, check_q6_2, check_sale_order_raw_access, _diag_security_locks_amount_leak)
+
+## Section 658 : Deplacement context/auxiliary_tools.py -> tools/introspection_impl.py -- diagnostic + correction de cadrage avant execution
+
+Date : 10/09/2026
+Contexte : proposition pmm ("auxiliary_tools.py -> tools/") suite a l'audit Section 657. Lecture disque prealable (git status, grep exhaustif) avant tout mandat execute, conformement a la discipline du projet.
+
+**Verification disque prealable** : 37 fichiers non commites restants (checkpoint Section 657 pas encore commite) -- aucun ne touche `auxiliary_tools.py`/`tools/introspection.py`, pas de collision de session detectee sur ce perimetre precis. `context/auxiliary_tools.py` (269 lignes) confirme sans dependance vers le reste de `context/` (seul import externe : `core.evidence.evidence`) -- deplacement sans risque de cycle. `tools/introspection.py` (89 lignes) confirme faire 4 imports differes vers `context.auxiliary_tools`. Grep repo-wide (`auxiliary_tools`, imports relatifs `.auxiliary_tools`) : 8 fichiers au total referencent le module (le fichier lui-meme, 4 imports differes dans `introspection.py`, 3 imports top-niveau dans des tests, 1 cible de `monkeypatch.setattr` en string).
+
+**Correction de cadrage par rapport a la proposition initiale** : le diagnostic pmm presentait l'import differe `tools/introspection.py -> context/auxiliary_tools.py` comme une "indirection a eliminer". Verification faite sur `tools/structure.py` (meme paquet) : le MEME pattern d'import differe (`from ... import X as _impl`, a l'interieur de la fonction, pas en tete de fichier) y est utilise pour TOUTES les fonctions deterministes qu'il appelle (`field_change_impact`, `button_execution_path`, etc.), alors que ces cibles n'ont aucun risque de cycle avec `tools/` (elles vivent dans `knowledge_rules/deterministic/...`, paquet totalement distinct). Ce n'est donc pas un contournement de circularite propre a `auxiliary_tools.py` -- **c'est la convention architecturale deliberee de tout `ci_agent_node/tools/`**, et elle a une fonction reelle : chaque appel re-resout l'attribut sur le module cible au moment de l'execution, ce qui est exactement ce qui permet aux tests (`tests/test_bloc_b2_full_wiring.py`, pattern confirme sur ses ~15 classes) de `monkeypatch.setattr("chemin.qualifie.vers.la_fonction", ...)` et de voir le wrapper `@tool` utiliser la version patchee -- un import top-niveau casserait cette monkeypatch-abilite (le nom serait deja lie a l'ancien objet fonction au moment du patch).
+
+**Decision retenue** : deplacer `auxiliary_tools.py` vers `tools/introspection_impl.py` (nom retenu parmi les 2 propositions pmm -- pas de fusion dans `introspection.py`, qui violerait la limite de 300 lignes du projet : 269 + ~60 lignes utiles de `introspection.py` restant a la fusion depasse le seuil) **en conservant a l'identique le style d'import differe** dans `introspection.py` -- seul le chemin de module change (`context.auxiliary_tools` -> `tools.introspection_impl`), pas le pattern. Le gain reel n'est donc pas "suppression d'une indirection technique" (le mecanisme reste, et doit rester, pour la monkeypatch-abilite) mais **correction d'un mauvais rangement** : `context/` est le paquet des extracteurs de contexte/dispatch/prompts (`context_extractors`, `dispatch_context`, `prompt_and_heuristics`, etc.), pas des implementations d'outils -- `auxiliary_tools.py` y etait un corps etranger, au meme titre que l'etait `agent_tools.py` avant sa suppression Section 657 (doublon, cas different mais meme paquet fautif).
+
+**Perimetre exact des 8 fichiers a modifier** (confirme par grep, liste figee avant tout script) :
+1. `context/auxiliary_tools.py` -> deplace (git mv) vers `tools/introspection_impl.py`, docstring d'en-tete corrige.
+2. `tools/introspection.py` : 4 chemins d'import differes repointes.
+3. `code_intelligence/tests/test_j28_29_ambiguous_symbols.py` : import top-niveau repointe.
+4. `code_intelligence/tests/test_j34_35_deep_custom_modules.py` : import top-niveau repointe.
+5. `code_intelligence/tests/test_b_complete.py` : import top-niveau repointe.
+6. `code_intelligence/tests/test_bloc_b1_evidence_list_involved_modules.py` : import top-niveau repointe.
+7. `tests/test_bloc_b2_full_wiring.py` : cible `monkeypatch.setattr(...)` (string) repointee vers `code_intelligence.agent.ci_agent_node.tools.introspection_impl.list_involved_modules_with_evidence`.
+
+**Execution effectuee** :
+1. `tools/introspection.py` : 4 imports differes repointes vers `tools.introspection_impl`.
+2. `code_intelligence/tests/test_b_complete.py` : import repointe vers `tools.introspection_impl`.
+3. `code_intelligence/tests/test_bloc_b1_evidence_list_involved_modules.py` : import repointe vers `tools.introspection_impl`.
+4. `code_intelligence/tests/test_j28_29_ambiguous_symbols.py` : import repointe vers `tools.introspection_impl`.
+5. `code_intelligence/tests/test_j34_35_deep_custom_modules.py` : import repointe vers `tools.introspection_impl`.
+6. `tests/test_bloc_b2_full_wiring.py` : cible monkeypatch et appel `set_graph_ref(G)` corriges.
+7. Verification ciblee : 51/51 tests passes avec succes en 5.27s sans aucune regression.
+
+## Section 659 : Consolidation core/output/ (5 fichiers -> 1) -- diagnostic + plan avant execution
+
+Date : 10/09/2026
+Contexte : mandat Ayan ("trop de sous-paquets", discussion hors-code precedente sur la complexite structurelle) -- demarrage par le cas pilote le plus sur identifie lors de cette discussion : `core/output/`.
+
+**Grep exhaustif prealable (bash local, hors .venv)** :
+- Importeurs reels, tous via sous-module (aucun via `core.output` paquet ni `core.prompts`) :
+  - `tests/test_html_sanitizer.py` -> `core.output.html_sanitizer`
+  - `tests/test_confidence_tags.py` -> `core.output.confidence_tags`
+  - `core/graph/graph_compat.py` -> `core.output.degenerate_guards` + `core.output.html_sanitizer`
+  - `core/graph/graph_nodes.py` -> `core.output.html_sanitizer`
+  - `code_intelligence/agent/ci_agent_node/loop/postprocess.py` -> `core.output.degenerate_guards`
+  - `code_intelligence/agent/ci_agent_node/loop/react_loop.py` -> `core.output.degenerate_guards`
+  - `code_intelligence/knowledge_rules/security/analyzer.py`, `security/evidence.py`, `overrides/unguarded_super.py`, `overrides/relational_chains.py`, `data_constraints/analyzer.py`, `server_actions/analyzer.py` -> tous `core.output.confidence_tags`
+- **Aucune reference** trouvee a `core.output.prompts`, `core.prompts` (ancien nom), ni aux ~35 symboles prives (`_HEADING_RE`, `_detect_degenerate_repetition`, etc.) re-exportes par `core/output/__init__.py` via une autre voie que le sous-module direct -- meme constat que la Section 657 sur `core/evidence/__init__.py` (re-exports morts).
+- **`core/output/prompts.py` (19 lignes)** : facade re-exportant `document_rag.prompts` -- aucun importeur trouve du tout (ni `core.output.prompts` ni `core.prompts`). Code mort complet, distinct des 3 autres fichiers (qui eux sont actifs).
+
+**Tailles reelles** (hors `__init__.py` et `prompts.py` mort) : `confidence_tags.py` 34 lignes, `html_sanitizer.py` 85 lignes, `degenerate_guards.py` 117 lignes = 236 lignes de logique active, sous le seuil de 300 lignes/fichier du projet une fois fusionnees.
+
+**Plan retenu** :
+1. Supprimer `core/output/prompts.py` (mort, confirme par grep) -- pas de suppression a l'aveugle, verification faite conformement a la regle "jamais de suppression sans verification".
+2. Fusionner `confidence_tags.py` + `degenerate_guards.py` + `html_sanitizer.py` dans un fichier plat `core/output.py` (le paquet `core/output/` disparait), sections separees par des commentaires d'en-tete reprenant les docstrings d'origine.
+3. Repointer les 12 sites d'import identifies ci-dessus : `core.output.<submodule>` -> `core.output` (import direct depuis le module plat).
+4. `py_compile` sur `core/output.py` et sur les 8 fichiers de production modifies.
+5. Pytest cible delegue a Ayan : `test_html_sanitizer.py`, `test_confidence_tags.py`, plus la suite `code_intelligence/tests/` et `tests/` pour non-regression large (ces fichiers touchent security/data_constraints/overrides/server_actions).
+
+**Aucun code touche a ce stade** -- diagnostic et plan uniquement, conformement a la discipline journal-avant-code.
+
+**Prochaine etape** : executer les 4 premiers points ci-dessus (dryRun puis reel), puis deleguer le pytest.
+
+

@@ -36,7 +36,7 @@ def dispatch_evaluate_record_rules(ctx: DispatchContext) -> None:
     ):
         return
 
-    from code_intelligence.agent.ci_agent_node.context.agent_tools import evaluate_rules_raw
+    from code_intelligence.agent.ci_agent_node.tools import evaluate_rules_raw
 
     amount_for_rules = _extract_amount(ctx.question)
     rule_tool = ctx.tool_map.get("evaluate_record_rules")

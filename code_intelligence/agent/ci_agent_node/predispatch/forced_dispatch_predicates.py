@@ -36,7 +36,7 @@ def security_locks_targets(concept, G) -> List[str]:
     security-relevant source file, independent of question wording."""
     if G is None:
         return []
-    from code_intelligence.agent.ci_agent_node.context.agent_tools import find_security_lock_source_files
+    from code_intelligence.agent.ci_agent_node.context.tool_helpers import find_security_lock_source_files
     return [m for m in _resolved_models(concept)[:1] if find_security_lock_source_files(G, m)]
 
 
@@ -45,7 +45,7 @@ def server_actions_targets(question: str, concept, G) -> List[str]:
     AND real ServerAction nodes present on the model."""
     if G is None or not _question_suggests_automation_bypass(question):
         return []
-    from code_intelligence.agent.ci_agent_node.context.agent_tools import find_server_action_nodes
+    from code_intelligence.agent.ci_agent_node.context.tool_helpers import find_server_action_nodes
     return [m for m in _resolved_models(concept) if find_server_action_nodes(G, m)]
 
 
@@ -62,7 +62,7 @@ def override_chain_targets(question: str, concept, G) -> List[Tuple[str, str]]:
     is_invoice_generation_q = bool(re.search(r"\b(?:g[eé]n[eé]ration|cr[eé]ation)\s+(?:de\s+|d['’]\s*)?facture\b", question, re.IGNORECASE))
     if not (_question_is_approval_related(question) or _question_is_method_or_override_related(question) or is_invoice_generation_q):
         return []
-    from code_intelligence.agent.ci_agent_node.context.agent_tools import find_methods_with_override_cascade
+    from code_intelligence.agent.ci_agent_node.context.tool_helpers import find_methods_with_override_cascade
     from code_intelligence.knowledge_rules.overrides import (
         find_methods_with_override_risk_findings,
         _rank_and_cap_override_methods,

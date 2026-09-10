@@ -62,7 +62,7 @@ def _compose_data_constraints_summary(model_name: str, matches: List[SemgrepMatc
         f"Analyse des contraintes de données (Semgrep) pour '{model_name}' "
         f"[Confiance: {confidence_label('high')} -- correspondance de motif statique, déterministe]:"
     ]
-    from code_intelligence.agent.ci_agent_node.context.agent_tools import _is_custom_module_filepath
+    from code_intelligence.agent.ci_agent_node.context.tool_helpers import _is_custom_module_filepath
     def _constraint_priority(m: SemgrepMatch) -> tuple:
         is_custom = _is_custom_module_filepath(m.filepath)
         has_constrain = (

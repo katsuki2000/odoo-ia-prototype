@@ -19,7 +19,7 @@ def rank_custom_modules_for_models(G: Any, resolved_models: List[str], question:
     none found or G is None."""
     if G is None:
         return []
-    from .agent_tools import _is_custom_module_filepath
+    from .tool_helpers import _is_custom_module_filepath
 
     all_custom_mods = []
     for rm in resolved_models:

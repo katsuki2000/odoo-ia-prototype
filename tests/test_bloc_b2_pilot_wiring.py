@@ -68,12 +68,13 @@ def test_get_total_sales_wrapper_without_active_turn_does_not_raise():
 
 def test_who_has_access_to_wrapper_records_evidence(monkeypatch):
     from core.evidence.evidence_collector import start_evidence_collection, collect_and_clear_evidence
-    from code_intelligence.agent.ci_agent_node.context import agent_tools as ci_agent_tools
+    from code_intelligence.agent.ci_agent_node import tools as ci_agent_tools
+    from code_intelligence.agent.ci_agent_node.context.tool_helpers import set_graph_ref
     import networkx as nx
 
     G = nx.DiGraph()
     G.add_node("model:sale.order", node_type="Model", name="sale.order")
-    ci_agent_tools.set_graph_ref(G)
+    set_graph_ref(G)
 
     fake_evidence = [make_evidence(
         source_type=EvidenceSourceType.CODE,

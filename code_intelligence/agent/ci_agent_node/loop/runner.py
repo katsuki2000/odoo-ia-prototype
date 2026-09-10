@@ -54,7 +54,7 @@ class CodeIntelligenceAgentRunner:
                 OUT_OF_SCOPE_ANSWER, trace_logger, trace_id, question, start_time, state, CI_MAX_HOPS,
             )
 
-        # J32-J33: Security & Massive Extraction Safeguards
+        # Security & Massive Extraction Safeguards
         from config.settings import (
             MAX_MODELS_PER_QUERY,
             MASSIVE_EXTRACTION_REFUSAL_MSG,
@@ -75,7 +75,8 @@ class CodeIntelligenceAgentRunner:
 
         # Initialize the knowledge graph and inject into tool wrappers
         G = get_code_intelligence_graph()
-        from code_intelligence.agent.ci_agent_node.context.agent_tools import ALL_CI_TOOLS, set_graph_ref, set_llm_ref
+        from code_intelligence.agent.ci_agent_node.tools import ALL_CI_TOOLS
+        from code_intelligence.agent.ci_agent_node.context.tool_helpers import set_graph_ref, set_llm_ref
         from code_intelligence.knowledge_rules.security.gate import gate_observation, OmittedItem
         set_graph_ref(G)
 

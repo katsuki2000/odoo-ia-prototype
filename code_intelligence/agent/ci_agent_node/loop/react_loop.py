@@ -3,8 +3,7 @@ code_intelligence/ci_agent_node/react_loop.py
 
 The CI agent's single-pass composite ReAct loop (tool-selection turn +
 tool execution + synthesis turn), plus the degenerate-repetition retry on
-the synthesized answer. Extracted from the former ci_agent_node.py
-monolith (refactor, see todo/contexte.txt). Behavior unchanged.
+the synthesized answer.
 """
 
 import logging
@@ -49,14 +48,7 @@ def run_react_loop(
         )
 
     for _ in range(0 if final_answer else react_recursion_limit):
-        # J251 fix (todo/contexte.txt section 250-251): the deterministic
-        # pre-dispatch blocks each break their OWN loop once hop_count
-        # reaches the cap, but nothing previously stopped THIS ReAct loop
-        # from still invoking llm_with_tools for at least one more
-        # iteration when the hop budget was already exhausted by
-        # pre-dispatch. Skipping the tool-selection call outright once the
-        # budget is already spent closes the gap at its root: no second
-        # call is ever issued, nothing to reconcile after the fact.
+        # the deterministic pre-dispatch blocks each break their OWN loop once hop_count reaches the cap, but nothing previously stopped THIS ReAct loop from still invoking llm_with_tools for at least one more iteration when the hop budget was already exhausted by pre-dispatch. Skipping the tool-selection call outright once the budget is already spent closes the gap at its root: no second call is ever issued, nothing to reconcile after the fact.
         if ctx.hop_budget_exhausted:
             logger.info(
                 "Node [code_intelligence_agent]: hop budget already "
@@ -87,11 +79,7 @@ def run_react_loop(
         # Synthesize clean final answer from composite tool output
         if not final_answer:
             if ctx.tool_observations:
-                # Q6.1 fix: strip 'could not be resolved' noise from
-                # who_has_access_to before it reaches the synthesis LLM when
-                # the real-auth override has already injected the
-                # demandeur's real groups into evaluate_record_rules and a
-                # deterministic can_view_amount fact is present.
+                # trip 'could not be resolved' noise from who_has_access_to before it reaches the synthesis LLM when the real-auth override has already injected the demandeur's real groups into evaluate_record_rules and a deterministic can_view_amount fact is present.
                 ctx.tool_observations, ctx.tool_observation_models, ctx.tool_observation_tools = _strip_group_resolution_noise(
                     ctx.tool_observations, ctx.resolved_user_group_xmlids,
                     ctx.tool_observation_models, ctx.tool_observation_tools,
@@ -157,7 +145,7 @@ def run_react_loop(
                     logger.error("Synthesis failed: %s", e)
                     final_answer = "\n\n".join(ctx.tool_observations)
             else:
-                final_answer = "Je n'ai pas de données disponibles dans le graphe de connaissances pour répondre à cette question."
+                final_answer = "Je n'ai pas de données disponibles pour répondre à cette question."
 
         if final_answer:
             break

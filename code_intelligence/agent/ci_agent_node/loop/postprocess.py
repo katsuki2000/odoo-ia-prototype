@@ -4,8 +4,7 @@ code_intelligence/ci_agent_node/postprocess.py
 Post-ReAct-loop pipeline: out-of-scope/dynamic-uncertainty overrides,
 cross-model conflict detection, the backfill/correction chain, sourcing
 verification, evidence-sufficiency assessment, and final AssistantResponse
-assembly. Extracted from the former ci_agent_node.py monolith (refactor,
-see todo/contexte.txt). Behavior unchanged.
+assembly.
 """
 
 import logging

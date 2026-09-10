@@ -81,7 +81,7 @@ def dispatch_inheritance(ctx: DispatchContext) -> None:
                         "'trace_full_inheritance' for model '%s'.",
                         target_model,
                     )
-                    from code_intelligence.agent.ci_agent_node.context.agent_tools import _is_custom_module_filepath
+                    from code_intelligence.agent.ci_agent_node.context.tool_helpers import _is_custom_module_filepath
                     all_links = re.findall(r"\((file:///[^#\)]+)#L(\d+)-L(\d+)\)", observation)
                     chosen_link = None
                     if ctx.concept.resolved_modules:

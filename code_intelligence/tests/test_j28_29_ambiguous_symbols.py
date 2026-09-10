@@ -24,7 +24,7 @@ from code_intelligence.knowledge_rules.graph import (
 )
 from code_intelligence.knowledge_rules.extractor.python_extractor import OdooModelDeclaration
 from code_intelligence.knowledge_rules.graph import OdooGraphBuilder
-from code_intelligence.agent.ci_agent_node.context.auxiliary_tools import (
+from code_intelligence.agent.ci_agent_node.tools.introspection_impl import (
     list_involved_modules,
     list_involved_modules_with_role,
 )
@@ -146,15 +146,16 @@ def test_single_module_model_has_no_false_ambiguity():
 def test_ci_agent_tool_wrapper_flags_ambiguity_with_roles():
     """ci_agent_tools @tool wrapper: must present all candidates with
     role and an explicit ambiguity note, never silently pick one."""
-    from code_intelligence.agent.ci_agent_node.context import agent_tools as ci_agent_tools
+    from code_intelligence.agent.ci_agent_node.context.tool_helpers import set_graph_ref
+    from code_intelligence.agent.ci_agent_node.tools import list_involved_modules
 
     G = nx.DiGraph()
     G.add_node("model:custom.foo", node_type="Model", name="custom.foo")
     G.add_edge("model:custom.foo", "module:base_mod", edge_type="DEFINED_IN", role="declares")
     G.add_edge("model:custom.foo", "module:ext_a", edge_type="DEFINED_IN", role="extends")
 
-    ci_agent_tools.set_graph_ref(G)
-    result = ci_agent_tools.list_involved_modules.invoke({"model_name": "custom.foo"})
+    set_graph_ref(G)
+    result = list_involved_modules.invoke({"model_name": "custom.foo"})
 
     assert "base_mod (declares)" in result
     assert "ext_a (extends)" in result
@@ -164,14 +165,15 @@ def test_ci_agent_tool_wrapper_flags_ambiguity_with_roles():
 def test_ci_agent_tool_wrapper_no_ambiguity_note_for_single_candidate():
     """A model with exactly one candidate module must NOT carry the
     ambiguity note -- it would be noise for the common, unambiguous case."""
-    from code_intelligence.agent.ci_agent_node.context import agent_tools as ci_agent_tools
+    from code_intelligence.agent.ci_agent_node.context.tool_helpers import set_graph_ref
+    from code_intelligence.agent.ci_agent_node.tools import list_involved_modules
 
     G = nx.DiGraph()
     G.add_node("model:solo.model", node_type="Model", name="solo.model")
     G.add_edge("model:solo.model", "module:solo_mod", edge_type="DEFINED_IN", role="declares")
 
-    ci_agent_tools.set_graph_ref(G)
-    result = ci_agent_tools.list_involved_modules.invoke({"model_name": "solo.model"})
+    set_graph_ref(G)
+    result = list_involved_modules.invoke({"model_name": "solo.model"})
 
     assert "solo_mod (declares)" in result
     assert "SYMBOLE AMBIGU" not in result

@@ -9,7 +9,9 @@ the upstream LLM did not follow the system-prompt hint.
 import networkx as nx
 import pytest
 
-from code_intelligence.agent.ci_agent_node.context import agent_tools as ci_agent_tools
+from code_intelligence.agent.ci_agent_node.context import tool_helpers as ci_agent_tools
+from code_intelligence.agent.ci_agent_node import tools as _ci_tools
+ci_agent_tools.who_has_access_to = _ci_tools.who_has_access_to
 
 
 @pytest.fixture

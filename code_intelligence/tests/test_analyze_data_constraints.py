@@ -19,9 +19,11 @@ from __future__ import annotations
 import networkx as nx
 import pytest
 
-from code_intelligence.agent.ci_agent_node.context.agent_tools import (
+from code_intelligence.agent.ci_agent_node.tools import (
     ALL_CI_TOOLS,
     analyze_data_constraints,
+)
+from code_intelligence.agent.ci_agent_node.context.tool_helpers import (
     find_model_source_filepaths,
     set_graph_ref,
 )
