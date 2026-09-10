@@ -983,3 +983,20 @@ Contexte : suite a la discussion sur "et maintenant", confirmation directe de Tr
 **H2, reste a couvrir avant cloture pleine** : (a) rejeu du benchmark adversarial complet (`scripts/run_adversarial_benchmark.py`) avec le chantier H2/Step 1.5 explicitement en tete ; (b) test end-to-end reel systray -> controller -> API -> graph -> resolver sur une instance Odoo/FastAPI vivante.
 
 **Prochaine etape** : (a), delegue a Trunk (execution longue, LLM + RPC reels sur les 8 modules Bloc 9).
+
+## Section 639 : H2 (a) -- benchmark adversarial rejoue par Trunk, 9/9 questions ; bug de securite decouvert (correction can_view_amount incomplete)
+
+Date : 10/09/2026
+Contexte : rejeu de `scripts/run_adversarial_benchmark.py` par Trunk (delegue Section 638).
+
+**Resultat global** : 9/9 questions executees, rapport sauvegarde (`captures/verbatim_responses_sprint2.{json,md}`). Confirme au passage, en conditions E2E reelles : le tag de confiance canonique francais (`[Confiance : ELEVEE]`) sort desormais correctement en production (Sections 626-635). Pas de regression visible sur les 8 modules Bloc 9 imputable au chantier H2/Step 1.5 -- **mais aucune des 9 questions ne renseigne `active_model`/`active_id`, donc ce rejeu ne valide PAS positivement le nouveau chemin H2 lui-meme, seulement l'absence de regression sur l'existant.**
+
+**Bug de securite decouvert (sans rapport causal avec H2, mais mis en lumiere par ce rejeu)** : Q6.2 ("Un utilisateur qui n'appartient a AUCUN des deux groupes ... peut-il voir ce meme avoir de 80 000E ?") produit une reponse auto-contradictoire -- ouverture et `[FAIT DETERMINISTIQUE]` disent tous deux "indetermine, ne pas affirmer l'acces", mais la ligne `> **Conclusion** : l'utilisateur peut voir l'avoir de 80 000E tant que l'enregistrement appartient a sa societe.` affirme un acces conditionnel malgre tout -- violation directe de la consigne `ci_agent_node/prompts.py::build_synthesis_prompt` ("do not round an indeterminate verdict to a yes/no answer").
+
+**Root cause identifiee** (`code_intelligence/ci_agent_node/can_view_verifier.py::_correct_can_view_amount_contradictions()`) : la fonction utilise `_CAN_VIEW_ALLOW_ASSERTION_RE.search(prose)` -- **un seul match, pas tous**. Or la toute premiere phrase de la reponse (le disclaimer d'incertitude lui-meme, "Le moteur de regles ne peut pas determiner avec certitude si l'utilisateur peut voir cet enregistrement...") matche accidentellement ce meme regex ALLOW (il n'est pas sensible a la negation -- cherche juste "peut voir" litteralement). `.search()` consomme donc son unique match sur cette phrase deja correcte (remplacement quasi no-op, texte identique), et la vraie phrase fautive plus loin dans la prose (la ligne "Conclusion") n'est jamais atteinte ni corrigee.
+
+**Couverture de test existante insuffisante confirmee** : `tests/test_bloc9_08_can_view_amount_contradiction.py` -- tous les cas `test_replaces_*_assertion_when_indeterminate` testent une prose a UNE seule phrase/assertion ; aucun test ne couvre le cas reel (plusieurs phrases dont une contient accidentellement le motif de declenchement dans un contexte de negation/disclaimer, suivie d'une phrase reellement fautive plus loin).
+
+**Non corrige ce tour** : bug de securite touchant a `has_group()`/logique d'acces -- relève de la regle transverse "revue manuelle ligne a ligne" (`todo/plan.md` ligne 3). Signale a Trunk avant toute modification, correctif propose : remplacer toutes les occurrences matchees dans `prose` (pas seulement la premiere) plutot que `.search()` simple, en attente de mandat explicite avant tout dryRun.
+
+**Fichiers concernes (aucun modifie ce tour)** : `code_intelligence/ci_agent_node/can_view_verifier.py`, `tests/test_bloc9_08_can_view_amount_contradiction.py`.
