@@ -10,7 +10,7 @@ import re
 from typing import Optional
 import networkx as nx
 
-from code_intelligence.deterministic.button_path_models import ButtonExecutionPathResult
+from code_intelligence.deterministic.navigation.button_path_models import ButtonExecutionPathResult
 from code_intelligence.utils import format_file_link, format_xml_id_citations
 
 

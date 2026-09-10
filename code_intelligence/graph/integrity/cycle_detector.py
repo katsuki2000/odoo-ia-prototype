@@ -7,7 +7,7 @@ Inheritance cycle detection across Odoo models.
 import logging
 from typing import Dict, List, Set
 
-from .models import ResolvedSymbolRegistry
+from ..nodes.models import ResolvedSymbolRegistry
 
 _logger = logging.getLogger(__name__)
 

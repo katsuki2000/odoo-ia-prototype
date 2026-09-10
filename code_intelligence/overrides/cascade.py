@@ -131,21 +131,21 @@ _OVERRIDE_ORDER_SHORTCIRCUIT_SENTENCE_RE = re.compile(
 
 def _answer_denies_other_overrides(final_answer: str) -> bool:
     """True if final_answer explicitly claims no other override exists."""
-    from code_intelligence.deterministic.group_resolver import _fold_accents
+    from code_intelligence.deterministic.access.group_resolver import _fold_accents
     folded = _fold_accents(final_answer.lower())
     return bool(_OVERRIDE_COUNT_DENIAL_RE.search(folded))
 
 
 def _answer_asserts_override_shortcircuit(final_answer: str) -> bool:
     """True if final_answer asserts a specificity-based short-circuit."""
-    from code_intelligence.deterministic.group_resolver import _fold_accents
+    from code_intelligence.deterministic.access.group_resolver import _fold_accents
     folded = _fold_accents(final_answer.lower())
     return bool(_OVERRIDE_ORDER_SHORTCIRCUIT_SENTENCE_RE.search(folded))
 
 
 def _neutralize_override_count_denial(final_answer: str, modules: List[str]) -> str:
     """Replace the sentence denying any other override with the real count and module list."""
-    from code_intelligence.deterministic.group_resolver import _fold_accents
+    from code_intelligence.deterministic.access.group_resolver import _fold_accents
     folded = _fold_accents(final_answer.lower())
     match = _OVERRIDE_COUNT_DENIAL_RE.search(folded)
     if not match:
@@ -162,7 +162,7 @@ def _neutralize_override_count_denial(final_answer: str, modules: List[str]) -> 
 
 def _neutralize_override_shortcircuit_sentence(final_answer: str, modules: List[str]) -> str:
     """Replace the sentence asserting a short-circuit with the real execution semantics."""
-    from code_intelligence.deterministic.group_resolver import _fold_accents
+    from code_intelligence.deterministic.access.group_resolver import _fold_accents
     folded = _fold_accents(final_answer.lower())
     match = _OVERRIDE_ORDER_SHORTCIRCUIT_SENTENCE_RE.search(folded)
     if not match:

@@ -7,17 +7,17 @@ Tracing execution paths for Odoo UI buttons, menu items, and workflow transition
 from typing import List, Optional, Set
 import networkx as nx
 
-from code_intelligence.deterministic.button_path_models import (
+from code_intelligence.deterministic.navigation.button_path_models import (
     ButtonExecutionPathResult,
     _build_button_execution_evidence,
 )
 from code_intelligence.deterministic.common import NOT_FOUND_MARKER
-from code_intelligence.deterministic.group_resolver import (
+from code_intelligence.deterministic.access.group_resolver import (
     _expand_implied_user_groups,
     resolve_group_identifier,
 )
-from code_intelligence.deterministic.menu_view_finder import search_dynamic_view_or_menus
-from code_intelligence.deterministic.xml_view_finder import _find_field_in_xml_views
+from code_intelligence.deterministic.navigation.menu_view_finder import search_dynamic_view_or_menus
+from code_intelligence.deterministic.navigation.xml_view_finder import _find_field_in_xml_views
 from code_intelligence.ontology.query import tags_for_node_attrs
 from code_intelligence.utils import format_file_link, format_xml_id_citations
 

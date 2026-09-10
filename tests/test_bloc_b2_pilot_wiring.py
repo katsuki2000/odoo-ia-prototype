@@ -91,7 +91,7 @@ def test_who_has_access_to_wrapper_records_evidence(monkeypatch):
         return _FakeResult()
 
     monkeypatch.setattr(
-        "code_intelligence.deterministic.access_evaluator.who_has_access_to", _fake_impl
+        "code_intelligence.deterministic.access.access_evaluator.who_has_access_to", _fake_impl
     )
 
     start_evidence_collection()

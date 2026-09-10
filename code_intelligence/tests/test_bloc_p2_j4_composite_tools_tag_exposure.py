@@ -43,11 +43,11 @@ from code_intelligence.graph import ParsedModule, build_module_symbol_registry
 from code_intelligence.graph import OdooGraphBuilder
 from code_intelligence.ontology.tags import BehavioralTag, TechnicalTag
 from code_intelligence.ontology.query import get_tagged_nodes_for_model
-from code_intelligence.deterministic.access_evaluator import who_has_access_to
-from code_intelligence.deterministic.field_impact import field_change_impact
-from code_intelligence.deterministic.button_path import button_execution_path
-from code_intelligence.deterministic.inheritance_chain import trace_full_inheritance
-from code_intelligence.deterministic.workflow_process import describe_workflow
+from code_intelligence.deterministic.access.access_evaluator import who_has_access_to
+from code_intelligence.deterministic.structure.field_impact import field_change_impact
+from code_intelligence.deterministic.navigation.button_path import button_execution_path
+from code_intelligence.deterministic.structure.inheritance_chain import trace_full_inheritance
+from code_intelligence.deterministic.structure.workflow_process import describe_workflow
 from code_intelligence.deterministic.common import QueryStatus
 
 METHOD_SOURCE = """class CustomTestPlain(models.Model):

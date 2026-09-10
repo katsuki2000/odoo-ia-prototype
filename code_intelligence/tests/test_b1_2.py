@@ -16,7 +16,7 @@ import networkx as nx
 from code_intelligence.extractor.python_extractor import extract_odoo_models_from_file
 from code_intelligence.graph import ParsedModule, build_module_symbol_registry
 from code_intelligence.graph import OdooGraphBuilder
-from code_intelligence.deterministic.field_impact import field_change_impact
+from code_intelligence.deterministic.structure.field_impact import field_change_impact
 
 
 def test_impact_changement_champ_synthetic():

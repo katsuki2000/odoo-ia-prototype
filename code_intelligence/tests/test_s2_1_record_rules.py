@@ -12,8 +12,8 @@ Tests Odoo's exact security algorithm:
 import pytest
 import networkx as nx
 
-from code_intelligence.deterministic.record_rules import evaluate_record_rules
-from code_intelligence.deterministic.access_evaluator import who_has_access_to
+from code_intelligence.deterministic.access.record_rules import evaluate_record_rules
+from code_intelligence.deterministic.access.access_evaluator import who_has_access_to
 
 
 def _build_test_6_knowledge_graph() -> nx.DiGraph:
@@ -175,7 +175,7 @@ def test_qui_a_acces_a_resolves_imprecise_group_against_acl():
     the correct group via the same tolerant resolution used by
     evaluate_record_rules, not silently report false denial.
     """
-    from code_intelligence.deterministic.access_evaluator import who_has_access_to
+    from code_intelligence.deterministic.access.access_evaluator import who_has_access_to
 
     G = nx.DiGraph()
     G.add_node("model:account.move", node_type="Model", name="account.move")
@@ -209,7 +209,7 @@ def test_qui_a_acces_a_reports_unresolved_group_distinctly_from_denied():
     different and conflating them misrepresents an input problem as a
     security decision.
     """
-    from code_intelligence.deterministic.access_evaluator import who_has_access_to
+    from code_intelligence.deterministic.access.access_evaluator import who_has_access_to
 
     G = nx.DiGraph()
     G.add_node("model:account.move", node_type="Model", name="account.move")

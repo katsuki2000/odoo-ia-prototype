@@ -1,5 +1,5 @@
 """
-code_intelligence/graph/builder.py
+code_intelligence/graph/build/builder.py
 
 NetworkX Knowledge Graph Builder for Odoo Code Intelligence.
 """
@@ -11,13 +11,13 @@ from typing import Dict, List, Optional
 import networkx as nx
 
 from code_intelligence.ontology.tags import BehavioralTag, TechnicalTag
-from .security_nodes import add_security_group_nodes
-from .ui_nodes import (
+from ..nodes.security_nodes import add_security_group_nodes
+from ..nodes.ui_nodes import (
     add_menu_nodes,
     add_view_button_nodes_and_edges,
     add_workflow_nodes_and_edges,
 )
-from .models import ParsedModule, ResolvedSymbolRegistry
+from ..nodes.models import ParsedModule, ResolvedSymbolRegistry
 
 _logger = logging.getLogger(__name__)
 

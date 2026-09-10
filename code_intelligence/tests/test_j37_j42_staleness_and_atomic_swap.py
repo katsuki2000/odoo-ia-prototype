@@ -19,7 +19,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import networkx as nx
 
-from code_intelligence.graph.staleness_detector import (
+from code_intelligence.graph.integrity.staleness_detector import (
     StalenessLevel,
     StalenessReport,
     analyze_changes,

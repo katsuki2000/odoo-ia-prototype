@@ -18,7 +18,7 @@ from code_intelligence.extractor.python_extractor import extract_odoo_models_fro
 from code_intelligence.extractor.xml_extractor import parse_views_from_xml
 from code_intelligence.graph import ParsedModule, build_module_symbol_registry
 from code_intelligence.graph import OdooGraphBuilder
-from code_intelligence.deterministic.button_path import button_execution_path
+from code_intelligence.deterministic.navigation.button_path import button_execution_path
 
 
 def test_button_execution_path_synthetic():

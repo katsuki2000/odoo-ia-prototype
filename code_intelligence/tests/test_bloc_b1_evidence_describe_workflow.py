@@ -12,7 +12,7 @@ closed in section 448.
 
 import networkx as nx
 
-from code_intelligence.deterministic.workflow_process import describe_workflow
+from code_intelligence.deterministic.structure.workflow_process import describe_workflow
 from code_intelligence.deterministic.common import QueryStatus
 from core.evidence import Evidence, EvidenceSourceType
 

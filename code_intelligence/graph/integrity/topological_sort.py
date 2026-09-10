@@ -7,7 +7,7 @@ Topological sort for Odoo module dependency resolution.
 import logging
 from typing import Dict, List, Set
 
-from .models import ParsedModule
+from ..nodes.models import ParsedModule
 
 _logger = logging.getLogger(__name__)
 

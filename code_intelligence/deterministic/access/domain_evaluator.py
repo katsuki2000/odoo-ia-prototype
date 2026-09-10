@@ -8,7 +8,7 @@ three-valued logic (True / False / None).
 import logging
 from typing import Any, Dict, List, Optional, Tuple
 
-from code_intelligence.deterministic.domain_parser import (
+from code_intelligence.deterministic.access.domain_parser import (
     _DomainParseError,
     _DynamicRef,
     _normalize_domain_tokens,

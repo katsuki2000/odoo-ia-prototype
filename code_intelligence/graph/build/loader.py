@@ -1,5 +1,5 @@
 """
-code_intelligence/graph/loader.py
+code_intelligence/graph/build/loader.py
 
 Code Intelligence knowledge graph loading, caching, and building orchestration.
 """
@@ -10,13 +10,13 @@ from pathlib import Path
 
 from .builder import OdooGraphBuilder
 from .disk_loader import _graph_filepaths_resolve_locally, _load_module
-from .symbol_resolver import build_module_symbol_registry
+from ..symbols.symbol_resolver import build_module_symbol_registry
 
 logger = logging.getLogger(__name__)
 
 _CACHED_CODE_INTEL_GRAPH = None
 _CACHED_GRAPH_MTIME = 0.0
-GRAPH_JSON_PATH = Path(__file__).resolve().parent.parent / "active_graph.json"
+GRAPH_JSON_PATH = Path(__file__).resolve().parent.parent.parent / "active_graph.json"
 
 _GRAPH_BUILD_LOCK = threading.Lock()
 
@@ -31,7 +31,7 @@ def get_code_intelligence_graph():
             current_mtime = GRAPH_JSON_PATH.stat().st_mtime
             if _CACHED_CODE_INTEL_GRAPH is None or current_mtime > _CACHED_GRAPH_MTIME:
                 from .atomic_swap import atomic_read_json
-                from .version import deserialize_graph_with_metadata
+                from ..version import deserialize_graph_with_metadata
 
                 logger.info("Loading graph from disk (mtime %s > %s)", current_mtime, _CACHED_GRAPH_MTIME)
                 data_dict = atomic_read_json(GRAPH_JSON_PATH)
@@ -172,7 +172,7 @@ def get_code_intelligence_graph():
 
     try:
         from .atomic_swap import atomic_write_json
-        from .version import serialize_graph_with_metadata
+        from ..version import serialize_graph_with_metadata
         data_dict = serialize_graph_with_metadata(_CACHED_CODE_INTEL_GRAPH)
         atomic_write_json(data_dict, GRAPH_JSON_PATH)
         _CACHED_GRAPH_MTIME = GRAPH_JSON_PATH.stat().st_mtime

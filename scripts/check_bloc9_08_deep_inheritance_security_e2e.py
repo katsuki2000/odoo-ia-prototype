@@ -11,7 +11,7 @@ sys.path.insert(0, str(project_root))
 
 from core.graph import code_intelligence_agent, get_code_intelligence_graph, query_graph
 from code_intelligence.ci_agent_node.agent_tools import ALL_CI_TOOLS, set_graph_ref
-from code_intelligence.deterministic.group_resolver import _fold_accents
+from code_intelligence.deterministic.access.group_resolver import _fold_accents
 
 TARGET_MODEL = "custom.deep.document"
 

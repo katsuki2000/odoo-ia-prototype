@@ -29,14 +29,14 @@ _LINK_GUARD_CONTRADICTING_SENTENCE_RE = re.compile(
 
 def _answer_contradicts_link_guard(final_answer: str) -> bool:
     """True if final_answer asserts the rule applies despite an absent guard field."""
-    from code_intelligence.deterministic.group_resolver import _fold_accents
+    from code_intelligence.deterministic.access.group_resolver import _fold_accents
     folded = _fold_accents(final_answer.lower())
     return bool(_LINK_GUARD_CONTRADICTION_PATTERN.search(folded))
 
 
 def _neutralize_contradicting_link_guard_sentence(final_answer: str, guard_fields: List[str]) -> str:
     """Replace sentence asserting wrong link-guard conclusion with correct one."""
-    from code_intelligence.deterministic.group_resolver import _fold_accents
+    from code_intelligence.deterministic.access.group_resolver import _fold_accents
     folded = _fold_accents(final_answer.lower())
     match = _LINK_GUARD_CONTRADICTING_SENTENCE_RE.search(folded)
     if not match:

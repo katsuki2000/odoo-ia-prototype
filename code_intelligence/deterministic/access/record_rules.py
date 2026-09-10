@@ -8,13 +8,13 @@ from typing import List, Optional
 import networkx as nx
 
 from code_intelligence.deterministic.common import NOT_FOUND_MARKER
-from code_intelligence.deterministic.group_resolver import (
+from code_intelligence.deterministic.access.group_resolver import (
     _expand_implied_user_groups,
     _group_fuzzy_matches_display_name,
     _group_short_name,
     resolve_group_identifier,
 )
-from code_intelligence.deterministic.record_rules_models import (
+from code_intelligence.deterministic.access.record_rules_models import (
     RuleDetail,
     RuleEvaluationResult,
 )

@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 import re
 from typing import Any, Dict, List, Optional, Tuple
 
-from code_intelligence.deterministic.domain_evaluator import (
+from code_intelligence.deterministic.access.domain_evaluator import (
     _kleene_and,
     _kleene_or,
     evaluate_domain_force,

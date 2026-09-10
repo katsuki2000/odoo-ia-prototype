@@ -58,7 +58,7 @@ class TestFieldChangeImpactWrapperRecordsEvidence:
             evidence = fake_evidence
 
         monkeypatch.setattr(
-            "code_intelligence.deterministic.field_impact.field_change_impact",
+            "code_intelligence.deterministic.structure.field_impact.field_change_impact",
             lambda G, field_name, model_name: _FakeResult(),
         )
 
@@ -85,7 +85,7 @@ class TestButtonExecutionPathWrapperRecordsEvidence:
             evidence = fake_evidence
 
         monkeypatch.setattr(
-            "code_intelligence.deterministic.button_path.button_execution_path",
+            "code_intelligence.deterministic.navigation.button_path.button_execution_path",
             lambda G, button_name, model_name, user_groups=None: _FakeResult(),
         )
 
@@ -111,7 +111,7 @@ class TestTraceFullInheritanceWrapperRecordsEvidence:
             evidence = fake_evidence
 
         monkeypatch.setattr(
-            "code_intelligence.deterministic.inheritance_chain.trace_full_inheritance",
+            "code_intelligence.deterministic.structure.inheritance_chain.trace_full_inheritance",
             lambda G, model_name: _FakeResult(),
         )
 
@@ -135,7 +135,7 @@ class TestDescribeWorkflowWrapperRecordsEvidence:
             evidence = fake_evidence
 
         monkeypatch.setattr(
-            "code_intelligence.deterministic.workflow_process.describe_workflow",
+            "code_intelligence.deterministic.structure.workflow_process.describe_workflow",
             lambda G, model_name: _FakeResult(),
         )
 
@@ -159,7 +159,7 @@ class TestEvaluateRecordRulesWrapperRecordsEvidence:
             evidence = fake_evidence
 
         monkeypatch.setattr(
-            "code_intelligence.deterministic.record_rules.evaluate_record_rules",
+            "code_intelligence.deterministic.access.record_rules.evaluate_record_rules",
             lambda G, model_name, permission="read", user_groups=None: _FakeResult(),
         )
 

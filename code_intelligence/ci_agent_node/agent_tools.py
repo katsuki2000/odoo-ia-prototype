@@ -43,7 +43,7 @@ def who_has_access_to(model_name: str, permission: str = "read", group_id: Optio
     """Evaluate model access rights and list active ir.rule record rules."""
     if _is_wildcard_model(model_name):
         return WILDCARD_MODEL_ERROR_MSG
-    from code_intelligence.deterministic.access_evaluator import who_has_access_to as _impl
+    from code_intelligence.deterministic.access.access_evaluator import who_has_access_to as _impl
     G = _require_graph()
     model_name = _resolve_model_param(model_name)
     result = _impl(G, model_name, permission=permission, group_id=group_id)
@@ -54,7 +54,7 @@ def who_has_access_to(model_name: str, permission: str = "read", group_id: Optio
 @tool
 def field_change_impact(field_name: str, model_name: str) -> str:
     """Analyze upstream triggers and downstream computed fields when modifying a model field."""
-    from code_intelligence.deterministic.field_impact import field_change_impact as _impl
+    from code_intelligence.deterministic.structure.field_impact import field_change_impact as _impl
     G = _require_graph()
     model_name = _resolve_model_param(model_name)
     result = _impl(G, field_name, model_name)
@@ -70,7 +70,7 @@ def field_change_impact(field_name: str, model_name: str) -> str:
 @tool
 def button_execution_path(button_name: str, model_name: str, user_groups_json: str = "[]") -> str:
     """Trace UI button execution path, method called, workflow transition, and required groups."""
-    from code_intelligence.deterministic.button_path import button_execution_path as _impl
+    from code_intelligence.deterministic.navigation.button_path import button_execution_path as _impl
     G = _require_graph()
     model_name = _resolve_model_param(model_name)
     try:
@@ -85,7 +85,7 @@ def button_execution_path(button_name: str, model_name: str, user_groups_json: s
 @tool
 def trace_full_inheritance(model_name: str) -> str:
     """Trace full _inherit extension and _inherits delegation hierarchy for an Odoo model."""
-    from code_intelligence.deterministic.inheritance_chain import trace_full_inheritance as _impl
+    from code_intelligence.deterministic.structure.inheritance_chain import trace_full_inheritance as _impl
     G = _require_graph()
     model_name = _resolve_model_param(model_name)
     result = _impl(G, model_name)
@@ -96,7 +96,7 @@ def trace_full_inheritance(model_name: str) -> str:
 @tool
 def describe_workflow(model_name: str) -> str:
     """Inspect workflow states, state field, and state machine transitions for an Odoo model."""
-    from code_intelligence.deterministic.workflow_process import describe_workflow as _impl
+    from code_intelligence.deterministic.structure.workflow_process import describe_workflow as _impl
     G = _require_graph()
     model_name = _resolve_model_param(model_name)
     result = _impl(G, model_name)
@@ -168,7 +168,7 @@ def read_source_code(filepath: str, line_start: int, line_end: int) -> str:
 
 def evaluate_rules_raw(model_name: str, permission: str = "read", user_groups_json: str = "[]"):
     """Execute evaluate_record_rules and return RuleEvaluationResult."""
-    from code_intelligence.deterministic.record_rules import evaluate_record_rules as _impl
+    from code_intelligence.deterministic.access.record_rules import evaluate_record_rules as _impl
     G = _require_graph()
     model_name = _resolve_model_param(model_name)
     try:

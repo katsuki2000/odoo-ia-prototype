@@ -12,7 +12,7 @@ button_execution_path (3/24) closed in section 446.
 
 import networkx as nx
 
-from code_intelligence.deterministic.inheritance_chain import trace_full_inheritance
+from code_intelligence.deterministic.structure.inheritance_chain import trace_full_inheritance
 from code_intelligence.deterministic.common import QueryStatus
 from core.evidence import Evidence, EvidenceSourceType
 

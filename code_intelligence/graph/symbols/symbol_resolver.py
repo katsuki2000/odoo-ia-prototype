@@ -10,8 +10,8 @@ from typing import Dict
 
 from code_intelligence.utils import resolve_model_xmlref
 
-from .cycle_detector import _detect_inheritance_cycles
-from .models import (
+from ..integrity.cycle_detector import _detect_inheritance_cycles
+from ..nodes.models import (
     CORE_BASE_MODULES,
     ParsedModule,
     ResolvedSymbolRegistry,
@@ -24,7 +24,7 @@ from .symbol_merger import (
     _merge_rule,
     _merge_server_action,
 )
-from .topological_sort import topological_sort_modules
+from ..integrity.topological_sort import topological_sort_modules
 
 _logger = logging.getLogger(__name__)
 

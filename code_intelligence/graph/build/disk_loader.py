@@ -1,5 +1,5 @@
 """
-code_intelligence/graph/disk_loader.py
+code_intelligence/graph/build/disk_loader.py
 
 Disk-level loading and validation helpers for Odoo addon modules and serialized graphs.
 """
@@ -26,7 +26,7 @@ from code_intelligence.extractor.xml_extractor import (
     parse_server_actions_from_xml,
     parse_views_from_xml,
 )
-from .models import ParsedModule
+from ..nodes.models import ParsedModule
 
 logger = logging.getLogger(__name__)
 

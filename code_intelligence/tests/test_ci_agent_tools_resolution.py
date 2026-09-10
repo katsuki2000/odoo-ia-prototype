@@ -65,7 +65,7 @@ def test_qui_a_acces_a_resolves_business_term_end_to_end(sample_graph_with_alias
         return _FakeResult()
 
     monkeypatch.setattr(
-        "code_intelligence.deterministic.access_evaluator.who_has_access_to", _fake_impl
+        "code_intelligence.deterministic.access.access_evaluator.who_has_access_to", _fake_impl
     )
 
     ci_agent_tools.who_has_access_to.invoke({"model_name": "avoir", "permission": "read"})

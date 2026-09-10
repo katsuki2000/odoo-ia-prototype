@@ -45,7 +45,7 @@ def _expand_user_groups_ordered(G: nx.DiGraph, user_groups: List[str]) -> List[s
     if not user_groups:
         return []
 
-    from code_intelligence.deterministic.group_resolver import _expand_implied_user_groups
+    from code_intelligence.deterministic.access.group_resolver import _expand_implied_user_groups
 
     explicit_seen: Set[str] = set()
     ordered_groups: List[str] = []
@@ -67,8 +67,8 @@ def _has_elevated_access(G: nx.DiGraph, model_name: str, user_groups: List[str])
     if not model_name:
         return False
 
-    from code_intelligence.deterministic.access_evaluator import _eval_single_permission
-    from code_intelligence.deterministic.group_resolver import resolve_group_identifier
+    from code_intelligence.deterministic.access.access_evaluator import _eval_single_permission
+    from code_intelligence.deterministic.access.group_resolver import resolve_group_identifier
 
     expanded_groups = _expand_user_groups_ordered(G, user_groups)
 
@@ -101,8 +101,8 @@ def _find_elevating_group(G: nx.DiGraph, model_name: str, user_groups: List[str]
     if not model_name or not user_groups:
         return None
 
-    from code_intelligence.deterministic.access_evaluator import _eval_single_permission
-    from code_intelligence.deterministic.group_resolver import resolve_group_identifier
+    from code_intelligence.deterministic.access.access_evaluator import _eval_single_permission
+    from code_intelligence.deterministic.access.group_resolver import resolve_group_identifier
 
     expanded_groups = _expand_user_groups_ordered(G, user_groups)
 

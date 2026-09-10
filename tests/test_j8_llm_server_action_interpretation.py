@@ -7,10 +7,8 @@ from unittest.mock import Mock
 
 import pytest
 
-from code_intelligence.server_action_analyzer import (
-    analyze_server_action_code,
-    interpret_server_action_with_llm,
-)
+from code_intelligence.server_actions.analyzer import analyze_server_action_code
+from code_intelligence.server_actions.llm import interpret_server_action_with_llm
 
 
 SUDO_BYPASS_CODE = """

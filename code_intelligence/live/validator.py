@@ -14,9 +14,9 @@ from typing import Any, Dict, List, Optional
 
 import networkx as nx
 
-from code_intelligence.deterministic.record_rules import evaluate_record_rules
-from code_intelligence.deterministic.access_evaluator import who_has_access_to
-from code_intelligence.deterministic.group_resolver import resolve_group_identifier
+from code_intelligence.deterministic.access.record_rules import evaluate_record_rules
+from code_intelligence.deterministic.access.access_evaluator import who_has_access_to
+from code_intelligence.deterministic.access.group_resolver import resolve_group_identifier
 from code_intelligence.live.rpc_client import OdooRpcClient
 
 

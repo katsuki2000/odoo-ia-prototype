@@ -11,7 +11,7 @@ section 440); who_has_access_to (1/24) closed in section 442.
 
 import networkx as nx
 
-from code_intelligence.deterministic.field_impact import field_change_impact
+from code_intelligence.deterministic.structure.field_impact import field_change_impact
 from core.evidence import Evidence, EvidenceSourceType
 
 

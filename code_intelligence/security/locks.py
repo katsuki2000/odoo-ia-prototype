@@ -18,7 +18,7 @@ from code_intelligence.answer_text_signals import (
     _LOCK_CONDITION_LINE_RE,
     _AMOUNT_CMP_RE,
 )
-from code_intelligence.deterministic.group_resolver import _fold_accents
+from code_intelligence.deterministic.access.group_resolver import _fold_accents
 
 logger = logging.getLogger(__name__)
 
