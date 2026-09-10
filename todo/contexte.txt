@@ -895,3 +895,31 @@ Contexte : suite Section 631. Site non present sur disque -- edit realise ce tou
 **Site 4/5 CLOS.** Prochaine et derniere sous-etape (site 5/5) : `code_intelligence/ci_agent_node/prompts.py::build_synthesis_prompt` -- mise a jour de la regle de synthese pour ne plus documenter que les tags francais canoniques (plus de "[Confiance: HIGH]" en exemple pour le LLM).
 
 **Fichiers modifies** : `code_intelligence/overrides/relational_chains.py`, `code_intelligence/overrides/unguarded_super.py`, `todo/contexte.txt` (cette section).
+
+## Section 633 : Validation post-fix prompts (Section 620) + regression preexistante decouverte (logger mismatch generate_node/generate_helpers)
+
+Date : 10/09/2026
+Contexte : validation du correctif Section 620 (`document_rag/prompts.py` recentre + `erp_data/prompts.py` clause HTML + `core/prompts.py` facade retablie, commit `bce3d6a`).
+
+**Validation du fix Section 620** : `py_compile` + import direct des 3 modules OK ; `core.prompts.SYSTEM_PROMPT is document_rag.prompts.DOCUMENTARY_RAG_SYSTEM_PROMPT` -> `True` (facade fonctionnelle) ; aucun residu textuel de l'ancien prompt multi-branches (grep vide) ; `tests/test_bug_a_markdown_only_output.py` 3/3 passed. Sweep elargi `document_rag/` + `erp_data/` (`-m "not integration"`) : **266 passed / 3 failed / 20 deselected**.
+
+**Regression decouverte, SANS RAPPORT avec le fix Section 620** : les 3 echecs sont dans `document_rag/tests/test_generate_node.py` (`TestPartiallyInvalidUsedSources`, `TestFullyInvalidUsedSources` x2) -- le test attend un `WARNING` sur le logger `document_rag.generate_node` (`assertLogs("document_rag.generate_node", ...)`, 4 occurrences lignes 115/130/143/147) mais le warning `invalid_used_sources` (alias `used_sources` invalides retournes par le LLM) est reellement emis par le logger propre de `document_rag/generate_helpers.py` (`document_rag.generate_helpers`, ligne 34) depuis que cette logique a ete extraite dans son propre module au commit `4eee25c` ("more refactoring", anterieur a la Section 610). Ces tests n'etaient probablement pas dans le perimetre des "164 tests cibles" valides a l'epoque de la cloture du point 1 (import circulaire).
+
+**Root cause** : mismatch de nom de logger post-extraction de module -- le code est correct (log depuis le module qui detient la logique), c'est l'assertion de test qui vise l'ancien namespace.
+
+**Non corrige (hors mandat de cette session -- prompts + audit 610)** : fix trivial en attente = remplacer les 4 occurrences de `"document_rag.generate_node"` par `"document_rag.generate_helpers"` dans `document_rag/tests/test_generate_node.py`, ligne 115/130/143/147.
+
+**Conclusion** : Section 620 validee sans reserve. Nouvelle regression preexistante identifiee et journalisee, a traiter si Trunk mandate.
+
+## Section 634 : Fix du logger mismatch generate_node/generate_helpers (regression Section 633)
+
+Date : 10/09/2026
+Contexte : correction mandatee par Trunk de la regression identifiee Section 633.
+
+**Fix** : `document_rag/tests/test_generate_node.py` -- les 4 occurrences de `self.assertLogs("document_rag.generate_node", ...)` (lignes 115, 130, 143, 147) remplacees par `self.assertLogs("document_rag.generate_helpers", ...)`, pour refleter le module reel qui emet le warning `invalid_used_sources` depuis le commit `4eee25c`. Aucun changement de code de production -- uniquement le namespace attendu par le test.
+
+**Validation** : `py_compile` OK ; `pytest document_rag/tests/test_generate_node.py -v` -> **12 passed** (les 3 precedemment en echec + 9 deja verts).
+
+**Fichier modifie** : `document_rag/tests/test_generate_node.py`.
+
+**Regression CLOSE.**
