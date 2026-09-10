@@ -104,7 +104,7 @@ _INDETERMINATE_FACT_MARKER = "can_view_amount_v2() = indeterminate"
 # as opposed to a genuine (possibly negative) deterministic finding such as
 # "exists in the index but has no explicit workflow state transitions
 # defined" (trace_full_inheritance/describe_workflow's own QueryStatus.EMPTY
-# wording) or "No _sql_constraints ... detected [Confiance: HIGH]"
+# wording) or "No _sql_constraints ... detected [Confiance: ÉLEVÉE]"
 # (analyze_data_constraints) -- both of those ARE real, citable facts (a
 # confirmed absence), not a failed lookup, and are deliberately NOT included
 # here.

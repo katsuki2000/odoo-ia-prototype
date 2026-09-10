@@ -923,3 +923,17 @@ Contexte : correction mandatee par Trunk de la regression identifiee Section 633
 **Fichier modifie** : `document_rag/tests/test_generate_node.py`.
 
 **Regression CLOSE.**
+
+## Section 635 : Etape C (verification finale) -- audit prompts Section 626, CLOS
+
+Date : 10/09/2026
+Contexte : execution de l'Etape C du sequencement arbitre en Section 626, apres confirmation que le site 5/5 de l'Etape B (`ci_agent_node/prompts.py::build_synthesis_prompt`) etait deja fait (commit `f69793b` "thursday", anterieur a cette session -- verifie : plus aucune mention de "HIGH" dans le fichier, seuls les tags canoniques FAIBLE/ELEVEE/MOYENNE mentionnes dans l'instruction au LLM).
+
+**Grep global de confirmation** :
+- `_INTERPRETATION_SYSTEM_PROMPT` (ancien nom sans prefixe) : 4 fichiers matches, tous des faux positifs par sous-chaine (`_OVERRIDE_INTERPRETATION_SYSTEM_PROMPT` dans `overrides/`, `_SERVER_ACTION_INTERPRETATION_SYSTEM_PROMPT` dans `server_actions/`) -- verifie ligne par ligne, aucun nom bare residuel. Rename Section 627 confirme propre.
+- `"Confiance: HIGH"` (code de prod, hors tests) : **1 match reel trouve** -- `core/evidence_sufficiency.py:107`, dans un COMMENTAIRE (pas du code execute) donnant un exemple de format d'observation, devenu obsolete depuis la migration du site 2/4 (`data_constraints/analyzer.py`, Section 630) qui n'emet plus jamais "HIGH" litteralement (emet desormais `confidence_label('high')` -> "ELEVEE"). **Corrige** : commentaire mis a jour `[Confiance: HIGH]` -> `[Confiance: ELEVEE]` pour rester coherent avec le comportement reel. `py_compile` OK (changement de commentaire seul, zero risque fonctionnel).
+- `"Confiance: HIGH"` dans 5 fichiers de tests (`test_bloc9_07_core_only_group_stripping.py`, `test_bloc9_05_link_guard_backfill.py`, `test_flag_ungrounded_acl_source.py`, `test_j23_24_authorization_gate.py`, `test_j46_j48_reasoning_trace.py`) : verifie -- ce sont des fixtures de texte litteral fabriquees par le test lui-meme (donnees d'entree synthetiques pour tester le gating/stripping/reasoning-trace), jamais des assertions contre la sortie live de `security/evidence.py` ou `data_constraints/analyzer.py`. Confirme via lecture de `security/evidence.py:170` : appelle bien `confidence_label(analysis.confidence)` en production, aucun "HIGH" litteral emis reellement. Ces 5 fichiers correspondent exactement au backlog deja identifie en Section 626 ("au moins 10 fichiers de tests assertent litteralement sur le texte") -- hors mandat de cette Etape C, migration cosmetique distincte a specifier separement si souhaitee.
+
+**Fichier modifie** : `core/evidence_sufficiency.py` (commentaire seul).
+
+**Audit hygiene des prompts (Section 626) : Etapes A, B (5/5 sites) et C desormais toutes closes.**
