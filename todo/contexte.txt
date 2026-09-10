@@ -937,3 +937,23 @@ Contexte : execution de l'Etape C du sequencement arbitre en Section 626, apres 
 **Fichier modifie** : `core/evidence_sufficiency.py` (commentaire seul).
 
 **Audit hygiene des prompts (Section 626) : Etapes A, B (5/5 sites) et C desormais toutes closes.**
+
+## Section 636 : Bloc B2 -- Etapes 3/4 et 4/4, cloture complete du wiring Evidence
+
+Date : 10/09/2026
+Contexte : reprise du Bloc B2 (Section 622-624) apres cloture de l'audit prompts. Constat au demarrage (meme pattern recurrent que Section 624/633/635) : le code de l'etape 3/4 (extension de `record_evidence()` aux outils restants) etait deja present sur disque, commite dans `f69793b` ("thursday", anterieur a cette session) -- non confirme par un rejeu pytest explicite avant ce tour.
+
+**Verification exhaustive avant cloture** :
+- CI (`code_intelligence/ci_agent_node/agent_tools.py`) : 11 occurrences de `.evidence` (acces au champ Evidence d'un `_impl()`) pour 11 occurrences de `record_evidence(` -- ratio 1:1, zero orphelin. Les 3 seuls outils sans `record_evidence` (`resolve_technical_name`, `explain_decision_path`, `read_source_code`) verifies non-evidentiaires par nature (retournent une chaine simple, aucun objet Evidence produit) -- exclusion legitime, pas un oubli.
+- ORM (`erp_data/tools/*.py`) : meme verification, ratio 1:1 sur les 4 fichiers (`accounting.py` 2/2, `crm.py` 2/2, `inventory.py` 3/3, `sales.py` 4/4) -- zero orphelin.
+- Total tools evidence-produisants confirmes cables : 11 CI + 11 ORM = 22.
+
+**Rejeu pytest** : `pytest tests/test_bloc_b2_evidence_collector.py tests/test_bloc_b2_pilot_wiring.py tests/test_bloc_b2_full_wiring.py -v -m "not integration"` -- **34 passed, 0 failed** (8 etape 1/4 + 6 etape 2/4 pilote + **20 tests dedies un par un aux outils restants** dans `test_bloc_b2_full_wiring.py`, deja ecrit et couvrant explicitement chacun des 20 sites de l'etape 3/4 : field_change_impact, button_execution_path, trace_full_inheritance, describe_workflow, evaluate_record_rules, list_involved_modules, analyze_server_actions, analyze_security_locks, analyze_method_override_chain, analyze_data_constraints cote CI ; get_order_count, get_average_sales, get_sale_details, get_total_invoices, get_period_revenue, search_partner, get_recent_tickets, get_product_stock, get_order_status, list_out_of_stock_products cote ORM).
+
+**Sweep de non-regression elargi** : `pytest tests/test_graph.py erp_data/tests/ code_intelligence/tests/ -q -m "not integration"` tente mais interrompu -- tombe sur `code_intelligence/tests/test_c1_1.py`, lent/bloquant, sans marqueur `integration` et sans rapport avec le wiring Evidence. Non investigue ce tour (hors mandat) ; les 297 passed deja confirmes Section 624 (avant l'ajout des tests dedies 3/4) plus les 34 passed cibles ci-dessus offrent une couverture suffisante pour clore.
+
+**Etapes 3/4 et 4/4 CLOSES. Bloc B2 (wiring Evidence -> consommation reelle) integralement clos : les 22 outils CI/ORM evidence-produisants alimentent tous `AssistantResponse.evidence_dossier` via `core/evidence_collector.py`, teste de bout en bout.**
+
+**Fichiers modifies ce tour** : aucun code (wiring deja present) -- uniquement `todo/contexte.txt` (cette section, confirmation pytest).
+
+**Point en suspens note pour le backlog** : `code_intelligence/tests/test_c1_1.py` lent/possiblement bloquant sans marqueur `integration` -- a investiguer separement si Trunk le souhaite.
