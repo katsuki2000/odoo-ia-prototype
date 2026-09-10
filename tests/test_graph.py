@@ -27,6 +27,7 @@ from core.graph import (
     _correct_security_lock_threshold_contradictions,
 )
 from document_rag.generate_node import _verify_used_sources
+from config.settings import CORE_ADDONS_PATH as _TEST_CORE_ADDONS_PATH
 
 # 1. Test fallback when no context is found
 def test_generate_fallback():
@@ -552,7 +553,7 @@ class TestForceOutOfScopeModelAnswer:
 # already defined above (the reverse-direction leak, proven real by
 # TestBackfillMissingOverrideChainAmount's own contamination test).
 _REAL_SECURITY_LOCK_RAW_TEXT = (
-    "Analyse des verrous Python (file:///home/user/odoo-17.0/addons/"
+    f"Analyse des verrous Python (file://{_TEST_CORE_ADDONS_PATH}/"
     "custom_purchase_request/models/purchase_request.py#L1-L28) "
     "[Confiance: high]:\n"
     "  - [SENSITIVE BYPASS] Logins/Emails privilégies en dur: "
@@ -666,7 +667,7 @@ class TestBackfillMissingSecurityLockAmount:
 # already covered. Fixed by _amount_present_in_text using a digit-boundary
 # regex instead of a bare substring check.
 _REAL_CREDIT_NOTE_SECURITY_LOCK_RAW_TEXT = (
-    "Analyse des verrous Python (file:///home/user/odoo-17.0/addons/"
+    f"Analyse des verrous Python (file://{_TEST_CORE_ADDONS_PATH}/"
     "custom_credit_note_approval/models/account_move.py#L14-L18) "
     "[Confiance: high]:\n"
     "  - Security lock messages (UserError/ValidationError):\n"
@@ -1201,7 +1202,7 @@ class TestAmountContextDualKey:
 # validator deliberately does not attempt to distinguish that from a
 # correctly-attributed mention, per its own docstring).
 _REAL_DEEP_INHERITANCE_SECURITY_RAW_TEXT = (
-    "Analyse des verrous Python (file:///home/user/odoo-17.0/addons/"
+    f"Analyse des verrous Python (file://{_TEST_CORE_ADDONS_PATH}/"
     "custom_deep_inheritance_security/models/deep_document.py#L1-L56) "
     "[Confiance: high]:\n"
     "  - Security lock messages (UserError/ValidationError):\n"
@@ -1357,7 +1358,7 @@ class TestExtractRequiredGroupsForAmount:
 # model -- confirmed by direct read of
 # /home/user/odoo-17.0/addons/account/models/account_move.py.
 _REAL_CORE_ACCOUNT_MOVE_SECURITY_LOCK_RAW_TEXT = (
-    "Analyse des verrous Python (file:///home/user/odoo-17.0/addons/"
+    f"Analyse des verrous Python (file://{_TEST_CORE_ADDONS_PATH}/"
     "account/models/account_move.py#L1-L5238) "
     "[Confiance: high]:\n"
     "  - Groupe(s) technique(s) requis detecte(s) (has_group): "

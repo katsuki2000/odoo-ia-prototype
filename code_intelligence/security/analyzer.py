@@ -30,6 +30,7 @@ from code_intelligence.security.visitor import (
     SecurityLockASTVisitor,
 )
 from core.evidence import Evidence
+from core.confidence_tags import confidence_label
 
 _logger = logging.getLogger(__name__)
 
@@ -157,7 +158,7 @@ def analyze_python_security_locks(code: str, filepath: str) -> PythonSecurityLoc
         result.security_warnings.append(
             f" DISPATCH DYNAMIQUE: Fichier '{filepath}' utilise {', '.join(result.dynamic_dispatch_types)}(). "
             f"La logique d'exécution exacte dépend de paramètres dynamiques et ne peut pas être "
-            f"classifiée statiquement avec certitude. [Confiance: FAIBLE]"
+            f"classifiée statiquement avec certitude. [Confiance: {confidence_label(result.confidence)}]"
         )
 
     # 4. Summary Text

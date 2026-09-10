@@ -5,6 +5,7 @@ from typing import List, Tuple
 from langchain_core.tools import tool
 
 from core.evidence import Evidence, EvidenceSourceType, make_evidence
+from core.evidence_collector import record_evidence
 from erp_data._odoo_helpers import (
     connector, get_current_uid, orm_evidence_scope,
     normalize_client_name, is_all_clients, parse_period,
@@ -101,7 +102,8 @@ def get_total_invoices(client: str = "", statut: str = "toutes") -> str:
         statut: Invoice status ('payé', 'impayé', 'brouillon', 'toutes'). Default: 'toutes'.
     """
     try:
-        text, _evidence = get_total_invoices_raw(client, statut)
+        text, evidence = get_total_invoices_raw(client, statut)
+        record_evidence(evidence)
         return text
     except Exception as e:
         return f"Erreur lors de la récupération des factures : {str(e)}"
@@ -182,7 +184,8 @@ def get_period_revenue(periode: str) -> str:
         periode: Time period (e.g. 'ce mois', '2025', 'toutes').
     """
     try:
-        text, _evidence = get_period_revenue_raw(periode)
+        text, evidence = get_period_revenue_raw(periode)
+        record_evidence(evidence)
         return text
     except Exception as e:
         return f"Erreur lors du calcul du CA : {str(e)}"

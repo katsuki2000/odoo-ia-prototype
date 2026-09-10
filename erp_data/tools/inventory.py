@@ -5,6 +5,7 @@ from typing import List, Tuple
 from langchain_core.tools import tool
 
 from core.evidence import Evidence, EvidenceSourceType, make_evidence
+from core.evidence_collector import record_evidence
 from erp_data._odoo_helpers import (
     connector, get_current_uid, orm_evidence_scope,
 )
@@ -62,7 +63,8 @@ def get_product_stock(produit: str) -> str:
         produit: The name of the product to check.
     """
     try:
-        text, _evidence = get_product_stock_raw(produit)
+        text, evidence = get_product_stock_raw(produit)
+        record_evidence(evidence)
         return text
     except Exception as e:
         return f"Erreur lors de la vérification du stock : {str(e)}"
@@ -124,7 +126,8 @@ def get_order_status(reference: str) -> str:
         reference: Sales order reference code.
     """
     try:
-        text, _evidence = get_order_status_raw(reference)
+        text, evidence = get_order_status_raw(reference)
+        record_evidence(evidence)
         return text
     except Exception as e:
         return f"Erreur lors de la récupération de la commande : {str(e)}"
@@ -176,7 +179,8 @@ def list_out_of_stock_products_raw() -> Tuple[str, List[Evidence]]:
 def list_out_of_stock_products() -> str:
     """List products with zero or negative available stock."""
     try:
-        text, _evidence = list_out_of_stock_products_raw()
+        text, evidence = list_out_of_stock_products_raw()
+        record_evidence(evidence)
         return text
     except Exception as e:
         return f"Erreur lors de la récupération des stocks : {str(e)}"

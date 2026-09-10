@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
 import logging
 
 from core.evidence import Evidence, EvidenceSourceType, make_evidence
+from core.confidence_tags import confidence_label
 
 if TYPE_CHECKING:
     from code_intelligence.security.analyzer import PythonSecurityLockAnalysis
@@ -166,8 +167,7 @@ def format_security_locks_summary(
     line_count = max(1, len(code.splitlines()))
     file_link = format_file_link(filepath, 1, line_count)
 
-    _confidence_label = "FAIBLE" if analysis.confidence == "low" else analysis.confidence.upper()
-    lines = [f"Analyse des verrous Python ({file_link}) [Confiance: {_confidence_label}]:"]
+    lines = [f"Analyse des verrous Python ({file_link}) [Confiance: {confidence_label(analysis.confidence)}]:"]
 
     if analysis.has_hardcoded_logins:
         lines.append(f"  - {SENSITIVE_BYPASS_MARKER} Logins/Emails privilégies en dur: {analysis.hardcoded_logins}")

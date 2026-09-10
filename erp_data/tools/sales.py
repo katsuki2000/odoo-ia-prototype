@@ -5,6 +5,7 @@ from typing import List, Tuple
 from langchain_core.tools import tool
 
 from core.evidence import Evidence, EvidenceSourceType, make_evidence
+from core.evidence_collector import record_evidence
 from erp_data._odoo_helpers import (
     connector, get_current_uid, orm_evidence_scope,
     normalize_client_name, is_all_clients, client_label,
@@ -60,7 +61,8 @@ def get_total_sales(client: str = "", periode: str = "", statut: str = "toutes")
         periode: Time period filter (e.g. 'ce mois', '2025'). Leave empty for all time.
         statut: Order status ('confirmees', 'brouillon', 'annulees', 'toutes'). Default: 'toutes'.
     """
-    text, _evidence = get_total_sales_raw(client, periode, statut)
+    text, evidence = get_total_sales_raw(client, periode, statut)
+    record_evidence(evidence)
     return text
 
 
@@ -102,7 +104,8 @@ def get_order_count(client: str = "", periode: str = "", statut: str = "toutes")
         statut: Order status ('confirmees', 'brouillon', 'annulees', 'toutes'). Default: 'toutes'.
     """
     try:
-        text, _evidence = get_order_count_raw(client, periode, statut)
+        text, evidence = get_order_count_raw(client, periode, statut)
+        record_evidence(evidence)
         return text
     except Exception as e:
         return f"Erreur lors du comptage des commandes : {str(e)}"
@@ -164,7 +167,8 @@ def get_average_sales(client: str = "", periode: str = "toutes", statut: str = "
         statut: Order status ('confirmees', 'brouillon', 'annulees', 'toutes'). Default: 'toutes'.
     """
     try:
-        text, _evidence = get_average_sales_raw(client, periode, statut)
+        text, evidence = get_average_sales_raw(client, periode, statut)
+        record_evidence(evidence)
         return text
     except Exception as e:
         return f"Erreur lors du calcul de la moyenne : {str(e)}"
@@ -282,7 +286,8 @@ def get_sale_details(client: str = "", statut: str = "toutes", limite: int = 0) 
         limite: Max orders to return (0 for all). Default: 0.
     """
     try:
-        text, _evidence = get_sale_details_raw(client, statut, limite)
+        text, evidence = get_sale_details_raw(client, statut, limite)
+        record_evidence(evidence)
         return text
     except Exception as e:
         return f"Erreur lors de la récupération des détails : {str(e)}"

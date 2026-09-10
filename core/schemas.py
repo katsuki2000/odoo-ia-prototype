@@ -9,6 +9,8 @@ from enum import Enum
 from typing import Dict, List, Optional
 from pydantic import BaseModel, ConfigDict, Field
 
+from core.evidence import Evidence
+
 
 # ── Routing ───────────────────────────────────────────────────────────────────
 
@@ -109,5 +111,18 @@ class AssistantResponse(BaseModel):
             "code_intelligence_agent branch ran this turn. Set regardless of "
             "whether the RAG fallback fired, so the original CI verdict stays "
             "traceable even when the final answer came from generate() instead."
+        ),
+    )
+    evidence_dossier: List[Evidence] = Field(
+        default_factory=list,
+        description=(
+            "Structured, tool-provenance Evidence gathered this turn (Bloc B2, "
+            "todo/contexte.txt section 622) via core/evidence_collector.py. "
+            "Distinct from 'sources' (SourceReference, UI-facing citation "
+            "derived from RAG chunks) -- this is the raw fact + provenance a "
+            "CI/ORM tool actually produced while it worked. Populated "
+            "incrementally as each tool wrapper is wired (rollout in progress, "
+            "not yet all 24+2 tools) -- an empty list does not mean no "
+            "Evidence was gathered, only that no wired tool ran this turn."
         ),
     )

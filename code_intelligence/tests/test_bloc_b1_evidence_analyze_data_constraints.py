@@ -42,9 +42,10 @@ def test_empty_matches_produce_no_evidence(py_file, monkeypatch):
     )
     result = analyze_data_constraints_from_filepaths("sale.order", [str(py_file)])
     assert result.evidence == []
-    # summary_text keeps asserting HIGH confidence -- that is the pre-existing
-    # public text contract, untouched by this Evidence work (section 464).
-    assert "[Confiance: HIGH" in result.summary_text
+    # summary_text keeps asserting the ELEVEE confidence tag -- that is the
+    # pre-existing public text contract, untouched by this Evidence work
+    # (section 464), only reformatted via core.confidence_tags (section 629).
+    assert "[Confiance: ÉLEVÉE" in result.summary_text
 
 
 def test_single_match_produces_one_high_confidence_evidence(py_file, monkeypatch):
@@ -154,4 +155,4 @@ def test_summary_text_unaffected_by_evidence_presence(py_file, monkeypatch):
     )
     result = analyze_data_constraints_from_filepaths("sale.order", [str(py_file)])
     assert "odoo-sql-constraints-declaration" in result.summary_text
-    assert result.summary_text.count("[Confiance: HIGH") == 1
+    assert result.summary_text.count("[Confiance: ÉLEVÉE") == 1

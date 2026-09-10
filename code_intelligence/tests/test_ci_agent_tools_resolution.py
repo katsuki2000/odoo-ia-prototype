@@ -58,6 +58,7 @@ def test_qui_a_acces_a_resolves_business_term_end_to_end(sample_graph_with_alias
 
     class _FakeResult:
         summary_text = "OK"
+        evidence = []
 
     def _fake_impl(G, model_name, permission="read", group_id=None):
         captured["model_name"] = model_name

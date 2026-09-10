@@ -76,7 +76,7 @@ def test_no_patterns_detected_reports_high_confidence_deterministic(
     )
     result = analyze_data_constraints.invoke({"model_name": "sale.order"})
     assert "No _sql_constraints or relational domain=" in result
-    assert "[Confiance: HIGH" in result
+    assert "[Confiance: ÉLEVÉE" in result
     assert "deterministic" in result.lower()
 
 
@@ -99,7 +99,7 @@ def test_single_match_includes_citation_and_check_id(graph_with_model_file, monk
     assert "odoo-sql-constraints-declaration" in result
     assert "Odoo _sql_constraints declaration detected." in result
     assert f"file://{py_file}#L10-L12" in result
-    assert "[Confiance: HIGH" in result
+    assert "[Confiance: ÉLEVÉE" in result
     # the raw matched code should be surfaced, not just the message
     assert "_sql_constraints = [" in result
 
@@ -131,7 +131,7 @@ def test_multiple_matches_all_included_with_confidence_tag_once(
     assert f"file://{py_file}#L5-L5" in result
     assert f"file://{py_file}#L20-L22" in result
     # Confidence tag is a property of the whole analysis, not repeated per finding
-    assert result.count("[Confiance: HIGH") == 1
+    assert result.count("[Confiance: ÉLEVÉE") == 1
 
 
 def test_skips_filepaths_that_do_not_exist_on_disk(monkeypatch, tmp_path):

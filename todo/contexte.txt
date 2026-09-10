@@ -676,3 +676,222 @@ Contexte : suite a la demande de verification du statut "Bloc B1 (instrumentatio
 **Fichiers modifies ce tour** : `todo/contexte.txt` (cette section seule).
 
 **Prochaine etape** : arbitrage utilisateur sur (a)/(b)/(c) ci-dessus, puis conception detaillee (ou les `_raw()`/`_impl()` doivent transmettre leur `Evidence` -- probablement en retournant desormais le tuple complet au lieu de le tronquer dans le wrapper `@tool`, plus un point de collecte unique cote ReAct loop CI et ORM) avant tout dryRun.
+
+## Section 623 : Bloc B2 -- core/evidence_collector.py cree et confirme (etape 1/4)
+
+Date : 10/09/2026
+Contexte : suite section 622 (ouverture Bloc B2, option (a) puis (b) retenue). Etape 1 du sequencement propose : accumulateur Evidence isole, avant tout branchement a un outil reel.
+
+**Resultat colle par l'utilisateur** : `pytest tests/test_bloc_b2_evidence_collector.py -v` -- 8 passed in 0.12s (0 failed).
+
+**Fichiers crees** : `core/evidence_collector.py` (82 l., ContextVar `_turn_evidence_ctx`, meme pattern que `erp_data/odoo_context.py` -- `start_evidence_collection()` / `record_evidence()` (accepte `Evidence` seule ou `List[Evidence]`, normalise les 2 formes coexistantes depuis les pilotes B0) / `collect_and_clear_evidence()`), `tests/test_bloc_b2_evidence_collector.py` (115 l., 8 tests -- isolation entre tests via fixture autouse resettant le ContextVar, cycle complet start/record/collect, no-op sur `record_evidence(None)`, warning logge si appel hors cycle de tour).
+
+**Etape 1/4 CLOS.** Prochaine etape (2/4) : pilote bout-en-bout sur `who_has_access_to` (CI) + `get_total_sales` (ORM) -- branchement `record_evidence()` dans les 2 wrappers, `start_evidence_collection()`/`collect_and_clear_evidence()` dans `core/graph.py`, nouveau champ `AssistantResponse.evidence_dossier` dans `core/schemas.py`.
+
+**Fichiers modifies** : `core/evidence_collector.py`, `tests/test_bloc_b2_evidence_collector.py`, `todo/contexte.txt` (cette section).
+
+## Section 624 : Bloc B2 -- pilote bout-en-bout who_has_access_to/get_total_sales confirme (etape 2/4)
+
+Date : 10/09/2026
+Contexte : reprise de session sur la machine `/media/donnee/projets/odoo-ia-prototype` (changement de mount depuis `/home/user/odoo-ia-prototype` en cours de session precedente -- meme depot git, chemin absolu different). Constat au demarrage : le code de l'etape 2/4 (wiring `record_evidence()` dans les 2 wrappers pilotes + drainage dans `core/graph.py` + champ `AssistantResponse.evidence_dossier`) etait deja ecrit sur disque (non commite, non confirme par pytest) -- probablement redige en parallele par une autre session pendant le changement de mount. Conformement au protocole "aucun fix clos sans confirmation pytest reelle", execution de la suite avant toute cloture.
+
+**Etat trouve, verifie ligne par ligne avant test** :
+- `code_intelligence/ci_agent_node/agent_tools.py::who_has_access_to` : `record_evidence(result.evidence)` avant `return result.summary_text`.
+- `erp_data/tools/sales.py::get_total_sales` : `text, evidence = get_total_sales_raw(...); record_evidence(evidence); return text`.
+- `core/graph.py` : `start_evidence_collection()` en debut de `query_graph()`, `response.evidence_dossier = collect_and_clear_evidence()` sur le chemin nominal, `collect_and_clear_evidence()` egalement appele (sans affectation, juste drainage/reset) sur le chemin d'exception -- empeche une fuite de bucket partiel vers le prochain appel sur le meme thread/contexte.
+- `core/schemas.py::AssistantResponse.evidence_dossier: List[Evidence]` : nouveau champ, default `[]`, docstring reference section 622.
+
+**Resultat pytest (colle par l'utilisateur au sens du protocole -- ici rejoue par l'assistant sur demande explicite "vas-y")** : `pytest tests/test_bloc_b2_pilot_wiring.py tests/test_bloc_b2_evidence_collector.py -v -m "not integration"` -- **14 passed, 0 failed** (6 tests pilote : wrapper ORM avec/sans tour actif, wrapper CI, 3 tests `query_graph()` -- peuplement nominal, pas de fuite entre 2 appels successifs, reset meme sur le chemin d'exception ; + 8 tests etape 1/4 deja confirmes Section 623, rejoues sans regression).
+
+**Regression cote modules touches** : `pytest tests/test_graph.py erp_data/tests/ code_intelligence/tests/test_ci_agent_tools_resolution.py code_intelligence/tests/test_bloc_b1_evidence_who_has_access_to.py -q -m "not integration"` -- **297 passed, 7 failed (pre-existants, sans rapport)**. Les 7 echecs sont exactement les memes qu'avant ce tour (`TestBlockIsCustomModuleFile`, `TestRestrictBlocksToCustomModules` x2, `TestBackfillMissingRequiredGroupsExcludesCoreOdooNoise`, `TestGroundedCoreOnlyGroups`, `TestStripCoreOnlyGroupMentions` x2) : fixtures de `tests/test_graph.py` codees en dur avec `file:///home/user/odoo-17.0/addons/...` (confirme via `git blame`, commit du 2026-08-17, anterieur a toute cette session) alors que `CORE_ADDONS_PATH` reel sur ce mount vaut `/media/donnee/Programs/odoo-17.0/addons` -- derive de configuration liee au changement de mount, aucun rapport avec Bloc B2 ni avec les Sections 610-612. Laisse en l'etat, hors scope, a traiter separement si l'utilisateur le souhaite.
+
+**Etape 2/4 CLOS.** Prochaine etape (3/4, a confirmer avec l'utilisateur avant tout diff) : etendre le wiring `record_evidence()` aux 22 autres outils CI/ORM restants (5 Composites CI - 1 deja fait, 4 Analyse CI, 9 outils ORM - 1 deja fait), en reutilisant exactement le meme pattern que les 2 pilotes.
+
+**Fichiers modifies ce tour** : aucun code (le wiring etait deja present sur disque avant cette session) -- uniquement `todo/contexte.txt` (cette section, confirmation pytest).
+
+## Section 625 : Correction des 7 tests avec chemin CORE_ADDONS_PATH code en dur (derive de mount, sans rapport avec Bloc B2/610-612)
+
+Date : 10/09/2026
+Contexte : les 7 echecs pre-existants signales Section 624 (`tests/test_graph.py`) traces a la racine : une seule fixture module-level, `_REAL_CORE_ACCOUNT_MOVE_SECURITY_LOCK_RAW_TEXT` (bloc "core Odoo" utilise par les 7 tests en echec -- `TestBlockIsCustomModuleFile`, `TestRestrictBlocksToCustomModules` x2, `TestBackfillMissingRequiredGroupsExcludesCoreOdooNoise`, `TestGroundedCoreOnlyGroups`, `TestStripCoreOnlyGroupMentions` x2), codait en dur `file:///home/user/odoo-17.0/addons/account/models/account_move.py`. `_block_is_custom_module_file()` (`code_intelligence/ci_agent_node/access_guards.py`) resout ce chemin et le compare a `config.settings.CORE_ADDONS_PATH` (lui-meme deja portable : `os.getenv("CORE_ADDONS_PATH") or str(_ROOT.parent / "odoo-17.0" / "addons")`, donc automatiquement `/media/donnee/Programs/odoo-17.0/addons` sur ce mount) -- avec un chemin fige sur l'ancien mount, la comparaison ne matchait plus aucune des 3 branches (`CUSTOM_ADDONS_PATH`/`CORE_ADDONS_PATH`/`CORE_FRAMEWORK_ADDONS_PATH`) et retombait sur l'heuristique de repli (`core_dirs = {"odoo/addons", "base", "web"}` compare a des `Path.parts` individuels -- ne peut structurellement jamais matcher une chaine composee comme `"odoo/addons"`, donc toujours `True` par defaut), inversant le verdict attendu (`False`, "c'est du core") pour ce seul bloc. Les 3 autres fixtures (`_REAL_SECURITY_LOCK_RAW_TEXT`, `_REAL_CREDIT_NOTE_SECURITY_LOCK_RAW_TEXT`, `_REAL_DEEP_INHERITANCE_SECURITY_RAW_TEXT`, toutes sous `custom_*`) passaient par accident malgre le meme chemin fige, car le repli par defaut (`True`, "c'est du custom") coincide avec le verdict qu'elles attendent deja.
+
+**Fix root-cause (portable, pas un correctif machine-specifique)** : les 4 fixtures module-level de `tests/test_graph.py` construisent desormais leur prefixe `file://` dynamiquement via `from config.settings import CORE_ADDONS_PATH as _TEST_CORE_ADDONS_PATH` (import ajoute en tete de fichier) au lieu du chemin fige -- `f"Analyse des verrous Python (file://{_TEST_CORE_ADDONS_PATH}/"` concatene par litteral implicite avec le reste de chaque fixture (syntaxe Python valide, f-string + str adjacentes). Les tests restent donc corrects quel que soit le mount/la machine future, plus seulement sur celle-ci.
+
+**Verification** :
+- `py_compile` sur `tests/test_graph.py` : OK.
+- `pytest tests/test_graph.py -q -m "not integration"` : **150 passed, 0 failed** (les 7 precedents echecs inclus, plus aucune regression sur les 143 autres).
+- Non-regression croisee : `pytest tests/test_bloc9_02_infer_move_type_context.py tests/test_bloc_b2_pilot_wiring.py tests/test_bloc_b2_evidence_collector.py -q -m "not integration"` -- **29 passed**.
+
+**Fichiers modifies** : `tests/test_graph.py` (import + 4 fixtures), `todo/contexte.txt` (cette section). Non touche : les mentions en commentaire/docstring de `/home/user/odoo-17.0` restantes (3 occurrences, texte explicatif uniquement, aucun impact fonctionnel -- laissees en l'etat).
+
+## Section 626 : Audit hygiene des prompts (5 modules) -- verification disque + plan d'action arbitre (points 1, 2, 3, 4, 6 -- point 5 explicitement hors mandat)
+
+Date : 10/09/2026
+Contexte : audit utilisateur en 6 points sur `document_rag/prompts.py`, `code_intelligence/overrides/prompts.py`, `code_intelligence/server_actions/prompts.py`, `code_intelligence/ci_agent_node/prompts.py`, `erp_data/prompts.py`. Mandat explicite : uniquement les points 1, 2, 3 (avis utilisateur a conserver, pas d'implementation), 4 (fermeture sans code), 6. Point 5 (CI_SYSTEM_PROMPT non borne / connaissance Bloc 9 codee en dur) hors scope pour l'instant. Aucun code touche ce tour -- lecture disque + arbitrage seuls, conformement au protocole journal-avant-code.
+
+**Verification disque prealable (regle recurrente du projet, cf. sections 209/282/348/487/546/621) : 2 des 5 points retenus decrivent un etat du code qui ne correspond plus a la copie actuelle du depot.**
+
+### Point 2 -- CI_SYSTEM_PROMPT "4 niveaux d'indirection" : INVALIDE sur le disque actuel, CLOS sans action
+
+Verifie ligne par ligne : `code_intelligence/ci_agent_node/runner.py:26` importe `CI_SYSTEM_PROMPT` directement depuis `.prompts` ; `react_loop.py:22` importe `build_synthesis_prompt` directement depuis `.prompts`. `prompt_and_heuristics.py` ne contient NI `CI_SYSTEM_PROMPT` NI `build_synthesis_prompt` (uniquement `CI_MAX_HOPS`, dedup des tool calls, troncature). `helpers.py` n'importe rien de `prompts.py`. `core/graph_compat.py` importe une longue liste de symboles depuis `ci_agent_node.helpers` mais ni `CI_SYSTEM_PROMPT`, ni `build_synthesis_prompt`, ni `build_business_context_prompt`. `core/graph.py` : zero occurrence des 3 symboles (grep vide). Les 2 seuls tests qui importent `CI_SYSTEM_PROMPT` (`test_c_complete.py`, `test_analyze_data_constraints.py`, `tests/test_bug_a_markdown_only_output.py`) le font deja depuis `code_intelligence.ci_agent_node.prompts` directement. **Conclusion : chaine d'import canonique unique deja en place, aucune divergence a corriger.** Probable resultat d'un refactor anterieur non reflete dans le texte d'audit fourni. Ferme sans modification.
+
+### Point 6 -- alias `_INTERPRETATION_SYSTEM_PROMPT` duplique + double export : PARTIELLEMENT INVALIDE, perimetre reduit
+
+Verifie : `code_intelligence/overrides/prompts.py` ne definit AUCUN alias `_INTERPRETATION_SYSTEM_PROMPT` -- seul `_OVERRIDE_INTERPRETATION_SYSTEM_PROMPT` existe, exporte une seule fois dans son `__all__`. `code_intelligence/server_actions/prompts.py` definit `_INTERPRETATION_SYSTEM_PROMPT` (contenu different), egalement exporte une seule fois. **Aucune duplication d'alias, aucun double export du meme nom, zero collision reelle** (chaque package importe le sien de facon qualifiee, jamais de wildcard croise entre les deux). Risque residuel reel, plus modeste que decrit par l'audit : le nom prive de `server_actions/prompts.py` n'est pas prefixe par son domaine contrairement a son equivalent `overrides` (`_OVERRIDE_INTERPRETATION_SYSTEM_PROMPT`) -- incoherence de nommage/hygiene, pas un bug actif.
+**Action retenue (Etape A ci-dessous)** : renommer `_INTERPRETATION_SYSTEM_PROMPT` -> `_SERVER_ACTION_INTERPRETATION_SYSTEM_PROMPT` dans `server_actions/prompts.py` + ses 2 callers (`analyzer.py`, `llm.py`) + `__all__`, pour aligner la convention sur `overrides`. Rien a faire cote `overrides/prompts.py` (deja correct).
+
+### Point 1 -- absence de schema de confiance unique : CONFIRME, perimetre plus large que decrit
+
+Verifie (grep exhaustif `confidence`/`Confiance` sur `core/`, `erp_data/`, `document_rag/`, `code_intelligence/`) : 3 schemas distincts coexistent, pas de simple divergence a 4 points :
+- **(A) `AssistantResponse.confidence` / `LLMResponse.confidence`** (`core/schemas.py`) : float 0.0-1.0, niveau du tour complet. Deja homogene au niveau du schema Pydantic sur les 4 branches (RAG le peuple via sortie LLM structuree ; CI/ORM le peuplent par heuristique codee en dur -- `postprocess.py` 1.0/0.5, `orm_agent_node.py` 0.9/0.5/min() en hybride). Ce n'est PAS un probleme de schema, deja unifie au niveau type -- **aucune action ici**.
+- **(B) confiance d'interpretation LLM ponctuelle** (`overrides`/`server_actions`) : enum string anglais "high"/"medium"/"low", contrat JSON strict impose au LLM (`_LLM_CONFIDENCE_CLOSED_SET`), propage dans `core/evidence.py::Evidence.confidence: Optional[str]`. `erp_data` n'a aucun equivalent -- absence justifiee : l'ORM n'a pas de mecanisme heuristique-statique-puis-interpretation-LLM comparable a `overrides`/`server_actions`, ce n'est pas un trou a combler. **Aucune action ici** (contrat LLM deja teste, risque de regression pour un gain cosmetique).
+- **(C) etiquette textuelle statique `[Confiance: HIGH]`/`[Confiance: FAIBLE]`** injectee en dur, litteralement, dans le texte des observations, sans aucune constante partagee : `data_constraints/analyzer.py` (3 occurrences, toujours "HIGH" code en dur), `server_actions/analyzer.py` (5 occurrences, toujours "FAIBLE" code en dur), `overrides/relational_chains.py` (1, "FAIBLE"), `overrides/unguarded_super.py` (1, "FAIBLE"), `security/analyzer.py` (1, "FAIBLE"), `security/evidence.py:169-170` (seul site dynamique : `_confidence_label = "FAIBLE" if analysis.confidence == "low" else analysis.confidence.upper()` -- traduit "low"->"FAIBLE" mais laisse "high"/"medium" en anglais majuscule, c'est la source exacte du melange linguistique que `ci_agent_node/prompts.py::build_synthesis_prompt` (ligne 174) doit ensuite gerer explicitement en documentant les deux formes). **C'est ce schema (C) qui constitue le vrai probleme du point 1.**
+
+**Action retenue pour (C) (Etape B ci-dessous)** : creer un module partage unique `core/confidence_tags.py` (meme esprit que `code_intelligence/ontology/tags.py`), avec une fonction `format_confidence_tag(level: str) -> str` acceptant les valeurs internes anglaises "high"/"medium"/"low" (le contrat LLM du schema B n'est pas touche) et retournant systematiquement le tag francais canonique correspondant (ex. "ÉLEVÉE"/"MOYENNE"/"FAIBLE" -- une seule langue, plus de melange). Migrer les 6 emplacements listes ci-dessus vers cet appel unique, sans changer la logique/heuristique qui determine le niveau lui-meme -- uniquement le formatage de l'etiquette affichee. Mettre a jour `ci_agent_node/prompts.py::build_synthesis_prompt` pour ne plus mentionner que les tags francais canoniques dans son instruction (plus de "[Confiance: HIGH]" en exemple).
+**Risque signale** : au moins 10 fichiers de tests assertent litteralement sur le texte "Confiance: HIGH"/"Confiance: FAIBLE" (`test_analyze_data_constraints.py`, `test_bloc9_05_link_guard_backfill.py`, `test_bloc9_07_core_only_group_stripping.py`, `test_bloc_b1_evidence_analyze_data_constraints.py`, `test_bloc_b1_evidence_analyze_method_override_chain.py`, `test_flag_ungrounded_acl_source.py`, `test_j23_24_authorization_gate.py`, `test_j46_j48_reasoning_trace.py`, `test_method_override_chain.py`, `test_s2_5_semgrep_locks.py`, `tests/test_graph.py`, `tests/test_j18_routing_fewshot.py`) -- migration a faire SITE PAR SITE, test correspondant mis a jour dans le meme tour (test atomicity, regle deja en vigueur), jamais en un seul diff global.
+
+### Point 3 -- `core/prompts.py` facade orpheline : CONFIRME, CLOS sans code (avis utilisateur conserve)
+
+Verifie : zero caller reel dans tout le depot hors `.venv` (grep `from core.prompts import` / `core\.prompts\b`). L'utilisateur juge neanmoins utile de conserver un point d'entree "prompt coeur" dans `core/`, potentiellement agrege/informe par les 4 prompts metier (`document_rag`, `erp_data`, `overrides`+`server_actions`, `ci_agent_node`).
+**Decision retenue ce tour (pas de scope creep)** : `core/prompts.py` reste EN L'ETAT (facade retrocompatible existante depuis la Section 620, non supprimee). Aucune implementation d'un "prompt maitre agrege" maintenant -- c'est une fonctionnalite nouvelle, pas une correction du present audit. Idee notee comme piste de backlog distincte, a specifier separement si l'utilisateur souhaite la poursuivre.
+
+### Point 4 -- "Markdown only, jamais de HTML brut" duplique 3x, formulations differentes : CLOS sans code (decision utilisateur)
+
+Duplication confirmee (`document_rag/prompts.py`, `erp_data/prompts.py` x2 emplacements, `ci_agent_node/prompts.py`) mais l'utilisateur ferme ce point explicitement : c'est un fix chirurgical deja effectue autrement et deliberement (Section 620, Bug A -- restauration de la clause anti-HTML perdue lors du refactor tri-branche, une formulation par branche etant le correctif retenu a l'epoque). Aucune modification.
+
+### Sequencement retenu pour les tours suivants (execution deleguee, hors de ce tour)
+
+- **Etape A (Point 6)** : renommer `_INTERPRETATION_SYSTEM_PROMPT` -> `_SERVER_ACTION_INTERPRETATION_SYSTEM_PROMPT` dans `code_intelligence/server_actions/prompts.py` + `analyzer.py` + `llm.py`. dryRun -> reel -> `py_compile` -> `pytest code_intelligence/tests/test_s2_3_server_actions.py -v` -> grep confirmation zero reference residuelle a l'ancien nom.
+- **Etape B (Point 1, schema C)** : creer `core/confidence_tags.py` + test dedie, PUIS migrer un site a la fois dans cet ordre (chacun : dryRun -> reel -> `py_compile` -> pytest cible incluant le(s) test(s) de la liste ci-dessus concerne(s) -> confirmation avant de passer au suivant) :
+  1. `code_intelligence/security/analyzer.py` + `security/evidence.py` (seul site deja dynamique -- le plus proche du comportement cible)
+  2. `code_intelligence/data_constraints/analyzer.py`
+  3. `code_intelligence/server_actions/analyzer.py`
+  4. `code_intelligence/overrides/relational_chains.py` + `overrides/unguarded_super.py`
+  5. `code_intelligence/ci_agent_node/prompts.py` (mise a jour de la regle de synthese et de son exemple)
+- **Etape C (verification finale)** : grep global `"Confiance: HIGH"`, `"Confiance: FAIBLE"`, `_INTERPRETATION_SYSTEM_PROMPT` sur tout le depot pour confirmer zero reference residuelle non voulue.
+
+**Points 2 et 4 : deja clos ci-dessus, aucune etape d'execution necessaire. Point 3 : clos ci-dessus, aucune etape d'execution necessaire (backlog note separement). Point 5 : explicitement hors mandat, non planifie.**
+
+**Fichiers modifies ce tour** : `todo/contexte.txt` (cette section seule). Aucun code touche.
+
+**Prochaine etape** : confirmation utilisateur de ce sequencement (Etapes A -> B -> C), puis demarrage Etape A.
+
+## Section 627 : Etape A (Point 6) -- renommage _INTERPRETATION_SYSTEM_PROMPT -> _SERVER_ACTION_INTERPRETATION_SYSTEM_PROMPT, CONFIRME
+
+Date : 10/09/2026
+Contexte : execution de l'Etape A planifiee Section 626 (sequencement valide par l'utilisateur).
+
+**Modifications** :
+- `code_intelligence/server_actions/prompts.py` : renommage de la constante `_INTERPRETATION_SYSTEM_PROMPT` -> `_SERVER_ACTION_INTERPRETATION_SYSTEM_PROMPT` (definition, usage dans `build_server_action_messages`, `__all__`).
+- `code_intelligence/server_actions/llm.py` : import mis a jour depuis `.prompts` (le nom n'etait pas utilise ailleurs dans ce fichier, uniquement reexporte pour `analyzer.py`).
+- `code_intelligence/server_actions/analyzer.py` : import mis a jour depuis `code_intelligence.server_actions.llm` (seule occurrence du fichier, confirmee par grep avant edit).
+- `code_intelligence/overrides/prompts.py` : non touche (deja correct, `_OVERRIDE_INTERPRETATION_SYSTEM_PROMPT`, cf. Section 626).
+
+**Verification** :
+- `py_compile` sur les 3 fichiers modifies : OK.
+- Grep global `_INTERPRETATION_SYSTEM_PROMPT\b` sur tout le depot (hors `__pycache__`) : plus aucune occurrence de l'ancien nom nulle part, uniquement `_SERVER_ACTION_INTERPRETATION_SYSTEM_PROMPT` (3 fichiers) et `_OVERRIDE_INTERPRETATION_SYSTEM_PROMPT` (overrides, inchange) -- zero collision, zero reference residuelle.
+- `pytest code_intelligence/tests/test_s2_3_server_actions.py -v` (colle par l'utilisateur) : **9 passed, 0 failed**. Aucune assertion de test ne referencait l'ancien nom (grep confirme avant execution).
+
+**Etape A CLOSE.** Point 6 de l'audit Section 626 integralement traite.
+
+**Fichiers modifies** : `code_intelligence/server_actions/prompts.py`, `code_intelligence/server_actions/llm.py`, `code_intelligence/server_actions/analyzer.py`, `todo/contexte.txt` (cette section).
+
+**Prochaine etape** : Etape B (Point 1, schema C) -- creation de `core/confidence_tags.py` puis migration site par site (ordre defini Section 626).
+
+## Section 628 : Etape B (Point 1) -- creation de core/confidence_tags.py, CONFIRME
+
+Date : 10/09/2026
+Contexte : premiere sous-etape de l'Etape B (Section 626) -- module partage avant toute migration de site.
+
+**Fichier cree** : `core/confidence_tags.py` (31 l.) -- fonction unique `confidence_label(level: str) -> str`, mapping "high"/"medium"/"low" (insensible a la casse) -> "ÉLEVÉE"/"MOYENNE"/"FAIBLE", `ValueError` sur valeur inconnue. Ne construit PAS le tag entre crochets complet (`[Confiance: ...]`) -- chaque site conserve sa propre construction de chaine (separateur `-`/`--`, suffixe libre) et ne remplace que le mot-label code en dur par cet appel, pour minimiser le risque de regression sur le format exact deja teste ailleurs.
+**Fichier de test cree** : `tests/test_confidence_tags.py` (7 tests -- mapping des 3 niveaux, insensibilite a la casse, erreur sur valeur inconnue, distinction des 3 labels, absence de fuite anglaise).
+
+**Verification** :
+- `py_compile` sur les 2 fichiers : OK.
+- `pytest tests/test_confidence_tags.py -v` (colle par l'utilisateur) : **7 passed, 0 failed**.
+
+**Sous-etape module CLOSE.** Prochaine sous-etape : migration du site 1 (`code_intelligence/security/analyzer.py` + `security/evidence.py`), seul site deja dynamique (`_confidence_label = "FAIBLE" if analysis.confidence == "low" else analysis.confidence.upper()`), le plus proche du comportement cible.
+
+**Fichiers modifies** : `core/confidence_tags.py`, `tests/test_confidence_tags.py`, `todo/contexte.txt` (cette section).
+
+## Section 629 : Etape B (Point 1) -- migration du site 1 (security/analyzer.py + security/evidence.py), CONFIRME
+
+Date : 10/09/2026
+Contexte : suite Section 628. Constat au demarrage : le code de migration du site 1 etait deja ecrit sur disque (non commite, non confirme par pytest) -- meme pattern deja rencontre Section 624 (redige en parallele pendant un changement de mount/session). Verifie ligne par ligne avant test, conformement au protocole.
+
+**Etat trouve, verifie avant test** :
+- `code_intelligence/security/analyzer.py` : import `from core.confidence_tags import confidence_label` ajoute ; ligne 161, `[Confiance: FAIBLE]` code en dur remplace par `[Confiance: {confidence_label(result.confidence)}]`. Verifie que `result.confidence` vaut bien `"low"` (assignation explicite ligne 157, juste avant, seul chemin qui atteint cette ligne) -- comportement affiche strictement identique ("FAIBLE"), seul le formatage passe desormais par le module partage.
+- `code_intelligence/security/evidence.py` : import ajoute, `_confidence_label = "FAIBLE" if analysis.confidence == "low" else analysis.confidence.upper()` (le seul site deja dynamique, gerant "low"/"high"/"medium") remplace par `confidence_label(analysis.confidence)` directement -- comportement cible atteint (fini le "HIGH"/"MEDIUM" en anglais qui fuitait ici, desormais "ÉLEVÉE"/"MOYENNE" en francais comme "FAIBLE").
+
+**Verification** :
+- `py_compile` sur les 3 fichiers (`security/analyzer.py`, `security/evidence.py`, `core/confidence_tags.py`) : OK.
+- `pytest code_intelligence/tests/test_s2_5_semgrep_locks.py code_intelligence/tests/test_method_override_chain.py code_intelligence/tests/test_bloc_b1_evidence_analyze_method_override_chain.py code_intelligence/tests/test_flag_ungrounded_acl_source.py code_intelligence/tests/test_j23_24_authorization_gate.py tests/test_confidence_tags.py -q -m "not integration"` (rejoue par l'assistant, acces bash disponible sur ce mount) : **61 passed, 3 skipped (integration, attendus), 0 failed**.
+
+**Point d'attention** : `evidence.py` change reellement le texte affiche pour les niveaux "high"/"medium" (anglais majuscule -> francais), contrairement a `analyzer.py` (toujours "low" a ce site, texte final identique). Aucun test de la liste a risque (Section 626) n'assertait litteralement sur "HIGH"/"MEDIUM" pour ce site precis -- seuls les tests "FAIBLE" existaient et continuent de passer.
+
+**Site 1/5 CLOS.** Prochaine sous-etape (site 2/5) : `code_intelligence/data_constraints/analyzer.py` (3 occurrences, toujours "HIGH" code en dur).
+
+**Fichiers modifies** : aucun code (deja present sur disque avant ce tour) -- uniquement `todo/contexte.txt` (cette section, confirmation pytest).
+
+## Section 630 : Etape B (Point 1) -- migration du site 2 (data_constraints/analyzer.py), CONFIRME
+
+Date : 10/09/2026
+Contexte : suite Section 629. Ce site n'etait PAS deja ecrit sur disque (contrairement aux sites precedents) -- edit realise ce tour, dryRun puis reel.
+
+**Perimetre precise avant edit** : 3 occurrences "HIGH" identifiees dans `data_constraints/analyzer.py` ne sont pas homogenes -- une seule (`confidence="HIGH"` dans `_build_data_constraints_evidence`, alimentant `Evidence.confidence`) releve du schema (B) (contrat LLM high/medium/low sur `core/evidence.py::Evidence.confidence`), explicitement hors mandat (Section 626 : "aucune action ici"). Les 2 autres (`[Confiance: HIGH -- ...]` litteral dans `_compose_data_constraints_summary`, une version EN et une version FR) relevent du schema (C), seul perimetre de l'Etape B -- ce sont ces 2 seules occurrences qui ont ete migrees vers `confidence_label('high')`.
+
+**Modifications** :
+- `code_intelligence/data_constraints/analyzer.py` : import `confidence_label` ajoute ; les 2 f-strings `[Confiance: HIGH -- ...]` (version EN "static pattern match, deterministic" et version FR "correspondance de motif statique, deterministe") remplacees par `[Confiance: {confidence_label('high')} -- ...]` ; `confidence="HIGH"` (Evidence, schema B) laisse intact ; docstring de `_build_data_constraints_evidence` mise a jour pour refleter le nouveau tag affiche.
+- `code_intelligence/tests/test_analyze_data_constraints.py` : 3 assertions `"[Confiance: HIGH" in/count(...)` -> `"[Confiance: ÉLEVÉE"`.
+- `code_intelligence/tests/test_bloc_b1_evidence_analyze_data_constraints.py` : 2 assertions sur `result.summary_text` migrees de la meme facon ; les 2 assertions distinctes `ev.confidence == "HIGH"` (schema B, Evidence) laissees intactes (hors mandat).
+
+**Verification** :
+- `py_compile` sur les 3 fichiers modifies : OK.
+- `pytest code_intelligence/tests/test_analyze_data_constraints.py code_intelligence/tests/test_bloc_b1_evidence_analyze_data_constraints.py code_intelligence/tests/test_semgrep_runner.py tests/test_confidence_tags.py -q -m "not integration"` : **25 passed, 0 failed**.
+- Grep de confirmation `\[Confiance: HIGH` sur tout le depot (hors `.venv`) : 8 residus, tous hors perimetre du site 2 -- fixtures de test litterales simulant du texte deja formate pour des modules downstream non touches ce tour (`test_bloc9_07_core_only_group_stripping.py`, `test_flag_ungrounded_acl_source.py`, `test_j23_24_authorization_gate.py`, `test_bloc9_05_link_guard_backfill.py`, `test_j46_j48_reasoning_trace.py`), un commentaire (`core/evidence_sufficiency.py:107`), et `ci_agent_node/prompts.py:174` qui est precisement le site 5/5 (pas encore traite). Aucune regression, aucun residu inattendu.
+
+**Site 2/5 CLOS.** Prochaine sous-etape (site 3/5) : `code_intelligence/server_actions/analyzer.py` (5 occurrences, toujours "FAIBLE" code en dur).
+
+**Fichiers modifies** : `code_intelligence/data_constraints/analyzer.py`, `code_intelligence/tests/test_analyze_data_constraints.py`, `code_intelligence/tests/test_bloc_b1_evidence_analyze_data_constraints.py`, `todo/contexte.txt` (cette section).
+
+## Section 631 : Etape B (Point 1) -- migration du site 3 (server_actions/analyzer.py), CONFIRME
+
+Date : 10/09/2026
+Contexte : suite Section 630. Ce site n'etait pas deja ecrit sur disque (seul le renommage de l'Etape A/Section 627 y etait present) -- edit realise ce tour, dryRun puis reel.
+
+**Perimetre precise avant edit** : les 5 occurrences "FAIBLE" de `server_actions/analyzer.py` sont TOUTES du schema (C) (texte affiche dans `security_warnings`/`summary_text`) -- aucune n'alimente `Evidence.confidence` directement dans ce fichier. Le champ `ServerActionCodeAnalysis.confidence: str = "low"` (schema B) n'est jamais reassigne dynamiquement nulle part dans `analyzer.py`/`evidence.py`/`llm.py` (grep confirme, zero occurrence de `result.confidence =` ou `.confidence =`) -- reste toujours a sa valeur par defaut, mort/non exploite, hors mandat de toute facon (schema B).
+
+**Modifications** :
+- `code_intelligence/server_actions/analyzer.py` : import `confidence_label` ajoute ; les 5 f-strings `[Confiance: FAIBLE - ...]` (SUDO, IDs en dur, dispatch dynamique, cron, action serveur non-cron) remplacees par `[Confiance: {confidence_label('low')} - ...]`, suffixe explicatif de chacune inchange.
+
+**Recherche de tests a risque** : contrairement aux sites 1/2, aucun test direct de `analyze_server_action_code`/`ServerActionCodeAnalysis` (`test_s2_3_server_actions.py`, `test_bloc_b1_evidence_analyze_server_actions.py`, `test_bug1_xml_id_citation_wiring.py`, `test_s2_7_sourcing.py`) n'assertait litteralement sur "Confiance: FAIBLE" (grep vide) -- seule `tests/test_graph.py` (fixture `_REAL_SERVER_ACTION_RAW_TEXT`, lignes 799/804) contient le texte litteral, mais en tant que chaine simulee servant d'entree a `_extract_hardcoded_id_literals`/`_backfill_missing_hardcoded_id_literals` (autre module, `core/graph.py`), jamais generee en appelant le vrai `analyze_server_action_code` -- non fonctionnellement couplee au changement, donc non touchee (meme categorie que les fixtures notees Section 630).
+
+**Verification** :
+- `py_compile` sur `server_actions/analyzer.py` : OK.
+- `pytest code_intelligence/tests/test_s2_3_server_actions.py code_intelligence/tests/test_bloc_b1_evidence_analyze_server_actions.py code_intelligence/tests/test_bug1_xml_id_citation_wiring.py code_intelligence/tests/test_s2_7_sourcing.py tests/test_bloc_b2_full_wiring.py tests/test_confidence_tags.py -q -m "not integration"` : **57 passed, 0 failed**.
+- `tests/test_j8_llm_server_action_interpretation.py` exclu de la commande ci-dessus : erreur de collecte PRE-EXISTANTE (`ModuleNotFoundError: code_intelligence.server_action_analyzer`, module renomme lors d'un refactor anterieur en `server_actions/`) -- confirme par `git log` (dernier commit du fichier : 28/08/2026, jamais touche par cette session ni les precedentes). Hors scope, non traite ce tour.
+- Grep de confirmation `\[Confiance: FAIBLE` sur tout le depot (hors `.venv`) : residus tous attendus -- site 1 deja migre mais avec `confidence_label('low') == "FAIBLE"` (texte final identique, donc toujours "FAIBLE" litteral dans les fixtures/tests de `security/`), sites 4 et 5 pas encore traites (`overrides/relational_chains.py`, `overrides/unguarded_super.py`, `ci_agent_node/prompts.py`), fixture `tests/test_graph.py` deja notee non fonctionnellement couplee, et 2 commentaires/docstrings (`scripts/check_bloc9_07_expense_reimbursement_indirect_e2e.py`, `test_bloc_b1_evidence_analyze_method_override_chain.py`). Aucun residu inattendu.
+
+**Site 3/5 CLOS.** Prochaine sous-etape (site 4/5) : `code_intelligence/overrides/relational_chains.py` + `overrides/unguarded_super.py` (1 occurrence "FAIBLE" chacun).
+
+**Fichiers modifies** : `code_intelligence/server_actions/analyzer.py`, `todo/contexte.txt` (cette section).
+
+## Section 632 : Etape B (Point 1) -- migration du site 4 (overrides/relational_chains.py + overrides/unguarded_super.py), CONFIRME
+
+Date : 10/09/2026
+Contexte : suite Section 631. Site non present sur disque -- edit realise ce tour.
+
+**Point technique rencontre** : les 2 fichiers stockent leurs chaines de message avec des sequences d'echappement Unicode litterales (`\u00e9`, etc.) dans le code source (pas des caracteres UTF-8 bruts) -- `Filesystem:edit_file` ne matchait pas `oldText` compose de caracteres accentues reels pour cette raison. Contourne via un script Python local (lecture/remplacement/diff/ecriture), avec verification du diff avant ecriture (equivalent du dryRun) -- meme discipline, outil different.
+
+**Modifications** :
+- `code_intelligence/overrides/relational_chains.py` : import `confidence_label` ajoute ; le literal `[Confiance: FAIBLE -- heuristique statique, ne verifie pas...]` (dans le `return (...)` de `detect_unchecked_relational_chain`) convertit en f-string sur son segment `[Confiance: {confidence_label('low')} -- ...` (le reste de la concatenation implicite de chaines inchange).
+- `code_intelligence/overrides/unguarded_super.py` : import ajoute ; `UNGUARDED_SUPER_WARNING_TEMPLATE` (constante module-level utilisant `.format()` avec placeholders `{method_name}`/`{module}`/`{condition}` -- un f-string y aurait cree un conflit de syntaxe avec ces accolades) migre via concatenation explicite `+` plutot qu'un f-string : `"[Confiance: " + confidence_label('low') + " -- heuristique statique sur la forme exacte..."`.
+
+**Verification** :
+- `py_compile` sur les 2 fichiers : OK.
+- Verification runtime directe (`python -c "from ... import UNGUARDED_SUPER_WARNING_TEMPLATE; print(...)"`) : texte final identique a l'original ("FAIBLE"), confirmant que la concatenation implicite chaines-litterales/`+`/chaines-litterales produit bien la meme chaine qu'avant (`confidence_label('low') == "FAIBLE"`).
+- `pytest code_intelligence/tests/test_method_override_chain.py code_intelligence/tests/test_bloc_b1_evidence_analyze_method_override_chain.py tests/test_confidence_tags.py -q -m "not integration"` : **30 passed, 3 skipped (integration, attendus), 0 failed**. Aucune assertion de test a modifier (texte de sortie inchange puisque 'low' etait deja le seul niveau utilise sur ce site).
+- Grep de confirmation `\[Confiance: FAIBLE` sur tout le depot (hors `.venv`) : residus tous attendus -- site 5 pas encore traite (`ci_agent_node/prompts.py`), site 1 deja migre (texte "FAIBLE" inchange par design), fixtures/commentaires deja notes (`test_j23_24_authorization_gate.py`, `test_s2_5_semgrep_locks.py`, `tests/test_graph.py`, `scripts/check_bloc9_07_...`, `test_bloc_b1_evidence_analyze_method_override_chain.py:21` commentaire). Aucun residu inattendu.
+
+**Site 4/5 CLOS.** Prochaine et derniere sous-etape (site 5/5) : `code_intelligence/ci_agent_node/prompts.py::build_synthesis_prompt` -- mise a jour de la regle de synthese pour ne plus documenter que les tags francais canoniques (plus de "[Confiance: HIGH]" en exemple pour le LLM).
+
+**Fichiers modifies** : `code_intelligence/overrides/relational_chains.py`, `code_intelligence/overrides/unguarded_super.py`, `todo/contexte.txt` (cette section).

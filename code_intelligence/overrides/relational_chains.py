@@ -9,6 +9,7 @@ import networkx as nx
 
 from code_intelligence.overrides.types import resolve_method_override_chain
 from code_intelligence.overrides.unguarded_super import detect_unguarded_super
+from core.confidence_tags import confidence_label
 
 _logger = logging.getLogger(__name__)
 
@@ -156,7 +157,7 @@ def detect_unchecked_relational_chain(
         "maillon interm\u00e9diaire est vide, l'expression compl\u00e8te s'\u00e9value "
         "silencieusement \u00e0 False/un recordset vide, sans erreur -- risque r\u00e9el "
         "que la personne cens\u00e9e \u00eatre notifi\u00e9e/valider ne le soit jamais, sans "
-        "signal d'erreur. [Confiance: FAIBLE -- heuristique statique, ne "
+        f"signal d'erreur. [Confiance: {confidence_label('low')} -- heuristique statique, ne "
         "v\u00e9rifie pas si un garde est exprim\u00e9 ailleurs dans l'appelant]"
     )
 

@@ -14,7 +14,7 @@ _logger = logging.getLogger(__name__)
 _LLM_CONFIDENCE_CLOSED_SET = {"high", "medium", "low"}
 
 from .prompts import (
-    _INTERPRETATION_SYSTEM_PROMPT,
+    _SERVER_ACTION_INTERPRETATION_SYSTEM_PROMPT,
     _build_interpretation_prompt,
     build_server_action_messages,
 )

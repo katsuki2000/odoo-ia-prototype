@@ -37,6 +37,7 @@ from core.graph_nodes import (
     format_output,
     ci_evidence_decision,
 )
+from core.evidence_collector import start_evidence_collection, collect_and_clear_evidence
 
 # Backward-compatible re-exports for legacy callers and tests
 import core.graph_compat as _graph_compat
@@ -129,6 +130,7 @@ def query_graph(
         api_key_token = odoo_api_key_ctx.set(api_key)
 
     try:
+        start_evidence_collection()
         app = build_graph()
         initial_state = {
             "question": question,
@@ -155,7 +157,9 @@ def query_graph(
         timing["total_time"] = time.time() - start_time
         logger.info(json.dumps({"event": "request_latency", "metrics": timing}))
 
-        return final_state["response"]
+        response = final_state["response"]
+        response.evidence_dossier = collect_and_clear_evidence()
+        return response
     except Exception as e:
         logger.error("Graph execution failed: %s", e)
         return AssistantResponse(
@@ -164,6 +168,10 @@ def query_graph(
             confidence=0.0,
         )
     finally:
+        # Safety net: drains any partial accumulator left by an exception
+        # path above so it never leaks into the next request on this same
+        # thread/context -- no-op (returns []) if already collected above.
+        collect_and_clear_evidence()
         if uid_token:
             odoo_uid_ctx.reset(uid_token)
         if api_key_token:

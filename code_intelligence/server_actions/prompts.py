@@ -10,7 +10,7 @@ from langchain_core.messages import BaseMessage, SystemMessage, HumanMessage
 if TYPE_CHECKING:
     from code_intelligence.server_actions.analyzer import ServerActionCodeAnalysis
 
-_INTERPRETATION_SYSTEM_PROMPT = (
+_SERVER_ACTION_INTERPRETATION_SYSTEM_PROMPT = (
     "Tu es un analyste de sécurité pour du code Odoo ir.actions.server (server actions). "
     "Un premier passage automatique (regex) a déjà détecté des patterns de sécurité dans ce "
     "code -- ta tâche est UNIQUEMENT d'interpréter et résumer en une phrase ce que fait "
@@ -36,13 +36,13 @@ def _build_interpretation_prompt(analysis: "ServerActionCodeAnalysis", code: str
 def build_server_action_messages(analysis: "ServerActionCodeAnalysis", code: str) -> List[BaseMessage]:
     """Construct the full message list for server action LLM interpretation."""
     return [
-        SystemMessage(content=_INTERPRETATION_SYSTEM_PROMPT),
+        SystemMessage(content=_SERVER_ACTION_INTERPRETATION_SYSTEM_PROMPT),
         HumanMessage(content=_build_interpretation_prompt(analysis, code)),
     ]
 
 
 __all__ = [
-    "_INTERPRETATION_SYSTEM_PROMPT",
+    "_SERVER_ACTION_INTERPRETATION_SYSTEM_PROMPT",
     "_build_interpretation_prompt",
     "build_server_action_messages",
 ]

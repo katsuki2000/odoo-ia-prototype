@@ -33,6 +33,7 @@ from .tool_helpers import (
     _trace_invoked_methods,
 )
 from code_intelligence.utils import format_file_link
+from core.evidence_collector import record_evidence
 
 _logger = logging.getLogger(__name__)
 
@@ -45,7 +46,9 @@ def who_has_access_to(model_name: str, permission: str = "read", group_id: Optio
     from code_intelligence.deterministic.access_evaluator import who_has_access_to as _impl
     G = _require_graph()
     model_name = _resolve_model_param(model_name)
-    return _impl(G, model_name, permission=permission, group_id=group_id).summary_text
+    result = _impl(G, model_name, permission=permission, group_id=group_id)
+    record_evidence(result.evidence)
+    return result.summary_text
 
 
 @tool
@@ -55,6 +58,7 @@ def field_change_impact(field_name: str, model_name: str) -> str:
     G = _require_graph()
     model_name = _resolve_model_param(model_name)
     result = _impl(G, field_name, model_name)
+    record_evidence(result.evidence)
     parts = [result.summary_text]
     if result.upstream_triggers:
         parts.append(f"Upstream triggers: {', '.join(result.upstream_triggers)}")
@@ -74,6 +78,7 @@ def button_execution_path(button_name: str, model_name: str, user_groups_json: s
     except Exception:
         user_groups = None
     result = _impl(G, button_name, model_name, user_groups=user_groups)
+    record_evidence(result.evidence)
     return result.summary_text + "\n" + "\n".join(result.execution_steps)
 
 
@@ -83,7 +88,9 @@ def trace_full_inheritance(model_name: str) -> str:
     from code_intelligence.deterministic.inheritance_chain import trace_full_inheritance as _impl
     G = _require_graph()
     model_name = _resolve_model_param(model_name)
-    return _impl(G, model_name).summary_text
+    result = _impl(G, model_name)
+    record_evidence(result.evidence)
+    return result.summary_text
 
 
 @tool
@@ -92,7 +99,9 @@ def describe_workflow(model_name: str) -> str:
     from code_intelligence.deterministic.workflow_process import describe_workflow as _impl
     G = _require_graph()
     model_name = _resolve_model_param(model_name)
-    return _impl(G, model_name).summary_text
+    result = _impl(G, model_name)
+    record_evidence(result.evidence)
+    return result.summary_text
 
 
 @tool
@@ -105,7 +114,7 @@ def resolve_technical_name(technical_name: str) -> str:
 @tool
 def list_involved_modules(model_name: str) -> str:
     """List Odoo modules defining or extending a model, each tagged with its role."""
-    from code_intelligence.ci_agent_node.auxiliary_tools import list_involved_modules_with_role as _impl
+    from code_intelligence.ci_agent_node.auxiliary_tools import list_involved_modules_with_evidence as _impl
     G = _require_graph()
     model_name = _resolve_model_param(model_name)
     mod_node = f"module:{model_name}"
@@ -119,7 +128,9 @@ def list_involved_modules(model_name: str) -> str:
                 models_with_role.append(f"{m} ({role})")
         if models_with_role:
             return f"Module '{model_name}' defines or extends the following models: {', '.join(sorted(models_with_role))}."
-    entries = _impl(G, model_name)
+    result = _impl(G, model_name)
+    record_evidence(result.evidence)
+    entries = result.modules
     if entries:
         formatted = ", ".join(f"{mod} ({role})" for mod, role in entries)
         ambiguity_note = (
@@ -172,7 +183,9 @@ def evaluate_record_rules(model_name: str, permission: str = "read", user_groups
     """Evaluate Odoo ir.rule record rules for a model and permission."""
     if _is_wildcard_model(model_name):
         return WILDCARD_MODEL_ERROR_MSG
-    return evaluate_rules_raw(model_name, permission, user_groups_json).summary_text
+    result = evaluate_rules_raw(model_name, permission, user_groups_json)
+    record_evidence(result.evidence)
+    return result.summary_text
 
 
 @tool
@@ -193,6 +206,7 @@ def analyze_server_actions(model_name: str) -> str:
         return f"No server actions (ir.actions.server) found for model '{model_name}'."
 
     entries = []
+    all_evidence = []
     llm_ref = get_llm_ref()
     for node_id, attrs in sa_nodes:
         xml_id = attrs.get("xml_id", node_id)
@@ -207,9 +221,11 @@ def analyze_server_actions(model_name: str) -> str:
             interval_type=attrs.get("interval_type", ""),
         )
         analysis = interpret_server_action_with_llm(analysis, code, llm_ref)
+        all_evidence.extend(analysis.evidence)
         summary = analysis.summary_text + _trace_invoked_methods(G, model_name, code)
         entries.append((xml_id, _is_custom_server_action_module(G, xml_id), summary))
 
+    record_evidence(all_evidence)
     entries = _sort_server_action_entries_custom_first(entries)
     return "\n\n".join(summary for _, _, summary in entries)
 
@@ -232,13 +248,16 @@ def analyze_security_locks(model_name: str) -> str:
         return f"No Python source files located for model '{model_name}'."
 
     summaries = []
+    all_evidence = []
     for fp in _sort_filepaths_custom_first(filepaths):
         p = Path(fp)
         if p.exists():
             code = p.read_text(encoding="utf-8")
             analysis = analyze_python_security_locks(code, fp)
+            all_evidence.extend(analysis.evidence)
             summaries.append(analysis.summary_text)
 
+    record_evidence(all_evidence)
     return "\n\n".join(summaries) if summaries else f"No security analysis results for model '{model_name}'."
 
 
@@ -247,10 +266,12 @@ def analyze_method_override_chain(model_name: str, method_name: str) -> str:
     """Resolve the REAL execution order of a method overridden across modules in an _inherit cascade."""
     if _is_wildcard_model(model_name):
         return WILDCARD_MODEL_ERROR_MSG
-    from code_intelligence.overrides import analyze_method_override_chain as _impl
+    from code_intelligence.overrides import analyze_method_override_chain_with_evidence as _impl
     G = _require_graph()
     model_name = _resolve_model_param(model_name)
-    return _impl(G, model_name, method_name, llm=get_llm_ref())
+    result = _impl(G, model_name, method_name, llm=get_llm_ref())
+    record_evidence(result.evidence)
+    return result.summary_text
 
 
 @tool
@@ -271,6 +292,7 @@ def analyze_data_constraints(model_name: str) -> str:
         return f"No Python source files located for model '{model_name}'."
 
     result = analyze_data_constraints_from_filepaths(model_name, filepaths)
+    record_evidence(result.evidence)
     return result.summary_text
 
 

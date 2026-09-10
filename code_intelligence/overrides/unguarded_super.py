@@ -4,6 +4,8 @@ import ast
 import logging
 from typing import List, Optional
 
+from core.confidence_tags import confidence_label
+
 _logger = logging.getLogger(__name__)
 
 
@@ -137,7 +139,7 @@ UNGUARDED_SUPER_WARNING_TEMPLATE = (
     "loin dans la m\u00e9thode. La logique de la classe parente va se r\u00e9appliquer sur "
     "TOUS les enregistrements, y compris ceux couverts par cette condition -- "
     "risque r\u00e9el qu'elle soit silencieusement annul\u00e9e. "
-    "[Confiance: FAIBLE -- heuristique statique sur la forme exacte du contr\u00f4le de "
+    "[Confiance: " + confidence_label('low') + " -- heuristique statique sur la forme exacte du contr\u00f4le de "
     "flux, ne d\u00e9tecte pas les gardes formul\u00e9es autrement]"
 )
 

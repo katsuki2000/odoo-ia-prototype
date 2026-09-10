@@ -5,6 +5,7 @@ from typing import List, Optional, Tuple
 from langchain_core.tools import tool
 
 from core.evidence import Evidence, EvidenceSourceType, make_evidence
+from core.evidence_collector import record_evidence
 from erp_data._odoo_helpers import (
     connector, get_current_uid, orm_evidence_scope,
     normalize_client_name, is_all_clients,
@@ -78,7 +79,8 @@ def search_partner(nom: str = "", limite: int = 0) -> str:
         limite: Max clients to display (0 for all). Default: 0.
     """
     try:
-        text, _evidence = search_partner_raw(nom, limite)
+        text, evidence = search_partner_raw(nom, limite)
+        record_evidence(evidence)
         return text
     except Exception as e:
         return f"Erreur lors de la recherche du client : {str(e)}"
@@ -172,7 +174,8 @@ def get_recent_tickets(
         statut: Optional status filter (e.g. 'résolu', 'en cours'). Leave None unless explicitly requested.
     """
     try:
-        text, _evidence = get_recent_tickets_raw(client, limite, statut)
+        text, evidence = get_recent_tickets_raw(client, limite, statut)
+        record_evidence(evidence)
         return text
     except Exception as e:
         return f"Erreur lors de la récupération des tickets : {str(e)}"

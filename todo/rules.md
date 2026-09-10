@@ -17,3 +17,4 @@ meme convention de nommage(snake_case pour les fichiers et PascalCase pour les c
 DRY (Don't Repeat Yourself)
 respect d'architecture LLM recommandé 
 a clean architecture with subpackages and packages
+fait que la transition vers local soit facile en modifiant qu'un seul fichier (.env)

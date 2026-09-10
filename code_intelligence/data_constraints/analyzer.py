@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Iterable, List, Optional
 
 from core.evidence import Evidence, EvidenceSourceType, make_evidence
+from core.confidence_tags import confidence_label
 from code_intelligence.data_constraints import runner
 from code_intelligence.data_constraints.runner import SemgrepMatch
 from code_intelligence.utils import format_file_link
@@ -22,8 +23,8 @@ class DataConstraintsAnalysis:
 def _build_data_constraints_evidence(matches: List[SemgrepMatch]) -> List[Evidence]:
     """
     One Evidence per real SemgrepMatch, confidence=HIGH (static deterministic
-    pattern match, consistent with the [Confiance: HIGH] already shown in
-    summary_text). check_id (e.g. odoo-sql-constraints-declaration vs
+    pattern match, consistent with the [Confiance: ÉLEVÉE] tag shown in
+    summary_text, formatted via core.confidence_tags -- section 629). check_id (e.g. odoo-sql-constraints-declaration vs
     odoo-relational-domain-declaration) already carries the SQL-constraint
     vs domain= distinction -- no separate classification is rebuilt here,
     per todo/contexte.txt section 463/464 decision.
@@ -53,13 +54,13 @@ def _compose_data_constraints_summary(model_name: str, matches: List[SemgrepMatc
     if not matches:
         return (
             f"No _sql_constraints or relational domain= patterns detected for "
-            f"model '{model_name}' [Confiance: HIGH -- static pattern match, "
+            f"model '{model_name}' [Confiance: {confidence_label('high')} -- static pattern match, "
             f"deterministic]."
         )
 
     lines = [
         f"Analyse des contraintes de données (Semgrep) pour '{model_name}' "
-        f"[Confiance: HIGH -- correspondance de motif statique, déterministe]:"
+        f"[Confiance: {confidence_label('high')} -- correspondance de motif statique, déterministe]:"
     ]
     from code_intelligence.ci_agent_node.agent_tools import _is_custom_module_filepath
     def _constraint_priority(m: SemgrepMatch) -> tuple:

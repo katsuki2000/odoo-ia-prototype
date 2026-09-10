@@ -15,11 +15,12 @@ from typing import List, Optional
 import logging
 
 from core.evidence import Evidence
+from core.confidence_tags import confidence_label
 from code_intelligence.server_actions.evidence import build_server_action_evidence
 from code_intelligence.server_actions.llm import (
     interpret_server_action_with_llm,
     _build_interpretation_prompt,
-    _INTERPRETATION_SYSTEM_PROMPT,
+    _SERVER_ACTION_INTERPRETATION_SYSTEM_PROMPT,
     _LLM_CONFIDENCE_CLOSED_SET,
 )
 
@@ -138,7 +139,7 @@ def analyze_server_action_code(
         result.security_warnings.append(
             f" SUDO: L'action '{action_xml_id}' utilise sudo() ({len(sudo_matches)} appels). "
             f"Cela contourne les règles d'accès (ir.rule) et les ACL."
-            f"{cond_clause} [Confiance: FAIBLE - logique stockée en données XML]"
+            f"{cond_clause} [Confiance: {confidence_label('low')} - logique stockée en données XML]"
         )
 
     # 2. Detect has_group() checks
@@ -160,7 +161,7 @@ def analyze_server_action_code(
                     f" IDs EN DUR: L'action '{action_xml_id}' contient une liste d'IDs "
                     f"codés en dur: {ids}. Ces enregistrements bénéficient d'un traitement "
                     f"spécial non documenté dans les modèles Python."
-                    f"{cond_clause} [Confiance: FAIBLE - logique stockée en données XML]"
+                    f"{cond_clause} [Confiance: {confidence_label('low')} - logique stockée en données XML]"
                 )
         except ValueError:
             pass
@@ -177,7 +178,7 @@ def analyze_server_action_code(
             result.security_warnings.append(
                 f" DISPATCH DYNAMIQUE: L'action '{action_xml_id}' utilise {name}(). "
                 f"Impossible de déterminer statiquement le comportement exact. "
-                f"[Confiance: FAIBLE - nécessite revue manuelle]"
+                f"[Confiance: {confidence_label('low')} - nécessite revue manuelle]"
             )
 
     from code_intelligence.utils import SENSITIVE_BYPASS_MARKER, format_xml_id_citation
@@ -186,7 +187,7 @@ def analyze_server_action_code(
         name_info = f" '{action_name}'" if action_name else ""
         lines = [
             f"Action planifiée (ir.cron){name_info} '{action_xml_id}' "
-            f"({_action_citation}) [Confiance: FAIBLE - logique en données XML, modifiable à l'exécution]:",
+            f"({_action_citation}) [Confiance: {confidence_label('low')} - logique en données XML, modifiable à l'exécution]:",
             f"  - Type: Action récurrente planifiée (ir.cron)",
         ]
         if interval_type:
@@ -199,7 +200,7 @@ def analyze_server_action_code(
     else:
         lines = [
             f"Analyse du code de l'action serveur '{action_xml_id}' "
-            f"({_action_citation}) [Confiance: FAIBLE - logique en données XML, modifiable à l'exécution]:"
+            f"({_action_citation}) [Confiance: {confidence_label('low')} - logique en données XML, modifiable à l'exécution]:"
         ]
 
     if result.has_sudo:
