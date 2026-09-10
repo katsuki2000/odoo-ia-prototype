@@ -972,3 +972,14 @@ Contexte : investigation du point en suspens Section 636 (lenteur/blocage de `te
 **Fichier modifie** : `code_intelligence/tests/test_c1_1.py` (supprime).
 
 **CLOS.**
+
+## Section 638 : Confirmation Trunk -- verification visuelle H2 (bandeau de contexte, widget Discuss) deja rejouee et close
+
+Date : 10/09/2026
+Contexte : suite a la discussion sur "et maintenant", confirmation directe de Trunk que le point (c) de H2 (`todo/plan.md` ligne 121 -- "verification visuelle du bandeau de contexte dans le widget Discuss") a deja ete rejoue et clos lors d'une session anterieure non retracee dans cette copie du journal.
+
+**Action** : `todo/plan.md` mis a jour -- (c) marque fait sur confirmation Trunk. Reserve equivalente sous Bloc P1 (rendu reel du plan dans le widget Discuss, Jour 5 frontend) egalement levee sur la meme base.
+
+**H2, reste a couvrir avant cloture pleine** : (a) rejeu du benchmark adversarial complet (`scripts/run_adversarial_benchmark.py`) avec le chantier H2/Step 1.5 explicitement en tete ; (b) test end-to-end reel systray -> controller -> API -> graph -> resolver sur une instance Odoo/FastAPI vivante.
+
+**Prochaine etape** : (a), delegue a Trunk (execution longue, LLM + RPC reels sur les 8 modules Bloc 9).
