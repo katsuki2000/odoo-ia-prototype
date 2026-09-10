@@ -44,6 +44,11 @@ class QuestionIntent(str, Enum):
     ERP_DATA_QUERY = "erp_data_query"               # Live records, counts, aggregations
     DOCUMENTARY_POLICY = "documentary_policy"       # Wiki, general guidelines, how-to
     GENERAL_CODE_INQUIRY = "general_code_inquiry"   # Other technical inspections
+    # Bloc 17 (todo/contexte.txt section 645, reconstruction du mandat manquant
+    # todo/bloc17_jour1_perimetre.md) -- additive only, never reclassifies an
+    # existing benchmark question (see TestBenchmarkRegressionPin in
+    # code_intelligence/tests/test_bloc17_navigation_howto_intent.py).
+    NAVIGATION_HOWTO = "navigation_howto"           # UI menu/screen/tab location ("ou se trouve X")
 
 
 # Bloc P1 Tranche 2 (todo/contexte.txt section 394+): closed mapping from
@@ -58,6 +63,7 @@ INTENT_TO_ROUTE: Dict[QuestionIntent, str] = {
     QuestionIntent.GENERAL_CODE_INQUIRY: QueryRoute.CODE_INTELLIGENCE.value,
     QuestionIntent.ERP_DATA_QUERY: QueryRoute.DONNEES_ERP.value,
     QuestionIntent.DOCUMENTARY_POLICY: QueryRoute.DOCUMENTAIRE.value,
+    QuestionIntent.NAVIGATION_HOWTO: QueryRoute.CODE_INTELLIGENCE.value,
 }
 
 

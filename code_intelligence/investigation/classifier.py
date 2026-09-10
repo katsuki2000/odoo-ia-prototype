@@ -97,6 +97,22 @@ _ERP_DATA_PATTERNS = [
     r"\b(montant\s+total\s+des\s+ventes|chiffre\s+d'affaires|ca\s+de|dans\s+la\s+base)\b",
 ]
 
+# Bloc 17 (todo/contexte.txt section 645) : vocabulaire de localisation UI
+# ("ou se trouve/accede-t-on/dans quel onglet/ou puis-je trouver/comment
+# naviguer"), distinct du vocabulaire "comment faire pour X" (action metier,
+# reste DOCUMENTARY_POLICY -- voir TestBenchmarkRegressionPin, DOC-01/02/03/
+# 04/10). Verifie deliberement APRES governance/workflow dans la cascade :
+# "bouton"/transitions doivent rester WORKFLOW_STATE, un "menu" incident dans
+# une question de gouvernance doit rester GOVERNANCE_SECURITY.
+_NAVIGATION_PATTERNS = [
+    r"\b(?:ou|où)\s+se\s+trouve\b",
+    r"\b(?:ou|où)\s+puis[-\s]je\s+trouver\b",
+    r"\bcomment\s+(?:acceder|accéder)\s+(?:a|à)\b",
+    r"\bdans\s+quel\s+onglet\b",
+    r"\bcomment\s+naviguer\b",
+]
+
+
 _DOC_ANCHOR_PATTERNS = [
     r"\b(selon\s+le\s+wiki|dans\s+le\s+wiki|wiki\s+interne|guide\s+utilisateur|documentation|procedure|procédure)\b",
     r"\b(ou\s+est\s+documente|où\s+est\s+documenté|politique\s+interne)\b",
@@ -176,6 +192,13 @@ def classify_question_intent(
                     b_tags = G.nodes[model_node].get("behavioral_tags", [])
                     if BehavioralTag.WORKFLOW_RULE.value in b_tags:
                         return QuestionIntent.WORKFLOW_STATE
+
+    # 8bis. Bloc 17 (todo/contexte.txt section 645) : localisation UI
+    # ("ou se trouve", "comment accede-t-on", ...) -- verifie juste avant le
+    # fallback documentaire, jamais avant governance/workflow/calcul/
+    # heritage/automation/erp_data qui ont deja tous eu leur chance ci-dessus.
+    if any(re.search(p, folded) for p in _NAVIGATION_PATTERNS):
+        return QuestionIntent.NAVIGATION_HOWTO
 
     # 9. No explicit code intelligence signal found
     return QuestionIntent.DOCUMENTARY_POLICY
