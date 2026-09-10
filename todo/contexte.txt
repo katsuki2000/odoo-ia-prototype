@@ -957,3 +957,18 @@ Contexte : reprise du Bloc B2 (Section 622-624) apres cloture de l'audit prompts
 **Fichiers modifies ce tour** : aucun code (wiring deja present) -- uniquement `todo/contexte.txt` (cette section, confirmation pytest).
 
 **Point en suspens note pour le backlog** : `code_intelligence/tests/test_c1_1.py` lent/possiblement bloquant sans marqueur `integration` -- a investiguer separement si Trunk le souhaite.
+
+## Section 637 : Suppression de code_intelligence/tests/test_c1_1.py
+
+Date : 10/09/2026
+Contexte : investigation du point en suspens Section 636 (lenteur/blocage de `test_c1_1.py`).
+
+**Diagnostic** : fichier de tout premier jalon ("Task C1.1.x", anterieur a la convention actuelle `test_bloc9_*`/`test_j*`/`test_s*`), 2 tests -- `test_4way_routing_classification` (rapide, deterministe, `route()` appele avec `llm=None`) et `test_end_to_end_code_intelligence_graph_execution` (**cause reelle du blocage** : `build_graph()` + `app.invoke()` en reel x3, donc 3 vrais appels LLM Groq a chaque run de la suite "rapide", sans mock, sans marqueur `integration` ; assertions fragiles par pattern-matching sur texte LLM non-deterministe, ex. `"Droits d'Acces et Securite" in response.answer or "sale.order" in response.answer`, contraire a la discipline actuelle du projet).
+
+**Redondance confirmee avant suppression** : classification de routage deja couverte deterministement par `tests/test_h1c_sticky_routing.py` ; topologie/dispatch du graphe compile deja couverte par `tests/test_bloc_p1_tranche2_ci_first_evidence_routing.py` (inspection directe du graphe compile, sans LLM) ; comportement E2E reel deja couvert volontairement par les scripts `scripts/check_bloc9_*_e2e.py`. Aucune couverture unique perdue.
+
+**Action** : fichier supprime par Trunk directement. Verifie post-suppression : `git status --short` -> `D code_intelligence/tests/test_c1_1.py` (working tree, pas encore commite) ; grep `test_c1_1` residuel -> seule occurrence dans `test_c_complete.py::test_c1_1_tools_binding` (nom de fonction sans rapport, pas un import) ; `pytest code_intelligence/tests/ -m "not integration" --co` -> **683/712 tests collectes (29 deselected), zero erreur de collection**.
+
+**Fichier modifie** : `code_intelligence/tests/test_c1_1.py` (supprime).
+
+**CLOS.**
