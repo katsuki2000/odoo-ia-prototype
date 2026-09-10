@@ -23,7 +23,7 @@ from erp_data.tools.inventory import (
     list_out_of_stock_products,
 )
 from erp_data.odoo_context import odoo_uid_ctx
-from core.evidence import Evidence, EvidenceSourceType
+from core.evidence.evidence import Evidence, EvidenceSourceType
 
 
 def test_list_out_of_stock_raw_returns_text_and_one_evidence_per_product():

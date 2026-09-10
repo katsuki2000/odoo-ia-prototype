@@ -21,7 +21,7 @@ from pathlib import Path
 project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(project_root))
 
-from core.graph import code_intelligence_agent, _get_admin_rpc_client
+from core.graph.graph import code_intelligence_agent, _get_admin_rpc_client
 
 
 def _resolve_bloc7_test_group_ids():

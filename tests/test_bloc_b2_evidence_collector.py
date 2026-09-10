@@ -11,8 +11,8 @@ import logging
 
 import pytest
 
-from core.evidence import Evidence, EvidenceSourceType, make_evidence
-from core.evidence_collector import (
+from core.evidence.evidence import Evidence, EvidenceSourceType, make_evidence
+from core.evidence.evidence_collector import (
     _turn_evidence_ctx,
     start_evidence_collection,
     record_evidence,

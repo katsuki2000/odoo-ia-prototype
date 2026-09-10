@@ -29,8 +29,8 @@ from code_intelligence.knowledge_rules.security.visitor import (
     _HAS_GROUP_PATTERN,
     SecurityLockASTVisitor,
 )
-from core.evidence import Evidence
-from core.confidence_tags import confidence_label
+from core.evidence.evidence import Evidence
+from core.output.confidence_tags import confidence_label
 
 _logger = logging.getLogger(__name__)
 

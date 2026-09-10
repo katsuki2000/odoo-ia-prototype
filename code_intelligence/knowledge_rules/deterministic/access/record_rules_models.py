@@ -13,7 +13,7 @@ from code_intelligence.knowledge_rules.deterministic.access.domain_evaluator imp
     _kleene_or,
     evaluate_domain_force,
 )
-from core.evidence import Evidence
+from core.evidence.evidence import Evidence
 
 
 @dataclass

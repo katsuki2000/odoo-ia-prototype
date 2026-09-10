@@ -26,7 +26,7 @@ from erp_data.tools.accounting import (
     get_period_revenue,
 )
 from erp_data.odoo_context import odoo_uid_ctx
-from core.evidence import Evidence, EvidenceSourceType
+from core.evidence.evidence import Evidence, EvidenceSourceType
 
 
 def test_full_branch_sums_rows_into_single_evidence():

@@ -14,7 +14,7 @@ import networkx as nx
 
 from code_intelligence.knowledge_rules.deterministic.structure.workflow_process import describe_workflow
 from code_intelligence.knowledge_rules.deterministic.common import QueryStatus
-from core.evidence import Evidence, EvidenceSourceType
+from core.evidence.evidence import Evidence, EvidenceSourceType
 
 
 def _build_test_graph() -> nx.DiGraph:

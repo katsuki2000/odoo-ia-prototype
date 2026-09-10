@@ -6,7 +6,7 @@ from typing import List, Tuple
 
 from erp_data.odoo_connector import OdooConnector
 from erp_data.odoo_context import odoo_uid_ctx, odoo_api_key_ctx
-from core.evidence import Evidence, EvidenceSourceType, make_evidence
+from core.evidence.evidence import Evidence, EvidenceSourceType, make_evidence
 from erp_data.date_utils import parse_period
 
 logger = logging.getLogger(__name__)

@@ -1,7 +1,7 @@
 """Input validation, safety guardrails, and extraction defense for query routing."""
 
 import re
-from core.routing_keywords import OUT_OF_SCOPE_TERMS, _ARITHMETIC_ONLY_RE
+from core.routing.routing_keywords import OUT_OF_SCOPE_TERMS, _ARITHMETIC_ONLY_RE
 
 _MASSIVE_EXTRACTION_PATTERNS = [
     r"toutes?\s+les?\s+règl(es|ements)",

@@ -52,7 +52,7 @@ def rebuilt_graph():
     if not (ADDONS_ROOT / "hr_expense").exists():
         pytest.skip("Real odoo-17.0/addons corpus not available on this machine.")
 
-    import core.graph as graph_module
+    import core.graph.graph as graph_module
 
     original_path = graph_module.GRAPH_JSON_PATH
     original_cache = graph_module._CACHED_CODE_INTEL_GRAPH

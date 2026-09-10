@@ -3,8 +3,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterable, List, Optional
 
-from core.evidence import Evidence, EvidenceSourceType, make_evidence
-from core.confidence_tags import confidence_label
+from core.evidence.evidence import Evidence, EvidenceSourceType, make_evidence
+from core.output.confidence_tags import confidence_label
 from code_intelligence.knowledge_rules.data_constraints import runner
 from code_intelligence.knowledge_rules.data_constraints.runner import SemgrepMatch
 from code_intelligence.utils import format_file_link
@@ -24,7 +24,7 @@ def _build_data_constraints_evidence(matches: List[SemgrepMatch]) -> List[Eviden
     """
     One Evidence per real SemgrepMatch, confidence=HIGH (static deterministic
     pattern match, consistent with the [Confiance: ÉLEVÉE] tag shown in
-    summary_text, formatted via core.confidence_tags -- section 629). check_id (e.g. odoo-sql-constraints-declaration vs
+    summary_text, formatted via core.output.confidence_tags -- section 629). check_id (e.g. odoo-sql-constraints-declaration vs
     odoo-relational-domain-declaration) already carries the SQL-constraint
     vs domain= distinction -- no separate classification is rebuilt here,
     per todo/contexte.txt section 463/464 decision.

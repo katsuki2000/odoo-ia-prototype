@@ -3,7 +3,7 @@ tests/test_bloc_b2_pilot_wiring.py
 
 Bloc B2 (todo/contexte.txt section 622-623) -- pilot wiring, end-to-end:
 two tool wrappers (who_has_access_to/CI, get_total_sales/ORM) now call
-core.evidence_collector.record_evidence() before returning their str, and
+core.evidence.evidence_collector.record_evidence() before returning their str, and
 core/graph.py::query_graph() drains the accumulator into
 AssistantResponse.evidence_dossier. Validates the full chain without a
 real LLM/Odoo/graph run (build_graph()/app.invoke() mocked, same
@@ -14,8 +14,8 @@ from unittest.mock import patch, MagicMock
 
 import pytest
 
-from core.evidence import Evidence, EvidenceSourceType, make_evidence
-from core.evidence_collector import _turn_evidence_ctx, record_evidence
+from core.evidence.evidence import Evidence, EvidenceSourceType, make_evidence
+from core.evidence.evidence_collector import _turn_evidence_ctx, record_evidence
 from core.schemas import AssistantResponse
 
 
@@ -29,7 +29,7 @@ def _reset_turn_evidence_ctx():
 # ── Wrapper-level: get_total_sales (ORM) ───────────────────────────────────
 
 def test_get_total_sales_wrapper_records_evidence():
-    from core.evidence_collector import start_evidence_collection, collect_and_clear_evidence
+    from core.evidence.evidence_collector import start_evidence_collection, collect_and_clear_evidence
     from erp_data.tools.sales import get_total_sales
     from erp_data._odoo_helpers import odoo_uid_ctx
 
@@ -67,7 +67,7 @@ def test_get_total_sales_wrapper_without_active_turn_does_not_raise():
 # ── Wrapper-level: who_has_access_to (CI) ──────────────────────────────────
 
 def test_who_has_access_to_wrapper_records_evidence(monkeypatch):
-    from core.evidence_collector import start_evidence_collection, collect_and_clear_evidence
+    from core.evidence.evidence_collector import start_evidence_collection, collect_and_clear_evidence
     from code_intelligence.agent.ci_agent_node.context import agent_tools as ci_agent_tools
     import networkx as nx
 
@@ -108,7 +108,7 @@ def test_query_graph_populates_evidence_dossier_from_tools_run_during_invoke():
     tool ran (calling record_evidence directly, standing in for the real
     ReAct loop actually invoking get_total_sales/who_has_access_to) and
     checks query_graph() drains it into the returned AssistantResponse."""
-    from core import graph as core_graph
+    from core.graph import graph as core_graph  # noqa: F401 -- imports the submodule (core.graph.graph), NOT the core.graph package: build_graph()/query_graph() are defined here and query_graph() resolves build_graph() via THIS module's globals, so patch.object must target this object, not the package re-export (see todo/contexte.txt, monkeypatch cross-namespace fix).
 
     fake_evidence = make_evidence(
         source_type=EvidenceSourceType.ORM,
@@ -141,7 +141,7 @@ def test_query_graph_starts_fresh_each_call_no_leak_across_turns():
     """A second call must not see the first turn's evidence, proving the
     accumulator is reset (not merely appended-to) at the start of each
     query_graph() invocation."""
-    from core import graph as core_graph
+    from core.graph import graph as core_graph
 
     def _make_fake_invoke(claim: str):
         def _fake_invoke(initial_state):
@@ -173,7 +173,7 @@ def test_query_graph_exception_path_still_resets_accumulator():
     AssistantResponse -- but the finally-block safety net must still drain
     the partial accumulator so it can't leak into the next call on this
     thread/context."""
-    from core import graph as core_graph
+    from core.graph import graph as core_graph
 
     def _fake_invoke(initial_state):
         record_evidence(make_evidence(

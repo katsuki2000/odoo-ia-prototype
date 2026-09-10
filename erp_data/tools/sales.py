@@ -4,8 +4,8 @@ from typing import List, Tuple
 
 from langchain_core.tools import tool
 
-from core.evidence import Evidence, EvidenceSourceType, make_evidence
-from core.evidence_collector import record_evidence
+from core.evidence.evidence import Evidence, EvidenceSourceType, make_evidence
+from core.evidence.evidence_collector import record_evidence
 from erp_data._odoo_helpers import (
     connector, get_current_uid, orm_evidence_scope,
     normalize_client_name, is_all_clients, client_label,

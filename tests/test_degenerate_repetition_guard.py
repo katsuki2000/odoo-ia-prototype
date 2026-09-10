@@ -19,7 +19,7 @@ rather than real behavior. The adversarial benchmark rerun is what
 actually validates the end-to-end path (this was surfaced live on Q1.1,
 so a rerun is the real regression check).
 """
-from core.graph import _detect_degenerate_repetition, _strip_degenerate_repetition
+from core.graph.graph import _detect_degenerate_repetition, _strip_degenerate_repetition
 
 
 def test_detects_repeated_multiword_phrase():

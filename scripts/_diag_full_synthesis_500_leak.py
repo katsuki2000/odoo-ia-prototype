@@ -26,7 +26,7 @@ from pathlib import Path
 project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(project_root))
 
-from core.graph import code_intelligence_agent
+from core.graph.graph import code_intelligence_agent
 
 QUESTION = "Qui a le droit d'approuver un avoir pour un client VIP, et y a-t-il un piège dans le code ?"
 

@@ -27,7 +27,7 @@ from erp_data.tools.accounting import (
     get_total_invoices,
 )
 from erp_data.odoo_context import odoo_uid_ctx
-from core.evidence import Evidence, EvidenceSourceType
+from core.evidence.evidence import Evidence, EvidenceSourceType
 
 
 def test_global_branch_sums_rows_into_single_evidence():

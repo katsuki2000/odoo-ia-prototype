@@ -18,7 +18,7 @@ from config.settings import (
     LATENCY_BUDGET_SYNTHESIS_MS,
     LATENCY_BUDGET_XMLRPC_MS,
 )
-from core.graph import CI_MAX_HOPS, _invoke_with_rate_limit
+from core.graph.graph import CI_MAX_HOPS, _invoke_with_rate_limit
 
 
 def test_latency_budget_constants_exist():

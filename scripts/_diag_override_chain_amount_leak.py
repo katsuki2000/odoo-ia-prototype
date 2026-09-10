@@ -22,7 +22,7 @@ sys.path.insert(0, str(project_root))
 
 from code_intelligence.knowledge_rules.graph import get_code_intelligence_graph
 from code_intelligence.knowledge_rules.overrides import analyze_method_override_chain
-from core.llm_client import get_chat_llm
+from core.llm.llm_client import get_chat_llm
 
 _OVERRIDE_CHAIN_AMOUNT_RE = re.compile(r"rec\.\w+\s*>\s*(\d[\d\s]*\d)")
 

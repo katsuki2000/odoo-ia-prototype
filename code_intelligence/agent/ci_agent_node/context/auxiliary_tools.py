@@ -16,7 +16,7 @@ import logging
 
 import networkx as nx
 
-from core.evidence import Evidence, EvidenceSourceType, make_evidence
+from core.evidence.evidence import Evidence, EvidenceSourceType, make_evidence
 
 _logger = logging.getLogger(__name__)
 

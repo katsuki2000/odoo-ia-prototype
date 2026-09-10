@@ -26,7 +26,7 @@ from code_intelligence.agent.ci_agent_node.context.tool_helpers import (
     _sort_filepaths_custom_first,
     _trace_invoked_methods,
 )
-from core.evidence_collector import record_evidence
+from core.evidence.evidence_collector import record_evidence
 
 
 @tool

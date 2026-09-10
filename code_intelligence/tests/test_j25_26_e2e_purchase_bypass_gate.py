@@ -81,7 +81,7 @@ import logging
 
 import pytest
 
-from core.graph import code_intelligence_agent
+from core.graph.graph import code_intelligence_agent
 from core.schemas import AssistantResponse
 
 

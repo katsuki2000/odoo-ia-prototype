@@ -24,7 +24,7 @@ def _llm_arbitrate(query_text: str, candidates: List[str], llm) -> Optional[str]
 
     try:
         from langchain_core.messages import SystemMessage, HumanMessage
-        from core.llm_client import get_chat_llm, invoke_with_rate_limit
+        from core.llm.llm_client import get_chat_llm, invoke_with_rate_limit
 
         prompt = _build_arbitration_prompt(query_text, candidates)
         messages = [

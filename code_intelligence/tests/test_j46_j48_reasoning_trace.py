@@ -10,7 +10,7 @@ agent reasoning.
 
 import pytest
 
-from core.reasoning_trace_logger import (
+from core.session.reasoning_trace_logger import (
     ReasoningTraceLogger,
     MAX_HOPS_PER_QUESTION,
     new_trace_id,
@@ -88,7 +88,7 @@ def test_j47_read_trace_reconstructs_full_reasoning_path(tmp_path):
 def test_j48_hop_cap_matches_ci_max_hops():
     """J48: the generic hop-cap guardrail constant must stay in sync with
     rag.graph's CI_MAX_HOPS -- both express the same per-question budget."""
-    from core.graph import CI_MAX_HOPS
+    from core.graph.graph import CI_MAX_HOPS
     assert MAX_HOPS_PER_QUESTION == CI_MAX_HOPS
 
 

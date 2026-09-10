@@ -22,7 +22,7 @@ from erp_data.tools.crm import (
     search_partner,
 )
 from erp_data.odoo_context import odoo_uid_ctx
-from core.evidence import Evidence, EvidenceSourceType
+from core.evidence.evidence import Evidence, EvidenceSourceType
 
 
 def test_search_partner_raw_returns_text_and_one_evidence_per_partner():

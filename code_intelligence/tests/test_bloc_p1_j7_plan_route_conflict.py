@@ -183,7 +183,7 @@ def test_route_neutralizes_workflow_plan_on_documentaire_branch(real_graph):
     on a property this test should keep re-litigating.
     """
     from unittest.mock import patch
-    from core.routing import route, QueryRoute
+    from core.routing.routing import route, QueryRoute
 
     with patch("code_intelligence.agent.investigation.classify_question_intent_llm", return_value=None):
         state = {

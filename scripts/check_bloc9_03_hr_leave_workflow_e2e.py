@@ -56,7 +56,7 @@ from pathlib import Path
 project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(project_root))
 
-from core.graph import code_intelligence_agent, get_code_intelligence_graph, query_graph
+from core.graph.graph import code_intelligence_agent, get_code_intelligence_graph, query_graph
 from code_intelligence.agent.ci_agent_node.context.agent_tools import ALL_CI_TOOLS, set_graph_ref
 
 TARGET_MODEL = "hr.leave"

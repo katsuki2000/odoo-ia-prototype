@@ -14,7 +14,7 @@ closed in sections 442/444.
 import networkx as nx
 
 from code_intelligence.knowledge_rules.deterministic.navigation.button_path import button_execution_path
-from core.evidence import Evidence, EvidenceSourceType
+from core.evidence.evidence import Evidence, EvidenceSourceType
 
 
 def _build_test_graph(model_name: str, required_groups=None) -> nx.DiGraph:

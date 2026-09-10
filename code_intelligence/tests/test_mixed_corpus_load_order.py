@@ -65,7 +65,7 @@ from code_intelligence.knowledge_rules.extractor.python_extractor import (
     OdooMethodDeclaration,
     OdooModelDeclaration,
 )
-from core.graph import _load_module
+from core.graph.graph import _load_module
 
 ADDONS_PATH = CORE_ADDONS_PATH
 CORE_MODULES = ["account", "sale", "stock"]

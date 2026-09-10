@@ -5,7 +5,7 @@ from typing import List, Optional
 
 import networkx as nx
 
-from core.evidence import Evidence
+from core.evidence.evidence import Evidence
 
 
 @dataclass

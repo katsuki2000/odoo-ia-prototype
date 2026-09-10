@@ -3,9 +3,9 @@ code_intelligence/ci_agent_node/group_resolution.py
 
 Real Odoo group DB ID -> xml_id resolution, extracted from the former
 ci_agent_node.py monolith (refactor, see todo/contexte.txt). Behavior
-unchanged: core.graph keeps an independent copy of these globals
+unchanged: core.graph.graph keeps an independent copy of these globals
 (re-imported by name from code_intelligence.agent.ci_agent_node), and
-_get_admin_rpc_client() explicitly syncs against core.graph's copy via
+_get_admin_rpc_client() explicitly syncs against core.graph.graph's copy via
 sys.modules so a reset on either side is mirrored on the other.
 """
 
@@ -23,14 +23,14 @@ def _get_admin_rpc_client():
     pure static-metadata lookups only (group xml_id resolution), never used
     for anything requiring the actual requester's own rights.
 
-    core.graph holds an independent copy of these globals (re-imported by
+    core.graph.graph holds an independent copy of these globals (re-imported by
     name); a reset on that copy is now mirrored here too, so a stale client
     left over from an earlier test can never leak through (contexte.txt
     section 256).
     """
     global _ADMIN_RPC_CLIENT, _ADMIN_RPC_UID
     import sys
-    g_mod = sys.modules.get("core.graph")
+    g_mod = sys.modules.get("core.graph.graph")
     if g_mod is not None:
         target_client = getattr(g_mod, "_ADMIN_RPC_CLIENT", None)
         target_uid = getattr(g_mod, "_ADMIN_RPC_UID", None)
@@ -54,7 +54,7 @@ def _get_admin_rpc_client():
 def _resolve_user_group_xmlids(group_ids) -> list:
     global _GROUP_XMLID_CACHE
     import sys
-    g_mod = sys.modules.get("core.graph")
+    g_mod = sys.modules.get("core.graph.graph")
     cache = getattr(g_mod, "_GROUP_XMLID_CACHE", None) if g_mod is not None else _GROUP_XMLID_CACHE
     if cache is None:
         cache = _GROUP_XMLID_CACHE

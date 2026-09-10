@@ -7,7 +7,7 @@ Data structures and evidence generation for Odoo button execution paths and UI f
 from dataclasses import dataclass, field
 from typing import List, Optional, Set
 
-from core.evidence import Evidence, EvidenceSourceType, make_evidence
+from core.evidence.evidence import Evidence, EvidenceSourceType, make_evidence
 
 
 @dataclass

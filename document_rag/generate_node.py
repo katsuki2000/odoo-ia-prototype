@@ -6,8 +6,8 @@ from typing import Optional
 
 from config.settings import GROQ_MODEL
 from core.schemas import AssistantResponse, LLMResponse, SourceReference
-from core.routing import RAGState, _is_out_of_scope, OUT_OF_SCOPE_ANSWER
-from core.llm_client import (
+from core.routing.routing import RAGState, _is_out_of_scope, OUT_OF_SCOPE_ANSWER
+from core.llm.llm_client import (
     get_chat_llm,
     invoke_with_rate_limit as _invoke_with_rate_limit,
     _current_groq_key,
@@ -35,7 +35,7 @@ def generate(state: RAGState) -> dict:
     chunks = state["retrieved_chunks"]
     logger.info("Node [generate]: Building prompt and calling LLM")
 
-    from core.reasoning_trace_logger import ReasoningTraceLogger, new_trace_id
+    from core.session.reasoning_trace_logger import ReasoningTraceLogger, new_trace_id
     _trace_id = new_trace_id()
     _trace_logger = ReasoningTraceLogger()
 

@@ -7,7 +7,7 @@ from unittest.mock import patch, MagicMock
 from langchain_groq import ChatGroq
 from langchain_openai import ChatOpenAI
 
-from core.llm_client import get_chat_llm
+from core.llm.llm_client import get_chat_llm
 
 
 def test_get_chat_llm_groq_default():
@@ -51,9 +51,9 @@ def test_get_chat_llm_unknown_provider_raises():
 
 def test_get_chat_llm_respects_env_switch():
     """Verify switching LLM_PROVIDER to 'local' via settings routes get_chat_llm to ChatOpenAI."""
-    with patch("core.llm_client.LLM_PROVIDER", "local"), \
-         patch("core.llm_client.LOCAL_LLM_BASE_URL", "http://127.0.0.1:8000/v1"), \
-         patch("core.llm_client.LOCAL_LLM_MODEL", "meta-llama/Llama-3-8b-instruct"):
+    with patch("core.llm.llm_client.LLM_PROVIDER", "local"), \
+         patch("core.llm.llm_client.LOCAL_LLM_BASE_URL", "http://127.0.0.1:8000/v1"), \
+         patch("core.llm.llm_client.LOCAL_LLM_MODEL", "meta-llama/Llama-3-8b-instruct"):
         llm = get_chat_llm()
         assert isinstance(llm, ChatOpenAI)
         assert "127.0.0.1:8000" in str(llm.openai_api_base)
@@ -63,9 +63,9 @@ def test_get_chat_llm_respects_env_switch():
 def test_document_rag_generate_uses_local_llm():
     """Verify document_rag generate node uses get_chat_llm and produces valid response with local LLM."""
     from document_rag.generate_node import _build_groq_llm
-    with patch("core.llm_client.LLM_PROVIDER", "local"), \
-         patch("core.llm_client.LOCAL_LLM_BASE_URL", "http://localhost:11434/v1"), \
-         patch("core.llm_client.LOCAL_LLM_MODEL", "llama3.1"):
+    with patch("core.llm.llm_client.LLM_PROVIDER", "local"), \
+         patch("core.llm.llm_client.LOCAL_LLM_BASE_URL", "http://localhost:11434/v1"), \
+         patch("core.llm.llm_client.LOCAL_LLM_MODEL", "llama3.1"):
         llm = _build_groq_llm(temperature=0.0)
         assert isinstance(llm, ChatOpenAI)
 
@@ -73,9 +73,9 @@ def test_document_rag_generate_uses_local_llm():
 def test_erp_data_orm_helpers_uses_local_llm():
     """Verify erp_data orm_agent_helpers uses get_chat_llm with local provider."""
     from erp_data.orm_agent_helpers import _build_groq_llm
-    with patch("core.llm_client.LLM_PROVIDER", "local"), \
-         patch("core.llm_client.LOCAL_LLM_BASE_URL", "http://localhost:11434/v1"), \
-         patch("core.llm_client.LOCAL_LLM_MODEL", "llama3.1"):
+    with patch("core.llm.llm_client.LLM_PROVIDER", "local"), \
+         patch("core.llm.llm_client.LOCAL_LLM_BASE_URL", "http://localhost:11434/v1"), \
+         patch("core.llm.llm_client.LOCAL_LLM_MODEL", "llama3.1"):
         llm = _build_groq_llm(temperature=0.0)
         assert isinstance(llm, ChatOpenAI)
 
@@ -98,10 +98,10 @@ def test_health_check_v1_local_provider_healthy():
 
 def test_rate_limit_spacing_skipped_for_local():
     """Verify invoke_with_rate_limit does not sleep 5s when provider is local."""
-    from core.llm_client import _get_min_interval
-    with patch("core.llm_client.LLM_PROVIDER", "local"):
+    from core.llm.llm_client import _get_min_interval
+    with patch("core.llm.llm_client.LLM_PROVIDER", "local"):
         assert _get_min_interval() == 0.0
 
-    with patch("core.llm_client.LLM_PROVIDER", "groq"):
+    with patch("core.llm.llm_client.LLM_PROVIDER", "groq"):
         assert _get_min_interval() == 5.0
 

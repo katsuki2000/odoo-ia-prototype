@@ -20,7 +20,7 @@ from code_intelligence.knowledge_rules.deterministic.access.record_rules_models 
 )
 from code_intelligence.knowledge_rules.ontology.query import tags_for_node_attrs
 from code_intelligence.utils import format_xml_id_citation
-from core.evidence import Evidence, EvidenceSourceType, make_evidence
+from core.evidence.evidence import Evidence, EvidenceSourceType, make_evidence
 
 
 def _build_record_rules_evidence(

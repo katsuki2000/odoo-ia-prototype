@@ -6,9 +6,9 @@ import json
 project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(project_root))
 
-from core.graph import code_intelligence_agent, RAGState
+from core.graph.graph import code_intelligence_agent, RAGState
 from langchain_core.messages import HumanMessage
-import core.graph as rag_graph
+import core.graph.graph as rag_graph
 
 def main():
     legacy_js_path = os.getenv("LEGACY_JS_PATH", str(project_root / "odoo_addons" / "custom_legacy_js" / "static" / "src" / "js" / "widget.js"))

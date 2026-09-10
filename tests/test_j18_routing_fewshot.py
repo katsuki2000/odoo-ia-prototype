@@ -30,7 +30,7 @@ silently rewriting the spec to match today's LLM output.
 from unittest.mock import patch
 
 import pytest
-from core.graph import (
+from core.graph.graph import (
     ROUTING_CONFLICT_PRIORITY,
     _force_dynamic_uncertainty_answer,
     route,

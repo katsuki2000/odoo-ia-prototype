@@ -35,7 +35,7 @@ Lecture du resultat :
   reseau reelles, pas seulement par lecture de code.
 - Le script imprime aussi un resume final : nombre d'appels reussis, nombre
   de 429 rencontres, index de cle final vs. index de depart (via l'etat
-  partage `core.llm_client._groq_key_index`, lu en diagnostic uniquement).
+  partage `core.llm.llm_client._groq_key_index`, lu en diagnostic uniquement).
 """
 
 import argparse
@@ -50,8 +50,8 @@ sys.path.insert(0, str(project_root))
 from langchain_core.messages import HumanMessage
 
 from config.settings import GROQ_API_KEYS
-import core.llm_client as llm_client
-from core.llm_client import get_chat_llm, invoke_with_rate_limit
+import core.llm.llm_client as llm_client
+from core.llm.llm_client import get_chat_llm, invoke_with_rate_limit
 
 
 def _build_bulky_message(n_chars: int) -> list:

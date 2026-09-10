@@ -23,7 +23,7 @@ from erp_data.tools.inventory import (
     get_product_stock,
 )
 from erp_data.odoo_context import odoo_uid_ctx
-from core.evidence import Evidence, EvidenceSourceType
+from core.evidence.evidence import Evidence, EvidenceSourceType
 
 
 def test_get_product_stock_raw_returns_text_and_two_evidence():

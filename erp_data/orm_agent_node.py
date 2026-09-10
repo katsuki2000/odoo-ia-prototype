@@ -10,15 +10,15 @@ import time
 from langchain_core.messages import SystemMessage, HumanMessage, ToolMessage
 
 from core.schemas import AssistantResponse, SourceReference
-from core.routing import (
+from core.routing.routing import (
     RAGState,
     REACT_RECURSION_LIMIT,
     _is_out_of_scope,
     OUT_OF_SCOPE_ANSWER,
 )
 from document_rag.generate_node import generate
-from core.llm_client import invoke_with_rate_limit as _invoke_with_rate_limit
-from core.reasoning_trace_logger import ReasoningTraceLogger, new_trace_id
+from core.llm.llm_client import invoke_with_rate_limit as _invoke_with_rate_limit
+from core.session.reasoning_trace_logger import ReasoningTraceLogger, new_trace_id
 
 from erp_data.orm_agent_helpers import (
     _build_groq_llm,

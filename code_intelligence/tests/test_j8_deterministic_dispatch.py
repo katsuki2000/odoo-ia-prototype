@@ -7,7 +7,7 @@ Tested independently from LLM bounded interpretation to ensure no accidental reg
 
 import networkx as nx
 from code_intelligence.agent.ci_agent_node.context.agent_tools import find_server_action_nodes
-from core.graph import (
+from core.graph.graph import (
     _question_mentions_amount,
     _question_is_approval_related,
     _question_suggests_automation_bypass,

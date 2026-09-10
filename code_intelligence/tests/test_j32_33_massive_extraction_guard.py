@@ -16,7 +16,7 @@ from config.settings import (
     MASSIVE_EXTRACTION_REFUSAL_MSG,
     PROMPT_INJECTION_REFUSAL_MSG,
 )
-from core.graph import (
+from core.graph.graph import (
     _is_massive_extraction_request,
     _is_prompt_injection,
     code_intelligence_agent,

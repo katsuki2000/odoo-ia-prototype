@@ -8,7 +8,7 @@ cf. todo/contexte.txt Section 626).
 
 import pytest
 
-from core.confidence_tags import confidence_label
+from core.output.confidence_tags import confidence_label
 
 
 class TestConfidenceLabel:

@@ -12,7 +12,7 @@ section 440); who_has_access_to (1/24) closed in section 442.
 import networkx as nx
 
 from code_intelligence.knowledge_rules.deterministic.structure.field_impact import field_change_impact
-from core.evidence import Evidence, EvidenceSourceType
+from core.evidence.evidence import Evidence, EvidenceSourceType
 
 
 def _build_test_graph() -> nx.DiGraph:

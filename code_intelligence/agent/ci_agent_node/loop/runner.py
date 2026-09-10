@@ -11,12 +11,12 @@ see todo/contexte.txt). Behavior unchanged.
 import logging
 import time
 
-from core.routing import (
+from core.routing.routing import (
     RAGState, _is_out_of_scope, OUT_OF_SCOPE_ANSWER,
     _is_massive_extraction_request, _is_prompt_injection,
     REACT_RECURSION_LIMIT,
 )
-from core.llm_client import get_chat_llm
+from core.llm.llm_client import get_chat_llm
 from code_intelligence.knowledge_rules.graph import get_code_intelligence_graph
 from code_intelligence.agent.business_resolver import resolve_business_term
 from code_intelligence.agent.ci_agent_node.context.prompt_and_heuristics import CI_MAX_HOPS
@@ -44,7 +44,7 @@ class CodeIntelligenceAgentRunner:
         chat_history = state.get("chat_history", [])
         logger.info("Node [code_intelligence_agent]: Starting ReAct loop for: %s", question)
 
-        from core.reasoning_trace_logger import ReasoningTraceLogger, new_trace_id
+        from core.session.reasoning_trace_logger import ReasoningTraceLogger, new_trace_id
         trace_id = new_trace_id()
         trace_logger = ReasoningTraceLogger()
 
@@ -115,7 +115,7 @@ class CodeIntelligenceAgentRunner:
             llm_call_count += 1
         concept_resolved_before_rehydration = concept.is_resolved
         from code_intelligence.agent.ci_agent_node.context.context_extractors import _rehydrate_sticky_concept
-        from core.evidence_check import check_evidence
+        from core.evidence.evidence_check import check_evidence
         concept = _rehydrate_sticky_concept(concept, state)
         evidence_status = check_evidence(concept, concept_resolved_before_rehydration, state)
 

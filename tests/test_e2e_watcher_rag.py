@@ -14,7 +14,7 @@ import pytest
 from document_rag.ingestion.incremental import reindex_if_changed
 from document_rag.vectorstore.chroma_manager import ChromaManager
 from document_rag.vectorstore.search import retrieve
-from core.graph import query_graph, AssistantResponse
+from core.graph.graph import query_graph, AssistantResponse
 from core.schemas import LLMResponse
 
 
@@ -57,15 +57,15 @@ def test_e2e_live_add_delete_query_cycle():
         assert any(secret_filename in r["metadata"].get("source", "") for r in results)
 
         # ── Step 3: Verify query_graph answers using this document ─────────
-        with patch("core.graph.get_retriever") as mock_get_retriever, \
-             patch("core.graph.ChatGroq") as mock_groq_cls:
+        with patch("core.graph.graph.get_retriever") as mock_get_retriever, \
+             patch("core.graph.graph.ChatGroq") as mock_groq_cls:
             
             mock_retriever = MagicMock()
             mock_bm25 = MagicMock()
             mock_get_retriever.return_value = (mock_retriever, mock_bm25)
             
             # Patch search_retrieve inside graph to use our real e2e manager
-            with patch("core.graph.search_retrieve", side_effect=lambda query, top_k, chroma_manager=None, bm25_index=None, use_reranker=True, where=None: retrieve(query, top_k=top_k, chroma_manager=manager, where=where)):
+            with patch("core.graph.graph.search_retrieve", side_effect=lambda query, top_k, chroma_manager=None, bm25_index=None, use_reranker=True, where=None: retrieve(query, top_k=top_k, chroma_manager=manager, where=where)):
                 mock_llm_instance = MagicMock()
                 mock_groq_cls.return_value = mock_llm_instance
                 mock_structured_llm = MagicMock()
@@ -94,9 +94,9 @@ def test_e2e_live_add_delete_query_cycle():
         assert not any("ALPHA-9988-OMEGA" in r["document"] for r in results_after_delete)
 
         # ── Step 6: Verify query_graph falls back safely when document is gone
-        with patch("core.graph.get_retriever") as mock_get_retriever, \
-             patch("core.graph.code_intelligence_agent") as mock_ci, \
-             patch("core.graph.ChatGroq") as mock_groq_cls:
+        with patch("core.graph.graph.get_retriever") as mock_get_retriever, \
+             patch("core.graph.graph.code_intelligence_agent") as mock_ci, \
+             patch("core.graph.graph.ChatGroq") as mock_groq_cls:
 
             mock_ci.return_value = {
                 "ci_evidence_sufficiency": {
@@ -106,7 +106,7 @@ def test_e2e_live_add_delete_query_cycle():
                 }
             }
             mock_get_retriever.return_value = (MagicMock(), MagicMock())
-            with patch("core.graph.search_retrieve", side_effect=lambda query, top_k, chroma_manager=None, bm25_index=None, use_reranker=True, where=None: retrieve(query, top_k=top_k, chroma_manager=manager, where=where)):
+            with patch("core.graph.graph.search_retrieve", side_effect=lambda query, top_k, chroma_manager=None, bm25_index=None, use_reranker=True, where=None: retrieve(query, top_k=top_k, chroma_manager=manager, where=where)):
                 response_after_delete = query_graph("Quel est le code secret Katsuki ?")
                 assert len(response_after_delete.sources) == 0
                 assert response_after_delete.confidence == 0.0

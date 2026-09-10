@@ -15,7 +15,7 @@ from typing import List, Optional, TYPE_CHECKING
 if TYPE_CHECKING:
     from code_intelligence.agent.business_resolver import ResolvedConcept
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from langchain_groq import ChatGroq
 from langchain_core.messages import BaseMessage
@@ -23,12 +23,12 @@ from langgraph.graph import StateGraph, START, END
 
 from document_rag.vectorstore.search import get_retriever, retrieve as search_retrieve
 from core.schemas import AssistantResponse, QueryRoute
-from core.routing import RAGState, route, route_decision
+from core.routing.routing import RAGState, route, route_decision
 from document_rag.generate_node import generate
 from erp_data.orm_agent_node import orm_agent_loop
 from code_intelligence.agent.ci_agent_node import code_intelligence_agent
 
-from core.graph_nodes import (
+from core.graph.graph_nodes import (
     smalltalk_gate,
     smalltalk_decision,
     out_of_scope_gate,
@@ -37,11 +37,11 @@ from core.graph_nodes import (
     format_output,
     ci_evidence_decision,
 )
-from core.evidence_collector import start_evidence_collection, collect_and_clear_evidence
+from core.evidence.evidence_collector import start_evidence_collection, collect_and_clear_evidence
 
 # Backward-compatible re-exports for legacy callers and tests
-import core.graph_compat as _graph_compat
-from core.graph_compat import *
+import core.graph.graph_compat as _graph_compat
+from core.graph.graph_compat import *
 
 logger = logging.getLogger(__name__)
 

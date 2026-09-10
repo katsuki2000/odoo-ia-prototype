@@ -2,7 +2,7 @@
 core/graph_compat.py
 
 Backward-compatible re-exports for legacy tests and external callers that
-historically imported schemas, guards, helpers, and agents from core.graph.
+historically imported schemas, guards, helpers, and agents from core.graph.graph.
 """
 
 from langchain_groq import ChatGroq
@@ -15,7 +15,7 @@ from core.schemas import (
     source_display_title,
 )
 
-from core.llm_client import (
+from core.llm.llm_client import (
     get_chat_llm,
     invoke_with_rate_limit as _invoke_with_rate_limit,
     _parse_reset_seconds,
@@ -31,7 +31,7 @@ from core.llm_client import (
     MIN_LLM_CALL_INTERVAL as MIN_GROQ_CALL_INTERVAL,
 )
 
-from core.degenerate_guards import (
+from core.output.degenerate_guards import (
     _DEGENERATE_REPETITION_RE,
     _DEGENERATE_LINE_REPETITION_MIN_REPEATS,
     _DEGENERATE_LINE_MIN_LENGTH,
@@ -50,7 +50,7 @@ from core.degenerate_guards import (
     _strip_any_degenerate_repetition,
 )
 
-from core.routing import (
+from core.routing.routing import (
     RAGState,
     ERP_TYPES,
     ROUTING_CONFLICT_PRIORITY,
@@ -89,7 +89,7 @@ from document_rag.generate_node import (
     generate,
 )
 
-from core.html_sanitizer import sanitize_html_to_markdown
+from core.output.html_sanitizer import sanitize_html_to_markdown
 
 from erp_data.orm_agent_node import (
     orm_agent_loop,

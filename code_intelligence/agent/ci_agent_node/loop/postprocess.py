@@ -12,8 +12,8 @@ import logging
 import time
 
 from core.schemas import AssistantResponse, SourceReference, OmittedForAuthorization
-from core.evidence_sufficiency import assess_evidence_sufficiency
-from core.degenerate_guards import (
+from core.evidence.evidence_sufficiency import assess_evidence_sufficiency
+from core.output.degenerate_guards import (
     _detect_any_degenerate_repetition,
     _strip_any_degenerate_repetition,
 )

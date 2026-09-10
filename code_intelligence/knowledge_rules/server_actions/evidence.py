@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from typing import Any, Dict, List
-from core.evidence import Evidence, EvidenceSourceType, make_evidence
+from core.evidence.evidence import Evidence, EvidenceSourceType, make_evidence
 
 
 def build_server_action_evidence(

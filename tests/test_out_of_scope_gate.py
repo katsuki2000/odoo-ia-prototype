@@ -19,8 +19,8 @@ Covers:
 """
 import pytest
 
-from core.graph import out_of_scope_gate, out_of_scope_decision
-from core.routing import OUT_OF_SCOPE_ANSWER
+from core.graph.graph import out_of_scope_gate, out_of_scope_decision
+from core.routing.routing import OUT_OF_SCOPE_ANSWER
 from core.schemas import AssistantResponse
 
 

@@ -18,8 +18,8 @@ import dataclasses
 import pytest
 
 from code_intelligence.agent.business_resolver import ResolvedConcept
-from core.evidence_check import check_evidence
-from core.routing import route
+from core.evidence.evidence_check import check_evidence
+from core.routing.routing import route
 
 
 def _unresolved(user_term="et pour cette annee ?") -> ResolvedConcept:

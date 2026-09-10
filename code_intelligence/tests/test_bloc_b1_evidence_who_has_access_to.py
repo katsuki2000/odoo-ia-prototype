@@ -12,7 +12,7 @@ ORM, section 440).
 import networkx as nx
 
 from code_intelligence.knowledge_rules.deterministic.access.access_evaluator import who_has_access_to
-from core.evidence import Evidence, EvidenceSourceType
+from core.evidence.evidence import Evidence, EvidenceSourceType
 
 
 def _build_test_graph() -> nx.DiGraph:

@@ -11,7 +11,7 @@ Unit tests for - C.1.1: Tool binding & CI agent ReAct loop
 
 import pytest
 from core.schemas import QueryRoute, AssistantResponse
-from core.graph import (
+from core.graph.graph import (
     build_graph,
     code_intelligence_agent,
     RAGState

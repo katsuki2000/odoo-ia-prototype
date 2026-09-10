@@ -48,7 +48,7 @@ class ReasoningTraceLogger:
 
     def __init__(self, log_filepath: Optional[Path] = None):
         if log_filepath is None:
-            log_filepath = Path(__file__).resolve().parent.parent / "captures" / "reasoning_trace.jsonl"
+            log_filepath = Path(__file__).resolve().parent.parent.parent / "captures" / "reasoning_trace.jsonl"
         self.log_filepath = Path(log_filepath)
         self.log_filepath.parent.mkdir(parents=True, exist_ok=True)
 

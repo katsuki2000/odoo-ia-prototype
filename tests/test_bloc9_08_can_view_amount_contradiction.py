@@ -20,7 +20,7 @@ Covers:
 
 import pytest
 
-from core.graph import (
+from core.graph.graph import (
     _has_can_view_amount_fact,
     _extract_can_view_amount_verdict,
     _split_before_first_fact_marker,

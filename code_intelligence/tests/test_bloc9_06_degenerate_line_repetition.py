@@ -24,7 +24,7 @@ No mocks: exercises the real functions directly against realistic text,
 including the actual repeated line shape observed live.
 """
 
-from core.graph import (
+from core.graph.graph import (
     _detect_degenerate_repetition,
     _strip_degenerate_repetition,
     _detect_degenerate_line_repetition,

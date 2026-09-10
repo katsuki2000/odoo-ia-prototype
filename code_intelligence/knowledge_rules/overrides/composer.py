@@ -11,7 +11,7 @@ from code_intelligence.knowledge_rules.security import (
     analyze_python_security_locks,
     extract_method_security_constraints,
 )
-from core.evidence import Evidence, EvidenceSourceType, make_evidence
+from core.evidence.evidence import Evidence, EvidenceSourceType, make_evidence
 from code_intelligence.knowledge_rules.overrides.types import (
     MethodOverrideSite,
     MethodOverrideChainResult,

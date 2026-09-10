@@ -22,7 +22,7 @@ from erp_data.tools.sales import (
     get_total_sales_raw,
 )
 from erp_data.odoo_context import odoo_uid_ctx
-from core.evidence import Evidence, EvidenceSourceType
+from core.evidence.evidence import Evidence, EvidenceSourceType
 
 
 def test_get_order_count_raw_returns_text_and_evidence():

@@ -29,7 +29,7 @@ This file locks:
 """
 import pytest
 from unittest.mock import patch
-from core.graph import route, _sticky_route_or_default, _VALID_ROUTES
+from core.graph.graph import route, _sticky_route_or_default, _VALID_ROUTES
 from core.schemas import QueryRoute
 from code_intelligence.agent.investigation import QuestionIntent
 

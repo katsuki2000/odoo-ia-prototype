@@ -57,7 +57,7 @@ def _mock_get_chat_llm(structured_llm: Mock):
 def test_llm_classifier_returns_intent_on_success():
     structured_llm = _mock_structured_llm(QuestionIntent.GOVERNANCE_SECURITY)
     with patch(
-        "core.llm_client.get_chat_llm",
+        "core.llm.llm_client.get_chat_llm",
         _mock_get_chat_llm(structured_llm),
     ):
         result = classify_question_intent_llm("Qui peut voir un avoir de 80 000€ ?")
@@ -71,7 +71,7 @@ def test_llm_classifier_passes_the_question_to_the_llm():
     structured_llm = _mock_structured_llm(QuestionIntent.WORKFLOW_STATE)
     question = "Quelles sont les étapes du workflow de validation ?"
     with patch(
-        "core.llm_client.get_chat_llm",
+        "core.llm.llm_client.get_chat_llm",
         _mock_get_chat_llm(structured_llm),
     ):
         classify_question_intent_llm(question)
@@ -88,7 +88,7 @@ def test_llm_classifier_returns_none_on_generic_exception():
     structured_llm = Mock()
     structured_llm.invoke.side_effect = RuntimeError("simulated API failure")
     with patch(
-        "core.llm_client.get_chat_llm",
+        "core.llm.llm_client.get_chat_llm",
         _mock_get_chat_llm(structured_llm),
     ):
         result = classify_question_intent_llm("Qui peut voir un avoir de 80 000€ ?")
@@ -104,7 +104,7 @@ def test_llm_classifier_returns_none_on_timeout():
     structured_llm = Mock()
     structured_llm.invoke.side_effect = TimeoutError("simulated network timeout")
     with patch(
-        "core.llm_client.get_chat_llm",
+        "core.llm.llm_client.get_chat_llm",
         _mock_get_chat_llm(structured_llm),
     ):
         result = classify_question_intent_llm("Qui peut voir un avoir de 80 000€ ?")
@@ -124,7 +124,7 @@ def test_llm_classifier_returns_none_on_malformed_structured_output():
         "[type=enum, input_value='not_a_real_intent', input_type=str]"
     )
     with patch(
-        "core.llm_client.get_chat_llm",
+        "core.llm.llm_client.get_chat_llm",
         _mock_get_chat_llm(structured_llm),
     ):
         result = classify_question_intent_llm("Qui peut voir un avoir de 80 000€ ?")
@@ -136,7 +136,7 @@ def test_llm_classifier_returns_none_on_empty_question_without_calling_llm():
     """Guard clause: an empty/whitespace-only question must short-circuit
     before ever building an LLM client -- no wasted call for a question
     with nothing to classify."""
-    with patch("core.llm_client.get_chat_llm") as mock_get_chat_llm:
+    with patch("core.llm.llm_client.get_chat_llm") as mock_get_chat_llm:
         result = classify_question_intent_llm("   ")
 
     assert result is None
@@ -147,7 +147,7 @@ def test_llm_classifier_logs_a_warning_on_failure(caplog):
     structured_llm = Mock()
     structured_llm.invoke.side_effect = RuntimeError("simulated API failure")
     with patch(
-        "core.llm_client.get_chat_llm",
+        "core.llm.llm_client.get_chat_llm",
         _mock_get_chat_llm(structured_llm),
     ):
         with caplog.at_level("WARNING"):
@@ -164,7 +164,7 @@ def test_llm_classifier_logs_a_warning_on_failure(caplog):
 def test_resolve_uses_llm_result_when_available():
     structured_llm = _mock_structured_llm(QuestionIntent.CALCULATION_LOGIC)
     with patch(
-        "core.llm_client.get_chat_llm",
+        "core.llm.llm_client.get_chat_llm",
         _mock_get_chat_llm(structured_llm),
     ):
         resolution = resolve_question_intent("Comment le montant total est-il calculé ?")
@@ -191,7 +191,7 @@ def test_resolve_falls_back_to_keyword_classifier_on_any_llm_failure(failure):
     structured_llm = Mock()
     structured_llm.invoke.side_effect = failure
     with patch(
-        "core.llm_client.get_chat_llm",
+        "core.llm.llm_client.get_chat_llm",
         _mock_get_chat_llm(structured_llm),
     ):
         resolution = resolve_question_intent(question)
@@ -206,7 +206,7 @@ def test_resolve_fallback_logs_intent_fallback_warning(caplog):
     structured_llm = Mock()
     structured_llm.invoke.side_effect = RuntimeError("simulated API failure")
     with patch(
-        "core.llm_client.get_chat_llm",
+        "core.llm.llm_client.get_chat_llm",
         _mock_get_chat_llm(structured_llm),
     ):
         with caplog.at_level("WARNING"):
@@ -243,7 +243,7 @@ def test_resolve_passes_resolved_concept_and_graph_to_fallback_only():
     structured_llm = Mock()
     structured_llm.invoke.side_effect = RuntimeError("simulated API failure")
     with patch(
-        "core.llm_client.get_chat_llm",
+        "core.llm.llm_client.get_chat_llm",
         _mock_get_chat_llm(structured_llm),
     ):
         resolution = resolve_question_intent(question, resolved_concept, G)

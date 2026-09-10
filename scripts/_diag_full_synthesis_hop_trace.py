@@ -34,8 +34,8 @@ from pathlib import Path
 project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(project_root))
 
-from core.graph import code_intelligence_agent
-from core.reasoning_trace_logger import ReasoningTraceLogger
+from core.graph.graph import code_intelligence_agent
+from core.session.reasoning_trace_logger import ReasoningTraceLogger
 from code_intelligence.knowledge_rules.security.locks import _OVERRIDE_CHAIN_AMOUNT_RE
 
 QUESTION = "Qui a le droit d'approuver un avoir pour un client VIP, et y a-t-il un piège dans le code ?"

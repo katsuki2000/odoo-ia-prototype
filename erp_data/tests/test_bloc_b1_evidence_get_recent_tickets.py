@@ -24,7 +24,7 @@ from erp_data.tools.crm import (
     get_recent_tickets,
 )
 from erp_data.odoo_context import odoo_uid_ctx
-from core.evidence import Evidence, EvidenceSourceType
+from core.evidence.evidence import Evidence, EvidenceSourceType
 
 
 def test_get_recent_tickets_raw_returns_text_and_one_evidence_per_ticket():

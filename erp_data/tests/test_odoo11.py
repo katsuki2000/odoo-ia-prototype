@@ -4,7 +4,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from code_intelligence.utils import discover_odoo_modules
-from core.graph import _load_module
+from core.graph.graph import _load_module
 
 import os
 def main():

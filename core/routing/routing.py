@@ -19,7 +19,7 @@ from code_intelligence.agent.investigation import (
 )
 
 # Re-exports for backward compatibility
-from core.routing_keywords import (
+from core.routing.routing_keywords import (
     ERP_TYPES,
     ROUTING_CONFLICT_PRIORITY,
     ERP_KEYWORDS,
@@ -45,7 +45,7 @@ from core.routing_keywords import (
     _ARITHMETIC_ONLY_RE,
     REACT_RECURSION_LIMIT,
 )
-from core.routing_guards import (
+from core.routing.routing_guards import (
     _MASSIVE_EXTRACTION_PATTERNS,
     _PROMPT_INJECTION_PATTERNS,
     _is_out_of_scope,

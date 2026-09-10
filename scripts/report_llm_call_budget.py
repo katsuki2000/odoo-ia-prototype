@@ -9,7 +9,7 @@ project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(project_root))
 sys.path.insert(0, str(project_root / "miro-rag"))
 
-from core.reasoning_trace_logger import ReasoningTraceLogger, MAX_HOPS_PER_QUESTION
+from core.session.reasoning_trace_logger import ReasoningTraceLogger, MAX_HOPS_PER_QUESTION
 
 
 BRANCH_ORDER = ["documentaire", "donnees_erp", "code_intelligence", "hybride"]
@@ -106,7 +106,7 @@ def build_budget_report(log_filepath: Path = None) -> str:
         f"`CI_MAX_HOPS=4` (rag/graph.py), `donnees_erp` applique "
         f"`REACT_RECURSION_LIMIT=6`, `documentaire` ne fait jamais de hop (0 par construction). "
         f"Valeur generique de reference : `MAX_HOPS_PER_QUESTION={MAX_HOPS_PER_QUESTION}` "
-        f"(core.reasoning_trace_logger).*\n"
+        f"(core.session.reasoning_trace_logger).*\n"
     )
 
     lines.append("---\n## Lecture\n")

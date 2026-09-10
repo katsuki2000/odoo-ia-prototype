@@ -18,7 +18,7 @@ from erp_data.tools.sales import (
     get_sale_details,
 )
 from erp_data.odoo_context import odoo_uid_ctx
-from core.evidence import Evidence, EvidenceSourceType
+from core.evidence.evidence import Evidence, EvidenceSourceType
 
 
 def test_single_order_with_products_two_evidence():

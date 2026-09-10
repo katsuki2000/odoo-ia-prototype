@@ -23,7 +23,7 @@ MIRO_RAG_DIR = BASE_DIR.parent.parent
 if str(MIRO_RAG_DIR) not in sys.path:
     sys.path.insert(0, str(MIRO_RAG_DIR))
 
-from core.graph import code_intelligence_agent, route
+from core.graph.graph import code_intelligence_agent, route
 from core.schemas import AssistantResponse
 
 logging.basicConfig(

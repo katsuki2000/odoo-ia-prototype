@@ -8,7 +8,7 @@ graph.py yet -- this only exercises the primitive on its own.
 
 import pytest
 
-from core.evidence_sufficiency import (
+from core.evidence.evidence_sufficiency import (
     EvidenceSufficiencyStatus,
     assess_evidence_sufficiency,
 )

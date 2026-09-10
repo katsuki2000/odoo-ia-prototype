@@ -20,7 +20,7 @@ from config.settings import (
     LOCAL_LLM_MODEL,
     LOCAL_LLM_API_KEY,
 )
-from core.llm_retry import (
+from core.llm.llm_retry import (
     ToolCallFallback,
     ToolCallFallback as _ToolCallFallback,
     parse_reset_seconds,
@@ -68,9 +68,9 @@ def _rotate_groq_key() -> bool:
 
 
 def _get_chat_groq():
-    """Return patched ChatGroq if loaded in core.graph, else real ChatGroq."""
+    """Return patched ChatGroq if loaded in core.graph.graph, else real ChatGroq."""
     import sys
-    g = sys.modules.get("core.graph")
+    g = sys.modules.get("core.graph.graph")
     if g and hasattr(g, "ChatGroq"):
         return g.ChatGroq
     return ChatGroq

@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from langchain_core.messages import HumanMessage
 
 from config.settings import GROQ_MODEL
-from core.llm_client import invoke_with_rate_limit, _current_groq_key, get_chat_llm
+from core.llm.llm_client import invoke_with_rate_limit, _current_groq_key, get_chat_llm
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +18,7 @@ _build_groq_llm = get_chat_llm
 
 def _get_chat_groq():
     import sys
-    g = sys.modules.get("core.graph")
+    g = sys.modules.get("core.graph.graph")
     if g and hasattr(g, "ChatGroq"):
         return g.ChatGroq
     from langchain_groq import ChatGroq

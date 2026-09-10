@@ -18,7 +18,7 @@ from code_intelligence.knowledge_rules.deterministic.navigation.button_path impo
 from code_intelligence.knowledge_rules.deterministic.navigation.button_path_models import ButtonExecutionPathResult
 from code_intelligence.knowledge_rules.deterministic.common import NOT_FOUND_MARKER, QueryStatus
 from code_intelligence.utils import format_file_link, format_xml_id_citations
-from core.evidence import Evidence, EvidenceSourceType, make_evidence
+from core.evidence.evidence import Evidence, EvidenceSourceType, make_evidence
 
 
 @dataclass

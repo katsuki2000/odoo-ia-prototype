@@ -18,8 +18,8 @@ Covers:
 """
 import pytest
 
-from core.smalltalk import classify_smalltalk, SMALLTALK_RESPONSES
-from core.graph import smalltalk_gate, smalltalk_decision
+from core.session.smalltalk import classify_smalltalk, SMALLTALK_RESPONSES
+from core.graph.graph import smalltalk_gate, smalltalk_decision
 from core.schemas import AssistantResponse
 
 

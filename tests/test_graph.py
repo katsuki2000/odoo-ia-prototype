@@ -4,7 +4,7 @@ from unittest.mock import patch, MagicMock
 from core.schemas import AssistantResponse
 from types import SimpleNamespace
 
-from core.graph import (
+from core.graph.graph import (
     generate, format_output, _parse_raw_json_answer,
     _rank_and_cap_override_methods,
     _format_can_view_amount_fact, _question_suggests_automation_bypass,
@@ -79,7 +79,7 @@ def test_parse_raw_json_answer_returns_none_when_answer_field_missing():
     assert _parse_raw_json_answer('{"confidence": 0.5}') is None
 
 
-@patch('core.graph.ChatGroq')
+@patch('core.graph.graph.ChatGroq')
 def test_generate_raw_invoke_fallback_parses_json_answer(mock_chat_groq):
     # Structured-output call fails -> raw invoke fallback runs. The raw
     # response.content is JSON text (SYSTEM_PROMPT instructs JSON output) --

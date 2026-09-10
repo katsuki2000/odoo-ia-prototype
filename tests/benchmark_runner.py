@@ -13,7 +13,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent))
 
 from dotenv import load_dotenv
-from core.llm_client import get_chat_llm
+from core.llm.llm_client import get_chat_llm
 from langchain_core.messages import HumanMessage, SystemMessage
 
 load_dotenv()

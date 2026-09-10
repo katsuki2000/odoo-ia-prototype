@@ -9,7 +9,7 @@ from enum import Enum
 from typing import Dict, List, Optional
 from pydantic import BaseModel, ConfigDict, Field
 
-from core.evidence import Evidence
+from core.evidence.evidence import Evidence
 
 
 # ── Routing ───────────────────────────────────────────────────────────────────

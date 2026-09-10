@@ -23,7 +23,7 @@ import dataclasses
 
 import pytest
 
-from core.routing import _sticky_concept_or_resolve
+from core.routing.routing import _sticky_concept_or_resolve
 
 
 def _state(last_resolved_concept=None) -> dict:

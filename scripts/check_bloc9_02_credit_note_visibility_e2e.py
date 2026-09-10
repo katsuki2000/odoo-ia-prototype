@@ -11,7 +11,7 @@ from pathlib import Path
 project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(project_root))
 
-from core.graph import (
+from core.graph.graph import (
     code_intelligence_agent, get_code_intelligence_graph, query_graph,
     _get_admin_rpc_client, _resolve_user_group_xmlids,
 )

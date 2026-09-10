@@ -106,7 +106,7 @@ def real_llm():
     client cannot be constructed on this machine (e.g. missing API key),
     consistent with real_graph's own skip discipline above.
     """
-    from core.llm_client import get_chat_llm
+    from core.llm.llm_client import get_chat_llm
 
     try:
         return get_chat_llm(temperature=0.0, max_retries=0, max_tokens=64)

@@ -33,7 +33,7 @@ from .tool_helpers import (
     _trace_invoked_methods,
 )
 from code_intelligence.utils import format_file_link
-from core.evidence_collector import record_evidence
+from core.evidence.evidence_collector import record_evidence
 
 _logger = logging.getLogger(__name__)
 

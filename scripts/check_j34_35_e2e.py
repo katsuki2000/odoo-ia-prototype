@@ -38,7 +38,7 @@ from pathlib import Path
 project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(project_root))
 
-from core.graph import code_intelligence_agent
+from core.graph.graph import code_intelligence_agent
 
 QUESTION = (
     "Dans le modèle custom.deep.document, qui a le droit de valider un "

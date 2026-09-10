@@ -63,7 +63,7 @@ def classify_question_intent_llm(question: str) -> Optional[QuestionIntent]:
 
     try:
         from langchain_core.messages import SystemMessage, HumanMessage
-        from core.llm_client import get_chat_llm, invoke_with_rate_limit
+        from core.llm.llm_client import get_chat_llm, invoke_with_rate_limit
 
         def _make_structured_llm():
             base_llm = get_chat_llm(temperature=0.0, max_retries=0)

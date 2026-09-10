@@ -14,11 +14,11 @@ Reference scenario: script 7/8 (todo/contexte.txt section 485),
 quota/tool-use failure masquerading as evidence absence.
 """
 
-from core.evidence_sufficiency import (
+from core.evidence.evidence_sufficiency import (
     EvidenceSufficiencyStatus,
     assess_evidence_sufficiency,
 )
-from core.graph import ci_evidence_decision
+from core.graph.graph import ci_evidence_decision
 
 
 class TestCiEvidenceDecisionRouting:

@@ -21,7 +21,7 @@ from erp_data.tools.inventory import (
     get_order_status,
 )
 from erp_data.odoo_context import odoo_uid_ctx
-from core.evidence import Evidence, EvidenceSourceType
+from core.evidence.evidence import Evidence, EvidenceSourceType
 
 
 def test_get_order_status_raw_returns_text_and_two_evidence():

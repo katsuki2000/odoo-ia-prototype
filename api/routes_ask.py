@@ -6,8 +6,8 @@ from langchain_core.messages import HumanMessage, AIMessage
 
 from api.auth import get_current_user
 from api.schemas import AskRequestV1, AskResponseV1
-from core.graph import query_graph
-from core.session_store import get_session, update_session
+from core.graph.graph import query_graph
+from core.session.session_store import get_session, update_session
 
 logger = logging.getLogger(__name__)
 

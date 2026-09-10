@@ -20,7 +20,7 @@ from code_intelligence.agent.ci_agent_node.context.tool_helpers import (
     _is_wildcard_model,
     _resolve_model_param,
 )
-from core.evidence_collector import record_evidence
+from core.evidence.evidence_collector import record_evidence
 
 
 @tool

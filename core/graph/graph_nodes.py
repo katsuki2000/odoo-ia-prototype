@@ -11,15 +11,15 @@ from typing import Optional
 
 from config.settings import USE_RERANKER
 from document_rag.vectorstore.search import get_retriever, retrieve as search_retrieve
-from core.smalltalk import classify_smalltalk, SMALLTALK_RESPONSES
-from core.evidence_sufficiency import EvidenceSufficiencyStatus
+from core.session.smalltalk import classify_smalltalk, SMALLTALK_RESPONSES
+from core.evidence.evidence_sufficiency import EvidenceSufficiencyStatus
 from core.schemas import (
     AssistantResponse,
     SourceReference,
     source_display_title,
 )
-from core.routing import RAGState, _is_out_of_scope, OUT_OF_SCOPE_ANSWER
-from core.html_sanitizer import sanitize_html_to_markdown
+from core.routing.routing import RAGState, _is_out_of_scope, OUT_OF_SCOPE_ANSWER
+from core.output.html_sanitizer import sanitize_html_to_markdown
 
 logger = logging.getLogger(__name__)
 
@@ -76,8 +76,8 @@ def retrieve(state: RAGState) -> dict:
     question = state["question"]
     logger.info("Node [retrieve]: Fetching documents for: %s", question)
 
-    # Support test suites that dynamically mock core.graph.get_retriever / search_retrieve
-    graph_mod = sys.modules.get("core.graph")
+    # Support test suites that dynamically mock core.graph.graph.get_retriever / search_retrieve
+    graph_mod = sys.modules.get("core.graph.graph")
     _get_retriever = getattr(graph_mod, "get_retriever", get_retriever) if graph_mod else get_retriever
     _search_retrieve = getattr(graph_mod, "search_retrieve", search_retrieve) if graph_mod else search_retrieve
 

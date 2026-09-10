@@ -20,7 +20,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from core.graph import query_graph
+from core.graph.graph import query_graph
 
 logging.basicConfig(level=logging.ERROR)
 

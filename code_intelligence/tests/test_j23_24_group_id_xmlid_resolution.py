@@ -79,7 +79,7 @@ def test_resolve_user_group_xmlids_translates_via_rpc(monkeypatch):
     integer group IDs get correctly turned into xml_ids before reaching
     gating/rule evaluation.
     """
-    from core import graph as graph_module
+    from core.graph import graph as graph_module  # noqa: F401 -- submodule, not the core.graph package: _get_admin_rpc_client()/_resolve_user_group_xmlids() sync against core.graph.graph via sys.modules, so the reset below must target the same object.
 
     class _FakeRpcClient:
         def authenticate_admin(self):
@@ -113,7 +113,7 @@ def test_resolve_user_group_xmlids_translates_via_rpc(monkeypatch):
 def test_resolve_user_group_xmlids_fails_closed_on_unresolvable_id(monkeypatch):
     """An ID with no matching ir.model.data entry (or an RPC error) must be
     dropped, never guessed -- fail closed, never fail open."""
-    from core import graph as graph_module
+    from core.graph import graph as graph_module
 
     class _FakeRpcClient:
         def authenticate_admin(self):

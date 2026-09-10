@@ -16,7 +16,7 @@ No mocks: exercises the real regex/backfill functions directly against realistic
 tool-output text, same convention as the rest of the test suite.
 """
 
-from core.graph import (
+from core.graph.graph import (
     _extract_link_guard_fields,
     _backfill_link_guard_clarifications,
     _scoped_raw_tool_output,

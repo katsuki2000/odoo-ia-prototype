@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import pytest
 from unittest.mock import patch
-from core.graph import (
+from core.graph.graph import (
     _fold_accents,
     ERP_KEYWORDS, ERP_KEYWORDS_FOLDED,
     CODE_INTEL_KEYWORDS, CODE_INTEL_KEYWORDS_FOLDED,

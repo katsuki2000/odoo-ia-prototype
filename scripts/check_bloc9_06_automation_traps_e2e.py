@@ -11,7 +11,7 @@ from pathlib import Path
 project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(project_root))
 
-from core.graph import code_intelligence_agent, get_code_intelligence_graph, query_graph, _get_admin_rpc_client
+from core.graph.graph import code_intelligence_agent, get_code_intelligence_graph, query_graph, _get_admin_rpc_client
 from code_intelligence.agent.ci_agent_node.context.agent_tools import ALL_CI_TOOLS, set_graph_ref
 from code_intelligence.utils import SENSITIVE_BYPASS_MARKER
 

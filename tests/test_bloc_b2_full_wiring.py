@@ -5,7 +5,7 @@ Bloc B2 (todo/contexte.txt section 622-625), etape 3/4: extends the
 wiring already confirmed for the 2 pilots (who_has_access_to/CI,
 get_total_sales/ORM, see tests/test_bloc_b2_pilot_wiring.py) to the 20
 remaining CI/ORM @tool wrappers. Each test monkeypatches the wrapper's
-underlying data-producing function/object (never core.evidence_collector
+underlying data-producing function/object (never core.evidence.evidence_collector
 itself) and checks the wrapper's own record_evidence() call actually
 reaches the turn accumulator -- same technique as
 test_ci_agent_tools_resolution.py's monkeypatch of a deferred-import
@@ -17,8 +17,8 @@ from unittest.mock import patch, MagicMock
 import networkx as nx
 import pytest
 
-from core.evidence import Evidence, EvidenceSourceType, make_evidence
-from core.evidence_collector import (
+from core.evidence.evidence import Evidence, EvidenceSourceType, make_evidence
+from core.evidence.evidence_collector import (
     _turn_evidence_ctx,
     start_evidence_collection,
     collect_and_clear_evidence,

@@ -5,7 +5,7 @@ Verifies that common LLM-emitted HTML structures are converted to their
 Markdown equivalents before reaching the frontend.
 """
 
-from core.html_sanitizer import sanitize_html_to_markdown
+from core.output.html_sanitizer import sanitize_html_to_markdown
 
 
 class TestHeadingConversion:

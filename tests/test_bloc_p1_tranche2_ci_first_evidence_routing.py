@@ -27,13 +27,13 @@ uniquement le CABLAGE qui les relie, la seule couche encore non testee.
 """
 import pytest
 
-from core.graph import (
+from core.graph.graph import (
     ci_evidence_decision,
     format_output,
     build_graph,
     hybrid_node,
 )
-from core.evidence_sufficiency import (
+from core.evidence.evidence_sufficiency import (
     assess_evidence_sufficiency,
     EvidenceSufficiencyStatus,
 )

@@ -28,7 +28,7 @@ tool-output text, same convention as the rest of the test suite (see
 test_bloc9_05_link_guard_backfill.py).
 """
 
-from core.graph import (
+from core.graph.graph import (
     _grounded_core_only_groups,
     _strip_core_only_group_mentions,
     _extract_required_groups,
