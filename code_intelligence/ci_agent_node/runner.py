@@ -19,7 +19,8 @@ from core.routing import (
 from core.llm_client import get_chat_llm
 from code_intelligence.graph import get_code_intelligence_graph
 from code_intelligence.business_resolver import resolve_business_term
-from .helpers import CI_MAX_HOPS, _rank_and_cap_resolved_models
+from .prompt_and_heuristics import CI_MAX_HOPS
+from .dispatch_utils import _rank_and_cap_resolved_models
 from code_intelligence.ci_agent_node.group_resolution import _resolve_user_group_xmlids
 from code_intelligence.ci_agent_node.early_refusal import build_early_refusal_response
 from code_intelligence.ci_agent_node.dispatch_context import DispatchContext
@@ -113,7 +114,7 @@ class CodeIntelligenceAgentRunner:
         if concept.source_step == "llm_arbitration":
             llm_call_count += 1
         concept_resolved_before_rehydration = concept.is_resolved
-        from .helpers import _rehydrate_sticky_concept
+        from .context_extractors import _rehydrate_sticky_concept
         from core.evidence_check import check_evidence
         concept = _rehydrate_sticky_concept(concept, state)
         evidence_status = check_evidence(concept, concept_resolved_before_rehydration, state)

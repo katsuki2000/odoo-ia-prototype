@@ -59,7 +59,10 @@ import logging
 import pytest
 
 from code_intelligence.business_resolver import resolve_business_term
-from code_intelligence.ci_agent_node.helpers import _question_is_access_related, _extract_amount
+from code_intelligence.ci_agent_node.context_extractors import (
+    _question_is_access_related,
+    _extract_amount,
+)
 from code_intelligence.investigation import (
     PlanAction,
     QuestionIntent,

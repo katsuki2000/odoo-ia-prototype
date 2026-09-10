@@ -40,7 +40,7 @@ def _backfill_missing_override_modules(final_answer: str, raw_tool_output: str, 
     """If the raw override-cascade text names a module that never made it into the
     synthesized answer, append it as an explicit, clearly labeled fact."""
     if question:
-        from code_intelligence.ci_agent_node.helpers import (
+        from code_intelligence.ci_agent_node.context_extractors import (
             _question_is_inheritance_related,
             _question_is_method_or_override_related,
         )

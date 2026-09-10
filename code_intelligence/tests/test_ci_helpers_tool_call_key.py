@@ -31,7 +31,10 @@ _tool_call_key()'s own return values, which is what actually needs to stay
 correct for the section 342 fix to hold.
 """
 
-from code_intelligence.ci_agent_node.helpers import _tool_call_key, _MODEL_KEYED_TOOLS
+from code_intelligence.ci_agent_node.prompt_and_heuristics import (
+    _tool_call_key,
+    _MODEL_KEYED_TOOLS,
+)
 
 
 # ── Model-keyed composite tools (analyze_security_locks, analyze_server_actions,

@@ -21,12 +21,12 @@ def plan_governance_security(
     G: Optional[Any],
 ) -> List[InvestigationStep]:
     """Build investigation steps for GOVERNANCE_SECURITY intent."""
-    from code_intelligence.ci_agent_node.helpers import (
+    from code_intelligence.ci_agent_node.context_extractors import (
         _question_is_access_related,
         _question_is_approval_related,
-        _question_suggests_automation_bypass,
         _extract_amount,
     )
+    from code_intelligence.ci_agent_node.dispatch_utils import _question_suggests_automation_bypass
 
     is_access_related = _question_is_access_related(question)
     is_approval_related = _question_is_approval_related(question)

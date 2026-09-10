@@ -12,15 +12,17 @@ import logging
 import time
 
 from code_intelligence.security.gate import gate_observation
-from .helpers import (
+from .prompt_and_heuristics import (
     _truncate_observation,
     _tool_call_key,
+)
+from .context_extractors import (
     _question_is_access_related,
     _extract_amount,
     _extract_company_context,
     _infer_move_type_context,
-    _format_can_view_amount_fact,
 )
+from .can_view_verifier import _format_can_view_amount_fact
 from code_intelligence.ci_agent_node.dispatch_context import DispatchContext
 
 logger = logging.getLogger(__name__)

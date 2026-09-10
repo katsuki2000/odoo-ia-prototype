@@ -12,7 +12,10 @@ import time
 
 from langchain_core.messages import SystemMessage, HumanMessage
 
-from .helpers import _strip_group_resolution_noise, _force_dynamic_uncertainty_answer
+from .dispatch_utils import (
+    _strip_group_resolution_noise,
+    _force_dynamic_uncertainty_answer,
+)
 from core.llm_client import get_chat_llm, invoke_with_rate_limit as _invoke_with_rate_limit
 from core.degenerate_guards import (
     _detect_any_degenerate_repetition,

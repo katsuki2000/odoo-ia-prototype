@@ -12,11 +12,11 @@ import logging
 import re
 import time
 
-from .helpers import (
+from .prompt_and_heuristics import (
     _truncate_observation,
     _tool_call_key,
-    _question_is_constraint_related,
 )
+from .context_extractors import _question_is_constraint_related
 from code_intelligence.ci_agent_node.dispatch_context import DispatchContext
 
 logger = logging.getLogger(__name__)

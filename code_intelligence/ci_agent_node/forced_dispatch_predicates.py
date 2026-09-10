@@ -17,12 +17,12 @@ equivalent need in the Planner, which never actually calls a tool).
 
 from typing import List, Tuple
 
-from .helpers import (
+from .context_extractors import (
     _question_is_access_related,
     _question_is_approval_related,
-    _question_suggests_automation_bypass,
     _extract_amount,
 )
+from .dispatch_utils import _question_suggests_automation_bypass
 
 
 def _resolved_models(concept) -> List[str]:
@@ -58,7 +58,7 @@ def override_chain_targets(question: str, concept, G) -> List[Tuple[str, str]]:
     if G is None:
         return []
     import re
-    from .helpers import _question_is_method_or_override_related
+    from .context_extractors import _question_is_method_or_override_related
     is_invoice_generation_q = bool(re.search(r"\b(?:g[eé]n[eé]ration|cr[eé]ation)\s+(?:de\s+|d['’]\s*)?facture\b", question, re.IGNORECASE))
     if not (_question_is_approval_related(question) or _question_is_method_or_override_related(question) or is_invoice_generation_q):
         return []

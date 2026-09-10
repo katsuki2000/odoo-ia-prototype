@@ -18,7 +18,7 @@ import dataclasses
 import pytest
 
 from code_intelligence.business_resolver import ResolvedConcept
-from code_intelligence.ci_agent_node.helpers import _rehydrate_sticky_concept
+from code_intelligence.ci_agent_node.context_extractors import _rehydrate_sticky_concept
 
 
 def _unresolved(user_term="et pour cette annee ?") -> ResolvedConcept:

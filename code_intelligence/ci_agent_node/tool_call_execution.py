@@ -14,15 +14,17 @@ import time
 from langchain_core.messages import ToolMessage
 
 from code_intelligence.security.gate import gate_observation
-from .helpers import (
+from .prompt_and_heuristics import (
     _truncate_observation,
     _tool_call_key,
+)
+from .context_extractors import (
     _extract_amount,
     _extract_company_context,
     _infer_move_type_context,
-    _format_can_view_amount_fact,
-    _override_user_groups_arg,
 )
+from .can_view_verifier import _format_can_view_amount_fact
+from .dispatch_utils import _override_user_groups_arg
 from code_intelligence.ci_agent_node.dispatch_context import DispatchContext
 
 logger = logging.getLogger(__name__)

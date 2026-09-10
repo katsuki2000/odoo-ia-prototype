@@ -17,20 +17,28 @@ from core.degenerate_guards import (
     _detect_any_degenerate_repetition,
     _strip_any_degenerate_repetition,
 )
-from .helpers import (
+from .access_guards import (
     _scoped_raw_tool_output,
     _flag_ungrounded_group_xmlids,
     _strip_core_only_group_mentions,
     _backfill_missing_required_groups,
+)
+from code_intelligence.security.locks import (
     _backfill_missing_security_lock_amount,
+    _correct_security_lock_threshold_contradictions,
+)
+from .link_guards import (
     _backfill_missing_trigger_condition_literals,
     _backfill_missing_hardcoded_id_literals,
     _backfill_link_guard_clarifications,
+)
+from .can_view_verifier import (
     _correct_can_view_amount_contradictions,
-    _correct_security_lock_threshold_contradictions,
     _backfill_missing_can_view_amount_fact,
     _detect_can_view_amount_model_conflict,
     _format_conflicting_evidence_answer,
+)
+from .dispatch_utils import (
     _force_out_of_scope_model_answer,
     _force_dynamic_uncertainty_answer,
 )
