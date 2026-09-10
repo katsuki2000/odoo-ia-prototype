@@ -18,7 +18,7 @@ This file covers:
 """
 import pytest
 
-from code_intelligence.business_resolver import (
+from code_intelligence.agent.business_resolver import (
     rank_by_specificity,
     _specificity_score,
     resolve_business_term,

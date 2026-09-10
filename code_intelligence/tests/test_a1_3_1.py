@@ -13,7 +13,7 @@ Tests:
 import tempfile
 from pathlib import Path
 
-from code_intelligence.extractor.csv_extractor import parse_access_control_csv
+from code_intelligence.knowledge_rules.extractor.csv_extractor import parse_access_control_csv
 
 
 def test_empty_group_id_all_authenticated():

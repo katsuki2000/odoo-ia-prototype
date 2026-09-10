@@ -10,7 +10,7 @@ Unit tests for Stories S2.5 & S2.6:
 import pytest
 import textwrap
 from pathlib import Path
-from code_intelligence.security import (
+from code_intelligence.knowledge_rules.security import (
     analyze_python_security_locks,
     PythonSecurityLockAnalysis,
 )

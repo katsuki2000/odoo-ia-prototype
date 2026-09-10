@@ -11,8 +11,8 @@ import pytest
 import networkx as nx
 from pathlib import Path
 
-from code_intelligence.extractor.python_extractor import OdooModelDeclaration
-from code_intelligence.graph import (
+from code_intelligence.knowledge_rules.extractor.python_extractor import OdooModelDeclaration
+from code_intelligence.knowledge_rules.graph import (
     SymbolRename,
     detect_model_renames,
     refactor_rename_in_graph,

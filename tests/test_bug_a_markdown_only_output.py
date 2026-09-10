@@ -19,7 +19,7 @@ import re
 
 from document_rag.prompts import DOCUMENTARY_RAG_SYSTEM_PROMPT
 from core.routing import OUT_OF_SCOPE_ANSWER
-from code_intelligence.ci_agent_node.context.prompts import CI_SYSTEM_PROMPT
+from code_intelligence.agent.ci_agent_node.context.prompts import CI_SYSTEM_PROMPT
 
 
 # A prompt instruction telling the LLM not to use HTML tags, and to use

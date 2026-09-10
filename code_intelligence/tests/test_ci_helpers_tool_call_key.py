@@ -31,7 +31,7 @@ _tool_call_key()'s own return values, which is what actually needs to stay
 correct for the section 342 fix to hold.
 """
 
-from code_intelligence.ci_agent_node.context.prompt_and_heuristics import (
+from code_intelligence.agent.ci_agent_node.context.prompt_and_heuristics import (
     _tool_call_key,
     _MODEL_KEYED_TOOLS,
 )

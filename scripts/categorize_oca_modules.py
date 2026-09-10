@@ -45,8 +45,8 @@ project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(project_root))
 
 from code_intelligence.utils import discover_odoo_modules
-from code_intelligence.graph import _load_module
-from code_intelligence.extractor.python_extractor import ModelRelationType
+from code_intelligence.knowledge_rules.graph import _load_module
+from code_intelligence.knowledge_rules.extractor.python_extractor import ModelRelationType
 
 
 def score_module(mod):

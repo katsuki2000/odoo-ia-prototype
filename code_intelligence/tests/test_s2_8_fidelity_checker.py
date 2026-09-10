@@ -8,7 +8,7 @@ Ensures that querying unknown/absent models or symbols explicitly returns an
 
 import pytest
 import networkx as nx
-from code_intelligence.ci_agent_node.context.agent_tools import (
+from code_intelligence.agent.ci_agent_node.context.agent_tools import (
     set_graph_ref,
     who_has_access_to,
     evaluate_record_rules,

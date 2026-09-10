@@ -54,7 +54,7 @@ def _force_deterministic_intent_classifier():
     classifier's real behavior on these same cases is covered separately
     (todo/contexte.txt section 404/411).
     """
-    with patch("code_intelligence.investigation.classify_question_intent_llm", return_value=None):
+    with patch("code_intelligence.agent.investigation.classify_question_intent_llm", return_value=None):
         yield
 
 

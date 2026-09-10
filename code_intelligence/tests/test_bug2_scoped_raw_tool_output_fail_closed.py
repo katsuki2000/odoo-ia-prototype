@@ -18,7 +18,7 @@ project's convention for extracted pure helpers (see
 test_ci_helpers_tool_call_key.py).
 """
 
-from code_intelligence.ci_agent_node.guards.access_guards import _scoped_raw_tool_output
+from code_intelligence.agent.ci_agent_node.guards.access_guards import _scoped_raw_tool_output
 
 
 def test_observation_for_target_model_is_kept():

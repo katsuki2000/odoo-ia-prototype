@@ -26,12 +26,12 @@ This file covers two things:
 
 import pytest
 
-from code_intelligence.ci_agent_node.guards.can_view_verifier import (
+from code_intelligence.agent.ci_agent_node.guards.can_view_verifier import (
     _backfill_missing_can_view_amount_fact,
     _has_can_view_amount_fact,
     _format_can_view_amount_fact,
 )
-from code_intelligence.security.locks import _backfill_missing_security_lock_amount
+from code_intelligence.knowledge_rules.security.locks import _backfill_missing_security_lock_amount
 
 
 # ---------------------------------------------------------------------------

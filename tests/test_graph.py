@@ -1099,7 +1099,7 @@ class TestExtractCompanyContextCompanyIdsSemantics:
         context key at all -- an unresolved dynamic ref, verdict always
         None regardless of company wording, even when the question was
         maximally explicit about company (the exact section 101 symptom)."""
-        from code_intelligence.deterministic.access.domain_evaluator import evaluate_domain_force
+        from code_intelligence.knowledge_rules.deterministic.access.domain_evaluator import evaluate_domain_force
         context = {"amount": 1000}
         context.update(_extract_company_context(
             "Un utilisateur de la même société peut-il voir ce paramètre ?"
@@ -1111,7 +1111,7 @@ class TestExtractCompanyContextCompanyIdsSemantics:
         assert unresolved == []
 
     def test_resolves_real_miro_ai_bare_company_ids_domain_force_different_company(self):
-        from code_intelligence.deterministic.access.domain_evaluator import evaluate_domain_force
+        from code_intelligence.knowledge_rules.deterministic.access.domain_evaluator import evaluate_domain_force
         context = {"amount": 1000}
         context.update(_extract_company_context(
             "Un utilisateur d'une autre société peut-il voir ce paramètre ?"
@@ -1125,7 +1125,7 @@ class TestExtractCompanyContextCompanyIdsSemantics:
     def test_no_company_mention_leaves_bare_company_ids_domain_force_unresolved(self):
         """No regression on the silent-mention case : absence of information must still
         resolve to None ('cannot conclude'), never a guessed True/False."""
-        from code_intelligence.deterministic.access.domain_evaluator import evaluate_domain_force
+        from code_intelligence.knowledge_rules.deterministic.access.domain_evaluator import evaluate_domain_force
         context = {"amount": 1000}
         context.update(_extract_company_context(
             "Qui peut approuver un avoir de 25 000€ ?"
@@ -1152,7 +1152,7 @@ class TestAmountContextDualKey:
     def test_amount_total_leaf_resolves_true_when_amount_key_present(self):
         """custom_credit_note_visibility_rules::rule_avoir_visibilite_regionale
         -- references amount_total, not amount."""
-        from code_intelligence.deterministic.access.domain_evaluator import evaluate_domain_force
+        from code_intelligence.knowledge_rules.deterministic.access.domain_evaluator import evaluate_domain_force
         context = {"amount": 30000, "amount_total": 30000}
         verdict, unresolved = evaluate_domain_force(
             "['|', ('move_type', '!=', 'out_refund'), ('amount_total', '<=', 50000)]",
@@ -1166,7 +1166,7 @@ class TestAmountContextDualKey:
         -- references amount (bare), a genuinely distinct real Float field
         on custom.deep.document, not amount_total. This is the exact case a
         pure rename from 'amount' to 'amount_total' would have broken."""
-        from code_intelligence.deterministic.access.domain_evaluator import evaluate_domain_force
+        from code_intelligence.knowledge_rules.deterministic.access.domain_evaluator import evaluate_domain_force
         context = {"amount": 30000, "amount_total": 30000, "user": {"id": 7}, "company_id": 1}
         verdict, unresolved = evaluate_domain_force(
             "['&', '|', ('amount', '<=', 50000), ('user_id', '=', user.id), "

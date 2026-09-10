@@ -66,7 +66,7 @@ from pathlib import Path
 project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(project_root))
 
-from code_intelligence.live.rpc_client import OdooRpcClient, OdooRpcError  # noqa: E402
+from code_intelligence.agent.live.rpc_client import OdooRpcClient, OdooRpcError  # noqa: E402
 
 TEST_PASSWORD = os.getenv("ODOO_J5_TEST_PASSWORD", "J5TestPassword2026!")
 COMPANY_NAME = "Company Alpha"

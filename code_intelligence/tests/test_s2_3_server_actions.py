@@ -10,13 +10,13 @@ Unit tests for Stories S2.3 & S2.4:
 import pytest
 import textwrap
 from pathlib import Path
-from code_intelligence.extractor.xml_extractor import (
+from code_intelligence.knowledge_rules.extractor.xml_extractor import (
     parse_server_actions_from_xml,
     parse_base_automations_from_xml,
     OdooServerActionRecord,
     OdooBaseAutomationRecord,
 )
-from code_intelligence.server_actions import (
+from code_intelligence.knowledge_rules.server_actions import (
     analyze_server_action_code,
     ServerActionCodeAnalysis,
 )

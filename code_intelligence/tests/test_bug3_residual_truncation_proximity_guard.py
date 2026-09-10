@@ -14,15 +14,15 @@ incomplete because the cut landed nearby.
 
 import pytest
 
-from code_intelligence.ci_agent_node.context.prompt_and_heuristics import _TRUNCATION_MARKER
+from code_intelligence.agent.ci_agent_node.context.prompt_and_heuristics import _TRUNCATION_MARKER
 from code_intelligence.answer_text_signals import _match_near_truncation
-from code_intelligence.security.locks import (
+from code_intelligence.knowledge_rules.security.locks import (
     _extract_security_lock_condition_amounts,
     _correct_security_lock_threshold_contradictions,
     _SECURITY_LOCK_MESSAGES_MARKER,
 )
-from code_intelligence.ci_agent_node.guards.access_guards import _extract_required_groups_for_amount
-from code_intelligence.overrides import _extract_override_chain_amounts
+from code_intelligence.agent.ci_agent_node.guards.access_guards import _extract_required_groups_for_amount
+from code_intelligence.knowledge_rules.overrides import _extract_override_chain_amounts
 
 
 # ── _match_near_truncation itself ────────────────────────────────────────

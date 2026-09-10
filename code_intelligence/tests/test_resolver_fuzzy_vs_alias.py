@@ -17,10 +17,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
-from code_intelligence.business_resolver import (
+from code_intelligence.agent.business_resolver import (
     resolve_business_term, _fuzzy_match_graph, BUSINESS_ALIASES, _build_fuzzy_index
 )
-from code_intelligence.graph import get_code_intelligence_graph
+from code_intelligence.knowledge_rules.graph import get_code_intelligence_graph
 
 # Requêtes tirées directement des 9 questions adversariales + variantes courtes
 # qui stressent le cas "terme court, risque de faux-positif fuzzy"

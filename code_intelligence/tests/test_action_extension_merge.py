@@ -11,11 +11,11 @@ and sales_team.crm_team_action_pipeline patterns.
 
 import pytest
 
-from code_intelligence.graph import (
+from code_intelligence.knowledge_rules.graph import (
     build_module_symbol_registry,
     ParsedModule,
 )
-from code_intelligence.extractor.xml_extractor import OdooActionRecord
+from code_intelligence.knowledge_rules.extractor.xml_extractor import OdooActionRecord
 
 
 def _fake_module(actions, depends=None):

@@ -14,7 +14,7 @@ no artificial empty scope), and evidence_id determinism.
 
 import textwrap
 
-from code_intelligence.security import analyze_python_security_locks
+from code_intelligence.knowledge_rules.security import analyze_python_security_locks
 
 
 class TestSecurityLockEvidenceEmptyCode:

@@ -21,12 +21,12 @@ from pathlib import Path
 
 import pytest
 
-from code_intelligence.graph import ParsedModule, build_module_symbol_registry
-from code_intelligence.deterministic.structure.field_impact import field_change_impact
-from code_intelligence.deterministic.common import NOT_FOUND_MARKER
-from code_intelligence.graph import OdooGraphBuilder
-from code_intelligence.extractor.manifest_parser import parse_manifest
-from code_intelligence.extractor.python_extractor import extract_odoo_models_from_file
+from code_intelligence.knowledge_rules.graph import ParsedModule, build_module_symbol_registry
+from code_intelligence.knowledge_rules.deterministic.structure.field_impact import field_change_impact
+from code_intelligence.knowledge_rules.deterministic.common import NOT_FOUND_MARKER
+from code_intelligence.knowledge_rules.graph import OdooGraphBuilder
+from code_intelligence.knowledge_rules.extractor.manifest_parser import parse_manifest
+from code_intelligence.knowledge_rules.extractor.python_extractor import extract_odoo_models_from_file
 
 
 ADDONS_PATH = CORE_ADDONS_PATH

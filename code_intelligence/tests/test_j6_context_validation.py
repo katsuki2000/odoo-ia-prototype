@@ -12,7 +12,7 @@ import xmlrpc.client
 
 import pytest
 
-from code_intelligence.live.rpc_client import OdooRpcClient
+from code_intelligence.agent.live.rpc_client import OdooRpcClient
 from code_intelligence.tests.test_j5_live_validation import (
     ACCOUNT_MOVE_80K_REFUND_DOMAIN,
     _authenticate,

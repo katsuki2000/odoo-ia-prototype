@@ -6,10 +6,10 @@ from typing import Any, List, Optional, TypedDict, TYPE_CHECKING
 from langchain_core.messages import BaseMessage
 
 if TYPE_CHECKING:
-    from code_intelligence.business_resolver import ResolvedConcept
+    from code_intelligence.agent.business_resolver import ResolvedConcept
 
 from core.schemas import AssistantResponse, QueryRoute
-from code_intelligence.investigation import (
+from code_intelligence.agent.investigation import (
     INTENT_TO_ROUTE,
     QuestionIntent,
     generate_investigation_plan,
@@ -112,8 +112,8 @@ def route(state: RAGState) -> dict:
     question_folded = _fold_accents(question_raw.lower())
     logger.info("Node [route]: Classifying query type via intent resolution")
 
-    from code_intelligence.business_resolver import resolve_business_term
-    from code_intelligence.graph import get_code_intelligence_graph
+    from code_intelligence.agent.business_resolver import resolve_business_term
+    from code_intelligence.knowledge_rules.graph import get_code_intelligence_graph
     G = get_code_intelligence_graph()
 
     resolved_concept = resolve_business_term(

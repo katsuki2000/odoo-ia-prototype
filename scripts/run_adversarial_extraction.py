@@ -22,9 +22,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "miro-rag"))
 
 import networkx as nx
-from code_intelligence.extractor.manifest_parser import parse_manifest
-from code_intelligence.extractor.python_extractor import extract_odoo_models_from_file
-from code_intelligence.extractor.xml_extractor import (
+from code_intelligence.knowledge_rules.extractor.manifest_parser import parse_manifest
+from code_intelligence.knowledge_rules.extractor.python_extractor import extract_odoo_models_from_file
+from code_intelligence.knowledge_rules.extractor.xml_extractor import (
     parse_ir_rules_from_xml,
     parse_groups_from_xml,
     parse_actions_from_xml,
@@ -33,9 +33,9 @@ from code_intelligence.extractor.xml_extractor import (
     parse_menuitems_from_xml,
     parse_views_from_xml,
 )
-from code_intelligence.extractor.csv_extractor import parse_access_control_csv
-from code_intelligence.graph import ParsedModule, build_module_symbol_registry
-from code_intelligence.graph import OdooGraphBuilder
+from code_intelligence.knowledge_rules.extractor.csv_extractor import parse_access_control_csv
+from code_intelligence.knowledge_rules.graph import ParsedModule, build_module_symbol_registry
+from code_intelligence.knowledge_rules.graph import OdooGraphBuilder
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("adversarial_extraction")

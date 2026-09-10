@@ -3,8 +3,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from code_intelligence.business_resolver import resolve_business_term
-from code_intelligence.graph import get_code_intelligence_graph
+from code_intelligence.agent.business_resolver import resolve_business_term
+from code_intelligence.knowledge_rules.graph import get_code_intelligence_graph
 
 print("Loading graph...")
 G = get_code_intelligence_graph()
@@ -80,7 +80,7 @@ for q in native_model_candidates:
 # en cause, pour identifier la source exacte AVANT d'ecrire
 # NATIVE_MODEL_SYNONYMS (risque de collision de score sinon). Lecture seule :
 # appelle une fonction privee du module en lecture, ne modifie rien.
-from code_intelligence.business_resolver import _build_fuzzy_index
+from code_intelligence.agent.business_resolver import _build_fuzzy_index
 
 print("\n=== entrees d'index contenant 'achat' ===")
 idx = _build_fuzzy_index(G)

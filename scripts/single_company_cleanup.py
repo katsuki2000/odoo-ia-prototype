@@ -33,7 +33,7 @@ from pathlib import Path
 project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(project_root))
 
-from code_intelligence.live.rpc_client import OdooRpcClient, OdooRpcError  # noqa: E402
+from code_intelligence.agent.live.rpc_client import OdooRpcClient, OdooRpcError  # noqa: E402
 
 OLD_COMPANY_NAME = "My Company"
 NEW_DEFAULT_COMPANY_NAME = "Company Alpha"

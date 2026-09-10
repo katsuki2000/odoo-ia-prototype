@@ -9,7 +9,7 @@ import unicodedata
 
 import pytest
 import networkx as nx
-from code_intelligence.business_resolver import resolve_business_term, BUSINESS_ALIASES
+from code_intelligence.agent.business_resolver import resolve_business_term, BUSINESS_ALIASES
 
 
 @pytest.fixture

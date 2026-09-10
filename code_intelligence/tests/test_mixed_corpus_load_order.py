@@ -49,19 +49,19 @@ from pathlib import Path
 
 import pytest
 
-from code_intelligence.graph import (
+from code_intelligence.knowledge_rules.graph import (
     ParsedModule,
     build_module_symbol_registry,
     topological_sort_modules,
 )
-from code_intelligence.graph import OdooGraphBuilder
-from code_intelligence.extractor.manifest_parser import (
+from code_intelligence.knowledge_rules.graph import OdooGraphBuilder
+from code_intelligence.knowledge_rules.extractor.manifest_parser import (
     KNOWN_CORE_MODULE_DEPENDS,
     MissingManifestError,
     synthesize_fallback_manifest,
 )
-from code_intelligence.overrides import resolve_method_override_chain
-from code_intelligence.extractor.python_extractor import (
+from code_intelligence.knowledge_rules.overrides import resolve_method_override_chain
+from code_intelligence.knowledge_rules.extractor.python_extractor import (
     OdooMethodDeclaration,
     OdooModelDeclaration,
 )

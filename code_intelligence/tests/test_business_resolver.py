@@ -15,7 +15,7 @@ from unittest.mock import Mock
 import networkx as nx
 import pytest
 
-from code_intelligence.business_resolver import (
+from code_intelligence.agent.business_resolver import (
     resolve_business_term,
     BUSINESS_ALIASES,
     AMBIGUITY_GAP_THRESHOLD,

@@ -9,7 +9,7 @@ Runs XML extractors (ir.rule, res.groups, act_window, ir.model.fields, menuitems
 from pathlib import Path
 import pytest
 
-from code_intelligence.extractor.xml_extractor import (
+from code_intelligence.knowledge_rules.extractor.xml_extractor import (
     parse_ir_rules_from_xml,
     parse_groups_from_xml,
     parse_actions_from_xml,

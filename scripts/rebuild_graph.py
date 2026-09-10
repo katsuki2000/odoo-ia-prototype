@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from code_intelligence.graph import GRAPH_JSON_PATH, get_code_intelligence_graph
+from code_intelligence.knowledge_rules.graph import GRAPH_JSON_PATH, get_code_intelligence_graph
 
 
 def main():

@@ -15,7 +15,7 @@ sys.path.insert(0, str(project_root))
 sys.path.insert(0, str(project_root / "miro-rag"))
 
 from scripts.extract_modules import run_pipeline
-from code_intelligence.ci_agent_node.context.agent_tools import (
+from code_intelligence.agent.ci_agent_node.context.agent_tools import (
     set_graph_ref,
     evaluate_record_rules,
     analyze_server_actions,

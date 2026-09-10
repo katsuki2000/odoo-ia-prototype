@@ -38,7 +38,7 @@ from pathlib import Path
 
 import pytest
 
-from code_intelligence.deterministic.structure.field_impact import field_change_impact
+from code_intelligence.knowledge_rules.deterministic.structure.field_impact import field_change_impact
 
 ADDONS_ROOT = CORE_ADDONS_PATH
 

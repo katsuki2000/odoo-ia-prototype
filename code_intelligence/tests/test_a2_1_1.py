@@ -13,20 +13,20 @@ Tests:
 from pathlib import Path
 import pytest
 
-from code_intelligence.extractor.manifest_parser import OdooManifest, parse_manifest
-from code_intelligence.extractor.python_extractor import (
+from code_intelligence.knowledge_rules.extractor.manifest_parser import OdooManifest, parse_manifest
+from code_intelligence.knowledge_rules.extractor.python_extractor import (
     OdooModelDeclaration,
     extract_odoo_models_from_file,
 )
-from code_intelligence.extractor.xml_extractor import (
+from code_intelligence.knowledge_rules.extractor.xml_extractor import (
     parse_ir_rules_from_xml,
     parse_groups_from_xml,
     parse_actions_from_xml,
     parse_menuitems_from_xml,
     parse_views_from_xml,
 )
-from code_intelligence.extractor.csv_extractor import parse_access_control_csv
-from code_intelligence.graph import (
+from code_intelligence.knowledge_rules.extractor.csv_extractor import parse_access_control_csv
+from code_intelligence.knowledge_rules.graph import (
     ParsedModule,
     UnresolvedCategory,
     topological_sort_modules,

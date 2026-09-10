@@ -43,7 +43,7 @@ def _one_evidence(claim="fake fact"):
 
 class TestFieldChangeImpactWrapperRecordsEvidence:
     def test_records_evidence(self, monkeypatch):
-        from code_intelligence.ci_agent_node.context import agent_tools as ci_agent_tools
+        from code_intelligence.agent.ci_agent_node.context import agent_tools as ci_agent_tools
 
         G = nx.DiGraph()
         G.add_node("model:sale.order", node_type="Model", name="sale.order")
@@ -58,7 +58,7 @@ class TestFieldChangeImpactWrapperRecordsEvidence:
             evidence = fake_evidence
 
         monkeypatch.setattr(
-            "code_intelligence.deterministic.structure.field_impact.field_change_impact",
+            "code_intelligence.knowledge_rules.deterministic.structure.field_impact.field_change_impact",
             lambda G, field_name, model_name: _FakeResult(),
         )
 
@@ -71,7 +71,7 @@ class TestFieldChangeImpactWrapperRecordsEvidence:
 
 class TestButtonExecutionPathWrapperRecordsEvidence:
     def test_records_evidence(self, monkeypatch):
-        from code_intelligence.ci_agent_node.context import agent_tools as ci_agent_tools
+        from code_intelligence.agent.ci_agent_node.context import agent_tools as ci_agent_tools
 
         G = nx.DiGraph()
         G.add_node("model:sale.order", node_type="Model", name="sale.order")
@@ -85,7 +85,7 @@ class TestButtonExecutionPathWrapperRecordsEvidence:
             evidence = fake_evidence
 
         monkeypatch.setattr(
-            "code_intelligence.deterministic.navigation.button_path.button_execution_path",
+            "code_intelligence.knowledge_rules.deterministic.navigation.button_path.button_execution_path",
             lambda G, button_name, model_name, user_groups=None: _FakeResult(),
         )
 
@@ -98,7 +98,7 @@ class TestButtonExecutionPathWrapperRecordsEvidence:
 
 class TestTraceFullInheritanceWrapperRecordsEvidence:
     def test_records_evidence(self, monkeypatch):
-        from code_intelligence.ci_agent_node.context import agent_tools as ci_agent_tools
+        from code_intelligence.agent.ci_agent_node.context import agent_tools as ci_agent_tools
 
         G = nx.DiGraph()
         G.add_node("model:sale.order", node_type="Model", name="sale.order")
@@ -111,7 +111,7 @@ class TestTraceFullInheritanceWrapperRecordsEvidence:
             evidence = fake_evidence
 
         monkeypatch.setattr(
-            "code_intelligence.deterministic.structure.inheritance_chain.trace_full_inheritance",
+            "code_intelligence.knowledge_rules.deterministic.structure.inheritance_chain.trace_full_inheritance",
             lambda G, model_name: _FakeResult(),
         )
 
@@ -122,7 +122,7 @@ class TestTraceFullInheritanceWrapperRecordsEvidence:
 
 class TestDescribeWorkflowWrapperRecordsEvidence:
     def test_records_evidence(self, monkeypatch):
-        from code_intelligence.ci_agent_node.context import agent_tools as ci_agent_tools
+        from code_intelligence.agent.ci_agent_node.context import agent_tools as ci_agent_tools
 
         G = nx.DiGraph()
         G.add_node("model:sale.order", node_type="Model", name="sale.order")
@@ -135,7 +135,7 @@ class TestDescribeWorkflowWrapperRecordsEvidence:
             evidence = fake_evidence
 
         monkeypatch.setattr(
-            "code_intelligence.deterministic.structure.workflow_process.describe_workflow",
+            "code_intelligence.knowledge_rules.deterministic.structure.workflow_process.describe_workflow",
             lambda G, model_name: _FakeResult(),
         )
 
@@ -146,7 +146,7 @@ class TestDescribeWorkflowWrapperRecordsEvidence:
 
 class TestEvaluateRecordRulesWrapperRecordsEvidence:
     def test_records_evidence(self, monkeypatch):
-        from code_intelligence.ci_agent_node.context import agent_tools as ci_agent_tools
+        from code_intelligence.agent.ci_agent_node.context import agent_tools as ci_agent_tools
 
         G = nx.DiGraph()
         G.add_node("model:sale.order", node_type="Model", name="sale.order")
@@ -159,7 +159,7 @@ class TestEvaluateRecordRulesWrapperRecordsEvidence:
             evidence = fake_evidence
 
         monkeypatch.setattr(
-            "code_intelligence.deterministic.access.record_rules.evaluate_record_rules",
+            "code_intelligence.knowledge_rules.deterministic.access.record_rules.evaluate_record_rules",
             lambda G, model_name, permission="read", user_groups=None: _FakeResult(),
         )
 
@@ -172,7 +172,7 @@ class TestEvaluateRecordRulesWrapperRecordsEvidence:
 
 class TestListInvolvedModulesWrapperRecordsEvidence:
     def test_records_evidence(self, monkeypatch):
-        from code_intelligence.ci_agent_node.context import agent_tools as ci_agent_tools
+        from code_intelligence.agent.ci_agent_node.context import agent_tools as ci_agent_tools
 
         G = nx.DiGraph()
         G.add_node("model:sale.order", node_type="Model", name="sale.order")
@@ -185,7 +185,7 @@ class TestListInvolvedModulesWrapperRecordsEvidence:
             evidence = fake_evidence
 
         monkeypatch.setattr(
-            "code_intelligence.ci_agent_node.context.auxiliary_tools.list_involved_modules_with_evidence",
+            "code_intelligence.agent.ci_agent_node.context.auxiliary_tools.list_involved_modules_with_evidence",
             lambda G, model_name: _FakeResult(),
         )
 
@@ -198,7 +198,7 @@ class TestListInvolvedModulesWrapperRecordsEvidence:
 
 class TestAnalyzeServerActionsWrapperRecordsEvidence:
     def test_records_evidence(self, monkeypatch):
-        from code_intelligence.ci_agent_node.context import agent_tools as ci_agent_tools
+        from code_intelligence.agent.ci_agent_node.context import agent_tools as ci_agent_tools
 
         G = nx.DiGraph()
         G.add_node("model:sale.order", node_type="Model", name="sale.order")
@@ -218,11 +218,11 @@ class TestAnalyzeServerActionsWrapperRecordsEvidence:
             ci_agent_tools, "_trace_invoked_methods", lambda G, model_name, code: ""
         )
         monkeypatch.setattr(
-            "code_intelligence.server_actions.analyze_server_action_code",
+            "code_intelligence.knowledge_rules.server_actions.analyze_server_action_code",
             lambda **kwargs: _FakeAnalysis(),
         )
         monkeypatch.setattr(
-            "code_intelligence.server_actions.interpret_server_action_with_llm",
+            "code_intelligence.knowledge_rules.server_actions.interpret_server_action_with_llm",
             lambda analysis, code, llm: analysis,
         )
 
@@ -233,7 +233,7 @@ class TestAnalyzeServerActionsWrapperRecordsEvidence:
 
 class TestAnalyzeSecurityLocksWrapperRecordsEvidence:
     def test_records_evidence(self, monkeypatch, tmp_path):
-        from code_intelligence.ci_agent_node.context import agent_tools as ci_agent_tools
+        from code_intelligence.agent.ci_agent_node.context import agent_tools as ci_agent_tools
 
         G = nx.DiGraph()
         G.add_node("model:sale.order", node_type="Model", name="sale.order")
@@ -253,7 +253,7 @@ class TestAnalyzeSecurityLocksWrapperRecordsEvidence:
             lambda G, model_name: [str(src_file)],
         )
         monkeypatch.setattr(
-            "code_intelligence.security.analyze_python_security_locks",
+            "code_intelligence.knowledge_rules.security.analyze_python_security_locks",
             lambda code, filepath: _FakeAnalysis(),
         )
 
@@ -264,7 +264,7 @@ class TestAnalyzeSecurityLocksWrapperRecordsEvidence:
 
 class TestAnalyzeMethodOverrideChainWrapperRecordsEvidence:
     def test_records_evidence(self, monkeypatch):
-        from code_intelligence.ci_agent_node.context import agent_tools as ci_agent_tools
+        from code_intelligence.agent.ci_agent_node.context import agent_tools as ci_agent_tools
 
         G = nx.DiGraph()
         G.add_node("model:sale.order", node_type="Model", name="sale.order")
@@ -277,7 +277,7 @@ class TestAnalyzeMethodOverrideChainWrapperRecordsEvidence:
             evidence = fake_evidence
 
         monkeypatch.setattr(
-            "code_intelligence.overrides.analyze_method_override_chain_with_evidence",
+            "code_intelligence.knowledge_rules.overrides.analyze_method_override_chain_with_evidence",
             lambda G, model_name, method_name, llm=None: _FakeResult(),
         )
 
@@ -290,7 +290,7 @@ class TestAnalyzeMethodOverrideChainWrapperRecordsEvidence:
 
 class TestAnalyzeDataConstraintsWrapperRecordsEvidence:
     def test_records_evidence(self, monkeypatch):
-        from code_intelligence.ci_agent_node.context import agent_tools as ci_agent_tools
+        from code_intelligence.agent.ci_agent_node.context import agent_tools as ci_agent_tools
 
         G = nx.DiGraph()
         G.add_node("model:sale.order", node_type="Model", name="sale.order")
@@ -307,7 +307,7 @@ class TestAnalyzeDataConstraintsWrapperRecordsEvidence:
             lambda G, model_name: ["fake/path/sale_order.py"],
         )
         monkeypatch.setattr(
-            "code_intelligence.data_constraints.analyzer.analyze_data_constraints_from_filepaths",
+            "code_intelligence.knowledge_rules.data_constraints.analyzer.analyze_data_constraints_from_filepaths",
             lambda model_name, filepaths: _FakeResult(),
         )
 

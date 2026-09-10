@@ -27,16 +27,16 @@ from pathlib import Path
 
 import pytest
 
-from code_intelligence.graph import ParsedModule, build_module_symbol_registry
-from code_intelligence.graph import OdooGraphBuilder
-from code_intelligence.extractor.manifest_parser import parse_manifest
-from code_intelligence.overrides import (
+from code_intelligence.knowledge_rules.graph import ParsedModule, build_module_symbol_registry
+from code_intelligence.knowledge_rules.graph import OdooGraphBuilder
+from code_intelligence.knowledge_rules.extractor.manifest_parser import parse_manifest
+from code_intelligence.knowledge_rules.overrides import (
     analyze_method_override_chain,
     detect_unguarded_super,
     find_methods_with_unguarded_super,
     resolve_method_override_chain,
 )
-from code_intelligence.extractor.python_extractor import extract_odoo_models_from_file
+from code_intelligence.knowledge_rules.extractor.python_extractor import extract_odoo_models_from_file
 
 
 # ---------------------------------------------------------------------
@@ -388,7 +388,7 @@ def test_real_corpus_unguarded_super_filter_matches_full_report():
     the full composite tool's own finding: action_valider_avoir flagged,
     nothing else invented."""
     G = _build_real_registry_and_graph()
-    from code_intelligence.ci_agent_node.context.agent_tools import find_methods_with_override_cascade
+    from code_intelligence.agent.ci_agent_node.context.agent_tools import find_methods_with_override_cascade
 
     candidates = find_methods_with_override_cascade(G, "account.move")
     flagged = find_methods_with_unguarded_super(G, "account.move", candidates)

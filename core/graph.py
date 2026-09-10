@@ -13,7 +13,7 @@ import time
 from typing import List, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from code_intelligence.business_resolver import ResolvedConcept
+    from code_intelligence.agent.business_resolver import ResolvedConcept
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -26,7 +26,7 @@ from core.schemas import AssistantResponse, QueryRoute
 from core.routing import RAGState, route, route_decision
 from document_rag.generate_node import generate
 from erp_data.orm_agent_node import orm_agent_loop
-from code_intelligence.ci_agent_node import code_intelligence_agent
+from code_intelligence.agent.ci_agent_node import code_intelligence_agent
 
 from core.graph_nodes import (
     smalltalk_gate,

@@ -13,7 +13,7 @@ import tempfile
 from pathlib import Path
 import pytest
 
-from code_intelligence.extractor.python_extractor import (
+from code_intelligence.knowledge_rules.extractor.python_extractor import (
     extract_odoo_models_from_file,
     ModelRelationType,
 )

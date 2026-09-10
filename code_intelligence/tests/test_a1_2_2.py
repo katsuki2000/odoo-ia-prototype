@@ -12,7 +12,7 @@ Tests:
 import tempfile
 from pathlib import Path
 
-from code_intelligence.extractor.xml_extractor import (
+from code_intelligence.knowledge_rules.extractor.xml_extractor import (
     parse_groups_from_xml,
     parse_actions_from_xml,
 )
