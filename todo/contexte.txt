@@ -1148,3 +1148,44 @@ Tous corriges vers l'import absolu qualifie. Un script de verification dedie (pa
 **Consequence** : la reconstruction complete du travail perdu par l'incident Section 640 (sections 653-663 + volet A de la Section 652) est desormais achevee sur les 3 chantiers identifies (642, 643, 644). Rien ne reste en attente de ce cote.
 
 **Prochaine etape** : commit de checkpoint (discipline retenue depuis Section 640 -- commit apres chaque section close pour eviter qu'un incident futur similaire n'efface a nouveau du travail non commite).
+
+## Section 645 : Commit de checkpoint (c) volet A Section 652 -- reconstruction post-incident Section 640 integralement close
+
+Date : 10/09/2026
+Contexte : mandat Trunk ("continue dans la restructuration prevue dans contexte puis enchaine avec bloc 17"). Lecture de la fin du journal effectuee avant toute action (regle projet).
+
+**Anomalie trouvee et corrigee avant commit** : `git status --short` a revele que l'index contenait, en plus des 33 fichiers deplaces + ~40 fichiers externes repointes de la Section 644, 3 fichiers de test du chantier "Bloc 17" (`test_bloc17_jour4_navigation_path_tool_wiring.py`, `test_bloc17_navigation_howto_intent.py`, `test_bloc17_navigation_path.py`, tous nouveaux, 91/84/136 lignes de contenu substantiel) -- contrairement a ce qu'affirmait la methode decrite Section 644 ("git add -A scope au dossier ci_agent_node/", cause exacte de la contamination non elucidee, `tools/` avait bien ete correctement exclu par le `git reset` mentionne). Desindexes via `git reset HEAD -- <3 fichiers>` (fichiers laisses intacts sur disque, redevenus untracked) avant tout commit, pour respecter la regle "jamais de fix hors perimetre du mandat" -- le chantier 652/644 ne concerne que ci_agent_node/deterministic/graph, pas Bloc 17.
+
+**Verification post-correction** : `git diff --cached --name-status` recompte a 88 fichiers (33 deplaces + ~40 repointes + todo/contexte.txt + quelques tests supplementaires touches par la reconnexion), coherent avec la portee decrite Section 644, zero fichier Bloc17 residuel dans l'index. Aucun changement de contenu depuis la verification pytest de la Section 644 (uniquement des operations d'index git) -- pas de nouveau sweep pytest juge necessaire pour ce commit.
+
+**Commit** : `3e74f86` "Bloc B2/652 checkpoint (c): scission ci_agent_node/ en context/guards/predispatch/loop".
+
+**Conclusion** : les 3 chantiers de reconstruction post-incident Section 640 (642, 643, 644/645) sont desormais tous commits (`b328378`, `ac77abb`, `3e74f86`). La restructuration prevue est achevee.
+
+**Fichiers modifies ce tour** : aucun fichier de code (uniquement operations git : reset partiel + commit), todo/contexte.txt (cette section).
+
+**Prochaine etape** : mandat Trunk demande d'enchainer avec "Bloc 17" -- ce chantier n'existe dans aucun des deux documents de suivi (`todo/plan.md` : zero occurrence ; `todo/contexte.txt` : uniquement mentionne en creux, comme chantier tiers hors perimetre, jamais avec ses propres sections numerotees). Etat sur disque a inventorier avant toute action (fichiers untracked `code_intelligence/ci_agent_node/tools/`, 3 fichiers de test desormais untracked ci-dessus, `code_intelligence/deterministic/navigation/navigation_path.py`, 8 echecs pytest connus lies a `NAVIGATION_HOWTO` manquant) -- a presenter a Trunk avant de choisir une direction d'implementation, faute de mandat/plan explicite documente.
+
+## Section 646 : Bloc 17 -- ajout QuestionIntent.NAVIGATION_HOWTO (enum + route + heuristique), 7 tests rouges fermes
+
+Date : 10/09/2026
+Contexte : mandat Trunk explicite apres presentation du diagnostic Section 645 ("Idem + tu me dis le perimetre complet prevu pour Bloc17").
+
+**Diagnostic avant code** : execution ciblee des 3 fichiers `test_bloc17_*.py` : 18/25 passants d'entree. Les 2 fichiers `test_bloc17_navigation_path.py` (moteur deterministe `describe_navigation_path()`) et `test_bloc17_jour4_navigation_path_tool_wiring.py` (wrapper `@tool` + cablage `record_evidence()` dans `ci_agent_node/tools/structure.py`, deja enregistre dans `ALL_CI_TOOLS`) etaient integralement verts -- travail deja fait et fonctionnel. Seul `test_bloc17_navigation_howto_intent.py` echouait integralement (7/7, `AttributeError: NAVIGATION_HOWTO`) : le membre d'enum `QuestionIntent.NAVIGATION_HOWTO` n'existait ni dans `code_intelligence/investigation/schemas.py` (enum + `INTENT_TO_ROUTE`), ni dans la cascade heuristique de `code_intelligence/investigation/classifier.py`. Seule piece manquante identifiee.
+
+**Modifications** :
+- `schemas.py` : ajout `QuestionIntent.NAVIGATION_HOWTO = "navigation_howto"` (commentaire renvoyant a cette section et au fichier perimetre manquant) + entree `INTENT_TO_ROUTE[NAVIGATION_HOWTO] = QueryRoute.CODE_INTELLIGENCE.value`.
+- `classifier.py` : nouvelle liste `_NAVIGATION_PATTERNS` (5 regex : "ou/où se trouve", "ou/où puis-je trouver", "comment acceder/accéder a/à", "dans quel onglet", "comment naviguer") + verification inseree en etape "8bis", deliberement APRES governance/workflow/calcul/heritage/automation/erp_data (deja tous verifies plus haut dans la cascade) et juste avant le fallback `DOCUMENTARY_POLICY` -- ordre choisi pour garantir non-regression sur : (a) "bouton"/transitions -> reste `WORKFLOW_STATE` (deja capte par `_WORKFLOW_PATTERNS` avant d'atteindre l'etape 8bis) ; (b) "menu" incident dans une question de gouvernance -> reste `GOVERNANCE_SECURITY` (idem, capte plus tot) ; (c) les 5 questions "comment creer/envoyer/configurer X" du benchmark (DOC-01/02/03/04/10, verifiees textuellement dans `tests/benchmark_questions.json` avant ecriture des regex) ne partagent aucun terme avec `_NAVIGATION_PATTERNS` -- vocabulaire de localisation UI ("ou se trouve"/"quel onglet") volontairement distinct du vocabulaire d'action metier ("comment faire pour X").
+
+**Verification** :
+- py_compile sur les 2 fichiers : OK.
+- pytest cible (3 fichiers `test_bloc17_*.py`) : 25/25 passed (les 7 precedemment rouges sont desormais verts, aucune regression sur les 18 deja verts).
+- Sweep complet `pytest tests/ code_intelligence/tests/ erp_data/tests/ -q -m "not integration"` (tache de fond, 5m21s) : **1350 passed, 1 failed, 18 skipped, 58 deselected**. L'unique echec restant est `test_semantic_tags.py::test_technical_tag_matches_architecture_md_exactly`, deja connu et sans rapport (tag `client_group_check` non reflete dans `architecture.md`, identifie des la Section 642). Les 7 echecs Bloc17 anterieurs sont tous resolus ; compte total identique (1351 tests non skip/deselect avant et apres, repartition differente).
+
+**Commit** : `e1e73da` "feat: Bloc 17 -- ajout QuestionIntent.NAVIGATION_HOWTO (enum + route + heuristique)".
+
+**Reconstitution du perimetre Bloc 17 (mandat Trunk : "je le redicte") -- inferee du code reel sur disque, `todo/bloc17_jour1_perimetre.md` etant introuvable** : voir document separe cree ce tour, `todo/bloc17_perimetre_reconstitue.md` (marque explicitement comme reconstitution posterieure, pas la source originale). Resume : "Bloc 17, Etage 1" = repondre a la sous-partie statiquement derivable des questions "comment faire pour X" (localisation UI : menu -> action -> vue -> bouton), en reutilisant le sous-graphe Menu/Model/Button deja extrait -- perimetre explicitement exclu de l'analyse OWL/JS (docstring `navigation_path.py`). Jour 1 (perimetre, doc manquante) ; Jour 2-3 (moteur `describe_navigation_path()`, deterministic/navigation/) ; Jour 4 (classification d'intention NAVIGATION_HOWTO + cablage outil LangChain) -- tous les 3 desormais complets et verts. Aucune mention d'un "Jour 5+"/"Etage 2" trouvee nulle part sur le disque -- statut de cloture du bloc a confirmer par Trunk, pas suppose ce tour.
+
+**Fichiers modifies ce tour** : `code_intelligence/investigation/schemas.py`, `code_intelligence/investigation/classifier.py`, `todo/bloc17_perimetre_reconstitue.md` (nouveau), `todo/contexte.txt` (cette section).
+
+**Prochaine etape** : confirmation Trunk sur le statut de cloture du Bloc 17 (Jours 1-4 tous verts, mais absence de toute mention d'une suite -- clore le bloc ou chantier complementaire a definir ?).
