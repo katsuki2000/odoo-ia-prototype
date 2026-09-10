@@ -10,7 +10,7 @@ import logging
 import re
 from typing import Optional, List
 
-from .context_extractors import _AUTOMATION_PATTERN
+from code_intelligence.ci_agent_node.context.context_extractors import _AUTOMATION_PATTERN
 
 logger = logging.getLogger(__name__)
 

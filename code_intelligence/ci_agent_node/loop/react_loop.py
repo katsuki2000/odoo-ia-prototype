@@ -12,7 +12,7 @@ import time
 
 from langchain_core.messages import SystemMessage, HumanMessage
 
-from .dispatch_utils import (
+from code_intelligence.ci_agent_node.guards.dispatch_utils import (
     _strip_group_resolution_noise,
     _force_dynamic_uncertainty_answer,
 )
@@ -21,9 +21,9 @@ from core.degenerate_guards import (
     _detect_any_degenerate_repetition,
     _strip_any_degenerate_repetition,
 )
-from code_intelligence.ci_agent_node.dispatch_context import DispatchContext
-from .prompts import build_synthesis_prompt
-from code_intelligence.ci_agent_node.tool_call_execution import execute_tool_calls
+from code_intelligence.ci_agent_node.context.dispatch_context import DispatchContext
+from code_intelligence.ci_agent_node.context.prompts import build_synthesis_prompt
+from .tool_call_execution import execute_tool_calls
 
 logger = logging.getLogger(__name__)
 

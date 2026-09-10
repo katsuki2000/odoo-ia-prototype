@@ -19,7 +19,7 @@ from __future__ import annotations
 import networkx as nx
 import pytest
 
-from code_intelligence.ci_agent_node.agent_tools import (
+from code_intelligence.ci_agent_node.context.agent_tools import (
     ALL_CI_TOOLS,
     analyze_data_constraints,
     find_model_source_filepaths,
@@ -167,5 +167,5 @@ def test_registered_in_all_ci_tools():
 
 
 def test_ci_system_prompt_mentions_the_tool():
-    from code_intelligence.ci_agent_node.prompts import CI_SYSTEM_PROMPT
+    from code_intelligence.ci_agent_node.context.prompts import CI_SYSTEM_PROMPT
     assert "analyze_data_constraints" in CI_SYSTEM_PROMPT

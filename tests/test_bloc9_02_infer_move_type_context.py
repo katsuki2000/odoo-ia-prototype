@@ -17,7 +17,7 @@ guess on ambiguity or on a non-static-alias resolution path).
 import pytest
 
 from code_intelligence.business_resolver import ResolvedConcept
-from code_intelligence.ci_agent_node.context_extractors import _infer_move_type_context
+from code_intelligence.ci_agent_node.context.context_extractors import _infer_move_type_context
 
 
 def _static_alias(user_term: str, models=None) -> ResolvedConcept:

@@ -156,7 +156,7 @@ def trace_full_inheritance(
 
     filepaths = G.nodes[model_node].get("filepaths", [])
     if filepaths:
-        from code_intelligence.ci_agent_node.tool_helpers import _is_custom_module_filepath
+        from code_intelligence.ci_agent_node.context.tool_helpers import _is_custom_module_filepath
         sorted_filepaths = sorted(filepaths, key=lambda f: not _is_custom_module_filepath(f))
         src_links = []
         for fp in sorted_filepaths:

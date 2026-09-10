@@ -39,7 +39,7 @@ def _extract_required_groups(raw_tool_output: str) -> List[str]:
 
 def _flag_ungrounded_group_xmlids(final_answer: str, raw_tool_output: str) -> str:
     """Flag group XML-IDs in final_answer with no backing in tool observations."""
-    from code_intelligence.ci_agent_node.sourcing_guard import _XML_ID_PATTERN
+    from .sourcing_guard import _XML_ID_PATTERN
     grounded = set(_extract_required_groups(raw_tool_output)) | set(_XML_ID_PATTERN.findall(raw_tool_output))
     if not grounded:
         return final_answer

@@ -32,7 +32,7 @@ calls, extracted to keep build_final_response under the project's
 import inspect
 import re
 
-from code_intelligence.ci_agent_node.postprocess import build_final_response, _apply_backfill_chain
+from code_intelligence.ci_agent_node.loop.postprocess import build_final_response, _apply_backfill_chain
 
 _BACKFILL_AND_CORRECTION_FUNCS = [
     "_backfill_missing_required_groups",

@@ -19,15 +19,15 @@ from core.routing import (
 from core.llm_client import get_chat_llm
 from code_intelligence.graph import get_code_intelligence_graph
 from code_intelligence.business_resolver import resolve_business_term
-from .prompt_and_heuristics import CI_MAX_HOPS
-from .dispatch_utils import _rank_and_cap_resolved_models
-from code_intelligence.ci_agent_node.group_resolution import _resolve_user_group_xmlids
-from code_intelligence.ci_agent_node.early_refusal import build_early_refusal_response
-from code_intelligence.ci_agent_node.dispatch_context import DispatchContext
-from .prompts import CI_SYSTEM_PROMPT, build_business_context_prompt
-from code_intelligence.ci_agent_node.predispatch_chain import run_predispatch_chain
-from code_intelligence.ci_agent_node.react_loop import run_react_loop
-from code_intelligence.ci_agent_node.postprocess import build_final_response
+from code_intelligence.ci_agent_node.context.prompt_and_heuristics import CI_MAX_HOPS
+from code_intelligence.ci_agent_node.guards.dispatch_utils import _rank_and_cap_resolved_models
+from code_intelligence.ci_agent_node.context.group_resolution import _resolve_user_group_xmlids
+from code_intelligence.ci_agent_node.context.early_refusal import build_early_refusal_response
+from code_intelligence.ci_agent_node.context.dispatch_context import DispatchContext
+from code_intelligence.ci_agent_node.context.prompts import CI_SYSTEM_PROMPT, build_business_context_prompt
+from code_intelligence.ci_agent_node.predispatch.predispatch_chain import run_predispatch_chain
+from .react_loop import run_react_loop
+from .postprocess import build_final_response
 
 logger = logging.getLogger(__name__)
 
@@ -75,7 +75,7 @@ class CodeIntelligenceAgentRunner:
 
         # Initialize the knowledge graph and inject into tool wrappers
         G = get_code_intelligence_graph()
-        from .agent_tools import ALL_CI_TOOLS, set_graph_ref, set_llm_ref
+        from code_intelligence.ci_agent_node.context.agent_tools import ALL_CI_TOOLS, set_graph_ref, set_llm_ref
         from code_intelligence.security.gate import gate_observation, OmittedItem
         set_graph_ref(G)
 
@@ -114,7 +114,7 @@ class CodeIntelligenceAgentRunner:
         if concept.source_step == "llm_arbitration":
             llm_call_count += 1
         concept_resolved_before_rehydration = concept.is_resolved
-        from .context_extractors import _rehydrate_sticky_concept
+        from code_intelligence.ci_agent_node.context.context_extractors import _rehydrate_sticky_concept
         from core.evidence_check import check_evidence
         concept = _rehydrate_sticky_concept(concept, state)
         evidence_status = check_evidence(concept, concept_resolved_before_rehydration, state)

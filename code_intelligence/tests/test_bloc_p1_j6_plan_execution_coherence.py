@@ -59,7 +59,7 @@ import logging
 import pytest
 
 from code_intelligence.business_resolver import resolve_business_term
-from code_intelligence.ci_agent_node.context_extractors import (
+from code_intelligence.ci_agent_node.context.context_extractors import (
     _question_is_access_related,
     _extract_amount,
 )
@@ -138,7 +138,7 @@ def _real_dispatch_targets(question: str, concept, G) -> dict:
     ci_agent_node.py and generate_investigation_plan()). Never invokes a
     tool or an LLM -- pure predicate evaluation, same as the Planner itself.
     """
-    from code_intelligence.ci_agent_node.forced_dispatch_predicates import (
+    from code_intelligence.ci_agent_node.predispatch.forced_dispatch_predicates import (
         security_locks_targets,
         server_actions_targets,
         override_chain_targets,

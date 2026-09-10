@@ -21,12 +21,12 @@ def plan_governance_security(
     G: Optional[Any],
 ) -> List[InvestigationStep]:
     """Build investigation steps for GOVERNANCE_SECURITY intent."""
-    from code_intelligence.ci_agent_node.context_extractors import (
+    from code_intelligence.ci_agent_node.context.context_extractors import (
         _question_is_access_related,
         _question_is_approval_related,
         _extract_amount,
     )
-    from code_intelligence.ci_agent_node.dispatch_utils import _question_suggests_automation_bypass
+    from code_intelligence.ci_agent_node.guards.dispatch_utils import _question_suggests_automation_bypass
 
     is_access_related = _question_is_access_related(question)
     is_approval_related = _question_is_approval_related(question)
@@ -39,7 +39,7 @@ def plan_governance_security(
     has_who_has_access_target = is_access_related
     if G is not None:
         try:
-            from code_intelligence.ci_agent_node.forced_dispatch_predicates import (
+            from code_intelligence.ci_agent_node.predispatch.forced_dispatch_predicates import (
                 security_locks_targets,
                 server_actions_targets,
                 override_chain_targets,

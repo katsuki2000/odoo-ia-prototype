@@ -40,7 +40,7 @@ def _backfill_missing_override_modules(final_answer: str, raw_tool_output: str, 
     """If the raw override-cascade text names a module that never made it into the
     synthesized answer, append it as an explicit, clearly labeled fact."""
     if question:
-        from code_intelligence.ci_agent_node.context_extractors import (
+        from code_intelligence.ci_agent_node.context.context_extractors import (
             _question_is_inheritance_related,
             _question_is_method_or_override_related,
         )
@@ -74,7 +74,7 @@ def _extract_override_chain_amounts(raw_tool_output: str) -> List[str]:
     """Pull every monetary threshold embedded in a Python comparison inside
     an override-cascade risk finding in first-seen order, deduplicated."""
     amounts: List[str] = []
-    from code_intelligence.ci_agent_node.prompt_and_heuristics import _match_near_truncation
+    from code_intelligence.ci_agent_node.context.prompt_and_heuristics import _match_near_truncation
     override_sections = re.findall(
         r"(?:Cha[iî]ne de surcharge|Override chain).*?(?=\n\n[A-Z\u00c0-\u00dc]|\Z)",
         raw_tool_output,

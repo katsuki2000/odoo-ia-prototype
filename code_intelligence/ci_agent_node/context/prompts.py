@@ -8,7 +8,7 @@ Centralized system prompts and prompt builders for the Code Intelligence agent n
 """
 
 from typing import List, Optional
-from code_intelligence.ci_agent_node.module_inference import rank_custom_modules_for_models
+from .module_inference import rank_custom_modules_for_models
 
 # System prompt with explicit scope-first navigation strategy.
 CI_SYSTEM_PROMPT = (

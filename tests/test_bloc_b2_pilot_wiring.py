@@ -68,7 +68,7 @@ def test_get_total_sales_wrapper_without_active_turn_does_not_raise():
 
 def test_who_has_access_to_wrapper_records_evidence(monkeypatch):
     from core.evidence_collector import start_evidence_collection, collect_and_clear_evidence
-    from code_intelligence.ci_agent_node import agent_tools as ci_agent_tools
+    from code_intelligence.ci_agent_node.context import agent_tools as ci_agent_tools
     import networkx as nx
 
     G = nx.DiGraph()

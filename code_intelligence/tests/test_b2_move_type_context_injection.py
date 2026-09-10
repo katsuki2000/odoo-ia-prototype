@@ -32,7 +32,7 @@ This file covers two things:
 """
 
 from code_intelligence.business_resolver import resolve_business_term
-from code_intelligence.ci_agent_node.context_extractors import (
+from code_intelligence.ci_agent_node.context.context_extractors import (
     _infer_move_type_context,
     _extract_company_context,
 )

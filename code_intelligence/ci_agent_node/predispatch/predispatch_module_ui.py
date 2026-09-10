@@ -12,9 +12,9 @@ import logging
 import time
 from pathlib import Path
 
-from .prompt_and_heuristics import _truncate_observation
-from code_intelligence.ci_agent_node.dispatch_context import DispatchContext
-from code_intelligence.ci_agent_node.ui_patterns import matches_module_level_ui_inquiry
+from code_intelligence.ci_agent_node.context.prompt_and_heuristics import _truncate_observation
+from code_intelligence.ci_agent_node.context.dispatch_context import DispatchContext
+from code_intelligence.ci_agent_node.context.ui_patterns import matches_module_level_ui_inquiry
 
 logger = logging.getLogger(__name__)
 

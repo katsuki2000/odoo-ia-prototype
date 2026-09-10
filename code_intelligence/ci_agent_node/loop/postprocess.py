@@ -17,7 +17,7 @@ from core.degenerate_guards import (
     _detect_any_degenerate_repetition,
     _strip_any_degenerate_repetition,
 )
-from .access_guards import (
+from code_intelligence.ci_agent_node.guards.access_guards import (
     _scoped_raw_tool_output,
     _flag_ungrounded_group_xmlids,
     _strip_core_only_group_mentions,
@@ -27,18 +27,18 @@ from code_intelligence.security.locks import (
     _backfill_missing_security_lock_amount,
     _correct_security_lock_threshold_contradictions,
 )
-from .link_guards import (
+from code_intelligence.ci_agent_node.guards.link_guards import (
     _backfill_missing_trigger_condition_literals,
     _backfill_missing_hardcoded_id_literals,
     _backfill_link_guard_clarifications,
 )
-from .can_view_verifier import (
+from code_intelligence.ci_agent_node.guards.can_view_verifier import (
     _correct_can_view_amount_contradictions,
     _backfill_missing_can_view_amount_fact,
     _detect_can_view_amount_model_conflict,
     _format_conflicting_evidence_answer,
 )
-from .dispatch_utils import (
+from code_intelligence.ci_agent_node.guards.dispatch_utils import (
     _force_out_of_scope_model_answer,
     _force_dynamic_uncertainty_answer,
 )
@@ -48,8 +48,8 @@ from code_intelligence.overrides import (
     _correct_override_cascade_contradictions,
     _backfill_missing_unguarded_super,
 )
-from code_intelligence.ci_agent_node.constants import _EXECUTION_FAILURE_NOTICE, _CI_TOOL_DISPLAY_NAMES
-from code_intelligence.ci_agent_node.dispatch_context import DispatchContext
+from code_intelligence.ci_agent_node.context.constants import _EXECUTION_FAILURE_NOTICE, _CI_TOOL_DISPLAY_NAMES
+from code_intelligence.ci_agent_node.context.dispatch_context import DispatchContext
 
 logger = logging.getLogger(__name__)
 
@@ -147,7 +147,7 @@ def build_final_response(
                 target_models=concept.resolved_models,
             )
 
-    from code_intelligence.ci_agent_node.sourcing_guard import verify_citations, annotate_unverifiable_citations
+    from code_intelligence.ci_agent_node.guards.sourcing_guard import verify_citations, annotate_unverifiable_citations
     sourcing_result = verify_citations(final_answer, raw_tool_output)
     if not sourcing_result.is_fully_verified:
         logger.warning("Node [code_intelligence_agent]: Unverified citations -- %s", sourcing_result)

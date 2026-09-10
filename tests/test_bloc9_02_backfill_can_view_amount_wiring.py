@@ -26,7 +26,7 @@ This file covers two things:
 
 import pytest
 
-from code_intelligence.ci_agent_node.can_view_verifier import (
+from code_intelligence.ci_agent_node.guards.can_view_verifier import (
     _backfill_missing_can_view_amount_fact,
     _has_can_view_amount_fact,
     _format_can_view_amount_fact,

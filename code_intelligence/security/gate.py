@@ -25,7 +25,7 @@ class OmittedItem:
 
 
 def _extract_has_group_xmlids_from_source(G: nx.DiGraph, model_name: str) -> Set[str]:
-    from code_intelligence.ci_agent_node.agent_tools import find_model_source_filepaths
+    from code_intelligence.ci_agent_node.context.agent_tools import find_model_source_filepaths
 
     filepaths = find_model_source_filepaths(G, model_name)
     found: Set[str] = set()

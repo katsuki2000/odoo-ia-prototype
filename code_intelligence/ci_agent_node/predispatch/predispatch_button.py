@@ -13,12 +13,12 @@ import logging
 import re
 import time
 
-from .prompt_and_heuristics import (
+from code_intelligence.ci_agent_node.context.prompt_and_heuristics import (
     _truncate_observation,
     _tool_call_key,
 )
-from code_intelligence.ci_agent_node.dispatch_context import DispatchContext
-from code_intelligence.ci_agent_node.ui_patterns import extract_ui_element_name
+from code_intelligence.ci_agent_node.context.dispatch_context import DispatchContext
+from code_intelligence.ci_agent_node.context.ui_patterns import extract_ui_element_name
 
 logger = logging.getLogger(__name__)
 

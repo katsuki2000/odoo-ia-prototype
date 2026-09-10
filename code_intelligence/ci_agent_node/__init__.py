@@ -9,18 +9,18 @@ to expose, so `from code_intelligence.ci_agent_node import ...` (used by
 core/graph.py and elsewhere) keeps working unchanged.
 """
 
-from code_intelligence.ci_agent_node.group_resolution import (
+from code_intelligence.ci_agent_node.context.group_resolution import (
     _GROUP_XMLID_CACHE,
     _ADMIN_RPC_CLIENT,
     _ADMIN_RPC_UID,
     _get_admin_rpc_client,
     _resolve_user_group_xmlids,
 )
-from code_intelligence.ci_agent_node.constants import (
+from code_intelligence.ci_agent_node.context.constants import (
     _EXECUTION_FAILURE_NOTICE,
     _CI_TOOL_DISPLAY_NAMES,
 )
-from code_intelligence.ci_agent_node.runner import (
+from code_intelligence.ci_agent_node.loop.runner import (
     CodeIntelligenceAgentRunner,
     code_intelligence_agent,
 )

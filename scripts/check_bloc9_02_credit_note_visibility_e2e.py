@@ -15,7 +15,7 @@ from core.graph import (
     code_intelligence_agent, get_code_intelligence_graph, query_graph,
     _get_admin_rpc_client, _resolve_user_group_xmlids,
 )
-from code_intelligence.ci_agent_node.agent_tools import ALL_CI_TOOLS, set_graph_ref, evaluate_rules_raw
+from code_intelligence.ci_agent_node.context.agent_tools import ALL_CI_TOOLS, set_graph_ref, evaluate_rules_raw
 
 TEST_AMOUNT = 80000
 

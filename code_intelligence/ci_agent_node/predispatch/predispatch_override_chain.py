@@ -12,11 +12,11 @@ import re
 import time
 
 from code_intelligence.security.gate import gate_observation
-from .prompt_and_heuristics import (
+from code_intelligence.ci_agent_node.context.prompt_and_heuristics import (
     _truncate_observation,
     _tool_call_key,
 )
-from code_intelligence.ci_agent_node.dispatch_context import DispatchContext
+from code_intelligence.ci_agent_node.context.dispatch_context import DispatchContext
 
 logger = logging.getLogger(__name__)
 

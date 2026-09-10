@@ -21,7 +21,7 @@ from code_intelligence.deterministic.structure.workflow_process import describe_
 from code_intelligence.deterministic.access.access_evaluator import who_has_access_to
 from code_intelligence.deterministic.structure.field_impact import field_change_impact
 from code_intelligence.deterministic.navigation.button_path import button_execution_path
-from code_intelligence.ci_agent_node.auxiliary_tools import (
+from code_intelligence.ci_agent_node.context.auxiliary_tools import (
     resolve_technical_name_to_role,
     list_involved_modules,
     explain_decision_path,

@@ -14,18 +14,18 @@ import time
 from langchain_core.messages import ToolMessage
 
 from code_intelligence.security.gate import gate_observation
-from .prompt_and_heuristics import (
+from code_intelligence.ci_agent_node.context.prompt_and_heuristics import (
     _truncate_observation,
     _tool_call_key,
 )
-from .context_extractors import (
+from code_intelligence.ci_agent_node.context.context_extractors import (
     _extract_amount,
     _extract_company_context,
     _infer_move_type_context,
 )
-from .can_view_verifier import _format_can_view_amount_fact
-from .dispatch_utils import _override_user_groups_arg
-from code_intelligence.ci_agent_node.dispatch_context import DispatchContext
+from code_intelligence.ci_agent_node.guards.can_view_verifier import _format_can_view_amount_fact
+from code_intelligence.ci_agent_node.guards.dispatch_utils import _override_user_groups_arg
+from code_intelligence.ci_agent_node.context.dispatch_context import DispatchContext
 
 logger = logging.getLogger(__name__)
 
@@ -85,7 +85,7 @@ def execute_tool_calls(ctx: DispatchContext, ai_msg, messages: list) -> None:
                 rule_result = None
                 if tool_name == "evaluate_record_rules":
                     try:
-                        from .agent_tools import evaluate_rules_raw
+                        from code_intelligence.ci_agent_node.context.agent_tools import evaluate_rules_raw
 
                         rule_result = evaluate_rules_raw(
                             model_name=tool_args.get("model_name", ""),

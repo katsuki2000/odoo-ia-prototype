@@ -104,8 +104,8 @@ from code_intelligence.graph import (
     get_code_intelligence_graph,
 )
 
-from code_intelligence.ci_agent_node.prompt_and_heuristics import CI_MAX_HOPS
-from code_intelligence.ci_agent_node.context_extractors import (
+from code_intelligence.ci_agent_node.context.prompt_and_heuristics import CI_MAX_HOPS
+from code_intelligence.ci_agent_node.context.context_extractors import (
     _AMOUNT_PATTERN,
     _AUTOMATION_PATTERN,
     _question_mentions_amount,
@@ -120,7 +120,7 @@ from code_intelligence.ci_agent_node.context_extractors import (
     _question_is_access_related,
 )
 from code_intelligence.answer_text_signals import _APPROVAL_PATTERN
-from code_intelligence.ci_agent_node.access_guards import (
+from code_intelligence.ci_agent_node.guards.access_guards import (
     _REQUIRED_GROUP_LINE_RE,
     _GROUP_XMLID_RE,
     _extract_required_groups,
@@ -144,7 +144,7 @@ from code_intelligence.security.locks import (
     _backfill_missing_security_lock_amount,
     _correct_security_lock_threshold_contradictions,
 )
-from code_intelligence.ci_agent_node.link_guards import (
+from code_intelligence.ci_agent_node.guards.link_guards import (
     _LINK_GUARD_RE,
     _LINK_GUARD_CONTRADICTION_PATTERN,
     _LINK_GUARD_CONTRADICTING_SENTENCE_RE,
@@ -160,7 +160,7 @@ from code_intelligence.ci_agent_node.link_guards import (
     _backfill_missing_hardcoded_id_literals,
     _backfill_link_guard_clarifications,
 )
-from code_intelligence.ci_agent_node.can_view_verifier import (
+from code_intelligence.ci_agent_node.guards.can_view_verifier import (
     _CAN_VIEW_ALLOW_ASSERTION_RE,
     _CAN_VIEW_DENY_ASSERTION_RE,
     _CAN_VIEW_FACT_VERDICT_RE,
@@ -173,7 +173,7 @@ from code_intelligence.ci_agent_node.can_view_verifier import (
     _backfill_missing_can_view_amount_fact,
     _format_can_view_amount_fact,
 )
-from code_intelligence.ci_agent_node.dispatch_utils import (
+from code_intelligence.ci_agent_node.guards.dispatch_utils import (
     _question_suggests_automation_bypass,
     _rank_and_cap_resolved_models,
     _override_user_groups_arg,

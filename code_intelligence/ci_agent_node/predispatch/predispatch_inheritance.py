@@ -12,13 +12,13 @@ import logging
 import re
 import time
 
-from .prompt_and_heuristics import (
+from code_intelligence.ci_agent_node.context.prompt_and_heuristics import (
     _truncate_observation,
     _tool_call_key,
 )
-from .context_extractors import _question_is_inheritance_related
-from code_intelligence.ci_agent_node.dispatch_context import DispatchContext
-from code_intelligence.ci_agent_node.module_inference import rank_custom_modules_for_models
+from code_intelligence.ci_agent_node.context.context_extractors import _question_is_inheritance_related
+from code_intelligence.ci_agent_node.context.dispatch_context import DispatchContext
+from code_intelligence.ci_agent_node.context.module_inference import rank_custom_modules_for_models
 
 logger = logging.getLogger(__name__)
 
@@ -81,7 +81,7 @@ def dispatch_inheritance(ctx: DispatchContext) -> None:
                         "'trace_full_inheritance' for model '%s'.",
                         target_model,
                     )
-                    from .agent_tools import _is_custom_module_filepath
+                    from code_intelligence.ci_agent_node.context.agent_tools import _is_custom_module_filepath
                     all_links = re.findall(r"\((file:///[^#\)]+)#L(\d+)-L(\d+)\)", observation)
                     chosen_link = None
                     if ctx.concept.resolved_modules:
