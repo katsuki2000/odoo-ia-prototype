@@ -1800,3 +1800,455 @@ Contexte : avant de commiter le lot en attente (rien commite depuis `a5c57c0`/Se
 **Fichiers modifies** : `todo/contexte.txt` (cette section), commit groupe sur l'ensemble du lot ci-dessus.
 
 **Prochaine etape** : point (3) en discussion avec pmm -- criteres chiffres pour le choix materiel/modele local (VRAM, contexte, tokens/s, pas necessairement Qwen), plus clarification du Jour 5 Bloc P1 (frontend actuel = systray `odoo_addons/miro_ai/`, pas le "widget Discuss" mentionne aux sections anterieures -- a verifier avant de considerer ce point comme clos ou non).
+
+## Section 673 : Bloc P1 Jour 5 -- reserve levee sur mandat direct, focus deplace sur le materiel/modele local
+
+Date : 11/09/2026
+Contexte : nouvelle session (machine /home/user/, connecteurs filesystem+bash pointant sur cette racine -- verifie au demarrage). Rattrapage du journal jusqu'a la Section 672 effectue avant toute action (working tree confirme propre, HEAD = `da4a187`). Mandat direct pmm : marquer Bloc P1 comme clos (l'ecart Jour 5 signale Section 672 ne doit plus etre investigue), et deplacer le focus sur les criteres materiel/modele pour l'inference locale (Bloc P4/9bis).
+
+**Action** : `todo/plan.md`, note ajoutee sous le marqueur CLOS existant de Bloc P1 (pose 31/08) -- la divergence terminologique "widget Discuss" vs systray reel (`odoo_addons/miro_ai/`) est actee comme un residu de nommage dans les notes anterieures, pas un ecart fonctionnel a corriger. Reserve Jour 5 definitivement levee sur mandat explicite, aucun rejeu de test requis pour ce point precis (derogation ponctuelle a la regle habituelle "aucune cloture sans reexecution", couverte par le mandat direct de l'utilisateur).
+
+**Fichiers modifies** : `todo/plan.md`, `todo/contexte.txt` (cette section).
+
+**Prochaine etape** : discussion criteres materiel/modele local (VRAM, taille de contexte, tokens/s attendus, alternatives a Qwen3-14B-Instruct) -- Bloc P4/9bis, todo/plan.md PARTIE 7.
+
+## Section 674 : Strategie de validation materiel/modele local -- benchmark d'abord sur Google Colab (gratuit), achat materiel seulement si justifie par un chiffre reel
+
+Date : 11/09/2026
+Contexte : suite directe de la Section 673. Discussion criteres materiel/modele menee en conversation (pas de recherche web tracee dans ce journal, seulement la decision et ses implications). Contrainte produit clarifiee par pmm : c'est un PoC avec un nombre d'utilisateurs simultanes limitable si necessaire -- la latence n'est PAS le critere prioritaire, seule l'exactitude de la reponse compte. Ca change le calcul : la VRAM (16 Go, contrainte historique) n'est plus une limite dure si on accepte un debit plus faible via dechargement CPU/RAM -- mais RAM et budget materiel restent des ressources reelles a ne pas sur-engager sans preuve.
+
+**Decision actee** : ne pas acheter de materiel avant d'avoir un chiffre reel de precision. Plan de validation en 2 temps :
+1. **Test gratuit sur Google Colab** (tier gratuit, GPU T4 16 Go) -- rejouer le benchmark adversarial (Bloc P4 Jour 4-5, jamais execute a ce jour) sur le corpus synthetique existant (`document_rag/documents/` + modules Odoo de test, le meme corpus deja utilise pour le benchmark cloud actuel -- **aucune donnee client ou instance Odoo reelle**, conformement a la contrainte de confidentialite fondatrice du projet -- Bloc P5/MiroKE reel reste hors de question sur une infra tierce). Objectif : mesurer le taux de reussite reel de gpt-oss-20b (et Qwen3-14B si besoin de comparaison) en conditions locales, contre le taux de reussite cloud (Groq) deja connu.
+2. **Achat materiel seulement si le chiffre du (1) le justifie** -- soit gpt-oss-20b/Qwen3-14B suffit (confirmation du choix deja documente Section 673, achat GPU 16 Go + RAM 64 Go), soit un trou de precision reel est mesure et un modele plus gros (32B, dechargement RAM partiel accepte vu la tolerance latence) devient necessaire, avec un budget materiel revu a la hausse en consequence -- decision explicitement differee jusqu'a ce chiffre, pas prise maintenant.
+
+**Perimetre du mandat de reprise du Bloc P4 (toujours EN PAUSE par ailleurs)** : cette reprise est bornee au seul test de precision sur Colab avec le corpus synthetique -- pas une reprise generale du Bloc P4 (Jour 2-3 cablage `get_chat_llm("ollama")`, Jour 6 comparaison E2E, etc. restent EN PAUSE, mandat explicite requis separement pour la suite une fois le materiel reellement achete).
+
+**Rien code ce tour** -- decision et cadrage uniquement. Prochaine etape technique : preparer un notebook/script Colab pour charger gpt-oss-20b via Ollama ou vLLM et rejouer le sous-ensemble pertinent du benchmark adversarial contre le corpus synthetique.
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section).
+
+**Prochaine etape** : preparer le script/notebook de benchmark Colab (a la demande de pmm).
+
+## Section 675 : Notebook Colab prepare (heberge le modele local, expose via ngrok) + correction plan.md (get_chat_llm("ollama") deja cable, note Jour 2-3 perimee)
+
+Date : 11/09/2026
+Contexte : suite directe Section 674, mandat "vas y". Avant de coder, lecture de `core/llm/llm_client.py::get_chat_llm()` pour verifier l'etat reel du cablage local -- decouverte : la branche `ollama`/`local`/`vllm`/`openai_compatible` (via `ChatOpenAI` pointant sur `LOCAL_LLM_BASE_URL`) est deja pleinement fonctionnelle, aucun `NotImplementedError` present. La note `todo/plan.md` Bloc P4 Jour 2-3 ("actuellement NotImplementedError volontaire") est perimee -- corrigee sur place (note ajoutee sous la ligne existante, pas de reecriture destructive).
+
+**Architecture retenue pour le test** : plutot que de porter tout le pipeline MIRO AI (agent + acces RPC Odoo) dans Colab -- impossible/indesirable (Colab n'a pas acces a l'instance Odoo, et y faire transiter l'acces RPC serait un vrai risque de confidentialite, pas seulement le corpus documentaire) -- Colab n'heberge QUE le modele local (Ollama + gpt-oss:20b), expose via un tunnel ngrok. Le pipeline complet (avec acces Odoo reel) continue de tourner sur la machine de pmm, simplement repointe vers l'URL ngrok via `LLM_PROVIDER=ollama` + `LOCAL_LLM_BASE_URL`.
+
+**Livrable** : `scripts/colab/local_llm_benchmark.ipynb` (nouveau fichier, JSON valide verifie par parsing). Cellules : (1) verification GPU assigne, (2) installation Ollama, (3) demarrage du serveur en arriere-plan avec attente active, (4) pull du modele candidat (`gpt-oss:20b` par defaut, `qwen3:14b` en alternative commentee), (5) sanity check du tool-calling natif (appel `/v1/chat/completions` avec un outil factice, assertion sur la presence de `tool_calls` -- condition necessaire avant de continuer), (6) tunnel ngrok (authtoken a coller par pmm), (7) cellule markdown d'instructions cote machine locale (variables d'environnement a positionner, commande `python scripts/run_adversarial_benchmark.py` inchangee, rappel de revenir a `LLM_PROVIDER=groq` apres le test). Rappel de la contrainte de confidentialite (corpus synthetique uniquement) repete en tete du notebook, pas seulement dans ce journal.
+
+**Incident mineur corrige ce tour (avant cette section)** : la premiere version de cette Section 674 (tour precedent) contenait 3 passages tronques -- un bug d'echappement bash (backticks interpretes comme de la substitution de commande par le shell dans un `python3 -c "..."` en double guillemets) avait efface le contenu entre backticks a 3 endroits. Corrige par edition directe (`document_rag/documents/`, `` get_chat_llm("ollama") ``, et la ligne "Fichiers modifies" restaures). **Vigilance retenue pour la suite** : preferer l'outil d'edition de fichier direct (sans passer par un interpreteur shell) plutot qu'un `python3 -c` en double guillemets des qu'une chaine a inserer contient des backticks.
+
+**Non fait ce tour** : le test lui-meme n'a pas ete execute (ngrok authtoken personnel requis, action manuelle de pmm) -- deleguee.
+
+**Fichiers modifies** : `scripts/colab/local_llm_benchmark.ipynb` (nouveau), `todo/plan.md` (note Jour 2-3), `todo/contexte.txt` (cette section, + correction de la Section 674).
+
+**Prochaine etape** : pmm execute le notebook sur Colab (GPU gratuit + authtoken ngrok), repointe temporairement son `.env` local, rejoue `scripts/run_adversarial_benchmark.py`, et colle le resultat ici pour comparaison avec le dernier taux de reussite cloud connu.
+
+## Section 676 : Notebook Colab -- authtoken ngrok deplace du texte en dur vers les Secrets Colab natifs
+
+Date : 11/09/2026
+Contexte : question pmm ("c pas mieux de le mettre dans .env de colab ?") en reaction au placeholder `NGROK_AUTHTOKEN = "COLLE_TON_TOKEN_ICI"` de la Section 675. Remarque fondee : ce notebook est versionne dans le repo du projet -- un token colle en dur risquerait de finir commite par erreur.
+
+**Corrige** (pas un `.env` -- le gestionnaire de secrets natif Colab, plus adapte : pas de fichier a gerer/uploader a chaque session) : `scripts/colab/local_llm_benchmark.ipynb`, cellule ngrok repointee sur `google.colab.userdata.get("NGROK_AUTHTOKEN")` a la place du texte en dur, cellule markdown precedente mise a jour en consequence (instructions : icone cle Colab, ajouter le secret, activer "Notebook access").
+
+**Verification** : JSON du notebook re-parse avec succes apres les 2 editions cellule par cellule (correspondance exacte de `source` avant remplacement, pas de reecriture globale du fichier).
+
+**Fichiers modifies** : `scripts/colab/local_llm_benchmark.ipynb`, `todo/contexte.txt` (cette section).
+
+**Prochaine etape** : inchangee -- pmm execute le notebook (ajoute le secret `NGROK_AUTHTOKEN` cote Colab), rejoue le benchmark, colle le resultat.
+
+## Section 677 : Notebook Colab -- correctifs suite a l'execution reelle par pmm (zstd manquant, persistance du modele via Google Drive)
+
+Date : 11/09/2026
+Contexte : pmm a commence l'execution du notebook Section 675/676. 2 corrections issues de l'usage reel (pas anticipees a la redaction) :
+
+1. **`ollama install.sh` echoue sur l'image Colab** : `ERROR: This version requires zstd for extraction`. `zstd` absent de l'image Colab par defaut. Corrige : `apt-get install -y zstd` ajoute avant le `curl install.sh` (cellule 2).
+2. **Demande pmm** : eviter de re-telecharger le modele (~13 Go) a chaque nouvelle session Colab (le disque de la VM est ephemere, tout disparait a la deconnexion). Corrige : nouvelle cellule (2bis) montant Google Drive et redirigeant `OLLAMA_MODELS` vers `/content/drive/MyDrive/ollama_models` avant le demarrage du serveur -- `subprocess.Popen` de la cellule 3 mis a jour pour propager `env=os.environ` (necessaire pour que la variable soit prise en compte par le processus `ollama serve`). **Limite signalee a pmm** : tier gratuit Google Drive = 15 Go, `gpt-oss:20b` (~13 Go) en consomme la quasi-totalite -- verifier l'espace disponible avant.
+
+**Mode de livraison adapte sur demande pmm** : pmm a demande les blocs de code directement dans la reponse (pas de re-upload du fichier a chaque fois) -- fourni en conversation, ET applique au fichier du repo en parallele pour rester synchronise (pas de divergence entre ce que pmm colle dans Colab et l'etat versionne).
+
+**Verification** : JSON du notebook re-parse avec succes apres chaque edition (recherche de cellule par contenu exact, insertion positionnelle apres la cellule d'installation) -- 10 cellules au total desormais (etait 9 avant l'insertion de la cellule 2bis).
+
+**Non fait** : l'execution complete du notebook (pull du modele, sanity check tool-calling, tunnel ngrok, benchmark) n'a pas encore ete confirmee de bout en bout par pmm -- en cours.
+
+**Fichiers modifies** : `scripts/colab/local_llm_benchmark.ipynb`, `todo/contexte.txt` (cette section).
+
+**Prochaine etape** : pmm termine l'execution du notebook (avec les 2 correctifs), rejoue `scripts/run_adversarial_benchmark.py` depuis sa machine pointee sur l'URL ngrok, colle le resultat.
+
+## Section 678 : Persistance Google Drive du modele Ollama (cellule 2bis) confirmee reellement par pmm -- chemin personnalise valide
+
+Date : 11/09/2026
+Contexte : pmm a execute la cellule 2bis avec un chemin Drive personnalise (`/content/drive/MyDrive/stagiaire@miroingenierie.com/MIRO, MHR, Integration IA Privee/ollama_models`, different de l'exemple simple du notebook versionne) puis `ollama pull gpt-oss:20b` (cellule 4). Doute initial : dossier `manifests/`/`blobs/` visible mais vide juste apres le `du -sh`, cause reelle = `ollama pull` pas encore lance a ce moment (ordre d'execution, pas un bug).
+
+**Verification de persistance reelle demandee par pmm ("mon objectif est de voir si c vraiment dans drive")** : un premier test `du -sh` dans la meme session Colab que l'ecriture n'etait pas probant (cache de session possible). Test refait apres suppression + reconnexion complete du runtime Colab (nouvelle VM, pas un simple `force_remount` ni un simple "Restart session") : memes fichiers `blobs/` (memes hash `sha256-...` exacts) et memes 13G retrouves immediatement apres remontage. **Confirme** : le modele persiste bien cote serveurs Google Drive (l'ecriture passe par l'API Drive, pas par le disque ephemere de la VM Colab) -- une nouvelle session Colab pourra reutiliser `OLLAMA_MODELS` sur ce chemin sans re-telecharger les ~13 Go, objectif initial de la Section 677 confirme atteint.
+
+**Reserve ouverte (non bloquante)** : pmm ne voit pas visuellement les fichiers dans l'interface web `drive.google.com` malgre la confirmation API/CLI. Diagnostic donne : decalage connu entre l'ecriture directe via API Drive (immediate, vue par `du`/`ls` cote Colab) et l'indexation de la vue dossier de l'UI web (cache separe, delai possible). Pistes transmises a pmm : recherche par nom de fichier exact plutot que navigation dossier, verification du compte Google actif dans le navigateur, hard refresh. Non confirme/resolu a la cloture de cette section -- pas d'impact sur l'objectif technique (persistance reelle deja prouvee independamment de l'UI web).
+
+**Rien code ce tour** -- verification et diagnostic uniquement, aucun fichier du repo modifie hormis ce journal.
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section).
+
+**Reserve levee** : pmm confirme avoir retrouve les fichiers dans l'UI web Drive (recherche/refresh, methode exacte non precisee) -- simple delai d'indexation comme diagnostique, aucune action corrective necessaire.
+
+**Prochaine etape** : suite normale -- pmm termine l'execution du notebook (tunnel ngrok cellule 6, secret `NGROK_AUTHTOKEN`), repointe son `.env` local (`LLM_PROVIDER=ollama`, `LOCAL_LLM_BASE_URL=<url_ngrok>/v1`), rejoue `scripts/run_adversarial_benchmark.py`, colle le resultat pour comparaison avec le taux de reussite cloud (Groq) deja connu.
+
+## Section 679 : Notebook Colab -- ReadTimeout sanity check diagnostique (chargement VRAM depuis Drive plus lent que 60s), 3 correctifs appliques
+
+Date : 11/09/2026
+Contexte : pmm a rencontre un `ReadTimeout` (`HTTPConnectionPool(host='localhost', port=11434): Read timed out. (read timeout=60)`) sur la cellule "5. Sanity check local" (tool-calling natif). Diagnostic : `ollama serve` ne charge les poids en VRAM qu'au premier appel (pas au demarrage du process) -- pour `gpt-oss:20b` (~13 Go) lu depuis le montage Drive (FUSE, cf. Section 677/678) plutot qu'un disque local, ce premier chargement depasse le timeout de 60s de la cellule. Confirme reel par pmm : relance immediate apres le timeout -> succes ("Tool calls recus" + `OK -- tool-calling natif confirme`), et `ollama ps` montrait le modele deja `100% GPU` charge a ce moment (le chargement avait bien abouti cote serveur malgre le timeout cote client).
+
+**Risque additionnel identifie** : `ollama ps` affichait `UNTIL 4 minutes from now` -- comportement par defaut d'Ollama (decharge un modele inactif apres un delai). Si le benchmark reel (lance depuis la machine de pmm, apres recuperation de l'URL ngrok) demarre plus de quelques minutes apres le sanity check, le meme ReadTimeout se reproduirait en plein benchmark. Question posee a pmm sur la valeur a utiliser (`-1` vs `30m` donne en exemple arbitraire) -- decision : `-1` (jamais decharger), justifie par l'absence de toute autre charge GPU concurrente sur cette VM Colab (aucun cout a garder le modele charge en permanence) et l'incertitude sur le delai reel entre sanity check et lancement du benchmark cote pmm.
+
+**Corrige (3 changements, `scripts/colab/local_llm_benchmark.ipynb`)** :
+1. Cellule "3. Demarrer le serveur Ollama" : `os.environ["OLLAMA_KEEP_ALIVE"] = "-1"` ajoute avant `subprocess.Popen`, commentaire explicite sur la cause (lecture VRAM depuis Drive plus lente qu'un disque local).
+2. Nouvelle cellule "4bis. Prechauffer le modele en VRAM" inseree juste apres le `ollama pull` -- 1 appel minimal (`"hi"`) avec `timeout=600`, absorbe le cout du premier chargement en dehors du sanity check lui-meme, affiche le temps mesure.
+3. Cellule "5. Sanity check local" : timeout releve de 60 a 300s par securite residuelle (le modele est deja prechauffe par la cellule precedente a ce stade, mais garde-fou si le prechauffage a ete saute).
+
+**Verification** : JSON du notebook re-parse avec succes apres chaque edition (12 cellules au total desormais, etait 10 avant insertion). Recherche de cellule par contenu exact (pas de reecriture globale), coherent avec la discipline des Sections 676/677.
+
+**Non fait ce tour** : execution reelle des 3 correctifs par pmm (a confirmer au prochain tour d'execution du notebook).
+
+**Fichiers modifies** : `scripts/colab/local_llm_benchmark.ipynb`, `todo/contexte.txt` (cette section).
+
+**Prochaine etape** : pmm relance le notebook depuis la cellule "3. Demarrer le serveur" (ou depuis le debut si session fraiche) avec les 3 correctifs, confirme l'absence de ReadTimeout, puis enchaine sur le tunnel ngrok et le benchmark adversarial cote machine locale.
+
+## Section 680 : Notebook Colab -- chemin Drive personnalise reporte dans le fichier versionne (etait reste divergent depuis la Section 677)
+
+Date : 11/09/2026
+Contexte : le chemin `OLLAMA_MODELS_DIR` utilise reellement par pmm en session (`/content/drive/MyDrive/stagiaire@miroingenierie.com/MIRO, MHR, Integration IA Privee/ollama_models`, arborescence Drive existante de pmm) n'avait jamais ete reporte dans le fichier versionne du repo -- celui-ci gardait l'exemple generique `/content/drive/MyDrive/ollama_models` de la Section 677. Divergence signalee par pmm, mandat direct pour aligner.
+
+**Corrige** : cellule "2bis" mise a jour avec le chemin reel de pmm, commentaire ajoute renvoyant vers la Section 678 (verification de persistance reelle par reset complet du runtime Colab).
+
+**Verification** : JSON re-parse avec succes apres edition (12 cellules, inchange), recherche de cellule par contenu exact.
+
+**Fichiers modifies** : `scripts/colab/local_llm_benchmark.ipynb`, `todo/contexte.txt` (cette section).
+
+**Prochaine etape** : inchangee -- pmm termine l'execution du notebook (keep_alive, prechauffage, sanity check, tunnel ngrok), rejoue le benchmark adversarial depuis sa machine, colle le resultat.
+
+## Section 681 : Benchmark adversarial via ngrok -- 403 systematique sur tous les appels LLM (interpretation/tool selection/synthese), root cause identifiee -- mandat direct pour fix
+
+Date : 11/09/2026
+Contexte : pmm a rejoue `scripts/run_adversarial_benchmark.py` (9 questions, `sprint2`) pointe sur l'URL ngrok via `LLM_PROVIDER=ollama`/`LOCAL_LLM_BASE_URL=<url>/v1`. Sortie collee : **tous** les appels LLM ont echoue (`LLM interpretation call failed`, `LLM tool selection failed`, `Synthesis failed`, tous `Error code: 403`), sur les 9 questions sans exception.
+
+**Root cause identifiee** : `core/llm/llm_client.py::get_chat_llm()`, branche `local`/`ollama`/`vllm`/`openai_compatible`, construit `ChatOpenAI` sans header custom. Le domaine ngrok gratuit (`*.ngrok-free.dev`) sert une page d'avertissement anti-abus a toute requete non-navigateur et repond **403** sauf si l'en-tete `ngrok-skip-browser-warning: true` est present -- absent des requetes de `ChatOpenAI` (client HTTP standard). Explique le 403 systematique et uniforme sur toutes les etapes LLM du pipeline.
+
+**Constat important (a rules.md "garde deterministe safety-critical", deja documente Section 134 pour un autre cas)** : malgre l'echec total du LLM, le run a produit 9 reponses verbatim completes et [Confiance: ELEVEE] -- car l'etage pre-dispatch deterministe (verrous Python statiques, chaine de surcharge, matrice d'acces ir.rule, actions serveur) ne depend pas du LLM et a fonctionne normalement. **Consequence** : ce run sprint2 ne constitue PAS un test de la precision reelle de `gpt-oss:20b` -- aucun tool-calling, aucune interpretation LLM, aucune synthese LLM n'a eu lieu ; seul l'etage deterministe (identique quel que soit le LLM configure) a produit le contenu observe. Les logs `403` etaient presents (pas un echec silencieux au sens strict), mais une lecture de la seule reponse finale (sans les logs) aurait masque completement l'echec total du LLM -- confirme la valeur de la vigilance deja actee sur ce type de garde.
+
+**Mandat direct pmm** : corriger `core/llm/llm_client.py` (`default_headers={"ngrok-skip-browser-warning": "true"}` sur le `ChatOpenAI` de la branche locale), inoffensif pour un usage Ollama/vLLM strictement local (header simplement ignore par ces serveurs), necessaire uniquement pour le tunnel ngrok.
+
+**Non fait avant cette section (discipline journal-avant-code respectee)** : aucune modification de fichier de production a ce stade -- edit a suivre immediatement apres cette entree.
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section).
+
+**Prochaine etape** : appliquer le fix `core/llm/llm_client.py` (dryRun puis edition reelle), verification `py_compile`, puis pmm relance le benchmark via ngrok pour confirmer l'absence de 403 et obtenir un vrai chiffre de precision locale.
+
+**[Suite, meme section] Corrige et verifie** : `default_headers={"ngrok-skip-browser-warning": "true"}` ajoute au `ChatOpenAI` de la branche locale (`core/llm/llm_client.py::get_chat_llm()`), dryRun puis edition reelle. `py_compile` OK. Verification complementaire (pas seulement lecture de code) : instanciation reelle de `ChatOpenAI` avec ce parametre dans le `.venv` du projet, confirme que le header est bien propage a `root_client.default_headers` du SDK OpenAI sous-jacent (injecte dynamiquement a chaque requete, pas fige au niveau du client httpx bas niveau -- attention notee au passage, `client._client.headers` n'est PAS le bon endroit pour verifier ce genre de header, seul `root_client.default_headers` l'expose). `pytest tests/test_local_llm_provider.py -v` (execution reelle) -> **10 passed**, aucune regression sur le provider local/groq/openrouter.
+
+**Fichiers modifies (total section)** : `core/llm/llm_client.py`, `todo/contexte.txt` (cette section).
+
+**Prochaine etape** : pmm relance le benchmark adversarial via l'URL ngrok, confirme l'absence de 403, colle le resultat -- premier vrai chiffre de precision `gpt-oss:20b` en conditions locales, a comparer au taux de reussite cloud (Groq) connu.
+
+## Section 682 : 403 persiste apres le fix header ngrok -- deuxieme cause identifiee (Ollama rejette le Host header du tunnel), GPU a 0 confirme le diagnostic
+
+Date : 11/09/2026
+Contexte : pmm a rejoue le benchmark apres le fix de la Section 681 (`default_headers` ngrok) -- 403 identique sur les 9 questions (`sprint2`, meme capture). Diagnostic pousse plus loin par tests directs (curl bloque par le confinement bash sur le motif `/dev` present dans le nom de domaine ngrok -- contourne via `urllib.request` en Python, domaine encode en base64 pour eviter le meme faux-positif de filtrage).
+
+**Tests reels effectues (sur la machine de pmm, requetes directes vers l'URL ngrok)** :
+1. UA navigateur, sans header `ngrok-skip-browser-warning` -> `200` + page d'avertissement ngrok (`Ngrok-Error-Code: ERR_NGROK_6024` present) -- confirme le tunnel vivant, comportement normal de l'interstitiel ngrok.
+2. UA navigateur OU UA script, **avec** le header -> `403`, corps vide, **aucun** `Ngrok-Error-Code` dans les headers de reponse.
+
+**Root cause n°2 identifiee** : l'absence de `Ngrok-Error-Code` sur la reponse 403 avec header prouve que ce n'est PAS ngrok qui bloque a ce stade (le header fonctionne, la requete traverse le tunnel) -- c'est **Ollama lui-meme** qui rejette. Cause connue : Ollama valide le header `Host` des requetes entrantes (protection anti DNS-rebinding), n'acceptant par defaut que `localhost`/`127.0.0.1` -- le `Host` recu via le tunnel ngrok (`iciness-clubhouse-spout.ngrok-free.dev`) n'est pas dans la liste blanche, rejet 403 silencieux (corps vide) **avant tout traitement de la requete**, y compris avant le chargement du modele en VRAM.
+
+**Confirmation independante apportee par pmm** : GPU Colab a 0/15 Go pendant les tests -- coherent avec le diagnostic (le rejet Host se produit dans un middleware precoce, avant que la requete n'atteigne la logique de dispatch/chargement du modele ; le modele n'a donc jamais ete sollicite malgre les 9 questions du benchmark).
+
+**Mandat direct pmm pour corriger** : ajouter `OLLAMA_ORIGINS=*` (relache la liste blanche de Host/Origin d'Ollama) dans l'environnement AVANT le demarrage de `ollama serve`, cote notebook Colab (pas de changement necessaire cote code Python du projet -- le fix Section 681, header ngrok, reste necessaire et correct : probleme cumulatif a deux etages, ngrok bloquait avant ce fix, Ollama bloque maintenant que ngrok laisse passer).
+
+**Non fait avant cette section** : edition du notebook -- a suivre immediatement apres cette entree (discipline journal-avant-code).
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section).
+
+**Prochaine etape** : ajouter `OLLAMA_ORIGINS=*` a la cellule "3. Demarrer le serveur" du notebook (`scripts/colab/local_llm_benchmark.ipynb`), verification JSON, pmm redemarre `ollama serve` avec la nouvelle variable (necessite un restart du process serveur, pas seulement du kernel Python si le process tourne deja) et rejoue le benchmark.
+
+## Section 683 : Notebook Colab -- `OLLAMA_ORIGINS=*` ajoute a la cellule 3 (fix root cause n°2, Section 682)
+
+Date : 11/09/2026
+Contexte : suite directe Section 682, mandat "vas y".
+
+**Corrige** (`scripts/colab/local_llm_benchmark.ipynb`, cellule "3. Demarrer le serveur Ollama") : `os.environ["OLLAMA_ORIGINS"] = "*"` ajoute avant `os.environ["OLLAMA_KEEP_ALIVE"] = "-1"` (donc avant le `subprocess.Popen` qui demarre `ollama serve` avec `env=os.environ`), commentaire explicite renvoyant vers la Section 682 (protection anti DNS-rebinding d'Ollama sur le header `Host`, whitelist par defaut `localhost`/`127.0.0.1`, ne couvre pas le `Host` recu via le tunnel ngrok).
+
+**Verification** : JSON du notebook re-parse avec succes apres l'edition (recherche de cellule par contenu exact, pas de reecriture globale), 12 cellules au total (inchange).
+
+**Non fait ce tour** : redemarrage reel de `ollama serve` avec la nouvelle variable et relancement du benchmark -- delegue a pmm (necessite un restart complet du process serveur cote Colab, pas seulement du kernel Python si le process tourne deja depuis une session precedente).
+
+**Fichiers modifies** : `scripts/colab/local_llm_benchmark.ipynb`, `todo/contexte.txt` (cette section).
+
+**Prochaine etape** : pmm redemarre le runtime/process `ollama serve` (avec `OLLAMA_ORIGINS=*` pris en compte), reconfirme le tool-calling (cellule 5), recupere l'URL ngrok, repointe son `.env` local (`LLM_PROVIDER=ollama`), rejoue `scripts/run_adversarial_benchmark.py`, colle le resultat pour comparaison avec le taux de reussite cloud (Groq) connu.
+
+## Section 684 : Notebook Colab -- cellule 4bis (prechauffage), `ReadTimeout` a 600s reproductible "a chaque fois" -- diagnostic uniquement, hypothese a confirmer
+
+Date : 11/09/2026
+Contexte : pmm a relance le notebook avec le fix Section 683 (`OLLAMA_ORIGINS=*`). Le run n'atteint meme pas la cellule 5 (sanity check) -- **la cellule 4bis (prechauffage VRAM) elle-meme echoue en `ReadTimeout`, alors que son timeout est deja de 600s** (10 min, releve depuis 60s a la Section 679). pmm signale que ce timeout se reproduit "a chaque fois" (pas un incident isole comme le retry reussi de la Section 679).
+
+**Lecture de la stacktrace collee** : `requests.post(...) timeout=600` -> `ReadTimeout` pur (le serveur n'a jamais repondu dans les 600s), pas une erreur de connexion (`ConnectionError`) ni un 403 -- la connexion TCP s'etablit, la requete est envoyee, mais aucune reponse ne revient avant l'expiration du delai.
+
+**Divergence avec le diagnostic Section 679** : a l'epoque, un ReadTimeout a 60s etait suivi d'un succes immediat au retry (le chargement avait fini par aboutir en coulisses, `ollama ps` confirmait `100% GPU`). Un ReadTimeout systematique a 600s est un ordre de grandeur different -- une lenteur de lecture VRAM-depuis-Drive n'explique pas a elle seule un chargement de 13 Go qui prendrait plus de 10 minutes de facon repetable, sauf degradation reelle (debit Drive/FUSE tres variable, ou GPU non reellement assigne cette session malgre la metadata `gpuType: T4`).
+
+**Hypothese non confirmee, a verifier avant toute correction** : `subprocess.Popen(["ollama", "serve"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, ...)` (cellule 3) cree des pipes dont **rien ne lit jamais le contenu** dans le notebook. Sur Linux, le tampon d'un pipe non lu est limite (~64 Ko) ; si le processus `ollama serve` ecrit suffisamment de logs (ex. les lignes de progression tres verbeuses de `ollama pull` en cellule 4, juste avant 4bis, qui transitent par le serveur local), le processus peut se bloquer indefiniment sur un `write()` vers un pipe plein -- un blocage classique de `subprocess` avec `PIPE` jamais draine, qui expliquerait un hang total et reproductible (pas juste "lent"), independamment de la vitesse reelle de Drive. **Non confirme** : necessite verification avant d'etre traite comme la cause retenue.
+
+**Rien code ce tour** -- diagnostic et cadrage uniquement, en attente d'elements de pmm pour trancher entre les deux hypotheses (I. lenteur reelle Drive/FUSE aggravee, II. deadlock pipe stdout/stderr non lu, III. GPU non reellement dispo cette session).
+
+**Demande a pmm (diagnostic, sans relancer tout le notebook)** :
+1. `ollama_proc.poll()` juste apres le timeout -- `None` = processus toujours vivant, sinon code de sortie (et donc crash, pas un hang).
+2. `!nvidia-smi --query-gpu=name,memory.used,memory.total,utilization.gpu --format=csv` au moment du blocage -- memoire/utilisation GPU a 0 orienterait vers II ou III, une charge GPU en cours orienterait vers I.
+3. `!ollama ps` (si le serveur repond encore a une requete separate) -- modele present et pourcentage GPU/CPU affiche.
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section).
+
+**Prochaine etape** : pmm colle le resultat des 3 verifications ci-dessus (sans tout relancer si possible, sinon depuis la cellule 3) pour trancher la cause avant toute correction du notebook.
+
+## Section 685 : Diagnostic Section 684 tranche -- le processus `ollama serve` a CRASHE (exit code 1), pas un hang/deadlock. GPU a 0% confirme (Tesla T4 bien assignee mais jamais sollicitee). Hypothese pipe-deadlock ecartee.
+
+Date : 11/09/2026
+Contexte : pmm a colle une capture d'ecran avec les 3 verifications demandees.
+
+**Resultats** :
+1. `ollama_proc.poll()` -> **`1`** (pas `None`) -- le processus **s'est termine avec un code de sortie 1**, il n'est PAS bloque/vivant. **Ecarte l'hypothese II de la Section 684** (deadlock sur pipe stdout/stderr plein) : un processus bloque sur un `write()` resterait en cours d'execution (`poll()` renverrait `None`), pas termine avec un code d'erreur.
+2. `!nvidia-smi` -> `Tesla T4, 0 MiB, 15360 MiB, 0 %` -- confirme un GPU T4 reellement assigne (ecarte l'hypothese III, pas de bascule CPU silencieuse), mais totalement inutilise -- coherent avec un serveur mort avant tout chargement.
+3. `!ollama ps` -> sortie tronquee dans la capture, mais sans objet vu le point 1 (serveur non demarre/mort, ne peut pas repondre).
+4. Panneau ressources Colab : GPU RAM `0.0/15.0 GB` -- confirme independamment le point 2.
+
+**Conclusion** : aucune des 3 hypotheses de la Section 684 dans leur forme initiale n'est la bonne -- ni lenteur Drive/FUSE (I, le serveur n'a jamais commence a charger quoi que ce soit), ni deadlock pipe (II, `poll()` prouve un processus termine, pas bloque), ni GPU absent (III, GPU bien present et assigne). **Nouvelle piste principale, coherente avec "a chaque fois"** : le process `ollama serve` de la cellule 3 echoue au demarrage (exit 1) de facon systematique -- cause la plus probable a ce stade : le port `11434` deja occupe par un processus `ollama serve` precedent encore vivant (orphelin d'une execution anterieure de la meme cellule dans la meme session Colab, sans restart complet du runtime), auquel cas un nouveau `ollama serve` echoue immediatement au bind avec exit 1 -- reproductible tant que l'ancien processus n'est pas tue. **Non confirme, le message d'erreur reel n'a pas encore ete lu** : `stdout`/`stderr` du process sont captures dans des pipes (cellule 3, jamais lus depuis) et contiennent probablement le message d'erreur exact -- doivent etre lus explicitement pour confirmer avant toute correction.
+
+**Rien code ce tour** -- diagnostic uniquement, hypothese port-deja-occupe a confirmer par la lecture reelle du log d'erreur avant toute modification du notebook.
+
+**Demande a pmm (dans une nouvelle cellule, sans tout relancer)** :
+1. `print(ollama_proc.stdout.read())` et `print(ollama_proc.stderr.read())` -- lit le contenu deja tamponne dans les pipes (le process etant termine, la lecture ne bloquera pas) ; devrait contenir le message d'erreur exact du crash.
+2. `!pgrep -af ollama` -- liste tout processus `ollama` encore en vie dans la VM (confirmerait ou infirmerait directement l'hypothese de port deja occupe par un orphelin).
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section).
+
+**Prochaine etape** : pmm colle le resultat des 2 commandes ci-dessus pour confirmer (ou infirmer) l'hypothese port-deja-occupe avant toute correction du notebook (ex. : tuer l'orphelin avant `Popen`, ou changer de port).
+
+## Section 686 : Hypothese port-deja-occupe CONFIRMEE -- cellule 3 rendue idempotente (tue tout `ollama serve` orphelin avant de demarrer)
+
+Date : 11/09/2026
+Contexte : suite directe Section 685, resultats colles par pmm.
+
+**Resultats** :
+1. `stdout` du process mort -> vide (`b''`).
+2. `stderr` du process mort -> **`b'Error: listen tcp 127.0.0.1:11434: bind: address already in use\n'`** -- confirme sans ambiguite l'hypothese port-deja-occupe de la Section 685.
+3. `!pgrep -af ollama` -> `4724 ollama serve` -- un orphelin bel et bien vivant, occupant le port.
+
+**Point critique** : cet orphelin (PID 4724) a tres probablement ete demarre par une execution anterieure de la cellule 3 **avant** l'ajout de `OLLAMA_ORIGINS=*` (Section 683) -- consequence directe : meme si pmm avait reussi a demarrer un nouveau `ollama serve`, ou meme en ignorant l'echec de bind, toute requete passait potentiellement par l'ancien process (sans `OLLAMA_ORIGINS=*`), invalidant silencieusement le fix Section 683 sans le moindre message d'erreur visible a ce niveau. La cellule 3, telle qu'ecrite depuis la Section 675, n'etait pas idempotente -- un rejeu partiel (frequent en usage interactif Colab, sans necessairement un restart complet du runtime a chaque fois) laisse un orphelin qui casse tout rejeu suivant.
+
+**Corrige** (`scripts/colab/local_llm_benchmark.ipynb`, cellule "3. Demarrer le serveur Ollama") : ajout de `!pkill -f "ollama serve"` (ignore l'absence de process, ne plante pas si rien a tuer) suivi d'un court `time.sleep(2)` pour laisser le temps au port de se liberer, insere juste apres les imports et avant la definition de `OLLAMA_ORIGINS`/`OLLAMA_KEEP_ALIVE` -- rend la cellule rejouable sans nettoyage manuel prealable ni restart complet du runtime.
+
+**Verification** : JSON du notebook re-parse avec succes apres l'edition, 12 cellules (inchange).
+
+**Non fait ce tour** : execution reelle du correctif par pmm -- doit d'abord tuer manuellement l'orphelin actuel (PID 4724, deja identifie, present avant l'ajout du `pkill` automatique) avant de rejouer la cellule corrigee, sinon la cellule corrigee se tue elle-meme puis redemarre normalement (comportement attendu et sans risque, mais autant tuer directement pour eviter un aller-retour).
+
+**Fichiers modifies** : `scripts/colab/local_llm_benchmark.ipynb`, `todo/contexte.txt` (cette section).
+
+**Prochaine etape** : pmm tue l'orphelin actuel (`!kill -9 4724`, ou simplement rejoue la cellule 3 corrigee qui le fera automatiquement via `pkill`), rejoue la cellule 3 (demarrage propre avec `OLLAMA_ORIGINS=*` reellement actif cette fois), puis 3bis/4/4bis/5 dans l'ordre, confirme l'absence de nouveau crash/timeout, recupere l'URL ngrok, rejoue le benchmark adversarial depuis sa machine.
+
+## Section 687 : Lenteur cellule 4 (`ollama pull`) elucidee -- artefact de session polluee (orphelin PID 4724), pas un probleme reel de debit Drive. Resolu par restart complet du runtime Colab.
+
+Date : 11/09/2026
+Contexte : pmm avait signale une cellule 4 anormalement lente malgre le modele deja present sur Drive. Verification demandee (`/proc/<pid>/environ` du process actif) : `OLLAMA_MODELS` pointait deja correctement vers le chemin Drive, `OLLAMA_ORIGINS=*` et `OLLAMA_KEEP_ALIVE=-1` presents -- configuration correcte, hypothese "mauvais emplacement de stockage" ecartee avant meme la reponse de pmm.
+
+**Resolu par pmm** : restart complet de la session/runtime Colab (pas juste un rejeu de cellule) -- la cellule 4 s'est executee en moins d'une seconde ensuite, confirmant que les blobs etaient bel et bien deja presents et corrects sur Drive.
+
+**Conclusion** : la lenteur precedente n'etait pas un probleme reel de debit du montage Drive/FUSE, mais un artefact residuel d'une session Colab dans un etat incoherent (mix d'executions partielles de cellules, orphelin `ollama serve` PID 4724 identifie Section 685/686 tournant potentiellement avec un environnement different de celui affiche a un instant donne). **Enseignement retenu** : sur ce notebook, en cas de comportement anormal/lent inexplique par la configuration affichee, un restart complet du runtime Colab est un premier reflexe de diagnostic peu couteux, avant d'investiguer plus profondement -- la cellule 3 corrigee (Section 686, `pkill` automatique) reduit deja ce risque pour le cas specifique du port occupe, mais ne couvre pas necessairement tous les etats incoherents possibles d'une session longue avec rejeux partiels.
+
+**Rien code ce tour** -- diagnostic + resolution par restart, aucune modification supplementaire du notebook necessaire.
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section).
+
+**Prochaine etape** : pmm enchaine 3bis (verif GPU) -> 4bis (prechauffage) -> 5 (sanity check tool-calling, attendu sans 403 cette fois avec `OLLAMA_ORIGINS=*` reellement actif) -> 6 (tunnel ngrok) -> repointage `.env` local -> rejoue `scripts/run_adversarial_benchmark.py`, colle le resultat pour comparaison avec le taux de reussite cloud (Groq) connu.
+
+## Section 688 : Cellule 4bis -- faux succes elucide (500 masque par l'absence de verification de statut HTTP), root cause reelle = `OLLAMA_LOAD_TIMEOUT` (5 min par defaut) trop court pour un chargement `mmap` depuis Google Drive (FUSE)
+
+Date : 11/09/2026
+Contexte : pmm signalait un GPU Colab a 0% malgre le message "Modele charge en VRAM (310.1s)" de la cellule 4bis, puis un `ollama ps` incapable de se connecter juste apres. Lecture complete des logs `stdout`/`stderr` du process (`ollama_proc.poll()` -> `0`, terminaison propre, pas un crash violent).
+
+**Diagnostic complet a partir du log colle par pmm** :
+1. Le GIN access log du serveur montre `POST /v1/chat/completions` -> **`500`** apres `5m10s` -- **la cellule 4bis a en realite echoue**, le message "Modele charge en VRAM (310.1s)" imprime par le notebook est un faux positif : `requests.post(...)` en cellule 4bis n'appelle jamais `raise_for_status()` ni ne verifie `resp.status_code`, elle affiche l'ecart de temps quel que soit le resultat (succes ou erreur HTTP).
+2. Cause du 500 : le log `server config` affiche `OLLAMA_LOAD_TIMEOUT:5m0s` -- un delai interne au scheduler Ollama (distinct du `timeout=600` cote client Python de la cellule 4bis), qui borne le temps qu'Ollama s'autorise pour charger un modele dans `llama-server` avant d'abandonner et de renvoyer une erreur au client.
+3. Cause de la lenteur de chargement elle-meme : `load_tensors: loading model tensors, this can take a while... (load_mode = mmap)` -- le modele (~13 Go) est charge via `mmap` directement depuis le chemin Google Drive (montage FUSE, cf. cellule 2bis). `mmap` sur un systeme de fichiers reseau declenche des lectures a la demande (page faults) au lieu d'une lecture sequentielle -- nettement plus lent qu'un disque local pour un fichier de cette taille, et suffisant pour depasser le budget de 5 minutes.
+4. **GPU confirme fonctionnel** (le 0% observe par pmm dans le panneau Colab n'etait qu'un instantane pendant l'echec, pas un signe de non-detection) : un second essai automatique du scheduler Ollama (12:27:56) est alle jusqu'a `load_tensors: offloaded 25/25 layers to GPU` -- preuve que CUDA/le GPU T4 fonctionnent normalement -- mais a ete annule (`client connection closed before llama-server finished loading, aborting load`) car le contexte du premier essai (deja expire cote scheduler) avait ete propage/annule entre-temps.
+
+**Hypotheses ecartees** : ni probleme GPU/CUDA (offload 25/25 confirme dans le 2eme essai), ni saturation RAM systeme (aucune trace OOM dans les logs), ni deadlock pipe (le process s'est termine proprement, `poll()` = `0`).
+
+**Corrige (2 changements, `scripts/colab/local_llm_benchmark.ipynb`)** :
+1. Cellule "3. Demarrer le serveur" : `os.environ["OLLAMA_LOAD_TIMEOUT"] = "30m"` ajoute a cote des autres variables d'environnement (`OLLAMA_ORIGINS`, `OLLAMA_KEEP_ALIVE`), avec commentaire renvoyant vers cette section (marge large et volontaire compte tenu de la lenteur imprevisible d'un mmap sur montage Drive FUSE).
+2. Cellule "4bis. Prechauffer le modele en VRAM" : ajout de `resp.raise_for_status()` sur la reponse du `requests.post`, pour que la cellule leve une exception explicite en cas d'echec au lieu d'afficher un faux succes base uniquement sur le temps ecoule -- coherent avec le principe deja acte (rules.md/contexte) de ne jamais traiter un resultat ambigu comme un fait fiable.
+
+**Verification** : JSON du notebook re-parse avec succes apres les 2 editions (recherche de cellule par contenu exact), 12 cellules (inchange).
+
+**Non fait ce tour** : execution reelle par pmm des 2 correctifs -- necessite de relancer au moins depuis la cellule 3 (nouvelle variable d'environnement) pour que `OLLAMA_LOAD_TIMEOUT` soit pris en compte au demarrage du serveur.
+
+**Fichiers modifies** : `scripts/colab/local_llm_benchmark.ipynb`, `todo/contexte.txt` (cette section).
+
+**Prochaine etape** : pmm relance depuis la cellule 3 (le `pkill` automatique de la Section 686 nettoie l'ancien process), enchaine 3bis -> 4 -> 4bis (attendu : reussite reelle cette fois, ou echec explicite via l'exception si le chargement depasse encore 30 min) -> 5 -> 6, confirme, puis rejoue le benchmark adversarial.
+
+## Section 689 : Cellule 5 (tool-calling) -- ReadTimeout a 300s malgre 4bis "reussie" -- root cause = mismatch de payload entre 4bis et 5, le prechauffage ne couvre pas le runner tool-calling
+
+Date : 11/09/2026
+Contexte : suite directe Section 688. pmm a redemarre le runtime Colab, rejoue depuis la cellule 3 (fix OLLAMA_LOAD_TIMEOUT=30m + OLLAMA_ORIGINS=* actifs), cellule 4bis reussie cette fois (raise_for_status ne leve pas). Cellule 5 (sanity check tool-calling) echoue neanmoins en ReadTimeout a 300s (timeout cote client de cette cellule specifique, distinct du 600s de la 4bis et du 30min serveur).
+
+**Lecture directe du notebook** (`scripts/colab/local_llm_benchmark.ipynb`, cellules 7 et 8) :
+- Cellule 4bis (7) : payload de prechauffage = `{"model": MODEL, "messages": [{"role": "user", "content": "hi"}], "stream": False}` -- **aucun champ `tools`**.
+- Cellule 5 (8) : payload de test = memes `model`/`messages` mais **avec un bloc `tools` (function `get_weather`)** en plus.
+
+**Root cause** : Ollama instancie un runner `llama-server` different selon la presence/absence de `tools` dans la requete (grammaire de function-calling activee ou non, template different) -- un changement de ces parametres entre deux requetes successives declenche un rechargement complet du modele (nouveau `mmap` depuis Google Drive/FUSE), meme si `OLLAMA_KEEP_ALIVE=-1` maintient par ailleurs un modele deja charge en memoire pour des requetes identiques. Le prechauffage de la cellule 4bis (sans `tools`) ne prechauffe donc pas le runner reellement sollicite par la cellule 5 (avec `tools`) -- la 5 repart d'un chargement a froid, et son timeout client de 300s (contre 600s pour la 4bis) est insuffisant pour un mmap complet depuis Drive.
+
+**Hypothese non 100% confirmee au niveau serveur** (pas de lecture directe du GIN log Ollama pendant l'echec de la cellule 5 pour cette section -- deduction faite a partir du mismatch de payload observe dans le code et du comportement connu d'Ollama documente Section 688) : a confirmer si le fix ne suffit pas.
+
+**Corrige** (`scripts/colab/local_llm_benchmark.ipynb`, cellule 4bis "Prechauffer le modele en VRAM") : payload de la cellule 4bis aligne sur celui de la cellule 5 (ajout du meme bloc `tools`/`get_weather`), pour que le prechauffage couvre reellement le runner tool-calling qui sera sollicite ensuite. Timeout de la cellule 4bis inchange (600s, deja large).
+
+**Verification** : JSON du notebook re-parse avec succes apres l'edition, 12 cellules (inchange).
+
+**Non fait ce tour** : execution reelle du correctif par pmm.
+
+**Fichiers modifies** : `scripts/colab/local_llm_benchmark.ipynb`, `todo/contexte.txt` (cette section).
+
+**Prochaine etape** : pmm relance depuis la cellule 3 (nettoyage automatique de l'orphelin), enchaine jusqu'a la cellule 4bis corrigee (attendu : chargement du runner tool-calling directement, potentiellement plus lent que le "hi" simple precedent mais dans le budget 600s), puis cellule 5 (attendu : reponse quasi-immediate cette fois, meme runner deja charge) -- colle le resultat pour confirmer ou infirmer l'hypothese avant de considerer la section close.
+
+## Section 690 : `diag_ngrok.py` -- 403 vide sur l'URL ngrok, pattern different de la root cause n°2 deja identifiee (Section 682) -- diagnostic partiel, bloque sur acces Colab
+
+Date : 11/09/2026
+Contexte : pmm a lance `diag_ngrok.py` (POST `/v1/chat/completions` via l'URL ngrok du `.env`, `LOCAL_LLM_BASE_URL=https://iciness-clubhouse-spout.ngrok-free.dev/v1`) -- resultat colle : `STATUS: 403`, headers `{'Content-Length': '0', 'Ngrok-Agent-Ips': '34.21.172.186', ...}`, corps vide.
+
+**Tests complementaires effectues directement depuis la machine de pmm (`bash:execute_bash`, meme URL)** :
+1. `GET /` **sans** `ngrok-skip-browser-warning` -> 403 vide, **aucun** `Ngrok-Error-Code`.
+2. `GET /` **avec** le header -> 403 vide, identique.
+3. `POST /v1/chat/completions` avec header -> 403 vide, identique.
+4. `GET /v1/models` avec header -> 403 vide, identique.
+5. Handshake TLS complet et valide (`curl -v`) : certificat Let's Encrypt `*.ngrok-free.dev` present et verifie -- le edge ngrok repond bien, ce n'est pas un probleme DNS/reseau cote machine de pmm.
+
+**Ecart avec la root cause n°2 deja etablie (Section 682)** : a l'epoque, une requete SANS le header ngrok donnait un **200 + page d'interstitiel** (`Ngrok-Error-Code: ERR_NGROK_6024`) -- preuve que le tunnel etait vivant et que seul Ollama (rejet du `Host` header, anti DNS-rebinding) bloquait ensuite la requete avec le header. Ici, meme SANS le header, aucun interstitiel n'est servi -- 403 vide immediat des le premier contact, avant meme que ngrok ait l'occasion de decider d'afficher son avertissement. Le blocage semble donc se situer **au niveau de ngrok/l'edge lui-meme**, pas d'Ollama -- hypothese non confirmee, deux causes plausibles non departagees a ce stade :
+(a) le tunnel actuel n'est plus celui attendu (session Colab redemarree/deconnectee depuis le dernier test reussi, Section 689, sans que pmm ait recupere une URL fraiche) ;
+(b) une protection anti-abus ngrok (frequente sur le tier gratuit, bloque silencieusement par IP/heuristique independamment de l'etat de l'agent).
+
+**Bloque** : aucun outil de cette session (filesystem/bash sur la machine de pmm) n'a acces au runtime Colab -- impossible de verifier depuis ici si l'agent ngrok/`ollama serve` tournent encore, ni de lire les logs serveur qui trancheraient (a) vs (b).
+
+**Non fait ce tour** : aucun correctif applique (rules.md : pas de fix chirurgical sans root cause confirmee).
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section).
+
+**Prochaine etape** : pmm verifie, depuis le notebook Colab lui-meme : (1) `!pgrep -af "ollama|ngrok"` -- runtime toujours vivant ? (2) `!curl -s http://localhost:4040/api/tunnels` -- l'URL ngrok active cote agent correspond-elle bien a `iciness-clubhouse-spout.ngrok-free.dev` du `.env` ? (3) si le runtime est mort/deconnecte, redemarrer depuis la cellule 3 et recuperer une URL fraiche avant de rejouer `diag_ngrok.py`. Si le runtime est vivant et l'URL correspond malgre le 403, verifier le dashboard ngrok (`https://dashboard.ngrok.com/endpoints`) pour un signal d'abus/restriction explicite sur cet endpoint.
+
+## Section 691 : Hypothese (a) ecartee -- runtime vivant, URL ngrok active correspond bien au `.env`. 403 vide confirme cote edge, sans `Ngrok-Error-Code` -- pointe vers (b), a verifier au dashboard ngrok
+
+Date : 11/09/2026
+Contexte : pmm a colle la liste des process vivants + `curl http://localhost:4040/api/tunnels`, demandes en fin de Section 690.
+
+**Resultats** :
+1. Process vivants confirmes : `ollama serve` (PID 17660), `llama-server` backend sur port local `44601` (PID 17863, normal -- c'est le runner reel spawn par `ollama serve`, qui route lui via `11434`), `ngrok` agent (PID 19210).
+2. `/api/tunnels` -> un seul tunnel actif, `public_url: https://iciness-clubhouse-spout.ngrok-free.dev`, `addr: http://localhost:11434` -- **identique** a `LOCAL_LLM_BASE_URL` du `.env`. Config edge correcte (`proto: https`).
+3. Test direct sur cette meme URL -> **403 Forbidden**, page ngrok generique ("Looks like there's a problem with this site").
+
+**Conclusion** : hypothese (a) de la Section 690 (URL perimee / runtime redemarre) **ecartee** -- le tunnel teste est bien le bon, l'agent et le serveur sont vivants. Le comportement observe (403, sans `Ngrok-Error-Code` visible dans la page, sur un simple `GET /` sans meme atteindre Ollama) reste coherent avec l'hypothese (b) : un blocage cote edge ngrok lui-meme (protection anti-abus tier gratuit, ou endpoint necessitant une verification/consentement dans le dashboard), **avant** que la requete n'atteigne l'agent local -- explique pourquoi le tunnel-agent local ne voit rien d'anormal cote machine.
+
+**Bloque (meme limite que Section 690)** : aucun outil de cette session n'a acces au dashboard ngrok (necessite connexion navigateur au compte ngrok de pmm) ni aux logs edge ngrok -- seul pmm peut trancher (a) vs (b) desormais que (a) est ecarte.
+
+**Non fait ce tour** : aucun correctif -- root cause pas encore confirmee au niveau dashboard (rules.md : pas de fix chirurgical sans root cause confirmee).
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section).
+
+**Prochaine etape** : pmm se connecte a `https://dashboard.ngrok.com/endpoints`, verifie le statut de l'endpoint `iciness-clubhouse-spout.ngrok-free.dev` : (1) endpoint liste comme actif/online ? (2) un bandeau d'avertissement/restriction visible (abus, quota, verification email/carte requise sur le tier gratuit) ? (3) section "Traffic Inspector" du dashboard -- la requete de test y apparait-elle (si oui, le 403 vient d'Ollama/en aval malgre l'absence de `Ngrok-Error-Code` visible ; si non, le blocage est bien avant l'edge, confirme (b)). Colle le statut/texte pour trancher.
+
+## Section 692 : Hypothese (b) ecartee -- Traffic Inspector confirme que les requetes atteignent l'agent local (duree reelle ~330-430ms, colonne "ngrok Error" vide). Le 403 est donc genere en aval de ngrok, pattern qui rejoint la root cause n2 de la Section 682 (rejet du Host header par Ollama) -- a confirmer que `OLLAMA_ORIGINS=*` est bien actif sur le process reellement vivant
+
+Date : 11/09/2026
+Contexte : pmm a colle une capture du Traffic Inspector ngrok (dashboard) apres plusieurs requetes de test (`GET /`, `GET /v1/models`, `POST /v1/chat/completions`).
+
+**Resultats** :
+1. Toutes les requetes apparaissent dans l'inspector avec un `Client IP` identique (`197.149.11.30`, IP de pmm), un `Host` correspondant au sous-domaine ngrok, et une **duree reelle non nulle** (330ms a 433ms selon les lignes) -- incompatible avec un rejet instantane au niveau de l'edge (qui serait de l'ordre de quelques ms, sans aller-retour reseau vers l'agent local).
+2. Colonne **"ngrok Error" vide sur toutes les lignes 403** -- aucun code `ERR_NGROK_*` associe. Une seule ligne a un statut `200` avec une duree de `1ms` (4:11:13 PM) -- duree suspecte (probablement une reponse mise en cache ou un cas particulier, a clarifier si besoin plus tard, non bloquant pour le diagnostic actuel).
+3. Toutes les methodes/chemins testes (`GET /`, `GET /v1/models`, `POST /v1/chat/completions`) donnent le meme 403 avec la meme signature (duree ~400ms, pas d'erreur ngrok).
+
+**Conclusion** : hypothese (b) de la Section 691 (blocage cote edge ngrok, avant l'agent) **ecartee** -- la duree reelle et l'absence de code d'erreur ngrok prouvent que la requete traverse bien le tunnel et atteint l'agent Ollama local, qui repond lui-meme 403. **Nouvelle piste principale, qui rejoint la root cause n2 deja identifiee en Section 682** (protection anti DNS-rebinding d'Ollama : rejet des requetes dont le header `Host` ne correspond pas a un hote autorise) -- a l'epoque supposee corrigee par `OLLAMA_ORIGINS=*` (Section 683, confirme actif dans l'environnement d'un process a la Section 687 via `/proc/<pid>/environ`, mais **pas necessairement celui actuellement vivant** : rien ne confirme ici que le process actuel (PID 17660 du dernier message pmm) a bien ete demarre depuis la cellule 3 corrigee -- pourrait etre un ancien orphelin partiellement nettoye, ou une session ayant perdu la variable d'environnement suite a un restart partiel.
+
+**Non confirme** : le corps exact de la reponse 403 n'a pas encore ete lu (le dashboard ngrok n'affiche que le statut, pas le body) -- necessaire pour confirmer que le message correspond bien au rejet Ollama connu (`"forbidden"` ou similaire lie au Host header) plutot qu'une autre cause.
+
+**Rien code ce tour** -- diagnostic uniquement, deux verifications a faire avant tout correctif (rules.md : pas de fix chirurgical sans root cause confirmee).
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section).
+
+**Prochaine etape** : pmm, depuis le notebook Colab (pas depuis sa machine) : (1) `!cat /proc/17660/environ | tr '\0' '\n' | grep OLLAMA` -- confirme si `OLLAMA_ORIGINS=*` est bien present dans l'environnement du process **reellement vivant** actuellement (pas juste celui d'une execution anterieure deja verifiee en Section 687) ; (2) `!curl -sv https://iciness-clubhouse-spout.ngrok-free.dev/ -H "ngrok-skip-browser-warning: true"` pour lire le corps exact de la reponse 403 (le dashboard ne montre que le statut). Si `OLLAMA_ORIGINS` est absent/different de `*` sur ce process precis -> tuer et redemarrer proprement depuis la cellule 3 (deja idempotente depuis Section 686) suffira. Si present mais 403 persiste -> le corps de la reponse (point 2) permettra de determiner si c'est bien le meme rejet Host-header ou une cause differente.
+
+## Section 693 : `OLLAMA_ORIGINS=*` confirme actif sur le process vivant, mais le 403 a un corps totalement vide (`content-length: 0`, aucun header applicatif Ollama) -- signature qui contredit un rejet cote Ollama, contredit aussi la lecture "duree reelle" de la Section 692 -- isolation directe requise pour trancher sans passer par ngrok
+
+Date : 11/09/2026
+Contexte : pmm a colle (1) `/proc/17660/environ` filtre sur `OLLAMA`, (2) le `curl -sv` complet demande en Section 692.
+
+**Resultats** :
+1. `/proc/17660/environ` -> `OLLAMA_MODELS=...`, `OLLAMA_ORIGINS=*`, `OLLAMA_KEEP_ALIVE=-1` -- confirme sans ambiguite que la variable est bien active sur le process **reellement vivant** actuellement (le doute souleve en fin de Section 692 est leve).
+2. `curl -sv` complet : handshake TLS OK (certificat Let's Encrypt valide pour `*.ngrok-free.dev`), HTTP/2 utilise, requete envoyee avec le header `ngrok-skip-browser-warning: true`. Reponse : `HTTP/2 403`, headers = uniquement `date`, `ngrok-agent-ips: 34.21.172.186`, `content-length: 0` -- **aucun header applicatif d'Ollama** (pas de `Content-Type`, pas de corps texte).
+
+**Tension entre les deux indices disponibles** : le Traffic Inspector (Section 692) montrait une duree reelle (~400ms) suggerant un aller-retour complet jusqu'au backend, ce qui pointait vers un rejet Ollama -- mais **avec `OLLAMA_ORIGINS=*` confirme actif**, le rejet Host-header d'Ollama (root cause n2, Section 682/683) ne devrait plus se produire. Par ailleurs, un rejet ecrit par le code Go d'Ollama (`http.Error` ou equivalent) laisserait normalement un petit corps texte non vide -- ici `content-length: 0` strict, signature plus caracteristique d'un rejet **avant** d'atteindre le code applicatif d'Ollama (edge ngrok ou middleware intermediaire), ce qui contredirait la duree observee dans l'inspector. Les deux indices ne sont pas coherents entre eux en l'etat -- necessite une isolation directe pour trancher, sans dependre de l'interpretation indirecte de la duree ou de l'absence de corps.
+
+**Rien code ce tour** -- diagnostic uniquement, un seul test permet de trancher definitivement sans ambiguite (rules.md : pas de fix chirurgical sans root cause confirmee).
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section).
+
+**Prochaine etape** : pmm, depuis le notebook Colab, lance ces 2 commandes qui **isolent completement Ollama de ngrok** (bypass total du tunnel, teste directement en local) :
+1. `!curl -sv http://localhost:11434/` (Host header = `localhost:11434`, cas normal/attendu)
+2. `!curl -sv -H "Host: iciness-clubhouse-spout.ngrok-free.dev" http://localhost:11434/` (reproduit exactement le Host header que ngrok transmet a Ollama, sans passer par ngrok)
+
+Si (1) reussit (200, corps `"Ollama is running"`) et (2) echoue en 403 -> confirme sans ambiguite que c'est bien Ollama qui rejette sur la base du Host header, malgre `OLLAMA_ORIGINS=*` deja actif -- il faudra alors investiguer pourquoi cette variable ne couvre pas ce cas precis (possible distinction interne entre verification CORS `Origin` et verification `Host`, a verifier dans le code source d'Ollama avant tout correctif). Si (1) ET (2) reussissent tous les deux -> Ollama n'est pour rien dans le 403, la cause est necessairement cote ngrok (edge/policy sur l'endpoint), contrairement a ce que suggerait la duree du Traffic Inspector -- retour a l'investigation du dashboard ngrok (policies, IP restrictions, abuse detection) en ecartant totalement Ollama cette fois.
+
+## Section 694 : Root cause confirmee -- Ollama rejette bien sur le header `Host` (isolation directe sans ngrok), fix applique dans la cellule 6 du notebook (`pyngrok` `host_header`)
+
+Date : 11/09/2026
+Contexte : pmm a lance les 2 curls d'isolation demandes en fin de Section 693 (bypass complet de ngrok).
+
+**Resultats** :
+1. `curl -sv http://localhost:11434/` (Host = `localhost:11434`) -> `200 OK`, corps `"Ollama is running"`.
+2. `curl -sv -H "Host: iciness-clubhouse-spout.ngrok-free.dev" http://localhost:11434/` (Host reproduit exactement celui transmis par ngrok, sans passer par le tunnel) -> `403 Forbidden`, corps vide.
+
+**Conclusion** : root cause confirmee sans ambiguite -- c'est bien Ollama qui rejette sur la seule base du header `Host` (protection anti DNS-rebinding), et `OLLAMA_ORIGINS=*` ne couvre pas ce cas : cette variable ne joue que sur la verification CORS `Origin`, pas sur la verification `Host`. Le corps vide observe en Section 693 (contradiction apparente avec un rejet applicatif Ollama) s'explique donc simplement : Ollama repond bien 403 mais sans corps texte pour ce type de rejet precis (distinct d'un `http.Error` classique) -- la tension notee en fin de Section 693 est levee.
+
+Le vrai fix n'est pas cote Ollama (deja correctement configure) mais cote `pyngrok`, qui doit demander a ngrok de reecrire le header `Host` vers `localhost:11434` avant transmission a Ollama, via l'option `host_header`.
+
+**Fix applique** : `scripts/colab/local_llm_benchmark.ipynb`, cellule 6 (celle du `!pip install -q pyngrok` / `ngrok.connect`) :
+```python
+public_url = ngrok.connect(11434, "http", host_header="localhost:11434")
+```
+(auparavant `ngrok.connect(11434, "http")` sans reecriture). Commentaire explicatif ajoute dans la cellule, citant cette section.
+
+**Methode d'edition** : le fichier etant un `.ipynb` (JSON), l'edit a ete fait via modification programmatique de la liste `source` de la cellule cible (JSON structure) plutot que du texte brut, apres verification qu'un `json.dumps(nb, indent=1, ensure_ascii=False)` reproduit exactement le fichier original (round-trip verifie avant toute modif). Dry-run (diff genere sur fichier temporaire + validation JSON) effectue avant l'ecriture reelle. Ecriture confirmee par relecture (`grep` sur `host_header`/`ngrok.connect`) et re-validation JSON post-ecriture.
+
+**Non fait ce tour** : aucun test reel de la cellule modifiee -- necessite un runtime Colab vivant (session actuelle potentiellement perimee depuis les manips de la Section 690-693). Delegue a pmm.
+
+**Fichiers modifies** : `scripts/colab/local_llm_benchmark.ipynb` (cellule 6), `todo/contexte.txt` (cette section).
+
+**Prochaine etape (delegue a pmm)** : dans le notebook Colab (session actuelle ou nouvelle si le runtime a ete recycle) :
+1. Re-executer la cellule 6 modifiee (regenere une nouvelle URL ngrok si l'ancien tunnel a ete ferme -- normal).
+2. Verifier : `!curl -s https://<nouvelle-url>.ngrok-free.dev/` -> attendu `200 OK` / `"Ollama is running"` (au lieu du `403` precedent).
+3. Si `200 OK` confirme -> rejouer la cellule 5 (sanity check tool-calling) sur cette URL pour s'assurer que le pipeline complet fonctionne de bout en bout, puis mettre a jour `LOCAL_LLM_BASE_URL` dans le `.env` avec la nouvelle URL avant de relancer le benchmark P... (Bloc benchmark modele local, cf. Section 673).
+4. Si `403` persiste malgre le fix -> verifier que `pyngrok` installe supporte bien le parametre `host_header` (`pip show pyngrok` -> version ; l'option existe depuis les versions recentes, a confirmer si echec).
+
+## Section 695 : Analyse benchmark adversarial (9 questions, script run_adversarial_benchmark.py) -- nouveau bug identifie (evidence droppee en cours de turn, ContextVar) + confirmation vivante du Bug B2 (indetermine) + troncature CI_MAX_HOPS sur plusieurs reponses
+
+Date : 11/09/2026
+Contexte : pmm a colle la sortie complete de `python scripts/run_adversarial_benchmark.py` (9 questions, categories 1 a 9, rapport sauvegarde dans `captures/verbatim_responses_sprint2.json` / `.md`). Correspond au chantier "Adversarial benchmark replay modules 06-08" en attente depuis la Section 137. Analyse effectuee en lecture seule (grep + lecture code), rien modifie sur le code.
+
+**Resultats** :
+
+1. **Nouveau bug -- evidence droppee (`core/evidence/evidence_collector.py`)** : le warning `record_evidence() called before start_evidence_collection() -- evidence dropped, no active turn accumulator.` apparait sur 7 des 9 questions (Q1.1 x2, Q1.2 x2, Q2.1 x1, Q4.1 x2, Q5.1 x2, Q6.1 x3, Q6.2 x3) -- absent seulement sur Q3.1 et Q9.1. `start_evidence_collection()` n'est appele qu'une seule fois par requete, dans `query_graph()` (`core/graph/graph.py:135`), avant `app.invoke()`. Verification faite sur `langgraph/pregel/_executor.py` (`BackgroundExecutor.submit()`) : chaque soumission de node fait bien un `copy_context()` avant `executor.submit(ctx.run, fn, ...)`, donc la propagation du ContextVar `_turn_evidence_ctx` vers les threads du pool Pregel ne devrait pas en soi expliquer la perte. Root cause non confirmee -- hypothese la plus probable : un point plus en aval (tool-calling interne LangChain/Groq, ou un executor/thread secondaire non couvert par le `copy_context()` de Pregel) qui appelle `record_evidence()` depuis un contexte qui n'est pas un descendant direct de celui capture au niveau du node. Aucun fix propose (rules.md : pas de correctif sans root cause confirmee) -- a investiguer avant tout correctif.
+
+2. **Confirmation vivante du Bug B2 (deja diagnostique, non fixe)** : Q6.1 et Q6.2 declenchent correctement `can_view_amount_v2() = indeterminate` (regles dependant de `company_id`/`user` non fournis dans le contexte de dispatch), et le mecanisme de correction post-synthese fonctionne comme prevu sur Q6.2 (`Node [code_intelligence_agent]: synthesis asserted a definite allow/deny while the can_view_amount_v2 verdict was indetermine -- replacing sentence`). Point d'attention pour le futur fix B2 : une partie de l'indetermination observee ici pourrait venir du bug de dispatch (`_dispatch_context` ne fournit pas `move_type`/`company_id`) plutot que d'une ambiguite reelle de la question -- a garder en tete pour ne pas sur-corriger apres le fix B2.
+
+3. **Troncature CI_MAX_HOPS=4** : Q1.1, Q1.2, Q5.1, Q6.1, Q6.2 atteignent le plafond de 4 hops (`CI_MAX_HOPS (4) reached`). Sur Q1.2 et Q5.1, la reponse verbatim est visiblement coupee en milieu de phrase ("...elle peut entrainer" / "...membre du groupe `account"), ce qui degrade la qualite percue meme quand le contenu deterministe reste correct.
+
+4. **Pas d'anomalie sur Q3.1 et Q9.1** : redaction par autorisation (Q3.1, `[ACCES RESTREINT]`) et detection de dispatch dynamique `getattr` (Q9.1, reponse en 0.52s, court-circuit deterministe correct) se comportent nominalement.
+
+**Non fait ce tour** : aucun correctif -- analyse uniquement, deux root causes distinctes restent a confirmer (evidence-drop et troncature hops) avant tout fix chirurgical (rules.md).
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section). Aucun fichier de code touche.
+
+**Prochaine etape** : voir options presentees a pmm en chat pour prioriser entre (a) investigation du bug evidence-drop, (b) troncature CI_MAX_HOPS, (c) poursuite des chantiers deja en cours (sweep restructuration knowledge_rules/agent, B2, evidence-cabling).

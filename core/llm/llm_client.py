@@ -119,6 +119,10 @@ def get_chat_llm(
             max_tokens=max_tokens,
             max_retries=max_retries,
             model_kwargs=model_kwargs or {},
+            # Header requis pour traverser un tunnel ngrok gratuit (*.ngrok-free.dev) --
+            # sans lui, la page d'avertissement anti-abus ngrok repond 403 a toute requete
+            # non-navigateur. Sans effet sur un serveur local (Ollama/vLLM) qui ignore ce header.
+            default_headers={"ngrok-skip-browser-warning": "true"},
         )
 
     if active_provider == "openrouter":

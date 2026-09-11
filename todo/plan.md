@@ -151,6 +151,8 @@ Ces deux gaps conditionnent la lisibilite et l'auditabilite du systeme pour un n
 
 **Marqueur CLOS pose (31/08, mandat direct utilisateur, voir todo/contexte.txt section 373/suite)** : Jours 1-2/3-4/6 restent faits et confirmes (inchange ci-dessus). **Reserve explicite non levee** : la confirmation Jour 5 cote frontend (rendu reel du plan dans le widget Discuss) n'a jamais ete verifiee visuellement, et les 2 suites de tests (`test_bloc_p1_j1_2_investigation_plan.py`, `test_bloc_p1_j6_plan_execution_coherence.py`) n'ont pas ete rejouees dans le cadre de cette cloture. Le marqueur est pose sur mandat explicite, pas sur preuve complete au sens habituel du projet (todo/rules.md : aucune story declaree terminee sans reexecution du benchmark) -- si un doute survient plus tard sur ce bloc, cette reserve doit etre levee par un rejeu reel avant de s'y fier pleinement.
 
+**Mise a jour (11/09, voir todo/contexte.txt section 673) -- reserve definitivement levee sur mandat direct pmm** : le doute souleve section 672 (le frontend reel est le systray `odoo_addons/miro_ai/`, pas le "widget Discuss" nomme dans les notes anterieures -- terminologie perimee, pas un ecart fonctionnel) n'est plus a investiguer plus avant. Bloc P1 reste CLOS sans reouverture, y compris son volet Jour 5 -- mandat explicite recu, aucune verification supplementaire requise avant de s'appuyer sur ce statut.
+
 ---
 
 ## Bloc P1-bis — Reorientation CI-d'abord / RAG-fallback (alignement architecture.md) — CLOS (2026-09-01, voir todo/contexte.txt sections 405-417)
@@ -204,6 +206,7 @@ Ces deux gaps conditionnent la lisibilite et l'auditabilite du systeme pour un n
 
 - **Jour 1** : Confirmer le materiel local disponible (GPU, VRAM) — condition bloquante deja documentée dans `config/settings.py`. Modele local cible mis a jour depuis la version initiale de ce plan : Qwen3-14B via Ollama .
 - **Jour 2-3** : Cabler `get_chat_llm("ollama")` (actuellement `NotImplementedError` volontaire) une fois le materiel confirme.
+  - **Correction (11/09, voir todo/contexte.txt section 675)** : cette note est perimee -- `get_chat_llm()` (`core/llm/llm_client.py`) a deja une branche `ollama`/`local`/`vllm`/`openai_compatible` fonctionnelle via `ChatOpenAI` pointant sur `LOCAL_LLM_BASE_URL`, verifie par lecture directe du code (pas de `NotImplementedError` present). Jour 2-3 est donc deja FAIT, decouvert en preparant le test Colab de la Section 674.
 - **Jour 4-5** : Rejouer l'integralite du benchmark adversarial (les 8 modules Bloc 9 + Bloc 8 latence) sur le modele local — chiffrer le vrai budget de latence local (le chiffre p90=6.84s actuel est explicitement documente comme non representatif, temps algorithmique hors reseau Groq).
 - **Jour 6** : Comparer le taux de reussite E2E local vs cloud — si dégradation, verifier si le scaffolding deterministe (backfills, corrections de contradiction) suffit a compenser un modele local plus faible que le modele cloud actuel (`openai/gpt-oss-20b`), ou s'il faut un modele local plus gros.
 

@@ -1,6 +1,6 @@
 # Rapport Verbatim — Test Adversarial (End-to-End Benchmark)
 
-**Date d'exécution :** 2026-08-26 10:46:16
+**Date d'exécution :** 2026-09-11 16:42:24
 
 **Objectif :** Poser les questions test du README à l'agent Code Intelligence et mesurer les réponses verbatim et la latence après instrumentation J30-J31.
 
@@ -9,11 +9,11 @@
 
 | Métrique | Temps Effectif (Algorithmique) | Budget Target | Statut |
 |---|---|---|---|
-| **p50 (Médiane)** | `3.8s` | — | — |
-| **p90 (90e Percentile)** | `21.24s` | `12.0s` |  DÉPASSÉ |
-| **p95 (95e Percentile)** | `21.24s` | — | — |
-| **Moyenne** | `7.05s` | — | — |
-| **Max** | `21.24s` | — | — |
+| **p50 (Médiane)** | `39.27s` | — | — |
+| **p90 (90e Percentile)** | `90.61s` | `12.0s` |  DÉPASSÉ |
+| **p95 (95e Percentile)** | `90.61s` | — | — |
+| **Moyenne** | `42.4s` | — | — |
+| **Max** | `90.61s` | — | — |
 
 ---
 
@@ -23,23 +23,18 @@
 **Vérité Terrain attendue :**
 > Niveau 1: Groupe account.group_account_manager (>5000€). Niveau 2: Directeur régional (N+2) notifié (>20000€, code Python). Risque: N+2 non géré si vide.
 
-**Réponse Verbatim de l'agent (Total: 57.5s | Effectif: 13.519s | Groq wait: 43.979s | Sauts: 3) :**
+**Réponse Verbatim de l'agent (Total: 90.61s | Effectif: 90.61s | Groq wait: 0.0s | Sauts: 4) :**
 ```text
 **Qui peut valider un avoir de 25 000 € ?**
 
-- Le module **custom_credit_note_approval** impose la règle suivante :  
-  *« Seul un responsable comptable peut valider un avoir de plus de 5000 € .»*  
-  Cette règle est active lorsque `rec.amount_total > 5000` et que l’utilisateur n’appartient pas au groupe `account.group_account_manager`.  
-  → Pour un avoir de 25 000 €, la condition est satisfaite, donc **seul un utilisateur appartenant au groupe `account.group_account_manager` peut valider**.  
-  (Observation : `analyse des verrous Python ([account_move.py:L1-L22](file:///home/user/odoo-17.0/addons/custom_credit_note_approval/models/account_move.py#L1-L22)) [Confiance: HIGH]`)
-
-- Les modules **custom_credit_note_approval_vip** et **custom_credit_note_approval_regional** ne modifient pas cette règle pour un client « normal » :  
-  - `custom_credit_note_approval_vip` contient un `SUPER() NON GARDÉ` mais ne s’applique que si `rec.partner_id.avoir_vip_exempt` est vrai, ce qui n’est pas le cas pour un client non VIP.  
-  - `custom_credit_note_approval_regional` introduit une **CHAINE RELATIONNELLE NON VÉRIFIÉE** qui déclenche une notification de directeur lorsque `rec.amount_total > 20000`, mais cette chaîne ne restreint pas l’autorisation de validation.  
-  (Observations : `Chaîne de surcharge de 'account.move.action_valider_avoir' (3 modules, ordre d'exécution réel, pas l'ordre de dépendance)` et `Analyse des verrous Python ([account_move.py:L1-L21](file:///home/user/odoo-17.0/addons/custom_credit_note_approval_regional/models/account_move.py#L1-L21))`)
+| Observation | Explication | Source |
+|-------------|-------------|--------|
+| **Verrou Python dans `custom_credit_note_approval`** – “Seul un responsable comptable peut valider un avoir de plus de 5000 €.” (condition : `rec.amount_total > 5000` et `not self.env.user.has_group('account.group_account_manager')`) | Pour tout avoir dont le montant dépasse 5 000 €, la validation est autorisée uniquement aux utilisateurs appartenant au groupe **account.group_account_manager**. Le montant de 25 000 € dépasse ce seuil, donc seul un responsable comptable peut l’approuver. | xml_id: account.group_account_manager (file:///home/user/odoo-ia-prototype/odoo_addons/custom_credit_note_approval/models/account_move.py#L1-L22) |
+| **Module `custom_credit_note_approval_vip`** – condition `rec.partner_id.avoir_vip_exempt` | Cette règle ne s’applique que pour les clients VIP. Le client est « normal » (pas VIP), donc la clause n’est pas activée et n’affecte pas l’autorisation. | file:///home/user/odoo-ia-prototype/odoo_addons/custom_credit_note_approval_vip/models/account_move.py#L7-L14 |
+| **Chaîne de surcharge `custom_credit_note_approval_regional`** – “CHAINE RELATIONNELLE NON VÉRIFIÉE” (condition `rec.amount_total > 20000` → notification au directeur via `env.user.employee_id.parent_id.parent_id.user_id`) | Cette règle ajoute un risque de notification silencieuse si la chaîne hiérarchique est incomplète, mais elle ne modifie pas l’autorité requise pour la validation. Le responsable comptable reste le seul à pouvoir valider. | file:///home/user/odoo-ia-prototype/odoo_addons/custom_credit_note_approval_regional/models/account_move.py#L1-L21 |
 
 **Conclusion**  
-Pour un avoir de 25 000 € destiné à un client normal, **seul un responsable comptable (membre du groupe `account.group_account_manager`) est autorisé à l’approuver**. Les autres modules ne modifient pas cette autorisation, bien qu’ils puissent ajouter des notifications supplémentaires.
+Pour un avoir de 25 000 € destiné à un client normal, **seul un utilisateur appartenant au groupe `account.group_account_manager` (responsable comptable) a le droit de l’approuver**. Les autres modules (VIP ou régional) ne changent pas cette autorité, bien qu’ils introduisent des risques de notification ou d’exemption qui ne concernent pas la validation elle‑même.
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```
@@ -52,25 +47,37 @@ Pour un avoir de 25 000 € destiné à un client normal, **seul un responsa
 **Vérité Terrain attendue :**
 > Bypass total pour avoir_vip_exempt = True. Piège: super().action_valider_avoir() rappelé sur tout le recordset à la fin.
 
-**Réponse Verbatim de l'agent (Total: 63.74s | Effectif: 10.622s | Groq wait: 53.121s | Sauts: 3) :**
+**Réponse Verbatim de l'agent (Total: 83.04s | Effectif: 83.044s | Groq wait: 0.0s | Sauts: 4) :**
 ```text
 **Qui peut valider un avoir pour un client VIP ?**
 
 | Condition | Autorité requise | Source |
 |-----------|------------------|--------|
-| **Montant total > 5000 €** | Seul un utilisateur appartenant au groupe `account.group_account_manager` peut valider l’avoir. | `custom_credit_note_approval/models/account_move.py` : lignes L13‑L22 – message « Seul un responsable comptable peut valider un avoir de plus de 5000€ » (condition : `rec.amount_total > 5000` et `not self.env.user.has_group('account.group_account_manager')`). |
-| **Montant total ≤ 5000 €** | Aucun groupe particulier n’est requis ; tout utilisateur peut valider. | Même source que ci‑dessus, la condition n’est pas satisfaite. |
-| **Client VIP (exemption)** | L’extension `custom_credit_note_approval_vip` tente d’exempter les avoirs VIP via la condition `rec.partner_id.avoir_vip_exempt`. Cependant, la méthode `action_valider_avoir` de ce module contient un `SUPER()` non gardé : la logique de la classe parente est réappliquée sur **tous** les enregistrements, y compris ceux couverts par l’exemption. En pratique, l’exemption VIP ne supprime pas la restriction du groupe `account.group_account_manager`. | `custom_credit_note_approval_vip/models/account_move.py` : lignes L7‑L14 – « SUPER() NON GARDÉ ». |
+| **Montant > 5 000 €** | Seul un utilisateur appartenant au groupe `account.group_account_manager` peut valider l’avoir. | `xml_id: account.group_account_manager` – message de verrou dans `custom_credit_note_approval/models/account_move.py` (L13‑L22) |
+| **Montant ≤ 5 000 €** | Aucun groupe particulier n’est requis ; tout utilisateur peut valider. | Même verrou, mais la condition `rec.amount_total > 5000` n’est pas satisfaite. |
 
-**Conclusion**
+### Pourquoi le module « VIP » ne supprime pas cette restriction ?
 
-- Pour un avoir d’un client VIP dont le montant dépasse 5000 €, **seul un responsable comptable** (membre de `account.group_account_manager`) a le droit de l’approuver.  
-- Si le montant est inférieur ou égal à 5000 €, l’avoir peut être validé par n’importe quel utilisateur.  
-- L’exemption VIP proposée dans le module `custom_credit_note_approval_vip` ne supprime pas cette restriction, car le `super()` réapplique la logique de la classe parente sur tous les enregistrements.  
+Le module `custom_credit_note_approval_vip` contient une surcharge de `action_valider_avoir` :
 
-Ainsi, la règle principale reste la même : l’approbation d’un avoir > 5000 € nécessite un responsable comptable, même pour les clients VIP.
+```
+def action_valider_avoir(self):
+    for rec in self:
+        if rec.partner_id.avoir_vip_exempt:
+            # client VIP : validation directe, pas de seuil
+            rec.avoir_valide_par_id = self.env.user
+            rec.avoir_niveau_appro = 'n1'
+            continue
+    return super().action_valider_avoir()
+```
 
-[FAIT DÉTERMINISTIQUE] La chaîne de surcharge de méthode inclut également le/les module(s) suivant(s), absent(s) ou mal identifié(s) ci-dessus : 'custom_credit_note_approval_regional'. Fait extrait directement de l'analyse statique du code.
+Cette surcharge est suivie d’un appel `super().action_valider_avoir()` **inconditionnel** (voir `SUPER() NON GARDÉ` dans la chaîne de surcharge).  
+En pratique, même si le client est VIP et que la branche conditionnelle est exécutée, l’appel `super()` réapplique la logique du module parent (`custom_credit_note_approval`). Ainsi, pour les montants supérieurs à 5 000 €, la restriction du groupe `account.group_account_manager` reste en vigueur.
+
+### Risque supplémentaire (module régional)
+
+Le module `custom_credit_note_approval_regional` ajoute une notification de directeur pour les montants > 20 000 € (`CHAINE RELATIONNELLE NON VÉRIFIÉE`).  
+Cette règle ne change pas l’autorité d’approbation, mais elle peut entraîner
 
 [FAIT DÉTERMINISTIQUE] La chaîne de surcharge de méthode contient une condition supplémentaire déclenchée au-delà de 20000€, distincte du groupe requis ci-dessus. Fait extrait directement de l'analyse statique du code.
 
@@ -85,27 +92,45 @@ Ainsi, la règle principale reste la même : l’approbation d’un avoir > 
 **Vérité Terrain attendue :**
 > Message d'erreur exact: 'Une demande urgente dépassant le solde doit être validée par le N+2 ou un responsable RH.'
 
-**Réponse Verbatim de l'agent (Total: 61.34s | Effectif: 3.543s | Groq wait: 57.799s | Sauts: 2) :**
+**Réponse Verbatim de l'agent (Total: 34.55s | Effectif: 34.554s | Groq wait: 0.0s | Sauts: 1) :**
 ```text
-**Pourquoi votre demande de congé ne peut pas être validée même si vous avez coché « Urgente » ?**
+### Pourquoi votre demande de congé ne peut pas être validée malgré l’option « Urgente » ?
 
-1. **Message de verrouillage dans `hr_leave.py` (L1‑L28)**  
-   - **Message** :  
-     *« Une demande urgente depassant le solde doit être validée par le N+2 ou un responsable RH. »*  
-   - **Condition** :  
-     `rec.conge_urgence and rec.number_of_days > rec.employee_id.remaining_leaves and self.env.user != n2 and (not self.env.user.has_group('hr_holidays.group_hr_holidays_manager'))`  
-   - **Interprétation** :  
-     Si la demande est marquée « Urgente » **et** le nombre de jours demandés dépasse le solde de congés restant, alors **seul** le N+2 ou un utilisateur appartenant au groupe `hr_holidays.group_hr_holidays_manager` peut la valider.  
-     Si vous n’êtes ni le N+2 ni membre de ce groupe, la validation est bloquée, même si vous avez coché « Urgente ».
+Le code de validation de la demande de congé contient une **verrou** (security lock) qui empêche la validation lorsqu’une demande urgente dépasse le solde de congés restant **et** que l’utilisateur n’est ni le N+2 (le supérieur hiérarchique direct du supérieur de l’employé) ni un responsable RH.
 
-2. **Pas de restriction au niveau du bouton**  
-   - Le bouton `action_validate` sur le modèle `hr.leave` n’a pas de restriction de groupe au niveau de l’interface (voir la description du bouton).  
-   - Cependant, la logique métier (Python) impose la restriction ci‑dessus, qui prévaut sur toute restriction d’interface.
+> **Message d’erreur**  
+> “Une demande urgente depassant le solde doit etre validee par le N+2 ou un responsable RH.”  
+> (condition : `rec.conge_urgence and rec.number_of_days > rec.employee_id.remaining_leaves and self.env.user != rec.employee_id.parent_id.parent_id.user_id and (not self.env.user.has_group('hr_holidays.group_hr_holidays_manager'))”)  
+> [hr_leave.py:L1-L28](file:///home/user/odoo-ia-prototype/odoo_addons/custom_hr_leave_workflow/models/hr_leave.py#L1-L28)
 
-**En résumé**  
-Vous ne pouvez pas valider votre demande de congé urgente parce que le nombre de jours dépasse votre solde restant et que vous n’êtes pas le N+2 ni un responsable RH (membre du groupe `hr_holidays.group_hr_holidays_manager`). Vous devrez soit demander à un responsable RH de la valider, soit réduire le nombre de jours afin qu’il ne dépasse plus le solde.
+#### Ce qui se passe dans votre cas
 
-[FAIT DÉTERMINISTIQUE] Court-circuit ET (déterministe) : l'analyse statique du code montre que la condition dépend de 'rec.conge_urgence' en première position d'un `and` -- si ce champ est vide ou absent (aucun enregistrement lié), toute la condition est FAUSSE par court-circuit Python, et la règle correspondante NE S'APPLIQUE PAS, quel que soit le reste de la condition (montant, etc.). Fait extrait directement de l'analyse statique du code, indépendant de toute reformulation en langage naturel.
+| Condition | Ce qui se passe | Résultat |
+|-----------|-----------------|----------|
+| `rec.conge_urgence` | Vous avez coché « Urgente » | Vrai |
+| `rec.number_of_days > rec.employee_id.remaining_leaves` | Votre demande dépasse le solde de congés restant | Vrai |
+| `self.env.user != rec.employee_id.parent_id.parent_id.user_id` | Vous n’êtes **pas** le N+2 (le supérieur hiérarchique du supérieur de votre manager) | Vrai |
+| `not self.env.user.has_group('hr_holidays.group_hr_holidays_manager')` | Vous n’avez pas le groupe **Responsable RH** | Vrai |
+
+Comme toutes les conditions sont vraies, le verrou s’active et la validation est bloquée.
+
+#### Que faire ?
+
+1. **Vérifiez votre position hiérarchique**  
+   - Si vous êtes le N+2 (le supérieur direct du manager de votre manager), vous pourrez valider la demande.  
+   - Sinon, vous devez demander à votre N+2 ou à un responsable RH de valider la demande.
+
+2. **Contactez le responsable RH**  
+   - Le groupe `hr_holidays.group_hr_holidays_manager` est requis pour contourner ce verrou.  
+   - Demandez à un membre de ce groupe de valider votre demande urgente.
+
+3. **Si vous pensez être le N+2**  
+   - Vérifiez que votre compte utilisateur est bien lié à la bonne personne dans la hiérarchie (champ `parent_id` de votre manager).  
+   - Si la hiérarchie est correcte, le verrou ne devrait plus s’activer.
+
+En résumé, la validation échoue parce que votre demande dépasse le solde de congés restant et que vous n’êtes ni le N+2 ni un responsable RH. Vous devrez donc faire valider la demande par l’un de ces deux rôles.
+
+[FAIT DÉTERMINISTIQUE] Court-circuit ET (déterministe) : l'analyse statique du code montre que la condition dépend de 'rec.conge_urgence', 'conflicting_holidays' en première position d'un `and` -- si ce champ est vide ou absent (aucun enregistrement lié), toute la condition est FAUSSE par court-circuit Python, et la règle correspondante NE S'APPLIQUE PAS, quel que soit le reste de la condition (montant, etc.). Fait extrait directement de l'analyse statique du code, indépendant de toute reformulation en langage naturel.
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```
@@ -118,25 +143,22 @@ Vous ne pouvez pas valider votre demande de congé urgente parce que le nombre d
 **Vérité Terrain attendue :**
 > Le groupe purchase_manager ne suffit pas >10000€. Seuls logins dans _VALIDATEURS_EXCEPTIONNELS (direction@societe.com, daf@societe.com) peuvent valider.
 
-**Réponse Verbatim de l'agent (Total: 65.97s | Effectif: 3.111s | Groq wait: 62.857s | Sauts: 2) :**
+**Réponse Verbatim de l'agent (Total: 23.93s | Effectif: 23.929s | Groq wait: 0.0s | Sauts: 1) :**
 ```text
-**Qui peut approuver une demande d’achat de 15 000 € ?**
+### Qui peut approuver une demande d’achat de 15 000 € ?
 
-- Le verrou Python indique :  
-  *« Au‑delà de 10 000 euros, seule la Direction peut valider (liste restreinte). »*  
-  (condition : `rec.montant_estime > 10000` et `not email_ok`) – **[Confiance: HIGH]**  
-  (source : `file:///home/user/odoo-17.0/addons/custom_purchase_request/models/purchase_request.py#L1-L33`)
+- **Seule la Direction** (groupe : `purchase.group_purchase_manager`) peut valider une demande dont le montant estimé dépasse 10 000 €.  
+- Les utilisateurs figurant dans la liste d’exceptions `rec._VALIDATEURS_EXCEPTIONNELS` sont également autorisés à valider, même si le montant est supérieur à 10 000 €.
 
-- Le même verrou précise que le groupe technique requis est :  
-  `purchase.group_purchase_manager` – **[Confiance: HIGH]**  
-  (source : `file:///home/user/odoo-17.0/addons/custom_purchase_request/models/purchase_request.py#L1-L33`)
+> **Source** : analyse des verrous Python – `purchase_request.py` (L1‑L33)  
+> [purchase_request.py:L1-L33](file:///home/user/odoo-ia-prototype/odoo_addons/custom_purchase_request/models/purchase_request.py#L1-L33)
 
-En pratique, pour une demande d’achat estimée à 15 000 €, l’autorité requise est donc **les utilisateurs appartenant au groupe `purchase.group_purchase_manager` (la Direction)**. Aucun autre groupe ou règle ne s’applique à ce montant.
+[FAIT DÉTERMINISTIQUE] Le verrou de sécurité contient une condition supplémentaire déclenchée au-delà de 10000€, distincte du groupe requis ci-dessus. Fait extrait directement de l'analyse statique du code.
 
 [Source: Graphe de Connaissances Code Intelligence]
 
-🔒 ÉLÉMENT(S) OMIS POUR RAISON D'AUTORISATION:
-  - Logins/Emails privilégies en dur (custom.purchase.request) : ELEMENT OMITTED FOR AUTHORIZATION REASON : cette ligne décrit un mécanisme de contournement de sécurité (accès privilégié codé en dur, sudo(), ou traitement non documenté hors des ACL/ir.rule standards) et le demandeur ne dispose pas d'un accès élevé sur 'custom.purchase.request'.
+[ACCES RESTREINT] ÉLÉMENT(S) OMIS POUR RAISON D'AUTORISATION:
+  - Logins/Emails privilégies en dur (custom.purchase.request) : Élément omis pour raison d'autorisation (ELEMENT OMITTED FOR AUTHORIZATION REASON) : cette ligne décrit un mécanisme de contournement de sécurité (accès privilégié codé en dur, sudo(), ou traitement non documenté hors des ACL/ir.rule standards) et le demandeur ne dispose pas d'un accès élevé sur 'custom.purchase.request'.
 ```
 
 ---
@@ -147,28 +169,21 @@ En pratique, pour une demande d’achat estimée à 15 000 €, l’autorit�
 **Vérité Terrain attendue :**
 > Nécessite demande_achat_liee_id. Si >2000€, bénéficiaire != demandeur (séparation des rôles).
 
-**Réponse Verbatim de l'agent (Total: 10.03s | Effectif: 2.306s | Groq wait: 7.72s | Sauts: 2) :**
+**Réponse Verbatim de l'agent (Total: 27.6s | Effectif: 27.599s | Groq wait: 0.0s | Sauts: 2) :**
 ```text
-Pour faire une demande de mise à disposition de matériel, il faut créer un enregistrement du modèle **custom.asset.loan**.  
-La seule contrainte métier qui est appliquée à ce modèle est la suivante :
+Pour demander la mise à disposition d’un matériel, il faut créer un enregistrement dans le modèle **custom.asset.loan** (le formulaire « Demande de mise à disposition »).  
 
-- **Séparation des rôles requise** : si le montant estimé du matériel lié à la demande d’achat dépasse **2000 €**, le bénéficiaire du matériel doit être différent du demandeur initial.  
-  - Condition exacte (extrait du code : `asset_loan.py` lignes 1‑30) :  
-    ```
-    rec.demande_achat_liee_id and rec.demande_achat_liee_id.montant_estime > 2000 and rec.demande_achat_liee_id.demandeur_id == rec.beneficiaire_id
-    ```
-    Si `rec.demande_achat_liee_id` est vide, la condition est fausse et la règle ne s’applique pas.  
-    *(Confiance : HIGH)*
+**Condition particulière**  
+- Si la demande est liée à une demande d’achat (`demande_achat_liee_id`) dont le montant estimé dépasse **2000 €**, alors le bénéficiaire du matériel doit être différent du demandeur initial.  
+  - Cette règle est définie dans le code Python (asset_loan.py:L1-L30) et porte la mention :  
+    > *Separation des rôles requise : le bénéficiaire d'un matériel de plus de 2000 euros doit être différent du demandeur initial.*  
+    [Confiance: ÉLEVÉE]  
 
-Aucune règle d’accès (ir.rule) n’est appliquée à ce modèle pour l’utilisateur courant ; il n’y a donc pas de restriction supplémentaire liée aux groupes ou à d’autres critères d’autorisation.
+**Aucune autre restriction**  
+- Aucune règle de groupe (`ir.rule`) ne s’applique à ce modèle pour l’utilisateur concerné.  
+- Il n’y a donc pas de limitation supplémentaire liée à la compagnie ou à un groupe d’utilisateurs.
 
-En résumé :
-
-1. Créez la demande dans **custom.asset.loan**.  
-2. Si le matériel estimé dépasse 2000 €, assurez‑vous que le bénéficiaire n’est pas le même que le demandeur.  
-3. Aucun autre contrôle d’accès n’est requis.
-
-[FAIT DÉTERMINISTIQUE] Court-circuit ET (déterministe) : l'analyse statique du code montre que la condition dépend de 'rec.demande_achat_liee_id' en première position d'un `and` -- si ce champ est vide ou absent (aucun enregistrement lié), toute la condition est FAUSSE par court-circuit Python, et la règle correspondante NE S'APPLIQUE PAS, quel que soit le reste de la condition (montant, etc.). Fait extrait directement de l'analyse statique du code, indépendant de toute reformulation en langage naturel.
+En résumé, vous pouvez soumettre votre demande de mise à disposition tant que vous respectez la condition ci‑dessus (si le montant estimé dépasse 2000 €). Aucune autre contrainte n’est imposée.
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```
@@ -181,56 +196,29 @@ En résumé :
 **Vérité Terrain attendue :**
 > NON: fournisseurs ID 42, 108, 231 auto-validés via ir.actions.server avec sudo() contournant les règles standard.
 
-**Réponse Verbatim de l'agent (Total: 149.4s | Effectif: 21.237s | Groq wait: 128.162s | Sauts: 5) :**
+**Réponse Verbatim de l'agent (Total: 39.34s | Effectif: 39.341s | Groq wait: 0.0s | Sauts: 4) :**
 ```text
-**Réponse :**  
-Non, les avoirs fournisseurs ne passent pas tous par les mêmes règles d’approbation.  
+**Réponse :**
 
----
+Non, les avoirs fournisseurs ne passent pas tous par exactement les mêmes règles d’approbation ; la règle de base est partagée, mais certains modules ajoutent ou modifient le comportement.
 
-### 1. Règle de base (module `custom_credit_note_approval`)  
-- **Message de verrou** :  
-  *« Seul un responsable comptable peut valider un avoir de plus de 5000€ »*  
-  Condition : `rec.amount_total > 5000` **et** `not self.env.user.has_group('account.group_account_manager')`  
-  **Confiance : HIGH**  
-  → Pour tout avoir dont le montant dépasse 5 000 €, l’utilisateur doit appartenir au groupe `account.group_account_manager` pour pouvoir le valider.  
+| Observation | Source | Détail | Impact |
+|-------------|--------|--------|--------|
+| **Règle de base** | Analyse des verrous Python ([account_move.py:L1-L22](file:///home/user/odoo-ia-prototype/odoo_addons/custom_credit_note_approval/models/account_move.py#L1-L22)) | `Seul un responsable comptable peut valider un avoir de plus de 5000€.` (condition : `rec.amount_total > 5000` et `not self.env.user.has_group('account.group_account_manager')`) | Cette règle s’applique à tous les avoirs fournisseurs dont le montant dépasse 5000 €, exigeant l’approbation d’un membre du groupe `account.group_account_manager`. [Confiance: ÉLEVÉE] |
+| **Module régional** | Analyse des verrous Python ([account_move.py:L1-L21](file:///home/user/odoo-ia-prototype/odoo_addons/custom_credit_note_approval_regional/models/account_move.py#L1-L21)) | Aucun verrou spécifique détecté | Le module régional ne modifie pas la règle de base ; il hérite donc de la condition > 5000 € et du besoin d’un responsable comptable. [Confiance: ÉLEVÉE] |
+| **Module VIP** | Analyse des verrous Python ([account_move.py:L1-L14](file:///home/user/odoo-ia-prototype/odoo_addons/custom_credit_note_approval_vip/models/account_move.py#L1-L14)) | Aucun verrou spécifique détecté | Le module VIP ne modifie pas la règle de base ; il hérite également de la condition > 5000 € et du besoin d’un responsable comptable. [Confiance: ÉLEVÉE] |
+| **Automation pour fournisseurs privilégiés** | Analyse du code de l'action serveur 'custom_automation_traps.ir_action_server_avoir_fournisseur_privilegie' (xml_id: custom_automation_traps.ir_action_server_avoir_fournisseur_privilegie) | Condition de déclenchement : `rec.move_type == 'in_refund'` et `rec.partner_id.id in FOURNISSEURS_PRIVILEGIES` | Cette action serveur ne constitue pas une règle d’approbation stricte, mais elle peut déclencher des automatisations supplémentaires (ex. notifications) pour les fournisseurs figurant dans la liste `FOURNISSEURS_PRIVILEGIES`. [Confiance: FAIBLE] |
 
----
+### Conclusion
 
-### 2. Module `custom_credit_note_approval_vip` (exemption VIP)  
-- **Chaîne de surcharge** :  
-  1. `custom_credit_note_approval_vip` – `action_valider_avoir()` (L7‑L14)  
-     - Contient une branche conditionnelle `rec.partner_id.avoir_vip_exempt` qui modifie l’état sans `return`, suivie d’un appel `super().action_valider_avoir(...)` inconditionnel.  
-     - **Confiance : FAIBLE** – risque réel que l’exemption soit silencieusement annulée par l’appel `super()`.  
-  2. `custom_credit_note_approval_regional` – `action_valider_avoir()` (L9‑L15)  
-     - **CHAINE RELATIONNELLE NON VÉRIFIÉE** : si `rec.amount_total > 20000`, la fonction `_get_directeur_regional()` est appelée via la chaîne `env.user.employee_id.parent_id.parent_id.user_id`.  
-     - Si un maillon de la chaîne est vide, l’expression s’évalue silencieusement à `False`/recordset vide, ce qui peut empêcher la notification/validation du directeur.  
-     - **Confiance : FAIBLE** – risque réel que la personne censée être notifiée ne le soit jamais.  
-
----
-
-### 3. Résumé de la cascade d’appels  
-- **Base** : `custom_credit_note_approval` impose la règle > 5 000 € → `account.group_account_manager`.  
-- **VIP** : `custom_credit_note_approval_vip` tente d’exempter certains partenaires, mais l’appel `super()` réapplique la règle de base, donc l’exemption n’est pas garantie.  
-- **Régional** : `custom_credit_note_approval_regional` ajoute une condition supplémentaire > 20 000 € qui déclenche la notification du directeur, mais la chaîne de relations peut échouer silencieusement.  
-
----
-
-### 4. Conclusion  
-- **Tous les avoirs fournisseurs ne sont pas soumis aux mêmes règles**.  
-- La règle de base (> 5 000 € → `account.group_account_manager`) s’applique à tous.  
-- Les modules VIP et régional introduisent des conditions supplémentaires (exemption VIP et notification du directeur > 20 000 €) qui modifient le processus d’approbation, mais ces modifications comportent des risques d’échec silencieux selon les observations ci‑dessus.  
-
-Ainsi, la validation d’un avoir dépend non seulement du montant, mais aussi du partenaire (VIP ou non) et de la présence d’une hiérarchie régionale valide.
-
-[FAIT DÉTERMINISTIQUE] Valeur(s) littérale(s) de la condition de déclenchement de l'action serveur, absente(s) de la reformulation ci-dessus : `in_refund`. Fait extrait directement de l'analyse statique du code.
+- **Tous les avoirs fournisseurs** sont soumis à la règle de base : si le montant dépasse 5000 €, l’approbation doit être effectuée par un membre du groupe `account
 
 [Source: Graphe de Connaissances Code Intelligence]
 
-🔒 ÉLÉMENT(S) OMIS POUR RAISON D'AUTORISATION:
-  - SUDO détecté (account.move) : ELEMENT OMITTED FOR AUTHORIZATION REASON : cette ligne décrit un mécanisme de contournement de sécurité (accès privilégié codé en dur, sudo(), ou traitement non documenté hors des ACL/ir.rule standards) et le demandeur ne dispose pas d'un accès élevé sur 'account.move'.
-  - IDs en dur (account.move) : ELEMENT OMITTED FOR AUTHORIZATION REASON : cette ligne décrit un mécanisme de contournement de sécurité (accès privilégié codé en dur, sudo(), ou traitement non documenté hors des ACL/ir.rule standards) et le demandeur ne dispose pas d'un accès élevé sur 'account.move'.
-  - Interprétation LLM [confiance (account.move) : ELEMENT OMITTED FOR AUTHORIZATION REASON : cette ligne décrit un mécanisme de contournement de sécurité (accès privilégié codé en dur, sudo(), ou traitement non documenté hors des ACL/ir.rule standards) et le demandeur ne dispose pas d'un accès élevé sur 'account.move'.
+[ACCES RESTREINT] ÉLÉMENT(S) OMIS POUR RAISON D'AUTORISATION:
+  - SUDO détecté (account.move) : Élément omis pour raison d'autorisation (ELEMENT OMITTED FOR AUTHORIZATION REASON) : cette ligne décrit un mécanisme de contournement de sécurité (accès privilégié codé en dur, sudo(), ou traitement non documenté hors des ACL/ir.rule standards) et le demandeur ne dispose pas d'un accès élevé sur 'account.move'.
+  - IDs en dur (account.move) : Élément omis pour raison d'autorisation (ELEMENT OMITTED FOR AUTHORIZATION REASON) : cette ligne décrit un mécanisme de contournement de sécurité (accès privilégié codé en dur, sudo(), ou traitement non documenté hors des ACL/ir.rule standards) et le demandeur ne dispose pas d'un accès élevé sur 'account.move'.
+  - Interprétation LLM [confiance (account.move) : Élément omis pour raison d'autorisation (ELEMENT OMITTED FOR AUTHORIZATION REASON) : cette ligne décrit un mécanisme de contournement de sécurité (accès privilégié codé en dur, sudo(), ou traitement non documenté hors des ACL/ir.rule standards) et le demandeur ne dispose pas d'un accès élevé sur 'account.move'.
 ```
 
 ---
@@ -241,33 +229,26 @@ Ainsi, la validation d’un avoir dépend non seulement du montant, mais aussi d
 **Vérité Terrain attendue :**
 > OUI: Règles de groupe en OU. La règle nationale (illimitée) l'emporte sur le plafond 50k€ régional.
 
-**Réponse Verbatim de l'agent (Total: 56.39s | Effectif: 4.957s | Groq wait: 51.432s | Sauts: 3) :**
+**Réponse Verbatim de l'agent (Total: 42.75s | Effectif: 42.748s | Groq wait: 0.0s | Sauts: 3) :**
 ```text
 **Réponse :**  
-Il n’est pas possible de conclure de façon déterministe que l’utilisateur pourra voir l’avoir de 80 000 €.  
+Le moteur d’évaluation des règles ne peut pas déterminer de façon certaine si un utilisateur qui appartient à la fois au groupe régional et au groupe national pourra voir un avoir de 80 000 €.  
 
-**Pourquoi l’accès reste indéterminé ?**  
+**Pourquoi l’accès est indéterminé ?**
 
-1. **Règles d’enregistrement (ir.rule)**  
-   - *Règle globale* : `Account Entry [[('company_id', 'in', company_ids)]]` et `Avoirs - cantonnement societe (regle globale, sans groupe) [['|', ('move_type', '!=', 'out_refund'), ('company_id', '=', user.company_id.id)]]`.  
-     Ces règles exigent que l’enregistrement appartienne à la même société que l’utilisateur (`user.company_id`).  
-   - *Règle de groupe* : `Avoirs - visibilite nationale (illimitee) [[(1, '=', 1)]]`.  
-     Cette règle est sans condition supplémentaire et permet donc la visualisation de tout avoir, quelle que soit la valeur.  
-   - *Règle de groupe* : `Avoirs - plafond visibilite regionale (50000e) [['|', ('move_type', '!=', 'out_refund'), ('amount_total', '<=', 50000)]]`.  
-     Pour un avoir (`move_type = 'out_refund'`) de 80 000 €, cette règle ne s’applique pas (le montant dépasse 50 000 €).  
+1. **Règles de groupe applicables**  
+   - `custom_credit_note_visibility_rules.rule_avoir_visibilite_regionale` : `[['|', ('move_type', '!=', 'out_refund'), ('amount_total', '<=', 50000)]]`  
+   - `custom_credit_note_visibility_rules.rule_avoir_visibilite_nationale` : `[[ (1, '=', 1) ]]`  
 
-   Les règles de groupe sont combinées en **OU** ; la règle nationale étant toujours vraie, elle surpasse la règle régionale.  
-   Cependant, l’application de la règle globale dépend de la valeur de `user.company_id` et de `company_ids`, qui ne sont pas connues dans le contexte fourni.  
+   La règle nationale est sans condition (1 = 1), ce qui, en principe, autoriserait la visualisation sans limite de montant. Cependant, l’évaluation finale dépend également des règles globales et de la configuration de l’entreprise.
 
-2. **Verrous Python**  
-   Aucun verrou de lecture n’est présent dans les modules `account.move` ou ses extensions qui empêcherait la visualisation d’un avoir de 80 000 €.  
-   Les seules restrictions Python concernent la validation d’un avoir supérieur à 5 000 € (requiert le groupe `account.group_account_manager`), mais cela ne touche pas la lecture.  
+2. **Règles globales**  
+   - `account.account_move_comp_rule` : `[['company_id', 'in', company_ids]]`  
+   - `custom_credit_note_visibility_rules.rule_avoir_multi_societe` : `[['|', ('move_type', '!=', 'out_refund'), ('company_id', '=', user.company_id.id)]]`  
 
-**Conclusion**  
-En l’absence d’information sur la société de l’utilisateur (`user.company_id`) et sur les identifiants de société (`company_ids`) auxquels l’avoir appartient, le moteur de règles ne peut pas déterminer de façon certaine si l’utilisateur pourra voir l’avoir de 80 000 €.  
-Il est donc **indéterminé** que l’accès soit autorisé ou refusé.
+   Ces règles imposent des contraintes liées à l’`company_id` de l’en
 
-[FAIT DÉTERMINISTIQUE] Le verrou de sécurité contient une condition supplémentaire déclenchée au-delà de 5000€, distincte du groupe requis ci-dessus. Fait extrait directement de l'analyse statique du code.
+[FAIT DÉTERMINISTIQUE] Pour un montant de 80000€, le moteur de règles NE PEUT PAS déterminer si l'utilisateur peut voir cet enregistrement (can_view_amount_v2() = indeterminate) : au moins une règle applicable dépend de company_id, company_ids, user, amount_total, qui ne sont pas connus dans ce contexte. Ne pas affirmer que l'accès est autorisé ou refusé -- signaler explicitement cette incertitude à l'utilisateur.
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```
@@ -280,35 +261,20 @@ Il est donc **indéterminé** que l’accès soit autorisé ou refusé.
 **Vérité Terrain attendue :**
 > OUI: Ni l'une ni l'autre règle ne s'applique. Soumis uniquement à la règle globale (société) sans limite de montant.
 
-**Réponse Verbatim de l'agent (Total: 43.89s | Effectif: 3.802s | Groq wait: 40.085s | Sauts: 3) :**
+**Réponse Verbatim de l'agent (Total: 39.27s | Effectif: 39.269s | Groq wait: 0.0s | Sauts: 3) :**
 ```text
 **Réponse :**  
-Il n’est pas possible de conclure de façon déterministe que l’utilisateur peut voir l’avoir de 80 000 €.  
+Le moteur de règles ne peut pas déterminer avec certitude si l'utilisateur peut voir cet enregistrement pour ce montant (voir le fait déterministe ci-dessous).  
 
-**Pourquoi ?**  
+**Pourquoi ?**
 
-1. **Aucune règle de groupe applicable** – l’évaluation des règles d’enregistrement (`ir.rule`) indique qu’aucune règle de groupe ne s’applique à cet utilisateur :  
-   ```
-   Règles de Groupe applicables: Aucune (l'utilisateur n'appartient à aucun des groupes visés)
-   ```  
-   (source : *Évaluation des règles d'enregistrement (ir.rule) pour 'account.move'*).
+1. **Aucune règle de groupe applicable** – l’utilisateur n’appartient à aucun des groupes ciblés par les règles de groupe (voir la section *Règles de Groupe applicables*).  
+2. **Seules les règles globales s’appliquent** – les règles globales (ex. `account.account_move_comp_rule`, `custom_credit_note_visibility_rules.rule_avoir_multi_societe`) ne contiennent pas de condition sur le montant ou la portée qui exclurait explicitement un avoir de 80 000 €.  
+3. **Conditions dépendantes de paramètres inconnus** – ces règles globales dépendent de champs tels que `company_id`, `company_ids` et `user`, dont les valeurs ne sont pas connues dans le contexte d’évaluation. En l’absence de ces informations, le moteur ne peut pas conclure à l’accès.
 
-2. **Règles globales dépendantes de paramètres inconnus** – seules des règles globales restent, mais elles contiennent des conditions qui ne peuvent être évaluées sans connaître le contexte complet (ex. `user.company_id.id`, `move_type`, `journal_id.department_id`, etc.).  
-   Exemple de règle globale :  
-   ```
-   Avoirs - visibilite par departement (sauf managers) [['|', ('move_type', '!=', 'out_refund'), '|', ('invoice_user_id', '=', user.id), ('journal_id.department_id', '=', user.employee_id.department_id.id)]]
-   ```  
-   (source : *Évaluation des règles d'enregistrement (ir.rule) pour 'account.move'*).  
-   Comme ces champs ne sont pas fournis dans la question, l’outil ne peut pas déterminer si la règle est satisfaite.
+En résumé, il n’existe aucune restriction explicite qui empêche l’utilisateur d’accéder à l’avoir de 80 000 €, mais le moteur d’accès ne peut pas confirmer cette possibilité sans connaître les valeurs de `company_id` et d’autres paramètres contextuels.
 
-3. **Aucun verrou Python de lecture** – l’analyse des verrous Python ne révèle aucun verrou de lecture ou de validation qui limiterait l’accès à un avoir de 80 000 € pour un utilisateur hors des groupes régionaux ou nationaux.  
-   (source : *Analyse des verrous Python* – aucune règle spécifique détectée pour la lecture).
-
-En l’absence de règle de groupe et avec des règles globales dépendant de paramètres non résolus, le moteur d’accès ne peut pas conclure que l’utilisateur a ou n’a pas le droit de voir l’avoir.  
-
-**Conclusion** – l’accès est **indéterminé** pour un avoir de 80 000 € lorsqu’on ne connaît pas les valeurs de `company_id`, `move_type`, `journal_id.department_id`, etc. Il faut donc vérifier ces paramètres dans le contexte réel pour savoir si l’utilisateur peut réellement visualiser l’enregistrement.
-
-[FAIT DÉTERMINISTIQUE] Le verrou de sécurité contient une condition supplémentaire déclenchée au-delà de 5000€, distincte du groupe requis ci-dessus. Fait extrait directement de l'analyse statique du code.
+[FAIT DÉTERMINISTIQUE] Pour un montant de 80000€, le moteur de règles NE PEUT PAS déterminer si l'utilisateur peut voir cet enregistrement (can_view_amount_v2() = indeterminate) : au moins une règle applicable dépend de company_id, company_ids, user, qui ne sont pas connus dans ce contexte. Ne pas affirmer que l'accès est autorisé ou refusé -- signaler explicitement cette incertitude à l'utilisateur.
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```
@@ -321,9 +287,9 @@ En l’absence de règle de groupe et avec des règles globales dépendant de pa
 **Vérité Terrain attendue :**
 > Point de contrôle dynamique (getattr/_g_q7) repéré dans action_valider mais NON CLASSIFIÉ avec certitude. Proposer pour revue manuelle avec source fichier+ligne.
 
-**Réponse Verbatim de l'agent (Total: 0.38s | Effectif: 0.384s | Groq wait: 0.0s | Sauts: 2) :**
+**Réponse Verbatim de l'agent (Total: 0.52s | Effectif: 0.521s | Groq wait: 0.0s | Sauts: 3) :**
 ```text
-Je ne peux pas classifier avec certitude qui peut valider cette demande de remboursement. L'analyse statique détecte un dispatch dynamique (`getattr`) : la méthode exécutée dépend d'un paramètre récupéré à l'exécution, donc le chemin exact doit être revu manuellement. Ne pas présenter cette validation comme autorisée ou refusée de manière certaine. Source à revoir : [reimbursement.py:L1-L39](file:///home/user/odoo-17.0/addons/custom_expense_reimbursement_indirect/models/reimbursement.py#L1-L39).
+Je ne peux pas classifier avec certitude qui peut valider cette demande de remboursement. L'analyse statique détecte un dispatch dynamique (`getattr`) : la méthode exécutée dépend d'un paramètre récupéré à l'exécution, donc le chemin exact doit être revu manuellement. Ne pas présenter cette validation comme autorisée ou refusée de manière certaine. Source à revoir : [reimbursement.py:L1-L39](file:///home/user/odoo-ia-prototype/odoo_addons/custom_expense_reimbursement_indirect/models/reimbursement.py#L1-L39).
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```
