@@ -12,14 +12,9 @@ SENSITIVE_BYPASS_MARKER = "[SENSITIVE BYPASS]"
 
 
 def format_xml_id_citation(identifier: str) -> str:
-    """Format a single Odoo technical identifier (rule/group/action xml_id)
-    as the 'xml_id: module.identifier' sourcing-citation token that
-    code_intelligence/sourcing_guard.py's _XML_ID_PATTERN looks for as
-    ground truth. Root cause (todo/contexte.txt section 490): CI_SYSTEM_PROMPT
+    """Format a single Odoo technical identifier: CI_SYSTEM_PROMPT
     instructs the synthesis LLM to copy this exact prefix "verbatim from the
-    source observation", but no tool observation ever emitted it -- this is
-    the single place every tool formatter should go through instead of each
-    reimplementing the "xml_id: " prefix separately (F-08 duplication rule).
+    source observation", but no tool observation ever emitted it.
 
     Returns "" for an identifier that isn't a real module-qualified xml_id
     (no dot) -- never emits a citation token for something that wouldn't

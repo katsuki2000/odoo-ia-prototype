@@ -75,7 +75,7 @@ def execute_tool_calls(ctx: DispatchContext, ai_msg, messages: list) -> None:
                 observation = str(ctx.tool_map[tool_name].invoke(tool_args))
 
                 observation_cap = (
-                    6000 if tool_name == "read_source_code"
+                    9000 if tool_name == "read_source_code"
                     else 2200 if tool_name == "analyze_method_override_chain"
                     else 3500 if tool_name in {"analyze_server_actions", "analyze_data_constraints", "analyze_security_locks"}
                     else 2500

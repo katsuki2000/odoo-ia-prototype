@@ -2,9 +2,7 @@
 code_intelligence/knowledge_rules/server_actions_support.py
 
 Evidence building + LLM interpretation layer for server action static
-security analysis (regroupe les anciens evidence.py/llm.py/prompts.py de
-l'ex-paquet server_actions/, meme logique -- reduction du nombre de
-sous-paquets de knowledge_rules/, todo/contexte.txt).
+security analysis
 """
 
 from __future__ import annotations
@@ -104,7 +102,7 @@ def build_server_action_evidence(
     return evidence
 
 
-# === prompts (ex server_actions/prompts.py) =================================
+# === prompts =================================
 
 _SERVER_ACTION_INTERPRETATION_SYSTEM_PROMPT = (
     "Tu es un analyste de sécurité pour du code Odoo ir.actions.server (server actions). "
@@ -137,7 +135,7 @@ def build_server_action_messages(analysis: "ServerActionCodeAnalysis", code: str
     ]
 
 
-# === llm (ex server_actions/llm.py) =========================================
+# === llm =========================================
 
 _LLM_CONFIDENCE_CLOSED_SET = {"high", "medium", "low"}
 

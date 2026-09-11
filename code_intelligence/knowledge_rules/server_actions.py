@@ -4,13 +4,7 @@ code_intelligence/knowledge_rules/server_actions.py
 Static analysis of ir.actions.server 'code' fields (ex-paquet server_actions/,
 regle logique -- reduction du nombre de sous-paquets de knowledge_rules/,
 todo/contexte.txt). L'evidence-building/LLM-interpretation companion vit dans
-server_actions_support.py (evidence + llm + prompts fusionnes separement pour
-rester sous la limite de 300 lignes par fichier).
-Detects security-relevant patterns:
-  - sudo() calls (privilege escalation)
-  - has_group() checks (group-based conditional logic)
-  - Hardcoded ID lists (partner/user IDs, bypasses)
-  - eval/exec/getattr (dynamic dispatch)
+server_actions_support.py 
 """
 
 from __future__ import annotations

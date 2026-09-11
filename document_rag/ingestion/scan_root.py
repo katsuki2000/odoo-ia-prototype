@@ -2,16 +2,6 @@
 Canonical scan-root definitions and helpers shared by the ingestion
 pipeline (ingest_all.py, incremental.py, watcher.py) and loaders
 (wiki_loader.py, pdf_loader.py).
-
-Root cause fixed here (todo/contexte.txt sections 336/338/347): loaders
-used to store `source` metadata as the absolute filesystem path of the
-ingested file -- machine-specific, breaks portability across the
-project's two dev machines, and leaks the full local path into
-user-facing citations whenever no `title` metadata is available.
-
-`source` should instead be relative to the *logical* root it was found
-under (a documentation root or an Odoo addons root), computed once here
-and reused everywhere instead of being duplicated ad hoc.
 """
 
 from __future__ import annotations
@@ -19,12 +9,12 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Iterable, Optional
 
-from config.settings import CORE_ADDONS_PATH, CUSTOM_ADDONS_PATH
+from config.settings import CORE_ADDONS_PATH, CUSTOM_ADDONS_PATH, RAG_DOCS_PATH
 
-# document_rag/ (this file lives at document_rag/ingestion/scan_root.py)
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
-DOCS_DIR = PROJECT_ROOT / "fake_data" / "documents"
+
+DOCS_DIR = Path(RAG_DOCS_PATH)
 CORE_ADDONS_ROOT = Path(CORE_ADDONS_PATH)
 CUSTOM_ADDONS_ROOT = Path(CUSTOM_ADDONS_PATH)
 

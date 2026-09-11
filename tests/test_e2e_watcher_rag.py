@@ -77,7 +77,10 @@ def test_e2e_live_add_delete_query_cycle():
                     used_sources=["S1"],
                 )
                 
-                response = query_graph("Quel est le code secret de validation ?")
+                # Explicit documentary anchor required: doc_rag (generate()) is no
+                # longer an automatic fallback, only an explicit user-requested branch
+                # (todo/contexte.txt section 666) -- has_documentary_anchor() must match.
+                response = query_graph("Selon la documentation, quel est le code secret de validation ?")
                 assert isinstance(response, AssistantResponse)
                 assert "ALPHA-9988-OMEGA" in response.answer
                 assert len(response.sources) > 0
@@ -107,7 +110,9 @@ def test_e2e_live_add_delete_query_cycle():
             }
             mock_get_retriever.return_value = (MagicMock(), MagicMock())
             with patch("core.graph.graph.search_retrieve", side_effect=lambda query, top_k, chroma_manager=None, bm25_index=None, use_reranker=True, where=None: retrieve(query, top_k=top_k, chroma_manager=manager, where=where)):
-                response_after_delete = query_graph("Quel est le code secret Katsuki ?")
+                # Same explicit documentary anchor requirement as Step 3 above --
+                # generate() (RAG) only runs on an explicit documentary request.
+                response_after_delete = query_graph("Selon la documentation, quel est le code secret Katsuki ?")
                 assert len(response_after_delete.sources) == 0
                 assert response_after_delete.confidence == 0.0
                 assert "pas de source fiable" in response_after_delete.answer.lower() or "ne sais pas" in response_after_delete.answer.lower()

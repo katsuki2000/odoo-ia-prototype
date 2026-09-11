@@ -23,6 +23,10 @@ from langgraph.graph import StateGraph, START, END
 from core.schemas import AssistantResponse, QueryRoute
 from core.routing.routing import RAGState, route, route_decision
 from document_rag.generate_node import generate
+# Not used directly below -- kept as monkeypatch targets for graph_nodes.py::retrieve(),
+# which resolves these two names off this module first (sys.modules lookup) before
+# falling back to its own import, so tests can patch "core.graph.graph.get_retriever".
+from document_rag.vectorstore.search import get_retriever, retrieve as search_retrieve
 from erp_data.orm_agent_node import orm_agent_loop
 from code_intelligence.agent.ci_agent_node import code_intelligence_agent
 

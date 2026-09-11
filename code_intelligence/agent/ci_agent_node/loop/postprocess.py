@@ -12,6 +12,7 @@ import time
 
 from core.schemas import AssistantResponse, SourceReference, OmittedForAuthorization
 from core.evidence.evidence_sufficiency import assess_evidence_sufficiency
+from code_intelligence.answer_text_signals import _TRUNCATION_MARKER
 from core.output import (
     _detect_any_degenerate_repetition,
     _strip_any_degenerate_repetition,
@@ -51,6 +52,18 @@ from code_intelligence.agent.ci_agent_node.context.constants import _EXECUTION_F
 from code_intelligence.agent.ci_agent_node.context.dispatch_context import DispatchContext
 
 logger = logging.getLogger(__name__)
+
+
+def _strip_truncation_marker_for_display(text: str) -> str:
+    """Cosmetic-only: drop the internal truncation marker before user-facing
+    text is built (evidence snippet, final answer). ctx.tool_observations
+    itself is NEVER passed through this -- _match_near_truncation() in
+    access_guards.py / security/locks.py / overrides/cascade.py still needs
+    the marker present there to reject facts extracted too close to a cut.
+    See todo/contexte.txt (marqueur de troncature visible utilisateur)."""
+    if not text:
+        return text
+    return text.replace(_TRUNCATION_MARKER, "").rstrip()
 
 
 def _apply_backfill_chain(
@@ -182,6 +195,8 @@ def build_final_response(
     if ci_evidence_sufficiency.has_execution_failure:
         final_answer += _EXECUTION_FAILURE_NOTICE
 
+    final_answer = _strip_truncation_marker_for_display(final_answer)
+
     final_answer += "\n\n[Source: Graphe de Connaissances Code Intelligence]"
 
     seen_omitted_keys: set = set()
@@ -216,7 +231,7 @@ def build_final_response(
             source=f"code_intelligence:{tname or 'unknown'}:{model or 'unknown'}",
             doc_type="code_graph",
             title=title,
-            snippet=str(obs),
+            snippet=_strip_truncation_marker_for_display(str(obs)),
         ))
 
     response = AssistantResponse(

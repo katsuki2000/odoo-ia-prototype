@@ -1,11 +1,7 @@
 """
 code_intelligence/knowledge_rules/ontology.py
 
-Semantic Ontology -- behavioral/technical tags and their query/coverage
-helpers (Bloc P2). Regroupe (todo/contexte.txt, chantier de reduction du
-nombre de sous-paquets de knowledge_rules/) les anciens tags.py/query.py/
-coverage.py de l'ex-paquet ontology/ en un seul module plat, sans
-changement de logique.
+Semantic Ontology
 """
 
 from enum import Enum
@@ -13,7 +9,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import networkx as nx
 
-# === tags (ex ontology/tags.py) =============================================
+# === tags =============================================
 
 
 class BehavioralTag(str, Enum):
@@ -38,19 +34,14 @@ class TechnicalTag(str, Enum):
     CRON = "cron"
 
 
-# === query (ex ontology/query.py) ===========================================
+# === query ===========================================
 
 # Gives the 5 composite tools a single place to ask "which nodes related to
 # this model carry tag X", instead of each one re-implementing its own
 # node-to-model traversal. Same rationale as find_model_source_filepaths/
 # find_server_action_nodes in ci_agent_tools.py : one lookup, not N
 # divergent copies of it.
-#
-# Deliberately does NOT change the dispatch logic in core/routing.py or
-# core/graph.py, nor any existing tool's summary_text wording -- this is an
-# additive query helper only, wired into new (default-empty) dataclass
-# fields on the 5 composite tools' result types, per the Jour 4 mandate
-# ("sans casser le dispatch force existant").
+
 
 # Edge types that connect a Model node to a node worth tag-querying,
 # and which side of the edge the Model sits on for each.
@@ -87,9 +78,7 @@ def get_tagged_nodes_for_model(
     value (e.g. "approval_rule", "acl"). Both are optional and AND-ed when
     both given. With neither given, every related node carrying at least
     one tag of either kind is returned (an untagged node -- e.g. a
-    ServerAction, which never gets a behavioral tag per Jour 2-3's
-    "don't guess" rule -- is excluded from this unfiltered case, since an
-    empty-tags node has nothing to report).
+    ServerAction
 
     Returns [] if model_name is not indexed, without raising -- same
     "absence of information is not an error" convention as every other
