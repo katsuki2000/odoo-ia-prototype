@@ -18,6 +18,16 @@ from .python_models import (
 )
 
 
+# Positional-argument order for relational field constructors, matching the
+# Odoo field signatures: Many2one(comodel_name, string=...), One2many(comodel_name,
+# inverse_name, string=...), Many2many(comodel_name, relation, column1, column2, ...).
+POSITIONAL_ARG_ORDER = {
+    "Many2one": ["comodel_name", "string"],
+    "One2many": ["comodel_name", "inverse_name", "string"],
+    "Many2many": ["comodel_name", "relation", "column1", "column2"],
+}
+
+
 class OdooClassVisitor(ast.NodeVisitor):
     """
     AST Visitor to extract Odoo model declarations (_name, _inherit, _inherits)
@@ -101,6 +111,13 @@ class OdooClassVisitor(ast.NodeVisitor):
         for arg in call_node.args:
             positional_args.append(self._extract_ast_value(arg))
 
+        # Handle positional arguments for relational fields: fill in whichever
+        # kwargs are still missing (falsy, matching prior behaviour), in the
+        # constructor's positional order.
+        for i, key in enumerate(POSITIONAL_ARG_ORDER.get(field_type, [])):
+            if not kwargs.get(key) and i < len(positional_args) and isinstance(positional_args[i], str):
+                kwargs[key] = positional_args[i]
+
         comodel_name = kwargs.get("comodel_name")
         inverse_name = kwargs.get("inverse_name")
         relation_table = kwargs.get("relation")
@@ -109,29 +126,6 @@ class OdooClassVisitor(ast.NodeVisitor):
         related = kwargs.get("related")
         compute = kwargs.get("compute")
         string_val = kwargs.get("string")
-
-        # Handle positional arguments for relational fields
-        if field_type == "Many2one":
-            if not comodel_name and len(positional_args) > 0 and isinstance(positional_args[0], str):
-                comodel_name = positional_args[0]
-            if not string_val and len(positional_args) > 1 and isinstance(positional_args[1], str):
-                string_val = positional_args[1]
-        elif field_type == "One2many":
-            if not comodel_name and len(positional_args) > 0 and isinstance(positional_args[0], str):
-                comodel_name = positional_args[0]
-            if not inverse_name and len(positional_args) > 1 and isinstance(positional_args[1], str):
-                inverse_name = positional_args[1]
-            if not string_val and len(positional_args) > 2 and isinstance(positional_args[2], str):
-                string_val = positional_args[2]
-        elif field_type == "Many2many":
-            if not comodel_name and len(positional_args) > 0 and isinstance(positional_args[0], str):
-                comodel_name = positional_args[0]
-            if not relation_table and len(positional_args) > 1 and isinstance(positional_args[1], str):
-                relation_table = positional_args[1]
-            if not column1 and len(positional_args) > 2 and isinstance(positional_args[2], str):
-                column1 = positional_args[2]
-            if not column2 and len(positional_args) > 3 and isinstance(positional_args[3], str):
-                column2 = positional_args[3]
 
         # Calculate store attribute
         explicit_store = kwargs.get("store")

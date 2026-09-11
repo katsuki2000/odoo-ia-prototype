@@ -31,7 +31,7 @@ from core.llm.llm_client import (
     MIN_LLM_CALL_INTERVAL as MIN_GROQ_CALL_INTERVAL,
 )
 
-from core.output.degenerate_guards import (
+from core.output import (
     _DEGENERATE_REPETITION_RE,
     _DEGENERATE_LINE_REPETITION_MIN_REPEATS,
     _DEGENERATE_LINE_MIN_LENGTH,
@@ -89,7 +89,7 @@ from document_rag.generate_node import (
     generate,
 )
 
-from core.output.html_sanitizer import sanitize_html_to_markdown
+from core.output import sanitize_html_to_markdown
 
 from erp_data.orm_agent_node import (
     orm_agent_loop,

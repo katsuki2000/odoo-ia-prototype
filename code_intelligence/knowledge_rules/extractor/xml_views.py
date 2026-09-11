@@ -4,7 +4,6 @@ code_intelligence/extractor/xml_views.py
 XML parsers for views, form buttons, menuitems, and ir.model.fields declarations.
 """
 
-import logging
 import re
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -16,41 +15,26 @@ from .xml_models import (
     OdooViewRecord,
     OdooXmlFieldRecord,
     extract_refs_from_eval,
+    iter_field_attrs,
+    iter_records_by_model,
+    parse_xml_root,
 )
-
-_logger = logging.getLogger(__name__)
 
 
 def parse_xml_fields_from_xml(filepath: Path) -> List[OdooXmlFieldRecord]:
     """
     Parse an Odoo XML file and extract all <record model="ir.model.fields"> declarations.
     """
-    if not filepath.exists():
+    root = parse_xml_root(filepath, error_context="for xml fields")
+    if root is None:
         return []
 
     fields_list: List[OdooXmlFieldRecord] = []
-    try:
-        content = filepath.read_text(encoding="utf-8")
-        root = ET.fromstring(content)
-    except Exception as e:
-        _logger.error("Failed to parse XML file %s for xml fields: %s", filepath, e)
-        return []
 
-    for record in root.findall(".//record"):
-        if record.attrib.get("model") != "ir.model.fields":
-            continue
-
-        xml_id = record.attrib.get("id", "")
+    for xml_id, record in iter_records_by_model(root, "ir.model.fields"):
         f_rec = OdooXmlFieldRecord(xml_id=xml_id, filepath=str(filepath), lineno=0)
 
-        for field_elem in record.findall("field"):
-            field_name = field_elem.attrib.get("name")
-            if not field_name:
-                continue
-
-            field_text = (field_elem.text or "").strip()
-            field_ref = field_elem.attrib.get("ref")
-
+        for field_name, field_text, field_ref, _field_eval, _field_elem in iter_field_attrs(record):
             if field_name == "name":
                 f_rec.name = field_text
             elif field_name in {"model", "model_id"}:
@@ -71,16 +55,11 @@ def parse_menuitems_from_xml(filepath: Path) -> List[OdooMenuItemRecord]:
     """
     Parse an Odoo XML file and extract all <menuitem> elements and <record model="ir.ui.menu"> records.
     """
-    if not filepath.exists():
+    root = parse_xml_root(filepath, error_context="for menuitems")
+    if root is None:
         return []
 
     menuitems: List[OdooMenuItemRecord] = []
-    try:
-        content = filepath.read_text(encoding="utf-8")
-        root = ET.fromstring(content)
-    except Exception as e:
-        _logger.error("Failed to parse XML file %s for menuitems: %s", filepath, e)
-        return []
 
     # 1. Concise <menuitem .../> elements
     for elem in root.findall(".//menuitem"):
@@ -112,22 +91,10 @@ def parse_menuitems_from_xml(filepath: Path) -> List[OdooMenuItemRecord]:
         )
 
     # 2. Record form: <record model="ir.ui.menu">
-    for record in root.findall(".//record"):
-        if record.attrib.get("model") != "ir.ui.menu":
-            continue
-
-        xml_id = record.attrib.get("id", "")
+    for xml_id, record in iter_records_by_model(root, "ir.ui.menu"):
         menu = OdooMenuItemRecord(xml_id=xml_id, filepath=str(filepath), lineno=0)
 
-        for field_elem in record.findall("field"):
-            field_name = field_elem.attrib.get("name")
-            if not field_name:
-                continue
-
-            field_text = (field_elem.text or "").strip()
-            field_ref = field_elem.attrib.get("ref")
-            field_eval = field_elem.attrib.get("eval")
-
+        for field_name, field_text, field_ref, field_eval, _field_elem in iter_field_attrs(record):
             if field_name == "name":
                 menu.name = field_text
             elif field_name in {"parent", "parent_id"}:
@@ -191,32 +158,16 @@ def parse_views_from_xml(filepath: Path) -> List[OdooViewRecord]:
     """
     Parse an Odoo XML file and extract all <record model="ir.ui.view"> records with form buttons.
     """
-    if not filepath.exists():
+    root = parse_xml_root(filepath, error_context="for views")
+    if root is None:
         return []
 
     views: List[OdooViewRecord] = []
-    try:
-        content = filepath.read_text(encoding="utf-8")
-        root = ET.fromstring(content)
-    except Exception as e:
-        _logger.error("Failed to parse XML file %s for views: %s", filepath, e)
-        return []
 
-    for record in root.findall(".//record"):
-        if record.attrib.get("model") != "ir.ui.view":
-            continue
-
-        xml_id = record.attrib.get("id", "")
+    for xml_id, record in iter_records_by_model(root, "ir.ui.view"):
         view = OdooViewRecord(xml_id=xml_id, filepath=str(filepath), lineno=0)
 
-        for field_elem in record.findall("field"):
-            field_name = field_elem.attrib.get("name")
-            if not field_name:
-                continue
-
-            field_text = (field_elem.text or "").strip()
-            field_ref = field_elem.attrib.get("ref")
-
+        for field_name, field_text, field_ref, _field_eval, field_elem in iter_field_attrs(record):
             if field_name == "name":
                 view.name = field_text
             elif field_name in {"model", "res_model"}:

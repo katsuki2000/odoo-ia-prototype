@@ -36,6 +36,15 @@ OWL_T_IF_HAS_GROUP_PATTERN = re.compile(
     re.IGNORECASE
 )
 
+# Ordered (pattern, pattern_type) pairs: OWL's t-if wrapper is more specific than the
+# bare JS/session calls it can contain, so it is matched first to claim the group_id
+# for that line before the generic patterns get a chance at the same substring.
+CLIENT_GROUP_CHECK_PATTERNS = [
+    (OWL_T_IF_HAS_GROUP_PATTERN, "owl_t_if_hasGroup"),
+    (JS_HAS_GROUP_PATTERN, "js_hasGroup"),
+    (SESSION_HAS_GROUP_PATTERN, "session_has_group"),
+]
+
 
 def parse_client_group_checks(filepath: Path) -> List[OdooClientGroupCheck]:
     """
@@ -59,50 +68,20 @@ def parse_client_group_checks(filepath: Path) -> List[OdooClientGroupCheck]:
 
             seen_line_groups = set()
 
-            # 1. OWL t-if="user.hasGroup(...)" (more specific pattern first)
-            for match in OWL_T_IF_HAS_GROUP_PATTERN.finditer(line):
-                group_id = match.group(1).strip()
-                if group_id and (lineno, group_id) not in seen_line_groups:
-                    seen_line_groups.add((lineno, group_id))
-                    checks.append(
-                        OdooClientGroupCheck(
-                            filepath=str(filepath),
-                            lineno=lineno,
-                            group_id=group_id,
-                            pattern_type="owl_t_if_hasGroup",
-                            client_side_only=True,
+            for pattern, pattern_type in CLIENT_GROUP_CHECK_PATTERNS:
+                for match in pattern.finditer(line):
+                    group_id = match.group(1).strip()
+                    if group_id and (lineno, group_id) not in seen_line_groups:
+                        seen_line_groups.add((lineno, group_id))
+                        checks.append(
+                            OdooClientGroupCheck(
+                                filepath=str(filepath),
+                                lineno=lineno,
+                                group_id=group_id,
+                                pattern_type=pattern_type,
+                                client_side_only=True,
+                            )
                         )
-                    )
-
-            # 2. JS user.hasGroup(...)
-            for match in JS_HAS_GROUP_PATTERN.finditer(line):
-                group_id = match.group(1).strip()
-                if group_id and (lineno, group_id) not in seen_line_groups:
-                    seen_line_groups.add((lineno, group_id))
-                    checks.append(
-                        OdooClientGroupCheck(
-                            filepath=str(filepath),
-                            lineno=lineno,
-                            group_id=group_id,
-                            pattern_type="js_hasGroup",
-                            client_side_only=True,
-                        )
-                    )
-
-            # 3. Session has_group(...)
-            for match in SESSION_HAS_GROUP_PATTERN.finditer(line):
-                group_id = match.group(1).strip()
-                if group_id and (lineno, group_id) not in seen_line_groups:
-                    seen_line_groups.add((lineno, group_id))
-                    checks.append(
-                        OdooClientGroupCheck(
-                            filepath=str(filepath),
-                            lineno=lineno,
-                            group_id=group_id,
-                            pattern_type="session_has_group",
-                            client_side_only=True,
-                        )
-                    )
 
     except Exception as e:
         _logger.error("Error parsing client group checks in %s: %s", filepath, e)

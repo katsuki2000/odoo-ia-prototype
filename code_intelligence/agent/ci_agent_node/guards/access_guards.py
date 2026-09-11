@@ -204,8 +204,10 @@ def _block_is_custom_module_file(block: str) -> bool:
     except Exception:
         pass
     path_parts = Path(match.group(1)).parts
-    core_dirs = {"odoo/addons", "base", "web"}
-    if any(c in path_parts for c in core_dirs):
+    if any(part.startswith("custom") for part in path_parts):
+        return True
+    core_dirs = {"base", "web", "odoo"}
+    if any(part in core_dirs for part in path_parts):
         return False
     return True
 

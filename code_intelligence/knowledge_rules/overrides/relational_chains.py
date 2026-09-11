@@ -9,7 +9,7 @@ import networkx as nx
 
 from code_intelligence.knowledge_rules.overrides.types import resolve_method_override_chain
 from code_intelligence.knowledge_rules.overrides.unguarded_super import detect_unguarded_super
-from core.output.confidence_tags import confidence_label
+from core.output import confidence_label
 
 _logger = logging.getLogger(__name__)
 

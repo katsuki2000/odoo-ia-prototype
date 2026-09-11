@@ -15,7 +15,7 @@ from typing import List, Optional
 import logging
 
 from core.evidence.evidence import Evidence
-from core.output.confidence_tags import confidence_label
+from core.output import confidence_label
 from code_intelligence.knowledge_rules.server_actions.evidence import build_server_action_evidence
 from code_intelligence.knowledge_rules.server_actions.llm import (
     interpret_server_action_with_llm,

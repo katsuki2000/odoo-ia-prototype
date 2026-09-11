@@ -4,8 +4,6 @@ code_intelligence/extractor/xml_actions.py
 XML parsers for ir.actions.act_window, ir.actions.server, ir.cron, and base.automation.
 """
 
-import logging
-import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import List
 
@@ -14,46 +12,29 @@ from .xml_models import (
     OdooBaseAutomationRecord,
     OdooServerActionRecord,
     extract_refs_from_eval,
+    iter_field_attrs,
+    iter_records_by_model,
+    parse_xml_root,
 )
-
-_logger = logging.getLogger(__name__)
 
 
 def parse_actions_from_xml(filepath: Path) -> List[OdooActionRecord]:
     """
     Parse an Odoo XML file and extract all <record model="ir.actions.act_window"> declarations.
     """
-    if not filepath.exists():
+    root = parse_xml_root(filepath, error_context="for actions")
+    if root is None:
         return []
 
     actions: List[OdooActionRecord] = []
-    try:
-        content = filepath.read_text(encoding="utf-8")
-        root = ET.fromstring(content)
-    except Exception as e:
-        _logger.error("Failed to parse XML file %s for actions: %s", filepath, e)
-        return []
-
-    for record in root.findall(".//record"):
-        if record.attrib.get("model") != "ir.actions.act_window":
-            continue
-
-        xml_id = record.attrib.get("id", "")
+    for xml_id, record in iter_records_by_model(root, "ir.actions.act_window"):
         action = OdooActionRecord(
             xml_id=xml_id,
             filepath=str(filepath),
             lineno=0,
         )
 
-        for field_elem in record.findall("field"):
-            field_name = field_elem.attrib.get("name")
-            if not field_name:
-                continue
-
-            field_text = (field_elem.text or "").strip()
-            field_ref = field_elem.attrib.get("ref")
-            field_eval = field_elem.attrib.get("eval")
-
+        for field_name, field_text, field_ref, field_eval, _field_elem in iter_field_attrs(record):
             if field_name == "name":
                 action.name = field_text
             elif field_name in {"res_model", "model"}:
@@ -78,25 +59,14 @@ def parse_server_actions_from_xml(filepath: Path) -> List[OdooServerActionRecord
     Parse an Odoo XML file and extract all <record model="ir.actions.server"> declarations.
     Captures the 'code' field content that contains executable Python logic.
     """
-    if not filepath.exists():
-        _logger.warning("XML file does not exist: %s", filepath)
+    root = parse_xml_root(filepath, missing_message="XML file does not exist: %s", error_context="")
+    if root is None:
         return []
 
     actions: List[OdooServerActionRecord] = []
 
-    try:
-        content = filepath.read_text(encoding="utf-8")
-        root = ET.fromstring(content)
-    except Exception as e:
-        _logger.error("Failed to parse XML file %s: %s", filepath, e)
-        return []
-
-    for record in root.findall(".//record"):
+    for xml_id, record in iter_records_by_model(root, {"ir.actions.server", "ir.cron"}):
         model_attr = record.attrib.get("model")
-        if model_attr not in ("ir.actions.server", "ir.cron"):
-            continue
-
-        xml_id = record.attrib.get("id", "")
         sa = OdooServerActionRecord(
             xml_id=xml_id,
             filepath=str(filepath),
@@ -104,15 +74,7 @@ def parse_server_actions_from_xml(filepath: Path) -> List[OdooServerActionRecord
             action_type="cron" if model_attr == "ir.cron" else "server_action",
         )
 
-        for field_elem in record.findall("field"):
-            field_name = field_elem.attrib.get("name")
-            if not field_name:
-                continue
-
-            field_text = (field_elem.text or "").strip()
-            field_ref = field_elem.attrib.get("ref")
-            field_eval = field_elem.attrib.get("eval")
-
+        for field_name, field_text, field_ref, field_eval, field_elem in iter_field_attrs(record):
             if field_name == "name":
                 sa.name = field_text
             elif field_name == "model_id":
@@ -154,40 +116,20 @@ def parse_base_automations_from_xml(filepath: Path) -> List[OdooBaseAutomationRe
     Parse an Odoo XML file and extract all <record model="base.automation"> declarations.
     Links automation triggers to their associated ir.actions.server records.
     """
-    if not filepath.exists():
-        _logger.warning("XML file does not exist: %s", filepath)
+    root = parse_xml_root(filepath, missing_message="XML file does not exist: %s", error_context="")
+    if root is None:
         return []
 
     automations: List[OdooBaseAutomationRecord] = []
 
-    try:
-        content = filepath.read_text(encoding="utf-8")
-        root = ET.fromstring(content)
-    except Exception as e:
-        _logger.error("Failed to parse XML file %s: %s", filepath, e)
-        return []
-
-    for record in root.findall(".//record"):
-        model_attr = record.attrib.get("model")
-        if model_attr != "base.automation":
-            continue
-
-        xml_id = record.attrib.get("id", "")
+    for xml_id, record in iter_records_by_model(root, "base.automation"):
         ba = OdooBaseAutomationRecord(
             xml_id=xml_id,
             filepath=str(filepath),
             lineno=0,
         )
 
-        for field_elem in record.findall("field"):
-            field_name = field_elem.attrib.get("name")
-            if not field_name:
-                continue
-
-            field_text = (field_elem.text or "").strip()
-            field_ref = field_elem.attrib.get("ref")
-            field_eval = field_elem.attrib.get("eval")
-
+        for field_name, field_text, field_ref, field_eval, _field_elem in iter_field_attrs(record):
             if field_name == "name":
                 ba.name = field_text
             elif field_name == "model_id":

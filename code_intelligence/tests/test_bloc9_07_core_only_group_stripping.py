@@ -26,7 +26,16 @@ Two bugs fixed together here:
 No mocks: exercises the real functions directly against realistic raw
 tool-output text, same convention as the rest of the test suite (see
 test_bloc9_05_link_guard_backfill.py).
+
+Portability: _block_is_custom_module_file() classifies a file:// link by
+resolving it against config.settings.CORE_ADDONS_PATH/CUSTOM_ADDONS_PATH --
+both machine-dependent (todo/rules.md: no hardcoded absolute path may drive
+test behavior). The module-level _patch_addons_paths autouse fixture pins
+both to fixed dummy roots for this file's tests, so the fixtures below
+classify deterministically regardless of which machine runs them.
 """
+
+import pytest
 
 from core.graph.graph import (
     _grounded_core_only_groups,
@@ -35,20 +44,31 @@ from core.graph.graph import (
 )
 
 
+@pytest.fixture(autouse=True)
+def _patch_addons_paths(monkeypatch):
+    """Pin CORE_ADDONS_PATH/CUSTOM_ADDONS_PATH so the fixtures below (fixed
+    file:// links under /fake/...) classify deterministically via the real
+    config-driven branch of _block_is_custom_module_file(), not its
+    machine-dependent fallback heuristic."""
+    monkeypatch.setattr("config.settings.CORE_ADDONS_PATH", "/fake/odoo-17.0/addons")
+    monkeypatch.setattr("config.settings.CUSTOM_ADDONS_PATH", "/fake/odoo_addons")
+    monkeypatch.setattr("config.settings.CORE_FRAMEWORK_ADDONS_PATH", "/fake/odoo-17.0/odoo/addons")
+
+
 # Core-only grounding: account.group_account_manager's has_group() lives in a
 # core Odoo file, no custom_* module is involved at all.
 _RAW_CORE_ONLY = """\
-Analyse des verrous Python ([account_move.py:L1-L5238](file:///home/user/odoo-17.0/addons/account/models/account_move.py#L1-L5238)) [Confiance: HIGH]:
+Analyse des verrous Python ([account_move.py:L1-L5238](file:///fake/odoo-17.0/addons/account/models/account_move.py#L1-L5238)) [Confiance: HIGH]:
   - Groupe(s) technique(s) requis detecte(s) (has_group): account.group_account_manager
 """
 
 # Same core group, PLUS a competing custom-module group for the same turn --
 # the custom override should take precedence in the synthesized answer.
 _RAW_CORE_AND_CUSTOM = """\
-Analyse des verrous Python ([account_move.py:L1-L5238](file:///home/user/odoo-17.0/addons/account/models/account_move.py#L1-L5238)) [Confiance: HIGH]:
+Analyse des verrous Python ([account_move.py:L1-L5238](file:///fake/odoo-17.0/addons/account/models/account_move.py#L1-L5238)) [Confiance: HIGH]:
   - Groupe(s) technique(s) requis detecte(s) (has_group): account.group_account_manager
 
-Analyse des verrous Python ([account_move.py:L13-L22](file:///home/user/odoo-17.0/addons/custom_credit_note_approval/models/account_move.py#L13-L22)) [Confiance: HIGH]:
+Analyse des verrous Python ([account_move.py:L13-L22](file:///fake/odoo_addons/custom_credit_note_approval/models/account_move.py#L13-L22)) [Confiance: HIGH]:
   - Groupe(s) technique(s) requis detecte(s) (has_group): custom_credit_note_approval.group_approval_regional
 """
 

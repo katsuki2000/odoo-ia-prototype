@@ -4,7 +4,7 @@ import ast
 import logging
 from typing import List, Optional
 
-from core.output.confidence_tags import confidence_label
+from core.output import confidence_label
 
 _logger = logging.getLogger(__name__)
 

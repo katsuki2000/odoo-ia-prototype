@@ -5,7 +5,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 from pydantic import ValidationError
 
-from api.main import ReindexRequestV1, ingestion_status, reindex_v1
+from api.schemas import ReindexRequestV1
+from api.routes_ingestion import ingestion_status, reindex_v1
 
 
 def test_api_v1_incremental_reindex_indexes_requested_path(tmp_path):

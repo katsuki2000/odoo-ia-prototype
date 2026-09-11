@@ -2,7 +2,6 @@
 code_intelligence/extractor/manifest_parser.py
 
 Manifest parser for Odoo modules.
-Implements Task A1.1.6: Parsing __manifest__.py (depends, data, unloaded files detection).
 """
 
 import ast

@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
 import logging
 
 from core.evidence.evidence import Evidence, EvidenceSourceType, make_evidence
-from core.output.confidence_tags import confidence_label
+from core.output import confidence_label
 
 if TYPE_CHECKING:
     from code_intelligence.knowledge_rules.security.analyzer import PythonSecurityLockAnalysis

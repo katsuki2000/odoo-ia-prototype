@@ -18,8 +18,9 @@ from core.schemas import (
     SourceReference,
     source_display_title,
 )
-from core.routing.routing import RAGState, _is_out_of_scope, OUT_OF_SCOPE_ANSWER
-from core.output.html_sanitizer import sanitize_html_to_markdown
+from core.routing.routing import RAGState, _is_out_of_scope, OUT_OF_SCOPE_ANSWER, _fold_accents
+from core.output import sanitize_html_to_markdown
+from code_intelligence.agent.investigation import has_documentary_anchor
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +72,17 @@ def out_of_scope_decision(state: RAGState) -> str:
     return "format_output" if state.get("response") is not None else "retrieve"
 
 
+def _has_explicit_doc_request(state: RAGState) -> bool:
+    """Whether the question explicitly asks for documentation (wiki, guide
+    utilisateur, procedure, politique interne...). Single gate shared by
+    ci_evidence_decision() and format_output() to decide whether the RAG
+    fallback (generate()) is allowed to run at all -- doc_rag is no longer
+    an automatic fallback on insufficient CI evidence, only an explicit,
+    user-requested branch."""
+    question_folded = _fold_accents(state.get("question", "").lower())
+    return has_documentary_anchor(question_folded)
+
+
 def retrieve(state: RAGState) -> dict:
     """Retrieve relevant documents for the query."""
     question = state["question"]
@@ -110,6 +122,7 @@ def format_output(state: RAGState) -> dict:
         bool(ci_sufficiency)
         and ci_sufficiency.get("status") == EvidenceSufficiencyStatus.INSUFFICIENT.value
         and not ci_sufficiency.get("has_execution_failure")
+        and _has_explicit_doc_request(state)
     )
 
     if response:
@@ -156,8 +169,10 @@ def format_output(state: RAGState) -> dict:
 
 def ci_evidence_decision(state: RAGState) -> str:
     """
-    Post-CI conditional edge: SUFFICIENT and CONFLICTING stay on CI's own answer;
-    INSUFFICIENT falls back to generate() (RAG).
+    Post-CI conditional edge: SUFFICIENT and CONFLICTING stay on CI's own answer.
+    INSUFFICIENT falls back to generate() (RAG) only when the question carries an
+    explicit documentary request (wiki/documentation/procedure/politique interne) --
+    doc_rag is no longer an automatic fallback, it only intervenes when asked for.
     """
     sufficiency = state.get("ci_evidence_sufficiency")
     if not sufficiency:
@@ -183,8 +198,18 @@ def ci_evidence_decision(state: RAGState) -> str:
         )
         return "format_output"
 
+    if not _has_explicit_doc_request(state):
+        logger.info(
+            "Node [route: post-CI]: evidence sufficiency=%s but no explicit documentary request in the "
+            "question -- doc_rag is no longer an automatic fallback, staying on code_intelligence_agent's "
+            "own answer. reasons=%s",
+            status, sufficiency.get("reasons"),
+        )
+        return "format_output"
+
     logger.info(
-        "Node [route: post-CI]: evidence sufficiency=%s -- falling back to RAG (generate). reasons=%s",
+        "Node [route: post-CI]: evidence sufficiency=%s with explicit documentary request -- "
+        "falling back to RAG (generate). reasons=%s",
         status, sufficiency.get("reasons"),
     )
     return "generate"

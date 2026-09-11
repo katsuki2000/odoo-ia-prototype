@@ -16,7 +16,7 @@ from code_intelligence.agent.ci_agent_node.guards.dispatch_utils import (
     _force_dynamic_uncertainty_answer,
 )
 from core.llm.llm_client import get_chat_llm, invoke_with_rate_limit as _invoke_with_rate_limit
-from core.output.degenerate_guards import (
+from core.output import (
     _detect_any_degenerate_repetition,
     _strip_any_degenerate_repetition,
 )

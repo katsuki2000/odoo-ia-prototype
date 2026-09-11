@@ -25,8 +25,9 @@ class TestCiEvidenceDecisionRouting:
     """Verifies ci_evidence_decision() routing logic for the
     has_execution_failure flag."""
 
-    def _make_state(self, status, has_execution_failure=False, reasons=None):
+    def _make_state(self, status, has_execution_failure=False, reasons=None, question=""):
         return {
+            "question": question,
             "ci_evidence_sufficiency": {
                 "status": status,
                 "has_execution_failure": has_execution_failure,
@@ -40,15 +41,30 @@ class TestCiEvidenceDecisionRouting:
         state = self._make_state(
             EvidenceSufficiencyStatus.INSUFFICIENT.value,
             has_execution_failure=True,
+            question="Selon le wiki interne, quelle est la procedure ?",
         )
         assert ci_evidence_decision(state) == "format_output"
 
     def test_insufficient_without_execution_failure_falls_back_to_generate(self):
+        """generate() (RAG) is only reachable when the question carries an
+        explicit documentary anchor -- doc_rag is no longer an automatic
+        fallback on insufficient CI evidence."""
         state = self._make_state(
             EvidenceSufficiencyStatus.INSUFFICIENT.value,
             has_execution_failure=False,
+            question="Selon le wiki interne, quelle est la procedure ?",
         )
         assert ci_evidence_decision(state) == "generate"
+
+    def test_insufficient_without_execution_failure_and_no_doc_anchor_stays_on_format_output(self):
+        """Default case (no explicit documentary request): stays on CI's own
+        answer instead of silently falling back to RAG."""
+        state = self._make_state(
+            EvidenceSufficiencyStatus.INSUFFICIENT.value,
+            has_execution_failure=False,
+            question="Qui peut valider un avoir de 25000 euros ?",
+        )
+        assert ci_evidence_decision(state) == "format_output"
 
     def test_sufficient_always_stays_on_format_output(self):
         state = self._make_state(EvidenceSufficiencyStatus.SUFFICIENT.value)

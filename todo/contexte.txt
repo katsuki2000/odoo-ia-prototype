@@ -1431,4 +1431,184 @@ Contexte : mandat Ayan ("trop de sous-paquets", discussion hors-code precedente 
 
 **Prochaine etape** : executer les 4 premiers points ci-dessus (dryRun puis reel), puis deleguer le pytest.
 
+Note (10/09) : ce plan a ete execute (voir commit `77bd6ab` "js manage", `core/output.py` present sur le disque, `core/output/` supprime) par une session non retracee dans ce journal -- collision de session confirmee, cf. Section 660 ci-dessous.
+
+## Section 660 : Audit sur-decoupage code_intelligence + core/graph + core/llm -- diagnostic et proposition, aucun code touche
+
+Date : 10/09/2026
+Contexte : extension du mandat Ayan (Section 659, "trop de sous-paquets") a code_intelligence/ (focus explicite), core/graph/, core/llm/ ; demande specifique de regrouper knowledge_rules/extractor/ en 1 fichier XML + 1 fichier PY ; demande de reduire code_intelligence/ vers ~4 packages racine sans sous-paquets imbriques.
+
+**1. Dechet trouve** : `code_intelligence/investigation/` (racine, distinct de `agent/investigation/`) est un dossier VIDE -- reliquat probable d'un deplacement anterieur vers `agent/investigation/` (7 fichiers, 1074 lignes, actif). A supprimer, aucune dependance possible sur un dossier vide.
+
+**2. core/graph/ et core/llm/ : deja plats, PAS des candidats au pattern core/output/** :
+- `core/graph/` : 4 fichiers, 644 lignes (`__init__.py` 35, `graph.py` 176, `graph_nodes.py` 215, `graph_compat.py` 218) -- aucun micro-fichier comme dans core/output/ (34/85/117L), total 644L > 300 donc pas de fusion totale possible. Seule fusion marginale : `__init__.py`+`graph.py` = 211L, gain faible.
+- `core/llm/` : 3 fichiers, 446 lignes (`__init__.py` 53, `llm_retry.py` 120, `llm_client.py` 273) -- meme constat, `__init__.py`+`llm_retry.py` = 173L fusionnable mais gain faible.
+- **Conclusion** : ni l'un ni l'autre n'est un cas de sur-decoupage reel -- deja plats, tailles individuelles deja raisonnables. Pas d'action recommandee au-dela d'une fusion optionnelle de faible valeur.
+
+**3. knowledge_rules/extractor/ : XML-en-1-fichier / PY-en-1-fichier demande, en conflit direct avec la regle 300 lignes/fichier** :
+- Contenu XML reel : `xml_extractor.py`(57) + `xml_models.py`(149) + `xml_actions.py`(212) + `xml_rules_groups.py`(163) + `xml_views.py`(232) = **813 lignes** -- un seul fichier violerait le plafond de 271%. Minimum mathematique pour respecter 300L/fichier : 3 fichiers.
+- Contenu PY reel : `python_models.py`(76) + `python_extractor.py`(269) = **345 lignes** -- un seul fichier depasserait le plafond de 45 lignes (sauf reduction par audit dead-code, non fait ce tour).
+- **Proposition retenue (respecte 300L, minimise le nombre de fichiers)** :
+  - `xml_core.py` = extractor + models fusionnes (57+149=206L)
+  - `xml_actions.py` inchange (212L, deja compact)
+  - `xml_rules_groups.py` inchange (163L)
+  - `xml_views.py` inchange (232L)
+  -> 5 fichiers XML -> 4 (fusion extractor+models seulement, le reste depasserait 300L en fusionnant).
+  - Cote PY : garder `python_models.py`(76) + `python_extractor.py`(269) separes (fusion = 345L > 300) sauf si un audit dead-code prealable reduit `python_extractor.py` de plus de 45 lignes.
+  - `csv_extractor.py`(118), `js_extractor.py`(110), `manifest_parser.py`(146), `__init__.py`(117) : formats distincts, deja compacts, pas de fusion semantiquement pertinente avec XML/PY.
+  - Resultat : 11 fichiers -> 9, pas 2 comme demande initialement -- la regle 300L/fichier est la contrainte bloquante, pas un manque de volonte de regrouper.
+
+**4. Reduction de profondeur "4 packages racine sans sous-paquets" : tension identifiee, 2 options proposees, decision requise avant execution** :
+- Etat actuel : `code_intelligence/` a 2 packages racine (`agent/`, `knowledge_rules/`) avec une profondeur de 3 niveaux par endroits (`agent/ci_agent_node/context/`, `knowledge_rules/deterministic/access/`, `knowledge_rules/graph/build/`, etc.) -- 21 sous-paquets au total sur 2-3 niveaux.
+- **Option A (esprit litteral -- 4 packages racine, chacun plat)** : regrouper par grand domaine, chaque domaine devenant UN package plat :
+  1. `extraction/` (ex-`knowledge_rules/extractor/`, deja plat, ~9 fichiers apres point 3)
+  2. `graph/` (fusion de `knowledge_rules/graph/` + `build/integrity/nodes/symbols` -> ~22 fichiers a plat, ~2354 lignes cumulees)
+  3. `rules/` (fusion de `deterministic/` + `access/navigation/structure` + `overrides/` + `security/` + `server_actions/` + `ontology/` + `semgrep_rules/` + `data_constraints/` -> ~45 fichiers a plat, ~6200 lignes cumulees)
+  4. `agent/` (fusion de `ci_agent_node/` + `context/guards/loop/predispatch/tools/` + `business_resolver/` + `investigation/` + `live/` -> ~57 fichiers a plat, ~4600 lignes cumulees)
+  - **Risque assume signale** : resout la profondeur, mais deplace le probleme vers l'extreme oppose -- un dossier a 45-57 fichiers plats est aussi difficile a naviguer qu'une arborescence profonde, potentiellement pire (perte du regroupement visuel actuel par sous-fonction).
+- **Option B (profondeur max 2 niveaux, pas necessairement 4 packages)** : chaque sous-paquet a 3 niveaux remonte d'un niveau pour devenir package racine direct, sans fusion cross-domaine :
+  - `ci_agent_context/`, `ci_agent_guards/`, `ci_agent_loop/`, `ci_agent_predispatch/`, `ci_agent_tools/` (ex-`agent/ci_agent_node/*`)
+  - `business_resolver/`, `investigation/`, `live/` (ex-`agent/*`, deja plats)
+  - `access/`, `navigation/`, `structure/` (ex-`knowledge_rules/deterministic/*`)
+  - `graph_build/`, `graph_integrity/`, `graph_nodes/`, `graph_symbols/` (ex-`knowledge_rules/graph/*`)
+  - `extraction/`, `overrides/`, `security/`, `server_actions/` (deja plats ou fusionnes point 3)
+  - fichiers plats directs : `deterministic.py`(112L), `graph.py`(276L), `ontology.py`(290L), `semgrep_rules.py`(140L), `data_constraints.py`(298L) -- 5 fusions
+  - Resultat : ~19 packages/fichiers racine (pas 4), mais aucun n'a plus d'1 niveau de nesting, chaque nom reste explicite.
+- **Recommandation** : Option B, plus alignee avec "clean architecture, sous-paquets et paquets" (rules.md), evite de recreer en sens inverse le probleme de lisibilite (fichiers-en-vrac) que l'Option A introduirait. Le mandat demandait explicitement 4 -- **decision non prise ce tour, remontee a l'utilisateur**.
+
+**Aucun fichier de code deplace/modifie ce tour** -- diagnostic et proposition uniquement. Points 1-3 tranches par contraintes objectives (300L/fichier), point 4 en attente d'arbitrage (Option A vs B vs autre).
+
+**Prochaine etape** : arbitrage utilisateur sur Option A/B (point 4), puis execution en chantiers separes (1: suppression dossier mort, 2: core, non prioritaire, 3: extractor, 4: restructuration profondeur), chacun avec dryRun puis reel puis pytest delegue.
+
+## Section 661 : Arbitrage Ayan sur point 4 (Option C hybride) + mandat python_extractor.py + extension mandat XML/autres paquets
+
+Date : 10/09/2026
+Contexte : Ayan tranche le point 4 de la Section 660 -- ni Option A ni Option B, mais une **Option C hybride** : garder `agent/` et `knowledge_rules/` comme les 2 seuls packages racine de `code_intelligence/`, mais supprimer les 3 conteneurs intermediaires creux (`ci_agent_node/`, `deterministic/`, `graph/` -- 38L/112L/276L de contenu propre, le reste n'etant que de l'empilement de sous-paquets) :
+- `agent/ci_agent_node/{context,guards,loop,predispatch,tools}/` -> remonte d'un cran en `agent/{context,guards,loop,predispatch,tools}/`, le `__init__.py` (38L) devient `agent/ci_agent_node.py` plat.
+- `knowledge_rules/deterministic/{access,navigation,structure}/` -> remonte en `knowledge_rules/{access,navigation,structure}/`, les 112L de `deterministic/` fusionnees ou en fichier plat.
+- `knowledge_rules/graph/{build,integrity,nodes,symbols}/` -> fusionne en un seul package plat `knowledge_rules/graph/` (~22 fichiers directement dedans, plus de sous-dossiers), respecte la regle "pas de sous-package dans un package".
+
+Mandat distinct et immediat : refactor `python_extractor.py::_extract_field_declaration` (proposition Ayan fournie telle quelle) -- remplacer les 3 blocs quasi identiques Many2one/One2many/Many2many (~26 lignes d'assignation positionnelle a la main) par une table `POSITIONAL_ARG_ORDER = {field_type: [noms_kwargs]}` + une boucle generique.
+
+Extension du mandat, a diagnostiquer avant tout code : (a) verifier si les parsers XML (`xml_actions.py`, `xml_rules_groups.py`, `xml_views.py`) ont un pattern de repetition analogue et proposer la meme sorte de factorisation ; (b) elargir la recherche de ce pattern de repetition (blocs quasi identiques factorisables par table/boucle) a d'autres paquets du projet.
+
+**Discrepance disque constatee avant tout travail** (regle "toujours relire avant d'agir") : `git status --short` montre 2 fichiers modifies non lies a ce mandat et non traces dans ce journal -- `core/graph/graph_nodes.py` (+33/-lignes) et `tests/test_bloc_p1_tranche2_ci_first_evidence_routing.py` (+92/-23) -- en plus de `todo/contexte.txt` (les sections 659-660 de cette session, deja explique). Nouvelle collision de session (meme pattern que Sections 209/282/348/487/546/659). **Perimetre de cette section : aucun de ces 2 fichiers n'est touche** -- hors mandat, signale mais laisse en l'etat pour ne pas interferer avec un travail en cours ailleurs.
+
+**Plan d'execution retenu pour ce tour** :
+1. `python_extractor.py` : refactor table-driven (mandat explicite, perimetre clair, risque faible) -- dryRun puis reel puis py_compile.
+2. Diagnostic XML (xml_actions/xml_rules_groups/xml_views) : identifier le pattern commun, proposer une factorisation, signaler les points de decision (differences subtiles de comportement entre fonctions : logging vs silencieux sur `exists()==False`) avant d'ecrire du code.
+3. Recherche elargie a d'autres paquets pour le meme pattern (bloc quasi identique -> table/boucle).
+4. Restructuration Option C : chantier plus lourd (deplacements + reecriture d'imports sur potentiellement des dizaines de fichiers) -- traite en dernier, avec verification exhaustive des importeurs par grep avant tout `git mv`.
+
+**Aucun fichier de code touche avant cette ligne** -- seul ce journal est ecrit a ce stade, conformement a la discipline journal-avant-code.
+
+**Execution point 1 (python_extractor.py)** : refactor applique. Table `POSITIONAL_ARG_ORDER` ajoutee en tete de module, les 3 blocs if/elif Many2one/One2many/Many2many (~26 lignes) remplaces par une boucle generique de 3 lignes sur `kwargs`. **Ecart mineur corrige par rapport a la proposition litterale d'Ayan** : la boucle teste `not kwargs.get(key)` (falsy) et non `is None`, pour repliquer exactement la semantique de l'ancien code (`if not comodel_name and ...`) -- une valeur explicite `""` aurait ete ecrasee par l'ancien code, `is None` aurait change ce comportement. `py_compile` OK. Verification fonctionnelle manuelle (pas de pytest disponible dans mon environnement bash local, delegue a Ayan pour la suite reguliere) : script ad hoc exercant Many2one (kwarg seul, positionnel seul), One2many, Many2many (complet et partiel) -- sortie conforme aux signatures Odoo (kwargs explicites prioritaires, positionnels comblent le reste, aucune regression detectee).
+
+**A deleguer a Ayan** : `pytest code_intelligence/tests/test_a1_1_2.py code_intelligence/tests/test_a1_1_3.py code_intelligence/tests/test_a1_1_4.py code_intelligence/tests/test_a1_1_5.py code_intelligence/tests/test_a1_1_7.py -v` (tests couvrant l'extraction Python/champs) pour confirmation formelle.
+
+**Execution point 2 (facteurisation XML)** : diagnostic prealable confirme un pattern duplique 8 fois a l'identique sur 3 fichiers (`xml_actions.py` x3, `xml_rules_groups.py` x2, `xml_views.py` x3) : exists-check, lecture+parse ET avec try/except+log, boucle `for record in root.findall('.//record')` + filtre model + xml_id, boucle `for field_elem in record.findall('field')` + extraction name/text/ref/eval. Differences fines reperees et **preservees** (pas de standardisation implicite) : (a) message de log au warning sur fichier manquant present sur 3 fonctions (`parse_server_actions_from_xml`, `parse_base_automations_from_xml`, `parse_ir_rules_from_xml`) mais absent (retour silencieux) sur les 5 autres ; (b) suffixe du message d'erreur de parsing variable par fonction ("for actions", "for groups", "for xml fields", "for menuitems", "for views", ou rien) ; (c) `parse_ir_rules_from_xml` a besoin du contenu brut (pas seulement de l'arbre parse) pour l'estimation de `lineno` par recherche de ligne contenant `id="xml_id"`.
+
+4 helpers ajoutes a `xml_models.py` (aucune classe/fonction existante modifiee) :
+- `_read_and_parse_xml(filepath, missing_message=None, error_context="")` -> `Optional[Tuple[str, ET.Element]]` : boilerplate exists+read+parse+log, retourne `(content, root)` ou `None`.
+- `parse_xml_root(...)` : wrapper ne retournant que `root`, pour le cas majoritaire qui n'a pas besoin du contenu brut.
+- `iter_records_by_model(root, model_names)` : yield `(xml_id, record)`, `model_names` accepte `str` ou `set` (remplace les variantes `!=` et `not in (...)`).
+- `iter_field_attrs(record)` : yield `(field_name, field_text, field_ref, field_eval, field_elem)` -- **le `field_elem` brut est conserve dans le tuple**, necessaire pour `parse_server_actions_from_xml` (`sa.code = field_elem.text` utilise le texte NON strippe, a dessein, pour preserver l'indentation du code Python execute -- j'ai repere ce piege avant de casser le comportement) et pour `parse_views_from_xml` (`_extract_buttons_from_arch_elem(field_elem)` a besoin de l'element XML complet, pas du texte).
+
+Les 8 fonctions dans les 3 fichiers appelants reecrites pour utiliser ces helpers, chacune gardant son `missing_message`/`error_context` d'origine via les parametres. Imports morts nettoyes en aval (`logging`/`_logger`/`xml.etree.ElementTree as ET` retires de `xml_actions.py` et `xml_rules_groups.py` -- plus utilises directement ; `ET` conserve dans `xml_views.py` car encore utilise comme annotation de type dans `_extract_buttons_from_arch_elem`).
+
+`py_compile` OK sur les 4 fichiers modifies. **Verification fonctionnelle manuelle** (pas de pytest local) : script ad hoc sur un fichier XML synthetique couvrant les 8 fonctions (actions, cron avec code/interval/user_id, base.automation, ir.rule avec `lineno` estime, res.groups, ir.model.fields, menuitem forme concise ET forme record, ir.ui.view avec bouton et `invisible="state not in [...]"` converti en `states`) + verification du cas fichier manquant sur 5 fonctions -- tous les resultats conformes, aucune regression detectee, `lineno` de la regle correctement estime a la ligne du `id="rule_1"`.
+
+**A deleguer a Ayan** : `pytest code_intelligence/tests/test_a1_2_1.py code_intelligence/tests/test_a1_2_2.py code_intelligence/tests/test_a1_2_3.py code_intelligence/tests/test_a1_2_4.py code_intelligence/tests/test_a1_2_5.py code_intelligence/tests/test_a1_4_1.py code_intelligence/tests/test_a2_1_1.py code_intelligence/tests/test_a3_1_1.py code_intelligence/tests/test_b1_1.py code_intelligence/tests/test_b1_3.py code_intelligence/tests/test_j34_35_deep_custom_modules.py code_intelligence/tests/test_j5_live_validation.py code_intelligence/tests/test_s2_3_server_actions.py -v` (tous les tests exercant les parsers XML touches).
+
+**Prochaine etape** : point 3 (recherche elargie du meme pattern de repetition a d'autres paquets), puis point 4 (restructuration Option C).
+
+**Extension immediate du point 2 -- `js_extractor.py`** : meme pattern trouve en cherchant dans les extracteurs voisins (`csv_extractor.py`, `manifest_parser.py` verifies, pas de repetition comparable -- `manifest_parser.py` a bien 3 blocs `raw_X = ...; X = [str(d) for d in raw_X] if isinstance(...)` mais 2 lignes chacun, sous le seuil ou factoriser apporterait un gain net). `parse_client_group_checks` avait 3 boucles `for match in PATTERN.finditer(line): ...` quasi identiques (OWL t-if, JS hasGroup, session has_group), ne differant que par le pattern et le `pattern_type`. Remplace par une liste ordonnee `CLIENT_GROUP_CHECK_PATTERNS = [(pattern, pattern_type), ...]` + une boucle imbriquee unique -- l'ordre est preserve (OWL en premier, motif documente dans un commentaire : le pattern OWL est plus specifique et doit reclamer le group_id de la ligne avant les patterns generiques). `py_compile` OK. Verification fonctionnelle manuelle : JS avec `hasGroup`+`has_group`, XML avec `t-if="user.hasGroup(...)"`, fichier manquant -- tous conformes (priorite OWL confirmee, `pattern_type` correct).
+
+**A deleguer a Ayan** : `pytest code_intelligence/tests/ -k js_extractor -v` ou equivalent (a confirmer le nom exact du fichier de test s'il existe).
+
+## Section 662 : INCIDENT -- perte non commitee du refactor XML Section 661, restauree + refactor reapplique a l'identique
+
+Date : 10/09/2026
+Contexte : nouvelle session, lecture de demarrage (rules.md/plan.md/contexte.txt) puis question pmm ("je peux sup xml_extractor?"). Relecture disque prealable (discipline "jamais d'assomption depuis le journal") avant de repondre.
+
+**Incident trouve** : `git status --short` montrait `xml_actions.py`, `xml_rules_groups.py`, `xml_views.py` et `python_models.py` en `D` (supprimes, non commites), alors que `xml_extractor.py`/`python_extractor.py` les importent toujours. Import du paquet confirme casse (`ModuleNotFoundError`). Grep des 8 fonctions parser XML sur tout le depot : aucune trace ailleurs -- le contenu (refactor Section 661 inclus) n'a pas ete deplace, il a ete perdu par une suppression non finalisee, tres probablement une session parallele en plein chantier Option C (Section 661/660) interrompue. Nouvelle occurrence du pattern de collision deja vu (Sections 209/282/348/487/546/659/661).
+
+**Restauration** : `git checkout -- <les 4 chemins>` depuis HEAD (`77bd6ab`, "js manage", dernier commit ou ces fichiers sont encore intacts). Import reconfirme OK apres restauration.
+
+**Consequence decouverte apres coup** : le `git checkout` a ramene la version PRE-refactor Section 661 des 3 fichiers XML (ancien pattern duplique `exists()+read+parse+try/except`+boucles manuelles) -- le refactor table-driven de la Section 661 (helpers `_read_and_parse_xml`/`parse_xml_root`/`iter_records_by_model`/`iter_field_attrs`) n'avait jamais ete commite et a ete detruit par la suppression avant d'avoir pu etre recupere. Les helpers eux-memes ont survecu (vivent dans `xml_models.py`, jamais supprime, seulement modifie -- confirme present sur le disque).
+
+**Refactor Section 661 reapplique a l'identique** (meme perimetre, memes 8 fonctions, memes differences fines preservees -- `missing_message` present sur 3/8 fonctions seulement, `error_context` variable par fonction, `field_elem` brut conserve pour `sa.code`/`_extract_buttons_from_arch_elem`, contenu brut + `lines` conserve pour l'estimation de `lineno` de `parse_ir_rules_from_xml`) :
+- `xml_actions.py` : 3 fonctions reecrites (`parse_actions_from_xml`, `parse_server_actions_from_xml`, `parse_base_automations_from_xml`), imports `logging`/`ET` retires (plus utilises directement).
+- `xml_rules_groups.py` : 2 fonctions reecrites (`parse_ir_rules_from_xml` via `_read_and_parse_xml` pour garder le contenu brut, `parse_groups_from_xml` via `parse_xml_root`), memes imports retires.
+- `xml_views.py` : 3 fonctions reecrites (`parse_xml_fields_from_xml`, `parse_menuitems_from_xml` -- seule la 2e boucle record-based touchee, la 1re boucle `<menuitem>` concise inchangee --, `parse_views_from_xml`). `logging` retire, `ET` conserve (annotation de type dans `_extract_buttons_from_arch_elem`).
+
+`py_compile` OK sur les 3 fichiers + import complet du paquet extractor confirme OK. **Verification fonctionnelle manuelle** (pas de pytest local) : script ad hoc sur un fichier XML synthetique couvrant les 8 fonctions restaurees + refactorisees (action, cron avec code/interval, automation, rule avec lineno estime, groupe, ir.model.fields, menuitem concis ET record, vue avec bouton `invisible="state not in [...]"` converti en `states`) + cas fichier manquant sur `parse_actions_from_xml` (silencieux) et `parse_server_actions_from_xml` (warning) -- tous les resultats conformes a la verification originale de la Section 661, aucune regression detectee.
+
+**Clarification apportee a pmm sur `xml_extractor.py`** (question initiale de ce tour) : ne PAS le supprimer -- ce n'est pas un doublon mais le point d'agregation public du paquet extractor, importe par 3 fichiers de production (`graph/build/disk_loader.py`, `graph/nodes/models.py`, `graph/symbols/symbol_merger.py`), ~15 tests et 3 scripts. Le plan Section 660 proposait de le FUSIONNER avec `xml_models.py` en `xml_core.py` (5->4 fichiers), jamais execute -- pas de le supprimer sans remplacement.
+
+**Fichiers modifies ce tour** : `xml_actions.py`, `xml_rules_groups.py`, `xml_views.py` (contenu restaure identique a la Section 661, refactor deja applique dans cette meme ecriture -- pas de commit intermediaire pre-refactor sur le disque), `python_models.py` (restaure tel quel, aucun refactor prevu dessus), `todo/contexte.txt` (cette section).
+
+**A deleguer a Ayan (reprise de la delegation Section 661, perimetre inchange)** : `pytest code_intelligence/tests/test_a1_2_1.py code_intelligence/tests/test_a1_2_2.py code_intelligence/tests/test_a1_2_3.py code_intelligence/tests/test_a1_2_4.py code_intelligence/tests/test_a1_2_5.py code_intelligence/tests/test_a1_4_1.py code_intelligence/tests/test_a2_1_1.py code_intelligence/tests/test_a3_1_1.py code_intelligence/tests/test_b1_1.py code_intelligence/tests/test_b1_3.py code_intelligence/tests/test_j34_35_deep_custom_modules.py code_intelligence/tests/test_j5_live_validation.py code_intelligence/tests/test_s2_3_server_actions.py -v` (tests exercant les parsers XML) -- **execution reelle jamais confirmee pour ce refactor, ni avant ni apres l'incident**, prioritaire avant de considerer le chantier XML clos. Egalement recommande : `git add -A && git commit` rapide sur ce perimetre precis (4 fichiers extractor) des que le pytest ci-dessus est vert, pour eviter qu'une nouvelle collision de session ne detruise ce travail une seconde fois.
+
+**Prochaine etape** : attendre confirmation pytest de pmm, puis reprendre point 3 (Section 661 : recherche elargie du pattern de repetition a d'autres paquets) et point 4 (restructuration Option C, Section 661/660).
+
+## Section 663 : pytest Section 662 lance par pmm -- 2 erreurs de collecte, sans rapport avec le chantier XML (repointage `core.output` incomplet, Section 659)
+
+Date : 10/09/2026
+Contexte : pmm lance la commande deleguee Section 662. 2 erreurs de collecte (`test_j34_35_deep_custom_modules.py`, `test_s2_3_server_actions.py`) : `ModuleNotFoundError: No module named 'core.output.confidence_tags'; 'core.output' is not a package`.
+
+**Diagnostic** : sans rapport avec le refactor XML -- consequence de la fusion `core/output/` (5 fichiers) -> `core/output.py` (module plat) de la Section 659, dont le repointage des 12 sites d'import annonce comme fait n'avait en realite jamais ete verifie exhaustivement par grep apres coup (execute par une session non tracee, cf. note de la Section 659 : "ce plan a ete execute ... par une session non retracee dans ce journal"). Grep exhaustif au moment du diagnostic : 9 sites casses (`from core.output.<submodule> import ...`), dont 2 responsables des erreurs pytest ci-dessus. **Collision en direct constatee pendant le diagnostic** : 6 des 9 sites (`security/analyzer.py`, `security/evidence.py`, `overrides/unguarded_super.py`, `overrides/relational_chains.py`, `data_constraints/analyzer.py`, `server_actions/analyzer.py`) etaient encore casses au moment de l'erreur pytest de pmm, mais deja corriges (`from core.output import confidence_label`, forme plate correcte) au moment ou ce diagnostic a commence quelques minutes plus tard -- une session parallele les a corriges entre-temps (meme pattern de collision recurrent, `git status --short` confirme ces 6 fichiers en `M`, non commits).
+
+**Perimetre restant corrige ce tour (les 6 ci-dessus dejas fixes par ailleurs, non retouches)** : 7 sites repointes de `core.output.<submodule> import X` vers `core.output import X` (les noms existent tous dans le module plat, verifie par lecture complete de `core/output.py`) :
+- `code_intelligence/agent/ci_agent_node/loop/postprocess.py` (degenerate_guards)
+- `code_intelligence/agent/ci_agent_node/loop/react_loop.py` (degenerate_guards)
+- `core/graph/graph_compat.py` (2 imports : degenerate_guards + html_sanitizer)
+- `core/graph/graph_nodes.py` (html_sanitizer -- fichier deja `M` par une session tierce pour un changement fonctionnel reel de `ci_evidence_decision()`/`has_execution_failure`, seule la ligne d'import cassee touchee, reste du fichier non relu ni modifie davantage)
+- `tests/test_confidence_tags.py`, `tests/test_html_sanitizer.py`
+
+Grep final : 0 occurrence restante de `core.output.<submodule>` dans tout le depot. `py_compile` OK sur les 6 fichiers de production/test touches ce tour.
+
+**Fichiers modifies ce tour** : les 6 fichiers listes ci-dessus, `todo/contexte.txt` (cette section). Les 6 fichiers deja corriges par la session parallele (confidence_tags) non retouches.
+
+**A deleguer a pmm** : relancer la meme commande pytest (Section 662, inchangee) -- les 2 erreurs de collecte devraient disparaitre. Si vert, `git add -A && git commit` recommande sur l'ensemble (refactor XML Section 662 + fix imports `core.output` Section 663 + les 6 fichiers confidence_tags de la session parallele), pour securiser ce lot avant toute nouvelle collision.
+
+## Section 664 : Confirmation pytest de la Section 663 + nettoyage residuel + reprise du rattrapage H2 (a) core/{evidence,graph,llm,routing,session}
+
+Date : 10/09/2026
+Contexte : reprise de session. Etat disque au demarrage tres eloigne du dernier tour connu -- commits `131a351` (checkpoint restructuration + fix monkeypatch) puis `77bd6ab` "js manage" (execution non tracee du plan Section 659, consolidation `core/output/` -> `core/output.py`) trouves sur HEAD, 23 fichiers M en working tree correspondant exactement au perimetre deja diagnostique Section 663.
+
+**Verifications menees ce tour (aucune non refaite en double, seulement confirmees)** :
+- Grep `core\.output\.(confidence_tags|html_sanitizer|degenerate_guards|prompts)` : 0 import residuel (2 mentions restantes = commentaires, pas du code -- corriges par hygiene, voir plus bas).
+- `py_compile` sur les 11 fichiers de production/test touches par la consolidation Section 659/663 : OK.
+- **Import Python reel** (`core.output`, `core.graph.graph_compat`, `core.graph.graph_nodes`, les 8 modules `code_intelligence.knowledge_rules`/`code_intelligence.agent` repointes) : OK.
+- Pytest cible : `tests/test_confidence_tags.py tests/test_html_sanitizer.py code_intelligence/tests/test_j34_35_deep_custom_modules.py code_intelligence/tests/test_s2_3_server_actions.py tests/test_bloc_p1_tranche2_ci_first_evidence_routing.py` -> **55 passed** (les 2 erreurs de collecte de la Section 663 ont disparu, confirme).
+- Sweep elargi (perimetre H2(a) core/{evidence,graph,llm,routing,session} du tour precedent, non rejoue depuis les commits 131a351/77bd6ab) : `tests/test_graph.py tests/test_bloc_b2_evidence_collector.py tests/test_bloc_b2_pilot_wiring.py tests/test_bloc_b2_full_wiring.py tests/test_h3_evidence_check.py code_intelligence/tests/test_j46_j48_reasoning_trace.py` -> **201 passed**.
+
+**Nettoyage** : 2 commentaires obsoletes corriges (`core.output.confidence_tags` -> `core.output`, plus de sous-module) dans `code_intelligence/knowledge_rules/data_constraints/analyzer.py` et `code_intelligence/tests/test_bloc_b1_evidence_analyze_data_constraints.py` -- aucun impact fonctionnel, texte de documentation uniquement.
+
+**Total confirme ce tour : 256 tests passed, 0 failed, sur l'ensemble du perimetre touche par les 2 chantiers (H2(a) core/{evidence,graph,llm,routing,session} + Section 659/663 core/output).**
+
+**Fichiers modifies ce tour** : `code_intelligence/knowledge_rules/data_constraints/analyzer.py`, `code_intelligence/tests/test_bloc_b1_evidence_analyze_data_constraints.py`, `todo/contexte.txt`.
+
+**Prochaine etape recommandee** : sweep pytest complet delegue (suite entiere, hors integration) puis `git add -A && git commit` unique sur tout le lot en attente (23 M + les 2 fichiers de nettoyage de ce tour) -- rien commite depuis `77bd6ab`.
+
+## Section 665 : Suite complete deleguee -- 1 erreur de collecte trouvee et corrigee (api/ split incomplet, sans rapport avec core/)
+
+Date : 10/09/2026
+Contexte : suite complete `pytest tests/ code_intelligence/tests/ document_rag/tests/ erp_data/tests/ -m "not integration"` deleguee, lancee par l'utilisateur.
+
+**Erreur de collecte** : `tests/test_api_ingestion.py` -- `ImportError: cannot import name 'ReindexRequestV1' from 'api.main'`. Sans rapport avec le chantier core/ en cours : `api/main.py` a ete scinde en `api/{main,routes_system,routes_ask,routes_ingestion,schemas}.py` dans le meme commit `77bd6ab` ("js manage") que la consolidation `core/output/`, mais le test n'a pas ete repointe.
+
+**Diagnostic approfondi** : `api/routes_ingestion.py` contient un shim deliberement construit pour ce cas -- `_main_ref(name, fallback)` qui verifie `sys.modules['api.main']` pour un attribut du meme nom avant de retomber sur l'import direct, exactement pour preserver la compatibilite des `patch("api.main.X")` existants apres un split de module. Mais `api/main.py` n'importait pas `ChromaManager`/`reindex_if_changed`/`write_ingestion_event` a son niveau module -- le shim n'avait donc rien a intercepter, et `patch("api.main.ChromaManager", ...)` aurait leve une AttributeError (attribut inexistant). Design du split laisse incomplet dans `77bd6ab`.
+
+**Corrige** : 
+1. `tests/test_api_ingestion.py` -- import repointe vers les vrais emplacements (`api.schemas.ReindexRequestV1`, `api.routes_ingestion.{ingestion_status,reindex_v1}`).
+2. `api/main.py` -- ajout des 3 imports manquants (`reindex_if_changed`, `write_ingestion_event`, `ChromaManager`) pour que le shim `_main_ref()` ait un attribut a intercepter, conforme a l'intention de conception deja presente dans `routes_ingestion.py` (pas de nouvelle mecanique inventee).
+
+**Validation** : `py_compile` OK ; import reel confirme les 3 attributs desormais presents sur `api.main` ; `pytest tests/test_api_ingestion.py -v` -> **3 passed**.
+
+**Fichiers modifies** : `tests/test_api_ingestion.py`, `api/main.py`, `todo/contexte.txt`.
+
+**Prochaine etape** : relancer la suite complete deleguee (inchangee) pour confirmer plus aucune erreur de collecte, puis commit unique.
+
 

@@ -12,7 +12,7 @@ import time
 
 from core.schemas import AssistantResponse, SourceReference, OmittedForAuthorization
 from core.evidence.evidence_sufficiency import assess_evidence_sufficiency
-from core.output.degenerate_guards import (
+from core.output import (
     _detect_any_degenerate_repetition,
     _strip_any_degenerate_repetition,
 )

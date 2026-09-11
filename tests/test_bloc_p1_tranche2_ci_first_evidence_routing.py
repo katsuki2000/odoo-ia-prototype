@@ -63,8 +63,25 @@ def test_ci_evidence_decision_sufficient_stays_on_format_output():
     assert ci_evidence_decision(state) == "format_output"
 
 
-def test_ci_evidence_decision_insufficient_falls_back_to_generate():
-    state = {"ci_evidence_sufficiency": {"status": EvidenceSufficiencyStatus.INSUFFICIENT.value}}
+def test_ci_evidence_decision_insufficient_without_doc_request_stays_on_format_output():
+    """doc_rag is no longer an automatic fallback on insufficient CI evidence --
+    without an explicit documentary anchor in the question, CI's own (insufficient)
+    answer is kept as-is rather than silently replaced by generate()'s RAG output."""
+    state = {
+        "question": "Qui peut valider une commande d'achat ?",
+        "ci_evidence_sufficiency": {"status": EvidenceSufficiencyStatus.INSUFFICIENT.value},
+    }
+    assert ci_evidence_decision(state) == "format_output"
+
+
+def test_ci_evidence_decision_insufficient_with_doc_request_falls_back_to_generate():
+    """doc_rag intervenes only when explicitly requested -- an explicit documentary
+    anchor (wiki/documentation/procedure/politique interne) is the sole trigger for
+    the RAG fallback on insufficient CI evidence."""
+    state = {
+        "question": "Selon le wiki, qui peut valider une commande d'achat ?",
+        "ci_evidence_sufficiency": {"status": EvidenceSufficiencyStatus.INSUFFICIENT.value},
+    }
     assert ci_evidence_decision(state) == "generate"
 
 
@@ -120,45 +137,62 @@ def test_ci_evidence_decision_insufficient_is_logged(caplog):
 
 
 @pytest.mark.parametrize(
-    "tool_observations,hop_count,final_answer,expected_decision",
+    "question,tool_observations,hop_count,final_answer,expected_decision",
     [
         # SUFFICIENT: au moins une observation pertinente, aucun marqueur
-        # d'incertitude dans la reponse finale.
+        # d'incertitude dans la reponse finale. Pas de requete documentaire
+        # explicite -- sans objet ici, SUFFICIENT ne consulte jamais ce signal.
         (
+            "Qui peut approuver un achat au-dela de 5000 ?",
             ["Verrou trouve : has_group('account.group_account_manager') requis au-dela de 5000."],
             1,
             "Le responsable comptable doit approuver au-dela de 5000.",
             "format_output",
         ),
-        # INSUFFICIENT: aucun outil execute (hop_count == 0).
+        # INSUFFICIENT, question sans ancrage documentaire explicite : doc_rag
+        # n'est plus un fallback automatique -- reste sur la reponse (insuffisante)
+        # de CI plutot que de basculer silencieusement vers generate() (RAG).
         (
+            "Qui peut approuver un achat au-dela de 5000 ?",
+            [],
+            0,
+            "Je n'ai pas de données disponibles dans le graphe de connaissances pour répondre à cette question.",
+            "format_output",
+        ),
+        # INSUFFICIENT, question sans ancrage documentaire explicite (outils
+        # executes mais aucune observation pertinente, que des "not found").
+        (
+            "Qui peut approuver un achat au-dela de 5000 ?",
+            ["Model 'custom.unknown.model' was not found in the indexed knowledge graph."],
+            1,
+            "Je n'ai pas trouve d'information pertinente.",
+            "format_output",
+        ),
+        # INSUFFICIENT, mais question portant un ancrage documentaire explicite
+        # ("selon le wiki") -- seul cas ou generate() (RAG) est autorise a tourner.
+        (
+            "Selon le wiki, qui peut approuver un achat au-dela de 5000 ?",
             [],
             0,
             "Je n'ai pas de données disponibles dans le graphe de connaissances pour répondre à cette question.",
             "generate",
         ),
-        # INSUFFICIENT: outils executes, mais aucune observation pertinente
-        # (que des "not found").
-        (
-            ["Model 'custom.unknown.model' was not found in the indexed knowledge graph."],
-            1,
-            "Je n'ai pas trouve d'information pertinente.",
-            "generate",
-        ),
     ],
 )
 def test_ci_evidence_decision_matches_assess_evidence_sufficiency_end_to_end(
-    tool_observations, hop_count, final_answer, expected_decision,
+    question, tool_observations, hop_count, final_answer, expected_decision,
 ):
     """Test d'integration cible (pas un mock) entre les deux fonctions reelles
     des Tranches 1 et 2 -- assess_evidence_sufficiency() (Tranche 1,
     core/evidence_sufficiency.py) produit le verdict, ci_evidence_decision()
-    (Tranche 2, core/graph.py) le consomme via son .to_display_dict(). Ce
-    test attrape une derive de schema entre les deux modules qu'un test
-    purement unitaire sur des dicts a la main (groupe A ci-dessus) ne
-    verrait pas -- ex. un renommage de champ 'status' d'un cote sans l'autre."""
+    (Tranche 2, core/graph.py) le consomme via son .to_display_dict(), gate
+    desormais par la presence d'un ancrage documentaire explicite dans la
+    question (doc_rag n'est plus un fallback automatique). Ce test attrape
+    une derive de schema entre les deux modules qu'un test purement unitaire
+    sur des dicts a la main (groupe A ci-dessus) ne verrait pas -- ex. un
+    renommage de champ 'status' d'un cote sans l'autre."""
     result = assess_evidence_sufficiency(tool_observations, hop_count, final_answer)
-    state = {"ci_evidence_sufficiency": result.to_display_dict()}
+    state = {"question": question, "ci_evidence_sufficiency": result.to_display_dict()}
     assert ci_evidence_decision(state) == expected_decision
 
 
@@ -265,12 +299,14 @@ def test_format_output_no_ocr_leak_when_ci_answer_is_sufficient():
 
 
 def test_format_output_ocr_warning_applies_when_ci_fell_back_to_rag():
-    """Cas symetrique : CI a tourne mais son verdict est != SUFFICIENT, donc
-    generate() (RAG) a reellement produit cette reponse -- l'avertissement
-    OCR redevient legitime, meme si route est reste 'code_intelligence'
-    (le routeur amont ne reflete plus qui a produit la reponse sous le
-    cablage CI-d'abord)."""
+    """Cas symetrique : CI a tourne mais son verdict est != SUFFICIENT ET la
+    question portait un ancrage documentaire explicite (seul cas ou generate()
+    est autorise a tourner sous le nouveau gating) -- l'avertissement OCR
+    redevient legitime, meme si route est reste 'code_intelligence' (le
+    routeur amont ne reflete plus qui a produit la reponse sous le cablage
+    CI-d'abord)."""
     state = {
+        "question": "Selon le wiki, quelle est la procedure ?",
         "response": AssistantResponse(answer="Reponse RAG de repli.", confidence=0.5, sources=[]),
         "retrieved_chunks": [_low_ocr_chunk()],
         "route": QueryRoute.CODE_INTELLIGENCE.value,
@@ -279,6 +315,24 @@ def test_format_output_ocr_warning_applies_when_ci_fell_back_to_rag():
     result = format_output(state)
     assert result["response"].ocr_warning is True
     assert "qualité de lecture est limitée" in result["response"].answer
+
+
+def test_format_output_insufficient_without_doc_request_does_not_fall_back_to_rag():
+    """doc_rag n'est plus un fallback automatique : meme verdict INSUFFICIENT,
+    mais sans ancrage documentaire explicite dans la question -- generate()
+    n'a jamais tourne (ci_evidence_decision() serait reste sur format_output),
+    donc les chunks universels de retrieve() ne doivent pas se voir attribuer
+    un avertissement OCR qui appartient a une reponse RAG jamais produite."""
+    state = {
+        "question": "Qui peut valider une commande d'achat ?",
+        "response": AssistantResponse(answer="Reponse (insuffisante) de CI.", confidence=0.2, sources=[]),
+        "retrieved_chunks": [_low_ocr_chunk()],
+        "route": QueryRoute.CODE_INTELLIGENCE.value,
+        "ci_evidence_sufficiency": {"status": EvidenceSufficiencyStatus.INSUFFICIENT.value},
+    }
+    result = format_output(state)
+    assert result["response"].ocr_warning is not True
+    assert "qualité de lecture est limitée" not in result["response"].answer
 
 
 def test_format_output_documentaire_route_without_ci_sufficiency_no_longer_leaks_ocr():

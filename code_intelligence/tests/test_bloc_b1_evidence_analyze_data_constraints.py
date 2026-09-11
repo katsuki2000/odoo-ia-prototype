@@ -44,7 +44,7 @@ def test_empty_matches_produce_no_evidence(py_file, monkeypatch):
     assert result.evidence == []
     # summary_text keeps asserting the ELEVEE confidence tag -- that is the
     # pre-existing public text contract, untouched by this Evidence work
-    # (section 464), only reformatted via core.output.confidence_tags (section 629).
+    # (section 464), only reformatted via core.output (section 629).
     assert "[Confiance: ÉLEVÉE" in result.summary_text
 
 

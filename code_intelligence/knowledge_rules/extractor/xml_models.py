@@ -4,9 +4,14 @@ code_intelligence/extractor/xml_models.py
 Data models and parsing helpers for Odoo XML files.
 """
 
+import logging
 import re
+import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
-from typing import List, Optional
+from pathlib import Path
+from typing import Iterator, List, Optional, Set, Tuple, Union
+
+_logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -147,3 +152,77 @@ def extract_refs_from_eval(eval_str: str) -> List[str]:
     # Pattern to match ref('xml_id') or ref("xml_id")
     pattern = r"ref\s*\(\s*['\"]([^'\"]+)['\"]\s*\)"
     return re.findall(pattern, eval_str)
+
+
+def _read_and_parse_xml(
+    filepath: Path,
+    *,
+    missing_message: Optional[str] = None,
+    error_context: str = "",
+) -> Optional[Tuple[str, ET.Element]]:
+    """
+    Shared boilerplate for the record-based XML parsers below: existence check,
+    read + parse, and consistent error logging. Returns None (never raises) on
+    any failure so callers can keep their original 'return []' short-circuit;
+    returns (raw_content, root) on success for the rare caller (line-number
+    estimation) that needs the raw text alongside the parsed tree.
+
+    `missing_message` is logged at WARNING level if filepath does not exist;
+    if None, the missing-file case is silent (matches parsers that return []
+    without logging). `error_context` (e.g. "for actions") is spliced into the
+    parse-failure log message to preserve each caller's distinct wording.
+    """
+    if not filepath.exists():
+        if missing_message:
+            _logger.warning(missing_message, filepath)
+        return None
+
+    try:
+        content = filepath.read_text(encoding="utf-8")
+        return content, ET.fromstring(content)
+    except Exception as e:
+        if error_context:
+            _logger.error("Failed to parse XML file %s %s: %s", filepath, error_context, e)
+        else:
+            _logger.error("Failed to parse XML file %s: %s", filepath, e)
+        return None
+
+
+def parse_xml_root(
+    filepath: Path,
+    *,
+    missing_message: Optional[str] = None,
+    error_context: str = "",
+) -> Optional[ET.Element]:
+    """Like `_read_and_parse_xml`, but for the common case that only needs the parsed root."""
+    result = _read_and_parse_xml(filepath, missing_message=missing_message, error_context=error_context)
+    return result[1] if result else None
+
+
+def iter_records_by_model(
+    root: ET.Element, model_names: Union[str, Set[str]]
+) -> Iterator[Tuple[str, ET.Element]]:
+    """Yield (xml_id, record) for every <record> whose model attribute matches."""
+    names = {model_names} if isinstance(model_names, str) else model_names
+    for record in root.findall(".//record"):
+        if record.attrib.get("model") not in names:
+            continue
+        yield record.attrib.get("id", ""), record
+
+
+def iter_field_attrs(
+    record: ET.Element,
+) -> Iterator[Tuple[str, str, Optional[str], Optional[str], ET.Element]]:
+    """
+    Yield (field_name, field_text, field_ref, field_eval, field_elem) for each named
+    <field>. `field_text` is stripped; the raw `field_elem` is also yielded for the
+    rare caller that needs the unstripped `.text` (e.g. preserving code whitespace).
+    """
+    for field_elem in record.findall("field"):
+        field_name = field_elem.attrib.get("name")
+        if not field_name:
+            continue
+        field_text = (field_elem.text or "").strip()
+        field_ref = field_elem.attrib.get("ref")
+        field_eval = field_elem.attrib.get("eval")
+        yield field_name, field_text, field_ref, field_eval, field_elem

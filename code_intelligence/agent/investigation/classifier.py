@@ -27,7 +27,7 @@ _GOVERNANCE_PATTERNS = [
     r"\bqui\s+a\s+(le\s+)?(droit|acces|accès|permission|pouvoir)\b",
     r"\bqui\s+est\s+autoris[eé]\b",
     r"\b(peut|peuvent)[-\s](?:t[-\s])?(il|elle|on|ils|elles)\s+(?:\w+\s+)?(?:voir|acceder|accéder|modifier|supprimer|creer|créer|declencher|déclencher|lancer|executer|exécuter|faire|purger|utiliser)\b",
-    # Section 214: non-inverted French construction ("un utilisateur peut voir",
+    
     # subject before the verb) -- the pattern above only covers the inverted
     # interrogative form ("peut-il voir"). Both ask the same access/permission
     # question; only the word order differs.
@@ -69,7 +69,7 @@ _CALCULATION_CODE_PATTERNS = [
     r"\b(calcul[eé]|formule|compute|d[eé]pend|impact|recalcul)\b",
 ]
 
-# Section 399 (todo/contexte.txt): split off from the group above. Bare
+# split off from the group above. Bare
 # financial vocabulary ("montant total", "somme", "taxe"...) is ambiguous
 # between a code-level computation question and a live-data aggregation
 # question -- "montant total des ventes" is answered by an ORM query, not a
@@ -97,7 +97,7 @@ _ERP_DATA_PATTERNS = [
     r"\b(montant\s+total\s+des\s+ventes|chiffre\s+d'affaires|ca\s+de|dans\s+la\s+base)\b",
 ]
 
-# Bloc 17 (todo/contexte.txt section 645) : vocabulaire de localisation UI
+# vocabulaire de localisation UI
 # ("ou se trouve/accede-t-on/dans quel onglet/ou puis-je trouver/comment
 # naviguer"), distinct du vocabulaire "comment faire pour X" (action metier,
 # reste DOCUMENTARY_POLICY -- voir TestBenchmarkRegressionPin, DOC-01/02/03/
@@ -193,7 +193,7 @@ def classify_question_intent(
                     if BehavioralTag.WORKFLOW_RULE.value in b_tags:
                         return QuestionIntent.WORKFLOW_STATE
 
-    # 8bis. Bloc 17 (todo/contexte.txt section 645) : localisation UI
+    # localisation UI
     # ("ou se trouve", "comment accede-t-on", ...) -- verifie juste avant le
     # fallback documentaire, jamais avant governance/workflow/calcul/
     # heritage/automation/erp_data qui ont deja tous eu leur chance ci-dessus.

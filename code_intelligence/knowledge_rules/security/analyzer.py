@@ -30,7 +30,7 @@ from code_intelligence.knowledge_rules.security.visitor import (
     SecurityLockASTVisitor,
 )
 from core.evidence.evidence import Evidence
-from core.output.confidence_tags import confidence_label
+from core.output import confidence_label
 
 _logger = logging.getLogger(__name__)
 

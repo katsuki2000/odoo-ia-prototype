@@ -22,8 +22,12 @@ from config.settings import API_HOST, API_PORT
 from document_rag.ingestion.ingest_all import DOCS_DIR
 from document_rag.ingestion.scheduler import (
     PeriodicScanScheduler,
+    run_scheduled_scan,
     run_startup_scan,
 )
+from document_rag.ingestion.incremental import reindex_if_changed
+from document_rag.ingestion.logging_utils import write_ingestion_event
+from document_rag.vectorstore.chroma_manager import ChromaManager
 
 from api import routes_system
 from api import routes_ask
