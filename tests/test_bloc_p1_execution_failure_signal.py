@@ -116,6 +116,9 @@ class TestScript7Scenario:
         assert ci_evidence_decision(state) == "format_output"
 
     def test_genuine_negative_without_crash_falls_back_to_rag(self):
+        """Genuine negative (no execution failure) with an explicit documentary
+        request in the question -- the sole case where generate() (RAG) is
+        still reachable now that doc_rag is no longer an automatic fallback."""
         result = assess_evidence_sufficiency(
             tool_observations=[
                 "Field 'custom_field_x' was not found in the indexed knowledge graph.",
@@ -126,8 +129,31 @@ class TestScript7Scenario:
         assert result.status is EvidenceSufficiencyStatus.INSUFFICIENT
         assert result.has_execution_failure is False
 
-        state = {"ci_evidence_sufficiency": result.to_display_dict()}
+        state = {
+            "question": "Selon le wiki interne, quelle est la procedure ?",
+            "ci_evidence_sufficiency": result.to_display_dict(),
+        }
         assert ci_evidence_decision(state) == "generate"
+
+    def test_genuine_negative_without_crash_and_no_doc_request_stays_on_format_output(self):
+        """Same genuine negative, but the question carries no explicit
+        documentary anchor -- doc_rag no longer intervenes automatically,
+        CI's own (insufficient) answer is kept as-is."""
+        result = assess_evidence_sufficiency(
+            tool_observations=[
+                "Field 'custom_field_x' was not found in the indexed knowledge graph.",
+            ],
+            hop_count=1,
+            final_answer="Reponse quelconque.",
+        )
+        assert result.status is EvidenceSufficiencyStatus.INSUFFICIENT
+        assert result.has_execution_failure is False
+
+        state = {
+            "question": "Quel champ personnalise n'a pas ete trouve ?",
+            "ci_evidence_sufficiency": result.to_display_dict(),
+        }
+        assert ci_evidence_decision(state) == "format_output"
 
 
 class TestAttentionParagraph:

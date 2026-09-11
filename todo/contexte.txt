@@ -1612,3 +1612,63 @@ Contexte : suite complete `pytest tests/ code_intelligence/tests/ document_rag/t
 **Prochaine etape** : relancer la suite complete deleguee (inchangee) pour confirmer plus aucune erreur de collecte, puis commit unique.
 
 
+
+## Section 660 : Reduction du nombre de sous-paquets de knowledge_rules/ -- fusion ontology/ et data_constraints/ en fichiers plats
+
+Date : 10/09/2026
+Contexte : mandat Trunk ("trop de sous-package meme pour toi ca doit etre complique a lire"), suite au constat que knowledge_rules/ comptait 9 sous-paquets directs, plusieurs minuscules. Inventaire prealable : ontology/ (262 lignes de logique reelle hors __init__), data_constraints/ (281 lignes), semgrep_rules/ (140 lignes, mais fixtures de test Semgrep -- pas du code Python importable -- et unique consommateur = data_constraints/).
+
+**Fusions effectuees (meme principe que core/output.py, Section 659)** :
+- ontology/{tags.py,query.py,coverage.py,__init__.py} -> knowledge_rules/ontology.py (284 lignes), logique identique, sections separees par commentaires d'en-tete reprenant les docstrings d'origine.
+- data_constraints/{runner.py,analyzer.py,__init__.py} -> knowledge_rules/data_constraints.py (298 lignes), meme principe. L'appel interne `runner.run_semgrep_analysis(...)` devient `run_semgrep_analysis(...)` (meme namespace desormais) -- verifie compatible monkeypatch (l'attribut reste resoluble sur le module au moment de l'appel).
+- semgrep_rules/ (fixtures + regles .yaml, non-Python-importable) deplace vers knowledge_rules/data_constraints_semgrep_rules/ (renomme pour expliciter la propriete, n'etait consomme que par data_constraints/). config_dir par defaut dans analyze_data_constraints_from_filepaths() ajuste de ".parent.parent" a ".parent" (le module est maintenant un fichier plat directement sous knowledge_rules/, un niveau de nesting en moins).
+
+**Verification prealable (avant toute suppression)** : lecture integrale des 2 paquets sources ; grep exhaustif des importeurs externes (18 fichiers pour ontology, 5 pour data_constraints, aucun overlap) ; confirmation que tous utilisent le chemin de sous-module qualifie (`.ontology.tags`, `.data_constraints.runner`, etc.), jamais l'import package-level -- necessitant repointage systematique, pas seulement une suppression.
+
+**Modifications** : 23 fichiers externes repointes (18 + 5, scripts Python scopes sur liste explicite, meme discipline que Sections 642/643/644), `code_intelligence/tests/test_semgrep_runner.py` corrige en complement (chemin `semgrep_rules` -> `data_constraints_semgrep_rules`, meme classe de bug que la Section 651 -- chemin FS calcule au runtime, jamais capte par un grep d'imports Python).
+
+**Verification** :
+- py_compile + import direct des 2 nouveaux modules et de tous les callers cles : OK.
+- pytest cible (data_constraints : 38 passed ; ontology/tags : 64 passed, 1 deselected, 1 echec **pre-existant et sans rapport** -- `test_technical_tag_matches_architecture_md_exactly`, deja documente Section 642) : conforme aux attentes.
+- Sweep complet (tache de fond, 5m19s) : 1352 passed, 18 skipped, 58 deselected, 2 failed + 1 error. Triage des 3 anomalies :
+  1. `test_technical_tag_matches_architecture_md_exactly` -- deja connu (Section 642), sans rapport.
+  2. `erp_data/tests/test_odoo_connector.py::test_model_whitelist_enforcement` -- `Connection refused` (XML-RPC), probleme d'infra (instance Odoo non joignable a l'instant du test), pas de code.
+  3. `tests/test_bloc_p1_execution_failure_signal.py::TestScript7Scenario::test_genuine_negative_without_crash_falls_back_to_rag` -- **verifie pre-existant** via `git stash` (echoue identiquement avec mes modifications entierement mises de cote) -- bug de routage `ci_evidence_decision` dans `core/graph/graph.py`, totalement hors du perimetre de ce tour (aucune dependance vers ontology/data_constraints dans sa chaine d'import).
+- **Zero regression imputable a cette fusion.**
+
+**Etat knowledge_rules/ apres ce tour** : 7 paquets directs (deterministic, extractor, graph, overrides, security, server_actions -- ontology et data_constraints desormais des fichiers plats) + 2 fichiers plats supplementaires a la racine (ontology.py, data_constraints.py) + 1 dossier de donnees non-Python (data_constraints_semgrep_rules/, plus un "sous-paquet" au sens strict, aucun __init__.py).
+
+**Candidat signale mais non traite ce tour (mandat explicite recu -- refactor algorithmique, pas juste split -- traite en section suivante)** : `server_actions/` (455 lignes hors __init__, 5 fichiers) -- au-dela du seuil de 300 lignes pour un fichier unique.
+
+**Fichiers modifies ce tour** : 23 fichiers externes repointes, `code_intelligence/tests/test_semgrep_runner.py`, `todo/contexte.txt` (cette section). 2 nouveaux fichiers (`ontology.py`, `data_constraints.py`), 1 dossier deplace (`data_constraints_semgrep_rules/`), 2 anciens paquets supprimes (`ontology/`, `data_constraints/` + ancien `semgrep_rules/`).
+
+**Prochaine etape** : refactor algorithmique de `server_actions/` pour tenir sous 300 lignes en un seul fichier (mandat explicite : reduire le nombre de lignes en gardant la logique, pas seulement scinder en 2 fichiers), puis commit de checkpoint.
+
+## Section 666 : doc_rag n'est plus un fallback RAG automatique -- gating sur ancrage documentaire explicite
+
+Date : 11/09/2026
+Contexte : mandat utilisateur -- verifier que le CI/erp_data fonctionnent, et simplifier le fallback RAG : desormais toute reponse doit venir de code_intelligence_agent/erp_data (orm_agent_loop), et doc_rag (generate(), Domaine C) ne doit intervenir que si la question le demande explicitement (mention documentation/wiki/procedure/politique interne...), plutot que se declencher automatiquement des que ci_evidence_sufficiency == INSUFFICIENT.
+
+**Etat disque au demarrage** : session sur un poste different (meme depot partage, working tree identique -- confirme par `git status --short` identique aux 2 emplacements) -- chantier de restructuration server_actions/ontology/data_constraints deja en cours en parallele (Sections 659-665), non touche ce tour.
+
+**Changement** : nouveau gate unique `core/graph/graph_nodes.py::_has_explicit_doc_request(state)` (reutilise `has_documentary_anchor()` de `code_intelligence.agent.investigation`, deja utilise par `classify_question_intent()` pour DOCUMENTARY_POLICY -- pas de nouvelle liste de mots-cles inventee, reutilisation du signal existant). Deux consommateurs :
+- `ci_evidence_decision()` : la branche `generate` (RAG) n'est plus atteinte automatiquement des que `status == INSUFFICIENT` sans `has_execution_failure` -- desormais gated par `_has_explicit_doc_request(state)`. Sans ancrage documentaire explicite, reste sur `format_output` (reponse -- meme insuffisante -- de CI conservee telle quelle).
+- `format_output()` : le calcul de `ci_fell_back_to_rag` (utilise pour l'avertissement OCR / fallback de sources) inclut desormais la meme condition, pour rester coherent avec le fait que `generate()` n'a reellement tourne que dans ce cas.
+
+**Collision constatee et resolue (pas un conflit, une convergence)** : `tests/test_bloc_p1_execution_failure_signal.py::TestCiEvidenceDecisionRouting` portait deja des tests nommes autour de "doc_anchor" (`test_insufficient_without_execution_failure_and_no_doc_anchor_stays_on_format_output`, deja vert contre mon implementation sans aucune modification) -- signe qu'une session parallele avait deja anticipe/commence ce meme chantier independamment. Un seul test etait reste non aligne : `TestScript7Scenario::test_genuine_negative_without_crash_falls_back_to_rag` (state sans cle "question", attendait "generate" -- casse par le nouveau gating). Corrige : ajout d'un ancrage documentaire explicite dans la question pour preserver l'intention du test (le cas "avec demande explicite tombe bien sur generate"), plus un nouveau test symetrique `test_genuine_negative_without_crash_and_no_doc_request_stays_on_format_output` pour couvrir le defaut (sans ancrage -> format_output). 11/11 passed sur ce fichier apres correction.
+
+**Fichiers modifies** :
+- `core/graph/graph_nodes.py` : nouveau helper `_has_explicit_doc_request()`, gating applique dans `ci_evidence_decision()` et `format_output()`, docstring de `ci_evidence_decision()` mise a jour.
+- `tests/test_bloc_p1_tranche2_ci_first_evidence_routing.py` : `test_ci_evidence_decision_insufficient_falls_back_to_generate` scinde en 2 tests (avec/sans ancrage) ; parametrize de `test_ci_evidence_decision_matches_assess_evidence_sufficiency_end_to_end` etendu avec une colonne `question` et un 4e cas (ancrage explicite) ; `test_format_output_ocr_warning_applies_when_ci_fell_back_to_rag` complete avec une question ancree ; nouveau test `test_format_output_insufficient_without_doc_request_does_not_fall_back_to_rag`.
+- `tests/test_bloc_p1_execution_failure_signal.py` : `test_genuine_negative_without_crash_falls_back_to_rag` corrige (question ancree ajoutee), nouveau test symetrique sans ancrage.
+
+**Verification reelle effectuee** :
+- `tests/test_bloc_p1_tranche2_ci_first_evidence_routing.py` : 23/23 passed (17 unitaires + 6 marques `integration`, graphe compile reel via `build_graph()`).
+- `tests/test_bloc_p1_execution_failure_signal.py` : 11/11 passed.
+- `code_intelligence/tests/ erp_data/tests/ -m "not integration"` (898 tests collectes, perimetre demande par l'utilisateur -- "verifier que le CI et erp_data marchent") : **829 passed, 18 skipped, 1 failed, 1 error** (49 deselected = marques `integration`, non lances ce tour).
+  - L'echec (`code_intelligence/tests/test_semantic_tags.py::test_technical_tag_matches_architecture_md_exactly`) est **confirme sans rapport** avec ce tour -- deja documente et pre-existant (Section 642/660, `CLIENT_GROUP_CHECK` du chantier `ontology.py` en cours ailleurs).
+  - L'erreur (`erp_data/tests/test_odoo_connector.py::test_model_whitelist_enforcement`, `Connection refused`) est un probleme d'infra (pas d'instance Odoo XML-RPC joignable a l'instant du test), pas du code -- delegue a l'utilisateur si une verification live est souhaitee.
+- Les 49 tests `integration` de `code_intelligence/tests/`+`erp_data/tests/` n'ont pas ete rejoues ce tour (hors perimetre explicite de la demande, et certains dependent probablement aussi d'une instance Odoo vivante) -- a faire si besoin.
+- Regle "jamais `pytest tests/ -v` (suite complete) telle quelle" respectee : aucune commande de ce tour n'a lance la suite complete `tests/` sans filtre de repertoire/marker.
+
+**Non fait ce tour** : commit (rien commite -- le depot porte deja le chantier server_actions/ontology/data_constraints en cours, decision de commit laissee a l'utilisateur pour eviter toute collision, cf. discipline "jamais de commit sans verification prealable" documentee ailleurs dans ce journal).
