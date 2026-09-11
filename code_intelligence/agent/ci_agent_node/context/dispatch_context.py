@@ -1,13 +1,5 @@
 """
 code_intelligence/ci_agent_node/dispatch_context.py
-
-Mutable state threaded through every deterministic pre-dispatch block of
-the CI agent's ReAct orchestration. Extracted from the former
-ci_agent_node.py monolith (refactor, see todo/contexte.txt) -- each
-pre-dispatch block used to repeat the same
-append-observation/increment-hop/log-hop sequence inline; record_observation()
-below is the single place that sequence now lives, called identically by
-every predispatch_*.py module. Behavior unchanged.
 """
 
 import time

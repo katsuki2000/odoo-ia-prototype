@@ -21,7 +21,7 @@ from code_intelligence.agent.investigation import (
     concept_suggests_code_intelligence_v2,
     generate_investigation_plan,
 )
-from code_intelligence.knowledge_rules.ontology.tags import BehavioralTag, TechnicalTag
+from code_intelligence.knowledge_rules.ontology import BehavioralTag, TechnicalTag
 
 
 # ── 1. Schema Validation & Serialization ─────────────────────────────────────

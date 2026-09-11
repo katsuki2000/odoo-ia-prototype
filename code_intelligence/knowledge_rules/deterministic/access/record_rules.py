@@ -18,7 +18,7 @@ from code_intelligence.knowledge_rules.deterministic.access.record_rules_models 
     RuleDetail,
     RuleEvaluationResult,
 )
-from code_intelligence.knowledge_rules.ontology.query import tags_for_node_attrs
+from code_intelligence.knowledge_rules.ontology import tags_for_node_attrs
 from code_intelligence.utils import format_xml_id_citation
 from core.evidence.evidence import Evidence, EvidenceSourceType, make_evidence
 

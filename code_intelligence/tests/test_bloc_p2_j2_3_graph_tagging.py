@@ -37,7 +37,7 @@ from code_intelligence.knowledge_rules.extractor.xml_extractor import (
 from code_intelligence.knowledge_rules.extractor.csv_extractor import OdooAccessEntry
 from code_intelligence.knowledge_rules.graph import ParsedModule, build_module_symbol_registry
 from code_intelligence.knowledge_rules.graph import OdooGraphBuilder
-from code_intelligence.knowledge_rules.ontology.tags import BehavioralTag, TechnicalTag
+from code_intelligence.knowledge_rules.ontology import BehavioralTag, TechnicalTag
 
 METHOD_SOURCE = """class CustomTestPlain(models.Model):
     _name = "custom.test.plain"

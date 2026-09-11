@@ -7,7 +7,7 @@ Sub-graph node and edge builders for menus, workflows, and form buttons.
 from typing import Dict
 import networkx as nx
 
-from code_intelligence.knowledge_rules.ontology.tags import BehavioralTag
+from code_intelligence.knowledge_rules.ontology import BehavioralTag
 from code_intelligence.utils import resolve_model_xmlref
 from .models import ParsedModule, ResolvedSymbolRegistry
 

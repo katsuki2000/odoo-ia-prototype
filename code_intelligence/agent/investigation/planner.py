@@ -51,7 +51,7 @@ from code_intelligence.agent.investigation.schemas import (
     QuestionIntent,
     _fold_accents,
 )
-from code_intelligence.knowledge_rules.ontology.tags import BehavioralTag, TechnicalTag
+from code_intelligence.knowledge_rules.ontology import BehavioralTag, TechnicalTag
 
 logger = logging.getLogger(__name__)
 

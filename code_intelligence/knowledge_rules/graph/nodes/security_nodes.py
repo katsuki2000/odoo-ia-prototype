@@ -7,7 +7,7 @@ Sub-graph node and edge builders for security, rules, ACLs, server actions, and 
 from typing import Callable, Dict, Optional
 import networkx as nx
 
-from code_intelligence.knowledge_rules.ontology.tags import BehavioralTag, TechnicalTag
+from code_intelligence.knowledge_rules.ontology import BehavioralTag, TechnicalTag
 from code_intelligence.utils import resolve_model_xmlref
 from .models import ParsedModule, ResolvedSymbolRegistry
 

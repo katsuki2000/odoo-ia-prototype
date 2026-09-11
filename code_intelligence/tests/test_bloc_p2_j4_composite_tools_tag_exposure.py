@@ -41,8 +41,8 @@ from code_intelligence.knowledge_rules.extractor.xml_extractor import (
 from code_intelligence.knowledge_rules.extractor.csv_extractor import OdooAccessEntry
 from code_intelligence.knowledge_rules.graph import ParsedModule, build_module_symbol_registry
 from code_intelligence.knowledge_rules.graph import OdooGraphBuilder
-from code_intelligence.knowledge_rules.ontology.tags import BehavioralTag, TechnicalTag
-from code_intelligence.knowledge_rules.ontology.query import get_tagged_nodes_for_model
+from code_intelligence.knowledge_rules.ontology import BehavioralTag, TechnicalTag
+from code_intelligence.knowledge_rules.ontology import get_tagged_nodes_for_model
 from code_intelligence.knowledge_rules.deterministic.access.access_evaluator import who_has_access_to
 from code_intelligence.knowledge_rules.deterministic.structure.field_impact import field_change_impact
 from code_intelligence.knowledge_rules.deterministic.navigation.button_path import button_execution_path

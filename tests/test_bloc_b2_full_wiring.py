@@ -317,7 +317,7 @@ class TestAnalyzeDataConstraintsWrapperRecordsEvidence:
             lambda G, model_name: ["fake/path/sale_order.py"],
         )
         monkeypatch.setattr(
-            "code_intelligence.knowledge_rules.data_constraints.analyzer.analyze_data_constraints_from_filepaths",
+            "code_intelligence.knowledge_rules.data_constraints.analyze_data_constraints_from_filepaths",
             lambda model_name, filepaths: _FakeResult(),
         )
 

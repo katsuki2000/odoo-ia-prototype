@@ -1,6 +1,4 @@
 """
-code_intelligence/ci_context_extractors.py
-
 Heuristic regexes and extractors for question intent, amounts, companies,
 move types, and sticky concept rehydration.
 """

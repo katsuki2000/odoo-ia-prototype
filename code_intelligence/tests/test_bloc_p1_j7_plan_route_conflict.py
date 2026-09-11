@@ -35,7 +35,7 @@ from code_intelligence.agent.investigation import (
     QuestionIntent,
     validate_plan_against_route,
 )
-from code_intelligence.knowledge_rules.ontology.tags import BehavioralTag, TechnicalTag
+from code_intelligence.knowledge_rules.ontology import BehavioralTag, TechnicalTag
 
 
 def _governance_plan_with_one_step() -> InvestigationPlan:

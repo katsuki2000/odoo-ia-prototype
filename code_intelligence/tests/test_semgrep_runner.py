@@ -6,11 +6,11 @@ Verifies subprocess execution of Semgrep with --json output and structured Semgr
 """
 
 from pathlib import Path
-from code_intelligence.knowledge_rules.data_constraints.runner import run_semgrep_analysis
+from code_intelligence.knowledge_rules.data_constraints import run_semgrep_analysis
 
 
 def test_semgrep_runner_sql_constraints():
-    base_dir = Path(__file__).resolve().parent.parent / "knowledge_rules" / "semgrep_rules"
+    base_dir = Path(__file__).resolve().parent.parent / "knowledge_rules" / "data_constraints_semgrep_rules"
     config_path = base_dir / "sql_constraints.yaml"
     target_path = base_dir / "sql_constraints.py"
 
@@ -26,7 +26,7 @@ def test_semgrep_runner_sql_constraints():
 
 
 def test_semgrep_runner_domain_relational():
-    base_dir = Path(__file__).resolve().parent.parent / "knowledge_rules" / "semgrep_rules"
+    base_dir = Path(__file__).resolve().parent.parent / "knowledge_rules" / "data_constraints_semgrep_rules"
     config_path = base_dir / "domain_relational.yaml"
     target_path = base_dir / "domain_relational.py"
 

@@ -15,7 +15,7 @@ from code_intelligence.agent.investigation.schemas import (
     QuestionIntent,
     _fold_accents,
 )
-from code_intelligence.knowledge_rules.ontology.tags import BehavioralTag
+from code_intelligence.knowledge_rules.ontology import BehavioralTag
 
 logger = logging.getLogger(__name__)
 

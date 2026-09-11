@@ -1,4 +1,3 @@
-# Test fixtures for semgrep rule: odoo-sql-constraints-declaration.
 # le parseur de tests scanne tous les commentaires du fichier et
 # confond une explication en prose avec une vraie annotation.
 
@@ -62,7 +61,7 @@ class InvoiceOverride(models.Model):
     _inherit = 'account.move'
 
     # Surcharge dynamique par compréhension + concaténation — HORS
-    # PÉRIMÈTRE J11 (gap documenté dans sql_constraints.yaml), ne doit
+    # (gap documenté dans sql_constraints.yaml), ne doit
     # donc PAS matcher pour l'instant.
     # ok: odoo-sql-constraints-declaration
     _sql_constraints = [

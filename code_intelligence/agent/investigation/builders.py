@@ -11,7 +11,7 @@ from code_intelligence.agent.investigation.schemas import (
     InvestigationStep,
     PlanAction,
 )
-from code_intelligence.knowledge_rules.ontology.tags import BehavioralTag, TechnicalTag
+from code_intelligence.knowledge_rules.ontology import BehavioralTag, TechnicalTag
 
 
 def plan_governance_security(

@@ -10,7 +10,7 @@ from typing import Dict, List, Optional
 
 import networkx as nx
 
-from code_intelligence.knowledge_rules.ontology.tags import BehavioralTag, TechnicalTag
+from code_intelligence.knowledge_rules.ontology import BehavioralTag, TechnicalTag
 from ..nodes.security_nodes import add_security_group_nodes
 from ..nodes.ui_nodes import (
     add_menu_nodes,

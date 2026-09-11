@@ -18,11 +18,11 @@ from __future__ import annotations
 
 import pytest
 
-from code_intelligence.knowledge_rules.data_constraints.analyzer import (
+from code_intelligence.knowledge_rules.data_constraints import (
     DataConstraintsAnalysis,
     analyze_data_constraints_from_filepaths,
 )
-from code_intelligence.knowledge_rules.data_constraints.runner import SemgrepMatch
+from code_intelligence.knowledge_rules.data_constraints import SemgrepMatch
 from core.evidence.evidence import EvidenceSourceType
 
 
@@ -38,7 +38,7 @@ def test_empty_matches_produce_no_evidence(py_file, monkeypatch):
     a fabricated negative Evidence, since it may mean either 'genuinely no
     findings' or 'Semgrep execution failed' -- indistinguishable today."""
     monkeypatch.setattr(
-        "code_intelligence.knowledge_rules.data_constraints.runner.run_semgrep_analysis", lambda *a, **k: []
+        "code_intelligence.knowledge_rules.data_constraints.run_semgrep_analysis", lambda *a, **k: []
     )
     result = analyze_data_constraints_from_filepaths("sale.order", [str(py_file)])
     assert result.evidence == []
@@ -56,7 +56,7 @@ def test_single_match_produces_one_high_confidence_evidence(py_file, monkeypatch
         lines="_sql_constraints = [('x_uniq', 'unique(x)', 'X must be unique')]",
     )
     monkeypatch.setattr(
-        "code_intelligence.knowledge_rules.data_constraints.runner.run_semgrep_analysis", lambda *a, **k: [match]
+        "code_intelligence.knowledge_rules.data_constraints.run_semgrep_analysis", lambda *a, **k: [match]
     )
     result = analyze_data_constraints_from_filepaths("sale.order", [str(py_file)])
 
@@ -87,7 +87,7 @@ def test_multiple_matches_produce_one_evidence_each_with_correct_check_id(py_fil
         ),
     ]
     monkeypatch.setattr(
-        "code_intelligence.knowledge_rules.data_constraints.runner.run_semgrep_analysis", lambda *a, **k: matches
+        "code_intelligence.knowledge_rules.data_constraints.run_semgrep_analysis", lambda *a, **k: matches
     )
     result = analyze_data_constraints_from_filepaths("sale.order", [str(py_file)])
 
@@ -107,7 +107,7 @@ def test_evidence_id_deterministic_across_identical_calls(py_file, monkeypatch):
         lines="_sql_constraints = [...]",
     )
     monkeypatch.setattr(
-        "code_intelligence.knowledge_rules.data_constraints.runner.run_semgrep_analysis", lambda *a, **k: [match]
+        "code_intelligence.knowledge_rules.data_constraints.run_semgrep_analysis", lambda *a, **k: [match]
     )
     r1 = analyze_data_constraints_from_filepaths("sale.order", [str(py_file)])
     r2 = analyze_data_constraints_from_filepaths("sale.order", [str(py_file)])
@@ -118,7 +118,7 @@ def test_nonexistent_filepath_skipped_no_evidence(tmp_path, monkeypatch):
     missing = tmp_path / "gone.py"
     called = []
     monkeypatch.setattr(
-        "code_intelligence.knowledge_rules.data_constraints.runner.run_semgrep_analysis",
+        "code_intelligence.knowledge_rules.data_constraints.run_semgrep_analysis",
         lambda *a, **k: called.append(a) or [],
     )
     result = analyze_data_constraints_from_filepaths("ghost.model", [str(missing)])
@@ -134,7 +134,7 @@ def test_returns_dataclass_with_matches_field(py_file, monkeypatch):
         message="msg", lines="code",
     )
     monkeypatch.setattr(
-        "code_intelligence.knowledge_rules.data_constraints.runner.run_semgrep_analysis", lambda *a, **k: [match]
+        "code_intelligence.knowledge_rules.data_constraints.run_semgrep_analysis", lambda *a, **k: [match]
     )
     result = analyze_data_constraints_from_filepaths("sale.order", [str(py_file)])
     assert isinstance(result, DataConstraintsAnalysis)
@@ -151,7 +151,7 @@ def test_summary_text_unaffected_by_evidence_presence(py_file, monkeypatch):
         message="SQL constraint.", lines="_sql_constraints = [...]",
     )
     monkeypatch.setattr(
-        "code_intelligence.knowledge_rules.data_constraints.runner.run_semgrep_analysis", lambda *a, **k: [match]
+        "code_intelligence.knowledge_rules.data_constraints.run_semgrep_analysis", lambda *a, **k: [match]
     )
     result = analyze_data_constraints_from_filepaths("sale.order", [str(py_file)])
     assert "odoo-sql-constraints-declaration" in result.summary_text

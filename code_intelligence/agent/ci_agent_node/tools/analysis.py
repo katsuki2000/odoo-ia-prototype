@@ -120,7 +120,7 @@ def analyze_data_constraints(model_name: str) -> str:
     """Detect _sql_constraints declarations and relational field domain= conditions for a given model."""
     if _is_wildcard_model(model_name):
         return WILDCARD_MODEL_ERROR_MSG
-    from code_intelligence.knowledge_rules.data_constraints.analyzer import analyze_data_constraints_from_filepaths
+    from code_intelligence.knowledge_rules.data_constraints import analyze_data_constraints_from_filepaths
 
     G = _require_graph()
     model_name = _resolve_model_param(model_name)

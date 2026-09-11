@@ -12,7 +12,7 @@ import unicodedata
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from code_intelligence.knowledge_rules.ontology.tags import BehavioralTag, TechnicalTag
+from code_intelligence.knowledge_rules.ontology import BehavioralTag, TechnicalTag
 from core.schemas import QueryRoute
 
 

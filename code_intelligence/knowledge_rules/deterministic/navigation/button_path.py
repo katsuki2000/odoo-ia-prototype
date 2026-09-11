@@ -18,7 +18,7 @@ from code_intelligence.knowledge_rules.deterministic.access.group_resolver impor
 )
 from code_intelligence.knowledge_rules.deterministic.navigation.menu_view_finder import search_dynamic_view_or_menus
 from code_intelligence.knowledge_rules.deterministic.navigation.xml_view_finder import _find_field_in_xml_views
-from code_intelligence.knowledge_rules.ontology.query import tags_for_node_attrs
+from code_intelligence.knowledge_rules.ontology import tags_for_node_attrs
 from code_intelligence.utils import format_file_link, format_xml_id_citations
 
 

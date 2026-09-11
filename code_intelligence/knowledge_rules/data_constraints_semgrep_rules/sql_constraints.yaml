@@ -9,7 +9,6 @@ rules:
     patterns:
       - pattern: _sql_constraints = [...]
 
-    # Portée volontairement limitée à ce stade (J11) :
     # - matche uniquement l'assignation d'un littéral de liste
     #   (`_sql_constraints = [(...), (...)]`), forme standard Odoo.
     # - ne matche PAS une lecture (`self._sql_constraints`), car le
