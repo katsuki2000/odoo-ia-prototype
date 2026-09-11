@@ -36,7 +36,6 @@ class TechnicalTag(str, Enum):
     COMPUTED_FIELD = "computed_field"
     SERVER_ACTION = "server_action"
     CRON = "cron"
-    CLIENT_GROUP_CHECK = "client_group_check"
 
 
 # === query (ex ontology/query.py) ===========================================

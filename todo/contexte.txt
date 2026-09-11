@@ -1700,3 +1700,21 @@ Contexte : mandat utilisateur ("continue le chantier") -- suite du travail deja 
 **Etat knowledge_rules/ apres ce tour** : 6 paquets directs (deterministic, extractor, graph, overrides, security -- server_actions rejoint ontology/data_constraints comme fichier plat) + 4 fichiers plats a la racine (ontology.py, data_constraints.py, server_actions.py, server_actions_support.py) + 1 dossier de donnees non-Python (data_constraints_semgrep_rules/).
 
 **Prochaine etape** : commit du lot complet (server_actions Section 667 + le reste du chantier parallele deja en cours -- context_extractors/dispatch_context/analysis.py/investigation/* + suppression definitive de ontology/data_constraints/semgrep_rules, deja verifie sans regression Section 660/665), decision laissee a l'utilisateur / a la session qui menait ce chantier.
+
+## Section 668 : Dernier echec CI/erp_data corrige -- TechnicalTag.CLIENT_GROUP_CHECK etait un ajout mort, jamais cable
+
+Date : 11/09/2026
+Contexte : mandat utilisateur ("continue") -- correction du seul echec restant signale Section 666/667 (`test_technical_tag_matches_architecture_md_exactly`).
+
+**Root cause (pas de fix chirurgical sur le test)** : `TechnicalTag.CLIENT_GROUP_CHECK` ajoute dans le commit `b586693` sans jamais etre consomme -- grep exhaustif (`TechnicalTag\.CLIENT`) : 0 occurrence dans tout le depot (ni graph_builder/nodes.py pour taguer un noeud, ni investigation/builders.py, ni aucun test). `parse_client_group_checks()` (extractor JS/OWL, Sprint A1.4.1, `test_a1_4_1.py`) existe bien mais opere a un niveau totalement distinct (extraction de patterns client-side `hasGroup()`), jamais reliee au graphe de connaissances ni a l'enum `TechnicalTag` -- confirme par lecture complete de `test_a1_4_1.py`, aucune assertion sur des tags de graphe. L'enum viole donc le contrat "vocabulaire ferme, verrouille contre todo/architecture.md" que le test Bloc P2 Jour 1 existe pour proteger : ajouter `client_group_check` a `architecture.md` aurait ete un correctif de surface (aligner la doc sur un ajout mort au lieu de retirer l'ajout mort) -- retire a la place.
+
+**Corrige** : `code_intelligence/knowledge_rules/ontology.py::TechnicalTag` -- membre `CLIENT_GROUP_CHECK` supprime (1 ligne). Aucun autre fichier touche (0 importeur externe de ce membre).
+
+**Verification** :
+- `py_compile` OK.
+- `code_intelligence/tests/test_semantic_tags.py code_intelligence/tests/test_bloc_p2_j2_3_graph_tagging.py code_intelligence/tests/test_bloc_p2_j4_composite_tools_tag_exposure.py code_intelligence/tests/test_bloc_p1_j1_2_investigation_plan.py code_intelligence/tests/test_bloc_p1_j7_plan_route_conflict.py` (tous les consommateurs de `TechnicalTag`) -> **65 passed, 1 deselected**.
+- Sweep complet `code_intelligence/tests/ erp_data/tests/ -m "not integration"` (898 tests collectes) -> **831 passed, 18 skipped, 49 deselected, 0 failed, 0 error** -- plus aucun echec sur ce perimetre (le dernier connu depuis Sections 642/660/666/667 est resolu).
+
+**Fichiers modifies** : `code_intelligence/knowledge_rules/ontology.py`, `todo/contexte.txt`.
+
+**Etat** : perimetre demande par l'utilisateur ce tour (ci/erp_data + gating doc_rag + reduction des sous-paquets knowledge_rules/) entierement vert, 0 echec connu restant sur `code_intelligence/tests/ erp_data/tests/` hors `integration`. Les tests `integration` (49, graphe compile reel/scenarios lourds) et la suite racine `tests/` n'ont pas ete rejoues en totalite ce tour -- a faire si besoin, en respectant la regle "jamais `pytest tests/ -v` (suite complete) telle quelle".
