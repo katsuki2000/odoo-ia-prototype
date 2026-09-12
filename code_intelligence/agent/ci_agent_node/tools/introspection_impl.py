@@ -217,7 +217,7 @@ def read_precise_source_code(filepath_str: str, line_start: int, line_end: int, 
         from config.settings import (
             CORE_ADDONS_PATH, CUSTOM_ADDONS_PATH, OCA_SAMPLE_ADDONS_PATH,
         )
-        repo_root = Path(__file__).resolve().parent.parent.parent
+        repo_root = Path(__file__).resolve().parent.parent.parent.parent.parent
         candidates = [
             repo_root / filepath_str,
             Path(OCA_SAMPLE_ADDONS_PATH) / filepath_str if OCA_SAMPLE_ADDONS_PATH else None,

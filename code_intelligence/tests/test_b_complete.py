@@ -130,6 +130,20 @@ def test_b2_auxiliary_tools():
         f_path.unlink()
 
 
+def test_b2_4_source_reader_fallback_resolves_from_real_repo_root():
+    """Regression: the fallback branch of read_precise_source_code() once computed
+    repo_root two levels too shallow (parent.parent.parent from this deeply nested
+    module), so the last-two-path-parts glob searched from the wrong directory and
+    silently failed on any absolute path missing its leading slash (a real shape
+    produced by the LLM tool-calling agent)."""
+    stripped_path = str(Path(__file__).resolve()).lstrip("/")
+    assert not Path(stripped_path).exists()
+
+    result = read_precise_source_code(stripped_path, 1, 5)
+    assert "does not exist" not in result
+    assert "1 |" in result
+
+
 def test_a4_1_live_comparator_and_cache():
     """Test : TTL cache and detailed non-boolean divergence report."""
     clear_live_cache()

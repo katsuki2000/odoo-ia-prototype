@@ -6,6 +6,7 @@ for resolving natural language concepts to Odoo models.
 """
 
 import logging
+import weakref
 from pathlib import Path
 import re
 from dataclasses import dataclass, field
@@ -33,14 +34,21 @@ class ResolvedConcept:
     reason: str = ""
 
 
-_FUZZY_INDEX_CACHE: Dict[int, List[Tuple[str, str]]] = {}
+# Cache indexe directement sur l'objet graphe (pas sur id(G)) : un
+# WeakKeyDictionary retire automatiquement son entree des qu'un graphe est
+# garbage-collecte (callback synchrone), ce qui elimine tout risque de
+# collision d'id() reutilise entre deux objets-graphe differents et de
+# duree de vie courte (bug reel observe et reproduit, todo/contexte.txt
+# Section 721 -- avec Dict[int, ...] indexe par id(G), un graphe A detruit
+# puis un graphe B different alloue a la meme adresse memoire faisait
+# retourner silencieusement l'index fuzzy de A pour B).
+_FUZZY_INDEX_CACHE: "weakref.WeakKeyDictionary" = weakref.WeakKeyDictionary()
 
 
 def _build_fuzzy_index(G) -> List[Tuple[str, str]]:
     """Build (label, technical_model_name) pairs from graph nodes for fuzzy matching."""
-    cache_key = id(G)
-    if cache_key in _FUZZY_INDEX_CACHE:
-        return _FUZZY_INDEX_CACHE[cache_key]
+    if G in _FUZZY_INDEX_CACHE:
+        return _FUZZY_INDEX_CACHE[G]
 
     index: List[Tuple[str, str]] = []
 
@@ -83,7 +91,7 @@ def _build_fuzzy_index(G) -> List[Tuple[str, str]]:
         for synonym in synonyms:
             index.append((synonym.lower(), model_name))
 
-    _FUZZY_INDEX_CACHE[cache_key] = index
+    _FUZZY_INDEX_CACHE[G] = index
     logger.info("Built fuzzy index: %d entries from graph (%d nodes)", len(index), G.number_of_nodes())
     return index
 

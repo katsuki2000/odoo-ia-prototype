@@ -189,3 +189,102 @@ class TestIdempotence:
         once = _correct_can_view_amount_contradictions(text)
         twice = _correct_can_view_amount_contradictions(once)
         assert once == twice
+
+
+# ---------------------------------------------------------------------------
+# Section 639/716 (todo/contexte.txt) -- regression tests for the two gaps
+# found in production benchmark runs:
+#   (639) .search() only fixed the FIRST match -- a false-positive sentence
+#         matching the trigger phrase before the real contradiction consumed
+#         the single correction, leaving the real one untouched.
+#   (716) a bare "Oui"/"Non" verdict (isolated, or leading a fully argued
+#         paragraph) is invisible to the verb-phrase regexes entirely, even
+#         with (639) fixed -- observed verbatim in Q6.2 of the adversarial
+#         benchmark ("Oui, s'il appartient à la même société que l'avoir.").
+# ---------------------------------------------------------------------------
+
+class TestMultiMatchNoLongerConsumedByFalsePositive:
+    """Section 639: a first, harmless sentence containing the trigger phrase
+    (e.g. restating what a rule *would* mean) must not prevent a LATER, real
+    contradicting sentence from also being corrected."""
+
+    def test_both_allow_sentences_corrected_when_indeterminate(self):
+        fact_block = _format_can_view_amount_fact(80000, None, ["company_id"])
+        text = (
+            "En général, un responsable peut voir ce type de document sans "
+            "problème particulier. Mais ici, l'utilisateur peut voir cet "
+            "avoir de 80000€ sans restriction.\n\n" + fact_block
+        )
+        result = _correct_can_view_amount_contradictions(text)
+        prose = result.split("[FAIT")[0]
+        assert "peut voir" not in prose.lower() or "ne peut pas déterminer" in prose
+        assert "sans restriction" not in prose
+        assert "sans problème particulier" not in prose
+
+    def test_first_false_positive_no_longer_shields_second_real_sentence(self):
+        """The literal Section 639 shape: the FIRST regex match is a harmless
+        aside, the SECOND is the real inversion -- both must be neutralized."""
+        fact_block = _format_can_view_amount_fact(30000, True)
+        text = (
+            "Un utilisateur qui n'a pas le permission de voir en temps normal "
+            "resterait bloqué. Mais dans ce cas précis, l'utilisateur ne peut "
+            "pas voir ce document.\n\n" + fact_block
+        )
+        result = _correct_can_view_amount_contradictions(text)
+        prose = result.split("[FAIT")[0]
+        assert "ne peut pas voir ce document" not in prose
+        assert "PEUT voir" in prose
+
+
+class TestLeadingBareVerdictWhenIndeterminate:
+    """Section 716: a bare 'Oui'/'Non' -- isolated or leading a justified
+    paragraph -- must be corrected even without any verb-phrase trigger."""
+
+    def test_isolated_oui_before_correct_sentence_is_corrected(self):
+        fact_block = _format_can_view_amount_fact(80000, None, ["company_id", "amount_total"])
+        text = (
+            "Oui.\nLe reste de l'analyse est correctement incertain à ce "
+            "sujet.\n\n" + fact_block
+        )
+        result = _correct_can_view_amount_contradictions(text)
+        prose = result.split("[FAIT")[0]
+        assert not prose.strip().lower().startswith("oui")
+
+    def test_oui_with_justification_no_trigger_phrase_is_corrected(self):
+        """The exact Q6.2 shape (todo/contexte.txt Section 716): 'Oui, <condition>'
+        contains none of 'peut voir'/'autorisé à' -- must still be caught."""
+        fact_block = _format_can_view_amount_fact(80000, None, ["company_id"])
+        text = (
+            "### Peut-il voir l'avoir de 80 000 € ?\n\n"
+            "Oui, s'il appartient à la même société que l'avoir.\n\n"
+            "Reste du raisonnement.\n\n" + fact_block
+        )
+        result = _correct_can_view_amount_contradictions(text)
+        prose = result.split("[FAIT")[0]
+        assert "Oui, s'il appartient à la même société" not in prose
+        assert "ne peut pas déterminer avec certitude" in prose
+        # The restated-question header is not itself a verdict -- left untouched.
+        assert "Peut-il voir l'avoir de 80 000 € ?" in prose
+
+    def test_non_isolated_when_indeterminate_is_corrected(self):
+        fact_block = _format_can_view_amount_fact(80000, None, ["company_id"])
+        text = "Non, ce n'est pas possible.\n\n" + fact_block
+        result = _correct_can_view_amount_contradictions(text)
+        prose = result.split("[FAIT")[0]
+        assert not prose.strip().lower().startswith("non")
+
+
+class TestLeadingVerdictNeverAppliedOutsideIndeterminateBranch:
+    """A bare 'Oui'/'Non' is a CORRECT answer when the fact is determinate --
+    the leading-verdict pattern must never fire in the True/False branches,
+    only the specific wrong-direction ALLOW/DENY regexes."""
+
+    def test_correct_oui_left_untouched_when_verdict_true(self):
+        fact_block = _format_can_view_amount_fact(30000, True)
+        text = "Oui, l'utilisateur peut voir ce document.\n\n" + fact_block
+        assert _correct_can_view_amount_contradictions(text) == text
+
+    def test_correct_non_left_untouched_when_verdict_false(self):
+        fact_block = _format_can_view_amount_fact(80000, False)
+        text = "Non, l'utilisateur ne peut pas voir ce document.\n\n" + fact_block
+        assert _correct_can_view_amount_contradictions(text) == text

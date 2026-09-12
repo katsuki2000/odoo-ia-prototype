@@ -227,7 +227,26 @@ class TestVectorSearch(unittest.TestCase):
         self.chroma.add_chunks(texts, metadatas)
 
     def test_basic_vector_search(self):
-        results = vector_search(self.chroma, "créer facture", top_k=2)
+        # Mock au niveau ChromaManager.query() : ce test verifie la logique de
+        # filtrage/scoring de vector_search() (Option A, todo/contexte.txt
+        # Section 719/720), pas la qualite semantique reelle d'un modele
+        # d'embedding (qui varie selon EMBEDDING_BACKEND et n'a pas a etre
+        # un pre-requis pour ce test unitaire).
+        fake_raw = {
+            "results": [
+                {
+                    "id": "doc1-chunk0",
+                    "document": "Comment créer une facture dans Odoo",
+                    "distance": 0.1,
+                    "similarity": 0.9,
+                    "metadata": {"source": "doc1.pdf", "type": "doc_pdf", "module": "account"},
+                },
+            ],
+            "count": 1,
+        }
+        with patch.object(self.chroma, "query", return_value=fake_raw) as mock_query:
+            results = vector_search(self.chroma, "créer facture", top_k=2)
+        mock_query.assert_called_once_with(query_text="créer facture", top_k=2, where=None)
         self.assertTrue(len(results) > 0)
         self.assertIn("score", results[0])
 

@@ -30,6 +30,36 @@ _CAN_VIEW_DENY_ASSERTION_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Section 716 (todo/contexte.txt) : un verdict "Oui"/"Non" en tete de reponse ou de
+# ligne (avec ou sans justification -- "Oui." isole, ou "Oui, s'il appartient a la
+# meme societe...") est structurellement invisible aux deux regex ci-dessus, qui
+# exigent la presence litterale de "peut voir"/"est autorise a"/etc. Ce troisieme
+# motif capture un verdict court/argumente en position de reponse principale,
+# independamment des motifs verbaux -- utilise UNIQUEMENT dans la branche
+# indeterminee (un "Oui"/"Non" y est TOUJOURS une erreur par definition ; dans les
+# branches verdict=True/False, "Oui"/"Non" peut etre la bonne reponse, donc ce motif
+# ne doit jamais y etre applique).
+_CAN_VIEW_LEADING_VERDICT_RE = re.compile(
+    r"^[ \t]*(?:[-*>]+\s*)?(?:\*\*)?(?:Oui|Non)\b[^.\n]*\.?",
+    re.IGNORECASE | re.MULTILINE,
+)
+
+
+def _merge_overlapping_spans(matches: List["re.Match"]) -> List[Tuple[int, int]]:
+    """Merge overlapping/adjacent match spans into disjoint (start, end) tuples,
+    sorted by position -- lets several patterns match the same or overlapping
+    prose (e.g. the leading-verdict regex and the allow-assertion regex both
+    matching 'Oui, l'utilisateur peut voir...') without double-splicing or
+    corrupting offsets when the correction is applied."""
+    spans = sorted((m.start(), m.end()) for m in matches)
+    merged: List[Tuple[int, int]] = []
+    for start, end in spans:
+        if merged and start <= merged[-1][1]:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], end))
+        else:
+            merged.append((start, end))
+    return merged
+
 
 def _extract_can_view_amount_verdict(final_answer: str) -> Optional[bool]:
     """True/False when the injected can_view_amount_v2 fact states a definite verdict."""
@@ -40,7 +70,15 @@ def _extract_can_view_amount_verdict(final_answer: str) -> Optional[bool]:
 
 
 def _correct_can_view_amount_contradictions(final_answer: str) -> str:
-    """Detect and correct a synthesis-level inversion of the can_view_amount_v2 verdict."""
+    """Detect and correct a synthesis-level inversion of the can_view_amount_v2 verdict.
+
+    Section 639/716 (todo/contexte.txt) fix: replaces ALL contradicting matches found
+    in `prose`, not just the first one via `.search()` -- a single `.search()` could
+    consume its one match on an early false-positive sentence (e.g. a disclaimer that
+    happens to contain the trigger phrase) and leave the real, later contradicting
+    sentence uncorrected. Overlapping spans from different patterns are merged so the
+    same text isn't spliced twice.
+    """
     if not _has_can_view_amount_fact(final_answer):
         return final_answer
 
@@ -49,48 +87,55 @@ def _correct_can_view_amount_contradictions(final_answer: str) -> str:
     verdict = _extract_can_view_amount_verdict(final_answer)
 
     if is_indeterminate:
-        match = _CAN_VIEW_ALLOW_ASSERTION_RE.search(prose) or _CAN_VIEW_DENY_ASSERTION_RE.search(prose)
-        if not match:
-            return final_answer
+        patterns = (
+            _CAN_VIEW_ALLOW_ASSERTION_RE,
+            _CAN_VIEW_DENY_ASSERTION_RE,
+            _CAN_VIEW_LEADING_VERDICT_RE,
+        )
         replacement = (
             "Le moteur de règles ne peut pas déterminer avec certitude si "
             "l'utilisateur peut voir cet enregistrement pour ce montant "
             "(voir le fait déterministe ci-dessous)."
         )
-        logger.warning(
+        log_msg = (
             "Node [code_intelligence_agent]: synthesis asserted a definite "
             "allow/deny while the can_view_amount_v2 verdict was indéterminé "
-            "-- replacing sentence with explicit uncertainty statement."
+            "-- replacing sentence(s) with explicit uncertainty statement."
         )
     elif verdict is True:
-        match = _CAN_VIEW_DENY_ASSERTION_RE.search(prose)
-        if not match:
-            return final_answer
+        patterns = (_CAN_VIEW_DENY_ASSERTION_RE,)
         replacement = (
             "L'utilisateur PEUT voir cet enregistrement pour ce montant "
             "(voir le fait déterministe ci-dessous)."
         )
-        logger.warning(
+        log_msg = (
             "Node [code_intelligence_agent]: synthesis asserted user CANNOT "
             "view record while can_view_amount_v2() computed True -- replacing."
         )
     elif verdict is False:
-        match = _CAN_VIEW_ALLOW_ASSERTION_RE.search(prose)
-        if not match:
-            return final_answer
+        patterns = (_CAN_VIEW_ALLOW_ASSERTION_RE,)
         replacement = (
             "L'utilisateur NE PEUT PAS voir cet enregistrement pour ce "
             "montant (voir le fait déterministe ci-dessous)."
         )
-        logger.warning(
+        log_msg = (
             "Node [code_intelligence_agent]: synthesis asserted user CAN "
             "view record while can_view_amount_v2() computed False -- replacing."
         )
     else:
         return final_answer
 
-    start, end = match.span()
-    return final_answer[:start] + replacement + final_answer[end:]
+    all_matches = [m for pat in patterns for m in pat.finditer(prose)]
+    if not all_matches:
+        return final_answer
+
+    merged_spans = _merge_overlapping_spans(all_matches)
+    logger.warning(log_msg)
+
+    result = final_answer
+    for start, end in reversed(merged_spans):
+        result = result[:start] + replacement + result[end:]
+    return result
 
 
 def _can_view_amount_candidates(

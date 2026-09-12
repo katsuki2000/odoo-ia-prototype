@@ -79,8 +79,15 @@ def test_parse_raw_json_answer_returns_none_when_answer_field_missing():
     assert _parse_raw_json_answer('{"confidence": 0.5}') is None
 
 
+@patch('core.llm.llm_client.LLM_PROVIDER', 'groq')
 @patch('core.graph.graph.ChatGroq')
 def test_generate_raw_invoke_fallback_parses_json_answer(mock_chat_groq):
+    # Section 719 (todo/contexte.txt) fix: get_chat_llm() reads the module-level
+    # LLM_PROVIDER constant, not the ChatGroq class alone -- on a machine whose
+    # .env has LLM_PROVIDER=local/ollama (as during this project's Ollama
+    # benchmarking work), the ChatGroq patch above is silently bypassed and a REAL
+    # network call goes out to whatever LOCAL_LLM_BASE_URL points to. Forcing the
+    # provider here makes this test deterministic regardless of the machine's .env.
     # Structured-output call fails -> raw invoke fallback runs. The raw
     # response.content is JSON text (SYSTEM_PROMPT instructs JSON output) --
     # generate() must surface only the 'answer' field, not the raw JSON blob.

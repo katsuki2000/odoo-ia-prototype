@@ -22,6 +22,7 @@ project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(project_root))
 
 from core.graph.graph import code_intelligence_agent, _get_admin_rpc_client
+from core.evidence.evidence_collector import start_evidence_collection, collect_and_clear_evidence
 
 
 def _resolve_bloc7_test_group_ids():
@@ -111,10 +112,27 @@ BENCHMARK_QUESTIONS = [
 ]
 
 
-def run_benchmark():
+def run_benchmark(question_ids=None):
+    """question_ids: optional list of question IDs (e.g. ['Q6.1', 'Q6.2']) to run a
+    subset instead of the full 9-question suite -- useful when the LLM backend is
+    fragile/slow (cf. todo/contexte.txt Section 714) and re-running everything just
+    to re-check one or two questions wastes time. Unknown IDs are reported and
+    ignored; None/empty runs the full suite unchanged (backward compatible)."""
+    questions = BENCHMARK_QUESTIONS
+    if question_ids:
+        wanted = set(question_ids)
+        questions = [q for q in BENCHMARK_QUESTIONS if q["id"] in wanted]
+        unknown = wanted - {q["id"] for q in questions}
+        if unknown:
+            print(f"[WARN] Unknown question id(s) ignored: {sorted(unknown)}")
+        if not questions:
+            print("[ERROR] No matching question id -- nothing to run.")
+            return
+
     print("=" * 80)
     print(" CODE INTELLIGENCE — AUTOMATED BENCHMARK RUNNER ()")
-    print(" Target: 9 Adversarial Test Questions")
+    print(f" Target: {len(questions)} Adversarial Test Question(s)"
+          + (f" (filtered: {', '.join(q['id'] for q in questions)})" if question_ids else ""))
     print("=" * 80)
 
     # NOTE (2026-07-29): run_pipeline()/set_graph_ref() ici étaient du code mort --
@@ -143,7 +161,7 @@ def run_benchmark():
         print(f"[WARN] Group id resolution failed ({e}). Q6.1/Q6.2 will run as an ungrouped requester.")
         group_map = {"BOTH": [], "NONE": []}
 
-    for item in BENCHMARK_QUESTIONS:
+    for item in questions:
         qid = item["id"]
         category = item["category"]
         question = item["question"]
@@ -161,7 +179,17 @@ def run_benchmark():
         start_time = time.time()
         try:
             state = {"question": question, "chat_history": [], "user_groups": user_groups}
-            res = code_intelligence_agent(state)
+            # Mirrors core.graph.graph::query_graph()'s lifecycle (Section 704,
+            # todo/contexte.txt) -- this script calls code_intelligence_agent()
+            # directly instead of going through query_graph(), so it must own
+            # the turn-scoped Evidence accumulator itself or record_evidence()
+            # drops every call (no active turn). Dossier unused here, just drained
+            # to avoid leaking into the next question's iteration.
+            start_evidence_collection()
+            try:
+                res = code_intelligence_agent(state)
+            finally:
+                collect_and_clear_evidence()
             elapsed = time.time() - start_time
 
             answer_obj = res.get("response")
@@ -273,6 +301,23 @@ def run_benchmark():
 
 
 if __name__ == "__main__":
-    run_benchmark()
+    # Diagnostic instrumentation (Section 706, todo/contexte.txt) -- scoped to
+    # core.llm.llm_client only (not a global basicConfig) so the existing
+    # "LLM DIAGNOSTIC METADATA" INFO log (finish_reason, token usage) becomes
+    # visible for this run without drowning the output in every other
+    # module's INFO logs. Investigates the CI_MAX_HOPS truncation reported in
+    # Section 695 -- confirms or refutes reasoning-token budget exhaustion on
+    # the synthesis call for multi-hop questions.
+    import logging
+    _llm_diag_handler = logging.StreamHandler()
+    _llm_diag_handler.setLevel(logging.INFO)
+    _llm_diag_logger = logging.getLogger("core.llm.llm_client")
+    _llm_diag_logger.addHandler(_llm_diag_handler)
+    _llm_diag_logger.setLevel(logging.INFO)
+
+    # Filtre optionnel : `python scripts/run_adversarial_benchmark.py Q6.1 Q6.2`
+    # ne rejoue que ces questions (todo/contexte.txt Section 715) ; sans argument,
+    # comportement inchange (les 9 questions).
+    run_benchmark(question_ids=sys.argv[1:] or None)
 
 
