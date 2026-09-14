@@ -58,9 +58,28 @@ def test_ci_evidence_decision_none_value_stays_on_format_output():
     assert ci_evidence_decision({"ci_evidence_sufficiency": None}) == "format_output"
 
 
-def test_ci_evidence_decision_sufficient_stays_on_format_output():
-    state = {"ci_evidence_sufficiency": {"status": EvidenceSufficiencyStatus.SUFFICIENT.value}}
+def test_ci_evidence_decision_sufficient_without_doc_request_stays_on_format_output():
+    state = {
+        "question": "Qui peut valider une commande d'achat ?",
+        "ci_evidence_sufficiency": {"status": EvidenceSufficiencyStatus.SUFFICIENT.value},
+    }
     assert ci_evidence_decision(state) == "format_output"
+
+
+def test_ci_evidence_decision_sufficient_with_doc_request_falls_back_to_generate():
+    """Reproduit le scenario exact de todo/contexte.txt section 744 : le CI agent
+    lit un hop unique hors-sujet (ex. odoo/CONTRIBUTING.rst pour une question sur
+    "les regles de codage d'apres la documentation"), conclut en prose libre non
+    couverte par les marqueurs fixes d'assess_evidence_sufficiency(), et est note
+    SUFFICIENT a tort. Une demande documentaire explicite dans la question doit
+    l'emporter meme sur un verdict SUFFICIENT -- CI n'a jamais acces au corpus
+    documentaire, donc son propre verdict de suffisance ne dit rien de la
+    pertinence du corpus RAG pour une question qui le demande explicitement."""
+    state = {
+        "question": "Quelles sont les regles de base en codage odoo d'apres la documentation ?",
+        "ci_evidence_sufficiency": {"status": EvidenceSufficiencyStatus.SUFFICIENT.value},
+    }
+    assert ci_evidence_decision(state) == "generate"
 
 
 def test_ci_evidence_decision_insufficient_without_doc_request_stays_on_format_output():

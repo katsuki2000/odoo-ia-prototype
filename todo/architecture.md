@@ -493,6 +493,12 @@ ou
 La documentation apporte un complément utile
 ```
 
+ou
+
+```text
+L'utilisateur demande explicitement une réponse d'après les documents / la procédure / la politique interne
+```
+
 ---
 
 # Domaines supportés

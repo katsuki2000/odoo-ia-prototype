@@ -4,11 +4,16 @@ tests/test_bloc_p1_execution_failure_signal.py
 
 Integration tests for the has_execution_failure signal wiring:
   - ci_evidence_decision() keeps INSUFFICIENT + has_execution_failure=True
-    on format_output (never silently falling back to generate/RAG)
+    on format_output when the question carries no explicit documentary
+    request (never silently falling back to generate/RAG in that case)
+  - todo/contexte.txt section 744 (pmm mandate): an explicit documentary
+    request in the question now overrides has_execution_failure=True too --
+    falls back to generate() regardless
   - ci_evidence_decision() still falls back to generate for
     INSUFFICIENT + has_execution_failure=False (genuine negative)
   - ci_agent_node appends the [ATTENTION] paragraph when flag is set
-  - format_output excludes execution-failure cases from ci_fell_back_to_rag
+  - format_output excludes execution-failure cases (without an explicit doc
+    request) from ci_fell_back_to_rag
 
 Reference scenario: script 7/8 (todo/contexte.txt section 485),
 quota/tool-use failure masquerading as evidence absence.
@@ -37,13 +42,25 @@ class TestCiEvidenceDecisionRouting:
             }
         }
 
-    def test_insufficient_with_execution_failure_stays_on_format_output(self):
+    def test_insufficient_with_execution_failure_and_no_doc_request_stays_on_format_output(self):
+        state = self._make_state(
+            EvidenceSufficiencyStatus.INSUFFICIENT.value,
+            has_execution_failure=True,
+            question="Pourquoi cette action a-t-elle echoue ?",
+        )
+        assert ci_evidence_decision(state) == "format_output"
+
+    def test_insufficient_with_execution_failure_and_explicit_doc_request_falls_back_to_generate(self):
+        """todo/contexte.txt section 744 (pmm mandate): an explicit documentary
+        request in the question now wins over has_execution_failure=True as well
+        -- CI has no access to the document corpus, so its own execution-failure
+        answer is never a substitute for an explicitly requested RAG lookup."""
         state = self._make_state(
             EvidenceSufficiencyStatus.INSUFFICIENT.value,
             has_execution_failure=True,
             question="Selon le wiki interne, quelle est la procedure ?",
         )
-        assert ci_evidence_decision(state) == "format_output"
+        assert ci_evidence_decision(state) == "generate"
 
     def test_insufficient_without_execution_failure_falls_back_to_generate(self):
         """generate() (RAG) is only reachable when the question carries an

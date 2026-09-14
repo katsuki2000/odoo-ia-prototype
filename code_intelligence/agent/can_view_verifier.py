@@ -1,5 +1,5 @@
 """
-code_intelligence/ci_can_view_verifier.py
+code_intelligence/agent/can_view_verifier.py
 
 Verification, conflict detection, and contradiction resolution for can_view_amount facts.
 """
@@ -30,15 +30,6 @@ _CAN_VIEW_DENY_ASSERTION_RE = re.compile(
     re.IGNORECASE,
 )
 
-# Section 716 (todo/contexte.txt) : un verdict "Oui"/"Non" en tete de reponse ou de
-# ligne (avec ou sans justification -- "Oui." isole, ou "Oui, s'il appartient a la
-# meme societe...") est structurellement invisible aux deux regex ci-dessus, qui
-# exigent la presence litterale de "peut voir"/"est autorise a"/etc. Ce troisieme
-# motif capture un verdict court/argumente en position de reponse principale,
-# independamment des motifs verbaux -- utilise UNIQUEMENT dans la branche
-# indeterminee (un "Oui"/"Non" y est TOUJOURS une erreur par definition ; dans les
-# branches verdict=True/False, "Oui"/"Non" peut etre la bonne reponse, donc ce motif
-# ne doit jamais y etre applique).
 _CAN_VIEW_LEADING_VERDICT_RE = re.compile(
     r"^[ \t]*(?:[-*>]+\s*)?(?:\*\*)?(?:Oui|Non)\b[^.\n]*\.?",
     re.IGNORECASE | re.MULTILINE,
@@ -72,11 +63,7 @@ def _extract_can_view_amount_verdict(final_answer: str) -> Optional[bool]:
 def _correct_can_view_amount_contradictions(final_answer: str) -> str:
     """Detect and correct a synthesis-level inversion of the can_view_amount_v2 verdict.
 
-    Section 639/716 (todo/contexte.txt) fix: replaces ALL contradicting matches found
-    in `prose`, not just the first one via `.search()` -- a single `.search()` could
-    consume its one match on an early false-positive sentence (e.g. a disclaimer that
-    happens to contain the trigger phrase) and leave the real, later contradicting
-    sentence uncorrected. Overlapping spans from different patterns are merged so the
+    Overlapping spans from different patterns are merged so the
     same text isn't spliced twice.
     """
     if not _has_can_view_amount_fact(final_answer):

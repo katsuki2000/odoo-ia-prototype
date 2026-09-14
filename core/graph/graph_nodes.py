@@ -118,12 +118,11 @@ def format_output(state: RAGState) -> dict:
     route = state.get("route")
     ci_sufficiency = state.get("ci_evidence_sufficiency")
 
-    ci_fell_back_to_rag = (
-        bool(ci_sufficiency)
-        and ci_sufficiency.get("status") == EvidenceSufficiencyStatus.INSUFFICIENT.value
-        and not ci_sufficiency.get("has_execution_failure")
-        and _has_explicit_doc_request(state)
-    )
+    # todo/contexte.txt section 744: an explicit documentary request now wins over ANY CI
+    # evidence status (not just INSUFFICIENT+no-execution-failure) -- kept as a single boolean
+    # expression mirroring ci_evidence_decision()'s own "generate" condition below, so the two
+    # can't silently drift apart (F-08 duplication lesson already applied elsewhere in this repo).
+    ci_fell_back_to_rag = bool(ci_sufficiency) and _has_explicit_doc_request(state)
 
     if response:
         response.route = route
@@ -169,16 +168,40 @@ def format_output(state: RAGState) -> dict:
 
 def ci_evidence_decision(state: RAGState) -> str:
     """
-    Post-CI conditional edge: SUFFICIENT and CONFLICTING stay on CI's own answer.
-    INSUFFICIENT falls back to generate() (RAG) only when the question carries an
-    explicit documentary request (wiki/documentation/procedure/politique interne) --
-    doc_rag is no longer an automatic fallback, it only intervenes when asked for.
+    Post-CI conditional edge.
+
+    todo/contexte.txt section 744 (pmm mandate): an explicit documentary request
+    in the question (wiki/documentation/procedure/politique interne) now ALWAYS
+    falls back to generate() (RAG), regardless of CI's own evidence sufficiency
+    status -- SUFFICIENT and CONFLICTING included, not just INSUFFICIENT. Root
+    cause that prompted this: CI has no access to the document corpus at all, so
+    a CI verdict that looks structurally sufficient (a tool ran cleanly, no
+    error) can still be entirely off-topic for a question that explicitly asks
+    what the documentation says -- see section 744 for a reproduced case (CI
+    read an unrelated source file, concluded "no information found" in free
+    prose not covered by assess_evidence_sufficiency's fixed canned-string
+    markers, and was scored SUFFICIENT, silently blocking a RAG corpus that did
+    contain the answer).
+
+    Absent an explicit documentary request, doc_rag remains a non-automatic
+    branch exactly as before section 744: SUFFICIENT and CONFLICTING keep CI's
+    own answer, and INSUFFICIENT (with or without an execution failure) also
+    stays on CI's own answer when nothing in the question asked for documentation.
     """
     sufficiency = state.get("ci_evidence_sufficiency")
     if not sufficiency:
         return "format_output"
 
     status = sufficiency.get("status")
+
+    if _has_explicit_doc_request(state):
+        logger.info(
+            "Node [route: post-CI]: explicit documentary request in the question -- falling back to "
+            "RAG (generate) regardless of CI evidence sufficiency=%s (section 744). reasons=%s",
+            status, sufficiency.get("reasons"),
+        )
+        return "generate"
+
     if status == EvidenceSufficiencyStatus.SUFFICIENT.value:
         return "format_output"
 
@@ -198,18 +221,9 @@ def ci_evidence_decision(state: RAGState) -> str:
         )
         return "format_output"
 
-    if not _has_explicit_doc_request(state):
-        logger.info(
-            "Node [route: post-CI]: evidence sufficiency=%s but no explicit documentary request in the "
-            "question -- doc_rag is no longer an automatic fallback, staying on code_intelligence_agent's "
-            "own answer. reasons=%s",
-            status, sufficiency.get("reasons"),
-        )
-        return "format_output"
-
     logger.info(
-        "Node [route: post-CI]: evidence sufficiency=%s with explicit documentary request -- "
-        "falling back to RAG (generate). reasons=%s",
+        "Node [route: post-CI]: evidence sufficiency=%s, no explicit documentary request in the question -- "
+        "doc_rag is not an automatic fallback, staying on code_intelligence_agent's own answer. reasons=%s",
         status, sufficiency.get("reasons"),
     )
-    return "generate"
+    return "format_output"

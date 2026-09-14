@@ -124,6 +124,64 @@ GRAPH_JSON_PATH = Path(__file__).resolve().parent.parent.parent / "active_graph.
 
 _GRAPH_BUILD_LOCK = threading.Lock()
 
+# Native core modules always considered for preload into the production
+# graph -- Bloc N1 validation perimeter (todo/contexte.txt sections
+# 747-748, 753): purchase, sale, account, stock, maintenance. Filtered
+# against the target instance's real installed state by
+# _discover_installed_core_modules() before use (section 752).
+CORE_MODULE_CANDIDATES = ["account", "sale", "stock", "purchase", "maintenance"]
+
+
+def _discover_installed_core_modules(candidates: list) -> list:
+    """
+    Resolve which of the candidate core module names are actually installed
+    on the target Odoo instance, by querying ir.module.module (state=
+    installed) through OdooConnector -- so the set of natively-preloaded
+    modules reflects the real instance, not a fixed benchmark assumption.
+
+    Falls back to the full candidate list, unfiltered, if the instance is
+    unreachable at graph-build time (offline builds, OCA-only benchmark
+    runs, no live Odoo instance configured) -- explicit fallback per
+    todo/rules.md (machine-dependent values need a fallback, never a silent
+    hard assumption). See todo/contexte.txt section 752.
+    """
+    try:
+        from erp_data.odoo_connector import OdooConnector
+
+        connector = OdooConnector()
+        uid = connector.authenticate("admin")
+        records = connector.search_read(
+            uid=uid,
+            model="ir.module.module",
+            domain=[("state", "=", "installed"), ("name", "in", candidates)],
+            fields=["name"],
+        )
+        installed = {r["name"] for r in records}
+    except Exception as e:
+        logger.warning(
+            "Could not query ir.module.module on the live Odoo instance (%s) "
+            "-- falling back to the static core module candidate list %s.",
+            e, candidates,
+        )
+        return candidates
+
+    if not installed:
+        logger.warning(
+            "ir.module.module query returned no installed modules among %s -- "
+            "falling back to the full candidate list (safer than silently "
+            "loading none).",
+            candidates,
+        )
+        return candidates
+
+    missing = [c for c in candidates if c not in installed]
+    if missing:
+        logger.info(
+            "Core module candidates not installed on this instance, skipping: %s",
+            missing,
+        )
+    return [c for c in candidates if c in installed]
+
 
 def get_code_intelligence_graph():
     """Lazy-load and cache Knowledge Graph for Code Intelligence node."""
@@ -189,8 +247,10 @@ def get_code_intelligence_graph():
             custom_addons_root,
         )
 
-    # 2. Preload Core Modules
-    CORE_MODULES_ALWAYS_LOADED = ["account", "sale", "stock", "purchase"]
+    # 2. Preload Core Modules -- candidate list checked against the real
+    # instance's installed state (todo/contexte.txt section 752); falls
+    # back to the full candidate list if the instance is unreachable.
+    CORE_MODULES_ALWAYS_LOADED = _discover_installed_core_modules(CORE_MODULE_CANDIDATES)
     if core_addons_root.exists():
         for core_name in CORE_MODULES_ALWAYS_LOADED:
             core_dir = core_addons_root / core_name
@@ -298,4 +358,6 @@ __all__ = [
     "GRAPH_JSON_PATH",
     "_CACHED_CODE_INTEL_GRAPH",
     "_CACHED_GRAPH_MTIME",
+    "CORE_MODULE_CANDIDATES",
+    "_discover_installed_core_modules",
 ]
