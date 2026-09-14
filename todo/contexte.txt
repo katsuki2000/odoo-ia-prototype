@@ -3476,3 +3476,18 @@ Contexte : suite immediate section 753, meme session bash+filesystem (execution 
 **Fichiers modifies** : `code_intelligence/graph/loader.py`, `code_intelligence/tests/test_bloc_n1_core_module_discovery.py` (nouveau), `todo/contexte.txt` (sections 753-754).
 
 **Prochaine etape** : aucune cote code -- en attente de mandat pmm pour (a) commit de l'ensemble des changements non committes accumules cette session (voir aussi constat section 745, toujours non commite a ce jour) et/ou (b) reprise du chantier concret Bloc N1 (banc de questions/verite-terrain pour les 5 modules).
+
+## Section 755 : Commit execute -- mandat pmm (a) de la section 754, l'ensemble des changements non committes de la session est desormais sur `feat/code-intelligence`
+
+Date : 14/09/2026
+Contexte : suite immediate section 754, nouvelle session filesystem+bash. Divergence memoire/disque constatee en debut de session (le resume de session porte sur une autre narration, sans rapport avec `contexte.txt` reel jusqu'a la section 754) -- ecart signale a pmm, disque fait foi conformement a la regle habituelle (sections 209/282/348). pmm choisit l'option (a) : commit.
+
+**Verification prealable au commit** : relecture des diffs (`git diff`) des 3 fichiers source modifies (`code_intelligence/agent/can_view_verifier.py`, `code_intelligence/graph/loader.py`, `core/graph/graph_nodes.py`) et des 2 fichiers de test modifies -- coherents avec les sections 744 (bascule RAG inconditionnelle sur demande documentaire explicite) et 747-754 (Bloc N1, decouverte dynamique des modules core). `py_compile` (`.venv/bin/python3`) sur les 6 fichiers .py touches (3 sources + 2 tests modifies + 1 nouveau test) : succes. Aucune reexecution de pytest ce tour (deja fait et confirme section 754 : 1514 passed/18 skipped/0 failed -- delegue a pmm, non re-declenche ici).
+
+**Commit** : `5b10446` sur la branche `feat/code-intelligence`, 10 fichiers (les 6 .py + `active_graph.json` regenere + `todo/architecture.md`/`plan.md`/`contexte.txt`).
+
+**Non fait ce tour (mandat (b) de la section 754, non choisi)** : reprise du banc de questions/verite-terrain Bloc N1 (5 modules) -- reste delegue a pmm.
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section, seul fichier touche ce tour -- le commit precedent portait sur les changements de la session anterieure).
+
+**Prochaine etape** : en attente -- reprise du chantier N1 (banc de questions) ou autre priorite au choix de pmm.
