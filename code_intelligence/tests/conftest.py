@@ -14,7 +14,7 @@ from __future__ import annotations
 import os
 import pytest
 
-from code_intelligence.agent.live.rpc_client import OdooRpcClient
+from code_intelligence.agent.rpc_client import OdooRpcClient
 
 TEST_PASSWORD = os.getenv("ODOO_J5_TEST_PASSWORD", "J5TestPassword2026!")
 TEST_USERS = ("test_both_2026", "test_regional_2026", "test_no_group_2026")

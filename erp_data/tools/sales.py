@@ -291,3 +291,102 @@ def get_sale_details(client: str = "", statut: str = "toutes", limite: int = 0) 
         return text
     except Exception as e:
         return f"Erreur lors de la récupération des détails : {str(e)}"
+
+
+_TOP_PRODUCTS_SOURCE = (
+    "sale.order.line:read_group(product_uom_qty:sum,price_subtotal:sum, "
+    "groupby=product_id)"
+)
+
+
+def get_top_selling_products_raw(
+    periode: str = "", statut: str = "toutes", metrique: str = "quantite", limite: int = 5,
+) -> Tuple[str, List[Evidence]]:
+    states, scope_label = resolve_statut(statut)
+    uid = get_current_uid()
+    scope = orm_evidence_scope(uid)
+    effective_limit = limite if limite and limite > 0 else 5
+
+    domain = [("order_id.state", "in", states)]
+    date_range = parse_period(periode) if periode else None
+    if date_range:
+        domain.append(("order_id.date_order", ">=", date_range[0]))
+        end_str = date_range[1] if " " in date_range[1] else date_range[1] + " 23:59:59"
+        domain.append(("order_id.date_order", "<=", end_str))
+
+    results = connector.read_group(
+        uid=uid, model="sale.order.line", domain=domain,
+        fields=["product_uom_qty:sum", "price_subtotal:sum"], groupby=["product_id"],
+    )
+
+    rows = [
+        (r["product_id"][1], r.get("product_uom_qty", 0.0), r.get("price_subtotal", 0.0))
+        for r in results
+        if r.get("product_id")
+    ]
+
+    period_label = periode or "toute la période"
+
+    if not rows:
+        text = (
+            f"Aucune ligne de vente trouvée.\n"
+            f"Scope : {scope_label}, période : {period_label}."
+        )
+        evidence = make_evidence(
+            source_type=EvidenceSourceType.ORM,
+            claim=f"No sale.order.line matches statut={statut}, period={periode or 'all'}",
+            source=_TOP_PRODUCTS_SOURCE, value=None, scope=scope,
+        )
+        return text, [evidence]
+
+    rank_by_amount = metrique.lower().strip() in ("montant", "chiffre d'affaires", "ca", "revenu")
+    sort_index = 2 if rank_by_amount else 1
+    rows.sort(key=lambda row: row[sort_index], reverse=True)
+    top_rows = rows[:effective_limit]
+
+    metric_label = "chiffre d'affaires" if rank_by_amount else "quantité vendue"
+    lines = [
+        f"Top {len(top_rows)} produit(s) le(s) plus vendu(s) par {metric_label} "
+        f"({scope_label}, période : {period_label}) :"
+    ]
+    evidences = []
+    for rank, (name, qty, amount) in enumerate(top_rows, start=1):
+        qty_fmt = f"{qty:,.2f}".replace(",", " ")
+        amount_fmt = f"{amount:,.2f}".replace(",", " ")
+        lines.append(f"{rank}. {name} -- {qty_fmt} unité(s) vendue(s), {amount_fmt} Ar")
+        evidences.append(make_evidence(
+            source_type=EvidenceSourceType.ORM,
+            claim=(
+                f"Product {name}: quantity_sold={qty}, revenue={amount} "
+                f"for statut={statut}, period={periode or 'all'}"
+            ),
+            source=_TOP_PRODUCTS_SOURCE,
+            value={"quantity": qty, "revenue": amount}, scope=scope,
+        ))
+    lines.append("[Source: Odoo ERP - Module Ventes (sale.order.line)]")
+    return "\n".join(lines), evidences
+
+
+@tool
+def get_top_selling_products(
+    periode: str = "", statut: str = "toutes", metrique: str = "quantite", limite: int = 5,
+) -> str:
+    """Get the top N best-selling products, ranked by quantity sold or revenue.
+
+    Use this tool for any question asking for a ranking/ranked list of
+    products (e.g. "top 5 produits les plus vendus", "quel produit se vend
+    le mieux ce mois-ci"). Do NOT approximate this with get_sale_details,
+    which only lists raw orders and cannot rank or aggregate by product.
+
+    Args:
+        periode: Time period filter (e.g. 'ce mois', '2025', 'Q1 2026'). Leave empty for all time.
+        statut: Order status filter ('confirmees', 'brouillon', 'toutes'). Default: 'toutes'.
+        metrique: Ranking metric -- 'quantite' (units sold, default) or 'montant' (revenue).
+        limite: Number of top products to return. Default: 5.
+    """
+    try:
+        text, evidence = get_top_selling_products_raw(periode, statut, metrique, limite)
+        record_evidence(evidence)
+        return text
+    except Exception as e:
+        return f"Erreur lors du calcul des produits les plus vendus : {str(e)}"

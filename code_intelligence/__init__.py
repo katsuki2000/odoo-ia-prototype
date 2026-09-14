@@ -1,1 +1,1 @@
-# Code Intelligence — Structural graph extraction for Odoo
+# Code Intelligence — Structural graph extraction & analysis for Odoo

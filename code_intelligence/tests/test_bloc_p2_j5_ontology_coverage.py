@@ -37,12 +37,12 @@ from pathlib import Path
 
 import pytest
 
-from code_intelligence.knowledge_rules.extractor.python_extractor import (
+from code_intelligence.extractor.python import (
     OdooModelDeclaration,
     OdooFieldDeclaration,
     OdooMethodDeclaration,
 )
-from code_intelligence.knowledge_rules.extractor.xml_extractor import (
+from code_intelligence.extractor.xml_models import (
     OdooRuleRecord,
     OdooGroupRecord,
     OdooServerActionRecord,
@@ -51,9 +51,10 @@ from code_intelligence.knowledge_rules.extractor.xml_extractor import (
     OdooViewRecord,
     OdooFormButton,
 )
-from code_intelligence.knowledge_rules.extractor.csv_extractor import OdooAccessEntry
-from code_intelligence.knowledge_rules.graph import ParsedModule, build_module_symbol_registry
-from code_intelligence.knowledge_rules.graph import OdooGraphBuilder
+from code_intelligence.extractor.csv import OdooAccessEntry
+from code_intelligence.graph.nodes import ParsedModule
+from code_intelligence.graph.symbols import build_module_symbol_registry
+from code_intelligence.graph.builder import OdooGraphBuilder
 
 # The complete, closed set of node_type values OdooGraphBuilder can
 # currently produce, per direct reading of graph_builder.py's five

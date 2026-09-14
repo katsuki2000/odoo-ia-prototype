@@ -32,7 +32,7 @@ this gap.
 
 import networkx as nx
 
-from code_intelligence.knowledge_rules.deterministic.navigation.button_path import button_execution_path
+from code_intelligence.rules.button_path import button_execution_path
 
 
 def _build_graph_with_button(

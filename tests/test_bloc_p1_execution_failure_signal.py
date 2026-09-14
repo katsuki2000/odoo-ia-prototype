@@ -163,5 +163,5 @@ class TestAttentionParagraph:
     ATTENTION_MARKER = "[ATTENTION] Une ou plusieurs analyses Code Intelligence"
 
     def test_marker_present_in_execution_failure_answer(self):
-        from code_intelligence.agent.ci_agent_node import _EXECUTION_FAILURE_NOTICE
+        from code_intelligence.agent.context import _EXECUTION_FAILURE_NOTICE
         assert "[ATTENTION]" in _EXECUTION_FAILURE_NOTICE

@@ -31,11 +31,8 @@ project's convention for extracted pure helpers (see
 test_ci_helpers_tool_call_key.py, test_bug2_scoped_raw_tool_output_fail_closed.py).
 """
 
-from code_intelligence.agent.ci_agent_node.context.prompt_and_heuristics import (
-    _truncate_observation,
-    _TRUNCATION_MARKER,
-)
-from code_intelligence.knowledge_rules.security.locks import _OVERRIDE_CHAIN_AMOUNT_RE
+from code_intelligence.agent.context import _truncate_observation, _TRUNCATION_MARKER
+from code_intelligence.rules.security_locks import _OVERRIDE_CHAIN_AMOUNT_RE
 
 
 def _body(result: str) -> str:

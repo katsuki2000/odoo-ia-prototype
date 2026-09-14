@@ -15,19 +15,20 @@ from pathlib import Path
 import pytest
 import networkx as nx
 
-from code_intelligence.knowledge_rules.extractor.manifest_parser import parse_manifest
-from code_intelligence.knowledge_rules.extractor.python_extractor import extract_odoo_models_from_file
-from code_intelligence.knowledge_rules.extractor.xml_extractor import (
+from code_intelligence.extractor.manifest import parse_manifest
+from code_intelligence.extractor.python import extract_odoo_models_from_file
+from code_intelligence.extractor.xml import (
     parse_ir_rules_from_xml,
     parse_groups_from_xml,
     parse_actions_from_xml,
     parse_menuitems_from_xml,
     parse_views_from_xml,
 )
-from code_intelligence.knowledge_rules.extractor.csv_extractor import parse_access_control_csv
-from code_intelligence.knowledge_rules.graph import ParsedModule, build_module_symbol_registry
-from code_intelligence.knowledge_rules.graph import (
-    OdooGraphBuilder,
+from code_intelligence.extractor.csv import parse_access_control_csv
+from code_intelligence.graph.nodes import ParsedModule
+from code_intelligence.graph.symbols import build_module_symbol_registry
+from code_intelligence.graph.builder import OdooGraphBuilder
+from code_intelligence.graph.serialization import (
     save_graph_to_json,
     load_graph_from_json,
     benchmark_graph_traversal,

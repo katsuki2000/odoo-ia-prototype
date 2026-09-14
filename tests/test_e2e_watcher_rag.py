@@ -57,9 +57,25 @@ def test_e2e_live_add_delete_query_cycle():
         assert any(secret_filename in r["metadata"].get("source", "") for r in results)
 
         # ── Step 3: Verify query_graph answers using this document ─────────
+        # code_intelligence_agent must be mocked here too (Section 719,
+        # todo/contexte.txt): the graph runs CI unconditionally before RAG for
+        # every route except DONNEES_ERP (evidence-first architecture --
+        # ci_evidence_decision only falls through to generate() on an
+        # INSUFFICIENT verdict). Left unmocked, the real CI agent investigates
+        # this synthetic document for real (real network call, real answer),
+        # legitimately concludes it has a SUFFICIENT (if negative) answer, and
+        # generate() -- and this mocked RAG response -- is never reached.
         with patch("core.graph.graph.get_retriever") as mock_get_retriever, \
+             patch("core.graph.graph.code_intelligence_agent") as mock_ci, \
              patch("core.graph.graph.ChatGroq") as mock_groq_cls:
-            
+
+            mock_ci.return_value = {
+                "ci_evidence_sufficiency": {
+                    "status": "insufficient",
+                    "reasons": ["no code intel evidence -- documentary question"],
+                    "has_execution_failure": False,
+                }
+            }
             mock_retriever = MagicMock()
             mock_bm25 = MagicMock()
             mock_get_retriever.return_value = (mock_retriever, mock_bm25)

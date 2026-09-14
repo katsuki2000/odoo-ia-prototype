@@ -40,7 +40,7 @@ from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_core.utils.function_calling import convert_to_openai_tool
 
 from core.llm.llm_client import get_chat_llm
-from code_intelligence.agent.investigation import (
+from code_intelligence.agent.investigation_llm import (
     IntentClassificationLLMResponse,
     _INTENT_CLASSIFICATION_SYSTEM_PROMPT,
 )

@@ -39,7 +39,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import List
 
-from code_intelligence.knowledge_rules.deterministic.common import NOT_FOUND_MARKER
+from code_intelligence.rules.common import NOT_FOUND_MARKER
 
 
 class EvidenceSufficiencyStatus(str, Enum):

@@ -23,21 +23,22 @@ from pathlib import Path
 
 import pytest
 
-from code_intelligence.knowledge_rules.extractor.python_extractor import (
+from code_intelligence.extractor.python import (
     OdooModelDeclaration,
     OdooFieldDeclaration,
     OdooMethodDeclaration,
     OdooMethodDecoration,
 )
-from code_intelligence.knowledge_rules.extractor.xml_extractor import (
+from code_intelligence.extractor.xml_models import (
     OdooRuleRecord,
     OdooServerActionRecord,
     OdooBaseAutomationRecord,
 )
-from code_intelligence.knowledge_rules.extractor.csv_extractor import OdooAccessEntry
-from code_intelligence.knowledge_rules.graph import ParsedModule, build_module_symbol_registry
-from code_intelligence.knowledge_rules.graph import OdooGraphBuilder
-from code_intelligence.knowledge_rules.ontology import BehavioralTag, TechnicalTag
+from code_intelligence.extractor.csv import OdooAccessEntry
+from code_intelligence.graph.nodes import ParsedModule
+from code_intelligence.graph.symbols import build_module_symbol_registry
+from code_intelligence.graph.builder import OdooGraphBuilder
+from code_intelligence.rules.ontology import BehavioralTag, TechnicalTag
 
 METHOD_SOURCE = """class CustomTestPlain(models.Model):
     _name = "custom.test.plain"

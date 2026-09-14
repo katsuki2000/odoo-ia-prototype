@@ -21,14 +21,14 @@ from core.graph.graph import (
     _is_prompt_injection,
     code_intelligence_agent,
 )
-from code_intelligence.agent.ci_agent_node.tools import (
+from code_intelligence.agent.tools import (
     who_has_access_to,
     evaluate_record_rules,
     analyze_security_locks,
     analyze_server_actions,
     analyze_data_constraints,
 )
-from code_intelligence.agent.ci_agent_node.context.tool_helpers import WILDCARD_MODEL_ERROR_MSG
+from code_intelligence.agent.tool_helpers import WILDCARD_MODEL_ERROR_MSG
 
 
 @pytest.mark.parametrize("query", [

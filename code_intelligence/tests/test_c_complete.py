@@ -16,9 +16,9 @@ from core.graph.graph import (
     code_intelligence_agent,
     RAGState
 )
-from code_intelligence.agent.ci_agent_node.context.prompts import CI_SYSTEM_PROMPT
-from code_intelligence.agent.ci_agent_node.context.prompt_and_heuristics import CI_MAX_HOPS
-from code_intelligence.agent.ci_agent_node.tools import ALL_CI_TOOLS
+from code_intelligence.agent.prompts import CI_SYSTEM_PROMPT
+from code_intelligence.agent.context import CI_MAX_HOPS
+from code_intelligence.agent.tools import ALL_CI_TOOLS
 
 
 def test_c1_1_tools_binding():

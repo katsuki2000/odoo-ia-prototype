@@ -6,7 +6,7 @@ tool exposing Semgrep-detected _sql_constraints / relational domain=
 findings to the ReAct agent. Fills the gap noted during J14 .
 
 Semgrep itself is NOT invoked here (no subprocess, no real .venv semgrep
-binary dependency) -- code_intelligence.knowledge_rules.data_constraints.run_semgrep_analysis
+binary dependency) -- code_intelligence.rules.data_constraints.run_semgrep_analysis
 is monkeypatched to return canned SemgrepMatch objects, keeping this a
 fast, deterministic unit test of the tool's own logic (graph lookup,
 per-file dispatch, confidence tag, citation formatting), not an
@@ -19,15 +19,9 @@ from __future__ import annotations
 import networkx as nx
 import pytest
 
-from code_intelligence.agent.ci_agent_node.tools import (
-    ALL_CI_TOOLS,
-    analyze_data_constraints,
-)
-from code_intelligence.agent.ci_agent_node.context.tool_helpers import (
-    find_model_source_filepaths,
-    set_graph_ref,
-)
-from code_intelligence.knowledge_rules.data_constraints import SemgrepMatch
+from code_intelligence.agent.tools import ALL_CI_TOOLS, analyze_data_constraints
+from code_intelligence.agent.tool_helpers import find_model_source_filepaths, set_graph_ref
+from code_intelligence.rules.data_constraints import SemgrepMatch
 
 
 @pytest.fixture
@@ -74,7 +68,7 @@ def test_no_patterns_detected_reports_high_confidence_deterministic(
     G, _ = graph_with_model_file
     set_graph_ref(G)
     monkeypatch.setattr(
-        "code_intelligence.knowledge_rules.data_constraints.run_semgrep_analysis", lambda *a, **k: []
+        "code_intelligence.rules.data_constraints.run_semgrep_analysis", lambda *a, **k: []
     )
     result = analyze_data_constraints.invoke({"model_name": "sale.order"})
     assert "No _sql_constraints or relational domain=" in result
@@ -94,7 +88,7 @@ def test_single_match_includes_citation_and_check_id(graph_with_model_file, monk
     )
     set_graph_ref(G)
     monkeypatch.setattr(
-        "code_intelligence.knowledge_rules.data_constraints.run_semgrep_analysis", lambda *a, **k: [match]
+        "code_intelligence.rules.data_constraints.run_semgrep_analysis", lambda *a, **k: [match]
     )
     result = analyze_data_constraints.invoke({"model_name": "sale.order"})
 
@@ -124,7 +118,7 @@ def test_multiple_matches_all_included_with_confidence_tag_once(
     ]
     set_graph_ref(G)
     monkeypatch.setattr(
-        "code_intelligence.knowledge_rules.data_constraints.run_semgrep_analysis", lambda *a, **k: matches
+        "code_intelligence.rules.data_constraints.run_semgrep_analysis", lambda *a, **k: matches
     )
     result = analyze_data_constraints.invoke({"model_name": "sale.order"})
 
@@ -146,7 +140,7 @@ def test_skips_filepaths_that_do_not_exist_on_disk(monkeypatch, tmp_path):
 
     called = []
     monkeypatch.setattr(
-        "code_intelligence.knowledge_rules.data_constraints.run_semgrep_analysis",
+        "code_intelligence.rules.data_constraints.run_semgrep_analysis",
         lambda *a, **k: called.append(a) or [],
     )
     result = analyze_data_constraints.invoke({"model_name": "ghost.model"})
@@ -169,5 +163,5 @@ def test_registered_in_all_ci_tools():
 
 
 def test_ci_system_prompt_mentions_the_tool():
-    from code_intelligence.agent.ci_agent_node.context.prompts import CI_SYSTEM_PROMPT
+    from code_intelligence.agent.prompts import CI_SYSTEM_PROMPT
     assert "analyze_data_constraints" in CI_SYSTEM_PROMPT

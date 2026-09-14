@@ -13,10 +13,7 @@ import tempfile
 from pathlib import Path
 import pytest
 
-from code_intelligence.knowledge_rules.extractor.python_extractor import (
-    extract_odoo_models_from_file,
-    ModelRelationType,
-)
+from code_intelligence.extractor.python import extract_odoo_models_from_file, ModelRelationType
 
 
 def test_extension_pattern():

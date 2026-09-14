@@ -30,12 +30,13 @@ budget, never just run slightly slower.
 
 import time
 
-from code_intelligence.knowledge_rules.extractor.manifest_parser import OdooManifest
-from code_intelligence.knowledge_rules.extractor.python_extractor import OdooModelDeclaration
-from code_intelligence.knowledge_rules.graph import ParsedModule, build_module_symbol_registry
-from code_intelligence.knowledge_rules.graph import OdooGraphBuilder
-from code_intelligence.knowledge_rules.deterministic.structure.inheritance_chain import trace_full_inheritance
-from code_intelligence.knowledge_rules.deterministic.common import QueryStatus
+from code_intelligence.extractor.manifest import OdooManifest
+from code_intelligence.extractor.python import OdooModelDeclaration
+from code_intelligence.graph.nodes import ParsedModule
+from code_intelligence.graph.symbols import build_module_symbol_registry
+from code_intelligence.graph.builder import OdooGraphBuilder
+from code_intelligence.rules.structure import trace_full_inheritance
+from code_intelligence.rules.common import QueryStatus
 
 # Generous budget for a query over a handful of synthetic nodes -- the point
 # is to catch UNBOUNDED recursion (which would hang indefinitely or blow

@@ -12,7 +12,7 @@ across the remaining 11 CI actions + 9 ORM tools.
 
 import networkx as nx
 
-from code_intelligence.knowledge_rules.deterministic.access.record_rules import evaluate_record_rules
+from code_intelligence.rules.record_rules import evaluate_record_rules
 from core.evidence.evidence import Evidence, EvidenceSourceType, stable_content_hash
 
 

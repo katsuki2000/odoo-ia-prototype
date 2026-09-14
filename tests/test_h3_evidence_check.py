@@ -17,7 +17,7 @@ import dataclasses
 
 import pytest
 
-from code_intelligence.agent.business_resolver import ResolvedConcept
+from code_intelligence.agent.matching import ResolvedConcept
 from core.evidence.evidence_check import check_evidence
 from core.routing.routing import route
 

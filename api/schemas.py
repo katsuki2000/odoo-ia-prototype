@@ -34,6 +34,14 @@ class AskResponseV1(BaseModel):
     resolved_concept: Optional[dict] = None
     omitted_for_authorization: list[dict] = Field(default_factory=list)
     investigation_plan: Optional[dict] = None
+    evidence_dossier: list[dict] = Field(
+        default_factory=list,
+        description=(
+            "Structured tool-provenance Evidence (Bloc B2, todo/contexte.txt "
+            "section 622/636). Distinct from 'sources' -- this is the raw "
+            "fact+provenance an ORM/CI tool produced this turn."
+        ),
+    )
 
 
 class StatsResponse(BaseModel):

@@ -36,7 +36,7 @@ project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(project_root))
 
 from core.graph.graph import code_intelligence_agent, get_code_intelligence_graph
-from code_intelligence.agent.ci_agent_node.context.tool_helpers import set_graph_ref
+from code_intelligence.agent.tool_helpers import set_graph_ref
 
 QUESTION = (
     "Qui peut lancer un ordre de fabrication (mrp.production) dans Odoo, "

@@ -18,14 +18,12 @@ filepath, arbitrarily hiding every other module. This locks the fix:
 import networkx as nx
 import pytest
 
-from code_intelligence.knowledge_rules.graph import (
-    ParsedModule,
-    build_module_symbol_registry,
-)
-from code_intelligence.knowledge_rules.extractor.python_extractor import OdooModelDeclaration
-from code_intelligence.knowledge_rules.graph import OdooGraphBuilder
-from code_intelligence.agent.ci_agent_node.tools.introspection_impl import (
-    list_involved_modules,
+from code_intelligence.graph.nodes import ParsedModule
+from code_intelligence.graph.symbols import build_module_symbol_registry
+from code_intelligence.extractor.python import OdooModelDeclaration
+from code_intelligence.graph.builder import OdooGraphBuilder
+from code_intelligence.agent.tools.introspection import (
+    list_involved_modules_flat,
     list_involved_modules_with_role,
 )
 
@@ -121,7 +119,7 @@ def test_lister_modules_impliques_still_returns_flat_list_backward_compat():
     builder = OdooGraphBuilder(registry, modules_dict)
     G = builder.build_graph()
 
-    modules = list_involved_modules(G, "custom.foo")
+    modules = list_involved_modules_flat(G, "custom.foo")
     assert sorted(modules) == ["base_mod", "ext_a", "ext_b"]
 
 
@@ -146,8 +144,8 @@ def test_single_module_model_has_no_false_ambiguity():
 def test_ci_agent_tool_wrapper_flags_ambiguity_with_roles():
     """ci_agent_tools @tool wrapper: must present all candidates with
     role and an explicit ambiguity note, never silently pick one."""
-    from code_intelligence.agent.ci_agent_node.context.tool_helpers import set_graph_ref
-    from code_intelligence.agent.ci_agent_node.tools import list_involved_modules
+    from code_intelligence.agent.tool_helpers import set_graph_ref
+    from code_intelligence.agent.tools import list_involved_modules
 
     G = nx.DiGraph()
     G.add_node("model:custom.foo", node_type="Model", name="custom.foo")
@@ -165,8 +163,8 @@ def test_ci_agent_tool_wrapper_flags_ambiguity_with_roles():
 def test_ci_agent_tool_wrapper_no_ambiguity_note_for_single_candidate():
     """A model with exactly one candidate module must NOT carry the
     ambiguity note -- it would be noise for the common, unambiguous case."""
-    from code_intelligence.agent.ci_agent_node.context.tool_helpers import set_graph_ref
-    from code_intelligence.agent.ci_agent_node.tools import list_involved_modules
+    from code_intelligence.agent.tool_helpers import set_graph_ref
+    from code_intelligence.agent.tools import list_involved_modules
 
     G = nx.DiGraph()
     G.add_node("model:solo.model", node_type="Model", name="solo.model")

@@ -10,8 +10,8 @@ UI"), NOT_FOUND (model itself unresolved).
 
 import networkx as nx
 
-from code_intelligence.knowledge_rules.deterministic.common import QueryStatus
-from code_intelligence.knowledge_rules.deterministic.navigation.navigation_path import describe_navigation_path
+from code_intelligence.rules.common import QueryStatus
+from code_intelligence.rules.navigation import describe_navigation_path
 from core.evidence.evidence import Evidence
 
 

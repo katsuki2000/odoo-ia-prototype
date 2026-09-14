@@ -71,6 +71,13 @@ def ask_question_v1(request: AskRequestV1, user: dict = Depends(get_current_user
                 for o in response.omitted_for_authorization
             ]
 
+        evidence_dossier_list = []
+        if hasattr(response, "evidence_dossier") and response.evidence_dossier:
+            evidence_dossier_list = [
+                e.model_dump() if hasattr(e, "model_dump") else e
+                for e in response.evidence_dossier
+            ]
+
         return AskResponseV1(
             answer=response.answer,
             question=request.question,
@@ -83,6 +90,7 @@ def ask_question_v1(request: AskRequestV1, user: dict = Depends(get_current_user
             resolved_concept=getattr(response, "resolved_concept", None),
             omitted_for_authorization=omitted_list,
             investigation_plan=getattr(response, "investigation_plan", None),
+            evidence_dossier=evidence_dossier_list,
         )
     except HTTPException:
         raise

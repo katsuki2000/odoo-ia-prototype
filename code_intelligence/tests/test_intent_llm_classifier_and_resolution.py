@@ -25,14 +25,14 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from code_intelligence.agent.business_resolver import ResolvedConcept
-from code_intelligence.agent.investigation import (
+from code_intelligence.agent.matching import ResolvedConcept
+from code_intelligence.agent.investigation_llm import (
     IntentResolution,
-    QuestionIntent,
-    classify_question_intent,
     classify_question_intent_llm,
     resolve_question_intent,
 )
+from code_intelligence.agent.investigation_schemas import QuestionIntent
+from code_intelligence.agent.investigation_classifier import classify_question_intent
 
 
 def _mock_structured_llm(intent: QuestionIntent) -> Mock:

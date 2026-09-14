@@ -10,13 +10,14 @@ Unit & Integration tests for J34-J35 (Generalization to Deep Custom Modules):
 
 from pathlib import Path
 import pytest
-from code_intelligence.knowledge_rules.extractor.manifest_parser import parse_manifest
-from code_intelligence.knowledge_rules.extractor.python_extractor import extract_odoo_models_from_file
-from code_intelligence.knowledge_rules.extractor.xml_extractor import parse_ir_rules_from_xml
-from code_intelligence.knowledge_rules.security import analyze_python_security_locks
-from code_intelligence.agent.ci_agent_node.tools.introspection_impl import list_involved_modules_with_role
-from code_intelligence.knowledge_rules.graph import OdooGraphBuilder
-from code_intelligence.knowledge_rules.graph import ParsedModule, build_module_symbol_registry
+from code_intelligence.extractor.manifest import parse_manifest
+from code_intelligence.extractor.python import extract_odoo_models_from_file
+from code_intelligence.extractor.xml import parse_ir_rules_from_xml
+from code_intelligence.rules.security import analyze_python_security_locks
+from code_intelligence.agent.tools.introspection import list_involved_modules_with_role
+from code_intelligence.graph.builder import OdooGraphBuilder
+from code_intelligence.graph.nodes import ParsedModule
+from code_intelligence.graph.symbols import build_module_symbol_registry
 from code_intelligence.tests._corpus_paths import CUSTOM_ADDONS_PATH
 
 

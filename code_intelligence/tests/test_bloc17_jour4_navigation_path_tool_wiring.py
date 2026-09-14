@@ -13,9 +13,9 @@ code_intelligence/tests/test_bloc17_navigation_path.py -- not retested here.
 import networkx as nx
 import pytest
 
-from code_intelligence.agent.ci_agent_node.tools import ALL_CI_TOOLS
-from code_intelligence.agent.ci_agent_node.context.tool_helpers import set_graph_ref
-from code_intelligence.agent.ci_agent_node.tools.structure import describe_navigation_path
+from code_intelligence.agent.tools import ALL_CI_TOOLS
+from code_intelligence.agent.tool_helpers import set_graph_ref
+from code_intelligence.agent.tools.structure import describe_navigation_path
 from core.evidence.evidence_collector import (
     _turn_evidence_ctx,
     start_evidence_collection,

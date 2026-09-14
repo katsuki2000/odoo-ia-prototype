@@ -22,10 +22,11 @@ This test locks in the 2026-08-07 fix that replicates the J7 guard
 base_automations in graph_builder.py::_add_security_group_nodes.
 """
 
-from code_intelligence.knowledge_rules.graph import ParsedModule, build_module_symbol_registry
-from code_intelligence.knowledge_rules.graph import OdooGraphBuilder
-from code_intelligence.knowledge_rules.extractor.manifest_parser import OdooManifest
-from code_intelligence.knowledge_rules.extractor.xml_extractor import (
+from code_intelligence.graph.nodes import ParsedModule
+from code_intelligence.graph.symbols import build_module_symbol_registry
+from code_intelligence.graph.builder import OdooGraphBuilder
+from code_intelligence.extractor.manifest import OdooManifest
+from code_intelligence.extractor.xml_models import (
     OdooGroupRecord,
     OdooServerActionRecord,
     OdooBaseAutomationRecord,

@@ -12,10 +12,7 @@ Tests:
 import tempfile
 from pathlib import Path
 
-from code_intelligence.knowledge_rules.extractor.xml_extractor import (
-    parse_xml_fields_from_xml,
-    parse_menuitems_from_xml,
-)
+from code_intelligence.extractor.xml import parse_xml_fields_from_xml, parse_menuitems_from_xml
 
 
 def test_xml_fields_and_menuitems_extraction():

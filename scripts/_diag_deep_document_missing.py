@@ -3,7 +3,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from code_intelligence.knowledge_rules.graph import get_code_intelligence_graph
+from code_intelligence.graph.loader import get_code_intelligence_graph
 
 G = get_code_intelligence_graph()
 

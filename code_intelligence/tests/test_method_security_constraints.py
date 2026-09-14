@@ -22,11 +22,9 @@ import textwrap
 import networkx as nx
 import pytest
 
-from code_intelligence.knowledge_rules.overrides import analyze_method_override_chain
-from code_intelligence.knowledge_rules.security import (
-    analyze_python_security_locks,
-    extract_method_security_constraints,
-)
+from code_intelligence.rules.override_composer import analyze_method_override_chain
+from code_intelligence.rules.security import analyze_python_security_locks
+from code_intelligence.rules.security_evidence import extract_method_security_constraints
 
 
 TWO_METHOD_TWO_THRESHOLD_SOURCE = textwrap.dedent("""\

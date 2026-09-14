@@ -32,7 +32,7 @@ import textwrap
 
 import networkx as nx
 
-from code_intelligence.knowledge_rules.overrides import (
+from code_intelligence.rules.override_composer import (
     analyze_method_override_chain,
     analyze_method_override_chain_with_evidence,
 )

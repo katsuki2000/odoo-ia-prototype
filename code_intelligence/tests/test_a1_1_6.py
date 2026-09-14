@@ -12,7 +12,7 @@ Tests:
 import tempfile
 from pathlib import Path
 
-from code_intelligence.knowledge_rules.extractor.manifest_parser import parse_manifest
+from code_intelligence.extractor.manifest import parse_manifest
 
 
 def test_manifest_parsing_and_unloaded_detection():

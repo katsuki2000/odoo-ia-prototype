@@ -12,8 +12,8 @@ closed in section 448.
 
 import networkx as nx
 
-from code_intelligence.knowledge_rules.deterministic.structure.workflow_process import describe_workflow
-from code_intelligence.knowledge_rules.deterministic.common import QueryStatus
+from code_intelligence.rules.workflow import describe_workflow
+from code_intelligence.rules.common import QueryStatus
 from core.evidence.evidence import Evidence, EvidenceSourceType
 
 

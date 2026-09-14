@@ -10,18 +10,20 @@ Unit tests for Bloc P1 Jour 1-2:
 
 import pytest
 
-from code_intelligence.agent.business_resolver import ResolvedConcept
-from code_intelligence.agent.investigation import (
+from code_intelligence.agent.matching import ResolvedConcept
+from code_intelligence.agent.investigation_schemas import (
     InvestigationPlan,
     InvestigationStep,
     PlanAction,
     PlanGenerationSource,
     QuestionIntent,
+)
+from code_intelligence.agent.investigation_classifier import (
     classify_question_intent,
     concept_suggests_code_intelligence_v2,
-    generate_investigation_plan,
 )
-from code_intelligence.knowledge_rules.ontology import BehavioralTag, TechnicalTag
+from code_intelligence.agent.investigation_planner import generate_investigation_plan
+from code_intelligence.rules.ontology import BehavioralTag, TechnicalTag
 
 
 # ── 1. Schema Validation & Serialization ─────────────────────────────────────

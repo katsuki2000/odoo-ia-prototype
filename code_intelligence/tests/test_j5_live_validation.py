@@ -17,12 +17,13 @@ from pathlib import Path
 import networkx as nx
 import pytest
 
-from code_intelligence.knowledge_rules.graph import ParsedModule, build_module_symbol_registry
-from code_intelligence.knowledge_rules.extractor.csv_extractor import parse_access_control_csv
-from code_intelligence.knowledge_rules.graph import OdooGraphBuilder
-from code_intelligence.agent.live.validator import validate_live_rule_prediction
-from code_intelligence.agent.live.rpc_client import OdooRpcClient
-from code_intelligence.knowledge_rules.extractor.xml_extractor import parse_groups_from_xml, parse_ir_rules_from_xml
+from code_intelligence.graph.nodes import ParsedModule
+from code_intelligence.graph.symbols import build_module_symbol_registry
+from code_intelligence.extractor.csv import parse_access_control_csv
+from code_intelligence.graph.builder import OdooGraphBuilder
+from code_intelligence.agent.live_validation import validate_live_rule_prediction
+from code_intelligence.agent.rpc_client import OdooRpcClient
+from code_intelligence.extractor.xml import parse_groups_from_xml, parse_ir_rules_from_xml
 from config.settings import CUSTOM_ADDONS_PATH
 
 

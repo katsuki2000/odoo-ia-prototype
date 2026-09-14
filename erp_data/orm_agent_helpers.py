@@ -33,6 +33,7 @@ def resolve_orm_tools(skills: Dict[str, Any]) -> List[Any]:
         get_average_sales,
         get_sale_details,
         get_order_count,
+        get_top_selling_products,
     )
     from erp_data.tools.inventory import (
         get_order_status,
@@ -46,6 +47,7 @@ def resolve_orm_tools(skills: Dict[str, Any]) -> List[Any]:
         all_tools.extend([
             get_total_sales, get_order_status, get_period_revenue,
             get_average_sales, get_sale_details, get_order_count,
+            get_top_selling_products,
         ])
     if skills.get("stocks", True):
         all_tools.extend([get_product_stock, list_out_of_stock_products])

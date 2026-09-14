@@ -6,7 +6,7 @@ Tested independently from LLM bounded interpretation to ensure no accidental reg
 """
 
 import networkx as nx
-from code_intelligence.agent.ci_agent_node.context.tool_helpers import find_server_action_nodes
+from code_intelligence.agent.tool_helpers import find_server_action_nodes
 from core.graph.graph import (
     _question_mentions_amount,
     _question_is_approval_related,

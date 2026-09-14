@@ -13,7 +13,7 @@ import time
 from typing import List, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from code_intelligence.agent.business_resolver import ResolvedConcept
+    from code_intelligence.agent.matching import ResolvedConcept
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
@@ -28,7 +28,7 @@ from document_rag.generate_node import generate
 # falling back to its own import, so tests can patch "core.graph.graph.get_retriever".
 from document_rag.vectorstore.search import get_retriever, retrieve as search_retrieve
 from erp_data.orm_agent_node import orm_agent_loop
-from code_intelligence.agent.ci_agent_node import code_intelligence_agent
+from code_intelligence.agent.loop import code_intelligence_agent
 
 from core.graph.graph_nodes import (
     smalltalk_gate,

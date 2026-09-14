@@ -15,25 +15,25 @@ from pathlib import Path
 import pytest
 import networkx as nx
 
-from code_intelligence.knowledge_rules.deterministic.common import QueryStatus
-from code_intelligence.knowledge_rules.deterministic.structure.inheritance_chain import trace_full_inheritance
-from code_intelligence.knowledge_rules.deterministic.structure.workflow_process import describe_workflow
-from code_intelligence.knowledge_rules.deterministic.access.access_evaluator import who_has_access_to
-from code_intelligence.knowledge_rules.deterministic.structure.field_impact import field_change_impact
-from code_intelligence.knowledge_rules.deterministic.navigation.button_path import button_execution_path
-from code_intelligence.agent.ci_agent_node.tools.introspection_impl import (
+from code_intelligence.rules.common import QueryStatus
+from code_intelligence.rules.structure import trace_full_inheritance
+from code_intelligence.rules.workflow import describe_workflow
+from code_intelligence.rules.access_evaluator import who_has_access_to
+from code_intelligence.rules.structure import field_change_impact
+from code_intelligence.rules.button_path import button_execution_path
+from code_intelligence.agent.tools.introspection import (
     resolve_technical_name_to_role,
-    list_involved_modules,
-    explain_decision_path,
+    list_involved_modules_flat,
+    _explain_decision_path_impl,
     read_precise_source_code,
 )
-from code_intelligence.agent.live.comparator import (
+from code_intelligence.agent.live_validation import (
     clear_live_cache,
     fetch_live_model_security,
     compare_static_vs_live_rules,
 )
-from code_intelligence.knowledge_rules.graph import ResolvedSymbolRegistry
-from code_intelligence.knowledge_rules.extractor.xml_extractor import OdooRuleRecord
+from code_intelligence.graph.nodes import ResolvedSymbolRegistry
+from code_intelligence.extractor.xml_models import OdooRuleRecord
 
 
 def test_b1_4_suivre_heritage_complet():
@@ -108,11 +108,11 @@ def test_b2_auxiliary_tools():
     G.add_node("model:sale.order", node_type="Model", name="sale.order")
     G.add_node("module:sale", node_type="Module", name="sale")
     G.add_edge("model:sale.order", "module:sale", edge_type="DEFINED_IN")
-    assert list_involved_modules(G, "sale.order") == ["sale"]
+    assert list_involved_modules_flat(G, "sale.order") == ["sale"]
 
     # B.2.3 Path explanation
     path_nodes = ["model:sale.order", "module:sale"]
-    exp = explain_decision_path(G, path_nodes)
+    exp = _explain_decision_path_impl(G, path_nodes)
     assert "Step 1:" in exp
 
     # B.2.4 Source reader safeguard (> 200 lines refused)

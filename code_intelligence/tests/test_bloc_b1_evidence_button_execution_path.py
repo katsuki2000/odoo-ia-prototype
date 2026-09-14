@@ -13,7 +13,7 @@ closed in sections 442/444.
 
 import networkx as nx
 
-from code_intelligence.knowledge_rules.deterministic.navigation.button_path import button_execution_path
+from code_intelligence.rules.button_path import button_execution_path
 from core.evidence.evidence import Evidence, EvidenceSourceType
 
 

@@ -14,8 +14,8 @@ import json
 
 import pytest
 
-from code_intelligence.agent.investigation.classifier import classify_question_intent
-from code_intelligence.agent.investigation.schemas import QuestionIntent, INTENT_TO_ROUTE
+from code_intelligence.agent.investigation_classifier import classify_question_intent
+from code_intelligence.agent.investigation_schemas import QuestionIntent, INTENT_TO_ROUTE
 from core.schemas import QueryRoute
 
 

@@ -12,10 +12,7 @@ Tests:
 import tempfile
 from pathlib import Path
 
-from code_intelligence.knowledge_rules.extractor.xml_extractor import (
-    parse_groups_from_xml,
-    parse_actions_from_xml,
-)
+from code_intelligence.extractor.xml import parse_groups_from_xml, parse_actions_from_xml
 
 
 def test_groups_and_actions_extraction():

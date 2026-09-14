@@ -9,7 +9,7 @@ test_h1c_sticky_routing.py::test_valid_routes_set_matches_queryroute_enum
 for QueryRoute.
 """
 
-from code_intelligence.knowledge_rules.ontology import BehavioralTag, TechnicalTag
+from code_intelligence.rules.ontology import BehavioralTag, TechnicalTag
 
 
 # Verbatim from todo/architecture.md, Couche 3 -- Couche semantique.

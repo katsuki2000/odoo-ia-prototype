@@ -131,7 +131,7 @@ def _resolve_group_ids(xmlids: list) -> list:
     missing (e.g. the Purchase app isn't installed) rather than silently
     testing against an incomplete group set.
     """
-    from code_intelligence.agent.ci_agent_node import _get_admin_rpc_client
+    from code_intelligence.agent.context import _get_admin_rpc_client
 
     client, admin_uid = _get_admin_rpc_client()
     resolved = client.resolve_xmlids_to_ids(admin_uid, xmlids)

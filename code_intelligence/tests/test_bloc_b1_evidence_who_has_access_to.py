@@ -11,7 +11,7 @@ ORM, section 440).
 
 import networkx as nx
 
-from code_intelligence.knowledge_rules.deterministic.access.access_evaluator import who_has_access_to
+from code_intelligence.rules.access_evaluator import who_has_access_to
 from core.evidence.evidence import Evidence, EvidenceSourceType
 
 

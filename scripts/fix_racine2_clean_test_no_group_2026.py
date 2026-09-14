@@ -34,7 +34,7 @@ from pathlib import Path
 project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(project_root))
 
-from code_intelligence.agent.live.rpc_client import OdooRpcClient  # noqa: E402
+from code_intelligence.agent.rpc_client import OdooRpcClient
 
 TARGET_LOGIN = "test_no_group_2026"
 KEEP_XMLID = "base.group_user"

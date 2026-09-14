@@ -10,7 +10,7 @@ from core.graph.graph import (
     THRESHOLD_QUERY_TERMS, THRESHOLD_QUERY_TERMS_FOLDED,
     route,
 )
-from code_intelligence.agent.investigation import QuestionIntent
+from code_intelligence.agent.investigation_schemas import QuestionIntent
 
 
 def _route_question(question: str, mocked_intent: QuestionIntent) -> str:
@@ -37,7 +37,7 @@ def _route_question(question: str, mocked_intent: QuestionIntent) -> str:
         "timing": {},
     }
     with patch(
-        "code_intelligence.agent.investigation.classify_question_intent_llm",
+        "code_intelligence.agent.investigation_planner.classify_question_intent_llm",
         return_value=mocked_intent,
     ):
         return route(state)["route"]

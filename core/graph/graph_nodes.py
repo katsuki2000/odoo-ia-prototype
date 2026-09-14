@@ -20,7 +20,7 @@ from core.schemas import (
 )
 from core.routing.routing import RAGState, _is_out_of_scope, OUT_OF_SCOPE_ANSWER, _fold_accents
 from core.output import sanitize_html_to_markdown
-from code_intelligence.agent.investigation import has_documentary_anchor
+from code_intelligence.agent.investigation_classifier import has_documentary_anchor
 
 logger = logging.getLogger(__name__)
 

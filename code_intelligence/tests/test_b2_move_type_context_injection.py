@@ -31,12 +31,12 @@ This file covers two things:
      writing these assertions (not invented from the docstring alone).
 """
 
-from code_intelligence.agent.business_resolver import resolve_business_term
-from code_intelligence.agent.ci_agent_node.context.context_extractors import (
+from code_intelligence.agent.resolver import resolve_business_term
+from code_intelligence.agent.context_extractors import (
     _infer_move_type_context,
     _extract_company_context,
 )
-from code_intelligence.knowledge_rules.deterministic.access.record_rules_models import RuleDetail, RuleEvaluationResult
+from code_intelligence.rules.record_rules import RuleDetail, RuleEvaluationResult
 
 
 # ---------------------------------------------------------------------------

@@ -27,15 +27,15 @@ real Code Intelligence graph.
 
 import pytest
 
-from code_intelligence.agent.investigation import (
+from code_intelligence.agent.investigation_schemas import (
     InvestigationPlan,
     InvestigationStep,
     PlanAction,
     PlanGenerationSource,
     QuestionIntent,
-    validate_plan_against_route,
 )
-from code_intelligence.knowledge_rules.ontology import BehavioralTag, TechnicalTag
+from code_intelligence.agent.investigation_planner import validate_plan_against_route
+from code_intelligence.rules.ontology import BehavioralTag, TechnicalTag
 
 
 def _governance_plan_with_one_step() -> InvestigationPlan:
@@ -134,7 +134,7 @@ def test_unrecognized_route_decision_leaves_plan_untouched():
 
 @pytest.fixture(scope="module")
 def real_graph():
-    from code_intelligence.knowledge_rules.graph import get_code_intelligence_graph
+    from code_intelligence.graph.loader import get_code_intelligence_graph
 
     try:
         G = get_code_intelligence_graph()
@@ -185,7 +185,7 @@ def test_route_neutralizes_workflow_plan_on_documentaire_branch(real_graph):
     from unittest.mock import patch
     from core.routing.routing import route, QueryRoute
 
-    with patch("code_intelligence.agent.investigation.classify_question_intent_llm", return_value=None):
+    with patch("code_intelligence.agent.investigation_planner.classify_question_intent_llm", return_value=None):
         state = {
             "question": "comment créer une demande de facture ?",
             "chat_history": [],

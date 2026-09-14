@@ -13,7 +13,7 @@ Tests:
 import tempfile
 from pathlib import Path
 
-from code_intelligence.knowledge_rules.extractor.xml_extractor import parse_ir_rules_from_xml
+from code_intelligence.extractor.xml import parse_ir_rules_from_xml
 
 
 def test_ir_rule_parsing_distinct_permissions():

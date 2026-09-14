@@ -1,93 +1,80 @@
-"""
-code_intelligence/utils.py
-
-Shared utilities for the Code Intelligence pipeline.
-"""
+"""Shared utilities for the Code Intelligence pipeline."""
 
 import hashlib
+import re
+import unicodedata
 from pathlib import Path
 from typing import List, Optional, Set
+
+__all__ = [
+    "SENSITIVE_BYPASS_MARKER",
+    "format_xml_id_citation",
+    "format_xml_id_citations",
+    "format_file_link",
+    "resolve_model_xmlref",
+    "discover_odoo_modules",
+    "compute_addons_hash",
+    "fold_accents",
+    "_TRUNCATION_MARKER",
+    "_TRUNCATION_PROXIMITY_CHARS",
+    "_match_near_truncation",
+    "_AMOUNT_PATTERN",
+    "_extract_amount",
+    "_APPROVAL_PATTERN",
+    "_question_is_approval_related",
+    "_CAN_VIEW_FACT_VERDICT_RE",
+    "_CAN_VIEW_FACT_INDETERMINATE_MARKER",
+    "_split_before_first_fact_marker",
+    "_has_can_view_amount_fact",
+    "_LOCK_CONDITION_LINE_RE",
+    "_AMOUNT_CMP_RE",
+]
 
 SENSITIVE_BYPASS_MARKER = "[SENSITIVE BYPASS]"
 
 
-def format_xml_id_citation(identifier: str) -> str:
-    """Format a single Odoo technical identifier: CI_SYSTEM_PROMPT
-    instructs the synthesis LLM to copy this exact prefix "verbatim from the
-    source observation", but no tool observation ever emitted it.
+# ── Formatting helpers ──────────────────────────────────────────────────────
 
-    Returns "" for an identifier that isn't a real module-qualified xml_id
-    (no dot) -- never emits a citation token for something that wouldn't
-    match the guard's own pattern anyway.
-    """
+def format_xml_id_citation(identifier: str) -> str:
+    """Format a single Odoo XML-ID into a citation token."""
     if not identifier or "." not in identifier:
         return ""
     return f"xml_id: {identifier}"
 
 
 def format_xml_id_citations(identifiers) -> str:
-    """Space-joined 'xml_id: ...' tokens for every valid identifier in
-    `identifiers`, skipping any format_xml_id_citation rejects. Each token
-    is emitted separately, never comma-joined -- sourcing_guard's
-    _XML_ID_PATTERN stops at the first non-identifier character, so a
-    comma-joined list would only ever yield the first id as ground truth."""
+    """Space-joined 'xml_id: ...' tokens for every valid identifier."""
     tokens = [format_xml_id_citation(i) for i in identifiers]
     return " ".join(t for t in tokens if t)
 
 
-def format_file_link(filepath: str, start_line: Optional[int] = None, end_line: Optional[int] = None) -> str:
-    """Format a file path and line numbers into a clickable GitHub-style markdown link.
-
-    Examples:
-      format_file_link('/path/to/models/hr_leave.py', 12, 25)
-      -> '[hr_leave.py:L12-L25](file:///path/to/models/hr_leave.py#L12-L25)'
-      format_file_link('/path/to/security/rules.xml')
-      -> '[rules.xml](file:///path/to/security/rules.xml)'
-    """
+def format_file_link(
+    filepath: str,
+    start_line: Optional[int] = None,
+    end_line: Optional[int] = None,
+) -> str:
+    """Format a file path into a clickable GitHub-style markdown link."""
     if not filepath:
         return ""
-
-    p = Path(filepath)
-    basename = p.name
-
+    basename = Path(filepath).name
     if start_line is not None and end_line is not None:
         return f"[{basename}:L{start_line}-L{end_line}](file://{filepath}#L{start_line}-L{end_line})"
     elif start_line is not None:
         return f"[{basename}:L{start_line}](file://{filepath}#L{start_line})"
-    else:
-        return f"[{basename}](file://{filepath})"
+    return f"[{basename}](file://{filepath})"
 
+
+# ── Model & module resolution ───────────────────────────────────────────────
 
 def resolve_model_xmlref(raw_ref: str) -> str:
-    """Convert an Odoo XML model reference to its technical model name.
-
-    Handles all standard Odoo XML ref formats:
-      - 'account.model_account_move'       -> 'account.move'
-      - 'model_account_move'               -> 'account.move'
-      - 'hr_expense.model_hr_expense_sheet' -> 'hr.expense.sheet'
-      - 'model_hr_expense_sheet'            -> 'hr.expense.sheet'
-      - 'sale.order'                        -> 'sale.order'  (already a model name)
-      - 'account.move'                      -> 'account.move' (already a model name)
-
-    The Odoo convention for XML model references is:
-      <module_name>.model_<model_name_with_underscores>
-    where dots in the model name are replaced by underscores.
-    """
+    """Convert an Odoo XML model reference to its technical model name."""
     if not raw_ref:
         return raw_ref
-
-    # Strip module prefix if present (e.g. "account.model_account_move" -> "model_account_move")
     working = raw_ref
     if "." in working and "model_" in working:
-        # e.g. "account.model_account_move" -> take "model_account_move"
         working = working.split(".", 1)[-1]
-
     if working.startswith("model_"):
-        # "model_account_move" -> "account.move"
-        # "model_hr_expense_sheet" -> "hr.expense.sheet"
         return working[len("model_"):].replace("_", ".")
-
-    # Already a technical model name (e.g. "sale.order", "account.move")
     return raw_ref
 
 
@@ -97,25 +84,11 @@ def discover_odoo_modules(
     include: Optional[List[str]] = None,
     exclude: Optional[Set[str]] = None,
 ) -> List[str]:
-    """Auto-discover Odoo modules in an addons directory.
-
-    A directory is considered an Odoo module if it contains a __manifest__.py file.
-
-    Args:
-        addons_path: Path to the addons directory to scan.
-        prefix: If set, only return modules whose name starts with this prefix.
-        include: If set, only return modules in this explicit list.
-        exclude: If set, skip modules in this set.
-
-    Returns:
-        Sorted list of module directory names.
-    """
+    """Auto-discover Odoo modules in an addons directory."""
     if not addons_path.exists():
         return []
-
     if exclude is None:
         exclude = set()
-
     modules = []
     for d in sorted(addons_path.iterdir()):
         if not d.is_dir():
@@ -129,32 +102,93 @@ def discover_odoo_modules(
         if prefix is not None and not d.name.startswith(prefix):
             continue
         modules.append(d.name)
-
     return modules
 
 
-def compute_addons_hash(addons_path: Path, module_names: Optional[List[str]] = None) -> str:
-    """Compute a SHA-256 hash of all source files in the given modules.
-
-    Used for cache invalidation: if the hash changes, the graph needs to be rebuilt.
-
-    Args:
-        addons_path: Path to the addons directory.
-        module_names: If set, only hash files in these modules. Otherwise, hash all.
-
-    Returns:
-        First 16 hex chars of the SHA-256 digest.
-    """
+def compute_addons_hash(
+    addons_path: Path, module_names: Optional[List[str]] = None
+) -> str:
+    """SHA-256 hash (first 16 hex chars) of all source files in given modules."""
     h = hashlib.sha256()
-    dirs = []
     if module_names:
         dirs = [addons_path / m for m in sorted(module_names) if (addons_path / m).exists()]
     else:
         dirs = [addons_path]
-
     for base_dir in dirs:
         for ext in ("*.py", "*.xml", "*.csv"):
             for f in sorted(base_dir.rglob(ext)):
                 h.update(f.read_bytes())
-
     return h.hexdigest()[:16]
+
+
+def fold_accents(text: str) -> str:
+    """Normalize text: lowercase + strip diacritics."""
+    return unicodedata.normalize("NFD", text.lower()).encode("ascii", "ignore").decode()
+
+
+# ── Text-signal primitives ──────────────────────────────────────────────────
+
+_TRUNCATION_MARKER = "\n[... Content truncated for LLM context limit ...]"
+_TRUNCATION_PROXIMITY_CHARS = 50
+
+
+def _match_near_truncation(text: str, start: int, end: int) -> bool:
+    """True if [start, end) span is within proximity of a truncation marker."""
+    ws = max(0, start - _TRUNCATION_PROXIMITY_CHARS)
+    we = min(len(text), end + _TRUNCATION_PROXIMITY_CHARS)
+    return _TRUNCATION_MARKER in text[ws:we]
+
+
+_AMOUNT_PATTERN = re.compile(r"\d[\d\s.,]*\d\s*(?:€|eur(?:os?)?\b)", re.IGNORECASE)
+
+
+def _extract_amount(question: str) -> Optional[float]:
+    """Extract first monetary amount mentioned in question as a float."""
+    match = _AMOUNT_PATTERN.search(question)
+    if not match:
+        return None
+    raw = match.group(0)
+    numeric_part = re.sub(r"(?i)(€|eur(?:os?)?)", "", raw).strip()
+    cleaned = numeric_part.replace(" ", "").replace(",", "")
+    try:
+        return float(cleaned)
+    except ValueError:
+        return None
+
+
+_APPROVAL_PATTERN = re.compile(
+    r"\b(?:approuv\w*|valid\w*|approbation\w*|permission\w*|exig\w*|condition\w*|rembourse\w*)\b",
+    re.IGNORECASE,
+)
+
+
+def _question_is_approval_related(question: str) -> bool:
+    return bool(_APPROVAL_PATTERN.search(question))
+
+
+_CAN_VIEW_FACT_VERDICT_RE = re.compile(
+    r"can_view_amount\(\)\s*=\s*(True|False)\s*:\s*l.utilisateur\s+(PEUT|NE PEUT PAS)",
+)
+_CAN_VIEW_FACT_INDETERMINATE_MARKER = "can_view_amount_v2() = indeterminate"
+
+
+def _split_before_first_fact_marker(text: str) -> str:
+    """Text portion before the first '[FAIT' marker."""
+    idx = text.find("[FAIT")
+    return text if idx == -1 else text[:idx]
+
+
+def _has_can_view_amount_fact(final_answer: str) -> bool:
+    return bool(_CAN_VIEW_FACT_VERDICT_RE.search(final_answer)) or (
+        _CAN_VIEW_FACT_INDETERMINATE_MARKER in final_answer
+    )
+
+
+_LOCK_CONDITION_LINE_RE = re.compile(
+    r"\*\s*\"[^\"]*\"\s*\(condition\s*:\s*(.*?has_group\(['\"]([^'\"]+)['\"]\).*?)\)",
+    re.IGNORECASE,
+)
+_AMOUNT_CMP_RE = re.compile(
+    r"(?:rec\.)?amount(?:_total)?\s*(>|>=|<|<=)\s*(\d+(?:\.\d+)?)",
+    re.IGNORECASE,
+)

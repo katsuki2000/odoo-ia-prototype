@@ -19,16 +19,15 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import networkx as nx
 
-from code_intelligence.knowledge_rules.graph.integrity.staleness_detector import (
+from code_intelligence.graph.staleness import (
     StalenessLevel,
     StalenessReport,
     analyze_changes,
     get_nodes_for_filepath,
     propagate_dirty_nodes,
 )
-from code_intelligence.knowledge_rules.graph import (
-    atomic_write_json,
-    atomic_read_json,
+from code_intelligence.graph.atomic_swap import atomic_write_json, atomic_read_json
+from code_intelligence.graph.version import (
     serialize_graph_with_metadata,
     deserialize_graph_with_metadata,
     get_git_commit_hash,

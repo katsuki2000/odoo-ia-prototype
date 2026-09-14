@@ -68,8 +68,8 @@ def test_get_total_sales_wrapper_without_active_turn_does_not_raise():
 
 def test_who_has_access_to_wrapper_records_evidence(monkeypatch):
     from core.evidence.evidence_collector import start_evidence_collection, collect_and_clear_evidence
-    from code_intelligence.agent.ci_agent_node import tools as ci_agent_tools
-    from code_intelligence.agent.ci_agent_node.context.tool_helpers import set_graph_ref
+    from code_intelligence.agent import tools as ci_agent_tools
+    from code_intelligence.agent.tool_helpers import set_graph_ref
     import networkx as nx
 
     G = nx.DiGraph()
@@ -92,7 +92,7 @@ def test_who_has_access_to_wrapper_records_evidence(monkeypatch):
         return _FakeResult()
 
     monkeypatch.setattr(
-        "code_intelligence.knowledge_rules.deterministic.access.access_evaluator.who_has_access_to", _fake_impl
+        "code_intelligence.rules.access_evaluator.who_has_access_to", _fake_impl
     )
 
     start_evidence_collection()
