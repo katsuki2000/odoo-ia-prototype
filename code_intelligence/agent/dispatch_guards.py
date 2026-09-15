@@ -117,7 +117,10 @@ import logging
 import re
 from typing import Optional, List
 
-from code_intelligence.agent.context_extractors import _AUTOMATION_PATTERN
+from code_intelligence.agent.context_extractors import (
+    _AUTOMATION_PATTERN,
+    _question_is_security_distinction_related,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -273,4 +276,45 @@ def _force_dynamic_uncertainty_answer(question: str, raw_tool_output: str) -> Op
         "d'un paramètre récupéré à l'exécution, donc le chemin exact doit être revu manuellement. "
         "Ne pas présenter cette validation comme autorisée ou refusée de manière certaine."
         f"{citation_part}"
+    )
+
+
+# Tools that already surface the ACL/ir.rule (surface-level access) layer,
+# vs. tools that actually look at the Python application-level guard.
+_ACL_LAYER_TOOLS = frozenset({"who_has_access_to", "evaluate_record_rules"})
+_APPLICATION_GUARD_TOOLS = frozenset({"read_source_code", "analyze_method_override_chain"})
+
+
+def _maybe_build_application_layer_reminder(question: str, tool_observation_tools: List[str]) -> Optional[str]:
+    """Mid-loop nudge: push the ReAct loop to check the Python-level
+    application guard before concluding 'no distinction' from ACL/ir.rule
+    alone on a security-distinction question.
+
+    todo/contexte.txt section 778: on PUR-Q1 the agent called
+    who_has_access_to + evaluate_record_rules, found identical ACL/ir.rule
+    across the two groups the question compares, and concluded (wrongly)
+    that no distinction exists at all -- without ever calling
+    read_source_code on the real application-level guard (_approval_allowed(),
+    invoked from button_confirm()/button_approve()). assess_evidence_sufficiency()
+    cannot catch this after the fact (its check is lexical -- 'observation
+    found' vs 'not found', never 'does this actually answer the question
+    asked') and the RAG fallback would not help either (documents only, no
+    code, since 30/08 -- see todo/plan.md). The ReAct loop's own tool
+    selection is therefore the only point where this can be corrected, and
+    only before it settles on a final answer -- hence a SystemMessage
+    injected between tool-selection turns, not a post-hoc check."""
+    if not _question_is_security_distinction_related(question):
+        return None
+    tools_seen = set(tool_observation_tools)
+    if not (_ACL_LAYER_TOOLS & tools_seen):
+        return None
+    if _APPLICATION_GUARD_TOOLS & tools_seen:
+        return None
+    return (
+        "RAPPEL : l'ACL et les ir.rule seuls ne suffisent pas toujours à répondre à "
+        "une question de distinction entre deux rôles/groupes -- si les permissions "
+        "semblent identiques entre les groupes comparés dans la question, ne conclus "
+        "PAS encore à une absence de distinction. Vérifie le garde applicatif Python "
+        "(ex. méthode d'approbation/de validation invoquée depuis un bouton, souvent "
+        "nommée _*_allowed/_check_*/button_*) avec read_source_code avant de répondre."
     )

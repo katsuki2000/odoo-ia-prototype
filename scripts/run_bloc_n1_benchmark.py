@@ -2,23 +2,11 @@
 """
 scripts/run_bloc_n1_benchmark.py
 
-Runner de benchmark pour le Bloc N1 (todo/plan.md -- "Construire le banc de
-questions/verite-terrain pour chacun des 5 modules natifs coeur"):
-interroge l'agent Code Intelligence reel (le meme chemin d'execution que
-core.graph.graph::code_intelligence_agent, cf. run_adversarial_benchmark.py)
-avec chacune des 25 questions de tests/native_n1_question_bank.json
-(maintenance, purchase, sale, stock, account), et capture :
- - la reponse verbatim de l'agent
- - les outils CI reellement invoques (extraits des sources retournees)
- - la latence (effective / attente Groq / nombre de sauts)
-
-Ce script NE NOTE PAS automatiquement la reponse par un second LLM --
-conformement a la discipline "deterministe, jamais de second LLM comme
-juge" (todo/rules.md). Il calcule seulement un signal deterministe de
+Runner de benchmark pour le Bloc N1 
+Ce script calcule seulement un signal deterministe de
 couverture d'outils (expected_tools vs outils reellement invoques) et
 laisse la comparaison qualitative verbatim/reference_answer a une revue
-humaine (pmm), exactement comme run_adversarial_benchmark.py le fait deja
-pour le Bloc 7.
+humaine 
 
 Usage:
     python scripts/run_bloc_n1_benchmark.py                 # les 25 questions

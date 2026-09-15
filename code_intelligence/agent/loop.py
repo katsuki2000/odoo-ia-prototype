@@ -187,6 +187,7 @@ from langchain_core.messages import SystemMessage, HumanMessage
 from code_intelligence.agent.dispatch_guards import (
     _strip_group_resolution_noise,
     _force_dynamic_uncertainty_answer,
+    _maybe_build_application_layer_reminder,
 )
 from core.llm.llm_client import get_chat_llm, invoke_with_rate_limit as _invoke_with_rate_limit
 from core.output import (
@@ -219,6 +220,23 @@ def run_react_loop(
             ctx.question, "\n\n".join(ctx.tool_observations),
         )
 
+    # Section 780 fix: who_has_access_to/evaluate_record_rules are both
+    # forced by predispatch (predispatch_access.py) BEFORE this loop is
+    # ever entered, so the application-layer reminder's trigger condition
+    # (section 779) can already be satisfied here, before the very first
+    # tool-selection call -- the in-loop check below (after
+    # execute_tool_calls) only catches tools chosen DURING this loop and
+    # therefore always arrives one hop too late for the predispatch-only
+    # case (confirmed on PUR-Q1). Same guard, checked once more here for
+    # the pre-loop state.
+    if not final_answer and not ctx.security_distinction_reminder_sent:
+        reminder = _maybe_build_application_layer_reminder(
+            ctx.question, ctx.tool_observation_tools,
+        )
+        if reminder:
+            messages.append(SystemMessage(content=reminder))
+            ctx.security_distinction_reminder_sent = True
+
     for _ in range(0 if final_answer else react_recursion_limit):
         # the deterministic pre-dispatch blocks each break their OWN loop once hop_count reaches the cap, but nothing previously stopped THIS ReAct loop from still invoking llm_with_tools for at least one more iteration when the hop budget was already exhausted by pre-dispatch. Skipping the tool-selection call outright once the budget is already spent closes the gap at its root: no second call is ever issued, nothing to reconcile after the fact.
         if ctx.hop_budget_exhausted:
@@ -245,6 +263,13 @@ def run_react_loop(
         if ai_msg and getattr(ai_msg, "tool_calls", None):
             messages.append(ai_msg)
             execute_tool_calls(ctx, ai_msg, messages)
+            if not ctx.security_distinction_reminder_sent:
+                reminder = _maybe_build_application_layer_reminder(
+                    ctx.question, ctx.tool_observation_tools,
+                )
+                if reminder:
+                    messages.append(SystemMessage(content=reminder))
+                    ctx.security_distinction_reminder_sent = True
         elif ai_msg and ai_msg.content:
             final_answer = ai_msg.content
 

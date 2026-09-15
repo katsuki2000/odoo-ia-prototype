@@ -181,6 +181,33 @@ def _question_is_constraint_related(question: str) -> bool:
     return bool(_CONSTRAINTS_QUESTION_PATTERN.search(_strip_accents(question)))
 
 
+# "What actually distinguishes X from Y" phrasing -- a security question
+# that implies a real distinction must exist somewhere between two
+# roles/groups, even if the ACL/ir.rule layer alone turns out identical
+# (todo/contexte.txt section 778, PUR-Q1: the agent stopped after ACL+rule
+# observations showed no difference and answered "no distinction exists",
+# which was wrong -- the real distinction was a Python-level approval
+# guard neither tool surfaces). Distinct from _question_is_access_related
+# (which matches ANY access-permission wording): this one specifically
+# targets the "beyond what ACL shows" phrasing that should push the agent
+# one layer deeper before concluding.
+_SECURITY_DISTINCTION_PATTERN = re.compile(
+    r"\bqu['’]est-ce\s+qui\s+distingue\b|"
+    r"\bdistingue(?:-t-il)?\s+(?:alors\s+)?r[eé]ellement\b|"
+    r"\bdiff[eé]rencie\s+r[eé]ellement\b|"
+    r"\b(?:vraie|r[eé]elle)\s+diff[eé]rence\s+entre\b|"
+    r"\bdiff[eé]rence\s+r[eé]elle\s+entre\b",
+    re.IGNORECASE,
+)
+
+
+def _question_is_security_distinction_related(question: str) -> bool:
+    """True if the question asks what genuinely/really distinguishes two
+    roles/groups, implying a real distinction should exist beyond a
+    surface-level ACL/ir.rule check."""
+    return bool(_SECURITY_DISTINCTION_PATTERN.search(_strip_accents(question)))
+
+
 def _rehydrate_sticky_concept(concept, state: dict):
     """Reconstruct a ResolvedConcept from a sticky dict when current turn's resolution failed."""
     if concept.is_resolved:

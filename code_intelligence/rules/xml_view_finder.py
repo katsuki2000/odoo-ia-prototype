@@ -15,6 +15,45 @@ from code_intelligence.rules.button_path import ButtonExecutionPathResult
 from code_intelligence.utils import format_file_link, format_xml_id_citations
 
 
+def _resolve_field_name_from_view_string_override(
+    G: nx.DiGraph, model_name: str, clean_label: str,
+) -> Optional[tuple]:
+    """Scan model_name's own XML views for a <field name="X" string="Y"/> override
+    whose Y matches clean_label -- catches a UI label overridden per-view (e.g. "From")
+    that diverges from the field's own Python-defined label (e.g. "Source Location"),
+    which the graph's HAS_FIELD node only ever carries the latter for."""
+    for m_node, m_data in G.nodes(data=True):
+        if m_data.get("node_type") != "Module":
+            continue
+        mfp = m_data.get("filepath")
+        if not mfp:
+            continue
+        vdir = Path(mfp).parent / "views"
+        if not vdir.exists():
+            continue
+        for xml_file in vdir.glob("*.xml"):
+            try:
+                content = xml_file.read_text(encoding="utf-8")
+                if "string=" not in content:
+                    continue
+                root = ET.fromstring(content)
+                for rec in root.findall(".//record"):
+                    if rec.attrib.get("model") != "ir.ui.view":
+                        continue
+                    rec_model_field = rec.find('./field[@name="model"]')
+                    rec_model = (rec_model_field.text or "").strip() if rec_model_field is not None else ""
+                    if rec_model != model_name:
+                        continue
+                    for fld in rec.iter("field"):
+                        fname = fld.attrib.get("name", "")
+                        fstring = fld.attrib.get("string", "")
+                        if fname and fstring and fstring.strip().lower() == clean_label:
+                            return fname, fstring.strip()
+            except Exception:
+                continue
+    return None
+
+
 def _find_field_in_xml_views(
     G: nx.DiGraph,
     model_name: str,
@@ -67,6 +106,11 @@ def _find_field_in_xml_views(
             matched_field_label = candidates[0][2] or matched_field_name
 
     if not matched_field_name:
+        override = _resolve_field_name_from_view_string_override(G, model_name, clean_id)
+        if override:
+            matched_field_name, matched_field_label = override
+
+    if not matched_field_name:
         if clean_id.replace("_", "").isalnum():
             matched_field_name = clean_id
             matched_field_label = field_identifier
@@ -93,6 +137,10 @@ def _find_field_in_xml_views(
                 root = ET.fromstring(content)
                 for rec in root.findall(".//record"):
                     if rec.attrib.get("model") != "ir.ui.view":
+                        continue
+                    rec_model_field = rec.find('./field[@name="model"]')
+                    rec_model = (rec_model_field.text or "").strip() if rec_model_field is not None else ""
+                    if rec_model != model_name:
                         continue
                     rec_id = rec.attrib.get("id", "")
                     parent_map = {c: p for p in rec.iter() for c in p}

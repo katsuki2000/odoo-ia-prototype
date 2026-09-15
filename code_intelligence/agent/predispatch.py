@@ -28,6 +28,7 @@ from code_intelligence.agent.predispatch_actions import (
 from code_intelligence.agent.predispatch_access import (
     dispatch_who_has_access_to,
     dispatch_evaluate_record_rules,
+    dispatch_security_distinction_guard,
 )
 from code_intelligence.agent.predispatch_structure import (
     dispatch_describe_workflow,
@@ -43,6 +44,7 @@ def run_predispatch_chain(ctx: DispatchContext) -> None:
     dispatch_override_chain(ctx)
     dispatch_who_has_access_to(ctx)
     dispatch_evaluate_record_rules(ctx)
+    dispatch_security_distinction_guard(ctx)
     dispatch_describe_workflow(ctx)
     dispatch_inheritance(ctx)
     dispatch_module_level_ui_inquiry(ctx)

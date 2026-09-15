@@ -1,7 +1,6 @@
 """
-code_intelligence/investigation_plan_schemas.py
+code_intelligence/investigation_schemas.py
 
-Bloc P1 Jour 1-2 (todo/plan.md, Couche 3 architecture.md):
 Serializable Investigation Plan schema, Question Intent classification,
 and closed action vocabulary.
 """

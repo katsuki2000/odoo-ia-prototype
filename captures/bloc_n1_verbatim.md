@@ -1,6 +1,6 @@
 # Rapport Verbatim -- Bloc N1 (banc de questions natif)
 
-**Date d'execution :** 2026-09-15 10:50:05
+**Date d'execution :** 2026-09-15 14:46:28
 
 **Objectif :** rejouer les questions verite-terrain des 5 modules natifs (maintenance, purchase, sale, stock, account) contre l'agent Code Intelligence reel et capturer la reponse verbatim pour comparaison manuelle avec `reference_answer` -- aucune notation automatique.
 
@@ -9,74 +9,49 @@
 
 | Metrique | Valeur |
 |---|---|
-| Questions executees | 2 |
+| Questions executees | 1 |
 | Erreurs d'execution | 0 |
 | Ecarts de couverture d'outils (expected_tools non tous invoques) | 0 |
-| p50 latence effective | `9.83s` |
-| p90 latence effective | `16.09s` (budget `12.0s`,  DEPASSE) |
-| Moyenne | `9.83s` |
-| Max | `16.09s` |
+| p50 latence effective | `3.44s` |
+| p90 latence effective | `3.44s` (budget `12.0s`,  RESPECTE) |
+| Moyenne | `3.44s` |
+| Max | `3.44s` |
 
 ---
 
-## [SAL-Q4] sale -- ui (easy)
-**Question :** Pourquoi un vendeur simple ne peut-il pas deverrouiller (Unlock) une commande verrouillee, meme si c'est lui qui l'a confirmee ?
+## [PUR-Q1] purchase -- security (hard)
+**Question :** L'ACL de purchase.order accorde les 4 permissions (lecture/ecriture/creation/suppression) a group_purchase_user comme a group_purchase_manager. Qu'est-ce qui distingue alors reellement un simple acheteur d'un manager sur une commande d'achat ?
 
 **Reponse de reference (verite-terrain) :**
-> Le bouton action_unlock porte groups='sales_team.group_sale_manager' dans la vue formulaire -- reserve aux managers, quel que soit le lien du vendeur avec la commande (createur, assigne via user_id, etc.). Le bouton n'est meme visible (invisible="not locked") que si la commande est deja verrouillee, mais son affichage reste conditionne au groupe manager en plus de cette condition d'etat. Le bouton action_lock, lui, n'est visible que si le parametrage sale.group_auto_done_setting est actif (t groups=), et porte la meme restriction sales_team.group_sale_manager.
+> Rien au niveau ACL/ir.rule (access_purchase_order et access_purchase_order_manager sont strictement identiques, 1,1,1,1 ; purchase_order_comp_rule ne fait que filtrer par societe, sans distinction de groupe). La distinction reelle est portee par une methode Python, _approval_allowed() : une commande peut etre approuvee sans intervention manager si po_double_validation=='one_step', ou si po_double_validation=='two_step' et que le montant total reste sous po_double_validation_amount (Monetary, defaut 5000) -- sinon seul un utilisateur avec purchase.group_purchase_manager (via user_has_groups) peut l'approuver. Cette regle n'est pas un ACL/ir.rule mais un garde applicatif invoque depuis button_confirm()/button_approve().
 
-**A verifier dans le code :** `views/sale_order_views.xml : boutons action_unlock (groups='sales_team.group_sale_manager', invisible='not locked') et action_lock (dans <t groups='sale.group_auto_done_setting'>, lui-meme groups='sales_team.group_sale_manager')`
+**A verifier dans le code :** `security/ir.model.access.csv (access_purchase_order vs access_purchase_order_manager, identiques) + models/purchase_order.py : _approval_allowed(), models/res_company.py : po_double_validation/po_double_validation_amount`
 
-**Outils attendus :** ['button_execution_path'] | **Outils invoques :** ['button_execution_path', 'read_source_code']
+**Outils attendus :** ['who_has_access_to', 'evaluate_record_rules', 'read_source_code'] | **Outils invoques :** ['who_has_access_to', 'evaluate_record_rules', 'describe_workflow', 'button_execution_path', 'read_source_code', 'read_source_code']
 
-**Reponse verbatim de l'agent (Total: 8.5s | Effectif: 3.576s | Groq wait: 4.92s | Sauts: 2) :**
+**Reponse verbatim de l'agent (Total: 3.44s | Effectif: 3.437s | Groq wait: 0.0s | Sauts: 6) :**
 ```text
-Le bouton **« Unlock »** sur le modèle `sale.order` est limité aux utilisateurs appartenant au groupe **`sales_team.group_sale_manager`** (voir la définition du bouton dans `sale_order.py` aux lignes 1063‑1064).  
-Le vendeur simple ne fait pas partie de ce groupe, donc le bouton n’apparaît pas (ou est grisé) dans son interface ; l’action `action_unlock()` n’est donc pas accessible pour lui, même s’il a confirmé la commande.  
+**Ce qui distingue un simple acheteur d’un manager sur une commande d’achat :**
 
-En résumé : la restriction de groupe empêche un vendeur simple de déverrouiller une commande verrouillée.
+1. **Capacité d’approbation**  
+   - Le bouton **« Confirm Order »** (méthode `button_confirm()`) passe la commande à l’état `to approve` si la condition `_approval_allowed()` n’est pas satisfaite.  
+   - Cette condition est vraie :  
+     - Si la société a activé la double validation en **une étape** (`po_double_validation == 'one_step'`).  
+     - Ou si la double validation est en **deux étapes** et que le montant total de la commande est **inférieur** au seuil `po_double_validation_amount`.  
+     - **Ou** si l’utilisateur appartient au groupe `purchase.group_purchase_manager`.  
+   - Ainsi, un **manager** peut approuver immédiatement les commandes qui dépassent le seuil de double validation ou qui sont soumises à la double validation en deux étapes.  
+   - Un **acheteur** (membre de `group_purchase_user` mais pas de `purchase.group_purchase_manager`) ne peut pas approuver ces commandes ; il doit attendre l’approbation d’un manager.
 
-[Source: Graphe de Connaissances Code Intelligence]
-```
+2. **Fonctionnalité de déverrouillage**  
+   - Le bouton **« Unlock »** (méthode `button_unlock()`) est disponible uniquement pour le groupe `purchase.group_purchase_manager` (xml_id : `purchase.group_purchase_manager`).  
+   - Un manager peut donc déverrouiller une commande qui a été verrouillée, ce qui n’est pas possible pour un acheteur.
 
----
+3. **Accès global**  
+   - Les ACL donnent les mêmes droits de lecture, écriture, création et suppression aux deux groupes.  
+   - Les règles globales (`purchase.purchase_order_comp_rule`) ne restreignent pas l’accès en fonction du groupe.  
+   - Aucun `ir.rule` spécifique ne différencie les deux groupes pour ce modèle.
 
-## [ACC-Q4] account -- ui (hard)
-**Question :** Un utilisateur avec uniquement group_account_invoice ('Billing') voit-il le compte comptable (account_id) d'une ligne de facture ? Et un 'Billing Administrator' (group_account_manager) le voit-il, en configuration Invoicing seule (sans le module Accounting installe) ?
-
-**Reponse de reference (verite-terrain) :**
-> Non dans les deux cas. Le champ account_id porte groups='account.group_account_readonly' dans la vue -- or ni group_account_invoice ni group_account_manager n'impliquent group_account_readonly (seul group_account_user, le profil 'comptable complet', implique a la fois invoice et readonly). En configuration Invoicing seule, la documentation du fichier de securite le confirme explicitement : seuls group_account_invoice et group_account_manager sont censes etre utilises, et aucun des deux ne donne acces au champ technique du compte comptable -- il faut le module Accounting (qui attribue alors group_account_user) pour le voir.
-
-**A verifier dans le code :** `views/account_move_views.xml : <field name="account_id" ... groups="account.group_account_readonly"/> + security/account_security.xml : commentaire d'en-tete + implied_ids de group_account_invoice/group_account_manager/group_account_user`
-
-**Outils attendus :** ['button_execution_path'] | **Outils invoques :** ['analyze_security_locks', 'who_has_access_to', 'evaluate_record_rules', 'button_execution_path', 'read_source_code', 'read_source_code']
-
-**Reponse verbatim de l'agent (Total: 33.21s | Effectif: 16.087s | Groq wait: 17.117s | Sauts: 6) :**
-```text
-**Visibilité du champ `account_id` sur une ligne de facture**
-
-| Groupe | Accès au modèle `account.move` | Champ `account_id` visible dans la vue `account.move.line` |
-|--------|--------------------------------|-----------------------------------------------------------|
-| `account.group_account_invoice` (Billing) | **READ** (voir l’accès matrix ci‑dessous) | Oui – le champ est affiché (readonly) dans la vue `account.move.line` (ligne 27‑30). |
-| `account.group_account_manager` (Billing Administrator) | **READ** (voir l’accès matrix ci‑dessous) | Oui – le champ est affiché (readonly) dans la vue `account.move.line` (ligne 27‑30). |
-
-**Sources**
-
-1. **Accès au modèle `account.move`**  
-   - `[READ]: account.group_account_invoice, account.group_account_manager, ...`  
-     (xml_id: account.group_account_invoice xml_id: account.group_account_manager …)  
-     – Source : *Access Matrix for 'account.move'*.
-
-2. **Vue `account.move.line`**  
-   - `<field name="account_id" options="{'no_create': True}" domain="[('company_id', 'parent_of', company_id), ('deprecated', '=', False)]" readonly="1"/>`  
-     – Source : *view_move_line_form* (file:///home/user/odoo-17.0/addons/account/models/account_bank_statement_line.py#L27-L30).
-
-**Conclusion**
-
-- Un utilisateur possédant uniquement le groupe `account.group_account_invoice` peut voir le champ `account_id` d’une ligne de facture.  
-- Un « Billing Administrator » (groupe `account.group_account_manager`) peut également voir ce champ, même si seul le module **Invoicing** est installé (le module Accounting n’est pas requis pour la vue).  
-
-Le champ est affiché en lecture seule pour ces groupes.
+En résumé, la différence principale réside dans la **capacité d’approbation** des commandes dépassant le seuil de double validation et dans la **possibilité de déverrouiller** une commande, fonctions réservées aux membres du groupe `purchase.group_purchase_manager`. Les droits d’accès de base (lecture, écriture, création, suppression) restent identiques pour les deux groupes.
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```

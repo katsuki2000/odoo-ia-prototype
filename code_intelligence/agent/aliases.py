@@ -144,6 +144,10 @@ BUSINESS_ALIASES: Dict[str, List[str]] = {
     "archivage emplacement": ["stock.location"],
     "emplacements de stock": ["stock.location"],
     "emplacement de stock": ["stock.location"],
+    "transfert de stock": ["stock.picking"],
+    "transferts de stock": ["stock.picking"],
+    "transfert": ["stock.picking"],
+    "transferts": ["stock.picking"],
     # Auditlog
     "auditlog": ["auditlog.rule", "auditlog.log"],
     "regle d'audit": ["auditlog.rule"],

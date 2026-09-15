@@ -1,21 +1,10 @@
-"""
-code_intelligence/ci_agent_node/constants.py
-
-Static text/display constants for the CI agent node, extracted from the
-former ci_agent_node.py monolith (refactor, see todo/contexte.txt).
-"""
-
 _EXECUTION_FAILURE_NOTICE = (
-    "\n\n[ATTENTION] Une ou plusieurs analyses Code Intelligence n'ont pas pu "
+    "\n\n[ATTENTION] Une ou plusieurs analyses n'ont pas pu "
     "s'ex\u00e9cuter correctement pour cette question (panne technique d'un ou "
     "plusieurs outils). La r\u00e9ponse ci-dessus peut donc \u00eatre incompl\u00e8te ; "
     "n'y voyez pas une absence confirm\u00e9e d'information."
 )
 
-# ── Human-readable labels for sources built from tool observations ─────────
-# (section: réponses trop techniques, todo/contexte.txt) -- used only for
-# SourceReference.title in the dépliant; falls back to the raw tool name
-# for anything not listed here (e.g. new tools added later).
 _CI_TOOL_DISPLAY_NAMES = {
     "analyze_security_locks": "Verrous de sécurité (code Python)",
     "analyze_server_actions": "Actions serveur / automatisations",
@@ -35,10 +24,6 @@ _CI_TOOL_DISPLAY_NAMES = {
 }
 
 # ── Dispatch Context ───────────────────────────────────────────────────
-
-"""
-code_intelligence/ci_agent_node/dispatch_context.py
-"""
 
 import time
 from dataclasses import dataclass, field
@@ -65,13 +50,17 @@ class DispatchContext:
     hop_count: int = 0
     hop_index: int = 0
 
-    # Populated during the ReAct loop (react_loop.py), not by the
-    # pre-dispatch blocks -- kept here so both phases share one place for
-    # the per-turn metrics eventually written into `timing` (runner.py).
+    
     llm_call_count: int = 0
     groq_wait: float = 0.0
     per_hop_times: List[float] = field(default_factory=list)
     synthesis_time: float = 0.0
+
+    # Set once the security-distinction application-layer reminder (see
+    # dispatch_guards.py::_maybe_build_application_layer_reminder,
+    # todo/contexte.txt section 778) has been injected into the ReAct loop
+    # for this turn, so it is only ever sent once per question.
+    security_distinction_reminder_sent: bool = False
 
     @property
     def hop_budget_exhausted(self) -> bool:
@@ -97,12 +86,9 @@ class DispatchContext:
 # ── Early Refusal ───────────────────────────────────────────────────────
 
 """
-code_intelligence/ci_agent_node/early_refusal.py
 
 Shared builder for the 3 early-refusal paths of the CI agent (out-of-scope,
-prompt injection, massive extraction) -- these were 3 duplicated blocks in
-the former ci_agent_node.py monolith, unified here (refactor, see
-todo/contexte.txt). Behavior unchanged.
+prompt injection, massive extraction) 
 """
 
 import time
@@ -128,11 +114,7 @@ def build_early_refusal_response(
 # ── Group Resolution ───────────────────────────────────────────────────
 
 """
-code_intelligence/ci_agent_node/group_resolution.py
-
-Real Odoo group DB ID -> xml_id resolution, extracted from the former
-ci_agent_node.py monolith (refactor, see todo/contexte.txt). Behavior
-unchanged: core.graph.graph keeps an independent copy of these globals
+core.graph.graph keeps an independent copy of these globals
 (re-imported by name from code_intelligence.agent.loop), and
 _get_admin_rpc_client() explicitly syncs against core.graph.graph's copy via
 sys.modules so a reset on either side is mirrored on the other.
@@ -153,9 +135,7 @@ def _get_admin_rpc_client():
     for anything requiring the actual requester's own rights.
 
     core.graph.graph holds an independent copy of these globals (re-imported by
-    name); a reset on that copy is now mirrored here too, so a stale client
-    left over from an earlier test can never leak through (contexte.txt
-    section 256).
+    name).
     """
     global _ADMIN_RPC_CLIENT, _ADMIN_RPC_UID
     import sys
@@ -216,8 +196,6 @@ def _resolve_user_group_xmlids(group_ids) -> list:
 # ── Heuristics & Truncation ─────────────────────────────────────────────
 
 """
-code_intelligence/ci_prompt_and_heuristics.py
-
 System prompt, hop limits, tool call deduplication, and observation truncation helpers.
 """
 
@@ -229,21 +207,7 @@ logger = logging.getLogger(__name__)
 from code_intelligence.utils import _TRUNCATION_MARKER, _match_near_truncation
 
 
-# Maximum hops (tool calls) allowed per question, before the ReAct loop
-# stops issuing new tool-selection calls and synthesizes from whatever
-# observations it has gathered so far.
-#
-# Was a hardcoded 4, independent of question difficulty -- on the Bloc N1
-# benchmark this repeatedly cut 'hard' questions off (CI_MAX_HOPS (4)
-# reached -- breaking ReAct loop) before tools the eval's own
-# expected_tools ground truth called for (button_execution_path,
-# describe_workflow, read_source_code) had even been invoked, e.g.
-# ACC-Q1/ACC-Q2/ACC-Q4 (see captures/bloc_n1_verbatim.md). Also note this
-# was already BELOW core.routing.routing_keywords.REACT_RECURSION_LIMIT
-# (6) -- hop_cap was always the binding constraint, never the outer loop.
-# Raised to 6 (matches REACT_RECURSION_LIMIT) and made overridable via env
-# for per-difficulty tuning without a code change, e.g. CI_MAX_HOPS=8 for
-# a 'hard'-only benchmark run.
+
 import os as _os
 CI_MAX_HOPS = int(_os.getenv("CI_MAX_HOPS", "6"))
 
