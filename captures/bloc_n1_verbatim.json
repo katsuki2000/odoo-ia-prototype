@@ -1,31 +1,24 @@
 [
   {
-    "id": "PUR-Q1",
-    "module": "purchase",
-    "capability": "security",
-    "difficulty": "hard",
-    "question": "L'ACL de purchase.order accorde les 4 permissions (lecture/ecriture/creation/suppression) a group_purchase_user comme a group_purchase_manager. Qu'est-ce qui distingue alors reellement un simple acheteur d'un manager sur une commande d'achat ?",
-    "reference_answer": "Rien au niveau ACL/ir.rule (access_purchase_order et access_purchase_order_manager sont strictement identiques, 1,1,1,1 ; purchase_order_comp_rule ne fait que filtrer par societe, sans distinction de groupe). La distinction reelle est portee par une methode Python, _approval_allowed() : une commande peut etre approuvee sans intervention manager si po_double_validation=='one_step', ou si po_double_validation=='two_step' et que le montant total reste sous po_double_validation_amount (Monetary, defaut 5000) -- sinon seul un utilisateur avec purchase.group_purchase_manager (via user_has_groups) peut l'approuver. Cette regle n'est pas un ACL/ir.rule mais un garde applicatif invoque depuis button_confirm()/button_approve().",
-    "verification": "security/ir.model.access.csv (access_purchase_order vs access_purchase_order_manager, identiques) + models/purchase_order.py : _approval_allowed(), models/res_company.py : po_double_validation/po_double_validation_amount",
+    "id": "STK-Q5",
+    "module": "stock",
+    "capability": "constraints",
+    "difficulty": "medium",
+    "question": "Quelles contraintes empechent la creation d'un stock.quant invalide, et quelle regle distincte garantit l'unicite d'un numero de serie ?",
+    "reference_answer": "Trois @api.constrains independantes sur stock.quant : check_product_id interdit un quant pour un produit qui n'est pas de type 'product' (consommable/service exclus) ; check_location_id interdit un emplacement de type 'view' (emplacement structurel, non physique) ; check_lot_id interdit qu'un lot/numero de serie soit rattache a un produit different de celui du quant. Independamment, sur stock.lot, _check_unique_lot (@api.constrains sur name/product_id/company_id) verifie via _read_group (pas une contrainte SQL unique) qu'aucune combinaison produit+societe+nom de lot n'est dupliquee -- une verification applicative, pas une contrainte de base de donnees.",
+    "verification": "models/stock_quant.py : check_product_id, check_location_id, check_lot_id (@api.constrains) ; models/stock_lot.py : _check_unique_lot (@api.constrains('name','product_id','company_id'))",
     "expected_tools": [
-      "who_has_access_to",
-      "evaluate_record_rules",
-      "read_source_code"
+      "analyze_data_constraints"
     ],
     "tools_used": [
-      "who_has_access_to",
-      "evaluate_record_rules",
-      "describe_workflow",
-      "button_execution_path",
-      "read_source_code",
-      "read_source_code"
+      "analyze_data_constraints"
     ],
     "tool_coverage_ok": true,
     "missing_tools": [],
-    "verbatim": "**Ce qui distingue un simple acheteur d’un manager sur une commande d’achat :**\n\n1. **Capacité d’approbation**  \n   - Le bouton **« Confirm Order »** (méthode `button_confirm()`) passe la commande à l’état `to approve` si la condition `_approval_allowed()` n’est pas satisfaite.  \n   - Cette condition est vraie :  \n     - Si la société a activé la double validation en **une étape** (`po_double_validation == 'one_step'`).  \n     - Ou si la double validation est en **deux étapes** et que le montant total de la commande est **inférieur** au seuil `po_double_validation_amount`.  \n     - **Ou** si l’utilisateur appartient au groupe `purchase.group_purchase_manager`.  \n   - Ainsi, un **manager** peut approuver immédiatement les commandes qui dépassent le seuil de double validation ou qui sont soumises à la double validation en deux étapes.  \n   - Un **acheteur** (membre de `group_purchase_user` mais pas de `purchase.group_purchase_manager`) ne peut pas approuver ces commandes ; il doit attendre l’approbation d’un manager.\n\n2. **Fonctionnalité de déverrouillage**  \n   - Le bouton **« Unlock »** (méthode `button_unlock()`) est disponible uniquement pour le groupe `purchase.group_purchase_manager` (xml_id : `purchase.group_purchase_manager`).  \n   - Un manager peut donc déverrouiller une commande qui a été verrouillée, ce qui n’est pas possible pour un acheteur.\n\n3. **Accès global**  \n   - Les ACL donnent les mêmes droits de lecture, écriture, création et suppression aux deux groupes.  \n   - Les règles globales (`purchase.purchase_order_comp_rule`) ne restreignent pas l’accès en fonction du groupe.  \n   - Aucun `ir.rule` spécifique ne différencie les deux groupes pour ce modèle.\n\nEn résumé, la différence principale réside dans la **capacité d’approbation** des commandes dépassant le seuil de double validation et dans la **possibilité de déverrouiller** une commande, fonctions réservées aux membres du groupe `purchase.group_purchase_manager`. Les droits d’accès de base (lecture, écriture, création, suppression) restent identiques pour les deux groupes.\n\n[Source: Graphe de Connaissances Code Intelligence]",
-    "elapsed_seconds": 3.44,
-    "effective_seconds": 3.437,
+    "verbatim": "**Contraintes empêchant la création d’un `stock.quant` invalide**\n\n1. **Contrôle du type de produit**  \n   ```python\n   @api.constrains('product_id')\n   def check_product_id(self):\n       if any(elem.product_id.type != 'product' for elem in self):\n           raise ValidationError(_('Quants cannot be created for consumables or services.'))\n   ```\n   (voir `stock_quant.py#L615-L618`)  \n   Cette contrainte empêche la création de quants pour des produits de type « consommable » ou « service ».\n\n2. **Messages d’erreur explicites**  \n   - `raise UserError(_('Operation not supported'))` (`stock_quant.py#L241-L241`)  \n   - `raise UserError(_('You cannot duplicate stock quants.'))` (`stock_quant.py#L251-L251`)  \n   - `raise UserError(_(\"Quant's creation is restricted, you can't do this operation.\"))` (`stock_quant.py#L268-L268`)  \n   - `raise UserError(_(\"Quant's editing is restricted, you can't do this operation.\"))` (`stock_quant.py#L372-L372`)  \n   - `raise UserError(_(\"Quants are auto‑deleted when appropriate. If you must manually delete them, please ask a stock manager to do it.\"))` (`stock_quant.py#L379-L379`)  \n\n   Ces messages bloquent explicitement certaines opérations (création, duplication, édition ou suppression manuelle) lorsqu’elles ne respectent pas les règles métier.\n\n3. **Contrôle de la quantité positive et de la localisation**  \n   ```python\n   raise UserError(_('You can only move positive quantities stored in locations used by a single company per relocation.'))\n   ```\n   (`stock_quant.py#L506-L506`)  \n   Cette règle empêche le déplacement de quantités négatives ou de quantités stockées dans des emplacements multi‑entreprises.\n\n---\n\n**Règle distincte garantissant l’unicité d’un numéro de série**\n\nDans les extraits fournis (`stock_quant.py`), aucune contrainte ou règle n’est explicitement mentionnée pour assurer l’unicité d’un numéro de série (`lot_id`).  \nSi une telle règle existe, elle ne figure pas dans les observations ci‑dessus.  \n\nEn résumé :\n\n- La création d’un `stock.quant` invalide est bloquée par la contrainte de type de produit, les messages d’erreur explicites et le contrôle de la quantité/location.\n- L’unicité d’un numéro de série n’est pas détaillée dans les données présentées.\n\n[Source: Graphe de Connaissances Code Intelligence]",
+    "elapsed_seconds": 59.08,
+    "effective_seconds": 59.019,
     "groq_wait_seconds": 0.0,
-    "hop_count": 6
+    "hop_count": 1
   }
 ]

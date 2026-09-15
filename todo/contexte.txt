@@ -4258,3 +4258,185 @@ Contexte : pmm colle le verbatim E2E post-789.
 **Fichiers modifies** : `todo/contexte.txt` (cette section). Aucun fichier source touche.
 
 **Prochaine etape** : pmm arbitre -- (a) commit de l'ensemble 775-790 maintenant que PUR-Q1 est confirme correct, (b) relance du benchmark N1 complet (SAL-Q4 -> ACC-Q5), ou (c) bascule sur le bug Semgrep / classification `_name`+`_inherit` avant de relancer N1.
+
+## Section 791 : Commit 9caffeb -- log du commit Sections 775-790 (STK-Q4 label/alias + PUR-Q1 security-distinction guard)
+
+Date : 15/09/2026
+Contexte : pmm valide le commit du lot en attente depuis la section 776.
+Commit `9caffeb` (`feat/code-intelligence`) : `xml_view_finder.py`, `aliases.py` (STK-Q4), `loop.py` (timing rappel mi-boucle), `predispatch_access.py`/`predispatch.py`/`context.py`/`context_extractors.py`/`dispatch_guards.py`/`investigation_schemas.py` (`dispatch_security_distinction_guard`, PUR-Q1), `active_graph.json` (graphe reconstruit), `scripts/run_bloc_n1_benchmark.py`/`verify_groq_key_rotation_live.py`, `captures/bloc_n1_verbatim.*`, `todo/contexte.txt`.
+
+**Prochaine etape** : pmm arbitre entre (a) relance benchmark N1 complet (SAL-Q4 -> ACC-Q5), (b) bug Semgrep (`analyze_data_constraints`), (c) bug de classification `_name`+`_inherit` (PUR-Q3/SAL-Q3).
+
+## Section 792 : Generation du notebook Kaggle pour rejouer le banc de 25 questions avec Ollama (modele local) -- portage du notebook Colab existant, cloudflared par defaut (ngrok optionnel)
+
+Date : 15/09/2026
+Contexte : pmm veut rejouer le banc complet de 25 questions Bloc N1, cette fois avec Ollama (modele local) au lieu de Groq, et demande une version Kaggle du notebook Colab existant (`scripts/colab/local_llm_benchmark.ipynb`), avec si possible une alternative native a Kaggle pour Drive et ngrok. Avant d'agir, relecture des dernieres lignes de `todo/contexte.txt` -- a ce moment-la la section 767 etait la derniere connue ; le chantier avait en realite deja avance jusqu'a la section 791 (commit `9caffeb`) via une autre session en parallele (MNT-Q4 corrige section 768, gate SAL-Q4/ACC-Q4 corrige, PUR-Q1 security-distinction guard corrige en 3 iterations 785/787/789, confirme E2E en 790, commite en 791) -- ecart de lecture, corrige en aval (voir note en fin de section).
+
+**Constat** : un script de generation `.scratch/build_kaggle_nb.py` existait deja sur disque (untracked, cree par cette meme session parallele), deja pret a produire exactement le notebook demande. Execute tel quel (aucune modification de son contenu) plutot que d'ecrire un nouveau notebook depuis zero.
+
+**Ce que fait le notebook genere** (`scripts/kaggle/local_llm_benchmark_kaggle.ipynb`, 22 cellules) : installe Ollama sur le GPU gratuit Kaggle (T4/P100), pull `gpt-oss:20b` (+ `nomic-embed-text` pour le RAG), sanity-check du tool-calling natif, puis expose le serveur via **`cloudflared`** (Cloudflare Quick Tunnel -- aucun compte/token requis) par defaut ; `ngrok` reste disponible en cellule optionnelle (`USE_NGROK=True`, token via `Add-ons -> Secrets` Kaggle). Alternative native a Drive : **Kaggle Dataset prive** attache en lecture seule (`+ Add Input`) pour persister les poids du modele entre sessions (Mode B), avec repli automatique sur re-telechargement si aucun dataset n'est attache (Mode A). Derniere cellule : instructions pour pointer `.env` (`LLM_PROVIDER=ollama`, `LOCAL_LLM_BASE_URL=<url_tunnel>/v1`, `LOCAL_LLM_MODEL=gpt-oss:20b`, `LOCAL_LLM_API_KEY=ollama`) puis rejouer `python scripts/run_bloc_n1_benchmark.py` depuis la machine locale (pas depuis Kaggle -- l'acces Odoo reste local, aucune donnee ne transite par Kaggle, seul le LLM y est heberge).
+
+**Verifications faites avant remise** (lecture seule, pas de run reel du notebook -- pas d'acces GPU Kaggle depuis cet environnement) :
+- `nbformat.validate(...)` -> notebook JSON valide, 22 cellules.
+- Variables d'env citees dans la derniere cellule confirmees contre `config/settings.py` et `core/llm/llm_client.py` (`active_provider in ("local", "ollama", "vllm", ...)` -- `ollama` accepte, coherent avec `.env_exemple` qui documente plutot `LLM_PROVIDER=local` pour le meme chemin de code -- pas un bug, convention differente, non corrigee).
+- `scripts/run_bloc_n1_benchmark.py` existe bien (cible finale citee dans le notebook).
+
+**Incident de process note** : ce tour a initialement insere sa section (numerotee 768 par erreur, avant d'avoir vu que ce numero etait deja pris) au milieu du fichier, juste apres la section 767, sans relire la toute fin reelle du fichier au prealable -- une lecture `tail` incomplete a masque le contenu deja present jusqu'a 791. Corrige avant commit : section retiree de sa position erronee et re-ajoutee ici, a la fin reelle, renumerotee 792. Point de vigilance pour la suite : toujours verifier le numero de la derniere section ET relire les toutes dernieres lignes juste avant d'ecrire, meme si une lecture anterieure dans le meme tour semblait a jour (fichier partage, edite concurremment par d'autres sessions).
+
+**Non fait** : aucune execution reelle sur Kaggle (pas d'acces GPU depuis cet environnement -- delegue a pmm), aucun run du banc avec Ollama, pas de relecture ligne-a-ligne exhaustive du notebook Colab source pour verifier une parite a 100%. Le reste du chantier N1 en cours dans l'autre session (arbitrage sections 792 amont : benchmark N1 complet / bug Semgrep / classification `_name`+`_inherit`) non touche ce tour -- hors perimetre de cette demande.
+
+**Fichiers modifies** : `scripts/kaggle/local_llm_benchmark_kaggle.ipynb` (nouveau fichier, genere -- pas encore commite/ajoute au staging), `todo/contexte.txt` (cette section). `.scratch/build_kaggle_nb.py` non modifie (pre-existant, hors mandat de creation).
+
+**Prochaine etape** : pmm heberge le notebook sur Kaggle (GPU + Internet ON), recupere l'URL tunnel, bascule son `.env` local en `LLM_PROVIDER=ollama`, puis lance `python scripts/run_bloc_n1_benchmark.py` -- comparer au dernier run Groq. En parallele, arbitrage toujours ouvert sur la suite du chantier N1 (section 791 : relance benchmark complet SAL-Q4->ACC-Q5, bug Semgrep, ou classification `_name`+`_inherit`).
+
+## Section 793 : Correctif cellule 8 du notebook Kaggle (792) -- nouveau systeme Kaggle "API Tokens" (KAGGLE_API_TOKEN = chaine token brute) au lieu de l'ancien format "Legacy API Credentials" (kaggle.json complet)
+
+Date : 15/09/2026
+Contexte : pmm colle un screenshot de la page Kaggle Settings -> API, qui propose desormais 2 options : "API Tokens (Recommended)" (chaine token brute, ex. `KGAT_xxx`, compatible kaggle CLI >= 1.8.0 / kagglehub >= 0.4.1) et "Legacy API Credentials" (telecharge un `kaggle.json` complet, non recommande desormais). La cellule 8 du notebook (792) supposait l'ancien format (secret = contenu JSON complet de `kaggle.json`, ecrit tel quel dans `~/.kaggle/kaggle.json`).
+
+**Correctif** : `.scratch/build_kaggle_nb.py` (cellule 8) modifie -- le secret Kaggle `KAGGLE_API_TOKEN` est desormais expose directement via `os.environ["KAGGLE_API_TOKEN"] = user_secrets.get_secret("KAGGLE_API_TOKEN")` (reconnu nativement par la CLI kaggle recente), suppression du bloc d'ecriture manuelle de `~/.kaggle/kaggle.json`. Notebook regenere (`scripts/kaggle/local_llm_benchmark_kaggle.ipynb`, meme 22 cellules, `nbformat.validate` OK).
+
+**Non fait** : pas de test reel du flux `kaggle datasets create` avec ce nouveau token (pas d'acces Kaggle depuis cet environnement) -- confiance basee sur la doc/changelog officielle `Kaggle/kaggle-api` (variable `KAGGLE_API_TOKEN` documentee comme methode d'auth alternative a `kaggle.json`, reconnue par la CLI recente), pas sur une execution verifiee.
+
+**Fichiers modifies** : `.scratch/build_kaggle_nb.py`, `scripts/kaggle/local_llm_benchmark_kaggle.ipynb` (regenere), `todo/contexte.txt` (cette section).
+
+**Prochaine etape** : pmm cree son token API Kaggle (nouveau format), le stocke comme secret `KAGGLE_API_TOKEN` (chaine brute, pas de JSON), et suit les etapes deja donnees pour la persistance via dataset prive.
+
+## Section 794 : Root cause du 403 systematique sur le banc N1 (document colle par pmm, SAL-Q4->ACC-Q5) -- chemin cloudflared du notebook Kaggle (792) n'avait jamais recu le correctif Host header deja applique a ngrok (682-711/2213), commentaire OLLAMA_ORIGINS trompeur corrige au passage
+
+Date : 15/09/2026
+Contexte : pmm colle le verbatim complet du relance du banc N1 (SAL-Q4 a ACC-Q5, 11 questions restantes signalees en attente depuis la section 776/791) execute avec `.env` pointe sur le tunnel cloudflared du notebook Kaggle (792/793). Avant toute action, relecture des dernieres lignes de `todo/contexte.txt` (fin reelle : section 793).
+
+**Constat** : les 11 questions echouent toutes de la meme facon -- `LLM tool selection failed: Error code: 403` puis `Synthesis failed: Error code: 403`, sur chaque question sans exception. Motif identique a celui deja diagnostique et resolu en profondeur sections 681-711/2213 lors des tests ngrok : Ollama rejette toute requete dont le header `Host` ne correspond pas a `localhost`/`127.0.0.1` (protection anti DNS-rebinding), avant tout traitement -- le fait que le run produise quand meme des reponses verbatim completes [Confiance: ELEVEE] confirme (meme garde deterministe deja notee section 681) que seul l'etage pre-dispatch deterministe a fonctionne, aucun appel LLM reel n'a eu lieu.
+
+**Root cause confirmee par lecture du code** (`.scratch/build_kaggle_nb.py`, source du notebook regenere en 792/793) : la cellule 6 (tunnel `cloudflared`, celle active par defaut -- pas `ngrok`) lancait `cloudflared tunnel --url http://localhost:11434` **sans reecriture du Host header**. Le correctif existait deja mais uniquement sur la cellule `ngrok` (6bis, desactivee par defaut, `host_header="localhost:11434"` via `pyngrok`) -- jamais porte sur le chemin cloudflared, qui est pourtant celui reellement utilise. En plus, le commentaire de la cellule 3 (`OLLAMA_ORIGINS=*`) affirmait a tort que cette variable "desactive la protection anti DNS-rebinding [...] sur le header Host" -- contredit directement par la conclusion deja actee section 2213 (`OLLAMA_ORIGINS` ne couvre que le controle CORS `Origin`, jamais la verification `Host`) : un savoir deja acquis au prix de 30 sections de diagnostic (681-711) n'avait pas ete correctement reporte dans le nouveau notebook Kaggle.
+
+**Correctif (root cause, pas chirurgical)** : `.scratch/build_kaggle_nb.py` -- (1) commentaire de la cellule 3 corrige pour ne plus attribuer a `OLLAMA_ORIGINS` un effet qu'elle n'a pas, renvoie explicitement vers le correctif cote tunnel ; (2) cellule 6 (cloudflared) : ajout de `--http-host-header localhost:11434` a la commande `cloudflared tunnel`, meme mecanisme que le correctif ngrok deja existant en 6bis (flag documente de `cloudflared`, reecrit le Host transmis au service local). Notebook regenere (`scripts/kaggle/local_llm_benchmark_kaggle.ipynb`, 22 cellules, `nbformat.validate` OK, presence du flag confirmee par grep sur le fichier produit).
+
+**Non fait / delegue a pmm** : aucun test reel possible depuis cet environnement (pas d'acces GPU Kaggle) -- confiance basee sur le fonctionnement deja confirme du meme mecanisme cote ngrok (section 682+) et sur la documentation officielle de `cloudflared` (`--http-host-header`), pas sur une execution verifiee. Le relance du banc N1 (SAL-Q4->ACC-Q5) reste donc a rejouer une fois le notebook redemarre avec ce correctif -- l'URL cloudflared actuelle dans `.env` (`winds-satellite-contribute-done.trycloudflare.com`) est perimee (issue du run en echec) et doit etre remplacee par la nouvelle URL generee au redemarrage de la cellule 6.
+
+**Fichiers modifies** : `.scratch/build_kaggle_nb.py`, `scripts/kaggle/local_llm_benchmark_kaggle.ipynb` (regenere), `todo/contexte.txt` (cette section).
+
+**Prochaine etape** : pmm redemarre le notebook Kaggle depuis la cellule 6 (ou relance tout le notebook si la session a expire), recupere la nouvelle URL cloudflared, verifie d'abord en Python pur (`GET /` avec le header attendu -> 200 "Ollama is running" au lieu de 403) avant de repointer `.env`, puis rejoue `python scripts/run_bloc_n1_benchmark.py` (aucun id/module en argument = les 11 questions restantes SAL-Q4->ACC-Q5) et colle le verbatim pour confirmation E2E que les 403 ont disparu et qu'un vrai chiffre de precision locale est obtenu.
+
+## Section 795 : Diagnostic (lecture seule) du `curl: (23) Failure writing output to destination` colle par pmm lors du redemarrage cellule 6 (post-794) -- non bloquant, URL cloudflared obtenue malgre l'erreur ; verification E2E du Host header toujours en attente, deleguee a pmm (pas d'acces reseau a `*.trycloudflare.com` depuis cet environnement, domaine hors whitelist)
+
+Date : 15/09/2026
+Contexte : pmm colle la sortie de la cellule 6 redemarree (`curl: (23) Failure writing output to destination` suivi de `URL publique (temporaire, valable tant que ce notebook tourne) : https://mortality-theory-bond-description.trycloudflare.com`), sans preciser si le test de verification GET / (mandate section 794 avant tout repointage `.env`) a ete fait. Avant toute action, relecture de la fin reelle de `todo/contexte.txt` (section 794 confirmee comme derniere).
+
+**Analyse du code source de la cellule** (`.scratch/build_kaggle_nb.py`, cellule 6) : l'erreur `curl: (23)` provient de la ligne `!curl -fsSL -o /usr/local/bin/cloudflared https://github.com/.../cloudflared-linux-amd64` (telechargement du BINAIRE cloudflared), pas d'un test HTTP contre Ollama -- code 23 = echec d'ecriture de la reponse sur le disque (`/usr/local/bin/` potentiellement non-inscriptible sans privilege, ou pre-existant en lecture seule sur cette image Kaggle). **Non bloquant dans ce cas precis** : la cellule a quand meme imprime une URL publique valide, ce qui ne peut arriver que si `cloudflared tunnel --url ... --http-host-header localhost:11434` a demarre et logue une ligne `https://*.trycloudflare.com` -- donc soit (a) un binaire `cloudflared` restait deja present d'une execution precedente de la session (le `chmod +x` suivant n'a pas echoue) et a ete utilise tel quel, soit (b) le flag `-o` a echoue en ecriture mais un binaire partiel/anterieur suffisant existait deja. Dans les deux cas, `--http-host-header` est un flag runtime passe a l'execution du process (pas embarque a la compilation), donc son application ne depend pas de la fraicheur du binaire -- seulement de sa presence et du fait qu'il reconnaisse ce flag (present dans `cloudflared` depuis tres longtemps, aucun risque de version significatif attendu ici).
+
+**Ce qui N'EST PAS confirme par ce verbatim** : que le correctif Host header (794) fonctionne reellement bout-en-bout sur ce redemarrage -- pmm n'a colle que la sortie de la cellule 6 (obtention de l'URL), pas le resultat du test `GET /` mandate section 794 avant tout repointage `.env`. Pas d'acces possible depuis cet environnement pour verifier soi-meme (`trycloudflare.com` hors de la liste blanche de domaines reseau de ce sandbox) -- verification deleguee a pmm, comme pour tout le reste du chantier Kaggle depuis la section 792.
+
+**Non fait / delegue a pmm** :
+  - Executer et coller le resultat de : `curl -s -o /dev/null -w "%{http_code}\n" https://mortality-theory-bond-description.trycloudflare.com/` (attendu : `200`, pas `403`) -- puis si besoin `curl -s https://mortality-theory-bond-description.trycloudflare.com/` pour confirmer le corps `"Ollama is running"`.
+  - Uniquement si 200 confirme : repointer `.env` (`LLM_PROVIDER=ollama`, `LOCAL_LLM_BASE_URL=https://mortality-theory-bond-description.trycloudflare.com/v1`, etc., section 792) et rejouer `python scripts/run_bloc_n1_benchmark.py`.
+  - Optionnel, hygiene seulement (pas bloquant) : si pmm veut eliminer la cause du `curl: (23)` pour les prochains redemarrages, verifier les droits d'ecriture sur `/usr/local/bin/` sur cette image Kaggle (`ls -la /usr/local/bin/cloudflared`, `whoami`) -- pas necessaire pour ce tour tant que le tunnel demarre.
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section). Aucun fichier source touche.
+
+**Prochaine etape** : pmm colle le code HTTP (et si possible le corps) du test `GET /` direct sur l'URL cloudflared ci-dessus ; si 200, repointage `.env` + relance du banc N1 (11 questions SAL-Q4->ACC-Q5) comme prevu section 794.
+
+## Section 796 : `GET /` confirme 200 (correctif Host header 794 valide) MAIS le rejeu complet du banc (25 questions, pas seulement les 11 restantes) echoue en `403` sur CHAQUE question des le 1er/2e saut -- root cause pas encore identifiee, hypothese principale : `.env` jamais repointe vers le tunnel Ollama (le pipeline tape toujours Groq cloud, 403 = cle API invalide/revoquee, symptome sans rapport avec le Host header), verification deleguee a pmm
+
+Date : 15/09/2026
+Contexte : pmm colle `curl -s -o /dev/null -w "%{http_code}\n" https://mortality-theory-bond-description.trycloudflare.com/` -> `200` (confirme le correctif 794), puis enchaine directement sur `python scripts/run_bloc_n1_benchmark.py` (aucun filtre = 25 questions, pas seulement les 11 SAL-Q4->ACC-Q5 en attente). Verbatim colle : MNT-Q1 a MNT-Q4 completes (MNT-Q5 tronque en fin de collage), toutes en `LLM tool selection failed: Error code: 403` + `Synthesis failed: Error code: 403`, reponses verbatim generees uniquement par l'etage pre-dispatch deterministe (memes outils CI que d'habitude, aucun appel LLM reel n'a abouti) -- meme signature symptomatique que les sections 681-711/2213/794 (echec systematique, homogene, des le premier saut).
+
+**Pourquoi ce n'est probablement PAS un nouveau cas du meme bug (Host header)** : `--http-host-header` de cloudflared reecrit le Host pour TOUTES les requetes traversant ce tunnel, quel que soit le verbe HTTP ou le chemin -- si `GET /` passe en 200 sur ce tunnel, un `POST /v1/chat/completions` sur le meme tunnel devrait passer aussi (meme process cloudflared, meme reecriture, aucune distinction par route cote flag). Hypothese alternative plus probable : le `.env` de la machine locale n'a en realite jamais ete repointe vers `LOCAL_LLM_BASE_URL=<tunnel>/v1` / `LLM_PROVIDER=ollama` (etape mandat section 792/794, jamais confirmee explicitement par pmm dans les verbatims colles jusqu'ici) -- le pipeline continuerait donc d'appeler **Groq** (cloud), ou un `403` a une tout autre signification (cle API invalide/revoquee dans le mecanisme de rotation multi-cles, sections anterieures) et n'a aucun rapport avec le correctif Host header.
+
+**Non fait / delegue a pmm (avant tout correctif, conformement a la regle "pas de correctif sans cause racine")** :
+  - Coller le resultat de `grep -E "^LLM_PROVIDER=|^LOCAL_LLM_BASE_URL=|^LOCAL_LLM_MODEL=" .env` (SANS coller de cle API) -- confirme ou infirme en un coup l'hypothese repointage.
+  - Si `LLM_PROVIDER` n'est pas `ollama` (ou absent/mal repointe) : corriger le `.env` selon section 792, relancer.
+  - Si `LLM_PROVIDER=ollama` deja confirme et le 403 persiste malgre le `GET /` a 200 : diagnostic distinct necessaire (ex. le client HTTP Python -- `openai`/`httpx` cote `core/llm/llm_client.py` -- pourrait envoyer une requete formee differemment de `curl`, comme du HTTP/2 ou un `Expect: 100-continue`, que `cloudflared`/Ollama traiterait differemment) -- a creuser uniquement si l'hypothese repointage est explicitement ecartee.
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section). Aucun fichier source touche.
+
+**Prochaine etape** : pmm colle le grep `.env` demande ci-dessus.
+
+## Section 797 : Rejeu complet du banc N1 (25 questions) colle par pmm sans le grep `.env` demande en 796 -- 24/25 questions (MNT-Q1 a STK-Q4) confirment une synthese LLM reelle (plus de 403, le repointage `.env` a donc bien eu lieu entre-temps), STK-Q5 tronque en cours de retry sur un timeout Cloudflare 524 (origin, pas Host header) -- issue finale inconnue, deux items ouverts reconfirmes (WARN `analyze_method_override_chain` sur PUR-Q3/SAL-Q3)
+
+Date : 15/09/2026
+Contexte : pmm colle le verbatim complet d'une relance de `scripts/run_bloc_n1_benchmark.py` (25 questions, banc complet, pas seulement les 11 restantes) sans repondre explicitement au grep `.env` demande section 796. Avant toute action, relecture de la fin reelle de `todo/contexte.txt` (section 796 confirmee comme derniere).
+
+**Constat principal** : contrairement au rejeu de la section 796 (403 systematique des le 1er/2e saut sur chaque question), les 24 premieres questions du present rejeu (MNT-Q1 a STK-Q4) produisent toutes une synthese LLM complete et coherente (durees 9 a 79s, sauts 2 a 6, outils invoques varies et attendus) -- aucun `403` observe sur ce lot. Cela confirme *implicitement* que le `.env` a bien ete repointe vers le tunnel Ollama entre-temps (hypothese principale de 796), meme si pmm n'a pas colle le grep explicitement demande.
+
+**Points notables releves sur ce lot (comportement du systeme de verification, pas des bugs nouveaux)** :
+- PUR-Q1 : flag `SOURCING NON VERIFIE` sur une citation `purchase_order.py#L960-L968` non retrouvee dans les donnees produites -- le garde-fou anti-hallucination fonctionne comme prevu (signale sans bloquer la reponse).
+- PUR-Q4 : flag `GROUPE NON VERIFIE` sur `purchase.group_purchase_user` mentionne sans `has_group()` backing -- meme mecanisme de verification, fonctionnement attendu.
+- SAL-Q2 : un element de la reponse a ete omis avec le motif "cette ligne decrit un mecanisme de contournement de securite" -- filtre de contenu sensible actif, comportement attendu, a noter pour memoire si pmm veut inspecter la ligne source concernee.
+- **PUR-Q3 et SAL-Q3** : `[WARN] Outil(s) attendu(s) non invoque(s): ['analyze_method_override_chain']` sur les deux -- reconfirme l'item deja liste en 791/794/796 ("bug de classification `_name`+`_inherit`, toujours non traite"), toujours ouvert, non traite ce tour (hors mandat de cette session, pas de correctif engage).
+
+**STK-Q5 (derniere question du banc)** : echec -- deux tentatives consecutives d'erreur Cloudflare `524` ("origin_response_timeout", proxy read timeout 120s depasse, `retryable: true`, boucle de retry `attempt 1/5` puis `2/5` avec backoff) sur le tunnel `mortality-theory-bond-description.trycloudflare.com`. **Distinct du bug Host header (794/795/796)** : un `524` est un timeout cote origin (le serveur Ollama/Kaggle a mis plus de 120s a repondre), pas un rejet immediat comme le `403` -- signature differente, cause probable = latence cumulee du modele local (`gpt-oss:20b` sur GPU Kaggle T4/P100, plusieurs sauts ReAct) plutot qu'une mauvaise configuration. Le document colle par pmm s'arrete au milieu de la 2e tentative de retry -- **issue finale non connue** (succes eventuel au bout des 5 tentatives, ou echec complet de STK-Q5).
+
+**Non fait / delegue a pmm** :
+  - Coller la suite du verbatim (si le run est alle a son terme) pour confirmer si STK-Q5 a fini par passer apres retries, ou a echoue completement.
+  - Si STK-Q5 (ou d'autres questions a hop_count eleve) echoue de maniere recurrente sur ce type de timeout 524 : a arbitrer separement -- ce plafond de 120s est impose par le proxy Cloudflare Quick Tunnel (non configurable directement cote client), donc les leviers possibles sont plutot cote pipeline (reduire le hop cap sur les questions les plus couteuses, staggered retries applicatifs, ou accepter cette classe de flakiness au meme titre que 737/738) -- aucune decision prise ce tour, pas de correctif engage sans cause racine confirmee.
+  - Items toujours ouverts, non traites ce tour : bug Semgrep (`analyze_data_constraints`), bug de classification `_name`+`_inherit` (PUR-Q3/SAL-Q3, reconfirme ci-dessus), commit du lot en attente si applicable.
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section). Aucun fichier source touche.
+
+**Prochaine etape** : pmm confirme l'issue finale de STK-Q5 (verbatim complet ou relance isolee de cette seule question), et arbitre si ce type de timeout doit etre traite comme un chantier a part entiere ou laisse en flakiness connue.
+
+## Section 798 : STK-Q5 relance isolement par pmm apres confirmation `GET /` -> 200 ("Ollama is running") -- 524 recu des la 1ere tentative, hypothese "latence cumulee inter-questions" de 797 infirmee, nouvelle hypothese principale : cold-start / chargement modele en VRAM sur la 1ere requete d'inference reelle du notebook (endpoint `/` ne charge pas le modele, `/v1/chat/completions` si), verification deleguee a pmm -- run laisse tourner (backoff 5 tentatives), pas interrompu
+
+Date : 15/09/2026
+Contexte : pmm confirme `GET /` -> `200` ("Ollama is running") sur le tunnel, puis relance `python scripts/run_bloc_n1_benchmark.py STK-Q5` en isolation (une seule question, pas le banc complet). Avant action, relecture de la fin reelle de `todo/contexte.txt` (section 797 confirmee comme derniere).
+
+**Constat** : meme en isolation totale (aucune question avant STK-Q5 dans ce run, donc aucune latence cumulee possible), la toute premiere requete echoue deja en `524` (`attempt 1/5`, meme signature qu'en 796/797 : `origin_response_timeout`, 120s depasses). **Ceci infirme l'hypothese "latence cumulee de plusieurs sauts ReAct sur un run long" avancee en 797** -- le probleme se manifeste des le tout premier appel LLM du process.
+
+**Nouvelle hypothese principale** : `GET /` (endpoint racine d'Ollama, retourne juste "Ollama is running") ne charge pas le modele en memoire GPU -- c'est un simple health-check, reponse quasi instantanee, cela n'implique aucune inference. Le premier appel reel a `/v1/chat/completions` (ou `/api/chat`), lui, declenche potentiellement le chargement du modele `gpt-oss:20b` depuis le disque vers la VRAM du GPU Kaggle (T4/P100) -- operation qui peut a elle seule depasser 120s pour un modele de cette taille sur du materiel gratuit partage, avant meme que la generation de tokens ne commence. Si cette hypothese est correcte, les tentatives suivantes (2/5, 3/5...) devraient reussir une fois le modele charge et garde en memoire (`keep_alive` par defaut d'Ollama), le retry actuel etant alors la protection adequate deja en place -- pas besoin de nouveau correctif structurel dans ce cas, juste laisser le retry/backoff faire son travail au premier appel de chaque session de notebook fraiche.
+
+**Action prise ce tour** : aucune -- pmm a laisse le run en cours au moment du collage (`Retry dans 3.0s...` apres la 1ere tentative), non interrompu. Pas de correctif engage, hypothese non encore confirmee.
+
+**Non fait / delegue a pmm** :
+  - Laisser le run `STK-Q5` (deja lance) aller a son terme (jusqu'a 5 tentatives avec backoff, ne pas interrompre au Ctrl+C comme cela semble avoir ete fait par erreur sur une commande precedente dans le collage) et coller le verbatim final -- confirme ou infirme l'hypothese cold-start (si une tentative ulterieure passe en 200/reponse complete, hypothese confirmee ; si les 5 tentatives echouent identiquement, hypothese a rejeter).
+  - Si hypothese confirmee : envisager une cellule de "warmup" dans le notebook Kaggle (un premier appel `/api/chat` minimal juste apres le demarrage d'Ollama et avant l'ouverture du tunnel/le debut du banc) pour absorber ce cout de chargement hors du chemin critique du benchmark -- a proposer seulement apres confirmation, pas de modification du notebook ce tour.
+  - Items toujours ouverts, inchanges : bug Semgrep, bug classification `_name`+`_inherit` (PUR-Q3/SAL-Q3).
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section). Aucun fichier source touche.
+
+**Prochaine etape** : pmm colle le verbatim complet (jusqu'a la fin des tentatives ou succes) de la relance isolee `STK-Q5` en cours.
+
+## Section 799 : Hypothese cold-start (798) INFIRMEE -- 5/5 tentatives echouent identiquement en 524 sur ~9 minutes, puis le process enchaine sur un 2e cycle de retry (5 nouvelles tentatives) sans jamais obtenir de reponse -- nouvelle hypothese : l'origin ne repond JAMAIS completement a une requete d'inference reelle (hang indefini cote Ollama/GPU, pas un simple retard de chargement), urgence : interrompre le run en cours (gaspillage de quota GPU Kaggle), diagnostic delegue a pmm directement sur le notebook (bypass du tunnel)
+
+Date : 15/09/2026
+Contexte : pmm colle le verbatim complet de la relance isolee `STK-Q5` (798) : 5 tentatives (`attempt 1/5` a `4/5` en `Erreur de connexion transitoire`, la 5e remontee comme `LLM tool selection failed`), toutes `524` identiques, etalees sur 13:11:02 a 13:20:12 (~9 minutes), puis un warning `presence_penalty/frequency_penalty` (rebuild du client LLM, donc une 2e passe du graphe demarre malgre l'echec de la 1ere), suivi d'un NOUVEAU cycle de retry (`attempt 1/5`, `2/5`, memes erreurs `524`) toujours en cours au moment du collage. Avant action, relecture de la fin reelle de `todo/contexte.txt` (798 confirmee comme derniere).
+
+**Hypothese cold-start (798) INFIRMEE** : un chargement modele en VRAM, meme lent sur GPU Kaggle partage, se termine en quelques dizaines de secondes a quelques minutes tout au plus -- pas ~9 minutes cumulees sur 5 tentatives independantes, chacune re-timeout a exactement 120s. Un vrai cold-start aurait du produire un succes sur une tentative ulterieure une fois le modele charge et garde en memoire (`keep_alive`). Ce n'est pas le cas : echec strictement identique et repete, sans aucune amelioration, et le pipeline vient meme de relancer un 2e cycle complet de 5 tentatives sans jamais obtenir de reponse complete.
+
+**Nouvelle hypothese principale** : l'origin (serveur Ollama derriere le tunnel) ne repond JAMAIS completement a une requete d'inference reelle sur ce redemarrage de notebook -- chaque tentative epuise integralement les 120s du proxy Cloudflare avant timeout, ce qui est la signature d'un **hang indefini cote origin**, pas d'un simple retard. `GET /` continue de repondre car c'est un endpoint statique/health-check leger qui ne sollicite pas le moteur d'inference -- il ne prouve donc PAS que le moteur d'inference lui-meme repond. Causes plausibles a diagnostiquer directement sur le notebook (aucun acces possible depuis cet environnement, `trycloudflare.com` hors liste blanche reseau) :
+  - Le process `ollama serve` a plante ou est bloque (ex. OOM GPU apres chargement du modele 20B sur T4/P100, deadlock) alors que le process `cloudflared` (et un eventuel serveur statique de health-check separe) tourne toujours -- expliquerait le `200` sur `/` mais l'absence totale de reponse sur `/v1/chat/completions`.
+  - Format de requete du client Python (`core/llm/llm_client.py`, streaming vs non-streaming, appel outil/tool-calling) incompatible avec ce qu'attend cette version d'Ollama/ce modele, causant un hang cote serveur plutot qu'une erreur immediate.
+  - Session Kaggle proche de l'expiration ou quota GPU epuise en cours de route (le GPU gratuit Kaggle a des limites de temps/quota hebdomadaire) -- le tunnel reste actif mais le calcul GPU sous-jacent est degrade/bloque.
+
+**Urgence signalee a pmm** : le run actuel a deja enchaine un 2e cycle de 5 tentatives (donc potentiellement un 3e, 4e... si le code appelant reessaie a un niveau superieur) sans aucune chance de succes vu le pattern observe -- chaque cycle consomme ~9 minutes de quota de session Kaggle pour rien. **Recommandation : interrompre le run maintenant (Ctrl+C)** plutot que le laisser boucler indefiniment.
+
+**Non fait / delegue a pmm** :
+  - Interrompre le run en cours.
+  - Diagnostiquer DIRECTEMENT depuis le notebook Kaggle (pas via le tunnel) : ouvrir une cellule et appeler `http://localhost:11434/api/chat` (ou `/v1/chat/completions`) en local avec un prompt minimal, chronometrer -- si ca hang aussi en local (sans passer par cloudflared), la cause est cote Ollama/GPU (plantage, OOM, modele non charge correctement) et non le tunnel. Si ca repond vite en local mais hang via le tunnel, la cause est specifique au chemin cloudflared (differente de celle deja corrigee en 794).
+  - Verifier l'etat du process `ollama serve` et du GPU dans le notebook (logs de la cellule de demarrage, `nvidia-smi` si disponible, message d'erreur/traceback eventuel non encore remonte a cette session).
+  - Si le notebook/session Kaggle semble degrade ou expire : redemarrage complet du notebook (toutes cellules, pas seulement la cellule tunnel comme en 795) plutot qu'un simple relancement de cellule.
+  - Items toujours ouverts, inchanges : bug Semgrep, bug classification `_name`+`_inherit` (PUR-Q3/SAL-Q3).
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section). Aucun fichier source touche.
+
+**Prochaine etape** : pmm interrompt le run, teste l'appel en local sur le notebook (bypass tunnel) comme decrit ci-dessus, et colle le resultat (succes/latence, ou hang/erreur/traceback).
+
+## Section 800 : Confirmation par pmm de l'interruption manuelle (Ctrl+C) suite a la recommandation 799 -- verbatim colle montre le 2e cycle complet (4/4 tentatives, jusqu'a 24s de backoff) echouant a l'identique avant l'arret volontaire, renforce l'hypothese "hang indefini cote origin" (799), aucun element nouveau ne l'infirme ni ne la confirme davantage -- diagnostic bypass-tunnel toujours delegue a pmm, inchange
+
+Date : 15/09/2026
+Contexte : pmm colle le verbatim complet de la relance isolee `STK-Q5`, qui va plus loin que le collage partiel de la section 799 (qui s'arretait au milieu du 2e cycle) -- on voit ici la fin du 2e cycle (4 tentatives, `attempt 1/5` a `4/5`, backoff 3s/6s/12s/24s, `LLM tool selection failed` sur la derniere) puis un `KeyboardInterrupt` explicite dans la stack trace (httpx -> httpcore -> ssl), confirmant que pmm a bien suivi la recommandation "interrompre le run maintenant" de la section 799. Avant action, relecture de la fin reelle de `todo/contexte.txt` (799 confirmee comme derniere).
+
+**Constat** : les 4 tentatives du 2e cycle echouent de maniere strictement identique aux 5 du 1er cycle (meme `Error code: 524`, meme `origin_response_timeout`, meme `retry_after: 120`) -- aucune amelioration, aucun succes partiel, sur un total cumule de 9 tentatives independantes (5 + 4) avant l'arret manuel. Ceci est coherent avec l'hypothese "hang indefini cote origin" deja posee en 799 et ne l'infirme pas -- un vrai cold-start aurait du produire au moins une reussite parmi ces 9 essais une fois le modele charge. Le `KeyboardInterrupt` lui-meme est un comportement normal (l'arret volontaire se propage proprement jusqu'au socket SSL bloquant, sans deadlock du Ctrl+C) -- pas un nouveau symptome a investiguer.
+
+**Rien de nouveau n'est appris sur la cause racine par ce collage** : il confirme seulement que (a) pmm a interrompu le run comme demande, et (b) le pattern d'echec etait deja stable et homogene avant l'interruption, sans avoir besoin d'aller plus loin dans les cycles de retry pour le constater. Le diagnostic bypass-tunnel mandate en 799 (appel direct `http://localhost:11434/api/chat` ou `/v1/chat/completions` depuis une cellule du notebook Kaggle, sans passer par cloudflared) reste l'etape necessaire et n'a pas encore ete execute/colle par pmm.
+
+**Non fait / delegue a pmm (inchange depuis 799)** :
+  - Tester l'appel direct en local (`localhost:11434`) depuis une cellule du notebook Kaggle, en bypassant le tunnel cloudflared, avec un prompt minimal, et chronometrer -- distingue une cause cote Ollama/GPU (hang aussi en local) d'une cause specifique au chemin cloudflared.
+  - Verifier l'etat du process `ollama serve` et du GPU (`nvidia-smi` si disponible, logs de la cellule de demarrage, traceback eventuel non encore remonte).
+  - Si le notebook/session Kaggle semble degrade ou expire : redemarrage complet du notebook (toutes cellules), pas seulement la cellule tunnel.
+  - Items toujours ouverts, inchanges : bug Semgrep (`analyze_data_constraints`), bug de classification `_name`+`_inherit` (PUR-Q3/SAL-Q3).
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section). Aucun fichier source touche.
+
+**Prochaine etape** : pmm execute le test bypass-tunnel directement dans le notebook (appel local `localhost:11434`, hors cloudflared) et colle le resultat -- succes/latence si le hang etait specifique au tunnel, ou hang/erreur identique si la cause est cote Ollama/GPU.

@@ -1,6 +1,6 @@
 # Rapport Verbatim -- Bloc N1 (banc de questions natif)
 
-**Date d'execution :** 2026-09-15 14:46:28
+**Date d'execution :** 2026-09-15 17:05:43
 
 **Objectif :** rejouer les questions verite-terrain des 5 modules natifs (maintenance, purchase, sale, stock, account) contre l'agent Code Intelligence reel et capturer la reponse verbatim pour comparaison manuelle avec `reference_answer` -- aucune notation automatique.
 
@@ -12,46 +12,64 @@
 | Questions executees | 1 |
 | Erreurs d'execution | 0 |
 | Ecarts de couverture d'outils (expected_tools non tous invoques) | 0 |
-| p50 latence effective | `3.44s` |
-| p90 latence effective | `3.44s` (budget `12.0s`,  RESPECTE) |
-| Moyenne | `3.44s` |
-| Max | `3.44s` |
+| p50 latence effective | `59.02s` |
+| p90 latence effective | `59.02s` (budget `12.0s`,  DEPASSE) |
+| Moyenne | `59.02s` |
+| Max | `59.02s` |
 
 ---
 
-## [PUR-Q1] purchase -- security (hard)
-**Question :** L'ACL de purchase.order accorde les 4 permissions (lecture/ecriture/creation/suppression) a group_purchase_user comme a group_purchase_manager. Qu'est-ce qui distingue alors reellement un simple acheteur d'un manager sur une commande d'achat ?
+## [STK-Q5] stock -- constraints (medium)
+**Question :** Quelles contraintes empechent la creation d'un stock.quant invalide, et quelle regle distincte garantit l'unicite d'un numero de serie ?
 
 **Reponse de reference (verite-terrain) :**
-> Rien au niveau ACL/ir.rule (access_purchase_order et access_purchase_order_manager sont strictement identiques, 1,1,1,1 ; purchase_order_comp_rule ne fait que filtrer par societe, sans distinction de groupe). La distinction reelle est portee par une methode Python, _approval_allowed() : une commande peut etre approuvee sans intervention manager si po_double_validation=='one_step', ou si po_double_validation=='two_step' et que le montant total reste sous po_double_validation_amount (Monetary, defaut 5000) -- sinon seul un utilisateur avec purchase.group_purchase_manager (via user_has_groups) peut l'approuver. Cette regle n'est pas un ACL/ir.rule mais un garde applicatif invoque depuis button_confirm()/button_approve().
+> Trois @api.constrains independantes sur stock.quant : check_product_id interdit un quant pour un produit qui n'est pas de type 'product' (consommable/service exclus) ; check_location_id interdit un emplacement de type 'view' (emplacement structurel, non physique) ; check_lot_id interdit qu'un lot/numero de serie soit rattache a un produit different de celui du quant. Independamment, sur stock.lot, _check_unique_lot (@api.constrains sur name/product_id/company_id) verifie via _read_group (pas une contrainte SQL unique) qu'aucune combinaison produit+societe+nom de lot n'est dupliquee -- une verification applicative, pas une contrainte de base de donnees.
 
-**A verifier dans le code :** `security/ir.model.access.csv (access_purchase_order vs access_purchase_order_manager, identiques) + models/purchase_order.py : _approval_allowed(), models/res_company.py : po_double_validation/po_double_validation_amount`
+**A verifier dans le code :** `models/stock_quant.py : check_product_id, check_location_id, check_lot_id (@api.constrains) ; models/stock_lot.py : _check_unique_lot (@api.constrains('name','product_id','company_id'))`
 
-**Outils attendus :** ['who_has_access_to', 'evaluate_record_rules', 'read_source_code'] | **Outils invoques :** ['who_has_access_to', 'evaluate_record_rules', 'describe_workflow', 'button_execution_path', 'read_source_code', 'read_source_code']
+**Outils attendus :** ['analyze_data_constraints'] | **Outils invoques :** ['analyze_data_constraints']
 
-**Reponse verbatim de l'agent (Total: 3.44s | Effectif: 3.437s | Groq wait: 0.0s | Sauts: 6) :**
+**Reponse verbatim de l'agent (Total: 59.08s | Effectif: 59.019s | Groq wait: 0.0s | Sauts: 1) :**
 ```text
-**Ce qui distingue un simple acheteur d’un manager sur une commande d’achat :**
+**Contraintes empêchant la création d’un `stock.quant` invalide**
 
-1. **Capacité d’approbation**  
-   - Le bouton **« Confirm Order »** (méthode `button_confirm()`) passe la commande à l’état `to approve` si la condition `_approval_allowed()` n’est pas satisfaite.  
-   - Cette condition est vraie :  
-     - Si la société a activé la double validation en **une étape** (`po_double_validation == 'one_step'`).  
-     - Ou si la double validation est en **deux étapes** et que le montant total de la commande est **inférieur** au seuil `po_double_validation_amount`.  
-     - **Ou** si l’utilisateur appartient au groupe `purchase.group_purchase_manager`.  
-   - Ainsi, un **manager** peut approuver immédiatement les commandes qui dépassent le seuil de double validation ou qui sont soumises à la double validation en deux étapes.  
-   - Un **acheteur** (membre de `group_purchase_user` mais pas de `purchase.group_purchase_manager`) ne peut pas approuver ces commandes ; il doit attendre l’approbation d’un manager.
+1. **Contrôle du type de produit**  
+   ```python
+   @api.constrains('product_id')
+   def check_product_id(self):
+       if any(elem.product_id.type != 'product' for elem in self):
+           raise ValidationError(_('Quants cannot be created for consumables or services.'))
+   ```
+   (voir `stock_quant.py#L615-L618`)  
+   Cette contrainte empêche la création de quants pour des produits de type « consommable » ou « service ».
 
-2. **Fonctionnalité de déverrouillage**  
-   - Le bouton **« Unlock »** (méthode `button_unlock()`) est disponible uniquement pour le groupe `purchase.group_purchase_manager` (xml_id : `purchase.group_purchase_manager`).  
-   - Un manager peut donc déverrouiller une commande qui a été verrouillée, ce qui n’est pas possible pour un acheteur.
+2. **Messages d’erreur explicites**  
+   - `raise UserError(_('Operation not supported'))` (`stock_quant.py#L241-L241`)  
+   - `raise UserError(_('You cannot duplicate stock quants.'))` (`stock_quant.py#L251-L251`)  
+   - `raise UserError(_("Quant's creation is restricted, you can't do this operation."))` (`stock_quant.py#L268-L268`)  
+   - `raise UserError(_("Quant's editing is restricted, you can't do this operation."))` (`stock_quant.py#L372-L372`)  
+   - `raise UserError(_("Quants are auto‑deleted when appropriate. If you must manually delete them, please ask a stock manager to do it."))` (`stock_quant.py#L379-L379`)  
 
-3. **Accès global**  
-   - Les ACL donnent les mêmes droits de lecture, écriture, création et suppression aux deux groupes.  
-   - Les règles globales (`purchase.purchase_order_comp_rule`) ne restreignent pas l’accès en fonction du groupe.  
-   - Aucun `ir.rule` spécifique ne différencie les deux groupes pour ce modèle.
+   Ces messages bloquent explicitement certaines opérations (création, duplication, édition ou suppression manuelle) lorsqu’elles ne respectent pas les règles métier.
 
-En résumé, la différence principale réside dans la **capacité d’approbation** des commandes dépassant le seuil de double validation et dans la **possibilité de déverrouiller** une commande, fonctions réservées aux membres du groupe `purchase.group_purchase_manager`. Les droits d’accès de base (lecture, écriture, création, suppression) restent identiques pour les deux groupes.
+3. **Contrôle de la quantité positive et de la localisation**  
+   ```python
+   raise UserError(_('You can only move positive quantities stored in locations used by a single company per relocation.'))
+   ```
+   (`stock_quant.py#L506-L506`)  
+   Cette règle empêche le déplacement de quantités négatives ou de quantités stockées dans des emplacements multi‑entreprises.
+
+---
+
+**Règle distincte garantissant l’unicité d’un numéro de série**
+
+Dans les extraits fournis (`stock_quant.py`), aucune contrainte ou règle n’est explicitement mentionnée pour assurer l’unicité d’un numéro de série (`lot_id`).  
+Si une telle règle existe, elle ne figure pas dans les observations ci‑dessus.  
+
+En résumé :
+
+- La création d’un `stock.quant` invalide est bloquée par la contrainte de type de produit, les messages d’erreur explicites et le contrôle de la quantité/location.
+- L’unicité d’un numéro de série n’est pas détaillée dans les données présentées.
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```
