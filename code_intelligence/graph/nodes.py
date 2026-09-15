@@ -121,8 +121,10 @@ def add_security_group_nodes(
             category_id=grp.category_id,
         )
 
+        mod_prefix = full_xml_id.split(".")[0]
         for parent_grp in grp.implied_ids:
-            parent_node_id = f"group:{parent_grp}"
+            full_parent_grp = parent_grp if "." in parent_grp else f"{mod_prefix}.{parent_grp}"
+            parent_node_id = f"group:{full_parent_grp}"
             G.add_edge(grp_node_id, parent_node_id, edge_type="IMPLIES")
 
     # 2. Rules & Model RESTRICTED_BY Rule -> Rule APPLIES_TO_GROUP Group

@@ -229,8 +229,23 @@ logger = logging.getLogger(__name__)
 from code_intelligence.utils import _TRUNCATION_MARKER, _match_near_truncation
 
 
-# Maximum hops allowed per question.
-CI_MAX_HOPS = 4
+# Maximum hops (tool calls) allowed per question, before the ReAct loop
+# stops issuing new tool-selection calls and synthesizes from whatever
+# observations it has gathered so far.
+#
+# Was a hardcoded 4, independent of question difficulty -- on the Bloc N1
+# benchmark this repeatedly cut 'hard' questions off (CI_MAX_HOPS (4)
+# reached -- breaking ReAct loop) before tools the eval's own
+# expected_tools ground truth called for (button_execution_path,
+# describe_workflow, read_source_code) had even been invoked, e.g.
+# ACC-Q1/ACC-Q2/ACC-Q4 (see captures/bloc_n1_verbatim.md). Also note this
+# was already BELOW core.routing.routing_keywords.REACT_RECURSION_LIMIT
+# (6) -- hop_cap was always the binding constraint, never the outer loop.
+# Raised to 6 (matches REACT_RECURSION_LIMIT) and made overridable via env
+# for per-difficulty tuning without a code change, e.g. CI_MAX_HOPS=8 for
+# a 'hard'-only benchmark run.
+import os as _os
+CI_MAX_HOPS = int(_os.getenv("CI_MAX_HOPS", "6"))
 
 # Composite tools whose dedup key is only (tool_name, model_name).
 _MODEL_KEYED_TOOLS = frozenset({

@@ -3527,3 +3527,104 @@ Contexte : suite immediate section 756 ("continuer avec purchase"), nouvelle ses
 **Fichiers modifies** : `tests/native_n1_question_bank.json`, `todo/contexte.txt` (cette section).
 
 **Prochaine etape** : continuer le banc avec `stock` ou `account` (au choix de pmm, tous deux consequents en taille) ; envisager le commit de `tests/native_n1_question_bank.json` (15/15, 3/5 modules) une fois pmm en accord avec le contenu ; ou ecrire le script de verification dedie maintenant que 3 modules sont disponibles.
+
+## Section 758 : Chantier N1 -- banc `stock` construit et verifie (4/5 modules du perimetre couverts, 20/20 questions)
+
+Date : 15/09/2026
+Contexte : suite immediate section 757. Bascule de session constatee en cours de tour : les premiers appels de ce fil operaient en realite sur machine 1 (`/home/user/odoo-ia-prototype`, `/home/user/odoo-17.0/addons`), la suite s'est retrouvee confinee sur machine 2 (Mahalahatse, `/media/donnee/projets/odoo-ia-prototype`, `CORE_ADDONS_PATH=/media/donnee/Programs/odoo-17.0/addons`) -- etat disque reverifie a la reprise, aucune perte : les sections 756/757 et le contenu maintenance+purchase+sale etaient deja presents sur le disque reel (repo git partage entre les deux machines).
+
+**Travail effectue** : lecture directe de `models/stock_picking.py`, `models/stock_quant.py`, `models/stock_move.py`, `models/stock_lot.py`, `models/product.py` (extension), `security/ir.model.access.csv`, `security/stock_security.xml`, `views/stock_picking_views.xml`, `models/res_config_settings.py`. 5 questions construites (STK-Q1 a STK-Q5), meme gabarit standardise (security/workflow/inheritance/ui/constraints), chaque fait reverifie par grep/sed direct sur le disque apres redaction.
+
+**Points factuels notables** : `stock.quant` est lisible (perm_read=1) par tout employe (`base.group_user`, `access_stock_quant_all`) sans le groupe metier `stock.group_stock_user` -- alors que `stock.move.line` accorde a `base.group_user` les 4 permissions completes (`access_stock_move_line_all`), un acces plus large que `stock.move` lui-meme (qui exige `stock.group_stock_user` et reste `perm_unlink=0`). Aucune ir.rule ne differencie par role, uniquement par societe. Le groupe `stock.group_stock_multi_locations` qui conditionne l'affichage des champs From/To n'est pas un groupe de role mais un `implied_group` active via un parametre de configuration (`res_config_settings.group_stock_multi_locations`) -- distinction importante deja rencontree en substance sur d'autres blocs (groupe = feature flag vs groupe = role hierarchique). `button_validate()` decide de la creation d'un reliquat (backorder) selon `picking_type_id.create_backorder` ('never'/'always'/'ask'), un parametre du type d'operation, pas un comportement global fixe.
+
+**Fichier modifie** : `tests/native_n1_question_bank.json` -- `meta.modules_covered=["maintenance","purchase","sale","stock"]`, `meta.modules_pending=["account"]`, `total_questions=20`. JSON valide (`json.load` OK).
+
+**Non fait ce tour** : `account` (dernier module du perimetre, le plus gros -- 90 modeles/31 regles/163 ACL/131 vues/10 groupes/12 server actions) ; script de verification dedie (`scripts/check_bloc_n1_*.py`) toujours pas ecrit, plan.md le prevoit une fois le banc disponible.
+
+**Prochaine etape** : construire le banc `account` (dernier module, cloture le Bloc N1 a 25/25 questions), puis ecrire le script de verification dedie et lancer une premiere execution reelle (confirmation end-to-end requise avant de declarer le bloc clos).
+
+## Section 759 : Chantier N1 -- banc `account` construit et verifie, Bloc N1 COMPLET (5/5 modules, 25/25 questions)
+
+Date : 15/09/2026
+Contexte : suite immediate section 758.
+
+**Travail effectue** : lecture ciblee (grep+sed, fichier trop volumineux pour lecture integrale -- `models/account_move.py` fait 5259 lignes) de `models/account_move.py`, `models/partner.py`, `security/ir.model.access.csv`, `security/account_security.xml` (bloc de commentaire d'en-tete faisant autorite sur la hierarchie des 4 groupes comptables), `views/account_move_views.xml`. 5 questions construites (ACC-Q1 a ACC-Q5), meme gabarit, chaque fait reverifie sur le disque apres redaction.
+
+**Points factuels notables (pieges reels identifies)** :
+- L'ACL directe `access_account_move_manager` (account.group_account_manager) est perm_read=1 seul -- lecture superficielle laisserait croire que le "Billing Administrator" ne peut pas ecrire de factures. En realite il herite du CRUD complet via `implied_ids=[group_account_invoice]` (qui lui a perm 1,1,1,1 sur account.move) -- necessite d'evaluer la fermeture transitive des groupes, pas seulement l'ACL directe.
+- La date de cloture comptable (`_check_fiscalyear_lock_date`) bloque absolument tout le monde, y compris `group_account_manager` -- le groupe ne change que le libelle du message d'erreur, jamais l'issue.
+- Le champ `account_id` (compte comptable) sur les lignes de facture exige `groups="account.group_account_readonly"`, qu'aucun de `group_account_invoice` ni `group_account_manager` n'implique (seul `group_account_user` implique les deux) -- en configuration Invoicing seule (sans le module Accounting), meme un Billing Administrator ne voit jamais ce champ technique.
+- `_sql_constraints=[('unique_name','','...')]` sur account.move a une definition SQL vide (ne cree aucune contrainte) -- l'unicite reelle est un index SQL partiel cree manuellement dans `_auto_init()` (`CREATE UNIQUE INDEX ... WHERE state='posted' AND name != '/'`), ne s'appliquant qu'aux ecritures postees et nommees.
+
+**Fichier modifie** : `tests/native_n1_question_bank.json` -- `meta.modules_covered` = les 5 modules, `meta.modules_pending=[]`, `total_questions=25`. Verification integrite : 25 ids uniques, 5 questions/module confirmes par script.
+
+**Bloc N1 desormais complet cote banc de questions** : 25/25 questions verite-terrain construites et verifiees par lecture directe du code source reel (`CORE_ADDONS_PATH`), aucune reponse inventee.
+
+**Non fait** : aucun script de verification dedie (`scripts/check_bloc_n1_*.py`, miroir `check_bloc9_0N_*.py`) n'existe encore -- le banc de questions n'a jamais ete rejoue contre le CI agent reel. Aucune execution/test. Rien n'est donc "confirme end-to-end" au sens de plan.md tant qu'un vrai run n'a pas ete fait et son output colle.
+
+**Prochaine etape (mandat a demander a pmm avant execution)** : ecrire le(s) script(s) de verification (probablement 1 script generique parametrable par module plutot que 5 scripts, vu le gabarit identique) qui interroge le CI agent avec chacune des 25 questions et compare a `reference_answer`/`verification`, puis executer reellement et coller l'output -- seule cette etape permettra de declarer le Bloc N1 clos au meme standard que le volet custom (Bloc 9).
+
+## Section 760 : Script de verification Bloc N1 ecrit (`scripts/run_bloc_n1_benchmark.py`) -- pas encore execute, delegue a pmm
+
+Date : 15/09/2026
+Contexte : suite immediate section 759 (banc de 25 questions complet). pmm demande le script de verification, en precisant que l'execution reelle (potentiellement longue -- 25 questions x appels LLM Groq) lui est deleguee.
+
+**Travail effectue** : ecriture de `scripts/run_bloc_n1_benchmark.py`, calque sur `scripts/run_adversarial_benchmark.py` (meme squelette : `code_intelligence_agent()` appele directement avec `start_evidence_collection()`/`collect_and_clear_evidence()` autour, pacing `time.sleep(2.0)` entre questions pour respecter la fenetre TPM Groq free-tier, rapport JSON + Markdown dans `captures/`). Un seul script generique parametrable par module/ids plutot que 5 scripts distincts (miroir `check_bloc9_0N_*.py` juge non pertinent ici car les 25 questions partagent deja un gabarit unique et une seule source de verite `tests/native_n1_question_bank.json`, contrairement au Bloc 9 ou chaque scenario e2e est structurellement different).
+
+**Fonctionnement** : charge `tests/native_n1_question_bank.json`, filtre optionnel par ids positionnels et/ou `--module {maintenance,purchase,sale,stock,account}` (union, pas intersection), pose chaque question via `code_intelligence_agent()`, capture la reponse verbatim + les outils CI reellement invoques (extraits du prefixe `code_intelligence:{tool_name}:{model}` de chaque `SourceReference.source`, cf. `code_intelligence/agent/postprocess.py::build_final_response`), calcule un signal deterministe de couverture d'outils (`expected_tools` vs outils invoques, sans notation par un second LLM -- conforme a `todo/rules.md`), et ecrit `captures/bloc_n1_verbatim.json` + `captures/bloc_n1_verbatim.md` (memes percentiles de latence p50/p90/moyenne/max que le runner Bloc 7).
+
+**Verifications faites avant de clore ce tour** : `py_compile` OK ; import et filtrage (`load_questions()`) testes directement en Python (25/25 charge sans filtre, 5/5 pour `--module maintenance`, id inconnu correctement ignore avec `[WARN]`) -- aucune question n'a ete reellement posee a l'agent (pas d'appel LLM/Groq dans ce tour).
+
+**Fichier cree** : `scripts/run_bloc_n1_benchmark.py`.
+
+**Non fait / delegue a pmm** : executer reellement le script (`python scripts/run_bloc_n1_benchmark.py`, ou par sous-ensemble via `--module <nom>` module par module si la fenetre Groq free-tier est fragile) et coller l'output -- seule cette etape permettra de comparer les reponses verbatim de l'agent aux `reference_answer` du banc et de declarer le Bloc N1 clos au meme standard que le Bloc 9 (aucune story fermee sans execution reelle confirmee).
+
+## Section 761 : Cache `active_graph.json` constate obsolete pour machine 2 (chemins machine 1) -- reconstruction via `scripts/rebuild_graph.py` mandatee par pmm avant le run Bloc N1
+
+Date : 15/09/2026
+Contexte : pmm demande si un rebuild du graphe est necessaire avant de lancer `scripts/run_bloc_n1_benchmark.py`.
+
+**Constat empirique** (pas suppose -- verifie directement) : `active_graph.json` sur disque (11614 noeuds, `generated_at=2026-09-14T07:44:43Z`, `git_commit=df8b888`) contient des `filepath`/`filepaths` de la forme `/home/user/odoo-17.0/addons/...` (machine 1) -- absents sur machine 2. Appel direct de `_graph_filepaths_resolve_locally(G)` (deja present dans `code_intelligence/graph/loader.py`, garde-fou existant pour ce scenario precis "deux machines, un seul cache JSON partage via git") sur le graphe deserialise : **retourne `False`**. Confirme que `get_code_intelligence_graph()` aurait de toute facon jete ce cache et reconstruit automatiquement depuis `CORE_ADDONS_PATH` reel au premier appel -- mais silencieusement, en melangeant le temps de reconstruction dans la latence de la premiere question du benchmark.
+
+**Decision pmm** : reconstruction explicite via `python scripts/rebuild_graph.py` avant de lancer le benchmark, pour (a) ne pas fausser les metriques de latence p50/p90 du rapport Bloc N1 sur la premiere question, (b) verifier visuellement noeuds/aretes/tags avant de depenser des appels Groq. pmm confirme au passage que le module `maintenance` est bien installe sur l'instance Odoo cible (levait un doute residuel note section precedente sur le filtrage `_discover_installed_core_modules()`).
+
+**Non fait par Claude ce tour** : execution de `rebuild_graph.py` et de `run_bloc_n1_benchmark.py` -- deleguees a pmm (fenetre Groq/temps de reconstruction potentiellement longs).
+
+**Prochaine etape** : pmm execute `rebuild_graph.py` puis `run_bloc_n1_benchmark.py` (ou par module via `--module`), colle l'output/rapport pour revue et cloture eventuelle du Bloc N1.
+
+## Section 762 : Rebuild execute par pmm, confirme -- graphe reconstruit avec les 5 modules Bloc N1, benchmark autorise a demarrer
+
+Date : 15/09/2026
+Contexte : suite immediate section 761, execution reelle par pmm.
+
+**Execution reelle** (`python scripts/rebuild_graph.py`) : ancien cache (8.1 MB, chemins machine 1) supprime, reconstruction depuis `CORE_ADDONS_PATH` reel (25.5s) -- **14739 noeuds, 14784 aretes, 39 modules** (contre 11614 noeuds avant, cache machine 1 obsolete) -- +3125 noeuds, coherent avec les modules Bloc N1 desormais effectivement charges (`_discover_installed_core_modules()` les rapporte tous installes sur l'instance cible).
+
+**Verification post-rebuild** (Claude, lecture directe du nouveau `active_graph.json`) : les 5 modules du perimetre Bloc N1 sont bien presents comme noeuds Module (`account`, `sale`, `stock`, `purchase`, `maintenance`). `maintenance` apporte ses 6 modeles attendus (`maintenance.equipment`, `maintenance.equipment.category`, `maintenance.mixin`, `maintenance.request`, `maintenance.stage`, `maintenance.team`) -- coherent avec la lecture de code faite section 756 (7 modeles attendus au total pour ce module dans l'extraction connue, l'ecart de 1 s'explique probablement par un modele non identifie comme noeud distinct ou deja compte differemment, non bloquant pour le benchmark).
+
+**Prochaine etape** : pmm lance `python scripts/run_bloc_n1_benchmark.py` (graphe desormais a jour et local a machine 2, plus de risque de reconstruction silencieuse en cours de benchmark) et colle l'output/rapport (`captures/bloc_n1_verbatim.json`/`.md`) pour revue.
+
+## Section 763 : Root cause analysis du run Bloc N1 verbatim (captures/bloc_n1_verbatim.md) -- 2 correctifs appliques, reste a executer end-to-end
+
+Date : 15/09/2026
+Contexte : suite immediate section 762 (rebuild confirme, benchmark autorise a demarrer). pmm a colle l'output verbatim complet du run (`captures/bloc_n1_verbatim.md`, 25 questions) dans une session Claude separee (acces Filesystem+bash au projet, pas la session d'edition habituelle) pour diagnostic root cause avant relance.
+
+**Root cause #1 (CONFIRMEE, CORRIGEE)** : deux points d'appel LLM contournaient entierement `invoke_with_rate_limit()` -- appel direct `llm.invoke(messages)` sans retry/rotation/backoff :
+  - `code_intelligence/rules/server_actions.py::interpret_server_action_with_llm`
+  - `code_intelligence/rules/override_unguarded.py::interpret_override_chain_with_llm`
+  C'est la cause exacte du `Error code: 429` non recupere observe sur ACC-Q1 dans le verbatim (`LLM interpretation call failed for action='custom_automation_traps.ir_action_server_avoir_fournisseur_privilegie'`), alors meme que 8 cles Groq sont configurees (`GROQ_API_KEYS` dans `.env`) et que la rotation existe et fonctionne ailleurs (`core/llm/llm_client.py::_rotate_groq_key`).
+  **Fix applique** : les deux fonctions passent desormais par `invoke_with_rate_limit(llm, messages, max_retries=5, rebuild_llm=...)`, meme pattern que `classify_question_intent_llm` (deja conforme, cf. docstring `test_intent_llm_classifier_and_resolution.py`: "invoke_with_rate_limit() est laisse INTACT dans tous les tests"). Comportement en echec inchange (log warning + fallback gracieux, `analysis`/`None` renvoye).
+  **Tests rejoues** : `tests/test_j8_llm_server_action_interpretation.py` (8/8 passent, 39s -- ralenti par le throttle 5s/appel Groq deja accepte ailleurs dans le projet), `code_intelligence/tests/test_method_override_chain.py` (10 passent/3 skip, rapide -- ce fichier ne declenche pas le throttle reel).
+
+**Root cause #2 (CONFIRMEE, CORRIGEE)** : `CI_MAX_HOPS=4` (hardcode, `code_intelligence/agent/context.py`) etait STRICTEMENT INFERIEUR a `REACT_RECURSION_LIMIT=6` (`core/routing/routing_keywords.py`) -- le hop_cap etait donc systematiquement le facteur limitant reel, jamais la boucle exterieure. Coupait les questions `difficulty=hard` (`CI_MAX_HOPS (4) reached -- breaking ReAct loop`, visible sur ACC-Q1/ACC-Q2/ACC-Q4/STK-Q3 dans le verbatim) avant que les `expected_tools` du banc verite-terrain (`button_execution_path`, `describe_workflow`, `read_source_code`) aient pu etre invoques -- correle directement avec les 5 `[WARN] Outil(s) attendu(s) non invoque(s)` du run (SAL-Q4, STK-Q2, STK-Q4, ACC-Q1, ACC-Q2).
+  **Fix applique** : `CI_MAX_HOPS` releve a 6 (aligne sur `REACT_RECURSION_LIMIT`), rendu configurable via variable d'environnement (`int(os.getenv("CI_MAX_HOPS", "6"))`) pour permettre un tuning par difficulte sans modif de code (ex: `CI_MAX_HOPS=8` pour un run cible sur les questions hard). Constante jumelle `MAX_HOPS_PER_QUESTION` dans `core/session/reasoning_trace_logger.py` synchronisee a 6 (valeur de repli du param `hop_cap`, jamais utilisee en pratique -- les call sites reels passent toujours `hop_cap=ctx.hop_cap` explicitement, cf. `postprocess.py`).
+  **Tests mis a jour** (3 assertions qui pinnaient la valeur en dur a 4, desormais 6, avec commentaire expliquant le changement) : `code_intelligence/tests/test_c_complete.py::test_c1_4_hop_counter_limit`, `code_intelligence/tests/test_j30_31_latency_budget.py::test_latency_budget_constants_exist` et `::test_ci_max_hops_value`.
+
+**Ecarte volontairement (pas un bug)** : le garde-fou "flag not strip" sur les xml_id de groupes non-grounded (`code_intelligence/agent/access_guards.py::_flag_ungrounded_group_xmlids`) et sur les citations non verifiees (`dispatch_guards.py::annotate_unverifiable_citations`) -- observe dans le verbatim sur ACC-Q1 ("GROUPE(S) NON VÉRIFIÉ(S)... flagged not stripped") et ACC-Q2/ACC-Q3 ("SOURCING NON VÉRIFIÉ"). Diagnostic initial (avant lecture du code) proposait de rendre ce garde-fou bloquant -- **corrige apres lecture** : c'est un choix de design deliberement documente dans le code lui-meme ("Never silently strip or rewrite around an unverified citation -- that risks introducing new unverified content. Append a visible, explicit warning instead."), coherent avec la discipline generale du projet (jamais de suppression silencieuse). Non touche.
+
+**Non fait / delegue a pmm** :
+  - `pytest` complet (suite entiere, pas seulement les fichiers touches) pas relance -- a faire avant merge pour s'assurer qu'aucune autre assertion ne pinne `CI_MAX_HOPS`/`MAX_HOPS_PER_QUESTION` ailleurs dans le projet (grep fait, rien d'autre trouve cote assertions, mais pas de run complet).
+  - Mentions cosmetiques de `CI_MAX_HOPS=4` dans des docstrings/f-strings de scripts non fonctionnels (`scripts/report_llm_call_budget.py` lignes 106/119, `scripts/_diag_full_synthesis_hop_trace.py`, `scripts/run_adversarial_benchmark.py`) -- non corrigees, purement documentaire, aucun impact fonctionnel.
+  - Le `Payload too large (413, attempt 1/5)` observe sur ACC-Q1 : la logique de reduction de contexte existe deja (`core/llm/llm_retry.py::reduce_message_context`, invoquee automatiquement par `invoke_with_rate_limit` au premier 413) et semble avoir fonctionne cote log ("nouvelle tentative immediate", pas d'echec final signale) -- pas approfondi si le seuil de declenchement/l'agressivite de la reduction sont bien calibres, faute de temps dans ce tour.
+  - **Re-execution reelle du Bloc N1 (`scripts/run_bloc_n1_benchmark.py`) apres ces 2 correctifs pas faite** -- seule cette etape confirmera que les [WARN] de couverture d'outils et le 429 non recupere ont bien disparu. A executer par pmm, comme les runs precedents (fenetre Groq/temps potentiellement longs).
+
+**Prochaine etape** : pmm relance `python scripts/run_bloc_n1_benchmark.py` (banc complet ou `--module account` en priorite pour verifier specifiquement ACC-Q1/ACC-Q2 corriges), colle le nouvel output pour comparaison avant/apres avec `captures/bloc_n1_verbatim.md` (a renommer/archiver avant ecrasement si comparaison voulue -- le script ecrase le meme chemin de sortie a chaque run).

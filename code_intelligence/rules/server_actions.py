@@ -150,8 +150,15 @@ def interpret_server_action_with_llm(
         return analysis
 
     try:
+        from core.llm.llm_client import invoke_with_rate_limit
+
         messages = build_server_action_messages(analysis, code)
-        response = llm.invoke(messages)
+
+        def _rebuild():
+            from core.llm.llm_client import get_chat_llm
+            return get_chat_llm(temperature=0.0, max_retries=0)
+
+        response, _wait = invoke_with_rate_limit(llm, messages, max_retries=5, rebuild_llm=_rebuild)
         raw = (response.content or "").strip()
     except Exception as e:
         _logger.warning("LLM interpretation call failed for action=%r: %s", analysis.action_xml_id, e)

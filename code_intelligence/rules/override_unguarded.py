@@ -73,10 +73,17 @@ def interpret_override_chain_with_llm(
     from code_intelligence.rules.override_composer import build_override_interpretation_messages
 
     try:
+        from core.llm.llm_client import invoke_with_rate_limit
+
         messages = build_override_interpretation_messages(
             model_name, method_name, warnings, snippets
         )
-        response = llm.invoke(messages)
+
+        def _rebuild():
+            from core.llm.llm_client import get_chat_llm
+            return get_chat_llm(temperature=0.0, max_retries=0)
+
+        response, _wait = invoke_with_rate_limit(llm, messages, max_retries=5, rebuild_llm=_rebuild)
         raw = (response.content or "").strip()
     except Exception as e:
         _logger.warning(

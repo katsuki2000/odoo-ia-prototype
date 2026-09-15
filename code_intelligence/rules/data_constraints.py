@@ -6,9 +6,9 @@ declarations (Evidence tool 10/24). Regroupe (todo/contexte.txt, chantier
 de reduction du nombre de sous-paquets de knowledge_rules/) les anciens
 runner.py/analyzer.py de l'ex-paquet data_constraints/ en un seul module
 plat, sans changement de logique. Les fixtures/regles Semgrep elles-memes
-(donnees, pas du code Python importable) vivent desormais a cote, dans
-knowledge_rules/data_constraints_semgrep_rules/ (deplace depuis l'ex
-semgrep_rules/, seul consommateur).
+(donnees, pas du code Python importable) vivent dans code_intelligence/
+semgrep_rules/ (dossier plat frere depuis l'aplatissement Option C,
+seul consommateur).
 """
 
 import ast
@@ -267,12 +267,11 @@ def analyze_data_constraints_from_filepaths(
     summary_text and Evidence in a single pass over the collected matches --
     no duplicated composition loop.
 
-    config_dir defaults to knowledge_rules/data_constraints_semgrep_rules/
-    (single parent hop -- this module is now a flat file directly inside
-    knowledge_rules/, not nested one level deeper as data_constraints/ was).
+    config_dir defaults to code_intelligence/semgrep_rules/ (sibling flat
+    folder, single parent hop from this file's own package dir).
     """
     if config_dir is None:
-        config_dir = Path(__file__).resolve().parent / "data_constraints_semgrep_rules"
+        config_dir = Path(__file__).resolve().parent.parent / "semgrep_rules"
 
     all_matches: List[SemgrepMatch] = []
     for fp in sorted(filepaths):

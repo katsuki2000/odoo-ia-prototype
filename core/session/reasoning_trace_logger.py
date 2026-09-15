@@ -16,8 +16,12 @@ from typing import Any, Dict, List, Optional
 
 _logger = logging.getLogger(__name__)
 
-# Maximum tool hops per question guardrail
-MAX_HOPS_PER_QUESTION = 4
+# Maximum tool hops per question guardrail -- kept in sync with
+# code_intelligence.agent.context.CI_MAX_HOPS (raised from 4 to 6, see
+# that module's comment for why); test_j46_j48_reasoning_trace.py asserts
+# the two never drift apart. Real call sites always pass hop_cap=ctx.hop_cap
+# explicitly (postprocess.py) -- this is only the fallback default below.
+MAX_HOPS_PER_QUESTION = 6
 
 
 @dataclass
