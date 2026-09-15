@@ -6,11 +6,31 @@ move types, and sticky concept rehydration.
 import logging
 import os
 import re
+import unicodedata
 from typing import Optional, Dict, Any
 
 logger = logging.getLogger(__name__)
 
 from code_intelligence.utils import _extract_amount, _question_is_approval_related
+
+
+def _strip_accents(text: str) -> str:
+    """Normalize a string by removing diacritics (accents) at matching time.
+
+    Several _question_is_*_related regexes below already defensively use
+    character classes like '[eé]tat' to tolerate accented/unaccented input,
+    but not uniformly (see todo/contexte.txt section 764: the native N1
+    question bank on disk is pure ASCII -- no accents anywhere -- which is
+    exactly the kind of source this normalization protects against, along
+    with NFD-decomposed copy-paste and non-French keyboards). Applied only
+    to the text being matched against, never to captured group content --
+    extract_ui_element_name() below must keep returning the original
+    spelling of whatever UI label it extracts."""
+    return "".join(
+        c for c in unicodedata.normalize("NFKD", text)
+        if not unicodedata.combining(c)
+    )
+
 
 # Deterministic patterns for tool triggers
 _AMOUNT_PATTERN = re.compile(r"\d[\d\s.,]*\d\s*(?:€|eur(?:os?)?\b)", re.IGNORECASE)
@@ -90,7 +110,7 @@ _ACCESS_QUESTION_PATTERN = re.compile(
 
 def _question_is_access_related(question: str) -> bool:
     """True if the question is asking about access permissions or visibility."""
-    return bool(_ACCESS_QUESTION_PATTERN.search(question))
+    return bool(_ACCESS_QUESTION_PATTERN.search(_strip_accents(question)))
 
 
 _WORKFLOW_QUESTION_PATTERN = re.compile(
@@ -98,14 +118,19 @@ _WORKFLOW_QUESTION_PATTERN = re.compile(
     r"\b(?:passage|passer)\s+(?:d['’][^.\n]+?\s+)?de\s+l['’][eé]tat\b|"
     r"\b(?:transition|changement)\s+d['’][eé]tat\b|"
     r"\b(?:[eé]tat\s+source|[eé]tat\s+cible|champ\s+d['’][eé]tat|champ\s+state|workflow\s+d['’][eé]tats?)\b|"
-    r"\b(?:lifecycle|state\s+transition)\b",
-    re.IGNORECASE,
+    r"\b(?:lifecycle|state\s+transition)\b|"
+    # "Que se passe-t-il quand on [clique/confirme/valide/poste/...]" --
+    # trigger-action phrasing for a state/stage change, distinct from the
+    # "etat"/"transition" vocabulary above (see todo/contexte.txt section
+    # 764/765: 4/5 native N1 workflow questions use this idiom instead).
+    r"\bque\s+se\s+passe[-\s]t[-\s]il\b.{0,150}?\b(?:clique|clic|confirme|valide|poste|atteint|marqu[eé]e?|passe\s+[aà])\b",
+    re.IGNORECASE | re.DOTALL,
 )
 
 
 def _question_is_workflow_related(question: str) -> bool:
     """True if question investigates workflow state transitions or states."""
-    return bool(_WORKFLOW_QUESTION_PATTERN.search(question))
+    return bool(_WORKFLOW_QUESTION_PATTERN.search(_strip_accents(question)))
 
 
 _INHERITANCE_QUESTION_PATTERN = re.compile(
@@ -124,7 +149,7 @@ _INHERITANCE_QUESTION_PATTERN = re.compile(
 
 def _question_is_inheritance_related(question: str) -> bool:
     """True if question inquires about model inheritance, mixins, or extensions."""
-    return bool(_INHERITANCE_QUESTION_PATTERN.search(question))
+    return bool(_INHERITANCE_QUESTION_PATTERN.search(_strip_accents(question)))
 
 
 _METHOD_OR_OVERRIDE_PATTERN = re.compile(
@@ -138,7 +163,7 @@ _METHOD_OR_OVERRIDE_PATTERN = re.compile(
 
 def _question_is_method_or_override_related(question: str) -> bool:
     """True if question inquires about method behavior, overrides, or write-time field mutations."""
-    return bool(_METHOD_OR_OVERRIDE_PATTERN.search(question))
+    return bool(_METHOD_OR_OVERRIDE_PATTERN.search(_strip_accents(question)))
 
 
 _CONSTRAINTS_QUESTION_PATTERN = re.compile(
@@ -153,7 +178,7 @@ _CONSTRAINTS_QUESTION_PATTERN = re.compile(
 
 def _question_is_constraint_related(question: str) -> bool:
     """True if question investigates model data constraints, validation rules, or write blockers."""
-    return bool(_CONSTRAINTS_QUESTION_PATTERN.search(question))
+    return bool(_CONSTRAINTS_QUESTION_PATTERN.search(_strip_accents(question)))
 
 
 def _rehydrate_sticky_concept(concept, state: dict):
@@ -231,7 +256,7 @@ _MODULE_UI_PATTERN = re.compile(
 
 
 def matches_module_level_ui_inquiry(question: str) -> bool:
-    return bool(_MODULE_UI_PATTERN.search(question))
+    return bool(_MODULE_UI_PATTERN.search(_strip_accents(question)))
 
 
 def extract_ui_element_name(question: str) -> Optional[str]:
