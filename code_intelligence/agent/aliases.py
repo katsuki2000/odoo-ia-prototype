@@ -173,6 +173,26 @@ BUSINESS_ALIASES: Dict[str, List[str]] = {
     "kpis": ["kpi"],
     "valeur d'un kpi": ["kpi"],
     "calculer un kpi": ["kpi"],
+    # Maintenance (Bloc N1) -- jamais ajoute lors de l'introduction du module (todo/contexte.txt section 748/767), gap distinct du bug d'accents deja corrige ailleurs (section 765)
+    "equipement": ["maintenance.equipment"],
+    "équipement": ["maintenance.equipment"],
+    "equipements": ["maintenance.equipment"],
+    "équipements": ["maintenance.equipment"],
+    "fiche equipement": ["maintenance.equipment"],
+    "fiche d'un equipement": ["maintenance.equipment"],
+    "fiche d'équipement": ["maintenance.equipment"],
+    "categorie d'equipement": ["maintenance.equipment.category"],
+    "catégorie d'équipement": ["maintenance.equipment.category"],
+    "categories d'equipement": ["maintenance.equipment.category"],
+    "catégories d'équipement": ["maintenance.equipment.category"],
+    "demande de maintenance": ["maintenance.request"],
+    "demandes de maintenance": ["maintenance.request"],
+    "demande de maintenance preventive": ["maintenance.request"],
+    "demande de maintenance préventive": ["maintenance.request"],
+    "demande recurrente": ["maintenance.request"],
+    "demande récurrente": ["maintenance.request"],
+    "demandes recurrentes": ["maintenance.request"],
+    "demandes récurrentes": ["maintenance.request"],
 }
 
 # French synonyms for native Odoo models feeding the Step 2 fuzzy index.
@@ -181,6 +201,8 @@ NATIVE_MODEL_SYNONYMS: Dict[str, List[str]] = {
     "purchase.order": ["commande d'achat"],
     "stock.picking": ["livraison"],
     "stock.move": ["mouvement de stock"],
+    "maintenance.equipment": ["equipement", "équipement"],
+    "maintenance.request": ["demande de maintenance"],
 }
 
 

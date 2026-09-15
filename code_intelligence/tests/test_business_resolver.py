@@ -455,3 +455,28 @@ def test_active_model_ignored_without_graph():
     result = resolve_business_term("bonjour", None, active_model="hr.leave")
     assert not result.is_resolved
 
+
+def test_maintenance_equipment_alias_resolves_bloc_n1():
+    """Bloc N1 (todo/contexte.txt sections 748/767): 'equipement'/'\u00e9quipement'
+    (with or without accent) must resolve to maintenance.equipment -- this
+    alias was missing entirely when the maintenance module was added to the
+    native validation scope (distinct gap from the accent-stripping bug
+    already fixed in context_extractors.py, section 765: here the alias
+    itself never existed, in either spelling)."""
+    G = nx.DiGraph()
+    G.add_node("model:maintenance.equipment", node_type="Model", name="maintenance.equipment", description="")
+    for q in ("un equipement", "un \u00e9quipement", "des equipements", "des \u00e9quipements"):
+        result = resolve_business_term(q, G)
+        assert result.is_resolved, f"{q!r} should resolve"
+        assert result.resolved_models == ["maintenance.equipment"]
+
+
+def test_maintenance_request_alias_resolves_bloc_n1():
+    """Same gap as above, for 'demande de maintenance' -> maintenance.request
+    (MNT-Q2/MNT-Q5 in the native question bank)."""
+    G = nx.DiGraph()
+    G.add_node("model:maintenance.request", node_type="Model", name="maintenance.request", description="")
+    for q in ("une demande de maintenance", "une demande recurrente", "une demande r\u00e9currente"):
+        result = resolve_business_term(q, G)
+        assert result.is_resolved, f"{q!r} should resolve"
+        assert result.resolved_models == ["maintenance.request"]
