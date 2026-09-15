@@ -279,6 +279,25 @@ def extract_ui_element_name(question: str) -> Optional[str]:
             question, re.IGNORECASE,
         )
     if not match:
+        # Action-verb + parenthetical label, no bouton/champ keyword needed
+        # (todo/contexte.txt section 767/768: SAL-Q4 "deverrouiller (Unlock)"
+        # -- the native N1 bank glosses the French action verb with the
+        # actual UI label in parens instead of naming it explicitly).
+        match = re.search(
+            r"\b(?:verrouiller|d[eé]verrouiller|valider|confirmer|annuler|approuver|rejeter|"
+            r"publier|archiver|d[eé]sarchiver|dupliquer|imprimer|envoyer|cl[oô]turer|"
+            r"remettre|r[eé]ouvrir|marquer|d[eé]bloquer|bloquer|activer|d[eé]sactiver|"
+            r"facturer|payer|rembourser)\s*\(([A-Za-z][A-Za-z0-9 _\-]{0,40})\)",
+            question, re.IGNORECASE,
+        )
+    if not match:
+        # Bare technical field name in parens, no keyword at all (section
+        # 767/768: ACC-Q4 "le compte comptable (account_id)" -- requires an
+        # underscore to stay a snake_case-looking technical name, keeping
+        # false positives low (a bare English gloss like "(Unlock)" is
+        # handled by the action-verb pattern above, not this one).
+        match = re.search(r"\(([a-z][a-z0-9]*_[a-z0-9_]*)\)", question)
+    if not match:
         return None
     name = match.group(1).strip()
     if name.lower() in _UI_NAME_STOPWORDS:

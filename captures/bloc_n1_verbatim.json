@@ -1,12 +1,12 @@
 [
   {
-    "id": "MNT-Q4",
-    "module": "maintenance",
+    "id": "SAL-Q4",
+    "module": "sale",
     "capability": "ui",
     "difficulty": "easy",
-    "question": "Pourquoi le champ 'cost' (cout) d'un equipement n'est-il pas visible pour tous les utilisateurs ayant acces en lecture a sa fiche ?",
-    "reference_answer": "Le champ cost porte groups='maintenance.group_equipment_manager' dans la vue formulaire -- reserve aux managers, independamment du droit de lecture sur la fiche elle-meme : un utilisateur simple qui suit un equipement (et le voit donc via equipment_rule_user) ne voit pas ce champ precis dans le formulaire.",
-    "verification": "views/maintenance_views.xml, <field name=\"cost\" groups=\"maintenance.group_equipment_manager\"/>",
+    "question": "Pourquoi un vendeur simple ne peut-il pas deverrouiller (Unlock) une commande verrouillee, meme si c'est lui qui l'a confirmee ?",
+    "reference_answer": "Le bouton action_unlock porte groups='sales_team.group_sale_manager' dans la vue formulaire -- reserve aux managers, quel que soit le lien du vendeur avec la commande (createur, assigne via user_id, etc.). Le bouton n'est meme visible (invisible=\"not locked\") que si la commande est deja verrouillee, mais son affichage reste conditionne au groupe manager en plus de cette condition d'etat. Le bouton action_lock, lui, n'est visible que si le parametrage sale.group_auto_done_setting est actif (t groups=), et porte la meme restriction sales_team.group_sale_manager.",
+    "verification": "views/sale_order_views.xml : boutons action_unlock (groups='sales_team.group_sale_manager', invisible='not locked') et action_lock (dans <t groups='sale.group_auto_done_setting'>, lui-meme groups='sales_team.group_sale_manager')",
     "expected_tools": [
       "button_execution_path"
     ],
@@ -16,10 +16,37 @@
     ],
     "tool_coverage_ok": true,
     "missing_tools": [],
-    "verbatim": "### Pourquoi le champ **cost** n’est pas visible ?\n\nLe champ **cost** (coût) est déclaré dans la vue `maintenance.equipment` avec un filtre de groupe :\n\n- **Déclaration** : `<field name=\"cost\" groups=\"maintenance.group_equipment_manager\"/>`  \n  **Source** : [maintenance_views.xml:L445-L451](file:///home/user/odoo-17.0/addons/maintenance/views/maintenance_views.xml#L445-L451)\n\nCette balise `groups=\"maintenance.group_equipment_manager\"` signifie que **seuls les utilisateurs appartenant au groupe `maintenance.group_equipment_manager`** peuvent voir ce champ, même s’ils disposent d’un droit de lecture sur le modèle `maintenance.equipment`.  \n\nEn Odoo, les droits d’accès au modèle (via `ir.model.access`) contrôlent l’accès aux enregistrements, tandis que les attributs `groups` dans les vues contrôlent la visibilité des champs. Le champ reste invisible pour les autres groupes, même si ces derniers peuvent lire l’enregistrement.\n\n**Solution**  \nSi vous souhaitez que d’autres utilisateurs voient ce champ, vous devez :\n\n1. Ajouter ces utilisateurs au groupe `maintenance.group_equipment_manager`, ou\n2. Modifier la vue pour enlever ou ajuster l’attribut `groups` sur le champ `cost`.\n\n---\n\n[Source: Graphe de Connaissances Code Intelligence]",
-    "elapsed_seconds": 2.68,
-    "effective_seconds": 2.679,
-    "groq_wait_seconds": 0.0,
+    "verbatim": "Le bouton **« Unlock »** sur le modèle `sale.order` est limité aux utilisateurs appartenant au groupe **`sales_team.group_sale_manager`** (voir la définition du bouton dans `sale_order.py` aux lignes 1063‑1064).  \nLe vendeur simple ne fait pas partie de ce groupe, donc le bouton n’apparaît pas (ou est grisé) dans son interface ; l’action `action_unlock()` n’est donc pas accessible pour lui, même s’il a confirmé la commande.  \n\nEn résumé : la restriction de groupe empêche un vendeur simple de déverrouiller une commande verrouillée.\n\n[Source: Graphe de Connaissances Code Intelligence]",
+    "elapsed_seconds": 8.5,
+    "effective_seconds": 3.576,
+    "groq_wait_seconds": 4.92,
     "hop_count": 2
+  },
+  {
+    "id": "ACC-Q4",
+    "module": "account",
+    "capability": "ui",
+    "difficulty": "hard",
+    "question": "Un utilisateur avec uniquement group_account_invoice ('Billing') voit-il le compte comptable (account_id) d'une ligne de facture ? Et un 'Billing Administrator' (group_account_manager) le voit-il, en configuration Invoicing seule (sans le module Accounting installe) ?",
+    "reference_answer": "Non dans les deux cas. Le champ account_id porte groups='account.group_account_readonly' dans la vue -- or ni group_account_invoice ni group_account_manager n'impliquent group_account_readonly (seul group_account_user, le profil 'comptable complet', implique a la fois invoice et readonly). En configuration Invoicing seule, la documentation du fichier de securite le confirme explicitement : seuls group_account_invoice et group_account_manager sont censes etre utilises, et aucun des deux ne donne acces au champ technique du compte comptable -- il faut le module Accounting (qui attribue alors group_account_user) pour le voir.",
+    "verification": "views/account_move_views.xml : <field name=\"account_id\" ... groups=\"account.group_account_readonly\"/> + security/account_security.xml : commentaire d'en-tete + implied_ids de group_account_invoice/group_account_manager/group_account_user",
+    "expected_tools": [
+      "button_execution_path"
+    ],
+    "tools_used": [
+      "analyze_security_locks",
+      "who_has_access_to",
+      "evaluate_record_rules",
+      "button_execution_path",
+      "read_source_code",
+      "read_source_code"
+    ],
+    "tool_coverage_ok": true,
+    "missing_tools": [],
+    "verbatim": "**Visibilité du champ `account_id` sur une ligne de facture**\n\n| Groupe | Accès au modèle `account.move` | Champ `account_id` visible dans la vue `account.move.line` |\n|--------|--------------------------------|-----------------------------------------------------------|\n| `account.group_account_invoice` (Billing) | **READ** (voir l’accès matrix ci‑dessous) | Oui – le champ est affiché (readonly) dans la vue `account.move.line` (ligne 27‑30). |\n| `account.group_account_manager` (Billing Administrator) | **READ** (voir l’accès matrix ci‑dessous) | Oui – le champ est affiché (readonly) dans la vue `account.move.line` (ligne 27‑30). |\n\n**Sources**\n\n1. **Accès au modèle `account.move`**  \n   - `[READ]: account.group_account_invoice, account.group_account_manager, ...`  \n     (xml_id: account.group_account_invoice xml_id: account.group_account_manager …)  \n     – Source : *Access Matrix for 'account.move'*.\n\n2. **Vue `account.move.line`**  \n   - `<field name=\"account_id\" options=\"{'no_create': True}\" domain=\"[('company_id', 'parent_of', company_id), ('deprecated', '=', False)]\" readonly=\"1\"/>`  \n     – Source : *view_move_line_form* (file:///home/user/odoo-17.0/addons/account/models/account_bank_statement_line.py#L27-L30).\n\n**Conclusion**\n\n- Un utilisateur possédant uniquement le groupe `account.group_account_invoice` peut voir le champ `account_id` d’une ligne de facture.  \n- Un « Billing Administrator » (groupe `account.group_account_manager`) peut également voir ce champ, même si seul le module **Invoicing** est installé (le module Accounting n’est pas requis pour la vue).  \n\nLe champ est affiché en lecture seule pour ces groupes.\n\n[Source: Graphe de Connaissances Code Intelligence]",
+    "elapsed_seconds": 33.21,
+    "effective_seconds": 16.087,
+    "groq_wait_seconds": 17.117,
+    "hop_count": 6
   }
 ]
