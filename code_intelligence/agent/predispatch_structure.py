@@ -149,6 +149,35 @@ def dispatch_inheritance(ctx: DispatchContext) -> None:
                         "'list_involved_modules' for model '%s'.",
                         target_model,
                     )
+                    declaring_modules = re.findall(
+                        r"(\S+) \(declares\)", observation
+                    )
+                    for dec_mod in declaring_modules:
+                        if ctx.hop_budget_exhausted:
+                            break
+                        mod_call_key = ("list_involved_modules", dec_mod)
+                        if mod_call_key in ctx.seen_calls:
+                            continue
+                        t1 = time.perf_counter()
+                        try:
+                            mod_obs = str(mod_tool.invoke({"model_name": dec_mod}))
+                            mod_obs = _truncate_observation_for_budget(ctx, mod_obs, 3000)
+                            ctx.record_observation(
+                                "list_involved_modules", {"model_name": dec_mod},
+                                mod_obs, target_model, mod_call_key,
+                                time.perf_counter() - t1,
+                            )
+                            logger.info(
+                                "Node [code_intelligence_agent]: Deterministic "
+                                "pre-dispatch of 'list_involved_modules' in module "
+                                "mode for declaring module '%s'.",
+                                dec_mod,
+                            )
+                        except Exception as me:
+                            logger.error(
+                                "Deterministic list_involved_modules module-mode "
+                                "dispatch failed for '%s': %s", dec_mod, me,
+                            )
                 except Exception as te:
                     logger.error("Deterministic list_involved_modules dispatch failed: %s", te)
 

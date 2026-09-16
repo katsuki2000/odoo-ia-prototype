@@ -172,23 +172,6 @@ def format_security_locks_summary(
     if analysis.has_hardcoded_logins:
         lines.append(f"  - {SENSITIVE_BYPASS_MARKER} Logins/Emails privilégies en dur: {analysis.hardcoded_logins}")
 
-    if analysis.exception_messages:
-        lines.append(f"  - Security lock messages (UserError/ValidationError):")
-        conditions = analysis.exception_conditions or [""] * len(analysis.exception_messages)
-        guard_fields = analysis.exception_guard_fields or [""] * len(analysis.exception_messages)
-        for msg, condition, guard_field in zip(analysis.exception_messages, conditions, guard_fields):
-            if condition:
-                lines.append(f"    * \"{msg}\" (condition : {condition})")
-            else:
-                lines.append(f"    * \"{msg}\"")
-            if guard_field:
-                lines.append(
-                    f"      [GARDE DE LIEN: si '{guard_field}' est vide/absent (aucun "
-                    f"enregistrement lie), cette condition est FAUSSE par court-circuit "
-                    f"Python (evaluation de gauche a droite d'un 'and') -- la regle ci-dessus "
-                    f"NE S'APPLIQUE PAS dans ce cas, quel que soit le reste de la condition.]"
-                )
-
     if analysis.required_groups:
         methods = analysis.required_group_methods or [""] * len(analysis.required_groups)
         action_groups = [g for g, m in zip(analysis.required_groups, methods) if m]
@@ -214,6 +197,23 @@ def format_security_locks_summary(
         for f_name, f_val, s_line, e_line in analysis.static_filters:
             link = format_file_link(filepath, s_line, e_line)
             lines.append(f"  - Filtre d'exclusion statique '{f_name}' ({link}): {f_val}")
+
+    if analysis.exception_messages:
+        lines.append(f"  - Security lock messages (UserError/ValidationError):")
+        conditions = analysis.exception_conditions or [""] * len(analysis.exception_messages)
+        guard_fields = analysis.exception_guard_fields or [""] * len(analysis.exception_messages)
+        for msg, condition, guard_field in zip(analysis.exception_messages, conditions, guard_fields):
+            if condition:
+                lines.append(f"    * \"{msg}\" (condition : {condition})")
+            else:
+                lines.append(f"    * \"{msg}\"")
+            if guard_field:
+                lines.append(
+                    f"      [GARDE DE LIEN: si '{guard_field}' est vide/absent (aucun "
+                    f"enregistrement lie), cette condition est FAUSSE par court-circuit "
+                    f"Python (evaluation de gauche a droite d'un 'and') -- la regle ci-dessus "
+                    f"NE S'APPLIQUE PAS dans ce cas, quel que soit le reste de la condition.]"
+                )
 
     if analysis.has_dynamic_dispatch:
         lines.append(f"  - Incertitude dynamique ({', '.join(analysis.dynamic_dispatch_types)}): revue manuelle recommandée")
