@@ -63,6 +63,13 @@ def _strip_truncation_marker_for_display(text: str) -> str:
     See todo/contexte.txt (marqueur de troncature visible utilisateur)."""
     if not text:
         return text
+    if _TRUNCATION_MARKER in text:
+        logger.warning(
+            "Node [code_intelligence_agent]: an observation was truncated "
+            "(cap reached) and the marker is being stripped from user-facing "
+            "text -- some evidence may be missing from this answer. See "
+            "todo/contexte.txt sections 801-802."
+        )
     return text.replace(_TRUNCATION_MARKER, "").rstrip()
 
 

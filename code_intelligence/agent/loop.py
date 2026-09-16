@@ -15,7 +15,7 @@ from langchain_core.messages import ToolMessage
 
 from code_intelligence.rules.security_locks import gate_observation
 from code_intelligence.agent.context import (
-    _truncate_observation,
+    _truncate_observation_for_budget,
     _tool_call_key,
 )
 from code_intelligence.agent.context_extractors import (
@@ -76,11 +76,12 @@ def execute_tool_calls(ctx: DispatchContext, ai_msg, messages: list) -> None:
 
                 observation_cap = (
                     9000 if tool_name == "read_source_code"
+                    else 45000 if tool_name == "analyze_data_constraints"
                     else 2200 if tool_name == "analyze_method_override_chain"
-                    else 3500 if tool_name in {"analyze_server_actions", "analyze_data_constraints", "analyze_security_locks"}
+                    else 3500 if tool_name in {"analyze_server_actions", "analyze_security_locks"}
                     else 2500
                 )
-                observation = _truncate_observation(observation, observation_cap)
+                observation = _truncate_observation_for_budget(ctx, observation, observation_cap)
 
                 rule_result = None
                 if tool_name == "evaluate_record_rules":
@@ -281,7 +282,9 @@ def run_react_loop(
                     ctx.tool_observations, ctx.resolved_user_group_xmlids,
                     ctx.tool_observation_models, ctx.tool_observation_tools,
                 )
-                synthesis_prompt = build_synthesis_prompt(ctx.question, ctx.tool_observations)
+                synthesis_prompt = build_synthesis_prompt(
+                    ctx.question, ctx.tool_observations, ctx.tool_observation_tools,
+                )
                 try:
                     plain_llm_box = [None]
 

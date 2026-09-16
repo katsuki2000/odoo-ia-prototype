@@ -1,8 +1,8 @@
 {
   "metadata": {
-    "git_commit": "6c19bfe",
+    "git_commit": "71551af",
     "addons_hash": "",
-    "generated_at": "2026-09-15T05:18:25.156956+00:00",
+    "generated_at": "2026-09-16T08:17:38.093132+00:00",
     "graph_schema_version": 3,
     "node_count": 11781,
     "edge_count": 11713
@@ -212021,7 +212021,7 @@
       },
       {
         "edge_type": "DEFINED_IN",
-        "role": "declares",
+        "role": "extends",
         "source": "model:product.product",
         "target": "module:purchase"
       },
@@ -213447,7 +213447,7 @@
       },
       {
         "edge_type": "DEFINED_IN",
-        "role": "extends",
+        "role": "declares",
         "source": "model:account.journal",
         "target": "module:account"
       },
@@ -214515,7 +214515,7 @@
       },
       {
         "edge_type": "DEFINED_IN",
-        "role": "extends",
+        "role": "declares",
         "source": "model:account.payment",
         "target": "module:account"
       },
@@ -214848,13 +214848,13 @@
       },
       {
         "edge_type": "DEFINED_IN",
-        "role": "extends",
+        "role": "declares",
         "source": "model:account.move",
         "target": "module:account"
       },
       {
         "edge_type": "DEFINED_IN",
-        "role": "declares",
+        "role": "extends",
         "source": "model:account.move",
         "target": "module:sale"
       },
@@ -215843,7 +215843,7 @@
       },
       {
         "edge_type": "DEFINED_IN",
-        "role": "declares",
+        "role": "extends",
         "source": "model:res.partner.bank",
         "target": "module:account"
       },
@@ -216254,7 +216254,7 @@
       },
       {
         "edge_type": "DEFINED_IN",
-        "role": "declares",
+        "role": "extends",
         "source": "model:res.partner",
         "target": "module:account"
       },
@@ -216272,13 +216272,13 @@
       },
       {
         "edge_type": "DEFINED_IN",
-        "role": "declares",
+        "role": "extends",
         "source": "model:res.partner",
         "target": "module:purchase"
       },
       {
         "edge_type": "DEFINED_IN",
-        "role": "extends",
+        "role": "declares",
         "source": "model:res.partner",
         "target": "module:base"
       },
@@ -217116,7 +217116,7 @@
       },
       {
         "edge_type": "DEFINED_IN",
-        "role": "extends",
+        "role": "declares",
         "source": "model:account.bank.statement.line",
         "target": "module:account"
       },
@@ -217454,7 +217454,7 @@
       },
       {
         "edge_type": "DEFINED_IN",
-        "role": "extends",
+        "role": "declares",
         "source": "model:res.company",
         "target": "module:base"
       },
@@ -218133,7 +218133,7 @@
       },
       {
         "edge_type": "DEFINED_IN",
-        "role": "extends",
+        "role": "declares",
         "source": "model:account.move.line",
         "target": "module:account"
       },
@@ -219808,7 +219808,7 @@
       },
       {
         "edge_type": "DEFINED_IN",
-        "role": "extends",
+        "role": "declares",
         "source": "model:res.users",
         "target": "module:base"
       },
@@ -221155,7 +221155,7 @@
       },
       {
         "edge_type": "DEFINED_IN",
-        "role": "extends",
+        "role": "declares",
         "source": "model:purchase.order",
         "target": "module:purchase"
       },
@@ -221892,7 +221892,7 @@
       },
       {
         "edge_type": "DEFINED_IN",
-        "role": "extends",
+        "role": "declares",
         "source": "model:res.groups",
         "target": "module:base"
       },
@@ -222418,7 +222418,7 @@
       },
       {
         "edge_type": "DEFINED_IN",
-        "role": "extends",
+        "role": "declares",
         "source": "model:account.chart.template",
         "target": "module:account"
       },
@@ -223083,7 +223083,7 @@
       },
       {
         "edge_type": "DEFINED_IN",
-        "role": "extends",
+        "role": "declares",
         "source": "model:stock.putaway.rule",
         "target": "module:stock"
       },
@@ -223167,7 +223167,7 @@
       },
       {
         "edge_type": "DEFINED_IN",
-        "role": "declares",
+        "role": "extends",
         "source": "model:product.template",
         "target": "module:purchase"
       },
@@ -223760,7 +223760,7 @@
       },
       {
         "edge_type": "DEFINED_IN",
-        "role": "extends",
+        "role": "declares",
         "source": "model:stock.location",
         "target": "module:stock"
       },
@@ -224019,7 +224019,7 @@
       },
       {
         "edge_type": "DEFINED_IN",
-        "role": "extends",
+        "role": "declares",
         "source": "model:stock.warehouse",
         "target": "module:stock"
       },
@@ -224310,7 +224310,7 @@
       },
       {
         "edge_type": "DEFINED_IN",
-        "role": "extends",
+        "role": "declares",
         "source": "model:stock.quant",
         "target": "module:stock"
       },
@@ -224610,7 +224610,7 @@
       },
       {
         "edge_type": "DEFINED_IN",
-        "role": "extends",
+        "role": "declares",
         "source": "model:stock.move",
         "target": "module:stock"
       },
@@ -225024,7 +225024,7 @@
       },
       {
         "edge_type": "DEFINED_IN",
-        "role": "extends",
+        "role": "declares",
         "source": "model:stock.warehouse.orderpoint",
         "target": "module:stock"
       },
@@ -226224,7 +226224,7 @@
       },
       {
         "edge_type": "DEFINED_IN",
-        "role": "extends",
+        "role": "declares",
         "source": "model:account.bank.statement",
         "target": "module:account"
       },
@@ -226791,7 +226791,7 @@
       },
       {
         "edge_type": "DEFINED_IN",
-        "role": "extends",
+        "role": "declares",
         "source": "model:hr.department",
         "target": "module:hr"
       },
@@ -227014,7 +227014,7 @@
       },
       {
         "edge_type": "DEFINED_IN",
-        "role": "extends",
+        "role": "declares",
         "source": "model:account.reconcile.model",
         "target": "module:account"
       },
@@ -227241,7 +227241,7 @@
       },
       {
         "edge_type": "DEFINED_IN",
-        "role": "extends",
+        "role": "declares",
         "source": "model:account.reconcile.model.line",
         "target": "module:account"
       },
@@ -228638,7 +228638,7 @@
       },
       {
         "edge_type": "DEFINED_IN",
-        "role": "extends",
+        "role": "declares",
         "source": "model:sale.order.line",
         "target": "module:sale"
       },
@@ -228926,7 +228926,7 @@
       },
       {
         "edge_type": "DEFINED_IN",
-        "role": "extends",
+        "role": "declares",
         "source": "model:purchase.order.line",
         "target": "module:purchase"
       },
@@ -230666,7 +230666,7 @@
       },
       {
         "edge_type": "DEFINED_IN",
-        "role": "extends",
+        "role": "declares",
         "source": "model:res.currency.rate",
         "target": "module:base"
       },
@@ -232910,7 +232910,7 @@
       },
       {
         "edge_type": "DEFINED_IN",
-        "role": "extends",
+        "role": "declares",
         "source": "model:sale.order",
         "target": "module:sale"
       },
@@ -233690,7 +233690,7 @@
       },
       {
         "edge_type": "DEFINED_IN",
-        "role": "extends",
+        "role": "declares",
         "source": "model:res.partner.industry",
         "target": "module:base"
       },
@@ -234005,7 +234005,7 @@
       },
       {
         "edge_type": "DEFINED_IN",
-        "role": "extends",
+        "role": "declares",
         "source": "model:hr.employee",
         "target": "module:hr"
       },
@@ -239840,7 +239840,7 @@
       },
       {
         "edge_type": "DEFINED_IN",
-        "role": "extends",
+        "role": "declares",
         "source": "model:stock.picking.type",
         "target": "module:stock"
       },
@@ -240351,7 +240351,7 @@
       },
       {
         "edge_type": "DEFINED_IN",
-        "role": "extends",
+        "role": "declares",
         "source": "model:stock.picking",
         "target": "module:stock"
       },
@@ -241754,7 +241754,7 @@
       },
       {
         "edge_type": "DEFINED_IN",
-        "role": "extends",
+        "role": "declares",
         "source": "model:stock.storage.category",
         "target": "module:stock"
       },
@@ -250399,7 +250399,7 @@
       },
       {
         "edge_type": "DEFINED_IN",
-        "role": "extends",
+        "role": "declares",
         "source": "model:ir.filters",
         "target": "module:base"
       },
@@ -253869,7 +253869,7 @@
       },
       {
         "edge_type": "DEFINED_IN",
-        "role": "extends",
+        "role": "declares",
         "source": "model:hr.work.location",
         "target": "module:hr"
       },
@@ -253950,7 +253950,7 @@
       },
       {
         "edge_type": "DEFINED_IN",
-        "role": "extends",
+        "role": "declares",
         "source": "model:hr.employee.category",
         "target": "module:hr"
       },
@@ -254057,7 +254057,7 @@
       },
       {
         "edge_type": "DEFINED_IN",
-        "role": "extends",
+        "role": "declares",
         "source": "model:hr.job",
         "target": "module:hr"
       },
@@ -254906,7 +254906,7 @@
       },
       {
         "edge_type": "DEFINED_IN",
-        "role": "extends",
+        "role": "declares",
         "source": "model:hr.leave.type",
         "target": "module:hr_holidays"
       },
@@ -255294,7 +255294,7 @@
       },
       {
         "edge_type": "DEFINED_IN",
-        "role": "extends",
+        "role": "declares",
         "source": "model:custom.deep.document",
         "target": "module:custom_deep_inheritance_security"
       },
@@ -256659,7 +256659,7 @@
       },
       {
         "edge_type": "DEFINED_IN",
-        "role": "extends",
+        "role": "declares",
         "source": "model:hr.leave",
         "target": "module:hr_holidays"
       },
@@ -258424,7 +258424,7 @@
       },
       {
         "edge_type": "DEFINED_IN",
-        "role": "extends",
+        "role": "declares",
         "source": "model:hr.leave.allocation",
         "target": "module:hr_holidays"
       },

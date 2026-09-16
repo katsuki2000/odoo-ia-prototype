@@ -9,6 +9,7 @@ Centralized system prompts and prompt builders for the Code Intelligence agent n
 
 from typing import List, Optional
 from code_intelligence.agent.context_extractors import rank_custom_modules_for_models
+from code_intelligence.agent.dispatch_guards import tools_lack_deeper_coverage
 
 # System prompt with explicit scope-first navigation strategy.
 CI_SYSTEM_PROMPT = (
@@ -155,11 +156,50 @@ def _build_module_specific_guidance(tool_observations: List[str]) -> str:
     return "".join(f" {g}" for g in matched)
 
 
-def build_synthesis_prompt(question: str, tool_observations: List[str]) -> str:
+def build_synthesis_prompt(
+    question: str, tool_observations: List[str], tool_observation_tools: Optional[List[str]] = None,
+) -> str:
     """Build the final synthesis prompt given to the plain LLM once observations are collected."""
+    # todo/contexte.txt section 812 (ACC-Q5): the LLM invented a complete,
+    # plausible `_check_name` Python method with no citation of its own,
+    # to fill a gap left by a real extraction blind spot (SQL-based
+    # constraints not covered by the Semgrep rules behind
+    # analyze_data_constraints). dispatch_guards.verify_citations now
+    # mechanically flags this pattern post-hoc (uncited_code_blocks), but
+    # the instruction below tries to prevent it at generation time.
+    anti_fabrication_rule = (
+        " NEVER write out a Python code block (a method definition, a decorator like "
+        "@api.constrains, or a raise statement) as if it were the real implementation unless "
+        "that exact code already appears, verbatim, in one of the observations above -- copy it, "
+        "do not reconstruct or guess it from a related pattern (e.g. a similar constraint seen on "
+        "a different model). If the observations do not contain the actual implementation of a "
+        "mechanism the question asks about, say explicitly that the observations gathered do not "
+        "show it (naming which observation you would have expected it in, if relevant), rather than "
+        "presenting a plausible-looking substitute as fact."
+    )
+    # todo/contexte.txt section 813 (ACC-Q2): the LLM concluded "no restriction
+    # exists" from an investigation that only ever ran access/permission-layer
+    # tools (who_has_access_to, evaluate_record_rules, analyze_security_locks,
+    # button_execution_path) -- the real restriction lived in a workflow/date-lock
+    # check none of those tools surface. Absence of evidence in a partial
+    # investigation is not evidence of absence; only added when the tool
+    # coverage this turn was actually partial (tools_lack_deeper_coverage),
+    # so a fully-covered investigation is not needlessly hedged.
+    coverage_caveat = (
+        " IMPORTANT COVERAGE CAVEAT: the observations above come only from access/permission-layer "
+        "tools (group membership, ACL, ir.rule, security-lock heuristics) -- no workflow analysis, "
+        "method-override trace, or direct source-code read was performed this turn. If none of these "
+        "observations show an explicit restriction, you must NOT conclude that no restriction exists "
+        "at all, and must NOT open the answer with an unqualified 'Oui'/'Non'/'Yes'/'No'. State plainly "
+        "that the access/permission layer shows no restriction, but that workflow-level or "
+        "application-level checks (e.g. date locks, state-based blocks, other Python guards) were not "
+        "verified in this pass, so the answer is incomplete rather than a definitive verdict."
+        if tools_lack_deeper_coverage(tool_observation_tools) else ""
+    )
     return (
         f"Original Question: {question}\n\n"
         f"Knowledge Graph Output:\n" + "\n---\n".join(tool_observations) +
+        anti_fabrication_rule + coverage_caveat +
         f"\n\nSynthesize a clear, professional response based strictly on the "
         f"data above. Respond in the SAME language as the Original Question "
         f"above (French question -> French answer, English question -> "

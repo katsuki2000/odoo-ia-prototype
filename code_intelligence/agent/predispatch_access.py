@@ -14,7 +14,7 @@ from typing import List
 
 from code_intelligence.rules.security_locks import gate_observation
 from code_intelligence.agent.context import (
-    _truncate_observation,
+    _truncate_observation_for_budget,
     _tool_call_key,
 )
 from code_intelligence.agent.context_extractors import _question_is_access_related
@@ -63,7 +63,7 @@ def dispatch_who_has_access_to(ctx: DispatchContext) -> None:
             observation = str(acl_tool.invoke({
                 "model_name": target_model, "permission": "all",
             }))
-            observation = _truncate_observation(observation, 3000)
+            observation = _truncate_observation_for_budget(ctx, observation, 3000)
             observation, omitted_list = gate_observation(
                 tool_name="who_has_access_to",
                 model_name=target_model,
@@ -138,7 +138,7 @@ import time
 
 from code_intelligence.rules.security_locks import gate_observation
 from code_intelligence.agent.context import (
-    _truncate_observation,
+    _truncate_observation_for_budget,
     _tool_call_key,
 )
 from code_intelligence.agent.context_extractors import (
@@ -180,7 +180,7 @@ def dispatch_evaluate_record_rules(ctx: DispatchContext) -> None:
                 "user_groups_json": dispatch_groups,
                 "permission": "read",
             }))
-            observation = _truncate_observation(observation, 3000)
+            observation = _truncate_observation_for_budget(ctx, observation, 3000)
             observation, omitted_list = gate_observation(
                 tool_name="evaluate_record_rules",
                 model_name=target_model,
@@ -266,7 +266,7 @@ import time
 
 from code_intelligence.rules.security_locks import gate_observation
 from code_intelligence.agent.context import (
-    _truncate_observation,
+    _truncate_observation_for_budget,
     _tool_call_key,
 )
 from code_intelligence.agent.context_extractors import _question_is_inheritance_related
@@ -296,7 +296,7 @@ def dispatch_security_locks(ctx: DispatchContext) -> None:
         t0 = time.perf_counter()
         try:
             observation = str(lock_tool.invoke({"model_name": target_model}))
-            observation = _truncate_observation(observation, 3000)
+            observation = _truncate_observation_for_budget(ctx, observation, 3000)
             observation, omitted_list = gate_observation(
                 tool_name="analyze_security_locks",
                 model_name=target_model,
@@ -361,7 +361,7 @@ import re
 import time
 
 from code_intelligence.agent.context import (
-    _truncate_observation,
+    _truncate_observation_for_budget,
     _tool_call_key,
 )
 from code_intelligence.agent.context_extractors import _question_is_security_distinction_related
@@ -418,7 +418,7 @@ def dispatch_security_distinction_guard(ctx: DispatchContext) -> None:
             t0 = time.perf_counter()
             try:
                 wf_observation = str(wf_tool.invoke({"model_name": target_model}))
-                wf_observation = _truncate_observation(wf_observation, 3000)
+                wf_observation = _truncate_observation_for_budget(ctx, wf_observation, 3000)
                 ctx.record_observation(
                     "describe_workflow", {"model_name": target_model},
                     wf_observation, target_model, wf_call_key, time.perf_counter() - t0,
@@ -462,7 +462,7 @@ def dispatch_security_distinction_guard(ctx: DispatchContext) -> None:
                     "model_name": target_model,
                     "user_groups_json": dispatch_groups,
                 }))
-                observation = _truncate_observation(observation, 3000)
+                observation = _truncate_observation_for_budget(ctx, observation, 3000)
                 ctx.record_observation(
                     "button_execution_path",
                     {"button_name": method_name, "model_name": target_model},
@@ -491,7 +491,7 @@ def dispatch_security_distinction_guard(ctx: DispatchContext) -> None:
                                 _read_obs = str(read_tool.invoke({
                                     "filepath": _fp, "line_start": _ls, "line_end": _le,
                                 }))
-                                _read_obs = _truncate_observation(_read_obs, 4000)
+                                _read_obs = _truncate_observation_for_budget(ctx, _read_obs, 4000)
                                 ctx.record_observation(
                                     "read_source_code",
                                     {"filepath": _fp, "line_start": _ls, "line_end": _le},
@@ -543,7 +543,7 @@ def dispatch_security_distinction_guard(ctx: DispatchContext) -> None:
                                                     "line_start": _gs.lineno,
                                                     "line_end": _g_le,
                                                 }))
-                                                guard_observation = _truncate_observation(guard_observation, 2200)
+                                                guard_observation = _truncate_observation_for_budget(ctx, guard_observation, 2200)
                                                 ctx.record_observation(
                                                     "read_source_code",
                                                     {"filepath": _gs.filepath, "line_start": _gs.lineno, "line_end": _g_le},

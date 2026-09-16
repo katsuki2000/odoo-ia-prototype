@@ -13,7 +13,7 @@ import time
 
 from code_intelligence.rules.security_locks import gate_observation
 from code_intelligence.agent.context import (
-    _truncate_observation,
+    _truncate_observation_for_budget,
     _tool_call_key,
 )
 from code_intelligence.agent.context import DispatchContext
@@ -38,7 +38,7 @@ def dispatch_server_actions(ctx: DispatchContext) -> None:
         t0 = time.perf_counter()
         try:
             observation = str(sa_tool.invoke({"model_name": target_model}))
-            observation = _truncate_observation(observation, 3000)
+            observation = _truncate_observation_for_budget(ctx, observation, 3000)
             observation, omitted_list = gate_observation(
                 tool_name="analyze_server_actions",
                 model_name=target_model,
@@ -75,7 +75,7 @@ def dispatch_server_actions(ctx: DispatchContext) -> None:
                     _read_obs = str(_read_tool.invoke({
                         "filepath": _fp, "line_start": _ls, "line_end": _le,
                     }))
-                    _read_obs = _truncate_observation(_read_obs, 4000)
+                    _read_obs = _truncate_observation_for_budget(ctx, _read_obs, 4000)
                     ctx.record_observation(
                         "read_source_code",
                         {"filepath": _fp, "line_start": _ls, "line_end": _le},
@@ -117,7 +117,7 @@ import time
 
 from code_intelligence.rules.security_locks import gate_observation
 from code_intelligence.agent.context import (
-    _truncate_observation,
+    _truncate_observation_for_budget,
     _tool_call_key,
 )
 from code_intelligence.agent.context import DispatchContext
@@ -144,7 +144,7 @@ def dispatch_override_chain(ctx: DispatchContext) -> None:
             observation = str(override_tool.invoke({
                 "model_name": target_model, "method_name": method_name,
             }))
-            observation = _truncate_observation(observation, 2200)
+            observation = _truncate_observation_for_budget(ctx, observation, 2200)
             observation, omitted_list = gate_observation(
                 tool_name="analyze_method_override_chain",
                 model_name=target_model,
@@ -178,7 +178,7 @@ def dispatch_override_chain(ctx: DispatchContext) -> None:
                             _read_obs = str(_read_tool.invoke({
                                 "filepath": _fp, "line_start": _ls, "line_end": _le,
                             }))
-                            _read_obs = _truncate_observation(_read_obs, 4000)
+                            _read_obs = _truncate_observation_for_budget(ctx, _read_obs, 4000)
                             ctx.record_observation(
                                 "read_source_code",
                                 {"filepath": _fp, "line_start": _ls, "line_end": _le},
@@ -233,7 +233,7 @@ import re
 import time
 
 from code_intelligence.agent.context import (
-    _truncate_observation,
+    _truncate_observation_for_budget,
     _tool_call_key,
 )
 from code_intelligence.agent.context_extractors import _question_is_constraint_related
@@ -261,7 +261,7 @@ def dispatch_analyze_data_constraints(ctx: DispatchContext) -> None:
         t0 = time.perf_counter()
         try:
             observation = str(constraint_tool.invoke({"model_name": target_model}))
-            observation = _truncate_observation(observation, 3500)
+            observation = _truncate_observation_for_budget(ctx, observation, 45000)
             ctx.record_observation(
                 "analyze_data_constraints", {"model_name": target_model},
                 observation, target_model, call_key, time.perf_counter() - t0,
@@ -289,7 +289,7 @@ def dispatch_analyze_data_constraints(ctx: DispatchContext) -> None:
                                 read_obs = str(read_tool.invoke({
                                     "filepath": fp, "line_start": ls, "line_end": le,
                                 }))
-                                read_obs = _truncate_observation(read_obs, 4000)
+                                read_obs = _truncate_observation_for_budget(ctx, read_obs, 4000)
                                 ctx.record_observation(
                                     "read_source_code",
                                     {"filepath": fp, "line_start": ls, "line_end": le},

@@ -72,14 +72,26 @@ def try_recover_tool_use_failed(exc: Exception) -> Optional[ToolCallFallback]:
 
 
 def reduce_message_context(messages: list) -> list:
-    """Truncate excessively long messages to stay within payload limits."""
+    """Truncate excessively long messages to stay within payload limits.
+
+    Emergency fallback only, triggered by an actual 413 from the LLM
+    provider -- much blunter than the application-layer per-tool/per-turn
+    caps in code_intelligence/agent/context.py (_truncate_observation,
+    _truncate_observation_for_budget), which should normally keep the
+    request under this limit already. Logged (unlike before) because a
+    real 413 on account.move-heavy questions showed this path silently
+    destroying most of an already-fetched observation, feeding the
+    synthesis LLM a near-empty context and producing an uncited
+    hallucination (todo/contexte.txt sections 809/810)."""
     reduced = []
+    truncated_count = 0
     for msg in messages:
         if (
             isinstance(msg, ToolMessage)
             and isinstance(msg.content, str)
             and len(msg.content) > _TOOL_MSG_HARD_CAP
         ):
+            truncated_count += 1
             reduced.append(
                 ToolMessage(
                     content=(
@@ -94,6 +106,7 @@ def reduce_message_context(messages: list) -> list:
             and isinstance(msg.content, str)
             and len(msg.content) > 1000
         ):
+            truncated_count += 1
             reduced.append(
                 SystemMessage(
                     content=(
@@ -107,6 +120,7 @@ def reduce_message_context(messages: list) -> list:
             and isinstance(msg.content, str)
             and len(msg.content) > 1500
         ):
+            truncated_count += 1
             reduced.append(
                 HumanMessage(
                     content=(
@@ -117,4 +131,12 @@ def reduce_message_context(messages: list) -> list:
             )
         else:
             reduced.append(msg)
+    if truncated_count:
+        logger.warning(
+            "Node [code_intelligence_agent]: emergency context reduction after "
+            "a provider payload-size error rewrote %d message(s), some to as "
+            "little as %d chars -- evidence may be missing from the answer "
+            "this produces. See todo/contexte.txt sections 809-810.",
+            truncated_count, _TOOL_MSG_HARD_CAP,
+        )
     return reduced

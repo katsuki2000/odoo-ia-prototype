@@ -13,7 +13,7 @@ import re
 import time
 
 from code_intelligence.agent.context import (
-    _truncate_observation,
+    _truncate_observation_for_budget,
     _tool_call_key,
 )
 from code_intelligence.agent.context_extractors import _question_is_inheritance_related
@@ -51,7 +51,7 @@ def dispatch_inheritance(ctx: DispatchContext) -> None:
             t0 = time.perf_counter()
             try:
                 observation = str(mod_tool.invoke({"model_name": t_mod}))
-                observation = _truncate_observation(observation, 3000)
+                observation = _truncate_observation_for_budget(ctx, observation, 3000)
                 ctx.record_observation(
                     "list_involved_modules", {"model_name": t_mod},
                     observation, t_mod, call_key, time.perf_counter() - t0,
@@ -71,7 +71,7 @@ def dispatch_inheritance(ctx: DispatchContext) -> None:
                 t0 = time.perf_counter()
                 try:
                     observation = str(inherit_tool.invoke({"model_name": target_model}))
-                    observation = _truncate_observation(observation, 3000)
+                    observation = _truncate_observation_for_budget(ctx, observation, 3000)
                     ctx.record_observation(
                         "trace_full_inheritance", {"model_name": target_model},
                         observation, target_model, call_key, time.perf_counter() - t0,
@@ -118,7 +118,7 @@ def dispatch_inheritance(ctx: DispatchContext) -> None:
                                     "line_start": _ls,
                                     "line_end": _le,
                                 }))
-                                _read_obs = _truncate_observation(_read_obs, 2500)
+                                _read_obs = _truncate_observation_for_budget(ctx, _read_obs, 2500)
                                 ctx.tool_observations.append(_read_obs)
                                 ctx.tool_observation_models.append(target_model)
                                 ctx.tool_observation_tools.append("read_source_code")
@@ -139,7 +139,7 @@ def dispatch_inheritance(ctx: DispatchContext) -> None:
                 t0 = time.perf_counter()
                 try:
                     observation = str(mod_tool.invoke({"model_name": target_model}))
-                    observation = _truncate_observation(observation, 3000)
+                    observation = _truncate_observation_for_budget(ctx, observation, 3000)
                     ctx.record_observation(
                         "list_involved_modules", {"model_name": target_model},
                         observation, target_model, call_key, time.perf_counter() - t0,
@@ -173,7 +173,7 @@ import logging
 import time
 
 from code_intelligence.agent.context import (
-    _truncate_observation,
+    _truncate_observation_for_budget,
     _tool_call_key,
 )
 from code_intelligence.agent.context_extractors import _question_is_workflow_related
@@ -201,7 +201,7 @@ def dispatch_describe_workflow(ctx: DispatchContext) -> None:
         t0 = time.perf_counter()
         try:
             observation = str(wf_tool.invoke({"model_name": target_model}))
-            observation = _truncate_observation(observation, 3000)
+            observation = _truncate_observation_for_budget(ctx, observation, 3000)
             ctx.record_observation(
                 "describe_workflow", {"model_name": target_model},
                 observation, target_model, call_key, time.perf_counter() - t0,
@@ -241,7 +241,7 @@ import re
 import time
 
 from code_intelligence.agent.context import (
-    _truncate_observation,
+    _truncate_observation_for_budget,
     _tool_call_key,
 )
 from code_intelligence.agent.context import DispatchContext
@@ -274,7 +274,7 @@ def dispatch_button_execution_path(ctx: DispatchContext) -> None:
                 "model_name": target_model,
                 "user_groups_json": dispatch_groups,
             }))
-            observation = _truncate_observation(observation, 3000)
+            observation = _truncate_observation_for_budget(ctx, observation, 3000)
             ctx.record_observation(
                 "button_execution_path",
                 {"button_name": ui_name, "model_name": target_model},
@@ -299,7 +299,7 @@ def dispatch_button_execution_path(ctx: DispatchContext) -> None:
                             read_obs = str(read_tool.invoke({
                                 "filepath": fp, "line_start": ls, "line_end": le,
                             }))
-                            read_obs = _truncate_observation(read_obs, 4000)
+                            read_obs = _truncate_observation_for_budget(ctx, read_obs, 4000)
                             ctx.record_observation(
                                 "read_source_code",
                                 {"filepath": fp, "line_start": ls, "line_end": le},
@@ -329,7 +329,9 @@ import logging
 import time
 from pathlib import Path
 
-from code_intelligence.agent.context import _truncate_observation
+from code_intelligence.agent.context import (
+    _truncate_observation_for_budget,
+)
 from code_intelligence.agent.context import DispatchContext
 from code_intelligence.agent.context_extractors import matches_module_level_ui_inquiry
 
@@ -356,7 +358,7 @@ def dispatch_module_level_ui_inquiry(ctx: DispatchContext) -> None:
                 t0 = time.perf_counter()
                 try:
                     observation = str(mod_tool.invoke({"model_name": t_mod}))
-                    observation = _truncate_observation(observation, 3000)
+                    observation = _truncate_observation_for_budget(ctx, observation, 3000)
                     ctx.record_observation(
                         "list_involved_modules", {"model_name": t_mod},
                         observation, t_mod, call_key, time.perf_counter() - t0,
@@ -379,7 +381,7 @@ def dispatch_module_level_ui_inquiry(ctx: DispatchContext) -> None:
                     t0 = time.perf_counter()
                     try:
                         observation = str(read_tool.invoke({"filepath": str(manifest_p), "line_start": 1, "line_end": 40}))
-                        observation = _truncate_observation(observation, 4000)
+                        observation = _truncate_observation_for_budget(ctx, observation, 4000)
                         views_dir = manifest_p.parent / "views"
                         if not views_dir.exists():
                             observation += (

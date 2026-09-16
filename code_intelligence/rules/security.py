@@ -18,6 +18,7 @@ _EVAL_PATTERN = re.compile(r"\beval\s*\(")
 _EXEC_PATTERN = re.compile(r"\bexec\s*\(")
 _EXCEPTION_RAISE_PATTERN = re.compile(r"raise\s+(?:ValidationError|UserError)\s*\(\s*([\"'].*?[\"'])", re.DOTALL)
 _HAS_GROUP_PATTERN = re.compile(r"has_group\s*\(\s*['\"]([\w.]+)['\"]\s*\)")
+_USER_HAS_GROUPS_PATTERN = re.compile(r"user_has_groups\s*\(\s*['\"]([^'\"]+)['\"]\s*\)")
 
 
 class SecurityLockASTVisitor(ast.NodeVisitor):
@@ -183,6 +184,14 @@ class SecurityLockASTVisitor(ast.NodeVisitor):
             ]
             if parts:
                 return "".join(parts).strip()
+        if isinstance(node, ast.Name):
+            # raise UserError(message) where `message` was built a few lines
+            # above, as in account.move::_check_fiscalyear_lock_date. Without
+            # this the whole lock disappears from the analysis (contexte 816).
+            local_map = self._local_var_defs[-1] if self._local_var_defs else {}
+            assigned = local_map.get(node.id)
+            if assigned is not None and not isinstance(assigned, ast.Name):
+                return self._extract_exception_str(assigned)
         return None
 
     def visit_Call(self, node: ast.Call):
@@ -201,6 +210,24 @@ class SecurityLockASTVisitor(ast.NodeVisitor):
                     self.required_groups.append(group_xmlid)
                     self.required_group_methods.append(self._current_method_name())
                     self.required_group_linenos.append(node.lineno)
+
+        if isinstance(node.func, ast.Attribute) and node.func.attr == "user_has_groups":
+            # user_has_groups(groups) takes ONE comma-separated string arg,
+            # e.g. 'account.group_account_manager,base.group_system', with
+            # optional '!' negation prefixes -- a distinct Odoo idiom from
+            # has_group(single_xmlid) that the extractor previously missed
+            # entirely (todo/contexte.txt 816, account.move lock date case).
+            # Folded into the same required_groups/has_group format: for the
+            # grounding contract (access_guards.py::_extract_required_groups,
+            # security_evidence.py's 'Groupe(s) ... (has_group):' line) both
+            # are the same category of self-service group-membership check.
+            if node.args and isinstance(node.args[0], ast.Constant) and isinstance(node.args[0].value, str):
+                for part in node.args[0].value.split(","):
+                    group_xmlid = part.strip().lstrip("!")
+                    if group_xmlid and group_xmlid not in self.required_groups:
+                        self.required_groups.append(group_xmlid)
+                        self.required_group_methods.append(self._current_method_name())
+                        self.required_group_linenos.append(node.lineno)
 
         if isinstance(node.func, ast.Attribute) and node.func.attr == "ref":
             if node.args and isinstance(node.args[0], ast.Constant) and isinstance(node.args[0].value, str):
@@ -244,6 +271,7 @@ from code_intelligence.rules.security import (
     _EXEC_PATTERN,
     _GETATTR_PATTERN,
     _HAS_GROUP_PATTERN,
+    _USER_HAS_GROUPS_PATTERN,
     SecurityLockASTVisitor,
 )
 from core.evidence.evidence import Evidence
@@ -347,6 +375,13 @@ def analyze_python_security_locks(code: str, filepath: str) -> PythonSecurityLoc
                 result.required_groups.append(group_xmlid)
                 result.required_group_methods.append("")
                 result.required_group_linenos.append(0)
+        for groups_arg in _USER_HAS_GROUPS_PATTERN.findall(code):
+            for part in groups_arg.split(","):
+                group_xmlid = part.strip().lstrip("!")
+                if group_xmlid and group_xmlid not in result.required_groups:
+                    result.required_groups.append(group_xmlid)
+                    result.required_group_methods.append("")
+                    result.required_group_linenos.append(0)
 
     result.evidence = build_security_lock_evidence(
         filepath,

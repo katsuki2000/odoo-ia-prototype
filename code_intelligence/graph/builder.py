@@ -32,6 +32,16 @@ def _humanize_technical_name(name: str) -> str:
     return name.replace("_", " ").replace(".", " ").strip().title()
 
 
+def _declares_model(decl, model_name: str) -> bool:
+    """
+    A class declares a model only when it sets _name WITHOUT inheriting that
+    same model. Odoo extensions commonly restate _name alongside
+    _inherit = ['<same model>', ...] (e.g. sale/models/account_move.py), which
+    reads as a declaration but is an extension. See todo/contexte.txt 815.
+    """
+    return bool(decl.name) and model_name not in (decl.inherit or [])
+
+
 class OdooGraphBuilder:
     """
     Constructs a NetworkX DiGraph from ParsedModules and ResolvedSymbolRegistry.
@@ -146,11 +156,14 @@ class OdooGraphBuilder:
             )
 
             decl_modules = self.registry.model_modules.get(model_name, [])
-            for idx, d in enumerate(decls):
-                if idx >= len(decl_modules):
+            module_roles: Dict[str, str] = {}
+            for d, mod_name in zip(decls, decl_modules):
+                if module_roles.get(mod_name) == "declares":
                     continue
-                mod_name = decl_modules[idx]
-                role = "declares" if d.name else "extends"
+                module_roles[mod_name] = (
+                    "declares" if _declares_model(d, model_name) else "extends"
+                )
+            for mod_name, role in module_roles.items():
                 self.G.add_edge(
                     model_node_id, f"module:{mod_name}",
                     edge_type="DEFINED_IN", role=role,

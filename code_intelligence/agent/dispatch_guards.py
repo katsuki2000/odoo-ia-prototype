@@ -26,16 +26,49 @@ _ANY_FILE_LINK_PATTERN = re.compile(r"\(file:///(?P<path>[^\#\)]+?)(?:#L\d+-L\d+
 # is expected to use throughout the answer, not a sourcing claim.
 _XML_ID_PATTERN = re.compile(r"xml_id:\s*([a-zA-Z_]\w*\.[a-zA-Z_][\w.]*)")
 
+# Fenced markdown code block (```...``` or ```python...```).
+_CODE_FENCE_PATTERN = re.compile(r"```(?:\w+)?\n(.*?)```", re.DOTALL)
+# Syntax markers that only appear in actual Python source, never in plain
+# prose mentioning a method name in passing (e.g. "the action_confirm method").
+_PYTHON_CODE_MARKERS_PATTERN = re.compile(
+    r"@api\.\w+|^\s*def\s+\w+\(|raise\s+\w*(?:Error|Warning)\b|^\s*class\s+\w+\(",
+    re.MULTILINE,
+)
+# How far (in characters) around a flagged code fence to look for a scoped
+# citation before concluding the block is genuinely uncited -- wide enough
+# to cover a citation given just before/after the block in the same answer
+# section, narrow enough not to be satisfied by an unrelated citation from
+# a completely different part of a long answer.
+_CODE_BLOCK_CITATION_PROXIMITY_CHARS = 500
+
+
+def _code_block_has_nearby_scoped_citation(answer: str, block_start: int, block_end: int) -> bool:
+    window = answer[
+        max(0, block_start - _CODE_BLOCK_CITATION_PROXIMITY_CHARS):
+        block_end + _CODE_BLOCK_CITATION_PROXIMITY_CHARS
+    ]
+    return bool(_SCOPED_FILE_LINK_PATTERN.search(window))
+
 
 @dataclass
 class SourcingVerificationResult:
     unverified_scoped_citations: List[Tuple[str, int, int]] = field(default_factory=list)
     bare_file_links: List[str] = field(default_factory=list)  # no line range at all
     unverified_xml_ids: List[str] = field(default_factory=list)
+    # todo/contexte.txt section 814: fenced code blocks presenting Python
+    # syntax (def/@api.../raise) as if real, with no scoped file:// citation
+    # anywhere nearby -- the pattern behind the invented `_check_name` method
+    # on ACC-Q5 (section 812), which carried no citation of its own and so
+    # was invisible to the 3 checks above (none of which look at prose that
+    # never attempts a file:// link at all).
+    uncited_code_blocks: List[str] = field(default_factory=list)
 
     @property
     def is_fully_verified(self) -> bool:
-        return not (self.unverified_scoped_citations or self.bare_file_links or self.unverified_xml_ids)
+        return not (
+            self.unverified_scoped_citations or self.bare_file_links
+            or self.unverified_xml_ids or self.uncited_code_blocks
+        )
 
 
 def _scoped_covered(citation: Tuple[str, int, int], ground_truth: Set[Tuple[str, int, int]]) -> bool:
@@ -73,6 +106,13 @@ def verify_citations(final_answer: str, raw_tool_output: str) -> SourcingVerific
         if xml_id not in ground_truth_xml_ids:
             result.unverified_xml_ids.append(xml_id)
 
+    for m in _CODE_FENCE_PATTERN.finditer(final_answer):
+        block = m.group(1)
+        if _PYTHON_CODE_MARKERS_PATTERN.search(block) and not _code_block_has_nearby_scoped_citation(
+            final_answer, m.start(), m.end()
+        ):
+            result.uncited_code_blocks.append(block.strip()[:200])
+
     return result
 
 
@@ -95,6 +135,11 @@ def annotate_unverifiable_citations(final_answer: str, result: SourcingVerificat
     if result.unverified_xml_ids:
         warnings.append(
             "xml_id(s) non retrouvé(s) dans les données produites: " + ", ".join(result.unverified_xml_ids)
+        )
+    if result.uncited_code_blocks:
+        warnings.append(
+            "bloc(s) de code présenté(s) comme réel(s) sans aucune citation file:// à proximité "
+            "(possible invention): " + " ||| ".join(result.uncited_code_blocks)
         )
 
     return (
@@ -283,6 +328,41 @@ def _force_dynamic_uncertainty_answer(question: str, raw_tool_output: str) -> Op
 # vs. tools that actually look at the Python application-level guard.
 _ACL_LAYER_TOOLS = frozenset({"who_has_access_to", "evaluate_record_rules"})
 _APPLICATION_GUARD_TOOLS = frozenset({"read_source_code", "analyze_method_override_chain"})
+
+# todo/contexte.txt section 813/814: broader than _ACL_LAYER_TOOLS/
+# _APPLICATION_GUARD_TOOLS above (which target the narrow "distinction
+# between two groups" mid-loop reminder only). Used at SYNTHESIS time to
+# decide whether a confident absolute-absence claim ("aucune restriction",
+# "en l'absence de tout verrou") is safe to let through unqualified. On
+# ACC-Q2, only access/permission-layer tools ran (who_has_access_to,
+# evaluate_record_rules, analyze_security_locks, button_execution_path) --
+# the real restriction lived in a workflow/date-lock check
+# (_check_fiscalyear_lock_date/_get_user_fiscal_lock_date) that none of
+# those tools surface, and the question's phrasing never matched the
+# narrow _question_is_security_distinction_related pattern, so the
+# existing mid-loop reminder never fired either. A separate, coarser
+# check at synthesis time: not a replacement for fixing tool dispatch
+# (that root cause is tracked separately), just a last-resort guard
+# against presenting an under-covered investigation as a definitive verdict.
+_ACCESS_LAYER_ONLY_TOOLS = frozenset({
+    "who_has_access_to", "evaluate_record_rules", "analyze_security_locks", "button_execution_path",
+})
+_DEEPER_COVERAGE_TOOLS = frozenset({
+    "read_source_code", "analyze_method_override_chain", "describe_workflow",
+})
+
+
+def tools_lack_deeper_coverage(tool_observation_tools: Optional[List[str]]) -> bool:
+    """True when every tool actually invoked this turn belongs to the
+    access/permission layer and none of the deeper workflow/source-level
+    tools were ever called -- signals that a confident absence claim in
+    the synthesized answer would be based on partial coverage only."""
+    if not tool_observation_tools:
+        return False
+    tools_seen = set(tool_observation_tools)
+    if not (tools_seen & _ACCESS_LAYER_ONLY_TOOLS):
+        return False
+    return not (tools_seen & _DEEPER_COVERAGE_TOOLS)
 
 
 def _maybe_build_application_layer_reminder(question: str, tool_observation_tools: List[str]) -> Optional[str]:

@@ -175,6 +175,23 @@ def resolve_business_term(query_text: str, G=None, llm=None, active_model: Optio
                                     mod_models.append(m_name)
                 if mod_models:
                     exact_mentions = mod_models
+        elif exact_mentions:
+            # Un nom de modele technique cite litteralement (ex. "stock.quant")
+            # court-circuitait entierement la table d'alias, meme quand la
+            # meme question designe par un terme metier DISTINCT un second
+            # modele (ex. "numero de serie" -> stock.lot) qu'aucune mention
+            # technique exacte ne couvre. Fusionne ici les modeles resolus
+            # par alias qui ne sont pas deja couverts par la mention exacte,
+            # sans jamais retirer ni reordonner ce que la mention exacte a
+            # deja trouve (todo/contexte.txt sections 801-802, STK-Q5).
+            merge_matched_aliases = [
+                alias for alias in BUSINESS_ALIASES_NFC
+                if _ALIAS_PATTERNS[alias].search(clean_query)
+            ]
+            for alias in merge_matched_aliases:
+                for t in BUSINESS_ALIASES_NFC[alias]:
+                    if t not in exact_mentions:
+                        exact_mentions.append(t)
 
         user_term_parts = list(exact_mentions) + list(exact_modules)
         reasons = []

@@ -255,3 +255,40 @@ def _truncate_observation(text: str, limit: int) -> str:
             cut = cut[:space]
 
     return cut + _TRUNCATION_MARKER
+
+
+# Ceiling on the combined size of every tool observation recorded for a
+# single question, regardless of how many tools contribute or how each
+# one's own per-tool cap is set. Per-tool caps (2200-45000, see the
+# dispatch_* modules) were each calibrated against a single worst-case
+# model measured in isolation (todo/contexte.txt sections 801/803/808) --
+# but on models with unusually broad surface area (account.move: measured
+# up to 23401/42589/4014/2578 chars across 4 different tools, section 810)
+# several of these per-tool caps can be hit in the same turn, and their sum
+# can exceed the request-size limit enforced by the LLM provider (a real
+# Groq 413 was observed at ~45000-50000 total chars of request content,
+# including the ~4700-char CI_SYSTEM_PROMPT -- section 809). This budget
+# keeps total observation content safely under that measured failure zone.
+MAX_TOTAL_OBSERVATION_CHARS = 35000
+
+
+def _truncate_observation_for_budget(
+    ctx: "DispatchContext", text: str, per_tool_limit: int,
+) -> str:
+    """Truncate an observation to the smaller of its own per-tool cap and
+    the budget still remaining across every observation already recorded
+    this turn (ctx.tool_observations) -- prevents any combination of tools
+    from cumulatively producing a request large enough to trigger the LLM
+    provider's payload-size limit, independently of each tool's own cap."""
+    already_used = sum(len(o) for o in ctx.tool_observations)
+    remaining = MAX_TOTAL_OBSERVATION_CHARS - already_used
+    if remaining <= 0:
+        logger.warning(
+            "Node [code_intelligence_agent]: cumulative observation budget "
+            "(%d chars) already exhausted by prior tools this turn -- this "
+            "observation is dropped to a bare marker to protect against a "
+            "provider payload-size error (see todo/contexte.txt section 810).",
+            MAX_TOTAL_OBSERVATION_CHARS,
+        )
+        return _TRUNCATION_MARKER
+    return _truncate_observation(text, min(per_tool_limit, remaining))
