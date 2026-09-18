@@ -192,32 +192,44 @@ def format_security_locks_summary(
 
     if analysis.required_groups:
         methods = analysis.required_group_methods or [""] * len(analysis.required_groups)
+        group_linenos = analysis.required_group_linenos or [0] * len(analysis.required_groups)
         is_gating_list = getattr(analysis, "required_group_is_gating", None) or [True] * len(analysis.required_groups)
         action_groups = [g for g, m in zip(analysis.required_groups, methods) if m]
         if action_groups:
             groups_joined = ', '.join(action_groups)
             lines.append(f"  - Groupe(s) technique(s) requis detecte(s) (has_group): {groups_joined}")
-            for group_xmlid, method_name, gating in zip(analysis.required_groups, methods, is_gating_list):
+            for group_xmlid, method_name, glineno, gating in zip(analysis.required_groups, methods, group_linenos, is_gating_list):
                 if method_name:
                     citation = format_xml_id_citation(group_xmlid)
+                    # Section 835 (option A) -- attach this finding's OWN file link
+                    # (not just the block-level header link) so that when several
+                    # blocks/files get concatenated (824's multi-block assembly),
+                    # the correct source stays adjacent to the fact it describes
+                    # wherever it lands in the concatenated text, instead of relying
+                    # on the LLM to still have the header link in view.
+                    site_link = format_file_link(filepath, glineno, glineno) if glineno else file_link
                     if gating:
                         lines.append(
                             f"    * has_group('{group_xmlid}') se trouve dans la methode '{method_name}()' -- "
-                            f"ne pas l'attribuer a une autre methode sans le verifier explicitement dans le code source. ({citation})"
+                            f"ne pas l'attribuer a une autre methode sans le verifier explicitement dans le code source. "
+                            f"({citation}) ({site_link})"
                         )
                     else:
                         lines.append(
                             f"    * has_group('{group_xmlid}') se trouve dans la methode '{method_name}()' MAIS NE FAIT QUE "
                             f"SELECTIONNER LE TEXTE DU MESSAGE D ERREUR -- l instruction raise qui suit ne depend PAS de ce "
                             f"groupe et s execute de toute facon ; NE PAS presenter ce groupe comme requis pour agir, "
-                            f"autorise a contourner ou exempte de la regle sur la seule base de cette ligne. ({citation})"
+                            f"autorise a contourner ou exempte de la regle sur la seule base de cette ligne. "
+                            f"({citation}) ({site_link})"
                         )
-        for group_xmlid, method_name in zip(analysis.required_groups, methods):
+        for group_xmlid, method_name, glineno in zip(analysis.required_groups, methods, group_linenos):
             if not method_name:
                 citation = format_xml_id_citation(group_xmlid)
+                site_link = format_file_link(filepath, glineno, glineno) if glineno else file_link
                 lines.append(
                     f"  - has_group('{group_xmlid}') se trouve hors de toute methode (niveau module, "
-                    f"ex: valeur par defaut d'un champ UI) -- NE PAS interpreter comme un verrou d'acces ou de modification du modele. ({citation})"
+                    f"ex: valeur par defaut d'un champ UI) -- NE PAS interpreter comme un verrou d'acces ou de modification du modele. "
+                    f"({citation}) ({site_link})"
                 )
 
     if analysis.static_filters:
@@ -229,11 +241,16 @@ def format_security_locks_summary(
         lines.append(f"  - Security lock messages (UserError/ValidationError):")
         conditions = analysis.exception_conditions or [""] * len(analysis.exception_messages)
         guard_fields = analysis.exception_guard_fields or [""] * len(analysis.exception_messages)
-        for msg, condition, guard_field in zip(analysis.exception_messages, conditions, guard_fields):
+        exc_linenos = analysis.exception_linenos or [0] * len(analysis.exception_messages)
+        for msg, condition, guard_field, exc_lineno in zip(analysis.exception_messages, conditions, guard_fields, exc_linenos):
+            # Section 835 (option A) -- same per-finding file link as required_groups
+            # above: the block header link alone is not enough once several files'
+            # blocks are concatenated (824) -- attach it to this exact finding line.
+            site_link = format_file_link(filepath, exc_lineno, exc_lineno) if exc_lineno else file_link
             if condition:
-                lines.append(f"    * \"{msg}\" (condition : {condition})")
+                lines.append(f"    * \"{msg}\" (condition : {condition}) ({site_link})")
             else:
-                lines.append(f"    * \"{msg}\"")
+                lines.append(f"    * \"{msg}\" ({site_link})")
             if guard_field:
                 lines.append(
                     f"      [GARDE DE LIEN: si '{guard_field}' est vide/absent (aucun "
