@@ -355,7 +355,6 @@ same auto-follow-citation pattern as dispatch_server_actions/
 dispatch_override_chain (predispatch_actions.py).
 """
 
-import json
 import logging
 import re
 import time
@@ -366,7 +365,10 @@ from code_intelligence.agent.context import (
 )
 from code_intelligence.agent.context_extractors import _question_is_security_distinction_related
 from code_intelligence.agent.context import DispatchContext
+from code_intelligence.agent.tool_helpers import _resolve_model_param
+from code_intelligence.rules.button_path import button_execution_path as _button_execution_path_impl
 from code_intelligence.rules.override_unguarded import resolve_method_override_chain
+from core.evidence.evidence_collector import record_evidence
 
 logger = logging.getLogger(__name__)
 
@@ -456,12 +458,19 @@ def dispatch_security_distinction_guard(ctx: DispatchContext) -> None:
                 continue
             t0 = time.perf_counter()
             try:
-                dispatch_groups = json.dumps(ctx.resolved_user_group_xmlids or [])
-                observation = str(btn_tool.invoke({
-                    "button_name": method_name,
-                    "model_name": target_model,
-                    "user_groups_json": dispatch_groups,
-                }))
+                # todo/contexte.txt section 831 (Famille 1, site 5/5): was
+                # `re.search(r"\((file:///[^#\)]+)#L(\d+)-L(\d+)\)", observation)`,
+                # re-parsing our own formatted tool text for the called method's
+                # file/line -- see the analogous fix and comment in
+                # predispatch_structure.py::dispatch_button_execution_path
+                # (same tool, same ButtonExecutionPathResult.method_filepath/
+                # method_lineno/method_end_lineno structured fields).
+                button_result = _button_execution_path_impl(
+                    ctx.G, method_name, _resolve_model_param(target_model),
+                    user_groups=ctx.resolved_user_group_xmlids or [],
+                )
+                record_evidence(button_result.evidence)
+                observation = button_result.summary_text + "\n" + "\n".join(button_result.execution_steps)
                 observation = _truncate_observation_for_budget(ctx, observation, 3000)
                 ctx.record_observation(
                     "button_execution_path",
@@ -476,15 +485,14 @@ def dispatch_security_distinction_guard(ctx: DispatchContext) -> None:
                     "describe_workflow, never guessed).",
                     method_name, target_model,
                 )
-                _match_link = re.search(r"\((file:///[^#\)]+)#L(\d+)-L(\d+)\)", observation)
-                if _match_link and not ctx.hop_budget_exhausted:
+                _read_obs = None
+                if button_result.method_filepath and not ctx.hop_budget_exhausted:
                     read_tool = ctx.tool_map.get("read_source_code")
                     if read_tool is not None:
-                        _fp = _match_link.group(1).replace("file://", "")
-                        _ls = int(_match_link.group(2))
-                        _le = int(_match_link.group(3))
+                        _fp = button_result.method_filepath
+                        _ls = button_result.method_lineno
+                        _le = button_result.method_end_lineno
                         _read_key = ("read_source_code", _fp, _ls, _le)
-                        _read_obs = None
                         if _read_key not in ctx.seen_calls:
                             try:
                                 _t_read = time.perf_counter()

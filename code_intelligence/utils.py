@@ -28,9 +28,46 @@ __all__ = [
     "_has_can_view_amount_fact",
     "_LOCK_CONDITION_LINE_RE",
     "_AMOUNT_CMP_RE",
+    "waterfill_budget",
 ]
 
 SENSITIVE_BYPASS_MARKER = "[SENSITIVE BYPASS]"
+
+
+def waterfill_budget(sizes: List[int], total_budget: int) -> List[int]:
+    """Fair-share allocation of a fixed budget across items of varying size.
+
+    An item that fits within its current fair share (total_budget divided
+    by however many items are still unsettled) keeps its full size; the
+    unused surplus is redistributed across the remaining items, repeated
+    until the budget is exhausted or every item is settled. Classic
+    water-filling allocation (the same principle used for bandwidth/power
+    allocation): guarantees no single item can starve another purely by
+    being listed first, listed last, or being unusually large -- unlike a
+    naive "join everything then truncate from the head" strategy.
+    """
+    n = len(sizes)
+    if n == 0 or total_budget <= 0:
+        return [0] * n
+
+    allocation = [0] * n
+    remaining_indices = list(range(n))
+    remaining_budget = total_budget
+
+    while remaining_indices:
+        share = remaining_budget // len(remaining_indices)
+        settled = [i for i in remaining_indices if sizes[i] <= share]
+        if not settled:
+            per_item, leftover = divmod(remaining_budget, len(remaining_indices))
+            for k, i in enumerate(remaining_indices):
+                allocation[i] = per_item + (1 if k < leftover else 0)
+            break
+        for i in settled:
+            allocation[i] = sizes[i]
+            remaining_budget -= sizes[i]
+        remaining_indices = [i for i in remaining_indices if i not in settled]
+
+    return allocation
 
 
 # ── Formatting helpers ──────────────────────────────────────────────────────

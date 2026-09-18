@@ -9,7 +9,6 @@ monolith (refactor, see todo/contexte.txt). Behavior unchanged.
 """
 
 import logging
-import re
 import time
 
 from code_intelligence.agent.context import (
@@ -19,6 +18,10 @@ from code_intelligence.agent.context import (
 from code_intelligence.agent.context_extractors import _question_is_inheritance_related
 from code_intelligence.agent.context import DispatchContext
 from code_intelligence.agent.context_extractors import rank_custom_modules_for_models
+from code_intelligence.agent.tool_helpers import _resolve_model_param
+from code_intelligence.agent.tools.introspection import list_involved_modules_with_evidence
+from code_intelligence.rules.structure import trace_full_inheritance as _trace_full_inheritance_impl
+from core.evidence.evidence_collector import record_evidence
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +73,22 @@ def dispatch_inheritance(ctx: DispatchContext) -> None:
             if call_key not in ctx.seen_calls:
                 t0 = time.perf_counter()
                 try:
-                    observation = str(inherit_tool.invoke({"model_name": target_model}))
+                    # todo/contexte.txt section 831 (Famille 1, site 4/5): was
+                    # `re.findall(r"\((file:///[^#\)]+)#L(\d+)-L(\d+)\)", observation)`
+                    # followed by a custom-module-priority `chosen_link` search,
+                    # re-parsing our own formatted tool text for a declaration
+                    # site whose (filepath, lineno, end_lineno) are already
+                    # structured fields on InheritanceChainResult.declaration_sites
+                    # -- calling trace_full_inheritance() directly (instead of
+                    # invoking the @tool and re-parsing its text) gives both the
+                    # observation text AND the structured, already custom-module-
+                    # first-sorted declaration sites from a single analysis pass,
+                    # no text round-trip, no duplicated file reads.
+                    inheritance_result = _trace_full_inheritance_impl(
+                        ctx.G, _resolve_model_param(target_model),
+                    )
+                    record_evidence(inheritance_result.evidence)
+                    observation = inheritance_result.summary_text
                     observation = _truncate_observation_for_budget(ctx, observation, 3000)
                     ctx.record_observation(
                         "trace_full_inheritance", {"model_name": target_model},
@@ -81,30 +99,19 @@ def dispatch_inheritance(ctx: DispatchContext) -> None:
                         "'trace_full_inheritance' for model '%s'.",
                         target_model,
                     )
-                    from code_intelligence.agent.tool_helpers import _is_custom_module_filepath
-                    all_links = re.findall(r"\((file:///[^#\)]+)#L(\d+)-L(\d+)\)", observation)
-                    chosen_link = None
+                    chosen_site = None
                     if ctx.concept.resolved_modules:
-                        for link_url, ls_s, le_s in all_links:
-                            fp_clean = link_url.replace("file://", "")
-                            if any(f"/{m}/" in fp_clean for m in ctx.concept.resolved_modules):
-                                chosen_link = (link_url, ls_s, le_s)
+                        for fp, ls, le in inheritance_result.declaration_sites:
+                            if any(f"/{m}/" in fp for m in ctx.concept.resolved_modules):
+                                chosen_site = (fp, ls, le)
                                 break
-                    if not chosen_link:
-                        for link_url, ls_s, le_s in all_links:
-                            fp_clean = link_url.replace("file://", "")
-                            if _is_custom_module_filepath(fp_clean):
-                                chosen_link = (link_url, ls_s, le_s)
-                                break
-                    if not chosen_link and all_links:
-                        chosen_link = all_links[0]
+                    if not chosen_site and inheritance_result.declaration_sites:
+                        chosen_site = inheritance_result.declaration_sites[0]
 
-                    if chosen_link:
+                    if chosen_site:
                         _read_tool = ctx.tool_map.get("read_source_code")
                         if _read_tool is not None:
-                            _fp = chosen_link[0].replace("file://", "")
-                            _ls = max(1, int(chosen_link[1]))
-                            _le = int(chosen_link[2])
+                            _fp, _ls, _le = chosen_site
                             try:
                                 # NOTE: matches the original monolith exactly --
                                 # this particular follow-up read does NOT cost a
@@ -149,9 +156,22 @@ def dispatch_inheritance(ctx: DispatchContext) -> None:
                         "'list_involved_modules' for model '%s'.",
                         target_model,
                     )
-                    declaring_modules = re.findall(
-                        r"(\S+) \(declares\)", observation
-                    )
+                    # todo/contexte.txt section 830: was `re.findall(r"(\S+) \(declares\)", observation)`,
+                    # re-parsing our own formatted tool text (Family 1 anti-pattern --
+                    # fragile to any wording/spacing change in list_involved_modules'
+                    # text, even though the structured data it was built from is
+                    # already available). list_involved_modules_with_evidence() is the
+                    # exact same function the @tool wrapper calls internally to build
+                    # `observation` in model mode (introspection.py's `_impl = ...`
+                    # branch) -- calling it directly here returns the same (module,
+                    # role) pairs with no text round-trip, so this is not a behavior
+                    # change, only a removal of an unnecessary and fragile parse step.
+                    declaring_modules = [
+                        mod for mod, role in list_involved_modules_with_evidence(
+                            ctx.G, _resolve_model_param(target_model),
+                        ).modules
+                        if role == "declares"
+                    ]
                     for dec_mod in declaring_modules:
                         if ctx.hop_budget_exhausted:
                             break
@@ -264,9 +284,7 @@ the former ci_agent_node.py monolith (refactor, see todo/contexte.txt).
 Behavior unchanged.
 """
 
-import json
 import logging
-import re
 import time
 
 from code_intelligence.agent.context import (
@@ -275,6 +293,9 @@ from code_intelligence.agent.context import (
 )
 from code_intelligence.agent.context import DispatchContext
 from code_intelligence.agent.context_extractors import extract_ui_element_name
+from code_intelligence.agent.tool_helpers import _resolve_model_param
+from code_intelligence.rules.button_path import button_execution_path as _button_execution_path_impl
+from core.evidence.evidence_collector import record_evidence
 
 logger = logging.getLogger(__name__)
 
@@ -297,12 +318,23 @@ def dispatch_button_execution_path(ctx: DispatchContext) -> None:
             continue
         try:
             t0 = time.perf_counter()
-            dispatch_groups = json.dumps(ctx.resolved_user_group_xmlids or [])
-            observation = str(btn_tool.invoke({
-                "button_name": ui_name,
-                "model_name": target_model,
-                "user_groups_json": dispatch_groups,
-            }))
+            # todo/contexte.txt section 831 (Famille 1, site 5/5): was
+            # `re.search(r"\((file:///[^#\)]+)#L(\d+)-L(\d+)\)", observation)`,
+            # re-parsing our own formatted tool text for the called method's
+            # file/line -- button_execution_path()'s ButtonExecutionPathResult
+            # now carries method_filepath/method_lineno/method_end_lineno as
+            # structured fields, already computed locally wherever the result
+            # is built (button_path.py's main path, and its XML-field/dynamic-
+            # view/menu fallback paths in xml_view_finder.py/navigation.py) --
+            # calling the rule function directly (instead of invoking the
+            # @tool and re-parsing its text) gives both the observation text
+            # AND these structured fields from a single analysis pass.
+            button_result = _button_execution_path_impl(
+                ctx.G, ui_name, _resolve_model_param(target_model),
+                user_groups=ctx.resolved_user_group_xmlids or [],
+            )
+            record_evidence(button_result.evidence)
+            observation = button_result.summary_text + "\n" + "\n".join(button_result.execution_steps)
             observation = _truncate_observation_for_budget(ctx, observation, 3000)
             ctx.record_observation(
                 "button_execution_path",
@@ -314,13 +346,12 @@ def dispatch_button_execution_path(ctx: DispatchContext) -> None:
                 "'button_execution_path' for element '%s' on model '%s'.",
                 ui_name, target_model,
             )
-            match_link = re.search(r"\((file:///[^#\)]+)#L(\d+)-L(\d+)\)", observation)
-            if match_link and not ctx.hop_budget_exhausted:
+            if button_result.method_filepath and not ctx.hop_budget_exhausted:
                 read_tool = ctx.tool_map.get("read_source_code")
                 if read_tool is not None:
-                    fp = match_link.group(1).replace("file://", "")
-                    ls = int(match_link.group(2))
-                    le = int(match_link.group(3))
+                    fp = button_result.method_filepath
+                    ls = button_result.method_lineno
+                    le = button_result.method_end_lineno
                     read_key = ("read_source_code", fp, ls, le)
                     if read_key not in ctx.seen_calls:
                         try:

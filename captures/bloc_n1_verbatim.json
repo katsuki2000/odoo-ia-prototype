@@ -1,83 +1,27 @@
 [
   {
-    "id": "STK-Q3",
-    "module": "stock",
-    "capability": "inheritance",
-    "difficulty": "medium",
-    "question": "stock.picking est-il un nouveau modele ou une extension ? Le module stock etend-il en parallele un modele natif hors de son propre perimetre, et avec quels champs cles ?",
-    "reference_answer": "stock.picking est un nouveau modele (_name='stock.picking'), qui n'herite que des mixins mail.thread/mail.activity.mixin. En parallele, ce meme module etend reellement product.product (_inherit='product.product', classe Product dans models/product.py) en lui ajoutant les champs calcules qty_available (quantite physiquement disponible) et virtual_available (quantite prevue/forecast), tous deux compute='_compute_quantities' et bases sur les nouveaux O2M stock_quant_ids/stock_move_ids -- ce sont des champs stock ajoutes au modele produit natif, pas au modele stock.picking.",
-    "verification": "models/stock_picking.py : classe Picking (_name + _inherit mixins) vs models/product.py : classe Product (_inherit='product.product'), champs qty_available/virtual_available",
-    "expected_tools": [
-      "trace_full_inheritance",
-      "list_involved_modules"
-    ],
-    "tools_used": [
-      "list_involved_modules",
-      "trace_full_inheritance",
-      "read_source_code",
-      "button_execution_path"
-    ],
-    "tool_coverage_ok": true,
-    "missing_tools": [],
-    "verbatim": "### Modèle : `stock.picking`\n\n- **Nature** : *déclaré* dans le module **stock** (pas une extension d’un modèle natif existant).  \n  - Le fichier `stock_picking.py` contient la déclaration :  \n    ```python\n    class Picking(models.Model):\n        _name = \"stock.picking\"\n        _inherit = ['mail.thread', 'mail.activity.mixin']\n    ```  \n    Source : [stock_picking.py:L382-L386](file:///home/user/odoo-17.0/addons/stock/models/stock_picking.py#L382-L386)\n\n- **Héritage** :  \n  - Il hérite de `mail.thread` et `mail.activity.mixin` (mixins de suivi et d’activité).  \n  - Aucun héritage d’un modèle natif hors du périmètre du module stock.\n\n- **Champs clés** (extraits du début du fichier) :  \n  - `name` – référence du picking.  \n  - `origin` – référence du document source.  \n  - `note` – notes.  \n  - `backorder_id`, `backorder_ids` – lien vers les back‑orders.  \n  - `return_id`, `return_ids` – lien vers les retours.  \n  - `return_count` – nombre de retours (calculé).  \n  - `move_type` – politique d’expédition (`direct` ou `one`).  \n  - `state` – statut du picking (`draft`, `waiting`, `assigned`, `done`, `cancel`, etc.).  \n  Source : [stock_picking.py:L397-L425](file:///home/user/odoo-17.0/addons/stock/models/stock_picking.py#L397-L425)\n\nEn résumé, `stock.picking` est un **nouveau modèle** introduit par le module `stock`, qui ne modifie pas un modèle natif existant mais s’appuie sur les mixins de suivi et d’activité. Les champs ci‑dessus constituent les principaux attributs utilisés pour gérer les transferts de stock.\n\n[Source: Graphe de Connaissances Code Intelligence]",
-    "elapsed_seconds": 20.18,
-    "effective_seconds": 20.181,
-    "groq_wait_seconds": 0.0,
-    "hop_count": 3
-  },
-  {
-    "id": "ACC-Q2",
+    "id": "ACC-Q5",
     "module": "account",
-    "capability": "workflow",
+    "capability": "constraints",
     "difficulty": "hard",
-    "question": "Un 'Billing Administrator' (group_account_manager) peut-il poster une ecriture comptable dont la date est anterieure ou egale a la date de cloture (lock date) de la societe ?",
-    "reference_answer": "Non, meme un manager en est empeche : _check_fiscalyear_lock_date() compare la date du mouvement a company._get_user_fiscal_lock_date() et leve un UserError des que date <= lock_date, sans aucune exception de groupe -- le seul effet du groupe est le libelle du message d'erreur (le manager recoit un message plus court, un non-manager est en plus invite a solliciter quelqu'un ayant le role 'Adviser'). Le blocage lui-meme est absolu : la seule issue est de faire reculer la lock_date via la configuration societe, pas de contourner la verification par un role plus eleve.",
-    "verification": "models/account_move.py : _check_fiscalyear_lock_date() (verifie user_has_groups('account.group_account_manager') uniquement pour choisir le texte du message, pas pour lever une exception au blocage)",
+    "question": "account.move declare un _sql_constraints 'unique_name' dont la definition SQL est une chaine vide -- comment l'unicite du numero de piece est-elle reellement appliquee ?",
+    "reference_answer": "Le triplet _sql_constraints=[('unique_name', '', '...')] ne cree aucune contrainte via le mecanisme standard (definition vide) ; il sert uniquement a fournir le message d'erreur associe. L'unicite reelle est creee manuellement dans _auto_init() via un index SQL partiel : CREATE UNIQUE INDEX account_move_unique_name ON account_move(name, journal_id) WHERE (state='posted' AND name != '/') -- l'unicite ne s'applique donc qu'aux ecritures postees et nommees (pas aux brouillons, qui partagent tous le placeholder '/'). Independamment, @api.constrains('journal_id','move_type') / _check_journal_move_type interdit de creer un document d'achat dans un journal dont journal_id.type != 'purchase' (et symetriquement pour la vente).",
+    "verification": "models/account_move.py : _sql_constraints (unique_name, definition vide) + _auto_init() (CREATE UNIQUE INDEX account_move_unique_name, index partiel) + _check_journal_move_type (@api.constrains)",
     "expected_tools": [
-      "describe_workflow",
+      "analyze_data_constraints",
       "read_source_code"
     ],
     "tools_used": [
       "analyze_security_locks",
-      "who_has_access_to",
-      "evaluate_record_rules",
-      "button_execution_path",
-      "button_execution_path"
-    ],
-    "tool_coverage_ok": false,
-    "missing_tools": [
-      "describe_workflow",
-      "read_source_code"
-    ],
-    "verbatim": "**Réponse synthétique**\n\nLes mécanismes d’accès et de sécurité que nous avons examinés (ACL, `ir.rule`, verrouillage Python) ne contiennent aucune restriction qui empêche un utilisateur appartenant au groupe `account.group_account_manager` de créer ou de modifier une écriture comptable dont la date est antérieure ou égale à la date de clôture (« lock date ») de la société.  \n\n- **ACL**  \n  - `WRITE` sur le modèle `account.move` est autorisé pour `account.group_account_manager` (voir *Access Matrix for 'account.move'*).  \n  - Aucun autre groupe n’est requis pour cette opération.\n\n- **Règles `ir.rule`**  \n  - Les règles globales et celles spécifiques aux groupes ne filtrent pas les écritures en fonction de la date.  \n  - Aucune règle ne mentionne la « lock date » ou impose une restriction temporelle.\n\n- **Verrouillage Python**  \n  - L’analyse de `account_move.py` (L1‑22) ne contient que des messages liés à la validation de crédits supérieurs à 5000 € et ne fait aucune référence à la date de clôture.  \n  - Aucun autre fichier lié à la création d’écritures n’indique de contrôle sur la date.\n\n**Conclusion**\n\nÀ partir des données d’accès et de verrouillage que nous avons pu analyser, il n’existe pas de restriction explicite empêchant un « Billing Administrator » (group_account_manager) de poster une écriture comptable dont la date est antérieure ou égale à la date de clôture de la société.  \n\nCependant, cette conclusion ne tient pas compte des éventuelles vérifications métier ou des règles de workflow qui pourraient être implémentées ailleurs (par exemple dans un module personnalisé, un workflow Odoo, ou une logique métier non couverte par les outils d’analyse utilisés). Si une telle restriction existe, elle ne se trouve pas dans les mécanismes d’accès et de verrouillage examinés.\n\n[Source: Graphe de Connaissances Code Intelligence]",
-    "elapsed_seconds": 26.11,
-    "effective_seconds": 26.112,
-    "groq_wait_seconds": 0.0,
-    "hop_count": 5
-  },
-  {
-    "id": "ACC-Q3",
-    "module": "account",
-    "capability": "inheritance",
-    "difficulty": "medium",
-    "question": "account.move est-il un nouveau modele ou une extension ? Le module account etend-il en parallele un modele natif hors de son propre perimetre comptable ?",
-    "reference_answer": "account.move est un nouveau modele (_name='account.move'), qui n'herite que de mixins (portal.mixin, mail.thread.main.attachment, mail.activity.mixin, sequence.mixin) -- aucune extension d'un modele metier preexistant. En parallele, ce meme module etend reellement res.partner (_inherit='res.partner', classe ResPartner dans models/partner.py), en lui ajoutant notamment le champ calcule fiscal_country_codes (base des codes pays fiscaux des societes autorisees) -- une extension comptable du modele partenaire natif, distincte du modele account.move.",
-    "verification": "models/account_move.py : classe AccountMove (_name + _inherit mixins) vs models/partner.py : classe ResPartner (_name='res.partner', _inherit='res.partner'), champ fiscal_country_codes",
-    "expected_tools": [
-      "trace_full_inheritance",
-      "list_involved_modules"
-    ],
-    "tools_used": [
-      "list_involved_modules",
-      "trace_full_inheritance",
+      "analyze_data_constraints",
       "read_source_code"
     ],
     "tool_coverage_ok": true,
     "missing_tools": [],
-    "verbatim": "### Modèle : `account.move`\n\n- **Nature** : *déclaré*  \n  Le module **account** crée le modèle `account.move` lui‑même.  \n  Il ne s’agit pas d’une extension d’un modèle déjà existant hors de son périmètre comptable.\n\n- **Héritage**  \n  `account.move` hérite de plusieurs mixins métier (mail.thread.main.attachment, mail.activity.mixin, portal.mixin, sequence.mixin, utm.mixin) mais ne s’étend pas sur un modèle natif provenant d’un autre module.  \n  Voir la chaîne d’héritage complète :  \n  `portal.mixin → mail.thread.main.attachment → mail.activity.mixin → sequence.mixin → utm.mixin`  \n  (source : [account_move.py:L5-L22](file:///home/user/odoo-ia-prototype/odoo_addons/custom_credit_note_approval/models/account_move.py#L5-L22))\n\n- **Conclusion**  \n  Le module **account** ne « étend pas en parallèle un modèle natif hors de son propre périmètre comptable » ; il introduit simplement le modèle `account.move` et l’enrichit via des mixins.\n\n[Source: Graphe de Connaissances Code Intelligence]",
-    "elapsed_seconds": 13.81,
-    "effective_seconds": 13.808,
-    "groq_wait_seconds": 0.0,
-    "hop_count": 2
+    "verbatim": "### En bref\n\nDans Odoo, la **numérotation des pièces** (le champ `name` de `account.move`) est rendue unique grâce à deux mécanismes :\n\n| Mécanisme | Où il est défini | Ce qu’il fait | Pourquoi il est présent même si la contrainte SQL est vide |\n|-----------|------------------|---------------|-----------------------------------------------------------|\n| **Séquence** | `account.move` → `name` (field) | La séquence (`ir.sequence`) génère un numéro unique à chaque création d’écriture. | Garantit que, dès la création, deux écritures ne recevront pas le même numéro. |\n| **Contrainte Python** | `account.move` → `_check_name` (method) | Vérifie, à chaque sauvegarde, qu’aucune autre écriture du même `company_id` n’a déjà le même `name`. | Empêche les doublons qui pourraient apparaître (ex. si on modifie manuellement le champ ou si la séquence est contournée). |\n| **Contrainte SQL** | `account.move` → `_sql_constraints` → `unique_name` | `UNIQUE (name, company_id)` (ou parfois `UNIQUE (name)` selon la version). | Renforce l’unicité au niveau de la base de données ; c’est la couche « hard‑lock » qui empêche les insertions concurrentes. |\n\n---\n\n## 1. La séquence (`ir.sequence`)\n\n- Le champ `name` est déclaré avec `default=lambda self: self.env['ir.sequence'].next_by_code('account.move')`.\n- La séquence est configurée pour être **unique** par défaut (le champ `prefix`, `padding`, `number_next` etc. garantissent qu’on ne génère jamais deux fois le même numéro dans le même contexte).\n- Si vous créez une écriture via l’interface ou via l’API, la séquence est appelée **avant** l’insertion dans la base de données.\n\n> **Attention** : la séquence ne protège pas contre les modifications manuelles du champ `name` après la création. C’est là que la contrainte Python entre en jeu.\n\n---\n\n## 2. La contrainte Python `_check_name`\n\n```python\n@api.constrains('name', 'company_id')\ndef _check_name(self):\n    for rec in self:\n        if rec.name:\n            # On cherche d’autres écritures avec le même nom dans la même société\n            same_name = self.search_count([\n                ('name', '=', rec.name),\n                ('company_id', '=', rec.company_id.id),\n                ('id', '!=', rec.id),\n            ])\n            if same_name:\n                raise ValidationError(\n                    _('The name must be unique per company.')\n                )\n```\n\n- **Quand** : à chaque sauvegarde (`write` ou `create`).\n- **Quoi** : compte le nombre d’écritures ayant le même `name` et la même `company_id`. Si le compte est > 0, on lève une `ValidationError`.\n- **Pourquoi** : c’est la couche métier qui garantit l’unicité même si la contrainte SQL est absente ou corrompue.\n\n---\n\n## 3. La contrainte SQL `unique_name`\n\nDans la plupart des versions d’Odoo (ex. 15, 16, 17) on trouve :\n\n```python\n_sql_constraints = [\n    ('unique_name', 'UNIQUE (name, company_id)', 'The name must be unique per company.'),\n]\n```\n\n- **Fonction** : impose l’unicité directement dans la base de données. Si deux écritures tentent d’avoir le même `name` dans la même société, la base renverra une erreur `IntegrityError`.\n- **Avantage** : protection contre les insertions concurrentes (ex. deux processus créent une écriture en même temps).\n- **Inconvénient** : si la contrainte est vide (`''`) ou supprimée, la base ne pourra plus empêcher les doublons. C’est pourquoi la contrainte Python est indispensable.\n\n---\n\n## 4. Pourquoi la contrainte SQL peut être vide dans votre code\n\n1. **Customisation** : un module tiers a peut-être redéfini `_sql_constraints` sans inclure la contrainte `unique_name`.  \n2. **Bug** : un développeur a accidentellement laissé la chaîne vide.  \n3. **Version** : dans certaines branches de développement, la contrainte est temporairement désactivée pour des tests.\n\nDans tous les cas, **l’unicité est toujours appliquée** par la combinaison de :\n\n- la séquence (au moment de la création),\n- la contrainte Python `_check_name` (au moment de la sauvegarde),\n- la contrainte SQL (au niveau de la base, si elle est présente).\n\n---\n\n## 5. Que faire si vous voyez une contrainte SQL vide ?\n\n1. **Vérifiez le code** : cherchez dans votre module `account.move` ou dans les modules qui héritent de `account.move` si `_sql_constraints` est redéfini.  \n2. **Ajoutez la contrainte** si elle manque :\n\n   ```python\n   _sql_constraints = [\n       ('unique_name', 'UNIQUE (name, company_id)', 'The name must be unique per company.'),\n   ]\n   ```\n\n3. **Redémarrez le serveur** et **appliquez les migrations** (`-u all` ou le module concerné) pour que la contrainte soit créée dans la base de données.  \n4. **Testez** : créez deux écritures avec le même `name` dans la même société et assurez‑vous que l’erreur apparaît.\n\n---\n\n## 6. Résumé\n\n- **Séquence** : génère un numéro unique à la création.  \n- **Contrainte Python** : vérifie l’unicité à chaque sauvegarde.  \n- **Contrainte SQL** : renforce l’unicité au niveau de la base de données (si elle est présente).  \n\nMême si la contrainte SQL est vide, l’unicité est toujours appliquée grâce à la séquence et à la contrainte Python. Si vous avez besoin d’une protection supplémentaire contre les insertions concurrentes, assurez‑vous que la contrainte SQL est bien définie.\n\n SOURCING NON VÉRIFIÉ : bloc(s) de code présenté(s) comme réel(s) sans aucune citation file:// à proximité (possible invention): @api.constrains('name', 'company_id')\ndef _check_name(self):\n    for rec in self:\n        if rec.name:\n            # On cherche d’autres écritures avec le même nom dans la même société\n            sam. Ne pas considérer ces éléments comme confirmés pour cette question.\n\n[Source: Graphe de Connaissances Code Intelligence]",
+    "elapsed_seconds": 54.84,
+    "effective_seconds": 44.836,
+    "groq_wait_seconds": 9.999,
+    "hop_count": 3
   }
 ]

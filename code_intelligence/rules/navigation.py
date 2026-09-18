@@ -55,6 +55,9 @@ def search_dynamic_view_or_menus(
             ],
             summary_text=dynamic_summary,
             evidence=[],
+            method_filepath=hook_fp,
+            method_lineno=hook_line,
+            method_end_lineno=end_line,
         )
 
     target_modules = set()
@@ -139,6 +142,9 @@ def search_dynamic_view_or_menus(
             execution_steps=menu_steps,
             summary_text=menu_summary,
             evidence=[],
+            method_filepath=menu_fp,
+            method_lineno=menu_lineno,
+            method_end_lineno=end_lineno,
         )
 
     return None

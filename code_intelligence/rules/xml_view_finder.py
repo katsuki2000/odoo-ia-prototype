@@ -166,8 +166,9 @@ def _find_field_in_xml_views(
                                 if f'name="{matched_field_name}"' in l or f"name='{matched_field_name}'" in l:
                                     ln = idx
                                     break
-                            link = format_file_link(str(xml_file), ln, min(len(lines), ln + 6))
-                            view_matches.append((rec_id, str(xml_file), ln, attrs, link))
+                            end_line = min(len(lines), ln + 6)
+                            link = format_file_link(str(xml_file), ln, end_line)
+                            view_matches.append((rec_id, str(xml_file), ln, end_line, attrs, link))
             except Exception:
                 continue
 
@@ -175,7 +176,7 @@ def _find_field_in_xml_views(
         return None
 
     view_matches.sort(key=lambda x: (0 if ("/addons/" not in x[1] or "oca" in x[1]) else 1, x[0]))
-    rec_id, xml_file, ln, attrs, link = view_matches[0]
+    rec_id, xml_file, ln, end_line, attrs, link = view_matches[0]
 
     readonly_cond = attrs.get("readonly", "")
     invisible_cond = attrs.get("invisible", "")
@@ -222,4 +223,7 @@ def _find_field_in_xml_views(
         execution_steps=steps,
         summary_text=" ".join(summary_parts),
         evidence=[],
+        method_filepath=xml_file,
+        method_lineno=ln,
+        method_end_lineno=end_line,
     )

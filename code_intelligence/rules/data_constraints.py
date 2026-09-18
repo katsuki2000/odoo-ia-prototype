@@ -200,6 +200,13 @@ def _compose_data_constraints_summary(model_name: str, matches: List[SemgrepMatc
             or "selection" in m.check_id
             or "exception" in m.check_id
             or "filter" in m.check_id
+            # "unique" couvre odoo-raw-sql-unique-index /
+            # odoo-create-unique-index-helper (todo/contexte.txt section
+            # 812) : le mecanisme SQL brut le plus souvent recherche par
+            # les questions d'unicite doit sortir en tete, pas se noyer
+            # en fin d'un long document et risquer la troncature (budget
+            # cumulatif MAX_TOTAL_OBSERVATION_CHARS, section 811).
+            or "unique" in m.check_id
         )
         return (not is_custom, not has_constrain)
 

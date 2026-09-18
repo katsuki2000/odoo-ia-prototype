@@ -200,9 +200,20 @@ def _sort_filepaths_custom_first(filepaths) -> list:
     return sorted(filepaths, key=lambda fp: (not _is_custom_module_filepath(fp), fp))
 
 
-def _trace_invoked_methods(G, model_name: str, code: str) -> str:
+def _trace_invoked_methods_with_citations(G, model_name: str, code: str):
+    """Same traversal as _trace_invoked_methods, but also returns the
+    structured (filepath, start, end) citations discovered along the way,
+    instead of only the formatted text -- used by dispatch_server_actions
+    (todo/contexte.txt section 831, Famille 1 site 3/5) so the predispatch
+    layer no longer has to regex-parse the file:// links back out of the
+    text this function itself just built from that same structured data.
+    Returns (text, citations) where citations is a List[Tuple[str, int, int]]
+    of (filepath, start_line, end_line), in the same order the text lists
+    them (top-level calls first, then their sub-calls breadth-first).
+    """
     invoked_methods = re.findall(r"\b(?:model|records?|self)\.([a-zA-Z0-9_]+)\s*\(", code)
     lines = []
+    citations = []
     for m_name in invoked_methods:
         m_node_id = f"method:{model_name}.{m_name}"
         if m_node_id not in G:
@@ -214,6 +225,7 @@ def _trace_invoked_methods(G, model_name: str, code: str) -> str:
         if m_fp:
             m_link = format_file_link(m_fp, m_start, m_end)
             lines.append(f"\n  - Python method called: {m_name}() (Defined at {m_link})")
+            citations.append((m_fp, m_start, m_end))
             queue = [(m_name, m_fp, m_start, m_end, 1)]
             visited_m = {m_name}
             while queue:
@@ -240,7 +252,12 @@ def _trace_invoked_methods(G, model_name: str, code: str) -> str:
                                     sub_link = format_file_link(sub_fp, sub_start, sub_end)
                                     indent = "  " * depth
                                     lines.append(f"\n{indent}  -> Sub-method called: {sub_m}() (Defined at {sub_link})")
+                                    citations.append((sub_fp, sub_start, sub_end))
                                     queue.append((sub_m, sub_fp, sub_start, sub_end, depth + 1))
                 except Exception:
                     pass
-    return "".join(lines)
+    return "".join(lines), citations
+
+
+def _trace_invoked_methods(G, model_name: str, code: str) -> str:
+    return _trace_invoked_methods_with_citations(G, model_name, code)[0]

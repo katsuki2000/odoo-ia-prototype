@@ -17,6 +17,8 @@ from code_intelligence.rules.security_locks import gate_observation
 from code_intelligence.agent.context import (
     _truncate_observation_for_budget,
     _tool_call_key,
+    PER_TOOL_OBSERVATION_CAPS,
+    DEFAULT_OBSERVATION_CAP,
 )
 from code_intelligence.agent.context_extractors import (
     _extract_amount,
@@ -74,12 +76,8 @@ def execute_tool_calls(ctx: DispatchContext, ai_msg, messages: list) -> None:
             try:
                 observation = str(ctx.tool_map[tool_name].invoke(tool_args))
 
-                observation_cap = (
-                    9000 if tool_name == "read_source_code"
-                    else 45000 if tool_name == "analyze_data_constraints"
-                    else 2200 if tool_name == "analyze_method_override_chain"
-                    else 3500 if tool_name in {"analyze_server_actions", "analyze_security_locks"}
-                    else 2500
+                observation_cap = PER_TOOL_OBSERVATION_CAPS.get(
+                    tool_name, DEFAULT_OBSERVATION_CAP
                 )
                 observation = _truncate_observation_for_budget(ctx, observation, observation_cap)
 

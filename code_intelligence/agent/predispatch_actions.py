@@ -8,10 +8,10 @@ todo/contexte.txt). Behavior unchanged.
 """
 
 import logging
-import re
 import time
 
 from code_intelligence.rules.security_locks import gate_observation
+from code_intelligence.agent.tools.analysis import _compose_server_actions_observation
 from code_intelligence.agent.context import (
     _truncate_observation_for_budget,
     _tool_call_key,
@@ -37,7 +37,16 @@ def dispatch_server_actions(ctx: DispatchContext) -> None:
             continue
         t0 = time.perf_counter()
         try:
-            observation = str(sa_tool.invoke({"model_name": target_model}))
+            # todo/contexte.txt section 831 (Famille 1, site 3/5): was
+            # `re.findall(r"\((file:///[^#\)]+)#L(\d+)-L(\d+)\)", observation)`,
+            # re-parsing our own formatted tool text for every invoked-method
+            # citation -- _compose_server_actions_observation() is the shared
+            # implementation behind the @tool (tools/analysis.py), returning
+            # both the same text AND the structured (filepath, start, end)
+            # citations _trace_invoked_methods_with_citations discovers while
+            # building that text, from a single analysis pass (no duplicated
+            # graph traversal, no text round-trip).
+            observation, _citations = _compose_server_actions_observation(target_model)
             observation = _truncate_observation_for_budget(ctx, observation, 3000)
             observation, omitted_list = gate_observation(
                 tool_name="analyze_server_actions",
@@ -57,16 +66,12 @@ def dispatch_server_actions(ctx: DispatchContext) -> None:
                 "wording + ServerAction nodes present).",
                 target_model,
             )
-            _match_links = re.findall(r"\((file:///[^#\)]+)#L(\d+)-L(\d+)\)", observation)
-            for _m_link in _match_links:
+            for _fp, _ls, _le in _citations:
                 if ctx.hop_budget_exhausted:
                     break
                 _read_tool = ctx.tool_map.get("read_source_code")
                 if _read_tool is None:
                     continue
-                _fp = _m_link[0].replace("file://", "")
-                _ls = int(_m_link[1])
-                _le = int(_m_link[2])
                 _read_key = ("read_source_code", _fp, _ls, _le)
                 if _read_key in ctx.seen_calls:
                     continue
@@ -112,10 +117,11 @@ output cites. Extracted from the former ci_agent_node.py monolith
 """
 
 import logging
-import re
 import time
 
 from code_intelligence.rules.security_locks import gate_observation
+from code_intelligence.rules.override_unguarded import resolve_method_override_chain
+from code_intelligence.agent.tool_helpers import _resolve_model_param
 from code_intelligence.agent.context import (
     _truncate_observation_for_budget,
     _tool_call_key,
@@ -164,13 +170,27 @@ def dispatch_override_chain(ctx: DispatchContext) -> None:
                 "+ real override cascade present).",
                 target_model, method_name,
             )
-            _match_link = re.search(r"\((file:///[^#\)]+)#L(\d+)-L(\d+)\)", observation)
-            if _match_link and not ctx.hop_budget_exhausted:
+            # todo/contexte.txt section 831 (Famille 1, site 2/5): was
+            # `re.search(r"\((file:///[^#\)]+)#L(\d+)-L(\d+)\)", observation)`,
+            # re-parsing our own formatted tool text for the first override
+            # site's file/line -- resolve_method_override_chain() is the exact
+            # graph lookup analyze_method_override_chain_with_evidence() calls
+            # internally (override_composer.py), already exposed and already
+            # used elsewhere for the same purpose (predispatch_access.py's
+            # security-distinction guard resolution); its first site is, by
+            # construction, the first entry the tool's text also lists (same
+            # `sites` list, same order -- verified in override_composer.py's
+            # `_compose_method_override_chain`), so no behavior change.
+            _override_sites = resolve_method_override_chain(
+                ctx.G, _resolve_model_param(target_model), method_name,
+            )
+            if _override_sites and not ctx.hop_budget_exhausted:
                 _read_tool = ctx.tool_map.get("read_source_code")
                 if _read_tool is not None:
-                    _fp = _match_link.group(1).replace("file://", "")
-                    _ls = int(_match_link.group(2))
-                    _le = int(_match_link.group(3))
+                    _first_site = _override_sites[0]
+                    _fp = _first_site.filepath
+                    _ls = _first_site.lineno
+                    _le = _first_site.end_lineno or _first_site.lineno
                     _read_key = ("read_source_code", _fp, _ls, _le)
                     if _read_key not in ctx.seen_calls:
                         try:
@@ -229,9 +249,11 @@ unchanged.
 """
 
 import logging
-import re
 import time
 
+from code_intelligence.rules.data_constraints import analyze_data_constraints_from_filepaths
+from code_intelligence.agent.tool_helpers import find_model_source_filepaths, _resolve_model_param
+from core.evidence.evidence_collector import record_evidence
 from code_intelligence.agent.context import (
     _truncate_observation_for_budget,
     _tool_call_key,
@@ -260,7 +282,30 @@ def dispatch_analyze_data_constraints(ctx: DispatchContext) -> None:
             continue
         t0 = time.perf_counter()
         try:
-            observation = str(constraint_tool.invoke({"model_name": target_model}))
+            # todo/contexte.txt section 831 (Famille 1, site 1/5): was
+            # `re.search(r"\(file://([^#\)]+)#L(\d+)-L(\d+)\)\s+\(odoo-static-
+            # exclusion-filter\)", observation)`, re-parsing our own formatted
+            # tool text for a finding whose filepath/start_line/end_line/
+            # check_id are already structured fields on SemgrepMatch --
+            # analyze_data_constraints_from_filepaths() is the exact function
+            # the @tool wrapper calls internally (tools/analysis.py); calling
+            # it directly here (instead of invoking the @tool and re-parsing
+            # its text) gives both the observation text AND the structured
+            # matches from a single analysis pass, no text round-trip, no
+            # duplicated Semgrep run.
+            resolved_model = _resolve_model_param(target_model)
+            model_node = f"model:{resolved_model}"
+            constraints_result = None
+            if model_node not in ctx.G:
+                observation = f"Model '{resolved_model}' was not found in the indexed knowledge graph."
+            else:
+                filepaths = find_model_source_filepaths(ctx.G, resolved_model)
+                if not filepaths:
+                    observation = f"No Python source files located for model '{resolved_model}'."
+                else:
+                    constraints_result = analyze_data_constraints_from_filepaths(resolved_model, filepaths)
+                    record_evidence(constraints_result.evidence)
+                    observation = constraints_result.summary_text
             observation = _truncate_observation_for_budget(ctx, observation, 45000)
             ctx.record_observation(
                 "analyze_data_constraints", {"model_name": target_model},
@@ -271,17 +316,18 @@ def dispatch_analyze_data_constraints(ctx: DispatchContext) -> None:
                 "'analyze_data_constraints' for model '%s'.",
                 target_model,
             )
-            if "odoo-static-exclusion-filter" in observation and not ctx.hop_budget_exhausted:
-                match_link = re.search(
-                    r"\(file://([^#\)]+)#L(\d+)-L(\d+)\)\s+\(odoo-static-exclusion-filter\)",
-                    observation,
-                )
-                if match_link:
+            if constraints_result is not None and not ctx.hop_budget_exhausted:
+                exclusion_matches = [
+                    m for m in constraints_result.matches
+                    if m.check_id == "odoo-static-exclusion-filter"
+                ]
+                if exclusion_matches:
+                    match = exclusion_matches[0]
                     read_tool = ctx.tool_map.get("read_source_code")
                     if read_tool is not None:
-                        fp = match_link.group(1)
-                        ls = max(1, int(match_link.group(2)) - 5)
-                        le = int(match_link.group(3)) + 35
+                        fp = match.filepath
+                        ls = max(1, match.start_line - 5)
+                        le = match.end_line + 35
                         read_key = ("read_source_code", fp, ls, le)
                         if read_key not in ctx.seen_calls:
                             try:

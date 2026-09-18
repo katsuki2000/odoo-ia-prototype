@@ -24,30 +24,41 @@ from code_intelligence.agent.tool_helpers import (
     _is_custom_server_action_module,
     _sort_server_action_entries_custom_first,
     _sort_filepaths_custom_first,
-    _trace_invoked_methods,
+    _trace_invoked_methods_with_citations,
 )
 from core.evidence.evidence_collector import record_evidence
+from code_intelligence.rules.security_evidence import assemble_security_lock_blocks
+from code_intelligence.agent.context import PER_TOOL_OBSERVATION_CAPS
 
 
-@tool
-def analyze_server_actions(model_name: str) -> str:
-    """Analyze server actions (ir.actions.server) and automated rules (base.automation) for a given model."""
+def _compose_server_actions_observation(model_name: str):
+    """Shared implementation behind the analyze_server_actions @tool -- builds
+    both the LLM-facing text AND the structured (filepath, start, end)
+    citations _trace_invoked_methods_with_citations discovers along the way,
+    from a single pass over the model's server-action nodes. Split out
+    (todo/contexte.txt section 831, Famille 1 site 3/5) so dispatch_server_
+    actions (predispatch_actions.py) can call this directly for both, instead
+    of invoking the @tool for text and regex-parsing that text back apart to
+    recover what this function already computed structurally.
+    Returns (text, citations) where citations is a List[Tuple[str, int, int]].
+    """
     if _is_wildcard_model(model_name):
-        return WILDCARD_MODEL_ERROR_MSG
+        return WILDCARD_MODEL_ERROR_MSG, []
     from code_intelligence.rules.server_actions import analyze_server_action_code, interpret_server_action_with_llm
 
     G = _require_graph()
     model_name = _resolve_model_param(model_name)
     model_node = f"model:{model_name}"
     if model_node not in G:
-        return f"Model '{model_name}' was not found in the indexed knowledge graph."
+        return f"Model '{model_name}' was not found in the indexed knowledge graph.", []
 
     sa_nodes = find_server_action_nodes(G, model_name)
     if not sa_nodes:
-        return f"No server actions (ir.actions.server) found for model '{model_name}'."
+        return f"No server actions (ir.actions.server) found for model '{model_name}'.", []
 
     entries = []
     all_evidence = []
+    all_citations = []
     llm_ref = get_llm_ref()
     for node_id, attrs in sa_nodes:
         xml_id = attrs.get("xml_id", node_id)
@@ -63,12 +74,21 @@ def analyze_server_actions(model_name: str) -> str:
         )
         analysis = interpret_server_action_with_llm(analysis, code, llm_ref)
         all_evidence.extend(analysis.evidence)
-        summary = analysis.summary_text + _trace_invoked_methods(G, model_name, code)
+        trace_text, trace_citations = _trace_invoked_methods_with_citations(G, model_name, code)
+        all_citations.extend(trace_citations)
+        summary = analysis.summary_text + trace_text
         entries.append((xml_id, _is_custom_server_action_module(G, xml_id), summary))
 
     record_evidence(all_evidence)
     entries = _sort_server_action_entries_custom_first(entries)
-    return "\n\n".join(summary for _, _, summary in entries)
+    return "\n\n".join(summary for _, _, summary in entries), all_citations
+
+
+@tool
+def analyze_server_actions(model_name: str) -> str:
+    """Analyze server actions (ir.actions.server) and automated rules (base.automation) for a given model."""
+    text, _citations = _compose_server_actions_observation(model_name)
+    return text
 
 
 @tool
@@ -99,7 +119,14 @@ def analyze_security_locks(model_name: str) -> str:
             summaries.append(analysis.summary_text)
 
     record_evidence(all_evidence)
-    return "\n\n".join(summaries) if summaries else f"No security analysis results for model '{model_name}'."
+    if not summaries:
+        return f"No security analysis results for model '{model_name}'."
+    # Section 824: multi-block water-filling instead of a flat join, so the
+    # native/most-relevant file (often sorted last by
+    # _sort_filepaths_custom_first) is not silently dropped by a downstream
+    # head-truncation once several files' summaries combined exceed the
+    # per-tool observation cap (section 820, account.move).
+    return assemble_security_lock_blocks(summaries, PER_TOOL_OBSERVATION_CAPS["analyze_security_locks"])
 
 
 @tool

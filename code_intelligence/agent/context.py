@@ -271,6 +271,22 @@ def _truncate_observation(text: str, limit: int) -> str:
 # keeps total observation content safely under that measured failure zone.
 MAX_TOTAL_OBSERVATION_CHARS = 35000
 
+# Per-tool observation caps -- single source of truth. Each was calibrated
+# against a single worst-case model measured in isolation (sections
+# 801/803/808/810). Consumed by the dispatch loop (below) and by any tool
+# that needs to budget its own output internally instead of relying purely
+# on the naive head-truncation applied here (see
+# assemble_security_lock_blocks, code_intelligence/rules/security_evidence.py,
+# section 824).
+PER_TOOL_OBSERVATION_CAPS: Dict[str, int] = {
+    "read_source_code": 9000,
+    "analyze_data_constraints": 45000,
+    "analyze_method_override_chain": 2200,
+    "analyze_server_actions": 3500,
+    "analyze_security_locks": 3500,
+}
+DEFAULT_OBSERVATION_CAP = 2500
+
 
 def _truncate_observation_for_budget(
     ctx: "DispatchContext", text: str, per_tool_limit: int,

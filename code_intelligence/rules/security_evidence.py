@@ -11,11 +11,20 @@ import logging
 
 from core.evidence.evidence import Evidence, EvidenceSourceType, make_evidence
 from core.output import confidence_label
+from code_intelligence.utils import waterfill_budget
+from code_intelligence.agent.context import _truncate_observation
 
 if TYPE_CHECKING:
     from code_intelligence.rules.security import PythonSecurityLockAnalysis
 
 logger = logging.getLogger(__name__)
+
+# Marker that opens the verbose, low-density "exception messages" section
+# inside a single file's formatted summary (see format_security_locks_summary
+# below) -- everything before it (header, required_groups, static_filters)
+# is the compact, high-density "essential" portion prioritized by
+# assemble_security_lock_blocks.
+_EXCEPTION_MESSAGES_MARKER = "  - Security lock messages"
 
 
 def build_security_lock_evidence(
@@ -29,6 +38,7 @@ def build_security_lock_evidence(
     required_group_methods: List[str],
     required_group_linenos: List[int],
     dynamic_dispatch_types: List[str],
+    required_group_is_gating: Optional[List[bool]] = None,
 ) -> List[Evidence]:
     """Produce structured Evidence objects for security locks and uncertainties."""
     evidence: List[Evidence] = []
@@ -98,8 +108,16 @@ def build_security_lock_evidence(
     if required_groups:
         methods = required_group_methods or [""] * len(required_groups)
         linenos = required_group_linenos or [0] * len(required_groups)
-        for group_xmlid, method_name, lineno in zip(required_groups, methods, linenos):
-            claim = f"File '{filepath}' requires group '{group_xmlid}' via has_group()"
+        is_gating = required_group_is_gating or [True] * len(required_groups)
+        for group_xmlid, method_name, lineno, gating in zip(required_groups, methods, linenos, is_gating):
+            if gating:
+                claim = f"File '{filepath}' requires group '{group_xmlid}' via has_group()"
+            else:
+                claim = (
+                    f"File '{filepath}' checks group '{group_xmlid}' via has_group()/user_has_groups() "
+                    f"but ONLY to select which error message text to use -- this check does not gate "
+                    f"whether the action is blocked"
+                )
             if method_name:
                 claim += f" in method '{method_name}()'"
             scope: Dict[str, Any] = {}
@@ -174,17 +192,26 @@ def format_security_locks_summary(
 
     if analysis.required_groups:
         methods = analysis.required_group_methods or [""] * len(analysis.required_groups)
+        is_gating_list = getattr(analysis, "required_group_is_gating", None) or [True] * len(analysis.required_groups)
         action_groups = [g for g, m in zip(analysis.required_groups, methods) if m]
         if action_groups:
             groups_joined = ', '.join(action_groups)
             lines.append(f"  - Groupe(s) technique(s) requis detecte(s) (has_group): {groups_joined}")
-            for group_xmlid, method_name in zip(analysis.required_groups, methods):
+            for group_xmlid, method_name, gating in zip(analysis.required_groups, methods, is_gating_list):
                 if method_name:
                     citation = format_xml_id_citation(group_xmlid)
-                    lines.append(
-                        f"    * has_group('{group_xmlid}') se trouve dans la methode '{method_name}()' -- "
-                        f"ne pas l'attribuer a une autre methode sans le verifier explicitement dans le code source. ({citation})"
-                    )
+                    if gating:
+                        lines.append(
+                            f"    * has_group('{group_xmlid}') se trouve dans la methode '{method_name}()' -- "
+                            f"ne pas l'attribuer a une autre methode sans le verifier explicitement dans le code source. ({citation})"
+                        )
+                    else:
+                        lines.append(
+                            f"    * has_group('{group_xmlid}') se trouve dans la methode '{method_name}()' MAIS NE FAIT QUE "
+                            f"SELECTIONNER LE TEXTE DU MESSAGE D ERREUR -- l instruction raise qui suit ne depend PAS de ce "
+                            f"groupe et s execute de toute facon ; NE PAS presenter ce groupe comme requis pour agir, "
+                            f"autorise a contourner ou exempte de la regle sur la seule base de cette ligne. ({citation})"
+                        )
         for group_xmlid, method_name in zip(analysis.required_groups, methods):
             if not method_name:
                 citation = format_xml_id_citation(group_xmlid)
@@ -222,6 +249,68 @@ def format_security_locks_summary(
         lines.append("  - Aucun verrou spécifique ni incertitude dynamique détecté.")
 
     return "\n".join(lines)
+
+
+def assemble_security_lock_blocks(blocks: List[str], budget: int) -> str:
+    """Join per-file `format_security_locks_summary` blocks under a fixed
+    total character budget, WITHOUT letting a naive head-truncation starve
+    whichever block happens to be assembled last (section 820: for
+    `account.move`, the native Odoo file -- by far the largest and most
+    relevant block -- is sorted after 3 custom-module blocks by
+    `_sort_filepaths_custom_first`, so a flat "\n\n".join(...) + head-cut
+    silently drops it entirely once the custom blocks alone exceed the cap).
+
+    Two-tier water-filling (section 824):
+      1. Each block is split at `_EXCEPTION_MESSAGES_MARKER` into an
+         "essential" portion (header, required_groups, static_filters --
+         compact, high information density, already prioritized within a
+         single block by the 819 reordering) and an "exception_messages"
+         portion (verbose UserError/ValidationError text dump, low density).
+      2. The essential portions are water-filled first, across ALL blocks
+         fairly (section 819's intra-block fix does not help once several
+         blocks compete for the same outer budget -- this is the inter-block
+         analogue). Whatever budget remains goes to the exception-message
+         portions, again water-filled, so no single block's verbose dump can
+         crowd out another block's essential summary.
+    Blocks are reassembled in their original (input) order -- this function
+    does not re-sort; ordering (e.g. custom-first) is the caller's decision.
+    """
+    if not blocks:
+        return ""
+    if budget <= 0:
+        return _truncate_observation("", 0)
+
+    essentials: List[str] = []
+    exceptions: List[str] = []
+    for block in blocks:
+        idx = block.find(_EXCEPTION_MESSAGES_MARKER)
+        if idx == -1:
+            essentials.append(block)
+            exceptions.append("")
+        else:
+            essentials.append(block[:idx].rstrip("\n"))
+            exceptions.append(block[idx:])
+
+    essential_sizes = [len(e) for e in essentials]
+    essential_budget = min(budget, sum(essential_sizes))
+    essential_alloc = waterfill_budget(essential_sizes, essential_budget)
+
+    used = sum(essential_alloc)
+    remaining_budget = max(0, budget - used)
+    exception_sizes = [len(e) for e in exceptions]
+    exception_alloc = waterfill_budget(exception_sizes, remaining_budget)
+
+    parts: List[str] = []
+    for essential, ess_cap, exc_text, exc_cap in zip(
+        essentials, essential_alloc, exceptions, exception_alloc
+    ):
+        block_text = _truncate_observation(essential, ess_cap) if ess_cap < len(essential) else essential
+        if exc_cap > 0:
+            exc_piece = exc_text if exc_cap >= len(exc_text) else _truncate_observation(exc_text, exc_cap)
+            block_text = block_text + "\n" + exc_piece
+        parts.append(block_text)
+
+    return "\n\n".join(parts)
 
 
 def extract_method_security_constraints(

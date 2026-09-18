@@ -27,6 +27,13 @@ class ButtonExecutionPathResult:
     method_tags: List[str] = field(default_factory=list)
     # B1 replication of the B0 pilot: structured Evidence produced at the source.
     evidence: List[Evidence] = field(default_factory=list)
+    # todo/contexte.txt section 831 (Famille 1, site 5/5): filepath/lineno/
+    # end_lineno of the called method's own definition, already computed
+    # locally to build method_link_str below -- exposed here so callers do
+    # not need to re-parse the file:// link out of summary_text.
+    method_filepath: str = ""
+    method_lineno: int = 0
+    method_end_lineno: int = 0
 
 
 def _build_button_execution_evidence(
@@ -259,6 +266,9 @@ def button_execution_path(
     method_node_id = f"method:{model_name}.{method_name}"
     method_exists = method_node_id in G
     method_tags = tags_for_node_attrs(G.nodes[method_node_id]) if method_exists else []
+    method_filepath = ""
+    method_lineno = 0
+    method_end_lineno = 0
 
     if not method_exists and not origin_states and not invisible_condition:
         dyn_or_menu = search_dynamic_view_or_menus(G, model_name, button_label_or_name)
@@ -287,6 +297,9 @@ def button_execution_path(
             if m_fp:
                 m_link = format_file_link(m_fp, m_line, m_end)
                 method_link_str = f"Defined at {m_link}"
+                method_filepath = m_fp
+                method_lineno = m_line
+                method_end_lineno = m_end
         execution_steps.append(f"1. UI Click: User clicks button '{button_label_or_name}' on form view of '{model_name}'.")
         execution_steps.append(f"2. Method Invocation: Calls Python method '{method_name}()' ({method_link_str}).")
 
@@ -348,6 +361,9 @@ def button_execution_path(
         available_to_requester=available_to_requester,
         unavailable_reason=unavailable_reason,
         method_tags=method_tags,
+        method_filepath=method_filepath,
+        method_lineno=method_lineno,
+        method_end_lineno=method_end_lineno,
         evidence=_build_button_execution_evidence(
             button_label_or_name, model_name, method_name, method_exists,
             origin_states, target_state, required_groups,

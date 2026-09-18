@@ -233,6 +233,11 @@ class InheritanceChainResult:
     summary_text: str = ""
     # B1 replication of the B0 pilot: structured Evidence produced at the source.
     evidence: List[Evidence] = field(default_factory=list)
+    # todo/contexte.txt section 831 (Famille 1, site 4/5): (filepath, lineno,
+    # end_line) per declaration site, same custom-module-first order as the
+    # file:// links folded into summary_text -- lets callers reuse this
+    # structured data instead of re-parsing summary_text.
+    declaration_sites: List[Tuple[str, int, int]] = field(default_factory=list)
 
 
 def _build_inheritance_evidence(
@@ -361,6 +366,7 @@ def trace_full_inheritance(
     )
 
     filepaths = G.nodes[model_node].get("filepaths", [])
+    declaration_sites: List[Tuple[str, int, int]] = []
     if filepaths:
         from code_intelligence.agent.tool_helpers import _is_custom_module_filepath
         sorted_filepaths = sorted(filepaths, key=lambda f: not _is_custom_module_filepath(f))
@@ -384,6 +390,7 @@ def trace_full_inheritance(
                     pass
             end_line = min(lineno + 80, line_count)
             src_links.append(f"[{p.name}:L{lineno}-L{end_line}](file://{fp}#L{lineno}-L{end_line})")
+            declaration_sites.append((fp, lineno, end_line))
         summary += f" Declared in: {', '.join(src_links)}."
 
     return InheritanceChainResult(
@@ -395,4 +402,5 @@ def trace_full_inheritance(
         model_tags=model_tags,
         summary_text=summary,
         evidence=_build_inheritance_evidence(model_name, extension_parents, delegation_parents),
+        declaration_sites=declaration_sites,
     )

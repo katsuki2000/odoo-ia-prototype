@@ -3,7 +3,7 @@
 controllers/main.py
 ===================
 Contrôleur Odoo pour MIRO AI Assistant.
-Gère la communication RAG/FastAPI et la génération JWT.
+Gère la communication FastAPI et la génération JWT.
 """
 import base64
 import hashlib
@@ -51,7 +51,7 @@ class MiroAiController(http.Controller):
     def ask(self, question=None, session_id=None, active_model=None, active_id=None, **kwargs):
         """
         Reçoit la question du frontend Odoo, signe un jeton JWT d'authentification
-        et interroge le backend FastAPI MIRO RAG.
+        et interroge le backend FastAPI.
         """
         if not question or not question.strip():
             return {'answer': "Veuillez poser une question.", 'sources': []}
@@ -216,8 +216,8 @@ class MiroAiController(http.Controller):
                 raise last_error or Exception("Serveur RAG inaccessible")
         except Exception as e:
             elapsed_ms = int((time.time() - start_time) * 1000)
-            _logger.exception("Impossible de contacter l'API RAG MIRO: %s", e)
-            err_msg = f"Impossible de contacter le serveur RAG MIRO ({api_url}). Vérifiez que le backend FastAPI est lancé (ex: uvicorn api.main:app --port 8000)."
+            _logger.exception("Impossible de contacter l'API : %s", e)
+            err_msg = f"Impossible de contacter le serveur  ({api_url}). Vérifiez que le backend FastAPI est lancé."
             try:
                 request.env['miro.ai.log'].sudo().log_query(
                     question=question.strip(),

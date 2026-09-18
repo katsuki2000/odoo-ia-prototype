@@ -222,7 +222,8 @@ class TestAnalyzeServerActionsWrapperRecordsEvidence:
             lambda G, model_name: [("server_action:x.y", {"xml_id": "x.y", "code": "pass"})],
         )
         monkeypatch.setattr(
-            "code_intelligence.agent.tools.analysis._trace_invoked_methods", lambda G, model_name, code: ""
+            "code_intelligence.agent.tools.analysis._trace_invoked_methods_with_citations",
+            lambda G, model_name, code: ("", []),
         )
         monkeypatch.setattr(
             "code_intelligence.rules.server_actions.analyze_server_action_code",

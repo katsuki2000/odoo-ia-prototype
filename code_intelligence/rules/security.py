@@ -33,14 +33,33 @@ class SecurityLockASTVisitor(ast.NodeVisitor):
         self.required_groups: List[str] = []
         self.required_group_methods: List[str] = []
         self.required_group_linenos: List[int] = []
+        self.required_group_is_gating: List[bool] = []
         self.static_filters: List[Tuple[str, str, int, int]] = []
         self._if_test_stack: List[ast.expr] = []
         self._function_stack: List[str] = []
         self._local_var_defs: List[Dict[str, ast.expr]] = []
+        # section 825 (ACC-Q2, account.move._check_fiscalyear_lock_date):
+        # gating_stack[-1] is True iff the innermost enclosing `if` we are
+        # currently inside has a Raise(ValidationError/UserError/...) node
+        # somewhere in ITS OWN body/orelse -- i.e. this `if`'s condition
+        # actually determines whether the raise fires. A has_group()/
+        # user_has_groups() call found while gating_stack[-1] is False sits
+        # inside an `if` that only builds/selects an error MESSAGE STRING
+        # (assignments only), with the actual `raise` happening later,
+        # unconditionally, as a sibling statement outside that `if` -- the
+        # group check does not gate whether the action is blocked at all.
+        self._gating_stack: List[bool] = []
 
     def visit_If(self, node: ast.If):
         self._if_test_stack.append(node.test)
+        has_raise_in_branches = any(
+            isinstance(n, ast.Raise)
+            for stmt in (node.body + node.orelse)
+            for n in ast.walk(stmt)
+        )
+        self._gating_stack.append(has_raise_in_branches)
         self.generic_visit(node)
+        self._gating_stack.pop()
         self._if_test_stack.pop()
 
     def visit_FunctionDef(self, node: ast.FunctionDef):
@@ -210,6 +229,9 @@ class SecurityLockASTVisitor(ast.NodeVisitor):
                     self.required_groups.append(group_xmlid)
                     self.required_group_methods.append(self._current_method_name())
                     self.required_group_linenos.append(node.lineno)
+                    self.required_group_is_gating.append(
+                        self._gating_stack[-1] if self._gating_stack else True
+                    )
 
         if isinstance(node.func, ast.Attribute) and node.func.attr == "user_has_groups":
             # user_has_groups(groups) takes ONE comma-separated string arg,
@@ -228,6 +250,9 @@ class SecurityLockASTVisitor(ast.NodeVisitor):
                         self.required_groups.append(group_xmlid)
                         self.required_group_methods.append(self._current_method_name())
                         self.required_group_linenos.append(node.lineno)
+                        self.required_group_is_gating.append(
+                            self._gating_stack[-1] if self._gating_stack else True
+                        )
 
         if isinstance(node.func, ast.Attribute) and node.func.attr == "ref":
             if node.args and isinstance(node.args[0], ast.Constant) and isinstance(node.args[0].value, str):
@@ -238,6 +263,7 @@ class SecurityLockASTVisitor(ast.NodeVisitor):
                         self.required_groups.append(group_xmlid)
                         self.required_group_methods.append(self._current_method_name())
                         self.required_group_linenos.append(node.lineno)
+                        self.required_group_is_gating.append(True)
 
         self.generic_visit(node)
 
@@ -295,6 +321,7 @@ class PythonSecurityLockAnalysis:
     required_groups: List[str] = field(default_factory=list)
     required_group_methods: List[str] = field(default_factory=list)
     required_group_linenos: List[int] = field(default_factory=list)
+    required_group_is_gating: List[bool] = field(default_factory=list)
     static_filters: List[Tuple[str, str, int, int]] = field(default_factory=list)
     security_warnings: List[str] = field(default_factory=list)
     confidence: str = "high"
@@ -340,6 +367,7 @@ def analyze_python_security_locks(code: str, filepath: str) -> PythonSecurityLoc
         result.required_groups = visitor.required_groups
         result.required_group_methods = visitor.required_group_methods
         result.required_group_linenos = visitor.required_group_linenos
+        result.required_group_is_gating = visitor.required_group_is_gating
         result.static_filters = visitor.static_filters
 
     except SyntaxError:
@@ -375,6 +403,10 @@ def analyze_python_security_locks(code: str, filepath: str) -> PythonSecurityLoc
                 result.required_groups.append(group_xmlid)
                 result.required_group_methods.append("")
                 result.required_group_linenos.append(0)
+                # Regex fallback has no AST/control-flow information to
+                # determine gating (section 825) -- default to True (the
+                # pre-825 behavior) rather than assert a claim we can't verify.
+                result.required_group_is_gating.append(True)
         for groups_arg in _USER_HAS_GROUPS_PATTERN.findall(code):
             for part in groups_arg.split(","):
                 group_xmlid = part.strip().lstrip("!")
@@ -382,6 +414,7 @@ def analyze_python_security_locks(code: str, filepath: str) -> PythonSecurityLoc
                     result.required_groups.append(group_xmlid)
                     result.required_group_methods.append("")
                     result.required_group_linenos.append(0)
+                    result.required_group_is_gating.append(True)
 
     result.evidence = build_security_lock_evidence(
         filepath,
@@ -393,6 +426,7 @@ def analyze_python_security_locks(code: str, filepath: str) -> PythonSecurityLoc
         required_groups=result.required_groups,
         required_group_methods=result.required_group_methods,
         required_group_linenos=result.required_group_linenos,
+        required_group_is_gating=result.required_group_is_gating,
         dynamic_dispatch_types=result.dynamic_dispatch_types,
     )
 
