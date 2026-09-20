@@ -169,3 +169,52 @@ class TestStripCoreOnlyGroupMentions:
     def test_noop_when_no_groups_at_all_in_raw_output(self):
         answer = "Réponse sans aucun groupe cité."
         assert _strip_core_only_group_mentions(answer, "aucune donnée") == answer
+
+
+# Section 849: several DISTINCT core-only groups grounded at once (ACC-Q1 --
+# an ACL write group and an unrelated approval-workflow group), alongside one
+# competing custom-module group. These are independent facts, not a 1-for-1
+# override, so nothing should be stripped.
+_RAW_MULTIPLE_CORE_ONLY = """\
+Analyse des verrous Python ([account_move.py:L1-L5238](file:///fake/odoo-17.0/addons/account/models/account_move.py#L1-L5238)) [Confiance: HIGH]:
+  - Groupe(s) technique(s) requis detecte(s) (has_group): account.group_account_invoice, base.group_portal
+
+Analyse des verrous Python ([account_move.py:L13-L22](file:///fake/odoo_addons/custom_credit_note_approval/models/account_move.py#L13-L22)) [Confiance: HIGH]:
+  - Groupe(s) technique(s) requis detecte(s) (has_group): custom_credit_note_approval.group_approval_regional
+"""
+
+
+class TestMultipleCoreOnlyGroupsSection849:
+    def test_grounded_core_only_groups_bails_out_when_several_distinct(self):
+        answer = (
+            "Le groupe `account.group_account_invoice` porte l'ACL d'écriture. "
+            "Le groupe `base.group_portal` est également mentionné. "
+            "Le groupe `custom_credit_note_approval.group_approval_regional` "
+            "gouverne la surcharge régionale."
+        )
+        assert _grounded_core_only_groups(answer, _RAW_MULTIPLE_CORE_ONLY) == []
+
+    def test_strip_is_noop_when_several_distinct_core_only_groups(self):
+        answer = (
+            "Le groupe `account.group_account_invoice` porte l'ACL d'écriture "
+            "(finding indépendant, non concurrent).\n\n"
+            "Le groupe `base.group_portal` est également mentionné.\n\n"
+            "Le groupe `custom_credit_note_approval.group_approval_regional` "
+            "gouverne la surcharge régionale."
+        )
+        result = _strip_core_only_group_mentions(answer, _RAW_MULTIPLE_CORE_ONLY)
+        assert result == answer
+        assert "account.group_account_invoice" in result
+        assert "base.group_portal" in result
+
+    def test_single_core_only_still_stripped_when_only_one(self):
+        """Regression: the pre-849 clean 1-vs-1 scenario must be untouched --
+        this section only adds a bail-out for the MULTIPLE case."""
+        result = _strip_core_only_group_mentions(
+            "Le groupe `account.group_account_manager` peut valider.\n\n"
+            "Le groupe `custom_credit_note_approval.group_approval_regional` "
+            "est requis pour la surcharge régionale.",
+            _RAW_CORE_AND_CUSTOM,
+        )
+        assert "account.group_account_manager" not in result
+        assert "custom_credit_note_approval.group_approval_regional" in result

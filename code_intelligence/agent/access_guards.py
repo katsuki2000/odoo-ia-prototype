@@ -70,7 +70,21 @@ _SENTENCE_SPLIT_RE = re.compile(
 
 
 def _grounded_core_only_groups(final_answer: str, scoped_tool_output: str) -> List[str]:
-    """Find group XML-IDs grounded only in core Odoo when a custom override also exists."""
+    """Find group XML-IDs grounded only in core Odoo when a custom override also exists.
+
+    Section 849 (todo/contexte.txt): this heuristic was designed and tested
+    for exactly one scenario -- a single core-only group superseded by a
+    single competing custom-module group deciding the SAME thing (see
+    test_bloc9_07_core_only_group_stripping.py). When several DISTINCT
+    core-only groups are grounded at once (e.g. a write-ACL group and an
+    unrelated approval-workflow group), that is evidence they are
+    independent facts, not a 1-for-1 override -- stripping any of them then
+    silently deletes a correct, unrelated finding (ACC-Q1, section 848/849:
+    account.group_account_invoice, an ACL fact, wrongly stripped because a
+    custom module happened to exist for a different, unrelated approval
+    workflow). Bail out entirely rather than guess which of several
+    core-only groups (if any) is actually superseded.
+    """
     grounded = set(_extract_required_groups(scoped_tool_output))
     if not grounded:
         return []
@@ -80,7 +94,10 @@ def _grounded_core_only_groups(final_answer: str, scoped_tool_output: str) -> Li
     if not custom_grounded:
         return []
     mentioned = set(_GROUP_XMLID_RE.findall(final_answer))
-    return sorted((mentioned & grounded) - custom_grounded)
+    core_only = sorted((mentioned & grounded) - custom_grounded)
+    if len(core_only) > 1:
+        return []
+    return core_only
 
 
 def _strip_core_only_group_mentions(final_answer: str, scoped_tool_output: str) -> str:
