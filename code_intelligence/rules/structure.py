@@ -7,11 +7,14 @@ Multi-hop dependency and downstream impact analysis for computed fields in Odoo 
 from collections import deque
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Set, Tuple
+import logging
 import networkx as nx
 
 from code_intelligence.rules.common import NOT_FOUND_MARKER
 from code_intelligence.rules.ontology import tags_for_node_attrs
 from core.evidence.evidence import Evidence, EvidenceSourceType, make_evidence
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -404,3 +407,96 @@ def trace_full_inheritance(
         evidence=_build_inheritance_evidence(model_name, extension_parents, delegation_parents),
         declaration_sites=declaration_sites,
     )
+
+
+# ── Module-Extension Negation Guard (Section 838, point 4) ──────────────
+
+# Ground-truth models a module EXTENDS (not declares), pulled from
+# list_involved_modules' module-mode sentence: "Module 'X' defines or
+# extends the following models: modelA (declares), modelB (extends), ...".
+_MODULE_DEFINES_EXTENDS_RE = re.compile(
+    r"Module '([\w.]+)' defines or extends the following models: (.+?\))\."
+)
+
+# Sentence-level denial that a module extends anything outside its own
+# perimeter (todo/contexte.txt sections 809-836, recurring on ACC-Q3/STK-Q3:
+# "n'etend pas ... hors de son perimetre", "pas ... extension ... hors de").
+# Operates on accent-folded, lowercased text -- same convention as
+# overrides._OVERRIDE_COUNT_DENIAL_RE.
+_MODULE_EXTENSION_DENIAL_RE = re.compile(
+    r"[^.\n]*(?:n['\u2019]\s*etend\s+pas|ne\s+s['\u2019]?\s*etend\s+pas|ne\s+modifie\s+pas|"
+    r"pas[^.\n]{0,20}extension)[^.\n]*(?:perimetre|hors\s+de|en\s+dehors\s+de)[^.\n]*\.?"
+)
+
+
+def _extract_module_extended_models(raw_tool_output: str, module_name: str = "") -> List[str]:
+    """Models a module EXTENDS (role 'extends', not 'declares'), read from
+    list_involved_modules' module-mode output. Optionally scoped to one
+    module when several module-mode calls appear in the same turn."""
+    extended: List[str] = []
+    for mod, entries_str in _MODULE_DEFINES_EXTENDS_RE.findall(raw_tool_output):
+        if module_name and mod != module_name:
+            continue
+        for entry in entries_str.split(","):
+            entry = entry.strip()
+            if entry.endswith("(extends)"):
+                model = entry[: -len("(extends)")].strip()
+                if model and model not in extended:
+                    extended.append(model)
+    return extended
+
+
+def _answer_denies_module_extension(final_answer: str) -> bool:
+    """True if final_answer explicitly claims the module extends nothing
+    outside its own perimeter."""
+    from code_intelligence.rules.group_resolver import _fold_accents
+    folded = _fold_accents(final_answer.lower())
+    return bool(_MODULE_EXTENSION_DENIAL_RE.search(folded))
+
+
+def _neutralize_module_extension_denial(final_answer: str, extended_models: List[str]) -> str:
+    """Replace the sentence denying any out-of-perimeter extension with the
+    real extended-model list."""
+    from code_intelligence.rules.group_resolver import _fold_accents
+    folded = _fold_accents(final_answer.lower())
+    match = _MODULE_EXTENSION_DENIAL_RE.search(folded)
+    if not match:
+        return final_answer
+
+    models_list = ", ".join(f"'{m}'" for m in extended_models)
+    replacement = (
+        f"En réalité, ce module étend bien {len(extended_models)} modèle(s) "
+        f"hors de son propre périmètre : {models_list}."
+    )
+    start, end = match.span()
+    return final_answer[:start] + replacement + final_answer[end:]
+
+
+def _correct_module_extension_contradiction(final_answer: str, raw_tool_output: str, question: str = "") -> str:
+    """Section 838 (point 4, ACC-Q3/STK-Q3 negation pattern documented in
+    todo/contexte.txt sections 809-836): mirrors
+    overrides._correct_override_cascade_contradictions. Prompt instructions
+    alone were repeatedly shown not to prevent this exact pattern (section
+    825) -- only a post-hoc mechanical correction against
+    list_involved_modules' own structured (extends) findings reliably
+    catches it."""
+    if question:
+        from code_intelligence.agent.context_extractors import _question_is_inheritance_related
+        if not _question_is_inheritance_related(question):
+            return final_answer
+
+    extended = _extract_module_extended_models(raw_tool_output)
+    if not extended:
+        return final_answer
+
+    if _answer_denies_module_extension(final_answer):
+        logger.warning(
+            "Node [code_intelligence_agent]: synthesis denied that the "
+            "module extends any model outside its own perimeter while "
+            "list_involved_modules reported %d such extension(s) -- "
+            "replacing the denial sentence with the real module list: %s",
+            len(extended), extended,
+        )
+        final_answer = _neutralize_module_extension_denial(final_answer, extended)
+
+    return final_answer

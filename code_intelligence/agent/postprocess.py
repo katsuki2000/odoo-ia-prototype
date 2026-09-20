@@ -48,6 +48,7 @@ from code_intelligence.rules.overrides import (
     _correct_override_cascade_contradictions,
     _backfill_missing_unguarded_super,
 )
+from code_intelligence.rules.structure import _correct_module_extension_contradiction
 from code_intelligence.agent.context import _EXECUTION_FAILURE_NOTICE, _CI_TOOL_DISPLAY_NAMES
 from code_intelligence.agent.context import DispatchContext
 
@@ -91,6 +92,7 @@ def _apply_backfill_chain(
     final_answer = _backfill_missing_security_lock_amount(final_answer, scoped_tool_output, question=question)
     final_answer = _backfill_missing_override_modules(final_answer, scoped_tool_output, question=question)
     final_answer = _correct_override_cascade_contradictions(final_answer, scoped_tool_output)
+    final_answer = _correct_module_extension_contradiction(final_answer, scoped_tool_output, question=question)
     final_answer = _backfill_missing_override_chain_amount(final_answer, scoped_tool_output)
     final_answer = _backfill_missing_trigger_condition_literals(final_answer, scoped_tool_output)
     final_answer = _backfill_missing_hardcoded_id_literals(final_answer, scoped_tool_output)
