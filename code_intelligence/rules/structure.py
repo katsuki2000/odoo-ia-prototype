@@ -414,8 +414,14 @@ def trace_full_inheritance(
 # Ground-truth models a module EXTENDS (not declares), pulled from
 # list_involved_modules' module-mode sentence: "Module 'X' defines or
 # extends the following models: modelA (declares), modelB (extends), ...".
+# Captures to end-of-line (not up to a closing '.') because this list can
+# be long enough to hit the tool's own observation truncation cap before
+# ever reaching the sentence's final period -- requiring that period would
+# silently drop every entry, including the ones that arrived intact before
+# the cut (verified directly on 'account', whose full list runs well past
+# 3000 chars: the truncated observation never contains a trailing '.').
 _MODULE_DEFINES_EXTENDS_RE = re.compile(
-    r"Module '([\w.]+)' defines or extends the following models: (.+?\))\."
+    r"Module '([\w.]+)' defines or extends the following models: (.+)"
 )
 
 # Sentence-level denial that a module extends anything outside its own
@@ -437,7 +443,7 @@ def _extract_module_extended_models(raw_tool_output: str, module_name: str = "")
     for mod, entries_str in _MODULE_DEFINES_EXTENDS_RE.findall(raw_tool_output):
         if module_name and mod != module_name:
             continue
-        for entry in entries_str.split(","):
+        for entry in entries_str.rstrip(".").split(","):
             entry = entry.strip()
             if entry.endswith("(extends)"):
                 model = entry[: -len("(extends)")].strip()
