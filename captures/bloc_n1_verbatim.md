@@ -1,6 +1,6 @@
 # Rapport Verbatim -- Bloc N1 (banc de questions natif)
 
-**Date d'execution :** 2026-09-20 13:58:47
+**Date d'execution :** 2026-09-20 14:24:19
 
 **Objectif :** rejouer les questions verite-terrain des 5 modules natifs (maintenance, purchase, sale, stock, account) contre l'agent Code Intelligence reel et capturer la reponse verbatim pour comparaison manuelle avec `reference_answer` -- aucune notation automatique.
 
@@ -12,50 +12,37 @@
 | Questions executees | 1 |
 | Erreurs d'execution | 0 |
 | Ecarts de couverture d'outils (expected_tools non tous invoques) | 1 |
-| p50 latence effective | `4.46s` |
-| p90 latence effective | `4.46s` (budget `12.0s`,  RESPECTE) |
-| Moyenne | `4.46s` |
-| Max | `4.46s` |
+| p50 latence effective | `6.34s` |
+| p90 latence effective | `6.34s` (budget `12.0s`,  RESPECTE) |
+| Moyenne | `6.34s` |
+| Max | `6.34s` |
 
 ---
 
-## [ACC-Q2] account -- workflow (hard)
-**Question :** Un 'Billing Administrator' (group_account_manager) peut-il poster une ecriture comptable dont la date est anterieure ou egale a la date de cloture (lock date) de la societe ?
+## [ACC-Q1] account -- security (hard)
+**Question :** L'ACL directe de account.group_account_manager sur account.move n'accorde que perm_read=1 (aucune ecriture/creation/suppression). Un 'Billing Administrator' (group_account_manager) peut-il malgre tout creer et modifier des factures ?
 
 **Reponse de reference (verite-terrain) :**
-> Non, meme un manager en est empeche : _check_fiscalyear_lock_date() compare la date du mouvement a company._get_user_fiscal_lock_date() et leve un UserError des que date <= lock_date, sans aucune exception de groupe -- le seul effet du groupe est le libelle du message d'erreur (le manager recoit un message plus court, un non-manager est en plus invite a solliciter quelqu'un ayant le role 'Adviser'). Le blocage lui-meme est absolu : la seule issue est de faire reculer la lock_date via la configuration societe, pas de contourner la verification par un role plus eleve.
+> Oui : access_account_move_manager est bien limite a la lecture seule, mais group_account_manager a implied_ids=[group_account_invoice], et access_account_move_uinvoice accorde a group_account_invoice les 4 permissions completes (1,1,1,1). Le manager herite donc du CRUD complet via ce groupe implique, pas via son propre ACL direct -- lire uniquement l'ACL 'manager' donne une image trompeuse (lecture seule) ; il faut evaluer la fermeture transitive des implied_ids pour connaitre les droits reels.
 
-**A verifier dans le code :** `models/account_move.py : _check_fiscalyear_lock_date() (verifie user_has_groups('account.group_account_manager') uniquement pour choisir le texte du message, pas pour lever une exception au blocage)`
+**A verifier dans le code :** `security/ir.model.access.csv (access_account_move_manager vs access_account_move_uinvoice) + security/account_security.xml (group_account_manager implied_ids=[group_account_invoice])`
 
-**Outils attendus :** ['describe_workflow', 'read_source_code'] | **Outils invoques :** ['analyze_security_locks', 'who_has_access_to', 'evaluate_record_rules', 'button_execution_path', 'button_execution_path'] -- MANQUANT(S): ['describe_workflow', 'read_source_code']
+**Outils attendus :** ['who_has_access_to', 'evaluate_record_rules', 'read_source_code'] | **Outils invoques :** ['analyze_security_locks', 'who_has_access_to', 'evaluate_record_rules', 'button_execution_path'] -- MANQUANT(S): ['read_source_code']
 
-**Reponse verbatim de l'agent (Total: 4.46s | Effectif: 4.46s | Groq wait: 0.0s | Sauts: 5) :**
+**Reponse verbatim de l'agent (Total: 16.27s | Effectif: 6.338s | Groq wait: 9.935s | Sauts: 4) :**
 ```text
-### Réponse
+**Réponse :**  
+Oui, un utilisateur appartenant au groupe **`account.group_account_manager`** (Billing Administrator) peut créer et modifier des factures (`account.move`).  
 
-Non.  
-Même un **Billing Administrator** (groupe `account.group_account_manager`) ne peut pas enregistrer une écriture comptable dont la date est antérieure ou égale à la date de clôture (lock date) de la société.
+**Pourquoi ?**  
 
-**Pourquoi ?**
+1. **ACL**  
+   - L’ACL directe sur `account.move` ne donne que `perm_read=1`.  
+   - Dans la matrice d’accès, on voit que **`account.group_account_manager`** possède les droits **WRITE**, **CREATE** et **UNLINK** sur `account.move` grâce à cette inclusion (voir la section *Access Matrix for 'account.move'*).  
 
-- La règle de verrouillage fiscal est implémentée dans la méthode `_check_fiscalyear_lock_date` du modèle `account.move`.  
-- Le code vérifie :  
-  ```python
-  if move.date <= move.company_id._get_user_fiscal_lock_date():
-      raise UserError(...)
-  ```  
-  Cette condition est indépendante du groupe d’utilisateur ; elle s’applique à **tous** les utilisateurs, quel que soit leur rôle.  
-  - La présence de `has_group('account.group_account_manager')` dans la même méthode ne rend pas la vérification conditionnelle ; elle ne sert qu’à sélectionner le texte du message d’erreur.  
-  - Le `raise` se déclenche toujours si la date est antérieure ou égale à la date de verrouillage, bloquant l’opération pour tout utilisateur.
-
-**Références**  
-- [account_move.py:L1987-L1987](file:///media/donnee/Programs/odoo-17.0/addons/account/models/account_move.py#L1987-L1987) – appel de `has_group` (non conditionnel).  
-- [account_move.py:L1991-L1991](file:///media/donnee/Programs/odoo-17.0/addons/account/models/account_move.py#L1991-L1991) – levée d’exception si la date est ≤ lock date.
-
-En résumé, la date de clôture est une restriction globale qui ne dépend pas du groupe `account.group_account_manager`. Toute tentative d’enregistrer une écriture avant cette date sera bloquée.
-
- SOURCING NON VÉRIFIÉ : bloc(s) de code présenté(s) comme réel(s) sans aucune citation file:// à proximité (possible invention): if move.date <= move.company_id._get_user_fiscal_lock_date():
-      raise UserError(...). Ne pas considérer ces éléments comme confirmés pour cette question.
+2. **Règles d’enregistrement (ir.rule)**  
+   - Aucune règle d’enregistrement ne cible spécifiquement `account.group_account_manager`.  
+   - Seules des règles globales s’appliquent (ex. `Account Entry`, `Avoirs - cantonnement societe`, etc.), mais aucune d’elles ne restreint la création ou la modification pour ce groupe.
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```

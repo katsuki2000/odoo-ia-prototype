@@ -310,8 +310,8 @@ def _has_elevated_access(G: nx.DiGraph, model_name: str, user_groups: List[str])
             for ug in expanded_groups
         )
 
-    write_groups, write_auth, _ = _eval_single_permission(G, model_name, "write")
-    unlink_groups, unlink_auth, _ = _eval_single_permission(G, model_name, "unlink")
+    write_groups, write_auth, *_ = _eval_single_permission(G, model_name, "write")
+    unlink_groups, unlink_auth, *_ = _eval_single_permission(G, model_name, "unlink")
 
     if write_auth or unlink_auth:
         # ACL grants the right to all authenticated users -- not gated.
@@ -345,8 +345,8 @@ def _find_elevating_group(G: nx.DiGraph, model_name: str, user_groups: List[str]
                 return resolved
         return None
 
-    write_groups, write_auth, _ = _eval_single_permission(G, model_name, "write")
-    unlink_groups, unlink_auth, _ = _eval_single_permission(G, model_name, "unlink")
+    write_groups, write_auth, *_ = _eval_single_permission(G, model_name, "write")
+    unlink_groups, unlink_auth, *_ = _eval_single_permission(G, model_name, "unlink")
     if write_auth or unlink_auth:
         return None  # Elevated for everyone -- not a distinguishing fact.
 

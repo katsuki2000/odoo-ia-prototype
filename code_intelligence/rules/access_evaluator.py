@@ -96,11 +96,15 @@ def _eval_single_permission(G: nx.DiGraph, model_name: str, permission: str, gro
     perm_attr = f"perm_{permission}" if permission in {"read", "write", "create", "unlink"} else "perm_read"
 
     if model_node not in G:
-        return set(), False, []
+        return set(), False, [], {}
 
     allowed_groups: Set[str] = set()
     all_authenticated = False
     active_rules: List[RuleDetail] = []
+    # Section 848: {inheriting_group: direct_acl_group} -- which groups in
+    # allowed_groups got there only via implied_ids, and which direct ACL
+    # they inherited it from. Empty for groups that hold the ACL themselves.
+    inherited_via: Dict[str, str] = {}
 
     for neighbor in G.neighbors(model_node):
         edge_data = G.get_edge_data(model_node, neighbor) or {}
@@ -117,7 +121,7 @@ def _eval_single_permission(G: nx.DiGraph, model_name: str, permission: str, gro
                     if acl_edge.get("edge_type") == "APPLIES_TO_GROUP":
                         grp_xml_id = acl_neighbor.replace("group:", "")
                         allowed_groups.add(grp_xml_id)
-                        _expand_inheriting_acl_groups(G, grp_xml_id, allowed_groups)
+                        inherited_via.update(_expand_inheriting_acl_groups(G, grp_xml_id, allowed_groups))
 
         elif edge_type == "RESTRICTED_BY" and G.nodes[neighbor].get("node_type") == "Rule":
             rule_node = G.nodes[neighbor]
@@ -139,7 +143,19 @@ def _eval_single_permission(G: nx.DiGraph, model_name: str, permission: str, gro
                     )
                 )
 
-    return allowed_groups, all_authenticated, active_rules
+    return allowed_groups, all_authenticated, active_rules, inherited_via
+
+
+def _annotate_inherited(groups: List[str], inherited_via: Dict[str, str]) -> str:
+    """Section 848: render a sorted group list with an inline
+    "(via implied_ids <- X)" annotation on any group present only because
+    it implies another group's direct ACL -- see _expand_inheriting_acl_groups.
+    """
+    parts = []
+    for g in sorted(groups):
+        via = inherited_via.get(g)
+        parts.append(f"{g} (via implied_ids <- {via})" if via else g)
+    return ", ".join(parts)
 
 
 def who_has_access_to(
@@ -170,14 +186,16 @@ def who_has_access_to(
         all_evidence: List[Evidence] = []
 
         for p in ["read", "write", "create", "unlink"]:
-            grps, auth, rules = _eval_single_permission(G, model_name, p, group_id)
+            grps, auth, rules, inherited_via = _eval_single_permission(G, model_name, p, group_id)
             all_allowed.update(grps)
             all_rules.extend(rules)
             if auth:
                 all_auth = True
             all_evidence.extend(_build_access_evidence(model_name, p, grps, auth, rules, group_id))
 
-            grp_str = "All authenticated users" if auth else (", ".join(sorted(grps)) if grps else "None")
+            # Section 848: annotate any group present only via implied_ids
+            # inheritance, not its own direct ACL -- see _annotate_inherited.
+            grp_str = "All authenticated users" if auth else (_annotate_inherited(list(grps), inherited_via) if grps else "None")
             _grp_citations = format_xml_id_citations(sorted(grps)) if (grps and not auth) else ""
             _grp_suffix = f" ({_grp_citations})" if _grp_citations else ""
             rights_summary.append(f"[{p.upper()}]: {grp_str} (Rules: {len(rules)}){_grp_suffix}")
@@ -195,7 +213,7 @@ def who_has_access_to(
         )
 
     # Single permission evaluation
-    allowed_groups, all_authenticated, active_rules = _eval_single_permission(G, model_name, permission, group_id)
+    allowed_groups, all_authenticated, active_rules, inherited_via = _eval_single_permission(G, model_name, permission, group_id)
 
     if group_id:
         resolved_group_id = resolve_group_identifier(G, group_id, list(allowed_groups)) if allowed_groups else None
@@ -210,8 +228,11 @@ def who_has_access_to(
             has_access = all_authenticated or (resolved_group_id is not None)
             display_id = resolved_group_id or group_id
             _display_citation = format_xml_id_citation(display_id)
+            # Section 848: same implied_ids annotation for the single-group query.
+            _via = inherited_via.get(display_id) if resolved_group_id else None
+            _via_suffix = f" (via implied_ids <- {_via})" if _via else ""
             summary = (
-                f"Group '{display_id}' HAS {permission.upper()} access to '{model_name}'. ({_display_citation})"
+                f"Group '{display_id}' HAS {permission.upper()} access to '{model_name}'{_via_suffix}. ({_display_citation})"
                 if has_access
                 else f"Group '{display_id}' DOES NOT HAVE {permission.upper()} access to '{model_name}'. ({_display_citation})"
             )
@@ -219,7 +240,7 @@ def who_has_access_to(
         if all_authenticated:
             grp_str = "All authenticated users"
         elif allowed_groups:
-            grp_str = ", ".join(sorted(allowed_groups))
+            grp_str = _annotate_inherited(list(allowed_groups), inherited_via)
         else:
             grp_str = "No groups explicitly granted"
 

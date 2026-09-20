@@ -6,7 +6,7 @@ for Odoo res.groups (implied_ids / IMPLIES edges).
 """
 
 import unicodedata
-from typing import List, Optional, Set
+from typing import Dict, List, Optional, Set
 import networkx as nx
 from rapidfuzz import fuzz
 
@@ -125,7 +125,13 @@ def _expand_implied_user_groups(G: nx.DiGraph, user_group: str, user_group_set: 
                 _expand_implied_user_groups(G, broader_group_id, user_group_set)
 
 
-def _expand_inheriting_acl_groups(G: nx.DiGraph, acl_group: str, allowed_groups: Set[str]):
+def _expand_inheriting_acl_groups(
+    G: nx.DiGraph,
+    acl_group: str,
+    allowed_groups: Set[str],
+    inherited_via: Optional[Dict[str, str]] = None,
+    _root_acl_group: Optional[str] = None,
+) -> Dict[str, str]:
     """
     Recursively add every higher-privilege group that IMPLIES acl_group.
 
@@ -134,14 +140,36 @@ def _expand_inheriting_acl_groups(G: nx.DiGraph, acl_group: str, allowed_groups:
     When an ACL grants permission to acl_group, any higher_group that implies
     acl_group automatically inherits that ACL permission. Reached by walking
     INCOMING IMPLIES edges to acl_group.
+
+    Section 848: also returns `inherited_via` -- a {higher_group: root_acl_group}
+    map recording, for every group added ONLY because it implies acl_group
+    (not because it has the ACL itself), which group actually holds the direct
+    ACL. Without this, a flat `allowed_groups` set cannot distinguish "has the
+    ACL" from "inherits it via implied_ids" -- observed directly on ACC-Q1
+    (account.move, WRITE/CREATE/UNLINK): account.group_account_manager's own
+    direct ACL is perm_read=1 only, the actual grant belongs to
+    account.group_account_invoice which it implies, but the flat set put both
+    on equal footing, and the LLM then stated the manager "possede" the
+    write/create/unlink rights directly, contradicting the question's own
+    (correct) premise and never mentioning the implied_ids mechanism the
+    reference answer calls essential.
     """
+    if inherited_via is None:
+        inherited_via = {}
+    if _root_acl_group is None:
+        _root_acl_group = acl_group
+
     group_node = f"group:{acl_group}"
     if group_node not in G:
-        return
+        return inherited_via
 
     for higher_node, _, edge_data in G.in_edges(group_node, data=True):
         if edge_data.get("edge_type") == "IMPLIES":
             higher_group_id = higher_node.replace("group:", "")
             if higher_group_id not in allowed_groups:
                 allowed_groups.add(higher_group_id)
-                _expand_inheriting_acl_groups(G, higher_group_id, allowed_groups)
+                inherited_via[higher_group_id] = _root_acl_group
+                _expand_inheriting_acl_groups(
+                    G, higher_group_id, allowed_groups, inherited_via, _root_acl_group
+                )
+    return inherited_via
