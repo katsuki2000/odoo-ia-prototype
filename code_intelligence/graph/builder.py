@@ -157,17 +157,26 @@ class OdooGraphBuilder:
 
             decl_modules = self.registry.model_modules.get(model_name, [])
             module_roles: Dict[str, str] = {}
+            filepath_roles: Dict[str, str] = {}
             for d, mod_name in zip(decls, decl_modules):
-                if module_roles.get(mod_name) == "declares":
-                    continue
-                module_roles[mod_name] = (
-                    "declares" if _declares_model(d, model_name) else "extends"
-                )
+                decl_role = "declares" if _declares_model(d, model_name) else "extends"
+                if module_roles.get(mod_name) != "declares":
+                    module_roles[mod_name] = decl_role
+                # todo/contexte.txt section 822/853: same per-declaration
+                # role, but keyed by filepath instead of module, so a
+                # downstream consumer (trace_full_inheritance) can label
+                # each individual FILE correctly ("Declared in" vs
+                # "Extended in") instead of re-guessing the role per file
+                # via a _name/_inherit regex scan that can't distinguish
+                # the two idioms as reliably as this already-computed flag.
+                if d.filepath and filepath_roles.get(d.filepath) != "declares":
+                    filepath_roles[d.filepath] = decl_role
             for mod_name, role in module_roles.items():
                 self.G.add_edge(
                     model_node_id, f"module:{mod_name}",
                     edge_type="DEFINED_IN", role=role,
                 )
+            self.G.nodes[model_node_id]["filepath_roles"] = filepath_roles
 
             for parent_model in all_inherits:
                 parent_node_id = f"model:{parent_model}"

@@ -1,8 +1,8 @@
 {
   "metadata": {
-    "git_commit": "a42ca9c",
+    "git_commit": "afa719b",
     "addons_hash": "",
-    "generated_at": "2026-09-18T19:19:12.965790+00:00",
+    "generated_at": "2026-09-20T12:24:23.731586+00:00",
     "graph_schema_version": 3,
     "node_count": 14736,
     "edge_count": 14784
@@ -412,6 +412,11 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/account/demo/account_demo.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/account/models/chart_template.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/addons/account/models/template_generic_coa.py": "extends"
+        },
         "id": "model:account.chart.template"
       },
       {
@@ -1471,6 +1476,16 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/account/models/account_move_line.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/addons/account/models/account_move_line_tax_details.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/sale/models/account_move_line.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/purchase/models/account_invoice.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/hr_expense/models/account_move_line.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/purchase_stock/models/account_move_line.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/sale_stock/models/account_move.py": "extends",
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/account-invoicing/account_invoice_section_sale_order/models/account_move.py": "extends"
+        },
         "id": "model:account.move.line"
       },
       {
@@ -1539,6 +1554,22 @@
           "workflow_rule"
         ],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/account/models/account_bank_statement_line.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/account/models/account_move.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/addons/account/models/account_payment.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/account/populate/account_move.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/sale/models/account_move.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/purchase/models/account_invoice.py": "extends",
+          "/media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_credit_note_approval/models/account_move.py": "extends",
+          "/media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_credit_note_approval_regional/models/account_move.py": "extends",
+          "/media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_credit_note_approval_vip/models/account_move.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/hr_expense/models/account_move.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/purchase_stock/models/account_invoice.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/sale_stock/models/account_move.py": "extends",
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/sale-workflow/sale_order_type/models/account_move.py": "extends",
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/account-invoicing/account_invoice_section_sale_order/models/account_move.py": "extends"
+        },
         "id": "model:account.move"
       },
       {
@@ -1788,6 +1819,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/account/models/account_account.py": "declares"
+        },
         "id": "model:account.account"
       },
       {
@@ -2122,6 +2156,11 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/account/models/res_currency.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/res_currency.py": "declares",
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/sale-workflow/sale_order_type/models/res_currency.py": "extends"
+        },
         "id": "model:res.currency"
       },
       {
@@ -2251,6 +2290,22 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/account/models/partner.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/sale/models/res_partner.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/stock/models/res_partner.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/purchase/models/res_partner.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/res_partner.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/populate/res_partner.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/mail/models/res_partner.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/mail/models/discuss/res_partner.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/hr/models/res_partner.py": "extends",
+          "/media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_credit_note_approval_vip/models/res_partner.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/hr_holidays/models/res_partner.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/purchase_stock/models/res_partner.py": "extends",
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/sale-workflow/sale_order_type/models/res_partner.py": "extends",
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/account-invoicing/account_invoice_section_sale_order/models/res_partner.py": "extends"
+        },
         "id": "model:res.partner"
       },
       {
@@ -2307,6 +2362,10 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/account/models/account_reconcile_model.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/addons/account/populate/account_reconcile_model.py": "extends"
+        },
         "id": "model:account.reconcile.model"
       },
       {
@@ -2347,6 +2406,11 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/account/models/account_payment.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/addons/account/populate/account_payment.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/hr_expense/models/account_payment.py": "extends"
+        },
         "id": "model:account.payment"
       },
       {
@@ -2383,6 +2447,10 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/account/models/account_bank_statement_line.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/addons/account/populate/account_bank_statement.py": "extends"
+        },
         "id": "model:account.bank.statement.line"
       },
       {
@@ -2441,6 +2509,11 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/account/models/account_tax.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/addons/purchase/models/account_tax.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/hr_expense/models/account_tax.py": "extends"
+        },
         "id": "model:account.tax"
       },
       {
@@ -2561,6 +2634,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/account/models/account_tax.py": "declares"
+        },
         "id": "model:account.tax.repartition.line"
       },
       {
@@ -2592,6 +2668,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/account/models/account_account_tag.py": "declares"
+        },
         "id": "model:account.account.tag"
       },
       {
@@ -2749,6 +2828,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/account/models/account_full_reconcile.py": "declares"
+        },
         "id": "model:account.full.reconcile"
       },
       {
@@ -2780,6 +2862,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/account/models/account_partial_reconcile.py": "declares"
+        },
         "id": "model:account.partial.reconcile"
       },
       {
@@ -2973,6 +3058,17 @@
         "description_source": "generated",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/account/models/product.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/sale/models/product_product.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/sale/populate/product.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/stock/models/product.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/stock/populate/product.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/purchase/models/product.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/hr_expense/models/product_product.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/purchase_stock/models/product.py": "extends",
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/stock-logistics-warehouse/stock_archive_constraint/models/product_product.py": "extends"
+        },
         "id": "model:product.product"
       },
       {
@@ -3012,6 +3108,10 @@
         "description_source": "generated",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/account/models/uom_uom.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/stock/models/product.py": "extends"
+        },
         "id": "model:uom.uom"
       },
       {
@@ -3661,6 +3761,10 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/account/models/account_analytic_line.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/sale/models/analytic.py": "extends"
+        },
         "id": "model:account.analytic.line"
       },
       {
@@ -5977,6 +6081,13 @@
           "workflow_rule"
         ],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/sale/models/sale_order_line.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/addons/sale/populate/sale_order.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/sale_stock/models/sale_order_line.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/sale_management/models/sale_order_line.py": "extends",
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/sale-workflow/sale_order_type/models/sale.py": "extends"
+        },
         "id": "model:sale.order.line"
       },
       {
@@ -6129,6 +6240,12 @@
           "workflow_rule"
         ],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/purchase/models/purchase_order_line.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/addons/purchase/populate/purchase.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/purchase_stock/models/purchase_order_line.py": "extends",
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/purchase-workflow/purchase_request/models/purchase_order.py": "extends"
+        },
         "id": "model:purchase.order.line"
       },
       {
@@ -6175,6 +6292,13 @@
           "workflow_rule"
         ],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/purchase/models/purchase_order.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/addons/purchase/populate/purchase.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/purchase_stock/models/purchase_order.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/purchase_stock/populate/purchase_stock.py": "extends",
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/purchase-workflow/purchase_request/models/purchase_order.py": "extends"
+        },
         "id": "model:purchase.order"
       },
       {
@@ -6218,6 +6342,12 @@
           "workflow_rule"
         ],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/hr_expense/models/hr_expense.py": "declares",
+          "/media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_expense_risk_base/models/hr_expense.py": "extends",
+          "/media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_expense_risk_score/models/hr_expense.py": "extends",
+          "/media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_expense_risk_alert/models/hr_expense.py": "extends"
+        },
         "id": "model:hr.expense"
       },
       {
@@ -6463,6 +6593,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/mail/models/mail_thread.py": "declares"
+        },
         "id": "model:mail.thread"
       },
       {
@@ -6855,6 +6988,24 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/account/models/company.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/account/populate/res_company.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/sale/models/res_company.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/stock/models/res_company.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/purchase/models/res_company.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/purchase/populate/purchase.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/res_company.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/populate/res_company.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/mail/models/res_company.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/hr/models/res_company.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/hr_expense/models/res_company.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/purchase_stock/models/res_company.py": "extends",
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/stock-logistics-warehouse/stock_inventory/models/res_company.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/sale_stock/models/res_company.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/sale_management/models/res_company.py": "extends",
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/account-invoicing/account_invoice_section_sale_order/models/res_company.py": "extends"
+        },
         "id": "model:res.company"
       },
       {
@@ -6907,6 +7058,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/account/models/account_account.py": "declares"
+        },
         "id": "model:account.group"
       },
       {
@@ -6963,6 +7117,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/account/models/account_account.py": "declares"
+        },
         "id": "model:account.root"
       },
       {
@@ -7028,6 +7185,13 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/account/models/account_journal.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/addons/account/models/account_journal_dashboard.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/account/populate/account_journal.py": "extends",
+          "/media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_credit_note_approval/models/account_journal.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/hr_expense/models/account_journal_dashboard.py": "extends"
+        },
         "id": "model:account.journal"
       },
       {
@@ -8671,6 +8835,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/res_country.py": "declares"
+        },
         "id": "model:res.country"
       },
       {
@@ -8838,6 +9005,11 @@
         "description_source": "generated",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/account/models/account_analytic_account.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/purchase/models/analytic_account.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/hr_expense/models/analytic.py": "extends"
+        },
         "id": "model:account.analytic.account"
       },
       {
@@ -9101,6 +9273,9 @@
         "description_source": "generated",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/account/models/account_analytic_distribution_model.py": "extends"
+        },
         "id": "model:account.analytic.distribution.model"
       },
       {
@@ -9172,6 +9347,11 @@
         "description_source": "generated",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/account/models/product.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/stock/models/product.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/purchase_stock/models/product.py": "extends"
+        },
         "id": "model:product.category"
       },
       {
@@ -9546,6 +9726,12 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/account/models/account_analytic_plan.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/sale/models/analytic.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/purchase/models/analytic_applicability.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/hr_expense/models/analytic.py": "extends"
+        },
         "id": "model:account.analytic.applicability"
       },
       {
@@ -9683,6 +9869,10 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/account/models/account_bank_statement.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/addons/account/populate/account_bank_statement.py": "extends"
+        },
         "id": "model:account.bank.statement"
       },
       {
@@ -10215,6 +10405,13 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/account/models/ir_attachment.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/ir_attachment.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/addons/mail/models/ir_attachment.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/mail/models/discuss/ir_attachment.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/hr_expense/models/ir_attachment.py": "extends"
+        },
         "id": "model:ir.attachment"
       },
       {
@@ -11360,6 +11557,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/mail/models/mail_thread_main_attachment.py": "declares"
+        },
         "id": "model:mail.thread.main.attachment"
       },
       {
@@ -11374,6 +11574,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/mail/models/mail_activity_mixin.py": "declares"
+        },
         "id": "model:mail.activity.mixin"
       },
       {
@@ -11388,6 +11591,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/account/models/sequence_mixin.py": "declares"
+        },
         "id": "model:sequence.mixin"
       },
       {
@@ -12501,6 +12707,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/account/models/account_payment_term.py": "declares"
+        },
         "id": "model:account.payment.term"
       },
       {
@@ -12763,6 +12972,11 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/account/models/res_partner_bank.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/res_bank.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/addons/hr/models/res_partner.py": "extends"
+        },
         "id": "model:res.partner.bank"
       },
       {
@@ -12819,6 +13033,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/account/models/partner.py": "declares"
+        },
         "id": "model:account.fiscal.position"
       },
       {
@@ -13812,6 +14029,18 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/stock/models/res_users.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/res_users.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/populate/res_user.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/mail/models/res_users.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/mail/models/discuss/res_users.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/hr/models/res_users.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/hr_expense/models/hr_employee.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/hr_holidays/models/res_users.py": "extends",
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/server-ux/base_tier_validation/models/res_users.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/sale_stock/models/res_users.py": "extends"
+        },
         "id": "model:res.users"
       },
       {
@@ -13902,6 +14131,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/account/models/account_incoterms.py": "declares"
+        },
         "id": "model:account.incoterms"
       },
       {
@@ -14008,6 +14240,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/account/models/account_cash_rounding.py": "declares"
+        },
         "id": "model:account.cash.rounding"
       },
       {
@@ -18863,6 +19098,9 @@
         "description_source": "generated",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/sale/models/crm_team.py": "extends"
+        },
         "id": "model:crm.team"
       },
       {
@@ -19050,6 +19288,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/purchase/report/purchase_bill.py": "declares"
+        },
         "id": "model:purchase.bill.union"
       },
       {
@@ -19399,6 +19640,9 @@
           "workflow_rule"
         ],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/hr_expense/models/hr_expense_sheet.py": "declares"
+        },
         "id": "model:hr.expense.sheet"
       },
       {
@@ -19608,6 +19852,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/sale-workflow/sale_order_type/models/sale_order_type.py": "declares"
+        },
         "id": "model:sale.order.type"
       },
       {
@@ -20013,6 +20260,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/account/models/account_journal.py": "declares"
+        },
         "id": "model:account.journal.group"
       },
       {
@@ -20095,6 +20345,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/mail/models/mail_alias_mixin_optional.py": "declares"
+        },
         "id": "model:mail.alias.mixin.optional"
       },
       {
@@ -20536,6 +20789,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/account/models/account_payment_method.py": "declares"
+        },
         "id": "model:account.payment.method.line"
       },
       {
@@ -20734,6 +20990,9 @@
           "workflow_rule"
         ],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/res_bank.py": "declares"
+        },
         "id": "model:res.bank"
       },
       {
@@ -20768,6 +21027,10 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/mail/models/mail_activity_type.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/addons/hr_holidays/models/mail_activity_type.py": "extends"
+        },
         "id": "model:mail.activity.type"
       },
       {
@@ -20867,6 +21130,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/ir_sequence.py": "declares"
+        },
         "id": "model:ir.sequence"
       },
       {
@@ -20902,6 +21168,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/account/models/account_payment_method.py": "declares"
+        },
         "id": "model:account.payment.method"
       },
       {
@@ -22967,6 +23236,12 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/hr/models/hr_department.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/addons/hr/populate/hr.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/hr_expense/models/hr_department.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/hr_holidays/models/hr_department.py": "extends"
+        },
         "id": "model:hr.department"
       },
       {
@@ -25979,6 +26254,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/account/models/account_payment_term.py": "declares"
+        },
         "id": "model:account.payment.term.line"
       },
       {
@@ -26772,6 +27050,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/account/models/account_reconcile_model.py": "declares"
+        },
         "id": "model:account.reconcile.model.partner.mapping"
       },
       {
@@ -26898,6 +27179,10 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/account/models/account_reconcile_model.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/addons/account/populate/account_reconcile_model.py": "extends"
+        },
         "id": "model:account.reconcile.model.line"
       },
       {
@@ -27821,6 +28106,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/res_partner.py": "declares"
+        },
         "id": "model:res.partner.category"
       },
       {
@@ -28073,6 +28361,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/account/models/account_report.py": "declares"
+        },
         "id": "model:account.report"
       },
       {
@@ -28155,6 +28446,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/account/models/account_report.py": "declares"
+        },
         "id": "model:account.report.line"
       },
       {
@@ -28186,6 +28480,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/account/models/account_report.py": "declares"
+        },
         "id": "model:account.report.column"
       },
       {
@@ -28999,6 +29296,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/account/models/account_report.py": "declares"
+        },
         "id": "model:account.report.expression"
       },
       {
@@ -29275,6 +29575,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/ir_actions.py": "declares"
+        },
         "id": "model:ir.actions.actions"
       },
       {
@@ -30337,6 +30640,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/ir_actions.py": "declares"
+        },
         "id": "model:ir.actions.act_window"
       },
       {
@@ -30351,6 +30657,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/account/models/account_report.py": "declares"
+        },
         "id": "model:account.report.external.value"
       },
       {
@@ -30592,6 +30901,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/account/models/account_tax.py": "declares"
+        },
         "id": "model:account.tax.group"
       },
       {
@@ -34401,6 +34713,11 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/stock/models/stock_location.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/addons/stock/populate/stock.py": "extends",
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/stock-logistics-warehouse/stock_archive_constraint/models/stock_location.py": "extends"
+        },
         "id": "model:stock.location"
       },
       {
@@ -34452,6 +34769,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/mail/models/mail_template.py": "declares"
+        },
         "id": "model:mail.template"
       },
       {
@@ -35467,6 +35787,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/res_country.py": "declares"
+        },
         "id": "model:res.country.state"
       },
       {
@@ -35617,6 +35940,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/report_paperformat.py": "declares"
+        },
         "id": "model:report.paperformat"
       },
       {
@@ -35651,6 +35977,10 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/ir_ui_view.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/addons/mail/models/ir_ui_view.py": "extends"
+        },
         "id": "model:ir.ui.view"
       },
       {
@@ -36506,6 +36836,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/mail/models/mail_alias_domain.py": "declares"
+        },
         "id": "model:mail.alias.domain"
       },
       {
@@ -36980,6 +37313,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/sale_management/models/sale_order_template.py": "declares"
+        },
         "id": "model:sale.order.template"
       },
       {
@@ -37048,6 +37384,10 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/account/models/decimal_precision.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/decimal_precision.py": "declares"
+        },
         "id": "model:decimal.precision"
       },
       {
@@ -37211,6 +37551,10 @@
         "description_source": "generated",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/account/models/digest.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/sale_management/models/digest.py": "extends"
+        },
         "id": "model:digest.digest"
       },
       {
@@ -37382,6 +37726,12 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/account/models/ir_actions_report.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/stock/models/ir_actions_report.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/ir_actions_report.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/addons/hr_expense/models/ir_actions_report.py": "extends"
+        },
         "id": "model:ir.actions.report"
       },
       {
@@ -37610,6 +37960,11 @@
           "workflow_rule"
         ],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/ir_model.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/addons/mail/models/ir_model.py": "extends",
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/server-tools/database_cleanup/models/purge_models.py": "extends"
+        },
         "id": "model:ir.model"
       },
       {
@@ -37720,6 +38075,11 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/account/models/res_users.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/res_users.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/addons/mail/models/discuss/res_groups.py": "extends"
+        },
         "id": "model:res.groups"
       },
       {
@@ -39945,6 +40305,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/mail/models/discuss/discuss_voice_metadata.py": "declares"
+        },
         "id": "model:discuss.voice.metadata"
       },
       {
@@ -39985,6 +40348,11 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/account/models/ir_http.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/ir_http.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/addons/mail/models/ir_http.py": "extends"
+        },
         "id": "model:ir.http"
       },
       {
@@ -40493,6 +40861,10 @@
           "workflow_rule"
         ],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/account/models/ir_module.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/ir_module.py": "declares"
+        },
         "id": "model:ir.module.module"
       },
       {
@@ -40699,6 +41071,10 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/ir_module.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/res_users.py": "extends"
+        },
         "id": "model:ir.module.category"
       },
       {
@@ -41003,6 +41379,9 @@
           "workflow_rule"
         ],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/ir_module.py": "declares"
+        },
         "id": "model:ir.module.module.dependency"
       },
       {
@@ -41036,6 +41415,9 @@
           "workflow_rule"
         ],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/ir_module.py": "declares"
+        },
         "id": "model:ir.module.module.exclusion"
       },
       {
@@ -42057,6 +42439,9 @@
         "description_source": "generated",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/account/models/kpi_provider.py": "extends"
+        },
         "id": "model:kpi.provider"
       },
       {
@@ -42117,6 +42502,10 @@
         "description_source": "generated",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/account/models/onboarding_onboarding.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/sale/models/onboarding_onboarding.py": "extends"
+        },
         "id": "model:onboarding.onboarding"
       },
       {
@@ -42219,6 +42608,10 @@
         "description_source": "generated",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/account/models/onboarding_onboarding_step.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/sale/models/onboarding_onboarding_step.py": "extends"
+        },
         "id": "model:onboarding.onboarding.step"
       },
       {
@@ -42591,6 +42984,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/account/models/partner.py": "declares"
+        },
         "id": "model:account.fiscal.position.account"
       },
       {
@@ -42622,6 +43018,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/account/models/partner.py": "declares"
+        },
         "id": "model:account.fiscal.position.tax"
       },
       {
@@ -42755,6 +43154,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/res_country.py": "declares"
+        },
         "id": "model:res.country.group"
       },
       {
@@ -43414,6 +43816,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/res_partner.py": "declares"
+        },
         "id": "model:format.address.mixin"
       },
       {
@@ -43430,6 +43835,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/avatar_mixin.py": "declares"
+        },
         "id": "model:avatar.mixin"
       },
       {
@@ -43446,6 +43854,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/mail/models/mail_thread_blacklist.py": "declares"
+        },
         "id": "model:mail.thread.blacklist"
       },
       {
@@ -45026,6 +45437,14 @@
           "workflow_rule"
         ],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/sale/models/sale_order.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/addons/sale/populate/sale_order.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/sale_stock/models/sale_order.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/sale_management/models/sale_order.py": "extends",
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/sale-workflow/sale_order_type/models/sale.py": "extends",
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/account-invoicing/account_invoice_section_sale_order/models/sale_order.py": "extends"
+        },
         "id": "model:sale.order"
       },
       {
@@ -45425,6 +45844,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/res_partner.py": "declares"
+        },
         "id": "model:res.partner.title"
       },
       {
@@ -46229,6 +46651,10 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/res_partner.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/populate/res_partner.py": "extends"
+        },
         "id": "model:res.partner.industry"
       },
       {
@@ -47941,6 +48367,12 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/mail/models/mail_message.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/addons/mail/populate/mail_message.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/mail/populate/discuss/mail_message.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/mail/models/discuss/mail_message.py": "extends"
+        },
         "id": "model:mail.message"
       },
       {
@@ -48284,6 +48716,11 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/mail/populate/discuss/discuss_channel.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/mail/models/discuss/discuss_channel.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/addons/hr/models/discuss_channel.py": "extends"
+        },
         "id": "model:discuss.channel"
       },
       {
@@ -48369,6 +48806,12 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/hr/models/hr_employee.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/addons/hr/populate/hr.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/hr_expense/models/hr_employee.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/hr_holidays/models/hr_employee.py": "extends"
+        },
         "id": "model:hr.employee"
       },
       {
@@ -48672,6 +49115,10 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/stock/models/stock_location.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/addons/sale_stock/models/stock.py": "extends"
+        },
         "id": "model:stock.route"
       },
       {
@@ -48703,6 +49150,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/stock/models/product_strategy.py": "declares"
+        },
         "id": "model:product.removal"
       },
       {
@@ -48779,6 +49229,10 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/stock/models/product_strategy.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/addons/stock/populate/stock.py": "extends"
+        },
         "id": "model:stock.putaway.rule"
       },
       {
@@ -48902,6 +49356,16 @@
         "description_source": "generated",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/account/models/product.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/sale/models/product_template.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/stock/models/product.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/purchase/models/product.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/hr_expense/models/product_template.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/purchase_stock/models/product.py": "extends",
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/purchase-workflow/purchase_request/models/product_template.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/sale_stock/models/product_template.py": "extends"
+        },
         "id": "model:product.template"
       },
       {
@@ -50070,6 +50534,11 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/stock/models/stock_warehouse.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/addons/stock/populate/stock.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/purchase_stock/models/stock.py": "extends"
+        },
         "id": "model:stock.warehouse"
       },
       {
@@ -51420,6 +51889,11 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/stock/models/stock_quant.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/addons/stock/populate/stock.py": "extends",
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/stock-logistics-warehouse/stock_inventory/models/stock_quant.py": "extends"
+        },
         "id": "model:stock.quant"
       },
       {
@@ -51462,6 +51936,13 @@
           "workflow_rule"
         ],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/stock/models/stock_move.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/addons/stock/populate/stock.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/purchase_stock/models/stock_move.py": "extends",
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/purchase-workflow/purchase_request/models/stock_move.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/sale_stock/models/stock.py": "extends"
+        },
         "id": "model:stock.move"
       },
       {
@@ -51626,6 +52107,12 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/stock/models/stock_orderpoint.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/addons/stock/populate/stock.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/purchase_stock/models/stock.py": "extends",
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/purchase-workflow/purchase_request/models/orderpoint.py": "extends"
+        },
         "id": "model:stock.warehouse.orderpoint"
       },
       {
@@ -51821,6 +52308,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/stock/models/stock_storage_category.py": "declares"
+        },
         "id": "model:stock.storage.category.capacity"
       },
       {
@@ -52904,6 +53394,23 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/account/models/res_config_settings.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/sale/wizard/res_config_settings.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/stock/models/res_config_settings.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/purchase/models/res_config_settings.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/res_config.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/addons/mail/models/res_config_settings.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/maintenance/models/res_config_settings.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/hr/models/res_config_settings.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/hr_expense/models/res_config_settings.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/purchase_stock/models/res_config_settings.py": "extends",
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/server-ux/base_tier_validation/models/res_config_settings.py": "extends",
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/stock-logistics-warehouse/stock_inventory/models/res_config_settings.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/sale_stock/models/res_config_settings.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/sale_management/models/res_config_settings.py": "extends",
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/account-invoicing/account_invoice_section_sale_order/models/res_config_settings.py": "extends"
+        },
         "id": "model:res.config.settings"
       },
       {
@@ -56241,6 +56748,9 @@
         "description_source": "generated",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/hr_holidays/models/resource.py": "extends"
+        },
         "id": "model:resource.calendar"
       },
       {
@@ -57205,6 +57715,10 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/res_currency.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/populate/res_currency.py": "extends"
+        },
         "id": "model:res.currency.rate"
       },
       {
@@ -59006,6 +59520,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/ir_model.py": "declares"
+        },
         "id": "model:ir.model.access"
       },
       {
@@ -59037,6 +59554,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/ir_rule.py": "declares"
+        },
         "id": "model:ir.rule"
       },
       {
@@ -59071,6 +59591,10 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/ir_ui_menu.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/addons/hr/models/ir_ui_menu.py": "extends"
+        },
         "id": "model:ir.ui.menu"
       },
       {
@@ -60101,6 +60625,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/account/report/account_hash_integrity_templates.py": "declares"
+        },
         "id": "model:report.account.report_hash_integrity"
       },
       {
@@ -60143,6 +60670,11 @@
           "workflow_rule"
         ],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/account/report/account_invoice_report.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/addons/sale/report/account_invoice_report.py": "extends",
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/sale-workflow/sale_order_type/reports/account_invoice_report.py": "extends"
+        },
         "id": "model:account.invoice.report"
       },
       {
@@ -60733,6 +61265,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/account/report/account_invoice_report.py": "declares"
+        },
         "id": "model:report.account.report_invoice"
       },
       {
@@ -60770,6 +61305,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/account/report/account_invoice_report.py": "declares"
+        },
         "id": "model:report.account.report_invoice_with_payments"
       },
       {
@@ -60805,6 +61343,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/account/wizard/account_automatic_entry_wizard.py": "declares"
+        },
         "id": "model:account.automatic.entry.wizard"
       },
       {
@@ -61702,6 +62243,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/account/wizard/account_move_reversal.py": "declares"
+        },
         "id": "model:account.move.reversal"
       },
       {
@@ -62156,6 +62700,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/account/wizard/account_move_send.py": "declares"
+        },
         "id": "model:account.move.send"
       },
       {
@@ -63640,6 +64187,11 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/account/wizard/account_payment_register.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/addons/sale/wizard/account_payment_register.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/hr_expense/wizard/account_payment_register.py": "extends"
+        },
         "id": "model:account.payment.register"
       },
       {
@@ -65229,6 +65781,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/account/wizard/account_resequence.py": "declares"
+        },
         "id": "model:account.resequence.wizard"
       },
       {
@@ -65521,6 +66076,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/account/wizard/account_tour_upload_bill.py": "declares"
+        },
         "id": "model:account.tour.upload.bill"
       },
       {
@@ -65674,6 +66232,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/account/wizard/account_tour_upload_bill.py": "declares"
+        },
         "id": "model:account.tour.upload.bill.email.confirm"
       },
       {
@@ -65726,6 +66287,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/account/wizard/account_unreconcile.py": "declares"
+        },
         "id": "model:account.unreconcile"
       },
       {
@@ -65761,6 +66325,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/account/wizard/account_validate_account_move.py": "declares"
+        },
         "id": "model:validate.account.move"
       },
       {
@@ -65813,6 +66380,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/account/wizard/accrued_orders.py": "declares"
+        },
         "id": "model:account.accrued.orders.wizard"
       },
       {
@@ -66208,6 +66778,9 @@
         "description_source": "generated",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/account/wizard/base_document_layout.py": "extends"
+        },
         "id": "model:base.document.layout"
       },
       {
@@ -66250,6 +66823,11 @@
           "workflow_rule"
         ],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/account/wizard/base_partner_merge.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/wizard/base_partner_merge.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/addons/mail/wizard/base_partner_merge_automatic_wizard.py": "extends"
+        },
         "id": "model:base.partner.merge.automatic.wizard"
       },
       {
@@ -66427,6 +67005,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/wizard/base_partner_merge.py": "declares"
+        },
         "id": "model:base.partner.merge.line"
       },
       {
@@ -66969,6 +67550,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/account/wizard/setup_wizards.py": "declares"
+        },
         "id": "model:account.financial.year.op"
       },
       {
@@ -67160,6 +67744,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/account/wizard/setup_wizards.py": "declares"
+        },
         "id": "model:account.setup.bank.manual.config"
       },
       {
@@ -67918,6 +68505,11 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/sale/models/ir_config_parameter.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/ir_config_parameter.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/addons/mail/models/ir_config_parameter.py": "extends"
+        },
         "id": "model:ir.config_parameter"
       },
       {
@@ -68214,6 +68806,9 @@
         "description_source": "generated",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/sale/models/payment_provider.py": "extends"
+        },
         "id": "model:payment.provider"
       },
       {
@@ -68247,6 +68842,9 @@
         "description_source": "generated",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/sale/models/payment_transaction.py": "extends"
+        },
         "id": "model:payment.transaction"
       },
       {
@@ -68553,6 +69151,9 @@
         "description_source": "generated",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/sale/models/product_document.py": "extends"
+        },
         "id": "model:product.document"
       },
       {
@@ -68586,6 +69187,9 @@
         "description_source": "generated",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/sale/models/product_product.py": "extends"
+        },
         "id": "model:product.attribute.custom.value"
       },
       {
@@ -68623,6 +69227,11 @@
         "description_source": "generated",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/sale/models/product_product.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/stock/models/product.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/purchase/models/product.py": "extends"
+        },
         "id": "model:product.packaging"
       },
       {
@@ -68671,6 +69280,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/stock/models/stock_package_type.py": "declares"
+        },
         "id": "model:stock.package.type"
       },
       {
@@ -72714,6 +73326,12 @@
           "workflow_rule"
         ],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/stock/models/stock_picking.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/addons/stock/populate/stock.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/purchase_stock/models/stock.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/sale_stock/models/stock.py": "extends"
+        },
         "id": "model:stock.picking"
       },
       {
@@ -72834,6 +73452,11 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/stock/models/stock_rule.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/addons/purchase_stock/models/stock.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/sale_stock/models/stock.py": "extends"
+        },
         "id": "model:procurement.group"
       },
       {
@@ -73117,6 +73740,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/sale_management/models/sale_order_option.py": "declares"
+        },
         "id": "model:sale.order.option"
       },
       {
@@ -76453,6 +77079,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/sale/models/utm_campaign.py": "extends"
+        },
         "id": "model:utm.campaign"
       },
       {
@@ -76629,6 +77258,9 @@
         "description_source": "generated",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/sale/populate/product_attribute.py": "extends"
+        },
         "id": "model:product.attribute"
       },
       {
@@ -76666,6 +77298,9 @@
         "description_source": "generated",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/sale/populate/product_attribute.py": "extends"
+        },
         "id": "model:product.attribute.value"
       },
       {
@@ -76708,6 +77343,11 @@
           "workflow_rule"
         ],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/sale/report/sale_report.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/addons/sale_stock/report/sale_report.py": "extends",
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/sale-workflow/sale_order_type/reports/sale_report.py": "extends"
+        },
         "id": "model:sale.report"
       },
       {
@@ -77650,6 +78290,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/sale/wizard/mass_cancel_orders.py": "declares"
+        },
         "id": "model:sale.mass.cancel.orders"
       },
       {
@@ -77788,6 +78431,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/sale/wizard/payment_link_wizard.py": "extends"
+        },
         "id": "model:payment.link.wizard"
       },
       {
@@ -77908,6 +78554,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/sale/wizard/payment_provider_onboarding_wizard.py": "declares"
+        },
         "id": "model:sale.payment.provider.onboarding.wizard"
       },
       {
@@ -78008,6 +78657,10 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/sale/wizard/sale_make_invoice_advance.py": "declares",
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/sale-workflow/sale_order_type/wizards/sale_make_invoice_advance.py": "extends"
+        },
         "id": "model:sale.advance.payment.inv"
       },
       {
@@ -78779,6 +79432,10 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/sale/wizard/sale_order_cancel.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/addons/sale_stock/wizard/sale_order_cancel.py": "extends"
+        },
         "id": "model:sale.order.cancel"
       },
       {
@@ -78795,6 +79452,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/mail/models/mail_composer_mixin.py": "declares"
+        },
         "id": "model:mail.composer.mixin"
       },
       {
@@ -79074,6 +79734,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/sale/wizard/sale_order_discount.py": "declares"
+        },
         "id": "model:sale.order.discount"
       },
       {
@@ -79320,6 +79983,9 @@
         "description_source": "generated",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/stock/models/barcode.py": "extends"
+        },
         "id": "model:barcode.rule"
       },
       {
@@ -79524,6 +80190,10 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/stock/models/stock_storage_category.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/addons/stock/populate/stock.py": "extends"
+        },
         "id": "model:stock.storage.category"
       },
       {
@@ -79995,6 +80665,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/res_users.py": "declares"
+        },
         "id": "model:res.users.log"
       },
       {
@@ -80172,6 +80845,10 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/res_users_settings.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/addons/mail/models/res_users_settings.py": "extends"
+        },
         "id": "model:res.users.settings"
       },
       {
@@ -82265,6 +82942,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/res_users.py": "declares"
+        },
         "id": "model:res.users.apikeys"
       },
       {
@@ -84104,6 +84784,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/server-ux/base_tier_validation/models/tier_review.py": "declares"
+        },
         "id": "model:tier.review"
       },
       {
@@ -84749,6 +85432,12 @@
           "workflow_rule"
         ],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/stock/models/stock_move_line.py": "declares",
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/purchase-workflow/purchase_request/models/stock_move_line.py": "extends",
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/stock-logistics-warehouse/stock_inventory/models/stock_move_line.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/sale_stock/models/stock.py": "extends"
+        },
         "id": "model:stock.move.line"
       },
       {
@@ -85369,6 +86058,12 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/stock/models/stock_rule.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/addons/purchase_stock/models/stock_rule.py": "extends",
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/purchase-workflow/purchase_request/models/stock_rule.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/sale_stock/models/stock.py": "extends"
+        },
         "id": "model:stock.rule"
       },
       {
@@ -85743,6 +86438,11 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/stock/models/stock_lot.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/addons/purchase_stock/models/stock.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/sale_stock/models/stock.py": "extends"
+        },
         "id": "model:stock.lot"
       },
       {
@@ -87203,6 +87903,9 @@
           "workflow_rule"
         ],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/stock/models/stock_scrap.py": "declares"
+        },
         "id": "model:stock.scrap"
       },
       {
@@ -87334,6 +88037,10 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/stock/models/stock_picking.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/addons/stock/populate/stock.py": "extends"
+        },
         "id": "model:stock.picking.type"
       },
       {
@@ -87928,6 +88635,9 @@
           "workflow_rule"
         ],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/stock/models/stock_package_level.py": "declares"
+        },
         "id": "model:stock.package_level"
       },
       {
@@ -90889,6 +91599,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/purchase-workflow/purchase_request/models/purchase_request_line.py": "declares"
+        },
         "id": "model:purchase.request.line"
       },
       {
@@ -90920,6 +91633,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/purchase-workflow/purchase_request/models/purchase_request_allocation.py": "declares"
+        },
         "id": "model:purchase.request.allocation"
       },
       {
@@ -90960,6 +91676,9 @@
           "workflow_rule"
         ],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/purchase-workflow/purchase_request/models/purchase_request.py": "declares"
+        },
         "id": "model:purchase.request"
       },
       {
@@ -91364,6 +92083,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/stock/models/stock_quant.py": "declares"
+        },
         "id": "model:stock.quant.package"
       },
       {
@@ -92884,6 +93606,9 @@
           "workflow_rule"
         ],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/stock-logistics-warehouse/stock_inventory/models/stock_inventory.py": "declares"
+        },
         "id": "model:stock.inventory"
       },
       {
@@ -94319,6 +95044,10 @@
         "description_source": "generated",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/purchase/models/product.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/purchase_stock/models/product.py": "extends"
+        },
         "id": "model:product.supplierinfo"
       },
       {
@@ -105655,6 +106384,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/stock/report/product_label_report.py": "declares"
+        },
         "id": "model:report.stock.label_product_product_view"
       },
       {
@@ -105690,6 +106422,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/stock/report/product_label_report.py": "declares"
+        },
         "id": "model:report.stock.label_lot_template_view"
       },
       {
@@ -105727,6 +106462,9 @@
           "workflow_rule"
         ],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/stock/report/report_stock_quantity.py": "declares"
+        },
         "id": "model:report.stock.quantity"
       },
       {
@@ -105881,6 +106619,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/stock/report/report_stock_reception.py": "declares"
+        },
         "id": "model:report.stock.report_reception"
       },
       {
@@ -106278,6 +107019,11 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/stock/report/report_stock_rule.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/addons/purchase_stock/report/report_stock_rule.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/sale_stock/report/report_stock_rule.py": "extends"
+        },
         "id": "model:report.stock.report_stock_rule"
       },
       {
@@ -106435,6 +107181,11 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/stock/report/stock_forecasted.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/addons/purchase_stock/report/stock_forecasted.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/sale_stock/report/stock_forecasted.py": "extends"
+        },
         "id": "model:stock.forecasted_product_product"
       },
       {
@@ -106784,6 +107535,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/stock/report/stock_forecasted.py": "declares"
+        },
         "id": "model:stock.forecasted_product_template"
       },
       {
@@ -106819,6 +107573,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/stock/report/stock_traceability.py": "declares"
+        },
         "id": "model:stock.traceability.report"
       },
       {
@@ -107106,6 +107863,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/stock/wizard/stock_quant_relocate.py": "declares"
+        },
         "id": "model:stock.quant.relocate"
       },
       {
@@ -107400,6 +108160,9 @@
         "description_source": "generated",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/stock/wizard/product_label_layout.py": "extends"
+        },
         "id": "model:product.label.layout"
       },
       {
@@ -107489,6 +108252,10 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/stock/wizard/product_replenish.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/addons/purchase_stock/wizard/product_replenish.py": "extends"
+        },
         "id": "model:product.replenish"
       },
       {
@@ -108215,6 +108982,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/stock/wizard/stock_assign_serial_numbers.py": "declares"
+        },
         "id": "model:stock.assign.serial"
       },
       {
@@ -108362,6 +109132,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/stock/wizard/stock_backorder_confirmation.py": "declares"
+        },
         "id": "model:stock.backorder.confirmation.line"
       },
       {
@@ -108393,6 +109166,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/stock/wizard/stock_backorder_confirmation.py": "declares"
+        },
         "id": "model:stock.backorder.confirmation"
       },
       {
@@ -108576,6 +109352,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/stock/wizard/stock_change_product_qty.py": "declares"
+        },
         "id": "model:stock.change.product.qty"
       },
       {
@@ -108740,6 +109519,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/stock/wizard/stock_inventory_adjustment_name.py": "declares"
+        },
         "id": "model:stock.inventory.adjustment.name"
       },
       {
@@ -108809,6 +109591,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/stock/wizard/stock_inventory_conflict.py": "declares"
+        },
         "id": "model:stock.inventory.conflict"
       },
       {
@@ -108899,6 +109684,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/stock/wizard/stock_inventory_warning.py": "declares"
+        },
         "id": "model:stock.inventory.warning"
       },
       {
@@ -108972,6 +109760,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/stock/wizard/stock_label_type.py": "declares"
+        },
         "id": "model:picking.label.type"
       },
       {
@@ -109041,6 +109832,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/stock/wizard/stock_lot_label_layout.py": "declares"
+        },
         "id": "model:lot.label.layout"
       },
       {
@@ -109127,6 +109921,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/stock/wizard/stock_orderpoint_snooze.py": "declares"
+        },
         "id": "model:stock.orderpoint.snooze"
       },
       {
@@ -109234,6 +110031,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/stock/wizard/stock_package_destination.py": "declares"
+        },
         "id": "model:stock.package.destination"
       },
       {
@@ -109387,6 +110187,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/stock/wizard/stock_picking_return.py": "declares"
+        },
         "id": "model:stock.return.picking.line"
       },
       {
@@ -109472,6 +110275,10 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/stock/wizard/stock_picking_return.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/addons/purchase_stock/models/stock.py": "extends"
+        },
         "id": "model:stock.return.picking"
       },
       {
@@ -109801,6 +110608,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/stock/wizard/stock_quantity_history.py": "declares"
+        },
         "id": "model:stock.quantity.history"
       },
       {
@@ -109856,6 +110666,10 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/stock/wizard/stock_replenishment_info.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/addons/purchase_stock/wizard/stock_replenishment_info.py": "extends"
+        },
         "id": "model:stock.replenishment.info"
       },
       {
@@ -110046,6 +110860,10 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/stock/wizard/stock_replenishment_info.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/addons/purchase_stock/wizard/stock_replenishment_info.py": "extends"
+        },
         "id": "model:stock.replenishment.option"
       },
       {
@@ -110454,6 +111272,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/stock/wizard/stock_request_count.py": "declares"
+        },
         "id": "model:stock.request.count"
       },
       {
@@ -110581,6 +111402,10 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/stock/wizard/stock_rules_report.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/addons/sale_stock/wizard/stock_rules_report.py": "extends"
+        },
         "id": "model:stock.rules.report"
       },
       {
@@ -110749,6 +111574,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/stock/wizard/stock_scheduler_compute.py": "declares"
+        },
         "id": "model:stock.scheduler.compute"
       },
       {
@@ -110805,6 +111633,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/stock/wizard/stock_track_confirmation.py": "declares"
+        },
         "id": "model:stock.track.confirmation"
       },
       {
@@ -110836,6 +111667,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/stock/wizard/stock_track_confirmation.py": "declares"
+        },
         "id": "model:stock.track.line"
       },
       {
@@ -111019,6 +111853,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/stock/wizard/stock_warn_insufficient_qty.py": "declares"
+        },
         "id": "model:stock.warn.insufficient.qty"
       },
       {
@@ -111187,6 +112024,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/stock/wizard/stock_warn_insufficient_qty.py": "declares"
+        },
         "id": "model:stock.warn.insufficient.qty.scrap"
       },
       {
@@ -116444,6 +117284,10 @@
           "workflow_rule"
         ],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/purchase/report/purchase_report.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/addons/purchase_stock/report/purchase_report.py": "extends"
+        },
         "id": "model:purchase.report"
       },
       {
@@ -117098,6 +117942,10 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/ir_filters.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/populate/ir_filters.py": "extends"
+        },
         "id": "model:ir.filters"
       },
       {
@@ -117475,6 +118323,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/image_mixin.py": "declares"
+        },
         "id": "model:image.mixin"
       },
       {
@@ -118412,6 +119263,10 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/ir_actions.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/addons/mail/models/ir_action_act_window.py": "extends"
+        },
         "id": "model:ir.actions.act_window.view"
       },
       {
@@ -118816,6 +119671,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/ir_actions.py": "declares"
+        },
         "id": "model:ir.actions.act_window_close"
       },
       {
@@ -118870,6 +119728,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/ir_actions.py": "declares"
+        },
         "id": "model:ir.actions.act_url"
       },
       {
@@ -118964,6 +119825,11 @@
           "workflow_rule"
         ],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/ir_actions.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/addons/mail/models/ir_actions_server.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/base_automation/models/ir_actions_server.py": "extends"
+        },
         "id": "model:ir.actions.server"
       },
       {
@@ -119276,6 +120142,11 @@
           "workflow_rule"
         ],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/ir_model.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/addons/mail/models/ir_model_fields.py": "extends",
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/server-tools/database_cleanup/models/purge_models.py": "extends"
+        },
         "id": "model:ir.model.fields"
       },
       {
@@ -119489,6 +120360,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/ir_model.py": "declares"
+        },
         "id": "model:ir.model.fields.selection"
       },
       {
@@ -120735,6 +121609,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/base_automation/models/base_automation.py": "declares"
+        },
         "id": "model:base.automation"
       },
       {
@@ -120777,6 +121654,9 @@
           "workflow_rule"
         ],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/ir_actions.py": "declares"
+        },
         "id": "model:ir.actions.todo"
       },
       {
@@ -120987,6 +121867,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/ir_actions.py": "declares"
+        },
         "id": "model:ir.actions.client"
       },
       {
@@ -121187,6 +122070,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/ir_asset.py": "declares"
+        },
         "id": "model:ir.asset"
       },
       {
@@ -121656,6 +122542,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/ir_autovacuum.py": "declares"
+        },
         "id": "model:ir.autovacuum"
       },
       {
@@ -121691,6 +122580,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/ir_binary.py": "declares"
+        },
         "id": "model:ir.binary"
       },
       {
@@ -121852,6 +122744,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/ir_cron.py": "declares"
+        },
         "id": "model:ir.cron"
       },
       {
@@ -122498,6 +123393,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/ir_cron.py": "declares"
+        },
         "id": "model:ir.cron.trigger"
       },
       {
@@ -122567,6 +123465,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/ir_default.py": "declares"
+        },
         "id": "model:ir.default"
       },
       {
@@ -122857,6 +123758,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/ir_demo.py": "declares"
+        },
         "id": "model:ir.demo"
       },
       {
@@ -122892,6 +123796,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/ir_demo_failure.py": "declares"
+        },
         "id": "model:ir.demo_failure"
       },
       {
@@ -122957,6 +123864,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/ir_demo_failure.py": "declares"
+        },
         "id": "model:ir.demo_failure.wizard"
       },
       {
@@ -123051,6 +123961,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/ir_exports.py": "declares"
+        },
         "id": "model:ir.exports"
       },
       {
@@ -123116,6 +124029,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/ir_exports.py": "declares"
+        },
         "id": "model:ir.exports.line"
       },
       {
@@ -123164,6 +124080,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/ir_fields.py": "declares"
+        },
         "id": "model:ir.fields.converter"
       },
       {
@@ -123661,6 +124580,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/ir_logging.py": "declares"
+        },
         "id": "model:ir.logging"
       },
       {
@@ -123903,6 +124825,10 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/ir_mail_server.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/addons/mail/models/ir_mail_server.py": "extends"
+        },
         "id": "model:ir.mail_server"
       },
       {
@@ -124610,6 +125536,13 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/ir_model.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/ir_ui_view.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/mail/models/models.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/hr/models/models.py": "extends",
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/server-ux/base_tier_validation/models/base.py": "extends"
+        },
         "id": "model:base"
       },
       {
@@ -125512,6 +126445,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/ir_model.py": "declares"
+        },
         "id": "model:_unknown"
       },
       {
@@ -127947,6 +128883,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/ir_model.py": "declares"
+        },
         "id": "model:ir.model.inherit"
       },
       {
@@ -128332,6 +129271,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/ir_model.py": "declares"
+        },
         "id": "model:ir.model.constraint"
       },
       {
@@ -128587,6 +129529,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/ir_model.py": "declares"
+        },
         "id": "model:ir.model.relation"
       },
       {
@@ -129014,6 +129959,10 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/ir_model.py": "declares",
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/server-tools/database_cleanup/models/purge_modules.py": "extends"
+        },
         "id": "model:ir.model.data"
       },
       {
@@ -129567,6 +130516,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/ir_model.py": "declares"
+        },
         "id": "model:wizard.ir.model.menu.create"
       },
       {
@@ -130174,6 +131126,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/ir_profile.py": "declares"
+        },
         "id": "model:ir.profile"
       },
       {
@@ -130522,6 +131477,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/ir_profile.py": "declares"
+        },
         "id": "model:base.enable.profiling.wizard"
       },
       {
@@ -130616,6 +131574,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/ir_property.py": "declares"
+        },
         "id": "model:ir.property"
       },
       {
@@ -131114,6 +132075,10 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/ir_qweb.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/addons/mail/models/ir_qweb.py": "extends"
+        },
         "id": "model:ir.qweb"
       },
       {
@@ -132589,6 +133554,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/ir_qweb_fields.py": "declares"
+        },
         "id": "model:ir.qweb.field"
       },
       {
@@ -132710,6 +133678,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/ir_qweb_fields.py": "declares"
+        },
         "id": "model:ir.qweb.field.integer"
       },
       {
@@ -132768,6 +133739,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/ir_qweb_fields.py": "declares"
+        },
         "id": "model:ir.qweb.field.float"
       },
       {
@@ -132847,6 +133821,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/ir_qweb_fields.py": "declares"
+        },
         "id": "model:ir.qweb.field.date"
       },
       {
@@ -132905,6 +133882,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/ir_qweb_fields.py": "declares"
+        },
         "id": "model:ir.qweb.field.datetime"
       },
       {
@@ -132963,6 +133943,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/ir_qweb_fields.py": "declares"
+        },
         "id": "model:ir.qweb.field.text"
       },
       {
@@ -133000,6 +133983,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/ir_qweb_fields.py": "declares"
+        },
         "id": "model:ir.qweb.field.selection"
       },
       {
@@ -133079,6 +134065,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/ir_qweb_fields.py": "declares"
+        },
         "id": "model:ir.qweb.field.many2one"
       },
       {
@@ -133116,6 +134105,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/ir_qweb_fields.py": "declares"
+        },
         "id": "model:ir.qweb.field.many2many"
       },
       {
@@ -133153,6 +134145,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/ir_qweb_fields.py": "declares"
+        },
         "id": "model:ir.qweb.field.one2many"
       },
       {
@@ -133190,6 +134185,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/ir_qweb_fields.py": "declares"
+        },
         "id": "model:ir.qweb.field.html"
       },
       {
@@ -133227,6 +134225,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/ir_qweb_fields.py": "declares"
+        },
         "id": "model:ir.qweb.field.image"
       },
       {
@@ -133285,6 +134286,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/ir_qweb_fields.py": "declares"
+        },
         "id": "model:ir.qweb.field.image_url"
       },
       {
@@ -133322,6 +134326,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/ir_qweb_fields.py": "declares"
+        },
         "id": "model:ir.qweb.field.monetary"
       },
       {
@@ -133401,6 +134408,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/ir_qweb_fields.py": "declares"
+        },
         "id": "model:ir.qweb.field.float_time"
       },
       {
@@ -133438,6 +134448,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/ir_qweb_fields.py": "declares"
+        },
         "id": "model:ir.qweb.field.time"
       },
       {
@@ -133475,6 +134488,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/ir_qweb_fields.py": "declares"
+        },
         "id": "model:ir.qweb.field.duration"
       },
       {
@@ -133533,6 +134549,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/ir_qweb_fields.py": "declares"
+        },
         "id": "model:ir.qweb.field.relative"
       },
       {
@@ -133612,6 +134631,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/ir_qweb_fields.py": "declares"
+        },
         "id": "model:ir.qweb.field.barcode"
       },
       {
@@ -133670,6 +134692,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/ir_qweb_fields.py": "declares"
+        },
         "id": "model:ir.qweb.field.contact"
       },
       {
@@ -133728,6 +134753,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/ir_qweb_fields.py": "declares"
+        },
         "id": "model:ir.qweb.field.qweb"
       },
       {
@@ -134439,6 +135467,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/ir_sequence.py": "declares"
+        },
         "id": "model:ir.sequence.date_range"
       },
       {
@@ -135585,6 +136616,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/ir_ui_view.py": "declares"
+        },
         "id": "model:ir.ui.view.custom"
       },
       {
@@ -138198,6 +139232,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/ir_ui_view.py": "declares"
+        },
         "id": "model:reset.view.arch.wizard"
       },
       {
@@ -138406,6 +139443,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/report_layout.py": "declares"
+        },
         "id": "model:report.layout"
       },
       {
@@ -139117,6 +140157,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/res_config.py": "declares"
+        },
         "id": "model:res.config"
       },
       {
@@ -139280,6 +140323,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/res_config.py": "declares"
+        },
         "id": "model:res.config.installer"
       },
       {
@@ -140390,6 +141436,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/res_lang.py": "declares"
+        },
         "id": "model:res.lang"
       },
       {
@@ -141652,6 +142701,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/res_users.py": "declares"
+        },
         "id": "model:res.users.identitycheck"
       },
       {
@@ -141763,6 +142815,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/res_users.py": "declares"
+        },
         "id": "model:change.password.wizard"
       },
       {
@@ -141794,6 +142849,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/res_users.py": "declares"
+        },
         "id": "model:change.password.user"
       },
       {
@@ -141939,6 +142997,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/res_users.py": "declares"
+        },
         "id": "model:change.password.own"
       },
       {
@@ -142204,6 +143265,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/res_users.py": "declares"
+        },
         "id": "model:res.users.apikeys.description"
       },
       {
@@ -142277,6 +143341,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/res_users.py": "declares"
+        },
         "id": "model:res.users.apikeys.show"
       },
       {
@@ -142310,6 +143377,9 @@
           "workflow_rule"
         ],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/models/res_users_deletion.py": "declares"
+        },
         "id": "model:res.users.deletion"
       },
       {
@@ -142636,6 +143706,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/mail/models/res_users_settings_volumes.py": "declares"
+        },
         "id": "model:res.users.settings.volumes"
       },
       {
@@ -142671,6 +143744,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/report/report_base_report_irmodulereference.py": "declares"
+        },
         "id": "model:report.base.report_irmodulereference"
       },
       {
@@ -142750,6 +143826,9 @@
           "workflow_rule"
         ],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/wizard/base_export_language.py": "declares"
+        },
         "id": "model:base.language.export"
       },
       {
@@ -142976,6 +144055,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/wizard/base_import_language.py": "declares"
+        },
         "id": "model:base.language.import"
       },
       {
@@ -143096,6 +144178,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/wizard/base_language_install.py": "declares"
+        },
         "id": "model:base.language.install"
       },
       {
@@ -143273,6 +144358,10 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/wizard/base_module_uninstall.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/addons/mail/wizard/base_module_uninstall.py": "extends"
+        },
         "id": "model:base.module.uninstall"
       },
       {
@@ -143518,6 +144607,9 @@
           "workflow_rule"
         ],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/wizard/base_module_update.py": "declares"
+        },
         "id": "model:base.module.update"
       },
       {
@@ -143625,6 +144717,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/odoo/addons/base/wizard/base_module_upgrade.py": "declares"
+        },
         "id": "model:base.module.upgrade"
       },
       {
@@ -144500,6 +145595,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/mail/models/mail_message_translation.py": "declares"
+        },
         "id": "model:mail.message.translation"
       },
       {
@@ -144643,6 +145741,9 @@
         "description_source": "generated",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/mail/models/bus_presence.py": "extends"
+        },
         "id": "model:bus.presence"
       },
       {
@@ -144676,6 +145777,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/mail/models/discuss/mail_guest.py": "declares"
+        },
         "id": "model:mail.guest"
       },
       {
@@ -144797,6 +145901,9 @@
           "workflow_rule"
         ],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/mail/models/fetchmail.py": "declares"
+        },
         "id": "model:fetchmail.server"
       },
       {
@@ -145112,6 +146219,9 @@
           "workflow_rule"
         ],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/mail/models/mail_mail.py": "declares"
+        },
         "id": "model:mail.mail"
       },
       {
@@ -145414,6 +146524,9 @@
           "workflow_rule"
         ],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/mail/models/mail_activity.py": "declares"
+        },
         "id": "model:mail.activity"
       },
       {
@@ -147278,6 +148391,10 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/mail/models/mail_activity_plan.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/addons/hr/models/mail_activity_plan.py": "extends"
+        },
         "id": "model:mail.activity.plan"
       },
       {
@@ -147346,6 +148463,10 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/mail/models/mail_activity_plan_template.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/addons/hr/models/mail_activity_plan_template.py": "extends"
+        },
         "id": "model:mail.activity.plan.template"
       },
       {
@@ -147973,6 +149094,10 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/mail/models/mail_alias.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/addons/hr/models/mail_alias.py": "extends"
+        },
         "id": "model:mail.alias"
       },
       {
@@ -149054,6 +150179,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/mail/models/mail_alias_mixin.py": "declares"
+        },
         "id": "model:mail.alias.mixin"
       },
       {
@@ -149500,6 +150628,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/mail/models/mail_blacklist.py": "declares"
+        },
         "id": "model:mail.blacklist"
       },
       {
@@ -149695,6 +150826,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/mail/models/mail_render_mixin.py": "declares"
+        },
         "id": "model:mail.render.mixin"
       },
       {
@@ -150020,6 +151154,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/mail/models/mail_followers.py": "declares"
+        },
         "id": "model:mail.followers"
       },
       {
@@ -150088,6 +151225,10 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/mail/models/mail_message_subtype.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/addons/hr_holidays/models/mail_message_subtype.py": "extends"
+        },
         "id": "model:mail.message.subtype"
       },
       {
@@ -150384,6 +151525,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/mail/models/mail_gateway_allowed.py": "declares"
+        },
         "id": "model:mail.gateway.allowed"
       },
       {
@@ -150478,6 +151622,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/mail/models/mail_ice_server.py": "declares"
+        },
         "id": "model:mail.ice.server"
       },
       {
@@ -150602,6 +151749,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/mail/models/mail_link_preview.py": "declares"
+        },
         "id": "model:mail.link.preview"
       },
       {
@@ -151927,6 +153077,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/mail/models/mail_message_reaction.py": "declares"
+        },
         "id": "model:mail.message.reaction"
       },
       {
@@ -152376,6 +153529,10 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/mail/models/mail_notification.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/addons/mail/populate/mail_notification.py": "extends"
+        },
         "id": "model:mail.notification"
       },
       {
@@ -152483,6 +153640,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/mail/models/mail_tracking_value.py": "declares"
+        },
         "id": "model:mail.tracking.value"
       },
       {
@@ -153697,6 +154857,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/mail/models/mail_message_schedule.py": "declares"
+        },
         "id": "model:mail.message.schedule"
       },
       {
@@ -155145,6 +156308,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/mail/models/mail_shortcode.py": "declares"
+        },
         "id": "model:mail.shortcode"
       },
       {
@@ -155227,6 +156393,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/mail/models/template_reset_mixin.py": "declares"
+        },
         "id": "model:template.reset.mixin"
       },
       {
@@ -159305,6 +160474,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/mail/models/mail_thread_cc.py": "declares"
+        },
         "id": "model:mail.thread.cc"
       },
       {
@@ -159500,6 +160672,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/mail/models/mail_tracking_duration_mixin.py": "declares"
+        },
         "id": "model:mail.tracking.duration.mixin"
       },
       {
@@ -159903,6 +161078,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/mail/models/partner_devices.py": "declares"
+        },
         "id": "model:mail.partner.device"
       },
       {
@@ -160301,6 +161479,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/mail/models/update.py": "declares"
+        },
         "id": "model:publisher_warranty.contract"
       },
       {
@@ -160378,6 +161559,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/mail/models/web_push.py": "declares"
+        },
         "id": "model:mail.notification.web.push"
       },
       {
@@ -160450,6 +161634,10 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/mail/wizard/mail_activity_schedule.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/addons/hr/wizard/mail_activity_schedule.py": "extends"
+        },
         "id": "model:mail.activity.schedule"
       },
       {
@@ -161458,6 +162646,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/mail/wizard/mail_blacklist_remove.py": "declares"
+        },
         "id": "model:mail.blacklist.remove"
       },
       {
@@ -161529,6 +162720,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/mail/wizard/mail_compose_message.py": "declares"
+        },
         "id": "model:mail.compose.message"
       },
       {
@@ -163300,6 +164494,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/mail/wizard/mail_resend_message.py": "declares"
+        },
         "id": "model:mail.resend.message"
       },
       {
@@ -163348,6 +164545,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/mail/wizard/mail_resend_message.py": "declares"
+        },
         "id": "model:mail.resend.partner"
       },
       {
@@ -163784,6 +164984,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/mail/wizard/mail_template_preview.py": "declares"
+        },
         "id": "model:mail.template.preview"
       },
       {
@@ -164209,6 +165412,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/mail/wizard/mail_template_reset.py": "declares"
+        },
         "id": "model:mail.template.reset"
       },
       {
@@ -164261,6 +165467,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/mail/wizard/mail_wizard_invite.py": "declares"
+        },
         "id": "model:mail.wizard.invite"
       },
       {
@@ -164755,6 +165964,10 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/mail/populate/discuss/discuss_channel_member.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/mail/models/discuss/discuss_channel_member.py": "declares"
+        },
         "id": "model:discuss.channel.member"
       },
       {
@@ -164837,6 +166050,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/mail/models/discuss/discuss_channel_rtc_session.py": "declares"
+        },
         "id": "model:discuss.channel.rtc.session"
       },
       {
@@ -167489,6 +168705,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/mail/models/discuss/discuss_gif_favorite.py": "declares"
+        },
         "id": "model:discuss.gif.favorite"
       },
       {
@@ -167539,6 +168758,9 @@
         "description_source": "generated",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/mail/models/discuss/ir_websocket.py": "extends"
+        },
         "id": "model:ir.websocket"
       },
       {
@@ -168054,6 +169276,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/maintenance/models/maintenance.py": "declares"
+        },
         "id": "model:maintenance.stage"
       },
       {
@@ -168139,6 +169364,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/maintenance/models/maintenance.py": "declares"
+        },
         "id": "model:maintenance.equipment.category"
       },
       {
@@ -168259,6 +169487,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/maintenance/models/maintenance.py": "declares"
+        },
         "id": "model:maintenance.equipment"
       },
       {
@@ -168335,6 +169566,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/maintenance/models/maintenance.py": "declares"
+        },
         "id": "model:maintenance.request"
       },
       {
@@ -168513,6 +169747,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/maintenance/models/maintenance.py": "declares"
+        },
         "id": "model:maintenance.mixin"
       },
       {
@@ -168582,6 +169819,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/maintenance/models/maintenance.py": "declares"
+        },
         "id": "model:maintenance.team"
       },
       {
@@ -170389,6 +171629,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_purchase_request/models/purchase_request.py": "declares"
+        },
         "id": "model:custom.purchase.request"
       },
       {
@@ -170532,6 +171775,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_asset_loan/models/asset_loan.py": "declares"
+        },
         "id": "model:custom.asset.loan"
       },
       {
@@ -172083,6 +173329,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/hr/models/hr_contract_type.py": "declares"
+        },
         "id": "model:hr.contract.type"
       },
       {
@@ -172414,6 +173663,10 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/hr/models/hr_job.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/addons/hr/populate/hr.py": "extends"
+        },
         "id": "model:hr.job"
       },
       {
@@ -173044,6 +174297,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/hr/models/hr_departure_reason.py": "declares"
+        },
         "id": "model:hr.departure.reason"
       },
       {
@@ -173156,6 +174412,11 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/hr/models/hr_employee_base.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/addons/hr_expense/models/hr_employee.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/hr_holidays/models/hr_employee_base.py": "extends"
+        },
         "id": "model:hr.employee.base"
       },
       {
@@ -174051,6 +175312,10 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/hr/models/hr_employee_category.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/addons/hr/populate/hr.py": "extends"
+        },
         "id": "model:hr.employee.category"
       },
       {
@@ -175377,6 +176642,10 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/hr_holidays/models/hr_leave_type.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/addons/hr_holidays/populate/hr_leave.py": "extends"
+        },
         "id": "model:hr.leave.type"
       },
       {
@@ -175950,6 +177219,10 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/hr/models/hr_work_location.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/addons/hr/populate/hr.py": "extends"
+        },
         "id": "model:hr.work.location"
       },
       {
@@ -176000,6 +177273,9 @@
         "description_source": "generated",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/hr/models/resource.py": "extends"
+        },
         "id": "model:resource.resource"
       },
       {
@@ -177159,6 +178435,10 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/hr/models/hr_employee_public.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/addons/hr_expense/models/hr_employee.py": "extends"
+        },
         "id": "model:hr.employee.public"
       },
       {
@@ -178400,6 +179680,10 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/hr/wizard/hr_departure_wizard.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/addons/hr_holidays/wizard/hr_departure_wizard.py": "extends"
+        },
         "id": "model:hr.departure.wizard"
       },
       {
@@ -178592,6 +179876,9 @@
           "workflow_rule"
         ],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_deep_inheritance_security/models/deep_document.py": "declares"
+        },
         "id": "model:custom.deep.document"
       },
       {
@@ -178847,6 +180134,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_expense_reimbursement_indirect/models/reimbursement.py": "declares"
+        },
         "id": "model:custom.reimbursement.request"
       },
       {
@@ -182691,6 +183981,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/hr_expense/wizard/hr_expense_approve_duplicate.py": "declares"
+        },
         "id": "model:hr.expense.approve.duplicate"
       },
       {
@@ -182802,6 +184095,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/hr_expense/wizard/hr_expense_refuse_reason.py": "declares"
+        },
         "id": "model:hr.expense.refuse.wizard"
       },
       {
@@ -182894,6 +184190,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/hr_expense/wizard/hr_expense_split.py": "declares"
+        },
         "id": "model:hr.expense.split"
       },
       {
@@ -182942,6 +184241,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/hr_expense/wizard/hr_expense_split_wizard.py": "declares"
+        },
         "id": "model:hr.expense.split.wizard"
       },
       {
@@ -183492,6 +184794,11 @@
           "workflow_rule"
         ],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/hr_holidays/models/hr_leave.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/addons/hr_holidays/populate/hr_leave.py": "extends",
+          "/media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_hr_leave_workflow/models/hr_leave.py": "extends"
+        },
         "id": "model:hr.leave"
       },
       {
@@ -186436,6 +187743,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/hr_holidays/models/hr_leave_accrual_plan.py": "declares"
+        },
         "id": "model:hr.leave.accrual.plan"
       },
       {
@@ -186560,6 +187870,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/hr_holidays/models/hr_leave_accrual_plan_level.py": "declares"
+        },
         "id": "model:hr.leave.accrual.level"
       },
       {
@@ -186598,6 +187911,10 @@
           "workflow_rule"
         ],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/hr_holidays/models/hr_leave_allocation.py": "declares",
+          "/media/donnee/Programs/odoo-17.0/addons/hr_holidays/populate/hr_leave_allocation.py": "extends"
+        },
         "id": "model:hr.leave.allocation"
       },
       {
@@ -189650,6 +190967,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/hr_holidays/models/hr_leave_mandatory_day.py": "declares"
+        },
         "id": "model:hr.leave.mandatory.day"
       },
       {
@@ -190757,6 +192077,9 @@
         "description_source": "generated",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/hr_holidays/models/resource.py": "extends"
+        },
         "id": "model:resource.calendar.leaves"
       },
       {
@@ -191042,6 +192365,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/hr_holidays/report/holidays_summary_report.py": "declares"
+        },
         "id": "model:report.hr_holidays.report_holidayssummary"
       },
       {
@@ -191268,6 +192594,9 @@
           "workflow_rule"
         ],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/hr_holidays/report/hr_leave_employee_type_report.py": "declares"
+        },
         "id": "model:hr.leave.employee.type.report"
       },
       {
@@ -191496,6 +192825,9 @@
           "workflow_rule"
         ],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/hr_holidays/report/hr_leave_report.py": "declares"
+        },
         "id": "model:hr.leave.report"
       },
       {
@@ -191775,6 +193107,9 @@
           "workflow_rule"
         ],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/hr_holidays/report/hr_leave_report_calendar.py": "declares"
+        },
         "id": "model:hr.leave.report.calendar"
       },
       {
@@ -192073,6 +193408,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/hr_holidays/wizard/hr_holidays_cancel_leave.py": "declares"
+        },
         "id": "model:hr.holidays.cancel.leave"
       },
       {
@@ -192142,6 +193480,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/hr_holidays/wizard/hr_holidays_summary_employees.py": "declares"
+        },
         "id": "model:hr.holidays.summary.employee"
       },
       {
@@ -192230,6 +193571,9 @@
           "workflow_rule"
         ],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/projets/odoo-ia-prototype/odoo_addons/miro_ai/models/miro_ai_log.py": "declares"
+        },
         "id": "model:miro.ai.log"
       },
       {
@@ -192502,6 +193846,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/projets/odoo-ia-prototype/odoo_addons/miro_ai/models/miro_ai_settings.py": "declares"
+        },
         "id": "model:miro.ai.settings"
       },
       {
@@ -192694,6 +194041,10 @@
         "description_source": "generated",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/purchase_stock/models/stock_valuation_layer.py": "extends",
+          "/media/donnee/Programs/odoo-17.0/addons/sale_stock/models/stock_valuation_layer.py": "extends"
+        },
         "id": "model:stock.valuation.layer"
       },
       {
@@ -192777,6 +194128,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/purchase_stock/report/vendor_delay_report.py": "declares"
+        },
         "id": "model:vendor.delay.report"
       },
       {
@@ -195061,6 +196415,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/purchase-workflow/purchase_request/wizard/purchase_request_line_make_purchase_order.py": "declares"
+        },
         "id": "model:purchase.request.line.make.purchase.order"
       },
       {
@@ -195109,6 +196466,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/purchase-workflow/purchase_request/wizard/purchase_request_line_make_purchase_order.py": "declares"
+        },
         "id": "model:purchase.request.line.make.purchase.order.item"
       },
       {
@@ -195548,6 +196908,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/partner-contact-management/animal/models/animal.py": "declares"
+        },
         "id": "model:animal"
       },
       {
@@ -195613,6 +196976,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/partner-contact-management/animal/models/animal_species.py": "declares"
+        },
         "id": "model:animal.species"
       },
       {
@@ -195644,6 +197010,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/partner-contact-management/animal/models/animal_breed.py": "declares"
+        },
         "id": "model:animal.breed"
       },
       {
@@ -195675,6 +197044,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/partner-contact-management/animal/models/animal_color.py": "declares"
+        },
         "id": "model:animal.color"
       },
       {
@@ -195955,6 +197327,10 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/server-ux/base_tier_validation/models/tier_definition.py": "declares",
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/server-ux/base_tier_validation/tests/tier_validation_tester.py": "extends"
+        },
         "id": "model:tier.definition"
       },
       {
@@ -197222,6 +198598,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/server-ux/base_tier_validation/models/tier_validation.py": "declares"
+        },
         "id": "model:tier.validation"
       },
       {
@@ -198975,6 +200354,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/server-ux/base_tier_validation/models/tier_validation_exception.py": "declares"
+        },
         "id": "model:tier.validation.exception"
       },
       {
@@ -199216,6 +200598,9 @@
           "workflow_rule"
         ],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/server-ux/base_tier_validation/tests/tier_validation_tester.py": "declares"
+        },
         "id": "model:tier.validation.tester"
       },
       {
@@ -199323,6 +200708,9 @@
           "workflow_rule"
         ],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/server-ux/base_tier_validation/tests/tier_validation_tester.py": "declares"
+        },
         "id": "model:tier.validation.tester2"
       },
       {
@@ -199447,6 +200835,9 @@
           "workflow_rule"
         ],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/server-ux/base_tier_validation/tests/tier_validation_tester.py": "declares"
+        },
         "id": "model:tier.validation.tester.computed"
       },
       {
@@ -199672,6 +201063,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/server-ux/base_tier_validation/wizard/comment_wizard.py": "declares"
+        },
         "id": "model:comment.wizard"
       },
       {
@@ -201324,6 +202718,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/sale_management/models/sale_order_template_line.py": "declares"
+        },
         "id": "model:sale.order.template.line"
       },
       {
@@ -201355,6 +202752,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/sale_management/models/sale_order_template_option.py": "declares"
+        },
         "id": "model:sale.order.template.option"
       },
       {
@@ -202296,6 +203696,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/server-tools/database_cleanup/models/create_indexes.py": "declares"
+        },
         "id": "model:cleanup.create_indexes.line"
       },
       {
@@ -202310,6 +203713,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/server-tools/database_cleanup/models/purge_wizard.py": "declares"
+        },
         "id": "model:cleanup.purge.line"
       },
       {
@@ -202360,6 +203766,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/server-tools/database_cleanup/models/create_indexes.py": "declares"
+        },
         "id": "model:cleanup.create_indexes.wizard"
       },
       {
@@ -202412,6 +203821,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/server-tools/database_cleanup/models/purge_wizard.py": "declares"
+        },
         "id": "model:cleanup.purge.wizard"
       },
       {
@@ -202466,6 +203878,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/server-tools/database_cleanup/models/purge_columns.py": "declares"
+        },
         "id": "model:cleanup.purge.line.column"
       },
       {
@@ -202516,6 +203931,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/server-tools/database_cleanup/models/purge_columns.py": "declares"
+        },
         "id": "model:cleanup.purge.wizard.column"
       },
       {
@@ -202612,6 +204030,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/server-tools/database_cleanup/models/purge_data.py": "declares"
+        },
         "id": "model:cleanup.purge.line.data"
       },
       {
@@ -202662,6 +204083,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/server-tools/database_cleanup/models/purge_data.py": "declares"
+        },
         "id": "model:cleanup.purge.wizard.data"
       },
       {
@@ -202737,6 +204161,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/server-tools/database_cleanup/models/purge_fields.py": "declares"
+        },
         "id": "model:cleanup.purge.line.field"
       },
       {
@@ -202770,6 +204197,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/server-tools/database_cleanup/models/purge_fields.py": "declares"
+        },
         "id": "model:cleanup.purge.wizard.field"
       },
       {
@@ -202917,6 +204347,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/server-tools/database_cleanup/models/purge_menus.py": "declares"
+        },
         "id": "model:cleanup.purge.line.menu"
       },
       {
@@ -202950,6 +204383,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/server-tools/database_cleanup/models/purge_menus.py": "declares"
+        },
         "id": "model:cleanup.purge.wizard.menu"
       },
       {
@@ -203042,6 +204478,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/server-tools/database_cleanup/models/purge_models.py": "declares"
+        },
         "id": "model:cleanup.purge.line.model"
       },
       {
@@ -203075,6 +204514,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/server-tools/database_cleanup/models/purge_models.py": "declares"
+        },
         "id": "model:cleanup.purge.wizard.model"
       },
       {
@@ -203150,6 +204592,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/server-tools/database_cleanup/models/purge_modules.py": "declares"
+        },
         "id": "model:cleanup.purge.line.module"
       },
       {
@@ -203183,6 +204628,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/server-tools/database_cleanup/models/purge_modules.py": "declares"
+        },
         "id": "model:cleanup.purge.wizard.module"
       },
       {
@@ -203258,6 +204706,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/server-tools/database_cleanup/models/purge_properties.py": "declares"
+        },
         "id": "model:cleanup.purge.line.property"
       },
       {
@@ -203291,6 +204742,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/server-tools/database_cleanup/models/purge_properties.py": "declares"
+        },
         "id": "model:cleanup.purge.wizard.property"
       },
       {
@@ -203400,6 +204854,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/server-tools/database_cleanup/models/purge_tables.py": "declares"
+        },
         "id": "model:cleanup.purge.line.table"
       },
       {
@@ -203433,6 +204890,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/server-tools/database_cleanup/models/purge_tables.py": "declares"
+        },
         "id": "model:cleanup.purge.wizard.table"
       },
       {
@@ -203782,6 +205242,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/server-tools/auditlog/models/auditlog_log_line_view.py": "declares"
+        },
         "id": "model:auditlog.log.line.view"
       },
       {
@@ -203796,6 +205259,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/server-tools/auditlog/models/log.py": "declares"
+        },
         "id": "model:auditlog.log.line"
       },
       {
@@ -203946,6 +205412,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/server-tools/auditlog/models/http_session.py": "declares"
+        },
         "id": "model:auditlog.http.session"
       },
       {
@@ -203977,6 +205446,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/server-tools/auditlog/models/http_request.py": "declares"
+        },
         "id": "model:auditlog.http.request"
       },
       {
@@ -204071,6 +205543,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/server-tools/auditlog/models/autovacuum.py": "declares"
+        },
         "id": "model:auditlog.autovacuum"
       },
       {
@@ -204250,6 +205725,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/server-tools/auditlog/models/log.py": "declares"
+        },
         "id": "model:auditlog.log"
       },
       {
@@ -204856,6 +206334,9 @@
           "workflow_rule"
         ],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/server-tools/auditlog/models/rule.py": "declares"
+        },
         "id": "model:auditlog.rule"
       },
       {
@@ -205631,6 +207112,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/spreadsheet_dashboard/models/spreadsheet_dashboard.py": "declares"
+        },
         "id": "model:spreadsheet.dashboard"
       },
       {
@@ -205682,6 +207166,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/spreadsheet_dashboard/models/spreadsheet_dashboard_group.py": "declares"
+        },
         "id": "model:spreadsheet.dashboard.group"
       },
       {
@@ -205846,6 +207333,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/Programs/odoo-17.0/addons/spreadsheet_dashboard/models/spreadsheet_dashboard_share.py": "declares"
+        },
         "id": "model:spreadsheet.dashboard.share"
       },
       {
@@ -206036,6 +207526,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/reporting-engine/kpi/models/kpi.py": "declares"
+        },
         "id": "model:kpi"
       },
       {
@@ -206101,6 +207594,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/reporting-engine/kpi/models/kpi_category.py": "declares"
+        },
         "id": "model:kpi.category"
       },
       {
@@ -206132,6 +207628,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/reporting-engine/kpi/models/kpi_threshold.py": "declares"
+        },
         "id": "model:kpi.threshold"
       },
       {
@@ -206352,6 +207851,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/reporting-engine/kpi/models/kpi_history.py": "declares"
+        },
         "id": "model:kpi.history"
       },
       {
@@ -206654,6 +208156,9 @@
         "description_source": "explicit",
         "behavioral_tags": [],
         "technical_tags": [],
+        "filepath_roles": {
+          "/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/reporting-engine/kpi/models/kpi_threshold_range.py": "declares"
+        },
         "id": "model:kpi.threshold.range"
       },
       {

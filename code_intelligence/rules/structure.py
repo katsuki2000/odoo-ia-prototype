@@ -372,9 +372,13 @@ def trace_full_inheritance(
     declaration_sites: List[Tuple[str, int, int]] = []
     if filepaths:
         from code_intelligence.agent.tool_helpers import _is_custom_module_filepath
-        sorted_filepaths = sorted(filepaths, key=lambda f: not _is_custom_module_filepath(f))
-        src_links = []
-        for fp in sorted_filepaths:
+
+        def _build_file_link(fp: str) -> Tuple[str, int, int]:
+            """Locate the _name/_inherit line for model_name in fp and
+            return (markdown_link, lineno, end_line). Unchanged logic from
+            before section 853 -- only which files get labelled 'Declared
+            in' vs 'Extended in' changed, not how a single file's link is
+            built."""
             p = Path(fp)
             lineno = 1
             line_count = 50
@@ -392,9 +396,64 @@ def trace_full_inheritance(
                 except Exception:
                     pass
             end_line = min(lineno + 80, line_count)
-            src_links.append(f"[{p.name}:L{lineno}-L{end_line}](file://{fp}#L{lineno}-L{end_line})")
-            declaration_sites.append((fp, lineno, end_line))
-        summary += f" Declared in: {', '.join(src_links)}."
+            link = f"[{p.name}:L{lineno}-L{end_line}](file://{fp}#L{lineno}-L{end_line})"
+            return link, lineno, end_line
+
+        # Section 822/853 (todo/contexte.txt): filepath_roles (graph/builder.py)
+        # already knows, per FILE, whether that file declares (_name=, no
+        # self-_inherit) or merely extends (_inherit=) the model -- computed
+        # once at build time from the same per-declaration flag already
+        # trusted for the module-level DEFINED_IN edges (verified clean in
+        # section 822/823). Using it here means every file gets its own
+        # correct label instead of the old behaviour, which slapped
+        # "Declared in" on EVERY file matching a _name/_inherit regex
+        # (declaration AND extension alike) and then relied on a
+        # custom-first sort to put -- by pure luck, not correctness -- the
+        # right one in front. A custom module extending the model would
+        # match that regex too and could end up cited as if it declared the
+        # model (confirmed on account.move, section 822).
+        filepath_roles: Dict[str, str] = G.nodes[model_node].get("filepath_roles", {})
+        declares_files = [fp for fp in filepaths if filepath_roles.get(fp) == "declares"]
+        extends_files = [fp for fp in filepaths if fp not in declares_files]
+
+        if len(declares_files) == 1:
+            # Clean case: exactly one file declares the model. Stable
+            # (declaration order), no custom-first re-sort needed -- native
+            # and custom extension files coexist under their own correct
+            # label instead of competing for a single one.
+            declared_link, d_lineno, d_end = _build_file_link(declares_files[0])
+            declaration_sites.append((declares_files[0], d_lineno, d_end))
+            summary += f" Declared in: {declared_link}."
+
+            if extends_files:
+                ext_links = []
+                for fp in extends_files:
+                    link, e_lineno, e_end = _build_file_link(fp)
+                    ext_links.append(link)
+                    declaration_sites.append((fp, e_lineno, e_end))
+                summary += f" Extended in: {', '.join(ext_links)}."
+        else:
+            # Fallback (todo/contexte.txt section 853, point 1 of pmm's
+            # mandate): zero or several files claim the 'declares' role --
+            # either no filepath_roles data at all (older/unrebuilt graph)
+            # or a genuine re-declaration across files, both edge cases the
+            # per-file role cannot resolve unambiguously. Revert to the
+            # pre-853 behaviour (custom-first sort, single undifferentiated
+            # 'Declared in' list) rather than guess.
+            logger.warning(
+                "Node [code_intelligence_agent]: trace_full_inheritance('%s') "
+                "found %d file(s) with role='declares' (expected exactly 1) -- "
+                "falling back to the pre-853 undifferentiated 'Declared in' "
+                "listing for all %d file(s).",
+                model_name, len(declares_files), len(filepaths),
+            )
+            sorted_filepaths = sorted(filepaths, key=lambda f: not _is_custom_module_filepath(f))
+            src_links = []
+            for fp in sorted_filepaths:
+                link, lineno, end_line = _build_file_link(fp)
+                src_links.append(link)
+                declaration_sites.append((fp, lineno, end_line))
+            summary += f" Declared in: {', '.join(src_links)}."
 
     return InheritanceChainResult(
         model_name=model_name,
