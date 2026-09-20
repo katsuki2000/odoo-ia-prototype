@@ -16,6 +16,7 @@ _logger = logging.getLogger(__name__)
 
 _GRAPH_REF = None
 _LLM_REF = None
+_CURRENT_QUESTION = None
 
 
 def set_graph_ref(G):
@@ -36,6 +37,23 @@ def set_llm_ref(llm):
 
 def get_llm_ref():
     return _LLM_REF
+
+
+def set_current_question(question: Optional[str]):
+    """Set the current turn's raw question text, readable by tool-internal
+    formatting code that has no direct parameter path back to it (e.g.
+    format_security_locks_summary, called deep inside a @tool wrapper that
+    only receives model_name -- todo/contexte.txt section 846, intra-block
+    relevance reranking). Same global-ref pattern as set_graph_ref/
+    set_llm_ref above; None (the default before this is called, e.g. in
+    isolated unit tests) means "no question available", and callers must
+    treat that as "skip reranking, keep original order" rather than error."""
+    global _CURRENT_QUESTION
+    _CURRENT_QUESTION = question
+
+
+def get_current_question() -> Optional[str]:
+    return _CURRENT_QUESTION
 
 
 def _require_graph():

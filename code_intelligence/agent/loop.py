@@ -429,9 +429,13 @@ class CodeIntelligenceAgentRunner:
         # Initialize the knowledge graph and inject into tool wrappers
         G = get_code_intelligence_graph()
         from code_intelligence.agent.tools import ALL_CI_TOOLS
-        from code_intelligence.agent.tool_helpers import set_graph_ref, set_llm_ref
+        from code_intelligence.agent.tool_helpers import set_graph_ref, set_llm_ref, set_current_question
         from code_intelligence.rules.security_locks import gate_observation, OmittedItem
         set_graph_ref(G)
+        # todo/contexte.txt section 846: readable by format_security_locks_summary
+        # for intra-block relevance reranking, deep inside a @tool wrapper that
+        # has no direct parameter path back to the original question.
+        set_current_question(question)
 
         resolved_user_group_xmlids = _resolve_user_group_xmlids(state.get("user_groups", []))
         if state.get("user_groups") and not resolved_user_group_xmlids:

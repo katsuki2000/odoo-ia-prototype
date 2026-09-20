@@ -90,3 +90,68 @@ def test_no_correction_for_unrelated_question():
         answer, _RAW_OUTPUT, question="Quel est le montant du seuil d'approbation ?"
     )
     assert fixed == answer
+
+
+def test_correction_does_not_swallow_preceding_clause_across_model_name_dot():
+    # Section 840 regression: a model name like "account.move" contains a
+    # literal '.', which used to make the (now-removed) unbounded [^.\n]*
+    # prefix anchor right after that '.' and swallow every character up to
+    # the real denial phrase, including an unrelated CORRECT clause sharing
+    # the same comma-joined sentence (reproduced verbatim from a real ACC-Q3
+    # rejeu, todo/contexte.txt section 840).
+    answer = (
+        "En r\u00e9sum\u00e9, **account.move est un nouveau mod\u00e8le cr\u00e9\u00e9 par le module "
+        "account** et **le module ne s\u2019\u00e9tend pas sur un mod\u00e8le natif hors de "
+        "son p\u00e9rim\u00e8tre comptable**."
+    )
+    fixed = _correct_module_extension_contradiction(answer, _RAW_OUTPUT, question=_QUESTION)
+    assert "account.move est un nouveau mod\u00e8le cr\u00e9\u00e9 par le module account" in fixed
+    assert "ne s\u2019\u00e9tend pas" not in fixed
+    assert "res.partner" in fixed and "product.template" in fixed and "res.company" in fixed
+
+
+def test_correction_does_not_leave_dangling_verb_before_replacement():
+    # Section 841 regression: when the denial is nested in a construction
+    # like "il ne s'agit pas de ..." (verb+subject NOT part of the matched
+    # negation fragment itself), the OLD fragment-only replacement left
+    # "il ne s'agit " dangling immediately before the new standalone
+    # sentence ("il ne s'agit En r\u00e9alit\u00e9, ...") -- grammatically broken.
+    # The whole-sentence expansion (option 4, section 842) fixes this as a
+    # side effect: the entire sentence containing "il ne s'agit" is now
+    # part of the replaced span, so no dangling verb stem can remain.
+    answer = (
+        "- **H\u00e9ritage** : il ne s\u2019agit pas d\u2019une extension d\u2019un mod\u00e8le natif "
+        "hors de son p\u00e9rim\u00e8tre comptable."
+    )
+    fixed = _correct_module_extension_contradiction(answer, _RAW_OUTPUT, question=_QUESTION)
+    assert "il ne s\u2019agit En r\u00e9alit\u00e9" not in fixed
+    assert "s\u2019agit pas" not in fixed
+    assert "res.partner" in fixed and "product.template" in fixed and "res.company" in fixed
+
+
+def test_module_mode_evidence_survives_model_scoped_filtering_via_raw_tool_output():
+    # Section 840: list_involved_modules' MODULE-mode observation is
+    # recorded under tool_observation_models="account" (the module name),
+    # never under the resolved MODEL name "account.move" -- so
+    # _scoped_raw_tool_output (filtered on resolved models) structurally
+    # never contains it. _apply_backfill_chain must be given the unscoped
+    # raw_tool_output for this one guard, or the correction silently no-ops
+    # even though the evidence genuinely exists in this turn's tool calls.
+    import code_intelligence.agent.tools  # noqa: F401 -- warm up import order
+    from code_intelligence.agent.postprocess import _apply_backfill_chain
+
+    final_answer = (
+        "En r\u00e9sum\u00e9, le module ne s\u2019\u00e9tend pas sur un mod\u00e8le natif hors de son "
+        "p\u00e9rim\u00e8tre comptable."
+    )
+    scoped_tool_output = "some account.move-scoped block, no module-mode sentence here"
+    raw_tool_output = scoped_tool_output + "\n\n" + _RAW_OUTPUT
+
+    unfixed = _apply_backfill_chain(final_answer, scoped_tool_output, _QUESTION)
+    assert "ne s\u2019\u00e9tend pas" in unfixed
+
+    fixed = _apply_backfill_chain(
+        final_answer, scoped_tool_output, _QUESTION, raw_tool_output=raw_tool_output,
+    )
+    assert "ne s\u2019\u00e9tend pas" not in fixed
+    assert "res.partner" in fixed

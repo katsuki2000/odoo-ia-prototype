@@ -14,6 +14,7 @@ from core.evidence.evidence import Evidence, EvidenceSourceType, make_evidence
 from core.output import confidence_label
 from code_intelligence.utils import waterfill_budget
 from code_intelligence.agent.context import _truncate_observation
+from code_intelligence.agent.tool_helpers import get_current_question
 
 if TYPE_CHECKING:
     from code_intelligence.rules.security import PythonSecurityLockAnalysis
@@ -26,6 +27,70 @@ logger = logging.getLogger(__name__)
 # is the compact, high-density "essential" portion prioritized by
 # assemble_security_lock_blocks.
 _EXCEPTION_MESSAGES_MARKER = "  - Security lock messages"
+
+
+# todo/contexte.txt section 846: intra-block relevance reranking. 836/837
+# fixed the inter-block budget fight (which of N files' blocks gets budget
+# first) but left a second, distinct problem: WITHIN a single block, when
+# several has_group()/exception-message findings compete for the same
+# _protected_prefix_end "first finding line" slot, that slot always went
+# to whichever finding happened to come first in SOURCE-FILE order -- not
+# the one actually relevant to the question being asked. On ACC-Q2
+# (account.move, lock-date question), the block's own findings included
+# both an unrelated group and the actually-relevant
+# _check_fiscalyear_lock_date-adjacent group/message, and source order
+# happened to put the unrelated one first, so IT is what survived
+# truncation every single rerun regardless of 836/837's inter-block fix.
+# Same deterministic, lexical philosophy as `overrides._rank_and_cap_
+# override_methods` (rapidfuzz.fuzz.token_set_ratio against the question) --
+# no embeddings, no keyword list to hand-maintain (a hardcoded business-
+# vocabulary bonus was considered and dropped: token_set_ratio already
+# rewards exact shared tokens between question and finding text, and a
+# fixed list like "avoir"/"comptable" would only fit accounting questions,
+# not the general case across every module this tool covers).
+# Section 846 (2nd iteration, timeboxed per mandat): plain token_set_ratio
+# alone is not discriminating enough on long free-text exception messages --
+# measured directly (see contexte.txt section 846): the correct lock-date
+# message scored 40.7 against the real ACC-Q2 question, an unrelated
+# "incompatible tax country" message scored 42.2, higher, purely from
+# generic shared English filler words ("company", "settings", "the"...)
+# drowning out the one distinctive shared phrase ("lock date"). Add a flat
+# bonus per SIGNIFICANT word (>3 chars, common FR/EN stopwords excluded)
+# shared between question and text -- cheap, deterministic, no new index,
+# no embeddings (explicitly out of scope per 833/836's own conclusion).
+_STOPWORDS = frozenset({
+    "le", "la", "les", "un", "une", "des", "de", "du", "et", "ou", "est",
+    "peut", "dont", "sur", "par", "pour", "avec", "dans", "ce", "cette",
+    "ces", "aux", "que", "qui", "elle", "plus", "moins", "sans", "tout",
+    "the", "of", "to", "in", "is", "are", "and", "for", "on", "with",
+    "this", "that", "can", "not", "your", "you", "has", "have", "been",
+})
+
+
+def _significant_tokens(text: str) -> set:
+    words = re.findall(r"[a-zA-ZÀ-ÿ_]+", text.lower())
+    return {w for w in words if len(w) > 3 and w not in _STOPWORDS}
+
+
+def _relevance_score(text: str, question: Optional[str]) -> float:
+    if not question or not text:
+        return 0.0
+    from rapidfuzz import fuzz
+    base = fuzz.token_set_ratio(question.lower(), text.lower())
+    overlap = _significant_tokens(question) & _significant_tokens(text)
+    return base + 15 * len(overlap)
+
+
+def _rerank_by_relevance(items: list, text_fn, question: Optional[str]) -> list:
+    """Stable-sort `items` by _relevance_score(text_fn(item), question),
+    descending. Returns `items` UNCHANGED (same order, same list identity
+    semantics) when `question` is falsy -- e.g. isolated unit tests that
+    call format_security_locks_summary directly without going through the
+    agent loop's set_current_question, and existing tests asserting a
+    specific source-file order, are unaffected."""
+    if not question:
+        return items
+    return sorted(items, key=lambda item: _relevance_score(text_fn(item), question), reverse=True)
 
 
 def build_security_lock_evidence(
@@ -199,7 +264,16 @@ def format_security_locks_summary(
         if action_groups:
             groups_joined = ', '.join(action_groups)
             lines.append(f"  - Groupe(s) technique(s) requis detecte(s) (has_group): {groups_joined}")
-            for group_xmlid, method_name, glineno, gating in zip(analysis.required_groups, methods, group_linenos, is_gating_list):
+            # Section 846: rerank so the finding actually relevant to the
+            # current question -- not just whichever comes first in source
+            # order -- is the one that survives if a downstream budget cut
+            # (837's _protected_prefix_end) can only keep the first line.
+            action_rows = _rerank_by_relevance(
+                list(zip(analysis.required_groups, methods, group_linenos, is_gating_list)),
+                text_fn=lambda row: f"{row[0]} {row[1]}",
+                question=get_current_question(),
+            )
+            for group_xmlid, method_name, glineno, gating in action_rows:
                 if method_name:
                     citation = format_xml_id_citation(group_xmlid)
                     # Section 835 (option A) -- attach this finding's OWN file link
@@ -243,7 +317,17 @@ def format_security_locks_summary(
         conditions = analysis.exception_conditions or [""] * len(analysis.exception_messages)
         guard_fields = analysis.exception_guard_fields or [""] * len(analysis.exception_messages)
         exc_linenos = analysis.exception_linenos or [0] * len(analysis.exception_messages)
-        for msg, condition, guard_field, exc_lineno in zip(analysis.exception_messages, conditions, guard_fields, exc_linenos):
+        # Section 846: same reranking as the has_group findings above --
+        # this is precisely the gap 836/837 left open (account.move,
+        # ACC-Q2: source order put an unrelated "journal not found" message
+        # first, so IT is what 837's protected-minimum kept every rerun,
+        # never the actually-relevant lock-date message further down).
+        exc_rows = _rerank_by_relevance(
+            list(zip(analysis.exception_messages, conditions, guard_fields, exc_linenos)),
+            text_fn=lambda row: f"{row[0]} {row[1]}",
+            question=get_current_question(),
+        )
+        for msg, condition, guard_field, exc_lineno in exc_rows:
             # Section 835 (option A) -- same per-finding file link as required_groups
             # above: the block header link alone is not enough once several files'
             # blocks are concatenated (824) -- attach it to this exact finding line.

@@ -1,28 +1,32 @@
 [
   {
-    "id": "ACC-Q3",
+    "id": "ACC-Q2",
     "module": "account",
-    "capability": "inheritance",
-    "difficulty": "medium",
-    "question": "account.move est-il un nouveau modele ou une extension ? Le module account etend-il en parallele un modele natif hors de son propre perimetre comptable ?",
-    "reference_answer": "account.move est un nouveau modele (_name='account.move'), qui n'herite que de mixins (portal.mixin, mail.thread.main.attachment, mail.activity.mixin, sequence.mixin) -- aucune extension d'un modele metier preexistant. En parallele, ce meme module etend reellement res.partner (_inherit='res.partner', classe ResPartner dans models/partner.py), en lui ajoutant notamment le champ calcule fiscal_country_codes (base des codes pays fiscaux des societes autorisees) -- une extension comptable du modele partenaire natif, distincte du modele account.move.",
-    "verification": "models/account_move.py : classe AccountMove (_name + _inherit mixins) vs models/partner.py : classe ResPartner (_name='res.partner', _inherit='res.partner'), champ fiscal_country_codes",
+    "capability": "workflow",
+    "difficulty": "hard",
+    "question": "Un 'Billing Administrator' (group_account_manager) peut-il poster une ecriture comptable dont la date est anterieure ou egale a la date de cloture (lock date) de la societe ?",
+    "reference_answer": "Non, meme un manager en est empeche : _check_fiscalyear_lock_date() compare la date du mouvement a company._get_user_fiscal_lock_date() et leve un UserError des que date <= lock_date, sans aucune exception de groupe -- le seul effet du groupe est le libelle du message d'erreur (le manager recoit un message plus court, un non-manager est en plus invite a solliciter quelqu'un ayant le role 'Adviser'). Le blocage lui-meme est absolu : la seule issue est de faire reculer la lock_date via la configuration societe, pas de contourner la verification par un role plus eleve.",
+    "verification": "models/account_move.py : _check_fiscalyear_lock_date() (verifie user_has_groups('account.group_account_manager') uniquement pour choisir le texte du message, pas pour lever une exception au blocage)",
     "expected_tools": [
-      "trace_full_inheritance",
-      "list_involved_modules"
-    ],
-    "tools_used": [
-      "list_involved_modules",
-      "trace_full_inheritance",
-      "read_source_code",
+      "describe_workflow",
       "read_source_code"
     ],
-    "tool_coverage_ok": true,
-    "missing_tools": [],
-    "verbatim": "**Réponse**\n\n- **`account.move` est un modèle *déclaré* par le module `account`.**  \n  Le fichier source qui le définit se trouve dans le module `account` :  \n  `file:///media/donnee/Programs/odoo-17.0/addons/account/models/account_move.py#L81-L161`.\n\n- **Il s’agit d’un nouveau modèle, pas d’une extension d’un modèle existant.**  \n  Dans la chaîne d’héritage, le modèle est déclaré comme :  \n  `class AccountMove(models.Model): _name = \"account.move\"` (voir `file:///media/donnee/Programs/odoo-17.0/addons/account/models/account_move.py#L81-L161`).\n\n- **Le module `account` étend ce modèle en ajoutant des mixins génériques.**  \n  La chaîne d’héritage montre que `account.move` hérite de :  \n  - `mail.thread.main.attachment`  \n  - `portal.mixin`  \n  - `mail.activity.mixin`  \n  - `sequence.mixin`  \n  - `utm.mixin`  \n  (voir `Inheritance Chain for 'account.move': Extensions (_inherit): [account.move, mail.activity.mixin, mail.thread.main.attachment, portal.mixin, sequence.mixin, utm.mixin]`).\n\n- **Il n’étend pas un modèle natif hors de son périmètre comptable ;**  \n  les seuls modèles hérités sont des mixins génériques (mail, portal, etc.) et non d’autres modèles métier spécifiques à un autre domaine.\n\nEn résumé, `account.move` est un modèle propre au module `account`, déclaré dans ce module, et il étend uniquement des mixins génériques pour ajouter des fonctionnalités de suivi, de portail, de séquence, etc. Aucun modèle natif d’un autre domaine n’est étendu par `account`.\n\n[Source: Graphe de Connaissances Code Intelligence]",
-    "elapsed_seconds": 81.34,
-    "effective_seconds": 81.334,
+    "tools_used": [
+      "analyze_security_locks",
+      "who_has_access_to",
+      "evaluate_record_rules",
+      "button_execution_path",
+      "button_execution_path"
+    ],
+    "tool_coverage_ok": false,
+    "missing_tools": [
+      "describe_workflow",
+      "read_source_code"
+    ],
+    "verbatim": "### Réponse\n\nNon.  \nMême un **Billing Administrator** (groupe `account.group_account_manager`) ne peut pas enregistrer une écriture comptable dont la date est antérieure ou égale à la date de clôture (lock date) de la société.\n\n**Pourquoi ?**\n\n- La règle de verrouillage fiscal est implémentée dans la méthode `_check_fiscalyear_lock_date` du modèle `account.move`.  \n- Le code vérifie :  \n  ```python\n  if move.date <= move.company_id._get_user_fiscal_lock_date():\n      raise UserError(...)\n  ```  \n  Cette condition est indépendante du groupe d’utilisateur ; elle s’applique à **tous** les utilisateurs, quel que soit leur rôle.  \n  - La présence de `has_group('account.group_account_manager')` dans la même méthode ne rend pas la vérification conditionnelle ; elle ne sert qu’à sélectionner le texte du message d’erreur.  \n  - Le `raise` se déclenche toujours si la date est antérieure ou égale à la date de verrouillage, bloquant l’opération pour tout utilisateur.\n\n**Références**  \n- [account_move.py:L1987-L1987](file:///media/donnee/Programs/odoo-17.0/addons/account/models/account_move.py#L1987-L1987) – appel de `has_group` (non conditionnel).  \n- [account_move.py:L1991-L1991](file:///media/donnee/Programs/odoo-17.0/addons/account/models/account_move.py#L1991-L1991) – levée d’exception si la date est ≤ lock date.\n\nEn résumé, la date de clôture est une restriction globale qui ne dépend pas du groupe `account.group_account_manager`. Toute tentative d’enregistrer une écriture avant cette date sera bloquée.\n\n SOURCING NON VÉRIFIÉ : bloc(s) de code présenté(s) comme réel(s) sans aucune citation file:// à proximité (possible invention): if move.date <= move.company_id._get_user_fiscal_lock_date():\n      raise UserError(...). Ne pas considérer ces éléments comme confirmés pour cette question.\n\n[Source: Graphe de Connaissances Code Intelligence]",
+    "elapsed_seconds": 4.46,
+    "effective_seconds": 4.46,
     "groq_wait_seconds": 0.0,
-    "hop_count": 3
+    "hop_count": 5
   }
 ]

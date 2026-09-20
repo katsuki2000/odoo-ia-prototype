@@ -429,9 +429,25 @@ _MODULE_DEFINES_EXTENDS_RE = re.compile(
 # "n'etend pas ... hors de son perimetre", "pas ... extension ... hors de").
 # Operates on accent-folded, lowercased text -- same convention as
 # overrides._OVERRIDE_COUNT_DENIAL_RE.
+# Section 840: NO unbounded [^.\n]* prefix -- a model name like
+# "account.move" contains a literal '.', so an open-ended prefix greedily
+# anchored on the first '.' it finds would swallow whatever UNRELATED
+# correct text sits between that '.' and the actual denial phrase later in
+# the same sentence (reproduced directly: garbled "En resume,
+# **account.En realite..." when the response's first clause -- correct --
+# and its negation clause -- wrong -- share one comma-joined sentence).
+# Section 842: this core regex only needs to reliably LOCATE the negation
+# (bounded trailing windows are enough for that -- they don't need to reach
+# the true sentence end); _neutralize_module_extension_denial below expands
+# the located match out to real sentence boundaries via
+# common.expand_to_sentence_bounds() before replacing, which is what fixes
+# section 841's dangling-verb-stem problem without reintroducing 840's
+# dotted-identifier problem (see the long comment in common.py for why
+# neither an unbounded prefix nor a fixed-width window alone can satisfy
+# both constraints at once).
 _MODULE_EXTENSION_DENIAL_RE = re.compile(
-    r"[^.\n]*(?:n['\u2019]\s*etend\s+pas|ne\s+s['\u2019]?\s*etend\s+pas|ne\s+modifie\s+pas|"
-    r"pas[^.\n]{0,20}extension)[^.\n]*(?:perimetre|hors\s+de|en\s+dehors\s+de)[^.\n]*\.?"
+    r"(?:n['\u2019]\s*etend\s+pas|ne\s+s['\u2019]?\s*etend\s+pas|ne\s+modifie\s+pas|"
+    r"pas[^.\n]{0,20}extension)[^.\n]{0,80}(?:perimetre|hors\s+de|en\s+dehors\s+de)[^.\n]{0,40}"
 )
 
 
@@ -461,9 +477,14 @@ def _answer_denies_module_extension(final_answer: str) -> bool:
 
 
 def _neutralize_module_extension_denial(final_answer: str, extended_models: List[str]) -> str:
-    """Replace the sentence denying any out-of-perimeter extension with the
-    real extended-model list."""
+    """Replace the FULL SENTENCE containing the out-of-perimeter denial with
+    the real extended-model list -- expanding out to real sentence
+    boundaries (see common.expand_to_sentence_bounds) rather than replacing
+    just the matched negation fragment, so no dangling verb/subject stem
+    (e.g. "il ne s'agit ") is ever left immediately before the replacement
+    (todo/contexte.txt section 841)."""
     from code_intelligence.rules.group_resolver import _fold_accents
+    from code_intelligence.rules.common import expand_to_sentence_bounds
     folded = _fold_accents(final_answer.lower())
     match = _MODULE_EXTENSION_DENIAL_RE.search(folded)
     if not match:
@@ -474,7 +495,7 @@ def _neutralize_module_extension_denial(final_answer: str, extended_models: List
         f"En réalité, ce module étend bien {len(extended_models)} modèle(s) "
         f"hors de son propre périmètre : {models_list}."
     )
-    start, end = match.span()
+    start, end = expand_to_sentence_bounds(folded, *match.span())
     return final_answer[:start] + replacement + final_answer[end:]
 
 

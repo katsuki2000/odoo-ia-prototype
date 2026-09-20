@@ -80,6 +80,7 @@ def _apply_backfill_chain(
     question: str,
     scoped_tool_observation_models=None,
     target_models=None,
+    raw_tool_output: str = "",
 ) -> str:
     final_answer = _correct_security_lock_threshold_contradictions(final_answer, scoped_tool_output, question)
     final_answer = _backfill_missing_can_view_amount_fact(
@@ -92,7 +93,16 @@ def _apply_backfill_chain(
     final_answer = _backfill_missing_security_lock_amount(final_answer, scoped_tool_output, question=question)
     final_answer = _backfill_missing_override_modules(final_answer, scoped_tool_output, question=question)
     final_answer = _correct_override_cascade_contradictions(final_answer, scoped_tool_output)
-    final_answer = _correct_module_extension_contradiction(final_answer, scoped_tool_output, question=question)
+    # Section 840: list_involved_modules' MODULE-mode evidence ("Module 'X'
+    # defines or extends...") is recorded under tool_observation_models="X"
+    # (the module name, e.g. "account"), never under the resolved MODEL name
+    # (e.g. "account.move") -- scoped_tool_output filters by resolved model,
+    # so this evidence is structurally never present there. Use the
+    # unscoped raw_tool_output for this one guard instead; the denial check
+    # still runs against final_answer, so no cross-model contamination risk.
+    final_answer = _correct_module_extension_contradiction(
+        final_answer, raw_tool_output or scoped_tool_output, question=question
+    )
     final_answer = _backfill_missing_override_chain_amount(final_answer, scoped_tool_output)
     final_answer = _backfill_missing_trigger_condition_literals(final_answer, scoped_tool_output)
     final_answer = _backfill_missing_hardcoded_id_literals(final_answer, scoped_tool_output)
@@ -166,6 +176,7 @@ def build_final_response(
                 question,
                 scoped_tool_observation_models=scoped_tool_observation_models,
                 target_models=concept.resolved_models,
+                raw_tool_output=raw_tool_output,
             )
 
     from code_intelligence.agent.dispatch_guards import verify_citations, annotate_unverifiable_citations

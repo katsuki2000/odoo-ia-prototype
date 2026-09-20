@@ -312,13 +312,28 @@ def _backfill_missing_override_chain_amount(final_answer: str, raw_tool_output: 
     )
 
 
+# todo/contexte.txt section 842: NO unbounded [^.\n]* prefix/suffix -- a
+# model/method name can contain a literal '.' (e.g. "sale.order"), so an
+# open-ended run greedily anchored on the nearest '.' it finds would swallow
+# whatever UNRELATED correct text sits between that '.' and the actual
+# denial phrase (same anti-pattern as structure.py's
+# _MODULE_EXTENSION_DENIAL_RE before its section-840 fix -- confirmed by
+# direct reproduction to affect this regex too, latent, never triggered in
+# practice: "En resume, sale.order est le modele cible, et il n'y a pas de
+# surcharges detectees ailleurs." swallowed "order est le modele cible, et
+# il" into the replacement). This core regex only needs to reliably LOCATE
+# the denial (bounded windows are enough); _neutralize_override_count_denial
+# below expands the located match out to real sentence boundaries via
+# common.expand_to_sentence_bounds() before replacing -- full-sentence
+# replacement without being tripped up by a dotted identifier's internal
+# '.' (see the long comment in common.py).
 _OVERRIDE_COUNT_DENIAL_RE = re.compile(
-    r"[^.\n]*aucune\s+autre\s+surcharge[^.\n]*\.?"
-    r"|[^.\n]*il\s+n['\u2019]y\s+a\s+pas\s+de\s+surcharges?[^.\n]*detectees?[^.\n]*\.?"
+    r"aucune\s+autre\s+surcharge[^.\n]{0,60}"
+    r"|il\s+n['\u2019]y\s+a\s+pas\s+de\s+surcharges?[^.\n]{0,40}detectees?[^.\n]{0,20}"
 )
 
 _OVERRIDE_ORDER_SHORTCIRCUIT_SENTENCE_RE = re.compile(
-    r"[^.\n]*erreur[^.\n]*ne\s+(?:seront|sera)\s+pas\s+executee?s?[^.\n]*\.?"
+    r"erreur[^.\n]{0,60}ne\s+(?:seront|sera)\s+pas\s+executee?s?[^.\n]{0,20}"
 )
 
 
@@ -337,8 +352,15 @@ def _answer_asserts_override_shortcircuit(final_answer: str) -> bool:
 
 
 def _neutralize_override_count_denial(final_answer: str, modules: List[str]) -> str:
-    """Replace the sentence denying any other override with the real count and module list."""
+    """Replace the FULL SENTENCE denying any other override with the real
+    count and module list -- expanding out to real sentence boundaries (see
+    common.expand_to_sentence_bounds) rather than replacing just the
+    matched denial fragment, so no dangling verb/subject stem is ever left
+    immediately before the replacement, and no dotted model/method
+    identifier's internal '.' is ever mistaken for the sentence's real end
+    (todo/contexte.txt section 842)."""
     from code_intelligence.rules.group_resolver import _fold_accents
+    from code_intelligence.rules.common import expand_to_sentence_bounds
     folded = _fold_accents(final_answer.lower())
     match = _OVERRIDE_COUNT_DENIAL_RE.search(folded)
     if not match:
@@ -349,13 +371,16 @@ def _neutralize_override_count_denial(final_answer: str, modules: List[str]) -> 
         f"Il existe en réalité {len(modules)} surcharges de cette méthode, "
         f"dans les modules suivants : {modules_list}."
     )
-    start, end = match.span()
+    start, end = expand_to_sentence_bounds(folded, *match.span())
     return final_answer[:start] + replacement + final_answer[end:]
 
 
 def _neutralize_override_shortcircuit_sentence(final_answer: str, modules: List[str]) -> str:
-    """Replace the sentence asserting a short-circuit with the real execution semantics."""
+    """Replace the FULL SENTENCE asserting a short-circuit with the real
+    execution semantics -- same real-sentence-boundary expansion as
+    _neutralize_override_count_denial above (todo/contexte.txt section 842)."""
     from code_intelligence.rules.group_resolver import _fold_accents
+    from code_intelligence.rules.common import expand_to_sentence_bounds
     folded = _fold_accents(final_answer.lower())
     match = _OVERRIDE_ORDER_SHORTCIRCUIT_SENTENCE_RE.search(folded)
     if not match:
@@ -368,7 +393,7 @@ def _neutralize_override_shortcircuit_sentence(final_answer: str, modules: List[
         f"l'ordre réel {order}, et l'exécution d'une surcharge ne s'arrête "
         f"que si elle omet d'appeler super() ou lève explicitement une erreur."
     )
-    start, end = match.span()
+    start, end = expand_to_sentence_bounds(folded, *match.span())
     return final_answer[:start] + replacement + final_answer[end:]
 
 
