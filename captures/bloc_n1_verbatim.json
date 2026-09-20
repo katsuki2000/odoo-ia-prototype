@@ -22,10 +22,10 @@
     "missing_tools": [
       "read_source_code"
     ],
-    "verbatim": "Oui.  \nL’ACL directe de **account.group_account_manager** sur le modèle **account.move** ne donne effectivement que le droit de lecture, mais le groupe obtient également les droits d’écriture, de création et de suppression grâce aux **implied_ids**.  \n\n- Dans la matrice d’accès :  \n  - **CREATE** et **UNLINK** : mêmes groupes que pour l’écriture.  \n\n- Aucun **ir.rule** de groupe ne restreint l’accès à ce modèle ; les seules règles globales ne contiennent pas de condition de montant ou de portée supplémentaire.  \n\nAinsi, un utilisateur appartenant à **group_account_manager** (Billing Administrator) peut créer, modifier et supprimer des factures, même si l’ACL directe ne montre que le droit de lecture. (Les contrôles de workflow ou d’état ne sont pas examinés ici.)\n\n[Source: Graphe de Connaissances Code Intelligence]",
-    "elapsed_seconds": 15.51,
-    "effective_seconds": 5.564,
-    "groq_wait_seconds": 9.941,
+    "verbatim": "### Peut‑t‑il créer et modifier des factures ?\n\nOui.  \nMême si l’ACL *directe* de `account.group_account_manager` sur `account.move` ne donne que le droit de lecture, ce groupe hérite des droits du groupe `account.group_account_invoice`.  \nDans la matrice d’accès, on trouve :\n\n- **WRITE** : `account.group_account_invoice`, `account.group_account_manager` (via `implied_ids <- account.group_account_invoice`), `account.group_account_user` (via `implied_ids <- account.group_account_invoice`), `group_purchase_user`  \n- **CREATE** : idem que WRITE  \n- **UNLINK** : idem que WRITE  \n\n> **Source** : [Access Matrix for 'account.move': [WRITE] …](file:///media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_credit_note_approval/models/account_move.py#L1-L22)\n\nAinsi, un utilisateur appartenant à `account.group_account_manager` possède les droits d’écriture, de création et de suppression sur les factures (`account.move`).  \n\nLes règles de sécurité supplémentaires (record‑rules, locks) ne restreignent pas la création ou la modification ; elles ne concernent que des actions spécifiques (ex. validation d’un avoir > 5000 €).  \n\n**Conclusion** : un « Billing Administrator » (group_account_manager) peut créer et modifier des factures.\n\n[Source: Graphe de Connaissances Code Intelligence]",
+    "elapsed_seconds": 3.69,
+    "effective_seconds": 3.685,
+    "groq_wait_seconds": 0.0,
     "hop_count": 4
   }
 ]

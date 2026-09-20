@@ -1,6 +1,6 @@
 # Rapport Verbatim -- Bloc N1 (banc de questions natif)
 
-**Date d'execution :** 2026-09-20 14:41:18
+**Date d'execution :** 2026-09-20 15:11:26
 
 **Objectif :** rejouer les questions verite-terrain des 5 modules natifs (maintenance, purchase, sale, stock, account) contre l'agent Code Intelligence reel et capturer la reponse verbatim pour comparaison manuelle avec `reference_answer` -- aucune notation automatique.
 
@@ -12,10 +12,10 @@
 | Questions executees | 1 |
 | Erreurs d'execution | 0 |
 | Ecarts de couverture d'outils (expected_tools non tous invoques) | 1 |
-| p50 latence effective | `5.56s` |
-| p90 latence effective | `5.56s` (budget `12.0s`,  RESPECTE) |
-| Moyenne | `5.56s` |
-| Max | `5.56s` |
+| p50 latence effective | `3.69s` |
+| p90 latence effective | `3.69s` (budget `12.0s`,  RESPECTE) |
+| Moyenne | `3.69s` |
+| Max | `3.69s` |
 
 ---
 
@@ -29,17 +29,25 @@
 
 **Outils attendus :** ['who_has_access_to', 'evaluate_record_rules', 'read_source_code'] | **Outils invoques :** ['analyze_security_locks', 'who_has_access_to', 'evaluate_record_rules', 'button_execution_path'] -- MANQUANT(S): ['read_source_code']
 
-**Reponse verbatim de l'agent (Total: 15.51s | Effectif: 5.564s | Groq wait: 9.941s | Sauts: 4) :**
+**Reponse verbatim de l'agent (Total: 3.69s | Effectif: 3.685s | Groq wait: 0.0s | Sauts: 4) :**
 ```text
+### Peut‑t‑il créer et modifier des factures ?
+
 Oui.  
-L’ACL directe de **account.group_account_manager** sur le modèle **account.move** ne donne effectivement que le droit de lecture, mais le groupe obtient également les droits d’écriture, de création et de suppression grâce aux **implied_ids**.  
+Même si l’ACL *directe* de `account.group_account_manager` sur `account.move` ne donne que le droit de lecture, ce groupe hérite des droits du groupe `account.group_account_invoice`.  
+Dans la matrice d’accès, on trouve :
 
-- Dans la matrice d’accès :  
-  - **CREATE** et **UNLINK** : mêmes groupes que pour l’écriture.  
+- **WRITE** : `account.group_account_invoice`, `account.group_account_manager` (via `implied_ids <- account.group_account_invoice`), `account.group_account_user` (via `implied_ids <- account.group_account_invoice`), `group_purchase_user`  
+- **CREATE** : idem que WRITE  
+- **UNLINK** : idem que WRITE  
 
-- Aucun **ir.rule** de groupe ne restreint l’accès à ce modèle ; les seules règles globales ne contiennent pas de condition de montant ou de portée supplémentaire.  
+> **Source** : [Access Matrix for 'account.move': [WRITE] …](file:///media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_credit_note_approval/models/account_move.py#L1-L22)
 
-Ainsi, un utilisateur appartenant à **group_account_manager** (Billing Administrator) peut créer, modifier et supprimer des factures, même si l’ACL directe ne montre que le droit de lecture. (Les contrôles de workflow ou d’état ne sont pas examinés ici.)
+Ainsi, un utilisateur appartenant à `account.group_account_manager` possède les droits d’écriture, de création et de suppression sur les factures (`account.move`).  
+
+Les règles de sécurité supplémentaires (record‑rules, locks) ne restreignent pas la création ou la modification ; elles ne concernent que des actions spécifiques (ex. validation d’un avoir > 5000 €).  
+
+**Conclusion** : un « Billing Administrator » (group_account_manager) peut créer et modifier des factures.
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```

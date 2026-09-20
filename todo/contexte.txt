@@ -5546,3 +5546,22 @@ Contexte : pmm colle 4 rejeux consecutifs d'ACC-Q1 juste apres le commit de 850.
 **Fichiers modifies** : `code_intelligence/agent/access_guards.py`, `code_intelligence/tests/test_bloc9_07_core_only_group_stripping.py`, `todo/contexte.txt` (cette section).
 
 **Prochaine etape** : pmm rejoue ACC-Q1 (x3-4, meme protocole) pour confirmer que `account.group_account_invoice` et le mecanisme `implied_ids` survivent desormais jusqu'a la reponse finale en conditions reelles.
+
+## Section 852 : Rejeu ACC-Q1 x3 colle par pmm (post-851) -- CONFIRME end-to-end : 3/3 conclusion "Oui" correcte ET mecanisme implied_ids desormais explicite dans les 3 reponses -- chantier 848-851 (ACC-Q1) considere clos
+
+Date : 18/09/2026
+Contexte : pmm rejoue ACC-Q1 x3 en conditions reelles (Groq) juste apres le commit de 851.
+
+**Resultat, les 3 rejeux** :
+  - Conclusion "Oui" (le Billing Administrator peut creer/modifier des factures malgre l'ACL directe read-only) -- stable 3/3, comme deja le cas depuis 848.
+  - **Nouveau, 1ere fois depuis 848** : le mecanisme `implied_ids` est desormais explicite et cite dans les 3 reponses -- "account.group_account_invoice inclut account.group_account_manager" (run 1), et pour les runs 2/3 la ligne brute de la matrice d'acces elle-meme : `[WRITE]: account.group_account_invoice, account.group_account_manager (via implied_ids <- account.group_account_invoice), account.group_account_user (via implied_ids <- account.group_account_invoice), group_purchase_user`. C'est exactement la donnee que 848 avait rendue disponible mais que 849 avait diagnostique comme supprimee avant d'atteindre la reponse -- desormais visible de bout en bout.
+
+**Bilan de la chaine 848->851** : root cause initiale (848, `who_has_access_to` ne distinguait pas ACL directe et heritage `implied_ids`) corrigee et confirmee visible dans la donnee brute -- puis 2 iterations necessaires sur un garde en aval non lie a 848 (`_strip_core_only_group_mentions`, historique documente en test module 9/8) qui la supprimait silencieusement : 849 diagnostic, 850 premier fix (insuffisant, comptait sur le mauvais ensemble), 851 fix definitif (comptage sur l'ensemble complet grounde, pas sur le sous-ensemble mentionne par la reponse) -- confirme ici par 3 rejeux reels consecutifs.
+
+**Residu connu, non bloquant, hors-scope de cette chaine** : la citation "Source" de l'Access Matrix (runs 2/3) pointe toujours vers le fichier custom (`custom_credit_note_approval/models/account_move.py#L1-L22`) plutot que le fichier natif -- biais custom-first deja catalogue en 822/823, jamais mandate, distinct de 848-851 (qui concernait la donnee elle-meme, pas son attribution de citation).
+
+**Ce qui N'A PAS ete fait** : aucun code touche ce tour (verification/documentation uniquement). Le biais custom-first (822/823) et les variantes STK-Q3 (821, inversion de sens / omission) restent hors-scope, inchanges.
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section uniquement).
+
+**Prochaine etape** : chantier ACC-Q1/848-851 clos. Chantiers ouverts restants, par ordre de mention dans les sections recentes : biais custom-first (822/823, visible sur ACC-Q3 et ACC-Q1 de maniere non deterministe), variante inversion de sens et variante omission sur STK-Q3 (821, point 4).
