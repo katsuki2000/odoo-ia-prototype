@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
 import logging
+import re
 
 from core.evidence.evidence import Evidence, EvidenceSourceType, make_evidence
 from core.output import confidence_label
@@ -268,6 +269,116 @@ def format_security_locks_summary(
     return "\n".join(lines)
 
 
+_EMPTY_BLOCK_LINE = "Aucun verrou sp\u00e9cifique ni incertitude dynamique d\u00e9tect\u00e9."
+
+
+def _compact_empty_block(text: str) -> str:
+    """Section 837 (option 1, mandat 836): a block with zero findings still
+    pays for a full header (file link + confidence label) plus one filler
+    sentence -- pure water-filling budget waste when several such blocks
+    compete against a large, information-dense block (section 836:
+    account.move has 4/11 strictly-empty blocks eating ~850 chars for zero
+    signal). Collapse to a single short line, keeping only the file link
+    for traceability.
+    """
+    lines = text.split("\n")
+    if len(lines) == 2 and lines[1].strip().lstrip("-").strip() == _EMPTY_BLOCK_LINE:
+        m = re.search(r"(\[[^\]]+\]\([^)]+\))", lines[0])
+        link = m.group(1) if m else lines[0]
+        return f"{link}: aucun verrou."
+    return text
+
+
+def _protected_prefix_end(text: str) -> int:
+    """Section 837 (option 3, mandat 836): character offset covering the
+    header/marker line plus the first substantive finding line that follows
+    it (and, when present, a second bullet-continuation line right after --
+    e.g. a required_groups summary line followed by its first `has_group`
+    detail bullet). Used to guarantee every non-empty block keeps at least
+    one complete, highest-priority (819 already orders each block by
+    relevance) finding line intact, instead of relying on plain
+    water-filling alone -- which can land an allocation mid-line, after
+    which `_truncate_observation` rewinds to the previous `\n` and drops
+    the entire line (section 836: account.move's native block got 730/1787
+    chars, landing mid-way through its single `_check_fiscalyear_lock_date`
+    bullet, which was then dropped whole rather than partially kept).
+    """
+    lines = text.split("\n")
+    if len(lines) <= 1:
+        # Nothing beyond the header/link itself (e.g. an already-compacted
+        # empty block, section 837 option 1) -- no mid-line-cut risk exists
+        # for a single line, so no explicit protection is needed: ordinary
+        # water-filling already fully includes small single-line blocks on
+        # its own, and forcing a protected minimum here would only inflate
+        # the total protected budget across many low-value stub blocks and
+        # crowd out the genuinely multi-line blocks that need it (observed
+        # directly while validating this fix: 9 compacted stub blocks added
+        # ~1300 wasted "protected" chars, pushing the total protected sum
+        # above the tool budget and silently falling back to unprotected
+        # water-filling on account.move's real, multi-line native block).
+        return 0
+    protect_upto = 2
+    if len(lines) > 2 and lines[2].lstrip().startswith("*"):
+        protect_upto = 3
+    return min(len("\n".join(lines[:protect_upto])), len(text))
+
+
+def _waterfill_with_protected_minimum(
+    sizes: List[int], texts: List[str], budget: int, priority: Optional[List[int]] = None
+) -> List[int]:
+    """Water-fill `budget` across `sizes`, but first guarantee each
+    non-empty item its `_protected_prefix_end` minimum (capped at the
+    item's own size) before water-filling the remainder proportionally.
+
+    When the protected minimums together do not fit in `budget` (section
+    837, mandat 836: observed directly on account.move's exception tier --
+    7 non-empty blocks each need 166-659 chars of protected minimum, only
+    ~1100 chars remain after the essential tier), plain water-filling would
+    give every block a tiny, roughly-equal, budget-unaware slice -- putting
+    the single most important block (the one that actually carried the
+    `_check_fiscalyear_lock_date` finding) on equal footing with six
+    unrelated ones. Instead, greedily grant FULL protected minimums to
+    blocks in `priority` order (highest first; defaults to each item's own
+    size when no external priority is supplied) until the budget runs out
+    -- every included block keeps one complete, uncut message rather than
+    every block getting an equally-broken partial one. Blocks that do not
+    fit at all get 0, not a useless fragment.
+    """
+    protected = [min(_protected_prefix_end(t), s) if s else 0 for t, s in zip(texts, sizes)]
+    protected_total = sum(protected)
+    if protected_total > budget:
+        order = sorted(
+            range(len(sizes)),
+            key=lambda i: (priority[i] if priority else sizes[i]),
+            reverse=True,
+        )
+        alloc = [0] * len(sizes)
+        remaining = budget
+        for i in order:
+            if protected[i] and protected[i] <= remaining:
+                alloc[i] = protected[i]
+                remaining -= protected[i]
+        return alloc
+    extra_sizes = [s - p for s, p in zip(sizes, protected)]
+    extra_budget = budget - protected_total
+    extra_alloc = waterfill_budget(extra_sizes, extra_budget)
+    alloc = [p + e for p, e in zip(protected, extra_alloc)]
+    # An item with protected==0 has no internal newline for
+    #  to rewind to (it is a single atomic line --
+    # typically an already-compacted empty block, ).
+    # Handing it a tiny partial share is worse than useless: with no 
+    # to cut back to,  hard-cuts mid-line and still
+    # appends its ~50-char truncation marker, so the actual output can end
+    # up LONGER than the tiny cap it was given (observed directly while
+    # validating this fix: a 87-char cap on a 166-char single-line block
+    # produced 137 actual chars) -- and even without that overshoot, a
+    # half a markdown link is just noise. All-or-nothing for these instead.
+    for i, (s, a, p) in enumerate(zip(sizes, alloc, protected)):
+        if p == 0 and 0 < a < s:
+            alloc[i] = 0
+    return alloc
+
+
 def assemble_security_lock_blocks(blocks: List[str], budget: int) -> str:
     """Join per-file `format_security_locks_summary` blocks under a fixed
     total character budget, WITHOUT letting a naive head-truncation starve
@@ -277,18 +388,32 @@ def assemble_security_lock_blocks(blocks: List[str], budget: int) -> str:
     `_sort_filepaths_custom_first`, so a flat "\n\n".join(...) + head-cut
     silently drops it entirely once the custom blocks alone exceed the cap).
 
-    Two-tier water-filling (section 824):
+    Two-tier water-filling (section 824), with two refinements (section 837,
+    mandat 836 -- options 1+3, see that section for the account.move repro
+    where the tier-1 budget was exhausted before ever reaching tier 2 and
+    the tier-1 allocation itself landed mid-line on the block that mattered
+    most):
       1. Each block is split at `_EXCEPTION_MESSAGES_MARKER` into an
          "essential" portion (header, required_groups, static_filters --
          compact, high information density, already prioritized within a
          single block by the 819 reordering) and an "exception_messages"
          portion (verbose UserError/ValidationError text dump, low density).
-      2. The essential portions are water-filled first, across ALL blocks
-         fairly (section 819's intra-block fix does not help once several
-         blocks compete for the same outer budget -- this is the inter-block
-         analogue). Whatever budget remains goes to the exception-message
-         portions, again water-filled, so no single block's verbose dump can
-         crowd out another block's essential summary.
+      2. Strictly-empty blocks (no findings at all) are compacted to a
+         single short line before entering the water-filling competition
+         at all (`_compact_empty_block`), so they no longer pay full header
+         price for zero signal.
+      3. Within each tier, every non-empty block is first guaranteed a
+         protected minimum covering its header plus first finding line
+         (`_waterfill_with_protected_minimum`) before the remaining budget
+         is water-filled proportionally across the rest -- so a block that
+         gets a small share still keeps one complete, highest-priority
+         line rather than losing it whole to a mid-line cut.
+      4. Whatever essential-tier budget remains goes to the
+         exception-message portions, same protected-minimum + water-fill
+         treatment, so no single block's verbose dump can crowd out
+         another block's exception message, and each non-empty exception
+         portion keeps at least its first message line if any budget
+         reaches tier 2 at all.
     Blocks are reassembled in their original (input) order -- this function
     does not re-sort; ordering (e.g. custom-first) is the caller's decision.
     """
@@ -296,6 +421,8 @@ def assemble_security_lock_blocks(blocks: List[str], budget: int) -> str:
         return ""
     if budget <= 0:
         return _truncate_observation("", 0)
+
+    blocks = [_compact_empty_block(b) for b in blocks]
 
     essentials: List[str] = []
     exceptions: List[str] = []
@@ -310,17 +437,32 @@ def assemble_security_lock_blocks(blocks: List[str], budget: int) -> str:
 
     essential_sizes = [len(e) for e in essentials]
     essential_budget = min(budget, sum(essential_sizes))
-    essential_alloc = waterfill_budget(essential_sizes, essential_budget)
+    essential_alloc = _waterfill_with_protected_minimum(essential_sizes, essentials, essential_budget)
 
     used = sum(essential_alloc)
     remaining_budget = max(0, budget - used)
     exception_sizes = [len(e) for e in exceptions]
-    exception_alloc = waterfill_budget(exception_sizes, remaining_budget)
+    # Section 837: prioritize the exception tier by how much essential-tier
+    # budget each block actually earned -- a proxy for how substantive/
+    # important that block's analysis turned out to be, so the same block
+    # that won the essential tier's fight for its finding line also gets
+    # first claim on tier-2 budget for its associated exception message.
+    exception_alloc = _waterfill_with_protected_minimum(
+        exception_sizes, exceptions, remaining_budget, priority=essential_alloc
+    )
 
     parts: List[str] = []
     for essential, ess_cap, exc_text, exc_cap in zip(
         essentials, essential_alloc, exceptions, exception_alloc
     ):
+        # Section 837:  always appends its
+        # "[... Content truncated ...]" marker, even at a 0 budget -- so a
+        # dropped block (all-or-nothing allocation, see
+        # ) must be skipped outright
+        # rather than routed through it, or it silently reappears as pure
+        # marker noise with zero actual content.
+        if ess_cap <= 0:
+            continue
         block_text = _truncate_observation(essential, ess_cap) if ess_cap < len(essential) else essential
         if exc_cap > 0:
             exc_piece = exc_text if exc_cap >= len(exc_text) else _truncate_observation(exc_text, exc_cap)

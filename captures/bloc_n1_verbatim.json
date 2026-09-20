@@ -14,15 +14,14 @@
     "tools_used": [
       "list_involved_modules",
       "trace_full_inheritance",
-      "read_source_code",
       "read_source_code"
     ],
     "tool_coverage_ok": true,
     "missing_tools": [],
-    "verbatim": "**Réponse**\n\n- **`account.move` est un modèle déclaré dans le module `account`.**  \n  Le fichier `account_move.py` du module `account` contient la déclaration :  \n  `class AccountMove(models.Model): _name = \"account.move\"` (voir `file:///home/user/odoo-17.0/addons/account/models/account_move.py#L5-L22`).  \n  Il ne s’agit donc pas d’une extension d’un modèle déjà existant, mais d’un nouveau modèle introduit par `account`.\n\n- **Il ne s’agit pas d’une extension d’un modèle natif hors de son périmètre comptable.**  \n  L’héritage de `account.move` se fait uniquement sur des mixins métier (et non sur un modèle « natif » comme `res.partner`, `res.company`, etc.).  \n  La chaîne d’héritage est la suivante :  \n  `portal.mixin → mail.thread.main.attachment → mail.activity.mixin → sequence.mixin → utm.mixin` (voir `file:///home/user/odoo-17.0/addons/account/models/account_move.py#L5-L22`).  \n  Aucun modèle natif hors du domaine comptable n’est étendu par `account.move`.\n\nEn résumé, `account.move` est un modèle **déclaré** dans le module `account` et ne repose que sur des mixins métier ; il n’étend pas de modèle natif en dehors de son périmètre comptable.\n\n[Source: Graphe de Connaissances Code Intelligence]",
-    "elapsed_seconds": 25.84,
-    "effective_seconds": 25.842,
+    "verbatim": "### Modèle `account.move`\n\n- **Nature** : `account.move` est **déclaré** dans le module `account`.  \n  - Source : [account_move.py:L5-L22](file:///media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_credit_note_approval/models/account_move.py#L5-L22)  \n  - Il n’est pas une extension d’un modèle existant, mais un nouveau modèle métier.\n\n- **Héritage** : il hérite de plusieurs mixins génériques (mail, portal, sequence, UTM) mais **ne dérive pas d’un modèle natif hors de l’écosystème comptable**.  \n  - Source : [account_move.py:L5-L22](file:///media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_credit_note_approval/models/account_move.py#L5-L22)  \n  - Les mixins (`mail.thread.main.attachment`, `mail.activity.mixin`, `portal.mixin`, `sequence.mixin`, `utm.mixin`) sont des modèles génériques, pas des modèles comptables.\n\n### Extension du module `account`\n\n- Le module `account` **n’étend pas** un modèle natif qui ne fait pas partie de son périmètre comptable.  \n  - Il ne modifie pas, par exemple, `res.partner` ou d’autres modèles métier non liés à la comptabilité.  \n  - Les seules extensions sont vers des mixins génériques, ce qui est normal pour ajouter des fonctionnalités transversales (notifications, portail, séquences, etc.).\n\nEn résumé, `account.move` est un nouveau modèle créé par le module `account`, et le module ne s’étend pas sur des modèles natifs hors de son domaine comptable.\n\n[Source: Graphe de Connaissances Code Intelligence]",
+    "elapsed_seconds": 3.66,
+    "effective_seconds": 3.662,
     "groq_wait_seconds": 0.0,
-    "hop_count": 3
+    "hop_count": 2
   }
 ]

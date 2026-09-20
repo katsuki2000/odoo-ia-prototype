@@ -1,6 +1,6 @@
 # Rapport Verbatim -- Bloc N1 (banc de questions natif)
 
-**Date d'execution :** 2026-09-18 16:02:20
+**Date d'execution :** 2026-09-20 09:50:17
 
 **Objectif :** rejouer les questions verite-terrain des 5 modules natifs (maintenance, purchase, sale, stock, account) contre l'agent Code Intelligence reel et capturer la reponse verbatim pour comparaison manuelle avec `reference_answer` -- aucune notation automatique.
 
@@ -12,10 +12,10 @@
 | Questions executees | 1 |
 | Erreurs d'execution | 0 |
 | Ecarts de couverture d'outils (expected_tools non tous invoques) | 0 |
-| p50 latence effective | `25.84s` |
-| p90 latence effective | `25.84s` (budget `12.0s`,  DEPASSE) |
-| Moyenne | `25.84s` |
-| Max | `25.84s` |
+| p50 latence effective | `3.66s` |
+| p90 latence effective | `3.66s` (budget `12.0s`,  RESPECTE) |
+| Moyenne | `3.66s` |
+| Max | `3.66s` |
 
 ---
 
@@ -27,24 +27,27 @@
 
 **A verifier dans le code :** `models/account_move.py : classe AccountMove (_name + _inherit mixins) vs models/partner.py : classe ResPartner (_name='res.partner', _inherit='res.partner'), champ fiscal_country_codes`
 
-**Outils attendus :** ['trace_full_inheritance', 'list_involved_modules'] | **Outils invoques :** ['list_involved_modules', 'trace_full_inheritance', 'read_source_code', 'read_source_code']
+**Outils attendus :** ['trace_full_inheritance', 'list_involved_modules'] | **Outils invoques :** ['list_involved_modules', 'trace_full_inheritance', 'read_source_code']
 
-**Reponse verbatim de l'agent (Total: 25.84s | Effectif: 25.842s | Groq wait: 0.0s | Sauts: 3) :**
+**Reponse verbatim de l'agent (Total: 3.66s | Effectif: 3.662s | Groq wait: 0.0s | Sauts: 2) :**
 ```text
-**Réponse**
+### Modèle `account.move`
 
-- **`account.move` est un modèle déclaré dans le module `account`.**  
-  Le fichier `account_move.py` du module `account` contient la déclaration :  
-  `class AccountMove(models.Model): _name = "account.move"` (voir `file:///home/user/odoo-17.0/addons/account/models/account_move.py#L5-L22`).  
-  Il ne s’agit donc pas d’une extension d’un modèle déjà existant, mais d’un nouveau modèle introduit par `account`.
+- **Nature** : `account.move` est **déclaré** dans le module `account`.  
+  - Source : [account_move.py:L5-L22](file:///media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_credit_note_approval/models/account_move.py#L5-L22)  
+  - Il n’est pas une extension d’un modèle existant, mais un nouveau modèle métier.
 
-- **Il ne s’agit pas d’une extension d’un modèle natif hors de son périmètre comptable.**  
-  L’héritage de `account.move` se fait uniquement sur des mixins métier (et non sur un modèle « natif » comme `res.partner`, `res.company`, etc.).  
-  La chaîne d’héritage est la suivante :  
-  `portal.mixin → mail.thread.main.attachment → mail.activity.mixin → sequence.mixin → utm.mixin` (voir `file:///home/user/odoo-17.0/addons/account/models/account_move.py#L5-L22`).  
-  Aucun modèle natif hors du domaine comptable n’est étendu par `account.move`.
+- **Héritage** : il hérite de plusieurs mixins génériques (mail, portal, sequence, UTM) mais **ne dérive pas d’un modèle natif hors de l’écosystème comptable**.  
+  - Source : [account_move.py:L5-L22](file:///media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_credit_note_approval/models/account_move.py#L5-L22)  
+  - Les mixins (`mail.thread.main.attachment`, `mail.activity.mixin`, `portal.mixin`, `sequence.mixin`, `utm.mixin`) sont des modèles génériques, pas des modèles comptables.
 
-En résumé, `account.move` est un modèle **déclaré** dans le module `account` et ne repose que sur des mixins métier ; il n’étend pas de modèle natif en dehors de son périmètre comptable.
+### Extension du module `account`
+
+- Le module `account` **n’étend pas** un modèle natif qui ne fait pas partie de son périmètre comptable.  
+  - Il ne modifie pas, par exemple, `res.partner` ou d’autres modèles métier non liés à la comptabilité.  
+  - Les seules extensions sont vers des mixins génériques, ce qui est normal pour ajouter des fonctionnalités transversales (notifications, portail, séquences, etc.).
+
+En résumé, `account.move` est un nouveau modèle créé par le module `account`, et le module ne s’étend pas sur des modèles natifs hors de son domaine comptable.
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```
