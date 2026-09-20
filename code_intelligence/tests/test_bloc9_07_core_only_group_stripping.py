@@ -218,3 +218,21 @@ class TestMultipleCoreOnlyGroupsSection849:
         )
         assert "account.group_account_manager" not in result
         assert "custom_credit_note_approval.group_approval_regional" in result
+
+    def test_bail_out_uses_full_evidence_not_just_mentioned_subset(self):
+        """Section 850 fix-of-a-fix, regression from a real ACC-Q1 replay
+        (4/4 still stripped after the first 850 fix): a write-focused answer
+        naturally mentions only ONE of the several core-only groups grounded
+        in the evidence (account.group_account_invoice), never the other two
+        unrelated ones (base.group_portal, base.group_public) -- counting on
+        `mentioned` alone undercounts to 1 and fails to bail out. The count
+        must be taken over the FULL grounded core-only set, independent of
+        what the answer happens to cite."""
+        answer = (
+            "Le groupe `account.group_account_invoice` porte le droit WRITE "
+            "via implied_ids."
+        )
+        assert _grounded_core_only_groups(answer, _RAW_MULTIPLE_CORE_ONLY) == []
+        result = _strip_core_only_group_mentions(answer, _RAW_MULTIPLE_CORE_ONLY)
+        assert result == answer
+        assert "account.group_account_invoice" in result

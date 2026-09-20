@@ -76,14 +76,24 @@ def _grounded_core_only_groups(final_answer: str, scoped_tool_output: str) -> Li
     for exactly one scenario -- a single core-only group superseded by a
     single competing custom-module group deciding the SAME thing (see
     test_bloc9_07_core_only_group_stripping.py). When several DISTINCT
-    core-only groups are grounded at once (e.g. a write-ACL group and an
-    unrelated approval-workflow group), that is evidence they are
-    independent facts, not a 1-for-1 override -- stripping any of them then
-    silently deletes a correct, unrelated finding (ACC-Q1, section 848/849:
-    account.group_account_invoice, an ACL fact, wrongly stripped because a
-    custom module happened to exist for a different, unrelated approval
-    workflow). Bail out entirely rather than guess which of several
-    core-only groups (if any) is actually superseded.
+    core-only groups are grounded in the evidence at once (e.g. a write-ACL
+    group and an unrelated approval-workflow group), that is evidence they
+    are independent facts, not a 1-for-1 override -- stripping any of them
+    then silently deletes a correct, unrelated finding (ACC-Q1, section
+    848/849: account.group_account_invoice, an ACL fact, wrongly stripped
+    because a custom module happened to exist for a different, unrelated
+    approval workflow). Bail out entirely rather than guess which of
+    several core-only groups (if any) is actually superseded.
+
+    Section 850 fix-of-a-fix: the bail-out count must be taken over the
+    FULL set of core-only groups grounded in the evidence, not just the
+    subset the synthesized answer happens to mention -- a write-focused
+    question naturally only cites account.group_account_invoice and never
+    mentions the other two unrelated core-only groups (base.group_portal,
+    base.group_public), so counting on `mentioned` undercounted to 1 and
+    never bailed out (confirmed 4/4 on a real ACC-Q1 replay). Whether
+    several independent core-only facts exist is a property of the
+    evidence, not of what the LLM chose to write about.
     """
     grounded = set(_extract_required_groups(scoped_tool_output))
     if not grounded:
@@ -93,11 +103,11 @@ def _grounded_core_only_groups(final_answer: str, scoped_tool_output: str) -> Li
     )
     if not custom_grounded:
         return []
-    mentioned = set(_GROUP_XMLID_RE.findall(final_answer))
-    core_only = sorted((mentioned & grounded) - custom_grounded)
-    if len(core_only) > 1:
+    all_core_only = grounded - custom_grounded
+    if len(all_core_only) > 1:
         return []
-    return core_only
+    mentioned = set(_GROUP_XMLID_RE.findall(final_answer))
+    return sorted(mentioned & all_core_only)
 
 
 def _strip_core_only_group_mentions(final_answer: str, scoped_tool_output: str) -> str:

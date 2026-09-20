@@ -5524,3 +5524,25 @@ Contexte : pmm colle le diagnostic complet de 849 (deja documente, non mandate) 
 **Fichiers modifies** : `code_intelligence/agent/access_guards.py`, `code_intelligence/tests/test_bloc9_07_core_only_group_stripping.py`, `todo/contexte.txt` (cette section).
 
 **Prochaine etape** : pmm rejoue ACC-Q1 (idealement x3, meme protocole que 847/848) pour confirmer que `account.group_account_invoice` et le mecanisme `via implied_ids` (848) survivent desormais jusqu'a la reponse finale.
+
+## Section 851 : Rejeu ACC-Q1 x4 colle par pmm (post-850) -- le strip persiste 4/4, meme groupe (`account.group_account_invoice`) supprime a chaque fois -- root cause : le fix 850 comptait les groupes core-only MENTIONNES PAR LA REPONSE (`mentioned & grounded - custom_grounded`), pas ceux GROUNDED DANS LES DONNEES -- une question centree sur l'ecriture ne cite naturellement qu'un seul des 3 groupes core-only independants, le bail-out (`len > 1`) ne se declenchait donc jamais en conditions reelles
+
+Date : 18/09/2026
+Contexte : pmm colle 4 rejeux consecutifs d'ACC-Q1 juste apres le commit de 850. Les 4 logs montrent la meme ligne : "stripped grounded-but-core-Odoo-only group xmlid(s) from synthesized answer: account.group_account_invoice" -- le fix de 850 n'a eu aucun effet observable.
+
+**Diagnostic, par reproduction directe** (`_extract_required_groups` sur `analyze_security_locks('account.move')` reel) : `grounded - custom_grounded` (l'ensemble complet, independant de toute reponse) contient bien 3 groupes distincts (`account.group_account_invoice`, `base.group_portal`, `base.group_public`) -- exactement le cas que 850 visait a proteger. Mais le calcul de 850 appliquait le seuil `len(...) > 1` APRES intersection avec `mentioned` (les xmlids que la reponse synthetisee cite explicitement) : `core_only = sorted((mentioned & grounded) - custom_grounded)`. Une reponse a une question ciblee sur l'ecriture (ACC-Q1) ne mentionne naturellement que `account.group_account_invoice` (le groupe pertinent pour WRITE) -- jamais `base.group_portal`/`base.group_public` (hors-sujet pour cette question precise) -- donc `mentioned & grounded` ne contient qu'1 element, le seuil `> 1` ne se declenche jamais, et le strip s'applique comme avant 850. Le test ajoute en 850 ne l'a pas attrape car la reponse fabriquee pour le test mentionnait explicitement les 3 groupes -- un cas qui ne reflete pas une reponse LLM reelle centree sur une seule question.
+
+**Erreur de conception identifiee** : le nombre de faits core-only independants presents dans les donnees est une PROPRIETE DE L'EVIDENCE, pas de ce que le LLM choisit de citer dans sa synthese -- le seuil de bail-out doit donc porter sur l'ensemble complet `grounded - custom_grounded`, jamais sur son intersection avec `mentioned`.
+
+**Correctif** : `_grounded_core_only_groups` reordonne -- calcule d'abord `all_core_only = grounded - custom_grounded` (ensemble complet), applique le bail-out `if len(all_core_only) > 1: return []` sur CET ensemble, et ne filtre par `mentioned` qu'APRES avoir confirme qu'on est bien dans le cas propre 1-vs-1 (`sorted(mentioned & all_core_only)`).
+
+**Verification** :
+  - Reproduction directe avec une reponse ne mentionnant QUE `account.group_account_invoice` (reproduisant exactement le texte des 4 rejeux colles) : `_grounded_core_only_groups` retourne `[]`, `_strip_core_only_group_mentions` laisse la reponse inchangee.
+  - Nouveau test dedie (`test_bail_out_uses_full_evidence_not_just_mentioned_subset`) reproduisant precisement ce scenario -- `test_bloc9_07_core_only_group_stripping.py` complet : 13/13 verts (12 existants + ce nouveau, tous les tests de 850 restent verts, le scenario 1-vs-1 original non touche).
+  - Suite complete `code_intelligence/tests/` : **746 passed, 18 skipped, 0 echec** (98.46s) -- 0 regression (+1 vs 850, le nouveau test).
+
+**Ce qui N'A PAS ete fait** : aucun rejeu LLM reel execute pour confirmer end-to-end que la correction tient sur un vrai passage Groq (seule la reproduction directe hors-LLM, avec le texte exact colle par pmm, a ete verifiee). Le biais custom-first (822/823, visible dans les 4 rejeux colles sur la citation ACL -- `[Access Matrix for 'account.move': ...](file:///.../custom_credit_note_approval/models/account_move.py#L1-L22)`, toujours pointe vers le module custom) reste non traite, hors-scope de cette section.
+
+**Fichiers modifies** : `code_intelligence/agent/access_guards.py`, `code_intelligence/tests/test_bloc9_07_core_only_group_stripping.py`, `todo/contexte.txt` (cette section).
+
+**Prochaine etape** : pmm rejoue ACC-Q1 (x3-4, meme protocole) pour confirmer que `account.group_account_invoice` et le mecanisme `implied_ids` survivent desormais jusqu'a la reponse finale en conditions reelles.

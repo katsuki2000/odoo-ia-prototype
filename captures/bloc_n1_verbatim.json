@@ -22,10 +22,10 @@
     "missing_tools": [
       "read_source_code"
     ],
-    "verbatim": "**Réponse :**  \nOui, un utilisateur appartenant au groupe **`account.group_account_manager`** (Billing Administrator) peut créer et modifier des factures (`account.move`).  \n\n**Pourquoi ?**  \n\n1. **ACL**  \n   - L’ACL directe sur `account.move` ne donne que `perm_read=1`.  \n   - Dans la matrice d’accès, on voit que **`account.group_account_manager`** possède les droits **WRITE**, **CREATE** et **UNLINK** sur `account.move` grâce à cette inclusion (voir la section *Access Matrix for 'account.move'*).  \n\n2. **Règles d’enregistrement (ir.rule)**  \n   - Aucune règle d’enregistrement ne cible spécifiquement `account.group_account_manager`.  \n   - Seules des règles globales s’appliquent (ex. `Account Entry`, `Avoirs - cantonnement societe`, etc.), mais aucune d’elles ne restreint la création ou la modification pour ce groupe.\n\n[Source: Graphe de Connaissances Code Intelligence]",
-    "elapsed_seconds": 16.27,
-    "effective_seconds": 6.338,
-    "groq_wait_seconds": 9.935,
+    "verbatim": "Oui.  \nL’ACL directe de **account.group_account_manager** sur le modèle **account.move** ne donne effectivement que le droit de lecture, mais le groupe obtient également les droits d’écriture, de création et de suppression grâce aux **implied_ids**.  \n\n- Dans la matrice d’accès :  \n  - **CREATE** et **UNLINK** : mêmes groupes que pour l’écriture.  \n\n- Aucun **ir.rule** de groupe ne restreint l’accès à ce modèle ; les seules règles globales ne contiennent pas de condition de montant ou de portée supplémentaire.  \n\nAinsi, un utilisateur appartenant à **group_account_manager** (Billing Administrator) peut créer, modifier et supprimer des factures, même si l’ACL directe ne montre que le droit de lecture. (Les contrôles de workflow ou d’état ne sont pas examinés ici.)\n\n[Source: Graphe de Connaissances Code Intelligence]",
+    "elapsed_seconds": 15.51,
+    "effective_seconds": 5.564,
+    "groq_wait_seconds": 9.941,
     "hop_count": 4
   }
 ]

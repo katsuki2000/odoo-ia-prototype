@@ -1,6 +1,6 @@
 # Rapport Verbatim -- Bloc N1 (banc de questions natif)
 
-**Date d'execution :** 2026-09-20 14:24:19
+**Date d'execution :** 2026-09-20 14:41:18
 
 **Objectif :** rejouer les questions verite-terrain des 5 modules natifs (maintenance, purchase, sale, stock, account) contre l'agent Code Intelligence reel et capturer la reponse verbatim pour comparaison manuelle avec `reference_answer` -- aucune notation automatique.
 
@@ -12,10 +12,10 @@
 | Questions executees | 1 |
 | Erreurs d'execution | 0 |
 | Ecarts de couverture d'outils (expected_tools non tous invoques) | 1 |
-| p50 latence effective | `6.34s` |
-| p90 latence effective | `6.34s` (budget `12.0s`,  RESPECTE) |
-| Moyenne | `6.34s` |
-| Max | `6.34s` |
+| p50 latence effective | `5.56s` |
+| p90 latence effective | `5.56s` (budget `12.0s`,  RESPECTE) |
+| Moyenne | `5.56s` |
+| Max | `5.56s` |
 
 ---
 
@@ -29,20 +29,17 @@
 
 **Outils attendus :** ['who_has_access_to', 'evaluate_record_rules', 'read_source_code'] | **Outils invoques :** ['analyze_security_locks', 'who_has_access_to', 'evaluate_record_rules', 'button_execution_path'] -- MANQUANT(S): ['read_source_code']
 
-**Reponse verbatim de l'agent (Total: 16.27s | Effectif: 6.338s | Groq wait: 9.935s | Sauts: 4) :**
+**Reponse verbatim de l'agent (Total: 15.51s | Effectif: 5.564s | Groq wait: 9.941s | Sauts: 4) :**
 ```text
-**Réponse :**  
-Oui, un utilisateur appartenant au groupe **`account.group_account_manager`** (Billing Administrator) peut créer et modifier des factures (`account.move`).  
+Oui.  
+L’ACL directe de **account.group_account_manager** sur le modèle **account.move** ne donne effectivement que le droit de lecture, mais le groupe obtient également les droits d’écriture, de création et de suppression grâce aux **implied_ids**.  
 
-**Pourquoi ?**  
+- Dans la matrice d’accès :  
+  - **CREATE** et **UNLINK** : mêmes groupes que pour l’écriture.  
 
-1. **ACL**  
-   - L’ACL directe sur `account.move` ne donne que `perm_read=1`.  
-   - Dans la matrice d’accès, on voit que **`account.group_account_manager`** possède les droits **WRITE**, **CREATE** et **UNLINK** sur `account.move` grâce à cette inclusion (voir la section *Access Matrix for 'account.move'*).  
+- Aucun **ir.rule** de groupe ne restreint l’accès à ce modèle ; les seules règles globales ne contiennent pas de condition de montant ou de portée supplémentaire.  
 
-2. **Règles d’enregistrement (ir.rule)**  
-   - Aucune règle d’enregistrement ne cible spécifiquement `account.group_account_manager`.  
-   - Seules des règles globales s’appliquent (ex. `Account Entry`, `Avoirs - cantonnement societe`, etc.), mais aucune d’elles ne restreint la création ou la modification pour ce groupe.
+Ainsi, un utilisateur appartenant à **group_account_manager** (Billing Administrator) peut créer, modifier et supprimer des factures, même si l’ACL directe ne montre que le droit de lecture. (Les contrôles de workflow ou d’état ne sont pas examinés ici.)
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```
