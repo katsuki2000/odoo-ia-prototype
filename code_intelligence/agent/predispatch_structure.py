@@ -304,7 +304,7 @@ from code_intelligence.agent.context import (
     _tool_call_key,
 )
 from code_intelligence.agent.context import DispatchContext
-from code_intelligence.agent.context_extractors import extract_ui_element_name
+from code_intelligence.agent.context_extractors import extract_ui_element_name, is_group_identifier
 from code_intelligence.agent.tool_helpers import _resolve_model_param
 from code_intelligence.rules.button_path import button_execution_path as _button_execution_path_impl
 from core.evidence.evidence_collector import record_evidence
@@ -324,6 +324,17 @@ def dispatch_button_execution_path(ctx: DispatchContext) -> None:
 
     ui_name = extract_ui_element_name(ctx.question)
     if not ui_name:
+        return
+
+    # Section 876: a security group is never a button/menu/field of a view.
+    # The extractor already skips groups in its bare-parenthesis fallback;
+    # this keeps any other extraction path from dispatching a group name.
+    if is_group_identifier(ui_name):
+        logger.info(
+            "Node [code_intelligence_agent]: skipping 'button_execution_path' "
+            "pre-dispatch, '%s' is a security group identifier, not a UI element.",
+            ui_name,
+        )
         return
 
     btn_tool = ctx.tool_map.get("button_execution_path")

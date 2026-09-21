@@ -286,6 +286,45 @@ def matches_module_level_ui_inquiry(question: str) -> bool:
     return bool(_MODULE_UI_PATTERN.search(_strip_accents(question)))
 
 
+_GROUP_IDENTIFIER_PATTERN = re.compile(r"(?:[a-z0-9_]+\.)?group_", re.IGNORECASE)
+_METHOD_NAME_PREFIX_PATTERN = re.compile(r"(?:button|action)_", re.IGNORECASE)
+# The question is about what a user SEES (visibility/display of a field or
+# element), as opposed to e.g. a constraint or a workflow. Matched against
+# the accent-stripped question. "voir" is boundary-anchored so that "avoir"
+# does not match.
+_UI_VISIBILITY_INTENT_PATTERN = re.compile(
+    r"\b(?:voit|voient|voir|visibles?|invisibles?|affich\w*|apparai\w*|masqu\w*|cach\w*)\b",
+    re.IGNORECASE,
+)
+_BARE_PAREN_IDENTIFIER_PATTERN = re.compile(r"\(([a-z][a-z0-9]*_[a-z0-9_]*)\)")
+
+
+def is_group_identifier(name: str) -> bool:
+    """True if `name` looks like a security-group identifier (group_x or
+    module.group_x). A group is never a button/menu/field of a view, so it
+    must never be handed to button_execution_path (todo/contexte.txt section
+    875/876: ACC-Q1/ACC-Q2 "(group_account_manager)" was taken for a button)."""
+    return bool(name) and bool(_GROUP_IDENTIFIER_PATTERN.match(name))
+
+
+def _bare_parenthesized_ui_candidate(question: str) -> Optional[str]:
+    """Last-resort fallback of extract_ui_element_name: a snake_case identifier
+    in parentheses with no bouton/champ keyword. Kept only when it is not a
+    group AND either looks like a method (button_*/action_*) or the question
+    is about what a user sees. A field named in a constraint question
+    (SAL-Q5 "(prepayment_percent)", MNT-Q5 "(repeat_interval)") is not a UI
+    element the question asks about; a field named in a visibility question
+    (ACC-Q4 "(account_id)", "voit-il") is (todo/contexte.txt section 876)."""
+    intent_is_visibility = bool(_UI_VISIBILITY_INTENT_PATTERN.search(_strip_accents(question)))
+    for cand in _BARE_PAREN_IDENTIFIER_PATTERN.finditer(question):
+        name = cand.group(1).strip()
+        if is_group_identifier(name):
+            continue
+        if _METHOD_NAME_PREFIX_PATTERN.match(name) or intent_is_visibility:
+            return name
+    return None
+
+
 def extract_ui_element_name(question: str) -> Optional[str]:
     """Best-effort extraction of the UI element (button/menu/field) name a
     question is asking about, filtering out generic qualifier words that
@@ -323,7 +362,12 @@ def extract_ui_element_name(question: str) -> Optional[str]:
         # underscore to stay a snake_case-looking technical name, keeping
         # false positives low (a bare English gloss like "(Unlock)" is
         # handled by the action-verb pattern above, not this one).
-        match = re.search(r"\(([a-z][a-z0-9]*_[a-z0-9_]*)\)", question)
+        # Section 876: the candidate is now gated (see
+        # _bare_parenthesized_ui_candidate) -- group names are skipped and a
+        # non-method identifier is kept only for a visibility-type question.
+        candidate = _bare_parenthesized_ui_candidate(question)
+        if candidate is not None:
+            return candidate
     if not match:
         return None
     name = match.group(1).strip()
