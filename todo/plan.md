@@ -182,6 +182,7 @@ Ce fichier liste, brique par brique de `architecture.md`, l'ensemble des taches 
 ## Gaps mineurs, non priorises (enregistres pour memoire)
 
 - Contrat de couverture d'outils / trajectory recall (lacune 4.4, recherche externe section 860) -- plan detaille dans todo/plan_tool_coverage_contract.md, pas encore mandate.
+- Citation-as-constraint / fin de la fabrication de code (lacune 4.1, recherche externe section 860) -- plan detaille dans todo/plan_4.1_citation_as_constraint.md, pas encore mandate.
 
 - Introspection du registre Odoo reel en complement de l'AST statique (voir Couche 1).
 - Relations de graphe plus precises (voir Couche 2).
