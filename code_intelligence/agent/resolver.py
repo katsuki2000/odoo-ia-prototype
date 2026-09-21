@@ -188,6 +188,24 @@ def resolve_business_term(query_text: str, G=None, llm=None, active_model: Optio
                 alias for alias in BUSINESS_ALIASES_NFC
                 if _ALIAS_PATTERNS[alias].search(clean_query)
             ]
+            # Section 879: meme filtre de sous-chaine que le chemin alias
+            # ci-dessous -- un alias INCLUS dans un alias plus long deja
+            # apparie ("commande" dans "commande d'achat") designe le meme
+            # terme metier, pas un second modele distinct a fusionner
+            # (PUR-Q1 : sale.order etait ajoute a purchase.order).
+            # Exception : un alias inclus dont la cible est un ANCETRE en
+            # notation pointee d'un modele deja resolu (ex. "purge" ->
+            # cleanup.purge.wizard, parent abstrait de cleanup.purge.wizard.model,
+            # DC-Q1) est de la meme famille, pas un modele etranger : conserve.
+            if len(merge_matched_aliases) > 1:
+                merge_matched_aliases = [
+                    a for a in merge_matched_aliases
+                    if not any(a != b and a in b for b in merge_matched_aliases)
+                    or any(
+                        m.startswith(t + ".")
+                        for t in BUSINESS_ALIASES_NFC[a] for m in exact_mentions
+                    )
+                ]
             for alias in merge_matched_aliases:
                 for t in BUSINESS_ALIASES_NFC[alias]:
                     if t not in exact_mentions:
