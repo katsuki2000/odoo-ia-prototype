@@ -5814,3 +5814,25 @@ Contexte : mandat court de pmm ("corige") suite au diagnostic de 867.
 **Fichiers modifies** : `code_intelligence/agent/context.py` (nouvelle entree + commentaire), `todo/contexte.txt` (cette section). `active_graph.json`/`captures/*` modifies par les rejeux de pmm (866/867), non lies a ce correctif.
 
 **Prochaine etape** : commit de ce chantier (868, isole -- diagnostic 867 + fix verifie ce tour). Le lot cumule plus large (819-865, deja verifie/journalise section par section mais jamais committe depuis `5bcc28a`) reste une decision separee, toujours en attente de pmm.
+
+## Section 869 : Mandat "1" (question de pmm sur le gitignore de active_graph.json/captures) execute -- `.gitignore` corrige (le pattern ne matchait jamais le vrai fichier) + `git rm --cached active_graph.json`, `captures/bloc_n1_verbatim.json`/`.md` laisses trackes (pratique deliberee, historique de preuve E2E)
+
+Date : 20/09/2026
+Contexte : pmm demande si `active_graph.json`/`captures/*` devraient etre gitignores. Verification : `captures/bloc_n1_verbatim.json`/`.md` sont trackes DELIBEREMENT depuis le debut du projet -- le script ecrase le meme chemin a chaque run, git est le seul historique de preuve E2E (sections 3701/3786/3930 : au moins une fois, l'absence de commit a fait perdre un rapport de run que pmm voulait comparer) -- pas touche, comportement voulu.
+
+`active_graph.json` en revanche : un vrai bug de `.gitignore` trouve. La regle existante (`code_intelligence/active_graph.json`) portait deja un commentaire expliquant precisement pourquoi ce fichier ne devrait jamais etre versionne (chemins absolus baked-in, incident deja documente 2x : sections 761 et 3267, machine 2 chargeant les chemins absolus de machine 1) -- mais le chemin du pattern ne correspondait jamais au vrai fichier (`GRAPH_JSON_PATH` = racine du repo, pas `code_intelligence/`). `git check-ignore -v active_graph.json` : 0 match. Consequence : 8.6 Mo committes 7 fois depuis le debut, malgre le commentaire qui dit explicitement de ne pas le faire.
+
+**Correctif** :
+  - `.gitignore` : pattern corrige en `active_graph.json` (sans repertoire en tete -- matche le fichier reel a la racine ET l'orphelin perime `code_intelligence/active_graph.json` deja note en section 2825, un seul pattern pour les deux).
+  - `git rm --cached active_graph.json` : retire du suivi git, fichier conserve intact sur disque (verifie, 8645026 octets toujours presents apres la commande).
+  - `git check-ignore -v` confirme desormais un match sur les 2 chemins.
+
+**Tension notee, tranchee par ce mandat** : plusieurs sections anterieures (5591 notamment) committaient `active_graph.json` DELIBEREMENT malgre le risque deja materialise 2 fois, pour eviter a pmm un `rebuild_graph.py` manuel apres un fix touchant le graphe. Ce mandat ("1") choisit explicitement l'autre cote du compromis : plus jamais committe, `scripts/rebuild_graph.py` (23s mesure en section 853) a relancer manuellement par pmm apres tout fix qui touche `graph/builder.py`/tout ce qui affecte la construction du graphe.
+
+**Portee non traitee** : l'historique git existant (7 commits anterieurs contenant ce fichier a 8.6 Mo) n'est PAS reecrit (pas de `git filter-repo`/BFG) -- seule la croissance FUTURE du repo est stoppee. Si le poids de l'historique lui-meme (pas seulement les prochains commits) bloque un push, un nettoyage retroactif serait une decision separee, plus invasive (reecrit les hash de commits partages), a ne pas engager sans mandat explicite.
+
+**Ce qui N'A PAS ete fait** : aucune verification que ce changement ne casse rien de fonctionnel (`.gitignore`/`git rm --cached` n'affectent que le suivi git, pas le comportement runtime -- le fichier reste lu normalement depuis le disque par `loader.py`, aucun test attendu de bouger). Pas de suite pytest relancee pour ce motif.
+
+**Fichiers modifies (commit)** : `.gitignore`, suppression du suivi de `active_graph.json` (fichier conserve sur disque, hors commit desormais). **Fichiers modifies, non commit** : `captures/bloc_n1_verbatim.json`/`.md` (artefacts du dernier rejeu 867, sans lien avec ce chantier -- laisses de cote comme d'habitude quand ils ne confirment pas un fix de ce tour).
+
+**Prochaine etape** : aucune -- chantier ferme par ce mandat. Si pmm veut aussi nettoyer le poids historique du repo (BFG/filter-repo), c'est une demande separee.

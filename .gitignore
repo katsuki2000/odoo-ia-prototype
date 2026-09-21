@@ -32,5 +32,13 @@ document_rag/ingestion/logs/
 # returning nothing for every model, on any machine that doesn't match
 # whoever last built/committed this file). Always regenerate locally via
 # scripts/rebuild_graph.py instead of relying on a committed copy.
-code_intelligence/active_graph.json
+# no leading directory -- matches the real file at repo root
+# (code_intelligence/graph/loader.py::GRAPH_JSON_PATH resolves to the repo
+# root, not code_intelligence/) as well as the orphan stale copy under
+# code_intelligence/ (section 2825) -- the old "code_intelligence/
+# active_graph.json" pattern never matched the actual tracked file despite
+# the comment above explaining exactly why it should be ignored (section
+# 869: git check-ignore confirmed 0 matches, 7 commits of an 8.6MB file
+# had gone through regardless).
+active_graph.json
 code_intelligence/full_corpus_test/
