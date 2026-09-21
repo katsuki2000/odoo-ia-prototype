@@ -261,3 +261,20 @@ _AVOIR_NOUN_PATTERN = re.compile(
 )
 if "avoir" in _ALIAS_PATTERNS:
     _ALIAS_PATTERNS["avoir"] = _AVOIR_NOUN_PATTERN
+
+# Section 878: meme classe de defaut pour le singulier "ecriture" : dans les
+# questions de securite c'est la PERMISSION d'ecriture ("lecture/ecriture/
+# creation", "acces en ecriture", "droit d'ecriture", "Pour l'ecriture...") et
+# non une ecriture comptable -> PUR-Q1 resolvait account.move et injectait des
+# faits deterministes sur les avoirs dans une reponse sur purchase.order. Garde
+# POSITIVE : determinant indefini/demonstratif/possessif devant, ou debut de
+# requete. `l'` est volontairement absent ("l'ecriture" = permission dans le
+# corpus). Pluriel ("ecritures") et composes ("ecriture comptable", "ligne
+# d'ecriture") inchanges.
+_ECRITURE_NOUN_PATTERN = re.compile(
+    r"(?<!\w)(?:un|une|cette|cet|chaque|mon|ma|notre|votre|leur)\s+[e\u00e9]criture(?!\w)"
+    r"|^\s*[e\u00e9]criture(?!\w)"
+)
+for _k in ("ecriture", "\u00e9criture"):
+    if _k in _ALIAS_PATTERNS:
+        _ALIAS_PATTERNS[_k] = _ECRITURE_NOUN_PATTERN
