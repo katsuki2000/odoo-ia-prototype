@@ -1,31 +1,53 @@
 [
   {
-    "id": "ACC-Q1",
-    "module": "account",
-    "capability": "security",
-    "difficulty": "hard",
-    "question": "L'ACL directe de account.group_account_manager sur account.move n'accorde que perm_read=1 (aucune ecriture/creation/suppression). Un 'Billing Administrator' (group_account_manager) peut-il malgre tout creer et modifier des factures ?",
-    "reference_answer": "Oui : access_account_move_manager est bien limite a la lecture seule, mais group_account_manager a implied_ids=[group_account_invoice], et access_account_move_uinvoice accorde a group_account_invoice les 4 permissions completes (1,1,1,1). Le manager herite donc du CRUD complet via ce groupe implique, pas via son propre ACL direct -- lire uniquement l'ACL 'manager' donne une image trompeuse (lecture seule) ; il faut evaluer la fermeture transitive des implied_ids pour connaitre les droits reels.",
-    "verification": "security/ir.model.access.csv (access_account_move_manager vs access_account_move_uinvoice) + security/account_security.xml (group_account_manager implied_ids=[group_account_invoice])",
+    "id": "STK-Q3",
+    "module": "stock",
+    "capability": "inheritance",
+    "difficulty": "medium",
+    "question": "stock.picking est-il un nouveau modele ou une extension ? Le module stock etend-il en parallele un modele natif hors de son propre perimetre, et avec quels champs cles ?",
+    "reference_answer": "stock.picking est un nouveau modele (_name='stock.picking'), qui n'herite que des mixins mail.thread/mail.activity.mixin. En parallele, ce meme module etend reellement product.product (_inherit='product.product', classe Product dans models/product.py) en lui ajoutant les champs calcules qty_available (quantite physiquement disponible) et virtual_available (quantite prevue/forecast), tous deux compute='_compute_quantities' et bases sur les nouveaux O2M stock_quant_ids/stock_move_ids -- ce sont des champs stock ajoutes au modele produit natif, pas au modele stock.picking.",
+    "verification": "models/stock_picking.py : classe Picking (_name + _inherit mixins) vs models/product.py : classe Product (_inherit='product.product'), champs qty_available/virtual_available",
     "expected_tools": [
-      "who_has_access_to",
-      "evaluate_record_rules",
-      "read_source_code"
+      "trace_full_inheritance",
+      "list_involved_modules"
     ],
     "tools_used": [
-      "analyze_security_locks",
-      "who_has_access_to",
-      "evaluate_record_rules",
+      "list_involved_modules",
+      "trace_full_inheritance",
+      "read_source_code",
       "button_execution_path"
     ],
-    "tool_coverage_ok": false,
-    "missing_tools": [
+    "tool_coverage_ok": true,
+    "missing_tools": [],
+    "verbatim": "### Modèle : `stock.picking`\n\n- **Nature** : *déclaration d’un nouveau modèle*  \n  Le fichier `stock_picking.py` du module `stock` contient la déclaration suivante :  \n\n  ```python\n  class Picking(models.Model):\n      _name = \"stock.picking\"\n      _inherit = ['mail.thread', 'mail.activity.mixin']\n  ```  \n  [stock_picking.py:L382-L384](file:///media/donnee/Programs/odoo-17.0/addons/stock/models/stock_picking.py#L382-L384)\n\n  Ainsi, `stock.picking` n’est pas une extension d’un modèle natif existant (comme `stock.move` ou `stock.quant`). Il s’agit d’un modèle métier propre au module `stock`.\n\n- **En réalité, ce module étend bien 12 modèle(s) hors de son propre périmètre : 'barcode.rule', 'ir.actions.report', 'product.category', 'product.label.layout', 'product.packaging', 'product.product', 'product.template', 'res.company', 'res.config.settings', 'res.partner', 'res.users', 'uom.uom'.\n  En réalité, ce module étend bien 12 modèle(s) hors de son propre périmètre : 'barcode.rule', 'ir.actions.report', 'product.category', 'product.label.layout', 'product.packaging', 'product.product', 'product.template', 'res.company', 'res.config.settings', 'res.partner', 'res.users', 'uom.uom'. Aucun autre modèle natif n’est hérité ou modifié dans ce fichier.\n\n- **Champs clés définis dans `stock.picking`**  \n  Les champs les plus importants (utilisés pour l’identification, le suivi et la gestion des mouvements) sont :\n\n  | Champ | Description | Ligne de référence |\n  |-------|-------------|--------------------|\n  | `name` | Référence de l’opération | [stock_picking.py:L397-L399](file:///media/donnee/Programs/odoo-17.0/addons/stock/models/stock_picking.py#L397-L399) |\n  | `origin` | Référence du document source | [stock_picking.py:L400-L402](file:///media/donnee/Programs/odoo-17.0/addons/stock/models/stock_picking.py#L400-L402) |\n  | `note` | Notes additionnelles | [stock_picking.py:L403-L404](file:///media/donnee/Programs/odoo-17.0/addons/stock/models/stock_picking.py#L403-L404) |\n  | `backorder_id` / `backorder_ids` | Gestion des back‑orders | [stock_picking.py:L404-L410](file:///media/donnee/Programs/odoo-17.0/addons/stock/models/stock_picking.py#L404-L410) |\n  | `return_id` / `return_ids` | Gestion des retours | [stock_picking.py:L410-L413](file:///media/donnee/Programs/odoo-17.0/addons/stock/models/stock_picking.py#L410-L413) |\n  | `move_type` | Politique d’expédition (direct ou one) | [stock_picking.py:L415-L418](file:///media/donnee/Programs/odoo-17.0/addons/stock/models/stock_picking.py#L415-L418) |\n  | `state` | Statut de l’opération (draft, waiting, assigned, done, cancel, …) | [stock_picking.py:L419-L426](file:///media/donnee/Programs/odoo-17.0/addons/stock/models/stock_picking.py#L419-L426) |\n\n  Ces champs constituent la base de la logique métier de la gestion des transferts de stock dans Odoo.\n\n---\n\n**En résumé** :  \n`stock.picking` est un **nouveau modèle** introduit par le module `stock`. En réalité, ce module étend bien 12 modèle(s) hors de son propre périmètre : 'barcode.rule', 'ir.actions.report', 'product.category', 'product.label.layout', 'product.packaging', 'product.product', 'product.template', 'res.company', 'res.config.settings', 'res.partner', 'res.users', 'uom.uom'. Les champs clés mentionnés ci‑dessus sont ceux qui définissent l’identité, le suivi et le cycle de vie d’une opération de transfert de stock.\n\n[Source: Graphe de Connaissances Code Intelligence]",
+    "elapsed_seconds": 41.69,
+    "effective_seconds": 41.693,
+    "groq_wait_seconds": 0.0,
+    "hop_count": 3
+  },
+  {
+    "id": "ACC-Q3",
+    "module": "account",
+    "capability": "inheritance",
+    "difficulty": "medium",
+    "question": "account.move est-il un nouveau modele ou une extension ? Le module account etend-il en parallele un modele natif hors de son propre perimetre comptable ?",
+    "reference_answer": "account.move est un nouveau modele (_name='account.move'), qui n'herite que de mixins (portal.mixin, mail.thread.main.attachment, mail.activity.mixin, sequence.mixin) -- aucune extension d'un modele metier preexistant. En parallele, ce meme module etend reellement res.partner (_inherit='res.partner', classe ResPartner dans models/partner.py), en lui ajoutant notamment le champ calcule fiscal_country_codes (base des codes pays fiscaux des societes autorisees) -- une extension comptable du modele partenaire natif, distincte du modele account.move.",
+    "verification": "models/account_move.py : classe AccountMove (_name + _inherit mixins) vs models/partner.py : classe ResPartner (_name='res.partner', _inherit='res.partner'), champ fiscal_country_codes",
+    "expected_tools": [
+      "trace_full_inheritance",
+      "list_involved_modules"
+    ],
+    "tools_used": [
+      "list_involved_modules",
+      "trace_full_inheritance",
       "read_source_code"
     ],
-    "verbatim": "### Peut‑t‑il créer et modifier des factures ?\n\nOui.  \nMême si l’ACL *directe* de `account.group_account_manager` sur `account.move` ne donne que le droit de lecture, ce groupe hérite des droits du groupe `account.group_account_invoice`.  \nDans la matrice d’accès, on trouve :\n\n- **WRITE** : `account.group_account_invoice`, `account.group_account_manager` (via `implied_ids <- account.group_account_invoice`), `account.group_account_user` (via `implied_ids <- account.group_account_invoice`), `group_purchase_user`  \n- **CREATE** : idem que WRITE  \n- **UNLINK** : idem que WRITE  \n\n> **Source** : [Access Matrix for 'account.move': [WRITE] …](file:///media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_credit_note_approval/models/account_move.py#L1-L22)\n\nAinsi, un utilisateur appartenant à `account.group_account_manager` possède les droits d’écriture, de création et de suppression sur les factures (`account.move`).  \n\nLes règles de sécurité supplémentaires (record‑rules, locks) ne restreignent pas la création ou la modification ; elles ne concernent que des actions spécifiques (ex. validation d’un avoir > 5000 €).  \n\n**Conclusion** : un « Billing Administrator » (group_account_manager) peut créer et modifier des factures.\n\n[Source: Graphe de Connaissances Code Intelligence]",
-    "elapsed_seconds": 3.69,
-    "effective_seconds": 3.685,
+    "tool_coverage_ok": true,
+    "missing_tools": [],
+    "verbatim": "### Modèle `account.move`\n\n- **Nature** : `account.move` est **déclaré** dans le module `account`.  \n  - Le fichier `account/models/account_move.py` contient la déclaration `class AccountMove(models.Model):` avec `_name = \"account.move\"`.  \n  - Source : [account/models/account_move.py:L81-L89](file:///media/donnee/Programs/odoo-17.0/addons/account/models/account_move.py#L81-L89).\n\n- **Héritage** : il ne s’agit pas d’une extension d’un modèle natif existant (ex. `res.partner`).  \n  - Il hérite uniquement de mixins internes à Odoo (`portal.mixin`, `mail.thread.main.attachment`, `mail.activity.mixin`, `sequence.mixin`).  \n  - Source : [trace_full_inheritance](file:///media/donnee/Programs/odoo-17.0/addons/account/models/account_move.py#L81-L161).\n\n- **Portée comptable** En réalité, ce module étend bien 25 modèle(s) hors de son propre périmètre : 'account.analytic.account', 'account.analytic.applicability', 'account.analytic.distribution.model', 'account.analytic.line', 'base.document.layout', 'base.partner.merge.automatic.wizard', 'decimal.precision', 'digest.digest', 'ir.actions.report', 'ir.attachment', 'ir.http', 'ir.module.module', 'kpi.provider', 'onboarding.onboarding', 'onboarding.onboarding.step', 'product.category', 'product.product', 'product.template', 'res.company', 'res.config.settings', 'res.currency', 'res.groups', 'res.partner', 'res.partner.bank', 'uom.uom'.  \n  - `account.move` est un modèle métier propre à la comptabilité, créé par le module `account`.  \n  - Aucun autre module n’étend un modèle natif (ex. `res.partner`) dans le cadre de la comptabilité via `account.move`.\n\nEn résumé, **`account.move` est un nouveau modèle défini par le module `account`** En réalité, ce module étend bien 25 modèle(s) hors de son propre périmètre : 'account.analytic.account', 'account.analytic.applicability', 'account.analytic.distribution.model', 'account.analytic.line', 'base.document.layout', 'base.partner.merge.automatic.wizard', 'decimal.precision', 'digest.digest', 'ir.actions.report', 'ir.attachment', 'ir.http', 'ir.module.module', 'kpi.provider', 'onboarding.onboarding', 'onboarding.onboarding.step', 'product.category', 'product.product', 'product.template', 'res.company', 'res.config.settings', 'res.currency', 'res.groups', 'res.partner', 'res.partner.bank', 'uom.uom'.\n\n[Source: Graphe de Connaissances Code Intelligence]",
+    "elapsed_seconds": 16.74,
+    "effective_seconds": 16.738,
     "groq_wait_seconds": 0.0,
-    "hop_count": 4
+    "hop_count": 2
   }
 ]

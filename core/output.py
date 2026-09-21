@@ -188,6 +188,18 @@ def _strip_degenerate_blank_run(text: str) -> str:
 
 _DEGENERATE_PREFIX_LENGTH = 60
 _DEGENERATE_PREFIX_MIN_REPEATS = 4
+# Section 854/855: an attempt to raise this to 100 (hypothesis: ACC-Q1's
+# mid-word-looking truncated answer was a false-positive strip of
+# legitimately-distinct bullets sharing a long opener) was REVERTED --
+# tests/test_graph.py::test_detects_real_snowballing_sentence_bloc9_06c
+# (a genuine, previously-fixed decoding-collapse case) has an authentic
+# shared prefix of ~60 chars ("Il n'y a pas de restriction supplementaire
+# pour les avoirs "), so raising the threshold silently stopped catching
+# a REAL regression case to chase an UNCONFIRMED hypothesis about a
+# different one. Left at 60 (original, tested value). The ACC-Q1 symptom
+# remains unexplained; see the pre-strip debug logging added in loop.py
+# (section 854) for next time it recurs -- don't guess again without
+# evidence.
 
 
 def _detect_degenerate_growing_repetition(text: str) -> bool:

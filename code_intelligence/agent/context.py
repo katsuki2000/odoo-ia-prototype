@@ -62,6 +62,14 @@ class DispatchContext:
     # for this turn, so it is only ever sent once per question.
     security_distinction_reminder_sent: bool = False
 
+    # Section 861 (2a, mandat 4.4/trajectory recall): names of the
+    # predispatch dispatch_X functions whose predicate matched this turn's
+    # question, in the order run_predispatch_chain() ran them. Empty means
+    # no predicate matched -- the question fell through to free ReAct
+    # routing (previously silent, now explicitly loggable via
+    # trace_logger.log_routing()).
+    matched_dispatchers: List[str] = field(default_factory=list)
+
     @property
     def hop_budget_exhausted(self) -> bool:
         return self.hop_count >= self.hop_cap

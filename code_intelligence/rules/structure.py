@@ -504,9 +504,20 @@ _MODULE_DEFINES_EXTENDS_RE = re.compile(
 # dotted-identifier problem (see the long comment in common.py for why
 # neither an unbounded prefix nor a fixed-width window alone can satisfy
 # both constraints at once).
+# Section 856 (ACC-Q3, x3 rejeu post-853): the reflexive-only "ne s'etend
+# pas" alternative missed the non-reflexive, decoration-wrapped variant
+# "ne « étend » pas" -- observed verbatim in a Conclusion-section restatement
+# of the same denial the guard had already fixed earlier in the SAME
+# answer, left uncorrected and directly contradicting the fixed sentence.
+# New alternative tolerates optional markdown/quote decoration and an
+# optional reflexive "s'" between "ne" and "etend" and between "etend" and
+# "pas".
+_MODULE_EXTENSION_DENIAL_DECOR = r"[\s\u00ab\u00bb\"'*_]*"
 _MODULE_EXTENSION_DENIAL_RE = re.compile(
     r"(?:n['\u2019]\s*etend\s+pas|ne\s+s['\u2019]?\s*etend\s+pas|ne\s+modifie\s+pas|"
-    r"pas[^.\n]{0,20}extension)[^.\n]{0,80}(?:perimetre|hors\s+de|en\s+dehors\s+de)[^.\n]{0,40}"
+    r"pas[^.\n]{0,20}extension|"
+    rf"ne{_MODULE_EXTENSION_DENIAL_DECOR}s?['\u2019]?{_MODULE_EXTENSION_DENIAL_DECOR}etend"
+    rf"{_MODULE_EXTENSION_DENIAL_DECOR}pas)[^.\n]{{0,80}}(?:perimetre|hors\s+de|en\s+dehors\s+de)[^.\n]{{0,40}}"
 )
 
 
@@ -535,18 +546,53 @@ def _answer_denies_module_extension(final_answer: str) -> bool:
     return bool(_MODULE_EXTENSION_DENIAL_RE.search(folded))
 
 
+def _answer_lacks_extension_coverage(final_answer: str, extended_models: List[str], threshold: float = 0.3) -> bool:
+    """True if final_answer mentions fewer than `threshold` of the real
+    extended_models list -- a GENERIC, wording-independent signal
+    (todo/contexte.txt section 858) of the same underlying defect
+    _answer_denies_module_extension targets (the synthesis denies or omits
+    that this module extends models outside its own perimeter), but based
+    on fact COVERAGE rather than matching a fixed, ever-growing list of
+    negation verbs/synonyms -- which section 840's fix, then 841, 842/843,
+    844, 856 and 857 each extended and each was outrun by yet another
+    phrasing the LLM produced ("n'etend pas", "ne s'etend pas", "il ne
+    s'agit pas d'une extension", "ne depend pas", ...). A synthesis that
+    correctly states the fact will naturally cite most or all of the real
+    model names (the guard's own replacement text does, verbatim); one
+    that denies OR silently omits the fact will cite few or none of them,
+    regardless of which words it used to do so -- closing the loop that
+    kept reopening on wording, and incidentally covering the STK-Q3
+    omission variant (section 821, point 4) this project's guard family
+    never targeted before. Coverage is computed on accent-folded,
+    lowercased text, same convention as the rest of this guard family."""
+    if not extended_models:
+        return False
+    from code_intelligence.rules.group_resolver import _fold_accents
+    folded_answer = _fold_accents(final_answer.lower())
+    mentioned = sum(1 for m in extended_models if _fold_accents(m.lower()) in folded_answer)
+    return (mentioned / len(extended_models)) < threshold
+
+
 def _neutralize_module_extension_denial(final_answer: str, extended_models: List[str]) -> str:
-    """Replace the FULL SENTENCE containing the out-of-perimeter denial with
-    the real extended-model list -- expanding out to real sentence
+    """Replace EVERY sentence containing the out-of-perimeter denial with the
+    real extended-model list -- expanding each match out to real sentence
     boundaries (see common.expand_to_sentence_bounds) rather than replacing
     just the matched negation fragment, so no dangling verb/subject stem
     (e.g. "il ne s'agit ") is ever left immediately before the replacement
-    (todo/contexte.txt section 841)."""
+    (todo/contexte.txt section 841).
+
+    Section 856: a structured answer (Nature/Héritage/Conclusion-style)
+    frequently restates the same wrong denial in more than one section --
+    fixing only the FIRST occurrence (the old behavior) leaves a later
+    restatement directly contradicting the sentence this function just
+    corrected, producing a self-contradictory final answer. All matches in
+    the same turn are now replaced, not just the first.
+    """
     from code_intelligence.rules.group_resolver import _fold_accents
     from code_intelligence.rules.common import expand_to_sentence_bounds
     folded = _fold_accents(final_answer.lower())
-    match = _MODULE_EXTENSION_DENIAL_RE.search(folded)
-    if not match:
+    matches = list(_MODULE_EXTENSION_DENIAL_RE.finditer(folded))
+    if not matches:
         return final_answer
 
     models_list = ", ".join(f"'{m}'" for m in extended_models)
@@ -554,8 +600,23 @@ def _neutralize_module_extension_denial(final_answer: str, extended_models: List
         f"En réalité, ce module étend bien {len(extended_models)} modèle(s) "
         f"hors de son propre périmètre : {models_list}."
     )
-    start, end = expand_to_sentence_bounds(folded, *match.span())
-    return final_answer[:start] + replacement + final_answer[end:]
+
+    # Expand every match to real sentence bounds, then merge any spans that
+    # end up overlapping/adjacent (two matches landing in the same sentence)
+    # so that sentence is replaced exactly once, not twice back-to-back.
+    spans = sorted(expand_to_sentence_bounds(folded, *m.span()) for m in matches)
+    merged: List[List[int]] = []
+    for start, end in spans:
+        if merged and start <= merged[-1][1]:
+            merged[-1][1] = max(merged[-1][1], end)
+        else:
+            merged.append([start, end])
+
+    # Replace from the last span to the first so earlier offsets stay valid.
+    out = final_answer
+    for start, end in reversed(merged):
+        out = out[:start] + replacement + out[end:]
+    return out
 
 
 def _correct_module_extension_contradiction(final_answer: str, raw_tool_output: str, question: str = "") -> str:

@@ -25,6 +25,12 @@ def dispatch_server_actions(ctx: DispatchContext) -> None:
     if not (ctx.concept.is_resolved and ctx.concept.resolved_models and not ctx.hop_budget_exhausted):
         return
 
+    # Section 861 (2a): predicate matched -- the question's category was
+    # recognized, this dispatcher is taking over routing for it (does not
+    # imply the tool call below will succeed, only that routing was not
+    # silently left open to free ReAct for this predicate's category).
+    ctx.matched_dispatchers.append("dispatch_server_actions")
+
     from .forced_dispatch_predicates import server_actions_targets
 
     sa_tool = ctx.tool_map.get("analyze_server_actions")
@@ -134,6 +140,12 @@ logger = logging.getLogger(__name__)
 def dispatch_override_chain(ctx: DispatchContext) -> None:
     if not (ctx.concept.is_resolved and ctx.concept.resolved_models and not ctx.hop_budget_exhausted):
         return
+
+    # Section 861 (2a): predicate matched -- the question's category was
+    # recognized, this dispatcher is taking over routing for it (does not
+    # imply the tool call below will succeed, only that routing was not
+    # silently left open to free ReAct for this predicate's category).
+    ctx.matched_dispatchers.append("dispatch_override_chain")
 
     from .forced_dispatch_predicates import override_chain_targets
 
@@ -271,6 +283,12 @@ def dispatch_analyze_data_constraints(ctx: DispatchContext) -> None:
         and not ctx.hop_budget_exhausted
     ):
         return
+
+    # Section 861 (2a): predicate matched -- the question's category was
+    # recognized, this dispatcher is taking over routing for it (does not
+    # imply the tool call below will succeed, only that routing was not
+    # silently left open to free ReAct for this predicate's category).
+    ctx.matched_dispatchers.append("dispatch_analyze_data_constraints")
 
     constraint_tool = ctx.tool_map.get("analyze_data_constraints")
     if constraint_tool is None:

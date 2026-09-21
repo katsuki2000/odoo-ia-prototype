@@ -31,6 +31,12 @@ def dispatch_who_has_access_to(ctx: DispatchContext) -> None:
     ):
         return
 
+    # Section 861 (2a): predicate matched -- the question's category was
+    # recognized, this dispatcher is taking over routing for it (does not
+    # imply the tool call below will succeed, only that routing was not
+    # silently left open to free ReAct for this predicate's category).
+    ctx.matched_dispatchers.append("dispatch_who_has_access_to")
+
     from .forced_dispatch_predicates import security_locks_targets, who_has_access_targets
 
     acl_tool = ctx.tool_map.get("who_has_access_to")
@@ -161,6 +167,12 @@ def dispatch_evaluate_record_rules(ctx: DispatchContext) -> None:
     ):
         return
 
+    # Section 861 (2a): predicate matched -- the question's category was
+    # recognized, this dispatcher is taking over routing for it (does not
+    # imply the tool call below will succeed, only that routing was not
+    # silently left open to free ReAct for this predicate's category).
+    ctx.matched_dispatchers.append("dispatch_evaluate_record_rules")
+
     from code_intelligence.agent.tools import evaluate_rules_raw
 
     amount_for_rules = _extract_amount(ctx.question)
@@ -283,6 +295,12 @@ def dispatch_security_locks(ctx: DispatchContext) -> None:
     ):
         return
 
+    # Section 861 (2a): predicate matched -- the question's category was
+    # recognized, this dispatcher is taking over routing for it (does not
+    # imply the tool call below will succeed, only that routing was not
+    # silently left open to free ReAct for this predicate's category).
+    ctx.matched_dispatchers.append("dispatch_security_locks")
+
     from .forced_dispatch_predicates import security_locks_targets
 
     lock_tool = ctx.tool_map.get("analyze_security_locks")
@@ -391,6 +409,12 @@ def dispatch_security_distinction_guard(ctx: DispatchContext) -> None:
         and not ctx.hop_budget_exhausted
     ):
         return
+
+    # Section 861 (2a): predicate matched -- the question's category was
+    # recognized, this dispatcher is taking over routing for it (does not
+    # imply the tool call below will succeed, only that routing was not
+    # silently left open to free ReAct for this predicate's category).
+    ctx.matched_dispatchers.append("dispatch_security_distinction_guard")
 
     wf_tool = ctx.tool_map.get("describe_workflow")
     btn_tool = ctx.tool_map.get("button_execution_path")

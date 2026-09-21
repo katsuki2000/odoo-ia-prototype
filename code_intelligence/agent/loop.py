@@ -188,6 +188,11 @@ from code_intelligence.agent.dispatch_guards import (
     _force_dynamic_uncertainty_answer,
     _maybe_build_application_layer_reminder,
 )
+from code_intelligence.agent.context_extractors import _question_is_inheritance_related
+from code_intelligence.rules.structure import (
+    _extract_module_extended_models,
+    _answer_lacks_extension_coverage,
+)
 from core.llm.llm_client import get_chat_llm, invoke_with_rate_limit as _invoke_with_rate_limit
 from core.output import (
     _detect_any_degenerate_repetition,
@@ -307,8 +312,10 @@ def run_react_loop(
                         logger.warning(
                             "Node [code_intelligence_agent]: degenerate repetition detected in "
                             "synthesis output (%d chars) -- retrying once with an explicit "
-                            "anti-repetition instruction before falling back to stripping it.",
-                            len(final_answer),
+                            "anti-repetition instruction before falling back to stripping it. "
+                            "Pre-retry excerpt (first 800 chars, for diagnosis -- see "
+                            "todo/contexte.txt section 841): %r",
+                            len(final_answer), final_answer[:800],
                         )
                         retry_messages = [
                             HumanMessage(content=synthesis_prompt),
@@ -333,12 +340,91 @@ def run_react_loop(
                             else:
                                 logger.error(
                                     "Node [code_intelligence_agent]: synthesis still degenerate "
-                                    "after retry -- stripping the repeated run instead of shipping it."
+                                    "after retry -- stripping the repeated run instead of shipping "
+                                    "it. Pre-strip retry excerpt (first 800 chars, for diagnosis -- "
+                                    "see todo/contexte.txt section 841): %r",
+                                    retry_resp.content[:800],
                                 )
                                 final_answer = _strip_any_degenerate_repetition(final_answer)
                         except Exception as retry_e:
                             logger.error("Anti-repetition retry failed: %s", retry_e)
                             final_answer = _strip_any_degenerate_repetition(final_answer)
+
+                    # todo/contexte.txt section 858 (Option B1, mandated
+                    # after the negation-wording whack-a-mole -- 840->841->
+                    # 842/843->844->856->857 -- hit diminishing returns 2
+                    # recidives in a row): a GENERIC, wording-independent
+                    # coverage check (does the answer cite essentially none
+                    # of the real extended-model list the tools already
+                    # reported?) replaces trying to anticipate one more
+                    # negation verb/synonym. Catches denial AND omission
+                    # (the STK-Q3 variant, section 821) alike, in one retry,
+                    # regardless of exact wording. Mirrors the
+                    # anti-repetition retry above: same plain_llm_box, same
+                    # _invoke_with_rate_limit, same fail-safe shape --
+                    # never raises, never degrades final_answer; if this
+                    # retry errors or still doesn't fix it, final_answer is
+                    # left untouched for the existing text-patch guard
+                    # chain (postprocess.py, sections 838-857) to catch
+                    # what it can, unchanged.
+                    try:
+                        _extended_models = _extract_module_extended_models(
+                            "\n\n".join(ctx.tool_observations)
+                        )
+                        if (
+                            _extended_models
+                            and _question_is_inheritance_related(ctx.question)
+                            and _answer_lacks_extension_coverage(final_answer, _extended_models)
+                        ):
+                            logger.warning(
+                                "Node [code_intelligence_agent]: synthesis reflects "
+                                "essentially none of the %d model(s) list_involved_modules "
+                                "reported this module extends outside its own perimeter -- "
+                                "retrying once with the real list made explicit. Pre-retry "
+                                "excerpt (first 800 chars, for diagnosis -- see "
+                                "todo/contexte.txt section 858): %r",
+                                len(_extended_models), final_answer[:800],
+                            )
+                            _models_list = ", ".join(f"'{m}'" for m in _extended_models)
+                            _coverage_retry_messages = [
+                                HumanMessage(content=synthesis_prompt),
+                                SystemMessage(content=(
+                                    "RAPPEL STRICT : les outils ont confirm\u00e9 que ce "
+                                    f"module \u00e9tend bien {len(_extended_models)} "
+                                    f"mod\u00e8le(s) en dehors de son propre p\u00e9rim\u00e8tre "
+                                    f": {_models_list}. Ta r\u00e9ponse pr\u00e9c\u00e9dente ne "
+                                    "refl\u00e9tait pas correctement ce fait (elle le niait "
+                                    "ou l'omettait, quelle qu'en soit la formulation). "
+                                    "Reformule une r\u00e9ponse compl\u00e8te et coh\u00e9rente "
+                                    "qui affirme et cite explicitement cette liste r\u00e9elle, "
+                                    "sans aucune phrase qui la contredise ailleurs dans la "
+                                    "r\u00e9ponse."
+                                )),
+                            ]
+                            try:
+                                _coverage_resp, _coverage_wait = _invoke_with_rate_limit(
+                                    plain_llm_box[0], _coverage_retry_messages, max_retries=2,
+                                    rebuild_llm=_rebuild_plain_llm,
+                                )
+                                ctx.llm_call_count += 1  # extension-coverage retry call
+                                ctx.groq_wait += _coverage_wait
+                                if not _answer_lacks_extension_coverage(
+                                    _coverage_resp.content, _extended_models
+                                ):
+                                    final_answer = _coverage_resp.content
+                                else:
+                                    logger.error(
+                                        "Node [code_intelligence_agent]: synthesis still "
+                                        "lacks extension coverage after retry -- leaving "
+                                        "final_answer as-is for the existing text-patch "
+                                        "guard chain to catch what it can. Post-retry "
+                                        "excerpt (first 800 chars): %r",
+                                        _coverage_resp.content[:800],
+                                    )
+                            except Exception as _coverage_e:
+                                logger.error("Extension-coverage retry failed: %s", _coverage_e)
+                    except Exception as _coverage_outer_e:
+                        logger.error("Extension-coverage check failed: %s", _coverage_outer_e)
                 except Exception as e:
                     logger.error("Synthesis failed: %s", e)
                     final_answer = "\n\n".join(ctx.tool_observations)
@@ -503,6 +589,10 @@ class CodeIntelligenceAgentRunner:
         system_prompt = CI_SYSTEM_PROMPT + build_business_context_prompt(question, concept, G)
 
         run_predispatch_chain(ctx)
+        # Section 861 (2a): explicit, always-logged routing decision -- never
+        # a silent fallthrough to free ReAct when no predispatch predicate
+        # matched (see ReasoningTraceLogger.log_routing docstring).
+        trace_logger.log_routing(trace_id, ctx.matched_dispatchers)
         system_prompt += ctx.system_prompt_suffix
 
         if ctx.tool_observations:

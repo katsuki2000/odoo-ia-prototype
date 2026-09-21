@@ -35,6 +35,12 @@ def dispatch_inheritance(ctx: DispatchContext) -> None:
     ):
         return
 
+    # Section 861 (2a): predicate matched -- the question's category was
+    # recognized, this dispatcher is taking over routing for it (does not
+    # imply the tool call below will succeed, only that routing was not
+    # silently left open to free ReAct for this predicate's category).
+    ctx.matched_dispatchers.append("dispatch_inheritance")
+
     inherit_tool = ctx.tool_map.get("trace_full_inheritance")
     mod_tool = ctx.tool_map.get("list_involved_modules")
 
@@ -239,6 +245,12 @@ def dispatch_describe_workflow(ctx: DispatchContext) -> None:
     ):
         return
 
+    # Section 861 (2a): predicate matched -- the question's category was
+    # recognized, this dispatcher is taking over routing for it (does not
+    # imply the tool call below will succeed, only that routing was not
+    # silently left open to free ReAct for this predicate's category).
+    ctx.matched_dispatchers.append("dispatch_describe_workflow")
+
     wf_tool = ctx.tool_map.get("describe_workflow")
     if wf_tool is None:
         return
@@ -303,6 +315,12 @@ logger = logging.getLogger(__name__)
 def dispatch_button_execution_path(ctx: DispatchContext) -> None:
     if not (ctx.concept.is_resolved and ctx.concept.resolved_models and not ctx.hop_budget_exhausted):
         return
+
+    # Section 861 (2a): predicate matched -- the question's category was
+    # recognized, this dispatcher is taking over routing for it (does not
+    # imply the tool call below will succeed, only that routing was not
+    # silently left open to free ReAct for this predicate's category).
+    ctx.matched_dispatchers.append("dispatch_button_execution_path")
 
     ui_name = extract_ui_element_name(ctx.question)
     if not ui_name:
@@ -405,6 +423,12 @@ def dispatch_module_level_ui_inquiry(ctx: DispatchContext) -> None:
         and not ctx.hop_budget_exhausted
     ):
         return
+
+    # Section 861 (2a): predicate matched -- the question's category was
+    # recognized, this dispatcher is taking over routing for it (does not
+    # imply the tool call below will succeed, only that routing was not
+    # silently left open to free ReAct for this predicate's category).
+    ctx.matched_dispatchers.append("dispatch_module_level_ui_inquiry")
 
     mod_tool = ctx.tool_map.get("list_involved_modules")
     read_tool = ctx.tool_map.get("read_source_code")

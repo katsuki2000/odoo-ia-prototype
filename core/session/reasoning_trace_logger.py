@@ -36,6 +36,14 @@ class ReasoningHop:
 
 
 @dataclass
+class ReasoningRouting:
+    trace_id: str
+    timestamp: str
+    matched_dispatchers: List[str]
+    open_routing: bool
+
+
+@dataclass
 class ReasoningSummary:
     trace_id: str
     timestamp: str
@@ -88,6 +96,28 @@ class ReasoningTraceLogger:
             trace_id, hop_index, tool_name, tool_args, elapsed_ms,
         )
         return hop
+
+    def log_routing(self, trace_id: str, matched_dispatchers: List[str]) -> ReasoningRouting:
+        """Section 861 (mandat 4.4/trajectory recall): logs, once per question
+        turn, whether deterministic predispatch matched anything -- and if
+        so, which dispatcher(s) -- or whether routing was left fully open to
+        the LLM's free ReAct choice. Previously this transition was silent;
+        this makes it an explicit, queryable record instead (never a silent
+        skip), matching the same record/read_recent pattern as log_hop and
+        log_summary above.
+        """
+        routing = ReasoningRouting(
+            trace_id=trace_id,
+            timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            matched_dispatchers=list(matched_dispatchers),
+            open_routing=not matched_dispatchers,
+        )
+        self._write({"record_type": "ROUTING", **asdict(routing)})
+        _logger.info(
+            "Reasoning trace [%s] ROUTING: matched=%s open_routing=%s",
+            trace_id, matched_dispatchers, not matched_dispatchers,
+        )
+        return routing
 
     def log_summary(
         self,
