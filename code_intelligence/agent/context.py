@@ -286,12 +286,25 @@ MAX_TOTAL_OBSERVATION_CHARS = 35000
 # on the naive head-truncation applied here (see
 # assemble_security_lock_blocks, code_intelligence/rules/security_evidence.py,
 # section 824).
+# Section 867/868: evaluate_record_rules was missing from this dict despite
+# its own 2578-char account.move measurement already being on record in the
+# comment above since section 810 -- it silently fell back to
+# DEFAULT_OBSERVATION_CAP (2500), 78 chars short on that exact model, naive
+# head-truncation dropping its closing CONCLUSION sentence (ACC-Q1 rejeu,
+# section 867). Measured directly across the 12 real models referenced by
+# the N1 question bank (account.move/maintenance.equipment/maintenance.
+# request/purchase.order[.line]/sale.order[.line]/stock.lot/stock.move[.
+# line]/stock.picking/stock.quant, permissions read/write/all): account.move
+# is by far the worst case at 2578, everything else <=1041 -- 3000 gives
+# ~16% headroom above the only real value observed near the old cap instead
+# of shaving the default down to the exact measured byte.
 PER_TOOL_OBSERVATION_CAPS: Dict[str, int] = {
     "read_source_code": 9000,
     "analyze_data_constraints": 45000,
     "analyze_method_override_chain": 2200,
     "analyze_server_actions": 3500,
     "analyze_security_locks": 3500,
+    "evaluate_record_rules": 3000,
 }
 DEFAULT_OBSERVATION_CAP = 2500
 

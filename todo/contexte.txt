@@ -5749,3 +5749,68 @@ Contexte : suite a l'echange sur la proposition d'architecture "MIRO 2.0" (tour 
 ## Section 864 : Plan d'implementation pour 4.1 (mandat "oui" pour demarrer par 4.1 parmi 4.1/4.2/4.5) -- redige a partir de lecture directe du code : prompts.py a deja une anti_fabrication_rule textuelle (812/813), insuffisante seule (observe aujourd'hui : ACC-Q2 round 2 fabrique quand meme un bloc de code malgre l'instruction) ; dispatch_guards.py::verify_citations (814) detecte et AVERTIT mais laisse le bloc invente visible ; introspection.py::read_precise_source_code (deja ecrit, deja teste, cap 200 lignes, marquage SENSITIVE_BYPASS_MARKER) est directement reutilisable comme utilitaire de substitution -- rien a ecrire de ce cote. Plan ecrit dans todo/plan_4.1_citation_as_constraint.md : nouvelle fonction substitute_or_strip_code_blocks (dispatch_guards.py) -- union des plages citees du meme fichier pres d'un bloc code -> remplace le bloc par le vrai texte lu sur disque (cas ACC-Q2 round 2 : L1987+L1991 separees -> union L1987-1991 aurait donne le vrai extrait, strictement plus fidele que le bloc invente par le LLM) ; sinon (citations multi-fichiers, absentes, ou erreur de lecture) -> strip complet du bloc, jamais de fabrication visible meme avec avertissement. 4 fichiers de test identifies a revoir avant commit (test_bug4_synthesis_anti_hallucination.py, test_j14_sourcing_guard.py, test_bug1_xml_id_citation_wiring.py, test_bug2_backfill_scoped_output_wiring.py -- probablement assertent le comportement actuel warn-et-garde). Question de la fenetre de proximite (500 car., discutee plus tot ce jour) explicitement laissee de cote -- la substitution rend un faux negatif de proximite moins grave (juste un strip trop agressif, pas une hallucination qui passe). AUCUN code touche -- plan uniquement, mandat pour l'implementation a demander separement.
 
 ## Section 865 : Fix UI module miro_ai (mandat direct de pmm, hors chantier 4.1-4.5) -- boutons envoi/stop du tiroir de chat (miro_ai_assistant.xml) sans dimensionnement explicite, le .btn icone seul depassait la hauteur de la ligne input-group-sm et debordait visuellement dans le corps du tiroir en dessous. Corrige (miro_ai.css) : 31x31px fixe, icone centree en flex, box-sizing border-box, flex-shrink:0. Bouton stop (btn-outline-danger rouge Bootstrap fixe) bascule sur --miro-brand-color (deja lu au runtime depuis .o_main_navbar par applyBrandColorFromHeader(), deja utilise par le bouton envoi) -- capte automatiquement la couleur reelle de la navbar/theme au lieu d'une couleur figee, garde un style outline pour rester visuellement distinct du bouton envoi plein. Aucun test associe a ce module (CSS/XML pur), aucun fichier Python touche.
+
+## Section 866 : Rejeu ACC-Q2 colle par pmm (post-846, apres le reranking intra-bloc) -- 3e confirmation reelle consecutive du fix 836/837, citation verifiee au caractere pres contre le fichier source reel sur disque
+
+Date : 20/09/2026
+Contexte : pmm colle un rejeu reel (`scripts/run_bloc_n1_benchmark.py`, ACC-Q2, 12.83s) execute apres le reranking de 846, sans mandat explicite au-dela du "continue" precedent -- traite comme une verification a journaliser, meme convention que 837 ("Rejeu de confirmation #2").
+
+**Resultat** : reponse "Non", raisonnement correct (l'appel `user_has_groups('account.group_account_manager')` dans `_check_fiscalyear_lock_date()` ne conditionne PAS le `raise` qui suit -- il s'execute pour tous les utilisateurs), citation `[account_move.py:L2000-L2000](file:///home/user/odoo-17.0/addons/account/models/account_move.py#L2000-L2000)`.
+
+**Verification directe de la citation contre le fichier reel** (`sed -n '1996,2004p' addons/account/models/account_move.py`) : la ligne 2000 est exactement `if self.user_has_groups('account.group_account_manager'):` -- l'ancre pointe au caractere pres sur le vrai appel, pas une approximation de bloc. Diverge du numero de ligne cite dans le log de 837 (L1987) sans etre une regression : `active_graph.json` a ete regenere ce tour (modifie sur disque, confirme par `git status`), et 1987 provenait tres probablement d'un graphe pas encore reconstruit apres un changement anterieur du fichier source indexe -- la valeur presente ici (2000) est la verifiee correcte contre le fichier tel qu'il existe reellement sur cette machine.
+
+**Comportement deja connu, toujours present, non bloquant** :
+  - Log systeme `"an observation was truncated (cap reached)..."` : attendu, deja documente en 837 -- le tier 2 (message `UserError`) n'atteint toujours pas le budget sur ce cas, mais le contenu reste correct car le tier 1 (la ligne `has_group`/`user_has_groups` avec son avertissement gating=False) suffit a lui seul.
+  - `[WARN] Outil(s) attendu(s) non invoque(s): describe_workflow, read_source_code` : deja catalogue non-bloquant depuis 834 (chemin alternatif via `button_execution_path`/`who_has_access_to` aboutit quand meme au bon contenu).
+
+**Bilan cumule sur ACC-Q2 depuis le fix 836/837** : 3/3 rejeux reels corrects et consecutifs (837 x2 + celui-ci), le 2e avec le reranking 846 en plus dans le chemin -- aucune regression visible du reranking sur ce cas precis.
+
+**Ce qui N'A PAS ete fait** : aucun fichier source touche ce tour (verification seule). Pas de nouveau test ecrit. Pas de commit -- `active_graph.json` et `captures/*` sont modifies sur disque par ce rejeu (artefacts de execution, meme statut que les tours precedents), le reste de l'arbre est propre (`working tree clean` avant ce rejeu, confirme par `git status`/`git log` en debut de tour).
+
+**Fichiers modifies** : `active_graph.json` (regenere par le rejeu), `captures/bloc_n1_verbatim.json`, `captures/bloc_n1_verbatim.md`, `todo/contexte.txt` (cette section).
+
+**Prochaine etape** : aucune decision en attente specifique a ce tour -- les chantiers ouverts restent ceux catalogues en 859-864 (angle mort residuel de negation d'extension, plan 4.1 non implemente, decision de commit du lot en attente). A pmm de trancher la suite.
+
+## Section 867 : Rejeu ACC-Q1 colle par pmm -- contenu conforme a reference_answer ("Oui", implied_ids), MAIS root cause du warning de troncature identifiee par execution directe : `evaluate_record_rules` n'a pas d'entree dans `PER_TOOL_OBSERVATION_CAPS` et depasse le cap par defaut (2500) sur ce cas precis -- 1ere occurrence catalogueee de ce gap generique (836/837/846 ne protegent que `analyze_security_locks`)
+
+Date : 20/09/2026
+Contexte : pmm colle un rejeu reel ACC-Q1 (8.71s), question "NON Correct?" implicite -- verifie d'abord contre `tests/native_n1_question_bank.json` : reference_answer = "Oui" (heritage CRUD via `implied_ids <- account.group_account_invoice`), reponse rejouee dit "Oui" avec le meme mecanisme -- **contenu correct**.
+
+**Diagnostic du warning de troncature (log systeme present en tete de sortie)** : les 4 tools invoques ce tour (`analyze_security_locks`, `who_has_access_to`, `evaluate_record_rules`, `button_execution_path`) rejoues directement hors-LLM avec la vraie question, sur le graphe reel :
+  - `analyze_security_locks` : 3297 car., cap dedie 3500 -- OK.
+  - `who_has_access_to` : 1930 car., cap par defaut 2500 -- OK (la matrice WRITE/CREATE/UNLINK avec `implied_ids` explicite est entierement presente, contrairement a ce que 852 laissait presumer -- donc PAS la source du residu "citation vers fichier custom" note en 852, qui concerne `analyze_security_locks`, pas cet outil).
+  - **`evaluate_record_rules` : 2578 car., cap par defaut 2500 -- DEPASSE de 78 caracteres.** Seul et unique outil dont le texte reel excede son cap sur ce tour (somme totale 8392 car., tres loin des 35000 du plafond global -- ce n'est pas `MAX_TOTAL_OBSERVATION_CHARS` qui est en cause).
+  - `button_execution_path` : 587 car. -- OK (question hors-sujet pour ce cas, attendu, deja documente 852+).
+
+**Cause mecanique** : `evaluate_record_rules` n'a aucune entree dans `PER_TOOL_OBSERVATION_CAPS` (`agent/context.py`, seuls `read_source_code`/`analyze_data_constraints`/`analyze_method_override_chain`/`analyze_server_actions`/`analyze_security_locks` y figurent) -- il tombe sur `DEFAULT_OBSERVATION_CAP=2500` avec la troncature naive `_truncate_observation` (tete du texte, rewind au dernier `\n`, aucun water-filling ni plancher protege -- aucun des mecanismes 836/837/846, qui ne couvrent QUE `analyze_security_locks`). Verifie directement : le cap coupe exactement la phrase de conclusion de l'outil ("CONCLUSION: Aucune regle de groupe applicable [...] il n'y a AUCUNE restriction supplementaire de montant ou de portee provenant d'une regle de groupe pour cet utilisateur.").
+
+**Impact sur ce rejeu precis** : nul -- la reponse finale reste correcte, la matrice `who_has_access_to` (implied_ids) suffisait a elle seule a la conclusion. Mais c'est la 1ere occurrence cataloguee d'un cas ou le meme mecanisme racine que 836 (cap par defaut trop juste + troncature aveugle sans protection) touche un AUTRE outil que celui deja corrige -- la protection de 836/837/846 est perimetree a `analyze_security_locks` uniquement, pas generique a tout le systeme de caps par defaut.
+
+**Non tranche, pose implicitement pour un futur mandat** : soit (a) ajouter `evaluate_record_rules` a `PER_TOOL_OBSERVATION_CAPS` avec un cap dedie legerement plus genereux (ex. 2800-3000, mesure empirique sur ce cas : 2578 suffirait, mais un cap trop juste au caractere pres recidivera sur un autre modele avec plus de regles), soit (b) generaliser le principe du plancher protege (837, garantir qu'une phrase de conclusion/synthese en fin de bloc ne soit jamais coupee) a `DEFAULT_OBSERVATION_CAP` lui-meme plutot qu'a un seul outil au cas par cas -- (b) plus coherent avec le principe "fix root cause, pas de patch chirurgical" mais plus de perimetre a toucher.
+
+**Ce qui N'A PAS ete fait** : aucun fichier source touche ce tour (diagnostic seul, aucun mandat recu pour corriger). Pas de commit.
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section). `active_graph.json`/`captures/*` inchanges ce tour (execution directe hors banc, pas de nouveau rejeu LLM lance par moi).
+
+**Prochaine etape** : pmm tranche si ce gap (evaluate_record_rules, et plus largement tout outil hors `PER_TOOL_OBSERVATION_CAPS`) merite un correctif dedie maintenant (option a ou b ci-dessus), ou reste catalogue pour plus tard -- n'a pas casse de reponse a ce jour, contrairement a 836 qui avait casse ACC-Q2 sur 2/3 rejeux.
+
+## Section 868 : Mandat "corige" (867, evaluate_record_rules sans cap dedie) execute -- nouvelle entree `PER_TOOL_OBSERVATION_CAPS["evaluate_record_rules"] = 3000` (agent/context.py), calibree par mesure directe sur les 12 modeles reels du banc N1, plutot que de rustiner le cap par defaut ou l'unique valeur observee
+
+Date : 20/09/2026
+Contexte : mandat court de pmm ("corige") suite au diagnostic de 867.
+
+**Mesure prealable** (execution directe, hors LLM, sur le graphe reel) : `evaluate_record_rules` rejoue sur les 12 modeles reellement references par le banc N1 (account.move, maintenance.equipment, maintenance.request, purchase.order[.line], sale.order[.line], stock.lot, stock.move[.line], stock.picking, stock.quant), x3 permissions (read/write/all) chacun -- `account.move` est de tres loin le pire cas a 2578 caracteres (identique sur read/all, 2496 sur write), tout le reste plafonne a 1041 (maintenance.request). Confirme au passage que 2578 est exactement la valeur deja notee dans le commentaire du fichier depuis la section 810 (jamais reliee a une entree de cap a l'epoque).
+
+**Correctif** : ajout de `"evaluate_record_rules": 3000` a `PER_TOOL_OBSERVATION_CAPS` (`agent/context.py`) -- ~16% de marge au-dessus du seul cas reel mesure pres de l'ancien plafond par defaut (2500), plutot qu'un cap colle au caractere pres sur la seule valeur connue aujourd'hui (qui recidiverait au premier ajout de regle sur `account.move`). Commentaire du dict mis a jour pour documenter la mesure et le lien avec 810/867.
+
+**Verification** :
+  - `py_compile` propre.
+  - Execution directe : `evaluate_record_rules('account.move', permission='read')` (2578 car.) tient desormais entierement sous le nouveau cap (3000) -- la phrase de conclusion ("... il n'y a AUCUNE restriction supplementaire de montant ou de portee...") n'est plus coupee.
+  - Suite ciblee (`context or observation_cap or budget or truncat`) : 41 passed, 8 skipped, 0 echec.
+  - Suite complete lancee par pmm (le connector bash de cette session a timeout sur le lancement en arriere-plan, delegue a pmm) : **1293 passed, 18 skipped, 0 echec, 149.30s** -- identique a la reference de 859, 0 regression.
+
+**Ce qui N'A PAS ete fait** : le principe general souleve en 867 (plancher protege generique pour `DEFAULT_OBSERVATION_CAP`, option b, plutot que caps dedies au cas par cas) n'a pas ete engage -- ce tour applique l'option a (cap dedie mesure), coherente avec le pattern deja etabli pour les 5 autres entrees du dict. Aucun autre outil hors de `PER_TOOL_OBSERVATION_CAPS` n'a ete audite pour un gap similaire -- seul `evaluate_record_rules` a ete mesure ce tour, suite au signal concret de 867.
+
+**Fichiers modifies** : `code_intelligence/agent/context.py` (nouvelle entree + commentaire), `todo/contexte.txt` (cette section). `active_graph.json`/`captures/*` modifies par les rejeux de pmm (866/867), non lies a ce correctif.
+
+**Prochaine etape** : commit de ce chantier (868, isole -- diagnostic 867 + fix verifie ce tour). Le lot cumule plus large (819-865, deja verifie/journalise section par section mais jamais committe depuis `5bcc28a`) reste une decision separee, toujours en attente de pmm.
