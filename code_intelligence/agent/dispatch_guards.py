@@ -7,9 +7,13 @@ to citations produced in the raw tool output for the question.
 
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass, field
-from typing import List, Set, Tuple
+from pathlib import Path
+from typing import List, Optional, Set, Tuple
+
+from code_intelligence.agent.source_definitions import definition_spans, range_overlaps_definition
 
 # Scoped file citation: explicit line range, per CI_SYSTEM_PROMPT's own
 # instruction ("[file.py:L12-L25](file:///path#L12-L25)").
@@ -147,6 +151,130 @@ def annotate_unverifiable_citations(final_answer: str, result: SourcingVerificat
         + "\n\n SOURCING NON VÉRIFIÉ : " + " ; ".join(warnings)
         + ". Ne pas considérer ces éléments comme confirmés pour cette question."
     )
+
+
+# todo/plan_4.1_citation_as_constraint.md / todo/contexte.txt sections 870-873:
+# citation-as-constraint. verify_citations() above only WARNS when a code
+# block presenting real Python syntax has no nearby scoped citation --
+# the fabricated block itself stays visible to the user. This substitutes
+# it with the real source read from disk or strips it entirely -- never
+# left displayed as fabricated text, warned or not. A block naming a
+# def/class is only backed by the cited ranges overlapping that definition
+# in the real file: a citation pointing at another definition strips the
+# block instead of substituting unrelated real code (section 872).
+_STRIPPED_CODE_BLOCK_NOTE = (
+    "*(bloc de code omis : non retrouvé verbatim dans les observations "
+    "produites pour cette question -- voir la/les citation(s) file:// "
+    "à proximité pour le contenu réel.)*"
+)
+
+
+def _nearby_scoped_citations(
+    answer: str, block_start: int, block_end: int
+) -> List[Tuple[str, int, int]]:
+    window = answer[
+        max(0, block_start - _CODE_BLOCK_CITATION_PROXIMITY_CHARS):
+        block_end + _CODE_BLOCK_CITATION_PROXIMITY_CHARS
+    ]
+    return [
+        (m.group("path"), int(m.group("start")), int(m.group("end")))
+        for m in _SCOPED_FILE_LINK_PATTERN.finditer(window)
+    ]
+
+
+_BLOCK_DEFINITION_PATTERN = re.compile(r"^\s*(?:async\s+)?(?:def|class)\s+(\w+)", re.MULTILINE)
+
+
+def _defined_names(block: str) -> List[str]:
+    return list(dict.fromkeys(_BLOCK_DEFINITION_PATTERN.findall(block)))
+
+
+def _ranges_backing_definitions(
+    path: Path, names: List[str], ranges: List[Tuple[int, int]]
+) -> Optional[List[Tuple[int, int]]]:
+    """Cited ranges overlapping a definition the block names; None when a
+    name has no such range or the file cannot be parsed."""
+    spans = definition_spans(path)
+    if spans is None:
+        return None
+    backing = {
+        name: [r for r in ranges if range_overlaps_definition(spans, name, *r)]
+        for name in names
+    }
+    if not all(backing.values()):
+        return None
+    return sorted({r for matching in backing.values() for r in matching})
+
+
+def _unbacked_definition_note(names: List[str], ranges: List[Tuple[int, int]]) -> str:
+    cited = ", ".join(f"L{s}-L{e}" for s, e in sorted(set(ranges)))
+    defined = ", ".join(f"`{n}`" for n in names)
+    return (
+        f"*(bloc de code omis : la plage citée ({cited}) n'a pas pu être rattachée "
+        f"à la définition de {defined} -- citation à ne pas considérer comme confirmée.)*"
+    )
+
+
+def substitute_or_strip_code_blocks(final_answer: str) -> str:
+    """Replace every fenced code block that presents real Python syntax
+    (see _PYTHON_CODE_MARKERS_PATTERN) with the actual source lines read
+    from disk, or strip it, depending on the scoped citation(s) found
+    nearby (same proximity window as verify_citations' uncited_code_blocks
+    check). Meant to run BEFORE verify_citations in the post-processing
+    pipeline: a substituted block is now genuinely covered by its own
+    nearby citation and will not be re-flagged; a stripped block is no
+    longer a fenced code block at all."""
+    from code_intelligence.agent.tools.introspection import read_precise_source_code
+
+    _log = logging.getLogger(__name__)
+
+    def _replace(match: "re.Match") -> str:
+        block = match.group(1)
+        if not _PYTHON_CODE_MARKERS_PATTERN.search(block):
+            return match.group(0)
+
+        citations = _nearby_scoped_citations(final_answer, match.start(), match.end())
+        # The regex path group never includes the leading '/' consumed by
+        # the literal 'file:///' prefix -- restore it before touching disk.
+        paths = {("/" + path) for path, _s, _e in citations}
+
+        if len(paths) != 1:
+            _log.warning(
+                "Node [code_intelligence_agent]: stripping fabricated-looking "
+                "code block (%s) -- see todo/contexte.txt section 870, "
+                "todo/plan_4.1_citation_as_constraint.md.",
+                "no nearby citation" if not citations else "citations span multiple files",
+            )
+            return _STRIPPED_CODE_BLOCK_NOTE
+
+        path = next(iter(paths))
+        cited = [(s, e) for _p, s, e in citations]
+        names = _defined_names(block)
+        backing = _ranges_backing_definitions(Path(path), names, cited) if names else cited
+        if backing is None:
+            _log.warning(
+                "Node [code_intelligence_agent]: stripping code block -- cited "
+                "range(s) do not back definition(s) %s. See todo/contexte.txt "
+                "sections 872-873.",
+                names,
+            )
+            return _unbacked_definition_note(names, cited)
+
+        line_start = min(s for s, _e in backing)
+        line_end = max(e for _s, e in backing)
+        real_snippet = read_precise_source_code(path, line_start, line_end)
+        if real_snippet.startswith("Error"):
+            _log.warning(
+                "Node [code_intelligence_agent]: stripping fabricated-looking "
+                "code block -- read_precise_source_code failed (%s). See "
+                "todo/contexte.txt section 870, todo/plan_4.1_citation_as_constraint.md.",
+                real_snippet,
+            )
+            return _STRIPPED_CODE_BLOCK_NOTE
+
+        return f"```\n{real_snippet}\n```"
+
+    return _CODE_FENCE_PATTERN.sub(_replace, final_answer)
 
 # ── Dispatch Utilities ──────────────────────────────────────────────────
 

@@ -55,21 +55,29 @@ from code_intelligence.agent.context import DispatchContext
 logger = logging.getLogger(__name__)
 
 
-def _strip_truncation_marker_for_display(text: str) -> str:
+def _strip_truncation_marker_for_display(text: str, source_label: str = "") -> str:
     """Cosmetic-only: drop the internal truncation marker before user-facing
     text is built (evidence snippet, final answer). ctx.tool_observations
     itself is NEVER passed through this -- _match_near_truncation() in
     access_guards.py / security/locks.py / overrides/cascade.py still needs
     the marker present there to reject facts extracted too close to a cut.
-    See todo/contexte.txt (marqueur de troncature visible utilisateur)."""
+    See todo/contexte.txt (marqueur de troncature visible utilisateur).
+
+    Section 876 (todo/contexte.txt): the warning used to name neither the
+    tool nor the size that got cut, forcing a manual reasoning_trace.jsonl
+    read every time (see section 875) to find out which call actually
+    truncated. source_label/len(text) are logged whenever the caller has
+    them -- purely diagnostic, no behaviour change."""
     if not text:
         return text
     if _TRUNCATION_MARKER in text:
+        label = f" [source: {source_label}, {len(text)} chars]" if source_label else " [source: unknown]"
         logger.warning(
             "Node [code_intelligence_agent]: an observation was truncated "
             "(cap reached) and the marker is being stripped from user-facing "
-            "text -- some evidence may be missing from this answer. See "
-            "todo/contexte.txt sections 801-802."
+            "text%s -- some evidence may be missing from this answer. See "
+            "todo/contexte.txt sections 801-802/876.",
+            label,
         )
     return text.replace(_TRUNCATION_MARKER, "").rstrip()
 
@@ -179,7 +187,14 @@ def build_final_response(
                 raw_tool_output=raw_tool_output,
             )
 
-    from code_intelligence.agent.dispatch_guards import verify_citations, annotate_unverifiable_citations
+    from code_intelligence.agent.dispatch_guards import (
+        verify_citations, annotate_unverifiable_citations, substitute_or_strip_code_blocks,
+    )
+    # todo/contexte.txt section 870, todo/plan_4.1_citation_as_constraint.md:
+    # runs BEFORE verify_citations -- a substituted block is now genuinely
+    # covered by its own nearby citation, a stripped block is no longer a
+    # fenced code block at all, so neither re-triggers uncited_code_blocks.
+    final_answer = substitute_or_strip_code_blocks(final_answer)
     sourcing_result = verify_citations(final_answer, raw_tool_output)
     if not sourcing_result.is_fully_verified:
         logger.warning("Node [code_intelligence_agent]: Unverified citations -- %s", sourcing_result)
@@ -215,7 +230,7 @@ def build_final_response(
     if ci_evidence_sufficiency.has_execution_failure:
         final_answer += _EXECUTION_FAILURE_NOTICE
 
-    final_answer = _strip_truncation_marker_for_display(final_answer)
+    final_answer = _strip_truncation_marker_for_display(final_answer, source_label="final_answer (synthese)")
 
     final_answer += "\n\n[Source: Graphe de Connaissances Code Intelligence]"
 
@@ -251,7 +266,7 @@ def build_final_response(
             source=f"code_intelligence:{tname or 'unknown'}:{model or 'unknown'}",
             doc_type="code_graph",
             title=title,
-            snippet=_strip_truncation_marker_for_display(str(obs)),
+            snippet=_strip_truncation_marker_for_display(str(obs), source_label=f"{tname or 'unknown'}({model or 'unknown'})"),
         ))
 
     response = AssistantResponse(

@@ -245,3 +245,19 @@ _ALIAS_PATTERNS: Dict[str, re.Pattern] = {
     alias: re.compile(r"(?<!\w)" + re.escape(alias) + r"(?!\w)")
     for alias in BUSINESS_ALIASES_NFC
 }
+
+# Section 877: le singulier "avoir" est aussi l'infinitif du verbe ("une
+# commande ne peut pas avoir de date" -> SAL-Q5 resolvait account.move a tort,
+# dump de 43 798 car.). Le pluriel "avoirs" n'a pas de forme verbale : inchange.
+# Garde POSITIVE sur le singulier : le nom n'est retenu que precede d'un
+# determinant/possessif ("un avoir", "l'avoir", "cet avoir"...) ou en debut de
+# requete ("avoir" seul, "Avoir client : ..."). Limite connue : "l'avoir" en
+# pronom+verbe ("peut-il l'avoir ?") matche encore ; "valider avoir" sans
+# article ne matche plus.
+_AVOIR_NOUN_PATTERN = re.compile(
+    r"(?:(?<!\w)(?:un|le|cet|ce|cette|mon|ton|son|notre|votre|leur|chaque|nouvel|seul)\s+"
+    r"|(?<!\w)l['\u2019]\s*)avoir(?!\w)"
+    r"|^\s*avoir(?!\w)"
+)
+if "avoir" in _ALIAS_PATTERNS:
+    _ALIAS_PATTERNS["avoir"] = _AVOIR_NOUN_PATTERN
