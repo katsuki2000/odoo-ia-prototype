@@ -107,6 +107,44 @@
     border-color: var(--miro-brand-color, #008784);
 }
 
+/* Send/stop buttons in the drawer input row -- explicit fixed square
+   sizing (Bootstrap alone does not constrain icon-only .btn width inside
+   an .input-group-sm, so the button grows past the input row height and
+   visually overflows into the drawer body below it). flex-shrink: 0 keeps
+   the text input from being able to push/squeeze it either. */
+.miro-drawer-input .input-group-append > .btn {
+    width: 31px;
+    height: 31px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    box-sizing: border-box;
+    line-height: 1;
+}
+
+.miro-drawer-input .input-group-append > .btn i {
+    font-size: 0.85rem;
+}
+
+/* Stop button: same navbar-color mechanism as the send button above
+   (var(--miro-brand-color), set at runtime from .o_main_navbar's actual
+   computed background -- see applyBrandColorFromHeader() in miro_ai.js)
+   instead of Bootstrap's hardcoded btn-outline-danger red, so it stays
+   visually consistent with the current theme/company color. Kept as an
+   outline (not solid) so it still reads as distinct from the send button. */
+.miro-stop-btn {
+    background-color: transparent;
+    border: 1px solid var(--miro-brand-color, #008784);
+    color: var(--miro-brand-color, #008784);
+}
+
+.miro-stop-btn:hover {
+    background-color: var(--miro-brand-color, #008784);
+    color: #ffffff;
+}
+
 .loading-indicator {
     font-style: italic;
     color: #64748b;

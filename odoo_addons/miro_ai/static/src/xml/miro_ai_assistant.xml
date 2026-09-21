@@ -117,7 +117,7 @@
                             <button t-if="!state.loading" class="btn btn-primary" type="button" t-on-click="sendMessage">
                                 <i class="fa fa-paper-plane"/>
                             </button>
-                            <button t-else="" class="btn btn-outline-danger" type="button" t-on-click="cancelRequest" title="Annuler la question en cours">
+                            <button t-else="" class="btn miro-stop-btn" type="button" t-on-click="cancelRequest" title="Annuler la question en cours">
                                 <i class="fa fa-stop"/>
                             </button>
                         </div>
