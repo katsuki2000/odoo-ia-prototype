@@ -176,7 +176,11 @@ def _match_near_truncation(text: str, start: int, end: int) -> bool:
     return _TRUNCATION_MARKER in text[ws:we]
 
 
-_AMOUNT_PATTERN = re.compile(r"\d[\d\s.,]*\d\s*(?:€|eur(?:os?)?\b)", re.IGNORECASE)
+# Section 883: "Ar" (Ariary) est la seule devise non-EUR vue dans le corpus.
+# Case-sensible (pas de re.IGNORECASE sur ce token) pour eviter tout mot
+# francais courant se terminant en "ar"/"AR" -- (?i:...) limite
+# l'insensibilite a la casse au seul groupe eur/EUR.
+_AMOUNT_PATTERN = re.compile(r"\d[\d\s.,]*\d\s*(?:(?i:€|eur(?:os?)?\b)|Ar\b)")
 
 
 def _extract_amount(question: str) -> Optional[float]:
@@ -185,7 +189,7 @@ def _extract_amount(question: str) -> Optional[float]:
     if not match:
         return None
     raw = match.group(0)
-    numeric_part = re.sub(r"(?i)(€|eur(?:os?)?)", "", raw).strip()
+    numeric_part = re.sub(r"(?i)(€|eur(?:os?)?)|Ar\b", "", raw).strip()
     cleaned = numeric_part.replace(" ", "").replace(",", "")
     try:
         return float(cleaned)
