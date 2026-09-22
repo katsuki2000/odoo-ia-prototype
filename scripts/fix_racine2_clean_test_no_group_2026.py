@@ -2,8 +2,6 @@
 """
 scripts/fix_racine2_clean_test_no_group_2026.py
 
-Root-cause fix -- todo/contexte.txt sections 256-258, Racine 2, option 1.
-
 test_no_group_2026 a derive : il porte 17 groupes en base (RH, recrutement,
 notes de frais...) au lieu du seul base.group_user attendu par son nom et par
 l'intention des tests J5/J6 (code_intelligence/tests/test_j5_live_validation.py,
@@ -78,19 +76,19 @@ def main() -> None:
         print(f"    - {gid}: {xmlids.get(gid, '<pas de xml_id>')}{marker}")
 
     if not to_remove:
-        print(f"\nRien a faire : {TARGET_LOGIN} ne porte deja que {KEEP_XMLID}.")
+        print(f"\nRien à faire : {TARGET_LOGIN} ne porte deja que {KEEP_XMLID}.")
         return
 
-    print(f"\n[plan] {len(to_remove)} groupe(s) a retirer, {KEEP_XMLID} (id={keep_id}) conserve seul.")
+    print(f"\n[plan] {len(to_remove)} groupe(s) à retirer, {KEEP_XMLID} (id={keep_id}) conserve seul.")
 
     if not apply:
-        print("\nDRY-RUN -- aucune ecriture effectuee. Relancer avec --apply pour appliquer ce plan.")
+        print("\nDRY-RUN -- aucune écriture effectuée. Relancer avec --apply pour appliquer ce plan.")
         return
 
-    print(f"\nConfirmation requise : ecrire groups_id=[{keep_id}] sur {TARGET_LOGIN} (id={user_id}).")
+    print(f"\nConfirmation requise : écrire groups_id=[{keep_id}] sur {TARGET_LOGIN} (id={user_id}).")
     answer = input("Taper 'oui' pour confirmer : ").strip().lower()
     if answer != "oui":
-        print("Annule -- aucune ecriture effectuee.")
+        print("Annule -- aucune écriture éffectuée.")
         return
 
     client.execute_kw(
@@ -99,7 +97,7 @@ def main() -> None:
         "write",
         [[user_id], {"groups_id": [(6, 0, [keep_id])]}],
     )
-    print("\n[ecrit] groups_id mis a jour.")
+    print("\n[ecrit] groups_id mis à jour.")
 
     # Verification immediate : relire l'utilisateur + rejouer le check qui echouait.
     reloaded = client.execute_kw(

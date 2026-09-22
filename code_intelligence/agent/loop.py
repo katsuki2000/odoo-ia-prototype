@@ -474,7 +474,7 @@ from code_intelligence.agent.dispatch_guards import _rank_and_cap_resolved_model
 from code_intelligence.agent.context import _resolve_user_group_xmlids
 from code_intelligence.agent.context import build_early_refusal_response
 from code_intelligence.agent.context import DispatchContext
-from code_intelligence.agent.prompts import CI_SYSTEM_PROMPT, build_business_context_prompt
+from code_intelligence.agent.prompts import CI_SYSTEM_PROMPT, build_business_context_prompt, build_persona_prompt_block
 from code_intelligence.agent.predispatch import run_predispatch_chain
 from .postprocess import build_final_response
 
@@ -620,26 +620,13 @@ class CodeIntelligenceAgentRunner:
 
         system_prompt = CI_SYSTEM_PROMPT + build_business_context_prompt(question, concept, G)
 
-        # Section 888/889: tell the LLM which hypothetical personas this
-        # question names, and how to evaluate access for each -- via
-        # principal_id, never by supplying user_groups_json itself (which is
-        # always ignored/overridden, see dispatch_guards.py::_override_user_groups_arg).
-        if ctx.security_principals:
-            _principal_lines = "\n".join(
-                f"- {pid}: {groups}" for pid, groups in ctx.security_principals.items()
-            )
-            system_prompt += (
-                "\n\n[PERSONAS DE LA QUESTION]\n"
-                "Cette question compare l'acces de plusieurs personas hypothetiques "
-                "nommees dans la question, distinctes du demandeur reel. Personas "
-                "disponibles pour cette question (identifiant -> groupes reels, "
-                "declares par le harnais, jamais a deviner) :\n" + _principal_lines + "\n"
-                "Pour evaluer evaluate_record_rules pour l'un de ces personas, appelle "
-                "l'outil avec le parametre principal_id=\"<identifiant>\" -- ne fournis "
-                "JAMAIS toi-meme user_groups_json, il sera ignore. Un identifiant absent "
-                "de cette liste sera refuse. Appelle l'outil une fois par persona nomme "
-                "dans la question."
-            )
+        # Section 888/889 (mecanisme), 899 (texte durci -- SAL-Q1/897 et
+        # MNT-Q1/898 rechutaient avec la 1ere version) : tell the LLM which
+        # hypothetical personas this question names, and how to evaluate
+        # access for each -- via principal_id, never by supplying
+        # user_groups_json itself (always ignored/overridden, see
+        # dispatch_guards.py::_override_user_groups_arg).
+        system_prompt += build_persona_prompt_block(ctx.security_principals)
 
         run_predispatch_chain(ctx)
         # Section 861 (2a): explicit, always-logged routing decision -- never

@@ -298,11 +298,17 @@ def evaluate_record_rules(
             "(combinees en OU entre elles, puis en ET avec les regles globales)."
         )
     else:
+        if user_group_set:
+            evaluated_groups_desc = f"l'ensemble de groupes evalue ({', '.join(sorted(user_group_set))})"
+        else:
+            evaluated_groups_desc = "un utilisateur n'appartenant a aucun groupe"
         lines.append(
             "  -> CONCLUSION: Aucune regle de groupe applicable (l'utilisateur n'appartient a aucun "
             "groupe cible par une regle sur ce modele). Seules les regles globales ci-dessus "
-            "s'appliquent -- il n'y a AUCUNE restriction supplementaire de montant ou de portee "
-            "provenant d'une regle de groupe pour cet utilisateur."
+            f"s'appliquent -- il n'y a aucune restriction supplementaire de montant ou de portee "
+            f"provenant d'une regle de groupe pour {evaluated_groups_desc}. Ce constat NE S'ETEND A "
+            "AUCUNE AUTRE PERSONA eventuellement mentionnee dans la question -- il ne vaut que pour "
+            "l'ensemble de groupes precis evalue ici."
         )
 
     summary_text = "\n".join(lines)

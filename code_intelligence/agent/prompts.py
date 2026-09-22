@@ -298,8 +298,54 @@ def build_synthesis_prompt(
     ) + _build_module_specific_guidance(tool_observations)
 
 
+def build_persona_prompt_block(security_principals: dict) -> str:
+    """Section 888/889 (mecanisme), 899 (texte durci) : indique au LLM quelles
+    personas hypothetiques cette question nomme, et comment evaluer l'acces
+    pour chacune -- via `principal_id`, jamais en fournissant `user_groups_json`
+    lui-meme (toujours ignore, voir dispatch_guards.py::_override_user_groups_arg).
+
+    Chaine vide si `security_principals` est vide/absent -- `loop.py` n'ajoute
+    alors rien au prompt, comportement de production inchange (889, exigence 5).
+
+    Durci en 899 (SAL-Q1/897, MNT-Q1/898 rechutaient : un seul appel
+    `evaluate_record_rules`, jamais de `principal_id`, malgre la 1ere version de
+    ce bloc deja presente) : (a) titre + regle explicitement marques
+    "OBLIGATOIRE", (b) nombre de personas rappele, (c) avertissement direct que
+    les [PRIOR TOOL OBSERVATIONS] (evaluees pour le VRAI demandeur du
+    benchmark, injectees plus loin dans le prompt) ne repondent a AUCUNE des
+    personas ci-dessous et ne dispensent d'aucun appel -- adresse l'hypothese
+    non verifiee de la section 892 (ces observations, vues APRES ce bloc,
+    pourraient etre prises a tort pour suffisantes) par le CONTENU de la
+    consigne plutot que par un reordonnancement du prompt (hors mandat 899)."""
+    if not security_principals:
+        return ""
+    n = len(security_principals)
+    principal_lines = "\n".join(
+        f"- {pid}: {groups}" for pid, groups in security_principals.items()
+    )
+    return (
+        "\n\n[PERSONAS DE LA QUESTION -- OBLIGATOIRE]\n"
+        f"Cette question compare l'acces de {n} persona(s) hypothetique(s) "
+        "nommee(s) dans la question, DISTINCTE(S) du demandeur reel. Personas "
+        "disponibles pour cette question (identifiant -> groupes reels, "
+        "declares par le harnais, jamais a deviner) :\n" + principal_lines + "\n"
+        f"REGLE OBLIGATOIRE, sans exception : avant de synthetiser ta reponse "
+        f"finale, tu DOIS appeler evaluate_record_rules UNE FOIS PAR PERSONA "
+        f"ci-dessus -- soit un total de {n} appel(s) distinct(s) -- chaque appel "
+        "avec le parametre principal_id=\"<identifiant>\" (ne fournis JAMAIS "
+        "toi-meme user_groups_json, il sera toujours ignore). Un identifiant "
+        "absent de la liste ci-dessus sera refuse par l'outil.\n"
+        "ATTENTION : toute observation deja fournie plus bas sous [PRIOR TOOL "
+        "OBSERVATIONS] a ete evaluee pour le DEMANDEUR REEL de ce benchmark, "
+        "PAS pour une des personas ci-dessus -- elle NE REPOND A AUCUNE des "
+        f"{n} persona(s) listee(s) et ne dispense d'AUCUN des {n} appel(s) "
+        "requis ci-dessus."
+    )
+
+
 __all__ = [
     "CI_SYSTEM_PROMPT",
     "build_business_context_prompt",
     "build_synthesis_prompt",
+    "build_persona_prompt_block",
 ]
