@@ -6383,3 +6383,16 @@ Contexte : suite de 893 (Bug A -- troncature qui efface la preuve avant que le L
 **Fichiers modifies** : `code_intelligence/agent/context.py`, `code_intelligence/agent/predispatch_access.py` (deja presents sur disque a l'arrivee, verifies independamment), `code_intelligence/tests/test_section894_who_has_access_to_cap.py` (idem), `todo/contexte.txt` (cette section).
 
 **Prochaine etape** : pmm rejoue STK-Q1 (et si possible les autres questions security du banc, pour verifier l'absence d'effet de bord) ; puis arbitrage Bug B (b1 vs b2).
+
+## Section 895 : Bug A (894) CONFIRME en conditions reelles -- rejeu STK-Q1 colle par pmm
+
+Date : 22/09/2026
+Contexte : rejeu delegue en fin de 894.
+
+**Resultat** : `base.group_user` apparait desormais avec **READ, WRITE, CREATE, UNLINK** sur `stock.move.line` -- conforme au `reference_answer`, contraste net avec la reponse fausse ("lecture seule") de la section 893. `stock.quant` (READ seul, correct) inchange. `Outils invoques` = `['who_has_access_to', 'evaluate_record_rules', 'who_has_access_to']`, latence 37,82 s (Groq).
+
+**Nuance a noter, pas un defaut** : la reponse ajoute d'elle-meme une reserve correcte ("cette analyse ne couvre pas les eventuelles verifications au niveau du workflow ou des methodes Python") -- prudence bienvenue, coherente avec le fait que la question porte uniquement sur la couche ACL/ir.rule.
+
+**Bug A declare CLOS**, confirme par execution reelle (regle rules.md respectee). Bug B (892-893, conflation identite reelle/persona hypothetique) reste seul point ouvert, en attente d'arbitrage produit (b1 vs b2) avant tout code.
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section) uniquement.
