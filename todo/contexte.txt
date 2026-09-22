@@ -6430,3 +6430,23 @@ Contexte : pmm repond "valide" a un message qui proposait 2 lectures (b2 scope l
 **Fichiers modifies** : `code_intelligence/agent/security_principal_detection.py` (nouveau), `code_intelligence/tests/test_section896_security_principal_detection.py` (nouveau), `scripts/run_bloc_n1_benchmark.py` (wiring), `todo/contexte.txt` (cette section).
 
 **Prochaine etape** : pmm rejoue MNT-Q1 (et idealement SAL-Q1/PUR-Q1/ACC-Q1/STK-Q1 pour la non-regression complete) ; puis arbitrer si la generalisation en production (au-dela du banc) est souhaitee, et si le banc OCA merite le meme filet.
+
+## Section 897 : Rejeu 5 security colle par pmm -- id "MTN-Q1" (typo, ignore par le runner) au lieu de "MNT-Q1", la vraie cible de 896 reste NON testee ; PUR-Q1/STK-Q1/ACC-Q1 corrects, non-regression confirmee ; SAL-Q1 RECHUTE sur le meme defaut que 892/893, independant de 896
+
+Date : 22/09/2026
+Contexte : pmm colle `run_bloc_n1_benchmark.py MTN-Q1 SAL-Q1 PUR-Q1 ACC-Q1 STK-Q1` -- `[WARN] Id(s) inconnu(s) ignore(s): ['MTN-Q1']`, donc seulement 4/5 questions rejouees. **MNT-Q1 (la question que 896 visait a corriger) n'a PAS ete testee.**
+
+**Non-regression confirmee (E1 + 896)** :
+  - PUR-Q1 : `tools_used` = who_has_access_to, evaluate_record_rules, describe_workflow, button_execution_path, read_source_code x2 -- toujours pas de hop `override_chain`, contenu correct (3 branches de `_approval_allowed`, Unlock reserve au manager). 41s (haut mais `groq_wait`=0, pas de rate-limit).
+  - STK-Q1 : contenu correct (base.group_user en lecture ET ecriture sur stock.move.line, conforme au reference_answer), reserve correcte sur les verifs Python non couvertes. Bug A (894/895) tient.
+  - ACC-Q1 : contenu correct (implied_ids account.group_account_invoice), mais `[WARN] Outil(s) attendu(s) non invoque(s): ['read_source_code']` + troncature `analyze_security_locks(account.move)` (2992 car.) -- meme famille que 801-802/876, PAS nouveau, hors perimetre de ce tour.
+
+**SAL-Q1 : RECHUTE** -- reponse FAUSSE pour le vendeur ("il peut voir TOUTES les commandes de son entreprise" via `sale_order_comp_rule`), contredit le `reference_answer` (`sale_order_personal_rule` doit le restreindre a `user_id`). **`tools_used` = `['who_has_access_to', 'evaluate_record_rules']` -- UN SEUL appel**, verifie via `captures/reasoning_trace.jsonl` (trace `6e96842b28af`) : `evaluate_record_rules(model_name='sale.order', permission='read')`, AUCUN `principal_id` dans `tool_args`, observation evaluee pour le vrai demandeur benchmark (0 groupe, "Regles de Groupe applicables: Aucune"). **Ce n'est PAS une regression de 896** -- SAL-Q1 declare `security_principals` explicitement depuis 889, inchange par 896 (qui ne s'active que si absent). C'est une RECHUTE du defaut deja documente en 892 ("le mecanisme principal_id ne s'engage TOUJOURS PAS en conditions reelles") : le `[PERSONAS DE LA QUESTION]` est bien dans le prompt (mecanisme verifie present et fonctionnel cote code, 889/890), mais le LLM choisit ou non de l'exploiter -- **non-deterministe d'un rejeu a l'autre** (fonctionnait dans le rejeu de la section "890 bis" du 20/09, echouait deja en 892/893, echoue de nouveau ici).
+
+**Consequence pour Bug B** : 896 (auto-detection, ce tour) resout uniquement le sous-probleme "`security_principals` absent du bank JSON" (MNT-Q1) -- il ne resout PAS le sous-probleme plus profond, deja identifie en 892 mais non arbitre, "le LLM n'exploite pas fiablement le mecanisme meme quand il est present et correctement peuple". Les deux sont necessaires pour clore Bug B completement.
+
+**Ce qui n'a pas ete fait** : MNT-Q1 non rejoue (typo pmm) -- toujours aucune confirmation reelle de 896 sur sa cible visee. Aucun code touche ce tour (diagnostic seul).
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section) uniquement.
+
+**Prochaine etape** : (1) pmm rejoue `MNT-Q1` (orthographe correcte) pour confirmer 896 sur sa vraie cible ; (2) arbitrage separe et explicite sur la fiabilite d'usage du mecanisme principal_id par le LLM (SAL-Q1) -- options a poser : (i) consigne systeme plus directive/imperative dans le bloc [PERSONAS DE LA QUESTION] (ex. exiger explicitement N appels, un par persona listee, avant de synthetiser) ; (ii) garde deterministe post-hop qui detecte "N personas declarees mais < N appels evaluate_record_rules avec principal_id distinct" et force une relance/avertissement ; (iii) accepter la non-fiabilite actuelle comme limite connue du provider/prompt et la documenter. Aucune retenue avant l'arbitrage de pmm.
