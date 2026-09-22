@@ -33,6 +33,9 @@ sys.path.insert(0, str(project_root))
 from core.graph.graph import code_intelligence_agent
 from core.evidence.evidence_collector import start_evidence_collection, collect_and_clear_evidence
 from config.settings import LATENCY_BUDGET_P90_SECONDS
+from code_intelligence.agent.security_principal_detection import (
+    detect_security_principals_from_question,
+)
 
 QUESTION_BANK_PATH = project_root / "tests" / "native_n1_question_bank.json"
 
@@ -117,6 +120,15 @@ def run_benchmark(question_ids=None, module=None):
             # todo/contexte.txt section 888/889.
             if item.get("security_principals"):
                 state["security_principals"] = item["security_principals"]
+            else:
+                # Section 896 (Bug B, option intermediaire) : filet pour les
+                # questions du banc qui NOMMENT une persona hypothetique
+                # ("Un X (module.group_xxx)...") sans le declarer
+                # explicitement -- detection deterministe, jamais devinee par
+                # le LLM. Vide si rien n'est trouve (sans effet).
+                _auto = detect_security_principals_from_question(question)
+                if _auto:
+                    state["security_principals"] = _auto
             start_evidence_collection()
             try:
                 res = code_intelligence_agent(state)
