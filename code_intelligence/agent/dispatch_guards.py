@@ -54,6 +54,36 @@ def _code_block_has_nearby_scoped_citation(answer: str, block_start: int, block_
     return bool(_SCOPED_FILE_LINK_PATTERN.search(window))
 
 
+# todo/contexte.txt section 891 (SAL-Q1): a prose line-number claim never
+# goes through a markdown file:// link at all, so none of the checks above
+# (which all key off _SCOPED_FILE_LINK_PATTERN or _CODE_FENCE_PATTERN) ever
+# look at it -- e.g. "la regle `sale_order_personal_rule` (xml_id: ...,
+# lignes 108-113)" in plain prose, where the content (domain_force, group)
+# was verbatim correct but all 4 such line claims in that answer were
+# fabricated (real range: 44-49). Real line-numbered source dumps look
+# like "{i:4d} | {line}" (see read_precise_source_code in
+# tools/introspection.py) -- used here as ground truth for the identifier
+# named just before the claim. This only fires on a genuine CONTRADICTION
+# (identifier found in a numbered dump at a DIFFERENT line than claimed);
+# an identifier not found in any numbered dump is silently skipped rather
+# than flagged -- we can't confirm it either way, and section 872/873's
+# own def/class-span check (source_definitions.py) is Python/AST-only, so
+# it cannot cover this XML case either. Flagging every unconfirmable
+# "ligne N" mention would be far noisier than useful (pmm, section 890).
+_NUMBERED_SOURCE_LINE_PATTERN = re.compile(r"^\s*(\d+)\s*\|(.*)$", re.MULTILINE)
+_PROSE_LINE_CLAIM_PATTERN = re.compile(
+    r"`([a-zA-Z_][\w.]*)`[^`\n]{0,80}?\blignes?\s+(\d+)(?:\s*(?:[-\u2013\u2014]|\b\u00e0\b)\s*(\d+))?",
+    re.IGNORECASE,
+)
+
+
+def _real_linenos_for_identifier(raw_tool_output: str, identifier: str) -> List[int]:
+    return [
+        int(lineno) for lineno, content in _NUMBERED_SOURCE_LINE_PATTERN.findall(raw_tool_output)
+        if identifier in content
+    ]
+
+
 @dataclass
 class SourcingVerificationResult:
     unverified_scoped_citations: List[Tuple[str, int, int]] = field(default_factory=list)
@@ -66,12 +96,15 @@ class SourcingVerificationResult:
     # was invisible to the 3 checks above (none of which look at prose that
     # never attempts a file:// link at all).
     uncited_code_blocks: List[str] = field(default_factory=list)
+    # todo/contexte.txt section 891: see _PROSE_LINE_CLAIM_PATTERN above.
+    prose_line_mismatches: List[Tuple[str, int, int, Tuple[int, ...]]] = field(default_factory=list)
 
     @property
     def is_fully_verified(self) -> bool:
         return not (
             self.unverified_scoped_citations or self.bare_file_links
             or self.unverified_xml_ids or self.uncited_code_blocks
+            or self.prose_line_mismatches
         )
 
 
@@ -117,6 +150,18 @@ def verify_citations(final_answer: str, raw_tool_output: str) -> SourcingVerific
         ):
             result.uncited_code_blocks.append(block.strip()[:200])
 
+    for m in _PROSE_LINE_CLAIM_PATTERN.finditer(final_answer):
+        identifier = m.group(1)
+        claimed_start = int(m.group(2))
+        claimed_end = int(m.group(3)) if m.group(3) else claimed_start
+        real_linenos = _real_linenos_for_identifier(raw_tool_output, identifier)
+        if not real_linenos:
+            continue
+        if not any(claimed_start <= ln <= claimed_end for ln in real_linenos):
+            result.prose_line_mismatches.append(
+                (identifier, claimed_start, claimed_end, tuple(sorted(set(real_linenos))))
+            )
+
     return result
 
 
@@ -144,6 +189,16 @@ def annotate_unverifiable_citations(final_answer: str, result: SourcingVerificat
         warnings.append(
             "bloc(s) de code présenté(s) comme réel(s) sans aucune citation file:// à proximité "
             "(possible invention): " + " ||| ".join(result.uncited_code_blocks)
+        )
+    if result.prose_line_mismatches:
+        parts = [
+            f"`{ident}` cité lignes {cs}-{ce} mais trouvé à la/aux ligne(s) "
+            f"{', '.join(map(str, real))} dans les observations produites"
+            for ident, cs, ce, real in result.prose_line_mismatches
+        ]
+        warnings.append(
+            "référence(s) de ligne en prose contredite(s) par les observations produites : "
+            + " ; ".join(parts)
         )
 
     return (
