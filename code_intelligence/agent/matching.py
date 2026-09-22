@@ -116,7 +116,18 @@ def _find_exact_technical_model_mentions(query_lower: str, G) -> List[str]:
         technical_name = data.get("name", node_id.replace("model:", ""))
         if not technical_name or len(technical_name) < 3:
             continue
-        pattern = r"(?<!\w)" + re.escape(technical_name.lower()) + r"(?!\w)"
+        # Section 890 (todo/contexte.txt): a plain word-boundary lookahead
+        # ("." is not \w) lets a model whose technical name collides with a
+        # module prefix -- 'base' is the classic case -- match inside an
+        # unrelated dotted token like a group xml_id ("base.group_portal")
+        # in the question text. (?!\.\w) additionally requires that the
+        # match not be followed by "." + a word char, i.e. not be merely the
+        # first component of a LONGER dotted identifier (an xml_id, or a
+        # more specific model name such as 'sale.order.line' vs 'sale.order').
+        # A genuine full dotted model name (e.g. 'sale.order') is unaffected:
+        # its own technical_name already includes the dots, so the pattern
+        # is anchored on the complete name, not a prefix of it.
+        pattern = r"(?<!\w)" + re.escape(technical_name.lower()) + r"(?!\w)(?!\.\w)"
         if re.search(pattern, query_lower):
             found.append(technical_name)
     if not found:

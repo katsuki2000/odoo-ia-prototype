@@ -391,23 +391,24 @@ def test_exact_technical_model_mention_takes_priority_over_static_alias():
 
 
 def test_exact_technical_model_mention_does_not_match_substring_of_longer_identifier():
-    """'custom.deep.document' must not spuriously match inside a longer,
-    unrelated dotted identifier that merely contains it as a substring."""
+    r"""'custom.deep.document' must not spuriously match inside a longer,
+    unrelated dotted identifier that merely contains it as a substring.
+
+    Section 890 (todo/contexte.txt): this test's own name documented the
+    intended behavior before the fix existed to actually deliver it -- the
+    plain \w-boundary regex ('.' is not \w) could not tell a genuine mention
+    apart from being merely the prefix of a longer dotted identifier (the
+    bug that made 'base' match inside 'base.group_portal', SAL-Q1). The
+    (?!\.\w) lookahead added for that fix closes this gap too, as a
+    byproduct: 'custom.deep.document' followed by '.extended' is now
+    correctly rejected instead of being accepted as a known limitation."""
     G = nx.DiGraph()
     G.add_node("model:custom.deep.document", node_type="Model",
                name="custom.deep.document", description="Deep Inheritance Document Base")
     result = resolve_business_term(
         "un champ nommé other.custom.deep.document.extended existe-t-il ?", G,
     )
-    # Word-boundary check: the longer dotted string still contains the
-    # exact substring, so this documents current (accepted) behavior rather
-    # than asserting non-resolution -- \w does not match '.', so
-    # 'other.custom.deep.document.extended' still has 'custom.deep.document'
-    # bounded by '.' on both sides, which \w-boundary regex does not treat
-    # as a word character boundary violation. This is a known limitation,
-    # not silently fixed here -- kept as a documented case, not a false
-    # negative assertion that would mask real behavior.
-    assert result.is_resolved
+    assert not result.is_resolved
 
 
 # ---------------------------------------------------------------------------
