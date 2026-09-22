@@ -16,6 +16,7 @@ from code_intelligence.rules.security_locks import gate_observation
 from code_intelligence.agent.context import (
     _truncate_observation_for_budget,
     _tool_call_key,
+    PER_TOOL_OBSERVATION_CAPS,
 )
 from code_intelligence.agent.context_extractors import _question_is_access_related
 from code_intelligence.agent.context import DispatchContext
@@ -69,7 +70,13 @@ def dispatch_who_has_access_to(ctx: DispatchContext) -> None:
             observation = str(acl_tool.invoke({
                 "model_name": target_model, "permission": "all",
             }))
-            observation = _truncate_observation_for_budget(ctx, observation, 3000)
+            # Section 894: was a hardcoded 3000 (silently below the real
+            # worst case, see PER_TOOL_OBSERVATION_CAPS's comment in
+            # context.py) -- reads the single source of truth directly so
+            # this call site cannot drift from the dict again.
+            observation = _truncate_observation_for_budget(
+                ctx, observation, PER_TOOL_OBSERVATION_CAPS["who_has_access_to"],
+            )
             observation, omitted_list = gate_observation(
                 tool_name="who_has_access_to",
                 model_name=target_model,

@@ -323,6 +323,24 @@ MAX_TOTAL_OBSERVATION_CHARS = 35000
 # is by far the worst case at 2578, everything else <=1041 -- 3000 gives
 # ~16% headroom above the only real value observed near the old cap instead
 # of shaving the default down to the exact measured byte.
+# Section 893/894: who_has_access_to had the same gap (absent from this
+# dict, silently falling back to DEFAULT_OBSERVATION_CAP) -- but its real
+# worst case is far larger than evaluate_record_rules', because its output
+# lists EVERY group in the system whose access derives from the queried
+# model's permissions via implied_ids, and base.group_user is implied by
+# almost every employee group -- so any model where base.group_user itself
+# holds a permission repeats "(via implied_ids <- base.group_user)" for
+# dozens of unrelated groups before ever reaching base.group_user's own
+# direct entry. Confirmed root cause of STK-Q1's wrong answer (section
+# 893): base.group_user's own direct WRITE grant on stock.move.line sits
+# at byte 2639, past the old 2500-char DEFAULT_OBSERVATION_CAP, so the LLM
+# synthesis never saw it and reported read-only access -- not a reasoning
+# failure, the data was truncated away before reaching it. Measured
+# directly across the same 12 models, permissions read/write/all:
+# maintenance.request is the worst case at 9137 (stock.move.line close
+# behind at 8837), everything else <=2664. 11000 gives >16% headroom above
+# the measured worst case, same margin-over-measurement approach as above
+# rather than an arbitrary round number.
 PER_TOOL_OBSERVATION_CAPS: Dict[str, int] = {
     "read_source_code": 9000,
     "analyze_data_constraints": 45000,
@@ -330,6 +348,7 @@ PER_TOOL_OBSERVATION_CAPS: Dict[str, int] = {
     "analyze_server_actions": 3500,
     "analyze_security_locks": 3500,
     "evaluate_record_rules": 3000,
+    "who_has_access_to": 11000,
 }
 DEFAULT_OBSERVATION_CAP = 2500
 
