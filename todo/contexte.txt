@@ -6450,3 +6450,20 @@ Contexte : pmm colle `run_bloc_n1_benchmark.py MTN-Q1 SAL-Q1 PUR-Q1 ACC-Q1 STK-Q
 **Fichiers modifies** : `todo/contexte.txt` (cette section) uniquement.
 
 **Prochaine etape** : (1) pmm rejoue `MNT-Q1` (orthographe correcte) pour confirmer 896 sur sa vraie cible ; (2) arbitrage separe et explicite sur la fiabilite d'usage du mecanisme principal_id par le LLM (SAL-Q1) -- options a poser : (i) consigne systeme plus directive/imperative dans le bloc [PERSONAS DE LA QUESTION] (ex. exiger explicitement N appels, un par persona listee, avant de synthetiser) ; (ii) garde deterministe post-hop qui detecte "N personas declarees mais < N appels evaluate_record_rules avec principal_id distinct" et force une relance/avertissement ; (iii) accepter la non-fiabilite actuelle comme limite connue du provider/prompt et la documenter. Aucune retenue avant l'arbitrage de pmm.
+
+## Section 898 : MNT-Q1 rejoue (bonne orthographe) -- 896 a bien peuple `security_principals` (verifie), mais le LLM ne l'exploite PAS -- meme defaut exactement que SAL-Q1 en 897 ; confirme que 897 (fiabilite d'usage) est desormais LE bloquant pour clore Bug B, pas 896
+
+Date : 22/09/2026
+Contexte : rejeu delegue en 897, id correct cette fois. Machine confirmee a jour (`6bb8ff6`, meme commit que 897).
+
+**Resultat** : reponse FAUSSE en lecture -- affirme que l'utilisateur simple (`base.group_user`) peut consulter TOUS les equipements de sa societe ("Aucun autre groupe n'est applicable... equipment_rule_user... ignoree car l'utilisateur ne fait pas partie des groupes cibles"). Le `reference_answer` dit le contraire : `equipment_rule_user` restreint bien `base.group_user` aux equipements ou il figure dans `message_partner_ids` (suiveur) -- restriction reelle, pas une regle ignoree. Partie ecriture correcte (impossible, `group_equipment_manager` seul).
+
+**Verification (trace `7de3bf2c7e09`)** : `tools_used` = who_has_access_to, evaluate_record_rules, read_source_code -- **UN SEUL** `evaluate_record_rules(model_name='maintenance.equipment', permission='read')`, AUCUN `principal_id`, observation "Regles de Groupe applicables: Aucune" (evaluee pour le vrai demandeur benchmark, 0 groupe). **896 a bien fonctionne cote peuplement** -- `security_principals` absent du bank JSON pour MNT-Q1 (confirme), donc le fallback `detect_security_principals_from_question` a du s'activer (`{"utilisateur_simple": {"group_xmlids": ["base.group_user"]}}`, deja verifie hors-LLM en 896) -- mais le LLM n'a PAS appele l'outil une seconde fois avec `principal_id="utilisateur_simple"`.
+
+**Conclusion** : exactement le meme defaut que SAL-Q1 (897), sur une question DIFFERENTE, un module DIFFERENT (maintenance vs sale), et une source DIFFERENTE de `security_principals` (896-auto-detecte vs 889-declare-explicitement dans le bank JSON) -- **confirme que ce n'est ni specifique a SAL-Q1 ni a la source de declaration**. 896 remplit sa fonction exacte (peupler `security_principals`) mais ne peut PAS, par construction, forcer le LLM a l'utiliser -- ce n'etait pas son objectif (896 = sous-probleme "absent du bank JSON", 897 = sous-probleme distinct "le LLM n'exploite pas fiablement ce qui est present"). **897 est desormais LE seul bloquant reel pour clore Bug B** sur les 2 questions connues (SAL-Q1, MNT-Q1).
+
+**Ce qui n'a pas ete fait** : aucun code touche (diagnostic seul). Les 3 options posees en 897 (i: consigne plus imperative, ii: garde deterministe post-hop, iii: accepter et documenter) restent sans arbitrage.
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section) uniquement.
+
+**Prochaine etape** : arbitrage de pmm sur 897 (i/ii/iii) -- c'est le seul point qui reste pour clore Bug B, 896 etant confirme suffisant pour son propre perimetre (peuplement) mais insuffisant seul.
