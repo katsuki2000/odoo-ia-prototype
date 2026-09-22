@@ -71,7 +71,18 @@ def override_chain_targets(question: str, concept, G) -> List[Tuple[str, str]]:
     import re
     from code_intelligence.agent.context_extractors import _question_is_method_or_override_related
     is_invoice_generation_q = bool(re.search(r"\b(?:g[eé]n[eé]ration|cr[eé]ation)\s+(?:de\s+|d['’]\s*)?facture\b", question, re.IGNORECASE))
-    if not (_question_is_approval_related(question) or _question_is_method_or_override_related(question) or is_invoice_generation_q):
+    # Section 883: la wording d'approbation seule est trop large (PUR-Q1 :
+    # "distingue... acheteur d'un manager", aucun montant -- dispatchait
+    # analyze_method_override_chain sur une methode sans rapport, privant la
+    # garde de distinction securitaire de son budget de hops). Meme gate que
+    # who_has_access_targets (l.108) : n'exiger la wording d'approbation que
+    # si un montant est cite (contournement de seuil, cas custom_credit_note_
+    # approval_vip). method_or_override et invoice_generation restent
+    # independants du montant.
+    is_approval_with_amount_q = (
+        _question_is_approval_related(question) and _extract_amount(question) is not None
+    )
+    if not (is_approval_with_amount_q or _question_is_method_or_override_related(question) or is_invoice_generation_q):
         return []
     from code_intelligence.agent.tool_helpers import find_methods_with_override_cascade
     from code_intelligence.rules.overrides import (
