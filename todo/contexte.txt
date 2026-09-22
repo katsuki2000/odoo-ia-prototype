@@ -6396,3 +6396,37 @@ Contexte : rejeu delegue en fin de 894.
 **Bug A declare CLOS**, confirme par execution reelle (regle rules.md respectee). Bug B (892-893, conflation identite reelle/persona hypothetique) reste seul point ouvert, en attente d'arbitrage produit (b1 vs b2) avant tout code.
 
 **Fichiers modifies** : `todo/contexte.txt` (cette section) uniquement.
+
+## Section 896 : Bug B (895) -- mandat "validé" (ambigu entre b2 large et l'option intermediaire security-only) -- interpretation retenue : intermediaire, scope le plus etroit possible ; plan avant code
+
+Date : 22/09/2026
+Contexte : pmm repond "valide" a un message qui proposait 2 lectures (b2 scope large vs l'option intermediaire security-only). Par prudence (discipline "une seule cible a la fois", mecanisme de securite), interpretation retenue = **l'option intermediaire** : detection automatique des personas UNIQUEMENT dans `scripts/run_bloc_n1_benchmark.py` (fallback quand le bank JSON ne declare pas deja `security_principals`), PAS de changement en production (`context_extractors.py`/dispatch) qui inventerait des personas depuis du texte libre d'un vrai utilisateur -- generalisation au-dela du banc = decision separee, a reposer explicitement si l'intermediaire est valide.
+
+**Verifie avant code (lecture directe, non evident)** : la presence de `ctx.security_principals` n'a AUCUN effet deterministe force -- elle ajoute seulement un bloc `[PERSONAS DE LA QUESTION]` au system prompt (loop.py l.627-640), qui est une INVITATION pour le LLM (via `principal_id`), jamais un dispatch automatique. `who_has_access_to` n'a pas de notion de principal (Bug A, 894, matrice complete independante du demandeur). **Consequence : un faux positif de detection est sans risque** (persona detectee inutilement -> au pire un indice de prompt jamais utilise) ; seul un faux negatif (persona manquee) ou un `group_xmlid` errone importe. Le pattern est donc concu volontairement strict sur le xmlid (exige `module.identifiant`, DOUBLE point) pour ne jamais deviner un prefixe de module absent.
+
+**5 questions security du banc, comportement du pattern retenu, verifie a la main avant ecriture du code** :
+  - MNT-Q1 : "Un utilisateur simple (base.group_user, sans group_equipment_manager)..." -> matche, xmlid=`base.group_user` (le groupe exclu, sans prefixe de module, est ignore par construction -- jamais ajoute).
+  - STK-Q1 : "Un simple employe (base.group_user, sans stock.group_stock_user)..." -> matche, xmlid=`base.group_user`. (Bug A deja clos en 894/895 sur ce cas ; l'auto-detection est un filet, pas une necessite ici.)
+  - SAL-Q1 : matche 2 fois (`sales_team.group_sale_salesman`, `base.group_portal`) mais DEJA declare explicitement dans le bank JSON -> le fallback ne s'active QUE si absent, donc SAL-Q1 inchange par construction (non-regression).
+  - PUR-Q1 : AUCUN match (les groupes sont nommes en prose, jamais dans un `(role) (xmlid)` -- "qu'est-ce qui distingue...un simple acheteur d'un manager" n'a pas de parenthese adjacente) -- coherent avec 893 (PUR-Q1 ne depend pas de ce mecanisme).
+  - ACC-Q1 : "Un 'Billing Administrator' (group_account_manager)..." -> AUCUN match, le xmlid `group_account_manager` n'a PAS de prefixe de module dans le texte de la question -- exclu par le garde-fou "jamais deviner un module". Sans consequence (893 : ACC-Q1 ne depend pas de ce mecanisme).
+
+**Plan** : nouveau module `code_intelligence/agent/security_principal_detection.py` (fonction pure, testable isolement) + wiring minimal dans `scripts/run_bloc_n1_benchmark.py` (fallback seulement si `item.get("security_principals")` absent). Tests ecrits et verifies AVANT le wiring : les 5 cas ci-dessus + faux positifs de corpus a chercher avant d'ecrire le code final.
+
+**Section 896 (suite, REALISE)** : nouveau module `code_intelligence/agent/security_principal_detection.py` (fonction pure, regex, aucun LLM). Un premier motif teste directement sur MNT-Q1 donnait un FAUX POSITIF reel ("une fiche equipement (maintenance.equipment)" matchait aussi "Un/Une X (xmlid)") -- corrige en exigeant que l'identifiant du xmlid INCLUS commence par `group_` (convention Odoo constante pour tout groupe de securite, absente des noms de modele techniques). Groupe EXCLU ("sans X") jamais ajoute.
+
+**Tests** (ecrits et verifies AVANT le wiring) : `test_section896_security_principal_detection.py`, 9/9 -- les 5 vraies questions security du banc (MNT-Q1, STK-Q1 detectees ; SAL-Q1 detecte les 2 personas independamment de sa declaration bank JSON ; PUR-Q1, ACC-Q1 non detectees, comme prevu en 896) + 3 temoins negatifs (dont "un rapport (annuel)", parenthese sans xmlid) + 1 test dedie groupe exclu jamais ajoute.
+
+**Mesure de faux positifs (181 questions, banc N1 + OCA + corpus tests/few-shot)** : EXACTEMENT 5 detections, toutes legitimes -- les 3 attendues du banc N1, plus 2 trouvailles bonus dans le banc OCA (DC-Q1, KPI-Q1, memes conventions de phrasing) non exploitees ce tour (hors perimetre : `scripts/run_bloc_n1_benchmark.py` ne charge que le banc N1). **Zero faux positif sur les 176 autres questions.**
+
+**Wiring** (`scripts/run_bloc_n1_benchmark.py`) : le fallback `detect_security_principals_from_question` ne s'active QUE si `item.get("security_principals")` est absent -- verifie par execution directe (construction du `state` sans lancer l'agent) sur les 5 questions security : SAL-Q1 inchange (declaration explicite conservee telle quelle), MNT-Q1 et STK-Q1 desormais peuples automatiquement, PUR-Q1/ACC-Q1 toujours vides (`state["security_principals"]` absent, comportement identique a avant 896).
+
+**Tests** : suite ciblee (`section896 or section889 or section894`) : 28/28. Suite complete NON relancee ce tour (dernier chiffre connu : 1387 passed, 18 skipped, section 890).
+
+**Rejeu reel MNT-Q1 : NON fait -- delegue a pmm.** Attendu : `tools_used` contient desormais 2 appels `evaluate_record_rules` (un par principal implicite : le vrai demandeur ET/OU `utilisateur_simple`), la reponse cite `equipment_rule_user` comme regle APPLICABLE pour `base.group_user` (pas seulement "ignoree, non-membre"), conforme au `reference_answer` de MNT-Q1. Verifier aussi l'absence de regression sur SAL-Q1 (toujours 2 personas nommees `salesperson`/`portal_user`, pas de doublon) et sur PUR-Q1/ACC-Q1/STK-Q1 (comportement inchange).
+
+**Ce qui N'A PAS ete fait** : generalisation en production (context_extractors.py/dispatch) -- explicitement hors scope de cette interpretation "intermediaire" de "valide" ; DC-Q1/KPI-Q1 (banc OCA) non exploites malgre la detection positive, cette voie n'a pas de runner cable dans ce tour.
+
+**Fichiers modifies** : `code_intelligence/agent/security_principal_detection.py` (nouveau), `code_intelligence/tests/test_section896_security_principal_detection.py` (nouveau), `scripts/run_bloc_n1_benchmark.py` (wiring), `todo/contexte.txt` (cette section).
+
+**Prochaine etape** : pmm rejoue MNT-Q1 (et idealement SAL-Q1/PUR-Q1/ACC-Q1/STK-Q1 pour la non-regression complete) ; puis arbitrer si la generalisation en production (au-dela du banc) est souhaitee, et si le banc OCA merite le meme filet.
