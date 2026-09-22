@@ -297,6 +297,7 @@ def run_react_loop(
                 )
                 synthesis_prompt = build_synthesis_prompt(
                     ctx.question, ctx.tool_observations, ctx.tool_observation_tools,
+                    security_principals=ctx.security_principals,
                 )
                 try:
                     plain_llm_box = [None]

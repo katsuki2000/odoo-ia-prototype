@@ -28,7 +28,7 @@ def test_latency_budget_constants_exist():
     assert LATENCY_BUDGET_PER_HOP_MS > 0
     assert LATENCY_BUDGET_SYNTHESIS_MS > 0
     assert LATENCY_BUDGET_XMLRPC_MS > 0
-    assert CI_MAX_HOPS == 6  # raised from 4, see context.py's CI_MAX_HOPS comment
+    assert CI_MAX_HOPS == 20  # sections 907/908: raised from 6 for dispatch_evaluate_record_rules_for_personas' worst case (2 personas x 4 permissions)
 
 
 def test_invoke_with_rate_limit_returns_wait_tuple():
@@ -43,9 +43,10 @@ def test_invoke_with_rate_limit_returns_wait_tuple():
 
 
 def test_ci_max_hops_value():
-    """J30-J31: verify CI_MAX_HOPS is explicitly set to 6 (raised from 4 --
-    see code_intelligence/agent/context.py's CI_MAX_HOPS comment)."""
-    assert CI_MAX_HOPS == 6
+    """J30-J31: verify CI_MAX_HOPS is explicitly set to 20 (raised from 6 in
+    sections 907/908 -- see code_intelligence/agent/context.py's CI_MAX_HOPS
+    comment and dispatch_evaluate_record_rules_for_personas' own docstring)."""
+    assert CI_MAX_HOPS == 20
 
 
 def test_xmlrpc_client_timing_logging(caplog):

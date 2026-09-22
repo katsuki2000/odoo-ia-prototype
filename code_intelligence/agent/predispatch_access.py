@@ -174,6 +174,14 @@ def dispatch_evaluate_record_rules(ctx: DispatchContext) -> None:
     ):
         return
 
+    if ctx.security_principals:
+        # When security personas are declared/detected for this question, evaluation
+        # is handled per persona by dispatch_evaluate_record_rules_for_personas.
+        # Running the unauthenticated/0-group real demandeur here would only inject
+        # a misleading observation claiming "no group rules apply" that contradicts
+        # the personas asked about.
+        return
+
     # Section 861 (2a): predicate matched -- the question's category was
     # recognized, this dispatcher is taking over routing for it (does not
     # imply the tool call below will succeed, only that routing was not
@@ -268,6 +276,146 @@ def dispatch_evaluate_record_rules(ctx: DispatchContext) -> None:
             "evaluate_record_rules has already been run for the target "
             "model(s) above and the can_view_amount_v2 deterministic fact has been "
             "injected. Do not call evaluate_record_rules again."
+        )
+
+
+def dispatch_evaluate_record_rules_for_personas(ctx: DispatchContext) -> None:
+    """Section 907/908: no deterministic dispatcher previously existed for
+    the personas declared in ctx.security_principals (889, or auto-detected
+    by 896) -- evaluate_record_rules(principal_id=...) depended entirely on
+    the LLM choosing to call it again in the ReAct loop, and empirically
+    (892-903/907) that choice is unreliable: sometimes it never engages at
+    all (MNT-Q1, 0/3+ valid reruns), sometimes it engages for only one of
+    several declared personas (SAL-Q1, 'salesperson' but never 'portal_user'
+    -- 900/901/903), and even when it engages with correct restrictive
+    evidence the synthesis sometimes discards it anyway (a separate,
+    already-catalogued synthesis defect, 900/901/903/904 -- out of scope
+    here). This dispatcher removes the LLM's discretion entirely for the
+    evaluate_record_rules-per-persona step specifically: for every persona
+    in ctx.security_principals, call evaluate_record_rules with that
+    persona's own harness-declared groups (never the real demandeur's,
+    never LLM-guessed -- same non-negotiable source of truth as
+    _override_user_groups_arg, dispatch_guards.py, 888/889), so the correct
+    per-persona evidence is present in the observations un
+    conditionally, whether or not the LLM ever asks for it.
+
+    Runs AFTER dispatch_evaluate_record_rules (real demandeur, unchanged --
+    still useful as a baseline/sanity observation, and some questions with
+    no declared persona still rely on it alone). Section 908 ("all
+    systematiquement", pmm's explicit choice over read-only or per-verb-in-
+    question): evaluate_record_rules has no "all" permission of its own
+    (record_rules.py silently falls back to perm_read for any value outside
+    {read,write,create,unlink} -- confirmed by direct reading, not
+    assumed) -- so "all" is implemented here as one real call per concrete
+    permission (read, write, create, unlink), not a single call with the
+    literal string "all".
+
+    Hop-budget note (908): worst case in the current N1 bank is SAL-Q1 (2
+    personas x 4 permissions = 8 calls from this dispatcher alone, on top
+    of the ~2-3 hops the rest of predispatch already spends) -- comfortably
+    over the CI_MAX_HOPS default of 6. Raised to 20 in .env this same
+    section specifically so this dispatcher is not silently truncated
+    mid-persona by hop_budget_exhausted the way STK-Q1's tool coverage was
+    truncated in 901/903 -- a config change, not a code workaround; every
+    simpler question still finishes in however few hops it actually needs.
+    """
+    if not (
+        ctx.concept.is_resolved and ctx.concept.resolved_models
+        and ctx.security_principals
+        and not ctx.hop_budget_exhausted
+    ):
+        return
+
+    ctx.matched_dispatchers.append("dispatch_evaluate_record_rules_for_personas")
+
+    rule_tool = ctx.tool_map.get("evaluate_record_rules")
+    if rule_tool is None:
+        return
+
+    target_model = ctx.concept.resolved_models[0]
+    engaged_personas: List[str] = []
+
+    for principal_id, group_xmlids in ctx.security_principals.items():
+        if ctx.hop_budget_exhausted:
+            break
+        principal_groups_json = _json_dispatch.dumps(group_xmlids or [])
+        any_call_for_this_persona = False
+        for permission in ("read", "write", "create", "unlink"):
+            if ctx.hop_budget_exhausted:
+                break
+            call_key = _tool_call_key("evaluate_record_rules", {
+                "model_name": target_model,
+                "principal_id": principal_id,
+                "permission": permission,
+            })
+            if call_key in ctx.seen_calls:
+                continue
+            t0 = time.perf_counter()
+            try:
+                observation = str(rule_tool.invoke({
+                    "model_name": target_model,
+                    "permission": permission,
+                    "user_groups_json": principal_groups_json,
+                    "principal_id": principal_id,
+                }))
+                observation = _truncate_observation_for_budget(
+                    ctx, observation, PER_TOOL_OBSERVATION_CAPS["evaluate_record_rules"],
+                )
+                observation, omitted_list = gate_observation(
+                    tool_name="evaluate_record_rules",
+                    model_name=target_model,
+                    observation=observation,
+                    G=ctx.G,
+                    user_groups=group_xmlids,
+                )
+                ctx.omitted_items.extend(omitted_list)
+                labeled_observation = (
+                    f"[Évaluation ir.rule pour la persona '{principal_id}' "
+                    f"({', '.join(group_xmlids or ['(aucun)'])}), permission='{permission}']:\n"
+                    f"{observation}"
+                )
+                ctx.record_observation(
+                    "evaluate_record_rules",
+                    {"model_name": target_model, "permission": permission, "principal_id": principal_id},
+                    labeled_observation, target_model, call_key, time.perf_counter() - t0,
+                )
+                any_call_for_this_persona = True
+                logger.info(
+                    "Node [code_intelligence_agent]: Deterministic pre-dispatch of "
+                    "'evaluate_record_rules' for model '%s', persona '%s' "
+                    "(groups=%s), permission '%s' -- section 907/908, no longer "
+                    "left to the LLM's discretion.",
+                    target_model, principal_id, group_xmlids, permission,
+                )
+                if ctx.hop_budget_exhausted:
+                    logger.warning(
+                        "Node [code_intelligence_agent]: CI_MAX_HOPS (%d) reached "
+                        "during deterministic pre-dispatch (evaluate_record_rules "
+                        "per persona) -- breaking, persona '%s' may be incomplete.",
+                        ctx.hop_cap, principal_id,
+                    )
+                    break
+            except Exception as te:
+                logger.error(
+                    "Deterministic evaluate_record_rules-per-persona dispatch "
+                    "failed (persona=%s, permission=%s): %s",
+                    principal_id, permission, te,
+                )
+        if any_call_for_this_persona:
+            engaged_personas.append(principal_id)
+
+    if engaged_personas:
+        ctx.system_prompt_suffix += (
+            "\n\n[DETERMINISTIC PRE-DISPATCH -- PERSONAS]\n"
+            "evaluate_record_rules has already been run for EVERY persona listed "
+            "in [PERSONAS DE LA QUESTION] above (" + ", ".join(engaged_personas) + "), "
+            "across all 4 permissions (read/write/create/unlink), using each "
+            "persona's own harness-declared groups. That evidence is already in "
+            "the tool observations, one block per persona per permission. Do NOT "
+            "call evaluate_record_rules again for these personas -- use the "
+            "evidence already provided. Base your synthesis on THIS evidence, not "
+            "on the real-demandeur observation above (which answers a different "
+            "question, unrelated to the personas asked about)."
         )
 
 

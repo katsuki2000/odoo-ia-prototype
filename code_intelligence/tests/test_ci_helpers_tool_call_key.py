@@ -72,7 +72,15 @@ class TestModelKeyedTools:
     def test_all_model_keyed_tools_covered(self):
         """Locks in the exact tool set the dedup scheme applies to --
         a regression here (e.g. a composite tool added without being
-        added to _MODEL_KEYED_TOOLS) would silently stop being deduped."""
+        added to _MODEL_KEYED_TOOLS) would silently stop being deduped.
+
+        Section 908: evaluate_record_rules is still IN this frozenset (its
+        model_name-presence check still gates it the same way as every
+        other entry), but it now takes its own earlier branch in
+        _tool_call_key that also folds in `permission` -- see
+        TestEvaluateRecordRulesPermissionAwareness below -- so its key
+        shape is checked separately here rather than via the generic
+        `(tool_name, model_name)` assertion applied to the rest."""
         assert _MODEL_KEYED_TOOLS == frozenset({
             "analyze_security_locks",
             "analyze_server_actions",
@@ -83,9 +91,81 @@ class TestModelKeyedTools:
             "list_involved_modules",
             "analyze_data_constraints",
         })
-        for tool_name in _MODEL_KEYED_TOOLS:
+        for tool_name in _MODEL_KEYED_TOOLS - {"evaluate_record_rules"}:
             key = _tool_call_key(tool_name, {"model_name": "account.move"})
             assert key == (tool_name, "account.move")
+        assert _tool_call_key("evaluate_record_rules", {"model_name": "account.move"}) == (
+            "evaluate_record_rules", "account.move", None, "read",
+        )
+
+
+# ── Section 907/908: evaluate_record_rules also folds in `permission` --
+#    dispatch_evaluate_record_rules_for_personas needs read/write/create/
+#    unlink for the SAME model+principal to be 4 distinct, non-colliding
+#    calls (predispatch_access.py); without this every call past the first
+#    would be silently skipped as "already seen", the exact class of data
+#    loss this whole thread (892-908) has been fighting. ──────────────────
+
+class TestEvaluateRecordRulesPermissionAwareness:
+    def test_same_model_same_principal_different_permission_not_deduped(self):
+        key_read = _tool_call_key(
+            "evaluate_record_rules",
+            {"model_name": "stock.move.line", "principal_id": "simple_employe", "permission": "read"},
+        )
+        key_write = _tool_call_key(
+            "evaluate_record_rules",
+            {"model_name": "stock.move.line", "principal_id": "simple_employe", "permission": "write"},
+        )
+        key_create = _tool_call_key(
+            "evaluate_record_rules",
+            {"model_name": "stock.move.line", "principal_id": "simple_employe", "permission": "create"},
+        )
+        key_unlink = _tool_call_key(
+            "evaluate_record_rules",
+            {"model_name": "stock.move.line", "principal_id": "simple_employe", "permission": "unlink"},
+        )
+        keys = {key_read, key_write, key_create, key_unlink}
+        assert len(keys) == 4, "all 4 permissions for the same model+principal must be distinct keys"
+        assert None not in keys
+
+    def test_missing_permission_defaults_to_read_matching_the_tools_own_default(self):
+        """evaluate_record_rules's own signature defaults permission='read'
+        (tools/access.py) -- a call made with no explicit permission (the
+        pre-908 shape, still used by dispatch_evaluate_record_rules for the
+        real demandeur) must produce the SAME key as an explicit
+        permission='read' call, or the two code paths could each think
+        they're the first to make 'the' read call and duplicate work."""
+        key_implicit = _tool_call_key(
+            "evaluate_record_rules", {"model_name": "sale.order", "principal_id": "salesperson"},
+        )
+        key_explicit = _tool_call_key(
+            "evaluate_record_rules",
+            {"model_name": "sale.order", "principal_id": "salesperson", "permission": "read"},
+        )
+        assert key_implicit == key_explicit
+
+    def test_no_principal_id_still_distinguishes_by_permission(self):
+        """Real-demandeur path (no principal_id at all) -- must also gain
+        permission-awareness, not just the persona path."""
+        key_read = _tool_call_key("evaluate_record_rules", {"model_name": "account.move", "permission": "read"})
+        key_write = _tool_call_key("evaluate_record_rules", {"model_name": "account.move", "permission": "write"})
+        assert key_read != key_write
+
+    def test_different_principal_same_permission_not_deduped(self):
+        """Non-regression: the principal_id-awareness added in 888/889
+        must still hold now that permission is folded in alongside it."""
+        key_a = _tool_call_key(
+            "evaluate_record_rules",
+            {"model_name": "sale.order", "principal_id": "salesperson", "permission": "read"},
+        )
+        key_b = _tool_call_key(
+            "evaluate_record_rules",
+            {"model_name": "sale.order", "principal_id": "portal_user", "permission": "read"},
+        )
+        assert key_a != key_b
+
+    def test_still_none_without_model_name(self):
+        assert _tool_call_key("evaluate_record_rules", {"permission": "read"}) is None
 
 
 # ── analyze_method_override_chain -- key is (tool_name, model_name, method_name) ──

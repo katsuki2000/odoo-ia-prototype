@@ -60,11 +60,11 @@ def test_c1_3_system_prompt_structure():
 
 
 def test_c1_4_hop_counter_limit():
-    """Test C.1.4: Verify hop limit constant (raised from 4 to 6 -- see
-    code_intelligence/agent/context.py's CI_MAX_HOPS comment; 4 was cutting
-    'hard' Bloc N1 benchmark questions off before their expected_tools were
-    ever invoked)."""
-    assert CI_MAX_HOPS == 6
+    """Test C.1.4: Verify hop limit constant (raised from 6 to 20 in sections
+    907/908 -- see code_intelligence/agent/context.py's CI_MAX_HOPS comment;
+    6 was cutting SAL-Q1's per-persona record-rules dispatch off before all
+    permissions were ever invoked)."""
+    assert CI_MAX_HOPS == 20
 
 
 @pytest.mark.integration

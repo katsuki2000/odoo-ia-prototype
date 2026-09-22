@@ -157,7 +157,10 @@ def _build_module_specific_guidance(tool_observations: List[str]) -> str:
 
 
 def build_synthesis_prompt(
-    question: str, tool_observations: List[str], tool_observation_tools: Optional[List[str]] = None,
+    question: str,
+    tool_observations: List[str],
+    tool_observation_tools: Optional[List[str]] = None,
+    security_principals: Optional[dict] = None,
 ) -> str:
     """Build the final synthesis prompt given to the plain LLM once observations are collected."""
     # todo/contexte.txt section 812 (ACC-Q5): the LLM invented a complete,
@@ -196,10 +199,20 @@ def build_synthesis_prompt(
         "verified in this pass, so the answer is incomplete rather than a definitive verdict."
         if tools_lack_deeper_coverage(tool_observation_tools) else ""
     )
+    persona_guidance = ""
+    if security_principals:
+        p_names = ", ".join(f"'{p}'" for p in security_principals.keys())
+        persona_guidance = (
+            f" [PERSONAS DE LA QUESTION] The Original Question explicitly asks about specific security "
+            f"persona(s): {p_names}. Base your analysis and verdict for each persona strictly on "
+            f"the corresponding persona-specific observations in the data above (labeled with their persona name and group). "
+            f"Do not confuse or merge rights between different personas, and do not assume an unauthenticated or default user's "
+            f"lack of group rights applies to them."
+        )
     return (
         f"Original Question: {question}\n\n"
         f"Knowledge Graph Output:\n" + "\n---\n".join(tool_observations) +
-        anti_fabrication_rule + coverage_caveat +
+        anti_fabrication_rule + coverage_caveat + persona_guidance +
         f"\n\nSynthesize a clear, professional response based strictly on the "
         f"data above. Respond in the SAME language as the Original Question "
         f"above (French question -> French answer, English question -> "

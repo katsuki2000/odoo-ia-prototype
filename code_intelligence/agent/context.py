@@ -116,13 +116,11 @@ prompt injection, massive extraction)
 
 import time
 
-from core.schemas import AssistantResponse
-
-
 def build_early_refusal_response(
     answer: str, trace_logger, trace_id: str, question: str,
     start_time: float, state: dict, hop_cap: int,
 ) -> dict:
+    from core.schemas import AssistantResponse
     response = AssistantResponse(answer=answer, sources=[], confidence=0.0)
     timing = state.get("timing", {}).copy()
     timing["code_intelligence_time"] = time.time() - start_time
@@ -232,7 +230,8 @@ from code_intelligence.utils import _TRUNCATION_MARKER, _match_near_truncation
 
 
 import os as _os
-CI_MAX_HOPS = int(_os.getenv("CI_MAX_HOPS", "6"))
+import config.settings  # noqa: F401 -- ensures .env is loaded before reading env vars
+CI_MAX_HOPS = int(_os.getenv("CI_MAX_HOPS", "20"))
 
 # Composite tools whose dedup key is only (tool_name, model_name).
 _MODEL_KEYED_TOOLS = frozenset({
@@ -255,7 +254,20 @@ def _tool_call_key(tool_name: str, tool_args: "Dict[str, Any]") -> "Optional[Tup
     the same model are never treated as duplicates of each other (SAL-Q1
     needs one real evaluate_record_rules call per persona on the same
     'sale.order'). A call with no principal_id keeps the exact key shape
-    used before this section -- the real-demandeur path is unaffected."""
+    used before this section -- the real-demandeur path is unaffected.
+
+    Section 908: evaluate_record_rules's key never included permission --
+    harmless while every call site always used the same fixed "read", but
+    dispatch_evaluate_record_rules_for_personas (908) needs to evaluate
+    read/write/create/unlink for the SAME model+principal, and without this
+    the 2nd/3rd/4th calls would be silently skipped as "already seen" and
+    their observations never recorded -- the exact kind of data loss this
+    whole thread (892-908) has been fighting. Folded in the same way as
+    principal_id: included only for evaluate_record_rules (the tool that
+    actually varies output by permission at the ir.rule level -- who_has_
+    access_to already returns every permission in one matrix, Bug A/894),
+    defaulted to "read" (the tool's own default) so a call with no explicit
+    permission keeps the exact key shape used before this section."""
     model_name = tool_args.get("model_name")
     if not model_name:
         return None
@@ -268,6 +280,9 @@ def _tool_call_key(tool_name: str, tool_args: "Dict[str, Any]") -> "Optional[Tup
         if not btn:
             return None
         return (tool_name, model_name, btn, principal_id) if principal_id else (tool_name, model_name, btn)
+    if tool_name == "evaluate_record_rules":
+        permission = tool_args.get("permission") or "read"
+        return (tool_name, model_name, principal_id, permission)
     if tool_name in _MODEL_KEYED_TOOLS:
         return (tool_name, model_name, principal_id) if principal_id else (tool_name, model_name)
     return None
