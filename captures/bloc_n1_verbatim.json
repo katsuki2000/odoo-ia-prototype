@@ -1,31 +1,100 @@
 [
   {
-    "id": "PUR-Q1",
-    "module": "purchase",
-    "capability": "security",
+    "id": "STK-Q2",
+    "module": "stock",
+    "capability": "workflow",
     "difficulty": "hard",
-    "question": "L'ACL de purchase.order accorde les 4 permissions (lecture/ecriture/creation/suppression) a group_purchase_user comme a group_purchase_manager. Qu'est-ce qui distingue alors reellement un simple acheteur d'un manager sur une commande d'achat ?",
-    "reference_answer": "Rien au niveau ACL/ir.rule (access_purchase_order et access_purchase_order_manager sont strictement identiques, 1,1,1,1 ; purchase_order_comp_rule ne fait que filtrer par societe, sans distinction de groupe). La distinction reelle est portee par une methode Python, _approval_allowed() : une commande peut etre approuvee sans intervention manager si po_double_validation=='one_step', ou si po_double_validation=='two_step' et que le montant total reste sous po_double_validation_amount (Monetary, defaut 5000) -- sinon seul un utilisateur avec purchase.group_purchase_manager (via user_has_groups) peut l'approuver. Cette regle n'est pas un ACL/ir.rule mais un garde applicatif invoque depuis button_confirm()/button_approve().",
-    "verification": "security/ir.model.access.csv (access_purchase_order vs access_purchase_order_manager, identiques) + models/purchase_order.py : _approval_allowed(), models/res_company.py : po_double_validation/po_double_validation_amount",
+    "question": "Que se passe-t-il quand on valide un transfert de stock (button_validate) dont les quantites traitees sont inferieures aux quantites demandees ?",
+    "reference_answer": "button_validate() ignore les transferts deja 'done', confirme automatiquement ceux encore en 'draft', puis complete a la quantite demandee toute ligne dont la quantite traitee est nulle. Une verification de coherence (_sanity_check) s'execute ensuite sauf contexte skip_sanity_check. _pre_action_done_hook() marque picked=True des que des quantites existent. Vient ensuite la decision cle : les transferts sont scindes entre ceux dont picking_type_id.create_backorder=='never' (jamais de reliquat, executes avec cancel_backorder=True) et les autres (executes normalement, create_backorder='always' ou 'ask') -- c'est ce parametre du type d'operation, pas une valeur globale, qui determine si un bon de livraison partiel genere automatiquement un reliquat (backorder) pour les quantites restantes.",
+    "verification": "models/stock_picking.py : button_validate(), _pre_action_done_hook(), champ picking_type_id.create_backorder (stock_picking_type.py)",
     "expected_tools": [
-      "who_has_access_to",
-      "evaluate_record_rules",
+      "describe_workflow",
       "read_source_code"
     ],
     "tools_used": [
-      "analyze_security_locks",
-      "analyze_method_override_chain",
+      "describe_workflow",
+      "button_execution_path",
       "read_source_code",
-      "who_has_access_to",
-      "evaluate_record_rules",
-      "describe_workflow"
+      "analyze_data_constraints"
     ],
     "tool_coverage_ok": true,
     "missing_tools": [],
-    "verbatim": "Dans le modèle **purchase.order**, les ACL donnent effectivement les mêmes droits de lecture, écriture, création et suppression aux groupes **group_purchase_user** et **group_purchase_manager**.  \nLa distinction entre un acheteur « simple » et un manager ne vient donc pas des ACL mais d’autres mécanismes de contrôle :\n\n| Mécanisme | Action différenciée | Groupe requis | Référence |\n|-----------|---------------------|---------------|-----------|\n| **Vérification d’approbation** | La méthode `_approval_allowed()` est appelée lorsqu’un utilisateur clique sur le bouton **Confirm Order** (workflow : *draft → sale*). Cette méthode contient un test `has_group('purchase.group_purchase_manager')` qui autorise l’approbation uniquement si l’utilisateur appartient à **group_purchase_manager**. | `purchase.group_purchase_manager` | `purchase_order.py:L969-L969` (Confiance : ÉLEVÉE) |\n| **Envoi de rappels** | La méthode `_send_reminder_mail()` est utilisée pour envoyer des rappels aux fournisseurs. Elle contient un test `has_group('purchase.group_send_reminder')`, qui n’est activé que pour les managers. | `purchase.group_send_reminder` | `purchase_order.py:L768-L768` (Confiance : ÉLEVÉE) |\n\n**En pratique**\n\n* Un utilisateur du groupe **group_purchase_user** peut créer, modifier et supprimer des commandes d’achat, mais il ne peut pas **confirmer** (approver) une commande ni envoyer de rappels.  \n* Un utilisateur du groupe **group_purchase_manager** possède les mêmes droits de base, **plus** la capacité d’approbation (bouton *Confirm Order*) et d’envoi de rappels, grâce aux vérifications explicites dans `_approval_allowed()` et `_send_reminder_mail()`.\n\nAucune règle `ir.rule` supplémentaire ne restreint ces actions, et les ACL ne font pas de distinction. La différence réelle réside donc dans les contrôles de méthode Python décrits ci‑dessus.\n\n[Source: Graphe de Connaissances Code Intelligence]",
-    "elapsed_seconds": 28.74,
-    "effective_seconds": 13.974,
-    "groq_wait_seconds": 14.765,
-    "hop_count": 6
+    "verbatim": "Lorsque vous cliquez sur **button_validate** pour un *stock.picking*, la méthode `button_validate()` (voir `stock_picking.py:L1134-L1194`) exécute les étapes suivantes :\n\n1. **Confirmation** – Si le picking est encore en brouillon, il est confirmé (`action_confirm()`).\n2. **Ajustement des quantités** – Pour chaque mouvement dont la quantité traitée est nulle mais dont la quantité demandée (`product_uom_qty`) est non nulle, la quantité est mise à jour avec `move.quantity = move.product_uom_qty` (voir `L1138-L1141`).\n3. **Vérifications de cohérence** – La méthode `_sanity_check()` est appelée (si le contexte ne désactive pas cette étape) pour s’assurer que les mouvements restent valides (`L1144-L1145`).\n4. **Gestion des back‑orders** –  \n   * Le picking est divisé en deux groupes :  \n     * `pickings_not_to_backorder` : ceux dont `picking_type_id.create_backorder == 'never'` (`L1167-L1170`).  \n     * `pickings_to_backorder` : le reste (`L1168-L1171`).  \n   * Pour les pickings **à ne pas back‑order**, `_action_done()` est appelé avec `cancel_backorder=True` (`L1173-L1174`).  \n   * Pour les pickings **à back‑order**, `_action_done()` est appelé avec `cancel_backorder=False` (`L1175-L1176`).  \n   * Ainsi, si certaines quantités ne sont pas entièrement traitées, un nouveau picking (back‑order) est créé contenant les quantités restantes ; sinon, ces quantités sont annulées si `create_backorder` vaut « never » (`L139-L145`).\n\nEn résumé, **valider un transfert dont les quantités traitées sont inférieures aux quantités demandées entraîne la création d’un back‑order (ou l’annulation des quantités restantes si le type de picking est configuré pour ne jamais back‑order)**. Le picking original passe alors à l’état « done ».\n\n[Source: Graphe de Connaissances Code Intelligence]",
+    "elapsed_seconds": 74.91,
+    "effective_seconds": 74.905,
+    "groq_wait_seconds": 0.0,
+    "hop_count": 5
+  },
+  {
+    "id": "STK-Q3",
+    "module": "stock",
+    "capability": "inheritance",
+    "difficulty": "medium",
+    "question": "stock.picking est-il un nouveau modele ou une extension ? Le module stock etend-il en parallele un modele natif hors de son propre perimetre, et avec quels champs cles ?",
+    "reference_answer": "stock.picking est un nouveau modele (_name='stock.picking'), qui n'herite que des mixins mail.thread/mail.activity.mixin. En parallele, ce meme module etend reellement product.product (_inherit='product.product', classe Product dans models/product.py) en lui ajoutant les champs calcules qty_available (quantite physiquement disponible) et virtual_available (quantite prevue/forecast), tous deux compute='_compute_quantities' et bases sur les nouveaux O2M stock_quant_ids/stock_move_ids -- ce sont des champs stock ajoutes au modele produit natif, pas au modele stock.picking.",
+    "verification": "models/stock_picking.py : classe Picking (_name + _inherit mixins) vs models/product.py : classe Product (_inherit='product.product'), champs qty_available/virtual_available",
+    "expected_tools": [
+      "trace_full_inheritance",
+      "list_involved_modules"
+    ],
+    "tools_used": [
+      "list_involved_modules",
+      "trace_full_inheritance",
+      "read_source_code",
+      "button_execution_path"
+    ],
+    "tool_coverage_ok": true,
+    "missing_tools": [],
+    "verbatim": "## Modèle : `stock.picking`\n\n- **Nature** : *déclaration d’un nouveau modèle*  \n  Le module **stock** crée le modèle `stock.picking` avec `_name = \"stock.picking\"`.  \n  Il ne s’agit pas d’une extension d’un modèle natif existant (autre que les mixins).  \n  - *Source* : [stock_picking.py:L382-L462](file:///home/user/odoo-17.0/addons/stock/models/stock_picking.py#L382-L462)\n\n- **Mixins hérités**  \n  Le modèle hérite de `mail.thread` et `mail.activity.mixin`, qui sont des mixins génériques pour la messagerie et les activités.  \n  - *Source* : même extrait ci‑dessus (L384-L385)\n\n- **En réalité, ce module étend bien 12 modèle(s) hors de son propre périmètre : 'barcode.rule', 'ir.actions.report', 'product.category', 'product.label.layout', 'product.packaging', 'product.product', 'product.template', 'res.company', 'res.config.settings', 'res.partner', 'res.users', 'uom.uom'.\n  Le module ne fait pas d’`_inherit` sur un modèle natif comme `res.partner` ou `product.product`.  \n  Il ne « étend » que les mixins mentionnés ci‑dessus.\n\n- **Champs clés (extraits)**  \n  | Champ | Description | Source |\n  |-------|-------------|--------|\n  | `name` | Référence de l’opération | [stock_picking.py:L397-L399](file:///home/user/odoo-17.0/addons/stock/models/stock_picking.py#L397-L399) |\n  | `origin` | Référence du document source | [stock_picking.py:L400-L402](file:///home/user/odoo-17.0/addons/stock/models/stock_picking.py#L400-L402) |\n  | `note` | Notes internes | [stock_picking.py:L403-L404](file:///home/user/odoo-17.0/addons/stock/models/stock_picking.py#L403-L404) |\n  | `backorder_id` / `backorder_ids` | Gestion des back‑orders | [stock_picking.py:L404-L410](file:///home/user/odoo-17.0/addons/stock/models/stock_picking.py#L404-L410) |\n  | `return_id` / `return_ids` | Gestion des retours | [stock_picking.py:L410-L416](file:///home/user/odoo-17.0/addons/stock/models/stock_picking.py#L410-L416) |\n  | `move_type` | Politique d’expédition | [stock_picking.py:L415-L418](file:///home/user/odoo-17.0/addons/stock/models/stock_picking.py#L415-L418) |\n  | `state` | Statut de l’opération | [stock_picking.py:L419-L426](file:///home/user/odoo-17.0/addons/stock/models/stock_picking.py#L419-L426) |\n\nCes champs constituent les colonnes les plus souvent utilisées pour identifier, suivre et gérer les mouvements de stock dans Odoo.\n\n[Source: Graphe de Connaissances Code Intelligence]",
+    "elapsed_seconds": 25.07,
+    "effective_seconds": 25.071,
+    "groq_wait_seconds": 0.0,
+    "hop_count": 3
+  },
+  {
+    "id": "STK-Q4",
+    "module": "stock",
+    "capability": "ui",
+    "difficulty": "medium",
+    "question": "Pourquoi les champs 'From'/'To' (emplacement source/destination) n'apparaissent-ils pas sur un transfert de stock pour la plupart des utilisateurs ?",
+    "reference_answer": "Ces champs portent groups='stock.group_stock_multi_locations' dans la vue -- mais ce n'est pas un groupe de role (comme user/manager), c'est un groupe active par un parametre de configuration (implied_group sur le champ booleen group_stock_multi_locations dans res.config.settings, 'Storage Locations'). Tant que la fonctionnalite multi-emplacements n'est pas activee en configuration, aucun utilisateur -- meme stock.group_stock_manager -- ne voit ces champs, car le groupe technique lui-meme n'est attribue a personne.",
+    "verification": "views/stock_picking_views.xml : champs location_id/location_dest_id groups='stock.group_stock_multi_locations' + models/res_config_settings.py : champ group_stock_multi_locations (implied_group='stock.group_stock_multi_locations')",
+    "expected_tools": [
+      "button_execution_path"
+    ],
+    "tools_used": [
+      "button_execution_path",
+      "read_source_code"
+    ],
+    "tool_coverage_ok": true,
+    "missing_tools": [],
+    "verbatim": "Les champs **« From »** et **« To »** (`location_id` et `location_dest_id`) ne sont visibles que pour les utilisateurs appartenant au groupe **`stock.group_stock_multi_locations`**.  \nDans la vue `view_picking_form`, ces champs sont déclarés avec l’attribut `groups=\"stock.group_stock_multi_locations\"`, ce qui les masque aux autres utilisateurs :\n\n- **Déclaration dans la vue**  \n  ```xml\n  <field name=\"location_id\" … groups=\"stock.group_stock_multi_locations\" …/>\n  <field name=\"location_dest_id\" … groups=\"stock.group_stock_multi_locations\" …/>\n  ```\n  [stock_picking_views.xml:L91-L97](file:///home/user/odoo-17.0/addons/stock/views/stock_picking_views.xml#L91-L97)\n\nAinsi, la plupart des utilisateurs ne voient pas ces champs parce qu’ils ne font pas partie de ce groupe.  \nPour les rendre visibles, il faut :\n\n1. Ajouter l’utilisateur au groupe **`stock.group_stock_multi_locations`** (via *Settings → Users & Companies → Users → Groups*), ou  \n2. Modifier la vue pour retirer l’attribut `groups` (ou le remplacer par un groupe plus large).\n\nEn résumé, la restriction d’affichage est due à la condition de groupe définie dans la vue.\n\n[Source: Graphe de Connaissances Code Intelligence]",
+    "elapsed_seconds": 12.66,
+    "effective_seconds": 12.664,
+    "groq_wait_seconds": 0.0,
+    "hop_count": 2
+  },
+  {
+    "id": "STK-Q5",
+    "module": "stock",
+    "capability": "constraints",
+    "difficulty": "medium",
+    "question": "Quelles contraintes empechent la creation d'un stock.quant invalide, et quelle regle distincte garantit l'unicite d'un numero de serie ?",
+    "reference_answer": "Trois @api.constrains independantes sur stock.quant : check_product_id interdit un quant pour un produit qui n'est pas de type 'product' (consommable/service exclus) ; check_location_id interdit un emplacement de type 'view' (emplacement structurel, non physique) ; check_lot_id interdit qu'un lot/numero de serie soit rattache a un produit different de celui du quant. Independamment, sur stock.lot, _check_unique_lot (@api.constrains sur name/product_id/company_id) verifie via _read_group (pas une contrainte SQL unique) qu'aucune combinaison produit+societe+nom de lot n'est dupliquee -- une verification applicative, pas une contrainte de base de donnees.",
+    "verification": "models/stock_quant.py : check_product_id, check_location_id, check_lot_id (@api.constrains) ; models/stock_lot.py : _check_unique_lot (@api.constrains('name','product_id','company_id'))",
+    "expected_tools": [
+      "analyze_data_constraints"
+    ],
+    "tools_used": [
+      "analyze_data_constraints",
+      "analyze_data_constraints"
+    ],
+    "tool_coverage_ok": true,
+    "missing_tools": [],
+    "verbatim": "## Contraintes empêchant la création d’un **stock.quant** invalide\n\n| Type de contrainte | Description | Lignes de code concernées |\n|--------------------|-------------|---------------------------|\n| **`check_product_id`** | Empêche la création d’un quant pour un produit de type *consommable* ou *service*. | [stock_quant.py:L615-L618](file:///home/user/odoo-17.0/addons/stock/models/stock_quant.py#L615-L618) |\n| **`check_location_id`** | Empêche de prendre ou livrer depuis une localisation de type *view* (exemple : “Vue”). | [stock_quant.py:L638-L642](file:///home/user/odoo-17.0/addons/stock/models/stock_quant.py#L638-L642) |\n| **`check_lot_id`** | Vérifie que le lot/numéro de série référencé appartient bien au même produit que le quant. | [stock_quant.py:L644-L648](file:///home/user/odoo-17.0/addons/stock/models/stock_quant.py#L644-L648) |\n| **`check_quantity_or_reserved_quantity`** | S’assure que la quantité ou la quantité réservée est renseignée. | [stock_quant.py:L1091](file:///home/user/odoo-17.0/addons/stock/models/stock_quant.py#L1091) |\n| **`only_stock_manager_can_validate_inventory`** | Restreint la validation d’un ajustement de stock aux utilisateurs disposant du rôle *stock manager*. | [stock_quant.py:L1052](file:///home/user/odoo-17.0/addons/stock/models/stock_quant.py#L1052) |\n| **`lot_movement_location_check`** | Autorise le déplacement d’un lot/numéro de série uniquement s’il existe dans une seule localisation. | [stock_lot.py:L149](file:///home/user/odoo-17.0/addons/stock/models/stock_lot.py#L149) |\n| **`company_change_forbidden`** | Empêche de changer la société d’un lot/numéro de série après sa création. | [stock_lot.py:L161](file:///home/user/odoo-17.0/addons/stock/models/stock_lot.py#L161) |\n| **`product_change_forbidden`** | Empêche de modifier le produit lié à un lot/numéro de série si des mouvements de stock existent déjà. | [stock_lot.py:L165-L169](file:///home/user/odoo-17.0/addons/stock/models/stock_lot.py#L165-L169) |\n\n> **Remarque** : ces contraintes sont implémentées sous forme de méthodes décorées `@api.constrains` dans le modèle `stock.quant` (et `stock.lot` pour les contraintes liées aux lots). Elles lèvent une `ValidationError` ou un `UserError` lorsqu’une règle est violée, bloquant ainsi la création ou la modification du quant.\n\n---\n\n## Règle distincte garantissant l’unicité d’un numéro de série\n\n| Règle | Description | Lignes de code concernées |\n|-------|-------------|---------------------------|\n| **`_check_unique_lot`** (dans `stock.lot`) | Vérifie que la combinaison *(numéro de série, produit, société)* est unique. Si des doublons sont détectés, une `ValidationError` est levée avec un message détaillé. | [stock_lot.py:L91-L102](file:///home/user/odoo-17.0/addons/stock/models/stock_lot.py#L91-L102) |\n\nCette règle est **distincte** des contraintes de `stock.quant`. Elle s’applique au modèle `stock.lot` et assure que chaque numéro de série ne peut être attribué qu’une seule fois à un produit donné dans une société donnée. Elle est déclenchée à chaque création ou modification d’un lot/numéro de série.\n\n[Source: Graphe de Connaissances Code Intelligence]",
+    "elapsed_seconds": 67.78,
+    "effective_seconds": 67.78,
+    "groq_wait_seconds": 0.0,
+    "hop_count": 2
   }
 ]

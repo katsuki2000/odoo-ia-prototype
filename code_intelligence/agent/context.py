@@ -36,7 +36,13 @@ class DispatchContext:
     concept: Any
     question: str
     tool_map: Dict[str, Any]
-    resolved_user_group_xmlids: List[str]
+    # None = demandeur identity unavailable this turn (state["user_groups"] key
+    # absent -- distinct from an explicit [], meaning identity known, no
+    # groups). See todo/contexte.txt section 888/889. Every consumer treats
+    # None the same as [] (fail closed) via `or []` -- the distinction exists
+    # for correct logging/diagnostics, not for a different authorization
+    # outcome.
+    resolved_user_group_xmlids: Optional[List[str]]
     trace_logger: Any
     trace_id: str
     hop_cap: int
@@ -69,6 +75,15 @@ class DispatchContext:
     # routing (previously silent, now explicitly loggable via
     # trace_logger.log_routing()).
     matched_dispatchers: List[str] = field(default_factory=list)
+
+    # Section 888/889: benchmark-only, harness-declared hypothetical security
+    # personas -- principal_id -> resolved group xml_ids -- immutable context
+    # a question can compare against (e.g. SAL-Q1's "vendeur" vs "portail").
+    # Strictly separate from resolved_user_group_xmlids (the real, actually
+    # authenticated demandeur): never merged, never used as a fallback for
+    # each other. Empty outside benchmark runs that declare security_principals
+    # -- production behavior for the real demandeur is untouched by this field.
+    security_principals: Dict[str, List[str]] = field(default_factory=dict)
 
     @property
     def hop_budget_exhausted(self) -> bool:
@@ -233,18 +248,28 @@ _MODEL_KEYED_TOOLS = frozenset({
 
 
 def _tool_call_key(tool_name: str, tool_args: "Dict[str, Any]") -> "Optional[Tuple]":
-    """Single source of truth for the seen_calls dedup key."""
+    """Single source of truth for the seen_calls dedup key.
+
+    Section 888/889: when the call names a benchmark persona via
+    principal_id, that id is folded into the key so distinct personas on
+    the same model are never treated as duplicates of each other (SAL-Q1
+    needs one real evaluate_record_rules call per persona on the same
+    'sale.order'). A call with no principal_id keeps the exact key shape
+    used before this section -- the real-demandeur path is unaffected."""
     model_name = tool_args.get("model_name")
     if not model_name:
         return None
+    principal_id = tool_args.get("principal_id")
     if tool_name == "analyze_method_override_chain":
         method_name = tool_args.get("method_name")
         return (tool_name, model_name, method_name) if method_name else None
     if tool_name == "button_execution_path":
         btn = tool_args.get("button_name") or tool_args.get("button_identifier")
-        return (tool_name, model_name, btn) if btn else None
+        if not btn:
+            return None
+        return (tool_name, model_name, btn, principal_id) if principal_id else (tool_name, model_name, btn)
     if tool_name in _MODEL_KEYED_TOOLS:
-        return (tool_name, model_name)
+        return (tool_name, model_name, principal_id) if principal_id else (tool_name, model_name)
     return None
 
 

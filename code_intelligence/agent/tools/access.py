@@ -49,8 +49,22 @@ def evaluate_rules_raw(model_name: str, permission: str = "read", user_groups_js
 
 
 @tool
-def evaluate_record_rules(model_name: str, permission: str = "read", user_groups_json: str = "[]") -> str:
-    """Evaluate Odoo ir.rule record rules for a model and permission."""
+def evaluate_record_rules(
+    model_name: str,
+    permission: str = "read",
+    user_groups_json: str = "[]",
+    principal_id: str = "",
+) -> str:
+    """Evaluate Odoo ir.rule record rules for a model and permission.
+
+    principal_id: only set when the question names a hypothetical persona
+    declared by the harness for THIS question (see the system prompt's
+    [PERSONAS DE LA QUESTION] section, if present). Never invent one.
+    Leave empty to evaluate as the real demandeur. user_groups_json is
+    always ignored/overridden server-side either way -- see
+    dispatch_guards.py::_override_user_groups_arg (todo/contexte.txt
+    section 888/889) -- this parameter only exists so the schema exposes
+    principal_id to the model; it is not read here."""
     if _is_wildcard_model(model_name):
         return WILDCARD_MODEL_ERROR_MSG
     result = evaluate_rules_raw(model_name, permission, user_groups_json)

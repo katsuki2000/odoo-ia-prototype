@@ -26,7 +26,7 @@ from code_intelligence.agent.context_extractors import (
     _infer_move_type_context,
 )
 from code_intelligence.agent.can_view_verifier import _format_can_view_amount_fact
-from code_intelligence.agent.dispatch_guards import _override_user_groups_arg
+from code_intelligence.agent.dispatch_guards import _override_user_groups_arg, UnknownPrincipalError
 from code_intelligence.agent.context import DispatchContext
 
 logger = logging.getLogger(__name__)
@@ -41,7 +41,17 @@ def execute_tool_calls(ctx: DispatchContext, ai_msg, messages: list) -> None:
         if tool_name == "who_has_access_to" and "permission" not in tool_args:
             tool_args["permission"] = "all"
 
-        tool_args = _override_user_groups_arg(tool_name, tool_args, ctx.resolved_user_group_xmlids)
+        try:
+            tool_args = _override_user_groups_arg(
+                tool_name, tool_args, ctx.resolved_user_group_xmlids, ctx.security_principals,
+            )
+        except UnknownPrincipalError as upe:
+            logger.warning("Node [code_intelligence_agent]: %s", upe)
+            messages.append(ToolMessage(
+                content=f"Appel refuse : {upe}",
+                tool_call_id=tool_id,
+            ))
+            continue
 
         dup_call_key = _tool_call_key(tool_name, tool_args)
         if dup_call_key is not None and dup_call_key in ctx.seen_calls:
@@ -99,7 +109,7 @@ def execute_tool_calls(ctx: DispatchContext, ai_msg, messages: list) -> None:
                     model_name=tool_args.get("model_name", ""),
                     observation=observation,
                     G=ctx.G,
-                    user_groups=ctx.resolved_user_group_xmlids,
+                    user_groups=ctx.resolved_user_group_xmlids or [],
                     rule_result=rule_result,
                 )
                 ctx.omitted_items.extend(omitted_list)
@@ -523,13 +533,34 @@ class CodeIntelligenceAgentRunner:
         # has no direct parameter path back to the original question.
         set_current_question(question)
 
-        resolved_user_group_xmlids = _resolve_user_group_xmlids(state.get("user_groups", []))
-        if state.get("user_groups") and not resolved_user_group_xmlids:
-            logger.warning(
-                "Node [code_intelligence_agent]: none of the demandeur's %d group ID(s) "
-                "resolved to an xml_id -- gating will fail closed for this request.",
-                len(state["user_groups"]),
-            )
+        # Section 888/889: distinguish "state['user_groups'] key absent"
+        # (demandeur identity unavailable this turn) from an explicit []
+        # (identity known, no groups) -- both still fail closed identically
+        # everywhere downstream (every consumer reads `ctx.resolved_user_group_xmlids
+        # or []`), the distinction is for correct diagnostics only, see
+        # DispatchContext.resolved_user_group_xmlids docstring.
+        _USER_GROUPS_UNSET = object()
+        _raw_user_groups = state.get("user_groups", _USER_GROUPS_UNSET)
+        if _raw_user_groups is _USER_GROUPS_UNSET:
+            resolved_user_group_xmlids = None
+        else:
+            resolved_user_group_xmlids = _resolve_user_group_xmlids(_raw_user_groups)
+            if _raw_user_groups and not resolved_user_group_xmlids:
+                logger.warning(
+                    "Node [code_intelligence_agent]: none of the demandeur's %d group ID(s) "
+                    "resolved to an xml_id -- gating will fail closed for this request.",
+                    len(_raw_user_groups),
+                )
+
+        # Section 888/889: benchmark-only, harness-declared hypothetical
+        # security personas (e.g. SAL-Q1's "vendeur" vs "utilisateur portail"),
+        # strictly separate from the real demandeur above -- never merged,
+        # never used as a fallback for each other. Empty outside benchmark
+        # runs that declare state["security_principals"].
+        resolved_security_principals = {
+            principal_id: _resolve_user_group_xmlids(principal_def.get("group_xmlids", []))
+            for principal_id, principal_def in (state.get("security_principals") or {}).items()
+        }
 
         llm = get_chat_llm(
             temperature=0.0,
@@ -583,10 +614,32 @@ class CodeIntelligenceAgentRunner:
             G=G, concept=concept, question=question, tool_map=tool_map,
             resolved_user_group_xmlids=resolved_user_group_xmlids,
             trace_logger=trace_logger, trace_id=trace_id, hop_cap=CI_MAX_HOPS,
+            security_principals=resolved_security_principals,
         )
         ctx.llm_call_count = llm_call_count
 
         system_prompt = CI_SYSTEM_PROMPT + build_business_context_prompt(question, concept, G)
+
+        # Section 888/889: tell the LLM which hypothetical personas this
+        # question names, and how to evaluate access for each -- via
+        # principal_id, never by supplying user_groups_json itself (which is
+        # always ignored/overridden, see dispatch_guards.py::_override_user_groups_arg).
+        if ctx.security_principals:
+            _principal_lines = "\n".join(
+                f"- {pid}: {groups}" for pid, groups in ctx.security_principals.items()
+            )
+            system_prompt += (
+                "\n\n[PERSONAS DE LA QUESTION]\n"
+                "Cette question compare l'acces de plusieurs personas hypothetiques "
+                "nommees dans la question, distinctes du demandeur reel. Personas "
+                "disponibles pour cette question (identifiant -> groupes reels, "
+                "declares par le harnais, jamais a deviner) :\n" + _principal_lines + "\n"
+                "Pour evaluer evaluate_record_rules pour l'un de ces personas, appelle "
+                "l'outil avec le parametre principal_id=\"<identifiant>\" -- ne fournis "
+                "JAMAIS toi-meme user_groups_json, il sera ignore. Un identifiant absent "
+                "de cette liste sera refuse. Appelle l'outil une fois par persona nomme "
+                "dans la question."
+            )
 
         run_predispatch_chain(ctx)
         # Section 861 (2a): explicit, always-logged routing decision -- never

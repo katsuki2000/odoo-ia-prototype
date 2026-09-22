@@ -37,8 +37,22 @@ def field_change_impact(field_name: str, model_name: str) -> str:
 
 
 @tool
-def button_execution_path(button_name: str, model_name: str, user_groups_json: str = "[]") -> str:
-    """Trace UI button execution path, method called, workflow transition, and required groups."""
+def button_execution_path(
+    button_name: str,
+    model_name: str,
+    user_groups_json: str = "[]",
+    principal_id: str = "",
+) -> str:
+    """Trace UI button execution path, method called, workflow transition, and required groups.
+
+    principal_id: only set when the question names a hypothetical persona
+    declared by the harness for THIS question (see the system prompt's
+    [PERSONAS DE LA QUESTION] section, if present). Never invent one.
+    Leave empty to evaluate as the real demandeur. user_groups_json is
+    always ignored/overridden server-side either way -- see
+    dispatch_guards.py::_override_user_groups_arg (todo/contexte.txt
+    section 888/889) -- this parameter only exists so the schema exposes
+    principal_id to the model; it is not read here."""
     from code_intelligence.rules.button_path import button_execution_path as _impl
     G = _require_graph()
     model_name = _resolve_model_param(model_name)

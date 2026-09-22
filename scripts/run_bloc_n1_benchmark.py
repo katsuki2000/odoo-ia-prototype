@@ -111,6 +111,12 @@ def run_benchmark(question_ids=None, module=None):
         start_time = time.time()
         try:
             state = {"question": question, "chat_history": []}
+            # Section 889 : personas de securite hypothetiques declares par le
+            # banc lui-meme (immuables, jamais devines par le LLM) -- distinct
+            # de state["user_groups"] (demandeur reel authentifie). Voir
+            # todo/contexte.txt section 888/889.
+            if item.get("security_principals"):
+                state["security_principals"] = item["security_principals"]
             start_evidence_collection()
             try:
                 res = code_intelligence_agent(state)

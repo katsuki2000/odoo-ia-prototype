@@ -343,12 +343,55 @@ def _rank_and_cap_resolved_models(question: str, resolved_models: List[str], max
     return kept
 
 
-def _override_user_groups_arg(tool_name: str, tool_args: dict, resolved_user_group_xmlids: list) -> dict:
-    """Overrides LLM-guessed user_groups_json with requester's real group XML-IDs."""
+class UnknownPrincipalError(ValueError):
+    """Raised when a tool call names a principal_id that is not declared in
+    this turn's ctx.security_principals (todo/contexte.txt section 888/889).
+    Caught by the caller (loop.py::execute_tool_calls) to surface a clear
+    refusal to the LLM instead of silently falling back to any group
+    context -- an unknown principal must never resolve to the real
+    demandeur's groups nor to an empty/guessed list."""
+
+
+def _override_user_groups_arg(
+    tool_name: str,
+    tool_args: dict,
+    resolved_user_group_xmlids: list,
+    security_principals: dict = None,
+) -> dict:
+    """Overrides LLM-guessed user_groups_json with the real requester's own
+    group XML-IDs -- UNLESS the call names a benchmark persona via
+    principal_id (todo/contexte.txt section 888/889), in which case that
+    persona's OWN group XML-IDs (declared immutably by the harness in
+    ctx.security_principals, never guessed by the LLM) are used instead.
+    Both paths ignore any user_groups_json the LLM may have proposed --
+    the LLM never gets to supply groups directly, only to pick a
+    principal_id (or nothing, meaning: evaluate as the real demandeur).
+    Raises UnknownPrincipalError for a principal_id absent from
+    security_principals -- never falls back silently."""
     if tool_name not in ("evaluate_record_rules", "button_execution_path"):
         return tool_args
 
-    real_groups_json = json.dumps(resolved_user_group_xmlids)
+    principal_id = tool_args.get("principal_id")
+    if principal_id:
+        principals = security_principals or {}
+        if principal_id not in principals:
+            raise UnknownPrincipalError(
+                f"principal_id '{principal_id}' n'est pas declare dans les "
+                "security_principals de cette question."
+            )
+        real_groups_json = json.dumps(principals[principal_id])
+        llm_proposed = tool_args.get("user_groups_json")
+        if llm_proposed and llm_proposed != real_groups_json:
+            logger.warning(
+                "Node [code_intelligence_agent]: ignoring LLM-guessed "
+                "user_groups_json (%s) -- resolving principal_id '%s' to its "
+                "harness-declared groups (%s) instead.",
+                llm_proposed, principal_id, real_groups_json,
+            )
+        tool_args["user_groups_json"] = real_groups_json
+        return tool_args
+
+    real_groups_json = json.dumps(resolved_user_group_xmlids or [])
     llm_proposed = tool_args.get("user_groups_json")
     if llm_proposed and llm_proposed != real_groups_json:
         logger.warning(
