@@ -211,6 +211,29 @@
     "hop_count": 2
   },
   {
+    "id": "PUR-Q4",
+    "module": "purchase",
+    "capability": "ui",
+    "difficulty": "easy",
+    "question": "Pourquoi le bouton 'Approve Order' n'est-il pas visible pour un utilisateur simple meme quand la commande est au statut 'to approve' ?",
+    "reference_answer": "Le bouton button_approve porte groups='purchase.group_purchase_manager' dans la vue formulaire -- masque pour tout utilisateur hors de ce groupe, independamment de son invisible= conditionnel sur l'etat (invisible='state != \"to approve\"'). C'est la manifestation UI directe du garde applicatif _approval_allowed() (PUR-Q1/Q2) : le bouton n'existe que pour les managers, alors qu'un simple acheteur ne voit que 'Confirm Order'.",
+    "verification": "views/purchase_views.xml, bouton name='button_approve', groups='purchase.group_purchase_manager'",
+    "expected_tools": [
+      "button_execution_path"
+    ],
+    "tools_used": [
+      "button_execution_path",
+      "read_source_code"
+    ],
+    "tool_coverage_ok": true,
+    "missing_tools": [],
+    "verbatim": "### Pourquoi le bouton « Approve Order » n’apparaît pas ?\n\nLe bouton **Approve Order** est **restreint aux utilisateurs appartenant au groupe**  \n`purchase.group_purchase_manager`.  \nMême si la commande est en statut **« to approve »**, un utilisateur qui ne fait pas partie de ce groupe ne voit pas le bouton, car la condition d’affichage est :\n\n```python\ninvisible='state != \"to approve\"'\n```\n\net la restriction de groupe est appliquée :\n\n- **Groupe requis** : `purchase.group_purchase_manager`  \n  *(xml_id : `purchase.group_purchase_manager`)*\n\n> **Source** : xml_id : `purchase.group_purchase_manager` (défini dans le module `purchase`)\n\n### Que faire ?\n\n- **Demander à un responsable** (ex. un manager d’achat) d’ajouter l’utilisateur au groupe **Purchase Manager** si l’approbation doit être possible.\n- Sinon, l’utilisateur doit **soumettre la commande** à un membre du groupe `purchase.group_purchase_manager` pour qu’il l’approuve.\n\nEn résumé, le bouton n’est pas visible parce que l’utilisateur ne possède pas le groupe requis, même si la commande est prête à être approuvée.\n\n[Source: Graphe de Connaissances Code Intelligence]",
+    "elapsed_seconds": 13.39,
+    "effective_seconds": 13.392,
+    "groq_wait_seconds": 0.0,
+    "hop_count": 2
+  },
+  {
     "id": "PUR-Q5",
     "module": "purchase",
     "capability": "constraints",
@@ -312,11 +335,34 @@
     "missing_tools": [
       "analyze_method_override_chain"
     ],
-    "verbatim": "### Modèle : `sale.order`\n\n- **Nature** : *Nouveau modèle* déclaré par le module **sale**.  \n  - Le fichier `sale/models/sale_order.py` contient la déclaration :  \n    ```\n  30 | class SaleOrder(models.Model):\n  31 |     _name = 'sale.order'\n  32 |     _inherit = ['portal.mixin', 'product.catalog.mixin', 'mail.thread', 'mail.activity.mixin', 'utm.mixin']\n  33 |     _description = \"Sales Order\"\n  34 |     _order = 'date_order desc, id desc'\n  35 |     _check_company_auto = True\n```  \n    [sale_order.py:L30-L35](file:///home/user/odoo-17.0/addons/sale/models/sale_order.py#L30-L35)\n\n- **Extension directe d’un modèle natif hors du périmètre « vente »**  \n  - Le modèle ne **n’étend pas** un modèle métier natif (ex. `res.partner`, `account.move`, etc.).  \n  - Il ne fait que **hériter** de plusieurs mixins techniques (`portal.mixin`, `product.catalog.mixin`, `mail.thread`, `mail.activity.mixin`, `utm.mixin`).  \n  - Aucun modèle natif hors du module `sale` n’est listé dans la clause `_inherit` comme parent direct.\n\n- **Nom de classe** : `SaleOrder` (déclarée dans le même fichier).  \n  - La classe est définie dans `sale/models/sale_order.py` sous le nom `SaleOrder`.  \n    [sale_order.py:L30-L35](file:///home/user/odoo-17.0/addons/sale/models/sale_order.py#L30-L35)\n\nEn résumé, `sale.order` est un **nouveau modèle** créé par le module `sale`; il ne dérive pas d’un modèle natif hors du périmètre « vente », mais uniquement de mixins techniques.\n\n[Source: Graphe de Connaissances Code Intelligence]",
-    "elapsed_seconds": 19.24,
-    "effective_seconds": 19.241,
+    "verbatim": "### Modèle : `sale.order`\n\n- **Nature** : *nouveau modèle* déclaré par le module **sale**.  \n  - Le fichier `sale/models/sale_order.py` contient la déclaration :  \n    ```\n  30 | class SaleOrder(models.Model):\n  31 |     _name = 'sale.order'\n  32 |     _inherit = ['portal.mixin', 'product.catalog.mixin', 'mail.thread', 'mail.activity.mixin', 'utm.mixin']\n  33 |     _description = \"Sales Order\"\n  34 |     _order = 'date_order desc, id desc'\n  35 |     _check_company_auto = True\n  36 | \n  37 |     _sql_constraints = [\n  38 |         ('date_order_conditional_required',\n  39 |          \"CHECK((state = 'sale' AND date_order IS NOT NULL) OR state != 'sale')\",\n  40 |          \"A confirmed sales order requires a confirmation date.\"),\n  41 |     ]\n  42 | \n  43 |     @property\n  44 |     def _rec_names_search(self):\n  45 |         if self._context.get('sale_show_partner_name'):\n  46 |             return ['name', 'partner_id.name']\n  47 |         return ['name']\n  48 | \n  49 |     #=== FIELDS ===#\n  50 | \n  51 |     name = fields.Char(\n  52 |         string=\"Order Reference\",\n  53 |         required=True, copy=False, readonly=False,\n  54 |         index='trigram',\n  55 |         default=lambda self: _('New'))\n  56 | \n  57 |     company_id = fields.Many2one(\n  58 |         comodel_name='res.company',\n  59 |         required=True, index=True,\n  60 |         default=lambda self: self.env.company)\n  61 |     partner_id = fields.Many2one(\n  62 |         comodel_name='res.partner',\n  63 |         string=\"Customer\",\n  64 |         required=True, change_default=True, index=True,\n  65 |         tracking=1,\n  66 |         check_company=True)\n  67 |     state = fields.Selection(\n  68 |         selection=SALE_ORDER_STATE,\n  69 |         string=\"Status\",\n  70 |         readonly=True, copy=False, index=True,\n  71 |         tracking=3,\n  72 |         group_expand=True,\n  73 |         default='draft')\n  74 |     locked = fields.Boolean(default=False, copy=False, help=\"Locked orders cannot be modified.\")\n  75 | \n  76 |     client_order_ref = fields.Char(string=\"Customer Reference\", copy=False)\n  77 |     create_date = fields.Datetime(  # Override of default create_date field from ORM\n  78 |         string=\"Creation Date\", index=True, readonly=True)\n  79 |     commitment_date = fields.Datetime(\n  80 |         string=\"Delivery Date\", copy=False,\n  81 |         help=\"This is the delivery date promised to the customer. \"\n  82 |              \"If set, the delivery order will be scheduled based on \"\n  83 |              \"this date rather than product lead times.\")\n  84 |     date_order = fields.Datetime(\n  85 |         string=\"Order Date\",\n  86 |         required=True, copy=False,\n  87 |         help=\"Creation date of draft/sent orders,\\nConfirmation date of confirmed orders.\",\n  88 |         default=fields.Datetime.now)\n  89 |     origin = fields.Char(\n  90 |         string=\"Source Document\",\n  91 |         help=\"Reference of the document that generated this sales order request\")\n  92 |     reference = fields.Char(\n  93 |         string=\"Payment Ref.\",\n  94 |         help=\"The payment communication of this sale order.\",\n  95 |         copy=False)\n  96 | \n  97 |     require_signature = fields.Boolean(\n  98 |         string=\"Online signature\",\n  99 |         compute='_compute_require_signature',\n 100 |         store=True, readonly=False, precompute=True,\n 101 |         help=\"Request a online signature from the customer to confirm the order.\")\n 102 |     require_payment = fields.Boolean(\n 103 |         string=\"Online payment\",\n 104 |         compute='_compute_require_payment',\n 105 |         store=True, readonly=False, precompute=True,\n 106 |         help=\"Request a online payment from the customer to confirm the order.\")\n 107 |     prepayment_percent = fields.Float(\n 108 |         string=\"Prepayment percentage\",\n 109 |         compute='_compute_prepayment_percent',\n 110 |         store=True, readonly=False, precompute=True,\n```  \n    [sale_order.py:L30-L110](file:///home/user/odoo-17.0/addons/sale/models/sale_order.py#L30-L110)\n\n- **Extension directe** : il n’étend aucun modèle métier natif hors du périmètre « vente ».  \n  - La liste `_inherit` ne contient que des *mixins* techniques (`portal.mixin`, `product.catalog.mixin`, `mail.thread`, `mail.activity.mixin`, `utm.mixin`) et non un modèle existant comme `res.partner` ou `account.move`.  \n  - Ainsi, `sale.order` ne repose pas sur un modèle natif hors du module `sale`; il est autonome.\n\n- **Nom de classe** : `SaleOrder` (déclaré dans le même fichier).  \n\nEn résumé, `sale.order` est un **nouveau modèle** créé par le module `sale`, sans hériter d’un modèle métier natif hors de ce module, et il est implémenté par la classe `SaleOrder`.\n\n[Source: Graphe de Connaissances Code Intelligence]",
+    "elapsed_seconds": 18.56,
+    "effective_seconds": 18.561,
     "groq_wait_seconds": 0.0,
     "hop_count": 3
+  },
+  {
+    "id": "SAL-Q4",
+    "module": "sale",
+    "capability": "ui",
+    "difficulty": "easy",
+    "question": "Pourquoi un vendeur simple ne peut-il pas deverrouiller (Unlock) une commande verrouillee, meme si c'est lui qui l'a confirmee ?",
+    "reference_answer": "Le bouton action_unlock porte groups='sales_team.group_sale_manager' dans la vue formulaire -- reserve aux managers, quel que soit le lien du vendeur avec la commande (createur, assigne via user_id, etc.). Le bouton n'est meme visible (invisible=\"not locked\") que si la commande est deja verrouillee, mais son affichage reste conditionne au groupe manager en plus de cette condition d'etat. Le bouton action_lock, lui, n'est visible que si le parametrage sale.group_auto_done_setting est actif (t groups=), et porte la meme restriction sales_team.group_sale_manager.",
+    "verification": "views/sale_order_views.xml : boutons action_unlock (groups='sales_team.group_sale_manager', invisible='not locked') et action_lock (dans <t groups='sale.group_auto_done_setting'>, lui-meme groups='sales_team.group_sale_manager')",
+    "expected_tools": [
+      "button_execution_path"
+    ],
+    "tools_used": [
+      "button_execution_path",
+      "read_source_code"
+    ],
+    "tool_coverage_ok": true,
+    "missing_tools": [],
+    "verbatim": "### Pourquoi un vendeur simple ne peut pas déverrouiller une commande verrouillée ?\n\n| Étape | Détails | Source |\n|-------|---------|--------|\n| **1. Le bouton « Unlock »** | Le bouton est défini dans la vue `sale.order` avec l’attribut `groups=\"sales_team.group_sale_manager\"`. Cela signifie que **seuls les utilisateurs appartenant au groupe « Sales Manager »** voient ce bouton dans l’interface. | xml_id: `sales_team.group_sale_manager` |\n| **2. La méthode appelée** | Le bouton déclenche la méthode `action_unlock()` du modèle `sale.order`. Cette méthode se trouve dans `sale/models/sale_order.py` (lignes 1063‑1064). | [sale_order.py:L1063-L1064](file:///home/user/odoo-17.0/addons/sale/models/sale_order.py#L1063-L1064) |\n| **3. Condition d’affichage** | Le bouton est également invisible lorsque la commande n’est pas verrouillée (`invisible=\"not locked\"`). | vue `sale_order_view.xml` |\n| **4. Résultat pour un vendeur simple** | Un vendeur qui n’appartient pas au groupe `sales_team.group_sale_manager` ne voit pas le bouton « Unlock » (il est absent ou grisé). Par conséquent, il ne peut pas déclencher la méthode `action_unlock()` via l’interface. | button_execution_path (voir observation précédente) |\n\n### En résumé\n\n- **Restriction d’interface** : Le bouton « Unlock » est limité aux **Sales Managers**.\n- **Pas de contournement** : Même si le vendeur a confirmé la commande, l’interface ne lui permet pas d’accéder à la fonction de déverrouillage.\n- **Sécurité** : Cette restriction empêche les vendeurs de modifier des commandes déjà confirmées, garantissant l’intégrité du processus de vente.\n\n> **Conclusion** : Un vendeur simple ne peut pas déverrouiller une commande verrouillée parce que le bouton « Unlock » est réservé aux utilisateurs du groupe *Sales Manager* (`sales_team.group_sale_manager`). Pour déverrouiller la commande, il faut que l’utilisateur appartienne à ce groupe ou qu’un manager le fasse à sa place.\n\n[Source: Graphe de Connaissances Code Intelligence]",
+    "elapsed_seconds": 18.15,
+    "effective_seconds": 18.146,
+    "groq_wait_seconds": 0.0,
+    "hop_count": 2
   },
   {
     "id": "SAL-Q5",
@@ -421,6 +467,29 @@
     "hop_count": 3
   },
   {
+    "id": "STK-Q4",
+    "module": "stock",
+    "capability": "ui",
+    "difficulty": "medium",
+    "question": "Pourquoi les champs 'From'/'To' (emplacement source/destination) n'apparaissent-ils pas sur un transfert de stock pour la plupart des utilisateurs ?",
+    "reference_answer": "Ces champs portent groups='stock.group_stock_multi_locations' dans la vue -- mais ce n'est pas un groupe de role (comme user/manager), c'est un groupe active par un parametre de configuration (implied_group sur le champ booleen group_stock_multi_locations dans res.config.settings, 'Storage Locations'). Tant que la fonctionnalite multi-emplacements n'est pas activee en configuration, aucun utilisateur -- meme stock.group_stock_manager -- ne voit ces champs, car le groupe technique lui-meme n'est attribue a personne.",
+    "verification": "views/stock_picking_views.xml : champs location_id/location_dest_id groups='stock.group_stock_multi_locations' + models/res_config_settings.py : champ group_stock_multi_locations (implied_group='stock.group_stock_multi_locations')",
+    "expected_tools": [
+      "button_execution_path"
+    ],
+    "tools_used": [
+      "button_execution_path",
+      "read_source_code"
+    ],
+    "tool_coverage_ok": true,
+    "missing_tools": [],
+    "verbatim": "Les champs **« From »** (location_id) et **« To »** (location_dest_id) ne sont visibles que pour les utilisateurs appartenant au groupe **`stock.group_stock_multi_locations`**.  \nDans la vue `view_picking_form` du modèle `stock.picking`, ces champs sont déclarés avec l’attribut `groups=\"stock.group_stock_multi_locations\"`, ce qui limite leur affichage aux membres de ce groupe :\n\n- **Déclaration dans la vue**  \n  ```xml\n  <field name=\"location_id\" … groups=\"stock.group_stock_multi_locations\" …/>\n  <field name=\"location_dest_id\" … groups=\"stock.group_stock_multi_locations\" …/>\n  ```\n  [stock_picking_views.xml:L91-L97](file:///home/user/odoo-17.0/addons/stock/views/stock_picking_views.xml#L91-L97)\n\nAinsi, la plupart des utilisateurs ne voient pas ces champs parce qu’ils ne font pas partie de ce groupe. Pour les rendre visibles, il faut ajouter l’utilisateur au groupe **Stock Multi‑Locations** (ou modifier la vue pour enlever la restriction de groupe).\n\n[Source: Graphe de Connaissances Code Intelligence]",
+    "elapsed_seconds": 10.27,
+    "effective_seconds": 10.265,
+    "groq_wait_seconds": 0.0,
+    "hop_count": 2
+  },
+  {
     "id": "STK-Q5",
     "module": "stock",
     "capability": "constraints",
@@ -523,6 +592,33 @@
     "effective_seconds": 20.396,
     "groq_wait_seconds": 0.0,
     "hop_count": 2
+  },
+  {
+    "id": "ACC-Q4",
+    "module": "account",
+    "capability": "ui",
+    "difficulty": "hard",
+    "question": "Un utilisateur avec uniquement group_account_invoice ('Billing') voit-il le compte comptable (account_id) d'une ligne de facture ? Et un 'Billing Administrator' (group_account_manager) le voit-il, en configuration Invoicing seule (sans le module Accounting installe) ?",
+    "reference_answer": "Non dans les deux cas. Le champ account_id porte groups='account.group_account_readonly' dans la vue -- or ni group_account_invoice ni group_account_manager n'impliquent group_account_readonly (seul group_account_user, le profil 'comptable complet', implique a la fois invoice et readonly). En configuration Invoicing seule, la documentation du fichier de securite le confirme explicitement : seuls group_account_invoice et group_account_manager sont censes etre utilises, et aucun des deux ne donne acces au champ technique du compte comptable -- il faut le module Accounting (qui attribue alors group_account_user) pour le voir.",
+    "verification": "views/account_move_views.xml : <field name=\"account_id\" ... groups=\"account.group_account_readonly\"/> + security/account_security.xml : commentaire d'en-tete + implied_ids de group_account_invoice/group_account_manager/group_account_user",
+    "expected_tools": [
+      "button_execution_path"
+    ],
+    "tools_used": [
+      "analyze_security_locks",
+      "who_has_access_to",
+      "evaluate_record_rules",
+      "button_execution_path",
+      "read_source_code",
+      "read_source_code"
+    ],
+    "tool_coverage_ok": true,
+    "missing_tools": [],
+    "verbatim": "Le champ **account_id** est déclaré dans la vue `view_move_form` du modèle `account.move` avec l’attribut :\n\n```\n<field name=\"account_id\" … groups=\"account.group_account_readonly\"/>\n```\n\n(Observation : *Champ 'account_id' (account_id) sur la vue 'view_move_form' … Restreint aux groupes: [account.group_account_readonly] (xml_id: account.group_account_readonly).*)\n\nCette restriction signifie que **seuls les utilisateurs appartenant au groupe `account.group_account_readonly` peuvent voir ce champ**.  \nLes groupes `account.group_account_invoice` (« Billing ») et `account.group_account_manager` (« Billing Administrator ») ne sont pas inclus dans ce groupe.\n\nPar conséquent :\n\n* Un utilisateur possédant uniquement le groupe `account.group_account_invoice` **ne voit pas** le compte comptable (`account_id`) d’une ligne de facture.  \n* Un utilisateur possédant uniquement le groupe `account.group_account_manager` **ne voit pas** non plus ce champ, même dans une configuration où seul le module Invoicing est installé (le module Accounting n’étant pas présent, la vue et le champ ne sont pas chargés pour ces groupes).\n\nEn résumé, sans appartenance au groupe `account.group_account_readonly`, ni `group_account_invoice` ni `group_account_manager` ne peuvent visualiser le champ `account_id` d’une ligne de facture.\n\n[Source: Graphe de Connaissances Code Intelligence]",
+    "elapsed_seconds": 54.7,
+    "effective_seconds": 54.701,
+    "groq_wait_seconds": 0.0,
+    "hop_count": 6
   },
   {
     "id": "ACC-Q5",

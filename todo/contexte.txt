@@ -2608,3 +2608,139 @@ Correctif :
   - `STK-Q3` : 100% propre, tableau des modèles étendus (`product.product` avec `qty_available`, `virtual_available`) sans troncature.
   - `ACC-Q3` : 100% propre, modèle déclaré + liste des extensions hors périmètre comptable.
   - `SAL-Q3` : Identifié comme nouveau modèle, zéro warning.
+
+## Section 924 -- Cloture Bloc N1 (25/25) : rejeu PUR-Q4/SAL-Q4/STK-Q4/ACC-Q4 par pmm, verification independante contre le code source reel
+
+Date : 23/09/2026
+Contexte : pmm colle la sortie brute de `python scripts/run_bloc_n1_benchmark.py PUR-Q4 SAL-Q4 STK-Q4 ACC-Q4` (vague Q4 UI, dernier lot des 8 questions restantes identifiees en section 920). Rapport JSON confirme 25/25 questions du Bloc N1 desormais enregistrees dans `captures/bloc_n1_verbatim.json`.
+
+**Verification ligne a ligne contre `/home/user/odoo-17.0/addons` (pas de confiance aveugle dans la sortie LLM)** :
+- `PUR-Q4` : confirme exact -- `purchase/views/purchase_views.xml:139`, bouton `button_approve` avec `invisible="state != 'to approve'"` et `groups="purchase.group_purchase_manager"`. La reponse cite le xml_id mais aucun fichier+ligne -- conforme a la regle transverse de plan.md ("fichier+ligne OU identifiant d'enregistrement") mais moins precis que les 3 autres reponses de ce lot.
+- `SAL-Q4` : confirme exact -- `sale/models/sale_order.py:1063-1064` (`action_unlock`) et `sale/views/sale_order_views.xml:271-272` (`groups="sales_team.group_sale_manager"`), citations fichier+ligne correctes.
+- `STK-Q4` : confirme exact sur le fond -- `stock/views/stock_picking_views.xml:91-92`, `location_id`/`location_dest_id` avec `groups="stock.group_stock_multi_locations"`. Plage citee par la reponse (`L91-L97`) trop large : les lignes 93-97 sont d'autres champs (`partner_id`, `is_signed`, `user_id`) sans rapport avec la restriction de groupe -- imprecision de citation, pas de fabrication.
+- `ACC-Q4` (difficulty=hard) : confirme exact malgre le warning de troncature declenche pendant ce run (`analyze_security_locks(account.move)`, 2992 caracteres, marqueur reference sections 801-802/876 -- mecanisme diagnostique deja connu, cf. `postprocess.py::_strip_truncation_marker_for_display`). Verification independante dans `account/security/account_security.xml` : `group_account_manager` (`implied_ids` = `[group_account_invoice]` uniquement, L59-62) n'implique PAS `group_account_readonly` (implique seulement par `group_account_user`, L53-56) -- confirme litteralement le schema commente en tete de fichier ("Invoicing only: group_account_invoice / group_account_manager -- only those two should be used"). Le champ `account_id` sur la ligne de facture (`account_move_views.xml:1034`, tree editable de `invoice_line_ids`) porte `groups="account.group_account_readonly"`. Donc ni `group_account_invoice` seul ni `group_account_manager` seul ne donnent acces au champ, meme en configuration Invoicing-only (pas de module `account_accountant`/Enterprise dans ce depot) -- la reponse du LLM est correcte malgre la troncature de l'observation source ; la chaine de backfill/gating a tenu sur ce cas.
+
+**Points restants non couverts par cette section (deja identifies, non traites ici)** :
+- SAL-Q3 (921 point 3) : omission du 2e volet d'heritage (extension d'`account.move` par `sale`), toujours en attente d'arbitrage.
+- Les 2 observations annexes de la section 923 (outil `analyze_method_override_chain` non invoque sur PUR-Q3 ; pertinence de la citation `purchase/populate/purchase.py` a trancher).
+- Le warning de troncature sur `account.move` (801-802/876) reste un point de vigilance structurel : `account.move` est le modele le plus volumineux du perimetre natif (cf. section 808, 42589 vs 8919 pour `stock.quant`) -- ce run confirme que le scaffolding de backfill compense correctement sur ce cas precis, mais ne garantit pas que ce soit systematique sur toute question touchant ce modele.
+
+**Prochaine etape** : Bloc N1 (banc de questions) est complet a 25/25 sur les 5 modules natifs (purchase/sale/stock/account/maintenance). Reste, par `plan.md` ("Validation par domaine" / chantier 1) : ecrire le script de verification mecanique dedie par module (miroir `scripts/check_bloc9_0N_*.py`) et confirmer chacun des 5 modules end-to-end (raw/direct/full-pipeline) avec verite-terrain verifiee -- pas encore fait, la verification de cette section reste manuelle/ponctuelle. Commit groupe suggere (captures + ce journal), a la discretion de pmm.
+(.venv) user@debian:~/odoo-ia-prototype$ python scripts/run_bloc_n1_benchmark.py SAL-Q3
+================================================================================
+ BLOC N1 -- BENCHMARK RUNNER (banc de questions natif) 
+ Cible : 1 question(s) (filtre id=['SAL-Q3'], module=None)
+================================================================================
+
+--------------------------------------------------------------------------------
+[SAL-Q3] module=sale capability=inheritance difficulty=medium
+Question: sale.order est-il un nouveau modele ou une extension ? Quel modele natif hors du perimetre 'vente' ce module etend-il directement, et sous quel nom de classe ?
+--------------------------------------------------------------------------------
+LLM arbitration requested but no llm client was provided; skipping.
+Node [code_intelligence_agent]: an observation was truncated (cap reached) and the marker is being stripped from user-facing text [source: read_source_code(sale.order), 2491 chars] -- some evidence may be missing from this answer. See todo/contexte.txt sections 801-802/876.
+Reponse verbatim (18.56s total | effectif 18.56s | groq_wait 0.00s | sauts 3):
+### Modèle : `sale.order`
+
+- **Nature** : *nouveau modèle* déclaré par le module **sale**.  
+  - Le fichier `sale/models/sale_order.py` contient la déclaration :  
+    ```
+  30 | class SaleOrder(models.Model):
+  31 |     _name = 'sale.order'
+  32 |     _inherit = ['portal.mixin', 'product.catalog.mixin', 'mail.thread', 'mail.activity.mixin', 'utm.mixin']
+  33 |     _description = "Sales Order"
+  34 |     _order = 'date_order desc, id desc'
+  35 |     _check_company_auto = True
+  36 | 
+  37 |     _sql_constraints = [
+  38 |         ('date_order_conditional_required',
+  39 |          "CHECK((state = 'sale' AND date_order IS NOT NULL) OR state != 'sale')",
+  40 |          "A confirmed sales order requires a confirmation date."),
+  41 |     ]
+  42 | 
+  43 |     @property
+  44 |     def _rec_names_search(self):
+  45 |         if self._context.get('sale_show_partner_name'):
+  46 |             return ['name', 'partner_id.name']
+  47 |         return ['name']
+  48 | 
+  49 |     #=== FIELDS ===#
+  50 | 
+  51 |     name = fields.Char(
+  52 |         string="Order Reference",
+  53 |         required=True, copy=False, readonly=False,
+  54 |         index='trigram',
+  55 |         default=lambda self: _('New'))
+  56 | 
+  57 |     company_id = fields.Many2one(
+  58 |         comodel_name='res.company',
+  59 |         required=True, index=True,
+  60 |         default=lambda self: self.env.company)
+  61 |     partner_id = fields.Many2one(
+  62 |         comodel_name='res.partner',
+  63 |         string="Customer",
+  64 |         required=True, change_default=True, index=True,
+  65 |         tracking=1,
+  66 |         check_company=True)
+  67 |     state = fields.Selection(
+  68 |         selection=SALE_ORDER_STATE,
+  69 |         string="Status",
+  70 |         readonly=True, copy=False, index=True,
+  71 |         tracking=3,
+  72 |         group_expand=True,
+  73 |         default='draft')
+  74 |     locked = fields.Boolean(default=False, copy=False, help="Locked orders cannot be modified.")
+  75 | 
+  76 |     client_order_ref = fields.Char(string="Customer Reference", copy=False)
+  77 |     create_date = fields.Datetime(  # Override of default create_date field from ORM
+  78 |         string="Creation Date", index=True, readonly=True)
+  79 |     commitment_date = fields.Datetime(
+  80 |         string="Delivery Date", copy=False,
+  81 |         help="This is the delivery date promised to the customer. "
+  82 |              "If set, the delivery order will be scheduled based on "
+  83 |              "this date rather than product lead times.")
+  84 |     date_order = fields.Datetime(
+  85 |         string="Order Date",
+  86 |         required=True, copy=False,
+  87 |         help="Creation date of draft/sent orders,\nConfirmation date of confirmed orders.",
+  88 |         default=fields.Datetime.now)
+  89 |     origin = fields.Char(
+  90 |         string="Source Document",
+  91 |         help="Reference of the document that generated this sales order request")
+  92 |     reference = fields.Char(
+  93 |         string="Payment Ref.",
+  94 |         help="The payment communication of this sale order.",
+  95 |         copy=False)
+  96 | 
+  97 |     require_signature = fields.Boolean(
+  98 |         string="Online signature",
+  99 |         compute='_compute_require_signature',
+ 100 |         store=True, readonly=False, precompute=True,
+ 101 |         help="Request a online signature from the customer to confirm the order.")
+ 102 |     require_payment = fields.Boolean(
+ 103 |         string="Online payment",
+ 104 |         compute='_compute_require_payment',
+ 105 |         store=True, readonly=False, precompute=True,
+ 106 |         help="Request a online payment from the customer to confirm the order.")
+ 107 |     prepayment_percent = fields.Float(
+ 108 |         string="Prepayment percentage",
+ 109 |         compute='_compute_prepayment_percent',
+ 110 |         store=True, readonly=False, precompute=True,
+```  
+    [sale_order.py:L30-L110](file:///home/user/odoo-17.0/addons/sale/models/sale_order.py#L30-L110)
+
+- **Extension directe** : il n’étend aucun modèle métier natif hors du périmètre « vente ».  
+  - La liste `_inherit` ne contient que des *mixins* techniques (`portal.mixin`, `product.catalog.mixin`, `mail.thread`, `mail.activity.mixin`, `utm.mixin`) et non un modèle existant comme `res.partner` ou `account.move`.  
+  - Ainsi, `sale.order` ne repose pas sur un modèle natif hors du module `sale`; il est autonome.
+
+- **Nom de classe** : `SaleOrder` (déclaré dans le même fichier).  
+
+En résumé, `sale.order` est un **nouveau modèle** créé par le module `sale`, sans hériter d’un modèle métier natif hors de ce module, et il est implémenté par la classe `SaleOrder`.
+
+[Source: Graphe de Connaissances Code Intelligence]
+Outils invoques: ['trace_full_inheritance', 'read_source_code', 'list_involved_modules', 'list_involved_modules']
+[WARN] Outil(s) attendu(s) non invoque(s): ['analyze_method_override_chain']
+
+Rapport JSON sauvegarde (25 questions): /home/user/odoo-ia-prototype/captures/bloc_n1_verbatim.json
+Rapport Markdown sauvegarde: /home/user/odoo-ia-prototype/captures/bloc_n1_verbatim.md
+================================================================================
+(.venv) user@debian:~/odoo-ia-prototype$ 
