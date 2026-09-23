@@ -2594,3 +2594,17 @@ Correctif :
 1. Dans `read_precise_source_code`, scoper les recherches de secours aux vrais répertoires de corpus (`CORE_ADDONS_PATH`, `CUSTOM_ADDONS_PATH`, et `OCA_SAMPLE_ADDONS_PATH` uniquement si défini), et non à `_ROOT`.
 2. Exclure systématiquement les dossiers `tests/`, `.git/`, `.venv/` de toute découverte de code source par glob.
 3. Prioriser la résolution par `_GRAPH_REF` (qui associe directement le stem/modèle aux `filepaths` natifs indexés) avant tout glob large.
+
+## Section 923 -- Auto-héritage dans trace_full_inheritance et validation vague Q3
+
+Diagnostic :
+Dans `trace_full_inheritance` (`code_intelligence/rules/structure.py`), `business_parents` incluait `model_name` lui-même quand un fichier du module déclarait une extension de son propre modèle (`_inherit = 'sale.order'` dans populate). Cela amenait l'outil à qualifier à tort le modèle d'"Extension de modèle(s) métier (sale.order)" au lieu d'un "Nouveau modèle".
+
+Correctif :
+- `business_parents = [p for p in extension_parents if p not in mixins and p != model_name]`.
+- Résultat sur `SAL-Q3` : Le modèle est désormais qualifié sans équivoque de "Nouveau modèle déclarant son propre _name='sale.order' avec mixins techniques uniquement".
+- Rejeu vague Q3 :
+  - `PUR-Q3` : 100% propre, zéro faux positif de sourcing, zéro citation OCA.
+  - `STK-Q3` : 100% propre, tableau des modèles étendus (`product.product` avec `qty_available`, `virtual_available`) sans troncature.
+  - `ACC-Q3` : 100% propre, modèle déclaré + liste des extensions hors périmètre comptable.
+  - `SAL-Q3` : Identifié comme nouveau modèle, zéro warning.

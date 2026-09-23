@@ -353,7 +353,7 @@ def trace_full_inheritance(
     del_str = ", ".join([f"{m} (via {fk})" for m, fk in delegation_parents.items()]) if delegation_parents else "None"
 
     mixins = [p for p in extension_parents if p.endswith(".mixin") or p in ("mail.thread", "mail.activity.mixin", "rating.mixin", "portal.mixin", "utm.mixin", "image.mixin", "avatar.mixin")]
-    business_parents = [p for p in extension_parents if p not in mixins]
+    business_parents = [p for p in extension_parents if p not in mixins and p != model_name]
     nature_str = ""
     if extension_parents:
         if not business_parents:
