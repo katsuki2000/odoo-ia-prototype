@@ -2461,3 +2461,32 @@ Contexte : pmm colle l'execution reelle de `python scripts/run_bloc_n1_benchmark
   - `todo/contexte.txt` (cette section)
 
 **Prochaine etape :** Nouveau rejeu de verification par pmm (`python scripts/run_bloc_n1_benchmark.py PUR-Q1 ACC-Q1 SAL-Q1`) pour confirmer l'absence d'avertissement `UserWarning`, la proprete des citations de ACC-Q1, et la presence de la precision `implied_ids`.
+
+## Section 919 -- Group-restricted workflow method dispatch + DRY refactor
+
+Root cause: PUR-Q1 `SOURCING NON VERIFIE` on `purchase_order.py#L1070-L1075`
+(`button_unlock`). The LLM sees `button_unlock` in describe_workflow output
+with `Role: [purchase.group_purchase_manager]` and correctly identifies it as a
+distinction point. But it fabricates a file:// citation for lines it never read.
+`_APPROVAL_BUTTON_METHOD_RE` only matches `button_confirm/approve/valid`, so
+`button_unlock`'s source was never fetched.
+
+Fix (predispatch_access.py):
+1. New `_WORKFLOW_STEP_METHOD_ROLE_RE` captures both method name and role from
+   workflow step lines.
+2. Candidate classification now produces two tiers:
+   - Tier 1 (approval): matches `_APPROVAL_BUTTON_METHOD_RE` -> full treatment
+     (button_execution_path + read_source_code + guard follow-up)
+   - Tier 2 (group-restricted): Role != "All Users" and not approval -> lighter
+     treatment (button_execution_path + read_source_code, no guard follow-up)
+3. DRY refactor: extracted `_fetch_button_and_source()` helper encapsulating the
+   shared button_execution_path + read_source_code dispatch pattern. Both loops
+   now call this helper instead of duplicating ~40 lines.
+4. New test file: test_section919_group_restricted_dispatch.py (9 tests).
+
+Files changed:
+- code_intelligence/agent/predispatch_access.py (regex, helper, refactored loops)
+- code_intelligence/tests/test_section919_group_restricted_dispatch.py (new)
+- todo/contexte.txt
+
+Test suite: 928 passed, 39 skipped, 0 failures (unchanged baseline).

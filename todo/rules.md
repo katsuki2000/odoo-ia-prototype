@@ -16,4 +16,6 @@ meme convention de nommage(snake_case pour les fichiers et PascalCase pour les c
 DRY (Don't Repeat Yourself)
 respect d'architecture LLM recommandé 
 a clean architecture with subpackages and packages
-fait que la transition vers local soit facile en modifiant qu'un seul fichier (.env)
+fait que la transition vers local soit facile en modifiant qu'un seul fichier (.env par exemple)
+
+> lorsque plusieurs oprions s"ouvrent , il faut se demander : est ce que là l'ia pourra repondre correctement sur n'importe quel instance odoo 17?

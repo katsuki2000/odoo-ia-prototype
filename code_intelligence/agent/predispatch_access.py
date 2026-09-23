@@ -531,6 +531,8 @@ dispatch_override_chain (predispatch_actions.py).
 import logging
 import re
 import time
+from dataclasses import dataclass
+from typing import Any, Optional
 
 from code_intelligence.agent.context import (
     _truncate_observation_for_budget,
@@ -555,6 +557,87 @@ logger = logging.getLogger(__name__)
 # budget on an irrelevant candidate.
 _WORKFLOW_METHOD_RE = re.compile(r"Method:\s*`([A-Za-z_][A-Za-z0-9_]*)\(\)`")
 _APPROVAL_BUTTON_METHOD_RE = re.compile(r"^button_(?:confirm|approve|valid)", re.IGNORECASE)
+# Captures method name AND role from a full workflow step line, e.g.:
+#   "Step 7: [done] -> [done] via Button 'Unlock' (Method: `button_unlock()`, Role: [purchase.group_purchase_manager])"
+# Group 1 = method name, Group 2 = role text (may be "All Users" or a group xml_id).
+_WORKFLOW_STEP_METHOD_ROLE_RE = re.compile(
+    r"Method:\s*`([A-Za-z_][A-Za-z0-9_]*)\(\)`,\s*Role:\s*\[([^\]]+)\]"
+)
+
+
+@dataclass
+class _ButtonFetchResult:
+    button_result: Any = None
+    read_observation: Optional[str] = None
+
+
+def _fetch_button_and_source(
+    ctx: "DispatchContext",
+    method_name: str,
+    target_model: str,
+    log_label: str,
+) -> Optional[_ButtonFetchResult]:
+    btn_call_key = _tool_call_key(
+        "button_execution_path", {"model_name": target_model, "button_name": method_name}
+    )
+    if btn_call_key in ctx.seen_calls or ctx.hop_budget_exhausted:
+        return None
+
+    t0 = time.perf_counter()
+    try:
+        button_result = _button_execution_path_impl(
+            ctx.G, method_name, _resolve_model_param(target_model),
+            user_groups=ctx.resolved_user_group_xmlids or [],
+        )
+    except Exception as te:
+        logger.error("Deterministic button_execution_path dispatch (%s) failed: %s", log_label, te)
+        return None
+
+    record_evidence(button_result.evidence)
+    observation = button_result.summary_text + "\n" + "\n".join(button_result.execution_steps)
+    observation = _truncate_observation_for_budget(ctx, observation, 3000)
+    ctx.record_observation(
+        "button_execution_path",
+        {"button_name": method_name, "model_name": target_model},
+        observation, target_model, btn_call_key, time.perf_counter() - t0,
+    )
+    logger.info(
+        "Node [code_intelligence_agent]: Deterministic pre-dispatch of "
+        "'button_execution_path' for method '%s' on model '%s' (%s).",
+        method_name, target_model, log_label,
+    )
+
+    read_obs = None
+    if button_result.method_filepath and not ctx.hop_budget_exhausted:
+        read_tool = ctx.tool_map.get("read_source_code")
+        if read_tool is not None:
+            _fp = button_result.method_filepath
+            _ls = button_result.method_lineno
+            _le = button_result.method_end_lineno
+            _read_key = ("read_source_code", _fp, _ls, _le)
+            if _read_key not in ctx.seen_calls:
+                try:
+                    _t_read = time.perf_counter()
+                    read_obs = str(read_tool.invoke({
+                        "filepath": _fp, "line_start": _ls, "line_end": _le,
+                    }))
+                    read_obs = _truncate_observation_for_budget(ctx, read_obs, 4000)
+                    ctx.record_observation(
+                        "read_source_code",
+                        {"filepath": _fp, "line_start": _ls, "line_end": _le},
+                        read_obs, target_model, _read_key, time.perf_counter() - _t_read,
+                    )
+                    logger.info(
+                        "Node [code_intelligence_agent]: Deterministic follow-up "
+                        "dispatch of 'read_source_code' for '%s' lines %d-%d (%s).",
+                        _fp, _ls, _le, log_label,
+                    )
+                except Exception as re_err:
+                    logger.error(
+                        "Deterministic read_source_code dispatch (%s) failed: %s", log_label, re_err,
+                    )
+
+    return _ButtonFetchResult(button_result=button_result, read_observation=read_obs)
 
 
 def dispatch_security_distinction_guard(ctx: DispatchContext) -> None:
@@ -619,146 +702,83 @@ def dispatch_security_distinction_guard(ctx: DispatchContext) -> None:
 
         seen_methods = set()
         candidate_methods = []
-        for m in _WORKFLOW_METHOD_RE.findall(wf_observation):
-            if m in seen_methods:
+        group_restricted_methods = []
+        for method_name, role_text in _WORKFLOW_STEP_METHOD_ROLE_RE.findall(wf_observation):
+            if method_name in seen_methods:
                 continue
-            seen_methods.add(m)
-            if _APPROVAL_BUTTON_METHOD_RE.match(m):
-                candidate_methods.append(m)
+            seen_methods.add(method_name)
+            if _APPROVAL_BUTTON_METHOD_RE.match(method_name):
+                candidate_methods.append(method_name)
+            elif role_text.strip() != "All Users":
+                group_restricted_methods.append(method_name)
 
         guard_resolved = False
         for method_name in candidate_methods:
             if ctx.hop_budget_exhausted:
                 break
-            btn_call_key = _tool_call_key(
-                "button_execution_path", {"model_name": target_model, "button_name": method_name}
+            fetch = _fetch_button_and_source(
+                ctx, method_name, target_model,
+                "security-distinction approval candidate",
             )
-            if btn_call_key in ctx.seen_calls:
+            if fetch is None:
                 continue
-            t0 = time.perf_counter()
-            try:
-                # todo/contexte.txt section 831 (Famille 1, site 5/5): was
-                # `re.search(r"\((file:///[^#\)]+)#L(\d+)-L(\d+)\)", observation)`,
-                # re-parsing our own formatted tool text for the called method's
-                # file/line -- see the analogous fix and comment in
-                # predispatch_structure.py::dispatch_button_execution_path
-                # (same tool, same ButtonExecutionPathResult.method_filepath/
-                # method_lineno/method_end_lineno structured fields).
-                button_result = _button_execution_path_impl(
-                    ctx.G, method_name, _resolve_model_param(target_model),
-                    user_groups=ctx.resolved_user_group_xmlids or [],
-                )
-                record_evidence(button_result.evidence)
-                observation = button_result.summary_text + "\n" + "\n".join(button_result.execution_steps)
-                observation = _truncate_observation_for_budget(ctx, observation, 3000)
-                ctx.record_observation(
-                    "button_execution_path",
-                    {"button_name": method_name, "model_name": target_model},
-                    observation, target_model, btn_call_key, time.perf_counter() - t0,
-                )
-                ran_any_button = True
-                logger.info(
-                    "Node [code_intelligence_agent]: Deterministic pre-dispatch of "
-                    "'button_execution_path' for real method '%s' on model '%s' "
-                    "(security-distinction question, name discovered via "
-                    "describe_workflow, never guessed).",
-                    method_name, target_model,
-                )
-                _read_obs = None
-                if button_result.method_filepath and not ctx.hop_budget_exhausted:
-                    read_tool = ctx.tool_map.get("read_source_code")
-                    if read_tool is not None:
-                        _fp = button_result.method_filepath
-                        _ls = button_result.method_lineno
-                        _le = button_result.method_end_lineno
-                        _read_key = ("read_source_code", _fp, _ls, _le)
-                        if _read_key not in ctx.seen_calls:
-                            try:
-                                _t_read = time.perf_counter()
-                                _read_obs = str(read_tool.invoke({
-                                    "filepath": _fp, "line_start": _ls, "line_end": _le,
-                                }))
-                                _read_obs = _truncate_observation_for_budget(ctx, _read_obs, 4000)
-                                ctx.record_observation(
-                                    "read_source_code",
-                                    {"filepath": _fp, "line_start": _ls, "line_end": _le},
-                                    _read_obs, target_model, _read_key, time.perf_counter() - _t_read,
-                                )
-                                logger.info(
-                                    "Node [code_intelligence_agent]: Deterministic follow-up "
-                                    "dispatch of 'read_source_code' for '%s' lines %d-%d "
-                                    "(security-distinction application-guard verification).",
-                                    _fp, _ls, _le,
-                                )
-                            except Exception as re_err:
-                                logger.error(
-                                    "Deterministic read_source_code dispatch "
-                                    "(security-distinction) failed: %s", re_err,
-                                )
-                        # Follow an internal guard call found inside the button's own
-                        # body (e.g. `order._approval_allowed()`) instead of moving on
-                        # to the next candidate button -- the guard's own definition,
-                        # not the calling button's body, is what carries the real
-                        # distinction (todo/contexte.txt section 786: read_source_code
-                        # on button_confirm alone only shows the guard being called,
-                        # never its body, and a 2nd button_execution_path call then
-                        # exhausts the hop budget before the guard is ever resolved).
-                        if _read_obs and not ctx.hop_budget_exhausted:
-                            _guard_match = re.search(r"\b(_\w*_allowed|_check_\w*)\s*\(", _read_obs)
-                            if _guard_match:
-                                guard_name = _guard_match.group(1)
-                                # Pure graph lookup (code_intelligence/rules/override_unguarded.py),
-                                # no LLM, no heuristic risk analysis, no hop cost -- resolves the
-                                # guard method's own file/line location directly, so the single hop
-                                # spent below goes straight to a literal read_source_code of the
-                                # guard's body (todo/contexte.txt section 788: analyze_method_override_chain
-                                # was tried first but never reproduces the method's own condition logic --
-                                # it only returns structural-risk heuristics -- and its own file:// link
-                                # was never auto-followed, wasting a 2nd hop for nothing).
-                                guard_sites = resolve_method_override_chain(ctx.G, target_model, guard_name)
-                                if guard_sites:
-                                    _gs = guard_sites[0]
-                                    read_tool = ctx.tool_map.get("read_source_code")
-                                    if read_tool is not None and _gs.filepath and _gs.lineno:
-                                        _g_le = _gs.end_lineno or _gs.lineno
-                                        guard_read_key = ("read_source_code", _gs.filepath, _gs.lineno, _g_le)
-                                        if guard_read_key not in ctx.seen_calls:
-                                            try:
-                                                _t_guard = time.perf_counter()
-                                                guard_observation = str(read_tool.invoke({
-                                                    "filepath": _gs.filepath,
-                                                    "line_start": _gs.lineno,
-                                                    "line_end": _g_le,
-                                                }))
-                                                guard_observation = _truncate_observation_for_budget(ctx, guard_observation, 2200)
-                                                ctx.record_observation(
-                                                    "read_source_code",
-                                                    {"filepath": _gs.filepath, "line_start": _gs.lineno, "line_end": _g_le},
-                                                    guard_observation, target_model, guard_read_key,
-                                                    time.perf_counter() - _t_guard,
-                                                )
-                                                logger.info(
-                                                    "Node [code_intelligence_agent]: Deterministic follow-up "
-                                                    "dispatch of 'read_source_code' for guard '%s.%s' "
-                                                    "(internal guard call found inside '%s', security-distinction "
-                                                    "application-guard body resolution, via pure graph lookup).",
-                                                    target_model, guard_name, method_name,
-                                                )
-                                                guard_resolved = True
-                                            except Exception as guard_err:
-                                                logger.error(
-                                                    "Deterministic read_source_code dispatch "
-                                                    "(security-distinction guard follow-up) failed: %s", guard_err,
-                                                )
-            except Exception as te:
-                logger.error(
-                    "Deterministic button_execution_path dispatch (security-distinction) failed: %s", te
-                )
+            ran_any_button = True
+            # Follow an internal guard call found inside the button's own
+            # body (e.g. `order._approval_allowed()`) -- the guard's own
+            # definition carries the real distinction (todo/contexte.txt
+            # section 786).
+            if fetch.read_observation and not ctx.hop_budget_exhausted:
+                _guard_match = re.search(r"\b(_\w*_allowed|_check_\w*)\s*\(", fetch.read_observation)
+                if _guard_match:
+                    guard_name = _guard_match.group(1)
+                    guard_sites = resolve_method_override_chain(ctx.G, target_model, guard_name)
+                    if guard_sites:
+                        _gs = guard_sites[0]
+                        read_tool = ctx.tool_map.get("read_source_code")
+                        if read_tool is not None and _gs.filepath and _gs.lineno:
+                            _g_le = _gs.end_lineno or _gs.lineno
+                            guard_read_key = ("read_source_code", _gs.filepath, _gs.lineno, _g_le)
+                            if guard_read_key not in ctx.seen_calls:
+                                try:
+                                    _t_guard = time.perf_counter()
+                                    guard_observation = str(read_tool.invoke({
+                                        "filepath": _gs.filepath,
+                                        "line_start": _gs.lineno,
+                                        "line_end": _g_le,
+                                    }))
+                                    guard_observation = _truncate_observation_for_budget(ctx, guard_observation, 2200)
+                                    ctx.record_observation(
+                                        "read_source_code",
+                                        {"filepath": _gs.filepath, "line_start": _gs.lineno, "line_end": _g_le},
+                                        guard_observation, target_model, guard_read_key,
+                                        time.perf_counter() - _t_guard,
+                                    )
+                                    logger.info(
+                                        "Node [code_intelligence_agent]: Deterministic follow-up "
+                                        "dispatch of 'read_source_code' for guard '%s.%s' "
+                                        "(internal guard call found inside '%s', security-distinction "
+                                        "application-guard body resolution, via pure graph lookup).",
+                                        target_model, guard_name, method_name,
+                                    )
+                                    guard_resolved = True
+                                except Exception as guard_err:
+                                    logger.error(
+                                        "Deterministic read_source_code dispatch "
+                                        "(security-distinction guard follow-up) failed: %s", guard_err,
+                                    )
             if guard_resolved:
                 any_guard_resolved = True
-                # Real application-layer guard found and resolved -- no need to
-                # spend further hops on the remaining button candidates.
                 break
+
+        for method_name in group_restricted_methods:
+            if ctx.hop_budget_exhausted:
+                break
+            fetch = _fetch_button_and_source(
+                ctx, method_name, target_model,
+                "security-distinction group-restricted transition",
+            )
+            if fetch is not None:
+                ran_any_button = True
 
     if ran_any_button:
         _guard_note = (
