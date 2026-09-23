@@ -2504,3 +2504,93 @@ Execution reussie de `python scripts/run_bloc_n1_benchmark.py MNT-Q5 STK-Q5` :
 - STK-Q5 (stock / constraints) : 100% verifie. Contraintes @api.constrains sur product_id (L615-L618), location_id (L638-L642), lot_id (L644-L648) sur stock.quant, et _check_unique_lot (L91-L102) sur stock.lot. Zero warning.
 - Captures mises a jour : 17/25 questions validees dans captures/bloc_n1_verbatim.json.
 - Restant pour cloturer le Bloc N1 : 8 questions (Q3 Heritage et Q4 UI sur purchase, sale, stock, account).
+
+## Section 921 -- Execution vague Q3 Heritage (21/25 complets) et diagnostic des 2 anomalies
+
+Execution de `python scripts/run_bloc_n1_benchmark.py PUR-Q3 SAL-Q3 STK-Q3 ACC-Q3` :
+- Captures mises a jour : 21/25 questions enregistrees dans captures/bloc_n1_verbatim.json.
+- Analyse des resultats :
+  1. PUR-Q3 : Faux positif de verification de citation en prose (`SOURCING NON VERIFIE : purchase.order cite lignes 18-18 mais trouve a la ligne 19`). Root cause : l'agent a ecrit `ligne 18\u201198` avec un tiret insecable unicode (`\u2011`). `_PROSE_LINE_CLAIM_PATTERN` (`dispatch_guards.py`) n'incluait que `[-\u2013\u2014]`, tronquant le range a 18-18 au lieu de 18-98.
+  2. STK-Q3 / ACC-Q3 : Artefacts de substitution du garde `_neutralize_module_extension_denial`. Root cause : `_real_sentence_boundary_after` et `_before` (`common.py`) traitaient `**` comme une fin/debut de phrase. Dans STK-Q3, la phrase a ete coupee net au premier mot en gras (`**déclaré**`), laissant le reste de la phrase colle a la fin du remplacement ; et devant la puce, `- Il **` est reste orphelin.
+  3. SAL-Q3 : Le LLM a omis le 2e volet (extension d'account.move par sale) par manque d'explicitation dans le prompt de predispatch d'heritage pour distinguer l'heritage du modele (mixins) des modeles etendus par le module ((extends) dans list_involved_modules).
+
+## Note (hors-section, pas de changement de code) -- procedure de swap de modele candidat dans scripts/kaggle/local_llm_benchmark_kaggle.ipynb
+
+pmm compare des modeles candidats sur Kaggle T4x2 pour arbitrer chantier 3
+(inference locale) + dimensionnement GPU. Rappel de la procedure exacte pour
+changer de candidat sans tout relancer inutilement :
+1. Cellule 4 : `MODEL = "qwen3:14b"` (ou autre), relancer -- fait le `ollama pull`.
+2. Cellules 5 et 5bis (prechauffage + sanity check tool-calling) : relancer --
+   utilisent la variable MODEL, aucune modif de code necessaire. Le sanity check
+   (5bis) ne doit pas etre saute : confirme le tool-calling natif avant de
+   consommer du quota GPU sur le banc complet.
+3. Cellule 6 (tunnel cloudflared) : PAS besoin de relancer si `ollama serve`
+   tourne toujours -- le tunnel pointe sur le port 11434, independant du modele
+   charge dessus. L'URL ne change pas.
+4. Cote local, `.env` : seule `LOCAL_LLM_MODEL` doit changer (`LOCAL_LLM_BASE_URL`
+   inchangee si le tunnel n'a pas redemarre).
+Avant de relancer `run_bloc_n1_benchmark.py` pour le candidat suivant, sauvegarder
+les captures du run precedent (le script n'a pas de flag --out, il ecrase
+toujours `captures/bloc_n1_verbatim.{json,md}`) :
+`cp captures/bloc_n1_verbatim.json captures/bloc_n1_verbatim__<tag-modele>.json`
+(idem .md).
+Point de vigilance specifique a `qwen3:14b` (mode "thinking" activable) : verifier
+dans la sortie du sanity check (5bis) que `tool_calls` arrive proprement des le
+premier appel, plutot qu'un pave de raisonnement avant l'appel d'outil -- impacte
+la latence par hop, pas seulement la fiabilite.
+
+## Section 922 -- Verification et tests manquants pour les 2 anomalies diagnostiquees en 921 (tiret unicode, mot en gras isole)
+
+Date : 23/09/2026
+Contexte : reprise en debut de session. Divergence disque/journal constatee avant toute action (discipline ways-of-working.md) : le code correctif des 2 anomalies de la section 921 existait deja sur disque (`git status` : `dispatch_guards.py` et `common.py` modifies, non commites), mais sans aucun test dedie (aucun `test_section921_*`/`test_section922_*` present) et sans section de contexte documentant la resolution -- seul le diagnostic (921) etait journalise. Violation de la regle "tests ecrits avant/avec le code" par une session anterieure non tracee.
+
+**Verification ligne a ligne du code deja present** :
+  1. `_PROSE_LINE_CLAIM_PATTERN` (`dispatch_guards.py`) : classe de tirets etendue a `[-\u2010\u2011\u2013\u2014]` (ajout U+2010 hyphen et U+2011 tiret insecable, en plus de l'existant `-`/en-dash/em-dash/`\u00e0`). Lecture confirmee correcte : le groupe 3 (fin de plage) capture desormais correctement `lignes 18\u201198`.
+  2. `_bold_span_word_count()` + `_BOLD_CLAUSE_MIN_WORDS = 3` (`common.py`) : nouvelle fonction qui determine si un delimiteur `**` rencontre ouvre ou ferme un span (parite des occurrences precedentes), localise le delimiteur partenaire, et compte les mots du contenu encadre. `_real_sentence_boundary_before/_after` n'acceptent desormais `**` comme frontiere que si ce compte est >= 3 -- un mot isole en gras ne coupe plus la phrase, une clause multi-mots (cas 844) continue de le faire. Lecture confirmee correcte, y compris la logique de parite (pair = ouverture, impair = fermeture).
+
+**Tests ecrits (aucun n'existait avant)** :
+  - `code_intelligence/tests/test_section922_prose_line_unicode_hyphen.py` (7 tests) : U+2011/U+2010 captures et non-flagues sur reproduction verbatim du cas PUR-Q3 (identifiant `purchase.order` reellement present ligne 19 seulement, plage reclamee `18\u201198`) ; non-regression ASCII/en-dash/em-dash/`\u00e0` ; un vrai mismatch avec tiret unicode reste flague ; demonstration explicite que l'ancien comportement tronque (`lignes 18` seul) aurait ete un faux positif.
+  - `code_intelligence/tests/test_section922_bold_word_boundary.py` (8 tests) : `_bold_span_word_count` (mot isole, clause multi-mots, appel depuis le delimiteur fermant, aucun partenaire trouve) ; `expand_to_sentence_bounds` avec mot isole (aucune frontiere, texte entier conserve) et non-regression du cas 844 (clause multi-mots toujours frontiere, premiere clause correcte preservee) ; 2 tests bout-en-bout sur `_neutralize_module_extension_denial` reproduisant les formes STK-Q3 ("Le champ est **declare** obligatoire et...") et ACC-Q3 ("- Il **declare** que...") -- confirment une phrase de remplacement propre, sans `**declare**` residuel ni "- Il **" orphelin.
+
+**Resultat** : 1 erreur de comptage de mots dans une assertion de test corrigee en cours de route (`5` mots reels contre `6` suppose) -- pas un bug du code de production. Apres correction :
+  - Sweep cible (les 2 nouveaux fichiers + `test_sentence_bounds.py` + `test_bug9_override_denial_sentence_boundaries.py` + `test_bug10_prose_line_citation_mismatch.py` + `test_section858_extension_coverage.py`) : **38 passed, 0 echec**.
+  - Sweep elargi (`citation or dispatch_guards or postprocess or structure or overrides or sentence or section858 or bug9 or bug10 or section917 or section918 or section919`) : **91 passed, 0 echec**.
+  - `pytest --collect-only -q` sur `code_intelligence/tests/` : **991 tests collectes, 0 erreur de collecte**.
+  - Import direct de `dispatch_guards`, `rules.common`, `rules.structure` : OK.
+
+**Ce qui N'A PAS ete fait** : aucun rejeu reel du benchmark (`run_bloc_n1_benchmark.py PUR-Q3 STK-Q3 ACC-Q3`) pour confirmer en conditions reelles que ces 2 anomalies sont closes bout-en-bout -- delegue a pmm (cf. division du travail ways-of-working.md). Le 3e point de la section 921 (SAL-Q3, omission du 2e volet d'heritage) reste hors-scope de cette section, non traite.
+
+**Fichiers modifies** : `code_intelligence/tests/test_section922_prose_line_unicode_hyphen.py` (nouveau), `code_intelligence/tests/test_section922_bold_word_boundary.py` (nouveau), `todo/contexte.txt` (cette section). Rappel : `code_intelligence/agent/dispatch_guards.py` et `code_intelligence/rules/common.py` n'ont pas ete modifies dans cette session -- leur contenu (deja sur disque, non commite) est celui verifie ci-dessus.
+
+**Prochaine etape** : pmm rejoue `python scripts/run_bloc_n1_benchmark.py PUR-Q3 STK-Q3 ACC-Q3` pour confirmation reelle, puis commit groupe (code + tests + captures + ce journal). Arbitrer separement le point SAL-Q3 (921, point 3).
+
+## Section 923 -- Rejeu reel PUR-Q3/STK-Q3/ACC-Q3 colle par pmm : les 2 anomalies de la section 921 CONFIRMEES RESOLUES bout-en-bout
+
+Date : 23/09/2026
+Contexte : pmm colle l'execution reelle de `python scripts/run_bloc_n1_benchmark.py PUR-Q3 STK-Q3 ACC-Q3`, conforme a la "prochaine etape" fixee en 922.
+
+**Verification des 2 anomalies en conditions reelles** :
+  1. **Anomalie 1 (tiret unicode, PUR-Q3)** : **CONFIRMEE RESOLUE**. La reponse verbatim contient `lignes 18\u201198` et `lignes 23\u201192` (tiret insecable U+2011, exactement le caractere du bug original) et **aucun avertissement `SOURCING NON VERIFIE`** n'apparait dans la sortie -- le faux positif est elimine.
+  2. **Anomalie 2 (mot en gras isole, STK-Q3/ACC-Q3)** : **CONFIRMEE RESOLUE**. Les phrases de remplacement du garde `_neutralize_module_extension_denial` ("En realite, ce module etend bien 12/25 modele(s)...") sont propres et completes sur les 2 questions, sans fragment orpheline ni coupure de phrase -- le pattern "- Il **" et la coupure au premier mot en gras ne se reproduisent plus.
+  - Captures mises a jour : `captures/bloc_n1_verbatim.{json,md}` regeneres pour ces 3 entrees (deja comptees dans le total 21/25, pas de nouvelle question).
+
+**2 observations annexes, hors scope de cette section, non traitees** :
+  - PUR-Q3 : `[WARN] Outil(s) attendu(s) non invoque(s): ['analyze_method_override_chain']` -- le banc de questions attend cet outil, non appele sur ce rejeu. A investiguer separement (meme famille que l'axe 3 de la section 918 : possible que le graphe de connaissances resolve deja l'information sans passer par cet outil).
+  - PUR-Q3 : la reponse affirme que `purchase.order` est "ensuite etendu par le module dans purchase.py (ligne 23-92)" -- a verifier si ce fichier (`odoo/addons/purchase/populate/purchase.py`, module de generation de donnees de demo) constitue reellement une extension pertinente du modele au sens de la question, ou un bruit de citation. Non arbitre.
+
+**Prochaine etape** : commit groupe (code deja present + `test_section922_*` + captures + contexte.txt sections 921-923). Arbitrer separement le point SAL-Q3 (921, point 3, omission du volet heritage account.move) et les 2 observations annexes ci-dessus.
+
+## Section 922 -- Correctif root cause sourcing OCA vs Natif dans read_precise_source_code
+
+Diagnostic (recalibrage du constat PUR-Q3) :
+Le graphe de connaissances (`active_graph.json`) est deja 100% natif (aucun noeud OCA, `res.company` ne contient que du natif, `OCA_SAMPLE_ADDONS_PATH` absent du .env).
+La vraie root cause de la citation de `tests/oca_sample/.../res_company.py` dans PUR-Q3 provient du fallback de recherche de fichier dans `read_precise_source_code` (`code_intelligence/agent/tools/introspection.py`, L248-257) :
+1. Quand un chemin nu (ex: `res_company.py`) est demande, les concaténations directes avec les corpus échouent.
+2. Le fallback exécutait `repo_root.glob(f"**/{norm}")` avec `repo_root = _ROOT = /home/user/odoo-ia-prototype`.
+3. Ce glob explorait l'arborescence du projet prototype (qui contient les fixtures de test OCA sous `tests/oca_sample/`), mais n'explorait JAMAIS `CORE_ADDONS_PATH` (`/home/user/odoo-17.0/addons`).
+4. `tests/oca_sample/.../res_company.py` était donc trouvé en premier, et le fallback plus précis sur `_GRAPH_REF` (qui connaissait les vrais fichiers natifs) n'était jamais atteint car placé après le glob.
+
+Correctif :
+1. Dans `read_precise_source_code`, scoper les recherches de secours aux vrais répertoires de corpus (`CORE_ADDONS_PATH`, `CUSTOM_ADDONS_PATH`, et `OCA_SAMPLE_ADDONS_PATH` uniquement si défini), et non à `_ROOT`.
+2. Exclure systématiquement les dossiers `tests/`, `.git/`, `.venv/` de toute découverte de code source par glob.
+3. Prioriser la résolution par `_GRAPH_REF` (qui associe directement le stem/modèle aux `filepaths` natifs indexés) avant tout glob large.

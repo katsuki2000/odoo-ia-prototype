@@ -212,7 +212,10 @@ def dispatch_inheritance(ctx: DispatchContext) -> None:
             "\n\n[DETERMINISTIC PRE-DISPATCH]\n"
             "trace_full_inheritance and list_involved_modules have already been run for the "
             "target model(s) above; model hierarchy, mixins, and declaring/extending modules "
-            "are already included in the tool observations. Do not call them again."
+            "are already included in the tool observations. Do not call them again. "
+            "If the question asks whether the declaring module extends any models outside its domain, "
+            "consult the list_involved_modules observation for that module, which lists all extended "
+            "models with role '(extends)'."
         )
 
 

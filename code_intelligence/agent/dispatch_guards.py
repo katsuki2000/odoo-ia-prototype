@@ -72,7 +72,17 @@ def _code_block_has_nearby_scoped_citation(answer: str, block_start: int, block_
 # "ligne N" mention would be far noisier than useful (pmm, section 890).
 _NUMBERED_SOURCE_LINE_PATTERN = re.compile(r"^\s*(\d+)\s*\|(.*)$", re.MULTILINE)
 _PROSE_LINE_CLAIM_PATTERN = re.compile(
-    r"`([a-zA-Z_][\w.]*)`[^`\n]{0,80}?\blignes?\s+(\d+)(?:\s*(?:[-\u2013\u2014]|\b\u00e0\b)\s*(\d+))?",
+    # Section 921 (PUR-Q3): the dash class was missing U+2011 (non-breaking
+    # hyphen) -- the LLM wrote "lignes 18\u201198" (real range 18-98) with that
+    # exact character, the class didn't match it as a range separator, so
+    # group(3) never captured and the claim silently truncated to "18-18",
+    # producing a false-positive SOURCING NON VERIFIE (real line 19 falls
+    # outside the wrongly-narrowed 18-18 window). U+2010 (hyphen) added
+    # alongside it for the same reason -- neither is exotic in LLM output,
+    # both are ordinary Unicode hyphen variants a tokenizer can emit instead
+    # of ASCII '-'.
+    r"`([a-zA-Z_][\w.]*)`[^`\n]{0,80}?\blignes?\s+(\d+)"
+    r"(?:\s*(?:[-\u2010\u2011\u2013\u2014]|\b\u00e0\b)\s*(\d+))?",
     re.IGNORECASE,
 )
 

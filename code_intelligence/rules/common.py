@@ -68,15 +68,49 @@ class QueryStatus(Enum):
 # included, exactly as section 841 already required.
 
 
+def _bold_span_word_count(text: str, delim_pos: int) -> int:
+    """Section 921 (STK-Q3/ACC-Q3, follow-up to 844): '**' at delim_pos may
+    OPEN a bold span (even number of '**' before it in text) or CLOSE one
+    (odd number before it) -- determines which, locates the matching partner
+    delimiter, and returns the word count of the content between them.
+    Distinguishes a full clause wrapped in '**...**' (844's actual case,
+    "**account.move est un nouveau modele...**", several words -- a genuine
+    clause-level boundary) from a single word inline-emphasized mid-sentence
+    ("est **d\u00e9clar\u00e9** obligatoire", one word -- 844's rule wrongly
+    treated this as a boundary too, severing the sentence at the first bold
+    word and leaving a bullet's leading fragment, e.g. "- Il **", orphaned).
+    Returns 0 (never a clause-level span) if no matching delimiter is found
+    within the text."""
+    occurrences_before = text.count("**", 0, delim_pos)
+    if occurrences_before % 2 == 0:
+        close = text.find("**", delim_pos + 2)
+        if close == -1:
+            return 0
+        content = text[delim_pos + 2:close]
+    else:
+        open_ = text.rfind("**", 0, delim_pos)
+        if open_ == -1:
+            return 0
+        content = text[open_ + 2:delim_pos]
+    return len(content.split())
+
+
+# Section 921: below this word count, a '**' pair is treated as inline
+# emphasis on a term (not a boundary) rather than a wrapped clause. 844's
+# own case ("account.move est un nouveau modele...") is well above this; the
+# 921 regressions ("d\u00e9clar\u00e9", one word) are well below it.
+_BOLD_CLAUSE_MIN_WORDS = 3
+
+
 def _real_sentence_boundary_before(text: str, pos: int) -> int:
     """Index of the start of the sentence containing text[pos], scanning
     backward. A '.' is a boundary only if followed by whitespace or end-of-
     string (never if immediately followed by an identifier character, e.g.
     the '.' inside 'sale.order'). A '\n' is always a boundary. A '**'
-    (Markdown bold delimiter) is always a boundary too (section 844) --
-    scanning backward lands on the delimiter's first '*', which is where
-    the boundary is placed (text right after the pair is kept). Falls back
-    to 0 (start of text) if no boundary is found."""
+    (Markdown bold delimiter) is a boundary only when it belongs to a
+    multi-word bold span (section 844) -- a single bold WORD embedded mid-
+    sentence is not a boundary (section 921) and scanning continues through
+    it. Falls back to 0 (start of text) if no boundary is found."""
     i = pos
     j = 0
     while i > 0:
@@ -85,7 +119,7 @@ def _real_sentence_boundary_before(text: str, pos: int) -> int:
         if ch == "\n":
             j = i + 1
             break
-        if text[i:i + 2] == "**":
+        if text[i:i + 2] == "**" and _bold_span_word_count(text, i) >= _BOLD_CLAUSE_MIN_WORDS:
             j = i + 2
             break
         if ch == ".":
@@ -104,15 +138,15 @@ def _real_sentence_boundary_after(text: str, pos: int) -> int:
     """Index one-past-the-end of the sentence containing text[pos],
     scanning forward. Same boundary rules as _real_sentence_boundary_before
     (a '.' counts only if followed by whitespace/end-of-string; a '\n'
-    always counts; a '**' Markdown bold delimiter always counts too,
-    section 844 -- excluded from the span, same as '\n'). Falls back to
-    len(text) if no boundary is found."""
+    always counts; a '**' counts only when it belongs to a multi-word bold
+    span, section 844/921 -- see _real_sentence_boundary_before). Falls
+    back to len(text) if no boundary is found."""
     i = pos
     n = len(text)
     while i < n:
         if text[i] == "\n":
             return i
-        if text[i:i + 2] == "**":
+        if text[i:i + 2] == "**" and _bold_span_word_count(text, i) >= _BOLD_CLAUSE_MIN_WORDS:
             return i
         if text[i] == ".":
             nxt = text[i + 1] if i + 1 < n else ""

@@ -183,6 +183,35 @@
     "hop_count": 5
   },
   {
+    "id": "PUR-Q3",
+    "module": "purchase",
+    "capability": "inheritance",
+    "difficulty": "medium",
+    "question": "purchase.order est-il un nouveau modele ou une extension ? Le module purchase modifie-t-il en parallele un modele natif deja existant hors de son propre domaine (achat), et comment ?",
+    "reference_answer": "purchase.order (_name='purchase.order') est un nouveau modele -- il n'herite que de mixins (portal.mixin, product.catalog.mixin, mail.thread, mail.activity.mixin), pas d'un modele metier preexistant. En parallele, ce meme module etend reellement account.move (_inherit='account.move', classe AccountMove dans account_invoice.py) en surchargeant create() et write() pour poster un message de tracabilite ('cree depuis'/'modifie depuis') des que les lignes de facture referencent une purchase.order.line -- une extension transverse comptabilite, distincte du modele purchase.order lui-meme.",
+    "verification": "models/purchase_order.py : classe PurchaseOrder (_name + _inherit mixins) vs models/account_invoice.py : classe AccountMove (_inherit='account.move'), methodes create()/write()",
+    "expected_tools": [
+      "trace_full_inheritance",
+      "list_involved_modules",
+      "analyze_method_override_chain"
+    ],
+    "tools_used": [
+      "list_involved_modules",
+      "trace_full_inheritance",
+      "read_source_code",
+      "read_source_code"
+    ],
+    "tool_coverage_ok": false,
+    "missing_tools": [
+      "analyze_method_override_chain"
+    ],
+    "verbatim": "**purchase.order** est un **nouveau modèle** déclaré par le module *purchase*.  \nDans le fichier `purchase_order.py` (voir [purchase_order.py:L18-L98](file:///home/user/odoo-17.0/addons/purchase/models/purchase_order.py#L18-L98)) on trouve :\n\n*(bloc de code omis : non retrouvé verbatim dans les observations produites pour cette question -- voir la/les citation(s) file:// à proximité pour le contenu réel.)*\n\nCette déclaration crée le modèle `purchase.order`.  \nLe même modèle est ensuite **étendu** dans le fichier `purchase.py` (voir [purchase.py:L23-L92](file:///home/user/odoo-17.0/addons/purchase/populate/purchase.py#L23-L92)), où des champs, méthodes ou contraintes supplémentaires sont ajoutés.\n\n---\n\n### Modifications de modèles natifs hors du domaine achat\n\nLe module *purchase* modifie plusieurs modèles natifs qui ne concernent pas directement l’achat.  \nD’après le Knowledge Graph Output, les modèles suivants sont **étendus** par *purchase* :\n\n- `account.move`  \n- `account.move.line`  \n- `account.tax`  \n- `product.product`  \n- `product.template`  \n- `product.supplierinfo`  \n- `res.company`  \n- `res.partner`\n\nCes extensions se font via l’attribut `_inherit` dans les fichiers correspondants du module *purchase*.  \n\nEn résumé :\n\n1. **purchase.order** est un nouveau modèle créé par *purchase*.  \n2. Le module *purchase* étend également plusieurs modèles natifs (comptabilité, produit, société, partenaire) en dehors de son propre domaine d’achat.\n\n[Source: Graphe de Connaissances Code Intelligence]",
+    "elapsed_seconds": 89.9,
+    "effective_seconds": 80.901,
+    "groq_wait_seconds": 9.0,
+    "hop_count": 3
+  },
+  {
     "id": "PUR-Q5",
     "module": "purchase",
     "capability": "constraints",
@@ -262,6 +291,35 @@
     "hop_count": 4
   },
   {
+    "id": "SAL-Q3",
+    "module": "sale",
+    "capability": "inheritance",
+    "difficulty": "medium",
+    "question": "sale.order est-il un nouveau modele ou une extension ? Quel modele natif hors du perimetre 'vente' ce module etend-il directement, et sous quel nom de classe ?",
+    "reference_answer": "sale.order (_name='sale.order') est un nouveau modele -- il n'herite que de mixins (portal.mixin, product.catalog.mixin, mail.thread, mail.activity.mixin, utm.mixin), aucun modele metier preexistant. En parallele, ce meme module etend reellement account.move (classe AccountMove, _inherit=['account.move', 'utm.mixin'] dans models/account_move.py) -- une extension transverse comptabilite comparable au constat fait sur purchase (PUR-Q3), meme modele cible (account.move), module different.",
+    "verification": "models/sale_order.py : classe SaleOrder (_name='sale.order', _inherit=[mixins]) vs models/account_move.py : classe AccountMove (_inherit=['account.move','utm.mixin'])",
+    "expected_tools": [
+      "trace_full_inheritance",
+      "list_involved_modules",
+      "analyze_method_override_chain"
+    ],
+    "tools_used": [
+      "trace_full_inheritance",
+      "read_source_code",
+      "list_involved_modules",
+      "list_involved_modules"
+    ],
+    "tool_coverage_ok": false,
+    "missing_tools": [
+      "analyze_method_override_chain"
+    ],
+    "verbatim": "### Modèle `sale.order`\n\n- **Nature** : *Nouveau modèle* déclaré dans le module **sale**.  \n  - Il n’hérite pas d’un modèle métier existant (ex. `res.partner`, `account.move`, etc.).  \n  - Il étend uniquement des *mixins* génériques.\n\n- **Mixins hérités (hors périmètre « vente ») :**  \n  | Nom du mixin | Classe correspondante |\n  |--------------|-----------------------|\n  | `portal.mixin` | `portal.mixin` |\n  | `product.catalog.mixin` | `product.catalog.mixin` |\n  | `mail.thread` | `mail.thread` |\n  | `mail.activity.mixin` | `mail.activity.mixin` |\n  | `utm.mixin` | `utm.mixin` |\n\n  Ces mixins apportent des fonctionnalités communes (par ex. suivi d’activité, gestion de la visibilité, etc.) mais ne constituent pas un modèle métier natif.\n\n- **Référence de code**  \n  - Déclaration du modèle et liste des mixins :  \n    ```\n  30 | class SaleOrder(models.Model):\n  31 |     _name = 'sale.order'\n  32 |     _inherit = ['portal.mixin', 'product.catalog.mixin', 'mail.thread', 'mail.activity.mixin', 'utm.mixin']\n  33 |     _description = \"Sales Order\"\n  34 |     _order = 'date_order desc, id desc'\n  35 |     _check_company_auto = True\n  36 | \n  37 |     _sql_constraints = [\n  38 |         ('date_order_conditional_required',\n  39 |          \"CHECK((state = 'sale' AND date_order IS NOT NULL) OR state != 'sale')\",\n  40 |          \"A confirmed sales order requires a confirmation date.\"),\n  41 |     ]\n  42 | \n  43 |     @property\n  44 |     def _rec_names_search(self):\n  45 |         if self._context.get('sale_show_partner_name'):\n  46 |             return ['name', 'partner_id.name']\n  47 |         return ['name']\n  48 | \n  49 |     #=== FIELDS ===#\n  50 | \n  51 |     name = fields.Char(\n  52 |         string=\"Order Reference\",\n  53 |         required=True, copy=False, readonly=False,\n  54 |         index='trigram',\n  55 |         default=lambda self: _('New'))\n  56 | \n  57 |     company_id = fields.Many2one(\n  58 |         comodel_name='res.company',\n  59 |         required=True, index=True,\n  60 |         default=lambda self: self.env.company)\n  61 |     partner_id = fields.Many2one(\n  62 |         comodel_name='res.partner',\n  63 |         string=\"Customer\",\n  64 |         required=True, change_default=True, index=True,\n  65 |         tracking=1,\n  66 |         check_company=True)\n  67 |     state = fields.Selection(\n  68 |         selection=SALE_ORDER_STATE,\n  69 |         string=\"Status\",\n  70 |         readonly=True, copy=False, index=True,\n  71 |         tracking=3,\n  72 |         group_expand=True,\n  73 |         default='draft')\n  74 |     locked = fields.Boolean(default=False, copy=False, help=\"Locked orders cannot be modified.\")\n  75 | \n  76 |     client_order_ref = fields.Char(string=\"Customer Reference\", copy=False)\n  77 |     create_date = fields.Datetime(  # Override of default create_date field from ORM\n  78 |         string=\"Creation Date\", index=True, readonly=True)\n  79 |     commitment_date = fields.Datetime(\n  80 |         string=\"Delivery Date\", copy=False,\n  81 |         help=\"This is the delivery date promised to the customer. \"\n  82 |              \"If set, the delivery order will be scheduled based on \"\n  83 |              \"this date rather than product lead times.\")\n  84 |     date_order = fields.Datetime(\n  85 |         string=\"Order Date\",\n  86 |         required=True, copy=False,\n  87 |         help=\"Creation date of draft/sent orders,\\nConfirmation date of confirmed orders.\",\n  88 |         default=fields.Datetime.now)\n  89 |     origin = fields.Char(\n  90 |         string=\"Source Document\",\n  91 |         help=\"Reference of the document that generated this sales order request\")\n  92 |     reference = fields.Char(\n  93 |         string=\"Payment Ref.\",\n  94 |         help=\"The payment communication of this sale order.\",\n  95 |         copy=False)\n  96 | \n  97 |     require_signature = fields.Boolean(\n  98 |         string=\"Online signature\",\n  99 |         compute='_compute_require_signature',\n 100 |         store=True, readonly=False, precompute=True,\n 101 |         help=\"Request a online signature from the customer to confirm the order.\")\n 102 |     require_payment = fields.Boolean(\n 103 |         string=\"Online payment\",\n 104 |         compute='_compute_require_payment',\n 105 |         store=True, readonly=False, precompute=True,\n 106 |         help=\"Request a online payment from the customer to confirm the order.\")\n 107 |     prepayment_percent = fields.Float(\n 108 |         string=\"Prepayment percentage\",\n 109 |         compute='_compute_prepayment_percent',\n 110 |         store=True, readonly=False, precompute=True,\n```  \n    [sale_order.py:L30-L110](file:///home/user/odoo-17.0/addons/sale/models/sale_order.py#L30-L110)\n\nEn résumé, `sale.order` est un **nouveau modèle** créé par le module `sale`, qui ne s’étend pas d’un modèle métier natif mais uniquement des mixins génériques.\n\n[Source: Graphe de Connaissances Code Intelligence]",
+    "elapsed_seconds": 17.19,
+    "effective_seconds": 17.172,
+    "groq_wait_seconds": 0.0,
+    "hop_count": 3
+  },
+  {
     "id": "SAL-Q5",
     "module": "sale",
     "capability": "constraints",
@@ -336,6 +394,32 @@
     "effective_seconds": 54.669,
     "groq_wait_seconds": 0.0,
     "hop_count": 5
+  },
+  {
+    "id": "STK-Q3",
+    "module": "stock",
+    "capability": "inheritance",
+    "difficulty": "medium",
+    "question": "stock.picking est-il un nouveau modele ou une extension ? Le module stock etend-il en parallele un modele natif hors de son propre perimetre, et avec quels champs cles ?",
+    "reference_answer": "stock.picking est un nouveau modele (_name='stock.picking'), qui n'herite que des mixins mail.thread/mail.activity.mixin. En parallele, ce meme module etend reellement product.product (_inherit='product.product', classe Product dans models/product.py) en lui ajoutant les champs calcules qty_available (quantite physiquement disponible) et virtual_available (quantite prevue/forecast), tous deux compute='_compute_quantities' et bases sur les nouveaux O2M stock_quant_ids/stock_move_ids -- ce sont des champs stock ajoutes au modele produit natif, pas au modele stock.picking.",
+    "verification": "models/stock_picking.py : classe Picking (_name + _inherit mixins) vs models/product.py : classe Product (_inherit='product.product'), champs qty_available/virtual_available",
+    "expected_tools": [
+      "trace_full_inheritance",
+      "list_involved_modules"
+    ],
+    "tools_used": [
+      "list_involved_modules",
+      "trace_full_inheritance",
+      "read_source_code",
+      "button_execution_path"
+    ],
+    "tool_coverage_ok": true,
+    "missing_tools": [],
+    "verbatim": "## Modèle : `stock.picking`\n\n- **Nature** : *déclaré* dans le module **stock**  \n  Le fichier `stock_picking.py` contient la déclaration complète du modèle :  \n\n  ```python\n  382 | class Picking(models.Model):\n  383 |     _name = \"stock.picking\"\n  384 |     _inherit = ['mail.thread', 'mail.activity.mixin']\n  385 |     _description = \"Transfer\"\n  386 |     _order = \"priority desc, scheduled_date asc, id desc\"\n  ```\n\n  Source : [stock_picking.py:L382-L386](file:///home/user/odoo-17.0/addons/stock/models/stock_picking.py#L382-L386)\n\n- **Extension** :  \n  - Le modèle hérite de `mail.thread` et `mail.activity.mixin` (mixins de messagerie).  \n  En réalité, ce module étend bien 12 modèle(s) hors de son propre périmètre : 'barcode.rule', 'ir.actions.report', 'product.category', 'product.label.layout', 'product.packaging', 'product.product', 'product.template', 'res.company', 'res.config.settings', 'res.partner', 'res.users', 'uom.uom'.\n\n- **Champs clés** (extraits de la déclaration) :  \n\n  | Champ | Description | Source |\n  |-------|-------------|--------|\n  | `name` | Référence du picking (readonly, index trigram) | [stock_picking.py:L397-L399](file:///home/user/odoo-17.0/addons/stock/models/stock_picking.py#L397-L399) |\n  | `origin` | Référence du document source | [stock_picking.py:L400-L402](file:///home/user/odoo-17.0/addons/stock/models/stock_picking.py#L400-L402) |\n  | `note` | Notes (HTML) | [stock_picking.py:L403-L404](file:///home/user/odoo-17.0/addons/stock/models/stock_picking.py#L403-L404) |\n  | `backorder_id` / `backorder_ids` | Picking de retour de back‑order | [stock_picking.py:L404-L410](file:///home/user/odoo-17.0/addons/stock/models/stock_picking.py#L404-L410) |\n  | `return_id` / `return_ids` | Picking de retour | [stock_picking.py:L410-L413](file:///home/user/odoo-17.0/addons/stock/models/stock_picking.py#L410-L413) |\n  | `return_count` | Nombre de retours (compute) | [stock_picking.py:L413-L414](file:///home/user/odoo-17.0/addons/stock/models/stock_picking.py#L413-L414) |\n  | `move_type` | Politique d’expédition (direct / one) | [stock_picking.py:L415-L418](file:///home/user/odoo-17.0/addons/stock/models/stock_picking.py#L415-L418) |\n  | `state` | État du picking (draft, waiting, confirmed, assigned, …) | [stock_picking.py:L419-L423](file:///home/user/odoo-17.0/addons/stock/models/stock_picking.py#L419-L423) |\n\n  Ces champs constituent les colonnes les plus utilisées dans les vues et les rapports liés aux transferts de stock.\n\n---\n\n### Résumé\n\n- `stock.picking` est **un nouveau modèle** déclaré dans le module `stock`.  \nEn réalité, ce module étend bien 12 modèle(s) hors de son propre périmètre : 'barcode.rule', 'ir.actions.report', 'product.category', 'product.label.layout', 'product.packaging', 'product.product', 'product.template', 'res.company', 'res.config.settings', 'res.partner', 'res.users', 'uom.uom'.  \n- Les champs clés sont ceux listés ci‑dessus, notamment `name`, `origin`, `note`, `backorder_id`, `return_id`, `move_type` et `state`.\n\n[Source: Graphe de Connaissances Code Intelligence]",
+    "elapsed_seconds": 28.31,
+    "effective_seconds": 28.309,
+    "groq_wait_seconds": 0.0,
+    "hop_count": 3
   },
   {
     "id": "STK-Q5",
@@ -415,6 +499,31 @@
     "effective_seconds": 32.133,
     "groq_wait_seconds": 0.0,
     "hop_count": 4
+  },
+  {
+    "id": "ACC-Q3",
+    "module": "account",
+    "capability": "inheritance",
+    "difficulty": "medium",
+    "question": "account.move est-il un nouveau modele ou une extension ? Le module account etend-il en parallele un modele natif hors de son propre perimetre comptable ?",
+    "reference_answer": "account.move est un nouveau modele (_name='account.move'), qui n'herite que de mixins (portal.mixin, mail.thread.main.attachment, mail.activity.mixin, sequence.mixin) -- aucune extension d'un modele metier preexistant. En parallele, ce meme module etend reellement res.partner (_inherit='res.partner', classe ResPartner dans models/partner.py), en lui ajoutant notamment le champ calcule fiscal_country_codes (base des codes pays fiscaux des societes autorisees) -- une extension comptable du modele partenaire natif, distincte du modele account.move.",
+    "verification": "models/account_move.py : classe AccountMove (_name + _inherit mixins) vs models/partner.py : classe ResPartner (_name='res.partner', _inherit='res.partner'), champ fiscal_country_codes",
+    "expected_tools": [
+      "trace_full_inheritance",
+      "list_involved_modules"
+    ],
+    "tools_used": [
+      "list_involved_modules",
+      "trace_full_inheritance",
+      "read_source_code"
+    ],
+    "tool_coverage_ok": true,
+    "missing_tools": [],
+    "verbatim": "### Modèle `account.move`\n\n- **Nature** : `account.move` est **un modèle déclaré** dans le module `account`.  \n  - Le fichier `account_move.py` contient la déclaration :  \n    ```\n  81 | class AccountMove(models.Model):\n  82 |     _name = \"account.move\"\n  83 |     _inherit = ['portal.mixin', 'mail.thread.main.attachment', 'mail.activity.mixin', 'sequence.mixin']\n  84 |     _description = \"Journal Entry\"\n  85 |     _order = 'date desc, name desc, invoice_date desc, id desc'\n  86 |     _mail_post_access = 'read'\n  87 |     _check_company_auto = True\n  88 |     _sequence_index = \"journal_id\"\n  89 |     _rec_names_search = ['name', 'partner_id.name', 'ref']\n```  \n    [account_move.py:L81-L89](file:///home/user/odoo-17.0/addons/account/models/account_move.py#L81-L89)\n\nEn réalité, ce module étend bien 25 modèle(s) hors de son propre périmètre : 'account.analytic.account', 'account.analytic.applicability', 'account.analytic.distribution.model', 'account.analytic.line', 'base.document.layout', 'base.partner.merge.automatic.wizard', 'decimal.precision', 'digest.digest', 'ir.actions.report', 'ir.attachment', 'ir.http', 'ir.module.module', 'kpi.provider', 'onboarding.onboarding', 'onboarding.onboarding.step', 'product.category', 'product.product', 'product.template', 'res.company', 'res.config.settings', 'res.currency', 'res.groups', 'res.partner', 'res.partner.bank', 'uom.uom'.  \n  - La chaîne d’héritage complète est listée dans l’observation `trace_full_inheritance` :  \n    ```\n    Extensions (_inherit): [account.move, mail.activity.mixin, mail.thread.main.attachment, portal.mixin, sequence.mixin, utm.mixin]\n    Delegations (_inherits): [None]\n    ```\n    (voir l’observation précédente)\n\n- **Conclusion** :  \n  - `account.move` n’est **pas une extension** d’un modèle natif déjà présent dans Odoo.  \n  En réalité, ce module étend bien 25 modèle(s) hors de son propre périmètre : 'account.analytic.account', 'account.analytic.applicability', 'account.analytic.distribution.model', 'account.analytic.line', 'base.document.layout', 'base.partner.merge.automatic.wizard', 'decimal.precision', 'digest.digest', 'ir.actions.report', 'ir.attachment', 'ir.http', 'ir.module.module', 'kpi.provider', 'onboarding.onboarding', 'onboarding.onboarding.step', 'product.category', 'product.product', 'product.template', 'res.company', 'res.config.settings', 'res.currency', 'res.groups', 'res.partner', 'res.partner.bank', 'uom.uom'.\n\n[Source: Graphe de Connaissances Code Intelligence]",
+    "elapsed_seconds": 14.91,
+    "effective_seconds": 14.911,
+    "groq_wait_seconds": 0.0,
+    "hop_count": 2
   },
   {
     "id": "ACC-Q5",

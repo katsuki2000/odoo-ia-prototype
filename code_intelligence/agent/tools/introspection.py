@@ -52,18 +52,6 @@ def resolve_technical_name_to_role(technical_name: str) -> str:
 
 def list_involved_modules_flat(G: nx.DiGraph, model_name: str) -> List[str]:
     """Lists all modules that define or extend a given model.
-
-    Renamed from `list_involved_modules` (Section 733): the Option C merge of
-    introspection_impl.py into introspection.py collapsed two distinct
-    symbols (this raw flat-list function, and the @tool-decorated wrapper
-    below, ex-separate modules) onto the same name -- the later definition
-    silently shadowed this one at module level, so
-    `tools.introspection.list_involved_modules` always resolved to the
-    StructuredTool, breaking every direct caller of the flat function
-    (TypeError: 'StructuredTool' object is not callable). The @tool wrapper
-    keeps the `list_involved_modules` name since it is looked up by that
-    exact string in ctx.tool_map (predispatch_structure.py) and registered
-    in ALL_CI_TOOLS.
     """
     model_node = f"model:{model_name}"
     if model_node not in G:
@@ -230,54 +218,77 @@ def read_precise_source_code(
     path = Path(filepath_str)
     target_model_resolved = None
 
+    if not path.exists() and Path("/" + filepath_str).exists():
+        path = Path("/" + filepath_str)
+
     if not path.exists():
         import re
         from config.settings import (
             _ROOT, CORE_ADDONS_PATH, CUSTOM_ADDONS_PATH, OCA_SAMPLE_ADDONS_PATH,
         )
-        repo_root = _ROOT
         candidates = [
-            repo_root / filepath_str,
-            Path(OCA_SAMPLE_ADDONS_PATH) / filepath_str if OCA_SAMPLE_ADDONS_PATH else None,
             Path(CUSTOM_ADDONS_PATH) / filepath_str if CUSTOM_ADDONS_PATH else None,
             Path(CORE_ADDONS_PATH) / filepath_str if CORE_ADDONS_PATH else None,
+            Path(OCA_SAMPLE_ADDONS_PATH) / filepath_str if OCA_SAMPLE_ADDONS_PATH else None,
+            _ROOT / filepath_str,
         ]
         matched = next((c for c in candidates if c and c.exists()), None)
         if matched:
             path = matched
         else:
-            norm = filepath_str.lstrip("/").replace("\\", "/")
-            found = list(repo_root.glob(f"**/{norm}"))
-            if not found:
-                parts = norm.split("/")
-                if len(parts) >= 2:
-                    found = list(repo_root.glob(f"**/{'/'.join(parts[-2:])}"))
-            if found:
-                path = found[0]
-            else:
-                from code_intelligence.agent.tool_helpers import _GRAPH_REF
-                if _GRAPH_REF is not None:
-                    if _GRAPH_REF.has_node(f"model:{filepath_str}"):
-                        target_model_resolved = filepath_str
+            import code_intelligence.agent.tool_helpers as th
+            if th._GRAPH_REF is not None:
+                if th._GRAPH_REF.has_node(f"model:{filepath_str}"):
+                    target_model_resolved = filepath_str
+                else:
+                    stem = Path(filepath_str).stem.replace("_", ".")
+                    if th._GRAPH_REF.has_node(f"model:{stem}"):
+                        target_model_resolved = stem
                     else:
-                        stem = Path(filepath_str).stem.replace("_", ".")
-                        if _GRAPH_REF.has_node(f"model:{stem}"):
-                            target_model_resolved = stem
-                        else:
-                            for _, d in _GRAPH_REF.nodes(data=True):
-                                if d.get("node_type") == "Model":
-                                    m_name = d.get("name", "")
-                                    if m_name and m_name.replace(".", "_") == Path(filepath_str).stem:
-                                        target_model_resolved = m_name
-                                        break
-                    if target_model_resolved:
-                        m_fps = _GRAPH_REF.nodes[f"model:{target_model_resolved}"].get("filepaths", [])
-                        for fp in m_fps:
-                            if Path(fp).exists():
-                                path = Path(fp)
-                                break
-                if not path.exists():
-                    return f"Error: File '{filepath_str}' does not exist."
+                        for _, d in th._GRAPH_REF.nodes(data=True):
+                            if d.get("node_type") == "Model":
+                                m_name = d.get("name", "")
+                                if m_name and m_name.replace(".", "_") == Path(filepath_str).stem:
+                                    target_model_resolved = m_name
+                                    break
+                if target_model_resolved:
+                    m_fps = th._GRAPH_REF.nodes[f"model:{target_model_resolved}"].get("filepaths", [])
+                    for fp in m_fps:
+                        p_candidate = Path(fp)
+                        if p_candidate.exists() and not any(part in ("tests", "test", ".git", ".venv") for part in p_candidate.parts):
+                            path = p_candidate
+                            break
+
+            if not path.exists():
+                corpus_roots = [
+                    p for p in [
+                        Path(CORE_ADDONS_PATH) if CORE_ADDONS_PATH else None,
+                        Path(CUSTOM_ADDONS_PATH) if CUSTOM_ADDONS_PATH else None,
+                        Path(OCA_SAMPLE_ADDONS_PATH) if OCA_SAMPLE_ADDONS_PATH else None,
+                    ]
+                    if p and p.exists()
+                ]
+                norm = filepath_str.lstrip("/").replace("\\", "/")
+                parts = norm.split("/")
+                tail_pattern = f"**/{norm}"
+                short_pattern = f"**/{'/'.join(parts[-2:])}" if len(parts) >= 2 else None
+
+                for root in corpus_roots:
+                    matches = [
+                        f for f in root.glob(tail_pattern)
+                        if not any(part in ("tests", "test", ".git", ".venv", "__pycache__") for part in f.parts)
+                    ]
+                    if not matches and short_pattern:
+                        matches = [
+                            f for f in root.glob(short_pattern)
+                            if not any(part in ("tests", "test", ".git", ".venv", "__pycache__") for part in f.parts)
+                        ]
+                    if matches:
+                        path = matches[0]
+                        break
+
+            if not path.exists():
+                return f"Error: File '{filepath_str}' does not exist."
 
     if target_model_resolved and path.exists() and line_start <= 1:
         try:
@@ -321,23 +332,6 @@ def read_precise_source_code(
 
         body = "\n".join(snippet)
         if include_citation:
-            # Section 916/917 (todo/contexte.txt): read_precise_source_code
-            # never produced its own file:// citation, so verify_citations()
-            # (dispatch_guards.py) could never confirm a citation whose SOLE
-            # source is a raw read_source_code call -- structurally, even
-            # when the citation was perfectly exact (911/914/915). A
-            # keyword flag rather than always-on: substitute_or_strip_code_blocks
-            # (870/872/873) reuses this same function internally to rebuild a
-            # code fence's CONTENT from a citation already given elsewhere --
-            # prepending a citation line there would corrupt that fence's
-            # content, so that internal caller keeps the default (False) and
-            # is unaffected. Only the LLM-facing read_source_code tool
-            # (introspection.py, below) sets this True. Uses the RESOLVED
-            # `path` (absolute, after the resolution chain above) and the
-            # ACTUAL displayed range (start_idx+1..end_idx, post-clipping/
-            # post-adjustment), never the raw caller-supplied filepath_str/
-            # line_start/line_end, so the citation always matches exactly
-            # what is shown.
             from code_intelligence.utils import format_file_link
             shown_start, shown_end = start_idx + 1, end_idx
             citation = format_file_link(str(path), shown_start, shown_end)
@@ -351,13 +345,10 @@ def read_precise_source_code(
 # ── Introspection Tools ─────────────────────────────────────────────────
 
 """
-code_intelligence/ci_agent_node/tools/introspection.py
-
 LangChain @tool wrappers for module/graph introspection and raw source
 reading (role resolution, involved modules, decision-path explanation,
 precise source slices).
 """
-
 
 import json
 
