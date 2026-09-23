@@ -215,7 +215,10 @@ def _explain_decision_path_impl(G: nx.DiGraph, path_nodes: List[str]) -> str:
     return "\n".join(steps)
 
 
-def read_precise_source_code(filepath_str: str, line_start: int, line_end: int, max_lines: int = 200) -> str:
+def read_precise_source_code(
+    filepath_str: str, line_start: int, line_end: int, max_lines: int = 200,
+    include_citation: bool = False,
+) -> str:
     """Targeted source code reader with max line limit safeguard and sensitive pattern flagging."""
     from code_intelligence.utils import SENSITIVE_BYPASS_MARKER
     from code_intelligence.rules.server_actions import (
@@ -316,7 +319,30 @@ def read_precise_source_code(filepath_str: str, line_start: int, line_end: int, 
                 tag = f"  {SENSITIVE_BYPASS_MARKER} Contenu source sensible detecte sur cette ligne (lecture brute)"
             snippet.append(f"{i:4d} | {line}{tag}")
 
-        return "\n".join(snippet)
+        body = "\n".join(snippet)
+        if include_citation:
+            # Section 916/917 (todo/contexte.txt): read_precise_source_code
+            # never produced its own file:// citation, so verify_citations()
+            # (dispatch_guards.py) could never confirm a citation whose SOLE
+            # source is a raw read_source_code call -- structurally, even
+            # when the citation was perfectly exact (911/914/915). A
+            # keyword flag rather than always-on: substitute_or_strip_code_blocks
+            # (870/872/873) reuses this same function internally to rebuild a
+            # code fence's CONTENT from a citation already given elsewhere --
+            # prepending a citation line there would corrupt that fence's
+            # content, so that internal caller keeps the default (False) and
+            # is unaffected. Only the LLM-facing read_source_code tool
+            # (introspection.py, below) sets this True. Uses the RESOLVED
+            # `path` (absolute, after the resolution chain above) and the
+            # ACTUAL displayed range (start_idx+1..end_idx, post-clipping/
+            # post-adjustment), never the raw caller-supplied filepath_str/
+            # line_start/line_end, so the citation always matches exactly
+            # what is shown.
+            from code_intelligence.utils import format_file_link
+            shown_start, shown_end = start_idx + 1, end_idx
+            citation = format_file_link(str(path), shown_start, shown_end)
+            body = f"Source: {citation}\n{body}"
+        return body
 
     except Exception as e:
         _logger.error("Error reading file %s: %s", filepath_str, e)
@@ -400,7 +426,7 @@ def explain_decision_path(path_nodes_json: str) -> str:
 @tool
 def read_source_code(filepath: str, line_start: int, line_end: int) -> str:
     """Read precise slice of source code lines (max 200 lines)."""
-    return read_precise_source_code(filepath, line_start, line_end)
+    return read_precise_source_code(filepath, line_start, line_end, include_citation=True)
 
 
 __all__ = [

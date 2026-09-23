@@ -2383,3 +2383,34 @@ Contexte : pmm demande de rejouer PUR-Q1 avec trace pour elucider l'anomalie de 
 **Prochaine etape** : arbitrage pmm --
   (D bis) toujours en attente (915) : ecrire la citation dans `read_precise_source_code()` + tests avant code, apres audit des consommateurs en aval de `raw_tool_output` ;
   (E bis) nouveau, cette section : decider si un garde de backfill `implied_ids` (meme famille que 838) merite d'etre ecrit, ou si la variance de verbalisation est acceptee comme le residu normal du point 4 tant que le verdict reste correct.
+
+## Section 917 : Mandat "1" (D bis, correctif de 915) implemente -- `read_precise_source_code()` gagne un flag `include_citation` (defaut False, comportement interne inchange) ; le tool LLM `read_source_code` l'active desormais, produisant une citation `file://` auto-porteuse en tete de chaque observation -- `verify_citations()` peut enfin confirmer une citation dont la SEULE source est un `read_source_code` brut, structurellement impossible avant
+
+Date : 23/09/2026
+Contexte : pmm tranche "1" (D bis) pour le correctif propose en 915 : ecrire la citation dans `read_precise_source_code()`, apres audit des consommateurs en aval du `raw_tool_output`/`final_answer` scannant du `file://` par regex, comme demande explicitement en 915.
+
+**Audit prealable (avant tout code, demande explicite)** :
+  - `verify_citations()` (`dispatch_guards.py`) construit `ground_truth_scoped` en scannant `raw_tool_output` via `_SCOPED_FILE_LINK_PATTERN` -- ajouter une citation `file://` dans l'observation de `read_source_code` alimente simplement cet ensemble de verites terrain avec une entree de plus, valide par construction (chemin RESOLU, plage REELLEMENT affichee) -- aucun risque, comportement strictement additif.
+  - `_scoped_covered()` (sous-ensemble, pas egalite exacte de plage) : inchange, continue de fonctionner normalement avec la nouvelle entree.
+  - **Vrai conflit trouve** : `substitute_or_strip_code_blocks()` (870/872/873, meme fichier `dispatch_guards.py`) reutilise `read_precise_source_code()` EN INTERNE pour reconstruire le CONTENU d'un bloc de code fabrique a partir d'une citation deja donnee ailleurs dans la reponse, puis enveloppe le retour brut dans un fence : `f"\`\`\`\n{real_snippet}\n\`\`\`"`. Prefixer une citation directement dans la fonction de base aurait injecte cette ligne "Source: ..." A L'INTERIEUR du bloc de code reconstruit -- corrompant le mecanisme 870/872/873.
+
+**Correctif** : ajout d'un parametre `include_citation: bool = False` a `read_precise_source_code()` (`code_intelligence/agent/tools/introspection.py`) -- par defaut, comportement strictement identique a avant (l'appel interne de `substitute_or_strip_code_blocks` ne passe pas le flag, reste donc inchange, zero risque de regression sur 870/872/873). Quand `include_citation=True`, une ligne `Source: {format_file_link(str(path), shown_start, shown_end)}\n` est prefixee au snippet, en utilisant :
+  - le `path` RESOLU (absolu, apres toute la chaine de resolution deja existante -- glob, corpus, fallback modele), jamais le `filepath_str` brut passe par l'appelant (elimine au passage l'hypothese de mismatch de format de chemin relatif/absolu notee en 915) ;
+  - la plage REELLEMENT affichee (`start_idx+1`/`end_idx`, apres clipping aux bornes du fichier ET apres l'ajustement eventuel de plage vers la declaration de classe quand `target_model_resolved` est actif) -- jamais la plage brute demandee par l'appelant, pour que la citation corresponde toujours exactement a ce qui est montre.
+  Le tool LangChain `read_source_code` (meme fichier, wrapper `@tool`) est le SEUL appelant a activer le flag : `read_precise_source_code(filepath, line_start, line_end, include_citation=True)`.
+
+**Verification** :
+  - Reproduction directe : `read_precise_source_code(fp, 960, 968)` (sans flag) produit exactement le meme snippet brut qu'avant (pas de ligne "Source:") ; `read_source_code.invoke(...)` (le vrai tool LLM) produit desormais `"Source: [purchase_order.py:L960-L968](file:///.../purchase_order.py#L960-L968)\n 960 | ..."`.
+  - **Le point precis de 915 confirme resolu** : `verify_citations(final_answer, raw_tool_output)` avec `raw_tool_output` = observation reelle de `read_source_code` seule (aucun autre outil) et `final_answer` citant cette meme plage -- `is_fully_verified=True`, `unverified_scoped_citations=[]` -- **structurellement impossible avant ce correctif**, confirme par execution directe (pas suppose).
+  - Citation plus etroite que la plage lue : toujours verifiee (sous-ensemble, `_scoped_covered` inchange).
+  - Citation non liee a une plage reellement lue : toujours flaguee (le correctif n'a pas rendu la verification vide de sens).
+  - `substitute_or_strip_code_blocks` : verifie explicitement qu'aucune ligne "Source:" ne s'infiltre dans un bloc de code reconstruit -- confirme absente.
+  - Nouveau `code_intelligence/tests/test_section917_read_source_code_citation.py` (7 cas, tous les points ci-dessus) : **7/7 verts**.
+  - Suite ciblee (`citation or source_code or introspection or dispatch_guards or section917 or section870 or postprocess`) : **44 passed, 0 echec.**
+  - **Suite complete** (`tests/ + code_intelligence/tests/`) : **1446 passed, 18 skipped, 0 echec** (105.72s) -- 0 regression (+59 vs 889, coherent avec le travail cumule 890-917).
+
+**Ce qui N'A PAS ete fait** : aucun rejeu LLM reel execute pour confirmer que ce correctif elimine effectivement le pattern "SOURCING NON VÉRIFIÉ" observe sur PUR-Q1 en conditions reelles (la root cause structurelle est deja prouvee par lecture de code + reproduction directe, mais un rejeu reel confirmerait l'effet bout-en-bout). Le point (E bis) (garde de backfill `implied_ids` pour ACC-Q1, propose en 916, arbitrage toujours en attente) reste hors-scope de cette section.
+
+**Fichiers modifies** : `code_intelligence/agent/tools/introspection.py` (`read_precise_source_code` + `read_source_code`), `code_intelligence/tests/test_section917_read_source_code_citation.py` (nouveau), `todo/contexte.txt` (cette section).
+
+**Prochaine etape** : pmm rejoue PUR-Q1 (et idealement ACC-Q1, SAL-Q1 -- toutes deux touchees par le bug de citation "fantome" note en 914 point 2, distinct mais adjacent) pour confirmer en conditions reelles que les citations basees sur `read_source_code` sont desormais correctement verifiees. Arbitrer separement (E bis) : garde de backfill `implied_ids` pour ACC-Q1.
