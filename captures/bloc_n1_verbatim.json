@@ -117,16 +117,15 @@
       "describe_workflow",
       "button_execution_path",
       "read_source_code",
-      "read_source_code",
       "read_source_code"
     ],
     "tool_coverage_ok": true,
     "missing_tools": [],
-    "verbatim": "Les deux groupes disposent des mêmes droits d’accès (lecture, écriture, création et suppression) sur le modèle **purchase.order** :  \n\n- ACL :  \n  - `READ` : `group_purchase_user`, `group_purchase_manager`  \n  - `WRITE` : `group_purchase_user`, `group_purchase_manager`  \n  - `CREATE` : `group_purchase_user`, `group_purchase_manager`  \n  - `UNLINK` : `group_purchase_user`, `group_purchase_manager`  \n\nCes droits sont donc identiques.  \nLa différence entre un acheteur (« simple ») et un manager se trouve dans la logique métier, pas dans l’ACL.\n\n---\n\n### 1. Processus de confirmation d’une commande\n\nLe bouton **Confirm Order** (`button_confirm`) est disponible pour tous les utilisateurs (aucune restriction de groupe indiquée dans le workflow).  \nCependant, la méthode `button_confirm()` appelle `_approval_allowed()` pour décider si la commande passe directement à l’état **approved** ou reste en **to approve** :\n\n```\n960 |     def _approval_allowed(self):\n961 |         \"\"\"Returns whether the order qualifies to be approved by the current user\"\"\"\n962 |         self.ensure_one()\n963 |         return (\n964 |             self.company_id.po_double_validation == 'one_step'\n965 |             or (self.company_id.po_double_validation == 'two_step'\n966 |                 and self.amount_total < self.env.company.currency_id._convert(\n967 |                     self.company_id.po_double_validation_amount, self.currency_id, self.company_id,\n968 |                     self.date_order or fields.Date.today()))\n969 |             or self.user_has_groups('purchase.group_purchase_manager'))\n```\n\n- Si l’utilisateur appartient à **group_purchase_manager**, la condition `self.user_has_groups('purchase.group_purchase_manager')` est vraie et la commande est approuvée immédiatement.  \n- Un acheteur (non‑manager) ne satisfait pas cette condition ; il doit alors passer par le processus d’approbation (état **to approve**) ou être soumis aux règles de double validation définies par l’entreprise.\n\n---\n\n### 2. Déblocage d’une commande\n\nDans le workflow, l’état **done** peut être reconverti en **sale** via le bouton **Unlock** :\n\n```\nStep 7: [done] -> [sale] via Button 'Unlock' (Method: button_unlock) (Role: [purchase.group_purchase_manager]) (xml_id: purchase.group_purchase_manager)\n```\n\nSeuls les membres de **group_purchase_manager** peuvent donc débloquer une commande déjà validée.\n\n---\n\n### Résumé\n\n- **Acheteur (group_purchase_user)** :  \n  - Peut créer, lire, écrire et supprimer des commandes.  \n  - Lors de la confirmation, la commande passe en état **to approve** (ou est soumise aux règles de double validation).  \n  - Ne peut pas débloquer une commande déjà validée.\n\n- **Manager (group_purchase_manager)** :  \n  - Dispose des mêmes droits d’accès que l’acheteur.  \n  - Peut confirmer directement une commande (bypass du processus d’approbation).  \n  - Peut débloquer une commande déjà validée.\n\nAinsi, la distinction entre un simple acheteur et un manager se fait au niveau de la logique métier (validation et déblocage), et non au niveau des droits d’accès définis par l’ACL.\n\n[Source: Graphe de Connaissances Code Intelligence]",
-    "elapsed_seconds": 46.02,
-    "effective_seconds": 46.02,
+    "verbatim": "## Différences concrètes entre **group_purchase_user** et **group_purchase_manager** sur un `purchase.order`\n\n| Fonctionnalité | **group_purchase_user** (acheteur) | **group_purchase_manager** (manager) |\n|----------------|------------------------------------|--------------------------------------|\n| **Créer / modifier / supprimer** | Autorisé (ACL) | Autorisé (ACL) |\n| **Valider une commande** |  <ul><li>Appuie sur **« Confirm Order »** → `button_confirm()`</li><li>Si la commande n’est pas en double validation, elle passe directement à l’état *to approve*.</li><li>Si la commande est en double validation, l’utilisateur doit attendre l’approbation d’un manager.</li></ul> |  <ul><li>Appuie sur **« Confirm Order »** → `button_confirm()`</li><li>La méthode `_approval_allowed()` renvoie **True** dès que l’utilisateur appartient à `purchase.group_purchase_manager` (voir code ci‑dessous).</li><li>La commande passe immédiatement à l’état *approved* (ou *sale* selon la configuration).</li></ul> |\n| **Approbation** |  <ul><li>Peut appeler **« Approve »** uniquement si la commande est déjà en état *to approve* et que la règle de double validation le permet.</li></ul> |  <ul><li>Peut appeler **« Approve »** directement depuis l’état *draft* ou *sent* grâce à `_approval_allowed()`.</li></ul> |\n| **Déverrouiller une commande** |  Non disponible (bouton **« Unlock »** nécessite `purchase.group_purchase_manager`). |  Disponible (bouton **« Unlock »** → `button_unlock()`). |\n| **Autres actions** |  Toutes les actions disponibles à tous les utilisateurs (définir à brouillon, annuler, créer facture, etc.). |  Même ensemble d’actions, plus celles mentionnées ci‑dessus. |\n\n### Points clés du code\n\n- **`button_confirm()`** (défini dans `purchase_order.py` lignes 501‑514) :  \n  ```python\n  if order._approval_allowed():\n      order.button_approve()\n  else:\n      order.write({'state': 'to approve'})\n  ```\n  *Citation :* [purchase_order.py:L501-L514](file:///home/user/odoo-17.0/addons/purchase/models/purchase_order.py#L501-L514)\n\n- **`_approval_allowed()`** (défini lignes 960‑969) :  \n  ```python\n  return (\n      self.company_id.po_double_validation == 'one_step'\n      or (self.company_id.po_double_validation == 'two_step'\n          and self.amount_total < self.env.company.currency_id._convert(\n              self.company_id.po_double_validation_amount, self.currency_id, self.company_id,\n              self.date_order or fields.Date.today()))\n      or self.user_has_groups('purchase.group_purchase_manager'))\n  ```\n  *Citation :* [purchase_order.py:L960-L969](file:///home/user/odoo-17.0/addons/purchase/models/purchase_order.py#L960-L969)\n\n  Cette fonction permet aux managers de contourner la double validation (qu’elle soit à un ou deux niveaux) grâce à la présence du groupe `purchase.group_purchase_manager`.\n\n- **`button_unlock()`** (défini dans `purchase_order.py` lignes 1070‑1075) :  \n  *(bloc de code omis : la plage citée (L960-L969, L1070-L1075) n'a pas pu être rattachée à la définition de `button_unlock` -- citation à ne pas considérer comme confirmée.)*\n  *Citation :* [purchase_order.py:L1070-L1075](file:///home/user/odoo-17.0/addons/purchase/models/purchase_order.py#L1070-L1075)\n\n  Ce bouton est protégé par `purchase.group_purchase_manager` (voir le workflow).\n\n### Résumé\n\n- **Acheteur (`group_purchase_user`)** :  \n  - Peut créer, modifier, supprimer des commandes.  \n  - Peut confirmer une commande, mais si la double validation est activée, la commande passe en état *to approve* et attend l’approbation d’un manager.  \n  - Ne peut pas déverrouiller une commande verrouillée.\n\n- **Manager (`group_purchase_manager`)** :  \n  - Toutes les permissions de l’acheteur.  \n  - Peut **bypass** la double validation et approuver directement les commandes.  \n  - Peut **déverrouiller** les commandes verrouillées.  \n  - Dispose de toutes les actions supplémentaires liées à la gestion des commandes (ex. approbation, déverrouillage).\n\nEn pratique, la différence se situe donc dans la capacité du manager à **valider et déverrouiller** les commandes sans passer par le processus de double validation, ce qui n’est pas possible pour un simple acheteur.\n\n SOURCING NON VÉRIFIÉ : citation(s) fichier non retrouvée(s) dans les données produites: home/user/odoo-17.0/addons/purchase/models/purchase_order.py#L1070-L1075. Ne pas considérer ces éléments comme confirmés pour cette question.\n\n[Source: Graphe de Connaissances Code Intelligence]",
+    "elapsed_seconds": 35.7,
+    "effective_seconds": 35.701,
     "groq_wait_seconds": 0.0,
-    "hop_count": 7
+    "hop_count": 6
   },
   {
     "id": "PUR-Q2",
@@ -156,6 +155,29 @@
     "hop_count": 5
   },
   {
+    "id": "PUR-Q5",
+    "module": "purchase",
+    "capability": "constraints",
+    "difficulty": "medium",
+    "question": "Quelles regles empechent de supprimer une commande d'achat ou une de ses lignes selon leur etat, et quelle contrainte SQL distincte s'applique sur les lignes elles-memes ?",
+    "reference_answer": "Deux gardes @api.ondelete(at_uninstall=False) distincts : _unlink_if_cancelled sur purchase.order leve UserError si l'etat n'est pas 'cancel' (impossible de supprimer une commande active, il faut d'abord l'annuler) ; _unlink_except_purchase_or_done sur purchase.order.line leve UserError si la commande parente est en etat 'purchase' ou 'done'. Independamment, _sql_constraints sur purchase.order.line impose par CHECK SQL que les champs comptables (product_id/product_uom/date_planned) soient tous renseignes pour une ligne 'accountable' (display_type NULL) et tous vides pour une ligne section/note (display_type non NULL) -- integrite structurelle, pas une regle de suppression.",
+    "verification": "models/purchase_order.py : _unlink_if_cancelled (@api.ondelete) ; models/purchase_order_line.py : _unlink_except_purchase_or_done (@api.ondelete) + _sql_constraints (accountable_required_fields, non_accountable_null_fields)",
+    "expected_tools": [
+      "analyze_data_constraints"
+    ],
+    "tools_used": [
+      "analyze_data_constraints",
+      "analyze_method_override_chain"
+    ],
+    "tool_coverage_ok": true,
+    "missing_tools": [],
+    "verbatim": "**Règles empêchant la suppression d’une commande d’achat ou d’une de ses lignes**\n\n| Objet | Condition / message | Source |\n|-------|---------------------|--------|\n| **Commande d’achat (`purchase.order`)** | La suppression (`unlink`) est bloquée tant que la commande n’est pas annulée. Le code lève une `UserError` : *« In order to delete a purchase order, you must cancel it first. »* | `purchase_order.py:L267-L267` |\n| **Lignes de commande (`purchase.order.line`)** | Aucun verrou SQL n’est déclaré dans les observations fournies. La seule contrainte liée aux lignes est une contrainte Python qui vérifie que les produits appartiennent à la même société que la commande (voir `@api.constrains('company_id', 'order_line')` dans `purchase_order.py:L153-L168`). | `purchase_order.py:L153-L168` |\n\n**Conclusion**\n\n- La suppression d’une commande d’achat est interdite tant qu’elle n’est pas dans l’état « annulée » ; le mécanisme est un contrôle Python levé à l’appel de `unlink()` (ligne 267).  \n- Pour les lignes de commande, aucune contrainte SQL distincte n’apparaît dans les observations. Seule une contrainte Python vérifie la cohérence des sociétés entre la commande et ses lignes (ligne 153‑168).  \n\nAinsi, la règle de suppression est entièrement gérée par le code Python, et aucune contrainte SQL supplémentaire n’est appliquée aux lignes elles‑mêmes selon les données disponibles.\n\n[Source: Graphe de Connaissances Code Intelligence]",
+    "elapsed_seconds": 41.98,
+    "effective_seconds": 41.985,
+    "groq_wait_seconds": 0.0,
+    "hop_count": 2
+  },
+  {
     "id": "SAL-Q1",
     "module": "sale",
     "capability": "security",
@@ -180,9 +202,9 @@
     ],
     "tool_coverage_ok": true,
     "missing_tools": [],
-    "verbatim": "### Accès aux commandes de vente\n\n| Persona | Accès aux commandes de vente (lecture) | Détails |\n|---------|----------------------------------------|---------|\n| **Vendeur (sales_team.group_sale_salesman)** | **Seulement certaines** | La règle `sale.sale_order_personal_rule` limite la visibilité aux commandes où `user_id` est le vendeur actuel **ou** où `user_id` est vide. En pratique, le vendeur ne voit que ses propres commandes et celles sans vendeur assigné. |\n| **Utilisateur du portail (base.group_portal)** | **Seulement certaines** | La règle `sale.sale_order_rule_portal` autorise la lecture uniquement des commandes dont le champ `message_partner_ids` contient le partenaire commercial de l’utilisateur portail. Cela correspond aux devis/commandes personnelles du client. |\n\n#### Références\n\n- **Vendeur**  \n  - Règle globale : `sale.sale_order_comp_rule` (multi‑entreprise).  \n  - Règle de groupe : `sale.sale_order_personal_rule` → `[['|',('user_id','=',user.id),('user_id','=',False)]]`.  \n  - Conclusion : *Au moins une règle de groupe applicable restreint potentiellement l’accès* – le vendeur ne peut pas voir toutes les commandes de son entreprise.  \n  - Source : [Évaluation ir.rule pour la persona 'salesperson' (sales_team.group_sale_salesman), permission='read'](file:///path#L1-L10)\n\n- **Utilisateur du portail**  \n  - Règle globale : `sale.sale_order_comp_rule`.  \n  - Règle de groupe : `sale.sale_order_rule_portal` → `[['message_partner_ids','child_of',[user.commercial_partner_id.id]]]`.  \n  - Conclusion : *Au moins une règle de groupe applicable restreint potentiellement l’accès* – l’utilisateur portail ne voit que ses propres commandes.  \n  - Source : [Évaluation ir.rule pour la persona 'portal_user' (base.group_portal), permission='read'](file:///path#L1-L10)\n\n---\n\n**En résumé :**  \n- Un vendeur ne peut pas voir toutes les commandes de son entreprise ; il ne voit que ses propres commandes (et celles sans vendeur).  \n- Un utilisateur du portail ne voit que ses propres commandes (ou celles liées à son partenaire commercial).\n\n SOURCING NON VÉRIFIÉ : citation(s) fichier non retrouvée(s) dans les données produites: path#L1-L10. Ne pas considérer ces éléments comme confirmés pour cette question.\n\n[Source: Graphe de Connaissances Code Intelligence]",
-    "elapsed_seconds": 24.73,
-    "effective_seconds": 24.725,
+    "verbatim": "### Accès aux commandes de vente\n\n| Persona | Groupe | Accès possible (lecture) | Explication |\n|---------|--------|--------------------------|-------------|\n| **Vendeur** (`sales_team.group_sale_salesman`) |  | **Seulement les commandes qu’il a créées ou sans utilisateur assigné** | La règle `sale.sale_order_personal_rule` (domain `[['|',('user_id','=',user.id),('user_id','=',False)]]`) est la seule règle de groupe applicable. Elle autorise l’affichage des commandes où `user_id` est l’utilisateur actuel ou `False`. La règle `sale.sale_order_see_all` (domain `(1, '=', 1)`) est ignorée car le vendeur n’appartient pas au groupe ciblé. <br>**Citation** : <br>• `Évaluation ir.rule pour la persona 'salesperson' (sales_team.group_sale_salesman), permission='read']` – « Règles de Groupe applicables (combinées en OU): Personal Orders [['|',('user_id','=',user.id),('user_id','=',False)]] (xml_id: sale.sale_order_personal_rule) » |\n| **Utilisateur du portail** (`base.group_portal`) |  | **Seulement les commandes auxquelles il est lié en tant que partenaire de message** | La règle `sale.sale_order_rule_portal` (domain `[['message_partner_ids','child_of',[user.commercial_partner_id.id]]]`) est la seule règle de groupe applicable. Elle autorise l’affichage des commandes où le partenaire commercial de l’utilisateur apparaît dans les partenaires de message. La règle `sale.sale_order_personal_rule` est ignorée car le portail n’appartient pas aux groupes ciblés. <br>**Citation** : <br>• `Évaluation ir.rule pour la persona 'portal_user' (base.group_portal), permission='read']` – « Règles de Groupe applicables (combinées en OU): Portal Personal Quotations/Sales Orders [[('message_partner_ids','child_of',[user.commercial_partner_id.id])]] (xml_id: sale.sale_order_rule_portal) » |\n\n### Résumé\n\n- **Vendeur** : ne voit pas toutes les commandes de son entreprise, mais uniquement celles qu’il a créées ou qui n’ont pas de `user_id` assigné.  \n- **Utilisateur du portail** : ne voit que les commandes où il apparaît comme partenaire de message (souvent les devis ou commandes qu’il a créés via le portail).  \n\nCes restrictions sont imposées par les règles `ir.rule` définies dans le module `sale`.\n\n[Source: Graphe de Connaissances Code Intelligence]",
+    "elapsed_seconds": 22.53,
+    "effective_seconds": 22.527,
     "groq_wait_seconds": 0.0,
     "hop_count": 9
   },
@@ -210,6 +232,28 @@
     "effective_seconds": 39.15,
     "groq_wait_seconds": 0.0,
     "hop_count": 4
+  },
+  {
+    "id": "SAL-Q5",
+    "module": "sale",
+    "capability": "constraints",
+    "difficulty": "medium",
+    "question": "Quelle contrainte empeche une commande confirmee de ne pas avoir de date de confirmation, et quelle contrainte distincte s'applique sur le pourcentage d'acompte demande (prepayment_percent) ?",
+    "reference_answer": "Deux mecanismes distincts : (1) sur sale.order, _sql_constraints porte date_order_conditional_required -- contrainte SQL CHECK((state = 'sale' AND date_order IS NOT NULL) OR state != 'sale'), bloquant au niveau base de donnees toute commande a l'etat 'sale' sans date_order renseignee. (2) _check_prepayment_percent (@api.constrains('prepayment_percent')) leve une ValidationError Python si require_payment est actif et que prepayment_percent n'est pas strictement compris entre 0 (exclu) et 1.0 (inclus) -- verifiee a l'ecriture ORM, pas au niveau SQL. Independamment, sale.order.line porte ses propres contraintes SQL structurelles (accountable_required_fields/non_accountable_null_fields) sur le meme modele que purchase.order.line (PUR-Q5), meme logique display_type NULL/non-NULL.",
+    "verification": "models/sale_order.py : _sql_constraints (date_order_conditional_required), _check_prepayment_percent (@api.constrains) ; models/sale_order_line.py : _sql_constraints (accountable_required_fields, non_accountable_null_fields)",
+    "expected_tools": [
+      "analyze_data_constraints"
+    ],
+    "tools_used": [
+      "analyze_data_constraints"
+    ],
+    "tool_coverage_ok": true,
+    "missing_tools": [],
+    "verbatim": "### Contrainte sur la date de confirmation\n\n- **Contrainte** : `date_order_conditional_required`  \n- **Description** : La commande ne peut être confirmée (`state = 'sale'`) sans que le champ `date_order` soit renseigné.  \n- **Source** : [sale_order.py:L37-L41](file:///home/user/odoo-17.0/addons/sale/models/sale_order.py#L37-L41)\n\n### Contrainte sur le pourcentage d’acompte demandé\n\n- **Contrainte** : `_check_prepayment_percent` (définie par `@api.constrains('prepayment_percent')`)  \n- **Description** : Si la commande requiert un paiement (`require_payment` est vrai), le pourcentage d’acompte (`prepayment_percent`) doit être strictement positif et inférieur ou égal à 1.0 (c’est‑à‑dire 100 %).  \n- **Source** : [sale_order.py:L722-L726](file:///home/user/odoo-17.0/addons/sale/models/sale_order.py#L722-L726)\n\n[Source: Graphe de Connaissances Code Intelligence]",
+    "elapsed_seconds": 17.68,
+    "effective_seconds": 17.676,
+    "groq_wait_seconds": 0.0,
+    "hop_count": 1
   },
   {
     "id": "STK-Q1",
@@ -287,9 +331,9 @@
     "missing_tools": [
       "read_source_code"
     ],
-    "verbatim": "### Réponse\n\nOui.  \nLe groupe **`account.group_account_manager`** possède bien les droits **WRITE**, **CREATE** et **UNLINK** sur le modèle `account.move`.  \nL’ACL directe ne limite donc pas la création ou la modification des factures pour un utilisateur appartenant à ce groupe.\n\n> **Source** :  \n> - Access Matrix for `account.move` – WRITE, CREATE, UNLINK : `account.group_account_manager`  \n>   ([Access Matrix for 'account.move': WRITE](file:///path#L1-L10))\n\n> - Access Matrix for `account.move` – CREATE, UNLINK : `account.group_account_manager`  \n>   ([Access Matrix for 'account.move': CREATE](file:///path#L1-L10))\n\n> - Access Matrix for `account.move` – UNLINK : `account.group_account_manager`  \n>   ([Access Matrix for 'account.move': UNLINK](file:///path#L1-L10))\n\n---\n\n#### Remarque supplémentaire\n\nBien que l’ACL autorise ces opérations, d’autres mécanismes de sécurité (verrous Python, règles `ir.rule`, etc.) peuvent encore restreindre l’action selon des critères comme le montant de la facture ou le type de journal. Mais en ce qui concerne uniquement les droits d’accès au modèle, un **Billing Administrator** peut créer et modifier des factures.\n\n SOURCING NON VÉRIFIÉ : citation(s) fichier non retrouvée(s) dans les données produites: path#L1-L10. Ne pas considérer ces éléments comme confirmés pour cette question.\n\n[Source: Graphe de Connaissances Code Intelligence]",
-    "elapsed_seconds": 18.51,
-    "effective_seconds": 18.513,
+    "verbatim": "### Réponse\n\nOui.  \nMême si la règle ACL « directe » que vous avez vue ne donne que le droit de lecture, l’ensemble de la matrice d’accès (ACL + règles de sécurité) autorise le groupe **account.group_account_manager** à créer, modifier et supprimer des écritures :\n\n- **Access Matrix** (voir la section *WRITE*, *CREATE*, *UNLINK* pour `account.move`) indique que `account.group_account_manager` possède les permissions **WRITE**, **CREATE** et **UNLINK** :\n\n  ```\n  [WRITE]: account.group_account_manager (via implied_ids <- account.group_account_invoice)\n  [CREATE]: account.group_account_manager (via implied_ids <- account.group_account_invoice)\n  [UNLINK]: account.group_account_manager (via implied_ids <- account.group_account_invoice)\n  ```\n\n  *(source : Access Matrix for 'account.move')*\n\n- Les **règles d’enregistrement** (`ir.rule`) ne restreignent pas la création ou la modification pour ce groupe ; aucune règle de groupe n’est appliquée à `account.move` pour `account.group_account_manager`.  \n  *(source : Évaluation des règles d'enregistrement (ir.rule) pour 'account.move')*\n\n- Les **verrous Python** (`has_group`) ne bloquent pas la création/modification pour ce groupe, ils ne concernent que des contrôles de montant ou de fiscalité.  \n  *(source : Analyse des verrous Python – `account_move.py`)*\n  \nEn résumé, un utilisateur appartenant à **Billing Administrator** (`account.group_account_manager`) peut créer et modifier des factures dans Odoo, même si la règle ACL directe que vous avez consultée ne montre que le droit de lecture.\n\n[Source: Graphe de Connaissances Code Intelligence]",
+    "elapsed_seconds": 19.84,
+    "effective_seconds": 19.838,
     "groq_wait_seconds": 0.0,
     "hop_count": 3
   },
@@ -320,5 +364,31 @@
     "effective_seconds": 32.133,
     "groq_wait_seconds": 0.0,
     "hop_count": 4
+  },
+  {
+    "id": "ACC-Q5",
+    "module": "account",
+    "capability": "constraints",
+    "difficulty": "hard",
+    "question": "account.move declare un _sql_constraints 'unique_name' dont la definition SQL est une chaine vide -- comment l'unicite du numero de piece est-elle reellement appliquee ?",
+    "reference_answer": "Le triplet _sql_constraints=[('unique_name', '', '...')] ne cree aucune contrainte via le mecanisme standard (definition vide) ; il sert uniquement a fournir le message d'erreur associe. L'unicite reelle est creee manuellement dans _auto_init() via un index SQL partiel : CREATE UNIQUE INDEX account_move_unique_name ON account_move(name, journal_id) WHERE (state='posted' AND name != '/') -- l'unicite ne s'applique donc qu'aux ecritures postees et nommees (pas aux brouillons, qui partagent tous le placeholder '/'). Independamment, @api.constrains('journal_id','move_type') / _check_journal_move_type interdit de creer un document d'achat dans un journal dont journal_id.type != 'purchase' (et symetriquement pour la vente).",
+    "verification": "models/account_move.py : _sql_constraints (unique_name, definition vide) + _auto_init() (CREATE UNIQUE INDEX account_move_unique_name, index partiel) + _check_journal_move_type (@api.constrains)",
+    "expected_tools": [
+      "analyze_data_constraints",
+      "read_source_code"
+    ],
+    "tools_used": [
+      "analyze_security_locks",
+      "analyze_data_constraints"
+    ],
+    "tool_coverage_ok": false,
+    "missing_tools": [
+      "read_source_code"
+    ],
+    "verbatim": "### Comment l’unicité du numéro de pièce est réellement appliquée\n\nDans le modèle **`account.move`** on trouve bien une entrée `_sql_constraints` nommée `unique_name`, mais son champ SQL est une chaîne vide :\n\n```\n_sql_constraints = [(\n    'unique_name', \"\", \"Another entry with the same name already exists.\",\n)]\n```\n\nCette déclaration est uniquement un *placeholder* ; elle ne crée pas d’index.  \nL’unicité est en fait assurée par un **index SQL brut** créé dans la méthode d’initialisation du module :\n\n```\nself.env.cr.execute(\"\"\"\n    CREATE UNIQUE INDEX account_move_unique_name\n        ON account_move(name, journal_id)\n    WHERE (state = 'posted' AND name != '/')\n\"\"\")\n```\n\n- **Lieu** : cette instruction se trouve dans la fonction `_auto_init` (ou `init`) du module `account`.  \n- **Cible** : l’index `account_move_unique_name` est appliqué sur les colonnes `name` et `journal_id`.  \n- **Condition** : il ne s’applique qu’aux écritures déjà **postées** (`state = 'posted'`) et dont le numéro n’est pas le placeholder `/`.  \n- **Effet** : il empêche la création de deux écritures postées ayant le même numéro dans le même journal, garantissant ainsi l’unicité du numéro de pièce.\n\n#### Sources\n\n- Déclaration vide de l’`_sql_constraints` :  \n  [account_move.py:L625-L627](file:///home/user/odoo-17.0/addons/account/models/account_move.py#L625-L627)\n\n- Création de l’index brut :  \n  [account_move.py:L643-L647](file:///home/user/odoo-17.0/addons/account/models/account_move.py#L643-L647)\n\nAinsi, même si la contrainte `_sql_constraints` ne contient pas de SQL, l’unicité est réellement appliquée grâce à l’index créé manuellement lors de l’installation du module.\n\n[Source: Graphe de Connaissances Code Intelligence]",
+    "elapsed_seconds": 69.37,
+    "effective_seconds": 69.369,
+    "groq_wait_seconds": 0.0,
+    "hop_count": 2
   }
 ]

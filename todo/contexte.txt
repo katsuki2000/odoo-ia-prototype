@@ -2414,3 +2414,50 @@ Contexte : pmm tranche "1" (D bis) pour le correctif propose en 915 : ecrire la 
 **Fichiers modifies** : `code_intelligence/agent/tools/introspection.py` (`read_precise_source_code` + `read_source_code`), `code_intelligence/tests/test_section917_read_source_code_citation.py` (nouveau), `todo/contexte.txt` (cette section).
 
 **Prochaine etape** : pmm rejoue PUR-Q1 (et idealement ACC-Q1, SAL-Q1 -- toutes deux touchees par le bug de citation "fantome" note en 914 point 2, distinct mais adjacent) pour confirmer en conditions reelles que les citations basees sur `read_source_code` sont desormais correctement verifiees. Arbitrer separement (E bis) : garde de backfill `implied_ids` pour ACC-Q1.
+
+## Section 918 : Rejeu benchmark PUR-Q1, SAL-Q1, ACC-Q1 colle par pmm -- PUR-Q1 et SAL-Q1 CONFIRMES 100% resolus en conditions reelles (zero alerte de sourcing) ; ACC-Q1 diagnostique sur 3 axes (citation hallucinee par emprunt, verbalisation implied_ids manquante, outil read_source_code non requis) ; correctifs appliques et verifies (peines passees explicitement a ChatOpenAI, assainissement du gabarit de prompt, garde mecanique implied_ids)
+
+Date : 23/09/2026
+Contexte : pmm colle l'execution reelle de `python scripts/run_bloc_n1_benchmark.py PUR-Q1 ACC-Q1 SAL-Q1` (conforme a la "prochaine etape" fixee en 917). Discipline ways-of-working.md et todo/rules.md respectees (root causes identifiees, zero fix chirurgical, clean code, tests unitaires ecrits en amont/aval, zero regression).
+
+**1. Verification des gains en conditions reelles (rejeu pmm) :**
+  - **PUR-Q1** (39.22s, 7 sauts) : **CONFIRME RESOLU BOUT-EN-BOUT**. Zero "SOURCING NON VÉRIFIÉ". Les citations de code `purchase_order.py` (lignes 501-514 et 960-969) produites via `read_source_code` sont desormais confirmees conformes par `verify_citations()`. Le correctif structurel de la Section 917 (`include_citation=True`) est valide sur execution reelle.
+  - **SAL-Q1** (18.87s, 9 sauts) : **CONFIRME PARFAITEMENT STABLE ET EXACT**. Evaluation distincte des 2 personas (`group_sale_salesman` et `group_portal`) via `evaluate_record_rules`, citations `xml_id:` propres (`sale.sale_order_personal_rule`, `sale.sale_order_comp_rule`, `sale.sale_order_rule_portal`), zero citation fantome `file:///path#L1-L10`, zero avertissement de sourcing.
+
+**2. Diagnostic detaille sur ACC-Q1 et points d'attention :**
+  - **Axe 1 - SOURCING NON VÉRIFIÉ sur ACC-Q1 (`account_move.py#L1-L236`)** :
+    - *Observation* : le LLM a cite `file:///home/user/odoo-ia-prototype/odoo_addons/custom_credit_note_approval/models/account_move.py#L1-L236` pour "Access Matrix" et "Record rules".
+    - *Root cause* : `who_has_access_to` et `evaluate_record_rules` produisent des matrices et regles textuelles/XML (pas de lien `file://`). L'exemple du prompt systeme (`prompts.py` l.66) affichait litteralement `- **Source** : [security/ir.model.access.csv:L12](file:///path#L12)`. Face a cette consigne d'associer un lien fichier a une regle d'acces alors que l'outil n'en fournissait pas, le LLM a emprunte le seul chemin fichier reel present dans ses observations (`analyze_security_locks` sur `account_move.py#L1-L22`) et y a accole une plage inventee `L1-L236`.
+  - **Axe 2 - Explication incomplete (faiblesse de verbalisation implied_ids)** :
+    - *Observation* : le LLM conclut correctement "Oui", mais affirme que `account.group_account_manager` detient les permissions WRITE/CREATE/UNLINK directement dans l'ACL, sans mentionner l'heritage via `implied_ids` (`account.group_account_invoice`). Cela contredit l'enonce qui rappelait que l'ACL directe est en lecture seule.
+    - *Root cause* : identique au constat de la section 916 : `who_has_access_to` contient bien `(via implied_ids <- account.group_account_invoice)`, mais la synthese stochastique a aplati ce fait.
+  - **Axe 3 - Avertissement runner `[WARN] Outil(s) attendu(s) non invoque(s): ['read_source_code']`** :
+    - Le banc de questions attendait `read_source_code` en supposant une inspection des fichiers XML/CSV. Or, le graphe de connaissances stocke et resout deja la fermeture transitive complete via `who_has_access_to`. La boucle ReAct n'a donc pas eu besoin d'appeler `read_source_code`.
+  - **Axe 4 - UserWarning sur loop.py:312 (`model_kwargs` frequency_penalty/presence_penalty)** :
+    - `langchain_openai.ChatOpenAI` exige que `frequency_penalty` et `presence_penalty` soient passes en arguments explicites au constructeur et non dans `model_kwargs`.
+
+**3. Correctifs implementes ce tour :**
+  - `core/llm/llm_client.py` : extraction explicite de `frequency_penalty` et `presence_penalty` depuis `model_kwargs` avant instanciation de `ChatOpenAI` (branches local, ollama, vllm, openrouter). Elimination definitive du `UserWarning`.
+  - `code_intelligence/agent/prompts.py` :
+    - Remplacement de l'exemple contradictoire `[security/ir.model.access.csv:L12](file:///path#L12)` par `xml_id: account.access_account_move_manager`.
+    - Clarification dans `CI_SYSTEM_PROMPT` (regles 3 et 4) et dans `build_synthesis_prompt` : interdiction absolue d'inventer des liens `file://` ou d'emprunter des chemins fichiers non lies pour sourcer les matrices d'acces ou regles `ir.rule` (utilisation obligatoire de `xml_id:` ou formulation en prose).
+  - `code_intelligence/agent/access_guards.py` & `code_intelligence/agent/postprocess.py` :
+    - Implementation du garde mecanique `_backfill_missing_implied_ids_mechanism(final_answer, raw_tool_output, question)`.
+    - Lorsque `who_has_access_to` reporte `(via implied_ids <- parent)` pour un groupe concerne par la question/reponse, et que la synthese a omis d'expliciter cette filiation, injection automatique de la precision d'heritage transitive :
+      `[FAIT DÉTERMINISTIQUE] Précision d'héritage de droits : <child> ne détient pas ces permissions directement via son propre enregistrement ACL (qui peut être restreint), mais en hérite par implication transitive (implied_ids) depuis le groupe <parent>.`
+    - Idempotent : ne s'active pas si la reponse verbalise deja le mecanisme.
+
+**4. Verification & tests :**
+  - Nouveau fichier de tests : `code_intelligence/tests/test_section918_implied_ids_and_citations.py` (7 tests unitaires couvrant l'elimination du warning, le respect des prompts, et le fonctionnement/idempotence du backfill `implied_ids`). Resultat : **7/7 verts**.
+  - Suite ciblee postprocess / access_guards / citations : **49 passed, 0 fail**.
+  - Suite de regression etendue : 0 regression.
+
+**Fichiers modifies :**
+  - `core/llm/llm_client.py`
+  - `code_intelligence/agent/prompts.py`
+  - `code_intelligence/agent/access_guards.py`
+  - `code_intelligence/agent/postprocess.py`
+  - `code_intelligence/tests/test_section918_implied_ids_and_citations.py` (nouveau)
+  - `todo/contexte.txt` (cette section)
+
+**Prochaine etape :** Nouveau rejeu de verification par pmm (`python scripts/run_bloc_n1_benchmark.py PUR-Q1 ACC-Q1 SAL-Q1`) pour confirmer l'absence d'avertissement `UserWarning`, la proprete des citations de ACC-Q1, et la presence de la precision `implied_ids`.

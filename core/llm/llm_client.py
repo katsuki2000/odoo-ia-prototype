@@ -109,8 +109,29 @@ def get_chat_llm(
             model_kwargs=model_kwargs or {},
         )
 
-    if active_provider in ("local", "ollama", "vllm", "openai_compatible", "lmstudio", "llamacpp"):
+    if active_provider in ("local", "ollama", "vllm", "openai_compatible", "lmstudio", "llamacpp", "openrouter"):
         from langchain_openai import ChatOpenAI
+        kw = dict(model_kwargs or {})
+        freq = kw.pop("frequency_penalty", None)
+        pres = kw.pop("presence_penalty", None)
+        penalties = {}
+        if freq is not None:
+            penalties["frequency_penalty"] = freq
+        if pres is not None:
+            penalties["presence_penalty"] = pres
+
+        if active_provider == "openrouter":
+            return ChatOpenAI(
+                model=model or OPENROUTER_MODEL,
+                base_url=base_url or OPENROUTER_BASE_URL,
+                api_key=api_key or OPENROUTER_API_KEY,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                max_retries=max_retries,
+                model_kwargs=kw,
+                **penalties,
+            )
+
         return ChatOpenAI(
             model=model or LOCAL_LLM_MODEL,
             base_url=base_url or LOCAL_LLM_BASE_URL,
@@ -118,23 +139,9 @@ def get_chat_llm(
             temperature=temperature,
             max_tokens=max_tokens,
             max_retries=max_retries,
-            model_kwargs=model_kwargs or {},
-            # Header requis pour traverser un tunnel ngrok gratuit (*.ngrok-free.dev) --
-            # sans lui, la page d'avertissement anti-abus ngrok repond 403 a toute requete
-            # non-navigateur. Sans effet sur un serveur local (Ollama/vLLM) qui ignore ce header.
+            model_kwargs=kw,
             default_headers={"ngrok-skip-browser-warning": "true"},
-        )
-
-    if active_provider == "openrouter":
-        from langchain_openai import ChatOpenAI
-        return ChatOpenAI(
-            model=model or OPENROUTER_MODEL,
-            base_url=base_url or OPENROUTER_BASE_URL,
-            api_key=api_key or OPENROUTER_API_KEY,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            max_retries=max_retries,
-            model_kwargs=model_kwargs or {},
+            **penalties,
         )
 
     raise ValueError(

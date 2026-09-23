@@ -273,3 +273,56 @@ def _backfill_missing_required_groups(final_answer: str, raw_tool_output: str, q
         f"détecté(s) dans le code pour cette action : {group_list}. Fait extrait "
         f"directement de l'analyse statique du code."
     )
+
+
+_IMPLIED_IDS_PATTERN = re.compile(
+    r"(?P<child>[a-zA-Z_][\w.]*)\s+\(via implied_ids <-\s*(?P<parent>[a-zA-Z_][\w.]*)\)"
+)
+_INHERITANCE_VERBALIZATION_RE = re.compile(
+    r"\b(?:implied_ids|h[eé]rite|h[eé]ritent|implication|transiti\w*)\b",
+    re.IGNORECASE,
+)
+
+
+def _backfill_missing_implied_ids_mechanism(
+    final_answer: str, raw_tool_output: str, question: str = ""
+) -> str:
+    """Section 918 (ACC-Q1): when who_has_access_to reveals permissions inherited
+    via implied_ids for a group discussed in the question/answer, ensure the
+    answer explains this inheritance rather than flattening it into a direct ACL.
+    """
+    matches = list(_IMPLIED_IDS_PATTERN.finditer(raw_tool_output))
+    if not matches:
+        return final_answer
+
+    combined_context = f"{question} {final_answer}"
+    for match in matches:
+        child_group = match.group("child")
+        parent_group = match.group("parent")
+        child_short = child_group.split(".")[-1]
+        parent_short = parent_group.split(".")[-1]
+
+        if child_group not in combined_context and child_short not in combined_context:
+            continue
+
+        if (
+            parent_group in final_answer
+            or parent_short in final_answer
+            or _INHERITANCE_VERBALIZATION_RE.search(final_answer)
+        ):
+            continue
+
+        logger.info(
+            "Node [code_intelligence_agent]: backfilling missing implied_ids "
+            "inheritance mechanism for %s <- %s",
+            child_group, parent_group,
+        )
+        return (
+            final_answer
+            + f"\n\n[FAIT DÉTERMINISTIQUE] Précision d'héritage de droits : `{child_group}` "
+            f"ne détient pas ces permissions directement via son propre enregistrement ACL "
+            f"(qui peut être restreint), mais en hérite par implication transitive (`implied_ids`) "
+            f"depuis le groupe `{parent_group}`."
+        )
+
+    return final_answer
