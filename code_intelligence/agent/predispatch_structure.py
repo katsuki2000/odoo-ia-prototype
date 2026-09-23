@@ -233,8 +233,18 @@ from code_intelligence.agent.context import (
 )
 from code_intelligence.agent.context_extractors import _question_is_workflow_related
 from code_intelligence.agent.context import DispatchContext
+from code_intelligence.rules.override_unguarded import resolve_method_override_chain
 
 logger = logging.getLogger(__name__)
+
+# Section 911 (A): describe_workflow only analyzes `state`-field transitions
+# (code_intelligence/rules/workflow.py) -- a model driven by stage_id/kanban
+# stages instead (e.g. maintenance.request) always comes back with this exact
+# marker, even when real automatic logic exists on stage change (todo/contexte.txt
+# section 910/§5, 911: MNT-Q2, the LLM then guessed a plausible-but-wrong method
+# name -- 'action_done', absent from the graph for this model -- instead of ever
+# reading write(), where the real logic lives).
+_WORKFLOW_EMPTY_MARKER = "has no explicit workflow state transitions defined"
 
 
 def dispatch_describe_workflow(ctx: DispatchContext) -> None:
@@ -255,6 +265,8 @@ def dispatch_describe_workflow(ctx: DispatchContext) -> None:
     if wf_tool is None:
         return
 
+    empty_models = []
+
     for target_model in ctx.concept.resolved_models:
         call_key = _tool_call_key("describe_workflow", {"model_name": target_model})
         if call_key in ctx.seen_calls:
@@ -272,10 +284,50 @@ def dispatch_describe_workflow(ctx: DispatchContext) -> None:
                 "'describe_workflow' for model '%s'.",
                 target_model,
             )
+            if _WORKFLOW_EMPTY_MARKER in observation:
+                empty_models.append(target_model)
             if ctx.hop_budget_exhausted:
                 break
         except Exception as te:
             logger.error("Deterministic describe_workflow dispatch failed: %s", te)
+
+    # Section 911 (A): relay to write() -- same resolve_method_override_chain
+    # already used for the security-distinction guard follow-up (section
+    # 784/786/788) -- so the LLM is never left alone with an empty workflow
+    # observation and no lead beyond guessing a method name.
+    read_tool = ctx.tool_map.get("read_source_code")
+    for target_model in empty_models:
+        if ctx.hop_budget_exhausted or read_tool is None:
+            break
+        write_sites = resolve_method_override_chain(ctx.G, target_model, "write")
+        if not write_sites:
+            continue
+        site = write_sites[0]
+        if not site.filepath or not site.lineno:
+            continue
+        end_lineno = site.end_lineno or site.lineno
+        read_key = ("read_source_code", site.filepath, site.lineno, end_lineno)
+        if read_key in ctx.seen_calls:
+            continue
+        t0 = time.perf_counter()
+        try:
+            read_observation = str(read_tool.invoke({
+                "filepath": site.filepath, "line_start": site.lineno, "line_end": end_lineno,
+            }))
+            read_observation = _truncate_observation_for_budget(ctx, read_observation, 3000)
+            ctx.record_observation(
+                "read_source_code",
+                {"filepath": site.filepath, "line_start": site.lineno, "line_end": end_lineno},
+                read_observation, target_model, read_key, time.perf_counter() - t0,
+            )
+            logger.info(
+                "Node [code_intelligence_agent]: Deterministic follow-up dispatch of "
+                "'read_source_code' for '%s.write()' (%s L%d-%d) -- describe_workflow "
+                "returned no state-field transitions for this model (section 911).",
+                target_model, site.filepath, site.lineno, end_lineno,
+            )
+        except Exception as te:
+            logger.error("Deterministic write() follow-up dispatch (section 911) failed: %s", te)
 
     if any(k and k[0] == "describe_workflow" for k in ctx.seen_calls):
         ctx.system_prompt_suffix += (
@@ -283,6 +335,18 @@ def dispatch_describe_workflow(ctx: DispatchContext) -> None:
             "describe_workflow has already been run for the target model(s) above; "
             "its workflow state and transition structure is already included in the tool "
             "observations. Do not call describe_workflow again."
+        )
+    if empty_models:
+        ctx.system_prompt_suffix += (
+            "\n\n[DETERMINISTIC PRE-DISPATCH -- STAGE-BASED MODEL(S)]\n"
+            "describe_workflow found no explicit `state`-field transitions for: "
+            + ", ".join(empty_models) + ". This kind of model is often driven by "
+            "stage_id/kanban stages instead, which describe_workflow does not analyze. "
+            "Any automatic logic triggered when a record reaches a given stage (e.g. "
+            "duplication, recurrence, notifications) typically lives in write() -- its "
+            "real source has already been fetched above via read_source_code where "
+            "resolvable. Do NOT guess another method name (e.g. 'action_done') for "
+            "these model(s), and do not call read_source_code again for their write()."
         )
 
 
@@ -297,6 +361,7 @@ Behavior unchanged.
 """
 
 import logging
+import re
 import time
 
 from code_intelligence.agent.context import (
@@ -307,9 +372,20 @@ from code_intelligence.agent.context import DispatchContext
 from code_intelligence.agent.context_extractors import extract_ui_element_name, is_group_identifier
 from code_intelligence.agent.tool_helpers import _resolve_model_param
 from code_intelligence.rules.button_path import button_execution_path as _button_execution_path_impl
+from code_intelligence.rules.override_unguarded import resolve_method_override_chain
 from core.evidence.evidence_collector import record_evidence
 
 logger = logging.getLogger(__name__)
+
+# Section 911 (B): generalizes, to any button's own body, the internal-call
+# auto-follow already proven for the security-distinction guard follow-up
+# (section 784/786/788, dispatch_security_distinction_guard) -- narrowly
+# scoped to calls to another button_* method of the same convention (Odoo's
+# own naming for action/transition methods, e.g. button_confirm calling
+# button_approve, todo/contexte.txt section 911/PUR-Q2), not any method call,
+# to keep the hop-budget risk bounded (one extra hop at most, see CI_MAX_HOPS
+# discipline already established in section 908).
+_BUTTON_CALL_RE = re.compile(r"\.(button_[A-Za-z0-9_]+)\s*\(")
 
 
 def dispatch_button_execution_path(ctx: DispatchContext) -> None:
@@ -340,6 +416,8 @@ def dispatch_button_execution_path(ctx: DispatchContext) -> None:
     btn_tool = ctx.tool_map.get("button_execution_path")
     if btn_tool is None:
         return
+
+    followed_any_button_call = False
 
     for target_model in ctx.concept.resolved_models:
         call_key = _tool_call_key("button_execution_path", {"button_name": ui_name, "model_name": target_model})
@@ -375,6 +453,7 @@ def dispatch_button_execution_path(ctx: DispatchContext) -> None:
                 "'button_execution_path' for element '%s' on model '%s'.",
                 ui_name, target_model,
             )
+            _own_read_obs = None
             if button_result.method_filepath and not ctx.hop_budget_exhausted:
                 read_tool = ctx.tool_map.get("read_source_code")
                 if read_tool is not None:
@@ -394,14 +473,85 @@ def dispatch_button_execution_path(ctx: DispatchContext) -> None:
                                 {"filepath": fp, "line_start": ls, "line_end": le},
                                 read_obs, target_model, read_key, time.perf_counter() - t_read,
                             )
+                            _own_read_obs = read_obs
                         except Exception as re_err:
                             logger.error("Auto read_source_code after button_execution_path failed: %s", re_err)
+
+            # Section 911 (B): the button's own body just fetched above may
+            # itself call another button_* method of the same model (e.g.
+            # button_confirm calling order.button_approve() -- PUR-Q2). Follow
+            # the first such call automatically instead of leaving the LLM to
+            # guess a line range for it (confirmed failure mode: todo/contexte.txt
+            # section 911, reasoning_trace hop 4 read lines 520-560, past the
+            # real definition at 491-495).
+            if _own_read_obs and not ctx.hop_budget_exhausted:
+                _called_names = []
+                _seen_names = set()
+                for _m in _BUTTON_CALL_RE.finditer(_own_read_obs):
+                    _name = _m.group(1)
+                    if _name == button_result.method_name or _name in _seen_names:
+                        continue
+                    _seen_names.add(_name)
+                    _called_names.append(_name)
+                for _called_name in _called_names:
+                    if ctx.hop_budget_exhausted:
+                        break
+                    _call_sites = resolve_method_override_chain(ctx.G, target_model, _called_name)
+                    if not _call_sites:
+                        continue
+                    _cs = _call_sites[0]
+                    if not _cs.filepath or not _cs.lineno:
+                        continue
+                    _cs_end = _cs.end_lineno or _cs.lineno
+                    _call_read_key = ("read_source_code", _cs.filepath, _cs.lineno, _cs_end)
+                    if _call_read_key in ctx.seen_calls:
+                        continue
+                    read_tool = ctx.tool_map.get("read_source_code")
+                    if read_tool is None:
+                        break
+                    try:
+                        t_call = time.perf_counter()
+                        _call_obs = str(read_tool.invoke({
+                            "filepath": _cs.filepath, "line_start": _cs.lineno, "line_end": _cs_end,
+                        }))
+                        _call_obs = _truncate_observation_for_budget(ctx, _call_obs, 3000)
+                        ctx.record_observation(
+                            "read_source_code",
+                            {"filepath": _cs.filepath, "line_start": _cs.lineno, "line_end": _cs_end},
+                            _call_obs, target_model, _call_read_key, time.perf_counter() - t_call,
+                        )
+                        logger.info(
+                            "Node [code_intelligence_agent]: Deterministic follow-up dispatch of "
+                            "'read_source_code' for '%s.%s()' (%s L%d-%d), called from '%s' "
+                            "(section 911, button-to-button auto-follow).",
+                            target_model, _called_name, _cs.filepath, _cs.lineno, _cs_end,
+                            button_result.method_name,
+                        )
+                        followed_any_button_call = True
+                    except Exception as call_err:
+                        logger.error(
+                            "Deterministic button-to-button follow-up dispatch (section 911) failed: %s",
+                            call_err,
+                        )
+                    # One followed call is enough to resolve the common
+                    # "delegates to another button" pattern (PUR-Q2) without
+                    # opening an unbounded chain -- stop after the first.
+                    break
             if "not found" not in observation.lower():
                 break
             if ctx.hop_budget_exhausted:
                 break
         except Exception as te:
             logger.error("Deterministic button_execution_path dispatch failed: %s", te)
+
+    if followed_any_button_call:
+        ctx.system_prompt_suffix += (
+            "\n\n[DETERMINISTIC PRE-DISPATCH -- BUTTON-TO-BUTTON CALL]\n"
+            "The button's own body above calls another button_* method of the same "
+            "model -- that called method's real definition has already been fetched "
+            "above via read_source_code. Rely on that exact source for what it does; "
+            "do not guess its line range or call read_source_code again for it."
+        )
 
 
 """
