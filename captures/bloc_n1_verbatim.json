@@ -28,6 +28,30 @@
     "hop_count": 6
   },
   {
+    "id": "MNT-Q2",
+    "module": "maintenance",
+    "capability": "workflow",
+    "difficulty": "hard",
+    "question": "Que se passe-t-il automatiquement quand une demande de maintenance preventive et recurrente (recurring_maintenance=True) atteint une etape marquee 'done' ?",
+    "reference_answer": "MaintenanceRequest.write() detecte que stage_id change vers un stage dont done=True ; pour chaque demande de maintenance_type='preventive' avec recurring_maintenance actif, calcule une nouvelle schedule_date (date actuelle ou schedule_date existante + repeat_interval unites de repeat_unit via relativedelta), et si repeat_type=='forever' ou que la nouvelle date reste <= repeat_until, duplique automatiquement la demande (copy()) avec cette nouvelle schedule_date et la reinsere au stage par defaut (_default_stage) -- generation automatique de la prochaine occurrence, avant meme l'appel a super().write().",
+    "verification": "models/maintenance.py, classe MaintenanceRequest, methode write() (bloc verifiant request.maintenance_type != 'preventive' or not request.recurring_maintenance)",
+    "expected_tools": [
+      "describe_workflow",
+      "read_source_code"
+    ],
+    "tools_used": [
+      "describe_workflow",
+      "read_source_code"
+    ],
+    "tool_coverage_ok": true,
+    "missing_tools": [],
+    "verbatim": "Les observations disponibles ne montrent aucun mécanisme automatique lié à l’achèvement d’une étape « done » pour une demande de maintenance préventive récurrente (`recurring_maintenance=True`).  \n\n- Le modèle `maintenance.request` est présent dans l’index, mais aucune transition d’état explicite n’est définie dans le code (voir observation : *Model 'maintenance.request' exists in the index but has no explicit workflow state transitions defined*).  \n- Le fichier `maintenance/models/maintenance_request.py` n’existe pas dans les sources analysées (*File 'maintenance/models/maintenance_request.py' does not exist*).  \n\nEn l’absence de code ou de règle définie, on ne peut pas déterminer ce qui se passe automatiquement lorsqu’une étape est marquée « done ». Les données recueillies ne contiennent donc aucune information sur un comportement automatique.\n\n[Source: Graphe de Connaissances Code Intelligence]",
+    "elapsed_seconds": 56.46,
+    "effective_seconds": 56.454,
+    "groq_wait_seconds": 0.0,
+    "hop_count": 2
+  },
+  {
     "id": "PUR-Q1",
     "module": "purchase",
     "capability": "security",
@@ -53,6 +77,35 @@
     "verbatim": "Les droits d’accès (ACL) sont identiques : `group_purchase_user` et `group_purchase_manager` disposent tous deux des permissions **lecture / écriture / création / suppression** sur le modèle `purchase.order`.  \nLa différence entre un acheteur « simple » et un manager ne se trouve donc pas dans les ACL, mais dans la logique métier implémentée en Python.\n\n---\n\n### 1. Contrôle d’approbation (Python)\n\nDans le fichier `purchase_order.py` (voir l’observation **Analyse des verrous Python**), la méthode `_approval_allowed()` contient :\n\n```\nhas_group('purchase.group_purchase_manager')\n```\n\n(Observation : `[Confiance: ÉLEVÉE]` – `has_group('purchase.group_purchase_manager')` se trouve dans la méthode `_approval_allowed()` – xml_id: purchase.group_purchase_manager, ligne 969‑969).\n\nCette vérification est utilisée lorsqu’un utilisateur tente d’approuver une commande d’achat (par exemple via le bouton « Confirm Order »).  \n- **Si l’utilisateur appartient à `group_purchase_manager`** : la méthode renvoie `True` et l’approbation est autorisée.  \n- **Si l’utilisateur n’appartient pas à ce groupe** : la méthode renvoie `False`, bloquant l’approbation.\n\nAinsi, **seul le manager peut approuver une commande d’achat** ; un acheteur ne possède pas cette autorité.\n\n---\n\n### 2. Pas de restriction supplémentaire via les règles de sécurité\n\n- **Règles globales** : `purchase.purchase_order_comp_rule` (multi‑entreprise) s’applique à tous les utilisateurs, mais ne différencie pas les groupes.  \n- **Règles de groupe** : aucune règle de groupe n’est appliquée à `purchase.order`.  \n- **Règles ignorées** : la règle du portail (`purchase.portal_purchase_order_user_rule`) ne concerne que les utilisateurs portail et n’affecte pas les deux groupes.\n\nEn conséquence, aucune règle d’accès supplémentaire ne distingue les deux groupes au niveau des enregistrements.\n\n---\n\n### 3. Autres actions spécifiques aux managers\n\nLes observations montrent également que :\n\n- `group_warning_purchase` est utilisé dans `onchange_partner_id_warning()` (ligne 329‑329).  \n- `group_send_reminder` est utilisé dans `_send_reminder_mail()` (ligne 768‑768).\n\nCes groupes permettent respectivement d’afficher des avertissements et d’envoyer des rappels.  \nIls ne sont pas requis pour l’approbation, mais ils indiquent que les managers ont des capacités supplémentaires (avertissements, rappels) que les acheteurs n’ont pas.\n\n---\n\n## Résumé\n\n- **ACL** : identiques pour les deux groupes.  \n- **Différence clé** : la méthode `_approval_allowed()` (ligne 969‑969) exige l’appartenance à `group_purchase_manager` pour approuver une commande d’achat.  \n- **Pas de restriction via ir.rule** : aucune règle de groupe ne s’applique.  \n- **Fonctions supplémentaires** : les managers peuvent afficher des avertissements (`group_warning_purchase`) et envoyer des rappels (`group_send_reminder`), fonctions non disponibles pour les acheteurs.\n\nEn pratique, un acheteur peut créer, modifier et supprimer des commandes d’achat, mais il ne peut pas les approuver ; seul un manager possède cette autorité.\n\n[Source: Graphe de Connaissances Code Intelligence]",
     "elapsed_seconds": 55.89,
     "effective_seconds": 55.88,
+    "groq_wait_seconds": 0.0,
+    "hop_count": 7
+  },
+  {
+    "id": "PUR-Q2",
+    "module": "purchase",
+    "capability": "workflow",
+    "difficulty": "medium",
+    "question": "Que se passe-t-il exactement quand on clique sur 'Confirm Order' (button_confirm) selon que la commande est eligible ou non a l'approbation directe ?",
+    "reference_answer": "button_confirm() ne s'applique qu'aux commandes en etat 'draft' ou 'sent' (les autres sont ignorees silencieusement) ; il valide d'abord la distribution analytique des lignes et ajoute le fournisseur au produit, puis appelle _approval_allowed() : si vrai, delegue a button_approve() qui passe directement l'etat a 'purchase' (et a 'done' si po_lock=='lock') ; si faux, l'etat passe seulement a 'to approve' -- en attente qu'un manager declenche explicitement button_approve() via le bouton dedie.",
+    "verification": "models/purchase_order.py : button_confirm(), button_approve()",
+    "expected_tools": [
+      "describe_workflow",
+      "read_source_code"
+    ],
+    "tools_used": [
+      "analyze_security_locks",
+      "analyze_method_override_chain",
+      "read_source_code",
+      "describe_workflow",
+      "button_execution_path",
+      "read_source_code",
+      "read_source_code"
+    ],
+    "tool_coverage_ok": true,
+    "missing_tools": [],
+    "verbatim": "**Que se passe‑t‑il exactement lorsqu’on clique sur « Confirm Order » ?**\n\n1. **Appel de la méthode `button_confirm()`**  \n   Le bouton déclenche la méthode définie dans `purchase_order.py` aux lignes 84‑514 :  \n   *(bloc de code omis : non retrouvé verbatim dans les observations produites pour cette question -- voir la/les citation(s) file:// à proximité pour le contenu réel.)*\n   (source : file:///.../purchase_order.py#L84-L514)\n\n2. **Vérification d’éligibilité**  \n   La première instruction est `self._purchase_request_line_check()`.  \n   - Si cette vérification échoue, elle lève généralement une `UserError` (ou un autre type d’exception) ; le reste de la méthode n’est alors pas exécuté et la commande reste dans son état actuel (`draft` ou `sent`).  \n   - Si la vérification réussit, le code continue.\n\n3. **Confirmation standard**  \n   `super().button_confirm()` exécute la logique de confirmation propre au module `purchase`.  \n   - Elle passe l’état de la commande de `draft`/`sent` à `sale`.  \n   - Elle crée les lignes de réquisition, les mouvements de stock, etc., conformément au workflow d’achat standard.  \n   (voir le code hérité dans le module `purchase`, non détaillé ici mais appelé par `super()`).\n\n4. **Message de confirmation**  \n   Après la confirmation, `self._purchase_request_confirm_message()` est invoqué pour poster un message de confirmation (par ex. sur le chatter de la commande).  \n   (source : file:///.../purchase_order.py#L87)\n\n5. **Pas de restriction de groupe sur le bouton**  \n   Le bouton « Confirm Order » n’est pas limité par un groupe d’utilisateurs (`groups=\"...\"`), donc tout utilisateur ayant accès à la vue de la commande peut cliquer dessus.\n\n**En résumé**\n\n- **Commande éligible à l’approbation directe** :  \n  `self._purchase_request_line_check()` passe, `super().button_confirm()` confirme la commande (état → `sale`), puis un message de confirmation est posté.\n\n- **Commande non éligible** :  \n  `self._purchase_request_line_check()` lève une exception, empêchant la confirmation ; l’état de la commande ne change pas et aucun message n’est posté.\n\n[FAIT DÉTERMINISTIQUE] La chaîne de surcharge de méthode inclut également le/les module(s) suivant(s), absent(s) ou mal identifié(s) ci-dessus : 'purchase_stock'. Fait extrait directement de l'analyse statique du code.\n\n[FAIT DÉTERMINISTIQUE] SUPER() NON GARDÉ détecté dans la chaîne de surcharge : module 'purchase_stock' : branche conditionnelle `order.state in ('draft', 'sent', 'to approve', 'purchase') / order_line.move_dest_ids / moves_to_unlink` avec super() rappelé inconditionnellement (risque d'annulation silencieuse de cette logique). Fait extrait directement de l'analyse statique du code.\n\n[Source: Graphe de Connaissances Code Intelligence]",
+    "elapsed_seconds": 95.67,
+    "effective_seconds": 95.664,
     "groq_wait_seconds": 0.0,
     "hop_count": 7
   },

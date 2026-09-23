@@ -199,12 +199,26 @@ def dispatch_override_chain(ctx: DispatchContext) -> None:
             if _override_sites and not ctx.hop_budget_exhausted:
                 _read_tool = ctx.tool_map.get("read_source_code")
                 if _read_tool is not None:
-                    _first_site = _override_sites[0]
-                    _fp = _first_site.filepath
-                    _ls = _first_site.lineno
-                    _le = _first_site.end_lineno or _first_site.lineno
-                    _read_key = ("read_source_code", _fp, _ls, _le)
-                    if _read_key not in ctx.seen_calls:
+                    sites_to_read = []
+                    if ctx.concept.resolved_modules:
+                        for s in _override_sites:
+                            if any(f"/{m}/" in s.filepath for m in ctx.concept.resolved_modules):
+                                sites_to_read.append(s)
+                    if not sites_to_read:
+                        base_site = _override_sites[-1]
+                        sites_to_read.append(base_site)
+                        if len(_override_sites) > 1 and _override_sites[0] != base_site:
+                            sites_to_read.append(_override_sites[0])
+
+                    for _site in sites_to_read:
+                        if ctx.hop_budget_exhausted:
+                            break
+                        _fp = _site.filepath
+                        _ls = _site.lineno
+                        _le = _site.end_lineno or _site.lineno
+                        _read_key = ("read_source_code", _fp, _ls, _le)
+                        if _read_key in ctx.seen_calls:
+                            continue
                         try:
                             _t_read = time.perf_counter()
                             _read_obs = str(_read_tool.invoke({

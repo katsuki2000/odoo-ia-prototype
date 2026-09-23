@@ -187,22 +187,6 @@ def _find_exact_technical_module_mentions(query_lower: str, G) -> List[str]:
             if mod_name not in found:
                 found.append(mod_name)
 
-    if not found:
-        for node_id, data in G.nodes(data=True):
-            nt = data.get("node_type")
-            if nt in {"Field", "Method"}:
-                item_name = (data.get("name") or "").strip().lower()
-                if item_name and len(item_name) >= 5 and ("_" in item_name or item_name.startswith("x_")):
-                    if item_name not in _GENERIC_FIELD_NAMES:
-                        pattern = r"(?<!\w)" + re.escape(item_name) + r"(?!\w)"
-                        if re.search(pattern, query_lower):
-                            fp = data.get("filepath", "")
-                            if fp:
-                                for parent in Path(fp).parents:
-                                    if (parent / "__manifest__.py").exists() and G.has_node(f"module:{parent.name}"):
-                                        if parent.name not in generic_module_words and parent.name not in found:
-                                            found.append(parent.name)
-                                        break
     return found
 
 

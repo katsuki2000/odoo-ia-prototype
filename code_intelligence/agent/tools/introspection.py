@@ -225,12 +225,14 @@ def read_precise_source_code(filepath_str: str, line_start: int, line_end: int, 
     from code_intelligence.rules.security import _EMAIL_PATTERN
 
     path = Path(filepath_str)
+    target_model_resolved = None
 
     if not path.exists():
+        import re
         from config.settings import (
-            CORE_ADDONS_PATH, CUSTOM_ADDONS_PATH, OCA_SAMPLE_ADDONS_PATH,
+            _ROOT, CORE_ADDONS_PATH, CUSTOM_ADDONS_PATH, OCA_SAMPLE_ADDONS_PATH,
         )
-        repo_root = Path(__file__).resolve().parent.parent.parent.parent.parent
+        repo_root = _ROOT
         candidates = [
             repo_root / filepath_str,
             Path(OCA_SAMPLE_ADDONS_PATH) / filepath_str if OCA_SAMPLE_ADDONS_PATH else None,
@@ -250,7 +252,45 @@ def read_precise_source_code(filepath_str: str, line_start: int, line_end: int, 
             if found:
                 path = found[0]
             else:
-                return f"Error: File '{filepath_str}' does not exist."
+                from code_intelligence.agent.tool_helpers import _GRAPH_REF
+                if _GRAPH_REF is not None:
+                    if _GRAPH_REF.has_node(f"model:{filepath_str}"):
+                        target_model_resolved = filepath_str
+                    else:
+                        stem = Path(filepath_str).stem.replace("_", ".")
+                        if _GRAPH_REF.has_node(f"model:{stem}"):
+                            target_model_resolved = stem
+                        else:
+                            for _, d in _GRAPH_REF.nodes(data=True):
+                                if d.get("node_type") == "Model":
+                                    m_name = d.get("name", "")
+                                    if m_name and m_name.replace(".", "_") == Path(filepath_str).stem:
+                                        target_model_resolved = m_name
+                                        break
+                    if target_model_resolved:
+                        m_fps = _GRAPH_REF.nodes[f"model:{target_model_resolved}"].get("filepaths", [])
+                        for fp in m_fps:
+                            if Path(fp).exists():
+                                path = Path(fp)
+                                break
+                if not path.exists():
+                    return f"Error: File '{filepath_str}' does not exist."
+
+    if target_model_resolved and path.exists() and line_start <= 1:
+        try:
+            import re
+            text = path.read_text(encoding="utf-8")
+            pos = re.search(r"(?:_name|_inherit)\s*=\s*['\"]" + re.escape(target_model_resolved) + r"['\"]", text)
+            if pos:
+                before = text[:pos.start()]
+                class_matches = list(re.finditer(r"class\s+\w+", before))
+                if class_matches:
+                    class_pos = class_matches[-1].start()
+                    class_lineno = text[:class_pos].count("\n") + 1
+                    line_start = class_lineno
+                    line_end = class_lineno + min(max_lines - 1, 150)
+        except Exception:
+            pass
 
     requested_lines = line_end - line_start + 1
     if requested_lines > max_lines:

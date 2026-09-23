@@ -81,7 +81,7 @@ def _extract_tools_used(sources):
     return tools
 
 
-def run_benchmark(question_ids=None, module=None):
+def run_benchmark(question_ids=None, module=None, fresh=False):
     questions, meta = load_questions(question_ids, module)
     if not questions:
         print("[ERROR] Aucune question ne correspond aux filtres -- rien a executer.")
@@ -203,17 +203,37 @@ def run_benchmark(question_ids=None, module=None):
                 "hop_count": 0,
             })
 
-    # --- Sauvegarde JSON ---
+    # --- Sauvegarde JSON (fusion avec l'existant si present, sauf si fresh=True) ---
     root_dir = Path(__file__).resolve().parent.parent
     captures_dir = root_dir / "captures"
     captures_dir.mkdir(exist_ok=True)
 
     json_report_path = captures_dir / "bloc_n1_verbatim.json"
-    with open(json_report_path, "w", encoding="utf-8") as f:
-        json.dump(results, f, indent=2, ensure_ascii=False)
-    print(f"\nRapport JSON sauvegarde: {json_report_path}")
+    if not fresh and json_report_path.exists():
+        try:
+            with open(json_report_path, encoding="utf-8") as f:
+                existing_data = json.load(f)
+            merged_dict = {r["id"]: r for r in existing_data if isinstance(r, dict) and "id" in r}
+            merged_dict.update({r["id"]: r for r in results})
+            all_bank, _ = load_questions()
+            results_to_save = [
+                merged_dict[q["id"]] for q in all_bank if q["id"] in merged_dict
+            ]
+            # Inclure egalement les resultats non presents dans le banc
+            for r in results:
+                if r["id"] not in {q["id"] for q in all_bank} and r["id"] not in {x["id"] for x in results_to_save}:
+                    results_to_save.append(r)
+        except Exception as e:
+            print(f"[WARN] Impossible de fusionner avec {json_report_path}: {e}")
+            results_to_save = results
+    else:
+        results_to_save = results
 
-    # --- Metriques de latence (memes percentiles que Bloc 7) ---
+    with open(json_report_path, "w", encoding="utf-8") as f:
+        json.dump(results_to_save, f, indent=2, ensure_ascii=False)
+    print(f"\nRapport JSON sauvegarde ({len(results_to_save)} questions): {json_report_path}")
+
+    # --- Metriques de latence (calculees sur le run courant) ---
     eff_latencies = [r["effective_seconds"] for r in results if r["effective_seconds"] > 0]
     if eff_latencies:
         sorted_lat = sorted(eff_latencies)
@@ -227,10 +247,10 @@ def run_benchmark(question_ids=None, module=None):
         p50 = p90 = mean_lat = max_lat = 0.0
         budget_met = True
 
-    n_errors = sum(1 for r in results if r["verbatim"].startswith("ERROR:"))
-    n_tool_gaps = sum(1 for r in results if not r["tool_coverage_ok"])
+    n_errors = sum(1 for r in results_to_save if r["verbatim"].startswith("ERROR:"))
+    n_tool_gaps = sum(1 for r in results_to_save if not r["tool_coverage_ok"])
 
-    # --- Rapport Markdown ---
+    # --- Rapport Markdown (sauvegarde de toutes les questions consolidees) ---
     md_lines = [
         "# Rapport Verbatim -- Bloc N1 (banc de questions natif)\n",
         f"**Date d'execution :** {time.strftime('%Y-%m-%d %H:%M:%S')}\n",
@@ -242,17 +262,18 @@ def run_benchmark(question_ids=None, module=None):
         "## Synthese\n",
         f"| Metrique | Valeur |",
         f"|---|---|",
-        f"| Questions executees | {len(results)} |",
+        f"| Questions executees (consolidees) | {len(results_to_save)} |",
+        f"| Questions rejouees ce tour | {len(results)} |",
         f"| Erreurs d'execution | {n_errors} |",
         f"| Ecarts de couverture d'outils (expected_tools non tous invoques) | {n_tool_gaps} |",
-        f"| p50 latence effective | `{p50}s` |",
-        f"| p90 latence effective | `{p90}s` (budget `{LATENCY_BUDGET_P90_SECONDS}s`, {' RESPECTE' if budget_met else ' DEPASSE'}) |",
-        f"| Moyenne | `{mean_lat}s` |",
-        f"| Max | `{max_lat}s` |",
+        f"| p50 latence effective (run courant) | `{p50}s` |",
+        f"| p90 latence effective (run courant) | `{p90}s` (budget `{LATENCY_BUDGET_P90_SECONDS}s`, {' RESPECTE' if budget_met else ' DEPASSE'}) |",
+        f"| Moyenne (run courant) | `{mean_lat}s` |",
+        f"| Max (run courant) | `{max_lat}s` |",
         "\n---",
     ]
 
-    for r in results:
+    for r in results_to_save:
         md_lines.append(f"\n## [{r['id']}] {r['module']} -- {r['capability']} ({r['difficulty']})")
         md_lines.append(f"**Question :** {r['question']}\n")
         md_lines.append(f"**Reponse de reference (verite-terrain) :**\n> {r['reference_answer']}\n")
@@ -286,8 +307,12 @@ def main():
         "--module", default=None, choices=["maintenance", "purchase", "sale", "stock", "account"],
         help="Ne rejoue que les 5 questions de ce module (cumulable avec des ids explicites).",
     )
+    parser.add_argument(
+        "--fresh", action="store_true",
+        help="Ecraser les captures precedentes sans fusionner.",
+    )
     args = parser.parse_args()
-    run_benchmark(question_ids=args.question_ids or None, module=args.module)
+    run_benchmark(question_ids=args.question_ids or None, module=args.module, fresh=args.fresh)
 
 
 if __name__ == "__main__":

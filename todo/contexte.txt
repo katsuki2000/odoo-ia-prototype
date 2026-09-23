@@ -6721,3 +6721,37 @@ Contexte : suite au rejeu de confirmation `scripts/run_bloc_n1_benchmark.py PUR-
 **Fichiers modifies** : `code_intelligence/agent/predispatch_access.py`, `code_intelligence/agent/context.py`, `code_intelligence/agent/loop.py`, `code_intelligence/agent/prompts.py`, `core/session/reasoning_trace_logger.py`, `code_intelligence/tests/test_section907_908_dispatch_record_rules_for_personas.py`, `code_intelligence/tests/test_c_complete.py`, `code_intelligence/tests/test_j30_31_latency_budget.py`, `code_intelligence/tests/test_ci_helpers_tool_call_key.py`, `captures/bloc_n1_verbatim.json`, `captures/bloc_n1_verbatim.md`, `todo/contexte.txt`.
 
 **Prochaine etape** : cloture et commit Git du lot 907-909 sur la branche `feat/security-lock-reranking`.
+
+## Section 910 : Banc N1 Workflow (Q2) -- Fusion runner de benchmark, élimination de la détection fantôme de module dans matching.py, correction de lecture de chaîne de surcharge et résolution par graphe des fichiers modèles
+
+Date : 23/09/2026
+Contexte : démarrage du Chantier 1 sur les questions de Workflow (Q2) du Banc N1 natif après la validation 5/5 du bloc Sécurité (Section 909). Analyse des comportements sur MNT-Q2 et PUR-Q2, mise en évidence de trois défauts structurels et implémentation de correctifs root-cause.
+
+**1. Mode fusion par défaut dans le runner de benchmark (`scripts/run_bloc_n1_benchmark.py`)** :
+- Problème : chaque exécution ciblée de `run_bloc_n1_benchmark.py` écrasait l'intégralité de `captures/bloc_n1_verbatim.json` et `.md`, détruisant les captures validées des exécutions précédentes.
+- Solution root-cause : ajout d'un mécanisme de fusion par identifiant de question (`id`) par défaut, préservant l'historique validé dans l'ordre du banc de test natif. Ajout de l'argument CLI `--fresh` pour forcer la réinitialisation si nécessaire.
+
+**2. Élimination de l'inférence de module fantôme (`code_intelligence/agent/matching.py`)** :
+- Root cause : le bloc de repli dans `_find_exact_technical_module_mentions` (lignes 190-206) scannait tous les nœuds `Field` et `Method` du graphe dont le nom apparaissait dans la question, puis remontait l'arborescence des dossiers jusqu'à un `__manifest__.py` pour inférer un module technique.
+- Conséquence : pour PUR-Q2 mentionnant `button_confirm`, la présence d'une méthode de ce nom dans le module OCA `purchase_request` conduisait à résoudre faussement `purchase_request` comme module de la question alors que celle-ci portait sur le module natif `purchase`.
+- Solution : suppression intégrale de ce bloc de repli heuristique non borné. Seuls les modules explicitement identifiés par les mécanismes formels sont retenus.
+
+**3. Sélection des sites dans `dispatch_override_chain` (`code_intelligence/agent/predispatch_actions.py`)** :
+- Root cause : lors du pré-dispatch de la chaîne de surcharge, le suivi `read_source_code` ne lisait que `_override_sites[0]` (la surcharge de plus haut niveau, généralement issue d'un module OCA étendant le modèle).
+- Solution : sélection intelligente des sites à inspecter. Si `concept.resolved_modules` est présent, filtre par module cible ; sinon, lit systématiquement le site de déclaration de base (`_override_sites[-1]`) et le sommet de la chaîne, garantissant que le code métier d'origine est disponible pour l'agent.
+
+**4. Résolution de chemin de fichier basée sur le graphe dans `read_precise_source_code` (`code_intelligence/agent/tools/introspection.py`)** :
+- Root cause :
+  a) `repo_root` était calculé via `.parent.parent.parent.parent.parent`, pointant vers `/media/donnee/projets` au lieu de la racine du projet. Remplacé par `config.settings._ROOT`.
+  b) Dans Odoo natif, certains modules regroupent plusieurs modèles dans un fichier unique (ex. `maintenance/models/maintenance.py` déclare `MaintenanceStage`, `MaintenanceEquipment`, `MaintenanceRequest`). Le LLM tente souvent de lire un fichier deviné par convention (`maintenance_request.py`), générant une erreur `File does not exist` qui bloquait l'analyse de MNT-Q2 (`write()` avec duplication automatique des demandes récurrentes).
+- Solution : en cas de fichier introuvable, tentative de résolution du nom de modèle via `_GRAPH_REF` (en convertissant le stem `snake_case` en `dot.case`), extraction des `filepaths` du nœud de modèle dans le graphe, et recentrage automatique de `line_start` sur la définition de la classe du modèle. Vérifié expérimentalement : `read_precise_source_code('maintenance/models/maintenance_request.py', 1, 50)` renvoie correctement le bloc `class MaintenanceRequest` (lignes 197+ de `maintenance.py`).
+
+**5. Constat architectural sur les workflows de type `stage_id`** :
+- `describe_workflow` (`code_intelligence/rules/workflow.py`) analyse exclusivement les transitions de champs `state`. Les modèles basés sur des étapes kanban (`stage_id`), comme `maintenance.request`, renvoient un résultat EMPTY. Grâce à la résolution de fichier par graphe, la consultation du code source de `write()` est désormais débloquée pour le raisonnement de l'agent.
+
+**Vérification** :
+- Suite de tests unitaire complète : **898 passed, 18 skipped, 30 deselected, 0 failed** sur `code_intelligence/tests/` (`-m "not integration"`).
+- Test unitaire d'exécution de `read_precise_source_code` sur fichier virtuel de modèle vérifié avec succès.
+
+**Fichiers modifiés** : `scripts/run_bloc_n1_benchmark.py`, `code_intelligence/agent/matching.py`, `code_intelligence/agent/predispatch_actions.py`, `code_intelligence/agent/tools/introspection.py`, `todo/contexte.txt`.
+

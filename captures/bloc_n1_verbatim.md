@@ -1,6 +1,6 @@
 # Rapport Verbatim -- Bloc N1 (banc de questions natif)
 
-**Date d'execution :** 2026-09-22 23:12:20
+**Date d'execution :** 2026-09-23 00:27:02
 
 **Objectif :** rejouer les questions verite-terrain des 5 modules natifs (maintenance, purchase, sale, stock, account) contre l'agent Code Intelligence reel et capturer la reponse verbatim pour comparaison manuelle avec `reference_answer` -- aucune notation automatique.
 
@@ -9,13 +9,14 @@
 
 | Metrique | Valeur |
 |---|---|
-| Questions executees | 5 |
+| Questions executees (consolidees) | 7 |
+| Questions rejouees ce tour | 1 |
 | Erreurs d'execution | 0 |
 | Ecarts de couverture d'outils (expected_tools non tous invoques) | 0 |
-| p50 latence effective | `73.0s` |
-| p90 latence effective | `80.46s` (budget `12.0s`,  DEPASSE) |
-| Moyenne | `69.13s` |
-| Max | `80.46s` |
+| p50 latence effective (run courant) | `95.66s` |
+| p90 latence effective (run courant) | `95.66s` (budget `12.0s`,  DEPASSE) |
+| Moyenne (run courant) | `95.66s` |
+| Max (run courant) | `95.66s` |
 
 ---
 
@@ -44,6 +45,30 @@
 - Il peut **seulement consulter** les équipements qu’il suit (`message_partner_ids` contient son partenaire) et qui appartiennent à sa société (contrôle global `maintenance.maintenance_equipment_comp_rule`).  
 
 Ainsi, la visibilité est limitée aux équipements suivis par l’utilisateur et à ceux de sa propre entreprise, tandis que toute modification requiert le groupe `group_equipment_manager`.
+
+[Source: Graphe de Connaissances Code Intelligence]
+```
+
+---
+
+## [MNT-Q2] maintenance -- workflow (hard)
+**Question :** Que se passe-t-il automatiquement quand une demande de maintenance preventive et recurrente (recurring_maintenance=True) atteint une etape marquee 'done' ?
+
+**Reponse de reference (verite-terrain) :**
+> MaintenanceRequest.write() detecte que stage_id change vers un stage dont done=True ; pour chaque demande de maintenance_type='preventive' avec recurring_maintenance actif, calcule une nouvelle schedule_date (date actuelle ou schedule_date existante + repeat_interval unites de repeat_unit via relativedelta), et si repeat_type=='forever' ou que la nouvelle date reste <= repeat_until, duplique automatiquement la demande (copy()) avec cette nouvelle schedule_date et la reinsere au stage par defaut (_default_stage) -- generation automatique de la prochaine occurrence, avant meme l'appel a super().write().
+
+**A verifier dans le code :** `models/maintenance.py, classe MaintenanceRequest, methode write() (bloc verifiant request.maintenance_type != 'preventive' or not request.recurring_maintenance)`
+
+**Outils attendus :** ['describe_workflow', 'read_source_code'] | **Outils invoques :** ['describe_workflow', 'read_source_code']
+
+**Reponse verbatim de l'agent (Total: 56.46s | Effectif: 56.454s | Groq wait: 0.0s | Sauts: 2) :**
+```text
+Les observations disponibles ne montrent aucun mécanisme automatique lié à l’achèvement d’une étape « done » pour une demande de maintenance préventive récurrente (`recurring_maintenance=True`).  
+
+- Le modèle `maintenance.request` est présent dans l’index, mais aucune transition d’état explicite n’est définie dans le code (voir observation : *Model 'maintenance.request' exists in the index but has no explicit workflow state transitions defined*).  
+- Le fichier `maintenance/models/maintenance_request.py` n’existe pas dans les sources analysées (*File 'maintenance/models/maintenance_request.py' does not exist*).  
+
+En l’absence de code ou de règle définie, on ne peut pas déterminer ce qui se passe automatiquement lorsqu’une étape est marquée « done ». Les données recueillies ne contiennent donc aucune information sur un comportement automatique.
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```
@@ -115,6 +140,60 @@ Ils ne sont pas requis pour l’approbation, mais ils indiquent que les managers
 - **Fonctions supplémentaires** : les managers peuvent afficher des avertissements (`group_warning_purchase`) et envoyer des rappels (`group_send_reminder`), fonctions non disponibles pour les acheteurs.
 
 En pratique, un acheteur peut créer, modifier et supprimer des commandes d’achat, mais il ne peut pas les approuver ; seul un manager possède cette autorité.
+
+[Source: Graphe de Connaissances Code Intelligence]
+```
+
+---
+
+## [PUR-Q2] purchase -- workflow (medium)
+**Question :** Que se passe-t-il exactement quand on clique sur 'Confirm Order' (button_confirm) selon que la commande est eligible ou non a l'approbation directe ?
+
+**Reponse de reference (verite-terrain) :**
+> button_confirm() ne s'applique qu'aux commandes en etat 'draft' ou 'sent' (les autres sont ignorees silencieusement) ; il valide d'abord la distribution analytique des lignes et ajoute le fournisseur au produit, puis appelle _approval_allowed() : si vrai, delegue a button_approve() qui passe directement l'etat a 'purchase' (et a 'done' si po_lock=='lock') ; si faux, l'etat passe seulement a 'to approve' -- en attente qu'un manager declenche explicitement button_approve() via le bouton dedie.
+
+**A verifier dans le code :** `models/purchase_order.py : button_confirm(), button_approve()`
+
+**Outils attendus :** ['describe_workflow', 'read_source_code'] | **Outils invoques :** ['analyze_security_locks', 'analyze_method_override_chain', 'read_source_code', 'describe_workflow', 'button_execution_path', 'read_source_code', 'read_source_code']
+
+**Reponse verbatim de l'agent (Total: 95.67s | Effectif: 95.664s | Groq wait: 0.0s | Sauts: 7) :**
+```text
+**Que se passe‑t‑il exactement lorsqu’on clique sur « Confirm Order » ?**
+
+1. **Appel de la méthode `button_confirm()`**  
+   Le bouton déclenche la méthode définie dans `purchase_order.py` aux lignes 84‑514 :  
+   *(bloc de code omis : non retrouvé verbatim dans les observations produites pour cette question -- voir la/les citation(s) file:// à proximité pour le contenu réel.)*
+   (source : file:///.../purchase_order.py#L84-L514)
+
+2. **Vérification d’éligibilité**  
+   La première instruction est `self._purchase_request_line_check()`.  
+   - Si cette vérification échoue, elle lève généralement une `UserError` (ou un autre type d’exception) ; le reste de la méthode n’est alors pas exécuté et la commande reste dans son état actuel (`draft` ou `sent`).  
+   - Si la vérification réussit, le code continue.
+
+3. **Confirmation standard**  
+   `super().button_confirm()` exécute la logique de confirmation propre au module `purchase`.  
+   - Elle passe l’état de la commande de `draft`/`sent` à `sale`.  
+   - Elle crée les lignes de réquisition, les mouvements de stock, etc., conformément au workflow d’achat standard.  
+   (voir le code hérité dans le module `purchase`, non détaillé ici mais appelé par `super()`).
+
+4. **Message de confirmation**  
+   Après la confirmation, `self._purchase_request_confirm_message()` est invoqué pour poster un message de confirmation (par ex. sur le chatter de la commande).  
+   (source : file:///.../purchase_order.py#L87)
+
+5. **Pas de restriction de groupe sur le bouton**  
+   Le bouton « Confirm Order » n’est pas limité par un groupe d’utilisateurs (`groups="..."`), donc tout utilisateur ayant accès à la vue de la commande peut cliquer dessus.
+
+**En résumé**
+
+- **Commande éligible à l’approbation directe** :  
+  `self._purchase_request_line_check()` passe, `super().button_confirm()` confirme la commande (état → `sale`), puis un message de confirmation est posté.
+
+- **Commande non éligible** :  
+  `self._purchase_request_line_check()` lève une exception, empêchant la confirmation ; l’état de la commande ne change pas et aucun message n’est posté.
+
+[FAIT DÉTERMINISTIQUE] La chaîne de surcharge de méthode inclut également le/les module(s) suivant(s), absent(s) ou mal identifié(s) ci-dessus : 'purchase_stock'. Fait extrait directement de l'analyse statique du code.
+
+[FAIT DÉTERMINISTIQUE] SUPER() NON GARDÉ détecté dans la chaîne de surcharge : module 'purchase_stock' : branche conditionnelle `order.state in ('draft', 'sent', 'to approve', 'purchase') / order_line.move_dest_ids / moves_to_unlink` avec super() rappelé inconditionnellement (risque d'annulation silencieuse de cette logique). Fait extrait directement de l'analyse statique du code.
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```
