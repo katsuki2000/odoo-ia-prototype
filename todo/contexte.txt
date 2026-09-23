@@ -2490,3 +2490,9 @@ Files changed:
 - todo/contexte.txt
 
 Test suite: 928 passed, 39 skipped, 0 failures (unchanged baseline).
+Validation benchmark :
+- Rejeu trio `python scripts/run_bloc_n1_benchmark.py PUR-Q1 ACC-Q1 SAL-Q1` effectue avec succes.
+- PUR-Q1 : Zero warning `SOURCING NON VERIFIE`. Toutes les citations (`button_unlock` L524-L525, `button_confirm` L501-L514, `_approval_allowed` L960-L969) sont valides et verifiees sur les fichiers reels.
+- ACC-Q1 : Reponse exacte et explicative sur `implied_ids`, aucune citation fabriquee.
+- SAL-Q1 : Parfaitement stable, evaluation separee vendeur vs portail.
+- Suite complete de tests : 937 passed, 39 skipped, 0 failure.

@@ -1,6 +1,6 @@
 # Rapport Verbatim -- Bloc N1 (banc de questions natif)
 
-**Date d'execution :** 2026-09-23 11:41:17
+**Date d'execution :** 2026-09-23 12:52:26
 
 **Objectif :** rejouer les questions verite-terrain des 5 modules natifs (maintenance, purchase, sale, stock, account) contre l'agent Code Intelligence reel et capturer la reponse verbatim pour comparaison manuelle avec `reference_answer` -- aucune notation automatique.
 
@@ -13,10 +13,10 @@
 | Questions rejouees ce tour | 3 |
 | Erreurs d'execution | 0 |
 | Ecarts de couverture d'outils (expected_tools non tous invoques) | 3 |
-| p50 latence effective (run courant) | `22.53s` |
-| p90 latence effective (run courant) | `35.7s` (budget `12.0s`,  DEPASSE) |
-| Moyenne (run courant) | `26.02s` |
-| Max (run courant) | `35.7s` |
+| p50 latence effective (run courant) | `21.62s` |
+| p90 latence effective (run courant) | `28.23s` (budget `12.0s`,  DEPASSE) |
+| Moyenne (run courant) | `22.99s` |
+| Max (run courant) | `28.23s` |
 
 ---
 
@@ -218,67 +218,72 @@ En résumé, la restriction vient de la configuration de la vue, pas de la règl
 
 **A verifier dans le code :** `security/ir.model.access.csv (access_purchase_order vs access_purchase_order_manager, identiques) + models/purchase_order.py : _approval_allowed(), models/res_company.py : po_double_validation/po_double_validation_amount`
 
-**Outils attendus :** ['who_has_access_to', 'evaluate_record_rules', 'read_source_code'] | **Outils invoques :** ['who_has_access_to', 'evaluate_record_rules', 'describe_workflow', 'button_execution_path', 'read_source_code', 'read_source_code']
+**Outils attendus :** ['who_has_access_to', 'evaluate_record_rules', 'read_source_code'] | **Outils invoques :** ['who_has_access_to', 'evaluate_record_rules', 'describe_workflow', 'button_execution_path', 'read_source_code', 'read_source_code', 'button_execution_path', 'read_source_code', 'button_execution_path', 'read_source_code']
 
-**Reponse verbatim de l'agent (Total: 35.7s | Effectif: 35.701s | Groq wait: 0.0s | Sauts: 6) :**
+**Reponse verbatim de l'agent (Total: 28.24s | Effectif: 28.233s | Groq wait: 0.0s | Sauts: 10) :**
 ```text
-## Différences concrètes entre **group_purchase_user** et **group_purchase_manager** sur un `purchase.order`
+## Différences entre un **acheteur** (`group_purchase_user`) et un **manager** (`group_purchase_manager`) sur une commande d’achat
 
-| Fonctionnalité | **group_purchase_user** (acheteur) | **group_purchase_manager** (manager) |
-|----------------|------------------------------------|--------------------------------------|
-| **Créer / modifier / supprimer** | Autorisé (ACL) | Autorisé (ACL) |
-| **Valider une commande** |  <ul><li>Appuie sur **« Confirm Order »** → `button_confirm()`</li><li>Si la commande n’est pas en double validation, elle passe directement à l’état *to approve*.</li><li>Si la commande est en double validation, l’utilisateur doit attendre l’approbation d’un manager.</li></ul> |  <ul><li>Appuie sur **« Confirm Order »** → `button_confirm()`</li><li>La méthode `_approval_allowed()` renvoie **True** dès que l’utilisateur appartient à `purchase.group_purchase_manager` (voir code ci‑dessous).</li><li>La commande passe immédiatement à l’état *approved* (ou *sale* selon la configuration).</li></ul> |
-| **Approbation** |  <ul><li>Peut appeler **« Approve »** uniquement si la commande est déjà en état *to approve* et que la règle de double validation le permet.</li></ul> |  <ul><li>Peut appeler **« Approve »** directement depuis l’état *draft* ou *sent* grâce à `_approval_allowed()`.</li></ul> |
-| **Déverrouiller une commande** |  Non disponible (bouton **« Unlock »** nécessite `purchase.group_purchase_manager`). |  Disponible (bouton **« Unlock »** → `button_unlock()`). |
-| **Autres actions** |  Toutes les actions disponibles à tous les utilisateurs (définir à brouillon, annuler, créer facture, etc.). |  Même ensemble d’actions, plus celles mentionnées ci‑dessus. |
+| Fonction | Acheteur (`group_purchase_user`) | Manager (`group_purchase_manager`) |
+|----------|----------------------------------|------------------------------------|
+| **Accès ACL** | Les deux groupes disposent des mêmes droits **lecture / écriture / création / suppression** sur `purchase.order`. | Même ACL que l’acheteur. |
+| **Visibilité des commandes** | Pas de règle d’enregistrement supplémentaire : la règle globale `purchase.purchase_order_comp_rule` (multi‑company) s’applique à tous. | Même règle globale. |
+| **Validation de la commande** | Lors de la validation (`button_confirm`), l’ordre passe en état **`to approve`** et doit être approuvé par un manager. | Le manager peut valider directement : la méthode `_approval_allowed` renvoie `True` pour lui, donc l’ordre passe directement en état **`sale`**. |
+| **Déblocage d’une commande verrouillée** | Le bouton **`Unlock`** (`button_unlock`) n’est visible que pour le groupe `purchase.group_purchase_manager`. | Le manager peut cliquer sur **`Unlock`** pour remettre l’ordre en état `purchase`. |
+| **Autres actions** | Aucun bouton supplémentaire n’est réservé uniquement au manager (hors `Unlock`). | Le manager possède les mêmes options que l’acheteur, plus celles mentionnées ci‑dessus. |
 
-### Points clés du code
+### Détails techniques
 
-- **`button_confirm()`** (défini dans `purchase_order.py` lignes 501‑514) :  
-  ```python
-  if order._approval_allowed():
-      order.button_approve()
-  else:
-      order.write({'state': 'to approve'})
-  ```
-  *Citation :* [purchase_order.py:L501-L514](file:///home/user/odoo-17.0/addons/purchase/models/purchase_order.py#L501-L514)
+1. **Validation directe par le manager**  
+   ```python
+   960 |     def _approval_allowed(self):
+   961 |         """Returns whether the order qualifies to be approved by the current user"""
+   962 |         self.ensure_one()
+   963 |         return (
+   964 |             self.company_id.po_double_validation == 'one_step'
+   965 |             or (self.company_id.po_double_validation == 'two_step'
+   966 |                 and self.amount_total < self.env.company.currency_id._convert(
+   967 |                     self.company_id.po_double_validation_amount, self.currency_id, self.company_id,
+   968 |                     self.date_order or fields.Date.today()))
+   969 |             or self.user_has_groups('purchase.group_purchase_manager'))
+   ```
+   *Le manager est reconnu par `self.user_has_groups('purchase.group_purchase_manager')`, ce qui lui permet de passer directement à l’état `sale`.*
 
-- **`_approval_allowed()`** (défini lignes 960‑969) :  
-  ```python
-  return (
-      self.company_id.po_double_validation == 'one_step'
-      or (self.company_id.po_double_validation == 'two_step'
-          and self.amount_total < self.env.company.currency_id._convert(
-              self.company_id.po_double_validation_amount, self.currency_id, self.company_id,
-              self.date_order or fields.Date.today()))
-      or self.user_has_groups('purchase.group_purchase_manager'))
-  ```
-  *Citation :* [purchase_order.py:L960-L969](file:///home/user/odoo-17.0/addons/purchase/models/purchase_order.py#L960-L969)
+2. **Bouton `Unlock` réservé aux managers**  
+   ```python
+   524 |     def button_unlock(self):
+   525 |         self.write({'state': 'purchase'})
+   ```
+   *Ce bouton est annoté dans le workflow comme nécessitant le groupe `purchase.group_purchase_manager` (voir `button_unlock` dans le workflow).*
 
-  Cette fonction permet aux managers de contourner la double validation (qu’elle soit à un ou deux niveaux) grâce à la présence du groupe `purchase.group_purchase_manager`.
-
-- **`button_unlock()`** (défini dans `purchase_order.py` lignes 1070‑1075) :  
-  *(bloc de code omis : la plage citée (L960-L969, L1070-L1075) n'a pas pu être rattachée à la définition de `button_unlock` -- citation à ne pas considérer comme confirmée.)*
-  *Citation :* [purchase_order.py:L1070-L1075](file:///home/user/odoo-17.0/addons/purchase/models/purchase_order.py#L1070-L1075)
-
-  Ce bouton est protégé par `purchase.group_purchase_manager` (voir le workflow).
+3. **Bouton `Confirm Order`**  
+   ```python
+   501 |     def button_confirm(self):
+   502 |         for order in self:
+   503 |             if order.state not in ['draft', 'sent']:
+   504 |                 continue
+   505 |             order.order_line._validate_analytic_distribution()
+   506 |             order._add_supplier_to_product()
+   507 |             # Deal with double validation process
+   508 |             if order._approval_allowed():
+   509 |                 order.button_approve()
+   510 |             else:
+   511 |                 order.write({'state': 'to approve'})
+   512 |             if order.partner_id not in order.message_partner_ids:
+   513 |                 order.message_subscribe([order.partner_id.id])
+   514 |         return True
+   ```
+   *Le bouton est disponible pour tous, mais la logique interne différencie les deux groupes.*
 
 ### Résumé
 
-- **Acheteur (`group_purchase_user`)** :  
-  - Peut créer, modifier, supprimer des commandes.  
-  - Peut confirmer une commande, mais si la double validation est activée, la commande passe en état *to approve* et attend l’approbation d’un manager.  
-  - Ne peut pas déverrouiller une commande verrouillée.
+- **ACL** : identiques pour les deux groupes.  
+- **Règles d’enregistrement** : aucune différence.  
+- **Comportement métier** :  
+  - Le manager peut **valider** une commande directement (bypass double validation) et **déverrouiller** une commande verrouillée.  
+  - L’acheteur doit passer par l’état `to approve` et ne peut pas débloquer les commandes.
 
-- **Manager (`group_purchase_manager`)** :  
-  - Toutes les permissions de l’acheteur.  
-  - Peut **bypass** la double validation et approuver directement les commandes.  
-  - Peut **déverrouiller** les commandes verrouillées.  
-  - Dispose de toutes les actions supplémentaires liées à la gestion des commandes (ex. approbation, déverrouillage).
-
-En pratique, la différence se situe donc dans la capacité du manager à **valider et déverrouiller** les commandes sans passer par le processus de double validation, ce qui n’est pas possible pour un simple acheteur.
-
- SOURCING NON VÉRIFIÉ : citation(s) fichier non retrouvée(s) dans les données produites: home/user/odoo-17.0/addons/purchase/models/purchase_order.py#L1070-L1075. Ne pas considérer ces éléments comme confirmés pour cette question.
+Ainsi, la distinction réelle réside dans les **actions métier** (validation et déblocage) que le manager peut effectuer sans passer par le processus d’approbation, alors que l’acheteur doit soumettre la commande à l’approbation d’un manager.
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```
@@ -385,7 +390,7 @@ Ainsi, la règle de suppression est entièrement gérée par le code Python, et 
 
 **Outils attendus :** ['who_has_access_to', 'evaluate_record_rules'] | **Outils invoques :** ['who_has_access_to', 'evaluate_record_rules', 'evaluate_record_rules', 'evaluate_record_rules', 'evaluate_record_rules', 'evaluate_record_rules', 'evaluate_record_rules', 'evaluate_record_rules', 'evaluate_record_rules']
 
-**Reponse verbatim de l'agent (Total: 22.53s | Effectif: 22.527s | Groq wait: 0.0s | Sauts: 9) :**
+**Reponse verbatim de l'agent (Total: 21.62s | Effectif: 21.623s | Groq wait: 0.0s | Sauts: 9) :**
 ```text
 ### Accès aux commandes de vente
 
@@ -598,7 +603,7 @@ En résumé, lorsqu’une validation est effectuée avec des quantités partiell
 
 **Outils attendus :** ['who_has_access_to', 'evaluate_record_rules', 'read_source_code'] | **Outils invoques :** ['analyze_security_locks', 'who_has_access_to', 'evaluate_record_rules'] -- MANQUANT(S): ['read_source_code']
 
-**Reponse verbatim de l'agent (Total: 19.84s | Effectif: 19.838s | Groq wait: 0.0s | Sauts: 3) :**
+**Reponse verbatim de l'agent (Total: 19.12s | Effectif: 19.116s | Groq wait: 0.0s | Sauts: 3) :**
 ```text
 ### Réponse
 
