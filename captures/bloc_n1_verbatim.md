@@ -1,6 +1,6 @@
 # Rapport Verbatim -- Bloc N1 (banc de questions natif)
 
-**Date d'execution :** 2026-09-23 12:52:26
+**Date d'execution :** 2026-09-23 13:18:57
 
 **Objectif :** rejouer les questions verite-terrain des 5 modules natifs (maintenance, purchase, sale, stock, account) contre l'agent Code Intelligence reel et capturer la reponse verbatim pour comparaison manuelle avec `reference_answer` -- aucune notation automatique.
 
@@ -9,14 +9,14 @@
 
 | Metrique | Valeur |
 |---|---|
-| Questions executees (consolidees) | 15 |
-| Questions rejouees ce tour | 3 |
+| Questions executees (consolidees) | 17 |
+| Questions rejouees ce tour | 2 |
 | Erreurs d'execution | 0 |
 | Ecarts de couverture d'outils (expected_tools non tous invoques) | 3 |
-| p50 latence effective (run courant) | `21.62s` |
-| p90 latence effective (run courant) | `28.23s` (budget `12.0s`,  DEPASSE) |
-| Moyenne (run courant) | `22.99s` |
-| Max (run courant) | `28.23s` |
+| p50 latence effective (run courant) | `33.5s` |
+| p90 latence effective (run courant) | `40.08s` (budget `12.0s`,  DEPASSE) |
+| Moyenne (run courant) | `33.5s` |
+| Max (run courant) | `40.08s` |
 
 ---
 
@@ -204,6 +204,39 @@ En Odoo, l’accès au modèle (défini dans `ir.model.access.csv`) ne supprime 
 - **Modifier la vue** pour enlever ou ajuster l’attribut `groups` si vous souhaitez qu’il soit visible pour d’autres groupes.
 
 En résumé, la restriction vient de la configuration de la vue, pas de la règle d’accès au modèle.
+
+[Source: Graphe de Connaissances Code Intelligence]
+```
+
+---
+
+## [MNT-Q5] maintenance -- constraints (medium)
+**Question :** Quelle regle empeche de creer deux equipements avec le meme numero de serie, et quelle contrainte distincte s'applique sur l'intervalle de repetition (repeat_interval) d'une demande recurrente ?
+
+**Reponse de reference (verite-terrain) :**
+> Deux mecanismes distincts et independants : (1) sur maintenance.equipment, _sql_constraints=[('serial_no','unique(serial_no)', ...)] -- contrainte SQL native (pas @api.constrains) bloquant un second equipement avec le meme serial_no au niveau base de donnees. (2) sur maintenance.request, _check_repeat_interval (@api.constrains('repeat_interval')) leve une ValidationError Python si repeat_interval < 1 -- verifiee a l'ecriture ORM, pas au niveau SQL.
+
+**A verifier dans le code :** `models/maintenance.py : classe MaintenanceEquipment, attribut _sql_constraints ; classe MaintenanceRequest, methode _check_repeat_interval`
+
+**Outils attendus :** ['analyze_data_constraints'] | **Outils invoques :** ['analyze_data_constraints', 'analyze_data_constraints', 'analyze_data_constraints']
+
+**Reponse verbatim de l'agent (Total: 26.93s | Effectif: 26.926s | Groq wait: 0.0s | Sauts: 3) :**
+```text
+### Règle empêchant les doublons de numéro de série
+
+- **Contrainte** : `unique(serial_no)` sur le champ `serial_no` du modèle `maintenance.equipment`.  
+- **Source** : [maintenance.py:L171-L173](file:///home/user/odoo-17.0/addons/maintenance/models/maintenance.py#L171-L173)
+
+Cette contrainte SQL garantit qu’aucun équipement ne peut être créé avec un numéro de série déjà présent dans la base.
+
+---
+
+### Contrainte distincte sur l’intervalle de répétition
+
+- **Contrainte** : `@api.constrains('repeat_interval')` qui vérifie que `repeat_interval` est **≥ 1**.  
+- **Source** : [maintenance.py:L280-L284](file:///home/user/odoo-17.0/addons/maintenance/models/maintenance.py#L280-L284)
+
+Si l’intervalle de répétition est inférieur à 1, une `ValidationError` est levée, empêchant la création ou la modification de la demande récurrente.
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```
@@ -587,6 +620,45 @@ En résumé, lorsqu’une validation est effectuée avec des quantités partiell
 - Les quantités traitées sont validées et le picking passe à *done*.  
 - Les quantités restantes sont soit annulées (si `create_backorder = 'never'`), soit placées dans un nouveau picking de backorder (si `create_backorder` vaut `'ask'` ou `'always'`).  
 - Si aucune quantité n’est traitée, la validation échoue avec l’erreur « You can’t validate an empty transfer… ».
+
+[Source: Graphe de Connaissances Code Intelligence]
+```
+
+---
+
+## [STK-Q5] stock -- constraints (medium)
+**Question :** Quelles contraintes empechent la creation d'un stock.quant invalide, et quelle regle distincte garantit l'unicite d'un numero de serie ?
+
+**Reponse de reference (verite-terrain) :**
+> Trois @api.constrains independantes sur stock.quant : check_product_id interdit un quant pour un produit qui n'est pas de type 'product' (consommable/service exclus) ; check_location_id interdit un emplacement de type 'view' (emplacement structurel, non physique) ; check_lot_id interdit qu'un lot/numero de serie soit rattache a un produit different de celui du quant. Independamment, sur stock.lot, _check_unique_lot (@api.constrains sur name/product_id/company_id) verifie via _read_group (pas une contrainte SQL unique) qu'aucune combinaison produit+societe+nom de lot n'est dupliquee -- une verification applicative, pas une contrainte de base de donnees.
+
+**A verifier dans le code :** `models/stock_quant.py : check_product_id, check_location_id, check_lot_id (@api.constrains) ; models/stock_lot.py : _check_unique_lot (@api.constrains('name','product_id','company_id'))`
+
+**Outils attendus :** ['analyze_data_constraints'] | **Outils invoques :** ['analyze_data_constraints', 'analyze_data_constraints']
+
+**Reponse verbatim de l'agent (Total: 40.08s | Effectif: 40.076s | Groq wait: 0.0s | Sauts: 2) :**
+```text
+### Contraintes empêchant la création d’un **stock.quant** invalide  
+
+| Type de contrainte | Description | Source |
+|--------------------|-------------|--------|
+| **Contrôle du type de produit** | Un quant ne peut être créé que pour un produit de type « product » (pas de consommable ou service). | `@api.constrains('product_id')` – vérifie `product_id.type != 'product'` <br> [stock_quant.py:L615-L618](file:///home/user/odoo-17.0/addons/stock/models/stock_quant.py#L615-L618) |
+| **Contrôle de l’emplacement** | Un quant ne peut être stocké que dans un emplacement dont l’usage n’est pas « view ». | `@api.constrains('location_id')` – vérifie `location_id.usage == 'view'` <br> [stock_quant.py:L638-L642](file:///home/user/odoo-17.0/addons/stock/models/stock_quant.py#L638-L642) |
+| **Contrôle du lot/numéro de série** | Le lot doit être lié au même produit que le quant. | `@api.constrains('lot_id')` – vérifie `lot_id.product_id != quant.product_id` <br> [stock_quant.py:L644-L648](file:///home/user/odoo-17.0/addons/stock/models/stock_quant.py#L644-L648) |
+| **Restrictions d’opérations** | Certaines opérations (création, duplication, suppression, déplacement) sont bloquées pour les quants. | Divers `raise UserError` dans le modèle : <br> - `Operation not supported` <br> - `You cannot duplicate stock quants.` <br> - `Quant's creation is restricted, you can't do this operation.` <br> - `Quant's editing is restricted, you can't do this operation.` <br> - `Quants are auto‑deleted when appropriate. If you must manually delete them, please ask a stock manager to do it.` <br> - `Only a stock manager can validate an inventory adjustment.` <br> - `Quantity or Reserved Quantity should be set.` <br> (voir les lignes 241‑506, 506‑615, 615‑618, 618‑642, 1052‑1052, 1091‑1091, 1482‑1487) |
+| **Contraintes de domaine et d’ondelete** | Les champs `product_id`, `location_id`, `lot_id` et `package_id` ont des contraintes `ondelete='restrict'` et des domaines qui limitent les valeurs possibles. | `product_id`, `location_id`, `lot_id`, `package_id` – `ondelete='restrict'` <br> `product_id` domaine : `self._domain_product_id()` <br> `location_id` domaine : `self._domain_location_id()` <br> `lot_id` domaine : `self._domain_lot_id()` <br> `package_id` domaine : `[('location_id', '=', location_id)]` <br> (voir lignes 47‑50, 59‑62, 66‑69, 72‑75) |
+
+Ces contraintes, combinées aux messages d’erreur explicites, garantissent qu’un **stock.quant** ne peut être créé que lorsqu’il respecte les règles métier de l’inventaire (produit, emplacement, lot, droits d’utilisateur, etc.).
+
+---
+
+### Règle distincte garantissant l’unicité d’un numéro de série  
+
+| Contrôle | Description | Source |
+|----------|-------------|--------|
+| **Contrôle d’unicité du lot/numéro de série** | Le champ `name` (numéro de série) doit être unique pour chaque combinaison `(product_id, company_id, name)`. | `@api.constrains('name', 'product_id', 'company_id')` – `_check_unique_lot` <br> [stock_lot.py:L91-L102](file:///home/user/odoo-17.0/addons/stock/models/stock_lot.py#L91-L102) |
+
+Cette contrainte est **distincte** des contraintes de `stock.quant` et s’applique directement sur le modèle `stock.lot`. Elle empêche la création de deux lots portant le même numéro de série pour le même produit au sein d’une même société.
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```

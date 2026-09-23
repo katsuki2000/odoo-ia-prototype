@@ -2496,3 +2496,11 @@ Validation benchmark :
 - ACC-Q1 : Reponse exacte et explicative sur `implied_ids`, aucune citation fabriquee.
 - SAL-Q1 : Parfaitement stable, evaluation separee vendeur vs portail.
 - Suite complete de tests : 937 passed, 39 skipped, 0 failure.
+
+## Section 920 -- Validation benchmark MNT-Q5 et STK-Q5 (17/25 complets)
+
+Execution reussie de `python scripts/run_bloc_n1_benchmark.py MNT-Q5 STK-Q5` :
+- MNT-Q5 (maintenance / constraints) : 100% verifie. Contrainte SQL unique(serial_no) sur maintenance.equipment (L171-L173) et @api.constrains('repeat_interval') sur maintenance.request (L280-L284). Zero warning. Module maintenance desormais integralement complete (5/5).
+- STK-Q5 (stock / constraints) : 100% verifie. Contraintes @api.constrains sur product_id (L615-L618), location_id (L638-L642), lot_id (L644-L648) sur stock.quant, et _check_unique_lot (L91-L102) sur stock.lot. Zero warning.
+- Captures mises a jour : 17/25 questions validees dans captures/bloc_n1_verbatim.json.
+- Restant pour cloturer le Bloc N1 : 8 questions (Q3 Heritage et Q4 UI sur purchase, sale, stock, account).
