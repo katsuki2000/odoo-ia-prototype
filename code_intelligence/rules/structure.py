@@ -517,7 +517,7 @@ _MODULE_EXTENSION_DENIAL_RE = re.compile(
     r"(?:n['\u2019]\s*etend\s+pas|ne\s+s['\u2019]?\s*etend\s+pas|ne\s+modifie\s+pas|"
     r"pas[^.\n]{0,20}extension|"
     rf"ne{_MODULE_EXTENSION_DENIAL_DECOR}s?['\u2019]?{_MODULE_EXTENSION_DENIAL_DECOR}etend"
-    rf"{_MODULE_EXTENSION_DENIAL_DECOR}pas)[^.\n]{{0,80}}(?:perimetre|hors\s+de|en\s+dehors\s+de)[^.\n]{{0,40}}"
+    rf"{_MODULE_EXTENSION_DENIAL_DECOR}pas)[^.\n]{{0,80}}(?:perimetre|hors\s+de|en\s+dehors\s+de|domaine)[^.\n]{{0,40}}"
 )
 
 
@@ -573,6 +573,14 @@ def _answer_lacks_extension_coverage(final_answer: str, extended_models: List[st
     return (mentioned / len(extended_models)) < threshold
 
 
+def _format_extension_statement(extended_models: List[str], prefix: str) -> str:
+    models_list = ", ".join(f"'{m}'" for m in extended_models)
+    return (
+        f"{prefix} étend bien {len(extended_models)} modèle(s) "
+        f"hors de son propre périmètre : {models_list}."
+    )
+
+
 def _neutralize_module_extension_denial(final_answer: str, extended_models: List[str]) -> str:
     """Replace EVERY sentence containing the out-of-perimeter denial with the
     real extended-model list -- expanding each match out to real sentence
@@ -595,11 +603,7 @@ def _neutralize_module_extension_denial(final_answer: str, extended_models: List
     if not matches:
         return final_answer
 
-    models_list = ", ".join(f"'{m}'" for m in extended_models)
-    replacement = (
-        f"En réalité, ce module étend bien {len(extended_models)} modèle(s) "
-        f"hors de son propre périmètre : {models_list}."
-    )
+    replacement = _format_extension_statement(extended_models, prefix="En réalité, ce module")
 
     # Expand every match to real sentence bounds, then merge any spans that
     # end up overlapping/adjacent (two matches landing in the same sentence)
@@ -645,5 +649,18 @@ def _correct_module_extension_contradiction(final_answer: str, raw_tool_output: 
             len(extended), extended,
         )
         final_answer = _neutralize_module_extension_denial(final_answer, extended)
+
+    if _answer_lacks_extension_coverage(final_answer, extended):
+        logger.warning(
+            "Node [code_intelligence_agent]: synthesis cites none of the %d "
+            "model(s) the module extends outside its own perimeter, whatever "
+            "its wording -- appending the real list: %s",
+            len(extended), extended,
+        )
+        final_answer = (
+            final_answer.rstrip()
+            + "\n\n"
+            + _format_extension_statement(extended, prefix="À noter : ce module")
+        )
 
     return final_answer

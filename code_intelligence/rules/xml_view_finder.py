@@ -193,9 +193,24 @@ def _find_field_in_xml_views(
         steps.append(f"4. Condition Required: required=\"{required_cond}\".")
     if invisible_cond:
         steps.append(f"5. Condition Invisible: invisible=\"{invisible_cond}\".")
+    tech_notes = []
     if groups_cond:
-        _grp_citations = format_xml_id_citations([g.strip() for g in groups_cond.split(",") if g.strip()])
+        raw_groups = [g.strip() for g in groups_cond.split(",") if g.strip()]
+        _grp_citations = format_xml_id_citations([g.lstrip("!") for g in raw_groups])
+        for rg in raw_groups:
+            clean_rg = rg.lstrip("!")
+            rg_node = f"group:{clean_rg}"
+            if G.has_node(rg_node) and G.nodes[rg_node].get("group_type") == "technical":
+                sf = G.nodes[rg_node].get("setting_field", "")
+                tech_notes.append(f"{clean_rg} (paramètre de configuration: '{sf}')")
+
         steps.append(f"6. Groupes requis: groups=\"{groups_cond}\" ({_grp_citations}).")
+        if tech_notes:
+            steps.append(
+                f"7. Paramètre de configuration requis: Ce champ dépend d'une option dans les Paramètres du module "
+                f"({', '.join(tech_notes)}) et non d'un rôle utilisateur individuel. "
+                f"Tant que cette option n'est pas activée en configuration, aucun utilisateur ne voit ce champ."
+            )
 
     summary_parts = [
         f"Champ '{matched_field_name}' ({matched_field_label}) sur la vue '{rec_id}' ({link}) du modèle '{model_name}':"
@@ -207,8 +222,16 @@ def _find_field_in_xml_views(
     if invisible_cond:
         summary_parts.append(f"Invisible lorsque: invisible=\"{invisible_cond}\".")
     if groups_cond:
-        _grp_citations = format_xml_id_citations([g.strip() for g in groups_cond.split(",") if g.strip()])
-        summary_parts.append(f"Restreint aux groupes: [{groups_cond}] ({_grp_citations}).")
+        if tech_notes:
+            summary_parts.append(
+                f"Restreint aux groupes: [{groups_cond}] ({_grp_citations}). "
+                f"NOTE DE CONFIGURATION: Ce champ est conditionné par l'activation d'un paramètre dans les Paramètres du module "
+                f"({', '.join(tech_notes)}), et non par un simple rôle utilisateur individuel. "
+                f"Tant que cette fonctionnalité n'est pas activée en configuration, aucun utilisateur (même gestionnaire) "
+                f"ne voit ce champ car le groupe technique n'est attribué à personne."
+            )
+        else:
+            summary_parts.append(f"Restreint aux groupes: [{groups_cond}] ({_grp_citations}).")
     else:
         summary_parts.append("Aucune restriction par groupe sur ce champ.")
 

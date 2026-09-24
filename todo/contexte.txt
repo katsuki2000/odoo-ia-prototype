@@ -2699,3 +2699,816 @@ Contexte : pmm rejoue `python scripts/run_bloc_n1_benchmark.py SAL-Q3`. Divergen
   - **SAL-Q4** : **100% VALIDE** (`group_sale_manager`).
 
 
+## Section 924 — Règle UX : réponse 100% métier, zéro citation technique inline (2026-09-24)
+
+- **Constat (feedback PMM)** : la réponse MIRO AI sur `custom.purchase.request` contenait des
+  citations techniques inline dans le corps de la réponse utilisateur (ex. `purchase_request.py:L30-L30`,
+  `purchase_request.py:L32-L32`). Ces détails sont incompréhensibles pour un utilisateur métier.
+- **Règle** : la réponse finale destinée à l'utilisateur doit être **100% langage métier**.
+  Toute référence technique (noms de fichiers, numéros de ligne, noms de méthodes Python,
+  `xml_id`, etc.) doit être cantonnée à la section **debug / sources / Code Intelligence**
+  en bas de la réponse — jamais dans le corps principal.
+- **Exemples à bannir du corps principal** :
+  - `purchase_request.py:L27-L27`
+  - `action_valider()` (utiliser "bouton Valider" à la place)
+  - `has_group('purchase.group_purchase_manager')` (utiliser "le groupe Responsable des achats")
+  - `rec._VALIDATEURS_EXCEPTIONNELS` (utiliser "la liste restreinte de la Direction")
+- **Ce qui est OK dans le corps principal** :
+  - Noms de groupes fonctionnels traduits ("Responsable des achats", "Directeur financier")
+  - Montants et seuils métier ("au-delà de 10 000 €")
+  - Noms de menus et boutons tels qu'affichés dans l'interface Odoo
+- **Règle finale (simplifiée)** :
+  - **Corps de la réponse** : 100% langage métier, aucun détail technique CI.
+  - **Section « Preuves »** (en bas) : uniquement les **citations de fichiers + numéros de lignes**.
+    Pas de dumps de code, pas de noms de méthodes Python, pas de `xml_id`, pas de conditions Python.
+  - Le contrôle d'accès par rôle (dev vs métier) est un sujet futur — pour l'instant on traite
+    uniquement le formatage de la réponse.
+- **Impact** : à traiter dans le prompt système ou le post-processing de la réponse finale.
+
+
+## Section 925 — Vague Q4 (UI/Visibilité) : résultats + anomalie STK-Q4 (2026-09-24)
+
+- **Bloc N1 complet** : 25/25 questions exécutées.
+- **Résultats Q4** :
+  - **PUR-Q4** ✅ : `purchase.group_purchase_manager` sur `button_approve` correctement identifié.
+  - **SAL-Q4** ✅ : `sales_team.group_sale_manager` sur `action_unlock` correctement identifié.
+    Détail bonus manquant (`action_lock` + `sale.group_auto_done_setting`) non demandé par la question.
+  - **ACC-Q4** ✅ : `account.group_account_readonly` identifié, ni `group_account_invoice` ni
+    `group_account_manager` ne l'impliquent → champ invisible dans les deux cas. Correct.
+  - **STK-Q4** ⚠️ **PARTIEL** : voir anomalie ci-dessous.
+
+- **Anomalie STK-Q4** :
+  - **Ce qui est correct** : le groupe `stock.group_stock_multi_locations` sur les champs
+    `location_id`/`location_dest_id` est bien identifié.
+  - **Ce qui manque** : la réponse dit « ajouter l'utilisateur au groupe Stock Multi-Locations ».
+    Or ce n'est **pas un groupe de rôle** assignable manuellement — c'est un **implied_group**
+    activé par un booléen dans `res.config.settings` (paramètre « Storage Locations »).
+    Tant que cette fonctionnalité n'est pas activée en configuration, personne ne voit les champs,
+    même un `stock.group_stock_manager`.
+  - **Cause probable** : le tool `button_execution_path` (et les autres tools CI) ne tracent pas
+    le mécanisme `implied_group` dans `res.config.settings`. Ils voient le `groups=` sur le champ
+    XML mais pas la chaîne d'activation en amont (booléen settings → implied_group → attribution
+    automatique du groupe technique à tous les utilisateurs).
+  - **Piste de fix** : enrichir le graphe ou un tool dédié pour détecter les groupes techniques
+    liés à un `implied_group` dans `res.config.settings`, et les distinguer des groupes de rôle
+    dans la réponse. Sujet à traiter dans un chantier futur (pas bloquant Bloc N1).
+
+- **Confirmation UX (section 924)** : les 4 réponses Q4 contiennent des détails techniques dans
+  le corps (noms de méthodes Python, `xml_id`, extraits XML). Confirme la nécessité du correctif
+  de formatage noté en section 924.
+
+## Section 926 — Résolution Chantiers UX & Implied Groups Settings (2026-09-24)
+
+- **Chantier 1 — UX Formatting (Section 924)** :
+  - **Fichiers modifiés** : `code_intelligence/agent/prompts.py`
+  - **Correctif** :
+    - Règle 7 (`CI_SYSTEM_PROMPT`) durcie : le corps de la réponse doit être 100% langage métier
+      (pas de noms de méthodes, pas de code brut, pas d'xml_id, noms fonctionnels traduits en français).
+      Une section finale dédiée `### Preuves` rassemble les citations techniques (`xml_id`, liens `file://` avec lignes).
+    - `build_synthesis_prompt` : directive impérative explicite imposant la structure en deux parties
+      (corps métier accessible + section `### Preuves` finale).
+
+- **Chantier 2 — Détection des groupes techniques `implied_group` issus des Settings (Section 925)** :
+  - **Fichiers modifiés** :
+    - `code_intelligence/extractor/python.py` : ajout du champ `implied_group: Optional[str]` sur
+      `OdooFieldDeclaration` et extraction automatique dans `_extract_field_declaration`.
+    - `code_intelligence/graph/nodes.py` :
+      - Détection des champs de `res.config.settings` portant un `implied_group`.
+      - Typage des nœuds de groupe dans le graphe : `group_type="technical"` si lié à un setting et
+        catégorie masquée/None, `group_type="role"` sinon.
+      - Création d'arêtes `IMPLIES_CONFIGURABLE` (`base.group_user` -> groupe technique avec `setting_field`).
+    - `code_intelligence/rules/group_resolver.py` : `_expand_implied_user_groups` traverse les arêtes
+      `IMPLIES_CONFIGURABLE` comme les `IMPLIES`.
+    - `code_intelligence/rules/button_path.py` : détection des groupes techniques dans `required_groups`
+      (avec support des groupes négatifs `!group`), annotation du résumé et génération d'un message
+      expliquant qu'il s'agit d'un paramètre d'activation en configuration et non d'un rôle.
+    - `code_intelligence/rules/xml_view_finder.py` : détection des groupes techniques (y compris `!group`),
+      ajout d'une étape et d'une note de configuration explicite dans l'observation du champ.
+    - `active_graph.json` : régénéré via `scripts/rebuild_graph.py` (11 781 nœuds, 11 735 arêtes).
+  - **Tests créés** : `code_intelligence/tests/test_section925_implied_group.py` (11 tests passés à 100%).
+
+- **Validation par rejeu** :
+  - **STK-Q4** rejoué avec succès :
+    - La réponse explique désormais clairement que le groupe est activé via une option de configuration
+      dans les paramètres du module *stock*, désactivée par défaut, expliquant pourquoi la majorité des
+      utilisateurs ne voient pas les champs.
+    - La structure UX est respectée : corps 100% métier + section finale `### Preuves` propre.
+
+## Section 929 -- Rejeu complet Q1-Q4 (20/25 questions, crash reseau sur SAL-Q4) colle par pmm -- 3 defauts precis identifies et root-causes, tous en lien avec le garde `_correct_module_extension_contradiction` (inheritance) ou l'imprecision implied_group/create_uid (workflow) ; fausse alerte "section Preuves absente" levee (comportement voulu, prompt relu directement)
+
+Date : 24/09/2026
+Contexte : pmm colle 4 batches (Q1 securite x5, Q2 workflow x5, Q3 heritage x5, Q4 UI x2+crash reseau sur SAL-Q4) sur l'etat actuel du depot (section 926 non commitee mais bien presente dans l'arbre de travail -- verifie par `git status`). Diagnostic seul, aucun code touche ce tour.
+
+**0. Fausse alerte levee** : aucune des 19 reponses completes n'affiche de section `### Preuves` -- j'ai d'abord cru a une regression par rapport a ce que 926 decrivait. Verifie par lecture directe de `code_intelligence/agent/prompts.py` (l.65-67) : le prompt dit explicitement de **ne jamais** ajouter de section Preuves/Sources, les citations techniques etant geree par un "depliant dedie" separe de l'interface, pas par le texte genere. Le format a visiblement ete affine apres la redaction de la section 926 (qui decrivait encore une section Preuves textuelle). Comportement actuel confirme volontaire, pas de defaut. Benefice constate au passage : plus aucune trace du bug de citation fantome `file:///path#L1-L10` (section 915) ni de marqueur `SOURCING NON VÉRIFIÉ` sur tout le lot -- le nouveau format contourne structurellement tout ce probleme en supprimant l'obligation de citer en prose.
+
+**1. GAIN CONFIRME -- ACC-Q1 desormais correct.** Explique enfin le mecanisme reel (implication `account.group_account_manager` -> `account.group_account_invoice`) au lieu de re-decrire l'ACL sans resoudre la contradiction posee par la question (defaut releve section 914, point 5). Meme mecanisme d'annotation deterministe visible sur ACC-Q2 (`[FAIT DÉTERMINISTIQUE] Précision d'héritage de droits`). Bug ferme, apparemment par du travail fait entre les sections 916-923 (non vu directement dans ce fil).
+
+**2. SAL-Q3 -- REGRESSION reelle sur une question deja validee "100% VALIDE" en section 928, root cause precisement identifiee (pas une supposition).** Reponse : "Aucun modele natif hors du perimetre vente n'est directement etendu par sale.order" -- FAUX, `sale.order`/le module `sale` etend bien `account.move` entre autres (confirme section 928 et par verification directe ci-dessous). `tools_used` = `list_involved_modules` appele DEUX FOIS, sans jamais `analyze_method_override_chain` (le runner flague lui-meme `[WARN] Outil(s) attendu(s) non invoque(s)`).
+  Root cause (verifiee par execution directe, pas supposee) : `list_involved_modules(name)` a DEUX modes selon l'argument -- mode module (`list_involved_modules('sale')` -> `"Module 'sale' defines or extends the following models: account.move (extends), ..."`, la SEULE phrase que le regex `_MODULE_DEFINES_EXTENDS_RE` de `structure.py` sait parser) et mode modele (`list_involved_modules('sale.order')` -> `"Modules implicated for model 'sale.order': sale (declares)."`, phrase totalement differente, aucune correspondance avec le regex). Verifie les deux appels reels sur le graphe actuel : le mode module contient bien `account.move (extends)` en clair. Le choix de l'argument (nom de module vs nom de modele) est laisse au libre choix du LLM (ReAct), pas force deterministiquement -- ce tour-ci, les deux appels ont vraisemblablement cible `sale.order` (mode modele, redondant), donc `_extract_module_extended_models(raw_tool_output)` ne trouve RIEN, et `_correct_module_extension_contradiction` sort tot (`if not extended: return final_answer`) SANS MEME TENTER de detecter la denegation -- le garde ne peut pas se declencher, pas parce que son regex de denegation est insuffisant (comme je le pensais avant verification), mais parce que la preuve dont il depend n'a jamais ete produite ce tour. Explique la non-reproductibilite face a la section 928 (meme question, meme garde, resultat different) : c'est le choix d'argument du LLM qui varie d'un rejeu a l'autre sur backend local, pas le garde lui-meme.
+  Piste de correctif (non ecrite) : forcer deterministiquement un appel `list_involved_modules(module_name)` en mode MODULE (pas modele) pour toute question `capability=inheritance`, au lieu de laisser le choix au LLM -- meme logique de predispatch deja appliquee aux questions `capability=security` (who_has_access_to/evaluate_record_rules forces).
+
+**3. ACC-Q3 -- defaut distinct mais dans la MEME famille de garde, deja partiellement documente (sections 809-858), un nouveau cas non couvert trouve.** Le garde se declenche bien cette fois (log visible : "synthesis denied... replacing the denial sentence with the real module list"), MAIS seulement sur la PREMIERE occurrence de la denegation dans la reponse -- la phrase de conclusion ("En resume, account.move est un modele propre a l'application comptable et **n'etend pas** un modele natif d'un autre domaine") reste non corrigee, produisant une reponse qui se contredit elle-meme (liste des 25 modeles injectee au milieu, conclusion fausse a la fin). Root cause (lecture directe de `_MODULE_EXTENSION_DENIAL_RE`, `code_intelligence/rules/structure.py`) : le regex exige, apres la negation, l'un des 3 suffixes `perimetre|hors de|en dehors de` dans les ~80 caracteres suivants -- la phrase de conclusion utilise "**n'etend pas** un modele natif **d'un autre domaine**", un 4e suffixe jamais ajoute a la liste malgre l'historique documente dans le code lui-meme (sections 840/841/842-843/844/856/857, chaque fois une nouvelle formulation not covered). `_neutralize_module_extension_denial` remplace bien TOUTES les occurrences qui MATCHENT (deja corrige en 856 pour ce point precis), mais ne peut evidemment rien faire pour une occurrence que le regex ne detecte pas du tout.
+  Piste de correctif (non ecrite) : elargir la liste de suffixes reconnus (`domaine` en plus de `perimetre/hors de/en dehors de`), OU -- mieux, et deja prevu par le code existant mais pas encore branche a cet endroit precis -- utiliser `_answer_lacks_extension_coverage` (deja ecrite, section 858, wording-independent car basee sur le taux de couverture des vrais noms de modeles cites, pas sur un pattern de negation) comme critere de declenchement de `_correct_module_extension_contradiction` en PLUS du regex de denegation, ce qui aurait attrape ce cas sans ajouter un 5e suffixe a une liste deja vouee a etre depassee par la prochaine formulation.
+
+**4. SAL-Q2 -- double inexactitude verifiee directement contre le code source reel, meme famille que le defaut implied_group deja corrige pour STK-Q4 (section 925/926) mais PAS couverte par ce correctif-la.**
+  Reponse : "La commande est verrouillee immediatement apres la confirmation si l'utilisateur qui confirme possede le groupe sale.group_auto_done_setting."
+  Verification directe (`odoo-17.0/addons/sale/models/sale_order.py` l.987, `wizard/res_config_settings.py` l.20-21) :
+  - (a) `sale.group_auto_done_setting` est un `implied_group` d'un booleen `res.config.settings` ("Lock Confirmed Sales") -- EXACTEMENT le meme mecanisme (parametre de configuration d'entreprise, pas un role assignable) que celui identifie et corrige pour STK-Q4 en section 925/926. Le correctif de 926 a touche `button_path.py` et `xml_view_finder.py` -- SAL-Q2 est dispatche via `describe_workflow`/`button_execution_path`/`analyze_security_locks` (tools_used confirme), et le mecanisme d'annotation implied_group n'a apparemment pas ete verifie/etendu a ce chemin-la (a confirmer par lecture de `security_evidence.py`, non fait ce tour, faute de temps).
+  - (b) Erreur factuelle distincte et plus grave : le code reel verifie `self.create_uid.has_group('sale.group_auto_done_setting')` -- le **createur** de la commande, pas "l'utilisateur qui confirme" comme l'affirme la reponse. Ce sont potentiellement deux personnes differentes (une commande creee par un vendeur peut etre confirmee par un autre utilisateur, ou automatiquement). La reponse attribue la condition a la mauvaise personne.
+  Root cause exacte du (b) non investiguee ce tour (pas eu le temps de tracer quel tool/observation a fourni cette information au LLM) -- juste confirme que c'est faux par rapport au code reel.
+
+**Etat du depot** : aucune modification de code ce tour. Diagnostic seul : lecture de `prompts.py`, `structure.py` (`_correct_module_extension_contradiction` et toute la famille de garde-fous associee), execution directe de `list_involved_modules` en mode module vs modele sur le graphe reel, lecture de `sale_order.py`/`res_config_settings.py` reels. `captures/bloc_n1_verbatim.json/md` mis a jour par le rejeu de pmm (20 questions, SAL-Q4 interrompu par erreur reseau transitoire + Ctrl-C -- meme famille de fragilite ollama/ngrok deja documentee, non re-detaillee ici).
+
+**Prochaine etape** : arbitrage pmm sur l'ordre parmi 3 correctifs independants, tous diagnostiques mais non ecrits --
+  (F) forcer deterministiquement `list_involved_modules(module_name)` en mode module pour les questions `capability=inheritance` (point 2, corrige SAL-Q3 et previent la meme classe de defaut sur toute question inheritance future) ;
+  (G) brancher `_answer_lacks_extension_coverage` comme second declencheur de `_correct_module_extension_contradiction`, en plus du regex de denegation (point 3, ferme la boucle de whack-a-mole documentee depuis la section 840) ;
+  (H) etendre la detection implied_group (section 925/926) au chemin `analyze_security_locks`/workflow, et corriger separement la confusion create_uid/utilisateur-qui-confirme sur SAL-Q2 (point 4, necessite d'abord de tracer quel tool a produit l'observation fautive).
+
+## Section 930 — UI & Architecture Preuves : Dépliant uniquement, corps 100% métier (2026-09-24)
+
+- **Constat & Arbitrage PMM** : « normalement toutes les preuves devraient être dans le dépliant ».
+  Il y avait un doublon incohérent : le corps de la réponse textuelle incluait une section Markdown
+  `Preuves` (citations brutes, `xml_id`, fichiers, lignes) qui polluait la lecture métier, alors
+  qu'un composant pliable dédié (`<details class="miro-verification-disclosure">`) existait déjà
+  sous chaque message dans l'interface Odoo.
+- **Règle architecturale** :
+  - **Corps du message (texte)** : 100% langage métier, zéro mention technique, zéro section `Preuves`.
+  - **Dépliant pliable UI (`Preuves`)** : réceptacle exclusif de toutes les preuves techniques
+    (Plan d'investigation, sources consultées, chemins de fichiers, numéros de lignes et snippets
+    détaillés des observations d'outils).
+- **Modifications appliquées** :
+  - `code_intelligence/agent/prompts.py` :
+    - Règle 7 (`CI_SYSTEM_PROMPT`) et directive de synthèse (`build_synthesis_prompt`) mises à jour :
+      interdiction explicite d'ajouter une section Markdown `Preuves` ou `Sources` dans la réponse
+      textuelle. La réponse doit être exclusivement rédigée en langage métier.
+  - `code_intelligence/agent/postprocess.py` :
+    - Ajout d'une sécurité regex nettoyant toute section Markdown `Preuves` ou `Sources` accidentellement
+      émise par le LLM, garantissant que `final_answer` reste 100% propre pour l'utilisateur final.
+  - `odoo_addons/miro_ai/static/src/xml/miro_ai_assistant.xml` :
+    - Affichage des snippets d'observation détaillés (`s.snippet`) sous chaque source dans le dépliant
+      pliable `<details>`.
+  - `odoo_addons/miro_ai/static/src/css/miro_ai.css` :
+    - Ajout de `max-height: 180px` et `overflow-y: auto` sur `.source-snippet` pour un affichage
+      compact et défilable des observations techniques dans le dépliant.
+- **Validation** :
+  - Tests unitaires `test_section925_implied_group.py` (11/11) et `test_c_complete.py` (4/4 E2E) passés.
+  - Rejeu de **STK-Q4** validé : corps 100% métier, aucune section technique Markdown dans la bulle
+    de chat, et l'intégralité des preuves techniques transmise dans `sources` pour le dépliant UI.
+
+## Section 931 — Correctifs Frontend UI : Input box, suppression baguette magique & couleur titre (2026-09-24)
+
+- **Demandes PMM** :
+  1. Réajuster la taille de la boîte pour poser les questions (dépassait et passait sous le bouton d'envoi).
+  2. Supprimer l'icône de baguette magique (`fa-magic`).
+  3. Corriger la couleur du titre « MIRO AI Assistant » (affiché en blanc sur fond clair).
+- **Causes identifiées** :
+  - **Dépassement de l'input sous le bouton** : le template utilisait un conteneur `<div class="input-group-append">` (syntaxe Bootstrap 4 obsolète sous Odoo 17 / Bootstrap 5), ce qui provoquait un mauvais calcul flex/wrap où l'input s'étirait à 100% et passait sous le bouton.
+  - **Titre en blanc** : le drawer flottant étant inséré dans `.o_nav_entry` au sein de la barre de navigation Odoo (`.o_main_navbar`), le texte héritait du `color: #ffffff` global de la navbar sur un fond d'en-tête blanc/gris clair (`#ffffff`/`#f8fafc`).
+- **Modifications appliquées** :
+  - `odoo_addons/miro_ai/static/src/xml/miro_ai_assistant.xml` :
+    - Suppression des balises `<i class="fa fa-magic..."/>` dans le bouton systray et dans l'en-tête.
+    - Ajout de `class="miro-drawer-title text-dark"` sur le titre `MIRO AI Assistant`.
+    - Remplacement de `.input-group` / `.input-group-append` par un conteneur flexbox direct `.d-flex.align-items-center` avec `.miro-drawer-input-field` et `.miro-drawer-send-btn`.
+  - `odoo_addons/miro_ai/static/src/css/miro_ai.css` :
+    - Définition de `color: #1e293b !important;` sur `.miro-ai-drawer` et `.miro-drawer-header strong, .miro-drawer-title` pour briser l'héritage blanc de la navbar Odoo.
+    - `.miro-drawer-input-field` : `flex: 1 1 auto; min-width: 0; box-sizing: border-box;` garantissant un dimensionnement fluide qui s'adapte sans jamais déborder ni recouvrir le bouton.
+    - `.miro-drawer-send-btn` : `width: 34px; height: 34px; flex-shrink: 0;` restant fixe et parfaitement aligné à droite.
+
+## Section 932 -- Analyse du rejeu Q1 (5) + Q2 (MNT/PUR, interrompu a SAL-Q2 par erreur reseau + Ctrl-C) verifiee contre le code Odoo 17 reel (2026-09-24)
+
+Diagnostic seul, aucun code touche. Verification directe dans odoo-17.0/addons :
+- STK-Q1 CORRECT : ACL `access_stock_quant_all` (base.group_user, 1/0/0/0) et `access_stock_move_line_all` (base.group_user, 1/1/1/1) ; seule regle = multi-societe.
+- SAL-Q1 : fond correct (`sale_order_personal_rule` : user_id = moi ou vide ; `sale_order_see_all` reserve a group_sale_salesman_all_leads). Defaut : le groupe est nomme "Responsable des ventes" alors que group_sale_salesman = "User: Own Documents Only" (le manager est group_sale_manager). Regle portail non verifiee ce tour.
+- MNT-Q2 PARTIELLEMENT FAUX (maintenance.request.write) : la prochaine demande est creee par copy() avec schedule_date = schedule_date de la demande (repli sur maintenant seulement si vide) + intervalle, et UNIQUEMENT si repeat_type == 'forever' ou date <= repeat_until. La reponse dit "date actuelle" et omet la condition d'arret repeat_until. Le kanban_state est remis a normal sur la demande cloturee, pas sur la copie.
+- ACC-Q1 : fond correct (implication group_account_manager -> group_account_invoice), mais 2 observations tronquees (cap) et la note deterministe sur super() non garde (sequence_override_regex) est hors sujet pour une question d'ACL ; read_source_code non appele (WARN runner).
+- MNT-Q1, PUR-Q1, PUR-Q2 : non verifies contre le code ce tour.
+
+Points 929 F/G/H toujours en attente d'arbitrage pmm. Nouveau point I (a arbitrer) : MNT-Q2 -- la synthese perd les bornes de la recurrence ; a tracer (quel tool a fourni l'observation, `read_source_code` sur write() coupe avant le bloc repeat_until ?).
+
+## Section 933 -- Fix G implemente (garde extension : suffixe `domaine` + declencheur par couverture) ; diagnostic F de la section 929 REFUTE par execution reelle (2026-09-24)
+
+**F refute (pas de code)** : la 929 supposait que SAL-Q3 avait echoue faute d'appel `list_involved_modules` en mode module. Rejoue sur le vrai graphe (resolve_business_term sans LLM + `dispatch_inheritance`) : le predispatch produit bien `list_involved_modules('sale')` en mode module (1045 caracteres, sous le cap de 3000) contenant `account.move (extends)` et 23 autres, en plus du mode modele. `tools_used` du rejeu (trace_full_inheritance, read_source_code, list_involved_modules x2) correspond exactement a ce predispatch. La preuve etait donc disponible ; la vraie cause est que le garde aval ne rattrapait pas la negation passive ("Aucun modele natif ... n'est directement etendu"). Aucun predispatch supplementaire necessaire.
+
+**G (root cause : le garde ne dependait que d'un regex de negation, dont la liste de formulations est structurellement inepuisable -- historique 840 a 857)** :
+- `code_intelligence/rules/structure.py` :
+  - `_correct_module_extension_contradiction` applique desormais aussi `_answer_lacks_extension_coverage` (section 858, independante de la formulation) apres la passe regex : si la reponse cite moins de 30% des modeles reellement etendus, la liste reelle est ajoutee en fin de reponse.
+  - Suffixe `domaine` ajoute a `_MODULE_EXTENSION_DENIAL_RE` (ferme ACC-Q3 : "n'etend pas un modele natif d'un autre domaine").
+  - Nouvelle fonction `_format_extension_statement` partagee par le remplacement de denegation et la note de couverture (DRY).
+- Tests : `code_intelligence/tests/test_section929_extension_coverage_fallback.py` (7/7, dont 3 etaient rouges avant le fix).
+- Verification bout en bout : verbatim reel de SAL-Q3 + observations reelles du predispatch -> la liste des 24 modeles (dont account.move) est ajoutee.
+
+**Limites connues** :
+- Sur formulation non reconnue par le regex, la note est AJOUTEE apres la phrase fausse, elle ne la remplace pas ; la reponse reste donc contradictoire dans le corps (le retry de synthese de loop.py section 858 reste le mecanisme principal, celui-ci est le filet deterministe).
+- Pour un module tres transverse (sale : 24 modeles), la liste complete noie l'information attendue (account.move) ; un tri par pertinence a la question reste a arbitrer.
+
+**Suite complete** (code_intelligence/tests + tests) : 1516 passes, 6 echecs, aucun lie a G. Verifie en restaurant temporairement l'ancien structure.py :
+- test_section889 `test_real_demandeur_groups_used_when_no_principals_declared` : echoue aussi sans G (regle `sale_order_rule_portal` presente dans le bloc applicable).
+- test_section918 `test_system_prompt_does_not_contain_literal_path_placeholder_link` : echoue aussi sans G ; test perime par la 930 (attend `xml_id: account.access_account_move_manager` dans CI_SYSTEM_PROMPT, retire quand les preuves ont ete deplacees dans le depliant).
+- test_j25_26 (2 tests) : passent isoles avec et sans G, instables dans la suite complete.
+- tests/test_e2e_watcher_rag.py et tests/test_scalability.py : infra/perf, non examines.
+
+**Reste a arbitrer** : H (implied_group sur analyze_security_locks/workflow + confusion create_uid sur SAL-Q2) et I (MNT-Q2 : bornes de recurrence perdues).
+
+## Section 934 -- H : suivi des methodes-conditions appelees (SAL-Q2, PUR-Q2) + plafonds de lecture alignes sur la source unique ; rejeu SAL-Q2/PUR-Q2/STK-Q2/ACC-Q2 analyse (2026-09-24)
+
+**Cause racine H** : `action_confirm` s'arrete a `so._should_be_locked()`, dont le corps (`create_uid.has_group('sale.group_auto_done_setting')`) n'etait jamais lu ; le LLM comblait de memoire ("l'utilisateur qui confirme"). Le suivi automatique des appels internes (section 911 B) etait lie a une convention de nommage (`button_*`, regex sur texte), pas au role de l'appel.
+
+**Modifications** :
+- `code_intelligence/rules/source_callees.py` (nouveau) : extraction par AST des appels a suivre dans un corps de methode : appels `button_*` puis methodes utilisees comme condition (tests if/while/assert/IfExp, filtres de comprehension, arguments de filtered/filter/all/any), receveur = variable simple (exclut `self.env.context.get`), ordre du source. `extract_has_group_literals`, `read_method_source`.
+- `code_intelligence/rules/technical_groups.py` (nouveau) : detection des groupes techniques (`group_type == "technical"`) et note de configuration.
+- `code_intelligence/agent/predispatch_structure.py` : `_BUTTON_CALL_RE` supprime, remplace par `extract_followable_callees` ; plafond `_MAX_FOLLOWED_CALLEES = 3` a la place de "un seul appel" ; note de groupe technique ajoutee a l'observation du callee ; suffixe de prompt generalise ("CALLED METHODS").
+- Plafonds : les 8 lectures `read_source_code` des predispatch_access/actions/structure utilisaient des litteraux locaux (2500/3000/4000) contredisant `PER_TOOL_OBSERVATION_CAPS["read_source_code"] = 9000` ; toutes alignees sur la source unique (le budget global de 35000 caracteres reste le garde-fou). Cause de la troncature `read_source_code(stock.picking), 4047 chars` vue sur STK-Q2.
+- Tests : `test_section934_callee_following.py` (nouveau, 7), `test_section911...` adapte (regex remplacee, sortie PUR-Q2 desormais 3 lectures).
+
+**Verification hors LLM** : SAL-Q2 lit `_can_be_confirmed` et `_should_be_locked` (+ note groupe technique) ; PUR-Q2 lit `button_approve` et `_approval_allowed`. Suite (sans test_c_complete, test_scalability, test_e2e_watcher_rag : dependants du reseau/LLM) : 1521 passes, 2 echecs preexistants (889, 918, voir 933).
+
+**Rejeu LLM (pmm)** :
+- SAL-Q2 : GAIN -- "si l'utilisateur qui a CREE la commande possede le groupe" (create_uid correct). Defaut restant : libelle invente "Gestionnaire de ventes automatise" (le graphe porte 'Lock Confirmed Sales', groupe technique) ; la note de configuration n'a pas ete restituee comme telle.
+- PUR-Q2 : structure correcte mais la synthese reste vague ("conditions de double validation remplies") alors que `_approval_allowed` etait dans les observations (one_step, OU two_step sous le seuil, OU groupe purchase.group_purchase_manager). Perte au niveau de la synthese, non tracee.
+- STK-Q2 : troncature relevee avant l'alignement des plafonds (a rejouer). Le mode 'ask' du back-order (assistant de confirmation) est decrit comme creation automatique : a re-verifier apres rejeu.
+- ACC-Q2 : FAUX, verifie dans le code (`res.company._get_user_fiscal_lock_date`, company.py L369-377) : un Billing Administrator (group_account_manager) n'est bloque que par `fiscalyear_lock_date` ; `period_lock_date` (verrou "non-conseillers") ne le concerne pas. La reponse dit "bloque pour tous". Cause : `analyze_security_locks` annonce (a juste titre localement) que le `has_group` de `_check_fiscalyear_lock_date` ne fait que choisir le message d'erreur et interdit de presenter le groupe comme exempte ; l'exemption reelle est dans `res.company._get_user_fiscal_lock_date`, appelee via `move.company_id.` -- appel sur un modele RELIE que ni le suivi de 934 (meme modele, receveur simple) ni l'analyse de verrous (fichiers du modele interroge) ne suivent. Le chemin securite n'est de plus pas celui du suivi de 934 (pas de bouton).
+
+**Point J a arbitrer** : suivi des appels sur modeles relies (`record.<champ_relationnel>.<methode>()` -> comodel via le champ du graphe -> `method:<comodel>.<methode>`), branche sur le chemin analyze_security_locks ; corrige ACC-Q2 et toute la classe "la regle est dans la methode d'un modele relie". Reste aussi I (MNT-Q2, bornes de recurrence) et la restitution de la synthese sur PUR-Q2.
+
+## Section 935 -- Complements de la 934 : troncature interne de analyze_security_locks (account.move), etat des chantiers et ordre propose (2026-09-24)
+
+**Constat sur ACC-Q1/ACC-Q2 (nouveau, mesure directe)** : `analyze_security_locks('account.move')` produit 3297 caracteres et se coupe LUI-MEME (marqueur "[... Content truncated for LLM context limit ...]", cap interne 3500 via `assemble_security_lock_blocks`, section 824) au milieu du bloc du fichier coeur `account/models/account_move.py`, juste apres le premier `has_group` (`_check_fiscalyear_lock_date`). Le budget est en grande partie consomme par des blocs sans rapport avec la question : modules custom (`custom_credit_note_approval*`, dont 2 blocs "aucun verrou"), `account_bank_statement_line.py`, `account_payment.py`, `sequence_mixin.py`, `hr_expense`, `purchase`, `sale`. Consequence : le LLM ne voit qu'une partie des `has_group` du fichier coeur (et le warning "observation tronquee" du runner correspond a ce cas, pas a la troncature du budget global). Piste (non ecrite) : ordonner/filtrer les blocs par pertinence a la question et au modele interroge avant application du cap, au lieu d'une troncature en tete. A traiter avec J, meme outil.
+
+**Etat des defauts N1 (rejeu 934)** :
+- Corriges : SAL-Q3 et ACC-Q3 (G, 933), SAL-Q2 create_uid (H, 934), ACC-Q1 (fond correct).
+- A rejouer : STK-Q2 (plafonds alignes apres le rejeu).
+- Ouverts : ACC-Q2 (J), PUR-Q2 restitution des 3 criteres de `_approval_allowed` (synthese), SAL-Q2 libelle de groupe invente, MNT-Q2 bornes de recurrence (I), SAL-Q1 libelle de groupe faux (932).
+- ACC-Q2 : `[WARN]` runner : describe_workflow et read_source_code attendus mais non invoques (question routee par le chemin securite).
+
+**Ordre propose** : J (suivi des appels sur modeles relies + tri par pertinence des blocs de verrous) -> restitution PUR-Q2 -> I. Arbitrage pmm en attente.
+
+**Notes d'environnement** : `code_intelligence/tests/test_c_complete.py` (E2E LLM) se bloque quand le tunnel LLM est instable -- l'exclure des suites de non-regression hors ligne, avec `tests/test_scalability.py` et `tests/test_e2e_watcher_rag.py`. Echecs preexistants connus : test_section889 (`test_real_demandeur_groups_used_when_no_principals_declared`), test_section918 (`test_system_prompt_does_not_contain_literal_path_placeholder_link`, perime depuis la 930).
+
+## Section 936 -- Suite complete : 4 echecs residuels diagnostiques et corriges a la racine (2026-09-24)
+
+Suite complete (1835 passes, 4 echecs, 39 ignores, 210s) : les 4 echecs avaient 3 causes distinctes.
+
+- **test_section889 `test_real_demandeur_groups_used_when_no_principals_declared` (regression reelle, pas un test perime)** : `sale.sale_order_rule_portal` (groupe `base.group_portal`) etait classee "applicable" pour un utilisateur `base.group_user`. Cause racine : `_expand_implied_user_groups` suit desormais les aretes `IMPLIES_CONFIGURABLE` (24 groupes atteints au lieu de quelques-uns), et `evaluate_record_rules` appliquait le fuzzy-match sur le nom d'affichage a TOUS les groupes de l'ensemble elargi ; `stock.group_reception_report` ("Use Reception Report") atteignait le seuil `FUZZY_GROUP_MATCH_THRESHOLD` face a "Portal". De plus l'ancien code passait `next(iter(set))` (element arbitraire) a `resolve_group_identifier`.
+  - `code_intelligence/rules/record_rules.py` : le resolveur tolerant (nom court, fuzzy) ne s'applique plus qu'aux groupes demandes ; les groupes impliques (xml_id canoniques) ne matchent qu'exactement. Trois branches dupliquees remplacees par un seul appel a `resolve_group_identifier` (DRY), imports devenus inutiles retires.
+- **test_section918 `test_system_prompt_does_not_contain_literal_path_placeholder_link` (test perime par la 930)** : l'assertion exigeait `xml_id: account.access_account_move_manager` dans `CI_SYSTEM_PROMPT`, retire quand les preuves sont passees dans le depliant. Assertion remplacee par la presence de l'interdiction d'une section 'Preuves'/'Sources'/'Citations' (regle 7).
+- **tests/test_e2e_watcher_rag.py et tests/test_scalability.py (isolation reseau)** : le `.env` local a `EMBEDDING_BACKEND=local_server` (Ollama sur localhost:11434, non lance) ; l'isolation `local_light` n'existait que dans `document_rag/tests/conftest.py`, pas pour `tests/`. Effet : `Connection refused` sur `/v1/embeddings`, 0 chunk indexe.
+  - `conftest.py` (racine, nouveau) : fixture autouse forcant `EMBEDDING_BACKEND=local_light` pour tous les paquets de tests ; `document_rag/tests/conftest.py` supprime (doublon).
+  - `tests/test_e2e_watcher_rag.py` : le test mockait `ChatGroq` sans forcer `LLM_PROVIDER` (meme piege que la section 719 : avec `LLM_PROVIDER=ollama` le mock est contourne et un vrai appel part vers le tunnel) ; fixture `mocked_groq_provider` ajoutee.
+  - `.env.example` : `EMBEDDING_BACKEND=local_light` (valeur recommandee par son propre commentaire et par le defaut de `config/settings.py`) ; le `.env` local de chaque poste reste a la discretion du poste.
+- **Verification** : test_section889 + test_section918 (21/21), tests de regles/groupes voisins (65/65), `tests/test_e2e_watcher_rag.py` + `document_rag/tests` (126/126). `tests/test_scalability.py` rejoue par pmm : 1 passe en 319.40s (budget 360s, marge ~11%, coherent avec l'extrapolation de ~306s de la docstring).
+- **Suite complete rejouee par pmm (hors `test_c_complete.py`)** : 1835 passes, 0 echec, 39 ignores, 391.66s. Les 4 echecs de depart sont resolus.
+
+## Section 937 -- J (suivi des appels sur modeles relies) : etat reel, rejeu SAL-Q2/ACC-Q2 analyse contre le code Odoo 17, filtre de pertinence et libelle exact des groupes techniques (2026-09-24)
+
+**J etait deja implemente sans section dediee** (regle "tout changement dans contexte.txt" non respectee lors de la session precedente) : `code_intelligence/rules/relational_callees.py` (nouveau : `get_relational_fields`, `extract_relational_lock_callees` -- AST, appels `<var>.<champ_many2one>.<methode>()` dans une methode a portee securite, resolus vers le comodel via le graphe) ; `predispatch_access.py::_follow_relational_lock_callees` (lecture de la methode du comodel apres `analyze_security_locks`, note "METHODE SUR MODELE RELIE") ; `test_section934_935_relational_callee.py`. Section 935 "tri par pertinence des blocs de verrous" NON traite (voir reste a arbitrer).
+
+**Rejeu pmm (SAL-Q2, ACC-Q2), verifie contre le code Odoo 17 reel** :
+- ACC-Q2 : J s'est bien declenche (hop 1 = `res.company._get_user_fiscal_lock_date`, company.py L369-377). Defaut trouve dans le suivi : hop 2 = `res.currency.compare_amounts` (res_currency.py), sans aucun rapport ; `_post` est a portee securite (leve UserError), donc tous ses appels sur champs relationnels etaient candidats et consommaient le plafond `_MAX_FOLLOWED_RELATIONAL_CALLEES = 2`. Fond de la reponse ("Non") : conforme a la `reference_answer` du banc, mais elle omet la nuance verifiee en 934 : pour group_account_manager, `_get_user_fiscal_lock_date` ne retient que `fiscalyear_lock_date` (period_lock_date ignore) ; et affirme "le groupe n'est pas exempte".
+- SAL-Q2 : create_uid correct (acquis 934). Defauts restants : (1) libelle invente "Gestionnaire de ventes automatise" alors que le groupe technique `sale.group_auto_done_setting` s'appelle "Lock Confirmed Sales" (`res_groups.xml`, parametre `res.config.settings.group_auto_done_setting`) ; (2) "un message est envoye au client" est faux : `action_confirm` ABONNE le partenaire comme follower (`message_subscribe`), aucun message n'est envoye ; l'email n'est envoye que si le contexte porte `send_email` ; (3) la synthese omet `_validate_analytic_distribution`, ne mentionne pas `_action_confirm()`.
+
+**Cause racine du libelle invente (1)** : `format_technical_group_note` (934) ne donnait au LLM que le xml_id et le nom du champ de parametre, pas le `name` du noeud du graphe ; le LLM fabriquait donc un libelle francais. La regle 7 du prompt (930) l'y pousse par ailleurs ("Use functional group names in French").
+
+**Modifications** :
+- `code_intelligence/rules/relational_callees.py` : `source_is_security_relevant(source)` (leve une exception de securite ou verifie une appartenance a un groupe).
+- `code_intelligence/agent/predispatch_access.py::_follow_relational_lock_callees` : le callee du comodel n'est lu que s'il est lui-meme a portee securite ; `read_method_source` appele une seule fois (`callee_source` reutilise pour la note de groupes techniques).
+- `code_intelligence/rules/technical_groups.py` : `TechnicalGroup` (NamedTuple xmlid/setting_field/name) ; la note porte le libelle exact du graphe et demande de le citer tel quel, sans traduction.
+- Tests : `test_section934_935_relational_callee.py` (+ pertinence du callee, + verification que `compare_amounts` n'est plus lu sur ACC-Q2), `test_section934_callee_following.py` (adapte a `TechnicalGroup`, + libelle exact dans la note). 118 passes sur les sections 9xx/predispatch/callee ; suite complete a rejouer par pmm.
+
+**Rejeu apres corrections (pmm)** : suite complete 1837 passes, 0 echec, 39 ignores, 387.35s. SAL-Q2 rejoue (38.55s, 5 sauts, groq_wait 0) :
+- Acquis : plus de libelle invente ; le groupe est nomme "Verrouiller les commandes confirmees" (traduction de "Lock Confirmed Sales", parametre `group_auto_done_setting`), create_uid correct, `_validate_analytic_distribution` mentionnee, deverrouillage par un responsable exact (`action_unlock` : `sales_team.group_sale_manager`, sale_order_views.xml L271).
+- Ecart residu M : la note demande le libelle exact sans traduction, la regle 7 impose le francais -- le LLM traduit ; sens conserve. A trancher avec M.
+- Faux persistants (verifies dans sale_order.py) : "les taxes sont recalculees et appliquees" -- `validate_taxes_on_sales_order` (L1940) est un hook vide en base (`return True`, surcharge taxcloud), jamais lu car appel simple hors condition, le LLM deduit l'effet du nom ; "un message de confirmation est envoye au client" -- c'est `message_subscribe` (le client devient follower), aucun message.
+- Cause racine commune (point N) : un appel dont le corps n'a pas ete lu est decrit par deduction du nom de la methode. Pistes a arbitrer : (a) regle de synthese "ne decrire l'effet que des appels dont la source est dans les observations, sinon les nommer sans les interpreter" ; (b) etendre le suivi de 934 aux appels de meme modele dans les methodes de transition (plafond 3 deja en place).
+
+**Reste a arbitrer (pmm)** :
+- K : `reference_answer` d'ACC-Q2 fausse sur un point ("sans aucune exception de groupe", "le seul effet du groupe est le libelle du message") -- le code montre que le groupe change la lock_date calculee. A corriger dans `todo/` / `tests/native_n1_question_bank.json` avant de juger la reponse du LLM contre elle.
+- L : `expected_tools` d'ACC-Q2 declare `describe_workflow`, jamais invoque car la question est routee par le chemin securite (WARN runner recurrent) ; retirer de `expected_tools` ou justifier.
+- M : regle 7 du prompt -- remplacer "functional group names in French" par "utiliser le libelle du groupe donne par les observations ; sans libelle, decrire le role sans l'inventer". Touche toutes les reponses, rejeu de tout le banc N1 necessaire.
+- N : fidelite de synthese SAL-Q2 (message client, omissions) et PUR-Q2 (3 criteres de `_approval_allowed`) : perte au niveau LLM, non tracee.
+- Reste ouvert de la 935 : tri par pertinence des blocs de `analyze_security_locks` (cap interne 3500, troncature d'ACC-Q1/ACC-Q2).
+
+## Section 938 -- Points M et N : libelles de groupes cites tels quels, effets non lus jamais deduits du nom, suivi des etapes deleguees (2026-09-24)
+
+Arbitrage pmm : "vas-y pour les 2" (M et N de la 937). Cause racine commune : le LLM comblait de memoire ce que les observations ne contenaient pas (libelle d'un groupe, effet d'un appel dont le corps n'avait pas ete lu).
+
+**M -- libelles de groupes** (`code_intelligence/agent/prompts.py`) :
+- Regle 7 du `CI_SYSTEM_PROMPT` et directive "RESPONSE FORMAT" de `build_synthesis_prompt` : l'ordre d'utiliser des "noms fonctionnels des groupes en francais" (qui poussait a inventer, cf. SAL-Q1 "Responsable des ventes", SAL-Q2 "Gestionnaire de ventes automatise") est remplace par : citer le libelle exact des observations, entre guillemets, sans le traduire ni le reformuler ; sans libelle fourni, decrire le role en termes simples. L'exemple de sortie ne montre plus un libelle traduit.
+- Limite connue : `who_has_access_to` et `evaluate_record_rules` listent aujourd'hui les groupes par xml_id sans libelle ; la reponse decrira donc leur role sans nom. Exposer le `name` du noeud Group dans ces observations est un chantier distinct, a arbitrer (O).
+
+**N(a) -- effets non lus** : constante `EFFECT_GROUNDING_RULE` (prompts.py), reprise dans le prompt systeme (regle 8) et dans la synthese : n'attribuer d'effet a une methode ou un appel que si sa source figure dans les observations ; sinon le mentionner au plus comme etape non analysee. Corrige a la source les deux faux SAL-Q2 de la 937 (taxes "recalculees", message "envoye" au client).
+
+**N(b) -- suivi des etapes deleguees** :
+- `code_intelligence/rules/source_callees.py` : `extract_followable_callees` ajoute, apres les `button_*` et les conditions, les appels sur le meme modele deleges par la methode (`self._x()`, `self.with_context(...)._x()`, `self.filtered(...).x()`, `var.x()`), en ordre du source ; les appels via un champ relationnel (`self.partner_id.x()`, `self.order_line._x()`) et les methodes du framework (`_FRAMEWORK_METHODS`, dont write/create/unlink/mapped/message_*) sont exclus. Le dispatcher ignore deja les noms sans definition dans le graphe.
+- `predispatch_structure.py` : `_MAX_FOLLOWED_CALLEES` 3 -> 6 (les conditions gardent la priorite), note de prompt "CALLED METHODS" completee.
+- Effet mesure hors LLM sur SAL-Q2 : `validate_taxes_on_sales_order` est desormais lue (hook vide, `return True`), en plus de `_can_be_confirmed`/`_should_be_locked`.
+- Renverse une decision de la 934 (test `test_plain_statement_calls_are_not_followed`) : les appels simples etaient volontairement exclus ; remplace par `test_plain_statement_calls_to_same_model_are_followed_but_not_framework_methods`.
+
+**Defaut corrige au passage** : la section 930 avait tronque la fin d'une phrase de `build_synthesis_prompt` ("...any global ir.rule multi-company restrictions, [RESPONSE FORMAT...]", la clause "and any Python-level locks (such as `unlink()` restricting deletion to specific states like 'draft')" avait disparu) ; clause restauree, test ajoute.
+
+**Tests** : `test_section934_callee_following.py` (extraction + lecture reelle du hook de taxes), `test_section918_implied_ids_and_citations.py` (`TestPromptGrounding`, 3 tests). 137 passes sur prompts/sections 9xx/callee/synthese ; suite complete et rejeu du banc N1 (25 questions, impact large : prompt de synthese + plafond de suivi) a faire par pmm.
+
+**Reste a arbitrer** : O (libelles de groupes dans `who_has_access_to`/`evaluate_record_rules`), K (reference_answer d'ACC-Q2), L (expected_tools d'ACC-Q2), tri par pertinence des blocs de `analyze_security_locks` (935).
+
+
+(.venv) user@debian:~/odoo-ia-prototype$ python scripts/run_bloc_n1_benchmark.py MNT-Q1 SAL-Q1 PUR-Q1 STK-Q1 ACC-Q1
+================================================================================
+ BLOC N1 -- BENCHMARK RUNNER (banc de questions natif) 
+ Cible : 5 question(s) (filtre id=['MNT-Q1', 'SAL-Q1', 'PUR-Q1', 'STK-Q1', 'ACC-Q1'], module=None)
+================================================================================
+
+--------------------------------------------------------------------------------
+[MNT-Q1] module=maintenance capability=security difficulty=hard
+Question: Un utilisateur simple (base.group_user, sans group_equipment_manager) peut-il modifier une fiche equipement (maintenance.equipment), et quels equipements peut-il seulement consulter ?
+--------------------------------------------------------------------------------
+Reponse verbatim (13.27s total | effectif 13.27s | groq_wait 0.00s | sauts 5):
+### Accès d’un utilisateur simple à la fiche équipement
+
+- **Modification (création, mise à jour, suppression)**  
+  Un utilisateur qui ne fait partie que du groupe « utilisateur simple » (base.group_user) **ne possède pas les droits** pour modifier, créer ou supprimer une fiche équipement. Seuls les membres du groupe « group_equipment_manager » disposent de ces autorisations.
+
+- **Consultation**  
+  Un utilisateur simple peut **consulter** uniquement les fiches équipements auxquelles il est **affilié** (c’est‑à‑dire les équipements pour lesquels il figure dans la liste des partenaires suivis). Il ne peut pas voir les équipements qui ne lui sont pas associés.
+
+[Source: Graphe de Connaissances Code Intelligence]
+Outils invoques: ['who_has_access_to', 'evaluate_record_rules', 'evaluate_record_rules', 'evaluate_record_rules', 'evaluate_record_rules']
+
+--------------------------------------------------------------------------------
+[PUR-Q1] module=purchase capability=security difficulty=hard
+Question: L'ACL de purchase.order accorde les 4 permissions (lecture/ecriture/creation/suppression) a group_purchase_user comme a group_purchase_manager. Qu'est-ce qui distingue alors reellement un simple acheteur d'un manager sur une commande d'achat ?
+--------------------------------------------------------------------------------
+Reponse verbatim (21.83s total | effectif 21.82s | groq_wait 0.00s | sauts 10):
+### Différence entre un acheteur et un gestionnaire sur une commande d’achat
+
+| Action | Acheteur (group_purchase_user) | Gestionnaire (group_purchase_manager) |
+|--------|--------------------------------|---------------------------------------|
+| **Validation de la commande** | Après avoir cliqué sur **« Valider »**, la commande passe en état **« à valider »**. Elle doit ensuite être approuvée par un gestionnaire. | Le même bouton **« Valider »** passe directement l’état à **« validée »** (ou **« en approbation »** si la validation double est activée). Le gestionnaire n’est pas soumis à la limite de montant. |
+| **Déblocage d’une commande terminée** | Le bouton **« Débloquer »** n’est pas visible. | Le bouton **« Débloquer »** est disponible et permet de revenir à l’état **« en cours »** pour modifier la commande. |
+| **Accès aux états « à valider »** | L’acheteur peut voir les commandes en attente d’approbation, mais ne peut pas les approuver. | Le gestionnaire peut approuver ces commandes directement. |
+| **Limite de montant** | Si la valeur dépasse le seuil défini par l’entreprise, l’acheteur doit passer par l’approbation. | Le gestionnaire peut valider sans se soucier du seuil. |
+
+En résumé, les deux groupes disposent des mêmes droits de lecture, écriture, création et suppression, mais le **gestionnaire** possède des privilèges supplémentaires : il peut **valider directement** les commandes (en contournant la double validation) et **débloquer** les commandes terminées, tandis que l’**acheteur** doit attendre l’approbation d’un gestionnaire.
+
+[Source: Graphe de Connaissances Code Intelligence]
+Outils invoques: ['who_has_access_to', 'evaluate_record_rules', 'describe_workflow', 'button_execution_path', 'read_source_code', 'read_source_code', 'button_execution_path', 'read_source_code', 'button_execution_path', 'read_source_code']
+
+--------------------------------------------------------------------------------
+[SAL-Q1] module=sale capability=security difficulty=hard
+Question: Un vendeur (sales_team.group_sale_salesman, sans group_sale_salesman_all_leads) peut-il voir toutes les commandes de vente de son entreprise, ou seulement certaines ? Et un utilisateur du portail (base.group_portal) ?
+--------------------------------------------------------------------------------
+Reponse verbatim (15.06s total | effectif 15.06s | groq_wait 0.00s | sauts 9):
+### Accès aux commandes de vente
+
+| Persona | Accès aux commandes de l’entreprise | Conditions |
+|---------|--------------------------------------|------------|
+| **Vendeur (group_sale_salesman)** | **Seulement les commandes qui lui sont attribuées ou qui n’ont pas de vendeur assigné** | La règle « Personal Orders » autorise la lecture uniquement des commandes où le champ `user_id` est le vendeur lui‑même ou vide. |
+| **Utilisateur du portail (group_portal)** | **Seulement les commandes auxquelles il est lié en tant que partenaire de message** | La règle « Portal Personal Quotations/Sales Orders » permet la lecture uniquement des commandes dont le champ `message_partner_ids` contient le partenaire commercial de l’utilisateur. |
+
+En résumé, un vendeur ne peut pas voir toutes les commandes de son entreprise, mais uniquement celles qui lui sont directement attribuées ou qui n’ont pas de vendeur. Un utilisateur du portail ne voit que les commandes auxquelles il est lié en tant que partenaire de message.
+
+[Source: Graphe de Connaissances Code Intelligence]
+Outils invoques: ['who_has_access_to', 'evaluate_record_rules', 'evaluate_record_rules', 'evaluate_record_rules', 'evaluate_record_rules', 'evaluate_record_rules', 'evaluate_record_rules', 'evaluate_record_rules', 'evaluate_record_rules']
+
+--------------------------------------------------------------------------------
+[STK-Q1] module=stock capability=security difficulty=hard
+Question: Un simple employe (base.group_user, sans stock.group_stock_user) peut-il consulter les quantites en stock (stock.quant) ? Et peut-il modifier une ligne de mouvement (stock.move.line) ?
+--------------------------------------------------------------------------------
+Node [code_intelligence_agent]: ignoring LLM-guessed user_groups_json ({}) -- resolving principal_id 'simple_employe' to its harness-declared groups (["base.group_user"]) instead.
+Reponse verbatim (33.36s total | effectif 33.36s | groq_wait 0.00s | sauts 6):
+Un simple employé (appartenant uniquement à « base.group_user ») possède les droits suivants :
+
+* **Consultation des quantités en stock (stock.quant)**  
+  - Le contrôle d’accès (ACL) autorise la lecture pour le groupe « base.group_user ».  
+  - Aucune règle d’enregistrement (ir.rule) ne restreint ce droit.  
+  → Le simple employé peut donc afficher les quantités disponibles.
+
+* **Modification d’une ligne de mouvement (stock.move.line)**  
+  - L’ACL autorise la lecture et l’écriture pour le groupe « base.group_user ».  
+  - Aucune règle d’enregistrement ne limite ces droits.  
+  → Le simple employé peut modifier une ligne de mouvement.
+
+**Remarque** : cette conclusion se base uniquement sur les mécanismes d’accès (ACL et ir.rule). D’autres contrôles applicatifs (état du mouvement, règles métier, verrouillage de workflow, etc.) n’ont pas été examinés dans cette analyse et pourraient éventuellement ajouter des restrictions supplémentaires.
+
+[Source: Graphe de Connaissances Code Intelligence]
+Outils invoques: ['who_has_access_to', 'evaluate_record_rules', 'evaluate_record_rules', 'evaluate_record_rules', 'evaluate_record_rules', 'evaluate_record_rules']
+
+--------------------------------------------------------------------------------
+[ACC-Q1] module=account capability=security difficulty=hard
+Question: L'ACL directe de account.group_account_manager sur account.move n'accorde que perm_read=1 (aucune ecriture/creation/suppression). Un 'Billing Administrator' (group_account_manager) peut-il malgre tout creer et modifier des factures ?
+--------------------------------------------------------------------------------
+Node [code_intelligence_agent]: an observation was truncated (cap reached) and the marker is being stripped from user-facing text [source: analyze_security_locks(account.move), 2992 chars] -- some evidence may be missing from this answer. See todo/contexte.txt sections 801-802/876.
+Reponse verbatim (14.31s total | effectif 14.31s | groq_wait 0.00s | sauts 4):
+### Réponse
+
+Oui.  
+Le groupe **« Billing Administrator »** (account.group_account_manager) possède, via l’héritage de **« Account Manager »**, les droits d’écriture, de création et de suppression sur les écritures comptables.  
+
+- **ACL** : le groupe est inclus dans la règle d’héritage de *account.group_account_invoice*, qui autorise l’écriture et la création.  
+- **Règles de visibilité** : aucune règle de groupe supplémentaire ne limite ces actions pour ce groupe.
+
+Ainsi, un utilisateur appartenant à ce groupe peut créer et modifier des factures.
+
+[Source: Graphe de Connaissances Code Intelligence]
+Outils invoques: ['analyze_security_locks', 'read_source_code', 'who_has_access_to', 'evaluate_record_rules']
+
+Rapport JSON sauvegarde (25 questions): /home/user/odoo-ia-prototype/captures/bloc_n1_verbatim.json
+Rapport Markdown sauvegarde: /home/user/odoo-ia-prototype/captures/bloc_n1_verbatim.md
+================================================================================
+(.venv) user@debian:~/odoo-ia-prototype$ python scripts/run_bloc_n1_benchmark.py MNT-Q2 SAL-Q2 PUR-Q2 STK-Q2 ACC-Q2
+================================================================================
+ BLOC N1 -- BENCHMARK RUNNER (banc de questions natif) 
+ Cible : 5 question(s) (filtre id=['MNT-Q2', 'SAL-Q2', 'PUR-Q2', 'STK-Q2', 'ACC-Q2'], module=None)
+================================================================================
+
+--------------------------------------------------------------------------------
+[MNT-Q2] module=maintenance capability=workflow difficulty=hard
+Question: Que se passe-t-il automatiquement quand une demande de maintenance preventive et recurrente (recurring_maintenance=True) atteint une etape marquee 'done' ?
+--------------------------------------------------------------------------------
+Reponse verbatim (17.58s total | effectif 17.58s | groq_wait 0.00s | sauts 2):
+### Ce qui se produit automatiquement
+
+- **Création d’une nouvelle demande**  
+  Dès que la demande de maintenance préventive et récurrente passe à l’étape « done », Odoo génère automatiquement une nouvelle demande de maintenance.  
+  - La date de planification de la nouvelle demande est calculée en ajoutant l’intervalle de répétition (ex. : chaque mois, chaque trimestre…) à la date de planification actuelle.  
+  - La nouvelle demande est placée dans l’étape par défaut (généralement « planifiée »).
+
+- **Mise à jour de la demande actuelle**  
+  - La date de clôture de la demande qui vient d’être terminée est fixée à la date d’aujourd’hui.  
+  - Les activités liées à la demande (tâches, rappels, notifications) sont mises à jour ou créées pour la nouvelle demande.  
+  - Le champ « état Kanban » est réinitialisé à « normal » pour refléter le changement de phase.
+
+- **Gestion des notifications**  
+  - Les followers (utilisateurs suivis) de la demande sont conservés et les notifications sont envoyées aux personnes concernées pour la nouvelle demande.
+
+En résumé, lorsqu’une demande de maintenance préventive récurrente atteint l’étape « done », Odoo prépare automatiquement la prochaine itération en créant une nouvelle demande avec la date suivante, tout en clôturant la demande actuelle et en mettant à jour les activités et notifications associées.
+
+[Source: Graphe de Connaissances Code Intelligence]
+Outils invoques: ['describe_workflow', 'read_source_code']
+
+--------------------------------------------------------------------------------
+[PUR-Q2] module=purchase capability=workflow difficulty=medium
+Question: Que se passe-t-il exactement quand on clique sur 'Confirm Order' (button_confirm) selon que la commande est eligible ou non a l'approbation directe ?
+--------------------------------------------------------------------------------
+Reponse verbatim (20.53s total | effectif 20.53s | groq_wait 0.00s | sauts 7):
+### Que se passe‑t‑il quand on clique sur « Confirm Order » ?
+
+- **Vérification de l’état**  
+  Le bouton ne fonctionne que si la commande est encore en *Brouillon* ou *Envoyée*.
+
+- **Pré‑traitements**  
+  - Les lignes de la commande sont vérifiées pour s’assurer que la distribution analytique est correcte.  
+  - Le fournisseur de la commande est ajouté à la liste des fournisseurs du produit (si ce n’est pas déjà le cas).  
+  - Le partenaire de la commande est ajouté aux destinataires de la discussion.
+
+- **Décision d’approbation**  
+  - **Si la commande est éligible à l’approbation directe** (c’est‑à‑dire :  
+    - la validation double est désactivée,  
+    - ou le montant total est inférieur au seuil de validation double,  
+    - ou vous faites partie du groupe « Gestionnaire des achats »),  
+    alors la commande passe immédiatement à l’état **« Achetée »** (et si la société a activé le verrouillage, elle passe directement à **« Terminée »**).  
+  - **Si la commande n’est pas éligible** (montant trop élevé et vous n’êtes pas gestionnaire),  
+    elle passe à l’état **« À approuver »** et attend l’approbation d’un gestionnaire.
+
+- **Résultat final**  
+  - **Éligible** : la commande est validée immédiatement et peut être facturée ou livrée.  
+  - **Non éligible** : la commande reste en attente d’approbation et ne peut pas encore être traitée.
+
+En résumé, le bouton « Confirm Order » vérifie d’abord si la commande peut être approuvée sans intervention supplémentaire ; si oui, elle est validée immédiatement, sinon elle est mise en attente d’une approbation managériale.
+
+[Source: Graphe de Connaissances Code Intelligence]
+Outils invoques: ['describe_workflow', 'describe_workflow', 'button_execution_path', 'read_source_code', 'read_source_code', 'read_source_code', 'read_source_code']
+
+--------------------------------------------------------------------------------
+[SAL-Q2] module=sale capability=workflow difficulty=medium
+Question: Que se passe-t-il exactement quand on confirme une commande de vente (action_confirm), et dans quel cas est-elle automatiquement verrouillee (locked) juste apres ?
+--------------------------------------------------------------------------------
+Reponse verbatim (16.95s total | effectif 16.95s | groq_wait 0.00s | sauts 9):
+### Ce qui se passe lors de la confirmation d’une commande de vente
+
+- **Changement d’état** : la commande passe de *Brouillon* ou *Envoyée* à *En cours* (état « sale »).  
+- **Validation des taxes** : les taxes sont recalculées et validées pour chaque ligne de produit.  
+- **Abonnement du client** : le client est automatiquement ajouté aux abonnés de la commande afin de recevoir les notifications.  
+- **Envoi d’un e‑mail** (si la case « Envoyer par e‑mail » est cochée) : un e‑mail de confirmation est envoyé au client.  
+- **Création d’un compte analytique** (si la commande contient un produit à frais) : un compte analytique est créé pour suivre les coûts.  
+- **Enregistrement des valeurs de confirmation** : la date de commande est fixée à la date courante et l’état est mis à jour.
+
+### Cas de verrouillage automatique (champ `locked`)
+
+- **Condition** : la commande est verrouillée immédiatement après la confirmation **si** l’utilisateur qui l’a créée appartient au groupe **« Lock Confirmed Sales »** (paramètre de configuration `group_auto_done_setting`).  
+- **Effet** : le champ `locked` passe à **Vrai**, ce qui empêche toute modification ultérieure de la commande sans action spéciale.  
+
+En résumé, la confirmation transforme la commande en état « En cours », applique les taxes, notifie le client, crée un compte analytique si nécessaire, et, selon le groupe de l’auteur, peut verrouiller la commande pour la protéger contre les modifications.
+
+[Source: Graphe de Connaissances Code Intelligence]
+Outils invoques: ['describe_workflow', 'button_execution_path', 'read_source_code', 'read_source_code', 'read_source_code', 'read_source_code', 'read_source_code', 'read_source_code', 'read_source_code']
+
+--------------------------------------------------------------------------------
+[STK-Q2] module=stock capability=workflow difficulty=hard
+Question: Que se passe-t-il quand on valide un transfert de stock (button_validate) dont les quantites traitees sont inferieures aux quantites demandees ?
+--------------------------------------------------------------------------------
+Reponse verbatim (30.16s total | effectif 30.16s | groq_wait 0.00s | sauts 10):
+### Que se passe‑t‑il lorsqu’on valide un transfert de stock dont les quantités traitées sont inférieures aux quantités demandées ?
+
+- **Validation du transfert**  
+  Le bouton « Valider » passe d’abord par une série de contrôles de cohérence (quantités, lots, etc.).  
+  Si tout est correct, le transfert est marqué « terminé » (date de réalisation enregistrée, e‑mail de confirmation envoyé).
+
+- **Gestion des quantités manquantes**  
+  - **Si le type de transfert a l’option « Créer un back‑order » réglée sur :**
+    - **« Demander »** – l’utilisateur reçoit une fenêtre lui demandant s’il souhaite créer un back‑order pour les quantités restantes.  
+    - **« Toujours »** – un back‑order est créé automatiquement sans intervention de l’utilisateur.  
+    - **« Jamais »** – les quantités non livrées sont annulées (c’est‑à‑dire qu’elles ne seront pas livrées plus tard).  
+  - Le back‑order est un nouveau transfert de stock qui contient uniquement les quantités restantes.  
+  - Le transfert original reste « terminé » mais indique qu’une partie des articles a été reportée.
+
+- **Résultat final**  
+  - Les quantités réellement livrées sont enregistrées dans le premier transfert.  
+  - Les quantités restantes sont soit reportées dans un back‑order, soit annulées, selon la configuration.  
+  - L’utilisateur peut suivre ces back‑orders dans l’interface ou les valider ultérieurement.
+
+En résumé, valider un transfert avec des quantités insuffisantes ne bloque pas la validation ; elle déclenche simplement la création d’un back‑order (ou l’annulation des quantités manquantes) selon la règle définie pour le type de transfert.
+
+[Source: Graphe de Connaissances Code Intelligence]
+Outils invoques: ['describe_workflow', 'button_execution_path', 'read_source_code', 'read_source_code', 'read_source_code', 'read_source_code', 'read_source_code', 'read_source_code', 'read_source_code', 'analyze_data_constraints']
+
+--------------------------------------------------------------------------------
+[ACC-Q2] module=account capability=workflow difficulty=hard
+Question: Un 'Billing Administrator' (group_account_manager) peut-il poster une ecriture comptable dont la date est anterieure ou egale a la date de cloture (lock date) de la societe ?
+--------------------------------------------------------------------------------
+Node [code_intelligence_agent]: an observation was truncated (cap reached) and the marker is being stripped from user-facing text [source: analyze_security_locks(account.move), 2992 chars] -- some evidence may be missing from this answer. See todo/contexte.txt sections 801-802/876.
+Reponse verbatim (17.56s total | effectif 17.55s | groq_wait 0.00s | sauts 4):
+### Réponse
+
+Non.  
+Un **Billing Administrator** (groupe *account.group_account_manager*) ne peut pas enregistrer une écriture dont la date est antérieure ou égale à la date de clôture de la société.  
+La règle de verrouillage fiscal empêche toute écriture dont la date est inférieure ou égale à la date de clôture, même pour les membres du groupe *account.group_account_manager*.
+
+[FAIT DÉTERMINISTIQUE] Précision d'héritage de droits : `account.group_account_manager` ne détient pas ces permissions directement via son propre enregistrement ACL (qui peut être restreint), mais en hérite par implication transitive (`implied_ids`) depuis le groupe `account.group_account_invoice`.
+
+[Source: Graphe de Connaissances Code Intelligence]
+Outils invoques: ['analyze_security_locks', 'read_source_code', 'who_has_access_to', 'evaluate_record_rules']
+[WARN] Outil(s) attendu(s) non invoque(s): ['describe_workflow']
+
+Rapport JSON sauvegarde (25 questions): /home/user/odoo-ia-prototype/captures/bloc_n1_verbatim.json
+Rapport Markdown sauvegarde: /home/user/odoo-ia-prototype/captures/bloc_n1_verbatim.md
+================================================================================
+(.venv) user@debian:~/odoo-ia-prototype$ python scripts/run_bloc_n1_benchmark.py MNT-Q3 SAL-Q3 PUR-Q3 STK-Q3 ACC-Q3
+================================================================================
+ BLOC N1 -- BENCHMARK RUNNER (banc de questions natif) 
+ Cible : 5 question(s) (filtre id=['MNT-Q3', 'SAL-Q3', 'PUR-Q3', 'STK-Q3', 'ACC-Q3'], module=None)
+================================================================================
+
+--------------------------------------------------------------------------------
+[MNT-Q3] module=maintenance capability=inheritance difficulty=medium
+Question: maintenance.equipment est-il une extension d'un modele natif Odoo existant, ou un nouveau modele ? Quel role joue maintenance.mixin dont il herite ?
+--------------------------------------------------------------------------------
+Node [code_intelligence_agent]: synthesis reflects essentially none of the 1 model(s) list_involved_modules reported this module extends outside its own perimeter -- retrying once with the real list made explicit. Pre-retry excerpt (first 800 chars, for diagnosis -- see todo/contexte.txt section 858): "`maintenance.equipment` est un **nouveau modèle**\u202f: il possède son propre nom (`_name = 'maintenance.equipment'`) et ne reprend pas la structure d’un modèle natif déjà présent dans Odoo.  \n\nIl hérite uniquement de trois mixins\u202f:  \n- `mail.thread` et `mail.activity.mixin` pour la traçabilité et les activités,  \n- **`maintenance.mixin`** qui apporte les champs et la logique communs aux objets liés à la maintenance (équipe de maintenance, technicien, dates d’échéance, MTBF/MTTR, etc.).  \n\nEn résumé\u202f: `maintenance.equipment` est un modèle autonome, et `maintenance.mixin` sert de base partagée pour les éléments de maintenance."
+Node [code_intelligence_agent]: synthesis still lacks extension coverage after retry -- leaving final_answer as-is for the existing text-patch guard chain to catch what it can. Post-retry excerpt (first 800 chars): "**maintenance.equipment** est un **nouveau modèle**\u202f: il est déclaré avec son propre nom (`_name = 'maintenance.equipment'`) et ne reprend pas un modèle natif existant d’Odoo.\n\nIl hérite de trois mixins\u202f:\n\n1. **mail.thread** – ajoute la fonctionnalité de chatter (historique des messages, suivi des changements, etc.).  \n2. **mail.activity.mixin** – permet de planifier et de gérer des activités (tâches, rappels, etc.).  \n3. **maintenance.mixin** – un modèle abstrait qui fournit les champs et la logique communs aux objets maintenables\u202f:  \n   - `company_id`, `effective_date`, `maintenance_team_id`, `technician_user_id`  \n   - `maintenance_ids`, `maintenance_count`, `maintenance_open_count`  \n   - Calculs de MTBF/MTTR et estimation de la prochaine défaillance.\n\nEn héritant de **maintenance.mixi"
+Node [code_intelligence_agent]: synthesis cites none of the 1 model(s) the module extends outside its own perimeter, whatever its wording -- appending the real list: ['res.config.settings']
+Reponse verbatim (47.21s total | effectif 47.20s | groq_wait 0.00s | sauts 3):
+`maintenance.equipment` est un **nouveau modèle** : il possède son propre nom (`_name = 'maintenance.equipment'`) et ne reprend pas la structure d’un modèle natif déjà présent dans Odoo.  
+
+Il hérite uniquement de trois mixins :  
+- `mail.thread` et `mail.activity.mixin` pour la traçabilité et les activités,  
+- **`maintenance.mixin`** qui apporte les champs et la logique communs aux objets liés à la maintenance (équipe de maintenance, technicien, dates d’échéance, MTBF/MTTR, etc.).  
+
+En résumé : `maintenance.equipment` est un modèle autonome, et `maintenance.mixin` sert de base partagée pour les éléments de maintenance.
+
+À noter : ce module étend bien 1 modèle(s) hors de son propre périmètre : 'res.config.settings'.
+
+[Source: Graphe de Connaissances Code Intelligence]
+Outils invoques: ['list_involved_modules', 'trace_full_inheritance', 'read_source_code', 'read_source_code']
+
+--------------------------------------------------------------------------------
+[PUR-Q3] module=purchase capability=inheritance difficulty=medium
+Question: purchase.order est-il un nouveau modele ou une extension ? Le module purchase modifie-t-il en parallele un modele natif deja existant hors de son propre domaine (achat), et comment ?
+--------------------------------------------------------------------------------
+LLM arbitration requested but no llm client was provided; skipping.
+Reponse verbatim (19.02s total | effectif 19.02s | groq_wait 0.00s | sauts 2):
+### Modèle « purchase.order »
+
+- **Nature** : *purchase.order* est un **nouveau modèle**.  
+  Il est déclaré dans le module *purchase* avec son propre nom (`_name = "purchase.order"`) et ne repose que sur des mixins techniques (mail, portail, catalogue produit).  
+  Il ne s’agit donc pas d’une extension d’un modèle existant.
+
+### Impact du module *purchase* sur d’autres modèles natifs
+
+- Le module *purchase* **modifie plusieurs modèles natifs** qui ne font pas partie de son domaine d’achat.  
+  Parmi ceux-ci, on trouve notamment :  
+  - `account.move` et `account.move.line` (ajout de champs et de logiques liés aux bons d’achat)  
+  - `res.partner` (ajout de champs de référence fournisseur)  
+  - `res.company` et `res.config.settings` (ajout de paramètres liés aux achats)  
+  - `product.template`, `product.product`, `product.packaging`, `product.supplierinfo` (ajout de champs de gestion des fournisseurs et des emballages)  
+  - `account.analytic.account` et `account.analytic.applicability` (ajout de champs d’analyse de coûts liés aux achats)  
+  - `account.tax` (ajout de règles de calcul de taxes spécifiques aux achats)
+
+Ces extensions permettent d’intégrer les achats dans les processus comptables, de gérer les fournisseurs, les taxes, les coûts analytiques et les paramètres de l’entreprise, tout en conservant la structure de base des modèles natifs.
+
+[Source: Graphe de Connaissances Code Intelligence]
+Outils invoques: ['list_involved_modules', 'trace_full_inheritance', 'read_source_code']
+[WARN] Outil(s) attendu(s) non invoque(s): ['analyze_method_override_chain']
+
+--------------------------------------------------------------------------------
+[SAL-Q3] module=sale capability=inheritance difficulty=medium
+Question: sale.order est-il un nouveau modele ou une extension ? Quel modele natif hors du perimetre 'vente' ce module etend-il directement, et sous quel nom de classe ?
+--------------------------------------------------------------------------------
+LLM arbitration requested but no llm client was provided; skipping.
+Node [code_intelligence_agent]: synthesis denied that the module extends any model outside its own perimeter while list_involved_modules reported 24 such extension(s) -- replacing the denial sentence with the real module list: ['account.analytic.applicability', 'account.analytic.line', 'account.invoice.report', 'account.move', 'account.move.line', 'account.payment.register', 'crm.team', 'ir.config_parameter', 'onboarding.onboarding', 'onboarding.onboarding.step', 'payment.link.wizard', 'payment.provider', 'payment.transaction', 'product.attribute', 'product.attribute.custom.value', 'product.attribute.value', 'product.document', 'product.packaging', 'product.product', 'product.template', 'res.company', 'res.config.settings', 'res.partner', 'utm.campaign']
+Reponse verbatim (20.68s total | effectif 20.68s | groq_wait 0.00s | sauts 3):
+### Analyse du modèle « sale.order »
+
+- **Nature du modèle**  
+  Le module « vente » déclare **un nouveau modèle** : `sale.order`.  
+  En réalité, ce module étend bien 24 modèle(s) hors de son propre périmètre : 'account.analytic.applicability', 'account.analytic.line', 'account.invoice.report', 'account.move', 'account.move.line', 'account.payment.register', 'crm.team', 'ir.config_parameter', 'onboarding.onboarding', 'onboarding.onboarding.step', 'payment.link.wizard', 'payment.provider', 'payment.transaction', 'product.attribute', 'product.attribute.custom.value', 'product.attribute.value', 'product.document', 'product.packaging', 'product.product', 'product.template', 'res.company', 'res.config.settings', 'res.partner', 'utm.campaign'.
+
+- **Modèle natif étendu**  
+  Le modèle `sale.order` étend directement les mixins suivants, qui sont des modèles natifs d’Odoo :  
+  - `portal.mixin` (classe : *portal.mixin*)  
+  - `product.catalog.mixin`  
+  - `mail.thread`  
+  - `mail.activity.mixin`  
+  - `utm.mixin`
+
+  Parmi ces mixins, le plus proche d’un modèle métier classique est `mail.thread`, mais le mixin `portal.mixin` est le premier modèle natif hors du périmètre « vente » que le module étend directement.
+
+[Source: Graphe de Connaissances Code Intelligence]
+Outils invoques: ['trace_full_inheritance', 'read_source_code', 'list_involved_modules', 'list_involved_modules']
+[WARN] Outil(s) attendu(s) non invoque(s): ['analyze_method_override_chain']
+
+--------------------------------------------------------------------------------
+[STK-Q3] module=stock capability=inheritance difficulty=medium
+Question: stock.picking est-il un nouveau modele ou une extension ? Le module stock etend-il en parallele un modele natif hors de son propre perimetre, et avec quels champs cles ?
+--------------------------------------------------------------------------------
+LLM arbitration requested but no llm client was provided; skipping.
+Node [code_intelligence_agent]: synthesis reflects essentially none of the 12 model(s) list_involved_modules reported this module extends outside its own perimeter -- retrying once with the real list made explicit. Pre-retry excerpt (first 800 chars, for diagnosis -- see todo/contexte.txt section 858): '**Réponse**\n\n- **Nature du modèle\u202f:**  \n  `stock.picking` est un **nouveau modèle**. Il ne s’agit pas d’une extension d’un modèle métier déjà existant. Le module *stock* ne modifie pas un modèle natif hors de son périmètre ; il crée simplement son propre objet, en héritant uniquement des mixins techniques `mail.thread` et `mail.activity.mixin`.\n\n- **Champs clés du modèle\u202f:**  \n  - **Référence** (`name`) : numéro de suivi de la livraison.  \n  - **Document source** (`origin`) : référence du document d’origine (bon de commande, etc.).  \n  - **Notes** (`note`) : informations complémentaires.  \n  - **Back‑orders** (`backorder_id`, `backorder_ids`) : lien vers les livraisons partielles.  \n  - **Retours** (`return_id`, `return_ids`) : lien vers les livraisons retournées.  \n  - **Politique d’expéd'
+Reponse verbatim (70.50s total | effectif 70.50s | groq_wait 0.00s | sauts 4):
+**stock.picking** est un **nouveau modèle** : il est déclaré avec `_name = "stock.picking"` et ne s’étend pas d’un modèle métier existant.  
+
+Le module **stock** étend en parallèle plusieurs modèles natifs hors de son propre périmètre :  
+- `barcode.rule`  
+- `ir.actions.report`  
+- `product.category`  
+- `product.label.layout`  
+- `product.packaging`  
+- `product.product`  
+- `product.template`  
+- `res.company`  
+- `res.config.settings`  
+- `res.partner`  
+- `res.users`  
+- `uom.uom`
+
+Ces extensions ajoutent ou modifient des champs clés aux modèles listés, mais les détails précis des champs ne sont pas fournis dans les observations disponibles.
+
+[Source: Graphe de Connaissances Code Intelligence]
+Outils invoques: ['list_involved_modules', 'trace_full_inheritance', 'read_source_code', 'button_execution_path', 'read_source_code']
+
+--------------------------------------------------------------------------------
+[ACC-Q3] module=account capability=inheritance difficulty=medium
+Question: account.move est-il un nouveau modele ou une extension ? Le module account etend-il en parallele un modele natif hors de son propre perimetre comptable ?
+--------------------------------------------------------------------------------
+LLM arbitration requested but no llm client was provided; skipping.
+Node [code_intelligence_agent]: synthesis denied that the module extends any model outside its own perimeter while list_involved_modules reported 25 such extension(s) -- replacing the denial sentence with the real module list: ['account.analytic.account', 'account.analytic.applicability', 'account.analytic.distribution.model', 'account.analytic.line', 'base.document.layout', 'base.partner.merge.automatic.wizard', 'decimal.precision', 'digest.digest', 'ir.actions.report', 'ir.attachment', 'ir.http', 'ir.module.module', 'kpi.provider', 'onboarding.onboarding', 'onboarding.onboarding.step', 'product.category', 'product.product', 'product.template', 'res.company', 'res.config.settings', 'res.currency', 'res.groups', 'res.partner', 'res.partner.bank', 'uom.uom']
+Reponse verbatim (11.89s total | effectif 11.89s | groq_wait 0.00s | sauts 2):
+### Analyse du modèle **account.move**
+
+- **Nature du modèle**  
+  Le modèle **account.move** est **déclaré** dans le module **account**. Il ne s’agit pas d’une extension d’un modèle déjà existant, mais d’un nouveau modèle métier créé par ce module.
+
+- **Extension de modèles natifs**  
+  En réalité, ce module étend bien 25 modèle(s) hors de son propre périmètre : 'account.analytic.account', 'account.analytic.applicability', 'account.analytic.distribution.model', 'account.analytic.line', 'base.document.layout', 'base.partner.merge.automatic.wizard', 'decimal.precision', 'digest.digest', 'ir.actions.report', 'ir.attachment', 'ir.http', 'ir.module.module', 'kpi.provider', 'onboarding.onboarding', 'onboarding.onboarding.step', 'product.category', 'product.product', 'product.template', 'res.company', 'res.config.settings', 'res.currency', 'res.groups', 'res.partner', 'res.partner.bank', 'uom.uom'. En réalité, ce module étend bien 25 modèle(s) hors de son propre périmètre : 'account.analytic.account', 'account.analytic.applicability', 'account.analytic.distribution.model', 'account.analytic.line', 'base.document.layout', 'base.partner.merge.automatic.wizard', 'decimal.precision', 'digest.digest', 'ir.actions.report', 'ir.attachment', 'ir.http', 'ir.module.module', 'kpi.provider', 'onboarding.onboarding', 'onboarding.onboarding.step', 'product.category', 'product.product', 'product.template', 'res.company', 'res.config.settings', 'res.currency', 'res.groups', 'res.partner', 'res.partner.bank', 'uom.uom'.  
+
+En résumé, **account.move** est un modèle propre à la comptabilité, introduit par le module **account**, et le module ne touche pas à d’autres modèles natifs en dehors de ce domaine.
+
+[Source: Graphe de Connaissances Code Intelligence]
+Outils invoques: ['list_involved_modules', 'trace_full_inheritance', 'read_source_code']
+
+Rapport JSON sauvegarde (25 questions): /home/user/odoo-ia-prototype/captures/bloc_n1_verbatim.json
+Rapport Markdown sauvegarde: /home/user/odoo-ia-prototype/captures/bloc_n1_verbatim.md
+================================================================================
+(.venv) user@debian:~/odoo-ia-prototype$ python scripts/run_bloc_n1_benchmark.py MNT-Q4 SAL-Q4 PUR-Q4 STK-Q4 ACC-Q4
+================================================================================
+ BLOC N1 -- BENCHMARK RUNNER (banc de questions natif) 
+ Cible : 5 question(s) (filtre id=['MNT-Q4', 'SAL-Q4', 'PUR-Q4', 'STK-Q4', 'ACC-Q4'], module=None)
+================================================================================
+
+--------------------------------------------------------------------------------
+[MNT-Q4] module=maintenance capability=ui difficulty=easy
+Question: Pourquoi le champ 'cost' (cout) d'un equipement n'est-il pas visible pour tous les utilisateurs ayant acces en lecture a sa fiche ?
+--------------------------------------------------------------------------------
+Reponse verbatim (11.59s total | effectif 11.59s | groq_wait 0.00s | sauts 2):
+### Pourquoi le champ « Cost » n’est pas visible
+
+Le champ **Cost** est affiché uniquement aux utilisateurs appartenant au groupe **« Gestionnaire d’équipement »**.  
+Même si un utilisateur a le droit de lecture sur la fiche d’équipement, il ne voit pas ce champ tant qu’il ne fait pas partie de ce groupe.  
+
+Pour voir le coût, il faut soit :
+
+- rejoindre le groupe **« Gestionnaire d’équipement »**,  
+- ou demander à un membre de ce groupe de le consulter pour vous.
+
+[Source: Graphe de Connaissances Code Intelligence]
+Outils invoques: ['button_execution_path', 'read_source_code']
+
+--------------------------------------------------------------------------------
+[PUR-Q4] module=purchase capability=ui difficulty=easy
+Question: Pourquoi le bouton 'Approve Order' n'est-il pas visible pour un utilisateur simple meme quand la commande est au statut 'to approve' ?
+--------------------------------------------------------------------------------
+Reponse verbatim (8.65s total | effectif 8.65s | groq_wait 0.00s | sauts 3):
+### Pourquoi le bouton « Approve Order » n’apparaît pas
+
+Le bouton « Approve Order » est **restreint aux utilisateurs du groupe « Purchase Manager »**.  
+Même si la commande est en statut « to approve », un utilisateur qui ne fait pas partie de ce groupe ne voit pas le bouton dans l’interface.  
+
+En pratique :  
+- Le bouton est invisible pour tout le monde sauf les membres du groupe « Purchase Manager ».  
+- Seuls ces utilisateurs peuvent déclencher l’action d’approbation.  
+
+Ainsi, un simple utilisateur ne peut pas approver une commande, même lorsqu’elle est prête à être approuvée.
+
+[Source: Graphe de Connaissances Code Intelligence]
+Outils invoques: ['button_execution_path', 'read_source_code', 'read_source_code']
+
+--------------------------------------------------------------------------------
+[SAL-Q4] module=sale capability=ui difficulty=easy
+Question: Pourquoi un vendeur simple ne peut-il pas deverrouiller (Unlock) une commande verrouillee, meme si c'est lui qui l'a confirmee ?
+--------------------------------------------------------------------------------
+Reponse verbatim (7.26s total | effectif 7.26s | groq_wait 0.00s | sauts 2):
+### Pourquoi un vendeur simple ne peut pas déverrouiller une commande
+
+Le bouton **« Unlock »** sur une commande est réservé aux utilisateurs appartenant au groupe **« Sales Manager »**.  
+Même si le vendeur a confirmé la commande, il ne possède pas ce groupe d’accès, donc le bouton n’est pas affiché dans son interface. Seuls les membres du groupe « Sales Manager » peuvent déverrouiller une commande verrouillée.
+
+[Source: Graphe de Connaissances Code Intelligence]
+Outils invoques: ['button_execution_path', 'read_source_code']
+
+--------------------------------------------------------------------------------
+[STK-Q4] module=stock capability=ui difficulty=medium
+Question: Pourquoi les champs 'From'/'To' (emplacement source/destination) n'apparaissent-ils pas sur un transfert de stock pour la plupart des utilisateurs ?
+--------------------------------------------------------------------------------
+Reponse verbatim (10.17s total | effectif 10.17s | groq_wait 0.00s | sauts 2):
+### Pourquoi les champs « From » et « To » sont invisibles
+
+- **Restriction de groupe** : Les champs « From » (location_id) et « To » (location_dest_id) ne sont affichés que pour les utilisateurs qui appartiennent au groupe **« Gestion des emplacements multiples »**.  
+- **Paramètre de configuration** : Ce groupe n’est attribué à aucun utilisateur par défaut. Il est activé uniquement lorsqu’un administrateur active l’option « Gestion des emplacements multiples » dans les paramètres du module **stock**.  
+- **État du transfert** : Même si le groupe est actif, les champs deviennent non modifiables une fois le transfert terminé (état « done »).
+
+En résumé, la plupart des utilisateurs ne voient pas ces champs parce que la fonctionnalité de gestion des emplacements multiples n’est pas activée pour eux. Pour les faire apparaître, un administrateur doit activer le paramètre correspondant dans les paramètres du module **stock** ou ajouter l’utilisateur au groupe « Gestion des emplacements multiples ».
+
+[Source: Graphe de Connaissances Code Intelligence]
+Outils invoques: ['button_execution_path', 'read_source_code']
+
+--------------------------------------------------------------------------------
+[ACC-Q4] module=account capability=ui difficulty=hard
+Question: Un utilisateur avec uniquement group_account_invoice ('Billing') voit-il le compte comptable (account_id) d'une ligne de facture ? Et un 'Billing Administrator' (group_account_manager) le voit-il, en configuration Invoicing seule (sans le module Accounting installe) ?
+--------------------------------------------------------------------------------
+Node [code_intelligence_agent]: an observation was truncated (cap reached) and the marker is being stripped from user-facing text [source: analyze_security_locks(account.move), 2992 chars] -- some evidence may be missing from this answer. See todo/contexte.txt sections 801-802/876.
+Reponse verbatim (48.55s total | effectif 48.55s | groq_wait 0.00s | sauts 7):
+**Réponse :**
+
+- **Utilisateur « Billing » (group_account_invoice)**  
+  Le champ *Compte comptable* (`account_id`) d’une ligne de facture n’est visible que pour les utilisateurs appartenant au groupe « Show Full Accounting Features – Readonly » (group_account_readonly).  
+  Un utilisateur qui ne possède que le groupe « Billing » ne fait pas partie de ce groupe, donc il ne voit pas ce champ.
+
+- **Utilisateur « Billing Administrator » (group_account_manager)**  
+  Le groupe « Billing Administrator » n’inclut pas le groupe « Show Full Accounting Features – Readonly ».  
+  Ainsi, même avec ce rôle, l’utilisateur ne peut pas voir le champ *Compte comptable* tant qu’il ne possède pas également le groupe « Show Full Accounting Features – Readonly ».
+
+- **Configuration Invoicing seule (module Accounting non installé)**  
+  Dans cette configuration, le groupe « Show Full Accounting Features – Readonly » n’est pas présent. Par conséquent, ni le rôle « Billing » ni le rôle « Billing Administrator » ne peuvent voir le champ *Compte comptable* sur une ligne de facture.
+
+[Source: Graphe de Connaissances Code Intelligence]
+Outils invoques: ['analyze_security_locks', 'read_source_code', 'who_has_access_to', 'evaluate_record_rules', 'button_execution_path', 'read_source_code', 'read_source_code']
+
+Rapport JSON sauvegarde (25 questions): /home/user/odoo-ia-prototype/captures/bloc_n1_verbatim.json
+Rapport Markdown sauvegarde: /home/user/odoo-ia-prototype/captures/bloc_n1_verbatim.md
+================================================================================
+(.venv) user@debian:~/odoo-ia-prototype$ python scripts/run_bloc_n1_benchmark.py MNT-Q5 SAL-Q5 PUR-Q5 STK-Q5 ACC-Q5
+================================================================================
+ BLOC N1 -- BENCHMARK RUNNER (banc de questions natif) 
+ Cible : 5 question(s) (filtre id=['MNT-Q5', 'SAL-Q5', 'PUR-Q5', 'STK-Q5', 'ACC-Q5'], module=None)
+================================================================================
+
+--------------------------------------------------------------------------------
+[MNT-Q5] module=maintenance capability=constraints difficulty=medium
+Question: Quelle regle empeche de creer deux equipements avec le meme numero de serie, et quelle contrainte distincte s'applique sur l'intervalle de repetition (repeat_interval) d'une demande recurrente ?
+--------------------------------------------------------------------------------
+Reponse verbatim (25.88s total | effectif 25.88s | groq_wait 0.00s | sauts 3):
+### Règle empêchant les doublons de numéro de série
+
+- **Contrainte SQL unique** sur le champ *Numéro de série* :  
+  Aucun équipement ne peut être créé avec un numéro de série déjà présent dans la base de données.
+
+### Contrainte sur l’intervalle de répétition d’une demande récurrente
+
+- **Validation de l’intervalle** :  
+  L’intervalle de répétition (*repeat_interval*) doit être **au moins 1**.  
+  Toute valeur inférieure déclenche une erreur et empêche la création ou la modification de la demande.
+
+[Source: Graphe de Connaissances Code Intelligence]
+Outils invoques: ['analyze_data_constraints', 'analyze_data_constraints', 'analyze_data_constraints']
+
+--------------------------------------------------------------------------------
+[PUR-Q5] module=purchase capability=constraints difficulty=medium
+Question: Quelles regles empechent de supprimer une commande d'achat ou une de ses lignes selon leur etat, et quelle contrainte SQL distincte s'applique sur les lignes elles-memes ?
+--------------------------------------------------------------------------------
+Erreur de connexion transitoire (attempt 1/5): Connection error.. Retry dans 3.0s...

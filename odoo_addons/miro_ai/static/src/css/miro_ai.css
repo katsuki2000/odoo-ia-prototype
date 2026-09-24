@@ -107,24 +107,45 @@
     border-color: var(--miro-brand-color, #008784);
 }
 
-/* Send/stop buttons in the drawer input row -- explicit fixed square
-   sizing (Bootstrap alone does not constrain icon-only .btn width inside
-   an .input-group-sm, so the button grows past the input row height and
-   visually overflows into the drawer body below it). flex-shrink: 0 keeps
-   the text input from being able to push/squeeze it either. */
-.miro-drawer-input .input-group-append > .btn {
-    width: 31px;
-    height: 31px;
+.miro-drawer-input {
+    background: #ffffff;
+    box-sizing: border-box;
+}
+
+.miro-drawer-input-field {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 34px;
+    font-size: 0.85rem;
+    color: #1e293b !important;
+    background-color: #f8fafc;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    padding: 6px 12px;
+    box-sizing: border-box;
+}
+
+.miro-drawer-input-field:focus {
+    background-color: #ffffff;
+    border-color: var(--miro-brand-color, #008784);
+    box-shadow: 0 0 0 2px rgba(0, 135, 132, 0.15);
+    outline: none;
+}
+
+.miro-drawer-send-btn {
+    width: 34px;
+    height: 34px;
     padding: 0;
-    display: flex;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
     box-sizing: border-box;
+    border-radius: 6px;
     line-height: 1;
 }
 
-.miro-drawer-input .input-group-append > .btn i {
+.miro-drawer-send-btn i {
     font-size: 0.85rem;
 }
 
@@ -231,6 +252,8 @@ details[open] .verification-chevron {
     font-size: 0.8rem;
     white-space: pre-wrap;
     border: 1px solid #e2e8f0;
+    max-height: 180px;
+    overflow-y: auto;
 }
 
 .investigation-steps-list li {
@@ -393,6 +416,7 @@ details[open] .verification-chevron {
     height: calc(100vh - 64px);
     max-height: 720px;
     background: #ffffff;
+    color: #1e293b !important;
     border-radius: 12px;
     box-shadow: 0 10px 25px rgba(0, 0, 0, 0.18);
     display: flex;
@@ -415,9 +439,17 @@ details[open] .verification-chevron {
 }
 
 .miro-drawer-header {
-    background-color: #f8fafc;
+    background-color: #ffffff;
+    color: #1e293b !important;
     padding: 12px 16px;
     border-bottom: 1px solid #e2e8f0;
+}
+
+.miro-drawer-header strong,
+.miro-drawer-title {
+    color: #1e293b !important;
+    font-size: 1rem;
+    font-weight: 700;
 }
 
 .miro-drawer-messages {

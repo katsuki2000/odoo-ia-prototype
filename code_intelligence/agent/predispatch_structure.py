@@ -16,7 +16,7 @@ from code_intelligence.agent.context import (
     _tool_call_key,
 )
 from code_intelligence.agent.context_extractors import _question_is_inheritance_related
-from code_intelligence.agent.context import DispatchContext
+from code_intelligence.agent.context import DispatchContext, PER_TOOL_OBSERVATION_CAPS
 from code_intelligence.agent.context_extractors import rank_custom_modules_for_models
 from code_intelligence.agent.tool_helpers import _resolve_model_param
 from code_intelligence.agent.tools.introspection import list_involved_modules_with_evidence
@@ -131,7 +131,7 @@ def dispatch_inheritance(ctx: DispatchContext) -> None:
                                     "line_start": _ls,
                                     "line_end": _le,
                                 }))
-                                _read_obs = _truncate_observation_for_budget(ctx, _read_obs, 2500)
+                                _read_obs = _truncate_observation_for_budget(ctx, _read_obs, PER_TOOL_OBSERVATION_CAPS["read_source_code"])
                                 ctx.tool_observations.append(_read_obs)
                                 ctx.tool_observation_models.append(target_model)
                                 ctx.tool_observation_tools.append("read_source_code")
@@ -317,7 +317,7 @@ def dispatch_describe_workflow(ctx: DispatchContext) -> None:
             read_observation = str(read_tool.invoke({
                 "filepath": site.filepath, "line_start": site.lineno, "line_end": end_lineno,
             }))
-            read_observation = _truncate_observation_for_budget(ctx, read_observation, 3000)
+            read_observation = _truncate_observation_for_budget(ctx, read_observation, PER_TOOL_OBSERVATION_CAPS["read_source_code"])
             ctx.record_observation(
                 "read_source_code",
                 {"filepath": site.filepath, "line_start": site.lineno, "line_end": end_lineno},
@@ -364,7 +364,6 @@ Behavior unchanged.
 """
 
 import logging
-import re
 import time
 
 from code_intelligence.agent.context import (
@@ -376,19 +375,17 @@ from code_intelligence.agent.context_extractors import extract_ui_element_name, 
 from code_intelligence.agent.tool_helpers import _resolve_model_param
 from code_intelligence.rules.button_path import button_execution_path as _button_execution_path_impl
 from code_intelligence.rules.override_unguarded import resolve_method_override_chain
+from code_intelligence.rules.source_callees import (
+    extract_followable_callees,
+    extract_has_group_literals,
+    read_method_source,
+)
+from code_intelligence.rules.technical_groups import format_technical_group_note, technical_groups_among
 from core.evidence.evidence_collector import record_evidence
 
 logger = logging.getLogger(__name__)
 
-# Section 911 (B): generalizes, to any button's own body, the internal-call
-# auto-follow already proven for the security-distinction guard follow-up
-# (section 784/786/788, dispatch_security_distinction_guard) -- narrowly
-# scoped to calls to another button_* method of the same convention (Odoo's
-# own naming for action/transition methods, e.g. button_confirm calling
-# button_approve, todo/contexte.txt section 911/PUR-Q2), not any method call,
-# to keep the hop-budget risk bounded (one extra hop at most, see CI_MAX_HOPS
-# discipline already established in section 908).
-_BUTTON_CALL_RE = re.compile(r"\.(button_[A-Za-z0-9_]+)\s*\(")
+_MAX_FOLLOWED_CALLEES = 6
 
 
 def dispatch_button_execution_path(ctx: DispatchContext) -> None:
@@ -420,7 +417,7 @@ def dispatch_button_execution_path(ctx: DispatchContext) -> None:
     if btn_tool is None:
         return
 
-    followed_any_button_call = False
+    followed_any_callee = False
 
     for target_model in ctx.concept.resolved_models:
         call_key = _tool_call_key("button_execution_path", {"button_name": ui_name, "model_name": target_model})
@@ -470,7 +467,7 @@ def dispatch_button_execution_path(ctx: DispatchContext) -> None:
                             read_obs = str(read_tool.invoke({
                                 "filepath": fp, "line_start": ls, "line_end": le,
                             }))
-                            read_obs = _truncate_observation_for_budget(ctx, read_obs, 4000)
+                            read_obs = _truncate_observation_for_budget(ctx, read_obs, PER_TOOL_OBSERVATION_CAPS["read_source_code"])
                             ctx.record_observation(
                                 "read_source_code",
                                 {"filepath": fp, "line_start": ls, "line_end": le},
@@ -480,24 +477,11 @@ def dispatch_button_execution_path(ctx: DispatchContext) -> None:
                         except Exception as re_err:
                             logger.error("Auto read_source_code after button_execution_path failed: %s", re_err)
 
-            # Section 911 (B): the button's own body just fetched above may
-            # itself call another button_* method of the same model (e.g.
-            # button_confirm calling order.button_approve() -- PUR-Q2). Follow
-            # the first such call automatically instead of leaving the LLM to
-            # guess a line range for it (confirmed failure mode: todo/contexte.txt
-            # section 911, reasoning_trace hop 4 read lines 520-560, past the
-            # real definition at 491-495).
             if _own_read_obs and not ctx.hop_budget_exhausted:
-                _called_names = []
-                _seen_names = set()
-                for _m in _BUTTON_CALL_RE.finditer(_own_read_obs):
-                    _name = _m.group(1)
-                    if _name == button_result.method_name or _name in _seen_names:
-                        continue
-                    _seen_names.add(_name)
-                    _called_names.append(_name)
-                for _called_name in _called_names:
-                    if ctx.hop_budget_exhausted:
+                _own_source = read_method_source(fp, ls, le) or ""
+                _followed_count = 0
+                for _called_name in extract_followable_callees(_own_source, button_result.method_name):
+                    if ctx.hop_budget_exhausted or _followed_count >= _MAX_FOLLOWED_CALLEES:
                         break
                     _call_sites = resolve_method_override_chain(ctx.G, target_model, _called_name)
                     if not _call_sites:
@@ -517,7 +501,15 @@ def dispatch_button_execution_path(ctx: DispatchContext) -> None:
                         _call_obs = str(read_tool.invoke({
                             "filepath": _cs.filepath, "line_start": _cs.lineno, "line_end": _cs_end,
                         }))
-                        _call_obs = _truncate_observation_for_budget(ctx, _call_obs, 3000)
+                        _call_obs = _truncate_observation_for_budget(ctx, _call_obs, PER_TOOL_OBSERVATION_CAPS["read_source_code"])
+                        _technical_groups = technical_groups_among(
+                            ctx.G,
+                            extract_has_group_literals(
+                                read_method_source(_cs.filepath, _cs.lineno, _cs_end) or ""
+                            ),
+                        )
+                        if _technical_groups:
+                            _call_obs += "\n" + format_technical_group_note(_technical_groups)
                         ctx.record_observation(
                             "read_source_code",
                             {"filepath": _cs.filepath, "line_start": _cs.lineno, "line_end": _cs_end},
@@ -525,21 +517,14 @@ def dispatch_button_execution_path(ctx: DispatchContext) -> None:
                         )
                         logger.info(
                             "Node [code_intelligence_agent]: Deterministic follow-up dispatch of "
-                            "'read_source_code' for '%s.%s()' (%s L%d-%d), called from '%s' "
-                            "(section 911, button-to-button auto-follow).",
+                            "'read_source_code' for '%s.%s()' (%s L%d-%d), called from '%s'.",
                             target_model, _called_name, _cs.filepath, _cs.lineno, _cs_end,
                             button_result.method_name,
                         )
-                        followed_any_button_call = True
+                        _followed_count += 1
+                        followed_any_callee = True
                     except Exception as call_err:
-                        logger.error(
-                            "Deterministic button-to-button follow-up dispatch (section 911) failed: %s",
-                            call_err,
-                        )
-                    # One followed call is enough to resolve the common
-                    # "delegates to another button" pattern (PUR-Q2) without
-                    # opening an unbounded chain -- stop after the first.
-                    break
+                        logger.error("Deterministic callee follow-up dispatch failed: %s", call_err)
             if "not found" not in observation.lower():
                 break
             if ctx.hop_budget_exhausted:
@@ -547,13 +532,14 @@ def dispatch_button_execution_path(ctx: DispatchContext) -> None:
         except Exception as te:
             logger.error("Deterministic button_execution_path dispatch failed: %s", te)
 
-    if followed_any_button_call:
+    if followed_any_callee:
         ctx.system_prompt_suffix += (
-            "\n\n[DETERMINISTIC PRE-DISPATCH -- BUTTON-TO-BUTTON CALL]\n"
-            "The button's own body above calls another button_* method of the same "
-            "model -- that called method's real definition has already been fetched "
-            "above via read_source_code. Rely on that exact source for what it does; "
-            "do not guess its line range or call read_source_code again for it."
+            "\n\n[DETERMINISTIC PRE-DISPATCH -- CALLED METHODS]\n"
+            "The method body above calls other methods of the same model (another button_* "
+            "method, a method used as a condition, or a step it delegates to); their real "
+            "definitions have already been fetched above via read_source_code. Rely on that exact "
+            "source for what they do and on which record or user they evaluate; do not guess their "
+            "line range or call read_source_code again for them."
         )
 
 

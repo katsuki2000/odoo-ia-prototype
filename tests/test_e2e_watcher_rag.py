@@ -18,7 +18,13 @@ from core.graph.graph import query_graph, AssistantResponse
 from core.schemas import LLMResponse
 
 
+@pytest.fixture
+def mocked_groq_provider(monkeypatch):
+    monkeypatch.setattr("core.llm.llm_client.LLM_PROVIDER", "groq")
+
+
 @pytest.mark.integration
+@pytest.mark.usefixtures("mocked_groq_provider")
 def test_e2e_live_add_delete_query_cycle():
     """
     Simulate the end-to-end add/delete cycle monitored by watcher / incremental scanner:

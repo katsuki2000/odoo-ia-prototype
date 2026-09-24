@@ -138,7 +138,7 @@ def test_pur_q2_button_confirm_follows_button_approve(G, tool_map):
     )
     dispatch_button_execution_path(ctx)
 
-    assert ctx.tool_observation_tools == [
+    assert ctx.tool_observation_tools[:3] == [
         "button_execution_path", "read_source_code", "read_source_code",
     ]
     button_confirm_obs = ctx.tool_observations[1]
@@ -147,7 +147,7 @@ def test_pur_q2_button_confirm_follows_button_approve(G, tool_map):
     assert "def button_approve" in button_approve_obs
     assert "'state': 'purchase'" in button_approve_obs
     assert "po_lock" in button_approve_obs
-    assert "BUTTON-TO-BUTTON CALL" in ctx.system_prompt_suffix
+    assert "CALLED METHODS" in ctx.system_prompt_suffix
 
 
 def test_button_with_no_internal_button_call_no_extra_follow(G, tool_map):
@@ -163,18 +163,15 @@ def test_button_with_no_internal_button_call_no_extra_follow(G, tool_map):
     dispatch_button_execution_path(ctx)
 
     assert ctx.tool_observation_tools.count("read_source_code") <= 1
-    assert "BUTTON-TO-BUTTON CALL" not in ctx.system_prompt_suffix
+    assert "CALLED METHODS" not in ctx.system_prompt_suffix
 
 
-def test_button_call_regex_excludes_self_reference():
-    """A recursive/self-referential call (button_confirm calling
-    self.button_confirm() somewhere, hypothetically) must never be
-    'followed' back into itself."""
-    from code_intelligence.agent.predispatch_structure import _BUTTON_CALL_RE
-    body = "order.button_confirm()\norder.button_approve()"
-    names = _BUTTON_CALL_RE.findall(body)
-    assert "button_confirm" in names
+def test_button_call_extraction_excludes_self_reference():
+    from code_intelligence.rules.source_callees import extract_followable_callees
+    body = "def button_confirm(self):\n    order.button_confirm()\n    order.button_approve()\n"
+    names = extract_followable_callees(body, "button_confirm")
     assert "button_approve" in names
+    assert "button_confirm" not in names
 
 
 def test_dedup_key_prevents_refetch_on_second_dispatch(G, tool_map):

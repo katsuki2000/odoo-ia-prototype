@@ -1,6 +1,6 @@
 # Rapport Verbatim -- Bloc N1 (banc de questions natif)
 
-**Date d'execution :** 2026-09-24 06:24:33
+**Date d'execution :** 2026-09-24 16:01:24
 
 **Objectif :** rejouer les questions verite-terrain des 5 modules natifs (maintenance, purchase, sale, stock, account) contre l'agent Code Intelligence reel et capturer la reponse verbatim pour comparaison manuelle avec `reference_answer` -- aucune notation automatique.
 
@@ -10,13 +10,13 @@
 | Metrique | Valeur |
 |---|---|
 | Questions executees (consolidees) | 25 |
-| Questions rejouees ce tour | 3 |
+| Questions rejouees ce tour | 5 |
 | Erreurs d'execution | 0 |
-| Ecarts de couverture d'outils (expected_tools non tous invoques) | 5 |
-| p50 latence effective (run courant) | `24.31s` |
-| p90 latence effective (run courant) | `50.55s` (budget `12.0s`,  DEPASSE) |
-| Moyenne (run courant) | `30.22s` |
-| Max (run courant) | `50.55s` |
+| Ecarts de couverture d'outils (expected_tools non tous invoques) | 4 |
+| p50 latence effective (run courant) | `10.17s` |
+| p90 latence effective (run courant) | `48.55s` (budget `12.0s`,  DEPASSE) |
+| Moyenne (run courant) | `17.24s` |
+| Max (run courant) | `48.55s` |
 
 ---
 
@@ -30,23 +30,15 @@
 
 **Outils attendus :** ['who_has_access_to', 'evaluate_record_rules'] | **Outils invoques :** ['who_has_access_to', 'evaluate_record_rules', 'evaluate_record_rules', 'evaluate_record_rules', 'evaluate_record_rules']
 
-**Reponse verbatim de l'agent (Total: 15.78s | Effectif: 15.782s | Groq wait: 0.0s | Sauts: 5) :**
+**Reponse verbatim de l'agent (Total: 13.27s | Effectif: 13.268s | Groq wait: 0.0s | Sauts: 5) :**
 ```text
-### Peut‑il modifier une fiche ?  
+### Accès d’un utilisateur simple à la fiche équipement
 
-- **Non**.  
-  - Le **WRITE** (et CREATE/UNLINK) sur le modèle `maintenance.equipment` est réservé uniquement au groupe **group_equipment_manager**.  
-  - Le simple utilisateur (`base.group_user`) n’appartient pas à ce groupe, donc il ne possède pas la permission d’écriture.  
-  - *Source : Access Matrix – WRITE : `group_equipment_manager` (Rules: 3)*  
+- **Modification (création, mise à jour, suppression)**  
+  Un utilisateur qui ne fait partie que du groupe « utilisateur simple » (base.group_user) **ne possède pas les droits** pour modifier, créer ou supprimer une fiche équipement. Seuls les membres du groupe « group_equipment_manager » disposent de ces autorisations.
 
-### Quels équipements peut‑il consulter ?  
-
-- Il peut **seulement lire** les équipements qu’il suit.  
-  - La règle d’enregistrement `maintenance.equipment_rule_user` autorise l’accès aux équipements dont le champ `message_partner_ids` contient l’ID du partenaire de l’utilisateur.  
-  - Cette règle est combinée en **OU** avec d’autres règles de groupe, puis en **ET** avec la règle globale de multi‑entreprise (`maintenance.maintenance_equipment_comp_rule`).  
-  - *Source : Évaluation ir.rule pour la persona `utilisateur_simple` (permission = read) – règle `maintenance.equipment_rule_user`*  
-
-En résumé, un utilisateur simple ne peut pas modifier une fiche équipement, mais il peut consulter les fiches des équipements qu’il suit (et qui appartiennent à sa société).
+- **Consultation**  
+  Un utilisateur simple peut **consulter** uniquement les fiches équipements auxquelles il est **affilié** (c’est‑à‑dire les équipements pour lesquels il figure dans la liste des partenaires suivis). Il ne peut pas voir les équipements qui ne lui sont pas associés.
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```
@@ -63,30 +55,24 @@ En résumé, un utilisateur simple ne peut pas modifier une fiche équipement, m
 
 **Outils attendus :** ['describe_workflow', 'read_source_code'] | **Outils invoques :** ['describe_workflow', 'read_source_code']
 
-**Reponse verbatim de l'agent (Total: 26.28s | Effectif: 26.278s | Groq wait: 0.0s | Sauts: 2) :**
+**Reponse verbatim de l'agent (Total: 17.58s | Effectif: 17.581s | Groq wait: 0.0s | Sauts: 2) :**
 ```text
-### Ce qui se déclenche automatiquement
+### Ce qui se produit automatiquement
 
-Lorsqu’une **demande de maintenance préventive** (`maintenance_type = 'preventive'`) **et récurrente** (`recurring_maintenance = True`) passe à l’étape marquée **« done »**, le code de `maintenance.request` exécute les actions suivantes :
+- **Création d’une nouvelle demande**  
+  Dès que la demande de maintenance préventive et récurrente passe à l’étape « done », Odoo génère automatiquement une nouvelle demande de maintenance.  
+  - La date de planification de la nouvelle demande est calculée en ajoutant l’intervalle de répétition (ex. : chaque mois, chaque trimestre…) à la date de planification actuelle.  
+  - La nouvelle demande est placée dans l’étape par défaut (généralement « planifiée »).
 
-1. **Création d’une nouvelle demande**  
-   - Le champ `schedule_date` de la demande actuelle est incrémenté selon la fréquence définie (`repeat_interval` et `repeat_unit`).  
-   - Si la demande est configurée pour se répéter indéfiniment (`repeat_type = 'forever'`) ou si la nouvelle date est toujours antérieure ou égale à `repeat_until`, une copie de la demande est créée.  
-   - La copie est initialisée avec la nouvelle `schedule_date` et le **stade par défaut** (`_default_stage()`), prêt à être planifiée à nouveau.  
-   - **Citation** : [maintenance/models/maintenance_request.py:L324-L337](file:///maintenance/models/maintenance_request.py#L324-L337)
+- **Mise à jour de la demande actuelle**  
+  - La date de clôture de la demande qui vient d’être terminée est fixée à la date d’aujourd’hui.  
+  - Les activités liées à la demande (tâches, rappels, notifications) sont mises à jour ou créées pour la nouvelle demande.  
+  - Le champ « état Kanban » est réinitialisé à « normal » pour refléter le changement de phase.
 
-2. **Mise à jour de la demande actuelle**  
-   - Le champ `close_date` est renseigné avec la date du jour pour les demandes dont le stade est désormais « done ».  
-   - Si le stade n’est plus « done », `close_date` est réinitialisé à `False`.  
-   - **Citation** : [maintenance/models/maintenance_request.py:L341-L343](file:///maintenance/models/maintenance_request.py#L341-L343)
+- **Gestion des notifications**  
+  - Les followers (utilisateurs suivis) de la demande sont conservés et les notifications sont envoyées aux personnes concernées pour la nouvelle demande.
 
-3. **Gestion des activités**  
-   - Des activités de suivi sont mises à jour ou créées (`activity_update`, `activity_feedback`, `activity_unlink`).  
-   - **Citation** : [maintenance/models/maintenance_request.py:L342-L351](file:///maintenance/models/maintenance_request.py#L342-L351)
-
-En résumé, l’atteinte de l’étape « done » pour une demande préventive récurrente déclenche automatiquement la **création d’une nouvelle demande** planifiée pour la prochaine période, tout en mettant à jour les dates de clôture et les activités de suivi de la demande actuelle.
-
- SOURCING NON VÉRIFIÉ : citation(s) fichier non retrouvée(s) dans les données produites: maintenance/models/maintenance_request.py#L324-L337, maintenance/models/maintenance_request.py#L342-L351, maintenance/models/maintenance_request.py#L341-L343. Ne pas considérer ces éléments comme confirmés pour cette question.
+En résumé, lorsqu’une demande de maintenance préventive récurrente atteint l’étape « done », Odoo prépare automatiquement la prochaine itération en créant une nouvelle demande avec la date suivante, tout en clôturant la demande actuelle et en mettant à jour les activités et notifications associées.
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```
@@ -101,58 +87,19 @@ En résumé, l’atteinte de l’étape « done » pour une demande prévent
 
 **A verifier dans le code :** `models/maintenance.py : classe MaintenanceMixin (_name='maintenance.mixin', models.AbstractModel) + classe MaintenanceEquipment (_inherit=['mail.thread','mail.activity.mixin','maintenance.mixin']) vs classe MaintenanceEquipmentCategory (_inherit=['mail.alias.mixin','mail.thread'], sans maintenance.mixin)`
 
-**Outils attendus :** ['trace_full_inheritance', 'list_involved_modules'] | **Outils invoques :** ['list_involved_modules', 'trace_full_inheritance', 'read_source_code']
+**Outils attendus :** ['trace_full_inheritance', 'list_involved_modules'] | **Outils invoques :** ['list_involved_modules', 'trace_full_inheritance', 'read_source_code', 'read_source_code']
 
-**Reponse verbatim de l'agent (Total: 4.44s | Effectif: 4.435s | Groq wait: 0.0s | Sauts: 2) :**
+**Reponse verbatim de l'agent (Total: 47.21s | Effectif: 47.205s | Groq wait: 0.0s | Sauts: 3) :**
 ```text
-Module 'maintenance' defines or extends the following models: maintenance.equipment (declares), maintenance.equipment.category (declares), maintenance.mixin (declares), maintenance.request (declares), maintenance.stage (declares), maintenance.team (declares), res.config.settings (extends).
+`maintenance.equipment` est un **nouveau modèle** : il possède son propre nom (`_name = 'maintenance.equipment'`) et ne reprend pas la structure d’un modèle natif déjà présent dans Odoo.  
 
-Inheritance Chain for 'maintenance.equipment': Extensions (_inherit): [mail.activity.mixin, mail.thread, maintenance.mixin]. Delegations (_inherits): [None]. Full Ancestor Chain: [mail.thread, mail.activity.mixin, maintenance.mixin]. Nature: Nouveau modèle déclarant son propre _name='maintenance.equipment' avec mixins techniques uniquement (mail.activity.mixin, mail.thread, maintenance.mixin), pas d'extension d'un modèle métier existant. Declared in: [maintenance.py:L121-L201](file:///home/user/odoo-17.0/addons/maintenance/models/maintenance.py#L121-L201).
+Il hérite uniquement de trois mixins :  
+- `mail.thread` et `mail.activity.mixin` pour la traçabilité et les activités,  
+- **`maintenance.mixin`** qui apporte les champs et la logique communs aux objets liés à la maintenance (équipe de maintenance, technicien, dates d’échéance, MTBF/MTTR, etc.).  
 
- 121 | class MaintenanceEquipment(models.Model):
- 122 |     _name = 'maintenance.equipment'
- 123 |     _inherit = ['mail.thread', 'mail.activity.mixin', 'maintenance.mixin']
- 124 |     _description = 'Maintenance Equipment'
- 125 |     _check_company_auto = True
- 126 | 
- 127 |     def _track_subtype(self, init_values):
- 128 |         self.ensure_one()
- 129 |         if 'owner_user_id' in init_values and self.owner_user_id:
- 130 |             return self.env.ref('maintenance.mt_mat_assign')
- 131 |         return super(MaintenanceEquipment, self)._track_subtype(init_values)
- 132 | 
- 133 |     @api.depends('serial_no')
- 134 |     def _compute_display_name(self):
- 135 |         for record in self:
- 136 |             if record.serial_no:
- 137 |                 record.display_name = record.name + '/' + record.serial_no
- 138 |             else:
- 139 |                 record.display_name = record.name
- 140 | 
- 141 |     @api.model
- 142 |     def _name_search(self, name, domain=None, operator='ilike', limit=None, order=None):
- 143 |         domain = domain or []
- 144 |         query = None
- 145 |         if name and operator not in expression.NEGATIVE_TERM_OPERATORS and operator != '=':
- 146 |             query = self._search([('name', '=', name)] + domain, limit=limit, order=order)
- 147 |         return query or super()._name_search(name, domain, operator, limit, order)
- 148 | 
- 149 |     name = fields.Char('Equipment Name', required=True, translate=True)
- 150 |     active = fields.Boolean(default=True)
- 151 |     owner_user_id = fields.Many2one('res.users', string='Owner', tracking=True)
- 152 |     category_id = fields.Many2one('maintenance.equipment.category', string='Equipment Category',
- 153 |                                   tracking=True, group_expand='_read_group_category_ids')
- 154 |     partner_id = fields.Many2one('res.partner', string='Vendor', check_company=True)
- 155 |     partner_ref = fields.Char('Vendor Reference')
- 156 |     location = fields.Char('Location')
- 157 |     model = fields.Char('Model')
- 158 |     serial_no = fields.Char('Serial Number', copy=False)
- 159 |     assign_date = fields.Date('Assigned Date', tracking=True)
- 160 |     cost = fields.Float('Cost')
- 161 |     note = fields.Html('Note')
- 162 |     warranty_date = fields.Date('Warranty Expiration Date')
- 163 |     color = fields.Integer('Color Index')
- 164 |     scrap_date = fields.Date('Scrap Date')
+En résumé : `maintenance.equipment` est un modèle autonome, et `maintenance.mixin` sert de base partagée pour les éléments de maintenance.
+
+À noter : ce module étend bien 1 modèle(s) hors de son propre périmètre : 'res.config.settings'.
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```
@@ -169,33 +116,17 @@ Inheritance Chain for 'maintenance.equipment': Extensions (_inherit): [mail.acti
 
 **Outils attendus :** ['button_execution_path'] | **Outils invoques :** ['button_execution_path', 'read_source_code']
 
-**Reponse verbatim de l'agent (Total: 14.74s | Effectif: 14.738s | Groq wait: 0.0s | Sauts: 2) :**
+**Reponse verbatim de l'agent (Total: 11.59s | Effectif: 11.585s | Groq wait: 0.0s | Sauts: 2) :**
 ```text
-### Pourquoi le champ **`cost`** n’est pas visible pour tous les utilisateurs
+### Pourquoi le champ « Cost » n’est pas visible
 
-Le champ **`cost`** (coût) est déclaré dans la vue `hr_equipment_view_form` du modèle `maintenance.equipment` avec un attribut **`groups`** :
+Le champ **Cost** est affiché uniquement aux utilisateurs appartenant au groupe **« Gestionnaire d’équipement »**.  
+Même si un utilisateur a le droit de lecture sur la fiche d’équipement, il ne voit pas ce champ tant qu’il ne fait pas partie de ce groupe.  
 
-```
-<field name="cost" groups="maintenance.group_equipment_manager"/>
-```
+Pour voir le coût, il faut soit :
 
-[maintenance_views.xml:L445-L451](file:///home/user/odoo-17.0/addons/maintenance/views/maintenance_views.xml#L445-L451)
-
-Cette déclaration signifie que **seuls les utilisateurs appartenant au groupe `maintenance.group_equipment_manager`** peuvent voir et éditer ce champ, même si d’autres utilisateurs disposent d’un accès en lecture au modèle `maintenance.equipment`.  
-
-En Odoo, l’accès au modèle (défini dans `ir.model.access.csv`) ne supprime pas les restrictions de visibilité au niveau du champ. Le filtre `groups` sur le champ est appliqué **au niveau de la vue** et prend le dessus sur l’accès général.
-
-#### Résumé
-
-- **Accès modèle** : Tous les utilisateurs ayant le droit de lecture sur `maintenance.equipment` peuvent ouvrir la fiche.
-- **Visibilité du champ** : Le champ `cost` est limité aux membres du groupe `maintenance.group_equipment_manager` grâce à l’attribut `groups` dans la vue.
-
-#### Que faire si vous avez besoin de voir ce champ ?
-
-- **Ajouter votre utilisateur au groupe** `maintenance.group_equipment_manager` (via *Paramètres → Utilisateurs & Entreprises → Groupes*).
-- **Modifier la vue** pour enlever ou ajuster l’attribut `groups` si vous souhaitez qu’il soit visible pour d’autres groupes.
-
-En résumé, la restriction vient de la configuration de la vue, pas de la règle d’accès au modèle.
+- rejoindre le groupe **« Gestionnaire d’équipement »**,  
+- ou demander à un membre de ce groupe de le consulter pour vous.
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```
@@ -243,50 +174,20 @@ Si l’intervalle de répétition est inférieur à 1, une `ValidationError` est
 
 **A verifier dans le code :** `security/ir.model.access.csv (access_purchase_order vs access_purchase_order_manager, identiques) + models/purchase_order.py : _approval_allowed(), models/res_company.py : po_double_validation/po_double_validation_amount`
 
-**Outils attendus :** ['who_has_access_to', 'evaluate_record_rules', 'read_source_code'] | **Outils invoques :** ['analyze_security_locks', 'who_has_access_to', 'evaluate_record_rules', 'describe_workflow', 'button_execution_path', 'read_source_code', 'button_execution_path', 'read_source_code', 'read_source_code']
+**Outils attendus :** ['who_has_access_to', 'evaluate_record_rules', 'read_source_code'] | **Outils invoques :** ['who_has_access_to', 'evaluate_record_rules', 'describe_workflow', 'button_execution_path', 'read_source_code', 'read_source_code', 'button_execution_path', 'read_source_code', 'button_execution_path', 'read_source_code']
 
-**Reponse verbatim de l'agent (Total: 50.55s | Effectif: 50.552s | Groq wait: 0.0s | Sauts: 9) :**
+**Reponse verbatim de l'agent (Total: 21.83s | Effectif: 21.825s | Groq wait: 0.0s | Sauts: 10) :**
 ```text
-Dans la configuration actuelle, les deux groupes `group_purchase_user` et `group_purchase_manager` disposent des mêmes droits d’accès (lecture, écriture, création et suppression) sur le modèle `purchase.order` :  
+### Différence entre un acheteur et un gestionnaire sur une commande d’achat
 
-- **ACL** – accès identiques pour les deux groupes (voir l’Access Matrix).  
-- **ir.rule** – aucune règle de groupe spécifique n’est appliquée ; seule la règle globale multi‑entreprise `purchase.purchase_order_comp_rule` est active.
+| Action | Acheteur (group_purchase_user) | Gestionnaire (group_purchase_manager) |
+|--------|--------------------------------|---------------------------------------|
+| **Validation de la commande** | Après avoir cliqué sur **« Valider »**, la commande passe en état **« à valider »**. Elle doit ensuite être approuvée par un gestionnaire. | Le même bouton **« Valider »** passe directement l’état à **« validée »** (ou **« en approbation »** si la validation double est activée). Le gestionnaire n’est pas soumis à la limite de montant. |
+| **Déblocage d’une commande terminée** | Le bouton **« Débloquer »** n’est pas visible. | Le bouton **« Débloquer »** est disponible et permet de revenir à l’état **« en cours »** pour modifier la commande. |
+| **Accès aux états « à valider »** | L’acheteur peut voir les commandes en attente d’approbation, mais ne peut pas les approuver. | Le gestionnaire peut approuver ces commandes directement. |
+| **Limite de montant** | Si la valeur dépasse le seuil défini par l’entreprise, l’acheteur doit passer par l’approbation. | Le gestionnaire peut valider sans se soucier du seuil. |
 
-La différence entre un acheteur (« simple acheteur ») et un manager se trouve donc au niveau de la logique métier, c’est‑à‑dire dans les méthodes Python qui contrôlent les actions disponibles sur une commande d’achat.
-
-### 1. Confirmation / validation de la commande
-
-- La transition **[draft] → [sale]** est déclenchée par le bouton `button_confirm`.  
-  - Le bouton lui‑même n’est pas restreint par un groupe (`Required Groups: [None]`).  
-  - Cependant, la méthode appelée, `button_confirm()`, invoque la méthode interne `_approval_allowed()` (voir `purchase_order.py:L84-L514`).  
-  - Dans `_approval_allowed()` il y a un verrou explicite :  
-
-    ```
-    has_group('purchase.group_purchase_manager')
-    ```
-
-    (voir `purchase_order.py:L969-L969`).  
-
-  - Cette vérification signifie que **seuls les membres de `group_purchase_manager` peuvent confirmer une commande**.  
-  - Un utilisateur appartenant uniquement à `group_purchase_user` rencontrera une exception et ne pourra pas passer la commande de l’état *draft* à *sale*.
-
-### 2. Envoi de rappels
-
-- La méthode `_send_reminder_mail()` (voir `purchase_order.py:L768-L768`) requiert le groupe `purchase.group_send_reminder`.  
-  - Ce groupe n’est pas automatiquement attribué aux managers ou aux acheteurs ; il s’agit d’un groupe distinct.  
-  - Ainsi, la capacité d’envoyer des rappels dépend de l’appartenance à ce groupe spécifique, et non du rôle « acheteur » ou « manager ».
-
-### 3. Autres actions
-
-- Aucune autre méthode ou bouton n’est explicitement restreint par `group_purchase_manager` dans les observations fournies.  
-- Les règles globales (`purchase.purchase_order_comp_rule`) ne différencient pas les groupes.
-
----
-
-**En résumé :**  
-Les deux groupes ont les mêmes droits d’accès au niveau ACL, mais **le groupe `group_purchase_manager` possède un droit supplémentaire au niveau métier : il peut confirmer (valider) une commande d’achat grâce à la vérification `has_group('purchase.group_purchase_manager')` dans `_approval_allowed()`.  
-Un simple acheteur (`group_purchase_user`) ne peut pas confirmer la commande, même s’il peut la créer, l’éditer et la supprimer.  
-Les autres actions (comme l’envoi de rappels) dépendent d’un groupe distinct (`purchase.group_send_reminder`).
+En résumé, les deux groupes disposent des mêmes droits de lecture, écriture, création et suppression, mais le **gestionnaire** possède des privilèges supplémentaires : il peut **valider directement** les commandes (en contournant la double validation) et **débloquer** les commandes terminées, tandis que l’**acheteur** doit attendre l’approbation d’un gestionnaire.
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```
@@ -301,51 +202,34 @@ Les autres actions (comme l’envoi de rappels) dépendent d’un groupe distinc
 
 **A verifier dans le code :** `models/purchase_order.py : button_confirm(), button_approve()`
 
-**Outils attendus :** ['describe_workflow', 'read_source_code'] | **Outils invoques :** ['describe_workflow', 'describe_workflow', 'button_execution_path', 'read_source_code', 'read_source_code']
+**Outils attendus :** ['describe_workflow', 'read_source_code'] | **Outils invoques :** ['describe_workflow', 'describe_workflow', 'button_execution_path', 'read_source_code', 'read_source_code', 'read_source_code', 'read_source_code']
 
-**Reponse verbatim de l'agent (Total: 23.92s | Effectif: 23.918s | Groq wait: 0.0s | Sauts: 5) :**
+**Reponse verbatim de l'agent (Total: 20.53s | Effectif: 20.533s | Groq wait: 0.0s | Sauts: 7) :**
 ```text
-### Que se passe‑t‑il quand on clique sur **« Confirm Order »** ?
+### Que se passe‑t‑il quand on clique sur « Confirm Order » ?
 
-Le bouton **`button_confirm`** de `purchase.order` déclenche la méthode suivante (source : `purchase/models/purchase_order.py` : lignes 501‑514) :
+- **Vérification de l’état**  
+  Le bouton ne fonctionne que si la commande est encore en *Brouillon* ou *Envoyée*.
 
-*(bloc de code omis : non retrouvé verbatim dans les observations produites pour cette question -- voir la/les citation(s) file:// à proximité pour le contenu réel.)*
+- **Pré‑traitements**  
+  - Les lignes de la commande sont vérifiées pour s’assurer que la distribution analytique est correcte.  
+  - Le fournisseur de la commande est ajouté à la liste des fournisseurs du produit (si ce n’est pas déjà le cas).  
+  - Le partenaire de la commande est ajouté aux destinataires de la discussion.
 
-#### 1. Vérification de l’état actuel  
-- Le bouton ne fait rien si l’ordre n’est pas en **`draft`** ou **`sent`**.  
-- Si l’état est différent, la boucle passe à l’ordre suivant (ou termine si c’est le dernier).
+- **Décision d’approbation**  
+  - **Si la commande est éligible à l’approbation directe** (c’est‑à‑dire :  
+    - la validation double est désactivée,  
+    - ou le montant total est inférieur au seuil de validation double,  
+    - ou vous faites partie du groupe « Gestionnaire des achats »),  
+    alors la commande passe immédiatement à l’état **« Achetée »** (et si la société a activé le verrouillage, elle passe directement à **« Terminée »**).  
+  - **Si la commande n’est pas éligible** (montant trop élevé et vous n’êtes pas gestionnaire),  
+    elle passe à l’état **« À approuver »** et attend l’approbation d’un gestionnaire.
 
-#### 2. Pré‑traitements  
-- `order_line._validate_analytic_distribution()` : vérifie que chaque ligne possède une distribution analytique valide.  
-- `order._add_supplier_to_product()` : ajoute le fournisseur à chaque produit de la commande.
+- **Résultat final**  
+  - **Éligible** : la commande est validée immédiatement et peut être facturée ou livrée.  
+  - **Non éligible** : la commande reste en attente d’approbation et ne peut pas encore être traitée.
 
-#### 3. Décision d’approbation directe  
-- **`order._approval_allowed()`** : renvoie `True` si la commande est éligible à l’approbation directe (ex. : pas de seuil de montant, pas de règle d’approbation, etc.).  
-  - Si **`True`** → on appelle **`order.button_approve()`**.  
-  - Si **`False`** → on passe l’ordre en état **`to approve`** (il attend une approbation manuelle).
-
-#### 4. Approbation directe (`button_approve`)  
-*(bloc de code omis : non retrouvé verbatim dans les observations produites pour cette question -- voir la/les citation(s) file:// à proximité pour le contenu réel.)*
-- L’état passe à **`purchase`** et la date d’approbation est enregistrée.  
-- Si la société a activé le verrouillage des commandes (`po_lock == 'lock'`), l’état passe immédiatement à **`done`**.
-
-#### 5. Si l’approbation directe n’est pas possible  
-- L’état devient **`to approve`**.  
-- L’ordre attend alors qu’un utilisateur disposant des droits d’approbation (groupe `purchase.group_purchase_manager` ou autre règle d’approbation) valide l’ordre via le bouton **`Confirm`** (ou un autre mécanisme d’approbation).
-
-#### 6. Notification  
-- Si le partenaire de la commande n’est pas déjà abonné aux messages de l’ordre, il est ajouté à la liste des abonnés (`message_subscribe`).
-
----
-
-#### Résumé rapide
-
-| Condition | Action |
-|-----------|--------|
-| `order._approval_allowed()` = True | Appel à `button_approve()` → état `purchase` (ou `done` si verrouillage). |
-| `order._approval_allowed()` = False | État mis à `to approve` → attente d’une approbation manuelle. |
-
-> **Note** : Le bouton est disponible à tous les utilisateurs (`[All Users]`), mais l’action d’approbation directe dépend de la configuration de la société et des règles d’approbation définies.
+En résumé, le bouton « Confirm Order » vérifie d’abord si la commande peut être approuvée sans intervention supplémentaire ; si oui, elle est validée immédiatement, sinon elle est mise en attente d’une approbation managériale.
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```
@@ -362,48 +246,26 @@ Le bouton **`button_confirm`** de `purchase.order` déclenche la méthode suivan
 
 **Outils attendus :** ['trace_full_inheritance', 'list_involved_modules', 'analyze_method_override_chain'] | **Outils invoques :** ['list_involved_modules', 'trace_full_inheritance', 'read_source_code'] -- MANQUANT(S): ['analyze_method_override_chain']
 
-**Reponse verbatim de l'agent (Total: 19.48s | Effectif: 19.483s | Groq wait: 0.0s | Sauts: 2) :**
+**Reponse verbatim de l'agent (Total: 19.02s | Effectif: 19.016s | Groq wait: 0.0s | Sauts: 2) :**
 ```text
-### Modèle `purchase.order`
+### Modèle « purchase.order »
 
-- **Nature** : `purchase.order` est **un nouveau modèle** déclaré par le module `purchase`.  
-  - Observation : *Module 'purchase' declares `purchase.order`* (see the list of involved modules).  
-  - Source : `purchase_order.py:L18-L98` shows the class definition with `_name = "purchase.order"`.
+- **Nature** : *purchase.order* est un **nouveau modèle**.  
+  Il est déclaré dans le module *purchase* avec son propre nom (`_name = "purchase.order"`) et ne repose que sur des mixins techniques (mail, portail, catalogue produit).  
+  Il ne s’agit donc pas d’une extension d’un modèle existant.
 
-### Modifications apportées par le module `purchase` à des modèles natifs hors de son domaine
+### Impact du module *purchase* sur d’autres modèles natifs
 
-Le module `purchase` étend plusieurs modèles qui ne font pas partie de son domaine métier (achat).  
-Ces extensions sont listées dans l’observation précédente :
+- Le module *purchase* **modifie plusieurs modèles natifs** qui ne font pas partie de son domaine d’achat.  
+  Parmi ceux-ci, on trouve notamment :  
+  - `account.move` et `account.move.line` (ajout de champs et de logiques liés aux bons d’achat)  
+  - `res.partner` (ajout de champs de référence fournisseur)  
+  - `res.company` et `res.config.settings` (ajout de paramètres liés aux achats)  
+  - `product.template`, `product.product`, `product.packaging`, `product.supplierinfo` (ajout de champs de gestion des fournisseurs et des emballages)  
+  - `account.analytic.account` et `account.analytic.applicability` (ajout de champs d’analyse de coûts liés aux achats)  
+  - `account.tax` (ajout de règles de calcul de taxes spécifiques aux achats)
 
-| Modèle natif | Rôle d’extension par `purchase` |
-|--------------|---------------------------------|
-| `account.analytic.account` | `extends` |
-| `account.analytic.applicability` | `extends` |
-| `account.move` | `extends` |
-| `account.move.line` | `extends` |
-| `account.tax` | `extends` |
-| `product.packaging` | `extends` |
-| `product.product` | `extends` |
-| `product.supplierinfo` | `extends` |
-| `product.template` | `extends` |
-| `res.company` | `extends` |
-| `res.config.settings` | `extends` |
-| `res.partner` | `extends` |
-
-#### Exemple de modification
-
-- **`account.move`** : le module ajoute des champs liés aux achats (ex. `purchase_id`, `purchase_line_ids`) et modifie la logique de comptabilisation pour tenir compte des bons de commande.  
-  - Source : `purchase.py:L23-L92` montre l’extension de `account.move` avec de nouveaux champs et méthodes.
-
-- **`product.supplierinfo`** : le module ajoute des champs de gestion des fournisseurs spécifiques aux achats (ex. `purchase_price`, `purchase_tax_id`).  
-  - Source : `purchase.py:L23-L92` (section d’extension de `product.supplierinfo`).
-
-- **`res.partner`** : le module ajoute des champs de configuration d’achat (ex. `purchase_order_ids`, `purchase_order_count`).  
-  - Source : `purchase.py:L23-L92` (section d’extension de `res.partner`).
-
-Ces extensions permettent au module `purchase` d’intégrer les achats dans les processus comptables, de gérer les fournisseurs et de stocker les informations de commande directement sur les modèles natifs.  
-
-En résumé, `purchase.order` est un modèle **déclaré** par le module `purchase`, et ce module **modifie** plusieurs modèles natifs hors de son domaine en les étendant pour ajouter des champs et des comportements liés aux achats.
+Ces extensions permettent d’intégrer les achats dans les processus comptables, de gérer les fournisseurs, les taxes, les coûts analytiques et les paramètres de l’entreprise, tout en conservant la structure de base des modèles natifs.
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```
@@ -418,31 +280,20 @@ En résumé, `purchase.order` est un modèle **déclaré** par le module `purcha
 
 **A verifier dans le code :** `views/purchase_views.xml, bouton name='button_approve', groups='purchase.group_purchase_manager'`
 
-**Outils attendus :** ['button_execution_path'] | **Outils invoques :** ['analyze_security_locks', 'button_execution_path', 'read_source_code']
+**Outils attendus :** ['button_execution_path'] | **Outils invoques :** ['button_execution_path', 'read_source_code', 'read_source_code']
 
-**Reponse verbatim de l'agent (Total: 3.98s | Effectif: 3.975s | Groq wait: 0.0s | Sauts: 3) :**
+**Reponse verbatim de l'agent (Total: 8.65s | Effectif: 8.654s | Groq wait: 0.0s | Sauts: 3) :**
 ```text
-### Pourquoi le bouton « Approve Order » n’apparaît pas pour un utilisateur simple ?
+### Pourquoi le bouton « Approve Order » n’apparaît pas
 
-Le bouton **Approve Order** est bien défini dans le module **purchase_stock** :
+Le bouton « Approve Order » est **restreint aux utilisateurs du groupe « Purchase Manager »**.  
+Même si la commande est en statut « to approve », un utilisateur qui ne fait pas partie de ce groupe ne voit pas le bouton dans l’interface.  
 
-- **Définition** : `button_approve()` dans `[purchase_order.py:L112-L495](file:///media/donnee/Programs/odoo-17.0/addons/purchase_stock/models/purchase_order.py#L112-L495)`  
-- **Condition d’affichage** : `invisible='state != 'to approve'` – il n’est visible que lorsque l’état de la commande est `to approve`.
+En pratique :  
+- Le bouton est invisible pour tout le monde sauf les membres du groupe « Purchase Manager ».  
+- Seuls ces utilisateurs peuvent déclencher l’action d’approbation.  
 
-Cependant, même lorsque l’état est correct, l’interface ne l’affiche pas pour un utilisateur « simple » car :
-
-| Condition | Détail | Source |
-|-----------|--------|--------|
-| **Groupe requis** | Le bouton est restreint aux utilisateurs appartenant au groupe **purchase.group_purchase_manager** | `button_execution_path` (voir ci‑dessous) |
-| **Utilisateur simple** | L’utilisateur ne fait partie d’aucun groupe requis | `button_execution_path` indique `NON DISPONIBLE POUR LE DEMANDEUR` |
-
-> **Button 'Approve Order' on 'purchase.order':**  
-> Required Groups: `[purchase.group_purchase_manager]`.  
-> Visibility: `invisible='state != 'to approve'`.  
-> **NON DISPONIBLE POUR LE DEMANDEUR** – le bouton est restreint aux groupes `[purchase.group_purchase_manager]`, dont le demandeur ne fait partie d'aucun.  
-> (xml_id: purchase.group_purchase_manager)  
-
-En résumé, même si la commande est dans l’état `to approve`, le bouton reste invisible pour un utilisateur qui n’appartient pas au groupe **purchase.group_purchase_manager**. Seuls les utilisateurs ayant ce rôle (généralement les responsables achats) peuvent voir et cliquer sur ce bouton.
+Ainsi, un simple utilisateur ne peut pas approver une commande, même lorsqu’elle est prête à être approuvée.
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```
@@ -490,31 +341,16 @@ Ainsi, la règle de suppression est entièrement gérée par le code Python, et 
 
 **Outils attendus :** ['who_has_access_to', 'evaluate_record_rules'] | **Outils invoques :** ['who_has_access_to', 'evaluate_record_rules', 'evaluate_record_rules', 'evaluate_record_rules', 'evaluate_record_rules', 'evaluate_record_rules', 'evaluate_record_rules', 'evaluate_record_rules', 'evaluate_record_rules']
 
-**Reponse verbatim de l'agent (Total: 24.32s | Effectif: 24.314s | Groq wait: 0.0s | Sauts: 9) :**
+**Reponse verbatim de l'agent (Total: 15.06s | Effectif: 15.063s | Groq wait: 0.0s | Sauts: 9) :**
 ```text
-### Qui peut voir quoi ?
+### Accès aux commandes de vente
 
-| Persona | Accès global (ACL) | Règle d’enregistrement (ir.rule) | Résultat concret |
-|---------|--------------------|-----------------------------------|------------------|
-| **Vendeur** (`sales_team.group_sale_salesman`) | **Lecture** autorisée (voir la matrice ACL) | `sale.sale_order_personal_rule` : `[['|',('user_id','=',user.id),('user_id','=',False)]]` <br> `sale.sale_order_comp_rule` : `[['company_id','in',company_ids]]` | Le vendeur ne voit **que** les commandes où `user_id` est lui‑même **ou** où `user_id` est vide (commande non assignée). Il ne peut pas voir les commandes d’autres commerciaux de la même société. |
-| **Utilisateur du portail** (`base.group_portal`) | **Lecture** autorisée (voir la matrice ACL) | `sale.sale_order_rule_portal` : `[['message_partner_ids','child_of',[user.commercial_partner_id.id]]]` <br> `sale.sale_order_comp_rule` : `[['company_id','in',company_ids]]` | L’utilisateur du portail ne voit **que** les commandes dont le client (ou un partenaire lié) est son propre partenaire. Il ne peut pas accéder aux commandes d’autres clients ou aux commandes internes. |
+| Persona | Accès aux commandes de l’entreprise | Conditions |
+|---------|--------------------------------------|------------|
+| **Vendeur (group_sale_salesman)** | **Seulement les commandes qui lui sont attribuées ou qui n’ont pas de vendeur assigné** | La règle « Personal Orders » autorise la lecture uniquement des commandes où le champ `user_id` est le vendeur lui‑même ou vide. |
+| **Utilisateur du portail (group_portal)** | **Seulement les commandes auxquelles il est lié en tant que partenaire de message** | La règle « Portal Personal Quotations/Sales Orders » permet la lecture uniquement des commandes dont le champ `message_partner_ids` contient le partenaire commercial de l’utilisateur. |
 
-#### Sources
-
-- **Évaluation ir.rule pour la persona 'salesperson' (sales_team.group_sale_salesman), permission='read']**  
-  `Personal Orders [['|',('user_id','=',user.id),('user_id','=',False)]]` (xml_id: sale.sale_order_personal_rule)  
-  `Sales Order multi-company [[('company_id', 'in', company_ids)]]` (xml_id: sale.sale_order_comp_rule)  
-  → *Conclusion : au moins une règle de groupe applicable restreint l’accès*.
-
-- **Évaluation ir.rule pour la persona 'portal_user' (base.group_portal), permission='read']**  
-  `Portal Personal Quotations/Sales Orders [[('message_partner_ids','child_of',[user.commercial_partner_id.id])]]` (xml_id: sale.sale_order_rule_portal)  
-  `Sales Order multi-company [[('company_id', 'in', company_ids)]]` (xml_id: sale.sale_order_comp_rule)  
-  → *Conclusion : au moins une règle de groupe applicable restreint l’accès*.
-
-#### Résumé
-
-- Un **vendeur** ne peut pas voir toutes les commandes de son entreprise ; il ne voit que celles qui lui sont assignées ou qui ne sont pas assignées.
-- Un **utilisateur du portail** ne peut voir que les commandes où il est client (ou partenaire lié) ; il ne voit pas les commandes internes ou celles d’autres clients.
+En résumé, un vendeur ne peut pas voir toutes les commandes de son entreprise, mais uniquement celles qui lui sont directement attribuées ou qui n’ont pas de vendeur. Un utilisateur du portail ne voit que les commandes auxquelles il est lié en tant que partenaire de message.
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```
@@ -529,68 +365,25 @@ Ainsi, la règle de suppression est entièrement gérée par le code Python, et 
 
 **A verifier dans le code :** `models/sale_order.py : action_confirm(), _should_be_locked(), _can_be_confirmed(), _action_confirm()`
 
-**Outils attendus :** ['describe_workflow', 'read_source_code'] | **Outils invoques :** ['describe_workflow', 'button_execution_path', 'read_source_code']
+**Outils attendus :** ['describe_workflow', 'read_source_code'] | **Outils invoques :** ['describe_workflow', 'button_execution_path', 'read_source_code', 'read_source_code', 'read_source_code', 'read_source_code', 'read_source_code', 'read_source_code', 'read_source_code']
 
-**Reponse verbatim de l'agent (Total: 39.15s | Effectif: 39.15s | Groq wait: 0.0s | Sauts: 4) :**
+**Reponse verbatim de l'agent (Total: 16.95s | Effectif: 16.95s | Groq wait: 0.0s | Sauts: 9) :**
 ```text
-Lorsque l’utilisateur clique sur le bouton **« Confirmer »** d’une commande de vente, la méthode `action_confirm()` du modèle `sale.order` est exécutée (voir `sale_order.py:L944-L982`).  
+### Ce qui se passe lors de la confirmation d’une commande de vente
 
-**Étapes réalisées par `action_confirm()`**
+- **Changement d’état** : la commande passe de *Brouillon* ou *Envoyée* à *En cours* (état « sale »).  
+- **Validation des taxes** : les taxes sont recalculées et validées pour chaque ligne de produit.  
+- **Abonnement du client** : le client est automatiquement ajouté aux abonnés de la commande afin de recevoir les notifications.  
+- **Envoi d’un e‑mail** (si la case « Envoyer par e‑mail » est cochée) : un e‑mail de confirmation est envoyé au client.  
+- **Création d’un compte analytique** (si la commande contient un produit à frais) : un compte analytique est créé pour suivre les coûts.  
+- **Enregistrement des valeurs de confirmation** : la date de commande est fixée à la date courante et l’état est mis à jour.
 
-1. **Vérification de l’état**  
-   *(bloc de code omis : non retrouvé verbatim dans les observations produites pour cette question -- voir la/les citation(s) file:// à proximité pour le contenu réel.)*  
-   Tous les enregistrements doivent être dans un état qui permet la confirmation (draft / sent). Sinon une `UserError` est levée.
+### Cas de verrouillage automatique (champ `locked`)
 
-2. **Validation des distributions analytiques**  
-   ```python
-   self.order_line._validate_analytic_distribution()
-   ```
+- **Condition** : la commande est verrouillée immédiatement après la confirmation **si** l’utilisateur qui l’a créée appartient au groupe **« Lock Confirmed Sales »** (paramètre de configuration `group_auto_done_setting`).  
+- **Effet** : le champ `locked` passe à **Vrai**, ce qui empêche toute modification ultérieure de la commande sans action spéciale.  
 
-3. **Traitement de chaque commande**  
-   ```python
-   for order in self:
-       order.validate_taxes_on_sales_order()
-       if order.partner_id not in order.message_partner_ids:
-           order.message_subscribe([order.partner_id.id])
-   ```
-
-4. **Enregistrement des valeurs de confirmation**  
-   ```python
-   self.write(self._prepare_confirmation_values())
-   ```
-
-5. **Nettoyage du contexte**  
-   ```python
-   context = self._context.copy()
-   context.pop('default_name', None)
-   context.pop('default_user_id', None)
-   ```
-
-6. **Appel de la logique interne de confirmation**  
-   ```python
-   self.with_context(context)._action_confirm()
-   ```
-   Cette sous‑méthode (non détaillée ici) met à jour le champ `state` vers `sale` et fixe la date de confirmation.
-
-7. **Verrouillage éventuel**  
-   ```python
-   self.filtered(lambda so: so._should_be_locked()).action_lock()
-   ```
-   Après la confirmation, chaque commande est testée par `_should_be_locked()`.  
-   - Si cette méthode renvoie **True**, la commande est immédiatement verrouillée via `action_lock()`.  
-   - Si elle renvoie **False**, aucune action de verrouillage n’est effectuée.
-
-8. **Envoi d’un e‑mail de confirmation (optionnel)**  
-   ```python
-   if self.env.context.get('send_email'):
-       self._send_order_confirmation_mail()
-   ```
-
-**En résumé**
-
-- `action_confirm()` passe la commande de l’état `draft` ou `sent` à `sale`, valide les taxes, souscrit le partenaire aux messages, écrit les valeurs de confirmation et exécute la logique interne `_action_confirm()`.  
-- Immédiatement après, si la condition définie dans `_should_be_locked()` est satisfaite, la commande est verrouillée (`action_lock()` est appelé).  
-- Le verrouillage dépend donc uniquement de la valeur retournée par `_should_be_locked()`; les critères exacts (seuils monétaires, paramètres de configuration, etc.) sont définis ailleurs dans le code.
+En résumé, la confirmation transforme la commande en état « En cours », applique les taxes, notifie le client, crée un compte analytique si nécessaire, et, selon le groupe de l’auteur, peut verrouiller la commande pour la protéger contre les modifications.
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```
@@ -607,104 +400,23 @@ Lorsque l’utilisateur clique sur le bouton **« Confirmer »** d’une com
 
 **Outils attendus :** ['trace_full_inheritance', 'list_involved_modules', 'analyze_method_override_chain'] | **Outils invoques :** ['trace_full_inheritance', 'read_source_code', 'list_involved_modules', 'list_involved_modules'] -- MANQUANT(S): ['analyze_method_override_chain']
 
-**Reponse verbatim de l'agent (Total: 18.56s | Effectif: 18.561s | Groq wait: 0.0s | Sauts: 3) :**
+**Reponse verbatim de l'agent (Total: 20.68s | Effectif: 20.68s | Groq wait: 0.0s | Sauts: 3) :**
 ```text
-### Modèle : `sale.order`
+### Analyse du modèle « sale.order »
 
-- **Nature** : *nouveau modèle* déclaré par le module **sale**.  
-  - Le fichier `sale/models/sale_order.py` contient la déclaration :  
-    ```
-  30 | class SaleOrder(models.Model):
-  31 |     _name = 'sale.order'
-  32 |     _inherit = ['portal.mixin', 'product.catalog.mixin', 'mail.thread', 'mail.activity.mixin', 'utm.mixin']
-  33 |     _description = "Sales Order"
-  34 |     _order = 'date_order desc, id desc'
-  35 |     _check_company_auto = True
-  36 | 
-  37 |     _sql_constraints = [
-  38 |         ('date_order_conditional_required',
-  39 |          "CHECK((state = 'sale' AND date_order IS NOT NULL) OR state != 'sale')",
-  40 |          "A confirmed sales order requires a confirmation date."),
-  41 |     ]
-  42 | 
-  43 |     @property
-  44 |     def _rec_names_search(self):
-  45 |         if self._context.get('sale_show_partner_name'):
-  46 |             return ['name', 'partner_id.name']
-  47 |         return ['name']
-  48 | 
-  49 |     #=== FIELDS ===#
-  50 | 
-  51 |     name = fields.Char(
-  52 |         string="Order Reference",
-  53 |         required=True, copy=False, readonly=False,
-  54 |         index='trigram',
-  55 |         default=lambda self: _('New'))
-  56 | 
-  57 |     company_id = fields.Many2one(
-  58 |         comodel_name='res.company',
-  59 |         required=True, index=True,
-  60 |         default=lambda self: self.env.company)
-  61 |     partner_id = fields.Many2one(
-  62 |         comodel_name='res.partner',
-  63 |         string="Customer",
-  64 |         required=True, change_default=True, index=True,
-  65 |         tracking=1,
-  66 |         check_company=True)
-  67 |     state = fields.Selection(
-  68 |         selection=SALE_ORDER_STATE,
-  69 |         string="Status",
-  70 |         readonly=True, copy=False, index=True,
-  71 |         tracking=3,
-  72 |         group_expand=True,
-  73 |         default='draft')
-  74 |     locked = fields.Boolean(default=False, copy=False, help="Locked orders cannot be modified.")
-  75 | 
-  76 |     client_order_ref = fields.Char(string="Customer Reference", copy=False)
-  77 |     create_date = fields.Datetime(  # Override of default create_date field from ORM
-  78 |         string="Creation Date", index=True, readonly=True)
-  79 |     commitment_date = fields.Datetime(
-  80 |         string="Delivery Date", copy=False,
-  81 |         help="This is the delivery date promised to the customer. "
-  82 |              "If set, the delivery order will be scheduled based on "
-  83 |              "this date rather than product lead times.")
-  84 |     date_order = fields.Datetime(
-  85 |         string="Order Date",
-  86 |         required=True, copy=False,
-  87 |         help="Creation date of draft/sent orders,\nConfirmation date of confirmed orders.",
-  88 |         default=fields.Datetime.now)
-  89 |     origin = fields.Char(
-  90 |         string="Source Document",
-  91 |         help="Reference of the document that generated this sales order request")
-  92 |     reference = fields.Char(
-  93 |         string="Payment Ref.",
-  94 |         help="The payment communication of this sale order.",
-  95 |         copy=False)
-  96 | 
-  97 |     require_signature = fields.Boolean(
-  98 |         string="Online signature",
-  99 |         compute='_compute_require_signature',
- 100 |         store=True, readonly=False, precompute=True,
- 101 |         help="Request a online signature from the customer to confirm the order.")
- 102 |     require_payment = fields.Boolean(
- 103 |         string="Online payment",
- 104 |         compute='_compute_require_payment',
- 105 |         store=True, readonly=False, precompute=True,
- 106 |         help="Request a online payment from the customer to confirm the order.")
- 107 |     prepayment_percent = fields.Float(
- 108 |         string="Prepayment percentage",
- 109 |         compute='_compute_prepayment_percent',
- 110 |         store=True, readonly=False, precompute=True,
-```  
-    [sale_order.py:L30-L110](file:///home/user/odoo-17.0/addons/sale/models/sale_order.py#L30-L110)
+- **Nature du modèle**  
+  Le module « vente » déclare **un nouveau modèle** : `sale.order`.  
+  En réalité, ce module étend bien 24 modèle(s) hors de son propre périmètre : 'account.analytic.applicability', 'account.analytic.line', 'account.invoice.report', 'account.move', 'account.move.line', 'account.payment.register', 'crm.team', 'ir.config_parameter', 'onboarding.onboarding', 'onboarding.onboarding.step', 'payment.link.wizard', 'payment.provider', 'payment.transaction', 'product.attribute', 'product.attribute.custom.value', 'product.attribute.value', 'product.document', 'product.packaging', 'product.product', 'product.template', 'res.company', 'res.config.settings', 'res.partner', 'utm.campaign'.
 
-- **Extension directe** : il n’étend aucun modèle métier natif hors du périmètre « vente ».  
-  - La liste `_inherit` ne contient que des *mixins* techniques (`portal.mixin`, `product.catalog.mixin`, `mail.thread`, `mail.activity.mixin`, `utm.mixin`) et non un modèle existant comme `res.partner` ou `account.move`.  
-  - Ainsi, `sale.order` ne repose pas sur un modèle natif hors du module `sale`; il est autonome.
+- **Modèle natif étendu**  
+  Le modèle `sale.order` étend directement les mixins suivants, qui sont des modèles natifs d’Odoo :  
+  - `portal.mixin` (classe : *portal.mixin*)  
+  - `product.catalog.mixin`  
+  - `mail.thread`  
+  - `mail.activity.mixin`  
+  - `utm.mixin`
 
-- **Nom de classe** : `SaleOrder` (déclaré dans le même fichier).  
-
-En résumé, `sale.order` est un **nouveau modèle** créé par le module `sale`, sans hériter d’un modèle métier natif hors de ce module, et il est implémenté par la classe `SaleOrder`.
+  Parmi ces mixins, le plus proche d’un modèle métier classique est `mail.thread`, mais le mixin `portal.mixin` est le premier modèle natif hors du périmètre « vente » que le module étend directement.
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```
@@ -721,24 +433,12 @@ En résumé, `sale.order` est un **nouveau modèle** créé par le module `sale`
 
 **Outils attendus :** ['button_execution_path'] | **Outils invoques :** ['button_execution_path', 'read_source_code']
 
-**Reponse verbatim de l'agent (Total: 18.15s | Effectif: 18.146s | Groq wait: 0.0s | Sauts: 2) :**
+**Reponse verbatim de l'agent (Total: 7.26s | Effectif: 7.263s | Groq wait: 0.0s | Sauts: 2) :**
 ```text
-### Pourquoi un vendeur simple ne peut pas déverrouiller une commande verrouillée ?
+### Pourquoi un vendeur simple ne peut pas déverrouiller une commande
 
-| Étape | Détails | Source |
-|-------|---------|--------|
-| **1. Le bouton « Unlock »** | Le bouton est défini dans la vue `sale.order` avec l’attribut `groups="sales_team.group_sale_manager"`. Cela signifie que **seuls les utilisateurs appartenant au groupe « Sales Manager »** voient ce bouton dans l’interface. | xml_id: `sales_team.group_sale_manager` |
-| **2. La méthode appelée** | Le bouton déclenche la méthode `action_unlock()` du modèle `sale.order`. Cette méthode se trouve dans `sale/models/sale_order.py` (lignes 1063‑1064). | [sale_order.py:L1063-L1064](file:///home/user/odoo-17.0/addons/sale/models/sale_order.py#L1063-L1064) |
-| **3. Condition d’affichage** | Le bouton est également invisible lorsque la commande n’est pas verrouillée (`invisible="not locked"`). | vue `sale_order_view.xml` |
-| **4. Résultat pour un vendeur simple** | Un vendeur qui n’appartient pas au groupe `sales_team.group_sale_manager` ne voit pas le bouton « Unlock » (il est absent ou grisé). Par conséquent, il ne peut pas déclencher la méthode `action_unlock()` via l’interface. | button_execution_path (voir observation précédente) |
-
-### En résumé
-
-- **Restriction d’interface** : Le bouton « Unlock » est limité aux **Sales Managers**.
-- **Pas de contournement** : Même si le vendeur a confirmé la commande, l’interface ne lui permet pas d’accéder à la fonction de déverrouillage.
-- **Sécurité** : Cette restriction empêche les vendeurs de modifier des commandes déjà confirmées, garantissant l’intégrité du processus de vente.
-
-> **Conclusion** : Un vendeur simple ne peut pas déverrouiller une commande verrouillée parce que le bouton « Unlock » est réservé aux utilisateurs du groupe *Sales Manager* (`sales_team.group_sale_manager`). Pour déverrouiller la commande, il faut que l’utilisateur appartienne à ce groupe ou qu’un manager le fasse à sa place.
+Le bouton **« Unlock »** sur une commande est réservé aux utilisateurs appartenant au groupe **« Sales Manager »**.  
+Même si le vendeur a confirmé la commande, il ne possède pas ce groupe d’accès, donc le bouton n’est pas affiché dans son interface. Seuls les membres du groupe « Sales Manager » peuvent déverrouiller une commande verrouillée.
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```
@@ -782,29 +482,23 @@ En résumé, `sale.order` est un **nouveau modèle** créé par le module `sale`
 
 **A verifier dans le code :** `security/ir.model.access.csv (access_stock_quant_all, access_stock_quant_user, access_stock_move_user, access_stock_move_line_all) + security/stock_security.xml (stock_quant_rule, stock_move_line_rule, filtrage company_id uniquement)`
 
-**Outils attendus :** ['who_has_access_to', 'evaluate_record_rules'] | **Outils invoques :** ['who_has_access_to', 'evaluate_record_rules', 'evaluate_record_rules', 'evaluate_record_rules', 'evaluate_record_rules', 'who_has_access_to']
+**Outils attendus :** ['who_has_access_to', 'evaluate_record_rules'] | **Outils invoques :** ['who_has_access_to', 'evaluate_record_rules', 'evaluate_record_rules', 'evaluate_record_rules', 'evaluate_record_rules', 'evaluate_record_rules']
 
-**Reponse verbatim de l'agent (Total: 49.09s | Effectif: 49.085s | Groq wait: 0.0s | Sauts: 6) :**
+**Reponse verbatim de l'agent (Total: 33.36s | Effectif: 33.356s | Groq wait: 0.0s | Sauts: 6) :**
 ```text
-D’après les informations d’accès :
+Un simple employé (appartenant uniquement à « base.group_user ») possède les droits suivants :
 
-* **Consultation des quantités (`stock.quant`)**
-  * L’Access Matrix indique que le groupe `base.group_user` possède le droit **READ** sur le modèle `stock.quant`  
-    (voir : *Access Matrix for 'stock.quant': [READ]: … base.group_user*).  
-  * Aucun `ir.rule` ne restreint la lecture pour ce groupe (voir les évaluations : aucune règle de groupe applicable).  
+* **Consultation des quantités en stock (stock.quant)**  
+  - Le contrôle d’accès (ACL) autorise la lecture pour le groupe « base.group_user ».  
+  - Aucune règle d’enregistrement (ir.rule) ne restreint ce droit.  
+  → Le simple employé peut donc afficher les quantités disponibles.
 
-  → Un simple employé peut donc consulter les quantités en stock.
+* **Modification d’une ligne de mouvement (stock.move.line)**  
+  - L’ACL autorise la lecture et l’écriture pour le groupe « base.group_user ».  
+  - Aucune règle d’enregistrement ne limite ces droits.  
+  → Le simple employé peut modifier une ligne de mouvement.
 
-* **Modification d’une ligne de mouvement (`stock.move.line`)**
-  * L’Access Matrix montre que `base.group_user` a les droits **READ** et **WRITE** sur `stock.move.line`  
-    (voir : *Access Matrix for 'stock.move.line': [READ]: … base.group_user* et *[WRITE]: … base.group_user*).  
-  * Les évaluations des `ir.rule` pour ce modèle indiquent qu’aucune règle de groupe n’est appliquée pour les permissions `read`, `write`, `create` ou `unlink`.  
-
-  → Un simple employé peut donc modifier une ligne de mouvement.
-
-**Conclusion**  
-Sur la base des mécanismes d’accès (ACL et `ir.rule`) examinés, un employé appartenant uniquement à `base.group_user` a le droit de consulter les quantités en stock et de modifier une ligne de mouvement.  
-(Note : aucune vérification de contraintes métier ou de workflow n’a été effectuée dans cette analyse.)
+**Remarque** : cette conclusion se base uniquement sur les mécanismes d’accès (ACL et ir.rule). D’autres contrôles applicatifs (état du mouvement, règles métier, verrouillage de workflow, etc.) n’ont pas été examinés dans cette analyse et pourraient éventuellement ajouter des restrictions supplémentaires.
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```
@@ -819,32 +513,30 @@ Sur la base des mécanismes d’accès (ACL et `ir.rule`) examinés, un employé
 
 **A verifier dans le code :** `models/stock_picking.py : button_validate(), _pre_action_done_hook(), champ picking_type_id.create_backorder (stock_picking_type.py)`
 
-**Outils attendus :** ['describe_workflow', 'read_source_code'] | **Outils invoques :** ['describe_workflow', 'button_execution_path', 'read_source_code', 'analyze_data_constraints']
+**Outils attendus :** ['describe_workflow', 'read_source_code'] | **Outils invoques :** ['describe_workflow', 'button_execution_path', 'read_source_code', 'read_source_code', 'read_source_code', 'read_source_code', 'read_source_code', 'read_source_code', 'read_source_code', 'analyze_data_constraints']
 
-**Reponse verbatim de l'agent (Total: 54.67s | Effectif: 54.669s | Groq wait: 0.0s | Sauts: 5) :**
+**Reponse verbatim de l'agent (Total: 30.16s | Effectif: 30.162s | Groq wait: 0.0s | Sauts: 10) :**
 ```text
-Lorsque vous cliquez sur **button_validate** alors que les quantités réellement traitées sont inférieures aux quantités demandées, le code d’Odoo gère la situation de la façon suivante :
+### Que se passe‑t‑il lorsqu’on valide un transfert de stock dont les quantités traitées sont inférieures aux quantités demandées ?
 
-1. **Validation partielle**  
-   - Le picking est d’abord passé en état *done* pour les lignes où la quantité traitée est supérieure à zéro.  
-   - Les lignes dont la quantité traitée reste inférieure à la quantité demandée ne sont pas annulées immédiatement.
+- **Validation du transfert**  
+  Le bouton « Valider » passe d’abord par une série de contrôles de cohérence (quantités, lots, etc.).  
+  Si tout est correct, le transfert est marqué « terminé » (date de réalisation enregistrée, e‑mail de confirmation envoyé).
 
-2. **Gestion des quantités restantes**  
-   - Le code appelle `_action_done()` (voir lignes 1167‑1184).  
-   - Ce dernier sépare les pickings en deux groupes :  
-     * `pickings_not_to_backorder` : ceux dont `picking_type_id.create_backorder == 'never'`.  
-     * `pickings_to_backorder` : le reste.  
-   - Pour les pickings **à ne pas backorder** (`create_backorder = 'never'`) l’appel est fait avec `cancel_backorder=True`, ce qui annule les lignes restantes.  
-   - Pour les pickings **à backorder** (`create_backorder` vaut `'ask'` ou `'always'`) l’appel est fait avec `cancel_backorder=False`, ce qui crée un nouveau picking contenant uniquement les quantités restantes (backorder).
+- **Gestion des quantités manquantes**  
+  - **Si le type de transfert a l’option « Créer un back‑order » réglée sur :**
+    - **« Demander »** – l’utilisateur reçoit une fenêtre lui demandant s’il souhaite créer un back‑order pour les quantités restantes.  
+    - **« Toujours »** – un back‑order est créé automatiquement sans intervention de l’utilisateur.  
+    - **« Jamais »** – les quantités non livrées sont annulées (c’est‑à‑dire qu’elles ne seront pas livrées plus tard).  
+  - Le back‑order est un nouveau transfert de stock qui contient uniquement les quantités restantes.  
+  - Le transfert original reste « terminé » mais indique qu’une partie des articles a été reportée.
 
-3. **Message d’erreur si aucune quantité n’est traitée**  
-   - Si aucune ligne n’a de quantité traitée, la méthode `_sanity_check()` déclenche l’erreur :  
-     `raise UserError(_("You can’t validate an empty transfer. Please add some products to move before proceeding."))` (ligne 1116).
+- **Résultat final**  
+  - Les quantités réellement livrées sont enregistrées dans le premier transfert.  
+  - Les quantités restantes sont soit reportées dans un back‑order, soit annulées, selon la configuration.  
+  - L’utilisateur peut suivre ces back‑orders dans l’interface ou les valider ultérieurement.
 
-En résumé, lorsqu’une validation est effectuée avec des quantités partielles :  
-- Les quantités traitées sont validées et le picking passe à *done*.  
-- Les quantités restantes sont soit annulées (si `create_backorder = 'never'`), soit placées dans un nouveau picking de backorder (si `create_backorder` vaut `'ask'` ou `'always'`).  
-- Si aucune quantité n’est traitée, la validation échoue avec l’erreur « You can’t validate an empty transfer… ».
+En résumé, valider un transfert avec des quantités insuffisantes ne bloque pas la validation ; elle déclenche simplement la création d’un back‑order (ou l’annulation des quantités manquantes) selon la règle définie pour le type de transfert.
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```
@@ -859,63 +551,27 @@ En résumé, lorsqu’une validation est effectuée avec des quantités partiell
 
 **A verifier dans le code :** `models/stock_picking.py : classe Picking (_name + _inherit mixins) vs models/product.py : classe Product (_inherit='product.product'), champs qty_available/virtual_available`
 
-**Outils attendus :** ['trace_full_inheritance', 'list_involved_modules'] | **Outils invoques :** ['list_involved_modules', 'trace_full_inheritance', 'read_source_code', 'button_execution_path']
+**Outils attendus :** ['trace_full_inheritance', 'list_involved_modules'] | **Outils invoques :** ['list_involved_modules', 'trace_full_inheritance', 'read_source_code', 'button_execution_path', 'read_source_code']
 
-**Reponse verbatim de l'agent (Total: 31.76s | Effectif: 31.76s | Groq wait: 0.0s | Sauts: 3) :**
+**Reponse verbatim de l'agent (Total: 70.5s | Effectif: 70.495s | Groq wait: 0.0s | Sauts: 4) :**
 ```text
-## Stock.picking : modèle déclaré ou extension ?
+**stock.picking** est un **nouveau modèle** : il est déclaré avec `_name = "stock.picking"` et ne s’étend pas d’un modèle métier existant.  
 
-- **Il s’agit d’un modèle **déclaré**** dans le module `stock`.  
-  - Le fichier `stock/models/stock_picking.py` contient la déclaration :  
-    ```
- 382 | class Picking(models.Model):
- 383 |     _name = "stock.picking"
- 384 |     _inherit = ['mail.thread', 'mail.activity.mixin']
- 385 |     _description = "Transfer"
- 386 |     _order = "priority desc, scheduled_date asc, id desc"
-```  
-    [stock_picking.py:L382-L386](file:///home/user/odoo-17.0/addons/stock/models/stock_picking.py#L382-L386)
+Le module **stock** étend en parallèle plusieurs modèles natifs hors de son propre périmètre :  
+- `barcode.rule`  
+- `ir.actions.report`  
+- `product.category`  
+- `product.label.layout`  
+- `product.packaging`  
+- `product.product`  
+- `product.template`  
+- `res.company`  
+- `res.config.settings`  
+- `res.partner`  
+- `res.users`  
+- `uom.uom`
 
-- **Il n’est pas une extension d’un modèle natif** (ex. `res.partner`, `product.product`, etc.).  
-  - Le modèle `stock.picking` est créé de zéro, mais il hérite de `mail.thread` et `mail.activity.mixin` pour bénéficier des fonctionnalités de discussion et d’activité.
-
-## Le module `stock` étend des modèles natifs hors de son périmètre
-
-Le module `stock` étend plusieurs modèles qui ne font pas partie de son propre domaine :
-
-| Modèle natif étendu | Rôle dans `stock` | Exemple de champ clé ajouté ou modifié |
-|---------------------|-------------------|----------------------------------------|
-| `res.company` | Ajout de champs liés aux paramètres de stock | `stock_location_id`, `stock_location_stock_id` |
-| `res.config.settings` | Ajout de paramètres de configuration de stock | `group_stock_user`, `group_stock_manager` |
-| `res.partner` | Ajout de champs de localisation de stock | `property_stock_customer`, `property_stock_supplier` |
-| `res.users` | Ajout de champs de rôle de stock | `stock_user_ids` |
-| `product.category` | Ajout de champs de gestion de stock | `property_stock_location` |
-| `product.product` | Ajout de champs de stock | `qty_available`, `virtual_available` |
-| `product.template` | Ajout de champs de stock | `qty_available`, `virtual_available` |
-
-Ces extensions sont visibles dans la liste des modules impliqués :  
-`Module 'stock' defines or extends the following models: ... res.company, res.config.settings, res.partner, res.users, product.category, product.product, product.template, ...`  
-[BUSINESS TERM RESOLVER S2.0]
-
-## Champs clés de `stock.picking`
-
-Les champs les plus importants (déclarés dans `stock_picking.py`) sont :
-
-| Champ | Description | Ligne de référence |
-|-------|-------------|--------------------|
-| `name` | Référence de la picking | [L397-L399](file:///home/user/odoo-17.0/addons/stock/models/stock_picking.py#L397-L399) |
-| `origin` | Document source | [L400-L402](file:///home/user/odoo-17.0/addons/stock/models/stock_picking.py#L400-L402) |
-| `note` | Notes internes | [L403-L404](file:///home/user/odoo-17.0/addons/stock/models/stock_picking.py#L403-L404) |
-| `backorder_id` / `backorder_ids` | Gestion des back‑orders | [L404-L410](file:///home/user/odoo-17.0/addons/stock/models/stock_picking.py#L404-L410) |
-| `return_id` / `return_ids` | Gestion des retours | [L410-L416](file:///home/user/odoo-17.0/addons/stock/models/stock_picking.py#L410-L416) |
-| `move_type` | Politique d’expédition | [L416-L418](file:///home/user/odoo-17.0/addons/stock/models/stock_picking.py#L416-L418) |
-| `state` | État de la picking (draft, waiting, assigned, done, cancelled, etc.) | [L419-L423](file:///home/user/odoo-17.0/addons/stock/models/stock_picking.py#L419-L423) |
-| `picking_type_id` | Type de picking (entrepôt, expédition, retour, etc.) | [L424-L426](file:///home/user/odoo-17.0/addons/stock/models/stock_picking.py#L424-L426) |
-| `location_id` / `location_dest_id` | Emplacement source et destination | [L427-L429](file:///home/user/odoo-17.0/addons/stock/models/stock_picking.py#L427-L429) |
-| `scheduled_date` | Date prévue | [L430-L432](file:///home/user/odoo-17.0/addons/stock/models/stock_picking.py#L430-L432) |
-| `priority` | Priorité de traitement | [L433-L435](file:///home/user/odoo-17.0/addons/stock/models/stock_picking.py#L433-L435) |
-
-Ces champs constituent la base de la logique métier de la gestion des mouvements de stock dans Odoo.
+Ces extensions ajoutent ou modifient des champs clés aux modèles listés, mais les détails précis des champs ne sont pas fournis dans les observations disponibles.
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```
@@ -932,19 +588,15 @@ Ces champs constituent la base de la logique métier de la gestion des mouvement
 
 **Outils attendus :** ['button_execution_path'] | **Outils invoques :** ['button_execution_path', 'read_source_code']
 
-**Reponse verbatim de l'agent (Total: 10.27s | Effectif: 10.265s | Groq wait: 0.0s | Sauts: 2) :**
+**Reponse verbatim de l'agent (Total: 10.17s | Effectif: 10.174s | Groq wait: 0.0s | Sauts: 2) :**
 ```text
-Les champs **« From »** (location_id) et **« To »** (location_dest_id) ne sont visibles que pour les utilisateurs appartenant au groupe **`stock.group_stock_multi_locations`**.  
-Dans la vue `view_picking_form` du modèle `stock.picking`, ces champs sont déclarés avec l’attribut `groups="stock.group_stock_multi_locations"`, ce qui limite leur affichage aux membres de ce groupe :
+### Pourquoi les champs « From » et « To » sont invisibles
 
-- **Déclaration dans la vue**  
-  ```xml
-  <field name="location_id" … groups="stock.group_stock_multi_locations" …/>
-  <field name="location_dest_id" … groups="stock.group_stock_multi_locations" …/>
-  ```
-  [stock_picking_views.xml:L91-L97](file:///home/user/odoo-17.0/addons/stock/views/stock_picking_views.xml#L91-L97)
+- **Restriction de groupe** : Les champs « From » (location_id) et « To » (location_dest_id) ne sont affichés que pour les utilisateurs qui appartiennent au groupe **« Gestion des emplacements multiples »**.  
+- **Paramètre de configuration** : Ce groupe n’est attribué à aucun utilisateur par défaut. Il est activé uniquement lorsqu’un administrateur active l’option « Gestion des emplacements multiples » dans les paramètres du module **stock**.  
+- **État du transfert** : Même si le groupe est actif, les champs deviennent non modifiables une fois le transfert terminé (état « done »).
 
-Ainsi, la plupart des utilisateurs ne voient pas ces champs parce qu’ils ne font pas partie de ce groupe. Pour les rendre visibles, il faut ajouter l’utilisateur au groupe **Stock Multi‑Locations** (ou modifier la vue pour enlever la restriction de groupe).
+En résumé, la plupart des utilisateurs ne voient pas ces champs parce que la fonctionnalité de gestion des emplacements multiples n’est pas activée pour eux. Pour les faire apparaître, un administrateur doit activer le paramètre correspondant dans les paramètres du module **stock** ou ajouter l’utilisateur au groupe « Gestion des emplacements multiples ».
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```
@@ -998,32 +650,19 @@ Cette contrainte est **distincte** des contraintes de `stock.quant` et s’appli
 
 **A verifier dans le code :** `security/ir.model.access.csv (access_account_move_manager vs access_account_move_uinvoice) + security/account_security.xml (group_account_manager implied_ids=[group_account_invoice])`
 
-**Outils attendus :** ['who_has_access_to', 'evaluate_record_rules', 'read_source_code'] | **Outils invoques :** ['analyze_security_locks', 'who_has_access_to', 'evaluate_record_rules'] -- MANQUANT(S): ['read_source_code']
+**Outils attendus :** ['who_has_access_to', 'evaluate_record_rules', 'read_source_code'] | **Outils invoques :** ['analyze_security_locks', 'read_source_code', 'who_has_access_to', 'evaluate_record_rules']
 
-**Reponse verbatim de l'agent (Total: 19.12s | Effectif: 19.116s | Groq wait: 0.0s | Sauts: 3) :**
+**Reponse verbatim de l'agent (Total: 14.31s | Effectif: 14.309s | Groq wait: 0.0s | Sauts: 4) :**
 ```text
 ### Réponse
 
 Oui.  
-Même si la règle ACL « directe » que vous avez vue ne donne que le droit de lecture, l’ensemble de la matrice d’accès (ACL + règles de sécurité) autorise le groupe **account.group_account_manager** à créer, modifier et supprimer des écritures :
+Le groupe **« Billing Administrator »** (account.group_account_manager) possède, via l’héritage de **« Account Manager »**, les droits d’écriture, de création et de suppression sur les écritures comptables.  
 
-- **Access Matrix** (voir la section *WRITE*, *CREATE*, *UNLINK* pour `account.move`) indique que `account.group_account_manager` possède les permissions **WRITE**, **CREATE** et **UNLINK** :
+- **ACL** : le groupe est inclus dans la règle d’héritage de *account.group_account_invoice*, qui autorise l’écriture et la création.  
+- **Règles de visibilité** : aucune règle de groupe supplémentaire ne limite ces actions pour ce groupe.
 
-  ```
-  [WRITE]: account.group_account_manager (via implied_ids <- account.group_account_invoice)
-  [CREATE]: account.group_account_manager (via implied_ids <- account.group_account_invoice)
-  [UNLINK]: account.group_account_manager (via implied_ids <- account.group_account_invoice)
-  ```
-
-  *(source : Access Matrix for 'account.move')*
-
-- Les **règles d’enregistrement** (`ir.rule`) ne restreignent pas la création ou la modification pour ce groupe ; aucune règle de groupe n’est appliquée à `account.move` pour `account.group_account_manager`.  
-  *(source : Évaluation des règles d'enregistrement (ir.rule) pour 'account.move')*
-
-- Les **verrous Python** (`has_group`) ne bloquent pas la création/modification pour ce groupe, ils ne concernent que des contrôles de montant ou de fiscalité.  
-  *(source : Analyse des verrous Python – `account_move.py`)*
-  
-En résumé, un utilisateur appartenant à **Billing Administrator** (`account.group_account_manager`) peut créer et modifier des factures dans Odoo, même si la règle ACL directe que vous avez consultée ne montre que le droit de lecture.
+Ainsi, un utilisateur appartenant à ce groupe peut créer et modifier des factures.
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```
@@ -1038,25 +677,17 @@ En résumé, un utilisateur appartenant à **Billing Administrator** (`account.g
 
 **A verifier dans le code :** `models/account_move.py : _check_fiscalyear_lock_date() (verifie user_has_groups('account.group_account_manager') uniquement pour choisir le texte du message, pas pour lever une exception au blocage)`
 
-**Outils attendus :** ['describe_workflow', 'read_source_code'] | **Outils invoques :** ['analyze_security_locks', 'who_has_access_to', 'evaluate_record_rules'] -- MANQUANT(S): ['describe_workflow', 'read_source_code']
+**Outils attendus :** ['describe_workflow', 'read_source_code'] | **Outils invoques :** ['analyze_security_locks', 'read_source_code', 'who_has_access_to', 'evaluate_record_rules'] -- MANQUANT(S): ['describe_workflow']
 
-**Reponse verbatim de l'agent (Total: 32.13s | Effectif: 32.133s | Groq wait: 0.0s | Sauts: 4) :**
+**Reponse verbatim de l'agent (Total: 17.56s | Effectif: 17.554s | Groq wait: 0.0s | Sauts: 4) :**
 ```text
-**Réponse :**  
-Non, un utilisateur appartenant au groupe **`account.group_account_manager`** (Billing Administrator) ne peut pas enregistrer une écriture comptable dont la date est antérieure ou égale à la date de clôture (lock date) de la société.
+### Réponse
 
-**Justification technique**
+Non.  
+Un **Billing Administrator** (groupe *account.group_account_manager*) ne peut pas enregistrer une écriture dont la date est antérieure ou égale à la date de clôture de la société.  
+La règle de verrouillage fiscal empêche toute écriture dont la date est inférieure ou égale à la date de clôture, même pour les membres du groupe *account.group_account_manager*.
 
-1. **Contrôle Python sur la date de clôture**  
-   - Dans le fichier `account_move.py`, la méthode `_check_fiscalyear_lock_date` contient un `raise` qui bloque l’enregistrement d’une écriture si sa date dépasse la date de clôture.  
-   - Le groupe `account.group_account_manager` est mentionné uniquement pour sélectionner le texte du message d’erreur, mais **le `raise` qui suit ne dépend pas de ce groupe** et s’exécute toujours.  
-   - Observation : `[Confiance: FAIBLE]` – *has_group('account.group_account_manager') se trouve dans la methode '_check_fiscalyear_lock_date()' MAIS NE FAIT QUE SELECTIONNER LE TEXTE DU MESSAGE D ERREUR – l instruction raise qui suit ne depend PAS de ce groupe et s execute de toute facon* (xml_id: account.group_account_manager) ([account_move.py:L2000-L2000](file:///home/user/odoo-17.0/addons/account/models/account_move.py#L2000-L2000)).
-
-2. **Aucune règle ou ACL ne contourne ce verrou**  
-   - Les règles d’accès (`ir.rule`) et les permissions ACL (`READ`, `WRITE`, `CREATE`, `UNLINK`) pour le modèle `account.move` n’imposent pas de restriction supplémentaire qui permettrait à un Billing Administrator de contourner la date de clôture.  
-   - Aucun autre verrou Python ne fait référence à `account.group_account_manager` pour la validation d’écritures comptables.
-
-En résumé, quel que soit le groupe auquel appartient l’utilisateur, la date de clôture est appliquée de façon stricte par le code Python. Un Billing Administrator ne peut donc pas poster d’écriture dont la date est antérieure ou égale à la lock date.
+[FAIT DÉTERMINISTIQUE] Précision d'héritage de droits : `account.group_account_manager` ne détient pas ces permissions directement via son propre enregistrement ACL (qui peut être restreint), mais en hérite par implication transitive (`implied_ids`) depuis le groupe `account.group_account_invoice`.
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```
@@ -1073,36 +704,17 @@ En résumé, quel que soit le groupe auquel appartient l’utilisateur, la date 
 
 **Outils attendus :** ['trace_full_inheritance', 'list_involved_modules'] | **Outils invoques :** ['list_involved_modules', 'trace_full_inheritance', 'read_source_code']
 
-**Reponse verbatim de l'agent (Total: 20.4s | Effectif: 20.396s | Groq wait: 0.0s | Sauts: 2) :**
+**Reponse verbatim de l'agent (Total: 11.89s | Effectif: 11.887s | Groq wait: 0.0s | Sauts: 2) :**
 ```text
-### Modèle `account.move`
+### Analyse du modèle **account.move**
 
-- **Nature** : `account.move` est **un nouveau modèle** déclaré dans le module `account`.  
-  - La trace d’héritage indique que le modèle est défini dans `account/models/account_move.py` et qu’il n’hérite que de mixins (`portal.mixin`, `mail.thread.main.attachment`, `mail.activity.mixin`, `sequence.mixin`).  
-  - Source : `trace_full_inheritance` → *Declared in: [account_move.py:L81-L161](file:///home/user/odoo-17.0/addons/account/models/account_move.py#L81-L161)*.
+- **Nature du modèle**  
+  Le modèle **account.move** est **déclaré** dans le module **account**. Il ne s’agit pas d’une extension d’un modèle déjà existant, mais d’un nouveau modèle métier créé par ce module.
 
-### Extension de modèles natifs hors périmètre comptable
+- **Extension de modèles natifs**  
+  En réalité, ce module étend bien 25 modèle(s) hors de son propre périmètre : 'account.analytic.account', 'account.analytic.applicability', 'account.analytic.distribution.model', 'account.analytic.line', 'base.document.layout', 'base.partner.merge.automatic.wizard', 'decimal.precision', 'digest.digest', 'ir.actions.report', 'ir.attachment', 'ir.http', 'ir.module.module', 'kpi.provider', 'onboarding.onboarding', 'onboarding.onboarding.step', 'product.category', 'product.product', 'product.template', 'res.company', 'res.config.settings', 'res.currency', 'res.groups', 'res.partner', 'res.partner.bank', 'uom.uom'. En réalité, ce module étend bien 25 modèle(s) hors de son propre périmètre : 'account.analytic.account', 'account.analytic.applicability', 'account.analytic.distribution.model', 'account.analytic.line', 'base.document.layout', 'base.partner.merge.automatic.wizard', 'decimal.precision', 'digest.digest', 'ir.actions.report', 'ir.attachment', 'ir.http', 'ir.module.module', 'kpi.provider', 'onboarding.onboarding', 'onboarding.onboarding.step', 'product.category', 'product.product', 'product.template', 'res.company', 'res.config.settings', 'res.currency', 'res.groups', 'res.partner', 'res.partner.bank', 'uom.uom'.  
 
-- Le module `account` **étend plusieurs modèles natifs** qui ne font pas partie du périmètre strictement comptable.  
-  - La liste des modèles impliqués montre que `account` étend notamment :  
-    - `product.product`  
-    - `product.template`  
-    - `res.partner`  
-    - `res.company`  
-    - `res.currency`  
-    - `res.groups`  
-    - `res.partner.bank`  
-    - `ir.attachment`  
-    - `ir.http`  
-    - `ir.module.module`  
-    - `uom.uom`  
-    - etc.  
-  - Source : `list_involved_modules` → *Module 'account' defines or extends the following models: … product.product, product.template, res.partner, …*.
-
-**Conclusion**
-
-- `account.move` est un **nouveau modèle** créé par le module `account`.  
-- Le module `account` **étend** plusieurs modèles natifs (ex. `product.product`, `res.partner`, etc.) qui se trouvent en dehors de son périmètre comptable strict.
+En résumé, **account.move** est un modèle propre à la comptabilité, introduit par le module **account**, et le module ne touche pas à d’autres modèles natifs en dehors de ce domaine.
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```
@@ -1117,27 +729,22 @@ En résumé, quel que soit le groupe auquel appartient l’utilisateur, la date 
 
 **A verifier dans le code :** `views/account_move_views.xml : <field name="account_id" ... groups="account.group_account_readonly"/> + security/account_security.xml : commentaire d'en-tete + implied_ids de group_account_invoice/group_account_manager/group_account_user`
 
-**Outils attendus :** ['button_execution_path'] | **Outils invoques :** ['analyze_security_locks', 'who_has_access_to', 'evaluate_record_rules', 'button_execution_path', 'read_source_code', 'read_source_code']
+**Outils attendus :** ['button_execution_path'] | **Outils invoques :** ['analyze_security_locks', 'read_source_code', 'who_has_access_to', 'evaluate_record_rules', 'button_execution_path', 'read_source_code', 'read_source_code']
 
-**Reponse verbatim de l'agent (Total: 54.7s | Effectif: 54.701s | Groq wait: 0.0s | Sauts: 6) :**
+**Reponse verbatim de l'agent (Total: 48.55s | Effectif: 48.546s | Groq wait: 0.0s | Sauts: 7) :**
 ```text
-Le champ **account_id** est déclaré dans la vue `view_move_form` du modèle `account.move` avec l’attribut :
+**Réponse :**
 
-```
-<field name="account_id" … groups="account.group_account_readonly"/>
-```
+- **Utilisateur « Billing » (group_account_invoice)**  
+  Le champ *Compte comptable* (`account_id`) d’une ligne de facture n’est visible que pour les utilisateurs appartenant au groupe « Show Full Accounting Features – Readonly » (group_account_readonly).  
+  Un utilisateur qui ne possède que le groupe « Billing » ne fait pas partie de ce groupe, donc il ne voit pas ce champ.
 
-(Observation : *Champ 'account_id' (account_id) sur la vue 'view_move_form' … Restreint aux groupes: [account.group_account_readonly] (xml_id: account.group_account_readonly).*)
+- **Utilisateur « Billing Administrator » (group_account_manager)**  
+  Le groupe « Billing Administrator » n’inclut pas le groupe « Show Full Accounting Features – Readonly ».  
+  Ainsi, même avec ce rôle, l’utilisateur ne peut pas voir le champ *Compte comptable* tant qu’il ne possède pas également le groupe « Show Full Accounting Features – Readonly ».
 
-Cette restriction signifie que **seuls les utilisateurs appartenant au groupe `account.group_account_readonly` peuvent voir ce champ**.  
-Les groupes `account.group_account_invoice` (« Billing ») et `account.group_account_manager` (« Billing Administrator ») ne sont pas inclus dans ce groupe.
-
-Par conséquent :
-
-* Un utilisateur possédant uniquement le groupe `account.group_account_invoice` **ne voit pas** le compte comptable (`account_id`) d’une ligne de facture.  
-* Un utilisateur possédant uniquement le groupe `account.group_account_manager` **ne voit pas** non plus ce champ, même dans une configuration où seul le module Invoicing est installé (le module Accounting n’étant pas présent, la vue et le champ ne sont pas chargés pour ces groupes).
-
-En résumé, sans appartenance au groupe `account.group_account_readonly`, ni `group_account_invoice` ni `group_account_manager` ne peuvent visualiser le champ `account_id` d’une ligne de facture.
+- **Configuration Invoicing seule (module Accounting non installé)**  
+  Dans cette configuration, le groupe « Show Full Accounting Features – Readonly » n’est pas présent. Par conséquent, ni le rôle « Billing » ni le rôle « Billing Administrator » ne peuvent voir le champ *Compte comptable* sur une ligne de facture.
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```

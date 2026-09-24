@@ -105,6 +105,7 @@ def build_security_lock_evidence(
     required_group_linenos: List[int],
     dynamic_dispatch_types: List[str],
     required_group_is_gating: Optional[List[bool]] = None,
+    required_group_alt_conditions: Optional[List[str]] = None,
 ) -> List[Evidence]:
     """Produce structured Evidence objects for security locks and uncertainties."""
     evidence: List[Evidence] = []
@@ -175,8 +176,17 @@ def build_security_lock_evidence(
         methods = required_group_methods or [""] * len(required_groups)
         linenos = required_group_linenos or [0] * len(required_groups)
         is_gating = required_group_is_gating or [True] * len(required_groups)
-        for group_xmlid, method_name, lineno, gating in zip(required_groups, methods, linenos, is_gating):
-            if gating:
+        alt_conditions = required_group_alt_conditions or [""] * len(required_groups)
+        for group_xmlid, method_name, lineno, gating, alt in zip(
+            required_groups, methods, linenos, is_gating, alt_conditions
+        ):
+            if gating and alt:
+                claim = (
+                    f"File '{filepath}' checks group '{group_xmlid}' via has_group()/user_has_groups(), "
+                    f"but this check is NOT the only sufficient path -- the enclosing 'or' expression is "
+                    f"also satisfied by: {alt}. Do not present this group as unconditionally required."
+                )
+            elif gating:
                 claim = f"File '{filepath}' requires group '{group_xmlid}' via has_group()"
             else:
                 claim = (
@@ -268,12 +278,15 @@ def format_security_locks_summary(
             # current question -- not just whichever comes first in source
             # order -- is the one that survives if a downstream budget cut
             # (837's _protected_prefix_end) can only keep the first line.
+            alt_conditions_list = (
+                getattr(analysis, "required_group_alt_conditions", None) or [""] * len(analysis.required_groups)
+            )
             action_rows = _rerank_by_relevance(
-                list(zip(analysis.required_groups, methods, group_linenos, is_gating_list)),
+                list(zip(analysis.required_groups, methods, group_linenos, is_gating_list, alt_conditions_list)),
                 text_fn=lambda row: f"{row[0]} {row[1]}",
                 question=get_current_question(),
             )
-            for group_xmlid, method_name, glineno, gating in action_rows:
+            for group_xmlid, method_name, glineno, gating, alt in action_rows:
                 if method_name:
                     citation = format_xml_id_citation(group_xmlid)
                     # Section 835 (option A) -- attach this finding's OWN file link
@@ -283,7 +296,22 @@ def format_security_locks_summary(
                     # wherever it lands in the concatenated text, instead of relying
                     # on the LLM to still have the header link in view.
                     site_link = format_file_link(filepath, glineno, glineno) if glineno else file_link
-                    if gating:
+                    if gating and alt:
+                        # todo/contexte.txt, session "SecurityLockASTVisitor
+                        # BoolOp/Or gap" (PUR-Q1 rejeu): this has_group()/
+                        # user_has_groups() call is one disjunct of an `or`
+                        # whose other disjuncts are unrelated to any group
+                        # and independently sufficient -- the group is NOT a
+                        # hard requirement, just one of several paths.
+                        lines.append(
+                            f"    * has_group('{group_xmlid}') se trouve dans la methode '{method_name}()', mais "
+                            f"N'EST PAS le seul chemin : cette verification fait partie d'un 'or' dont les autres "
+                            f"conditions sont independantes de tout groupe ({alt}) -- si l'une d'elles est vraie, "
+                            f"l'action est autorisee MEME SANS ce groupe. NE PAS presenter ce groupe comme requis "
+                            f"dans tous les cas sans verifier ces conditions alternatives. "
+                            f"({citation}) ({site_link})"
+                        )
+                    elif gating:
                         lines.append(
                             f"    * has_group('{group_xmlid}') se trouve dans la methode '{method_name}()' -- "
                             f"ne pas l'attribuer a une autre methode sans le verifier explicitement dans le code source. "
@@ -562,16 +590,26 @@ def extract_method_security_constraints(
     """Filter file-level security findings down to [lineno, end_lineno] range."""
     constraints: List[str] = []
 
-    for group_xmlid, method_name, group_lineno in zip(
+    alt_conditions = (
+        getattr(analysis, "required_group_alt_conditions", None) or [""] * len(analysis.required_groups)
+    )
+    for group_xmlid, method_name, group_lineno, alt in zip(
         analysis.required_groups,
         analysis.required_group_methods,
         analysis.required_group_linenos,
+        alt_conditions,
     ):
         if group_lineno and lineno <= group_lineno <= end_lineno:
             location = f"dans '{method_name}()'" if method_name else "a cette ligne"
-            constraints.append(
-                f"VERROU RATTACHE AU SITE: has_group('{group_xmlid}') requis {location}."
-            )
+            if alt:
+                constraints.append(
+                    f"VERROU RATTACHE AU SITE: has_group('{group_xmlid}') verifie {location}, mais N'EST PAS le "
+                    f"seul chemin -- egalement satisfait sans ce groupe si : {alt}."
+                )
+            else:
+                constraints.append(
+                    f"VERROU RATTACHE AU SITE: has_group('{group_xmlid}') requis {location}."
+                )
 
     exception_conditions = analysis.exception_conditions or [""] * len(analysis.exception_messages)
     exception_guard_fields = analysis.exception_guard_fields or [""] * len(analysis.exception_messages)

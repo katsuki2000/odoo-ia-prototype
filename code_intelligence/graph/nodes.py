@@ -108,17 +108,37 @@ def add_security_group_nodes(
     domain_force_references_state_fn: Callable[[Optional[str]], bool],
 ):
     """Add Group, Rule, AccessEntry, ServerAction, and AutomationRule nodes + security edges."""
+    # 0. Collect implied_group declarations from res.config.settings fields
+    #    (Section 925: detect feature-flag groups activated via Settings booleans)
+    settings_implied_groups: Dict[str, str] = {}  # {group_xml_id: setting_field_name}
+    for model_name, decl_list in registry.models.items():
+        # res.config.settings or any model that _inherit it
+        if model_name == "res.config.settings" or "res.config.settings" in sum(
+            (d.inherit for d in decl_list), []
+        ):
+            for decl in decl_list:
+                for fld in decl.fields:
+                    if fld.implied_group:
+                        settings_implied_groups[fld.implied_group] = fld.name
+
     # 1. Groups & Group IMPLIES Group hierarchy
     for full_xml_id, grp in registry.groups.items():
         if "." not in full_xml_id:
             continue
         grp_node_id = f"group:{full_xml_id}"
+        # Section 925: determine if this group is a technical feature flag
+        is_technical = (
+            full_xml_id in settings_implied_groups
+            and grp.category_id in ("base.module_category_hidden", None)
+        )
         G.add_node(
             grp_node_id,
             node_type="Group",
             xml_id=full_xml_id,
             name=grp.name,
             category_id=grp.category_id,
+            group_type="technical" if is_technical else "role",
+            setting_field=settings_implied_groups.get(full_xml_id),
         )
 
         mod_prefix = full_xml_id.split(".")[0]
@@ -126,6 +146,18 @@ def add_security_group_nodes(
             full_parent_grp = parent_grp if "." in parent_grp else f"{mod_prefix}.{parent_grp}"
             parent_node_id = f"group:{full_parent_grp}"
             G.add_edge(grp_node_id, parent_node_id, edge_type="IMPLIES")
+
+    # 1b. Section 925: Add IMPLIES_CONFIGURABLE edges for settings-activated groups
+    for group_xml_id, field_name in settings_implied_groups.items():
+        target_node = f"group:{group_xml_id}"
+        source_node = "group:base.group_user"
+        if G.has_node(target_node):
+            G.add_edge(
+                source_node, target_node,
+                edge_type="IMPLIES_CONFIGURABLE",
+                setting_field=field_name,
+                conditional=True,
+            )
 
     # 2. Rules & Model RESTRICTED_BY Rule -> Rule APPLIES_TO_GROUP Group
     for full_xml_id, rule in registry.rules.items():

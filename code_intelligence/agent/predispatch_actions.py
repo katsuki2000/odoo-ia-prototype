@@ -16,7 +16,7 @@ from code_intelligence.agent.context import (
     _truncate_observation_for_budget,
     _tool_call_key,
 )
-from code_intelligence.agent.context import DispatchContext
+from code_intelligence.agent.context import DispatchContext, PER_TOOL_OBSERVATION_CAPS
 
 logger = logging.getLogger(__name__)
 
@@ -86,7 +86,7 @@ def dispatch_server_actions(ctx: DispatchContext) -> None:
                     _read_obs = str(_read_tool.invoke({
                         "filepath": _fp, "line_start": _ls, "line_end": _le,
                     }))
-                    _read_obs = _truncate_observation_for_budget(ctx, _read_obs, 4000)
+                    _read_obs = _truncate_observation_for_budget(ctx, _read_obs, PER_TOOL_OBSERVATION_CAPS["read_source_code"])
                     ctx.record_observation(
                         "read_source_code",
                         {"filepath": _fp, "line_start": _ls, "line_end": _le},
@@ -224,7 +224,7 @@ def dispatch_override_chain(ctx: DispatchContext) -> None:
                             _read_obs = str(_read_tool.invoke({
                                 "filepath": _fp, "line_start": _ls, "line_end": _le,
                             }))
-                            _read_obs = _truncate_observation_for_budget(ctx, _read_obs, 4000)
+                            _read_obs = _truncate_observation_for_budget(ctx, _read_obs, PER_TOOL_OBSERVATION_CAPS["read_source_code"])
                             ctx.record_observation(
                                 "read_source_code",
                                 {"filepath": _fp, "line_start": _ls, "line_end": _le},
@@ -367,7 +367,7 @@ def dispatch_analyze_data_constraints(ctx: DispatchContext) -> None:
                                 read_obs = str(read_tool.invoke({
                                     "filepath": fp, "line_start": ls, "line_end": le,
                                 }))
-                                read_obs = _truncate_observation_for_budget(ctx, read_obs, 4000)
+                                read_obs = _truncate_observation_for_budget(ctx, read_obs, PER_TOOL_OBSERVATION_CAPS["read_source_code"])
                                 ctx.record_observation(
                                     "read_source_code",
                                     {"filepath": fp, "line_start": ls, "line_end": le},

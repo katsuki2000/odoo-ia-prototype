@@ -8,6 +8,7 @@ assembly.
 """
 
 import logging
+import re
 import time
 
 from core.schemas import AssistantResponse, SourceReference, OmittedForAuthorization
@@ -231,6 +232,15 @@ def build_final_response(
     # BEFORE the source suffix, never after (the suffix must stay last).
     if ci_evidence_sufficiency.has_execution_failure:
         final_answer += _EXECUTION_FAILURE_NOTICE
+
+    # Strip any accidental 'Preuves' or 'Sources' markdown section emitted by the LLM,
+    # as technical proofs are already encapsulated in response.sources for the frontend dépliant.
+    final_answer = re.sub(
+        r"\n+(?:---\s*\n+)?(?:#{1,4}\s+)?(?:Preuves|Sources)\s*[:\n][\s\S]*$",
+        "",
+        final_answer,
+        flags=re.IGNORECASE,
+    ).strip()
 
     final_answer = _strip_truncation_marker_for_display(final_answer, source_label="final_answer (synthese)")
 

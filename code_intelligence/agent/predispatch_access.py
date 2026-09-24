@@ -441,6 +441,109 @@ from code_intelligence.agent.context import DispatchContext
 
 logger = logging.getLogger(__name__)
 
+_MAX_FOLLOWED_RELATIONAL_CALLEES = 2
+
+
+def _follow_relational_lock_callees(ctx: DispatchContext, target_models: List[str]) -> str:
+    """Section 934/935 point J: analyze_security_locks only reads the
+    queried model's own source -- a security-relevant method that delegates
+    its real group-based logic to a related model through a Many2one field
+    (e.g. account.move._check_fiscalyear_lock_date calling
+    move.company_id._get_user_fiscal_lock_date(), ACC-Q2) is never followed.
+    Reads the related method's source and returns a system-prompt-suffix
+    note naming it, or '' if nothing was found."""
+    from pathlib import Path
+
+    from code_intelligence.agent.tool_helpers import find_model_source_filepaths
+    from code_intelligence.rules.relational_callees import (
+        extract_relational_lock_callees,
+        get_relational_fields,
+        source_is_security_relevant,
+    )
+    from code_intelligence.rules.override_unguarded import resolve_method_override_chain
+    from code_intelligence.rules.source_callees import extract_has_group_literals, read_method_source
+    from code_intelligence.rules.technical_groups import format_technical_group_note, technical_groups_among
+
+    read_tool = ctx.tool_map.get("read_source_code")
+    if read_tool is None:
+        return ""
+
+    followed: List[str] = []
+    for target_model in target_models:
+        if ctx.hop_budget_exhausted or len(followed) >= _MAX_FOLLOWED_RELATIONAL_CALLEES:
+            break
+        relational_fields = get_relational_fields(ctx.G, target_model)
+        if not relational_fields:
+            continue
+        for filepath in sorted(find_model_source_filepaths(ctx.G, target_model)):
+            if ctx.hop_budget_exhausted or len(followed) >= _MAX_FOLLOWED_RELATIONAL_CALLEES:
+                break
+            p = Path(filepath)
+            if not p.exists():
+                continue
+            try:
+                code = p.read_text(encoding="utf-8")
+            except OSError:
+                continue
+            for caller, field_name, method_name, comodel in extract_relational_lock_callees(code, relational_fields):
+                if ctx.hop_budget_exhausted or len(followed) >= _MAX_FOLLOWED_RELATIONAL_CALLEES:
+                    break
+                sites = resolve_method_override_chain(ctx.G, comodel, method_name)
+                if not sites:
+                    continue
+                site = sites[0]
+                if not site.filepath or not site.lineno:
+                    continue
+                end_lineno = site.end_lineno or site.lineno
+                callee_source = read_method_source(site.filepath, site.lineno, end_lineno) or ""
+                if not source_is_security_relevant(callee_source):
+                    continue
+                read_key = ("read_source_code", site.filepath, site.lineno, end_lineno)
+                if read_key in ctx.seen_calls:
+                    continue
+                t0 = time.perf_counter()
+                try:
+                    observation = str(read_tool.invoke({
+                        "filepath": site.filepath, "line_start": site.lineno, "line_end": end_lineno,
+                    }))
+                    observation = _truncate_observation_for_budget(
+                        ctx, observation, PER_TOOL_OBSERVATION_CAPS["read_source_code"],
+                    )
+                    technical_groups = technical_groups_among(
+                        ctx.G, extract_has_group_literals(callee_source),
+                    )
+                    if technical_groups:
+                        observation += "\n" + format_technical_group_note(technical_groups)
+                    observation += (
+                        f"\n[MÉTHODE SUR MODÈLE RELIÉ] '{method_name}()' s'exécute sur '{comodel}', "
+                        f"atteint depuis '{target_model}.{caller}()' via le champ '{field_name}' -- "
+                        f"ne pas attribuer cette logique a '{target_model}'."
+                    )
+                    ctx.record_observation(
+                        "read_source_code",
+                        {"filepath": site.filepath, "line_start": site.lineno, "line_end": end_lineno},
+                        observation, target_model, read_key, time.perf_counter() - t0,
+                    )
+                    logger.info(
+                        "Node [code_intelligence_agent]: Deterministic follow-up dispatch of "
+                        "'read_source_code' for related-model method '%s.%s()', reached from "
+                        "'%s.%s()' via field '%s' (section 934/935 point J).",
+                        comodel, method_name, target_model, caller, field_name,
+                    )
+                    followed.append(f"{comodel}.{method_name}()")
+                except Exception as te:
+                    logger.error("Deterministic relational lock callee dispatch failed: %s", te)
+
+    if not followed:
+        return ""
+    return (
+        "\n\n[DETERMINISTIC PRE-DISPATCH -- METHOD(S) ON RELATED MODEL]\n"
+        "The security-relevant method above delegates to " + ", ".join(followed) + "; its real "
+        "source has already been fetched above via read_source_code. That related model's logic, "
+        "not a guess, is the real basis for any group-based exemption or threshold it describes. "
+        "Do not call read_source_code again for it."
+    )
+
 
 def dispatch_security_locks(ctx: DispatchContext) -> None:
     if not (
@@ -462,6 +565,8 @@ def dispatch_security_locks(ctx: DispatchContext) -> None:
     if lock_tool is None:
         return
 
+    dispatched_lock_models: List[str] = []
+
     for target_model in security_locks_targets(ctx.concept, ctx.G)[:1]:
         call_key = _tool_call_key("analyze_security_locks", {"model_name": target_model})
         if call_key in ctx.seen_calls:
@@ -482,6 +587,7 @@ def dispatch_security_locks(ctx: DispatchContext) -> None:
                 "analyze_security_locks", {"model_name": target_model},
                 observation, target_model, call_key, time.perf_counter() - t0,
             )
+            dispatched_lock_models.append(target_model)
             logger.info(
                 "Node [code_intelligence_agent]: Deterministic pre-dispatch of "
                 "'analyze_security_locks' for model '%s' (structural lock finding present).",
@@ -497,6 +603,8 @@ def dispatch_security_locks(ctx: DispatchContext) -> None:
         except Exception as te:
             logger.error("Deterministic analyze_security_locks dispatch failed: %s", te)
 
+    followed_relational_note = _follow_relational_lock_callees(ctx, dispatched_lock_models)
+
     if any(k[0] == "analyze_security_locks" for k in ctx.seen_calls):
         ctx.system_prompt_suffix += (
             "\n\n[DETERMINISTIC PRE-DISPATCH]\n"
@@ -506,6 +614,8 @@ def dispatch_security_locks(ctx: DispatchContext) -> None:
             "what it does NOT cover (e.g. ir.rule / group-based record visibility via "
             "evaluate_record_rules)."
         )
+    if followed_relational_note:
+        ctx.system_prompt_suffix += followed_relational_note
 
 
 """
@@ -621,7 +731,7 @@ def _fetch_button_and_source(
                     read_obs = str(read_tool.invoke({
                         "filepath": _fp, "line_start": _ls, "line_end": _le,
                     }))
-                    read_obs = _truncate_observation_for_budget(ctx, read_obs, 4000)
+                    read_obs = _truncate_observation_for_budget(ctx, read_obs, PER_TOOL_OBSERVATION_CAPS["read_source_code"])
                     ctx.record_observation(
                         "read_source_code",
                         {"filepath": _fp, "line_start": _ls, "line_end": _le},

@@ -34,6 +34,20 @@ class SecurityLockASTVisitor(ast.NodeVisitor):
         self.required_group_methods: List[str] = []
         self.required_group_linenos: List[int] = []
         self.required_group_is_gating: List[bool] = []
+        # todo/contexte.txt, session "SecurityLockASTVisitor BoolOp/Or gap"
+        # (PUR-Q1 rejeu, purchase.order._approval_allowed): required_group_
+        # is_gating only distinguishes if/raise gates from message-selection-
+        # only ifs (section 825) -- it has no concept of a bare `return (A or
+        # B or has_group(...))` boolean expression, which is neither. When a
+        # has_group()/user_has_groups() call is one disjunct of an `or` whose
+        # OTHER disjuncts are unrelated to any group check, the group is NOT
+        # a hard requirement -- any of those other conditions independently
+        # satisfies the expression. required_group_alt_conditions carries the
+        # unparsed text of those other disjuncts (joined by ' OU '), index-
+        # aligned with required_groups; "" means no such alternative exists
+        # (the normal, unconditional-requirement case, unchanged).
+        self.required_group_alt_conditions: List[str] = []
+        self._or_alt_stack: List[List[str]] = []
         self.static_filters: List[Tuple[str, str, int, int]] = []
         self._if_test_stack: List[ast.expr] = []
         self._function_stack: List[str] = []
@@ -61,6 +75,36 @@ class SecurityLockASTVisitor(ast.NodeVisitor):
         self.generic_visit(node)
         self._gating_stack.pop()
         self._if_test_stack.pop()
+
+    def visit_BoolOp(self, node: ast.BoolOp):
+        if not isinstance(node.op, ast.Or):
+            # Only `or` expressions can hide an unconditional-looking
+            # has_group() behind an unrelated, independently-sufficient
+            # alternative. `and` (or any other BoolOp) means every operand,
+            # group check included, is still genuinely required -- leave
+            # _or_alt_stack untouched so a has_group() nested under an
+            # `and` still inherits the nearest enclosing `or`'s alternatives
+            # (if any), rather than being told it has none.
+            self.generic_visit(node)
+            return
+
+        alt_conditions: List[str] = []
+        for value in node.values:
+            contains_group_check = any(
+                isinstance(n, ast.Call)
+                and isinstance(n.func, ast.Attribute)
+                and n.func.attr in ("has_group", "user_has_groups")
+                for n in ast.walk(value)
+            )
+            if not contains_group_check:
+                try:
+                    alt_conditions.append(ast.unparse(self._resolve_local_names(value)))
+                except Exception:
+                    alt_conditions.append("?")
+
+        self._or_alt_stack.append(alt_conditions)
+        self.generic_visit(node)
+        self._or_alt_stack.pop()
 
     def visit_FunctionDef(self, node: ast.FunctionDef):
         self._function_stack.append(node.name)
@@ -232,6 +276,8 @@ class SecurityLockASTVisitor(ast.NodeVisitor):
                     self.required_group_is_gating.append(
                         self._gating_stack[-1] if self._gating_stack else True
                     )
+                    alt = self._or_alt_stack[-1] if self._or_alt_stack else []
+                    self.required_group_alt_conditions.append(" OU ".join(alt))
 
         if isinstance(node.func, ast.Attribute) and node.func.attr == "user_has_groups":
             # user_has_groups(groups) takes ONE comma-separated string arg,
@@ -253,6 +299,8 @@ class SecurityLockASTVisitor(ast.NodeVisitor):
                         self.required_group_is_gating.append(
                             self._gating_stack[-1] if self._gating_stack else True
                         )
+                        alt = self._or_alt_stack[-1] if self._or_alt_stack else []
+                        self.required_group_alt_conditions.append(" OU ".join(alt))
 
         if isinstance(node.func, ast.Attribute) and node.func.attr == "ref":
             if node.args and isinstance(node.args[0], ast.Constant) and isinstance(node.args[0].value, str):
@@ -264,6 +312,7 @@ class SecurityLockASTVisitor(ast.NodeVisitor):
                         self.required_group_methods.append(self._current_method_name())
                         self.required_group_linenos.append(node.lineno)
                         self.required_group_is_gating.append(True)
+                        self.required_group_alt_conditions.append("")
 
         self.generic_visit(node)
 
@@ -322,6 +371,7 @@ class PythonSecurityLockAnalysis:
     required_group_methods: List[str] = field(default_factory=list)
     required_group_linenos: List[int] = field(default_factory=list)
     required_group_is_gating: List[bool] = field(default_factory=list)
+    required_group_alt_conditions: List[str] = field(default_factory=list)
     static_filters: List[Tuple[str, str, int, int]] = field(default_factory=list)
     security_warnings: List[str] = field(default_factory=list)
     confidence: str = "high"
@@ -368,6 +418,7 @@ def analyze_python_security_locks(code: str, filepath: str) -> PythonSecurityLoc
         result.required_group_methods = visitor.required_group_methods
         result.required_group_linenos = visitor.required_group_linenos
         result.required_group_is_gating = visitor.required_group_is_gating
+        result.required_group_alt_conditions = visitor.required_group_alt_conditions
         result.static_filters = visitor.static_filters
 
     except SyntaxError:
@@ -407,6 +458,11 @@ def analyze_python_security_locks(code: str, filepath: str) -> PythonSecurityLoc
                 # determine gating (section 825) -- default to True (the
                 # pre-825 behavior) rather than assert a claim we can't verify.
                 result.required_group_is_gating.append(True)
+                # Same reasoning for the BoolOp/Or alternative-conditions
+                # signal: no AST means no way to detect an enclosing `or`,
+                # so this must stay "" rather than silently misalign with
+                # required_groups or assert an alternative we never saw.
+                result.required_group_alt_conditions.append("")
         for groups_arg in _USER_HAS_GROUPS_PATTERN.findall(code):
             for part in groups_arg.split(","):
                 group_xmlid = part.strip().lstrip("!")
@@ -415,6 +471,7 @@ def analyze_python_security_locks(code: str, filepath: str) -> PythonSecurityLoc
                     result.required_group_methods.append("")
                     result.required_group_linenos.append(0)
                     result.required_group_is_gating.append(True)
+                    result.required_group_alt_conditions.append("")
 
     result.evidence = build_security_lock_evidence(
         filepath,
@@ -427,6 +484,7 @@ def analyze_python_security_locks(code: str, filepath: str) -> PythonSecurityLoc
         required_group_methods=result.required_group_methods,
         required_group_linenos=result.required_group_linenos,
         required_group_is_gating=result.required_group_is_gating,
+        required_group_alt_conditions=result.required_group_alt_conditions,
         dynamic_dispatch_types=result.dynamic_dispatch_types,
     )
 

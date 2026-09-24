@@ -119,8 +119,6 @@ import networkx as nx
 from code_intelligence.rules.common import NOT_FOUND_MARKER
 from code_intelligence.rules.group_resolver import (
     _expand_implied_user_groups,
-    _group_fuzzy_matches_display_name,
-    _group_short_name,
     resolve_group_identifier,
 )
 from code_intelligence.rules.ontology import tags_for_node_attrs
@@ -241,38 +239,26 @@ def evaluate_record_rules(
     applied_group: List[RuleDetail] = []
     ignored_group: List[RuleDetail] = []
 
-    user_group_set = set(user_groups)
-    for g in list(user_group_set):
+    requested_groups = set(user_groups)
+    user_group_set = set(requested_groups)
+    for g in requested_groups:
         _expand_implied_user_groups(G, g, user_group_set)
 
-    def _user_belongs_to_rule_group(user_groups_set: set, rule_groups: List[str]) -> bool:
+    def _user_belongs_to_rule_group(rule_groups: List[str]) -> bool:
         """
-        Tolerant membership check between user-supplied group identifiers and rule group xml_ids:
-          1. Exact match on the full xml_id.
-          2. Short-name match.
-          3. Fuzzy match against the group's display name.
+        Implied groups are canonical xml_ids, so they only match exactly.
+        The tolerant resolver (short name, display-name fuzzy match) is meant
+        for imprecise identifiers and applies to the requested groups alone.
         """
-        if user_groups_set.intersection(rule_groups):
+        if user_group_set.intersection(rule_groups):
             return True
-
-        short_rule_groups = {_group_short_name(g) for g in rule_groups}
-        short_user_groups = {_group_short_name(g) for g in user_groups_set}
-        if short_user_groups.intersection(short_rule_groups):
-            return True
-
-        for rule_group in rule_groups:
-            if resolve_group_identifier(G, next(iter(user_groups_set), ""), [rule_group]) or any(
-                _group_fuzzy_matches_display_name(G, ug, rule_group) for ug in user_groups_set
-            ):
-                return True
-
-        return False
+        return any(resolve_group_identifier(G, ug, rule_groups) for ug in requested_groups)
 
     for rule in all_rules:
         if not rule.groups:
             applied_global.append(rule)
         else:
-            if _user_belongs_to_rule_group(user_group_set, rule.groups):
+            if _user_belongs_to_rule_group(rule.groups):
                 applied_group.append(rule)
             else:
                 ignored_group.append(rule)

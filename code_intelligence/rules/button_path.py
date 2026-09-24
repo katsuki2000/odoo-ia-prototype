@@ -319,12 +319,22 @@ def button_execution_path(
         if invisible_condition:
             execution_steps.append(f"5. Visibility Condition: Button invisible condition '{invisible_condition}'.")
 
+        tech_req_notes = []
+        for rg in sorted(required_groups):
+            clean_rg = rg.lstrip("!")
+            rg_node = f"group:{clean_rg}"
+            if G.has_node(rg_node) and G.nodes[rg_node].get("group_type") == "technical":
+                sf = G.nodes[rg_node].get("setting_field", "")
+                tech_req_notes.append(f"{clean_rg} (paramètre: '{sf}')")
+
         summary = (
             f"Button '{button_label_or_name}' on '{model_name}': "
             f"Calls '{method_name}()' ({method_link_str}). "
             f"Transition: [{', '.join(sorted(origin_states))}] -> '{target_state}'. "
             f"Required Groups: [{', '.join(sorted(required_groups)) if required_groups else 'None'}]."
         )
+        if tech_req_notes:
+            summary += f" NOTE DE CONFIGURATION: Les groupes [{', '.join(tech_req_notes)}] sont des paramètres activables dans la configuration du module."
         if invisible_condition:
             summary += f" Visibility: invisible='{invisible_condition}'."
 
@@ -333,12 +343,49 @@ def button_execution_path(
     if user_groups is not None:
         available_to_requester = _requester_satisfies_required_groups(G, sorted(required_groups), user_groups)
         if not available_to_requester:
-            unavailable_reason = (
-                f"Ce bouton est restreint aux groupes [{', '.join(sorted(required_groups))}], "
-                "dont le demandeur ne fait partie d'aucun -- l'action n'est pas disponible "
-                "pour lui dans l'interface (bouton absent ou grise), pas seulement documentee "
-                "comme restreinte."
-            )
+            # Section 925: check if required groups are technical (settings-activated)
+            technical_groups = []
+            role_groups = []
+            for rg in sorted(required_groups):
+                clean_rg = rg.lstrip("!")
+                rg_node = f"group:{clean_rg}"
+                if G.has_node(rg_node) and G.nodes[rg_node].get("group_type") == "technical":
+                    setting_field = G.nodes[rg_node].get("setting_field", "")
+                    technical_groups.append((clean_rg, setting_field))
+                else:
+                    role_groups.append(rg)
+
+            if technical_groups and not role_groups:
+                # All required groups are technical feature flags
+                settings_desc = ", ".join(
+                    f"'{sf}'" for _, sf in technical_groups
+                )
+                unavailable_reason = (
+                    f"Ce bouton/champ necessite l'activation du parametre de configuration "
+                    f"{settings_desc} dans les Parametres du module. Lorsque cette option "
+                    f"est activee, tous les utilisateurs internes y ont acces automatiquement "
+                    f"-- il ne s'agit pas d'un droit de role individuel. "
+                    f"(groupes techniques: [{', '.join(g for g, _ in technical_groups)}])"
+                )
+            elif technical_groups:
+                # Mix of technical and role groups
+                tech_desc = ", ".join(
+                    f"{g} (parametre: '{sf}')" for g, sf in technical_groups
+                )
+                unavailable_reason = (
+                    f"Ce bouton est restreint aux groupes [{', '.join(sorted(required_groups))}]. "
+                    f"Certains sont des parametres de configuration ({tech_desc}), "
+                    f"d'autres sont des roles ({', '.join(role_groups)}). "
+                    f"Le demandeur ne fait partie d'aucun -- l'action n'est pas disponible "
+                    f"pour lui dans l'interface."
+                )
+            else:
+                unavailable_reason = (
+                    f"Ce bouton est restreint aux groupes [{', '.join(sorted(required_groups))}], "
+                    "dont le demandeur ne fait partie d'aucun -- l'action n'est pas disponible "
+                    "pour lui dans l'interface (bouton absent ou grise), pas seulement documentee "
+                    "comme restreinte."
+                )
             summary += f" NON DISPONIBLE POUR LE DEMANDEUR : {unavailable_reason}"
             execution_steps.append(
                 f"5. Disponibilite reelle : NON -- {unavailable_reason}"

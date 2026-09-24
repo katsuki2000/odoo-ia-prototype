@@ -29,6 +29,7 @@ class OdooFieldDeclaration:
     compute: Optional[str] = None
     store: bool = True
     string: Optional[str] = None
+    implied_group: Optional[str] = None
 
 
 @dataclass
@@ -198,6 +199,7 @@ class OdooClassVisitor(ast.NodeVisitor):
         related = kwargs.get("related")
         compute = kwargs.get("compute")
         string_val = kwargs.get("string")
+        implied_group = kwargs.get("implied_group")
 
         # Calculate store attribute
         explicit_store = kwargs.get("store")
@@ -220,6 +222,7 @@ class OdooClassVisitor(ast.NodeVisitor):
             compute=compute,
             store=store_val,
             string=string_val,
+            implied_group=implied_group,
         )
 
     def _extract_method_declaration(self, node: ast.FunctionDef) -> OdooMethodDeclaration:

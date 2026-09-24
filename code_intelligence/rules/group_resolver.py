@@ -118,7 +118,7 @@ def _expand_implied_user_groups(G: nx.DiGraph, user_group: str, user_group_set: 
         return
 
     for _, broader_node, edge_data in G.out_edges(group_node, data=True):
-        if edge_data.get("edge_type") == "IMPLIES":
+        if edge_data.get("edge_type") in ("IMPLIES", "IMPLIES_CONFIGURABLE"):
             broader_group_id = broader_node.replace("group:", "")
             if broader_group_id not in user_group_set:
                 user_group_set.add(broader_group_id)
