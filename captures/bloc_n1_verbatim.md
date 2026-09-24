@@ -1,6 +1,6 @@
 # Rapport Verbatim -- Bloc N1 (banc de questions natif)
 
-**Date d'execution :** 2026-09-23 16:42:19
+**Date d'execution :** 2026-09-24 06:24:33
 
 **Objectif :** rejouer les questions verite-terrain des 5 modules natifs (maintenance, purchase, sale, stock, account) contre l'agent Code Intelligence reel et capturer la reponse verbatim pour comparaison manuelle avec `reference_answer` -- aucune notation automatique.
 
@@ -10,13 +10,13 @@
 | Metrique | Valeur |
 |---|---|
 | Questions executees (consolidees) | 25 |
-| Questions rejouees ce tour | 1 |
+| Questions rejouees ce tour | 3 |
 | Erreurs d'execution | 0 |
 | Ecarts de couverture d'outils (expected_tools non tous invoques) | 5 |
-| p50 latence effective (run courant) | `18.56s` |
-| p90 latence effective (run courant) | `18.56s` (budget `12.0s`,  DEPASSE) |
-| Moyenne (run courant) | `18.56s` |
-| Max (run courant) | `18.56s` |
+| p50 latence effective (run courant) | `24.31s` |
+| p90 latence effective (run courant) | `50.55s` (budget `12.0s`,  DEPASSE) |
+| Moyenne (run courant) | `30.22s` |
+| Max (run courant) | `50.55s` |
 
 ---
 
@@ -30,31 +30,23 @@
 
 **Outils attendus :** ['who_has_access_to', 'evaluate_record_rules'] | **Outils invoques :** ['who_has_access_to', 'evaluate_record_rules', 'evaluate_record_rules', 'evaluate_record_rules', 'evaluate_record_rules']
 
-**Reponse verbatim de l'agent (Total: 284.63s | Effectif: 284.625s | Groq wait: 0.0s | Sauts: 5) :**
+**Reponse verbatim de l'agent (Total: 15.78s | Effectif: 15.782s | Groq wait: 0.0s | Sauts: 5) :**
 ```text
-**Réponse**
+### Peut‑il modifier une fiche ?  
 
-- **Modification (WRITE) d’une fiche equipment (`maintenance.equipment`) :**  
-  L’ACL indique que seul le groupe `group_equipment_manager` possède le droit d’écriture (`[WRITE]: group_equipment_manager`).  
-  Un utilisateur qui ne fait partie que de `base.group_user` ne dispose donc pas du droit d’écriture, même si une règle de groupe (voir ci‑dessous) lui permettrait d’accéder à certains enregistrements.  
-  **Conclusion :** un utilisateur simple ne peut pas modifier une fiche équipement.
+- **Non**.  
+  - Le **WRITE** (et CREATE/UNLINK) sur le modèle `maintenance.equipment` est réservé uniquement au groupe **group_equipment_manager**.  
+  - Le simple utilisateur (`base.group_user`) n’appartient pas à ce groupe, donc il ne possède pas la permission d’écriture.  
+  - *Source : Access Matrix – WRITE : `group_equipment_manager` (Rules: 3)*  
 
-- **Consultation (READ) des fiches equipment :**  
-  1. **ACL READ** autorise `base.group_user` à lire les équipements.  
-  2. **Règle globale** (`maintenance.maintenance_equipment_comp_rule`) impose la restriction multi‑entreprise : `company_id` doit appartenir aux entreprises de l’utilisateur ou être vide.  
-  3. **Règle de groupe** (`maintenance.equipment_rule_user`) limite l’accès aux équipements dont le champ `message_partner_ids` contient le partenaire de l’utilisateur : `('message_partner_ids', 'in', [user.partner_id.id])`.  
-  4. La règle d’administrateur (`maintenance.equipment_rule_admin_user`) est ignorée pour les utilisateurs non membres.
+### Quels équipements peut‑il consulter ?  
 
-  Ainsi, un utilisateur simple peut consulter **seuls** les équipements qu’il suit (c’est‑à‑dire ceux dont son partenaire apparaît dans `message_partner_ids`), sous réserve de la restriction multi‑entreprise.
+- Il peut **seulement lire** les équipements qu’il suit.  
+  - La règle d’enregistrement `maintenance.equipment_rule_user` autorise l’accès aux équipements dont le champ `message_partner_ids` contient l’ID du partenaire de l’utilisateur.  
+  - Cette règle est combinée en **OU** avec d’autres règles de groupe, puis en **ET** avec la règle globale de multi‑entreprise (`maintenance.maintenance_equipment_comp_rule`).  
+  - *Source : Évaluation ir.rule pour la persona `utilisateur_simple` (permission = read) – règle `maintenance.equipment_rule_user`*  
 
-En résumé :
-
-| Action | Autorisé pour `base.group_user` (sans `group_equipment_manager`) |
-|--------|-----------------------------------------------------------------|
-| **Lire** | Oui, mais uniquement les équipements qu’il suit (`message_partner_ids`). |
-| **Modifier** | Non, le droit d’écriture est réservé à `group_equipment_manager`. |
-
-Cette conclusion est basée sur l’ACL et l’évaluation des règles `ir.rule` présentées dans les observations. Aucun autre mécanisme (workflow, verrou Python, etc.) n’a été vérifié dans cette analyse.
+En résumé, un utilisateur simple ne peut pas modifier une fiche équipement, mais il peut consulter les fiches des équipements qu’il suit (et qui appartiennent à sa société).
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```
@@ -251,72 +243,50 @@ Si l’intervalle de répétition est inférieur à 1, une `ValidationError` est
 
 **A verifier dans le code :** `security/ir.model.access.csv (access_purchase_order vs access_purchase_order_manager, identiques) + models/purchase_order.py : _approval_allowed(), models/res_company.py : po_double_validation/po_double_validation_amount`
 
-**Outils attendus :** ['who_has_access_to', 'evaluate_record_rules', 'read_source_code'] | **Outils invoques :** ['who_has_access_to', 'evaluate_record_rules', 'describe_workflow', 'button_execution_path', 'read_source_code', 'read_source_code', 'button_execution_path', 'read_source_code', 'button_execution_path', 'read_source_code']
+**Outils attendus :** ['who_has_access_to', 'evaluate_record_rules', 'read_source_code'] | **Outils invoques :** ['analyze_security_locks', 'who_has_access_to', 'evaluate_record_rules', 'describe_workflow', 'button_execution_path', 'read_source_code', 'button_execution_path', 'read_source_code', 'read_source_code']
 
-**Reponse verbatim de l'agent (Total: 28.24s | Effectif: 28.233s | Groq wait: 0.0s | Sauts: 10) :**
+**Reponse verbatim de l'agent (Total: 50.55s | Effectif: 50.552s | Groq wait: 0.0s | Sauts: 9) :**
 ```text
-## Différences entre un **acheteur** (`group_purchase_user`) et un **manager** (`group_purchase_manager`) sur une commande d’achat
+Dans la configuration actuelle, les deux groupes `group_purchase_user` et `group_purchase_manager` disposent des mêmes droits d’accès (lecture, écriture, création et suppression) sur le modèle `purchase.order` :  
 
-| Fonction | Acheteur (`group_purchase_user`) | Manager (`group_purchase_manager`) |
-|----------|----------------------------------|------------------------------------|
-| **Accès ACL** | Les deux groupes disposent des mêmes droits **lecture / écriture / création / suppression** sur `purchase.order`. | Même ACL que l’acheteur. |
-| **Visibilité des commandes** | Pas de règle d’enregistrement supplémentaire : la règle globale `purchase.purchase_order_comp_rule` (multi‑company) s’applique à tous. | Même règle globale. |
-| **Validation de la commande** | Lors de la validation (`button_confirm`), l’ordre passe en état **`to approve`** et doit être approuvé par un manager. | Le manager peut valider directement : la méthode `_approval_allowed` renvoie `True` pour lui, donc l’ordre passe directement en état **`sale`**. |
-| **Déblocage d’une commande verrouillée** | Le bouton **`Unlock`** (`button_unlock`) n’est visible que pour le groupe `purchase.group_purchase_manager`. | Le manager peut cliquer sur **`Unlock`** pour remettre l’ordre en état `purchase`. |
-| **Autres actions** | Aucun bouton supplémentaire n’est réservé uniquement au manager (hors `Unlock`). | Le manager possède les mêmes options que l’acheteur, plus celles mentionnées ci‑dessus. |
+- **ACL** – accès identiques pour les deux groupes (voir l’Access Matrix).  
+- **ir.rule** – aucune règle de groupe spécifique n’est appliquée ; seule la règle globale multi‑entreprise `purchase.purchase_order_comp_rule` est active.
 
-### Détails techniques
+La différence entre un acheteur (« simple acheteur ») et un manager se trouve donc au niveau de la logique métier, c’est‑à‑dire dans les méthodes Python qui contrôlent les actions disponibles sur une commande d’achat.
 
-1. **Validation directe par le manager**  
-   ```python
-   960 |     def _approval_allowed(self):
-   961 |         """Returns whether the order qualifies to be approved by the current user"""
-   962 |         self.ensure_one()
-   963 |         return (
-   964 |             self.company_id.po_double_validation == 'one_step'
-   965 |             or (self.company_id.po_double_validation == 'two_step'
-   966 |                 and self.amount_total < self.env.company.currency_id._convert(
-   967 |                     self.company_id.po_double_validation_amount, self.currency_id, self.company_id,
-   968 |                     self.date_order or fields.Date.today()))
-   969 |             or self.user_has_groups('purchase.group_purchase_manager'))
-   ```
-   *Le manager est reconnu par `self.user_has_groups('purchase.group_purchase_manager')`, ce qui lui permet de passer directement à l’état `sale`.*
+### 1. Confirmation / validation de la commande
 
-2. **Bouton `Unlock` réservé aux managers**  
-   ```python
-   524 |     def button_unlock(self):
-   525 |         self.write({'state': 'purchase'})
-   ```
-   *Ce bouton est annoté dans le workflow comme nécessitant le groupe `purchase.group_purchase_manager` (voir `button_unlock` dans le workflow).*
+- La transition **[draft] → [sale]** est déclenchée par le bouton `button_confirm`.  
+  - Le bouton lui‑même n’est pas restreint par un groupe (`Required Groups: [None]`).  
+  - Cependant, la méthode appelée, `button_confirm()`, invoque la méthode interne `_approval_allowed()` (voir `purchase_order.py:L84-L514`).  
+  - Dans `_approval_allowed()` il y a un verrou explicite :  
 
-3. **Bouton `Confirm Order`**  
-   ```python
-   501 |     def button_confirm(self):
-   502 |         for order in self:
-   503 |             if order.state not in ['draft', 'sent']:
-   504 |                 continue
-   505 |             order.order_line._validate_analytic_distribution()
-   506 |             order._add_supplier_to_product()
-   507 |             # Deal with double validation process
-   508 |             if order._approval_allowed():
-   509 |                 order.button_approve()
-   510 |             else:
-   511 |                 order.write({'state': 'to approve'})
-   512 |             if order.partner_id not in order.message_partner_ids:
-   513 |                 order.message_subscribe([order.partner_id.id])
-   514 |         return True
-   ```
-   *Le bouton est disponible pour tous, mais la logique interne différencie les deux groupes.*
+    ```
+    has_group('purchase.group_purchase_manager')
+    ```
 
-### Résumé
+    (voir `purchase_order.py:L969-L969`).  
 
-- **ACL** : identiques pour les deux groupes.  
-- **Règles d’enregistrement** : aucune différence.  
-- **Comportement métier** :  
-  - Le manager peut **valider** une commande directement (bypass double validation) et **déverrouiller** une commande verrouillée.  
-  - L’acheteur doit passer par l’état `to approve` et ne peut pas débloquer les commandes.
+  - Cette vérification signifie que **seuls les membres de `group_purchase_manager` peuvent confirmer une commande**.  
+  - Un utilisateur appartenant uniquement à `group_purchase_user` rencontrera une exception et ne pourra pas passer la commande de l’état *draft* à *sale*.
 
-Ainsi, la distinction réelle réside dans les **actions métier** (validation et déblocage) que le manager peut effectuer sans passer par le processus d’approbation, alors que l’acheteur doit soumettre la commande à l’approbation d’un manager.
+### 2. Envoi de rappels
+
+- La méthode `_send_reminder_mail()` (voir `purchase_order.py:L768-L768`) requiert le groupe `purchase.group_send_reminder`.  
+  - Ce groupe n’est pas automatiquement attribué aux managers ou aux acheteurs ; il s’agit d’un groupe distinct.  
+  - Ainsi, la capacité d’envoyer des rappels dépend de l’appartenance à ce groupe spécifique, et non du rôle « acheteur » ou « manager ».
+
+### 3. Autres actions
+
+- Aucune autre méthode ou bouton n’est explicitement restreint par `group_purchase_manager` dans les observations fournies.  
+- Les règles globales (`purchase.purchase_order_comp_rule`) ne différencient pas les groupes.
+
+---
+
+**En résumé :**  
+Les deux groupes ont les mêmes droits d’accès au niveau ACL, mais **le groupe `group_purchase_manager` possède un droit supplémentaire au niveau métier : il peut confirmer (valider) une commande d’achat grâce à la vérification `has_group('purchase.group_purchase_manager')` dans `_approval_allowed()`.  
+Un simple acheteur (`group_purchase_user`) ne peut pas confirmer la commande, même s’il peut la créer, l’éditer et la supprimer.  
+Les autres actions (comme l’envoi de rappels) dépendent d’un groupe distinct (`purchase.group_send_reminder`).
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```
@@ -448,33 +418,31 @@ En résumé, `purchase.order` est un modèle **déclaré** par le module `purcha
 
 **A verifier dans le code :** `views/purchase_views.xml, bouton name='button_approve', groups='purchase.group_purchase_manager'`
 
-**Outils attendus :** ['button_execution_path'] | **Outils invoques :** ['button_execution_path', 'read_source_code']
+**Outils attendus :** ['button_execution_path'] | **Outils invoques :** ['analyze_security_locks', 'button_execution_path', 'read_source_code']
 
-**Reponse verbatim de l'agent (Total: 13.39s | Effectif: 13.392s | Groq wait: 0.0s | Sauts: 2) :**
+**Reponse verbatim de l'agent (Total: 3.98s | Effectif: 3.975s | Groq wait: 0.0s | Sauts: 3) :**
 ```text
-### Pourquoi le bouton « Approve Order » n’apparaît pas ?
+### Pourquoi le bouton « Approve Order » n’apparaît pas pour un utilisateur simple ?
 
-Le bouton **Approve Order** est **restreint aux utilisateurs appartenant au groupe**  
-`purchase.group_purchase_manager`.  
-Même si la commande est en statut **« to approve »**, un utilisateur qui ne fait pas partie de ce groupe ne voit pas le bouton, car la condition d’affichage est :
+Le bouton **Approve Order** est bien défini dans le module **purchase_stock** :
 
-```python
-invisible='state != "to approve"'
-```
+- **Définition** : `button_approve()` dans `[purchase_order.py:L112-L495](file:///media/donnee/Programs/odoo-17.0/addons/purchase_stock/models/purchase_order.py#L112-L495)`  
+- **Condition d’affichage** : `invisible='state != 'to approve'` – il n’est visible que lorsque l’état de la commande est `to approve`.
 
-et la restriction de groupe est appliquée :
+Cependant, même lorsque l’état est correct, l’interface ne l’affiche pas pour un utilisateur « simple » car :
 
-- **Groupe requis** : `purchase.group_purchase_manager`  
-  *(xml_id : `purchase.group_purchase_manager`)*
+| Condition | Détail | Source |
+|-----------|--------|--------|
+| **Groupe requis** | Le bouton est restreint aux utilisateurs appartenant au groupe **purchase.group_purchase_manager** | `button_execution_path` (voir ci‑dessous) |
+| **Utilisateur simple** | L’utilisateur ne fait partie d’aucun groupe requis | `button_execution_path` indique `NON DISPONIBLE POUR LE DEMANDEUR` |
 
-> **Source** : xml_id : `purchase.group_purchase_manager` (défini dans le module `purchase`)
+> **Button 'Approve Order' on 'purchase.order':**  
+> Required Groups: `[purchase.group_purchase_manager]`.  
+> Visibility: `invisible='state != 'to approve'`.  
+> **NON DISPONIBLE POUR LE DEMANDEUR** – le bouton est restreint aux groupes `[purchase.group_purchase_manager]`, dont le demandeur ne fait partie d'aucun.  
+> (xml_id: purchase.group_purchase_manager)  
 
-### Que faire ?
-
-- **Demander à un responsable** (ex. un manager d’achat) d’ajouter l’utilisateur au groupe **Purchase Manager** si l’approbation doit être possible.
-- Sinon, l’utilisateur doit **soumettre la commande** à un membre du groupe `purchase.group_purchase_manager` pour qu’il l’approuve.
-
-En résumé, le bouton n’est pas visible parce que l’utilisateur ne possède pas le groupe requis, même si la commande est prête à être approuvée.
+En résumé, même si la commande est dans l’état `to approve`, le bouton reste invisible pour un utilisateur qui n’appartient pas au groupe **purchase.group_purchase_manager**. Seuls les utilisateurs ayant ce rôle (généralement les responsables achats) peuvent voir et cliquer sur ce bouton.
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```
@@ -522,21 +490,31 @@ Ainsi, la règle de suppression est entièrement gérée par le code Python, et 
 
 **Outils attendus :** ['who_has_access_to', 'evaluate_record_rules'] | **Outils invoques :** ['who_has_access_to', 'evaluate_record_rules', 'evaluate_record_rules', 'evaluate_record_rules', 'evaluate_record_rules', 'evaluate_record_rules', 'evaluate_record_rules', 'evaluate_record_rules', 'evaluate_record_rules']
 
-**Reponse verbatim de l'agent (Total: 21.62s | Effectif: 21.623s | Groq wait: 0.0s | Sauts: 9) :**
+**Reponse verbatim de l'agent (Total: 24.32s | Effectif: 24.314s | Groq wait: 0.0s | Sauts: 9) :**
 ```text
-### Accès aux commandes de vente
+### Qui peut voir quoi ?
 
-| Persona | Groupe | Accès possible (lecture) | Explication |
-|---------|--------|--------------------------|-------------|
-| **Vendeur** (`sales_team.group_sale_salesman`) |  | **Seulement les commandes qu’il a créées ou sans utilisateur assigné** | La règle `sale.sale_order_personal_rule` (domain `[['|',('user_id','=',user.id),('user_id','=',False)]]`) est la seule règle de groupe applicable. Elle autorise l’affichage des commandes où `user_id` est l’utilisateur actuel ou `False`. La règle `sale.sale_order_see_all` (domain `(1, '=', 1)`) est ignorée car le vendeur n’appartient pas au groupe ciblé. <br>**Citation** : <br>• `Évaluation ir.rule pour la persona 'salesperson' (sales_team.group_sale_salesman), permission='read']` – « Règles de Groupe applicables (combinées en OU): Personal Orders [['|',('user_id','=',user.id),('user_id','=',False)]] (xml_id: sale.sale_order_personal_rule) » |
-| **Utilisateur du portail** (`base.group_portal`) |  | **Seulement les commandes auxquelles il est lié en tant que partenaire de message** | La règle `sale.sale_order_rule_portal` (domain `[['message_partner_ids','child_of',[user.commercial_partner_id.id]]]`) est la seule règle de groupe applicable. Elle autorise l’affichage des commandes où le partenaire commercial de l’utilisateur apparaît dans les partenaires de message. La règle `sale.sale_order_personal_rule` est ignorée car le portail n’appartient pas aux groupes ciblés. <br>**Citation** : <br>• `Évaluation ir.rule pour la persona 'portal_user' (base.group_portal), permission='read']` – « Règles de Groupe applicables (combinées en OU): Portal Personal Quotations/Sales Orders [[('message_partner_ids','child_of',[user.commercial_partner_id.id])]] (xml_id: sale.sale_order_rule_portal) » |
+| Persona | Accès global (ACL) | Règle d’enregistrement (ir.rule) | Résultat concret |
+|---------|--------------------|-----------------------------------|------------------|
+| **Vendeur** (`sales_team.group_sale_salesman`) | **Lecture** autorisée (voir la matrice ACL) | `sale.sale_order_personal_rule` : `[['|',('user_id','=',user.id),('user_id','=',False)]]` <br> `sale.sale_order_comp_rule` : `[['company_id','in',company_ids]]` | Le vendeur ne voit **que** les commandes où `user_id` est lui‑même **ou** où `user_id` est vide (commande non assignée). Il ne peut pas voir les commandes d’autres commerciaux de la même société. |
+| **Utilisateur du portail** (`base.group_portal`) | **Lecture** autorisée (voir la matrice ACL) | `sale.sale_order_rule_portal` : `[['message_partner_ids','child_of',[user.commercial_partner_id.id]]]` <br> `sale.sale_order_comp_rule` : `[['company_id','in',company_ids]]` | L’utilisateur du portail ne voit **que** les commandes dont le client (ou un partenaire lié) est son propre partenaire. Il ne peut pas accéder aux commandes d’autres clients ou aux commandes internes. |
 
-### Résumé
+#### Sources
 
-- **Vendeur** : ne voit pas toutes les commandes de son entreprise, mais uniquement celles qu’il a créées ou qui n’ont pas de `user_id` assigné.  
-- **Utilisateur du portail** : ne voit que les commandes où il apparaît comme partenaire de message (souvent les devis ou commandes qu’il a créés via le portail).  
+- **Évaluation ir.rule pour la persona 'salesperson' (sales_team.group_sale_salesman), permission='read']**  
+  `Personal Orders [['|',('user_id','=',user.id),('user_id','=',False)]]` (xml_id: sale.sale_order_personal_rule)  
+  `Sales Order multi-company [[('company_id', 'in', company_ids)]]` (xml_id: sale.sale_order_comp_rule)  
+  → *Conclusion : au moins une règle de groupe applicable restreint l’accès*.
 
-Ces restrictions sont imposées par les règles `ir.rule` définies dans le module `sale`.
+- **Évaluation ir.rule pour la persona 'portal_user' (base.group_portal), permission='read']**  
+  `Portal Personal Quotations/Sales Orders [[('message_partner_ids','child_of',[user.commercial_partner_id.id])]]` (xml_id: sale.sale_order_rule_portal)  
+  `Sales Order multi-company [[('company_id', 'in', company_ids)]]` (xml_id: sale.sale_order_comp_rule)  
+  → *Conclusion : au moins une règle de groupe applicable restreint l’accès*.
+
+#### Résumé
+
+- Un **vendeur** ne peut pas voir toutes les commandes de son entreprise ; il ne voit que celles qui lui sont assignées ou qui ne sont pas assignées.
+- Un **utilisateur du portail** ne peut voir que les commandes où il est client (ou partenaire lié) ; il ne voit pas les commandes internes ou celles d’autres clients.
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```

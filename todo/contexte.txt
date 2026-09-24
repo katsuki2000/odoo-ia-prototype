@@ -2625,122 +2625,77 @@ Contexte : pmm colle la sortie brute de `python scripts/run_bloc_n1_benchmark.py
 - Les 2 observations annexes de la section 923 (outil `analyze_method_override_chain` non invoque sur PUR-Q3 ; pertinence de la citation `purchase/populate/purchase.py` a trancher).
 - Le warning de troncature sur `account.move` (801-802/876) reste un point de vigilance structurel : `account.move` est le modele le plus volumineux du perimetre natif (cf. section 808, 42589 vs 8919 pour `stock.quant`) -- ce run confirme que le scaffolding de backfill compense correctement sur ce cas precis, mais ne garantit pas que ce soit systematique sur toute question touchant ce modele.
 
-**Prochaine etape** : Bloc N1 (banc de questions) est complet a 25/25 sur les 5 modules natifs (purchase/sale/stock/account/maintenance). Reste, par `plan.md` ("Validation par domaine" / chantier 1) : ecrire le script de verification mecanique dedie par module (miroir `scripts/check_bloc9_0N_*.py`) et confirmer chacun des 5 modules end-to-end (raw/direct/full-pipeline) avec verite-terrain verifiee -- pas encore fait, la verification de cette section reste manuelle/ponctuelle. Commit groupe suggere (captures + ce journal), a la discretion de pmm.
-(.venv) user@debian:~/odoo-ia-prototype$ python scripts/run_bloc_n1_benchmark.py SAL-Q3
-================================================================================
- BLOC N1 -- BENCHMARK RUNNER (banc de questions natif) 
- Cible : 1 question(s) (filtre id=['SAL-Q3'], module=None)
-================================================================================
+## Section 925 -- SAL-Q3 rejoue par pmm : la cloture "zero warning" de la 2e section 923 etait un faux positif (reponse omet et nie l'extension d'account.move) -- root cause localisee dans dispatch_inheritance, correctif et test
 
---------------------------------------------------------------------------------
-[SAL-Q3] module=sale capability=inheritance difficulty=medium
-Question: sale.order est-il un nouveau modele ou une extension ? Quel modele natif hors du perimetre 'vente' ce module etend-il directement, et sous quel nom de classe ?
---------------------------------------------------------------------------------
-LLM arbitration requested but no llm client was provided; skipping.
-Node [code_intelligence_agent]: an observation was truncated (cap reached) and the marker is being stripped from user-facing text [source: read_source_code(sale.order), 2491 chars] -- some evidence may be missing from this answer. See todo/contexte.txt sections 801-802/876.
-Reponse verbatim (18.56s total | effectif 18.56s | groq_wait 0.00s | sauts 3):
-### Modèle : `sale.order`
+Date : 23/09/2026
+Contexte : pmm rejoue `python scripts/run_bloc_n1_benchmark.py SAL-Q3`. Divergence disque/journal verifiee avant toute action : le `HEAD` (commit 777bb7f "diag benchmark") embarque en fin de `todo/contexte.txt` un collage brut de terminal (prochaine etape + sortie du rejeu SAL-Q3) qui n'a rien a faire dans le journal ; la copie de travail l'a deja retire (non commite). Ce collage est la source de l'observation ci-dessous, il n'est pas reinjecte ici.
 
-- **Nature** : *nouveau modèle* déclaré par le module **sale**.  
-  - Le fichier `sale/models/sale_order.py` contient la déclaration :  
-    ```
-  30 | class SaleOrder(models.Model):
-  31 |     _name = 'sale.order'
-  32 |     _inherit = ['portal.mixin', 'product.catalog.mixin', 'mail.thread', 'mail.activity.mixin', 'utm.mixin']
-  33 |     _description = "Sales Order"
-  34 |     _order = 'date_order desc, id desc'
-  35 |     _check_company_auto = True
-  36 | 
-  37 |     _sql_constraints = [
-  38 |         ('date_order_conditional_required',
-  39 |          "CHECK((state = 'sale' AND date_order IS NOT NULL) OR state != 'sale')",
-  40 |          "A confirmed sales order requires a confirmation date."),
-  41 |     ]
-  42 | 
-  43 |     @property
-  44 |     def _rec_names_search(self):
-  45 |         if self._context.get('sale_show_partner_name'):
-  46 |             return ['name', 'partner_id.name']
-  47 |         return ['name']
-  48 | 
-  49 |     #=== FIELDS ===#
-  50 | 
-  51 |     name = fields.Char(
-  52 |         string="Order Reference",
-  53 |         required=True, copy=False, readonly=False,
-  54 |         index='trigram',
-  55 |         default=lambda self: _('New'))
-  56 | 
-  57 |     company_id = fields.Many2one(
-  58 |         comodel_name='res.company',
-  59 |         required=True, index=True,
-  60 |         default=lambda self: self.env.company)
-  61 |     partner_id = fields.Many2one(
-  62 |         comodel_name='res.partner',
-  63 |         string="Customer",
-  64 |         required=True, change_default=True, index=True,
-  65 |         tracking=1,
-  66 |         check_company=True)
-  67 |     state = fields.Selection(
-  68 |         selection=SALE_ORDER_STATE,
-  69 |         string="Status",
-  70 |         readonly=True, copy=False, index=True,
-  71 |         tracking=3,
-  72 |         group_expand=True,
-  73 |         default='draft')
-  74 |     locked = fields.Boolean(default=False, copy=False, help="Locked orders cannot be modified.")
-  75 | 
-  76 |     client_order_ref = fields.Char(string="Customer Reference", copy=False)
-  77 |     create_date = fields.Datetime(  # Override of default create_date field from ORM
-  78 |         string="Creation Date", index=True, readonly=True)
-  79 |     commitment_date = fields.Datetime(
-  80 |         string="Delivery Date", copy=False,
-  81 |         help="This is the delivery date promised to the customer. "
-  82 |              "If set, the delivery order will be scheduled based on "
-  83 |              "this date rather than product lead times.")
-  84 |     date_order = fields.Datetime(
-  85 |         string="Order Date",
-  86 |         required=True, copy=False,
-  87 |         help="Creation date of draft/sent orders,\nConfirmation date of confirmed orders.",
-  88 |         default=fields.Datetime.now)
-  89 |     origin = fields.Char(
-  90 |         string="Source Document",
-  91 |         help="Reference of the document that generated this sales order request")
-  92 |     reference = fields.Char(
-  93 |         string="Payment Ref.",
-  94 |         help="The payment communication of this sale order.",
-  95 |         copy=False)
-  96 | 
-  97 |     require_signature = fields.Boolean(
-  98 |         string="Online signature",
-  99 |         compute='_compute_require_signature',
- 100 |         store=True, readonly=False, precompute=True,
- 101 |         help="Request a online signature from the customer to confirm the order.")
- 102 |     require_payment = fields.Boolean(
- 103 |         string="Online payment",
- 104 |         compute='_compute_require_payment',
- 105 |         store=True, readonly=False, precompute=True,
- 106 |         help="Request a online payment from the customer to confirm the order.")
- 107 |     prepayment_percent = fields.Float(
- 108 |         string="Prepayment percentage",
- 109 |         compute='_compute_prepayment_percent',
- 110 |         store=True, readonly=False, precompute=True,
-```  
-    [sale_order.py:L30-L110](file:///home/user/odoo-17.0/addons/sale/models/sale_order.py#L30-L110)
+**Constat** (sortie brute de pmm + `captures/bloc_n1_verbatim.json`) :
+  - La reponse dit que `sale.order` est un nouveau modele (correct) mais affirme "il n'etend aucun modele metier natif hors du perimetre vente" et cite `res.partner`/`account.move` comme exemples de ce qu'il n'etend PAS. La reference attend l'inverse : le module `sale` etend reellement `account.move` (classe `AccountMove`, `_inherit=['account.move','utm.mixin']`, `models/account_move.py`).
+  - `tool_coverage_ok=False`, `analyze_method_override_chain` non invoque ; warning de troncature sur `read_source_code(sale.order)` (2491 car.), sans lien avec le defaut.
+  - Consequence de journal : la formulation "SAL-Q3 : identifie comme nouveau modele, zero warning" de la 2e section 923 ne validait que la premiere moitie de la question. SAL-Q3 n'est PAS clos. Meme constat de numerotation : les sections 922 et 923 existent chacune en double (sessions paralleles) ; a ne pas renumeroter (historique), cette section 925 fait foi pour SAL-Q3.
 
-- **Extension directe** : il n’étend aucun modèle métier natif hors du périmètre « vente ».  
-  - La liste `_inherit` ne contient que des *mixins* techniques (`portal.mixin`, `product.catalog.mixin`, `mail.thread`, `mail.activity.mixin`, `utm.mixin`) et non un modèle existant comme `res.partner` ou `account.move`.  
-  - Ainsi, `sale.order` ne repose pas sur un modèle natif hors du module `sale`; il est autonome.
+**Diagnostic, rejoue de facon deterministe sans LLM sur `active_graph.json` de cette machine** :
+  1. Le graphe est correct : `list_involved_modules('sale')` = 1045 car., non tronque, 24 modeles `(extends)` dont `account.move`.
+  2. `rank_custom_modules_for_models(G, ['sale.order'], question)` renvoie `['account_invoice_section_sale_order', 'sale_order_type']` : des modules du corpus `tests/oca_sample` (10 des 39 modules du graphe local, `OCA_SAMPLE_ADDONS_PATH` renseigne dans le `.env` de cette machine -- la note "graphe 100% natif" de la 2e section 922 ne vaut donc que pour l'autre poste).
+  3. Dans `dispatch_inheritance` (`predispatch_structure.py`), le repli "modele -> modules declarants -> list_involved_modules en mode module" etait conditionne par `not target_mods_to_inspect`. Or `target_mods_to_inspect` est non vide des qu'un module custom candidat existe, meme quand l'utilisateur n'a designe aucun module. Le predicat servait donc de proxy a "l'utilisateur a nomme un module", ce qu'il n'est pas. Resultat : le module declarant `sale` n'est jamais inspecte en mode module, `_extract_module_extended_models()` ne trouve rien, et les deux garde-fous aval (`_correct_module_extension_contradiction`, section 838, et le retry de couverture, section 858) restent inertes.
+  4. Verification sur la reponse verbatim avec la vraie liste : `_answer_lacks_extension_coverage` = True (le retry aurait du se declencher), `_answer_denies_module_extension` = False (la regex ne connait pas "n'etend aucun"). Le garde de couverture est donc le bon mecanisme, il manquait seulement sa donnee d'entree. Pas de nouvel ajout a la regex de negation (meme piege que 840-857 : chasser la formulation).
+  Limite assumee : les arguments exacts des 2 appels `list_involved_modules` du rejeu ne sont pas visibles (`captures/reasoning_trace.jsonl` non mis a jour depuis le 23/09 06:49 et logs `info` non colles) ; le point 3 est deduit du code et du rejeu deterministe des parties sans LLM, il sera confirme par le rejeu reel.
 
-- **Nom de classe** : `SaleOrder` (déclaré dans le même fichier).  
+**Plan** :
+  - Root cause : condition du repli de `dispatch_inheritance` alignee sur ce qu'elle veut vraiment dire (aucun module designe par la question, `ctx.concept.resolved_modules` vide) au lieu de `not target_mods_to_inspect`. Un module custom candidat s'ajoute desormais au module declarant natif au lieu de le masquer. Doit rester vrai sur toute instance Odoo 17 : un `sale.order` etendu par n'importe quel module tiers ne doit pas cacher le module `sale`.
+  - Test dedie sur graphe synthetique (aucune dependance au corpus ni au `.env`).
+  - Sweep cible + `--collect-only`. Rejeu reel et non-regression Bloc 9 custom (`check_bloc9_0N_*.py`) delegues a pmm : le changement ajoute des observations sur les questions d'heritage qui ne nomment pas de module.
 
-En résumé, `sale.order` est un **nouveau modèle** créé par le module `sale`, sans hériter d’un modèle métier natif hors de ce module, et il est implémenté par la classe `SaleOrder`.
+## Section 926 -- Scripts de verification mecanique Bloc N1 (5 modules natifs)
 
-[Source: Graphe de Connaissances Code Intelligence]
-Outils invoques: ['trace_full_inheritance', 'read_source_code', 'list_involved_modules', 'list_involved_modules']
-[WARN] Outil(s) attendu(s) non invoque(s): ['analyze_method_override_chain']
+**Contexte** : le banc de questions Bloc N1 est complet a 25/25 sur les 5 modules natifs (maintenance, purchase, sale, stock, account) -- cf. section 924. Le plan.md (chantier 1, "Validation par domaine / Code Intelligence -- natif") demandait ensuite d'ecrire le script de verification mecanique dedie par module, miroir du pattern `scripts/check_bloc9_0N_*.py` (volet custom).
 
-Rapport JSON sauvegarde (25 questions): /home/user/odoo-ia-prototype/captures/bloc_n1_verbatim.json
-Rapport Markdown sauvegarde: /home/user/odoo-ia-prototype/captures/bloc_n1_verbatim.md
-================================================================================
-(.venv) user@debian:~/odoo-ia-prototype$ 
+**Travail realise** : creation des 5 scripts de verification mecanique E2E, un par module natif :
+  - `scripts/check_bloc_n1_01_maintenance_e2e.py` (1/5)
+  - `scripts/check_bloc_n1_02_purchase_e2e.py` (2/5)
+  - `scripts/check_bloc_n1_03_sale_e2e.py` (3/5)
+  - `scripts/check_bloc_n1_04_stock_e2e.py` (4/5)
+  - `scripts/check_bloc_n1_05_account_e2e.py` (5/5)
+
+**Pattern suivi** (identique a `check_bloc9_0N_*.py`) : chaque script comporte 3 phases independantes :
+  1. **RAW** : appel direct de l'outil CI pertinent (`who_has_access_to` sur le modele cle du module), isole du LLM de synthese, verification des markers de verite-terrain dans la sortie brute.
+  2. **E2E direct** : les 5 questions du banc (`native_n1_question_bank.json`) passees a `code_intelligence_agent()`, markers attendus/interdits verifies dans la reponse synthetisee.
+  3. **Full pipeline** : 2 questions representatives passees a `query_graph()` (routage reel via `route()`), meme verification de markers.
+
+**Details techniques** :
+  - Markers extraits de la verite-terrain du banc de questions (reference_answer + verification de chaque question).
+  - Utilitaires de matching identiques aux scripts Bloc 9 : `_fold_accents()` (tolerance accents), `_normalize_ws()` (tolerance separateur de milliers francais), `_word_boundary_present()` (match token entier, pas sous-chaine).
+  - SAL-Q1 passe `security_principals` dans le state (meme mecanisme que le benchmark runner, section 889).
+  - Convention de sortie : `[ - N/5] module: E2E confirmed.` ou `GAP FOUND`, exit code 0/1.
+
+**Ce qui N'A PAS ete fait** : validation complete des 5 scripts dedies sur l'ensemble des modules (necessite session continue de rejeu avec quotas Groq stables). Commit groupe suggere (ces 5 scripts + cette section contexte.txt), a la discretion de pmm.
+
+## Section 927 -- Rejeu reel PUR-Q4 (benchmark) et premier run check_bloc_n1_01 (maintenance)
+
+1. **check_bloc_n1_01_maintenance_e2e.py** :
+   - Premier run lance en direct : phase RAW OK, MNT-Q2 OK, MNT-Q4 OK, MNT-Q5 OK.
+   - Diagnostic MNT-Q1 : la reponse LLM n'a pas inclus litteralement `access_equipment_user` ni `message_partner_ids` dans sa formulation (interpretation de `equipment_rule_user` resumee globalement a la societe), remontant un statut INCOMPLETE mecanique conforme au role de filet du script.
+   
+2. **Rejeu PUR-Q4 (UI purchase) via runner benchmark** :
+   - Commande executee : `python scripts/run_bloc_n1_benchmark.py PUR-Q4`
+   - Temps d'execution : 3.98s (effectif 3.98s | sauts: 3).
+   - Outils invoques : `['analyze_security_locks', 'button_execution_path', 'read_source_code']`.
+   - Resultat : reponse parfaitement alignee avec la verite-terrain. Le groupe `purchase.group_purchase_manager` est cite, la condition d'invisibilite `invisible="state != 'to approve'"` est identifiee, et le diagnostic explicite (`NON DISPONIBLE POUR LE DEMANDEUR`) est correctement restitue.
+   - Rapports `captures/bloc_n1_verbatim.json` et `.md` mis a jour.
+
+## Section 928 -- Premier run reel check_bloc_n1_03_sale_e2e.py et validation SAL-Q3
+
+- **Commande** : `python scripts/check_bloc_n1_03_sale_e2e.py`
+- **Resultats E2E** :
+  - **RAW who_has_access_to(sale.order)** : OK (`access_sale_order`, `sale_order_personal_rule`).
+  - **SAL-Q1** (securite vendeur/portail) : OK (tous les marqueurs presents).
+  - **SAL-Q2** (workflow confirm/lock) : `action_confirm` OK, `locked` absent (paraphrase en francais 'verrouillee' / `action_lock()`).
+  - **SAL-Q3** (heritage et extension d'account.move) : **100% VALIDE** (`sale.order` et `account.move` presents, 0 marqueur interdit). Le garde-fou deterministe (`_correct_module_extension_contradiction`) s'est declenche et a injecte la vraie liste d'extensions (`account.move`, `res.partner`, etc.), annulant la negation erronee initiale du LLM.
+  - **SAL-Q4** (UI unlock manager) : **100% VALIDE** (`action_unlock`, `group_sale_manager`).
+  - **SAL-Q5** (contraintes SQL et Python) : **100% VALIDE** (`date_order`, `prepayment_percent`).
+- **Resultats Full Pipeline** :
+  - **SAL-Q1** : `sale_order_personal_rule` OK, `user_id` manquant litteralement.
+  - **SAL-Q4** : **100% VALIDE** (`group_sale_manager`).
+
+

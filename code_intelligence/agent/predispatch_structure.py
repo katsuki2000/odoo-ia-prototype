@@ -146,7 +146,7 @@ def dispatch_inheritance(ctx: DispatchContext) -> None:
                                 logger.error("Auto read_source_code after trace_full_inheritance failed: %s", re_err)
                 except Exception as te:
                     logger.error("Deterministic trace_full_inheritance dispatch failed: %s", te)
-        if mod_tool is not None and not target_mods_to_inspect and not ctx.hop_budget_exhausted:
+        if mod_tool is not None and not ctx.concept.resolved_modules and not ctx.hop_budget_exhausted:
             call_key = _tool_call_key("list_involved_modules", {"model_name": target_model})
             if call_key not in ctx.seen_calls:
                 t0 = time.perf_counter()
