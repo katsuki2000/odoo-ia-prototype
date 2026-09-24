@@ -1,6 +1,6 @@
 # Rapport Verbatim -- Bloc N1 (banc de questions natif)
 
-**Date d'execution :** 2026-09-24 16:01:24
+**Date d'execution :** 2026-09-24 16:39:41
 
 **Objectif :** rejouer les questions verite-terrain des 5 modules natifs (maintenance, purchase, sale, stock, account) contre l'agent Code Intelligence reel et capturer la reponse verbatim pour comparaison manuelle avec `reference_answer` -- aucune notation automatique.
 
@@ -12,11 +12,11 @@
 | Questions executees (consolidees) | 25 |
 | Questions rejouees ce tour | 5 |
 | Erreurs d'execution | 0 |
-| Ecarts de couverture d'outils (expected_tools non tous invoques) | 4 |
-| p50 latence effective (run courant) | `10.17s` |
-| p90 latence effective (run courant) | `48.55s` (budget `12.0s`,  DEPASSE) |
-| Moyenne (run courant) | `17.24s` |
-| Max (run courant) | `48.55s` |
+| Ecarts de couverture d'outils (expected_tools non tous invoques) | 3 |
+| p50 latence effective (run courant) | `27.77s` |
+| p90 latence effective (run courant) | `71.17s` (budget `12.0s`,  DEPASSE) |
+| Moyenne (run courant) | `38.02s` |
+| Max (run courant) | `71.17s` |
 
 ---
 
@@ -143,23 +143,17 @@ Pour voir le coût, il faut soit :
 
 **Outils attendus :** ['analyze_data_constraints'] | **Outils invoques :** ['analyze_data_constraints', 'analyze_data_constraints', 'analyze_data_constraints']
 
-**Reponse verbatim de l'agent (Total: 26.93s | Effectif: 26.926s | Groq wait: 0.0s | Sauts: 3) :**
+**Reponse verbatim de l'agent (Total: 27.77s | Effectif: 27.767s | Groq wait: 0.0s | Sauts: 3) :**
 ```text
 ### Règle empêchant les doublons de numéro de série
 
-- **Contrainte** : `unique(serial_no)` sur le champ `serial_no` du modèle `maintenance.equipment`.  
-- **Source** : [maintenance.py:L171-L173](file:///home/user/odoo-17.0/addons/maintenance/models/maintenance.py#L171-L173)
+- **Unicité du numéro de série**  
+  Le système ne permet pas de créer deux équipements portant le même numéro de série. Cette règle est appliquée par une contrainte de base de données qui rend le champ *Numéro de série* unique dans la table des équipements.
 
-Cette contrainte SQL garantit qu’aucun équipement ne peut être créé avec un numéro de série déjà présent dans la base.
+### Contrainte sur l’intervalle de répétition d’une demande récurrente
 
----
-
-### Contrainte distincte sur l’intervalle de répétition
-
-- **Contrainte** : `@api.constrains('repeat_interval')` qui vérifie que `repeat_interval` est **≥ 1**.  
-- **Source** : [maintenance.py:L280-L284](file:///home/user/odoo-17.0/addons/maintenance/models/maintenance.py#L280-L284)
-
-Si l’intervalle de répétition est inférieur à 1, une `ValidationError` est levée, empêchant la création ou la modification de la demande récurrente.
+- **Intervalle de répétition**  
+  Pour une demande récurrente, l’intervalle de répétition (*repeat_interval*) doit être **au moins 1**. Si l’utilisateur saisit une valeur inférieure à 1, le système déclenche une erreur et empêche la sauvegarde de la demande.
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```
@@ -308,23 +302,30 @@ Ainsi, un simple utilisateur ne peut pas approver une commande, même lorsqu’e
 
 **A verifier dans le code :** `models/purchase_order.py : _unlink_if_cancelled (@api.ondelete) ; models/purchase_order_line.py : _unlink_except_purchase_or_done (@api.ondelete) + _sql_constraints (accountable_required_fields, non_accountable_null_fields)`
 
-**Outils attendus :** ['analyze_data_constraints'] | **Outils invoques :** ['analyze_data_constraints', 'analyze_method_override_chain']
+**Outils attendus :** ['analyze_data_constraints'] | **Outils invoques :** ['analyze_data_constraints', 'analyze_data_constraints']
 
-**Reponse verbatim de l'agent (Total: 41.98s | Effectif: 41.985s | Groq wait: 0.0s | Sauts: 2) :**
+**Reponse verbatim de l'agent (Total: 44.45s | Effectif: 44.451s | Groq wait: 0.0s | Sauts: 2) :**
 ```text
-**Règles empêchant la suppression d’une commande d’achat ou d’une de ses lignes**
+**Supprimer une commande d’achat**
 
-| Objet | Condition / message | Source |
-|-------|---------------------|--------|
-| **Commande d’achat (`purchase.order`)** | La suppression (`unlink`) est bloquée tant que la commande n’est pas annulée. Le code lève une `UserError` : *« In order to delete a purchase order, you must cancel it first. »* | `purchase_order.py:L267-L267` |
-| **Lignes de commande (`purchase.order.line`)** | Aucun verrou SQL n’est déclaré dans les observations fournies. La seule contrainte liée aux lignes est une contrainte Python qui vérifie que les produits appartiennent à la même société que la commande (voir `@api.constrains('company_id', 'order_line')` dans `purchase_order.py:L153-L168`). | `purchase_order.py:L153-L168` |
+- **État requis** : une commande ne peut être supprimée que lorsqu’elle est dans l’état **« Annulée »**.  
+  - Si vous essayez de supprimer une commande qui n’est pas annulée, le système affiche :  
+    *« In order to delete a purchase order, you must cancel it first. »*  
+- **Vérification supplémentaire** : avant d’annuler une commande, le système vérifie qu’aucune facture fournisseur liée n’existe.  
+  - Si des factures sont présentes, l’annulation (et donc la suppression) est bloquée par le message :  
+    *« Unable to cancel this purchase order. You must first cancel the related vendor bills. »*  
 
-**Conclusion**
+En résumé, pour supprimer une commande d’achat, il faut d’abord l’annuler (état « Annulée ») et s’assurer qu’aucune facture fournisseur n’est liée à cette commande.
 
-- La suppression d’une commande d’achat est interdite tant qu’elle n’est pas dans l’état « annulée » ; le mécanisme est un contrôle Python levé à l’appel de `unlink()` (ligne 267).  
-- Pour les lignes de commande, aucune contrainte SQL distincte n’apparaît dans les observations. Seule une contrainte Python vérifie la cohérence des sociétés entre la commande et ses lignes (ligne 153‑168).  
+---
 
-Ainsi, la règle de suppression est entièrement gérée par le code Python, et aucune contrainte SQL supplémentaire n’est appliquée aux lignes elles‑mêmes selon les données disponibles.
+**Supprimer une ligne de commande d’achat**
+
+- **Contraintes SQL** : chaque ligne de commande est soumise à deux contraintes CHECK qui garantissent l’intégrité des données :
+  1. **`accountable_required_fields`** – pour les lignes « comptabilisables », les champs `product_id`, `product_uom` et `date_planned` doivent être renseignés.  
+  2. **`non_accountable_null_fields`** – pour les lignes « non comptabilisables », ces mêmes champs doivent rester vides (ou à zéro) et ne pas contenir de valeurs.  
+
+Ces contraintes empêchent la création ou la modification de lignes qui ne respectent pas ces règles, assurant ainsi que chaque ligne possède les informations nécessaires selon son type.
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```
@@ -455,19 +456,17 @@ Même si le vendeur a confirmé la commande, il ne possède pas ce groupe d’ac
 
 **Outils attendus :** ['analyze_data_constraints'] | **Outils invoques :** ['analyze_data_constraints']
 
-**Reponse verbatim de l'agent (Total: 17.68s | Effectif: 17.676s | Groq wait: 0.0s | Sauts: 1) :**
+**Reponse verbatim de l'agent (Total: 20.47s | Effectif: 20.471s | Groq wait: 0.0s | Sauts: 1) :**
 ```text
 ### Contrainte sur la date de confirmation
 
-- **Contrainte** : `date_order_conditional_required`  
-- **Description** : La commande ne peut être confirmée (`state = 'sale'`) sans que le champ `date_order` soit renseigné.  
-- **Source** : [sale_order.py:L37-L41](file:///home/user/odoo-17.0/addons/sale/models/sale_order.py#L37-L41)
+- **Quand une commande est confirmée** (état : *sale*), le système impose que la date de confirmation soit renseignée.  
+- Si la date est manquante, la base de données rejette l’opération et l’utilisateur reçoit un message d’erreur indiquant qu’une commande confirmée doit obligatoirement avoir une date de confirmation.
 
-### Contrainte sur le pourcentage d’acompte demandé
+### Contrainte sur le pourcentage d’acompte (prepayment_percent)
 
-- **Contrainte** : `_check_prepayment_percent` (définie par `@api.constrains('prepayment_percent')`)  
-- **Description** : Si la commande requiert un paiement (`require_payment` est vrai), le pourcentage d’acompte (`prepayment_percent`) doit être strictement positif et inférieur ou égal à 1.0 (c’est‑à‑dire 100 %).  
-- **Source** : [sale_order.py:L722-L726](file:///home/user/odoo-17.0/addons/sale/models/sale_order.py#L722-L726)
+- **Si la commande nécessite un acompte** (`require_payment` est activé), le pourcentage d’acompte doit être compris entre 0 % et 100 % (exprimé sous forme décimale : 0 < prepayment_percent ≤ 1,0).  
+- Toute valeur en dehors de cette plage déclenche une erreur de validation qui empêche la sauvegarde de la commande.
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```
@@ -613,29 +612,28 @@ En résumé, la plupart des utilisateurs ne voient pas ces champs parce que la f
 
 **Outils attendus :** ['analyze_data_constraints'] | **Outils invoques :** ['analyze_data_constraints', 'analyze_data_constraints']
 
-**Reponse verbatim de l'agent (Total: 40.08s | Effectif: 40.076s | Groq wait: 0.0s | Sauts: 2) :**
+**Reponse verbatim de l'agent (Total: 26.24s | Effectif: 26.237s | Groq wait: 0.0s | Sauts: 2) :**
 ```text
 ### Contraintes empêchant la création d’un **stock.quant** invalide  
 
-| Type de contrainte | Description | Source |
-|--------------------|-------------|--------|
-| **Contrôle du type de produit** | Un quant ne peut être créé que pour un produit de type « product » (pas de consommable ou service). | `@api.constrains('product_id')` – vérifie `product_id.type != 'product'` <br> [stock_quant.py:L615-L618](file:///home/user/odoo-17.0/addons/stock/models/stock_quant.py#L615-L618) |
-| **Contrôle de l’emplacement** | Un quant ne peut être stocké que dans un emplacement dont l’usage n’est pas « view ». | `@api.constrains('location_id')` – vérifie `location_id.usage == 'view'` <br> [stock_quant.py:L638-L642](file:///home/user/odoo-17.0/addons/stock/models/stock_quant.py#L638-L642) |
-| **Contrôle du lot/numéro de série** | Le lot doit être lié au même produit que le quant. | `@api.constrains('lot_id')` – vérifie `lot_id.product_id != quant.product_id` <br> [stock_quant.py:L644-L648](file:///home/user/odoo-17.0/addons/stock/models/stock_quant.py#L644-L648) |
-| **Restrictions d’opérations** | Certaines opérations (création, duplication, suppression, déplacement) sont bloquées pour les quants. | Divers `raise UserError` dans le modèle : <br> - `Operation not supported` <br> - `You cannot duplicate stock quants.` <br> - `Quant's creation is restricted, you can't do this operation.` <br> - `Quant's editing is restricted, you can't do this operation.` <br> - `Quants are auto‑deleted when appropriate. If you must manually delete them, please ask a stock manager to do it.` <br> - `Only a stock manager can validate an inventory adjustment.` <br> - `Quantity or Reserved Quantity should be set.` <br> (voir les lignes 241‑506, 506‑615, 615‑618, 618‑642, 1052‑1052, 1091‑1091, 1482‑1487) |
-| **Contraintes de domaine et d’ondelete** | Les champs `product_id`, `location_id`, `lot_id` et `package_id` ont des contraintes `ondelete='restrict'` et des domaines qui limitent les valeurs possibles. | `product_id`, `location_id`, `lot_id`, `package_id` – `ondelete='restrict'` <br> `product_id` domaine : `self._domain_product_id()` <br> `location_id` domaine : `self._domain_location_id()` <br> `lot_id` domaine : `self._domain_lot_id()` <br> `package_id` domaine : `[('location_id', '=', location_id)]` <br> (voir lignes 47‑50, 59‑62, 66‑69, 72‑75) |
+- **Produit** : le quant ne peut être créé que pour un produit de type « Produit » (pas de consommable ou de service).  
+- **Emplacement** : l’emplacement ne doit pas être de type « Vue » (usage = view).  
+- **Lot / Numéro de série** : si un lot est associé, son produit doit être le même que celui du quant.  
+- **Quantité** : la quantité et la quantité réservée doivent être renseignées et la quantité doit être positive.  
+- **Déplacement** : on ne peut déplacer que des quantités positives stockées dans des emplacements appartenant à une seule société.  
+- **Validation d’inventaire** : seule la personne ayant le rôle de « Gestionnaire de stock » peut valider un ajustement d’inventaire.  
+- **Création / Duplication** : il n’est pas possible de dupliquer un quant, de créer un quant en dehors des opérations autorisées, ou de modifier un quant si l’opération n’est pas prise en charge.  
 
-Ces contraintes, combinées aux messages d’erreur explicites, garantissent qu’un **stock.quant** ne peut être créé que lorsqu’il respecte les règles métier de l’inventaire (produit, emplacement, lot, droits d’utilisateur, etc.).
+Ces règles sont appliquées automatiquement lors de la création ou de la modification d’un quant, et un message d’erreur s’affiche si l’une d’elles est violée.
 
 ---
 
-### Règle distincte garantissant l’unicité d’un numéro de série  
+### Règle garantissant l’unicité d’un numéro de série  
 
-| Contrôle | Description | Source |
-|----------|-------------|--------|
-| **Contrôle d’unicité du lot/numéro de série** | Le champ `name` (numéro de série) doit être unique pour chaque combinaison `(product_id, company_id, name)`. | `@api.constrains('name', 'product_id', 'company_id')` – `_check_unique_lot` <br> [stock_lot.py:L91-L102](file:///home/user/odoo-17.0/addons/stock/models/stock_lot.py#L91-L102) |
+- **Lot / Numéro de série** : la combinaison *numéro de série + produit + société* doit être unique.  
+  - Si un doublon est détecté, un message d’erreur indique les combinaisons en conflit et empêche la création ou la modification du lot.  
 
-Cette contrainte est **distincte** des contraintes de `stock.quant` et s’applique directement sur le modèle `stock.lot`. Elle empêche la création de deux lots portant le même numéro de série pour le même produit au sein d’une même société.
+Cette règle assure que chaque numéro de série est unique au sein d’une société pour un produit donné.
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```
@@ -759,45 +757,23 @@ En résumé, **account.move** est un modèle propre à la comptabilité, introdu
 
 **A verifier dans le code :** `models/account_move.py : _sql_constraints (unique_name, definition vide) + _auto_init() (CREATE UNIQUE INDEX account_move_unique_name, index partiel) + _check_journal_move_type (@api.constrains)`
 
-**Outils attendus :** ['analyze_data_constraints', 'read_source_code'] | **Outils invoques :** ['analyze_security_locks', 'analyze_data_constraints'] -- MANQUANT(S): ['read_source_code']
+**Outils attendus :** ['analyze_data_constraints', 'read_source_code'] | **Outils invoques :** ['analyze_security_locks', 'read_source_code', 'analyze_data_constraints']
 
-**Reponse verbatim de l'agent (Total: 69.37s | Effectif: 69.369s | Groq wait: 0.0s | Sauts: 2) :**
+**Reponse verbatim de l'agent (Total: 71.17s | Effectif: 71.165s | Groq wait: 0.0s | Sauts: 3) :**
 ```text
 ### Comment l’unicité du numéro de pièce est réellement appliquée
 
-Dans le modèle **`account.move`** on trouve bien une entrée `_sql_constraints` nommée `unique_name`, mais son champ SQL est une chaîne vide :
+Dans le modèle **account.move**, la contrainte `_sql_constraints` nommée `unique_name` contient une chaîne SQL vide.  
+Cette contrainte n’est donc pas utilisée pour garantir l’unicité du champ **name**.
 
-```
-_sql_constraints = [(
-    'unique_name', "", "Another entry with the same name already exists.",
-)]
-```
+L’unicité est assurée par un **index unique** créé directement dans la base de données :
 
-Cette déclaration est uniquement un *placeholder* ; elle ne crée pas d’index.  
-L’unicité est en fait assurée par un **index SQL brut** créé dans la méthode d’initialisation du module :
+- **Index** : `account_move_unique_name`  
+- **Colonnes** : `name` et `journal_id`  
+- **Condition** : l’index ne s’applique qu’aux écritures dont l’état est « posted » et dont le nom n’est pas « / ».
 
-```
-self.env.cr.execute("""
-    CREATE UNIQUE INDEX account_move_unique_name
-        ON account_move(name, journal_id)
-    WHERE (state = 'posted' AND name != '/')
-""")
-```
-
-- **Lieu** : cette instruction se trouve dans la fonction `_auto_init` (ou `init`) du module `account`.  
-- **Cible** : l’index `account_move_unique_name` est appliqué sur les colonnes `name` et `journal_id`.  
-- **Condition** : il ne s’applique qu’aux écritures déjà **postées** (`state = 'posted'`) et dont le numéro n’est pas le placeholder `/`.  
-- **Effet** : il empêche la création de deux écritures postées ayant le même numéro dans le même journal, garantissant ainsi l’unicité du numéro de pièce.
-
-#### Sources
-
-- Déclaration vide de l’`_sql_constraints` :  
-  [account_move.py:L625-L627](file:///home/user/odoo-17.0/addons/account/models/account_move.py#L625-L627)
-
-- Création de l’index brut :  
-  [account_move.py:L643-L647](file:///home/user/odoo-17.0/addons/account/models/account_move.py#L643-L647)
-
-Ainsi, même si la contrainte `_sql_constraints` ne contient pas de SQL, l’unicité est réellement appliquée grâce à l’index créé manuellement lors de l’installation du module.
+Cet index est créé lors de l’installation du module `account` (dans la méthode `_auto_init` ou `init`).  
+Il garantit que, dès qu’une écriture est validée (passée en état *posted*), son numéro de pièce est unique dans le journal correspondant, empêchant ainsi les doublons au niveau de la base de données.
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```

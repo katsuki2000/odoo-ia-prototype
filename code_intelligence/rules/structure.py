@@ -616,10 +616,12 @@ def _neutralize_module_extension_denial(final_answer: str, extended_models: List
         else:
             merged.append([start, end])
 
-    # Replace from the last span to the first so earlier offsets stay valid.
+    # The statement is made once, at the first denial; later denials are
+    # dropped (ACC-Q3 printed the same sentence twice, section 939). Work from
+    # the last span to the first so earlier offsets stay valid.
     out = final_answer
-    for start, end in reversed(merged):
-        out = out[:start] + replacement + out[end:]
+    for index, (start, end) in reversed(list(enumerate(merged))):
+        out = out[:start] + (replacement if index == 0 else "") + out[end:]
     return out
 
 

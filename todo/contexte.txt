@@ -3007,7 +3007,7 @@ Arbitrage pmm : "vas-y pour les 2" (M et N de la 937). Cause racine commune : le
 
 **Tests** : `test_section934_callee_following.py` (extraction + lecture reelle du hook de taxes), `test_section918_implied_ids_and_citations.py` (`TestPromptGrounding`, 3 tests). 137 passes sur prompts/sections 9xx/callee/synthese ; suite complete et rejeu du banc N1 (25 questions, impact large : prompt de synthese + plafond de suivi) a faire par pmm.
 
-**Reste a arbitrer** : O (libelles de groupes dans `who_has_access_to`/`evaluate_record_rules`), K (reference_answer d'ACC-Q2), L (expected_tools d'ACC-Q2), tri par pertinence des blocs de `analyze_security_locks` (935).
+**Reste a arbitrer** : O (libellés de groupes dans `who_has_access_to`/`evaluate_record_rules`), K (reference_answer d'ACC-Q2), L (expected_tools d'ACC-Q2), tri par pertinence des blocs de `analyze_security_locks` (935).
 
 
 (.venv) user@debian:~/odoo-ia-prototype$ python scripts/run_bloc_n1_benchmark.py MNT-Q1 SAL-Q1 PUR-Q1 STK-Q1 ACC-Q1
@@ -3512,3 +3512,199 @@ Outils invoques: ['analyze_data_constraints', 'analyze_data_constraints', 'analy
 Question: Quelles regles empechent de supprimer une commande d'achat ou une de ses lignes selon leur etat, et quelle contrainte SQL distincte s'applique sur les lignes elles-memes ?
 --------------------------------------------------------------------------------
 Erreur de connexion transitoire (attempt 1/5): Connection error.. Retry dans 3.0s...
+
+
+## Section 939 -- Rejeu N1 Q1-Q4 (+ MNT-Q5) post-938 colle par pmm : analyse contre verite-terrain et code Odoo 17 reel, 1 defaut corrige (duplication du garde d'extension), Q5 interrompu par erreur reseau (2026-09-24)
+
+Contexte : rejeu du banc N1 demande en fin de 938. Q1 a Q4 complets (20/20), MNT-Q5 complet, PUR-Q5 interrompu par "Erreur de connexion transitoire (attempt 1/5)" -- SAL-Q5, PUR-Q5, STK-Q5, ACC-Q5 non observes dans cette sortie. Lecture de `tests/native_n1_question_bank.json` (reference_answer) + verification directe dans `odoo-17.0/addons` (maintenance.write, sale.action_confirm, noms de groupes).
+
+**Verdicts (verite-terrain)** :
+- Corrects : MNT-Q1, SAL-Q1, PUR-Q2 (les 3 criteres de `_approval_allowed` + etats purchase/done desormais justes : N(b) de 938 confirme), STK-Q2, MNT-Q3, MNT-Q4, PUR-Q4, SAL-Q4, STK-Q4, ACC-Q4, MNT-Q5, ACC-Q2 (verdict).
+- Verdict juste, explication faible ou incomplete : ACC-Q1 ("via l'heritage de « Account Manager »" et "regle d'heritage de account.group_account_invoice" : direction/nom faux, l'implied_ids n'est pas verbalise proprement) ; PUR-Q1 (le libelle « Valider » n'existe pas, le bouton est "Confirm Order" ; `_approval_allowed()` non nomme mais les 3 criteres sont la) ; STK-Q1 (dit "lecture et ecriture" pour stock.move.line alors que l'ACL est 1,1,1,1, et "aucune ir.rule" alors que la regle multi-societe existe) ; MNT-Q2 (omet la borne `repeat_type=='forever'` / `repeat_until` qui conditionne la creation ; ajoute "followers conserves, notifications envoyees" qui n'est pas dans `write()` -- `_add_followers` ne joue que sur owner/user ; close_date, reset kanban_state, activity_update sont en revanche exacts).
+- Faux ou contradictoires : SAL-Q2 (encore "taxes recalculees et validees" alors que `validate_taxes_on_sales_order` est un hook vide -- la regle 8/EFFECT_GROUNDING de 938 n'a pas suffi ; omet aussi la garde `_can_be_confirmed` et la validation analytique) ; SAL-Q3 (repond `portal.mixin` comme "premier modele natif etendu directement", nom de classe absent, `analyze_method_override_chain` jamais appele ; la ref attend account.move / AccountMove) ; ACC-Q3 (phrase d'extension imprimee 2 fois + conclusion "ne touche pas a d'autres modeles natifs" qui contredit la liste de 25) ; PUR-Q3 (les modeles etendus sont justes, le "comment" est invente : res.partner "champs de reference fournisseur", account.tax "regles de calcul" ; la surcharge `create()/write()` d'account.move n'est pas lue) ; STK-Q3 (product.product bien dans la liste mais champs cles non donnes, 70 s de latence).
+- Libelles de groupes : « Purchase Manager » / « Sales Manager » sont deduits du xml_id (libelle reel : "Administrator") ; « Gestionnaire d'equipement » et « Gestion des emplacements multiples » sont des traductions de "Equipment Manager" / "Manage Multiple Stock Locations". La regle M de 938 est respectee quand le libelle figure dans l'observation, contournee sinon -> confirme que O (exposer `name` du Group dans `who_has_access_to`/`evaluate_record_rules`/`button_execution_path`) est le vrai correctif, pas un renforcement de prompt.
+
+**Corrige (root cause, code_intelligence/rules/structure.py)** : `_neutralize_module_extension_denial` remplacait CHAQUE phrase de denial par l'enonce complet (spans non fusionnes car separes par un espace) -> enonce duplique (ACC-Q3). Desormais l'enonce est emis une seule fois au premier denial, les suivants sont retires. Test ajoute dans `test_bug8_module_extension_negation.py` ; 34 tests garde-extension verts.
+
+**Non corrige, a arbitrer** :
+- P : le garde d'extension reste une famille de correctifs textuels sur formulation (sections 840-857) ; `ne touche pas ... en dehors de ce domaine` echappe a `_MODULE_EXTENSION_DENIAL_RE`, et la couverture est mesuree APRES insertion de la liste par le garde lui-meme, donc toujours satisfaite. Root cause : la synthese (8B) ignore la liste meme quand elle est explicite (STK-Q3 : retry sans effet). Piste structurelle : bloc "extensions hors perimetre" produit de facon deterministe par le dispatch inheritance et retire du perimetre du LLM (coherent avec le scaffolding existant), plutot qu'un regex de plus. Idem pour la question "sous quel nom de classe" (SAL-Q3) : le nom de classe doit venir d'un outil, pas de la synthese.
+- Q : SAL-Q3, la question est ambigue (24 modeles etendus, la ref en retient un seul, account.move) ; reformuler la question ou la reference_answer (meme famille que K/L de 937).
+- R : SAL-Q2, faire marquer explicitement les hooks vides comme "no-op (retourne True)" dans l'observation de `read_source_code`/predispatch, pour que la synthese ne leur attribue aucun effet.
+- S : MNT-Q2, condition `repeat_type`/`repeat_until` : verifier si le relai deterministe `describe_workflow -> write()` (912) expose la condition ; sinon l'ajouter.
+- Rappel ouvert : O, K, L, tri de pertinence de `analyze_security_locks` (troncature account.move visible sur ACC-Q1/Q2/Q4).
+
+**Delegue a pmm** : (1) relancer `python scripts/run_bloc_n1_benchmark.py SAL-Q5 PUR-Q5 STK-Q5 ACC-Q5` (interrompu par le reseau) ; (2) suite complete `pytest` (seuls les 34 tests du garde d'extension ont ete rejoues ici).
+Je commence par charger les outils filesystem/bash pour lire la fin de `todo/contexte` avant d'analyser ce benchmark.Maintenant le test de non-régression (ajouté au fichier existant du garde), puis exécution des tests concernés.J'ai analysé le rejeu (20 questions Q1 à Q4, plus MNT-Q5) contre `reference_answer` et le code Odoo 17. J'ai corrigé un défaut et consigné le tout en section 939 de `todo/contexte.txt`.
+
+**Verdicts**
+- **Corrects :** MNT-Q1, SAL-Q1, PUR-Q2, STK-Q2, MNT-Q3, MNT-Q4, PUR-Q4, SAL-Q4, STK-Q4, ACC-Q4, MNT-Q5 et ACC-Q2 (verdict). PUR-Q2 confirme le point N(b) de la 938 : les trois critères de `_approval_allowed` sont là.
+- **Verdict juste, explication faible :**
+  - ACC-Q1 : la direction de l'héritage est fausse.
+  - PUR-Q1 : un libellé « Valider » inventé.
+  - STK-Q1 : dit « lecture et écriture » sur `stock.move.line` alors que l'ACL est 1,1,1,1.
+  - MNT-Q2 : omet la borne `repeat_until` / `forever` et invente « followers conservés ».
+- **Faux ou contradictoires :**
+  - SAL-Q2 : dit toujours « taxes recalculées », alors que `validate_taxes_on_sales_order` est un hook vide. La règle EFFECT_GROUNDING de la 938 n'a pas suffi.
+  - SAL-Q3 : répond `portal.mixin`, sans nom de classe. La référence attend `account.move` / `AccountMove`.
+  - ACC-Q3 : la phrase d'extension est imprimée deux fois, et la conclusion contredit la liste de 25 modèles.
+  - PUR-Q3 : les modèles étendus sont justes, mais le « comment » est inventé.
+  - STK-Q3 : ne donne pas les champs clés, avec 70 s de latence.
+- **Libellés de groupes :** « Purchase Manager » et « Sales Manager » sont déduits du xml_id (le libellé réel est « Administrator »). Le vrai correctif est le point O de la 938 (exposer le `name` du groupe dans les observations), pas un prompt de plus.
+
+**Corrigé (root cause)**
+`_neutralize_module_extension_denial` dans `code_intelligence/rules/structure.py` insérait l'énoncé d'extension à chaque phrase de déni. Il l'émet maintenant une seule fois et retire les autres dénis. J'ai ajouté un test dans `test_bug8_module_extension_negation.py`, et les 34 tests du garde passent.
+
+**À arbitrer**
+- **P :** le garde d'extension repose sur des regex de formulation (sections 840 à 857). « ne touche pas … en dehors de ce domaine » lui échappe, et la couverture est mesurée après l'insertion de sa propre liste, donc toujours satisfaite. Je propose de produire ce bloc de façon déterministe dans le dispatch inheritance, hors du périmètre du LLM. Cela règle aussi le nom de classe de SAL-Q3.
+- **Q :** la question SAL-Q3 est ambiguë (24 modèles étendus, la référence n'en retient qu'un). Il faudrait la reformuler.
+- **R :** marquer les hooks vides comme « no-op » dans l'observation de `read_source_code`, pour SAL-Q2.
+- **S :** vérifier que la condition `repeat_type` / `repeat_until` est exposée par le relais `describe_workflow -> write()`, pour MNT-Q2.
+- **O, K, L :** toujours ouverts depuis la 937 et la 938. La troncature d'`analyze_security_locks` reste visible sur ACC-Q1, ACC-Q2 et ACC-Q4.
+
+**À toi de lancer**
+1. `python scripts/run_bloc_n1_benchmark.py SAL-Q5 PUR-Q5 STK-Q5 ACC-Q5` : la sortie s'est arrêtée sur une erreur réseau à PUR-Q5.
+2. La suite `pytest` complète.
+
+Dis-moi lequel de P, O ou R je traite en premier.
+
+(.venv) user@debian:~/odoo-ia-prototype$ python scripts/run_bloc_n1_benchmark.py MNT-Q5 SAL-Q5 PUR-Q5 STK-Q5 ACC-Q5
+================================================================================
+ BLOC N1 -- BENCHMARK RUNNER (banc de questions natif) 
+ Cible : 5 question(s) (filtre id=['MNT-Q5', 'SAL-Q5', 'PUR-Q5', 'STK-Q5', 'ACC-Q5'], module=None)
+================================================================================
+
+--------------------------------------------------------------------------------
+[MNT-Q5] module=maintenance capability=constraints difficulty=medium
+Question: Quelle regle empeche de creer deux equipements avec le meme numero de serie, et quelle contrainte distincte s'applique sur l'intervalle de repetition (repeat_interval) d'une demande recurrente ?
+--------------------------------------------------------------------------------
+Reponse verbatim (27.77s total | effectif 27.77s | groq_wait 0.00s | sauts 3):
+### Règle empêchant les doublons de numéro de série
+
+- **Unicité du numéro de série**  
+  Le système ne permet pas de créer deux équipements portant le même numéro de série. Cette règle est appliquée par une contrainte de base de données qui rend le champ *Numéro de série* unique dans la table des équipements.
+
+### Contrainte sur l’intervalle de répétition d’une demande récurrente
+
+- **Intervalle de répétition**  
+  Pour une demande récurrente, l’intervalle de répétition (*repeat_interval*) doit être **au moins 1**. Si l’utilisateur saisit une valeur inférieure à 1, le système déclenche une erreur et empêche la sauvegarde de la demande.
+
+[Source: Graphe de Connaissances Code Intelligence]
+Outils invoques: ['analyze_data_constraints', 'analyze_data_constraints', 'analyze_data_constraints']
+
+--------------------------------------------------------------------------------
+[PUR-Q5] module=purchase capability=constraints difficulty=medium
+Question: Quelles regles empechent de supprimer une commande d'achat ou une de ses lignes selon leur etat, et quelle contrainte SQL distincte s'applique sur les lignes elles-memes ?
+--------------------------------------------------------------------------------
+Reponse verbatim (44.45s total | effectif 44.45s | groq_wait 0.00s | sauts 2):
+**Supprimer une commande d’achat**
+
+- **État requis** : une commande ne peut être supprimée que lorsqu’elle est dans l’état **« Annulée »**.  
+  - Si vous essayez de supprimer une commande qui n’est pas annulée, le système affiche :  
+    *« In order to delete a purchase order, you must cancel it first. »*  
+- **Vérification supplémentaire** : avant d’annuler une commande, le système vérifie qu’aucune facture fournisseur liée n’existe.  
+  - Si des factures sont présentes, l’annulation (et donc la suppression) est bloquée par le message :  
+    *« Unable to cancel this purchase order. You must first cancel the related vendor bills. »*  
+
+En résumé, pour supprimer une commande d’achat, il faut d’abord l’annuler (état « Annulée ») et s’assurer qu’aucune facture fournisseur n’est liée à cette commande.
+
+---
+
+**Supprimer une ligne de commande d’achat**
+
+- **Contraintes SQL** : chaque ligne de commande est soumise à deux contraintes CHECK qui garantissent l’intégrité des données :
+  1. **`accountable_required_fields`** – pour les lignes « comptabilisables », les champs `product_id`, `product_uom` et `date_planned` doivent être renseignés.  
+  2. **`non_accountable_null_fields`** – pour les lignes « non comptabilisables », ces mêmes champs doivent rester vides (ou à zéro) et ne pas contenir de valeurs.  
+
+Ces contraintes empêchent la création ou la modification de lignes qui ne respectent pas ces règles, assurant ainsi que chaque ligne possède les informations nécessaires selon son type.
+
+[Source: Graphe de Connaissances Code Intelligence]
+Outils invoques: ['analyze_data_constraints', 'analyze_data_constraints']
+
+--------------------------------------------------------------------------------
+[SAL-Q5] module=sale capability=constraints difficulty=medium
+Question: Quelle contrainte empeche une commande confirmee de ne pas avoir de date de confirmation, et quelle contrainte distincte s'applique sur le pourcentage d'acompte demande (prepayment_percent) ?
+--------------------------------------------------------------------------------
+Reponse verbatim (20.47s total | effectif 20.47s | groq_wait 0.00s | sauts 1):
+### Contrainte sur la date de confirmation
+
+- **Quand une commande est confirmée** (état : *sale*), le système impose que la date de confirmation soit renseignée.  
+- Si la date est manquante, la base de données rejette l’opération et l’utilisateur reçoit un message d’erreur indiquant qu’une commande confirmée doit obligatoirement avoir une date de confirmation.
+
+### Contrainte sur le pourcentage d’acompte (prepayment_percent)
+
+- **Si la commande nécessite un acompte** (`require_payment` est activé), le pourcentage d’acompte doit être compris entre 0 % et 100 % (exprimé sous forme décimale : 0 < prepayment_percent ≤ 1,0).  
+- Toute valeur en dehors de cette plage déclenche une erreur de validation qui empêche la sauvegarde de la commande.
+
+[Source: Graphe de Connaissances Code Intelligence]
+Outils invoques: ['analyze_data_constraints']
+
+--------------------------------------------------------------------------------
+[STK-Q5] module=stock capability=constraints difficulty=medium
+Question: Quelles contraintes empechent la creation d'un stock.quant invalide, et quelle regle distincte garantit l'unicite d'un numero de serie ?
+--------------------------------------------------------------------------------
+Reponse verbatim (26.24s total | effectif 26.24s | groq_wait 0.00s | sauts 2):
+### Contraintes empêchant la création d’un **stock.quant** invalide  
+
+- **Produit** : le quant ne peut être créé que pour un produit de type « Produit » (pas de consommable ou de service).  
+- **Emplacement** : l’emplacement ne doit pas être de type « Vue » (usage = view).  
+- **Lot / Numéro de série** : si un lot est associé, son produit doit être le même que celui du quant.  
+- **Quantité** : la quantité et la quantité réservée doivent être renseignées et la quantité doit être positive.  
+- **Déplacement** : on ne peut déplacer que des quantités positives stockées dans des emplacements appartenant à une seule société.  
+- **Validation d’inventaire** : seule la personne ayant le rôle de « Gestionnaire de stock » peut valider un ajustement d’inventaire.  
+- **Création / Duplication** : il n’est pas possible de dupliquer un quant, de créer un quant en dehors des opérations autorisées, ou de modifier un quant si l’opération n’est pas prise en charge.  
+
+Ces règles sont appliquées automatiquement lors de la création ou de la modification d’un quant, et un message d’erreur s’affiche si l’une d’elles est violée.
+
+---
+
+### Règle garantissant l’unicité d’un numéro de série  
+
+- **Lot / Numéro de série** : la combinaison *numéro de série + produit + société* doit être unique.  
+  - Si un doublon est détecté, un message d’erreur indique les combinaisons en conflit et empêche la création ou la modification du lot.  
+
+Cette règle assure que chaque numéro de série est unique au sein d’une société pour un produit donné.
+
+[Source: Graphe de Connaissances Code Intelligence]
+Outils invoques: ['analyze_data_constraints', 'analyze_data_constraints']
+
+--------------------------------------------------------------------------------
+[ACC-Q5] module=account capability=constraints difficulty=hard
+Question: account.move declare un _sql_constraints 'unique_name' dont la definition SQL est une chaine vide -- comment l'unicite du numero de piece est-elle reellement appliquee ?
+--------------------------------------------------------------------------------
+Node [code_intelligence_agent]: an observation was truncated (cap reached) and the marker is being stripped from user-facing text [source: analyze_security_locks(account.move), 2992 chars] -- some evidence may be missing from this answer. See todo/contexte.txt sections 801-802/876.
+Node [code_intelligence_agent]: an observation was truncated (cap reached) and the marker is being stripped from user-facing text [source: analyze_data_constraints(account.move), 30928 chars] -- some evidence may be missing from this answer. See todo/contexte.txt sections 801-802/876.
+Reponse verbatim (71.17s total | effectif 71.17s | groq_wait 0.00s | sauts 3):
+### Comment l’unicité du numéro de pièce est réellement appliquée
+
+Dans le modèle **account.move**, la contrainte `_sql_constraints` nommée `unique_name` contient une chaîne SQL vide.  
+Cette contrainte n’est donc pas utilisée pour garantir l’unicité du champ **name**.
+
+L’unicité est assurée par un **index unique** créé directement dans la base de données :
+
+- **Index** : `account_move_unique_name`  
+- **Colonnes** : `name` et `journal_id`  
+- **Condition** : l’index ne s’applique qu’aux écritures dont l’état est « posted » et dont le nom n’est pas « / ».
+
+Cet index est créé lors de l’installation du module `account` (dans la méthode `_auto_init` ou `init`).  
+Il garantit que, dès qu’une écriture est validée (passée en état *posted*), son numéro de pièce est unique dans le journal correspondant, empêchant ainsi les doublons au niveau de la base de données.
+
+[Source: Graphe de Connaissances Code Intelligence]
+Outils invoques: ['analyze_security_locks', 'read_source_code', 'analyze_data_constraints']
+
+Rapport JSON sauvegarde (25 questions): /home/user/odoo-ia-prototype/captures/bloc_n1_verbatim.json
+Rapport Markdown sauvegarde: /home/user/odoo-ia-prototype/captures/bloc_n1_verbatim.md
+================================================================================
+(.venv) user@debian:~/odoo-ia-prototype$ 
+## Section 932 — Vague Q5 complète (Constraints x5) : 5/5 validés (2026-09-24)
+
+- **Exécution** : `python scripts/run_bloc_n1_benchmark.py MNT-Q5 SAL-Q5 PUR-Q5 STK-Q5 ACC-Q5`
+- **Résultats** :
+  - **MNT-Q5** (maintenance) ✅ : Unicité SQL `serial_no` + contrainte Python `repeat_interval >= 1` parfaitement expliquées.
+  - **PUR-Q5** (purchase) ✅ : Obligation de l'état « Annulée » pour supprimer la commande + les 2 contraintes SQL CHECK (`accountable_required_fields` / `non_accountable_null_fields`) sur les lignes identifiées.
+  - **SAL-Q5** (sale) ✅ : Contrainte SQL sur `date_order` à l'état `sale` + plage `0 < prepayment_percent <= 1.0` avec `require_payment` exactement décrites.
+  - **STK-Q5** (stock) ✅ : Contraintes sur `stock.quant` (produit stockable uniquement, exclusion des emplacements type vue, cohérence produit/lot) + unicité applicative du lot (combinaison nom + produit + société) 100% exactes.
+  - **ACC-Q5** (account - HARD) ✅ : Explication parfaite de l'index unique partiel `account_move_unique_name` sur `(name, journal_id)` conditionné par `state = 'posted' AND name != '/'` créé dans `_auto_init()`.
+- **Validation UX (Section 930)** :
+  - **100% respecté** sur les 5 questions : aucune section `### Preuves` markdown parasite dans le corps du texte.
+  - Réponses fluides, claires et rédigées en langage métier sans fuite de code brut.
+  - Toutes les preuves et citations sont isolées dans `sources` pour le dépliant de l'interface.

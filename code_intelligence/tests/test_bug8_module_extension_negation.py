@@ -155,3 +155,13 @@ def test_module_mode_evidence_survives_model_scoped_filtering_via_raw_tool_outpu
     )
     assert "ne s\u2019\u00e9tend pas" not in fixed
     assert "res.partner" in fixed
+
+
+def test_several_denial_sentences_yield_a_single_real_extension_statement():
+    answer = (
+        "- **Extension** : le module account ne s\u2019\u00e9tend pas hors de son p\u00e9rim\u00e8tre comptable. "
+        "Le module account n\u2019\u00e9tend pas non plus un mod\u00e8le natif en dehors de son domaine.\n"
+    )
+    fixed = _correct_module_extension_contradiction(answer, _RAW_OUTPUT, question=_QUESTION)
+    assert fixed.count("\u00e9tend bien 3 mod\u00e8le(s)") == 1
+    assert "n\u2019\u00e9tend pas" not in fixed
