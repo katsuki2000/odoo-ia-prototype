@@ -278,24 +278,22 @@ def _compose_method_override_chain(
             evidence=_build_override_chain_evidence_no_sites(model_name, method_name),
         )
 
-    lines = [
-        f"Cha\u00eene de surcharge de '{model_name}.{method_name}' "
-        f"({len(sites)} modules, ordre d'ex\u00e9cution r\u00e9el, pas l'ordre de d\u00e9pendance):"
-    ]
-
+    site_blocks: List[str] = []
     warnings: List[str] = []
     snippets_for_llm: List[str] = []
     evidence: List[Evidence] = []
 
     for idx, site in enumerate(sites, start=1):
+        site_lines: List[str] = []
         link = format_file_link(site.filepath, site.lineno, site.end_lineno or site.lineno)
-        lines.append(f"  {idx}. module '{site.module}' -- {link}")
+        site_lines.append(f"  {idx}. module '{site.module}' -- {link}")
         evidence.append(
             _build_override_chain_site_evidence(model_name, method_name, idx, len(sites), site)
         )
 
         p = Path(site.filepath)
         if not p.exists():
+            site_blocks.append("\n".join(site_lines))
             continue
         source = p.read_text(encoding="utf-8")
         site_has_warning = False
@@ -308,7 +306,7 @@ def _compose_method_override_chain(
         ))
         if warning:
             warnings.append(warning)
-            lines.append(f"     {warning}")
+            site_lines.append(f"     {warning}")
             site_has_warning = True
 
         relational_warning = detect_unchecked_relational_chain(
@@ -319,7 +317,7 @@ def _compose_method_override_chain(
         ))
         if relational_warning:
             warnings.append(relational_warning)
-            lines.append(f"     {relational_warning}")
+            site_lines.append(f"     {relational_warning}")
             site_has_warning = True
 
         security_analysis = analyze_python_security_locks(source, site.filepath)
@@ -327,13 +325,13 @@ def _compose_method_override_chain(
             security_analysis, site.lineno, site.end_lineno or site.lineno
         )
         for constraint in site_constraints:
-            lines.append(f"     {constraint}")
+            site_lines.append(f"     {constraint}")
 
         if not site_has_warning:
-            lines.append(
-                "     (aucun risque structurel d\u00e9tect\u00e9 par cette heuristique "
-                "pour ce module -- pas de branche non garante ni de cha\u00eene "
-                "relationnelle non v\u00e9rifi\u00e9e trouv\u00e9e)"
+            site_lines.append(
+                "     (aucun risque structurel détecté par cette heuristique "
+                "pour ce module -- pas de branche non garante ni de chaîne "
+                "relationnelle non vérifiée trouvée)"
             )
 
         if site.end_lineno:
@@ -342,18 +340,37 @@ def _compose_method_override_chain(
                 f"# module '{site.module}' ({site.filepath}:L{site.lineno}-L{site.end_lineno})\n"
                 + "\n".join(snippet_lines)
             )
+        site_blocks.append("\n".join(site_lines))
 
+    trailing_lines: List[str] = []
     if warnings and llm is not None:
         interpretation = interpret_override_chain_with_llm(
             model_name, method_name, warnings, snippets_for_llm, llm
         )
         if interpretation:
-            lines.append(
-                f"  -> Interpr\u00e9tation LLM [confiance: {interpretation['confidence'].upper()}, "
+            trailing_lines.append(
+                f"  -> Interprétation LLM [confiance: {interpretation['confidence'].upper()}, "
                 f"distincte de la confiance statique ci-dessus]: {interpretation['summary']}"
             )
 
-    return MethodOverrideChainResult(summary_text="\n".join(lines), evidence=evidence)
+    header_text = (
+        f"Chaîne de surcharge de '{model_name}.{method_name}' "
+        f"({len(sites)} modules, ordre d'exécution réel, pas l'ordre de dépendance):"
+    )
+
+    from code_intelligence.rules.relevance_budget import assemble_relevance_ranked_blocks
+    from code_intelligence.agent.context import PER_TOOL_OBSERVATION_CAPS
+    from code_intelligence.agent.tool_helpers import get_current_question
+
+    trailing_str = ("\n" + "\n".join(trailing_lines)) if trailing_lines else ""
+    overhead = len(header_text) + 1 + len(trailing_str)
+    body_budget = max(0, PER_TOOL_OBSERVATION_CAPS.get("analyze_method_override_chain", 2200) - overhead)
+    body = assemble_relevance_ranked_blocks(
+        site_blocks, body_budget, question=get_current_question(), separator="\n",
+    )
+    summary_text = f"{header_text}\n{body}{trailing_str}" if body else f"{header_text}{trailing_str}"
+
+    return MethodOverrideChainResult(summary_text=summary_text, evidence=evidence)
 
 
 def analyze_method_override_chain(

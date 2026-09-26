@@ -17,6 +17,7 @@ from code_intelligence.rules.group_resolver import (
 )
 from code_intelligence.rules.record_rules import RuleDetail
 from code_intelligence.rules.ontology import tags_for_node_attrs
+from code_intelligence.rules.relevance_budget import assemble_relevance_ranked_blocks
 from code_intelligence.utils import format_xml_id_citation, format_xml_id_citations
 from core.evidence.evidence import Evidence, EvidenceSourceType, make_evidence
 
@@ -215,7 +216,26 @@ def who_has_access_to(
             _grp_suffix = f" ({_grp_citations})" if _grp_citations else ""
             rights_summary.append(f"[{p.upper()}]: {grp_str} (Rules: {len(rules)}){_grp_suffix}")
 
-        summary = f"Access Matrix for '{model_name}':\n" + "\n".join(rights_summary)
+        header = f"Access Matrix for '{model_name}':"
+        from code_intelligence.agent.context import PER_TOOL_OBSERVATION_CAPS
+        from code_intelligence.agent.tool_helpers import get_current_question
+        # Section 950 (todo/contexte.txt section 948, point 1): the 4
+        # permission blocks used to be flat-joined and left to the
+        # generic, position-blind head-truncation in
+        # context.py::_truncate_observation, which drops whichever
+        # block(s) sit AFTER wherever the cut lands, in fixed READ/WRITE/
+        # CREATE/UNLINK order regardless of which permission the question
+        # actually asks about (confirmed root cause of STK-Q1, section
+        # 894 -- write.access.group_user sat past the old cap and was
+        # silently dropped). assemble_relevance_ranked_blocks keeps every
+        # block in that same original order in the OUTPUT, but decides
+        # which one(s) survive a cut by relevance to the question instead
+        # of pure position -- a no-op when everything already fits.
+        body_budget = max(0, PER_TOOL_OBSERVATION_CAPS.get("who_has_access_to", 11000) - len(header) - 1)
+        body = assemble_relevance_ranked_blocks(
+            rights_summary, body_budget, question=get_current_question(), separator="\n",
+        )
+        summary = f"{header}\n{body}"
 
         return AccessEvaluationResult(
             model_name=model_name,

@@ -3999,3 +3999,43 @@ Le vrai ecart : `analyze_security_locks` beneficie SEUL d'une troncature "intell
 **Reste ouvert** : point 1 de la section 948 (asymetrie du cap de troncature -- seul `analyze_security_locks` beneficie du waterfill/rerank par pertinence) toujours sans code ni mandat. Aucun changement apporte a `context.py` dans cette section.
 
 **Delegue a pmm** : decider si l'arbre de travail (sections 941-949) doit etre commite maintenant (un ou plusieurs commits) avant d'attaquer le point 1, et arbitrer le mandat du point 1 (etendre le waterfill a `who_has_access_to`/`evaluate_record_rules`/`analyze_method_override_chain`, ou accepter le risque residuel documente en section 948).
+
+## Section 950 -- Résolution du Point 1 de la Section 948 : Généralisation du reranking par pertinence et water-filling avec minimum protégé aux observations d'accès, de règles et de surcharges (1088 passés, 0 échec) (2026-09-26)
+
+**Contexte** : Traitement du dernier point ouvert de la Section 948 (asymétrie du cap de troncature). Historiquement (sections 824-846), seul `analyze_security_locks` disposait d'un mécanisme d'assemblage multi-blocs avec minimum protégé et reranking lexical contre la question (`_waterfill_with_protected_minimum` et `_rerank_by_relevance`). Les autres outils d'observation multi-blocs (`who_has_access_to`, `evaluate_record_rules`, `analyze_method_override_chain`) retombaient sur la troncature naive en tête (`context.py::_truncate_observation`), coupant purement et simplement selon l'ordre fixe des blocs (ex. `[READ]` puis `[WRITE]` puis `[CREATE]` puis `[UNLINK]` ; ou règles ignorées avant la conclusion ; ou premier module dans l'ordre d'exécution de surcharge) indépendamment de la question posée, risquant de supprimer silencieusement le fait pertinent lorsque le budget cumule de tour se resserrait (constat STK-Q1 en 894, squeeze budgétaire en 947 point 1).
+
+**Root causes et architecture mise en place** :
+1. **Module générique d'allocation budgétaire par pertinence (`relevance_budget.py`)** :
+   - Extraction des primitives tool-agnostiques depuis `security_evidence.py` vers `code_intelligence/rules/relevance_budget.py` :
+     - `_significant_tokens(text)` : extraction des tokens métier significatifs (>3 car.) hors stopwords FR/EN.
+     - `_relevance_score(text, question)` : score lexical combinant `rapidfuzz.fuzz.token_set_ratio` et bonus d'overlap de tokens significatifs.
+     - `_rerank_by_relevance(items, text_fn, question)` : tri stable descendant par pertinence, no-op strict si aucune question fournie.
+     - `_protected_prefix_end(text)` : délimitation sécurisée garantissant la préservation du header et de la première ligne de finding substantielle (et puces de continuation `*`), évitant les coupes mi-ligne destructrices.
+     - `_waterfill_with_protected_minimum(sizes, texts, budget, priority)` : distribution proportionnelle du budget résiduel après garantie du minimum protégé par ordre de priorité.
+     - `assemble_relevance_ranked_blocks(blocks, budget, question, separator="\n")` : fonction universelle de réassemblage de blocs dans leur ordre original, sélectionnant les blocs survivants par pertinence et minimum protégé.
+2. **Refactorisation de `security_evidence.py`** :
+   - `security_evidence.py` délègue désormais `_rerank_by_relevance` et `_waterfill_with_protected_minimum` à `relevance_budget.py`, éliminant la duplication de code tout en préservant son algorithme bi-tier (essentiel vs messages d'exception).
+3. **Généralisation à `who_has_access_to` (`access_evaluator.py`)** :
+   - La matrice des 4 permissions (`[READ]`, `[WRITE]`, `[CREATE]`, `[UNLINK]`) est assemblée via `assemble_relevance_ranked_blocks` sous le plafond `PER_TOOL_OBSERVATION_CAPS["who_has_access_to"]` (11000 car.). En cas de coupe, la permission interrogée par la question (ex. droit d'écriture `[WRITE]`) est protégée et survit en priorité.
+4. **Généralisation à `evaluate_record_rules` (`record_rules.py`)** :
+   - Les 4 blocs de règles (Règles Globales, Règles de Groupe applicables, Règles de Groupe ignorées, Conclusion) sont assemblés via `assemble_relevance_ranked_blocks` sous `PER_TOOL_OBSERVATION_CAPS["evaluate_record_rules"]` (3000 car.). Les règles applicables et la conclusion survivent en priorité face au bloc verbeux des règles ignorées (non-membres).
+5. **Généralisation à `analyze_method_override_chain` (`override_composer.py`)** :
+   - Les blocs par site de surcharge (`MethodOverrideSite`) sont assemblés via `assemble_relevance_ranked_blocks` sous `PER_TOOL_OBSERVATION_CAPS["analyze_method_override_chain"]` (2200 car.). Le site du module ou de la logique ciblé par la question est priorisé en cas de chaîne longue dépassant le budget.
+6. **Tests et validation (`test_section950_relevance_budget.py`)** :
+   - 9 tests unitaires et d'intégration validant le filtrage des stopwords, le scoring d'overlap, la préservation d'ordre en l'absence de question, les bornes de préfixe protégé, le fallback universel sous budget large, et la priorisation effective sous budget contraint pour `who_has_access_to`, `evaluate_record_rules` et `analyze_method_override_chain`.
+
+**Fichiers impactés** :
+- `code_intelligence/rules/relevance_budget.py` : nouveau module générique d'assemblage budgétaire par pertinence.
+- `code_intelligence/rules/security_evidence.py` : import et réutilisation des primitives communes.
+- `code_intelligence/rules/access_evaluator.py` : intégration de `assemble_relevance_ranked_blocks` sur `rights_summary`.
+- `code_intelligence/rules/record_rules.py` : intégration de `assemble_relevance_ranked_blocks` sur `body_blocks`.
+- `code_intelligence/rules/override_composer.py` : intégration de `assemble_relevance_ranked_blocks` sur `site_blocks`.
+- `code_intelligence/tests/test_section950_relevance_budget.py` : 9 tests unitaires et d'intégration dédiés.
+- `todo/contexte.txt` : Section 950.
+
+**Validation** :
+- `pytest code_intelligence/tests/test_section950_relevance_budget.py` : **9/9 PASSED** en 1.26s.
+- `pytest code_intelligence/tests/test_section950_relevance_budget.py code_intelligence/tests/test_section949_point948_fixes_validated.py code_intelligence/tests/test_section946_group_escalation_backfill.py code_intelligence/tests/test_section945_point_q_alignment.py code_intelligence/tests/test_section944_group_names_exposure.py` : **40/40 PASSED** en 2.15s.
+- `pytest code_intelligence/tests/ -q` : **1088 passed, 18 skipped, 0 failure** en 95.05s (100% de la suite globale au vert, +9 tests par rapport à la section 949).
+
+

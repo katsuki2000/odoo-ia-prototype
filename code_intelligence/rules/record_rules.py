@@ -123,6 +123,7 @@ from code_intelligence.rules.group_resolver import (
     resolve_group_identifier,
 )
 from code_intelligence.rules.ontology import tags_for_node_attrs
+from code_intelligence.rules.relevance_budget import assemble_relevance_ranked_blocks
 from code_intelligence.utils import format_xml_id_citation
 from core.evidence.evidence import Evidence, EvidenceSourceType, make_evidence
 
@@ -264,11 +265,12 @@ def evaluate_record_rules(
             else:
                 ignored_group.append(rule)
 
-    lines = [f"Évaluation des règles d'enregistrement (ir.rule) pour '{model_name}':"]
+    header_text = f"Évaluation des règles d'enregistrement (ir.rule) pour '{model_name}':"
+    body_blocks: List[str] = []
     if applied_global:
-        lines.append("  - Règles Globales (ET pour tous): " + ", ".join([f"{r.rule_name} [{r.domain_force}] ({format_xml_id_citation(r.rule_xml_id)})" for r in applied_global]))
+        body_blocks.append("  - Règles Globales (ET pour tous): " + ", ".join([f"{r.rule_name} [{r.domain_force}] ({format_xml_id_citation(r.rule_xml_id)})" for r in applied_global]))
     else:
-        lines.append("  - Règles Globales: Aucune")
+        body_blocks.append("  - Règles Globales: Aucune")
 
     def _format_rule_groups(rule: RuleDetail) -> str:
         if not rule.groups:
@@ -280,15 +282,15 @@ def evaluate_record_rules(
         return f" (groupes: {', '.join(formatted)})"
 
     if applied_group:
-        lines.append("  - Règles de Groupe applicables (combinées en OU): " + ", ".join([f"{r.rule_name}{_format_rule_groups(r)} [{r.domain_force}] ({format_xml_id_citation(r.rule_xml_id)})" for r in applied_group]))
+        body_blocks.append("  - Règles de Groupe applicables (combinées en OU): " + ", ".join([f"{r.rule_name}{_format_rule_groups(r)} [{r.domain_force}] ({format_xml_id_citation(r.rule_xml_id)})" for r in applied_group]))
     else:
-        lines.append("  - Règles de Groupe applicables: Aucune (l'utilisateur n'appartient à aucun des groupes visés)")
+        body_blocks.append("  - Règles de Groupe applicables: Aucune (l'utilisateur n'appartient à aucun des groupes visés)")
 
     if ignored_group:
-        lines.append("  - Règles de Groupe ignorées (non-membre): " + ", ".join([f"{r.rule_name}{_format_rule_groups(r)} [{r.domain_force}] ({format_xml_id_citation(r.rule_xml_id)})" for r in ignored_group]))
+        body_blocks.append("  - Règles de Groupe ignorées (non-membre): " + ", ".join([f"{r.rule_name}{_format_rule_groups(r)} [{r.domain_force}] ({format_xml_id_citation(r.rule_xml_id)})" for r in ignored_group]))
 
     if applied_group:
-        lines.append(
+        body_blocks.append(
             "  -> CONCLUSION: Au moins une regle de groupe applicable restreint potentiellement "
             "l'acces -- se referer aux domain_force ci-dessus pour les conditions exactes "
             "(combinees en OU entre elles, puis en ET avec les regles globales)."
@@ -302,7 +304,7 @@ def evaluate_record_rules(
             evaluated_groups_desc = f"l'ensemble de groupes evalue ({', '.join(formatted_ug)})"
         else:
             evaluated_groups_desc = "un utilisateur n'appartenant a aucun groupe"
-        lines.append(
+        body_blocks.append(
             "  -> CONCLUSION: Aucune regle de groupe applicable (l'utilisateur n'appartient a aucun "
             "groupe cible par une regle sur ce modele). Seules les regles globales ci-dessus "
             f"s'appliquent -- il n'y a aucune restriction supplementaire de montant ou de portee "
@@ -311,7 +313,25 @@ def evaluate_record_rules(
             "l'ensemble de groupes precis evalue ici."
         )
 
-    summary_text = "\n".join(lines)
+    # Section 950 (todo/contexte.txt section 948, point 1): these 4 blocks
+    # used to be flat-joined and left to the generic, position-blind
+    # head-truncation in context.py::_truncate_observation, which -- once
+    # a verbose "ignorées" block (the LEAST essential one, listing rules
+    # that do not even apply to the requester) pushes past the cap --
+    # drops it AND every block after it, including the CONCLUSION and the
+    # actually-applicable group rules whenever they happen to be assembled
+    # last in a long turn (cumulative budget squeeze, section 947 point 1).
+    # assemble_relevance_ranked_blocks keeps the original block order in
+    # the output but decides survival by relevance to the question,
+    # protecting the applicable-rules/conclusion blocks -- a no-op when
+    # everything already fits.
+    from code_intelligence.agent.context import PER_TOOL_OBSERVATION_CAPS
+    from code_intelligence.agent.tool_helpers import get_current_question
+    body_budget = max(0, PER_TOOL_OBSERVATION_CAPS.get("evaluate_record_rules", 3000) - len(header_text) - 1)
+    body = assemble_relevance_ranked_blocks(
+        body_blocks, body_budget, question=get_current_question(), separator="\n",
+    )
+    summary_text = header_text + "\n" + body
 
     evidence = _build_record_rules_evidence(
         model_name, permission, user_groups, applied_global, applied_group, ignored_group

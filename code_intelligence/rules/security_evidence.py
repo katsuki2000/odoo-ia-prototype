@@ -12,9 +12,12 @@ import re
 
 from core.evidence.evidence import Evidence, EvidenceSourceType, make_evidence
 from core.output import confidence_label
-from code_intelligence.utils import waterfill_budget
 from code_intelligence.agent.context import _truncate_observation
 from code_intelligence.agent.tool_helpers import get_current_question
+from code_intelligence.rules.relevance_budget import (
+    _rerank_by_relevance,
+    _waterfill_with_protected_minimum,
+)
 
 if TYPE_CHECKING:
     from code_intelligence.rules.security import PythonSecurityLockAnalysis
@@ -28,69 +31,13 @@ logger = logging.getLogger(__name__)
 # assemble_security_lock_blocks.
 _EXCEPTION_MESSAGES_MARKER = "  - Security lock messages"
 
-
-# todo/contexte.txt section 846: intra-block relevance reranking. 836/837
-# fixed the inter-block budget fight (which of N files' blocks gets budget
-# first) but left a second, distinct problem: WITHIN a single block, when
-# several has_group()/exception-message findings compete for the same
-# _protected_prefix_end "first finding line" slot, that slot always went
-# to whichever finding happened to come first in SOURCE-FILE order -- not
-# the one actually relevant to the question being asked. On ACC-Q2
-# (account.move, lock-date question), the block's own findings included
-# both an unrelated group and the actually-relevant
-# _check_fiscalyear_lock_date-adjacent group/message, and source order
-# happened to put the unrelated one first, so IT is what survived
-# truncation every single rerun regardless of 836/837's inter-block fix.
-# Same deterministic, lexical philosophy as `overrides._rank_and_cap_
-# override_methods` (rapidfuzz.fuzz.token_set_ratio against the question) --
-# no embeddings, no keyword list to hand-maintain (a hardcoded business-
-# vocabulary bonus was considered and dropped: token_set_ratio already
-# rewards exact shared tokens between question and finding text, and a
-# fixed list like "avoir"/"comptable" would only fit accounting questions,
-# not the general case across every module this tool covers).
-# Section 846 (2nd iteration, timeboxed per mandat): plain token_set_ratio
-# alone is not discriminating enough on long free-text exception messages --
-# measured directly (see contexte.txt section 846): the correct lock-date
-# message scored 40.7 against the real ACC-Q2 question, an unrelated
-# "incompatible tax country" message scored 42.2, higher, purely from
-# generic shared English filler words ("company", "settings", "the"...)
-# drowning out the one distinctive shared phrase ("lock date"). Add a flat
-# bonus per SIGNIFICANT word (>3 chars, common FR/EN stopwords excluded)
-# shared between question and text -- cheap, deterministic, no new index,
-# no embeddings (explicitly out of scope per 833/836's own conclusion).
-_STOPWORDS = frozenset({
-    "le", "la", "les", "un", "une", "des", "de", "du", "et", "ou", "est",
-    "peut", "dont", "sur", "par", "pour", "avec", "dans", "ce", "cette",
-    "ces", "aux", "que", "qui", "elle", "plus", "moins", "sans", "tout",
-    "the", "of", "to", "in", "is", "are", "and", "for", "on", "with",
-    "this", "that", "can", "not", "your", "you", "has", "have", "been",
-})
-
-
-def _significant_tokens(text: str) -> set:
-    words = re.findall(r"[a-zA-ZÀ-ÿ_]+", text.lower())
-    return {w for w in words if len(w) > 3 and w not in _STOPWORDS}
-
-
-def _relevance_score(text: str, question: Optional[str]) -> float:
-    if not question or not text:
-        return 0.0
-    from rapidfuzz import fuzz
-    base = fuzz.token_set_ratio(question.lower(), text.lower())
-    overlap = _significant_tokens(question) & _significant_tokens(text)
-    return base + 15 * len(overlap)
-
-
-def _rerank_by_relevance(items: list, text_fn, question: Optional[str]) -> list:
-    """Stable-sort `items` by _relevance_score(text_fn(item), question),
-    descending. Returns `items` UNCHANGED (same order, same list identity
-    semantics) when `question` is falsy -- e.g. isolated unit tests that
-    call format_security_locks_summary directly without going through the
-    agent loop's set_current_question, and existing tests asserting a
-    specific source-file order, are unaffected."""
-    if not question:
-        return items
-    return sorted(items, key=lambda item: _relevance_score(text_fn(item), question), reverse=True)
+# Section 846: intra-block relevance reranking (_rerank_by_relevance) and
+# the protected-minimum water-filling primitive
+# (_waterfill_with_protected_minimum) used below now live in
+# relevance_budget.py (todo/contexte.txt section 950) -- generalized from
+# this file to who_has_access_to/evaluate_record_rules/
+# analyze_method_override_chain, which had no equivalent protection and
+# fell back to plain positional head-truncation (section 948, point 1).
 
 
 def build_security_lock_evidence(
@@ -399,96 +346,6 @@ def _compact_empty_block(text: str) -> str:
         link = m.group(1) if m else lines[0]
         return f"{link}: aucun verrou."
     return text
-
-
-def _protected_prefix_end(text: str) -> int:
-    """Section 837 (option 3, mandat 836): character offset covering the
-    header/marker line plus the first substantive finding line that follows
-    it (and, when present, a second bullet-continuation line right after --
-    e.g. a required_groups summary line followed by its first `has_group`
-    detail bullet). Used to guarantee every non-empty block keeps at least
-    one complete, highest-priority (819 already orders each block by
-    relevance) finding line intact, instead of relying on plain
-    water-filling alone -- which can land an allocation mid-line, after
-    which `_truncate_observation` rewinds to the previous `\n` and drops
-    the entire line (section 836: account.move's native block got 730/1787
-    chars, landing mid-way through its single `_check_fiscalyear_lock_date`
-    bullet, which was then dropped whole rather than partially kept).
-    """
-    lines = text.split("\n")
-    if len(lines) <= 1:
-        # Nothing beyond the header/link itself (e.g. an already-compacted
-        # empty block, section 837 option 1) -- no mid-line-cut risk exists
-        # for a single line, so no explicit protection is needed: ordinary
-        # water-filling already fully includes small single-line blocks on
-        # its own, and forcing a protected minimum here would only inflate
-        # the total protected budget across many low-value stub blocks and
-        # crowd out the genuinely multi-line blocks that need it (observed
-        # directly while validating this fix: 9 compacted stub blocks added
-        # ~1300 wasted "protected" chars, pushing the total protected sum
-        # above the tool budget and silently falling back to unprotected
-        # water-filling on account.move's real, multi-line native block).
-        return 0
-    protect_upto = 2
-    if len(lines) > 2 and lines[2].lstrip().startswith("*"):
-        protect_upto = 3
-    return min(len("\n".join(lines[:protect_upto])), len(text))
-
-
-def _waterfill_with_protected_minimum(
-    sizes: List[int], texts: List[str], budget: int, priority: Optional[List[int]] = None
-) -> List[int]:
-    """Water-fill `budget` across `sizes`, but first guarantee each
-    non-empty item its `_protected_prefix_end` minimum (capped at the
-    item's own size) before water-filling the remainder proportionally.
-
-    When the protected minimums together do not fit in `budget` (section
-    837, mandat 836: observed directly on account.move's exception tier --
-    7 non-empty blocks each need 166-659 chars of protected minimum, only
-    ~1100 chars remain after the essential tier), plain water-filling would
-    give every block a tiny, roughly-equal, budget-unaware slice -- putting
-    the single most important block (the one that actually carried the
-    `_check_fiscalyear_lock_date` finding) on equal footing with six
-    unrelated ones. Instead, greedily grant FULL protected minimums to
-    blocks in `priority` order (highest first; defaults to each item's own
-    size when no external priority is supplied) until the budget runs out
-    -- every included block keeps one complete, uncut message rather than
-    every block getting an equally-broken partial one. Blocks that do not
-    fit at all get 0, not a useless fragment.
-    """
-    protected = [min(_protected_prefix_end(t), s) if s else 0 for t, s in zip(texts, sizes)]
-    protected_total = sum(protected)
-    if protected_total > budget:
-        order = sorted(
-            range(len(sizes)),
-            key=lambda i: (priority[i] if priority else sizes[i]),
-            reverse=True,
-        )
-        alloc = [0] * len(sizes)
-        remaining = budget
-        for i in order:
-            if protected[i] and protected[i] <= remaining:
-                alloc[i] = protected[i]
-                remaining -= protected[i]
-        return alloc
-    extra_sizes = [s - p for s, p in zip(sizes, protected)]
-    extra_budget = budget - protected_total
-    extra_alloc = waterfill_budget(extra_sizes, extra_budget)
-    alloc = [p + e for p, e in zip(protected, extra_alloc)]
-    # An item with protected==0 has no internal newline for
-    #  to rewind to (it is a single atomic line --
-    # typically an already-compacted empty block, ).
-    # Handing it a tiny partial share is worse than useless: with no 
-    # to cut back to,  hard-cuts mid-line and still
-    # appends its ~50-char truncation marker, so the actual output can end
-    # up LONGER than the tiny cap it was given (observed directly while
-    # validating this fix: a 87-char cap on a 166-char single-line block
-    # produced 137 actual chars) -- and even without that overshoot, a
-    # half a markdown link is just noise. All-or-nothing for these instead.
-    for i, (s, a, p) in enumerate(zip(sizes, alloc, protected)):
-        if p == 0 and 0 < a < s:
-            alloc[i] = 0
-    return alloc
 
 
 def assemble_security_lock_blocks(blocks: List[str], budget: int) -> str:
