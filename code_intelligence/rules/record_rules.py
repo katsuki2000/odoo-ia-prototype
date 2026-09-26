@@ -119,6 +119,7 @@ import networkx as nx
 from code_intelligence.rules.common import NOT_FOUND_MARKER
 from code_intelligence.rules.group_resolver import (
     _expand_implied_user_groups,
+    get_group_display_name,
     resolve_group_identifier,
 )
 from code_intelligence.rules.ontology import tags_for_node_attrs
@@ -269,13 +270,22 @@ def evaluate_record_rules(
     else:
         lines.append("  - Règles Globales: Aucune")
 
+    def _format_rule_groups(rule: RuleDetail) -> str:
+        if not rule.groups:
+            return ""
+        formatted = []
+        for g in sorted(rule.groups):
+            dname = get_group_display_name(G, g)
+            formatted.append(f"{g} ('{dname}')" if dname else g)
+        return f" (groupes: {', '.join(formatted)})"
+
     if applied_group:
-        lines.append("  - Règles de Groupe applicables (combinées en OU): " + ", ".join([f"{r.rule_name} [{r.domain_force}] ({format_xml_id_citation(r.rule_xml_id)})" for r in applied_group]))
+        lines.append("  - Règles de Groupe applicables (combinées en OU): " + ", ".join([f"{r.rule_name}{_format_rule_groups(r)} [{r.domain_force}] ({format_xml_id_citation(r.rule_xml_id)})" for r in applied_group]))
     else:
         lines.append("  - Règles de Groupe applicables: Aucune (l'utilisateur n'appartient à aucun des groupes visés)")
 
     if ignored_group:
-        lines.append("  - Règles de Groupe ignorées (non-membre): " + ", ".join([f"{r.rule_name} [{r.domain_force}] ({format_xml_id_citation(r.rule_xml_id)})" for r in ignored_group]))
+        lines.append("  - Règles de Groupe ignorées (non-membre): " + ", ".join([f"{r.rule_name}{_format_rule_groups(r)} [{r.domain_force}] ({format_xml_id_citation(r.rule_xml_id)})" for r in ignored_group]))
 
     if applied_group:
         lines.append(
@@ -285,7 +295,11 @@ def evaluate_record_rules(
         )
     else:
         if user_group_set:
-            evaluated_groups_desc = f"l'ensemble de groupes evalue ({', '.join(sorted(user_group_set))})"
+            formatted_ug = []
+            for ug in sorted(user_group_set):
+                dname = get_group_display_name(G, ug)
+                formatted_ug.append(f"{ug} ('{dname}')" if dname else ug)
+            evaluated_groups_desc = f"l'ensemble de groupes evalue ({', '.join(formatted_ug)})"
         else:
             evaluated_groups_desc = "un utilisateur n'appartenant a aucun groupe"
         lines.append(

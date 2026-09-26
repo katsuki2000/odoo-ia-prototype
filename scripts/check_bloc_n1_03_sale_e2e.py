@@ -68,11 +68,17 @@ QUESTIONS = [
             "salesperson": {"group_xmlids": ["sales_team.group_sale_salesman"]},
             "portal_user": {"group_xmlids": ["base.group_portal"]},
         },
-        "expected_markers": [
+        "expected_markers": [],
+        "expected_markers_word_boundary": [],
+        # Section 946: these are raw ir.rule/field technical identifiers --
+        # per architecture.md's "Double niveau d'explication", they belong
+        # to the verification level (response.sources, the dépliant), not
+        # to the user-level prose (response.answer). Checked against the
+        # concatenated sources text instead -- see check_e2e().
+        "expected_markers_sources": [
             "sale_order_personal_rule",
             "user_id",
         ],
-        "expected_markers_word_boundary": [],
         "forbidden_markers": [],
     },
     {
@@ -149,9 +155,14 @@ def check_raw_tool_output():
     print(result)
     print("-" * 80)
 
+    # Section 946: who_has_access_to exposes group xml_ids + an active-rule
+    # COUNT, never the ACL row's own xml_id nor individual ir.rule names --
+    # those come from evaluate_record_rules (checked in check_e2e() against
+    # response.sources instead). The two markers below match what this
+    # specific tool actually emits.
     checks = {
-        "ACL sale order": "access_sale_order",
-        "personal rule": "sale_order_personal_rule",
+        "vendeur group": "sales_team.group_sale_salesman",
+        "active rules count": "Active Rules:",
     }
     all_ok = True
     for label, marker in checks.items():
@@ -179,22 +190,27 @@ def check_e2e():
             all_ok = False
             continue
         answer = response.answer
+        sources_text = "\n\n".join(s.snippet or "" for s in (response.sources or []))
         timing = result.get("timing", {})
         print(f"Answer (hops={timing.get('ci_hop_count', '?')}):\n{answer}\n")
         print("-" * 80)
 
         plain_markers = item.get("expected_markers", [])
         wb_markers = item.get("expected_markers_word_boundary", [])
+        source_markers = item.get("expected_markers_sources", [])
         forbidden_markers = item.get("forbidden_markers", [])
 
         missing = [m for m in plain_markers if not _marker_present(m, answer)]
         missing += [m for m in wb_markers if not _word_boundary_present(m, answer)]
+        missing += [m for m in source_markers if not _marker_present(m, sources_text)]
         present_forbidden = [m for m in forbidden_markers if _marker_present(m, answer)]
 
         for marker in plain_markers:
             print(f"[{'OK ' if marker not in missing else 'MISSING'}] expected marker: {marker}")
         for marker in wb_markers:
             print(f"[{'OK ' if marker not in missing else 'MISSING'}] expected marker (word-boundary): {marker}")
+        for marker in source_markers:
+            print(f"[{'OK ' if marker not in missing else 'MISSING'}] expected marker (sources/dépliant): {marker}")
         for marker in forbidden_markers:
             print(f"[{'FAIL -- HALLUCINATED' if marker in present_forbidden else 'OK (absent)'}] forbidden marker: {marker}")
 
@@ -222,7 +238,11 @@ def check_e2e_full_pipeline():
             "question": (
                 "Un simple vendeur peut-il voir toutes les commandes de vente ?"
             ),
-            "expected_markers": ["sale_order_personal_rule", "user_id"],
+            # Section 946: technical identifiers live in response.sources
+            # (verification level), not in the user-level prose -- see the
+            # same note on QUESTIONS[0] above.
+            "expected_markers": [],
+            "expected_markers_sources": ["sale_order_personal_rule", "user_id"],
             "forbidden_markers": [],
         },
         {
@@ -241,12 +261,16 @@ def check_e2e_full_pipeline():
         print(f"Question : {case['question']}")
         response = query_graph(question=case["question"], user_groups=[])
         answer = response.answer if response else ""
+        sources_text = "\n\n".join(s.snippet or "" for s in ((response.sources if response else None) or []))
         print(f"Reponse brute :\n{answer}\n")
 
         missing = [m for m in case["expected_markers"] if not _marker_present(m, answer)]
+        missing += [m for m in case.get("expected_markers_sources", []) if not _marker_present(m, sources_text)]
         present_forbidden = [m for m in case["forbidden_markers"] if _marker_present(m, answer)]
         for m in case["expected_markers"]:
             print(f"[{'OK ' if m not in missing else 'MISSING'}] expected marker: {m}")
+        for m in case.get("expected_markers_sources", []):
+            print(f"[{'OK ' if m not in missing else 'MISSING'}] expected marker (sources/dépliant): {m}")
         for m in case["forbidden_markers"]:
             print(f"[{'FAIL' if m in present_forbidden else 'OK '}] forbidden marker absent: {m}")
 

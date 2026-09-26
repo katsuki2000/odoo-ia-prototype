@@ -11,6 +11,7 @@ from typing import Optional
 import networkx as nx
 
 from code_intelligence.rules.button_path import ButtonExecutionPathResult
+from code_intelligence.rules.group_resolver import get_group_display_name
 from code_intelligence.utils import format_file_link, format_xml_id_citations
 
 
@@ -97,7 +98,11 @@ def search_dynamic_view_or_menus(
         menu_xml_id = menu_data.get("xml_id", "")
         menu_fp = menu_data.get("filepath", "")
         menu_groups = menu_data.get("groups", [])
-        grp_str = ", ".join(sorted(menu_groups)) if menu_groups else "None"
+        formatted_menu_groups = [
+            f"{g} ('{get_group_display_name(G, g)}')" if get_group_display_name(G, g) else g
+            for g in sorted(menu_groups)
+        ]
+        grp_str = ", ".join(formatted_menu_groups) if menu_groups else "None"
         req_citations = format_xml_id_citations(sorted(menu_groups)) if menu_groups else ""
         citations_str = f" ({req_citations})" if req_citations else ""
 
@@ -292,8 +297,12 @@ def describe_navigation_path(
     if menu_link:
         execution_steps.append(f"2. File Declaration: declared at {menu_link}.")
     if menu_groups:
+        formatted_menu_groups = [
+            f"{g} ('{get_group_display_name(G, g)}')" if get_group_display_name(G, g) else g
+            for g in sorted(menu_groups)
+        ]
         citations = format_xml_id_citations(menu_groups)
-        execution_steps.append(f"3. Menu Visibility: restricted to groups [{', '.join(menu_groups)}]. ({citations})")
+        execution_steps.append(f"3. Menu Visibility: restricted to groups [{', '.join(formatted_menu_groups)}]. ({citations})")
     else:
         execution_steps.append("3. Menu Visibility: no group restriction on the menu itself.")
 
@@ -349,7 +358,11 @@ def describe_navigation_path(
 
     summary_parts = [f"Pour '{model_name}': menu " + " -> ".join(breadcrumb) + f" (id: {menu_xml_id})."]
     if menu_groups:
-        summary_parts.append(f"Menu restreint aux groupes [{', '.join(menu_groups)}].")
+        formatted_menu_groups = [
+            f"{g} ('{get_group_display_name(G, g)}')" if get_group_display_name(G, g) else g
+            for g in sorted(menu_groups)
+        ]
+        summary_parts.append(f"Menu restreint aux groupes [{', '.join(formatted_menu_groups)}].")
     if button_result:
         summary_parts.append(button_result.summary_text)
     if unavailable_reason:

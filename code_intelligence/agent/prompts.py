@@ -14,9 +14,11 @@ from code_intelligence.agent.dispatch_guards import tools_lack_deeper_coverage
 # System prompt with explicit scope-first navigation strategy.
 EFFECT_GROUNDING_RULE = (
     "Describe what a method or call does ONLY if its source appears in the tool observations. "
-    "A call whose body was not read (a hook, a framework method such as message_subscribe, a helper "
-    "named validate_* or compute_*) must never be given an effect deduced from its name: mention it "
-    "at most as a step whose detail was not analysed, or leave it out."
+    "A call whose body was not read (a framework method such as message_subscribe, a helper "
+    "named validate_* or compute_*), OR whose source is marked as a no-op hook (empty body, pass, "
+    "or returning True/None with no logic), must never be given an effect deduced from its name: "
+    "mention it at most as a step with no default action or leave it out. Never claim that an empty "
+    "hook validates or recalculates data."
 )
 
 CI_SYSTEM_PROMPT = (

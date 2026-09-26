@@ -331,6 +331,17 @@ def read_precise_source_code(
             snippet.append(f"{i:4d} | {line}{tag}")
 
         body = "\n".join(snippet)
+        try:
+            from code_intelligence.rules.source_callees import (
+                inspect_noop_hook_method,
+                format_noop_hook_note,
+            )
+            hook_info = inspect_noop_hook_method("\n".join(selected_lines))
+            if hook_info:
+                func_name, noop_desc = hook_info
+                body += "\n\n" + format_noop_hook_note(func_name, noop_desc)
+        except Exception:
+            pass
         if include_citation:
             from code_intelligence.utils import format_file_link
             shown_start, shown_end = start_idx + 1, end_idx
@@ -420,9 +431,24 @@ def read_source_code(filepath: str, line_start: int, line_end: int) -> str:
     return read_precise_source_code(filepath, line_start, line_end, include_citation=True)
 
 
+@tool
+def inspect_module_extensions(module_name: str) -> str:
+    """Inspect native models extended by an Odoo module outside its own perimeter,
+    including Python class names, source files, and added fields/methods."""
+    from code_intelligence.rules.structure import (
+        inspect_module_cross_domain_extensions,
+        format_module_cross_domain_extensions,
+    )
+    G = _require_graph()
+    extensions = inspect_module_cross_domain_extensions(G, module_name)
+    return format_module_cross_domain_extensions(extensions, module_name)
+
+
 __all__ = [
     "resolve_technical_name",
     "list_involved_modules",
     "explain_decision_path",
     "read_source_code",
+    "inspect_module_extensions",
 ]
+

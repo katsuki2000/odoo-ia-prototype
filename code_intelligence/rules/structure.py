@@ -7,6 +7,7 @@ Multi-hop dependency and downstream impact analysis for computed fields in Odoo 
 from collections import deque
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Set, Tuple
+import ast
 import logging
 import networkx as nx
 
@@ -514,17 +515,36 @@ _MODULE_DEFINES_EXTENDS_RE = re.compile(
 # "pas".
 _MODULE_EXTENSION_DENIAL_DECOR = r"[\s\u00ab\u00bb\"'*_]*"
 _MODULE_EXTENSION_DENIAL_RE = re.compile(
-    r"(?:n['\u2019]\s*etend\s+pas|ne\s+s['\u2019]?\s*etend\s+pas|ne\s+modifie\s+pas|"
+    r"(?:n['\u2019]\s*etend\s+(?:pas|aucun)|ne\s+s['\u2019]?\s*etend\s+(?:pas|aucun)|ne\s+modifie\s+(?:pas|aucun)|ne\s+touche\s+(?:pas|aucun)|"
     r"pas[^.\n]{0,20}extension|"
     rf"ne{_MODULE_EXTENSION_DENIAL_DECOR}s?['\u2019]?{_MODULE_EXTENSION_DENIAL_DECOR}etend"
-    rf"{_MODULE_EXTENSION_DENIAL_DECOR}pas)[^.\n]{{0,80}}(?:perimetre|hors\s+de|en\s+dehors\s+de|domaine)[^.\n]{{0,40}}"
+    rf"{_MODULE_EXTENSION_DENIAL_DECOR}(?:pas|aucun))[^.\n]{{0,80}}(?:perimetre|hors\s+de|en\s+dehors\s+de|domaine)[^.\n]{{0,40}}"
 )
 
 
 def _extract_module_extended_models(raw_tool_output: str, module_name: str = "") -> List[str]:
     """Models a module EXTENDS (role 'extends', not 'declares'), read from
     list_involved_modules' module-mode output. Optionally scoped to one
-    module when several module-mode calls appear in the same turn."""
+    module when several module-mode calls appear in the same turn.
+
+    Section 948 (todo/contexte.txt): filtered through the same
+    _is_technical_or_transient predicate inspect_module_cross_domain_extensions
+    (section 941) already uses to decide what counts as a real business-level
+    extension. Before this fix, the coverage guard below
+    (_answer_lacks_extension_coverage) and the denial-neutralization
+    replacement text both measured/cited against the RAW list_involved_modules
+    list (technical/config/transient models included), while the newer,
+    curated fact shown to the LLM (format_module_cross_domain_extensions)
+    already excludes them -- desynchronizing the two mechanisms. Concretely:
+    a module extending only technical models (e.g. maintenance -> only
+    res.config.settings) would still get a raw xml_id dumped inline in the
+    answer body by the coverage guard, contradicting section 924/930's
+    "0% technical citation inline" rule; and a module with many technical/
+    transient entries (e.g. account, 25 raw extended models, ~15-16 of them
+    ir.*/res.config.*/onboarding.*/base.*/wizard/report noise) made the 30%
+    coverage threshold structurally unreachable even for a synthesis that
+    correctly cited every business model the curated tool actually surfaced
+    (top 5 by design, section 945)."""
     extended: List[str] = []
     for mod, entries_str in _MODULE_DEFINES_EXTENDS_RE.findall(raw_tool_output):
         if module_name and mod != module_name:
@@ -533,7 +553,7 @@ def _extract_module_extended_models(raw_tool_output: str, module_name: str = "")
             entry = entry.strip()
             if entry.endswith("(extends)"):
                 model = entry[: -len("(extends)")].strip()
-                if model and model not in extended:
+                if model and model not in extended and not _is_technical_or_transient(model):
                     extended.append(model)
     return extended
 
@@ -652,7 +672,11 @@ def _correct_module_extension_contradiction(final_answer: str, raw_tool_output: 
         )
         final_answer = _neutralize_module_extension_denial(final_answer, extended)
 
-    if _answer_lacks_extension_coverage(final_answer, extended):
+    from code_intelligence.rules.group_resolver import _fold_accents
+    is_singular_inquiry = bool(re.search(r"\bquel\s+mod[eè]le\b", _fold_accents(question.lower()))) if question else False
+    cites_extended = any(_fold_accents(m.lower()) in _fold_accents(final_answer.lower()) for m in extended)
+
+    if _answer_lacks_extension_coverage(final_answer, extended) and not (is_singular_inquiry and cites_extended):
         logger.warning(
             "Node [code_intelligence_agent]: synthesis cites none of the %d "
             "model(s) the module extends outside its own perimeter, whatever "
@@ -666,3 +690,278 @@ def _correct_module_extension_contradiction(final_answer: str, raw_tool_output: 
         )
 
     return final_answer
+
+
+# ── Cross-Domain Module Extensions (Section 941, Point P) ───────────────
+
+
+@dataclass
+class ModelExtensionInfo:
+    model_name: str
+    class_name: Optional[str] = None
+    filepath: Optional[str] = None
+    inherit: List[str] = field(default_factory=list)
+    fields_added: List[str] = field(default_factory=list)
+    methods_defined: List[str] = field(default_factory=list)
+    is_core: bool = True
+    degree: int = 0
+
+
+def _is_technical_or_transient(model_name: str) -> bool:
+    if any(model_name.startswith(p) for p in ("ir.", "res.config.", "onboarding.", "base.")):
+        return True
+    if any(s in model_name for s in ("wizard", "layout", "report", "populate")):
+        return True
+    return False
+
+
+def _resolve_source_filepath(filepath_str: str) -> Optional[Path]:
+    p = Path(filepath_str)
+    if p.exists():
+        return p
+    if Path("/" + filepath_str).exists():
+        return Path("/" + filepath_str)
+    try:
+        from config.settings import CORE_ADDONS_PATH, CUSTOM_ADDONS_PATH, OCA_SAMPLE_ADDONS_PATH, _ROOT
+        candidates = [
+            Path(CUSTOM_ADDONS_PATH) / filepath_str if CUSTOM_ADDONS_PATH else None,
+            Path(CORE_ADDONS_PATH) / filepath_str if CORE_ADDONS_PATH else None,
+            Path(OCA_SAMPLE_ADDONS_PATH) / filepath_str if OCA_SAMPLE_ADDONS_PATH else None,
+            _ROOT / filepath_str,
+        ]
+        return next((c for c in candidates if c and c.exists()), None)
+    except Exception:
+        return None
+
+
+def _extract_ast_class_info(filepath_str: str, target_model: str) -> Optional[dict]:
+    p = _resolve_source_filepath(filepath_str)
+    if not p:
+        return None
+    try:
+        tree = ast.parse(p.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    for node in tree.body:
+        if isinstance(node, ast.ClassDef):
+            c_name = node.name
+            _name = None
+            _inherit: List[str] = []
+            fields: List[str] = []
+            methods: List[str] = []
+            for stmt in node.body:
+                if isinstance(stmt, ast.Assign):
+                    for target in stmt.targets:
+                        if isinstance(target, ast.Name):
+                            if target.id == "_name":
+                                if isinstance(stmt.value, ast.Constant) and isinstance(stmt.value.value, str):
+                                    _name = stmt.value.value
+                            elif target.id == "_inherit":
+                                if isinstance(stmt.value, ast.Constant) and isinstance(stmt.value.value, str):
+                                    _inherit = [stmt.value.value]
+                                elif isinstance(stmt.value, (ast.List, ast.Tuple)):
+                                    _inherit = [
+                                        el.value for el in stmt.value.elts
+                                        if isinstance(el, ast.Constant) and isinstance(el.value, str)
+                                    ]
+                            elif isinstance(stmt.value, ast.Call):
+                                func = stmt.value.func
+                                if isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name) and func.value.id == "fields":
+                                    fields.append(target.id)
+                elif isinstance(stmt, ast.AnnAssign):
+                    if isinstance(stmt.target, ast.Name):
+                        if stmt.target.id == "_name" and isinstance(stmt.value, ast.Constant) and isinstance(stmt.value.value, str):
+                            _name = stmt.value.value
+                        elif stmt.target.id == "_inherit":
+                            if isinstance(stmt.value, ast.Constant) and isinstance(stmt.value.value, str):
+                                _inherit = [stmt.value.value]
+                            elif isinstance(stmt.value, (ast.List, ast.Tuple)):
+                                _inherit = [
+                                    el.value for el in stmt.value.elts
+                                    if isinstance(el, ast.Constant) and isinstance(el.value, str)
+                                ]
+                        elif stmt.value and isinstance(stmt.value, ast.Call):
+                            func = stmt.value.func
+                            if isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name) and func.value.id == "fields":
+                                fields.append(stmt.target.id)
+                elif isinstance(stmt, ast.FunctionDef):
+                    methods.append(stmt.name)
+            if _name == target_model or target_model in _inherit:
+                return {
+                    "class_name": c_name,
+                    "inherit": _inherit,
+                    "fields": fields,
+                    "methods": methods,
+                }
+    return None
+
+
+def inspect_module_cross_domain_extensions(G: nx.DiGraph, module_name: str) -> List[ModelExtensionInfo]:
+    mod_node = f"module:{module_name}"
+    if not G.has_node(mod_node):
+        return []
+    mod_prefix = module_name.split("_")[0]
+    extensions: List[ModelExtensionInfo] = []
+
+    for pred in sorted(G.predecessors(mod_node)):
+        if not pred.startswith("model:"):
+            continue
+        edge = G.get_edge_data(pred, mod_node) or {}
+        if edge.get("role") != "extends":
+            continue
+        m_name = pred.replace("model:", "")
+        model_prefix = m_name.split(".")[0]
+        if model_prefix == mod_prefix:
+            continue
+
+        node_data = G.nodes.get(pred, {})
+        fp_roles = node_data.get("filepath_roles", {})
+        target_fps = [fp for fp, r in fp_roles.items() if f"/{module_name}/" in fp and r == "extends"]
+        if not target_fps:
+            target_fps = [fp for fp in node_data.get("filepaths", []) if f"/{module_name}/" in fp]
+
+        ext_info = ModelExtensionInfo(
+            model_name=m_name,
+            is_core=not _is_technical_or_transient(m_name),
+            degree=G.degree(pred) if pred in G else 0,
+        )
+        if target_fps:
+            fp = target_fps[0]
+            ext_info.filepath = fp
+            ast_data = _extract_ast_class_info(fp, m_name)
+            if ast_data:
+                ext_info.class_name = ast_data["class_name"]
+                ext_info.inherit = ast_data["inherit"]
+                ext_info.fields_added = ast_data["fields"]
+                ext_info.methods_defined = ast_data["methods"]
+        extensions.append(ext_info)
+
+    # Sort core models first, then non-res business models first, then by node degree descending, then model name
+    extensions.sort(key=lambda x: (not x.is_core, x.model_name.startswith("res."), -x.degree, x.model_name))
+    return extensions
+
+
+def format_module_cross_domain_extensions(extensions: List[ModelExtensionInfo], module_name: str) -> str:
+    core_exts = [e for e in extensions if e.is_core]
+    header = "[FAIT DÉTERMINISTIQUE -- EXTENSIONS DU MODULE HORS PÉRIMÈTRE]"
+    if not core_exts:
+        tech_note = ""
+        if extensions:
+            tech_models = ", ".join(f"'{e.model_name}'" for e in extensions)
+            tech_note = f" (il étend uniquement des modèles techniques/configuration : {tech_models})"
+        return f"{header}\nLe module '{module_name}' n'étend aucun modèle métier natif hors de son propre périmètre{tech_note}."
+
+    lines = [header, f"Le module '{module_name}' étend directement les modèles natifs suivants hors de son propre périmètre :"]
+    for e in core_exts[:5]:
+        rel_fp = e.filepath.split(f"/{module_name}/")[-1] if e.filepath and f"/{module_name}/" in e.filepath else (e.filepath or "inconnu")
+        cls_str = f" (classe Python : `{e.class_name}` dans {rel_fp})" if e.class_name else ""
+        lines.append(f"- Modèle '{e.model_name}'{cls_str} :")
+        if e.inherit:
+            lines.append(f"  * Héritage : _inherit = {e.inherit}")
+        if e.fields_added:
+            f_sorted = list(e.fields_added)
+            f_sorted.sort(key=lambda f: (not ("available" in f or "qty" in f or "count" in f), f))
+            f_preview = ", ".join(f_sorted[:6])
+            lines.append(f"  * Champs ajoutés : {f_preview}")
+        if e.methods_defined:
+            m_sorted = list(e.methods_defined)
+            m_sorted.sort(key=lambda m: (not (m in ("create", "write", "unlink") or "compute" in m), m))
+            m_preview = ", ".join(m_sorted[:6])
+            lines.append(f"  * Méthodes définies/surchargées : {m_preview}")
+    return "\n".join(lines)
+
+
+def _backfill_missing_module_extension_details(final_answer: str, raw_tool_output: str, question: str = "") -> str:
+    """If the question inquiries about out-of-perimeter extensions, class names, or key fields,
+    and the deterministic extension fact was produced in tool output, backfill any missing details."""
+    if not raw_tool_output:
+        return final_answer
+    fact_marker = "[FAIT DÉTERMINISTIQUE -- EXTENSIONS DU MODULE HORS PÉRIMÈTRE]"
+    if fact_marker not in raw_tool_output:
+        return final_answer
+
+    from code_intelligence.rules.group_resolver import _fold_accents
+    folded_q = _fold_accents(question.lower()) if question else ""
+    folded_ans = _fold_accents(final_answer.lower())
+
+    block_match = re.search(
+        r"\[FAIT DÉTERMINISTIQUE -- EXTENSIONS DU MODULE HORS PÉRIMÈTRE\]\n(.*?)(?=\n\n\[|\Z)",
+        raw_tool_output, re.DOTALL,
+    )
+    if not block_match:
+        return final_answer
+    block = block_match.group(1).strip()
+
+    entries = re.findall(
+        r"-\s+Modèle\s+'([^']+)'(?:\s+\(classe Python\s*:\s*`([^`]+)`\s+dans\s+([^)]+)\))?",
+        block,
+    )
+    if not entries:
+        return final_answer
+
+    backfill_notes: List[str] = []
+
+    wants_class_name = bool(re.search(r"\b(?:classe|nom de classe)\b", folded_q))
+    if wants_class_name:
+        has_class_name = any(
+            class_name and class_name.lower() in folded_ans
+            for _, class_name, _ in entries
+        )
+        if not has_class_name:
+            target_entry = None
+            for entry in entries:
+                if entry[0].lower() in folded_ans and entry[1]:
+                    target_entry = entry
+                    break
+            if not target_entry and entries and entries[0][1]:
+                target_entry = entries[0]
+            if target_entry:
+                model_name, class_name, rel_fp = target_entry
+                backfill_notes.append(
+                    f"- Nom de classe Python étendant '{model_name}' : `{class_name}` (dans `{rel_fp}`)."
+                )
+
+    wants_key_fields = bool(re.search(r"\bchamps?\s+cl[eé]s?\b", folded_q))
+    if wants_key_fields:
+        already_has_fields = False
+        target_entry_and_fields = None
+        for entry in entries:
+            model_name = entry[0]
+            fields_match = re.search(
+                rf"-\s+Modèle\s+'{re.escape(model_name)}'.*?\*\s+Champs ajoutés\s*:\s*([^\n]+)",
+                block, re.DOTALL,
+            )
+            if fields_match:
+                f_list = [f.strip() for f in fields_match.group(1).split(",")]
+                if any(f.lower() in folded_ans for f in f_list):
+                    already_has_fields = True
+                    break
+                if not target_entry_and_fields:
+                    if model_name.lower() in folded_ans:
+                        target_entry_and_fields = (entry, f_list)
+        if not already_has_fields:
+            if not target_entry_and_fields and entries:
+                first_m = entries[0][0]
+                fm = re.search(
+                    rf"-\s+Modèle\s+'{re.escape(first_m)}'.*?\*\s+Champs ajoutés\s*:\s*([^\n]+)",
+                    block, re.DOTALL,
+                )
+                if fm:
+                    target_entry_and_fields = (entries[0], [f.strip() for f in fm.group(1).split(",")])
+            if target_entry_and_fields:
+                entry, f_list = target_entry_and_fields
+                missing_fields = [f for f in f_list if f.lower() not in folded_ans]
+                if missing_fields:
+                    backfill_notes.append(
+                        f"- Champs clés ajoutés au modèle '{entry[0]}' : {', '.join(f'`{f}`' for f in missing_fields[:3])}."
+                    )
+
+    if backfill_notes:
+        logger.info(
+            "Node [code_intelligence_agent]: backfilling missing module extension details: %s",
+            backfill_notes,
+        )
+        return final_answer.rstrip() + "\n\n" + "\n".join(backfill_notes)
+
+    return final_answer
+

@@ -23,11 +23,17 @@ from code_intelligence.agent.tools.introspection import read_precise_source_code
 from code_intelligence.agent.dispatch_guards import verify_citations, substitute_or_strip_code_blocks
 
 
-PURCHASE_ORDER_FP = "/home/user/odoo-17.0/addons/purchase/models/purchase_order.py"
+from pathlib import Path
+from config.settings import CORE_ADDONS_PATH
+
+_PO_PATH = (Path(CORE_ADDONS_PATH) / "purchase" / "models" / "purchase_order.py") if CORE_ADDONS_PATH else None
+PURCHASE_ORDER_FP = str(_PO_PATH) if (_PO_PATH and _PO_PATH.exists()) else ""
 
 
 @pytest.fixture(scope="module", autouse=True)
 def _graph():
+    if not PURCHASE_ORDER_FP:
+        pytest.skip("CORE_ADDONS_PATH purchase_order.py non disponible -- skip propre selon regle 2")
     G = get_code_intelligence_graph()
     set_graph_ref(G)
     return G

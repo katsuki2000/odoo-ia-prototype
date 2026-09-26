@@ -12,6 +12,7 @@ import networkx as nx
 from code_intelligence.rules.common import NOT_FOUND_MARKER
 from code_intelligence.rules.group_resolver import (
     _expand_inheriting_acl_groups,
+    get_group_display_name,
     resolve_group_identifier,
 )
 from code_intelligence.rules.record_rules import RuleDetail
@@ -146,15 +147,29 @@ def _eval_single_permission(G: nx.DiGraph, model_name: str, permission: str, gro
     return allowed_groups, all_authenticated, active_rules, inherited_via
 
 
-def _annotate_inherited(groups: List[str], inherited_via: Dict[str, str]) -> str:
-    """Section 848: render a sorted group list with an inline
-    "(via implied_ids <- X)" annotation on any group present only because
+def _format_group_with_display_name(G: Optional[nx.DiGraph], group_xml_id: str) -> str:
+    dname = get_group_display_name(G, group_xml_id)
+    return f"{group_xml_id} ('{dname}')" if dname else group_xml_id
+
+
+def _annotate_inherited(
+    groups: List[str],
+    inherited_via: Dict[str, str],
+    G: Optional[nx.DiGraph] = None,
+) -> str:
+    """Section 848 / 944: render a sorted group list with display names
+    and an inline "(via implied_ids <- X)" annotation on any group present only because
     it implies another group's direct ACL -- see _expand_inheriting_acl_groups.
     """
     parts = []
     for g in sorted(groups):
         via = inherited_via.get(g)
-        parts.append(f"{g} (via implied_ids <- {via})" if via else g)
+        g_fmt = _format_group_with_display_name(G, g)
+        if via:
+            via_fmt = _format_group_with_display_name(G, via)
+            parts.append(f"{g_fmt} (via implied_ids <- {via_fmt})")
+        else:
+            parts.append(g_fmt)
     return ", ".join(parts)
 
 
@@ -193,9 +208,9 @@ def who_has_access_to(
                 all_auth = True
             all_evidence.extend(_build_access_evidence(model_name, p, grps, auth, rules, group_id))
 
-            # Section 848: annotate any group present only via implied_ids
-            # inheritance, not its own direct ACL -- see _annotate_inherited.
-            grp_str = "All authenticated users" if auth else (_annotate_inherited(list(grps), inherited_via) if grps else "None")
+            # Section 848 / 944: annotate any group present only via implied_ids
+            # inheritance, not its own direct ACL, with functional display names.
+            grp_str = "All authenticated users" if auth else (_annotate_inherited(list(grps), inherited_via, G) if grps else "None")
             _grp_citations = format_xml_id_citations(sorted(grps)) if (grps and not auth) else ""
             _grp_suffix = f" ({_grp_citations})" if _grp_citations else ""
             rights_summary.append(f"[{p.upper()}]: {grp_str} (Rules: {len(rules)}){_grp_suffix}")
@@ -228,19 +243,25 @@ def who_has_access_to(
             has_access = all_authenticated or (resolved_group_id is not None)
             display_id = resolved_group_id or group_id
             _display_citation = format_xml_id_citation(display_id)
-            # Section 848: same implied_ids annotation for the single-group query.
+            dname = get_group_display_name(G, display_id)
+            dname_suffix = f" ('{dname}')" if dname else ""
+            # Section 848 / 944: same implied_ids annotation with display names for single-group query.
             _via = inherited_via.get(display_id) if resolved_group_id else None
-            _via_suffix = f" (via implied_ids <- {_via})" if _via else ""
+            if _via:
+                _via_fmt = _format_group_with_display_name(G, _via)
+                _via_suffix = f" (via implied_ids <- {_via_fmt})"
+            else:
+                _via_suffix = ""
             summary = (
-                f"Group '{display_id}' HAS {permission.upper()} access to '{model_name}'{_via_suffix}. ({_display_citation})"
+                f"Group '{display_id}'{dname_suffix} HAS {permission.upper()} access to '{model_name}'{_via_suffix}. ({_display_citation})"
                 if has_access
-                else f"Group '{display_id}' DOES NOT HAVE {permission.upper()} access to '{model_name}'. ({_display_citation})"
+                else f"Group '{display_id}'{dname_suffix} DOES NOT HAVE {permission.upper()} access to '{model_name}'. ({_display_citation})"
             )
     else:
         if all_authenticated:
             grp_str = "All authenticated users"
         elif allowed_groups:
-            grp_str = _annotate_inherited(list(allowed_groups), inherited_via)
+            grp_str = _annotate_inherited(list(allowed_groups), inherited_via, G)
         else:
             grp_str = "No groups explicitly granted"
 

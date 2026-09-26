@@ -3708,3 +3708,294 @@ Rapport Markdown sauvegarde: /home/user/odoo-ia-prototype/captures/bloc_n1_verba
   - **100% respecté** sur les 5 questions : aucune section `### Preuves` markdown parasite dans le corps du texte.
   - Réponses fluides, claires et rédigées en langage métier sans fuite de code brut.
   - Toutes les preuves et citations sont isolées dans `sources` pour le dépliant de l'interface.
+
+## Section 940 -- Resolution des 6 echecs unitaires et suite pytest a 100% (1028 passes, 0 echec) (2026-09-25)
+
+**Contexte** : Execution globale de `pytest code_intelligence/tests/` revelant 6 echecs cibles sur 1046 tests.
+
+**Root causes et correctifs appliques** :
+1. **`test_section917_read_source_code_citation.py` (3 echecs)** :
+   - *Cause* : Violation de la Regle 2 (`rules.md`) -- chemin absolu `/home/user/odoo-17.0/addons/...` code en dur.
+   - *Fix* : Resolution dynamique via `CORE_ADDONS_PATH` issu de `config.settings`. En cas d'absence du fichier sur l'environnement d'execution, invocation d'un `pytest.skip` propre. Aucun chemin absolu ni fallback code en dur.
+2. **`code_intelligence/rules/button_path.py` (impactait `test_section911` et `test_section934`)** :
+   - *Cause* : Desalignement structurel dans `button_execution_path` : `m_fp` et `m_line` etaient extraits de `m_node` (qui pointait vers le dernier module charge, ex. override OCA/stock), tandis que `m_end` venait de `m_sites[0]` (module declarant natif). Ce melange produisait des plages de lignes incoherentes (ex. 815 lignes sur `action_confirm`, declenchant le plafond de 200 lignes et bloquant toute extraction de callees).
+   - *Fix* : Lorsque `override_sites` existe, les trois attributs (`method_filepath`, `method_lineno`, `method_end_lineno`) sont desormais tous extraits de maniere homogene depuis `base_site = m_sites[0]` (le site declarant de base).
+3. **`code_intelligence/agent/predispatch_structure.py` (impactait `test_section911`)** :
+   - *Cause* : `dispatch_button_execution_path` selectionnait aveuglement `_call_sites[0]` lors du suivi des sous-methodes appelées. Pour `button_approve`, `_call_sites[0]` etait la surcharge `purchase_stock` (qui ne fait qu'un appel `super()` et `_create_picking`), masquant l'implementation metier native de `purchase` qui effectue reellement la transition d'etat (`state = 'purchase'`).
+   - *Fix* : Selection prioritaire du site appartenant au module declarant du modele cible (`target_model.split('.')[0]`), avec fallback sur le site de base `_call_sites[-1]`.
+4. **`code_intelligence/rules/technical_groups.py` (impactait `test_section934`)** :
+   - *Cause* : Les graphes serialises sur disque avant l'introduction de l'attribut `group_type="technical"` (Section 925) ne portaient pas ce champ sur leurs noeuds `Group`.
+   - *Fix* : Fallback deterministe verifiant si le groupe appartient a `base.module_category_hidden` et correspond a un champ `res.config.settings` present dans le graphe.
+
+**Validation** :
+- `pytest code_intelligence/tests/test_section911_workflow_deterministic_relay.py code_intelligence/tests/test_section917_read_source_code_citation.py code_intelligence/tests/test_section934_callee_following.py` : **23/23 PASSED** en 2.20s.
+- `pytest code_intelligence/tests/ -q` : **1028 passed, 18 skipped, 0 failure** en 92.59s.
+
+## Section 941 -- Résolution du Point P (Section 939) : Inspection et extraction déterministes par AST des extensions hors périmètre (1035 passés, 0 échec) (2026-09-26)
+
+**Contexte** : Traitement du Point P formulé en Section 939. Historiquement, le garde d'extension (`_MODULE_EXTENSION_DENIAL_RE`, sections 840-857) reposait sur des regex textuels appliqués a posteriori sur la synthèse du LLM 8B, tandis que `list_involved_modules` ne déversait qu'une liste brute de 24 noms de modèles sans distinction métier/technique, sans nom de classe Python (`AccountMove`, `Product`, `ResPartner`), et sans précision sur les champs clés ajoutés ou méthodes surchargées. De plus, certaines négations subtiles (« ne touche pas ... en dehors de ce domaine ») échappaient à la détection, et le LLM 8B omettait fréquemment le nom de classe requis par SAL-Q3 ou les champs clés demandés par STK-Q3.
+
+**Root causes et architecture mise en place** :
+1. **Nouvelle inspection déterministe des extensions inter-domaines (`inspect_module_cross_domain_extensions`)** :
+   - Parcours direct dans le graphe NetworkX des arêtes `DEFINED_IN` avec `role="extends"` partant de modèles n'appartenant pas au préfixe du module déclarant.
+   - Filtrage des modèles techniques, de configuration ou transitoires (`_is_technical_or_transient`) : exclusion de `ir.*`, `res.config.*`, `onboarding.*`, `base.*`, wizards et rapports.
+   - Tri par importance métier basé sur le degré du nœud dans le graphe (`G.degree(node)` descendant : `res.company` 273, `res.partner` 236, `account.move` 221, `product.product` 106) afin d'exposer les entités centrales en priorité.
+2. **Extraction AST directe des métadonnées de classe (`_extract_ast_class_info`)** :
+   - Analyse syntaxique via `ast.parse` du fichier source Python déclarant l'extension (résolu dynamiquement sans chemin en dur via `_resolve_source_filepath` respectant la Règle 2).
+   - Extraction exacte du nom de classe Python (`ClassDef.name`), de `_inherit`, des champs `fields.*` ajoutés, et des méthodes définies/surchargées (`create`, `write`, `unlink`, etc.).
+3. **Formatage factuel et outil agent (`inspect_module_extensions`)** :
+   - Formatage d'un bloc `[FAIT DÉTERMINISTIQUE -- EXTENSIONS DU MODULE HORS PÉRIMÈTRE]` listant les modèles étendus, la classe Python, le fichier relatif, les champs clés et les méthodes.
+   - Pour les modules strictement étanches (ex. `maintenance`), constat explicite déterministe qu'aucun modèle métier natif n'est étendu hors de son périmètre.
+   - Enregistrement du nouvel outil `@tool inspect_module_extensions(module_name: str)` dans `code_intelligence/agent/tools/introspection.py` et `ALL_CI_TOOLS`.
+4. **Pré-dispatch et consignes de synthèse (`predispatch_structure.py`)** :
+   - Intégration de `_dispatch_module_extensions_if_needed` dans `dispatch_inheritance` pour chaque module cible et module déclarant.
+   - Enrichissement du `system_prompt_suffix` interdisant formellement au modèle de contredire les faits déterministes d'extension et lui fournissant les noms de classe exacts à restituer.
+5. **Backfill de précision et garde de déni renforcé (`structure.py`, `postprocess.py`)** :
+   - `_backfill_missing_module_extension_details` : si la question demande explicitement un nom de classe ou des champs clés et que la synthèse 8B les a omis malgré le bloc déterministe, ils sont complétés mécaniquement en fin de réponse.
+   - Élargissement de `_MODULE_EXTENSION_DENIAL_RE` pour capturer `ne\s+touche\s+pas`.
+
+**Fichiers impactés** :
+- `code_intelligence/rules/structure.py` : dataclass `ModelExtensionInfo`, helpers AST et de résolution portable, inspection, formatage, backfill et mise à jour regex.
+- `code_intelligence/agent/tools/introspection.py` : exposition de `inspect_module_extensions`.
+- `code_intelligence/agent/tools/__init__.py` : export et inclusion dans `ALL_CI_TOOLS`.
+- `code_intelligence/agent/predispatch_structure.py` : pré-dispatch inheritance et enrichissement prompt.
+- `code_intelligence/agent/postprocess.py` : hook du backfill d'extension dans la chaîne post-process.
+- `code_intelligence/tests/test_section941_deterministic_module_extensions.py` : 7 tests unitaires couvrant l'ensemble du dispositif.
+
+**Validation** :
+- `pytest code_intelligence/tests/test_section941_deterministic_module_extensions.py` : **7/7 PASSED** en 1.37s.
+- `pytest code_intelligence/tests/test_bug8_module_extension_negation.py code_intelligence/tests/test_section941_deterministic_module_extensions.py` : **42/42 PASSED** en 59.8s.
+- `pytest code_intelligence/tests/ -q` : **1035 passed, 18 skipped, 0 failure** en 270.96s (100% de la suite de tests globale au vert).
+
+## Section 942 -- Résolution du Point R (Section 939) : Détection AST et marquage déterministe des hooks sans effet / no-op (1042 passés, 0 échec) (2026-09-26)
+
+**Contexte** : Traitement du Point R formulé en Section 939. Dans SAL-Q2, la synthèse du LLM 8B affirmait de manière récurrente que « les taxes sont recalculées et validées » lors de la confirmation (`action_confirm`), alors que la méthode appelée `validate_taxes_on_sales_order` n'est qu'un hook vide (`return True`) ne réalisant aucun calcul ni validation dans `sale` natif. Bien que le corps de la méthode ait été lu via `read_source_code` (suite aux ajouts de la 938), le LLM 8B extrapolait un effet métier actif en se basant sur le nom de la méthode et son commentaire. En outre, la précondition de vérification d'état (`_can_be_confirmed()` exigeant draft/sent sous peine de UserError) et la validation de distribution analytique (`_validate_analytic_distribution()`) étaient omises dans la réponse.
+
+**Root causes et architecture mise en place** :
+1. **Inspection AST générique des hooks no-op (`source_callees.py`)** :
+   - `inspect_noop_hook_method(source: str)` : analyse syntaxique par AST de la méthode ou tranche lue. Identifie de manière formelle les fonctions dont le corps (hors docstring) ne contient aucune logique active : corps vide / docstring uniquement, instruction unique `pass`, instruction unique `return True / False / None / ...`, `return {} / [] / ()`, ou `raise NotImplementedError`.
+   - `format_noop_hook_note(func_name, noop_desc)` : génère une note explicite bilingue `[NOTE DÉTERMINISTIQUE -- HOOK SANS EFFET / NO-OP]` précisant que la méthode n'exécute aucune opération active dans ce module et interdisant formellement de lui attribuer un effet métier.
+2. **Annotation directe à la source dans `read_precise_source_code` (`introspection.py`)** :
+   - Toute lecture ciblée de code source identifiant un hook sans effet (que l'appel émane d'un pré-dispatch déterministe ou d'un appel direct de l'agent) intègre immédiatement la note factuelle en fin d'observation.
+3. **Renforcement de la consigne d'ancrage d'effet (`prompts.py`)** :
+   - `EFFECT_GROUNDING_RULE` : mise à jour pour expliciter qu'une méthode marquée comme hook no-op ne doit recevoir aucun effet inventé déduit de son nom, et qu'il est formellement interdit d'affirmer qu'un hook vide valide ou recalcule des données.
+4. **Consigne contextuelle de pré-dispatch (`predispatch_structure.py`)** :
+   - Dans `dispatch_button_execution_path` : si un hook no-op (ex. `validate_taxes_on_sales_order`) figure parmi les sous-méthodes observées, le bloc `[DETERMINISTIC PRE-DISPATCH -- CALLED METHODS]` du `system_prompt_suffix` intègre une directive explicite rappelant son absence d'effet par défaut.
+5. **Garde de correction et backfill des étapes de confirmation (`workflow.py`, `postprocess.py`)** :
+   - `_correct_noop_hook_hallucinations` : élimination mécanique des puces et fragments de phrases affirmant une validation ou un recalcul de taxes lorsque le hook no-op associé a été détecté.
+   - `_backfill_action_confirm_workflow_details` : complétion déterministe de la vérification préalable des états (`_can_be_confirmed` imposant 'draft' ou 'sent') et de la validation analytique lors d'une question sur `action_confirm`.
+
+**Fichiers impactés** :
+- `code_intelligence/rules/source_callees.py` : `inspect_noop_hook_method` et `format_noop_hook_note`.
+- `code_intelligence/agent/tools/introspection.py` : intégration dans `read_precise_source_code`.
+- `code_intelligence/agent/prompts.py` : mise à jour de `EFFECT_GROUNDING_RULE`.
+- `code_intelligence/agent/predispatch_structure.py` : enrichissement du suffixe lors de callees no-op.
+- `code_intelligence/rules/workflow.py` : `_correct_noop_hook_hallucinations` et `_backfill_action_confirm_workflow_details`.
+- `code_intelligence/agent/postprocess.py` : branchement dans la chaîne `_apply_backfill_chain`.
+- `code_intelligence/tests/test_section942_noop_hook_and_workflow_grounding.py` : 7 tests unitaires dédiés.
+
+**Validation** :
+- `pytest code_intelligence/tests/test_section942_noop_hook_and_workflow_grounding.py` : **7/7 PASSED** en 1.60s.
+- `pytest code_intelligence/tests/test_section934_callee_following.py code_intelligence/tests/test_section918_implied_ids_and_citations.py code_intelligence/tests/test_section941_deterministic_module_extensions.py code_intelligence/tests/test_section942_noop_hook_and_workflow_grounding.py` : **34/34 PASSED** en 60.13s.
+- `pytest code_intelligence/tests/ -q` : **1042 passed, 18 skipped, 0 failure** en 325.05s (100% de la suite de tests globale au vert).
+
+## Section 943 -- Résolution du Point S (Section 939) : Extraction AST et exposition déterministe des conditions de récurrence par étape dans write() (1048 passés, 0 échec) (2026-09-26)
+
+**Contexte** : Traitement du Point S formulé en Section 939. Dans MNT-Q2, l'agent répondait correctement sur le calcul d'échéance et le placement dans l'étape par défaut, mais omettait systématiquement la borne de récurrence (`repeat_type == 'forever'` ou `schedule_date <= repeat_until`) qui conditionne la duplication de la demande dans `MaintenanceRequest.write()`, tout en ajoutant une hallucination affirmant que des abonnés/notifications étaient conservés/envoyés lors du passage à l'étape 'done' (alors que `_add_followers()` n'est appelé que si `owner_user_id` ou `user_id` est modifié dans `vals`).
+
+**Root causes et architecture mise en place** :
+1. **Inspection AST structurelle des actions d'étape dans `write()` (`workflow.py`)** :
+   - `inspect_stage_workflow_actions(source_text)` : analyse par AST de la méthode `write()`. Extrait la présence de duplication (`copy()`) et l'empilement exact des conditions d'encadrement (`if 'stage_id' in vals ... done:`, `if repeat_type == 'forever' or schedule_date.date() <= repeat_until:`), ainsi que l'assignation de `close_date`, la réinitialisation de `kanban_state`, la replanification d'activités, et les conditions réelles d'abonnés.
+   - `format_stage_workflow_note(model_name, actions)` : construit un bloc factuel `[FAIT DÉTERMINISTIQUE -- WORKFLOW D'ÉTAPE ET RÉCURRENCE (write())]` exposant noir sur blanc les conditions d'arrêt de récurrence, les paramètres d'occurrence, les actions sur la demande clôturée, et l'absence d'abonnement lors du passage à 'done'.
+2. **Enrichissement du relais déterministe `describe_workflow -> write()` (`predispatch_structure.py`)** :
+   - Dans `dispatch_workflow_write` : lorsque `write()` est lu pour un modèle sans transitions d'état explicites (comme `maintenance.request`), l'observation intègre automatiquement la note factuelle issue de l'analyse AST.
+   - Dans `system_prompt_suffix` pour les modèles d'étapes : ajout d'une consigne explicite demandant au modèle de s'appuyer sur ce fait déterministe pour les bornes de récurrence (`repeat_type == 'forever'` ou `schedule_date <= repeat_until`) et interdisant d'inventer des notifications d'abonnés.
+3. **Garde de correction et backfill des bornes de récurrence (`workflow.py`, `postprocess.py`)** :
+   - `_backfill_stage_recurrence_conditions` : purge automatique de toute puce ou paragraphe affirmant une notification ou gestion d'abonnés lors du passage à 'done', et ajout déterministe de la condition d'arrêt de récurrence (`repeat_type = 'forever'` ou `schedule_date <= repeat_until`) si elle a été omise par la synthèse 8B.
+4. **Tests et non-régression (`test_section943_stage_recurrence_workflow.py`)** :
+   - 6 tests unitaires couvrant l'analyse AST, le formatage, la purge d'abonnés, le backfill de borne de récurrence et l'intégration du relais.
+
+**Fichiers impactés** :
+- `code_intelligence/rules/workflow.py` : `inspect_stage_workflow_actions`, `format_stage_workflow_note`, et `_backfill_stage_recurrence_conditions`.
+- `code_intelligence/agent/predispatch_structure.py` : enrichissement de l'observation `write()` et consignes de suffixe.
+- `code_intelligence/agent/postprocess.py` : appel de `_backfill_stage_recurrence_conditions` dans `_apply_backfill_chain`.
+- `code_intelligence/tests/test_section943_stage_recurrence_workflow.py` : 6 tests unitaires dédiés.
+
+**Validation** :
+- `pytest code_intelligence/tests/test_section943_stage_recurrence_workflow.py` : **6/6 PASSED** en 1.91s.
+- `pytest code_intelligence/tests/test_section911_workflow_deterministic_relay.py code_intelligence/tests/test_section934_callee_following.py code_intelligence/tests/test_section941_deterministic_module_extensions.py code_intelligence/tests/test_section942_noop_hook_and_workflow_grounding.py code_intelligence/tests/test_section943_stage_recurrence_workflow.py` : **36/36 PASSED** en 2.60s.
+- `pytest code_intelligence/tests/ -q` : **1048 passed, 18 skipped, 0 failure** en 243.05s (100% de la suite globale au vert).
+
+## Section 944 -- Résolution du Point O (Section 939) : Exposition déterministe des libellés exacts des groupes de sécurité dans les observations (1061 passés, 0 échec) (2026-09-26)
+
+**Contexte** : Traitement du Point O formulé en Section 939. Jusqu'alors, `who_has_access_to`, `evaluate_record_rules`, et `button_execution_path` (ainsi que `_find_field_in_xml_views` et `search_dynamic_view_or_menus`) ne diffusaient aux LLMs que les identifiants techniques bruts des groupes (ex. `purchase.group_purchase_manager`, `sales_team.group_sale_manager`, `maintenance.group_equipment_manager`, `stock.group_stock_multi_locations`). Ne disposant pas du libellé fonctionnel réel défini dans Odoo (`res.groups.name`), le LLM 8B tentait d'inventer des noms de groupes en traduisant ou reformulant les suffixes XML-ID (ex. inventer « Purchase Manager » ou « Sales Manager » au lieu du vrai libellé Odoo « Administrator », ou traduire « Gestionnaire d'équipement » pour « Equipment Manager » et « Gestion des emplacements multiples » pour « Manage Multiple Stock Locations »).
+
+**Root causes et architecture mise en place** :
+1. **Résolution portable et dynamique des libellés de groupes (`get_group_display_name`)** :
+   - Implémenté dans `code_intelligence/rules/group_resolver.py`.
+   - Ordre de résolution sans chemin en dur (respect strict de la Règle 2 et Règle 21) :
+     1. Recherche directe sur le nœud du graphe `G.nodes[f"group:{clean_id}"].get("name")` si non vide.
+     2. En cas d'ID sans préfixe (ex. `group_purchase_user`), recherche de tout nœud de groupe se terminant par `.{clean_id}` disposant d'un `name`.
+     3. En cas d'ID préfixé (ex. `purchase.group_purchase_user`), recherche du nœud court `group:{bare_id}`.
+     4. Repli dynamique par lecture et extraction AST/XML (`_lookup_group_name_in_xml`) dans les répertoires `CORE_ADDONS_PATH` et `CUSTOM_ADDONS_PATH` via `parse_groups_from_xml`, avec mise en cache par module dans `_PARSED_MODULE_GROUPS`.
+     5. Aucun cache global inter-tests venant polluer la résolution d'autres fixtures, et conservation stricte de `_group_display_name` pour le fuzzy matching sans altération de comportement.
+2. **Exposition dans `who_has_access_to` (`access_evaluator.py`)** :
+   - Mise à jour de `_annotate_inherited` : chaque groupe est désormais exposé au format `f"{group_xml_id} ('{display_name}')"` (ex. `purchase.group_purchase_user ('User')`).
+   - Pour les permissions héritées via `implied_ids`, exposition transparente : `f"{group_xml_id} ('{display_name}') (via implied_ids <- {parent_xml_id} ('{parent_display_name}'))"`.
+   - Dans les requêtes mono-permission avec `group_id`, exposition directe du display name sur le groupe testé et son groupe parent.
+   - Mise à jour de `_IMPLIED_IDS_PATTERN` dans `code_intelligence/agent/access_guards.py` pour capturer les groupes enfants et parents qu'ils portent ou non un nom d'affichage entre guillemets.
+3. **Exposition dans `evaluate_record_rules` (`record_rules.py`)** :
+   - Formatage explicite des groupes cibles de chaque règle de groupe : `(groupes: {group_xml_id} ('{display_name}'))` pour les règles applicables comme pour les règles ignorées.
+   - Formatage des groupes de l'ensemble évalué avec leurs libellés réels dans la conclusion : `l'ensemble de groupes evalue (base.group_user ('Internal User'), ...)`.
+4. **Exposition dans `button_execution_path` et `xml_view_finder.py`** :
+   - Dans `button_execution_path` : les groupes requis dans l'étape de sécurité et dans le résumé sont enrichis avec leur libellé : `Required Groups: [purchase.group_purchase_manager ('Administrator')].`
+   - Dans `_find_field_in_xml_views` : pour les champs restreints par `groups="..."` (ex. `cost` sur `maintenance.equipment`), l'étape et le résumé affichent `Restreint aux groupes: [maintenance.group_equipment_manager ('Equipment Manager')].`
+   - Dans `navigation.py` : les groupes de menus portent également leur libellé d'affichage.
+   - Dans `technical_groups.py` : repli de `attrs.get("name")` sur `get_group_display_name(G, clean_xmlid)`.
+5. **Tests unitaires et validation globale (`test_section944_group_names_exposure.py`)** :
+   - 13 tests unitaires dédiés validant la résolution par graphe, par ID court/long, par repli XML natif, l'exposition dans `who_has_access_to`, dans `evaluate_record_rules` et dans `button_execution_path`.
+
+**Fichiers impactés** :
+- `code_intelligence/rules/group_resolver.py` : `get_group_display_name`, `_lookup_group_name_in_xml`.
+- `code_intelligence/rules/access_evaluator.py` : `_format_group_with_display_name`, `_annotate_inherited`, et requêtes mono-permission.
+- `code_intelligence/agent/access_guards.py` : assouplissement de `_IMPLIED_IDS_PATTERN`.
+- `code_intelligence/rules/record_rules.py` : `_format_rule_groups` et conclusion.
+- `code_intelligence/rules/button_path.py` : formatage des groupes requis avec display names.
+- `code_intelligence/rules/xml_view_finder.py` : formatage des groupes requis avec display names.
+- `code_intelligence/rules/navigation.py` : formatage des groupes de visibilité de menu.
+- `code_intelligence/rules/technical_groups.py` : fallback sur `get_group_display_name`.
+- `code_intelligence/tests/test_section944_group_names_exposure.py` : 13 tests unitaires dédiés.
+
+**Validation** :
+- `pytest code_intelligence/tests/test_section944_group_names_exposure.py` : **13/13 PASSED** en 1.13s.
+- `pytest code_intelligence/tests/test_section889_security_principals.py code_intelligence/tests/test_section944_group_names_exposure.py` : **27/27 PASSED** en 16.51s.
+- `pytest code_intelligence/tests/ -q` : **1061 passed, 18 skipped, 0 failure** en 264.84s (100% de la suite de tests globale au vert).
+
+## Section 945 -- Résolution du Point Q (Section 939) : Alignement SAL-Q3, priorisation des extensions métier hors périmètre et assainissement des gardes aval (1067 passés, 0 échec) (2026-09-26)
+
+**Contexte** : Traitement du Point Q formulé en Section 939. Dans le benchmark N1, la question SAL-Q3 (« Quel modèle natif hors du périmètre 'vente' ce module étend-il directement, et sous quel nom de classe ? ») attendait `account.move` (`AccountMove`) par symétrie avec PUR-Q3. Cependant, l'exécution réelle révélait trois défauts structurels :
+1. Fausse alerte dans le benchmark runner : `[WARN] Outil(s) attendu(s) non invoque(s): ['analyze_method_override_chain']` alors que SAL-Q3 n'interroge aucune méthode, cet outil ayant été copié par erreur depuis PUR-Q3 dans `tests/native_n1_question_bank.json`.
+2. `inspect_module_cross_domain_extensions` triait les extensions uniquement par degré du graphe (`G.degree`). Les modèles de base `res.company` (degré 273) et `res.partner` (degré 236) surpassaient mécaniquement le modèle métier d'application transverse `account.move` (degré 221), poussant le LLM 8B à citer `res.company` / `ResCompany` plutôt que l'extension comptable majeure.
+3. Deux gardes aval perturbaient la réponse propre :
+   - `_answer_lacks_extension_coverage` comparait la proportion de modèles cités au seuil de 30%. Pour une question singulière (« Quel modèle... ») où 1 seul modèle est attendu sur 25, la couverture de 1/25 = 4% déclenchait à tort l'adjonction d'une liste parasite de 25 modèles (`À noter : ce module étend bien 25 modèle(s)...`).
+   - `_backfill_missing_module_extension_details` contenait une boucle de recherche de classe sans arrêt précoce : si la classe du modèle cité (`ResCompany`) était déjà présente, la boucle continuait sur l'entrée suivante (`res.partner`) et injectait un faux backfill orphelin `- Nom de classe Python étendant 'res.partner' : ResPartner`.
+   - `_MODULE_EXTENSION_DENIAL_RE` ne tolérait que `pas` et manquait la tournure négative standard `aucun` (« n'étend aucun modèle »).
+
+**Root causes et architecture mise en place** :
+1. **Correction des outils attendus pour SAL-Q3 (`tests/native_n1_question_bank.json`)** :
+   - `expected_tools` aligné sur `["trace_full_inheritance", "list_involved_modules"]`, supprimant le faux warning `analyze_method_override_chain`.
+2. **Priorisation des modèles métier d'application dans l'inspection d'extensions (`structure.py`)** :
+   - Dans `inspect_module_cross_domain_extensions` : tri modifié en `(not x.is_core, x.model_name.startswith("res."), -x.degree, x.model_name)`.
+   - Les modèles métier fonctionnels non-`res.` (ex. `account.move`, `account.move.line`, `product.product`) sont désormais présentés en tête de liste avant les tables de registre génériques `res.*` (`res.company`, `res.partner`), tant pour `sale` que pour `purchase`.
+   - Guidage de synthèse affiné dans `predispatch_structure.py` pour citer le modèle métier principal (ex. `account.move` sous `AccountMove`).
+3. **Assainissement des gardes d'extension (`structure.py`)** :
+   - `_MODULE_EXTENSION_DENIAL_RE` : ajout de `aucun` (`(?:pas|aucun)`) pour neutraliser également les formulations du type « n'étend aucun modèle natif hors de son propre périmètre ».
+   - `_correct_module_extension_contradiction` : inhibition du repli de couverture lorsque la question est une interrogation singulière (« quel modèle... ») et que la réponse cite déjà un des modèles étendus réels.
+   - `_backfill_missing_module_extension_details` : vérification préalable si un nom de classe ou un champ clé est déjà présent dans la réponse ; ciblage préférentiel du modèle réellement cité dans le texte plutôt que de déverser une entrée arbitraire.
+4. **Tests et validation (`test_section945_point_q_alignment.py`)** :
+   - 6 tests unitaires dédiés validant le tri non-res, l'absence de backfill redondant, le ciblage de classe pour le modèle cité, la suppression du spam de 25 modèles sur question singulière, la neutralisation de « n'étend aucun », et l'alignement de `expected_tools`.
+
+**Fichiers impactés** :
+- `tests/native_n1_question_bank.json` : suppression de `analyze_method_override_chain` dans `expected_tools` de SAL-Q3.
+- `code_intelligence/rules/structure.py` : tri `inspect_module_cross_domain_extensions`, assainissement couverture et backfill, regex `_MODULE_EXTENSION_DENIAL_RE`.
+- `code_intelligence/agent/predispatch_structure.py` : consigne de synthèse dans `dispatch_inheritance`.
+- `code_intelligence/tests/test_section945_point_q_alignment.py` : 6 tests unitaires dédiés.
+- `todo/contexte.txt` : Section 945.
+
+**Validation** :
+- `pytest code_intelligence/tests/test_section945_point_q_alignment.py` : **6/6 PASSED** en 1.46s.
+- `pytest code_intelligence/tests/test_bug8_module_extension_negation.py code_intelligence/tests/test_section858_extension_coverage.py code_intelligence/tests/test_section929_extension_coverage_fallback.py code_intelligence/tests/test_section941_deterministic_module_extensions.py code_intelligence/tests/test_section945_point_q_alignment.py` : **39/39 PASSED** en 2.55s.
+- `pytest code_intelligence/tests/ -q` : **1067 passed, 18 skipped, 0 failure** en 203.70s (100% de la suite de tests globale au vert).
+
+## Section 946 -- Rejeu SAL-Q1 (banc N1) : faux echec mecanique du script de check (marqueur teste au mauvais niveau), backfill du contraste groupe d'escalade (2026-09-26)
+
+**Contexte** : pmm a colle une sortie de `run_bloc_n1_benchmark.py SAL-Q1` pour analyse. Reponse verbatim correcte sur le fond (meme verdict que la section 939 : SAL-Q1 correct), mais `scripts/check_bloc_n1_03_sale_e2e.py` echouait mecaniquement : les marqueurs `sale_order_personal_rule`/`user_id` etaient cherches dans `response.answer` (niveau utilisateur), alors qu'`architecture.md` ("Double niveau d'explication") place explicitement les identifiants techniques au niveau verification/depliant (`response.sources`). Verification directe : `response.sources` contenait deja, pour les deux personas et les 4 permissions, les xml_id exacts (`sale.sale_order_personal_rule`, `sale.sale_order_see_all`, `sale.sale_order_rule_portal`, `sale.sale_order_comp_rule`) avec domain_force complet -- aucun trou cote outils deterministes.
+
+**Root cause 1 (faux echec de check, pas un defaut de synthese)** : `check_raw_tool_output()` et `check_e2e()`/`check_e2e_full_pipeline()` cherchaient des identifiants ir.rule/ACL dans le mauvais champ de reponse.
+- *Fix* : nouveau champ `expected_markers_sources` verifie contre le texte concatene de `response.sources` (au lieu de `response.answer`). `check_raw_tool_output()` corrige : `who_has_access_to` n'expose que des xml_id de groupe + un compteur `Active Rules: N`, jamais l'xml_id de l'ACL ni le nom de la regle (qui viennent de `evaluate_record_rules`) -- les marqueurs testes sont desormais alignes sur ce que l'outil expose reellement.
+
+**Root cause 2 (trou de contenu reel, mineur)** : la reference_answer de SAL-Q1 mentionne, en negatif, l'exception `group_sale_salesman_all_leads` (regle `sale_order_see_all`, domaine `(1,'=',1)`) -- absente de la synthese LLM meme quand la question l'exclut explicitement ("sans group_sale_salesman_all_leads"). `evaluate_record_rules` liste deja cette regle ignoree textuellement, mais rien ne force sa remontee au niveau utilisateur quand la question la nomme.
+- *Fix (root cause, generalisable)* : `_backfill_missing_group_escalation_note` (`code_intelligence/agent/access_guards.py`), cable dans `_apply_backfill_chain` juste apres `_backfill_missing_implied_ids_mechanism`. Detecte, dans la section "Regles de Groupe ignorees (non-membre)" du texte d'`evaluate_record_rules`, toute regle utilisant l'idiome Odoo standard d'acces sans restriction (`domain_force` = `(1,'=',1)` ou `('id','!=',False)` -- les deux memes litteraux deja speciaux dans `RuleEvaluationResult.can_view_amount`), et, uniquement si la question nomme explicitement ce groupe, ajoute une phrase de contraste deterministe extraite verbatim (nom de regle + xml_id + groupe). Generalisable a tout module utilisant le meme idiome "Personal X / All X" (sale, purchase, account, stock) -- pas un correctif sale.order specifique. Le point portail (perm_write/perm_unlink actifs sur `sale_order_rule_portal` malgre l'ACL portail en lecture seule) n'est PAS traite ici : c'est un vrai croisement de preuves concurrentes entre deux outils differents (`who_has_access_to` vs `evaluate_record_rules`), qui releve du detecteur de contradiction reel (H3, todo/plan.md chantier #2, non implemente) -- delibrement laisse de cote plutot que patche au cas par cas.
+
+**Fichiers impactes** :
+- `code_intelligence/agent/access_guards.py` : `_backfill_missing_group_escalation_note` + regex dediees.
+- `code_intelligence/agent/postprocess.py` : cablage dans `_apply_backfill_chain`.
+- `scripts/check_bloc_n1_03_sale_e2e.py` : `expected_markers_sources` (SAL-Q1, e2e + full pipeline), correction des marqueurs de `check_raw_tool_output()`.
+- `code_intelligence/tests/test_section946_group_escalation_backfill.py` : 5 tests unitaires dedies.
+
+**Validation** :
+- `pytest code_intelligence/tests/test_section946_group_escalation_backfill.py` : **5/5 PASSED**.
+- `pytest code_intelligence/tests/ -k "access or record_rules or section944 or section945 or section946 or section918 or postprocess or section889 or section896 or section899 or section904 or section907 or section908"` : **116 passed** en 41.60s (aucune regression sur les tests d'acces/rules touches par le chantier concurrent Point Q).
+- `python scripts/check_bloc_n1_03_sale_e2e.py` : SAL-Q1 (e2e ET full pipeline) **OK**, marqueurs sources verifies. SAL-Q2/Q3/Q4/Q5 restent en echec -- **pre-existants, hors perimetre de cette section** (deja identifies faux/incomplets en section 939 : hooks/litteraux non cites par le LLM, question SAL-Q3 traitee separement en section 945/Point Q par un autre chantier concurrent sur le meme depot).
+
+**Delegue a pmm** : rejeu complet `python scripts/run_bloc_n1_benchmark.py` (25 questions) pour confirmer l'absence de regression cote benchmark verbatim -- non relance ici (cout LLM/temps).
+
+**Confirme par pmm** : `pytest code_intelligence/tests/ -q` -> **1072 passed, 18 skipped, 0 failure** en 233.34s (100% de la suite globale au vert ; +5 par rapport aux 1067 de la section 945, correspondant exactement aux tests de cette section).
+
+## Section 947 -- Rejeu complet du banc N1 (25 questions Q1-Q5) : confirmation de I/PUR-Q2, J toujours ouvert, 3 constats nouveaux non traites (2026-09-26)
+
+**Contexte** : pmm a colle la sortie complete du rejeu delegue en fin de section 946 (`python scripts/run_bloc_n1_benchmark.py` sur les 5 vagues Q1-Q5, 25 questions). Analyse comparative avec les points ouverts au 20/08 (section 935) et les fixes des sections 941-946. Aucun code touche dans cette section -- constat seul, aucune root cause encore confirmee sur les 3 points nouveaux.
+
+**Points deja ouverts, statut confirme par ce rejeu** :
+- **I (MNT-Q2, bornes de recurrence)** : CONFIRME RESOLU. La reponse restitue `repeat_type == 'forever'` / `schedule_date <= repeat_until`, conforme au fix section 943.
+- **PUR-Q2 (3 criteres de `_approval_allowed` perdus en synthese)** : CONFIRME RESOLU. Les 3 criteres (`po_double_validation == 'one_step'`, montant sous seuil, appartenance a `purchase.group_purchase_manager`) sont tous restitues verbatim.
+- **J (ACC-Q2, delegation sur modele relie via `company_id`)** : TOUJOURS OUVERT, sans changement. La reponse reste l'explication generique deja observee en 934/935 ("quel que soit le groupe"), le mecanisme AST etendu (champ relationnel Many2one -> comodel via HAS_FIELD, cf. diagnostic complementaire section 935) n'a pas ete construit. Contenu de la reponse non revalide contre le comportement Odoo reel (pas de lecture de code faite dans cette section) -- a verifier avant tout arbitrage.
+
+**3 constats nouveaux, non journalises avant ce rejeu** :
+
+1. **Perimetre du cap de troncature plus large que ce qui etait note en 935.** La section 935 ne documentait la troncature (`assemble_security_lock_blocks`, cap 3500 car.) que sur `analyze_security_locks('account.move')`. Ce rejeu montre le meme marqueur `[an observation was truncated (cap reached)]` sur : `analyze_security_locks(purchase.order)` (PUR-Q1 2940 car., PUR-Q4 2940 car.), `who_has_access_to(stock.move.line)` (STK-Q1, 9887 car.), `analyze_security_locks(account.move)` (ACC-Q1 2840 car., ACC-Q4 2840 car.), `evaluate_record_rules(account.move)` (ACC-Q1/Q4, 559 car.), `analyze_method_override_chain(sale.order)` (PUR-Q2 2162 car., SAL-Q2 2162 car.). Le perimetre a traiter avec J (note en 935 "meme outil, a traiter avec J") est donc plus large qu'un seul appel sur un seul modele -- possible cap partage entre plusieurs outils, a verifier dans le code avant tout fix.
+
+2. **SAL-Q1 : le garde anti-hallucination de groupe se contredit avec le backfill deterministe de la section 946.** Le marqueur `GROUPE(S) NON VERIFIE(S) : sales_team.group_sale_salesman_all_leads ... Ne pas considerer ce(s) groupe(s) comme confirme(s) sans verification manuelle` est appende au texte utilisateur alors meme que ce nom de groupe provient du backfill deterministe `_backfill_missing_group_escalation_note` (section 946), lui-meme source verbatim depuis `evaluate_record_rules` (regle `sale.sale_order_see_all`, domain_force `(1,'=',1)`). Le garde de detection de hallucination ne semble pas distinguer texte de synthese LLM vs. texte injecte par un backfill deterministe posterieur -- produit une reponse auto-contradictoire (une phrase se qualifie elle-meme de non verifiee alors qu'elle est la plus verifiee de toute la reponse). A verifier dans le code (ordre d'execution du garde hallucination vs. `_apply_backfill_chain`) avant tout fix.
+
+3. **Fuite de citations techniques inline dans le corps, contraire a la regle UX section 924/930 ("corps 100% langage metier, 0% citation technique inline").** Le bloc "A noter" de `_correct_module_extension_contradiction`/couverture (structure.py) affiche des xml_id/noms de modeles techniques bruts directement dans le texte visible :
+   - MNT-Q3 : `'res.config.settings'` cite en clair dans le corps, alors que la question ne porte meme pas sur les extensions hors perimetre (elle demande si `maintenance.equipment` est un nouveau modele et le role de `maintenance.mixin`) -- le garde de couverture se declenche hors sujet.
+   - ACC-Q3 : liste brute des 25 modeles etendus deversee en fin de reponse (`ir.actions.report`, `kpi.provider`, `onboarding.onboarding.step`, `digest.digest`, etc.), sans aucune mise en forme metier.
+   Le fix de la section 945 (Point Q) n'a supprime ce comportement que pour les questions singulieres explicites ("quel modele..."), les questions ouvertes/binaires ("le module etend-il... hors perimetre ?") continuent de recevoir le dump brut en corps de reponse. A verifier : soit router ce contenu vers `sources` (depliant UI) au lieu du corps, soit resserrer davantage la condition de declenchement du garde de couverture.
+
+**Aucun fix applique dans cette section.** Les 3 points ci-dessus necessitent une lecture de code (respectivement : le/les point(s) d'entree du cap de troncature partage ; l'ordre d'execution du garde hallucination de groupe vs. `_apply_backfill_chain` ; les conditions de declenchement de `_correct_module_extension_contradiction`) avant tout diagnostic de root cause et tout mandat d'implementation.
+
+**Delegue a pmm** : confirmer si le rejeu s'est arrete volontairement apres ACC-Q5 (question PUR-Q5 affichee sans reponse dans la sortie collee) ou si le script tourne encore / a plante.
+
+## Section 948 -- Root cause confirmee pour les 3 constats de la section 947 (lecture de code seule, aucun fix applique) (2026-09-26)
+
+**Contexte** : creusage demande par Maha sur les 3 constats non tranches de la section 947. Lecture de code uniquement (`code_intelligence/agent/context.py`, `code_intelligence/agent/postprocess.py`, `code_intelligence/agent/access_guards.py`, `code_intelligence/rules/structure.py`) -- aucune modification.
+
+**1. Cap de troncature multi-outils -- PAS un bug, mecanisme volontaire deja documente (801-810/867/868/893/894), mais asymetrique.**
+`PER_TOOL_OBSERVATION_CAPS` (`context.py`) fixe un plafond par outil (`analyze_method_override_chain`=2200, `analyze_security_locks`=3500, `evaluate_record_rules`=3000, `who_has_access_to`=11000, etc.), et `_truncate_observation_for_budget` le combine a un budget cumule par tour (`MAX_TOTAL_OBSERVATION_CHARS`=35000) -- garde-fou anti-413 Groq, deliberement applique a TOUS les outils, pas une fuite du perimetre account.move note en 935. Les tailles observees dans le rejeu (2940/2162/9887/2840/559 car.) sont sous les plafonds nominaux -- la coupe reelle vient donc majoritairement du budget CUMULE (35000) qui retrecit quand plusieurs outils/hops s'enchainent dans le meme tour (PUR-Q2 : 14 sauts, SAL-Q2 : 12 sauts), pas uniquement du plafond par-outil pris isolement.
+Le vrai ecart : `analyze_security_locks` beneficie SEUL d'une troncature "intelligente" (`assemble_security_lock_blocks`, section 824-846 : `_waterfill_with_protected_minimum` + `_rerank_by_relevance` contre la question, protege la ligne la plus pertinente). `who_has_access_to`, `evaluate_record_rules`, `analyze_method_override_chain` restent sur la coupe naive `_truncate_observation` (coupe a la derniere `\n`, aucun classement par pertinence) -- exactement le mecanisme deja incrimine en section 893/894 pour le bug reel de STK-Q1 (le cap avait alors ete releve 2500->11000, jamais rendu pertinent-aware). Risque residuel confirme : ces 3 outils peuvent silencieusement perdre le finding pertinent si le budget cumule les rattrape, sans aucune protection equivalente a celle d'`analyze_security_locks`.
+
+**2. SAL-Q1, garde anti-hallucination auto-contradictoire -- root cause confirmee, `_flag_ungrounded_group_xmlids` (access_guards.py:40).**
+`_apply_backfill_chain` (postprocess.py) execute `_backfill_missing_group_escalation_note` (position 5) AVANT `_flag_ungrounded_group_xmlids` (position 20) -- le backfill 946 ecrit donc son propre xmlid de groupe dans `final_answer` avant que le garde ne scanne ce meme texte.
+`_flag_ungrounded_group_xmlids` construit son ensemble `grounded` a partir de DEUX sources seulement : (a) `_extract_required_groups`, qui ne lit QUE la ligne `"Groupe(s) technique(s) requis detecte(s) (has_group): ..."` produite par `analyze_security_locks`, et (b) `_XML_ID_PATTERN = r"xml_id:\s*(...)"`, qui exige litteralement le prefixe `xml_id:`. Le texte insere par `_backfill_missing_group_escalation_note` ecrit le xmlid du GROUPE en backticks nus (`` `sales_team.group_sale_salesman_all_leads` ``), sans prefixe `xml_id:` -- seul le xmlid de la REGLE (`sale.sale_order_see_all`) est ecrit sous la forme `(xml_id: ...)` et matche donc `_XML_ID_PATTERN`. Resultat : le xmlid de groupe, pourtant source verbatim depuis `evaluate_record_rules`, n'entre jamais dans `grounded`, alors qu'il matche `_GROUP_XMLID_RE` cote `mentioned` -- flagge a tort comme "possible hallucination". Root cause generalisable : `_flag_ungrounded_group_xmlids` ne reconnait que le grounding de type ACL/has_group(), jamais celui de type ir.rule/evaluate_record_rules -- tout groupe source uniquement via ir.rule (backfill 946 inclus) est structurellement invisible a ce garde.
+
+**3. Fuite de citations techniques inline (MNT-Q3, ACC-Q3) -- root cause confirmee, `_correct_module_extension_contradiction`/`_answer_lacks_extension_coverage` (structure.py:550,629) desynchronisees de `inspect_module_cross_domain_extensions` (structure.py, section 941).**
+- MNT-Q3 : le garde tourne des que `_question_is_inheritance_related(question)` est vrai (large -- couvre toute question sur nature de modele/heritage, pas seulement "le module etend-il hors perimetre"). `_extract_module_extended_models` lit le sentence brut de `list_involved_modules` (mode module), qui liste `res.config.settings` comme extension -- sans filtrage "technique". Or le mecanisme plus recent (section 941, `_is_technical_or_transient`, qui exclut explicitement les prefixes `res.config.`) sait deja que `res.config.settings` n'est PAS une extension metier pertinente, et `format_module_cross_domain_extensions` le dit correctement en langage naturel ("n'etend aucun modele metier natif... il etend uniquement des modeles techniques/configuration"). Le garde de couverture (plus ancien, sections 838-845/945) ignore totalement ce filtre et compte `res.config.settings` comme un modele "manquant" a couvrir -> declenche le dump brut `'res.config.settings'` en corps de reponse. Les deux mecanismes coexistent avec des definitions differentes de ce qui "compte" comme extension hors perimetre.
+- ACC-Q3 : meme desynchronisation, effet inverse. `_answer_lacks_extension_coverage` calcule la couverture sur les 25 modeles bruts de `list_involved_modules` (denominateur = 25), alors que `format_module_cross_domain_extensions` (section 941) limite deliberement son propre affichage aux 5 meilleurs modeles metier (`core_exts[:5]`, tri deja filtre par `_is_technical_or_transient`). Une synthese fidele au FAIT DETERMINISTIQUE fourni par le predispatch (qui ne montre que ces 5 modeles au LLM) ne peut structurellement jamais depasser 5/25=20%, sous le seuil de 30% -- le garde de couverture est cale sur un denominateur perime depuis l'introduction du filtrage section 941, et declenche un faux positif systematique des que le module a beaucoup de modeles techniques/transitoires dans sa liste brute (compte, wizard, layout, report...).
+
+**Aucun fix applique.** Les 3 root causes sont confirmees mais aucun mandat d'implementation n'a ete donne. Arbitrage propose a Maha :
+- Point 1 : etendre `_rerank_by_relevance`/`_waterfill_with_protected_minimum` (aujourd'hui specifiques a `security_evidence.py`) a `who_has_access_to`/`evaluate_record_rules`/`analyze_method_override_chain`, ou accepter le risque residuel documente.
+- Point 2 : faire reconnaitre a `_flag_ungrounded_group_xmlids` le grounding via `evaluate_record_rules` (ex. tout xmlid present dans un bloc `(groupes: ...)` du raw_tool_output), pas seulement has_group()/`xml_id:`.
+- Point 3 : aligner `_answer_lacks_extension_coverage` sur la liste filtree de `inspect_module_cross_domain_extensions` (exclure `_is_technical_or_transient`, ou plafonner le denominateur a `core_exts[:5]`) au lieu de la liste brute de `list_involved_modules`.
+
+**Delegue a pmm** : arbitrer l'ordre/le mandat des 3 fixes ci-dessus (aucun n'est urgent -- aucune reponse finale n'a ete rendue objectivement fausse par ces 3 points dans le rejeu observe, seule la forme/le risque residuel est en cause).
+
+## Section 949 -- Validation par tests des correctifs deja presents dans l'arbre pour les points 2 et 3 de la section 948 (1079 passes, 18 skipped, 0 echec) (2026-09-26)
+
+**Contexte** : avant toute nouvelle intervention, verification de l'etat reel du depot (`git status`/`git diff`) demandee par le protocole (rules.md : pas de fix chirurgical, tests obligatoires, tout changement journalise). Constat : l'arbre de travail (non commite depuis `42e51d4 bugsss`) contenait deja, pour les points 2 et 3 identifies en section 948, du code de correction root-cause -- explicitement commente "Section 948" -- mais sans aucun test dedie et sans entree de journalisation. Le point 1 (asymetrie du cap de troncature) n'a recu aucun code, toujours ouvert.
+
+**Point 2 (SAL-Q1, garde anti-hallucination auto-contradictoire)** : `access_guards.py` contenait deja `_GROUPES_BLOCK_RE` et `_extract_record_rule_groups()`, cables dans `_flag_ungrounded_group_xmlids()` comme troisieme source de grounding (en plus de has_group() et `xml_id:`), reconnaissant le format `(groupes: ...)` propre a `evaluate_record_rules`/`record_rules.py::_format_rule_groups` -- exactement la source verbatim du backfill `_backfill_missing_group_escalation_note` (section 946) que le garde flaggait a tort.
+
+**Point 3 (MNT-Q3/ACC-Q3, fuite de citations techniques)** : `structure.py::_extract_module_extended_models()` filtrait deja son resultat par le meme predicat `_is_technical_or_transient` que `inspect_module_cross_domain_extensions` (section 941) utilise pour sa propre liste curatee, et `_correct_module_extension_contradiction` contenait deja l'exemption `is_singular_inquiry and cites_extended` (section 945). La desynchronisation de denominateur decrite en section 948 (25 modeles bruts vs 5 modeles metier curatee) est ainsi resolue a la racine : le denominateur de couverture est desormais le meme ensemble filtre que celui montre au LLM.
+
+**Travail effectue dans cette section (validation, aucun nouveau mecanisme)** :
+- Nouveau fichier `code_intelligence/tests/test_section949_point948_fixes_validated.py` (7 tests) :
+  - 2 tests point 2 : le xml_id de groupe backfille par la section 946 n'est plus flagge "NON VERIFIE" (reproduction exacte du scenario SAL-Q1) ; un xml_id absent de toute source de grounding reste flagge (non-regression de la protection anti-hallucination).
+  - 5 tests point 3 : filtrage effectif des modeles techniques/transitoires par `_extract_module_extended_models` ; reproduction MNT-Q3 (extension technique seule -> aucun dump brut, aucune mention de `res.config.settings`) ; reproduction ACC-Q3 (25 modeles bruts, 2 modeles metier reels deja cites -> aucun dump) ; garde de non-regression (les 2 modeles metier reels NON cites declenchent bien le backfill, mais uniquement avec les modeles reels, jamais le bruit technique).
+- Suite ciblee (`-k "access or record_rules or section944 or section945 or section946 or section948 or section949 or section941 or postprocess or extension or module_extension or ungrounded"`) : **136/136 passes**.
+- Suite globale complete : **1079 passed, 18 skipped, 0 echec** en 195.82s (+7 par rapport aux 1072 de la section 946, correspondant exactement aux 7 nouveaux tests -- aucune regression).
+
+**Statut du depot** : arbre de travail toujours non commite (dernier commit `42e51d4 bugsss`), englobant les sections 941 a 949. Aucun commit effectue dans cette section -- decision de decoupage/mandat de commit non prise, laissee a l'arbitrage de pmm/Maha.
+
+**Reste ouvert** : point 1 de la section 948 (asymetrie du cap de troncature -- seul `analyze_security_locks` beneficie du waterfill/rerank par pertinence) toujours sans code ni mandat. Aucun changement apporte a `context.py` dans cette section.
+
+**Delegue a pmm** : decider si l'arbre de travail (sections 941-949) doit etre commite maintenant (un ou plusieurs commits) avant d'attaquer le point 1, et arbitrer le mandat du point 1 (etendre le waterfill a `who_has_access_to`/`evaluate_record_rules`/`analyze_method_override_chain`, ou accepter le risque residuel documente en section 948).

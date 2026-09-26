@@ -24,6 +24,7 @@ from code_intelligence.agent.access_guards import (
     _strip_core_only_group_mentions,
     _backfill_missing_required_groups,
     _backfill_missing_implied_ids_mechanism,
+    _backfill_missing_group_escalation_note,
 )
 from code_intelligence.rules.security_locks import (
     _backfill_missing_security_lock_amount,
@@ -50,7 +51,15 @@ from code_intelligence.rules.overrides import (
     _correct_override_cascade_contradictions,
     _backfill_missing_unguarded_super,
 )
-from code_intelligence.rules.structure import _correct_module_extension_contradiction
+from code_intelligence.rules.structure import (
+    _correct_module_extension_contradiction,
+    _backfill_missing_module_extension_details,
+)
+from code_intelligence.rules.workflow import (
+    _correct_noop_hook_hallucinations,
+    _backfill_action_confirm_workflow_details,
+    _backfill_stage_recurrence_conditions,
+)
 from code_intelligence.agent.context import _EXECUTION_FAILURE_NOTICE, _CI_TOOL_DISPLAY_NAMES
 from code_intelligence.agent.context import DispatchContext
 
@@ -101,6 +110,7 @@ def _apply_backfill_chain(
     )
     final_answer = _backfill_missing_required_groups(final_answer, scoped_tool_output, question)
     final_answer = _backfill_missing_implied_ids_mechanism(final_answer, scoped_tool_output or raw_tool_output, question)
+    final_answer = _backfill_missing_group_escalation_note(final_answer, scoped_tool_output or raw_tool_output, question)
     final_answer = _backfill_missing_security_lock_amount(final_answer, scoped_tool_output, question=question)
     final_answer = _backfill_missing_override_modules(final_answer, scoped_tool_output, question=question)
     final_answer = _correct_override_cascade_contradictions(final_answer, scoped_tool_output)
@@ -114,12 +124,24 @@ def _apply_backfill_chain(
     final_answer = _correct_module_extension_contradiction(
         final_answer, raw_tool_output or scoped_tool_output, question=question
     )
+    final_answer = _backfill_missing_module_extension_details(
+        final_answer, raw_tool_output or scoped_tool_output, question=question
+    )
     final_answer = _backfill_missing_override_chain_amount(final_answer, scoped_tool_output)
     final_answer = _backfill_missing_trigger_condition_literals(final_answer, scoped_tool_output)
     final_answer = _backfill_missing_hardcoded_id_literals(final_answer, scoped_tool_output)
     final_answer = _backfill_missing_unguarded_super(final_answer, scoped_tool_output)
     final_answer = _backfill_link_guard_clarifications(final_answer, scoped_tool_output, question=question)
     final_answer = _correct_can_view_amount_contradictions(final_answer)
+    final_answer = _correct_noop_hook_hallucinations(
+        final_answer, raw_tool_output or scoped_tool_output, question=question
+    )
+    final_answer = _backfill_action_confirm_workflow_details(
+        final_answer, raw_tool_output or scoped_tool_output, question=question
+    )
+    final_answer = _backfill_stage_recurrence_conditions(
+        final_answer, raw_tool_output or scoped_tool_output, question=question
+    )
     final_answer = _flag_ungrounded_group_xmlids(final_answer, scoped_tool_output)
     final_answer = _strip_core_only_group_mentions(final_answer, scoped_tool_output)
     return final_answer

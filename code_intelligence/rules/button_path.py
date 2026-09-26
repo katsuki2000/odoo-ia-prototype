@@ -131,6 +131,7 @@ import networkx as nx
 from code_intelligence.rules.common import NOT_FOUND_MARKER
 from code_intelligence.rules.group_resolver import (
     _expand_implied_user_groups,
+    get_group_display_name,
     resolve_group_identifier,
 )
 from code_intelligence.rules.navigation import search_dynamic_view_or_menus
@@ -290,10 +291,16 @@ def button_execution_path(
         method_link_str = f"Defined: {method_exists}"
         if method_exists and method_node_id in G:
             m_node = G.nodes[method_node_id]
-            m_fp = m_node.get("filepath", "")
-            m_line = m_node.get("lineno", 0)
             m_sites = m_node.get("override_sites") or []
-            m_end = m_sites[0].get("end_lineno", m_line + 30) if m_sites else (m_line + 30)
+            if m_sites:
+                base_site = m_sites[0]
+                m_fp = base_site.get("filepath", "")
+                m_line = base_site.get("lineno", 0)
+                m_end = base_site.get("end_lineno", m_line + 30)
+            else:
+                m_fp = m_node.get("filepath", "")
+                m_line = m_node.get("lineno", 0)
+                m_end = m_node.get("end_lineno", m_line + 30)
             if m_fp:
                 m_link = format_file_link(m_fp, m_line, m_end)
                 method_link_str = f"Defined at {m_link}"
@@ -310,10 +317,17 @@ def button_execution_path(
             execution_steps.append(f"3. State Transition: Executes method logic without state machine transition.")
 
         if required_groups:
-            grp_str = ", ".join(sorted(required_groups))
+            formatted_req = []
+            for rg in sorted(required_groups):
+                clean_rg = rg.lstrip("!")
+                dname = get_group_display_name(G, clean_rg)
+                prefix = "!" if rg.startswith("!") else ""
+                formatted_req.append(f"{prefix}{clean_rg} ('{dname}')" if dname else rg)
+            grp_str = ", ".join(formatted_req)
             _req_citations = format_xml_id_citations(sorted(required_groups))
             execution_steps.append(f"4. Security Requirement: Button restricted to groups [{grp_str}]. ({_req_citations})")
         else:
+            grp_str = "None"
             execution_steps.append(f"4. Security Requirement: No button-level group restriction specified.")
 
         if invisible_condition:
@@ -325,13 +339,15 @@ def button_execution_path(
             rg_node = f"group:{clean_rg}"
             if G.has_node(rg_node) and G.nodes[rg_node].get("group_type") == "technical":
                 sf = G.nodes[rg_node].get("setting_field", "")
-                tech_req_notes.append(f"{clean_rg} (paramètre: '{sf}')")
+                dname = get_group_display_name(G, clean_rg)
+                group_label = f"'{dname}' [{clean_rg}]" if dname else clean_rg
+                tech_req_notes.append(f"{group_label} (paramètre: '{sf}')")
 
         summary = (
             f"Button '{button_label_or_name}' on '{model_name}': "
             f"Calls '{method_name}()' ({method_link_str}). "
             f"Transition: [{', '.join(sorted(origin_states))}] -> '{target_state}'. "
-            f"Required Groups: [{', '.join(sorted(required_groups)) if required_groups else 'None'}]."
+            f"Required Groups: [{grp_str}]."
         )
         if tech_req_notes:
             summary += f" NOTE DE CONFIGURATION: Les groupes [{', '.join(tech_req_notes)}] sont des paramètres activables dans la configuration du module."

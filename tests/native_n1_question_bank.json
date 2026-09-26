@@ -224,8 +224,7 @@
       "difficulty": "medium",
       "expected_tools": [
         "trace_full_inheritance",
-        "list_involved_modules",
-        "analyze_method_override_chain"
+        "list_involved_modules"
       ],
       "question": "sale.order est-il un nouveau modele ou une extension ? Quel modele natif hors du perimetre 'vente' ce module etend-il directement, et sous quel nom de classe ?",
       "reference_answer": "sale.order (_name='sale.order') est un nouveau modele -- il n'herite que de mixins (portal.mixin, product.catalog.mixin, mail.thread, mail.activity.mixin, utm.mixin), aucun modele metier preexistant. En parallele, ce meme module etend reellement account.move (classe AccountMove, _inherit=['account.move', 'utm.mixin'] dans models/account_move.py) -- une extension transverse comptabilite comparable au constat fait sur purchase (PUR-Q3), meme modele cible (account.move), module different.",

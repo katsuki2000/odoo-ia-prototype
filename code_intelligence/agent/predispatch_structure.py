@@ -26,6 +26,34 @@ from core.evidence.evidence_collector import record_evidence
 logger = logging.getLogger(__name__)
 
 
+def _dispatch_module_extensions_if_needed(ctx: DispatchContext, mod_name: str, target_model: str) -> None:
+    if ctx.hop_budget_exhausted:
+        return
+    call_key = ("inspect_module_extensions", mod_name)
+    if call_key in ctx.seen_calls:
+        return
+    from code_intelligence.rules.structure import (
+        inspect_module_cross_domain_extensions,
+        format_module_cross_domain_extensions,
+    )
+    t0 = time.perf_counter()
+    try:
+        exts = inspect_module_cross_domain_extensions(ctx.G, mod_name)
+        obs = format_module_cross_domain_extensions(exts, mod_name)
+        obs = _truncate_observation_for_budget(ctx, obs, 3000)
+        ctx.record_observation(
+            "inspect_module_extensions", {"module_name": mod_name},
+            obs, target_model or mod_name, call_key, time.perf_counter() - t0,
+        )
+        logger.info(
+            "Node [code_intelligence_agent]: Deterministic pre-dispatch of "
+            "'inspect_module_extensions' for module '%s'.",
+            mod_name,
+        )
+    except Exception as ee:
+        logger.error("Deterministic inspect_module_extensions dispatch failed for '%s': %s", mod_name, ee)
+
+
 def dispatch_inheritance(ctx: DispatchContext) -> None:
     if not (
         ctx.concept.is_resolved
@@ -50,28 +78,28 @@ def dispatch_inheritance(ctx: DispatchContext) -> None:
         if candidate_mods:
             target_mods_to_inspect.append(candidate_mods[0])
 
-    if mod_tool is not None:
-        for t_mod in target_mods_to_inspect:
-            if ctx.hop_budget_exhausted:
-                break
+    for t_mod in target_mods_to_inspect:
+        if ctx.hop_budget_exhausted:
+            break
+        if mod_tool is not None:
             call_key = ("list_involved_modules", t_mod)
-            if call_key in ctx.seen_calls:
-                continue
-            t0 = time.perf_counter()
-            try:
-                observation = str(mod_tool.invoke({"model_name": t_mod}))
-                observation = _truncate_observation_for_budget(ctx, observation, 3000)
-                ctx.record_observation(
-                    "list_involved_modules", {"model_name": t_mod},
-                    observation, t_mod, call_key, time.perf_counter() - t0,
-                )
-                logger.info(
-                    "Node [code_intelligence_agent]: Deterministic pre-dispatch of "
-                    "'list_involved_modules' for module '%s'.",
-                    t_mod,
-                )
-            except Exception as te:
-                logger.error("Deterministic list_involved_modules dispatch for module failed: %s", te)
+            if call_key not in ctx.seen_calls:
+                t0 = time.perf_counter()
+                try:
+                    observation = str(mod_tool.invoke({"model_name": t_mod}))
+                    observation = _truncate_observation_for_budget(ctx, observation, 3000)
+                    ctx.record_observation(
+                        "list_involved_modules", {"model_name": t_mod},
+                        observation, t_mod, call_key, time.perf_counter() - t0,
+                    )
+                    logger.info(
+                        "Node [code_intelligence_agent]: Deterministic pre-dispatch of "
+                        "'list_involved_modules' for module '%s'.",
+                        t_mod,
+                    )
+                except Exception as te:
+                    logger.error("Deterministic list_involved_modules dispatch for module failed: %s", te)
+        _dispatch_module_extensions_if_needed(ctx, t_mod, t_mod)
 
     for target_model in ctx.concept.resolved_models:
         if inherit_tool is not None and not ctx.hop_budget_exhausted:
@@ -182,40 +210,46 @@ def dispatch_inheritance(ctx: DispatchContext) -> None:
                         if ctx.hop_budget_exhausted:
                             break
                         mod_call_key = ("list_involved_modules", dec_mod)
-                        if mod_call_key in ctx.seen_calls:
-                            continue
-                        t1 = time.perf_counter()
-                        try:
-                            mod_obs = str(mod_tool.invoke({"model_name": dec_mod}))
-                            mod_obs = _truncate_observation_for_budget(ctx, mod_obs, 3000)
-                            ctx.record_observation(
-                                "list_involved_modules", {"model_name": dec_mod},
-                                mod_obs, target_model, mod_call_key,
-                                time.perf_counter() - t1,
-                            )
-                            logger.info(
-                                "Node [code_intelligence_agent]: Deterministic "
-                                "pre-dispatch of 'list_involved_modules' in module "
-                                "mode for declaring module '%s'.",
-                                dec_mod,
-                            )
-                        except Exception as me:
-                            logger.error(
-                                "Deterministic list_involved_modules module-mode "
-                                "dispatch failed for '%s': %s", dec_mod, me,
-                            )
+                        if mod_call_key not in ctx.seen_calls:
+                            t1 = time.perf_counter()
+                            try:
+                                mod_obs = str(mod_tool.invoke({"model_name": dec_mod}))
+                                mod_obs = _truncate_observation_for_budget(ctx, mod_obs, 3000)
+                                ctx.record_observation(
+                                    "list_involved_modules", {"model_name": dec_mod},
+                                    mod_obs, target_model, mod_call_key,
+                                    time.perf_counter() - t1,
+                                )
+                                logger.info(
+                                    "Node [code_intelligence_agent]: Deterministic "
+                                    "pre-dispatch of 'list_involved_modules' in module "
+                                    "mode for declaring module '%s'.",
+                                    dec_mod,
+                                )
+                            except Exception as me:
+                                logger.error(
+                                    "Deterministic list_involved_modules module-mode "
+                                    "dispatch failed for '%s': %s", dec_mod, me,
+                                )
+                        _dispatch_module_extensions_if_needed(ctx, dec_mod, target_model)
                 except Exception as te:
                     logger.error("Deterministic list_involved_modules dispatch failed: %s", te)
 
-    if any(k and k[0] in {"trace_full_inheritance", "list_involved_modules"} for k in ctx.seen_calls):
+    if any(k and k[0] in {"trace_full_inheritance", "list_involved_modules", "inspect_module_extensions"} for k in ctx.seen_calls):
         ctx.system_prompt_suffix += (
-            "\n\n[DETERMINISTIC PRE-DISPATCH]\n"
-            "trace_full_inheritance and list_involved_modules have already been run for the "
-            "target model(s) above; model hierarchy, mixins, and declaring/extending modules "
-            "are already included in the tool observations. Do not call them again. "
-            "If the question asks whether the declaring module extends any models outside its domain, "
-            "consult the list_involved_modules observation for that module, which lists all extended "
-            "models with role '(extends)'."
+            "\n\n[DETERMINISTIC PRE-DISPATCH -- INHERITANCE & MODULE EXTENSIONS]\n"
+            "trace_full_inheritance, list_involved_modules, and inspect_module_extensions have already been run for the "
+            "target model(s) and declaring module(s) above; model hierarchy, mixins, declaring/extending modules, "
+            "and out-of-perimeter model extensions (with their exact Python class names, files, fields, and methods) "
+            "are already included in the tool observations. Do not call them again.\n"
+            "IMPORTANT GUIDELINES FOR SYNTHESIS:\n"
+            "1. If asked whether a target model is new or an extension, rely on trace_full_inheritance: if it declares "
+            "a new _name and only inherits mixins, state clearly that it is a new model.\n"
+            "2. If asked whether the declaring module extends any native models outside its perimeter/domain (or under "
+            "what class name), rely strictly on the '[FAIT DÉTERMINISTIQUE -- EXTENSIONS DU MODULE HORS PÉRIMÈTRE]' "
+            "observation. Do NOT claim that the module extends nothing outside its domain when extensions are listed, "
+            "and cite the primary business model extended (e.g. account.move under class AccountMove for sales/invoicing) "
+            "and its exact Python class name provided in the observation."
         )
 
 
@@ -318,6 +352,16 @@ def dispatch_describe_workflow(ctx: DispatchContext) -> None:
                 "filepath": site.filepath, "line_start": site.lineno, "line_end": end_lineno,
             }))
             read_observation = _truncate_observation_for_budget(ctx, read_observation, PER_TOOL_OBSERVATION_CAPS["read_source_code"])
+            from code_intelligence.rules.source_callees import read_method_source
+            from code_intelligence.rules.workflow import (
+                inspect_stage_workflow_actions,
+                format_stage_workflow_note,
+            )
+            write_src = read_method_source(site.filepath, site.lineno, end_lineno) or ""
+            actions = inspect_stage_workflow_actions(write_src)
+            stage_note = format_stage_workflow_note(target_model, actions)
+            if stage_note:
+                read_observation += "\n\n" + stage_note
             ctx.record_observation(
                 "read_source_code",
                 {"filepath": site.filepath, "line_start": site.lineno, "line_end": end_lineno},
@@ -349,7 +393,10 @@ def dispatch_describe_workflow(ctx: DispatchContext) -> None:
             "duplication, recurrence, notifications) typically lives in write() -- its "
             "real source has already been fetched above via read_source_code where "
             "resolvable. Do NOT guess another method name (e.g. 'action_done') for "
-            "these model(s), and do not call read_source_code again for their write()."
+            "these model(s), and do not call read_source_code again for their write(). "
+            "For stage-driven recurrence, rely strictly on the '[FAIT DÉTERMINISTIQUE -- WORKFLOW D'ÉTAPE ET RÉCURRENCE (write())]' "
+            "observation for any boundary conditions (such as repeat_type == 'forever' or schedule_date <= repeat_until). "
+            "Do NOT claim that followers or notifications are sent upon reaching 'done' unless explicitly triggered by write()."
         )
 
 
@@ -486,7 +533,8 @@ def dispatch_button_execution_path(ctx: DispatchContext) -> None:
                     _call_sites = resolve_method_override_chain(ctx.G, target_model, _called_name)
                     if not _call_sites:
                         continue
-                    _cs = _call_sites[0]
+                    _declaring_mod = target_model.split(".")[0]
+                    _cs = next((s for s in _call_sites if s.module == _declaring_mod), _call_sites[-1])
                     if not _cs.filepath or not _cs.lineno:
                         continue
                     _cs_end = _cs.end_lineno or _cs.lineno
@@ -533,13 +581,20 @@ def dispatch_button_execution_path(ctx: DispatchContext) -> None:
             logger.error("Deterministic button_execution_path dispatch failed: %s", te)
 
     if followed_any_callee:
+        has_noop_hook = any("[NOTE DÉTERMINISTIQUE -- HOOK SANS EFFET / NO-OP]" in o for o in ctx.tool_observations)
+        noop_guidance = (
+            " If a called method is marked as a no-op hook (empty body or returning True/None without logic, "
+            "e.g. validate_taxes_on_sales_order), do NOT claim that it validates, recalculates, or modifies anything: "
+            "it performs NO default business logic in this module."
+            if has_noop_hook else ""
+        )
         ctx.system_prompt_suffix += (
             "\n\n[DETERMINISTIC PRE-DISPATCH -- CALLED METHODS]\n"
             "The method body above calls other methods of the same model (another button_* "
             "method, a method used as a condition, or a step it delegates to); their real "
             "definitions have already been fetched above via read_source_code. Rely on that exact "
             "source for what they do and on which record or user they evaluate; do not guess their "
-            "line range or call read_source_code again for them."
+            f"line range or call read_source_code again for them.{noop_guidance}"
         )
 
 

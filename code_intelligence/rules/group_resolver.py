@@ -5,12 +5,104 @@ Tolerant group identifier resolution and transitive group hierarchy expansion
 for Odoo res.groups (implied_ids / IMPLIES edges).
 """
 
+from pathlib import Path
 import unicodedata
 from typing import Dict, List, Optional, Set
 import networkx as nx
 from rapidfuzz import fuzz
 
 FUZZY_GROUP_MATCH_THRESHOLD = 75
+
+_PARSED_MODULE_GROUPS: Dict[str, Dict[str, str]] = {}
+
+
+def _lookup_group_name_in_xml(group_xml_id: str) -> str:
+    """Dynamic resolution of res.groups display name from XML files in addons paths."""
+    from config.settings import CORE_ADDONS_PATH, CUSTOM_ADDONS_PATH
+    from code_intelligence.extractor.xml import parse_groups_from_xml
+
+    mod_name = group_xml_id.split(".")[0] if "." in group_xml_id else None
+    bare_id = group_xml_id.split(".")[-1]
+
+    candidate_roots = []
+    if CORE_ADDONS_PATH:
+        candidate_roots.append(Path(CORE_ADDONS_PATH))
+    if CUSTOM_ADDONS_PATH:
+        candidate_roots.append(Path(CUSTOM_ADDONS_PATH))
+
+    candidate_modules = [mod_name] if mod_name else []
+
+    for root_dir in candidate_roots:
+        if not root_dir.exists():
+            continue
+        if candidate_modules:
+            dirs_to_check = [root_dir / m for m in candidate_modules if (root_dir / m).is_dir()]
+        else:
+            dirs_to_check = [d for d in root_dir.iterdir() if d.is_dir()]
+
+        for mod_dir in dirs_to_check:
+            m_name = mod_dir.name
+            if m_name not in _PARSED_MODULE_GROUPS:
+                _PARSED_MODULE_GROUPS[m_name] = {}
+                for xml_file in mod_dir.rglob("*.xml"):
+                    try:
+                        records = parse_groups_from_xml(xml_file)
+                        for r in records:
+                            if r.name:
+                                _PARSED_MODULE_GROUPS[m_name][r.xml_id] = r.name
+                                _PARSED_MODULE_GROUPS[m_name][f"{m_name}.{r.xml_id}"] = r.name
+                    except Exception:
+                        continue
+
+            mod_cache = _PARSED_MODULE_GROUPS[m_name]
+            if group_xml_id in mod_cache:
+                return mod_cache[group_xml_id]
+            if bare_id in mod_cache:
+                return mod_cache[bare_id]
+
+    return ""
+
+
+def get_group_display_name(G: Optional[nx.DiGraph], group_identifier: str) -> str:
+    """Return the human-readable display name (res.groups name) of a security group.
+    Looked up in order:
+      1. Direct graph node G.nodes[f"group:{group_identifier}"].get("name") if non-empty.
+      2. If group_identifier has no module prefix (e.g. 'group_purchase_user'),
+         find any group node in G ending with f".{group_identifier}" that has a name.
+      3. If group_identifier has a module prefix (e.g. 'purchase.group_purchase_user'),
+         find node f"group:{group_identifier.split('.')[-1]}" if it has a name.
+      4. Dynamic XML lookup across CORE_ADDONS_PATH and CUSTOM_ADDONS_PATH (cached in _PARSED_MODULE_GROUPS).
+      5. Empty string if not resolvable.
+    """
+    if not group_identifier:
+        return ""
+
+    clean_id = group_identifier.strip()
+
+    if G is not None:
+        node_id = f"group:{clean_id}"
+        if node_id in G:
+            name = G.nodes[node_id].get("name")
+            if name:
+                return name
+
+        if "." not in clean_id:
+            suffix = f".{clean_id}"
+            for n in G.nodes:
+                if n.startswith("group:") and n.endswith(suffix):
+                    name = G.nodes[n].get("name")
+                    if name:
+                        return name
+        else:
+            short_id = clean_id.split(".")[-1]
+            short_node = f"group:{short_id}"
+            if short_node in G:
+                name = G.nodes[short_node].get("name")
+                if name:
+                    return name
+
+    # Dynamic XML lookup across addons (cached in _PARSED_MODULE_GROUPS)
+    return _lookup_group_name_in_xml(clean_id)
 
 
 def _group_short_name(xml_id: str) -> str:
@@ -23,7 +115,7 @@ def _group_display_name(G: nx.DiGraph, full_xml_id: str) -> str:
     """Human-readable name of a group node (e.g. 'Avoirs - Visibilite
     Regionale'), looked up from the graph. Empty string if not found."""
     node_id = f"group:{full_xml_id}"
-    if node_id in G:
+    if G is not None and node_id in G:
         return G.nodes[node_id].get("name", "")
     return ""
 

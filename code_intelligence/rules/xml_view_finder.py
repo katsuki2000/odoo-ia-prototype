@@ -12,6 +12,7 @@ import xml.etree.ElementTree as ET
 import networkx as nx
 
 from code_intelligence.rules.button_path import ButtonExecutionPathResult
+from code_intelligence.rules.group_resolver import get_group_display_name
 from code_intelligence.utils import format_file_link, format_xml_id_citations
 
 
@@ -197,14 +198,20 @@ def _find_field_in_xml_views(
     if groups_cond:
         raw_groups = [g.strip() for g in groups_cond.split(",") if g.strip()]
         _grp_citations = format_xml_id_citations([g.lstrip("!") for g in raw_groups])
+        formatted_groups = []
         for rg in raw_groups:
             clean_rg = rg.lstrip("!")
+            dname = get_group_display_name(G, clean_rg)
+            prefix = "!" if rg.startswith("!") else ""
+            formatted_groups.append(f"{prefix}{clean_rg} ('{dname}')" if dname else rg)
             rg_node = f"group:{clean_rg}"
             if G.has_node(rg_node) and G.nodes[rg_node].get("group_type") == "technical":
                 sf = G.nodes[rg_node].get("setting_field", "")
-                tech_notes.append(f"{clean_rg} (paramètre de configuration: '{sf}')")
+                group_label = f"'{dname}' [{clean_rg}]" if dname else clean_rg
+                tech_notes.append(f"{group_label} (paramètre de configuration: '{sf}')")
 
-        steps.append(f"6. Groupes requis: groups=\"{groups_cond}\" ({_grp_citations}).")
+        groups_formatted_str = ", ".join(formatted_groups)
+        steps.append(f"6. Groupes requis: groups=\"{groups_cond}\" (groupes: [{groups_formatted_str}]) ({_grp_citations}).")
         if tech_notes:
             steps.append(
                 f"7. Paramètre de configuration requis: Ce champ dépend d'une option dans les Paramètres du module "
@@ -224,14 +231,14 @@ def _find_field_in_xml_views(
     if groups_cond:
         if tech_notes:
             summary_parts.append(
-                f"Restreint aux groupes: [{groups_cond}] ({_grp_citations}). "
+                f"Restreint aux groupes: [{groups_formatted_str}] ({_grp_citations}). "
                 f"NOTE DE CONFIGURATION: Ce champ est conditionné par l'activation d'un paramètre dans les Paramètres du module "
                 f"({', '.join(tech_notes)}), et non par un simple rôle utilisateur individuel. "
                 f"Tant que cette fonctionnalité n'est pas activée en configuration, aucun utilisateur (même gestionnaire) "
                 f"ne voit ce champ car le groupe technique n'est attribué à personne."
             )
         else:
-            summary_parts.append(f"Restreint aux groupes: [{groups_cond}] ({_grp_citations}).")
+            summary_parts.append(f"Restreint aux groupes: [{groups_formatted_str}] ({_grp_citations}).")
     else:
         summary_parts.append("Aucune restriction par groupe sur ce champ.")
 

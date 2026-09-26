@@ -32,6 +32,7 @@ from .introspection import (
     list_involved_modules,
     explain_decision_path,
     read_source_code,
+    inspect_module_extensions,
 )
 from .analysis import (
     analyze_server_actions,
@@ -42,6 +43,7 @@ from .analysis import (
 
 ALL_CI_TOOLS = [
     list_involved_modules,
+    inspect_module_extensions,
     who_has_access_to,
     evaluate_record_rules,
     analyze_server_actions,
@@ -71,6 +73,7 @@ __all__ = [
     "list_involved_modules",
     "explain_decision_path",
     "read_source_code",
+    "inspect_module_extensions",
     "analyze_server_actions",
     "analyze_security_locks",
     "analyze_method_override_chain",
