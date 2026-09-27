@@ -1,6 +1,6 @@
 # Rapport Verbatim -- Bloc N1 (banc de questions natif)
 
-**Date d'execution :** 2026-09-27 22:10:36
+**Date d'execution :** 2026-09-27 22:55:19
 
 **Objectif :** rejouer les questions verite-terrain des 5 modules natifs (maintenance, purchase, sale, stock, account) contre l'agent Code Intelligence reel et capturer la reponse verbatim pour comparaison manuelle avec `reference_answer` -- aucune notation automatique.
 
@@ -13,10 +13,10 @@
 | Questions rejouees ce tour | 1 |
 | Erreurs d'execution | 0 |
 | Ecarts de couverture d'outils (expected_tools non tous invoques) | 0 |
-| p50 latence effective (run courant) | `64.14s` |
-| p90 latence effective (run courant) | `64.14s` (budget `12.0s`,  DEPASSE) |
-| Moyenne (run courant) | `64.14s` |
-| Max (run courant) | `64.14s` |
+| p50 latence effective (run courant) | `57.45s` |
+| p90 latence effective (run courant) | `57.45s` (budget `12.0s`,  DEPASSE) |
+| Moyenne (run courant) | `57.45s` |
+| Max (run courant) | `57.45s` |
 
 ---
 
@@ -315,26 +315,23 @@ Pour pouvoir approuver la commande, l’utilisateur doit être ajouté au groupe
 
 **Outils attendus :** ['analyze_data_constraints'] | **Outils invoques :** ['analyze_security_locks', 'analyze_data_constraints', 'analyze_security_locks']
 
-**Reponse verbatim de l'agent (Total: 64.14s | Effectif: 64.142s | Groq wait: 0.0s | Sauts: 3) :**
+**Reponse verbatim de l'agent (Total: 57.46s | Effectif: 57.454s | Groq wait: 0.0s | Sauts: 3) :**
 ```text
 **Quelles règles empêchent de supprimer une commande d’achat ou une de ses lignes ?**
 
-| Objet | Condition qui bloque la suppression | Message affiché |
-|-------|-------------------------------------|-----------------|
-| **Commande d’achat** | La commande doit être dans l’état « draft » (ou « cancel » après annulation). Si elle est en « purchase », « done », ou tout autre état, la suppression est refusée. | *« In order to delete a purchase order, you must cancel it first. »* |
-| **Ligne de commande** | La ligne ne peut pas être supprimée si la commande à laquelle elle appartient est en état « purchase » ou « done ». | *« Cannot delete a purchase order line which is in state %r. »* |
+- **Commande d’achat**  
+  - La suppression d’une commande est bloquée tant qu’elle n’est pas dans l’état **« draft »** (ou **« cancel »**).  
+  - Si la commande a déjà été validée (état **« purchase »**) ou terminée (état **« done »**), l’action « Supprimer » est désactivée.  
+  - De plus, avant de pouvoir annuler une commande, il faut d’abord annuler toutes les factures fournisseurs qui y sont liées ; sinon l’annulation (et donc la suppression) est refusée.
 
-Ces règles sont implémentées dans le code Python des modèles `purchase.order` et `purchase.order.line`. Elles garantissent que seules les commandes en brouillon (ou annulées) et leurs lignes associées peuvent être effacées.
-
----
+- **Ligne de commande**  
+  - Une ligne ne peut être supprimée que si la commande à laquelle elle appartient n’est pas en état **« purchase »** ou **« done »**.  
+  - Si la commande est déjà validée ou terminée, la suppression de la ligne est bloquée.
 
 **Quelle contrainte SQL distincte s’applique sur les lignes elles‑mêmes ?**
 
-Dans les observations recueillies, aucune contrainte SQL (`_sql_constraints`) n’a été détectée sur le modèle `purchase.order.line`. Les seules contraintes présentes sont des contraintes Python (`@api.constrains`) qui vérifient, par exemple, que le produit d’une ligne correspond à celui de la demande d’achat correspondante ou que la société du produit est compatible avec celle de la commande.  
-
-En résumé :  
-- **Suppression** : bloquée par des vérifications d’état dans le code Python.  
-- **Contrainte SQL** : aucune contrainte SQL n’est appliquée aux lignes de commande d’achat dans les données analysées.
+Aucune contrainte SQL explicite n’a été détectée dans les observations disponibles pour le modèle `purchase.order.line`.  
+(En pratique, Odoo peut définir des contraintes au niveau de la base de données, mais celles-ci ne figurent pas dans les données analysées.)
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```

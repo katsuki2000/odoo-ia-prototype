@@ -381,9 +381,20 @@ def dispatch_analyze_data_constraints(ctx: DispatchContext) -> None:
             logger.error("Deterministic analyze_data_constraints dispatch failed: %s", te)
 
     if any(k and k[0] == "analyze_data_constraints" for k in ctx.seen_calls):
+        # Section 974 (todo/contexte.txt): this used to be an unconditional
+        # "do not call again", which silently starved a genuinely different
+        # model the resolver had not recognized (PUR-Q5: the question asks
+        # about purchase.order.line's own SQL constraint, but the resolver
+        # only resolved purchase.order -- the LLM correctly noticed the gap
+        # itself for analyze_security_locks, calling it a second time for
+        # the line model, but this instruction blocked it from doing the
+        # same for analyze_data_constraints). Name the model(s) already
+        # covered explicitly and only forbid repeating those, not the tool.
         ctx.system_prompt_suffix += (
             "\n\n[DETERMINISTIC PRE-DISPATCH]\n"
-            "analyze_data_constraints has already been run for the target model(s) above; "
-            "its SQL uniqueness and relational domain rules are already included in the "
-            "tool observations. Do not call analyze_data_constraints again."
+            f"analyze_data_constraints has already been run for: {', '.join(ctx.concept.resolved_models)}; "
+            "its SQL uniqueness and relational domain rules for those models are already included "
+            "in the tool observations -- do not call it again for any of them. If the question also "
+            "concerns a distinct related model not listed above (e.g. a line/detail model of an order "
+            "model already covered), you may call analyze_data_constraints once for that other model."
         )
