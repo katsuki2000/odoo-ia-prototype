@@ -1,6 +1,6 @@
 # Rapport Verbatim -- Bloc N1 (banc de questions natif)
 
-**Date d'execution :** 2026-09-27 20:38:12
+**Date d'execution :** 2026-09-27 22:10:36
 
 **Objectif :** rejouer les questions verite-terrain des 5 modules natifs (maintenance, purchase, sale, stock, account) contre l'agent Code Intelligence reel et capturer la reponse verbatim pour comparaison manuelle avec `reference_answer` -- aucune notation automatique.
 
@@ -13,10 +13,10 @@
 | Questions rejouees ce tour | 1 |
 | Erreurs d'execution | 0 |
 | Ecarts de couverture d'outils (expected_tools non tous invoques) | 0 |
-| p50 latence effective (run courant) | `10.2s` |
-| p90 latence effective (run courant) | `10.2s` (budget `12.0s`,  RESPECTE) |
-| Moyenne (run courant) | `10.2s` |
-| Max (run courant) | `10.2s` |
+| p50 latence effective (run courant) | `64.14s` |
+| p90 latence effective (run courant) | `64.14s` (budget `12.0s`,  DEPASSE) |
+| Moyenne (run courant) | `64.14s` |
+| Max (run courant) | `64.14s` |
 
 ---
 
@@ -313,25 +313,28 @@ Pour pouvoir approuver la commande, l’utilisateur doit être ajouté au groupe
 
 **A verifier dans le code :** `models/purchase_order.py : _unlink_if_cancelled (@api.ondelete) ; models/purchase_order_line.py : _unlink_except_purchase_or_done (@api.ondelete) + _sql_constraints (accountable_required_fields, non_accountable_null_fields)`
 
-**Outils attendus :** ['analyze_data_constraints'] | **Outils invoques :** ['analyze_security_locks', 'analyze_data_constraints', 'analyze_data_constraints']
+**Outils attendus :** ['analyze_data_constraints'] | **Outils invoques :** ['analyze_security_locks', 'analyze_data_constraints', 'analyze_security_locks']
 
-**Reponse verbatim de l'agent (Total: 60.84s | Effectif: 60.839s | Groq wait: 0.0s | Sauts: 3) :**
+**Reponse verbatim de l'agent (Total: 64.14s | Effectif: 64.142s | Groq wait: 0.0s | Sauts: 3) :**
 ```text
-**Supprimer une commande d’achat ou l’une de ses lignes**
+**Quelles règles empêchent de supprimer une commande d’achat ou une de ses lignes ?**
 
-| Élément | Condition qui empêche la suppression | Explication métier |
-|---------|--------------------------------------|---------------------|
-| **Commande d’achat** | La commande doit être **annulée** avant de pouvoir être supprimée. | Si la commande est encore en cours (par ex. « En cours », « Validée », etc.), l’action « Supprimer » est bloquée. L’utilisateur doit d’abord cliquer sur le bouton « Annuler » pour mettre la commande dans l’état « Annulée ». |
-| **Ligne de commande** | La suppression d’une ligne est interdite lorsqu’elle est liée à des opérations déjà réalisées (bon de livraison, facture fournisseur, etc.). | Si la ligne a déjà fait l’objet d’une réception ou d’une facturation, elle ne peut plus être retirée. L’utilisateur doit d’abord annuler ou supprimer ces opérations associées avant de pouvoir supprimer la ligne. |
+| Objet | Condition qui bloque la suppression | Message affiché |
+|-------|-------------------------------------|-----------------|
+| **Commande d’achat** | La commande doit être dans l’état « draft » (ou « cancel » après annulation). Si elle est en « purchase », « done », ou tout autre état, la suppression est refusée. | *« In order to delete a purchase order, you must cancel it first. »* |
+| **Ligne de commande** | La ligne ne peut pas être supprimée si la commande à laquelle elle appartient est en état « purchase » ou « done ». | *« Cannot delete a purchase order line which is in state %r. »* |
 
-**Contrainte SQL appliquée aux lignes de commande**
+Ces règles sont implémentées dans le code Python des modèles `purchase.order` et `purchase.order.line`. Elles garantissent que seules les commandes en brouillon (ou annulées) et leurs lignes associées peuvent être effacées.
 
-Les lignes de commande sont soumises à deux contraintes au niveau de la base de données :
+---
 
-1. **`accountable_required_fields`** – Cette contrainte vérifie que, pour une ligne « comptable » (c’est‑à‑dire une ligne qui doit apparaître dans les écritures comptables), les champs obligatoires (`product_id`, `product_uom`, `date_planned`) sont bien renseignés.  
-2. **`non_accountable_null_fields`** – Cette contrainte empêche d’avoir des valeurs non nulles sur ces mêmes champs lorsqu’une ligne est déclarée « non comptable » (par ex. une ligne de type « information »).  
+**Quelle contrainte SQL distincte s’applique sur les lignes elles‑mêmes ?**
 
-Ces règles garantissent l’intégrité des données au niveau de la base et empêchent la création ou la modification de lignes qui ne respecteraient pas les exigences comptables ou de gestion.
+Dans les observations recueillies, aucune contrainte SQL (`_sql_constraints`) n’a été détectée sur le modèle `purchase.order.line`. Les seules contraintes présentes sont des contraintes Python (`@api.constrains`) qui vérifient, par exemple, que le produit d’une ligne correspond à celui de la demande d’achat correspondante ou que la société du produit est compatible avec celle de la commande.  
+
+En résumé :  
+- **Suppression** : bloquée par des vérifications d’état dans le code Python.  
+- **Contrainte SQL** : aucune contrainte SQL n’est appliquée aux lignes de commande d’achat dans les données analysées.
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```

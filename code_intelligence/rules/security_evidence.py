@@ -250,12 +250,18 @@ def format_security_locks_summary(
                         # whose other disjuncts are unrelated to any group
                         # and independently sufficient -- the group is NOT a
                         # hard requirement, just one of several paths.
+                        # Section 972 (PUR-Q5): shortened from the original
+                        # ~330-char sentence -- same warning, same tested
+                        # substring ("N'EST PAS le seul chemin"), far less
+                        # essential-tier budget spent per occurrence, which
+                        # otherwise starved the exception tier (the actual
+                        # raised delete-condition messages) under a large
+                        # `analyze_security_locks` budget (see
+                        # assemble_security_lock_blocks).
                         lines.append(
-                            f"    * has_group('{group_xmlid}') se trouve dans la methode '{method_name}()', mais "
-                            f"N'EST PAS le seul chemin : cette verification fait partie d'un 'or' dont les autres "
-                            f"conditions sont independantes de tout groupe ({alt}) -- si l'une d'elles est vraie, "
-                            f"l'action est autorisee MEME SANS ce groupe. NE PAS presenter ce groupe comme requis "
-                            f"dans tous les cas sans verifier ces conditions alternatives. "
+                            f"    * has_group('{group_xmlid}') dans '{method_name}()' -- "
+                            f"N'EST PAS le seul chemin (un OR avec : {alt}) : action autorisee "
+                            f"meme sans ce groupe si l'une des autres conditions est vraie. "
                             f"({citation}) ({site_link})"
                         )
                     elif gating:
@@ -265,12 +271,12 @@ def format_security_locks_summary(
                             f"({citation}) ({site_link})"
                         )
                     else:
+                        # Section 972 (PUR-Q5): shortened from the original
+                        # ~350-char sentence, same reasoning as above.
                         lines.append(
-                            f"    * has_group('{group_xmlid}') se trouve dans la methode '{method_name}()' MAIS NE FAIT QUE "
-                            f"SELECTIONNER LE TEXTE DU MESSAGE D ERREUR -- l instruction raise qui suit ne depend PAS de ce "
-                            f"groupe et s execute de toute facon ; NE PAS presenter ce groupe comme requis pour agir, "
-                            f"autorise a contourner ou exempte de la regle sur la seule base de cette ligne. "
-                            f"({citation}) ({site_link})"
+                            f"    * has_group('{group_xmlid}') dans '{method_name}()' -- ne conditionne PAS le "
+                            f"raise qui suit (selectionne seulement le texte du message ; action non bloquee par "
+                            f"ce groupe). ({citation}) ({site_link})"
                         )
         for group_xmlid, method_name, glineno in zip(analysis.required_groups, methods, group_linenos):
             if not method_name:
