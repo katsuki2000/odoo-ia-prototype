@@ -29,6 +29,14 @@ class SecurityLockASTVisitor(ast.NodeVisitor):
         self.exception_conditions: List[str] = []
         self.exception_guard_fields: List[str] = []
         self.exception_linenos: List[int] = []
+        # Mandat "method name tracking" (todo/contexte.txt section 972 item
+        # 1 / decision post-975): the enclosing method's real name at the
+        # point each exception is raised, mirroring required_group_methods'
+        # existing use of _current_method_name() for has_group() calls.
+        # Lets a caller match the question's action verb (e.g. "supprimer")
+        # to the real Odoo method family (unlink, button_cancel, ...)
+        # instead of comparing whole sentences by fuzzy text similarity.
+        self.exception_methods: List[str] = []
         self.dynamic_dispatches: List[str] = []
         self.required_groups: List[str] = []
         self.required_group_methods: List[str] = []
@@ -225,6 +233,7 @@ class SecurityLockASTVisitor(ast.NodeVisitor):
                 self.exception_conditions.append(self._current_condition_text())
                 self.exception_guard_fields.append(self._detect_link_guard_field())
                 self.exception_linenos.append(node.lineno)
+                self.exception_methods.append(self._current_method_name())
 
         self.generic_visit(node)
 
@@ -365,6 +374,7 @@ class PythonSecurityLockAnalysis:
     exception_conditions: List[str] = field(default_factory=list)
     exception_guard_fields: List[str] = field(default_factory=list)
     exception_linenos: List[int] = field(default_factory=list)
+    exception_methods: List[str] = field(default_factory=list)
     has_dynamic_dispatch: bool = False
     dynamic_dispatch_types: List[str] = field(default_factory=list)
     required_groups: List[str] = field(default_factory=list)
@@ -395,6 +405,7 @@ def analyze_python_security_locks(code: str, filepath: str) -> PythonSecurityLoc
             exception_conditions=[],
             exception_guard_fields=[],
             exception_linenos=[],
+            exception_methods=[],
             required_groups=[],
             required_group_methods=[],
             required_group_linenos=[],
@@ -413,6 +424,7 @@ def analyze_python_security_locks(code: str, filepath: str) -> PythonSecurityLoc
         result.exception_conditions = visitor.exception_conditions
         result.exception_guard_fields = visitor.exception_guard_fields
         result.exception_linenos = visitor.exception_linenos
+        result.exception_methods = visitor.exception_methods
         result.dynamic_dispatch_types = visitor.dynamic_dispatches
         result.required_groups = visitor.required_groups
         result.required_group_methods = visitor.required_group_methods
@@ -447,6 +459,7 @@ def analyze_python_security_locks(code: str, filepath: str) -> PythonSecurityLoc
                 result.exception_conditions.append("")
                 result.exception_guard_fields.append("")
                 result.exception_linenos.append(0)
+                result.exception_methods.append("")
 
     if not result.required_groups:
         for group_xmlid in _HAS_GROUP_PATTERN.findall(code):
@@ -480,6 +493,7 @@ def analyze_python_security_locks(code: str, filepath: str) -> PythonSecurityLoc
         exception_conditions=result.exception_conditions,
         exception_guard_fields=result.exception_guard_fields,
         exception_linenos=result.exception_linenos,
+        exception_methods=result.exception_methods,
         required_groups=result.required_groups,
         required_group_methods=result.required_group_methods,
         required_group_linenos=result.required_group_linenos,

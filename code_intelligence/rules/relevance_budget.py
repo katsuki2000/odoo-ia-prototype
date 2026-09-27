@@ -48,16 +48,32 @@ def _relevance_score(text: str, question: Optional[str]) -> float:
     return base + 15 * len(overlap)
 
 
-def _rerank_by_relevance(items: list, text_fn, question: Optional[str]) -> list:
-    """Stable-sort `items` by _relevance_score(text_fn(item), question),
+def _rerank_by_relevance(items: list, text_fn, question: Optional[str], bonus_fn=None) -> list:
+    """Stable-sort `items` by _relevance_score(text_fn(item), question)
+    (plus an optional deterministic `bonus_fn(item)` added on top),
     descending. Returns `items` UNCHANGED (same order, same list identity
     semantics) when `question` is falsy -- e.g. isolated unit tests that
     call a formatter directly without going through the agent loop's
     set_current_question, and existing tests asserting a specific
-    source/positional order, are unaffected."""
+    source/positional order, are unaffected.
+
+    `bonus_fn` (mandat "method name tracking", todo/contexte.txt section
+    972 item 1 / decision post-975): optional callable returning a numeric
+    score to ADD on top of the generic fuzzy-text `_relevance_score` for a
+    given item -- lets a caller fold in a deterministic, non-heuristic-text
+    signal (e.g. the question's action verb matching the item's real
+    enclosing method name) without that caller having to re-implement
+    reranking itself. None (the default) preserves the exact prior
+    behavior for every existing call site that does not pass it."""
     if not question:
         return items
-    return sorted(items, key=lambda item: _relevance_score(text_fn(item), question), reverse=True)
+    if bonus_fn is None:
+        return sorted(items, key=lambda item: _relevance_score(text_fn(item), question), reverse=True)
+    return sorted(
+        items,
+        key=lambda item: _relevance_score(text_fn(item), question) + bonus_fn(item),
+        reverse=True,
+    )
 
 
 def _protected_prefix_end(text: str) -> int:

@@ -4511,3 +4511,41 @@ Contexte : Maha colle le rejeu LLM reel de PUR-Q5 demande en fin de section 973 
 **Verification** : 50 passes cible (constraint/predispatch/section974/pur_q5). Suite complete relancee 2x (avant et apres la correction du test flaky) : **1610 passed, 18 skipped, 39 deselected, 0 echec, 159.88s** apres correction (contre 1609 passed + 1 failed avant, confirmant que l'echec etait bien dans mon propre test neuf, pas une regression du fix lui-meme).
 
 **Statut PUR-Q5** : 2 sous-points sur 4 corriges dans l'absolu (ligne deja correcte depuis avant, SQL constraint desormais accessible au LLM via le fix de redispatch) ; 1 sous-point (commande, message de suppression) reste bloque par la limite de pertinence deja documentee, mandat "method name tracking" toujours en attente ; 1 sous-point (factures fournisseurs) deja correct. **Rejeu LLM complet de PUR-Q5 necessaire pour confirmer en conditions reelles que le fix de redispatch corrige bien le point 4** -- delegue a Maha.
+
+## Section 955 -- PUR-Q5 rejouee seule : 2 des 3 inexactitudes de la section 953 ameliorees, la 3e change de nature (honnetete plutot que fabrication, mais probable mauvais modele cible pour analyze_data_constraints)
+
+Date : 26/09/2026
+Contexte : pmm rejoue PUR-Q5 isolement.
+
+- **Condition de suppression de la commande** : desormais correcte -- "la commande doit etre annulee avant suppression" correspond a `state == 'cancel'` (`_unlink_if_cancelled`), conforme au code reel. Ameliore vs la section 953 (qui disait a tort "Brouillon ou Annulee").
+- **Condition de suppression de ligne** : toujours imprecise mais differemment -- dit "brouillon ou envoyee" (omet "to approve" et "annulee" du vrai ensemble autorise, qui est en realite tout sauf purchase/done, cf. `_unlink_except_purchase_or_done`). Incomplete plutot que totalement fausse.
+- **Contrainte SQL sur les lignes** : ne fabrique plus "product_uom_qty > 0" (defaut corrige) -- dit desormais honnetement "aucune contrainte SQL n'apparait dans les observations disponibles". Mais c'est faux par omission : les 2 contraintes reelles (`accountable_required_fields`, `non_accountable_null_fields`) existent bien sur `purchase.order.line`. Un seul appel `analyze_data_constraints` a ete invoque sur ce tour -- probable cible manquee (appele sur `purchase.order` plutot que sur `purchase.order.line`, la question demandant explicitement la contrainte sur "les lignes elles-memes"). Root cause non confirmee (pas de lecture de code faite dans cette section).
+
+**Aucun fix applique.** Diagnostic seul. Le sujet H3 vs correcteur etroit (section 954) reste en attente d'arbitrage pmm -- question posee, pas encore tranchee.
+
+## Decision pmm : mandat donne pour "method name tracking" (section 972, item 1)
+
+Mandat explicite donne pour la piste proposee en section 972 (item 1) : ajouter le nom de la methode englobante aux messages d'exception captures par le visiteur AST de `security.py` (deja fait pour les `has_group()` via `_current_method_name()`/`required_group_methods`, absent pour `exception_messages`/`exception_conditions`/`exception_guard_fields`/`exception_linenos`), pour permettre un boost de pertinence deterministe (verbe d'action de la question -> famille de methode reelle, ex. supprimer/delete -> `unlink`) plutot qu'une similarite floue de phrases completes. Portee annoncee : `security.py` (visiteur AST + dataclass), `security_evidence.py` (`build_security_lock_evidence`, `format_security_locks_summary`, reranking), tests dedies. Investigation/implementation a suivre.
+
+## Section 976 -- Mandat "method name tracking" execute (section 972 item 1)
+
+Date : 26/09/2026
+Mandat donne post-975 (Maha), portee annoncee en section 972 : ajouter le nom de la methode englobante aux exceptions capturees par le visiteur AST, pour un boost de pertinence deterministe (verbe d'action -> famille de methode reelle) au lieu d'une similarite floue de phrases completes.
+
+**Implementation, en miroir exact de `exception_linenos` a chaque point** :
+- `code_intelligence/rules/security.py` : nouveau champ `exception_methods` sur `SecurityLockASTVisitor` (rempli via `self._current_method_name()`, deja utilise pour `required_group_methods`) et sur `PythonSecurityLockAnalysis`. Copie visiteur->result, cas fichier vide, fallback regex (reste `""`, aucune info de controle de flux disponible sans AST -- meme discipline que `required_group_methods`), appel a `build_security_lock_evidence`.
+- `code_intelligence/rules/security_evidence.py` :
+  - `build_security_lock_evidence` : nouveau parametre optionnel `exception_methods` (place en fin de signature, apres les 2 autres parametres optionnels existants -- Python exige que tout parametre avec valeur par defaut suive tous les parametres sans defaut ; premiere tentative de placement immediatement apres `required_groups` corrigee suite a un `SyntaxError` a la compilation). Le nom de methode, quand present, est ajoute a la `claim` de l'Evidence (`"... (in method 'X()')"`).
+  - `format_security_locks_summary` : le nom de methode est desormais affiche dans le texte (`"... (dans 'X()')"`) et zippe dans `exc_rows`.
+  - Nouveau `_METHOD_FAMILY_VERBS_FR` (mapping verbe francais -> regex, meme discipline non-exhaustive que `_ACCESS_VERBS_FR` dans `access_evaluator.py` : unlink/cancel/confirm/approve/lock/unlock/create/write) et `_method_family_bonus(method_name, question)` -- retourne un bonus fixe de 100.0 (choisi pour dominer decisivement l'ecart de score fuzzy observe en section 972, de l'ordre de quelques points a une dizaine) quand la famille du nom de methode reel correspond au verbe de la question, 0.0 sinon.
+- `code_intelligence/rules/relevance_budget.py::_rerank_by_relevance` : nouveau parametre optionnel `bonus_fn=None`, ajoute au score fuzzy avant tri quand fourni. Retro-compatible : les 3 autres appelants existants (qui ne le passent pas) sont inchanges.
+- Le bonus est branche uniquement sur le rerank des `exc_rows` (messages d'exception) dans `format_security_locks_summary`, pas sur celui des `action_rows` (has_group) -- perimetre annonce en section 972 (item 1 nomme explicitement les messages d'exception, pas les has_group).
+
+**Tests** : `code_intelligence/tests/test_section976_method_name_tracking.py`, 15 tests neufs, incluant une reproduction bout-en-bout exacte du diagnostic de la section 972 (meme code source `purchase_order.py` avec ses 3 methodes reelles `_unlink_if_cancelled`/`action_create_invoice`/`button_cancel`, meme question PUR-Q5 verbatim) : le message de suppression, qui perdait le reranking (36.1 contre 42.8/39.1) avant ce fix, ressort desormais explicitement PREMIER.
+
+**Verification** :
+- `pytest code_intelligence/tests/test_section976_method_name_tracking.py` : **15/15 PASSED**.
+- Sweep elargi (`-k "security or relevance or evidence or 972 or 973 or 974 or 976"`) : **202 passed, 0 echec**.
+- Suite globale complete (`pytest code_intelligence/tests/ tests/ -m "not integration" -q`) : **1625 passed, 18 skipped, 39 deselected, 0 echec** (contre 1610 avant -- exactement +15, les nouveaux tests, aucune regression).
+
+**Statut** : le mandat de la section 972 item 1 est execute. Reste toujours en attente, hors mandat de cette section : (2) rejeu LLM complet de PUR-Q5 pour confirmer en conditions reelles que le message de suppression d'entete de commande survit desormais au budget/reranking combines ; (3) la limite structurelle de `resolve_business_term` sur les references anaphoriques (section 957), non traitee, mandat non donne.

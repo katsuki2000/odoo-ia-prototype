@@ -31,6 +31,56 @@ logger = logging.getLogger(__name__)
 # assemble_security_lock_blocks.
 _EXCEPTION_MESSAGES_MARKER = "  - Security lock messages"
 
+# Mandat "method name tracking" (todo/contexte.txt section 972 item 1 /
+# decision post-975): deterministic action-verb -> Odoo method-name-family
+# mapping, used to boost an exception message's relevance score when its
+# real enclosing method (exception_methods, security.py) belongs to the
+# family the question's own action verb points to -- e.g. a question about
+# "supprimer une commande" naming the `unlink` family should outrank an
+# unrelated has_group/exception message purely on fuzzy shared vocabulary
+# ("purchase order", "cancel", "condition") the way _relevance_score alone
+# was shown to do (todo/contexte.txt section 972, PUR-Q5: the real deletion
+# message scored 36.1, BEHIND two unrelated messages at 42.8/39.1). Deliberately
+# not exhaustive NLU -- same targeted-pattern discipline as
+# _ACCESS_VERBS_FR in access_evaluator.py: covers the common CRUD/workflow
+# action families this benchmark's questions actually name, not every
+# conceivable verb.
+_METHOD_FAMILY_VERBS_FR = {
+    "unlink": re.compile(r"supprim\w*|effac\w*|\bdelete\b", re.IGNORECASE),
+    "cancel": re.compile(r"annul\w*|\bcancel\w*\b", re.IGNORECASE),
+    "confirm": re.compile(r"confirm\w*|valid\w*", re.IGNORECASE),
+    "approve": re.compile(r"approuv\w*|\bapprove\w*\b", re.IGNORECASE),
+    "lock": re.compile(r"verrouill\w*|\block\w*\b", re.IGNORECASE),
+    "unlock": re.compile(r"d[ée]verrouill\w*|\bunlock\w*\b", re.IGNORECASE),
+    "create": re.compile(r"cr[ée][ée]?r?\w*", re.IGNORECASE),
+    "write": re.compile(r"modifi\w*|[ée]dit\w*|chang\w*", re.IGNORECASE),
+}
+
+# Large enough to decisively override the fuzzy _relevance_score spread
+# actually observed in section 972's diagnosis (single-digit-to-low-double-
+# digit point gaps between an on-topic and an off-topic message on the same
+# file) without needing per-case tuning -- a deterministic method-family
+# match is a stronger signal than fuzzy shared vocabulary and should win
+# outright, not just nudge the ranking.
+_METHOD_FAMILY_BONUS = 100.0
+
+
+def _method_family_bonus(method_name: str, question: Optional[str]) -> float:
+    """Deterministic bonus for `_rerank_by_relevance`'s `bonus_fn`: nonzero
+    only when the question's own text matches one of `_METHOD_FAMILY_VERBS_FR`
+    AND that family's name is a substring of the item's real enclosing
+    method name (e.g. family "unlink" matching method
+    "_unlink_if_cancelled"). Returns 0.0 (no-op) when there is no method
+    name, no question, or no family match -- existing callers/tests that
+    never populated exception_methods are unaffected."""
+    if not method_name or not question:
+        return 0.0
+    method_lower = method_name.lower()
+    for family, verb_re in _METHOD_FAMILY_VERBS_FR.items():
+        if family in method_lower and verb_re.search(question):
+            return _METHOD_FAMILY_BONUS
+    return 0.0
+
 # Section 846: intra-block relevance reranking (_rerank_by_relevance) and
 # the protected-minimum water-filling primitive
 # (_waterfill_with_protected_minimum) used below now live in
@@ -53,6 +103,7 @@ def build_security_lock_evidence(
     dynamic_dispatch_types: List[str],
     required_group_is_gating: Optional[List[bool]] = None,
     required_group_alt_conditions: Optional[List[str]] = None,
+    exception_methods: Optional[List[str]] = None,
 ) -> List[Evidence]:
     """Produce structured Evidence objects for security locks and uncertainties."""
     evidence: List[Evidence] = []
@@ -85,14 +136,17 @@ def build_security_lock_evidence(
         conditions = exception_conditions or [""] * len(exception_messages)
         guard_fields = exception_guard_fields or [""] * len(exception_messages)
         linenos = exception_linenos or [0] * len(exception_messages)
-        for i, (message, condition, guard_field, lineno) in enumerate(
-            zip(exception_messages, conditions, guard_fields, linenos)
+        methods = exception_methods or [""] * len(exception_messages)
+        for i, (message, condition, guard_field, lineno, method_name) in enumerate(
+            zip(exception_messages, conditions, guard_fields, linenos, methods)
         ):
             claim = f"File '{filepath}' raises UserError/ValidationError \"{message}\""
             if condition:
                 claim += f" (condition: {condition})"
             if guard_field:
                 claim += f" (link-guarded on '{guard_field}')"
+            if method_name:
+                claim += f" (in method '{method_name}()')"
             scope: Dict[str, Any] = {}
             if lineno:
                 scope["lineno"] = lineno
@@ -298,25 +352,34 @@ def format_security_locks_summary(
         conditions = analysis.exception_conditions or [""] * len(analysis.exception_messages)
         guard_fields = analysis.exception_guard_fields or [""] * len(analysis.exception_messages)
         exc_linenos = analysis.exception_linenos or [0] * len(analysis.exception_messages)
+        exc_methods = getattr(analysis, "exception_methods", None) or [""] * len(analysis.exception_messages)
         # Section 846: same reranking as the has_group findings above --
         # this is precisely the gap 836/837 left open (account.move,
         # ACC-Q2: source order put an unrelated "journal not found" message
         # first, so IT is what 837's protected-minimum kept every rerun,
         # never the actually-relevant lock-date message further down).
+        # Section 972 item 1 / mandat "method name tracking": bonus_fn adds
+        # a deterministic method-family match on top of the fuzzy score --
+        # see _method_family_bonus above for why (PUR-Q5's deletion message
+        # losing to unrelated vocabulary-heavy messages under fuzzy scoring
+        # alone).
+        current_question = get_current_question()
         exc_rows = _rerank_by_relevance(
-            list(zip(analysis.exception_messages, conditions, guard_fields, exc_linenos)),
+            list(zip(analysis.exception_messages, conditions, guard_fields, exc_linenos, exc_methods)),
             text_fn=lambda row: f"{row[0]} {row[1]}",
-            question=get_current_question(),
+            question=current_question,
+            bonus_fn=lambda row: _method_family_bonus(row[4], current_question),
         )
-        for msg, condition, guard_field, exc_lineno in exc_rows:
+        for msg, condition, guard_field, exc_lineno, method_name in exc_rows:
             # Section 835 (option A) -- same per-finding file link as required_groups
             # above: the block header link alone is not enough once several files'
             # blocks are concatenated (824) -- attach it to this exact finding line.
             site_link = format_file_link(filepath, exc_lineno, exc_lineno) if exc_lineno else file_link
+            method_suffix = f" (dans '{method_name}()')" if method_name else ""
             if condition:
-                lines.append(f"    * \"{msg}\" (condition : {condition}) ({site_link})")
+                lines.append(f"    * \"{msg}\" (condition : {condition}){method_suffix} ({site_link})")
             else:
-                lines.append(f"    * \"{msg}\" ({site_link})")
+                lines.append(f"    * \"{msg}\"{method_suffix} ({site_link})")
             if guard_field:
                 lines.append(
                     f"      [GARDE DE LIEN: si '{guard_field}' est vide/absent (aucun "
