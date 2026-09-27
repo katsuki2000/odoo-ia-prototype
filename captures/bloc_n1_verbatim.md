@@ -1,6 +1,6 @@
 # Rapport Verbatim -- Bloc N1 (banc de questions natif)
 
-**Date d'execution :** 2026-09-27 22:55:19
+**Date d'execution :** 2026-09-28 00:47:11
 
 **Objectif :** rejouer les questions verite-terrain des 5 modules natifs (maintenance, purchase, sale, stock, account) contre l'agent Code Intelligence reel et capturer la reponse verbatim pour comparaison manuelle avec `reference_answer` -- aucune notation automatique.
 
@@ -13,10 +13,10 @@
 | Questions rejouees ce tour | 1 |
 | Erreurs d'execution | 0 |
 | Ecarts de couverture d'outils (expected_tools non tous invoques) | 0 |
-| p50 latence effective (run courant) | `57.45s` |
-| p90 latence effective (run courant) | `57.45s` (budget `12.0s`,  DEPASSE) |
-| Moyenne (run courant) | `57.45s` |
-| Max (run courant) | `57.45s` |
+| p50 latence effective (run courant) | `56.3s` |
+| p90 latence effective (run courant) | `56.3s` (budget `12.0s`,  DEPASSE) |
+| Moyenne (run courant) | `56.3s` |
+| Max (run courant) | `56.3s` |
 
 ---
 
@@ -315,23 +315,20 @@ Pour pouvoir approuver la commande, l’utilisateur doit être ajouté au groupe
 
 **Outils attendus :** ['analyze_data_constraints'] | **Outils invoques :** ['analyze_security_locks', 'analyze_data_constraints', 'analyze_security_locks']
 
-**Reponse verbatim de l'agent (Total: 57.46s | Effectif: 57.454s | Groq wait: 0.0s | Sauts: 3) :**
+**Reponse verbatim de l'agent (Total: 56.3s | Effectif: 56.302s | Groq wait: 0.0s | Sauts: 3) :**
 ```text
-**Quelles règles empêchent de supprimer une commande d’achat ou une de ses lignes ?**
+**Blocage de suppression**
 
-- **Commande d’achat**  
-  - La suppression d’une commande est bloquée tant qu’elle n’est pas dans l’état **« draft »** (ou **« cancel »**).  
-  - Si la commande a déjà été validée (état **« purchase »**) ou terminée (état **« done »**), l’action « Supprimer » est désactivée.  
-  - De plus, avant de pouvoir annuler une commande, il faut d’abord annuler toutes les factures fournisseurs qui y sont liées ; sinon l’annulation (et donc la suppression) est refusée.
+| Objet | Condition qui empêche la suppression | Explication |
+|-------|--------------------------------------|-------------|
+| **Ligne de commande d’achat** | Si la commande à laquelle elle appartient est déjà en état **« purchase »** ou **« done »** | Le système refuse de supprimer la ligne tant que la commande est en cours ou terminée, afin de préserver l’intégrité des opérations déjà validées. |
+| **Commande d’achat** | Si son état n’est pas **« cancel »** | Une commande ne peut être supprimée que lorsqu’elle a été annulée. Avant cela, il faut passer par l’action « Annuler » pour mettre la commande dans l’état « cancel ». |
 
-- **Ligne de commande**  
-  - Une ligne ne peut être supprimée que si la commande à laquelle elle appartient n’est pas en état **« purchase »** ou **« done »**.  
-  - Si la commande est déjà validée ou terminée, la suppression de la ligne est bloquée.
+**Contrainte SQL sur les lignes**
 
-**Quelle contrainte SQL distincte s’applique sur les lignes elles‑mêmes ?**
+- Sur chaque ligne de commande d’achat, une contrainte SQL empêche d’avoir deux lignes identiques pour le même produit dans la même commande. En pratique, le champ **`product_id`** doit être unique par commande, ce qui garantit qu’une même marchandise ne peut pas être enregistrée deux fois dans la même demande d’achat.
 
-Aucune contrainte SQL explicite n’a été détectée dans les observations disponibles pour le modèle `purchase.order.line`.  
-(En pratique, Odoo peut définir des contraintes au niveau de la base de données, mais celles-ci ne figurent pas dans les données analysées.)
+Ces règles assurent que les commandes et leurs lignes restent cohérentes tout au long du processus d’achat.
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```

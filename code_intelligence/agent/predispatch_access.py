@@ -612,12 +612,27 @@ def dispatch_security_locks(ctx: DispatchContext) -> None:
     followed_relational_note = _follow_relational_lock_callees(ctx, dispatched_lock_models)
 
     if any(k[0] == "analyze_security_locks" for k in ctx.seen_calls):
+        # Section 977 (todo/contexte.txt): mirrors the section 974 fix for
+        # analyze_data_constraints -- an unconditional "do not call it
+        # again" silently starved a genuinely different, resolver-missed
+        # model (PUR-Q5: the question also asks about an order's line
+        # model, but the resolver only resolved the order model itself).
+        # Name the model(s) already covered explicitly and only forbid
+        # repeating those, so the LLM can still self-correct for a
+        # distinct related model (e.g. a line/detail model) the resolver
+        # did not add.
+        covered_models = sorted({
+            call[1] for call in ctx.seen_calls
+            if call[0] == "analyze_security_locks" and len(call) > 1 and call[1]
+        })
         ctx.system_prompt_suffix += (
             "\n\n[DETERMINISTIC PRE-DISPATCH]\n"
-            "analyze_security_locks has already been run for the target model(s) above "
-            "because the question is approval/security-related; its output is already included "
-            "in the tool observations. Do not call it again -- focus any further tool calls on "
-            "what it does NOT cover (e.g. ir.rule / group-based record visibility via "
+            f"analyze_security_locks has already been run for: {', '.join(covered_models)}; "
+            "its output for those models is already included in the tool observations -- do not "
+            "call it again for any of them. If the question also concerns a distinct related model "
+            "not listed above (e.g. a line/detail model of an order model already covered), you may "
+            "call analyze_security_locks once for that other model. Otherwise, focus any further "
+            "tool calls on what it does NOT cover (e.g. ir.rule / group-based record visibility via "
             "evaluate_record_rules)."
         )
     if followed_relational_note:

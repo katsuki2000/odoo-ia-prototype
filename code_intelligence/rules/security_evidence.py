@@ -15,6 +15,7 @@ from core.output import confidence_label
 from code_intelligence.agent.context import _truncate_observation
 from code_intelligence.agent.tool_helpers import get_current_question
 from code_intelligence.rules.relevance_budget import (
+    _protected_prefix_end,
     _rerank_by_relevance,
     _waterfill_with_protected_minimum,
 )
@@ -473,13 +474,32 @@ def assemble_security_lock_blocks(blocks: List[str], budget: int) -> str:
             essentials.append(block[:idx].rstrip("\n"))
             exceptions.append(block[idx:])
 
+    # Section 977 (todo/contexte.txt): the essential tier used to be able
+    # to claim the ENTIRE budget (`min(budget, sum(essential_sizes))`),
+    # leaving nothing at all for the exception tier once enough files
+    # contribute essentials (PUR-Q5, purchase.order: 6 contributing files --
+    # the native file's own exception messages, `_unlink_if_cancelled` and
+    # `button_cancel`, were cut in full even though that file alone fits
+    # comfortably under the tool's own budget in isolation). The two-tier
+    # split already guarantees a protected minimum WITHIN each tier (837);
+    # it never guaranteed one ACROSS tiers. Reserve the same protected-
+    # minimum floor for the exception tier up front and cap the essential
+    # tier to whatever the budget leaves after that reservation -- a
+    # no-op when there are no (or short) exception blocks, since the floor
+    # is then 0 or small, matching prior behavior exactly for every case
+    # without a meaningful exception tier.
+    exception_sizes = [len(e) for e in exceptions]
+    exception_floor = min(
+        budget,
+        sum(min(_protected_prefix_end(e), s) for e, s in zip(exceptions, exception_sizes) if s),
+    )
+
     essential_sizes = [len(e) for e in essentials]
-    essential_budget = min(budget, sum(essential_sizes))
+    essential_budget = min(budget - exception_floor, sum(essential_sizes))
     essential_alloc = _waterfill_with_protected_minimum(essential_sizes, essentials, essential_budget)
 
     used = sum(essential_alloc)
     remaining_budget = max(0, budget - used)
-    exception_sizes = [len(e) for e in exceptions]
     # Section 837: prioritize the exception tier by how much essential-tier
     # budget each block actually earned -- a proxy for how substantive/
     # important that block's analysis turned out to be, so the same block
