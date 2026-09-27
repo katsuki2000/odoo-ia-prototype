@@ -1,6 +1,6 @@
 # Rapport Verbatim -- Bloc N1 (banc de questions natif)
 
-**Date d'execution :** 2026-09-26 13:55:01
+**Date d'execution :** 2026-09-27 20:38:12
 
 **Objectif :** rejouer les questions verite-terrain des 5 modules natifs (maintenance, purchase, sale, stock, account) contre l'agent Code Intelligence reel et capturer la reponse verbatim pour comparaison manuelle avec `reference_answer` -- aucune notation automatique.
 
@@ -10,13 +10,13 @@
 | Metrique | Valeur |
 |---|---|
 | Questions executees (consolidees) | 25 |
-| Questions rejouees ce tour | 5 |
+| Questions rejouees ce tour | 1 |
 | Erreurs d'execution | 0 |
-| Ecarts de couverture d'outils (expected_tools non tous invoques) | 2 |
-| p50 latence effective (run courant) | `10.21s` |
-| p90 latence effective (run courant) | `17.78s` (budget `12.0s`,  DEPASSE) |
-| Moyenne (run courant) | `11.23s` |
-| Max (run courant) | `17.78s` |
+| Ecarts de couverture d'outils (expected_tools non tous invoques) | 0 |
+| p50 latence effective (run courant) | `10.2s` |
+| p90 latence effective (run courant) | `10.2s` (budget `12.0s`,  RESPECTE) |
+| Moyenne (run courant) | `10.2s` |
+| Max (run courant) | `10.2s` |
 
 ---
 
@@ -30,19 +30,21 @@
 
 **Outils attendus :** ['who_has_access_to', 'evaluate_record_rules'] | **Outils invoques :** ['who_has_access_to', 'evaluate_record_rules', 'evaluate_record_rules', 'evaluate_record_rules', 'evaluate_record_rules']
 
-**Reponse verbatim de l'agent (Total: 14.98s | Effectif: 14.978s | Groq wait: 0.0s | Sauts: 5) :**
+**Reponse verbatim de l'agent (Total: 10.2s | Effectif: 10.2s | Groq wait: 0.0s | Sauts: 5) :**
 ```text
 ### Accès d’un utilisateur simple à la fiche équipement
 
 - **Modification** :  
-  Un utilisateur simple (groupe « Internal User ») **ne peut pas modifier** une fiche équipement. Seuls les membres du groupe « Equipment Manager » disposent des droits d’écriture, de création ou de suppression sur le modèle *maintenance.equipment*.
+  Un utilisateur simple (groupe « Internal User ») **ne peut pas modifier** une fiche équipement. Seuls les membres du groupe « Equipment Manager » disposent du droit d’écriture.
 
 - **Consultation** :  
-  L’utilisateur simple peut consulter uniquement les équipements **qu’il suit**.  
-  Cela correspond aux fiches où il apparaît dans la liste des partenaires suivis (champ *message_partner_ids*).  
-  Il ne voit pas les équipements qui ne lui sont pas associés, même s’il a le droit de lecture général.
+  Un utilisateur simple peut **consulter uniquement les équipements qu’il suit**.  
+  Cela signifie que la fiche équipement doit être liée à l’utilisateur via le champ de suivi (messages/partenaires).  
+  S’il ne suit aucun équipement, il ne pourra pas le voir.
 
 [FAIT DÉTERMINISTIQUE] Précision d'héritage de droits : `maintenance.group_equipment_manager` ne détient pas ces permissions directement via son propre enregistrement ACL (qui peut être restreint), mais en hérite par implication transitive (`implied_ids`) depuis le groupe `base.group_user`.
+
+[FAIT DÉTERMINISTIQUE] Un utilisateur appartenant en plus au groupe `maintenance.group_equipment_manager` ('Equipment Manager') ne serait plus soumis à cette restriction : la règle 'Equipment administrator' (xml_id: maintenance.equipment_rule_admin_user) lève alors toute limitation pour ce modèle.
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```
@@ -59,26 +61,17 @@
 
 **Outils attendus :** ['describe_workflow', 'read_source_code'] | **Outils invoques :** ['describe_workflow', 'read_source_code']
 
-**Reponse verbatim de l'agent (Total: 24.06s | Effectif: 24.057s | Groq wait: 0.0s | Sauts: 2) :**
+**Reponse verbatim de l'agent (Total: 14.62s | Effectif: 14.614s | Groq wait: 0.0s | Sauts: 2) :**
 ```text
 ### Ce qui se produit automatiquement
 
-- **Duplication de la demande**  
-  Quand la demande de maintenance préventive et récurrente passe à une étape « terminée » (done), Odoo crée **une nouvelle demande**.  
-  - La nouvelle demande reçoit une **nouvelle date de planification** calculée en ajoutant l’intervalle de répétition (ex. 1 mois, 3 jours…) à la date actuelle ou à la date de planification précédente.  
-  - Elle est placée dans l’étape par défaut du processus de maintenance.
+- **Duplication de la demande** : une nouvelle demande de maintenance est créée automatiquement.  
+- **Nouvelle date de planification** : la date de planification de la copie est calculée en ajoutant l’intervalle de répétition (ex. 1 mois, 2 semaines…) à la date actuelle.  
+- **Retour à l’étape par défaut** : la copie est placée dans l’étape par défaut du processus.  
+- **Clôture de l’ancienne demande** : la demande qui a atteint l’étape « done » est marquée comme terminée (date de clôture = aujourd’hui).  
+- **Mise à jour des activités** : les activités liées à la demande sont réinitialisées et planifiées à nouveau pour la prochaine intervention.  
 
-- **Clôture de la demande actuelle**  
-  - La demande qui vient d’être terminée obtient une **date de clôture** (aujourd’hui).  
-  - Son état Kanban est remis à « normal » pour que l’affichage en tableau Kanban soit cohérent.
-
-- **Mise à jour des activités**  
-  - Les activités liées à la demande (telles que les rappels ou notifications) sont recalculées et mises à jour pour refléter le passage à l’état terminé.
-
-- **Gestion des followers**  
-  - Les followers ne sont ajoutés que si le créateur ou le technicien de la demande change ; sinon, la liste des followers reste inchangée.
-
-En résumé, lorsqu’une demande préventive et récurrente atteint l’étape « done », Odoo clôt la demande actuelle, crée automatiquement la prochaine occurrence avec la date suivante, et met à jour les activités associées.
+En résumé, lorsqu’une demande de maintenance préventive et récurrente arrive à l’étape « done », Odoo crée automatiquement la prochaine occurrence, met à jour la date de planification, remet la demande à l’étape initiale et clôture la demande actuelle.
 
 - **Condition d’arrêt de la récurrence** : la duplication automatique n'a lieu que si la répétition est configurée sans fin (*repeat_type* = 'forever') ou si la date calculée reste antérieure ou égale à la date limite (*repeat_until*).
 
@@ -95,19 +88,29 @@ En résumé, lorsqu’une demande préventive et récurrente atteint l’étape 
 
 **A verifier dans le code :** `models/maintenance.py : classe MaintenanceMixin (_name='maintenance.mixin', models.AbstractModel) + classe MaintenanceEquipment (_inherit=['mail.thread','mail.activity.mixin','maintenance.mixin']) vs classe MaintenanceEquipmentCategory (_inherit=['mail.alias.mixin','mail.thread'], sans maintenance.mixin)`
 
-**Outils attendus :** ['trace_full_inheritance', 'list_involved_modules'] | **Outils invoques :** ['list_involved_modules', 'inspect_module_extensions', 'trace_full_inheritance', 'read_source_code']
+**Outils attendus :** ['trace_full_inheritance', 'list_involved_modules'] | **Outils invoques :** ['list_involved_modules', 'inspect_module_extensions', 'trace_full_inheritance', 'read_source_code', 'inspect_module_extensions']
 
-**Reponse verbatim de l'agent (Total: 15.64s | Effectif: 15.633s | Groq wait: 0.0s | Sauts: 3) :**
+**Reponse verbatim de l'agent (Total: 29.54s | Effectif: 29.538s | Groq wait: 0.0s | Sauts: 4) :**
 ```text
-### Analyse du modèle **maintenance.equipment**
+**maintenance.equipment** est un **nouveau modèle** créé par le module *maintenance*.  
+Il ne reprend pas un modèle métier natif d’Odoo ; il est déclaré avec son propre `_name` (`'maintenance.equipment'`) et ne s’étend pas sur un modèle existant.
 
-- **Nature du modèle**  
-  Le modèle **maintenance.equipment** est un **nouveau modèle**. Il possède son propre nom (`_name = 'maintenance.equipment'`) et ne reprend pas un modèle métier existant d’Odoo. Il ne s’agit donc pas d’une extension d’un modèle natif, mais d’une entité propre à la gestion de l’équipement de maintenance.
+Le modèle hérite de :
 
-- **Rôle du mixin **maintenance.mixin**  
-  Le mixin **maintenance.mixin** est un **contributeur technique** qui ajoute des fonctionnalités communes aux objets de maintenance. Il fournit des champs, des méthodes ou des comportements partagés (par ex. gestion de la société, suivi de l’état, etc.) que les modèles de maintenance utilisent pour rester cohérents et éviter la duplication de code. En pratique, il permet aux équipements et aux demandes de maintenance d’hériter de fonctionnalités standardisées sans réécrire le même code.
+* `mail.thread` – pour la journalisation des messages et le suivi des discussions.  
+* `mail.activity.mixin` – pour la gestion des activités (tâches, rappels, etc.).  
+* **`maintenance.mixin`** – un *mixin* fourni par le même module.
 
-À noter : ce module étend bien 1 modèle(s) hors de son propre périmètre : 'res.config.settings'.
+### Rôle du mixin `maintenance.mixin`
+
+`maintenance.mixin` n’est pas un modèle complet mais un composant réutilisable.  
+Il regroupe les champs, méthodes ou logiques communes aux objets de maintenance (par ex. équipements, demandes).  
+En l’héritant, `maintenance.equipment` bénéficie de ces fonctionnalités partagées sans dupliquer le code.  
+
+En résumé :
+
+* **maintenance.equipment** : nouveau modèle métier dédié aux équipements de maintenance.  
+* **maintenance.mixin** : mixin qui ajoute les éléments communs nécessaires aux modèles de maintenance, facilitant la réutilisation et la cohérence du code.
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```
@@ -124,7 +127,7 @@ En résumé, lorsqu’une demande préventive et récurrente atteint l’étape 
 
 **Outils attendus :** ['button_execution_path'] | **Outils invoques :** ['button_execution_path', 'read_source_code']
 
-**Reponse verbatim de l'agent (Total: 11.95s | Effectif: 11.951s | Groq wait: 0.0s | Sauts: 2) :**
+**Reponse verbatim de l'agent (Total: 11.98s | Effectif: 11.983s | Groq wait: 0.0s | Sauts: 2) :**
 ```text
 ### Pourquoi le champ « Cost » n’est pas visible pour tous les utilisateurs
 
@@ -148,17 +151,15 @@ En pratique, seuls les utilisateurs désignés comme **Equipment Manager** peuve
 
 **Outils attendus :** ['analyze_data_constraints'] | **Outils invoques :** ['analyze_data_constraints', 'analyze_data_constraints', 'analyze_data_constraints']
 
-**Reponse verbatim de l'agent (Total: 27.77s | Effectif: 27.767s | Groq wait: 0.0s | Sauts: 3) :**
+**Reponse verbatim de l'agent (Total: 52.67s | Effectif: 43.664s | Groq wait: 9.0s | Sauts: 3) :**
 ```text
-### Règle empêchant les doublons de numéro de série
+### Règle de validation
 
-- **Unicité du numéro de série**  
-  Le système ne permet pas de créer deux équipements portant le même numéro de série. Cette règle est appliquée par une contrainte de base de données qui rend le champ *Numéro de série* unique dans la table des équipements.
-
-### Contrainte sur l’intervalle de répétition d’une demande récurrente
+- **Numéro de série unique**  
+  Lors de la création d’un équipement, le système vérifie que le numéro de série (`serial_no`) n’est pas déjà utilisé par un autre équipement. Si un doublon est détecté, la création est refusée.
 
 - **Intervalle de répétition**  
-  Pour une demande récurrente, l’intervalle de répétition (*repeat_interval*) doit être **au moins 1**. Si l’utilisateur saisit une valeur inférieure à 1, le système déclenche une erreur et empêche la sauvegarde de la demande.
+  Pour une demande récurrente, l’intervalle de répétition (`repeat_interval`) doit être **au moins 1**. Toute valeur inférieure déclenche une erreur et empêche la sauvegarde de la demande.
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```
@@ -175,17 +176,19 @@ En pratique, seuls les utilisateurs désignés comme **Equipment Manager** peuve
 
 **Outils attendus :** ['who_has_access_to', 'evaluate_record_rules', 'read_source_code'] | **Outils invoques :** ['analyze_security_locks', 'who_has_access_to', 'evaluate_record_rules', 'describe_workflow', 'button_execution_path', 'read_source_code', 'read_source_code', 'button_execution_path', 'read_source_code']
 
-**Reponse verbatim de l'agent (Total: 26.1s | Effectif: 26.096s | Groq wait: 0.0s | Sauts: 9) :**
+**Reponse verbatim de l'agent (Total: 56.54s | Effectif: 56.54s | Groq wait: 0.0s | Sauts: 9) :**
 ```text
 ### Différence entre un acheteur et un manager sur une commande d’achat
 
 | Action | Acheteur (group_purchase_user) | Manager (group_purchase_manager) |
 |--------|--------------------------------|---------------------------------|
-| **Valider une commande** | L’acheteur clique sur « Confirmer la commande ». Si la commande ne respecte pas la règle de double validation (montant supérieur au seuil défini par l’entreprise), elle passe automatiquement dans l’état **« à valider »**. Le manager doit alors l’approuver manuellement. | Le manager peut valider la commande immédiatement, même si le montant dépasse le seuil de double validation. Il n’est pas obligé de passer par l’état « à valider ». |
-| **Approuver une commande en attente** | L’acheteur ne peut pas approuver une commande qui est déjà en état « à valider » ; il doit la transmettre au manager. | Le manager peut approuver directement toute commande en état « à valider » grâce à l’action « Approuver ». |
-| **Accès aux états** | L’acheteur voit les commandes dans les états « brouillon », « envoyé », « à valider », « validé », etc., mais ne peut pas les approuver. | Le manager a la même visibilité mais possède l’autorité supplémentaire d’approuver et de passer les commandes à l’état « validé » sans passer par le seuil de double validation. |
+| **Validation de la commande** | Peut confirmer la commande, mais si le montant dépasse le seuil de double validation défini dans les paramètres de l’entreprise, la commande passe automatiquement en état **« à valider »** et doit être approuvée par un manager. | Peut confirmer et **approuver immédiatement** la commande, même si le montant dépasse le seuil. |
+| **État « à valider »** | L’acheteur ne peut pas changer l’état de la commande lorsqu’elle est en « à valider ». | Peut passer la commande de « à valider » à « en cours » (ou « validée ») en un seul clic. |
+| **Création et modification** | Peut créer et modifier les commandes d’achat. | Peut également créer et modifier les commandes d’achat. |
+| **Annulation** | Peut annuler une commande à tout moment. | Peut annuler une commande à tout moment. |
+| **Autres droits** | Aucun droit supplémentaire par rapport au manager. | Aucun droit supplémentaire par rapport à l’acheteur, à l’exception de la capacité d’approuver les commandes. |
 
-En résumé, même si les deux groupes disposent des mêmes droits de lecture, écriture, création et suppression, le **manager** possède un droit supplémentaire d’**approbation directe** et peut **bypasser** la règle de double validation, ce qui lui permet de finaliser les commandes plus rapidement que l’acheteur.
+En résumé, la distinction principale réside dans la **capacité d’approuver** les commandes. Le manager peut valider directement les commandes, même lorsqu’elles dépassent le seuil de double validation, tandis que l’acheteur doit attendre l’approbation d’un manager si le montant est supérieur à ce seuil. Toutes les autres actions (création, modification, annulation) sont disponibles pour les deux groupes.
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```
@@ -202,37 +205,37 @@ En résumé, même si les deux groupes disposent des mêmes droits de lecture, �
 
 **Outils attendus :** ['describe_workflow', 'read_source_code'] | **Outils invoques :** ['analyze_security_locks', 'analyze_method_override_chain', 'read_source_code', 'read_source_code', 'analyze_method_override_chain', 'read_source_code', 'read_source_code', 'describe_workflow', 'describe_workflow', 'button_execution_path', 'read_source_code', 'read_source_code', 'read_source_code', 'read_source_code']
 
-**Reponse verbatim de l'agent (Total: 81.17s | Effectif: 81.173s | Groq wait: 0.0s | Sauts: 14) :**
+**Reponse verbatim de l'agent (Total: 73.92s | Effectif: 73.919s | Groq wait: 0.0s | Sauts: 14) :**
 ```text
 ### Que se passe‑t‑il quand on clique sur **« Confirm Order »** ?
 
 1. **Vérification de l’état**  
-   Le bouton ne s’exécute que si la commande est en état **« draft »** ou **« sent »**.  
-   Si l’état est différent, rien ne se produit.
+   - La commande doit être en **« draft »** ou **« sent »**.  
+   - Si elle est déjà dans un autre état, rien ne se produit.
 
 2. **Pré‑traitements**  
-   - La répartition analytique de chaque ligne est validée.  
-   - Le fournisseur de la commande est ajouté à la liste des fournisseurs du produit (si ce n’est pas déjà le cas).  
-   - Un message est envoyé au fournisseur pour l’informer de la commande.
+   - **Distribution analytique** : chaque ligne de la commande vérifie que la répartition analytique est correcte.  
+   - **Ajout du fournisseur** : le fournisseur de la commande est ajouté à la liste des fournisseurs du produit (si ce n’est pas déjà le cas).
 
 3. **Test d’éligibilité à l’approbation directe**  
-   La méthode `_approval_allowed()` détermine si la commande peut être approuvée immédiatement :  
-   - **Un seul niveau d’approbation** (`po_double_validation = 'one_step'`) ;  
-   - **Deux niveaux** mais le montant total est **inférieur** au seuil défini par l’entreprise ;  
-   - **Ou** l’utilisateur appartient au groupe **responsable des achats** (`purchase.group_purchase_manager`).
+   - La méthode `_approval_allowed()` décide si la commande peut être approuvée immédiatement.  
+   - Elle renvoie **VRAI** si l’un des critères suivants est rempli :  
+     - Le paramètre de l’entreprise est **« one_step »** (approbation unique).  
+     - Le paramètre est **« two_step »** **et** le montant total de la commande est **inférieur** au seuil d’approbation défini par l’entreprise.  
+     - L’utilisateur appartient au groupe **« Purchase Manager »** (groupe « purchase.group_purchase_manager »).  
 
-4. **Si la commande est éligible**  
-   - La méthode `button_approve()` est appelée.  
-   - L’état passe à **« purchase »** (ou à **« done »** si l’entreprise a activé le verrou `po_lock`).  
-   - La date d’approbation est enregistrée.  
-   - La commande est considérée comme approuvée et prête à être traitée (livraison, facturation, etc.).
+4. **Deux scénarios**  
 
-5. **Si la commande n’est pas éligible**  
-   - L’état est mis à **« to approve »**.  
-   - La commande attend l’approbation d’un responsable des achats.  
-   - Aucun verrou supplémentaire n’est appliqué ; la commande reste dans l’état « to approve » jusqu’à ce qu’un utilisateur du groupe responsable des achats l’approuve.
+   | Éligible à l’approbation directe | Action réalisée |
+   |----------------------------------|------------------|
+   | **Oui** (condition ci‑dessus vraie) | La commande passe directement à l’état **« purchase »** (ou **« done »** si l’entreprise a activé le verrou « po_lock »). La date d’approbation est fixée à la date courante. |
+   | **Non** (condition fausse) | La commande est mise dans l’état **« to approve »**. Elle attend alors l’approbation d’un responsable (généralement via le bouton « Approve »). |
 
-En résumé, **« Confirm Order »** prépare la commande, vérifie si elle peut être approuvée immédiatement, et la place soit dans l’état approuvé, soit dans l’état d’attente d’approbation.
+5. **Résultat final**  
+   - **Commande approuvée immédiatement** : elle est prête à être traitée (achats, facturation, etc.).  
+   - **Commande en attente d’approbation** : elle reste bloquée jusqu’à ce qu’un utilisateur habilité l’approuve manuellement.
+
+En résumé, le bouton « Confirm Order » prépare la commande, vérifie si elle peut être approuvée sans intervention supplémentaire, et la place soit dans l’état « purchase » (ou « done »), soit dans l’état « to approve » pour une approbation manuelle.
 
 [FAIT DÉTERMINISTIQUE] La chaîne de surcharge de méthode inclut également le/les module(s) suivant(s), absent(s) ou mal identifié(s) ci-dessus : 'purchase_stock', 'sale_order_type', 'sale_stock', 'sale'. Fait extrait directement de l'analyse statique du code.
 
@@ -251,30 +254,26 @@ En résumé, **« Confirm Order »** prépare la commande, vérifie si elle 
 
 **A verifier dans le code :** `models/purchase_order.py : classe PurchaseOrder (_name + _inherit mixins) vs models/account_invoice.py : classe AccountMove (_inherit='account.move'), methodes create()/write()`
 
-**Outils attendus :** ['trace_full_inheritance', 'list_involved_modules', 'analyze_method_override_chain'] | **Outils invoques :** ['list_involved_modules', 'inspect_module_extensions', 'trace_full_inheritance', 'read_source_code'] -- MANQUANT(S): ['analyze_method_override_chain']
+**Outils attendus :** ['trace_full_inheritance', 'list_involved_modules'] | **Outils invoques :** ['list_involved_modules', 'inspect_module_extensions', 'trace_full_inheritance', 'read_source_code']
 
-**Reponse verbatim de l'agent (Total: 17.54s | Effectif: 17.539s | Groq wait: 0.0s | Sauts: 3) :**
+**Reponse verbatim de l'agent (Total: 16.64s | Effectif: 16.639s | Groq wait: 0.0s | Sauts: 3) :**
 ```text
 ### Modèle : `purchase.order`
 
 - **Nature** : `purchase.order` est un **nouveau modèle**.  
-  Il possède son propre nom (`_name = "purchase.order"`) et ne s’étend qu’à des mixins techniques (mail.thread, mail.activity.mixin, portal.mixin, product.catalog.mixin).  
-  Il ne reprend pas la définition d’un modèle métier existant.
+  Il possède son propre nom (`_name = "purchase.order"`) et ne s’étend qu’à des mixins techniques (mail, portail, catalogue produit). Il ne reprend pas un modèle métier existant.
 
-### Impact du module `purchase` sur d’autres modèles natifs
+### Modifications apportées par le module `purchase` à des modèles natifs hors de son domaine
 
-Le module **`purchase`** modifie plusieurs modèles natifs qui ne font pas partie de son domaine d’achat.  
-Ces extensions se font en ajoutant des champs et en surchargeant des méthodes :
+| Modèle natif | Ajouts / Modifications | Impact métier |
+|--------------|------------------------|---------------|
+| **`account.move`** | Ajout des champs `purchase_order_count`, `purchase_id`, `purchase_vendor_bill_id`. <br>Redéfinition de méthodes de création, d’écriture et de calcul de liens avec les bons de commande. | Permet de lier les factures aux bons de commande et de suivre le nombre de commandes associées. |
+| **`account.move.line`** | Ajout des champs `purchase_line_id`, `purchase_order_id`. <br>Redéfinition de la copie des données métier. | Assure la cohérence des lignes de facture avec les lignes de commande correspondantes. |
+| **`product.product`** | Ajout du champ `purchased_product_qty`. <br>Redéfinition du calcul de cette quantité et d’une action de visualisation des bons de commande. | Affiche la quantité déjà achetée pour chaque produit. |
+| **`product.template`** | Ajout des champs `purchased_product_qty`, `purchase_line_warn`, `purchase_line_warn_msg`, `purchase_method`. <br>Redéfinition du calcul de la méthode d’achat et de la quantité achetée, ainsi que d’une action de visualisation des bons de commande. | Indique la méthode d’achat (stock, service, etc.) et alerte sur les quantités achetées. |
+| **`account.tax`** | Redéfinition d’une méthode de calcul de l’utilisation des taxes. | Garantit que les taxes sont correctement appliquées aux bons de commande. |
 
-| Modèle natif | Ajouts / Modifications |
-|--------------|------------------------|
-| **`account.move`** | Ajout des champs `purchase_order_count`, `purchase_id`, `purchase_vendor_bill_id`. Surcharge des méthodes de création, d’écriture et de calcul des liens entre factures et bons de commande. |
-| **`account.move.line`** | Ajout des champs `purchase_line_id`, `purchase_order_id`. Surcharge de la méthode de copie pour conserver les liens avec les bons de commande. |
-| **`product.product`** | Ajout du champ `purchased_product_qty`. Surcharge du calcul de cette quantité et ajout d’une action pour afficher les bons de commande liés. |
-| **`product.template`** | Ajout des champs `purchased_product_qty`, `purchase_line_warn`, `purchase_line_warn_msg`, `purchase_method`. Surcharge du calcul de la méthode d’achat, de la quantité achetée et de l’affichage des bons de commande. |
-| **`account.tax`** | Surcharge de la méthode de calcul pour tenir compte des règles d’achat. |
-
-Ces modifications permettent d’associer les bons de commande aux factures, aux produits et aux taxes, et d’afficher les informations pertinentes dans l’interface d’achat.
+Ces extensions permettent au module `purchase` d’intégrer les bons de commande dans la comptabilité, la gestion des stocks et la gestion des produits, tout en restant indépendant de son propre domaine métier.
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```
@@ -291,7 +290,7 @@ Ces modifications permettent d’associer les bons de commande aux factures, aux
 
 **Outils attendus :** ['button_execution_path'] | **Outils invoques :** ['analyze_security_locks', 'button_execution_path', 'read_source_code', 'read_source_code']
 
-**Reponse verbatim de l'agent (Total: 10.21s | Effectif: 10.21s | Groq wait: 0.0s | Sauts: 4) :**
+**Reponse verbatim de l'agent (Total: 10.54s | Effectif: 10.543s | Groq wait: 0.0s | Sauts: 4) :**
 ```text
 ### Pourquoi le bouton « Approve Order » n’apparaît pas pour un utilisateur simple
 
@@ -314,30 +313,25 @@ Pour pouvoir approuver la commande, l’utilisateur doit être ajouté au groupe
 
 **A verifier dans le code :** `models/purchase_order.py : _unlink_if_cancelled (@api.ondelete) ; models/purchase_order_line.py : _unlink_except_purchase_or_done (@api.ondelete) + _sql_constraints (accountable_required_fields, non_accountable_null_fields)`
 
-**Outils attendus :** ['analyze_data_constraints'] | **Outils invoques :** ['analyze_data_constraints', 'analyze_data_constraints']
+**Outils attendus :** ['analyze_data_constraints'] | **Outils invoques :** ['analyze_security_locks', 'analyze_data_constraints', 'analyze_data_constraints']
 
-**Reponse verbatim de l'agent (Total: 44.45s | Effectif: 44.451s | Groq wait: 0.0s | Sauts: 2) :**
+**Reponse verbatim de l'agent (Total: 60.84s | Effectif: 60.839s | Groq wait: 0.0s | Sauts: 3) :**
 ```text
-**Supprimer une commande d’achat**
+**Supprimer une commande d’achat ou l’une de ses lignes**
 
-- **État requis** : une commande ne peut être supprimée que lorsqu’elle est dans l’état **« Annulée »**.  
-  - Si vous essayez de supprimer une commande qui n’est pas annulée, le système affiche :  
-    *« In order to delete a purchase order, you must cancel it first. »*  
-- **Vérification supplémentaire** : avant d’annuler une commande, le système vérifie qu’aucune facture fournisseur liée n’existe.  
-  - Si des factures sont présentes, l’annulation (et donc la suppression) est bloquée par le message :  
-    *« Unable to cancel this purchase order. You must first cancel the related vendor bills. »*  
+| Élément | Condition qui empêche la suppression | Explication métier |
+|---------|--------------------------------------|---------------------|
+| **Commande d’achat** | La commande doit être **annulée** avant de pouvoir être supprimée. | Si la commande est encore en cours (par ex. « En cours », « Validée », etc.), l’action « Supprimer » est bloquée. L’utilisateur doit d’abord cliquer sur le bouton « Annuler » pour mettre la commande dans l’état « Annulée ». |
+| **Ligne de commande** | La suppression d’une ligne est interdite lorsqu’elle est liée à des opérations déjà réalisées (bon de livraison, facture fournisseur, etc.). | Si la ligne a déjà fait l’objet d’une réception ou d’une facturation, elle ne peut plus être retirée. L’utilisateur doit d’abord annuler ou supprimer ces opérations associées avant de pouvoir supprimer la ligne. |
 
-En résumé, pour supprimer une commande d’achat, il faut d’abord l’annuler (état « Annulée ») et s’assurer qu’aucune facture fournisseur n’est liée à cette commande.
+**Contrainte SQL appliquée aux lignes de commande**
 
----
+Les lignes de commande sont soumises à deux contraintes au niveau de la base de données :
 
-**Supprimer une ligne de commande d’achat**
+1. **`accountable_required_fields`** – Cette contrainte vérifie que, pour une ligne « comptable » (c’est‑à‑dire une ligne qui doit apparaître dans les écritures comptables), les champs obligatoires (`product_id`, `product_uom`, `date_planned`) sont bien renseignés.  
+2. **`non_accountable_null_fields`** – Cette contrainte empêche d’avoir des valeurs non nulles sur ces mêmes champs lorsqu’une ligne est déclarée « non comptable » (par ex. une ligne de type « information »).  
 
-- **Contraintes SQL** : chaque ligne de commande est soumise à deux contraintes CHECK qui garantissent l’intégrité des données :
-  1. **`accountable_required_fields`** – pour les lignes « comptabilisables », les champs `product_id`, `product_uom` et `date_planned` doivent être renseignés.  
-  2. **`non_accountable_null_fields`** – pour les lignes « non comptabilisables », ces mêmes champs doivent rester vides (ou à zéro) et ne pas contenir de valeurs.  
-
-Ces contraintes empêchent la création ou la modification de lignes qui ne respectent pas ces règles, assurant ainsi que chaque ligne possède les informations nécessaires selon son type.
+Ces règles garantissent l’intégrité des données au niveau de la base et empêchent la création ou la modification de lignes qui ne respecteraient pas les exigences comptables ou de gestion.
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```
@@ -354,20 +348,18 @@ Ces contraintes empêchent la création ou la modification de lignes qui ne resp
 
 **Outils attendus :** ['who_has_access_to', 'evaluate_record_rules'] | **Outils invoques :** ['who_has_access_to', 'evaluate_record_rules', 'evaluate_record_rules', 'evaluate_record_rules', 'evaluate_record_rules', 'evaluate_record_rules', 'evaluate_record_rules', 'evaluate_record_rules', 'evaluate_record_rules']
 
-**Reponse verbatim de l'agent (Total: 8.98s | Effectif: 8.975s | Groq wait: 0.0s | Sauts: 9) :**
+**Reponse verbatim de l'agent (Total: 14.23s | Effectif: 14.232s | Groq wait: 0.0s | Sauts: 9) :**
 ```text
-### Accès aux commandes de vente
+### Qui peut voir les commandes de vente ?
 
 | Rôle | Accès aux commandes de l’entreprise |
-|------|--------------------------------------|
-| **Vendeur (groupe « User : Own Documents Only ») ** | Peut uniquement consulter les commandes dont il est le client ou le commercial ; il ne voit pas les commandes d’autres vendeurs. |
-| **Utilisateur du portail (groupe « Portal ») ** | Peut uniquement consulter les commandes auxquelles il est lié en tant que partenaire de discussion (message partner). Il ne voit pas les commandes d’autres clients ou vendeurs. |
+|------|-------------------------------------|
+| **Vendeur (groupe « User : Own Documents Only ») ** | Il ne peut voir que les commandes dont il est le propriétaire (`user_id`). Il ne voit pas les commandes d’autres commerciaux. |
+| **Utilisateur du portail (groupe « Portal ») ** | Il ne voit que les commandes auxquelles il est lié en tant que partenaire de message (par exemple, les devis ou commandes auxquelles il a participé). Il ne voit pas l’ensemble des commandes de l’entreprise. |
 
-En résumé, un vendeur ne peut pas voir toutes les commandes de son entreprise, seulement celles qui lui sont directement attribuées. Un utilisateur du portail ne voit que les commandes auxquelles il est associé en tant que partenaire de discussion.
+En résumé, ni le vendeur ni l’utilisateur du portail n’ont accès à toutes les commandes de l’entreprise ; chacun ne peut consulter que les commandes qui lui sont directement associées.
 
 [FAIT DÉTERMINISTIQUE] Un utilisateur appartenant en plus au groupe `sales_team.group_sale_salesman_all_leads` ('User: All Documents') ne serait plus soumis à cette restriction : la règle 'All Orders' (xml_id: sale.sale_order_see_all) lève alors toute limitation pour ce modèle.
-
- GROUPE(S) NON VÉRIFIÉ(S) : sales_team.group_sale_salesman_all_leads mentionné(s) dans la réponse sans correspondance has_group() dans les données produites pour cette question. Ne pas considérer ce(s) groupe(s) comme confirmé(s) sans vérification manuelle.
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```
@@ -384,28 +376,38 @@ En résumé, un vendeur ne peut pas voir toutes les commandes de son entreprise,
 
 **Outils attendus :** ['describe_workflow', 'read_source_code'] | **Outils invoques :** ['analyze_method_override_chain', 'read_source_code', 'read_source_code', 'describe_workflow', 'button_execution_path', 'read_source_code', 'read_source_code', 'read_source_code', 'read_source_code', 'read_source_code', 'read_source_code', 'read_source_code']
 
-**Reponse verbatim de l'agent (Total: 56.76s | Effectif: 56.754s | Groq wait: 0.0s | Sauts: 12) :**
+**Reponse verbatim de l'agent (Total: 50.77s | Effectif: 50.77s | Groq wait: 0.0s | Sauts: 12) :**
 ```text
-### Que se passe‑t‑il quand on clique sur **« Confirmer »** ?
+### Ce qui se produit lors de la confirmation d’une commande de vente
 
-- **Changement d’état** : la commande passe de *Brouillon* ou *Pro‑forma* à *Confirmée* (état « sale »).  
-- **Date de confirmation** : la date de la commande est fixée à la date et l’heure actuelles.  
-- **Notification** : le client est automatiquement ajouté aux discussions de la commande et, si l’option « Envoyer par e‑mail » est activée, un e‑mail de confirmation est envoyé.  
-- **Comptabilité analytique** : si la commande contient des produits qui génèrent des frais, un compte analytique est créé pour la commande.  
-- **Envoi de la facture** : la commande reste en état *Confirmée* jusqu’à ce qu’une facture soit créée (ou qu’une autre action la transforme en *Terminée*).  
+1. **Vérification de l’état**  
+   La commande doit être en état « brouillon » ou « envoyée ». Si ce n’est pas le cas, l’opération est refusée.
 
-### Quand la commande est‑elle verrouillée ?
+2. **Validation des répartitions analytiques**  
+   Les lignes de la commande sont contrôlées pour s’assurer que les répartitions analytiques sont correctes.
 
-Après la confirmation, le système vérifie si l’utilisateur qui a créé la commande possède le **groupe « Lock Confirmed Sales »** (paramètre de configuration *group_auto_done_setting*).  
-- **Si oui** : la commande est automatiquement verrouillée (le champ *Verrouillé* passe à VRAI).  
-- **Si non** : la commande reste modifiable.
+3. **Enregistrement de la confirmation**  
+   - La date de la commande est fixée à la date actuelle.  
+   - L’état passe de « brouillon » / « envoyée » à « confirmée » (état : `sale`).  
+   - Les champs de confirmation sont écrits dans la base de données.
 
-Le verrouillage empêche toute modification ultérieure de la commande tant que le champ *Verrouillé* est actif.  
-Cette règle est appliquée uniquement à la commande qui vient d’être confirmée et ne dépend pas d’autres groupes ou rôles.
+4. **Gestion des notifications**  
+   - Si la commande n’a pas déjà reçu de message, le client est ajouté aux abonnés de la discussion.  
+   - Un e‑mail de confirmation peut être envoyé si le contexte le demande.
 
-[FAIT DÉTERMINISTIQUE] La chaîne de surcharge de méthode inclut également le/les module(s) suivant(s), absent(s) ou mal identifié(s) ci-dessus : 'sale_order_type', 'sale_stock'. Fait extrait directement de l'analyse statique du code.
+5. **Création d’un compte analytique (si nécessaire)**  
+   Si la commande contient au moins un produit dont la politique de dépense n’est pas « aucune », un compte analytique est créé pour la commande.
 
-[FAIT DÉTERMINISTIQUE] SUPER() NON GARDÉ détecté dans la chaîne de surcharge : module 'sale_order_type' : branche conditionnelle `vals.get('type_id') / record.state in {'draft', 'sent'} and record.type_id.sequence_id != sale_type.sequence_id and (not ignore_default_sequence)` avec super() rappelé inconditionnellement (risque d'annulation silencieuse de cette logique) ; module 'sale_stock' : branche conditionnelle `'commitment_date' in values` avec super() rappelé inconditionnellement (risque d'annulation silencieuse de cette logique). Fait extrait directement de l'analyse statique du code.
+6. **Verrouillage automatique**  
+   Après la confirmation, la commande est verrouillée (le champ `locked` devient `True`) **si** l’utilisateur qui a créé la commande possède le groupe **« Lock Confirmed Sales »** (paramètre de configuration `group_auto_done_setting`).  
+   - Ce groupe est activé dans les paramètres du module et n’est pas attribué individuellement aux utilisateurs.  
+   - Seuls les créateurs de commandes ayant ce paramètre activé verront leur commande verrouillée immédiatement après la confirmation.
+
+En résumé, la confirmation passe par la validation, l’enregistrement, la notification, la création éventuelle d’un compte analytique, puis un verrouillage automatique qui dépend de la configuration du groupe « Lock Confirmed Sales ».
+
+[FAIT DÉTERMINISTIQUE] La chaîne de surcharge de méthode inclut également le/les module(s) suivant(s), absent(s) ou mal identifié(s) ci-dessus : 'sale_stock'. Fait extrait directement de l'analyse statique du code.
+
+[FAIT DÉTERMINISTIQUE] SUPER() NON GARDÉ détecté dans la chaîne de surcharge : module 'sale_stock' : branche conditionnelle `'commitment_date' in values` avec super() rappelé inconditionnellement (risque d'annulation silencieuse de cette logique). Fait extrait directement de l'analyse statique du code.
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```
@@ -420,21 +422,19 @@ Cette règle est appliquée uniquement à la commande qui vient d’être confir
 
 **A verifier dans le code :** `models/sale_order.py : classe SaleOrder (_name='sale.order', _inherit=[mixins]) vs models/account_move.py : classe AccountMove (_inherit=['account.move','utm.mixin'])`
 
-**Outils attendus :** ['trace_full_inheritance', 'list_involved_modules'] | **Outils invoques :** ['list_involved_modules', 'inspect_module_extensions', 'trace_full_inheritance', 'read_source_code', 'list_involved_modules', 'list_involved_modules', 'inspect_module_extensions']
+**Outils attendus :** ['trace_full_inheritance', 'list_involved_modules'] | **Outils invoques :** ['list_involved_modules', 'inspect_module_extensions', 'list_involved_modules', 'trace_full_inheritance', 'read_source_code', 'list_involved_modules']
 
-**Reponse verbatim de l'agent (Total: 23.98s | Effectif: 23.976s | Groq wait: 0.0s | Sauts: 6) :**
+**Reponse verbatim de l'agent (Total: 15.85s | Effectif: 15.846s | Groq wait: 0.0s | Sauts: 5) :**
 ```text
 ### Modèle « sale.order »
 
-- **Nature** : *nouveau modèle* – il ne reprend pas un modèle métier existant, mais définit son propre nom (`sale.order`) et ne contient que des mixins techniques (mail, portail, catalogue produit, etc.).
-
-### Extension hors du périmètre « vente »
-
-- Le module **account_invoice_section_sale_order** étend directement les modèles natifs suivants :
-  - **res.company** – classe `ResCompany` (dans `models/res_company.py`)
-  - **res.partner** – classe `ResPartner` (dans `models/res_partner.py`)
-
-Ces extensions ajoutent des champs et des comportements liés à la facturation par section, mais ne touchent pas le cœur du module de vente.
+- **Nature** : *Nouveau modèle* – il déclare son propre `_name='sale.order'` et ne s’étend qu’à des mixins techniques (mail, portal, product catalog, UTM).  
+- **Extension de modèles natifs hors du périmètre « vente »** : le module **sale** étend directement les modèles suivants, avec les classes Python indiquées :
+  - `account.move` → classe **AccountMove**  
+  - `account.move.line` → classe **AccountMoveLine**  
+  - `product.product` → classe **ProductProduct**  
+  - `product.template` → classe **ProductTemplate**  
+  - `account.payment.register` → classe **AccountPaymentRegister**
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```
@@ -451,7 +451,7 @@ Ces extensions ajoutent des champs et des comportements liés à la facturation 
 
 **Outils attendus :** ['button_execution_path'] | **Outils invoques :** ['button_execution_path', 'read_source_code']
 
-**Reponse verbatim de l'agent (Total: 8.54s | Effectif: 8.536s | Groq wait: 0.0s | Sauts: 2) :**
+**Reponse verbatim de l'agent (Total: 8.53s | Effectif: 8.533s | Groq wait: 0.0s | Sauts: 2) :**
 ```text
 ### Pourquoi un vendeur simple ne peut pas déverrouiller une commande verrouillée
 
@@ -475,17 +475,17 @@ Ces extensions ajoutent des champs et des comportements liés à la facturation 
 
 **Outils attendus :** ['analyze_data_constraints'] | **Outils invoques :** ['analyze_data_constraints']
 
-**Reponse verbatim de l'agent (Total: 20.47s | Effectif: 20.471s | Groq wait: 0.0s | Sauts: 1) :**
+**Reponse verbatim de l'agent (Total: 29.91s | Effectif: 29.913s | Groq wait: 0.0s | Sauts: 1) :**
 ```text
 ### Contrainte sur la date de confirmation
 
-- **Quand une commande est confirmée** (état : *sale*), le système impose que la date de confirmation soit renseignée.  
-- Si la date est manquante, la base de données rejette l’opération et l’utilisateur reçoit un message d’erreur indiquant qu’une commande confirmée doit obligatoirement avoir une date de confirmation.
+- **Quand une commande passe en état « confirmée » (state = « sale »), elle doit obligatoirement avoir une date de confirmation (date_order).**  
+  Si la date est manquante, le système refuse la confirmation.
 
-### Contrainte sur le pourcentage d’acompte (prepayment_percent)
+### Contrainte sur le pourcentage d’acompte demandé
 
-- **Si la commande nécessite un acompte** (`require_payment` est activé), le pourcentage d’acompte doit être compris entre 0 % et 100 % (exprimé sous forme décimale : 0 < prepayment_percent ≤ 1,0).  
-- Toute valeur en dehors de cette plage déclenche une erreur de validation qui empêche la sauvegarde de la commande.
+- **Si la commande exige un acompte (require_payment = True), le champ prepayment_percent doit être compris entre 0 % et 100 % (strictement supérieur à 0 % et inférieur ou égal à 100 %).**  
+  Toute valeur en dehors de cette plage déclenche une erreur de validation.
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```
@@ -502,19 +502,14 @@ Ces extensions ajoutent des champs et des comportements liés à la facturation 
 
 **Outils attendus :** ['who_has_access_to', 'evaluate_record_rules'] | **Outils invoques :** ['who_has_access_to', 'evaluate_record_rules', 'evaluate_record_rules', 'evaluate_record_rules', 'evaluate_record_rules', 'who_has_access_to']
 
-**Reponse verbatim de l'agent (Total: 31.84s | Effectif: 31.84s | Groq wait: 0.0s | Sauts: 6) :**
+**Reponse verbatim de l'agent (Total: 29.25s | Effectif: 29.248s | Groq wait: 0.0s | Sauts: 6) :**
 ```text
-Un employé qui ne possède que le groupe « Internal User » (base.group_user) a les droits suivants :
+Oui :  
 
-* **Consultation des quantités en stock (stock.quant)**  
-  Le groupe « Internal User » est autorisé à lire les enregistrements de stock.quant.  
-  → **Oui, il peut consulter les quantités en stock.**
+- **Consultation des quantités en stock** – Le groupe « Internal User » (base.group_user) possède le droit de lecture sur le modèle *stock.quant*.  
+- **Modification d’une ligne de mouvement** – Le même groupe a également les droits de lecture, d’écriture et de création sur le modèle *stock.move.line*. Aucun filtre d’enregistrement (ir.rule) ne restreint ces actions pour ce groupe.  
 
-* **Modification d’une ligne de mouvement (stock.move.line)**  
-  La lecture est permise pour le groupe « Internal User », mais la modification (write) n’est autorisée que pour les groupes « User » et « Administrator » du module de gestion des stocks (stock.group_stock_user / stock.group_stock_manager).  
-  → **Non, il ne peut pas modifier une ligne de mouvement.**
-
-En résumé : un simple employé peut voir les quantités en stock, mais il ne possède pas les droits nécessaires pour modifier les lignes de mouvement.
+En résumé, un employé simple peut à la fois voir les quantités en stock et modifier les lignes de mouvement.
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```
@@ -531,7 +526,7 @@ En résumé : un simple employé peut voir les quantités en stock, mais il ne p
 
 **Outils attendus :** ['describe_workflow', 'read_source_code'] | **Outils invoques :** ['describe_workflow', 'button_execution_path', 'read_source_code', 'read_source_code', 'read_source_code', 'read_source_code', 'read_source_code', 'read_source_code', 'read_source_code', 'analyze_data_constraints']
 
-**Reponse verbatim de l'agent (Total: 83.21s | Effectif: 83.212s | Groq wait: 0.0s | Sauts: 10) :**
+**Reponse verbatim de l'agent (Total: 79.98s | Effectif: 79.983s | Groq wait: 0.0s | Sauts: 10) :**
 ```text
 ### Que se passe‑t‑il lorsqu’on valide un transfert de stock dont les quantités traitées sont inférieures aux quantités demandées ?
 
@@ -571,26 +566,26 @@ En résumé, la validation d’un transfert avec des quantités insuffisantes ne
 
 **Outils attendus :** ['trace_full_inheritance', 'list_involved_modules'] | **Outils invoques :** ['list_involved_modules', 'inspect_module_extensions', 'trace_full_inheritance', 'read_source_code', 'button_execution_path']
 
-**Reponse verbatim de l'agent (Total: 22.25s | Effectif: 22.246s | Groq wait: 0.0s | Sauts: 4) :**
+**Reponse verbatim de l'agent (Total: 18.01s | Effectif: 18.013s | Groq wait: 0.0s | Sauts: 4) :**
 ```text
 ### Modèle : `stock.picking`
 
-- **Nature** : *Nouveau modèle* – il possède son propre nom (`_name = "stock.picking"`) et ne s’étend pas d’un modèle métier existant.  
-- **Héritage technique** : il hérite uniquement des mixins `mail.thread` et `mail.activity.mixin`, qui ajoutent la messagerie et les activités, mais ne modifient pas la logique métier principale.
+- **Nature** : *Nouveau modèle* – il possède son propre nom (`stock.picking`) et ne s’étend pas d’un modèle métier existant.  
+- **Héritage technique** : il hérite uniquement des mixins `mail.thread` et `mail.activity.mixin`, qui ajoutent la messagerie et les activités.
 
-### Extensions du module `stock` sur des modèles natifs
+### Extensions du module `stock` hors de son périmètre
 
-Le module `stock` étend plusieurs modèles natifs hors de son périmètre propre. Les champs clés ajoutés sont :
+Le module `stock` étend plusieurs modèles natifs. Les champs clés ajoutés sont :
 
 | Modèle natif | Champs ajoutés (principaux) |
 |--------------|-----------------------------|
 | `product.product` | `free_qty`, `incoming_qty`, `outgoing_qty`, `qty_available`, `reordering_max_qty`, `reordering_min_qty` |
 | `product.template` | `has_available_route_ids`, `incoming_qty`, `outgoing_qty`, `qty_available`, `reordering_max_qty`, `reordering_min_qty` |
-| `uom.uom` | (aucun champ supplémentaire, mais des méthodes de gestion des quantités sont surchargées) |
+| `uom.uom` | (aucun champ supplémentaire, mais des méthodes sont surchargées) |
 | `product.category` | `filter_for_stock_putaway_rule`, `packaging_reserve_method`, `putaway_rule_ids`, `removal_strategy_id`, `route_ids`, `total_route_ids` |
 | `product.packaging` | `package_type_id`, `route_ids` |
 
-Ces ajouts permettent de gérer les quantités disponibles, les règles de réapprovisionnement, les itinéraires de stockage et les types de colis directement depuis les modèles de produit et de catégorie.
+Ces ajouts permettent de gérer les quantités disponibles, les règles de réapprovisionnement, les itinéraires de stockage, et les paramètres de conditionnement dans le module de gestion des stocks.
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```
@@ -607,14 +602,18 @@ Ces ajouts permettent de gérer les quantités disponibles, les règles de réap
 
 **Outils attendus :** ['button_execution_path'] | **Outils invoques :** ['button_execution_path', 'read_source_code']
 
-**Reponse verbatim de l'agent (Total: 7.67s | Effectif: 7.67s | Groq wait: 0.0s | Sauts: 2) :**
+**Reponse verbatim de l'agent (Total: 14.38s | Effectif: 14.383s | Groq wait: 0.0s | Sauts: 2) :**
 ```text
 ### Pourquoi les champs « From » et « To » sont invisibles
 
-Les champs **« From »** (emplacement source) et **« To »** (emplacement destination) ne sont affichés que pour les utilisateurs qui appartiennent au groupe **« Manage Multiple Stock Locations »**.  
-La plupart des utilisateurs ne font pas partie de ce groupe, d’où l’invisibilité de ces champs sur les transferts de stock.  
+Les champs **« From »** (location_id) et **« To »** (location_dest_id) ne sont affichés que pour les utilisateurs qui appartiennent au groupe **« Manage Multiple Stock Locations »**.  
+Ce groupe n’est attribué à personne tant que la configuration « Manage Multiple Stock Locations » n’est pas activée dans les paramètres du module.  
 
-Si vous avez besoin de voir ou de modifier ces emplacements, demandez à votre responsable de vous ajouter à ce groupe ou contactez le service informatique pour qu’il le fasse.
+En pratique :  
+- Si la fonction « Manage Multiple Stock Locations » est désactivée, aucun utilisateur ne voit ces champs, même s’il est gestionnaire.  
+- Lorsque la fonction est activée, seuls les utilisateurs dans ce groupe peuvent les voir et les modifier (sauf lorsqu’une opération est terminée, où ils deviennent en lecture seule).  
+
+Ainsi, la plupart des utilisateurs ne voient pas ces champs parce que la configuration correspondante n’est pas activée et que le groupe requis n’est pas attribué.
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```
@@ -631,28 +630,29 @@ Si vous avez besoin de voir ou de modifier ces emplacements, demandez à votre r
 
 **Outils attendus :** ['analyze_data_constraints'] | **Outils invoques :** ['analyze_data_constraints', 'analyze_data_constraints']
 
-**Reponse verbatim de l'agent (Total: 26.24s | Effectif: 26.237s | Groq wait: 0.0s | Sauts: 2) :**
+**Reponse verbatim de l'agent (Total: 72.83s | Effectif: 69.83s | Groq wait: 3.0s | Sauts: 2) :**
 ```text
-### Contraintes empêchant la création d’un **stock.quant** invalide  
+**Contraintes empêchant la création d’un `stock.quant` invalide**
 
-- **Produit** : le quant ne peut être créé que pour un produit de type « Produit » (pas de consommable ou de service).  
-- **Emplacement** : l’emplacement ne doit pas être de type « Vue » (usage = view).  
-- **Lot / Numéro de série** : si un lot est associé, son produit doit être le même que celui du quant.  
-- **Quantité** : la quantité et la quantité réservée doivent être renseignées et la quantité doit être positive.  
-- **Déplacement** : on ne peut déplacer que des quantités positives stockées dans des emplacements appartenant à une seule société.  
-- **Validation d’inventaire** : seule la personne ayant le rôle de « Gestionnaire de stock » peut valider un ajustement d’inventaire.  
-- **Création / Duplication** : il n’est pas possible de dupliquer un quant, de créer un quant en dehors des opérations autorisées, ou de modifier un quant si l’opération n’est pas prise en charge.  
+| Type de contrainte | Ce qu’elle vérifie | Conséquence |
+|--------------------|--------------------|-------------|
+| **Produit** | Le champ `product_id` doit désigner un produit de type « product » (pas « consumable » ou « service »). | Si le produit est de type consommable ou service, la création d’un quant déclenche une erreur : *« Quants cannot be created for consumables or services. »* |
+| **Emplacement** | Le champ `location_id` ne doit pas pointer vers un emplacement de type « view ». | Si l’emplacement est de type vue, la création d’un quant déclenche une erreur : *« You cannot take products from or deliver products to a location of type "view". »* |
+| **Lot / Numéro de série** | Si un lot/numéro de série (`lot_id`) est fourni, il doit être lié au même produit que le quant. | Si le lot est lié à un autre produit, la création d’un quant déclenche une erreur : *« The Lot/Serial number is linked to another product. »* |
+| **Restrictions générales** | Le modèle impose également des contraintes d’intégrité (ex. `ondelete='restrict'`) qui empêchent la suppression ou la modification de certains champs liés à des enregistrements essentiels. | Ces restrictions garantissent que les quantités ne peuvent pas être créées ou modifiées de façon incohérente avec les règles métier. |
 
-Ces règles sont appliquées automatiquement lors de la création ou de la modification d’un quant, et un message d’erreur s’affiche si l’une d’elles est violée.
+Ces contraintes sont appliquées au moment de la sauvegarde d’un quant ; toute tentative de création qui viole l’une d’elles est bloquée par une exception `ValidationError`.
 
 ---
 
-### Règle garantissant l’unicité d’un numéro de série  
+**Règle distincte garantissant l’unicité d’un numéro de série**
 
-- **Lot / Numéro de série** : la combinaison *numéro de série + produit + société* doit être unique.  
-  - Si un doublon est détecté, un message d’erreur indique les combinaisons en conflit et empêche la création ou la modification du lot.  
+Le modèle `stock.lot` possède une contrainte nommée `_check_unique_lot`.  
+Cette contrainte vérifie que la combinaison **(nom du lot / numéro de série, produit, société)** est unique :  
 
-Cette règle assure que chaque numéro de série est unique au sein d’une société pour un produit donné.
+- Si deux lots partagent le même numéro de série pour le même produit dans la même société, la création d’un second lot déclenche une erreur : *« The combination of serial number and product must be unique across a company. »*  
+
+Ainsi, chaque numéro de série est garanti unique par produit et par société, assurant l’intégrité des données de traçabilité.
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```
@@ -669,18 +669,17 @@ Cette règle assure que chaque numéro de série est unique au sein d’une soci
 
 **Outils attendus :** ['who_has_access_to', 'evaluate_record_rules', 'read_source_code'] | **Outils invoques :** ['analyze_security_locks', 'read_source_code', 'who_has_access_to', 'evaluate_record_rules']
 
-**Reponse verbatim de l'agent (Total: 13.87s | Effectif: 13.866s | Groq wait: 0.0s | Sauts: 4) :**
+**Reponse verbatim de l'agent (Total: 17.13s | Effectif: 17.126s | Groq wait: 0.0s | Sauts: 4) :**
 ```text
 ### Réponse
 
 Oui.  
-Même si la règle d’accès directe ne mentionne que la lecture, le groupe **« Billing Administrator »** (account.group_account_manager) possède bien les droits d’écriture, de création et de suppression sur les écritures comptables.  
+Le groupe « Billing Administrator » (account.group_account_manager) possède bien les droits d’écriture et de création sur les factures :
 
-Ces droits sont accordés grâce aux règles d’accès qui regroupent ce groupe avec d’autres groupes de facturation (par exemple « Billing »). Aucun filtre de visibilité supplémentaire ne limite ces actions.  
+- **ACL** : bien que l’enregistrement direct ne donne que le droit de lecture, ce groupe hérite des droits d’écriture du groupe « Billing » (account.group_account_invoice).  
+- **Règles de visibilité** : les règles d’enregistrement (ir.rule) ne restreignent pas la création ou la modification pour ce groupe, ce qui lui permet d’accéder à toutes les factures de son entreprise.
 
 En pratique, un utilisateur appartenant à « Billing Administrator » peut donc créer, modifier et supprimer des factures dans Odoo.
-
-[FAIT DÉTERMINISTIQUE] Précision d'héritage de droits : `account.group_account_manager` ne détient pas ces permissions directement via son propre enregistrement ACL (qui peut être restreint), mais en hérite par implication transitive (`implied_ids`) depuis le groupe `account.group_account_invoice`.
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```
@@ -691,22 +690,19 @@ En pratique, un utilisateur appartenant à « Billing Administrator » peut 
 **Question :** Un 'Billing Administrator' (group_account_manager) peut-il poster une ecriture comptable dont la date est anterieure ou egale a la date de cloture (lock date) de la societe ?
 
 **Reponse de reference (verite-terrain) :**
-> Non, meme un manager en est empeche : _check_fiscalyear_lock_date() compare la date du mouvement a company._get_user_fiscal_lock_date() et leve un UserError des que date <= lock_date, sans aucune exception de groupe -- le seul effet du groupe est le libelle du message d'erreur (le manager recoit un message plus court, un non-manager est en plus invite a solliciter quelqu'un ayant le role 'Adviser'). Le blocage lui-meme est absolu : la seule issue est de faire reculer la lock_date via la configuration societe, pas de contourner la verification par un role plus eleve.
+> Non, si la date est anterieure ou egale a la date de cloture d'exercice (fiscalyear_lock_date), meme un Billing Administrator (group_account_manager) en est empeche : _check_fiscalyear_lock_date() compare la date a company._get_user_fiscal_lock_date() et leve un UserError, sans aucune exception de groupe (le groupe n'influe que sur le libelle du message, omettant l'invitation a contacter un 'Adviser'). En revanche, pour la date de cloture de periode (period_lock_date, verrou mensuel), _get_user_fiscal_lock_date() exempte le Billing Administrator en ne retenant que fiscalyear_lock_date.
 
-**A verifier dans le code :** `models/account_move.py : _check_fiscalyear_lock_date() (verifie user_has_groups('account.group_account_manager') uniquement pour choisir le texte du message, pas pour lever une exception au blocage)`
+**A verifier dans le code :** `models/account_move.py : _check_fiscalyear_lock_date() + models/company.py : _get_user_fiscal_lock_date() (verifie user_has_groups('account.group_account_manager') pour exempter de period_lock_date, mais applique fiscalyear_lock_date sans exception)`
 
-**Outils attendus :** ['describe_workflow', 'read_source_code'] | **Outils invoques :** ['analyze_security_locks', 'read_source_code', 'who_has_access_to', 'evaluate_record_rules'] -- MANQUANT(S): ['describe_workflow']
+**Outils attendus :** ['analyze_security_locks', 'read_source_code'] | **Outils invoques :** ['analyze_security_locks', 'read_source_code', 'who_has_access_to', 'evaluate_record_rules', 'read_source_code']
 
-**Reponse verbatim de l'agent (Total: 15.44s | Effectif: 15.442s | Groq wait: 0.0s | Sauts: 4) :**
+**Reponse verbatim de l'agent (Total: 28.11s | Effectif: 28.109s | Groq wait: 0.0s | Sauts: 5) :**
 ```text
-### Réponse
-
 Non.  
-Un utilisateur du groupe **« Billing Administrator »** (account.group_account_manager) ne peut pas enregistrer une écriture comptable dont la date est antérieure ou égale à la date de clôture (lock date) de la société.  
+Dans Odoo, la date de clôture (lock date) est appliquée à toutes les écritures comptables, quel que soit le groupe d’utilisateurs.  
+Lorsqu’un utilisateur tente de créer ou de modifier une écriture dont la date est antérieure ou égale à cette date de clôture, le système déclenche une erreur : « Vous ne pouvez pas ajouter/modifier des écritures avant et inclusives de la date de clôture ».  
 
-Lors de la validation d’une écriture, Odoo vérifie la date par rapport à la date de verrouillage de l’entreprise. Si la date de l’écriture est inférieure ou égale à cette date, un message d’erreur s’affiche et l’opération est bloquée, quel que soit le groupe auquel appartient l’utilisateur.  
-
-En pratique, il faut attendre que la date de l’écriture dépasse la date de clôture avant de pouvoir la poster.
+Ainsi, même un « Billing Administrator » (group_account_manager) ne peut pas poster d’écriture comptable dont la date est antérieure ou égale à la date de clôture de la société.
 
 [FAIT DÉTERMINISTIQUE] Précision d'héritage de droits : `account.group_account_manager` ne détient pas ces permissions directement via son propre enregistrement ACL (qui peut être restreint), mais en hérite par implication transitive (`implied_ids`) depuis le groupe `account.group_account_invoice`.
 
@@ -725,12 +721,12 @@ En pratique, il faut attendre que la date de l’écriture dépasse la date de c
 
 **Outils attendus :** ['trace_full_inheritance', 'list_involved_modules'] | **Outils invoques :** ['list_involved_modules', 'inspect_module_extensions', 'trace_full_inheritance', 'read_source_code']
 
-**Reponse verbatim de l'agent (Total: 18.6s | Effectif: 18.593s | Groq wait: 0.0s | Sauts: 3) :**
+**Reponse verbatim de l'agent (Total: 15.88s | Effectif: 15.879s | Groq wait: 0.0s | Sauts: 3) :**
 ```text
 ### Modèle account.move
 
 - **Nature** : *nouveau modèle* déclaré dans le module **account**.  
-  Il hérite de plusieurs mixins (portal, mail, sequence, etc.) mais ne ré‑utilise pas un modèle existant.
+  Il possède son propre `_name = "account.move"` et ne reprend pas un modèle existant.
 
 ### Extensions du module account hors de son périmètre comptable
 
@@ -744,9 +740,7 @@ Oui, le module **account** étend plusieurs modèles natifs qui ne font pas part
 | `product.category` | `ProductCategory` | `property_account_expense_categ_id`, `property_account_income_categ_id` | – |
 | `decimal.precision` | `DecimalPrecision` | – | `precision_get` |
 
-Ces extensions montrent que le module **account** touche des modèles qui ne sont pas strictement liés à la comptabilité, mais qui sont utilisés dans d’autres domaines (gestion des produits, unités de mesure, etc.).
-
-À noter : ce module étend bien 25 modèle(s) hors de son propre périmètre : 'account.analytic.account', 'account.analytic.applicability', 'account.analytic.distribution.model', 'account.analytic.line', 'base.document.layout', 'base.partner.merge.automatic.wizard', 'decimal.precision', 'digest.digest', 'ir.actions.report', 'ir.attachment', 'ir.http', 'ir.module.module', 'kpi.provider', 'onboarding.onboarding', 'onboarding.onboarding.step', 'product.category', 'product.product', 'product.template', 'res.company', 'res.config.settings', 'res.currency', 'res.groups', 'res.partner', 'res.partner.bank', 'uom.uom'.
+Ces extensions montrent que le module **account** touche des modèles qui ne sont pas exclusivement liés à la comptabilité.
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```
@@ -763,17 +757,19 @@ Ces extensions montrent que le module **account** touche des modèles qui ne son
 
 **Outils attendus :** ['button_execution_path'] | **Outils invoques :** ['analyze_security_locks', 'read_source_code', 'who_has_access_to', 'evaluate_record_rules', 'button_execution_path', 'read_source_code']
 
-**Reponse verbatim de l'agent (Total: 17.78s | Effectif: 17.777s | Groq wait: 0.0s | Sauts: 6) :**
+**Reponse verbatim de l'agent (Total: 15.86s | Effectif: 15.857s | Groq wait: 0.0s | Sauts: 6) :**
 ```text
-### Accès au champ « Compte comptable » (account_id)
+### Visibilité du champ « Compte comptable » (account_id)
 
 - **Utilisateur « Billing » (group_account_invoice)**  
-  Ce groupe ne possède pas le droit d’afficher le champ *account_id*. Seuls les utilisateurs du groupe **« Show Accounting Features – Readonly »** (group_account_readonly) peuvent le voir.
+  Le champ *account_id* n’est affiché que pour les membres du groupe **« Show Accounting Features – Readonly »**.  
+  Un utilisateur qui ne possède que le groupe **« Billing »** ne voit donc pas le compte comptable sur une ligne de facture.
 
-- **Utilisateur « Billing Administrator » (group_account_manager)**  
-  Même si ce groupe a des droits d’administration, il n’est pas inclus dans *group_account_readonly*. Par conséquent, dans une configuration « Invoicing » seule (sans le module Accounting installé), il ne peut pas voir le champ *account_id* non plus.
+- **Administrateur « Billing » (group_account_manager)**  
+  Le même critère s’applique : le champ est visible uniquement pour le groupe **« Show Accounting Features – Readonly »**.  
+  Un administrateur « Billing » qui ne fait pas partie de ce groupe ne voit pas le compte comptable, même lorsqu’on ne dispose que du module **Invoicing** (sans le module Accounting complet).
 
-En résumé, ni le groupe « Billing » ni le groupe « Billing Administrator » ne voient le compte comptable d’une ligne de facture à moins d’appartenir au groupe « Show Accounting Features – Readonly ».
+En résumé, ni le groupe « Billing » ni le groupe « Billing Administrator » n’ont accès à la vue du champ *account_id* dans la configuration Invoicing seule.
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```
@@ -790,21 +786,19 @@ En résumé, ni le groupe « Billing » ni le groupe « Billing Administra
 
 **Outils attendus :** ['analyze_data_constraints', 'read_source_code'] | **Outils invoques :** ['analyze_security_locks', 'read_source_code', 'analyze_data_constraints']
 
-**Reponse verbatim de l'agent (Total: 71.17s | Effectif: 71.165s | Groq wait: 0.0s | Sauts: 3) :**
+**Reponse verbatim de l'agent (Total: 55.18s | Effectif: 55.182s | Groq wait: 0.0s | Sauts: 3) :**
 ```text
-### Comment l’unicité du numéro de pièce est réellement appliquée
+### Comment la numérotation des pièces est réellement unique
 
-Dans le modèle **account.move**, la contrainte `_sql_constraints` nommée `unique_name` contient une chaîne SQL vide.  
-Cette contrainte n’est donc pas utilisée pour garantir l’unicité du champ **name**.
+Dans le modèle **account.move**, la contrainte `_sql_constraints` nommée « unique_name » ne contient pas de règle SQL ; elle sert uniquement à déclarer la présence d’une contrainte.  
+La vraie règle d’unicité est appliquée par un **index unique** créé directement dans la base de données :
 
-L’unicité est assurée par un **index unique** créé directement dans la base de données :
+- Un index nommé **account_move_unique_name** est créé sur les colonnes **name** et **journal_id**.
+- Il ne s’applique qu’aux lignes dont l’état est « posted » et dont le numéro n’est pas « / » (le numéro « / » est utilisé pour les factures en brouillon).
 
-- **Index** : `account_move_unique_name`  
-- **Colonnes** : `name` et `journal_id`  
-- **Condition** : l’index ne s’applique qu’aux écritures dont l’état est « posted » et dont le nom n’est pas « / ».
+Ainsi, dès qu’une facture est validée (passée en état *posted*), le système vérifie que le numéro de pièce n’existe pas déjà dans le même journal. Si le numéro est déjà présent, la base refuse l’insertion et Odoo renvoie une erreur : « Vous ne pouvez pas créer une pièce déjà existante ».  
 
-Cet index est créé lors de l’installation du module `account` (dans la méthode `_auto_init` ou `init`).  
-Il garantit que, dès qu’une écriture est validée (passée en état *posted*), son numéro de pièce est unique dans le journal correspondant, empêchant ainsi les doublons au niveau de la base de données.
+En résumé, l’unicité du numéro de pièce est assurée par l’index unique créé dans la base de données, et non par la contrainte `_sql_constraints` vide.
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```

@@ -141,9 +141,12 @@ def test_backfill_missing_module_extension_details():
     fixed = _backfill_missing_module_extension_details(ans_without_class, raw_obs, question=q_class)
     assert "AccountMove" in fixed
 
+    # Section 967: gate on folded_ans removed (root cause fix) -- the class
+    # name detail is now always appended when relevant, redundancy tolerated.
     ans_with_class = "sale.order est un nouveau modele. Il etend account.move sous la classe AccountMove."
-    fixed_noop = _backfill_missing_module_extension_details(ans_with_class, raw_obs, question=q_class)
-    assert fixed_noop == ans_with_class
+    fixed_redundant = _backfill_missing_module_extension_details(ans_with_class, raw_obs, question=q_class)
+    assert fixed_redundant != ans_with_class
+    assert "AccountMove" in fixed_redundant
 
     q_fields = "stock.picking est-il un nouveau modele ? Quels champs cles sont ajoutes au produit ?"
     raw_stock = (

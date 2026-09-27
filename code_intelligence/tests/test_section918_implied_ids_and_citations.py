@@ -39,7 +39,14 @@ class TestBackfillMissingImpliedIdsMechanism:
         assert "account.group_account_invoice" in result
         assert "implied_ids" in result
 
-    def test_skips_when_answer_already_explains_inheritance(self):
+    def test_always_backfills_even_when_answer_already_explains_inheritance(self):
+        # Section 962: the gate against the LLM's own wording was removed
+        # (root cause of run-to-run flakiness on MNT-Q1 and others) -- the
+        # deterministic fact is now always appended when raw tool output
+        # supports it, even if the synthesized answer already covers the
+        # same ground in its own words. Redundancy is preferred over
+        # silently dropping evidence depending on non-deterministic LLM
+        # phrasing.
         raw_output = (
             "Access Matrix for 'account.move':\n"
             "[WRITE]: account.group_account_manager (via implied_ids <- account.group_account_invoice)"
@@ -50,8 +57,10 @@ class TestBackfillMissingImpliedIdsMechanism:
         )
 
         result = _backfill_missing_implied_ids_mechanism(answer, raw_output, question)
-        assert result == answer
-        assert result.count("implied_ids") == 1
+        assert result != answer
+        assert "[FAIT DÉTERMINISTIQUE]" in result
+        assert "account.group_account_manager" in result
+        assert "account.group_account_invoice" in result
 
     def test_skips_when_no_implied_ids_in_raw_output(self):
         raw_output = "Access Matrix for 'sale.order':\n[WRITE]: sales_team.group_sale_salesman"

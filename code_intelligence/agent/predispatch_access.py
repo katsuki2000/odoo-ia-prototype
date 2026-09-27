@@ -107,11 +107,17 @@ def dispatch_who_has_access_to(ctx: DispatchContext) -> None:
 
     if any(k[0] == "who_has_access_to" for k in ctx.seen_calls):
         ctx.system_prompt_suffix += (
-            "\n\n[DETERMINISTIC PRE-DISPATCH]\n"
+            "\n\n[DETERMINISTIC PRE-DISPATCH -- ACCESS RIGHTS]\n"
             "who_has_access_to has already been run for the target model(s) above "
             "because the question asks who can/has the right to do something; its "
             "ACL and record-rule output is already included in the tool "
-            "observations. Do not call it again."
+            "observations. Do not call it again.\n"
+            "IMPORTANT GUIDELINES FOR SYNTHESIS:\n"
+            "1. Respect strictly the access verdicts from who_has_access_to for each evaluated group and permission. "
+            "If an ACL grants access (e.g. 'HAS READ access', 'HAS WRITE access'), state clearly that the user/group "
+            "CAN perform that action. Do NOT claim that access is denied or restricted to another group contrary to the finding.\n"
+            "2. For each target model evaluated (e.g. 'stock.quant', 'stock.move.line'), explicitly cite its exact technical "
+            "model name in your answer alongside the corresponding access verdict."
         )
     if skipped_lock_governed_models:
         ctx.system_prompt_suffix += (

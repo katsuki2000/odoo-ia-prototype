@@ -76,11 +76,7 @@ def _backfill_missing_security_lock_amount(
         if not amounts:
             return final_answer
 
-    missing = [a for a in amounts if not _amount_present_in_text(a, final_answer)]
-    if not missing:
-        return final_answer
-
-    amount_list = ", ".join(f"{a}€" for a in missing)
+    amount_list = ", ".join(f"{a}€" for a in amounts)
     logger.info(
         "Node [code_intelligence_agent]: backfilling security-lock condition amount "
         "threshold(s) missing from synthesized answer: %s",

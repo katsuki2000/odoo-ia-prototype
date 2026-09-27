@@ -73,10 +73,21 @@ def dispatch_inheritance(ctx: DispatchContext) -> None:
     mod_tool = ctx.tool_map.get("list_involved_modules")
 
     target_mods_to_inspect = list(ctx.concept.resolved_modules)
+    declaring_mods: List[str] = []
     if not target_mods_to_inspect:
+        for target_model in ctx.concept.resolved_models:
+            for mod, role in list_involved_modules_with_evidence(
+                ctx.G, _resolve_model_param(target_model),
+            ).modules:
+                if role == "declares" and mod not in declaring_mods:
+                    declaring_mods.append(mod)
+        target_mods_to_inspect.extend(declaring_mods)
         candidate_mods = rank_custom_modules_for_models(ctx.G, ctx.concept.resolved_models, ctx.question)
         if candidate_mods:
-            target_mods_to_inspect.append(candidate_mods[0])
+            for c_mod in candidate_mods:
+                if c_mod not in target_mods_to_inspect:
+                    target_mods_to_inspect.append(c_mod)
+                    break
 
     for t_mod in target_mods_to_inspect:
         if ctx.hop_budget_exhausted:
@@ -99,7 +110,8 @@ def dispatch_inheritance(ctx: DispatchContext) -> None:
                     )
                 except Exception as te:
                     logger.error("Deterministic list_involved_modules dispatch for module failed: %s", te)
-        _dispatch_module_extensions_if_needed(ctx, t_mod, t_mod)
+        if not declaring_mods or t_mod in declaring_mods or (ctx.concept.resolved_modules and t_mod in ctx.concept.resolved_modules):
+            _dispatch_module_extensions_if_needed(ctx, t_mod, t_mod)
 
     for target_model in ctx.concept.resolved_models:
         if inherit_tool is not None and not ctx.hop_budget_exhausted:

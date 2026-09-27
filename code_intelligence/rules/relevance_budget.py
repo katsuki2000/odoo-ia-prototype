@@ -105,12 +105,12 @@ def _waterfill_with_protected_minimum(
     """
     protected = [min(_protected_prefix_end(t), s) if s else 0 for t, s in zip(texts, sizes)]
     protected_total = sum(protected)
+    order = sorted(
+        range(len(sizes)),
+        key=lambda i: (priority[i] if priority else 0),
+        reverse=True,
+    )
     if protected_total > budget:
-        order = sorted(
-            range(len(sizes)),
-            key=lambda i: (priority[i] if priority else sizes[i]),
-            reverse=True,
-        )
         alloc = [0] * len(sizes)
         remaining = budget
         for i in order:
@@ -118,21 +118,34 @@ def _waterfill_with_protected_minimum(
                 alloc[i] = protected[i]
                 remaining -= protected[i]
         return alloc
-    extra_sizes = [s - p for s, p in zip(sizes, protected)]
-    extra_budget = budget - protected_total
-    extra_alloc = waterfill_budget(extra_sizes, extra_budget)
-    alloc = [p + e for p, e in zip(protected, extra_alloc)]
-    # An item with protected==0 has no internal newline for
-    # _truncate_observation to rewind to (it is a single atomic line).
-    # Handing it a tiny partial share is worse than useless: with no
-    # newline to cut back to, _truncate_observation hard-cuts mid-line and
-    # still appends its truncation marker, so the actual output can end up
-    # LONGER than the tiny cap it was given, and even without that
-    # overshoot, half a line is just noise. All-or-nothing for these
-    # instead.
-    for i, (s, a, p) in enumerate(zip(sizes, alloc, protected)):
-        if p == 0 and 0 < a < s:
-            alloc[i] = 0
+
+    alloc = [p for p in protected]
+    remaining = budget - protected_total
+
+    # Atomic items (protected == 0 -- a single line, no internal newline
+    # for _truncate_observation to rewind to) are all-or-nothing: granted
+    # their FULL size, in priority order, while it still fits. A tiny
+    # partial share is worse than useless here -- with no newline to cut
+    # back to, _truncate_observation hard-cuts mid-line and still appends
+    # its truncation marker, so the actual output can end up LONGER than
+    # the tiny cap it was given, and even without that overshoot, half a
+    # line is just noise.
+    for i in order:
+        if protected[i] == 0 and sizes[i] <= remaining:
+            alloc[i] = sizes[i]
+            remaining -= sizes[i]
+
+    # Flexible items (protected > 0 -- multi-line, safe to cut back to
+    # their protected prefix) water-fill whatever budget remains among
+    # themselves, independently of the atomic items' all-or-nothing grants
+    # above.
+    flex_indices = [i for i, p in enumerate(protected) if p > 0]
+    if flex_indices:
+        extra_sizes = [sizes[i] - alloc[i] for i in flex_indices]
+        extra_alloc = waterfill_budget(extra_sizes, remaining)
+        for idx, e in zip(flex_indices, extra_alloc):
+            alloc[idx] += e
+
     return alloc
 
 

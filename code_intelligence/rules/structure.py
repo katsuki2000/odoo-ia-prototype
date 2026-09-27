@@ -903,27 +903,21 @@ def _backfill_missing_module_extension_details(final_answer: str, raw_tool_outpu
 
     wants_class_name = bool(re.search(r"\b(?:classe|nom de classe)\b", folded_q))
     if wants_class_name:
-        has_class_name = any(
-            class_name and class_name.lower() in folded_ans
-            for _, class_name, _ in entries
-        )
-        if not has_class_name:
-            target_entry = None
-            for entry in entries:
-                if entry[0].lower() in folded_ans and entry[1]:
-                    target_entry = entry
-                    break
-            if not target_entry and entries and entries[0][1]:
-                target_entry = entries[0]
-            if target_entry:
-                model_name, class_name, rel_fp = target_entry
-                backfill_notes.append(
-                    f"- Nom de classe Python étendant '{model_name}' : `{class_name}` (dans `{rel_fp}`)."
-                )
+        target_entry = None
+        for entry in entries:
+            if entry[0].lower() in folded_ans and entry[1]:
+                target_entry = entry
+                break
+        if not target_entry and entries and entries[0][1]:
+            target_entry = entries[0]
+        if target_entry:
+            model_name, class_name, rel_fp = target_entry
+            backfill_notes.append(
+                f"- Nom de classe Python étendant '{model_name}' : `{class_name}` (dans `{rel_fp}`)."
+            )
 
     wants_key_fields = bool(re.search(r"\bchamps?\s+cl[eé]s?\b", folded_q))
     if wants_key_fields:
-        already_has_fields = False
         target_entry_and_fields = None
         for entry in entries:
             model_name = entry[0]
@@ -933,28 +927,22 @@ def _backfill_missing_module_extension_details(final_answer: str, raw_tool_outpu
             )
             if fields_match:
                 f_list = [f.strip() for f in fields_match.group(1).split(",")]
-                if any(f.lower() in folded_ans for f in f_list):
-                    already_has_fields = True
+                if model_name.lower() in folded_ans:
+                    target_entry_and_fields = (entry, f_list)
                     break
-                if not target_entry_and_fields:
-                    if model_name.lower() in folded_ans:
-                        target_entry_and_fields = (entry, f_list)
-        if not already_has_fields:
-            if not target_entry_and_fields and entries:
-                first_m = entries[0][0]
-                fm = re.search(
-                    rf"-\s+Modèle\s+'{re.escape(first_m)}'.*?\*\s+Champs ajoutés\s*:\s*([^\n]+)",
-                    block, re.DOTALL,
-                )
-                if fm:
-                    target_entry_and_fields = (entries[0], [f.strip() for f in fm.group(1).split(",")])
-            if target_entry_and_fields:
-                entry, f_list = target_entry_and_fields
-                missing_fields = [f for f in f_list if f.lower() not in folded_ans]
-                if missing_fields:
-                    backfill_notes.append(
-                        f"- Champs clés ajoutés au modèle '{entry[0]}' : {', '.join(f'`{f}`' for f in missing_fields[:3])}."
-                    )
+        if not target_entry_and_fields and entries:
+            first_m = entries[0][0]
+            fm = re.search(
+                rf"-\s+Modèle\s+'{re.escape(first_m)}'.*?\*\s+Champs ajoutés\s*:\s*([^\n]+)",
+                block, re.DOTALL,
+            )
+            if fm:
+                target_entry_and_fields = (entries[0], [f.strip() for f in fm.group(1).split(",")])
+        if target_entry_and_fields:
+            entry, f_list = target_entry_and_fields
+            backfill_notes.append(
+                f"- Champs clés ajoutés au modèle '{entry[0]}' : {', '.join(f'`{f}`' for f in f_list[:3])}."
+            )
 
     if backfill_notes:
         logger.info(

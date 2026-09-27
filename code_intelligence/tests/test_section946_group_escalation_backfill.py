@@ -57,12 +57,17 @@ def test_no_backfill_when_question_does_not_mention_escalation_group():
     assert result == SALE_Q1_ANSWER
 
 
-def test_no_duplicate_when_rule_already_mentioned():
+def test_always_backfills_even_when_rule_already_mentioned():
+    # Section 962: same root-cause fix as implied_ids -- always append the
+    # deterministic fact even if the answer's own wording already brushes
+    # against the same rule, rather than gating on a substring match against
+    # non-deterministic LLM phrasing.
     answer_with_rule = SALE_Q1_ANSWER + " (voir sale_order_see_all)"
     result = _backfill_missing_group_escalation_note(
         answer_with_rule, SALE_Q1_RAW_OUTPUT, SALE_Q1_QUESTION
     )
-    assert result == answer_with_rule
+    assert result != answer_with_rule
+    assert "[FAIT DÉTERMINISTIQUE]" in result
 
 
 def test_no_backfill_for_non_see_all_ignored_rule():

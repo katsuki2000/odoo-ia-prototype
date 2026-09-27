@@ -13,6 +13,7 @@ import networkx as nx
 
 from code_intelligence.rules.button_path import ButtonExecutionPathResult
 from code_intelligence.rules.group_resolver import get_group_display_name
+from code_intelligence.rules.technical_groups import technical_groups_among
 from code_intelligence.utils import format_file_link, format_xml_id_citations
 
 
@@ -204,11 +205,11 @@ def _find_field_in_xml_views(
             dname = get_group_display_name(G, clean_rg)
             prefix = "!" if rg.startswith("!") else ""
             formatted_groups.append(f"{prefix}{clean_rg} ('{dname}')" if dname else rg)
-            rg_node = f"group:{clean_rg}"
-            if G.has_node(rg_node) and G.nodes[rg_node].get("group_type") == "technical":
-                sf = G.nodes[rg_node].get("setting_field", "")
-                group_label = f"'{dname}' [{clean_rg}]" if dname else clean_rg
-                tech_notes.append(f"{group_label} (paramètre de configuration: '{sf}')")
+
+        tech_groups = technical_groups_among(G, [rg.lstrip("!") for rg in raw_groups])
+        for tg in tech_groups:
+            group_label = f"'{tg.name}' [{tg.xmlid}]" if tg.name else tg.xmlid
+            tech_notes.append(f"{group_label} (paramètre de configuration: '{tg.setting_field}')")
 
         groups_formatted_str = ", ".join(formatted_groups)
         steps.append(f"6. Groupes requis: groups=\"{groups_cond}\" (groupes: [{groups_formatted_str}]) ({_grp_citations}).")

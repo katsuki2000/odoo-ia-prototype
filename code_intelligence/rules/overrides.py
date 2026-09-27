@@ -244,11 +244,7 @@ def _backfill_missing_override_modules(final_answer: str, raw_tool_output: str, 
     if not modules:
         return final_answer
 
-    missing = [m for m in modules if not _word_boundary_present(m, final_answer)]
-    if not missing:
-        return final_answer
-
-    module_list = ", ".join(f"'{m}'" for m in missing)
+    module_list = ", ".join(f"'{m}'" for m in modules)
     logger.info(
         "Node [code_intelligence_agent]: backfilling override-cascade module(s) missing "
         "from synthesized answer: %s",
@@ -293,11 +289,7 @@ def _backfill_missing_override_chain_amount(final_answer: str, raw_tool_output: 
     if not amounts:
         return final_answer
 
-    missing = [a for a in amounts if not _amount_present_in_text(a, final_answer)]
-    if not missing:
-        return final_answer
-
-    amount_list = ", ".join(f"{a}€" for a in missing)
+    amount_list = ", ".join(f"{a}€" for a in amounts)
     logger.info(
         "Node [code_intelligence_agent]: backfilling override-cascade amount threshold(s) missing "
         "from synthesized answer: %s",
@@ -442,17 +434,8 @@ def _backfill_missing_unguarded_super(final_answer: str, raw_tool_output: str) -
     if not findings:
         return final_answer
 
-    missing_items = []
-    for module, condition in findings:
-        field_name = condition.rsplit(".", 1)[-1] if "." in condition else condition
-        if field_name not in final_answer:
-            missing_items.append((module, condition))
-
-    if not missing_items:
-        return final_answer
-
     parts = []
-    for module, condition in missing_items:
+    for module, condition in findings:
         parts.append(
             f"module '{module}' : branche conditionnelle `{condition}` "
             f"avec super() rappelé inconditionnellement (risque d'annulation "

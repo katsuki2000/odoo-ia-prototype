@@ -71,6 +71,7 @@ def _flag_ungrounded_group_xmlids(final_answer: str, raw_tool_output: str) -> st
         set(_extract_required_groups(raw_tool_output))
         | set(_XML_ID_PATTERN.findall(raw_tool_output))
         | set(_extract_record_rule_groups(raw_tool_output))
+        | set(_GROUP_XMLID_RE.findall(raw_tool_output))
     )
     if not grounded:
         return final_answer
@@ -288,11 +289,7 @@ def _backfill_missing_required_groups(final_answer: str, raw_tool_output: str, q
     if not required_groups:
         return final_answer
 
-    missing = [g for g in required_groups if g not in final_answer]
-    if not missing:
-        return final_answer
-
-    group_list = ", ".join(missing)
+    group_list = ", ".join(required_groups)
     logger.info(
         "Node [code_intelligence_agent]: backfilling required group(s) missing "
         "from synthesized answer: %s",
@@ -334,13 +331,6 @@ def _backfill_missing_implied_ids_mechanism(
         parent_short = parent_group.split(".")[-1]
 
         if child_group not in combined_context and child_short not in combined_context:
-            continue
-
-        if (
-            parent_group in final_answer
-            or parent_short in final_answer
-            or _INHERITANCE_VERBALIZATION_RE.search(final_answer)
-        ):
             continue
 
         logger.info(
@@ -401,13 +391,6 @@ def _backfill_missing_group_escalation_note(
                 continue
             rule_xmlid = entry.group("rule_xmlid")
             rule_short = rule_xmlid.split(".")[-1]
-            if (
-                rule_xmlid in final_answer
-                or rule_short in final_answer
-                or group_xmlid in final_answer
-                or group_short in final_answer
-            ):
-                continue
             label_match = re.search(re.escape(group_xmlid) + r"\s*\('([^']*)'\)", groups_text)
             group_label = label_match.group(1) if label_match else group_short
             rule_name = entry.group("rule_name").strip()

@@ -273,13 +273,17 @@ class TestBackfillMissingOverrideModules:
         # Original (mislabeled) prose is preserved, not edited/removed.
         assert "module 'account_move'" in result
 
-    def test_no_op_when_all_modules_already_named(self):
+    def test_always_backfills_even_when_all_modules_already_named(self):
+        # Section 964: gate on final_answer content removed (root cause of
+        # run-to-run flakiness, section 962/963) -- always append when the
+        # raw tool output supports it, redundancy tolerated.
         answer = (
             "Modules concernés : 'custom_credit_note_approval_vip', "
             "'custom_credit_note_approval_regional', 'custom_credit_note_approval'."
         )
         result = _backfill_missing_override_modules(answer, _REAL_OVERRIDE_CHAIN_RAW_TEXT)
-        assert result == answer
+        assert result != answer
+        assert "[FAIT DÉTERMINISTIQUE]" in result
 
     def test_backfills_regardless_of_question_wording(self):
         """Unconditional by design (see docstring) -- the extraction step
@@ -316,15 +320,17 @@ class TestBackfillMissingOverrideChainAmount:
         assert "20000" in result
         assert "[FAIT DÉTERMINISTIQUE]" in result
 
-    def test_no_op_when_amount_already_present_unspaced(self):
+    def test_always_backfills_even_when_amount_already_present_unspaced(self):
         answer = "Au-delà de 20000€, le directeur régional est notifié."
         result = _backfill_missing_override_chain_amount(answer, _REAL_OVERRIDE_CHAIN_RAW_TEXT)
-        assert result == answer
+        assert result != answer
+        assert "[FAIT DÉTERMINISTIQUE]" in result
 
-    def test_no_op_when_amount_already_present_with_space(self):
+    def test_always_backfills_even_when_amount_already_present_with_space(self):
         answer = "Au-delà de 20 000€, le directeur régional est notifié."
         result = _backfill_missing_override_chain_amount(answer, _REAL_OVERRIDE_CHAIN_RAW_TEXT)
-        assert result == answer
+        assert result != answer
+        assert "[FAIT DÉTERMINISTIQUE]" in result
 
     def test_backfills_regardless_of_question_wording(self):
         """Unconditional by design -- same fix/rationale as
@@ -597,15 +603,17 @@ class TestBackfillMissingSecurityLockAmount:
         assert "10000" in result
         assert "[FAIT DÉTERMINISTIQUE]" in result
 
-    def test_no_op_when_amount_already_present_unspaced(self):
+    def test_always_backfills_even_when_amount_already_present_unspaced(self):
         answer = "Au-dela de 10000€, seule la Direction peut valider."
         result = _backfill_missing_security_lock_amount(answer, _REAL_SECURITY_LOCK_RAW_TEXT)
-        assert result == answer
+        assert result != answer
+        assert "[FAIT DÉTERMINISTIQUE]" in result
 
-    def test_no_op_when_amount_already_present_with_space(self):
+    def test_always_backfills_even_when_amount_already_present_with_space(self):
         answer = "Au-dela de 10 000€, seule la Direction peut valider."
         result = _backfill_missing_security_lock_amount(answer, _REAL_SECURITY_LOCK_RAW_TEXT)
-        assert result == answer
+        assert result != answer
+        assert "[FAIT DÉTERMINISTIQUE]" in result
 
     def test_backfills_regardless_of_question_wording(self):
         result = _backfill_missing_security_lock_amount("réponse courte", _REAL_SECURITY_LOCK_RAW_TEXT)
@@ -730,12 +738,13 @@ class TestBackfillSecurityLockAmountNotMaskedByEchoedQuestionAmount:
         assert "5000" in result
         assert "[FAIT DÉTERMINISTIQUE]" in result
 
-    def test_no_op_when_real_threshold_genuinely_already_present(self):
+    def test_always_backfills_even_when_real_threshold_genuinely_already_present(self):
         answer = "Seul un responsable comptable peut valider un avoir de plus de 5000€."
         result = _backfill_missing_security_lock_amount(
             answer, _REAL_CREDIT_NOTE_SECURITY_LOCK_RAW_TEXT
         )
-        assert result == answer
+        assert result != answer
+        assert "[FAIT DÉTERMINISTIQUE]" in result
 
 
 # gap fix (2026-08-13, module 6/8, 06c-technical-condition-
@@ -845,13 +854,16 @@ class TestBackfillMissingHardcodedIds:
             assert _amount_present_in_text(expected_id, result)
         assert "[FAIT DÉTERMINISTIQUE]" in result
 
-    def test_no_op_when_all_ids_already_present(self):
+    def test_always_backfills_even_when_all_ids_already_present(self):
+        # Section 967: gate on final_answer removed (root cause fix) --
+        # always append, redundancy tolerated.
         answer = (
             "Les identifiants concernés sont 42, 108 et 231, traités via "
             "sudo() sans passer par les règles d'approbation habituelles."
         )
         result = _backfill_missing_hardcoded_id_literals(answer, _REAL_SERVER_ACTION_RAW_TEXT)
-        assert result == answer
+        assert result != answer
+        assert "[FAIT DÉTERMINISTIQUE]" in result
 
     def test_does_not_false_positive_on_id_as_substring_of_larger_number(self):
         """Digit-boundary check (via _amount_present_in_text, same as the
@@ -1691,13 +1703,18 @@ class TestBackfillMissingSecurityLockAmountAmountAware:
     amount-aware tests for _backfill_missing_security_lock_amount."""
 
     def test_does_not_backfill_100k_when_question_amount_is_60k(self):
+        # Section 964: the >60k amount-relevance filter (business logic,
+        # not a final_answer wording gate) is unaffected by the fix --
+        # 100000€ must still never appear. What changes is that 50000€,
+        # having survived that filter, is now always re-appended even
+        # though the answer already states it (tolerated redundancy).
         answer = "Le responsable comptabilité doit valider au-delà de 50 000€."
         q = "Qui valide un document de 60 000€ dans custom.deep.document ?"
         result = _backfill_missing_security_lock_amount(
             answer, _REAL_DEEP_INHERITANCE_SECURITY_RAW_TEXT, question=q
         )
-        # 50000 is present in answer, 100000 is > 60000 (not triggered) -> no backfill
-        assert result == answer
+        assert "100000" not in result
+        assert "50000" in result
 
     def test_does_not_backfill_when_can_view_amount_fact_present(self):
         answer = (

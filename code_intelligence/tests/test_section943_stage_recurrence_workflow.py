@@ -116,7 +116,10 @@ def test_backfill_stage_recurrence_conditions_strips_false_followers():
     assert "followers de la demande sont conservés" not in cleaned
 
 
-def test_backfill_stage_recurrence_conditions_skips_when_already_explained():
+def test_backfill_stage_recurrence_conditions_always_adds_boundary_even_when_already_explained():
+    # Section 967: gate on folded_ans removed (root cause fix) -- the
+    # boundary condition bullet is now always appended when the raw
+    # tool output supports it, redundancy tolerated.
     raw_obs = (
         "[FAIT DÉTERMINISTIQUE -- WORKFLOW D'ÉTAPE ET RÉCURRENCE (write())]\n"
         "Pour le modèle 'maintenance.request'..."
@@ -127,7 +130,8 @@ def test_backfill_stage_recurrence_conditions_skips_when_already_explained():
         "- Duplication automatique si repeat_type == 'forever' ou date <= repeat_until."
     )
     res = _backfill_stage_recurrence_conditions(already_complete, raw_obs, question=q)
-    assert res == already_complete
+    assert res != already_complete
+    assert "Condition d’arrêt de la récurrence" in res
 
 
 @pytest.fixture(scope="module")

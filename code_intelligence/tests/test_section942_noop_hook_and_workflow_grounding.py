@@ -157,14 +157,18 @@ def test_backfill_action_confirm_workflow_details():
     assert "Brouillon" in fixed
     assert "Envoyée" in fixed
 
-    # When answer already explains precondition check, no duplicate replacement
+    # Section 967: gate on folded_ans removed (root cause fix) -- the
+    # precondition/analytic-validation detail is now always appended
+    # when the "Changement d'état" bullet is present, redundancy
+    # tolerated (even if the answer already explained it in its own words).
     already_good = (
         "### Confirmation\n\n"
         "- **Vérification préalable** : le système vérifie que les commandes sont à l'état brouillon ou envoyée.\n"
         "- **Changement d'état** : passe à l'état sale."
     )
     res_good = _backfill_action_confirm_workflow_details(already_good, raw_obs, question=q)
-    assert res_good == already_good
+    assert res_good != already_good
+    assert "Validation analytique" in res_good
 
 
 def test_effect_grounding_rule_in_prompts():

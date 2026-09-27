@@ -135,6 +135,7 @@ from code_intelligence.rules.group_resolver import (
     resolve_group_identifier,
 )
 from code_intelligence.rules.navigation import search_dynamic_view_or_menus
+from code_intelligence.rules.technical_groups import technical_groups_among
 from code_intelligence.rules.xml_view_finder import _find_field_in_xml_views
 from code_intelligence.rules.ontology import tags_for_node_attrs
 from code_intelligence.utils import format_file_link, format_xml_id_citations
@@ -333,15 +334,12 @@ def button_execution_path(
         if invisible_condition:
             execution_steps.append(f"5. Visibility Condition: Button invisible condition '{invisible_condition}'.")
 
-        tech_req_notes = []
-        for rg in sorted(required_groups):
-            clean_rg = rg.lstrip("!")
-            rg_node = f"group:{clean_rg}"
-            if G.has_node(rg_node) and G.nodes[rg_node].get("group_type") == "technical":
-                sf = G.nodes[rg_node].get("setting_field", "")
-                dname = get_group_display_name(G, clean_rg)
-                group_label = f"'{dname}' [{clean_rg}]" if dname else clean_rg
-                tech_req_notes.append(f"{group_label} (paramètre: '{sf}')")
+        tech_groups = technical_groups_among(G, sorted(required_groups))
+        tech_req_notes = [
+            f"'{tg.name}' [{tg.xmlid}] (paramètre: '{tg.setting_field}')" if tg.name
+            else f"{tg.xmlid} (paramètre: '{tg.setting_field}')"
+            for tg in tech_groups
+        ]
 
         summary = (
             f"Button '{button_label_or_name}' on '{model_name}': "
@@ -359,17 +357,11 @@ def button_execution_path(
     if user_groups is not None:
         available_to_requester = _requester_satisfies_required_groups(G, sorted(required_groups), user_groups)
         if not available_to_requester:
-            # Section 925: check if required groups are technical (settings-activated)
-            technical_groups = []
-            role_groups = []
-            for rg in sorted(required_groups):
-                clean_rg = rg.lstrip("!")
-                rg_node = f"group:{clean_rg}"
-                if G.has_node(rg_node) and G.nodes[rg_node].get("group_type") == "technical":
-                    setting_field = G.nodes[rg_node].get("setting_field", "")
-                    technical_groups.append((clean_rg, setting_field))
-                else:
-                    role_groups.append(rg)
+            # Section 925 / 958: check if required groups are technical (settings-activated)
+            tech_groups = technical_groups_among(G, sorted(required_groups))
+            tech_xmlids = {tg.xmlid for tg in tech_groups}
+            technical_groups = [(tg.xmlid, tg.setting_field) for tg in tech_groups]
+            role_groups = [rg for rg in sorted(required_groups) if rg.lstrip("!") not in tech_xmlids]
 
             if technical_groups and not role_groups:
                 # All required groups are technical feature flags

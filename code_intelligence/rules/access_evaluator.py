@@ -161,9 +161,26 @@ def _annotate_inherited(
     """Section 848 / 944: render a sorted group list with display names
     and an inline "(via implied_ids <- X)" annotation on any group present only because
     it implies another group's direct ACL -- see _expand_inheriting_acl_groups.
-    """
+
+    Section 948 (todo/contexte.txt): direct (non-via) groups are listed
+    BEFORE via-only groups -- each tier still alphabetically sorted within
+    itself, rather than one single alphabetical interleaving. A group's own
+    direct grant is the single highest-value, non-redundant fact in this
+    list; every via-annotated entry is a derivative repetition of ANOTHER
+    group's same grant (one widely-implied group, e.g. base.group_user, can
+    produce dozens of these). The naive head-truncation this observation is
+    later subject to (_truncate_observation, context.py) previously had
+    equal odds of cutting BEFORE a direct grant that happened to sort late
+    alphabetically among many via-entries -- confirmed root cause of a real
+    wrong answer on STK-Q1 (section 893: base.group_user's own direct WRITE
+    grant on stock.move.line sat past the old cap, hidden behind other
+    groups' via-annotations). Prioritizing direct grants first protects the
+    least redundant, highest-information content from being the one
+    silently dropped."""
+    direct = [g for g in sorted(groups) if not inherited_via.get(g)]
+    via_only = [g for g in sorted(groups) if inherited_via.get(g)]
     parts = []
-    for g in sorted(groups):
+    for g in direct + via_only:
         via = inherited_via.get(g)
         g_fmt = _format_group_with_display_name(G, g)
         if via:
@@ -302,3 +319,135 @@ def who_has_access_to(
         summary_text=summary,
         evidence=_build_access_evidence(model_name, permission, allowed_groups, all_authenticated, active_rules, group_id),
     )
+
+
+# ── Section 955: single-fact synthesis-inversion guard for ACL permission ──
+# verdicts (STK-Q1, todo/contexte.txt sections 952/954). Same family as
+# _correct_can_view_amount_contradictions / _correct_security_lock_
+# threshold_contradictions / _answer_denies_other_overrides: the parsed
+# observation ("Group '...' HAS/DOES NOT HAVE {PERM} access to '{model}'")
+# is a single, unambiguous, already-correct fact; the bug is the LLM's own
+# prose asserting the exact opposite. Deliberately scoped as a splice-out
+# correction against a known-good fact, not core/evidence_sufficiency.py's
+# CONFLICTING status (H3 proper), which is reserved for two VALID findings
+# disagreeing with each other -- see EvidenceSufficiencyStatus docstring.
+import logging
+import re
+
+_access_logger = logging.getLogger(__name__)
+
+_ACCESS_VERDICT_RE = re.compile(
+    r"Group\s+'[^']*'(?:\s*\([^)]*\))?\s+(HAS|DOES NOT HAVE)\s+"
+    r"(READ|WRITE|CREATE|UNLINK)\s+access\s+to\s+'([^']+)'",
+)
+
+# Verb stems per permission, matched against French synthesis prose.
+# Intentionally not exhaustive NLU -- same targeted-pattern discipline as
+# _CAN_VIEW_ALLOW_ASSERTION_RE/_CAN_VIEW_DENY_ASSERTION_RE in
+# can_view_verifier.py: catches the known phrasings the synthesis prompt's
+# own vocabulary produces, not every conceivable paraphrase.
+_ACCESS_VERBS_FR = {
+    "READ": r"consult\w*|voir|lire|acc[ée]d\w*",
+    "WRITE": r"modifi\w*|chang\w*|[ée]dit\w*|mettre\s+[àa]\s+jour",
+    "CREATE": r"cr[ée][ée]?r?\w*",
+    "UNLINK": r"supprim\w*|effac\w*",
+}
+
+
+def _access_deny_re(verb_re: str) -> "re.Pattern":
+    return re.compile(
+        rf"(?:ne\s+peut\s+pas|ne\s+(?:poss[èe]de|dispose)\s+pas\s+(?:du|de\s+la|le)?\s*"
+        rf"(?:droit|permission)\s+de|n['’]a\s+pas\s+(?:le\s+droit|la\s+permission)\s+de|"
+        rf"n['’]est\s+pas\s+autoris[ée]\w*\s+[àa])\s*(?:{verb_re})",
+        re.IGNORECASE,
+    )
+
+
+def _access_allow_re(verb_re: str) -> "re.Pattern":
+    return re.compile(
+        rf"(?<!ne\s)(?<!pas\s)\bpeut\s+(?:{verb_re})|"
+        rf"\b(?:a|dispose\s+du|poss[èe]de\s+le)\s+droit\s+de\s+(?:{verb_re})|"
+        rf"\best\s+autoris[ée]\w*\s+[àa]\s+(?:{verb_re})",
+        re.IGNORECASE,
+    )
+
+
+_ACCESS_VERB_WORDS = {"READ": "consulter", "WRITE": "modifier", "CREATE": "créer", "UNLINK": "supprimer"}
+# Section 956: a naive "up to the first period" split breaks on the
+# model's OWN internal period ("stock.quant" -> stops at "stock."). A
+# real sentence end is a period followed by whitespace or end-of-block;
+# "stock.quant" is followed immediately by "q", so the lookahead skips it.
+_ACCESS_SENTENCE_RE = re.compile(r"[^\n]*?\.(?=\s|$)")
+
+
+def _correct_access_permission_contradictions(final_answer: str, scoped_tool_output: str) -> str:
+    """Detect and correct a synthesis-level inversion of a who_has_access_to
+    verdict: the observation says HAS/DOES NOT HAVE a given permission on a
+    given model, the prose asserts the opposite.
+
+    Section 956 (todo/contexte.txt): the STK-Q1 rejeu that confirmed the
+    section 955 fix on the WRITE volet also showed READ still uninverted --
+    the denial sentence ("ne peut pas consulter les quantités en stock")
+    never names `stock.quant` at all, only the FOLLOWING sentence does
+    ("...enregistrements de stock.quant"). A same-sentence match therefore
+    missed it. Scoped one level up instead, to the paragraph/block (text
+    between blank lines) that mentions the model literally -- close enough
+    to keep the correction targeted (this codebase's own citation
+    discipline still puts the model name near its verdict, just not always
+    in the identical sentence), while a block naming a DIFFERENT model that
+    also has its own fact this turn is skipped entirely, so a two-model
+    answer (STK-Q1 itself: stock.quant + stock.move.line) never lets one
+    model's correction bleed into the other's paragraph."""
+    if not scoped_tool_output:
+        return final_answer
+    facts = _ACCESS_VERDICT_RE.findall(scoped_tool_output)
+    if not facts:
+        return final_answer
+
+    footer_idx = final_answer.find("[Source:")
+    prose_end = footer_idx if footer_idx != -1 else len(final_answer)
+    corrected = final_answer
+    all_models = [m for _, _, m in facts]
+
+    for verdict, permission, model in facts:
+        has_access = verdict == "HAS"
+        verb_re = _ACCESS_VERBS_FR.get(permission)
+        if not verb_re:
+            continue
+        model_re = re.escape(model)
+        other_models_re = [re.escape(m) for m in all_models if m != model]
+        deny_re = _access_deny_re(verb_re)
+        allow_re = _access_allow_re(verb_re)
+
+        for block in re.split(r"\n\s*\n", corrected[:prose_end]):
+            if not re.search(model_re, block, re.IGNORECASE):
+                continue
+            if any(re.search(om, block, re.IGNORECASE) for om in other_models_re):
+                continue
+
+            for match in list(_ACCESS_SENTENCE_RE.finditer(block)):
+                sentence = match.group(0)
+                # Section 956: Markdown emphasis markers routinely sit between
+                # the negation and the verb ("**ne peut pas** consulter"), which
+                # a plain \s* separator does not cross. Match against an
+                # emphasis-stripped copy; splice the ORIGINAL sentence text
+                # (with its markers intact) so the replacement stays valid
+                # Markdown and corrected.replace() still finds an exact match.
+                sentence_plain = sentence.replace("**", "").replace("*", "")
+                is_denied = bool(deny_re.search(sentence_plain))
+                is_allowed = (not is_denied) and bool(allow_re.search(sentence_plain))
+                verb_word = _ACCESS_VERB_WORDS[permission]
+                if has_access and is_denied:
+                    replacement = f"L'utilisateur PEUT {verb_word} `{model}` (voir le fait déterministe ci-dessous)."
+                elif (not has_access) and is_allowed:
+                    replacement = f"L'utilisateur NE PEUT PAS {verb_word} `{model}` (voir le fait déterministe ci-dessous)."
+                else:
+                    continue
+                _access_logger.warning(
+                    "Node [code_intelligence_agent]: synthesis asserted the opposite of "
+                    "who_has_access_to's own '%s %s access to %s' verdict -- replacing sentence.",
+                    verdict, permission, model,
+                )
+                corrected = corrected.replace(sentence, replacement, 1)
+
+    return corrected

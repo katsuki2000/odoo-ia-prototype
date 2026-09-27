@@ -53,7 +53,13 @@ def test_inspect_module_cross_domain_extensions_prioritizes_business_models():
     assert exts[1].model_name == "res.company"
 
 
-def test_backfill_does_not_add_redundant_class_name():
+def test_backfill_always_targets_cited_model_without_leaking_other_models():
+    # Section 967: gate on folded_ans removed (root cause fix) -- the class
+    # name detail for the model actually cited (account.move) is now always
+    # appended, redundancy tolerated; the untouched assertion is that the
+    # *other* model in tool output (res.partner, never cited) still never
+    # leaks in -- that's the target-entry relevance selection, unaffected
+    # by this fix.
     raw_obs = (
         "[FAIT DÉTERMINISTIQUE -- EXTENSIONS DU MODULE HORS PÉRIMÈTRE]\n"
         "Le module 'sale' étend directement les modèles natifs suivants hors de son propre périmètre :\n"
@@ -65,7 +71,7 @@ def test_backfill_does_not_add_redundant_class_name():
     q = "sale.order est-il un nouveau modele ? Quel modele natif hors vente etend-il, et sous quel nom de classe ?"
     ans = "sale.order est un nouveau modele. Il etend account.move via la classe AccountMove."
     fixed = _backfill_missing_module_extension_details(ans, raw_obs, question=q)
-    assert fixed == ans
+    assert fixed != ans
     assert "ResPartner" not in fixed
 
 

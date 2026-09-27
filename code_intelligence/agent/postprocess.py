@@ -30,6 +30,7 @@ from code_intelligence.rules.security_locks import (
     _backfill_missing_security_lock_amount,
     _correct_security_lock_threshold_contradictions,
 )
+from code_intelligence.rules.access_evaluator import _correct_access_permission_contradictions
 from code_intelligence.agent.link_guards import (
     _backfill_missing_trigger_condition_literals,
     _backfill_missing_hardcoded_id_literals,
@@ -102,6 +103,7 @@ def _apply_backfill_chain(
     raw_tool_output: str = "",
 ) -> str:
     final_answer = _correct_security_lock_threshold_contradictions(final_answer, scoped_tool_output, question)
+    final_answer = _correct_access_permission_contradictions(final_answer, scoped_tool_output)
     final_answer = _backfill_missing_can_view_amount_fact(
         final_answer,
         scoped_tool_output,

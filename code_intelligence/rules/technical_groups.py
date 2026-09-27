@@ -39,8 +39,8 @@ def technical_groups_among(G: nx.DiGraph, group_xmlids: List[str]) -> List[Techn
 
 def format_technical_group_note(technical_groups: List[TechnicalGroup]) -> str:
     described = ", ".join(
-        f"'{group.name}' [{group.xmlid}] (paramètre: '{group.setting_field}')" if group.name
-        else f"{group.xmlid} (paramètre: '{group.setting_field}')"
+        f"'{group.name}' [{group.xmlid}] (paramètre: '{group.setting_field}', xml_id: {group.xmlid})" if group.name
+        else f"{group.xmlid} (paramètre: '{group.setting_field}', xml_id: {group.xmlid})"
         for group in technical_groups
     )
     return (

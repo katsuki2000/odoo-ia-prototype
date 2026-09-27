@@ -152,8 +152,7 @@
       "difficulty": "medium",
       "expected_tools": [
         "trace_full_inheritance",
-        "list_involved_modules",
-        "analyze_method_override_chain"
+        "list_involved_modules"
       ],
       "question": "purchase.order est-il un nouveau modele ou une extension ? Le module purchase modifie-t-il en parallele un modele natif deja existant hors de son propre domaine (achat), et comment ?",
       "reference_answer": "purchase.order (_name='purchase.order') est un nouveau modele -- il n'herite que de mixins (portal.mixin, product.catalog.mixin, mail.thread, mail.activity.mixin), pas d'un modele metier preexistant. En parallele, ce meme module etend reellement account.move (_inherit='account.move', classe AccountMove dans account_invoice.py) en surchargeant create() et write() pour poster un message de tracabilite ('cree depuis'/'modifie depuis') des que les lignes de facture referencent une purchase.order.line -- une extension transverse comptabilite, distincte du modele purchase.order lui-meme.",
@@ -337,12 +336,12 @@
       "capability": "workflow",
       "difficulty": "hard",
       "expected_tools": [
-        "describe_workflow",
+        "analyze_security_locks",
         "read_source_code"
       ],
       "question": "Un 'Billing Administrator' (group_account_manager) peut-il poster une ecriture comptable dont la date est anterieure ou egale a la date de cloture (lock date) de la societe ?",
-      "reference_answer": "Non, meme un manager en est empeche : _check_fiscalyear_lock_date() compare la date du mouvement a company._get_user_fiscal_lock_date() et leve un UserError des que date <= lock_date, sans aucune exception de groupe -- le seul effet du groupe est le libelle du message d'erreur (le manager recoit un message plus court, un non-manager est en plus invite a solliciter quelqu'un ayant le role 'Adviser'). Le blocage lui-meme est absolu : la seule issue est de faire reculer la lock_date via la configuration societe, pas de contourner la verification par un role plus eleve.",
-      "verification": "models/account_move.py : _check_fiscalyear_lock_date() (verifie user_has_groups('account.group_account_manager') uniquement pour choisir le texte du message, pas pour lever une exception au blocage)"
+      "reference_answer": "Non, si la date est anterieure ou egale a la date de cloture d'exercice (fiscalyear_lock_date), meme un Billing Administrator (group_account_manager) en est empeche : _check_fiscalyear_lock_date() compare la date a company._get_user_fiscal_lock_date() et leve un UserError, sans aucune exception de groupe (le groupe n'influe que sur le libelle du message, omettant l'invitation a contacter un 'Adviser'). En revanche, pour la date de cloture de periode (period_lock_date, verrou mensuel), _get_user_fiscal_lock_date() exempte le Billing Administrator en ne retenant que fiscalyear_lock_date.",
+      "verification": "models/account_move.py : _check_fiscalyear_lock_date() + models/company.py : _get_user_fiscal_lock_date() (verifie user_has_groups('account.group_account_manager') pour exempter de period_lock_date, mais applique fiscalyear_lock_date sans exception)"
     },
     {
       "id": "ACC-Q3",

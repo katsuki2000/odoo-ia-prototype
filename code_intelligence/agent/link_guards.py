@@ -85,11 +85,7 @@ def _backfill_missing_trigger_condition_literals(final_answer: str, raw_tool_out
     if not literals:
         return final_answer
 
-    missing = [lit for lit in literals if lit not in final_answer]
-    if not missing:
-        return final_answer
-
-    lit_list = ", ".join(f"`{lit}`" for lit in missing)
+    lit_list = ", ".join(f"`{lit}`" for lit in literals)
     logger.info(
         "Node [code_intelligence_agent]: backfilling server-action trigger-condition "
         "literal(s) missing from synthesized answer: %s",
@@ -128,11 +124,7 @@ def _backfill_missing_hardcoded_id_literals(final_answer: str, raw_tool_output: 
     if not ids:
         return final_answer
 
-    missing = [i for i in ids if not _amount_present_in_text(i, final_answer)]
-    if not missing:
-        return final_answer
-
-    id_list = ", ".join(missing)
+    id_list = ", ".join(ids)
     logger.info(
         "Node [code_intelligence_agent]: backfilling hardcoded privileged-ID "
         "literal(s) missing from synthesized answer: %s",

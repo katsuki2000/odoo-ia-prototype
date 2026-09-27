@@ -198,7 +198,6 @@ def _backfill_action_confirm_workflow_details(
 
     from code_intelligence.rules.group_resolver import _fold_accents
     folded_q = _fold_accents(question.lower()) if question else ""
-    folded_ans = _fold_accents(final_answer.lower())
 
     # Only apply if question or observations target action_confirm
     is_confirm_q = bool(
@@ -213,27 +212,20 @@ def _backfill_action_confirm_workflow_details(
     if "def _can_be_confirmed" not in raw_tool_output and "_can_be_confirmed" not in raw_tool_output:
         return final_answer
 
-    # Check if precondition check (draft/sent check + error/blocking) is already properly explained
-    has_precondition = bool(
-        re.search(r"\b(?:verifi|prealable|exige|condition|bloque|empeche)\b.*?\b(?:brouillon|draft|sent|envoyee)\b", folded_ans, re.DOTALL)
-        or re.search(r"\b(?:brouillon|draft|sent|envoyee)\b.*?\b(?:brouillon|draft|sent|envoyee)\b.*?\b(?:verifi|prealable|exige|condition|bloque|empeche)\b", folded_ans, re.DOTALL)
+    state_change_pat = re.compile(
+        r"^\s*-\s+\*\*Changement d[’\']état\*\*\s*:[^\n]*(?:\n|$)",
+        re.MULTILINE | re.IGNORECASE,
     )
-
-    if not has_precondition:
-        state_change_pat = re.compile(
-            r"^\s*-\s+\*\*Changement d[’\']état\*\*\s*:[^\n]*(?:\n|$)",
-            re.MULTILINE | re.IGNORECASE,
+    if state_change_pat.search(final_answer):
+        replacement = (
+            "- **Vérification préalable** : le système vérifie d'abord que les commandes sont en état « Brouillon » ou « Envoyée » (sinon une erreur bloque la confirmation).\n"
+            "- **Validation analytique** : la distribution analytique des lignes de commande est validée.\n"
+            "- **Changement d’état et date** : la commande passe à l'état « En cours » (état sale) avec enregistrement de la date de confirmation.\n"
         )
-        if state_change_pat.search(final_answer):
-            replacement = (
-                "- **Vérification préalable** : le système vérifie d'abord que les commandes sont en état « Brouillon » ou « Envoyée » (sinon une erreur bloque la confirmation).\n"
-                "- **Validation analytique** : la distribution analytique des lignes de commande est validée.\n"
-                "- **Changement d’état et date** : la commande passe à l'état « En cours » (état sale) avec enregistrement de la date de confirmation.\n"
-            )
-            final_answer = state_change_pat.sub(replacement, final_answer)
-            logger.info(
-                "Node [code_intelligence_agent]: Backfilled action_confirm precondition and analytic distribution."
-            )
+        final_answer = state_change_pat.sub(replacement, final_answer)
+        logger.info(
+            "Node [code_intelligence_agent]: Backfilled action_confirm precondition and analytic distribution."
+        )
 
     return final_answer
 
@@ -359,7 +351,6 @@ def _backfill_stage_recurrence_conditions(
 
     from code_intelligence.rules.group_resolver import _fold_accents
     folded_q = _fold_accents(question.lower()) if question else ""
-    folded_ans = _fold_accents(final_answer.lower())
 
     # Strip hallucinated followers notifications on reaching done
     followers_bullet_re = re.compile(
@@ -370,33 +361,22 @@ def _backfill_stage_recurrence_conditions(
     if cleaned != final_answer:
         logger.info("Node [code_intelligence_agent]: Stripped false followers notification bullet from stage workflow answer.")
         final_answer = cleaned
-        folded_ans = _fold_accents(final_answer.lower())
 
-    # Check if the boundary condition (repeat_until / forever) is already explained
-    has_boundary = bool(
-        "repeat_until" in folded_ans
-        or "forever" in folded_ans
-        or "date limite" in folded_ans
-        or "recurrence sans fin" in folded_ans
-        or "illimitee" in folded_ans
+    boundary_item = (
+        "- **Condition d’arrêt de la récurrence** : la duplication automatique n'a lieu que si la répétition "
+        "est configurée sans fin (*repeat_type* = 'forever') ou si la date calculée reste antérieure ou égale "
+        "à la date limite (*repeat_until*)."
     )
-
-    if not has_boundary:
-        boundary_item = (
-            "- **Condition d’arrêt de la récurrence** : la duplication automatique n'a lieu que si la répétition "
-            "est configurée sans fin (*repeat_type* = 'forever') ou si la date calculée reste antérieure ou égale "
-            "à la date limite (*repeat_until*)."
-        )
-        # Try inserting right after the new request creation bullet if present
-        insert_pat = re.compile(
-            r"(\s*-\s+La nouvelle demande est placée dans l’étape par défaut[^\n]*)",
-            re.IGNORECASE,
-        )
-        if insert_pat.search(final_answer):
-            final_answer = insert_pat.sub(r"\1\n  " + boundary_item, final_answer)
-        else:
-            final_answer = final_answer.rstrip() + "\n\n" + boundary_item
-        logger.info("Node [code_intelligence_agent]: Backfilled stage recurrence boundary condition (repeat_until / forever).")
+    # Try inserting right after the new request creation bullet if present
+    insert_pat = re.compile(
+        r"(\s*-\s+La nouvelle demande est placée dans l’étape par défaut[^\n]*)",
+        re.IGNORECASE,
+    )
+    if insert_pat.search(final_answer):
+        final_answer = insert_pat.sub(r"\1\n  " + boundary_item, final_answer)
+    else:
+        final_answer = final_answer.rstrip() + "\n\n" + boundary_item
+    logger.info("Node [code_intelligence_agent]: Backfilled stage recurrence boundary condition (repeat_until / forever).")
 
     return final_answer
 
