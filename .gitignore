@@ -42,3 +42,5 @@ document_rag/ingestion/logs/
 # had gone through regardless).
 active_graph.json
 code_intelligence/full_corpus_test/
+# Frozen synthesis prompts embed machine-specific absolute paths (section 985)
+captures/frozen_evidence/

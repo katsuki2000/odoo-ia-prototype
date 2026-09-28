@@ -4661,3 +4661,55 @@ Contexte : pmm colle 3 rejeux PUR-Q5 supplementaires. Avant analyse, relecture d
 **Fichiers modifies** : `todo/contexte.txt` (cette section) uniquement.
 
 **Prochaine etape** : inchangee par rapport a 981 -- (1) commit du lot 977-980 (causes A/B, mur, desormais 6/6 en conditions reelles) ; (2) arbitrage sur le sort du defaut SQL (6/6 desormais, 2 fabrications recurrentes identifiees) -- le rattacher a H3 (904/905) ou ouvrir un point dedie reste la question posee par pmm, non tranchee.
+
+## Section 983 : Commit du lot causes A/B (977-982) -- fait, mandat "maintenant" de pmm
+
+Date : 27/09/2026
+Contexte : pmm confirme vouloir trancher maintenant (commit + arbitrage SQL) plutot que continuer a accumuler des rejeux.
+
+**Commit realise** : `96dd20a` sur `feat/security-lock-reranking`, contenu verifie par `git status`/`git diff --stat` juste avant (correspond exactement aux 2 diffs deja lus et verifies en 978, aucune surprise) -- `predispatch_access.py` (cause A), `security_evidence.py` (cause B), les 2 fichiers de test `test_section977_*` (978, corrige 979), `captures/bloc_n1_verbatim.*` (dernier rejeu), `todo/contexte.txt`. `.scratch/diag_*.py` deliberement laisses non suivis (usage projet deja etabli, confirme par `git status` : toujours `??` apres le commit).
+
+**Ce qui n'a pas ete fait** : aucun test relance ce tour avant le commit (deja fait et confirme vert en 979/980 : 1631 passed/18 skipped/0 echec -- pas re-verifie, jugee suffisante au vu de la discipline deja appliquee 3 fois de suite sur ce meme lot).
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section, avant le commit lui-meme -- donc le commit `96dd20a` contient tout jusqu'a la section 982 incluse, celle-ci est ajoutee apres coup et sera dans le prochain commit).
+
+**Prochaine etape** : voir section 984 (arbitrage du defaut SQL, meme tour).
+
+## Section 984 : Arbitrage du defaut SQL (981-982) -- RECTIFICATIF avant tranchage : ce n'est PAS un cas H3, c'est un cas "LLM Writer" (synthese) deja identifie comme tel dans todo/plan.md -- mandat pmm demande sur cette base corrigee, pas de code touche
+
+Date : 27/09/2026
+Contexte : pmm demande de trancher maintenant le sort du defaut SQL (PUR-Q5, 981-982, 6/6). Avant de rattacher a H3 comme propose en 981/982, relecture de `todo/plan.md` (sections "Raisonnement deterministe" et "LLM Writer (synthese)") pour verifier que le rattachement propose est le bon.
+
+**Correction : H3 ne convient pas, propose a tort en 981/982** -- `todo/plan.md` definit H3 explicitement comme *"arbitrage de preuves concurrentes"* : le detecteur reel derriere `EvidenceSufficiencyStatus.CONFLICTING` (aujourd'hui jamais retourne, branche instrumentee mais logique de detection absente), destine a arbitrer entre **plusieurs sources d'evidence qui se contredisent entre elles** (ex. 2 outils donnant des reponses differentes) -- explicitement distingue d'Evidence Builder dans le plan ("a ne pas confondre"). **Le defaut SQL de PUR-Q5 n'est pas ce cas de figure** : il n'y a qu'UNE seule source (`analyze_data_constraints('purchase.order.line')`), confirmee correcte et non-contradictoire en 981 -- le LLM ignore/remplace cette source unique par une fabrication, il n'arbitre pas entre 2 preuves concurrentes puisqu'il n'y en a qu'une.
+
+**Home correct, deja nomme dans le plan sans avoir ete rapproche jusqu'ici** : la section "LLM Writer (synthese)" de `todo/plan.md` nomme deja explicitement ce type de defaut -- *"Scaffolding deterministe compensant les points faibles recurrents du LLM de synthese (hallucination, dropped literals, degenerescence)"* et, plus loin, *"Fine-tuning cible [...] sur les patterns ou le modele echoue le plus souvent malgre le dispatch force (ex. synthese multi-volets, priorisation de findings contradictoires)"*. C'est exactement la famille deja cataloguee sur ce fil (814/816/818/829, et desormais confirmee sur plusieurs mecanismes distincts en 900/901/903/904/905/981/982 : ACL implied_ids, record rules personas, contraintes SQL) -- **un seul et meme axe transverse, pas une serie de bugs locaux independants**, et le plan le range deja correctement sous "LLM Writer" (scaffolding immediat + fine-tuning differe), pas sous H3 (arbitrage multi-source).
+
+**Consequence pratique de la correction** : rien a chantier "H3" pour ce defaut precis -- H3 reste tel que deja specifie (construire le detecteur de `CONFLICTING` reel, qui n'existe pas encore). Le defaut SQL (et sa famille 900/901/903/904/905) releve du chantier "LLM Writer", deja priorise #3 dans `todo/plan.md` ("necessite mandat explicite pour reprendre, voir section 568") -- mais ce chantier tel que documente vise le PASSAGE en inference locale (Qwen3-14B/Ollama) et le fine-tuning differe, pas un correctif immediat sur le modele cloud actuel (Groq llama-3.1-8b-instant). Aucun "scaffolding deterministe" specifique a la fabrication SQL/evidence-ignoree n'est pour l'instant esquisse dans le plan au-dela de la mention generique.
+
+**Ce qui n'a pas ete fait** : aucun code touche (clarification de classification uniquement). Pas de nouveau chantier ouvert, pas de mandat pris pour le chantier "LLM Writer" existant (necessite un mandat explicite distinct, deja marque comme tel dans le plan, section 568).
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section) uniquement.
+
+**Prochaine etape** : mandat pmm demande sur la base corrigee -- (1) confirmer/rejeter le rattachement a "LLM Writer" (todo/plan.md, chantier #3) plutot qu'a H3 comme desormais precise ; (2) si confirme, decider si un scaffolding deterministe cible (ex. verificateur post-synthese comparant le texte final aux `_sql_constraints`/`exception_messages` bruts deja extraits, dans l'esprit des gardes deja existants comme "group xmlid non verifie"/section 870 code-fabrique) merite d'etre esquisse maintenant plutot que d'attendre le passage en inference locale differe (section 568) -- vu que la famille touche desormais au moins 5 mecanismes distincts (SAL-Q1, ACC-Q1, MNT-Q1 residuel, STK-Q1 couverture, PUR-Q5 SQL) sur une petite dizaine de rejeux, un garde deterministe cible pourrait avoir un ROI superieur a attendre le fine-tuning a 12-18 mois.
+
+
+## Section 985 : Banc de synthese sur preuves gelees (protocole de 875) -- script prepare, mandat pmm "prepare le script, commit et push" ; le mandat 876 ("on GARDE gpt-oss-20b, pas de banc multi-modeles") est rouvert par pmm
+
+Date : 28/09/2026
+Contexte : pmm rouvre la comparaison de modeles (Qwen3-14B contre gpt-oss-20b) apres deux constats verifies ce tour. (1) QLoRA de gpt-oss-20b : le chemin transformers/peft/bitsandbytes dequantifie le MXFP4 natif en bf16 (~44 Go de VRAM, hors de portee du T4/P100 Kaggle) ; seul le chemin Unsloth (variante BF16 + load_in_4bit, ~14 Go) tient sur un GPU 16 Go. Qwen3-14B est dense, donc QLoRA standard (~7-8 Go de poids 4-bit). (2) Le risque "thinking mode" note en 875 est resolu nativement : Qwen3 expose `enable_thinking=False` (chat template) et le soft switch `/no_think` dans le prompt, exploitable via Ollama sans parser de bloc `<think>`. Aucune decision d'adopter Qwen : ce livrable ne fait que rendre la comparaison mesurable.
+Note de session : le connecteur filesystem a change de racine en cours de session (`/home/user/...` obsolete, arretee a la section 903 ; le vrai depot est `/media/donnee/projets/odoo-ia-prototype`). Une "section 904" et un test ecrits par erreur dans la copie obsolete n'ont aucun effet sur ce depot.
+
+**Livre** :
+- `core/evaluation/synthesis_metrics.py` : score deterministe d'une reponse contre le prompt gele -- fuite `<think>`, degenerescence (reutilise `_detect_any_degenerate_repetition`), rappel des identifiants techniques de la reponse de reference *presents dans la preuve* (un identifiant absent de la preuve est un trou de couverture, pas un defaut de synthese -- cas STK-Q1), et identifiants de la reponse absents de la preuve (proxy de fabrication).
+- `core/evaluation/synthesis_bench.py` : `ModelSpec` (`[provider:]model`), `SynthesisPromptRecorder` (intercepte `build_synthesis_prompt` de `code_intelligence.agent.loop` sans toucher a la boucle), stockage des cas geles, rejeu N echantillons avec les memes parametres de synthese que la prod (`max_tokens=4096`, penalites 0.3/0.2, via `get_chat_llm`), rapports JSON + Markdown. `/no_think` ajoute automatiquement pour les modeles `qwen3*` (desactivable par `--allow-thinking`).
+- `scripts/run_synthesis_model_bench.py` : sous-commandes `capture` (agent reel, une fois, fige le prompt de synthese) et `replay` (`--model` repetable, `--samples`, `--temperature`, `--base-url`). Sans `--model`, utilise `LOCAL_LLM_MODEL` de l'environnement (aucun modele code en dur).
+- `scripts/run_bloc_n1_benchmark.py` : extraction de `build_agent_state(item)` (logique personas 889/896 inchangee) pour que le banc et le runner partagent le meme etat d'entree (DRY).
+- `tests/test_synthesis_bench.py` : 7 tests (scoring, parsing de spec, recorder restaure la fonction, `/no_think` seulement pour qwen3), 7 passed. `.gitignore` : `captures/frozen_evidence/` (chemins absolus de la machine dans les prompts).
+
+**Limites assumees** : le score est heuristique (recouvrement d'identifiants) et ne voit pas une fabrication purement en prose (ex. contrainte SQL inventee sans identifiant) -- les reponses verbatim du JSON restent la reference pour la revue humaine. Le rejeu mesure la synthese brute, sans les gardes de `postprocess.py`. Captures faites avec le LLM configure pour la selection d'outils (les preuves gelees dependent donc peu du modele compare).
+
+**Delegue a pmm (long, GPU/Ollama)** : `python scripts/run_synthesis_model_bench.py capture MNT-Q1 SAL-Q1 ACC-Q1 STK-Q1 PUR-Q1 PUR-Q5`, puis `python scripts/run_synthesis_model_bench.py replay --model ollama:gpt-oss:20b --model ollama:qwen3:14b --samples 3` (Ollama : `ollama pull qwen3:14b`).
+
+**Fichiers modifies** : `core/evaluation/` (nouveau), `scripts/run_synthesis_model_bench.py` (nouveau), `scripts/run_bloc_n1_benchmark.py`, `tests/test_synthesis_bench.py` (nouveau), `.gitignore`, `todo/contexte.txt`.
+
+**Prochaine etape** : pmm execute capture puis replay ; lecture des chiffres (rappel, identifiants non supportes, fuite think) + relecture des verbatims ; decision Qwen ou gpt-oss, puis choix de la voie de fine-tuning (Unsloth pour gpt-oss, QLoRA standard pour Qwen) et arbitrage 984 (garde deterministe maintenant vs fine-tuning).

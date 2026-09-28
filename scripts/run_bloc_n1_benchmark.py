@@ -81,6 +81,17 @@ def _extract_tools_used(sources):
     return tools
 
 
+def build_agent_state(item):
+    """Agent input state for one bank question. Personas are either declared
+    by the bank (section 889) or detected deterministically from the question
+    text (section 896), never guessed by the LLM."""
+    state = {"question": item["question"], "chat_history": []}
+    principals = item.get("security_principals") or detect_security_principals_from_question(item["question"])
+    if principals:
+        state["security_principals"] = principals
+    return state
+
+
 def run_benchmark(question_ids=None, module=None, fresh=False):
     questions, meta = load_questions(question_ids, module)
     if not questions:
@@ -113,22 +124,7 @@ def run_benchmark(question_ids=None, module=None, fresh=False):
         time.sleep(2.0)  # Pacing -- fenetre TPM Groq free-tier (meme discipline que Bloc 7)
         start_time = time.time()
         try:
-            state = {"question": question, "chat_history": []}
-            # Section 889 : personas de securite hypothetiques declares par le
-            # banc lui-meme (immuables, jamais devines par le LLM) -- distinct
-            # de state["user_groups"] (demandeur reel authentifie). Voir
-            # todo/contexte.txt section 888/889.
-            if item.get("security_principals"):
-                state["security_principals"] = item["security_principals"]
-            else:
-                # Section 896 (Bug B, option intermediaire) : filet pour les
-                # questions du banc qui NOMMENT une persona hypothetique
-                # ("Un X (module.group_xxx)...") sans le declarer
-                # explicitement -- detection deterministe, jamais devinee par
-                # le LLM. Vide si rien n'est trouve (sans effet).
-                _auto = detect_security_principals_from_question(question)
-                if _auto:
-                    state["security_principals"] = _auto
+            state = build_agent_state(item)
             start_evidence_collection()
             try:
                 res = code_intelligence_agent(state)
