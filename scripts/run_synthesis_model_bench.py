@@ -75,7 +75,7 @@ def run_replay(args) -> None:
     payload = {
         "generated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
         "summary": summary,
-        "samples": [{**asdict(r), "score": asdict(r.score)} for r in results],
+        "samples": [asdict(r) for r in results],
     }
     stem.with_suffix(".json").write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
     stem.with_suffix(".md").write_text(render_markdown(results, summary), encoding="utf-8")

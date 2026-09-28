@@ -573,7 +573,7 @@ def dispatch_security_locks(ctx: DispatchContext) -> None:
 
     dispatched_lock_models: List[str] = []
 
-    for target_model in security_locks_targets(ctx.concept, ctx.G)[:1]:
+    for target_model in security_locks_targets(ctx.concept, ctx.G, ctx.question):
         call_key = _tool_call_key("analyze_security_locks", {"model_name": target_model})
         if call_key in ctx.seen_calls:
             continue

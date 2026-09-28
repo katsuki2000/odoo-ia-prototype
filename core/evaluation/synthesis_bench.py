@@ -57,7 +57,8 @@ class SampleResult:
     sample: int
     seconds: float
     answer: str
-    score: SynthesisScore
+    score: Optional[SynthesisScore] = None
+    error: Optional[str] = None
 
 
 class SynthesisPromptRecorder:
@@ -129,6 +130,10 @@ def generate_answer(
     return response.content
 
 
+def _summarize_error(error: Exception, limit: int = 300) -> str:
+    return " ".join(str(error).split())[:limit]
+
+
 def replay(
     cases: List[FrozenCase],
     specs: List[ModelSpec],
@@ -145,11 +150,15 @@ def replay(
                 try:
                     answer = generate_answer(spec, case.synthesis_prompt, temperature, base_url, allow_thinking)
                 except Exception as error:
-                    answer = f"ERROR: {error}"
-                seconds = time.perf_counter() - started
+                    seconds = round(time.perf_counter() - started, 2)
+                    results.append(SampleResult(case.id, spec.label, index + 1, seconds, "", error=_summarize_error(error)))
+                    print(f"[{spec.label}] {case.id} sample {index + 1}/{samples}: FAILED after {seconds}s "
+                          f"({type(error).__name__}), excluded from the scores")
+                    continue
+                seconds = round(time.perf_counter() - started, 2)
                 score = score_answer(answer, case.synthesis_prompt, case.reference_answer)
-                results.append(SampleResult(case.id, spec.label, index + 1, round(seconds, 2), answer, score))
-                print(f"[{spec.label}] {case.id} sample {index + 1}/{samples}: {seconds:.1f}s, "
+                results.append(SampleResult(case.id, spec.label, index + 1, seconds, answer, score))
+                print(f"[{spec.label}] {case.id} sample {index + 1}/{samples}: {seconds}s, "
                       f"recall={score.identifier_recall}, unsupported={len(score.unsupported_identifiers)}")
     return results
 
@@ -158,35 +167,46 @@ def summarize(results: List[SampleResult]) -> Dict[str, Dict[str, float]]:
     summary: Dict[str, Dict[str, float]] = {}
     for label in sorted({r.model for r in results}):
         rows = [r for r in results if r.model == label]
-        recalls = [r.score.identifier_recall for r in rows if r.score.identifier_recall is not None]
+        valid = [r for r in rows if r.error is None]
+        recalls = [r.score.identifier_recall for r in valid if r.score.identifier_recall is not None]
         summary[label] = {
             "samples": len(rows),
-            "mean_identifier_recall": round(statistics.mean(recalls), 3) if recalls else 0.0,
-            "mean_unsupported_identifiers": round(statistics.mean(len(r.score.unsupported_identifiers) for r in rows), 2),
-            "think_leak_rate": round(sum(r.score.think_leak for r in rows) / len(rows), 3),
-            "degenerate_rate": round(sum(r.score.degenerate for r in rows) / len(rows), 3),
-            "errors": sum(r.answer.startswith("ERROR:") for r in rows),
-            "mean_seconds": round(statistics.mean(r.seconds for r in rows), 2),
+            "valid_samples": len(valid),
+            "errors": len(rows) - len(valid),
+            "mean_identifier_recall": _mean(recalls, 3),
+            "mean_unsupported_identifiers": _mean([len(r.score.unsupported_identifiers) for r in valid], 2),
+            "unsupported_claim_rate": _mean([bool(r.score.unsupported_claims) for r in valid], 3),
+            "think_leak_rate": _mean([r.score.think_leak for r in valid], 3),
+            "degenerate_rate": _mean([r.score.degenerate for r in valid], 3),
+            "mean_seconds": _mean([r.seconds for r in valid], 2),
         }
     return summary
+
+
+def _mean(values: List[float], digits: int) -> float:
+    return round(statistics.mean(values), digits) if values else 0.0
 
 
 def render_markdown(results: List[SampleResult], summary: Dict[str, Dict[str, float]]) -> str:
     lines = [
         "# Synthesis bench on frozen evidence\n",
-        "Scoring is deterministic and heuristic (identifier overlap against the frozen prompt); "
+        "Scoring is deterministic and heuristic (identifier overlap and rule-based unsupported claims against the frozen prompt); "
         "verbatim answers in the JSON report remain the reference for human review.\n",
-        "| Model | Samples | Identifier recall | Unsupported ids | Think leak | Degenerate | Errors | Mean s |",
-        "|---|---|---|---|---|---|---|---|",
+        "| Model | Valid / total | Identifier recall | Unsupported ids | Unsupported claims | Think leak | Degenerate | Errors | Mean s |",
+        "|---|---|---|---|---|---|---|---|---|",
     ]
     for label, stats in summary.items():
         lines.append(
-            f"| {label} | {stats['samples']} | {stats['mean_identifier_recall']} | "
-            f"{stats['mean_unsupported_identifiers']} | {stats['think_leak_rate']} | "
+            f"| {label} | {stats['valid_samples']} / {stats['samples']} | {stats['mean_identifier_recall']} | "
+            f"{stats['mean_unsupported_identifiers']} | {stats['unsupported_claim_rate']} | {stats['think_leak_rate']} | "
             f"{stats['degenerate_rate']} | {stats['errors']} | {stats['mean_seconds']} |"
         )
-    lines += ["", "## Per question", "", "| Case | Model | Sample | Recall | Unsupported identifiers |", "|---|---|---|---|---|"]
+    lines += ["", "## Per question", "", "| Case | Model | Sample | Recall | Unsupported identifiers | Unsupported claims |", "|---|---|---|---|---|---|"]
     for r in results:
+        if r.error is not None:
+            lines.append(f"| {r.case_id} | {r.model} | {r.sample} | error | {r.error[:80]} | - |")
+            continue
         unsupported = ", ".join(r.score.unsupported_identifiers[:8]) or "-"
-        lines.append(f"| {r.case_id} | {r.model} | {r.sample} | {r.score.identifier_recall} | {unsupported} |")
+        claims = ", ".join(r.score.unsupported_claims) or "-"
+        lines.append(f"| {r.case_id} | {r.model} | {r.sample} | {r.score.identifier_recall} | {unsupported} | {claims} |")
     return "\n".join(lines) + "\n"

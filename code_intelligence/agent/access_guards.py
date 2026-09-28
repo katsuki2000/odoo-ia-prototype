@@ -340,10 +340,10 @@ def _backfill_missing_implied_ids_mechanism(
         )
         return (
             final_answer
-            + f"\n\n[FAIT DÉTERMINISTIQUE] Précision d'héritage de droits : `{child_group}` "
-            f"ne détient pas ces permissions directement via son propre enregistrement ACL "
-            f"(qui peut être restreint), mais en hérite par implication transitive (`implied_ids`) "
-            f"depuis le groupe `{parent_group}`."
+            + f"\n\n[FAIT DÉTERMINISTIQUE] Précision d'héritage de droits : pour la permission "
+            f"concernée, `{child_group}` hérite de l'ACL de `{parent_group}` par implication "
+            f"transitive (`implied_ids`). Cela ne signifie pas que toutes ses permissions sont "
+            f"héritées : ses droits WRITE/CREATE/UNLINK peuvent être accordés par une ACL directe."
         )
 
     return final_answer

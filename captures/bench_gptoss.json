@@ -1,0 +1,161 @@
+{
+  "generated_at": "2026-09-28 14:11:15",
+  "summary": {
+    "ollama:gpt-oss:20b": {
+      "samples": 9,
+      "valid_samples": 9,
+      "errors": 0,
+      "mean_identifier_recall": 0.25,
+      "mean_unsupported_identifiers": 0,
+      "think_leak_rate": 0,
+      "degenerate_rate": 0,
+      "mean_seconds": 17.91
+    }
+  },
+  "samples": [
+    {
+      "case_id": "PUR-Q1",
+      "model": "ollama:gpt-oss:20b",
+      "sample": 1,
+      "seconds": 20.47,
+      "answer": "Dans votre configuration, les deux groupes « group_purchase_user » (acheteur) et « group_purchase_manager » (manager) disposent des mêmes droits d’accès de base (lecture, écriture, création et suppression) sur le modèle *purchase.order*.  \nLa différence se situe donc au niveau des actions métier qui ne sont pas protégées par l’ACL mais par la logique métier et les règles de workflow.\n\n| Action | Qui peut l’exécuter | Condition supplémentaire |\n|--------|--------------------|--------------------------|\n| **Valider une commande** (bouton « Confirmer la commande ») | Tous les utilisateurs ayant accès au modèle | Aucun groupe spécifique n’est requis. |\n| **Débloquer une commande** (bouton « Débloquer ») | Seuls les membres du groupe « group_purchase_manager » | Le bouton n’apparaît pas pour les acheteurs. |\n| **Approuver une commande** (méthode interne) | Seuls les managers lorsqu’une double validation est activée ou que le montant dépasse le seuil défini par l’entreprise | La logique de double validation vérifie le montant et la présence du groupe manager. |\n| **Confirmer la réception** (bouton technique « Confirm Reminder Mail ») | Aucun utilisateur normal (groupe « base.group_no_one ») | Cette action est réservée aux développeurs/administrateurs techniques. |\n\nEn résumé, un acheteur peut créer, modifier et supprimer des commandes, mais il ne peut pas :\n\n* débloquer une commande déjà terminée ;\n* approuver une commande qui nécessite la validation d’un manager (double validation ou montant supérieur au seuil).\n\nUn manager possède donc ces deux capacités supplémentaires, ce qui constitue la réelle distinction entre les deux rôles.",
+      "score": {
+        "think_leak": false,
+        "degenerate": false,
+        "answer_chars": 1654,
+        "reachable_reference_ids": 6,
+        "identifier_recall": 0.0,
+        "unsupported_identifiers": []
+      },
+      "error": null
+    },
+    {
+      "case_id": "PUR-Q1",
+      "model": "ollama:gpt-oss:20b",
+      "sample": 2,
+      "seconds": 18.11,
+      "answer": "Dans votre configuration, les deux groupes « group_purchase_user » (acheteur) et « group_purchase_manager » (manager) disposent des mêmes droits d’accès de base (lecture, écriture, création et suppression) sur le modèle *purchase.order*.  \nLa différence se situe donc au niveau des actions métier qui ne sont pas protégées par l’ACL mais par la logique métier et les règles de workflow.\n\n| Action | Qui peut l’exécuter | Condition supplémentaire |\n|--------|--------------------|--------------------------|\n| **Valider une commande** (bouton « Confirmer la commande ») | Tous les utilisateurs ayant accès au modèle | Aucun groupe spécifique n’est requis. |\n| **Débloquer une commande** (bouton « Débloquer ») | Seuls les membres du groupe « group_purchase_manager » | Le bouton n’apparaît pas pour les acheteurs. |\n| **Approuver une commande** (méthode interne) | Seuls les managers lorsqu’une double validation est activée ou que le montant dépasse le seuil défini par l’entreprise | La logique de double validation vérifie le montant et la présence du groupe manager. |\n| **Confirmer la réception** (bouton technique « Confirm Reminder Mail ») | Aucun utilisateur normal (groupe « base.group_no_one ») | Cette action est réservée aux développeurs/administrateurs techniques. |\n\nEn résumé, un acheteur peut créer, modifier et supprimer des commandes, mais il ne peut pas :\n\n* débloquer une commande déjà terminée ;\n* approuver une commande qui nécessite la validation d’un manager (double validation ou montant supérieur au seuil).\n\nUn manager possède donc ces deux capacités supplémentaires, ce qui constitue la réelle distinction entre les deux rôles.",
+      "score": {
+        "think_leak": false,
+        "degenerate": false,
+        "answer_chars": 1654,
+        "reachable_reference_ids": 6,
+        "identifier_recall": 0.0,
+        "unsupported_identifiers": []
+      },
+      "error": null
+    },
+    {
+      "case_id": "PUR-Q1",
+      "model": "ollama:gpt-oss:20b",
+      "sample": 3,
+      "seconds": 18.29,
+      "answer": "Dans votre configuration, les deux groupes « group_purchase_user » (acheteur) et « group_purchase_manager » (manager) disposent des mêmes droits d’accès de base (lecture, écriture, création et suppression) sur le modèle *purchase.order*.  \nLa différence se situe donc au niveau des actions métier qui ne sont pas protégées par l’ACL mais par la logique métier et les règles de workflow.\n\n| Action | Qui peut l’exécuter | Condition supplémentaire |\n|--------|--------------------|--------------------------|\n| **Valider une commande** (bouton « Confirmer la commande ») | Tous les utilisateurs ayant accès au modèle | Aucun groupe spécifique n’est requis. |\n| **Débloquer une commande** (bouton « Débloquer ») | Seuls les membres du groupe « group_purchase_manager » | Le bouton n’apparaît pas pour les acheteurs. |\n| **Approuver une commande** (méthode interne) | Seuls les managers lorsqu’une double validation est activée ou que le montant dépasse le seuil défini par l’entreprise | La logique de double validation vérifie le montant et la présence du groupe manager. |\n| **Confirmer la réception** (bouton technique « Confirm Reminder Mail ») | Aucun utilisateur normal (groupe « base.group_no_one ») | Cette action est réservée aux développeurs/administrateurs techniques. |\n\nEn résumé, un acheteur peut créer, modifier et supprimer des commandes, mais il ne peut pas :\n\n* débloquer une commande déjà terminée ;\n* approuver une commande qui nécessite la validation d’un manager (double validation ou montant supérieur au seuil).\n\nUn manager possède donc ces deux capacités supplémentaires, ce qui constitue la réelle distinction entre les deux rôles.",
+      "score": {
+        "think_leak": false,
+        "degenerate": false,
+        "answer_chars": 1654,
+        "reachable_reference_ids": 6,
+        "identifier_recall": 0.0,
+        "unsupported_identifiers": []
+      },
+      "error": null
+    },
+    {
+      "case_id": "PUR-Q5",
+      "model": "ollama:gpt-oss:20b",
+      "sample": 1,
+      "seconds": 25.9,
+      "answer": "Dans Odoo 17, la suppression d’une commande d’achat ou d’une de ses lignes est bloquée dès que la commande n’est pas dans l’état **« Annulée »**.  \n- Quand on tente de supprimer une commande dont l’état est « draft », « sent », « purchase », « done » ou tout autre état que « cancel », le système déclenche le message : *« In order to delete a purchase order, you must cancel it first. »*  \n- La même règle s’applique aux lignes de la commande : on ne peut les effacer que si la commande est déjà annulée.\n\nEn plus de cette restriction d’état, chaque ligne de commande est soumise à une contrainte SQL indépendante qui empêche l’enregistrement d’une ligne avec une quantité nulle ou négative (et, de façon similaire, d’un prix unitaire négatif). Cette contrainte assure que chaque ligne représente bien une quantité valide à acheter.  \n\nAinsi, pour supprimer une commande ou une ligne :  \n1. La commande doit être en état « Annulée ».  \n2. La ligne doit respecter la contrainte SQL de quantité > 0 (et prix ≥ 0).  \n\nSi l’une de ces conditions n’est pas remplie, la suppression est refusée.",
+      "score": {
+        "think_leak": false,
+        "degenerate": false,
+        "answer_chars": 1089,
+        "reachable_reference_ids": 2,
+        "identifier_recall": 0.0,
+        "unsupported_identifiers": []
+      },
+      "error": null
+    },
+    {
+      "case_id": "PUR-Q5",
+      "model": "ollama:gpt-oss:20b",
+      "sample": 2,
+      "seconds": 25.51,
+      "answer": "Dans Odoo 17, la suppression d’une commande d’achat ou d’une de ses lignes est bloquée dès que la commande n’est pas dans l’état **« Annulée »**.  \n- Quand on tente de supprimer une commande dont l’état est « draft », « sent », « purchase », « done » ou tout autre état que « cancel », le système déclenche le message : *« In order to delete a purchase order, you must cancel it first. »*  \n- La même règle s’applique aux lignes de la commande : on ne peut les effacer que si la commande est déjà annulée.\n\nEn plus de cette restriction d’état, chaque ligne de commande est soumise à une contrainte SQL indépendante qui empêche l’enregistrement d’une ligne avec une quantité nulle ou négative (et, de façon similaire, d’un prix unitaire négatif). Cette contrainte assure que chaque ligne représente bien une quantité valide à acheter.  \n\nAinsi, pour supprimer une commande ou une ligne :  \n1. La commande doit être en état « Annulée ».  \n2. La ligne doit respecter la contrainte SQL de quantité > 0 (et prix ≥ 0).  \n\nSi l’une de ces conditions n’est pas remplie, la suppression est refusée.",
+      "score": {
+        "think_leak": false,
+        "degenerate": false,
+        "answer_chars": 1089,
+        "reachable_reference_ids": 2,
+        "identifier_recall": 0.0,
+        "unsupported_identifiers": []
+      },
+      "error": null
+    },
+    {
+      "case_id": "PUR-Q5",
+      "model": "ollama:gpt-oss:20b",
+      "sample": 3,
+      "seconds": 25.71,
+      "answer": "Dans Odoo 17, la suppression d’une commande d’achat ou d’une de ses lignes est bloquée dès que la commande n’est pas dans l’état **« Annulée »**.  \n- Quand on tente de supprimer une commande dont l’état est « draft », « sent », « purchase », « done » ou tout autre état que « cancel », le système déclenche le message : *« In order to delete a purchase order, you must cancel it first. »*  \n- La même règle s’applique aux lignes de la commande : on ne peut les effacer que si la commande est déjà annulée.\n\nEn plus de cette restriction d’état, chaque ligne de commande est soumise à une contrainte SQL indépendante qui empêche l’enregistrement d’une ligne avec une quantité nulle ou négative (et, de façon similaire, d’un prix unitaire négatif). Cette contrainte assure que chaque ligne représente bien une quantité valide à acheter.  \n\nAinsi, pour supprimer une commande ou une ligne :  \n1. La commande doit être en état « Annulée ».  \n2. La ligne doit respecter la contrainte SQL de quantité > 0 (et prix ≥ 0).  \n\nSi l’une de ces conditions n’est pas remplie, la suppression est refusée.",
+      "score": {
+        "think_leak": false,
+        "degenerate": false,
+        "answer_chars": 1089,
+        "reachable_reference_ids": 2,
+        "identifier_recall": 0.0,
+        "unsupported_identifiers": []
+      },
+      "error": null
+    },
+    {
+      "case_id": "STK-Q1",
+      "model": "ollama:gpt-oss:20b",
+      "sample": 1,
+      "seconds": 9.28,
+      "answer": "Oui :  \n- Un employé « Internal User » (base.group_user) a le droit de **consulter** les quantités en stock (modèle `stock.quant`).  \n- Le même employé possède également le droit de **modifier** une ligne de mouvement (modèle `stock.move.line`).  \n\nCes droits sont définis par les règles d’accès (ACL) et aucune règle supplémentaire (ir.rule) ne restreint ces opérations pour ce groupe.  \n\n*(Cette conclusion se base uniquement sur la couche d’accès/permissions ; d’éventuelles vérifications supplémentaires au niveau du workflow ou de la logique métier n’ont pas été examinées dans cette analyse.)*",
+      "score": {
+        "think_leak": false,
+        "degenerate": false,
+        "answer_chars": 599,
+        "reachable_reference_ids": 4,
+        "identifier_recall": 0.75,
+        "unsupported_identifiers": []
+      },
+      "error": null
+    },
+    {
+      "case_id": "STK-Q1",
+      "model": "ollama:gpt-oss:20b",
+      "sample": 2,
+      "seconds": 9.04,
+      "answer": "Oui :  \n- Un employé « Internal User » (base.group_user) a le droit de **consulter** les quantités en stock (modèle `stock.quant`).  \n- Le même employé possède également le droit de **modifier** une ligne de mouvement (modèle `stock.move.line`).  \n\nCes droits sont définis par les règles d’accès (ACL) et aucune règle supplémentaire (ir.rule) ne restreint ces opérations pour ce groupe.  \n\n*(Cette conclusion se base uniquement sur la couche d’accès/permissions ; d’éventuelles vérifications supplémentaires au niveau du workflow ou de la logique métier n’ont pas été examinées dans cette analyse.)*",
+      "score": {
+        "think_leak": false,
+        "degenerate": false,
+        "answer_chars": 599,
+        "reachable_reference_ids": 4,
+        "identifier_recall": 0.75,
+        "unsupported_identifiers": []
+      },
+      "error": null
+    },
+    {
+      "case_id": "STK-Q1",
+      "model": "ollama:gpt-oss:20b",
+      "sample": 3,
+      "seconds": 8.9,
+      "answer": "Oui :  \n- Un employé « Internal User » (base.group_user) a le droit de **consulter** les quantités en stock (modèle `stock.quant`).  \n- Le même employé possède également le droit de **modifier** une ligne de mouvement (modèle `stock.move.line`).  \n\nCes droits sont définis par les règles d’accès (ACL) et aucune règle supplémentaire (ir.rule) ne restreint ces opérations pour ce groupe.  \n\n*(Cette conclusion se base uniquement sur la couche d’accès/permissions ; d’éventuelles vérifications supplémentaires au niveau du workflow ou de la logique métier n’ont pas été examinées dans cette analyse.)*",
+      "score": {
+        "think_leak": false,
+        "degenerate": false,
+        "answer_chars": 599,
+        "reachable_reference_ids": 4,
+        "identifier_recall": 0.75,
+        "unsupported_identifiers": []
+      },
+      "error": null
+    }
+  ]
+}

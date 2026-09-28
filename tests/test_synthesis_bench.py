@@ -1,5 +1,13 @@
-from core.evaluation.synthesis_bench import ModelSpec, NO_THINK_MARKER, SynthesisPromptRecorder, generate_answer
-from core.evaluation.synthesis_metrics import extract_identifiers, score_answer, strip_thinking
+from core.evaluation.synthesis_bench import (
+    FrozenCase,
+    ModelSpec,
+    NO_THINK_MARKER,
+    SynthesisPromptRecorder,
+    generate_answer,
+    replay,
+    summarize,
+)
+from core.evaluation.synthesis_metrics import extract_identifiers, find_unsupported_claims, score_answer, strip_thinking
 
 
 def test_strip_thinking_flags_closed_and_unclosed_blocks():
@@ -63,3 +71,53 @@ def test_generate_answer_appends_no_think_only_for_qwen3(monkeypatch):
     assert sent[0].endswith(NO_THINK_MARKER)
     assert sent[1] == "prompt"
     assert sent[2] == "prompt"
+
+
+def test_replay_records_failures_without_scoring_them(monkeypatch):
+    import core.evaluation.synthesis_bench as bench
+
+    calls = iter([RuntimeError("gateway\nerror"), "uses equipment_rule_user"])
+
+    def fake_generate(*args, **kwargs):
+        outcome = next(calls)
+        if isinstance(outcome, Exception):
+            raise outcome
+        return outcome
+
+    monkeypatch.setattr(bench, "generate_answer", fake_generate)
+    case = FrozenCase("Q", "question", "rule equipment_rule_user", "equipment_rule_user")
+    results = replay([case], [ModelSpec("m")], 2, 0.0, None, False)
+
+    assert results[0].error == "gateway error" and results[0].score is None
+    assert results[1].error is None and results[1].score.identifier_recall == 1.0
+    stats = summarize(results)["m"]
+    assert (stats["samples"], stats["valid_samples"], stats["errors"]) == (2, 1, 1)
+    assert stats["mean_identifier_recall"] == 1.0
+
+
+def test_summarize_handles_a_model_with_only_failures():
+    from core.evaluation.synthesis_bench import SampleResult
+
+    stats = summarize([SampleResult("Q", "m", 1, 1.0, "", error="down")])["m"]
+    assert stats["valid_samples"] == 0 and stats["mean_identifier_recall"] == 0.0
+
+
+SQL_EVIDENCE = "(code_intelligence.semgrep_rules.odoo-sql-constraints-declaration) _sql_constraints = [('x', 'CHECK(y)', 'm')]"
+
+
+def test_sql_claim_without_supporting_evidence_is_flagged():
+    answer = "Each line has an independent contrainte SQL forbidding a null quantity."
+    assert find_unsupported_claims(answer, "@api.constrains only") == ["sql_constraint"]
+
+
+def test_sql_claim_backed_by_evidence_is_accepted():
+    assert find_unsupported_claims("La contrainte SQL impose une valeur.", SQL_EVIDENCE) == []
+
+
+def test_negated_sql_statement_is_not_a_claim():
+    answer = "Aucune contrainte SQL n'apparait dans les observations."
+    assert find_unsupported_claims(answer, "@api.constrains only") == []
+
+
+def test_answer_without_sql_topic_is_never_flagged():
+    assert find_unsupported_claims("Only a Python guard applies.", "no evidence") == []

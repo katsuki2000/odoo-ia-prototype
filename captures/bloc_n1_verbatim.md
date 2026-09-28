@@ -1,6 +1,6 @@
 # Rapport Verbatim -- Bloc N1 (banc de questions natif)
 
-**Date d'execution :** 2026-09-28 00:47:11
+**Date d'execution :** 2026-09-28 16:28:26
 
 **Objectif :** rejouer les questions verite-terrain des 5 modules natifs (maintenance, purchase, sale, stock, account) contre l'agent Code Intelligence reel et capturer la reponse verbatim pour comparaison manuelle avec `reference_answer` -- aucune notation automatique.
 
@@ -10,13 +10,13 @@
 | Metrique | Valeur |
 |---|---|
 | Questions executees (consolidees) | 25 |
-| Questions rejouees ce tour | 1 |
+| Questions rejouees ce tour | 5 |
 | Erreurs d'execution | 0 |
 | Ecarts de couverture d'outils (expected_tools non tous invoques) | 0 |
-| p50 latence effective (run courant) | `56.3s` |
-| p90 latence effective (run courant) | `56.3s` (budget `12.0s`,  DEPASSE) |
-| Moyenne (run courant) | `56.3s` |
-| Max (run courant) | `56.3s` |
+| p50 latence effective (run courant) | `25.53s` |
+| p90 latence effective (run courant) | `50.54s` (budget `12.0s`,  DEPASSE) |
+| Moyenne (run courant) | `32.51s` |
+| Max (run courant) | `50.54s` |
 
 ---
 
@@ -30,17 +30,16 @@
 
 **Outils attendus :** ['who_has_access_to', 'evaluate_record_rules'] | **Outils invoques :** ['who_has_access_to', 'evaluate_record_rules', 'evaluate_record_rules', 'evaluate_record_rules', 'evaluate_record_rules']
 
-**Reponse verbatim de l'agent (Total: 10.2s | Effectif: 10.2s | Groq wait: 0.0s | Sauts: 5) :**
+**Reponse verbatim de l'agent (Total: 43.81s | Effectif: 43.806s | Groq wait: 0.0s | Sauts: 5) :**
 ```text
-### Accès d’un utilisateur simple à la fiche équipement
+### Accès à la fiche équipement (maintenance.equipment)
 
-- **Modification** :  
-  Un utilisateur simple (groupe « Internal User ») **ne peut pas modifier** une fiche équipement. Seuls les membres du groupe « Equipment Manager » disposent du droit d’écriture.
+- **Modification** : Non autorisée. Seuls les membres du groupe « Equipment Manager » (maintenance.group_equipment_manager) peuvent modifier, créer ou supprimer des fiches équipement.
+- **Consultation** : Un utilisateur simple (base.group_user) peut consulter uniquement les équipements :
+  - Appartenant à sa société (via la règle *Maintenance Equipment Multi-company rule*),
+  - Et auxquels il est abonné en tant que partenaire (via la règle *Users are allowed to access equipment they follow*, condition `message_partner_ids`).
 
-- **Consultation** :  
-  Un utilisateur simple peut **consulter uniquement les équipements qu’il suit**.  
-  Cela signifie que la fiche équipement doit être liée à l’utilisateur via le champ de suivi (messages/partenaires).  
-  S’il ne suit aucun équipement, il ne pourra pas le voir.
+Ces restrictions sont appliquées via les règles d'accès (ir.rule) définies pour le modèle `maintenance.equipment`.
 
 [FAIT DÉTERMINISTIQUE] Précision d'héritage de droits : `maintenance.group_equipment_manager` ne détient pas ces permissions directement via son propre enregistrement ACL (qui peut être restreint), mais en hérite par implication transitive (`implied_ids`) depuis le groupe `base.group_user`.
 
@@ -151,15 +150,15 @@ En pratique, seuls les utilisateurs désignés comme **Equipment Manager** peuve
 
 **Outils attendus :** ['analyze_data_constraints'] | **Outils invoques :** ['analyze_data_constraints', 'analyze_data_constraints', 'analyze_data_constraints']
 
-**Reponse verbatim de l'agent (Total: 52.67s | Effectif: 43.664s | Groq wait: 9.0s | Sauts: 3) :**
+**Reponse verbatim de l'agent (Total: 22.96s | Effectif: 22.96s | Groq wait: 0.0s | Sauts: 3) :**
 ```text
 ### Règle de validation
 
 - **Numéro de série unique**  
-  Lors de la création d’un équipement, le système vérifie que le numéro de série (`serial_no`) n’est pas déjà utilisé par un autre équipement. Si un doublon est détecté, la création est refusée.
+  Lors de la création d’un équipement, Odoo vérifie que le champ *Numéro de série* est unique dans la base de données. Si un autre équipement possède déjà ce même numéro, la création est refusée avec le message : « Another asset already exists with this serial number! ».
 
 - **Intervalle de répétition**  
-  Pour une demande récurrente, l’intervalle de répétition (`repeat_interval`) doit être **au moins 1**. Toute valeur inférieure déclenche une erreur et empêche la sauvegarde de la demande.
+  Pour une demande récurrente, le champ *Intervalle de répétition* doit être **au moins 1**. Si la valeur est inférieure à 1, Odoo bloque la sauvegarde et affiche : « Repeat Interval cannot be less than 1. ».
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```
@@ -313,22 +312,24 @@ Pour pouvoir approuver la commande, l’utilisateur doit être ajouté au groupe
 
 **A verifier dans le code :** `models/purchase_order.py : _unlink_if_cancelled (@api.ondelete) ; models/purchase_order_line.py : _unlink_except_purchase_or_done (@api.ondelete) + _sql_constraints (accountable_required_fields, non_accountable_null_fields)`
 
-**Outils attendus :** ['analyze_data_constraints'] | **Outils invoques :** ['analyze_security_locks', 'analyze_data_constraints', 'analyze_security_locks']
+**Outils attendus :** ['analyze_data_constraints'] | **Outils invoques :** ['analyze_data_constraints', 'analyze_data_constraints']
 
-**Reponse verbatim de l'agent (Total: 56.3s | Effectif: 56.302s | Groq wait: 0.0s | Sauts: 3) :**
+**Reponse verbatim de l'agent (Total: 44.29s | Effectif: 44.29s | Groq wait: 0.0s | Sauts: 2) :**
 ```text
-**Blocage de suppression**
+**Quelles règles empêchent de supprimer une commande d’achat ?**  
+- Une commande d’achat ne peut être supprimée que lorsqu’elle est dans l’état **« Annulée »**.  
+- Si la commande possède des factures fournisseurs liées, elle ne peut même pas être annulée, ce qui empêche toute suppression ultérieure.
 
-| Objet | Condition qui empêche la suppression | Explication |
-|-------|--------------------------------------|-------------|
-| **Ligne de commande d’achat** | Si la commande à laquelle elle appartient est déjà en état **« purchase »** ou **« done »** | Le système refuse de supprimer la ligne tant que la commande est en cours ou terminée, afin de préserver l’intégrité des opérations déjà validées. |
-| **Commande d’achat** | Si son état n’est pas **« cancel »** | Une commande ne peut être supprimée que lorsqu’elle a été annulée. Avant cela, il faut passer par l’action « Annuler » pour mettre la commande dans l’état « cancel ». |
+**Quelles règles empêchent de supprimer une ligne de commande ?**  
+- Aucune règle spécifique n’est appliquée à la suppression d’une ligne de commande dans les observations recueillies.  
+- La suppression d’une ligne est donc possible tant que la commande elle‑même est dans un état où la suppression est autorisée (par exemple, avant confirmation).
 
-**Contrainte SQL sur les lignes**
+**Quelle contrainte SQL distincte s’applique aux lignes ?**  
+- Les lignes de commande sont soumises à deux contraintes CHECK :  
+  1. **« accountable_required_fields »** – assure que les champs obligatoires (produit, unité, date prévue) sont renseignés pour les lignes « accountable ».  
+  2. **« non_accountable_null_fields »** – interdit de renseigner des valeurs sur les champs d’une ligne qui n’est pas « accountable » (produit, prix, quantité, etc.).  
 
-- Sur chaque ligne de commande d’achat, une contrainte SQL empêche d’avoir deux lignes identiques pour le même produit dans la même commande. En pratique, le champ **`product_id`** doit être unique par commande, ce qui garantit qu’une même marchandise ne peut pas être enregistrée deux fois dans la même demande d’achat.
-
-Ces règles assurent que les commandes et leurs lignes restent cohérentes tout au long du processus d’achat.
+Ces contraintes garantissent l’intégrité des données au niveau de la base de données pour chaque ligne de commande.
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```
@@ -472,17 +473,17 @@ En résumé, la confirmation passe par la validation, l’enregistrement, la not
 
 **Outils attendus :** ['analyze_data_constraints'] | **Outils invoques :** ['analyze_data_constraints']
 
-**Reponse verbatim de l'agent (Total: 29.91s | Effectif: 29.913s | Groq wait: 0.0s | Sauts: 1) :**
+**Reponse verbatim de l'agent (Total: 19.21s | Effectif: 19.207s | Groq wait: 0.0s | Sauts: 1) :**
 ```text
 ### Contrainte sur la date de confirmation
 
-- **Quand une commande passe en état « confirmée » (state = « sale »), elle doit obligatoirement avoir une date de confirmation (date_order).**  
-  Si la date est manquante, le système refuse la confirmation.
+- **Quand** une commande passe en état **« confirmée »** (état : *sale*), la date de confirmation (*date_order*) **doit être renseignée**.  
+- Si la date est absente, le système refuse la confirmation et affiche un message d’erreur.
 
-### Contrainte sur le pourcentage d’acompte demandé
+### Contrainte sur le pourcentage d’acompte (prepayment_percent)
 
-- **Si la commande exige un acompte (require_payment = True), le champ prepayment_percent doit être compris entre 0 % et 100 % (strictement supérieur à 0 % et inférieur ou égal à 100 %).**  
-  Toute valeur en dehors de cette plage déclenche une erreur de validation.
+- **Quand** une commande est configurée pour demander un acompte (*require_payment* = vrai), le pourcentage d’acompte (*prepayment_percent*) **doit être compris entre 0 % et 100 %** (c’est‑à‑dire > 0 % et ≤ 100 %).  
+- Si le pourcentage dépasse ces bornes, un message d’erreur est déclenché et la modification est rejetée.
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```
@@ -627,29 +628,25 @@ Ainsi, la plupart des utilisateurs ne voient pas ces champs parce que la configu
 
 **Outils attendus :** ['analyze_data_constraints'] | **Outils invoques :** ['analyze_data_constraints', 'analyze_data_constraints']
 
-**Reponse verbatim de l'agent (Total: 72.83s | Effectif: 69.83s | Groq wait: 3.0s | Sauts: 2) :**
+**Reponse verbatim de l'agent (Total: 25.53s | Effectif: 25.531s | Groq wait: 0.0s | Sauts: 2) :**
 ```text
-**Contraintes empêchant la création d’un `stock.quant` invalide**
+### Contraintes empêchant la création d’un **stock.quant** invalide
 
-| Type de contrainte | Ce qu’elle vérifie | Conséquence |
-|--------------------|--------------------|-------------|
-| **Produit** | Le champ `product_id` doit désigner un produit de type « product » (pas « consumable » ou « service »). | Si le produit est de type consommable ou service, la création d’un quant déclenche une erreur : *« Quants cannot be created for consumables or services. »* |
-| **Emplacement** | Le champ `location_id` ne doit pas pointer vers un emplacement de type « view ». | Si l’emplacement est de type vue, la création d’un quant déclenche une erreur : *« You cannot take products from or deliver products to a location of type "view". »* |
-| **Lot / Numéro de série** | Si un lot/numéro de série (`lot_id`) est fourni, il doit être lié au même produit que le quant. | Si le lot est lié à un autre produit, la création d’un quant déclenche une erreur : *« The Lot/Serial number is linked to another product. »* |
-| **Restrictions générales** | Le modèle impose également des contraintes d’intégrité (ex. `ondelete='restrict'`) qui empêchent la suppression ou la modification de certains champs liés à des enregistrements essentiels. | Ces restrictions garantissent que les quantités ne peuvent pas être créées ou modifiées de façon incohérente avec les règles métier. |
-
-Ces contraintes sont appliquées au moment de la sauvegarde d’un quant ; toute tentative de création qui viole l’une d’elles est bloquée par une exception `ValidationError`.
+- **Produit** : le quant ne peut être créé que pour un produit de type « produit » (pas de consommable ou de service).  
+- **Emplacement** : l’emplacement ne doit pas être de type « vue » (usage = view).  
+- **Lot / Numéro de série** : le lot doit appartenir au même produit que le quant.  
+- **Quantité** : la quantité doit être positive et la quantité réservée doit être renseignée.  
+- **Opérations autorisées** : seules les opérations autorisées (ex. validation d’inventaire) peuvent créer ou modifier un quant.  
+- **Duplication** : il n’est pas possible de dupliquer un quant existant.  
+- **Création/Modification** : la création ou l’édition d’un quant est restreinte aux utilisateurs ayant le rôle de gestionnaire de stock.  
+- **Déplacement de lot** : un lot ne peut être déplacé vers un nouvel emplacement que s’il n’existe qu’à un seul emplacement.
 
 ---
 
-**Règle distincte garantissant l’unicité d’un numéro de série**
+### Règle garantissant l’unicité d’un numéro de série
 
-Le modèle `stock.lot` possède une contrainte nommée `_check_unique_lot`.  
-Cette contrainte vérifie que la combinaison **(nom du lot / numéro de série, produit, société)** est unique :  
-
-- Si deux lots partagent le même numéro de série pour le même produit dans la même société, la création d’un second lot déclenche une erreur : *« The combination of serial number and product must be unique across a company. »*  
-
-Ainsi, chaque numéro de série est garanti unique par produit et par société, assurant l’intégrité des données de traçabilité.
+- **Contrôle d’unicité** : une contrainte de type `@api.constrains` vérifie que la combinaison **(numéro de série, produit, société)** est unique.  
+- Si un doublon est détecté, un message d’erreur indique les combinaisons en conflit, empêchant la création ou la modification du lot.
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```
@@ -783,19 +780,19 @@ En résumé, ni le groupe « Billing » ni le groupe « Billing Administra
 
 **Outils attendus :** ['analyze_data_constraints', 'read_source_code'] | **Outils invoques :** ['analyze_security_locks', 'read_source_code', 'analyze_data_constraints']
 
-**Reponse verbatim de l'agent (Total: 55.18s | Effectif: 55.182s | Groq wait: 0.0s | Sauts: 3) :**
+**Reponse verbatim de l'agent (Total: 50.55s | Effectif: 50.544s | Groq wait: 0.0s | Sauts: 3) :**
 ```text
-### Comment la numérotation des pièces est réellement unique
+### Comment la numérotation des écritures est réellement protégée
 
-Dans le modèle **account.move**, la contrainte `_sql_constraints` nommée « unique_name » ne contient pas de règle SQL ; elle sert uniquement à déclarer la présence d’une contrainte.  
-La vraie règle d’unicité est appliquée par un **index unique** créé directement dans la base de données :
+Dans le module **account.move** la contrainte `_sql_constraints` nommée « unique_name » contient une chaîne vide ; elle n’est donc pas utilisée.  
+La vraie règle d’unicité est appliquée par un **index unique** créé dans le code du module, à l’installation ou à la mise à jour.  
 
-- Un index nommé **account_move_unique_name** est créé sur les colonnes **name** et **journal_id**.
-- Il ne s’applique qu’aux lignes dont l’état est « posted » et dont le numéro n’est pas « / » (le numéro « / » est utilisé pour les factures en brouillon).
+- **Index unique** : `account_move_unique_name`  
+  - **Colonnes** : `name` (le numéro de pièce) et `journal_id` (le journal).  
+  - **Condition** : l’index ne s’applique qu’aux écritures dont l’état est « posted » et dont le numéro n’est pas « / ».  
+  - **Effet** : il empêche de créer deux écritures postées dans le même journal avec le même numéro de pièce.
 
-Ainsi, dès qu’une facture est validée (passée en état *posted*), le système vérifie que le numéro de pièce n’existe pas déjà dans le même journal. Si le numéro est déjà présent, la base refuse l’insertion et Odoo renvoie une erreur : « Vous ne pouvez pas créer une pièce déjà existante ».  
-
-En résumé, l’unicité du numéro de pièce est assurée par l’index unique créé dans la base de données, et non par la contrainte `_sql_constraints` vide.
+Ainsi, même si la contrainte `_sql_constraints` est vide, la base de données garantit l’unicité du numéro de pièce grâce à cet index unique.
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```

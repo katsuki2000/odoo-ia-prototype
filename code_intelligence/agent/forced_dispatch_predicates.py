@@ -26,6 +26,7 @@ investigation_planner.py's own import of these symbols from
 defaults on any exception (its own try/except around that import block).
 """
 
+import re
 from typing import List, Tuple
 
 from code_intelligence.agent.context_extractors import (
@@ -42,13 +43,60 @@ def _resolved_models(concept) -> List[str]:
     return list(getattr(concept, "resolved_models", None) or [])
 
 
-def security_locks_targets(concept, G) -> List[str]:
+_RELATED_LINE_DELETION_RE = re.compile(
+    r"\b(?:supprim\w*|effac\w*|unlink)\b[^.!?\n]{0,100}"
+    r"\b(?:lign\w*|line items?)\b|"
+    r"\b(?:lign\w*|line items?)\b[^.!?\n]{0,100}"
+    r"\b(?:supprim\w*|effac\w*|unlink)\b",
+    re.IGNORECASE,
+)
+
+
+def _related_line_models(G, model_name: str) -> List[str]:
+    model_node = f"model:{model_name}"
+    if model_node not in G:
+        return []
+    related = []
+    for _, field_node, edge_data in G.out_edges(model_node, data=True):
+        if edge_data.get("edge_type") != "HAS_FIELD":
+            continue
+        field = G.nodes[field_node]
+        comodel = field.get("comodel_name")
+        field_text = f"{field.get('name', '')} {field.get('label', '')}".lower()
+        comodel_leaf = comodel.rsplit(".", 1)[-1] if comodel else ""
+        if comodel and ("line" in field_text or comodel_leaf.startswith("line")):
+            if comodel not in related:
+                related.append(comodel)
+    return related
+
+
+def security_locks_targets(concept, G, question: str = "") -> List[str]:
     """Models analyze_security_locks fires on: structural presence of a
     security-relevant source file, independent of question wording."""
     if G is None:
         return []
-    from code_intelligence.agent.tool_helpers import find_security_lock_source_files
-    return [m for m in _resolved_models(concept)[:1] if find_security_lock_source_files(G, m)]
+    from code_intelligence.agent.tool_helpers import (
+        find_model_source_filepaths,
+        find_security_lock_source_files,
+    )
+
+    models = _resolved_models(concept)
+    related_deletion = bool(_RELATED_LINE_DELETION_RE.search(question or ""))
+    if related_deletion:
+        for model in list(models):
+            for related in _related_line_models(G, model):
+                if related not in models:
+                    models.append(related)
+
+    targets = []
+    for model in models:
+        has_security_source = bool(find_security_lock_source_files(G, model))
+        # Native source is included only for an explicit related-line deletion
+        # question; the default remains limited to custom security findings.
+        if has_security_source or (related_deletion and find_model_source_filepaths(G, model)):
+            targets.append(model)
+
+    return targets if related_deletion else targets[:1]
 
 
 def server_actions_targets(question: str, concept, G) -> List[str]:

@@ -4713,3 +4713,88 @@ Note de session : le connecteur filesystem a change de racine en cours de sessio
 **Fichiers modifies** : `core/evaluation/` (nouveau), `scripts/run_synthesis_model_bench.py` (nouveau), `scripts/run_bloc_n1_benchmark.py`, `tests/test_synthesis_bench.py` (nouveau), `.gitignore`, `todo/contexte.txt`.
 
 **Prochaine etape** : pmm execute capture puis replay ; lecture des chiffres (rappel, identifiants non supportes, fuite think) + relecture des verbatims ; decision Qwen ou gpt-oss, puis choix de la voie de fine-tuning (Unsloth pour gpt-oss, QLoRA standard pour Qwen) et arbitrage 984 (garde deterministe maintenant vs fine-tuning).
+
+
+## Section 986 : QLoRA laissé de côté, notebooks Colab/Kaggle refaits, premier `replay` gpt-oss:20b lu, et défaut de comptage des échecs réseau corrigé dans le banc de synthèse
+
+Date : 28/09/2026
+Contexte : suite de 985. Dernière section lue avant de continuer : 985.
+
+**Décisions de pmm** : (1) le fine-tuning (QLoRA) est laissé de côté pour l'instant (`todo/plan.md` inchangé : fine-tuning ciblé différé à 12-18 mois) ; le choix gpt-oss:20b / Qwen3-14B passe d'abord par le banc de 985. (2) `/home/user/odoo-ia-prototype` et `/media/donnee/projets/odoo-ia-prototype` sont le même dépôt (seule la racine du connecteur diffère). (3) La comparaison se tranche sur Kaggle (modèles dans un Dataset privé).
+
+**Notebooks refaits** (`scripts/colab/local_llm_benchmark.ipynb`, `scripts/kaggle/benchmark-kaggle393243bd4f.ipynb`, ce dernier remplaçant `local_llm_benchmark_kaggle.ipynb` renommé par pmm) : 2 modèles servis par un seul Ollama (`OLLAMA_MAX_LOADED_MODELS=1`), tunnel ngrok. Causes réelles trouvées sur Colab : (a) `ollama serve` lancé avec stdout/stderr en `PIPE` jamais lus, remplacé par un fichier de log ; (b) chargement de gpt-oss depuis Drive (FUSE) supérieur au délai de 5 min d'Ollama (`timed out waiting for llama-server to start`, HTTP 500), d'où `OLLAMA_LOAD_TIMEOUT=30m`, et l'annulation du chargement quand le client se déconnecte (Ctrl+C sur `replay`). Kaggle : Mode B via Dataset privé (copie locale par `rsync` avant usage). Non vérifié : structure du dataset après `--dir-mode zip`, limite de ~100 s des tunnels cloudflared.
+
+**Premier `replay` gpt-oss:20b** (PUR-Q1, PUR-Q5, STK-Q1 x3) : recall moyen 0,194 (0,219 sans l'échantillon en erreur), 0 fuite `<think>`, 0 répétition dégénérée. Lecture des verbatims : STK-Q1 seul cas exploitable (recall 0,5-0,75). PUR-Q1 : réponse cohérente avec la référence sur le fond mais sans citer `_approval_allowed`, `button_confirm`, `one_step`/`two_step` -> le recall par identifiants sanctionne la précision de citation, pas une erreur. PUR-Q5 : le prompt gelé ne mentionne jamais `purchase.order.line` ni `_sql_constraints` (seul `purchase.order` a été analysé via `analyze_security_locks`, avec un marqueur de troncature au milieu d'un message de garde) ; la réponse "aucune contrainte SQL n'apparaît dans les observations" est donc fidèle à ces preuves. Ce `capture` ne teste pas le défaut SQL de 981/982 (où le bon `_sql_constraints` était dans le contexte). Cause du capture dégradé NON établie (rotation de clés Groq pendant le capture, ou choix d'outils du planificateur) : à recapturer PUR-Q5 seul et vérifier la présence de `_sql_constraints` avant tout `replay`. MNT-Q1, SAL-Q1, ACC-Q1 sont ignorés par `capture` de façon reproductible (réponse sans étape de synthèse) : le banc porte sur 3 cas.
+
+**Correction du banc** (`core/evaluation/synthesis_bench.py`) : un échec de génération (ex. `ERR_NGROK_3004`, HTML de passerelle) était enregistré comme une réponse `"ERROR: ..."` puis scoré (recall 0,0), faussant les moyennes. `SampleResult` porte désormais `error` et `score` optionnel ; les échecs sont exclus des scores, comptés dans `errors`, et le résumé expose `valid_samples`. `scripts/run_synthesis_model_bench.py` sérialise `asdict(r)`. `tests/test_synthesis_bench.py` : 2 tests ajoutés, 9 passed.
+
+**Fichiers modifiés** : `core/evaluation/synthesis_bench.py`, `scripts/run_synthesis_model_bench.py`, `tests/test_synthesis_bench.py`, `scripts/colab/local_llm_benchmark.ipynb`, `scripts/kaggle/benchmark-kaggle393243bd4f.ipynb`, `todo/contexte.txt`.
+
+**Recapture PUR-Q5 (même jour)** : prompt gelé identique au premier (17455 caractères) ; le `grep -c _sql_constraints` proposé initialement était erroné (il compte aussi le champ `reference_answer` du JSON, d'où un faux "1"). Vérification correcte dans `synthesis_prompt` : ni `_sql_constraints` ni `purchase.order.line`. L'agent n'appelle l'analyse des contraintes que pour `purchase.order` alors que la question vise aussi les lignes ; c'est un défaut de couverture de modèle côté agent, distinct du défaut de synthèse de 981/982 (à comparer avec l'état de 981, qui indiquait le bon `_sql_constraints` présent dans le contexte). Sans mandat pmm : aucun changement de code sur l'agent. Ce cas mesure donc la fidélité quand la preuve manque, pas la fabrication du texte SQL.
+
+**Second `replay` gpt-oss:20b** (après correction du banc) : 9/9 valides, 0 erreur, recall moyen 0,25 (STK-Q1 0,75 x3 ; PUR-Q1 et PUR-Q5 0,0), 0 identifiant non supporté, 17,9 s en moyenne modèle chaud ; résultats stables d'un échantillon à l'autre.
+
+**Délégué à pmm** : `replay` de `qwen3:14b` sur les mêmes 3 cas (un modèle à la fois, sans Ctrl+C pendant le chargement), puis comparaison des verbatims.
+
+**Prochaine étape** : lecture des verbatims comparés gpt-oss / Qwen3-14B, puis arbitrage 984 (garde déterministe maintenant ou non).
+
+
+## Section 987 : `replay` qwen3:14b lu et comparé à gpt-oss:20b sur les 3 cas gelés (PUR-Q1, PUR-Q5, STK-Q1) -- pas de gagnant net, le recall par identifiants ne mesure pas la justesse
+
+Date : 28/09/2026
+Contexte : suite de 986. Dernière section lue avant de continuer : 986. Analyse seule, aucun code modifié.
+
+**Chiffres (3 cas x 3 échantillons, 9 valides chacun, 0 erreur)** : gpt-oss:20b recall 0,25, 17,9 s en moyenne ; qwen3:14b recall 0,287, 53,3 s en moyenne (environ 3x plus lent). 0 fuite `<think>`, 0 répétition dégénérée, 0 identifiant non supporté pour les deux. L'écart de recall vient de PUR-Q1, où Qwen cite `_approval_allowed` (2 échantillons sur 3).
+
+**Lecture des verbatims (l'écart réel est ailleurs)** :
+- STK-Q1 : gpt-oss correct (consultation oui, modification de `stock.move.line` oui, aucune ir.rule restrictive) ; Qwen conclut "Non" pour la modification dans les échantillons 2 et 3 (échantillon 1 non vérifié), en lisant "aucune règle de groupe applicable" comme un blocage. Recall identique (0,75), justesse opposée.
+- PUR-Q5 (preuve sans `purchase.order.line` ni `_sql_constraints`, cf. 986) : gpt-oss invente une contrainte SQL (quantité > 0, prix unitaire >= 0) dans les 3 échantillons du second run (dans le premier run, l'échantillon 1 disait honnêtement qu'aucune contrainte SQL n'apparaît) -- c'est le défaut de fabrication de 981/982, que `unsupported=0` ne détecte pas faute d'identifiants. Qwen n'invente pas de SQL et écrit qu'il n'y a pas de contrainte SQL explicite, mais présente la contrainte Python `_check_order_line_company_id` comme "la contrainte distincte".
+- PUR-Q1 : les deux sont incomplets (aucun ne donne le seuil/`po_double_validation` de la référence) ; détails douteux dans les deux (non vérifiés contre les preuves).
+
+**Limites** : 3 cas seulement (MNT-Q1, SAL-Q1, ACC-Q1 sont ignorés par `capture`), un cas (PUR-Q5) dont la preuve est incomplète, une métrique aveugle à la justesse et à la fabrication sans identifiant. Le second run gpt-oss a écrasé le rapport du premier (même `--report-stem`) : utiliser des stems distincts.
+
+**Prochaine étape** : mandat pmm sur (1) enrichir la métrique de façon déterministe (ex. détecter une affirmation de contrainte SQL alors que la preuve ne contient pas `_sql_constraints`, ce qui rejoint le garde déterministe de 984) ; (2) élargir le banc à d'autres questions passant par la synthèse ; (3) sort du défaut de couverture de modèle de PUR-Q5 (l'agent n'analyse que `purchase.order`).
+
+
+## Section 988 : métrique déterministe "affirmations non supportées" ajoutée au banc de synthèse (première règle : contrainte SQL)
+
+Date : 28/09/2026
+Contexte : suite de 987 (point 1 validé par pmm). Dernière section lue avant de continuer : 987.
+
+**Problème** : `unsupported_identifiers` ne voit que les identifiants ; une fabrication en langage naturel (ex. gpt-oss sur PUR-Q5 : "contrainte SQL : quantité > 0") passe à 0. **Solution** : table de règles `CLAIM_RULES` dans `core/evaluation/synthesis_metrics.py` (`ClaimRule` : motif d'affirmation dans la réponse, motif de preuve dans le prompt gelé). Une affirmation est signalée si aucune preuve ne la soutient et si la phrase ne contient pas de négation ("aucune", "pas de", "sans", ...). Première règle `sql_constraint` : preuve = règle Semgrep `odoo-sql-constraints-declaration` ou `_sql_constraints =` (le simple mot `_sql_constraints` est exclu car le message d'absence de l'outil le contient). Aucune valeur propre à une instance : les motifs viennent du format de sortie des outils. `SynthesisScore.unsupported_claims`, résumé `unsupported_claim_rate`, colonne dans le rapport Markdown.
+
+**Rescore hors ligne des rapports existants** (sans relancer de modèle) : PUR-Q5 signalé 3/3 pour gpt-oss:20b (contrainte SQL inventée), 2/3 pour qwen3:14b (l'intitulé "Contrainte SQL distincte" est appliqué à la contrainte Python `_check_order_line_company_id`, puis la réponse dit qu'il n'y a pas de contrainte SQL explicite : mélange incohérent, pas une invention de contenu) ; 0 signalement sur PUR-Q1 et STK-Q1 pour les deux. La règle ne distingue pas invention et mauvaise étiquette : lecture des verbatims toujours nécessaire.
+
+**Limites** : une seule règle ; négation détectée par phrase (heuristique) ; ne détecte pas les erreurs de lecture (STK-Q1 de Qwen). Le défaut de couverture de PUR-Q5 (l'agent n'analyse que `purchase.order`) est connu depuis 974 : la seconde analyse de `purchase.order.line` dépend du planificateur LLM.
+
+**Fichiers modifiés** : `core/evaluation/synthesis_metrics.py`, `core/evaluation/synthesis_bench.py`, `tests/test_synthesis_bench.py` (4 tests ajoutés, 13 passed), `todo/contexte.txt`.
+
+**Prochaine étape** : mandat pmm sur (1) élargir le banc à d'autres questions passant par la synthèse ; (2) autres règles d'affirmation (à ne créer que sur un défaut observé) ; (3) sort du défaut de couverture de PUR-Q5.
+
+## Section 989 : Retour sur MNT-Q1/PUR-Q5/SAL-Q5 et correction de la stratégie de synthèse
+
+Date : 28/09/2026
+
+Les rejeux avec `qwen3:14b` confirment que l'endpoint Kaggle fonctionne. MNT-Q1 est stable et correct sur le verdict principal : `base.group_user` ne peut pas écrire et ne lit que les équipements suivis dans sa société. La phrase générique produite par le backfill `implied_ids` était toutefois trop large : elle pouvait laisser croire que tous les droits du groupe manager étaient hérités de `base.group_user`, alors que seuls les droits de la permission concernée le sont ; les droits WRITE/CREATE/UNLINK peuvent être directs. Cette formulation a été corrigée dans `code_intelligence/agent/access_guards.py`.
+
+PUR-Q5 et SAL-Q5 ont exposé une faiblesse de synthèse partagée : le modèle possède les observations statiques, mais peut substituer un mécanisme voisin ou modifier une borne numérique (`_unlink_except_purchase_or_done` remplacé par le changement de type d'une ligne ; `0 < prepayment_percent <= 1.0` reformulé en `0-100%`). Une première correction locale par motifs a été examinée puis retirée car elle ne respectait pas la règle du projet contre les fixes chirurgicaux.
+
+Correction retenue : le prompt de synthèse impose maintenant une checklist interne des objets, méthodes, champs et contraintes demandés, interdit de remplacer un mécanisme par un mécanisme voisin, exige la copie exacte des bornes et opérateurs, et demande de signaler l'absence de preuve plutôt que de compléter depuis la connaissance générale d'Odoo. Cette correction agit sur la cause commune de synthèse et reste indépendante du modèle ou de l'instance Odoo.
+
+Vérification : compilation propre et 23 tests cibles passés avant le retrait de la correction locale ; les tests existants concernés par le prompt et le post-traitement doivent être relancés après cette version finale. Aucun fichier utilisateur non lié n'a été reverti.
+
+Choix modèle provisoire : conserver `gpt-oss:20b` comme modèle principal pour sa latence moyenne nettement inférieure (~18 s contre ~53 s pour `qwen3:14b` dans le banc de synthèse), et garder Qwen comme modèle de comparaison. La décision définitive doit se faire après un rejeu identique du banc N1 avec le prompt corrigé, en regardant la justesse qualitative et les affirmations non supportées, pas le recall d'identifiants seul.
+
+## Section 990 : Rejeu N1 Q5 après le premier renforcement de synthèse
+
+Date : 28/09/2026
+
+Le rejeu confirme une amélioration sur PUR-Q5 : `_unlink_if_cancelled` et `_unlink_except_purchase_or_done` sont maintenant tous deux restitues avec leurs etats corrects. Deux erreurs de synthese structurelles persistent : la reponse inverse encore les branches `display_type NULL/non-NULL` des contraintes SQL de `purchase.order.line`, et SAL-Q5 transforme `0 < prepayment_percent <= 1.0` en une borne strictement inferieure a 100 %, perdant l'inclusivite de la borne haute. STK-Q5 ajoute des findings non demandes ; ACC-Q5 reste accompagne d'une troncature de l'observation `account.move`.
+
+Correctif applique dans le contrat de synthese : preservation explicite des predicates de chaque branche, interdiction d'inverser `NULL`/non-`NULL`, respect des operateurs inclusifs `<=`/`>=`, conservation des ratios normalises comme `1.0`, et omission des findings hors question. Cette regle reste generale pour les contraintes conditionnelles et ne cite aucun modele ou cas particulier.
+
+Tests : la version precedente du prompt avait passe les tests cibles ; le nouveau texte doit etre valide par les tests de prompt existants avant le prochain rejeu Kaggle. Le lot n'est pas encore considere comme clos tant que PUR-Q5 et SAL-Q5 n'ont pas ete confirmes corrects sur plusieurs essais.
+
+Le rejeu suivant avec `gpt-oss:20b` a precise la cause de `PUR-Q5` : `tools_used` ne contenait aucun `analyze_security_locks`, alors que le modele principal et sa relation one2many vers les lignes etaient connus dans le graphe. Root cause : `security_locks_targets()` ne conservait que les sources de securite custom et le dispatcher ne traitait que le premier modele ; le LLM devait donc decouvrir seul le garde natif de suppression des lignes.
+
+Correctif applique : pour une question explicitement orientee suppression de lignes liees, le predicate etend deterministement les cibles aux comodels des champs relationnels du modele resolu et inclut leurs sources natives, puis le dispatcher analyse chaque cible. Le comportement par defaut reste limite aux sources custom et a une seule cible pour les autres questions. Test ajoute : `code_intelligence/tests/test_related_security_dispatch.py`.
