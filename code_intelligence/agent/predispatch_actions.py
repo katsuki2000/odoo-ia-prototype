@@ -308,7 +308,10 @@ def dispatch_analyze_data_constraints(ctx: DispatchContext) -> None:
     if constraint_tool is None:
         return
 
-    for target_model in ctx.concept.resolved_models:
+    from .forced_dispatch_predicates import data_constraints_targets
+
+    target_models = data_constraints_targets(ctx.concept, ctx.G, ctx.question)
+    for target_model in target_models:
         call_key = _tool_call_key("analyze_data_constraints", {"model_name": target_model})
         if call_key in ctx.seen_calls:
             continue
@@ -392,7 +395,7 @@ def dispatch_analyze_data_constraints(ctx: DispatchContext) -> None:
         # covered explicitly and only forbid repeating those, not the tool.
         ctx.system_prompt_suffix += (
             "\n\n[DETERMINISTIC PRE-DISPATCH]\n"
-            f"analyze_data_constraints has already been run for: {', '.join(ctx.concept.resolved_models)}; "
+            f"analyze_data_constraints has already been run for: {', '.join(target_models)}; "
             "its SQL uniqueness and relational domain rules for those models are already included "
             "in the tool observations -- do not call it again for any of them. If the question also "
             "concerns a distinct related model not listed above (e.g. a line/detail model of an order "

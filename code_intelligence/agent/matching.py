@@ -105,8 +105,18 @@ _GENERIC_FIELD_NAMES = {
 }
 
 
-def _find_exact_technical_model_mentions(query_lower: str, G) -> List[str]:
-    """Find exact technical Odoo model names mentioned in query."""
+def _find_exact_technical_model_mentions(
+    query_lower: str, G, *, include_symbol_inference: bool = True
+) -> List[str]:
+    """Find exact technical Odoo model names mentioned in query.
+
+    The method/button fallback is useful when a question contains only a
+    technical symbol such as ``action_confirm``.  It is not an exact model
+    mention, however: several unrelated models can expose the same method
+    name.  Callers resolving a business alias first therefore disable that
+    fallback so the alias remains the primary target (SAL-Q2, todo/context
+    section 1007).
+    """
     if G is None:
         return []
     found = []
@@ -130,7 +140,7 @@ def _find_exact_technical_model_mentions(query_lower: str, G) -> List[str]:
         pattern = r"(?<!\w)" + re.escape(technical_name.lower()) + r"(?!\w)(?!\.\w)"
         if re.search(pattern, query_lower):
             found.append(technical_name)
-    if not found:
+    if not found and include_symbol_inference:
         field_models: Dict[str, Set[str]] = {}
         for node_id, data in G.nodes(data=True):
             nt = data.get("node_type")
@@ -163,6 +173,21 @@ def _find_exact_technical_model_mentions(query_lower: str, G) -> List[str]:
                             if m not in found:
                                 found.append(m)
     return found
+
+
+def has_non_generic_field_mention(query_lower: str, G) -> bool:
+    """Return whether the question names a specific indexed field."""
+    if G is None:
+        return False
+    for _node_id, data in G.nodes(data=True):
+        if data.get("node_type") != "Field":
+            continue
+        field_name = (data.get("name") or "").strip().lower()
+        if field_name in _GENERIC_FIELD_NAMES or len(field_name) < 5:
+            continue
+        if re.search(r"(?<!\w)" + re.escape(field_name) + r"(?!\w)", query_lower):
+            return True
+    return False
 
 
 def _find_exact_technical_module_mentions(query_lower: str, G) -> List[str]:
@@ -226,8 +251,10 @@ def rank_by_specificity(matches: List[str], query_lower: str) -> List[str]:
     if len(matches) <= 1:
         return matches
     scored = [(m, _specificity_score(m, query_lower)) for m in matches]
-    top_score = max(score for _m, score in scored)
-    return [m for m, score in scored if score == top_score]
+    # Exact technical mentions are independent targets when the user names
+    # more than one model. Specificity orders dispatch; it must not discard a
+    # co-mentioned model (STK-Q1: stock.quant + stock.move.line).
+    return [m for m, _score in sorted(scored, key=lambda item: item[1], reverse=True)]
 
 
 def _fuzzy_match_graph(query: str, G, threshold: int = 75, limit: int = 5) -> List[Tuple[str, float]]:

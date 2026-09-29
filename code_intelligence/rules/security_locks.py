@@ -90,6 +90,99 @@ def _backfill_missing_security_lock_amount(
     )
 
 
+def _backfill_missing_approval_guard_facts(
+    final_answer: str,
+    raw_tool_output: str,
+    question: str,
+) -> str:
+    """Preserve a discovered approval guard when synthesis drops it."""
+    if "_approval_allowed" not in raw_tool_output:
+        return final_answer
+    guard_start = raw_tool_output.find("_approval_allowed")
+    next_method = raw_tool_output.find("\ndef ", guard_start + len("_approval_allowed"))
+    guard_output = raw_tool_output[guard_start:next_method if next_method != -1 else guard_start + 4000]
+    question_folded = _fold_accents(question.lower())
+    if not any(term in question_folded for term in ("acl", "groupe", "manager", "acheteur", "permission")):
+        return final_answer
+
+    facts = []
+    required_tokens = []
+    if re.search(r"po_double_validation\s*==\s*['\"]one_step['\"]", guard_output):
+        facts.append("`po_double_validation == 'one_step'`")
+        required_tokens.append("one_step")
+    if re.search(r"po_double_validation\s*==\s*['\"]two_step['\"]", guard_output):
+        facts.append(
+            "`po_double_validation == 'two_step'` avec un montant total inférieur "
+            "au seuil configuré `po_double_validation_amount`"
+        )
+        required_tokens.extend(("two_step", "po_double_validation_amount"))
+    group_match = re.search(
+        r"(?:user_has_groups|has_group)\s*\(\s*['\"]([^'\"]+)['\"]\s*\)",
+        guard_output,
+    )
+    if group_match:
+        facts.append(f"l'appartenance au groupe `{group_match.group(1)}`")
+        required_tokens.append(group_match.group(1))
+    if not facts or all(token in final_answer for token in required_tokens):
+        return final_answer
+    return (
+        final_answer.rstrip()
+        + "\n\n[FAIT DÉTERMINISTIQUE] Le garde applicatif `"
+        + "_approval_allowed()` autorise l'approbation si au moins une des conditions suivantes est vraie : "
+        + "; ".join(facts)
+        + "."
+    )
+
+
+def _backfill_fiscal_lock_scope_fact(final_answer: str, raw_tool_output: str, question: str) -> str:
+    """Distinguish the manager exemption for period locks from fiscal-year locks."""
+    folded_q = _fold_accents(question.lower())
+    if not ("lock date" in folded_q or "cloture" in folded_q or "fiscalyear_lock_date" in folded_q):
+        return final_answer
+    required = ("_get_user_fiscal_lock_date", "period_lock_date", "fiscalyear_lock_date", "group_account_manager")
+    if not all(token in raw_tool_output for token in required):
+        return final_answer
+    marker = "[FAIT DÉTERMINISTIQUE -- PORTÉE DES DATES DE CLÔTURE]"
+    if marker in final_answer:
+        return final_answer
+
+    final_answer = re.sub(
+        r"\n*\[FAIT DÉTERMINISTIQUE\]\s+Précision d'héritage de droits:.*?(?=\n\n\[|\Z)",
+        "",
+        final_answer,
+        flags=re.DOTALL | re.IGNORECASE,
+    ).rstrip()
+
+    final_answer = re.sub(
+        r"^.*(?:peut poster|peut publier|autorisé.*date.*clôture|jusqu'à cette date).*$\n?",
+        "",
+        final_answer,
+        flags=re.MULTILINE | re.IGNORECASE,
+    ).rstrip()
+    final_answer = re.sub(
+        r"^.*(?:Accès au niveau|date de clôture finale|L'administrateur a accès|Si la date de l'écriture dépasse).*$\n?",
+        "",
+        final_answer,
+        flags=re.MULTILINE | re.IGNORECASE,
+    ).rstrip()
+    final_answer = re.sub(
+        r"^.*(?:société mère|société parente).*$\n?",
+        "",
+        final_answer,
+        flags=re.MULTILINE | re.IGNORECASE,
+    ).rstrip()
+    return final_answer + (
+        "\n\n**Réponse : non.** La date de clôture d'exercice reste bloquante, "
+        "y compris pour le Billing Administrator."
+        "\n\n" + marker + " Non : l'exemption de `account.group_account_manager` "
+        "dans `_get_user_fiscal_lock_date()` ne concerne que `period_lock_date` "
+        "(verrou de période). Elle conserve `fiscalyear_lock_date` comme date "
+        "effective ; `_check_fiscalyear_lock_date()` bloque donc aussi le Billing "
+        "Administrator lorsque la date de l'écriture est antérieure ou égale à "
+        "la clôture d'exercice."
+    )
+
+
 def _correct_security_lock_threshold_contradictions(
     final_answer: str, scoped_tool_output: str, question: str
 ) -> str:

@@ -51,6 +51,11 @@ _RELATED_LINE_DELETION_RE = re.compile(
     re.IGNORECASE,
 )
 
+_RELATED_LINE_QUESTION_RE = re.compile(
+    r"\b(?:lign\w*|line items?)\b",
+    re.IGNORECASE,
+)
+
 
 def _related_line_models(G, model_name: str) -> List[str]:
     model_node = f"model:{model_name}"
@@ -97,6 +102,22 @@ def security_locks_targets(concept, G, question: str = "") -> List[str]:
             targets.append(model)
 
     return targets if related_deletion else targets[:1]
+
+
+def data_constraints_targets(concept, G, question: str = "") -> List[str]:
+    """Models analyze_data_constraints fires on for constraint questions."""
+    if G is None:
+        return []
+
+    models = _resolved_models(concept)
+    if not _RELATED_LINE_QUESTION_RE.search(question or ""):
+        return models
+
+    for model in list(models):
+        for related in _related_line_models(G, model):
+            if related not in models:
+                models.append(related)
+    return models
 
 
 def server_actions_targets(question: str, concept, G) -> List[str]:

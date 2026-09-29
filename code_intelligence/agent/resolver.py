@@ -115,6 +115,7 @@ from .matching import (
     _GENERIC_FIELD_NAMES,
     _find_exact_technical_model_mentions,
     _find_exact_technical_module_mentions,
+    has_non_generic_field_mention,
     _specificity_score,
     rank_by_specificity,
     _fuzzy_match_graph,
@@ -135,8 +136,26 @@ def resolve_business_term(query_text: str, G=None, llm=None, active_model: Optio
 
     clean_query = _nfc(query_text.lower().strip())
 
-    exact_mentions = _find_exact_technical_model_mentions(clean_query, G)
+    # First retain only literal model names.  Inferring a model from a shared
+    # method/button name (for example action_confirm) is deliberately delayed
+    # until after business aliases have had a chance to identify the primary
+    # document.  Otherwise an unrelated model sharing that method can consume
+    # the bounded dispatch budget before the actual target (SAL-Q2).
+    exact_mentions = _find_exact_technical_model_mentions(
+        clean_query, G, include_symbol_inference=False,
+    )
     exact_modules = _find_exact_technical_module_mentions(clean_query, G)
+    inferred_symbol_mentions = []
+    if not exact_mentions and not exact_modules:
+        inferred_symbol_mentions = _find_exact_technical_model_mentions(
+            clean_query, G, include_symbol_inference=True,
+        )
+        # A unique parent model for a technical button/method is stronger
+        # than a generic alias such as "commande". Shared symbols remain
+        # deferred to alias resolution so unrelated models cannot consume the
+        # dispatch budget (SAL-Q2 versus PUR-Q2).
+        if len(inferred_symbol_mentions) == 1:
+            exact_mentions = inferred_symbol_mentions
     if len(exact_mentions) > 1:
         exact_mentions = rank_by_specificity(exact_mentions, clean_query)
     if exact_mentions or exact_modules:
@@ -175,7 +194,10 @@ def resolve_business_term(query_text: str, G=None, llm=None, active_model: Optio
                                     mod_models.append(m_name)
                 if mod_models:
                     exact_mentions = mod_models
-        elif exact_mentions:
+        elif exact_mentions and (
+            not inferred_symbol_mentions
+            or has_non_generic_field_mention(clean_query, G)
+        ):
             # Un nom de modele technique cite litteralement (ex. "stock.quant")
             # court-circuitait entierement la table d'alias, meme quand la
             # meme question designe par un terme metier DISTINCT un second

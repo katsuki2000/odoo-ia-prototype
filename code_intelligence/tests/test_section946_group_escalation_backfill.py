@@ -86,3 +86,14 @@ def test_no_backfill_when_no_ignored_group_section():
         SALE_Q1_ANSWER, raw, SALE_Q1_QUESTION
     )
     assert result == SALE_Q1_ANSWER
+
+
+def test_no_backfill_for_accounting_field_visibility_question():
+    question = (
+        "Un Billing Administrator voit-il le compte comptable (account_id) "
+        "d'une ligne de facture ?"
+    )
+    result = _backfill_missing_group_escalation_note(
+        SALE_Q1_ANSWER, SALE_Q1_RAW_OUTPUT, question
+    )
+    assert result == SALE_Q1_ANSWER

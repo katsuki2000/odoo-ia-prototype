@@ -61,7 +61,7 @@ def dispatch_who_has_access_to(ctx: DispatchContext) -> None:
     # actually dispatch on is decided by the same shared predicate the
     # Investigation Planner uses, instead of a second, separately
     # maintained exclusion loop reaching the same result.
-    for target_model in who_has_access_targets(ctx.question, ctx.concept, ctx.G)[:1]:
+    for target_model in who_has_access_targets(ctx.question, ctx.concept, ctx.G):
         call_key = _tool_call_key("who_has_access_to", {"model_name": target_model})
         if call_key in ctx.seen_calls:
             continue
@@ -688,12 +688,29 @@ logger = logging.getLogger(__name__)
 # budget on an irrelevant candidate.
 _WORKFLOW_METHOD_RE = re.compile(r"Method:\s*`([A-Za-z_][A-Za-z0-9_]*)\(\)`")
 _APPROVAL_BUTTON_METHOD_RE = re.compile(r"^button_(?:confirm|approve|valid)", re.IGNORECASE)
+_BUTTON_METHOD_RE = re.compile(r"^button_", re.IGNORECASE)
 # Captures method name AND role from a full workflow step line, e.g.:
 #   "Step 7: [done] -> [done] via Button 'Unlock' (Method: `button_unlock()`, Role: [purchase.group_purchase_manager])"
 # Group 1 = method name, Group 2 = role text (may be "All Users" or a group xml_id).
 _WORKFLOW_STEP_METHOD_ROLE_RE = re.compile(
     r"Method:\s*`([A-Za-z_][A-Za-z0-9_]*)\(\)`,\s*Role:\s*\[([^\]]+)\]"
 )
+
+
+def _classify_security_distinction_methods(workflow_observation: str) -> tuple[list[str], list[str]]:
+    """Select approval and role-restricted UI buttons from workflow evidence."""
+    seen_methods = set()
+    approval_methods = []
+    restricted_button_methods = []
+    for method_name, role_text in _WORKFLOW_STEP_METHOD_ROLE_RE.findall(workflow_observation):
+        if method_name in seen_methods:
+            continue
+        seen_methods.add(method_name)
+        if _APPROVAL_BUTTON_METHOD_RE.match(method_name):
+            approval_methods.append(method_name)
+        elif _BUTTON_METHOD_RE.match(method_name) and role_text.strip() != "All Users":
+            restricted_button_methods.append(method_name)
+    return approval_methods, restricted_button_methods
 
 
 @dataclass
@@ -831,17 +848,9 @@ def dispatch_security_distinction_guard(ctx: DispatchContext) -> None:
                 )
                 continue
 
-        seen_methods = set()
-        candidate_methods = []
-        group_restricted_methods = []
-        for method_name, role_text in _WORKFLOW_STEP_METHOD_ROLE_RE.findall(wf_observation):
-            if method_name in seen_methods:
-                continue
-            seen_methods.add(method_name)
-            if _APPROVAL_BUTTON_METHOD_RE.match(method_name):
-                candidate_methods.append(method_name)
-            elif role_text.strip() != "All Users":
-                group_restricted_methods.append(method_name)
+        candidate_methods, group_restricted_methods = _classify_security_distinction_methods(
+            wf_observation
+        )
 
         guard_resolved = False
         for method_name in candidate_methods:

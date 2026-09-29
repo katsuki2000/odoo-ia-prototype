@@ -13,6 +13,7 @@ import re
 from code_intelligence.agent.predispatch_access import (
     _WORKFLOW_STEP_METHOD_ROLE_RE,
     _APPROVAL_BUTTON_METHOD_RE,
+    _classify_security_distinction_methods,
 )
 
 
@@ -50,18 +51,7 @@ class TestWorkflowStepRegex:
 
 class TestCandidateClassification:
     def _classify(self, workflow_text):
-        seen = set()
-        approval = []
-        group_restricted = []
-        for method_name, role_text in _WORKFLOW_STEP_METHOD_ROLE_RE.findall(workflow_text):
-            if method_name in seen:
-                continue
-            seen.add(method_name)
-            if _APPROVAL_BUTTON_METHOD_RE.match(method_name):
-                approval.append(method_name)
-            elif role_text.strip() != "All Users":
-                group_restricted.append(method_name)
-        return approval, group_restricted
+        return _classify_security_distinction_methods(workflow_text)
 
     def test_button_confirm_is_approval(self):
         approval, _ = self._classify(SAMPLE_WORKFLOW)
@@ -81,9 +71,9 @@ class TestCandidateClassification:
         assert "action_view_invoice" not in approval
         assert "action_view_invoice" not in group_restricted
 
-    def test_confirm_reminder_mail_is_group_restricted(self):
+    def test_non_button_technical_method_is_not_a_security_distinction_candidate(self):
         _, group_restricted = self._classify(SAMPLE_WORKFLOW)
-        assert "confirm_reminder_mail" in group_restricted
+        assert "confirm_reminder_mail" not in group_restricted
 
     def test_dedup_same_method_twice(self):
         doubled = SAMPLE_WORKFLOW + (

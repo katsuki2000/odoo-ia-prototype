@@ -481,3 +481,35 @@ def test_maintenance_request_alias_resolves_bloc_n1():
         result = resolve_business_term(q, G)
         assert result.is_resolved, f"{q!r} should resolve"
         assert result.resolved_models == ["maintenance.request"]
+
+
+def test_constraint_question_with_specific_field_and_business_alias_keeps_both_models():
+    G = nx.DiGraph()
+    for model in ("maintenance.equipment", "maintenance.request"):
+        G.add_node(f"model:{model}", node_type="Model", name=model, description="")
+    G.add_node(
+        "field:maintenance.request.repeat_interval",
+        node_type="Field",
+        name="repeat_interval",
+        model="maintenance.request",
+    )
+
+    result = resolve_business_term(
+        "Quelle règle concerne les équipements et repeat_interval d'une demande récurrente ?",
+        G,
+    )
+
+    assert result.resolved_models == ["maintenance.request", "maintenance.equipment"]
+
+
+def test_exact_multi_model_mentions_are_all_preserved():
+    G = nx.DiGraph()
+    for model in ("stock.quant", "stock.move.line"):
+        G.add_node(f"model:{model}", node_type="Model", name=model, description="")
+
+    result = resolve_business_term(
+        "Consulter stock.quant et modifier stock.move.line",
+        G,
+    )
+
+    assert result.resolved_models == ["stock.move.line", "stock.quant"]

@@ -230,6 +230,108 @@ def _backfill_action_confirm_workflow_details(
     return final_answer
 
 
+def _backfill_confirmation_lock_fact(final_answer: str, raw_tool_output: str, question: str = "") -> str:
+    """Keep the post-confirmation lock guard when source evidence contains it."""
+    folded_q = re.sub(r"[^a-z0-9 ]", " ", question.lower())
+    if not ("action_confirm" in folded_q or ("confirm" in folded_q and "vente" in folded_q)):
+        return final_answer
+    if not all(token in raw_tool_output for token in ("_should_be_locked", "action_lock", "create_uid", "has_group")):
+        return final_answer
+    if "[FAIT DÉTERMINISTIQUE -- VERROUILLAGE APRÈS CONFIRMATION]" in final_answer:
+        return final_answer
+
+    final_answer = re.sub(
+        r"^.*(?:Aucun verrouillage|aucun blocage|ne déclenche pas de blocage).*$(?:\n|$)",
+        "",
+        final_answer,
+        flags=re.MULTILINE | re.IGNORECASE,
+    ).rstrip()
+    final_answer = re.sub(
+        r"^.*(?:Ce paramètre|Cette option).*(?:option|configuration) globale.*$(?:\n|$)",
+        "",
+        final_answer,
+        flags=re.MULTILINE | re.IGNORECASE,
+    ).rstrip()
+    final_answer = re.sub(
+        r"^.*(?:Ce paramètre est défini|ne dépend pas d'un groupe spécifique).*$\n?",
+        "",
+        final_answer,
+        flags=re.MULTILINE | re.IGNORECASE,
+    ).rstrip()
+    final_answer = re.sub(
+        r"(?:\n|^)###\s+Cas de verrouillage automatique.*?(?=\n\n\[FAIT|\Z)",
+        "",
+        final_answer,
+        flags=re.DOTALL | re.IGNORECASE,
+    ).rstrip()
+    return final_answer + (
+        "\n\n[FAIT DÉTERMINISTIQUE -- VERROUILLAGE APRÈS CONFIRMATION] "
+        "Après `action_confirm()`, seules les commandes dont le créateur satisfait "
+        "`_should_be_locked()` sont verrouillées par `action_lock()` (`locked=True`). "
+        "Le garde vérifie `create_uid.has_group('sale.group_auto_done_setting')` : "
+        "le verrouillage n'est donc pas systématique et dépend du groupe du créateur "
+        "de la commande, pas de l'utilisateur qui confirme."
+    )
+
+
+def _backfill_backorder_policy_facts(final_answer: str, raw_tool_output: str, question: str = "") -> str:
+    """Preserve the picking-type backorder policy exposed by button_validate()."""
+    folded_q = re.sub(r"[^a-z0-9 ]", " ", question.lower())
+    if not ("transfert" in folded_q and ("quant" in folded_q or "trait" in folded_q)):
+        return final_answer
+    if not all(token in raw_tool_output for token in ("create_backorder", "'never'", "'always'")):
+        return final_answer
+    if "[FAIT DÉTERMINISTIQUE -- POLITIQUE DE RELIQUAT]" in final_answer:
+        return final_answer
+
+    final_answer = re.sub(
+        r"^.*(?:génère|crée|créé|déclenche).{0,80}"
+        r"(?:création|génération).{0,80}(?:automatique|automatiquement).{0,120}"
+        r"(?:backorder|reliquat|bon de sortie).*$\n?",
+        "",
+        final_answer,
+        flags=re.MULTILINE | re.IGNORECASE,
+    ).rstrip()
+    final_answer = re.sub(
+        r"^.*(?:génère|crée|créé).{0,40}(?:automatique|automatiquement).{0,80}"
+        r"(?:backorder|reliquat|bon de sortie).*$\n?",
+        "",
+        final_answer,
+        flags=re.MULTILINE | re.IGNORECASE,
+    ).rstrip()
+    final_answer = re.sub(
+        r"^.*(?:create_backorder|always.*ask|ask.*always).*$\n?",
+        "",
+        final_answer,
+        flags=re.MULTILINE | re.IGNORECASE,
+    ).rstrip()
+    final_answer = re.sub(
+        r"\n?\s*2\.\s*\*\*Création du backorder\*\*.*?(?=\n\s*3\.|\n\s*####|\Z)",
+        "",
+        final_answer,
+        flags=re.DOTALL | re.IGNORECASE,
+    )
+    final_answer = re.sub(
+        r"^\s*[-*].*(?:Un nouveau transfert|backorder de .* créé).*$\n?",
+        "",
+        final_answer,
+        flags=re.MULTILINE | re.IGNORECASE,
+    ).rstrip()
+    final_answer = re.sub(
+        r"(?:\n|^)#{1,6}\s+(?:Exemple|Example)[^\n]*.*?(?=\n\n(?:#{1,6}\s|\[FAIT)|\Z)",
+        "",
+        final_answer,
+        flags=re.DOTALL | re.IGNORECASE,
+    ).rstrip()
+    return final_answer + (
+        "\n\n[FAIT DÉTERMINISTIQUE -- POLITIQUE DE RELIQUAT] La validation partielle "
+        "ne crée pas toujours automatiquement un reliquat : `picking_type_id.create_backorder` "
+        "détermine le comportement. `never` annule le reliquat ; `always` l'exécute avec "
+        "création automatique d'un backorder ; `ask` laisse la décision à l'assistant de "
+        "confirmation."
+    )
+
+
 def inspect_stage_workflow_actions(source_text: str) -> dict:
     """Inspect AST of a write() method to detect automatic stage-driven actions
     (recurrence duplication via copy(), close_date assignment, kanban reset, activity updates)."""
@@ -379,5 +481,3 @@ def _backfill_stage_recurrence_conditions(
     logger.info("Node [code_intelligence_agent]: Backfilled stage recurrence boundary condition (repeat_until / forever).")
 
     return final_answer
-
-

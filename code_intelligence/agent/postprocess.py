@@ -28,6 +28,8 @@ from code_intelligence.agent.access_guards import (
 )
 from code_intelligence.rules.security_locks import (
     _backfill_missing_security_lock_amount,
+    _backfill_missing_approval_guard_facts,
+    _backfill_fiscal_lock_scope_fact,
     _correct_security_lock_threshold_contradictions,
 )
 from code_intelligence.rules.access_evaluator import _correct_access_permission_contradictions
@@ -55,16 +57,55 @@ from code_intelligence.rules.overrides import (
 from code_intelligence.rules.structure import (
     _correct_module_extension_contradiction,
     _backfill_missing_module_extension_details,
+    _strip_irrelevant_inheritance_constraints,
 )
 from code_intelligence.rules.workflow import (
     _correct_noop_hook_hallucinations,
     _backfill_action_confirm_workflow_details,
+    _backfill_confirmation_lock_fact,
+    _backfill_backorder_policy_facts,
     _backfill_stage_recurrence_conditions,
+)
+from code_intelligence.rules.button_path import (
+    correct_button_role_contradictions,
+    correct_button_visibility_contradictions,
+)
+from code_intelligence.rules.data_constraints import (
+    backfill_missing_bounds_facts,
+    backfill_missing_conditional_check_facts,
 )
 from code_intelligence.agent.context import _EXECUTION_FAILURE_NOTICE, _CI_TOOL_DISPLAY_NAMES
 from code_intelligence.agent.context import DispatchContext
 
 logger = logging.getLogger(__name__)
+
+_UNEXPECTED_HAN_RE = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]")
+_UNSOURCED_EXAMPLE_RE = re.compile(
+    r"^\s*(?:(?:\*\*)?(?:exemple|example)(?:\*\*)?\s*:|#{1,6}\s+(?:exemple|example)\b)",
+    re.IGNORECASE,
+)
+
+
+def _strip_unexpected_script_sentences(text: str) -> str:
+    """Remove prose sentences containing a script that conflicts with the question language."""
+    lines = []
+    for line in text.splitlines():
+        if not _UNEXPECTED_HAN_RE.search(line):
+            lines.append(line)
+            continue
+        sentences = re.split(r"(?<=[.!?])\s+", line)
+        lines.extend(sentence for sentence in sentences if not _UNEXPECTED_HAN_RE.search(sentence))
+    return "\n".join(lines)
+
+
+def _strip_unsourced_examples(final_answer: str, raw_tool_output: str) -> str:
+    """Drop generated example blocks when no example is supplied as evidence."""
+    if re.search(r"\b(?:exemple|example)\b", raw_tool_output, re.IGNORECASE):
+        return final_answer
+    blocks = re.split(r"\n\s*\n", final_answer)
+    return "\n\n".join(
+        block for block in blocks if not _UNSOURCED_EXAMPLE_RE.match(block)
+    ).strip()
 
 
 def _strip_truncation_marker_for_display(text: str, source_label: str = "") -> str:
@@ -101,6 +142,7 @@ def _apply_backfill_chain(
     scoped_tool_observation_models=None,
     target_models=None,
     raw_tool_output: str = "",
+    constraint_tool_output: str = "",
 ) -> str:
     final_answer = _correct_security_lock_threshold_contradictions(final_answer, scoped_tool_output, question)
     final_answer = _correct_access_permission_contradictions(final_answer, scoped_tool_output)
@@ -114,6 +156,18 @@ def _apply_backfill_chain(
     final_answer = _backfill_missing_implied_ids_mechanism(final_answer, scoped_tool_output or raw_tool_output, question)
     final_answer = _backfill_missing_group_escalation_note(final_answer, scoped_tool_output or raw_tool_output, question)
     final_answer = _backfill_missing_security_lock_amount(final_answer, scoped_tool_output, question=question)
+    final_answer = _backfill_missing_approval_guard_facts(
+        final_answer, raw_tool_output or scoped_tool_output, question
+    )
+    final_answer = _backfill_fiscal_lock_scope_fact(
+        final_answer, raw_tool_output or scoped_tool_output, question
+    )
+    final_answer = correct_button_role_contradictions(
+        final_answer, raw_tool_output or scoped_tool_output
+    )
+    final_answer = correct_button_visibility_contradictions(
+        final_answer, raw_tool_output or scoped_tool_output
+    )
     final_answer = _backfill_missing_override_modules(final_answer, scoped_tool_output, question=question)
     final_answer = _correct_override_cascade_contradictions(final_answer, scoped_tool_output)
     # Section 840: list_involved_modules' MODULE-mode evidence ("Module 'X'
@@ -141,11 +195,28 @@ def _apply_backfill_chain(
     final_answer = _backfill_action_confirm_workflow_details(
         final_answer, raw_tool_output or scoped_tool_output, question=question
     )
+    final_answer = _backfill_confirmation_lock_fact(
+        final_answer, raw_tool_output or scoped_tool_output, question=question
+    )
+    final_answer = _backfill_backorder_policy_facts(
+        final_answer, raw_tool_output or scoped_tool_output, question=question
+    )
     final_answer = _backfill_stage_recurrence_conditions(
         final_answer, raw_tool_output or scoped_tool_output, question=question
     )
+    final_answer = backfill_missing_conditional_check_facts(
+        final_answer,
+        constraint_tool_output or scoped_tool_output or raw_tool_output,
+        question=question,
+    )
+    final_answer = backfill_missing_bounds_facts(
+        final_answer,
+        constraint_tool_output or scoped_tool_output or raw_tool_output,
+        question=question,
+    )
     final_answer = _flag_ungrounded_group_xmlids(final_answer, scoped_tool_output)
     final_answer = _strip_core_only_group_mentions(final_answer, scoped_tool_output)
+    final_answer = _strip_irrelevant_inheritance_constraints(final_answer, question=question)
     return final_answer
 
 
@@ -187,6 +258,11 @@ def build_final_response(
             for obs, model in zip(tool_observations, tool_observation_models)
             if not scoped_target_set or (model and model in scoped_target_set)
         ]
+        constraint_tool_output = "\n\n".join(
+            obs
+            for obs, tool_name in zip(tool_observations, tool_observation_tools)
+            if tool_name == "analyze_data_constraints"
+        )
 
         # H3 dedicated CONFLICTING path (todo/contexte.txt sections
         # 419-420): detected BEFORE any single-verdict backfill/correction
@@ -212,6 +288,7 @@ def build_final_response(
                 scoped_tool_observation_models=scoped_tool_observation_models,
                 target_models=concept.resolved_models,
                 raw_tool_output=raw_tool_output,
+                constraint_tool_output=constraint_tool_output,
             )
 
     from code_intelligence.agent.dispatch_guards import (
@@ -233,6 +310,9 @@ def build_final_response(
             "outside the main synthesis retry path -- stripping before returning."
         )
         final_answer = _strip_any_degenerate_repetition(final_answer)
+
+    final_answer = _strip_unexpected_script_sentences(final_answer)
+    final_answer = _strip_unsourced_examples(final_answer, raw_tool_output)
 
     # Bloc P1 Tranche 2 (todo/contexte.txt section 405-408): post-analysis
     # verdict on THIS branch's own synthesized answer, evaluated before the

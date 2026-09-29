@@ -17,7 +17,6 @@ from code_intelligence.utils import (
     _LOCK_CONDITION_LINE_RE,
     _AMOUNT_CMP_RE,
 )
-
 logger = logging.getLogger(__name__)
 
 _REQUIRED_GROUP_LINE_RE = re.compile(
@@ -310,6 +309,21 @@ _INHERITANCE_VERBALIZATION_RE = re.compile(
     r"\b(?:implied_ids|h[eé]rite|h[eé]ritent|implication|transiti\w*)\b",
     re.IGNORECASE,
 )
+_UI_ACCESS_QUESTION_RE = re.compile(
+    r"\b(?:champ|bouton|visible|visibilit[eé]|interface|field|button|"
+    r"compte\s+comptable|ligne\s+de\s+facture)\b",
+    re.IGNORECASE,
+)
+_DIRECT_ACL_NEGATION_RE = re.compile(
+    r"^\s*[-*]\s+L['’]ACL directe.*?"
+    r"(?:ne limite que la lecture|ne restreint pas les opérations).*?(?=\n\s*[-*]\s|\n\s*\n|\Z)",
+    re.IGNORECASE | re.MULTILINE | re.DOTALL,
+)
+
+
+def _remove_false_direct_acl_explanation(final_answer: str) -> str:
+    """Remove the claim that a zero permission in one ACL is non-restrictive."""
+    return _DIRECT_ACL_NEGATION_RE.sub("", final_answer).rstrip()
 
 
 def _backfill_missing_implied_ids_mechanism(
@@ -319,6 +333,8 @@ def _backfill_missing_implied_ids_mechanism(
     via implied_ids for a group discussed in the question/answer, ensure the
     answer explains this inheritance rather than flattening it into a direct ACL.
     """
+    if question and _UI_ACCESS_QUESTION_RE.search(question):
+        return final_answer
     matches = list(_IMPLIED_IDS_PATTERN.finditer(raw_tool_output))
     if not matches:
         return final_answer
@@ -338,12 +354,13 @@ def _backfill_missing_implied_ids_mechanism(
             "inheritance mechanism for %s <- %s",
             child_group, parent_group,
         )
+        final_answer = _remove_false_direct_acl_explanation(final_answer)
         return (
             final_answer
             + f"\n\n[FAIT DÉTERMINISTIQUE] Précision d'héritage de droits : pour la permission "
             f"concernée, `{child_group}` hérite de l'ACL de `{parent_group}` par implication "
-            f"transitive (`implied_ids`). Cela ne signifie pas que toutes ses permissions sont "
-            f"héritées : ses droits WRITE/CREATE/UNLINK peuvent être accordés par une ACL directe."
+            f"transitive (`implied_ids`). Les ACL applicables sont additives : l'absence d'une "
+            f"permission dans une ACL directe ne retire pas le droit accordé par une autre ACL applicable."
         )
 
     return final_answer
@@ -378,6 +395,8 @@ def _backfill_missing_group_escalation_note(
     no restriction at all. Backfilled verbatim from the tool's own ignored-
     rule listing -- never invented, and only when the question itself
     raises the group (avoids cluttering every access answer with it)."""
+    if question and _UI_ACCESS_QUESTION_RE.search(question):
+        return final_answer
     for line_match in _IGNORED_GROUP_LINE_RE.finditer(raw_tool_output):
         body = line_match.group("body")
         for entry in _GROUP_ESCALATION_SEE_ALL_RE.finditer(body):

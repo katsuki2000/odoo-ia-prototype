@@ -342,6 +342,41 @@ def trace_full_inheritance(
     model_tags = tags_for_node_attrs(G.nodes[model_node])
 
     if not extension_parents and not delegation_parents:
+        if model_name.endswith(".mixin"):
+            shared_fields = sorted(
+                str(data.get("name"))
+                for _, data in G.nodes(data=True)
+                if data.get("node_type") == "Field" and data.get("model") == model_name and data.get("name")
+            )
+            shared_methods = sorted(
+                str(data.get("name"))
+                for _, data in G.nodes(data=True)
+                if data.get("node_type") == "Method" and data.get("model") == model_name and data.get("name")
+            )
+            details = []
+            if shared_fields:
+                details.append("champs partagés : " + ", ".join(shared_fields))
+            if shared_methods:
+                details.append("méthodes de calcul : " + ", ".join(shared_methods))
+            mixin_users = sorted(
+                data.get("name", node_id.replace("model:", ""))
+                for node_id, data in G.nodes(data=True)
+                if data.get("node_type") == "Model"
+                and data.get("name", node_id.replace("model:", "")) != model_name
+                and (G.get_edge_data(node_id, model_node) or {}).get("edge_type") == "EXTENDS"
+            )
+            if mixin_users:
+                details.append("réutilisé directement par : " + ", ".join(mixin_users))
+            mixin_summary = f"Model '{model_name}' est un mixin réutilisable"
+            if details:
+                mixin_summary += " (" + "; ".join(details) + ")"
+            return InheritanceChainResult(
+                model_name=model_name,
+                status=QueryStatus.FOUND,
+                model_tags=model_tags,
+                summary_text=mixin_summary + ".",
+                evidence=_build_inheritance_evidence(model_name, extension_parents, delegation_parents),
+            )
         return InheritanceChainResult(
             model_name=model_name,
             status=QueryStatus.EMPTY,
@@ -368,6 +403,19 @@ def trace_full_inheritance(
         f"Delegations (_inherits): [{del_str}]. "
         f"Full Ancestor Chain: [{', '.join(full_ancestors)}].{nature_str}"
     )
+
+    mixin_users = []
+    for node_id, data in G.nodes(data=True):
+        if data.get("node_type") != "Model":
+            continue
+        candidate = data.get("name", node_id.replace("model:", ""))
+        if candidate == model_name or not G.has_node(node_id):
+            continue
+        edge = G.get_edge_data(node_id, model_node) or {}
+        if edge.get("edge_type") == "EXTENDS":
+            mixin_users.append(candidate)
+    if model_name.endswith(".mixin") and mixin_users:
+        summary += f" Directement réutilisé par : {', '.join(sorted(mixin_users))}."
 
     filepaths = G.nodes[model_node].get("filepaths", [])
     declaration_sites: List[Tuple[str, int, int]] = []
@@ -953,3 +1001,15 @@ def _backfill_missing_module_extension_details(final_answer: str, raw_tool_outpu
 
     return final_answer
 
+
+def _strip_irrelevant_inheritance_constraints(final_answer: str, question: str = "") -> str:
+    """Remove unrelated SQL-proof leftovers from inheritance answers."""
+    from code_intelligence.agent.context_extractors import _question_is_inheritance_related
+    if not final_answer or not question or not _question_is_inheritance_related(question):
+        return final_answer
+    return re.sub(
+        r"\n?\s*Précision issue de la preuve SQL\s*:\s*.*?(?=\n\n|\Z)",
+        "",
+        final_answer,
+        flags=re.DOTALL | re.IGNORECASE,
+    ).rstrip()

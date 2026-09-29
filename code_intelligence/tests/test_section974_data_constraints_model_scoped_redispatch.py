@@ -19,6 +19,7 @@ from code_intelligence.agent.context import DispatchContext
 from code_intelligence.agent.predispatch_actions import dispatch_analyze_data_constraints
 from code_intelligence.agent.tools import ALL_CI_TOOLS
 from code_intelligence.graph.loader import get_code_intelligence_graph
+from code_intelligence.rules.data_constraints import DataConstraintsAnalysis
 
 
 class _FakeConcept:
@@ -63,6 +64,48 @@ def test_instruction_names_the_covered_models_instead_of_banning_the_tool_outrig
     assert "Do not call analyze_data_constraints again" not in ctx.system_prompt_suffix
     assert "do not call it again for any of them" in ctx.system_prompt_suffix
     assert "you may call analyze_data_constraints once for that other model" in ctx.system_prompt_suffix
+
+
+def test_dispatcher_records_constraints_for_related_line_model(monkeypatch):
+    graph = G()
+    ctx = _make_ctx(
+        graph,
+        resolved_models=["purchase.order"],
+        question=(
+            "Quelles regles empechent de supprimer une commande d'achat ou une de ses "
+            "lignes selon leur etat, et quelle contrainte SQL distincte s'applique "
+            "sur les lignes elles-memes ?"
+        ),
+        seen_call_models=[],
+    )
+
+    monkeypatch.setattr(
+        "code_intelligence.agent.predispatch_actions.find_model_source_filepaths",
+        lambda _graph, _model: {"/tmp/model.py"},
+    )
+    monkeypatch.setattr(
+        "code_intelligence.agent.predispatch_actions.analyze_data_constraints_from_filepaths",
+        lambda model, _filepaths: DataConstraintsAnalysis(
+            model_name=model,
+            summary_text=f"constraints for {model}",
+        ),
+    )
+    monkeypatch.setattr(
+        "code_intelligence.agent.predispatch_actions.record_evidence",
+        lambda _evidence: None,
+    )
+    monkeypatch.setattr(
+        "code_intelligence.agent.predispatch_actions._resolve_model_param",
+        lambda model: model,
+    )
+
+    dispatch_analyze_data_constraints(ctx)
+
+    assert ctx.tool_observation_models == ["purchase.order", "purchase.order.line"]
+    assert ctx.tool_observations == [
+        "constraints for purchase.order",
+        "constraints for purchase.order.line",
+    ]
 
 
 def test_no_suffix_at_all_when_the_question_is_not_constraint_related():

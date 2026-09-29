@@ -80,6 +80,39 @@ class TestBackfillMissingImpliedIdsMechanism:
         result = _backfill_missing_implied_ids_mechanism(answer, raw_output, question)
         assert result == answer
 
+    def test_skips_security_inheritance_fact_for_accounting_field_visibility(self):
+        raw_output = (
+            "Access Matrix for 'account.move':\n"
+            "[WRITE]: account.group_account_manager "
+            "(via implied_ids <- account.group_account_invoice)"
+        )
+        question = (
+            "Un utilisateur Billing voit-il le compte comptable (account_id) "
+            "d'une ligne de facture ?"
+        )
+        answer = "Non, le champ account_id est restreint dans la vue."
+
+        result = _backfill_missing_implied_ids_mechanism(answer, raw_output, question)
+        assert result == answer
+
+    def test_corrects_false_claim_that_a_read_only_acl_is_non_restrictive(self):
+        raw_output = (
+            "[WRITE]: account.group_account_manager "
+            "(via implied_ids <- account.group_account_invoice)"
+        )
+        question = "group_account_manager peut-il créer des factures ?"
+        answer = (
+            "- L'ACL directe ne limite que la lecture, mais ne restreint pas les opérations "
+            "d'écriture, de création ou de suppression.\n"
+            "- Le groupe hérite d'autres droits."
+        )
+
+        result = _backfill_missing_implied_ids_mechanism(answer, raw_output, question)
+
+        assert "ne limite que la lecture" not in result
+        assert "ACL applicables sont additives" in result
+        assert "account.group_account_invoice" in result
+
 
 class TestGetChatLlmPenaltiesWarning:
     def test_no_warning_when_passing_penalties_in_model_kwargs(self):

@@ -24,7 +24,10 @@ from code_intelligence.agent.access_guards import _flag_ungrounded_group_xmlids
 from code_intelligence.rules.structure import (
     _extract_module_extended_models,
     _correct_module_extension_contradiction,
+    _strip_irrelevant_inheritance_constraints,
+    trace_full_inheritance,
 )
+import networkx as nx
 
 
 # ── Point 2: SAL-Q1 grounding via evaluate_record_rules "(groupes: ...)" ──
@@ -119,6 +122,30 @@ def test_mnt_q3_technical_only_extension_produces_no_raw_dump():
     assert fixed == answer
     assert "res.config.settings" not in fixed
     assert "À noter : ce module étend bien" not in fixed
+
+
+def test_inheritance_answer_drops_unrelated_sql_proof():
+    answer = "Le modèle est nouveau.\n\nPrécision issue de la preuve SQL : state = 'sale' exige date_order."
+    fixed = _strip_irrelevant_inheritance_constraints(
+        answer, "sale.order est-il un nouveau modele ou une extension ? Quel modele natif le module sale etend-il ?"
+    )
+    assert "preuve SQL" not in fixed
+
+
+def test_mixin_trace_exposes_reusable_fields_and_users():
+    graph = nx.DiGraph()
+    graph.add_node("model:demo.mixin", node_type="Model", name="demo.mixin")
+    graph.add_node("model:demo.asset", node_type="Model", name="demo.asset")
+    graph.add_edge("model:demo.asset", "model:demo.mixin", edge_type="EXTENDS")
+    graph.add_node(
+        "field:demo.mixin.shared_date", node_type="Field", model="demo.mixin", name="shared_date"
+    )
+    graph.add_node(
+        "method:demo.mixin._compute_metric", node_type="Method", model="demo.mixin", name="_compute_metric"
+    )
+    result = trace_full_inheritance(graph, "demo.mixin")
+    assert "réutilisable" in result.summary_text
+    assert "shared_date" in result.summary_text
 
 
 def test_acc_q3_business_models_already_cited_produces_no_raw_dump():

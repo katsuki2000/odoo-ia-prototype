@@ -21,7 +21,11 @@ import pytest
 
 from code_intelligence.agent.tools import ALL_CI_TOOLS, analyze_data_constraints
 from code_intelligence.agent.tool_helpers import find_model_source_filepaths, set_graph_ref
-from code_intelligence.rules.data_constraints import SemgrepMatch
+from code_intelligence.rules.data_constraints import (
+    SemgrepMatch,
+    _conditional_check_facts,
+    backfill_missing_conditional_check_facts,
+)
 
 
 @pytest.fixture
@@ -165,3 +169,137 @@ def test_registered_in_all_ci_tools():
 def test_ci_system_prompt_mentions_the_tool():
     from code_intelligence.agent.prompts import CI_SYSTEM_PROMPT
     assert "analyze_data_constraints" in CI_SYSTEM_PROMPT
+
+
+def test_conditional_check_fact_preserves_false_guard_semantics():
+    match = SemgrepMatch(
+        filepath="purchase_order_line.py",
+        start_line=80,
+        end_line=82,
+        check_id="odoo-sql-constraints-declaration",
+        message="SQL constraint.",
+        lines=(
+            "CHECK(display_type IS NOT NULL OR "
+            "(product_id IS NOT NULL AND product_uom IS NOT NULL))"
+        ),
+    )
+
+    facts = _conditional_check_facts(match)
+
+    assert len(facts) == 1
+    assert "display_type IS NOT NULL" in facts[0]
+    assert "when `display_type IS NULL`" in facts[0]
+    assert "Do not swap these branches" in facts[0]
+
+
+def test_conditional_check_facts_extract_all_checks_from_one_constraint_declaration():
+    match = SemgrepMatch(
+        filepath="purchase_order_line.py",
+        start_line=80,
+        end_line=87,
+        check_id="odoo-sql-constraints-declaration",
+        message="SQL constraints.",
+        lines=(
+            "_sql_constraints = ["
+            "('accountable_required_fields', "
+            "'CHECK(display_type IS NOT NULL OR (product_id IS NOT NULL AND "
+            "product_uom IS NOT NULL AND date_planned IS NOT NULL))', ''),"
+            "('non_accountable_null_fields', "
+            "'CHECK(display_type IS NULL OR (product_id IS NULL AND "
+            "price_unit = 0 AND product_uom_qty = 0 AND product_uom IS NULL "
+            "AND date_planned IS NULL))', '')]"
+        ),
+    )
+
+    facts = _conditional_check_facts(match)
+
+    assert len(facts) == 2
+    assert "when `display_type IS NULL`" in facts[0]
+    assert "when `display_type IS NOT NULL`" in facts[1]
+
+
+def test_backfill_missing_conditional_check_fields():
+    evidence = (
+        "[CHECK LOGIC] Exact branch mapping: this SQL CHECK is satisfied when "
+        "either `display_type IS NULL` is true, or `product_id IS NULL AND "
+        "price_unit = 0 AND product_uom_qty = 0` is true. Therefore, when "
+        "`display_type IS NOT NULL`, `product_id IS NULL AND price_unit = 0 "
+        "AND product_uom_qty = 0` must be true. Do not swap these branches."
+    )
+
+    answer = backfill_missing_conditional_check_facts(
+        "La réponse mentionne seulement product_id.", evidence
+    )
+
+    assert "display_type IS NOT NULL" in answer
+    assert "price_unit = 0" in answer
+
+
+def test_backfill_corrects_ambiguous_branch_paraphrase():
+    evidence = (
+        "[CHECK LOGIC] Exact branch mapping: this SQL CHECK is satisfied when "
+        "either `display_type IS NOT NULL` is true, or `product_id IS NOT NULL "
+        "AND product_uom IS NOT NULL AND date_planned IS NOT NULL` is true. "
+        "Therefore, when `display_type IS NULL`, `product_id IS NOT NULL AND "
+        "product_uom IS NOT NULL AND date_planned IS NOT NULL` must be true."
+    )
+
+    answer = backfill_missing_conditional_check_facts(
+        "Si display_type est nul, tous les champs sont non nuls.", evidence
+    )
+
+    assert "product_id IS NOT NULL AND product_uom IS NOT NULL" in answer
+
+
+def test_backfill_uses_raw_check_when_logic_annotation_is_missing():
+    raw_output = (
+        "_sql_constraints = [('x', "
+        "'CHECK(display_type IS NULL OR (price_unit = 0 AND "
+        "product_uom_qty = 0))', '')]"
+    )
+
+    answer = backfill_missing_conditional_check_facts(
+        "La réponse ne précise pas la branche.", raw_output
+    )
+
+    assert "display_type IS NOT NULL" in answer
+    assert "price_unit = 0" in answer
+
+
+def test_backfill_marks_multiple_branches_as_independent():
+    evidence = (
+        "[CHECK LOGIC] Exact branch mapping: when `display_type IS NULL`, "
+        "`product_id IS NOT NULL` must be true.\n"
+        "[CHECK LOGIC] Exact branch mapping: when `display_type IS NOT NULL`, "
+        "`product_id IS NULL` must be true."
+    )
+
+    answer = backfill_missing_conditional_check_facts("Réponse.", evidence)
+
+    assert "branches sont indépendantes" in answer
+
+
+def test_backfill_skips_internal_sql_branch_detail_for_generic_constraint_question():
+    evidence = (
+        "[CHECK LOGIC] Exact branch mapping: when `state = 'sale'`, "
+        "`date_order IS NOT NULL` must be true."
+    )
+    answer = backfill_missing_conditional_check_facts(
+        "La date est obligatoire quand la commande est confirmée.",
+        evidence,
+        question="Quelle contrainte empêche une commande confirmée de ne pas avoir de date ?",
+    )
+    assert answer == "La date est obligatoire quand la commande est confirmée."
+
+
+def test_backfill_keeps_exact_sql_detail_when_question_requests_sql():
+    evidence = (
+        "[CHECK LOGIC] Exact branch mapping: when `state = 'sale'`, "
+        "`date_order IS NOT NULL` must be true."
+    )
+    answer = backfill_missing_conditional_check_facts(
+        "La commande confirmée doit avoir une date.",
+        evidence,
+        question="Quelle contrainte SQL impose cette règle ?",
+    )
+    assert "date_order IS NOT NULL" in answer

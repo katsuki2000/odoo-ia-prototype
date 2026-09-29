@@ -5,9 +5,88 @@ Data structures and evidence generation for Odoo button execution paths and UI f
 """
 
 from dataclasses import dataclass, field
+import re
 from typing import List, Optional, Set
 
 from core.evidence.evidence import Evidence, EvidenceSourceType, make_evidence
+
+
+def correct_button_role_contradictions(final_answer: str, raw_tool_output: str) -> str:
+    """Clarify manager claims that contradict a button's required group."""
+    pattern = re.compile(
+        r"Button\s+'[^']+'[^\n]*Calls\s+'([A-Za-z_][A-Za-z0-9_]*)\(\)'[^\n]*"
+        r"Required Groups:\s*\[([^\]]*)\]",
+        re.IGNORECASE,
+    )
+    corrected = final_answer
+    for method_name, required_groups in pattern.findall(raw_tool_output):
+        if method_name not in corrected or "manager" not in corrected.lower():
+            continue
+        if "manager" in required_groups.lower():
+            continue
+        for block in re.split(r"\n\s*\n", corrected):
+            if method_name not in block or "manager" not in block.lower():
+                continue
+            clarification = (
+                f"Précision déterministe : le chemin de `button_execution_path` pour "
+                f"`{method_name}()` indique les groupes requis "
+                f"`{required_groups.strip() or 'aucun'}` ; il ne permet pas d'attribuer "
+                "cette action au groupe manager sans preuve supplémentaire."
+            )
+            lines = block.splitlines()
+            replaced = False
+            for index, line in enumerate(lines):
+                if method_name in line and "manager" in line.lower():
+                    prefix = "- " if line.lstrip().startswith(("-", "*")) else ""
+                    lines[index] = prefix + clarification
+                    replaced = True
+            replacement = "\n".join(lines)
+            if replaced:
+                has_markdown_heading = any(
+                    re.match(r"^\s*(?:#+\s|\d+\.\s+\*\*)", line)
+                    for line in lines
+                )
+                substantive_lines = [
+                    line for line in lines
+                    if line.strip()
+                    and not re.match(r"^\s*(?:\d+\.\s+)?#+\s|^\s*\d+\.\s+\*\*", line)
+                    and "Précision déterministe" not in line
+                ]
+                corrected = corrected.replace(
+                    block,
+                    "" if has_markdown_heading and not substantive_lines else replacement,
+                    1,
+                )
+                corrected = re.sub(r"\n{3,}", "\n\n", corrected).strip()
+    return corrected
+
+
+def correct_button_visibility_contradictions(final_answer: str, raw_tool_output: str) -> str:
+    """Correct an inverted interpretation of a button's invisible expression."""
+    match = re.search(
+        r"Visibility:\s*invisible\s*=\s*['\"]?\s*([\w.]+)\s*!=\s*['\"]([^'\"]+)['\"]",
+        raw_tool_output,
+        re.IGNORECASE,
+    )
+    if not match or not re.search(r"invers|erron", final_answer, re.IGNORECASE):
+        return final_answer
+    field_name, visible_state = match.groups()
+    blocks = re.split(r"\n\s*\n", final_answer)
+    blocks = [
+        block for block in blocks
+        if not re.search(
+            r"^\s*\d+\.\s+\*\*Condition de visibilité (?:inversée|erronée)\*\*",
+            block,
+            re.IGNORECASE,
+        )
+    ]
+    corrected = "\n\n".join(blocks).rstrip()
+    fact = (
+        f"[FAIT DÉTERMINISTIQUE -- VISIBILITÉ DU BOUTON] La condition `invisible` "
+        f"est `{field_name} != '{visible_state}'` : le bouton est donc visible "
+        f"lorsque `{field_name} == '{visible_state}'`, sous réserve de ses groupes requis."
+    )
+    return corrected + "\n\n" + fact
 
 
 @dataclass

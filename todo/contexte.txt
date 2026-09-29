@@ -4798,3 +4798,355 @@ Tests : la version precedente du prompt avait passe les tests cibles ; le nouvea
 Le rejeu suivant avec `gpt-oss:20b` a precise la cause de `PUR-Q5` : `tools_used` ne contenait aucun `analyze_security_locks`, alors que le modele principal et sa relation one2many vers les lignes etaient connus dans le graphe. Root cause : `security_locks_targets()` ne conservait que les sources de securite custom et le dispatcher ne traitait que le premier modele ; le LLM devait donc decouvrir seul le garde natif de suppression des lignes.
 
 Correctif applique : pour une question explicitement orientee suppression de lignes liees, le predicate etend deterministement les cibles aux comodels des champs relationnels du modele resolu et inclut leurs sources natives, puis le dispatcher analyse chaque cible. Le comportement par defaut reste limite aux sources custom et a une seule cible pour les autres questions. Test ajoute : `code_intelligence/tests/test_related_security_dispatch.py`.
+
+## Section 991 : Correction du second manque de couverture PUR-Q5 -- `analyze_data_constraints` n'analysait toujours que `purchase.order` (2026-09-29)
+
+Contexte : rejeu N1 Q5 execute par pmm apres les reglages Ollama/Qwen. Le volet suppression etait correct car `analyze_security_locks` ciblait bien `purchase.order` puis `purchase.order.line`, mais le volet SQL restait faux. Verification du trace reel `captures/reasoning_trace.jsonl` : pour le trace `932ff64c9294`, hop 0 = `analyze_security_locks(purchase.order)`, hop 1 = `analyze_security_locks(purchase.order.line)`, hop 2 = `analyze_data_constraints(purchase.order)` ; aucun appel `analyze_data_constraints(purchase.order.line)`. Le modele ne pouvait donc pas restituer `accountable_required_fields`/`non_accountable_null_fields` dans ce rejeu. Ce fait corrige le diagnostic precedent : la temperature, `num_ctx` et le KV cache ne sont pas la cause de ce cas precis.
+
+Root cause code : `dispatch_analyze_data_constraints()` dans `code_intelligence/agent/predispatch_actions.py` iterait directement sur `ctx.concept.resolved_models`, qui ne contenait que `purchase.order`. La detection generique des comodels de lignes existait deja dans `forced_dispatch_predicates.py::_related_line_models()` et etait deja consommee par `security_locks_targets()`, mais pas par le dispatcher SQL. L'instruction ajoutee au suffixe LLM en section 974 autorisait seulement un appel ulterieur ; elle ne garantissait pas cet appel.
+
+Correctif applique : ajout de `data_constraints_targets(concept, G, question)` dans `forced_dispatch_predicates.py`, reutilisant `_related_line_models()` et activant l'extension lorsque la question mentionne une ligne/detail. `dispatch_analyze_data_constraints()` utilise desormais cette cible partagee et nomme tous les modeles effectivement couverts dans son suffixe de synthese. Le comportement reste inchange pour les questions sans modele de ligne : un seul modele resolu est analyse.
+
+Tests ajoutes : (1) la cible SQL d'une question commande+lignes contient `purchase.order` et `purchase.order.line` ; (2) une question sans lignes reste mono-modele ; (3) le dispatcher enregistre effectivement les deux observations dans le contexte. Verification : suite ciblee `36 passed` (predispatch/contraintes/gardes/synthese), puis suite dispatch coherence `15 passed`; `py_compile` propre pour les deux fichiers sources modifies. Aucun fichier utilisateur preexistant (`captures/*`, notebook Kaggle) n'a ete reverti ni modifie par ce correctif.
+
+Ce qui reste a verifier : rejeu reel de `PUR-Q5` apres ce correctif. Le trace devra montrer `analyze_data_constraints(purchase.order.line)` et la reponse devra citer les deux CHECK SQL avec les branches `display_type IS NULL` / `display_type IS NOT NULL`. Le defaut de synthese observe en section 981/982 lorsque la preuve ligne etait effectivement presente reste un risque distinct ; il ne doit pas etre confondu avec le manque de couverture corrige ici.
+
+## Section 992 : Rejeu PUR-Q5 apres correction du dispatch SQL -- couverture CONFIRMEE, inversion des branches SQL reproduite (2026-09-29)
+
+Contexte : pmm rejoue `python scripts/run_bloc_n1_benchmark.py PUR-Q5` apres la section 991. Le trace `b5c154c27256` confirme quatre hops : `analyze_security_locks(purchase.order)`, `analyze_security_locks(purchase.order.line)`, `analyze_data_constraints(purchase.order)` puis `analyze_data_constraints(purchase.order.line)` (`captures/reasoning_trace.jsonl`, dernier bloc avant le SUMMARY). Le correctif de couverture est donc effectif en conditions reelles ; la troncature signalee concerne uniquement l'observation `analyze_security_locks(purchase.order)`, pas l'observation SQL de la ligne.
+
+Defaut restant : la synthese Qwen inverse les predicates des deux contraintes SQL. Elle affirme `display_type non nul = ligne comptable` et `display_type nul = ligne non comptable`, alors que la preuve/reponse de reference impose l'inverse : `display_type IS NULL` = ligne comptable avec `product_id`, `product_uom`, `date_planned` renseignes ; `display_type IS NOT NULL` = ligne section/note avec `product_id`, `price_unit`, `product_uom_qty`, `product_uom`, `date_planned` NULL ou 0. La phrase d'etat et les deux gardes de suppression sont, elles, restituees correctement.
+
+Diagnostic : ce rejeu elimine le manque de contexte comme cause de PUR-Q5 -- la bonne observation `purchase.order.line` est presente avant synthese et le modele commet exactement l'inversion structurelle deja cataloguee en section 990. Le prochain correctif doit rester transversal aux contraintes conditionnelles : ne pas reparaphraser les branches depuis la prose, mais conserver la correspondance predicate -> champs (ou declencher une validation/reformulation deterministe si la reponse inverse NULL/non-NULL). Aucun nouveau code source modifie ce tour ; seule cette section de contexte a ete ajoutee.
+
+## Section 993 : Renforcement generique des preuves SQL conditionnelles contre l'inversion des branches (2026-09-29)
+
+Mandat : corriger l'inversion `NULL`/`non-NULL` observee en section 992, sans patcher `purchase.order.line` ni dependre de la temperature ou du modele. Le probleme venait du format de preuve : l'analyseur exposait le SQL brut `CHECK(guard OR condition)` dans un bloc de code, puis la synthese devait en deduire seule quelle condition s'applique lorsque le guard est faux.
+
+Correctif : `code_intelligence/rules/data_constraints.py` extrait maintenant, pour les declarations SQL `CHECK` dont la forme contient un `OR` de niveau superieur, une ligne deterministe `[CHECK LOGIC]`. Elle explicite la semantique generale : la contrainte est satisfaite si le guard est vrai ou si la condition est vraie ; la condition est donc obligatoire lorsque le guard est faux. Cette logique transforme correctement, sans nom de modele ni champ code en dur, `CHECK(display_type IS NOT NULL OR (...))` en une condition applicable quand `display_type IS NULL`, et l'autre branche de `purchase.order.line` de maniere symetrique.
+
+Le contrat de synthese (`code_intelligence/agent/prompts.py`) declare `[CHECK LOGIC]` autoritaire et interdit de recalculer le mapping depuis le nom de contrainte ou la connaissance generale Odoo. Tests ajoutes dans `code_intelligence/tests/test_analyze_data_constraints.py` sur l'extraction de la semantique du guard faux.
+
+Verification : 43 tests fonctionnels cibles passes (analyseur, evidence, synthese, anti-hallucination), `py_compile` propre. Les 3 tests d'integration Semgrep (`test_semgrep_runner.py`) restent bloques localement par l'environnement qui interdit a Semgrep d'ecrire dans `/home/user/.semgrep` ; ce n'est pas une regression du code et le meme blocage avait deja ete observe hors de ce correctif. Aucun fichier utilisateur non lie n'a ete reverti.
+
+Prochaine verification : rejouer `PUR-Q5` en conditions reelles et confirmer que les deux phrases deviennent `display_type IS NULL` -> champs comptables requis et `display_type IS NOT NULL` -> champs non comptables NULL/0. Si Qwen inverse encore malgre `[CHECK LOGIC]`, l'etape suivante sera un validateur de synthese generique branche sur ces faits structures, pas une nouvelle consigne textuelle.
+
+## Section 994 : Suite complete apres renforcement des contraintes SQL -- verte (2026-09-29)
+
+Validation executee par pmm avec `pytest` depuis la racine du projet : `2011` tests collectes, **1972 passed, 39 skipped, 0 failed**, deux warnings non bloquants. La suite inclut `test_analyze_data_constraints.py`, les tests d'evidence, les dispatchers lies et les tests de synthese. Le correctif des faits `[CHECK LOGIC]` n'introduit donc aucune regression detectee par la suite complete.
+## Section 995 : PUR-Q5 apres couverture complete -- inversion persistante des branches SQL par la synthese Qwen
+
+Date : 29/09/2026
+Contexte : nouveau rejeu de `PUR-Q5` apres la correction de couverture de la section 992 et le passage de la suite complete (1972 passed, 39 skipped, 0 failed).
+
+**Constat** : la trace du rejeu confirme les quatre observations attendues, dans cet ordre : `analyze_security_locks(purchase.order)`, `analyze_security_locks(purchase.order.line)`, `analyze_data_constraints(purchase.order)` et `analyze_data_constraints(purchase.order.line)`. La preuve SQL sur `purchase_order_line.py:L80-L87` est donc bien extraite et routée. La reponse finale inverse encore les deux branches `display_type IS NULL` / `display_type IS NOT NULL`. Ce n'est ni un defaut de temperature, ni un defaut de fenetre de contexte, ni un defaut de dispatch : c'est une erreur de transformation de la preuve deterministe par le LLM Writer.
+
+**Correction generique** : `_conditional_check_facts()` dans `code_intelligence/rules/data_constraints.py` expose maintenant la negation explicite du garde SQL (`IS NOT NULL` devient `IS NULL`, et inversement) et formule la correspondance complete : quand le garde est faux, la condition de droite doit etre vraie. La sortie contient aussi une instruction explicite de ne pas inverser les branches. Aucun nom de modele ou regle purchase n'est code en dur.
+
+**Validation** : 33 tests cibles passes (`test_analyze_data_constraints`, evidence, anti-hallucination et redispatch). Le test existant verrouille desormais la presence de la branche explicite `display_type IS NULL`.
+
+**Limite** : cette correction rend la preuve plus difficile a mal lire, mais ne constitue pas une garantie formelle sur toute synthese LLM. Un rejeu Kaggle de `PUR-Q5` reste necessaire pour mesurer si Qwen respecte cette preuve renforcee.
+## Section 996 : PUR-Q5 -- seconde contrainte SQL omise par l'enrichissement, extraction multi-CHECK corrigee
+
+Date : 29/09/2026
+Contexte : rejeu apres la section 995. Qwen respecte desormais la premiere branche SQL mais omet encore `non_accountable_null_fields`.
+
+**Root cause** : le resultat Semgrep regroupe les deux tuples `_sql_constraints` de `purchase.order.line` dans un seul finding. L'enrichissement ajoute un fait `[CHECK LOGIC]` pour le premier `CHECK(...)` seulement ; la preuve brute contient les deux, mais le LLM ne reçoit pas une interpretation explicite du second et le laisse tomber dans la synthese.
+
+**Correction generique** : remplacement de l'extraction mono-CHECK par une extraction de tous les `CHECK(...)` equilibres dans le finding, avec un fait de branche independant pour chacun. Aucun modele, nom de contrainte ou chemin machine n'est code en dur.
+
+**Validation** : 34 tests cibles passes et compilation Python propre. Le nouveau test verifie qu'une declaration unique contenant deux CHECK produit exactement deux mappings explicites, dont les branches `display_type IS NULL` et `display_type IS NOT NULL`.
+
+**Prochaine verification** : rejouer `PUR-Q5` sur Kaggle/Qwen et verifier que les deux contraintes sont presentes, avec la seconde imposant `product_id`, `price_unit`, `product_uom_qty`, `product_uom` et `date_planned` a NULL ou 0 pour `display_type IS NOT NULL`.
+## Section 997 : PUR-Q5 -- garde post-synthese generique contre l'omission d'une branche SQL
+
+Date : 29/09/2026
+Contexte : apres la section 996, le rejeu Qwen restitue toujours la premiere branche mais omet `non_accountable_null_fields`, malgre les faits multi-CHECK presentes dans l'observation.
+
+**Diagnostic final** : l'extraction et le dispatch sont corrects ; le LLM Writer compresse selectivement une preuve deterministe et perd un finding. Ce n'est pas un probleme de temperature, de `num_ctx` ou de KV cache.
+
+**Correction** : ajout de `backfill_missing_conditional_check_facts()` dans `code_intelligence/rules/data_constraints.py`, appele par la chaine commune de post-traitement. Le garde lit les faits `[CHECK LOGIC]`, compare leurs champs distinctifs aux tokens techniques de la reponse et reinjecte toute branche omise. Le mecanisme est generique pour les CHECK conditionnels et ne connait aucun modele, module ou chemin local.
+
+**Validation** : 41 tests cibles passes, compilation Python propre. Le cas de test couvre l'omission de `price_unit` et `product_uom_qty`.
+
+**Prochaine etape** : rejeu reel de `PUR-Q5` ; la reponse doit contenir les deux branches SQL. Si elle les contient, le defaut Writer est traite par le garde deterministe sans augmenter la fenetre de contexte.
+## Section 998 : PUR-Q5 -- contradiction residuelle lors de la fusion des deux CHECK
+
+Date : 29/09/2026
+Contexte : le rejeu apres le garde de la section 997 restitue bien les deux familles de champs, mais les fusionne en une paraphrase incorrecte : il attribue aussi `price_unit` et `product_uom_qty` a la branche `display_type IS NULL` comme champs obligatoires non nuls.
+
+**Root cause residuelle** : le garde precedent verifiait seulement que les noms de champs de chaque branche apparaissaient dans la reponse. Il ne verifiait pas que le predicat SQL complet (`IS NULL`, `IS NOT NULL`, `= 0`) etait preserve. Le LLM pouvait donc citer tous les champs tout en melangeant leurs branches.
+
+**Correction** : une branche est maintenant reinjectee si son predicat SQL exact n'apparait pas dans la reponse finale, meme si tous ses noms de champs sont deja presents. La preuve deterministe explicite donc les valeurs et operateurs exacts et previent la fusion des branches.
+
+**Validation** : test ajoute pour une paraphrase ambiguë ; les tests cibles restent a rejouer apres cette modification.
+## Section 999 : PUR-Q5 -- fallback d'integration sur les CHECK bruts
+
+Date : 29/09/2026
+Contexte : le rejeu apres la section 998 ne montre toujours pas la precision SQL ajoutee. Les tests unitaires du garde passaient, mais ils alimentaient directement `[CHECK LOGIC]`; ils ne couvraient pas l'observation brute telle qu'elle arrive au post-traitement.
+
+**Correction** : `backfill_missing_conditional_check_facts()` reconstruit maintenant les branches depuis les expressions `CHECK(...)` brutes lorsque les annotations `[CHECK LOGIC]` sont absentes du `scoped_tool_output`. Le comportement reste generique et fail-safe : aucune correction n'est ajoutee si aucune expression conditionnelle n'est detectee.
+
+**Validation** : test d'integration unitaire ajoute pour une declaration `_sql_constraints` brute sans annotation ; les tests cibles doivent etre relances avant le prochain rejeu reel.
+## Section 1000 : PUR-Q5 -- cause finale du garde inactif : filtrage des modeles au post-traitement
+
+Date : 29/09/2026
+Contexte : le fallback brut de la section 999 ne changeait pas le rejeu. La trace confirmait pourtant les appels `analyze_data_constraints` sur `purchase.order` et `purchase.order.line`.
+
+**Root cause finale** : `build_final_response()` construisait `scoped_tool_output` avec `concept.resolved_models`. Le concept initial ne contenait que `purchase.order`; l'observation deterministe correcte de `purchase.order.line` etait donc exclue du garde post-synthese, bien qu'elle ait ete envoyee au Writer.
+
+**Correction** : extraction d'un flux `constraint_tool_output` dedie, compose uniquement des observations dont l'outil est `analyze_data_constraints`. Le garde SQL travaille maintenant sur toutes les cibles contraintes effectivement executees, sans elargir les autres gardes ni melanger les observations de securite.
+
+**Validation** : 43 tests cibles deja verts avant ce changement ; le rejeu reel `PUR-Q5` doit maintenant verifier l'apparition de la precision SQL exacte.
+## Section 1001 : PUR-Q5 -- predicates exacts reinjectes, clarification anti-fusion ajoutee
+
+Date : 29/09/2026
+Contexte : le rejeu apres la section 1000 affiche les deux CHECK exacts. Le texte principal de Qwen contient encore une paraphrase trop large qui fusionne les champs des deux branches, mais la precision deterministe finale donne les predicates corrects.
+
+**Correction finale de presentation** : lorsque plusieurs branches SQL sont reinjectees, le garde ajoute explicitement qu'elles sont independantes et que les predicates exacts priment sur toute paraphrase generale. Cela rend la reponse non ambigue sans modifier le modele ni coder le cas purchase.
+
+**Validation** : test ajoute pour les branches multiples ; la suite ciblee doit etre relancee avant le prochain rejeu.
+## Section 1002 : Rejeu N1 Q1 -- deux defauts confirmes et corrections structurelles
+
+Date : 29/09/2026
+Contexte : rejeu `MNT-Q1 SAL-Q1 PUR-Q1 STK-Q1 ACC-Q1`. MNT-Q1 et SAL-Q1 sont globalement conformes ; PUR-Q1 derive vers des boutons/etats hors sujet ; STK-Q1 declare l'acces `stock.quant` indetermine alors que l'ACL `base.group_user` accorde la lecture ; ACC-Q1 est interrompu par une erreur de connexion transitoire.
+
+**Correction STK-Q1** : `dispatch_who_has_access_to()` limitait les cibles a `[:1]`, donc une question portant sur plusieurs modeles ne recevait qu'une observation ACL. La limite est supprimee ; toutes les cibles resolues sont analysees. Test ajoute pour `stock.quant` + `stock.move.line`.
+
+**Correction PUR-Q1** : quand la synthese omet le garde Python `_approval_allowed()`, le post-traitement extrait des observations source les conditions litterales detectees (`one_step`, `two_step` + seuil `po_double_validation_amount`, et groupe trouve dans `has_group()`/`user_has_groups()`) et les reinjecte comme fait deterministe. Le garde ne depend d'aucun modele ou groupe code en dur ; il ne s'active que si `_approval_allowed()` est effectivement present dans la preuve et si la question porte sur les permissions/groupes.
+
+**Validation** : 30 tests cibles passes. ACC-Q1 reste a rejouer apres resolution de la connexion transitoire.
+## Section 1003 : PUR-Q1 -- extraction du garde limitee au corps de la methode
+
+Date : 29/09/2026
+Contexte : durcissement immediat de la correction 1002 avant rejeu reel.
+
+Le backfill `_approval_allowed()` ne scanne plus toute l'observation pour trouver un groupe `has_group()`/`user_has_groups()`. Il delimite maintenant la zone depuis `_approval_allowed` jusqu'a la methode suivante (ou une borne de securite), afin d'eviter de reprendre un groupe sans rapport dans une instance Odoo contenant beaucoup de verrous.
+
+Validation : 29 tests de securite/dispatch passes et compilation propre.
+## Section 1004 : STK-Q1/PUR-Q1 -- pertes de cible du resolver et condition de backfill trop faible
+
+Date : 29/09/2026
+Contexte : le rejeu apres 1002 a montre que STK-Q1 ne produisait toujours qu'un appel pour `stock.move.line`, et que PUR-Q1 citait `_approval_allowed()` sans restituer ses criteres.
+
+**STK-Q1 root cause** : `resolve_business_term()` appelait `rank_by_specificity()` sur les mentions techniques exactes, puis cette fonction ne conservait que le score maximal. `stock.move.line` eliminait ainsi `stock.quant` uniquement parce qu'il avait plus de segments, alors que les deux modeles etaient explicitement cites. Le classement preserve maintenant tous les modeles et ne sert qu'a ordonner le dispatch.
+
+**PUR-Q1 root cause** : le backfill considerait la presence du seul nom `_approval_allowed` comme suffisante, meme si les conditions `one_step`, `two_step`, le seuil et le groupe etaient absents. Il verifie maintenant les tokens techniques constitutifs et reinjecte les criteres manquants.
+
+**Validation** : 78 tests cibles passes. Rejeu reel necessaire pour confirmer STK-Q1 avec deux appels ACL et PUR-Q1 avec le fait deterministe complet.
+## Section 1005 : PUR-Q1 -- contradiction button_execution_path / synthese clarifiee
+
+Date : 29/09/2026
+Contexte : rejeu apres 1004. PUR-Q1 restitue correctement `_approval_allowed()` et ses trois conditions, mais ajoute encore que `confirm_reminder_mail()` serait accessible aux managers.
+
+**Correction** : ajout d'un garde generique qui compare les groupes requis declares par `button_execution_path` aux affirmations de role dans la synthese. Lorsqu'une methode est presente avec un groupe requis qui ne contient pas `manager`, une precision deterministe interdit d'attribuer l'action au manager sans preuve. Aucun nom de methode, groupe ou modele n'est code en dur.
+
+**Validation** : 79 tests cibles passes. Le prochain rejeu PUR-Q1 doit verifier l'absence de la conclusion manager non supportee ; les faits `_approval_allowed()` et `button_unlock()` restent conserves.
+## Section 1006 : PUR-Q1 -- remplacement de la phrase de bouton contradictoire
+
+Date : 29/09/2026
+Contexte : le garde de la section 1005 detectait la contradiction sur `confirm_reminder_mail()` mais conservait la phrase fautive et ajoutait seulement une precision.
+
+**Correction** : la ligne qui attribue une methode a un manager alors que `button_execution_path` declare un autre groupe requis est maintenant remplacee par le verdict determine. Le texte final ne conserve plus simultanement l'affirmation contredite et sa correction.
+
+**Validation** : test renforce pour verifier la disparition de la phrase contradictoire ; rejeu PUR-Q1 requis.
+
+## Section 1007 : Q2 -- modèle primaire et branches métier perdues
+
+Date : 29/09/2026
+Contexte : le rejeu Q2 a révélé trois erreurs de synthèse indépendantes. SAL-Q2 résolvait `action_confirm` vers plusieurs modèles partageant ce nom de méthode (`stock.track.confirmation`, `stock.picking`, `hr.leave`) et le plafond de trois modèles éliminait la preuve utile de `sale.order`. STK-Q2 résumait toute validation partielle comme une création automatique de backorder. ACC-Q2 confondait l'exemption de période avec la clôture d'exercice.
+
+**Corrections** :
+
+- Le resolver distingue désormais une mention littérale de modèle d'une inférence issue d'un nom de méthode/bouton. Les alias métier explicites sont prioritaires avant cette inférence, ce qui conserve `sale.order` pour une question de commande de vente contenant `action_confirm`.
+- Le post-traitement réinjecte, quand les preuves source sont présentes, le garde `_should_be_locked()` : `action_lock()` n'est appliqué qu'aux commandes dont le créateur possède le groupe détecté par `create_uid.has_group(...)`.
+- Le post-traitement réinjecte les trois branches de `picking_type_id.create_backorder` (`never`, `always`, `ask`) et retire l'affirmation globale d'automaticité.
+- Le post-traitement distingue `period_lock_date` de `fiscalyear_lock_date` : le groupe manager peut être exempté du verrou de période, mais `_check_fiscalyear_lock_date()` bloque toujours une date antérieure ou égale à la clôture d'exercice.
+
+Ces gardes extraient les identifiants et conditions de l'observation source ; ils ne dépendent pas d'un chemin machine, d'un identifiant numérique ou d'une instance particulière.
+
+**Validation** : resolver et gardes Q2 validés par 24 tests ciblés ; rejeu réseau SAL/STK/ACC encore nécessaire.
+
+## Section 1008 : Q2 -- suppression des contradictions résiduelles
+
+Date : 29/09/2026
+Contexte : le rejeu Q2 a bien fait apparaître les faits déterministes, mais la synthèse conservait encore des affirmations incompatibles : SAL-Q2 présentait le groupe du créateur comme une option globale ; STK-Q2 affirmait toujours qu'un backorder était automatiquement créé ; ACC-Q2 conservait un paragraphe laissant entendre que le Billing Administrator pouvait poster avant la clôture.
+
+**Correction** : les gardes Q2 suppriment maintenant les lignes contradictoires avant d'ajouter le fait source. Le résultat final ne doit plus contenir simultanément une affirmation globale et la règle conditionnelle extraite du code.
+
+**Validation** : 13 tests ciblés et compilation Python passent. Le rejeu complet Q2 suivant doit vérifier le texte final sur SAL-Q2, STK-Q2 et ACC-Q2.
+
+## Section 1009 : PUR-Q2 -- alias générique prioritaire sur button_confirm
+
+Date : 29/09/2026
+Contexte : le rejeu a montré que PUR-Q2 était analysé comme `sale.order` : l'alias générique `commande` gagnait alors que `button_confirm` ne renvoyait qu'un modèle parent `purchase.order`. La réponse reprenait donc des effets propres à la vente.
+
+**Correction** : lorsqu'un nom de méthode/bouton fournit un unique modèle parent, ce modèle technique prime sur un alias métier générique. Les symboles partagés restent différés au profit de l'alias métier afin de conserver `sale.order` pour SAL-Q2 (`action_confirm`).
+
+**Validation** : 14 tests ciblés passent ; sur le graphe actif, PUR-Q2 résout `purchase.order` et SAL-Q2 résout `sale.order`.
+
+## Section 1010 : Q2 -- contradictions de présentation après preuve correcte
+
+Date : 29/09/2026
+Contexte : le rejeu suivant a confirmé le bon routage de PUR-Q2 et la bonne preuve pour SAL/STK/ACC, mais le texte généré conservait des blocs contradictoires autour des faits déterministes.
+
+**Correction** : suppression des blocs de synthèse qui affirmaient encore un backorder systématique, une configuration globale au lieu du groupe du créateur, ou une conclusion ambiguë sur la société mère. Les faits source restent ajoutés uniquement lorsque leurs tokens sont présents dans les observations.
+
+**Validation** : 14 tests ciblés et compilation Python passent. Un nouveau rejeu Q2 est recommandé pour vérifier le rendu verbatim final.
+
+## Section 1011 : Q3 -- enrichissement de la preuve d'héritage
+
+Date : 29/09/2026
+Contexte : le rejeu Q3 était globalement correct sur les extensions hors périmètre, mais MNT-Q3 décrivait `maintenance.mixin` avec des formulations spéculatives et SAL-Q3 conservait une précision SQL sans rapport avec une question d'héritage. ACC-Q3 exposait en outre une citation inline fabriquée, correctement signalée par le garde de sourcing.
+
+**Correction** :
+
+- `trace_full_inheritance()` enrichit maintenant les mixins réutilisables avec les champs, méthodes et modèles utilisateurs réellement présents dans le graphe.
+- Les précisions SQL résiduelles sont retirées des réponses classées héritage ; elles ne sont pas pertinentes pour cette intention.
+- Le garde de citation reste fail-closed : une citation non vérifiée est signalée, jamais considérée comme preuve.
+
+**Validation** : 23 tests ciblés et compilation Python passent.
+
+## Section 1013 : Q4 -- interprétation inversée des boutons et contamination UI
+
+Date : 29/09/2026
+Contexte : MNT-Q4, SAL-Q4 et STK-Q4 sont conformes. PUR-Q4 inversait la condition `invisible='state != "to approve"'` et concluait à tort que le bouton était caché au bon état. ACC-Q4 recevait en plus des faits déterministes provenant de gardes de sécurité sans rapport avec une question de visibilité de champ.
+
+**Correction** :
+
+- La condition UI extraite de `button_execution_path` est maintenant réinterprétée déterministiquement : `invisible = state != 'to approve'` signifie visibilité lorsque `state == 'to approve'`, sous réserve du groupe requis.
+- Le backfill `implied_ids` est limité aux questions de distinction de sécurité ; il ne pollue plus les questions UI.
+- Le backfill des dates de clôture exige désormais que la question porte explicitement sur une lock date/clôture ; la simple présence du code fiscal dans une observation ne suffit plus.
+
+**Validation** : 25 tests ciblés et compilation Python passent.
+
+## Section 1014 : PUR-Q4 -- variante de formulation de la condition UI
+
+Date : 29/09/2026
+Contexte : le rejeu PUR-Q4 conservait encore le texte erroné « condition de visibilité erronée » malgré le fait déterministe indiquant correctement que `state != 'to approve'` rend le bouton visible lorsque `state == 'to approve'`. Le garde initial ne ciblait que l'intitulé « inversée ».
+
+**Correction** : le remplacement reconnaît désormais les variantes `inversée` et `erronée`, avec un numéro de liste variable, puis conserve uniquement l'interprétation déterministe issue du chemin UI.
+
+**Validation** : 11 tests ciblés et compilation Python passent. Le rejeu SAL-Q4 reste à refaire après l'erreur de connexion transitoire.
+
+## Section 1015 : PUR-Q4/ACC-Q4 -- garde UI encore non appliqué et escalades hors sujet
+
+Date : 29/09/2026
+Contexte : le rejeu suivant a montré que PUR-Q4 conservait encore la phrase « condition de visibilité inversée » malgré le fait déterministe correct. La cause était un remplacement par bloc trop strict dans une synthèse dont la structure Markdown variait. ACC-Q4 conservait aussi une note `account_move_see_all`, pertinente pour une question ACL mais pas pour la visibilité d'un champ.
+
+**Correction** :
+
+- Le nettoyage de la contradiction UI travaille maintenant par blocs Markdown et reconnaît les intitulés `inversée` et `erronée`.
+- Les backfills d'escalade `implied_ids` et de règle « all documents » ignorent les questions UI (`champ`, `bouton`, visibilité, interface), afin de ne pas mélanger droits de modèle et visibilité de vue.
+
+**Validation** : 30 tests ciblés et compilation Python passent.
+
+## Section 1016 : ACC-Q4 -- formulation de visibilité sans mot « champ »
+
+Date : 29/09/2026
+Contexte : le rejeu Q4 confirmait que la réponse principale d'ACC-Q4 était correcte, mais conservait encore les faits `implied_ids` et « all documents ». La question disait « voit-il le compte comptable ... d'une ligne de facture » et ne contenait donc aucun des marqueurs UI déjà filtrés (`champ`, `bouton`, `visible`, etc.). Les backfills de sécurité la traitaient à tort comme une question ACL.
+
+**Correction** : le prédicat partagé de détection des questions d'accès UI reconnaît maintenant aussi les formulations métier « compte comptable » et « ligne de facture ». Les faits de sécurité restent disponibles pour les questions ACL, sans polluer les questions de visibilité de champ.
+
+**Validation** : 43 tests ciblés passent, incluant les régressions `implied_ids`, escalade de groupe, contradictions UI et les corrections Q2.
+
+## Section 1017 : MNT-Q5/SAL-Q5 -- modèle de champ dominant et détail SQL hors intention
+
+Date : 29/09/2026
+Contexte : le rejeu Q5 attribuait encore la contrainte `serial_no` à `maintenance.request`, alors que la question demandait deux modèles (`maintenance.equipment` pour l'unicité du numéro de série et `maintenance.request` pour `repeat_interval`). Le résolveur avait retenu le modèle du champ spécifique `repeat_interval` et court-circuitait les alias métier explicites du reste de la question. Le même rejeu ajoutait à SAL-Q5 un bloc `[CHECK LOGIC]` interne, alors que la question demandait la règle métier et non la forme SQL exacte.
+
+**Corrections** :
+
+- Lorsqu'une résolution par symbole provient d'un champ non générique, les alias métier explicites distincts sont fusionnés dans la cible au lieu d'être ignorés. Les méthodes/boutons uniques conservent leur priorité sur les alias génériques.
+- Le backfill des branches SQL conditionnelles accepte maintenant la question comme contexte. Il est conservé pour une demande explicite de SQL/CHECK/prédicat/branche, et ignoré pour une question de contrainte métier générale. Les appels sans contexte gardent leur comportement historique pour les tests et usages internes.
+
+**Validation** : 79 tests ciblés et compilation Python passent. Rejeu MNT-Q5 recommandé pour vérifier que deux observations `analyze_data_constraints` sont bien dispatchées et que chaque contrainte reste rattachée à son modèle.
+
+## Section 1012 : SAL-Q3 -- nettoyage SQL déplacé en dernière étape
+
+Date : 29/09/2026
+Contexte : malgré le nettoyage des résidus SQL dans les réponses d'héritage, SAL-Q3 en affichait encore une précision `date_order` après le rejeu. Le nettoyage était exécuté avant plusieurs backfills aval, qui pouvaient réintroduire le bloc.
+
+**Correction** : `_strip_irrelevant_inheritance_constraints()` est maintenant appelé juste avant le retour final de la chaîne de backfill. Le garde reste limité aux questions d'héritage et supprime uniquement le bloc SQL hors intention.
+
+**Validation** : 23 tests ciblés et compilation Python passent.
+
+## Section 1018 : MNT-Q5/SAL-Q5 -- attribution des preuves par modele et bornes des contraintes Python
+
+Date : 29/09/2026
+Contexte : le rejeu Q5 a confirme deux causes racines dans `analyze_data_constraints`. (1) Semgrep s'execute par fichier ; une preuve `maintenance.request` contenait donc le `_sql_constraints` de `maintenance.equipment` (meme fichier) sans indication de classe, et le Writer l'attribuait au mauvais modele. (2) SAL-Q5 : `0 < prepayment_percent <= 1.0` etait present dans la preuve mais paraphrase en « 0 % a 100 % inclus », aucune annotation deterministe n'existant pour les bornes des `@api.constrains` (contrairement a `[CHECK LOGIC]` pour le SQL).
+
+**Corrections** (`code_intelligence/rules/data_constraints.py`) :
+
+- `SemgrepMatch.owner_models` : chaque match est etiquete avec le modele (`_name`, sinon `_inherit`) de sa classe englobante la plus interne, via AST ; le resume affiche `[model: ...]`. Les matchs des autres modeles du fichier sont etiquetes, pas exclus.
+- `_bounds_facts()` : annotation `[BOUNDS LOGIC]` pour les gardes `raise` a comparaison chainee (inclusion/exclusion de chaque borne, portee conditionnelle) ; `backfill_missing_bounds_facts()` reinjecte la borne exclue si la synthese ne la signale pas, branche dans `postprocess.py`.
+- Tests : `test_section1017_owner_model_and_bounds.py`.
+
+**Validation** : compilation propre, 28 tests passes (`test_section1017_owner_model_and_bounds.py` + `test_analyze_data_constraints.py`). Verifie sur le vrai code Odoo : `serial_no` (L171-173) et `_check_repeat_interval` (L280-284) portent chacun leur modele ; `sale.order` produit `0 excluded / 1.0 included`. Ces changements etaient deja presents dans l'arbre de travail a mon arrivee en section 1017 sans entree de journal propre ; cette section les documente.
+
+## Section 1019 : PUR-Q5 -- paraphrase inversee des CHECK conservee a cote des predicats exacts
+
+Date : 29/09/2026
+Contexte : rejeu Q5 apres 1018. MNT-Q5 est corrige (serial_no sur maintenance.equipment, repeat_interval sur maintenance.request) et SAL-Q5 signale la borne basse stricte. PUR-Q5 inverse cette fois le corps de la reponse (display_type non nul => champs remplis, nul => champs nuls) ; la precision SQL deterministe ajoutee en fin est correcte mais coexiste avec la paraphrase fausse.
+
+**Root cause** : `backfill_missing_conditional_check_facts()` ajoutait les predicats exacts sans retirer la paraphrase du Writer (meme famille que les gardes Q2 des sections 1008/1010).
+
+**Correction** : `_drop_paraphrased_check_blocks()` retire, quand une branche est reinjectee, les blocs de prose (hors titres) qui citent a la fois la colonne de garde et les colonnes gardees. Generique : identifiants extraits des predicats, aucun nom de modele ou de champ en dur.
+
+**Validation** : compilation propre ; `test_section1019_check_paraphrase_supersession.py` (3 tests) + suites 1017/data_constraints : 31 passes.
+
+**Constats non traites (rejeu Q5)** :
+- PUR-Q5 : la garde de suppression de ligne porte sur l'etat de la commande parente (`line.order_id.state`), la preuve `analyze_security_locks` le contient, mais la synthese l'attribue a l'etat de la ligne. Troncature 2985 car. de `analyze_security_locks(purchase.order)` toujours presente (voir section 935).
+- STK-Q5 : `check_lot_id` (lot lie a un autre produit) omis alors qu'il est dans la preuve, et messages de `stock.lot._check_create` / `check_quantity` melanges aux contraintes de creation du quant ; omission non deterministe du Writer.
+
+## Section 1020 : PUR-Q5 -- fragment de langue étrangère dans une synthèse française
+
+Date : 29/09/2026
+Contexte : le rejeu PUR-Q5 a conservé les prédicats SQL exacts et les règles de suppression, mais une phrase de synthèse contenait le fragment Han `已完成` au milieu d'une réponse française. Le prompt impose déjà la langue de la question ; cette dérive résiduelle devait être neutralisée avant l'affichage, sans modifier les identifiants techniques ni les observations source.
+
+**Correction** : le post-traitement retire uniquement les phrases de prose qui contiennent des caractères Han inattendus. Les autres phrases de la même ligne Markdown et les identifiants techniques restent inchangés. Le filtre s'exécute après les corrections déterministes et avant le contrôle final de suffisance des preuves.
+
+**Validation** : 35 tests ciblés passent, dont une régression avec la phrase exacte de PUR-Q5, les tests des branches SQL et le dispatch des verrous sur modèles de lignes.
+
+## Section 1021 : PUR-Q1 -- titre Markdown orphelin après correction de rôle
+
+Date : 29/09/2026
+Contexte : le rejeu Q1 est correct sur les ACL et les gardes métier. PUR-Q1 gardait cependant le titre « Gestion des états avancés » avec seulement la précision indiquant que `confirm_reminder_mail()` relève de `base.group_no_one`, pas du manager. Cette structure laissait entendre une troisième différence sans preuve.
+
+**Correction** : après correction d'une attribution de rôle contredite par `button_execution_path`, un bloc Markdown est retiré s'il ne contient plus qu'un titre et cette précision. Une phrase autonome reste remplacée par la précision, afin de ne jamais supprimer le verdict source.
+
+**Validation** : 33 tests ciblés passent (`section955`, Q2 et escalade de groupe) ; compilation Python propre.
+
+## Section 1022 : ACC-Q1 -- sémantique additive des ACL Odoo
+
+Date : 29/09/2026
+Contexte : le rejeu Q1 donnait le bon verdict pour `account.group_account_manager`, mais expliquait à tort qu'une ACL directe ne comportant que `perm_read=1` « ne restreint pas » l'écriture. Une ACL avec `perm_write=0` n'accorde effectivement pas l'écriture ; le droit effectif existe ici parce que le groupe implique `account.group_account_invoice`, dont une autre ACL l'accorde.
+
+**Correction** : lorsqu'une preuve `implied_ids` est présente, le post-traitement retire cette explication inversée et restitue le mécanisme Odoo général : les ACL applicables sont additives ; l'absence d'une permission dans une ACL ne retire pas un droit accordé par une autre ACL applicable. Aucun groupe, modèle ou identifiant particulier n'est codé dans le correctif.
+
+**Validation** : 32 tests ciblés passent, dont une régression ACC-Q1, les gardes UI et les règles d'escalade de groupe.
+
+## Section 1023 : MNT-Q1/PUR-Q1 -- prévention à la source des exemples et boutons hors sujet
+
+Date : 29/09/2026
+Contexte : malgré des preuves et verdicts corrects, MNT-Q1 ajoutait un scénario hypothétique d'équipement « assigné à un contact » absent des observations. PUR-Q1 suivait `confirm_reminder_mail()` dans une comparaison acheteur/manager parce que la méthode avait un groupe technique, bien qu'il ne s'agisse pas d'un bouton `button_*` ni d'une action d'approbation.
+
+**Corrections** :
+
+- Le prompt de synthèse interdit explicitement tout exemple, scénario, cause ou conseil opérationnel absent des observations ; un garde de sortie retire un bloc Markdown « Exemple » lorsqu'aucune preuve ne contient d'exemple.
+- Le dispatcher de distinction de sécurité ne sélectionne plus une méthode à groupe restreint que si elle suit la convention Odoo `button_*`. Les méthodes d'approbation restent sélectionnées par leur préfixe `button_confirm`/`button_approve`/`button_valid...`; les méthodes techniques hors bouton, comme les rappels, ne consomment plus de hop et ne polluent plus la synthèse.
+
+**Validation** : 50 tests ciblés passent, dont les régressions de classification de workflow, de synthèse et de post-traitement. Compilation Python propre. `git diff --check` ne signale du whitespace que dans les captures de benchmark générées existantes, non modifiées par ce correctif.
+
+## Section 1024 : Q2 -- variantes de synthèse contredisant des gardes workflow
+
+Date : 29/09/2026
+Contexte : le rejeu Q2 a produit des preuves correctes mais plusieurs formes de prose non couvertes par les nettoyages initiaux : STK-Q2 disait « déclenche une création automatique » et ajoutait un titre « Exemple concret » ; SAL-Q2 gardait un bloc « Cas de verrouillage automatique » présentant le verrou comme une configuration globale ; ACC-Q2 ne conservait qu'un fait technique après nettoyage, avec une note ACL sans rapport avec la question de date de clôture.
+
+**Corrections** :
+
+- Le garde de reliquat reconnaît les formulations `génère/crée/déclenche ... création/génération automatique` et la variante courte `génère automatiquement`. Il retire aussi les blocs d'exemple à titre Markdown. La branche `always` demeure la seule à mentionner une création automatique ; `never` et `ask` sont préservées.
+- Le garde de verrouillage après confirmation supprime le bloc de paraphrase « Cas de verrouillage automatique » quand la preuve exacte `create_uid.has_group(...)` est disponible, puis conserve le fait source sur le groupe du créateur.
+- Le garde de clôture d'exercice retire la note d'héritage ACL hors sujet et réinjecte un verdict lisible « Réponse : non » avant l'explication déterministe du verrou fiscal.
+
+**Validation** : 44 tests ciblés passent, incluant les nouvelles régressions STK-Q2, SAL-Q2 et ACC-Q2 ; compilation Python propre.
