@@ -5150,3 +5150,17 @@ Contexte : le rejeu Q2 a produit des preuves correctes mais plusieurs formes de 
 - Le garde de clôture d'exercice retire la note d'héritage ACL hors sujet et réinjecte un verdict lisible « Réponse : non » avant l'explication déterministe du verrou fiscal.
 
 **Validation** : 44 tests ciblés passent, incluant les nouvelles régressions STK-Q2, SAL-Q2 et ACC-Q2 ; compilation Python propre.
+
+## Section 975 -- PUR-Q5 rejoue par Maha apres le fix 974 : les 4 sous-points sont corrects, y compris le message de suppression de commande (limite 972 non manifestee cette fois) (2026-09-26)
+
+Verifie ligne par ligne contre `purchase_order.py`/`purchase_order_line.py` :
+1. Commande : "interdite si elle n'est pas dans l'etat Annulee" + citation exacte "In order to delete a purchase order, you must cancel it first." -- **CORRECT**, mot pour mot (`_unlink_if_cancelled`, L264-267).
+2. Ligne : "etats Achat/Terminee bloquent la suppression" + citation exacte "Cannot delete a purchase order line which is in state %r." -- **CORRECT**, mot pour mot (`_unlink_except_purchase_or_done`, L236). Precise correctement que "Brouillon" est un etat compatible (exemple juste).
+3. Contrainte SQL : les 2 branches (`display_type IS NULL` -> champs requis ; `display_type IS NOT NULL` -> champs nuls/zero) sont paraphrasees fidelement, avec avertissement explicite de ne pas croiser les predicats des 2 branches -- **CORRECT**, correspond aux 2 `_sql_constraints` reelles.
+4. Aucune affirmation fabriquee (pas de groupe invente, pas de contrainte inexistante).
+
+**Point 4 (section 974) confirme en conditions reelles** : `analyze_data_constraints` invoque 2 fois cette fois (trace : `['analyze_security_locks', 'analyze_security_locks', 'analyze_data_constraints', 'analyze_data_constraints']`) -- le LLM a bien profite du relachement de l'instruction pour rappeler l'outil sur `purchase.order.line` en plus de `purchase.order`. Le fix fonctionne comme prevu.
+
+**Point 2/section 972 (message de suppression de commande) : desormais correct, sans aucun changement de code sur `security.py`/`security_evidence.py` depuis la 973** -- la limite de reranking/budget diagnostiquee en 2 couches par la section 972 ne s'est pas manifestee ce tour-ci (`analyze_security_locks(purchase.order)` encore tronque a 2985 car. d'apres le log, mais le message a malgre tout survecu cette fois, contrairement aux rejeux precedents). Hypothese la plus probable : le scoring de pertinence (section 950/964, generalise et query-aware) depend du contexte de conversation/de l'ordre des hops du tour LLM, non uniquement du nom du modele -- donc non strictement deterministe d'un rejeu a l'autre a question textuellement identique. **Le mandat "method name tracking" (item 1, sections 972/973) reste ouvert mais sa priorite baisse** : la reponse peut deja etre correcte sans lui, meme si la marge (2985/3500 car., toujours proche du plafond) suggere que la lacune peut resurgir sur un futur rejeu ou une question voisine moins favorablement classee. A garder en reserve plutot qu'a executer dans l'urgence.
+
+**Aucun code ecrit dans cette section** -- verification uniquement, PUR-Q5 desormais considere resolu sur son etat actuel observe. `todo/plan.md` ne listait pas PUR-Q5 comme point nomme (verifie, aucune entree a mettre a jour).

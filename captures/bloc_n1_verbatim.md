@@ -1,6 +1,6 @@
 # Rapport Verbatim -- Bloc N1 (banc de questions natif)
 
-**Date d'execution :** 2026-09-29 16:30:10
+**Date d'execution :** 2026-09-30 08:17:18
 
 **Objectif :** rejouer les questions verite-terrain des 5 modules natifs (maintenance, purchase, sale, stock, account) contre l'agent Code Intelligence reel et capturer la reponse verbatim pour comparaison manuelle avec `reference_answer` -- aucune notation automatique.
 
@@ -10,13 +10,13 @@
 | Metrique | Valeur |
 |---|---|
 | Questions executees (consolidees) | 25 |
-| Questions rejouees ce tour | 5 |
+| Questions rejouees ce tour | 1 |
 | Erreurs d'execution | 0 |
 | Ecarts de couverture d'outils (expected_tools non tous invoques) | 0 |
-| p50 latence effective (run courant) | `41.87s` |
-| p90 latence effective (run courant) | `414.04s` (budget `12.0s`,  DEPASSE) |
-| Moyenne (run courant) | `122.07s` |
-| Max (run courant) | `414.04s` |
+| p50 latence effective (run courant) | `57.32s` |
+| p90 latence effective (run courant) | `57.32s` (budget `12.0s`,  DEPASSE) |
+| Moyenne (run courant) | `57.32s` |
+| Max (run courant) | `57.32s` |
 
 ---
 
@@ -134,7 +134,7 @@ Ainsi, il combine des **fonctionnalités techniques** (messagerie, suivi) avec d
 
 **Outils attendus :** ['button_execution_path'] | **Outils invoques :** ['button_execution_path', 'read_source_code']
 
-**Reponse verbatim de l'agent (Total: 23.69s | Effectif: 23.689s | Groq wait: 0.0s | Sauts: 2) :**
+**Reponse verbatim de l'agent (Total: 26.73s | Effectif: 26.73s | Groq wait: 0.0s | Sauts: 2) :**
 ```text
 ### Raisons de l'absence de visibilité du champ 'cost'
 
@@ -309,19 +309,17 @@ Ces extensions permettent au module *purchase* d'interagir avec des domaines com
 
 **Outils attendus :** ['button_execution_path'] | **Outils invoques :** ['button_execution_path', 'read_source_code', 'read_source_code']
 
-**Reponse verbatim de l'agent (Total: 34.02s | Effectif: 34.02s | Groq wait: 0.0s | Sauts: 3) :**
+**Reponse verbatim de l'agent (Total: 43.6s | Effectif: 43.601s | Groq wait: 0.0s | Sauts: 3) :**
 ```text
 ### Raisons de l'absence du bouton 'Approve Order'
 
-Le bouton **'Approve Order'** n'est pas visible pour un utilisateur simple, même lorsque la commande est au statut **'to approve'**, en raison de deux facteurs principaux :
+Le bouton 'Approve Order' n'est pas visible pour un utilisateur simple, même si la commande est au statut 'to approve', pour deux raisons principales :
 
-1. **Restriction de groupe** :  
-   Ce bouton est uniquement disponible pour les membres du groupe **« Administrator »** (groupe technique : `purchase.group_purchase_manager`). Un utilisateur simple n'appartient pas à ce groupe, donc le bouton est masqué dans l'interface, indépendamment du statut de la commande.
+1. **Restriction de groupe** : Le bouton est uniquement disponible pour les membres du groupe « Administrator » (groupe technique : `purchase.group_purchase_manager`). Cet utilisateur ne fait pas partie de ce groupe, ce qui rend le bouton invisible dans l'interface, indépendamment du statut de la commande.
 
-### Conséquence pratique
-Seul un utilisateur membre du groupe **« Administrator »** peut voir et utiliser ce bouton. Pour les autres utilisateurs, l'approbation doit être déléguée à un membre de ce groupe.
+2. **Condition de visibilité** : Bien que le statut 'to approve' devrait théoriquement rendre le bouton visible, une erreur dans la logique de visibilité (`invisible='state != 'to approve''`) pourrait également contribuer à ce comportement. Cependant, cette condition est secondaire par rapport à la restriction de groupe.
 
-[FAIT DÉTERMINISTIQUE -- VISIBILITÉ DU BOUTON] La condition `invisible` est `state != 'to approve'` : le bouton est donc visible lorsque `state == 'to approve'`, sous réserve de ses groupes requis.
+Pour valider ou approuver une commande, seuls les utilisateurs du groupe « Administrator » ont accès à cette fonctionnalité.
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```
@@ -338,24 +336,25 @@ Seul un utilisateur membre du groupe **« Administrator »** peut voir et utilis
 
 **Outils attendus :** ['analyze_data_constraints'] | **Outils invoques :** ['analyze_security_locks', 'analyze_security_locks', 'analyze_data_constraints', 'analyze_data_constraints']
 
-**Reponse verbatim de l'agent (Total: 55.98s | Effectif: 55.981s | Groq wait: 0.0s | Sauts: 4) :**
+**Reponse verbatim de l'agent (Total: 57.32s | Effectif: 57.318s | Groq wait: 0.0s | Sauts: 4) :**
 ```text
 ### Règles d'empêchement de suppression selon l'état
 
-**Pour les commandes d'achat (purchase.order) :**  
-La suppression est bloquée si l'état de la commande n'est pas **"Annulée"**. Un message d'erreur indique :  
-> *"In order to delete a purchase order, you must cancel it first."*  
+**Pour les commandes d'achat :**  
+La suppression d'une commande est interdite si elle n'est pas dans l'état **"Annulée"**. Un message d'erreur indique :  
+*"In order to delete a purchase order, you must cancel it first."*  
 Cela signifie que seule une commande annulée peut être supprimée.
 
-**Pour les lignes de commande (purchase.order.line) :**  
-La suppression est interdite si l'état de la ligne est **"En cours"** ("purchase") ou **"Terminée"** ("done"). Le message d'erreur affiché est :  
-> *"Cannot delete a purchase order line which is in state %r."*  
+**Pour les lignes de commande :**  
+Les lignes en état **"Achat"** ou **"Terminée"** ne peuvent pas être supprimées. Le système affiche le message :  
+*"Cannot delete a purchase order line which is in state %r."*  
+Cela empêche la suppression des lignes tant qu'elles ne sont pas dans un état compatible (par exemple, "Brouillon").
 
 ---
 
 ### Contrainte SQL distincte sur les lignes de commande
 
-Ces règles garantissent que les lignes respectent des règles de cohérence métier selon leur type.
+Cette contrainte empêche l'enregistrement de lignes incomplètes ou incohérentes dans la base de données.
 
 Précision issue de la preuve SQL :
 - Selon la preuve SQL, lorsque `display_type IS NULL`, la condition `product_id IS NOT NULL AND product_uom IS NOT NULL AND date_planned IS NOT NULL` doit être vraie.
@@ -493,23 +492,23 @@ Précision issue de la preuve SQL :
 
 **Outils attendus :** ['button_execution_path'] | **Outils invoques :** ['button_execution_path', 'read_source_code']
 
-**Reponse verbatim de l'agent (Total: 37.26s | Effectif: 37.26s | Groq wait: 0.0s | Sauts: 2) :**
+**Reponse verbatim de l'agent (Total: 39.52s | Effectif: 39.515s | Groq wait: 0.0s | Sauts: 2) :**
 ```text
 ### Raisons du verrouillage de la commande
 
 Le verrouillage d'une commande est une mesure de sécurité qui empêche toute modification non autorisée, même par le vendeur qui l’a confirmée. Voici les raisons principales :
 
 1. **Restriction de groupe pour l'action "Déverrouiller"**  
-   L'action "Déverrouiller" (bouton *Unlock*) est strictement réservée au groupe **« Administrateur »** (groupe technique : `sales_team.group_sale_manager`). Ce groupe est généralement attribué uniquement aux utilisateurs ayant des droits de gestion avancés, tels que les responsables commerciaux ou les administrateurs du système. Un vendeur standard n’appartient pas à ce groupe, donc il ne peut pas exécuter cette action, même s’il a confirmé la commande.
+   L'action "Déverrouiller" est strictement réservée aux membres du groupe **« Administrateur »** (groupe `sales_team.group_sale_manager`). Ce groupe est généralement limité aux responsables commerciaux ou à la direction, et **non aux vendeurs simples**. Même si le vendeur a confirmé la commande, il n’a pas les droits nécessaires pour la déverrouiller.
 
 2. **Sécurité des états et transitions**  
-   Une commande verrouillée est souvent dans un état qui nécessite une validation supplémentaire (par exemple, après une confirmation client ou une approbation hiérarchique). Le verrouillage empêche toute modification jusqu’à ce que ces étapes soient complétées par un utilisateur habilité.
+   Une commande verrouillée est souvent associée à un état critique (ex. : "Validée", "En attente de paiement"). Les règles de workflow empêchent les modifications tant que l’état ne correspond pas à un point autorisé pour le déverrouillage (ex. : "Brouillon" ou "Modifiable").
 
-3. **Prévention des erreurs ou des manipulations**  
-   Cette restriction évite que des modifications accidentelles ou non autorisées soient apportées à une commande confirmée, ce qui pourrait entraîner des incohérences dans le processus commercial ou des pertes financières.
+3. **Prévention des erreurs ou fraudes**  
+   Le verrouillage évite les changements accidentels ou malveillants après la confirmation. Seul un administrateur peut déverrouiller, assurant ainsi une validation supplémentaire avant toute modification.
 
-### Que faire si le verrouillage est bloquant ?
-Si une commande verrouillée doit être modifiée, le vendeur doit contacter un membre du groupe **« Administrateur »** (ou un responsable technique) pour demander un déverrouillage. Ce dernier pourra alors utiliser le bouton *Unlock* pour permettre les modifications nécessaires.
+### Que faire ?
+Pour déverrouiller une commande, **contactez un administrateur ou un responsable commercial**. Ils pourront utiliser l’action "Déverrouiller" via l’interface (bouton visible uniquement pour leur groupe) ou via un script technique si nécessaire.
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```
@@ -689,16 +688,17 @@ Le module **'stock'** étend plusieurs modèles natifs en dehors de son propre p
 
 **Outils attendus :** ['button_execution_path'] | **Outils invoques :** ['button_execution_path', 'read_source_code']
 
-**Reponse verbatim de l'agent (Total: 26.32s | Effectif: 26.321s | Groq wait: 0.0s | Sauts: 2) :**
+**Reponse verbatim de l'agent (Total: 33.19s | Effectif: 33.187s | Groq wait: 0.0s | Sauts: 2) :**
 ```text
 ### Raisons de l'absence des champs 'From'/'To' sur les transferts de stock
 
-Les champs **'From' (emplacement source)** et **'To' (emplacement destination)** ne sont visibles que si la fonctionnalité **"Gestion de plusieurs emplacements de stock"** est activée dans les paramètres du module **Stock**. Tant que cette option n'est pas activée :
+Les champs **'From' (emplacement source)** et **'To' (emplacement destination)** ne sont visibles que si la fonctionnalité **"Gestion de plusieurs emplacements de stock"** est activée dans les **Paramètres du module Stock**. Cette activation permet de rendre le groupe technique **« Manage Multiple Stock Locations »** disponible.
 
-- **Aucun utilisateur** (même les gestionnaires) ne voit ces champs, car le groupe technique **`stock.group_stock_multi_locations`** n'est pas attribué à personne.
-- Les champs restent **invisibles** par défaut, indépendamment des rôles ou groupes utilisateurs.
+Cependant, **par défaut, ce groupe n'est attribué à aucun utilisateur**. Seuls les utilisateurs appartenant explicitement à ce groupe (défini dans les **Rôles et groupes** d'Odoo) peuvent voir ces champs. Comme cette fonctionnalité n'est pas activée par défaut, **la plupart des utilisateurs ne disposent pas des droits nécessaires** pour visualiser ces informations.
 
-Si cette fonctionnalité est activée, seuls les utilisateurs appartenant au groupe **"Manage Multiple Stock Locations"** (géré via le paramètre `group_stock_multi_locations`) peuvent voir ces champs.
+Pour que ces champs apparaissent :
+1. Activez la fonctionnalité **"Manage Multiple Stock Locations"** dans les **Paramètres du module Stock**.
+2. Attribuez le groupe **« Manage Multiple Stock Locations »** aux utilisateurs concernés.
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```
@@ -858,52 +858,23 @@ Ainsi, un utilisateur appartenant à ce groupe peut **créer, modifier et suppri
 
 **Outils attendus :** ['button_execution_path'] | **Outils invoques :** ['analyze_security_locks', 'read_source_code', 'who_has_access_to', 'evaluate_record_rules', 'button_execution_path', 'read_source_code']
 
-**Reponse verbatim de l'agent (Total: 93.37s | Effectif: 93.368s | Groq wait: 0.0s | Sauts: 6) :**
+**Reponse verbatim de l'agent (Total: 80.15s | Effectif: 80.147s | Groq wait: 0.0s | Sauts: 6) :**
 ```text
-Analyse des verrous Python ([account_move.py:L1-L22](file:///home/user/odoo-ia-prototype/odoo_addons/custom_credit_note_approval/models/account_move.py#L1-L22)) [Confiance: ÉLEVÉE]:
-  - Groupe(s) technique(s) requis detecte(s) (has_group): account.group_account_manager
-    * has_group('account.group_account_manager') se trouve dans la methode 'action_valider_avoir()' -- ne pas l'attribuer a une autre methode sans le verifier explicitement dans le code source. (xml_id: account.group_account_manager) ([account_move.py:L18-L18](file:///home/user/odoo-ia-prototype/odoo_addons/custom_credit_note_approval/models/account_move.py#L18-L18))
-  - Security lock messages (UserError/ValidationError):
-    * "Seul un responsable comptable peut valider un avoir de plus de 5000€." (condition : rec.amount_total > 5000 and (not self.env.user.has_group('account.group_account_manager'))) (dans 'action_valider_avoir()') ([account_move.py:L19-L19](file:///home/user/odoo-ia-prototype/odoo_addons/custom_credit_note_approval/models/account_move.py#L19-L19))
+### Visibilité du compte comptable (account_id)
 
-Source: [company.py:L369-L377](file:///home/user/odoo-17.0/addons/account/models/company.py#L369-L377)
- 369 |     def _get_user_fiscal_lock_date(self):
- 370 |         """Get the fiscal lock date for this company depending on the user"""
- 371 |         lock_date = max(self.period_lock_date or date.min, self.fiscalyear_lock_date or date.min)
- 372 |         if self.user_has_groups('account.group_account_manager'):
- 373 |             lock_date = self.fiscalyear_lock_date or date.min
- 374 |         if self.parent_id:
- 375 |             # We need to use sudo, since we might not have access to a parent company.
- 376 |             lock_date = max(lock_date, self.sudo().parent_id._get_user_fiscal_lock_date())  [SENSITIVE BYPASS] Contenu source sensible detecte sur cette ligne (lecture brute)
- 377 |         return lock_date
-[MÉTHODE SUR MODÈLE RELIÉ] '_get_user_fiscal_lock_date()' s'exécute sur 'res.company', atteint depuis 'account.move._check_fiscalyear_lock_date()' via le champ 'company_id' -- ne pas attribuer cette logique a 'account.move'.
+#### 1. Utilisateur avec **group_account_invoice ('Billing')** :
+- **Résultat** : Non, l'utilisateur ne voit **pas** le champ `account_id` sur une ligne de facture.
+- **Explication** : Le champ `account_id` est **restreint aux groupes** `account.group_account_readonly` (« Show Accounting Features - Readonly »). L'utilisateur appartient uniquement au groupe `group_account_invoice` (« Billing »), qui **n'est pas** mentionné dans les conditions de visibilité du champ. Ainsi, il ne peut pas voir ce champ.
 
-Access Matrix for 'account.move':
-[READ]: account.group_account_invoice ('Billing'), account.group_account_manager ('Billing Administrator'), account.group_account_readonly ('Show Accounting Features - Readonly'), base.group_portal ('Portal'), group_purchase_user ('User'), hr_expense.group_hr_expense_team_approver ('Team Approver'), sales_team.group_sale_salesman ('User: Own Documents Only'), account.group_account_user ('Show Full Accounting Features') (via implied_ids <- account.group_account_readonly ('Show Accounting Features - Readonly')), hr_expense.group_hr_expense_manager ('Administrator') (via implied_ids <- hr_expense.group_hr_expense_team_approver ('Team Approver')), hr_expense.group_hr_expense_user ('All Approver') (via implied_ids <- hr_expense.group_hr_expense_team_approver ('Team Approver')) (Rules: 13) (xml_id: account.group_account_invoice xml_id: account.group_account_manager xml_id: account.group_account_readonly xml_id: account.group_account_user xml_id: base.group_portal xml_id: hr_expense.group_hr_expense_manager xml_id: hr_expense.group_hr_expense_team_approver xml_id: hr_expense.group_hr_expense_user xml_id: sales_team.group_sale_salesman)
-[WRITE]: account.group_account_invoice ('Billing'), group_purchase_user ('User'), account.group_account_manager ('Billing Administrator') (via implied_ids <- account.group_account_invoice ('Billing')), account.group_account_user ('Show Full Accounting Features') (via implied_ids <- account.group_account_invoice ('Billing')) (Rules: 12) (xml_id: account.group_account_invoice xml_id: account.group_account_manager xml_id: account.group_account_user)
-[CREATE]: account.group_account_invoice ('Billing'), group_purchase_user ('User'), account.group_account_manager ('Billing Administrator') (via implied_ids <- account.group_account_invoice ('Billing')), account.group_account_user ('Show Full Accounting Features') (via implied_ids <- account.group_account_invoice ('Billing')) (Rules: 12) (xml_id: account.group_account_invoice xml_id: account.group_account_manager xml_id: account.group_account_user)
-[UNLINK]: account.group_account_invoice ('Billing'), group_purchase_user ('User'), account.group_account_manager ('Billing Administrator') (via implied_ids <- account.group_account_invoice ('Billing')), account.group_account_user ('Show Full Accounting Features') (via implied_ids <- account.group_account_invoice ('Billing')) (Rules: 12) (xml_id: account.group_account_invoice xml_id: account.group_account_manager xml_id: account.group_account_user)
+#### 2. Utilisateur avec **group_account_manager ('Billing Administrator')** en configuration **Invoicing seule** (sans module Accounting) :
+- **Résultat** : Non, l'utilisateur ne voit **pas** le champ `account_id` non plus.
+- **Explication** : 
+  - Le champ `account_id` est **toujours restreint au groupe `account.group_account_readonly`**, même si le module Accounting n'est pas installé.
+  - Le groupe `group_account_manager` (« Billing Administrator ») **n'est pas** associé à cette restriction. 
+  - En l'absence du module Accounting, le groupe `account.group_account_readonly` **n'existe pas**, donc le champ `account_id` reste **invisible** pour tous les utilisateurs, y compris ceux du groupe `group_account_manager`.
 
-Évaluation des règles d'enregistrement (ir.rule) pour 'account.move':
-  - Règles de Groupe applicables: Aucune (l'utilisateur n'appartient à aucun des groupes visés)
-  - Règles de Groupe ignorées (non-membre): All Journal Entries (groupes: account.group_account_invoice ('Billing')) [[(1, '=', 1)]] (xml_id: account.account_move_see_all), Portal Personal Account Invoices (groupes: base.group_portal ('Portal')) [[('state', 'not in', ('cancel', 'draft')), ('move_type', 'in', ('out_invoice', 'out_refund', 'in_invoice', 'in_refund')), ('message_partner_ids','child_of',[user.commercial_partner_id.id])]] (xml_id: account.account_invoice_rule_portal), Readonly Move (groupes: account.group_account_readonly ('Show Accounting Features - Readonly')) [[(1, '=', 1)]] (xml_id: account.account_move_rule_group_readonly), Readonly Move (groupes: account.group_account_invoice ('Billing')) [[(1, '=', 1)]] (xml_id: account.account_move_rule_group_invoice), Personal Invoices (groupes: sales_team.group_sale_salesman ('User: Own Documents Only')) [[('move_type', 'in', ('out_invoice', 'out_refund')), '|', ('invoice_user_id', '=', user.id), ('invoice_user_id', '=', False)]] (xml_id: sale.account_invoice_rule_see_personal), All Invoices (groupes: sales_team.group_sale_salesman_all_leads ('User: All Documents')) [[('move_type', 'in', ('out_invoice', 'out_refund'))]] (xml_id: sale.account_invoice_rule_see_all), Purchase User Account Move (groupes: purchase.group_purchase_user ('User')) [[('move_type', 'in', ('in_invoice', 'in_refund', 'in_receipt'))]] (xml_id: purchase.purchase_user_account_move_rule), Avoirs - visibilite par departement (sauf managers) (groupes: account.group_account_invoice ('Billing')) [['|', ('move_type', '!=', 'out_refund'), '|', ('invoice_user_id', '=', user.id), ('journal_id.department_id', '=', user.employee_id.department_id.id)]] (xml_id: custom_credit_note_approval.rule_avoir_visibilite_departement), Avoirs - plafond visibilite regionale (50000e) (groupes: custom_credit_note_visibility_rules.group_avoir_regional ('Avoirs - Visibilite Regionale')) [['|', ('move_type', '!=', 'out_refund'), ('amount_total', '<=', 50000)]] (xml_id: custom_credit_note_visibility_rules.rule_avoir_visibilite_regionale), Avoirs - visibilite nationale (illimitee) (groupes: custom_credit_note_visibility_rules.group_avoir_national ('Avoirs - Visibilite Nationale')) [[(1, '=', 1)]] (xml_id: custom_credit_note_visibility_rules.rule_avoir_visibilite_nationale), Expense Team Approver Account Move (groupes: hr_expense.group_hr_expense_team_approver ('Team Approver')) [[('line_ids.expense_id', '!=', False)]] (xml_id: hr_expense.hr_expense_team_approver_account_move_rule)
-
-Champ 'account_id' (account_id) sur la vue 'view_move_form' ([account_move_views.xml:L27-L33](file:///home/user/odoo-17.0/addons/account/views/account_move_views.xml#L27-L33)) du modèle 'account.move': Non modifiable (readonly) lorsque: readonly="state != 'draft'". Requis lorsque: required="display_type not in ('line_note', 'line_section')". Invisible lorsque: invisible="move_type == 'entry'". Restreint aux groupes: [account.group_account_readonly ('Show Accounting Features - Readonly')] (xml_id: account.group_account_readonly).
-1. UI Field Declaration: Champ 'account_id' (account_id) dans la vue 'view_move_form' (modèle 'account.move').
-2. Source XML: Déclaré dans [account_move_views.xml:L27-L33](file:///home/user/odoo-17.0/addons/account/views/account_move_views.xml#L27-L33).
-3. Condition Readonly: readonly="state != 'draft'" -- le champ devient non modifiable sous cette condition.
-4. Condition Required: required="display_type not in ('line_note', 'line_section')".
-5. Condition Invisible: invisible="move_type == 'entry'".
-6. Groupes requis: groups="account.group_account_readonly" (groupes: [account.group_account_readonly ('Show Accounting Features - Readonly')]) (xml_id: account.group_account_readonly).
-
-Source: [account_move_views.xml:L27-L33](file:///home/user/odoo-17.0/addons/account/views/account_move_views.xml#L27-L33)
-  27 |                                         <field name="account_id" options="{'no_create': True}" domain="[('company_id', 'parent_of', company_id), ('deprecated', '=', False)]" readonly="1"/>
-  28 |                                         <field name="debit" readonly="1"/>
-  29 |                                         <field name="credit" readonly="1"/>
-  30 |                                         <field name="balance" readonly="1"/>
-  31 |                                         <field name="quantity" readonly="1"/>
-  32 |                                     </group>
-  33 |                                     <group string="Dates">
+### Conclusion
+Le champ `account_id` est **invisible** pour les utilisateurs du groupe `Billing` ou `Billing Administrator`, **sauf** s'ils appartiennent au groupe `account.group_account_readonly` (qui n'est pas présent en configuration Invoicing seule).
 
 [Source: Graphe de Connaissances Code Intelligence]
 ```
