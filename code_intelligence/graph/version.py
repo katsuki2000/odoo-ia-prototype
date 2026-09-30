@@ -16,7 +16,7 @@ import networkx as nx
 
 _logger = logging.getLogger(__name__)
 
-GRAPH_SCHEMA_VERSION = 3
+GRAPH_SCHEMA_VERSION = 4
 
 
 def get_git_commit_hash(repo_dir: Optional[Path] = None) -> str:

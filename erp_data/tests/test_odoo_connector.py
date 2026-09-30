@@ -8,6 +8,16 @@ Validates authentication, read-only enforcement, and model whitelisting.
 import pytest
 import os
 from erp_data.odoo_connector import OdooConnector, OdooConnectorError
+from erp_data._odoo_helpers import odoo_api_key_ctx
+
+
+class _AccessDeniedModels:
+    def __init__(self):
+        self.calls = []
+
+    def execute_kw(self, *args, **kwargs):
+        self.calls.append((args, kwargs))
+        raise Exception("Access Denied")
 
 @pytest.fixture(scope="module")
 def odoo_connector():
@@ -46,6 +56,30 @@ def test_model_whitelist_enforcement(odoo_connector, uid):
     with pytest.raises(OdooConnectorError) as exc_info:
         odoo_connector.search_read(uid, "res.users", domain=[], fields=["name"])
     assert "not whitelisted" in str(exc_info.value)
+
+
+@pytest.mark.parametrize(
+    ("method", "args", "expected_message"),
+    [
+        ("search_read", (7, "res.partner", [], ["name"]), "Failed to read"),
+        ("read_group", (7, "sale.order", [], ["amount_total:sum"], ["state"]), "Failed to aggregate"),
+        ("fields_get", (7, "res.partner"), "Failed to fetch fields"),
+    ],
+)
+def test_access_denied_with_api_key_never_retries_as_admin(method, args, expected_message):
+    """An authorization failure must stay denied under the request identity."""
+    connector = OdooConnector(url="http://odoo.invalid", db="test", password="admin-secret")
+    denied_models = _AccessDeniedModels()
+    connector.models = denied_models
+    token = odoo_api_key_ctx.set("request-user-api-key")
+    try:
+        with pytest.raises(OdooConnectorError, match=expected_message):
+            getattr(connector, method)(*args)
+    finally:
+        odoo_api_key_ctx.reset(token)
+
+    assert len(denied_models.calls) == 1
+    assert denied_models.calls[0][0][2] == "request-user-api-key"
 
 @pytest.mark.integration
 @pytest.mark.parametrize("model", [

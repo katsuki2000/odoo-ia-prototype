@@ -5164,3 +5164,388 @@ Verifie ligne par ligne contre `purchase_order.py`/`purchase_order_line.py` :
 **Point 2/section 972 (message de suppression de commande) : desormais correct, sans aucun changement de code sur `security.py`/`security_evidence.py` depuis la 973** -- la limite de reranking/budget diagnostiquee en 2 couches par la section 972 ne s'est pas manifestee ce tour-ci (`analyze_security_locks(purchase.order)` encore tronque a 2985 car. d'apres le log, mais le message a malgre tout survecu cette fois, contrairement aux rejeux precedents). Hypothese la plus probable : le scoring de pertinence (section 950/964, generalise et query-aware) depend du contexte de conversation/de l'ordre des hops du tour LLM, non uniquement du nom du modele -- donc non strictement deterministe d'un rejeu a l'autre a question textuellement identique. **Le mandat "method name tracking" (item 1, sections 972/973) reste ouvert mais sa priorite baisse** : la reponse peut deja etre correcte sans lui, meme si la marge (2985/3500 car., toujours proche du plafond) suggere que la lacune peut resurgir sur un futur rejeu ou une question voisine moins favorablement classee. A garder en reserve plutot qu'a executer dans l'urgence.
 
 **Aucun code ecrit dans cette section** -- verification uniquement, PUR-Q5 desormais considere resolu sur son etat actuel observe. `todo/plan.md` ne listait pas PUR-Q5 comme point nomme (verifie, aucune entree a mettre a jour).
+
+## Section 1025 : Audit `erp_data` pour une exposition MCP strictement read-only
+
+Date : 30/09/2026
+Contexte : évaluation d'une évolution du function calling existant de `erp_data` vers un serveur MCP permettant de consulter Odoo, sans opération d'écriture.
+
+**Constat** : `erp_data` possède déjà la majeure partie de la couche métier réutilisable : onze outils LangChain orientés consultation (ventes, stock, factures, contacts et tickets), des fonctions `*_raw`, une liste blanche de modèles et un contexte d'identité par requête. Aucun serveur ni dépendance MCP n'est présent à ce stade. Un adaptateur MCP mince, exposant uniquement ces outils métier et non une primitive ORM générique, est donc l'évolution recommandée.
+
+**Préconditions de sécurité avant exposition MCP** :
+
+- supprimer le retry XML-RPC avec le mot de passe administrateur lors d'un refus de clé API (`OdooConnector._retry_with_admin_password`) : il contourne les ACL et record rules du demandeur ; un échec d'authentification doit échouer fermé ;
+- supprimer le fallback silencieux vers l'UID administrateur de `get_current_uid()` en production : absence d'identité MCP = erreur d'authentification ;
+- imposer côté serveur des plafonds de résultats/pagination, y compris quand l'appelant demande `limite=0` ;
+- conserver une whitelist par outil, modèle et champs retournés ; ne jamais exposer `search_read`, `read_group` ou `fields_get` comme outils MCP génériques ;
+- retourner un résultat structuré (données, portée, date de lecture, source) en plus d'un éventuel texte de présentation, et journaliser l'identité, l'outil et le périmètre de chaque appel.
+
+**Décision d'architecture proposée** : MCP doit être une façade de capacités read-only au-dessus de `erp_data`, sans remplacer le pipeline LangChain actuel. L'identité MCP devra être mappée vers une identité Odoo réellement autorisée ou vers un compte de service explicitement limité en lecture ; elle ne doit jamais entraîner un fallback administrateur.
+
+**Fichiers modifiés** : `todo/contexte.txt` (cette section). Aucun fichier source touché.
+
+## Section 1026 : `erp_data` — refus XML-RPC échoue fermé
+
+Date : 30/09/2026
+Contexte : correction de la précondition de sécurité identifiée en section 1025. Lorsqu'une clé API Odoo était refusée par XML-RPC, `OdooConnector` relançait auparavant la même lecture avec le mot de passe administrateur. Cette relance pouvait contourner les ACL et les règles d'enregistrements de l'utilisateur demandeur.
+
+**Correction** : suppression de `_retry_with_admin_password()` et de ses trois chemins d'appel (`search_read`, `read_group`, `fields_get`). Toute erreur XML-RPC, y compris `Access Denied` sous clé API, est désormais retournée comme `OdooConnectorError` sans seconde requête. Les outils présentent ensuite le refus d'accès à l'utilisateur.
+
+**Validation** : trois tests unitaires couvrent les trois primitives ; chacun installe une clé API de requête, simule `Access Denied` et vérifie qu'un seul appel est émis avec cette clé, jamais avec le secret administrateur.
+
+**Fichiers modifiés** : `erp_data/odoo_connector.py`, `erp_data/tests/test_odoo_connector.py`, `todo/contexte.txt`.
+
+## Section 1027 : ACC-Q3 -- trois defauts residuels corriges (filtrage domaine, question binaire, citation fabriquee)
+
+Date : 30/09/2026
+Contexte : rejeu ACC-Q3 apres les corrections Q1-Q5 des sections 991-1024. La synthese etait globalement correcte (account.move = nouveau modele, extensions hors perimetre identifiees), mais trois defauts de presentation restaient.
+
+**Defaut 1 -- liste brute de 16 modeles collee en bas** :
+Root cause : `_extract_module_extended_models()` ne filtrait pas par prefixe de domaine. Les modeles `account.analytic.*` (declares dans le module `analytic`, mais dont le prefixe `account` correspond au module analyse) etaient comptes comme « hors perimetre », gonflant le denominateur a 16 et rendant le seuil de couverture (30%) structurellement inatteignable. En parallele, `is_singular_inquiry` ne reconnaissait que `quel modele` mais pas les questions binaires `etend-il`.
+Correction : (a) `_extract_module_extended_models()` filtre desormais par prefixe de domaine, alignement avec `inspect_module_cross_domain_extensions()` (L861-862). (b) `is_singular_inquiry` elargi pour aussi matcher `etend-il`/`etend-t-il`/`etend elle`.
+
+**Defaut 2 -- citation fabriquee `file:///.../account_move.py`** :
+Root cause : le LLM copiait le placeholder `file:///...` des exemples du prompt (L39, L296).
+Correction : regex de nettoyage dans `postprocess.py` qui retire les liens `file:///...` dont le chemin contient `...` AVANT `verify_citations()`, empechant le warning cascade.
+
+**Defaut 3 -- warning « SOURCING NON VERIFIE » expose a l'utilisateur** :
+Consequence directe du defaut 2. Corrige par le defaut 2.
+
+**Validation** : compilation propre, suite existante 1155 passed / 39 skipped / 0 failed, 11 nouveaux tests cibles (test_section1027_acc_q3.py) passes.
+
+**Fichiers modifies** : `code_intelligence/rules/structure.py`, `code_intelligence/agent/postprocess.py`, `code_intelligence/tests/test_section1027_acc_q3.py` (nouveau), `todo/contexte.txt`.
+
+## Section 1028 : PUR-Q3 et PUR-Q4 -- correction des 2 derniers defauts residuels du banc N1
+
+Date : 30/09/2026
+Contexte : rejeu complet des 25 questions du Bloc N1 (audit pmm). 23 questions etaient parfaitement conformes, avec seulement 2 defauts residuels constates sur le module purchase :
+
+1. **PUR-Q3 (Heritage) -- append de la liste brute de 11 modeles** :
+   - Root cause : la question demandait « Le module purchase modifie-t-il en parallele... ». Le predicat `is_singular_inquiry` reconnaissait `etend-il` mais pas `modifie-t-il`. Bien que la reponse citait correctement `account.move` et `product.product`, la couverture (2/11 = 18% < 30%) declenchait l'append de la liste complete des modeles etendus.
+   - Correction : elargissement de la regex de detection des questions d'extension aux verbes courants en francais : `etend`, `modifie`, `touche`, `altere`, `enrichit` (`structure.py:is_singular_inquiry`).
+
+2. **PUR-Q4 (UI) -- affirmation hallucinee d'une "erreur dans la logique de visibilite"** :
+   - Root cause : le LLM interprete parfois negativement la syntaxe Odoo `invisible="state != 'to approve'"` comme etant « une erreur de visibilite ». Le garde `correct_button_visibility_contradictions` ne matchait que `invers|erron`, ratant le mot « erreur », et sa regex de bloc ciblait uniquement les titres `**Condition de visibilite (inversee|erronee)**` au lieu des blocs contenant des affirmations d'erreur de visibilite.
+   - Correction : (a) clarification positive dans le resume de `button_path.py` : `invisible='state != ...'` precise desormais explicitement `(visible quand state == '...')` ; (b) extension du garde `correct_button_visibility_contradictions` a `erreur|anomalie|bug|bogue` avec detection contextuelle du bloc fautif pour suppression propre et remplacement par le fait deterministe.
+
+**Validation** : tests cibles `test_section955_access_permission_contradiction.py` (15/15 passes) et `test_section1027_acc_q3.py` (11/11 passes). Compilation Python propre.
+
+## Section 1028 : PUR-Q4 -- causes bloquantes fournies à la source plutôt que corrigées après coup
+
+Date : 30/09/2026
+Contexte : le rejeu de PUR-Q4 a fait réapparaître l'affirmation « erreur de condition » / « si la condition de visibilité était corrigée », que la section 1026 devait supprimer. Le garde `correct_button_visibility_contradictions` travaille par bloc et exige la co-occurrence d'un mot de visibilité et d'un mot d'erreur : le bloc « Conséquence » (erreur sans mot de visibilité) et le bloc « Restriction de groupe » (visibilité sans mot d'erreur) lui échappent, et la suppression du premier bloc laisse une liste numérotée commençant à « 2. ».
+
+**Root cause** : la question affirme l'état `to approve`, l'outil connaît l'expression `invisible`, mais rien n'indique au LLM que cette condition est déjà satisfaite. Il cherche donc une seconde cause et l'invente. Le garde ne peut pas couvrir toutes les formulations ; la décomposition doit être fournie avant la synthèse.
+
+**Correction** :
+
+- `button_path.py` : `parse_visibility_rule()` est l'unique analyseur de l'expression `invisible` (`!=` et `not in`). Une expression composée retourne `None` et n'est jamais devinée (l'ancienne regex de résumé produisait un faux « visible quand » sur `state != 'x' or ...`).
+- `button_execution_path()` accepte `premise_text`. Si le texte cite une valeur pour laquelle l'élément est visible et que le demandeur n'a aucun groupe requis, le résumé porte le fait `[FAIT DÉTERMINISTIQUE -- CAUSES DE NON-AFFICHAGE]` (conditions satisfaites, cause bloquante unique). `ButtonExecutionPathResult` expose `satisfied_conditions` et `blocking_causes`.
+- `predispatch_structure.py` passe la question comme `premise_text`.
+- `prompts.py` : `build_synthesis_prompt` ajoute une règle uniquement si le fait est présent dans les observations : expliquer avec la seule cause listée, ne jamais qualifier une condition satisfaite d'erreur, d'inversion ou d'anomalie.
+
+**Limite connue** : la valeur d'état est reconnue par sa valeur technique citée dans la question (`to approve`), pas par un libellé traduit. Sans correspondance, le fait n'est pas émis et le comportement reste celui d'avant. L'outil `@tool` `button_execution_path` (appel libre du LLM) n'a pas la question et n'émet pas le fait.
+
+**Non modifié volontairement** : `correct_button_visibility_contradictions` (section 1026) reste en place. À simplifier ou retirer seulement après rejeux de PUR-Q4 (3 à 5) sans réapparition, pour éviter de retirer un filet sans mesure.
+
+**Validation** : 13 tests dans `test_section1028_display_causes.py` (dont 7 cas paramétrés sur l'analyseur) ; 126 tests ciblés (`button`, `predispatch`, `prompt`, `synthesis`, `section10`) passent ; compilation propre. Rejeu de PUR-Q4 à faire par pmm.
+
+**Fichiers modifiés** : `code_intelligence/rules/button_path.py`, `code_intelligence/agent/predispatch_structure.py`, `code_intelligence/agent/prompts.py`, `code_intelligence/tests/test_section1028_display_causes.py` (nouveau), `todo/contexte.txt`.
+
+## Section 1029 : traçabilité des gardes de post-traitement et cadrage du conseil opérationnel
+
+Date : 30/09/2026
+Contexte : deux rejeux de PUR-Q4 après la 1028 ont donné une réponse correcte sur la cause (état satisfait, groupe seul bloquant), mais rien ne permettait de savoir si le garde regex de la section 1026 avait corrigé la sortie ou si la règle de prompt avait prévenu l'erreur. Le second rejeu ajoutait aussi un conseil absent des observations (« l'utilisateur doit être ajouté au groupe Administrator »), risqué : ce groupe porte tous les droits d'approbation d'achat, pas seulement ce bouton.
+
+**Corrections** :
+
+- `postprocess.py` : `_apply_backfill_chain` est une table ordonnée `(garde, arguments, kwargs)` parcourue par une boucle unique (DRY, ordre et arguments inchangés). Elle enregistre le nom de chaque garde qui modifie réellement la réponse (`applied_guards`, log INFO par garde). La liste est exposée dans `timing["ci_applied_guards"]`.
+- `run_bloc_n1_benchmark.py` affiche « Gardes de post-traitement ayant modifie la reponse » et l'enregistre dans le JSON (`applied_guards`).
+- `prompts.py` : la règle 6 n'invite plus à indiquer « qui contacter » ; elle demande de nommer le groupe qui détient l'option et de ne jamais recommander d'ajout à un groupe ni de procédure d'accès. La règle 7 interdit de répéter l'identifiant technique d'un groupe à côté de son nom affiché.
+- `tests/test_bug2_backfill_scoped_output_wiring.py` : le verrou de la section 492 scannait la syntaxe des appels dans le source, ce que la table rend caduc. Il vérifie désormais le comportement : chaque garde à sortie scopée est remplacé par un enregistreur et doit recevoir `scoped_tool_output`, jamais `raw_tool_output`. Un contrôle statique minimal reste sur l'appel dans `build_final_response`.
+
+**Limite connue** : `applied_guards` ne couvre que la chaîne `_apply_backfill_chain`. Les nettoyages qui suivent dans `build_final_response` (`_strip_unsourced_examples`, `_strip_unexpected_script_sentences`, citations, répétitions dégénérées) et ceux de la boucle de synthèse ne sont pas tracés.
+
+**Décision différée** : le garde de la section 1026 reste en place. Le retirer seulement si 5 rejeux de PUR-Q4 n'affichent jamais `correct_button_visibility_contradictions` dans les gardes appliqués.
+
+**Validation** : tests ciblés (`postprocess`, `backfill`, `guard`, `section10`, `button`, `module_extension`) : 216 passent, 1 ignoré ; nouveaux tests `test_section1029_prompt_wording.py` et test câblage réécrit passent ; compilation propre. La suite complète n'a pas pu être exécutée dans le délai du connecteur : à lancer par pmm.
+
+**Fichiers modifiés** : `code_intelligence/agent/postprocess.py`, `code_intelligence/agent/prompts.py`, `scripts/run_bloc_n1_benchmark.py`, `tests/test_bug2_backfill_scoped_output_wiring.py`, `code_intelligence/tests/test_section1029_prompt_wording.py` (nouveau), `todo/contexte.txt`.
+
+
+## Section 1030 : `test_business_resolver_specificity.py` -- 5 tests désynchronisés du contrat de `rank_by_specificity()` depuis la section 1004
+
+Date : 30/09/2026
+Contexte : suite complète relancée par pmm (1029 ne l'avait pas terminée dans le délai du connecteur). 5 échecs, tous dans le même fichier, sans rapport avec 1025-1029.
+
+**Root cause** : la section 1004 a changé le contrat de `rank_by_specificity()` (bug réel STK-Q1 rejoué : la fonction ne gardait que le score maximal, éliminant `stock.quant` alors que la question citait aussi `stock.move.line`) -- elle trie désormais pour ordonner le dispatch et ne filtre plus aucune mention technique exacte. `tests/test_business_resolver_specificity.py` testait encore l'ancien contrat (élimination) sur un scénario synthétique (`base` vs `custom.deep.document`) jamais rattaché à un cas réel -- son renvoi vers `contexte.txt section 2xx` est resté un espace réservé, contrairement à STK-Q1 qui est un rejeu vérifié.
+
+**Décision (todo/rules.md : "pas de fix chirurgical, voir la root cause")** : ne pas retoucher `rank_by_specificity()` pour satisfaire un scénario jamais confirmé sur une vraie instance -- ce serait défaire un correctif root-cause au profit d'un cas hypothétique. Les 5 tests sont mis à jour pour vérifier le contrat actuel (le plus spécifique en tête du tri, aucune mention exacte éliminée), avec renvoi vers la section 1004 dans le docstring du fichier. Aucun code de production modifié (`matching.py`, `resolver.py` inchangés).
+
+**Validation** : suite complète, 2059 passed, 39 skipped, 0 échec, 1102s.
+
+**Fichiers modifiés** : `tests/test_business_resolver_specificity.py`, `todo/contexte.txt`.
+
+## Section 1031 : audit de generalisation "n'importe quelle instance Odoo 17" (analyse seule, aucun fichier source touche)
+
+Date : 30/09/2026
+Contexte : objectif ouvert par pmm apres la 1030 -- l'IA doit repondre correctement sur toute instance Odoo 17, quel que soit le code custom (todo/rules.md, derniere ligne).
+
+**Mesure** (script jetable hors depot, `resolve_business_term()` sans LLM sur `active_graph.json`, 11781 noeuds) : Bloc N1 natif, 25 questions, resolution vers un modele du bon domaine.
+- Avec la table statique `BUSINESS_ALIASES` : 25/25.
+- Table videe (seul le graphe : descriptions de modeles, libelles de champs, menus, noms techniques) : 16/25, 9 non resolues (MNT-Q4, PUR-Q5, SAL-Q1/Q2/Q4/Q5, STK-Q4, ACC-Q2/Q4). Toutes sont des termes metier francais ("commande d'achat", "commande de vente", "transfert", "ecriture comptable") absents des libelles anglais du graphe.
+- Le banc OCA (`oca_p3_1_question_bank.json`) n'est pas exploitable comme temoin : les modules OCA ne sont pas dans `active_graph.json` (26/50 avec table, 3/50 sans).
+
+**Constats** :
+1. Le pont langue utilisateur -> libelles Odoo repose sur une table a la main (280 lignes, dont 15 references aux 8 modules custom du banc). Or chaque module natif/OCA livre `i18n/fr.po` (66 fichiers .po pour `purchase` seul) : les libelles francais des modeles, champs, menus et selections existent deja dans le code de toute instance. Les modules custom en ont rarement ; il faut un repli (arbitrage LLM borne existant, ou plongements multilingues).
+2. Code de production qui code un scenario du banc en dur : `dispatch_guards._force_dynamic_uncertainty_answer` (regex `custom_expense_reimbursement_indirect|custom.reimbursement.request`, reponse canned). Meme classe que les sections 217/219 de rules.md.
+3. Non mesure : les gardes regex francais calibres sur des questions connues (familles 877/878 "avoir"/"ecriture", 1026/1028). Leur generalisation ne peut se juger qu'avec un banc hors calibrage sur une seconde instance.
+
+**Pistes ordonnees (aucune mandatee)** : (G1) lexique multilingue derive des `.po` et des traductions runtime dans l'index fuzzy du graphe, table statique reduite a des surcharges optionnelles, critere de sortie = ablation >= 24/25 ; (G2) retirer les reponses canned liees a un module ; (G3) banc de generalisation sur une seconde instance (modules OCA charges dans le graphe), jamais utilise pour calibrer.
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section).
+
+## Section 1032 : cadrage de la suite de l'audit de generalisation (G0 -> G3, aucune modification source)
+
+Date : 30/09/2026
+Contexte : discussion avec pmm apres l'audit 1031. Le score 25/25 du banc natif avec alias statiques n'est pas un objectif IA suffisant : il peut mesurer une adaptation au banc connu plutot que la generalisation. Le 16/25 sans alias revele au contraire le manque structurel de signal multilingue du graphe. L'objectif est une resolution portable, explicable et capable de conserver l'incertitude lorsque le signal manque ; non une promesse de 100 % sur toute instance.
+
+**Ordre retenu en principe, sous reserve de mandat explicite pour chaque changement** :
+
+1. **G0 -- figer le protocole de mesure (test uniquement)** : conserver le script d'ablation, les 25 cas et les candidats/scores produits avec la table videe. Ajouter des contre-exemples d'ambiguite afin qu'un terme comme « commande » ne soit pas mappe par defaut vers achat ou vente. Ce protocole est fige avant tout calibrage.
+2. **G1 -- lexique derive avec provenance** : injecter dans l'index fuzzy les traductions `.po` et runtime, reliees a leur objet technique exact (modele, champ, menu, selection), et non une simple liste de mots. Chaque entree doit indiquer sa source (`po`, runtime ou surcharge) et son module. `BUSINESS_ALIASES` devient une couche de surcharges optionnelles, visible et mesurable. Les modules custom sans traduction conservent le repli LLM borne deja existant.
+3. **Sortie de G1** : ablation avec table statique videe >= 24/25 sur le banc natif comme plancher de non-regression, sans nouvelle dependance a un nom de module ou a une question du banc ; verification des termes anglais et des ambiguities ; rapport de couverture des entrees derivees contre les surcharges. Le seuil ne constitue pas un objectif final de justesse universelle.
+4. **G2 -- suppression isolee du scenario pre-ecrit** : retirer dans un changement distinct `_force_dynamic_uncertainty_answer` et sa reponse liee a `custom_expense_reimbursement_indirect` / `custom.reimbursement.request`. Ce nettoyage ne depend pas de G1 et ne doit pas attendre G3.
+5. **G3 -- generalisation reelle** : construire un graphe OCA distinct, charger les modules correspondants, puis geler ce banc comme validation hors calibrage. Ses resultats ne doivent influencer ni regles, ni seuils, ni alias.
+
+**Decision immediate** : aucun code, aucun test et aucun plan ne sont modifies par cette note. Si pmm mandate G1, G0 fait partie de son perimetre de test ; G1 reste un changement separe.
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section).
+
+## Section 1033 : architecture instance-aware, evaluation et audit des lacunes (discussion, aucun fichier source touche)
+
+Date : 30/09/2026
+Contexte : suite de la discussion sur l'objectif de 80 % de reponses correctes sur une nouvelle instance Odoo 17 et sur l'equivalent de RAGAS pour ce projet.
+
+**Limite de l'objectif** : une garantie « au pire, sur n'importe quelle instance » n'est pas defendable si l'instance ne fournit ni le code, ni les metadonnees runtime, ni l'acces aux donnees/configurations necessaires. Un objectif mesurable est plutot une performance d'au moins 80 % sur une population d'instances et de questions tenue hors calibrage, avec des hypotheses explicites (acces au registre/code/runtime, classes de taches supportees) et une politique d'abstention. G1 reste un correctif local de resolution des termes ; il ne garantit ni la qualite des preuves, ni la justesse de la synthese finale.
+
+**Architecture proposee si le seuil de 80 % devient une exigence produit** : remplacer progressivement le graphe statique + fuzzy resolver + synthese libre par une architecture adaptee a l'instance :
+
+1. **Compilateur d'instance au raccordement** : inventorier tous les modules installes et leurs versions via `ir.module.module`, les chemins d'addons, le registre runtime, les modeles/champs/vues/menus/actions, les ACL et regles, les configurations pertinentes, le code Python/XML/manifests disponible et les traductions.
+2. **Graphe type + index multilingue + registre de preuves** : chaque objet et relation porte sa provenance (fichier/ligne, vue, objet runtime ou requete ORM), son module et sa version. Les alias statiques ne sont qu'une surcharge, jamais la source de verite.
+3. **Planificateur de requete structure** : le LLM produit une intention, des objets candidats, des predicats et le contexte utilisateur/societe/langue ; il ne choisit pas directement une reponse textuelle a partir d'un contexte non type.
+4. **Execution des preuves separee** : analyse statique du code/graphe d'un cote ; verification dynamique via ORM dans le contexte reel de l'utilisateur et de la societe de l'autre.
+5. **Verification des affirmations** : chaque affirmation finale doit etre reliee a une preuve. En cas d'ambiguite ou de signal absent, le systeme demande une precision ou s'abstient. Les reponses canned liees a un module et les gardes regex calibres sur des questions du banc ne sont pas une strategie de generalisation.
+
+Cette architecture ne peut pas inventer une semantique absente du code ou du runtime ; elle peut en revanche rendre l'absence de preuve visible plutot que la remplacer par une hallucination.
+
+**Evaluation** : il n'y a pas d'equivalent pret a l'emploi de RAGAS pour l'agent Odoo. Les metriques RAGAS de precision/rappel du contexte et de fidelite peuvent servir pour la sous-partie « recuperation de preuves », mais l'evaluation complete doit etre instance-aware et s'appuyer autant que possible sur un oracle derive de l'instance.
+
+Un cas d'evaluation devrait figer :
+
+- le snapshot/hash de l'instance ;
+- la version et les modules ;
+- l'utilisateur, la societe et la langue ;
+- la question ;
+- l'intention, les objets et predicats attendus ;
+- les preuves acceptables et les affirmations attendues ;
+- la regle d'abstention.
+
+Les couches a mesurer sont la resolution (domaine/modeles, recall@k, ambiguite), le plan d'outils (outil/arguments, hops hors sujet), les preuves (precision/rappel, affirmations non supportees), la reponse (exactitude au niveau des affirmations), l'abstention (couverture et courbe risque-couverture) et la generalisation (separation par instance/module/langue/configuration, jamais un split aleatoire de questions). Le rapport doit distinguer `accuracy_all_questions`, `accuracy_answered_questions`, `coverage`, `unsupported_claim_rate` et `wrong_tool_rate` ; une abstention ne doit pas etre masquee dans le score.
+
+**Etat actuel de la couverture dans le projet** :
+
+- `scripts/coverage_report.py` mesure seulement une couverture statique B0 (descriptions de modeles, labels de champs, menus -> actions). Il n'analyse ni les capacites de reponse, ni les preuves, ni les questions. En outre, le script attend un graphe NetworkX brut alors que `active_graph.json` est actuellement enveloppe dans `{"metadata": ..., "graph": ...}` ; il est donc a remettre en phase avant usage direct.
+- `ResolvedSymbolRegistry.unresolved_references` (`code_intelligence/graph/nodes.py`) sait representer des modeles/groupes/regles/actions non resolus, mais ces lacunes sont surtout affichees par des scripts d'extraction et ne sont pas encore persistees dans un rapport d'instance exploitable.
+- Le detecteur de staleness (`code_intelligence/graph/staleness.py`) detecte des fichiers modifies, des propagations et certains motifs dynamiques ; il ne mesure pas la couverture semantique ou metier.
+- Le chargeur interroge l'instance pour l'etat installe de cinq modules natifs candidats (`account`, `sale`, `stock`, `purchase`, `maintenance`). Les modules custom et OCA sont encore principalement determines par les chemins de fichiers configures ; il n'existe pas d'inventaire complet de toute nouvelle instance.
+- Les traces de raisonnement et les rapports de benchmark revelent les echecs apres une question, mais restent reactifs.
+
+**Composant a ajouter en priorite : `instance_audit` (proposition, non mandatee)** : au raccordement d'une instance, produire un rapport versionne, par exemple `instance_audit.json`, avec : modules installes/non indexes, modules dont l'extraction echoue, references non resolues, labels/traductions manquants, domaines sans outil de preuve, termes ambigus, sondes qui s'abstiennent et erreurs observees depuis la mise en service. Generer des sondes a partir de l'ontologie et du graphe, en mode table d'alias videe pour eviter de calibrer le diagnostic sur les alias. Classer chaque capacite `couverte`, `ambiguë`, `preuve_manquante` ou `non_supportee`, puis transformer les lacunes en backlog (extracteur, ingestion de traduction, outil de preuve ou clarification).
+
+Les erreurs observees en production peuvent alimenter des suggestions de correction avec provenance et test de non-regression, mais ne doivent pas ajouter automatiquement des alias statiques : cela recreerait la dependance au banc ou a l'instance que l'audit 1031 a identifiee.
+
+**Decision** : cette section ne mandate aucun changement de code. Elle distingue explicitement la couverture du corpus (ce que le graphe contient) de la couverture des capacites (ce que l'agent sait demontrer) et de la performance reelle (ce qu'il repond correctement).
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section).
+
+## Section 1034 : audit de l'etat du projet et redaction du plan de generalisation (documentation seule, aucun fichier source touche)
+
+Date : 30/09/2026
+Contexte : pmm a demande de verifier ce qui ne va pas dans l'existant, hors points deja traites en 1031-1033, puis de rediger le plan restant pour atteindre l'objectif "l'IA comprend le code et l'explique en termes metier a tout utilisateur, sur toute instance Odoo 17".
+
+**Constats (lecture du code et du git, aucun test execute, aucun diff relu)** :
+1. Le scaffolding de synthese repose sur 22 fonctions `_backfill_*` / `_force_*` du code de production, declenchees par des regex sur des mots francais calibrees sur des questions du banc (ex. `rules/workflow.py::_backfill_backorder_policy_facts` : "transfert" + "quant" ou "trait"). 45 fichiers `test_section*.py` gelent des cas connus. Cause racine non traitee : aucun verificateur generique ne garantit que les faits (montants, groupes, conditions, messages) survivent a la synthese du LLM.
+2. Faits natifs ecrits a la main dans des textes : `rules/workflow.py` (fait de verrouillage citant `sale.group_auto_done_setting`). Non verifie : si ce texte est conditionne a la preuve trouvee dans le graphe. Faux si une instance surcharge `_should_be_locked`.
+3. Le langage metier en sortie ne repose que sur une consigne de prompt (`agent/prompts.py`, regle 7), sans mecanisme ni mesure. Le rendu par libelles UI de l'instance (libelle de champ, de selection, menu, bouton, groupe, dans la langue de l'utilisateur) n'existe pas ; meme source que G1.
+4. Data Intelligence / Code Intelligence : fusion non tranchee ; 2 questions "donnees" sur 8 dans la liste d'`architecture.md`.
+5. Arbre de travail sale : 14 fichiers modifies (dont code de production), 3 tests non suivis (sections 1027 a 1029). Ecart plan/journal : `plan.md` marque le banc natif a construire alors que le journal en montre un de 25 questions rejoue. `architecture.md` renvoie a une section "Preconditions H3" absente de `plan.md`. Commentaires de code nommant des modules du banc (`forced_dispatch_predicates.py`), `diag_ngrok.py` residuel a la racine.
+
+**Estimation d'avancement (jugement, non mesure)** : environ 40 % de l'objectif hors calibrage (35 a 50 %). Seules mesurees : 16/25 et 3/50 en resolution sans table. Les bancs connus (25/25, 50/50, 20/20) mesurent la calibration.
+
+**Decision** : redaction de `todo/plan_generalisation.md` (phases 0 a 7 : assainir, figer la mesure, lexique derive, rendu metier sortant, remplacement du scaffolding, compilateur d'instance, donnees, preuve de generalisation). Une ligne de renvoi ajoutee dans `todo/plan.md`, sous "Chantiers, par ordre de priorite suggere", marquee non mandatee. Aucune phase n'est mandatee ; aucun code, test ni alias modifie.
+
+**Fichiers modifies** : `todo/plan_generalisation.md` (cree), `todo/plan.md` (1 ligne), `todo/contexte.txt` (cette section).
+
+## Section 1035 : correction de la section 1034 et revision v2 du plan de generalisation (documentation seule, aucun fichier source touche)
+
+Date : 30/09/2026
+Contexte : relecture critique du plan par pmm. La section 1034 conserve l'historique de sa redaction, mais plusieurs chiffres et constats doivent etre corriges plutot que reutilises comme mesures.
+
+**Corrections factuelles** :
+
+1. `graph/staleness.py` importe deja `logging` et `networkx as nx` et compile. Le « bug connu » de la section 1034 et du premier brouillon du plan etait une note de memoire perimee ; il est retire du plan tant qu'il n'est pas reproduit.
+2. Le nombre de fichiers modifies/non suivis est volatil. Au releve de cette revision, `git status --short` montrait 15 fichiers modifies et 4 non suivis, dont les propres fichiers `todo/`. Le plan demande desormais un releve dynamique au debut de la phase 0, sans figer ce nombre.
+3. Les estimations de la section 1034 (« environ 40 % », « 35 a 50 % ») et le tableau de progression du premier plan sont retires comme mesures : 537 modules OCA extraits sans echec signifie 100 % de succes de parsing sur ce corpus, pas 80 % de couverture semantique. La seule mesure de generalisation de resolution comparable reste 16/25 sans table sur le banc natif ; le resultat OCA 3/50 n'est pas comparable car les modules OCA n'etaient pas dans le graphe utilise.
+
+**Revision v2 de `todo/plan_generalisation.md`** :
+
+- l'etat de depart est reformule en hypotheses non chiffrees a remplacer par les mesures de la phase 1 ;
+- le critere devient `accuracy_all_questions >= 80 %`, abstentions comptees comme erreurs, couverture minimale pre-enregistree et borne basse d'intervalle de confiance a 95 % atteignant 80 %, avec incertitude regroupee par instance et ventilation par instance/module/langue/famille ;
+- l'ordre devient protocole -> empreinte 5a (modules/versions/chemins/langues/hash) -> lexique G1 -> rendu metier -> gardes -> introspection/audit 5b -> donnees -> generalisation ;
+- la phase 4 est decoupee en registre de faits avec provenance, verificateur shadow, comparaison puis retrait des gardes par lots ; un fait dynamique dependant de l'ORM/configuration ne peut pas etre remplace par un fait statique du graphe ;
+- la phase 3 ajoute une relecture aveugle par des non-techniciens avec grille d'exactitude metier, intelligibilite, fidelite aux preuves et absence de conseil invente, publiee comme `human_business_acceptance_rate` ; `technical_identifier_leak_rate` ne s'applique qu'a la zone destinee a l'utilisateur ;
+- la phase 6 commence par un contrat de securite : `with_user()` du demandeur, aucun `sudo` ni SQL brut, societes et ACL explicites, lecture seule, plafond de lignes, budgets et journal d'audit ;
+- la phase 7 porte sur plusieurs snapshots independants, separes par instance entiere, et conclut honnetement sur `N` instances echantillonnees, pas sur « toute instance ».
+
+**Decision** : cette revision v2 est documentaire et non mandatee. `plan.md` reste stable ; aucun code, test, alias ou graphe n'est modifie.
+
+**Fichiers modifies** : `todo/plan_generalisation.md`, `todo/contexte.txt` (cette section).
+
+## Section 1036 : demarrage mandate de la v2 du plan de generalisation -- phase 0 (journal avant code)
+
+Date : 30/09/2026
+Contexte : pmm mandate l'implementation de `todo/plan_generalisation.md`. L'ordre retenu est celui de la v2 : phase 0, protocole de mesure, empreinte 5a, puis G1. Cette section est ecrite avant toute modification de code.
+
+**Etat de depart releve** : `git status --short` montre 15 fichiers modifies et 4 non suivis. Ces changements preexistants (notamment les sections 1027-1029, captures et `todo/plan.md`) ne sont pas ecrases ni regroupes dans ce chantier sans revue/consigne distincte.
+
+**Perimetre immediat de la phase 0** :
+
+- reconciler les descriptions documentaires du banc natif avec les scripts et le banc de 25 questions existants ;
+- corriger dans `architecture.md` le renvoi H3 vers la vraie section « Raisonnement deterministe » de `plan.md` ;
+- retirer le diagnostic autonome `diag_ngrok.py`, non reference dans le depot et hors produit ;
+- retirer les commentaires de production qui citent un module de banc lorsqu'une formulation generique preserve le sens ;
+- ne pas encore retirer `_force_dynamic_uncertainty_answer` : G2 reste un changement isole de la phase 4.
+
+**Realisation** :
+
+- `architecture.md` renvoie maintenant H3 a la section existante « Raisonnement deterministe » de `plan.md` ;
+- `plan.md` decrit le banc natif et ses scripts comme existants et rejouables, tout en le qualifiant explicitement de banc de calibration, non de preuve inter-instance ;
+- `diag_ngrok.py` est supprime : il etait suivi par git, non reference hors le plan de phase 0 et constituait un diagnostic local autonome ;
+- le commentaire de `forced_dispatch_predicates.py` conserve la raison algorithmique du gate de montant sans citer le module custom du banc ; aucun comportement ne change.
+
+**Validation** : aucune reference executable a `diag_ngrok.py` ne reste dans le depot ; `py_compile` de `forced_dispatch_predicates.py` est propre ; test cible `test_section883_override_chain_amount_gate.py` : 5 passed ; `git diff --check` des fichiers touches est propre.
+
+**Fichiers modifies** : `todo/architecture.md`, `todo/plan.md`, `code_intelligence/agent/forced_dispatch_predicates.py`, suppression de `diag_ngrok.py`, `todo/contexte.txt` (cette section).
+
+## Section 1037 : implementation mandatee -- protocole G0, empreinte 5a et lexique G1 (journal avant code)
+
+Date : 30/09/2026
+Contexte : apres la phase 0, pmm confirme « vas-y, implemente ». Le chantier conserve
+l'ordre de `plan_generalisation.md` et ne touche pas encore G2 ni les gardes de synthese.
+
+**Decision de conception** :
+
+- ajouter un protocole d'evaluation structure qui separe `accuracy_all_questions` (une
+  abstention est une erreur), `accuracy_answered_questions`, couverture, outils erronees,
+  affirmations non supportees et fuites d'identifiants techniques. La mesure de routage
+  du banc N1 determinera la cible depuis le champ `module` deja declare dans chaque cas,
+  puis depuis les aretes `DEFINED_IN` du graphe ; elle ne contient donc ni liste de
+  questions ni association codee a la main entre identifiants de banc et modeles ;
+- ajouter une empreinte serialisable de l'instance : modules et versions fournis par un
+  lecteur runtime injecte, chemins d'addons et disponibilite/hash des sources, langues et
+  langue de requete. En l'absence d'acces runtime, elle devra declarer explicitement la
+  lacune au lieu de pretendre connaitre l'instance ;
+- ajouter un parseur `.po` sans dependance externe et un format de lexique avec
+  provenance (`po`, `runtime`, `override`), langue, module et reference Odoo. Les
+  references standards seront liees aux noeuds exacts modele, champ, menu ou selection ;
+  les entrees non liees seront comptees, pas devinees ;
+- enrichir l'index fuzzy avec ces libelles d'instance. `BUSINESS_ALIASES` reste actif par
+  defaut pour la compatibilite, mais une option explicite `use_static_aliases=False`
+  permettra l'ablation sans mutation globale et sans LLM ;
+- les langues seront un parametre d'instance/de requete, jamais une liste de modules ou de
+  termes francais codee en dur. Le banc francais passera explicitement `fr` dans son
+  script d'ablation.
+
+**Criteres de validation prevus** : tests unitaires de parsing/liaison/provenance, test
+d'ambiguite sans repli par defaut, test de l'empreinte en acces runtime et hors-ligne,
+puis ablation native avec la table statique desactivee. Le seuil 24/25 est un plancher de
+non-regression G1 ; il ne sera rapporte comme resultat que lorsqu'il aura ete mesure sur
+le graphe reel.
+
+**Fichiers prevus** : nouveaux modules d'empreinte, de traductions et d'evaluation ;
+adaptations ciblees du constructeur de graphe, de l'index fuzzy et du resolveur ; tests et
+script d'ablation. Aucun fichier preexistant non lie a ce perimetre ne sera reformate ou
+ecrase.
+
+## Section 1038 : implementation G0 / empreinte 5a / G1 -- premier resultat et limites
+
+Date : 30/09/2026
+Contexte : suite de la section 1037 et arret demande par pmm apres la premiere mesure.
+
+**Travail realise** :
+
+- `graph/translations.py` lit les `.po` selectionnes explicitement, conserve langue,
+  module, reference, libelle source et provenance, puis lie les references Odoo reconnues
+  aux noeuds modeles, champs, menus et selections. Les references non raccordees sont
+  comptees sans heuristique de rattachement ; les traductions runtime peuvent etre
+  injectees par identifiant de noeud exact ;
+- `_load_module` et le constructeur de graphe transportent les traductions. Les `.po`
+  sont ignores proprement quand aucune langue n'est demandee, afin de ne pas charger toutes
+  les langues ni les fichiers inutilement ;
+- `graph/instance_fingerprint.py` produit une empreinte deterministe avec inventaire
+  runtime optionnel, versions sources, chemins d'addons, disponibilite des sources,
+  langues et langue de requete. Les champs inconnus sont signales par des indicateurs
+  d'indisponibilite. `get_code_intelligence_graph` prend ces informations en parametres,
+  les attache au graphe et force la reconstruction quand le schema ou les langues
+  demandees ne correspondent pas ; schema du graphe passe a 4 ;
+- `resolve_business_term` accepte `language` et `use_static_aliases`. La desactivation
+  ecarte a la fois `BUSINESS_ALIASES` et les synonymes natifs statiques, sans mutation
+  globale. L'index fuzzy inclut les libelles de traduction filtres par langue, les libelles
+  de menus racine combines aux libelles de modeles du meme module, et les fenetres de mots
+  de la question pour retrouver les libelles dans une phrase longue ;
+- nouveau script `scripts/run_business_resolver_ablation.py` : il charge les 25 questions
+  du banc natif, deduit le domaine attendu du champ `module` et des aretes `DEFINED_IN`,
+  appelle le resolveur sans LLM et alias statiques par defaut, et publie un JSON avec
+  exactitude, couverture, borne de Wilson, ventilation par instance et compteurs de
+  traductions. Les metriques generiques laissent `null` les dimensions non observees ;
+- nouveaux tests `test_instance_lexicon.py` pour les references PO, l'ablation de la table,
+  le cas ambigu « commande » et l'empreinte sans runtime.
+
+**Verification** : compilation Python ciblee reussie ; `pytest` cible (`test_instance_lexicon.py`
+et `test_business_resolver.py`) : 54 passed. Une premiere execution complete de l'ablation
+francaise, sans LLM et sans alias, a produit 25 lignes : 16/25 correctes, accuracy_all_questions
+64 %, accuracy_answered_questions 100 %, couverture 64 %, borne basse de Wilson (poolee)
+44,5 %. Aucun resultat incorrect parmi les cas resolus. Les 9 abstentions sont MNT-Q4,
+PUR-Q5, SAL-Q1/Q2/Q4/Q5, STK-Q4 et ACC-Q2/Q4. La cible G1 de 24/25 n'est donc pas atteinte.
+Le rapport JSON de travail est dans `/tmp/odoo_resolver_ablation_fr.json` ; il n'est pas
+ajoute au depot.
+
+Le graphe a rattache 5 415 entrees de traduction et en a laisse 9 289 sans reference
+reconnue. Ces valeurs portent sur le graphe source charge pendant cette execution, pas sur
+une instance runtime certifiee. L'acces XML-RPC a ete refuse par l'environnement (`Operation
+not permitted`) ; le chargeur a utilise son repli explicite et le rapport marque l'inventaire
+runtime et les langues actives comme inconnus. La mesure est donc une premiere mesure du
+corpus source disponible, pas une preuve sur une instance connectee. Une seule empreinte
+est mesuree ; l'intervalle robuste par instance n'est pas calculable. Les taux d'outils,
+d'affirmations non supportees et de fuite technique sont `null`, car ce protocole mesure le
+routage et ne produit aucune reponse utilisateur.
+
+**Suite du chantier** : G1 reste incomplet. L'ablation a ete relancee apres ajout du score
+par fenetres et de la combinaison generique des libelles de menu racine ; elle a termine
+avec le meme resultat 16/25. Il faut revisiter la cause de generalisation lexicale avant de
+declarer le critere de sortie atteint. Aucune calibration manuelle ni ajout d'alias lie a
+une question ou un module n'a ete fait. G2 et les gardes de reponse restent hors de ce
+changement.
+
+**Fichiers modifies par cette implementation** : `code_intelligence/graph/translations.py`,
+`code_intelligence/graph/instance_fingerprint.py`, `code_intelligence/graph/nodes.py`,
+`code_intelligence/graph/builder.py`, `code_intelligence/graph/loader.py`,
+`code_intelligence/graph/version.py`, `code_intelligence/agent/matching.py`,
+`code_intelligence/agent/resolver.py`, `code_intelligence/evaluation/__init__.py`,
+`code_intelligence/evaluation/resolver_metrics.py`,
+`code_intelligence/tests/test_instance_lexicon.py`,
+`scripts/run_business_resolver_ablation.py`, `todo/contexte.txt` (cette section). Le cache
+local `code_intelligence/active_graph.json` a ete reconstruit par le chargeur ; le rapport
+d'ablation est uniquement dans `/tmp`. Les autres modifications deja presentes dans l'arbre
+ont ete preservees.

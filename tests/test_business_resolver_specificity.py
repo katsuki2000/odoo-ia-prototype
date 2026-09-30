@@ -2,15 +2,15 @@
 """
 tests/test_business_resolver_specificity.py
 
-Option 2 fix (todo/contexte.txt section 2xx): several exact technical model
-mentions can coexist in the same query -- a generic name like "base"
-alongside a specific one like "custom.deep.document" -- with nothing
-previously choosing the more relevant one. The naive fix (blacklisting
-"base") is ad hoc and would need to be re-applied for every future generic
-technical name ("mail", "stock", "account", ...). rank_by_specificity()
-arbitrates deterministically instead, using segment count / length / custom
-prefix / occurrence count as tie-breakers, mirroring the arbitration idea
-already used on the fuzzy-match path via AMBIGUITY_GAP_THRESHOLD.
+rank_by_specificity() orders several exact technical model mentions found
+in the same query, using segment count / length / custom prefix / occurrence
+count as tie-breakers, mirroring the arbitration idea already used on the
+fuzzy-match path via AMBIGUITY_GAP_THRESHOLD. It used to also eliminate the
+least specific mention; todo/contexte.txt section 1004 (STK-Q1: a real reply
+dropped "stock.quant" because "stock.move.line" had more segments, even
+though the question named both) removed that elimination -- an exact
+mention is a co-target the dispatcher must not drop, not noise to filter
+out. The ranking is now for dispatch order only; all mentions survive.
 
 This file covers:
   1. _specificity_score / rank_by_specificity in isolation.
@@ -57,18 +57,21 @@ class TestRankBySpecificity:
     def test_noop_with_empty_list(self):
         assert rank_by_specificity([], "peu importe") == []
 
-    def test_more_segments_wins_over_generic_short_name(self):
-        """The exact reported bug: 'base' (1 segment) vs
-        'custom.deep.document' (3 segments) mentioned in the same query --
-        only the specific one should survive arbitration."""
+    def test_more_segments_ranks_first_but_both_survive(self):
+        """'base' (1 segment) vs 'custom.deep.document' (3 segments)
+        mentioned in the same query: the specific one ranks first, but
+        (section 1004) an exact mention is never dropped -- both models
+        were named literally and both must reach dispatch."""
         matches = ["base", "custom.deep.document"]
         query = "un utilisateur peut-il voir custom.deep.document ou base ?"
-        assert rank_by_specificity(matches, query) == ["custom.deep.document"]
+        result = rank_by_specificity(matches, query)
+        assert result[0] == "custom.deep.document"
+        assert set(result) == {"base", "custom.deep.document"}
 
     def test_order_of_input_list_does_not_matter(self):
         matches = ["custom.deep.document", "base"]
         query = "un utilisateur peut-il voir custom.deep.document ou base ?"
-        assert rank_by_specificity(matches, query) == ["custom.deep.document"]
+        assert rank_by_specificity(matches, query)[0] == "custom.deep.document"
 
     def test_true_tie_keeps_both_candidates(self):
         """Two equally-specific technical names (same segment count, same
@@ -82,11 +85,13 @@ class TestRankBySpecificity:
 
     def test_custom_prefix_breaks_a_segment_and_length_tie(self):
         """Same segment count (2) and same length (8 chars) -- differ only
-        by the custom/business prefix ('x_' vs no prefix): prefix wins."""
+        by the custom/business prefix ('x_' vs no prefix): prefix wins the
+        ranking order (both mentions still reach dispatch, section 1004)."""
         matches = ["ir.model", "x_.model"]
         query = "difference entre ir.model et x_.model"
         result = rank_by_specificity(matches, query)
-        assert result == ["x_.model"]
+        assert result[0] == "x_.model"
+        assert set(result) == {"ir.model", "x_.model"}
 
     def test_more_occurrences_breaks_a_remaining_tie(self):
         """Same segments/length/prefix -- only occurrence count in the
@@ -94,7 +99,8 @@ class TestRankBySpecificity:
         matches = ["custom.report", "custom.record"]
         query = "custom.report custom.report contre custom.record"
         result = rank_by_specificity(matches, query)
-        assert result == ["custom.report"]
+        assert result[0] == "custom.report"
+        assert set(result) == {"custom.report", "custom.record"}
 
 
 class TestSpecificityScore:
@@ -120,7 +126,9 @@ class TestSpecificityScore:
 # ---------------------------------------------------------------------------
 
 class TestResolveBusinessTermExactMentionArbitration:
-    def test_generic_and_specific_exact_mentions_resolve_to_specific_only(self):
+    def test_generic_and_specific_exact_mentions_both_reach_dispatch(self):
+        """Both models are named literally: resolve_business_term must not
+        drop either (section 1004) -- the specific one ranks first."""
         G = _FakeGraph(["base", "custom.deep.document"])
         question = "Quel est le lien entre base et custom.deep.document ?"
 
@@ -128,8 +136,8 @@ class TestResolveBusinessTermExactMentionArbitration:
 
         assert concept.is_resolved is True
         assert concept.source_step == "exact_technical_mention"
-        assert concept.resolved_models == ["custom.deep.document"]
-        assert "base" not in concept.resolved_models
+        assert concept.resolved_models[0] == "custom.deep.document"
+        assert set(concept.resolved_models) == {"base", "custom.deep.document"}
 
     def test_single_exact_mention_is_unaffected(self):
         """No arbitration needed/triggered when only one exact technical

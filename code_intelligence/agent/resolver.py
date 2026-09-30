@@ -125,7 +125,15 @@ from .matching import (
 _logger = logging.getLogger(__name__)
 
 
-def resolve_business_term(query_text: str, G=None, llm=None, active_model: Optional[str] = None) -> ResolvedConcept:
+def resolve_business_term(
+    query_text: str,
+    G=None,
+    llm=None,
+    active_model: Optional[str] = None,
+    *,
+    language: Optional[str] = None,
+    use_static_aliases: bool = True,
+) -> ResolvedConcept:
     """Resolve a natural language query into a technical Odoo model/module."""
     if not query_text:
         return ResolvedConcept(
@@ -135,6 +143,8 @@ def resolve_business_term(query_text: str, G=None, llm=None, active_model: Optio
         )
 
     clean_query = _nfc(query_text.lower().strip())
+    aliases = BUSINESS_ALIASES_NFC if use_static_aliases else {}
+    alias_patterns = _ALIAS_PATTERNS if use_static_aliases else {}
 
     # First retain only literal model names.  Inferring a model from a shared
     # method/button name (for example action_confirm) is deliberately delayed
@@ -161,12 +171,12 @@ def resolve_business_term(query_text: str, G=None, llm=None, active_model: Optio
     if exact_mentions or exact_modules:
         if exact_modules:
             matched_aliases = [
-                alias for alias in BUSINESS_ALIASES_NFC
-                if _ALIAS_PATTERNS[alias].search(clean_query)
+                alias for alias in aliases
+                if alias_patterns[alias].search(clean_query)
             ]
             alias_models = []
             for alias in matched_aliases:
-                for t in BUSINESS_ALIASES_NFC[alias]:
+                for t in aliases[alias]:
                     if t not in alias_models and t not in exact_mentions:
                         if G is not None:
                             is_in_mod = any(
@@ -207,8 +217,8 @@ def resolve_business_term(query_text: str, G=None, llm=None, active_model: Optio
             # sans jamais retirer ni reordonner ce que la mention exacte a
             # deja trouve (todo/contexte.txt sections 801-802, STK-Q5).
             merge_matched_aliases = [
-                alias for alias in BUSINESS_ALIASES_NFC
-                if _ALIAS_PATTERNS[alias].search(clean_query)
+                alias for alias in aliases
+                if alias_patterns[alias].search(clean_query)
             ]
             # Section 879: meme filtre de sous-chaine que le chemin alias
             # ci-dessous -- un alias INCLUS dans un alias plus long deja
@@ -225,11 +235,11 @@ def resolve_business_term(query_text: str, G=None, llm=None, active_model: Optio
                     if not any(a != b and a in b for b in merge_matched_aliases)
                     or any(
                         m.startswith(t + ".")
-                        for t in BUSINESS_ALIASES_NFC[a] for m in exact_mentions
+                        for t in aliases[a] for m in exact_mentions
                     )
                 ]
             for alias in merge_matched_aliases:
-                for t in BUSINESS_ALIASES_NFC[alias]:
+                for t in aliases[alias]:
                     if t not in exact_mentions:
                         exact_mentions.append(t)
 
@@ -255,8 +265,8 @@ def resolve_business_term(query_text: str, G=None, llm=None, active_model: Optio
     matched_terms = []
 
     matched_aliases = [
-        alias for alias in BUSINESS_ALIASES_NFC
-        if _ALIAS_PATTERNS[alias].search(clean_query)
+        alias for alias in aliases
+        if alias_patterns[alias].search(clean_query)
     ]
     if len(matched_aliases) > 1:
         matched_aliases = [
@@ -266,7 +276,7 @@ def resolve_business_term(query_text: str, G=None, llm=None, active_model: Optio
         matched_aliases.sort(key=lambda a: (len(a.split()), len(a)), reverse=True)
 
     for alias in matched_aliases:
-        targets = BUSINESS_ALIASES_NFC[alias]
+        targets = aliases[alias]
         matched_terms.append(alias)
         if G is not None and G.number_of_nodes() > 0:
             existing_in_g = [
@@ -327,7 +337,12 @@ def resolve_business_term(query_text: str, G=None, llm=None, active_model: Optio
 
     # Step 2: Fuzzy matching against Graph Node labels
     if G is not None:
-        fuzzy_results = _fuzzy_match_graph(clean_query, G)
+        fuzzy_results = _fuzzy_match_graph(
+            clean_query,
+            G,
+            language=language,
+            use_static_synonyms=use_static_aliases,
+        )
         if fuzzy_results:
             top_models = [model for model, _score in fuzzy_results]
             top_score = fuzzy_results[0][1]
@@ -379,6 +394,8 @@ def resolve_business_term(query_text: str, G=None, llm=None, active_model: Optio
                 clean_query, G,
                 threshold=WIDENED_CANDIDATE_THRESHOLD,
                 limit=WIDENED_CANDIDATE_LIMIT,
+                language=language,
+                use_static_synonyms=use_static_aliases,
             )
             if widened_results:
                 widened_models = [model for model, _score in widened_results]

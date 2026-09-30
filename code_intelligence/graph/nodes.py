@@ -50,6 +50,7 @@ class ParsedModule:
     menuitems: List[OdooMenuItemRecord] = field(default_factory=list)
     views: List[OdooViewRecord] = field(default_factory=list)
     acl_entries: List[OdooAccessEntry] = field(default_factory=list)
+    translations: List[object] = field(default_factory=list)
 
 
 @dataclass
@@ -306,6 +307,7 @@ def add_menu_nodes(
                 menu_node_id,
                 node_type="Menu",
                 xml_id=full_xml_id,
+                module=mod_name,
                 name=menu.name,
                 sequence=menu.sequence,
                 filepath=menu.filepath,

@@ -147,12 +147,11 @@ Ce fichier liste, brique par brique de `architecture.md`, l'ensemble des taches 
 
 *(Bloc N1, voir `todo/contexte.txt` sections 747-748)*
 
-- Ferme un ecart explicite d'`architecture.md` ("natifs, OCA et custom") : ni le volet custom ni le volet OCA ne couvrent les modules natifs coeur -- `CORE_MODULES_ALWAYS_LOADED` (account/sale/stock) garantit seulement que ces modules sont charges dans le graphe de production, pas qu'ils sont valides par un banc de questions.
+- Ferme un ecart explicite d'`architecture.md` ("natifs, OCA et custom") : ni le volet custom ni le volet OCA ne couvrent les modules natifs coeur -- les candidats natifs precharges (account/sale/stock/purchase/maintenance) garantissent seulement que ces modules sont charges dans le graphe de production, pas qu'ils generalisent a une autre instance.
 - Perimetre retenu, 5 modules : purchase (workflow/approbation -- double seuil `po_double_validation_amount`, defaut 5000€, `_approval_allowed()`, comparable directement a `custom_credit_note_*`), sale (data intelligence), account (calcul/etat, cite litteralement dans les exemples d'`architecture.md`), stock (mecanisme distinct -- quantites temps reel, multi-entrepot), maintenance (`owner_user_id`/`assign_date` sur `maintenance.equipment`, equivalent natif de "mise a disposition"/`custom.asset.loan`).
 - Extraction technique confirmee sur les 5 modules (rapide, aucune limite d'echelle cote extracteur) : purchase 19 modeles/8 regles/38 ACL/40 vues/5 groupes/4 server actions ; sale 35/27/54/55/3/3 ; account 90/31/163/131/10/12 ; stock 75/16/91/128/18/12 ; maintenance 7/8/10/25/1/0.
-- Construire le banc de questions/verite-terrain pour chacun des 5 modules -- travail manuel de lecture de code + verification, delegue a pmm (goulot humain, pas technique : account/stock sont 4-5x plus gros que purchase/sale en nombre de modeles). Commencer par purchase ou maintenance (les plus petits).
-- Ecrire le script de verification dedie par module, une fois le banc disponible pour au moins un module (miroir du pattern `scripts/check_bloc9_0N_*.py`).
-- Confirmer chacun des 5 modules end-to-end (raw/direct/full-pipeline) avec verite terrain verifiee, meme standard que le volet custom.
+- Le banc natif de 25 questions (5 par module) existe dans `tests/native_n1_question_bank.json`, avec le runner `scripts/run_bloc_n1_benchmark.py` et cinq scripts E2E dedies. Il est un banc de regression/calibration ; il ne constitue pas une preuve de generalisation inter-instance.
+- Maintenir et rejouer les verifications dediees par module (raw/direct/full-pipeline) apres toute modification pertinente ; completer la verite terrain uniquement par des cas independants du calibrage.
 
 ### B. Data Intelligence (runtime ERP)
 
@@ -163,6 +162,8 @@ Ce fichier liste, brique par brique de `architecture.md`, l'ensemble des taches 
 - Implementee, mais explicitement hors perimetre de l'evaluation principale du PoC (decision produit du 19/08/2026) -- fonctionnement detaille dans "Cas particulier : Documentation" ci-dessus.
 
 ## Chantiers, par ordre de priorite suggere
+
+Chantier transverse, non mandate : generalisation a toute instance Odoo 17 (phases 0 a 7) -- voir `todo/plan_generalisation.md`.
 
 1. **Natif (purchase/sale/account/stock/maintenance)** -- detail complet ci-dessus, "Validation par domaine".
 2. **Detecteur de contradiction reel (H3)** -- detail ci-dessus, "Raisonnement deterministe".

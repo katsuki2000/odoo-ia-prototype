@@ -498,6 +498,7 @@ def dispatch_button_execution_path(ctx: DispatchContext) -> None:
             button_result = _button_execution_path_impl(
                 ctx.G, ui_name, _resolve_model_param(target_model),
                 user_groups=ctx.resolved_user_group_xmlids or [],
+                premise_text=ctx.question,
             )
             record_evidence(button_result.evidence)
             observation = button_result.summary_text + "\n" + "\n".join(button_result.execution_steps)

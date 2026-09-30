@@ -10,6 +10,7 @@ assembly.
 import logging
 import re
 import time
+from typing import List, Optional
 
 from core.schemas import AssistantResponse, SourceReference, OmittedForAuthorization
 from core.evidence.evidence_sufficiency import assess_evidence_sufficiency
@@ -143,80 +144,65 @@ def _apply_backfill_chain(
     target_models=None,
     raw_tool_output: str = "",
     constraint_tool_output: str = "",
+    applied_guards: Optional[List[str]] = None,
 ) -> str:
-    final_answer = _correct_security_lock_threshold_contradictions(final_answer, scoped_tool_output, question)
-    final_answer = _correct_access_permission_contradictions(final_answer, scoped_tool_output)
-    final_answer = _backfill_missing_can_view_amount_fact(
-        final_answer,
-        scoped_tool_output,
-        tool_observation_models=scoped_tool_observation_models,
-        target_models=target_models,
-    )
-    final_answer = _backfill_missing_required_groups(final_answer, scoped_tool_output, question)
-    final_answer = _backfill_missing_implied_ids_mechanism(final_answer, scoped_tool_output or raw_tool_output, question)
-    final_answer = _backfill_missing_group_escalation_note(final_answer, scoped_tool_output or raw_tool_output, question)
-    final_answer = _backfill_missing_security_lock_amount(final_answer, scoped_tool_output, question=question)
-    final_answer = _backfill_missing_approval_guard_facts(
-        final_answer, raw_tool_output or scoped_tool_output, question
-    )
-    final_answer = _backfill_fiscal_lock_scope_fact(
-        final_answer, raw_tool_output or scoped_tool_output, question
-    )
-    final_answer = correct_button_role_contradictions(
-        final_answer, raw_tool_output or scoped_tool_output
-    )
-    final_answer = correct_button_visibility_contradictions(
-        final_answer, raw_tool_output or scoped_tool_output
-    )
-    final_answer = _backfill_missing_override_modules(final_answer, scoped_tool_output, question=question)
-    final_answer = _correct_override_cascade_contradictions(final_answer, scoped_tool_output)
-    # Section 840: list_involved_modules' MODULE-mode evidence ("Module 'X'
-    # defines or extends...") is recorded under tool_observation_models="X"
-    # (the module name, e.g. "account"), never under the resolved MODEL name
-    # (e.g. "account.move") -- scoped_tool_output filters by resolved model,
-    # so this evidence is structurally never present there. Use the
-    # unscoped raw_tool_output for this one guard instead; the denial check
-    # still runs against final_answer, so no cross-model contamination risk.
-    final_answer = _correct_module_extension_contradiction(
-        final_answer, raw_tool_output or scoped_tool_output, question=question
-    )
-    final_answer = _backfill_missing_module_extension_details(
-        final_answer, raw_tool_output or scoped_tool_output, question=question
-    )
-    final_answer = _backfill_missing_override_chain_amount(final_answer, scoped_tool_output)
-    final_answer = _backfill_missing_trigger_condition_literals(final_answer, scoped_tool_output)
-    final_answer = _backfill_missing_hardcoded_id_literals(final_answer, scoped_tool_output)
-    final_answer = _backfill_missing_unguarded_super(final_answer, scoped_tool_output)
-    final_answer = _backfill_link_guard_clarifications(final_answer, scoped_tool_output, question=question)
-    final_answer = _correct_can_view_amount_contradictions(final_answer)
-    final_answer = _correct_noop_hook_hallucinations(
-        final_answer, raw_tool_output or scoped_tool_output, question=question
-    )
-    final_answer = _backfill_action_confirm_workflow_details(
-        final_answer, raw_tool_output or scoped_tool_output, question=question
-    )
-    final_answer = _backfill_confirmation_lock_fact(
-        final_answer, raw_tool_output or scoped_tool_output, question=question
-    )
-    final_answer = _backfill_backorder_policy_facts(
-        final_answer, raw_tool_output or scoped_tool_output, question=question
-    )
-    final_answer = _backfill_stage_recurrence_conditions(
-        final_answer, raw_tool_output or scoped_tool_output, question=question
-    )
-    final_answer = backfill_missing_conditional_check_facts(
-        final_answer,
-        constraint_tool_output or scoped_tool_output or raw_tool_output,
-        question=question,
-    )
-    final_answer = backfill_missing_bounds_facts(
-        final_answer,
-        constraint_tool_output or scoped_tool_output or raw_tool_output,
-        question=question,
-    )
-    final_answer = _flag_ungrounded_group_xmlids(final_answer, scoped_tool_output)
-    final_answer = _strip_core_only_group_mentions(final_answer, scoped_tool_output)
-    final_answer = _strip_irrelevant_inheritance_constraints(final_answer, question=question)
+    """Run every backfill/correction guard in order. When `applied_guards` is given,
+    the name of each guard that actually changed the answer is appended to it."""
+    raw_or_scoped = raw_tool_output or scoped_tool_output
+    scoped_or_raw = scoped_tool_output or raw_tool_output
+    constraint_source = constraint_tool_output or scoped_tool_output or raw_tool_output
+    # Section 840: list_involved_modules' MODULE-mode evidence is recorded under
+    # the module name, never under the resolved MODEL name, so scoped_tool_output
+    # never contains it. The module-extension guards therefore read the unscoped
+    # raw output; the denial check still runs against final_answer, so no
+    # cross-model contamination is possible.
+    steps = [
+        (_correct_security_lock_threshold_contradictions, (scoped_tool_output, question), {}),
+        (_correct_access_permission_contradictions, (scoped_tool_output,), {}),
+        (
+            _backfill_missing_can_view_amount_fact,
+            (scoped_tool_output,),
+            {"tool_observation_models": scoped_tool_observation_models, "target_models": target_models},
+        ),
+        (_backfill_missing_required_groups, (scoped_tool_output, question), {}),
+        (_backfill_missing_implied_ids_mechanism, (scoped_or_raw, question), {}),
+        (_backfill_missing_group_escalation_note, (scoped_or_raw, question), {}),
+        (_backfill_missing_security_lock_amount, (scoped_tool_output,), {"question": question}),
+        (_backfill_missing_approval_guard_facts, (raw_or_scoped, question), {}),
+        (_backfill_fiscal_lock_scope_fact, (raw_or_scoped, question), {}),
+        (correct_button_role_contradictions, (raw_or_scoped,), {}),
+        (correct_button_visibility_contradictions, (raw_or_scoped,), {}),
+        (_backfill_missing_override_modules, (scoped_tool_output,), {"question": question}),
+        (_correct_override_cascade_contradictions, (scoped_tool_output,), {}),
+        (_correct_module_extension_contradiction, (raw_or_scoped,), {"question": question}),
+        (_backfill_missing_module_extension_details, (raw_or_scoped,), {"question": question}),
+        (_backfill_missing_override_chain_amount, (scoped_tool_output,), {}),
+        (_backfill_missing_trigger_condition_literals, (scoped_tool_output,), {}),
+        (_backfill_missing_hardcoded_id_literals, (scoped_tool_output,), {}),
+        (_backfill_missing_unguarded_super, (scoped_tool_output,), {}),
+        (_backfill_link_guard_clarifications, (scoped_tool_output,), {"question": question}),
+        (_correct_can_view_amount_contradictions, (), {}),
+        (_correct_noop_hook_hallucinations, (raw_or_scoped,), {"question": question}),
+        (_backfill_action_confirm_workflow_details, (raw_or_scoped,), {"question": question}),
+        (_backfill_confirmation_lock_fact, (raw_or_scoped,), {"question": question}),
+        (_backfill_backorder_policy_facts, (raw_or_scoped,), {"question": question}),
+        (_backfill_stage_recurrence_conditions, (raw_or_scoped,), {"question": question}),
+        (backfill_missing_conditional_check_facts, (constraint_source,), {"question": question}),
+        (backfill_missing_bounds_facts, (constraint_source,), {"question": question}),
+        (_flag_ungrounded_group_xmlids, (scoped_tool_output,), {}),
+        (_strip_core_only_group_mentions, (scoped_tool_output,), {}),
+        (_strip_irrelevant_inheritance_constraints, (), {"question": question}),
+    ]
+    for guard, args, kwargs in steps:
+        updated = guard(final_answer, *args, **kwargs)
+        if updated != final_answer:
+            logger.info(
+                "Node [code_intelligence_agent]: guard '%s' modified the answer (%d -> %d chars).",
+                guard.__name__, len(final_answer), len(updated),
+            )
+            if applied_guards is not None:
+                applied_guards.append(guard.__name__)
+        final_answer = updated
     return final_answer
 
 
@@ -238,6 +224,7 @@ def build_final_response(
     out_of_scope_model_answer = _force_out_of_scope_model_answer(question, concept)
     dynamic_uncertainty_answer = _force_dynamic_uncertainty_answer(question, raw_tool_output)
     ci_conflict_reason = None
+    applied_guards: List[str] = []
     if out_of_scope_model_answer:
         final_answer = out_of_scope_model_answer
     elif dynamic_uncertainty_answer:
@@ -289,6 +276,7 @@ def build_final_response(
                 target_models=concept.resolved_models,
                 raw_tool_output=raw_tool_output,
                 constraint_tool_output=constraint_tool_output,
+                applied_guards=applied_guards,
             )
 
     from code_intelligence.agent.dispatch_guards import (
@@ -299,6 +287,15 @@ def build_final_response(
     # covered by its own nearby citation, a stripped block is no longer a
     # fenced code block at all, so neither re-triggers uncited_code_blocks.
     final_answer = substitute_or_strip_code_blocks(final_answer)
+    # Section 1027: strip fabricated file:// links whose path contains the
+    # prompt's example placeholder '...' -- the LLM sometimes copies them
+    # verbatim. Removing before verify_citations prevents a cascading
+    # SOURCING NON VÉRIFIÉ warning for a non-existent path.
+    final_answer = re.sub(
+        r"\[([^\]]*)\]\(file:///\.\.\.[^)]*\)",
+        r"\1",
+        final_answer,
+    )
     sourcing_result = verify_citations(final_answer, raw_tool_output)
     if not sourcing_result.is_fully_verified:
         logger.warning("Node [code_intelligence_agent]: Unverified citations -- %s", sourcing_result)
@@ -401,6 +398,7 @@ def build_final_response(
     timing["ci_business_resolver_time"] = round(resolver_time, 3)
     timing["ci_per_hop_times"] = [round(t, 3) for t in ctx.per_hop_times]
     timing["ci_synthesis_time"] = round(ctx.synthesis_time, 3)
+    timing["ci_applied_guards"] = applied_guards
     timing["llm_call_count"] = ctx.llm_call_count
 
     ctx.trace_logger.log_summary(

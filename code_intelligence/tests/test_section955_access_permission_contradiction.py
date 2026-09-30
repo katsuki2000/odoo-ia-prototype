@@ -245,3 +245,23 @@ def test_unsourced_example_block_is_removed_from_the_final_answer():
     cleaned = _strip_unsourced_examples(answer, "Règle: message_partner_ids contient partner_id.")
 
     assert cleaned == "La règle limite la consultation aux abonnés."
+
+
+def test_pur_q4_visibility_error_claim_is_removed():
+    raw = (
+        "Button 'Approve Order' on 'purchase.order': Calls 'button_approve()'. "
+        "Required Groups: [purchase.group_purchase_manager]. "
+        "Visibility: invisible='state != 'to approve''. (visible quand state == 'to approve')"
+    )
+    answer = (
+        "### Raisons de l'absence du bouton 'Approve Order'\n\n"
+        "Le bouton n'est pas visible pour deux raisons principales :\n\n"
+        "1. **Restriction de groupe** : Le bouton est uniquement disponible pour les membres du groupe Administrator.\n\n"
+        "2. **Condition de visibilité** : Bien que le statut 'to approve' devrait théoriquement rendre le bouton visible, "
+        "une erreur dans la logique de visibilité (`invisible='state != 'to approve''`) pourrait également contribuer à ce comportement."
+    )
+    corrected = correct_button_visibility_contradictions(answer, raw)
+    assert "erreur dans la logique de visibilité" not in corrected
+    assert "pour la raison principale suivante :" in corrected
+    assert "Restriction de groupe" in corrected
+    assert "state == 'to approve'" in corrected

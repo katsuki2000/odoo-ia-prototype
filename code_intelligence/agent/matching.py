@@ -7,6 +7,7 @@ for resolving natural language concepts to Odoo models.
 
 import logging
 import weakref
+from collections import defaultdict
 from pathlib import Path
 import re
 from dataclasses import dataclass, field
@@ -45,10 +46,14 @@ class ResolvedConcept:
 _FUZZY_INDEX_CACHE: "weakref.WeakKeyDictionary" = weakref.WeakKeyDictionary()
 
 
-def _build_fuzzy_index(G) -> List[Tuple[str, str]]:
+def _build_fuzzy_index(
+    G, language: Optional[str] = None, use_static_synonyms: bool = True,
+) -> List[Tuple[str, str]]:
     """Build (label, technical_model_name) pairs from graph nodes for fuzzy matching."""
-    if G in _FUZZY_INDEX_CACHE:
-        return _FUZZY_INDEX_CACHE[G]
+    cache_key = (language, use_static_synonyms)
+    graph_cache = _FUZZY_INDEX_CACHE.setdefault(G, {})
+    if cache_key in graph_cache:
+        return graph_cache[cache_key]
 
     index: List[Tuple[str, str]] = []
 
@@ -85,13 +90,85 @@ def _build_fuzzy_index(G) -> List[Tuple[str, str]]:
                 if spaced != technical_name:
                     index.append((spaced.lower(), technical_name))
 
-    for model_name, synonyms in NATIVE_MODEL_SYNONYMS.items():
-        if not G.has_node(f"model:{model_name}"):
-            continue
-        for synonym in synonyms:
-            index.append((synonym.lower(), model_name))
+        if node_type in {"Model", "Field", "Menu"}:
+            for translation in data.get("business_labels", []):
+                label = translation.get("label", "").strip()
+                label_language = translation.get("language", "")
+                if not label or len(label) < 3:
+                    continue
+                if language and label_language and not (
+                    label_language.lower() == language.lower()
+                    or label_language.lower().split("_", 1)[0] == language.lower().split("_", 1)[0]
+                ):
+                    continue
+                if node_type == "Model":
+                    model_name = data.get("name", node_id.replace("model:", ""))
+                elif node_type == "Field":
+                    model_name = data.get("model", "")
+                else:
+                    model_name = next((
+                        successor.replace("model:", "")
+                        for successor in G.successors(node_id)
+                        if G.edges[node_id, successor].get("edge_type") == "OPENS_MODEL"
+                    ), "")
+                if model_name:
+                    index.append((label.lower(), model_name))
 
-    _FUZZY_INDEX_CACHE[G] = index
+    module_labels = defaultdict(set)
+    for node_id, data in G.nodes(data=True):
+        if data.get("node_type") != "Menu" or not data.get("module"):
+            continue
+        is_root = not any(
+            G.edges[node_id, successor].get("edge_type") == "CHILD_OF"
+            for successor in G.successors(node_id)
+        )
+        if not is_root:
+            continue
+        for translation in data.get("business_labels", []):
+            label = translation.get("label", "").strip()
+            label_language = translation.get("language", "")
+            if not label or len(label) < 3:
+                continue
+            if language and label_language and not (
+                label_language.lower() == language.lower()
+                or label_language.lower().split("_", 1)[0] == language.lower().split("_", 1)[0]
+            ):
+                continue
+            module_labels[data["module"]].add(label.lower())
+
+    for node_id, data in G.nodes(data=True):
+        if data.get("node_type") != "Model":
+            continue
+        model_name = data.get("name", node_id.replace("model:", ""))
+        labels = [data.get("description", "")]
+        labels.extend(
+            translation.get("label", "")
+            for translation in data.get("business_labels", [])
+            if not language or not translation.get("language")
+            or translation["language"].lower() == language.lower()
+            or translation["language"].lower().split("_", 1)[0] == language.lower().split("_", 1)[0]
+        )
+        modules = [
+            successor.removeprefix("module:")
+            for successor in G.successors(node_id)
+            if G.edges[node_id, successor].get("edge_type") == "DEFINED_IN"
+        ]
+        for module in modules:
+            for model_label in labels:
+                model_label = model_label.strip().lower()
+                if not model_label:
+                    continue
+                for module_label in module_labels.get(module, ()):
+                    index.append((f"{model_label} {module_label}", model_name))
+
+    if use_static_synonyms:
+        for model_name, synonyms in NATIVE_MODEL_SYNONYMS.items():
+            if not G.has_node(f"model:{model_name}"):
+                continue
+            for synonym in synonyms:
+                index.append((synonym.lower(), model_name))
+
+    graph_cache[cache_key] = index
     logger.info("Built fuzzy index: %d entries from graph (%d nodes)", len(index), G.number_of_nodes())
     return index
 
@@ -257,9 +334,16 @@ def rank_by_specificity(matches: List[str], query_lower: str) -> List[str]:
     return [m for m, _score in sorted(scored, key=lambda item: item[1], reverse=True)]
 
 
-def _fuzzy_match_graph(query: str, G, threshold: int = 75, limit: int = 5) -> List[Tuple[str, float]]:
+def _fuzzy_match_graph(
+    query: str,
+    G,
+    threshold: int = 75,
+    limit: int = 5,
+    language: Optional[str] = None,
+    use_static_synonyms: bool = True,
+) -> List[Tuple[str, float]]:
     """Fuzzy match query against indexed graph node labels and models."""
-    index = _build_fuzzy_index(G)
+    index = _build_fuzzy_index(G, language, use_static_synonyms)
     if not index:
         return []
 
@@ -284,6 +368,40 @@ def _fuzzy_match_graph(query: str, G, threshold: int = 75, limit: int = 5) -> Li
             if adjusted >= threshold:
                 model = index[idx][1]
                 model_scores[model] = max(model_scores.get(model, 0.0), adjusted)
+
+    query_tokens = query_lower.split()
+    if len(query_tokens) > 1:
+        max_window = min(6, len(query_tokens))
+        windows = {
+            " ".join(query_tokens[start:start + width])
+            for width in range(1, max_window + 1)
+            for start in range(len(query_tokens) - width + 1)
+        }
+        for window in windows:
+            window_words = window.split()
+            window_token_count = len(window_words)
+            hits = process.extract(
+                window,
+                labels,
+                scorer=fuzz.token_set_ratio,
+                score_cutoff=threshold * 0.65,
+                limit=limit * 8,
+            )
+            for _text, score, idx in hits or []:
+                label = index[idx][0]
+                label_words = label.split()
+                matched_words = sum(
+                    any(fuzz.ratio(word, label_word) >= 85 for label_word in label_words)
+                    for word in window_words
+                )
+                if matched_words / window_token_count < 0.66:
+                    continue
+                label_token_count = max(len(label.split()), 1)
+                length_ratio = min(window_token_count, label_token_count) / max(window_token_count, label_token_count)
+                adjusted = score * length_ratio ** 0.5
+                if adjusted >= threshold:
+                    model = index[idx][1]
+                    model_scores[model] = max(model_scores.get(model, 0.0), adjusted)
 
     sorted_results = sorted(model_scores.items(), key=lambda x: x[1], reverse=True)
     return sorted_results[:limit]

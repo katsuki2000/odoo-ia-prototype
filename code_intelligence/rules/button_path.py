@@ -6,9 +6,53 @@ Data structures and evidence generation for Odoo button execution paths and UI f
 
 from dataclasses import dataclass, field
 import re
-from typing import List, Optional, Set
+from typing import List, Optional, Set, Tuple
 
 from core.evidence.evidence import Evidence, EvidenceSourceType, make_evidence
+
+DISPLAY_CAUSES_MARKER = "[FAIT DÉTERMINISTIQUE -- CAUSES DE NON-AFFICHAGE]"
+
+_NEGATED_EQUALITY = re.compile(r"""^\s*([\w.]+)\s*!=\s*['"]([^'"]+)['"]\s*$""")
+_NEGATED_MEMBERSHIP = re.compile(r"""^\s*([\w.]+)\s+not\s+in\s*[(\[]([^)\]]*)[)\]]\s*$""")
+_QUOTED_LITERAL = re.compile(r"""['"]([^'"]+)['"]""")
+
+
+def parse_visibility_rule(invisible_condition: str) -> Optional[Tuple[str, List[str]]]:
+    """Turn a pure negated `invisible` expression into (field, values for which the
+    element is visible). Compound expressions return None: they are never guessed."""
+    match = _NEGATED_EQUALITY.match(invisible_condition or "")
+    if match:
+        return match.group(1), [match.group(2)]
+    match = _NEGATED_MEMBERSHIP.match(invisible_condition or "")
+    if match:
+        values = _QUOTED_LITERAL.findall(match.group(2))
+        if values:
+            return match.group(1), values
+    return None
+
+
+def _describe_visible_when(rule: Tuple[str, List[str]]) -> str:
+    field_name, values = rule
+    if len(values) == 1:
+        return f"{field_name} == '{values[0]}'"
+    return f"{field_name} in ({', '.join(repr(v) for v in values)})"
+
+
+def _values_named_in(text: str, values: List[str]) -> List[str]:
+    folded_text = _fold_accents(text).lower()
+    return [
+        value for value in values
+        if re.search(rf"(?<!\w){re.escape(_fold_accents(value).lower())}(?!\w)", folded_text)
+    ]
+
+
+def _format_display_causes(satisfied: List[str], blocking: List[str]) -> str:
+    return (
+        f"{DISPLAY_CAUSES_MARKER} Conditions d'affichage satisfaites d'après la question : "
+        f"{'; '.join(satisfied)}. Cause bloquante : {'; '.join(blocking)}. "
+        "Aucune autre condition d'affichage n'est déclarée sur ce bouton ; l'expression "
+        "`invisible` indique quand le bouton est masqué et n'est pas une anomalie."
+    )
 
 
 def correct_button_role_contradictions(final_answer: str, raw_tool_output: str) -> str:
@@ -68,19 +112,32 @@ def correct_button_visibility_contradictions(final_answer: str, raw_tool_output:
         raw_tool_output,
         re.IGNORECASE,
     )
-    if not match or not re.search(r"invers|erron", final_answer, re.IGNORECASE):
+    if not match or not re.search(r"invers|erron|erreur|anomalie|bug|bogue", final_answer, re.IGNORECASE):
         return final_answer
     field_name, visible_state = match.groups()
-    blocks = re.split(r"\n\s*\n", final_answer)
-    blocks = [
-        block for block in blocks
-        if not re.search(
-            r"^\s*\d+\.\s+\*\*Condition de visibilité (?:inversée|erronée)\*\*",
-            block,
+
+    def _is_erroneous_visibility_block(b: str) -> bool:
+        has_vis_context = bool(re.search(
+            r"visibilit[eé]|invisible|" + re.escape(field_name),
+            b,
             re.IGNORECASE,
-        )
-    ]
+        ))
+        has_error_claim = bool(re.search(
+            r"invers|erron|erreur|anomalie|bug|bogue",
+            b,
+            re.IGNORECASE,
+        ))
+        return has_vis_context and has_error_claim
+
+    blocks = re.split(r"\n\s*\n", final_answer)
+    blocks = [block for block in blocks if not _is_erroneous_visibility_block(block)]
     corrected = "\n\n".join(blocks).rstrip()
+    corrected = re.sub(
+        r"pour\s+(?:deux|plusieurs)\s+raisons(?:\s+principales)?\s*:",
+        "pour la raison principale suivante :",
+        corrected,
+        flags=re.IGNORECASE,
+    )
     fact = (
         f"[FAIT DÉTERMINISTIQUE -- VISIBILITÉ DU BOUTON] La condition `invisible` "
         f"est `{field_name} != '{visible_state}'` : le bouton est donc visible "
@@ -113,6 +170,8 @@ class ButtonExecutionPathResult:
     method_filepath: str = ""
     method_lineno: int = 0
     method_end_lineno: int = 0
+    satisfied_conditions: List[str] = field(default_factory=list)
+    blocking_causes: List[str] = field(default_factory=list)
 
 
 def _build_button_execution_evidence(
@@ -210,6 +269,7 @@ import networkx as nx
 from code_intelligence.rules.common import NOT_FOUND_MARKER
 from code_intelligence.rules.group_resolver import (
     _expand_implied_user_groups,
+    _fold_accents,
     get_group_display_name,
     resolve_group_identifier,
 )
@@ -247,6 +307,7 @@ def button_execution_path(
     button_label_or_name: str,
     model_name: str,
     user_groups: Optional[List[str]] = None,
+    premise_text: str = "",
 ) -> ButtonExecutionPathResult:
     """
     Traces step-by-step workflow execution path for a UI button click or UI field inspection.
@@ -344,6 +405,8 @@ def button_execution_path(
     if not method_name:
         method_name = button_label_or_name if button_label_or_name.startswith("action_") or button_label_or_name.startswith("_") else f"action_{button_label_or_name.lower()}"
 
+    visibility_rule = parse_visibility_rule(invisible_condition)
+
     method_node_id = f"method:{model_name}.{method_name}"
     method_exists = method_node_id in G
     method_tags = tags_for_node_attrs(G.nodes[method_node_id]) if method_exists else []
@@ -430,6 +493,8 @@ def button_execution_path(
             summary += f" NOTE DE CONFIGURATION: Les groupes [{', '.join(tech_req_notes)}] sont des paramètres activables dans la configuration du module."
         if invisible_condition:
             summary += f" Visibility: invisible='{invisible_condition}'."
+            if visibility_rule:
+                summary += f" (visible quand {_describe_visible_when(visibility_rule)})"
 
     available_to_requester: Optional[bool] = None
     unavailable_reason = ""
@@ -483,6 +548,16 @@ def button_execution_path(
                 "(ou aucun groupe n'est requis)."
             )
 
+    satisfied_conditions: List[str] = []
+    blocking_causes: List[str] = []
+    named_values = _values_named_in(premise_text, visibility_rule[1]) if visibility_rule else []
+    if named_values:
+        satisfied_conditions.append(_describe_visible_when((visibility_rule[0], named_values)))
+    if available_to_requester is False:
+        blocking_causes.append("le demandeur n'appartient à aucun des groupes requis")
+    if satisfied_conditions and blocking_causes:
+        summary += " " + _format_display_causes(satisfied_conditions, blocking_causes)
+
     return ButtonExecutionPathResult(
         button_identifier=button_label_or_name,
         model_name=model_name,
@@ -503,4 +578,6 @@ def button_execution_path(
             origin_states, target_state, required_groups,
             user_groups, available_to_requester,
         ),
+        satisfied_conditions=satisfied_conditions,
+        blocking_causes=blocking_causes,
     )

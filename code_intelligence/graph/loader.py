@@ -26,12 +26,16 @@ from code_intelligence.extractor.xml import (
     parse_server_actions_from_xml,
     parse_views_from_xml,
 )
+from .translations import load_module_translations
 from .nodes import ParsedModule
 
 logger = logging.getLogger(__name__)
 
 
-def _load_module(mod_dir: Path) -> Tuple[str, ParsedModule]:
+def _load_module(
+    mod_dir: Path,
+    translation_languages=None,
+) -> Tuple[str, ParsedModule]:
     """Parse an individual Odoo module directory into a ParsedModule instance."""
     manifest_p = mod_dir / "__manifest__.py"
     if manifest_p.exists():
@@ -61,6 +65,7 @@ def _load_module(mod_dir: Path) -> Tuple[str, ParsedModule]:
                 )
 
     mod = ParsedModule(manifest=manifest)
+    mod.translations = load_module_translations(mod_dir, mod_dir.name, translation_languages)
     for py_f in mod_dir.rglob("*.py"):
         if py_f.name == "__manifest__.py":
             continue
@@ -120,6 +125,7 @@ logger = logging.getLogger(__name__)
 
 _CACHED_CODE_INTEL_GRAPH = None
 _CACHED_GRAPH_MTIME = 0.0
+_CACHED_TRANSLATION_LANGUAGES: tuple[str, ...] = ()
 GRAPH_JSON_PATH = Path(__file__).resolve().parent.parent.parent / "active_graph.json"
 
 _GRAPH_BUILD_LOCK = threading.Lock()
@@ -183,25 +189,44 @@ def _discover_installed_core_modules(candidates: list) -> list:
     return [c for c in candidates if c in installed]
 
 
-def get_code_intelligence_graph():
+def get_code_intelligence_graph(
+    *,
+    translation_languages=None,
+    installed_modules=None,
+    active_languages=None,
+    request_language=None,
+    force_rebuild=False,
+):
     """Lazy-load and cache Knowledge Graph for Code Intelligence node."""
-    global _CACHED_CODE_INTEL_GRAPH, _CACHED_GRAPH_MTIME
+    global _CACHED_CODE_INTEL_GRAPH, _CACHED_GRAPH_MTIME, _CACHED_TRANSLATION_LANGUAGES
+    requested_languages = tuple(sorted(set(translation_languages or ())))
 
     # 1. Check if a built JSON graph exists on disk
     try:
         if GRAPH_JSON_PATH.exists():
             current_mtime = GRAPH_JSON_PATH.stat().st_mtime
-            if _CACHED_CODE_INTEL_GRAPH is None or current_mtime > _CACHED_GRAPH_MTIME:
+            cached_languages = set(
+                _CACHED_CODE_INTEL_GRAPH.graph.get("translation_languages", ())
+                if _CACHED_CODE_INTEL_GRAPH is not None else ()
+            )
+            if force_rebuild or _CACHED_CODE_INTEL_GRAPH is None or current_mtime > _CACHED_GRAPH_MTIME or not set(requested_languages).issubset(cached_languages):
                 from .atomic_swap import atomic_read_json
-                from .version import deserialize_graph_with_metadata
+                from .version import GRAPH_SCHEMA_VERSION, deserialize_graph_with_metadata
 
                 logger.info("Loading graph from disk (mtime %s > %s)", current_mtime, _CACHED_GRAPH_MTIME)
                 data_dict = atomic_read_json(GRAPH_JSON_PATH)
                 G, metadata = deserialize_graph_with_metadata(data_dict)
 
-                if _graph_filepaths_resolve_locally(G):
+                graph_languages = set(G.graph.get("translation_languages", ()))
+                if (
+                    metadata.get("graph_schema_version", 0) >= GRAPH_SCHEMA_VERSION
+                    and _graph_filepaths_resolve_locally(G)
+                    and set(requested_languages).issubset(graph_languages)
+                    and not force_rebuild
+                ):
                     _CACHED_CODE_INTEL_GRAPH = G
                     _CACHED_GRAPH_MTIME = current_mtime
+                    _CACHED_TRANSLATION_LANGUAGES = tuple(sorted(graph_languages))
                     logger.info(
                         "Knowledge Graph loaded from JSON: %d nodes, %d edges (version: %s)",
                         G.number_of_nodes(),
@@ -218,7 +243,7 @@ def get_code_intelligence_graph():
     except Exception as e:
         logger.error("Failed to load graph from %s: %s", GRAPH_JSON_PATH, e)
 
-    if _CACHED_CODE_INTEL_GRAPH is not None:
+    if _CACHED_CODE_INTEL_GRAPH is not None and not force_rebuild:
         return _CACHED_CODE_INTEL_GRAPH
 
     logger.info("Building Knowledge Graph from source files...")
@@ -255,7 +280,7 @@ def get_code_intelligence_graph():
         for core_name in CORE_MODULES_ALWAYS_LOADED:
             core_dir = core_addons_root / core_name
             if core_dir.is_dir() and (core_dir / "__manifest__.py").exists():
-                name, mod = _load_module(core_dir)
+                name, mod = _load_module(core_dir, requested_languages)
                 modules_dict[name] = mod
             else:
                 logger.warning(
@@ -269,7 +294,7 @@ def get_code_intelligence_graph():
         custom_modules = discover_odoo_modules(custom_addons_root)
         for mod_name in custom_modules:
             mod_dir = custom_addons_root / mod_name
-            name, mod = _load_module(mod_dir)
+            name, mod = _load_module(mod_dir, requested_languages)
             modules_dict[name] = mod
 
     # 4. Load OCA Sample Modules (Bloc P3.1)
@@ -295,7 +320,7 @@ def get_code_intelligence_graph():
                     logger.warning("OCA sample module '%s' not found under %s -- skipping.", mod_name, mod_dir)
                     continue
                 try:
-                    name, mod = _load_module(mod_dir)
+                    name, mod = _load_module(mod_dir, requested_languages)
                     modules_dict[name] = mod
                     oca_modules_loaded.append(name)
                 except Exception as e:
@@ -323,7 +348,7 @@ def get_code_intelligence_graph():
             else:
                 continue
         try:
-            name, mod = _load_module(dep_dir)
+            name, mod = _load_module(dep_dir, requested_languages)
             modules_dict[name] = mod
             logger.info("Loaded '%s' as a direct dependency.", name)
         except Exception as e:
@@ -333,6 +358,26 @@ def get_code_intelligence_graph():
     registry = build_module_symbol_registry(modules_dict)
     builder = OdooGraphBuilder(registry, modules_dict)
     _CACHED_CODE_INTEL_GRAPH = builder.build_graph()
+    _CACHED_TRANSLATION_LANGUAGES = requested_languages
+    from .instance_fingerprint import build_instance_fingerprint
+    source_modules = {
+        name: str(mod.manifest.version or "")
+        for name, mod in modules_dict.items()
+        if mod and mod.manifest
+    }
+    source_paths = [core_addons_root, core_framework_addons_root, custom_addons_root]
+    if OCA_SAMPLE_ADDONS_PATH:
+        source_paths.append(Path(OCA_SAMPLE_ADDONS_PATH))
+    fingerprint = build_instance_fingerprint(
+        installed_modules=installed_modules,
+        addon_paths=source_paths,
+        active_languages=active_languages,
+        request_language=request_language or (requested_languages[0] if len(requested_languages) == 1 else None),
+        source_modules=source_modules,
+    )
+    _CACHED_CODE_INTEL_GRAPH.graph["instance_fingerprint"] = fingerprint.digest
+    _CACHED_CODE_INTEL_GRAPH.graph["instance_fingerprint_data"] = fingerprint.to_dict()
+    _CACHED_CODE_INTEL_GRAPH.graph["translation_languages"] = list(requested_languages)
 
     try:
         from .atomic_swap import atomic_write_json
@@ -358,6 +403,7 @@ __all__ = [
     "GRAPH_JSON_PATH",
     "_CACHED_CODE_INTEL_GRAPH",
     "_CACHED_GRAPH_MTIME",
+    "_CACHED_TRANSLATION_LANGUAGES",
     "CORE_MODULE_CANDIDATES",
     "_discover_installed_core_modules",
 ]

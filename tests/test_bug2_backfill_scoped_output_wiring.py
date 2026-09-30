@@ -1,40 +1,36 @@
 """
 tests/test_bug2_backfill_scoped_output_wiring.py
 
-Bug 2 non-regression (todo/contexte.txt section 492): static wiring check
-that every backfill/correction call downstream of the fail-closed scoping
-fix in postprocess.py::build_final_response() is fed exclusively through
-scoped_tool_output -- never through the unscoped raw_tool_output variable
-(the tool_observations join computed BEFORE scoping). A call site silently
-switched back to raw_tool_output would reintroduce every falsy-model
-observation (resolve_technical_name / explain_decision_path /
-read_source_code) that _scoped_raw_tool_output() now deliberately drops --
-exactly the kind of "different mechanism" reintroduction the fix must
-guard against, and one no dynamic test can catch cheaply (it would require
-mocking the LLM, the graph, and every CI tool to reach this code path).
+Bug 2 non-regression (todo/contexte.txt section 492): every backfill/correction
+guard downstream of the fail-closed scoping fix in
+postprocess.py::build_final_response() must be fed through scoped_tool_output,
+never through the unscoped raw_tool_output (the tool_observations join computed
+BEFORE scoping). A guard silently switched to raw_tool_output would reintroduce
+every falsy-model observation (resolve_technical_name / explain_decision_path /
+read_source_code) that _scoped_raw_tool_output() deliberately drops.
 
-raw_tool_output itself is legitimately used earlier in run() for the
-out-of-scope / dynamic-uncertainty checks and, deliberately, as the ground
-truth passed to sourcing_guard.verify_citations() -- that call is a
-citation-verification concern (checking what the LLM cited against
-everything the tools actually produced), not a content-backfill channel,
-and is explicitly excluded from this check.
+raw_tool_output itself is legitimately used earlier for the out-of-scope /
+dynamic-uncertainty checks and, deliberately, as the ground truth passed to
+verify_citations() -- a citation-verification concern, not a content-backfill
+channel, and explicitly excluded here.
 
-Updated for the ci_agent_node.py refactor (todo/contexte.txt): the
-scoping call and the backfill/correction calls used to live together in
-CodeIntelligenceAgentRunner.run(); they now live in
-code_intelligence/ci_agent_node/postprocess.py, split across
-build_final_response() (scoping) and _apply_backfill_chain() (the actual
-calls, extracted to keep build_final_response under the project's
-300-line file budget). The invariant this test locks is unchanged.
+Section 1029: _apply_backfill_chain is now a table of (guard, args, kwargs), so
+the wiring is checked by behavior instead of scanning call syntax in the source:
+each guard is replaced by a recorder and must receive the scoped output.
 """
 
 import inspect
 import re
 
+import pytest
+
+from code_intelligence.agent import postprocess
 from code_intelligence.agent.postprocess import build_final_response, _apply_backfill_chain
 
-_BACKFILL_AND_CORRECTION_FUNCS = [
+SCOPED = "SCOPED-OUTPUT"
+RAW = "RAW-OUTPUT"
+
+_SCOPED_ONLY_GUARDS = [
     "_backfill_missing_required_groups",
     "_backfill_missing_security_lock_amount",
     "_backfill_missing_override_modules",
@@ -51,27 +47,51 @@ _BACKFILL_AND_CORRECTION_FUNCS = [
 ]
 
 
-def test_all_backfill_and_correction_calls_use_scoped_tool_output():
+@pytest.fixture
+def recorded_calls(monkeypatch):
+    calls = {}
+
+    def install(name):
+        def recorder(answer, *args, **kwargs):
+            calls.setdefault(name, []).append(args)
+            return answer
+        recorder.__name__ = name
+        monkeypatch.setattr(postprocess, name, recorder)
+
+    for name in _SCOPED_ONLY_GUARDS:
+        install(name)
+    return calls
+
+
+@pytest.mark.parametrize("guard_name", _SCOPED_ONLY_GUARDS)
+def test_scoped_only_guards_receive_scoped_output(recorded_calls, guard_name):
+    _apply_backfill_chain("answer", SCOPED, "question", raw_tool_output=RAW)
+    assert recorded_calls.get(guard_name), f"{guard_name} was not called -- test is stale"
+    for args in recorded_calls[guard_name]:
+        assert args[0] == SCOPED, (
+            f"{guard_name} received {args[0]!r} instead of the scoped output -- this reintroduces "
+            "observations the fail-closed fix (section 492) is meant to drop"
+        )
+
+
+def test_build_final_response_feeds_the_chain_with_scoped_output():
     source = inspect.getsource(build_final_response)
-    _, marker, post_scoping = source.partition(
-        "scoped_tool_output = _scoped_raw_tool_output("
-    )
-    assert marker, "scoping call not found in build_final_response source -- test is stale"
+    call = re.search(r"_apply_backfill_chain\(\s*final_answer,\s*(\w+),", source)
+    assert call, "chain call not found in build_final_response source -- test is stale"
+    assert call.group(1) == "scoped_tool_output"
 
-    # _apply_backfill_chain runs entirely after the scoping point above --
-    # it is only ever invoked from build_final_response's non-conflicting
-    # branch, fed scoped_tool_output -- and is where every backfill/
-    # correction call now actually lives (extracted out of
-    # build_final_response for the ci_agent_node.py refactor).
-    post_scoping += "\n" + inspect.getsource(_apply_backfill_chain)
 
-    for func_name in _BACKFILL_AND_CORRECTION_FUNCS:
-        calls = list(re.finditer(re.escape(func_name) + r"\(([^)]*)\)", post_scoping))
-        assert calls, f"{func_name} is not called after the scoping point -- test is stale"
-        for m in calls:
-            call_args = m.group(1)
-            assert "raw_tool_output" not in call_args, (
-                f"{func_name} call uses raw_tool_output instead of "
-                f"scoped_tool_output -- this reintroduces observations the "
-                f"fail-closed fix (section 492) is meant to drop: {call_args!r}"
-            )
+def test_applied_guards_lists_only_guards_that_changed_the_answer(monkeypatch):
+    def changing_guard(answer, *args, **kwargs):
+        return answer + "!"
+
+    def neutral_guard(answer, *args, **kwargs):
+        return answer
+
+    monkeypatch.setattr(postprocess, "_backfill_missing_required_groups", changing_guard)
+    monkeypatch.setattr(postprocess, "_flag_ungrounded_group_xmlids", neutral_guard)
+    applied = []
+    result = _apply_backfill_chain("answer", SCOPED, "question", raw_tool_output=RAW, applied_guards=applied)
+    assert "changing_guard" in applied
+    assert "neutral_guard" not in applied
+    assert result.endswith("!")

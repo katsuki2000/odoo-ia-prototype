@@ -10,6 +10,7 @@ Centralized system prompts and prompt builders for the Code Intelligence agent n
 from typing import List, Optional
 from code_intelligence.agent.context_extractors import rank_custom_modules_for_models
 from code_intelligence.agent.dispatch_guards import tools_lack_deeper_coverage
+from code_intelligence.rules.button_path import DISPLAY_CAUSES_MARKER
 
 # System prompt with explicit scope-first navigation strategy.
 EFFECT_GROUNDING_RULE = (
@@ -64,13 +65,16 @@ CI_SYSTEM_PROMPT = (
     "`button_execution_path`. Its result states explicitly whether the action is available to "
     "THIS demandeur. If it says NON DISPONIBLE / available_to_requester is false, your answer "
     "MUST say plainly that the demandeur does not have this option in the interface and, if the "
-    "observation names the required group(s), who they should contact instead -- do NOT walk them "
+    "observation names the required group(s), state which group holds this option and stop there: "
+    "never recommend adding the demandeur to a group or any procedure to obtain access, because the "
+    "observations do not establish it -- do NOT walk them "
     "through the button/method mechanism as if they could trigger it themselves.\n"
     "7. OUTPUT FORMAT RULE: Write the final answer in pure business language ONLY -- accessible to any end-user. "
     "Do NOT include technical details, code references, or file citations in the response text: no Python method names "
     "(use 'bouton Valider' instead of action_valider()), no xml_id: prefixes, no file:// links, no line numbers, "
     "and no code snippets. Name a group by the exact display name given in the observations, in quotes, "
-    "without translating or rewording it; when the observations give no display name for a group, describe "
+    "without translating or rewording it, and without repeating its technical identifier next to it; "
+    "when the observations give no display name for a group, describe "
     "its role in plain words instead of inventing a label. Use menu and button names as displayed in the Odoo UI. "
     "Use business thresholds "
     "and amounts (e.g. 'au-dela de 10 000 euros'). Do NOT append any 'Preuves', 'Sources', or 'Citations' section "
@@ -229,10 +233,17 @@ def build_synthesis_prompt(
             f"Do not confuse or merge rights between different personas, and do not assume an unauthenticated or default user's "
             f"lack of group rights applies to them."
         )
+    display_causes_rule = (
+        f" When an observation contains the deterministic fact '{DISPLAY_CAUSES_MARKER}', explain the "
+        "missing button using ONLY the blocking cause it lists. The display conditions it reports as "
+        "satisfied are never causes: do not describe them as an error, inversion, anomaly or bug, do not "
+        "suggest they should be corrected, and do not add any cause the fact does not list."
+        if any(DISPLAY_CAUSES_MARKER in observation for observation in tool_observations) else ""
+    )
     return (
         f"Original Question: {question}\n\n"
         f"Knowledge Graph Output:\n" + "\n---\n".join(tool_observations) +
-        anti_fabrication_rule + coverage_caveat + persona_guidance +
+        anti_fabrication_rule + coverage_caveat + persona_guidance + display_causes_rule +
         f"\n\nSynthesize a clear, professional response based strictly on the "
         f"data above. Respond in the SAME language as the Original Question "
         f"above (French question -> French answer, English question -> "

@@ -94,35 +94,6 @@ class OdooConnector:
             logger.warning("Attempted access to non-whitelisted model: %s", model)
             raise OdooConnectorError(f"Model {model} is not whitelisted for AI queries.")
 
-    def _is_using_api_key(self) -> bool:
-        from erp_data._odoo_helpers import odoo_api_key_ctx
-        return odoo_api_key_ctx.get() is not None
-
-    def _retry_with_admin_password(self, uid, model, method, args, kwargs=None):
-        """Retry an XML-RPC call with the admin password after an API key
-        auth failure. Odoo 17 API keys (scope=None) are valid for HTTP Bearer
-        only, not for XML-RPC execute_kw authentication."""
-        logger.warning(
-            "XML-RPC %s.%s: Access Denied with API key -- retrying with "
-            "admin password (Odoo 17 API key scope limitation).", model, method,
-        )
-        try:
-            t0 = time.perf_counter()
-            if kwargs:
-                result = self.models.execute_kw(
-                    self.db, uid, self.password, model, method, args, kwargs,
-                )
-            else:
-                result = self.models.execute_kw(
-                    self.db, uid, self.password, model, method, args,
-                )
-            elapsed_ms = (time.perf_counter() - t0) * 1000
-            logger.info("XML-RPC %.1fms (admin retry): %s.%s", elapsed_ms, model, method)
-            return result
-        except Exception as retry_err:
-            logger.error("XML-RPC admin retry also failed for %s.%s: %s", model, method, retry_err)
-            raise OdooConnectorError(f"Failed {method} on {model}: {str(retry_err)}")
-
     def search_read(self, uid: int, model: str, domain: list = None, fields: list = None, limit: int = 0, order: str = None, **extra_kwargs) -> list[dict]:
         """
         Execute a search_read query safely.
@@ -151,10 +122,6 @@ class OdooConnector:
             logger.info("XML-RPC %.1fms: %s.%s", elapsed_ms, model, 'search_read')
             return records
         except Exception as e:
-            if "Access Denied" in str(e) and self._is_using_api_key():
-                return self._retry_with_admin_password(
-                    uid, model, 'search_read', [domain], kwargs,
-                )
             logger.error("XML-RPC search_read error on %s: %s", model, str(e))
             raise OdooConnectorError(f"Failed to read from {model}: {str(e)}")
 
@@ -175,10 +142,6 @@ class OdooConnector:
             logger.info("XML-RPC %.1fms: %s.%s", elapsed_ms, model, 'read_group')
             return records
         except Exception as e:
-            if "Access Denied" in str(e) and self._is_using_api_key():
-                return self._retry_with_admin_password(
-                    uid, model, 'read_group', [domain, fields, groupby],
-                )
             logger.error("XML-RPC read_group error on %s: %s", model, str(e))
             raise OdooConnectorError(f"Failed to aggregate on {model}: {str(e)}")
 
@@ -200,10 +163,5 @@ class OdooConnector:
             logger.info("XML-RPC %.1fms: %s.%s", elapsed_ms, model, 'fields_get')
             return fields_info
         except Exception as e:
-            if "Access Denied" in str(e) and self._is_using_api_key():
-                return self._retry_with_admin_password(
-                    uid, model, 'fields_get', [],
-                    {'attributes': ['string', 'type', 'help']},
-                )
             logger.error("XML-RPC fields_get error on %s: %s", model, str(e))
             raise OdooConnectorError(f"Failed to fetch fields for {model}: {str(e)}")

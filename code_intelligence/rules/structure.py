@@ -592,17 +592,28 @@ def _extract_module_extended_models(raw_tool_output: str, module_name: str = "")
     ir.*/res.config.*/onboarding.*/base.*/wizard/report noise) made the 30%
     coverage threshold structurally unreachable even for a synthesis that
     correctly cited every business model the curated tool actually surfaced
-    (top 5 by design, section 945)."""
+    (top 5 by design, section 945).
+
+    Section 1027: also filters out same-domain models whose first segment
+    matches the module prefix (same logic as inspect_module_cross_domain_extensions
+    L861-862). Without this, account.analytic.* was counted as 'outside
+    perimeter' for module account, inflating the denominator and making
+    coverage unreachable."""
     extended: List[str] = []
+    mod_prefix = module_name.split("_")[0] if module_name else ""
     for mod, entries_str in _MODULE_DEFINES_EXTENDS_RE.findall(raw_tool_output):
         if module_name and mod != module_name:
             continue
+        effective_prefix = mod_prefix or mod.split("_")[0]
         for entry in entries_str.rstrip(".").split(","):
             entry = entry.strip()
             if entry.endswith("(extends)"):
                 model = entry[: -len("(extends)")].strip()
-                if model and model not in extended and not _is_technical_or_transient(model):
-                    extended.append(model)
+                if not model or model in extended or _is_technical_or_transient(model):
+                    continue
+                if effective_prefix and model.split(".")[0] == effective_prefix:
+                    continue
+                extended.append(model)
     return extended
 
 
@@ -721,7 +732,12 @@ def _correct_module_extension_contradiction(final_answer: str, raw_tool_output: 
         final_answer = _neutralize_module_extension_denial(final_answer, extended)
 
     from code_intelligence.rules.group_resolver import _fold_accents
-    is_singular_inquiry = bool(re.search(r"\bquel\s+mod[eè]le\b", _fold_accents(question.lower()))) if question else False
+    folded_q = _fold_accents(question.lower()) if question else ""
+    is_singular_inquiry = bool(re.search(
+        r"\bquel\s+mod[eè]le\b"
+        r"|\b(?:etend|modifie|touche|altere|enrichit)[\s-](?:il|elle|t-il|t-elle)\b",
+        folded_q,
+    )) if question else False
     cites_extended = any(_fold_accents(m.lower()) in _fold_accents(final_answer.lower()) for m in extended)
 
     if _answer_lacks_extension_coverage(final_answer, extended) and not (is_singular_inquiry and cites_extended):

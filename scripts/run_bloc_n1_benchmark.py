@@ -150,12 +150,14 @@ def run_benchmark(question_ids=None, module=None, fresh=False):
             ci_effective = timing_info.get("ci_effective_time", round(elapsed, 2))
             ci_groq_wait = timing_info.get("ci_groq_wait_time", 0.0)
             ci_hops = timing_info.get("ci_hop_count", 0)
+            applied_guards = timing_info.get("ci_applied_guards", [])
 
             print(
                 f"Reponse verbatim ({elapsed:.2f}s total | effectif {ci_effective:.2f}s | "
                 f"groq_wait {ci_groq_wait:.2f}s | sauts {ci_hops}):\n{verbatim_answer}"
             )
             print(f"Outils invoques: {tools_used or '(aucun)'}")
+            print(f"Gardes de post-traitement ayant modifie la reponse: {applied_guards or '(aucun)'}")
             if not tool_coverage_ok:
                 print(f"[WARN] Outil(s) attendu(s) non invoque(s): {missing_tools}")
 
@@ -176,6 +178,7 @@ def run_benchmark(question_ids=None, module=None, fresh=False):
                 "effective_seconds": ci_effective,
                 "groq_wait_seconds": ci_groq_wait,
                 "hop_count": ci_hops,
+                "applied_guards": applied_guards,
             })
 
         except Exception as e:
@@ -197,6 +200,7 @@ def run_benchmark(question_ids=None, module=None, fresh=False):
                 "effective_seconds": 0.0,
                 "groq_wait_seconds": 0.0,
                 "hop_count": 0,
+                "applied_guards": [],
             })
 
     # --- Sauvegarde JSON (fusion avec l'existant si present, sauf si fresh=True) ---

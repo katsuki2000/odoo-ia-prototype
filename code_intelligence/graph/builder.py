@@ -18,6 +18,7 @@ from .nodes import (
     add_workflow_nodes_and_edges,
 )
 from .nodes import ParsedModule, ResolvedSymbolRegistry
+from .translations import attach_translations, translation_fingerprint
 
 _logger = logging.getLogger(__name__)
 
@@ -92,6 +93,13 @@ class OdooGraphBuilder:
         self._add_workflow_nodes_and_edges()
         self._add_view_button_nodes_and_edges()
         self._add_menu_nodes()
+        entries = [
+            entry
+            for module in self.modules_dict.values()
+            for entry in module.translations
+        ]
+        self.G.graph["translation_summary"] = attach_translations(self.G, entries)
+        self.G.graph["translation_fingerprint"] = translation_fingerprint(entries)
 
         return self.G
 

@@ -145,8 +145,7 @@ def override_chain_targets(question: str, concept, G) -> List[Tuple[str, str]]:
     # analyze_method_override_chain sur une methode sans rapport, privant la
     # garde de distinction securitaire de son budget de hops). Meme gate que
     # who_has_access_targets (l.108) : n'exiger la wording d'approbation que
-    # si un montant est cite (contournement de seuil, cas custom_credit_note_
-    # approval_vip). method_or_override et invoice_generation restent
+    # si un montant est cite (contournement de seuil). method_or_override et invoice_generation restent
     # independants du montant.
     is_approval_with_amount_q = (
         _question_is_approval_related(question) and _extract_amount(question) is not None
