@@ -32,7 +32,7 @@ from unittest.mock import patch
 import pytest
 from core.graph.graph import (
     ROUTING_CONFLICT_PRIORITY,
-    _force_dynamic_uncertainty_answer,
+    _build_dynamic_uncertainty_answer,
     route,
 )
 from tests.few_shot_routing_examples import (
@@ -130,20 +130,17 @@ def test_hybrid_detects_doc_anchor_not_only_doc_keyword():
         )
 
 
-def test_dynamic_dispatch_uncertainty_cannot_be_synthesized_as_certain():
+def test_dynamic_dispatch_uncertainty_is_generic_and_cannot_be_synthesized_as_certain():
     raw = (
         "Analyse des verrous Python "
         "([reimbursement.py:L1-L31](file:///tmp/reimbursement.py#L1-L31)) "
         "[Confiance: LOW]:\n"
         "  - Incertitude dynamique (getattr): revue manuelle recommandée"
     )
-    answer = _force_dynamic_uncertainty_answer(
-        "Qui peut valider une demande de remboursement de frais ?",
-        raw,
-    )
+    answer = _build_dynamic_uncertainty_answer(raw)
     assert answer is not None
-    assert "Je ne peux pas classifier avec certitude" in answer
-    assert "getattr" in answer
+    assert "Je ne peux pas conclure avec certitude" in answer
+    assert "dispatch dynamique" in answer
     assert "file:///tmp/reimbursement.py#L1-L31" in answer
     assert "aucune restriction" not in answer.lower()
 

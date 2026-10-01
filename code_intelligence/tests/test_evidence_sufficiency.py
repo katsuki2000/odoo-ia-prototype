@@ -112,7 +112,7 @@ def test_dynamic_uncertainty_marker_is_insufficient():
     result = assess_evidence_sufficiency(
         tool_observations=["method dispatches via getattr on a runtime value"],
         hop_count=2,
-        final_answer="Je ne peux pas classifier avec certitude ce chemin d'execution.",
+        final_answer="Je ne peux pas conclure avec certitude sur ce chemin d'execution.",
     )
     assert result.status is EvidenceSufficiencyStatus.INSUFFICIENT
 

@@ -182,7 +182,7 @@ from code_intelligence.agent.dispatch_guards import (
     _extract_first_scoped_file_link,
     _TECHNICAL_MODEL_LOOKALIKE_RE,
     _force_out_of_scope_model_answer,
-    _force_dynamic_uncertainty_answer,
+    _build_dynamic_uncertainty_answer,
 )
 
 from code_intelligence.rules.overrides import (

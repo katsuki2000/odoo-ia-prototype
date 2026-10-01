@@ -30,12 +30,12 @@ def odoo_connector():
 @pytest.fixture(scope="module")
 def uid(odoo_connector):
     """Provides a valid uid for testing."""
-    return odoo_connector.authenticate("admin")
+    return odoo_connector.authenticate(odoo_connector.username)
 
 @pytest.mark.integration
 def test_authentication_success(odoo_connector):
     """Test successful authentication."""
-    uid = odoo_connector.authenticate("admin")
+    uid = odoo_connector.authenticate(odoo_connector.username)
     assert isinstance(uid, int)
     assert uid > 0
 
@@ -49,7 +49,15 @@ def test_authentication_failure(odoo_connector):
             db=odoo_connector.db, 
             password="wrong_password"
         )
-        bad_connector.authenticate("admin")
+        bad_connector.authenticate(bad_connector.username)
+
+
+def test_username_comes_from_environment(monkeypatch):
+    monkeypatch.setenv("ODOO_USERNAME", "service_user")
+
+    connector = OdooConnector(url="http://odoo.invalid", db="test", password="secret")
+
+    assert connector.username == "service_user"
 
 def test_model_whitelist_enforcement(odoo_connector, uid):
     """Verify that querying a non-whitelisted model raises an error."""

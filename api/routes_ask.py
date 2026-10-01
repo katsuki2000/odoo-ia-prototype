@@ -1,7 +1,8 @@
 """Main query endpoint (/api/v1/ask) for the MIRO assistant."""
 
 import logging
-from fastapi import APIRouter, Depends, HTTPException
+import re
+from fastapi import APIRouter, Depends, HTTPException, Request
 from langchain_core.messages import HumanMessage, AIMessage
 
 from api.auth import get_current_user
@@ -14,8 +15,43 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+def _normalize_language_tag(value: str | None) -> str | None:
+    if not value:
+        return None
+    normalized = value.strip().replace("-", "_")
+    if not re.fullmatch(r"[A-Za-z]{2,8}(?:_[A-Za-z0-9]{1,8})*", normalized):
+        return None
+    return normalized
+
+
+def _request_language(explicit: str | None, accept_language: str | None) -> str | None:
+    language = _normalize_language_tag(explicit)
+    if language:
+        return language
+    candidates = []
+    for position, item in enumerate((accept_language or "").split(",")):
+        parts = [part.strip() for part in item.split(";")]
+        language = _normalize_language_tag(parts[0])
+        if not language:
+            continue
+        quality = 1.0
+        for parameter in parts[1:]:
+            if parameter.startswith("q="):
+                try:
+                    quality = float(parameter[2:])
+                except ValueError:
+                    quality = 0.0
+        if quality > 0:
+            candidates.append((-quality, position, language))
+    return min(candidates)[2] if candidates else None
+
+
 @router.post("/api/v1/ask", response_model=AskResponseV1)
-def ask_question_v1(request: AskRequestV1, user: dict = Depends(get_current_user)):
+def ask_question_v1(
+    request: AskRequestV1,
+    http_request: Request,
+    user: dict = Depends(get_current_user),
+):
     """V1 endpoint for asking questions, using the LangGraph agent."""
     session = get_session(request.session_id)
     chat_history = session["chat_history"]
@@ -32,6 +68,10 @@ def ask_question_v1(request: AskRequestV1, user: dict = Depends(get_current_user
 
         token_api_key = user.get("api_key")
         token_groups = user.get("groups") or []
+        request_language = _request_language(
+            request.language,
+            http_request.headers.get("accept-language"),
+        )
         if not token_api_key:
             logger.warning(
                 "No real Odoo API key in JWT for uid=%s -- ERP/XML-RPC calls "
@@ -49,6 +89,7 @@ def ask_question_v1(request: AskRequestV1, user: dict = Depends(get_current_user
             last_resolved_concept=last_resolved_concept,
             active_model=request.active_model,
             active_id=request.active_id,
+            language=request_language,
         )
 
         if response.answer == "Une erreur interne s'est produite lors de l'exécution du pipeline.":

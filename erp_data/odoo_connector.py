@@ -19,6 +19,9 @@ ALLOWED_MODELS = {
     "res.partner",
     "product.product",
     "ir.module.module",
+    "ir.model",
+    "ir.model.fields",
+    "res.lang",
     "res.company",  # todo/contexte.txt section 536: read-only, whitelisted with
     # explicit maitre de stage sign-off, solely to let search_partner_raw
     # exclude self-company res.partner records (e.g. "Company Alpha") from
@@ -42,6 +45,7 @@ class OdooConnector:
         """
         self.url = url or os.getenv("ODOO_URL", "http://localhost:8069")
         self.db = db or os.getenv("ODOO_DB", "odoo-dev")
+        self.username = os.getenv("ODOO_USERNAME", "admin")
         self.password = password or os.getenv("ODOO_PASSWORD") or os.getenv("ODOO_ADMIN_PASSWORD", "admin")
 
         self.common = xmlrpc.client.ServerProxy(f"{self.url}/xmlrpc/2/common")

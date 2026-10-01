@@ -57,7 +57,7 @@ pip install -r requirements.txt
 Copy the example configuration or create your `.env`:
 
 ```bash
-cp .env_exemple .env
+cp .env.example .env
 ```
 
 **For 100% Local execution (Ollama / vLLM)**:
@@ -298,11 +298,15 @@ odoo-ia-prototype/
 | `EMBEDDING_BACKEND` | No | `local_light` | Embedding engine: `local_light` (Chroma ONNX), `ollama`, `local` |
 | `LOCAL_EMBEDDING_BASE_URL` | If ollama embed | `http://localhost:11434/v1` | Local embedding server URL |
 | `LOCAL_EMBEDDING_MODEL` | If ollama embed | `all-minilm:latest` | Local embedding model name (e.g. `nomic-embed-text`) |
+| `RESOLVER_SEMANTIC_RETRIEVAL_ENABLED` | No | `false` | Adds instance-label semantic candidates to bounded LLM arbitration |
+| `RESOLVER_SEMANTIC_EMBEDDING_BACKEND` | No | `EMBEDDING_BACKEND` | Optional embedding backend override for business-term retrieval |
+| `RESOLVER_SEMANTIC_EMBEDDING_MODEL` | No | `EMBEDDING_MODEL` | Optional embedding model override for business-term retrieval |
 | `CORE_ADDONS_PATH` | No | `../odoo-17.0/addons` | Path to core Odoo addons |
 | `CUSTOM_ADDONS_PATH` | No | `./odoo_addons` | Path to custom addons |
 | `RAG_DOCS_PATH` | No | `./document_rag/documents` | Path to source documents for RAG indexing |
 | `ODOO_URL` | No | `http://localhost:8069` | Odoo XML-RPC server URL |
 | `ODOO_DB` | No | `odoo-dev` | Odoo database name |
+| `ODOO_USERNAME` | No | `admin` | XML-RPC service username |
 | `ODOO_ADMIN_PASSWORD` | No | `admin` | Admin password for initial seeding and RPC fallback |
 
 ---

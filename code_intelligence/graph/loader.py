@@ -5,6 +5,7 @@ Disk-level loading and validation helpers for Odoo addon modules and serialized 
 """
 
 import logging
+import threading
 from pathlib import Path
 from typing import Tuple
 
@@ -27,6 +28,8 @@ from code_intelligence.extractor.xml import (
     parse_views_from_xml,
 )
 from .translations import load_module_translations
+from .translations import attach_runtime_translations
+from .runtime_translations import read_runtime_translations
 from .nodes import ParsedModule
 
 logger = logging.getLogger(__name__)
@@ -126,6 +129,17 @@ logger = logging.getLogger(__name__)
 _CACHED_CODE_INTEL_GRAPH = None
 _CACHED_GRAPH_MTIME = 0.0
 _CACHED_TRANSLATION_LANGUAGES: tuple[str, ...] = ()
+_GRAPH_LOAD_LOCK = threading.RLock()
+
+
+def _translation_cache_matches(requested, available) -> bool:
+    requested = set(requested)
+    available = set(available)
+    return requested.issubset(available)
+
+
+def _normalize_language_code(language: str) -> str:
+    return language.strip().replace("-", "_")
 GRAPH_JSON_PATH = Path(__file__).resolve().parent.parent.parent / "active_graph.json"
 
 _GRAPH_BUILD_LOCK = threading.Lock()
@@ -138,7 +152,95 @@ _GRAPH_BUILD_LOCK = threading.Lock()
 CORE_MODULE_CANDIDATES = ["account", "sale", "stock", "purchase", "maintenance"]
 
 
-def _discover_installed_core_modules(candidates: list) -> list:
+def _read_runtime_module_inventory():
+    """Read the installed-module inventory, or return None when unavailable."""
+    try:
+        from erp_data.odoo_connector import OdooConnector
+
+        connector = OdooConnector()
+        uid = connector.authenticate(connector.username)
+        return connector.search_read(
+            uid=uid,
+            model="ir.module.module",
+            domain=[("state", "=", "installed")],
+            fields=["name", "installed_version", "latest_version", "state"],
+        )
+    except Exception as error:
+        logger.warning("Could not read the live installed-module inventory: %s", error)
+        return None
+
+
+def _read_runtime_active_languages():
+    """Read active language codes, or return None when runtime metadata is unavailable."""
+    try:
+        from erp_data.odoo_connector import OdooConnector
+
+        connector = OdooConnector()
+        uid = connector.authenticate(connector.username)
+        records = connector.search_read(
+            uid=uid,
+            model="res.lang",
+            domain=[("active", "=", True)],
+            fields=["code"],
+        )
+        return sorted({str(record["code"]) for record in records if record.get("code")})
+    except Exception as error:
+        logger.warning("Could not read active runtime languages: %s", error)
+        return None
+
+
+def _read_runtime_translations(requested_languages, active_languages):
+    """Read registry labels for requested languages when the instance exposes them."""
+    try:
+        from erp_data.odoo_connector import OdooConnector
+
+        connector = OdooConnector()
+        uid = connector.authenticate(connector.username)
+        return read_runtime_translations(
+            connector,
+            uid,
+            requested_languages,
+            active_languages,
+        )
+    except Exception as error:
+        logger.warning("Could not read live runtime translations: %s", error)
+        return [], {
+            "active_languages_available": active_languages is not None,
+            "requested_languages": sorted(requested_languages),
+            "queried_languages": [],
+            "model_records": 0,
+            "field_records": 0,
+            "failed_languages": ["runtime_unavailable"],
+        }
+
+
+def _installed_module_names(installed_modules) -> set[str]:
+    """Return valid installed module names from runtime inventory rows."""
+    if installed_modules is None:
+        return set()
+    return {
+        str(record["name"])
+        for record in installed_modules
+        if record.get("name")
+    }
+
+
+def _discover_installed_source_modules(addon_roots, installed_modules) -> dict[str, Path]:
+    """Map installed module names to accessible addon directories by path priority."""
+    installed_names = _installed_module_names(installed_modules)
+    modules = {}
+    for root in addon_roots:
+        root = Path(root)
+        if not root.is_dir():
+            continue
+        for module_name in sorted(installed_names):
+            module_dir = root / module_name
+            if (module_dir / "__manifest__.py").is_file():
+                modules[module_name] = module_dir
+    return modules
+
+
+def _discover_installed_core_modules(candidates: list, installed_modules=None) -> list:
     """
     Resolve which of the candidate core module names are actually installed
     on the target Odoo instance, by querying ir.module.module (state=
@@ -151,23 +253,33 @@ def _discover_installed_core_modules(candidates: list) -> list:
     todo/rules.md (machine-dependent values need a fallback, never a silent
     hard assumption). See todo/contexte.txt section 752.
     """
-    try:
-        from erp_data.odoo_connector import OdooConnector
+    if installed_modules is None:
+        try:
+            from erp_data.odoo_connector import OdooConnector
 
-        connector = OdooConnector()
-        uid = connector.authenticate("admin")
-        records = connector.search_read(
-            uid=uid,
-            model="ir.module.module",
-            domain=[("state", "=", "installed"), ("name", "in", candidates)],
-            fields=["name"],
-        )
-        installed = {r["name"] for r in records}
-    except Exception as e:
+            connector = OdooConnector()
+            uid = connector.authenticate(connector.username)
+            installed_modules = connector.search_read(
+                uid=uid,
+                model="ir.module.module",
+                domain=[("state", "=", "installed"), ("name", "in", candidates)],
+                fields=["name"],
+            )
+        except Exception as error:
+            logger.warning(
+                "Could not query ir.module.module on the live Odoo instance (%s) "
+                "-- falling back to the static core module candidate list %s.",
+                error, candidates,
+            )
+            return candidates
+
+    try:
+        installed = _installed_module_names(installed_modules)
+    except (KeyError, TypeError) as error:
         logger.warning(
             "Could not query ir.module.module on the live Odoo instance (%s) "
             "-- falling back to the static core module candidate list %s.",
-            e, candidates,
+            error, candidates,
         )
         return candidates
 
@@ -189,7 +301,7 @@ def _discover_installed_core_modules(candidates: list) -> list:
     return [c for c in candidates if c in installed]
 
 
-def get_code_intelligence_graph(
+def _get_code_intelligence_graph(
     *,
     translation_languages=None,
     installed_modules=None,
@@ -199,7 +311,20 @@ def get_code_intelligence_graph(
 ):
     """Lazy-load and cache Knowledge Graph for Code Intelligence node."""
     global _CACHED_CODE_INTEL_GRAPH, _CACHED_GRAPH_MTIME, _CACHED_TRANSLATION_LANGUAGES
-    requested_languages = tuple(sorted(set(translation_languages or ())))
+    requested_languages = tuple(sorted({
+        _normalize_language_code(language)
+        for language in (translation_languages or ())
+        if language and language.strip()
+    }))
+    request_language = _normalize_language_code(request_language) if request_language else None
+    if request_language:
+        requested_languages = tuple(sorted(set(requested_languages) | {request_language}))
+
+    if _CACHED_CODE_INTEL_GRAPH is not None and not force_rebuild:
+        requested_languages = tuple(sorted(
+            set(requested_languages)
+            | set(_CACHED_CODE_INTEL_GRAPH.graph.get("translation_languages", ()))
+        ))
 
     # 1. Check if a built JSON graph exists on disk
     try:
@@ -209,7 +334,12 @@ def get_code_intelligence_graph(
                 _CACHED_CODE_INTEL_GRAPH.graph.get("translation_languages", ())
                 if _CACHED_CODE_INTEL_GRAPH is not None else ()
             )
-            if force_rebuild or _CACHED_CODE_INTEL_GRAPH is None or current_mtime > _CACHED_GRAPH_MTIME or not set(requested_languages).issubset(cached_languages):
+            if (
+                force_rebuild
+                or _CACHED_CODE_INTEL_GRAPH is None
+                or current_mtime > _CACHED_GRAPH_MTIME
+                or not _translation_cache_matches(requested_languages, cached_languages)
+            ):
                 from .atomic_swap import atomic_read_json
                 from .version import GRAPH_SCHEMA_VERSION, deserialize_graph_with_metadata
 
@@ -218,10 +348,16 @@ def get_code_intelligence_graph(
                 G, metadata = deserialize_graph_with_metadata(data_dict)
 
                 graph_languages = set(G.graph.get("translation_languages", ()))
+                schema_valid = metadata.get("graph_schema_version", 0) >= GRAPH_SCHEMA_VERSION
+                paths_resolve = _graph_filepaths_resolve_locally(G)
+                languages_match = _translation_cache_matches(requested_languages, graph_languages)
+                if schema_valid and paths_resolve and not languages_match and not force_rebuild:
+                    requested_languages = tuple(sorted(set(requested_languages) | graph_languages))
+                    languages_match = _translation_cache_matches(requested_languages, graph_languages)
                 if (
-                    metadata.get("graph_schema_version", 0) >= GRAPH_SCHEMA_VERSION
-                    and _graph_filepaths_resolve_locally(G)
-                    and set(requested_languages).issubset(graph_languages)
+                    schema_valid
+                    and paths_resolve
+                    and languages_match
                     and not force_rebuild
                 ):
                     _CACHED_CODE_INTEL_GRAPH = G
@@ -234,17 +370,27 @@ def get_code_intelligence_graph(
                         metadata.get("git_commit", "unknown"),
                     )
                     return _CACHED_CODE_INTEL_GRAPH
-                else:
+                if not paths_resolve:
                     logger.warning(
                         "Graph loaded from %s has Model filepaths that do not "
                         "exist on this machine -- discarding cache and rebuilding.",
                         GRAPH_JSON_PATH,
                     )
+                elif not languages_match:
+                    logger.info(
+                        "Graph cache does not contain requested translation languages %s; rebuilding.",
+                        requested_languages,
+                    )
+                elif not schema_valid:
+                    logger.info("Graph cache schema is stale; rebuilding.")
     except Exception as e:
         logger.error("Failed to load graph from %s: %s", GRAPH_JSON_PATH, e)
 
     if _CACHED_CODE_INTEL_GRAPH is not None and not force_rebuild:
-        return _CACHED_CODE_INTEL_GRAPH
+        cached_languages = _CACHED_CODE_INTEL_GRAPH.graph.get("translation_languages", ())
+        if _translation_cache_matches(requested_languages, cached_languages):
+            return _CACHED_CODE_INTEL_GRAPH
+        _CACHED_CODE_INTEL_GRAPH = None
 
     logger.info("Building Knowledge Graph from source files...")
     from code_intelligence.utils import discover_odoo_modules
@@ -272,30 +418,47 @@ def get_code_intelligence_graph(
             custom_addons_root,
         )
 
-    # 2. Preload Core Modules -- candidate list checked against the real
-    # instance's installed state (todo/contexte.txt section 752); falls
-    # back to the full candidate list if the instance is unreachable.
-    CORE_MODULES_ALWAYS_LOADED = _discover_installed_core_modules(CORE_MODULE_CANDIDATES)
-    if core_addons_root.exists():
-        for core_name in CORE_MODULES_ALWAYS_LOADED:
+    # 2. Load installed modules whose source is accessible. A runtime inventory
+    # replaces the fixed core shortlist; unavailable runtime access retains the
+    # narrow offline fallback below.
+    if installed_modules is None:
+        installed_modules = _read_runtime_module_inventory()
+    if active_languages is None:
+        active_languages = _read_runtime_active_languages()
+    if installed_modules is not None:
+        installed_source_modules = _discover_installed_source_modules(
+            [core_framework_addons_root, core_addons_root, custom_addons_root],
+            installed_modules,
+        )
+        for module_name, module_dir in installed_source_modules.items():
+            try:
+                name, mod = _load_module(module_dir, requested_languages)
+                modules_dict[name] = mod
+            except Exception as error:
+                logger.error("Failed to load installed module '%s': %s", module_name, error)
+        logger.info(
+            "Loaded %d/%d installed modules from configured addon paths.",
+            len(modules_dict), len(_installed_module_names(installed_modules)),
+        )
+    else:
+        core_modules_always_loaded = _discover_installed_core_modules(CORE_MODULE_CANDIDATES)
+        for core_name in core_modules_always_loaded:
             core_dir = core_addons_root / core_name
             if core_dir.is_dir() and (core_dir / "__manifest__.py").exists():
                 name, mod = _load_module(core_dir, requested_languages)
                 modules_dict[name] = mod
-            else:
-                logger.warning(
-                    "Core module '%s' not found (or has no __manifest__.py) under %s -- skipping preload.",
-                    core_name, core_addons_root,
-                )
 
-    # 3. Load Custom Modules
-    custom_modules = []
-    if custom_addons_root.exists():
-        custom_modules = discover_odoo_modules(custom_addons_root)
-        for mod_name in custom_modules:
-            mod_dir = custom_addons_root / mod_name
-            name, mod = _load_module(mod_dir, requested_languages)
-            modules_dict[name] = mod
+        if custom_addons_root.exists():
+            for mod_name in discover_odoo_modules(custom_addons_root):
+                name, mod = _load_module(custom_addons_root / mod_name, requested_languages)
+                modules_dict[name] = mod
+
+    custom_modules = [
+        name for name, module_dir in _discover_installed_source_modules(
+            [custom_addons_root], installed_modules,
+        ).items()
+        if module_dir.parent == custom_addons_root
+    ] if installed_modules is not None else discover_odoo_modules(custom_addons_root)
 
     # 4. Load OCA Sample Modules (Bloc P3.1)
     OCA_SAMPLE_MODULE_REPOS = {
@@ -315,6 +478,8 @@ def get_code_intelligence_graph(
         oca_sample_root = Path(OCA_SAMPLE_ADDONS_PATH)
         if oca_sample_root.exists():
             for mod_name, repo_name in OCA_SAMPLE_MODULE_REPOS.items():
+                if installed_modules is not None and mod_name not in _installed_module_names(installed_modules):
+                    continue
                 mod_dir = oca_sample_root / repo_name / mod_name
                 if not mod_dir.is_dir() or not (mod_dir / "__manifest__.py").exists():
                     logger.warning("OCA sample module '%s' not found under %s -- skipping.", mod_name, mod_dir)
@@ -358,6 +523,18 @@ def get_code_intelligence_graph(
     registry = build_module_symbol_registry(modules_dict)
     builder = OdooGraphBuilder(registry, modules_dict)
     _CACHED_CODE_INTEL_GRAPH = builder.build_graph()
+    runtime_translation_records, runtime_translation_summary = _read_runtime_translations(
+        requested_languages,
+        active_languages,
+    )
+    runtime_attachment_summary = attach_runtime_translations(
+        _CACHED_CODE_INTEL_GRAPH,
+        runtime_translation_records,
+    )
+    _CACHED_CODE_INTEL_GRAPH.graph["runtime_translation_summary"] = {
+        **runtime_translation_summary,
+        **runtime_attachment_summary,
+    }
     _CACHED_TRANSLATION_LANGUAGES = requested_languages
     from .instance_fingerprint import build_instance_fingerprint
     source_modules = {
@@ -396,6 +573,24 @@ def get_code_intelligence_graph(
         len(modules_dict),
     )
     return _CACHED_CODE_INTEL_GRAPH
+
+
+def get_code_intelligence_graph(
+    *,
+    translation_languages=None,
+    installed_modules=None,
+    active_languages=None,
+    request_language=None,
+    force_rebuild=False,
+):
+    with _GRAPH_LOAD_LOCK:
+        return _get_code_intelligence_graph(
+            translation_languages=translation_languages,
+            installed_modules=installed_modules,
+            active_languages=active_languages,
+            request_language=request_language,
+            force_rebuild=force_rebuild,
+        )
 
 
 __all__ = [

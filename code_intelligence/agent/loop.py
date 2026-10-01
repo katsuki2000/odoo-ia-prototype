@@ -195,7 +195,7 @@ from langchain_core.messages import SystemMessage, HumanMessage
 
 from code_intelligence.agent.dispatch_guards import (
     _strip_group_resolution_noise,
-    _force_dynamic_uncertainty_answer,
+    _build_dynamic_uncertainty_answer,
     _maybe_build_application_layer_reminder,
 )
 from code_intelligence.agent.context_extractors import _question_is_inheritance_related
@@ -230,9 +230,7 @@ def run_react_loop(
 
     final_answer = None
     if ctx.tool_observations:
-        final_answer = _force_dynamic_uncertainty_answer(
-            ctx.question, "\n\n".join(ctx.tool_observations),
-        )
+        final_answer = _build_dynamic_uncertainty_answer("\n\n".join(ctx.tool_observations))
 
     # Section 780 fix: who_has_access_to/evaluate_record_rules are both
     # forced by predispatch (predispatch_access.py) BEFORE this loop is
@@ -524,7 +522,11 @@ class CodeIntelligenceAgentRunner:
             )
 
         # Initialize the knowledge graph and inject into tool wrappers
-        G = get_code_intelligence_graph()
+        request_language = state.get("language")
+        G = get_code_intelligence_graph(
+            translation_languages=[request_language] if request_language else None,
+            request_language=request_language,
+        )
         from code_intelligence.agent.tools import ALL_CI_TOOLS
         from code_intelligence.agent.tool_helpers import set_graph_ref, set_llm_ref, set_current_question
         from code_intelligence.rules.security_locks import gate_observation, OmittedItem
@@ -585,7 +587,9 @@ class CodeIntelligenceAgentRunner:
 
         # Business Term Resolver -- Map natural language concepts to technical Odoo models/modules
         t_resolver = time.perf_counter()
-        concept = resolve_business_term(question, G, llm=llm)
+        concept = resolve_business_term(
+            question, G, llm=llm, language=request_language,
+        )
         resolver_time = time.perf_counter() - t_resolver
         if concept.source_step == "llm_arbitration":
             llm_call_count += 1
@@ -600,7 +604,11 @@ class CodeIntelligenceAgentRunner:
                 mod_node = f"module:{mod}"
                 if mod_node in G:
                     for u, v, d in G.in_edges(mod_node, data=True):
-                        if u.startswith("model:") and d.get("edge_type") == "DEFINED_IN":
+                        if (
+                            u.startswith("model:")
+                            and d.get("edge_type") == "DEFINED_IN"
+                            and d.get("role", "declares") == "declares"
+                        ):
                             m_name = u.split("model:", 1)[1]
                             if m_name not in concept.resolved_models:
                                 concept.resolved_models.append(m_name)

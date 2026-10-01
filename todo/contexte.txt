@@ -5549,3 +5549,590 @@ changement.
 local `code_intelligence/active_graph.json` a ete reconstruit par le chargeur ; le rapport
 d'ablation est uniquement dans `/tmp`. Les autres modifications deja presentes dans l'arbre
 ont ete preservees.
+
+## Section 1039 : reprise G1 -- diagnostic du score fuzzy et du chemin de production
+
+Date : 01/10/2026
+Contexte : reprise demandee apres redemarrage. Avant toute modification source, l'ablation
+restait a 16/25 et le seuil G1 n'etait pas atteint.
+
+**Diagnostic reproductible sur le graphe source francise** : l'index contient 28 029
+entrees. `fuzz.token_set_ratio` applique a la question entiere renvoie 100 pour des libelles
+d'un seul mot comme « champ », « visible », « vendeur », « date » ou « utilisateur », parce
+que le token set de ce libelle est inclus dans la question. La recherche sur fenetres
+multiplie ces faux positifs ; elle est couteuse et n'a pas modifie les 9 abstentions. Ce
+n'est donc pas un manque general de traductions mais un score qui confond inclusion d'un mot
+generique et correspondance metier. Les etiquettes traduites pertinentes existent par
+ailleurs dans l'index, mais sont masquees par cette masse de collisions.
+
+**Lacune de production confirmee** : `loop.py` appelle `get_code_intelligence_graph()` sans
+langues de traduction, puis appelle `resolve_business_term(question, G, llm=llm)` sans
+langue. Le graphe de production ne charge donc pas les `.po` et le resolveur n'a pas le
+contexte linguistique, alors que le script d'ablation le force explicitement en francais.
+Le schema d'etat inspecte ne fournit pas de champ de langue etabli ; ne pas inventer une
+langue ou une liste de langues/modules en dur. Avant de revendiquer G1, rendre explicite la
+source du contexte de langue et son effet sur le cache du graphe.
+
+**Prochaine modification envisagee (pas encore faite au moment de cette note)** : remplacer
+le score base sur l'inclusion de tokens/fenetres par une correspondance de libelles complets
+ou de segments multi-mots suffisamment discriminants, dedupliquer les libelles au niveau du
+modele, et couvrir les cas de collisions par tests. Ensuite seulement, definir un contrat
+de langue de requete pour le flux de production, relancer l'ablation et publier exactitude,
+couverture et temps de calcul. Pas d'alias par module/question, pas de modification de
+`plan.md`, et G2 reste hors perimetre.
+
+**Experience de reprise** : un score experimental a base de rarete des tokens, penalite des
+libelles courts et voisinage lexical a passe les 54 tests cibles, mais l'ablation est restee
+exactement a 16/25 (64 %), avec les memes neuf abstentions ; les candidats parasites
+devenaient simplement differents. L'experimentation a ete retiree de `matching.py` plutot
+que de conserver une complexite sans gain mesure. Cette mesure confirme que les abstentions
+ne se resoudront pas par un simple reparametrage du fuzzy : plusieurs expressions sont des
+paraphrases (commande d'achat / bon de commande fournisseur, commande de vente / commande
+client), et des questions longues melangent des termes de plusieurs etiquettes. Le lexique
+.po peut fournir des candidats, mais le critere 24/25 sans LLM ni autre connaissance
+semantique ne semble pas valide comme critere de sortie G1. La prochaine etape necessite de
+revoir le protocole de resolution (par exemple mesurer le rappel du bon domaine dans un
+ensemble borne de candidats, puis l'arbitrage LLM ferme), ou d'obtenir une source de
+connaissance multilingue generale distincte des alias manuels. Le critere de plan ne doit
+pas etre declare atteint sur cette seule instance.
+
+**Validation de reprise** : apres retrait de l'experience, les 54 tests cibles repassent
+(lexique, resolveur metier et fuzzy-vs-alias). Ablation finale : 16/25, accuracy parmi les
+reponses 100 %, couverture 64 %, borne basse Wilson 44,5 %, neuf abstentions identiques.
+L'inventaire runtime reste indisponible (`Operation not permitted`), et cette mesure ne
+certifie que le corpus source francise disponible. Seuls `todo/contexte.txt` etait encore
+modifie apres retrait du code experimental.
+
+**Precision de formulation (01/10/2026)** : `Operation not permitted` designe le blocage
+de la tentative XML-RPC par l'environnement d'execution. Ce n'est pas un rejet
+d'authentification par Odoo ; aucun resultat d'authentification serveur n'a ete obtenu.
+
+## Section 1040 : reprise -- mesure des changements locaux de filtrage et de departage
+
+Date : 01/10/2026
+Contexte : a la reprise, l'arbre de travail contenait deja des modifications locales non
+journalisees dans `matching.py` et `resolver.py` : filtrage des libelles de champ courts,
+fenetres fuzzy de largeur minimale 2, et departage deterministe fonde sur des segments de
+nom de modele / module et des prefixes d'identifiants techniques. Elles ont ete preservees
+et evaluees avant toute intervention.
+
+**Resultats** : les 54 tests cibles passent. L'ablation sans table statique ni LLM atteint
+18/25 bonnes reponses (72 % de toutes les questions), 19 reponses (couverture 76 %) et une
+exactitude parmi les reponses de 18/19 (94,7 %). Il reste six abstentions et un routage
+incorrect, MNT-Q4 ; la borne basse Wilson poollee est 52,4 %. La couverture augmente donc,
+mais le critere n'est pas atteint et un faux positif a ete introduit.
+
+**Cause du faux positif MNT-Q4** : le graphe contient le libelle traduit du modele
+`maintenance.equipment` (« Equipement de maintenance »), mais la largeur minimale 2 ne
+retient pas le terme rare « equipement » seul. A l'inverse, une fenetre exacte de trois mots
+« accès en lecture » associee a `ir.model.access` l'emporte (score 94) sur cette question
+qui parle de visibilité et de lecture. Le filtre de champs par nombre de mots/longueur
+ecarte aussi des libelles courts pertinents tels que `Cost`, alors que la question nomme
+explicitement ce champ. Ce filtrage lexical ne distingue donc pas les mots rares et
+informatifs des mots génériques, et perd une preuve directe du graphe.
+
+Le departage ne s'applique qu'aux candidats deja dans la liste fuzzy top-k et seulement si
+les scores sont dans la marge d'ambiguite ; il ne corrige pas ce faux positif de premier
+rang. Ses heuristiques sur les segments techniques et prefixes conventionnels doivent
+rester fermees sur les candidats du graphe et etre couvertes par des tests anti-fausse
+resolution avant d'etre considerees comme fiables sur des modules inconnus.
+
+**Suite** : ne pas garder la largeur minimale 2 ni le filtre de longueur comme regles
+generales. Construire/mesurer une evidence lexicale fondee sur la frequence des termes dans
+l'index du graphe, en conservant les libelles exacts de champs et la provenance du noeud ;
+les termes rares exacts cites dans la question doivent pouvoir peser sans que les mots
+generiques « acces », « lecture », « champ » ou « utilisateur » dominent. Valider sur les
+25 questions et des requetes hors banc, et verifier separement l'ensemble des mauvais
+routages. Ne pas calibrer sur les seuls neuf cas ; pas de termes, modules, questions ni
+identifiants de banc ajoutes en dur.
+
+**Mesure du signal conjoint modele/champ** : une premiere implementation generique dans
+`matching.py` croise les noms de champs rares cites textuellement avec des termes rares des
+libelles de modele ; le nouveau test de collision MNT-Q4 passe. Les tests cibles passent
+(55). L'ablation atteint 22/25 correctes (88 %), 23 reponses, dont une fausse resolution
+PUR-Q5 vers `custom.purchase.request` ; la couverture vaut 92 %, l'exactitude parmi les
+reponses 95,7 %, la borne Wilson poollee 70,0 %. Cause identifiee : le mot ordinaire « etat »
+correspond au nom technique d'un champ dans trois modeles et a ete traite comme un
+identifiant explicite, puis le terme « achat » a complete le rapprochement. Correction
+prevue : un nom de champ sans ponctuation/forme d'identifiant ne doit pas servir d'ancre
+technique a lui seul ; exiger guillemets autour de l'identifiant, underscore ou chiffre.
+
+**Revalidation apres restriction de l'ancre de champ** : les tests cibles restent a 55
+passes. L'ablation compte 21/25 bonnes reponses (84 %), 21 reponses, aucune erreur parmi
+les cas resolus ; couverture 84 %, borne basse Wilson poollee 65,3 %. Quatre questions
+restent sans resolution (PUR-Q5, SAL-Q2, SAL-Q4 et ACC-Q2). Le faux routage PUR-Q5 a disparu ;
+le seuil historique G1 24/25 reste non atteint et la borne basse ne permet pas une
+conclusion a 80 %. La suite ne devra pas relacher la garde qui a elimine ce faux positif.
+L'index d'evidence derive (frequences de termes, correspondances de champs et labels)
+sera conserve dans le cache faible du graphe par langue, pour eviter une relecture de tous
+les noeuds a chaque question.
+
+**Etape suivante preparee** : le resolver de production n'a actuellement aucune source de
+langue et le chargeur ignore donc les traductions. Le contrat retenu pour ce flux est la
+langue explicite facultative de la requete API, avec le standard HTTP `Accept-Language` en
+repli ; le code langue sera normalise au format Odoo (`fr-CA` -> `fr_CA`). En l'absence des
+deux, le comportement reste l'actuel, sans traduction ni supposition. La langue doit etre
+transmise dans l'etat aux deux points d'entree de resolution et au chargeur de graphe. Le
+cache ne devra jamais retourner silencieusement un graphe sans la langue demandee ; le
+repli sur le graphe non traduit est explicite seulement si aucune langue n'est fournie.
+Comme les requetes API peuvent etre concurrentes, le changement de langue et la
+reconstruction du graphe doivent aussi etre serialises afin que deux demandes de langues
+distinctes ne s'ecrasent pas dans le singleton du chargeur.
+Le singleton ne doit pas reconstruire tout le graphe a chaque alternance de langue : les
+catalogues demandes seront accumules dans le graphe partage ; chaque resolveur filtre selon
+la langue de sa requete, et une requete sans langue n'utilise aucune traduction.
+Ajouter aussi au rapport d'ablation un diagnostic de rappel du domaine dans les cinq
+candidats fuzzy (sans le confondre avec accuracy ni en faire un nouveau critere de sortie) :
+cela separe un manque de rappel lexical d'un arbitrage de modele non mesure sans LLM.
+Avant de valider le departage deterministe deja present dans `resolver.py`, ajouter des
+tests generiques : un indice technique de module inconnu doit gagner seulement s'il identifie
+un unique candidat ; une mention metier generique (« order ») doit rester ambigue.
+
+**Implementation conservee** : `matching.py` construit un index faible derive du graphe,
+par langue, des noms de champs, des tokens rares de libelles de modeles (description,
+traductions et nom technique). Un champ n'est considere comme ancre directe que s'il est
+rare dans le graphe ET explicitement marque dans la question (guillemets, underscore ou
+chiffre) ; il doit converger avec un token rare d'un libelle du modele proprietaire. Les
+accents sont normalises sans dictionnaire de termes. Le test de regression couvre la
+collision generique « acces en lecture » contre le champ `cost` du modele d'equipement.
+L'index derive est mis en cache sur l'objet graphe, et les 55 tests cibles passent apres ce
+changement.
+
+**Etat du chantier** : cette iteration fait passer l'ablation source francisee de 16/25 a
+21/25 bonnes resolutions, sans mauvais routage parmi les 21 resolues. Elle ne prouve pas
+80 % generalisables : une seule empreinte source, 25 questions, borne Wilson 65,3 %, runtime
+inaccessible et langue non encore transmise par le flux de production. G1 n'est pas acheve ;
+le seuil 24/25 et l'evaluation multi-instance restent a faire. Les modifications preexistantes
+de `resolver.py` (departage deterministe) sont toujours locales et le test cible n'atteste pas
+encore toutes leurs limites sur des modules inconnus.
+
+## Section 1041 : propagation de langue de requete et mesure du rappel de domaine
+
+Date : 01/10/2026
+Contexte : suite de 1040. L'ablation a atteint 21/25 bonnes resolutions sans faux positif,
+mais l'analyse des quatre abstentions indique que le bon domaine figure dans le shortlist
+fuzzy pour la plupart d'entre elles. Il fallait distinguer la couverture du resolveur sans
+LLM du rappel du retriever et permettre au flux de production d'utiliser les `.po` selon la
+langue de la requete.
+
+**Changements** :
+
+- `AskRequestV1.language` est facultatif. La route API prend cette valeur en priorite, puis
+  le code valide de qualite `q` la plus elevee dans `Accept-Language`. Les tags BCP 47 avec
+  tirets sont convertis au format Odoo avec underscore ; une valeur invalide tombe sur le
+  header, puis sur `None` sans supposer de langue ;
+- `query_graph`, `RAGState`, la route d'intention et l'agent CI transmettent la langue au
+  chargeur et au resolveur. Les `.po` prennent le catalogue regional exact s'il existe,
+  sinon le catalogue de langue de base ; aucune dependance n'a ete ajoutee ;
+- le graphe conserve l'union des catalogues demandes plutot que de reconstruire a chaque
+  alternance. Chaque resolution filtre les traductions par langue ; sans langue, aucune
+  traduction n'est utilisee. Le chargeur serialise les reconstructions concurrentes et ne
+  re-utilise pas un cache incomplet pour une langue demandee ;
+- `run_business_resolver_ablation.py` rapporte separement le rappel du domaine attendu dans
+  les candidats ordonnes (modules uniques deduits des modeles). Ce diagnostic n'est pas une
+  accuracy de reponse ni un critere de sortie. Les questions resolues reutilisent le modele
+  retenu ; les abstentions sont evaluees sur le shortlist fuzzy strict, ou elargi quand le
+  seuil strict ne donne aucun candidat ;
+- `matching.py` ajoute la co-presence d'un identifiant de champ explicitement cite, rare
+  dans le graphe, avec un terme rare du label du modele. Cette preuve est mise en cache
+  faible par graphe/langue. Le test de regression couvre la collision MNT-Q4 entre « acces
+  en lecture » et `cost` sur le modele d'equipement.
+
+**Validation** : 67 tests cibles passent, dont le contrat API, le schema, la selection de
+catalogues regionaux, le cache, la collision MNT-Q4 et les metriques. `compileall` sur les
+fichiers modifies, generation OpenAPI et `git diff --check` passent.
+Un second lot de 192 tests de graphe, routage sticky, CI-first et API passe aussi.
+
+L'ablation francaise finale, sans alias statiques ni LLM, reste a 21/25 bonnes reponses
+(84 %), les 21 resolues sont correctes, couverture 84 %, borne basse Wilson poollee 65,3 %.
+Abstentions : PUR-Q5, SAL-Q2, SAL-Q4, ACC-Q2. La metrique finale de rappel, strictement
+calculee sur ces quatre abstentions, donne le bon module au rang 1 pour 3/4 (75 %) et au
+rang 3 pour 4/4 (100 %) ; le rang 5 reste a 4/4. Cela n'evalue que la presence du domaine
+parmi les candidats, pas la selection effective d'un modele par le LLM. Aucun appel LLM
+payant n'a ete fait.
+
+**Limites non levees** : une seule empreinte du corpus source ; acces runtime bloque par
+l'environnement (`Operation not permitted`, sans rejet d'authentification Odoo) ; aucune
+traduction `ir.model` runtime ; generalisation multi-instance et borne basse par instance
+non mesurables. Les clients sans `language` ni `Accept-Language` restent sur les labels non
+traduits, avec le repli existant aliases/LLM. G1 n'est pas acheve : 24/25 statique n'est pas
+atteint et le seuil statistique n'est pas satisfait.
+
+**Fichiers touches depuis 1039** : `api/routes_ask.py`, `api/schemas.py`,
+`core/graph/graph.py`, `core/routing/routing.py`, `code_intelligence/agent/loop.py`,
+`code_intelligence/agent/matching.py`, `code_intelligence/agent/resolver.py` (modification
+locale deja presente, preservee), `code_intelligence/graph/loader.py`,
+`code_intelligence/graph/translations.py`, `code_intelligence/evaluation/resolver_metrics.py`,
+`code_intelligence/tests/test_api_language.py`,
+`code_intelligence/tests/test_instance_lexicon.py`,
+`code_intelligence/tests/test_resolver_metrics.py`,
+`code_intelligence/tests/test_resolver_tiebreaker.py`,
+`scripts/run_business_resolver_ablation.py` et ce journal. Le JSON complet d'ablation est
+dans `/tmp/odoo_resolver_ablation_candidates.json`, non versionne.
+
+**Correction du denominateur de rappel** : la premiere version de la metrique reutilisait
+le modele final des questions deja resolues, ce qui la confondait avec l'accuracy et
+gonflait le rappel retriever. La metrique sera calculee uniquement sur les abstentions,
+c'est-a-dire les cas ou le shortlist sert effectivement de repli/arbitrage.
+
+**Mesure corrigee** : rappel du domaine sur les quatre abstentions : 75 % au rang 1,
+100 % au rang 3 et 100 % au rang 5. Le rapport final est
+`/tmp/odoo_resolver_ablation_candidates_final.json` ; il corrige le premier rapport cite
+ci-dessus.
+
+**Nouvelle root cause trouvee en controlant SAL-Q1/STK-Q4** : le graphe marque explicitement
+`res.partner` comme `role=declares` dans `base` et `role=extends` dans `sale`/`stock`. Le
+departage, l'index menu-modele et l'oracle de l'ablation traitaient pourtant chaque arete
+`DEFINED_IN` comme un proprietaire equivalent. Le modele Contact heritait donc les libelles
+de menus Ventes/Inventaire et pouvait etre faussement route vers ces domaines ; l'oracle le
+comptait aussi comme correct. Les chiffres 21/25 et le rappel de domaine precedents sont
+provisoires/invalables jusqu'a correction. Correction de cause racine : n'utiliser que le
+module declarant pour l'identite/domaine du modele dans le resolveur, l'index de menus et
+l'evaluation ; garder les aretes `extends` pour l'analyse d'extensions. Ajouter des tests
+anti-regression sur un modele multi-module.
+
+Apres filtrage `role=declares`, SAL-Q1 reste faussement departage vers `res.partner` car le
+nom `base` est detecte comme module dans le prefixe de `base.group_portal`. Le module qui
+declare un xml_id de groupe n'est pas une preuve du module qui declare le modele cible.
+Retirer l'inference de module a partir des prefixes d'identifiants de groupe et ne retenir
+que les mentions autonomes de module ou de segment de modele ; ajouter le cas anti-biais.
+
+## Section 1042 : correction du departage XMLID et reablation apres attribution des modules
+
+Date : 01/10/2026
+Suite de 1041. La revue des resultats avait revele deux biais lies a la confusion entre un
+module qui declare un modele et un module qui l'etend, ainsi qu'a l'utilisation du prefixe
+d'un XMLID de groupe comme indice de domaine. Cette section remplace explicitement les
+mesures provisoires de 1041 (21/25 et rappel 3/4 au rang 1) : elles ne sont pas valides.
+
+**Corrections** : le departage deterministe ne tire plus d'indice d'un prefixe XMLID ; il
+ne retient que les mentions autonomes de segments de modele ou de modules declarants. Le
+test qui attendait une resolution fondee sur `project_inventory.group_*` a ete remplace par
+une mention autonome du module et un test verifie que `base.group_portal` et
+`sales_team.group_sale_salesman` ne departagent pas deux modeles. L'association des modeles
+issus d'un alias a un module explicite filtre egalement les aretes `DEFINED_IN` sur
+`role=declares`, comme l'index fuzzy, l'expansion des modeles, l'oracle et le calcul du
+rappel de domaine.
+
+**Validation** : 221 tests des parcours graphe, routage sticky, evidence CI-first, API
+d'ingestion, langue API, lexique, metriques et departage passent. `compileall`, la propriete
+`language` dans le schema OpenAPI et `git diff --check` passent.
+
+**Reablation valide** : le banc natif francais sans alias statiques ni LLM donne 19/25
+reponses correctes (76 % de toutes les questions), 19 reponses (couverture 76 %), aucune
+erreur parmi les reponses et six abstentions : PUR-Q5, SAL-Q1, SAL-Q2, SAL-Q4, STK-Q4 et
+ACC-Q2. La borne basse Wilson poollee est 56,6 %. Le domaine attendu apparait dans le
+shortlist pour 3/6 abstentions au rang 1 et 6/6 au rang 3. Le rappel de domaine ne prouve
+pas qu'un arbitre LLM choisirait le bon modele. Aucun appel LLM payant n'a ete effectue.
+Le rapport complet est `/tmp/odoo_resolver_ablation_role_final.json`.
+
+Le graphe utilise porte l'empreinte source `c56d4b6cc829595bc9ee350ef2a6c8fec7e016787e86275ad730980b16c6b4bf`
+et n'est pas un snapshot d'une instance Odoo reelle. La tentative d'introspection XML-RPC
+reste interdite par l'environnement (`Operation not permitted`) ; le script retombe donc
+sur la liste statique de modules source. Cette mesure ne valide ni une instance distante,
+ni la generalisation a des instances inconnues. Le critere G1 de 24/25 n'est pas atteint.
+
+**Etat et suite** : l'anti-faux-positif est prefere a une resolution forcee ; le resultat
+recule par rapport aux estimations precedentes, mais repose maintenant sur une attribution
+de domaine corrigee. Les six abstentions appellent une meilleure evidence lexicale ou
+l'arbitrage LLM borne existant, sans relacher les garde-fous sur la provenance et sans
+ajouter de termes ou d'identifiants specifiques au banc. La mesure de generalisation
+multi-instance reste ouverte.
+
+## Section 1043 : G2 -- garde d'incertitude dynamique generalisee
+
+Date : 01/10/2026
+Contexte : la garde `_force_dynamic_uncertainty_answer` ne produisait une abstention que
+si la question mentionnait le remboursement ou les identifiants
+`custom_expense_reimbursement_indirect` / `custom.reimbursement.request`. La securite du
+raisonnement dependait donc d'un scenario du banc, alors que le signal utile est generique :
+l'analyse statique a detecte un dispatch dynamique qui empeche une conclusion certaine.
+
+**Correction** : la garde devient `_build_dynamic_uncertainty_answer(raw_tool_output)`.
+Elle ne prend plus la question et ne connait aucun module ni modele. Tout signal de dispatch
+dynamique (`getattr`, `eval`, `exec` ou marqueur equivalent) produit une abstention neutre,
+avec la premiere source disponible. La boucle ReAct, le post-traitement, la facade de
+compatibilite et le classifieur de suffisance des preuves utilisent le nouveau contrat. Le
+test de regression emploie une question sans rapport avec le remboursement.
+
+**Validation** : 70 tests ciblant routage, preuve, analyse Semgrep, lexique et departage
+passent ; `compileall` sur `code_intelligence` et `core`, ainsi que `git diff --check`,
+passent.
+
+**Fichiers modifies** : `code_intelligence/agent/dispatch_guards.py`,
+`code_intelligence/agent/loop.py`, `code_intelligence/agent/postprocess.py`,
+`core/graph/graph_compat.py`, `core/evidence/evidence_sufficiency.py`,
+`tests/test_j18_routing_fewshot.py`,
+`code_intelligence/tests/test_evidence_sufficiency.py` et ce journal.
+
+## Section 1044 : audit de couverture de graphe portable
+
+Date : 01/10/2026
+Contexte : `scripts/coverage_report.py` lisait directement un ancien format NetworkX, alors
+que `active_graph.json` est serialize dans une enveloppe `metadata` / `graph`. Son resultat ne
+pouvait donc pas etre utilise pour caracteriser une nouvelle instance. Il comptait aussi les
+menus-dossiers comme des menus dont l'action aurait du etre resolue, ce qui melangeait deux
+populations differentes.
+
+**Correction** : `code_intelligence.evaluation.graph_coverage` produit un rapport JSON
+structure, attache a l'empreinte d'instance deja presente dans le graphe. Il mesure les
+descriptions et libelles, les traductions pour la langue demandee (avec repli regional), les
+menus ayant une action resolue vers un modele et la liste complete des actions de menu non
+resolues. Les menus-dossiers sont comptes separement. `scripts/coverage_report.py` accepte
+desormais le format serialize courant comme le format historique, sans chemin ni configuration
+machine imposee, et expose un rendu texte ou JSON.
+
+**Mesure du snapshot courant** : 310/310 descriptions de modeles, 3480/3480 labels de champs,
+304/310 labels metier de modeles en francais, 3424/3480 pour les champs, 288/292 pour les
+menus ; parmi les 195 menus ayant une action, 163 ouvrent un modele (83,6 %) et 32 references
+d'action restent non resolues. Les 97 menus-dossiers sont distincts de ce denominateur. Ce
+rapport mesure la couverture du graphe, pas la justesse des reponses ni la generalisation.
+
+**Validation** : 11 tests ciblant le rapport et le lexique passent. Le script est execute sur
+`active_graph.json` dans ses formats texte et JSON ; `compileall` et `git diff --check`
+passent.
+
+**Fichiers modifies** : `code_intelligence/evaluation/graph_coverage.py` (nouveau),
+`scripts/coverage_report.py`, `code_intelligence/tests/test_graph_coverage.py` (nouveau) et
+ce journal.
+
+## Section 1045 : lacunes d'indexation et references non resolues dans l'audit
+
+Date : 01/10/2026
+Contexte : le rapport 1044 indiquait les actions de menus non resolues, mais ne pouvait pas
+dire si une instance connectee contenait des modules installes absents du graphe, ni conserver
+les references modele/groupe/action deja detectees par `ResolvedSymbolRegistry` pendant
+l'extraction.
+
+**Correction** : le constructeur serialise les `unresolved_references` dans les metadonnees du
+graphe avec leur module source, fichier, type et categorie. Le rapport compare les modules de
+l'inventaire runtime de l'empreinte aux noeuds `Module` effectivement indexes ; lorsque cet
+inventaire est disponible, il expose les modules installes mais absents. Lorsque l'acces runtime
+manque, il le signale explicitement et ne conclut pas a une couverture complete.
+
+**Validation** : 16 tests couvrant rapport, lexique et resolution de symboles passent ;
+`compileall` et `git diff --check` passent. Le `active_graph.json` disponible est anterieur a
+cette serialisation, donc son rapport affiche a juste titre inventaire runtime indisponible et
+zero reference persistante. Un graphe regenere sur une instance recueillera ces deux donnees.
+
+**Fichiers modifies** : `code_intelligence/graph/builder.py`,
+`code_intelligence/evaluation/graph_coverage.py`, `scripts/coverage_report.py`,
+`code_intelligence/tests/test_graph_coverage.py` et ce journal.
+
+## Section 1046 : Phase 5a -- inventaire runtime complet et configuration portable
+
+Date : 01/10/2026
+Contexte : apres autorisation d'acces reseau, l'ablation pouvait joindre l'instance mais
+l'empreinte restait sans inventaire runtime. Le chargeur interrogeait seulement les cinq
+modules coeur pour les filtrer, puis perdait le resultat complet. En outre, ce chemin et
+`get_current_uid()` passaient le nom `admin` directement a l'authentification, contrairement
+au principe de configuration externe.
+
+**Correction** : le chargeur lit une fois tous les enregistrements installes de
+`ir.module.module` (nom, versions, etat), reutilise cet inventaire pour filtrer les modules
+coeur et l'attache a l'empreinte. En cas d'indisponibilite, le repli statique est conserve et
+la disponibilite runtime reste explicitement fausse. `OdooConnector.username` vient de
+`ODOO_USERNAME` (fallback `admin`) ; le chargeur et les aides ORM l'utilisent. `.env.example`
+emploie maintenant des chemins relatifs et documente `ODOO_USERNAME`; le README est aligne.
+Le rapport d'ablation inclut aussi les donnees detaillees de l'empreinte.
+
+**Mesure runtime** : l'instance expose 115 modules installes, conserves dans l'empreinte
+`65392f77f8b30cd074e1b71d1996d107f728ad19efdf729695b19fe18cfefac4`. L'audit montre que
+102 de ces modules ne sont pas indexes dans le graphe courant, 32 actions de menus restent non
+resolues et 76 references d'extraction sont connues. L'inventaire de langues runtime manque
+encore ; les traductions `ir.model` ne sont donc pas lues. L'ablation sans alias ni LLM reste
+honnetement a 19/25 (76 %), avec les six abstentions deja listees en 1042 : cette phase rend
+les lacunes observables, elle ne les masque pas.
+
+**Validation** : 19 tests pour inventaire, lexique et audit passent, puis 14 tests cibles de
+connecteur et de chargeur passent ; `compileall` sur `code_intelligence`, `erp_data` et les
+scripts, ainsi que `git diff --check`, passent. L'ablation runtime s'est executee sans LLM et
+le rapport est `/tmp/odoo_resolver_ablation_runtime_inventory.json`.
+
+**Fichiers modifies** : `.env.example`, `README.md`, `erp_data/odoo_connector.py`,
+`erp_data/_odoo_helpers.py`, `erp_data/tests/test_odoo_connector.py`,
+`code_intelligence/graph/loader.py`,
+`code_intelligence/tests/test_bloc_n1_core_module_discovery.py`,
+`scripts/run_business_resolver_ablation.py` et ce journal.
+
+## Section 1047 : Phase 5a -- langues actives confirmees au runtime
+
+Date : 01/10/2026
+Contexte : 1046 conservait les modules installes mais l'empreinte ne pouvait pas distinguer
+une langue absente d'une langue simplement non lue. Cette distinction est necessaire avant de
+decider quels catalogues `.po` et quelles traductions runtime sont attendus.
+
+**Correction** : `res.lang` est autorise uniquement pour sa metadonnee publique `code` et le
+chargeur lit les langues actives. L'echec de cette lecture reste une valeur `None` explicite,
+sans empecher l'inventaire de modules ni forcer une langue supposee. Le test verrouille la
+lecture minimale, dedupliquee et ordonnee des seuls codes de langue.
+
+**Mesure runtime** : la relance autorisee confirme `runtime_inventory_available=true`, 115
+modules installes, `language_inventory_available=true` et `active_languages=["en_US"]`.
+L'ablation francaise reste a 19/25 (76 %) sans alias ni LLM. La langue de requete `fr` est donc
+une preference utilisateur utile au lexique source, mais elle n'est pas une langue active
+declaree par cette instance : il ne faut pas presenter une traduction ORM francaise comme
+disponible sans son propre releve.
+
+**Validation** : 12 tests cibles du chargeur et du connecteur passent ; `compileall` et
+`git diff --check` passent. Le rapport est
+`/tmp/odoo_resolver_ablation_runtime_languages.json`.
+
+**Fichiers modifies** : `erp_data/odoo_connector.py`,
+`code_intelligence/graph/loader.py`,
+`code_intelligence/tests/test_bloc_n1_core_module_discovery.py` et ce journal.
+
+## Section 1048 : indexation complete des sources installes et correction XMLID
+
+Date : 01/10/2026
+Contexte : l'audit 1046 exposait 102 modules installes absents du graphe alors que leurs
+sources etaient accessibles dans les chemins d'addons configures. La cause racine etait le
+chargeur : il limitait l'indexation aux cinq modules coeur, aux modules custom trouves et a
+quelques dependances, alors que l'inventaire runtime complet etait deja disponible.
+
+**Correction** : lorsqu'un inventaire runtime existe, le chargeur selectionne l'intersection
+des modules installes et des repertoires source accessibles dans les trois chemins d'addons
+configures. L'ordre des chemins garde la priorite des addons custom. Hors ligne, le repli
+etroit precedent est conserve explicitement. Les modules OCA d'echantillon ne sont plus ajoutes
+si l'inventaire runtime indique qu'ils ne sont pas installes. Le test couvre la priorite de
+chemin et les modules sans source sont rapportes, non inventes.
+
+La premiere reablation du graphe elargi a revele un faux positif : `sales_team` au debut de
+`sales_team.group_sale_salesman` etait traite comme une mention explicite de module des que ce
+module etait charge. L'extracteur de modules exclut maintenant tout prefixe de XMLID pointe ;
+le test couvre ce cas generique. Apres correction, aucune reponse emise n'est fausse.
+
+**Mesure runtime** : les 115 modules installes ont tous un source accessible et sont indexes.
+Le graphe passe a 535 modeles, 6325 champs et 20225 noeuds. L'audit compte 331/336 actions de
+menus resolues (98,5 %), cinq actions non resolues et aucun module installe non indexe. Les
+references non resolues passent a quatre, toutes dans `auth_totp`. L'ablation francaise sans
+alias ni LLM donne 18/25 (72 %), 18 reponses toutes correctes et sept abstentions
+(`PUR-Q5`, `SAL-Q1`, `SAL-Q2`, `SAL-Q4`, `STK-Q4`, `ACC-Q2`, `ACC-Q4`). La couverture de source
+etant complete, ce recul ne justifie pas une resolution forcee : il confirme que le blocage G1
+est la similarite semantique entre formulations metier et libelles, pas l'absence de code.
+
+**Validation** : 18 tests de chargeur, utilitaires et audit, puis 64 tests de resolution,
+passent ; `compileall` et `git diff --check` passent. Rapport final :
+`/tmp/odoo_resolver_ablation_installed_sources_fixed.json`.
+
+**Fichiers modifies** : `code_intelligence/graph/loader.py`,
+`code_intelligence/agent/matching.py`,
+`code_intelligence/tests/test_bloc_n1_core_module_discovery.py`,
+`code_intelligence/tests/test_resolver_tiebreaker.py` et ce journal.
+
+## Section 1049 : arbitrage LLM borne enrichi par les faits du graphe
+
+Date : 01/10/2026
+Contexte : apres 1048, les sept abstentions ne viennent plus d'une source installee absente.
+Le repli LLM recevait seulement des noms techniques courts, et seulement les huit premiers
+candidats flous. Il ne disposait donc pas des libelles multilingues ni du module declarant,
+pourtant deja extraits avec provenance. Cela rendait son arbitrage moins informe sans justifier
+de forcer le chemin sans LLM.
+
+**Correction** : l'arbitrage reste une selection dans une liste fermee, mais cette liste peut
+contenir jusqu'a vingt candidats flous et chaque candidat est accompagne de ses libelles dans la
+langue demandee, de sa description et de ses modules declarants. Ces informations viennent
+exclusivement du graphe de l'instance ; ni terme metier, ni module du banc, ni reponse attendue
+n'est code en dur. Les modules sont tries afin que le prompt soit reproductible. Une reponse
+hors liste ou l'absence de client LLM reste une abstention.
+
+**Mesure sans LLM** : la relance complete, sans alias statiques ni client LLM, confirme 18/25
+(72 %) avec 18 reponses emises toutes justes. Les sept abstentions sont inchangees : `PUR-Q5`,
+`SAL-Q1`, `SAL-Q2`, `SAL-Q4`, `STK-Q4`, `ACC-Q2` et `ACC-Q4`. La borne inferieure de Wilson
+poolee a 95 % est 52,4 %. Le changement n'ameliore donc pas artificiellement la mesure
+deterministe : il prepare seulement un arbitrage LLM mieux fonde lorsque celui-ci est active.
+
+**Validation** : le test couvre la provenance des libelles et modules ainsi que leur rendu dans
+le prompt a liste fermee. L'ablation a explicitement ignore tout arbitrage en l'absence de
+client LLM. Rapport : `/tmp/odoo_resolver_ablation_bounded_arbitration.json`.
+
+**Fichiers modifies** : `code_intelligence/agent/resolver.py`,
+`code_intelligence/tests/test_resolver_tiebreaker.py` et ce journal.
+
+## Section 1050 : recuperation semantique optionnelle pour l'arbitrage borne
+
+Date : 01/10/2026
+Contexte : les libelles issus de l'instance sont maintenant indexes mais la distance entre une
+formulation metier et son libelle reste parfois semantique, pas orthographique. Elargir des
+filtres regex ou ajouter des synonymes du banc aurait augmente artificiellement la mesure et ne
+generaliserait pas aux libelles d'une autre instance.
+
+**Correction** : un nouveau recuperateur semantique vectorise les descriptions, traductions et
+menus lies aux modeles du graphe de l'instance. Il reutilise le fournisseur d'embeddings deja
+configure, met ses vecteurs de graphe en cache faible et envoie des lots limites. Il reste
+desactive par defaut via `RESOLVER_SEMANTIC_RETRIEVAL_ENABLED=false`; l'activation et un
+eventuel fournisseur ou modele distinct se font uniquement dans `.env`. Une indisponibilite de
+fournisseur est un repli propre vers les candidats fuzzy.
+
+Le recuperateur ne decide jamais seul : il reserve une partie de la liste fermee de vingt
+candidats pour l'arbitrage LLM, puis le LLM doit toujours choisir un nom de modele de cette liste
+ou s'abstenir. Sans client LLM, aucun appel d'embeddings n'est effectue et la liste fuzzy garde
+exactement son comportement precedent. Il n'existe donc ni nouveau terme statique, ni dependance
+a un module, une question ou une reponse du banc.
+
+**Validation** : les tests couvrent le classement a partir d'une traduction du graphe, le mode
+desactive et l'interdiction d'appeler les embeddings sans LLM. Les 81 tests de resolution,
+lexique, chargeur et audit passent ; `compileall` et `git diff --check` passent. Aucune nouvelle
+dependance n'est ajoutee : `sentence-transformers` et les adaptateurs de fournisseur etaient deja
+verrouilles dans `requirements.txt`. Le README utilise aussi le vrai nom `.env.example` et expose
+les trois variables.
+
+**Limite explicite** : ce composant n'est pas encore une preuve d'amelioration de generalisation.
+Il faudra l'activer avec un modele multilingue disponible localement ou sur le fournisseur choisi,
+puis le mesurer sur les snapshots independants de la phase 7. Son role actuel est de rendre cette
+mesure possible sans changer le parcours deterministe ni masquer les abstentions.
+
+**Fichiers modifies** : `.env.example`, `README.md`,
+`code_intelligence/agent/semantic_retrieval.py`, `code_intelligence/agent/resolver.py`,
+`code_intelligence/tests/test_semantic_retrieval.py`,
+`code_intelligence/tests/test_resolver_tiebreaker.py` et ce journal.
+
+## Section 1051 : traductions runtime de registre et lacunes rendues auditables
+
+Date : 01/10/2026
+Contexte : le graphe savait deja stocker des traductions runtime, mais aucun lecteur ne les
+alimentait. Les modules custom sans fichier `.po` restaient donc limites a leurs libelles
+statiques, alors qu'une instance Odoo peut avoir leurs traductions dans son registre.
+
+**Correction** : lors de la construction, le chargeur lit `ir.model` et `ir.model.fields` en
+lecture seule, avec le contexte de chaque langue a la fois demandee et active. Chaque libelle est
+rattache par son nom technique au noeud modele ou champ deja extrait, avec provenance `runtime`.
+Le chargeur ne cree aucun objet non prouve par les sources. Si la langue n'est pas active, si le
+registre est indisponible ou si la lecture echoue, il conserve le lexique source et publie ce
+manque explicitement. Les lectures de ces deux metamodeles sont passees par le connecteur
+whiteliste, sans SQL ni ecriture.
+
+`attach_runtime_translations` deduplique des enregistrements identiques. Le rapport de couverture
+publie desormais langue interrogee, volumes lus, rattaches, non rattaches et echecs. Les champs
+runtime sans noeud statique deviennent ainsi une file de lacunes pour la phase 5b, au lieu
+d'etre traites comme couverts.
+
+**Mesure runtime** : l'instance a `en_US` comme seule langue active ; une demande `fr` ne tente
+donc pas de presenter une traduction ORM francaise inexistante. Avec `en`, Odoo retourne 535
+modeles et 10 829 champs. Le graphe rattache 6 859 libelles et declare 4 504 champs non rattaches,
+parce qu'ils ne sont pas extraits statiquement. Le rapport confirme aussi 0 module installe non
+indexe, 331/336 actions de menu resolues et quatre references non resolues. Cette mesure ne
+pretend pas que les 4 504 champs sont compris : elle les rend visibles pour l'introspection de
+registre et de vues de 5b.
+
+La reconstruction finale en `fr` confirme le repli attendu : aucune langue runtime demandee n'est
+active, aucun libelle runtime francais n'est presente, et les catalogues source couvrent 533/535
+modeles, 6 290/6 325 champs et 472/476 menus. Le graphe actif est donc revenu sur la langue de
+requete francaise, avec cette absence declaree dans le rapport.
+
+**Validation** : les tests unitaires couvrent la selection d'une langue regionale active, le
+repli d'une langue non active, la deduplication et le rapport. 85 tests cibles passent sans
+reseau ; la suite XML-RPC autorisee passe avec 39 tests. `compileall` sur le code et scripts,
+ainsi que `git diff --check`, passent. Le rapport runtime a ete produit par
+`scripts/coverage_report.py active_graph.json --language en`.
+
+Le script d'ablation joint egalement `runtime_translation_summary` a chaque rapport, afin que la
+mesure de resolution reste interpretable avec les langues et libelles effectivement disponibles.
+
+**Fichiers modifies** : `erp_data/odoo_connector.py`,
+`code_intelligence/graph/runtime_translations.py`,
+`code_intelligence/graph/loader.py`, `code_intelligence/graph/translations.py`,
+`code_intelligence/evaluation/graph_coverage.py`, `scripts/coverage_report.py`,
+`scripts/run_business_resolver_ablation.py`,
+`code_intelligence/tests/test_runtime_translations.py`,
+`code_intelligence/tests/test_graph_coverage.py` et ce journal.

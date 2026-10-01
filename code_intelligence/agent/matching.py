@@ -6,6 +6,7 @@ for resolving natural language concepts to Odoo models.
 """
 
 import logging
+import unicodedata
 import weakref
 from collections import defaultdict
 from pathlib import Path
@@ -46,6 +47,93 @@ class ResolvedConcept:
 _FUZZY_INDEX_CACHE: "weakref.WeakKeyDictionary" = weakref.WeakKeyDictionary()
 
 
+def _business_tokens(value: str) -> List[str]:
+    normalized = unicodedata.normalize("NFKD", value.casefold())
+    normalized = "".join(char for char in normalized if not unicodedata.combining(char))
+    return [token for token in re.findall(r"[^\W_]+", normalized) if len(token) > 1]
+
+
+def _business_text(value: str) -> str:
+    return " ".join(_business_tokens(value))
+
+
+def _paired_exact_field_model_matches(query: str, G, language: Optional[str]) -> List[str]:
+    """Find models named in the query through both a rare field and a rare label."""
+    def normalize(value: str) -> str:
+        decomposed = unicodedata.normalize("NFKD", value.casefold())
+        return "".join(char for char in decomposed if not unicodedata.combining(char))
+
+    def words(value: str) -> Set[str]:
+        return set(re.findall(r"[^\W_]+", normalize(value), flags=re.UNICODE))
+
+    graph_cache = _FUZZY_INDEX_CACHE.setdefault(G, {})
+    cache_key = ("paired_field_model", language)
+    evidence_index = graph_cache.get(cache_key)
+    if evidence_index is None:
+        model_labels: Dict[str, Set[str]] = defaultdict(set)
+        field_models: Dict[str, Set[str]] = defaultdict(set)
+        label_models: Dict[str, Set[str]] = defaultdict(set)
+        for _node_id, data in G.nodes(data=True):
+            node_type = data.get("node_type")
+            if node_type == "Model":
+                model = data.get("name", "")
+                if not model:
+                    continue
+                model_labels[model].update(words(data.get("description", "")))
+                model_labels[model].update(words(model.replace(".", " ").replace("_", " ")))
+                for label in data.get("business_labels", []):
+                    label_language = label.get("language", "")
+                    if not language or (label_language and not (
+                        label_language.casefold() == language.casefold()
+                        or label_language.casefold().split("_", 1)[0]
+                        == language.casefold().split("_", 1)[0]
+                    )):
+                        continue
+                    model_labels[model].update(words(label.get("label", "")))
+            elif node_type == "Field":
+                name = data.get("name", "")
+                model = data.get("model", "")
+                if name and model:
+                    field_models[name.casefold()].add(model)
+
+        model_count = max(len(model_labels), 1)
+        for model, labels in model_labels.items():
+            for token in labels:
+                label_models[token].add(model)
+        max_owners = max(3, int(model_count * 0.02))
+        evidence_index = (model_labels, field_models, label_models, max_owners)
+        graph_cache[cache_key] = evidence_index
+
+    model_labels, field_models, label_models, max_owners = evidence_index
+    query_normalized = normalize(query)
+    query_words = words(query)
+
+    matching_fields = set()
+    for field_name, owners in field_models.items():
+        normalized_name = normalize(field_name)
+        explicit_identifier = "_" in field_name or any(char.isdigit() for char in field_name)
+        quoted_identifier = re.search(
+            r"(['\"`])\s*" + re.escape(normalized_name) + r"\s*\1",
+            query_normalized,
+        )
+        exact_mention = re.search(
+            r"(?<!\w)" + re.escape(normalized_name) + r"(?!\w)", query_normalized,
+        )
+        if len(owners) <= max_owners and exact_mention and (explicit_identifier or quoted_identifier):
+            matching_fields.update(owners)
+
+    matching_label_models = set()
+    for model, labels in model_labels.items():
+        if any(
+            token in query_words
+            and len(label_models[token]) <= max_owners
+            for token in labels
+        ):
+            matching_label_models.add(model)
+
+    return sorted(matching_fields & matching_label_models)
+
+
 def _build_fuzzy_index(
     G, language: Optional[str] = None, use_static_synonyms: bool = True,
 ) -> List[Tuple[str, str]]:
@@ -69,7 +157,10 @@ def _build_fuzzy_index(
         elif node_type == "Field":
             label = data.get("label", "")
             model_name = data.get("model", "")
-            if label and model_name and len(label) >= 3:
+            # Skip short generic field labels (e.g. "Date", "Nom").
+            if label and model_name and len(label) >= 3 and (
+                len(label.split()) >= 2 or len(label) >= 8
+            ):
                 index.append((label.lower(), model_name))
 
         elif node_type == "Menu":
@@ -92,6 +183,8 @@ def _build_fuzzy_index(
 
         if node_type in {"Model", "Field", "Menu"}:
             for translation in data.get("business_labels", []):
+                if not language:
+                    continue
                 label = translation.get("label", "").strip()
                 label_language = translation.get("language", "")
                 if not label or len(label) < 3:
@@ -125,6 +218,8 @@ def _build_fuzzy_index(
         if not is_root:
             continue
         for translation in data.get("business_labels", []):
+            if not language:
+                continue
             label = translation.get("label", "").strip()
             label_language = translation.get("language", "")
             if not label or len(label) < 3:
@@ -144,14 +239,17 @@ def _build_fuzzy_index(
         labels.extend(
             translation.get("label", "")
             for translation in data.get("business_labels", [])
-            if not language or not translation.get("language")
-            or translation["language"].lower() == language.lower()
-            or translation["language"].lower().split("_", 1)[0] == language.lower().split("_", 1)[0]
+            if language and (
+                not translation.get("language")
+                or translation["language"].lower() == language.lower()
+                or translation["language"].lower().split("_", 1)[0] == language.lower().split("_", 1)[0]
+            )
         )
         modules = [
             successor.removeprefix("module:")
             for successor in G.successors(node_id)
             if G.edges[node_id, successor].get("edge_type") == "DEFINED_IN"
+            and G.edges[node_id, successor].get("role", "declares") == "declares"
         ]
         for module in modules:
             for model_label in labels:
@@ -282,9 +380,9 @@ def _find_exact_technical_module_mentions(query_lower: str, G) -> List[str]:
         mod_lower = mod_name.lower()
         mod_escaped = re.escape(mod_lower).replace('_', r'[\s_]+')
         if mod_lower in generic_module_words:
-            pattern = r"(?<!\w)(?:module|addon)\s+" + mod_escaped + r"(?!\w)"
+            pattern = r"(?<!\w)(?:module|addon)\s+" + mod_escaped + r"(?!\w)(?!\.\w)"
         else:
-            pattern = r"(?<!\w)" + mod_escaped + r"(?!\w)"
+            pattern = r"(?<!\w)" + mod_escaped + r"(?!\w)(?!\.\w)"
         if re.search(pattern, query_lower):
             if mod_name not in found:
                 found.append(mod_name)
@@ -347,9 +445,13 @@ def _fuzzy_match_graph(
     if not index:
         return []
 
-    labels = [entry[0] for entry in index]
-    query_lower = query.lower()
-    query_token_count = max(len(query_lower.split()), 1)
+    paired_matches = _paired_exact_field_model_matches(query, G, language)
+    if paired_matches:
+        return [(model, 100.0) for model in paired_matches[:limit]]
+
+    labels = [_business_text(entry[0]) for entry in index]
+    query_lower = _business_text(query)
+    query_token_count = max(len(_business_tokens(query)), 1)
 
     model_scores: Dict[str, float] = {}
 
@@ -362,19 +464,20 @@ def _fuzzy_match_graph(
         )
         for _text, score, idx in (hits or []):
             label = index[idx][0]
-            label_token_count = max(len(label.split()), 1)
+            label_token_count = max(len(_business_tokens(label)), 1)
             length_penalty = min(label_token_count / query_token_count, 1.0) ** 0.5
             adjusted = score * length_penalty
             if adjusted >= threshold:
                 model = index[idx][1]
                 model_scores[model] = max(model_scores.get(model, 0.0), adjusted)
 
-    query_tokens = query_lower.split()
+    query_tokens = _business_tokens(query)
     if len(query_tokens) > 1:
         max_window = min(6, len(query_tokens))
+        # Min width 2: single-token windows cause mass ties on generic labels.
         windows = {
             " ".join(query_tokens[start:start + width])
-            for width in range(1, max_window + 1)
+            for width in range(2, max_window + 1)
             for start in range(len(query_tokens) - width + 1)
         }
         for window in windows:
@@ -389,16 +492,16 @@ def _fuzzy_match_graph(
             )
             for _text, score, idx in hits or []:
                 label = index[idx][0]
-                label_words = label.split()
+                label_words = _business_tokens(label)
                 matched_words = sum(
                     any(fuzz.ratio(word, label_word) >= 85 for label_word in label_words)
                     for word in window_words
                 )
                 if matched_words / window_token_count < 0.66:
                     continue
-                label_token_count = max(len(label.split()), 1)
+                label_token_count = max(len(label_words), 1)
                 length_ratio = min(window_token_count, label_token_count) / max(window_token_count, label_token_count)
-                adjusted = score * length_ratio ** 0.5
+                adjusted = score * length_ratio ** 0.25
                 if adjusted >= threshold:
                     model = index[idx][1]
                     model_scores[model] = max(model_scores.get(model, 0.0), adjusted)

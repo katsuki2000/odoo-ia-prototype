@@ -92,9 +92,15 @@ def load_module_translations(
     translation_dir = module_dir / "i18n"
     if not translation_dir.is_dir():
         return entries
-    for path in sorted(translation_dir.glob("*.po")):
-        if path.stem.lower() not in requested and path.stem.lower().split("_", 1)[0] not in requested:
-            continue
+    catalogs = {path.stem.lower(): path for path in translation_dir.glob("*.po")}
+    selected_paths = set()
+    for language in requested:
+        path = catalogs.get(language)
+        if path is None:
+            path = catalogs.get(language.split("_", 1)[0])
+        if path is not None:
+            selected_paths.add(path)
+    for path in sorted(selected_paths):
         try:
             entries.extend(parse_po(path, module))
         except (OSError, UnicodeError):
@@ -212,7 +218,7 @@ def attach_runtime_translations(graph, records: Iterable[dict]) -> dict[str, int
             unlinked += 1
             continue
         business_labels = graph.nodes[node_id].setdefault("business_labels", [])
-        business_labels.append({
+        translated_label = {
             "label": label,
             "source_label": str(record.get("source_label") or ""),
             "language": language,
@@ -220,8 +226,10 @@ def attach_runtime_translations(graph, records: Iterable[dict]) -> dict[str, int
             "source": "runtime",
             "reference": str(record.get("reference") or node_id),
             "entity_type": entity_type,
-        })
-        attached += 1
+        }
+        if translated_label not in business_labels:
+            business_labels.append(translated_label)
+            attached += 1
     return {"attached": attached, "unlinked": unlinked}
 
 

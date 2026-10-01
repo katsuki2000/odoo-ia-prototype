@@ -100,6 +100,17 @@ class OdooGraphBuilder:
         ]
         self.G.graph["translation_summary"] = attach_translations(self.G, entries)
         self.G.graph["translation_fingerprint"] = translation_fingerprint(entries)
+        self.G.graph["unresolved_references"] = [
+            {
+                "source_module": reference.source_module,
+                "source_file": reference.source_file,
+                "symbol_ref": reference.symbol_ref,
+                "ref_type": reference.ref_type,
+                "category": reference.category.value,
+                "detail": reference.detail,
+            }
+            for reference in self.registry.unresolved_references
+        ]
 
         return self.G
 

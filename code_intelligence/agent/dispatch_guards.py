@@ -542,20 +542,18 @@ def _force_out_of_scope_model_answer(question: str, concept) -> Optional[str]:
     )
 
 
-def _force_dynamic_uncertainty_answer(question: str, raw_tool_output: str) -> Optional[str]:
-    """Guardrail for dynamic-dispatch cases: static analysis detected getattr/eval/exec."""
+def _build_dynamic_uncertainty_answer(raw_tool_output: str) -> Optional[str]:
+    """Return an abstention when static analysis finds dynamic dispatch."""
     if not re.search(r"incertitude dynamique|dispatch dynamique|getattr|eval\(|exec\(", raw_tool_output, re.IGNORECASE):
-        return None
-    if not re.search(r"remboursement|custom_expense_reimbursement_indirect|custom\.reimbursement\.request", question, re.IGNORECASE):
         return None
 
     citation = _extract_first_scoped_file_link(raw_tool_output)
     citation_part = f" Source à revoir : {citation}." if citation else ""
     return (
-        "Je ne peux pas classifier avec certitude qui peut valider cette demande de remboursement. "
-        "L'analyse statique détecte un dispatch dynamique (`getattr`) : la méthode exécutée dépend "
+        "Je ne peux pas conclure avec certitude sur ce comportement. "
+        "L'analyse statique détecte un dispatch dynamique : la méthode exécutée dépend "
         "d'un paramètre récupéré à l'exécution, donc le chemin exact doit être revu manuellement. "
-        "Ne pas présenter cette validation comme autorisée ou refusée de manière certaine."
+        "Ne pas présenter ce résultat comme certain."
         f"{citation_part}"
     )
 

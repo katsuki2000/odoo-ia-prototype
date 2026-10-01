@@ -114,6 +114,7 @@ def query_graph(
     last_resolved_concept: Optional[dict] = None,
     active_model: Optional[str] = None,
     active_id: Optional[int] = None,
+    language: Optional[str] = None,
 ) -> AssistantResponse:
     """Execute the compiled graph with the provided question and context."""
     start_time = time.time()
@@ -150,6 +151,7 @@ def query_graph(
             "investigation_plan": None,
             "active_model": active_model,
             "active_id": active_id,
+            "language": language,
         }
 
         logger.info("Invoking graph for question: '%s'", question)

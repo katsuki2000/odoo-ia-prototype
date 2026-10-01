@@ -4,7 +4,7 @@ code_intelligence/business_resolver/prompts.py
 System prompts and template construction for bounded LLM arbitration over candidate Odoo models.
 """
 
-from typing import List
+from typing import Dict, List, Optional
 
 _ARBITRATION_SYSTEM_PROMPT = (
     "Tu es un composant de résolution de symboles techniques Odoo. "
@@ -14,9 +14,19 @@ _ARBITRATION_SYSTEM_PROMPT = (
     "dehors de la liste fournie, même s'il te semble plus pertinent."
 )
 
-def _build_arbitration_prompt(query_text: str, candidates: List[str]) -> str:
+def _build_arbitration_prompt(
+    query_text: str,
+    candidates: List[str],
+    candidate_contexts: Optional[Dict[str, str]] = None,
+) -> str:
     """Build bounded arbitration prompt for selecting a candidate model."""
-    candidates_block = "\n".join(f"- {c}" for c in candidates)
+    candidates_block = "\n".join(
+        f"- {candidate}" + (
+            f" — {candidate_contexts[candidate]}"
+            if candidate_contexts and candidate_contexts.get(candidate) else ""
+        )
+        for candidate in candidates
+    )
     return (
         f'Question métier utilisateur : "{query_text}"\n\n'
         f"Modèles techniques Odoo candidats (extraits par correspondance approximative, "
@@ -42,18 +52,23 @@ Bounded LLM candidate arbitration over ambiguous or low-confidence fuzzy matches
 """
 
 import logging
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 _logger = logging.getLogger(__name__)
 
 AMBIGUITY_GAP_THRESHOLD = 10.0
 WIDENED_CANDIDATE_THRESHOLD = 30
-WIDENED_CANDIDATE_LIMIT = 8
+WIDENED_CANDIDATE_LIMIT = 20
 
 # from .prompts import _ARBITRATION_SYSTEM_PROMPT, _build_arbitration_prompt
 
 
-def _llm_arbitrate(query_text: str, candidates: List[str], llm) -> Optional[str]:
+def _llm_arbitrate(
+    query_text: str,
+    candidates: List[str],
+    llm,
+    candidate_contexts: Optional[Dict[str, str]] = None,
+) -> Optional[str]:
     """Bounded LLM candidate selection over a closed list."""
     if llm is None:
         _logger.warning("LLM arbitration requested but no llm client was provided; skipping.")
@@ -63,7 +78,7 @@ def _llm_arbitrate(query_text: str, candidates: List[str], llm) -> Optional[str]
         from langchain_core.messages import SystemMessage, HumanMessage
         from core.llm.llm_client import get_chat_llm, invoke_with_rate_limit
 
-        prompt = _build_arbitration_prompt(query_text, candidates)
+        prompt = _build_arbitration_prompt(query_text, candidates, candidate_contexts)
         messages = [
             SystemMessage(content=_ARBITRATION_SYSTEM_PROMPT),
             HumanMessage(content=prompt),
@@ -120,9 +135,147 @@ from .matching import (
     rank_by_specificity,
     _fuzzy_match_graph,
 )
+from .semantic_retrieval import configured_semantic_model_candidates
 
 
 _logger = logging.getLogger(__name__)
+
+# Avoid generic 2-3 char words matching inside dotted model names.
+_MIN_SEGMENT_LEN = 4
+
+
+def _candidate_contexts(G, candidates: List[str], language: Optional[str]) -> Dict[str, str]:
+    """Describe candidates with labels and declaring modules from the graph."""
+    contexts = {}
+    language_base = language.lower().split("_", 1)[0] if language else None
+    for model in candidates:
+        node_id = f"model:{model}"
+        if not G.has_node(node_id):
+            continue
+        data = G.nodes[node_id]
+        labels = []
+        for label in data.get("business_labels", []):
+            label_text = str(label.get("label") or "").strip()
+            label_language = str(label.get("language") or "").lower()
+            if not label_text or (language_base and label_language.split("_", 1)[0] != language_base):
+                continue
+            if label_text not in labels:
+                labels.append(label_text)
+        description = str(data.get("description") or "").strip()
+        if description and description not in labels:
+            labels.append(description)
+        modules = sorted({
+            successor.removeprefix("module:")
+            for successor in G.successors(node_id)
+            if G.edges[node_id, successor].get("edge_type") == "DEFINED_IN"
+            and G.edges[node_id, successor].get("role", "declares") == "declares"
+        })
+        details = []
+        if labels:
+            details.append(f"labels: {', '.join(labels[:3])}")
+        if modules:
+            details.append(f"modules: {', '.join(modules)}")
+        if details:
+            contexts[model] = "; ".join(details)
+    return contexts
+
+
+def _arbitration_candidates(
+    query: str,
+    G,
+    language: Optional[str],
+    use_static_aliases: bool,
+    use_semantic_retrieval: bool,
+    fuzzy_results: Optional[List[Tuple[str, float]]] = None,
+) -> List[str]:
+    """Combine deterministic and optional semantic candidates for arbitration."""
+    if fuzzy_results is None:
+        fuzzy_results = _fuzzy_match_graph(
+            query,
+            G,
+            limit=WIDENED_CANDIDATE_LIMIT,
+            language=language,
+            use_static_synonyms=use_static_aliases,
+        )
+    fuzzy_models = [model for model, _score in fuzzy_results]
+    semantic_models = (
+        configured_semantic_model_candidates(query, G, language)
+        if use_semantic_retrieval else []
+    )
+    if not semantic_models:
+        return fuzzy_models
+
+    candidates = []
+    fuzzy_budget = max(WIDENED_CANDIDATE_LIMIT - len(semantic_models), 0)
+    for model in fuzzy_models[:fuzzy_budget]:
+        if model not in candidates:
+            candidates.append(model)
+    for model in semantic_models:
+        if model not in candidates:
+            candidates.append(model)
+    for model in fuzzy_models[fuzzy_budget:]:
+        if model not in candidates:
+            candidates.append(model)
+        if len(candidates) == WIDENED_CANDIDATE_LIMIT:
+            break
+    return candidates[:WIDENED_CANDIDATE_LIMIT]
+
+
+def _deterministic_tiebreak(
+    query_lower: str,
+    fuzzy_results: List[Tuple[str, float]],
+    G,
+) -> Optional[str]:
+    """Break a fuzzy tie only on a unique model or declaring-module mention."""
+    import re as _re
+
+    top_score = fuzzy_results[0][1]
+    tied = [m for m, s in fuzzy_results if (top_score - s) < AMBIGUITY_GAP_THRESHOLD]
+    if len(tied) < 2:
+        return None
+
+    context_query = _re.sub(r"(?<!\w)[\w]+(?:\.[\w]+)+(?!\w)", " ", query_lower)
+    context_query = _re.sub(r"(?<!\w)group_[\w]+(?!\w)", " ", context_query)
+
+    scores: Dict[str, int] = {m: 0 for m in tied}
+
+    for model in tied:
+        segments = model.lower().replace("_", " ").split(".")
+        for seg in segments:
+            if len(seg) < _MIN_SEGMENT_LEN:
+                continue
+            for variant in (seg, seg.replace(" ", "_")):
+                pattern = r"(?<![\w.])" + _re.escape(variant) + r"(?![\w.])"
+                if _re.search(pattern, context_query):
+                    scores[model] += 2
+                    break
+
+        model_node = f"model:{model}"
+        if G.has_node(model_node):
+            for successor in G.successors(model_node):
+                edge = G.edges[model_node, successor]
+                if (
+                    edge.get("edge_type") == "DEFINED_IN"
+                    and edge.get("role", "declares") == "declares"
+                ):
+                    mod_name = successor.removeprefix("module:").lower()
+                    if len(mod_name) >= _MIN_SEGMENT_LEN:
+                        mod_pattern = r"(?<![\w.])" + _re.escape(mod_name) + r"(?![\w.])"
+                        if _re.search(mod_pattern, context_query):
+                            scores[model] += 3
+
+    # Only return a winner if exactly one candidate has the highest score AND it's > 0
+    max_score = max(scores.values())
+    if max_score <= 0:
+        return None
+    winners = [m for m, s in scores.items() if s == max_score]
+    if len(winners) == 1:
+        _logger.info(
+            "Tiebreak resolved: %s (score %d) from %d tied candidates",
+            winners[0], max_score, len(tied),
+        )
+        return winners[0]
+    return None
 
 
 def resolve_business_term(
@@ -180,7 +333,10 @@ def resolve_business_term(
                     if t not in alias_models and t not in exact_mentions:
                         if G is not None:
                             is_in_mod = any(
-                                G.has_edge(f"model:{t}", f"module:{mod}") or f"model:{t}" in G.predecessors(f"module:{mod}")
+                                G.has_edge(f"model:{t}", f"module:{mod}")
+                                and G.edges[f"model:{t}", f"module:{mod}"].get(
+                                    "role", "declares",
+                                ) == "declares"
                                 for mod in exact_modules if G.has_node(f"module:{mod}")
                             )
                             if is_in_mod:
@@ -198,7 +354,10 @@ def resolve_business_term(
                     mod_node = f"module:{mod}"
                     if G.has_node(mod_node):
                         for u in G.predecessors(mod_node):
-                            if u.startswith("model:"):
+                            if (
+                                u.startswith("model:")
+                                and G.edges[u, mod_node].get("role", "declares") == "declares"
+                            ):
                                 m_name = u.replace("model:", "")
                                 if m_name not in mod_models:
                                     mod_models.append(m_name)
@@ -362,8 +521,39 @@ def resolve_business_term(
                     reason=f"Fuzzy matched graph labels: {', '.join(f'{m} ({s:.0f})' for m, s in fuzzy_results)}",
                 )
 
+            # Deterministic tiebreak on model/module segment overlap.
+            if G is not None:
+                tiebreaker_winner = _deterministic_tiebreak(
+                    clean_query, fuzzy_results, G,
+                )
+                if tiebreaker_winner:
+                    return ResolvedConcept(
+                        user_term=query_text,
+                        resolved_models=[tiebreaker_winner],
+                        confidence=round(top_score / 100, 2) * 0.9,
+                        source_step="fuzzy_tiebreak",
+                        is_resolved=True,
+                        reason=(
+                            f"Deterministic tiebreak among ambiguous fuzzy candidates "
+                            f"({', '.join(f'{m} ({s:.0f})' for m, s in fuzzy_results)}) "
+                            f"-> '{tiebreaker_winner}' (model/module name overlap in query)."
+                        ),
+                    )
+
             # Step 3: Bounded LLM Candidate Selection
-            chosen = _llm_arbitrate(query_text, top_models, llm)
+            arbitration_models = _arbitration_candidates(
+                clean_query,
+                G,
+                language,
+                use_static_aliases,
+                llm is not None,
+            )
+            chosen = _llm_arbitrate(
+                query_text,
+                arbitration_models,
+                llm,
+                _candidate_contexts(G, arbitration_models, language),
+            )
             if chosen is not None:
                 return ResolvedConcept(
                     user_term=query_text,
@@ -398,8 +588,20 @@ def resolve_business_term(
                 use_static_synonyms=use_static_aliases,
             )
             if widened_results:
-                widened_models = [model for model, _score in widened_results]
-                chosen = _llm_arbitrate(query_text, widened_models, llm)
+                widened_models = _arbitration_candidates(
+                    clean_query,
+                    G,
+                    language,
+                    use_static_aliases,
+                    llm is not None,
+                    widened_results,
+                )
+                chosen = _llm_arbitrate(
+                    query_text,
+                    widened_models,
+                    llm,
+                    _candidate_contexts(G, widened_models, language),
+                )
                 if chosen is not None:
                     return ResolvedConcept(
                         user_term=query_text,

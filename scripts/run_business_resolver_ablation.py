@@ -11,7 +11,12 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from code_intelligence.agent.resolver import resolve_business_term
+from code_intelligence.agent.matching import _fuzzy_match_graph
+from code_intelligence.agent.resolver import (
+    WIDENED_CANDIDATE_LIMIT,
+    WIDENED_CANDIDATE_THRESHOLD,
+    resolve_business_term,
+)
 from code_intelligence.evaluation.resolver_metrics import summarize_evaluation
 from code_intelligence.graph.loader import get_code_intelligence_graph
 
@@ -28,7 +33,27 @@ def _models_for_module(graph, module: str) -> set[str]:
         for node_id, _ in graph.in_edges(module_node)
         if node_id.startswith("model:")
         and graph.edges[node_id, module_node].get("edge_type") == "DEFINED_IN"
+        and graph.edges[node_id, module_node].get("role", "declares") == "declares"
     }
+
+
+def _modules_for_candidates(graph, models: list[str]) -> list[str]:
+    modules = []
+    for model in models:
+        model_node = f"model:{model}"
+        if not graph.has_node(model_node):
+            continue
+        for successor in graph.successors(model_node):
+            edge = graph.edges[model_node, successor]
+            if (
+                edge.get("edge_type") != "DEFINED_IN"
+                or edge.get("role", "declares") != "declares"
+            ):
+                continue
+            module = successor.removeprefix("module:")
+            if module not in modules:
+                modules.append(module)
+    return modules
 
 
 def evaluate(graph, questions: list[dict], language: str, use_static_aliases: bool) -> list[dict]:
@@ -42,6 +67,29 @@ def evaluate(graph, questions: list[dict], language: str, use_static_aliases: bo
             language=language,
             use_static_aliases=use_static_aliases,
         )
+        candidate_models = list(result.resolved_models)
+        if not result.is_resolved:
+            fuzzy_candidates = _fuzzy_match_graph(
+                item["question"],
+                graph,
+                language=language,
+                use_static_synonyms=use_static_aliases,
+            )
+            if not fuzzy_candidates:
+                fuzzy_candidates = _fuzzy_match_graph(
+                    item["question"],
+                    graph,
+                    threshold=WIDENED_CANDIDATE_THRESHOLD,
+                    limit=WIDENED_CANDIDATE_LIMIT,
+                    language=language,
+                    use_static_synonyms=use_static_aliases,
+                )
+            candidate_models = [model for model, _score in fuzzy_candidates]
+        candidate_modules = _modules_for_candidates(graph, candidate_models)
+        candidate_domain_evaluable = not result.is_resolved
+        candidate_domain_rank = None
+        if candidate_domain_evaluable and item["module"] in candidate_modules:
+            candidate_domain_rank = candidate_modules.index(item["module"]) + 1
         resolved_models = set(result.resolved_models)
         answered = bool(result.is_resolved and resolved_models)
         correct = bool(answered and resolved_models.intersection(expected_models))
@@ -53,6 +101,10 @@ def evaluate(graph, questions: list[dict], language: str, use_static_aliases: bo
             "expected_module": item["module"],
             "expected_model_count": len(expected_models),
             "resolved_models": sorted(resolved_models),
+            "candidate_models": candidate_models,
+            "candidate_modules": candidate_modules,
+            "candidate_domain_rank": candidate_domain_rank,
+            "candidate_domain_evaluable": candidate_domain_evaluable,
             "answered": answered,
             "correct": correct,
             "source_step": result.source_step,
@@ -82,7 +134,9 @@ def main() -> int:
         "static_aliases_enabled": args.static_aliases,
         "llm_enabled": False,
         "graph_instance_fingerprint": graph.graph.get("instance_fingerprint"),
+        "graph_instance_fingerprint_data": graph.graph.get("instance_fingerprint_data", {}),
         "translation_summary": graph.graph.get("translation_summary", {}),
+        "runtime_translation_summary": graph.graph.get("runtime_translation_summary", {}),
         "metrics": summarize_evaluation(rows),
         "results": rows,
     }

@@ -26,7 +26,7 @@ def get_current_uid() -> int:
             "get_current_uid(): no requester uid in context -- falling back "
             "to the admin uid. Expected in tests/scripts only."
         )
-        _cached_uid = connector.authenticate("admin")
+        _cached_uid = connector.authenticate(connector.username)
     return _cached_uid
 
 

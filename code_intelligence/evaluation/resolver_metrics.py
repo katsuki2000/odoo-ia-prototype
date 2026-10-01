@@ -29,6 +29,20 @@ def summarize_evaluation(rows: Iterable[Mapping[str, object]]) -> dict:
     leak_rows = [row for row in rows if row.get("user_output") is not None]
     leak_count = sum(int(row.get("technical_identifier_leaks", 0) or 0) for row in leak_rows)
     technical_tokens = sum(int(row.get("technical_identifier_count", 0) or 0) for row in leak_rows)
+    candidate_rows = [
+        row for row in rows if row.get("candidate_domain_evaluable") is True
+    ]
+    candidate_recall = {
+        f"candidate_domain_recall_at_{cutoff}": (
+            sum(
+                isinstance(row.get("candidate_domain_rank"), int)
+                and row["candidate_domain_rank"] <= cutoff
+                for row in candidate_rows
+            ) / len(candidate_rows)
+            if candidate_rows else None
+        )
+        for cutoff in (1, 3, 5)
+    }
 
     by_instance = defaultdict(list)
     for row in rows:
@@ -48,6 +62,8 @@ def summarize_evaluation(rows: Iterable[Mapping[str, object]]) -> dict:
         "instance_count": len(by_instance),
         "accuracy_by_instance": cluster_accuracy,
         "cluster_confidence_interval": None if len(by_instance) < 2 else "requires instance-level bootstrap",
+        "candidate_domain_questions": len(candidate_rows),
+        **candidate_recall,
         "wrong_tool_rate": (
             sum(row.get("wrong_tool") is True for row in tool_rows) / len(tool_rows)
             if tool_rows else None

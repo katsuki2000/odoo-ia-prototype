@@ -78,6 +78,7 @@ class RAGState(TypedDict):
     ci_evidence_sufficiency: Optional[dict]
     active_model: Optional[str]
     active_id: Optional[int]
+    language: Optional[str]
 
 
 def _sticky_route_or_default(state: RAGState, default: str) -> str:
@@ -113,10 +114,18 @@ def route(state: RAGState) -> dict:
     from code_intelligence.agent.resolver import resolve_business_term
     from code_intelligence.agent.investigation_schemas import INTENT_TO_ROUTE, QuestionIntent
     from code_intelligence.graph.loader import get_code_intelligence_graph
-    G = get_code_intelligence_graph()
+    request_language = state.get("language")
+    G = get_code_intelligence_graph(
+        translation_languages=[request_language] if request_language else None,
+        request_language=request_language,
+    )
 
     resolved_concept = resolve_business_term(
-        question_raw, G, llm=None, active_model=state.get("active_model")
+        question_raw,
+        G,
+        llm=None,
+        active_model=state.get("active_model"),
+        language=request_language,
     )
 
     intent_resolution = resolve_question_intent(question_raw, resolved_concept, G)

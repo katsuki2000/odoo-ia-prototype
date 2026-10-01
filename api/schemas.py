@@ -10,6 +10,10 @@ class AskRequestV1(BaseModel):
     session_id: str
     user_uid: int
     company_id: int
+    language: Optional[str] = Field(
+        default=None,
+        description="Request language tag (BCP 47, e.g. fr or fr-CA); falls back to Accept-Language.",
+    )
     skills: dict[str, bool] = Field(default_factory=dict)
     active_model: Optional[str] = Field(
         default=None,

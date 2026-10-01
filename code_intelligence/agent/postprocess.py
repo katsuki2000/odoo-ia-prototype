@@ -47,7 +47,7 @@ from code_intelligence.agent.can_view_verifier import (
 )
 from code_intelligence.agent.dispatch_guards import (
     _force_out_of_scope_model_answer,
-    _force_dynamic_uncertainty_answer,
+    _build_dynamic_uncertainty_answer,
 )
 from code_intelligence.rules.overrides import (
     _backfill_missing_override_modules,
@@ -222,7 +222,7 @@ def build_final_response(
 
     raw_tool_output = "\n\n".join(tool_observations)
     out_of_scope_model_answer = _force_out_of_scope_model_answer(question, concept)
-    dynamic_uncertainty_answer = _force_dynamic_uncertainty_answer(question, raw_tool_output)
+    dynamic_uncertainty_answer = _build_dynamic_uncertainty_answer(raw_tool_output)
     ci_conflict_reason = None
     applied_guards: List[str] = []
     if out_of_scope_model_answer:

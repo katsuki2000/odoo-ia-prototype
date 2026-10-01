@@ -89,14 +89,14 @@ _OUT_OF_SCOPE_MODEL_MARKER = "n'est pas present dans le corpus indexe par cet ou
 
 # Markers the agent/deterministic engine itself already emits when relevant
 # evidence WAS found but the resulting verdict is explicitly unresolved or
-# undetermined -- ci_helpers.py::_force_dynamic_uncertainty_answer and
+# undetermined -- dispatch_guards.py::_build_dynamic_uncertainty_answer and
 # ci_helpers.py::_format_can_view_amount_fact's indeterminate branch. Both
 # describe an UNDETERMINED state (a needed context field is unknown, or the
 # code path depends on a runtime value static analysis cannot follow) --
 # NOT two valid findings actively disagreeing with each other. Mapped to
 # INSUFFICIENT below, not CONFLICTING (see EvidenceSufficiencyStatus
 # docstring for why).
-_DYNAMIC_UNCERTAINTY_MARKER = "Je ne peux pas classifier avec certitude"
+_DYNAMIC_UNCERTAINTY_MARKER = "Je ne peux pas conclure avec certitude"
 _INDETERMINATE_FACT_MARKER = "can_view_amount_v2() = indeterminate"
 
 # Substrings marking a SINGLE tool observation as a negative/no-finding
