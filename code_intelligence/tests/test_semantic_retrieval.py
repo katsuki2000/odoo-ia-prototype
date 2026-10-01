@@ -57,3 +57,35 @@ def test_configured_retrieval_is_disabled_by_default(monkeypatch):
         _graph_with_translated_models(),
         "fr",
     ) == []
+
+
+def test_cosine_similarity_accepts_numpy_vectors():
+    import numpy as np
+
+    from code_intelligence.agent.semantic_retrieval import _cosine_similarity
+
+    assert _cosine_similarity(np.array([1.0, 0.0]), np.array([1.0, 0.0])) == 1.0
+    assert _cosine_similarity(np.array([]), np.array([])) == 0.0
+
+
+def test_configured_retrieval_falls_back_to_default_embeddings_for_local_light(monkeypatch):
+    import sys
+    import types
+
+    monkeypatch.setenv("RESOLVER_SEMANTIC_RETRIEVAL_ENABLED", "true")
+    monkeypatch.setenv("RESOLVER_SEMANTIC_EMBEDDING_BACKEND", "local_light")
+    monkeypatch.setattr(
+        "document_rag.vectorstore.embedding_functions.resolve_embedding_function",
+        lambda **_kwargs: None,
+    )
+    fake_module = types.ModuleType("chromadb.utils.embedding_functions")
+    fake_module.DefaultEmbeddingFunction = FakeEmbeddingFunction
+    monkeypatch.setitem(sys.modules, "chromadb.utils.embedding_functions", fake_module)
+
+    candidates = configured_semantic_model_candidates(
+        "Ou gerer une commande client ?",
+        _graph_with_translated_models(),
+        "fr",
+    )
+
+    assert candidates == ["sale.order", "purchase.order"]

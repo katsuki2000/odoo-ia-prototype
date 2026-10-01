@@ -75,7 +75,7 @@ def _embed_documents(embedding_function, documents: Sequence[str]) -> List[Seque
 
 
 def _cosine_similarity(left: Sequence[float], right: Sequence[float]) -> float:
-    if len(left) != len(right) or not left:
+    if len(left) != len(right) or len(left) == 0:
         return 0.0
     numerator = sum(float(left_item) * float(right_item) for left_item, right_item in zip(left, right))
     left_norm = math.sqrt(sum(float(item) ** 2 for item in left))
@@ -148,8 +148,13 @@ def configured_semantic_model_candidates(
 
         embedding_function = resolve_embedding_function(backend=backend, embedding_model=model)
         if embedding_function is None:
-            logger.warning("Semantic retrieval is enabled but no embedding provider is configured.")
-            return []
+            if backend == "local_light":
+                from chromadb.utils.embedding_functions import DefaultEmbeddingFunction
+
+                embedding_function = DefaultEmbeddingFunction()
+            else:
+                logger.warning("Semantic retrieval is enabled but no embedding provider is configured.")
+                return []
         return rank_semantic_model_candidates(
             query,
             graph,

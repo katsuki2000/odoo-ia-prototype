@@ -6136,3 +6136,68 @@ mesure de resolution reste interpretable avec les langues et libelles effectivem
 `scripts/run_business_resolver_ablation.py`,
 `code_intelligence/tests/test_runtime_translations.py`,
 `code_intelligence/tests/test_graph_coverage.py` et ce journal.
+
+## Section 1052 : mesure d'ablation avec arbitrage LLM borne (23/25, 92 %) et diagnostic semantique de PUR-Q5
+
+Date : 01/10/2026
+Contexte : suite de 1049-1051. L'ablation deterministe sans alias ni LLM etait a 19/25 (76 %)
+avec 6 abstentions dont le bon domaine etait dans le top-3 fuzzy. Le client LLM local Qwen
+(Kaggle via tunnel ngrok) etant actif, l'arbitrage borne enrichi a ete mesure en conditions
+reelles sur l'ensemble du banc natif.
+
+**Mesure avec LLM** :
+Le script `scripts/run_business_resolver_ablation.py` a recu l'option `--use-llm`. Le banc
+natif francais sans alias statiques avec arbitrage LLM borne donne **23/25 reponses correctes
+(92 % de toutes les questions)**, 23 reponses emises (couverture 92 %), **0 erreur d'aiguillage
+(accuracy_answered = 100 %)** et 2 abstentions (`PUR-Q5` et `SAL-Q4`). La borne inferieure de
+Wilson poolee a 95 % atteint **75,0 %** (contre 56,6 % sans LLM).
+Cinq des six abstentions precedentes sont resolues avec exactitude par l'arbitre LLM :
+- `SAL-Q1` -> `sale.order` (arbitrage parmi res.partner, sale.order, account.move, crm.lead)
+- `SAL-Q2` -> `sale.order` (arbitrage parmi sale.mass.cancel.orders, sale.order.option, product)
+- `STK-Q4` -> `stock.picking` (arbitrage parmi res.partner, stock.move, stock.rule, stock.picking)
+- `ACC-Q2` -> `account.move` (arbitrage parmi crm.lead, maintenance.request, account.analytic.line)
+- `ACC-Q4` -> `account.move.line` (arbitrage parmi account.invoice.report, account.move.line, iap)
+Rapport complet : `/tmp/odoo_resolver_ablation_with_llm.json`.
+
+**Diagnostic et preuve sur les 2 abstentions residuelles** :
+- `PUR-Q5` : la question parle de « commande d'achat » et de ses lignes. Dans les sources Odoo,
+  `purchase.order` est traduit par « Bon de commande fournisseur » (ou menu « Bons de commande »).
+  La distance etant semantique et non orthographique, fuzzy matching ne retient pas le modele.
+  Le composant de recuperation semantique vectorielle (`code_intelligence/agent/semantic_retrieval.py`)
+  a ete active a titre d'essai avec les embeddings portables `local_light` (Chroma ONNX
+  all-MiniLM-L6-v2) :
+  - Correction de `_cosine_similarity` pour eviter l'ambiguite de verite booleenne sur les tableaux
+    numpy (`len(left) == 0` au lieu de `not left`) ;
+  - Prise en charge de `DefaultEmbeddingFunction` dans `configured_semantic_model_candidates` lorsque
+    le backend demande est `local_light` et que le resolver RAG renvoie None ;
+  - Verification par execution : `purchase.order.line` (rang 6) et `purchase.order` (rang 8) sont
+    bien extraits par similarite cosinus. Un test direct de `_llm_arbitrate` avec Qwen sur cette
+    liste fermee selectionne immediatement `purchase.order.line`.
+- `SAL-Q4` : la question mentionne un « vendeur simple » qui ne peut pas « deverrouiller » une
+  « commande verrouillee ». Le terme « vente » ou « client » etant absent, `sale.order` n'est pas
+  dans la shortlist fuzzy initiale.
+
+**Validation** : 111 tests cibles passent (dont tiebreaker, metriques, detection de modules coeur,
+suffisance des preuves, lexique d'instance) ; `compileall` et `git diff --check` passent.
+
+**Fichiers modifies** : `code_intelligence/agent/semantic_retrieval.py`,
+`scripts/run_business_resolver_ablation.py` et ce journal.
+
+## Section 1053 : tests de non-regression pour la recuperation semantique
+
+Date : 01/10/2026
+Contexte : les deux corrections de la section 1052 dans `semantic_retrieval.py` (similarite
+cosinus avec tableaux numpy, repli sur `DefaultEmbeddingFunction` pour le backend `local_light`)
+n'avaient aucun test dedie.
+
+**Tests ajoutes** dans `code_intelligence/tests/test_semantic_retrieval.py` :
+- `test_cosine_similarity_accepts_numpy_vectors` : vecteurs numpy identiques -> 1.0, vecteurs vides -> 0.0
+- `test_configured_retrieval_falls_back_to_default_embeddings_for_local_light` : fournisseur absent
+  + backend `local_light` -> candidats classes via l'embedding par defaut (doublure injectee, aucun
+  telechargement de modele)
+
+**Validation** : `py_compile` OK ; `pytest code_intelligence/tests/test_semantic_retrieval.py` -> 4 passed.
+
+**Fichiers modifies** : `code_intelligence/tests/test_semantic_retrieval.py` et ce journal.
+
+

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Evaluate business-term routing from the native bank without an LLM."""
+"""Evaluate business-term routing from the native bank, optionally with LLM arbitration."""
 
 from __future__ import annotations
 
@@ -56,14 +56,14 @@ def _modules_for_candidates(graph, models: list[str]) -> list[str]:
     return modules
 
 
-def evaluate(graph, questions: list[dict], language: str, use_static_aliases: bool) -> list[dict]:
+def evaluate(graph, questions: list[dict], language: str, use_static_aliases: bool, llm=None) -> list[dict]:
     rows = []
     for item in questions:
         expected_models = _models_for_module(graph, item["module"])
         result = resolve_business_term(
             item["question"],
             graph,
-            llm=None,
+            llm=llm,
             language=language,
             use_static_aliases=use_static_aliases,
         )
@@ -118,8 +118,15 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--language", default="fr")
     parser.add_argument("--static-aliases", action="store_true")
+    parser.add_argument("--use-llm", action="store_true",
+                        help="Enable bounded LLM arbitration on tied candidates.")
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
+
+    llm = None
+    if args.use_llm:
+        from core.llm.llm_client import get_chat_llm
+        llm = get_chat_llm(temperature=0.0, max_retries=0)
 
     bank = json.loads(QUESTION_BANK_PATH.read_text(encoding="utf-8"))
     graph = get_code_intelligence_graph(
@@ -127,12 +134,12 @@ def main() -> int:
         request_language=args.language,
         force_rebuild=True,
     )
-    rows = evaluate(graph, bank["questions"], args.language, args.static_aliases)
+    rows = evaluate(graph, bank["questions"], args.language, args.static_aliases, llm=llm)
     report = {
         "protocol": "business_resolver_routing",
         "language": args.language,
         "static_aliases_enabled": args.static_aliases,
-        "llm_enabled": False,
+        "llm_enabled": args.use_llm,
         "graph_instance_fingerprint": graph.graph.get("instance_fingerprint"),
         "graph_instance_fingerprint_data": graph.graph.get("instance_fingerprint_data", {}),
         "translation_summary": graph.graph.get("translation_summary", {}),
