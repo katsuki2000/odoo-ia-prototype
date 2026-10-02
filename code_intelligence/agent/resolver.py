@@ -587,7 +587,10 @@ def resolve_business_term(
                 language=language,
                 use_static_synonyms=use_static_aliases,
             )
-            if widened_results:
+            # An empty widened fuzzy list must not hide the semantic candidates:
+            # a question with no lexical overlap with the instance labels is
+            # exactly the case the semantic retrieval exists for.
+            if widened_results or llm is not None:
                 widened_models = _arbitration_candidates(
                     clean_query,
                     G,
@@ -596,11 +599,15 @@ def resolve_business_term(
                     llm is not None,
                     widened_results,
                 )
-                chosen = _llm_arbitrate(
-                    query_text,
-                    widened_models,
-                    llm,
-                    _candidate_contexts(G, widened_models, language),
+                chosen = (
+                    _llm_arbitrate(
+                        query_text,
+                        widened_models,
+                        llm,
+                        _candidate_contexts(G, widened_models, language),
+                    )
+                    if widened_models
+                    else None
                 )
                 if chosen is not None:
                     return ResolvedConcept(
@@ -612,7 +619,8 @@ def resolve_business_term(
                         reason=(
                             f"No candidate reached the strict fuzzy threshold; widened "
                             f"low-threshold candidates "
-                            f"({', '.join(f'{m} ({s:.0f})' for m, s in widened_results)}) "
+                            f"({', '.join(f'{m} ({s:.0f})' for m, s in widened_results) or 'none'}; "
+                            f"shortlist: {', '.join(widened_models)}) "
                             f"-> LLM chose '{chosen}'. Low-confidence LLM interpretation "
                             f"over a weak candidate shortlist, not a certain structural fact."
                         ),

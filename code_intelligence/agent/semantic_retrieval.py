@@ -9,7 +9,7 @@ from typing import Dict, List, Optional, Sequence, Tuple
 
 logger = logging.getLogger(__name__)
 
-SEMANTIC_CANDIDATE_LIMIT = 5
+SEMANTIC_CANDIDATE_LIMIT = 10
 SEMANTIC_EMBEDDING_BATCH_SIZE = 64
 SEMANTIC_RETRIEVAL_ENABLED_ENV = "RESOLVER_SEMANTIC_RETRIEVAL_ENABLED"
 _SEMANTIC_INDEX_CACHE: "weakref.WeakKeyDictionary" = weakref.WeakKeyDictionary()
@@ -133,8 +133,12 @@ def configured_semantic_model_candidates(
     *,
     limit: int = SEMANTIC_CANDIDATE_LIMIT,
 ) -> List[str]:
-    """Return semantic candidates only when explicitly enabled in the environment."""
-    if os.getenv(SEMANTIC_RETRIEVAL_ENABLED_ENV, "false").casefold() not in {"1", "true", "yes"}:
+    """Return semantic candidates unless explicitly disabled in the environment.
+
+    Enabled by default: the retrieval only runs when an LLM is available for the
+    bounded arbitration and fails open to the deterministic list on any error.
+    """
+    if os.getenv(SEMANTIC_RETRIEVAL_ENABLED_ENV, "true").casefold() not in {"1", "true", "yes"}:
         return []
 
     backend = os.getenv("RESOLVER_SEMANTIC_EMBEDDING_BACKEND") or os.getenv(

@@ -6201,3 +6201,87 @@ n'avaient aucun test dedie.
 **Fichiers modifies** : `code_intelligence/tests/test_semantic_retrieval.py` et ce journal.
 
 
+
+## Section 1054 : branchement en production de la recuperation semantique (journal avant code, mandate)
+
+Date : 02/10/2026
+Contexte : pmm mandate « brancher la recuperation semantique en production, puis rejouer l'ablation » (suite 1052-1053 : 23/25 avec LLM, abstentions PUR-Q5 et SAL-Q4).
+
+**Etat relu avant code** : `resolver._arbitration_candidates()` appelle deja `configured_semantic_model_candidates()` des que `llm is not None`, dans la production (`core/routing/routing.py:123`, `agent/loop.py:590`). Le branchement est donc deja cable ; deux obstacles empechent qu'il serve en pratique :
+1. Garde d'environnement `RESOLVER_SEMANTIC_RETRIEVAL_ENABLED` a `false` par defaut (code, `.env.example`, README) : la recuperation n'est jamais active sans configuration manuelle.
+2. Dans la branche « aucun candidat fuzzy au-dessus du seuil strict », `resolve_business_term` ne tente l'arbitrage que `if widened_results:`. Si le fuzzy elargi est vide (cas probable de SAL-Q4 : ni « vente » ni « client » dans la question), les candidats semantiques ne sont jamais consultes. A confirmer par mesure avant correction.
+
+**Perimetre** : (a) mesurer sur PUR-Q5 et SAL-Q4 la liste de candidats d'arbitrage avec un LLM doublure (aucun appel reseau LLM) ; (b) activer la recuperation par defaut, repli silencieux inchange (exception -> liste deterministe) ; (c) consulter les candidats semantiques meme si le fuzzy elargi est vide ; (d) tests hors-ligne, la suite restant isolee par `conftest.py` ; (e) rejeu d'ablation avec LLM Qwen delegue a pmm (tunnel ngrok).
+Hors perimetre : alias, gardes, synthese.
+
+## Section 1055 : realisation de la 1054 -- recuperation semantique active par defaut, mesure sur PUR-Q5/SAL-Q4
+
+Date : 02/10/2026
+Contexte : suite de 1054 (journal avant code). Les changements de code etaient deja dans l'arbre de travail (non commites) ; cette section les releve, les valide et publie la mesure (a).
+
+**Realise (arbre de travail, non commite)** :
+- `semantic_retrieval.py` : recuperation active par defaut (`RESOLVER_SEMANTIC_RETRIEVAL_ENABLED` absent => true ; `false` la desactive), repli silencieux inchange (liste vide si le fournisseur d'embeddings leve) ; `SEMANTIC_CANDIDATE_LIMIT` 5 -> 10.
+- `resolver.py` : l'arbitrage est tente meme si le fuzzy elargi est vide (`widened_results or llm is not None`) ; l'arbitre n'est pas appele si la liste de candidats est vide ; la raison publie la shortlist.
+- `conftest.py` : la suite reste isolee (`RESOLVER_SEMANTIC_RETRIEVAL_ENABLED=false` en autouse) ; `.env.example` et `README.md` alignes sur le nouveau defaut.
+- 4 tests ajoutes dans `test_semantic_retrieval.py` (defaut actif, repli si fournisseur en erreur, candidats semantiques atteignent l'arbitre quand le fuzzy est vide, arbitre non appele si liste vide).
+
+**Validation** : `py_compile` propre, `git diff --check` propre ; tests cibles resolveur/semantique/arbitrage : 82 passes, 4 echecs. Les 4 echecs sont **preexistants** : verifies dans un worktree detache de HEAD (`a83413e`), memes 4 echecs (`test_s2_0_llm_arbitration_picks_valid_candidate`, `..._rejects_out_of_list_hallucination`, `..._none_response_falls_back_unresolved`, `test_business_resolver.py::test_exact_technical_model_mention_does_not_match_substring_of_longer_identifier`). Cause probable : `rank_by_specificity`/`fuzzy_tiebreak` des sections 1040-1042 (comme en 1030) ; non traites ici, a arbitrer.
+
+**Mesure (a)** (LLM espion, aucun appel reseau, backend `local_light` all-MiniLM-L6-v2, graphe actif, `use_static_aliases=False`) :
+- PUR-Q5 : l'arbitre est appele avec 20 candidats dont `purchase.order.line` et `purchase.order` (rang semantique 8 de 535). Le bon domaine est atteint, la shortlist reste bruitee.
+- SAL-Q4 : l'arbitre est maintenant appele (14 candidats, avant : jamais) mais `sale.order` n'y est pas ; son rang semantique est **69 sur 535**. Le branchement (c) ne suffit donc pas : le modele d'embedding anglais ne rapproche pas « vendeur / commande verrouillee / deverrouiller » du modele. Cause du rang non confirmee (langue du modele vs libelles francais du noeud), non speculee davantage.
+
+**Hors perimetre / a signaler** : `scripts/verify_groq_key_rotation_live.py` porte une modification d'accent dans une docstring (« multi-clés »), sans rapport avec ce chantier ; a commiter a part ou annuler.
+
+**A faire par pmm** : rejeu d'ablation avec LLM Qwen (tunnel ngrok) : `python scripts/run_business_resolver_ablation.py --use-llm` ; attendu : PUR-Q5 resolue, SAL-Q4 toujours abstention.
+
+**Fichiers modifies** : `code_intelligence/agent/semantic_retrieval.py`, `code_intelligence/agent/resolver.py`, `code_intelligence/tests/test_semantic_retrieval.py`, `conftest.py`, `.env.example`, `README.md`, `todo/contexte.txt` (cette section).
+
+## Section 1056 : rejeu d'ablation --use-llm apres 1054 -- aucun effet, deux causes isolees (diagnostic seul, aucun fichier source touche)
+
+Date : 02/10/2026
+Contexte : rejeu `python scripts/run_business_resolver_ablation.py --use-llm` demande en 1055. Resultat identique a la 1052 : 23/25 (92 %), accuracy_answered 100 %, borne de Wilson poolee 75,0 %, abstentions PUR-Q5 et SAL-Q4. Repartition des sources : 15 questions par mention technique exacte, 3 par fuzzy a 100, 5 par arbitrage LLM, 2 non resolues. Seules 7 questions sur 25 exercent donc une vraie resolution de terme metier ; le 92 % surestime la generalisation attendue par le critere de 80 %.
+
+**Cause 1 (confirmee par execution)** : `.env` porte `EMBEDDING_BACKEND=local_server` avec `LOCAL_EMBEDDING_BASE_URL=http://localhost:11434/v1` ; aucun serveur Ollama local ne tourne (`Connection refused` sur `/v1/embeddings`). `configured_semantic_model_candidates()` echoue en silence (repli sur la liste deterministe, comme prevu en 1054) : aucun candidat semantique n'a atteint l'arbitre pendant le rejeu. Le rejeu mesurait donc le comportement d'avant 1054. Le rapport d'ablation ne publie pas l'etat de la recuperation semantique : echec invisible.
+
+**Cause 2 (mesuree, sonde Qwen reelle, 2 questions)** : avec `RESOLVER_SEMANTIC_EMBEDDING_BACKEND=local_light`, PUR-Q5 recoit 20 candidats dont `purchase.order.line` (15e) et `purchase.order` (17e) derriere du bruit fuzzy, et Qwen repond NONE ; SAL-Q4 recoit 14 candidats sans `sale.order` (rang semantique 69/535), NONE. Sans recuperation semantique, la meme sonde a fait choisir `ir.rule` pour PUR-Q5 (mauvais choix dans une liste bruitee) alors que le rejeu officiel a laisse la question non resolue : l'arbitrage varie d'un appel a l'autre.
+
+**Non verifie** : l'ordre des candidats (semantiques en dernier) et la taille de la shortlist comme facteur de NONE. Test prevu (semantique d'abord 10+5, puis 8+0) : l'appel bash a expire apres 4 minutes (Claude Desktop sans reponse), non rejoue.
+
+**Question d'architecture posee par pmm** : le projet etant quasi entierement deterministe, faut-il un modele d'embedding dans code_intelligence, ou la technique RAG du projet (contexte de l'instance injecte dans le prompt) ? Piste a mesurer, non mandatee : arbitrage hierarchique a listes fermees (module installe -> modele du module) alimente par l'inventaire de modules de l'empreinte 5a et les descriptions du graphe, sans modele d'embedding ; la sortie reste validee contre la liste fermee.
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section). Les changements de 1054/1055 restent non commites dans l'arbre de travail.
+
+## Section 1057 : orientation retenue par pmm pour la resolution metier -- technique RAG "proposer puis verifier" (discussion, aucun fichier source touche)
+
+Date : 02/10/2026
+Contexte : suite de 1056. pmm precise son idee : plutot qu'un modele d'embedding qui prepare une shortlist, utiliser la technique du RAG du projet -- Qwen connait deja Odoo ; le contexte de l'instance est ajoute au prompt et la reponse est guidee par ce contexte.
+
+**Lecture technique de l'idee** : l'arbitrage actuel est un choix force dans une liste fermee et bruitee (fuzzy + semantique), ce qui echoue meme quand le bon modele y figure (PUR-Q5 : `purchase.order(.line)` en 15e/17e position, reponse NONE ; SAL-Q4 : `sale.order` absent). La connaissance native d'Odoo de Qwen n'est pas exploitee : « commande d'achat » -> `purchase.order`, « vendeur / commande verrouillee » -> `sale.order`.
+
+**Principe propose, non mandate** : *proposer puis verifier*.
+1. Prompt = question + contexte compact de l'instance derive du graphe et de l'empreinte 5a : modules installes avec leur resume de manifeste, et noms de modeles regroupes par module (pas d'embeddings) ; la shortlist fuzzy sert d'indice, pas de liste fermee.
+2. Le LLM propose jusqu'a 3 noms de modeles techniques depuis sa connaissance, guide par ce contexte.
+3. Verification deterministe : seuls les noms presents comme noeuds modele du graphe sont conserves ; tout nom absent est rejete ; aucun nom valide => non resolu. Marquage de confiance bas (0.6) et mention "interpretation LLM", comme `llm_arbitration` aujourd'hui.
+Le contrat reste deterministe a la sortie (existence dans le graphe) ; la partie generative est confinee a la proposition. Les modeles custom, inconnus de Qwen, dependent du contexte injecte (noms + descriptions du graphe).
+
+**Risques identifies a mesurer** : nom valide mais mauvais (ex. `purchase.order` au lieu de `purchase.order.line`) ; connaissance de Qwen surtout alignee sur la version standard ; taille du catalogue (535 noms de modeles, ordre de quelques milliers de tokens) ; variabilite entre appels. Critere de sortie inchange : `scripts/run_business_resolver_ablation.py --use-llm`, sans aliases, abstentions comptees comme erreurs ; un banc de questions sur modeles custom est necessaire pour juger le cas ou Qwen ne connait pas le modele.
+
+**Consequence sur 1054** : si cette orientation est mandatee, la recuperation par embeddings devient optionnelle (defaut `false`) et le rapport d'ablation devra publier l'etat des composants optionnels pour qu'un echec silencieux soit visible.
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section).
+
+## Section 1058 : synthese d'etat du projet et propositions en discussion (documentation seule, aucun fichier source touche)
+
+Date : 02/10/2026
+Contexte : demande de pmm -- resume de ce qui est fait, de ce qui est en cours et de ce qui reste, suivi des propositions des sections 1056-1057. Sources : `plan.md`, `plan_generalisation.md`, `architecture.md`, sections 1030-1057.
+
+**Fait** : pipeline en 4 couches (extraction, graphe de connaissances de 11 781 noeuds, couche semantique, outils de preuve) ; banc natif N1 de 25 questions (5 modules x 5 capacites) rejoue en boucle avec corrections ciblees (sections 924-1019) ; generalisation : protocole G0, empreinte d'instance 5a, lexique G1 derive des `.po` et des traductions runtime (ablation sans alias 19/25 deterministe, 23/25 avec arbitrage LLM), G2 (garde d'incertitude generalisee), audit de couverture portable (sections 1038-1055).
+
+**En cours (non commite)** : branchement de la recuperation semantique (1054-1055) -- sans effet au rejeu 1056 (backend d'embeddings local indisponible, repli silencieux) ; deux causes isolees ; orientation « proposer puis verifier » discutee en 1057, non mandatee.
+
+**Reste a regler** : abstentions PUR-Q5 et SAL-Q4 ; 4 tests de resolveur en echec sur HEAD (`test_s2_0_*` x3, `test_exact_technical_model_mention_*`) ; defauts de synthese ouverts (PUR-Q5 etat de ligne vs etat de commande parente, STK-Q5 `check_lot_id` omis, J/ACC-Q2, PUR-Q2, I/MNT-Q2, troncature 3500 car. de `analyze_security_locks`) ; banc N1 surestime la generalisation (15 questions sur 25 nomment le modele, 7 exercent la resolution metier) ; phases 3, 4 (22 gardes `_backfill_*`/`_force_*`), 5b, 6, 7 ; chantiers de `plan.md` (H3, inference locale, staleness, PyRef, fusion Data/Code, corpus MiroKE, memoire J76-J90).
+
+**Propositions en discussion (aucune mandatee)** : (P1) resolution metier par « proposer puis verifier » (RAG sur le contexte de l'instance, verification d'existence dans le graphe) ; (P2) recuperation par embeddings optionnelle, defaut `false`, et rapport d'ablation publiant l'etat des composants optionnels ; (P3) banc de resolution sur modeles custom ; (P4) rejeux et commits par pmm.
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section).

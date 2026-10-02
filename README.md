@@ -298,7 +298,7 @@ odoo-ia-prototype/
 | `EMBEDDING_BACKEND` | No | `local_light` | Embedding engine: `local_light` (Chroma ONNX), `ollama`, `local` |
 | `LOCAL_EMBEDDING_BASE_URL` | If ollama embed | `http://localhost:11434/v1` | Local embedding server URL |
 | `LOCAL_EMBEDDING_MODEL` | If ollama embed | `all-minilm:latest` | Local embedding model name (e.g. `nomic-embed-text`) |
-| `RESOLVER_SEMANTIC_RETRIEVAL_ENABLED` | No | `false` | Adds instance-label semantic candidates to bounded LLM arbitration |
+| `RESOLVER_SEMANTIC_RETRIEVAL_ENABLED` | No | `true` | Adds instance-label semantic candidates to bounded LLM arbitration |
 | `RESOLVER_SEMANTIC_EMBEDDING_BACKEND` | No | `EMBEDDING_BACKEND` | Optional embedding backend override for business-term retrieval |
 | `RESOLVER_SEMANTIC_EMBEDDING_MODEL` | No | `EMBEDDING_MODEL` | Optional embedding model override for business-term retrieval |
 | `CORE_ADDONS_PATH` | No | `../odoo-17.0/addons` | Path to core Odoo addons |

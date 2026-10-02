@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verification live de la rotation multi-cles Groq (todo/contexte.txt, section 265).
+"""Verification live de la rotation multi-clés Groq (todo/contexte.txt, section 265).
 """
 
 import argparse
