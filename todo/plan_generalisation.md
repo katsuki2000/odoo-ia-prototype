@@ -1,224 +1,156 @@
-# Plan de generalisation -- l'IA comprend le code et l'explique en termes metier, sur toute instance Odoo 17
+# Plan d'execution
 
-Statut : PLAN uniquement, aucun code touche. Issu de l'audit des sections 1031 a 1035 de
-`contexte.txt` et de la discussion du 30/09/2026 avec pmm. Chaque phase reste a mandater
-explicitement avant toute implementation.
+Objectif : atteindre `architecture_cible.md` (critère : au moins 80 % de reponses correctes sur des
+instances Odoo 17 et des questions tenues hors calibrage, abstentions comptees comme erreurs).
+Chaque phase est mandatee explicitement avant implementation. Ce document change rarement.
 
-Objectif (`architecture.md`) : expliquer le comportement reel d'une instance Odoo 17 (natif, OCA,
-custom) a n'importe quel utilisateur, avec preuves, sans dependre de la documentation.
+Question à se poser à chaque bifurcation : l'IA pourra-t-elle repondre correctement sur n'importe
+quelle instance Odoo 17 ?
 
-Formulation mesurable : au moins 80 % de reponses correctes sur des instances et des questions
-tenues hors calibrage, avec hypotheses d'acces explicites et politique d'abstention. Une garantie
-"au pire, sur n'importe quelle instance" n'est pas defendable si l'instance ne fournit ni code,
-ni metadonnees runtime, ni acces aux donnees.
+## Ordre et dependances
 
-Cadrage d'architecture : instance-aware GraphRAG. Le graphe est l'index de connaissance de
-l'instance ; le pipeline qui l'utilise enchaine retrieval (resolution, navigation, outils),
-preuves structurees avec provenance, generation, puis verification. Le graphe lui-meme n'est pas
-appele GraphRAG. La documentation generale d'Odoo (`document_rag/`) oriente la comprehension ; elle
-n'est jamais la source de verite sur l'installation. Le retrieval est iteratif et guide par
-l'investigation (modele, puis methode, overrides, securite), pas un top-k unique suivi du LLM.
+P0 -> P1 -> P2 -> P3 -> P4 -> P5 -> P6 -> P7 -> P8 -> P9 -> P10
 
-## 1. Etat de depart (hypotheses a mesurer en phase 1)
+P4 et P5 sont independantes entre elles apres P3. P7 precede P8 (la verification s'appuie sur le registre).
+P9 suppose le contrat d'identite de P3. P10 n'utilise aucun artefact de calibrage.
 
-Les chiffres de progression globaux sont volontairement absents : les grandeurs disponibles ne
-sont pas comparables. L'extraction reussie de 537 modules OCA sans echec mesure un succes de
-parsing sur ce corpus, pas une couverture semantique de 80 %. Les points suivants sont donc des
-hypotheses a remplacer par des mesures definies au niveau de chaque phase :
+## P0 -- Socle reproductible
 
-- l'extraction statique peut manquer des comportements dynamiques, des donnees XML chargees en
-  base et des integrations externes ;
-- la resolution du terme metier depend encore de la table statique ; la seule mesure comparable
-  sans cette table est 16/25 sur le banc natif ;
-- la qualite des preuves, du rendu metier et de l'acces aux donnees/runtime n'a pas encore de
-  baseline independante ;
-- la generalisation inter-instance n'est pas mesuree. Le banc OCA actuel (3/50 sans table) n'est
-  pas comparable, puisque ses modules ne sont pas dans le graphe utilise.
+- Arbre git propre : relire les diffs, separer commits de code et de journal.
+- Suite de tests deterministe et isolee : aucun test ne depend d'un fichier local, d'un corpus present sur
+  un poste ou d'un reseau ; tout ce qui depend de la machine passe par `.env` 
+- Configuration unique : un seul fichier `.env` pour fournisseur LLM, hotes autorises, fenetre de contexte,
+  budgets, chemins ; valeurs par defaut coherentes entre code, README et `.env.example`.
+- Documentation coherente : plan, architecture, journal et README sans contradiction.
 
-Les scores 25/25, 50/50 et 20/20 sur les bancs connus sont des mesures de calibration et ne sont
-pas des preuves de generalisation.
+Sortie : suite verte reproductible sur une machine neuve, une seule source de configuration.
 
-## 2. Metriques de reference
+## P1 -- Protocole de mesure gele
 
-`accuracy_all_questions`, `accuracy_answered_questions`, `coverage`, `unsupported_claim_rate`,
-`wrong_tool_rate`, `technical_identifier_leak_rate` (identifiants techniques dans le texte destine
-a l'utilisateur), et `human_business_acceptance_rate`. Une abstention compte comme une erreur dans
-`accuracy_all_questions` et n'est jamais masquee dans le score.
+- Cas d'evaluation figés : hash d'instance, utilisateur, societe, langue, question, intention et objets
+  attendus, preuves acceptables, affirmations attendues, regle d'abstention.
+- Metriques : `accuracy_all_questions`, `accuracy_answered_questions`, `coverage`, `unsupported_claim_rate`,
+  `wrong_tool_rate`, `technical_identifier_leak_rate`, `human_business_acceptance_rate`, et par etage
+  `resolution_recall_at_k`, `evidence_completeness`, `answer_faithfulness`.
+- Contre-exemples d'ambiguite (un terme générique ne se resout jamais par defaut vers un domaine).
+- Critere statistique pre-enregistré : `accuracy_all_questions >= 80 %`, couverture minimale fixee avant le
+  run, borne basse a 95 % atteignant 80 %, incertitude robuste au regroupement par instance, ventilation par
+  instance, module, langue et famille de question.
+- Separation par instance entiere, jamais par tirage aleatoire de questions ; aucun snapshot de validation
+  n'est utilise pour calibrer regles, seuils, lexique ou alias.
 
-Un cas d'evaluation fige : hash de l'instance, version et modules, utilisateur/societe/langue,
-question, intention/objets/predicats attendus, preuves acceptables, affirmations attendues, regle
-d'abstention. Separation par instance, module et langue, jamais par split aleatoire de questions.
+Sortie : protocole figé, mesure de depart etablie, harnais rejouable en une commande.
 
-Metriques par etape (diagnostic, sans seuil propre, elles ne remplacent pas le critere ci-dessous) :
-`resolution_recall_at_k` (le bon objet figure parmi les k premiers candidats),
-`evidence_completeness` (part des preuves attendues effectivement recuperees) et
-`answer_faithfulness` (part des affirmations de la reponse soutenues par une preuve). Elles
-servent a localiser l'erreur (resolution, preuves ou redaction) au lieu de la melanger dans un
-score unique.
+## P2 -- Branche documentaire : restitution exhaustive
 
-**Critere statistique pre-enregistre avant calibrage** : `accuracy_all_questions >= 80 %`, avec une
-couverture minimale fixee avant le run (proposition initiale : 90 %), et une borne basse d'intervalle
-de confiance a 95 % atteignant 80 %. La borne ne doit pas etre calculee uniquement sur toutes les
-questions poolees : les questions d'une meme instance sont correlees ; le rapport doit fournir une
-incertitude robuste au regroupement par instance (bootstrap par instance ou methode cluster-robuste)
-et ventiler le resultat par instance, module, langue et famille de question. A titre d'ordre de
-grandeur seulement, 100 questions independantes demanderaient environ 88 % observe pour une borne
-basse de Wilson a 95 % a 80 % ; le seuil reel sera plus exigeant avec le regroupement par instance.
+- Cas figes documentaires : questions dont la reponse est une liste, un tableau ou une procedure complete
+  presente dans un document ; mesure du rappel des elements attendus et de `answer_faithfulness` sur ce
+  perimetre.
+- Localisation de la cause par etage, avec comparaison au comportement anterieur au refactoring : decoupage
+  des documents (liste ou tableau coupe entre fragments), recuperation (nombre de fragments, fusion
+  hybride, reclassement), construction du contexte (budget, troncature), consignes de generation, post-traitement.
+- Correction a la racine : recuperation des fragments contigus quand un passage est une liste ou un tableau ;
+  budget de contexte derive de la fenetre configuree ; consigne de generation exigeant la restitution de tous
+  les elements presents dans les passages recuperes ; controle deterministe qu'aucun element du passage cite
+  n'est omis.
+- Aucune regle liee a un document ou a une question precise ; tests de non-regression sur des corpus varies.
 
-## 3. Phases
+Sortie : toute reponse documentaire restitue l'ensemble des elements presents dans les passages recuperes,
+mesure sur les cas figes.
 
-### Phase 0 -- assainir l'existant
+## P3 -- Empreinte d'instance et contrat d'identite
 
-- Relever dynamiquement `git status --short` au debut de la phase (le nombre de fichiers modifies
-  et non suivis est une observation volatile, pas une valeur du plan) ; relire les diffs et les
-  tests non suivis des sections 1027 a 1029 ; commiter code et journal separement.
-- Reconcilier `plan.md` et `contexte.txt` : le banc natif y est marque a construire alors que le
-  journal montre un banc de 25 questions rejoue.
-- Corriger dans `architecture.md` la reference a une section "Preconditions H3" absente de
-  `plan.md`.
-- Retirer les commentaires qui nomment des modules du banc et le residu `diag_ngrok.py`.
+- Empreinte : modules installés, versions, etats, chemins d'addons accessibles, langues actives, hash.
+  Attachee à chaque graphe, lexique, trace, reponse et resultat d'evaluation.
+- Identité : toute lecture ERP s'execute par l'ORM sous l'identite du demandeur ; clé du demandeur absente
+  signifie lecture refusée ; utilisateur et societe viennent de la session authentifiée, jamais du LLM ;
+  aucune élévation implicite, aucun SQL brut. Un mode technique explicite, par variable d'environnement,
+  reservé aux scripts et tests, est journalisé.
+- Isolation reseau : hotes autorises explicites, fournisseur LLM interchangeable par configuration seule.
 
-Sortie : arbre propre, plan et journal coherents.
+Sortie : toute reponse et toute trace rattachées a une empreinte ; aucune lecture possible sans identité.
 
-### Phase 1 -- figer le protocole de mesure (G0, test uniquement)
+## P4 -- Lexique unique et resolution metier
 
-- Conserver le script d'ablation et les 25 cas ; ajouter des contre-exemples d'ambiguite
-  ("commande" ne doit pas aller par defaut vers achat ou vente).
-- Implementer les metriques du paragraphe 2, dont `technical_identifier_leak_rate`.
-- Figer ce protocole avant tout calibrage.
+- Lexique bidirectionnel (terme vers objet, objet vers libelle) derivé de l'instance : traductions statiques
+  et runtime, lié a l'objet exact (modele, champ, menu, selection), à sa source, son module, sa langue.
+  Les alias manuels deviennent une couche de surcharges optionnelle, visible et mesurable.
+- Resolution : mention technique exacte, lexique, contexte d'ecran, flou puis semantique comme indices,
+  puis proposer-verifier par le LLM (noms valides dans le graphe uniquement). Discriminant (champ et valeur)
+  dans `ResolutionResult`. Panne du backend d'embeddings signalée, jamais masquée.
+- Departage deterministe fondé sur la rareté des indices ; abstention explicite en cas d'ambiguité.
 
-Sortie : protocole gele, mesure de depart re-etablie.
+Sortie : `resolution_recall_at_k` mesure, ablation sans table d'alias au niveau du plancher fixe en P1.
 
-### Phase 5a -- empreinte de l'instance (prerequis a G1)
+## P5 -- Routage explicite des sources
 
-- Interroger `ir.module.module` pour inventorier tous les modules installes, leurs versions et
-  leur etat ; relever les chemins d'addons effectivement accessibles.
-- Relever les langues actives et la langue de la requete, ainsi qu'un hash de l'empreinte
-  (modules/versions/chemins/langues) et les disponibilites du code source. Cette empreinte est
-  attachee a chaque graphe, lexique, trace et resultat d'evaluation.
-- Ne pas confondre cette empreinte avec l'introspection complete de la base : les vues/actions
-  stockees en base et le registre runtime sont le perimetre de 5b.
+- Intention de source : comportement, données, documentation interne,combinaison declarée.
+- Ordre de décision : mode explicite de l'utilisateur, formulation explicite, règles déterministes, contexte
+d'ecran, LLM comme signal avec confiance ; clarification si la confiance est faible.
+- Le routage précede tout retrieval ; la recherche documentaire n'est lancée que si la source l'exige.
+- Sources utilisées affichées avec la reponse.
 
-Sortie : empreinte versionnee de l'instance, prete a limiter G1 aux modules et langues pertinents.
+Sortie : `RoutingResult` produit avant retrieval, sans choix silencieux.
 
-### Phase 2 -- lexique derive de l'instance (G1)
+## P6 -- Investigation pilotée par le plan et budget
 
-- Extraire les traductions `.po` et runtime ; lier chaque entree a son objet exact (modele, champ,
-  menu, selection) avec sa source (`po`, runtime ou surcharge) et son module.
-- Injecter ce lexique dans l'index fuzzy ; `BUSINESS_ALIASES` devient une couche de surcharges
-  optionnelles, visibles et mesurables.
-- Modules custom sans traduction : repli LLM borne deja existant, avec abstention si le signal
-  manque.
+- `InvestigationPlan` produit avant tout appel d'outil, vocabulaire d'actions ferme, validé par le moteur ;
+  il porte les preuves requises, generiques par intention.
+- Le moteur execute exclusivement le plan ; le LLM propose, ne decide pas.
+  Invariant : outils executés inclus dans outils planifiés inclus dans outils autorisés.
+- Boucle : après chaque action, réevaluation des obligations ; arret à satisfaction ou épuisement du budget.
+- Porte de suffisance : suffisant, insuffisant ou conflictuel, calculee sur obligations de preuve.
+- `InvestigationBudget` unique, toutes valeurs en configuration, derivées de la fenetre de contexte ;
+  degradation par priorité avec signal structuré de toute perte, transmis à la porte de suffisance.
+- Contexte d'instance compact et deterministe pour planifier et rediger.
 
-Sortie : ablation table videe >= 24/25 sur le banc natif comme plancher de non-regression, sans
-dependance a un nom de module ni a une question du banc ; verification precision/rappel des
-termes anglais et francais, des ambiguites et des abstentions ; rapport de couverture derivee
-contre surcharges. Ce seuil est un plancher de non-regression, pas le critere de generalisation
-a 80 %.
+Sortie : `wrong_tool_rate` mesuré ; aucun outil executé hors plan ; aucune limite de taille en dur.
 
-### Phase 3 -- rendu metier sortant
+## P7 -- Registre de faits et habilitation
 
-- Construire, pour chaque objet de preuve, son libelle cote utilisateur dans la langue de
-  l'utilisateur : libelle du champ, de la selection, chemin de menu, texte du bouton, nom du
-  groupe. Meme source que la phase 2 : un seul lexique pour les deux sens.
-- Le redacteur recoit des faits deja exprimes avec ces libelles.
-- Controle deterministe : aucun identifiant technique dans la partie "niveau utilisateur" ; la
-  partie depliable "niveau verification" les conserve.
-- Organiser une relecture aveugle par des non-techniciens avec une grille pre-enregistree :
-  exactitude du sens metier, intelligibilite sans connaissance technique, fidelite aux preuves
-  et absence de conseil/procedure invente. Une erreur metier critique invalide le cas ; publier
-  `human_business_acceptance_rate` et les desaccords, et fixer le seuil avant la mesure.
+- Chaine Observation, Evidence, Fact, Claim ; chaque outil emet des observations structurées ; les faits sont
+  derivés de facon deterministe, etiquetés statique ou runtime, avec portée et niveau de preuve.
+- Un fait statique n'est emis que si le graphe le prouve et que la question ne depend pas de l'etat runtime.
+- Filtrage d'habilitation avant le LLM : mecanismes de contournement, champs et enregistrements hors
+  perimetre retires, avec motif consigne.
+- Trace complete reconstructible, rattachee a l'empreinte.
 
-Sortie : `technical_identifier_leak_rate` a 0 dans la zone destinee a l'utilisateur (la zone de
-verification est exemptee), plus un taux d'acceptation humaine conforme au seuil pre-enregistre.
+Sortie : `evidence_completeness` mesuré ; toute observation passe par le filtre.
 
-### Phase 4 -- remplacer le scaffolding par un mecanisme (decoupage obligatoire)
+## P8 -- Redaction et verification
 
-- G2, en changement isole et independant : retirer `_force_dynamic_uncertainty_answer` et sa
-  reponse liee au scenario `custom_expense_reimbursement_indirect`.
-- **4a -- registre de faits** : representer chaque fait avec sa provenance, sa portee, son
-  contexte statique/runtime et son niveau de preuve ; distinguer un mecanisme derive du graphe
-  d'un etat lu dans l'ORM.
-- **4b -- verificateur en mode shadow** : construire le verificateur generique de preservation
-  des faits (montants, groupes, conditions, messages d'exception) et le comparer aux 22 fonctions
-  `_backfill_*` / `_force_*`, sans modifier encore la reponse en production.
-- **4c -- comparaison et rejeux** : mesurer les faits perdus, ajoutes ou contredits par le LLM,
-  les divergences entre verificateur et gardes, ainsi que les affirmations non supportees.
-- **4d -- retrait par lots** : retirer les gardes seulement par lots, chaque lot valide par le
-  rejeu du banc gele et par des cas hors calibrage.
-- Un fait statique natif (par exemple `sale.group_auto_done_setting`) ne peut etre emis que si le
-  graphe en apporte la preuve et si la question ne depend pas de l'etat runtime. Si l'etat depend
-  de la configuration ou de l'ORM, le fait doit etre lu dynamiquement ou reste incertain.
+- Redaction en deux niveaux plus gouvernance : explication metier sans identifiant technique, niveau
+  verification depliable ; prompt en trois blocs (connaissance generale, faits, preuves) ; libelles issus
+  du lexique unique.
+- Verification deterministe de la chaine Claim, Fact, Evidence ; affirmation sans support retirée ou signalée ;
+  `VerificationReport` (faits preservés, perdus, ajoutés, contredits) ; etage semantique sans ajout de fait.
+- Mode shadow d'abord : comparaison du verificateur avec les correctifs textuels existants sur le protocole gelé.
+- Retrait des correctifs propres à un cas, par lots, chaque lot validé par rejeu du protocole gelé et par
+  des cas hors calibrage.
+- Releve humain par des non-techniciens avec grille pre-enregistree ; une erreur metier critique invalide le cas.
 
-Sortie : verificateur compare en shadow, puis moins de gardes sans regression sur le banc gele,
-aucune affirmation native non sourcee, et aucune substitution d'un fait dynamique par un fait
-statique.
+Sortie : `answer_faithfulness`, `unsupported_claim_rate` et `technical_identifier_leak_rate` (zone utilisateur
+a 0) conformes aux seuils fixes en P1 ; correctifs specifiques retires sans regression.
 
-### Phase 5b -- compilateur d'instance et audit runtime
+## P9 -- Donnees, runtime et audit d'instance
 
-- Introspection du registre en complement de l'AST : vues, actions et server actions stockees en
-  base, y compris Studio.
-- Composant `instance_audit` : rapport versionne (modules non indexes, extractions en echec,
-  references non resolues, traductions manquantes, domaines sans outil de preuve, termes
-  ambigus) ; sondes generees a partir de l'ontologie en mode table videe ; capacites classees
-  `couverte` / `ambigue` / `preuve_manquante` / `non_supportee`, transformees en backlog.
-- Remettre `scripts/coverage_report.py` en phase avec l'enveloppe actuelle de `active_graph.json`.
+- Contrat de lecture : ORM sous l'identité du demandeur, perimètre de societés explicite, ACL et règles
+  appliquées, lecture seule, plafond de lignes, budgets de temps et de contexte, journalisation de chaque
+  requete, refus declaré hors perimetre. Outils typés, jamais de SQL produit par le LLM.
+- Les questions combien, qui, quand passent par le meme pipeline et le meme registre.
+- Introspection du registre runtime (vues, actions, server actions en base, Studio) en complement de l'AST.
+- Audit d'instance versionné : modules non indexés, extractions en échec, references non resolues, traductions
+  manquantes, domaines sans outil de preuve, termes ambigus ; capacités classees `couverte`, `ambigue`,
+  `preuve_manquante`, `non_supportée`, alimentant un backlog.
 
-Sortie : graphe et rapport d'audit coherents avec l'empreinte 5a, lacunes transformees en backlog,
-et distinction explicite entre couverture du corpus et capacites effectivement prouvables.
+Sortie : questions de données couvertes ou declarées hors perimetre ; rapport d'audit cohérent avec l'empreinte.
 
-### Phase 6 -- donnees
+## P10 -- Preuve de généralisation
 
-**Contrat de securite et de perimetre, a approuver avant toute fusion** :
+- Plusieurs snapshots independants (versions, langues, modules custom, configurations differents), dont des
+  graphes OCA distincts, jamais utilises pour calibrer.
+- Rapport : métriques de P1, intervalle de confiance regroupé par instance, ventilation par instance, module,
+  langue et famille, cas d'abstention. La conclusion porte sur les N instances echantillonnees.
 
-- executer les lectures sous `with_user()` du demandeur ; jamais de `sudo` implicite ni de SQL
-  brut ;
-- expliciter le perimetre de societes et appliquer les ACL, regles et champs accessibles dans ce
-  contexte ;
-- imposer un plafond de lignes, une execution en lecture seule et des budgets de temps/contexte ;
-- journaliser chaque requete, son utilisateur/societe, son but, son volume et son resultat ;
-- refuser ou declarer hors perimetre les donnees auxquelles le demandeur n'a pas acces.
+Sortie : `accuracy_all_questions >= 80 %` hors calibrage, borne basse à 95 % atteignant 80 %.
 
-- Seulement apres validation du contrat : decision produit sur la fusion Data Intelligence / Code
-  Intelligence (aujourd'hui non entamee), puis integration avec contexte utilisateur, societe et
-  langue.
-
-Sortie : les questions "combien / qui / quand" sont couvertes ou declarees hors perimetre.
-
-### Phase 7 -- preuve de generalisation (G3)
-
-- Construire plusieurs snapshots independants (versions, langues, modules custom et
-  configurations differents), dont un ou plusieurs graphes OCA distincts. Aucun snapshot de
-  validation ne sert a calibrer regles, seuils, lexique ou alias.
-- Separer les donnees par instance entiere, puis ventiler par module, langue, configuration et
-  famille de question ; ne pas melanger les questions d'une meme instance entre calibrage et
-  validation.
-- Rechercher `accuracy_all_questions >= 80 %` (abstentions incluses comme erreurs), la couverture
-  minimale pre-enregistree et une borne basse a 95 % atteignant 80 % avec incertitude regroupee par
-  instance. La conclusion honnete porte sur `N` instances echantillonnees ; elle ne dit pas
-  « toute instance ».
-
-Sortie : rapport avec les metriques du paragraphe 2, l'intervalle de confiance, les resultats par
-instance/module/langue/famille et les cas d'abstention ; cible >= 80 % hors calibrage sur les `N`
-instances annoncees.
-
-## 4. Ordre et dependances
-
-Phase 0, puis 1, puis 5a, puis 2, puis 3. G2 est independant et reste isole ; les sous-phases 4a
-a 4d ne commencent qu'avec le protocole gele et avancent apres 3. 5b precede 6, puis 7. Les
-chantiers existants de `plan.md` (inference locale, memoire, vrai code MiroKE) ne changent pas.
-
-## 5. Repartition
-
-- pmm : verite-terrain, relecture de la traduction metier par des non-techniciens, chargement et
-  caracterisation de plusieurs snapshots independants (long), execution des suites de tests
-  completes.
-- Claude : scripts, code, diffs, tests cibles, journalisation.
-
-## 6. Regles transverses
-
-Aucune valeur machine-dependante en dur (`.env` avec repli explicite) ; aucune reponse ni alias
-lie a un module ou a une question du banc ; journal avant code ; `dryRun` avant chaque ecriture ;
-`py_compile` puis sweep d'import apres chaque edition ; jamais `pytest tests/` complet.
-Question a se poser a chaque bifurcation : l'IA pourra-t-elle repondre correctement sur
-n'importe quelle instance Odoo 17 ?

@@ -6641,3 +6641,45 @@ Date : 02/10/2026
 **Verifications** : lecture du fichier final (sections et numerotation), aucun emoji, aucun residu de la version collee.
 
 **Fichiers modifies** : `todo/architecture_cible.md` (reecrit), `todo/contexte.txt` (cette section) ; cree : `.scratch/architecture_cible.avant_1077.md` (sauvegarde, non suivie).
+
+## Section 1078 : evaluation d'une analyse externe "depot vs architecture cible" (documentation seule, aucun fichier source touche)
+
+Date : 02/10/2026
+Contexte : pmm a colle une analyse externe comparant `architecture_cible.md` a la branche `fix/local-test-failures`, concluant qu'il faut partir du depot et le realigner sur l'architecture. Verification par lecture du code (aucune execution), puis rapprochement avec `plan_generalisation.md` et les sections 1057-1077.
+
+**Verifie dans le code** :
+1. Plan d'investigation non autoritaire : `agent/loop.py` enchaine `run_predispatch_chain(ctx)` (ligne 640) puis `run_react_loop(...)` (ligne 650). L'`InvestigationPlan` (`investigation_schemas.py`, `investigation_planner.py`) ne pilote pas l'execution.
+2. Retrieval avant routage : `core/graph/graph.py` ajoute l'arete `retrieve -> route` (ligne 83) ; le top-k documentaire precede le choix de branche.
+3. Repli admin : `erp_data/odoo_connector.py::_resolve_password()` renvoie `self.password` (admin) quand aucune cle du demandeur n'est dans le ContextVar, avec un simple warning ; le docstring le presente comme attendu pour tests et scripts. Violation active du principe « jamais d'elevation implicite ».
+4. Empreinte absente des traces : `core/session/reasoning_trace_logger.py` ne contient aucune occurrence de `fingerprint` ; elle n'apparait que dans `code_intelligence/graph/` et les scripts d'evaluation.
+5. `Evidence` existe mais ni `Fact` ni `Claim` structures ; la suffisance repose sur des marqueurs (ecarts 2 et 3 de l'analyse).
+
+**Rapprochement avec le plan (plan non modifie)** :
+- Registre de faits et verificateur generique : deja couverts (phases 4a, 4b).
+- Empreinte attachee a chaque trace : prevue en phase 5a, non realisee pour les traces.
+- Repli admin : releve du contrat de securite de la phase 6 (aucune elevation implicite), mais actif des maintenant.
+- Plan d'investigation executable et routage de sources avant retrieval : pas de phase explicite (deja signale en 1077).
+
+**Evaluation** : conclusion juste et deja suivie par le projet (le depot est la base, l'architecture cible le contrat). Apport reel : confirmation de deux ecarts a traiter independamment des phases, le repli admin et l'empreinte absente des traces. Rien de neuf sur le reste.
+
+**Decisions en attente de pmm** : (a) traiter le repli admin a la racine (refus de lecture ERP sans cle du demandeur, opt-in explicite par variable d'environnement pour les scripts) ; (b) attacher l'empreinte aux traces ; (c) arbitrer si le plan d'investigation executable et le routage de sources entrent dans une phase du plan. Aucun mandat donne a ce stade.
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section). Sauvegarde avant ecriture : `/tmp/contexte.avant_1078.txt`.
+
+## Section 1079 : `todo/plan_generalisation.md` remplace par un plan d'execution unique (documentation seule, aucun fichier source touche)
+
+Date : 02/10/2026
+Contexte : pmm demande un plan optimal qui remplace l'ancien, sans mention de ce qui est fait ou non. Sources : `architecture_cible.md`, `rules.md`, ancien plan, section 1078.
+
+**Realisation** : plan reecrit en 10 phases (P0 a P9) alignees sur les composants de `architecture_cible.md` : socle reproductible, protocole de mesure gele, empreinte et contrat d'identite, lexique et resolution, routage des sources, investigation pilotee par le plan et budget, registre de faits et habilitation, redaction et verification, donnees et audit d'instance, preuve de generalisation. Ordre fixe par dependances (verification apres registre, donnees apres contrat d'identite, mesure avant calibrage). Aucun statut d'avancement dans le document.
+
+**Fichiers modifies** : `todo/plan_generalisation.md` (reecrit), `todo/contexte.txt` (cette section) ; cree : `.scratch/plan_generalisation.avant_1079.md` (sauvegarde de l'ancien plan, non suivie).
+
+## Section 1080 : phase documentaire ajoutee au plan (documentation seule, aucun fichier source touche)
+
+Date : 02/10/2026
+Contexte : pmm signale que, apres le refactoring, le LLM ne restitue plus tous les resultats presents dans les documents (branche RAG). Ajout au plan d'une phase dediee, a la racine plutot qu'un correctif ponctuel.
+
+**Realisation** : `todo/plan_generalisation.md` : nouvelle phase P2 (branche documentaire : restitution exhaustive : cas figes, localisation par etage avec comparaison a l'etat anterieur au refactoring, correction a la racine, controle deterministe d'exhaustivite). Les anciennes phases P2 a P9 deviennent P3 a P10 ; references internes et chaine de dependances mises a jour. Cause reelle non diagnostiquee a ce stade.
+
+**Fichiers modifies** : `todo/plan_generalisation.md`, `todo/contexte.txt` (cette section) ; cree : `.scratch/plan_generalisation.avant_1080.md` (sauvegarde).
