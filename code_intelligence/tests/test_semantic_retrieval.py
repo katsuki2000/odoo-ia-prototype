@@ -1,8 +1,11 @@
 import networkx as nx
 
 from code_intelligence.agent.semantic_retrieval import (
+    SemanticRetrieval,
+    SemanticRetrievalStatus,
     configured_semantic_model_candidates,
     rank_semantic_model_candidates,
+    retrieve_semantic_model_candidates,
 )
 
 
@@ -49,7 +52,7 @@ def test_semantic_ranking_uses_instance_translations():
     assert candidates == ["sale.order", "purchase.order"]
 
 
-def test_configured_retrieval_is_disabled_by_default(monkeypatch):
+def test_configured_retrieval_returns_nothing_when_explicitly_disabled(monkeypatch):
     monkeypatch.setenv("RESOLVER_SEMANTIC_RETRIEVAL_ENABLED", "false")
 
     assert configured_semantic_model_candidates(
@@ -119,17 +122,21 @@ def test_configured_retrieval_fails_open_when_provider_raises(monkeypatch):
 
 def test_semantic_candidates_reach_arbitration_when_widened_fuzzy_is_empty(monkeypatch):
     from code_intelligence.agent import resolver
+    from code_intelligence.agent.resolution import candidates, fuzzy_lookup
 
     graph = _graph_with_translated_models()
     seen = {}
-    monkeypatch.setattr(resolver, "_fuzzy_match_graph", lambda *a, **k: [])
-    monkeypatch.setattr(resolver, "configured_semantic_model_candidates", lambda q, g, lang: ["sale.order"])
+    monkeypatch.setattr(fuzzy_lookup, "_fuzzy_match_graph", lambda *a, **k: [])
+    monkeypatch.setattr(
+        candidates, "retrieve_semantic_model_candidates",
+        lambda q, g, lang: SemanticRetrieval(["sale.order"], SemanticRetrievalStatus.SUCCESS),
+    )
 
     def _arbiter(query, candidates, llm, contexts=None):
         seen["candidates"] = list(candidates)
         return candidates[0]
 
-    monkeypatch.setattr(resolver, "_llm_arbitrate", _arbiter)
+    monkeypatch.setattr(fuzzy_lookup, "_llm_arbitrate", _arbiter)
 
     result = resolver.resolve_business_term(
         "qui peut rouvrir cela ?", graph, llm=object(), language="fr", use_static_aliases=False,
@@ -142,11 +149,15 @@ def test_semantic_candidates_reach_arbitration_when_widened_fuzzy_is_empty(monke
 
 def test_empty_candidate_list_does_not_call_the_arbiter(monkeypatch):
     from code_intelligence.agent import resolver
+    from code_intelligence.agent.resolution import candidates, fuzzy_lookup
 
-    monkeypatch.setattr(resolver, "_fuzzy_match_graph", lambda *a, **k: [])
-    monkeypatch.setattr(resolver, "configured_semantic_model_candidates", lambda q, g, lang: [])
+    monkeypatch.setattr(fuzzy_lookup, "_fuzzy_match_graph", lambda *a, **k: [])
     monkeypatch.setattr(
-        resolver, "_llm_arbitrate",
+        candidates, "retrieve_semantic_model_candidates",
+        lambda q, g, lang: SemanticRetrieval([], SemanticRetrievalStatus.NO_CANDIDATES),
+    )
+    monkeypatch.setattr(
+        fuzzy_lookup, "_llm_arbitrate",
         lambda *a, **k: (_ for _ in ()).throw(AssertionError("arbiter must not be called")),
     )
 
@@ -156,3 +167,86 @@ def test_empty_candidate_list_does_not_call_the_arbiter(monkeypatch):
     )
 
     assert not result.is_resolved
+
+
+def test_retrieval_status_is_disabled_when_switched_off(monkeypatch):
+    monkeypatch.setenv("RESOLVER_SEMANTIC_RETRIEVAL_ENABLED", "false")
+
+    result = retrieve_semantic_model_candidates("commande", _graph_with_translated_models(), "fr")
+
+    assert result.models == []
+    assert result.status is SemanticRetrievalStatus.DISABLED
+
+
+def test_retrieval_status_is_error_when_provider_raises(monkeypatch):
+    monkeypatch.setenv("RESOLVER_SEMANTIC_RETRIEVAL_ENABLED", "true")
+
+    def _boom(**_kwargs):
+        raise RuntimeError("embedding server unreachable")
+
+    monkeypatch.setattr("document_rag.vectorstore.embedding_functions.resolve_embedding_function", _boom)
+
+    result = retrieve_semantic_model_candidates("commande", _graph_with_translated_models(), "fr")
+
+    assert result.models == []
+    assert result.status is SemanticRetrievalStatus.ERROR
+
+
+def test_retrieval_status_is_error_when_no_provider_is_configured(monkeypatch):
+    monkeypatch.setenv("RESOLVER_SEMANTIC_RETRIEVAL_ENABLED", "true")
+    monkeypatch.setenv("RESOLVER_SEMANTIC_EMBEDDING_BACKEND", "local_server")
+    monkeypatch.setattr(
+        "document_rag.vectorstore.embedding_functions.resolve_embedding_function",
+        lambda **_kwargs: None,
+    )
+
+    result = retrieve_semantic_model_candidates("commande", _graph_with_translated_models(), "fr")
+
+    assert result.status is SemanticRetrievalStatus.ERROR
+
+
+def test_retrieval_status_is_no_candidates_when_graph_has_no_labels(monkeypatch):
+    monkeypatch.setenv("RESOLVER_SEMANTIC_RETRIEVAL_ENABLED", "true")
+    monkeypatch.setattr(
+        "document_rag.vectorstore.embedding_functions.resolve_embedding_function",
+        lambda **_kwargs: FakeEmbeddingFunction(),
+    )
+
+    result = retrieve_semantic_model_candidates("commande", nx.DiGraph(), "fr")
+
+    assert result.models == []
+    assert result.status is SemanticRetrievalStatus.NO_CANDIDATES
+
+
+def test_retrieval_status_is_success_with_candidates(monkeypatch):
+    monkeypatch.setenv("RESOLVER_SEMANTIC_RETRIEVAL_ENABLED", "true")
+    monkeypatch.setattr(
+        "document_rag.vectorstore.embedding_functions.resolve_embedding_function",
+        lambda **_kwargs: FakeEmbeddingFunction(),
+    )
+
+    result = retrieve_semantic_model_candidates(
+        "Ou gerer une commande client ?", _graph_with_translated_models(), "fr",
+    )
+
+    assert result.models == ["sale.order", "purchase.order"]
+    assert result.status is SemanticRetrievalStatus.SUCCESS
+
+
+def test_resolver_publishes_semantic_status_when_arbitration_selects_nothing(monkeypatch):
+    from code_intelligence.agent import resolver
+    from code_intelligence.agent.resolution import candidates, fuzzy_lookup
+
+    monkeypatch.setattr(fuzzy_lookup, "_fuzzy_match_graph", lambda *a, **k: [])
+    monkeypatch.setattr(
+        candidates, "retrieve_semantic_model_candidates",
+        lambda q, g, lang: SemanticRetrieval([], SemanticRetrievalStatus.ERROR),
+    )
+
+    result = resolver.resolve_business_term(
+        "qui peut rouvrir cela ?", _graph_with_translated_models(), llm=object(), language="fr",
+        use_static_aliases=False,
+    )
+
+    assert not result.is_resolved
+    assert result.diagnostics == {"semantic_retrieval": "error"}

@@ -6285,3 +6285,359 @@ Contexte : demande de pmm -- resume de ce qui est fait, de ce qui est en cours e
 **Propositions en discussion (aucune mandatee)** : (P1) resolution metier par « proposer puis verifier » (RAG sur le contexte de l'instance, verification d'existence dans le graphe) ; (P2) recuperation par embeddings optionnelle, defaut `false`, et rapport d'ablation publiant l'etat des composants optionnels ; (P3) banc de resolution sur modeles custom ; (P4) rejeux et commits par pmm.
 
 **Fichiers modifies** : `todo/contexte.txt` (cette section).
+
+
+## Section 1059 : revue externe de feat/security-lock-reranking, constats verifies et journal avant code (etapes 1-2, mandate)
+
+Date : 02/10/2026
+Contexte : pmm soumet une revue externe de la branche (lecture du code hebergee sur GitHub, tests non executes). Les constats ont ete verifies dans l'arbre local ; pmm mandate les etapes 1 et 2 ci-dessous. Aucun fichier source touche a ce stade.
+
+**Constats confirmes par lecture locale** :
+- `code_intelligence/agent/resolver.py` fait 661 lignes et regroupe trois modules (prompts d'arbitrage, arbitrage LLM, resolveur), avec des en-tetes de docstring designant d'autres fichiers et un import commente. Viole la limite de 300 lignes et la regle de packages propres. Attention : `agent/prompts.py` existe deja, collision de nom a eviter lors du decoupage.
+- `test_configured_retrieval_is_disabled_by_default` fixe `RESOLVER_SEMANTIC_RETRIEVAL_ENABLED=false` : il teste la desactivation explicite, alors que le defaut du code est `true` depuis 1055.
+- `LLM_PROVIDER` : `config/settings.py` = `groq`, README (tableau, ligne 291) = `local`, `.env.example` = `ollama`. Trois valeurs pour un meme defaut.
+- Cache de `semantic_retrieval.py` : cle (langue, nom de l'embedding), sans empreinte du graphe ni de la configuration du modele ; un graphe modifie en place ou un modele change sous le meme nom servirait des vecteurs perimes.
+- Le contexte actif (Step 1.5) passe avant le fuzzy, confiance 0.9, sans confrontation aux autres candidats.
+- Pas de seuil minimal de similarite ; les scores ne sont pas transmis au prompt d'arbitrage.
+- L'echec de la recuperation semantique (liste vide) est indistinguable d'une absence de candidat (cause 1 du rejeu 1056).
+
+**Constats non retenus en priorite** :
+- Seuil de similarite et scores dans le prompt : ne traite pas SAL-Q4 (`sale.order` au rang 69) et couperait `purchase.order.line` (rang 8) pour PUR-Q5 ; meme piege que `VECTOR_SIMILARITY_FLOOR` non recalibre. La cause racine reste la liste fermee bruitee, visee par « proposer puis verifier » (1057).
+- Verificateur generique de faits structures (en shadow mode) : pertinent mais releve de la phase 4 de `plan_generalisation.md` (gardes `_backfill_*`/`_force_*`), independant de la resolution. Differe.
+- Cache lie a l'empreinte du graphe : valide, mais sa valeur depend de la decision sur les embeddings (optionnels ou non). Apres cette decision.
+
+**Ordre retenu** : (1) decoupage de `resolver.py` ; (2) etat explicite de la recuperation semantique + coherence de configuration ; (3) « proposer puis verifier » avec banc par renommage de graphe (modeles et libelles natifs renommes dans une copie du graphe) ; (4) contexte actif comme indice, prioritaire seulement pour les references deictiques, termes derives du lexique d'instance et non codes en dur ; (5) cache lie a l'empreinte du graphe.
+
+**Journal avant code -- perimetre mandate (etapes 1 et 2)** :
+- Etape 1, decoupage : deplacement pur sans changement de comportement. Noms des modules cibles fixes apres lecture des importeurs de `resolver.py` (grep des imports) ; facade conservant les imports et `__all__` existants ; chaque fichier sous 300 lignes. Reference avant/apres : les 4 tests en echec sur HEAD (`test_s2_0_*` x3, `test_exact_technical_model_mention_*`) doivent rester exactement les memes ; `py_compile` sur chaque fichier touche, tests cibles resolveur/semantique/arbitrage.
+- Etape 2, etat de la recuperation semantique : etat explicite `success` / `no_candidates` / `disabled` / `error` renvoye avec les candidats, repli silencieux conserve, etat publie dans la raison du resolveur et dans le rapport de `scripts/run_business_resolver_ablation.py`. Test renomme et test ajoute sur le comportement reel variable absente ; tests hors ligne (suite isolee par `conftest.py`).
+- Etape 2, configuration : la valeur par defaut du code (`groq`) n'est pas modifiee ; README et `.env.example` a aligner une fois la valeur de reference confirmee par pmm (contrainte de deploiement non verifiee).
+- Hors perimetre : etapes 3 a 5, seuil de similarite, verificateur generique, alias, gardes, synthese.
+- Delegue a pmm : rejeu d'ablation avec le tunnel Qwen (`python scripts/run_business_resolver_ablation.py --use-llm`), suite complete, commits.
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section).
+
+
+## Section 1060 : analyse prealable au decoupage de resolver.py et lecture des deux cadrages "RAG hybride" (documentation seule, aucun fichier source touche)
+
+Date : 02/10/2026
+Contexte : suite de 1059 (etape 1 mandatee). Lecture des importeurs et des points de patch de `code_intelligence/agent/resolver.py` avant de coder. pmm a aussi soumis deux textes cadrant le projet comme un RAG hybride (retrieval en trois temps : resolution du modele, outils de preuve, contexte d'evidence structure).
+
+**Cadrage RAG hybride** : sans effet sur les etapes 1 et 2 ; conforte « proposer puis verifier » (1057) comme etape de retrieval du resolveur. La piste d'un contexte de preuves structure (valeur, portee, source, niveau de preuve) recoupe deux lignes deja presentes dans `plan.md` (schema de preuves JSON versionne, evidence builder) et la phase 4 de `plan_generalisation.md` (gardes) : pas de chantier separe ouvert. Les chemins de code cites par ces textes (`execute_tool_calls`, `ToolMessage`) ne sont pas verifies ici.
+
+**Constats pour le decoupage (etape 1)** :
+- `resolve_business_term` occupe a elle seule les lignes 281-661 (environ 380 lignes) : sortir les prompts et l'arbitrage (lignes 1-142) ne suffit pas a passer sous 300 lignes ; les etapes (mention exacte, alias, fuzzy, arbitrage) doivent etre extraites en fonctions. Ce n'est donc pas un deplacement pur.
+- Une trentaine de fichiers importent le resolveur ou ses noms (dont `core/routing/routing.py`, `agent/loop.py`, `agent/investigation_*`, `agent/tool_helpers.py`, `scripts/run_business_resolver_ablation.py`, de nombreux tests) : la facade doit conserver l'integralite de l'`__all__` actuel.
+- `code_intelligence/tests/test_semantic_retrieval.py` patche `resolver._fuzzy_match_graph`, `resolver.configured_semantic_model_candidates` et `resolver._llm_arbitrate` : un appel depuis un autre module echapperait au patch.
+- `agent/prompts.py` existe deja : le nouveau module d'arbitrage ne doit pas porter ce nom.
+
+**Decision (pmm)** : patcher les noms sur le module qui fait reellement l'appel et mettre a jour les tests concernes (`test_semantic_retrieval.py`), plutot que contorsionner le code pour preserver les points de patch.
+
+**Plan de l'etape 1** :
+- `agent/arbitration.py` (nouveau) : prompt d'arbitrage, appel LLM, constantes de seuil (environ 140 lignes).
+- `resolver.py` : facade et orchestration de `resolve_business_term`, memes etapes dans le meme ordre.
+- Etapes extraites en fonctions dans des modules sous 300 lignes (noms fixes au moment du code).
+- Comportement inchange : les 4 tests deja en echec sur HEAD (`test_s2_0_*` x3, `test_exact_technical_model_mention_*`) doivent rester exactement les memes avant et apres ; `py_compile` sur chaque fichier touche ; tests cibles resolveur/semantique/arbitrage ; mise a jour des tests patchant `resolver` consignee dans la section de realisation.
+- Delegue a pmm : suite complete, commits.
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section).
+
+
+## Section 1061 : realisation de l'etape 1 -- decoupage de resolver.py en sous-package `resolution`, comportement inchange
+
+Date : 02/10/2026
+Contexte : realisation de la section 1060, mandatee par pmm.
+
+**Realise** :
+- Nouveau sous-package `code_intelligence/agent/resolution/` (extraction depuis `resolver.py` HEAD, texte des fonctions conserve) :
+  - `arbitration.py` (85 lignes) : prompt d'arbitrage, `_build_arbitration_prompt`, `_llm_arbitrate`.
+  - `candidates.py` (160) : seuils (`AMBIGUITY_GAP_THRESHOLD`, `WIDENED_CANDIDATE_*`), `_candidate_contexts`, `_arbitration_candidates`, `_deterministic_tiebreak`.
+  - `exact_mention.py` (134) : `resolve_exact_mention`, etape des noms techniques cites litteralement (avec fusion des alias non couverts).
+  - `alias_lookup.py` (73) : `resolve_static_alias`.
+  - `fuzzy_lookup.py` (157) : `resolve_fuzzy_match`, etape fuzzy, departage deterministe, arbitrage LLM borne, chemin elargi.
+- `resolver.py` : 661 -> 118 lignes. Facade et orchestration de `resolve_business_term` (memes etapes, meme ordre : mention exacte, alias, contexte actif, fuzzy, non resolu) ; `__all__` conserve et complete par `_arbitration_candidates`, `_candidate_contexts`, `_deterministic_tiebreak`, tous reexportes. Plus aucun fichier au-dessus de 300 lignes ; l'en-tete de docstring errone et l'import commente ont disparu.
+- Tests mis a jour (decision de la section 1060) : `test_semantic_retrieval.py` patche `fuzzy_lookup._fuzzy_match_graph`, `fuzzy_lookup._llm_arbitrate` et `candidates.configured_semantic_model_candidates` ; `test_resolver_tiebreaker.py` patche `candidates.configured_semantic_model_candidates`.
+
+**Validation** :
+- `compileall` propre ; verification AST : aucun import inutilise dans le sous-package.
+- Tests cibles resolveur/semantique/arbitrage/lexique (8 fichiers) : 97 passes, 4 echecs, avant comme apres le decoupage, memes 4 tests (`test_exact_technical_model_mention_does_not_match_substring_of_longer_identifier`, `test_s2_0_llm_arbitration_*` x3).
+- 8 fichiers de tests importeurs (sections 877-883, 951, related_security_dispatch, p1_j6, b2) : 80 passes ; import de `scripts/run_business_resolver_ablation.py` OK.
+- Suite complete non lancee (a lancer par pmm : `pytest -n auto -m "not integration" -q`).
+
+**Notes** : l'etape fuzzy conserve un test `if G is not None` redondant pour le departage (artefact de l'extraction, sans effet) a nettoyer avec l'etape 2 ; les 4 echecs preexistants restent non arbitres.
+
+**Fichiers modifies** : `code_intelligence/agent/resolver.py`, `code_intelligence/agent/resolution/` (6 fichiers nouveaux), `code_intelligence/tests/test_semantic_retrieval.py`, `code_intelligence/tests/test_resolver_tiebreaker.py`, `todo/contexte.txt` (cette section).
+
+
+## Section 1062 : realisation de l'etape 2 (volet code) -- etat explicite de la recuperation semantique
+
+Date : 02/10/2026
+Contexte : suite de 1061, mandat de 1059. Cause 1 du rejeu 1056 : un backend d'embeddings indisponible etait indistinguable d'une absence de candidat (liste vide, echec silencieux).
+
+**Realise** :
+- `semantic_retrieval.py` : `SemanticRetrievalStatus` (`success`, `no_candidates`, `disabled`, `error`), `SemanticRetrieval(models, status)` et `retrieve_semantic_model_candidates()` (repli silencieux conserve, aucune exception propagee ; fournisseur absent hors `local_light` => `error`). `configured_semantic_model_candidates()` devient un adaptateur qui ne renvoie que la liste (API conservee).
+- `matching.py` : `ResolvedConcept.diagnostics: Dict[str, str]` (defaut vide) ; le resolveur y publie `semantic_retrieval` quand la recuperation a ete demandee.
+- `resolution/candidates.py` : `ArbitrationShortlist(models, semantic_status)` et `build_arbitration_shortlist()` ; `_arbitration_candidates()` reste un adaptateur renvoyant la liste.
+- `resolution/fuzzy_lookup.py` : etape reecrite en deux fonctions (`_resolve_strict_candidates`, `_resolve_widened_candidates`), ce qui supprime le test `if G is not None` redondant et le `else` apres retour signales en 1061. Changement de comportement assume et limite : quand l'arbitrage du chemin elargi ne retient rien, le resultat est un `ResolvedConcept` non resolu (`source_step="unresolved"`) portant une raison detaillee et les diagnostics, au lieu de `None` suivi du message generique ; aucun test ne depend de l'ancien texte.
+- `scripts/run_business_resolver_ablation.py` : chaque ligne publie `semantic_retrieval` (`not_used` si l'arbitrage n'est pas atteint) et le rapport contient `semantic_retrieval_summary` (comptage par etat) : un echec silencieux du backend devient visible dans le rapport.
+- Tests : `test_configured_retrieval_is_disabled_by_default` renomme `test_configured_retrieval_returns_nothing_when_explicitly_disabled` (le test du defaut reel, variable absente, existe deja depuis 1055) ; 6 tests ajoutes (4 etats, absence de fournisseur, diagnostics publies par le resolveur) ; patchs des tests sur `candidates.retrieve_semantic_model_candidates`.
+
+**Validation** : `compileall` propre ; 8 fichiers cibles resolveur/semantique : 103 passes, 4 echecs, les memes 4 preexistants (`test_exact_technical_model_mention_*`, `test_s2_0_llm_arbitration_*` x3) ; 8 fichiers importeurs : 80 passes ; import du script d'ablation OK. Suite complete non lancee (pmm).
+
+**Reste de l'etape 2 (non fait)** : coherence de `LLM_PROVIDER` (`settings.py` = groq, README = local, `.env.example` = ollama) en attente de la valeur de reference donnee par pmm ; les valeurs par defaut du code ne sont pas modifiees.
+
+**A faire par pmm** : suite complete ; rejeu `python scripts/run_business_resolver_ablation.py --use-llm` : le rapport doit maintenant afficher `semantic_retrieval_summary` (attendu avec le backend local indisponible : `error` sur les questions arbitrees).
+
+**Fichiers modifies** : `code_intelligence/agent/semantic_retrieval.py`, `code_intelligence/agent/matching.py`, `code_intelligence/agent/resolution/candidates.py`, `code_intelligence/agent/resolution/fuzzy_lookup.py`, `scripts/run_business_resolver_ablation.py`, `code_intelligence/tests/test_semantic_retrieval.py`, `code_intelligence/tests/test_resolver_tiebreaker.py`, `todo/contexte.txt` (cette section).
+
+
+## Section 1063 : suite complete apres les etapes 1-2 -- 8 echecs, tous preexistants sur HEAD (diagnostic, aucun fichier source touche)
+
+Date : 02/10/2026
+Contexte : `pytest -n auto -m "not integration" -q` lance par pmm apres les sections 1061-1062 : 2062 passes, 18 ignores, 8 echecs. Verification de l'origine des 8 echecs dans des worktrees detaches de HEAD (`5b39a62`), supprimes ensuite.
+
+**Les 8 echecs** :
+- 4 du resolveur, connus depuis 1055 : `test_exact_technical_model_mention_does_not_match_substring_of_longer_identifier`, `test_s2_0_llm_arbitration_*` x3 (departage `fuzzy_tiebreak` au lieu de `llm_arbitration`/`unresolved`). Memes echecs, memes messages, sur HEAD et apres le decoupage.
+- `test_j37_j42_staleness_and_atomic_swap.py::test_j41_graph_versioning_metadata` : `graph_schema_version` vaut 4, le test attend 3. Echoue aussi sur HEAD pur.
+- `test_section943_stage_recurrence_workflow.py::test_dispatch_workflow_write_enriches_observation_and_prompt` : marqueur « [FAIT DETERMINISTIQUE -- WORKFLOW D'ETAPE ET RECURRENCE (write())] » absent de l'observation. Echoue aussi sur HEAD pur.
+- `test_f08_j36_graph_dependency_loading.py` x2 (`test_real_base_field_impact_reaches_custom_cascade`, `test_employee_id_is_the_real_base_field_not_a_phantom_reference`) : dependent de l'etat local, pas du code. Sur un worktree HEAD sans corpus, les 3 tests sont ignores ; avec `CORE_ADDONS_PATH` et `.env` ils passent (3 passes) ; des qu'on copie le fichier ignore `active_graph.json` (19 Mo, racine du depot) dans ce meme worktree, les 2 memes tests echouent, sur HEAD pur comme avec les changements des sections 1061-1062. Le fixture `rebuilt_graph` annonce ne jamais lire `active_graph.json` ; la constatation montre le contraire : defaut d'isolation du test, contraire a la regle « pas de ca marche sur ma machine ». Cause exacte non isolee.
+
+**Conclusion** : aucune regression imputable aux etapes 1-2. Les 4 echecs hors resolveur ne sont pas traites ici ; a arbitrer separement (version de schema attendue, marqueur 943, isolation du test f08).
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section).
+
+## Section 1064 : branche `fix/local-test-failures` + 2/5 des echecs preexistants (1063) corriges a la racine, 1 diagnostique, 2 non attaques
+
+Date : 02/10/2026
+Contexte : pmm colle `pytest -n auto -m "not integration"` (2062 passed, 18 skipped, 8 echecs, 237s) et demande une branche locale (pas de serveur externe type Kaggle -- AWS ou serveur local a terme) puis le traitement des echecs. Branche `fix/local-test-failures` creee depuis l'etat courant de `feat/local-only` (arbre de travail deja charge du chantier G0-G3 1036-1063, non commite). Aucun appel reseau/LLM necessaire pour ce lot : diagnostics et corrections faits entierement hors-ligne.
+
+Les 8 echecs colles par pmm correspondent exactement aux 8 deja catalogues en section 1063 (meme etat HEAD) : 4 resolveur (connus depuis 1055), `test_j41_graph_versioning_metadata`, `test_section943_stage_recurrence_workflow`, et `test_f08_j36_graph_dependency_loading.py` x2.
+
+**1) Les 3 `test_s2_0_llm_arbitration_*` -- root cause reelle trouvee (corrige)** : `_deterministic_tiebreak` (`code_intelligence/agent/resolution/candidates.py`) departageait un ex-aequo fuzzy des qu'un segment de nom de modele (`.`/`_` splitte) apparaissait tel quel dans la requete, sans jamais verifier si ce segment est discriminant. Mesure sur le graphe reel (535 modeles) : « line » nomme 21 modeles, « order » 10, « account » 71 -- des mots generiques, pas un signal. C'est exactement la meme classe de faux positif deja corrigee en section 1040 (MNT-Q4 : « acces en lecture » battant le champ `Cost` explicitement cite) mais jamais appliquee a ce departage-ci. Ajout de `_tiebreak_rarity_index(G)` : compte, par graphe (cache `WeakKeyDictionary`, meme rationale documentee que `_FUZZY_INDEX_CACHE` section 721), combien de modeles DISTINCTS portent chaque segment/module declarant ; seuil de rarete identique a celui deja etabli dans `matching.py::_paired_exact_field_model_matches` (`max(3, 2 % des modeles)`). Un segment/module partage par plus de modeles que ce seuil ne peut plus a lui seul departager. Fixture `ambiguous_graph` (`test_s2_0_business_resolver.py`) enrichie de 4 modeles `*.order` annexes (sale.order, pos.order, repair.order, mrp.production.order) : sur un graphe a 2 modeles, tout segment est trivialement « rare » (plancher 3), ce qui aurait masque le vrai probleme et rendu le test non representatif d'un graphe reel.
+
+**2) `test_exact_technical_model_mention_does_not_match_substring_of_longer_identifier` -- root cause distincte trouvee (corrige)** : le garde `(?!\.\w)` de la section 890 protege uniquement `_find_exact_technical_model_mentions` (l'etape « mention technique exacte »). `_fuzzy_match_graph` est un chemin de code different : `_build_fuzzy_index` indexe le nom technique d'un modele comme son propre label, et le score rapidfuzz (`token_set_ratio`/`token_sort_ratio`) est calcule apres `_business_text()`, qui retire TOUTE ponctuation (y compris les points) avant comparaison -- la distinction « mention autonome » vs « prefixe d'un identifiant plus long » est perdue avant meme le calcul du score. `custom.deep.document` a ainsi matche a 100 a l'interieur de `other.custom.deep.document.extended`. Ajout de `_dotted_technical_name_only_embedded()` dans `matching.py` (meme pattern regex que la section 890, applique cette fois sur la requete brute non normalisee) et cablage dans les 2 boucles de scoring de `_fuzzy_match_graph`, mais UNIQUEMENT sur les lignes d'index qui sont l'auto-entree du nom technique d'un modele (reperees via `label == model.lower()` ou sa variante espacee) -- une description/label metier normale n'est jamais concernee. Effet de bord revele une fois ce garde pose : le score retombait a 84 via l'entree description du noeud fixture (« Deep Inheritance Document Base » partageant incidemment « deep »/« document » avec la requete), masque jusque-la par le score de 100 de l'auto-entree desormais bloquee. Fixture corrigee (description neutre, aucun token partage avec la requete) pour isoler proprement le bug cible plutot que de dependre d'une non-collision accidentelle entre 2 mecanismes de matching distincts.
+
+**Validation 1+2** : suite ciblee `pytest code_intelligence/tests/ -k "resolver or matching or tiebreak or s2_0 or specificity or semantic"` -> **100 passed**, aucune regression. Suite complete non relancee dans ce tour (deleguee).
+
+**3) `test_j41_graph_versioning_metadata` -- diagnostique, non corrige** : `GRAPH_SCHEMA_VERSION` est passe de 3 a 4 dans le commit `df8b8882` (14/09/2026, message « investigation », gros refactoring de reorganisation de paquets sans section de journal correspondante). Des centaines de sections de travail (1036-1063 notamment) ont ete construites depuis sur cette base -- ce n'est pas une regression recente, seulement un test jamais resynchronise, meme categorie que la section 1030 (`rank_by_specificity`). Correction prevue : mettre a jour le test (`assert meta["graph_schema_version"] == 4`), pas le code de production, avec une note dans le test renvoyant ici. Non fait dans ce tour (interrompu avant l'ecriture du fichier).
+
+**4) `test_section943_stage_recurrence_workflow.py::test_dispatch_workflow_write_enriches_observation_and_prompt`** : non attaque ce tour. A diagnostiquer (le marqueur « [FAIT DETERMINISTIQUE -- WORKFLOW D'ETAPE ET RECURRENCE (write())] » est absent de l'observation produite par `dispatch_describe_workflow`).
+
+**5) `test_f08_j36_graph_dependency_loading.py` x2** : non attaque ce tour. Defaut d'isolation deja caracterise en section 1063 (le fixture `rebuilt_graph` lit `active_graph.json` malgre sa documentation disant le contraire, des que ce fichier existe a la racine du worktree) -- cause exacte encore non isolee.
+
+**Decision pmm** : s'arreter ici pour l'instant, ne pas enchainer sur 3-5 dans ce tour. Rien committe -- tout dans l'arbre de travail de `fix/local-test-failures`.
+
+**Fichiers modifies (non commites)** : `code_intelligence/agent/resolution/candidates.py`, `code_intelligence/agent/matching.py`, `code_intelligence/tests/test_s2_0_business_resolver.py`, `code_intelligence/tests/test_business_resolver.py`, `todo/contexte.txt` (cette section). Le reste de l'arbre de travail deja present (`resolver.py`, `semantic_retrieval.py`, `config/settings.py`, `core/llm/llm_client.py`, `document_rag/vectorstore/embedding_functions.py`, `scripts/run_business_resolver_ablation.py`, `core/llm/local_only.py`, `code_intelligence/agent/resolution/` hors `candidates.py`) provient du chantier G0-G3 anterieur (1036-1063), non touche ici.
+
+## Section 1065 : cadrage "instance-aware GraphRAG" et metriques par etape ajoutes a `plan_generalisation.md` (documentation seule, aucun fichier source touche)
+
+Date : 02/10/2026
+Contexte : pmm a colle une analyse externe sur l'approche GraphRAG et demande, apres relecture de la fin de `contexte.txt`, de noter ce qui a ete ajoute. A la relecture (sections 1034-1064), la revision v2 du plan etait deja faite (section 1035) et le chantier G0/5a/G1 deja mandate et implemente (1036-1064) ; la v2 que j'avais proposee en discussion n'a donc pas ete refaite. Etat disque prime sur la discussion.
+
+**Evaluation de l'analyse externe** : juste sur le cadrage (le graphe est l'index de l'instance, GraphRAG est le pipeline retrieval -> preuves -> generation -> verification ; pas de Neo4j necessaire ; les `_backfill_*` deviennent des filets du verificateur). Surestime : (1) « aurait pu partir de la » est une relecture apres coup, sans effet sur les mesures ; (2) la branche semantique et documentaire existe deja (`document_rag/`, recuperation semantique des sections 1050-1055) ; (3) le graphe n'est pas encore « instance-aware » au sens runtime complet (phase 5b, contrat de securite de la phase 6). Piste notee mais non retenue a ce stade : resumes de modules par communaute (a ne tester qu'apres la phase 3, avec provenance obligatoire).
+
+**Ajouts effectues dans `todo/plan_generalisation.md`** (2 insertions, diff `dryRun` relu avant application) :
+1. Paragraphe de cadrage « instance-aware GraphRAG » apres la formulation mesurable : graphe = index, pipeline = retrieval, preuves, generation, verification ; documentation generale Odoo jamais source de verite sur l'installation.
+2. Metriques par etape, diagnostiques et sans seuil propre, dans le paragraphe 2 : `resolution_recall_at_k`, `evidence_completeness`, `answer_faithfulness`. Elles ne remplacent pas le critere statistique pre-enregistre.
+
+**Ecart releve, non corrige (hors mandat)** : l'en-tete de `plan_generalisation.md` dit encore « PLAN uniquement, aucun code touche » alors que les sections 1036-1064 implementent des phases de ce plan. A reformuler sur mandat.
+
+**Fichiers modifies** : `todo/plan_generalisation.md` (2 insertions), `todo/contexte.txt` (cette section). Arbre de travail sur `fix/local-test-failures` : les autres fichiers modifies proviennent des sections 1036-1064, non touches ici.
+
+## Section 1066 : second cadrage externe "Agentic RAG" evalue, une phrase ajoutee a `plan_generalisation.md` (documentation seule, aucun fichier source touche)
+
+Date : 02/10/2026
+Contexte : pmm a colle une seconde analyse externe qualifiant le systeme d'« Agentic RAG over an Odoo instance knowledge graph », puis demande d'ajouter ce qui en est retenu.
+
+**Verifie dans le code** : les outils cites existent (`analyze_security_locks`, `analyze_method_override_chain` dans `agent/dispatch_guards.py` et `agent/prompts.py` ; `analyze_data_constraints` dans `agent/postprocess.py` et `agent/prompts.py`) ; le planificateur d'investigation est dans `agent/investigation_classifier.py` et `agent/forced_dispatch_predicates.py`.
+
+**Evaluation** : juste sur le choix de garder le graphe (PostgreSQL ne porte pas la semantique du code : `_inherit`, `super()`, conditions, exceptions) et sur le retrieval iteratif guide par l'investigation. Reserves : (1) le texte decrit une architecture cible, pas l'etat reel (runtime complet = phase 5b, contrat de securite des donnees = phase 6, non faits) ; (2) « formaliser le retrieval comme etape explicite » correspond deja au plan (1057 « proposer puis verifier », 1061 decoupage de `resolver.py` en sous-package `resolution`, phase 4 : registre de faits et verificateur shadow) ; (3) « agentique » ne doit pas etre lu comme un agent libre : l'essentiel du dispatch repose aujourd'hui sur des regles forcees (`forced_dispatch_predicates`), que la phase 4 doit remplacer par un mecanisme verifiable.
+
+**Ajout dans `todo/plan_generalisation.md`** (1 phrase, diff `dryRun` relu avant application) : dans le paragraphe de cadrage, « le retrieval est iteratif et guide par l'investigation (modele, puis methode, overrides, securite), pas un top-k unique suivi du LLM ». Aucune phase ni metrique ajoutee.
+
+**Fichiers modifies** : `todo/plan_generalisation.md` (1 phrase), `todo/contexte.txt` (cette section). Ecart toujours ouvert : l'en-tete du plan dit « PLAN uniquement, aucun code touche » (voir 1065).
+
+## Section 1067 : mesure du budget de contexte reel (qwen3:14b, fenetre 32k) -- script de comptage de tokens (journal avant code, mandate)
+
+Date : 02/10/2026
+Contexte : pmm pense que la fenetre de contexte de qwen3:14b (32 768 tokens natifs, partages entre prompt et generation) est le budget qui limite l'exploitation des observations, et demande si un modele a plus grande fenetre ferait l'affaire. Verifie : `.env` utilise `qwen3:14b` (gpt-oss:20b en commentaire ; le markdown de la cellule 17 du notebook Kaggle est perime) ; le notebook fixe `OLLAMA_CONTEXT_LENGTH=32768`, flash attention, cache KV q8_0, `NUM_PARALLEL=1`, Tesla T4 15 Go. Fiche officielle Qwen3-14B : 32 768 natifs, 131 072 avec YaRN (YaRN statique : degradation possible sur textes courts). Le journal signale deja un plafond de 45 000 caracteres (~11 250 tokens) pour une seule observation (`analyze_data_constraints`) sans mesure du total reel ; `llm_client.py` reduit silencieusement le contexte sur erreur de taille (`_reduce_message_context`). Aucune mesure de tokens reels n'existe.
+
+**Hypothese a tester (non mesuree)** : les defauts d'exploitation (PUR-Q5, STK-Q5) viennent soit d'un contexte qui sature la fenetre (prompt + observations + historique + generation, y compris tokens de reflexion de Qwen3 si le mode thinking est actif), soit d'un contexte non sature ou le modele perd des faits. Seule la mesure distingue les deux.
+
+**Methode (aucun code de production modifie)** : nouveau script `scripts/measure_context_budget.py` qui execute `code_intelligence_agent` sur des questions du banc N1 (defaut : PUR-Q5, STK-Q5) et capte, via un crochet de callbacks LangChain global (`register_configure_hook`), pour CHAQUE appel LLM : tokens du prompt et de la generation rapportes par le serveur (`usage`), `finish_reason`, taille des messages par role. Un handler de logging compte aussi les evenements « contexte reduit » de `llm_client.py`. Rapport JSON par question : nombre d'appels, prompt max, prompt cumule, generation cumulee, prompt+generation max par appel en % de la fenetre, nombre de `finish_reason=length`, nombre de reductions de contexte. Fenetre lue depuis `LLM_CONTEXT_WINDOW` (repli explicite 32768, source affichee).
+
+**Criteres d'interpretation (fixes avant la mesure)** : fenetre consideree comme limitante si, sur au moins un appel, prompt+generation >= 90 % de la fenetre, ou `finish_reason=length`, ou au moins une reduction de contexte. Sinon, la fenetre n'est pas le goulot sur ces questions. Reserve connue : Ollama peut tronquer un prompt trop long sans erreur ; un `prompt_tokens` colle a la fenetre est donc suspect meme sans autre signal.
+
+**Delegue a pmm** : execution du script (serveur Kaggle actif requis) et retour du JSON.
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section) ; a creer : `scripts/measure_context_budget.py`.
+
+## Section 1068 : realisation de la 1067 -- `scripts/measure_context_budget.py` cree et verifie hors-ligne
+
+Date : 02/10/2026
+**Realisation** : script cree (aucun fichier de production modifie). Il enveloppe `ChatOpenAI._generate` et `_agenerate` au niveau de la classe (comportement inchange : l'exception est enregistree puis relancee), execute `code_intelligence_agent` sur les questions du banc N1 (defaut `PUR-Q5`, `STK-Q5` ; `--ids ...` ou `--all`) et ecrit un rapport JSON (defaut : dossier temporaire du systeme, option `--out`). Par appel LLM : tokens prompt/generation rapportes par le serveur, tokens de raisonnement si fournis, `finish_reason`, caracteres par role, caracteres de « thinking » (balises `<think>` ou champ `reasoning`), erreurs. Par question : prompt max, prompt+generation max en % de la fenetre, `finish_reason=length`, reductions de contexte loguees par `llm_client.py`, appels suspects de troncature silencieuse (prompt >= 98 % de la fenetre), caracteres par token approximatifs, verdict selon les criteres de la 1067. Fenetre lue dans `LLM_CONTEXT_WINDOW` (repli explicite 32768, source affichee).
+
+**Verification faite (hors-ligne, aucun appel serveur)** : `py_compile` OK ; chargement des 25 questions du banc ; sonde testee sur un faux resultat LangChain (appels synchrone et asynchrone enregistres, tokens et `finish_reason` lus, `<think>` compte, avertissement `contexte reduit` compte, verdict `LIMITING` a 101 % de la fenetre sur donnees fictives).
+
+**Non verifie** : execution contre le vrai agent et le vrai serveur. Si l'agent utilisait un chemin de streaming (`_stream`), la sonde ne verrait aucun appel ; le script le signale (`no LLM call recorded`). Le rapport n'inclut pas la taille des schemas d'outils envoyes a l'API, donc le ratio caracteres/token est approximatif.
+
+**Delegue a pmm** : `python scripts/measure_context_budget.py` (serveur Kaggle actif), puis retour du JSON.
+
+**Fichiers modifies** : `scripts/measure_context_budget.py` (cree), `todo/contexte.txt` (sections 1067 et 1068). Rien commite.
+
+## Section 1069 : premier lancement de `measure_context_budget.py` -- mesure invalide (garde LOCAL_ONLY), message du script corrige
+
+Date : 02/10/2026
+**Constat (sortie collee par pmm)** : les deux questions (PUR-Q5, STK-Q5) ont leve `ExternalEndpointError` avant tout appel LLM : l'hote ngrok n'est pas dans `LOCAL_ALLOWED_HOSTS` et `LOCAL_ONLY` vaut `true` par defaut (`config/settings.py`, garde dans `core/llm/local_only.py`). 0 appel enregistre : aucune mesure de tokens obtenue, aucune conclusion sur la fenetre de contexte. Le rapport `/tmp/context_budget_report.json` ne contient que des erreurs.
+
+**Cause** : ni `LOCAL_ONLY` ni `LOCAL_ALLOWED_HOSTS` ne sont definis dans `.env` ; les valeurs par defaut n'autorisent que `localhost,127.0.0.1,::1`. Le serveur Kaggle passe par un hote ngrok.
+
+**Action requise de pmm (decision de configuration, `.env` non touche par Claude)** : autoriser explicitement l'hote du serveur de confiance dans `.env` en conservant les valeurs par defaut, par exemple `LOCAL_ALLOWED_HOSTS=localhost,127.0.0.1,::1,<hote-ngrok-sans-https-ni-/v1>`. L'URL ngrok gratuite change a chaque session du notebook : la ligne doit etre mise a jour a chaque fois. Alternative `LOCAL_ONLY=false` : non recommandee, elle leve la garde pour tous les fournisseurs.
+
+**Correction du script (mon defaut)** : le message « the probe did not see the calls » etait trompeur quand l'agent avait leve une erreur avant tout appel. Il indique desormais que la mesure est INVALIDE et pourquoi, et le script retourne le code 1 si une question n'a aucune mesure exploitable. Diff `dryRun` relu, `py_compile` OK. Aucune autre modification.
+
+**Fichiers modifies** : `scripts/measure_context_budget.py` (messages et code de sortie), `todo/contexte.txt` (cette section).
+
+## Section 1070 : `.env` -- hote ngrok autorise dans `LOCAL_ALLOWED_HOSTS` (mandate par pmm)
+
+Date : 02/10/2026
+**Action (mandatee)** : ajout d'une ligne en fin de `.env` : `LOCAL_ALLOWED_HOSTS=localhost,127.0.0.1,::1,<hote ngrok courant du serveur Kaggle>` (l'hote est celui deja present dans `LOCAL_LLM_BASE_URL`). Les trois valeurs par defaut sont conservees ; `LOCAL_ONLY` reste `true` (non modifie). Aucune autre ligne de `.env` modifiee ; aucun secret lu ni affiche.
+
+**Verification (hors reseau)** : `assert_local_endpoint(LOCAL_LLM_BASE_URL, "LLM")` passe ; un hote quelconque non liste est toujours refuse (`ExternalEndpointError`).
+
+**A retenir** : l'URL ngrok gratuite change a chaque session du notebook Kaggle ; la ligne doit etre mise a jour a chaque nouvelle URL, sinon le garde refuse a nouveau et le rejeu echoue avant tout appel.
+
+**Fichiers modifies** : `.env` (1 ligne ajoutee, ignore par git), `todo/contexte.txt` (cette section).
+
+## Section 1071 : resultat de la mesure du budget de contexte (PUR-Q5, STK-Q5) -- la fenetre de 32k n'est pas le goulot sur ces deux questions
+
+Date : 02/10/2026
+**Mesure (qwen3:14b, fenetre 32 768, rapport `/tmp/context_budget_report.json`, lecture par Claude)** : PUR-Q5 prompt 8 479 tokens + generation 720 = 9 199 (28,1 % de la fenetre) ; STK-Q5 prompt 7 510 + generation 832 = 8 342 (25,5 %). `finish_reason=stop` partout, 0 coupure `length`, 0 reduction de contexte, 0 erreur. Selon les criteres fixes en 1067 : fenetre non limitante sur ces deux questions. Marge restante d'environ 23 000 tokens (environ 77 000 caracteres au ratio mesure de 3,3 caracteres/token).
+
+**Constats complementaires** :
+1. Un seul appel LLM par question (2 messages : un `system` de 28 250 / 24 867 caracteres, un `human` de 171 / 136). Toutes les observations d'outils sont donc injectees en un seul message systeme, et aucun appel LLM de selection d'outil n'a ete vu par la sonde ; le dispatch observe est deterministe. Reserve : un appel passant par un autre chemin que `ChatOpenAI._generate`/`_agenerate` (streaming, autre classe) echapperait a la sonde.
+2. Les troncatures signalees par l'agent (`analyze_security_locks(purchase.order)` et `(purchase.order.line)`, « cap reached ») viennent des plafonds en caracteres de `agent/context.py` (3 500 par outil, 35 000 au total), pas de la fenetre : ces plafonds representent environ 1 000 tokens par outil pour une marge de 23 000.
+3. Aucun `<think>` ni champ de raisonnement capte (`reasoning_tokens` = 0, non fourni par le serveur). Les tokens de generation depassent ce que la reponse visible laisse attendre (environ 400 tokens d'ecart sur PUR-Q5, estimation) : un raisonnement masque n'est pas exclu, mais son poids est negligeable devant la marge.
+4. Avertissements `record_evidence() called before start_evidence_collection()` : le script appelle `code_intelligence_agent` directement (comme les scripts `check_bloc_*`), ce qui court-circuite le demarrage de la collecte de preuves de l'entree de production (`query_graph`). Les observations injectees dans le prompt ne sont probablement pas affectees, mais le chemin mesure n'est pas celui de la production : a confirmer avec un mode « pipeline complet ».
+5. Latence : environ 50 a 54 s par appel de synthese.
+
+**Limites** : 2 questions sur 25, toutes deux de capacite `constraints` ; pas de question multi-hop mesuree ; une seule execution par question.
+
+**Consequence pour l'hypothese de pmm** : sur ces deux questions, un modele a plus grande fenetre ne change rien. Les faits perdus (troncatures `cap reached`, defauts de synthese 1058) relevent des plafonds en caracteres et de l'usage du contexte par le modele, pas de la taille de la fenetre. A confirmer sur les 25 questions avant de conclure pour le projet.
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section) ; aucun code.
+
+## Section 1072 : mesure du budget de contexte sur les 25 questions du banc N1 -- la fenetre de 32k n'est limitante pour aucune
+
+Date : 02/10/2026
+**Mesure (`measure_context_budget.py --all`, qwen3:14b, fenetre 32 768, rapport `/tmp/context_budget_report.json`, lecture par Claude)** : 25 questions, 0 erreur de l'agent. Prompt maximal par question : mediane 5 597 tokens, moyenne 5 963 ; maximum STK-Q2 11 559 (prompt+generation 12 374 = 37,8 % de la fenetre), puis ACC-Q5 11 622 (36,7 %), PUR-Q5 (28,4 %), STK-Q5 (25,5 %), MNT-Q5 (25,1 %). Generation maximale 1 533 tokens. 0 coupure `finish_reason=length`, 0 reduction de contexte, 0 appel suspect de troncature silencieuse, aucun raisonnement capte (`think_chars` et `reasoning_tokens` a 0 ; non fourni par le serveur). Selon les criteres de la 1067 : fenetre limitante pour aucune question.
+
+**Appels LLM par question** : 21 questions sur 25 font un seul appel (synthese). PUR-Q2 (3), ACC-Q2 (3), SAL-Q2 (2) et ACC-Q4 (2) font en plus des appels courts (system ~1 570 caracteres) : l'agent a donc une etape de selection d'outils par LLM, utilisee sur ces 4 questions ; cela corrige la lecture de la 1071 (« dispatch deterministe ») : deterministe sur 21/25 seulement, non verifie ailleurs.
+
+**Anomalies de la mesure** :
+1. Erreurs d'appel LLM dans `ACC-Q2` (x2) et `ACC-Q4` (x1) : « LLM tool selection failed: ngrok gateway error ERR_NGROK_3004 ». Ces deux questions ne sont pas representatives (repli apres echec du tunnel). A rejouer.
+2. `STK-Q3` et `ACC-Q3` : « LLM arbitration requested but no llm client was provided; skipping » -- l'appel direct de `code_intelligence_agent` ne fournit pas de client LLM au resolveur ; l'arbitrage de production n'a pas ete exerce sur ces questions. Meme cause probable que l'avertissement `record_evidence() called before start_evidence_collection()` (present sur presque toutes les questions) : le chemin mesure n'est pas celui de `query_graph`.
+3. Troncatures signalees par l'agent (« cap reached ») sur 3 questions : `PUR-Q2` (`analyze_method_override_chain(purchase.order)`), `PUR-Q5` (`analyze_security_locks` x2), `ACC-Q5` (`analyze_data_constraints(account.move)`, 32 790 caracteres). Le nombre affiche par `postprocess.py:128` est `len(text)` de l'observation signalee, pas la quantite coupee : on ne peut pas en deduire ce qui a ete perdu. Sur `ACC-Q5` la fenetre reste utilisee a 36,7 %.
+
+**Latence** : 1 266 s cumulees pour les appels du banc, de l'ordre de 40 a 55 s par synthese.
+
+**Conclusion** : sur les 25 questions du banc natif, par ce chemin d'appel, la taille de la fenetre n'explique aucune perte de fait ; un modele a plus grande fenetre ne changerait pas ces resultats. Les troncatures viennent des plafonds en caracteres de `agent/context.py`. Reste ouvert : (a) rejouer ACC-Q2/ACC-Q4 sans erreur de tunnel ; (b) mesurer par le chemin de production (`query_graph`) ; (c) tester si relever les plafonds sur PUR-Q2, PUR-Q5 et ACC-Q5 change les reponses (modification de `context.py`, non mandatee) ; (d) une seule execution par question, pas de mesure de variabilite.
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section) ; aucun code.
+
+## Section 1073 : mise a jour complete de `todo/architecture.md` (remplacement par l'architecture reelle actuelle)
+
+Date : 02/10/2026
+**Contexte** : demande de l'utilisateur de consulter directement le code du projet et de remplacer `architecture.md` (qui decrivait une « architecture cible » theorique et des couches conceptuelles anterieures) par la description fidele et exhaustive de l'architecture reelle actuellement implementee.
+
+**Realisation** :
+- `todo/architecture.md` integralement reecrit a partir de l'inspection directe des modules (`core/`, `code_intelligence/`, `erp_data/`, `document_rag/`, `api/`, `odoo_addons/`).
+- Description detaillee du pipeline LangGraph (`StateGraph(RAGState)` : portes `smalltalk_gate` et `out_of_scope_gate`, recherche hybride `retrieve`, routage d'intention `route`, boucle CI `code_intelligence_agent`, boucle ORM `orm_agent_loop`, branche documentaire `generate`, et noeud de sortie `format_output`).
+- Exposition exhaustive du graphe de connaissances NetworkX (`active_graph.json`, 12 types de noeuds, 18 types d'aretes), de l'inventaire dynamique d'instance (`loader.py`), du hachage d'empreinte (`instance_fingerprint.py`) et du rechargement atomique (`atomic_swap.py`).
+- Formalisation de la couche semantique et des tags fermes de l'ontologie (`BehavioralTag` et `TechnicalTag` conformes aux tests unitaires).
+- Cartographie du resolveur de termes metier a 6 niveaux (mentions exactes, alias NFC, contexte actif UI, fuzzy specifique, retrieval semantique d'instance, arbitrage LLM avec departage deterministe).
+- Documentation de la chaine de pre-dispatch deterministe (12 blocs d'analyse statique automatique), du catalogue des 16 outils CI, du filtrage de securite `gate_observation`, et des correcteurs post-ReAct.
+- Description du sous-systeme de preuves unifie (`Evidence`, `stable_content_hash`, accumulateur `ContextVar`, suffisance `EvidenceSufficiencyStatus` et double niveau d'explication).
+- Integration runtime Odoo (XML-RPC avec `ContextVar` utilisateur isole, outils de domaine Ventes/Stocks/Compta/CRM).
+- Moteur RAG documentaire (ChromaDB + BM25, OCR Tesseract, ingestion incrementale MD5, watcher et scheduler).
+- Isolation de securite reseau (`LOCAL_ONLY`, `LOCAL_ALLOWED_HOSTS`), journalisation des traces (`reasoning_trace_logger.py`), exposition REST FastAPI et addon Odoo 17 Systray (`miro_ai`).
+
+**Fichiers modifies** : `todo/architecture.md` (reecriture complete), `todo/contexte.txt` (cette section).
+
+## Section 1074 : creation de `todo/architecture_cible.md` et constat sur les plafonds d'observation (documentation seule, aucun fichier source touche)
+
+Date : 02/10/2026
+**Contexte** : demande de pmm de refaire l'architecture cible dans un fichier de `todo/`, apres la 1073 qui a remplace `architecture.md` par l'etat reel (`architecture_actuelle.md`). Sources lues : `architecture_actuelle.md`, `plan_generalisation.md`, `plan.md`, sections 1057-1073.
+
+**Realisation** : `todo/architecture_cible.md` cree (173 lignes). Invariants conserves ; cadrage instance-aware GraphRAG en six etages (empreinte, resolution, investigation, registre de faits, redaction, verification) ; tableau des ecarts actuel -> cible rattache aux phases de `plan_generalisation.md` ; composants cibles etiquetes reel / partiel / cible ; interfaces a figer ; questions ouvertes pour pmm. Aucun chiffre de performance ajoute.
+
+**Constat nouveau integre au document (paragraphe 4.5)** : premier lancement de `scripts/compare_observation_caps.py` (12 runs, plafonds de `PER_TOOL_OBSERVATION_CAPS` relevés en memoire, aucun code de prod modifie). Les troncatures ne disparaissent pas : PUR-Q2 2184 -> 2012 caracteres, toujours coupe ; PUR-Q5 `analyze_security_locks` 2347 -> 2958 et 2933 -> 2933, toujours coupes ; ACC-Q5 `analyze_data_constraints` 32790 -> 44986, toujours coupe. Cause verifiee par lecture : 17 appels de `_truncate_observation_for_budget` portent un litteral (2200, 3000, 4000, 45000) dans `predispatch_actions.py`, `predispatch_structure.py` et `predispatch_access.py`, hors de `PER_TOOL_OBSERVATION_CAPS` ; `predispatch_actions.py:344` impose 45000 a ACC-Q5. Seul `MAX_TOTAL_OBSERVATION_CHARS` a eu un effet (35000 -> ~45000 effectifs). Le test (c) de la 1072 tel que pose n'etait donc pas valide pour PUR-Q2 et PUR-Q5. Le script plantait a l'ecriture du JSON (`AssistantResponse` non serialisable) : les reponses n'ont pas ete conservees, donc aucune comparaison de reponses a ce stade.
+
+**Anomalie non expliquee** : sur ACC-Q5, `analyze_security_locks` renvoie 0 caractere avec le plafond a 3500 (2 runs sur 2) et 3027 caracteres coupes avec 8000 (2 runs sur 2). Pas du bruit ; a diagnostiquer.
+
+**Correction du script (non commite)** : serialisation de la reponse (`answer`, `confidence`), sauvegarde du JSON apres chaque run, option `--literal-scale` (defaut 3) qui multiplie en memoire la limite de chaque troncature passant par `_truncate_observation_for_budget`. A relancer par pmm ; resultats a journaliser en 1075.
+
+**Fichiers modifies** : `todo/architecture_cible.md` (cree), `scripts/compare_observation_caps.py` (cree, non suivi), `todo/contexte.txt` (cette section).
+
+## Section 1075 : `todo/architecture_cible.md` reecrit -- cible seule, sans comparaison a l'existant (documentation seule, aucun fichier source touche)
+
+Date : 02/10/2026
+**Contexte** : pmm demande une architecture cible pure : pas de comparaison, pas d'etiquettes reel / partiel / cible, pas de tableau d'ecarts. Le fichier cree en 1074 est reecrit en consequence.
+
+**Realisation** : `todo/architecture_cible.md` remplace integralement : objectif et critere de reussite, principes, pipeline en six etapes, 13 composants decrits a l'etat final (empreinte, graphe, lexique unique, resolution, investigation, budget d'observations, registre de faits, filtrage d'habilitation, redaction, verification, donnees et runtime, audit d'instance, branche documentaire), interfaces, evaluation, hors perimetre. Retires : tableau d'ecarts, references aux phases et sections du journal, constat chiffre sur les plafonds, questions ouvertes. Le constat sur les plafonds reste consigne en 1074.
+
+**Numerotation** : les resultats du test A/B des plafonds iront en 1076.
+
+**Fichiers modifies** : `todo/architecture_cible.md` (reecrit), `todo/contexte.txt` (cette section).
+
+## Section 1076 : resultat du test A/B des plafonds d'observation (PUR-Q2, PUR-Q5, ACC-Q5) -- lecture par Claude, notation a confirmer par pmm (aucun fichier source touche)
+
+Date : 02/10/2026
+**Protocole** : `scripts/compare_observation_caps.py --repeat 1`, qwen3:14b, fenetre 32 768. Condition « relevee » = plafonds du dict (override 6000, locks 8000, constraints 70000), total 70000, et `--literal-scale 3` (multiplie en memoire la limite de chaque troncature passant par `_truncate_observation_for_budget`, donc les 17 litteraux de `predispatch_*.py`). Rapports : `/tmp/caps_ab_report.json` et `.md`. Aucun code de prod modifie. Une seule execution par condition : pas de mesure de bruit.
+
+**Observations (deterministes, avant LLM)** :
+- PUR-Q2 : `analyze_method_override_chain(purchase.order)` 2073 CUT -> 2306 complet (+233 car.). Prompt 6944 -> 7010.
+- PUR-Q5 : `analyze_security_locks(purchase.order)` 2347 CUT -> 7876 encore CUT (plafond 8000 atteint) ; `(purchase.order.line)` 2933 CUT -> 4697 complet. Prompt 8479 -> 10662.
+- ACC-Q5 : `analyze_data_constraints(account.move)` 32790 CUT -> 47310 complet ; `analyze_security_locks(account.move)` 0 -> 6836 CUT. Prompt 11622 -> 17356 (53 % de la fenetre avant generation). 0 coupure `length` partout.
+
+**Lecture des reponses contre la reference (Claude, a confirmer)** :
+- PUR-Q2 : relevee plus proche (nomme `_approval_allowed()`, `button_approve()`, `po_lock`, ajout du fournisseur) mais **inverse le sens du seuil** (eligible « si le seuil est inferieur au montant »), alors que le code (`purchase_order.py:960-969`) exige `amount_total < seuil` ; la baseline a le bon sens mais ne nomme aucune methode. Les deux omettent la garde d'etat draft/sent et la validation de distribution analytique.
+- PUR-Q5 : relevee meilleure -- nomme `_unlink_if_cancelled` et `_unlink_except_purchase_or_done`, ne dit plus que les lignes ne se suppriment que si la commande est annulee, branche `display_type` non defini correcte. La baseline inverse la semantique comptable/non comptable dans le corps, contredite par ses propres lignes « Precision issue de la preuve SQL ». Les deux gardent « en cours » au lieu de `purchase`.
+- ACC-Q5 : mitigee. La relevee ajoute `_auto_init()` (present dans la reference) mais affirme que `_sql_constraints` est « residuelle ou une erreur de configuration », faux (il porte le message d'erreur, `account_move.py:625-627`). La baseline est correcte sur l'index partiel sans cette erreur. Aucune des deux ne mentionne `_check_journal_move_type`. Cout : +5 700 tokens de prompt.
+
+**Conclusion prudente** : lever les coupures change les observations et les reponses sur les trois questions ; gain net sur PUR-Q5, gain partiel et nouvelle erreur sur PUR-Q2, mitige sur ACC-Q5. Non concluant sur « les plafonds expliquent les erreurs » : (1) n=1, pas de bruit baseline contre baseline ; (2) l'observation `analyze_method_override_chain` varie d'un run a l'autre sur la baseline (2184, 2109, 2073 sur trois runs), donc la source de bruit n'est pas seulement le LLM ; (3) plusieurs leviers changes ensemble (plafonds du dict, litteraux, total), impossible d'isoler lequel agit.
+
+**Points ouverts** : (a) `analyze_security_locks(account.move)` rend 0 caractere a 3500 et 6836 a 8000 ; hypothese non verifiee : le water-filling donne 0 a tous les blocs quand le minimum protege depasse le budget et `ess_cap <= 0` les saute tous (`security_evidence.py`) ; (b) `analyze_security_locks(purchase.order)` depasse encore 8000 ; (c) rejeu avec `--repeat 3` pour mesurer le bruit avant toute decision ; (d) aucun changement de `context.py` mandate.
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section).
+
+## Section 1077 : `todo/architecture_cible.md` consolide en une seule version (documentation seule, aucun fichier source touche)
+
+Date : 02/10/2026
+**Contexte** : le fichier contenait la version de pmm (sections 1 a 6, principes retouches a la main) suivie d'une seconde version complete collee (reponse d'une revue externe), et pmm a fourni deux autres notes de revue (matrice d'autorite / preuves ; connaissance native du LLM + contexte d'instance). Mandat de pmm : consolider en une version propre. Le fichier n'etant pas suivi par git, la version precedente est conservee dans `.scratch/architecture_cible.avant_1077.md` (1071 lignes, sha256 identique a l'original avant ecriture) ; a supprimer par pmm apres relecture.
+
+**Realisation** : `todo/architecture_cible.md` reecrit (262 lignes, 15 composants, 7 principes), en conservant l'intention des principes de pmm (faits ERP et documents injectes au prompt, routage clair avec modes explicites, prive Kaggle/AWS, abstention avec mention de la connaissance generale) et en restant en cible pure (pas de comparaison a l'existant, pas de chiffres de performance, pas de renvoi au journal).
+
+**Elements retenus des revues (a confirmer par pmm)** :
+1. Principe 2 : matrice d'autorite par type d'affirmation, a la place de la hierarchie fixe des sources.
+2. Principe 1 : le LLM connait Odoo, le graphe connait l'instance ; prompt en trois blocs (connaissance generale, faits, preuves).
+3. Routage : etage et composant 4.4 (mode explicite, formulation, regles, contexte d'ecran, LLM en dernier signal avec confiance, clarification si faible).
+4. Resolution 4.5 : discriminant dans `ResolutionResult` (un terme vise un objet restreint par champ et valeur) ; panne du backend d'embeddings jamais masquee.
+5. Contexte d'instance 4.6 : representation compacte et deterministe de ce que l'instance ajoute ou change, sans documentation generale d'Odoo.
+6. Investigation 4.7 : preuves requises par intention, boucle jusqu'a satisfaction ou epuisement du budget, porte de suffisance. Les obligations sont generiques par intention.
+7. Budget 4.8 : `ObservationBudget` devient `InvestigationBudget` (dimensions supplementaires : appels d'outils, duree, lignes, profondeur de graphe, appels LLM, cout).
+8. Registre 4.9 : chaine Observation, Evidence, Fact, Claim ; tracabilite complete rattachee a l'empreinte.
+9. Verification 4.12 : etage deterministe puis etage semantique qui ne peut ajouter aucun fait.
+10. Graphe 4.2 : graphe logiciel separe de l'etat runtime ; relations derivees par analyse du code, jamais par LLM. Structuration de type GraphRAG reservee a la branche documentaire (4.15).
+11. Donnees 4.13 : lecture par l'ORM uniquement ; les outils d'analyse du code n'ouvrent jamais l'acces aux donnees metier.
+
+**Non retenu** : choix Neo4j contre PostgreSQL/pgvector (sans objet, le projet est sur NetworkX et ChromaDB) ; metriques `instance_generalization_rate` (redondante avec le critere de la phase 7), `citation_precision`, `citation_completeness`, `abstention_precision` (non presentes dans `plan_generalisation.md` ; section 6 laissee alignee sur le plan) ; section de positionnement et titre « Evidence-Centered ».
+
+**Ecarts a arbitrer par pmm avec `plan_generalisation.md`** (plan non modifie, il doit changer rarement) :
+- son paragraphe de cadrage dit « instance-aware GraphRAG » ; la cible parle de moteur d'investigation fonde sur les preuves ;
+- les obligations de preuve, la porte de suffisance, le `Claim` et le routage de sources n'ont pas de phase explicite (rapprochement naturel avec 4a et 4b) ;
+- le renommage `InvestigationBudget` touche aussi le chantier des plafonds ouvert en 1074 a 1076.
+
+**Verifications** : lecture du fichier final (sections et numerotation), aucun emoji, aucun residu de la version collee.
+
+**Fichiers modifies** : `todo/architecture_cible.md` (reecrit), `todo/contexte.txt` (cette section) ; cree : `.scratch/architecture_cible.avant_1077.md` (sauvegarde, non suivie).

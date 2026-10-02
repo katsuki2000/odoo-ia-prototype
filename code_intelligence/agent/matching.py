@@ -34,6 +34,7 @@ class ResolvedConcept:
     source_step: str = "static_alias"
     is_resolved: bool = True
     reason: str = ""
+    diagnostics: Dict[str, str] = field(default_factory=dict)
 
 
 # Cache indexe directement sur l'objet graphe (pas sur id(G)) : un
@@ -432,6 +433,30 @@ def rank_by_specificity(matches: List[str], query_lower: str) -> List[str]:
     return [m for m, _score in sorted(scored, key=lambda item: item[1], reverse=True)]
 
 
+def _dotted_technical_name_only_embedded(technical_name: str, raw_query_lower: str) -> bool:
+    """Section 1064 (fuzzy-matching counterpart to the Section 890 guard):
+    True when a dotted technical model name appears in the raw query ONLY
+    as the prefix of a strictly longer dotted identifier, never as a
+    standalone mention of itself -- e.g. 'custom.deep.document' inside
+    'other.custom.deep.document.extended'. Section 890 closed this for the
+    exact-technical-mention step (_find_exact_technical_model_mentions)
+    via the same (?!\\.\\w) lookahead, but _fuzzy_match_graph indexes each
+    model's own technical name as a label for itself (_build_fuzzy_index)
+    and scores it with rapidfuzz's token-set comparison, which is
+    dot-insensitive by construction (_business_text strips all
+    punctuation before scoring) and so cannot see this distinction at all
+    -- the two checks were never actually the same code path, despite
+    looking like they covered the same bug.
+    """
+    if "." not in technical_name:
+        return False
+    standalone_pattern = r"(?<!\w)" + re.escape(technical_name) + r"(?!\w)(?!\.\w)"
+    if re.search(standalone_pattern, raw_query_lower):
+        return False
+    embedded_pattern = r"(?<!\w)" + re.escape(technical_name) + r"\.\w"
+    return bool(re.search(embedded_pattern, raw_query_lower))
+
+
 def _fuzzy_match_graph(
     query: str,
     G,
@@ -452,6 +477,17 @@ def _fuzzy_match_graph(
     labels = [_business_text(entry[0]) for entry in index]
     query_lower = _business_text(query)
     query_token_count = max(len(_business_tokens(query)), 1)
+    raw_query_lower = query.lower()
+    # Section 1064: which index rows are a model's OWN technical-name
+    # self-entry (plain dotted, or the "."/"_" -> " " spaced variant) --
+    # both added by _build_fuzzy_index right after the technical_name
+    # check. Only these rows can trigger the embedded-substring false
+    # positive above; a genuine prose description/field/menu label never
+    # equals the bare technical name, so it is never affected.
+    self_entry_technical_names = [
+        model if (label == model.lower() or label == model.lower().replace(".", " ").replace("_", " ")) else None
+        for label, model in index
+    ]
 
     model_scores: Dict[str, float] = {}
 
@@ -464,6 +500,9 @@ def _fuzzy_match_graph(
         )
         for _text, score, idx in (hits or []):
             label = index[idx][0]
+            self_technical_name = self_entry_technical_names[idx]
+            if self_technical_name and _dotted_technical_name_only_embedded(self_technical_name, raw_query_lower):
+                continue
             label_token_count = max(len(_business_tokens(label)), 1)
             length_penalty = min(label_token_count / query_token_count, 1.0) ** 0.5
             adjusted = score * length_penalty
@@ -492,6 +531,9 @@ def _fuzzy_match_graph(
             )
             for _text, score, idx in hits or []:
                 label = index[idx][0]
+                self_technical_name = self_entry_technical_names[idx]
+                if self_technical_name and _dotted_technical_name_only_embedded(self_technical_name, raw_query_lower):
+                    continue
                 label_words = _business_tokens(label)
                 matched_words = sum(
                     any(fuzz.ratio(word, label_word) >= 85 for label_word in label_words)

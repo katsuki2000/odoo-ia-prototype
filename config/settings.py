@@ -10,7 +10,17 @@ if not os.getenv("GROQ_API_KEY"):
     load_dotenv(_ROOT / "env")
 
 # ── LLM ──────────────────────────────────────────────
-LLM_PROVIDER = os.getenv("LLM_PROVIDER", "groq")
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "local")
+
+# Local-only guard: when true, cloud providers and any endpoint whose host is not in
+# LOCAL_ALLOWED_HOSTS are refused (core/llm/local_only.py). A LAN or remote inference
+# server is opted into by allow-listing its host here, or by setting LOCAL_ONLY=false.
+LOCAL_ONLY = os.getenv("LOCAL_ONLY", "true").lower() in ("true", "1", "yes")
+LOCAL_ALLOWED_HOSTS = frozenset(
+    host.strip().lower()
+    for host in os.getenv("LOCAL_ALLOWED_HOSTS", "localhost,127.0.0.1,::1").split(",")
+    if host.strip()
+)
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 # GROQ_API_KEYS : rotation automatique des que la cle courante est en rate-limit (core/llm_client.py). Retombe sur GROQ_API_KEY seule si la variable liste n'est pas definie (compat installs a une seule cle).

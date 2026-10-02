@@ -100,6 +100,7 @@ class LocalServerEmbeddingFunction(EmbeddingFunction):
         api_key: str = "ollama",
         timeout: float = 30.0,
     ):
+        assert_local_endpoint(base_url, "Embedding")
         clean_url = base_url.rstrip("/")
         if clean_url.endswith("/v1"):
             self.endpoint = f"{clean_url}/embeddings"
@@ -176,6 +177,7 @@ def resolve_embedding_function(
         )
 
     if resolved_backend == "nomic_api":
+        assert_local_provider("nomic_api")
         nomic_api_key = os.environ.get("NOMIC_API_KEY")
         if nomic_api_key:
             return CustomNomicEmbeddingFunction(

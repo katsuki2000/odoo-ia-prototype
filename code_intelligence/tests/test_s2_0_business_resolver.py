@@ -149,12 +149,27 @@ class _FakeLLM:
 @pytest.fixture
 def ambiguous_graph():
     """Two Field labels with near-identical fuzzy scores against the same
-    query, mirroring the real 'purchase order approval' case."""
+    query, mirroring the real 'purchase order approval' case.
+
+    Section 1064: the deterministic tiebreak now only breaks a tie on a
+    model-name segment that is RARE across the graph's own model population
+    (same discipline as matching.py's rare-token evidence, Section 1040) --
+    on the real 535-model graph 'order' alone names 10 models, so it cannot
+    discriminate between two tied candidates that both plausibly fit. A
+    2-model graph makes every segment trivially 'rare' (floor of 3 owners)
+    and would let 'order' decide the tie by fixture accident rather than by
+    genuine signal, defeating the point of this fixture -- a handful of
+    unrelated '.order'-bearing models restores that realistic rarity so the
+    scenario stays genuinely ambiguous and reaches LLM arbitration, exactly
+    as the real production case does.
+    """
     G = nx.DiGraph()
     G.add_node("model:custom.purchase.request", node_type="Model", name="custom.purchase.request")
     G.add_node("model:purchase.order.line", node_type="Model", name="purchase.order.line")
     G.add_node("field:f1", node_type="Field", label="purchase order approval request", model="custom.purchase.request")
     G.add_node("field:f2", node_type="Field", label="purchase order line approval", model="purchase.order.line")
+    for extra in ("sale.order", "pos.order", "repair.order", "mrp.production.order"):
+        G.add_node(f"model:{extra}", node_type="Model", name=extra)
     return G
 
 

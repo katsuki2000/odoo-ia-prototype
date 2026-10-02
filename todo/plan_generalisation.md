@@ -12,6 +12,13 @@ tenues hors calibrage, avec hypotheses d'acces explicites et politique d'abstent
 "au pire, sur n'importe quelle instance" n'est pas defendable si l'instance ne fournit ni code,
 ni metadonnees runtime, ni acces aux donnees.
 
+Cadrage d'architecture : instance-aware GraphRAG. Le graphe est l'index de connaissance de
+l'instance ; le pipeline qui l'utilise enchaine retrieval (resolution, navigation, outils),
+preuves structurees avec provenance, generation, puis verification. Le graphe lui-meme n'est pas
+appele GraphRAG. La documentation generale d'Odoo (`document_rag/`) oriente la comprehension ; elle
+n'est jamais la source de verite sur l'installation. Le retrieval est iteratif et guide par
+l'investigation (modele, puis methode, overrides, securite), pas un top-k unique suivi du LLM.
+
 ## 1. Etat de depart (hypotheses a mesurer en phase 1)
 
 Les chiffres de progression globaux sont volontairement absents : les grandeurs disponibles ne
@@ -41,6 +48,13 @@ a l'utilisateur), et `human_business_acceptance_rate`. Une abstention compte com
 Un cas d'evaluation fige : hash de l'instance, version et modules, utilisateur/societe/langue,
 question, intention/objets/predicats attendus, preuves acceptables, affirmations attendues, regle
 d'abstention. Separation par instance, module et langue, jamais par split aleatoire de questions.
+
+Metriques par etape (diagnostic, sans seuil propre, elles ne remplacent pas le critere ci-dessous) :
+`resolution_recall_at_k` (le bon objet figure parmi les k premiers candidats),
+`evidence_completeness` (part des preuves attendues effectivement recuperees) et
+`answer_faithfulness` (part des affirmations de la reponse soutenues par une preuve). Elles
+servent a localiser l'erreur (resolution, preuves ou redaction) au lieu de la melanger dans un
+score unique.
 
 **Critere statistique pre-enregistre avant calibrage** : `accuracy_all_questions >= 80 %`, avec une
 couverture minimale fixee avant le run (proposition initiale : 90 %), et une borne basse d'intervalle

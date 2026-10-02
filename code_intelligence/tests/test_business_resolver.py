@@ -399,12 +399,25 @@ def test_exact_technical_model_mention_does_not_match_substring_of_longer_identi
     plain \w-boundary regex ('.' is not \w) could not tell a genuine mention
     apart from being merely the prefix of a longer dotted identifier (the
     bug that made 'base' match inside 'base.group_portal', SAL-Q1). The
-    (?!\.\w) lookahead added for that fix closes this gap too, as a
-    byproduct: 'custom.deep.document' followed by '.extended' is now
-    correctly rejected instead of being accepted as a known limitation."""
+    (?!\.\w) lookahead added for that fix closes this gap for the EXACT
+    technical-mention step, but not for fuzzy matching: _fuzzy_match_graph
+    also indexes a model's own technical name as a label for itself, and
+    rapidfuzz's token-set scoring strips all punctuation before comparing,
+    so it cannot see the dot-boundary distinction at all -- a genuinely
+    separate code path with the same symptom. Section 1064 adds the
+    matching guard there (_dotted_technical_name_only_embedded).
+    """
     G = nx.DiGraph()
     G.add_node("model:custom.deep.document", node_type="Model",
-               name="custom.deep.document", description="Deep Inheritance Document Base")
+               name="custom.deep.document",
+               # Section 1064: deliberately shares no token with the query
+               # below -- the original "Deep Inheritance Document Base"
+               # happened to share "deep"/"document" with the query text,
+               # which (once the technical-name self-match was correctly
+               # guarded) let the DESCRIPTION's own, unrelated fuzzy match
+               # resolve the model instead, masking whether the embedded-
+               # substring bug this test targets was actually fixed.
+               description="Internal archival hierarchy record")
     result = resolve_business_term(
         "un champ nommé other.custom.deep.document.extended existe-t-il ?", G,
     )

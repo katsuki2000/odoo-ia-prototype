@@ -20,6 +20,7 @@ from config.settings import (
     LOCAL_LLM_MODEL,
     LOCAL_LLM_API_KEY,
 )
+from core.llm.local_only import assert_local_endpoint, assert_local_provider
 from core.llm.llm_retry import (
     ToolCallFallback,
     ToolCallFallback as _ToolCallFallback,
@@ -92,11 +93,12 @@ def get_chat_llm(
     """Construct an LLM client according to the configured or requested provider.
 
     Supported providers:
-    - 'groq': Groq Cloud API with multi-key rotation
+    - 'groq': Groq Cloud API with multi-key rotation (refused while LOCAL_ONLY is enabled)
     - 'local' / 'ollama' / 'vllm' / 'openai_compatible': Local OpenAI-compatible API
-    - 'openrouter': OpenRouter API via ChatOpenAI
+    - 'openrouter': OpenRouter API via ChatOpenAI (refused while LOCAL_ONLY is enabled)
     """
-    active_provider = (provider or LLM_PROVIDER or "groq").lower().strip()
+    active_provider = (provider or LLM_PROVIDER or "local").lower().strip()
+    assert_local_provider(active_provider)
 
     if active_provider == "groq":
         groq_cls = _get_chat_groq()
@@ -132,15 +134,16 @@ def get_chat_llm(
                 **penalties,
             )
 
+        local_base_url = base_url or LOCAL_LLM_BASE_URL
+        assert_local_endpoint(local_base_url, "LLM")
         return ChatOpenAI(
             model=model or LOCAL_LLM_MODEL,
-            base_url=base_url or LOCAL_LLM_BASE_URL,
+            base_url=local_base_url,
             api_key=api_key or LOCAL_LLM_API_KEY,
             temperature=temperature,
             max_tokens=max_tokens,
             max_retries=max_retries,
             model_kwargs=kw,
-            default_headers={"ngrok-skip-browser-warning": "true"},
             **penalties,
         )
 

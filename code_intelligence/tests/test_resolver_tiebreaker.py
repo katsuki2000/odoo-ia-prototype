@@ -1,7 +1,7 @@
 import networkx as nx
 
 from code_intelligence.agent.matching import _find_exact_technical_module_mentions
-from code_intelligence.agent import resolver
+from code_intelligence.agent.resolution import candidates as candidate_selection
 from code_intelligence.agent.resolver import (
     _arbitration_candidates,
     _build_arbitration_prompt,
@@ -148,8 +148,8 @@ def test_arbitration_candidates_do_not_call_embeddings_without_llm(monkeypatch):
     graph = nx.DiGraph()
     graph.add_node("model:sale.order", node_type="Model", description="Sales Order")
     monkeypatch.setattr(
-        resolver,
-        "configured_semantic_model_candidates",
+        candidate_selection,
+        "retrieve_semantic_model_candidates",
         lambda *_args: (_ for _ in ()).throw(AssertionError("embeddings must not run")),
     )
 

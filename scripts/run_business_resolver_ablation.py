@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from collections import Counter
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -110,6 +111,7 @@ def evaluate(graph, questions: list[dict], language: str, use_static_aliases: bo
             "source_step": result.source_step,
             "confidence": result.confidence,
             "reason": result.reason,
+            "semantic_retrieval": result.diagnostics.get("semantic_retrieval", "not_used"),
         })
     return rows
 
@@ -144,6 +146,7 @@ def main() -> int:
         "graph_instance_fingerprint_data": graph.graph.get("instance_fingerprint_data", {}),
         "translation_summary": graph.graph.get("translation_summary", {}),
         "runtime_translation_summary": graph.graph.get("runtime_translation_summary", {}),
+        "semantic_retrieval_summary": dict(Counter(row["semantic_retrieval"] for row in rows)),
         "metrics": summarize_evaluation(rows),
         "results": rows,
     }

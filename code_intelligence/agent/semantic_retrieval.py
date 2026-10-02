@@ -4,6 +4,8 @@ import logging
 import math
 import os
 import weakref
+from dataclasses import dataclass, field
+from enum import Enum
 from typing import Dict, List, Optional, Sequence, Tuple
 
 
@@ -13,6 +15,19 @@ SEMANTIC_CANDIDATE_LIMIT = 10
 SEMANTIC_EMBEDDING_BATCH_SIZE = 64
 SEMANTIC_RETRIEVAL_ENABLED_ENV = "RESOLVER_SEMANTIC_RETRIEVAL_ENABLED"
 _SEMANTIC_INDEX_CACHE: "weakref.WeakKeyDictionary" = weakref.WeakKeyDictionary()
+
+
+class SemanticRetrievalStatus(str, Enum):
+    SUCCESS = "success"
+    NO_CANDIDATES = "no_candidates"
+    DISABLED = "disabled"
+    ERROR = "error"
+
+
+@dataclass(frozen=True)
+class SemanticRetrieval:
+    models: List[str] = field(default_factory=list)
+    status: SemanticRetrievalStatus = SemanticRetrievalStatus.NO_CANDIDATES
 
 
 def _language_matches(candidate_language: object, language: Optional[str]) -> bool:
@@ -126,20 +141,19 @@ def rank_semantic_model_candidates(
     return [model for model, _score in ranked[:limit]]
 
 
-def configured_semantic_model_candidates(
+def retrieve_semantic_model_candidates(
     query: str,
     graph,
     language: Optional[str],
     *,
     limit: int = SEMANTIC_CANDIDATE_LIMIT,
-) -> List[str]:
-    """Return semantic candidates unless explicitly disabled in the environment.
+) -> SemanticRetrieval:
+    """Return semantic candidates with an explicit outcome, failing open on any error.
 
-    Enabled by default: the retrieval only runs when an LLM is available for the
-    bounded arbitration and fails open to the deterministic list on any error.
+    Enabled by default; the caller keeps its deterministic list whatever the status.
     """
     if os.getenv(SEMANTIC_RETRIEVAL_ENABLED_ENV, "true").casefold() not in {"1", "true", "yes"}:
-        return []
+        return SemanticRetrieval(status=SemanticRetrievalStatus.DISABLED)
 
     backend = os.getenv("RESOLVER_SEMANTIC_EMBEDDING_BACKEND") or os.getenv(
         "EMBEDDING_BACKEND", "local_light",
@@ -158,8 +172,8 @@ def configured_semantic_model_candidates(
                 embedding_function = DefaultEmbeddingFunction()
             else:
                 logger.warning("Semantic retrieval is enabled but no embedding provider is configured.")
-                return []
-        return rank_semantic_model_candidates(
+                return SemanticRetrieval(status=SemanticRetrievalStatus.ERROR)
+        models = rank_semantic_model_candidates(
             query,
             graph,
             embedding_function,
@@ -168,4 +182,17 @@ def configured_semantic_model_candidates(
         )
     except Exception:
         logger.exception("Semantic retrieval failed; keeping the deterministic candidate list.")
-        return []
+        return SemanticRetrieval(status=SemanticRetrievalStatus.ERROR)
+    status = SemanticRetrievalStatus.SUCCESS if models else SemanticRetrievalStatus.NO_CANDIDATES
+    return SemanticRetrieval(models, status)
+
+
+def configured_semantic_model_candidates(
+    query: str,
+    graph,
+    language: Optional[str],
+    *,
+    limit: int = SEMANTIC_CANDIDATE_LIMIT,
+) -> List[str]:
+    """Return semantic candidates only; see retrieve_semantic_model_candidates for the outcome."""
+    return retrieve_semantic_model_candidates(query, graph, language, limit=limit).models
