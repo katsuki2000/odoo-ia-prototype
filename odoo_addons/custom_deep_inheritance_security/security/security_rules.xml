@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <data numstated="1">
+    <data>
         <!-- Rule 1: Global company rule -->
         <record id="rule_deep_document_company" model="ir.rule">
             <field name="name">Documents Profonds - Cantonnement Société</field>
