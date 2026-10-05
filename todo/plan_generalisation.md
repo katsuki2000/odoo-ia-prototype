@@ -9,10 +9,12 @@ quelle instance Odoo 17 ?
 
 ## Ordre et dependances
 
-P0 -> P1 -> P2 -> P3 -> P4 -> P5 -> P6 -> P7 -> P8 -> P9 -> P10
+P0 -> P1 -> P2 -> T -> P3 -> P4 -> P5 -> P6 -> P7 -> P8 -> P9 -> P10
 
-P4 et P5 sont independantes entre elles après P3. P7 précède P8 (la verification s'appuie sur le registre).
-P9 suppose le contrat d'identite de P3. P10 n'utilise aucun artefact de calibrage.
+Apres T, P3 a P7 ne sont lancees que si la mesure de T montre des echecs precis qu'elles corrigeraient,
+phase par phase. P4 et P5 sont independantes entre elles après P3. P8 etend le verificateur de T ; si P7 est
+retenue, il s'appuie sur le registre. P9 suppose le contrat d'identite de P3. P10 n'utilise aucun artefact
+de calibrage.
 
 ## P0 -- Socle reproductible
 
@@ -58,6 +60,20 @@ Sortie : protocole figé, mesure de depart etablie, harnais rejouable en une com
 
 Sortie : toute reponse documentaire restitue l'ensemble des elements presents dans les passages recuperes,
 mesure sur les cas figes.
+
+## T -- Tranche verticale minimale
+
+- Chaine : routeur, puis graphe de code, documents et lecture ORM, puis LLM, puis verificateur deterministe.
+  Chaque etage a un seul role ; aucun composant de P3 a P7 n'est requis.
+- Verificateur deterministe limite a trois types d'affirmations : nombre (compare au resultat ORM), groupe
+  (cherche dans le graphe), methode (surcharge verifiee dans le graphe). Affirmation non supportee retiree ou
+  signalee ; aucun LLM dans la verification.
+- Mesure : protocole gele de P1 rejoue tel quel, sans changer cas ni seuils.
+- Chaque echec mesure est rattache a un etage ; une phase de P3 a P7 n'est lancee que pour corriger un echec
+  demontre par cette mesure.
+
+Sortie : mesure de T avec echecs ventiles par etage ; liste des phases de P3 a P7 retenues, chacune avec
+l'echec qui la justifie.
 
 ## P3 -- Empreinte d'instance et contrat d'identite
 

@@ -2658,3 +2658,74 @@ Date : 05/10/2026
 **Non traite** : `LOCAL_EMBEDDING_TIMEOUT` n'est pas dans `.env.example` (non verifie) ; remplacement des notebooks Kaggle (constat 4 de la 1112) toujours a decider par pmm.
 
 **Fichiers modifies** : `document_rag/vectorstore/embedding_functions.py`, `document_rag/tests/test_embedding_functions.py` (commites ici, ecrits avant cette session), `todo/architecture_cible.md` (restaure), `todo/contexte.txt` (cette section).
+
+## Section 1119 : decision pmm de simplifier : tranche verticale minimale a inscrire au plan ; inventaire de l'existant d'abord
+
+Date : 05/10/2026
+**Contexte** : pmm trouve le projet trop complexe (plan en 11 phases, 15 composants). Une analyse externe collee en session propose : routeur, puis GraphRAG, documents et lecture ORM, puis LLM, puis verificateur deterministe. Position de Claude (lecture des titres du plan et de l'architecture seulement) : l'idee du verificateur deterministe et de l'ORM comme seul acces aux donnees est a garder ; fusionner code et documents dans un seul GraphRAG contredit la decision 1111 (le code est lu par le graphe de `code_intelligence`, les documents par Chroma) ; MCP n'apporte rien tant que les outils restent internes ; RAGAS ne couvre que la partie RAG, le protocole gele de P1 mesure deja le bout en bout.
+**Decision (pmm)** : inscrire au plan (1) une tranche verticale minimale : routeur, graphe, documents et ORM en lecture, LLM, verificateur deterministe limite a 3 types d'affirmations (nombre, groupe, methode) ; (2) sa mesure avec le protocole gele de P1 ; (3) P3 a P7 ajoutees seulement si la mesure montre des echecs precis qu'elles corrigeraient.
+**Mandat** : journaliser d'abord (cette section), puis inventorier l'existant reel, puis modifier le plan. Sauvegarde : `/tmp/contexte.avant_1119.txt`.
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section) ; aucun code.
+
+## Section 1120 : inventaire de l'existant face a la tranche minimale ; plan : phase T ajoutee, P3 a P7 rendues conditionnelles
+
+Date : 05/10/2026
+**Inventaire (lecture des noms, tailles et points d'entree ; la logique interne n'a pas ete relue)** :
+- **Routeur** : existe. `core/graph/graph.py` (LangGraph) : portes `smalltalk_gate` et `out_of_scope_gate`, `retrieve`, `route`, puis `QueryRoute` a 4 valeurs (documentaire, donnees_erp, hybride, code_intelligence) ; documentaire et hybride passent d'abord par l'agent CI, le RAG documentaire n'est atteint que si les preuves sont insuffisantes (`ci_evidence_decision`). Le plan P5 (intention de source avant tout retrieval, `RoutingResult`) n'est donc pas ce qui est en place.
+- **Graphe de code** : existe, c'est la partie la plus lourde : `code_intelligence/agent` ~11 000 lignes (predispatch, guards, planificateur d'investigation, resolution, `loop.py` 658 lignes), `graph/` ~3 000, `extractor/` ~1 400.
+- **Documents** : existe (`document_rag`, Chroma `odoo_docs`, 27 chunks, embeddings `bge-m3`).
+- **ORM en lecture** : existe : `erp_data/odoo_connector.py` (`search_read`, `read_group` en XML-RPC avec `uid`), outils par domaine (`sales`, `accounting`, `inventory`, `crm`), `orm_agent_loop`. Contrat de lecture complet de P9 (plafond, journal, perimetre de societes) non verifie.
+- **LLM** : existe (`core/llm/llm_client.py`, `local_only.py`).
+- **Verificateur deterministe** : n'existe pas comme etage. Il existe des correctifs textuels disperses (`postprocess.py` : retrait de phrases et d'exemples non sources ; `can_view_verifier.py` : un seul type de fait, `can_view_amount` ; gardes de dispatch ; `evidence_sufficiency.py` : suffisance des observations, pas verification d'affirmations). Aucune verification generique nombre / groupe / methode.
+- **Mesure P1** : harnais, 3 fichiers figes (`protocol/frozen_cases.json`, `instances.json`, `preregistration.json`) et metriques existent ; mais aucune mesure de depart n'est etablie (1109 a 1112 : le test de fumee `--only accounting_fr` reste a lancer par pmm).
+**Ecart avec l'analyse externe** : la tranche minimale est deja en grande partie presente ; ce qui manque est le verificateur et la mesure de depart, pas de nouveaux etages. La complexite vient surtout de `code_intelligence/agent` (couches de gardes et de predispatch), pas de l'architecture cible.
+**Modification du plan** (`todo/plan_generalisation.md`, sauvegarde `/tmp/plan.avant_1120.md`) : ajout de la phase T (tranche verticale minimale, mesure par le protocole gele, echecs ventiles par etage) entre P2 et P3 ; ligne d'ordre et dependances reecrites : P3 a P7 ne sont lancees que pour corriger un echec demontre par la mesure de T, P8 etend le verificateur de T. P3 a P10 inchangees. Sans mention d'etat d'avancement, conformement a la regle du plan.
+**Non tranche (pmm)** : P9 « suppose le contrat d'identite de P3 » : si P3 est ecartee, a re-evaluer ; l'ordre T avant le test de fumee et la mesure de depart (la mesure de T suppose le serveur d'embeddings et la reindexation faits en 1112).
+
+**Fichiers modifies** : `todo/plan_generalisation.md`, `todo/contexte.txt` (cette section) ; aucun code.
+
+## Section 1121 : T : mandat du verificateur deterministe (nombre, groupe, methode) ; constats sur disque et decisions a trancher
+
+Date : 05/10/2026
+**Mandat (pmm)** : rediger le mandat du verificateur de la phase T (1119-1120), apres relecture du code reel. Aucune ligne de code ecrite ; cette section est le seul changement. Sauvegarde : `/tmp/contexte.avant_1121.txt`.
+
+**Constats verifies sur disque**
+1. Aucun controle commun aux branches. La seule chaine de verification est `code_intelligence/agent/postprocess.py::_apply_backfill_chain` (31 gardes textuels, branche CI uniquement) ; `generate` et `orm_agent_loop` n'en ont aucun. Les trois branches convergent vers `format_output` (`core/graph/graph.py`) ; smalltalk et hors-perimetre y vont directement.
+2. Donnees disponibles a ce point. CI : `response.sources[].snippet` porte le texte complet des observations ; `raw_tool_output` est renvoye par `build_final_response` mais n'est pas declare dans `RAGState` (survie dans l'etat non verifiee). Documents : `retrieved_chunks` dans l'etat. ORM : rien dans l'etat (`orm_agent_loop` renvoie reponse, `raw_answer`, `timing`) ; les preuves ne passent que par `core/evidence/evidence_collector.py`, vide dans `query_graph` apres `app.invoke`, donc lisible pendant le graphe, mais le module n'offre que `collect_and_clear_evidence` (pas de lecture non destructive).
+3. `Evidence` (`core/evidence/evidence.py`) : `claim` en texte libre, `value` de type libre, `source_type` CODE ou ORM, aucun champ de type de fait. Un nombre ORM se lit dans `value` (ex. `erp_data/tools/inventory.py`) ; un groupe ou une methode ne se lisent que dans le texte des observations ou dans le graphe.
+4. Graphe (`code_intelligence/graph/builder.py`, `nodes.py`) : noeuds `group:<xml_id>` (Group), `method:<modele>.<nom>` (Method, `override_sites` = module, fichier, ligne), aretes `EXTENDS` entre modeles. Suffisant pour verifier groupe et methode sans nouvelle extraction.
+5. `create`, `write`, `unlink` sont definies dans `odoo/models.py` du coeur, hors addons : leur presence dans le graphe n'est pas garantie (non verifie).
+6. Mesure : `to_case_result` (`core/evaluation/system_adapter.py`) ne renseigne ni `claims_total` ni `unsupported_claims` ; `ratio` renvoie `None` a denominateur nul, donc `unsupported_claim_rate` et `answer_faithfulness` valent `None` dans la mesure actuelle. `preregistration.json` ne porte aucun critere sur ces deux metriques (precision, confiance, couverture, instances) : les renseigner ne change ni cas ni seuils.
+7. A ne pas dupliquer : `_flag_ungrounded_group_xmlids` et `_GROUP_XMLID_RE` (`access_guards.py`) font deja l'ancrage des groupes, branche CI seulement. Releve hors mandat : `hybrid_node` (`erp_data/orm_agent_node.py`) n'est pas cable dans `build_graph`.
+
+**Conception proposee (a valider)**
+- Unite : fonction pure `verify_answer_claims(answer, evidence_base, graph, mode)` qui renvoie la reponse et un `VerificationReport` ; aucun LLM, aucun acces reseau. Nouveau paquet `core/verification/` (`claims.py`, `extractors.py`, `checkers.py`, `verifier.py`). Un noeud `verify_answer` insere avant `format_output` sur les trois branches (CI, documents, ORM) ; smalltalk et hors-perimetre le contournent. Role unique : le noeud ne formate pas, `format_output` ne verifie pas.
+- Extraction par forme lexicale seulement, jamais par motif de phrase (principe : pas d'heuristique de motif) : jeton nombre, jeton `module.group_x`, jeton methode (`nom()` ou `modele.nom`). Zones exclues : blocs de code, liens `file://`, dates, versions, numerotation de listes, numeros de ligne.
+- Nombre : soutenu s'il est egal, a la precision d'affichage pres, a une valeur numerique de preuve ORM (aplatie) ou a un nombre present dans le texte des observations de la branche ; sinon non soutenu. Separateurs FR et EN normalises. Un nombre calcule par le LLM (somme) est non soutenu par construction : choix delibere.
+- Groupe : (a) le noeud `group:<xml_id>` existe dans le graphe, sinon fabrique ; (b) il figure dans les observations du tour, sinon non ancre (reprend le garde existant).
+- Methode : le noeud `method:<modele>.<nom>` existe pour un modele resolu ou l'un de ses ancetres `EXTENDS`. Methodes de base exclues via l'AST de `odoo/models.py` lu depuis la configuration (`CORE_ADDONS_PATH`), jamais une liste codee en dur ; repli propre si absent.
+- `VerificationReport` : `claims_total`, `unsupported_claims` (comptes AVANT action, sinon le taux serait nul par construction), ventilation par type, liste des affirmations non soutenues, mode. Champ ajoute a `AssistantResponse` ; `to_case_result` lit les deux compteurs.
+- Mode `ANSWER_VERIFIER_MODE` = `off` | `report` | `enforce` (`.env` et `.env.example`, defaut `report`). `report` ne modifie aucune reponse. `enforce` retire la phrase portant l'affirmation (separateur de phrases existant a reutiliser) et ajoute une ligne declarant ce qui a ete retire.
+
+**Decisions a trancher (pmm)**
+- D1. Action sur une affirmation non soutenue : signaler seulement (`report`) ou retirer (`enforce`). Recommande : mesurer d'abord en `report`, puis rejouer `enforce` hors ligne sur les memes sorties brutes avec le graphe de l'instance (CI et ORM : pas d'appel LLM, pas de variance entre les deux runs) ; la branche documents exige un rejeu reel (le snippet des sources y est tronque a 100 caracteres).
+- D2. Perimetre « nombre » : tout jeton numerique hors zones exclues (recommande : independant de l'instance et de la langue) ou seulement les nombres accompagnes d'une unite ou d'un nom de quantite (moins de faux positifs, mais exige un lexique, donc P4).
+- D3. « Methode (surcharge verifiee dans le graphe) » du plan : existence du noeud seulement (recommande pour T) ou aussi attribution au module cite quand un module du graphe figure dans la meme phrase (`override_sites`). La seconde est une affirmation relationnelle : a reporter selon la mesure, comme le veut la phase T.
+- D4. Les gardes existants restent actifs en T (recommande) ; leur retrait releve de P8 apres mode shadow, le rapport mesurant le recouvrement.
+
+**Hors perimetre** : tout LLM dans la verification ; lexique et alias (P4) ; registre de faits Observation/Evidence/Fact/Claim (P7) ; identite et empreinte (P3) ; affirmations relationnelles (groupe requis pour une action, module surchargeur) ; retrait des gardes existants ; modification des cas, seuils ou preinscription.
+
+**Etapes** (un commit par etape, journal avant code)
+1. `peek_turn_evidence()` non destructif dans le collecteur ; `VerificationReport` et son champ dans `AssistantResponse` ; `ANSWER_VERIFIER_MODE` dans la configuration.
+2. Extracteurs et verificateurs par type, tests unitaires : affirmation fabriquee, valide, derivee ; zones exclues (dates, versions, blocs de code) ; methode de base ; graphe absent.
+3. Noeud `verify_answer` cable sur les trois branches ; test de compilation du graphe.
+4. `to_case_result` renseigne `claims_total` et `unsupported_claims` ; test de `system_adapter` mis a jour.
+
+**Acceptation** : `py_compile` et pytest cibles verts ; `document_rag/tests` et e2e watcher inchanges (132 passed en 1114) ; en mode `report`, textes de reponse identiques sur un jeu de sorties enregistrees ; protocole gele rejoue tel quel avec `claims_total` > 0 et `answer_faithfulness` calcule ; chaque cas qui passe de correct a incorrect entre `report` et `enforce` est analyse un par un, correction par regle generique, jamais par cas.
+
+**Non verifie** : survie de `raw_tool_output` dans l'etat LangGraph ; presence des methodes de base dans le graphe ; taux de faux positifs du jeton nombre (inconnu avant mesure) ; couverture des methodes publiques par l'AST de `odoo/models.py`.
+
+**A faire par pmm** : trancher D1 a D4. Apres l'etape 4, rejouer le protocole gele en `report` : c'est aussi la mesure de depart de T (les deux coincident), le test de fumee `--only accounting_fr` restant le prealable. Les rejeux demandent instance Odoo, serveur d'embeddings et LLM : delegues.
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section) ; aucun code.
