@@ -6683,3 +6683,46 @@ Contexte : pmm signale que, apres le refactoring, le LLM ne restitue plus tous l
 **Realisation** : `todo/plan_generalisation.md` : nouvelle phase P2 (branche documentaire : restitution exhaustive : cas figes, localisation par etage avec comparaison a l'etat anterieur au refactoring, correction a la racine, controle deterministe d'exhaustivite). Les anciennes phases P2 a P9 deviennent P3 a P10 ; references internes et chaine de dependances mises a jour. Cause reelle non diagnostiquee a ce stade.
 
 **Fichiers modifies** : `todo/plan_generalisation.md`, `todo/contexte.txt` (cette section) ; cree : `.scratch/plan_generalisation.avant_1080.md` (sauvegarde).
+
+## Section 1081 : sonde de justesse d'instance ajoutee a la phase P9 du plan (documentation seule, aucun fichier source touche)
+
+Date : 02/10/2026
+Contexte : pmm demande s'il existe un moyen de verifier sur une nouvelle instance ce qui reste a corriger. L'audit d'instance de P9 mesure la couverture, pas la justesse ; ajout d'une sonde.
+
+**Realisation** : `todo/plan_generalisation.md`, phase P9 : ajout d'une sonde de justesse d'instance (questions generees depuis le graphe, reponse attendue deduite du graphe, jointe au rapport d'audit, jamais utilisee pour calibrer, ne remplace pas l'evaluation avec relecteurs). Sortie de P9 mise a jour (rapport et sonde produits par une seule commande sur une instance neuve).
+
+**Fichiers modifies** : `todo/plan_generalisation.md`, `todo/contexte.txt` (cette section) ; cree : `.scratch/plan_generalisation.avant_1081.md` (sauvegarde).
+
+## Section 1082 : phase P0 (socle reproductible) -- tests 100% verts (2 071 passants, 0 echec), isolation reseau et configuration unique
+
+Date : 05/10/2026
+Contexte : Demarrage de l'execution du plan de generalisation (`todo/plan_generalisation.md`). Phase P0 : etablir un socle reproductible et deterministe, isoler la suite de tests de tout reseau/corpus local, et unifier la configuration (`.env.example` et `config/settings.py`).
+
+**Diagnostic initial** :
+1. Decouverte pytest : la commande `pytest` brute echouait en collection (code 2) a cause de `scripts/_diag_h2b_e2e_test.py` qui effectuait des requetes HTTP vers `localhost:8069` a l'import de module.
+2. `document_rag/tests` : 4 tests echouaient avec `NameError: name 'assert_local_endpoint' is not defined` dans `document_rag/vectorstore/embedding_functions.py:103` suite a l'introduction de `LOCAL_ONLY`.
+3. `erp_data/tests` : `test_model_whitelist_enforcement` echouait avec `ConnectionRefusedError` en tentant une authentification live via la fixture `uid` pour un test unitaire de whitelist qui n'en a pas besoin.
+4. `tests/` : 3 tests echouaient : `test_generate_raw_invoke_fallback_parses_json_answer`, `test_get_chat_llm_groq_default` et `test_get_chat_llm_openrouter_provider` a cause du garde `LOCAL_ONLY` actif par defaut.
+5. `code_intelligence/tests` : 4 tests echouaient :
+   - `test_j41_graph_versioning_metadata` : assertion en dur sur version 3 alors que `GRAPH_SCHEMA_VERSION = 4`.
+   - `test_f08_j36_graph_dependency_loading` (2 tests) : la fixture `rebuilt_graph` patchait `graph_module.GRAPH_JSON_PATH` au lieu de `code_intelligence.graph.loader.GRAPH_JSON_PATH`, ce qui chargeait `active_graph.json` en cache au lieu de reconstruire le graphe avec les addons custom.
+   - `test_section943_stage_recurrence_workflow` : `dispatch_describe_workflow` ne ciblait que `write_sites[0]` (qui etait `hr_maintenance`) au lieu du site declarant du modele (`maintenance`), ignorant le workflow d'etape et recurrence.
+6. Configuration : `.env.example` ne documentait ni `LOCAL_ONLY` ni `LOCAL_ALLOWED_HOSTS` et indiquait `LLM_PROVIDER=ollama` au lieu de `local`.
+
+**Realisation** :
+1. `pytest.ini` : restriction explicite des chemins de test (`testpaths = tests code_intelligence/tests erp_data/tests document_rag/tests`) et exclusion (`norecursedirs = tests/oca_sample scripts .scratch .venv`).
+2. `document_rag/vectorstore/embedding_functions.py` : import de `assert_local_endpoint` depuis `core.llm.local_only`.
+3. `erp_data/tests/test_odoo_connector.py` : `test_model_whitelist_enforcement` rendu strictement unitaire sans dependance a la fixture `uid`.
+4. `tests/test_graph.py` et `tests/test_local_llm_provider.py` : patch propre de `LOCAL_ONLY` dans les tests d'instanciation de providers cloud et ajout d'un test explicite de refus `ExternalEndpointError`.
+5. `code_intelligence/graph/version.py` & `test_j37_j42_staleness_and_atomic_swap.py` : assertion basee sur la constante importee `GRAPH_SCHEMA_VERSION`.
+6. `code_intelligence/tests/test_f08_j36_graph_dependency_loading.py` : patch du module canonique `code_intelligence.graph.loader` dans `rebuilt_graph`.
+7. `code_intelligence/agent/predispatch_structure.py` : selection du site definissant/declarant le modele (`declares`) dans `resolve_method_override_chain` pour le relay write() d'etape, assurant la prise en compte du workflow reel.
+8. `.env.example` : mise a jour complete et exhaustive alignee sur `config/settings.py` (`LOCAL_ONLY`, `LOCAL_ALLOWED_HOSTS`, `LLM_PROVIDER=local`, chemins relatifs).
+
+**Resultat** :
+- Suite de tests 100 % verte : 2 071 tests passes, 0 echec (562 dans `tests/`, 1 221 dans `code_intelligence/tests/`, 163 dans `erp_data/tests/`, 125 dans `document_rag/tests/`).
+- Sortie de P0 atteinte : suite verte reproductible sur une machine neuve, une seule source de configuration `.env`.
+
+**Fichiers modifies** :
+- Code et tests : `pytest.ini`, `.env.example`, `document_rag/vectorstore/embedding_functions.py`, `erp_data/tests/test_odoo_connector.py`, `tests/test_graph.py`, `tests/test_local_llm_provider.py`, `code_intelligence/tests/test_j37_j42_staleness_and_atomic_swap.py`, `code_intelligence/tests/test_f08_j36_graph_dependency_loading.py`, `code_intelligence/tests/test_section943_stage_recurrence_workflow.py`, `code_intelligence/agent/predispatch_structure.py`.
+- Journal : `todo/contexte.txt` (cette section).

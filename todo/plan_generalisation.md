@@ -11,7 +11,7 @@ quelle instance Odoo 17 ?
 
 P0 -> P1 -> P2 -> P3 -> P4 -> P5 -> P6 -> P7 -> P8 -> P9 -> P10
 
-P4 et P5 sont independantes entre elles apres P3. P7 precede P8 (la verification s'appuie sur le registre).
+P4 et P5 sont independantes entre elles après P3. P7 précède P8 (la verification s'appuie sur le registre).
 P9 suppose le contrat d'identite de P3. P10 n'utilise aucun artefact de calibrage.
 
 ## P0 -- Socle reproductible
@@ -19,7 +19,7 @@ P9 suppose le contrat d'identite de P3. P10 n'utilise aucun artefact de calibrag
 - Arbre git propre : relire les diffs, separer commits de code et de journal.
 - Suite de tests deterministe et isolee : aucun test ne depend d'un fichier local, d'un corpus present sur
   un poste ou d'un reseau ; tout ce qui depend de la machine passe par `.env` 
-- Configuration unique : un seul fichier `.env` pour fournisseur LLM, hotes autorises, fenetre de contexte,
+- Configuration unique : un seul fichier `.env` pour fournisseur LLM, hotes autorisés, fenêtre de contexte,
   budgets, chemins ; valeurs par defaut coherentes entre code, README et `.env.example`.
 - Documentation coherente : plan, architecture, journal et README sans contradiction.
 
@@ -27,13 +27,14 @@ Sortie : suite verte reproductible sur une machine neuve, une seule source de co
 
 ## P1 -- Protocole de mesure gele
 
-- Cas d'evaluation figés : hash d'instance, utilisateur, societe, langue, question, intention et objets
-  attendus, preuves acceptables, affirmations attendues, regle d'abstention.
-- Metriques : `accuracy_all_questions`, `accuracy_answered_questions`, `coverage`, `unsupported_claim_rate`,
-  `wrong_tool_rate`, `technical_identifier_leak_rate`, `human_business_acceptance_rate`, et par etage
+
+- Cas d'evaluation figés : hash d'instance, utilisateur, société, langue, question, intention et objets
+  attendus, preuves acceptables, affirmations attendues, règle d'abstention.
+- Métriques : `accuracy_all_questions`, `accuracy_answered_questions`, `coverage`, `unsupported_claim_rate`,
+  `wrong_tool_rate`, `technical_identifier_leak_rate`, `human_business_acceptance_rate`, et par étage
   `resolution_recall_at_k`, `evidence_completeness`, `answer_faithfulness`.
 - Contre-exemples d'ambiguite (un terme générique ne se resout jamais par defaut vers un domaine).
-- Critere statistique pre-enregistré : `accuracy_all_questions >= 80 %`, couverture minimale fixee avant le
+- Critère statistique pre-enregistré : `accuracy_all_questions >= 80 %`, couverture minimale fixée avant le
   run, borne basse a 95 % atteignant 80 %, incertitude robuste au regroupement par instance, ventilation par
   instance, module, langue et famille de question.
 - Separation par instance entiere, jamais par tirage aleatoire de questions ; aucun snapshot de validation
@@ -68,11 +69,11 @@ mesure sur les cas figes.
   reservé aux scripts et tests, est journalisé.
 - Isolation reseau : hotes autorises explicites, fournisseur LLM interchangeable par configuration seule.
 
-Sortie : toute reponse et toute trace rattachées a une empreinte ; aucune lecture possible sans identité.
+Sortie : toute reponse et toute trace rattachées à une empreinte ; aucune lecture possible sans identité.
 
 ## P4 -- Lexique unique et resolution metier
 
-- Lexique bidirectionnel (terme vers objet, objet vers libelle) derivé de l'instance : traductions statiques
+- Lexique bidirectionnel (terme vers objet, objet vers libellé) derivé de l'instance : traductions statiques
   et runtime, lié a l'objet exact (modele, champ, menu, selection), à sa source, son module, sa langue.
   Les alias manuels deviennent une couche de surcharges optionnelle, visible et mesurable.
 - Resolution : mention technique exacte, lexique, contexte d'ecran, flou puis semantique comme indices,
@@ -86,7 +87,7 @@ Sortie : `resolution_recall_at_k` mesure, ablation sans table d'alias au niveau 
 
 - Intention de source : comportement, données, documentation interne,combinaison declarée.
 - Ordre de décision : mode explicite de l'utilisateur, formulation explicite, règles déterministes, contexte
-d'ecran, LLM comme signal avec confiance ; clarification si la confiance est faible.
+d'écran, LLM comme signal avec confiance ; clarification si la confiance est faible.
 - Le routage précede tout retrieval ; la recherche documentaire n'est lancée que si la source l'exige.
 - Sources utilisées affichées avec la reponse.
 
@@ -113,7 +114,7 @@ Sortie : `wrong_tool_rate` mesuré ; aucun outil executé hors plan ; aucune lim
 - Un fait statique n'est emis que si le graphe le prouve et que la question ne depend pas de l'etat runtime.
 - Filtrage d'habilitation avant le LLM : mecanismes de contournement, champs et enregistrements hors
   perimetre retires, avec motif consigne.
-- Trace complete reconstructible, rattachee a l'empreinte.
+- Trace complete reconstructible, rattachée à l'empreinte.
 
 Sortie : `evidence_completeness` mesuré ; toute observation passe par le filtre.
 
@@ -142,13 +143,17 @@ a 0) conformes aux seuils fixes en P1 ; correctifs specifiques retires sans regr
 - Audit d'instance versionné : modules non indexés, extractions en échec, references non resolues, traductions
   manquantes, domaines sans outil de preuve, termes ambigus ; capacités classees `couverte`, `ambigue`,
   `preuve_manquante`, `non_supportée`, alimentant un backlog.
+- Sonde de justesse d'instance : questions generées automatiquement à partir du graphe de l'instance, dont la
+  reponse attendue se deduit du graphe lui-meme (qui peut approuver une action, quelle regle s'applique, ou une
+  regle est definie) ; resultat joint au rapport d'audit comme premier indicateur de justesse, sans remplacer
+  l'evaluation avec relecteurs de P1 et P10. Aucune question de la sonde n'est utilisee pour calibrer.
 
-Sortie : questions de données couvertes ou declarées hors perimetre ; rapport d'audit cohérent avec l'empreinte.
+Sortie : questions de données couvertes ou declarées hors perimetre ; rapport d'audit et résultat de la sonde de justesse cohérents avec l'empreinte, produits sur une instance neuve par une seule commande.
 
 ## P10 -- Preuve de généralisation
 
 - Plusieurs snapshots independants (versions, langues, modules custom, configurations differents), dont des
-  graphes OCA distincts, jamais utilises pour calibrer.
+  graphes OCA distincts, jamais utilisés pour calibrer.
 - Rapport : métriques de P1, intervalle de confiance regroupé par instance, ventilation par instance, module,
   langue et famille, cas d'abstention. La conclusion porte sur les N instances echantillonnees.
 
