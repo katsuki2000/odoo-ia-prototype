@@ -9,6 +9,7 @@ import threading
 from pathlib import Path
 from typing import Tuple
 
+from config.settings import GRAPH_CACHE_PATH
 from code_intelligence.extractor.csv import parse_access_control_csv
 from code_intelligence.extractor.manifest import (
     KNOWN_CORE_MODULE_DEPENDS,
@@ -140,7 +141,7 @@ def _translation_cache_matches(requested, available) -> bool:
 
 def _normalize_language_code(language: str) -> str:
     return language.strip().replace("-", "_")
-GRAPH_JSON_PATH = Path(__file__).resolve().parent.parent.parent / "active_graph.json"
+GRAPH_JSON_PATH = Path(GRAPH_CACHE_PATH)
 
 _GRAPH_BUILD_LOCK = threading.Lock()
 

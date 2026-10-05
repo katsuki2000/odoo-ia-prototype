@@ -1,5 +1,6 @@
 # config/settings.py
 import os
+import sys
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -57,6 +58,21 @@ CHROMA_PATH = os.getenv("CHROMA_PATH") or str(_ROOT / "document_rag" / "vectorst
 CORE_ADDONS_PATH = os.getenv("CORE_ADDONS_PATH") or str(_ROOT.parent / "odoo-17.0" / "addons")
 CUSTOM_ADDONS_PATH = os.getenv("CUSTOM_ADDONS_PATH") or str(_ROOT / "odoo_addons")
 OCA_SAMPLE_ADDONS_PATH = os.getenv("OCA_SAMPLE_ADDONS_PATH") or None
+
+_ODOO_ROOT = Path(CORE_ADDONS_PATH).parent
+_ODOO_VENV_PYTHON = _ODOO_ROOT / ".venv" / "bin" / "python"
+_ODOO_DEFAULT_CONF = _ODOO_ROOT / "odoo.conf"
+EVAL_ODOO_BIN = os.getenv("EVAL_ODOO_BIN") or str(_ODOO_ROOT / "odoo-bin")
+EVAL_ODOO_PYTHON = os.getenv("EVAL_ODOO_PYTHON") or (
+    str(_ODOO_VENV_PYTHON) if _ODOO_VENV_PYTHON.is_file() else sys.executable
+)
+EVAL_ODOO_CONF = os.getenv("EVAL_ODOO_CONF") or (
+    str(_ODOO_DEFAULT_CONF) if _ODOO_DEFAULT_CONF.is_file() else None
+)
+EVAL_DB_PREFIX = os.getenv("EVAL_DB_PREFIX", "eval_")
+EVAL_INSTANCES_DIR = os.getenv("EVAL_INSTANCES_DIR") or str(_ROOT / "captures" / "eval_instances")
+
+GRAPH_CACHE_PATH = os.getenv("GRAPH_CACHE_PATH") or str(_ROOT / "active_graph.json")
 
 # -- RAG documentary source path ----------------------
 RAG_DOCS_PATH = os.getenv("RAG_DOCS_PATH") or str(_ROOT / "document_rag" / "documents")
