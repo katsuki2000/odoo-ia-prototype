@@ -40,7 +40,6 @@ class TestIngestionPipeline(unittest.TestCase):
         """Clean up after each test."""
         try:
             self.orchestrator.docs_manager.delete_collection()
-            self.orchestrator.code_manager.delete_collection()
         except Exception:
             pass
 
@@ -160,18 +159,7 @@ class TestIngestionPipeline(unittest.TestCase):
         (test_dir / "doc2.md").write_text("# Markdown\n\nMarkdown content here.")
 
         try:
-            # Create subdirectory with Python code
-            code_dir = test_dir / "code"
-            code_dir.mkdir(exist_ok=True)
-            (code_dir / "module.py").write_text(
-                "def test_function():\n    '''Documentation'''\n    pass"
-            )
-
-            # Ingest all formats
-            result = self.orchestrator.ingest_all(
-                docs_dir=test_dir,
-                code_dir=code_dir,
-            )
+            result = self.orchestrator.ingest_all(docs_dir=test_dir)
 
             # Verify we got results
             self.assertGreaterEqual(result.get("total_chunks", 0), 0)
@@ -257,40 +245,22 @@ class TestIngestionPipeline(unittest.TestCase):
         finally:
             os.unlink(txt_path)
 
-    def test_statistics_aggregation(self):
-        """Test that statistics are properly aggregated across docs_manager and code_manager."""
-        # Code chunks go to code_manager, doc chunks go to docs_manager
-        # (mirrors how IngestionOrchestrator.ingest_all splits and combines stats)
-        code_texts = ["Python code chunk", "XML template chunk"]
-        code_metadatas = [
-            {"source": "file1.py", "type": "code_python", "module": "account"},
-            {"source": "file2.xml", "type": "code_xml", "module": "sale"},
-        ]
-        doc_texts = ["PDF document chunk"]
+    def test_statistics_reflect_docs_manager(self):
+        """Test that ingestion statistics come from docs_manager alone."""
+        doc_texts = ["PDF document chunk", "Wiki page chunk"]
         doc_metadatas = [
-            {"source": "file3.pdf", "type": "doc_pdf", "module": "stock"},
+            {"source": "file1.pdf", "type": "doc_pdf", "module": "stock"},
+            {"source": "file2.txt", "type": "doc_wiki", "module": "sale"},
         ]
-
-        self.orchestrator.code_manager.add_chunks(code_texts, code_metadatas)
         self.orchestrator.docs_manager.add_chunks(doc_texts, doc_metadatas)
 
-        code_stats = self.orchestrator.code_manager.get_stats()
-        docs_stats = self.orchestrator.docs_manager.get_stats()
+        stats = self.orchestrator.docs_manager.get_stats()
 
-        from collections import Counter
-
-        total_chunks = code_stats["total_chunks"] + docs_stats["total_chunks"]
-        by_type = dict(Counter(code_stats["by_type"]) + Counter(docs_stats["by_type"]))
-        by_module = dict(Counter(code_stats["by_module"]) + Counter(docs_stats["by_module"]))
-
-        # Verify stats
-        self.assertEqual(total_chunks, 3)
-        self.assertEqual(by_type["code_python"], 1)
-        self.assertEqual(by_type["code_xml"], 1)
-        self.assertEqual(by_type["doc_pdf"], 1)
-        self.assertEqual(by_module["account"], 1)
-        self.assertEqual(by_module["sale"], 1)
-        self.assertEqual(by_module["stock"], 1)
+        self.assertEqual(stats["total_chunks"], 2)
+        self.assertEqual(stats["by_type"]["doc_pdf"], 1)
+        self.assertEqual(stats["by_type"]["doc_wiki"], 1)
+        self.assertEqual(stats["by_module"]["stock"], 1)
+        self.assertEqual(stats["by_module"]["sale"], 1)
 
 
 class TestOCRIntegration(unittest.TestCase):

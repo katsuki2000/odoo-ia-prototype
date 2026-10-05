@@ -26,13 +26,6 @@ LOGS_DIR = PROJECT_ROOT / "document_rag" / "ingestion" / "logs"
 CORE_ADDONS_ROOT = Path(CORE_ADDONS_PATH)
 CUSTOM_ADDONS_ROOT = Path(CUSTOM_ADDONS_PATH)
 CORE_MODULES_ALWAYS_LOADED: list[str] = []
-CODE_DIRS: list[Path] = []
-CODE_DIR = None
-
-
-def documentary_code_module_dirs() -> list[Path]:
-    """Deprecated: Code is handled by code_intelligence."""
-    return []
 
 
 def setup_ingestion_logging() -> None:

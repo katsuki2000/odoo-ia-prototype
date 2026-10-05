@@ -13,7 +13,7 @@ from threading import Lock, Timer
 from typing import Any, Iterable
 
 from document_rag.ingestion.incremental import SUPPORTED_EXTENSIONS, reindex_if_changed
-from document_rag.ingestion.ingest_config import CODE_DIRS, DOCS_DIR
+from document_rag.ingestion.ingest_config import DOCS_DIR
 from document_rag.ingestion.logging_utils import start_timer, write_ingestion_event
 from document_rag.vectorstore.chroma_manager import ChromaManager
 
@@ -27,7 +27,6 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 DEFAULT_DOCS_DIR = DOCS_DIR
-DEFAULT_CODE_DIRS = list(CODE_DIRS)
 
 
 from document_rag.ingestion.watcher_status import WatcherStatus
@@ -39,13 +38,11 @@ class DebouncedIngestionHandler(FileSystemEventHandler):
     def __init__(
         self,
         docs_manager: ChromaManager | None = None,
-        code_manager: ChromaManager | None = None,
         debounce_seconds: float = 2.0,
         chunk_size: int = 512,
         chunk_overlap: int = 50,
     ):
         self.docs_manager = docs_manager or ChromaManager(collection_name="odoo_docs")
-        self.code_manager = code_manager or ChromaManager(collection_name="odoo_code")
         self.debounce_seconds = debounce_seconds
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
@@ -154,7 +151,6 @@ class DebouncedIngestionHandler(FileSystemEventHandler):
                 self.last_result = reindex_if_changed(
                     target_roots,
                     docs_manager=self.docs_manager,
-                    code_manager=self.code_manager,
                     chunk_size=self.chunk_size,
                     chunk_overlap=self.chunk_overlap,
                 )
@@ -188,7 +184,6 @@ class IngestionWatcher:
         self,
         watched_paths: Iterable[str | Path] | None = None,
         docs_manager: ChromaManager | None = None,
-        code_manager: ChromaManager | None = None,
         debounce_seconds: float = 2.0,
         chunk_size: int = 512,
         chunk_overlap: int = 50,
@@ -202,7 +197,6 @@ class IngestionWatcher:
         ]
         self.handler = DebouncedIngestionHandler(
             docs_manager=docs_manager,
-            code_manager=code_manager,
             debounce_seconds=debounce_seconds,
             chunk_size=chunk_size,
             chunk_overlap=chunk_overlap,
@@ -263,7 +257,7 @@ def run_forever(watched_paths: Iterable[str | Path] | None = None) -> None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Watch docs/code and update ChromaDB")
+    parser = argparse.ArgumentParser(description="Watch docs and update ChromaDB")
     parser.add_argument(
         "paths",
         nargs="*",

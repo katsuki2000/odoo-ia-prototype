@@ -6,8 +6,7 @@ collection only) against the benchmark question set from
 tests/benchmark_questions.json.
 
 todo/contexte.txt sections 349-354: Code Intelligence now owns code
-questions exclusively, RAG is docs-only (odoo_code is never populated by
-default). "code_source" benchmark questions are therefore skipped here,
+questions exclusively, RAG is docs-only (there is no code collection). "code_source" benchmark questions are therefore skipped here,
 the same way "erp_chiffre" questions already were -- both are owned by
 other subsystems, not by this retrieval pipeline.
 
@@ -96,7 +95,7 @@ def evaluate_recall(
 
         # Skip ERP questions (they need ORM, not RAG) and code questions
         # (Code Intelligence owns these exclusively -- todo/contexte.txt
-        # sections 349-354, odoo_code is never populated by this pipeline).
+        # sections 349-354, the pipeline has no code collection).
         if q_type in ("erp", "code"):
             continue
 
@@ -276,7 +275,7 @@ def main():
 
     # Initialize retrieval components. Single odoo_docs collection, mirrors
     # search.py::get_retriever() (todo/contexte.txt sections 349-354: RAG
-    # is docs-only, odoo_code is never populated by default).
+    # is docs-only, there is no code collection).
     logger.info("Initializing ChromaManager (odoo_docs)...")
     chroma = ChromaManager(collection_name="odoo_docs")
 

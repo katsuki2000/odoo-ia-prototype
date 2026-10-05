@@ -8,7 +8,6 @@ Facade module combining configuration, loaders, and orchestrator execution.
 from __future__ import annotations
 
 import argparse
-from collections import Counter
 import json
 import logging
 from pathlib import Path
@@ -16,15 +15,12 @@ import sys
 from typing import Any, Optional
 
 from document_rag.ingestion.ingest_config import (
-    CODE_DIR,
-    CODE_DIRS,
     CORE_ADDONS_ROOT,
     CORE_MODULES_ALWAYS_LOADED,
     CUSTOM_ADDONS_ROOT,
     DOCS_DIR,
     LOGS_DIR,
     PROJECT_ROOT,
-    documentary_code_module_dirs,
     setup_ingestion_logging,
 )
 from document_rag.ingestion.ingest_handlers_doc import (
@@ -55,10 +51,6 @@ class IngestionOrchestrator:
             db_path=chroma_db_path,
             collection_name="odoo_docs",
         )
-        self.code_manager = ChromaManager(
-            db_path=chroma_db_path,
-            collection_name="odoo_code",
-        )
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
 
@@ -71,20 +63,17 @@ class IngestionOrchestrator:
         }
 
         self.last_docs_dir: str | Path = DOCS_DIR
-        self.last_code_dir: Optional[str | Path] = ""
         self.last_incremental: bool = False
 
     def ingest_all(
         self,
         docs_dir: str | Path = DOCS_DIR,
-        code_dir: Optional[str | Path] = "",
         incremental: bool = False,
     ) -> dict[str, Any]:
         """Ingest all documents from docs directory."""
         docs_dir_path = Path(docs_dir) if str(docs_dir) != "" else None
 
         self.last_docs_dir = docs_dir
-        self.last_code_dir = code_dir
         self.last_incremental = incremental
 
         logger.info("=" * 60)
@@ -97,16 +86,12 @@ class IngestionOrchestrator:
         else:
             logger.warning(f"Docs directory not found or empty: {docs_dir}")
 
-        if code_dir:
-            logger.info("Code ingestion skipped (handled by code_intelligence).")
-
         docs_stats = self.docs_manager.get_stats()
-        code_stats = self.code_manager.get_stats()
 
         final_stats = {
-            "total_chunks": docs_stats.get("total_chunks", 0) + code_stats.get("total_chunks", 0),
-            "by_type": dict(Counter(docs_stats.get("by_type", {})) + Counter(code_stats.get("by_type", {}))),
-            "by_module": dict(Counter(docs_stats.get("by_module", {})) + Counter(code_stats.get("by_module", {}))),
+            "total_chunks": docs_stats.get("total_chunks", 0),
+            "by_type": dict(docs_stats.get("by_type", {})),
+            "by_module": dict(docs_stats.get("by_module", {})),
         }
         logger.info("\n" + "=" * 60)
         logger.info("INGESTION COMPLETE")
@@ -134,22 +119,18 @@ class IngestionOrchestrator:
     def clear_and_reingest(
         self,
         docs_dir: Optional[str | Path] = None,
-        code_dir: Optional[str | Path] = None,
         incremental: Optional[bool] = None,
     ) -> dict[str, Any]:
         """Clear collection and re-ingest all documents."""
         logger.info("Clearing collection...")
         self.docs_manager.delete_collection()
-        self.code_manager.delete_collection()
         logger.info("Collection cleared.")
 
         target_docs = docs_dir if docs_dir is not None else getattr(self, "last_docs_dir", DOCS_DIR)
-        target_code = code_dir if code_dir is not None else getattr(self, "last_code_dir", CODE_DIR)
         target_inc = incremental if incremental is not None else getattr(self, "last_incremental", False)
 
         return self.ingest_all(
             docs_dir=target_docs,
-            code_dir=target_code,
             incremental=target_inc,
         )
 
@@ -169,8 +150,6 @@ __all__ = [
     "CORE_ADDONS_ROOT",
     "CUSTOM_ADDONS_ROOT",
     "CORE_MODULES_ALWAYS_LOADED",
-    "CODE_DIRS",
-    "CODE_DIR",
     "PROJECT_ROOT",
     "PDFLoader",
     "WikiLoader",
@@ -178,6 +157,5 @@ __all__ = [
     "load_pdf_directory",
     "load_wiki_directory",
     "resolve_scan_root",
-    "documentary_code_module_dirs",
     "setup_ingestion_logging",
 ]

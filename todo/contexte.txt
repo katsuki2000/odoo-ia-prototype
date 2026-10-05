@@ -2486,3 +2486,164 @@ Contexte : pmm lance `pytest tests/test_e2e_watcher_rag.py` : echec, « Provider
 **Constat, non traite** : Groq reste largement present dans le code (hors journal : `core/llm/llm_client.py` branche `groq`, rotation de cles et intervalle de 5 s ; `core/llm/{__init__,local_only}.py` ; `core/graph/graph_compat.py` ; `config/settings.py` `GROQ_*` ; `api/routes_system.py` service de sante `groq` ; `document_rag/generate_node.py` et `erp_data/orm_agent_*.py` alias `_build_groq_llm` ; `.env.example`, `README.md`, `requirements.txt` `groq` et `langchain-groq` ; `scripts/` et `tests/` de benchmark Groq ; plusieurs tests qui moquent `ChatGroq`). Retrait complet a decider par pmm : chantier propre, a rattacher a P3 (« fournisseur LLM interchangeable par configuration seule »).
 
 **Fichiers modifies** : `tests/test_e2e_watcher_rag.py`, `todo/contexte.txt`. Sauvegarde : `/tmp/contexte.avant_1105.txt`.
+
+## Section 1106 : test A/B des plafonds d'observation avec 3 repetitions (PUR-Q2, PUR-Q5, ACC-Q5) -- pas d'effet constant ; le bruit domine (aucun fichier source touche)
+
+Date : 05/10/2026
+**Protocole** : `scripts/compare_observation_caps.py --repeat 3` (suite de la 1076), qwen3:14b, fenetre 32 768. Baseline : plafonds actuels. Relevee : override 6 000, locks 8 000, constraints 70 000, total 70 000, `--literal-scale 3`. 18 runs entrelaces, rapports `/tmp/caps_ab_report.json` et `.md`, lecture par Claude contre `reference_answer` du banc et contre `_approval_allowed` (`purchase_order.py:960-969`). Un echec transitoire du tunnel (ERR_NGROK_3004) a perturbe `PUR-Q5 raised #3` (prompt 9 825 au lieu de 10 662, appel relance) : run a lire avec prudence. 0 coupure `length`, 0 erreur d'agent.
+
+**Constat de mesure (le plus important)** : les repetitions ne sont pas independantes. Dans les 6 cellules (3 questions x 2 conditions), le run #1 differe toujours du run #2, et les runs #2 et #3 donnent un texte IDENTIQUE dans 5 cellules sur 6 (la 6e est le run perturbe par le tunnel). Le nombre d'echantillons effectifs est donc d'environ 2 par cellule, pas 3. Hypothese non verifiee : le premier run de chaque bloc est « froid » (etat de processus, caches, serveur) et les suivants sont deterministes ; coherent avec `PUR-Q2 baseline #1` a 351 s contre environ 175 s ensuite.
+
+**Instabilite des observations, avant tout LLM** : `analyze_method_override_chain(purchase.order)` renvoie 2 073 caracteres au run #1 puis 1 813 aux runs #2 et #3 en baseline ; 2 306 puis 2 408 en relevee, pour des entrees identiques dans le meme processus. Une sortie d'outil qui depend de l'ordre des appels est un defaut a part entiere, sans lien avec les plafonds.
+
+**Marqueurs attendus presents (controle grossier)** : PUR-Q2 (4 marqueurs, aucun run complet) baseline 2/4, 1/4, 1/4 contre relevee 3/4, 1/4, 1/4 ; PUR-Q5 complet dans 2 runs sur 3 des deux cotes ; ACC-Q5 complet dans 1 run sur 3 en baseline contre 2 sur 3 en relevee.
+
+**Lecture contre la reference (reponses distinctes : PUR-Q2 4, PUR-Q5 5, ACC-Q5 4)** :
+- PUR-Q2 : relevee #2/#3 la plus fidele au code (`one_step`, `two_step` et `po_double_validation_amount`, montant inferieur au seuil), sans nommer les methodes ; relevee #1 nomme `_approval_allowed()` et `button_approve()` mais INVERSE le seuil (« seuil inferieur au montant ») ; baseline #1 et #2/#3 corrects sur le sens du seuil, sans methodes. Aucune reponse ne mentionne la validation de distribution analytique.
+- PUR-Q5 : baseline #2/#3 nomme `_unlink_if_cancelled` et `_unlink_except_purchase_or_done`, regle de ligne exacte (`purchase` ou `done`) ; baseline #1 conclut a tort que les lignes ne se suppriment que si la commande est annulee et inverse comptable/non comptable dans le corps ; relevee #1 et #3 bonnes ; relevee #2 vague (« En cours, Validee, etc. »).
+- ACC-Q5 : baseline #1 et relevee #2/#3 nomment `_auto_init()` ; baseline #2/#3 et relevee #1 ne le nomment pas. Aucune reponse n'explique que `_sql_constraints` ne sert qu'a porter le message d'erreur ni ne mentionne `_check_journal_move_type`. L'affirmation « residuelle / erreur de configuration » relevee en 1076 n'apparait dans aucun des 6 runs de cette serie.
+
+**Conclusion** : relever les plafonds ne produit pas d'amelioration constante. Selon le run lu (froid ou chaud), le sens de l'ecart s'inverse : PUR-Q2 froid defavorable puis chaud favorable a la relevee, ACC-Q5 idem, PUR-Q5 inverse. La variation entre runs d'une meme condition est du meme ordre que l'ecart entre conditions (similarite lexicale 0,39 a 0,55 dans les deux cas). Cout de la relevee : prompt +1 % (PUR-Q2), +26 % (PUR-Q5, 8 479 vers 10 662), +49 % (ACC-Q5, 11 622 vers 17 356), latence environ +10 % sur ACC-Q5. Troncatures persistantes en relevee : `analyze_security_locks(purchase.order)` 7 876 (plafond 8 000) et `analyze_security_locks(account.move)` 6 836. En baseline, `analyze_security_locks(account.move)` renvoie toujours 0 caractere (point (a) de la 1076 inchange) : evidence absente du prompt en production. Aucun changement de `context.py` n'est justifie par cette mesure.
+
+**Suite proposee (non mandatee)** : (1) test deterministe sans LLM : appeler `analyze_method_override_chain(purchase.order)` plusieurs fois, dans un meme processus puis dans des processus distincts, et comparer les sorties, pour localiser la source de l'instabilite ; (2) ajouter un run de chauffe ignore au script de comparaison ; (3) diagnostiquer les 0 caracteres d'`analyze_security_locks(account.move)` (water-filling, `security_evidence.py`).
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section) ; aucun code.
+
+## Section 1107 : P1 : preparation du premier lancement du harnais -- recadrage sur le plan et risque des lignes `error` (lecture seule, aucun fichier source touche)
+
+Date : 05/10/2026
+**Recadrage** : pmm rappelle qu'un plan existe (`todo/plan_generalisation.md`, P0-P10, remplace en 1079). Les sections 1071-1106 (budget de contexte, test A/B des plafonds) sont hors du chemin critique : elles alimentent P6 (budget derive de la fenetre) et P1 (bruit de mesure), et la « suite proposee » de la 1106 est retiree. Etat du plan : P0 presque termine (un test non identifie bloque la suite complete vers 29 %, 1104) ; P1 construit (pre-enregistrement complet, jeu fige v1 de 222 cas sur 6 instances held-out, digest `07017439aa91`, harnais), mesure de depart non faite. Choix de pmm : premier lancement du harnais.
+
+**Lecture du harnais (`scripts/run_evaluation_protocol.py`, `core/evaluation/protocol_runner.py`, `case_worker.py`)** : par instance, provisionne des identifiants, sert l'instance Odoo sur un port libre, lance `core.evaluation.case_worker` qui appelle `query_graph` cas par cas ; une ligne JSON par cas dans `captures/eval_protocol_raw/<instance>.jsonl` ; reprise sans rejouer les cas deja ecrits. Options : `--only <instances>`, `--score-only`, `--ratings`. Repartition des 222 cas : `crm_project_web` 53, `sales_purchase_stock` 53, `hr_suite` 41, `oca_sale_workflow` 41, `accounting_fr` 17, `oca_server_tools` 17 ; 192 cas `none`, 30 `must_clarify`.
+
+**Risque releve (non corrige, hors mandat)** : `ask_case` transforme toute exception (par exemple une panne du tunnel ngrok, observee deux fois le 05/10) en ligne `{"raw": {"error": ...}}` ; `read_raw` la compte comme cas deja traite, donc une reprise ne la rejoue pas ; `system_adapter` la classe `error` et le score la traite comme un resultat. Une panne d'infrastructure pendant un long run devient donc une reponse fausse definitive dans la mesure de depart. Les cas jamais lances comptent aussi `error` (`protocol_metrics.py:252`) : le rapport d'un lancement partiel (`--only`) n'est pas interpretable.
+
+**Contournement sans modifier le code** : apres un run, compter les lignes `error` par instance et les retirer du fichier `.jsonl` pour que la reprise les rejoue. Une option de relance des erreurs dans le harnais serait un changement de code a mandater.
+
+**Non verifie** : presence et etat des bases PostgreSQL des instances (le `psql -l` execute depuis l'outil n'a rien renvoye d'exploitable) ; duree reelle (estimation de Claude, non mesuree sur ces cas : 4 a 10 h d'apres 40-55 s par appel de synthese mesure en 1072, plus resolution et selection d'outils).
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section) ; aucun code.
+
+## Section 1108 : P1 : test de fumee `--only accounting_fr` -- trois defauts d'environnement et de socle releves avant toute mesure (lecture seule, aucun fichier source touche)
+
+Date : 05/10/2026
+**Observation (sortie collee par pmm, run encore en cours : worker actif depuis 14:37, 0 ligne ecrite dans `accounting_fr.jsonl`)** :
+1. **Embeddings injoignables** : `ChromaDB query ... localhost:11434 ... Connection refused`, `Vector search failed on collection 'odoo_docs'`. Cause : `.env` `LOCAL_EMBEDDING_BASE_URL` pointe vers `localhost:11434` alors qu'aucun Ollama ne tourne en local (le LLM est sur Kaggle via ngrok). Verifie : les collections `odoo_docs` et `odoo_code` sont en dimension 384 (SQLite de Chroma, lecture seule), ce qui correspond a `LOCAL_EMBEDDING_MODEL=all-minilm:latest` du `.env`, alors que le notebook Kaggle (cellule 11) telecharge `nomic-embed-text` (768 dimensions) : pointer simplement l'URL vers Kaggle ne suffirait pas.
+2. **Lecture runtime refusee** : `Access Denied` sur `ir.module.module` et `res.lang`, puis repli sur la liste statique `['account', 'sale', 'stock', 'purchase', 'maintenance']` (`code_intelligence/graph/loader.py:170,271`). Cause probable (non verifiee) : `erp_data/odoo_connector.py` s'authentifie avec `ODOO_USERNAME` (defaut `admin`) et le mot de passe du `.env` contre la base d'evaluation (`ODOO_DB` fixee par le harnais), ou ces identifiants n'existent pas ; le harnais ne provisionne que les utilisateurs des cas. Consequence : le graphe d'evaluation est construit depuis une liste fixe de 5 modules natifs, pas depuis l'inventaire de l'instance. C'est l'ecart que P3 doit combler (empreinte par identite technique explicite et journalisee).
+3. **Corpus OCA local absent** : 7 modules « not found under tests/oca_sample/... -- skipping » ; le graphe integre une liste fixe d'echantillons OCA independante de l'instance, ce qui contredit la regle P0 (aucune dependance a un corpus present sur un poste). Effet sur les reponses non mesure.
+
+**Consequence pour la mesure** : les resultats de ce test de fumee ne sont pas une mesure de depart. Deux artefacts persistants a supprimer avant le vrai lancement, sinon ils contaminent la mesure : `captures/eval_protocol_raw/accounting_fr.jsonl` (la reprise saute les cas deja ecrits) et `captures/eval_instances/graphs/accounting_fr.json` (cache du graphe construit en mode degrade ; non verifie si l'invalidation detecte un changement d'inventaire ou de disponibilite des embeddings).
+
+**Decision a prendre par pmm avant le run complet** : embeddings via Kaggle (telecharger `all-minilm` sur le serveur, au lieu de `nomic-embed-text`, et pointer `LOCAL_EMBEDDING_BASE_URL` vers l'URL ngrok, hote deja autorise) ou via un Ollama local avec `all-minilm`. Les points 2 et 3 relevent de P3/P4 : a consigner dans le rapport de la mesure de depart comme limites connues du systeme actuel, pas a corriger avant.
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section) ; aucun code ni `.env`.
+
+## Section 1109 : P1 : embeddings -- `.env` pointe vers le serveur Kaggle, `all-minilm` conserve ; modele absent du serveur (mandate par pmm)
+
+Date : 05/10/2026
+**Decision (pmm)** : modifier `.env` ; garder `all-minilm` (« c'est mieux, non ? »). Position de Claude : pas demontre meilleur ; conserve pour trois raisons verifiables ou de procedure : les collections `odoo_docs` et `odoo_code` sont en 384 dimensions (modele `all-minilm`) donc changer de modele impose de reindexer 4 199 vecteurs ; le protocole P1 est gele et ne doit rien changer entre deux mesures ; le choix d'un autre modele (a ma connaissance, `all-minilm` et `nomic-embed-text` sont tous deux entraines surtout sur l'anglais, alors que les termes metier arrivent en francais ; `nomic-embed-text` accepte un contexte bien plus long, a verifier) releve de P4 et se mesure par `resolution_recall_at_k`, pas par preference.
+
+**Realise** : `.env` : `LOCAL_EMBEDDING_BASE_URL` (auparavant `http://localhost:11434/v1`) pointe maintenant vers le meme hote ngrok que `LOCAL_LLM_BASE_URL` ; `LOCAL_EMBEDDING_MODEL=all-minilm:latest` et `EMBEDDING_BACKEND=local_server` inchanges ; hote deja dans `LOCAL_ALLOWED_HOSTS`. Une seule ligne modifiee ; `.env` ignore par git. Sauvegarde de l'ancien `.env` : `/tmp/env.avant_embedding_url` (contient les valeurs du fichier, a supprimer apres usage).
+
+**Verification (appel reel au serveur)** : modeles presents sur le serveur Kaggle : `nomic-embed-text:latest` et `qwen3:14b` ; pas `all-minilm`. `POST /v1/embeddings` avec `all-minilm:latest` renvoie 404 « model not found, try pulling it first ». Les embeddings resteront donc en panne tant que le modele n'est pas telecharge sur le serveur.
+
+**A faire par pmm** : sur le serveur Kaggle, `ollama pull all-minilm` (le notebook `scripts/kaggle/local-llm-benchmark-kaggle.ipynb`, cellule 11, telecharge toujours `nomic-embed-text` et n'a pas ete modifie) ; supprimer `captures/eval_protocol_raw/accounting_fr.jsonl` et `captures/eval_instances/graphs/accounting_fr.json` (section 1108) ; relancer le test de fumee. A chaque nouvelle URL ngrok, mettre a jour ensemble `LOCAL_LLM_BASE_URL`, `LOCAL_EMBEDDING_BASE_URL` et `LOCAL_ALLOWED_HOSTS`.
+
+**Fichiers modifies** : `.env` (1 ligne), `todo/contexte.txt` (cette section) ; aucun code.
+
+## Section 1110 : P1 : embeddings -- decision pmm : `bge-m3` sur le serveur Kaggle (Ollama) ; `.env` et notebook alignes ; reindexation a faire (mandate par pmm)
+
+Date : 05/10/2026
+**Decision (pmm)** : utiliser `bge-m3` via Ollama sur Kaggle (a la place de `all-minilm`, section 1109). Position de Claude avant la decision : `all-MiniLM` local gardait la mesure P1 intacte (collections 384 dimensions deja indexees, aucune dependance au tunnel) ; `bge-m3` est attendu meilleur sur les requetes metier en francais (modele multilingue, non demontre : se mesure par `resolution_recall_at_k`). Consequence assumee : la mesure de depart P1 sera faite avec `bge-m3`, pas avec le modele du pre-enregistrement.
+
+**Realise** : (1) `.env` : `LOCAL_EMBEDDING_MODEL=bge-m3:latest` (une ligne ; l'URL ngrok et `EMBEDDING_BACKEND=local_server` sont inchanges ; `.env` ignore par git). (2) `scripts/kaggle/local-llm-benchmark-kaggle.ipynb`, cellule 11 : `EMBED_MODEL = "bge-m3"` (au lieu de `nomic-embed-text`) ; remplacement textuel, JSON valide, diff d'une ligne.
+
+**Etat apres changement (non verifie par execution)** : les collections `odoo_docs` et `odoo_code` sont en 384 dimensions, `bge-m3` produit 1024 dimensions : toute requete vectorielle echouera tant que les collections ne sont pas reconstruites. Le modele est absent du serveur tant que la cellule 11 n'a pas ete rejouee (en mode lecture seule des modeles, `ollama pull bge-m3` est a faire a la main et le Dataset de persistance a mettre a jour).
+
+**Risques releves a la lecture du code (non corriges, hors mandat)** :
+- `ingest_all.py --clear` appelle `delete_collection()` sur `odoo_docs` ET `odoo_code`, mais l'ingestion de code est « geree par code_intelligence » (`--code-dir` deprecie) : le chemin qui repeuple `odoo_code` n'a pas ete identifie. Ne pas lancer `--clear` avant de l'avoir identifie, sinon `odoo_code` risque de rester vide.
+- `LocalServerEmbeddingFunction` a un timeout de 30 s, et `add_chunks` envoie tous les chunks d'un appel d'un seul coup : une grosse reindexation via le tunnel pourrait expirer (non teste).
+- `name()` de la fonction d'embedding change avec le modele (`local-server-bge-m3:latest`) : comportement de Chroma sur une collection existante a nom different non verifie.
+
+**A faire par pmm** : `ollama pull bge-m3` sur le serveur Kaggle (et mise a jour du Dataset), puis, une fois le chemin de reindexation de `odoo_code` identifie, reconstruction des deux collections et supprimer `captures/eval_protocol_raw/accounting_fr.jsonl` et `captures/eval_instances/graphs/accounting_fr.json` (section 1108) avant le test de fumee. A chaque nouvelle URL ngrok, mettre a jour ensemble `LOCAL_LLM_BASE_URL`, `LOCAL_EMBEDDING_BASE_URL` et `LOCAL_ALLOWED_HOSTS`.
+
+**Fichiers modifies** : `.env` (1 ligne), `scripts/kaggle/local-llm-benchmark-kaggle.ipynb` (1 ligne), `todo/contexte.txt` (cette section) ; aucun code Python.
+
+## Section 1111 : P1 : suppression de la collection Chroma `odoo_code` (decision pmm : le RAG n'a pas besoin du code) ; `odoo_docs` reste a reconstruire en 1024 dimensions
+
+Date : 05/10/2026
+**Decision (pmm)** : supprimer `odoo_code`. Verifie avant : aucun chemin de lecture hors ingestion ne l'interroge (la recherche `search.py` n'interroge que `odoo_docs` ; le resolveur semantique `semantic_retrieval.py` embarque en memoire les libelles de modeles, sans Chroma) ; le code est lu par le graphe de `code_intelligence`.
+
+**Realise** : sauvegarde complete de `chroma_db` dans `/tmp/chroma_db.sauvegarde_avant_suppression_odoo_code` (218 Mo, a supprimer apres usage) ; `delete_collection("odoo_code")` via le client Chroma, uniquement sur cette collection. Etat avant : `odoo_docs` 28, `odoo_code` 4171. Etat apres (relu en SQLite lecture seule) : `odoo_docs` 28 seule. La taille du dossier est inchangee (SQLite non compacte), sans consequence.
+
+**Point d'attention (non verifie par execution)** : `ChromaManager(collection_name="odoo_code")` utilise `get_or_create_collection` dans le watcher, le scheduler et le scan incremental ; si l'un d'eux tourne, la collection est recreee vide et peut etre repeuplee avec les fichiers `.py`/`.xml` (via le tunnel, en 1024 dimensions). Ne pas les lancer pendant la mesure, ou mandater leur neutralisation.
+
+**Reste a faire par pmm** : `ollama pull bge-m3` sur Kaggle, puis reconstruire `odoo_docs` seule (suppression de cette collection puis `python -m document_rag.ingestion.ingest_all` sans `--clear`), supprimer les deux artefacts de la section 1108, relancer le test de fumee.
+
+**Fichiers modifies** : `document_rag/vectorstore/chroma_db` (collection `odoo_code` supprimee ; dossier ignore par `.gitignore` ligne 22, `git status` n'y montre aucun changement), `todo/contexte.txt` (cette section) ; aucun code.
+
+## Section 1112 : P1 : `odoo_docs` reconstruite en 1024 dimensions (bge-m3) ; `odoo_code` : cause de la reapparition identifiee, supprimee de nouveau ; artefacts de 1108 supprimes
+
+Date : 05/10/2026
+**Etat constate** : tunnel ngrok joignable, `/api/tags` liste `bge-m3:latest` (1024 dimensions) et `qwen3:14b` ; `.env` deja aligne (URL, modele, hote autorise). L'ingestion `python3 -m document_rag.ingestion.ingest_all` (sans `--clear`, lancee par pmm) a termine apres un retry reussi (premiere tentative coupee par le tunnel). Relu via le client Chroma : `odoo_docs` 27 chunks, vecteurs de dimension 1024 (28 chunks et 384 dimensions avant). Repartition : 14 pour le document « Protocoles IA et Codage Defensif », 8 pour les wikis `.txt` (5 fichiers dont `wiki_approbation` a 1), 4 PDF. Ecart 28 vers 27 non explique (corpus modifie ou chunk ecarte, non verifie).
+
+**Verification de bout en bout** : `quick_retrieve` renvoie 3 resultats par requete, sans erreur de dimension. « comment approuver un bon de commande » classe `wiki_processus_vente.txt` (0,553) puis `wiki_gestion_stocks.txt` avant `wiki_approbation.txt` (absent du top 3) ; un seul cas, pas une mesure, a ne pas interpreter. « protocole de codage defensif » renvoie 3 fois le document du protocole.
+
+**Cause de `odoo_code`** : le code recree la collection a chaque instanciation de `ChromaManager(collection_name="odoo_code")` (`get_or_create_collection`). Instanciations : `IngestionOrchestrator.__init__` (`ingest_all.py:58`, d'ou la reapparition apres le `ingest_all`), `reindex_if_changed` (`incremental.py:66`), `DocumentWatcher` (`watcher.py:48`), `run_startup_scan`/`run_scheduled_scan` et la boucle du scheduler (`scheduler.py:40,74,122`). `clear_and_reingest` supprime aussi `odoo_code`.
+**Code mort** : `SUPPORTED_EXTENSIONS = {".pdf", ".txt", ".md"}` (`incremental.py:23`), donc la branche `else code_manager` (`incremental.py:102`) ne recoit jamais de fichier, et `code_manager` ne sert qu'a lister des sources toujours vides (`incremental.py:80`) et a calculer des statistiques nulles (`ingest_all.py:104`). La seule ecriture reelle vient des tests (`document_rag/tests/test_ingestion.py:274`). Le parametre `code_manager` traverse aussi `api/main.py:77`, `api/routes_ingestion.py:90,158`, `scripts/run_scalability_test.py:85` et plusieurs tests.
+
+**Realise** : `odoo_code` supprimee de nouveau (vide, 0 vecteur ; seule `odoo_docs` reste) ; `captures/eval_protocol_raw/accounting_fr.jsonl` et `captures/eval_instances/graphs/accounting_fr.json` supprimes (artefacts de 1108). Aucun code modifie.
+
+**Proposition (non mandatee, root cause)** : retirer `code_manager` et la collection `odoo_code` du pipeline documentaire (orchestrateur, incremental, watcher, scheduler, API, scripts, tests), puis `README` et journal. Environ 10 fichiers de code et 6 de tests ; a mandater avant implementation. Tant que ce n'est pas fait, `odoo_code` reapparait (vide) des qu'un de ces chemins est execute, sans effet sur la recherche (`search.py` n'interroge que `odoo_docs`).
+
+**Constats hors mandat** : (1) des fichiers de `document_rag/vectorstore/chroma_db/` sont suivis par git (`git status` montre des suppressions de `data_level0.bin`, `header.bin`, etc.), contrairement a ce que disait la 1111 ; a traiter par retrait de l'index et verification du `.gitignore`, sans commiter ces suppressions. (2) `document_rag/tests/test_embedding_functions.py` est modifie dans l'arbre, non fait dans cette session. (3) Les metadonnees des collections portent encore `embedding_model: nomic-ai/nomic-embed-text-v1.5` (libelle perime, sans effet fonctionnel). (4) `scripts/kaggle/local-llm-benchmark-kaggle.ipynb` cite en 1110 n'existe plus : le notebook est `scripts/kaggle/llmodoo.ipynb` (cellule 4ter en `bge-m3`) ; sa cellule 7 documente encore `gpt-oss:20b` alors que le `.env` utilise `qwen3:14b`.
+
+**A faire par pmm** : lancer le test de fumee `--only accounting_fr` (long) ; decider du retrait de `odoo_code` du pipeline.
+
+**Fichiers modifies** : `document_rag/vectorstore/chroma_db` (collection `odoo_code` supprimee), `captures/` (2 artefacts supprimes), `todo/contexte.txt` (cette section) ; aucun code. Sauvegarde : `/tmp/contexte.avant_1112.txt`.
+
+## Section 1113 : P1 : retrait de `code_manager` et de la collection `odoo_code` du pipeline documentaire (mandate par pmm) ; travail trouve deja fait sur disque, journalise retroactivement apres verification
+
+Date : 05/10/2026
+**Mandat (pmm)** : retirer `odoo_code` (proposition de la 1112).
+**Ecart constate avant toute ecriture** : la sauvegarde `/tmp/contexte.avant_1113.txt` est identique au journal, mais le code est deja modifie dans l'arbre (non commite) : un fil precedent a fait le retrait sans ecrire la section. Aucune ligne de code n'a ete ecrite dans cette session ; seule cette section est ajoutee.
+**Etat verifie sur disque** : (1) `grep` hors `logs/`, `chroma_db/`, `captures/` et journal : plus aucune occurrence de `odoo_code`, `code_manager`, `code_chunks` ni `code-dir`, sauf le test de non-regression. (2) Code : `ingest_all.py` (orchestrateur docs seul, `clear_and_reingest(docs_dir, incremental)`), `incremental.py`, `watcher.py`, `scheduler.py` (plus de parametre `code_manager`), `ingest_cli.py` (option `--code-dir` retiree), `ingest_config.py` (`CODE_DIRS`, `CODE_DIR`, `documentary_code_module_dirs` retires), `api/main.py`, `api/routes_ingestion.py`, `scripts/run_scalability_test.py`. (3) Tests alignes : `test_ingest_all.py`, `test_ingestion.py`, `test_scheduler.py`, `test_watcher.py`, `tests/test_e2e_watcher_rag.py`, `tests/eval_retrieval.py` (commentaires) ; nouveau `document_rag/tests/test_no_code_collection.py` (instancie orchestrateur, watcher, scheduler, scans, puis verifie que `odoo_code` n'existe pas dans la base). (4) `py_compile` OK sur `api/main.py`, `api/routes_ingestion.py`, `document_rag/ingestion/*.py`, le nouveau test et `run_scalability_test.py`.
+**Non verifie** : aucune execution de pytest dans cette session (resultats inconnus) ; `test_no_code_collection.py` apparait dans `.pytest_cache` mais le resultat n'a pas ete lu ; les tests modifies n'ont pas ete relus un par un (diff stat seulement).
+**Hors mandat, releve** : `document_rag/tests/test_embedding_functions.py` et `document_rag/vectorstore/embedding_functions.py` sont modifies, diff non examine (probablement le chantier embeddings des 1109-1110) ; `todo/architecture_cible.md` ne montre qu'un reflux de lignes (sans changement de sens), non fait ici ; `scripts/kaggle/local-llm-benchmark-kaggle.ipynb` supprime et `llmodoo.ipynb` non suivi (constat 4 de la 1112) ; `test_chroma_manager.py` garde des `by_type` `code_python`/`code_xml` : metadonnees de type propres a `ChromaManager`, non touchees. Les fichiers de `chroma_db/` suivis par git (constat 1 de la 1112) restent a traiter.
+**A faire par pmm** : `python -m pytest document_rag/tests tests/test_e2e_watcher_rag.py -q` (coller la sortie), puis decider du commit en excluant `chroma_db/`, `captures/`, les fichiers embeddings et `architecture_cible.md`. Nettoyage `/tmp` apres usage : `chroma_db.sauvegarde_avant_suppression_odoo_code` (218 Mo), `env.avant_embedding_url`.
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section) ; aucun code.
+
+## Section 1114 : P1 : retrait de `odoo_code` -- cloture apres execution reelle de pytest (sortie collee par pmm)
+
+Date : 05/10/2026
+**Resultat (pmm)** : `python -m pytest document_rag/tests tests/test_e2e_watcher_rag.py -q` : 132 passed, 1 warning (deprecation `httpx`/`starlette.testclient`, sans lien), 50,86 s. Cela inclut `test_no_code_collection.py` et le test e2e watcher.
+**Perimetre de la cloture** : suites `document_rag/tests` et e2e watcher uniquement ; le reste de `tests/` (dont `eval_retrieval.py`, modifie en commentaires seulement) et les tests `api/` n'ont pas ete lances. Le retrait de `odoo_code` du pipeline documentaire est clos sur ce perimetre.
+**Reste ouvert (hors mandat, voir 1112 et 1113)** : fichiers de `chroma_db/` suivis par git ; metadonnees de collection `embedding_model` perimees ; cellule 7 de `llmodoo.ipynb` (`gpt-oss:20b` vs `qwen3:14b`) ; diff de `embedding_functions.py` non examine ; commit a faire par pmm en excluant `chroma_db/`, `captures/`, embeddings et `architecture_cible.md`. Test de fumee `--only accounting_fr` toujours a lancer par pmm.
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section) ; aucun code.
+
+## Section 1115 : P1 : `chroma_db/` retire de l'index git ; nettoyage `/tmp` ; perimetre du commit precise
+
+Date : 05/10/2026
+**Mandat (pmm)** : mettre `chroma_db/`, `captures/`, les fichiers embeddings et `architecture_cible.md` hors du commit ; supprimer `/tmp/chroma_db.sauvegarde_avant_suppression_odoo_code` et `/tmp/env.avant_embedding_url`.
+**Realise** : (1) `git rm -r --cached document_rag/vectorstore/chroma_db` : 56 fichiers suivis retires de l'index (suppressions stagees, rien de commite, fichiers de la base intacts sur disque). `.gitignore` ligne 22 couvrait deja ce dossier : la cause etait le suivi anterieur, pas l'absence de regle ; `git check-ignore` confirme que `chroma.sqlite3` est desormais ignore. (2) Les deux sauvegardes `/tmp` (218 Mo et `.env`) supprimees ; `/tmp/contexte.avant_1115.txt` cree.
+**Non fait, volontairement** : `.gitignore` inchange. `architecture_cible.md` (fichier suivi) et `embedding_functions.py` / `test_embedding_functions.py` (code source du chantier embeddings, pas des artefacts) ne se traitent pas par `.gitignore` : ils sont seulement a ne pas stager. `captures/` compte 32 fichiers suivis (`eval_instances/drafts`, etc.) : l'ignorer en bloc contredirait ce suivi ; seul `captures/eval_protocol_raw/` est non suivi.
+**Commit conseille (pmm)** : stager `api/`, `document_rag/ingestion/`, les tests `document_rag/tests/` hors `test_embedding_functions.py`, `tests/`, `scripts/run_scalability_test.py`, `test_no_code_collection.py`, `todo/contexte.txt` ; exclure `architecture_cible.md`, `captures/`, `embedding_functions.py`, `test_embedding_functions.py`. Les suppressions stagees de `chroma_db/` sont a commiter a part (`git commit` seul d'un index propre) ou a unstager (`git restore --staged`).
+
+**Fichiers modifies** : index git (`chroma_db/`), `/tmp` (2 sauvegardes supprimees), `todo/contexte.txt` (cette section) ; aucun code.
+
+## Section 1116 : P1 : `captures/eval_protocol_raw/` ajoute au `.gitignore` (suite de la 1115)
+
+Date : 05/10/2026
+**Realise** : ligne `captures/eval_protocol_raw/` ajoutee dans `.gitignore` apres `captures/frozen_evidence/` (sorties brutes de protocole, regenerables, non suivies). `git check-ignore` confirme la regle ; `git status` ne montre plus ce dossier. Le reste de `captures/` (32 fichiers suivis) est inchange.
+
+**Fichiers modifies** : `.gitignore` (1 ligne), `todo/contexte.txt` (cette section) ; aucun code.
+
+## Section 1117 : P1 : commits du retrait de `odoo_code` et de l'arret du suivi de `chroma_db/` (mandate par pmm)
+
+Date : 05/10/2026
+**Realise** : deux commits locaux, rien pousse. (1) `chore(rag): stop tracking the chroma_db vector store` : suppression de l'index des 56 fichiers de `chroma_db/` (section 1115). (2) `refactor(rag): remove the odoo_code collection from the documentary pipeline` : sections 1113 a 1116 (code, tests, `.gitignore`, journal). Verification de reference : 132 tests passes (1114).
+**Volontairement exclus (restent modifies dans l'arbre)** : `todo/architecture_cible.md`, `document_rag/vectorstore/embedding_functions.py`, `document_rag/tests/test_embedding_functions.py` (chantier embeddings, diff non examine), `captures/` ; le remplacement de `local-llm-benchmark-kaggle.ipynb` par `llmodoo.ipynb` (constat 4 de la 1112) n'est pas commite non plus, a decider par pmm.
+
+**Fichiers modifies** : historique git (2 commits), `todo/contexte.txt` (cette section) ; aucun code.

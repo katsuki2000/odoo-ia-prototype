@@ -43,9 +43,7 @@ def test_e2e_live_add_delete_query_cycle():
 
         # ── Step 1: Drop new document into docs/ and ingest ────────────────
         secret_path.write_text(secret_content, encoding="utf-8")
-        # Only .txt files are used in this test, so the same manager instance
-        # covers both the docs and code buckets that reindex_if_changed expects.
-        reindex_if_changed([docs_dir], docs_manager=manager, code_manager=manager, chunk_size=512, chunk_overlap=50)
+        reindex_if_changed([docs_dir], docs_manager=manager, chunk_size=512, chunk_overlap=50)
 
         stats = manager.get_stats()
         assert stats.get("total_chunks", 0) > 0
@@ -106,7 +104,7 @@ def test_e2e_live_add_delete_query_cycle():
         secret_path.unlink()
         assert not secret_path.exists()
 
-        reindex_if_changed([docs_dir], docs_manager=manager, code_manager=manager, chunk_size=512, chunk_overlap=50)
+        reindex_if_changed([docs_dir], docs_manager=manager, chunk_size=512, chunk_overlap=50)
 
         # ── Step 5: Verify retrieve() no longer finds the document ─────────
         results_after_delete = retrieve("Quel est le code secret Katsuki ?", top_k=3, chroma_manager=manager)

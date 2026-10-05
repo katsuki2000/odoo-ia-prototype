@@ -82,7 +82,6 @@ def run_scalability_benchmark(
         result = reindex_if_changed(
             roots=corpus_roots,
             docs_manager=docs_manager,
-            code_manager=docs_manager,
             chunk_size=512,
             chunk_overlap=50,
         )

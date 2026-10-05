@@ -74,7 +74,6 @@ async def lifespan(app: FastAPI):
             interval_hours=6,
             roots=[DOCS_DIR],
             docs_manager=None,
-            code_manager=None,
             status_dict=LAST_INGESTION_STATUS,
         )
     SCHEDULER_INSTANCE.start()

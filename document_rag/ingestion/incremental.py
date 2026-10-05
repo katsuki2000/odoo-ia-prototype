@@ -44,7 +44,6 @@ class IncrementalResult:
 def reindex_if_changed(
     roots: Iterable[str | Path],
     docs_manager: ChromaManager | None = None,
-    code_manager: ChromaManager | None = None,
     chunk_size: int = 512,
     chunk_overlap: int = 50,
 ) -> dict[str, Any]:
@@ -54,7 +53,6 @@ def reindex_if_changed(
     Args:
         roots: Directories or individual files to scan.
         docs_manager: Manager for doc collections.
-        code_manager: Manager for code collections.
         chunk_size: Loader chunk size.
         chunk_overlap: Loader chunk overlap.
 
@@ -63,7 +61,6 @@ def reindex_if_changed(
     """
     started_at = start_timer()
     docs_manager = docs_manager or ChromaManager(collection_name="odoo_docs")
-    code_manager = code_manager or ChromaManager(collection_name="odoo_code")
     result = IncrementalResult()
 
     root_paths = [Path(root).resolve() for root in roots if root is not None and str(root)]
@@ -76,30 +73,22 @@ def reindex_if_changed(
         compute_source(file_path, scan_root)
         for file_path, scan_root in current_scan_roots.items()
     }
-    existing_sources_docs = _get_existing_sources(docs_manager)
-    existing_sources_code = _get_existing_sources(code_manager)
-    
-    # Track deleted sources for each manager
-    for manager, existing_sources in [(docs_manager, existing_sources_docs), (code_manager, existing_sources_code)]:
-        for source in sorted(existing_sources):
-            if not _is_under_roots(source, root_paths):
-                continue
-            if source in current_sources:
-                continue
-    
-            try:
-                deleted_count = manager.delete_by_source(source)
-                logger.info("Deleted removed source: %s (%d chunks)", source, deleted_count)
-                result.deleted_files.append(source)
-                result.chunks_deleted += deleted_count
-            except Exception as exc:
-                logger.error("Failed deleting removed source %s: %s", source, exc)
-                result.failed_files[source] = str(exc)
+    for source in sorted(_get_existing_sources(docs_manager)):
+        if not _is_under_roots(source, root_paths) or source in current_sources:
+            continue
+
+        try:
+            deleted_count = docs_manager.delete_by_source(source)
+            logger.info("Deleted removed source: %s (%d chunks)", source, deleted_count)
+            result.deleted_files.append(source)
+            result.chunks_deleted += deleted_count
+        except Exception as exc:
+            logger.error("Failed deleting removed source %s: %s", source, exc)
+            result.failed_files[source] = str(exc)
 
     for file_path in current_files:
         scan_root = current_scan_roots[file_path]
         source = compute_source(file_path, scan_root)
-        manager = docs_manager if file_path.suffix.lower() in {".pdf", ".txt", ".md"} else code_manager
         try:
             chunks, metadatas = _load_file(file_path, chunk_size, chunk_overlap, scan_root)
             if not chunks:
@@ -107,15 +96,15 @@ def reindex_if_changed(
                 continue
 
             new_hashes = _metadata_hashes(metadatas)
-            old_hashes = _get_hashes_for_source(manager, source)
+            old_hashes = _get_hashes_for_source(docs_manager, source)
 
             if old_hashes == new_hashes:
                 logger.info("Skipping unchanged source: %s", source)
                 result.skipped_files.append(source)
                 continue
 
-            deleted_count = manager.delete_by_source(source) if old_hashes else 0
-            ids = manager.add_chunks(chunks, metadatas)
+            deleted_count = docs_manager.delete_by_source(source) if old_hashes else 0
+            ids = docs_manager.add_chunks(chunks, metadatas)
 
             if old_hashes:
                 result.updated_files.append(source)

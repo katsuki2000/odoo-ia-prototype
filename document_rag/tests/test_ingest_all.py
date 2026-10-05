@@ -37,14 +37,12 @@ class TestIngestionOrchestrator(unittest.TestCase):
         """Clean up after each test."""
         try:
             self.orchestrator.docs_manager.delete_collection()
-            self.orchestrator.code_manager.delete_collection()
         except Exception:
             pass
 
     def test_initialization(self):
         """Test orchestrator initialization."""
         self.assertIsNotNone(self.orchestrator.docs_manager)
-        self.assertIsNotNone(self.orchestrator.code_manager)
         self.assertEqual(self.orchestrator.chunk_size, 200)
         self.assertEqual(self.orchestrator.chunk_overlap, 20)
         self.assertIn("total_chunks", self.orchestrator.stats)
@@ -70,7 +68,6 @@ class TestIngestionOrchestrator(unittest.TestCase):
         """Test ingestion with non-existent directories."""
         result = self.orchestrator.ingest_all(
             docs_dir="/nonexistent/docs",
-            code_dir="/nonexistent/code",
         )
 
         # Should return stats even with missing directories
@@ -79,14 +76,9 @@ class TestIngestionOrchestrator(unittest.TestCase):
     def test_ingest_all_empty_directories(self):
         """Test ingestion with empty directories."""
         docs_dir = Path(self.temp_dir) / "docs"
-        code_dir = Path(self.temp_dir) / "code"
         docs_dir.mkdir(exist_ok=True)
-        code_dir.mkdir(exist_ok=True)
 
-        result = self.orchestrator.ingest_all(
-            docs_dir=docs_dir,
-            code_dir=code_dir,
-        )
+        result = self.orchestrator.ingest_all(docs_dir=docs_dir)
 
         self.assertEqual(result["total_chunks"], 0)
 
@@ -154,7 +146,7 @@ class TestIngestionOrchestrator(unittest.TestCase):
 
         try:
             # Initial ingestion
-            result1 = self.orchestrator.ingest_all(docs_dir=docs_dir, code_dir="")
+            result1 = self.orchestrator.ingest_all(docs_dir=docs_dir)
 
             # Clear and re-ingest
             result2 = self.orchestrator.clear_and_reingest()
@@ -209,17 +201,12 @@ class TestIngestionIntegration(unittest.TestCase):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as temp_dir:
             # Create directory structure
             docs_dir = Path(temp_dir) / "docs"
-            code_dir = Path(temp_dir) / "code"
             db_path = Path(temp_dir) / "chroma_db"
 
             docs_dir.mkdir()
-            code_dir.mkdir()
 
             # Create sample files
             (docs_dir / "README.txt").write_text("# README\nTest document")
-            (code_dir / "sample.py").write_text(
-                "def sample():\n    '''Sample function'''\n    pass"
-            )
 
             # Initialize orchestrator
             orchestrator = IngestionOrchestrator(
@@ -230,10 +217,7 @@ class TestIngestionIntegration(unittest.TestCase):
 
             try:
                 # Run ingestion
-                stats = orchestrator.ingest_all(
-                    docs_dir=docs_dir,
-                    code_dir=code_dir,
-                )
+                stats = orchestrator.ingest_all(docs_dir=docs_dir)
 
                 # Verify results
                 self.assertIn("total_chunks", stats)
@@ -246,7 +230,6 @@ class TestIngestionIntegration(unittest.TestCase):
             finally:
                 try:
                     orchestrator.docs_manager.delete_collection()
-                    orchestrator.code_manager.delete_collection()
                 except Exception:
                     pass
 

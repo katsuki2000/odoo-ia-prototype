@@ -37,12 +37,6 @@ def main() -> int:
         help="Path to documents directory. Pass '' to skip docs.",
     )
     parser.add_argument(
-        "--code-dir",
-        type=str,
-        default="",
-        help="Deprecated: code is handled by code_intelligence.",
-    )
-    parser.add_argument(
         "--db-path",
         type=Path,
         default=CHROMA_PATH,
@@ -70,15 +64,9 @@ def main() -> int:
     )
 
     if args.clear:
-        stats = orchestrator.clear_and_reingest(
-            docs_dir=args.docs_dir,
-            code_dir=args.code_dir,
-        )
+        stats = orchestrator.clear_and_reingest(docs_dir=args.docs_dir)
     else:
-        stats = orchestrator.ingest_all(
-            docs_dir=args.docs_dir,
-            code_dir=args.code_dir,
-        )
+        stats = orchestrator.ingest_all(docs_dir=args.docs_dir)
 
     stats_file = LOGS_DIR / "ingestion_stats.json"
     with open(stats_file, "w") as f:

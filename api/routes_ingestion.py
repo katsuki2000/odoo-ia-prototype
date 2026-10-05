@@ -87,7 +87,7 @@ def reindex_v1(request: ReindexRequestV1):
     try:
         if request.scope == "incremental":
             roots = [target_path] if target_path else [DOCS_DIR]
-            result = reindex_fn(roots, docs_manager=manager, code_manager=manager)
+            result = reindex_fn(roots, docs_manager=manager)
         elif request.scope == "full":
             orchestrator = IngestionOrchestrator(
                 chroma_db_path=manager.db_path,
@@ -155,7 +155,7 @@ def trigger_scheduled_scan():
         manager = chroma_cls()
         scan_fn = _main_ref("run_scheduled_scan", run_scheduled_scan)
         status_dict = _main_ref("LAST_INGESTION_STATUS", {})
-        result = scan_fn([DOCS_DIR], docs_manager=manager, code_manager=manager, status_dict=status_dict)
+        result = scan_fn([DOCS_DIR], docs_manager=manager, status_dict=status_dict)
         return ScheduledScanResponse(
             status="success",
             scan_type="periodic_incremental_scan",
