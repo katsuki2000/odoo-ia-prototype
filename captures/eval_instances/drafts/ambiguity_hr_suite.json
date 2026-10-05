@@ -1,0 +1,132 @@
+[
+  {
+    "case_id": "ambiguity_hr_suite_nom",
+    "split": "held_out",
+    "instance": "hr_suite",
+    "user_context": {
+      "user": "base.user_admin",
+      "company": "base.main_company",
+      "language": "fr_FR",
+      "groups": []
+    },
+    "question": "Comment fonctionne « Nom » ?",
+    "module": "cross_module",
+    "expected_intent": "general_code_inquiry",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [],
+    "acceptable_evidence": [],
+    "expected_claims": [],
+    "abstention_rule": "must_clarify",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "field label shared by 66 models in 18 modules"
+    }
+  },
+  {
+    "case_id": "ambiguity_hr_suite_societe",
+    "split": "held_out",
+    "instance": "hr_suite",
+    "user_context": {
+      "user": "base.user_admin",
+      "company": "base.main_company",
+      "language": "fr_FR",
+      "groups": []
+    },
+    "question": "Comment fonctionne « Société » ?",
+    "module": "cross_module",
+    "expected_intent": "general_code_inquiry",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [],
+    "acceptable_evidence": [],
+    "expected_claims": [],
+    "abstention_rule": "must_clarify",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "field label shared by 57 models in 12 modules"
+    }
+  },
+  {
+    "case_id": "ambiguity_hr_suite_description",
+    "split": "held_out",
+    "instance": "hr_suite",
+    "user_context": {
+      "user": "base.user_admin",
+      "company": "base.main_company",
+      "language": "fr_FR",
+      "groups": []
+    },
+    "question": "Comment fonctionne « Description » ?",
+    "module": "cross_module",
+    "expected_intent": "general_code_inquiry",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [],
+    "acceptable_evidence": [],
+    "expected_claims": [],
+    "abstention_rule": "must_clarify",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "field label shared by 18 models in 12 modules"
+    }
+  },
+  {
+    "case_id": "ambiguity_hr_suite_actif",
+    "split": "held_out",
+    "instance": "hr_suite",
+    "user_context": {
+      "user": "base.user_admin",
+      "company": "base.main_company",
+      "language": "fr_FR",
+      "groups": []
+    },
+    "question": "Comment fonctionne « Actif » ?",
+    "module": "cross_module",
+    "expected_intent": "general_code_inquiry",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [],
+    "acceptable_evidence": [],
+    "expected_claims": [],
+    "abstention_rule": "must_clarify",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "field label shared by 45 models in 11 modules"
+    }
+  },
+  {
+    "case_id": "ambiguity_hr_suite_couleur",
+    "split": "held_out",
+    "instance": "hr_suite",
+    "user_context": {
+      "user": "base.user_admin",
+      "company": "base.main_company",
+      "language": "fr_FR",
+      "groups": []
+    },
+    "question": "Comment fonctionne « Couleur » ?",
+    "module": "cross_module",
+    "expected_intent": "general_code_inquiry",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [],
+    "acceptable_evidence": [],
+    "expected_claims": [],
+    "abstention_rule": "must_clarify",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "field label shared by 19 models in 10 modules"
+    }
+  }
+]

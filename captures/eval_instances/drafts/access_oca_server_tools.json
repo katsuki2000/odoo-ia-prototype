@@ -1,0 +1,836 @@
+[
+  {
+    "case_id": "access_oca_server_tools_base_demo_user0_project_task_read",
+    "split": "held_out",
+    "instance": "oca_server_tools",
+    "user_context": {
+      "user": "base.demo_user0",
+      "company": "base.main_company",
+      "language": "en_US",
+      "groups": []
+    },
+    "question": "Can I read records of the model \"Task\"?",
+    "module": "project",
+    "expected_intent": "governance_security",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [
+      "model:project.task"
+    ],
+    "acceptable_evidence": [
+      {
+        "kind": "graph",
+        "source": "model:project.task"
+      }
+    ],
+    "expected_claims": [
+      {
+        "claim_id": "access_decision",
+        "statement": "Allowed: read on project.task",
+        "any_of": [
+          [
+            "Task",
+            "project.task"
+          ],
+          [
+            "read",
+            "view",
+            "access"
+          ],
+          [
+            "you can",
+            "yes",
+            "allowed",
+            "access"
+          ]
+        ],
+        "none_of": [
+          "cannot",
+          "can't",
+          "not allowed",
+          "not permitted",
+          "denied",
+          "no access",
+          "no permission",
+          "don't have access",
+          "do not have access",
+          "don't have permission",
+          "do not have permission",
+          "forbidden",
+          "unable",
+          "not able"
+        ]
+      }
+    ],
+    "abstention_rule": "none",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "check_access_rights"
+    }
+  },
+  {
+    "case_id": "access_oca_server_tools_base_demo_user0_project_task_write",
+    "split": "held_out",
+    "instance": "oca_server_tools",
+    "user_context": {
+      "user": "base.demo_user0",
+      "company": "base.main_company",
+      "language": "en_US",
+      "groups": []
+    },
+    "question": "Can I edit records of the model \"Task\"?",
+    "module": "project",
+    "expected_intent": "governance_security",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [
+      "model:project.task"
+    ],
+    "acceptable_evidence": [
+      {
+        "kind": "graph",
+        "source": "model:project.task"
+      }
+    ],
+    "expected_claims": [
+      {
+        "claim_id": "access_decision",
+        "statement": "Denied: write on project.task",
+        "any_of": [
+          [
+            "Task",
+            "project.task"
+          ],
+          [
+            "write",
+            "edit",
+            "modify",
+            "update"
+          ],
+          [
+            "cannot",
+            "can't",
+            "not allowed",
+            "not permitted",
+            "denied",
+            "no access",
+            "no permission",
+            "don't have access",
+            "do not have access",
+            "don't have permission",
+            "do not have permission",
+            "forbidden",
+            "unable",
+            "not able"
+          ]
+        ],
+        "none_of": []
+      }
+    ],
+    "abstention_rule": "none",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "check_access_rights"
+    }
+  },
+  {
+    "case_id": "access_oca_server_tools_base_demo_user0_project_task_create",
+    "split": "held_out",
+    "instance": "oca_server_tools",
+    "user_context": {
+      "user": "base.demo_user0",
+      "company": "base.main_company",
+      "language": "en_US",
+      "groups": []
+    },
+    "question": "Can I create records of the model \"Task\"?",
+    "module": "project",
+    "expected_intent": "governance_security",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [
+      "model:project.task"
+    ],
+    "acceptable_evidence": [
+      {
+        "kind": "graph",
+        "source": "model:project.task"
+      }
+    ],
+    "expected_claims": [
+      {
+        "claim_id": "access_decision",
+        "statement": "Denied: create on project.task",
+        "any_of": [
+          [
+            "Task",
+            "project.task"
+          ],
+          [
+            "create"
+          ],
+          [
+            "cannot",
+            "can't",
+            "not allowed",
+            "not permitted",
+            "denied",
+            "no access",
+            "no permission",
+            "don't have access",
+            "do not have access",
+            "don't have permission",
+            "do not have permission",
+            "forbidden",
+            "unable",
+            "not able"
+          ]
+        ],
+        "none_of": []
+      }
+    ],
+    "abstention_rule": "none",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "check_access_rights"
+    }
+  },
+  {
+    "case_id": "access_oca_server_tools_base_demo_user0_project_task_unlink",
+    "split": "held_out",
+    "instance": "oca_server_tools",
+    "user_context": {
+      "user": "base.demo_user0",
+      "company": "base.main_company",
+      "language": "en_US",
+      "groups": []
+    },
+    "question": "Can I delete records of the model \"Task\"?",
+    "module": "project",
+    "expected_intent": "governance_security",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [
+      "model:project.task"
+    ],
+    "acceptable_evidence": [
+      {
+        "kind": "graph",
+        "source": "model:project.task"
+      }
+    ],
+    "expected_claims": [
+      {
+        "claim_id": "access_decision",
+        "statement": "Denied: unlink on project.task",
+        "any_of": [
+          [
+            "Task",
+            "project.task"
+          ],
+          [
+            "delete",
+            "remove",
+            "unlink"
+          ],
+          [
+            "cannot",
+            "can't",
+            "not allowed",
+            "not permitted",
+            "denied",
+            "no access",
+            "no permission",
+            "don't have access",
+            "do not have access",
+            "don't have permission",
+            "do not have permission",
+            "forbidden",
+            "unable",
+            "not able"
+          ]
+        ],
+        "none_of": []
+      }
+    ],
+    "abstention_rule": "none",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "check_access_rights"
+    }
+  },
+  {
+    "case_id": "access_oca_server_tools_base_user_demo_project_task_read",
+    "split": "held_out",
+    "instance": "oca_server_tools",
+    "user_context": {
+      "user": "base.user_demo",
+      "company": "base.main_company",
+      "language": "en_US",
+      "groups": []
+    },
+    "question": "Can I read records of the model \"Task\"?",
+    "module": "project",
+    "expected_intent": "governance_security",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [
+      "model:project.task"
+    ],
+    "acceptable_evidence": [
+      {
+        "kind": "graph",
+        "source": "model:project.task"
+      }
+    ],
+    "expected_claims": [
+      {
+        "claim_id": "access_decision",
+        "statement": "Allowed: read on project.task",
+        "any_of": [
+          [
+            "Task",
+            "project.task"
+          ],
+          [
+            "read",
+            "view",
+            "access"
+          ],
+          [
+            "you can",
+            "yes",
+            "allowed",
+            "access"
+          ]
+        ],
+        "none_of": [
+          "cannot",
+          "can't",
+          "not allowed",
+          "not permitted",
+          "denied",
+          "no access",
+          "no permission",
+          "don't have access",
+          "do not have access",
+          "don't have permission",
+          "do not have permission",
+          "forbidden",
+          "unable",
+          "not able"
+        ]
+      }
+    ],
+    "abstention_rule": "none",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "check_access_rights"
+    }
+  },
+  {
+    "case_id": "access_oca_server_tools_base_user_demo_project_task_write",
+    "split": "held_out",
+    "instance": "oca_server_tools",
+    "user_context": {
+      "user": "base.user_demo",
+      "company": "base.main_company",
+      "language": "en_US",
+      "groups": []
+    },
+    "question": "Can I edit records of the model \"Task\"?",
+    "module": "project",
+    "expected_intent": "governance_security",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [
+      "model:project.task"
+    ],
+    "acceptable_evidence": [
+      {
+        "kind": "graph",
+        "source": "model:project.task"
+      }
+    ],
+    "expected_claims": [
+      {
+        "claim_id": "access_decision",
+        "statement": "Allowed: write on project.task",
+        "any_of": [
+          [
+            "Task",
+            "project.task"
+          ],
+          [
+            "write",
+            "edit",
+            "modify",
+            "update"
+          ],
+          [
+            "you can",
+            "yes",
+            "allowed",
+            "access"
+          ]
+        ],
+        "none_of": [
+          "cannot",
+          "can't",
+          "not allowed",
+          "not permitted",
+          "denied",
+          "no access",
+          "no permission",
+          "don't have access",
+          "do not have access",
+          "don't have permission",
+          "do not have permission",
+          "forbidden",
+          "unable",
+          "not able"
+        ]
+      }
+    ],
+    "abstention_rule": "none",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "check_access_rights"
+    }
+  },
+  {
+    "case_id": "access_oca_server_tools_base_user_demo_project_task_create",
+    "split": "held_out",
+    "instance": "oca_server_tools",
+    "user_context": {
+      "user": "base.user_demo",
+      "company": "base.main_company",
+      "language": "en_US",
+      "groups": []
+    },
+    "question": "Can I create records of the model \"Task\"?",
+    "module": "project",
+    "expected_intent": "governance_security",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [
+      "model:project.task"
+    ],
+    "acceptable_evidence": [
+      {
+        "kind": "graph",
+        "source": "model:project.task"
+      }
+    ],
+    "expected_claims": [
+      {
+        "claim_id": "access_decision",
+        "statement": "Allowed: create on project.task",
+        "any_of": [
+          [
+            "Task",
+            "project.task"
+          ],
+          [
+            "create"
+          ],
+          [
+            "you can",
+            "yes",
+            "allowed",
+            "access"
+          ]
+        ],
+        "none_of": [
+          "cannot",
+          "can't",
+          "not allowed",
+          "not permitted",
+          "denied",
+          "no access",
+          "no permission",
+          "don't have access",
+          "do not have access",
+          "don't have permission",
+          "do not have permission",
+          "forbidden",
+          "unable",
+          "not able"
+        ]
+      }
+    ],
+    "abstention_rule": "none",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "check_access_rights"
+    }
+  },
+  {
+    "case_id": "access_oca_server_tools_base_user_demo_project_task_unlink",
+    "split": "held_out",
+    "instance": "oca_server_tools",
+    "user_context": {
+      "user": "base.user_demo",
+      "company": "base.main_company",
+      "language": "en_US",
+      "groups": []
+    },
+    "question": "Can I delete records of the model \"Task\"?",
+    "module": "project",
+    "expected_intent": "governance_security",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [
+      "model:project.task"
+    ],
+    "acceptable_evidence": [
+      {
+        "kind": "graph",
+        "source": "model:project.task"
+      }
+    ],
+    "expected_claims": [
+      {
+        "claim_id": "access_decision",
+        "statement": "Allowed: unlink on project.task",
+        "any_of": [
+          [
+            "Task",
+            "project.task"
+          ],
+          [
+            "delete",
+            "remove",
+            "unlink"
+          ],
+          [
+            "you can",
+            "yes",
+            "allowed",
+            "access"
+          ]
+        ],
+        "none_of": [
+          "cannot",
+          "can't",
+          "not allowed",
+          "not permitted",
+          "denied",
+          "no access",
+          "no permission",
+          "don't have access",
+          "do not have access",
+          "don't have permission",
+          "do not have permission",
+          "forbidden",
+          "unable",
+          "not able"
+        ]
+      }
+    ],
+    "abstention_rule": "none",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "check_access_rights"
+    }
+  },
+  {
+    "case_id": "access_oca_server_tools_base_user_admin_project_task_read",
+    "split": "held_out",
+    "instance": "oca_server_tools",
+    "user_context": {
+      "user": "base.user_admin",
+      "company": "base.main_company",
+      "language": "en_US",
+      "groups": []
+    },
+    "question": "Can I read records of the model \"Task\"?",
+    "module": "project",
+    "expected_intent": "governance_security",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [
+      "model:project.task"
+    ],
+    "acceptable_evidence": [
+      {
+        "kind": "graph",
+        "source": "model:project.task"
+      }
+    ],
+    "expected_claims": [
+      {
+        "claim_id": "access_decision",
+        "statement": "Allowed: read on project.task",
+        "any_of": [
+          [
+            "Task",
+            "project.task"
+          ],
+          [
+            "read",
+            "view",
+            "access"
+          ],
+          [
+            "you can",
+            "yes",
+            "allowed",
+            "access"
+          ]
+        ],
+        "none_of": [
+          "cannot",
+          "can't",
+          "not allowed",
+          "not permitted",
+          "denied",
+          "no access",
+          "no permission",
+          "don't have access",
+          "do not have access",
+          "don't have permission",
+          "do not have permission",
+          "forbidden",
+          "unable",
+          "not able"
+        ]
+      }
+    ],
+    "abstention_rule": "none",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "check_access_rights"
+    }
+  },
+  {
+    "case_id": "access_oca_server_tools_base_user_admin_project_task_write",
+    "split": "held_out",
+    "instance": "oca_server_tools",
+    "user_context": {
+      "user": "base.user_admin",
+      "company": "base.main_company",
+      "language": "en_US",
+      "groups": []
+    },
+    "question": "Can I edit records of the model \"Task\"?",
+    "module": "project",
+    "expected_intent": "governance_security",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [
+      "model:project.task"
+    ],
+    "acceptable_evidence": [
+      {
+        "kind": "graph",
+        "source": "model:project.task"
+      }
+    ],
+    "expected_claims": [
+      {
+        "claim_id": "access_decision",
+        "statement": "Allowed: write on project.task",
+        "any_of": [
+          [
+            "Task",
+            "project.task"
+          ],
+          [
+            "write",
+            "edit",
+            "modify",
+            "update"
+          ],
+          [
+            "you can",
+            "yes",
+            "allowed",
+            "access"
+          ]
+        ],
+        "none_of": [
+          "cannot",
+          "can't",
+          "not allowed",
+          "not permitted",
+          "denied",
+          "no access",
+          "no permission",
+          "don't have access",
+          "do not have access",
+          "don't have permission",
+          "do not have permission",
+          "forbidden",
+          "unable",
+          "not able"
+        ]
+      }
+    ],
+    "abstention_rule": "none",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "check_access_rights"
+    }
+  },
+  {
+    "case_id": "access_oca_server_tools_base_user_admin_project_task_create",
+    "split": "held_out",
+    "instance": "oca_server_tools",
+    "user_context": {
+      "user": "base.user_admin",
+      "company": "base.main_company",
+      "language": "en_US",
+      "groups": []
+    },
+    "question": "Can I create records of the model \"Task\"?",
+    "module": "project",
+    "expected_intent": "governance_security",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [
+      "model:project.task"
+    ],
+    "acceptable_evidence": [
+      {
+        "kind": "graph",
+        "source": "model:project.task"
+      }
+    ],
+    "expected_claims": [
+      {
+        "claim_id": "access_decision",
+        "statement": "Allowed: create on project.task",
+        "any_of": [
+          [
+            "Task",
+            "project.task"
+          ],
+          [
+            "create"
+          ],
+          [
+            "you can",
+            "yes",
+            "allowed",
+            "access"
+          ]
+        ],
+        "none_of": [
+          "cannot",
+          "can't",
+          "not allowed",
+          "not permitted",
+          "denied",
+          "no access",
+          "no permission",
+          "don't have access",
+          "do not have access",
+          "don't have permission",
+          "do not have permission",
+          "forbidden",
+          "unable",
+          "not able"
+        ]
+      }
+    ],
+    "abstention_rule": "none",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "check_access_rights"
+    }
+  },
+  {
+    "case_id": "access_oca_server_tools_base_user_admin_project_task_unlink",
+    "split": "held_out",
+    "instance": "oca_server_tools",
+    "user_context": {
+      "user": "base.user_admin",
+      "company": "base.main_company",
+      "language": "en_US",
+      "groups": []
+    },
+    "question": "Can I delete records of the model \"Task\"?",
+    "module": "project",
+    "expected_intent": "governance_security",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [
+      "model:project.task"
+    ],
+    "acceptable_evidence": [
+      {
+        "kind": "graph",
+        "source": "model:project.task"
+      }
+    ],
+    "expected_claims": [
+      {
+        "claim_id": "access_decision",
+        "statement": "Allowed: unlink on project.task",
+        "any_of": [
+          [
+            "Task",
+            "project.task"
+          ],
+          [
+            "delete",
+            "remove",
+            "unlink"
+          ],
+          [
+            "you can",
+            "yes",
+            "allowed",
+            "access"
+          ]
+        ],
+        "none_of": [
+          "cannot",
+          "can't",
+          "not allowed",
+          "not permitted",
+          "denied",
+          "no access",
+          "no permission",
+          "don't have access",
+          "do not have access",
+          "don't have permission",
+          "do not have permission",
+          "forbidden",
+          "unable",
+          "not able"
+        ]
+      }
+    ],
+    "abstention_rule": "none",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "check_access_rights"
+    }
+  }
+]

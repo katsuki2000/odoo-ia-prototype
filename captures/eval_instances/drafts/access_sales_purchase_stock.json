@@ -1,0 +1,3333 @@
+[
+  {
+    "case_id": "access_sales_purchase_stock_base_demo_user0_sale_order_read",
+    "split": "held_out",
+    "instance": "sales_purchase_stock",
+    "user_context": {
+      "user": "base.demo_user0",
+      "company": "base.main_company",
+      "language": "en_US",
+      "groups": []
+    },
+    "question": "Can I read records of the model \"Sales Order\"?",
+    "module": "sale",
+    "expected_intent": "governance_security",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [
+      "model:sale.order"
+    ],
+    "acceptable_evidence": [
+      {
+        "kind": "graph",
+        "source": "model:sale.order"
+      }
+    ],
+    "expected_claims": [
+      {
+        "claim_id": "access_decision",
+        "statement": "Allowed: read on sale.order",
+        "any_of": [
+          [
+            "Sales Order",
+            "sale.order"
+          ],
+          [
+            "read",
+            "view",
+            "access"
+          ],
+          [
+            "you can",
+            "yes",
+            "allowed",
+            "access"
+          ]
+        ],
+        "none_of": [
+          "cannot",
+          "can't",
+          "not allowed",
+          "not permitted",
+          "denied",
+          "no access",
+          "no permission",
+          "don't have access",
+          "do not have access",
+          "don't have permission",
+          "do not have permission",
+          "forbidden",
+          "unable",
+          "not able"
+        ]
+      }
+    ],
+    "abstention_rule": "none",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "check_access_rights"
+    }
+  },
+  {
+    "case_id": "access_sales_purchase_stock_base_demo_user0_sale_order_write",
+    "split": "held_out",
+    "instance": "sales_purchase_stock",
+    "user_context": {
+      "user": "base.demo_user0",
+      "company": "base.main_company",
+      "language": "en_US",
+      "groups": []
+    },
+    "question": "Can I edit records of the model \"Sales Order\"?",
+    "module": "sale",
+    "expected_intent": "governance_security",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [
+      "model:sale.order"
+    ],
+    "acceptable_evidence": [
+      {
+        "kind": "graph",
+        "source": "model:sale.order"
+      }
+    ],
+    "expected_claims": [
+      {
+        "claim_id": "access_decision",
+        "statement": "Denied: write on sale.order",
+        "any_of": [
+          [
+            "Sales Order",
+            "sale.order"
+          ],
+          [
+            "write",
+            "edit",
+            "modify",
+            "update"
+          ],
+          [
+            "cannot",
+            "can't",
+            "not allowed",
+            "not permitted",
+            "denied",
+            "no access",
+            "no permission",
+            "don't have access",
+            "do not have access",
+            "don't have permission",
+            "do not have permission",
+            "forbidden",
+            "unable",
+            "not able"
+          ]
+        ],
+        "none_of": []
+      }
+    ],
+    "abstention_rule": "none",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "check_access_rights"
+    }
+  },
+  {
+    "case_id": "access_sales_purchase_stock_base_demo_user0_sale_order_create",
+    "split": "held_out",
+    "instance": "sales_purchase_stock",
+    "user_context": {
+      "user": "base.demo_user0",
+      "company": "base.main_company",
+      "language": "en_US",
+      "groups": []
+    },
+    "question": "Can I create records of the model \"Sales Order\"?",
+    "module": "sale",
+    "expected_intent": "governance_security",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [
+      "model:sale.order"
+    ],
+    "acceptable_evidence": [
+      {
+        "kind": "graph",
+        "source": "model:sale.order"
+      }
+    ],
+    "expected_claims": [
+      {
+        "claim_id": "access_decision",
+        "statement": "Denied: create on sale.order",
+        "any_of": [
+          [
+            "Sales Order",
+            "sale.order"
+          ],
+          [
+            "create"
+          ],
+          [
+            "cannot",
+            "can't",
+            "not allowed",
+            "not permitted",
+            "denied",
+            "no access",
+            "no permission",
+            "don't have access",
+            "do not have access",
+            "don't have permission",
+            "do not have permission",
+            "forbidden",
+            "unable",
+            "not able"
+          ]
+        ],
+        "none_of": []
+      }
+    ],
+    "abstention_rule": "none",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "check_access_rights"
+    }
+  },
+  {
+    "case_id": "access_sales_purchase_stock_base_demo_user0_sale_order_unlink",
+    "split": "held_out",
+    "instance": "sales_purchase_stock",
+    "user_context": {
+      "user": "base.demo_user0",
+      "company": "base.main_company",
+      "language": "en_US",
+      "groups": []
+    },
+    "question": "Can I delete records of the model \"Sales Order\"?",
+    "module": "sale",
+    "expected_intent": "governance_security",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [
+      "model:sale.order"
+    ],
+    "acceptable_evidence": [
+      {
+        "kind": "graph",
+        "source": "model:sale.order"
+      }
+    ],
+    "expected_claims": [
+      {
+        "claim_id": "access_decision",
+        "statement": "Denied: unlink on sale.order",
+        "any_of": [
+          [
+            "Sales Order",
+            "sale.order"
+          ],
+          [
+            "delete",
+            "remove",
+            "unlink"
+          ],
+          [
+            "cannot",
+            "can't",
+            "not allowed",
+            "not permitted",
+            "denied",
+            "no access",
+            "no permission",
+            "don't have access",
+            "do not have access",
+            "don't have permission",
+            "do not have permission",
+            "forbidden",
+            "unable",
+            "not able"
+          ]
+        ],
+        "none_of": []
+      }
+    ],
+    "abstention_rule": "none",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "check_access_rights"
+    }
+  },
+  {
+    "case_id": "access_sales_purchase_stock_base_user_demo_sale_order_read",
+    "split": "held_out",
+    "instance": "sales_purchase_stock",
+    "user_context": {
+      "user": "base.user_demo",
+      "company": "base.main_company",
+      "language": "en_US",
+      "groups": []
+    },
+    "question": "Can I read records of the model \"Sales Order\"?",
+    "module": "sale",
+    "expected_intent": "governance_security",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [
+      "model:sale.order"
+    ],
+    "acceptable_evidence": [
+      {
+        "kind": "graph",
+        "source": "model:sale.order"
+      }
+    ],
+    "expected_claims": [
+      {
+        "claim_id": "access_decision",
+        "statement": "Allowed: read on sale.order",
+        "any_of": [
+          [
+            "Sales Order",
+            "sale.order"
+          ],
+          [
+            "read",
+            "view",
+            "access"
+          ],
+          [
+            "you can",
+            "yes",
+            "allowed",
+            "access"
+          ]
+        ],
+        "none_of": [
+          "cannot",
+          "can't",
+          "not allowed",
+          "not permitted",
+          "denied",
+          "no access",
+          "no permission",
+          "don't have access",
+          "do not have access",
+          "don't have permission",
+          "do not have permission",
+          "forbidden",
+          "unable",
+          "not able"
+        ]
+      }
+    ],
+    "abstention_rule": "none",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "check_access_rights"
+    }
+  },
+  {
+    "case_id": "access_sales_purchase_stock_base_user_demo_sale_order_write",
+    "split": "held_out",
+    "instance": "sales_purchase_stock",
+    "user_context": {
+      "user": "base.user_demo",
+      "company": "base.main_company",
+      "language": "en_US",
+      "groups": []
+    },
+    "question": "Can I edit records of the model \"Sales Order\"?",
+    "module": "sale",
+    "expected_intent": "governance_security",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [
+      "model:sale.order"
+    ],
+    "acceptable_evidence": [
+      {
+        "kind": "graph",
+        "source": "model:sale.order"
+      }
+    ],
+    "expected_claims": [
+      {
+        "claim_id": "access_decision",
+        "statement": "Allowed: write on sale.order",
+        "any_of": [
+          [
+            "Sales Order",
+            "sale.order"
+          ],
+          [
+            "write",
+            "edit",
+            "modify",
+            "update"
+          ],
+          [
+            "you can",
+            "yes",
+            "allowed",
+            "access"
+          ]
+        ],
+        "none_of": [
+          "cannot",
+          "can't",
+          "not allowed",
+          "not permitted",
+          "denied",
+          "no access",
+          "no permission",
+          "don't have access",
+          "do not have access",
+          "don't have permission",
+          "do not have permission",
+          "forbidden",
+          "unable",
+          "not able"
+        ]
+      }
+    ],
+    "abstention_rule": "none",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "check_access_rights"
+    }
+  },
+  {
+    "case_id": "access_sales_purchase_stock_base_user_demo_sale_order_create",
+    "split": "held_out",
+    "instance": "sales_purchase_stock",
+    "user_context": {
+      "user": "base.user_demo",
+      "company": "base.main_company",
+      "language": "en_US",
+      "groups": []
+    },
+    "question": "Can I create records of the model \"Sales Order\"?",
+    "module": "sale",
+    "expected_intent": "governance_security",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [
+      "model:sale.order"
+    ],
+    "acceptable_evidence": [
+      {
+        "kind": "graph",
+        "source": "model:sale.order"
+      }
+    ],
+    "expected_claims": [
+      {
+        "claim_id": "access_decision",
+        "statement": "Allowed: create on sale.order",
+        "any_of": [
+          [
+            "Sales Order",
+            "sale.order"
+          ],
+          [
+            "create"
+          ],
+          [
+            "you can",
+            "yes",
+            "allowed",
+            "access"
+          ]
+        ],
+        "none_of": [
+          "cannot",
+          "can't",
+          "not allowed",
+          "not permitted",
+          "denied",
+          "no access",
+          "no permission",
+          "don't have access",
+          "do not have access",
+          "don't have permission",
+          "do not have permission",
+          "forbidden",
+          "unable",
+          "not able"
+        ]
+      }
+    ],
+    "abstention_rule": "none",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "check_access_rights"
+    }
+  },
+  {
+    "case_id": "access_sales_purchase_stock_base_user_demo_sale_order_unlink",
+    "split": "held_out",
+    "instance": "sales_purchase_stock",
+    "user_context": {
+      "user": "base.user_demo",
+      "company": "base.main_company",
+      "language": "en_US",
+      "groups": []
+    },
+    "question": "Can I delete records of the model \"Sales Order\"?",
+    "module": "sale",
+    "expected_intent": "governance_security",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [
+      "model:sale.order"
+    ],
+    "acceptable_evidence": [
+      {
+        "kind": "graph",
+        "source": "model:sale.order"
+      }
+    ],
+    "expected_claims": [
+      {
+        "claim_id": "access_decision",
+        "statement": "Denied: unlink on sale.order",
+        "any_of": [
+          [
+            "Sales Order",
+            "sale.order"
+          ],
+          [
+            "delete",
+            "remove",
+            "unlink"
+          ],
+          [
+            "cannot",
+            "can't",
+            "not allowed",
+            "not permitted",
+            "denied",
+            "no access",
+            "no permission",
+            "don't have access",
+            "do not have access",
+            "don't have permission",
+            "do not have permission",
+            "forbidden",
+            "unable",
+            "not able"
+          ]
+        ],
+        "none_of": []
+      }
+    ],
+    "abstention_rule": "none",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "check_access_rights"
+    }
+  },
+  {
+    "case_id": "access_sales_purchase_stock_base_user_admin_sale_order_read",
+    "split": "held_out",
+    "instance": "sales_purchase_stock",
+    "user_context": {
+      "user": "base.user_admin",
+      "company": "base.main_company",
+      "language": "en_US",
+      "groups": []
+    },
+    "question": "Can I read records of the model \"Sales Order\"?",
+    "module": "sale",
+    "expected_intent": "governance_security",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [
+      "model:sale.order"
+    ],
+    "acceptable_evidence": [
+      {
+        "kind": "graph",
+        "source": "model:sale.order"
+      }
+    ],
+    "expected_claims": [
+      {
+        "claim_id": "access_decision",
+        "statement": "Allowed: read on sale.order",
+        "any_of": [
+          [
+            "Sales Order",
+            "sale.order"
+          ],
+          [
+            "read",
+            "view",
+            "access"
+          ],
+          [
+            "you can",
+            "yes",
+            "allowed",
+            "access"
+          ]
+        ],
+        "none_of": [
+          "cannot",
+          "can't",
+          "not allowed",
+          "not permitted",
+          "denied",
+          "no access",
+          "no permission",
+          "don't have access",
+          "do not have access",
+          "don't have permission",
+          "do not have permission",
+          "forbidden",
+          "unable",
+          "not able"
+        ]
+      }
+    ],
+    "abstention_rule": "none",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "check_access_rights"
+    }
+  },
+  {
+    "case_id": "access_sales_purchase_stock_base_user_admin_sale_order_write",
+    "split": "held_out",
+    "instance": "sales_purchase_stock",
+    "user_context": {
+      "user": "base.user_admin",
+      "company": "base.main_company",
+      "language": "en_US",
+      "groups": []
+    },
+    "question": "Can I edit records of the model \"Sales Order\"?",
+    "module": "sale",
+    "expected_intent": "governance_security",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [
+      "model:sale.order"
+    ],
+    "acceptable_evidence": [
+      {
+        "kind": "graph",
+        "source": "model:sale.order"
+      }
+    ],
+    "expected_claims": [
+      {
+        "claim_id": "access_decision",
+        "statement": "Allowed: write on sale.order",
+        "any_of": [
+          [
+            "Sales Order",
+            "sale.order"
+          ],
+          [
+            "write",
+            "edit",
+            "modify",
+            "update"
+          ],
+          [
+            "you can",
+            "yes",
+            "allowed",
+            "access"
+          ]
+        ],
+        "none_of": [
+          "cannot",
+          "can't",
+          "not allowed",
+          "not permitted",
+          "denied",
+          "no access",
+          "no permission",
+          "don't have access",
+          "do not have access",
+          "don't have permission",
+          "do not have permission",
+          "forbidden",
+          "unable",
+          "not able"
+        ]
+      }
+    ],
+    "abstention_rule": "none",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "check_access_rights"
+    }
+  },
+  {
+    "case_id": "access_sales_purchase_stock_base_user_admin_sale_order_create",
+    "split": "held_out",
+    "instance": "sales_purchase_stock",
+    "user_context": {
+      "user": "base.user_admin",
+      "company": "base.main_company",
+      "language": "en_US",
+      "groups": []
+    },
+    "question": "Can I create records of the model \"Sales Order\"?",
+    "module": "sale",
+    "expected_intent": "governance_security",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [
+      "model:sale.order"
+    ],
+    "acceptable_evidence": [
+      {
+        "kind": "graph",
+        "source": "model:sale.order"
+      }
+    ],
+    "expected_claims": [
+      {
+        "claim_id": "access_decision",
+        "statement": "Allowed: create on sale.order",
+        "any_of": [
+          [
+            "Sales Order",
+            "sale.order"
+          ],
+          [
+            "create"
+          ],
+          [
+            "you can",
+            "yes",
+            "allowed",
+            "access"
+          ]
+        ],
+        "none_of": [
+          "cannot",
+          "can't",
+          "not allowed",
+          "not permitted",
+          "denied",
+          "no access",
+          "no permission",
+          "don't have access",
+          "do not have access",
+          "don't have permission",
+          "do not have permission",
+          "forbidden",
+          "unable",
+          "not able"
+        ]
+      }
+    ],
+    "abstention_rule": "none",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "check_access_rights"
+    }
+  },
+  {
+    "case_id": "access_sales_purchase_stock_base_user_admin_sale_order_unlink",
+    "split": "held_out",
+    "instance": "sales_purchase_stock",
+    "user_context": {
+      "user": "base.user_admin",
+      "company": "base.main_company",
+      "language": "en_US",
+      "groups": []
+    },
+    "question": "Can I delete records of the model \"Sales Order\"?",
+    "module": "sale",
+    "expected_intent": "governance_security",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [
+      "model:sale.order"
+    ],
+    "acceptable_evidence": [
+      {
+        "kind": "graph",
+        "source": "model:sale.order"
+      }
+    ],
+    "expected_claims": [
+      {
+        "claim_id": "access_decision",
+        "statement": "Allowed: unlink on sale.order",
+        "any_of": [
+          [
+            "Sales Order",
+            "sale.order"
+          ],
+          [
+            "delete",
+            "remove",
+            "unlink"
+          ],
+          [
+            "you can",
+            "yes",
+            "allowed",
+            "access"
+          ]
+        ],
+        "none_of": [
+          "cannot",
+          "can't",
+          "not allowed",
+          "not permitted",
+          "denied",
+          "no access",
+          "no permission",
+          "don't have access",
+          "do not have access",
+          "don't have permission",
+          "do not have permission",
+          "forbidden",
+          "unable",
+          "not able"
+        ]
+      }
+    ],
+    "abstention_rule": "none",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "check_access_rights"
+    }
+  },
+  {
+    "case_id": "access_sales_purchase_stock_base_demo_user0_purchase_order_read",
+    "split": "held_out",
+    "instance": "sales_purchase_stock",
+    "user_context": {
+      "user": "base.demo_user0",
+      "company": "base.main_company",
+      "language": "en_US",
+      "groups": []
+    },
+    "question": "Can I read records of the model \"Purchase Order\"?",
+    "module": "purchase",
+    "expected_intent": "governance_security",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [
+      "model:purchase.order"
+    ],
+    "acceptable_evidence": [
+      {
+        "kind": "graph",
+        "source": "model:purchase.order"
+      }
+    ],
+    "expected_claims": [
+      {
+        "claim_id": "access_decision",
+        "statement": "Allowed: read on purchase.order",
+        "any_of": [
+          [
+            "Purchase Order",
+            "purchase.order"
+          ],
+          [
+            "read",
+            "view",
+            "access"
+          ],
+          [
+            "you can",
+            "yes",
+            "allowed",
+            "access"
+          ]
+        ],
+        "none_of": [
+          "cannot",
+          "can't",
+          "not allowed",
+          "not permitted",
+          "denied",
+          "no access",
+          "no permission",
+          "don't have access",
+          "do not have access",
+          "don't have permission",
+          "do not have permission",
+          "forbidden",
+          "unable",
+          "not able"
+        ]
+      }
+    ],
+    "abstention_rule": "none",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "check_access_rights"
+    }
+  },
+  {
+    "case_id": "access_sales_purchase_stock_base_demo_user0_purchase_order_write",
+    "split": "held_out",
+    "instance": "sales_purchase_stock",
+    "user_context": {
+      "user": "base.demo_user0",
+      "company": "base.main_company",
+      "language": "en_US",
+      "groups": []
+    },
+    "question": "Can I edit records of the model \"Purchase Order\"?",
+    "module": "purchase",
+    "expected_intent": "governance_security",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [
+      "model:purchase.order"
+    ],
+    "acceptable_evidence": [
+      {
+        "kind": "graph",
+        "source": "model:purchase.order"
+      }
+    ],
+    "expected_claims": [
+      {
+        "claim_id": "access_decision",
+        "statement": "Denied: write on purchase.order",
+        "any_of": [
+          [
+            "Purchase Order",
+            "purchase.order"
+          ],
+          [
+            "write",
+            "edit",
+            "modify",
+            "update"
+          ],
+          [
+            "cannot",
+            "can't",
+            "not allowed",
+            "not permitted",
+            "denied",
+            "no access",
+            "no permission",
+            "don't have access",
+            "do not have access",
+            "don't have permission",
+            "do not have permission",
+            "forbidden",
+            "unable",
+            "not able"
+          ]
+        ],
+        "none_of": []
+      }
+    ],
+    "abstention_rule": "none",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "check_access_rights"
+    }
+  },
+  {
+    "case_id": "access_sales_purchase_stock_base_demo_user0_purchase_order_create",
+    "split": "held_out",
+    "instance": "sales_purchase_stock",
+    "user_context": {
+      "user": "base.demo_user0",
+      "company": "base.main_company",
+      "language": "en_US",
+      "groups": []
+    },
+    "question": "Can I create records of the model \"Purchase Order\"?",
+    "module": "purchase",
+    "expected_intent": "governance_security",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [
+      "model:purchase.order"
+    ],
+    "acceptable_evidence": [
+      {
+        "kind": "graph",
+        "source": "model:purchase.order"
+      }
+    ],
+    "expected_claims": [
+      {
+        "claim_id": "access_decision",
+        "statement": "Denied: create on purchase.order",
+        "any_of": [
+          [
+            "Purchase Order",
+            "purchase.order"
+          ],
+          [
+            "create"
+          ],
+          [
+            "cannot",
+            "can't",
+            "not allowed",
+            "not permitted",
+            "denied",
+            "no access",
+            "no permission",
+            "don't have access",
+            "do not have access",
+            "don't have permission",
+            "do not have permission",
+            "forbidden",
+            "unable",
+            "not able"
+          ]
+        ],
+        "none_of": []
+      }
+    ],
+    "abstention_rule": "none",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "check_access_rights"
+    }
+  },
+  {
+    "case_id": "access_sales_purchase_stock_base_demo_user0_purchase_order_unlink",
+    "split": "held_out",
+    "instance": "sales_purchase_stock",
+    "user_context": {
+      "user": "base.demo_user0",
+      "company": "base.main_company",
+      "language": "en_US",
+      "groups": []
+    },
+    "question": "Can I delete records of the model \"Purchase Order\"?",
+    "module": "purchase",
+    "expected_intent": "governance_security",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [
+      "model:purchase.order"
+    ],
+    "acceptable_evidence": [
+      {
+        "kind": "graph",
+        "source": "model:purchase.order"
+      }
+    ],
+    "expected_claims": [
+      {
+        "claim_id": "access_decision",
+        "statement": "Denied: unlink on purchase.order",
+        "any_of": [
+          [
+            "Purchase Order",
+            "purchase.order"
+          ],
+          [
+            "delete",
+            "remove",
+            "unlink"
+          ],
+          [
+            "cannot",
+            "can't",
+            "not allowed",
+            "not permitted",
+            "denied",
+            "no access",
+            "no permission",
+            "don't have access",
+            "do not have access",
+            "don't have permission",
+            "do not have permission",
+            "forbidden",
+            "unable",
+            "not able"
+          ]
+        ],
+        "none_of": []
+      }
+    ],
+    "abstention_rule": "none",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "check_access_rights"
+    }
+  },
+  {
+    "case_id": "access_sales_purchase_stock_base_user_demo_purchase_order_read",
+    "split": "held_out",
+    "instance": "sales_purchase_stock",
+    "user_context": {
+      "user": "base.user_demo",
+      "company": "base.main_company",
+      "language": "en_US",
+      "groups": []
+    },
+    "question": "Can I read records of the model \"Purchase Order\"?",
+    "module": "purchase",
+    "expected_intent": "governance_security",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [
+      "model:purchase.order"
+    ],
+    "acceptable_evidence": [
+      {
+        "kind": "graph",
+        "source": "model:purchase.order"
+      }
+    ],
+    "expected_claims": [
+      {
+        "claim_id": "access_decision",
+        "statement": "Allowed: read on purchase.order",
+        "any_of": [
+          [
+            "Purchase Order",
+            "purchase.order"
+          ],
+          [
+            "read",
+            "view",
+            "access"
+          ],
+          [
+            "you can",
+            "yes",
+            "allowed",
+            "access"
+          ]
+        ],
+        "none_of": [
+          "cannot",
+          "can't",
+          "not allowed",
+          "not permitted",
+          "denied",
+          "no access",
+          "no permission",
+          "don't have access",
+          "do not have access",
+          "don't have permission",
+          "do not have permission",
+          "forbidden",
+          "unable",
+          "not able"
+        ]
+      }
+    ],
+    "abstention_rule": "none",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "check_access_rights"
+    }
+  },
+  {
+    "case_id": "access_sales_purchase_stock_base_user_demo_purchase_order_write",
+    "split": "held_out",
+    "instance": "sales_purchase_stock",
+    "user_context": {
+      "user": "base.user_demo",
+      "company": "base.main_company",
+      "language": "en_US",
+      "groups": []
+    },
+    "question": "Can I edit records of the model \"Purchase Order\"?",
+    "module": "purchase",
+    "expected_intent": "governance_security",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [
+      "model:purchase.order"
+    ],
+    "acceptable_evidence": [
+      {
+        "kind": "graph",
+        "source": "model:purchase.order"
+      }
+    ],
+    "expected_claims": [
+      {
+        "claim_id": "access_decision",
+        "statement": "Allowed: write on purchase.order",
+        "any_of": [
+          [
+            "Purchase Order",
+            "purchase.order"
+          ],
+          [
+            "write",
+            "edit",
+            "modify",
+            "update"
+          ],
+          [
+            "you can",
+            "yes",
+            "allowed",
+            "access"
+          ]
+        ],
+        "none_of": [
+          "cannot",
+          "can't",
+          "not allowed",
+          "not permitted",
+          "denied",
+          "no access",
+          "no permission",
+          "don't have access",
+          "do not have access",
+          "don't have permission",
+          "do not have permission",
+          "forbidden",
+          "unable",
+          "not able"
+        ]
+      }
+    ],
+    "abstention_rule": "none",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "check_access_rights"
+    }
+  },
+  {
+    "case_id": "access_sales_purchase_stock_base_user_demo_purchase_order_create",
+    "split": "held_out",
+    "instance": "sales_purchase_stock",
+    "user_context": {
+      "user": "base.user_demo",
+      "company": "base.main_company",
+      "language": "en_US",
+      "groups": []
+    },
+    "question": "Can I create records of the model \"Purchase Order\"?",
+    "module": "purchase",
+    "expected_intent": "governance_security",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [
+      "model:purchase.order"
+    ],
+    "acceptable_evidence": [
+      {
+        "kind": "graph",
+        "source": "model:purchase.order"
+      }
+    ],
+    "expected_claims": [
+      {
+        "claim_id": "access_decision",
+        "statement": "Allowed: create on purchase.order",
+        "any_of": [
+          [
+            "Purchase Order",
+            "purchase.order"
+          ],
+          [
+            "create"
+          ],
+          [
+            "you can",
+            "yes",
+            "allowed",
+            "access"
+          ]
+        ],
+        "none_of": [
+          "cannot",
+          "can't",
+          "not allowed",
+          "not permitted",
+          "denied",
+          "no access",
+          "no permission",
+          "don't have access",
+          "do not have access",
+          "don't have permission",
+          "do not have permission",
+          "forbidden",
+          "unable",
+          "not able"
+        ]
+      }
+    ],
+    "abstention_rule": "none",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "check_access_rights"
+    }
+  },
+  {
+    "case_id": "access_sales_purchase_stock_base_user_demo_purchase_order_unlink",
+    "split": "held_out",
+    "instance": "sales_purchase_stock",
+    "user_context": {
+      "user": "base.user_demo",
+      "company": "base.main_company",
+      "language": "en_US",
+      "groups": []
+    },
+    "question": "Can I delete records of the model \"Purchase Order\"?",
+    "module": "purchase",
+    "expected_intent": "governance_security",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [
+      "model:purchase.order"
+    ],
+    "acceptable_evidence": [
+      {
+        "kind": "graph",
+        "source": "model:purchase.order"
+      }
+    ],
+    "expected_claims": [
+      {
+        "claim_id": "access_decision",
+        "statement": "Allowed: unlink on purchase.order",
+        "any_of": [
+          [
+            "Purchase Order",
+            "purchase.order"
+          ],
+          [
+            "delete",
+            "remove",
+            "unlink"
+          ],
+          [
+            "you can",
+            "yes",
+            "allowed",
+            "access"
+          ]
+        ],
+        "none_of": [
+          "cannot",
+          "can't",
+          "not allowed",
+          "not permitted",
+          "denied",
+          "no access",
+          "no permission",
+          "don't have access",
+          "do not have access",
+          "don't have permission",
+          "do not have permission",
+          "forbidden",
+          "unable",
+          "not able"
+        ]
+      }
+    ],
+    "abstention_rule": "none",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "check_access_rights"
+    }
+  },
+  {
+    "case_id": "access_sales_purchase_stock_base_user_admin_purchase_order_read",
+    "split": "held_out",
+    "instance": "sales_purchase_stock",
+    "user_context": {
+      "user": "base.user_admin",
+      "company": "base.main_company",
+      "language": "en_US",
+      "groups": []
+    },
+    "question": "Can I read records of the model \"Purchase Order\"?",
+    "module": "purchase",
+    "expected_intent": "governance_security",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [
+      "model:purchase.order"
+    ],
+    "acceptable_evidence": [
+      {
+        "kind": "graph",
+        "source": "model:purchase.order"
+      }
+    ],
+    "expected_claims": [
+      {
+        "claim_id": "access_decision",
+        "statement": "Allowed: read on purchase.order",
+        "any_of": [
+          [
+            "Purchase Order",
+            "purchase.order"
+          ],
+          [
+            "read",
+            "view",
+            "access"
+          ],
+          [
+            "you can",
+            "yes",
+            "allowed",
+            "access"
+          ]
+        ],
+        "none_of": [
+          "cannot",
+          "can't",
+          "not allowed",
+          "not permitted",
+          "denied",
+          "no access",
+          "no permission",
+          "don't have access",
+          "do not have access",
+          "don't have permission",
+          "do not have permission",
+          "forbidden",
+          "unable",
+          "not able"
+        ]
+      }
+    ],
+    "abstention_rule": "none",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "check_access_rights"
+    }
+  },
+  {
+    "case_id": "access_sales_purchase_stock_base_user_admin_purchase_order_write",
+    "split": "held_out",
+    "instance": "sales_purchase_stock",
+    "user_context": {
+      "user": "base.user_admin",
+      "company": "base.main_company",
+      "language": "en_US",
+      "groups": []
+    },
+    "question": "Can I edit records of the model \"Purchase Order\"?",
+    "module": "purchase",
+    "expected_intent": "governance_security",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [
+      "model:purchase.order"
+    ],
+    "acceptable_evidence": [
+      {
+        "kind": "graph",
+        "source": "model:purchase.order"
+      }
+    ],
+    "expected_claims": [
+      {
+        "claim_id": "access_decision",
+        "statement": "Allowed: write on purchase.order",
+        "any_of": [
+          [
+            "Purchase Order",
+            "purchase.order"
+          ],
+          [
+            "write",
+            "edit",
+            "modify",
+            "update"
+          ],
+          [
+            "you can",
+            "yes",
+            "allowed",
+            "access"
+          ]
+        ],
+        "none_of": [
+          "cannot",
+          "can't",
+          "not allowed",
+          "not permitted",
+          "denied",
+          "no access",
+          "no permission",
+          "don't have access",
+          "do not have access",
+          "don't have permission",
+          "do not have permission",
+          "forbidden",
+          "unable",
+          "not able"
+        ]
+      }
+    ],
+    "abstention_rule": "none",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "check_access_rights"
+    }
+  },
+  {
+    "case_id": "access_sales_purchase_stock_base_user_admin_purchase_order_create",
+    "split": "held_out",
+    "instance": "sales_purchase_stock",
+    "user_context": {
+      "user": "base.user_admin",
+      "company": "base.main_company",
+      "language": "en_US",
+      "groups": []
+    },
+    "question": "Can I create records of the model \"Purchase Order\"?",
+    "module": "purchase",
+    "expected_intent": "governance_security",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [
+      "model:purchase.order"
+    ],
+    "acceptable_evidence": [
+      {
+        "kind": "graph",
+        "source": "model:purchase.order"
+      }
+    ],
+    "expected_claims": [
+      {
+        "claim_id": "access_decision",
+        "statement": "Allowed: create on purchase.order",
+        "any_of": [
+          [
+            "Purchase Order",
+            "purchase.order"
+          ],
+          [
+            "create"
+          ],
+          [
+            "you can",
+            "yes",
+            "allowed",
+            "access"
+          ]
+        ],
+        "none_of": [
+          "cannot",
+          "can't",
+          "not allowed",
+          "not permitted",
+          "denied",
+          "no access",
+          "no permission",
+          "don't have access",
+          "do not have access",
+          "don't have permission",
+          "do not have permission",
+          "forbidden",
+          "unable",
+          "not able"
+        ]
+      }
+    ],
+    "abstention_rule": "none",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "check_access_rights"
+    }
+  },
+  {
+    "case_id": "access_sales_purchase_stock_base_user_admin_purchase_order_unlink",
+    "split": "held_out",
+    "instance": "sales_purchase_stock",
+    "user_context": {
+      "user": "base.user_admin",
+      "company": "base.main_company",
+      "language": "en_US",
+      "groups": []
+    },
+    "question": "Can I delete records of the model \"Purchase Order\"?",
+    "module": "purchase",
+    "expected_intent": "governance_security",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [
+      "model:purchase.order"
+    ],
+    "acceptable_evidence": [
+      {
+        "kind": "graph",
+        "source": "model:purchase.order"
+      }
+    ],
+    "expected_claims": [
+      {
+        "claim_id": "access_decision",
+        "statement": "Allowed: unlink on purchase.order",
+        "any_of": [
+          [
+            "Purchase Order",
+            "purchase.order"
+          ],
+          [
+            "delete",
+            "remove",
+            "unlink"
+          ],
+          [
+            "you can",
+            "yes",
+            "allowed",
+            "access"
+          ]
+        ],
+        "none_of": [
+          "cannot",
+          "can't",
+          "not allowed",
+          "not permitted",
+          "denied",
+          "no access",
+          "no permission",
+          "don't have access",
+          "do not have access",
+          "don't have permission",
+          "do not have permission",
+          "forbidden",
+          "unable",
+          "not able"
+        ]
+      }
+    ],
+    "abstention_rule": "none",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "check_access_rights"
+    }
+  },
+  {
+    "case_id": "access_sales_purchase_stock_base_demo_user0_stock_picking_read",
+    "split": "held_out",
+    "instance": "sales_purchase_stock",
+    "user_context": {
+      "user": "base.demo_user0",
+      "company": "base.main_company",
+      "language": "en_US",
+      "groups": []
+    },
+    "question": "Can I read records of the model \"Transfer\"?",
+    "module": "purchase_stock",
+    "expected_intent": "governance_security",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [
+      "model:stock.picking"
+    ],
+    "acceptable_evidence": [
+      {
+        "kind": "graph",
+        "source": "model:stock.picking"
+      }
+    ],
+    "expected_claims": [
+      {
+        "claim_id": "access_decision",
+        "statement": "Allowed: read on stock.picking",
+        "any_of": [
+          [
+            "Transfer",
+            "stock.picking"
+          ],
+          [
+            "read",
+            "view",
+            "access"
+          ],
+          [
+            "you can",
+            "yes",
+            "allowed",
+            "access"
+          ]
+        ],
+        "none_of": [
+          "cannot",
+          "can't",
+          "not allowed",
+          "not permitted",
+          "denied",
+          "no access",
+          "no permission",
+          "don't have access",
+          "do not have access",
+          "don't have permission",
+          "do not have permission",
+          "forbidden",
+          "unable",
+          "not able"
+        ]
+      }
+    ],
+    "abstention_rule": "none",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "check_access_rights"
+    }
+  },
+  {
+    "case_id": "access_sales_purchase_stock_base_demo_user0_stock_picking_write",
+    "split": "held_out",
+    "instance": "sales_purchase_stock",
+    "user_context": {
+      "user": "base.demo_user0",
+      "company": "base.main_company",
+      "language": "en_US",
+      "groups": []
+    },
+    "question": "Can I edit records of the model \"Transfer\"?",
+    "module": "purchase_stock",
+    "expected_intent": "governance_security",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [
+      "model:stock.picking"
+    ],
+    "acceptable_evidence": [
+      {
+        "kind": "graph",
+        "source": "model:stock.picking"
+      }
+    ],
+    "expected_claims": [
+      {
+        "claim_id": "access_decision",
+        "statement": "Denied: write on stock.picking",
+        "any_of": [
+          [
+            "Transfer",
+            "stock.picking"
+          ],
+          [
+            "write",
+            "edit",
+            "modify",
+            "update"
+          ],
+          [
+            "cannot",
+            "can't",
+            "not allowed",
+            "not permitted",
+            "denied",
+            "no access",
+            "no permission",
+            "don't have access",
+            "do not have access",
+            "don't have permission",
+            "do not have permission",
+            "forbidden",
+            "unable",
+            "not able"
+          ]
+        ],
+        "none_of": []
+      }
+    ],
+    "abstention_rule": "none",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "check_access_rights"
+    }
+  },
+  {
+    "case_id": "access_sales_purchase_stock_base_demo_user0_stock_picking_create",
+    "split": "held_out",
+    "instance": "sales_purchase_stock",
+    "user_context": {
+      "user": "base.demo_user0",
+      "company": "base.main_company",
+      "language": "en_US",
+      "groups": []
+    },
+    "question": "Can I create records of the model \"Transfer\"?",
+    "module": "purchase_stock",
+    "expected_intent": "governance_security",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [
+      "model:stock.picking"
+    ],
+    "acceptable_evidence": [
+      {
+        "kind": "graph",
+        "source": "model:stock.picking"
+      }
+    ],
+    "expected_claims": [
+      {
+        "claim_id": "access_decision",
+        "statement": "Denied: create on stock.picking",
+        "any_of": [
+          [
+            "Transfer",
+            "stock.picking"
+          ],
+          [
+            "create"
+          ],
+          [
+            "cannot",
+            "can't",
+            "not allowed",
+            "not permitted",
+            "denied",
+            "no access",
+            "no permission",
+            "don't have access",
+            "do not have access",
+            "don't have permission",
+            "do not have permission",
+            "forbidden",
+            "unable",
+            "not able"
+          ]
+        ],
+        "none_of": []
+      }
+    ],
+    "abstention_rule": "none",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "check_access_rights"
+    }
+  },
+  {
+    "case_id": "access_sales_purchase_stock_base_demo_user0_stock_picking_unlink",
+    "split": "held_out",
+    "instance": "sales_purchase_stock",
+    "user_context": {
+      "user": "base.demo_user0",
+      "company": "base.main_company",
+      "language": "en_US",
+      "groups": []
+    },
+    "question": "Can I delete records of the model \"Transfer\"?",
+    "module": "purchase_stock",
+    "expected_intent": "governance_security",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [
+      "model:stock.picking"
+    ],
+    "acceptable_evidence": [
+      {
+        "kind": "graph",
+        "source": "model:stock.picking"
+      }
+    ],
+    "expected_claims": [
+      {
+        "claim_id": "access_decision",
+        "statement": "Denied: unlink on stock.picking",
+        "any_of": [
+          [
+            "Transfer",
+            "stock.picking"
+          ],
+          [
+            "delete",
+            "remove",
+            "unlink"
+          ],
+          [
+            "cannot",
+            "can't",
+            "not allowed",
+            "not permitted",
+            "denied",
+            "no access",
+            "no permission",
+            "don't have access",
+            "do not have access",
+            "don't have permission",
+            "do not have permission",
+            "forbidden",
+            "unable",
+            "not able"
+          ]
+        ],
+        "none_of": []
+      }
+    ],
+    "abstention_rule": "none",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "check_access_rights"
+    }
+  },
+  {
+    "case_id": "access_sales_purchase_stock_base_user_demo_stock_picking_read",
+    "split": "held_out",
+    "instance": "sales_purchase_stock",
+    "user_context": {
+      "user": "base.user_demo",
+      "company": "base.main_company",
+      "language": "en_US",
+      "groups": []
+    },
+    "question": "Can I read records of the model \"Transfer\"?",
+    "module": "purchase_stock",
+    "expected_intent": "governance_security",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [
+      "model:stock.picking"
+    ],
+    "acceptable_evidence": [
+      {
+        "kind": "graph",
+        "source": "model:stock.picking"
+      }
+    ],
+    "expected_claims": [
+      {
+        "claim_id": "access_decision",
+        "statement": "Allowed: read on stock.picking",
+        "any_of": [
+          [
+            "Transfer",
+            "stock.picking"
+          ],
+          [
+            "read",
+            "view",
+            "access"
+          ],
+          [
+            "you can",
+            "yes",
+            "allowed",
+            "access"
+          ]
+        ],
+        "none_of": [
+          "cannot",
+          "can't",
+          "not allowed",
+          "not permitted",
+          "denied",
+          "no access",
+          "no permission",
+          "don't have access",
+          "do not have access",
+          "don't have permission",
+          "do not have permission",
+          "forbidden",
+          "unable",
+          "not able"
+        ]
+      }
+    ],
+    "abstention_rule": "none",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "check_access_rights"
+    }
+  },
+  {
+    "case_id": "access_sales_purchase_stock_base_user_demo_stock_picking_write",
+    "split": "held_out",
+    "instance": "sales_purchase_stock",
+    "user_context": {
+      "user": "base.user_demo",
+      "company": "base.main_company",
+      "language": "en_US",
+      "groups": []
+    },
+    "question": "Can I edit records of the model \"Transfer\"?",
+    "module": "purchase_stock",
+    "expected_intent": "governance_security",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [
+      "model:stock.picking"
+    ],
+    "acceptable_evidence": [
+      {
+        "kind": "graph",
+        "source": "model:stock.picking"
+      }
+    ],
+    "expected_claims": [
+      {
+        "claim_id": "access_decision",
+        "statement": "Allowed: write on stock.picking",
+        "any_of": [
+          [
+            "Transfer",
+            "stock.picking"
+          ],
+          [
+            "write",
+            "edit",
+            "modify",
+            "update"
+          ],
+          [
+            "you can",
+            "yes",
+            "allowed",
+            "access"
+          ]
+        ],
+        "none_of": [
+          "cannot",
+          "can't",
+          "not allowed",
+          "not permitted",
+          "denied",
+          "no access",
+          "no permission",
+          "don't have access",
+          "do not have access",
+          "don't have permission",
+          "do not have permission",
+          "forbidden",
+          "unable",
+          "not able"
+        ]
+      }
+    ],
+    "abstention_rule": "none",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "check_access_rights"
+    }
+  },
+  {
+    "case_id": "access_sales_purchase_stock_base_user_demo_stock_picking_create",
+    "split": "held_out",
+    "instance": "sales_purchase_stock",
+    "user_context": {
+      "user": "base.user_demo",
+      "company": "base.main_company",
+      "language": "en_US",
+      "groups": []
+    },
+    "question": "Can I create records of the model \"Transfer\"?",
+    "module": "purchase_stock",
+    "expected_intent": "governance_security",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [
+      "model:stock.picking"
+    ],
+    "acceptable_evidence": [
+      {
+        "kind": "graph",
+        "source": "model:stock.picking"
+      }
+    ],
+    "expected_claims": [
+      {
+        "claim_id": "access_decision",
+        "statement": "Allowed: create on stock.picking",
+        "any_of": [
+          [
+            "Transfer",
+            "stock.picking"
+          ],
+          [
+            "create"
+          ],
+          [
+            "you can",
+            "yes",
+            "allowed",
+            "access"
+          ]
+        ],
+        "none_of": [
+          "cannot",
+          "can't",
+          "not allowed",
+          "not permitted",
+          "denied",
+          "no access",
+          "no permission",
+          "don't have access",
+          "do not have access",
+          "don't have permission",
+          "do not have permission",
+          "forbidden",
+          "unable",
+          "not able"
+        ]
+      }
+    ],
+    "abstention_rule": "none",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "check_access_rights"
+    }
+  },
+  {
+    "case_id": "access_sales_purchase_stock_base_user_demo_stock_picking_unlink",
+    "split": "held_out",
+    "instance": "sales_purchase_stock",
+    "user_context": {
+      "user": "base.user_demo",
+      "company": "base.main_company",
+      "language": "en_US",
+      "groups": []
+    },
+    "question": "Can I delete records of the model \"Transfer\"?",
+    "module": "purchase_stock",
+    "expected_intent": "governance_security",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [
+      "model:stock.picking"
+    ],
+    "acceptable_evidence": [
+      {
+        "kind": "graph",
+        "source": "model:stock.picking"
+      }
+    ],
+    "expected_claims": [
+      {
+        "claim_id": "access_decision",
+        "statement": "Allowed: unlink on stock.picking",
+        "any_of": [
+          [
+            "Transfer",
+            "stock.picking"
+          ],
+          [
+            "delete",
+            "remove",
+            "unlink"
+          ],
+          [
+            "you can",
+            "yes",
+            "allowed",
+            "access"
+          ]
+        ],
+        "none_of": [
+          "cannot",
+          "can't",
+          "not allowed",
+          "not permitted",
+          "denied",
+          "no access",
+          "no permission",
+          "don't have access",
+          "do not have access",
+          "don't have permission",
+          "do not have permission",
+          "forbidden",
+          "unable",
+          "not able"
+        ]
+      }
+    ],
+    "abstention_rule": "none",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "check_access_rights"
+    }
+  },
+  {
+    "case_id": "access_sales_purchase_stock_base_user_admin_stock_picking_read",
+    "split": "held_out",
+    "instance": "sales_purchase_stock",
+    "user_context": {
+      "user": "base.user_admin",
+      "company": "base.main_company",
+      "language": "en_US",
+      "groups": []
+    },
+    "question": "Can I read records of the model \"Transfer\"?",
+    "module": "purchase_stock",
+    "expected_intent": "governance_security",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [
+      "model:stock.picking"
+    ],
+    "acceptable_evidence": [
+      {
+        "kind": "graph",
+        "source": "model:stock.picking"
+      }
+    ],
+    "expected_claims": [
+      {
+        "claim_id": "access_decision",
+        "statement": "Allowed: read on stock.picking",
+        "any_of": [
+          [
+            "Transfer",
+            "stock.picking"
+          ],
+          [
+            "read",
+            "view",
+            "access"
+          ],
+          [
+            "you can",
+            "yes",
+            "allowed",
+            "access"
+          ]
+        ],
+        "none_of": [
+          "cannot",
+          "can't",
+          "not allowed",
+          "not permitted",
+          "denied",
+          "no access",
+          "no permission",
+          "don't have access",
+          "do not have access",
+          "don't have permission",
+          "do not have permission",
+          "forbidden",
+          "unable",
+          "not able"
+        ]
+      }
+    ],
+    "abstention_rule": "none",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "check_access_rights"
+    }
+  },
+  {
+    "case_id": "access_sales_purchase_stock_base_user_admin_stock_picking_write",
+    "split": "held_out",
+    "instance": "sales_purchase_stock",
+    "user_context": {
+      "user": "base.user_admin",
+      "company": "base.main_company",
+      "language": "en_US",
+      "groups": []
+    },
+    "question": "Can I edit records of the model \"Transfer\"?",
+    "module": "purchase_stock",
+    "expected_intent": "governance_security",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [
+      "model:stock.picking"
+    ],
+    "acceptable_evidence": [
+      {
+        "kind": "graph",
+        "source": "model:stock.picking"
+      }
+    ],
+    "expected_claims": [
+      {
+        "claim_id": "access_decision",
+        "statement": "Allowed: write on stock.picking",
+        "any_of": [
+          [
+            "Transfer",
+            "stock.picking"
+          ],
+          [
+            "write",
+            "edit",
+            "modify",
+            "update"
+          ],
+          [
+            "you can",
+            "yes",
+            "allowed",
+            "access"
+          ]
+        ],
+        "none_of": [
+          "cannot",
+          "can't",
+          "not allowed",
+          "not permitted",
+          "denied",
+          "no access",
+          "no permission",
+          "don't have access",
+          "do not have access",
+          "don't have permission",
+          "do not have permission",
+          "forbidden",
+          "unable",
+          "not able"
+        ]
+      }
+    ],
+    "abstention_rule": "none",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "check_access_rights"
+    }
+  },
+  {
+    "case_id": "access_sales_purchase_stock_base_user_admin_stock_picking_create",
+    "split": "held_out",
+    "instance": "sales_purchase_stock",
+    "user_context": {
+      "user": "base.user_admin",
+      "company": "base.main_company",
+      "language": "en_US",
+      "groups": []
+    },
+    "question": "Can I create records of the model \"Transfer\"?",
+    "module": "purchase_stock",
+    "expected_intent": "governance_security",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [
+      "model:stock.picking"
+    ],
+    "acceptable_evidence": [
+      {
+        "kind": "graph",
+        "source": "model:stock.picking"
+      }
+    ],
+    "expected_claims": [
+      {
+        "claim_id": "access_decision",
+        "statement": "Allowed: create on stock.picking",
+        "any_of": [
+          [
+            "Transfer",
+            "stock.picking"
+          ],
+          [
+            "create"
+          ],
+          [
+            "you can",
+            "yes",
+            "allowed",
+            "access"
+          ]
+        ],
+        "none_of": [
+          "cannot",
+          "can't",
+          "not allowed",
+          "not permitted",
+          "denied",
+          "no access",
+          "no permission",
+          "don't have access",
+          "do not have access",
+          "don't have permission",
+          "do not have permission",
+          "forbidden",
+          "unable",
+          "not able"
+        ]
+      }
+    ],
+    "abstention_rule": "none",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "check_access_rights"
+    }
+  },
+  {
+    "case_id": "access_sales_purchase_stock_base_user_admin_stock_picking_unlink",
+    "split": "held_out",
+    "instance": "sales_purchase_stock",
+    "user_context": {
+      "user": "base.user_admin",
+      "company": "base.main_company",
+      "language": "en_US",
+      "groups": []
+    },
+    "question": "Can I delete records of the model \"Transfer\"?",
+    "module": "purchase_stock",
+    "expected_intent": "governance_security",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [
+      "model:stock.picking"
+    ],
+    "acceptable_evidence": [
+      {
+        "kind": "graph",
+        "source": "model:stock.picking"
+      }
+    ],
+    "expected_claims": [
+      {
+        "claim_id": "access_decision",
+        "statement": "Allowed: unlink on stock.picking",
+        "any_of": [
+          [
+            "Transfer",
+            "stock.picking"
+          ],
+          [
+            "delete",
+            "remove",
+            "unlink"
+          ],
+          [
+            "you can",
+            "yes",
+            "allowed",
+            "access"
+          ]
+        ],
+        "none_of": [
+          "cannot",
+          "can't",
+          "not allowed",
+          "not permitted",
+          "denied",
+          "no access",
+          "no permission",
+          "don't have access",
+          "do not have access",
+          "don't have permission",
+          "do not have permission",
+          "forbidden",
+          "unable",
+          "not able"
+        ]
+      }
+    ],
+    "abstention_rule": "none",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "check_access_rights"
+    }
+  },
+  {
+    "case_id": "access_sales_purchase_stock_base_demo_user0_account_move_read",
+    "split": "held_out",
+    "instance": "sales_purchase_stock",
+    "user_context": {
+      "user": "base.demo_user0",
+      "company": "base.main_company",
+      "language": "en_US",
+      "groups": []
+    },
+    "question": "Can I read records of the model \"Journal Entry\"?",
+    "module": "account",
+    "expected_intent": "governance_security",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [
+      "model:account.move"
+    ],
+    "acceptable_evidence": [
+      {
+        "kind": "graph",
+        "source": "model:account.move"
+      }
+    ],
+    "expected_claims": [
+      {
+        "claim_id": "access_decision",
+        "statement": "Allowed: read on account.move",
+        "any_of": [
+          [
+            "Journal Entry",
+            "account.move"
+          ],
+          [
+            "read",
+            "view",
+            "access"
+          ],
+          [
+            "you can",
+            "yes",
+            "allowed",
+            "access"
+          ]
+        ],
+        "none_of": [
+          "cannot",
+          "can't",
+          "not allowed",
+          "not permitted",
+          "denied",
+          "no access",
+          "no permission",
+          "don't have access",
+          "do not have access",
+          "don't have permission",
+          "do not have permission",
+          "forbidden",
+          "unable",
+          "not able"
+        ]
+      }
+    ],
+    "abstention_rule": "none",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "check_access_rights"
+    }
+  },
+  {
+    "case_id": "access_sales_purchase_stock_base_demo_user0_account_move_write",
+    "split": "held_out",
+    "instance": "sales_purchase_stock",
+    "user_context": {
+      "user": "base.demo_user0",
+      "company": "base.main_company",
+      "language": "en_US",
+      "groups": []
+    },
+    "question": "Can I edit records of the model \"Journal Entry\"?",
+    "module": "account",
+    "expected_intent": "governance_security",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [
+      "model:account.move"
+    ],
+    "acceptable_evidence": [
+      {
+        "kind": "graph",
+        "source": "model:account.move"
+      }
+    ],
+    "expected_claims": [
+      {
+        "claim_id": "access_decision",
+        "statement": "Denied: write on account.move",
+        "any_of": [
+          [
+            "Journal Entry",
+            "account.move"
+          ],
+          [
+            "write",
+            "edit",
+            "modify",
+            "update"
+          ],
+          [
+            "cannot",
+            "can't",
+            "not allowed",
+            "not permitted",
+            "denied",
+            "no access",
+            "no permission",
+            "don't have access",
+            "do not have access",
+            "don't have permission",
+            "do not have permission",
+            "forbidden",
+            "unable",
+            "not able"
+          ]
+        ],
+        "none_of": []
+      }
+    ],
+    "abstention_rule": "none",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "check_access_rights"
+    }
+  },
+  {
+    "case_id": "access_sales_purchase_stock_base_demo_user0_account_move_create",
+    "split": "held_out",
+    "instance": "sales_purchase_stock",
+    "user_context": {
+      "user": "base.demo_user0",
+      "company": "base.main_company",
+      "language": "en_US",
+      "groups": []
+    },
+    "question": "Can I create records of the model \"Journal Entry\"?",
+    "module": "account",
+    "expected_intent": "governance_security",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [
+      "model:account.move"
+    ],
+    "acceptable_evidence": [
+      {
+        "kind": "graph",
+        "source": "model:account.move"
+      }
+    ],
+    "expected_claims": [
+      {
+        "claim_id": "access_decision",
+        "statement": "Denied: create on account.move",
+        "any_of": [
+          [
+            "Journal Entry",
+            "account.move"
+          ],
+          [
+            "create"
+          ],
+          [
+            "cannot",
+            "can't",
+            "not allowed",
+            "not permitted",
+            "denied",
+            "no access",
+            "no permission",
+            "don't have access",
+            "do not have access",
+            "don't have permission",
+            "do not have permission",
+            "forbidden",
+            "unable",
+            "not able"
+          ]
+        ],
+        "none_of": []
+      }
+    ],
+    "abstention_rule": "none",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "check_access_rights"
+    }
+  },
+  {
+    "case_id": "access_sales_purchase_stock_base_demo_user0_account_move_unlink",
+    "split": "held_out",
+    "instance": "sales_purchase_stock",
+    "user_context": {
+      "user": "base.demo_user0",
+      "company": "base.main_company",
+      "language": "en_US",
+      "groups": []
+    },
+    "question": "Can I delete records of the model \"Journal Entry\"?",
+    "module": "account",
+    "expected_intent": "governance_security",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [
+      "model:account.move"
+    ],
+    "acceptable_evidence": [
+      {
+        "kind": "graph",
+        "source": "model:account.move"
+      }
+    ],
+    "expected_claims": [
+      {
+        "claim_id": "access_decision",
+        "statement": "Denied: unlink on account.move",
+        "any_of": [
+          [
+            "Journal Entry",
+            "account.move"
+          ],
+          [
+            "delete",
+            "remove",
+            "unlink"
+          ],
+          [
+            "cannot",
+            "can't",
+            "not allowed",
+            "not permitted",
+            "denied",
+            "no access",
+            "no permission",
+            "don't have access",
+            "do not have access",
+            "don't have permission",
+            "do not have permission",
+            "forbidden",
+            "unable",
+            "not able"
+          ]
+        ],
+        "none_of": []
+      }
+    ],
+    "abstention_rule": "none",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "check_access_rights"
+    }
+  },
+  {
+    "case_id": "access_sales_purchase_stock_base_user_demo_account_move_read",
+    "split": "held_out",
+    "instance": "sales_purchase_stock",
+    "user_context": {
+      "user": "base.user_demo",
+      "company": "base.main_company",
+      "language": "en_US",
+      "groups": []
+    },
+    "question": "Can I read records of the model \"Journal Entry\"?",
+    "module": "account",
+    "expected_intent": "governance_security",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [
+      "model:account.move"
+    ],
+    "acceptable_evidence": [
+      {
+        "kind": "graph",
+        "source": "model:account.move"
+      }
+    ],
+    "expected_claims": [
+      {
+        "claim_id": "access_decision",
+        "statement": "Allowed: read on account.move",
+        "any_of": [
+          [
+            "Journal Entry",
+            "account.move"
+          ],
+          [
+            "read",
+            "view",
+            "access"
+          ],
+          [
+            "you can",
+            "yes",
+            "allowed",
+            "access"
+          ]
+        ],
+        "none_of": [
+          "cannot",
+          "can't",
+          "not allowed",
+          "not permitted",
+          "denied",
+          "no access",
+          "no permission",
+          "don't have access",
+          "do not have access",
+          "don't have permission",
+          "do not have permission",
+          "forbidden",
+          "unable",
+          "not able"
+        ]
+      }
+    ],
+    "abstention_rule": "none",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "check_access_rights"
+    }
+  },
+  {
+    "case_id": "access_sales_purchase_stock_base_user_demo_account_move_write",
+    "split": "held_out",
+    "instance": "sales_purchase_stock",
+    "user_context": {
+      "user": "base.user_demo",
+      "company": "base.main_company",
+      "language": "en_US",
+      "groups": []
+    },
+    "question": "Can I edit records of the model \"Journal Entry\"?",
+    "module": "account",
+    "expected_intent": "governance_security",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [
+      "model:account.move"
+    ],
+    "acceptable_evidence": [
+      {
+        "kind": "graph",
+        "source": "model:account.move"
+      }
+    ],
+    "expected_claims": [
+      {
+        "claim_id": "access_decision",
+        "statement": "Allowed: write on account.move",
+        "any_of": [
+          [
+            "Journal Entry",
+            "account.move"
+          ],
+          [
+            "write",
+            "edit",
+            "modify",
+            "update"
+          ],
+          [
+            "you can",
+            "yes",
+            "allowed",
+            "access"
+          ]
+        ],
+        "none_of": [
+          "cannot",
+          "can't",
+          "not allowed",
+          "not permitted",
+          "denied",
+          "no access",
+          "no permission",
+          "don't have access",
+          "do not have access",
+          "don't have permission",
+          "do not have permission",
+          "forbidden",
+          "unable",
+          "not able"
+        ]
+      }
+    ],
+    "abstention_rule": "none",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "check_access_rights"
+    }
+  },
+  {
+    "case_id": "access_sales_purchase_stock_base_user_demo_account_move_create",
+    "split": "held_out",
+    "instance": "sales_purchase_stock",
+    "user_context": {
+      "user": "base.user_demo",
+      "company": "base.main_company",
+      "language": "en_US",
+      "groups": []
+    },
+    "question": "Can I create records of the model \"Journal Entry\"?",
+    "module": "account",
+    "expected_intent": "governance_security",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [
+      "model:account.move"
+    ],
+    "acceptable_evidence": [
+      {
+        "kind": "graph",
+        "source": "model:account.move"
+      }
+    ],
+    "expected_claims": [
+      {
+        "claim_id": "access_decision",
+        "statement": "Allowed: create on account.move",
+        "any_of": [
+          [
+            "Journal Entry",
+            "account.move"
+          ],
+          [
+            "create"
+          ],
+          [
+            "you can",
+            "yes",
+            "allowed",
+            "access"
+          ]
+        ],
+        "none_of": [
+          "cannot",
+          "can't",
+          "not allowed",
+          "not permitted",
+          "denied",
+          "no access",
+          "no permission",
+          "don't have access",
+          "do not have access",
+          "don't have permission",
+          "do not have permission",
+          "forbidden",
+          "unable",
+          "not able"
+        ]
+      }
+    ],
+    "abstention_rule": "none",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "check_access_rights"
+    }
+  },
+  {
+    "case_id": "access_sales_purchase_stock_base_user_demo_account_move_unlink",
+    "split": "held_out",
+    "instance": "sales_purchase_stock",
+    "user_context": {
+      "user": "base.user_demo",
+      "company": "base.main_company",
+      "language": "en_US",
+      "groups": []
+    },
+    "question": "Can I delete records of the model \"Journal Entry\"?",
+    "module": "account",
+    "expected_intent": "governance_security",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [
+      "model:account.move"
+    ],
+    "acceptable_evidence": [
+      {
+        "kind": "graph",
+        "source": "model:account.move"
+      }
+    ],
+    "expected_claims": [
+      {
+        "claim_id": "access_decision",
+        "statement": "Allowed: unlink on account.move",
+        "any_of": [
+          [
+            "Journal Entry",
+            "account.move"
+          ],
+          [
+            "delete",
+            "remove",
+            "unlink"
+          ],
+          [
+            "you can",
+            "yes",
+            "allowed",
+            "access"
+          ]
+        ],
+        "none_of": [
+          "cannot",
+          "can't",
+          "not allowed",
+          "not permitted",
+          "denied",
+          "no access",
+          "no permission",
+          "don't have access",
+          "do not have access",
+          "don't have permission",
+          "do not have permission",
+          "forbidden",
+          "unable",
+          "not able"
+        ]
+      }
+    ],
+    "abstention_rule": "none",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "check_access_rights"
+    }
+  },
+  {
+    "case_id": "access_sales_purchase_stock_base_user_admin_account_move_read",
+    "split": "held_out",
+    "instance": "sales_purchase_stock",
+    "user_context": {
+      "user": "base.user_admin",
+      "company": "base.main_company",
+      "language": "en_US",
+      "groups": []
+    },
+    "question": "Can I read records of the model \"Journal Entry\"?",
+    "module": "account",
+    "expected_intent": "governance_security",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [
+      "model:account.move"
+    ],
+    "acceptable_evidence": [
+      {
+        "kind": "graph",
+        "source": "model:account.move"
+      }
+    ],
+    "expected_claims": [
+      {
+        "claim_id": "access_decision",
+        "statement": "Allowed: read on account.move",
+        "any_of": [
+          [
+            "Journal Entry",
+            "account.move"
+          ],
+          [
+            "read",
+            "view",
+            "access"
+          ],
+          [
+            "you can",
+            "yes",
+            "allowed",
+            "access"
+          ]
+        ],
+        "none_of": [
+          "cannot",
+          "can't",
+          "not allowed",
+          "not permitted",
+          "denied",
+          "no access",
+          "no permission",
+          "don't have access",
+          "do not have access",
+          "don't have permission",
+          "do not have permission",
+          "forbidden",
+          "unable",
+          "not able"
+        ]
+      }
+    ],
+    "abstention_rule": "none",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "check_access_rights"
+    }
+  },
+  {
+    "case_id": "access_sales_purchase_stock_base_user_admin_account_move_write",
+    "split": "held_out",
+    "instance": "sales_purchase_stock",
+    "user_context": {
+      "user": "base.user_admin",
+      "company": "base.main_company",
+      "language": "en_US",
+      "groups": []
+    },
+    "question": "Can I edit records of the model \"Journal Entry\"?",
+    "module": "account",
+    "expected_intent": "governance_security",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [
+      "model:account.move"
+    ],
+    "acceptable_evidence": [
+      {
+        "kind": "graph",
+        "source": "model:account.move"
+      }
+    ],
+    "expected_claims": [
+      {
+        "claim_id": "access_decision",
+        "statement": "Allowed: write on account.move",
+        "any_of": [
+          [
+            "Journal Entry",
+            "account.move"
+          ],
+          [
+            "write",
+            "edit",
+            "modify",
+            "update"
+          ],
+          [
+            "you can",
+            "yes",
+            "allowed",
+            "access"
+          ]
+        ],
+        "none_of": [
+          "cannot",
+          "can't",
+          "not allowed",
+          "not permitted",
+          "denied",
+          "no access",
+          "no permission",
+          "don't have access",
+          "do not have access",
+          "don't have permission",
+          "do not have permission",
+          "forbidden",
+          "unable",
+          "not able"
+        ]
+      }
+    ],
+    "abstention_rule": "none",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "check_access_rights"
+    }
+  },
+  {
+    "case_id": "access_sales_purchase_stock_base_user_admin_account_move_create",
+    "split": "held_out",
+    "instance": "sales_purchase_stock",
+    "user_context": {
+      "user": "base.user_admin",
+      "company": "base.main_company",
+      "language": "en_US",
+      "groups": []
+    },
+    "question": "Can I create records of the model \"Journal Entry\"?",
+    "module": "account",
+    "expected_intent": "governance_security",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [
+      "model:account.move"
+    ],
+    "acceptable_evidence": [
+      {
+        "kind": "graph",
+        "source": "model:account.move"
+      }
+    ],
+    "expected_claims": [
+      {
+        "claim_id": "access_decision",
+        "statement": "Allowed: create on account.move",
+        "any_of": [
+          [
+            "Journal Entry",
+            "account.move"
+          ],
+          [
+            "create"
+          ],
+          [
+            "you can",
+            "yes",
+            "allowed",
+            "access"
+          ]
+        ],
+        "none_of": [
+          "cannot",
+          "can't",
+          "not allowed",
+          "not permitted",
+          "denied",
+          "no access",
+          "no permission",
+          "don't have access",
+          "do not have access",
+          "don't have permission",
+          "do not have permission",
+          "forbidden",
+          "unable",
+          "not able"
+        ]
+      }
+    ],
+    "abstention_rule": "none",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "check_access_rights"
+    }
+  },
+  {
+    "case_id": "access_sales_purchase_stock_base_user_admin_account_move_unlink",
+    "split": "held_out",
+    "instance": "sales_purchase_stock",
+    "user_context": {
+      "user": "base.user_admin",
+      "company": "base.main_company",
+      "language": "en_US",
+      "groups": []
+    },
+    "question": "Can I delete records of the model \"Journal Entry\"?",
+    "module": "account",
+    "expected_intent": "governance_security",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [
+      "model:account.move"
+    ],
+    "acceptable_evidence": [
+      {
+        "kind": "graph",
+        "source": "model:account.move"
+      }
+    ],
+    "expected_claims": [
+      {
+        "claim_id": "access_decision",
+        "statement": "Allowed: unlink on account.move",
+        "any_of": [
+          [
+            "Journal Entry",
+            "account.move"
+          ],
+          [
+            "delete",
+            "remove",
+            "unlink"
+          ],
+          [
+            "you can",
+            "yes",
+            "allowed",
+            "access"
+          ]
+        ],
+        "none_of": [
+          "cannot",
+          "can't",
+          "not allowed",
+          "not permitted",
+          "denied",
+          "no access",
+          "no permission",
+          "don't have access",
+          "do not have access",
+          "don't have permission",
+          "do not have permission",
+          "forbidden",
+          "unable",
+          "not able"
+        ]
+      }
+    ],
+    "abstention_rule": "none",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "check_access_rights"
+    }
+  }
+]

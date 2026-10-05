@@ -1,0 +1,132 @@
+[
+  {
+    "case_id": "ambiguity_oca_sale_workflow_nom",
+    "split": "held_out",
+    "instance": "oca_sale_workflow",
+    "user_context": {
+      "user": "base.user_admin",
+      "company": "base.main_company",
+      "language": "fr_FR",
+      "groups": []
+    },
+    "question": "Comment fonctionne « Nom » ?",
+    "module": "cross_module",
+    "expected_intent": "general_code_inquiry",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [],
+    "acceptable_evidence": [],
+    "expected_claims": [],
+    "abstention_rule": "must_clarify",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "field label shared by 60 models in 15 modules"
+    }
+  },
+  {
+    "case_id": "ambiguity_oca_sale_workflow_societe",
+    "split": "held_out",
+    "instance": "oca_sale_workflow",
+    "user_context": {
+      "user": "base.user_admin",
+      "company": "base.main_company",
+      "language": "fr_FR",
+      "groups": []
+    },
+    "question": "Comment fonctionne « Société » ?",
+    "module": "cross_module",
+    "expected_intent": "general_code_inquiry",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [],
+    "acceptable_evidence": [],
+    "expected_claims": [],
+    "abstention_rule": "must_clarify",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "field label shared by 67 models in 13 modules"
+    }
+  },
+  {
+    "case_id": "ambiguity_oca_sale_workflow_actif",
+    "split": "held_out",
+    "instance": "oca_sale_workflow",
+    "user_context": {
+      "user": "base.user_admin",
+      "company": "base.main_company",
+      "language": "fr_FR",
+      "groups": []
+    },
+    "question": "Comment fonctionne « Actif » ?",
+    "module": "cross_module",
+    "expected_intent": "general_code_inquiry",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [],
+    "acceptable_evidence": [],
+    "expected_claims": [],
+    "abstention_rule": "must_clarify",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "field label shared by 45 models in 11 modules"
+    }
+  },
+  {
+    "case_id": "ambiguity_oca_sale_workflow_description",
+    "split": "held_out",
+    "instance": "oca_sale_workflow",
+    "user_context": {
+      "user": "base.user_admin",
+      "company": "base.main_company",
+      "language": "fr_FR",
+      "groups": []
+    },
+    "question": "Comment fonctionne « Description » ?",
+    "module": "cross_module",
+    "expected_intent": "general_code_inquiry",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [],
+    "acceptable_evidence": [],
+    "expected_claims": [],
+    "abstention_rule": "must_clarify",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "field label shared by 16 models in 9 modules"
+    }
+  },
+  {
+    "case_id": "ambiguity_oca_sale_workflow_couleur",
+    "split": "held_out",
+    "instance": "oca_sale_workflow",
+    "user_context": {
+      "user": "base.user_admin",
+      "company": "base.main_company",
+      "language": "fr_FR",
+      "groups": []
+    },
+    "question": "Comment fonctionne « Couleur » ?",
+    "module": "cross_module",
+    "expected_intent": "general_code_inquiry",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [],
+    "acceptable_evidence": [],
+    "expected_claims": [],
+    "abstention_rule": "must_clarify",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "field label shared by 11 models in 8 modules"
+    }
+  }
+]

@@ -1,0 +1,132 @@
+[
+  {
+    "case_id": "ambiguity_crm_project_web_name",
+    "split": "held_out",
+    "instance": "crm_project_web",
+    "user_context": {
+      "user": "base.user_admin",
+      "company": "base.main_company",
+      "language": "en_US",
+      "groups": []
+    },
+    "question": "How does \"Name\" work?",
+    "module": "cross_module",
+    "expected_intent": "general_code_inquiry",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [],
+    "acceptable_evidence": [],
+    "expected_claims": [],
+    "abstention_rule": "must_clarify",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "field label shared by 78 models in 19 modules"
+    }
+  },
+  {
+    "case_id": "ambiguity_crm_project_web_company",
+    "split": "held_out",
+    "instance": "crm_project_web",
+    "user_context": {
+      "user": "base.user_admin",
+      "company": "base.main_company",
+      "language": "en_US",
+      "groups": []
+    },
+    "question": "How does \"Company\" work?",
+    "module": "cross_module",
+    "expected_intent": "general_code_inquiry",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [],
+    "acceptable_evidence": [],
+    "expected_claims": [],
+    "abstention_rule": "must_clarify",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "field label shared by 55 models in 14 modules"
+    }
+  },
+  {
+    "case_id": "ambiguity_crm_project_web_active",
+    "split": "held_out",
+    "instance": "crm_project_web",
+    "user_context": {
+      "user": "base.user_admin",
+      "company": "base.main_company",
+      "language": "en_US",
+      "groups": []
+    },
+    "question": "How does \"Active\" work?",
+    "module": "cross_module",
+    "expected_intent": "general_code_inquiry",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [],
+    "acceptable_evidence": [],
+    "expected_claims": [],
+    "abstention_rule": "must_clarify",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "field label shared by 53 models in 13 modules"
+    }
+  },
+  {
+    "case_id": "ambiguity_crm_project_web_description",
+    "split": "held_out",
+    "instance": "crm_project_web",
+    "user_context": {
+      "user": "base.user_admin",
+      "company": "base.main_company",
+      "language": "en_US",
+      "groups": []
+    },
+    "question": "How does \"Description\" work?",
+    "module": "cross_module",
+    "expected_intent": "general_code_inquiry",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [],
+    "acceptable_evidence": [],
+    "expected_claims": [],
+    "abstention_rule": "must_clarify",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "field label shared by 20 models in 11 modules"
+    }
+  },
+  {
+    "case_id": "ambiguity_crm_project_web_type",
+    "split": "held_out",
+    "instance": "crm_project_web",
+    "user_context": {
+      "user": "base.user_admin",
+      "company": "base.main_company",
+      "language": "en_US",
+      "groups": []
+    },
+    "question": "How does \"Type\" work?",
+    "module": "cross_module",
+    "expected_intent": "general_code_inquiry",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [],
+    "acceptable_evidence": [],
+    "expected_claims": [],
+    "abstention_rule": "must_clarify",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "field label shared by 25 models in 9 modules"
+    }
+  }
+]

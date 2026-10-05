@@ -1,0 +1,815 @@
+[
+  {
+    "case_id": "access_accounting_fr_base_demo_user0_account_move_read",
+    "split": "held_out",
+    "instance": "accounting_fr",
+    "user_context": {
+      "user": "base.demo_user0",
+      "company": "base.main_company",
+      "language": "fr_FR",
+      "groups": []
+    },
+    "question": "Puis-je consulter les enregistrements du modèle « Pièce comptable » ?",
+    "module": "account",
+    "expected_intent": "governance_security",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [
+      "model:account.move"
+    ],
+    "acceptable_evidence": [
+      {
+        "kind": "graph",
+        "source": "model:account.move"
+      }
+    ],
+    "expected_claims": [
+      {
+        "claim_id": "access_decision",
+        "statement": "Allowed: read on account.move",
+        "any_of": [
+          [
+            "Pièce comptable",
+            "account.move"
+          ],
+          [
+            "lire",
+            "lecture",
+            "consulter",
+            "consultation"
+          ],
+          [
+            "vous pouvez",
+            "oui",
+            "autorisé",
+            "accès"
+          ]
+        ],
+        "none_of": [
+          "ne pouvez pas",
+          "ne peut pas",
+          "n'avez pas accès",
+          "n'avez pas le droit",
+          "pas le droit",
+          "pas d'accès",
+          "aucun accès",
+          "non autorisé",
+          "pas autorisé",
+          "interdit",
+          "refus",
+          "impossible"
+        ]
+      }
+    ],
+    "abstention_rule": "none",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "check_access_rights"
+    }
+  },
+  {
+    "case_id": "access_accounting_fr_base_demo_user0_account_move_write",
+    "split": "held_out",
+    "instance": "accounting_fr",
+    "user_context": {
+      "user": "base.demo_user0",
+      "company": "base.main_company",
+      "language": "fr_FR",
+      "groups": []
+    },
+    "question": "Puis-je modifier les enregistrements du modèle « Pièce comptable » ?",
+    "module": "account",
+    "expected_intent": "governance_security",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [
+      "model:account.move"
+    ],
+    "acceptable_evidence": [
+      {
+        "kind": "graph",
+        "source": "model:account.move"
+      }
+    ],
+    "expected_claims": [
+      {
+        "claim_id": "access_decision",
+        "statement": "Denied: write on account.move",
+        "any_of": [
+          [
+            "Pièce comptable",
+            "account.move"
+          ],
+          [
+            "modifier",
+            "modification",
+            "écrire",
+            "écriture"
+          ],
+          [
+            "ne pouvez pas",
+            "ne peut pas",
+            "n'avez pas accès",
+            "n'avez pas le droit",
+            "pas le droit",
+            "pas d'accès",
+            "aucun accès",
+            "non autorisé",
+            "pas autorisé",
+            "interdit",
+            "refus",
+            "impossible"
+          ]
+        ],
+        "none_of": []
+      }
+    ],
+    "abstention_rule": "none",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "check_access_rights"
+    }
+  },
+  {
+    "case_id": "access_accounting_fr_base_demo_user0_account_move_create",
+    "split": "held_out",
+    "instance": "accounting_fr",
+    "user_context": {
+      "user": "base.demo_user0",
+      "company": "base.main_company",
+      "language": "fr_FR",
+      "groups": []
+    },
+    "question": "Puis-je créer les enregistrements du modèle « Pièce comptable » ?",
+    "module": "account",
+    "expected_intent": "governance_security",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [
+      "model:account.move"
+    ],
+    "acceptable_evidence": [
+      {
+        "kind": "graph",
+        "source": "model:account.move"
+      }
+    ],
+    "expected_claims": [
+      {
+        "claim_id": "access_decision",
+        "statement": "Denied: create on account.move",
+        "any_of": [
+          [
+            "Pièce comptable",
+            "account.move"
+          ],
+          [
+            "créer",
+            "création"
+          ],
+          [
+            "ne pouvez pas",
+            "ne peut pas",
+            "n'avez pas accès",
+            "n'avez pas le droit",
+            "pas le droit",
+            "pas d'accès",
+            "aucun accès",
+            "non autorisé",
+            "pas autorisé",
+            "interdit",
+            "refus",
+            "impossible"
+          ]
+        ],
+        "none_of": []
+      }
+    ],
+    "abstention_rule": "none",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "check_access_rights"
+    }
+  },
+  {
+    "case_id": "access_accounting_fr_base_demo_user0_account_move_unlink",
+    "split": "held_out",
+    "instance": "accounting_fr",
+    "user_context": {
+      "user": "base.demo_user0",
+      "company": "base.main_company",
+      "language": "fr_FR",
+      "groups": []
+    },
+    "question": "Puis-je supprimer les enregistrements du modèle « Pièce comptable » ?",
+    "module": "account",
+    "expected_intent": "governance_security",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [
+      "model:account.move"
+    ],
+    "acceptable_evidence": [
+      {
+        "kind": "graph",
+        "source": "model:account.move"
+      }
+    ],
+    "expected_claims": [
+      {
+        "claim_id": "access_decision",
+        "statement": "Denied: unlink on account.move",
+        "any_of": [
+          [
+            "Pièce comptable",
+            "account.move"
+          ],
+          [
+            "supprimer",
+            "suppression"
+          ],
+          [
+            "ne pouvez pas",
+            "ne peut pas",
+            "n'avez pas accès",
+            "n'avez pas le droit",
+            "pas le droit",
+            "pas d'accès",
+            "aucun accès",
+            "non autorisé",
+            "pas autorisé",
+            "interdit",
+            "refus",
+            "impossible"
+          ]
+        ],
+        "none_of": []
+      }
+    ],
+    "abstention_rule": "none",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "check_access_rights"
+    }
+  },
+  {
+    "case_id": "access_accounting_fr_base_user_demo_account_move_read",
+    "split": "held_out",
+    "instance": "accounting_fr",
+    "user_context": {
+      "user": "base.user_demo",
+      "company": "base.main_company",
+      "language": "fr_FR",
+      "groups": []
+    },
+    "question": "Puis-je consulter les enregistrements du modèle « Pièce comptable » ?",
+    "module": "account",
+    "expected_intent": "governance_security",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [
+      "model:account.move"
+    ],
+    "acceptable_evidence": [
+      {
+        "kind": "graph",
+        "source": "model:account.move"
+      }
+    ],
+    "expected_claims": [
+      {
+        "claim_id": "access_decision",
+        "statement": "Allowed: read on account.move",
+        "any_of": [
+          [
+            "Pièce comptable",
+            "account.move"
+          ],
+          [
+            "lire",
+            "lecture",
+            "consulter",
+            "consultation"
+          ],
+          [
+            "vous pouvez",
+            "oui",
+            "autorisé",
+            "accès"
+          ]
+        ],
+        "none_of": [
+          "ne pouvez pas",
+          "ne peut pas",
+          "n'avez pas accès",
+          "n'avez pas le droit",
+          "pas le droit",
+          "pas d'accès",
+          "aucun accès",
+          "non autorisé",
+          "pas autorisé",
+          "interdit",
+          "refus",
+          "impossible"
+        ]
+      }
+    ],
+    "abstention_rule": "none",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "check_access_rights"
+    }
+  },
+  {
+    "case_id": "access_accounting_fr_base_user_demo_account_move_write",
+    "split": "held_out",
+    "instance": "accounting_fr",
+    "user_context": {
+      "user": "base.user_demo",
+      "company": "base.main_company",
+      "language": "fr_FR",
+      "groups": []
+    },
+    "question": "Puis-je modifier les enregistrements du modèle « Pièce comptable » ?",
+    "module": "account",
+    "expected_intent": "governance_security",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [
+      "model:account.move"
+    ],
+    "acceptable_evidence": [
+      {
+        "kind": "graph",
+        "source": "model:account.move"
+      }
+    ],
+    "expected_claims": [
+      {
+        "claim_id": "access_decision",
+        "statement": "Allowed: write on account.move",
+        "any_of": [
+          [
+            "Pièce comptable",
+            "account.move"
+          ],
+          [
+            "modifier",
+            "modification",
+            "écrire",
+            "écriture"
+          ],
+          [
+            "vous pouvez",
+            "oui",
+            "autorisé",
+            "accès"
+          ]
+        ],
+        "none_of": [
+          "ne pouvez pas",
+          "ne peut pas",
+          "n'avez pas accès",
+          "n'avez pas le droit",
+          "pas le droit",
+          "pas d'accès",
+          "aucun accès",
+          "non autorisé",
+          "pas autorisé",
+          "interdit",
+          "refus",
+          "impossible"
+        ]
+      }
+    ],
+    "abstention_rule": "none",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "check_access_rights"
+    }
+  },
+  {
+    "case_id": "access_accounting_fr_base_user_demo_account_move_create",
+    "split": "held_out",
+    "instance": "accounting_fr",
+    "user_context": {
+      "user": "base.user_demo",
+      "company": "base.main_company",
+      "language": "fr_FR",
+      "groups": []
+    },
+    "question": "Puis-je créer les enregistrements du modèle « Pièce comptable » ?",
+    "module": "account",
+    "expected_intent": "governance_security",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [
+      "model:account.move"
+    ],
+    "acceptable_evidence": [
+      {
+        "kind": "graph",
+        "source": "model:account.move"
+      }
+    ],
+    "expected_claims": [
+      {
+        "claim_id": "access_decision",
+        "statement": "Allowed: create on account.move",
+        "any_of": [
+          [
+            "Pièce comptable",
+            "account.move"
+          ],
+          [
+            "créer",
+            "création"
+          ],
+          [
+            "vous pouvez",
+            "oui",
+            "autorisé",
+            "accès"
+          ]
+        ],
+        "none_of": [
+          "ne pouvez pas",
+          "ne peut pas",
+          "n'avez pas accès",
+          "n'avez pas le droit",
+          "pas le droit",
+          "pas d'accès",
+          "aucun accès",
+          "non autorisé",
+          "pas autorisé",
+          "interdit",
+          "refus",
+          "impossible"
+        ]
+      }
+    ],
+    "abstention_rule": "none",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "check_access_rights"
+    }
+  },
+  {
+    "case_id": "access_accounting_fr_base_user_demo_account_move_unlink",
+    "split": "held_out",
+    "instance": "accounting_fr",
+    "user_context": {
+      "user": "base.user_demo",
+      "company": "base.main_company",
+      "language": "fr_FR",
+      "groups": []
+    },
+    "question": "Puis-je supprimer les enregistrements du modèle « Pièce comptable » ?",
+    "module": "account",
+    "expected_intent": "governance_security",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [
+      "model:account.move"
+    ],
+    "acceptable_evidence": [
+      {
+        "kind": "graph",
+        "source": "model:account.move"
+      }
+    ],
+    "expected_claims": [
+      {
+        "claim_id": "access_decision",
+        "statement": "Allowed: unlink on account.move",
+        "any_of": [
+          [
+            "Pièce comptable",
+            "account.move"
+          ],
+          [
+            "supprimer",
+            "suppression"
+          ],
+          [
+            "vous pouvez",
+            "oui",
+            "autorisé",
+            "accès"
+          ]
+        ],
+        "none_of": [
+          "ne pouvez pas",
+          "ne peut pas",
+          "n'avez pas accès",
+          "n'avez pas le droit",
+          "pas le droit",
+          "pas d'accès",
+          "aucun accès",
+          "non autorisé",
+          "pas autorisé",
+          "interdit",
+          "refus",
+          "impossible"
+        ]
+      }
+    ],
+    "abstention_rule": "none",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "check_access_rights"
+    }
+  },
+  {
+    "case_id": "access_accounting_fr_base_user_admin_account_move_read",
+    "split": "held_out",
+    "instance": "accounting_fr",
+    "user_context": {
+      "user": "base.user_admin",
+      "company": "base.main_company",
+      "language": "fr_FR",
+      "groups": []
+    },
+    "question": "Puis-je consulter les enregistrements du modèle « Pièce comptable » ?",
+    "module": "account",
+    "expected_intent": "governance_security",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [
+      "model:account.move"
+    ],
+    "acceptable_evidence": [
+      {
+        "kind": "graph",
+        "source": "model:account.move"
+      }
+    ],
+    "expected_claims": [
+      {
+        "claim_id": "access_decision",
+        "statement": "Allowed: read on account.move",
+        "any_of": [
+          [
+            "Pièce comptable",
+            "account.move"
+          ],
+          [
+            "lire",
+            "lecture",
+            "consulter",
+            "consultation"
+          ],
+          [
+            "vous pouvez",
+            "oui",
+            "autorisé",
+            "accès"
+          ]
+        ],
+        "none_of": [
+          "ne pouvez pas",
+          "ne peut pas",
+          "n'avez pas accès",
+          "n'avez pas le droit",
+          "pas le droit",
+          "pas d'accès",
+          "aucun accès",
+          "non autorisé",
+          "pas autorisé",
+          "interdit",
+          "refus",
+          "impossible"
+        ]
+      }
+    ],
+    "abstention_rule": "none",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "check_access_rights"
+    }
+  },
+  {
+    "case_id": "access_accounting_fr_base_user_admin_account_move_write",
+    "split": "held_out",
+    "instance": "accounting_fr",
+    "user_context": {
+      "user": "base.user_admin",
+      "company": "base.main_company",
+      "language": "fr_FR",
+      "groups": []
+    },
+    "question": "Puis-je modifier les enregistrements du modèle « Pièce comptable » ?",
+    "module": "account",
+    "expected_intent": "governance_security",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [
+      "model:account.move"
+    ],
+    "acceptable_evidence": [
+      {
+        "kind": "graph",
+        "source": "model:account.move"
+      }
+    ],
+    "expected_claims": [
+      {
+        "claim_id": "access_decision",
+        "statement": "Allowed: write on account.move",
+        "any_of": [
+          [
+            "Pièce comptable",
+            "account.move"
+          ],
+          [
+            "modifier",
+            "modification",
+            "écrire",
+            "écriture"
+          ],
+          [
+            "vous pouvez",
+            "oui",
+            "autorisé",
+            "accès"
+          ]
+        ],
+        "none_of": [
+          "ne pouvez pas",
+          "ne peut pas",
+          "n'avez pas accès",
+          "n'avez pas le droit",
+          "pas le droit",
+          "pas d'accès",
+          "aucun accès",
+          "non autorisé",
+          "pas autorisé",
+          "interdit",
+          "refus",
+          "impossible"
+        ]
+      }
+    ],
+    "abstention_rule": "none",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "check_access_rights"
+    }
+  },
+  {
+    "case_id": "access_accounting_fr_base_user_admin_account_move_create",
+    "split": "held_out",
+    "instance": "accounting_fr",
+    "user_context": {
+      "user": "base.user_admin",
+      "company": "base.main_company",
+      "language": "fr_FR",
+      "groups": []
+    },
+    "question": "Puis-je créer les enregistrements du modèle « Pièce comptable » ?",
+    "module": "account",
+    "expected_intent": "governance_security",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [
+      "model:account.move"
+    ],
+    "acceptable_evidence": [
+      {
+        "kind": "graph",
+        "source": "model:account.move"
+      }
+    ],
+    "expected_claims": [
+      {
+        "claim_id": "access_decision",
+        "statement": "Allowed: create on account.move",
+        "any_of": [
+          [
+            "Pièce comptable",
+            "account.move"
+          ],
+          [
+            "créer",
+            "création"
+          ],
+          [
+            "vous pouvez",
+            "oui",
+            "autorisé",
+            "accès"
+          ]
+        ],
+        "none_of": [
+          "ne pouvez pas",
+          "ne peut pas",
+          "n'avez pas accès",
+          "n'avez pas le droit",
+          "pas le droit",
+          "pas d'accès",
+          "aucun accès",
+          "non autorisé",
+          "pas autorisé",
+          "interdit",
+          "refus",
+          "impossible"
+        ]
+      }
+    ],
+    "abstention_rule": "none",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "check_access_rights"
+    }
+  },
+  {
+    "case_id": "access_accounting_fr_base_user_admin_account_move_unlink",
+    "split": "held_out",
+    "instance": "accounting_fr",
+    "user_context": {
+      "user": "base.user_admin",
+      "company": "base.main_company",
+      "language": "fr_FR",
+      "groups": []
+    },
+    "question": "Puis-je supprimer les enregistrements du modèle « Pièce comptable » ?",
+    "module": "account",
+    "expected_intent": "governance_security",
+    "expected_sources": [
+      "code"
+    ],
+    "expected_objects": [
+      "model:account.move"
+    ],
+    "acceptable_evidence": [
+      {
+        "kind": "graph",
+        "source": "model:account.move"
+      }
+    ],
+    "expected_claims": [
+      {
+        "claim_id": "access_decision",
+        "statement": "Allowed: unlink on account.move",
+        "any_of": [
+          [
+            "Pièce comptable",
+            "account.move"
+          ],
+          [
+            "supprimer",
+            "suppression"
+          ],
+          [
+            "vous pouvez",
+            "oui",
+            "autorisé",
+            "accès"
+          ]
+        ],
+        "none_of": [
+          "ne pouvez pas",
+          "ne peut pas",
+          "n'avez pas accès",
+          "n'avez pas le droit",
+          "pas le droit",
+          "pas d'accès",
+          "aucun accès",
+          "non autorisé",
+          "pas autorisé",
+          "interdit",
+          "refus",
+          "impossible"
+        ]
+      }
+    ],
+    "abstention_rule": "none",
+    "ground_truth": {
+      "author": "odoo_oracle",
+      "method": "odoo_oracle",
+      "reference": "check_access_rights"
+    }
+  }
+]
