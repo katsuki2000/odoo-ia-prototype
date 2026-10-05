@@ -2471,3 +2471,18 @@ Contexte : pmm delegue les points restants de la section 1103 : relecture et gel
 **Fichiers modifies** : `core/evaluation/protocol_metrics.py`, `tests/test_protocol_metrics.py`, `core/evaluation/protocol/frozen_cases.json`, `todo/plan_generalisation.md` et `code_intelligence/agent/prompts.py` (restaures), `todo/contexte.txt` ; crees : `captures/eval_instances/drafts/ambiguity_*.json`, `drafts/all_v1.json`. Sauvegarde : `/tmp/contexte.avant_1104.txt`.
 
 **Commits (branche `fix/local-test-failures`, code puis journal, rien de pousse)** : `fe10844` configuration d'evaluation et cache du graphe via `.env` ; `35bd842` isolation des tests vis-a-vis d'un Odoo actif ; `a274e41` attribut invalide du XML de securite custom ; `960c5a2` signal `rag_fallback` ; `3f27387` protocole P1 (instances, oracles, metriques, harnais) ; `f08f2fb` jeu fige v1 et pre-enregistrement (avec `manifest.json` et brouillons de `captures/eval_instances/`, dumps et logs ignores) ; puis ce journal. Le commit du journal inclut deux changements deja presents dans l'arbre, non faits dans cette session : `contexte.txt` allege de 6728 a 2452 lignes (sections anterieures a 980 retirees, restent dans l'historique git) et suppression de `todo/architecture_actuelle.md`. `todo/architecture_cible.md` (reformatage de lignes par pmm, modifie pendant la session) est laisse hors commit.
+
+## Section 1105 : P0 : `test_e2e_watcher_rag` rendu independant du fournisseur LLM (echec signale par pmm)
+
+Date : 05/10/2026
+Contexte : pmm lance `pytest tests/test_e2e_watcher_rag.py` : echec, « Provider 'groq' is a cloud service and LOCAL_ONLY is enabled ». pmm : plus de cle Groq (developpement sur Kaggle, production sur AWS), Groq ne devrait plus apparaitre.
+
+**Cause racine** : le test forcait `core.llm.llm_client.LLM_PROVIDER = "groq"` (fixture `mocked_groq_provider`) et moquait la classe `ChatGroq`. Avec `LOCAL_ONLY=true` (valeur par defaut), `assert_local_provider` refuse alors le fournisseur avant tout appel : le test dependait d'un fournisseur cloud et de l'absence de garde locale, contrairement a la regle P0 (aucun test ne depend du reseau ou de la machine). Le test echouait donc quelle que soit la configuration `.env`.
+
+**Realise** : `tests/test_e2e_watcher_rag.py` : fixture `mocked_groq_provider` supprimee ; le LLM de generation est moque a la fabrique (`document_rag.generate_node._build_groq_llm`, alias de `get_chat_llm`), donc independant du fournisseur configure ; patch `ChatGroq` retire des deux scenarios.
+
+**Verification** : le test passe avec `LLM_PROVIDER=local` et `LOCAL_ONLY=true` (1 passe en 16 s).
+
+**Constat, non traite** : Groq reste largement present dans le code (hors journal : `core/llm/llm_client.py` branche `groq`, rotation de cles et intervalle de 5 s ; `core/llm/{__init__,local_only}.py` ; `core/graph/graph_compat.py` ; `config/settings.py` `GROQ_*` ; `api/routes_system.py` service de sante `groq` ; `document_rag/generate_node.py` et `erp_data/orm_agent_*.py` alias `_build_groq_llm` ; `.env.example`, `README.md`, `requirements.txt` `groq` et `langchain-groq` ; `scripts/` et `tests/` de benchmark Groq ; plusieurs tests qui moquent `ChatGroq`). Retrait complet a decider par pmm : chantier propre, a rattacher a P3 (« fournisseur LLM interchangeable par configuration seule »).
+
+**Fichiers modifies** : `tests/test_e2e_watcher_rag.py`, `todo/contexte.txt`. Sauvegarde : `/tmp/contexte.avant_1105.txt`.
