@@ -18,13 +18,7 @@ from core.graph.graph import query_graph, AssistantResponse
 from core.schemas import LLMResponse
 
 
-@pytest.fixture
-def mocked_groq_provider(monkeypatch):
-    monkeypatch.setattr("core.llm.llm_client.LLM_PROVIDER", "groq")
-
-
 @pytest.mark.integration
-@pytest.mark.usefixtures("mocked_groq_provider")
 def test_e2e_live_add_delete_query_cycle():
     """
     Simulate the end-to-end add/delete cycle monitored by watcher / incremental scanner:
@@ -73,7 +67,7 @@ def test_e2e_live_add_delete_query_cycle():
         # generate() -- and this mocked RAG response -- is never reached.
         with patch("core.graph.graph.get_retriever") as mock_get_retriever, \
              patch("core.graph.graph.code_intelligence_agent") as mock_ci, \
-             patch("core.graph.graph.ChatGroq") as mock_groq_cls:
+             patch("document_rag.generate_node._build_groq_llm") as mock_build_llm:
 
             mock_ci.return_value = {
                 "ci_evidence_sufficiency": {
@@ -89,7 +83,7 @@ def test_e2e_live_add_delete_query_cycle():
             # Patch search_retrieve inside graph to use our real e2e manager
             with patch("core.graph.graph.search_retrieve", side_effect=lambda query, top_k, chroma_manager=None, bm25_index=None, use_reranker=True, where=None: retrieve(query, top_k=top_k, chroma_manager=manager, where=where)):
                 mock_llm_instance = MagicMock()
-                mock_groq_cls.return_value = mock_llm_instance
+                mock_build_llm.return_value = mock_llm_instance
                 mock_structured_llm = MagicMock()
                 mock_llm_instance.with_structured_output.return_value = mock_structured_llm
                 
@@ -120,8 +114,7 @@ def test_e2e_live_add_delete_query_cycle():
 
         # ── Step 6: Verify query_graph falls back safely when document is gone
         with patch("core.graph.graph.get_retriever") as mock_get_retriever, \
-             patch("core.graph.graph.code_intelligence_agent") as mock_ci, \
-             patch("core.graph.graph.ChatGroq") as mock_groq_cls:
+             patch("core.graph.graph.code_intelligence_agent") as mock_ci:
 
             mock_ci.return_value = {
                 "ci_evidence_sufficiency": {
