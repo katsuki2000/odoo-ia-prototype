@@ -2,6 +2,7 @@
 
 import logging
 import os
+import time
 from typing import Any, List, Optional
 import requests
 from chromadb.api.types import Documents, EmbeddingFunction, Embeddings
@@ -99,7 +100,9 @@ class LocalServerEmbeddingFunction(EmbeddingFunction):
         base_url: str = "http://localhost:11434/v1",
         model: str = "all-minilm:latest",
         api_key: str = "ollama",
-        timeout: float = 30.0,
+        timeout: Optional[float] = None,
+        max_retries: int = 3,
+        batch_size: int = 16,
     ):
         assert_local_endpoint(base_url, "Embedding")
         clean_url = base_url.rstrip("/")
@@ -112,22 +115,36 @@ class LocalServerEmbeddingFunction(EmbeddingFunction):
 
         self.model = model
         self.api_key = api_key or "ollama"
-        self.timeout = timeout
+        self.timeout = float(timeout if timeout is not None else os.environ.get("LOCAL_EMBEDDING_TIMEOUT", "30"))
+        self.max_retries = max(1, int(max_retries))
+        self.batch_size = max(1, int(batch_size))
 
     def name(self) -> str:
         return f"local-server-{self.model}"
 
-    def __call__(self, input: Documents) -> Embeddings:
-        texts = list(input)
-        if not texts:
-            return []
-
+    def _embed_batch(self, texts: List[str]) -> List[List[float]]:
         payload = {"model": self.model, "input": texts}
         headers = {
             "Content-Type": "application/json",
             "Authorization": f"Bearer {self.api_key}",
         }
-        resp = requests.post(self.endpoint, json=payload, headers=headers, timeout=self.timeout)
+        for attempt in range(1, self.max_retries + 1):
+            try:
+                resp = requests.post(self.endpoint, json=payload, headers=headers, timeout=self.timeout)
+                break
+            except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as exc:
+                if attempt == self.max_retries:
+                    logger.error(
+                        "Embedding server unreachable after %d attempts (model=%s, endpoint=%s): %s",
+                        self.max_retries, self.model, self.endpoint, exc,
+                    )
+                    raise
+                delay = 2 ** (attempt - 1)
+                logger.warning(
+                    "Embedding request failed (attempt %d/%d): %s -- retrying in %ds",
+                    attempt, self.max_retries, exc, delay,
+                )
+                time.sleep(delay)
         resp.raise_for_status()
         data = resp.json()
 
@@ -141,6 +158,16 @@ class LocalServerEmbeddingFunction(EmbeddingFunction):
             return data["embeddings"]
 
         raise ValueError(f"Unexpected response format from embedding server: {list(data.keys())}")
+
+    def __call__(self, input: Documents) -> Embeddings:
+        texts = list(input)
+        if not texts:
+            return []
+
+        embeddings: List[List[float]] = []
+        for offset in range(0, len(texts), self.batch_size):
+            embeddings.extend(self._embed_batch(texts[offset:offset + self.batch_size]))
+        return embeddings
 
 
 def resolve_embedding_function(

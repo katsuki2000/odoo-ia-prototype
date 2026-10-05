@@ -2647,3 +2647,14 @@ Date : 05/10/2026
 **Volontairement exclus (restent modifies dans l'arbre)** : `todo/architecture_cible.md`, `document_rag/vectorstore/embedding_functions.py`, `document_rag/tests/test_embedding_functions.py` (chantier embeddings, diff non examine), `captures/` ; le remplacement de `local-llm-benchmark-kaggle.ipynb` par `llmodoo.ipynb` (constat 4 de la 1112) n'est pas commite non plus, a decider par pmm.
 
 **Fichiers modifies** : historique git (2 commits), `todo/contexte.txt` (cette section) ; aucun code.
+
+## Section 1118 : P1 : `LocalServerEmbeddingFunction` : timeout configurable, retries et envoi par lots ; journalisation retroactive apres verification (mandate par pmm)
+
+Date : 05/10/2026
+**Ecart constate** : `embedding_functions.py` et `test_embedding_functions.py` etaient modifies dans l'arbre sans section de journal (releve en 1112 et 1113, diff alors non examine). Aucune ligne de code ecrite dans cette session ; diff lu et verifie, puis journalise ici.
+**Contenu du changement** : (1) `timeout` : parametre optionnel, valeur par defaut lue dans `LOCAL_EMBEDDING_TIMEOUT` (30 s si absente) ; (2) `max_retries` (3 par defaut) : relance sur `ConnectionError` et `Timeout` avec attente exponentielle (1 s, 2 s), l'erreur d'origine est relevee apres le dernier essai, les erreurs HTTP (ex. 404 modele absent) ne sont pas relancees ; (3) `batch_size` (16 par defaut) : `__call__` decoupe les textes en lots, l'ordre est conserve ; l'ancien corps devient `_embed_batch`. Cela traite deux risques de la 1110 (timeout fixe de 30 s, envoi de tous les chunks en un appel) et la coupure de tunnel vue en 1112.
+**Tests** : 5 tests ajoutes (retry puis succes, echec apres `max_retries`, pas de retry sur erreur HTTP, lots et ordre sur 40 textes, timeout par variable d'environnement). `pytest document_rag/tests/test_embedding_functions.py` : 13 passed. `pytest document_rag/tests tests/test_e2e_watcher_rag.py -q` : 132 passed, 1 warning (httpx/starlette), 53,25 s ; ce total est identique a celui de la 1114, donc la sortie de pmm incluait deja ces tests.
+**`architecture_cible.md`** : le diff n'etait qu'un reflux de lignes (recollage de retours a la ligne, aucun changement de sens) ; annule par `git restore`. Sauvegarde du journal : `/tmp/contexte.avant_1118.txt`.
+**Non traite** : `LOCAL_EMBEDDING_TIMEOUT` n'est pas dans `.env.example` (non verifie) ; remplacement des notebooks Kaggle (constat 4 de la 1112) toujours a decider par pmm.
+
+**Fichiers modifies** : `document_rag/vectorstore/embedding_functions.py`, `document_rag/tests/test_embedding_functions.py` (commites ici, ecrits avant cette session), `todo/architecture_cible.md` (restaure), `todo/contexte.txt` (cette section).
