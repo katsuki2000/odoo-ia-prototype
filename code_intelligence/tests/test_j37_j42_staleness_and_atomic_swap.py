@@ -28,6 +28,7 @@ from code_intelligence.graph.staleness import (
 )
 from code_intelligence.graph.atomic_swap import atomic_write_json, atomic_read_json
 from code_intelligence.graph.version import (
+    GRAPH_SCHEMA_VERSION,
     serialize_graph_with_metadata,
     deserialize_graph_with_metadata,
     get_git_commit_hash,
@@ -152,7 +153,7 @@ def test_j41_graph_versioning_metadata(sample_graph):
 
     assert "git_commit" in meta
     assert meta["addons_hash"] == "hash123"
-    assert meta["graph_schema_version"] == 3
+    assert meta["graph_schema_version"] == GRAPH_SCHEMA_VERSION
     assert meta["node_count"] == 3
     assert meta["edge_count"] == 2
 

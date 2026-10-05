@@ -53,20 +53,28 @@ def rebuilt_graph():
         pytest.skip("Real odoo-17.0/addons corpus not available on this machine.")
 
     import core.graph.graph as graph_module
+    import code_intelligence.graph.loader as loader_module
 
-    original_path = graph_module.GRAPH_JSON_PATH
-    original_cache = graph_module._CACHED_CODE_INTEL_GRAPH
-    original_mtime = graph_module._CACHED_GRAPH_MTIME
+    original_path = loader_module.GRAPH_JSON_PATH
+    original_cache = loader_module._CACHED_CODE_INTEL_GRAPH
+    original_mtime = loader_module._CACHED_GRAPH_MTIME
 
     import tempfile
     with tempfile.TemporaryDirectory() as tmp_dir:
-        graph_module.GRAPH_JSON_PATH = Path(tmp_dir) / "test_graph.json"
+        tmp_graph_path = Path(tmp_dir) / "test_graph.json"
+        loader_module.GRAPH_JSON_PATH = tmp_graph_path
+        loader_module._CACHED_CODE_INTEL_GRAPH = None
+        loader_module._CACHED_GRAPH_MTIME = 0.0
+        graph_module.GRAPH_JSON_PATH = tmp_graph_path
         graph_module._CACHED_CODE_INTEL_GRAPH = None
         graph_module._CACHED_GRAPH_MTIME = 0.0
         try:
-            G = graph_module.get_code_intelligence_graph()
+            G = loader_module.get_code_intelligence_graph()
             yield G
         finally:
+            loader_module.GRAPH_JSON_PATH = original_path
+            loader_module._CACHED_CODE_INTEL_GRAPH = original_cache
+            loader_module._CACHED_GRAPH_MTIME = original_mtime
             graph_module.GRAPH_JSON_PATH = original_path
             graph_module._CACHED_CODE_INTEL_GRAPH = original_cache
             graph_module._CACHED_GRAPH_MTIME = original_mtime

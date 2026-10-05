@@ -79,6 +79,7 @@ def test_parse_raw_json_answer_returns_none_when_answer_field_missing():
     assert _parse_raw_json_answer('{"confidence": 0.5}') is None
 
 
+@patch('core.llm.local_only.LOCAL_ONLY', False)
 @patch('core.llm.llm_client.LLM_PROVIDER', 'groq')
 @patch('core.graph.graph.ChatGroq')
 def test_generate_raw_invoke_fallback_parses_json_answer(mock_chat_groq):

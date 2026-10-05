@@ -160,7 +160,10 @@ def test_dispatch_workflow_write_enriches_observation_and_prompt(real_graph):
     )
     dispatch_describe_workflow(ctx)
 
-    write_obs = next((o for o in ctx.tool_observations if "def write" in o), None)
+    write_obs = next(
+        (o for o in ctx.tool_observations if "[FAIT DÉTERMINISTIQUE -- WORKFLOW D'ÉTAPE ET RÉCURRENCE (write())]" in o),
+        None,
+    )
     assert write_obs is not None
     assert "[FAIT DÉTERMINISTIQUE -- WORKFLOW D'ÉTAPE ET RÉCURRENCE (write())]" in write_obs
     assert "repeat_until" in write_obs

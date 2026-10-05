@@ -59,10 +59,10 @@ def test_username_comes_from_environment(monkeypatch):
 
     assert connector.username == "service_user"
 
-def test_model_whitelist_enforcement(odoo_connector, uid):
+def test_model_whitelist_enforcement(odoo_connector):
     """Verify that querying a non-whitelisted model raises an error."""
     with pytest.raises(OdooConnectorError) as exc_info:
-        odoo_connector.search_read(uid, "res.users", domain=[], fields=["name"])
+        odoo_connector.search_read(1, "res.users", domain=[], fields=["name"])
     assert "not whitelisted" in str(exc_info.value)
 
 

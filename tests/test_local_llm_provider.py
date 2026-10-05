@@ -12,8 +12,9 @@ from core.llm.llm_client import get_chat_llm
 
 def test_get_chat_llm_groq_default():
     """Verify provider='groq' instantiates ChatGroq."""
-    llm = get_chat_llm(provider="groq")
-    assert isinstance(llm, ChatGroq)
+    with patch("core.llm.local_only.LOCAL_ONLY", False):
+        llm = get_chat_llm(provider="groq", api_key="gsk-test")
+        assert isinstance(llm, ChatGroq)
 
 
 def test_get_chat_llm_local_provider():
@@ -38,9 +39,20 @@ def test_get_chat_llm_synonym_providers():
 
 def test_get_chat_llm_openrouter_provider():
     """Verify provider='openrouter' instantiates ChatOpenAI."""
-    llm = get_chat_llm(provider="openrouter", api_key="sk-or-test")
-    assert isinstance(llm, ChatOpenAI)
-    assert "openrouter.ai" in str(llm.openai_api_base)
+    with patch("core.llm.local_only.LOCAL_ONLY", False):
+        llm = get_chat_llm(provider="openrouter", api_key="sk-or-test")
+        assert isinstance(llm, ChatOpenAI)
+        assert "openrouter.ai" in str(llm.openai_api_base)
+
+
+def test_get_chat_llm_refuses_cloud_when_local_only():
+    """Verify cloud providers raise ExternalEndpointError when LOCAL_ONLY is active."""
+    from core.llm.local_only import ExternalEndpointError
+    with patch("core.llm.local_only.LOCAL_ONLY", True):
+        with pytest.raises(ExternalEndpointError):
+            get_chat_llm(provider="groq", api_key="gsk-test")
+        with pytest.raises(ExternalEndpointError):
+            get_chat_llm(provider="openrouter", api_key="sk-or-test")
 
 
 def test_get_chat_llm_unknown_provider_raises():

@@ -351,7 +351,25 @@ def dispatch_describe_workflow(ctx: DispatchContext) -> None:
         write_sites = resolve_method_override_chain(ctx.G, target_model, "write")
         if not write_sites:
             continue
-        site = write_sites[0]
+        # Prefer the declaring module's site (which defines core model workflow logic)
+        # over extending modules (which typically just add secondary hooks)
+        model_node = ctx.G.nodes.get(f"model:{target_model}", {}) if ctx.G else {}
+        declaring_filepaths = {
+            fp for fp, role in model_node.get("filepath_roles", {}).items()
+            if role == "declares"
+        }
+        site = next((s for s in write_sites if s.filepath in declaring_filepaths), None)
+        if site is None:
+            from code_intelligence.rules.source_callees import read_method_source
+            from code_intelligence.rules.workflow import inspect_stage_workflow_actions
+            for s in write_sites:
+                src = read_method_source(s.filepath, s.lineno, s.end_lineno or s.lineno) or ""
+                if inspect_stage_workflow_actions(src):
+                    site = s
+                    break
+        if site is None:
+            site = write_sites[0]
+
         if not site.filepath or not site.lineno:
             continue
         end_lineno = site.end_lineno or site.lineno

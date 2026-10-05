@@ -5,6 +5,7 @@ import os
 from typing import Any, List, Optional
 import requests
 from chromadb.api.types import Documents, EmbeddingFunction, Embeddings
+from core.llm.local_only import assert_local_endpoint
 
 logger = logging.getLogger(__name__)
 
