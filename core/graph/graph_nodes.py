@@ -130,6 +130,7 @@ def format_output(state: RAGState) -> dict:
         response.evidence_status = state.get("evidence_status")
         response.investigation_plan = state.get("investigation_plan")
         response.ci_evidence_sufficiency = ci_sufficiency
+        response.rag_fallback = ci_fell_back_to_rag
         response.answer = sanitize_html_to_markdown(response.answer)
 
     if response and chunks and ci_fell_back_to_rag:

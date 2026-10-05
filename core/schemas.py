@@ -106,11 +106,19 @@ class AssistantResponse(BaseModel):
     ci_evidence_sufficiency: Optional[dict] = Field(
         default=None,
         description=(
-            "Post-analysis CI answer sufficiency verdict (SUFFICIENT/INSUFFICIENT/"
-            "CONFLICTING, core/evidence_sufficiency.py) -- only set when the "
+            "Post-analysis CI answer sufficiency verdict (sufficient/insufficient/"
+            "conflicting, core/evidence/evidence_sufficiency.py) -- only set when the "
             "code_intelligence_agent branch ran this turn. Set regardless of "
             "whether the RAG fallback fired, so the original CI verdict stays "
             "traceable even when the final answer came from generate() instead."
+        ),
+    )
+    rag_fallback: bool = Field(
+        default=False,
+        description=(
+            "True when the final answer was produced by the documentary RAG "
+            "fallback after the code_intelligence_agent branch ran, so the "
+            "CI sufficiency verdict does not describe the answer returned."
         ),
     )
     evidence_dossier: List[Evidence] = Field(

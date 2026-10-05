@@ -396,3 +396,20 @@ def test_format_output_conflicting_does_not_count_as_fell_back_to_rag():
     result = format_output(state)
     assert result["response"].ocr_warning is not True
     assert "qualité de lecture est limitée" not in result["response"].answer
+
+
+def _insufficient_state(question):
+    return {
+        "question": question,
+        "response": AssistantResponse(answer="Reponse.", confidence=0.5, sources=[]),
+        "retrieved_chunks": [],
+        "route": QueryRoute.CODE_INTELLIGENCE.value,
+        "ci_evidence_sufficiency": {"status": EvidenceSufficiencyStatus.INSUFFICIENT.value},
+    }
+
+
+def test_format_output_flags_rag_fallback_only_when_rag_produced_the_answer():
+    fell_back = format_output(_insufficient_state("Selon le wiki, quelle est la procedure ?"))
+    stayed = format_output(_insufficient_state("Qui peut approuver une commande ?"))
+    assert fell_back["response"].rag_fallback is True
+    assert stayed["response"].rag_fallback is False
