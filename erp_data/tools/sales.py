@@ -67,17 +67,16 @@ def get_total_sales(client: str = "", periode: str = "", statut: str = "toutes")
 
 
 def get_order_count_raw(client: str = "", periode: str = "", statut: str = "toutes") -> Tuple[str, Evidence]:
+    from erp_data.runtime.read_tools import orm_search_count
+    from erp_data.tools._runtime import runtime_scope
+
     states, scope_label = resolve_statut(statut)
     domain = build_sale_domain(client, periode, states)
-    uid = get_current_uid()
-    scope = orm_evidence_scope(uid)
     label = client_label(client)
 
-    results = connector.read_group(
-        uid=uid, model="sale.order", domain=domain,
-        fields=[], groupby=[],
-    )
-    count = results[0].get("__count", 0) if results else 0
+    counted = orm_search_count("sale.order", domain=domain)
+    scope = runtime_scope(counted)
+    count = counted.evidence[0].value if counted.evidence else 0
 
     text = (
         f"Nombre de commandes{label}\n"
@@ -88,8 +87,9 @@ def get_order_count_raw(client: str = "", periode: str = "", statut: str = "tout
     evidence = make_evidence(
         source_type=EvidenceSourceType.ORM,
         claim=f"Order count for client={client or 'all'}, period={periode or 'all'}, statut={statut}",
-        source="sale.order:read_group(__count)",
-        value=count, scope=scope,
+        source="sale.order:search_count",
+        value=count,
+        scope=scope,
     )
     return text, evidence
 

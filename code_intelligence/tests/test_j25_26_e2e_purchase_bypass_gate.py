@@ -7,9 +7,9 @@ against the REAL pipeline entry point `code_intelligence_agent()` -- unlike
 test_j23_24_authorization_gate.py, which exercises `gate_observation()` in
 isolation against small hand-built synthetic graphs. This test builds the
 real knowledge graph from the real Odoo module on disk and calls the real
-ReAct loop (real Groq LLM calls, real tool dispatch), so it needs a live
+ReAct loop (real LLM calls, real tool dispatch), so it needs a live
 Odoo admin connection to resolve the demandeur's real group IDs to xml_ids
-(see rag.graph._resolve_user_group_xmlids) and a working Groq API key.
+(see rag.graph._resolve_user_group_xmlids) and a working inference endpoint.
 
 Target module (found by inspecting /home/user/odoo-17.0/addons/*, see
 conversation of 2026-08-05 -- Q3.1 in scripts/run_adversarial_benchmark.py
@@ -59,20 +59,8 @@ test_purchase_manager_sees_bypass_unhidden is the mirror sanity check: a
 real purchase.group_purchase_manager holder must NOT be gated -- confirming
 the gate (when it does trigger) does not over-restrict a legitimate user.
 
-KNOWN FLAKINESS (todo/contexte.txt sections 193-195, 203, this fix): both
-tests make real Groq LLM calls end-to-end. When run as part of a long
-full suite (this file included via `pytest ... ` without `-m "not
-integration"`), the organization's shared DAILY token quota (TPD) can
-become exhausted by the time these tests run, causing
-_invoke_with_rate_limit's final retry to raise a 429 rate_limit_exceeded
-error that ci_agent_node.py logs and swallows internally ("LLM tool
-selection failed"/"Synthesis failed"). Verified in isolation three times
-over (RPC resolution, full decision path, isolated test rerun -- section
-195): the deterministic gating mechanism itself (_has_elevated_access)
-is sound; the failure is infrastructure quota exhaustion, not a product
-regression. _run() below detects this specific signature in captured
-ERROR logs and skips (never silently passes) rather than asserting on a
-response produced during an LLM outage.
+Requires custom_purchase_request installed on the live Odoo instance and a reachable
+LLM; the module fixture below skips when the module is not installed.
 """
 
 from __future__ import annotations
@@ -81,22 +69,23 @@ import logging
 
 import pytest
 
+from code_intelligence.tests._live_odoo import skip_unless_modules_installed
 from core.graph.graph import code_intelligence_agent
 from core.schemas import AssistantResponse
 
 
 pytestmark = pytest.mark.integration
 
-# Distinctive substrings of a Groq daily-token-quota (TPD) exhaustion,
-# as they appear verbatim in the exception ci_agent_node.py logs at
-# ERROR level ("LLM tool selection failed: %s" / "Synthesis failed: %s").
-# Deliberately narrow (not a bare "error" or "failed" match) so this can
-# only mask a genuine external-quota outage, never a real assertion
-# failure or logic bug in the gating mechanism itself.
-_RATE_LIMIT_EXHAUSTION_SIGNATURES = (
-    "rate_limit_exceeded",
-    "tokens per day",
-)
+
+@pytest.fixture(scope="module", autouse=True)
+def _require_purchase_request_module():
+    from code_intelligence.agent.context import _get_admin_rpc_client
+
+    try:
+        client, admin_uid = _get_admin_rpc_client()
+    except Exception as error:
+        pytest.skip(f"Live Odoo admin authentication is not available: {error}")
+    skip_unless_modules_installed(client, admin_uid, ("custom_purchase_request",))
 
 # Groups defined by xml_id -- portable across machines, forward-resolved to
 # real res.groups database IDs at test time by _resolve_group_ids() below.

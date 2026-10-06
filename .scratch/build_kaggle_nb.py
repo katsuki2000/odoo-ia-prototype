@@ -113,7 +113,7 @@ cells.append(new_markdown_cell(r"""## 4. Telecharger les modeles (Mode A) ou ver
 
 cells.append(new_code_cell(r"""# 4. Telecharger le modele candidat -- saute en Mode B (dataset deja pull, lecture seule :
 # un `ollama pull` echouerait de toute facon en tentant d'ecrire dans /kaggle/input, monte read-only).
-# Candidat principal : meme famille que le modele cloud actuel (GROQ_MODEL=openai/gpt-oss-20b)
+# Candidat principal : meme famille que le modele distant actuellement configuré.
 MODEL = "gpt-oss:20b"
 
 # Alternative de comparaison (si besoin, decommenter) :
@@ -284,9 +284,9 @@ Puis, sur ta machine, pour rejouer le banc complet de 25 questions Bloc N1 (aucu
 python scripts/run_bloc_n1_benchmark.py
 ```
 
-Le rapport sort dans `captures/bloc_n1_verbatim.json` / `.md`, comme pour un run cloud (Groq) -- comparer au dernier run connu.
+Le rapport sort dans `captures/bloc_n1_verbatim.json` / `.md`, comme pour un run distant -- comparer au dernier run connu.
 
-**Ne pas oublier de remettre `LLM_PROVIDER=groq` (ou de retirer les 4 lignes ci-dessus) une fois le test termine**, pour revenir au comportement par defaut.
+**Ne pas oublier de restaurer la configuration LLM d'origine (ou de retirer les 4 lignes ci-dessus) une fois le test termine**, pour revenir au comportement par defaut.
 
 **Limite Kaggle gratuit** : 30h GPU/semaine (remise a zero le lundi), session ~9h max. Garder l'onglet/la session active pendant tout le run des 25 questions."""))
 

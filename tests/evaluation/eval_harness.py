@@ -121,7 +121,7 @@ def run_evaluation() -> Dict[str, Any]:
         is_truncated = "finish_reason: length" in answer_text.lower() or len(answer_text) >= 4000
 
         ci_effective = timing_info.get("ci_effective_time", round(exec_time, 3))
-        ci_groq_wait = timing_info.get("ci_groq_wait_time", 0.0)
+        ci_llm_wait = timing_info.get("ci_llm_wait_time", 0.0)
 
         results.append({
             "id": tc_id,
@@ -132,7 +132,7 @@ def run_evaluation() -> Dict[str, Any]:
             "route_decision": route_decision,
             "exec_time_sec": round(exec_time, 3),
             "effective_time_sec": ci_effective,
-            "groq_wait_sec": ci_groq_wait,
+            "llm_wait_sec": ci_llm_wait,
             "hop_count": hop_count,
             "passed": is_passed,
             "is_truncated": is_truncated,

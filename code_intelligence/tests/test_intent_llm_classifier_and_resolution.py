@@ -8,7 +8,7 @@ test_bloc_p1_j1_2_investigation_plan.py (qui ne teste que
 classify_question_intent(), le filet deterministe, inchange).
 
 Patron de mock aligne sur test_business_resolver.py (seul autre appel LLM
-borne du projet) : mock construit a la main, jamais un vrai client Groq.
+borne du projet) : mock construit a la main, jamais un vrai client distant.
 Ici la forme est with_structured_output().invoke(messages) -> objet portant
 .intent, et non llm.invoke(messages) -> objet portant .content -- deux
 fonctions differentes sont patchees en consequence : get_chat_llm() est

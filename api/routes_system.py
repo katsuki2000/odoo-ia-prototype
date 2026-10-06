@@ -1,6 +1,5 @@
 """System, health check, module coverage, and statistics endpoints."""
 
-import os
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import RedirectResponse
 
@@ -45,28 +44,8 @@ def health_check_v1():
         status["services"]["odoo"] = "error"
         status["status"] = "degraded"
 
-    from config.settings import LLM_PROVIDER, LOCAL_LLM_BASE_URL, OPENROUTER_API_KEY
-    provider = (LLM_PROVIDER or "groq").lower().strip()
-    if provider in ("local", "ollama", "vllm", "openai_compatible", "lmstudio", "llamacpp"):
-        status["services"]["llm"] = f"ok (local: {LOCAL_LLM_BASE_URL})"
-        status["services"]["groq"] = "ok (provider: local)"
-    elif provider == "openrouter":
-        if not OPENROUTER_API_KEY:
-            status["services"]["llm"] = "error (no openrouter key)"
-            status["services"]["groq"] = "error (no key)"
-            status["status"] = "degraded"
-        else:
-            status["services"]["llm"] = "ok (openrouter)"
-            status["services"]["groq"] = "ok (provider: openrouter)"
-    else:
-        groq_api_key = os.getenv("GROQ_API_KEY")
-        if not groq_api_key:
-            status["services"]["groq"] = "error (no key)"
-            status["services"]["llm"] = "error (no groq key)"
-            status["status"] = "degraded"
-        else:
-            status["services"]["groq"] = "ok"
-            status["services"]["llm"] = "ok (groq)"
+    from config.settings import LOCAL_LLM_BASE_URL
+    status["services"]["llm"] = f"configured (local endpoint: {LOCAL_LLM_BASE_URL})"
 
     return status
 

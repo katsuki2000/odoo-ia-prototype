@@ -1,9 +1,10 @@
 """
-Wiki and documentation loader for text and markdown files.
+Wiki and documentation loader for text, markdown and Word files.
 
 Handles:
 - Plain text files (.txt)
 - Markdown files (.md)
+- Word files (.docx), converted to markdown
 
 Simple chunking with metadata extraction.
 """
@@ -18,6 +19,7 @@ from typing import Any, Optional
 
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
+from document_rag.ingestion.docx_reader import docx_to_markdown
 from document_rag.ingestion.scan_root import compute_source
 
 logger = logging.getLogger(__name__)
@@ -157,6 +159,45 @@ class WikiLoader:
         with open(file_path, "r", encoding="utf-8") as f:
             content = f.read()
 
+        return self._chunk_markdown(content, file_path, metadata, scan_root)
+
+    def load_docx_file(
+        self,
+        file_path: str | Path,
+        metadata: Optional[dict[str, Any]] = None,
+        scan_root: Optional[str | Path] = None,
+    ) -> dict[str, Any]:
+        """
+        Load and chunk a Word document, converted to markdown in document order.
+
+        Args:
+            file_path: Path to .docx file
+            metadata: Optional base metadata
+            scan_root: Logical root `source` is made relative to (see
+                document_rag/ingestion/scan_root.py).
+
+        Returns:
+            Dictionary with chunks and metadatas
+        """
+        file_path = Path(file_path)
+
+        if not file_path.exists():
+            raise FileNotFoundError(f"Word file not found: {file_path}")
+
+        if file_path.suffix.lower() != ".docx":
+            raise ValueError(f"Expected .docx file, got {file_path.suffix}")
+
+        logger.info(f"Loading Word file: {file_path}")
+        return self._chunk_markdown(docx_to_markdown(file_path), file_path, metadata, scan_root)
+
+    def _chunk_markdown(
+        self,
+        content: str,
+        file_path: Path,
+        metadata: Optional[dict[str, Any]],
+        scan_root: Optional[str | Path],
+    ) -> dict[str, Any]:
+        """Chunk markdown text and build per-chunk metadata."""
         # Initialize base metadata
         base_metadata = metadata or {}
         base_metadata.setdefault("source", compute_source(file_path, scan_root))

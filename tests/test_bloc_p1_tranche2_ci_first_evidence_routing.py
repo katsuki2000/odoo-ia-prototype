@@ -256,27 +256,28 @@ def test_donnees_erp_is_the_only_route_reaching_orm_agent_loop_directly(compiled
 
 
 @pytest.mark.integration
-def test_code_intelligence_agent_only_reaches_format_output_or_generate(compiled_graph_view):
+def test_code_intelligence_agent_only_reaches_verify_answer_or_generate(compiled_graph_view):
     """Post-CI, il ne doit exister que 2 destinations possibles -- pas de
     3e branche cachee reintroduite en aval. Verrouille la forme de l'edge
-    conditionnelle cablee par ci_evidence_decision()."""
+    conditionnelle cablee par ci_evidence_decision() ; la cle historique
+    "format_output" mene desormais a la verification (section 1129)."""
     targets = _edge_targets(compiled_graph_view, "code_intelligence_agent")
-    assert targets == {"format_output", "generate"}
+    assert targets == {"verify_answer", "generate"}
 
 
 @pytest.mark.integration
-def test_orm_agent_loop_reaches_format_output_directly_bypassing_evidence_gate(compiled_graph_view):
+def test_orm_agent_loop_reaches_verify_answer_directly_bypassing_evidence_gate(compiled_graph_view):
     """Le chemin ERP pur (Domaine B) ne passe jamais par
     assess_evidence_sufficiency()/ci_evidence_decision() -- c'est un chemin
     de premier niveau distinct, pas un cas particulier de CI. Une seule
-    destination attendue, jamais 'generate'."""
+    destination attendue (la verification, section 1129), jamais 'generate'."""
     targets = _edge_targets(compiled_graph_view, "orm_agent_loop")
-    assert targets == {"format_output"}
+    assert targets == {"verify_answer"}
 
 
 @pytest.mark.integration
-def test_generate_reaches_format_output(compiled_graph_view):
-    assert _edge_targets(compiled_graph_view, "generate") == {"format_output"}
+def test_generate_reaches_verify_answer(compiled_graph_view):
+    assert _edge_targets(compiled_graph_view, "generate") == {"verify_answer"}
 
 
 @pytest.mark.integration

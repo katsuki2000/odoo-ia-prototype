@@ -16,6 +16,7 @@ from .evidence_check import (
 from .evidence_collector import (
     start_evidence_collection,
     record_evidence,
+    peek_turn_evidence,
     collect_and_clear_evidence,
 )
 from .evidence_sufficiency import (
@@ -32,6 +33,7 @@ __all__ = [
     "check_evidence",
     "start_evidence_collection",
     "record_evidence",
+    "peek_turn_evidence",
     "collect_and_clear_evidence",
     "EvidenceSufficiencyStatus",
     "EvidenceSufficiencyResult",

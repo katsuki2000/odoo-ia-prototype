@@ -4,13 +4,12 @@ import logging
 import time
 from typing import Optional
 
-from config.settings import GROQ_MODEL
 from core.schemas import AssistantResponse, LLMResponse, SourceReference
+from config.settings import DOCUMENT_MAX_TOKENS
 from core.routing.routing import RAGState, _is_out_of_scope, OUT_OF_SCOPE_ANSWER
 from core.llm.llm_client import (
     get_chat_llm,
     invoke_with_rate_limit as _invoke_with_rate_limit,
-    _current_groq_key,
 )
 from document_rag.generate_helpers import (
     build_source_aliases,
@@ -24,8 +23,8 @@ from document_rag.generate_helpers import (
 
 logger = logging.getLogger(__name__)
 
-# Backward-compatible alias
-_build_groq_llm = get_chat_llm
+_build_llm = get_chat_llm
+
 
 
 def generate(state: RAGState) -> dict:
@@ -83,11 +82,11 @@ def generate(state: RAGState) -> dict:
     _llm_call_count = 0
     sources_fallback_eligible = False
     try:
-        llm = _build_groq_llm(temperature=0.3, max_retries=0, max_tokens=1024)
+        llm = _build_llm(temperature=0.3, max_retries=0, max_tokens=DOCUMENT_MAX_TOKENS)
         _structured_llm_box = [llm.with_structured_output(LLMResponse)]
 
         def _rebuild_structured_llm():
-            fresh = _build_groq_llm(temperature=0.3, max_retries=0, max_tokens=1024)
+            fresh = _build_llm(temperature=0.3, max_retries=0, max_tokens=DOCUMENT_MAX_TOKENS)
             _structured_llm_box[0] = fresh.with_structured_output(LLMResponse)
             return _structured_llm_box[0]
 
@@ -103,10 +102,10 @@ def generate(state: RAGState) -> dict:
     except Exception as e:
         logger.warning("Structured LLM Generation failed (%s) → falling back to raw invoke", e)
         try:
-            _plain_llm_box = [_build_groq_llm(temperature=0.3, max_retries=0, max_tokens=1024)]
+            _plain_llm_box = [_build_llm(temperature=0.3, max_retries=0, max_tokens=DOCUMENT_MAX_TOKENS)]
 
             def _rebuild_plain_llm():
-                _plain_llm_box[0] = _build_groq_llm(temperature=0.3, max_retries=0, max_tokens=1024)
+                _plain_llm_box[0] = _build_llm(temperature=0.3, max_retries=0, max_tokens=DOCUMENT_MAX_TOKENS)
                 return _plain_llm_box[0]
 
             raw_resp, _wait2 = _invoke_with_rate_limit(

@@ -25,6 +25,15 @@ def _force_offline_embedding_backend(monkeypatch):
     monkeypatch.setenv("RESOLVER_SEMANTIC_RETRIEVAL_ENABLED", "false")
 
 
+@pytest.fixture(scope="module")
+def offline_odoo_runtime():
+    """Module-scoped fixtures run before function-scoped autouse ones, so a graph built
+    in one needs this explicit request to stay independent of a running Odoo."""
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setenv("ODOO_URL", UNREACHABLE_ODOO_URL)
+        yield
+
+
 @pytest.fixture(autouse=True)
 def _isolate_odoo_runtime(request, monkeypatch):
     if request.node.get_closest_marker("integration") is None:

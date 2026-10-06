@@ -30,7 +30,7 @@ def main():
     timing_info = res.get("timing", {})
     print(f"\nHops: {timing_info.get('ci_hop_count', '?')} | "
           f"Effectif: {timing_info.get('ci_effective_time', '?')}s | "
-          f"Groq wait: {timing_info.get('ci_groq_wait_time', '?')}s\n")
+          f"Attente LLM: {timing_info.get('ci_llm_wait_time', '?')}s\n")
     print(verbatim_answer)
     print("\n" + "=" * 80)
 

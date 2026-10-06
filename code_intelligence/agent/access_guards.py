@@ -17,12 +17,12 @@ from code_intelligence.utils import (
     _LOCK_CONDITION_LINE_RE,
     _AMOUNT_CMP_RE,
 )
+from core.verification.extractors import GROUP_XMLID_RE as _GROUP_XMLID_RE
 logger = logging.getLogger(__name__)
 
 _REQUIRED_GROUP_LINE_RE = re.compile(
     r"Groupe\(s\)\s+technique\(s\)\s+requis\s+detecte\(s\)\s+\(has_group\):\s*([^\n]+)"
 )
-_GROUP_XMLID_RE = re.compile(r"\b[a-z][a-z0-9_]*\.group_[a-z0-9_]+\b")
 # Section 948 (todo/contexte.txt): evaluate_record_rules' own "(groupes: ...)"
 # formatting (record_rules.py::_format_rule_groups) is a second, distinct
 # grounding path for a group xml_id -- neither the has_group()-only

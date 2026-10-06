@@ -104,7 +104,7 @@ class TestScript7Scenario:
     def test_all_tool_crashes_produce_flagged_insufficient(self):
         result = assess_evidence_sufficiency(
             tool_observations=[
-                "Error executing analyze_security_locks: Groq rate limit exceeded",
+                "Error executing analyze_security_locks: model server rate limit exceeded",
                 "Error executing trace_full_inheritance: tool-use failed",
             ],
             hop_count=2,

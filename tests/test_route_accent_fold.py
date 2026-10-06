@@ -19,10 +19,10 @@ def _route_question(question: str, mocked_intent: QuestionIntent) -> str:
 
     Cluster B fix (todo/contexte.txt sections 430-433): route() now calls
     resolve_question_intent() (code_intelligence/investigation/llm.py),
-    which attempts a real, bounded Groq LLM classifier
+    which attempts a real, bounded LLM classifier
     (classify_question_intent_llm) BEFORE falling back to the deterministic
     keyword classifier these tests originally locked in. Left unmocked,
-    every test in this file depended on live network access to Groq and a
+    every test in this file depended on live network access to the inference server and a
     non-deterministic classification -- not a unit test anymore. Per the
     explicit decision (section 433): mock classify_question_intent_llm with
     an EXPLICIT intent matching the classification the production LLM is

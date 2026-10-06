@@ -5,22 +5,15 @@ import threading
 import time
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
-from langchain_groq import ChatGroq
 from langchain_core.messages import SystemMessage, HumanMessage, ToolMessage
 
 from config.settings import (
     LLM_PROVIDER,
-    GROQ_API_KEY,
-    GROQ_API_KEYS,
-    GROQ_MODEL,
-    OPENROUTER_API_KEY,
-    OPENROUTER_MODEL,
-    OPENROUTER_BASE_URL,
     LOCAL_LLM_BASE_URL,
     LOCAL_LLM_MODEL,
     LOCAL_LLM_API_KEY,
 )
-from core.llm.local_only import assert_local_endpoint, assert_local_provider
+from core.llm.local_only import assert_local_endpoint
 from core.llm.llm_retry import (
     ToolCallFallback,
     ToolCallFallback as _ToolCallFallback,
@@ -40,43 +33,6 @@ from core.llm.llm_retry import (
 logger = logging.getLogger(__name__)
 
 
-# ── Groq multi-key rotation ────────────────────────────────────────────────
-_groq_key_lock = threading.Lock()
-_groq_key_index = [0]
-
-
-def _current_groq_key() -> Optional[str]:
-    """Return the currently active Groq API key."""
-    if not GROQ_API_KEYS:
-        return GROQ_API_KEY
-    with _groq_key_lock:
-        idx = min(_groq_key_index[0], len(GROQ_API_KEYS) - 1)
-        return GROQ_API_KEYS[idx]
-
-
-def _rotate_groq_key() -> bool:
-    """Advance to the next configured Groq key. Returns False once on the last key."""
-    with _groq_key_lock:
-        old = _groq_key_index[0]
-        if old + 1 >= len(GROQ_API_KEYS):
-            return False
-        _groq_key_index[0] = old + 1
-        logger.warning(
-            "Groq API key %d/%d exhausted -- rotating to key %d/%d.",
-            old + 1, len(GROQ_API_KEYS), old + 2, len(GROQ_API_KEYS),
-        )
-        return True
-
-
-def _get_chat_groq():
-    """Return patched ChatGroq if loaded in core.graph.graph, else real ChatGroq."""
-    import sys
-    g = sys.modules.get("core.graph.graph")
-    if g and hasattr(g, "ChatGroq"):
-        return g.ChatGroq
-    return ChatGroq
-
-
 # ── Provider-agnostic client factory ──────────────────────────────────────
 
 def get_chat_llm(
@@ -92,26 +48,11 @@ def get_chat_llm(
 ):
     """Construct an LLM client according to the configured or requested provider.
 
-    Supported providers:
-    - 'groq': Groq Cloud API with multi-key rotation (refused while LOCAL_ONLY is enabled)
-    - 'local' / 'ollama' / 'vllm' / 'openai_compatible': Local OpenAI-compatible API
-    - 'openrouter': OpenRouter API via ChatOpenAI (refused while LOCAL_ONLY is enabled)
+    Supported providers are local OpenAI-compatible inference servers.
     """
     active_provider = (provider or LLM_PROVIDER or "local").lower().strip()
-    assert_local_provider(active_provider)
 
-    if active_provider == "groq":
-        groq_cls = _get_chat_groq()
-        return groq_cls(
-            model=model or GROQ_MODEL,
-            api_key=api_key or _current_groq_key(),
-            temperature=temperature,
-            max_tokens=max_tokens,
-            max_retries=max_retries,
-            model_kwargs=model_kwargs or {},
-        )
-
-    if active_provider in ("local", "ollama", "vllm", "openai_compatible", "lmstudio", "llamacpp", "openrouter"):
+    if active_provider in ("local", "ollama", "vllm", "openai_compatible", "lmstudio", "llamacpp"):
         from langchain_openai import ChatOpenAI
         kw = dict(model_kwargs or {})
         freq = kw.pop("frequency_penalty", None)
@@ -121,18 +62,6 @@ def get_chat_llm(
             penalties["frequency_penalty"] = freq
         if pres is not None:
             penalties["presence_penalty"] = pres
-
-        if active_provider == "openrouter":
-            return ChatOpenAI(
-                model=model or OPENROUTER_MODEL,
-                base_url=base_url or OPENROUTER_BASE_URL,
-                api_key=api_key or OPENROUTER_API_KEY,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                max_retries=max_retries,
-                model_kwargs=kw,
-                **penalties,
-            )
 
         local_base_url = base_url or LOCAL_LLM_BASE_URL
         assert_local_endpoint(local_base_url, "LLM")
@@ -148,8 +77,7 @@ def get_chat_llm(
         )
 
     raise ValueError(
-        f"Unknown LLM_PROVIDER={active_provider!r} -- expected 'groq', "
-        f"'local' (or 'ollama', 'vllm', 'openai_compatible'), or 'openrouter'."
+        f"Unknown LLM_PROVIDER={active_provider!r}; expected a local OpenAI-compatible provider."
     )
 
 
@@ -157,12 +85,11 @@ def get_chat_llm(
 
 _llm_call_lock = threading.Lock()
 _last_llm_call_time = [0.0]
-MIN_LLM_CALL_INTERVAL = 5.0  # Enforce 5.0s minimum spacing between LLM calls for Groq
+MIN_LLM_CALL_INTERVAL = 0.0
 
 
 def _get_min_interval() -> float:
-    provider = (LLM_PROVIDER or "groq").lower().strip()
-    return MIN_LLM_CALL_INTERVAL if provider == "groq" else 0.0
+    return MIN_LLM_CALL_INTERVAL
 
 
 def invoke_with_rate_limit(
@@ -223,13 +150,6 @@ def invoke_with_rate_limit(
                     raise
 
                 is_rate_limit = "429" in err_str or "rate_limit" in err_str.lower()
-                if is_rate_limit and rebuild_llm is not None and _rotate_groq_key():
-                    llm_with_tools = rebuild_llm()
-                    logger.warning(
-                        "Rate limit hit (attempt %d/%d) -- rotated to next Groq key, retrying immediately.",
-                        attempt + 1, max_retries,
-                    )
-                    continue
                 if is_rate_limit and attempt < max_retries - 1:
                     headers = _extract_rate_limit_headers(e)
                     reset_raw = (

@@ -23,7 +23,7 @@ exact function production calls. That is what makes it a real regression
 lock: it fails again if the direct-dependency-loading block is ever
 removed, narrowed, or short-circuited.
 
-Deliberately has NO LLM/Groq dependency (unlike eval_j36_expense_risk_llm.py)
+Deliberately has NO live LLM dependency (unlike eval_j36_expense_risk_llm.py)
 so it can run fast and offline as part of the normal test suite, instead of
 being the only thing standing between this regression and a live rerun of
 the adversarial benchmark.
@@ -44,7 +44,7 @@ ADDONS_ROOT = CORE_ADDONS_PATH
 
 
 @pytest.fixture(scope="module")
-def rebuilt_graph():
+def rebuilt_graph(offline_odoo_runtime):
     """Force a full rebuild of the production graph against a throwaway
     cache path, so this test never reads/writes the real active_graph.json
     and always exercises the CURRENT loading code in get_code_intelligence_graph()

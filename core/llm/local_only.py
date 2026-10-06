@@ -4,7 +4,7 @@ from urllib.parse import urlparse
 
 from config.settings import LOCAL_ALLOWED_HOSTS, LOCAL_ONLY
 
-CLOUD_PROVIDERS = frozenset({"groq", "openrouter", "nomic_api"})
+LOCAL_PROVIDERS = frozenset({"local", "ollama", "vllm", "openai_compatible", "lmstudio", "llamacpp"})
 
 
 class ExternalEndpointError(ValueError):
@@ -12,10 +12,9 @@ class ExternalEndpointError(ValueError):
 
 
 def assert_local_provider(provider: str) -> None:
-    if LOCAL_ONLY and provider in CLOUD_PROVIDERS:
+    if LOCAL_ONLY and provider not in LOCAL_PROVIDERS:
         raise ExternalEndpointError(
-            f"Provider {provider!r} is a cloud service and LOCAL_ONLY is enabled. "
-            f"Use LLM_PROVIDER=local, or set LOCAL_ONLY=false in .env."
+            f"Provider {provider!r} is not an approved local provider while LOCAL_ONLY is enabled."
         )
 
 
@@ -31,7 +30,7 @@ def assert_local_endpoint(url: str, purpose: str) -> None:
 
 
 __all__ = [
-    "CLOUD_PROVIDERS",
+    "LOCAL_PROVIDERS",
     "ExternalEndpointError",
     "assert_local_provider",
     "assert_local_endpoint",

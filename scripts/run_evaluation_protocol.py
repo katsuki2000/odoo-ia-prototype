@@ -11,6 +11,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from core.evaluation.frozen_cases import check_against_instances, load_dataset
 from core.evaluation.instances import default_environment, load_specs
+from core.evaluation.preflight import BackendUnavailable, require_backends
 from core.evaluation.protocol_metrics import Preregistration, evaluate
 from core.evaluation.protocol_report import write_report
 from core.evaluation.protocol_runner import collect_results, load_ratings, run_protocol, split_summary
@@ -43,6 +44,11 @@ def main() -> int:
     print(f"dataset version {dataset.version}: {split_summary(dataset)}")
     failures = []
     if not args.score_only:
+        try:
+            require_backends()
+        except BackendUnavailable as error:
+            print(f"model backend unavailable, no run started: {error}")
+            return 2
         failures = run_protocol(dataset, specs, default_environment(), args.raw_dir, PROJECT_ROOT, args.only)
     report = evaluate(
         dataset,

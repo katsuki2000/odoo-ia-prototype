@@ -45,7 +45,7 @@ itself applies, fixed in investigation_plan.py) and 2 resolution failures
 not static alias/fuzzy alone -- resolve_business_term(..., llm=None) can't
 reach them). Per explicit user decision, concept resolution for ALL H4
 questions below now goes through a real, bound LLM client (real_llm
-fixture, real Groq call) -- matching what the real execution side
+fixture, real LLM call) -- matching what the real execution side
 (ci_agent_node.py's CodeIntelligenceAgentRunner, llm=llm) does, unlike
 route()'s own plan-generation call (llm=None). This is scoped strictly to
 the resolution step: the plan/dispatch coherence check itself stays
@@ -94,7 +94,7 @@ def real_llm():
     Real, bound LLM client for genuine ambiguity arbitration in
     resolve_business_term() (section 226/227, todo/contexte.txt): some H4
     questions below only resolve via LLM arbitration, not static alias/fuzzy
-    alone. Makes a real Groq call -- costs quota, hence @pytest.mark.integration
+alone. Makes a real LLM call -- uses inference resources, hence @pytest.mark.integration
     on the test using this fixture (same convention as
     test_j25_26_e2e_purchase_bypass_gate.py). Skips gracefully if the LLM
     client cannot be constructed on this machine (e.g. missing API key),

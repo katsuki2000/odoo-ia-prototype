@@ -56,7 +56,17 @@ def evidence_pairs(raw: Mapping) -> tuple:
     return dossier + documents
 
 
+def claim_counts(raw: Mapping) -> tuple[int, int]:
+    report = raw.get("verification")
+    if isinstance(report, Mapping):
+        return int(report.get("claims_total") or 0), int(report.get("unsupported_claims") or 0)
+    if hasattr(report, "claims_total") and hasattr(report, "unsupported_claims"):
+        return int(getattr(report, "claims_total") or 0), int(getattr(report, "unsupported_claims") or 0)
+    return int(raw.get("claims_total") or 0), int(raw.get("unsupported_claims") or 0)
+
+
 def to_case_result(case: FrozenCase, raw: Mapping) -> CaseResult:
+    claims_total, unsupported_claims = claim_counts(raw)
     return CaseResult(
         case_id=case.case_id,
         outcome=classify_outcome(raw),
@@ -64,4 +74,7 @@ def to_case_result(case: FrozenCase, raw: Mapping) -> CaseResult:
         sources_used=sources_used(raw),
         resolved_objects=resolved_objects(raw),
         evidence=evidence_pairs(raw),
+        claims_total=claims_total,
+        unsupported_claims=unsupported_claims,
     )
+

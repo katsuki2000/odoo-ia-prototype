@@ -68,6 +68,11 @@ def ask_question_v1(
 
         token_api_key = user.get("api_key")
         token_groups = user.get("groups") or []
+        token_company_id = user.get("company_id")
+        if token_company_id is not None:
+            company_id = int(token_company_id)
+        else:
+            company_id = int(request.company_id)
         request_language = _request_language(
             request.language,
             http_request.headers.get("accept-language"),
@@ -90,6 +95,8 @@ def ask_question_v1(
             active_model=request.active_model,
             active_id=request.active_id,
             language=request_language,
+            company_id=company_id,
+            company_ids=[company_id],
         )
 
         if response.answer == "Une erreur interne s'est produite lors de l'exécution du pipeline.":

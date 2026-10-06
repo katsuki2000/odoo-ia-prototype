@@ -12,6 +12,7 @@ import logging
 from pathlib import Path
 from typing import Any, Iterable
 
+from document_rag.ingestion.file_formats import is_supported_document
 from document_rag.ingestion.logging_utils import start_timer, write_ingestion_event
 from document_rag.ingestion.pdf_loader import PDFLoader
 from document_rag.ingestion.scan_root import DEFAULT_SCAN_ROOT_CANDIDATES, compute_source, resolve_scan_root
@@ -20,7 +21,6 @@ from document_rag.vectorstore.chroma_manager import ChromaManager
 
 logger = logging.getLogger(__name__)
 
-SUPPORTED_EXTENSIONS = {".pdf", ".txt", ".md"}
 SKIP_PARTS = {"__pycache__", "venv", ".venv", ".git", "site-packages", ".pytest_cache"}
 
 
@@ -161,7 +161,7 @@ def _is_supported_file(file_path: Path) -> bool:
     if any(part.lower() in SKIP_PARTS for part in file_path.parts):
         return False
 
-    return file_path.suffix.lower() in SUPPORTED_EXTENSIONS
+    return is_supported_document(file_path)
 
 
 def _load_file(
@@ -179,6 +179,8 @@ def _load_file(
         loaded = WikiLoader(chunk_size=chunk_size, chunk_overlap=chunk_overlap).load_text_file(file_path, scan_root=scan_root)
     elif suffix == ".md":
         loaded = WikiLoader(chunk_size=chunk_size, chunk_overlap=chunk_overlap).load_markdown_file(file_path, scan_root=scan_root)
+    elif suffix == ".docx":
+        loaded = WikiLoader(chunk_size=chunk_size, chunk_overlap=chunk_overlap).load_docx_file(file_path, scan_root=scan_root)
     else:
         raise ValueError(f"Unsupported file type: {file_path.suffix}")
 

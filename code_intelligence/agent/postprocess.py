@@ -393,8 +393,8 @@ def build_final_response(
     timing = state.get("timing", {}).copy()
     timing["code_intelligence_time"] = ci_total_wall
     timing["ci_hop_count"] = ctx.hop_count
-    timing["ci_groq_wait_time"] = round(ctx.groq_wait, 3)
-    timing["ci_effective_time"] = round(ci_total_wall - ctx.groq_wait, 3)
+    timing["ci_llm_wait_time"] = round(ctx.llm_wait, 3)
+    timing["ci_effective_time"] = round(ci_total_wall - ctx.llm_wait, 3)
     timing["ci_business_resolver_time"] = round(resolver_time, 3)
     timing["ci_per_hop_times"] = [round(t, 3) for t in ctx.per_hop_times]
     timing["ci_synthesis_time"] = round(ctx.synthesis_time, 3)

@@ -15,6 +15,7 @@ import os
 import pytest
 
 from code_intelligence.agent.rpc_client import OdooRpcClient
+from code_intelligence.tests._live_odoo import skip_unless_modules_installed
 
 TEST_PASSWORD = os.getenv("ODOO_J5_TEST_PASSWORD", "J5TestPassword2026!")
 TEST_USERS = ("test_both_2026", "test_regional_2026", "test_no_group_2026")
@@ -28,19 +29,9 @@ def live_client() -> OdooRpcClient:
     except Exception as exc:
         pytest.skip(f"Live Odoo admin authentication is not available: {exc}")
 
-    missing_modules = [
-        module
-        for module in ("custom_credit_note_approval", "custom_credit_note_visibility_rules")
-        if not client.execute_kw(
-            admin_uid,
-            "ir.module.module",
-            "search",
-            [[("name", "=", module), ("state", "=", "installed")]],
-            {"limit": 1},
-        )
-    ]
-    if missing_modules:
-        pytest.skip(f"Required Odoo modules are not installed: {missing_modules}")
+    skip_unless_modules_installed(
+        client, admin_uid, ("custom_credit_note_approval", "custom_credit_note_visibility_rules"),
+    )
 
     for login in TEST_USERS:
         client.set_user_password(admin_uid, login, TEST_PASSWORD)

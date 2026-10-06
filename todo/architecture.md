@@ -2,9 +2,7 @@
 
 ## 1. Objectif
 
-Mettre en place une IA privée qui explique le comportement réel d'un ERP Odoo 17 (natif, OCA et custom) à
-n'importe quel utilisateur, en termes métier, avec des preuves vérifiables, sans dépendre nécessairement de la
-documentation.
+Mettre en place une IA privée qui explique le comportement réel d'un ERP Odoo 17 (natif, OCA et custom) à n'importe quel utilisateur, en termes métier, avec des preuves vérifiables, sans dépendre nécessairement de la documentation.
 
 Elle répond sur le fonctionnement métier de l'instance, les règles de sécurité et d'accès, les workflows et
 états, les contraintes et validations, les personnalisations Python/XML, les données accessibles à
@@ -21,10 +19,7 @@ est vrai sur l'instance.
 
 ## 2. Principes
 
-1. **Le LLM n'est jamais une source de vérité.** Le LLM connaît Odoo ; le graphe connaît cette instance. Les
-   faits établis en consultant l'ERP et les documents sont injectés au prompt : le LLM s'appuie sur ses
-   connaissances générales pour comprendre la question, formuler des hypothèses et orienter l'investigation,
-   mais ne répond sur l'instance qu'à partir de ce qui a été trouvé. Le prompt sépare trois blocs : la
+1. **Le LLM n'est jamais une source de vérité.** Le LLM connaît Odoo ; le graphe connaît cette instance. Les faits établis en consultant l'ERP et les documents sont injectés au prompt : le LLM s'appuie sur ses connaissances générales pour comprendre la question, formuler des hypothèses et orienter l'investigation, mais ne répond sur l'instance qu'à partir de ce qui a été trouvé. Le prompt sépare trois blocs : la
    connaissance générale (aide à comprendre), les faits de l'instance (seul fondement d'une affirmation sur
    l'installation) et les preuves (origine vérifiable des faits). Le LLM propose, l'instance démontre.
 
@@ -63,10 +58,7 @@ est vrai sur l'instance.
    connaissances générales du LLM, la réponse le dit et précise qu'aucune preuve ne l'établit pour cette
    instance.
 
-7. **Investigation bornée.** Le LLM planifie dans un vocabulaire d'actions fermé ; il ne crée pas d'outil, ne
-   choisit ni l'utilisateur ni la société, et chaque appel est contrôlé par le moteur (outil, objet et
-   périmètre autorisés) avant exécution. Partout où le LLM n'est pas indispensable (extraction du graphe,
-   résolution exacte, contrôles de vérification), le traitement est déterministe.
+7. **Investigation bornée.** Le LLM planifie dans un vocabulaire d'actions fermé ; il ne crée pas d'outil, ne choisit ni l'utilisateur ni la société, et chaque appel est contrôlé par le moteur (outil, objet et périmètre autorisés) avant exécution. Partout où le LLM n'est pas indispensable (extraction du graphe,résolution exacte, contrôles de vérification), le traitement est déterministe.
 
 ## 3. Pipeline
 

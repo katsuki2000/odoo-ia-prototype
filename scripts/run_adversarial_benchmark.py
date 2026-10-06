@@ -175,7 +175,7 @@ def run_benchmark(question_ids=None):
             print(f"Requester groups: {item['user_groups']} -> DB ids {user_groups}")
         print("-" * 80)
 
-        time.sleep(2.0)  # Pacing between questions to respect Groq free-tier TPM window
+        time.sleep(2.0)  # Pacing between benchmark questions.
         start_time = time.time()
         try:
             state = {"question": question, "chat_history": [], "user_groups": user_groups}
@@ -202,10 +202,10 @@ def run_benchmark(question_ids=None):
 
             timing_info = res.get("timing", {})
             ci_effective = timing_info.get("ci_effective_time", round(elapsed, 2))
-            ci_groq_wait = timing_info.get("ci_groq_wait_time", 0.0)
+            ci_llm_wait = timing_info.get("ci_llm_wait_time", 0.0)
             ci_hops = timing_info.get("ci_hop_count", 0)
 
-            print(f"Verbatim Response ({elapsed:.2f}s total | effective {ci_effective:.2f}s | groq_wait {ci_groq_wait:.2f}s | hops {ci_hops}):\n{verbatim_answer}")
+            print(f"Verbatim Response ({elapsed:.2f}s total | effective {ci_effective:.2f}s | llm_wait {ci_llm_wait:.2f}s | hops {ci_hops}):\n{verbatim_answer}")
 
             results.append({
                 "id": qid,
@@ -216,7 +216,7 @@ def run_benchmark(question_ids=None):
                 "sources": sources,
                 "elapsed_seconds": round(elapsed, 2),
                 "effective_seconds": ci_effective,
-                "groq_wait_seconds": ci_groq_wait,
+                "llm_wait_seconds": ci_llm_wait,
                 "hop_count": ci_hops,
                 "timing_detail": timing_info
             })
@@ -232,7 +232,7 @@ def run_benchmark(question_ids=None):
                 "sources": [],
                 "elapsed_seconds": 0.0,
                 "effective_seconds": 0.0,
-                "groq_wait_seconds": 0.0,
+                "llm_wait_seconds": 0.0,
                 "hop_count": 0,
                 "timing_detail": {}
             })
@@ -288,7 +288,7 @@ def run_benchmark(question_ids=None):
         md_lines.append(f"**Vérité Terrain attendue :**\n> {r['expected']}\n")
         md_lines.append(
             f"**Réponse Verbatim de l'agent (Total: {r['elapsed_seconds']}s | "
-            f"Effectif: {r['effective_seconds']}s | Groq wait: {r['groq_wait_seconds']}s | Sauts: {r['hop_count']}) :**\n"
+            f"Effectif: {r['effective_seconds']}s | Attente LLM: {r['llm_wait_seconds']}s | Sauts: {r['hop_count']}) :**\n"
             f"```text\n{r['verbatim']}\n```\n"
         )
         md_lines.append("---")
@@ -319,5 +319,3 @@ if __name__ == "__main__":
     # ne rejoue que ces questions (todo/contexte.txt Section 715) ; sans argument,
     # comportement inchange (les 9 questions).
     run_benchmark(question_ids=sys.argv[1:] or None)
-
-

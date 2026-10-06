@@ -121,7 +121,7 @@ def run_benchmark(question_ids=None, module=None, fresh=False):
         print(f"Question: {question}")
         print("-" * 80)
 
-        time.sleep(2.0)  # Pacing -- fenetre TPM Groq free-tier (meme discipline que Bloc 7)
+        time.sleep(2.0)  # Pacing between benchmark questions.
         start_time = time.time()
         try:
             state = build_agent_state(item)
@@ -148,13 +148,13 @@ def run_benchmark(question_ids=None, module=None, fresh=False):
 
             timing_info = res.get("timing", {})
             ci_effective = timing_info.get("ci_effective_time", round(elapsed, 2))
-            ci_groq_wait = timing_info.get("ci_groq_wait_time", 0.0)
+            ci_llm_wait = timing_info.get("ci_llm_wait_time", 0.0)
             ci_hops = timing_info.get("ci_hop_count", 0)
             applied_guards = timing_info.get("ci_applied_guards", [])
 
             print(
                 f"Reponse verbatim ({elapsed:.2f}s total | effectif {ci_effective:.2f}s | "
-                f"groq_wait {ci_groq_wait:.2f}s | sauts {ci_hops}):\n{verbatim_answer}"
+                f"llm_wait {ci_llm_wait:.2f}s | sauts {ci_hops}):\n{verbatim_answer}"
             )
             print(f"Outils invoques: {tools_used or '(aucun)'}")
             print(f"Gardes de post-traitement ayant modifie la reponse: {applied_guards or '(aucun)'}")
@@ -176,7 +176,7 @@ def run_benchmark(question_ids=None, module=None, fresh=False):
                 "verbatim": verbatim_answer,
                 "elapsed_seconds": round(elapsed, 2),
                 "effective_seconds": ci_effective,
-                "groq_wait_seconds": ci_groq_wait,
+                "llm_wait_seconds": ci_llm_wait,
                 "hop_count": ci_hops,
                 "applied_guards": applied_guards,
             })
@@ -198,7 +198,7 @@ def run_benchmark(question_ids=None, module=None, fresh=False):
                 "verbatim": f"ERROR: {str(e)}",
                 "elapsed_seconds": 0.0,
                 "effective_seconds": 0.0,
-                "groq_wait_seconds": 0.0,
+                "llm_wait_seconds": 0.0,
                 "hop_count": 0,
                 "applied_guards": [],
             })
@@ -282,7 +282,7 @@ def run_benchmark(question_ids=None, module=None, fresh=False):
                          + ("" if r["tool_coverage_ok"] else f" -- MANQUANT(S): {r['missing_tools']}"))
         md_lines.append(
             f"\n**Reponse verbatim de l'agent (Total: {r['elapsed_seconds']}s | "
-            f"Effectif: {r['effective_seconds']}s | Groq wait: {r['groq_wait_seconds']}s | "
+            f"Effectif: {r['effective_seconds']}s | Attente LLM: {r['llm_wait_seconds']}s | "
             f"Sauts: {r['hop_count']}) :**\n"
             f"```text\n{r['verbatim']}\n```\n"
         )

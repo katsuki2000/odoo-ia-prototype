@@ -25,7 +25,7 @@ from core.graph.graph import query_graph
 logging.basicConfig(level=logging.ERROR)
 
 RETRY_MAX = 3
-RETRY_BASE_DELAY = 35  # seconds (Groq free tier resets every ~30s)
+RETRY_BASE_DELAY = 35
 INTER_QUESTION_DELAY = 5  # seconds between questions to stay under TPM limit
 
 

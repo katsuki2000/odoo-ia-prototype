@@ -83,6 +83,13 @@ def _has_explicit_doc_request(state: RAGState) -> bool:
     return has_documentary_anchor(question_folded)
 
 
+def answered_by_documents(state: RAGState) -> bool:
+    """Whether generate() wrote the answer: CI ran and the question explicitly asks for
+    documentation. Single expression shared by ci_evidence_decision() (which routes to
+    generate), format_output() and verify_answer() so the three cannot drift apart."""
+    return bool(state.get("ci_evidence_sufficiency")) and _has_explicit_doc_request(state)
+
+
 def retrieve(state: RAGState) -> dict:
     """Retrieve relevant documents for the query."""
     question = state["question"]
@@ -118,11 +125,8 @@ def format_output(state: RAGState) -> dict:
     route = state.get("route")
     ci_sufficiency = state.get("ci_evidence_sufficiency")
 
-    # todo/contexte.txt section 744: an explicit documentary request now wins over ANY CI
-    # evidence status (not just INSUFFICIENT+no-execution-failure) -- kept as a single boolean
-    # expression mirroring ci_evidence_decision()'s own "generate" condition below, so the two
-    # can't silently drift apart (F-08 duplication lesson already applied elsewhere in this repo).
-    ci_fell_back_to_rag = bool(ci_sufficiency) and _has_explicit_doc_request(state)
+    # todo/contexte.txt section 744: an explicit documentary request wins over ANY CI evidence status.
+    ci_fell_back_to_rag = answered_by_documents(state)
 
     if response:
         response.route = route
@@ -195,7 +199,7 @@ def ci_evidence_decision(state: RAGState) -> str:
 
     status = sufficiency.get("status")
 
-    if _has_explicit_doc_request(state):
+    if answered_by_documents(state):
         logger.info(
             "Node [route: post-CI]: explicit documentary request in the question -- falling back to "
             "RAG (generate) regardless of CI evidence sufficiency=%s (section 744). reasons=%s",

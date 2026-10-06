@@ -6,11 +6,6 @@ Regroupement (todo/contexte.txt Section 649-653) : llm_client.py, llm_retry.py.
 
 from .llm_client import (
     logger,
-    _groq_key_lock,
-    _groq_key_index,
-    _current_groq_key,
-    _rotate_groq_key,
-    _get_chat_groq,
     get_chat_llm,
     _llm_call_lock,
     _last_llm_call_time,
@@ -31,11 +26,6 @@ from .llm_retry import (
 
 __all__ = [
     "logger",
-    "_groq_key_lock",
-    "_groq_key_index",
-    "_current_groq_key",
-    "_rotate_groq_key",
-    "_get_chat_groq",
     "get_chat_llm",
     "_llm_call_lock",
     "_last_llm_call_time",

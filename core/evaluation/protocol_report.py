@@ -19,6 +19,7 @@ METRIC_ORDER = (
     "technical_identifier_leak_rate",
     "resolution_recall_at_k",
     "evidence_completeness",
+    "claim_recall_documentary",
     "human_business_acceptance_rate",
     "human_rated_cases",
 )

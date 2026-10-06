@@ -16,6 +16,7 @@ from core.evidence.evidence_collector import (
     _turn_evidence_ctx,
     start_evidence_collection,
     record_evidence,
+    peek_turn_evidence,
     collect_and_clear_evidence,
 )
 
@@ -113,3 +114,21 @@ def test_record_before_start_logs_warning_and_drops(caplog):
         record_evidence(_make("orphan fact"))
     assert "before start_evidence_collection" in caplog.text
     assert collect_and_clear_evidence() == []
+
+
+def test_peek_without_start_returns_empty():
+    assert peek_turn_evidence() == []
+
+
+def test_peek_does_not_drain_the_accumulator():
+    start_evidence_collection()
+    record_evidence(_make("fact A"))
+    assert [e.claim for e in peek_turn_evidence()] == ["fact A"]
+    assert [e.claim for e in collect_and_clear_evidence()] == ["fact A"]
+
+
+def test_peek_returns_a_copy():
+    start_evidence_collection()
+    record_evidence(_make("fact A"))
+    peek_turn_evidence().clear()
+    assert len(collect_and_clear_evidence()) == 1

@@ -7,7 +7,7 @@ core.evidence.evidence_collector.record_evidence() before returning their str, a
 core/graph.py::query_graph() drains the accumulator into
 AssistantResponse.evidence_dossier. Validates the full chain without a
 real LLM/Odoo/graph run (build_graph()/app.invoke() mocked, same
-convention as tests/test_graph.py's ChatGroq mocking).
+convention as tests/test_graph.py's local LLM client mocking).
 """
 
 from unittest.mock import patch, MagicMock

@@ -58,7 +58,7 @@ class DispatchContext:
 
     
     llm_call_count: int = 0
-    groq_wait: float = 0.0
+    llm_wait: float = 0.0
     per_hop_times: List[float] = field(default_factory=list)
     synthesis_time: float = 0.0
 
@@ -314,7 +314,7 @@ def _truncate_observation(text: str, limit: int) -> str:
 # up to 23401/42589/4014/2578 chars across 4 different tools, section 810)
 # several of these per-tool caps can be hit in the same turn, and their sum
 # can exceed the request-size limit enforced by the LLM provider (a real
-# Groq 413 was observed at ~45000-50000 total chars of request content,
+# A request-size error was observed at ~45000-50000 total chars of request content,
 # including the ~4700-char CI_SYSTEM_PROMPT -- section 809). This budget
 # keeps total observation content safely under that measured failure zone.
 MAX_TOTAL_OBSERVATION_CHARS = 35000

@@ -153,13 +153,18 @@ _GRAPH_BUILD_LOCK = threading.Lock()
 CORE_MODULE_CANDIDATES = ["account", "sale", "stock", "purchase", "maintenance"]
 
 
+def _open_technical_session():
+    """Open a technical connector and return it with its authenticated uid."""
+    from erp_data.odoo_connector import OdooConnector
+
+    connector = OdooConnector(technical=True)
+    return connector, connector.authenticate(connector.username)
+
+
 def _read_runtime_module_inventory():
     """Read the installed-module inventory, or return None when unavailable."""
     try:
-        from erp_data.odoo_connector import OdooConnector
-
-        connector = OdooConnector()
-        uid = connector.authenticate(connector.username)
+        connector, uid = _open_technical_session()
         return connector.search_read(
             uid=uid,
             model="ir.module.module",
@@ -174,10 +179,7 @@ def _read_runtime_module_inventory():
 def _read_runtime_active_languages():
     """Read active language codes, or return None when runtime metadata is unavailable."""
     try:
-        from erp_data.odoo_connector import OdooConnector
-
-        connector = OdooConnector()
-        uid = connector.authenticate(connector.username)
+        connector, uid = _open_technical_session()
         records = connector.search_read(
             uid=uid,
             model="res.lang",
@@ -193,10 +195,7 @@ def _read_runtime_active_languages():
 def _read_runtime_translations(requested_languages, active_languages):
     """Read registry labels for requested languages when the instance exposes them."""
     try:
-        from erp_data.odoo_connector import OdooConnector
-
-        connector = OdooConnector()
-        uid = connector.authenticate(connector.username)
+        connector, uid = _open_technical_session()
         return read_runtime_translations(
             connector,
             uid,
@@ -256,10 +255,7 @@ def _discover_installed_core_modules(candidates: list, installed_modules=None) -
     """
     if installed_modules is None:
         try:
-            from erp_data.odoo_connector import OdooConnector
-
-            connector = OdooConnector()
-            uid = connector.authenticate(connector.username)
+            connector, uid = _open_technical_session()
             installed_modules = connector.search_read(
                 uid=uid,
                 model="ir.module.module",

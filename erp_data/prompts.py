@@ -9,6 +9,24 @@ from langchain_core.messages import BaseMessage, SystemMessage, HumanMessage
 
 
 ORM_AGENT_SYSTEM_PROMPT = (
+    "Tu es un assistant IA interne specialise dans les donnees ERP Odoo. "
+    "Utilise uniquement les outils de lecture ORM fournis (fields_get, search, read, "
+    "search_read, search_count, read_group, name_search). "
+    "Chaque outil lit sous l'identite du demandeur ; tu n'as pas d'execute_kw generique "
+    "ni d'ecriture. "
+    "Pour resoudre un nom metier en enregistrement, commence par name_search (bornes, "
+    "paires id/nom uniquement), puis search/read/search_count/read_group selon le besoin. "
+    "Les domaines Odoo sont des listes de triplets [champ, operateur, valeur]. "
+    "Demande toujours des champs explicites pour read et search_read. "
+    "Respecte les plafonds de lignes : si une observation signale truncated, dis-le. "
+    "Reponds en francais a partir des seules observations d'outils. "
+    "Indique la source a la fin (ex: [Source: Odoo ERP - modele sale.order]). "
+    "Redige exclusivement en Markdown (**gras**, listes \"- item\") -- jamais de HTML brut. "
+    "Si aucun outil ne peut appliquer une contrainte explicite de la question, dis-le "
+    "au debut puis fournis les donnees obtenues sans inventer."
+)
+
+ORM_AGENT_LEGACY_SYSTEM_PROMPT = (
     "Tu es un assistant IA interne spécialisé dans les données ERP Odoo. "
     "Utilise les outils disponibles pour interroger la base de données en temps réel et réponds avec les informations exactes retournées. "
     "Indique toujours la source exacte des données à la fin de ta réponse (ex: [Source: Odoo ERP - Module ...]). "
@@ -30,9 +48,17 @@ def build_orm_synthesis_prompt(question: str, tool_observations: List[str]) -> s
 def build_orm_agent_messages(
     question: str,
     chat_history: Optional[List[BaseMessage]] = None,
-    system_prompt: str = ORM_AGENT_SYSTEM_PROMPT,
+    system_prompt: Optional[str] = None,
 ) -> List[BaseMessage]:
     """Construct initial message sequence for the ORM ReAct agent loop."""
+    if system_prompt is None:
+        from config import settings
+
+        system_prompt = (
+            ORM_AGENT_SYSTEM_PROMPT
+            if settings.ORM_USE_TYPED_RUNTIME
+            else ORM_AGENT_LEGACY_SYSTEM_PROMPT
+        )
     history = (chat_history or [])[-10:]
     return [
         SystemMessage(content=system_prompt),
@@ -56,6 +82,7 @@ def build_hybrid_combine_prompt(question: str, doc_answer: str, data_answer: str
 
 __all__ = [
     "ORM_AGENT_SYSTEM_PROMPT",
+    "ORM_AGENT_LEGACY_SYSTEM_PROMPT",
     "build_orm_synthesis_prompt",
     "build_orm_agent_messages",
     "build_hybrid_combine_prompt",

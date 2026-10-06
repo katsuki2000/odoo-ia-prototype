@@ -33,6 +33,7 @@ from document_rag.vectorstore.search_ranking import (
     cross_encoder_rerank,
     reciprocal_rank_fusion,
 )
+from document_rag.vectorstore.search_contiguous import expand_contiguous_chunks
 
 logger = logging.getLogger(__name__)
 
@@ -82,7 +83,10 @@ def retrieve(
     else:
         final_results = fused_results[:top_k]
 
+    final_results = expand_contiguous_chunks(final_results, chroma_manager=chroma_manager)
+
     logger.info("Retrieval complete: %d results for query '%s'", len(final_results), query[:80])
+
 
     top1_excerpt = None
     if final_results:

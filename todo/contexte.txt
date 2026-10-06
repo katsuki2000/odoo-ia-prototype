@@ -2729,3 +2729,616 @@ Date : 05/10/2026
 **A faire par pmm** : trancher D1 a D4. Apres l'etape 4, rejouer le protocole gele en `report` : c'est aussi la mesure de depart de T (les deux coincident), le test de fumee `--only accounting_fr` restant le prealable. Les rejeux demandent instance Odoo, serveur d'embeddings et LLM : delegues.
 
 **Fichiers modifies** : `todo/contexte.txt` (cette section) ; aucun code.
+
+## Section 1122 : T : D1 a D4 tranchees (recommandations de la 1121 acceptees) ; etape 1 : lecture non destructive du collecteur, rapport de verification, mode
+
+Date : 05/10/2026
+**Mandat (pmm)** : « go » sur la 1121, donc D1 a D4 comme recommandees. Etat constate avant ecriture : arbre propre, `eb8df77` contient deja les sections 1119 a 1121 ; `core/verification/` absent ; aucune occurrence de `ANSWER_VERIFIER_MODE`. Sauvegarde : `/tmp/contexte.avant_1122.txt`.
+
+**Decisions** : D1 mesurer en `report`, puis rejouer `enforce` hors ligne (CI et ORM) ; D2 tout jeton numerique hors zones exclues ; D3 existence du noeud methode seulement ; D4 gardes existants conserves (retrait = P8).
+
+**Etape 1 (perimetre)**
+- `core/evidence/evidence_collector.py` : `peek_turn_evidence()` renvoie une copie de la liste du tour sans la vider (liste vide hors tour), exportee par `core/evidence/__init__.py`.
+- `core/verification/claims.py` (nouveau) : `ClaimType` (nombre, groupe, methode), `VerifierMode` (off, report, enforce, avec analyse de la valeur de configuration), `UnsupportedClaim`, `VerificationReport` (compteurs avant action, ventilation par type).
+- `core/schemas.py` : champ optionnel `verification` sur `AssistantResponse` ; `core/verification/` ne depend pas de `core/schemas.py` (pas de cycle).
+- `config/settings.py` et `.env.example` : `ANSWER_VERIFIER_MODE`, defaut `report` ; valeur inconnue : repli sur `report` avec avertissement.
+- Tests : `tests/test_t1_verification_report.py` (nouveau) et lecture non destructive ajoutee a `tests/test_bloc_b2_evidence_collector.py`.
+- Aucun changement de comportement : rien n'appelle encore le verificateur. Le resultat des tests fera l'objet d'une section de cloture.
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section) ; code : voir la section de cloture.
+
+## Section 1123 : T : etape 1 close (collecteur non destructif, rapport de verification, mode) ; tests cibles verts
+
+Date : 05/10/2026
+**Realise** (perimetre de la 1122, sans ecart) : `peek_turn_evidence()` dans `core/evidence/evidence_collector.py`, exportee par `core/evidence/__init__.py` ; `core/verification/` (`__init__.py`, `claims.py` : `ClaimType`, `VerifierMode.parse` avec repli sur `report`, `UnsupportedClaim`, `VerificationReport` dont la validation refuse `unsupported_claims` > `claims_total`) ; champ optionnel `verification` sur `AssistantResponse` (`core/schemas.py`) ; `ANSWER_VERIFIER_MODE` dans `config/settings.py` (defaut `report`) et `.env.example` (section 9). Rien n'appelle encore le verificateur : aucun changement de comportement.
+
+**Verification** : `py_compile` sur les six fichiers de code ; import de `core.graph.graph`, `core.evidence`, `core.verification` ; `tests/test_t1_verification_report.py` (nouveau) et `tests/test_bloc_b2_evidence_collector.py` (3 tests de lecture non destructive ajoutes) : 23 passed ; `test_protocol_metrics`, `test_bloc_b2_full_wiring`, `test_bloc_b2_pilot_wiring`, `test_bloc_p1_execution_failure_signal` : 53 passed. Suite complete non lancee (a deleguer a pmm).
+
+**Releve** : `todo/plan_generalisation.md` porte des modifications non commitees que je n'ai pas faites (accents, retours a la ligne dans P9 et P10) ; laissees telles quelles et exclues du commit.
+
+**Decision d'implementation** : `VerificationReport` n'est pas en mode strict (contrairement a `AssistantResponse`) pour que ses cles d'enum survivent a un aller-retour JSON.
+
+**Prochaine etape** : etape 2 (extracteurs et verificateurs par type, tests unitaires).
+
+**Fichiers modifies** : `.env.example`, `config/settings.py`, `core/evidence/__init__.py`, `core/evidence/evidence_collector.py`, `core/schemas.py`, `core/verification/__init__.py` et `claims.py` (nouveaux), `tests/test_bloc_b2_evidence_collector.py`, `tests/test_t1_verification_report.py` (nouveau), `todo/contexte.txt`.
+
+## Section 1124 : T : suite complete apres l'etape 1 (sortie collee par pmm) -- 3 echecs, tous presents sur HEAD sans les modifications de l'etape 1
+
+Date : 05/10/2026
+**Resultat colle par pmm** : 2258 collectes, 2215 passes, 40 ignores, 3 echecs (1174 s). Les tests de l'etape 1 passent : `tests/test_t1_verification_report.py` (12), `tests/test_bloc_b2_evidence_collector.py` (11).
+
+**Echecs** : `test_f08_j36_graph_dependency_loading.py::test_real_base_field_impact_reaches_custom_cascade` et `::test_employee_id_is_the_real_base_field_not_a_phantom_reference` (`risk_score` et `alerte_conformite` absents de `downstream_computed_fields` de `hr.expense`) ; `test_j25_26_e2e_purchase_bypass_gate.py::test_standard_employee_sees_bypass_hidden` (`omitted_for_authorization` vide).
+
+**Verification de non-regression** : les trois tests rejoues sur un worktree detache de `eb8df77` (aucune modification de l'etape 1 : pas de `core/verification/`) echouent de la meme facon (3 failed, 2 passed, 235 s) ; les deux `f08_j36` echouent aussi isolement sur l'arbre de travail. Ils ne viennent donc pas de l'etape 1. Le worktree n'avait ni `.env` ni `active_graph.json` : l'identite des echecs est etablie, pas celle des causes. Worktree supprime.
+
+**Constat a traiter separement (non attaque, aucun fichier source touche)** : la section 1082 consignait 0 echec (2 071 passants) ; ces trois echecs sont donc apparus depuis, a `eb8df77` au plus tard. La 1082 date la correction de la fixture `rebuilt_graph` de `f08_j36` : elle ne suffit plus. Cause non isolee ; le test `j25_26` journalise `Synthesis failed: Connection error` dans le worktree, a rapprocher de la dependance reseau deja relevee en 1064 et 2531.
+
+**Releve** : `git status` montre `todo/architecture_cible.md` et `todo/plan_generalisation.md` supprimes de l'arbre de travail (renommage en cours cote pmm, suppose) ; laisses tels quels et exclus du commit de l'etape 1.
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section) ; aucun code.
+
+## Section 1125 : decision pmm : traiter les 3 echecs de la 1124 a la racine avant l'etape 2 de T
+
+Date : 05/10/2026
+**Mandat (pmm)** : noter la decision, puis attaquer les 3 echecs (`test_f08_j36_graph_dependency_loading` x2, `test_j25_26_e2e_purchase_bypass_gate` x1), puis enchainer sur l'etape 2 de T. Ecart avec ma recommandation de la 1124 (les laisser de cote) : decision de pmm, appliquee. Regle : cause racine, pas de correctif chirurgical, aucun test modifie pour le faire passer si la construction du test n'est pas en cause. Sauvegarde : `/tmp/contexte.avant_1125.txt`.
+
+## Section 1126 : les 3 echecs de la 1124 : cause racine commune (le graphe depend des modules installes sur l'Odoo vivant) ; 2 corrections de fixture, 1 precondition manquante
+
+Date : 05/10/2026
+**Diagnostic (lu sur disque et reproduit)** : `get_code_intelligence_graph()` (`code_intelligence/graph/loader.py`) lit l'inventaire `ir.module.module` de l'instance via `_read_runtime_module_inventory()` et ne charge que les modules installes ; hors ligne il se replie sur tous les modules du disque. L'Odoo vivant de pmm (115 modules installes) n'a que 3 modules `custom_*` installes (`custom_credit_note_approval`, `custom_credit_note_visibility_rules`, `test_auth_custom`) ; `custom_expense_risk_*` et `custom_purchase_request` sont dans `odoo_addons/` mais absents de l'instance, donc absents du graphe. Section 1082 : 0 echec, probablement Odoo arrete a ce moment-la (non verifie).
+
+**1) `test_f08_j36_graph_dependency_loading` x2** : le `conftest.py` racine isole deja `ODOO_URL` (port ferme) mais par une fixture autouse de portee fonction ; `rebuilt_graph` est de portee `module`, instanciee avant elle, donc le graphe se construisait contre l'Odoo vivant (`risk_score` et `alerte_conformite` absents). Correction a la racine : fixture `offline_odoo_runtime` de portee `module` dans `conftest.py` (via `pytest.MonkeyPatch.context()`), demandee par `rebuilt_graph`. Le test n'est pas modifie. Resultat : 3 passed (dont `test_hr_expense_base_model_is_loaded`).
+
+**2) `test_j25_26_e2e_purchase_bypass_gate::test_standard_employee_sees_bypass_hidden`** : test `integration` (Odoo vivant + LLM reel, `ODOO_URL` conserve volontairement). Le LLM configure repond (HTTP 200) ; rejoue a la main, l'agent ne divulgue pas les e-mails mais ne resout pas `custom.purchase.request` (aucune omission), puisque le module n'est pas installe sur l'instance. La precondition n'etait pas verifiee : le test echouait au lieu de sauter. La docstring annoncait un saut sur panne d'infrastructure que le code n'a jamais implemente, et `_RATE_LIMIT_EXHAUSTION_SIGNATURES` etait inutilisee. Corrections : `code_intelligence/tests/_live_odoo.py::skip_unless_modules_installed` (extrait de `live_client`, qui l'utilise desormais : pas de duplication) ; fixture de module autouse dans le test qui saute si l'admin RPC est indisponible ou si `custom_purchase_request` n'est pas installe ; constante morte et paragraphe de docstring errone supprimes. Resultat : 2 skipped avec motif explicite.
+
+**Tests ajoutes** : `code_intelligence/tests/test_offline_odoo_runtime_fixture.py` (une fixture de module voit `None` comme inventaire ; helper : passe si tout est installe, saute en nommant le module manquant). Lot execute : `f08_j36`, `j25_26`, ce fichier, `j5`, `j6` : 6 passed, 23 skipped (les skips j5/j6 sont ceux d'avant : pas de note de credit 80k).
+
+**Non verifie / a faire par pmm** : le comportement de la porte d'autorisation sur `custom.purchase.request` reste non verifie sur cette machine (le test saute). Pour le verifier : installer `custom_purchase_request` sur l'instance, puis `pytest -m integration code_intelligence/tests/test_j25_26_e2e_purchase_bypass_gate.py`. La cause de l'ecart avec la 1082 (Odoo arrete a l'epoque) n'est pas verifiee. Neuf autres fichiers de test ont une fixture de portee `module` qui appelle `get_code_intelligence_graph` et passent aujourd'hui : non audites, risque latent identique si l'instance change (`test_bloc_p1_j6_plan_execution_coherence`, `test_bloc_p1_j7_plan_route_conflict`, `test_section889_security_principals`, `test_section907_908_dispatch_record_rules_for_personas`, `test_section911_workflow_deterministic_relay`, `test_section917_read_source_code_citation`, `test_section934_935_relational_callee`, `test_section934_callee_following`, `test_section943_stage_recurrence_workflow`). Suite complete non relancee apres ces corrections.
+
+**Fichiers modifies** : `conftest.py`, `code_intelligence/tests/conftest.py`, `code_intelligence/tests/_live_odoo.py` (nouveau), `code_intelligence/tests/test_f08_j36_graph_dependency_loading.py`, `code_intelligence/tests/test_j25_26_e2e_purchase_bypass_gate.py`, `code_intelligence/tests/test_offline_odoo_runtime_fixture.py` (nouveau), `todo/contexte.txt`.
+
+## Section 1127 : T : etape 2 (extracteurs, verificateurs, `verify_answer_claims`) : perimetre et quatre ecarts raisonnes avec le mandat de la 1121
+
+Date : 05/10/2026
+**Perimetre** : `core/verification/` : `context.py` (`VerificationContext` : textes de preuve, valeurs ORM numeriques, graphe, methodes de base), `extractors.py`, `checkers.py`, `base_methods.py`, `verifier.py` (`verify_answer_claims(answer, context, mode)` pure : rapport + retrait de phrase en `enforce`). Le noeud `verify_answer` et le branchement restent a l'etape 3 ; `to_case_result` a l'etape 4. Tests : `tests/test_t2_*.py`.
+
+**Ecarts avec la 1121, tous dus à ce que le code et la 1126 ont montre**
+1. Groupe : soutenu s'il figure dans le texte de preuve du tour ; le graphe ne sert qu'a nommer la raison (`unknown_group` si absent du graphe, `not_in_evidence` sinon). Le « graphe puis observations » litteral de la 1121 signalerait a tort un groupe cite par le code source mais absent du graphe, puisque le graphe ne contient que les modules installes sur l'instance (1126).
+2. Methode : un nom nu `nom()` est soutenu s'il est une fonction native Python (`dir(builtins)`), une methode de `BaseModel` (AST de `odoo/models.py` via `CORE_ADDONS_PATH`), present dans les preuves, ou porte par au moins un noeud `Method` du graphe, tous modeles confondus (`has_group()` appartient a `res.users`, pas au modele resolu). La verification restreinte au modele et a ses ancetres `EXTENDS` ne s'applique que pour `modele.nom()` quand le prefixe est un modele du graphe. `resolved_models` n'est donc pas necessaire.
+3. Nombre : la question de l'utilisateur fait partie des preuves (une reponse qui reprend « 15 000 » de la question n'est pas une affirmation sans preuve) ; les lectures ambigues d'un separateur (`1,234` : 1234 ou 1,234) sont toutes acceptees ; tolerance = demi-unite de la precision affichee.
+4. DRY : la regex de groupes `GROUP_XMLID_RE` vit desormais dans `core/verification/extractors.py` et `access_guards.py` l'importe (meme motif, aucun changement de comportement) ; le retrait de phrase reutilise `expand_to_sentence_bounds` (`code_intelligence/rules/common.py`), pas de nouveau separateur. `core/verification/__init__.py` reste limite a `claims.py` : importer `verifier` depuis `core.schemas` creerait un cycle.
+
+**Limites assumees (a mesurer, pas a corriger a l'avance)** : seuls les noms suivis de `()` sont des affirmations de methode (rappel reduit : un nom entre accents graves sans parentheses n'est pas verifie) ; les petits entiers (1, 2, 3) sont presque toujours « soutenus » parce qu'ils figurent quelque part dans les preuves ; le message de retrait est en francais, comme les gardes existants.
+
+## Section 1128 : T : etape 2 close (fichiers trouves sur disque, relus et verifies, tests et graphe reel) ; aucune ligne de code ecrite dans cette session
+
+Date : 06/10/2026
+**Mandat (pmm)** : « on continue sur l'etape 2 ». Sauvegarde : `/tmp/contexte.avant_1128.txt`.
+**Ecart constate avant toute ecriture** : les fichiers du perimetre de la 1127 etaient deja sur disque, non commites, sans section de cloture : `core/verification/{context,extractors,checkers,base_methods,verifier}.py`, `tests/test_t2_{extractors,checkers,verifier}.py` et `tests/t2_graph_factory.py` (fabrique de graphe de test, non citee en 1127). Relus un par un : aucun ecart avec le perimetre ni avec les quatre ecarts raisonnes de la 1127. `access_guards.py` importe desormais `GROUP_XMLID_RE` depuis `core/verification/extractors.py` ; le diff est le simple deplacement de la regex, sans changement de motif.
+
+**Verification** :
+1. `py_compile` OK ; imports de `core.verification.verifier`, `core.schemas`, `core.graph.graph` et `access_guards` sans cycle. Aucun commentaire `#` ni caractere non ASCII fortuit dans `core/verification/`.
+2. Tests : 67 passed (`test_t1_*` et `test_t2_*`) ; 233 passed sur les 9 fichiers qui touchent `access_guards` / `GROUP_XMLID_RE` (non-regression de la regex deplacee) ; 122 passed sur t1, t2, collecteur d'evidence, `test_protocol_metrics`, cablage b2 et fixture hors ligne de la 1126. Suite complete non relancee.
+3. Fidelite de `t2_graph_factory.py` face au vrai constructeur (`code_intelligence/graph/builder.py`, `nodes.py`) : noeuds `model:<nom>`, `method:<modele>.<nom>` (attributs `node_type`, `name`, `model`), `group:<xml_id>`, arete `EXTENDS` orientee enfant vers parent (celle que suit `_model_closure`). Conforme.
+4. Mesures manuelles sur le poste de pmm, non commitees (elles dependent de la machine, regle P0) : (a) AST de `odoo/models.py` via `CORE_ADDONS_PATH` : 195 methodes de base, dont `create`, `write`, `unlink`, `search`, `search_read`, `read_group`, `browse`, `ensure_one`, `mapped`, `filtered`, `with_context`, `default_get`, `fields_get`, `check_access_rights` ; `message_post`, `action_post` et `has_group` en sont absentes, a juste titre (elles viennent des addons, donc du graphe ou des preuves). (b) Graphe reel `active_graph.json` (genere le 02/10 ; 20 225 noeuds, 7 984 `Method`, 6 079 noms distincts, 90 `Group`) : `purchase.order.button_approve()` et `account.move.action_post()` soutenues, `account.move.write()` soutenue comme methode de base, `purchase.order.action_inventee()` non soutenue (`method_not_on_model`), un groupe present dans le graphe mais absent des preuves du tour non soutenu (`not_in_evidence`), `50 000` sans valeur correspondante, version `17.0` et date ISO ignorees. Les deux « non verifie » de la 1121 (presence de `create`/`write`/`unlink`) et de la 1127 (couverture de l'AST) sont leves.
+
+**Limites constatees (a mesurer, pas a corriger a l'avance)** : un identifiant de groupe avec caractere non ASCII n'est pas extrait (un xml_id est ASCII, donc sans consequence) ; `core/verification/verifier.py` importe `code_intelligence.rules.common` (seule dependance de ce paquet vers `code_intelligence`, deja decidee en 1127 pour ne pas dupliquer le separateur de phrases) ; la verification sur le graphe reel est manuelle, aucun test ne depend du fichier `active_graph.json`. Les limites de la 1127 (noms sans parentheses non verifies, petits entiers presque toujours soutenus) restent a mesurer.
+
+**Etat git (relevé, non modifié)** : trois lots non commités coexistent : etape 1 (stagee, 1122-1123), correctifs de la 1126 (non stages), etape 2 (non suivie, avec le deplacement de la regex dans `access_guards.py`). `todo/plan_generalisation.md` et `todo/architecture_cible.md` sont supprimes de l'arbre, `todo/plan.md` et `todo/architecture.md` non suivis (renommage cote pmm, suppose, deja note en 1124).
+
+**Reste (etapes 3 et 4 de la 1121)** : noeud `verify_answer` avant `format_output` sur les trois branches, avec construction de `VerificationContext` (textes de preuve : `sources[].snippet`, `retrieved_chunks`, `peek_turn_evidence()`, question de l'utilisateur ; valeurs ORM via `flatten_numeric_values`) ; survie de `raw_tool_output` dans l'etat LangGraph a verifier ; puis `to_case_result` renseigne `claims_total` et `unsupported_claims`.
+**A faire par pmm** : commits des trois lots (un par etape, comme prevu en 1121) ; rien de long a lancer a ce stade.
+
+**Fichiers modifiés** : `todo/contexte.txt` (cette section) ; aucun code.
+
+## Section 1129 : T : etape 3 (noeud `verify_answer` cable sur les trois branches) : constats verifies avant ecriture, perimetre et decisions
+
+Date : 06/10/2026
+**Mandat (pmm)** : « go » sur l'etape 3 de la 1121 apres la 1128. Sauvegarde : `/tmp/contexte.avant_1129.txt`. Journal d'abord, code ensuite.
+
+**Constats verifies sur disque et par execution**
+1. **`raw_tool_output` ne survit pas** (question ouverte de la 1121). `code_intelligence_agent` le renvoie (`postprocess.py`, fin de `build_final_response`) mais `RAGState` ne le declare pas ; un StateGraph LangGraph a etat TypedDict supprime sans erreur toute cle non declaree (verifie avec un graphe minimal : `{'question', 'response'}` en sortie). La cle est donc perdue avant meme d'atteindre un noeud suivant.
+2. **Branche ORM** : quand des outils ont repondu, la reponse EST la concatenation des observations (`"\n".join(selected_obs)` dans `orm_agent_loop`) ; ces observations ne sont pas renvoyees (les `SourceReference.snippet` sont tronques a 150 caracteres). Les `Evidence` seules ne suffisent pas : `get_product_stock` affiche `available = qty - reserved` calcule par l'outil, alors que seules `qty` et `reserved` sont enregistrees ; un nombre correct serait compte « non soutenu ». La preuve fidele est le texte des observations.
+3. **Branche documentaire** : `generate` consomme tous les `retrieved_chunks`. Elle ne tourne que si `ci_evidence_sufficiency` est renseigne ET que la question demande explicitement de la documentation (`ci_evidence_decision`) ; `format_output` recalcule la meme condition (`ci_fell_back_to_rag`), avec un commentaire qui demande de ne pas la laisser deriver. Les `retrieved_chunks` existent aussi sur les tours CI sans repli : les utiliser comme preuve ferait « soutenir » un nombre par un document que la reponse n'a pas utilise.
+4. **Graphe** : `route` et le runner CI appellent deja `get_code_intelligence_graph(translation_languages=..., request_language=...)` a chaque tour (cache en processus) ; l'appel du noeud ne coute rien de plus.
+5. **Assainissement** : `sanitize_html_to_markdown` est idempotent (verifie sur 4 echantillons) et retire des balises avant l'affichage ; il ne decode pas les entites HTML.
+
+**Decisions**
+- Preuve = ce que la branche qui a ecrit la reponse a recu. Branche documentaire (`answered_by_documents`) : question + texte des `retrieved_chunks`. Autres branches : question + `raw_tool_output` + `claim` et valeurs numeriques de `peek_turn_evidence()`. Les preuves CI d'un tour qui a bascule en documentaire ne servent pas.
+- `RAGState` declare `raw_tool_output` ; `orm_agent_loop` le renvoie (meme jointure `"\n\n"` que la branche CI).
+- `answered_by_documents(state)` extrait dans `core/graph/graph_nodes.py` ; `format_output` et `ci_evidence_decision` l'utilisent (une seule expression de la condition).
+- Nouveau `core/graph/verify_node.py` : `verify_answer(state)` ; mode lu une fois (`VERIFIER_MODE`) ; `off`, reponse absente ou vide : rien ; verification du texte assaini (ce que l'utilisateur voit) ; en `report` la reponse n'est pas modifiee ; en `enforce` la reponse verifiee est ecrite. Toute exception est journalisee et laisse la reponse intacte et sans rapport (la verification ne doit jamais casser une reponse).
+- Topologie : CI vers `verify_answer` ou `generate` ; `generate` et `orm_agent_loop` vers `verify_answer` ; `verify_answer` vers `format_output`. Smalltalk et hors-perimetre contournent le noeud. Les valeurs de retour de `ci_evidence_decision` restent inchangees (la table de correspondance du graphe redirige la cle `format_output`).
+- Tests : 3 tests de topologie de `test_bloc_p1_tranche2_ci_first_evidence_routing.py` changent de sens avec la nouvelle arete (CI, `generate`, ORM atteignent `verify_answer`) et sont adaptes ; nouveau `tests/test_t3_verify_node.py`.
+
+**Limites connues, a mesurer (non corrigees)** : (a) les entites HTML (`&#39;`, `&nbsp;`) produisent de fausses affirmations numeriques dans l'extracteur de l'etape 2 (« 39 », « 10 » et « 000 ») ; le rapport liste le texte de chaque affirmation non soutenue, donc la mesure dira si cela arrive dans de vraies reponses ; (b) l'appel du graphe avec ces memes arguments existe maintenant a trois endroits (`route`, runner CI, noeud) : une fonction commune est un suivi DRY, non fait ici pour ne pas toucher des appelants que des tests patchent ; (c) l'ORM repond le plus souvent par ses propres observations : sa verification est en grande partie tautologique en dehors de `force_final_synthesis` et des reponses sans outil.
+
+**Fichiers prevus** : `core/routing/routing.py`, `erp_data/orm_agent_node.py`, `core/graph/graph_nodes.py`, `core/graph/verify_node.py` (nouveau), `core/graph/graph.py`, `tests/test_bloc_p1_tranche2_ci_first_evidence_routing.py`, `tests/test_t3_verify_node.py` (nouveau), `todo/contexte.txt`. Le resultat des tests fera l'objet d'une section de cloture.
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section) ; code : voir la section de cloture.
+
+## Section 1130 : T : etape 3 close (noeud verify_answer cable sur les trois branches) ; fichiers trouves sur disque, relus et verifies, tests et topologie verts
+
+Date : 06/10/2026
+**Mandat (pmm)** : « go » sur l'etape 3 de la 1121 apres la 1128.
+**Ecart constate avant toute ecriture** : les fichiers du perimetre de la 1129 etaient deja sur disque, non commites, sans section de cloture. Relus un par un : aucun ecart avec le perimetre ni avec les decisions de la 1129. Chaque point verifie :
+
+1. **`raw_tool_output` survit dans l'etat LangGraph** (question ouverte de la 1121/1129, constat « ne survit pas » de la 1129) : `RAGState` declare desormais `raw_tool_output: Optional[str]` (L79 de `core/routing/routing.py`). `orm_agent_loop` le renvoie (L165 de `erp_data/orm_agent_node.py` : `"\n\n".join(str(obs) for obs in tool_observations)`). Test dedie `test_t3_verify_node.py::test_undeclared_state_keys_are_dropped_and_raw_tool_output_is_declared` : un StateGraph(RAGState) conserve `raw_tool_output` et supprime une cle non declaree.
+2. **`answered_by_documents(state)`** extraite dans `core/graph/graph_nodes.py` (L86-90), consommee par `ci_evidence_decision()`, `format_output()` et `verify_answer()` sans duplication. 4 tests parametres dans `test_t3_verify_node.py::test_answered_by_documents`.
+3. **Noeud `verify_answer`** dans `core/graph/verify_node.py` (77 lignes) : mode lu une fois (`VERIFIER_MODE`) ; `off`, reponse absente ou vide : rien ; verification du texte assaini (`sanitize_html_to_markdown`) ; en `report` la reponse n'est pas modifiee ; en `enforce` la reponse verifiee est ecrite ; toute exception journalisee et reponse intacte.
+4. **Topologie** cablee dans `core/graph/graph.py` (L97-104) : CI → `verify_answer` (via la cle historique `"format_output"` remappee) ou `generate` ; `generate` → `verify_answer` ; ORM → `verify_answer` ; `verify_answer` → `format_output`. Smalltalk et hors-perimetre contournent le noeud (→ `format_output` directement). Test dedie `test_t3_verify_node.py::test_verify_answer_is_the_only_branch_entry_into_format_output` + 5 tests de topologie dans `test_bloc_p1_tranche2_ci_first_evidence_routing.py`.
+5. **Preuve = ce que la branche a recu** : `_evidence(state)` dans `verify_node.py` (L41-47) : branche documentaire → `retrieved_chunks` uniquement ; autres branches → `raw_tool_output` + `peek_turn_evidence()`. Tests dedies `test_documentary_branch_is_grounded_in_the_retrieved_chunks_only` et `test_retrieved_chunks_are_not_evidence_when_another_branch_answered`.
+6. **`GROUP_XMLID_RE`** deplacee dans `core/verification/extractors.py`, importee par `access_guards.py` (L20 : `from core.verification.extractors import GROUP_XMLID_RE as _GROUP_XMLID_RE`). Meme motif, aucun changement de comportement.
+
+**Verification** :
+- `py_compile` OK sur les 11 fichiers de code source.
+- 112 tests passes en 5.73s : `test_t1_*` (12), `test_t2_extractors` (13), `test_t2_checkers` (20), `test_t2_verifier` (9), `test_t3_verify_node` (17), `test_bloc_p1_tranche2_ci_first_evidence_routing` (21 dont 5 de topologie mis a jour).
+- Suite complete non relancee (a deleguer a pmm).
+
+**Etat git** : trois lots non commites coexistent -- etape 1 (stagee, 1122-1123), correctifs de la 1126 (non stages), etapes 2 et 3 (non suivies, dont le deplacement de `GROUP_XMLID_RE`). `todo/plan_generalisation.md` et `todo/architecture_cible.md` supprimes de l'arbre (renommage cote pmm).
+
+**Reste (etape 4 de la 1121)** : `to_case_result` renseigne `claims_total` et `unsupported_claims` depuis `AssistantResponse.verification` ; test de `system_adapter` mis a jour.
+
+**A faire par pmm** : commits des lots (un par etape, comme prevu en 1121) ; suite complete.
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section) ; aucun code.
+
+## Section 1131 : T : etape 4 close (`to_case_result` renseigne `claims_total` et `unsupported_claims`, `test_system_adapter` enrichi) ; les 4 etapes de T sont closes
+
+Date : 06/10/2026
+**Mandat (pmm)** : « continue » (enchainer sur l'etape 4 de T definie en section 1121).
+
+**Realise** :
+1. `core/evaluation/system_adapter.py` : fonction pure `claim_counts(raw: Mapping) -> tuple[int, int]` qui extrait `(claims_total, unsupported_claims)` :
+   - Depuis un dictionnaire `verification` (cas serialise `mode="json"` ou dict brut) ;
+   - Depuis une instance `VerificationReport` (attributs directs si objet en memoire) ;
+   - Repli gracieux sur les cles de premier niveau ou `(0, 0)` si absent ou None.
+2. `to_case_result(case: FrozenCase, raw: Mapping) -> CaseResult` : transmet desormais `claims_total` et `unsupported_claims` calcules au constructeur de `CaseResult`.
+3. `tests/test_system_adapter.py` : assertions ajoutees sur `unsupported_claims == 0` dans le test existant, et 3 nouveaux tests :
+   - `test_claim_counts_from_verification_mapping` : extraction depuis dict serialise.
+   - `test_claim_counts_from_verification_report_object` : extraction depuis instance `VerificationReport`.
+   - `test_claim_counts_fallback_and_none` : replis None, vide, et cles directes.
+
+**Verification** :
+- `py_compile` propre sur `core/evaluation/system_adapter.py` et `tests/test_system_adapter.py`.
+- 135 tests passes (dont les 8 tests de `test_system_adapter.py`, 15 de `test_protocol_metrics.py`, 17 de `test_t3_verify_node.py`, 44 de `test_t2_*`, 12 de `test_t1_*`, 21 de `test_bloc_p1_tranche2_ci_first_evidence_routing.py`).
+- Non-regression : `aggregate()` et les metriques de protocole (`unsupported_claim_rate`, `answer_faithfulness`) consomment deja `score.result.claims_total` et `unsupported_claims` sans modification necessaire.
+
+**Bilan de la tranche T (etapes 1 a 4 closes)** :
+- Etape 1 : collecteur d'evidence non destructif (`peek_turn_evidence`), schema `VerificationReport`, configuration `ANSWER_VERIFIER_MODE`.
+- Etape 2 : extracteurs lexicaux (nombre, groupe, methode), checkers deterministes, pure `verify_answer_claims`.
+- Etape 3 : declaration de `raw_tool_output` dans `RAGState`, noeud `verify_answer` insere avant `format_output` sur les branches CI, ORM et documents.
+- Etape 4 : pont `to_case_result` connectant les rapports de verification au harnais d'evaluation P1.
+
+**Prochaine etape** : rejouer le protocole gele en mode `report` (mesure de depart de T, test de fumee `--only accounting_fr`), commits des lots par pmm.
+
+**Fichiers modifies** : `core/evaluation/system_adapter.py`, `tests/test_system_adapter.py`, `todo/contexte.txt`.
+
+## Section 1132 : T : mesure de depart bloquee par deux defauts de la run : identite des lectures de metadonnees d'instance, backends non verifies avant la run ; notebook Kaggle
+
+Date : 06/10/2026
+**Mandat (pmm)** : « oui » apres l'analyse du test de fumee `run_evaluation_protocol.py --only accounting_fr` (prochaine etape de la 1131). Sauvegarde : `/tmp/contexte.avant_1132.txt` (notebook : `/tmp/llmodoo.avant_1132.ipynb`).
+
+**Constats**
+1. **`Fault 3 Access Denied` sur `ir.module.module` et `res.lang`** (deduit du code, non reproduit en direct). Les quatre lectures de metadonnees de `code_intelligence/graph/loader.py` ouvraient `OdooConnector()`, s'authentifiaient avec `ODOO_USERNAME` et le mot de passe admin (uid admin), puis `search_read` prenait son mot de passe dans `odoo_api_key_ctx`, que `query_graph` a deja rempli avec la cle API de l'utilisateur du cas : uid admin avec la cle d'un autre utilisateur. Le warning « falling back to the admin password » est absent de la log, ce qui va dans ce sens. Consequence : liste statique de 5 modules et aucune traduction runtime, donc un graphe `accounting_fr` construit sur une mauvaise base.
+2. **Le cache cachait l'erreur** : `captures/eval_instances/graphs/accounting_fr.json` (06/10 10:14, 11 Mo) a ete construit pendant la premiere run avec ce repli, puis reutilise (la deuxieme log n'a plus d'`Access Denied`).
+3. **Timeouts d'embeddings** : 3 essais de 30 s (environ 93 s) sur le premier cas (122 s). Hypothese pour la cause, non confirmee (`/api/ps` non releve) : le notebook fixe `OLLAMA_MAX_LOADED_MODELS=1` et `OLLAMA_NUM_PARALLEL=1` et ne prechauffe que le chat, donc `qwen3:14b` et `bge-m3` s'evincent. La deuxieme run, notebook inchange sur disque, n'a pas reproduit les timeouts (60 a 90 s par cas).
+4. **La run continue sur un backend mort sans le signaler** : le premier cas, mesure pendant la panne, reste dans `accounting_fr.jsonl` (`run_cases` saute les cas deja presents). Le plan (P4) exige qu'une panne d'embeddings soit signalee, jamais masquee.
+5. Constats sans correction : ligne 6 de `.env` ecrite `LOCAL_LLM_BASE_URL= https://...` (espace apres `=`, executee comme commande par `source .env`, tolere par le chargeur Python) ; les sous-dossiers de `tests/oca_sample/` sont vides, les modules OCA sont donc ignores (saut propre, comme le veut `rules.md`) ; les avertissements de troncature de `analyze_security_locks(account.move)` sont ceux des 801-802/876, non traites avant la mesure (relevent de P6 si les cas echouent).
+
+**Decisions**
+- `OdooConnector(technical=True)` (`erp_data/odoo_connector.py`) : `_resolve_password` renvoie le mot de passe configure et ignore le ContextVar ; ouverture journalisee. Le mode par defaut est inchange (cle de la requete, repli admin avertissant).
+- `loader.py` : fonction `_open_technical_session()` qui remplace les quatre blocs dupliques (inventaire, langues, traductions, decouverte des modules coeur) ; import differe conserve pour que les tests puissent patcher `erp_data.odoo_connector.OdooConnector`.
+- Nouveau `core/evaluation/preflight.py` : `require_backends()` sonde le LLM (un appel a 8 tokens via `get_chat_llm`) et les embeddings (`resolve_embedding_function`, rien a sonder pour `local_light`) et leve `BackendUnavailable` avec tous les echecs ; `scripts/run_evaluation_protocol.py` s'arrete avec le code 2 avant toute provision d'instance (pas de verification avec `--score-only`).
+- Notebook `scripts/kaggle/llmodoo.ipynb` : `OLLAMA_MAX_LOADED_MODELS=2` (deux T4 de 15 Go) ; prechauffage du chat et de `bge-m3` avec `raise_for_status` et assertions sur `/api/ps` ; cellule 7 : `.env` complet (embeddings, hotes autorises, modele du notebook au lieu de `gpt-oss:20b`) ; cellule `5+9` supprimee ; sorties des cellules modifiees videes.
+- Non touche : `_odoo_helpers.get_current_uid` (repli admin hors requete, reserve aux tests et scripts), `.env`, `plan.md`, `architecture.md`.
+
+**Verification**
+- `py_compile` OK sur `erp_data/odoo_connector.py`, `code_intelligence/graph/loader.py`, `core/evaluation/preflight.py`, `scripts/run_evaluation_protocol.py`.
+- Tests ajoutes : `erp_data/tests/test_odoo_connector.py` (connecteur technique ignore la cle de la requete, connecteur par defaut la conserve), `code_intelligence/tests/test_technical_metadata_session.py` (les quatre lectures ouvrent `OdooConnector(technical=True)`), `tests/test_evaluation_preflight.py` (3 cas).
+- 29 passed (connecteur, session technique, preflight, decouverte des modules coeur, fixture hors ligne, traductions runtime) ; 209 passed sur le chargement du graphe, la fraicheur du graphe, le lexique, `erp_data/tests`, `test_system_adapter`, preflight. Suite complete non relancee (a deleguer a pmm). Notebook : JSON valide, 18 cellules, non execute.
+
+**Limites** : la cause du point 1 est deduite du code, la premiere run apres correction la confirmera (plus d'`Access Denied`, ligne « Loaded N/M installed modules » dans la log) ; la sonde LLM n'a pas de delai propre (celui du client) ; la cause des timeouts d'embeddings reste une hypothese tant que `/api/ps` n'a pas ete relevee pendant une run.
+
+**A faire par pmm**
+1. Relancer le notebook Kaggle avec les cellules modifiees (les assertions de la cellule 5 disent si les deux modeles tiennent), puis mettre a jour l'URL du tunnel dans `.env` (LLM, embeddings, `LOCAL_ALLOWED_HOSTS`).
+2. Supprimer `captures/eval_instances/graphs/accounting_fr.json` et `captures/eval_protocol_raw/accounting_fr.jsonl` (graphe construit sur le repli, premier cas mesure pendant la panne).
+3. Relancer `python scripts/run_evaluation_protocol.py --only accounting_fr` : la verification prealable doit passer, la log ne doit plus contenir d'`Access Denied`.
+4. Suite complete, puis commits (un lot pour cette section).
+
+**Fichiers modifies** : `erp_data/odoo_connector.py`, `code_intelligence/graph/loader.py`, `core/evaluation/preflight.py` (nouveau), `scripts/run_evaluation_protocol.py`, `scripts/kaggle/llmodoo.ipynb`, `erp_data/tests/test_odoo_connector.py`, `code_intelligence/tests/test_technical_metadata_session.py` (nouveau), `tests/test_evaluation_preflight.py` (nouveau), `todo/contexte.txt`.
+
+## Section 1133 : P1 : verification de la demande de gitignore et de nettoyage `/tmp` ; les 32 fichiers suivis de `captures/` sont absents du disque (lecture seule, aucun fichier source touche)
+
+Date : 06/10/2026
+**Demande de pmm** (sortie pytest `document_rag/tests` + e2e watcher : 132 passed, puis liste d'exclusions et suppression des deux sauvegardes `/tmp`) : deja traitee par les sections 1115 et 1116 ; relue et verifiee sur disque.
+**Verifie** : `/tmp/chroma_db.sauvegarde_avant_suppression_odoo_code` et `/tmp/env.avant_embedding_url` n'existent plus ; `.gitignore` ligne 22 couvre `document_rag/vectorstore/chroma_db/` (`git check-ignore` confirme) et ligne 47 `captures/eval_protocol_raw/` ; le suivi de `chroma_db/` est retire de l'historique courant (commit `b619903`) ; plus aucun fichier d'embeddings ni de code embeddings en attente dans `git status` (travail embeddings commite en `5658a89`).
+**Non fait, volontairement (inchange depuis 1115)** : `captures/` entier dans `.gitignore` (contredit les fichiers suivis, notamment `captures/eval_instances/manifest.json` qui epingle les instances) ; `architecture_cible.md` (fichier suivi, ne se traite pas par `.gitignore`, seulement a ne pas stager).
+**Constat nouveau, a traiter** : `git status` montre les 32 fichiers suivis de `captures/` supprimes dans l'arbre de travail (`git ls-files -d captures` = 32 sur 32), dont `eval_instances/manifest.json`, les brouillons `eval_instances/drafts/` (entrees du jeu fige v1) et les rapports de banc. Les sauvegardes `captures/eval_instances/*.dump` (ignorees par git, donc non recuperables par git) sont aussi absentes ; le dossier `captures/` a ete modifie vers 11:58-11:59 le 06/10. Auteur et intention non determines. Les fichiers suivis sont restaurables par `git restore captures/` (HEAD contient les 32) ; les dumps se regenerent par `python scripts/build_eval_instances.py --inspect-only --dump` si les bases `eval_*` existent encore (non verifie). Aucune restauration faite : decision de pmm.
+**Etat de l'index** : `config/settings.py` et `.env.example` sont stages sans `code_intelligence/graph/loader.py` (qui utilise le nouveau reglage `GRAPH_CACHE_PATH`) : a stager ensemble ou verifier avant commit. `conftest.py` : mon essai de fixture d'isolation d'Odoo, redondant avec celle deja presente dans HEAD, a ete retire avant d'etre commite (une autre session y ajoute une fixture de module).
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section). Sauvegarde : `/tmp/contexte.avant_1117.txt`.
+
+## Section 1134 : `captures/` ajoute au `.gitignore` (decision pmm ; pas de restauration des fichiers supprimes)
+
+Date : 06/10/2026
+**Decision (pmm)** : ne pas restaurer les 32 fichiers suivis de `captures/` absents du disque (section precedente) ; ignorer `captures/`.
+**Realise** : `.gitignore` : regle unique `captures/` ; les 5 regles specifiques devenues redondantes (`reasoning_trace.jsonl`, `frozen_evidence/`, `eval_protocol_raw/`, `eval_instances/*.dump`, `eval_instances/logs/`) et le commentaire de la section 985 sont retires. `git check-ignore` confirme la regle sur un fichier neuf, les sorties brutes et la trace de raisonnement (le manifeste, deja suivi, n'est pas rapporte par `git check-ignore`).
+**Effet connu** : une regle `.gitignore` ne retire pas du suivi des fichiers deja suivis : les 32 fichiers restent suivis et apparaissent comme supprimes tant que leur retrait de l'index n'est pas commite. Consequence a retenir : `captures/eval_instances/manifest.json` (epinglage des instances) et les brouillons de cas ne seront plus versionnes ; leur regeneration se fait par `scripts/build_eval_instances.py` et `scripts/generate_access_cases.py`.
+**Non fait (non mandate)** : `git rm -r --cached captures` (stagerait la suppression des 32 fichiers de l'index).
+
+**Fichiers modifies** : `.gitignore`, `todo/contexte.txt` (cette section). Sauvegardes : `/tmp/gitignore.avant_captures`, `/tmp/contexte.avant_captures_ignore.txt`.
+
+## Section 1135 : `captures/` retire de l'index git (execute par pmm) ; verification (lecture seule)
+
+Date : 06/10/2026
+**Execute par pmm** : `git rm -r --cached captures` : 32 fichiers retires de l'index (suppressions stagees, rien de commite). Ils etaient deja absents du disque (section precedente) ; la regle `captures/` du `.gitignore` evite qu'ils reviennent.
+**Verifie** : `git status` : 32 suppressions stagees (`D `), sans lien avec les autres modifications en cours (fichiers modifies ou non suivis du chantier embeddings, harnais et tranche T). Aucun code ni test ne lit les fichiers retires : les seules occurrences de `captures/...` hors dossier sont des chemins de sortie (`tests/eval_retrieval.py`, `.scratch/build_kaggle_nb.py`) ou un commentaire (`test_section955_access_permission_contradiction.py`). Les valeurs restent lisibles dans l'historique git (`git show HEAD:captures/<fichier>`) apres le commit.
+**A faire par pmm** : commiter ces 32 suppressions a part (message du type `chore: stop tracking captures/`) pour ne pas les melanger a un commit de code.
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section) ; aucun code. Sauvegarde : `/tmp/contexte.avant_rm_captures.txt`.
+
+## Section 1136 : commit `a946ade` : arret du suivi de `captures/`
+
+Date : 06/10/2026
+**Realise** : `git commit -- captures` : commit `a946ade` « chore: stop tracking captures/ (generated measurement artefacts) » : 32 suppressions, rien d'autre (verifie par `git show --name-status HEAD`). Les autres changements stages (tranche T : `core/verification/`, `core/evidence/`, `core/schemas.py`, tests associes ; `.env.example`, `config/settings.py`, `todo/contexte.txt`) n'ont pas ete inclus et restent stages.
+**Reste a commiter** : la regle `captures/` du `.gitignore` (modification non stagee, hors de ce commit) ; a ajouter au prochain commit de configuration ou a part.
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section). Sauvegarde : `/tmp/contexte.avant_commit_captures.txt`.
+
+## Section 1137 : P2 : lecture du plan et premier diagnostic de la branche documentaire (lecture seule, aucun fichier source touche)
+
+Date : 06/10/2026
+**Contexte** : pmm demande de continuer avec le plan (`todo/plan.md`, ordre P0, P1, P2, T, P3 a P10). P0 close ; P1 : jeu fige v1 et harnais prets, mesure de depart a lancer par pmm (section 1132, test de fumee `--only accounting_fr`) ; T : etapes 1 a 4 closes (1131). P2 n'a pas ete mandatee ni commencee.
+
+**Constat 1 : composition du jeu fige v1** (`core/evaluation/protocol/frozen_cases.json`) : 222 cas, tous `held_out`, tous de source `code` : 192 `governance_security` (droits d'acces, Odoo comme oracle) et 30 `general_code_inquiry` (ambiguite). Aucun cas de calibrage, aucun cas documentaire, aucune question de donnees ERP (nombre), aucun cas de workflow ou d'heritage. Consequence : la mesure de T ne couvre ni la branche documentaire (P2) ni le type d'affirmation « nombre » du verificateur (compare au resultat ORM) ; elle ne teste que « groupe » et, au mieux, « methode ».
+
+**Constat 2 : decoupage des documents (verifie hors ligne, `WikiLoader` sans serveur)** : les 5 wikis donnent 8 chunks (1 + 2 + 2 + 2 + 2) ; pour chaque section numerotee, tous ses elements de liste tiennent dans un seul chunk ; la metadonnee `source` est le nom de fichier. Le decoupage n'explique donc pas, pour les wikis, une liste tronquee. Le document « Protocoles IA et Codage Defensif » (14 chunks) n'a pas ete teste.
+
+**Constat 3 : hypotheses issues de la lecture du code, non mesurees** :
+1. `document_rag/prompts.py` : aucune consigne de restituer tous les elements d'une liste ; la regle 3 demande de « synthetiser » les sources.
+2. `document_rag/generate_node.py` : `max_tokens=1024` et `temperature=0.3` en dur (3 appels). Si la sortie structuree est tronquee, on bascule sur l'appel brut ; `parse_raw_json_answer` renvoie `None` sur un JSON tronque et la reponse devient le texte brut (comportement deduit du code, non reproduit). Contraire a la regle du plan : aucune limite de taille en dur.
+3. `core/graph/graph_nodes.py` : `top_k=10` en dur dans `retrieve`.
+4. Section 1120 : les questions documentaires passent d'abord par l'agent `code_intelligence` ; le RAG n'est atteint que si les preuves sont insuffisantes, ou si la demande est explicitement documentaire (section 744). Les plafonds d'observation de cet agent (section 1106) n'ont pas ete examines pour ce cas : une liste documentaire peut etre tronquee avant la generation.
+
+**Non fait** : aucune mesure ; le serveur d'embeddings et le LLM (tunnel Kaggle) sont necessaires pour les etages de recuperation et de generation.
+
+**Proposition (non mandatee)** : mandater P2 en trois pas : (1) generateur de cas documentaires dont la verite-terrain est le document lui-meme (methode `documentation`, un element de liste = une affirmation, jeu fige v2) ; (2) diagnostic par etage sur ces cas (decoupage, recuperation, contexte, generation, post-traitement) ; (3) correction a la racine du seul etage demontre fautif.
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section) ; aucun code. Sauvegarde : `/tmp/contexte.avant_p2_diag.txt`.
+
+## Section 1138 : retrait des fournisseurs d'inférence tiers et recentrage sur l'hébergement privé
+
+Date : 06/10/2026
+**Demande de pmm** : retirer les mentions de deux fournisseurs tiers, car ils sont moins adaptés d'après son expérience ; l'objectif est une IA privée, Kaggle reste temporaire et AWS est la cible d'hébergement du LLM.
+
+**Realise** : suppression de leurs paramètres, branches d'usine LLM, rotation de clés, contrôles de santé et dépendances Python ; l'usine accepte maintenant uniquement les serveurs locaux compatibles OpenAI, avec contrôle de l'hôte par `LOCAL_ALLOWED_HOSTS`. Le README décrit le cadre privé, Kaggle temporaire et AWS cible ; `.env.example` ne présente que la configuration locale.
+
+**Nettoyage des noms historiques de code** : alias de fabrique renommés vers `_build_llm` ; métriques de temporisation renommées en `llm_wait`. Les tests actifs ciblent le client local générique. Suppression des anciens benchmarks/tests consacrés aux fournisseurs retirés et du diagnostic associé.
+
+**Portee** : code, tests, scripts, notebooks, README, `.env.example` et `requirements.txt` nettoyés. Les sections antérieures de ce journal restent telles quelles pour préserver la chronologie ; la présente section consigne la décision sans répéter les noms retirés. Les secrets et le fichier `.env` local ne sont pas consultés ni modifiés.
+
+**Fichiers modifies** : `.env.example`, `README.md`, `config/settings.py`, `api/routes_system.py`, `core/llm/{llm_client.py,local_only.py,__init__.py}`, `core/graph/graph_compat.py`, `core/evaluation/synthesis_bench.py`, `document_rag/generate_node.py`, `erp_data/{orm_agent_helpers.py,orm_agent_node.py}`, `code_intelligence/agent/{context.py,loop.py,postprocess.py,investigation_llm.py}`, scripts de banc et diagnostics, tests de configuration et d'intégration, `requirements.txt`, notebooks Colab ; suppressions des anciens artefacts de banc propres aux fournisseurs retirés. Aucun changement à `todo/plan.md` ni à l'architecture cible.
+
+## Section 1139 : P2 mandatee (pmm : « commence P2 ») ; journal avant code du pas 1 : cas documentaires et metrique de rappel des elements
+
+Date : 06/10/2026
+**Mandat** : pmm ouvre P2 (`todo/plan.md`). Perimetre retenu = les trois pas proposes en section 1137 ; seul le pas 1 est traite ici. Les pas 2 (diagnostic par etage) et 3 (correction a la racine de l'etage demontre fautif) viendront apres mesure : le pas 2 exige le serveur d'embeddings et le LLM, donc des lancements delegues a pmm.
+
+**Etat constate avant code** : `frozen_cases.py` accepte deja la methode de verite `documentation`, la source `internal_docs`, la preuve `document` et l'intention `documentary_policy` ; aucun generateur ne les produit. Corpus documentaire de `document_rag/documents/` : 5 wikis `.txt` (sections numerotees « N. TITRE » suivies de puces `-`), 1 document markdown (protocoles), 4 PDF (non traites ici : factures et manuel, pas de structure de liste exploitable sans OCR). `protocol_metrics` calcule deja la couverture sur les seuls cas sans regle d'abstention ; il n'a aucune mesure de rappel des elements d'une reponse.
+
+**Pas 1 -- ce qui sera fait** :
+1. `core/evaluation/oracles/documentation.py` : analyse structurelle generique (titres markdown ou lignes numerotees suivies de puces, puces, lignes de tableau) ; une section d'au moins 3 elements devient un cas ; question construite a partir du titre ; un element de liste = une affirmation attendue (`expected_claims`), reconnue par 1 a 2 termes propres a l'element (absents des autres elements de la section) ; section ecartee et signalee si un element n'a aucun terme significatif ; preuve acceptable = nom du fichier source ; `ground_truth.method = "documentation"`. Aucune regle liee a un document ou a une question.
+2. `scripts/generate_documentation_cases.py` : brouillon dans `captures/eval_instances/drafts/`, instance a fournir explicitement.
+3. `protocol_metrics.py` : metrique `claim_recall_documentary` = part des elements attendus restitues, moyenne par cas sur les cas `internal_docs` avec affirmations ; une abstention ou une erreur compte pour 0 (abstentions comptees comme des erreurs).
+4. Tests hors ligne.
+
+**Non fait / decisions de pmm** : (a) instance de rattachement des cas documentaires : le corpus est commun a toutes les instances alors que le schema exige une instance ; consequence pour l'IC par instance (tous les cas documentaires dans un meme groupe) ; (b) relecture humaine du brouillon puis gel du jeu v2 : aucun gel sans pmm ; (c) PDF exclus.
+
+**Fichiers a modifier** : `core/evaluation/oracles/documentation.py` (nouveau), `scripts/generate_documentation_cases.py` (nouveau), `core/evaluation/protocol_metrics.py`, `core/evaluation/protocol_report.py` (ordre des metriques), tests. Sauvegarde : `/tmp/contexte.avant_1139.txt`.
+
+## Section 1140 : P2 pas 1 realise : generateur de cas documentaires et metrique `claim_recall_documentary` (brouillon, aucun gel)
+
+Date : 06/10/2026
+**Realise** (journal 1139) :
+- `core/evaluation/oracles/documentation.py` (188 lignes) : analyse structurelle generique des documents `.txt` et `.md` (titres markdown ou lignes numerotees suivies de puces ; puces ; lignes de tableau ; lignes de continuation). Une section de 3 elements ou plus devient un cas : question « Quels sont tous les elements de « {titre} » dans la documentation interne ? », intention `documentary_policy`, source `internal_docs`, preuve acceptable = nom du fichier, verite `documentation`. Un element de liste = une affirmation dont 1 a 2 termes (`all_of`) sont propres a l'element au sein de sa section ; les nombres a un seul chiffre ne sont jamais des termes ; une section dont un element n'a aucun terme significatif est ecartee et signalee.
+- `scripts/generate_documentation_cases.py` : `--instance` obligatoire, `--documents` (defaut `RAG_DOCS_PATH`), `--min-items`, `--limit`, brouillon dans `captures/eval_instances/drafts/documentation_<instance>.json`.
+- `protocol_metrics.py` : `CaseScore.claim_recall` et metrique `claim_recall_documentary` (part des elements attendus restitues, moyenne par cas sur les cas `internal_docs` portant des affirmations ; abstention ou erreur = 0 ; `None` s'il n'y a aucun cas documentaire) ; `protocol_report.py` : ajoutee a l'ordre des metriques.
+- `tests/test_documentation_oracle.py` : 11 tests hors ligne (analyse, termes distinctifs, section ecartee, validite des cas, lecture du dossier, rappel, agregat). 60 tests passes sur ce fichier et les 4 du protocole ; 15 sur les oracles d'acces et d'ambiguite.
+
+**Brouillon genere** (instance `hr_suite`, a titre d'essai) : 27 cas, 137 affirmations, 0 section ecartee : 23 cas issus des 5 wikis, 4 du document markdown « Protocoles IA et Codage Defensif ».
+
+**Reserves constatees a la relecture du brouillon** :
+1. Les 4 cas du document markdown sont de moindre qualite : elements en prose avec libelles en gras (`**Action :**`), termes retenus parfois secondaires (par exemple des types de champs dans un exemple de prompt). A relire un par un ou a exclure ; les 23 cas des wikis sont propres.
+2. Les nombres a deux chiffres restent des sous-chaines (`10` reconnait aussi `100`) : risque de faux positifs du rappel, faible mais reel.
+3. Les termes sont recherches litteralement : une reformulation qui n'en garde aucun compte l'element comme omis ; le rappel est donc un minorant pour des reponses tres paraphrasees.
+4. Les identifiants de cas issus du fichier markdown sont tres longs (nom de fichier complet) : valides, peu lisibles.
+5. Les PDF (factures, manuel de facturation) ne sont pas traites.
+
+**Decisions de pmm en attente** : (a) instance de rattachement (le corpus est commun ; les instances francophones sont `hr_suite`, `accounting_fr`, `oca_sale_workflow`) ; (b) inclure ou non le document markdown ; (c) relecture puis gel d'un jeu v2 qui s'ajoute aux 222 cas v1 (le gel change le digest : la mesure de depart de P1 doit etre refaite apres) ; (d) mandater le pas 2.
+
+**Pas 2 (diagnostic par etage)** : n'a pas ete commence ; il demande le serveur d'embeddings et le LLM, donc des lancements par pmm. Prerequis : brouillon relu et gele, puis mesure de `claim_recall_documentary` du systeme actuel par le harnais, qui dira si l'omission existe et a quelle echelle avant de chercher l'etage fautif.
+
+**Fichiers modifies** : `core/evaluation/oracles/documentation.py` (nouveau), `scripts/generate_documentation_cases.py` (nouveau), `core/evaluation/protocol_metrics.py`, `core/evaluation/protocol_report.py`, `tests/test_documentation_oracle.py` (nouveau), `todo/contexte.txt`. Sauvegarde : `/tmp/contexte.avant_1140.txt`.
+
+## Section 1141 : P2 : instance de rattachement des cas documentaires tiree au sort (reponse de pmm : « prends-en un au pif »)
+
+Date : 06/10/2026
+**Decision (pmm)** : choix arbitraire de l'instance de rattachement. Tirage aleatoire par Claude parmi les trois instances francophones `held_out` (`hr_suite`, `accounting_fr`, `oca_sale_workflow`) : resultat `oca_sale_workflow`. Aucun critere technique ne motive ce choix ; le corpus documentaire est commun a toutes les instances.
+
+**Realise** : brouillon regenere pour cette instance : `captures/eval_instances/drafts/documentation_oca_sale_workflow.json`, 27 cas (split `held_out`, langue `fr_FR`) ; brouillon d'essai `hr_suite` supprime. Les 4 cas du document markdown sont inclus par defaut (reponse de pmm a cette question non donnee) : identifiants `documentation_miro_sma_..._etape_1_conception_et_architecture_brainstorming`, `..._strategies_de_prompting`, `..._maitriser_les_champs_calcules_compute`, `..._conventions_de_nommage_strictes`. A exclure a la relecture si pmm le decide.
+
+**Consequence a connaitre** : dans l'intervalle de confiance par instance (bootstrap par groupe), les 27 cas documentaires forment un seul groupe, celui d'`oca_sale_workflow`, a cote de ses 36 cas d'acces ; la metrique `claim_recall_documentary` porte, elle, sur l'ensemble des cas documentaires sans regroupement.
+
+**Reste en attente (pmm)** : inclusion du document markdown ; relecture puis gel d'un jeu v2 (change le digest ; mesure de depart de P1 a refaire) ; mandat du pas 2.
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section) ; brouillon sous `captures/` (non suivi par git). Sauvegarde : `/tmp/contexte.avant_1141.txt`.
+
+## Section 1142 : P2 : document markdown inclus (decision pmm : « un must ») et prise en charge de Word (.docx) ; journal avant code
+
+Date : 06/10/2026
+**Decisions (pmm)** : le document markdown « Protocoles IA et Codage Defensif » reste dans le jeu documentaire ; pmm va ajouter des documents Word au corpus.
+
+**Constat (lecture du code)** : l'ingestion documentaire ne connait que `.pdf`, `.txt`, `.md` (`document_rag/ingestion/incremental.py:23` `SUPPORTED_EXTENSIONS`, dispatch `_load_file`, boucles de `ingest_handlers_doc.py`, surveillant `watcher.py` qui reutilise `SUPPORTED_EXTENSIONS`). `python-docx` n'est ni dans `requirements.txt` ni dans le venv. Un fichier Word depose dans `document_rag/documents/` ne serait donc jamais indexe : generer des cas a partir de Word sans ingestion ferait mesurer l'absence d'un format et non la restitution des listes. Les deux doivent avancer ensemble.
+
+**A faire** :
+1. Dependance `python-docx` (installee dans le venv, ajoutee a `requirements.txt`).
+2. `document_rag/ingestion/docx_reader.py` : conversion d'un `.docx` en texte markdown dans l'ordre du document (styles `Title`/`Heading N` en titres, paragraphes de liste en puces avec leur niveau, tableaux en lignes `| a | b |` avec fusions dedoublonnees).
+3. `WikiLoader` : `load_docx_file` ; le decoupage markdown actuel est extrait en methode commune (comportement de `load_markdown_file` inchange).
+4. Ingestion : `.docx` pris en charge par `ingest_handlers_doc.py` (les boucles `.txt`/`.md` factorisees dans une fonction commune, memes statistiques), `incremental.py` et donc le surveillant ; fichiers verrous `~$*.docx` crees par Word ignores.
+5. Generateur de cas : lecture des `.docx` par le meme convertisseur, fichiers `~$` ignores ; la regle de formats reste alignee sur celle de l'ingestion.
+6. Tests hors ligne (documents Word construits par `python-docx`).
+
+**Limite connue, a dire a pmm** : seule la structure portee par les styles Word est reconnue (titres en styles `Heading`, vraies listes, vrais tableaux). Un titre simplement mis en gras n'est pas detecte comme titre : ses puces ne forment alors pas de section et ne produisent aucun cas.
+
+**Fichiers a modifier** : `requirements.txt`, `document_rag/ingestion/{docx_reader.py (nouveau),wiki_loader.py,ingest_handlers_doc.py,incremental.py}`, `core/evaluation/oracles/documentation.py`, tests. Sauvegarde : `/tmp/contexte.avant_1142.txt`.
+
+## Section 1143 : corpus documentaire en production sur Google Drive : constat, decision reportee
+
+Date : 06/10/2026
+**Information (pmm)** : en production, les documents du RAG seront stockes sur Google Drive ; le corpus actuel est un dossier local (`RAG_DOCS_PATH`). Question posee : la migration vers l'objectif est-elle compliquee ? Decision : on laisse de cote pour l'instant, rien n'est implemente.
+
+**Constat (lecture du code, rien modifie)** : le couplage au disque local tient en trois endroits : `scan_root.py` (`source` relatif a `RAG_DOCS_PATH`, `resolve_absolute_source`), `incremental.py` (`rglob`, `Path.resolve`, detection des suppressions par comparaison des `source` en base avec le disque) et `watcher.py` (`watchdog`, systeme de fichiers local uniquement). Tout ce qui est apres l'extraction du texte (chunking, hashes de contenu, Chroma, recherche hybride, citations verifiees) est independant de l'origine du fichier.
+
+**Piste retenue pour plus tard (non decidee)** : abstraction `DocumentSource` (sous-package dedie) avec `LocalFolderSource` et `GoogleDriveSource`, choix par `.env` avec skip propre si variables absentes ; `source` devient un identifiant logique ; en production le scan planifie (`scheduler.py`) remplace le watcher, avec comparaison `modifiedTime` ou `md5Checksum` ; Google Docs natifs a exporter en `.docx` pour reutiliser `docx_reader.py`. Points a trancher le moment venu : un Drive ou un par client, Google Docs natifs ou fichiers deposes seulement, hotes autorises (P3) et politique de confidentialite des clients (principe 5 de l'architecture). Le generateur de cas documentaires devra lire via la meme abstraction, sinon mesure et production divergent : a prendre en compte avant de figer durablement le jeu v2.
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section). Sauvegarde : `/tmp/contexte.avant_1143.txt`.
+
+## Section 1144 : P2 : prise en charge de Word (.docx) terminee, formats centralises (corrige un NameError)
+
+Date : 06/10/2026
+**Constat a la reprise de 1142** : `docx_reader.py`, `WikiLoader.load_docx_file`, `python-docx==1.2.0` (requirements.txt, venv) et le dispatch `.docx` de `incremental.py` et `ingest_handlers_doc.py` etaient deja en place ; restaient le generateur de cas et les tests. Bug trouve : `ingest_handlers_doc.py` utilisait `OFFICE_LOCK_PREFIX` (definie dans `incremental.py`) sans l'importer : `NameError` des qu'un `.docx` etait present, avale par le `try` de l'appelant (le test d'orchestrateur existant ignore aussi les exceptions, d'ou l'absence de signal).
+
+**Cause racine** : la regle « quels fichiers sont lisibles » etait repartie entre `incremental.py` (constantes et test d'extension), `watcher.py` (copie du test) et le handler (copie du prefixe), et l'oracle documentaire avait sa propre liste d'extensions.
+
+**Realise** :
+- `document_rag/ingestion/file_formats.py` (nouveau) : `SUPPORTED_EXTENSIONS`, `TEXT_EXTENSIONS`, `OFFICE_LOCK_PREFIX`, `is_supported_document`, `is_text_document` (tout sauf PDF, fichiers verrous `~$` exclus). Source unique de la regle.
+- `incremental.py`, `watcher.py`, `ingest_handlers_doc.py` : constantes et tests d'extension remplaces par ces fonctions (plus de definition locale).
+- `core/evaluation/oracles/documentation.py` : `collect_sections` utilise `is_text_document` (aligne sur l'ingestion, PDF toujours exclus) et lit les `.docx` via `docx_to_markdown` (`read_document`) ; la constante `DOCUMENT_SUFFIXES` est supprimee.
+- Tests : `document_rag/tests/test_docx_ingestion.py` (nouveau, 7 tests : conversion markdown avec titres, listes imbriquees, tableau a cellules fusionnees ; chargeur et source relative ; rejet d'extension ; predicats de format ; scan incremental ; `ingest_documents_dir` avec fichier verrou, sans avaler d'exception) ; un test ajoute a `tests/test_documentation_oracle.py` (lecture Word et fichiers `~$` ignores).
+- `README.md` : formats du dossier `documents/` mis a jour.
+- Execution : 17 tests passes (nouveaux et oracle) ; 32 passes sur watcher, wiki_loader, ingest_all, scheduler, doc_nonregression.
+
+**Limite connue (inchangee)** : seule la structure portee par les styles Word est reconnue ; un titre simplement mis en gras n'est pas detecte, ses puces ne forment alors aucun cas.
+
+**Non fait / a lancer par pmm** : aucun document Word n'est encore dans `document_rag/documents/` ; une fois deposes, regenerer le brouillon (`scripts/generate_documentation_cases.py --instance oca_sale_workflow`) pour voir les cas qu'ils produisent. Le gel du jeu v2 (change le digest, mesure de depart de P1 a refaire) et le mandat du pas 2 restent des decisions de pmm ; le pas 2 demande le serveur d'embeddings et le LLM.
+
+**Fichiers modifies** : `document_rag/ingestion/{file_formats.py (nouveau),incremental.py,watcher.py,ingest_handlers_doc.py}`, `core/evaluation/oracles/documentation.py`, `document_rag/tests/test_docx_ingestion.py` (nouveau), `tests/test_documentation_oracle.py`, `README.md`, `todo/contexte.txt`. Sauvegarde : `/tmp/contexte.avant_1144.txt`.
+
+## Section 1145 : P2 : PDF inclus dans le jeu documentaire (decision pmm : « inclure pdf ») ; journal avant code
+
+Date : 06/10/2026
+**Decision (pmm)** : les PDF entrent dans la generation des cas documentaires (ils etaient exclus, section 1139 (c)).
+
+**Constat (lecture du code et des 4 PDF du corpus)** : `PDFLoader` indexe le texte natif de `pypdf` prefixe de marqueurs `--- Page N ---` (OCR de repli si le ratio texte/taille du fichier est sous 0,1). Le generateur doit lire le meme texte que l'ingestion, sans marqueurs, sinon la mesure et l'index divergent. Les OCR ne sont pas rejoues par le generateur : une verite derivee d'une OCR serait bruitee ; un PDF scanne n'a pas de texte natif et ne produit donc aucun cas.
+
+**A faire** :
+1. `pdf_loader.py` : extraire le texte page par page dans une fonction de module (la methode `_extract_text_from_pdf` la reutilise, comportement inchange), ajouter `extract_native_text(path)` et `strip_page_markers(text)`. Pas de construction de `PDFLoader` (le decoupeur tiktoken n'est pas necessaire).
+2. `core/evaluation/oracles/documentation.py` : `read_document` par table de lecteurs par extension (`.docx`, `.pdf`, sinon texte) ; `collect_sections` aligne sur `is_supported_document`.
+3. `file_formats.py` : `is_text_document` et les constantes qui n'existaient que pour lui deviennent inutiles et sont supprimees.
+4. Tests hors ligne : PDF a texte natif construit avec `fpdf`, marqueurs de page retires, PDF sans texte ignore ; mise a jour des tests de formats.
+
+**Point a verifier et a dire a pmm** : sur le corpus actuel, `manuel_facturation.pdf` a des titres numerotes suivis de prose, pas de puces ; l'analyseur actuel ne cree des cas que pour des listes, tableaux ou procedures a puces. Le resultat attendu est donc zero cas issu des PDF actuels ; a confirmer par la generation.
+
+**Fichiers a modifier** : `document_rag/ingestion/{pdf_loader.py,file_formats.py}`, `core/evaluation/oracles/documentation.py`, tests. Sauvegarde : `/tmp/contexte.avant_1145.txt`.
+
+## Section 1146 : P2 pas 1 clos : prise en charge PDF terminee et testee ; 27 cas documentaires generes (0 issu des PDF actuels confirme)
+
+Date : 06/10/2026
+**Mandat (pmm)** : « CONTINUE P2 » apres le journal 1145.
+
+**Realise** (perimetre de la 1145) :
+- `document_rag/ingestion/pdf_loader.py` : fonctions `extract_pages_text(reader)`, `extract_native_text(path)`, `strip_page_markers(text)`.
+- `core/evaluation/oracles/documentation.py` : table `READERS` etendue avec `.pdf` (extraction native et suppression des marqueurs de page `--- Page N ---`), `collect_sections` utilisant `is_supported_document`.
+- `document_rag/ingestion/file_formats.py` : simplification (centralisation unique de `is_supported_document` et `SUPPORTED_EXTENSIONS`, suppression de `is_text_document` devenu sans objet).
+- Tests : 19 tests executes et valides (`tests/test_documentation_oracle.py` et `document_rag/tests/test_docx_ingestion.py`).
+- Generation : `python scripts/generate_documentation_cases.py --instance oca_sale_workflow` produit 27 cas documentaires (23 issus des wikis `.txt`, 4 du document markdown `.md`, 0 des 4 PDF du corpus qui ne contiennent pas de listes a puces ni de tableaux structurables).
+
+**Bilan du pas 1 de P2** :
+- L'oracle structurel et l'ingestion gerent `.txt`, `.md`, `.docx` et `.pdf` natif.
+- La metrique `claim_recall_documentary` est integree au rapport d'evaluation.
+- Le brouillon de cas documentaires est pret dans `captures/eval_instances/drafts/documentation_oca_sale_workflow.json`.
+
+**Prochaine etape** :
+1. Gel du jeu d'evaluation v2 (222 cas v1 + 27 cas documentaires = 249 cas, version 2).
+2. Lancer la mesure de reference P2 sur ces cas documentaires pour etablir le taux de rappel actuel (`claim_recall_documentary`).
+3. Pas 2 : diagnostic par etage (decoupage, recuperation, contexte, generation, post-traitement) si des omissions de liste sont constatees.
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section).
+
+## Section 1112 : P1 : `LocalServerEmbeddingFunction` -- relance sur coupure de connexion, timeout configurable, lots de 16 (mandate par pmm)
+
+Date : 05/10/2026
+**Constat** : la reconstruction de `odoo_docs` avec `bge-m3` a echoue deux fois, sur des fichiers differents (`Facture brouillon (_ 35).pdf` et `facture_scannee.pdf` au premier essai ; `wiki_onboarding_rh.txt`, 1,7 Ko, au second), par `Read timed out (30 s)` puis `RemoteDisconnected`. Sonde manuelle sur 12 requetes d'embedding sequentielles de petite taille : 11 reussies (1,3 a 6,3 s), 1 `ConnectionError`. Cause retenue : coupures intermittentes du tunnel ou du serveur (environ 1 requete sur 12 ; origine exacte, ngrok ou Kaggle, non determinee), combinees a l'absence de relance dans la fonction. La meme fonction sert la recherche vectorielle pendant la mesure P1 : sans correctif, une coupure donnerait une ligne `error` definitive (section 1107).
+**Realise** (`document_rag/vectorstore/embedding_functions.py`, classe `LocalServerEmbeddingFunction`) : (1) relance jusqu'a `max_retries=3` avec attente 1 s puis 2 s, uniquement sur `requests.exceptions.ConnectionError` et `Timeout` ; apres le dernier essai l'erreur d'origine est relevee (log `error`), jamais masquee ; les erreurs HTTP (ex. 404 modele absent) ne sont pas relancees. (2) timeout lu depuis `LOCAL_EMBEDDING_TIMEOUT` (defaut 30 s, valeur precedente) ; le parametre `timeout` du constructeur reste prioritaire. (3) envoi par lots de `batch_size=16` textes, ordre conserve. Aucun changement de `config/settings.py`, de `.env` ni de la signature de `resolve_embedding_function`.
+**Tests ajoutes** (`document_rag/tests/test_embedding_functions.py`, 5 tests, `requests.post` et `time.sleep` simules) : relance puis succes ; erreur relevee apres 3 echecs ; pas de relance sur erreur HTTP ; lots 16/16/8 avec ordre conserve ; timeout par variable d'environnement. Verification faite : `py_compile` des deux fichiers. **Non execute** : pytest, a lancer par pmm.
+**Limites** : les relances ne couvrent pas un tunnel durablement coupe (l'erreur remonte alors) ; les codes 502/503/504 renvoyes par le tunnel ne sont pas relances (hors perimetre convenu) ; un timeout superieur a 30 s n'est pas applique tant que `LOCAL_EMBEDDING_TIMEOUT` n'est pas defini dans `.env`.
+**A faire par pmm** : `.venv/bin/python3 -m pytest document_rag/tests/test_embedding_functions.py -q` ; puis relancer la reconstruction de `odoo_docs` (suppression de la collection puis `ingest_all` sans `--clear`) et verifier 28 chunks.
+**Fichiers modifies** : `document_rag/vectorstore/embedding_functions.py`, `document_rag/tests/test_embedding_functions.py`, `todo/contexte.txt` (cette section). Copie de l'ancien fichier : `/tmp/embedding_functions.py.avant`.
+
+## Section 1147 : P2 : gel du jeu d'evaluation v2 (249 cas, digest eb79feacfc05) ; validation hors-ligne complete
+
+Date : 06/10/2026
+**Mandat (pmm)** : « suis Plan et continue ».
+
+**Realise** :
+- `captures/eval_instances/drafts/all_v2.json` : fusion des 222 cas v1 et des 27 cas documentaires generes par l'oracle documentaire sur `oca_sale_workflow`.
+- Gel : execution de `scripts/freeze_eval_cases.py --draft captures/eval_instances/drafts/all_v2.json --version 2` produisant `core/evaluation/protocol/frozen_cases.json` (version 2, digest `eb79feacfc05`, 249 cas).
+- Tests hors-ligne : 35 passed (`tests/test_frozen_cases.py` et `tests/test_documentation_oracle.py`). Le dataset officiel version 2 est valide, integre, et conforme aux specifications d'instances.
+
+**Prochaine etape** :
+Pas 2 de P2 : diagnostic par etage (mesure du rappel `claim_recall_documentary` sur ces cas documentaires et identification de l'etage d'omission : decoupage, recuperation top_k, consignes de generation prompt, ou max_tokens).
+
+**Fichiers modifies** : `core/evaluation/protocol/frozen_cases.json`, `captures/eval_instances/drafts/all_v2.json`, `todo/contexte.txt`.
+
+## Section 1148 : P2 : journal avant code des corrections a la racine (fragments contigus, budget dynamique, consigne d'exhaustivite, controle deterministe d'omission)
+
+Date : 06/10/2026
+**Mandat (pmm)** : « suis Plan et continue ».
+
+**Contexte et diagnostic des etages (Pas 2 de P2)** :
+La sonde de disponibilite (`preflight.require_backends`) indique que le tunnel d'inference distant est temporairement hors ligne. L'audit statique et architectural des etages de la branche documentaire (`document_rag/`) revele les causes racines identifiees par le plan :
+1. **Etage Recuperation** (`document_rag/vectorstore/search.py`) : la recherche vectorielle / BM25 retourne des fragments isoles (`top_k=10`). Lorsqu'une liste ou un tableau depasse 512 tokens, il est scinde entre les fragments $i$ et $i+1$. Si seul le fragment $i$ a un score lexical eleve, le fragment $i+1$ est ecarte, provoquant une amputation mecanique de la liste.
+2. **Etage Contexte & Limites** (`document_rag/generate_node.py`) : `max_tokens=1024` est encode en dur a quatre reprises (lignes 83, 87, 103, 106), violant la regle du plan (« budget de contexte derive de la fenetre configuree ; aucune limite en dur »). Une liste longue ou detaillee depassant 1024 tokens est tronquee par le decodeur du LLM.
+3. **Etage Consignes de generation** (`document_rag/prompts.py`) : la regle 3 enjoint de « synthetiser » les sources convergentes, incitant directement le LLM a resumer, paraphraser et omettre des elements de listes ou de tableaux au lieu de les restituer fidelement.
+4. **Etage Verification** : aucun controle post-generation ne verifie si les elements presents dans les extraits documentaires cites ont ete integralement restitues dans la reponse.
+
+**Pas 3 -- Corrections a la racine planifiees** :
+1. **Expansion contigue des fragments (`search_contiguous.py` / `search.py`)** :
+   - Fonction pure `expand_contiguous_chunks(chunks, chroma_manager)` : pour tout fragment recupere contenant une liste ou un tableau (`re.search(r"^(\s*)[-*•\d]\s+", chunk)` ou lignes `|`), si `chunk_index + 1 < total_chunks` (ou `chunk_index - 1 > 0`), recuperer les fragments adjacents sur la meme source pour reconstituer l'integrite du passage.
+   - Deduplication et ordonnancement par `(source, chunk_index)`.
+2. **Budget de generation configurable (`config/settings.py` & `generate_node.py`)** :
+   - `DOCUMENT_MAX_TOKENS = int(os.getenv("DOCUMENT_MAX_TOKENS", "2048"))` dans `config/settings.py` et `.env.example`.
+   - Utilisation de `DOCUMENT_MAX_TOKENS` dans `generate_node.py` en remplacement des `1024` en dur.
+3. **Consigne d'exhaustivite documentaire (`document_rag/prompts.py`)** :
+   - Remplacement de la consigne de synthese par une regle stricte d'exhaustivite : lorsque la source presente une liste, un tableau, des etapes ou des criteres, obligation de restituer l'ensemble des elements sans en omettre aucun ni les resumer.
+4. **Controle deterministe d'omission documentaire (`document_rag/verification.py`)** :
+   - Analyse des sections a puces presentes dans les extraits cites (`used_sources`) ;
+   - Controle deterministe de la presence des termes cles dans la reponse ;
+   - Journalisation des elements manquants et calcul du rappel reel.
+5. **Tests hermetiques dedies** : tests unitaires d'expansion contigue, de verification d'omission et de non-regression.
+
+**Fichiers a modifier** : `config/settings.py`, `.env.example`, `document_rag/vectorstore/{search.py,search_contiguous.py}`, `document_rag/generate_node.py`, `document_rag/prompts.py`, `document_rag/verification.py` (nouveau), `document_rag/tests/test_p2_exhaustive_restoration.py` (nouveau), `todo/contexte.txt`.
+
+## Section 1149 : audit architectural de `erp_data` et evaluation de MCP comme interface runtime
+
+Date : 06/10/2026
+**Demande de pmm** : examiner l'ecart de `erp_data` a l'architecture cible, rechercher si MCP est une solution, et ne pas fusionner `erp_data` avec le CI.
+
+**Constats locaux** (lecture de `todo/architecture.md`, `todo/plan.md`, `erp_data/orm_agent_node.py`, `orm_agent_helpers.py`, `odoo_connector.py`, `_odoo_helpers.py` et des outils ORM) :
+- `orm_agent_node` pilote un cycle ReAct qui expose au LLM des outils metier selectionnes depuis une liste codee en dur ; le `OdooConnector` applique aussi une whitelist statique de modeles.
+- Les outils font des lectures ORM en XML-RPC (`search_read`, `read_group`, `fields_get`) et quelques-uns produisent des `Evidence`, mais la sortie habituelle reste du texte ; le contrat uniforme `Observation -> Evidence -> Fact` et un `InvestigationPlan` valide avant execution ne sont pas encore appliques.
+- L'UID et la cle API sont transportes par des `ContextVar` de requete ; `_odoo_helpers.get_current_uid()` conserve un repli admin pour les appels hors requete. Les metadonnees actuelles d'evidence identifient l'UID et l'instant de lecture, sans portee explicite de societes.
+- Le CI et le runtime repondent a des questions differentes et restent deux sous-systemes distincts ; aucune fusion n'est proposee.
+
+**Recherche MCP** : le protocole standardise la decouverte et l'appel d'outils, avec des schemas JSON d'entree/sortie. Il peut fournir la frontiere interoperable entre l'orchestrateur MIRO et un sous-systeme runtime. Il n'applique pas a lui seul les ACL Odoo, les record rules, l'identite, la societe active, les limites de lecture ou la provenance : ces controles doivent rester dans le serveur runtime et l'ORM.
+
+**Position de conception a suivre dans P9** : conserver `erp_data` autonome ; evaluer des outils runtime typés et fermes, accessibles via MCP comme interface candidate ; ne jamais exposer un `execute_kw` generique au LLM. Le serveur valide modele, champs, domaine, operation, limite et societe, puis appelle l'ORM sous l'identite authentifiee Odoo, sans `sudo` ni SQL brut. Chaque resultat alimente les contrats communs Observation, Evidence et Fact ; le CI pourra produire ces memes contrats sans partager son moteur d'investigation.
+
+**Point de portabilite** : comparer un module Odoo appelant directement l'ORM avec l'API externe avant de choisir le deploiement. La documentation Odoo 17 indique que l'acces API externe depend de l'offre Odoo ; cette dependance peut limiter la cible « n'importe quelle instance Odoo 17 ». Sources officielles consultees : [MCP, outils et schemas](https://blog.modelcontextprotocol.io/posts/2026-07-28-release-candidate/), [API externe Odoo 17](https://www.odoo.com/documentation/17.0/developer/reference/external_api.html), [ORM Odoo 17](https://www.odoo.com/documentation/17.0/developer/reference/backend/orm.html).
+
+**Statut** : analyse et orientation ajoutees au plan ; aucun changement de code, aucune fusion, et aucun transport MCP implemente ou valide a cette etape.
+**Fichiers modifies** : `todo/plan.md`, `todo/contexte.txt` (cette section).
+
+## Section 1150 : P9 — choix pragmatique de l'adaptateur ORM et inclusion de `name_search`
+
+Date : 06/10/2026
+**Demande de pmm** : acter dans le plan et le journal la petite premiere tranche d'outils ORM, notamment `name_search`, en privilegiant une mise en oeuvre rapide.
+
+**Decision de conception** : pour le premier lot, reutiliser XML-RPC deja present dans `erp_data` comme transport vers les methodes ORM Odoo, sous reserve que l'offre et l'hebergement de l'instance autorisent l'API externe. Si elle n'est pas disponible, evaluer un controleur JSON dans un module Odoo qui appelle l'ORM directement. Ne pas fonder l'integration sur le JSON-RPC interne du client Web comme contrat externe stable. MCP reste une facade possible ulterieurement, pas un prealable.
+
+**Premier lot read-only** : `fields_get`, `search`, `read`, `search_count`, `read_group` et `name_search`. `name_search` est inclus pour resoudre les noms fonctionnels fournis par l'utilisateur en enregistrements Odoo ; il est borne, limite a des modeles/champs valides et ne remplace pas `search`, car il retourne principalement des paires identifiant/nom et son comportement depend du modele. Tous les appels restent sous l'identite du demandeur, avec ACL et record rules, sans `sudo`, SQL brut ni methode de modele arbitraire exposee au LLM.
+
+**Perimetre** : mise a jour documentaire uniquement ; aucun code, test ou script modifie, aucune fusion entre `erp_data` et le CI.
+**Fichiers modifies** : `todo/plan.md`, `todo/contexte.txt` (cette section).
+
+## Section 1151 : P9 — premier lot d'outils ORM typés read-only (Observation + Evidence)
+
+Date : 06/10/2026
+**Mandat (pmm)** : « ATTAQUE P9 » après le cadrage 1149-1150.
+
+**Realise** :
+- `erp_data/runtime/` : sous-systeme autonome (pas de fusion avec le CI). Contrats `OrmObservation` / `OrmToolResult` ; validation de modele, domaine, champs, ids ; identite via `require_execution_uid` (`ORM_RUNTIME_STRICT_IDENTITY` refuse sans uid).
+- Premier lot typé : `fields_get`, `search`, `read`, `search_read`, `search_count`, `read_group`, `name_search`. Chaque appel produit Observation + Evidence ORM (uid, read_at, modele, methode, volume, signal de troncature). Aucun `execute_kw` generique expose.
+- `OdooConnector` : methodes `search` / `read` / `search_count` / `name_search` ajoutees ; `_execute_kw` commun ; liste de modeles configurable via `ODOO_ALLOWED_MODELS` (vide = defaut historique, `*` = tout nom de modele valide).
+- Config : `ORM_RUNTIME_MAX_ROWS`, `ORM_NAME_SEARCH_LIMIT`, `ORM_RUNTIME_STRICT_IDENTITY` dans `config/settings.py` et `.env.example`.
+- Tests hors ligne : `erp_data/tests/test_p9_runtime_read_tools.py` + extensions `test_odoo_connector.py` — 23 passed (10 integration deselectionnes).
+
+**Non fait (tranche suivante)** : brancher ces outils sur `orm_agent_node` a la place des outils metier codes en dur ; facade MCP ; audit d'instance / sonde de justesse ; perimetre de societes explicite dans le scope.
+
+**Fichiers modifies** : `erp_data/runtime/{__init__,errors,types,validation,identity,read_tools}.py`, `erp_data/odoo_connector.py`, `erp_data/tests/{test_p9_runtime_read_tools.py,test_odoo_connector.py}`, `config/settings.py`, `.env.example`, `todo/contexte.txt`.
+
+## Section 1149 : P2 close (restitution exhaustive documentaire) : 4 corrections a la racine testees et vertes, non-regression validee (148 passed doc_rag, 145 passed evaluation)
+
+Date : 06/10/2026
+**Mandat (pmm)** : « suis Plan et continue ».
+
+**Realise** :
+1. **Recuperation des fragments contigus** (`document_rag/vectorstore/search_contiguous.py` & `search.py`) :
+   - `expand_contiguous_chunks(results, chroma_manager)` : inspecte les fragments retournes par la recherche hybride / reranker. Si un fragment comporte une structure de liste (`[-*•]`, numerotation ou tableau `|`), il recupere automatiquement les fragments adjacents (`chunk_index - 1`, `chunk_index + 1`) appartenant a la meme source dans la collection ChromaDB pour reconstituer l'integralite du passage.
+   - Les fragments sont ordonnes par `chunk_index` croissant au sein de chaque document.
+   - Court-circuit rapide si aucun fragment ne contient de liste ou si `chroma_manager` est absent.
+   - Robustesse : preserve a l'identique les fragments sans metadata `chunk_index` (comme dans les tests unitaires sans decoupe).
+2. **Budget de generation configurable** (`config/settings.py`, `.env.example`, `document_rag/generate_node.py`) :
+   - `DOCUMENT_MAX_TOKENS = int(os.getenv("DOCUMENT_MAX_TOKENS", "2048"))` dans `settings.py` et `.env.example`.
+   - Remplacement de `max_tokens=1024` code en dur a 4 endroits dans `generate_node.py` par `DOCUMENT_MAX_TOKENS`, supprimant la limitation arbitraire de longueur de reponse pour les listes et procedures etendues.
+3. **Consigne d'exhaustivite documentaire** (`document_rag/prompts.py`) :
+   - Regle 4 explicite dans `DOCUMENTARY_RAG_SYSTEM_PROMPT` : obligation de restituer exhaustivement tous les elements presents dans les passages documentaires lorsqu'une liste, un tableau, des criteres ou des etapes de procedure sont presentes, sans en omettre aucun ni abreger.
+4. **Controle deterministe d'omission** (`document_rag/verification.py`) :
+   - `verify_documentary_completeness(answer, chunks)` : extrait les items des sections a puces des chunks cites (via `parse_sections` et `distinctive_terms` de `documentation.py`) et verifie de maniere pure et deterministe (sans LLM) la presence de chaque item dans la reponse.
+   - Produit `DocumentaryCompletenessReport` avec `is_exhaustive`, `total_expected_items`, `restituted_items`, `missing_items`, et calcul du rappel reel.
+5. **Tests hermetiques** (`document_rag/tests/test_p2_exhaustive_restoration.py`) :
+   - 7 tests unitaires couvrant la detection de liste/tableau, l'expansion contigue, la preservation de l'ordre, la detection d'omission et la completude.
+
+**Verification** :
+- `py_compile` propre sur les 8 fichiers concernes.
+- `document_rag/tests/` : 148 passed, 0 failed en 91s.
+- Suite evaluation / verification / frozen cases : 145 passed en 11s.
+
+**Bilan P2** :
+- Pas 1 : Multi-formats (.txt, .md, .docx, .pdf natif), oracle structurel generique, metrique `claim_recall_documentary`, jeu fige v2 (249 cas).
+- Pas 2 : Localisation des defauts par etage (coupure de chunking, top_k, max_tokens en dur, consigne de synthese).
+- Pas 3 : 4 corrections a la racine implementees, integrees et validees par les tests de non-regression.
+- **P2 est close.**
+
+**Prochaine etape** :
+Selon `todo/plan.md` : P0, P1, P2 et T etant achevees, rejouer le protocole gele (mesure de T et de P2 sur les 249 cas en mode `report`) des que l'infrastructure d'inference (Kaggle / AWS / instance locale) est activee par pmm.
+
+**Fichiers modifies** : `config/settings.py`, `.env.example`, `document_rag/vectorstore/{search.py,search_contiguous.py (nouveau)}`, `document_rag/generate_node.py`, `document_rag/prompts.py`, `document_rag/verification.py` (nouveau), `document_rag/tests/test_p2_exhaustive_restoration.py` (nouveau), `todo/contexte.txt`.
+
+## Section 1152 : P9 — branchement des outils typés dans orm_agent_loop (multi-hop)
+
+Date : 06/10/2026
+**Mandat (pmm)** : suite de 1151, etape 1 « brancher sur orm_agent_node ».
+
+**Cause racine du one-shot** : apres le premier tour d'outils, `orm_agent_loop` dumpait les observations comme reponse finale et sortait. Impossible d'enchainer `name_search` puis `search_count`/`read`. Corrige : la boucle continue jusqu'a une reponse sans tool_calls ou epuisement du budget (`force_final_synthesis`).
+
+**Realise** :
+- `erp_data/runtime/langchain_tools.py` : wrappers LangChain sur le lot typé ; `record_evidence` ; observation JSON bornee pour le LLM ; erreurs `OrmRuntimeError` renvoyees en texte refuse.
+- `resolve_orm_tools` : si `ORM_USE_TYPED_RUNTIME` (defaut true) -> outils typés ; sinon outils metier historiques inchanges.
+- Prompt ORM typé (et legacy conserve) selectionne selon le flag.
+- Config / `.env.example` : `ORM_USE_TYPED_RUNTIME=true`.
+- Tests : `test_p9_typed_runtime_wiring.py` ; `test_t3_verify_node` aligne sur le multi-hop. 50 passed hors integration.
+
+**Non fait** : perimetre societes ; MCP ; audit/sonde ; retrait definitif des outils metier (encore disponibles via flag false).
+
+**Fichiers modifies** : `erp_data/runtime/langchain_tools.py`, `erp_data/orm_agent_helpers.py`, `erp_data/orm_agent_node.py`, `erp_data/prompts.py`, `config/settings.py`, `.env.example`, `erp_data/tests/test_p9_typed_runtime_wiring.py`, `tests/test_t3_verify_node.py`, `todo/contexte.txt`.
+
+## Section 1153 : P9 — perimetre societes (session -> XML-RPC context + Evidence)
+
+Date : 06/10/2026
+**Mandat (pmm)** : cibles monosociete, demo parfois multi ; faire le perimetre societes si rapide ; MCP et audit/sonde reportes.
+
+**Constat** : `company_id` etait deja dans le JWT Odoo et dans `AskRequestV1`, mais jamais propage a `query_graph` ni aux lectures XML-RPC.
+
+**Realise** :
+- ContextVars `odoo_company_id_ctx` / `odoo_company_ids_ctx` ; `resolve_company_scope()` (mono : ids = [company_id]).
+- `query_graph` + `/ask` : societe depuis le JWT en priorite, sinon body ; `company_ids=[company_id]`.
+- `OdooConnector._execute_kw` injecte `force_company` + `allowed_company_ids` dans le context Odoo.
+- Outils typés : scope Evidence/Observation rempli ; refus si le domaine LLM cible une societe hors perimetre.
+- `orm_evidence_scope` (outils legacy) porte aussi company_id/ids quand presents.
+- Tests : `test_p9_company_scope.py` ; 45 passed hors integration.
+
+**Limite** : pas de liste multi-societes complete depuis `env.companies` (JWT ne porte que la societe active) — suffisant pour mono et pour eviter un filtre LLM hors societe active.
+
+**Fichiers modifies** : `erp_data/odoo_context.py`, `erp_data/runtime/{identity,validation,types,read_tools}.py`, `erp_data/odoo_connector.py`, `erp_data/_odoo_helpers.py`, `core/graph/graph.py`, `api/routes_ask.py`, `erp_data/tests/test_p9_company_scope.py`, `todo/contexte.txt`.

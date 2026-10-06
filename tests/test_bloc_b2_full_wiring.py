@@ -343,8 +343,8 @@ class TestGetOrderCountWrapperRecordsEvidence:
         from erp_data.tools.sales import get_order_count
 
         start_evidence_collection()
-        with patch("erp_data._odoo_helpers.connector.read_group") as mock_read_group:
-            mock_read_group.return_value = [{"__count": 3}]
+        with patch("erp_data._odoo_helpers.connector.search_count") as mock_search_count:
+            mock_search_count.return_value = 3
             result = _with_uid(lambda: get_order_count.invoke(
                 {"client": "", "periode": "", "statut": "toutes"}
             ))

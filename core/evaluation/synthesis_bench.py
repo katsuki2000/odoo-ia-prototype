@@ -15,7 +15,7 @@ from config.settings import LOCAL_LLM_MODEL
 from core.evaluation.synthesis_metrics import SynthesisScore, score_answer
 from core.llm.llm_client import get_chat_llm, invoke_with_rate_limit
 
-KNOWN_PROVIDERS = {"groq", "ollama", "local", "vllm", "openai_compatible", "lmstudio", "llamacpp", "openrouter"}
+KNOWN_PROVIDERS = {"ollama", "local", "vllm", "openai_compatible", "lmstudio", "llamacpp"}
 NO_THINK_MARKER = "/no_think"
 SYNTHESIS_MAX_TOKENS = 4096
 SYNTHESIS_MODEL_KWARGS = {"frequency_penalty": 0.3, "presence_penalty": 0.2}

@@ -82,6 +82,7 @@ class CaseScore:
     wrong_tool: bool
     leaked: bool
     evidence_completeness: Optional[float]
+    claim_recall: Optional[float]
 
 
 def normalize(text: str) -> str:
@@ -114,6 +115,14 @@ def evidence_completeness(case: FrozenCase, result: CaseResult) -> Optional[floa
     return found / len(case.acceptable_evidence)
 
 
+def claim_recall(case: FrozenCase, result: CaseResult) -> Optional[float]:
+    if "internal_docs" not in case.expected_sources or not case.expected_claims:
+        return None
+    if result.outcome != "answered":
+        return 0.0
+    return sum(claim_matched(claim, result.answer) for claim in case.expected_claims) / len(case.expected_claims)
+
+
 def score_case(case: FrozenCase, result: CaseResult) -> CaseScore:
     answered = result.outcome == "answered"
     return CaseScore(
@@ -125,6 +134,7 @@ def score_case(case: FrozenCase, result: CaseResult) -> CaseScore:
         wrong_tool=bool(set(result.sources_used) - set(case.expected_sources)),
         leaked=answered and TECHNICAL_IDENTIFIER.search(result.answer) is not None,
         evidence_completeness=evidence_completeness(case, result),
+        claim_recall=claim_recall(case, result),
     )
 
 
@@ -155,6 +165,11 @@ def mean_completeness(scores: Sequence[CaseScore]) -> Optional[float]:
     return ratio(sum(values), len(values))
 
 
+def mean_claim_recall(scores: Sequence[CaseScore]) -> Optional[float]:
+    values = [score.claim_recall for score in scores if score.claim_recall is not None]
+    return ratio(sum(values), len(values))
+
+
 def human_acceptance(scores: Sequence[CaseScore], ratings: Optional[Mapping[str, bool]]) -> tuple:
     rated = [ratings[score.case.case_id] for score in scores if ratings and score.case.case_id in ratings]
     return ratio(sum(rated), len(rated)), len(rated)
@@ -179,6 +194,7 @@ def aggregate(scores: Sequence[CaseScore], k: int, ratings: Optional[Mapping[str
         "technical_identifier_leak_rate": ratio(sum(score.leaked for score in answered), len(answered)),
         "resolution_recall_at_k": resolution_recall(scores, k),
         "evidence_completeness": mean_completeness(scores),
+        "claim_recall_documentary": mean_claim_recall(scores),
         "human_business_acceptance_rate": acceptance,
         "human_rated_cases": rated,
     }

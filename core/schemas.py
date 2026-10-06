@@ -10,6 +10,7 @@ from typing import Dict, List, Optional
 from pydantic import BaseModel, ConfigDict, Field
 
 from core.evidence.evidence import Evidence
+from core.verification.claims import VerificationReport
 
 
 # ── Routing ───────────────────────────────────────────────────────────────────
@@ -119,6 +120,14 @@ class AssistantResponse(BaseModel):
             "True when the final answer was produced by the documentary RAG "
             "fallback after the code_intelligence_agent branch ran, so the "
             "CI sufficiency verdict does not describe the answer returned."
+        ),
+    )
+    verification: Optional[VerificationReport] = Field(
+        default=None,
+        description=(
+            "Deterministic claim verification of the final answer (todo/contexte.txt "
+            "section 1121): counts of number, group and method claims and the ones "
+            "no evidence supports. None when the verifier did not run this turn."
         ),
     )
     evidence_dossier: List[Evidence] = Field(

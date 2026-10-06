@@ -6,21 +6,19 @@ from langchain_core.tools import tool
 
 from core.evidence.evidence import Evidence, EvidenceSourceType, make_evidence
 from core.evidence.evidence_collector import record_evidence
-from erp_data._odoo_helpers import (
-    connector, get_current_uid, orm_evidence_scope,
-)
+from erp_data.runtime.read_tools import orm_read_group, orm_search_read
+from erp_data.tools._runtime import runtime_records, runtime_scope
 
 
 def get_product_stock_raw(produit: str) -> Tuple[str, List[Evidence]]:
-    uid = get_current_uid()
-    scope = orm_evidence_scope(uid)
-    domain = [("product_id.name", "ilike", produit)]
-
-    results = connector.read_group(
-        uid=uid, model="stock.quant", domain=domain,
+    stock = orm_read_group(
+        "stock.quant",
+        domain=[("product_id.name", "ilike", produit)],
         fields=["quantity:sum", "reserved_quantity:sum"],
         groupby=["product_id"],
     )
+    scope = runtime_scope(stock)
+    results = runtime_records(stock)
 
     if not results:
         text = f"Le produit '{produit}' n'a pas été trouvé en stock."
@@ -28,7 +26,8 @@ def get_product_stock_raw(produit: str) -> Tuple[str, List[Evidence]]:
             source_type=EvidenceSourceType.ORM,
             claim=f"No stock.quant matches product={produit}",
             source="stock.quant:read_group(quantity:sum,reserved_quantity:sum)",
-            value=None, scope=scope,
+            value=None,
+            scope=scope,
         )
         return text, [evidence]
 
@@ -44,13 +43,15 @@ def get_product_stock_raw(produit: str) -> Tuple[str, List[Evidence]]:
         source_type=EvidenceSourceType.ORM,
         claim=f"Total quantity in stock for product={produit}",
         source="stock.quant:read_group(quantity:sum,reserved_quantity:sum)",
-        value=qty, scope=scope,
+        value=qty,
+        scope=scope,
     )
     evidence_reserved = make_evidence(
         source_type=EvidenceSourceType.ORM,
         claim=f"Reserved quantity in stock for product={produit}",
         source="stock.quant:read_group(quantity:sum,reserved_quantity:sum)",
-        value=reserved, scope=scope,
+        value=reserved,
+        scope=scope,
     )
     return text, [evidence_qty, evidence_reserved]
 
@@ -71,21 +72,23 @@ def get_product_stock(produit: str) -> str:
 
 
 _ORDER_STATUS_MAPPING = {
-    "draft": "Devis", "sent": "Devis envoyé",
+    "draft": "Devis",
+    "sent": "Devis envoyé",
     "sale": "Bon de commande (Confirmé)",
-    "done": "Verrouillé", "cancel": "Annulé",
+    "done": "Verrouillé",
+    "cancel": "Annulé",
 }
 
 
 def get_order_status_raw(reference: str) -> Tuple[str, List[Evidence]]:
-    uid = get_current_uid()
-    scope = orm_evidence_scope(uid)
-    domain = [("name", "=", reference)]
-
-    records = connector.search_read(
-        uid=uid, model="sale.order", domain=domain,
+    orders = orm_search_read(
+        "sale.order",
+        domain=[("name", "=", reference)],
         fields=["state", "amount_total", "partner_id"],
+        limit=1,
     )
+    scope = runtime_scope(orders)
+    records = runtime_records(orders)
 
     if not records:
         text = f"La commande {reference} n'existe pas."
@@ -93,7 +96,8 @@ def get_order_status_raw(reference: str) -> Tuple[str, List[Evidence]]:
             source_type=EvidenceSourceType.ORM,
             claim=f"No sale.order matches name={reference}",
             source="sale.order:search_read(state,partner_id)",
-            value=None, scope=scope,
+            value=None,
+            scope=scope,
         )
         return text, [evidence]
 
@@ -107,13 +111,15 @@ def get_order_status_raw(reference: str) -> Tuple[str, List[Evidence]]:
         source_type=EvidenceSourceType.ORM,
         claim=f"Order state for name={reference}",
         source="sale.order:search_read(state,partner_id)",
-        value=state_raw, scope=scope,
+        value=state_raw,
+        scope=scope,
     )
     evidence_partner = make_evidence(
         source_type=EvidenceSourceType.ORM,
         claim=f"Partner assigned to order name={reference}",
         source="sale.order:search_read(state,partner_id)",
-        value=partner, scope=scope,
+        value=partner,
+        scope=scope,
     )
     return text, [evidence_state, evidence_partner]
 
@@ -134,13 +140,14 @@ def get_order_status(reference: str) -> str:
 
 
 def list_out_of_stock_products_raw() -> Tuple[str, List[Evidence]]:
-    uid = get_current_uid()
-    scope = orm_evidence_scope(uid)
-
-    results = connector.read_group(
-        uid=uid, model="stock.quant", domain=[],
-        fields=["quantity:sum"], groupby=["product_id"],
+    stock = orm_read_group(
+        "stock.quant",
+        domain=[],
+        fields=["quantity:sum"],
+        groupby=["product_id"],
     )
+    scope = runtime_scope(stock)
+    results = runtime_records(stock)
 
     rupture = [
         (r["product_id"][1], r.get("quantity", 0.0))
@@ -154,7 +161,8 @@ def list_out_of_stock_products_raw() -> Tuple[str, List[Evidence]]:
             source_type=EvidenceSourceType.ORM,
             claim="No stock.quant product has quantity<=0",
             source="stock.quant:read_group(quantity:sum)",
-            value=0, scope=scope,
+            value=0,
+            scope=scope,
         )
         return text, [evidence]
 
@@ -168,7 +176,8 @@ def list_out_of_stock_products_raw() -> Tuple[str, List[Evidence]]:
             source_type=EvidenceSourceType.ORM,
             claim=f"Product {name} is out of stock (quantity<=0)",
             source="stock.quant:read_group(quantity:sum)",
-            value=qty, scope=scope,
+            value=qty,
+            scope=scope,
         )
         for name, qty in displayed
     ]

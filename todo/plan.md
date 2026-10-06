@@ -1,8 +1,6 @@
 # Plan d'execution
 
-Objectif : atteindre `architecture_cible.md` (critère : au moins 80 % de reponses correctes sur des
-instances Odoo 17 et des questions tenues hors calibrage, abstentions comptees comme erreurs).
-Chaque phase est mandatee explicitement avant implementation. Ce document change rarement.
+Objectif : atteindre `architecture.md` (critère : au moins 80 % de reponses correctes sur des instances Odoo 17 et des questions tenues hors calibrage, abstentions comptees comme erreurs).
 
 Question à se poser à chaque bifurcation : l'IA pourra-t-elle repondre correctement sur n'importe
 quelle instance Odoo 17 ?
@@ -11,9 +9,7 @@ quelle instance Odoo 17 ?
 
 P0 -> P1 -> P2 -> T -> P3 -> P4 -> P5 -> P6 -> P7 -> P8 -> P9 -> P10
 
-Apres T, P3 a P7 ne sont lancees que si la mesure de T montre des echecs precis qu'elles corrigeraient,
-phase par phase. P4 et P5 sont independantes entre elles après P3. P8 etend le verificateur de T ; si P7 est
-retenue, il s'appuie sur le registre. P9 suppose le contrat d'identite de P3. P10 n'utilise aucun artefact
+Apres T, P3 a P7 ne sont lancées que si la mesure de T montre des échecs précis qu'elles corrigeraient, phase par phase. P4 et P5 sont independantes entre elles après P3. P8 etend le verificateur de T ; si P7 est retenue, il s'appuie sur le registre. P9 suppose le contrat d'identite de P3. P10 n'utilise aucun artefact
 de calibrage.
 
 ## P0 -- Socle reproductible
@@ -27,7 +23,7 @@ de calibrage.
 
 Sortie : suite verte reproductible sur une machine neuve, une seule source de configuration.
 
-## P1 -- Protocole de mesure gele
+## P1 -- Protocole de mesure gelé
 
 
 - Cas d'evaluation figés : hash d'instance, utilisateur, société, langue, question, intention et objets
@@ -60,6 +56,7 @@ Sortie : protocole figé, mesure de depart etablie, harnais rejouable en une com
 
 Sortie : toute reponse documentaire restitue l'ensemble des elements presents dans les passages recuperes,
 mesure sur les cas figes.
+
 
 ## T -- Tranche verticale minimale
 
@@ -151,6 +148,28 @@ a 0) conformes aux seuils fixes en P1 ; correctifs specifiques retires sans regr
 
 ## P9 -- Donnees, runtime et audit d'instance
 
+- Reprendre `erp_data` comme sous-systeme runtime autonome, sans le fusionner avec le CI. L'agent ReAct et
+  les outils metier codes en dur deviennent progressivement un plan d'investigation borne et des outils
+  typés, decouverts selon le schema et les droits de l'instance.
+- Evaluer MCP comme interface interoperable pour ces outils : schemas d'entree/sortie structures,
+  decouverte et appels standardises. MCP est une couche de transport et de contrat ; il ne fournit pas
+  l'autorisation Odoo, l'identite du demandeur, les ACL, les regles d'enregistrement, le perimetre de
+  societes, les budgets ni la provenance des faits.
+- Le serveur runtime doit appeler l'ORM sous l'identite authentifiee par Odoo, sans `sudo` ni SQL brut.
+  Le LLM ne recoit aucun outil generique `execute_kw` ; le moteur valide chaque modele, champ, domaine,
+  operation, limite et societe avant execution.
+- Pour limiter le temps de mise en oeuvre, conserver d'abord l'adaptateur XML-RPC existant vers l'ORM ;
+  verifier la disponibilite de l'API externe selon l'offre et le mode d'hebergement. Un module Odoo avec
+  controleur JSON et appels ORM directs reste l'alternative si XML-RPC n'est pas disponible. Ne pas
+  prendre le JSON-RPC interne du client Web pour un contrat externe stable. MCP pourra s'ajouter ensuite
+  comme facade interoperable, sans etre un prerequis.
+- Premier lot d'outils ORM read-only : `fields_get`, `search`, `read`, `search_count`, `read_group` et
+  `name_search`. Ce dernier sert a resoudre les noms metier en enregistrements ; borner ses resultats,
+  valider le modele et les champs, et ne pas le traiter comme un remplacement de `search` (`name_search`
+  retourne principalement des paires identifiant/nom et son resultat depend du modele).
+- Chaque appel produit une Observation structuree puis des Evidence et Facts avec identite, societe,
+  horodatage, source, volume et signal de troncature. Les questions de donnees consomment ce registre
+  commun ; le CI reste un moteur separe qui pourra emettre les memes contrats.
 - Contrat de lecture : ORM sous l'identité du demandeur, perimètre de societés explicite, ACL et règles
   appliquées, lecture seule, plafond de lignes, budgets de temps et de contexte, journalisation de chaque
   requete, refus declaré hors perimetre. Outils typés, jamais de SQL produit par le LLM.
@@ -160,18 +179,15 @@ a 0) conformes aux seuils fixes en P1 ; correctifs specifiques retires sans regr
   manquantes, domaines sans outil de preuve, termes ambigus ; capacités classees `couverte`, `ambigue`,
   `preuve_manquante`, `non_supportée`, alimentant un backlog.
 - Sonde de justesse d'instance : questions generées automatiquement à partir du graphe de l'instance, dont la
-  reponse attendue se deduit du graphe lui-meme (qui peut approuver une action, quelle regle s'applique, ou une
-  regle est definie) ; resultat joint au rapport d'audit comme premier indicateur de justesse, sans remplacer
-  l'evaluation avec relecteurs de P1 et P10. Aucune question de la sonde n'est utilisee pour calibrer.
+  reponse attendue se deduit du graphe lui-meme (qui peut approuver une action, quelle règle s'applique, ou une règle est definie) ; resultat joint au rapport d'audit comme premier indicateur de justesse, sans remplacer
+  l'evaluation avec relecteurs de P1 et P10. Aucune question de la sonde n'est utilisée pour calibrer.
 
 Sortie : questions de données couvertes ou declarées hors perimetre ; rapport d'audit et résultat de la sonde de justesse cohérents avec l'empreinte, produits sur une instance neuve par une seule commande.
 
 ## P10 -- Preuve de généralisation
 
-- Plusieurs snapshots independants (versions, langues, modules custom, configurations differents), dont des
-  graphes OCA distincts, jamais utilisés pour calibrer.
+- Plusieurs snapshots independants (versions, langues, modules custom, configurations differents), dont des graphes OCA distincts, jamais utilisés pour calibrer.
 - Rapport : métriques de P1, intervalle de confiance regroupé par instance, ventilation par instance, module,
   langue et famille, cas d'abstention. La conclusion porte sur les N instances echantillonnees.
 
 Sortie : `accuracy_all_questions >= 80 %` hors calibrage, borne basse à 95 % atteignant 80 %.
-

@@ -71,7 +71,7 @@ def test_c1_4_hop_counter_limit():
 def test_c1_6_end_to_end_governance_workflow_inheritance():
     """Test C.1.6: End-to-end integration queries for governance, workflow, and inheritance.
 
-    Makes real Groq calls (3 full code_intelligence_agent() runs, each up to
+    Makes real LLM calls (3 full code_intelligence_agent() runs, each up to
     CI_MAX_HOPS hops + synthesis) -- costs quota and can run long under
     rate-limit backoff, hence @pytest.mark.integration (todo/contexte.txt
     section 845: found unmarked despite its own docstring already saying

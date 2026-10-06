@@ -266,7 +266,7 @@ def run_react_loop(
                     tool_llm_box[0], messages, rebuild_llm=rebuild_tool_llm,
                 )
                 ctx.llm_call_count += 1  # tool-selection call
-                ctx.groq_wait += wait
+                ctx.llm_wait += wait
             except Exception as e:
                 ctx.llm_call_count += 1  # attempt still counts against the LLM-call budget
                 logger.error("LLM tool selection failed: %s", e)
@@ -314,7 +314,7 @@ def run_react_loop(
                         rebuild_llm=_rebuild_plain_llm,
                     )
                     ctx.llm_call_count += 1  # synthesis call
-                    ctx.groq_wait += synth_wait
+                    ctx.llm_wait += synth_wait
                     final_answer = final_resp.content
                     ctx.synthesis_time = time.perf_counter() - t_synth
                     if _detect_any_degenerate_repetition(final_answer):
@@ -343,7 +343,7 @@ def run_react_loop(
                                 rebuild_llm=_rebuild_plain_llm,
                             )
                             ctx.llm_call_count += 1  # anti-repetition retry call
-                            ctx.groq_wait += retry_wait
+                            ctx.llm_wait += retry_wait
                             if not _detect_any_degenerate_repetition(retry_resp.content):
                                 final_answer = retry_resp.content
                             else:
@@ -416,7 +416,7 @@ def run_react_loop(
                                     rebuild_llm=_rebuild_plain_llm,
                                 )
                                 ctx.llm_call_count += 1  # extension-coverage retry call
-                                ctx.groq_wait += _coverage_wait
+                                ctx.llm_wait += _coverage_wait
                                 if not _answer_lacks_extension_coverage(
                                     _coverage_resp.content, _extended_models
                                 ):

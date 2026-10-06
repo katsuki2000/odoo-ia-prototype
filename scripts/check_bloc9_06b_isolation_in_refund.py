@@ -7,7 +7,7 @@ check_bloc9_06_automation_traps_e2e.py's check_e2e_full_pipeline() failed
 on question "Est-ce que tous les avoirs fournisseurs passent par les
 memes regles d'approbation ?" (groups=[account.group_account_manager]) --
 `in_refund` missing from the synthesized answer, correlated with a 429
-Groq rate-limit hit during interpret_server_action_with_llm() right
+Inference rate-limit hit during interpret_server_action_with_llm() right
 before that run.
 
 This script re-runs ONLY that one question, through query_graph()
@@ -15,7 +15,7 @@ This script re-runs ONLY that one question, through query_graph()
 distinguish:
   - a real synthesis regression (in_refund missing repeatedly,
     independent of rate-limit events) from
-  - a one-off degradation artifact correlated with Groq 429/key rotation
+  - a one-off degradation artifact correlated with rate limiting
     (suspect-flaky, same class as module 08a).
 
 No conclusion is drawn here -- just repeated raw evidence to paste back.
@@ -93,7 +93,7 @@ def main():
     elif ok_count == 0:
         print("[RESULT] Missing in ALL isolation reruns -- likely a real synthesis regression, not flakiness.")
     else:
-        print("[RESULT] Inconsistent across reruns -- flaky, needs further investigation (Groq key rotation correlation?).")
+        print("[RESULT] Inconsistent across reruns -- flaky, needs further investigation (rate-limit correlation?).")
 
 
 if __name__ == "__main__":

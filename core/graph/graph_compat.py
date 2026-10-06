@@ -5,8 +5,6 @@ Backward-compatible re-exports for legacy tests and external callers that
 historically imported schemas, guards, helpers, and agents from core.graph.graph.
 """
 
-from langchain_groq import ChatGroq
-
 from core.schemas import (
     AssistantResponse,
     SourceReference,
@@ -26,9 +24,9 @@ from core.llm.llm_client import (
     _TOOL_MSG_HARD_CAP,
     _TOOL_USE_FAILED_RE,
     _FAILED_GEN_CALL_RE,
-    _llm_call_lock as _groq_call_lock,
-    _last_llm_call_time as _last_groq_call_time,
-    MIN_LLM_CALL_INTERVAL as MIN_GROQ_CALL_INTERVAL,
+    _llm_call_lock,
+    _last_llm_call_time,
+    MIN_LLM_CALL_INTERVAL,
 )
 
 from core.output import (

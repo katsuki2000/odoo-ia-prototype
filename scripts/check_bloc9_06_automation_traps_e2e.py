@@ -68,7 +68,7 @@ QUESTIONS = [
         ),
         "user_groups": "ACCOUNT_MANAGER",
         # With elevated access, the bypass mechanism is unredacted — no
-        # gating footer is appended, so "sudo" only appears if the Groq
+        # gating footer is appended, so "sudo" only appears if the model
         # 8B LLM happens to include it in its paraphrase (not guaranteed,
         # confirmed by multiple runs). `in_refund` IS guaranteed by the
         # deterministic backfill. sudo() detail is separately validated

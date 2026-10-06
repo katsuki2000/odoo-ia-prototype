@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import re
 from pathlib import Path
 from typing import Any, Optional
 
@@ -32,6 +33,33 @@ from document_rag.ingestion.scan_root import compute_source
 from document_rag.ingestion.pdf_ocr import extract_text_via_ocr, assess_ocr_quality
 
 logger = logging.getLogger(__name__)
+
+PAGE_MARKER = re.compile(r"^--- Page \d+(?: \(OCR\))? ---\n", re.MULTILINE)
+
+
+def extract_pages_text(reader: Any) -> str:
+    """Return the native text of every page of an open PDF, each page preceded by a marker."""
+    text_parts = []
+    for page_num, page in enumerate(reader.pages):
+        try:
+            text = page.extract_text()
+            if text:
+                text_parts.append(f"--- Page {page_num + 1} ---\n{text}")
+        except Exception as e:
+            logger.warning("Error extracting text from page %d: %s", page_num + 1, e)
+    return "\n\n".join(text_parts)
+
+
+def extract_native_text(pdf_path: str | Path) -> str:
+    """Return the text a PDF carries natively, as the ingestion indexes it, without OCR."""
+    if not PdfReader:
+        raise ImportError("pypdf is required for PDF loading")
+    return extract_pages_text(PdfReader(str(pdf_path)))
+
+
+def strip_page_markers(text: str) -> str:
+    """Remove the page markers added at extraction time."""
+    return PAGE_MARKER.sub("", text)
 
 
 class PDFLoader:
@@ -130,15 +158,7 @@ class PDFLoader:
         }
 
     def _extract_text_from_pdf(self, reader: Any) -> str:
-        text_parts = []
-        for page_num, page in enumerate(reader.pages):
-            try:
-                text = page.extract_text()
-                if text:
-                    text_parts.append(f"--- Page {page_num + 1} ---\n{text}")
-            except Exception as e:
-                logger.warning("Error extracting text from page %d: %s", page_num + 1, e)
-        return "\n\n".join(text_parts)
+        return extract_pages_text(reader)
 
     def _extract_text_via_ocr(self, pdf_path: Path) -> str:
         return extract_text_via_ocr(pdf_path)

@@ -14,7 +14,7 @@ a golden-master SPEC of the intended conflict-resolution policy, not a
 recording of whatever the LLM classifier currently happens to produce.
 
 todo/contexte.txt section 411: Bloc P1 Tranche 2 (section 394+) wired
-route() through resolve_question_intent(), which tries the real Groq LLM
+route() through resolve_question_intent(), which tries the configured LLM
 classifier FIRST and only falls back to classify_question_intent() on
 failure -- without this forced fallback, every route() call here silently
 started making live, non-deterministic, ~3.7s-per-call network requests,

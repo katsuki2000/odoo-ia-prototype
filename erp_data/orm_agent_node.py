@@ -21,7 +21,7 @@ from core.llm.llm_client import invoke_with_rate_limit as _invoke_with_rate_limi
 from core.session.reasoning_trace_logger import ReasoningTraceLogger, new_trace_id
 
 from erp_data.orm_agent_helpers import (
-    _build_groq_llm,
+    _build_llm,
     resolve_orm_tools,
     recover_malformed_tool_call,
     execute_tool_call,
@@ -57,11 +57,11 @@ def orm_agent_loop(state: RAGState) -> dict:
     skills = state.get("skills", {})
     all_tools = resolve_orm_tools(skills)
 
-    llm = _build_groq_llm(temperature=0.0, max_retries=0)
+    llm = _build_llm(temperature=0.0, max_retries=0)
     _tool_llm_box = [llm.bind_tools(all_tools)]
 
     def _rebuild_tool_llm():
-        fresh = _build_groq_llm(temperature=0.0, max_retries=0)
+        fresh = _build_llm(temperature=0.0, max_retries=0)
         _tool_llm_box[0] = fresh.bind_tools(all_tools)
         return _tool_llm_box[0]
 
@@ -73,16 +73,6 @@ def orm_agent_loop(state: RAGState) -> dict:
 
     for iteration in range(REACT_RECURSION_LIMIT):
         logger.info("Node [orm_agent_loop]: Iteration %d/%d", iteration + 1, REACT_RECURSION_LIMIT)
-
-        if tool_observations:
-            logger.info("Node [orm_agent_loop]: Tool observations collected, outputting combined answer.")
-            valid_obs = [
-                obs for obs in tool_observations
-                if "n'existe pas" not in obs and "pas été trouvé" not in obs and "Aucune vente trouvée" not in obs
-            ]
-            selected_obs = valid_obs if valid_obs else tool_observations
-            final_answer = "\n".join(selected_obs)
-            break
 
         try:
             ai_msg, _wait = _invoke_with_rate_limit(
@@ -158,7 +148,12 @@ def orm_agent_loop(state: RAGState) -> dict:
         total_time_ms=timing["generation_time"] * 1000,
         hop_cap=REACT_RECURSION_LIMIT,
     )
-    return {"response": response, "raw_answer": response.answer, "timing": timing}
+    return {
+        "response": response,
+        "raw_answer": response.answer,
+        "timing": timing,
+        "raw_tool_output": "\n\n".join(str(obs) for obs in tool_observations),
+    }
 
 
 def hybrid_node(state: RAGState) -> dict:
@@ -180,10 +175,10 @@ def hybrid_node(state: RAGState) -> dict:
     combine_prompt = build_hybrid_combine_prompt(state["question"], doc_answer, data_answer)
 
     try:
-        _combine_llm_box = [_build_groq_llm(temperature=0.3, max_retries=0, max_tokens=1024)]
+        _combine_llm_box = [_build_llm(temperature=0.3, max_retries=0, max_tokens=1024)]
 
         def _rebuild_combine_llm():
-            _combine_llm_box[0] = _build_groq_llm(temperature=0.3, max_retries=0, max_tokens=1024)
+            _combine_llm_box[0] = _build_llm(temperature=0.3, max_retries=0, max_tokens=1024)
             return _combine_llm_box[0]
 
         final_resp, _ = _invoke_with_rate_limit(

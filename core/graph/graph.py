@@ -39,6 +39,7 @@ from core.graph.graph_nodes import (
     format_output,
     ci_evidence_decision,
 )
+from core.graph.verify_node import verify_answer
 from core.evidence.evidence_collector import start_evidence_collection, collect_and_clear_evidence
 
 # Backward-compatible re-exports for legacy callers and tests
@@ -68,6 +69,7 @@ def build_graph() -> StateGraph:
     workflow.add_node("generate", generate)
     workflow.add_node("orm_agent_loop", orm_agent_loop)
     workflow.add_node("code_intelligence_agent", code_intelligence_agent)
+    workflow.add_node("verify_answer", verify_answer)
     workflow.add_node("format_output", format_output)
 
     # Edges
@@ -90,14 +92,16 @@ def build_graph() -> StateGraph:
         QueryRoute.CODE_INTELLIGENCE.value: "code_intelligence_agent",
     })
 
-    # Post-CI: SUFFICIENT and CONFLICTING stay on CI's answer; INSUFFICIENT falls back to RAG
+    # Post-CI: SUFFICIENT and CONFLICTING stay on CI's answer; INSUFFICIENT falls back to RAG.
+    # ci_evidence_decision() keeps its legacy "format_output" key, which now leads to verification first.
     workflow.add_conditional_edges("code_intelligence_agent", ci_evidence_decision, {
-        "format_output": "format_output",
+        "format_output": "verify_answer",
         "generate": "generate",
     })
 
-    workflow.add_edge("generate", "format_output")
-    workflow.add_edge("orm_agent_loop", "format_output")
+    workflow.add_edge("generate", "verify_answer")
+    workflow.add_edge("orm_agent_loop", "verify_answer")
+    workflow.add_edge("verify_answer", "format_output")
     workflow.add_edge("format_output", END)
 
     return workflow.compile()
@@ -115,6 +119,8 @@ def query_graph(
     active_model: Optional[str] = None,
     active_id: Optional[int] = None,
     language: Optional[str] = None,
+    company_id: Optional[int] = None,
+    company_ids: Optional[List[int]] = None,
 ) -> AssistantResponse:
     """Execute the compiled graph with the provided question and context."""
     start_time = time.time()
@@ -124,13 +130,27 @@ def query_graph(
     if skills is None:
         skills = {}
 
-    from erp_data._odoo_helpers import odoo_uid_ctx, odoo_api_key_ctx
+    from erp_data.odoo_context import (
+        odoo_api_key_ctx,
+        odoo_company_id_ctx,
+        odoo_company_ids_ctx,
+        odoo_uid_ctx,
+    )
     uid_token = None
     api_key_token = None
+    company_id_token = None
+    company_ids_token = None
     if uid is not None:
         uid_token = odoo_uid_ctx.set(uid)
     if api_key is not None:
         api_key_token = odoo_api_key_ctx.set(api_key)
+    if company_id is not None:
+        company_id_token = odoo_company_id_ctx.set(int(company_id))
+    resolved_company_ids = company_ids
+    if resolved_company_ids is None and company_id is not None:
+        resolved_company_ids = [int(company_id)]
+    if resolved_company_ids is not None:
+        company_ids_token = odoo_company_ids_ctx.set([int(x) for x in resolved_company_ids])
 
     try:
         start_evidence_collection()
@@ -180,3 +200,7 @@ def query_graph(
             odoo_uid_ctx.reset(uid_token)
         if api_key_token:
             odoo_api_key_ctx.reset(api_key_token)
+        if company_id_token:
+            odoo_company_id_ctx.reset(company_id_token)
+        if company_ids_token:
+            odoo_company_ids_ctx.reset(company_ids_token)

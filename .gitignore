@@ -20,7 +20,6 @@ __pycache__/
 Thumbs.db
 # ChromaDB vector store artifacts -- regenerated locally, should never be versioned
 document_rag/vectorstore/chroma_db/
-captures/reasoning_trace.jsonl
 # Ingestion logs -- machine-specific
 document_rag/ingestion/logs/
 
@@ -42,9 +41,6 @@ document_rag/ingestion/logs/
 # had gone through regardless).
 active_graph.json
 code_intelligence/full_corpus_test/
-# Frozen synthesis prompts embed machine-specific absolute paths (section 985)
-captures/frozen_evidence/
-captures/eval_protocol_raw/
 
-captures/eval_instances/*.dump
-captures/eval_instances/logs/
+# Generated measurement artefacts: evaluation runs, raw responses, dumps, traces (decision pmm)
+captures/

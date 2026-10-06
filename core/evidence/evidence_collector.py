@@ -72,6 +72,11 @@ def record_evidence(evidence: Any) -> None:
         bucket.append(evidence)
 
 
+def peek_turn_evidence() -> List[Any]:
+    """Return a copy of this turn's evidence without draining the accumulator."""
+    return list(_turn_evidence_ctx.get() or [])
+
+
 def collect_and_clear_evidence() -> List[Any]:
     """Drain and return everything recorded this turn, resetting the
     accumulator to None (not []) so a stray record_evidence() call after

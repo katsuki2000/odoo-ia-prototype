@@ -76,6 +76,7 @@ class RAGState(TypedDict):
     investigation_plan: Optional[dict]
     sources_fallback_eligible: Optional[bool]
     ci_evidence_sufficiency: Optional[dict]
+    raw_tool_output: Optional[str]
     active_model: Optional[str]
     active_id: Optional[int]
     language: Optional[str]

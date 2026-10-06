@@ -7,9 +7,6 @@ from dotenv import load_dotenv
 # Load variables from .env or env file near project root
 _ROOT = Path(__file__).resolve().parent.parent
 load_dotenv(_ROOT / ".env")
-if not os.getenv("GROQ_API_KEY"):
-    load_dotenv(_ROOT / "env")
-
 # ── LLM ──────────────────────────────────────────────
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "local")
 
@@ -22,20 +19,6 @@ LOCAL_ALLOWED_HOSTS = frozenset(
     for host in os.getenv("LOCAL_ALLOWED_HOSTS", "localhost,127.0.0.1,::1").split(",")
     if host.strip()
 )
-
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-# GROQ_API_KEYS : rotation automatique des que la cle courante est en rate-limit (core/llm_client.py). Retombe sur GROQ_API_KEY seule si la variable liste n'est pas definie (compat installs a une seule cle).
-_groq_keys_raw = os.getenv("GROQ_API_KEYS", "")
-GROQ_API_KEYS = [k.strip() for k in _groq_keys_raw.split(",") if k.strip()]
-if not GROQ_API_KEYS and GROQ_API_KEY:
-    GROQ_API_KEYS = [GROQ_API_KEY]
-
-GROQ_MODEL   = os.getenv("GROQ_MODEL", "openai/gpt-oss-20b")
-
-OPENROUTER_API_KEY  = os.getenv("OPENROUTER_API_KEY")
-OPENROUTER_MODEL    = os.getenv("OPENROUTER_MODEL", "qwen/qwen3-14b:free")
-OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
-
 
 # Local LLM settings (Ollama, vLLM, llama.cpp, LM Studio, LocalAI)
 OLLAMA_HOST        = os.getenv("OLLAMA_HOST", "http://localhost:11434")
@@ -53,6 +36,9 @@ LOCAL_EMBEDDING_API_KEY  = os.getenv("LOCAL_EMBEDDING_API_KEY", "ollama")
 
 # ── ChromaDB ──────────────────────────────────────────
 CHROMA_PATH = os.getenv("CHROMA_PATH") or str(_ROOT / "document_rag" / "vectorstore" / "chroma_db")
+
+# ── Answer verification (off | report | enforce) ─────────
+ANSWER_VERIFIER_MODE = os.getenv("ANSWER_VERIFIER_MODE", "report")
 
 # -- Code Intelligence corpus paths ----------------------
 CORE_ADDONS_PATH = os.getenv("CORE_ADDONS_PATH") or str(_ROOT.parent / "odoo-17.0" / "addons")
@@ -76,6 +62,7 @@ GRAPH_CACHE_PATH = os.getenv("GRAPH_CACHE_PATH") or str(_ROOT / "active_graph.js
 
 # -- RAG documentary source path ----------------------
 RAG_DOCS_PATH = os.getenv("RAG_DOCS_PATH") or str(_ROOT / "document_rag" / "documents")
+DOCUMENT_MAX_TOKENS = int(os.getenv("DOCUMENT_MAX_TOKENS", "2048"))
 
 CORE_FRAMEWORK_ADDONS_PATH = os.getenv("CORE_FRAMEWORK_ADDONS_PATH") or str(Path(CORE_ADDONS_PATH).parent / "odoo" / "addons")
 
@@ -96,6 +83,22 @@ LATENCY_BUDGET_RESOLVER_MS = 2000       # resolve_business_term
 LATENCY_BUDGET_PER_HOP_MS = 3000        # Each hop (tool call + LLM)
 LATENCY_BUDGET_SYNTHESIS_MS = 4000      # Synthesis LLM call
 LATENCY_BUDGET_XMLRPC_MS = 5000         # Single XML-RPC call
+
+# ── ERP runtime (P9) read-only ORM tools ─────────────────
+ORM_RUNTIME_MAX_ROWS = int(os.getenv("ORM_RUNTIME_MAX_ROWS", "100"))
+ORM_NAME_SEARCH_LIMIT = int(os.getenv("ORM_NAME_SEARCH_LIMIT", "20"))
+ORM_RUNTIME_STRICT_IDENTITY = os.getenv("ORM_RUNTIME_STRICT_IDENTITY", "false").lower() in (
+    "true",
+    "1",
+    "yes",
+)
+# When true, orm_agent_loop binds typed ORM tools (fields_get/search/read/...).
+# When false, keeps the legacy domain-specific business tools.
+ORM_USE_TYPED_RUNTIME = os.getenv("ORM_USE_TYPED_RUNTIME", "true").lower() in (
+    "true",
+    "1",
+    "yes",
+)
 
 # ── Security & Extraction Safeguards──────────────────────
 MAX_MODELS_PER_QUERY = 3

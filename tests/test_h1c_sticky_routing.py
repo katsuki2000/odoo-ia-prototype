@@ -37,7 +37,7 @@ from code_intelligence.agent.investigation_schemas import QuestionIntent
 def _route_question(question: str, mocked_intent: QuestionIntent, last_route=None, chunks=None) -> str:
     """Same helper as test_route_accent_fold.py's _route_question (Cluster B
     fix, todo/contexte.txt sections 430-433): route() calls
-    resolve_question_intent(), which attempts a real, bounded Groq LLM
+    resolve_question_intent(), which attempts a real, bounded LLM
     classifier BEFORE falling back to the deterministic keyword classifier.
     Left unmocked, every test in this file depended on live network access
     and non-deterministic classification -- confirmed live (a run without

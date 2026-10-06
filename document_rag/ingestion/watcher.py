@@ -12,7 +12,8 @@ import sys
 from threading import Lock, Timer
 from typing import Any, Iterable
 
-from document_rag.ingestion.incremental import SUPPORTED_EXTENSIONS, reindex_if_changed
+from document_rag.ingestion.file_formats import is_supported_document
+from document_rag.ingestion.incremental import reindex_if_changed
 from document_rag.ingestion.ingest_config import DOCS_DIR
 from document_rag.ingestion.logging_utils import start_timer, write_ingestion_event
 from document_rag.vectorstore.chroma_manager import ChromaManager
@@ -234,7 +235,7 @@ class IngestionWatcher:
 
 
 def _is_supported_source(path: Path) -> bool:
-    return path.suffix.lower() in SUPPORTED_EXTENSIONS
+    return is_supported_document(path)
 
 
 def run_forever(watched_paths: Iterable[str | Path] | None = None) -> None:

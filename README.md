@@ -2,7 +2,7 @@
 
 MIRO AI is an intelligent AI assistant connected in real time to an Odoo 17 ERP database via XML-RPC. It features a hybrid multi-agent routing system (LangGraph) capable of handling documentary knowledge questions (RAG vector search), real-time live ERP database queries, and deep Code Intelligence analysis (governance, security, workflow inspection).
 
-The system can run **100% locally and offline** (via Ollama or vLLM) [I temporarely use cloud inference (Groq)].
+The system is designed for private inference on a locally controlled Ollama or vLLM server. Kaggle is a temporary development host; AWS is the planned LLM host.
 
 ---
 
@@ -68,16 +68,6 @@ LOCAL_LLM_MODEL=gpt-oss:20b
 LOCAL_LLM_API_KEY=ollama
 EMBEDDING_BACKEND=local_light
 ```
-
-**For Cloud execution (Groq)**:
-```dotenv
-LLM_PROVIDER=groq
-GROQ_MODEL=openai/gpt-oss-20b
-GROQ_API_KEY=gsk_YOUR_GROQ_API_KEY_HERE
-EMBEDDING_BACKEND=local_light
-```
-
-*(You can switch between local and cloud at any time by changing `LLM_PROVIDER` in `.env`).*
 
 ### Step 4 : Install Odoo 17 (if not already present)
 
@@ -243,13 +233,13 @@ odoo-ia-prototype/
 ├── config/                     # Application configuration
 │   └── settings.py             # Settings loader, defaults, latency budgets
 ├── core/                       # Shared system kernel
-│   ├── llm_client.py           # Provider-agnostic LLM factory (Local / Groq / OpenRouter)
+│   ├── llm_client.py           # Local OpenAI-compatible LLM client factory
 │   ├── reasoning_trace_logger.py # Cross-branch reasoning trace logger (JSONL)
 │   ├── graph.py                # LangGraph StateGraph pipeline orchestrator
 │   ├── routing.py              # Query router (documentary, ERP, CI, hybrid)
 │   └── schemas.py              # Canonical Pydantic schemas (AssistantResponse, etc.)
 ├── document_rag/               # Documentary RAG bounded context
-│   ├── documents/              # Source business documents and procedures (PDF, text)
+│   ├── documents/              # Source business documents and procedures (PDF, text, markdown, Word)
 │   ├── ingestion/              # Ingestion pipeline, PDF OCR, filesystem watcher
 │   ├── prompts.py              # Documentary RAG system prompts and message builders
 │   └── vectorstore/            # ChromaDB manager, BM25 hybrid search, embeddings
@@ -288,13 +278,10 @@ odoo-ia-prototype/
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
-| `LLM_PROVIDER` | No | `local` | LLM backend: `local` (Ollama / vLLM) or `groq` / `openrouter` |
+| `LLM_PROVIDER` | No | `local` | Local OpenAI-compatible backend (`local`, Ollama, vLLM, LM Studio) |
 | `LOCAL_LLM_BASE_URL` | If local | `http://localhost:11434/v1` | Local OpenAI-compatible API base URL |
 | `LOCAL_LLM_MODEL` | If local | `gpt-oss:20b` | Model name on the local engine (e.g. `llama3.1`, `qwen2.5:14b`) |
 | `LOCAL_LLM_API_KEY` | If local | `ollama` | API key placeholder for local endpoint |
-| `GROQ_API_KEY` | If Groq | - | Primary Groq API key |
-| `GROQ_API_KEYS` | No | - | Comma-separated list of Groq keys for automatic rate-limit rotation |
-| `GROQ_MODEL` | No | `openai/gpt-oss-20b` | Groq cloud model identifier |
 | `EMBEDDING_BACKEND` | No | `local_light` | Embedding engine: `local_light` (Chroma ONNX), `ollama`, `local` |
 | `LOCAL_EMBEDDING_BASE_URL` | If ollama embed | `http://localhost:11434/v1` | Local embedding server URL |
 | `LOCAL_EMBEDDING_MODEL` | If ollama embed | `all-minilm:latest` | Local embedding model name (e.g. `nomic-embed-text`) |
@@ -315,7 +302,7 @@ odoo-ia-prototype/
 
 | Problem | Cause | Solution |
 |---|---|---|
-| `ConnectionRefusedError` on ask | Local LLM engine (Ollama/vLLM) is not running | Start your local engine (`ollama serve`) or switch `LLM_PROVIDER=groq` in `.env` |
+| `ConnectionRefusedError` on ask | Configured inference server is not running or reachable | Start the configured local server or check `LOCAL_LLM_BASE_URL` |
 | `InvalidDimensionException` in ChromaDB | Switched embedding model without re-indexing | Run `rm -rf document_rag/vectorstore/chroma_db` then `python3 -m document_rag.ingestion.ingest_all` |
 | `active_graph.json` not found | Graph has not been built on this machine | Run `python3 scripts/rebuild_graph.py` |
 | MIRO AI button not visible in Odoo | Module not loaded or browser cache | Run `python3 odoo-bin -c odoo.conf -d odoo-dev -u miro_ai --stop-after-init` and refresh with Ctrl+F5 |

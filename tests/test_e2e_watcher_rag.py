@@ -65,7 +65,7 @@ def test_e2e_live_add_delete_query_cycle():
         # generate() -- and this mocked RAG response -- is never reached.
         with patch("core.graph.graph.get_retriever") as mock_get_retriever, \
              patch("core.graph.graph.code_intelligence_agent") as mock_ci, \
-             patch("document_rag.generate_node._build_groq_llm") as mock_build_llm:
+             patch("document_rag.generate_node._build_llm") as mock_build_llm:
 
             mock_ci.return_value = {
                 "ci_evidence_sufficiency": {

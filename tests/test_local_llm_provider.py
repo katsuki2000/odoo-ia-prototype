@@ -1,20 +1,11 @@
 """Unit tests for local LLM migration and provider abstraction."""
 
-import os
 import pytest
 from unittest.mock import patch, MagicMock
 
-from langchain_groq import ChatGroq
 from langchain_openai import ChatOpenAI
 
 from core.llm.llm_client import get_chat_llm
-
-
-def test_get_chat_llm_groq_default():
-    """Verify provider='groq' instantiates ChatGroq."""
-    with patch("core.llm.local_only.LOCAL_ONLY", False):
-        llm = get_chat_llm(provider="groq", api_key="gsk-test")
-        assert isinstance(llm, ChatGroq)
 
 
 def test_get_chat_llm_local_provider():
@@ -37,24 +28,6 @@ def test_get_chat_llm_synonym_providers():
         assert isinstance(llm, ChatOpenAI), f"Failed for provider {p}"
 
 
-def test_get_chat_llm_openrouter_provider():
-    """Verify provider='openrouter' instantiates ChatOpenAI."""
-    with patch("core.llm.local_only.LOCAL_ONLY", False):
-        llm = get_chat_llm(provider="openrouter", api_key="sk-or-test")
-        assert isinstance(llm, ChatOpenAI)
-        assert "openrouter.ai" in str(llm.openai_api_base)
-
-
-def test_get_chat_llm_refuses_cloud_when_local_only():
-    """Verify cloud providers raise ExternalEndpointError when LOCAL_ONLY is active."""
-    from core.llm.local_only import ExternalEndpointError
-    with patch("core.llm.local_only.LOCAL_ONLY", True):
-        with pytest.raises(ExternalEndpointError):
-            get_chat_llm(provider="groq", api_key="gsk-test")
-        with pytest.raises(ExternalEndpointError):
-            get_chat_llm(provider="openrouter", api_key="sk-or-test")
-
-
 def test_get_chat_llm_unknown_provider_raises():
     """Verify unknown provider raises clear ValueError."""
     with pytest.raises(ValueError, match="Unknown LLM_PROVIDER"):
@@ -74,26 +47,26 @@ def test_get_chat_llm_respects_env_switch():
 
 def test_document_rag_generate_uses_local_llm():
     """Verify document_rag generate node uses get_chat_llm and produces valid response with local LLM."""
-    from document_rag.generate_node import _build_groq_llm
+    from document_rag.generate_node import _build_llm
     with patch("core.llm.llm_client.LLM_PROVIDER", "local"), \
          patch("core.llm.llm_client.LOCAL_LLM_BASE_URL", "http://localhost:11434/v1"), \
          patch("core.llm.llm_client.LOCAL_LLM_MODEL", "llama3.1"):
-        llm = _build_groq_llm(temperature=0.0)
+        llm = _build_llm(temperature=0.0)
         assert isinstance(llm, ChatOpenAI)
 
 
 def test_erp_data_orm_helpers_uses_local_llm():
     """Verify erp_data orm_agent_helpers uses get_chat_llm with local provider."""
-    from erp_data.orm_agent_helpers import _build_groq_llm
+    from erp_data.orm_agent_helpers import _build_llm
     with patch("core.llm.llm_client.LLM_PROVIDER", "local"), \
          patch("core.llm.llm_client.LOCAL_LLM_BASE_URL", "http://localhost:11434/v1"), \
          patch("core.llm.llm_client.LOCAL_LLM_MODEL", "llama3.1"):
-        llm = _build_groq_llm(temperature=0.0)
+        llm = _build_llm(temperature=0.0)
         assert isinstance(llm, ChatOpenAI)
 
 
 def test_health_check_v1_local_provider_healthy():
-    """Verify health check returns healthy status without Groq API key when LLM_PROVIDER is local."""
+    """Verify health check reports the configured local inference endpoint."""
     from api.routes_system import health_check_v1
     with patch("config.settings.LLM_PROVIDER", "local"), \
          patch("config.settings.LOCAL_LLM_BASE_URL", "http://localhost:11434/v1"), \
@@ -105,15 +78,13 @@ def test_health_check_v1_local_provider_healthy():
         status = health_check_v1()
         assert status["status"] == "ok"
         assert "local" in status["services"]["llm"]
-        assert "local" in status["services"]["groq"]
 
 
-def test_rate_limit_spacing_skipped_for_local():
-    """Verify invoke_with_rate_limit does not sleep 5s when provider is local."""
+def test_rate_limit_spacing_is_disabled_for_local():
+    """Verify no provider-specific pacing delay is configured."""
     from core.llm.llm_client import _get_min_interval
     with patch("core.llm.llm_client.LLM_PROVIDER", "local"):
         assert _get_min_interval() == 0.0
 
-    with patch("core.llm.llm_client.LLM_PROVIDER", "groq"):
-        assert _get_min_interval() == 5.0
-
+    with patch("core.llm.llm_client.LLM_PROVIDER", "local"):
+        assert _get_min_interval() == 0.0

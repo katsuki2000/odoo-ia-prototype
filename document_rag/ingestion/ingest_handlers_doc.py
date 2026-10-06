@@ -12,6 +12,7 @@ import sys
 import time
 from typing import Any, Optional
 
+from document_rag.ingestion.file_formats import is_supported_document
 from document_rag.ingestion.pdf_loader import PDFLoader
 from document_rag.ingestion.wiki_loader import WikiLoader
 
@@ -67,47 +68,38 @@ def load_and_ingest_wiki(
     """Load and ingest wiki/markdown documents."""
     loader = loader_cls(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
 
-    for txt_file in docs_dir.glob("*.txt"):
-        try:
-            logger.info(f"  Processing: {txt_file.name}")
-            result = loader.load_text_file(txt_file, scan_root=scan_root)
+    loaders = (
+        ("*.txt", lambda path: loader.load_text_file(path, scan_root=scan_root)),
+        ("*.md", lambda path: loader.load_markdown_file(path, scan_root=scan_root)),
+        ("*.docx", lambda path: loader.load_docx_file(path, scan_root=scan_root)),
+    )
+    for pattern, load_file in loaders:
+        for doc_file in sorted(docs_dir.glob(pattern)):
+            if not is_supported_document(doc_file):
+                continue
+            _ingest_wiki_file(doc_file, load_file, docs_manager, stats)
 
-            chunks = result["chunks"]
-            metadatas = result["metadatas"]
 
-            if chunks:
-                ids = docs_manager.add_chunks(chunks, metadatas)
-                logger.info(f"    Added {len(ids)} chunks")
+def _ingest_wiki_file(doc_file: Path, load_file: Any, docs_manager: Any, stats: dict[str, Any]) -> None:
+    try:
+        logger.info(f"  Processing: {doc_file.name}")
+        result = load_file(doc_file)
 
-                stats["total_chunks"] += len(chunks)
-                stats["by_source"][txt_file.name] = len(chunks)
-                stats["by_type"]["doc_wiki"] = (
-                    stats["by_type"].get("doc_wiki", 0) + len(chunks)
-                )
+        chunks = result["chunks"]
+        metadatas = result["metadatas"]
 
-        except Exception as e:
-            logger.error(f"  Error processing {txt_file.name}: {e}")
+        if chunks:
+            ids = docs_manager.add_chunks(chunks, metadatas)
+            logger.info(f"    Added {len(ids)} chunks")
 
-    for md_file in docs_dir.glob("*.md"):
-        try:
-            logger.info(f"  Processing: {md_file.name}")
-            result = loader.load_markdown_file(md_file, scan_root=scan_root)
+            stats["total_chunks"] += len(chunks)
+            stats["by_source"][doc_file.name] = len(chunks)
+            stats["by_type"]["doc_wiki"] = (
+                stats["by_type"].get("doc_wiki", 0) + len(chunks)
+            )
 
-            chunks = result["chunks"]
-            metadatas = result["metadatas"]
-
-            if chunks:
-                ids = docs_manager.add_chunks(chunks, metadatas)
-                logger.info(f"    Added {len(ids)} chunks")
-
-                stats["total_chunks"] += len(chunks)
-                stats["by_source"][md_file.name] = len(chunks)
-                stats["by_type"]["doc_wiki"] = (
-                    stats["by_type"].get("doc_wiki", 0) + len(chunks)
-                )
-
-        except Exception as e:
-            logger.error(f"  Error processing {md_file.name}: {e}")
+    except Exception as e:
+        logger.error(f"  Error processing {doc_file.name}: {e}")
 
 
 def ingest_documents_dir(
@@ -142,8 +134,9 @@ def ingest_documents_dir(
 
     txt_files = list(docs_dir.glob("*.txt"))
     md_files = list(docs_dir.glob("*.md"))
-    if txt_files or md_files:
-        logger.info(f"Found {len(txt_files)} .txt and {len(md_files)} .md files")
+    docx_files = [path for path in docs_dir.glob("*.docx") if is_supported_document(path)]
+    if txt_files or md_files or docx_files:
+        logger.info(f"Found {len(txt_files)} .txt, {len(md_files)} .md and {len(docx_files)} .docx files")
         start = time.time()
         try:
             load_and_ingest_wiki(

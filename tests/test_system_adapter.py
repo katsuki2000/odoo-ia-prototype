@@ -47,9 +47,41 @@ def test_sources_objects_and_evidence_mapping():
     assert result.resolved_objects == ("model:sale.order", "module:sale")
     assert result.evidence == (("graph", "model:sale.order"), ("orm", "sale.order"), ("document", "guide.pdf"))
     assert result.claims_total == 0
+    assert result.unsupported_claims == 0
 
 
 def test_unresolved_concept_yields_no_objects():
     assert sa.resolved_objects({"resolved_concept": {"is_resolved": False, "resolved_models": ["x.y"]}}) == ()
     assert sa.resolved_objects({}) == ()
     assert sa.sources_used({"route": "unknown"}) == ()
+
+
+def test_claim_counts_from_verification_mapping():
+    raw = {
+        "answer": "ok",
+        "verification": {"claims_total": 4, "unsupported_claims": 1},
+    }
+    result = sa.to_case_result(CASE, raw)
+    assert result.claims_total == 4
+    assert result.unsupported_claims == 1
+
+
+def test_claim_counts_from_verification_report_object():
+    from core.verification.claims import VerificationReport, VerifierMode
+
+    report = VerificationReport(
+        mode=VerifierMode.REPORT,
+        claims_total=3,
+        unsupported_claims=1,
+    )
+    raw = {"answer": "ok", "verification": report}
+    result = sa.to_case_result(CASE, raw)
+    assert result.claims_total == 3
+    assert result.unsupported_claims == 1
+
+
+def test_claim_counts_fallback_and_none():
+    assert sa.claim_counts({}) == (0, 0)
+    assert sa.claim_counts({"verification": None}) == (0, 0)
+    assert sa.claim_counts({"claims_total": 2, "unsupported_claims": 1}) == (2, 1)
+

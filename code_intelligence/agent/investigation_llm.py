@@ -88,7 +88,7 @@ def classify_question_intent_llm(question: str) -> Optional[QuestionIntent]:
     """
     Bounded LLM intent classification (Bloc P1, todo/contexte.txt section 394+).
 
-    Single-shot, structured-output Groq call constrained to the closed
+    Single-shot, structured-output LLM call constrained to the closed
     QuestionIntent vocabulary -- same with_structured_output pattern as
     document_rag/generate_node.py::generate(). Never raises: any failure
     (timeout, rate limit, malformed structured output, or any other
