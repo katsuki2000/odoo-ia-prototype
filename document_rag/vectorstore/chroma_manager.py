@@ -17,7 +17,7 @@ load_dotenv(_ROOT / ".env")
 import chromadb
 from chromadb.api.types import Documents, EmbeddingFunction, Embeddings
 
-from config.settings import CHROMA_PATH
+from config.settings import CHROMA_PATH, DOCS_COLLECTION_NAME
 from document_rag.vectorstore.embedding_functions import (
     CustomNomicEmbeddingFunction,
     LocalNomicEmbeddingFunction,
@@ -37,6 +37,8 @@ from document_rag.vectorstore.chroma_helpers import (
 
 logger = logging.getLogger(__name__)
 
+COLLECTION_METADATA = {"hnsw:space": "cosine", "description": "Odoo document chunks"}
+
 
 class ChromaManager:
     """Manages ChromaDB vector store for document chunks."""
@@ -45,7 +47,7 @@ class ChromaManager:
         self,
         db_path: str | Path = None,
         embedding_model: Optional[str] = None,
-        collection_name: str = "odoo_documents",
+        collection_name: str = DOCS_COLLECTION_NAME,
     ):
         target_path = Path(db_path) if db_path is not None else Path(CHROMA_PATH)
         self.db_path = target_path
@@ -57,17 +59,10 @@ class ChromaManager:
         self.client = chromadb.PersistentClient(path=str(self.db_path))
         embedding_function = self._resolve_embedding_function()
 
-        col_metadata = {
-            "hnsw:space": "cosine",
-            "description": "Odoo document chunks",
-        }
-        if self.embedding_model:
-            col_metadata["embedding_model"] = str(self.embedding_model)
-
         self.collection = self.client.get_or_create_collection(
             name=collection_name,
             embedding_function=embedding_function,
-            metadata=col_metadata,
+            metadata=dict(COLLECTION_METADATA),
         )
         logger.info("ChromaDB initialized at %s with collection '%s'", self.db_path, collection_name)
 
@@ -188,7 +183,6 @@ class ChromaManager:
                 "by_type": type_stats,
                 "by_module": module_stats,
                 "collection_name": self.collection_name,
-                "embedding_model": self.embedding_model,
             }
         except Exception as e:
             logger.error("Error getting collection stats: %s", e)
@@ -201,11 +195,7 @@ class ChromaManager:
             self.collection = self.client.get_or_create_collection(
                 name=self.collection_name,
                 embedding_function=self._resolve_embedding_function(),
-                metadata={
-                    "embedding_model": self.embedding_model,
-                    "hnsw:space": "cosine",
-                    "description": "Odoo document chunks",
-                },
+                metadata=dict(COLLECTION_METADATA),
             )
         except Exception as e:
             logger.error("Error deleting collection: %s", e)

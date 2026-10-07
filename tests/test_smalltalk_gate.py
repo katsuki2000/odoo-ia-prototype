@@ -135,7 +135,13 @@ def test_classify_smalltalk_never_matches_bare_comment_prefix():
 
 # ── smalltalk_gate node ────────────────────────────────────────────────────
 
-def test_smalltalk_gate_returns_full_response_for_greeting():
+def test_smalltalk_gate_disabled_is_noop(monkeypatch):
+    monkeypatch.setattr("core.graph.graph_nodes.ENABLE_SMALLTALK_GATE", False)
+    assert smalltalk_gate({"question": "Bonjour"}) == {}
+
+
+def test_smalltalk_gate_returns_full_response_for_greeting(monkeypatch):
+    monkeypatch.setattr("core.graph.graph_nodes.ENABLE_SMALLTALK_GATE", True)
     state = {"question": "Bonjour"}
     result = smalltalk_gate(state)
 
@@ -149,17 +155,19 @@ def test_smalltalk_gate_returns_full_response_for_greeting():
     assert result["route"] == "smalltalk"
 
 
-def test_smalltalk_gate_returns_full_response_for_thanks():
+def test_smalltalk_gate_returns_full_response_for_thanks(monkeypatch):
+    monkeypatch.setattr("core.graph.graph_nodes.ENABLE_SMALLTALK_GATE", True)
     state = {"question": "Merci beaucoup"}
     result = smalltalk_gate(state)
 
     assert result["response"].answer == SMALLTALK_RESPONSES["thanks_farewell"]
 
 
-def test_smalltalk_gate_returns_full_response_for_acknowledgment():
+def test_smalltalk_gate_returns_full_response_for_acknowledgment(monkeypatch):
     """Section 301: 'd'accord' must be intercepted before retrieve() so it
     never reproduces Bug C (noisy sources cited for an acquiescement that
     the similarity floor alone does not catch)."""
+    monkeypatch.setattr("core.graph.graph_nodes.ENABLE_SMALLTALK_GATE", True)
     state = {"question": "D'accord"}
     result = smalltalk_gate(state)
 
@@ -179,10 +187,11 @@ def test_smalltalk_gate_is_noop_for_business_question():
     assert result == {}
 
 
-def test_smalltalk_gate_never_mutates_the_original_question():
+def test_smalltalk_gate_never_mutates_the_original_question(monkeypatch):
     """Regression guard for the review point in section 294: the gate must
     never rewrite `question`, even when it does intercept the turn --
     it must not appear as a key in its return dict at all."""
+    monkeypatch.setattr("core.graph.graph_nodes.ENABLE_SMALLTALK_GATE", True)
     state = {"question": "Bonjour"}
     result = smalltalk_gate(state)
     assert "question" not in result

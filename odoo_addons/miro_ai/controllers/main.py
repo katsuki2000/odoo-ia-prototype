@@ -11,9 +11,10 @@ import hmac
 import json
 import logging
 import time
-import requests
 from odoo import http
 from odoo.http import request
+
+from .backend_client import BackendError, BackendTimeout, post_with_failover
 
 _logger = logging.getLogger(__name__)
 
@@ -48,7 +49,7 @@ class MiroAiController(http.Controller):
         }
 
     @http.route('/miro_ai/ask', type='json', auth='user', methods=['POST'])
-    def ask(self, question=None, session_id=None, active_model=None, active_id=None, **kwargs):
+    def ask(self, question=None, session_id=None, source_mode=None, **kwargs):
         """
         Reçoit la question du frontend Odoo, signe un jeton JWT d'authentification
         et interroge le backend FastAPI.
@@ -120,13 +121,10 @@ class MiroAiController(http.Controller):
             "user_uid": uid,
             "company_id": company_id,
             "groups": groups,
-            # H2 (todo/contexte.txt section 569-571): structured UI context
-            # from the systray's detectActiveContext(), replacing the former
-            # free-text "[Contexte: modèle X]" prefix concatenated into
-            # `question` itself.
-            "active_model": active_model,
-            "active_id": active_id,
         }
+        # Explicit source chosen in the UI; anything else means automatic routing.
+        if source_mode in ("documentation", "systeme"):
+            payload["source_mode"] = source_mode
 
         start_time = time.time()
         candidate_urls = [api_url]
@@ -137,18 +135,13 @@ class MiroAiController(http.Controller):
         else:
             _logger.debug("MIRO AI: URL candidate unique configurée: %s", api_url)
 
+        timeout = settings.request_timeout
         resp = None
-        last_error = None
-        for candidate_url in candidate_urls:
-            try:
-                _logger.info("MIRO AI -> Interrogation RAG %s/api/v1/ask pour UID=%s", candidate_url, uid)
-                resp = requests.post(f"{candidate_url}/api/v1/ask", headers=headers, json=payload, timeout=60)
-                if resp:
-                    api_url = candidate_url
-                    break
-            except Exception as conn_err:
-                _logger.warning("MIRO AI: tentative vers %s échouée: %s", candidate_url, conn_err)
-                last_error = conn_err
+        backend_error = None
+        try:
+            resp, api_url = post_with_failover(candidate_urls, "/api/v1/ask", headers, payload, timeout)
+        except BackendError as error:
+            backend_error = error
 
         try:
             if resp is not None and resp.status_code == 200:
@@ -213,11 +206,17 @@ class MiroAiController(http.Controller):
                     'sources': []
                 }
             else:
-                raise last_error or Exception("Serveur RAG inaccessible")
+                raise backend_error
         except Exception as e:
             elapsed_ms = int((time.time() - start_time) * 1000)
             _logger.exception("Impossible de contacter l'API : %s", e)
-            err_msg = f"Impossible de contacter le serveur  ({api_url}). Vérifiez que le backend FastAPI est lancé."
+            if isinstance(e, BackendTimeout):
+                err_msg = (
+                    f"Le serveur ({api_url}) n'a pas répondu en {timeout} s : la réponse est trop lente. "
+                    "Réessayez, ou augmentez le délai dans Paramètres MIRO AI."
+                )
+            else:
+                err_msg = f"Impossible de contacter le serveur  ({api_url}). Vérifiez que le backend FastAPI est lancé."
             try:
                 request.env['miro.ai.log'].sudo().log_query(
                     question=question.strip(),

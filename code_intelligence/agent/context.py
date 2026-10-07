@@ -46,6 +46,8 @@ class DispatchContext:
     trace_logger: Any
     trace_id: str
     hop_cap: int
+    requester_groups_known: bool = False
+    requester_acl_verdicts: Dict[str, Optional[Dict[str, bool]]] = field(default_factory=dict)
 
     tool_observations: List[str] = field(default_factory=list)
     tool_observation_models: List[str] = field(default_factory=list)

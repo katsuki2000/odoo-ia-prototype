@@ -72,6 +72,27 @@ def test_top_selling_raw_ranks_by_revenue_when_metrique_montant():
     assert text.index("Lampe") < text.index("Chaise") < text.index("Table")
 
 
+def test_revenue_ranking_is_separate_for_each_currency():
+    with patch("erp_data._odoo_helpers.connector.read_group") as mock_read_group:
+        mock_read_group.return_value = [
+            {"product_id": [1, "Chair"], "product_uom_qty": 1.0, "price_subtotal": 200.0, "currency_id": [1, "USD"]},
+            {"product_id": [2, "Desk"], "product_uom_qty": 1.0, "price_subtotal": 100.0, "currency_id": [2, "EUR"]},
+            {"product_id": [3, "Lamp"], "product_uom_qty": 1.0, "price_subtotal": 150.0, "currency_id": [1, "USD"]},
+        ]
+        token = odoo_uid_ctx.set(1)
+        try:
+            text, evidence_list = get_top_selling_products_raw(metrique="montant")
+        finally:
+            odoo_uid_ctx.reset(token)
+
+    assert "1. Desk -- 100.00 EUR" in text
+    assert "1. Chair -- 200.00 USD" in text
+    assert "350.00" not in text
+    assert len(evidence_list) == 3
+    assert mock_read_group.call_args.kwargs["groupby"] == ["product_id", "currency_id"]
+    assert mock_read_group.call_args.kwargs["lazy"] is False
+
+
 def test_top_selling_raw_respects_limite():
     with patch("erp_data._odoo_helpers.connector.read_group") as mock_read_group:
         mock_read_group.return_value = _rows(
@@ -197,7 +218,7 @@ def test_top_selling_raw_source_is_read_group_on_sale_order_line():
     assert evidence_list[0].source_type == EvidenceSourceType.ORM
     assert evidence_list[0].source == (
         "sale.order.line:read_group(product_uom_qty:sum,price_subtotal:sum, "
-        "groupby=product_id)"
+        "groupby=product_id,currency_id)"
     )
 
 

@@ -29,6 +29,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--report-dir", type=Path, default=CAPTURES_DIR)
     parser.add_argument("--ratings", type=Path, default=None)
     parser.add_argument("--only", nargs="*", default=None)
+    parser.add_argument("--case-ids", nargs="+", default=None, metavar="CASE_ID")
     parser.add_argument("--score-only", action="store_true")
     return parser.parse_args()
 
@@ -36,12 +37,18 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     dataset = load_dataset(args.dataset)
+    if args.case_ids is not None:
+        from core.evaluation.protocol_runner import select_cases
+
+        dataset = select_cases(dataset, args.case_ids)
     specs = load_specs(args.instances)
     check_against_instances(dataset, specs)
     if not dataset.cases:
         print("the frozen dataset has no cases")
         return 1
     print(f"dataset version {dataset.version}: {split_summary(dataset)}")
+    raw_dir = args.raw_dir / f"v{dataset.version}_{dataset.digest[:12]}"
+    print(f"raw responses: {raw_dir}")
     failures = []
     if not args.score_only:
         try:
@@ -49,14 +56,19 @@ def main() -> int:
         except BackendUnavailable as error:
             print(f"model backend unavailable, no run started: {error}")
             return 2
-        failures = run_protocol(dataset, specs, default_environment(), args.raw_dir, PROJECT_ROOT, args.only)
+        failures = run_protocol(dataset, specs, default_environment(), raw_dir, PROJECT_ROOT, args.only)
     report = evaluate(
         dataset,
-        collect_results(dataset, args.raw_dir),
+        collect_results(dataset, raw_dir),
         Preregistration.load(args.preregistration),
         load_ratings(args.ratings),
     )
-    json_path, markdown_path = write_report(report, args.report_dir)
+    report_stem = (
+        f"eval_protocol_batch_{'_'.join(args.case_ids)}"
+        if args.case_ids is not None
+        else "eval_protocol_baseline"
+    )
+    json_path, markdown_path = write_report(report, args.report_dir, stem=report_stem)
     print(f"report -> {json_path} and {markdown_path}")
     for failure in failures:
         print(f"  {failure['name']}: {failure['error']}")

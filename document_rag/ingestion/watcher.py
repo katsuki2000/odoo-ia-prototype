@@ -43,7 +43,7 @@ class DebouncedIngestionHandler(FileSystemEventHandler):
         chunk_size: int = 512,
         chunk_overlap: int = 50,
     ):
-        self.docs_manager = docs_manager or ChromaManager(collection_name="odoo_docs")
+        self.docs_manager = docs_manager or ChromaManager()
         self.debounce_seconds = debounce_seconds
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap

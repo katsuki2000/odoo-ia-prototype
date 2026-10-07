@@ -15,13 +15,12 @@ class AskRequestV1(BaseModel):
         description="Request language tag (BCP 47, e.g. fr or fr-CA); falls back to Accept-Language.",
     )
     skills: dict[str, bool] = Field(default_factory=dict)
-    active_model: Optional[str] = Field(
+    source_mode: Optional[Literal["documentation", "systeme"]] = Field(
         default=None,
-        description="Technical model name of the Odoo record open in the systray at ask-time",
-    )
-    active_id: Optional[int] = Field(
-        default=None,
-        description="Record id of active_model, propagated alongside it",
+        description=(
+            "Source chosen by the user in the UI: 'documentation' forces the RAG "
+            "documentary path, 'systeme' excludes the documentary route; absent = automatic routing"
+        ),
     )
 
 

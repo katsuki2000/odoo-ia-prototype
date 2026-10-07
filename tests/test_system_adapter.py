@@ -85,3 +85,27 @@ def test_claim_counts_fallback_and_none():
     assert sa.claim_counts({"verification": None}) == (0, 0)
     assert sa.claim_counts({"claims_total": 2, "unsupported_claims": 1}) == (2, 1)
 
+
+
+def test_code_graph_sources_become_graph_evidence_not_documents():
+    raw = {
+        "answer": "ok",
+        "sources": [
+            {"source": "code_intelligence:who_has_access_to:account.move", "doc_type": "code_graph"},
+            {"source": "code_intelligence:get_record_rules:account.move", "doc_type": "code_graph"},
+            {"source": "code_intelligence:involved_modules:unknown", "doc_type": "code_graph"},
+            {"source": "guide.pdf", "doc_type": "pdf"},
+        ],
+    }
+    assert sa.evidence_pairs(raw) == (("graph", "model:account.move"), ("document", "guide.pdf"))
+
+
+def test_acl_dossier_sources_do_not_pretend_to_be_object_references():
+    raw = {
+        "evidence_dossier": [
+            {"source_type": "code", "source": "acl:account.move:read"},
+            {"source_type": "code", "source": "rule:account.account_move_comp_rule"},
+        ],
+        "sources": [{"source": "code_intelligence:who_has_access_to:account.move", "doc_type": "code_graph"}],
+    }
+    assert ("graph", "model:account.move") in sa.evidence_pairs(raw)

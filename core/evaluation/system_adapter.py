@@ -6,6 +6,7 @@ from typing import Mapping
 
 from config.settings import MASSIVE_EXTRACTION_REFUSAL_MSG, PROMPT_INJECTION_REFUSAL_MSG
 from core.evidence.evidence_sufficiency import EvidenceSufficiencyStatus
+from core.evidence.source_refs import CODE_GRAPH_DOC_TYPE, parse_code_graph_source
 from core.evaluation.frozen_cases import FrozenCase
 from core.evaluation.protocol_metrics import CaseResult
 
@@ -46,14 +47,30 @@ def resolved_objects(raw: Mapping) -> tuple:
     return models + modules
 
 
+def graph_evidence(raw: Mapping) -> tuple:
+    parsed = (
+        parse_code_graph_source(item.get("source", ""))
+        for item in raw.get("sources") or ()
+        if item.get("doc_type") == CODE_GRAPH_DOC_TYPE
+    )
+    return tuple(dict.fromkeys(("graph", f"model:{ref.model}") for ref in parsed if ref and ref.model))
+
+
+def document_evidence(raw: Mapping) -> tuple:
+    return tuple(
+        ("document", item["source"])
+        for item in raw.get("sources") or ()
+        if item.get("doc_type") != CODE_GRAPH_DOC_TYPE
+    )
+
+
 def evidence_pairs(raw: Mapping) -> tuple:
     dossier = tuple(
         (EVIDENCE_KINDS[item["source_type"]], item["source"])
         for item in raw.get("evidence_dossier") or ()
         if item.get("source_type") in EVIDENCE_KINDS
     )
-    documents = tuple(("document", item["source"]) for item in raw.get("sources") or ())
-    return dossier + documents
+    return dossier + graph_evidence(raw) + document_evidence(raw)
 
 
 def claim_counts(raw: Mapping) -> tuple[int, int]:

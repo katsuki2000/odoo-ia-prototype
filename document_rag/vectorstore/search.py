@@ -140,7 +140,7 @@ def get_retriever() -> tuple[ChromaManager, BM25Index]:
     global _shared_chroma, _shared_bm25
 
     if _shared_chroma is None:
-        _shared_chroma = ChromaManager(collection_name="odoo_docs")
+        _shared_chroma = ChromaManager()
 
     if _shared_bm25 is None or not _shared_bm25.is_built:
         _shared_bm25 = BM25Index()

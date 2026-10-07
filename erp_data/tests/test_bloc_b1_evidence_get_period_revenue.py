@@ -8,15 +8,9 @@ mirroring the conventions of test_bloc_b1_evidence_get_total_invoices.py.
 Pure unit tests -- connector.read_group is mocked so these never touch a
 live Odoo instance.
 
-Same account.move -> sale.order fallback shape as get_total_invoices_raw
-(ORM 8/9), minus the AMBIGUITE branch (this tool has no client filter, so
-no ambiguous-match case is possible). Decision table: 1 Evidence for the
-full branch (Python sum() over N read_group rows grouped by company_id is
-the calculation method for a single asserted fact, not N facts), 1 sourced
-from sale.order for the fallback branch (source follows real provenance,
-not what the text renders), and 1 negative Evidence with a COMPOSITE
-source (both account.move and sale.order attempts) for the fully-empty
-branch -- never sourced from account.move alone.
+Revenue is read only from paid invoices in account.move. Sales orders are
+not a semantic fallback for paid invoice revenue. Amounts are grouped by
+currency and each currency has separate Evidence.
 """
 
 from unittest.mock import patch
@@ -29,14 +23,11 @@ from erp_data.odoo_context import odoo_uid_ctx
 from core.evidence.evidence import Evidence, EvidenceSourceType
 
 
-def test_full_branch_sums_rows_into_single_evidence():
-    """N read_group rows (one per company) still produce exactly 1
-    Evidence -- the Python sum() is the calculation method for the single
-    'total' fact the text actually asserts, not a fact-per-row."""
+def test_full_branch_keeps_currency_totals_and_evidence_separate():
     with patch("erp_data._odoo_helpers.connector.read_group") as mock_rg:
         mock_rg.return_value = [
-            {"company_id": [1, "C1"], "amount_total": 100.0},
-            {"company_id": [2, "C2"], "amount_total": 250.0},
+            {"currency_id": [1, "EUR"], "amount_total": 100.0},
+            {"currency_id": [2, "USD"], "amount_total": 250.0},
         ]
         token = odoo_uid_ctx.set(7)
         try:
@@ -44,19 +35,23 @@ def test_full_branch_sums_rows_into_single_evidence():
         finally:
             odoo_uid_ctx.reset(token)
 
-    assert "350.00" in text
-    assert len(evidence_list) == 1
-    e = evidence_list[0]
-    assert isinstance(e, Evidence)
-    assert e.source_type == EvidenceSourceType.ORM
-    assert e.source == "account.move:read_group(amount_total:sum, groupby=company_id)"
-    assert e.value == 350.0
+    assert "100.00 EUR" in text and "250.00 USD" in text
+    assert len(evidence_list) == 2
+    assert all(isinstance(e, Evidence) for e in evidence_list)
+    assert all(e.source_type == EvidenceSourceType.ORM for e in evidence_list)
+    assert all(
+        e.source == "account.move:read_group(amount_total:sum, groupby=currency_id)"
+        for e in evidence_list
+    )
+    assert {e.value["currency"]: e.value["amount"] for e in evidence_list} == {
+        "EUR": 100.0, "USD": 250.0,
+    }
 
 
-def test_single_company_branch_evidence():
+def test_single_currency_branch_evidence():
     with patch("erp_data._odoo_helpers.connector.read_group") as mock_rg:
         mock_rg.return_value = [
-            {"company_id": [1, "C1"], "amount_total": 999.0},
+            {"currency_id": [1, "MGA"], "amount_total": 999.0},
         ]
         token = odoo_uid_ctx.set(1)
         try:
@@ -67,44 +62,34 @@ def test_single_company_branch_evidence():
     assert "999.00" in text
     assert len(evidence_list) == 1
     e = evidence_list[0]
-    assert e.source == "account.move:read_group(amount_total:sum, groupby=company_id)"
-    assert e.value == 999.0
+    assert e.source == "account.move:read_group(amount_total:sum, groupby=currency_id)"
+    assert e.value == {"currency": "MGA", "amount": 999.0}
     assert "toutes" in e.claim
 
 
-def test_sale_order_fallback_branch_sources_from_sale_order_not_account_move():
-    """The value's real provenance is sale.order -- Evidence.source must
-    reflect that, never account.move, even though the text prose currently
-    reuses the account.move-labelled '[Source: ...]' suffix (pre-existing
-    text quirk, not touched here)."""
+def test_revenue_does_not_fall_back_to_uninvoiced_sales_orders():
+    """Sales orders are not proof of paid invoice revenue."""
     with patch("erp_data._odoo_helpers.connector.read_group") as mock_rg:
-        mock_rg.side_effect = [
-            [],  # account.move: empty
-            [{"amount_total": 5000.0}],  # sale.order fallback: found
-        ]
+        mock_rg.return_value = []
         token = odoo_uid_ctx.set(1)
         try:
             text, evidence_list = get_period_revenue_raw("ce mois")
         finally:
             odoo_uid_ctx.reset(token)
 
-    assert "5000.00" in text
+    assert "Aucun chiffre d'affaires" in text
+    assert mock_rg.call_count == 1
+    assert mock_rg.call_args.kwargs["model"] == "account.move"
     assert len(evidence_list) == 1
     e = evidence_list[0]
-    assert e.source == "sale.order:read_group(amount_total:sum)"
-    assert "account.move" not in e.source
-    assert e.value == 5000.0
+    assert e.source.endswith("[empty]")
+    assert "sale.order" not in e.source
+    assert e.value is None
 
 
-def test_fully_empty_branch_negative_evidence_has_composite_source():
-    """When BOTH account.move and the sale.order fallback return nothing,
-    the negative Evidence's source must cover both attempted reads -- not
-    account.move alone."""
+def test_empty_branch_negative_evidence_covers_the_invoice_read():
     with patch("erp_data._odoo_helpers.connector.read_group") as mock_rg:
-        mock_rg.side_effect = [
-            [],  # account.move: empty
-            [],  # sale.order fallback: also empty
-        ]
+        mock_rg.return_value = []
         token = odoo_uid_ctx.set(1)
         try:
             text, evidence_list = get_period_revenue_raw("2024")
@@ -115,30 +100,16 @@ def test_fully_empty_branch_negative_evidence_has_composite_source():
     assert len(evidence_list) == 1
     e = evidence_list[0]
     assert e.value is None
-    assert "account.move" in e.source and "sale.order" in e.source
+    assert "account.move" in e.source and "sale.order" not in e.source
     assert "[empty]" in e.source
-    assert e.claim == "No matching invoice/sale revenue found for period=2024"
-
-
-def test_fully_empty_branch_no_separate_negative_evidence_for_sale_order():
-    """Only 1 Evidence total on this branch -- no second, standalone
-    negative Evidence for the sale.order attempt on its own."""
-    with patch("erp_data._odoo_helpers.connector.read_group") as mock_rg:
-        mock_rg.side_effect = [[], []]
-        token = odoo_uid_ctx.set(1)
-        try:
-            _text, evidence_list = get_period_revenue_raw("toutes")
-        finally:
-            odoo_uid_ctx.reset(token)
-
-    assert len(evidence_list) == 1
+    assert e.claim == "No matching invoice revenue found for period=2024"
 
 
 def test_no_confidence_ever_set():
     """B0 decision (core/evidence.py): a deterministic ORM read never
     carries a confidence score, across every branch."""
     with patch("erp_data._odoo_helpers.connector.read_group") as mock_rg:
-        mock_rg.return_value = [{"company_id": [1, "C1"], "amount_total": 1.0}]
+        mock_rg.return_value = [{"currency_id": [1, "MGA"], "amount_total": 1.0}]
         token = odoo_uid_ctx.set(1)
         try:
             _text, evidence_list = get_period_revenue_raw("toutes")
@@ -150,7 +121,7 @@ def test_no_confidence_ever_set():
 
 def test_evidence_scope_carries_execution_identity_not_company_id():
     with patch("erp_data._odoo_helpers.connector.read_group") as mock_rg:
-        mock_rg.return_value = [{"company_id": [1, "C1"], "amount_total": 1.0}]
+        mock_rg.return_value = [{"currency_id": [1, "MGA"], "amount_total": 1.0}]
         token = odoo_uid_ctx.set(42)
         try:
             _text, evidence_list = get_period_revenue_raw("toutes")
@@ -165,7 +136,7 @@ def test_evidence_scope_carries_execution_identity_not_company_id():
 
 def test_tool_wrapper_unchanged_return_contract():
     with patch("erp_data._odoo_helpers.connector.read_group") as mock_rg:
-        mock_rg.return_value = [{"company_id": [1, "C1"], "amount_total": 1.0}]
+        mock_rg.return_value = [{"currency_id": [1, "MGA"], "amount_total": 1.0}]
         token = odoo_uid_ctx.set(1)
         try:
             result = get_period_revenue.invoke({"periode": "toutes"})

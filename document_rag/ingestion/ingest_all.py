@@ -32,7 +32,7 @@ from document_rag.ingestion.pdf_loader import PDFLoader, load_pdf_directory
 from document_rag.ingestion.scan_root import resolve_scan_root
 from document_rag.ingestion.wiki_loader import WikiLoader, load_wiki_directory
 from document_rag.vectorstore.chroma_manager import ChromaManager
-from config.settings import CHROMA_PATH
+from config.settings import CHROMA_PATH, DOCS_COLLECTION_NAME
 
 logger = logging.getLogger(__name__)
 
@@ -43,13 +43,13 @@ class IngestionOrchestrator:
     def __init__(
         self,
         chroma_db_path: str | Path = "vectorstore/chroma_db",
-        collection_name: str = "odoo_documents",
+        collection_name: str = DOCS_COLLECTION_NAME,
         chunk_size: int = 512,
         chunk_overlap: int = 50,
     ):
         self.docs_manager = ChromaManager(
             db_path=chroma_db_path,
-            collection_name="odoo_docs",
+            collection_name=collection_name,
         )
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap

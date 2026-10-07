@@ -36,6 +36,7 @@ LOCAL_EMBEDDING_API_KEY  = os.getenv("LOCAL_EMBEDDING_API_KEY", "ollama")
 
 # ── ChromaDB ──────────────────────────────────────────
 CHROMA_PATH = os.getenv("CHROMA_PATH") or str(_ROOT / "document_rag" / "vectorstore" / "chroma_db")
+DOCS_COLLECTION_NAME = "odoo_docs"
 
 # ── Answer verification (off | report | enforce) ─────────
 ANSWER_VERIFIER_MODE = os.getenv("ANSWER_VERIFIER_MODE", "report")
@@ -72,6 +73,13 @@ CORE_FRAMEWORK_ADDONS_PATH = os.getenv("CORE_FRAMEWORK_ADDONS_PATH") or str(Path
 USE_RERANKER = os.getenv("USE_RERANKER", "false").lower() in ("true", "1", "yes")
 
 VECTOR_SIMILARITY_FLOOR = float(os.getenv("VECTOR_SIMILARITY_FLOOR", "0.20"))
+
+# Deterministic greeting/thanks gate. Off by default: the LLM answers smalltalk.
+ENABLE_SMALLTALK_GATE = os.getenv("ENABLE_SMALLTALK_GATE", "false").lower() in (
+    "true",
+    "1",
+    "yes",
+)
 
 # ── FastAPI ───────────────────────────────────────────
 API_HOST = "0.0.0.0"

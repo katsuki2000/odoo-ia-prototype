@@ -6,14 +6,23 @@ from langchain_core.tools import tool
 
 from core.evidence.evidence import Evidence, EvidenceSourceType, make_evidence
 from core.evidence.evidence_collector import record_evidence
+from erp_data._odoo_helpers import ambiguity_text, narrow_to_one_entity
 from erp_data.runtime.read_tools import orm_read_group, orm_search_read
 from erp_data.tools._runtime import runtime_records, runtime_scope
+
+_STOCK_QUANT_SOURCE = (
+    "stock.quant:read_group(quantity:sum,reserved_quantity:sum, "
+    "location_id.usage=internal)"
+)
 
 
 def get_product_stock_raw(produit: str) -> Tuple[str, List[Evidence]]:
     stock = orm_read_group(
         "stock.quant",
-        domain=[("product_id.name", "ilike", produit)],
+        domain=[
+            ("product_id.name", "ilike", produit),
+            ("location_id.usage", "=", "internal"),
+        ],
         fields=["quantity:sum", "reserved_quantity:sum"],
         groupby=["product_id"],
     )
@@ -24,8 +33,22 @@ def get_product_stock_raw(produit: str) -> Tuple[str, List[Evidence]]:
         text = f"Le produit '{produit}' n'a pas été trouvé en stock."
         evidence = make_evidence(
             source_type=EvidenceSourceType.ORM,
-            claim=f"No stock.quant matches product={produit}",
-            source="stock.quant:read_group(quantity:sum,reserved_quantity:sum)",
+            claim=f"No internal stock.quant matches product={produit}",
+            source=f"{_STOCK_QUANT_SOURCE} [empty]",
+            value=None,
+            scope=scope,
+        )
+        return text, [evidence]
+
+    results, candidates = narrow_to_one_entity(results, "product_id", produit)
+    if candidates:
+        return ambiguity_text("produits", produit, candidates), []
+    if not results:
+        text = f"Aucun produit ne correspond à '{produit}' dans les emplacements internes."
+        evidence = make_evidence(
+            source_type=EvidenceSourceType.ORM,
+            claim=f"No internal stock.quant matches product={produit}",
+            source=f"{_STOCK_QUANT_SOURCE} [empty after product resolution]",
             value=None,
             scope=scope,
         )
@@ -42,14 +65,14 @@ def get_product_stock_raw(produit: str) -> Tuple[str, List[Evidence]]:
     evidence_qty = make_evidence(
         source_type=EvidenceSourceType.ORM,
         claim=f"Total quantity in stock for product={produit}",
-        source="stock.quant:read_group(quantity:sum,reserved_quantity:sum)",
+        source=_STOCK_QUANT_SOURCE,
         value=qty,
         scope=scope,
     )
     evidence_reserved = make_evidence(
         source_type=EvidenceSourceType.ORM,
         claim=f"Reserved quantity in stock for product={produit}",
-        source="stock.quant:read_group(quantity:sum,reserved_quantity:sum)",
+        source=_STOCK_QUANT_SOURCE,
         value=reserved,
         scope=scope,
     )

@@ -7,6 +7,8 @@ from pydantic import ValidationError
 
 from api.schemas import ReindexRequestV1
 from api.routes_ingestion import ingestion_status, reindex_v1
+from config.settings import DOCS_COLLECTION_NAME
+from document_rag.vectorstore.chroma_manager import ChromaManager
 
 
 def test_api_v1_incremental_reindex_indexes_requested_path(tmp_path):
@@ -58,3 +60,15 @@ def test_api_v1_ingestion_status_reports_stats_and_watcher_state(tmp_path):
 def test_api_v1_reindex_rejects_invalid_scope():
     with pytest.raises(ValidationError):
         ReindexRequestV1(scope="unknown")
+
+
+def test_api_status_reads_the_collection_the_retrieval_uses(tmp_path):
+    stored = ChromaManager(db_path=tmp_path, collection_name=DOCS_COLLECTION_NAME)
+    stored.collection.add(
+        ids=["chunk-1"], documents=["text"], embeddings=[[0.1] * 384], metadatas=[{"source": "doc.txt"}],
+    )
+
+    with patch("document_rag.vectorstore.chroma_manager.CHROMA_PATH", tmp_path):
+        response = ingestion_status()
+
+    assert response.total_chunks == 1

@@ -32,6 +32,7 @@ sys.path.insert(0, str(project_root))
 
 from core.graph.graph import code_intelligence_agent
 from core.evidence.evidence_collector import start_evidence_collection, collect_and_clear_evidence
+from core.evidence.source_refs import parse_code_graph_source
 from config.settings import LATENCY_BUDGET_P90_SECONDS
 from code_intelligence.agent.security_principal_detection import (
     detect_security_principals_from_question,
@@ -69,16 +70,8 @@ def load_questions(question_ids=None, module=None):
 
 
 def _extract_tools_used(sources):
-    """Une SourceReference du Bloc N1/CI a pour `source` la forme
-    'code_intelligence:{tool_name}:{model}' (postprocess.py::build_final_response).
-    Extrait le nom d'outil brut pour le comparer a expected_tools."""
-    tools = []
-    for s in sources:
-        src = getattr(s, "source", "") or ""
-        parts = src.split(":")
-        if len(parts) >= 2 and parts[0] == "code_intelligence":
-            tools.append(parts[1])
-    return tools
+    parsed = (parse_code_graph_source(getattr(s, "source", "") or "") for s in sources)
+    return [ref.tool for ref in parsed if ref is not None]
 
 
 def build_agent_state(item):

@@ -1,7 +1,4 @@
-"""Section 896 -- detection deterministe (regex, aucun LLM) de personas de
-securite hypothetiques nommees dans le TEXTE d'une question du banc N1, pour
-peupler `state["security_principals"]` (888/889) quand le bank JSON ne le
-declare pas deja explicitement.
+"""
 
 Portee volontairement etroite (Bug B, option intermediaire, section 896) :
 - Utilise UNIQUEMENT par `scripts/run_bloc_n1_benchmark.py` comme filet pour

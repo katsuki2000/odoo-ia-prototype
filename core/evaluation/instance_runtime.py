@@ -22,7 +22,16 @@ credentials = {}
 for xmlid in params['users']:
     user = env.ref(xmlid)
     key = env['res.users.apikeys'].with_user(user)._generate(None, params['key_name'])
-    credentials[xmlid] = {'uid': user.id, 'api_key': key, 'groups': user.groups_id.ids}
+    group_external_ids = user.groups_id.get_external_id()
+    group_xmlids = [group_external_ids.get(group.id) for group in user.groups_id]
+    group_xmlids = [group_xmlid for group_xmlid in group_xmlids if group_xmlid]
+    credentials[xmlid] = {
+        'uid': user.id,
+        'api_key': key,
+        'groups': user.groups_id.ids,
+        'group_xmlids': group_xmlids,
+        'groups_complete': len(group_xmlids) == len(user.groups_id),
+    }
 env.cr.commit()
 print('__MARKER__' + json.dumps(credentials))
 """

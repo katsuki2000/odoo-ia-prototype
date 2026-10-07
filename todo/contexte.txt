@@ -3166,7 +3166,7 @@ Date : 06/10/2026
 
 **Fichiers modifies** : `todo/contexte.txt` (cette section).
 
-## Section 1112 : P1 : `LocalServerEmbeddingFunction` -- relance sur coupure de connexion, timeout configurable, lots de 16 (mandate par pmm)
+## Section 1155 : P1 : `LocalServerEmbeddingFunction` -- relance sur coupure de connexion, timeout configurable, lots de 16 (mandate par pmm)
 
 Date : 05/10/2026
 **Constat** : la reconstruction de `odoo_docs` avec `bge-m3` a echoue deux fois, sur des fichiers differents (`Facture brouillon (_ 35).pdf` et `facture_scannee.pdf` au premier essai ; `wiki_onboarding_rh.txt`, 1,7 Ko, au second), par `Read timed out (30 s)` puis `RemoteDisconnected`. Sonde manuelle sur 12 requetes d'embedding sequentielles de petite taille : 11 reussies (1,3 a 6,3 s), 1 `ConnectionError`. Cause retenue : coupures intermittentes du tunnel ou du serveur (environ 1 requete sur 12 ; origine exacte, ngrok ou Kaggle, non determinee), combinees a l'absence de relance dans la fonction. La meme fonction sert la recherche vectorielle pendant la mesure P1 : sans correctif, une coupure donnerait une ligne `error` definitive (section 1107).
@@ -3342,3 +3342,486 @@ Date : 06/10/2026
 **Limite** : pas de liste multi-societes complete depuis `env.companies` (JWT ne porte que la societe active) — suffisant pour mono et pour eviter un filtre LLM hors societe active.
 
 **Fichiers modifies** : `erp_data/odoo_context.py`, `erp_data/runtime/{identity,validation,types,read_tools}.py`, `erp_data/odoo_connector.py`, `erp_data/_odoo_helpers.py`, `core/graph/graph.py`, `api/routes_ask.py`, `erp_data/tests/test_p9_company_scope.py`, `todo/contexte.txt`.
+
+## Section 1154 : smalltalk gate desactive par defaut (LLM repond)
+
+Date : 07/10/2026
+**Demande (pmm)** : retirer le smalltalk figure pour laisser le LLM repondre.
+
+**Realise** : `ENABLE_SMALLTALK_GATE` (defaut `false`) dans `config/settings.py` / `.env.example` ; `smalltalk_gate` no-op si desactive. Tests du gate forcent le flag a true. Relancer uvicorn pour prendre l'env.
+
+**Fichiers modifies** : `config/settings.py`, `core/graph/graph_nodes.py`, `.env.example`, `tests/test_smalltalk_gate.py`, `todo/contexte.txt`.
+
+## Section 1156 : Routage -- selecteur de source dans l'interface (« d'apres la documentation » / « d'apres le systeme »), aucune option = routage automatique (mandate par pmm)
+
+Date : 07/10/2026
+**Constat** : la question « quelles sont les regles a respecter quand on code d'apres la documentation ? » a mis plus de 60 s dans Odoo (timeout `Read timed out (read timeout=60)` dans `odoo.log`, affiche comme « Impossible de contacter le serveur »). La console uvicorn montre que `code_intelligence_agent` a execute `analyze_security_locks(res.company)` et `trace_full_inheritance(res.company)`, sans erreur d'embedding. Hypothese (non confirmee par execution) : repli sur le modele actif de l'interface (`resolver.py` lignes 70-77) faute de modele cite dans la question. Constat de code : dans `graph.py` (ligne 90), la route `documentaire` mene elle aussi a `code_intelligence_agent` (« CI-first », repli sur `generate` seulement si preuve insuffisante) ; forcer la route `documentaire` ne suffit donc pas ; de plus le noeud `route` appelle un classifieur d'intention LLM (`resolve_question_intent`) sur chaque question.
+**Decision (pmm)** : deux options dans l'interface ; aucune option choisie = routage automatique actuel (comportement inchange, harnais P1 non touche).
+**Conception** : champ optionnel `source_mode` (`documentation` | `systeme` | absent). `documentation` : le noeud `route` retourne tout de suite `documentaire` (sans resolveur, sans classifieur LLM, sans repli sur `active_model`) et `route_decision` renvoie une cle `documentaire_direct` branchee sur le noeud `generate` (RAG), puis `verify_answer`. `systeme` : si la route calculee est `documentaire`, elle est remplacee par `donnees_erp` (terme de donnees present) ou `code_intelligence` ; le reste du routage est inchange. Limite : en mode `systeme`, `documentaire` menait deja a `code_intelligence_agent`, l'effet est donc surtout de supprimer la route documentaire vers l'ORM pour les questions de donnees.
+**Fichiers prevus** : `api/schemas.py`, `api/routes_ask.py`, `core/graph/graph.py`, `core/routing/routing.py`, `odoo_addons/miro_ai/controllers/main.py`, `static/src/js/miro_ai.js`, `static/src/xml/miro_ai_assistant.xml`, `static/src/css/miro_ai.css`, tests.
+**Realise (07/10/2026)** : `source_mode` ajoute de bout en bout. `api/schemas.py` (`Literal["documentation","systeme"]`, defaut `None`) ; `api/routes_ask.py` et `core/graph/graph.py` (parametre `source_mode` transmis a l'etat) ; `core/routing/routing.py` (court-circuit de `route()` en mode documentation, remplacement de `documentaire` en mode systeme, constante `DOCUMENTAIRE_DIRECT_KEY`, `route_decision()` renvoie cette cle en mode documentation) ; `core/graph/graph.py` (arete `documentaire_direct` -> `generate`) ; `controllers/main.py` (parametre `source_mode`, transmis seulement si `documentation` ou `systeme`) ; `miro_ai.js` (etat `sourceMode`, `toggleSourceMode`, champ ajoute a la requete), `miro_ai_assistant.xml` (deux boutons a bascule, recliquer desactive) et `miro_ai.css`. Sans `source_mode`, aucun comportement ne change.
+**Tests ajoutes** : `tests/test_source_mode_routing.py` (9 cas : court-circuit sans resolveur, cle d'arete, route inchangee sans mode, remplacement systeme vers `code_intelligence` / `donnees_erp`, route non documentaire inchangee, validation du champ de la requete). **Verifications faites** : `py_compile` des 5 fichiers Python modifies et du fichier de tests, XML bien forme, syntaxe JS verifiee par `node --check`. **Non execute** : pytest, demarrage d'Odoo, rendu des boutons, graphe LangGraph reel (l'arete `documentaire_direct` -> `generate` n'est testee que par lecture du code).
+**A faire par pmm** : `.venv/bin/python3 -m pytest tests/test_source_mode_routing.py tests/test_h1c_sticky_routing.py tests/test_route_accent_fold.py tests/test_bloc_p1_tranche2_ci_first_evidence_routing.py -q` ; redemarrer uvicorn ; redemarrer Odoo avec `-u miro_ai` puis vider le cache des assets du navigateur ; tester la question documentaire avec « D'apres la documentation » active.
+**Fichiers modifies** : ceux listes ci-dessus + `tests/test_source_mode_routing.py` + cette section. Copies d'origine dans `/tmp/avant_1113/`. Note : `git status` montre d'autres fichiers modifies que je n'ai pas touches (`.env.example`, `config/settings.py`, `core/graph/graph_nodes.py`, `code_intelligence/agent/loop.py`, `security_principal_detection.py`, `tests/test_smalltalk_gate.py`).
+**Correction (07/10/2026, apres pytest de pmm)** : `tests/test_bloc_p1_tranche2_ci_first_evidence_routing.py::test_route_dispatches_documentaire_hybride_code_intelligence_to_ci_agent` a echoue (62 reussis, 1 echec) : l'arete directe `documentaire_direct` -> `generate` ajoutee a la section 1156 faisait dispatcher `route` vers 3 noeuds (`generate`, `orm_agent_loop`, `code_intelligence_agent`), alors que cette contrainte (route -> 2 noeuds de premier niveau) est une contrainte utilisateur du bloc P1 tranche 2. Le test n'a PAS ete modifie. L'arete directe est retiree (`graph.py`, `routing.py` : constante `DOCUMENTAIRE_DIRECT_KEY` et branche de `route_decision` supprimees). Nouvelle realisation sans changer la topologie : en mode `documentation`, (1) `route()` retourne `documentaire` sans resolveur ni classifieur LLM (inchange) ; (2) `code_intelligence_agent()` (`code_intelligence/agent/loop.py`) retourne immediatement sans lancer `CodeIntelligenceAgentRunner` ; (3) `ci_evidence_decision()` (`core/graph/graph_nodes.py`) renvoie `generate` en tete de fonction, avant la lecture de `ci_evidence_sufficiency`. Le chemin reutilise l'arete post-CI existante vers `generate` (section 744). Sans `source_mode`, aucun comportement ne change.
+**Tests** : `tests/test_source_mode_routing.py` mis a jour (route_decision inchangee quel que soit le mode ; noeud CI saute en mode documentation et execute sinon ; `ci_evidence_decision` renvoie `generate` en mode documentation, `format_output` sans etat). Verification faite : `py_compile` des 5 fichiers. Non execute : pytest.
+**Fichiers modifies par cette correction** : `core/graph/graph.py`, `core/routing/routing.py`, `code_intelligence/agent/loop.py`, `core/graph/graph_nodes.py` (ces deux derniers avaient deja des modifications non committees qui ne sont pas de moi ; copies d'origine dans `/tmp/avant_1113/*.avant`), `tests/test_source_mode_routing.py`, `todo/contexte.txt`.
+
+## Section 1157 : renumerotation de deux sections en doublon (1112 -> 1155, 1113 -> 1156) et cloture du selecteur de source apres pytest
+
+Date : 07/10/2026
+**Constat** : mes sections « 1112 » (relance, timeout et lots de `LocalServerEmbeddingFunction`) et « 1113 » (selecteur de source) ont ete ajoutees avec des numeros deja pris par d'autres sections (« 1112 : `odoo_docs` reconstruite... » et « 1113 : retrait de `code_manager`... »), faute d'avoir relu le dernier numero avant l'ajout (regle de `todo/rules.md`). **Correction (mandate par pmm : « oui »)** : les deux titres sont renumerotes en 1155 et 1156, ainsi que le renvoi interne « section 1113 » du paragraphe de correction, devenu « section 1156 ». Aucun autre texte n'est modifie. Copie du journal avant l'operation : `/tmp/contexte.txt.avant_renumerotation`. Note : la section 1118, ecrite par une autre session, decrit le meme correctif d'embedding que la 1155 (commit `5658a89`).
+**Cloture du selecteur de source (1156)** : sortie collee par pmm de `.venv/bin/python3 -m pytest tests/test_source_mode_routing.py tests/test_h1c_sticky_routing.py tests/test_route_accent_fold.py tests/test_bloc_p1_tranche2_ci_first_evidence_routing.py -q` : **64 passed in 52.51s** (la premiere execution donnait 62 reussis et 1 echec, cause : l'arete directe vers `generate`, retiree). **Non encore verifie** : test de bout en bout dans l'interface Odoo (boutons affiches, question documentaire avec « D'apres la documentation » active, console uvicorn) ; aucun commit effectue.
+**Fichiers modifies** : `todo/contexte.txt` uniquement.
+
+## Section 1158 : `scripts/benchmark_rag.py` -- rang de la source attendue, reponse affichee pour les cas en echec, mediane de latence (mandate par pmm : « oui »)
+
+Date : 07/10/2026
+**Constat (sortie collee par pmm, 9 cas, top_k=4)** : 8/9 reussis. (1) La « precision retrieval 100 % » mesure la presence de la source attendue dans les 4 premiers resultats ; l'affichage ne montre que 2 sources : pour DOCX-01 les deux premieres sont `bon_commande_fournisseur_PO2025_00142.pdf` alors que la source attendue est `guide_achats_fournisseurs.docx` (donc au rang 3 ou 4 ; rang exact inconnu). (2) HORS-01 echoue sur une liste fixe de 6 formules de refus (`pas de source`, `non mentionne`, `ne dispose pas`, `hors perimetre`, `je ne peux pas`, `inconnu`) ; la reponse n'est pas affichee, on ne sait donc pas s'il s'agit d'une invention ou d'un refus formule autrement. (3) Le correctif de relance (section 1155) a joue en conditions reelles : une coupure `RemoteDisconnected` a la question 5, relancee apres 1 s, sans echec ; les questions 5 et 8 ont pris environ 6 s, ce qui tire la moyenne de latence (2 533 ms).
+**Modification prevue (script seul, non suivi par git ; aucun changement du pipeline ni des criteres de reussite)** : calcul du rang (1-based, premiere occurrence) de la source attendue dans les `top_k` resultats ; affichage de toutes les sources recuperees avec ce rang ; affichage de la reponse generee (une ligne, tronquee a 600 caracteres) pour les cas en echec et pour HORS-01 ; colonne `Rang` dans la synthese ; ajout de `Hit@1` (source attendue en rang 1, hors cas sans source attendue) et de la latence mediane. Les statuts PASS/FAIL restent calcules exactement comme avant.
+**Realise (07/10/2026)** : `scripts/benchmark_rag.py` modifie comme prevu (21 lignes changees ; import de `statistics`, rang de la source attendue, affichage de toutes les sources recuperees et du rang, reponse generee affichee pour les cas en echec et pour HORS-01, colonne `Rang`, `Hit@1`, latence mediane). Criteres PASS/FAIL, listes de formules de refus et `top_k` par defaut inchanges. Verification faite : `py_compile` ; copie d'origine `/tmp/avant_1113/benchmark_rag.py.avant`. **Non execute** (appels au LLM et au tunnel) : a lancer par pmm avec `python scripts/benchmark_rag.py` (ou `--retrieval` pour le seul rang des sources, sans generation). **Fichiers modifies** : `scripts/benchmark_rag.py`, `todo/contexte.txt`.
+
+## Section 1159 : benchmark RAG (9 cas) apres la 1158 : resultats, faux echec de HORS-01, etat de `odoo_docs`, limites et suite (lecture seule, aucun code modifie)
+
+Date : 07/10/2026
+**Resultats (sortie collee par pmm, `python scripts/benchmark_rag.py`, top_k=4, generation incluse)** : 8/9 affiches ; precision retrieval 100 % (source attendue presente dans les chunks renvoyes) ; `Hit@1` 7/8 (DOCX-01 : `guide_achats_fournisseurs.docx` au rang 3/5, derriere deux chunks de `bon_commande_fournisseur_PO2025_00142.pdf`) ; le fait attendu figure dans les 8 reponses ; latence de retrieval moyenne 2 460 ms, mediane 1 205 ms (question 1 : 11 774 ms, cause probable non verifiee : rechargement de `bge-m3` cote Kaggle apres inactivite) ; aucune relance d'embedding necessaire sur ces 9 appels (au run precedent, une coupure `RemoteDisconnected` avait ete relancee avec succes, section 1155).
+**HORS-01 : faux echec du critere, pas du systeme.** Reponse generee : « Je n'ai pas trouve cette information dans la base de connaissance interne. Contactez votre responsable technique pour plus de details. » C'est la phrase de refus prevue par `document_rag/prompts.py` (ligne 34). Le script ne la reconnait pas car sa liste de formules (`pas de source`, `non mentionne`, `ne dispose pas`, `hors perimetre`, `je ne peux pas`, `inconnu`), conservee telle quelle a la 1158, ne contient pas « pas trouve ». Score reel sur ce jeu : 9/9 si le critere reconnait la phrase officielle. **Proposition en attente de l'accord de pmm (non appliquee, aucun fichier modifie)** : ajouter `pas trouve cette information` a la liste ; a consigner comme calibrage fait apres lecture de la reponse. Les pistes envisagees avant lecture (seuil de pertinence au retrieval, consigne de refus renforcee) ne sont pas necessaires.
+**Correction de formulation (1158)** : la 1158 parle de la source attendue « dans les 4 premiers resultats ». En realite la recherche renvoie 4 a 8 chunks malgre `top_k=4` (5 a 8 sources listees), vraisemblablement par ajout de fragments contigus (non verifie dans le code) ; le « rang » est la position dans la liste de chunks, doublons compris. Mon estimation « rang 3 ou 4 » pour DOCX-01 etait juste (rang 3).
+**Etat de la base (lecture seule SQLite)** : `odoo_docs` = 45 chunks ; les 18 fichiers de `document_rag/documents` y sont tous presents (aucun manquant, aucune source orpheline) ; plus gros fichier : `Miro - SMA, MMT, JHR, Miro K.E., Protocoles IA et Codage Defensif, v1.1, 2026-06-04.md` (14 chunks). Une collection `odoo_documents` **vide** (0 chunk) existe aussi ; je ne sais pas quel code la cree (a verifier).
+**Reponse a « le RAG fonctionne-t-il ? »** : oui sur ce qui est mesure, rien de bloquant trouve. **Limites** : (1) 9 cas ecrits a la main sur un petit corpus ; le script appelle `quick_retrieve` puis `generate` directement, sans routage, sans `verify_answer`, sans l'interface Odoo : le selecteur de source (1156) n'est pas teste de bout en bout. (2) Le document « Protocoles IA et Codage Defensif », objet de la question qui a declenche la 1156, n'a aucun cas dans le benchmark. (3) Pas de seuil de pertinence au retrieval : des chunks sans rapport arrivent en fin de liste (ex. `FAC_2025_00039.pdf`, `Facture brouillon (_ 35).pdf` pour la question 1) ; effet sur le bruit et le cout non mesure. (4) Le jeu documentaire fige (249 cas, `claim_recall_documentary`, sections 1146 a 1149 d'apres leurs titres, detail non relu ici) n'a pas ete relance : c'est la mesure rigoureuse, ce benchmark est un test de fumee.
+**Suite proposee (a mandater)** : (a) test dans l'interface Odoo avec « D'apres la documentation » sur la question des regles de code (redemarrer uvicorn, puis Odoo avec `-u miro_ai`, vider le cache du navigateur ; coller la console uvicorn) ; (b) ajouter au benchmark un cas visant le document « Protocoles IA et Codage Defensif » ; (c) valider ou refuser l'ajout de `pas trouve cette information` ; (d) identifier l'origine de `odoo_documents` ; (e) relancer le jeu fige v2 quand pmm le decide.
+**Fichiers modifies** : `todo/contexte.txt` uniquement.
+
+## Section 1160 : `scripts/benchmark_rag.py` -- le critere de refus de HORS-01 reconnait la phrase officielle du prompt (mandate par pmm : « oui », suite de la 1159)
+
+Date : 07/10/2026
+**Modification prevue** : ajouter la formule `pas trouvé cette information` a la liste des formules de refus du cas hors-perimetre (`exp_fact is None`). C'est un calibrage fait **apres lecture de la reponse generee** (« Je n'ai pas trouve cette information dans la base de connaissance interne... », phrase de `document_rag/prompts.py` ligne 34) : le score 9/9 qui en resulte n'est donc pas un resultat « a l'aveugle » pour ce cas. Le critere reste restreint a la phrase officielle ; les six formules existantes sont conservees ; aucun autre cas, `top_k` ni seuil n'est touche.
+**Realise (07/10/2026)** : `scripts/benchmark_rag.py` ligne 154 : `"pas trouvé cette information"` ajoute a la liste ; une seule ligne changee (diff verifie), `py_compile` ok, copie d'origine `/tmp/avant_1113/benchmark_rag.py.avant_1160`. Verification statique (sans reseau ni LLM) : la phrase reelle de refus relevee a la 1159, passee en minuscules, est reconnue par la liste. **Non execute** : le benchmark complet (appels LLM et tunnel), a relancer par pmm avec `python scripts/benchmark_rag.py` pour confirmer 9/9. **Fichiers modifies** : `scripts/benchmark_rag.py`, `todo/contexte.txt`.
+
+## Section 1161 : `odoo_documents` : origine de la collection vide (1159 d) ; tests de la tranche T relances (lecture seule, aucun code modifie)
+
+Date : 07/10/2026
+**Mandat (pmm)** : « lis contexte et continue ». Sauvegarde : `/tmp/contexte.avant_1161.txt`. Parmi les suites de la 1159, seule (d) n'appelle aucune decision : (a) et (e) sont a pmm, (b) n'est pas mandatee, (c) a ete faite en 1160.
+**Tests** : les tests de la tranche T (`test_t1_*`, `test_t2_*`, `test_t3_verify_node`, `test_system_adapter`, topologie de `test_bloc_p1_tranche2_ci_first_evidence_routing`) relances apres lecture des 1130 et 1131 : 120 passed en 2,07 s. Les fichiers de l'etape 3 sont ceux decrits en 1129/1130.
+**Etat des collections (lecture seule)** : `odoo_docs` 45 chunks ; `odoo_documents` 0 chunk, memes metadonnees (dont `embedding_model: nomic-ai/nomic-embed-text-v1.5`, libelle perime deja signale).
+**Origine de `odoo_documents`** :
+1. C'est la valeur par defaut du parametre `collection_name` de `ChromaManager.__init__` (`document_rag/vectorstore/chroma_manager.py`, l. 48), et ce constructeur cree la collection si elle n'existe pas : tout `ChromaManager()` sans nom la recree.
+2. Appel sans nom hors tests : `retrieve(...)` de `document_rag/vectorstore/search.py` (l. 55) quand aucun `chroma_manager` n'est fourni. Le noeud `retrieve` du graphe et `get_retriever()` (l. 143) passent `odoo_docs` : ce n'est donc pas le chemin de production.
+3. `IngestionOrchestrator.__init__` (`ingest_all.py`, l. 46) declare aussi `collection_name="odoo_documents"`, parametre ignore : le corps ecrit `odoo_docs` en dur.
+4. **Non determine** : quel appel precis l'a creee (la base ne porte aucune date de creation) ; je ne l'ai pas verifie plus loin.
+**Cause racine** : le nom canonique de la collection est ecrit en dur a sept endroits (`search.py`, `incremental.py`, `watcher.py`, trois fois dans `scheduler.py`, `ingest_all.py`) alors que le defaut de la classe est un autre nom. Tout oubli de l'argument recree une collection fantome, sans erreur.
+**Correction proposee (non appliquee, a mandater)** : une constante unique dans `config/settings.py`, utilisee comme defaut de `ChromaManager` et par les sept appelants ; retrait du parametre mort de `IngestionOrchestrator` ; aucun effet sur le retrieval. La suppression de la collection vide `odoo_documents` reste a decider par pmm (elle serait recreee par le moindre appel fautif tant que le defaut n'est pas corrige).
+**Fichiers modifies** : `todo/contexte.txt` uniquement.
+
+## Section 1162 : nom de la collection documentaire : une seule source (correction a la racine), cas MD-03 au benchmark, suppression de `odoo_documents` (mandate par pmm : « 1 corrige, 2 ajoute, 3 oui », suite de la 1161)
+
+Date : 07/10/2026
+**Mandat (pmm)** : les trois points proposes en 1161 : (1) constante unique pour le nom de la collection, (2) cas du document « Protocoles IA et Codage Defensif » au benchmark, (3) suppression de la collection vide `odoo_documents`. Sauvegardes : `/tmp/contexte.avant_1162.txt` ; copies des fichiers de code dans `/tmp/avant_1162/`.
+**Correction de ma 1161 (erreur de ma part)** : j'y ai ecrit que l'appel sans nom n'etait « pas le chemin de production ». C'est faux pour l'ingestion : mon inventaire cherchait `ChromaManager(` et a rate les indirections `chroma_cls()`. `api/routes_ingestion.py` construit `manager = chroma_cls()` sans nom aux lignes 80 (reindex), 135 (statut) et 155 (scan), donc sur `odoo_documents`, des qu'un de ces endpoints est appele. Consequences, lues dans le code (non reproduites en execution) :
+1. `scope=incremental` et le scan ecrivent dans `odoo_documents`, que le retrieval (`odoo_docs`) ne lit jamais ;
+2. l'endpoint de statut, et `manager.get_stats()` apres un reindex complet, rapportent la collection vide (0 chunk) ;
+3. `scope=full` passe `collection_name=manager.collection_name` a `IngestionOrchestrator`, qui l'ignore (le corps ecrit `odoo_docs` en dur) : le parametre n'est donc pas « mort » comme je l'ecrivais en 1161, six tests et l'API le passent ; il est ignore en silence. Le correctif est de le respecter, pas de le retirer.
+Je ne peux pas dire quel appel precis a cree la collection vide observee, mais ces trois endpoints la creent a chaque appel.
+**Perimetre** : `config/settings.py` (constante `DOCS_COLLECTION_NAME = "odoo_docs"`, sans variable d'environnement : ce n'est pas une valeur dependante de la machine) ; `chroma_manager.py` (defaut = la constante) ; les sept litteraux de production (`search.py`, `incremental.py`, `watcher.py`, `scheduler.py` x3, `ingest_all.py`) et cinq litteraux de scripts/tests manuels (`tests/eval_retrieval.py`, `tests/manual_check_incremental.py` x4) remplaces par le defaut ; `IngestionOrchestrator` utilise son parametre `collection_name` (defaut = la constante) ; nouveau test `document_rag/tests/test_collection_name.py`. `core/evaluation/frozen_cases.py` (`SOURCES`) emploie « odoo_docs » comme etiquette de categorie d'evaluation, sans lien : non touche.
+**Benchmark (2)** : cas `MD-03` ajoute apres `MD-02`, sans nommer le document dans la question. Fait attendu choisi **avant toute execution**, a la lecture du document : le suffixe d'heritage XML de la table « Conventions de Nommage Strictes », `_inherit_nommodule` (specifique au guide, litteral entre accents graves donc peu sujet a reformulation). Question : « Selon les conventions de nommage strictes d'Odoo, quel suffixe utiliser pour l'identifiant d'une vue XML d'heritage ? ». Source attendue : le fichier `Miro - SMA, MMT, JHR, Miro K.E., Protocoles IA et Codage Défensif, v1.1, 2026-06-04.md`. Le resultat reste a mesurer par pmm (appels LLM et tunnel).
+**Suppression (3)** : `odoo_documents` (0 chunk) supprimee via le client Chroma **apres** la correction, pour qu'aucun defaut ne la recree. Aucun uvicorn n'est actif sur le poste (verifie `ps`) ; si pmm en lance un avec l'ancien code avant redemarrage, il la recreera au premier appel de ces endpoints.
+**Fichiers modifies** : voir la section de cloture.
+
+## Section 1163 : cloture de la 1162 : nom de collection unique, `IngestionOrchestrator` respecte `collection_name`, cas `MD-03`, `odoo_documents` supprimee
+
+Date : 07/10/2026
+**Realise** :
+1. `config/settings.py` : `DOCS_COLLECTION_NAME = "odoo_docs"` (constante, pas de variable d'environnement). `document_rag/vectorstore/chroma_manager.py` : defaut de `collection_name` = la constante (c'etait `odoo_documents`).
+2. `document_rag/ingestion/ingest_all.py` : `IngestionOrchestrator` utilise son parametre `collection_name` (defaut = la constante) au lieu de `odoo_docs` en dur ; l'API et six tests le passaient et il etait ignore.
+3. Les litteraux `ChromaManager(collection_name="odoo_docs")` remplaces par `ChromaManager()` : `search.py` (1), `incremental.py` (1), `watcher.py` (1), `scheduler.py` (3), `tests/eval_retrieval.py` (1), `tests/manual_check_incremental.py` (4). Il ne reste dans le code que la definition de la constante et l'etiquette de categorie `SOURCES` de `core/evaluation/frozen_cases.py`, sans lien.
+4. Tests : nouveau `document_rag/tests/test_collection_name.py` (4 tests : defaut de `ChromaManager`, defaut de l'orchestrateur, respect de son parametre, seule la collection documentaire est creee par l'orchestrateur, le watcher, le planificateur et les scans) ; `tests/test_api_ingestion.py` : `test_api_status_reads_the_collection_the_retrieval_uses`, sur une vraie base temporaire.
+5. `scripts/benchmark_rag.py` : cas `MD-03` apres `MD-02` (10 cas au total). Fait attendu `_inherit_nommodule`, choisi a la lecture du document avant toute execution et non modifie ensuite.
+6. Collection `odoo_documents` (0 chunk) supprimee de la base reelle, avec garde « seulement si vide ». Base apres : `odoo_docs` seule, 45 chunks, inchangee.
+
+**Verification** :
+- 165 passed en 49,6 s : `document_rag/tests`, `tests/test_api_ingestion.py`, `tests/test_e2e_watcher_rag.py`, `tests/test_system_adapter.py`. Base reelle relue apres les tests : `{'odoo_docs': 45}`.
+- Le test d'API discrimine : avec le gestionnaire sur `odoo_documents` (ancien comportement) l'endpoint de statut rapporte 0 chunk ; avec le defaut corrige, 1 (verifie en simulant l'ancien comportement sur une base temporaire).
+- `python scripts/benchmark_rag.py --retrieval` (sans LLM) : script execute de bout en bout, 10 cas, `MD-03` retrouve sa source au rang 1 ; le fait attendu figure dans l'un des 14 chunks du document (verifie dans Chroma). Ce mode ne juge pas la generation.
+
+**Non verifie, a faire par pmm** : (a) `python scripts/benchmark_rag.py` complet (LLM et tunnel) : donnera le resultat de generation de `MD-03` (le fait `_inherit_nommodule` doit figurer dans la reponse) et confirmera 9/9 + `MD-03` ; (b) aucun uvicorn n'est actif : au prochain demarrage, les endpoints d'ingestion de l'API utiliseront la bonne collection ; je ne les ai pas appeles sur un serveur reel (seule la fonction du endpoint de statut est testee).
+**Limites** : le libelle `embedding_model` des metadonnees de collection reste perime (nomic) alors que les embeddings viennent de `bge-m3`, signale en 1155/1156 et non traite ici ; les chunks que l'ancien code avait pu ecrire dans `odoo_documents` via l'API n'existent pas (collection a 0 chunk), rien a recuperer.
+**Fichiers modifies** : `config/settings.py`, `document_rag/vectorstore/chroma_manager.py`, `document_rag/vectorstore/search.py`, `document_rag/ingestion/{ingest_all,incremental,watcher,scheduler}.py`, `tests/eval_retrieval.py`, `tests/manual_check_incremental.py`, `tests/test_api_ingestion.py`, `scripts/benchmark_rag.py`, `document_rag/tests/test_collection_name.py` (nouveau), `todo/contexte.txt`. Copies d'origine : `/tmp/avant_1162/`.
+
+## Section 1164 : retrait du libelle perime `embedding_model` des metadonnees de collection et de `get_stats()` (mandate par pmm : « retire Le libelle perime `embedding_model: nomic` », suite de la 1163)
+
+Date : 07/10/2026
+**Mandat (pmm)** : retirer le libelle `embedding_model: nomic-ai/nomic-embed-text-v1.5` signale en 1155/1156 et rappele en 1163. Sauvegardes : `/tmp/contexte.avant_1164.txt`, `/tmp/avant_1164/chroma_manager.py`, `/tmp/avant_1164/chroma_db/` (copie integrale de la base reelle avant toute modification).
+**Constats (lus dans le code, rien d'execute sur la base reelle a ce stade)** :
+1. Le libelle vient de `self.embedding_model = embedding_model or os.getenv("EMBEDDING_MODEL") or EMBEDDING_MODEL_NAME` (`chroma_manager.py` l. 54), c'est-a-dire du reglage du backend local (defaut nomic), alors que le backend `local_server` embarque avec `LOCAL_EMBEDDING_MODEL` (`bge-m3`) : la valeur ecrite ne decrit pas le modele reellement utilise. L'attribut `self.embedding_model` reste utile : il sert a resoudre la fonction d'embedding des backends locaux (`resolve_embedding_function(embedding_model=...)`) ; seul le libelle ecrit/affiche est faux.
+2. Il est ecrit a **trois** endroits : les metadonnees a la creation (`__init__`, l. 64-65), les metadonnees a la recreation (`delete_collection`, qui recopie son propre dictionnaire : duplication), et expose par `get_stats()` (cle `embedding_model`). **Aucun lecteur** : recherche sur tous les types de fichiers (python, JS, XML, JSON, md), hors `.venv`, journal et binaires Chroma : aucune lecture de `metadata["embedding_model"]` ni de `stats["embedding_model"]`.
+3. Chroma 1.5.9 (verifie sur une **copie** de la base) : `collection.modify(metadata=...)` remplace toutes les metadonnees et refuse qu'elles contiennent `hnsw:space` (`ValueError: Changing the distance function...`). Retirer la cle par cette voie retire donc aussi `hnsw:space` du dictionnaire de metadonnees de la collection existante ; la distance reste appliquee : elle est persistee a part dans la configuration (`hnsw.space = cosine`), les distances d'une requete sont identiques avant et apres (`[0.0, 0.227, 0.4122]`), et un `get_or_create_collection` ulterieur avec metadonnees ne leve rien et n'ecrase rien (count 45 conserve).
+**Decisions** : (a) une constante unique `COLLECTION_METADATA = {"hnsw:space": "cosine", "description": "Odoo document chunks"}` utilisee par la creation et la recreation (retire la duplication) ; (b) `get_stats()` ne renvoie plus `embedding_model` : meme libelle faux, sans lecteur ; (c) la base reelle est nettoyee **une fois**, par `modify(metadata={"description": ...})`, avec controle du nombre de chunks et des distances ; pas de migration permanente dans le code : la base est un etat local, une autre copie se nettoie par la meme commande ou par `--clear` (consignee en cloture) ; (d) `self.embedding_model` conserve.
+**Fichiers prevus** : `document_rag/vectorstore/chroma_manager.py`, `document_rag/tests/test_collection_metadata.py` (nouveau), `todo/contexte.txt` ; donnees : metadonnees de la collection `odoo_docs`. Resultats : section de cloture.
+
+## Section 1165 : benchmark RAG complet apres la 1162/1163 (10 cas, sortie collee par pmm) : 10/10, `MD-03` passe, base reelle intacte (lecture seule, aucun code modifie)
+
+Date : 07/10/2026
+**Mandat (pmm)** : sortie collee de `python scripts/benchmark_rag.py` (mode complet, retrieval + generation, `top_k=4`), c'est le point (a) laisse a pmm en 1163. Sauvegarde : `/tmp/contexte.avant_1165.txt`. La 1164 (retrait du libelle `embedding_model`) est encore en cours dans une autre session, sans cloture a ce stade : non touchee.
+**Resultats** : 10/10 reussis ; precision retrieval 100 % ; `Hit@1` 8/9 (`DOCX-01` : `guide_achats_fournisseurs.docx` au rang 3/5, derriere deux chunks de `bon_commande_fournisseur_PO2025_00142.pdf`, comme en 1159, inchange) ; generation conforme sur les 9 cas avec fait attendu ; latence de retrieval moyenne 1 202 ms, mediane 1 188 ms.
+- **`MD-03`** (ajoute en 1162, fait `_inherit_nommodule` fixe avant toute execution et jamais modifie) : source au rang 1, 7 chunks renvoyes tous issus du document, fait present dans la reponse. C'est un resultat non calibre apres coup, contrairement a `HORS-01`.
+- **`HORS-01`** : reponse generee = la phrase officielle de refus de `document_rag/prompts.py` ; il passe parce que le critere a ete elargi en 1160 apres lecture de cette reponse. Le 10/10 contient donc un cas calibre ; les 9 autres ne le sont pas.
+- **Absence du pic de latence de la 1159** (question 1 a 11 774 ms, cause alors supposee : rechargement de `bge-m3` apres inactivite, non verifiee) : ici les 10 retrievals sont entre 1,13 s et 1,44 s ; je n'en tire pas de conclusion sur la cause du pic.
+- **Message « Erreur de connexion transitoire (attempt 1/5) ... Retry dans 3.0s »** a la question 1 : emis par `core/llm/llm_client.py` l. 200, donc par le client LLM (generation), pas par la relance d'embedding de la 1155 ; le temps de retrieval de cette question (1 439 ms) est incompatible avec une attente de 3 s en retrieval. La relance a reussi (la question 1 passe avec son fait). Je n'ai pas lu le code autour pour les detail de ce retry.
+**Verification complementaire (lecture seule)** : base reelle relue apres ce run complet : `{'odoo_docs': 45}`, aucune `odoo_documents` recreee. Le chemin de retrieval par defaut (`get_retriever`, `quick_retrieve`) cible bien `odoo_docs` apres la 1162.
+**Limites** : 10 cas ecrits a la main sur un petit corpus ; le script appelle `quick_retrieve` puis `generate` directement, sans routage, sans `verify_answer`, sans l'interface Odoo ; le critere de generation est la presence d'une sous-chaine, et la reponse des cas reussis n'est pas affichee, donc je n'ai pas lu celle de `MD-03` (la sous-chaine est tres specifique au guide, mais sa presence ne prouve pas que la phrase qui la contient est correcte) ; pas de seuil de pertinence : des chunks sans rapport arrivent en fin de liste (`FAC_2025_00039.pdf`, `Facture brouillon (_ 35).pdf`) ; le jeu documentaire gele v2 (249 cas) n'a pas ete relance.
+**Reste a faire par pmm** : (a) redemarrer uvicorn puis Odoo (`-u miro_ai`), vider le cache du navigateur et tester « D'apres la documentation » sur la question des regles de code (1159 a) ; c'est aussi la premiere fois que les endpoints d'ingestion de l'API tourneront avec la collection corrigee ; (b) relancer le jeu gele v2 quand pmm le decide.
+**Fichiers modifies** : `todo/contexte.txt` uniquement.
+
+## Section 1166 : controleur Odoo `/miro_ai/ask` : un timeout n'est plus presente comme un backend arrete, la question n'est plus renvoyee apres un timeout, delai configurable (mandate par pmm : « controleur d'abord, puis etape 1 »)
+
+Date : 07/10/2026
+**Mandat (pmm)** : message du chat « Impossible de contacter le serveur (http://127.0.0.1:8000). Verifiez que le backend FastAPI est lance. » colle par pmm, puis « controleur d'abord ». Sauvegarde : `/tmp/contexte.avant_1166.txt`.
+**Constats (lus dans `odoo.log` et dans le code)**
+1. `controllers/main.py` captait **toutes** les exceptions et affichait le meme message. Cinq occurrences aujourd'hui dans `odoo.log` (05:29, 05:40, 06:23, 06:26, 08:17), toutes des `Read timed out (read timeout=60)`, aucune `Connection refused` : le message « backend lance » decrivait un backend lent, pas arrete.
+2. Apres un timeout sur `127.0.0.1`, la boucle reessayait sur `localhost` (second delai de 60 s) : la requete HTTP vers Odoo durait 120 s (06:23, 06:26, 08:17) et la meme question etait envoyee deux fois au backend alors que la premiere tournait encore.
+3. `if resp:` est faux pour un code 4xx/5xx (`Response.__bool__`) : une reponse d'erreur du backend declenchait aussi le renvoi vers l'URL suivante.
+4. Delai de 60 s ecrit en dur, alors que les reponses normales prennent 30 a 52 s (06:45 a 06:52) : peu de marge.
+5. uvicorn tourne depuis 11:14 et repond (`openapi.json` 200 en 0,1 s) ; Odoo aussi.
+**Limite** : la question collee par pmm n'apparait pas dans `odoo.log` (derniere requete `/miro_ai/ask` a 08:17) : j'ignore quand le message a ete affiche (historique de session recharge ou requete non encore ecrite), donc je ne sais pas laquelle des deux causes l'a produit.
+**Decisions**
+- Nouveau `odoo_addons/miro_ai/controllers/backend_client.py` : `post_with_failover` passe a l'URL suivante **uniquement** si le serveur est injoignable (`ConnectionError`, dont `ConnectTimeout`) ; un `ReadTimeout` leve `BackendTimeout`, une reponse HTTP (meme 4xx/5xx) est rendue telle quelle, sans renvoi ; plus aucune URL joignable : `BackendUnreachable`. Module sans dependance Odoo, donc testable sans Odoo.
+- `main.py` : utilise ce module ; deux messages distincts (« n'a pas repondu en N s : la reponse est trop lente… » pour `BackendTimeout`, ancien message pour le reste) ; `import requests` retire (devenu inutilise).
+- `miro.ai.settings.request_timeout` (entier, defaut 120, requis, contrainte SQL >= 10), champ ajoute au formulaire ; le defaut de 120 s reste sous `limit_time_real` d'Odoo en mode multi-workers (`odoo.conf` actuel : mode threads, sans limite configuree).
+**Verification** : `tests/test_miro_ai_backend_client.py` (6 passed : premiere reponse, `ReadTimeout` sans renvoi, reponse 500 sans renvoi, `ConnectionError`/`ConnectTimeout` vers l'URL suivante, toutes injoignables) ; `py_compile` des trois fichiers Python ; XML de la vue bien forme. **Pas charge par Odoo** : le controleur et le modele n'ont pas ete executes.
+**Fichier partage avec une autre session** : `main.py` contient aussi la modification `source_mode` d'une autre session (non commitee) ; le `git diff` melange les deux.
+**Reste a faire par pmm** : redemarrer Odoo avec `-u miro_ai` (nouvelle colonne `request_timeout`, remplie a 120 pour les lignes existantes), reposer la question en suivant `odoo.log` ; un message « trop lente » orientera vers la latence du LLM (Kaggle), un message « impossible de contacter » vers uvicorn.
+**Fichiers** : `odoo_addons/miro_ai/controllers/backend_client.py` (nouveau), `odoo_addons/miro_ai/controllers/main.py`, `odoo_addons/miro_ai/models/miro_ai_settings.py`, `odoo_addons/miro_ai/views/miro_ai_settings_views.xml`, `tests/test_miro_ai_backend_client.py` (nouveau), `todo/contexte.txt`.
+
+## Section 1167 : outils `erp_data` (etape 1 de l'audit) : devise lue sur les donnees, ambiguite signalee, filtre d'emplacements du stock (mandate par pmm : « 1 », puis « controleur d'abord, puis etape 1 ») -- EN COURS, correction de l'audit
+
+Date : 07/10/2026
+**Mandat (pmm)** : corriger ce qui viole `rules.md` dans les outils de donnees, apres le controleur (1166). Sauvegarde : `/tmp/contexte.avant_1167.txt`.
+**Correction de mon audit des outils (avant cette section)** : il portait sur `erp_data/tools` et a ignore `erp_data/runtime/` (P9, sections 1150 a 1153). Le lot generique typé existe deja (`fields_get`, `search`, `search_count`, `search_read`, `read`, `read_group`, `name_search` : validation, identite du demandeur, perimetre societes, plafond de lignes, Observation + Evidence) et est lie a l'agent avec les anciens outils (`resolve_orm_tools`) ; la boucle `orm_agent_loop` est multi-hop avec `force_final_synthesis` (1152). Mes constats « un seul saut » et « sortie brute concatenee » sont donc perimes ; ma proposition de concevoir des outils generiques typés etait deja realisee. Restent valables : les 7 anciens outils « epais » (`get_total_sales`, `get_period_revenue`, `get_average_sales`, `get_sale_details`, `get_top_selling_products`, `get_total_invoices`, `get_recent_tickets`) sont toujours lies par defaut, avec `Ar` ecrit en dur, des montants sommes toutes devises confondues, `results[0]` pris sans controle d'ambiguite (`get_average_sales`, `get_product_stock`), un repli silencieux `account.move` -> `sale.order`, et le jeu fige T (222 cas, tous `expected_sources=('code',)`) qui ne contient aucun cas de donnees.
+**Etat des modifications (rien d'autre n'est encore branche)** :
+- `erp_data/odoo_connector.py` : `read_group(..., **extra_kwargs)` (permet `lazy=False`) ;
+- `erp_data/monetary.py` (nouveau) : totaux par devise, formatage, suffixe de devise pour les claims ;
+- `erp_data/_odoo_helpers.py` : `narrow_to_one_entity` et `ambiguity_text`.
+Aucun outil n'utilise encore ces trois briques ; les tests de ces briques et des outils ne sont pas encore ecrits ni relances.
+**A faire** : brancher les outils epais sur ces briques (devise lue sur `currency_id`, une preuve par devise, ambiguite pour `get_average_sales` et `get_product_stock`), filtre `location_id.usage = internal` pour le stock (instance de dev sans aucune ligne `stock.quant` : verification par test unitaire seulement), adapter les tests des `*_raw` concernes (formes de retour et chaines `source`), cloturer cette section.
+
+## Section 1168 : embeddings injoignables via le tunnel apres le redemarrage du notebook (question « en quoi peux tu m'aider? » : 120 s puis message « trop lente ») : mesures, diagnostic ouvert, journal d'Ollama dans un fichier
+
+Date : 07/10/2026
+**Mandat (pmm)** : sortie collee d'uvicorn (« Embedding request failed (attempt 1/3) ... Read timed out ») et du chat Odoo (« n'a pas repondu en 120 s : la reponse est trop lente »). Le nouveau message du controleur (1166) fonctionne : il a distingue un timeout d'un backend arrete. Sauvegardes : `/tmp/contexte.avant_1168.txt`, `/tmp/llmodoo.avant_1168.ipynb`.
+**Mesures (depuis le poste de pmm, `.env`, nouveau tunnel ; LLM et embeddings sur le meme tunnel)** :
+- `GET /api/ps` : `bge-m3:latest` (0,7 Go de VRAM, contexte 8192) **et** `qwen3:14b` (12,9 Go, contexte 32768) sont charges ensemble : `OLLAMA_MAX_LOADED_MODELS=2` de la 1132 est bien applique ;
+- `POST /v1/embeddings` : ReadTimeout apres 90 s, deux fois ; `POST /api/embed` (route native) : ReadTimeout apres 40 s ;
+- `POST /v1/chat/completions` minimal : 200 en 1,6 s. Le chat repond, seul le runner d'embeddings ne repond pas.
+**Ce que je ne sais pas** : si le blocage vient du runner `bge-m3` d'Ollama ou du tunnel. Ce n'est pas un va-et-vient de modeles (les deux sont charges). Deux pistes non verifiees : (a) mon passage a `OLLAMA_MAX_LOADED_MODELS=2` (au benchmark de la 1165, avec la valeur 1, un retrieval prenait 1,2 s) ; (b) `OLLAMA_FLASH_ATTENTION=1` et `OLLAMA_KV_CACHE_TYPE=q8_0` appliques aussi au modele d'embeddings. Les requetes d'embeddings en attente (uvicorn : 3 essais, plus mes mesures) peuvent aussi s'empiler sur un runner qui traite une requete a la fois.
+**Correction faite** : dans le notebook, `ollama serve` etait lance avec `stdout=PIPE, stderr=PIPE` jamais lus : le tampon se remplit et peut bloquer le serveur, et les erreurs des runners restent introuvables. Maintenant : journal dans `/kaggle/working/ollama.log`, message d'erreur mis a jour. Ce defaut est reel, mais rien ne prouve qu'il cause le blocage actuel.
+**A faire par pmm** : (1) dans une cellule du notebook, sans passer par le tunnel : `!curl -s -m 40 -w '%{http_code} %{time_total}s\n' -o embed.out localhost:11434/api/embed -d '{"model":"bge-m3","input":"test"}'` : si c'est lent en local, le probleme est dans Ollama ; si c'est rapide, c'est le tunnel ; (2) `!nvidia-smi` et `!ps aux | grep ollama` ; (3) relancer la cellule 7 (nouveau journal) et lire `ollama.log` apres un appel d'embedding ; (4) test de comparaison : `OLLAMA_MAX_LOADED_MODELS=1` avec le prechauffage des deux modeles.
+**Fichiers** : `scripts/kaggle/llmodoo.ipynb` (cellule 7), `todo/contexte.txt`.
+
+**Complement a la 1168 (meme jour, apres un second echec colle par pmm : « Remote end closed connection without response » puis 120 s)** : nouvelle mesure sur le meme tunnel : `/api/ps` 200 en 0,9 s (l'ordre des modeles est inverse : `qwen3:14b` puis `bge-m3`, signe qu'Ollama a ete relance), `POST /v1/embeddings` 200 en 1,2 s, chat minimal 200 en 5,1 s. Le blocage des embeddings a donc disparu apres la relance d'Ollama ; l'echec « connexion fermee » correspond a la fenetre de relance du serveur. **Cause du blocage precedent : toujours inconnue** (aucun journal d'Ollama disponible, il n'ecrivait pas dans un fichier avant la correction). Si le blocage revient : lire `/kaggle/working/ollama.log` avant de relancer.
+
+## Section 1169 : outils de donnees `erp_data` : devises conservees, moyennes ponderees, ambiguite explicite et stock interne (cloture de la 1167)
+
+Date : 07/10/2026
+**Mandat** : reprendre l'etape 1 de l'audit de P9, section 1167, et corriger les causes racines plutot que masquer les symptomes.
+
+**Causes racines confirmees dans le code** :
+1. `amount_total` et `price_subtotal` sont exprimes dans la devise de l'enregistrement. Les sommes et moyennes des anciens outils additionnaient ou choisissaient des valeurs sans groupe de devise, puis affichaient `Ar` en dur ; plusieurs devises pouvaient donc produire un montant faux.
+2. `get_average_sales_raw` lisait seulement le premier groupe ; une moyenne globale de moyennes n'est pas exacte sans les effectifs. Un `read_group` a plusieurs champs de regroupement doit aussi recevoir `lazy=False` pour obtenir chaque combinaison de groupes.
+3. Le repli silencieux de `account.move` vers `sale.order` presentait des commandes comme des factures ou comme du chiffre d'affaires facture/paye. Les deux modeles ne prouvent pas la meme affirmation.
+4. `get_product_stock_raw` ne distinguait pas les emplacements internes des emplacements fournisseurs, clients, transit ou inventaire, et ne traitait qu'un produit meme si la recherche partielle en retournait plusieurs.
+
+**Corrections** :
+- `erp_data/monetary.py` centralise l'extraction du libelle de devise, les sommes par devise, les moyennes ponderees (somme et `__count` par devise) et leur formatage. Une devise manquante est rendue explicitement comme `unspecified`; aucune conversion ni addition entre devises n'est inventee.
+- `get_total_sales_raw`, `get_total_invoices_raw` et `get_period_revenue_raw` rendent des totaux distincts et une Evidence par devise. Les montants nuls restent des resultats valides. Les ventes detaillees lisent aussi `currency_id`, incluent la devise dans chaque Evidence et presentent leur total par devise.
+- `get_average_sales_raw` groupe par partenaire et devise quand le demandeur nomme un client, utilise `lazy=False`, et calcule chaque moyenne comme total / effectif. Il renvoie une Evidence par devise ; si Odoo ne fournit pas d'effectifs, l'outil expose une erreur au lieu d'une moyenne approximative.
+- Le classement par chiffre d'affaires se fait separement pour chaque devise. Le classement par quantite garde une ligne par produit et affiche son chiffre d'affaires ventile par devise. Les regroupements se font par identifiant runtime du produit, non par son libelle qui peut etre duplique.
+- Les replis de `account.move` vers `sale.order` sont retires des outils de factures et de chiffre d'affaires ; une absence de facture reste une absence, sans substitut semantiquement different.
+- `get_product_stock_raw` ajoute `location_id.usage = internal` au domaine, indique ce filtre dans la provenance des preuves et demande une precision si plusieurs produits correspondent ; aucun premier resultat arbitraire n'est choisi.
+- Aucun paquet n'a ete ajoute ; `requirements.txt` reste inchange. `todo/plan.md` n'a pas ete modifie.
+
+**Tests et verification** :
+- Les tests concernes couvrent la separation des devises et des preuves, la moyenne ponderee avec effectifs inegaux, l'ambiguite client/produit, le filtre des emplacements internes, le regroupement complet `lazy=False` et l'absence de repli facture vers commande.
+- Suite complete `erp_data/tests` : **214 passed** au rejeu final. `py_compile` reussi pour `monetary.py`, `tools/sales.py`, `tools/accounting.py` et `tools/inventory.py`. `git diff --check` est propre pour les fichiers de cette tranche.
+- Une execution intermediaire de la suite a detecte une modification accidentelle du contrat de retour de `get_order_count_raw`; le retour singulier a ete restaure avant le rejeu final, qui passe.
+- **Limite** : aucune requete n'a ete executee sur une instance Odoo vivante ; le comportement ORM est verifie par tests unitaires avec mocks. Le `git diff --check` global signale aussi un espace final deja present dans la ligne 3 du `todo/plan.md`, fichier sale par ailleurs ; cette ligne n'a pas ete changee dans cette tranche.
+
+**Fichiers modifies** : `erp_data/monetary.py`, `erp_data/tools/{sales,accounting,inventory}.py`, `erp_data/tests/test_bloc_b0_evidence_orm_pilot.py`, `test_bloc_b1_evidence_get_average_sales.py`, `test_bloc_b1_evidence_get_sale_details.py`, `test_bloc_b1_evidence_get_product_stock.py`, `test_bloc_b1_evidence_get_total_invoices.py`, `test_bloc_b1_evidence_get_period_revenue.py`, `test_bloc_b1_evidence_get_top_selling_products.py`, `todo/contexte.txt`.
+
+## Section 1170 : suite complete (hors `integration`) lancee par pmm : 2193 passes, 0 echec
+
+Date : 06/10/2026
+**Commande (pmm)** : `pytest -m "not integration" tests code_intelligence/tests erp_data/tests` (venv du projet, Python 3.11.2).
+**Resultat** : 2269 tests collectes, 58 deselectionnes (marque `integration`), 2211 selectionnes : **2193 passes, 18 ignores, 0 echec**, 301,69 s, 1 avertissement (fixture de classe sous forme de methode d'instance, `test_bloc17_navigation_howto_intent.py`, sans effet).
+**Ignores (18)** : 8 dans `test_j36_sprint_d_expense_risk_replay.py`, 3 dans `test_method_override_chain.py`, 7 dans `test_mixed_corpus_load_order.py` ; la raison du saut n'apparait pas dans cette sortie (non relevee).
+**Points a retenir** :
+- les tests de la tranche T (`test_t1_*`, `test_t2_*`, `test_t3_verify_node.py`), les oracles (`test_oracle_access.py`, `test_oracle_ambiguity.py`, `test_documentation_oracle.py`), le harnais (`test_case_worker.py`, `test_protocol_runner.py`, `test_system_adapter.py`, `test_evaluation_preflight.py`, `test_instance_runtime.py`) et le lot P9 (`erp_data/tests/test_p9_*`) passent ;
+- `test_f08_j36_graph_dependency_loading.py` passe maintenant (3 tests) alors qu'il echouait quand un serveur Odoo tournait en local (isolation du runtime, voir les sections precedentes) ;
+- le perimetre de cette commande n'inclut pas `document_rag/tests` ni `tests/test_e2e_watcher_rag.py` (132 passes lors de la run precedente, avant les corrections de P2 ; rejoues par la section de cloture de P2 : 148 passes) ;
+- les modifications du code de la tranche T, de P2 et des lots associes ne sont pas toutes commitees (`git status` : nombreux fichiers modifies) ; non traite, hors mandat.
+**Anomalie de journal** : deux sections portent le numero 1149 (audit de `erp_data` / MCP, et cloture de P2), ecrites en parallele ; non renumerotees pour ne pas casser les renvois.
+
+**Fichiers modifies** : `todo/contexte.txt` (cette section). Sauvegarde : `/tmp/contexte.avant_suite_complete.txt`.
+
+## Section 1171 : harnais : les reponses brutes sont rangees par version du jeu fige (echec `raw directory belongs to another dataset version`)
+
+Date : 06/10/2026
+**Constat** : `python scripts/run_evaluation_protocol.py --only accounting_fr` s'arrete avec `ValueError: raw directory belongs to another dataset version` : `captures/eval_protocol_raw/run.json` porte l'empreinte du jeu v1 (`07017439aa91...`), le jeu courant est v2 (249 cas, digest `eb79feacfc05...`). Le garde-fou de `prepare_run` est voulu (il empeche de melanger des reponses de deux jeux) ; la cause est que toutes les versions partageaient le meme dossier.
+**Correction** : `scripts/run_evaluation_protocol.py` range les reponses brutes dans `<raw-dir>/v<version>_<12 premiers caracteres du digest>/` ; un nouveau gel ouvre donc un dossier neuf, les mesures d'une version restent lisibles, la reprise sur une meme version est inchangee ; le chemin utilise est affiche. `protocol_runner.py` est inchange (garde-fou conserve). Compilation verifiee ; pas de test dedie : la logique de chemin est dans le script, hors des fonctions testees.
+**A faire par pmm (reste de la section 1132, point 2)** : `captures/eval_instances/graphs/accounting_fr.json` (11 Mo, construit pendant la premiere run avec le repli d'identite) existe toujours et serait reutilise : le supprimer avant la run. Les fichiers `captures/eval_protocol_raw/accounting_fr.jsonl` et `run.json` (jeu v1, dont le premier cas mesure pendant la panne des embeddings) ne sont plus lus ; ils peuvent etre supprimes.
+
+**Fichiers modifies** : `scripts/run_evaluation_protocol.py`, `todo/contexte.txt` (cette section). Sauvegarde : `/tmp/contexte.avant_raw_dir.txt`.
+
+## Section 1172 : runner d'evaluation — execution et rapport limites a deux cas
+
+Date : 07/10/2026
+**Demande de pmm** : limiter les evaluations tant que l'inference distante est ephemere, par lots de deux questions maximum, sans nouvel appel au backend pendant cette modification.
+
+**Realise** : ajout de `--case-ids CASE_ID [CASE_ID]` dans `scripts/run_evaluation_protocol.py`. Le runner refuse les lots vides, les doublons, les identifiants inconnus et plus de deux cas. Le dataset transmis a l'execution et au calcul des metriques est filtre aux seuls cas demandes ; le digest du dataset source reste conserve pour rester compatible avec le repertoire de reponses brutes. Le rapport de chaque lot est ecrit dans un fichier dedie `eval_protocol_batch_<case_id(s)>.json/.md`, separe du rapport global, et indique explicitement le nombre de cas de son perimetre. Les reponses brutes restent dans le repertoire existant et le worker saute les identifiants deja presents, permettant la reprise sans rappeler inutilement le modele ; utiliser un nouveau `--raw-dir` pour isoler une nouvelle session d'evaluation (par exemple apres le changement de backend).
+
+**Verification** : `tests/test_protocol_runner.py` : 6 passed. Aucun appel LLM ni embedding lance.
+**Fichiers modifies** : `scripts/run_evaluation_protocol.py`, `core/evaluation/protocol_runner.py`, `core/evaluation/protocol_report.py`, `tests/test_protocol_runner.py`, `todo/contexte.txt` (cette section).
+
+## Section 1173 : correction de la confusion entre matrice ACL et droits du demandeur authentifie
+
+Date : 07/10/2026
+**Constat mesure** : le lot de deux cas `accounting_fr` (section 1172, artefacts `captures/eval_protocol_raw/current_batch_01/v2_eb79feacfc05/` et rapport `eval_protocol_batch_access_accounting_fr_base_demo_user0_account_move_create_access_accounting_fr_base_demo_user0_account_move_read.md`) a obtenu 0/2. La resolution de `Pièce comptable` vers `account.move` a reussi 2/2, mais la reponse de creation generalisait des ACL accordees a certains groupes a l'utilisateur `base.demo_user0`; la reponse de lecture listait les groupes autorises sans trancher pour le demandeur. La preuve collectee etait une matrice ACL generique, sans fait personnalise, alors que `user_groups` reel etait deja fourni par le worker.
+
+**Cause racine** : le pre-dispatch ACL appelle `who_has_access_to` avec `permission='all'`, qui ne rapporte que les groupes ayant chaque ACL. Son instruction de synthese disait qu'un grant ACL signifiait que « l'utilisateur/groupe » pouvait agir, sans distinguer le groupe qui detient le droit du demandeur courant. La couche de contexte resolvait deja les groupes du demandeur, mais le pre-dispatch ne les comparait pas aux groupes des ACL.
+
+**Correction** :
+- ajout d'un verdict ACL deterministe pour le demandeur authentifie sur READ/WRITE/CREATE/DELETE, calculant la fermeture transitive des `implied_ids` puis l'intersection avec les groupes autorises par l'ACL ; le resultat est explicitement limite a la couche ACL du modele et rappelle que `ir.rule` et la logique metier peuvent encore restreindre l'acces ;
+- verdict personnalise ajoute uniquement aux questions personnelles de type « Puis-je...? » / « Can I...? » ; la consigne de synthese interdit d'attribuer au demandeur les droits d'un autre groupe ;
+- les groupes absents/non resolus ne produisent pas un faux refus : le verdict est marque inconnu et la synthese doit s'abstenir de deduire l'appartenance ; les preuves structurees portent les groupes demandeur et la couche `model_acl`.
+
+**Verification** : tests cibles des faits ACL personnalises, de la fermeture `implied_ids`, de l'identite inconnue, du modele absent et du contrat de prompt ; le premier rejeu a detecte une assertion de prompt obsoletisee, corrigee pour verrouiller le nouveau contrat. Rejeu final : 107 tests passes pour le sous-ensemble d'acces/pre-dispatch concerne. Compilation Python et `git diff --check` propres. Aucun appel LLM/embedding ni rejeu des deux questions effectue ; la correction doit etre mesuree par un nouveau lot d'au plus deux cas, dans un nouveau `--raw-dir`.
+**Fichiers modifies** : `code_intelligence/rules/access_evaluator.py`, `code_intelligence/agent/predispatch_access.py`, `code_intelligence/agent/context.py`, `code_intelligence/agent/loop.py`, `code_intelligence/tests/test_requester_acl_access.py`, `code_intelligence/tests/test_section951_sal_q2_q3_acc_q2_fixes.py`, `todo/contexte.txt` (cette section).
+
+## Section 1174 : suivi du lot ACL (0/2) — groupes Odoo transmis par XML ID et synthese personnelle deterministe
+
+Date : 07/10/2026
+**Nouvelle mesure** : le lot `current_batch_02` a de nouveau obtenu 0/2. Les deux reponses sont restees des listes de groupes generiques ; le dossier de preuves brut ne contient aucune preuve `requester_acl:*`. Cela montre que le verdict personnalise ajoute en 1173 n'a pas atteint la synthese. L'etat exact (groupes non resolus ou groupes absents du graphe) n'etait pas serialise dans les reponses brutes.
+
+**Corrections complementaires** :
+- le harnais d'evaluation extrait desormais les XML IDs de groupes depuis la meme instance Odoo que celle qui fournit l'UID et la cle API ; il transmet ces XML IDs au graphe au lieu de dependre uniquement de la traduction ulterieure d'IDs numeriques par une connexion admin. Un indicateur explicite signale si certains groupes n'ont pas d'XML ID ; dans ce cas le verdict reste inconnu ;
+- pour une question personnelle identifiee (« Puis-je...? », « Can I...? »), le pre-dispatch conserve les verdicts ACL personnalises par modele ; apres la synthese LLM, une reponse courte deterministe remplace le texte generique pour l'operation demandee. Les groupes ou modele inconnus produisent une abstention explicite, jamais une attribution devinee ;
+- le rendu destine a l'utilisateur reprend le libelle métier entre guillemets dans la question, pas l'identifiant technique Odoo, et precise que le verdict positif est limite aux ACL du modele.
+
+**Verification** : 73 tests passes couvrant l'extraction/transmission des XML IDs, les verdicts ACL, l'abstention sur identite inconnue, la formulation sans fuite d'identifiant et les pre-dispatch existants ; compilation Python et `git diff --check` propres. Aucun backend distant sollicite. La mesure reste a faire sur un nouveau lot maximal de deux questions, nouveau `--raw-dir`.
+**Fichiers modifies** : `core/evaluation/instance_runtime.py`, `core/evaluation/case_worker.py`, `core/graph/graph.py`, `core/routing/routing.py`, `tests/test_case_worker.py`, `code_intelligence/agent/{context.py,loop.py,predispatch_access.py}`, `code_intelligence/rules/access_evaluator.py`, `code_intelligence/tests/test_requester_acl_access.py`, `code_intelligence/tests/test_section951_sal_q2_q3_acc_q2_fixes.py`, `todo/contexte.txt` (cette section).
+
+## Section 1175 : detection des questions personnelles d'acces (« Puis-je...? ») dans le pre-dispatch commun
+
+Date : 07/10/2026
+**Constat de la mesure `current_batch_03`** : les deux reponses restent generiques et le rapport reste a 0/2 ; aucun fait `requester_acl` n'apparait. Verification locale de `_question_is_access_related` sur les questions exactes du banc : retourne `False` pour « Puis-je créer... ? » et « Puis-je consulter... ? ». Par consequent, la chaine de pre-dispatch ACL, l'evaluation des groupes et la reponse deterministe implementees en 1173-1174 n'etaient jamais appelees ; le LLM choisissait lui-meme `who_has_access_to` et ne recevait pas le contexte personnalisé. Cause racine de l'echec de l'iteration 3.
+
+**Correction** : extension du predicate d'acces partage pour reconnaitre les formulations a la premiere personne en francais et en anglais lorsqu'elles portent sur voir/lire/acceder/ecrire/creer/modifier/supprimer. Le predicate reste borne a ces verbes d'autorisation ; « Puis-je configurer un module ? » reste hors de cette categorie. Le dispatch ACL force peut ainsi ajouter les faits du demandeur avant la synthese ; la reponse deterministe apres LLM s'applique ensuite.
+
+**Verification** : 86 tests passes, incluant les formes « Puis-je créer », « Puis-je consulter », « Can I delete » et un negatif « Puis-je configurer » ; compilation Python et `git diff --check` propres. Aucun appel distant n'a ete lance. Nouveau test de mesure requis sur au plus deux cas, nouveau `--raw-dir`.
+**Fichiers modifies** : `code_intelligence/agent/context_extractors.py`, `tests/test_graph.py`, `todo/contexte.txt` (cette section).
+
+## Section 1176 : mesure du lot ACL `current_batch_04` — 2/2 corrects, score de preuves a investiguer
+
+Date : 07/10/2026
+**Mesure** : le lot `accounting_fr`, jeu v2 (`eb79feacfc05`), execute avec les deux cas `access_accounting_fr_base_demo_user0_account_move_create` et `access_accounting_fr_base_demo_user0_account_move_read`, a produit deux reponses brutes dans `captures/eval_protocol_raw/current_batch_04/v2_eb79feacfc05/accounting_fr.jsonl` (deux lancements de la meme commande visibles dans le terminal, mais le fichier contient bien 2 lignes, pas 4). Le rapport associe donne, sur ces deux cas : accuracy stricte 2/2 (100 %), couverture 2/2, mauvais outil 0 %, fuite d'identifiant technique 0 %, resolution recall 100 %. Les deux reponses personnalisees sont coherentes avec les ACL de `base.group_portal` : creation refusee, lecture autorisee, avec rappel explicite que les record rules et la logique metier peuvent encore restreindre.
+
+**Interpretation prudente** : c'est un smoke test reussi de la correction du chemin pre-dispatch ACL pour une seule instance et deux questions, pas une preuve de generalisation. Le verdict du rapport reste `inconclusive_too_few_instances`; aucune conclusion sur un taux de succes general ne doit en etre tiree.
+
+**Anomalie a suivre** : `evidence_completeness` affiche 0.0 %, alors que chaque cas attend `[{"kind":"graph","source":"model:account.move"}]` et que les observations brutes contiennent bien des sources `code_graph` pour `account.move` ainsi qu'un dossier de preuves ACL/regles. La metrique compare exactement `(kind, source)` aux preuves collectees ; le JSONL de reponse n'a pas de champ `evidence` plat (il contient `sources` et `evidence_dossier`). Il faut verifier le mapping du runner vers `CaseResult.evidence` et/ou l'alignement entre le contrat de preuves attendu et les sources effectivement emises, avant d'interpreter ce 0 % comme une absence de preuves. Aucun correctif de metrique n'a ete applique dans cette tranche.
+
+**Fichiers d'artefacts** : `captures/eval_protocol_raw/current_batch_04/v2_eb79feacfc05/accounting_fr.jsonl`, `captures/eval_protocol_batch_access_accounting_fr_base_demo_user0_account_move_create_access_accounting_fr_base_demo_user0_account_move_read.md` et `.json`.
+
+## Section 1177 : repetition ACL `current_batch_05` — mesure stable, preuves completes
+
+Date : 07/10/2026
+**Mesure** : repetition des memes deux cas (creation et lecture sur `account.move`) sur le meme jeu v2 et la meme instance, mais dans un nouveau dossier raw. Deux lignes sont presentes dans `captures/eval_protocol_raw/current_batch_05/v2_eb79feacfc05/accounting_fr.jsonl`. Les deux reponses sont identiques en substance a celles de `current_batch_04` et correctes : creation refusee, lecture autorisee avec la limite ACL explicite. Rapport : accuracy stricte 2/2, couverture 2/2, mauvais outil 0 %, fuite d'identifiant technique 0 %, resolution recall 100 %, et cette fois evidence completeness 100 %.
+
+**Evolution par rapport a 1176** : le 0 % de complétude des preuves rapporte en 1176 n'est pas reproduit ; le mapping des preuves fournit maintenant le type/source attendu `graph` / `model:account.move` pour les deux cas. Il n'y a donc pas d'anomalie persistante demontrée a corriger sur la base de cette repetition ; les dossiers bruts de chaque run restent la reference, car le rapport synthetique commun aux memes identifiants de cas est ecrase par une execution ulterieure.
+
+**Limite** : c'est une repetition technique des memes questions sur la meme instance, non un nouvel echantillon independant. Verdict toujours `inconclusive_too_few_instances`; le 2/2 repete ne permet pas d'inferer une generalisation.
+
+**Artefact** : `captures/eval_protocol_raw/current_batch_05/v2_eb79feacfc05/accounting_fr.jsonl` ; rapport synthetique partage : `captures/eval_protocol_batch_access_accounting_fr_base_demo_user0_account_move_create_access_accounting_fr_base_demo_user0_account_move_read.md` et `.json`.
+
+## Section 1177 : `evidence_completeness` a 0 % — les sources du graphe de code n'etaient jamais projetees sur les objets du contrat
+
+Date : 07/10/2026
+**Constat (suite de 1176)** : le contrat fige attend `("graph", "model:<modele>")`. `evidence_pairs` ne produisait que (a) les elements du dossier de preuves, dont les sources sont des etiquettes de provenance libres (`acl:account.move:read`, `rule:<xml_id>`, `requester_acl:...`), jamais une reference d'objet, et (b) toutes les `sources` en `("document", source)`, y compris celles de type `code_graph`, qui ne sont pas des documents. Aucune paire ne pouvait donc correspondre : la metrique etait structurellement a 0 % pour tout cas `graph`, ce n'etait pas une absence de preuves.
+
+**Cause racine** : le format de la source d'un appel d'outil du graphe (`code_intelligence:<outil>:<modele>`) etait construit dans `postprocess.py` et re-parse a la main dans `scripts/run_bloc_n1_benchmark.py`, sans module commun ; l'adaptateur d'evaluation ne le connaissait pas. Il supposait que le dossier portait des sources de la forme `model:<modele>`, ce qui n'est pas le cas en production.
+
+**Correction** :
+- nouveau `core/evidence/source_refs.py` : seul proprietaire du format (`format_code_graph_source`, `parse_code_graph_source`, constantes de prefixe et de type) ;
+- `postprocess.py` construit la source via ce module ; `scripts/run_bloc_n1_benchmark.py` l'utilise au lieu de son decoupage manuel (DRY) ;
+- `core/evaluation/system_adapter.py` : `graph_evidence` projette les sources `code_graph` sur `("graph", "model:<modele>")` (modele inconnu ignore, doublons retires) ; `document_evidence` ne retient que les sources qui ne sont pas du graphe de code. Le contrat fige, les cas et la metrique ne sont pas modifies.
+
+**Verification** : `tests/test_source_refs.py` (3 tests, nouveau) et 2 tests ajoutes a `tests/test_system_adapter.py` ; avec `test_protocol_runner.py`, `test_case_worker.py` et `test_j46_j48_reasoning_trace.py` : 30 passes. Rejeu hors ligne de l'adaptateur sur les deux lignes de `current_batch_04` (lecture seule, aucun appel LLM/embedding/Odoo) : `evidence_completeness` 1.0 sur les deux cas, contre 0.0 dans le rapport actuel. Les deux cas de `current_batch_04` ne sont pas rejoues par le runner ; le rapport `.md/.json` du lot affiche encore 0.0 tant que la commande n'est pas relancee.
+**A faire par pmm** : relancer la meme commande avec le meme `--raw-dir captures/eval_protocol_raw/current_batch_04` ; les deux identifiants sont deja presents dans le JSONL, le worker les saute, donc aucun appel au backend n'est attendu et seul le rapport est recalcule. Controler que `evidence_completeness` passe a 100 %.
+**Limite connue** : la completude ne couvre que les objets `model:*` du graphe consulte ; les preuves `rule:*`/`acl:*` du dossier restent des etiquettes de provenance et non des references d'objet (a traiter avec le registre de faits de P7 si une mesure le justifie). `git diff --check` signale un espace en fin de ligne dans `todo/plan.md` (ligne 3), modification anterieure non touchee ici.
+
+**Fichiers modifies** : `core/evidence/source_refs.py` (nouveau), `core/evaluation/system_adapter.py`, `code_intelligence/agent/postprocess.py`, `scripts/run_bloc_n1_benchmark.py`, `tests/test_source_refs.py` (nouveau), `tests/test_system_adapter.py`, `todo/contexte.txt` (cette section). Sauvegarde : `/tmp/contexte.avant_evidence_graph.txt`.
+
+## Section 1178 : relecture du journal 1161 a 1177 : constats nouveaux (1164 sans cloture, `source_mode` non commite et melange, numeros en double, test d'interface toujours non rapporte) (lecture seule, aucun code modifie)
+
+Date : 07/10/2026
+**Mandat (pmm)** : « lis contexte », puis « note dans contexte ce que tu as trouve de nouveau ». Sauvegarde : `/tmp/contexte.avant_1178.txt`. Verifications faites en lecture seule (SQLite de Chroma, `git status`, `grep`) ; aucun test, aucun appel LLM, embedding ou Odoo.
+**Constats nouveaux, verifies**
+1. **La 1164 n'a pas de section de cloture et la base reelle n'est pas nettoyee.** Le code est en place (`COLLECTION_METADATA = {"hnsw:space": "cosine", "description": "Odoo document chunks"}` dans `document_rag/vectorstore/chroma_manager.py`, `document_rag/tests/test_collection_metadata.py` present), mais la table `collection_metadata` de la base reelle contient encore `embedding_model = nomic-ai/nomic-embed-text-v1.5` a cote de `description` et `hnsw:space`. Le nettoyage unique par `modify(metadata=...)` prevu en 1164 n'a donc pas ete fait, ou pas journalise ; je n'ai pas lance les tests de ce fichier. Base actuelle : `odoo_docs` seule, 45 chunks (inchange depuis 1163).
+2. **Numeros de section en double dans le journal** (relus par `grep -o "^## Section [0-9]*" | sort | uniq -d`) : **1028, 1149 et 1177**. La 1170 ne signalait que la 1149. Les deux « 1177 » sont aux lignes 3633 (repetition ACL `current_batch_05`) et 3644 (`evidence_completeness` a 0 %). Comme pour mes anciens 1112 et 1113 (renumerotes en 1155 et 1156, section 1157), la cause est l'ajout de sections sans relire le dernier numero pendant que plusieurs sessions ecrivent. Non renumerotees ici (pas de mandat ; des renvois existent deja vers la 1149).
+3. **Le selecteur de source (1156) est toujours non commite, melange a d'autres travaux, et son test de bout en bout n'a pas ete rapporte.** `git status` : 61 fichiers modifies (hors suppressions), 17 non suivis, 7 supprimes. Mes changements `source_mode` touchent `api/schemas.py`, `api/routes_ask.py`, `core/graph/graph.py`, `core/routing/routing.py`, `core/graph/graph_nodes.py`, `code_intelligence/agent/loop.py`, `odoo_addons/miro_ai/controllers/main.py`, `static/src/{js,xml,css}/miro_ai.*` (le fichier de tests `tests/test_source_mode_routing.py` est non suivi) ; plusieurs de ces fichiers contiennent aussi les modifications d'autres sessions (1166 le signale pour `main.py` ; 1174 et 1177 touchent `graph.py`, `routing.py`, `loop.py`), donc un commit global melangerait des travaux sans rapport. 64 tests passes avant ces autres modifications (1157) : non rejoues depuis. Le test dans l'interface Odoo (« D'apres la documentation » sur la question des regles de code, avec la console uvicorn) reste a faire par pmm ; il suppose Odoo redemarre avec `-u miro_ai` (aussi pour la colonne `request_timeout` de la 1166).
+4. **Ma liste de suites de la 1159 est traitee par une autre session, sauf (a) et (e).** (b) cas `MD-03` ajoute et passe (1162, 1165) ; (c) critere de refus elargi en 1160 ; (d) origine de `odoo_documents` trouvee (nom en dur a sept endroits, defaut de classe different) et collection supprimee (1161 a 1163) ; (a) test d'interface non rapporte ; (e) jeu gele v2 : en cours par lots de deux cas maximum (1172), mesure ACL a 2/2 mais verdict `inconclusive_too_few_instances` (1176, 1177).
+5. **Concordance avec mon diagnostic du controleur.** Mon observation du `odoo.log` (timeouts de 60 s sur `127.0.0.1` puis `localhost`, message trompeur « Impossible de contacter le serveur ») correspond aux constats de la 1166 (cinq timeouts le meme jour, aucun `Connection refused`) ; le correctif est la 1166 (message distinct, pas de renvoi apres timeout, delai configurable). Le doublon d'appel que j'avais signale est donc traite par la 1166, non verifie en execution (Odoo n'a pas charge ce code, d'apres la 1166).
+6. **Embeddings via le tunnel (1168)** : blocage du runner `bge-m3` disparu apres un redemarrage d'Ollama, cause non determinee ; piste non verifiee compatible avec mes mesures du 07/10 (coupures de connexion intermittentes, relance de la 1155 utile). **Suite complete (1170)** : 2193 passes, 18 ignores, 0 echec, hors `document_rag/tests`.
+**A faire par pmm (rappel, rien n'est engage)** : (a) redemarrer uvicorn puis Odoo (`-u miro_ai`), vider le cache du navigateur, tester « D'apres la documentation » ; (b) decider si la 1164 doit etre terminee (nettoyage des metadonnees de la base reelle + cloture) ; (c) donner le « commit » et le perimetre des commits `source_mode` quand il le souhaite ; (d) decider si les numeros en double doivent etre renumerotes.
+**Fichiers modifies** : `todo/contexte.txt` (cette section).
+
+## Section 1179 : 1164 close : metadonnees de la base reelle nettoyees (`embedding_model` retire de `odoo_docs`)
+
+Date : 07/10/2026
+**Mandat (pmm)** : « vas y » puis « lance » apres le plan presente (choix du point 1 de la 1178 : terminer la 1164). Sauvegardes : `/tmp/contexte.avant_1179.txt` ; `/tmp/avant_1164b/chroma_db/` (copie integrale de la base reelle, verifiee identique par `diff -rq` : 9 fichiers, 1 868 104 octets). La copie `/tmp/avant_1164/` de la 1164 n'existait plus.
+**Etat constate avant** : aucun uvicorn ni watcher en cours ; `odoo_docs` seule, 45 chunks ; metadonnees SQLite = `description`, `hnsw:space`, `embedding_model = nomic-ai/nomic-embed-text-v1.5`. Le code (`COLLECTION_METADATA`) et `document_rag/tests/test_collection_metadata.py` etaient deja en place (1164).
+**Execution (une seule fois, sur la base reelle)** : `collection.modify(metadata={"description": "Odoo document chunks"})` via `ChromaManager`. Un premier lancement a echoue a l'import (script dans `/tmp`, projet absent de `sys.path`) avant toute ecriture ; relance avec `PYTHONPATH=.`.
+**Resultats mesures** : metadonnees avant `{hnsw:space: cosine, embedding_model: nomic..., description}`, apres `{description}` ; chunks 45 -> 45 ; distances d'une requete par vecteur stocke (sans appel au tunnel) identiques avant et apres : `[0.0, 0.227, 0.4122]` ; table SQLite `collection_metadata` ne contient plus que `description`. Comme prevu en 1164 (constat 3), `hnsw:space` n'est plus dans le dictionnaire de metadonnees de cette collection mais la distance cosinus reste appliquee (configuration persistee a part, distances inchangees).
+**Tests** : `test_collection_metadata.py` + `test_no_code_collection.py` : 4 passed (travaillent sur `tmp_path`, jamais sur la base reelle).
+**Pour une autre copie de la base** : memes metadonnees a nettoyer par `ChromaManager(db_path=...).collection.modify(metadata={"description": "Odoo document chunks"})`, ou par `--clear`.
+**Non fait, hors mandat** : renumerotation des doublons (1028, 1149, 1177), commits (aucun), test d'interface du selecteur de source (1156), relance du rapport `current_batch_04` (1177).
+
+**Fichiers modifies** : donnees `document_rag/vectorstore/chroma_db` (metadonnees de `odoo_docs`, ignore par git), `todo/contexte.txt` (cette section). Aucun fichier source.
+
+
+
+
+(.venv) user@debian:~/odoo-ia-prototype$ python -c "import logging,uvicorn; logging.basicConfig(level=logging.INFO); uvicorn.run('api.main:app', host='127.0.0.1', port=8000)"
+INFO:     Started server process [128320]
+INFO:     Waiting for application startup.
+INFO:api.main:Startup incremental scan: scanning [PosixPath('/home/user/odoo-ia-prototype/document_rag/documents')]
+INFO:api.main:FINISHED startup in lifespan, returning to uvicorn!
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:document_rag.vectorstore.chroma_manager:ChromaDB initialized at /home/user/odoo-ia-prototype/document_rag/vectorstore/chroma_db with collection 'odoo_docs'
+INFO:document_rag.ingestion.scheduler:Running startup incremental scan across roots: [PosixPath('/home/user/odoo-ia-prototype/document_rag/documents')]
+INFO:document_rag.ingestion.pdf_loader:Loading PDF: /home/user/odoo-ia-prototype/document_rag/documents/FAC_2025_00039.pdf
+INFO:document_rag.ingestion.pdf_loader:Low text extraction ratio (1.33%), attempting OCR
+INFO:document_rag.ingestion.pdf_ocr:Converted 1 pages for OCR
+/home/user/odoo-ia-prototype/.venv/lib/python3.11/site-packages/jwt/api_jwt.py:368: InsecureKeyLengthWarning: The HMAC key is 31 bytes long, which is below the minimum recommended length of 32 bytes for SHA256. See RFC 7518 Section 3.2.
+  decoded = self.decode_complete(
+WARNING:api.routes_ask:No real Odoo API key in JWT for uid=2 -- ERP/XML-RPC calls will fall back to the admin credential.
+INFO:core.graph.graph:Invoking graph for question: 'Y a-t-il des problemes de requetes N+1 dans le code des modules custom ?'
+INFO:core.graph.graph_nodes:Node [retrieve]: Fetching documents for: Y a-t-il des problemes de requetes N+1 dans le code des modules custom ?
+INFO:document_rag.vectorstore.chroma_manager:ChromaDB initialized at /home/user/odoo-ia-prototype/document_rag/vectorstore/chroma_db with collection 'odoo_docs'
+INFO:document_rag.vectorstore.bm25_index:BM25 index built with 45 documents (1 collections)
+INFO:document_rag.vectorstore.search_hybrid:Hybrid search: 45 vector results, 12 BM25 results
+INFO:document_rag.vectorstore.search_hybrid:RRF fusion: 45 results above threshold 0.01
+INFO:document_rag.vectorstore.search:Retrieval complete: 15 results for query 'Y a-t-il des problemes de requetes N+1 dans le code des modules custom ?'
+INFO:document_rag.vectorstore.search:{"event": "retrieval_trace", "question": "Y a-t-il des problemes de requetes N+1 dans le code des modules custom ?", "vector_weight": 0.7, "bm25_weight": 0.3, "candidate_count_before_rerank": 45, "final_count": 15, "reranker_used": false, "top1": {"id": "Miro - SMA, MMT, JHR, Miro K.E., Protocoles IA et Codage D\u00e9fensif, v1.1, 2026-06-04.md_0_41463b99e914", "source": "Miro - SMA, MMT, JHR, Miro K.E., Protocoles IA et Codage D\u00e9fensif, v1.1, 2026-06-04.md", "type": "doc_wiki", "score": 0.8371913580246914, "text_excerpt": "# \ud83d\udee0\ufe0f Guide Complet : IA, Codage D\u00e9fensif & Bonnes Pratiques Odoo\n\n> Ce guide couvre l'utilisation strat\u00e9gique de l'IA pour le d\u00e9veloppement Odoo, les r\u00e8gles de codage d\u00e9fensif, les bonnes pratiques avanc\u00e9es et les templates pr\u00eats \u00e0 l'emploi.\n\n---\n\n# Partie 1 \u2014 Protocole d'Utilisation de l'IA\n\nPour que l'IA soit un atout, pr\u00e9cisez toujours votre **version d'Odoo** (par exemple, Odoo 16, 17 ou 18) d"}, "results": [{"rank": 1, "id": "Miro - SMA, MMT, JHR, Miro K.E., Protocoles IA et Codage D\u00e9fensif, v1.1, 2026-06-04.md_0_41463b99e914", "score": 0.8371913580246914, "score_type": "rrf", "source": "Miro - SMA, MMT, JHR, Miro K.E., Protocoles IA et Codage D\u00e9fensif, v1.1, 2026-06-04.md", "type": "doc_wiki"}, {"rank": 2, "id": "Miro - SMA, MMT, JHR, Miro K.E., Protocoles IA et Codage D\u00e9fensif, v1.1, 2026-06-04.md_1_abe2bc7a49fe", "score": 0.8971445419700166, "score_type": "rrf", "source": "Miro - SMA, MMT, JHR, Miro K.E., Protocoles IA et Codage D\u00e9fensif, v1.1, 2026-06-04.md", "type": "doc_wiki"}, {"rank": 3, "id": "Miro - SMA, MMT, JHR, Miro K.E., Protocoles IA et Codage D\u00e9fensif, v1.1, 2026-06-04.md_2_5a4821120c6a", "score": 1.0, "score_type": "rrf", "source": "Miro - SMA, MMT, JHR, Miro K.E., Protocoles IA et Codage D\u00e9fensif, v1.1, 2026-06-04.md", "type": "doc_wiki"}, {"rank": 4, "id": "Miro - SMA, MMT, JHR, Miro K.E., Protocoles IA et Codage D\u00e9fensif, v1.1, 2026-06-04.md_3_a3a11f4f04f8", "score": null, "score_type": "raw", "source": "Miro - SMA, MMT, JHR, Miro K.E., Protocoles IA et Codage D\u00e9fensif, v1.1, 2026-06-04.md", "type": "doc_wiki"}, {"rank": 5, "id": "Miro - SMA, MMT, JHR, Miro K.E., Protocoles IA et Codage D\u00e9fensif, v1.1, 2026-06-04.md_5_1375c4a47c08", "score": null, "score_type": "raw", "source": "Miro - SMA, MMT, JHR, Miro K.E., Protocoles IA et Codage D\u00e9fensif, v1.1, 2026-06-04.md", "type": "doc_wiki"}, {"rank": 6, "id": "Miro - SMA, MMT, JHR, Miro K.E., Protocoles IA et Codage D\u00e9fensif, v1.1, 2026-06-04.md_6_b6bece3fa979", "score": 0.9112683076451192, "score_type": "rrf", "source": "Miro - SMA, MMT, JHR, Miro K.E., Protocoles IA et Codage D\u00e9fensif, v1.1, 2026-06-04.md", "type": "doc_wiki"}, {"rank": 7, "id": "Miro - SMA, MMT, JHR, Miro K.E., Protocoles IA et Codage D\u00e9fensif, v1.1, 2026-06-04.md_7_802d973ff9f7", "score": 0.9425096738529574, "score_type": "rrf", "source": "Miro - SMA, MMT, JHR, Miro K.E., Protocoles IA et Codage D\u00e9fensif, v1.1, 2026-06-04.md", "type": "doc_wiki"}, {"rank": 8, "id": "Miro - SMA, MMT, JHR, Miro K.E., Protocoles IA et Codage D\u00e9fensif, v1.1, 2026-06-04.md_9_5fb790854629", "score": 0.9913883377425045, "score_type": "rrf", "source": "Miro - SMA, MMT, JHR, Miro K.E., Protocoles IA et Codage D\u00e9fensif, v1.1, 2026-06-04.md", "type": "doc_wiki"}, {"rank": 9, "id": "wiki_approbation.txt_0_7d1b2aa4c973", "score": 0.9415074576839283, "score_type": "rrf", "source": "wiki_approbation.txt", "type": "doc_wiki"}, {"rank": 10, "id": "guide_deploiement_modules_odoo.md_0_3794f6fb699d", "score": 0.872269705603039, "score_type": "rrf", "source": "guide_deploiement_modules_odoo.md", "type": "doc_wiki"}, {"rank": 11, "id": "guide_deploiement_modules_odoo.md_1_13126cbf8261", "score": null, "score_type": "raw", "source": "guide_deploiement_modules_odoo.md", "type": "doc_wiki"}, {"rank": 12, "id": "wiki_support_helpdesk_sla.md_1_22e7e848e082", "score": null, "score_type": "raw", "source": "wiki_support_helpdesk_sla.md", "type": "doc_wiki"}, {"rank": 13, "id": "wiki_support_helpdesk_sla.md_2_eba273339b58", "score": 0.8631109593199757, "score_type": "rrf", "source": "wiki_support_helpdesk_sla.md", "type": "doc_wiki"}, {"rank": 14, "id": "wiki_onboarding_rh.txt_0_671bd468ca7e", "score": null, "score_type": "raw", "source": "wiki_onboarding_rh.txt", "type": "doc_wiki"}, {"rank": 15, "id": "wiki_onboarding_rh.txt_1_b1da6e37dbf1", "score": 0.7926777725759466, "score_type": "rrf", "source": "wiki_onboarding_rh.txt", "type": "doc_wiki"}]}
+INFO:core.routing.routing:Node [route]: Classifying query type via intent resolution
+INFO:code_intelligence.graph.loader:Loading graph from disk (mtime 1790921153.3557425 > 0.0)
+INFO:document_rag.ingestion.pdf_loader:OCR extraction complete. Quality: low
+INFO:document_rag.ingestion.incremental:Skipping unchanged source: FAC_2025_00039.pdf
+INFO:document_rag.ingestion.pdf_loader:Loading PDF: /home/user/odoo-ia-prototype/document_rag/documents/Facture brouillon (_ 35).pdf
+INFO:code_intelligence.graph.loader:Knowledge Graph loaded from JSON: 20225 nodes, 20281 edges (version: a83413e)
+INFO:document_rag.ingestion.pdf_loader:Low text extraction ratio (1.05%), attempting OCR
+INFO:code_intelligence.agent.matching:Built fuzzy index: 6862 entries from graph (20225 nodes)
+INFO:document_rag.ingestion.pdf_ocr:Converted 1 pages for OCR
+WARNING:code_intelligence.agent.resolution.arbitration:LLM arbitration requested but no llm client was provided; skipping.
+INFO:document_rag.ingestion.pdf_loader:OCR extraction complete. Quality: low
+INFO:document_rag.ingestion.incremental:Skipping unchanged source: Facture brouillon (_ 35).pdf
+INFO:document_rag.ingestion.wiki_loader:Loading markdown file: /home/user/odoo-ia-prototype/document_rag/documents/Miro - SMA, MMT, JHR, Miro K.E., Protocoles IA et Codage Défensif, v1.1, 2026-06-04.md
+INFO:document_rag.ingestion.wiki_loader:Created 14 chunks from /home/user/odoo-ia-prototype/document_rag/documents/Miro - SMA, MMT, JHR, Miro K.E., Protocoles IA et Codage Défensif, v1.1, 2026-06-04.md
+INFO:document_rag.ingestion.incremental:Skipping unchanged source: Miro - SMA, MMT, JHR, Miro K.E., Protocoles IA et Codage Défensif, v1.1, 2026-06-04.md
+INFO:document_rag.ingestion.pdf_loader:Loading PDF: /home/user/odoo-ia-prototype/document_rag/documents/bon_commande_fournisseur_PO2025_00142.pdf
+INFO:document_rag.ingestion.pdf_loader:Low text extraction ratio (3.11%), attempting OCR
+INFO:document_rag.ingestion.pdf_ocr:Converted 2 pages for OCR
+INFO:document_rag.ingestion.pdf_loader:OCR extraction complete. Quality: high
+INFO:document_rag.ingestion.incremental:Skipping unchanged source: bon_commande_fournisseur_PO2025_00142.pdf
+INFO:document_rag.ingestion.pdf_loader:Loading PDF: /home/user/odoo-ia-prototype/document_rag/documents/facture_scannee.pdf
+INFO:document_rag.ingestion.pdf_loader:Low text extraction ratio (0.00%), attempting OCR
+INFO:document_rag.ingestion.pdf_ocr:Converted 1 pages for OCR
+INFO:document_rag.ingestion.pdf_loader:OCR extraction complete. Quality: low
+INFO:document_rag.ingestion.incremental:Skipping unchanged source: facture_scannee.pdf
+INFO:document_rag.ingestion.wiki_loader:Loading Word file: /home/user/odoo-ia-prototype/document_rag/documents/guide_achats_fournisseurs.docx
+INFO:document_rag.ingestion.wiki_loader:Created 2 chunks from /home/user/odoo-ia-prototype/document_rag/documents/guide_achats_fournisseurs.docx
+INFO:document_rag.ingestion.incremental:Skipping unchanged source: guide_achats_fournisseurs.docx
+INFO:document_rag.ingestion.wiki_loader:Loading markdown file: /home/user/odoo-ia-prototype/document_rag/documents/guide_deploiement_modules_odoo.md
+INFO:document_rag.ingestion.wiki_loader:Created 3 chunks from /home/user/odoo-ia-prototype/document_rag/documents/guide_deploiement_modules_odoo.md
+INFO:document_rag.ingestion.incremental:Skipping unchanged source: guide_deploiement_modules_odoo.md
+INFO:document_rag.ingestion.pdf_loader:Loading PDF: /home/user/odoo-ia-prototype/document_rag/documents/manuel_facturation.pdf
+INFO:document_rag.ingestion.incremental:Skipping unchanged source: manuel_facturation.pdf
+INFO:document_rag.ingestion.wiki_loader:Loading Word file: /home/user/odoo-ia-prototype/document_rag/documents/politique_teletravail_materiel.docx
+INFO:document_rag.ingestion.wiki_loader:Created 2 chunks from /home/user/odoo-ia-prototype/document_rag/documents/politique_teletravail_materiel.docx
+INFO:document_rag.ingestion.incremental:Skipping unchanged source: politique_teletravail_materiel.docx
+INFO:document_rag.ingestion.pdf_loader:Loading PDF: /home/user/odoo-ia-prototype/document_rag/documents/procedure_cloture_comptable.pdf
+INFO:document_rag.ingestion.pdf_loader:Low text extraction ratio (4.06%), attempting OCR
+INFO:document_rag.ingestion.pdf_ocr:Converted 2 pages for OCR
+INFO:document_rag.ingestion.pdf_loader:OCR extraction complete. Quality: high
+INFO:document_rag.ingestion.incremental:Skipping unchanged source: procedure_cloture_comptable.pdf
+INFO:document_rag.ingestion.wiki_loader:Loading text file: /home/user/odoo-ia-prototype/document_rag/documents/wiki_approbation.txt
+INFO:document_rag.ingestion.wiki_loader:Created 1 chunks from /home/user/odoo-ia-prototype/document_rag/documents/wiki_approbation.txt
+INFO:document_rag.ingestion.incremental:Skipping unchanged source: wiki_approbation.txt
+INFO:document_rag.ingestion.wiki_loader:Loading text file: /home/user/odoo-ia-prototype/document_rag/documents/wiki_gestion_projets_temps.txt
+INFO:document_rag.ingestion.wiki_loader:Created 2 chunks from /home/user/odoo-ia-prototype/document_rag/documents/wiki_gestion_projets_temps.txt
+INFO:document_rag.ingestion.incremental:Skipping unchanged source: wiki_gestion_projets_temps.txt
+INFO:document_rag.ingestion.wiki_loader:Loading text file: /home/user/odoo-ia-prototype/document_rag/documents/wiki_gestion_stocks.txt
+INFO:document_rag.ingestion.wiki_loader:Created 2 chunks from /home/user/odoo-ia-prototype/document_rag/documents/wiki_gestion_stocks.txt
+INFO:document_rag.ingestion.incremental:Skipping unchanged source: wiki_gestion_stocks.txt
+INFO:document_rag.ingestion.wiki_loader:Loading text file: /home/user/odoo-ia-prototype/document_rag/documents/wiki_notes_de_frais.txt
+INFO:document_rag.ingestion.wiki_loader:Created 2 chunks from /home/user/odoo-ia-prototype/document_rag/documents/wiki_notes_de_frais.txt
+INFO:document_rag.ingestion.incremental:Skipping unchanged source: wiki_notes_de_frais.txt
+INFO:document_rag.ingestion.wiki_loader:Loading text file: /home/user/odoo-ia-prototype/document_rag/documents/wiki_onboarding_rh.txt
+INFO:document_rag.ingestion.wiki_loader:Created 2 chunks from /home/user/odoo-ia-prototype/document_rag/documents/wiki_onboarding_rh.txt
+INFO:document_rag.ingestion.incremental:Skipping unchanged source: wiki_onboarding_rh.txt
+INFO:document_rag.ingestion.wiki_loader:Loading text file: /home/user/odoo-ia-prototype/document_rag/documents/wiki_processus_vente.txt
+INFO:document_rag.ingestion.wiki_loader:Created 2 chunks from /home/user/odoo-ia-prototype/document_rag/documents/wiki_processus_vente.txt
+INFO:document_rag.ingestion.incremental:Skipping unchanged source: wiki_processus_vente.txt
+INFO:document_rag.ingestion.wiki_loader:Loading text file: /home/user/odoo-ia-prototype/document_rag/documents/wiki_securite_it.txt
+INFO:document_rag.ingestion.wiki_loader:Created 2 chunks from /home/user/odoo-ia-prototype/document_rag/documents/wiki_securite_it.txt
+INFO:document_rag.ingestion.incremental:Skipping unchanged source: wiki_securite_it.txt
+INFO:document_rag.ingestion.wiki_loader:Loading markdown file: /home/user/odoo-ia-prototype/document_rag/documents/wiki_support_helpdesk_sla.md
+INFO:document_rag.ingestion.wiki_loader:Created 3 chunks from /home/user/odoo-ia-prototype/document_rag/documents/wiki_support_helpdesk_sla.md
+INFO:document_rag.ingestion.incremental:Skipping unchanged source: wiki_support_helpdesk_sla.md
+INFO:document_rag.ingestion.scheduler:Startup incremental scan completed: {'added_files': [], 'updated_files': [], 'deleted_files': [], 'skipped_files': ['FAC_2025_00039.pdf', 'Facture brouillon (_ 35).pdf', 'Miro - SMA, MMT, JHR, Miro K.E., Protocoles IA et Codage Défensif, v1.1, 2026-06-04.md', 'bon_commande_fournisseur_PO2025_00142.pdf', 'facture_scannee.pdf', 'guide_achats_fournisseurs.docx', 'guide_deploiement_modules_odoo.md', 'manuel_facturation.pdf', 'politique_teletravail_materiel.docx', 'procedure_cloture_comptable.pdf', 'wiki_approbation.txt', 'wiki_gestion_projets_temps.txt', 'wiki_gestion_stocks.txt', 'wiki_notes_de_frais.txt', 'wiki_onboarding_rh.txt', 'wiki_processus_vente.txt', 'wiki_securite_it.txt', 'wiki_support_helpdesk_sla.md'], 'failed_files': {}, 'chunks_added': 0, 'chunks_deleted': 0}
+INFO:httpx:HTTP Request: POST https://iciness-clubhouse-spout.ngrok-free.dev/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:core.routing.routing:Node [route]: intent=general_code_inquiry source=llm
+INFO:code_intelligence.agent.loop:Node [code_intelligence_agent]: Starting ReAct loop for: Y a-t-il des problemes de requetes N+1 dans le code des modules custom ?
+WARNING:document_rag.vectorstore.embedding_functions:Embedding request failed (attempt 1/3): ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response')) -- retrying in 1s
+INFO:httpx:HTTP Request: POST https://iciness-clubhouse-spout.ngrok-free.dev/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:core.llm.llm_client:LLM DIAGNOSTIC METADATA: {'token_usage': {'completion_tokens': 490, 'prompt_tokens': 853, 'total_tokens': 1343, 'completion_tokens_details': None, 'prompt_tokens_details': {'audio_tokens': None, 'cache_write_tokens': None, 'cached_tokens': 852}}, 'model_provider': 'openai', 'model_name': 'qwen3:14b', 'system_fingerprint': 'fp_ollama', 'id': 'chatcmpl-671', 'finish_reason': 'stop', 'logprobs': None}
+INFO:core.session.reasoning_trace_logger:Reasoning trace [af844c52008f] ROUTING: matched=[] open_routing=True
+INFO:httpx:HTTP Request: POST https://iciness-clubhouse-spout.ngrok-free.dev/v1/chat/completions "HTTP/1.1 200 OK"
+INFO:core.llm.llm_client:LLM DIAGNOSTIC METADATA: {'token_usage': {'completion_tokens': 1374, 'prompt_tokens': 2730, 'total_tokens': 4104, 'completion_tokens_details': None, 'prompt_tokens_details': {'audio_tokens': None, 'cache_write_tokens': None, 'cached_tokens': 2729}}, 'model_provider': 'openai', 'model_name': 'qwen3:14b', 'system_fingerprint': 'fp_ollama', 'id': 'chatcmpl-654', 'finish_reason': 'stop', 'logprobs': None}
+INFO:code_intelligence.agent.postprocess:Node [code_intelligence_agent]: evidence sufficiency=insufficient (relevant=0/0) reasons=['no tool observations gathered (hop_count == 0)']
+INFO:core.session.reasoning_trace_logger:Reasoning trace [af844c52008f] SUMMARY: branch=code_intelligence hops=0/20 llm_calls=1 total=234881.71ms
+INFO:core.graph.graph_nodes:Node [route: post-CI]: evidence sufficiency=insufficient, no explicit documentary request in the question -- doc_rag is not an automatic fallback, staying on code_intelligence_agent's own answer. reasons=['no tool observations gathered (hop_count == 0)']
+INFO:core.graph.graph_nodes:Node [format_output]: Formatting final response
+INFO:core.graph.graph:{"event": "request_latency", "metrics": {"routing_time": 17.26578426361084, "code_intelligence_time": 234.8817126750946, "ci_hop_count": 0, "ci_llm_wait_time": 0.0, "ci_effective_time": 234.882, "ci_business_resolver_time": 170.205, "ci_per_hop_times": [], "ci_synthesis_time": 0.0, "ci_applied_guards": [], "llm_call_count": 1, "total_time": 253.71979975700378}}
+INFO:     127.0.0.1:49052 - "POST /api/v1/ask HTTP/1.1" 200 OK
+
+
+(.venv) user@debian:~/odoo-ia-prototype$ time curl -s -m 600 -X POST http://127.0.0.1:8000/api/v1/ask \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"question":"Y a-t-il des problemes de requetes N+1 dans le code des modules custom ?","session_id":"timing_test2","user_uid":2,"company_id":1}' -o /tmp/ask.json
+
+python -c "import json;d=json.load(open('/tmp/ask.json'));print(d['route'],d['evidence_status']);print(json.dumps(d['investigation_plan'],indent=1)[:1500])"
+
+real    4m13.746s
+user    0m0.010s
+sys     0m0.010s
+code_intelligence NON_RESOLU
+{
+ "intent": "general_code_inquiry",
+ "target_models": [],
+ "rationale": "Investigation g\u00e9n\u00e9rique sans mod\u00e8le cible r\u00e9solu",
+ "source": "fallback_heuristic",
+ "confidence": 0.5,
+ "plan_route_conflict": false,
+ "conflict_detail": null,
+ "steps": [
+  {
+   "step_index": 1,
+   "action": "who_has_access_to",
+   "target": "<unknown_model>",
+   "justification": "R\u00e9soudre le mod\u00e8le cible \u00e0 partir de la question utilisateur",
+   "behavioral_focus": "visibility_rule",
+   "technical_focus": "acl"
+  }
+ ]
+}
+(.venv) user@debian:~/odoo-ia-prototype$ 

@@ -1,11 +1,7 @@
 """
-code_intelligence/ci_agent_node/tool_call_execution.py
-
 Executes the tool calls an LLM tool-selection turn returned, one at a
 time, appending observations to the shared DispatchContext exactly like
-the deterministic pre-dispatch blocks do. Extracted from react_loop.py to
-stay under the 300-line-per-file rule (refactor, see todo/contexte.txt).
-Behavior unchanged.
+the deterministic pre-dispatch blocks do
 """
 
 import logging
@@ -546,8 +542,15 @@ class CodeIntelligenceAgentRunner:
         _raw_user_groups = state.get("user_groups", _USER_GROUPS_UNSET)
         if _raw_user_groups is _USER_GROUPS_UNSET:
             resolved_user_group_xmlids = None
+            requester_groups_known = False
         else:
-            resolved_user_group_xmlids = _resolve_user_group_xmlids(_raw_user_groups)
+            raw_user_groups = list(_raw_user_groups or [])
+            resolved_user_group_xmlids = _resolve_user_group_xmlids(raw_user_groups)
+            declared_groups_complete = state.get("user_groups_complete")
+            requester_groups_known = (
+                len(resolved_user_group_xmlids) == len(raw_user_groups)
+                and declared_groups_complete is not False
+            )
             if _raw_user_groups and not resolved_user_group_xmlids:
                 logger.warning(
                     "Node [code_intelligence_agent]: none of the demandeur's %d group ID(s) "
@@ -622,6 +625,7 @@ class CodeIntelligenceAgentRunner:
         ctx = DispatchContext(
             G=G, concept=concept, question=question, tool_map=tool_map,
             resolved_user_group_xmlids=resolved_user_group_xmlids,
+            requester_groups_known=requester_groups_known,
             trace_logger=trace_logger, trace_id=trace_id, hop_cap=CI_MAX_HOPS,
             security_principals=resolved_security_principals,
         )
@@ -651,8 +655,21 @@ class CodeIntelligenceAgentRunner:
             ctx, system_prompt, chat_history, REACT_RECURSION_LIMIT, tool_llm_box, _rebuild_tool_llm,
         )
 
+        if ctx.requester_acl_verdicts:
+            from code_intelligence.agent.predispatch_access import build_requester_acl_answer
+
+            deterministic_acl_answer = build_requester_acl_answer(
+                question, request_language or "", ctx.requester_acl_verdicts,
+            )
+            if deterministic_acl_answer:
+                final_answer = deterministic_acl_answer
+
         return build_final_response(ctx, final_answer, state, start_time, resolver_time, evidence_status)
 
 
 def code_intelligence_agent(state: RAGState) -> dict:
+    if state.get("source_mode") == "documentation":
+        # User chose "d'apres la documentation": skip the CI agent entirely;
+        # ci_evidence_decision() then routes straight to RAG generate.
+        return {"timing": state.get("timing", {})}
     return CodeIntelligenceAgentRunner(state).run()

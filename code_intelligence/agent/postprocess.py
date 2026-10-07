@@ -14,6 +14,7 @@ from typing import List, Optional
 
 from core.schemas import AssistantResponse, SourceReference, OmittedForAuthorization
 from core.evidence.evidence_sufficiency import assess_evidence_sufficiency
+from core.evidence.source_refs import CODE_GRAPH_DOC_TYPE, format_code_graph_source
 from code_intelligence.utils import _TRUNCATION_MARKER
 from core.output import (
     _detect_any_degenerate_repetition,
@@ -376,8 +377,8 @@ def build_final_response(
         display_tool = _CI_TOOL_DISPLAY_NAMES.get(tname, tname or "outil inconnu")
         title = f"{display_tool} — {model}" if model else display_tool
         sources.append(SourceReference(
-            source=f"code_intelligence:{tname or 'unknown'}:{model or 'unknown'}",
-            doc_type="code_graph",
+            source=format_code_graph_source(tname, model),
+            doc_type=CODE_GRAPH_DOC_TYPE,
             title=title,
             snippet=_strip_truncation_marker_for_display(str(obs), source_label=f"{tname or 'unknown'}({model or 'unknown'})"),
         ))

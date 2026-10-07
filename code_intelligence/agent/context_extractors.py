@@ -99,6 +99,10 @@ def _infer_move_type_context(concept) -> Dict[str, Any]:
 # Access-related question patterns ("qui peut...", "peut-il voir...", etc.)
 _ACCESS_QUESTION_PATTERN = re.compile(
     r"\bqui\s+(?:a\s+le\s+permission|peut|peux|est\s+autoris\w*)\b|"
+    r"\b(?:puis\s*[- ]\s*je|est\s*[- ]\s*ce\s*que\s+je\s+peux|can\s+i|may\s+i|"
+    r"am\s+i\s+allowed|do\s+i\s+have\s+(?:access|permission|the\s+right))\s+"
+    r"(?:see|view|access|read|write|create|edit|modify|delete|unlink|"
+    r"voir|visualiser|acc[eé]der|consulter|lire|[ée]crire|cr[eé]er|modifier|supprimer|effacer)\b|"
     r"\b(?:peut|peux|pourra|pourrait)[\s-]*(?:il|elle|on|t[\s-]*il|t[\s-]*elle)\s+(?:\w+\s+)?(?:voir|acc[eé]der|consulter|lire|visualiser|d[eé]clencher|lancer|ex[eé]cuter|faire|cr[eé]er|modifier|supprimer|purger|utiliser)\b|"
     r"\ba[\s-]*t[\s-]*(?:il|elle)\s+(?:le\s+permission|acc[eè]s|la\s+permission)\b|"
     r"\b(?:ir\.rule|record\s+rules?|acl|acls|ir\.model\.access|droits?\s+d['’]acc[eè]s|permissions?|base\.group_\w+|group_[a-z0-9_]+)\b|"

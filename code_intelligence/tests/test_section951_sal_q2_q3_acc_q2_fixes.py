@@ -323,7 +323,7 @@ def test_predispatch_access_system_prompt_suffix_contains_synthesis_guidelines()
     dispatch_who_has_access_to(ctx)
     assert "[DETERMINISTIC PRE-DISPATCH -- ACCESS RIGHTS]" in ctx.system_prompt_suffix
     assert "IMPORTANT GUIDELINES FOR SYNTHESIS:" in ctx.system_prompt_suffix
-    assert "Respect strictly the access verdicts from who_has_access_to" in ctx.system_prompt_suffix
+    assert "A generic ACL matrix grants access only to its named groups" in ctx.system_prompt_suffix
     assert "explicitly cite its exact technical model name" in ctx.system_prompt_suffix
 
 

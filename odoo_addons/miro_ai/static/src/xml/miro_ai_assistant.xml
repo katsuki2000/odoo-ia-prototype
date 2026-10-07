@@ -30,14 +30,6 @@
                     </div>
                 </div>
 
-                <!-- Active Document / Model Context Bar -->
-                <div t-if="!state.showHistory and state.activeModelContext" class="miro-context-bar bg-light px-3 py-1 border-bottom small d-flex align-items-center">
-                    <i class="fa fa-bullseye text-primary mr-1"/>
-                    <span class="text-muted mr-1">Contexte :</span>
-                    <strong class="text-dark" t-esc="state.activeModelContext.displayName"/>
-                    <span class="badge badge-light border ml-1" t-esc="state.activeModelContext.model"/>
-                </div>
-
                 <!-- Compact History List -->
                 <div t-if="state.showHistory" class="miro-drawer-history p-2">
                     <div t-if="state.loadingSessions" class="text-muted text-center p-3 small">
@@ -113,6 +105,18 @@
 
                 <!-- Drawer Input Area -->
                 <div t-if="!state.showHistory" class="miro-drawer-input p-2 border-top bg-white">
+                    <div class="miro-source-toggle mb-1">
+                        <button type="button" t-attf-class="btn btn-sm miro-source-btn #{state.sourceMode === 'documentation' ? 'active' : ''}"
+                                t-on-click="() => this.toggleSourceMode('documentation')"
+                                title="Répondre uniquement à partir de la documentation interne">
+                            <i class="fa fa-book"/> D'après la documentation
+                        </button>
+                        <button type="button" t-attf-class="btn btn-sm miro-source-btn #{state.sourceMode === 'systeme' ? 'active' : ''}"
+                                t-on-click="() => this.toggleSourceMode('systeme')"
+                                title="Répondre à partir des données et du code du système">
+                            <i class="fa fa-cogs"/> D'après le système
+                        </button>
+                    </div>
                     <div class="d-flex align-items-center">
                         <input type="text" class="form-control form-control-sm miro-drawer-input-field me-2" placeholder="Posez une question..."
                                t-model="state.inputQuestion" t-on-keydown="onKeyDown"/>

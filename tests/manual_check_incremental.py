@@ -54,7 +54,7 @@ def test_modification(manager: ChromaManager, target_file: Path, label: str) -> 
     backup = target_file.with_suffix(target_file.suffix + ".bak")
     shutil.copy(target_file, backup)
 
-    docs_manager = ChromaManager(collection_name="odoo_docs")
+    docs_manager = ChromaManager()
 
     try:
         sync(docs_manager)
@@ -98,7 +98,7 @@ def test_modification(manager: ChromaManager, target_file: Path, label: str) -> 
 def test_addition() -> bool:
     print(f"\n--- Test ajout : {NEW_FILE.name} ---")
     source_str = str(NEW_FILE.resolve())
-    docs_manager = ChromaManager(collection_name="odoo_docs")
+    docs_manager = ChromaManager()
 
     try:
         NEW_FILE.write_text(
@@ -130,7 +130,7 @@ def test_addition() -> bool:
 def test_deletion() -> bool:
     print(f"\n--- Test suppression : {DELETE_TARGET.name} ---")
     source_str = str(DELETE_TARGET.resolve())
-    docs_manager = ChromaManager(collection_name="odoo_docs")
+    docs_manager = ChromaManager()
 
     try:
         # Créer et indexer le fichier d'abord
@@ -168,7 +168,7 @@ def run_all() -> bool:
     print("TEST — Réindexation incrémentale documentaire")
     print("=" * 60)
 
-    docs_manager = ChromaManager(collection_name="odoo_docs")
+    docs_manager = ChromaManager()
     results = {
         "modification (doc txt)": test_modification(docs_manager, DOC_TARGET, "txt"),
         "ajout (doc)": test_addition(),

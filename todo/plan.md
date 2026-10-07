@@ -1,6 +1,6 @@
 # Plan d'execution
 
-Objectif : atteindre `architecture.md` (critère : au moins 80 % de reponses correctes sur des instances Odoo 17 et des questions tenues hors calibrage, abstentions comptees comme erreurs).
+Objectif : atteindre `architecture.md` 
 
 Question à se poser à chaque bifurcation : l'IA pourra-t-elle repondre correctement sur n'importe
 quelle instance Odoo 17 ?

@@ -20,13 +20,18 @@ def read_raw(path: Path) -> dict:
 def ask_case(case: Mapping, credentials: Mapping, ask: Callable) -> dict:
     started = time.time()
     try:
-        response = ask(
-            question=case["question"],
-            uid=credentials["uid"],
-            api_key=credentials["api_key"],
-            user_groups=credentials["groups"],
-            language=case["user_context"]["language"],
-        )
+        ask_context = {
+            "question": case["question"],
+            "uid": credentials["uid"],
+            "api_key": credentials["api_key"],
+            "language": case["user_context"]["language"],
+        }
+        if "group_xmlids" in credentials:
+            ask_context["user_groups"] = credentials["group_xmlids"]
+            ask_context["user_groups_complete"] = credentials.get("groups_complete", False)
+        else:
+            ask_context["user_groups"] = credentials["groups"]
+        response = ask(**ask_context)
         raw = response.model_dump(mode="json")
     except Exception as error:
         raw = {"error": f"{type(error).__name__}: {error}"}

@@ -6,7 +6,7 @@ import json
 import subprocess
 import sys
 import tempfile
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from pathlib import Path
 from typing import Iterable, Mapping, Optional
 
@@ -22,6 +22,19 @@ from core.evaluation.instance_runtime import (
 from core.evaluation.system_adapter import to_case_result
 
 RUN_FILE = "run.json"
+MAX_CASE_BATCH_SIZE = 2
+
+
+def select_cases(dataset: FrozenDataset, case_ids: Iterable[str]) -> FrozenDataset:
+    requested = list(case_ids)
+    require(0 < len(requested) <= MAX_CASE_BATCH_SIZE,
+            f"case batch must contain between 1 and {MAX_CASE_BATCH_SIZE} ids")
+    require(len(set(requested)) == len(requested), "case batch contains duplicate ids")
+    known = {case.case_id for case in dataset.cases}
+    unknown = sorted(set(requested) - known)
+    require(not unknown, f"unknown case ids: {unknown}")
+    selected = set(requested)
+    return replace(dataset, cases=tuple(case for case in dataset.cases if case.case_id in selected))
 
 
 def cases_by_instance(dataset: FrozenDataset) -> dict:

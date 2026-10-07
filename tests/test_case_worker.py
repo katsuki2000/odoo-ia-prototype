@@ -40,5 +40,22 @@ def test_run_cases_resumes_without_repeating_done_cases(tmp_path):
     assert cw.read_raw(output)["a"]["raw"]["answer"] == "old"
 
 
+def test_ask_case_passes_instance_group_xmlids_and_completeness():
+    calls = []
+    case = CASES[0]
+    credentials = {
+        "uid": 6,
+        "api_key": "k",
+        "groups": [1, 2],
+        "group_xmlids": ["base.group_user", "account.group_account_user"],
+        "groups_complete": True,
+    }
+
+    cw.ask_case(case, credentials, fake_ask(calls))
+
+    assert calls[0]["user_groups"] == ["base.group_user", "account.group_account_user"]
+    assert calls[0]["user_groups_complete"] is True
+
+
 def test_read_raw_of_missing_file_is_empty(tmp_path):
     assert cw.read_raw(tmp_path / "absent.jsonl") == {}

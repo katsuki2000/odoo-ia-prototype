@@ -179,7 +179,6 @@ export class MiroAiSystray extends Component {
     setup() {
         this.rpc = useService("rpc");
         this.notification = useService("notification");
-        this.actionService = useService("action");
         this.pendingRequest = null;
 
         this.state = useState({
@@ -189,7 +188,7 @@ export class MiroAiSystray extends Component {
             sessionId: "systray_session_" + Date.now(),
             messages: [createMessage(1, "bot", SYSTRAY_INITIAL_CONTENT)],
             nextMsgId: 2,
-            activeModelContext: null,
+            sourceMode: null,
             showHistory: false,
             loadingSessions: false,
             sessions: [],
@@ -261,32 +260,10 @@ export class MiroAiSystray extends Component {
 
     toggleDrawer() {
         this.state.isOpen = !this.state.isOpen;
-        if (this.state.isOpen) {
-            this.detectActiveContext();
-        }
     }
 
     closeDrawer() {
         this.state.isOpen = false;
-    }
-
-    detectActiveContext() {
-        try {
-            const controller = this.actionService.currentController;
-            if (controller && controller.action && controller.action.res_model) {
-                const resModel = controller.action.res_model;
-                const resId = controller.action.res_id || null;
-                this.state.activeModelContext = {
-                    model: resModel,
-                    id: resId,
-                    displayName: controller.action.display_name || resModel,
-                };
-            } else {
-                this.state.activeModelContext = null;
-            }
-        } catch (e) {
-            this.state.activeModelContext = null;
-        }
     }
 
     onKeyDown(ev) {
@@ -333,6 +310,10 @@ export class MiroAiSystray extends Component {
         }
     }
 
+    toggleSourceMode(mode) {
+        this.state.sourceMode = this.state.sourceMode === mode ? null : mode;
+    }
+
     async sendMessage() {
         const question = this.state.inputQuestion.trim();
         if (!question || this.state.loading) {
@@ -343,19 +324,13 @@ export class MiroAiSystray extends Component {
         this.state.inputQuestion = "";
         this.state.loading = true;
 
-        // H2 (todo/contexte.txt section 569-571): active_model/active_id sent
-        // as structured RPC fields, no longer diluted into a free-text
-        // "[Contexte: modèle X]" prefix concatenated into `question` itself --
-        // downstream deterministic components (business_resolver,
-        // classify_question_intent) can now consume it reliably instead of
-        // parsing it back out of prose.
         const rpcPayload = {
             question: question,
             session_id: this.state.sessionId,
         };
-        if (this.state.activeModelContext && this.state.activeModelContext.model) {
-            rpcPayload.active_model = this.state.activeModelContext.model;
-            rpcPayload.active_id = this.state.activeModelContext.id;
+        // Explicit source chosen by the user ("documentation" | "systeme"); null = automatic routing.
+        if (this.state.sourceMode) {
+            rpcPayload.source_mode = this.state.sourceMode;
         }
 
         const rpcPromise = this.rpc("/miro_ai/ask", rpcPayload);

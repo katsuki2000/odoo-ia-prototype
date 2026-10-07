@@ -60,7 +60,7 @@ def reindex_if_changed(
         Dict summary containing added, updated, deleted, skipped, and failed files.
     """
     started_at = start_timer()
-    docs_manager = docs_manager or ChromaManager(collection_name="odoo_docs")
+    docs_manager = docs_manager or ChromaManager()
     result = IncrementalResult()
 
     root_paths = [Path(root).resolve() for root in roots if root is not None and str(root)]

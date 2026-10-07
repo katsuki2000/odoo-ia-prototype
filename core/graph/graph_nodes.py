@@ -9,7 +9,7 @@ import logging
 import sys
 from typing import Optional
 
-from config.settings import USE_RERANKER
+from config.settings import ENABLE_SMALLTALK_GATE, USE_RERANKER
 from document_rag.vectorstore.search import get_retriever, retrieve as search_retrieve
 from core.session.smalltalk import classify_smalltalk, SMALLTALK_RESPONSES
 from core.evidence.evidence_sufficiency import EvidenceSufficiencyStatus
@@ -28,8 +28,11 @@ logger = logging.getLogger(__name__)
 def smalltalk_gate(state: RAGState) -> dict:
     """
     Deterministic pre-retrieval gate for pure smalltalk.
-    Intercepts greetings, thanks, farewells before retrieve().
+    Disabled when ENABLE_SMALLTALK_GATE is false (LLM answers instead).
     """
+    if not ENABLE_SMALLTALK_GATE:
+        return {}
+
     question = state.get("question", "")
     kind = classify_smalltalk(question)
     if kind is None:
@@ -193,6 +196,9 @@ def ci_evidence_decision(state: RAGState) -> str:
     own answer, and INSUFFICIENT (with or without an execution failure) also
     stays on CI's own answer when nothing in the question asked for documentation.
     """
+    if state.get("source_mode") == "documentation":
+        return "generate"
+
     sufficiency = state.get("ci_evidence_sufficiency")
     if not sufficiency:
         return "format_output"

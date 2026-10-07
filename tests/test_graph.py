@@ -962,6 +962,18 @@ class TestQuestionIsAccessRelated:
             "Can a user see this record if the company differs?"
         )
 
+    def test_matches_first_person_access_questions(self):
+        assert _question_is_access_related(
+            "Puis-je créer les enregistrements du modèle « Pièce comptable » ?"
+        )
+        assert _question_is_access_related(
+            "Puis-je consulter les enregistrements du modèle « Pièce comptable » ?"
+        )
+        assert _question_is_access_related("Can I delete this record?")
+
+    def test_does_not_match_first_person_non_access_question(self):
+        assert not _question_is_access_related("Puis-je configurer un module Odoo ?")
+
     def test_does_not_match_comment_configurer(self):
         assert not _question_is_access_related(
             "Comment configurer un module Odoo pour la comptabilité ?"
@@ -1774,4 +1786,3 @@ class TestVerifyUsedSourcesDedup:
         }
         result = _verify_used_sources(["S1", "S2"], alias_map)
         assert len(result) == 2
-

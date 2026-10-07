@@ -18,9 +18,9 @@ from erp_data.odoo_context import odoo_uid_ctx
 from core.evidence.evidence import Evidence, EvidenceSourceType
 
 
-def test_get_total_sales_raw_returns_text_and_evidence():
+def test_get_total_sales_raw_returns_text_and_currency_evidence():
     with patch("erp_data._odoo_helpers.connector.read_group") as mock_read_group:
-        mock_read_group.return_value = [{"amount_total": 125000.0}]
+        mock_read_group.return_value = [{"amount_total": 125000.0, "currency_id": [1, "MGA"]}]
         token = odoo_uid_ctx.set(7)
         try:
             text, evidence = get_total_sales_raw(client="Rakoto", periode="", statut="toutes")
@@ -29,9 +29,31 @@ def test_get_total_sales_raw_returns_text_and_evidence():
 
     assert isinstance(text, str)
     assert "125000.00" in text
-    assert isinstance(evidence, Evidence)
-    assert evidence.source_type == EvidenceSourceType.ORM
-    assert evidence.value == 125000.0
+    assert isinstance(evidence, list)
+    assert len(evidence) == 1
+    assert evidence[0].source_type == EvidenceSourceType.ORM
+    assert evidence[0].value == {"currency": "MGA", "amount": 125000.0}
+
+
+def test_get_total_sales_keeps_currency_totals_separate_with_one_evidence_each():
+    with patch("erp_data._odoo_helpers.connector.read_group") as mock_read_group:
+        mock_read_group.return_value = [
+            {"amount_total": 100.0, "currency_id": [1, "EUR"]},
+            {"amount_total": 250.0, "currency_id": [2, "USD"]},
+        ]
+        token = odoo_uid_ctx.set(7)
+        try:
+            text, evidence_list = get_total_sales_raw()
+        finally:
+            odoo_uid_ctx.reset(token)
+
+    assert "100.00 EUR" in text
+    assert "250.00 USD" in text
+    assert "350.00" not in text
+    assert {item.value["currency"]: item.value["amount"] for item in evidence_list} == {
+        "EUR": 100.0,
+        "USD": 250.0,
+    }
 
 
 def test_get_total_sales_raw_evidence_scope_carries_execution_identity():
@@ -39,30 +61,30 @@ def test_get_total_sales_raw_evidence_scope_carries_execution_identity():
     (todo/contexte.txt section 428) that it represent the identity actually
     used for the ORM read, not a decorative label."""
     with patch("erp_data._odoo_helpers.connector.read_group") as mock_read_group:
-        mock_read_group.return_value = [{"amount_total": 500.0}]
+        mock_read_group.return_value = [{"amount_total": 500.0, "currency_id": [1, "MGA"]}]
         token = odoo_uid_ctx.set(42)
         try:
             _text, evidence = get_total_sales_raw()
         finally:
             odoo_uid_ctx.reset(token)
 
-    assert evidence.scope["execution_identity"] == 42
-    assert "read_at" in evidence.scope
-    assert "company_id" not in evidence.scope  # not fabricated, see _orm_evidence_scope
+    assert evidence[0].scope["execution_identity"] == 42
+    assert "read_at" in evidence[0].scope
+    assert "company_id" not in evidence[0].scope
 
 
 def test_get_total_sales_raw_no_confidence_set():
     """B0 decision (todo/contexte.txt section 426): a deterministic ORM
     read never carries a confidence score."""
     with patch("erp_data._odoo_helpers.connector.read_group") as mock_read_group:
-        mock_read_group.return_value = [{"amount_total": 500.0}]
+        mock_read_group.return_value = [{"amount_total": 500.0, "currency_id": [1, "MGA"]}]
         token = odoo_uid_ctx.set(1)
         try:
             _text, evidence = get_total_sales_raw()
         finally:
             odoo_uid_ctx.reset(token)
 
-    assert evidence.confidence is None
+    assert all(item.confidence is None for item in evidence)
 
 
 def test_get_total_sales_raw_empty_result_still_produces_evidence():
@@ -77,8 +99,8 @@ def test_get_total_sales_raw_empty_result_still_produces_evidence():
             odoo_uid_ctx.reset(token)
 
     assert "Aucune vente" in text
-    assert evidence.value is None
-    assert evidence.source_type == EvidenceSourceType.ORM
+    assert evidence[0].value is None
+    assert evidence[0].source_type == EvidenceSourceType.ORM
 
 
 def test_get_total_sales_tool_wrapper_unchanged_return_contract():
@@ -86,7 +108,7 @@ def test_get_total_sales_tool_wrapper_unchanged_return_contract():
     keeps the existing tool contract intact (todo/contexte.txt section
     426, decision 1: no breaking change to the frontend/agent contract)."""
     with patch("erp_data._odoo_helpers.connector.read_group") as mock_read_group:
-        mock_read_group.return_value = [{"amount_total": 10.0}]
+        mock_read_group.return_value = [{"amount_total": 10.0, "currency_id": [1, "MGA"]}]
         token = odoo_uid_ctx.set(1)
         try:
             result = get_total_sales.invoke({"client": "", "periode": "", "statut": "toutes"})
@@ -116,7 +138,7 @@ def test_get_total_sales_raw_domain_matches_statut_contract(statut, expected_sta
     only, not silently fall through to the 'toutes' domain (the bug this
     refactor fixed, todo/contexte.txt section 516)."""
     with patch("erp_data._odoo_helpers.connector.read_group") as mock_read_group:
-        mock_read_group.return_value = [{"amount_total": 100.0}]
+        mock_read_group.return_value = [{"amount_total": 100.0, "currency_id": [1, "MGA"]}]
         token = odoo_uid_ctx.set(1)
         try:
             get_total_sales_raw(client="", periode="", statut=statut)
@@ -132,7 +154,7 @@ def test_get_total_sales_raw_unknown_statut_falls_back_to_toutes_domain():
     (fallback to the 'toutes' domain), not an accidental effect of an
     else branch -- verified here against the real domain, not just prose."""
     with patch("erp_data._odoo_helpers.connector.read_group") as mock_read_group:
-        mock_read_group.return_value = [{"amount_total": 100.0}]
+        mock_read_group.return_value = [{"amount_total": 100.0, "currency_id": [1, "MGA"]}]
         token = odoo_uid_ctx.set(1)
         try:
             get_total_sales_raw(client="", periode="", statut="n'importe quoi")

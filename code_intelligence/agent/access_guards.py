@@ -23,15 +23,7 @@ logger = logging.getLogger(__name__)
 _REQUIRED_GROUP_LINE_RE = re.compile(
     r"Groupe\(s\)\s+technique\(s\)\s+requis\s+detecte\(s\)\s+\(has_group\):\s*([^\n]+)"
 )
-# Section 948 (todo/contexte.txt): evaluate_record_rules' own "(groupes: ...)"
-# formatting (record_rules.py::_format_rule_groups) is a second, distinct
-# grounding path for a group xml_id -- neither the has_group()-only
-# _REQUIRED_GROUP_LINE_RE below nor the "xml_id:"-prefixed _XML_ID_PATTERN
-# (dispatch_guards.py) recognize it, since the group xmlid here is written
-# bare in backticks/parens, never preceded by the literal "xml_id:". Nested
-# parens (the group's own display name, e.g. "('User: All Documents')")
-# make a naive "[^)]*" insufficient -- same nested-paren shape already
-# handled by _GROUP_ESCALATION_SEE_ALL_RE further below.
+
 _GROUPES_BLOCK_RE = re.compile(r"\(groupes:\s*(?P<groups>[^)]*(?:\([^()]*\)[^)]*)*)\)")
 
 
@@ -102,29 +94,6 @@ _SENTENCE_SPLIT_RE = re.compile(
 
 def _grounded_core_only_groups(final_answer: str, scoped_tool_output: str) -> List[str]:
     """Find group XML-IDs grounded only in core Odoo when a custom override also exists.
-
-    Section 849 (todo/contexte.txt): this heuristic was designed and tested
-    for exactly one scenario -- a single core-only group superseded by a
-    single competing custom-module group deciding the SAME thing (see
-    test_bloc9_07_core_only_group_stripping.py). When several DISTINCT
-    core-only groups are grounded in the evidence at once (e.g. a write-ACL
-    group and an unrelated approval-workflow group), that is evidence they
-    are independent facts, not a 1-for-1 override -- stripping any of them
-    then silently deletes a correct, unrelated finding (ACC-Q1, section
-    848/849: account.group_account_invoice, an ACL fact, wrongly stripped
-    because a custom module happened to exist for a different, unrelated
-    approval workflow). Bail out entirely rather than guess which of
-    several core-only groups (if any) is actually superseded.
-
-    Section 850 fix-of-a-fix: the bail-out count must be taken over the
-    FULL set of core-only groups grounded in the evidence, not just the
-    subset the synthesized answer happens to mention -- a write-focused
-    question naturally only cites account.group_account_invoice and never
-    mentions the other two unrelated core-only groups (base.group_portal,
-    base.group_public), so counting on `mentioned` undercounted to 1 and
-    never bailed out (confirmed 4/4 on a real ACC-Q1 replay). Whether
-    several independent core-only facts exist is a property of the
-    evidence, not of what the LLM chose to write about.
     """
     grounded = set(_extract_required_groups(scoped_tool_output))
     if not grounded:
@@ -386,7 +355,7 @@ _GROUP_ESCALATION_SEE_ALL_RE = re.compile(
 def _backfill_missing_group_escalation_note(
     final_answer: str, raw_tool_output: str, question: str
 ) -> str:
-    """Section 946: evaluate_record_rules lists, among the ignored
+    """evaluate_record_rules lists, among the ignored
     (non-member) group rules, an "All X" style rule using Odoo's standard
     unrestricted-access idiom. When the question explicitly names that
     escalation group (typically to exclude it -- e.g. 'sans

@@ -88,7 +88,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="MIRO AI API",
-    description="REST API for querying the MIRO KE internal knowledge base",
+    description="REST API for querying the ERP internal knowledge base",
     version="1.0.0",
     lifespan=lifespan,
 )

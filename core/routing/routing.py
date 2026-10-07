@@ -67,7 +67,8 @@ class RAGState(TypedDict):
     raw_answer: str
     route: Optional[str]
     response: Optional[AssistantResponse]
-    user_groups: List[int]
+    user_groups: List[int | str]
+    user_groups_complete: Optional[bool]
     resolved_concept: Optional[dict]
     last_route: Optional[str]
     last_resolved_concept: Optional[dict]
@@ -77,8 +78,7 @@ class RAGState(TypedDict):
     sources_fallback_eligible: Optional[bool]
     ci_evidence_sufficiency: Optional[dict]
     raw_tool_output: Optional[str]
-    active_model: Optional[str]
-    active_id: Optional[int]
+    source_mode: Optional[str]
     language: Optional[str]
 
 
@@ -112,6 +112,22 @@ def route(state: RAGState) -> dict:
     question_folded = _fold_accents(question_raw.lower())
     logger.info("Node [route]: Classifying query type via intent resolution")
 
+    source_mode = state.get("source_mode")
+    if source_mode == "documentation":
+        # User explicitly chose "d'apres la documentation": no resolver, no intent LLM,
+        # the CI agent node is skipped and ci_evidence_decision() sends
+        # the turn straight to RAG generate (graph topology unchanged).
+        timing = state.get("timing", {}).copy()
+        timing["routing_time"] = time.time() - start_time
+        logger.info("Node [route]: source_mode=documentation -> documentaire (RAG direct)")
+        return {
+            "route": QueryRoute.DOCUMENTAIRE.value,
+            "timing": timing,
+            "resolved_concept": None,
+            "resolved_concept_reused": False,
+            "investigation_plan": None,
+        }
+
     from code_intelligence.agent.resolver import resolve_business_term
     from code_intelligence.agent.investigation_schemas import INTENT_TO_ROUTE, QuestionIntent
     from code_intelligence.graph.loader import get_code_intelligence_graph
@@ -125,7 +141,6 @@ def route(state: RAGState) -> dict:
         question_raw,
         G,
         llm=None,
-        active_model=state.get("active_model"),
         language=request_language,
     )
 
@@ -144,6 +159,14 @@ def route(state: RAGState) -> dict:
         )
     else:
         route_decision = derived_route
+
+    if source_mode == "systeme" and route_decision == QueryRoute.DOCUMENTAIRE.value:
+        # User explicitly chose "d'apres le systeme": the documentary route is excluded.
+        if any(term in question_folded for term in DATA_TERMS_FOLDED):
+            route_decision = QueryRoute.DONNEES_ERP.value
+        else:
+            route_decision = QueryRoute.CODE_INTELLIGENCE.value
+        logger.info("Node [route]: source_mode=systeme -> documentaire remapped to %s", route_decision)
 
     if route_decision in (QueryRoute.DOCUMENTAIRE.value, QueryRoute.DONNEES_ERP.value):
         is_hybrid = (

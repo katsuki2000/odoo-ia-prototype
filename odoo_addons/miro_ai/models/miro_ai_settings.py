@@ -39,6 +39,13 @@ class MiroAiSettings(models.Model):
         default='http://127.0.0.1:8000',
         help='Adresse racine du serveur FastAPI MIRO RAG (ex: http://127.0.0.1:8000 ou http://miro_rag:8000)'
     )
+    request_timeout = fields.Integer(
+        string='Délai maximal de réponse (s)',
+        required=True,
+        default=120,
+        help='Temps d\'attente maximal de la réponse du backend. En mode multi-workers, '
+             'il doit rester inférieur à limit_time_real d\'Odoo (120 s par défaut).'
+    )
     api_token = fields.Char(
         string='Jeton Secret API (JWT Secret)',
         default='default_insecure_secret_for_dev',
@@ -66,6 +73,11 @@ class MiroAiSettings(models.Model):
         default=True,
         help='Activer la recherche ORM et documentaire sur le module Support & Tickets'
     )
+
+    _sql_constraints = [
+        ('request_timeout_min', 'CHECK(request_timeout >= 10)',
+         'Le délai maximal de réponse doit être d\'au moins 10 secondes.'),
+    ]
 
     @api.model
     def get_active_settings(self):

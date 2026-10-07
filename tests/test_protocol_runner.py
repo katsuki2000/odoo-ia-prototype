@@ -35,6 +35,21 @@ def test_collect_results_maps_raw_rows(tmp_path):
     assert results[0].outcome == "answered" and results[0].sources_used == ("code",)
 
 
+def test_select_cases_limits_batch_and_rejects_unknown_or_duplicate_ids():
+    data = dataset()
+    selected = runner.select_cases(data, ["a"])
+    assert [case.case_id for case in selected.cases] == ["a"]
+    assert selected.digest == data.digest
+    with pytest.raises(ValueError, match="between 1 and 2"):
+        runner.select_cases(data, [])
+    with pytest.raises(ValueError, match="between 1 and 2"):
+        runner.select_cases(data, ["a", "b", "c"])
+    with pytest.raises(ValueError, match="duplicate"):
+        runner.select_cases(data, ["a", "a"])
+    with pytest.raises(ValueError, match="unknown case ids"):
+        runner.select_cases(data, ["missing"])
+
+
 def test_raw_directory_is_bound_to_dataset_digest(tmp_path):
     data = dataset()
     runner.prepare_run(data, tmp_path)

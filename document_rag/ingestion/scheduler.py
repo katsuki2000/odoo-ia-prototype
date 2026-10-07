@@ -35,7 +35,7 @@ def run_startup_scan(
     """
     started_at = start_timer()
     target_roots = roots if roots is not None else DEFAULT_SCAN_ROOTS
-    docs_manager = docs_manager or ChromaManager(collection_name="odoo_docs")
+    docs_manager = docs_manager or ChromaManager()
 
     logger.info("Running startup incremental scan across roots: %s", target_roots)
     result = reindex_if_changed(target_roots, docs_manager=docs_manager)
@@ -67,7 +67,7 @@ def run_scheduled_scan(
     """
     started_at = start_timer()
     target_roots = roots if roots is not None else DEFAULT_SCAN_ROOTS
-    docs_manager = docs_manager or ChromaManager(collection_name="odoo_docs")
+    docs_manager = docs_manager or ChromaManager()
 
     logger.info("Running scheduled incremental scan across roots: %s", target_roots)
     result = reindex_if_changed(target_roots, docs_manager=docs_manager)
@@ -112,7 +112,7 @@ class PeriodicScanScheduler:
             if not self._running:
                 break
             try:
-                docs_manager = self.docs_manager or ChromaManager(collection_name="odoo_docs")
+                docs_manager = self.docs_manager or ChromaManager()
                 await asyncio.to_thread(
                     run_scheduled_scan,
                     self.roots,

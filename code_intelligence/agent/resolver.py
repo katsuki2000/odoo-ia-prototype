@@ -42,7 +42,6 @@ def resolve_business_term(
     query_text: str,
     G=None,
     llm=None,
-    active_model: Optional[str] = None,
     *,
     language: Optional[str] = None,
     use_static_aliases: bool = True,
@@ -66,16 +65,6 @@ def resolve_business_term(
     resolved = resolve_static_alias(clean_query, G, aliases, alias_patterns)
     if resolved is not None:
         return resolved
-
-    if active_model and G is not None and G.has_node(f"model:{active_model}"):
-        return ResolvedConcept(
-            user_term=query_text,
-            resolved_models=[active_model],
-            confidence=0.9,
-            source_step="active_context",
-            is_resolved=True,
-            reason=f"No textual match in the question itself; resolved from active UI context (model={active_model})",
-        )
 
     resolved = resolve_fuzzy_match(query_text, clean_query, G, llm, language, use_static_aliases)
     if resolved is not None:

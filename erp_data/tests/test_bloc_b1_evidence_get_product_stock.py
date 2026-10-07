@@ -46,7 +46,10 @@ def test_get_product_stock_raw_returns_text_and_two_evidence():
     for e in evidence_list:
         assert isinstance(e, Evidence)
         assert e.source_type == EvidenceSourceType.ORM
-        assert e.source == "stock.quant:read_group(quantity:sum,reserved_quantity:sum)"
+        assert e.source == (
+            "stock.quant:read_group(quantity:sum,reserved_quantity:sum, "
+            "location_id.usage=internal)"
+        )
 
 
 def test_get_product_stock_raw_evidence_covers_quantity_and_reserved_separately():
@@ -90,13 +93,12 @@ def test_get_product_stock_raw_empty_result_produces_single_negative_evidence():
     evidence = evidence_list[0]
     assert evidence.value is None
     assert evidence.source_type == EvidenceSourceType.ORM
-    assert evidence.claim == "No stock.quant matches product=Inconnu"
+    assert evidence.claim == "No internal stock.quant matches product=Inconnu"
+    assert "location_id.usage=internal" in evidence.source
 
 
-def test_get_product_stock_raw_multiple_results_only_covers_results_zero():
-    """When read_group returns more than one product (partial name match),
-    only results[0] is reflected in text (pre-existing behavior) -- the
-    Evidence must never cover the ignored matches either."""
+def test_get_product_stock_raw_multiple_products_returns_ambiguity():
+    """Partial product names must not silently select the first match."""
     with patch("erp_data._odoo_helpers.connector.read_group") as mock_read_group:
         mock_read_group.return_value = [
             {"quantity": 10.0, "reserved_quantity": 2.0, "product_id": [1, "Widget A"]},
@@ -108,11 +110,13 @@ def test_get_product_stock_raw_multiple_results_only_covers_results_zero():
         finally:
             odoo_uid_ctx.reset(token)
 
-    assert "999" not in text
-    assert len(evidence_list) == 2
-    assert evidence_list[0].value == 10.0
-    assert evidence_list[1].value == 2.0
-    assert all(e.value not in (999.0,) for e in evidence_list)
+    assert "AMBIGUÏTÉ" in text
+    assert "Widget A" in text and "Widget B" in text
+    assert evidence_list == []
+    assert mock_read_group.call_args.kwargs["domain"] == [
+        ("product_id.name", "ilike", "Widget"),
+        ("location_id.usage", "=", "internal"),
+    ]
 
 
 def test_get_product_stock_raw_no_confidence_set():

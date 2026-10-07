@@ -24,7 +24,9 @@ from core.evidence.evidence import Evidence, EvidenceSourceType
 
 def test_get_average_sales_raw_returns_text_and_evidence_global():
     with patch("erp_data._odoo_helpers.connector.read_group") as mock_read_group:
-        mock_read_group.return_value = [{"amount_total": 4200.5}]
+        mock_read_group.return_value = [
+            {"amount_total": 4200.5, "currency_id": [1, "MGA"], "__count": 2}
+        ]
         token = odoo_uid_ctx.set(3)
         try:
             text, evidence = get_average_sales_raw(client="", periode="toutes")
@@ -32,16 +34,20 @@ def test_get_average_sales_raw_returns_text_and_evidence_global():
             odoo_uid_ctx.reset(token)
 
     assert isinstance(text, str)
-    assert "4200.50" in text
-    assert isinstance(evidence, Evidence)
-    assert evidence.source_type == EvidenceSourceType.ORM
-    assert evidence.value == 4200.5
-    assert evidence.source == "sale.order:read_group(amount_total:avg)"
+    assert "2100.25" in text
+    assert isinstance(evidence, list)
+    assert len(evidence) == 1
+    assert evidence[0].source_type == EvidenceSourceType.ORM
+    assert evidence[0].value == {"currency": "MGA", "average": 2100.25, "count": 2}
+    assert evidence[0].source == "sale.order:read_group(amount_total:sum, groupby=currency_id)"
 
 
 def test_get_average_sales_raw_returns_text_and_evidence_per_client():
     with patch("erp_data._odoo_helpers.connector.read_group") as mock_read_group:
-        mock_read_group.return_value = [{"amount_total": 999.99, "partner_id": [5, "Rakoto"]}]
+        mock_read_group.return_value = [{
+            "amount_total": 999.99, "partner_id": [5, "Rakoto"],
+            "currency_id": [1, "MGA"], "__count": 1,
+        }]
         token = odoo_uid_ctx.set(9)
         try:
             text, evidence = get_average_sales_raw(client="Rakoto", periode="toutes")
@@ -50,8 +56,61 @@ def test_get_average_sales_raw_returns_text_and_evidence_per_client():
 
     assert "Rakoto" in text
     assert "999.99" in text
-    assert evidence.value == 999.99
-    assert "client=Rakoto" in evidence.claim
+    assert evidence[0].value == {"currency": "MGA", "average": 999.99, "count": 1}
+    assert "client=Rakoto" in evidence[0].claim
+
+
+def test_average_sales_uses_weighted_counts_without_merging_currencies():
+    with patch("erp_data._odoo_helpers.connector.read_group") as mock_read_group:
+        mock_read_group.return_value = [
+            {"amount_total": 900.0, "__count": 9, "currency_id": [1, "MGA"]},
+            {"amount_total": 100.0, "__count": 1, "currency_id": [1, "MGA"]},
+            {"amount_total": 1000.0, "__count": 2, "currency_id": [2, "USD"]},
+        ]
+        token = odoo_uid_ctx.set(1)
+        try:
+            text, evidence_list = get_average_sales_raw()
+        finally:
+            odoo_uid_ctx.reset(token)
+
+    assert "100.00 MGA" in text
+    assert "500.00 USD" in text
+    assert "300.00" not in text
+    assert {item.value["currency"]: item.value["average"] for item in evidence_list} == {
+        "MGA": 100.0,
+        "USD": 500.0,
+    }
+    assert {item.value["currency"]: item.value["count"] for item in evidence_list} == {
+        "MGA": 10,
+        "USD": 2,
+    }
+    assert mock_read_group.call_args.kwargs["lazy"] is False
+
+
+def test_average_sales_reports_ambiguous_client_matches():
+    with patch("erp_data._odoo_helpers.connector.read_group") as mock_read_group:
+        mock_read_group.return_value = [
+            {
+                "amount_total": 100.0,
+                "__count": 1,
+                "partner_id": [1, "Rakoto Jean"],
+                "currency_id": [1, "MGA"],
+            },
+            {
+                "amount_total": 200.0,
+                "__count": 1,
+                "partner_id": [2, "Rakoto Paul"],
+                "currency_id": [1, "MGA"],
+            },
+        ]
+        token = odoo_uid_ctx.set(1)
+        try:
+            text, evidence_list = get_average_sales_raw(client="Rakoto")
+        finally:
+            odoo_uid_ctx.reset(token)
+
+    assert "AMBIGUÏTÉ" in text
+    assert evidence_list == []
 
 
 def test_get_average_sales_raw_empty_result_produces_negative_evidence():
@@ -67,44 +126,50 @@ def test_get_average_sales_raw_empty_result_produces_negative_evidence():
             odoo_uid_ctx.reset(token)
 
     assert "Aucune vente trouvée" in text
-    assert evidence.value is None
-    assert evidence.source_type == EvidenceSourceType.ORM
-    assert "No sale.order matches" in evidence.claim
+    assert evidence[0].value is None
+    assert evidence[0].source_type == EvidenceSourceType.ORM
+    assert "No sale.order matches" in evidence[0].claim
 
 
 def test_get_average_sales_raw_no_confidence_set():
     """B0 decision (todo/contexte.txt section 426): a deterministic ORM
     read never carries a confidence score."""
     with patch("erp_data._odoo_helpers.connector.read_group") as mock_read_group:
-        mock_read_group.return_value = [{"amount_total": 500.0}]
+        mock_read_group.return_value = [
+            {"amount_total": 500.0, "currency_id": [1, "MGA"], "__count": 1}
+        ]
         token = odoo_uid_ctx.set(1)
         try:
             _text, evidence = get_average_sales_raw()
         finally:
             odoo_uid_ctx.reset(token)
 
-    assert evidence.confidence is None
+    assert all(item.confidence is None for item in evidence)
 
 
 def test_get_average_sales_raw_evidence_scope_carries_execution_identity():
     with patch("erp_data._odoo_helpers.connector.read_group") as mock_read_group:
-        mock_read_group.return_value = [{"amount_total": 500.0}]
+        mock_read_group.return_value = [
+            {"amount_total": 500.0, "currency_id": [1, "MGA"], "__count": 1}
+        ]
         token = odoo_uid_ctx.set(42)
         try:
             _text, evidence = get_average_sales_raw()
         finally:
             odoo_uid_ctx.reset(token)
 
-    assert evidence.scope["execution_identity"] == 42
-    assert "read_at" in evidence.scope
-    assert "company_id" not in evidence.scope  # not fabricated, see _orm_evidence_scope
+    assert evidence[0].scope["execution_identity"] == 42
+    assert "read_at" in evidence[0].scope
+    assert "company_id" not in evidence[0].scope
 
 
 def test_get_average_sales_tool_wrapper_unchanged_return_contract():
     """The @tool wrapper must still return a plain string -- same contract
     guarantee already established for get_total_sales."""
     with patch("erp_data._odoo_helpers.connector.read_group") as mock_read_group:
-        mock_read_group.return_value = [{"amount_total": 10.0}]
+        mock_read_group.return_value = [
+            {"amount_total": 10.0, "currency_id": [1, "MGA"], "__count": 1}
+        ]
         token = odoo_uid_ctx.set(1)
         try:
             result = get_average_sales.invoke({"client": "", "periode": "toutes"})
@@ -173,7 +238,9 @@ def test_get_average_sales_raw_domain_matches_statut_contract(statut, expected_s
     in the contract -- in particular 'annulees' must resolve to ['cancel']
     only (todo/contexte.txt section 516)."""
     with patch("erp_data._odoo_helpers.connector.read_group") as mock_read_group:
-        mock_read_group.return_value = [{"amount_total": 100.0}]
+        mock_read_group.return_value = [
+            {"amount_total": 100.0, "currency_id": [1, "MGA"], "__count": 1}
+        ]
         token = odoo_uid_ctx.set(1)
         try:
             get_average_sales_raw(client="", periode="toutes", statut=statut)
@@ -189,7 +256,9 @@ def test_get_average_sales_raw_unknown_statut_falls_back_to_toutes_domain():
     (fallback to the 'toutes' domain), not an accidental effect of an
     else branch -- verified here against the real domain, not just prose."""
     with patch("erp_data._odoo_helpers.connector.read_group") as mock_read_group:
-        mock_read_group.return_value = [{"amount_total": 100.0}]
+        mock_read_group.return_value = [
+            {"amount_total": 100.0, "currency_id": [1, "MGA"], "__count": 1}
+        ]
         token = odoo_uid_ctx.set(1)
         try:
             get_average_sales_raw(client="", periode="toutes", statut="n'importe quoi")
@@ -208,7 +277,7 @@ def test_get_total_sales_and_get_average_sales_share_identical_domain_per_statut
     truth, this test proves it end-to-end rather than assuming it from
     reading the shared function alone."""
     with patch("erp_data._odoo_helpers.connector.read_group") as mock_rg_total:
-        mock_rg_total.return_value = [{"amount_total": 100.0}]
+        mock_rg_total.return_value = [{"amount_total": 100.0, "currency_id": [1, "MGA"]}]
         token = odoo_uid_ctx.set(1)
         try:
             get_total_sales_raw(client="", periode="", statut=statut)
@@ -217,7 +286,9 @@ def test_get_total_sales_and_get_average_sales_share_identical_domain_per_statut
         total_domain = mock_rg_total.call_args.kwargs["domain"]
 
     with patch("erp_data._odoo_helpers.connector.read_group") as mock_rg_avg:
-        mock_rg_avg.return_value = [{"amount_total": 100.0}]
+        mock_rg_avg.return_value = [
+            {"amount_total": 100.0, "currency_id": [1, "MGA"], "__count": 1}
+        ]
         token = odoo_uid_ctx.set(1)
         try:
             get_average_sales_raw(client="", periode="toutes", statut=statut)

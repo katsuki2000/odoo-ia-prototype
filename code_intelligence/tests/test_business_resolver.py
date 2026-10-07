@@ -424,52 +424,6 @@ def test_exact_technical_model_mention_does_not_match_substring_of_longer_identi
     assert not result.is_resolved
 
 
-# ---------------------------------------------------------------------------
-# H2 (todo/contexte.txt section 569-571) -- active_model ambient UI context
-# ---------------------------------------------------------------------------
-
-def test_active_model_resolves_when_question_carries_no_signal(sample_graph):
-    """A question with zero textual signal (no alias, no exact mention) still
-    resolves via active_model, tagged with its own dedicated source_step and
-    a confidence below the two textual-match steps."""
-    result = resolve_business_term(
-        "qui a le droit de faire ça ?", sample_graph, active_model="hr.leave",
-    )
-    assert result.is_resolved
-    assert result.resolved_models == ["hr.leave"]
-    assert result.source_step == "active_context"
-    assert result.confidence == 0.9
-
-
-def test_active_model_ignored_when_question_resolves_via_alias():
-    """An explicit business term typed by the user always wins over ambient
-    UI context -- active_model must never override a real textual match."""
-    G = nx.DiGraph()
-    G.add_node("model:account.move", node_type="Model", name="account.move", description="")
-    G.add_node("model:res.partner", node_type="Model", name="res.partner", description="")
-    result = resolve_business_term("un avoir", G, active_model="res.partner")
-    assert result.is_resolved
-    assert result.resolved_models == ["account.move"]
-    assert result.source_step == "static_alias"
-
-
-def test_active_model_ignored_when_not_a_real_graph_node(sample_graph):
-    """A stale/foreign active_model (not indexed on this instance) must be
-    silently ignored rather than fabricating a false resolution."""
-    result = resolve_business_term(
-        "qui a le droit de faire ça ?", sample_graph, active_model="custom.unknown.model",
-    )
-    assert not result.is_resolved
-    assert result.source_step == "unresolved"
-
-
-def test_active_model_ignored_without_graph():
-    """No graph loaded (G=None) -- active_model has nothing to be validated
-    against, so it must never be trusted blindly."""
-    result = resolve_business_term("bonjour", None, active_model="hr.leave")
-    assert not result.is_resolved
-
-
 def test_maintenance_equipment_alias_resolves_bloc_n1():
     """Bloc N1 (todo/contexte.txt sections 748/767): 'equipement'/'\u00e9quipement'
     (with or without accent) must resolve to maintenance.equipment -- this

@@ -277,7 +277,7 @@ def main():
     # search.py::get_retriever() (todo/contexte.txt sections 349-354: RAG
     # is docs-only, there is no code collection).
     logger.info("Initializing ChromaManager (odoo_docs)...")
-    chroma = ChromaManager(collection_name="odoo_docs")
+    chroma = ChromaManager()
 
     logger.info("Building BM25 index...")
     bm25 = BM25Index()

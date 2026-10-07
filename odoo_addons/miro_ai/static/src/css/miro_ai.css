@@ -470,3 +470,25 @@ details[open] .verification-chevron {
     font-size: 0.68rem;
     padding: 2px 5px;
 }
+
+/* Source selector (documentation / systeme); none selected = automatic routing */
+.miro-source-toggle {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.miro-source-btn {
+    border: 1px solid #ced4da;
+    background: #fff;
+    color: #495057;
+    font-size: 0.78rem;
+    padding: 2px 8px;
+    border-radius: 12px;
+}
+
+.miro-source-btn.active {
+    background: #714b67;
+    border-color: #714b67;
+    color: #fff;
+}

@@ -11,6 +11,7 @@ import networkx as nx
 
 from code_intelligence.rules.common import NOT_FOUND_MARKER
 from code_intelligence.rules.group_resolver import (
+    _expand_implied_user_groups,
     _expand_inheriting_acl_groups,
     get_group_display_name,
     resolve_group_identifier,
@@ -33,6 +34,83 @@ class AccessEvaluationResult:
     summary_text: str = ""
     # B1 replication of the B0 pilot: structured Evidence produced at the source.
     evidence: List[Evidence] = field(default_factory=list)
+
+
+def requester_acl_summary(
+    G: nx.DiGraph,
+    model_name: str,
+    user_groups: Optional[List[str]],
+    groups_known: bool,
+) -> tuple[str, List[Evidence], Optional[Dict[str, bool]]]:
+    if not groups_known:
+        return (
+            f"[REQUESTER ACL STATUS] The authenticated requester's groups could not be fully resolved; "
+            f"do not infer this user's access from the generic ACL matrix for '{model_name}'.",
+            [],
+            None,
+        )
+
+    if f"model:{model_name}" not in G:
+        return (
+            f"[REQUESTER ACL STATUS] The model '{model_name}' is not present in the code graph; "
+            "the personalized ACL verdict is unknown. Do not infer it from the generic ACL matrix.",
+            [],
+            None,
+        )
+
+    effective_groups = set(user_groups or [])
+    unresolved_groups = [group for group in effective_groups if f"group:{group}" not in G]
+    if unresolved_groups:
+        return (
+            f"[REQUESTER ACL STATUS] The requester's groups are not fully represented in the code graph "
+            f"for '{model_name}' ({', '.join(sorted(unresolved_groups))}); "
+            "the personalized ACL verdict is unknown. "
+            "Do not infer it from the generic ACL matrix.",
+            [],
+            None,
+        )
+
+    for group in list(effective_groups):
+        _expand_implied_user_groups(G, group, effective_groups)
+
+    labels = {"read": "READ", "write": "WRITE", "create": "CREATE", "unlink": "DELETE"}
+    lines = [f"[AUTHENTICATED REQUESTER ACL VERDICT — model '{model_name}']"]
+    evidence = []
+    verdicts = {}
+    for permission, label in labels.items():
+        allowed_groups, all_authenticated, _rules, _inherited_via = _eval_single_permission(
+            G, model_name, permission,
+        )
+        matching_groups = sorted(effective_groups.intersection(allowed_groups))
+        granted = all_authenticated or bool(matching_groups)
+        verdicts[permission] = granted
+        if all_authenticated:
+            reason = "granted to all authenticated users"
+        elif matching_groups:
+            reason = f"through {', '.join(matching_groups)}"
+        else:
+            reason = "no effective requester group has this ACL grant"
+        verdict = "GRANTED" if granted else "DENIED"
+        lines.append(f"{label}: {verdict} ({reason}).")
+        claim = (
+            f"Authenticated requester has model-level {permission} ACL access to '{model_name}'"
+            if granted else
+            f"Authenticated requester lacks model-level {permission} ACL access to '{model_name}'"
+        )
+        evidence.append(make_evidence(
+            source_type=EvidenceSourceType.CODE,
+            claim=claim,
+            source=f"requester_acl:{model_name}:{permission}",
+            value={"granted": granted, "matching_groups": matching_groups},
+            confidence="HIGH",
+            scope={"requester_groups": sorted(effective_groups), "decision_layer": "model_acl"},
+        ))
+
+    lines.append(
+        "Scope: this is the model-level ACL decision only; record rules and model business logic "
+        "may further restrict access to particular records or operations."
+    )
+    return "\n".join(lines), evidence, verdicts
 
 
 def _build_access_evidence(

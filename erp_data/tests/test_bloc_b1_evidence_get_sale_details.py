@@ -44,8 +44,11 @@ def test_single_order_with_products_two_evidence():
     order_ev, prod_ev = evidence_list
     assert isinstance(order_ev, Evidence) and isinstance(prod_ev, Evidence)
     assert order_ev.source_type == EvidenceSourceType.ORM
-    assert order_ev.source == "sale.order:search_read(name,state,partner_id,amount_total)[domaine=statut]"
-    assert order_ev.value == {"state": "sale", "partner": "Rakoto", "amount": 500.0}
+    assert order_ev.source == "sale.order:search_read(name,state,partner_id,amount_total,currency_id)[domaine=statut]"
+    assert order_ev.value == {
+        "state": "sale", "partner": "Rakoto", "amount": 500.0,
+        "currency": "unspecified",
+    }
     assert order_ev.claim == "Order details for name=S001"
 
     assert prod_ev.source == "sale.order.line:search_read(product_id)"

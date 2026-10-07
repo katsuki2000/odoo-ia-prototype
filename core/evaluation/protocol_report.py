@@ -52,6 +52,7 @@ def render_markdown(report: Mapping) -> str:
         "# Evaluation protocol report",
         "",
         f"Dataset version {dataset['version']}, digest `{dataset['digest'][:12]}`.",
+        f"Cases in report scope: {sum(section['metrics']['cases'] for section in report['splits'].values())}.",
         f"Cases without a result: {len(report['missing_results'])}.",
         "",
     ]

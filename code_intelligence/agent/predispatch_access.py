@@ -9,6 +9,7 @@ CRUD ACL matrix). Extracted from the former ci_agent_node.py monolith
 """
 
 import logging
+import re
 import time
 from typing import List
 
@@ -22,6 +23,92 @@ from code_intelligence.agent.context_extractors import _question_is_access_relat
 from code_intelligence.agent.context import DispatchContext
 
 logger = logging.getLogger(__name__)
+
+_REQUESTER_ACCESS_QUESTION = re.compile(
+    r"\b(?:puis\s*[- ]\s*je|est\s*[- ]\s*ce\s*que\s+je\s+peux|"
+    r"ai\s*[- ]\s*je\s+(?:le\s+droit|acc[eè]s)|est\s*[- ]\s*ce\s*que\s+j['’]ai\s+acc[eè]s|"
+    r"can\s+i|may\s+i|am\s+i\s+allowed|do\s+i\s+have\s+(?:access|permission|the\s+right))\b",
+    re.IGNORECASE,
+)
+_REQUESTED_PERMISSION_PATTERNS = {
+    "create": re.compile(r"\b(?:cr[eé]er|cr[eé]ation|create)\b", re.IGNORECASE),
+    "read": re.compile(
+        r"\b(?:consulter|consultation|lire|lecture|voir|acc[eé]der|acc[eè]s|read|view|access)\b",
+        re.IGNORECASE,
+    ),
+    "write": re.compile(r"\b(?:modifier|modification|[ée]crire|write|edit)\b", re.IGNORECASE),
+    "unlink": re.compile(r"\b(?:supprimer|suppression|effacer|delete|unlink)\b", re.IGNORECASE),
+}
+_QUOTED_TERM = re.compile(r"[«“\"]([^»”\"]+)[»”\"]")
+
+
+def _question_asks_requester_access(question: str) -> bool:
+    return bool(_REQUESTER_ACCESS_QUESTION.search(question or ""))
+
+
+def build_requester_acl_answer(
+    question: str,
+    language: str,
+    verdicts_by_model: dict,
+) -> str | None:
+    requested_permissions = [
+        permission for permission, pattern in _REQUESTED_PERMISSION_PATTERNS.items()
+        if pattern.search(question or "")
+    ]
+    if not requested_permissions or not verdicts_by_model:
+        return None
+
+    is_french = (language or "").lower().startswith("fr")
+    quoted_terms = _QUOTED_TERM.findall(question or "")
+    model_label = quoted_terms[0].strip() if quoted_terms else "modèle concerné"
+    answers = []
+    for model_name, verdicts in verdicts_by_model.items():
+        for permission in requested_permissions:
+            action_fr = {
+                "read": "consulter",
+                "write": "modifier",
+                "create": "créer",
+                "unlink": "supprimer",
+            }[permission]
+            action_en = {
+                "read": "read",
+                "write": "modify",
+                "create": "create",
+                "unlink": "delete",
+            }[permission]
+            allowed = verdicts.get(permission) if verdicts is not None else None
+            if is_french and allowed is True:
+                answers.append(
+                    f"Oui, vous pouvez {action_fr} les enregistrements du modèle « {model_label} ». "
+                    "Ce verdict porte sur les ACL de votre compte. "
+                    "Les règles d'enregistrement et la logique métier peuvent encore limiter les opérations "
+                    "ou les enregistrements concernés."
+                )
+            elif is_french and allowed is False:
+                answers.append(
+                    f"Non. Vous ne pouvez pas {action_fr} les enregistrements du modèle « {model_label} » "
+                    "d'après les ACL de votre compte."
+                )
+            elif is_french:
+                answers.append(
+                    f"Je ne peux pas déterminer si votre compte peut {action_fr} sur le modèle « {model_label} » : "
+                    "les groupes du demandeur ou leur correspondance dans le graphe ne sont pas connus."
+                )
+            elif allowed is True:
+                answers.append(
+                    f"Yes, you may {action_en} records for '{model_label}'. "
+                    "Record rules and business logic may still restrict specific records or operations."
+                )
+            elif allowed is False:
+                answers.append(
+                    f"No, you may not {action_en} records for '{model_label}' under your account's ACLs."
+                )
+            else:
+                answers.append(
+                    f"I cannot determine whether your account may {action_en} records for '{model_label}' because the requester's "
+                    "groups or their graph mapping are unknown."
+                )
+    return "\n\n".join(answers)
 
 
 def dispatch_who_has_access_to(ctx: DispatchContext) -> None:
@@ -43,6 +130,8 @@ def dispatch_who_has_access_to(ctx: DispatchContext) -> None:
     acl_tool = ctx.tool_map.get("who_has_access_to")
     if acl_tool is None:
         return
+
+    requester_access_question = _question_asks_requester_access(ctx.question)
 
     _lock_governed_models = set(security_locks_targets(ctx.concept, ctx.G))
     skipped_lock_governed_models: List[str] = [
@@ -85,6 +174,17 @@ def dispatch_who_has_access_to(ctx: DispatchContext) -> None:
                 user_groups=ctx.resolved_user_group_xmlids,
             )
             ctx.omitted_items.extend(omitted_list)
+            if requester_access_question:
+                from code_intelligence.rules.access_evaluator import requester_acl_summary
+                from core.evidence.evidence_collector import record_evidence
+
+                requester_summary, requester_evidence, requester_verdicts = requester_acl_summary(
+                    ctx.G, target_model, ctx.resolved_user_group_xmlids,
+                    ctx.requester_groups_known,
+                )
+                ctx.requester_acl_verdicts[target_model] = requester_verdicts
+                observation = f"{observation}\n\n{requester_summary}"
+                record_evidence(requester_evidence)
             ctx.record_observation(
                 "who_has_access_to", {"model_name": target_model, "permission": "all"},
                 observation, target_model, call_key, time.perf_counter() - t0,
@@ -113,12 +213,20 @@ def dispatch_who_has_access_to(ctx: DispatchContext) -> None:
             "ACL and record-rule output is already included in the tool "
             "observations. Do not call it again.\n"
             "IMPORTANT GUIDELINES FOR SYNTHESIS:\n"
-            "1. Respect strictly the access verdicts from who_has_access_to for each evaluated group and permission. "
-            "If an ACL grants access (e.g. 'HAS READ access', 'HAS WRITE access'), state clearly that the user/group "
-            "CAN perform that action. Do NOT claim that access is denied or restricted to another group contrary to the finding.\n"
+            "1. A generic ACL matrix grants access only to its named groups; do not infer that the authenticated "
+            "requester belongs to any of them. State which named groups have the ACL. For a personal-access question, "
+            "use the separate authenticated-requester verdict below when available.\n"
             "2. For each target model evaluated (e.g. 'stock.quant', 'stock.move.line'), explicitly cite its exact technical "
             "model name in your answer alongside the corresponding access verdict."
         )
+        if requester_access_question:
+            ctx.system_prompt_suffix += (
+                "\n\nFor this personal-access question, answer for the authenticated requester using the "
+                "[AUTHENTICATED REQUESTER ACL VERDICT] block, not by treating any group with an ACL grant "
+                "as if the requester belonged to it. If the block says the groups or verdict are unknown, "
+                "say that access cannot be determined from the available evidence. State that an ACL grant "
+                "is only model-level and that record rules may further restrict which records are accessible."
+            )
     if skipped_lock_governed_models:
         ctx.system_prompt_suffix += (
             "\n\n[SCOPING NOTE -- who_has_access_to]\n"
