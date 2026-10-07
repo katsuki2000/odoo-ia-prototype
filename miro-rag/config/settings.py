@@ -10,13 +10,13 @@ if not os.getenv("GROQ_API_KEY"):
     load_dotenv(_ROOT / "env")
 
 # ── LLM ──────────────────────────────────────────────
-LLM_PROVIDER = os.getenv("LLM_PROVIDER", "groq")  # "groq" or "ollama"
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "ollama")  # "groq" or "ollama"
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 GROQ_MODEL   = "llama-3.1-8b-instant"
 
 OLLAMA_HOST  = "http://localhost:11434"
-OLLAMA_MODEL = "hermes3"
+OLLAMA_MODEL = "llama3.1:8b-instruct-q4_K_M"
 
 # ── ChromaDB ──────────────────────────────────────────
 CHROMA_PATH  = "./vectorstore/chroma_db"
@@ -24,3 +24,4 @@ CHROMA_PATH  = "./vectorstore/chroma_db"
 # ── FastAPI ───────────────────────────────────────────
 API_HOST = "0.0.0.0"
 API_PORT = 8000
+OLLAMA_EMBED_MODEL = "nomic-embed-text"

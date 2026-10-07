@@ -108,15 +108,36 @@ class ChromaManager:
         )
 
     def _resolve_embedding_function(self):
-            """Résout la fonction d'embedding à utiliser (Nomic si clé dispo, sinon default)."""
+            """Résout la fonction d'embedding à utiliser (Nomic si clé dispo, sinon Ollama)."""
             nomic_api_key = os.environ.get("NOMIC_API_KEY")
             if nomic_api_key:
                 return CustomNomicEmbeddingFunction(
                     model=self.embedding_model,
                     api_key=nomic_api_key,
                 )
-            logger.warning("NOMIC_API_KEY is not set in environment. Falling back to default embeddings.")
-            return None
+
+            # Use Ollama embeddings
+            import chromadb.utils.embedding_functions as embedding_functions
+            from config.settings import OLLAMA_HOST, OLLAMA_MODEL
+            # To get embedding model, we can try to import it from settings or default
+            try:
+                from config.settings import OLLAMA_EMBED_MODEL
+            except ImportError:
+                OLLAMA_EMBED_MODEL = "nomic-embed-text"
+
+            logger.info(f"Using Ollama embeddings: {OLLAMA_EMBED_MODEL} on {OLLAMA_HOST}")
+
+            # Use LangChain OllamaEmbeddings instead of chromadb's which might be outdated
+            class OllamaEmbeddingFunction(EmbeddingFunction):
+                def __init__(self, model_name, base_url):
+                    from langchain_ollama import OllamaEmbeddings
+                    self.embeddings = OllamaEmbeddings(model=model_name, base_url=base_url)
+
+                def __call__(self, input: Documents) -> Embeddings:
+                    return self.embeddings.embed_documents(input)
+
+            return OllamaEmbeddingFunction(OLLAMA_EMBED_MODEL, OLLAMA_HOST)
+
 
     def add_chunks(
         self,

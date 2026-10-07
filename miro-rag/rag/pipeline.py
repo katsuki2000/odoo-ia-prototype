@@ -13,7 +13,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from config.settings import LLM_PROVIDER, GROQ_API_KEY, GROQ_MODEL
+from config.settings import LLM_PROVIDER, GROQ_API_KEY, GROQ_MODEL, OLLAMA_MODEL, OLLAMA_HOST
 from vectorstore.chroma_manager import get_chroma_client, get_or_create_collection, query_collection
 
 _llm_client = None
@@ -25,9 +25,9 @@ def get_llm_client():
     if _llm_client is not None:
         return _llm_client
 
-    if LLM_PROVIDER == "groq":
-        from groq import Groq
-        _llm_client = Groq(api_key=GROQ_API_KEY)
+    if LLM_PROVIDER == "ollama":
+        from langchain_ollama import ChatOllama
+        _llm_client = ChatOllama(model=OLLAMA_MODEL, base_url=OLLAMA_HOST)
     else:
         raise ValueError(f"Unsupported LLM provider: {LLM_PROVIDER}")
 
@@ -106,17 +106,14 @@ Réponds de manière précise et professionnelle en te basant sur les documents 
 
     llm = get_llm_client()
 
-    if LLM_PROVIDER == "groq":
-        response = llm.chat.completions.create(
-            model=GROQ_MODEL,
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": user_prompt},
-            ],
-            temperature=0.3,
-            max_tokens=1024,
-        )
-        answer = response.choices[0].message.content
+    if LLM_PROVIDER == "ollama":
+        from langchain_core.messages import SystemMessage, HumanMessage
+        messages = [
+            SystemMessage(content=SYSTEM_PROMPT),
+            HumanMessage(content=user_prompt),
+        ]
+        response = llm.invoke(messages)
+        answer = response.content
     else:
         answer = "Error: LLM provider not supported."
 

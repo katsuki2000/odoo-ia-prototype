@@ -15,11 +15,11 @@ from typing import TypedDict, List, Optional, Any
 # Add parent dir to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from langchain_groq import ChatGroq
+from langchain_ollama import ChatOllama
 from langchain_core.messages import BaseMessage, SystemMessage, HumanMessage
 from langgraph.graph import StateGraph, START, END
 
-from config.settings import LLM_PROVIDER, GROQ_API_KEY, GROQ_MODEL
+from config.settings import LLM_PROVIDER, OLLAMA_MODEL, OLLAMA_HOST
 from rag.schemas import (
     AssistantResponse, SourceReference, LLMResponse,
     QueryRoute, DataQueryIntent,
@@ -211,7 +211,7 @@ def generate(state: RAGState) -> dict:
     messages = build_messages(question, context_text, chat_history)
 
     try:
-        llm = ChatGroq(model=GROQ_MODEL, temperature=0.3, max_tokens=1024)
+        llm = ChatOllama(model=OLLAMA_MODEL, base_url=OLLAMA_HOST, temperature=0.3)
         # Enforce structured output to match our schema
         structured_llm = llm.with_structured_output(LLMResponse)
         
@@ -224,7 +224,7 @@ def generate(state: RAGState) -> dict:
     except Exception as e:
         logger.warning("Structured LLM Generation failed (%s) → falling back to raw invoke", e)
         try:
-            llm = ChatGroq(model=GROQ_MODEL, temperature=0.3, max_tokens=1024)
+            llm = ChatOllama(model=OLLAMA_MODEL, base_url=OLLAMA_HOST, temperature=0.3)
             raw_resp = llm.invoke(messages)
             response = AssistantResponse(
                 answer=raw_resp.content,
@@ -244,7 +244,50 @@ def generate(state: RAGState) -> dict:
     return {"response": response, "raw_answer": response.answer if response else "", "timing": timing}
 
 
-def orm_agent_loop(state: RAGState) -> dict:
+def data_query(state: RAGState) -> dict:
+    import time
+    start_time = time.time()
+    from rag.data_tool import DataQueryEngine
+    from langchain_ollama import ChatOllama
+    from rag.schemas import DataQueryIntent, AssistantResponse, SourceReference
+    from config.settings import OLLAMA_MODEL, OLLAMA_HOST
+    from rag.prompts import build_data_intent_messages
+
+    question = state["question"]
+    logger.info("Node [data_query]: Extracting intent for: %s", question)
+
+    # 1. Extract intent
+    llm = ChatOllama(model=OLLAMA_MODEL, base_url=OLLAMA_HOST, temperature=0.0)
+    structured_llm = llm.with_structured_output(DataQueryIntent)
+
+    try:
+        intent = structured_llm.invoke(build_data_intent_messages(question))
+        logger.info("Extracted intent: %s", intent)
+
+        # 2. Execute query
+        engine = DataQueryEngine()
+        answer = engine.execute(intent)
+
+        response = AssistantResponse(
+            answer=answer,
+            sources=[SourceReference(
+                source=f"fake_data/{intent.data_source}.json",
+                doc_type="json",
+                title=f"Données {intent.data_source}",
+                snippet=f"Requête: {intent.operation} sur {intent.data_source}"
+            )],
+            confidence=1.0
+        )
+    except Exception as e:
+        logger.error("Data query failed: %s. Falling back to generate.", e)
+        # Fallback to generate node
+        return generate(state)
+
+    timing = state.get("timing", {}).copy()
+    timing["generation_time"] = time.time() - start_time
+    return {"response": response, "raw_answer": response.answer, "timing": timing}
+
+def old_orm_agent_loop(state: RAGState) -> dict:
     """
     ReAct agent loop: Reason → call ORM tool → observe → repeat or answer.
     Bound to all 8 Odoo ORM tools via llm.bind_tools().
@@ -301,9 +344,9 @@ def orm_agent_loop(state: RAGState) -> dict:
         all_tools.extend([obtenir_tickets_recents])
 
     # Re-bind tools dynamically to the LLM
-    llm = ChatGroq(
-        model=GROQ_MODEL,
-        api_key=GROQ_API_KEY,
+    llm = ChatOllama(
+        model=OLLAMA_MODEL,
+        base_url=OLLAMA_HOST,
         temperature=0.0,
     )
     llm_with_tools = llm.bind_tools(all_tools)
@@ -422,7 +465,7 @@ def orm_agent_loop(state: RAGState) -> dict:
             "\n\nFournis une réponse finale et concise en français basée uniquement sur ces observations."
         )
         try:
-            plain_llm = ChatGroq(model=GROQ_MODEL, temperature=0.0, max_tokens=512)
+            plain_llm = ChatOllama(model=OLLAMA_MODEL, base_url=OLLAMA_HOST, temperature=0.0)
             final_resp = plain_llm.invoke([HumanMessage(content=synthesis_prompt)])
             final_answer = final_resp.content
         except Exception as e:
@@ -462,7 +505,7 @@ def format_output(state: RAGState) -> dict:
     chunks = state.get("retrieved_chunks", [])
     
     route = state.get("route")
-    if response and chunks and route == QueryRoute.DOCUMENTAIRE.value:
+    if response and chunks and (route == QueryRoute.DOCUMENTAIRE.value or route is None):
         # OCR Warning Logic
         has_low_ocr = any(chunk.get("metadata", {}).get("ocr_quality") == "low" for chunk in chunks)
         if has_low_ocr:
@@ -498,7 +541,7 @@ def build_graph() -> StateGraph:
     workflow.add_node("retrieve", retrieve)
     workflow.add_node("route", route)
     workflow.add_node("generate", generate)
-    workflow.add_node("orm_agent_loop", orm_agent_loop)
+    workflow.add_node("data_query", data_query)
     workflow.add_node("format_output", format_output)
 
     # Edges
@@ -508,11 +551,11 @@ def build_graph() -> StateGraph:
     # Conditional routing
     workflow.add_conditional_edges("route", route_decision, {
         QueryRoute.DOCUMENTAIRE.value: "generate",
-        QueryRoute.DONNEES_ERP.value: "orm_agent_loop",
+        QueryRoute.DONNEES_ERP.value: "data_query",
     })
 
     workflow.add_edge("generate", "format_output")
-    workflow.add_edge("orm_agent_loop", "format_output")
+    workflow.add_edge("data_query", "format_output")
     workflow.add_edge("format_output", END)
 
     return workflow.compile()
