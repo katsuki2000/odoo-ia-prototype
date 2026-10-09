@@ -111,6 +111,83 @@ def build_requester_acl_answer(
     return "\n\n".join(answers)
 
 
+def dispatch_navigation_requester_acl(ctx: DispatchContext) -> None:
+    """Section 1198: for a `navigation_howto` question, the requester's own
+    model-level ACL verdict is part of the proof ("can I do it, and where").
+
+    Recorded as an observation only: ctx.requester_acl_verdicts is left
+    untouched on purpose, because build_requester_acl_answer() would replace
+    the whole answer and drop the navigation path. Unknown requester groups
+    yield the "unknown" status of requester_acl_summary, never a guess.
+    """
+    if ctx.intent != "navigation_howto":
+        return
+    if not (ctx.concept.is_resolved and ctx.concept.resolved_models and not ctx.hop_budget_exhausted):
+        return
+
+    ctx.matched_dispatchers.append("dispatch_navigation_requester_acl")
+
+    from code_intelligence.rules.access_evaluator import requester_acl_summary
+    from core.evidence.evidence_collector import record_evidence
+
+    dispatched_verdicts = []
+    requested_permissions = [
+        permission for permission, pattern in _REQUESTED_PERMISSION_PATTERNS.items()
+        if pattern.search(ctx.question or "")
+    ]
+    for target_model in ctx.concept.resolved_models:
+        if ctx.hop_budget_exhausted:
+            break
+        call_key = _tool_call_key("requester_acl_summary", {"model_name": target_model})
+        if call_key in ctx.seen_calls:
+            continue
+        try:
+            t0 = time.perf_counter()
+            summary, evidence, verdicts = requester_acl_summary(
+                ctx.G, target_model, ctx.resolved_user_group_xmlids,
+                ctx.requester_groups_known,
+            )
+            record_evidence(evidence)
+            ctx.record_observation(
+                "requester_acl_summary", {"model_name": target_model},
+                summary, target_model, call_key, time.perf_counter() - t0,
+            )
+            if verdicts is None:
+                status_lines = [f"{permission.upper()}: UNKNOWN" for permission in requested_permissions]
+                if not status_lines:
+                    status_lines = ["Personalized model ACL verdict: UNKNOWN"]
+            else:
+                permissions = requested_permissions or list(verdicts)
+                status_lines = [
+                    f"{permission.upper()}: {'GRANTED' if verdicts.get(permission) is True else 'DENIED'}"
+                    for permission in permissions
+                ]
+            dispatched_verdicts.append(
+                f"Model {target_model}: " + "; ".join(status_lines)
+            )
+            logger.info(
+                "Node [code_intelligence_agent]: Deterministic requester ACL verdict "
+                "for model '%s' (navigation_howto).", target_model,
+            )
+        except Exception as acl_err:
+            logger.error("Navigation requester ACL dispatch failed for %s: %s", target_model, acl_err)
+
+    if dispatched_verdicts:
+        ctx.system_prompt_suffix += (
+            "\n\n[AUTHORITATIVE FACTS -- AUTHENTICATED REQUESTER ACL]\n"
+            + "\n".join(dispatched_verdicts)
+            + "\nAnswer the user's personal permission question directly in the FIRST sentence: "
+            "say yes for GRANTED, no for DENIED, and explicitly say that it cannot be determined "
+            "for UNKNOWN. Do not replace this verdict with a generic condition such as "
+            "'you can if you belong to one of these groups'. Then explain the navigation path "
+            "from its observation. Use the user's business wording; do not expose technical model "
+            "identifiers or group XML IDs; answer in the user's language. This verdict covers "
+            "model-level ACLs only; do not claim that record rules or business logic were "
+            "evaluated, and do not conflate ACL permission with menu visibility. For UNKNOWN, "
+            "do not infer a yes/no answer from generic ACLs or menu groups."
+        )
+
+
 def dispatch_who_has_access_to(ctx: DispatchContext) -> None:
     if not (
         ctx.concept.is_resolved and ctx.concept.resolved_models
@@ -843,7 +920,7 @@ def _fetch_button_and_source(
     try:
         button_result = _button_execution_path_impl(
             ctx.G, method_name, _resolve_model_param(target_model),
-            user_groups=ctx.resolved_user_group_xmlids or [],
+            user_groups=ctx.resolved_user_group_xmlids,
         )
     except Exception as te:
         logger.error("Deterministic button_execution_path dispatch (%s) failed: %s", log_label, te)

@@ -102,9 +102,8 @@ _INDETERMINATE_FACT_MARKER = "can_view_amount_v2() = indeterminate"
 # Substrings marking a SINGLE tool observation as a negative/no-finding
 # result -- the tool executed but found nothing relevant to answer with,
 # as opposed to a genuine (possibly negative) deterministic finding such as
-# "exists in the index but has no explicit workflow state transitions
-# defined" (trace_full_inheritance/describe_workflow's own QueryStatus.EMPTY
-# wording) or "No _sql_constraints ... detected [Confiance: ÉLEVÉE]"
+# "No workflow state transition could be derived from the indexed code"
+# (describe_workflow's own QueryStatus.EMPTY wording, LOW confidence) or "No _sql_constraints ... detected [Confiance: ÉLEVÉE]"
 # (analyze_data_constraints) -- both of those ARE real, citable facts (a
 # confirmed absence), not a failed lookup, and are deliberately NOT included
 # here.

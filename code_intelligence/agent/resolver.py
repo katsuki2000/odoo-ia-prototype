@@ -5,7 +5,7 @@ from typing import Optional
 from .aliases import (
     BUSINESS_ALIASES,
     NATIVE_MODEL_SYNONYMS,
-    _nfc,
+    normalize_alias_text,
     BUSINESS_ALIASES_NFC,
     _ALIAS_PATTERNS,
 )
@@ -54,7 +54,7 @@ def resolve_business_term(
             reason="Empty query text provided.",
         )
 
-    clean_query = _nfc(query_text.lower().strip())
+    clean_query = normalize_alias_text(query_text.lower().strip())
     aliases = BUSINESS_ALIASES_NFC if use_static_aliases else {}
     alias_patterns = _ALIAS_PATTERNS if use_static_aliases else {}
 
@@ -82,7 +82,7 @@ def resolve_business_term(
 __all__ = [
     "BUSINESS_ALIASES",
     "NATIVE_MODEL_SYNONYMS",
-    "_nfc",
+    "normalize_alias_text",
     "BUSINESS_ALIASES_NFC",
     "_ALIAS_PATTERNS",
     "ResolvedConcept",

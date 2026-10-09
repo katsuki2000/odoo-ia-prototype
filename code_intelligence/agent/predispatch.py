@@ -26,6 +26,7 @@ from code_intelligence.agent.predispatch_actions import (
     dispatch_analyze_data_constraints,
 )
 from code_intelligence.agent.predispatch_access import (
+    dispatch_navigation_requester_acl,
     dispatch_who_has_access_to,
     dispatch_evaluate_record_rules,
     dispatch_evaluate_record_rules_for_personas,
@@ -36,10 +37,22 @@ from code_intelligence.agent.predispatch_structure import (
     dispatch_inheritance,
     dispatch_module_level_ui_inquiry,
     dispatch_button_execution_path,
+    dispatch_navigation_path,
 )
 
 
 def run_predispatch_chain(ctx: DispatchContext) -> None:
+    # Section 1197: a "how do I do X in the UI" question is answered from the
+    # navigation proof alone; the keyword-triggered security/override
+    # dispatchers add unrelated evidence that the synthesis misattributes.
+    # If the navigation dispatcher did not fire (e.g. concept unresolved),
+    # the full chain runs exactly as before.
+    if ctx.intent == "navigation_howto":
+        dispatch_navigation_path(ctx)
+        if ctx.matched_dispatchers:
+            dispatch_navigation_requester_acl(ctx)
+            return
+
     dispatch_security_locks(ctx)
     dispatch_server_actions(ctx)
     dispatch_override_chain(ctx)
@@ -51,4 +64,5 @@ def run_predispatch_chain(ctx: DispatchContext) -> None:
     dispatch_inheritance(ctx)
     dispatch_module_level_ui_inquiry(ctx)
     dispatch_button_execution_path(ctx)
+    dispatch_navigation_path(ctx)
     dispatch_analyze_data_constraints(ctx)

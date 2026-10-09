@@ -57,6 +57,8 @@ def parse_actions_from_xml(filepath: Path) -> List[OdooActionRecord]:
                 action.res_model = field_text or field_ref or ""
             elif field_name == "view_mode":
                 action.view_mode = field_text
+            elif field_name == "domain":
+                action.domain = field_text or field_eval or ""
             elif field_name in {"groups", "groups_id"}:
                 grp_list = []
                 if field_ref:
@@ -335,11 +337,19 @@ def parse_menuitems_from_xml(filepath: Path) -> List[OdooMenuItemRecord]:
 
     menuitems: List[OdooMenuItemRecord] = []
 
+    # Section 1199: Odoo takes the enclosing <menuitem> as parent when the
+    # `parent` attribute is absent (nested menus, e.g. account_menuitem.xml).
+    enclosing_of = {child: node for node in root.iter() for child in node}
+
     # 1. Concise <menuitem .../> elements
     for elem in root.findall(".//menuitem"):
         xml_id = elem.attrib.get("id", "")
         name = elem.attrib.get("name", "")
         parent = elem.attrib.get("parent", "")
+        if not parent:
+            enclosing = enclosing_of.get(elem)
+            if enclosing is not None and enclosing.tag == "menuitem":
+                parent = enclosing.attrib.get("id", "")
         action = elem.attrib.get("action", "")
         seq_str = elem.attrib.get("sequence", "10")
         groups_raw = elem.attrib.get("groups", "")

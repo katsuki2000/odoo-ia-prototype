@@ -40,6 +40,8 @@ document_rag/ingestion/logs/
 # 869: git check-ignore confirmed 0 matches, 7 commits of an 8.6MB file
 # had gone through regardless).
 active_graph.json
+# Semantic index embeddings: regenerated locally, tied to the embedding model in use
+active_semantic_index/
 code_intelligence/full_corpus_test/
 
 # Generated measurement artefacts: evaluation runs, raw responses, dumps, traces (decision pmm)

@@ -174,6 +174,19 @@ def plan_workflow_state(primary_model: str) -> List[InvestigationStep]:
     ]
 
 
+def plan_navigation_howto(primary_model: str) -> List[InvestigationStep]:
+    """Build investigation steps for NAVIGATION_HOWTO intent."""
+    return [
+        InvestigationStep(
+            action=PlanAction.DESCRIBE_NAVIGATION_PATH,
+            target=primary_model,
+            justification=f"Trouver les menus et les boutons qui mènent à {primary_model} dans l'interface",
+            behavioral_focus=BehavioralTag.VISIBILITY_RULE,
+            technical_focus=None,
+        ),
+    ]
+
+
 def plan_calculation_logic(primary_model: str) -> List[InvestigationStep]:
     """Build investigation steps for CALCULATION_LOGIC intent."""
     return [
@@ -354,6 +367,9 @@ def generate_investigation_plan(
 
     elif intent == QuestionIntent.WORKFLOW_STATE:
         steps = plan_workflow_state(primary_model)
+
+    elif intent == QuestionIntent.NAVIGATION_HOWTO:
+        steps = plan_navigation_howto(primary_model)
 
     elif intent == QuestionIntent.CALCULATION_LOGIC:
         steps = plan_calculation_logic(primary_model)

@@ -23,7 +23,7 @@ _logger = logging.getLogger(__name__)
 
 
 TECHNICAL_TO_BUSINESS_ROLES: Dict[str, str] = {
-    "base.group_user": "Utilisateur Interne (Employee)",
+    "base.group_user": "Utilisateur Interne",
     "base.group_system": "Administrateur Système",
     "base.group_erp_manager": "Gestionnaire des Paramètres",
     "sales_team.group_sale_salesman": "Vendeur (Propres documents uniquement)",
@@ -196,7 +196,10 @@ def _explain_decision_path_impl(G: nx.DiGraph, path_nodes: List[str]) -> str:
         elif edge_type == "EXTENDS":
             steps.append(f"Step {idx + 1}: Model '{u}' extends model '{v}' via `_inherit`.")
         elif edge_type == "TRANSITIONS_VIA":
-            steps.append(f"Step {idx + 1}: State '{u}' transitions to '{v}' via method `{edge_data.get('method_name')}()`.")
+            records = edge_data.get("button_transitions") or [edge_data]
+            methods = sorted({record.get("method_name", "") for record in records if record.get("method_name")})
+            method_text = ", ".join(f"`{method}()`" for method in methods) or "an indexed button method"
+            steps.append(f"Step {idx + 1}: State '{u}' transitions to '{v}' via {method_text}.")
         else:
             steps.append(f"Step {idx + 1}: {u_type} '{u}' --[{edge_type}]--> {v_type} '{v}'.")
 
@@ -451,4 +454,3 @@ __all__ = [
     "read_source_code",
     "inspect_module_extensions",
 ]
-

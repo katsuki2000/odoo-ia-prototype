@@ -3,10 +3,15 @@
 import logging
 import math
 import os
+import time
 import weakref
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Dict, List, Optional, Sequence, Tuple
+
+from config import settings
+
+from .semantic_index_store import SemanticIndexStore, text_key
 
 
 logger = logging.getLogger(__name__)
@@ -82,11 +87,32 @@ def _embedding_name(embedding_function) -> str:
     return str(name() if callable(name) else type(embedding_function).__name__)
 
 
-def _embed_documents(embedding_function, documents: Sequence[str]) -> List[Sequence[float]]:
-    embeddings = []
-    for offset in range(0, len(documents), SEMANTIC_EMBEDDING_BATCH_SIZE):
-        embeddings.extend(embedding_function(list(documents[offset:offset + SEMANTIC_EMBEDDING_BATCH_SIZE])))
-    return embeddings
+def _build_index(
+    documents: Sequence[Tuple[str, str]],
+    embedding_function,
+    index_store: Optional[SemanticIndexStore],
+) -> Tuple[Sequence[str], List[Sequence[float]]]:
+    """Embed only the texts missing from the store, saving progress even on failure."""
+    models, texts = zip(*documents)
+    keys = [text_key(text) for text in texts]
+    vectors = index_store.load() if index_store else {}
+    pending = [(key, text) for key, text in dict(zip(keys, texts)).items() if key not in vectors]
+    started = time.perf_counter()
+    try:
+        for offset in range(0, len(pending), SEMANTIC_EMBEDDING_BATCH_SIZE):
+            batch = pending[offset:offset + SEMANTIC_EMBEDDING_BATCH_SIZE]
+            batch_vectors = embedding_function([text for _key, text in batch])
+            if len(batch_vectors) != len(batch):
+                raise ValueError("Embedding provider returned an unexpected number of vectors.")
+            vectors.update(zip((key for key, _text in batch), batch_vectors))
+    finally:
+        if index_store and pending:
+            index_store.save(vectors)
+    logger.info(
+        "Semantic index ready: %d models, %d embedded, %d reused, %.1fs",
+        len(models), len(pending), len(set(keys)) - len(pending), time.perf_counter() - started,
+    )
+    return models, [vectors[key] for key in keys]
 
 
 def _cosine_similarity(left: Sequence[float], right: Sequence[float]) -> float:
@@ -107,23 +133,25 @@ def rank_semantic_model_candidates(
     *,
     language: Optional[str] = None,
     limit: int = SEMANTIC_CANDIDATE_LIMIT,
+    cache_dir: Optional[str] = None,
 ) -> List[str]:
-    """Rank graph models by cosine similarity to their instance labels."""
+    """Rank graph models by cosine similarity to their instance labels.
+
+    With cache_dir, document embeddings persist on disk across processes.
+    """
     if not query or graph is None or limit <= 0:
         return []
 
     graph_cache = _SEMANTIC_INDEX_CACHE.setdefault(graph, {})
-    cache_key = (language.casefold() if language else None, _embedding_name(embedding_function))
+    embedding_name = _embedding_name(embedding_function)
+    cache_key = (language.casefold() if language else None, embedding_name)
     cached_index = graph_cache.get(cache_key)
     if cached_index is None:
         documents = _model_documents(graph, language)
         if not documents:
             return []
-        models, texts = zip(*documents)
-        embeddings = _embed_documents(embedding_function, texts)
-        if len(embeddings) != len(models):
-            raise ValueError("Embedding provider returned an unexpected number of vectors.")
-        cached_index = (models, embeddings)
+        index_store = SemanticIndexStore(cache_dir, embedding_name) if cache_dir else None
+        cached_index = _build_index(documents, embedding_function, index_store)
         graph_cache[cache_key] = cached_index
 
     models, embeddings = cached_index
@@ -179,6 +207,7 @@ def retrieve_semantic_model_candidates(
             embedding_function,
             language=language,
             limit=limit,
+            cache_dir=settings.SEMANTIC_INDEX_CACHE_DIR,
         )
     except Exception:
         logger.exception("Semantic retrieval failed; keeping the deterministic candidate list.")

@@ -2,9 +2,7 @@
 code_intelligence/ci_agent_node/tools/analysis.py
 
 LangChain @tool wrappers for deeper code analyses (server actions,
-security locks, method override cascades, data constraints). Split out
-of the former ci_agent_node/agent_tools.py (330 lines) into domain-grouped
-submodules -- see tools/__init__.py for the aggregated ALL_CI_TOOLS list.
+security locks, method override cascades, data constraints).
 """
 
 from __future__ import annotations
@@ -35,11 +33,7 @@ def _compose_server_actions_observation(model_name: str):
     """Shared implementation behind the analyze_server_actions @tool -- builds
     both the LLM-facing text AND the structured (filepath, start, end)
     citations _trace_invoked_methods_with_citations discovers along the way,
-    from a single pass over the model's server-action nodes. Split out
-    (todo/contexte.txt section 831, Famille 1 site 3/5) so dispatch_server_
-    actions (predispatch_actions.py) can call this directly for both, instead
-    of invoking the @tool for text and regex-parsing that text back apart to
-    recover what this function already computed structurally.
+    from a single pass over the model's server-action nodes.
     Returns (text, citations) where citations is a List[Tuple[str, int, int]].
     """
     if _is_wildcard_model(model_name):

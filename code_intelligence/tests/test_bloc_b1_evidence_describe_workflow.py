@@ -76,7 +76,7 @@ def test_evidence_unrestricted_transition_claim_and_value():
     target state, claim mentions no group restriction."""
     G = _build_test_graph()
     res = describe_workflow(G, "hr.expense")
-    e = next(ev for ev in res.evidence if ev.source == "transition:hr.expense:action_submit:draft:submitted")
+    e = next(ev for ev in res.evidence if ev.source == "transition:hr.expense:action_submit:draft:submitted:Soumettre")
     assert e.value == "submitted"
     assert "transitions from 'draft' to 'submitted'" in e.claim
     assert "via button 'Soumettre'" in e.claim
@@ -88,22 +88,55 @@ def test_evidence_restricted_transition_claim_mentions_groups():
     claim must surface the restriction explicitly."""
     G = _build_test_graph()
     res = describe_workflow(G, "hr.expense")
-    e = next(ev for ev in res.evidence if ev.source == "transition:hr.expense:action_approve:submitted:approved")
+    e = next(ev for ev in res.evidence if ev.source == "transition:hr.expense:action_approve:submitted:approved:Valider")
     assert e.value == "approved"
     assert "restricted to groups: group_hr_manager" in e.claim
 
 
-def test_evidence_no_transitions_produces_explicit_fact():
-    """A model with no WorkflowState/TRANSITIONS_VIA edges (EMPTY status)
-    still asserts one explicit negative fact -- never silently empty."""
+def test_evidence_no_derived_transitions_is_explicitly_uncertain():
+    """An empty extracted graph must not claim that no workflow exists."""
     G = _build_test_graph()
     res = describe_workflow(G, "hr.leave")
     assert res.status == QueryStatus.EMPTY
     assert len(res.evidence) == 1
     e = res.evidence[0]
     assert e.source == "workflow:hr.leave"
-    assert e.value is None
-    assert "no explicit workflow state transitions defined" in e.claim
+    assert e.value == "no_transition_derived"
+    assert "could be derived from the indexed code" in e.claim
+    assert "does not prove" in e.claim
+    assert e.confidence == "LOW"
+
+
+def test_transition_from_prefixed_model_is_not_included():
+    G = _build_test_graph()
+    G.add_node("model:hr.expense.line", node_type="Model")
+    G.add_node("state:hr.expense.line.draft", node_type="WorkflowState", model="hr.expense.line", state_value="draft")
+    G.add_node("state:hr.expense.line.approved", node_type="WorkflowState", model="hr.expense.line", state_value="approved")
+    G.add_edge(
+        "state:hr.expense.line.draft", "state:hr.expense.line.approved",
+        edge_type="TRANSITIONS_VIA", method_name="action_approve_line",
+        label_bouton="Valider la ligne", groupe_requis=[],
+    )
+
+    result = describe_workflow(G, "hr.expense")
+
+    assert len(result.transitions) == 2
+    assert all(item["method_name"] != "action_approve_line" for item in result.transitions)
+
+
+def test_describe_workflow_emits_each_button_on_a_shared_transition():
+    G = _build_test_graph()
+    edge = G.edges["state:hr.expense.draft", "state:hr.expense.submitted"]
+    edge["button_transitions"] = [
+        {"method_name": "action_submit", "label_bouton": "Soumettre", "groupe_requis": [], "alternative": False},
+        {"method_name": "action_submit_alt", "label_bouton": "Envoyer", "groupe_requis": ["group_hr_user"], "alternative": False},
+    ]
+
+    result = describe_workflow(G, "hr.expense")
+
+    shared = [item for item in result.transitions if item["origin_state"] == "draft"]
+    assert [item["method_name"] for item in shared] == ["action_submit", "action_submit_alt"]
+    assert len(result.evidence) == 3
 
 
 def test_evidence_scope_is_always_empty():

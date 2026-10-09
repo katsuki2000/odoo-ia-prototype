@@ -217,7 +217,7 @@ import logging
 import re
 from typing import Dict
 
-from code_intelligence.utils import resolve_model_xmlref
+from code_intelligence.utils import qualify_xml_id, resolve_model_xmlref
 
 from .integrity import _detect_inheritance_cycles
 from .nodes import (
@@ -266,7 +266,7 @@ def build_module_symbol_registry(modules_dict: Dict[str, ParsedModule]) -> Resol
 
         # 2. Index XML Groups with merge
         for grp in mod.groups:
-            full_xml_id = grp.xml_id if "." in grp.xml_id else f"{mod_name}.{grp.xml_id}"
+            full_xml_id = qualify_xml_id(grp.xml_id, mod_name)
             existing = registry.groups.get(full_xml_id)
             if existing:
                 grp = _merge_group(existing, grp)
@@ -275,7 +275,7 @@ def build_module_symbol_registry(modules_dict: Dict[str, ParsedModule]) -> Resol
 
         # 3. Index XML Rules with merge
         for rule in mod.rules:
-            full_xml_id = rule.xml_id if "." in rule.xml_id else f"{mod_name}.{rule.xml_id}"
+            full_xml_id = qualify_xml_id(rule.xml_id, mod_name)
             existing = registry.rules.get(full_xml_id)
             if existing:
                 rule = _merge_rule(existing, rule)
@@ -284,7 +284,7 @@ def build_module_symbol_registry(modules_dict: Dict[str, ParsedModule]) -> Resol
 
         # 4. Index Actions, Server Actions, Automations, Menuitems, Views
         for act in mod.actions:
-            full_xml_id = act.xml_id if "." in act.xml_id else f"{mod_name}.{act.xml_id}"
+            full_xml_id = qualify_xml_id(act.xml_id, mod_name)
             existing = registry.actions.get(full_xml_id)
             if existing:
                 act = _merge_action(existing, act)
@@ -292,7 +292,7 @@ def build_module_symbol_registry(modules_dict: Dict[str, ParsedModule]) -> Resol
             registry.actions[act.xml_id] = act
 
         for sa in mod.server_actions:
-            full_xml_id = sa.xml_id if "." in sa.xml_id else f"{mod_name}.{sa.xml_id}"
+            full_xml_id = qualify_xml_id(sa.xml_id, mod_name)
             existing = registry.server_actions.get(full_xml_id)
             if existing:
                 sa = _merge_server_action(existing, sa)
@@ -300,17 +300,17 @@ def build_module_symbol_registry(modules_dict: Dict[str, ParsedModule]) -> Resol
             registry.server_actions[sa.xml_id] = sa
 
         for ba in mod.base_automations:
-            full_xml_id = ba.xml_id if "." in ba.xml_id else f"{mod_name}.{ba.xml_id}"
+            full_xml_id = qualify_xml_id(ba.xml_id, mod_name)
             registry.base_automations[full_xml_id] = ba
             registry.base_automations[ba.xml_id] = ba
 
         for menu in mod.menuitems:
-            full_xml_id = menu.xml_id if "." in menu.xml_id else f"{mod_name}.{menu.xml_id}"
+            full_xml_id = qualify_xml_id(menu.xml_id, mod_name)
             registry.menuitems[full_xml_id] = menu
             registry.menuitems[menu.xml_id] = menu
 
         for view in mod.views:
-            full_xml_id = view.xml_id if "." in view.xml_id else f"{mod_name}.{view.xml_id}"
+            full_xml_id = qualify_xml_id(view.xml_id, mod_name)
             registry.views[full_xml_id] = view
             registry.views[view.xml_id] = view
 
@@ -375,7 +375,7 @@ def _resolve_group_reference(
     if group_ref in registry.groups:
         return
 
-    full_ref = group_ref if "." in group_ref else f"{mod_name}.{group_ref}"
+    full_ref = qualify_xml_id(group_ref, mod_name)
     if full_ref in registry.groups:
         return
 

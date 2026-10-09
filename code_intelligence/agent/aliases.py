@@ -234,12 +234,15 @@ NATIVE_MODEL_SYNONYMS: Dict[str, List[str]] = {
 }
 
 
-def _nfc(s: str) -> str:
-    """Normalize string using Unicode NFC."""
-    return unicodedata.normalize("NFC", s)
+_TYPOGRAPHIC_APOSTROPHES = str.maketrans({"\u2019": "'", "\u2018": "'", "\u02bc": "'"})
 
 
-BUSINESS_ALIASES_NFC: Dict[str, List[str]] = {_nfc(k): v for k, v in BUSINESS_ALIASES.items()}
+def normalize_alias_text(text: str) -> str:
+    """Apply Unicode NFC and fold typographic apostrophes to ASCII, for alias keys and queries alike."""
+    return unicodedata.normalize("NFC", text).translate(_TYPOGRAPHIC_APOSTROPHES)
+
+
+BUSINESS_ALIASES_NFC: Dict[str, List[str]] = {normalize_alias_text(k): v for k, v in BUSINESS_ALIASES.items()}
 
 _ALIAS_PATTERNS: Dict[str, re.Pattern] = {
     alias: re.compile(r"(?<!\w)" + re.escape(alias) + r"(?!\w)")

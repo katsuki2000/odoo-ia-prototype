@@ -13,6 +13,8 @@ import logging
 
 _logger = logging.getLogger(__name__)
 
+ACCESS_CONTROL_CSV_NAME = "ir.model.access.csv"
+
 
 @dataclass
 class OdooAccessEntry:
@@ -111,6 +113,7 @@ def parse_access_control_csv(filepath: Path) -> List[OdooAccessEntry]:
 
 
 __all__ = [
+    "ACCESS_CONTROL_CSV_NAME",
     "OdooAccessEntry",
     "_parse_perm",
     "parse_access_control_csv",

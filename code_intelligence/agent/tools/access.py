@@ -2,9 +2,6 @@
 code_intelligence/ci_agent_node/tools/access.py
 
 LangChain @tool wrappers for access/permission evaluation (ACL + ir.rule).
-Split out of the former ci_agent_node/agent_tools.py (330 lines) into
-domain-grouped submodules -- see tools/__init__.py for the aggregated
-ALL_CI_TOOLS list.
 """
 
 from __future__ import annotations

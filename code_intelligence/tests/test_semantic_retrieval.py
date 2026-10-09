@@ -1,3 +1,5 @@
+import pytest
+
 import networkx as nx
 
 from code_intelligence.agent.semantic_retrieval import (
@@ -250,3 +252,68 @@ def test_resolver_publishes_semantic_status_when_arbitration_selects_nothing(mon
 
     assert not result.is_resolved
     assert result.diagnostics == {"semantic_retrieval": "error"}
+
+
+class RecordingEmbeddingFunction(FakeEmbeddingFunction):
+    def __init__(self, fail_on_call=None):
+        self.calls = []
+        self.fail_on_call = fail_on_call
+
+    def __call__(self, texts):
+        self.calls.append(list(texts))
+        if self.fail_on_call == len(self.calls):
+            raise ConnectionError("tunnel dropped")
+        return super().__call__(texts)
+
+    def embedded_documents(self):
+        return [text for call in self.calls[:-1] for text in call]
+
+
+def _rank(graph, embedding_function, cache_dir):
+    return rank_semantic_model_candidates(
+        "Ou gerer une commande client ?", graph, embedding_function, language="fr", cache_dir=str(cache_dir),
+    )
+
+
+def test_persisted_index_is_reused_by_a_new_process(tmp_path):
+    first = RecordingEmbeddingFunction()
+    _rank(_graph_with_translated_models(), first, tmp_path)
+    second = RecordingEmbeddingFunction()
+
+    candidates = _rank(_graph_with_translated_models(), second, tmp_path)
+
+    assert candidates == ["sale.order", "purchase.order"]
+    assert len(first.embedded_documents()) == 2
+    assert second.embedded_documents() == []
+
+
+def test_only_changed_labels_are_embedded_again(tmp_path):
+    _rank(_graph_with_translated_models(), RecordingEmbeddingFunction(), tmp_path)
+    graph = _graph_with_translated_models()
+    graph.nodes["model:purchase.order"]["business_labels"] = [{"label": "Achat", "language": "fr_FR"}]
+    recorder = RecordingEmbeddingFunction()
+
+    _rank(graph, recorder, tmp_path)
+
+    assert len(recorder.embedded_documents()) == 1
+    assert "Achat" in recorder.embedded_documents()[0]
+
+
+def test_progress_is_kept_when_embedding_stops_midway(tmp_path, monkeypatch):
+    monkeypatch.setattr("code_intelligence.agent.semantic_retrieval.SEMANTIC_EMBEDDING_BATCH_SIZE", 1)
+    interrupted = RecordingEmbeddingFunction(fail_on_call=2)
+
+    with pytest.raises(ConnectionError):
+        _rank(_graph_with_translated_models(), interrupted, tmp_path)
+    resumed = RecordingEmbeddingFunction()
+    _rank(_graph_with_translated_models(), resumed, tmp_path)
+
+    assert len(resumed.embedded_documents()) == 1
+
+
+def test_ranking_without_cache_dir_leaves_the_disk_untouched(tmp_path):
+    rank_semantic_model_candidates(
+        "commande client", _graph_with_translated_models(), RecordingEmbeddingFunction(), language="fr",
+    )
+
+    assert list(tmp_path.iterdir()) == []

@@ -11,6 +11,7 @@ __all__ = [
     "format_xml_id_citation",
     "format_xml_id_citations",
     "format_file_link",
+    "qualify_xml_id",
     "resolve_model_xmlref",
     "discover_odoo_modules",
     "compute_addons_hash",
@@ -102,6 +103,11 @@ def format_file_link(
 
 
 # ── Model & module resolution ───────────────────────────────────────────────
+
+def qualify_xml_id(xml_id: str, module: str) -> str:
+    """Prefix a bare XML id with the module that declares it."""
+    return xml_id if "." in xml_id else f"{module}.{xml_id}"
+
 
 def resolve_model_xmlref(raw_ref: str) -> str:
     """Convert an Odoo XML model reference to its technical model name."""

@@ -34,6 +34,9 @@ def sample_graph() -> nx.DiGraph:
 
     G.add_node("model:custom.asset.loan", node_type="Model",
                name="custom.asset.loan", description="Prêt de matériel")
+    G.add_node("model:account.move", node_type="Model", name="account.move")
+    G.add_node("model:custom.reimbursement.request", node_type="Model",
+               name="custom.reimbursement.request")
 
     G.add_node("model:res.partner", node_type="Model",
                name="res.partner", description="Vip Client Contact")

@@ -7,6 +7,7 @@ Shared constants and enums for deterministic knowledge graph queries.
 from enum import Enum
 
 NOT_FOUND_MARKER = "was not found in the indexed knowledge graph"
+NO_WORKFLOW_TRANSITION_MARKER = "No workflow state transition could be derived from the indexed code"
 
 
 class QueryStatus(Enum):

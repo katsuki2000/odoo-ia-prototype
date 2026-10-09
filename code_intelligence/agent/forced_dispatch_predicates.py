@@ -6,24 +6,12 @@ deterministic pre-dispatch in ci_agent_node.py fires each composite tool
 on -- reused as-is by the Investigation Planner (investigation_planner.py)
 so the plan and the real dispatch can never independently drift apart on
 the 4 categories both need to agree on (access, approval/governance,
-automation/bypass, structural locks). See todo/contexte.txt section 209-210
-(Bloc P1 Jour 6).
-
+automation/bypass, structural locks).
 Each function answers "which targets would forced pre-dispatch invoke this
 tool for" -- not "has it already been invoked this turn" (that bookkeeping
 is ReAct-loop-specific, via ci_agent_node.py's own `seen_calls`, and has no
 equivalent need in the Planner, which never actually calls a tool).
 
-Kept as its own leaf module (Section 733 restoration): predispatch.py
-imports at module level from predispatch_access.py and predispatch_actions.py,
-and those two modules import these predicates back -- a real cycle if the
-predicates lived inside predispatch.py itself. The Option C merge had
-collapsed this file into predispatch.py, which silently broke every
-`from .forced_dispatch_predicates import ...` deferred import in
-predispatch_access.py/predispatch_actions.py (ModuleNotFoundError) and left
-investigation_planner.py's own import of these symbols from
-`code_intelligence.agent.predispatch` degrading silently to conservative
-defaults on any exception (its own try/except around that import block).
 """
 
 import re
@@ -96,8 +84,6 @@ def security_locks_targets(concept, G, question: str = "") -> List[str]:
     targets = []
     for model in models:
         has_security_source = bool(find_security_lock_source_files(G, model))
-        # Native source is included only for an explicit related-line deletion
-        # question; the default remains limited to custom security findings.
         if has_security_source or (related_deletion and find_model_source_filepaths(G, model)):
             targets.append(model)
 
@@ -140,13 +126,7 @@ def override_chain_targets(question: str, concept, G) -> List[Tuple[str, str]]:
     import re
     from code_intelligence.agent.context_extractors import _question_is_method_or_override_related
     is_invoice_generation_q = bool(re.search(r"\b(?:g[eé]n[eé]ration|cr[eé]ation)\s+(?:de\s+|d['’]\s*)?facture\b", question, re.IGNORECASE))
-    # Section 883: la wording d'approbation seule est trop large (PUR-Q1 :
-    # "distingue... acheteur d'un manager", aucun montant -- dispatchait
-    # analyze_method_override_chain sur une methode sans rapport, privant la
-    # garde de distinction securitaire de son budget de hops). Meme gate que
-    # who_has_access_targets (l.108) : n'exiger la wording d'approbation que
-    # si un montant est cite (contournement de seuil). method_or_override et invoice_generation restent
-    # independants du montant.
+
     is_approval_with_amount_q = (
         _question_is_approval_related(question) and _extract_amount(question) is not None
     )

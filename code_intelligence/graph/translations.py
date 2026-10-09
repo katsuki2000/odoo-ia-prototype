@@ -10,6 +10,8 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Iterable, Optional
 
+from code_intelligence.utils import qualify_xml_id
+
 
 @dataclass(frozen=True)
 class TranslationEntry:
@@ -108,12 +110,6 @@ def load_module_translations(
     return entries
 
 
-def _normalized_xmlid(xmlid: str, module: str) -> str:
-    if "." in xmlid:
-        return xmlid
-    return f"{module}.{xmlid}"
-
-
 def _model_from_xmlid(xmlid: str, graph) -> Optional[str]:
     local_id = xmlid.split(".", 1)[-1]
     if not local_id.startswith("model_"):
@@ -131,12 +127,12 @@ def _model_from_xmlid(xmlid: str, graph) -> Optional[str]:
 def _target_for_reference(reference: str, module: str, graph) -> Optional[tuple[str, str]]:
     match = re.match(r"model:ir\.model,name:([^\s]+)$", reference)
     if match:
-        model = _model_from_xmlid(_normalized_xmlid(match.group(1), module), graph)
+        model = _model_from_xmlid(qualify_xml_id(match.group(1), module), graph)
         return (f"model:{model}", "model") if model else None
 
     match = re.match(r"model:ir\.model\.fields,field_description:([^\s]+)$", reference)
     if match:
-        xmlid = _normalized_xmlid(match.group(1), module)
+        xmlid = qualify_xml_id(match.group(1), module)
         local_id = xmlid.split(".", 1)[-1]
         if local_id.startswith("field_") and "__" in local_id:
             model_slug, field_name = local_id[6:].split("__", 1)
@@ -150,7 +146,7 @@ def _target_for_reference(reference: str, module: str, graph) -> Optional[tuple[
 
     match = re.match(r"model:ir\.model\.fields\.selection,name:([^\s]+)$", reference)
     if match:
-        local_id = _normalized_xmlid(match.group(1), module).split(".", 1)[-1]
+        local_id = qualify_xml_id(match.group(1), module).split(".", 1)[-1]
         if local_id.startswith("selection__"):
             pieces = local_id[len("selection__"):].split("__")
             if len(pieces) >= 3:
@@ -165,7 +161,7 @@ def _target_for_reference(reference: str, module: str, graph) -> Optional[tuple[
 
     match = re.match(r"model:ir\.ui\.menu,name:([^\s]+)$", reference)
     if match:
-        xmlid = _normalized_xmlid(match.group(1), module)
+        xmlid = qualify_xml_id(match.group(1), module)
         node_id = f"menu:{xmlid}"
         return (node_id, "menu") if graph.has_node(node_id) else None
     return None

@@ -10,10 +10,6 @@ from ..semantic_retrieval import SemanticRetrievalStatus, retrieve_semantic_mode
 
 _logger = logging.getLogger(__name__)
 
-# Section 1064: WeakKeyDictionary on the graph object itself, same rationale
-# already documented for _FUZZY_INDEX_CACHE in matching.py (Section 721) --
-# avoids any id(G) reuse collision between a destroyed and a newly allocated
-# graph object.
 _TIEBREAK_RARITY_CACHE: "weakref.WeakKeyDictionary" = weakref.WeakKeyDictionary()
 
 AMBIGUITY_GAP_THRESHOLD = 10.0

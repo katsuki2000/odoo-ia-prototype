@@ -11,6 +11,7 @@ import pytest
 import networkx as nx
 from code_intelligence.agent.resolver import resolve_business_term
 from code_intelligence.agent.aliases import BUSINESS_ALIASES
+from code_intelligence.agent.resolution.alias_targets import alias_targets_in_graph
 
 
 @pytest.fixture
@@ -19,7 +20,9 @@ def mock_graph():
     G.add_node("model:account.move", node_type="Model", name="account.move")
     G.add_node("model:custom_credit_note_approval", node_type="Model", name="custom_credit_note_approval")
     G.add_node("model:custom_purchase_request", node_type="Model", name="custom_purchase_request")
+    G.add_node("model:custom.purchase.request", node_type="Model", name="custom.purchase.request")
     G.add_node("model:custom_asset_loan", node_type="Model", name="custom_asset_loan")
+    G.add_node("model:custom.asset.loan", node_type="Model", name="custom.asset.loan")
     G.add_node("model:hr.leave", node_type="Model", name="hr.leave")
     G.add_node("model:custom.reimbursement.request", node_type="Model", name="custom.reimbursement.request")
     G.add_node("module:custom_expense_reimbursement_indirect", node_type="Module", name="custom_expense_reimbursement_indirect")
@@ -202,3 +205,85 @@ def test_s2_0_no_llm_call_when_top_candidate_is_clear(mock_graph):
     fake_llm = type("Blocker", (), {"invoke": _should_not_be_called})()
     res = resolve_business_term("avoirs", mock_graph, llm=fake_llm)
     assert res.source_step == "static_alias"
+
+def _graph_with_models(*models):
+    graph = nx.DiGraph()
+    for model in models:
+        graph.add_node(f"model:{model}", node_type="Model", name=model)
+    return graph
+
+
+def test_alias_to_models_absent_from_loaded_graph_is_not_resolved():
+    graph = _graph_with_models("purchase.order", "account.move")
+
+    result = resolve_business_term("comment je fais une demande d'achat sur l'ERP?", graph)
+
+    assert result.source_step != "static_alias"
+    assert "purchase.request" not in result.resolved_models
+    assert "custom.purchase.request" not in result.resolved_models
+
+
+def test_absent_alias_is_left_out_of_the_resolved_terms():
+    graph = _graph_with_models("purchase.order")
+
+    result = resolve_business_term("demande d'achat et commande d'achat", graph)
+
+    assert result.source_step == "static_alias"
+    assert result.resolved_models == ["purchase.order"]
+    assert "demande d'achat" not in result.user_term.split(", ")
+
+
+def test_alias_targets_are_kept_when_no_graph_is_loaded():
+    result = resolve_business_term("demande d'achat", None)
+
+    assert result.source_step == "static_alias"
+    assert result.resolved_models == ["purchase.request", "custom.purchase.request"]
+
+
+def test_alias_targets_are_kept_when_graph_is_empty():
+    result = resolve_business_term("demande d'achat", nx.DiGraph())
+
+    assert result.source_step == "static_alias"
+    assert result.resolved_models == ["purchase.request", "custom.purchase.request"]
+
+
+def test_exact_mention_merge_drops_alias_targets_absent_from_graph():
+    graph = _graph_with_models("sale.order", "purchase.order")
+
+    result = resolve_business_term("quel est le workflow de sale.order pour une demande d'achat ?", graph)
+
+    assert result.source_step == "exact_technical_mention"
+    assert result.resolved_models == ["sale.order"]
+
+
+def test_exact_mention_merge_keeps_alias_targets_present_in_graph():
+    graph = _graph_with_models("sale.order", "purchase.order")
+
+    result = resolve_business_term("workflow de sale.order et d'une commande d'achat", graph)
+
+    assert result.source_step == "exact_technical_mention"
+    assert result.resolved_models == ["sale.order", "purchase.order"]
+
+
+def test_alias_targets_prefer_custom_when_both_alternatives_exist():
+    graph = _graph_with_models("purchase.request", "custom.purchase.request")
+
+    targets = alias_targets_in_graph(graph, ["purchase.request", "custom.purchase.request"])
+
+    assert targets == ["custom.purchase.request"]
+
+
+def test_alias_targets_fall_back_to_the_native_alternative():
+    graph = _graph_with_models("purchase.request")
+
+    targets = alias_targets_in_graph(graph, ["purchase.request", "custom.purchase.request"])
+
+    assert targets == ["purchase.request"]
+
+
+def test_alias_targets_keep_modules_and_drop_unknown_names():
+    graph = _graph_with_models("sale.order")
+    graph.add_node("module:sale", node_type="Module", name="sale")
+
+    assert alias_targets_in_graph(graph, ["sale", "sale.order", "sale.unknown"]) == ["sale", "sale.order"]
+    assert alias_targets_in_graph(graph, ["purchase.request"]) == []

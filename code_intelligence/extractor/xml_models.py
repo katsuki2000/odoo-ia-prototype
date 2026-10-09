@@ -49,6 +49,7 @@ class OdooActionRecord:
     name: str = ""
     res_model: str = ""
     view_mode: str = ""
+    domain: str = ""
     groups_id: List[str] = field(default_factory=list)
 
 

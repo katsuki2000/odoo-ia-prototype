@@ -282,18 +282,16 @@ from code_intelligence.agent.context import (
 )
 from code_intelligence.agent.context_extractors import _question_is_workflow_related
 from code_intelligence.agent.context import DispatchContext
+from code_intelligence.rules.common import NO_WORKFLOW_TRANSITION_MARKER
 from code_intelligence.rules.override_unguarded import resolve_method_override_chain
 
 logger = logging.getLogger(__name__)
 
 # Section 911 (A): describe_workflow only analyzes `state`-field transitions
 # (code_intelligence/rules/workflow.py) -- a model driven by stage_id/kanban
-# stages instead (e.g. maintenance.request) always comes back with this exact
-# marker, even when real automatic logic exists on stage change (todo/contexte.txt
-# section 910/§5, 911: MNT-Q2, the LLM then guessed a plausible-but-wrong method
-# name -- 'action_done', absent from the graph for this model -- instead of ever
-# reading write(), where the real logic lives).
-_WORKFLOW_EMPTY_MARKER = "has no explicit workflow state transitions defined"
+# stages instead (e.g. maintenance.request) comes back with
+# NO_WORKFLOW_TRANSITION_MARKER, even when real automatic logic exists on stage
+# change (todo/contexte.txt section 910/5, 911: MNT-Q2).
 
 
 def dispatch_describe_workflow(ctx: DispatchContext) -> None:
@@ -333,7 +331,7 @@ def dispatch_describe_workflow(ctx: DispatchContext) -> None:
                 "'describe_workflow' for model '%s'.",
                 target_model,
             )
-            if _WORKFLOW_EMPTY_MARKER in observation:
+            if NO_WORKFLOW_TRANSITION_MARKER in observation:
                 empty_models.append(target_model)
             if ctx.hop_budget_exhausted:
                 break
@@ -465,6 +463,54 @@ logger = logging.getLogger(__name__)
 _MAX_FOLLOWED_CALLEES = 6
 
 
+def dispatch_navigation_path(ctx: DispatchContext) -> None:
+    """Section 1196: deterministic proof for "comment faire X dans l'ERP".
+
+    Fires only when the classified intent is `navigation_howto` and the
+    concept resolved to at least one model: calls the navigation rule
+    directly (menu path, no guessed button) and records its evidence, so the
+    synthesis is never written at 0 hop without proof of the UI path.
+    """
+    if ctx.intent != "navigation_howto":
+        return
+    if not (ctx.concept.is_resolved and ctx.concept.resolved_models and not ctx.hop_budget_exhausted):
+        return
+
+    ctx.matched_dispatchers.append("dispatch_navigation_path")
+
+    from code_intelligence.rules.navigation import describe_navigation_path as _describe_navigation_path_impl
+
+    for target_model in ctx.concept.resolved_models:
+        model_param = _resolve_model_param(target_model)
+        call_key = _tool_call_key(
+            "describe_navigation_path",
+            {"model_name": target_model, "button_label_or_name": ""},
+        )
+        if call_key in ctx.seen_calls:
+            continue
+        try:
+            t0 = time.perf_counter()
+            nav_result = _describe_navigation_path_impl(
+                ctx.G, model_param, "",
+                user_groups=ctx.resolved_user_group_xmlids,
+            )
+            record_evidence(nav_result.evidence)
+            observation = nav_result.summary_text + "\n" + "\n".join(nav_result.execution_steps)
+            observation = _truncate_observation_for_budget(ctx, observation, 3000)
+            ctx.record_observation(
+                "describe_navigation_path",
+                {"model_name": target_model, "button_label_or_name": ""},
+                observation, target_model, call_key, time.perf_counter() - t0,
+            )
+            logger.info(
+                "Node [code_intelligence_agent]: Deterministic pre-dispatch of "
+                "'describe_navigation_path' for model '%s'.",
+                target_model,
+            )
+        except Exception as nav_err:
+            logger.error("Pre-dispatch describe_navigation_path failed for %s: %s", target_model, nav_err)
+
+
 def dispatch_button_execution_path(ctx: DispatchContext) -> None:
     if not (ctx.concept.is_resolved and ctx.concept.resolved_models and not ctx.hop_budget_exhausted):
         return
@@ -515,7 +561,7 @@ def dispatch_button_execution_path(ctx: DispatchContext) -> None:
             # AND these structured fields from a single analysis pass.
             button_result = _button_execution_path_impl(
                 ctx.G, ui_name, _resolve_model_param(target_model),
-                user_groups=ctx.resolved_user_group_xmlids or [],
+                user_groups=ctx.resolved_user_group_xmlids,
                 premise_text=ctx.question,
             )
             record_evidence(button_result.evidence)

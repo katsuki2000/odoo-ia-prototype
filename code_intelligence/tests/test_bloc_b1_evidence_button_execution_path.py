@@ -135,3 +135,101 @@ def test_model_not_found_produces_no_evidence():
     G = _build_test_graph("account.move", required_groups=[])
     res = button_execution_path(G, "Valider", "does.not.exist")
     assert res.evidence == []
+
+
+def _graph_with_buttons(model_name, buttons):
+    import networkx as nx
+    G = nx.DiGraph()
+    G.add_node(f"model:{model_name}")
+    for index, (method, label) in enumerate(buttons):
+        G.add_edge(
+            f"state:{model_name}.draft", f"state:{model_name}.done_{index}",
+            edge_type="TRANSITIONS_VIA", method_name=method, label_bouton=label, groupe_requis=[],
+        )
+    return G
+
+
+def test_a_word_contained_in_a_method_name_is_not_an_exact_match():
+    G = _graph_with_buttons("purchase.order", [("action_create_invoice", "Create Bill")])
+
+    res = button_execution_path(G, "create", "purchase.order")
+
+    assert res.method_name == "action_create"
+    assert "was not found in the indexed knowledge graph" in res.summary_text
+    assert "action_create_invoice()" in res.summary_text
+    assert "Calls 'action_create_invoice()'" not in res.summary_text
+    assert not res.origin_states and not res.target_state
+
+
+def test_odoo_method_prefix_is_optional_for_an_exact_match():
+    G = _graph_with_buttons("sale.order", [("action_confirm", "Confirm")])
+
+    by_short_name = button_execution_path(G, "confirm", "sale.order")
+    by_label = button_execution_path(G, "Confirm", "sale.order")
+
+    assert by_short_name.method_name == by_label.method_name == "action_confirm"
+    assert by_short_name.target_state == "done_0"
+
+
+def test_button_path_finds_a_second_button_sharing_the_same_transition():
+    graph = nx.DiGraph()
+    graph.add_node("model:sale.order", node_type="Model", name="sale.order")
+    graph.add_node("state:sale.order.draft", node_type="WorkflowState", model="sale.order", state_value="draft")
+    graph.add_node("state:sale.order.sale", node_type="WorkflowState", model="sale.order", state_value="sale")
+    graph.add_node("method:sale.order.action_confirm", node_type="Method", model="sale.order")
+    graph.add_node("method:sale.order.action_special_confirm", node_type="Method", model="sale.order")
+    graph.add_edge(
+        "state:sale.order.draft", "state:sale.order.sale",
+        edge_type="TRANSITIONS_VIA", method_name="action_confirm", label_bouton="Confirm",
+        groupe_requis=[], button_transitions=[
+            {"method_name": "action_confirm", "label_bouton": "Confirm", "groupe_requis": [], "alternative": False},
+            {"method_name": "action_special_confirm", "label_bouton": "Special Confirm", "groupe_requis": [], "alternative": False},
+        ],
+    )
+
+    result = button_execution_path(graph, "Special Confirm", "sale.order")
+
+    assert result.method_name == "action_special_confirm"
+    assert result.target_state == "sale"
+
+
+def test_near_matches_are_listed_without_asserting_a_transition():
+    G = _graph_with_buttons("sale.order", [("action_confirm", "Confirm Order"), ("action_cancel", "Cancel")])
+
+    res = button_execution_path(G, "confirm order now", "sale.order")
+
+    assert "was not found in the indexed knowledge graph" in res.summary_text
+    assert "'action_confirm()' (label: 'Confirm Order')" in res.summary_text
+    assert "action_cancel" not in res.summary_text
+    assert res.target_state == ""
+
+
+def test_an_unmatched_button_observation_is_not_counted_as_relevant_evidence():
+    from core.evidence.evidence_sufficiency import _is_relevant_observation
+    G = _graph_with_buttons("purchase.order", [("action_create_invoice", "Create Bill")])
+
+    res = button_execution_path(G, "create", "purchase.order")
+
+    assert not _is_relevant_observation(res.summary_text + "\n" + "\n".join(res.execution_steps))
+
+
+def test_an_unidentified_button_gets_no_availability_verdict():
+    G = _graph_with_buttons("purchase.order", [("action_create_invoice", "Create Bill")])
+
+    res = button_execution_path(G, "create", "purchase.order", user_groups=["base.group_user"])
+
+    assert res.available_to_requester is None
+    assert not any("Disponibilite reelle" in step for step in res.execution_steps)
+    assert not any(ev.source.startswith("button_availability:") for ev in res.evidence)
+
+
+def test_near_buttons_sharing_a_method_are_listed_once_with_all_their_labels():
+    G = _graph_with_buttons(
+        "purchase.order",
+        [("action_create_invoice", "Create Bill"), ("action_create_invoice", "Create Bills")],
+    )
+
+    res = button_execution_path(G, "create", "purchase.order")
+
+    assert res.summary_text.count("'action_create_invoice()'") == 1
+    assert "(label: 'Create Bill', 'Create Bills')" in res.summary_text

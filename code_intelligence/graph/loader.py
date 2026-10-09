@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Tuple
 
 from config.settings import GRAPH_CACHE_PATH
-from code_intelligence.extractor.csv import parse_access_control_csv
+from code_intelligence.extractor.csv import ACCESS_CONTROL_CSV_NAME, parse_access_control_csv
 from code_intelligence.extractor.manifest import (
     KNOWN_CORE_MODULE_DEPENDS,
     MissingManifestError,
@@ -82,7 +82,7 @@ def _load_module(
         mod.base_automations.extend(parse_base_automations_from_xml(xml_f))
         mod.menuitems.extend(parse_menuitems_from_xml(xml_f))
         mod.views.extend(parse_views_from_xml(xml_f))
-    for csv_f in mod_dir.rglob("*.csv"):
+    for csv_f in mod_dir.rglob(ACCESS_CONTROL_CSV_NAME):
         mod.acl_entries.extend(parse_access_control_csv(csv_f))
     return mod_dir.name, mod
 

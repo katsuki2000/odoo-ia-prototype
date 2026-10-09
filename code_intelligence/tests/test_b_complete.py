@@ -130,6 +130,26 @@ def test_b2_auxiliary_tools():
         f_path.unlink()
 
 
+def test_explain_transition_path_lists_all_buttons_sharing_an_edge():
+    G = nx.DiGraph()
+    G.add_node("state:x.doc.draft", node_type="WorkflowState", model="x.doc", state_value="draft")
+    G.add_node("state:x.doc.open", node_type="WorkflowState", model="x.doc", state_value="open")
+    G.add_edge(
+        "state:x.doc.draft", "state:x.doc.open", edge_type="TRANSITIONS_VIA",
+        method_name="action_open", button_transitions=[
+            {"method_name": "action_open", "label_bouton": "Open"},
+            {"method_name": "action_reopen", "label_bouton": "Reopen"},
+        ],
+    )
+
+    explanation = _explain_decision_path_impl(
+        G, ["state:x.doc.draft", "state:x.doc.open"]
+    )
+
+    assert "action_open()" in explanation
+    assert "action_reopen()" in explanation
+
+
 def test_b2_4_source_reader_fallback_resolves_from_real_repo_root():
     """Regression: the fallback branch of read_precise_source_code() once computed
     repo_root two levels too shallow (parent.parent.parent from this deeply nested

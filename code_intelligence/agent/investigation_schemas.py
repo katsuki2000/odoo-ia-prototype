@@ -27,6 +27,7 @@ class PlanAction(str, Enum):
     BUTTON_EXECUTION_PATH = "button_execution_path"
     TRACE_FULL_INHERITANCE = "trace_full_inheritance"
     DESCRIBE_WORKFLOW = "describe_workflow"
+    DESCRIBE_NAVIGATION_PATH = "describe_navigation_path"
     ANALYZE_SERVER_ACTIONS = "analyze_server_actions"
     ANALYZE_METHOD_OVERRIDE_CHAIN = "analyze_method_override_chain"
     READ_SOURCE_CODE = "read_source_code"

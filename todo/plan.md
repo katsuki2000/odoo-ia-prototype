@@ -5,6 +5,14 @@ Objectif : atteindre `architecture.md`
 Question à se poser à chaque bifurcation : l'IA pourra-t-elle repondre correctement sur n'importe
 quelle instance Odoo 17 ?
 
+## Simplification de l'orchestration
+
+Réduire progressivement les heuristiques sémantiques dispersées (routage, intention, résolution et choix
+d'outils) au profit d'un plan structuré proposé par le LLM, validé avant exécution. Conserver déterministes
+l'identité, les autorisations, le périmètre, la validation des appels, les budgets et la provenance/vérification
+des preuves. En cas d'ambiguïté, demander une précision plutôt que deviner. Toute consolidation est guidée par
+les échecs mesurés du protocole et ne fusionne pas CI, RAG documentaire et accès ORM en un sous-système opaque.
+
 ## Ordre et dependances
 
 P0 -> P1 -> P2 -> T -> P3 -> P4 -> P5 -> P6 -> P7 -> P8 -> P9 -> P10
@@ -93,6 +101,7 @@ Sortie : toute reponse et toute trace rattachées à une empreinte ; aucune lect
   puis proposer-verifier par le LLM (noms valides dans le graphe uniquement). Discriminant (champ et valeur)
   dans `ResolutionResult`. Panne du backend d'embeddings signalée, jamais masquée.
 - Departage deterministe fondé sur la rareté des indices ; abstention explicite en cas d'ambiguité.
+- Mesurer ce que le flou, les alias et le sémantique (bge-m3) resolvent seuls ; si le sémantique domine, réduire les alias manuels et les seuils flous, puis étendre l'index aux champs, menus, boutons et groupes. Le sémantique reste un indice : aucune décision d'accès n'en dépend.
 
 Sortie : `resolution_recall_at_k` mesure, ablation sans table d'alias au niveau du plancher fixe en P1.
 

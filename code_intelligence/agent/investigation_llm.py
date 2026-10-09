@@ -17,7 +17,8 @@ _INTENT_CLASSIFICATION_SYSTEM_PROMPT = (
     "- inheritance_structure : héritage de modèles, surcharges Python, chaîne MRO\n"
     "- automation_action : actions automatiques, crons, déclencheurs\n"
     "- erp_data_query : donnees ERP en direct (listes, comptages, agrégations, chiffres)\n"
-    "- documentary_policy : politique générale, guide utilisateur, procédure documentée, question générale ou de courtoisie\n"
+    "- documentary_policy : politique générale, document ou procédure écrite à citer, question générale ou de courtoisie\n"
+    "- navigation_howto : comment réaliser une action dans l'interface Odoo (créer, saisir, confirmer, valider...), ou où se trouve un écran, un menu, un onglet\n"
     "- general_code_inquiry : autre inspection technique du code, ne correspondant a aucune categorie ci-dessus\n"
     "Reponds uniquement avec la catégorie choisie, jamais une catégorie hors de cette liste."
 )

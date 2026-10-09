@@ -9,6 +9,7 @@ import re
 from typing import List, Optional, Set, Tuple
 
 from core.evidence.evidence import Evidence, EvidenceSourceType, make_evidence
+from code_intelligence.graph.workflow_extraction import workflow_transition_records
 
 DISPLAY_CAUSES_MARKER = "[FAIT DÉTERMINISTIQUE -- CAUSES DE NON-AFFICHAGE]"
 
@@ -302,6 +303,46 @@ def _requester_satisfies_required_groups(
     )
 
 
+_METHOD_PREFIXES = ("action_", "button_")
+_MAX_NEAR_BUTTONS = 5
+
+
+def _strip_method_prefix(name: str) -> str:
+    for prefix in _METHOD_PREFIXES:
+        if name.startswith(prefix):
+            return name[len(prefix):]
+    return name
+
+
+def _is_exact_button_match(target: str, method_name: str, label: str) -> bool:
+    """A button is identified by its label or its method name, Odoo's conventional
+    `action_`/`button_` prefix being optional. Merely containing the requested word
+    is not enough: 'create' is inside 'action_create_invoice' without being it."""
+    if label and target == label:
+        return True
+    return bool(method_name) and _strip_method_prefix(target) == _strip_method_prefix(method_name)
+
+
+def _is_near_button_match(target: str, method_name: str, label: str) -> bool:
+    return bool(
+        (label and (target in label or label in target))
+        or (method_name and (target in method_name or method_name in target))
+    )
+
+
+def _format_near_buttons(near_buttons: List[Tuple[str, str]]) -> str:
+    labels_by_method: dict = {}
+    for method, label in near_buttons:
+        labels = labels_by_method.setdefault(method, [])
+        if label and label not in labels:
+            labels.append(label)
+    parts = []
+    for method, labels in list(labels_by_method.items())[:_MAX_NEAR_BUTTONS]:
+        shown = ", ".join(f"'{label}'" for label in labels)
+        parts.append(f"'{method}()' (label: {shown})" if labels else f"'{method}()'")
+    return ", ".join(parts)
+
+
 def button_execution_path(
     G: nx.DiGraph,
     button_label_or_name: str,
@@ -324,50 +365,44 @@ def button_execution_path(
 
     method_name = ""
     origin_states: Set[str] = set()
-    target_state = ""
+    target_states: List[str] = []
     required_groups: Set[str] = set()
     execution_steps: List[str] = []
 
     candidate_transitions = []
+    near_buttons: List[Tuple[str, str]] = []
     target_clean = button_label_or_name.strip().lower()
     for u, v, edge_data in G.edges(data=True):
         if edge_data.get("edge_type") == "TRANSITIONS_VIA":
-            state_val = u.replace("state:", "")
-            if "." in state_val:
-                edge_model = state_val.rsplit(".", 1)[0]
-                if edge_model != model_name:
-                    continue
-
-            m_name = (edge_data.get("method_name") or "").strip()
-            btn_label = (edge_data.get("label_bouton") or "").strip()
-            m_lower = m_name.lower()
-            lbl_lower = btn_label.lower()
-
-            score = 0
-            if target_clean == m_lower or (lbl_lower and target_clean == lbl_lower):
-                score = 3
-            elif (lbl_lower and target_clean in lbl_lower) or (m_lower and target_clean in m_lower):
-                score = 2
-            elif (m_lower and m_lower in target_clean) or (lbl_lower and lbl_lower in target_clean):
-                score = 1
-
-            if score > 0:
-                candidate_transitions.append((score, m_name, u, v, edge_data))
+            origin_node = G.nodes.get(u, {})
+            origin_model = origin_node.get("model") or u.removeprefix("state:").rsplit(".", 1)[0]
+            if origin_model != model_name:
+                continue
+            for record in workflow_transition_records(edge_data):
+                m_name = (record.get("method_name") or "").strip()
+                btn_label = (record.get("label_bouton") or "").strip()
+                if _is_exact_button_match(target_clean, m_name.lower(), btn_label.lower()):
+                    candidate_transitions.append((m_name, u, v, record))
+                elif _is_near_button_match(target_clean, m_name.lower(), btn_label.lower()):
+                    near_buttons.append((m_name, btn_label))
 
     if candidate_transitions:
-        max_score = max(c[0] for c in candidate_transitions)
-        best_candidates = [c for c in candidate_transitions if c[0] == max_score]
-        chosen_method = best_candidates[0][1]
-        for score, m_name, u, v, edge_data in best_candidates:
+        chosen_method = candidate_transitions[0][0]
+        for m_name, u, v, edge_data in candidate_transitions:
             if m_name == chosen_method:
                 method_name = m_name
-                orig_st = u.replace(f"state:{model_name}.", "").replace("state:", "")
-                targ_st = v.replace(f"state:{model_name}.", "").replace("state:", "")
+                origin_node = G.nodes.get(u, {})
+                target_node = G.nodes.get(v, {})
+                orig_st = origin_node.get("state_value") or u.removeprefix(f"state:{model_name}.")
+                targ_st = target_node.get("state_value") or v.removeprefix(f"state:{model_name}.")
                 origin_states.add(orig_st)
-                target_state = targ_st
+                if targ_st not in target_states:
+                    target_states.append(targ_st)
                 groups_req = edge_data.get("groupe_requis", [])
                 if isinstance(groups_req, list):
                     required_groups.update(groups_req)
+
+    target_state = " or ".join(target_states)
 
     invisible_condition = ""
     if not method_name:
@@ -378,24 +413,18 @@ def button_execution_path(
                 if edge_data.get("edge_type") == "HAS_BUTTON":
                     m_name = (edge_data.get("method_name") or "").strip()
                     btn_label = (edge_data.get("label_bouton") or "").strip()
-                    m_lower = m_name.lower()
-                    lbl_lower = btn_label.lower()
-                    score = 0
-                    if target_clean == m_lower or (lbl_lower and target_clean == lbl_lower):
-                        score = 3
-                    elif (lbl_lower and target_clean in lbl_lower) or (m_lower and target_clean in m_lower):
-                        score = 2
-                    elif (m_lower and m_lower in target_clean) or (lbl_lower and lbl_lower in target_clean):
-                        score = 1
-                    if score > 0:
-                        candidate_buttons.append((score, m_name, edge_data))
+                    if _is_exact_button_match(target_clean, m_name.lower(), btn_label.lower()):
+                        candidate_buttons.append((m_name, edge_data))
+                    elif _is_near_button_match(target_clean, m_name.lower(), btn_label.lower()):
+                        near_buttons.append((m_name, btn_label))
             if candidate_buttons:
-                candidate_buttons.sort(key=lambda x: x[0], reverse=True)
-                _, method_name, edge_data = candidate_buttons[0]
+                method_name, edge_data = candidate_buttons[0]
                 groups_req = edge_data.get("groupe_requis", [])
                 if isinstance(groups_req, list):
                     required_groups.update(groups_req)
                 invisible_condition = edge_data.get("invisible", "")
+
+    button_identified = bool(method_name)
 
     if not method_name:
         field_view_res = _find_field_in_xml_views(G, model_name, button_label_or_name, user_groups=user_groups)
@@ -424,12 +453,26 @@ def button_execution_path(
         execution_steps.append(f"2. Method Lookup: Candidate method '{method_name}()' is not defined on model '{model_name}'.")
         execution_steps.append("3. State Transition: None.")
         execution_steps.append("4. Security Requirement: None.")
-        summary = (
-            f"Button or UI element '{button_label_or_name}' on '{model_name}': "
-            f"Neither button declaration nor method '{method_name}()' found in knowledge graph. "
-            f"Transition: [] -> ''. "
-            f"Required Groups: [None]."
-        )
+        if button_identified:
+            summary = (
+                f"Button or UI element '{button_label_or_name}' on '{model_name}': "
+                f"Neither button declaration nor method '{method_name}()' found in knowledge graph. "
+                f"Transition: [] -> ''. "
+                f"Required Groups: [None]."
+            )
+        else:
+            summary = (
+                f"Button or UI element '{button_label_or_name}' on '{model_name}' {NOT_FOUND_MARKER}: "
+                f"no declared button or method matches that name exactly. "
+                f"Transition: [] -> ''. "
+                f"Required Groups: [None]."
+            )
+            if near_buttons:
+                summary += (
+                    f" Closest declared buttons (not an exact match, so nothing is asserted about them; "
+                    f"call again with one of these exact names only if it is the one asked about): "
+                    f"{_format_near_buttons(near_buttons)}."
+                )
     else:
         method_link_str = f"Defined: {method_exists}"
         if method_exists and method_node_id in G:
@@ -498,7 +541,8 @@ def button_execution_path(
 
     available_to_requester: Optional[bool] = None
     unavailable_reason = ""
-    if user_groups is not None:
+    button_resolved = button_identified or method_exists or bool(invisible_condition)
+    if user_groups is not None and button_resolved:
         available_to_requester = _requester_satisfies_required_groups(G, sorted(required_groups), user_groups)
         if not available_to_requester:
             # Section 925 / 958: check if required groups are technical (settings-activated)
@@ -576,7 +620,7 @@ def button_execution_path(
         evidence=_build_button_execution_evidence(
             button_label_or_name, model_name, method_name, method_exists,
             origin_states, target_state, required_groups,
-            user_groups, available_to_requester,
+            user_groups if button_resolved else None, available_to_requester,
         ),
         satisfied_conditions=satisfied_conditions,
         blocking_causes=blocking_causes,

@@ -228,15 +228,6 @@ def run_react_loop(
     if ctx.tool_observations:
         final_answer = _build_dynamic_uncertainty_answer("\n\n".join(ctx.tool_observations))
 
-    # Section 780 fix: who_has_access_to/evaluate_record_rules are both
-    # forced by predispatch (predispatch_access.py) BEFORE this loop is
-    # ever entered, so the application-layer reminder's trigger condition
-    # (section 779) can already be satisfied here, before the very first
-    # tool-selection call -- the in-loop check below (after
-    # execute_tool_calls) only catches tools chosen DURING this loop and
-    # therefore always arrives one hop too late for the predispatch-only
-    # case (confirmed on PUR-Q1). Same guard, checked once more here for
-    # the pre-loop state.
     if not final_answer and not ctx.security_distinction_reminder_sent:
         reminder = _maybe_build_application_layer_reminder(
             ctx.question, ctx.tool_observation_tools,
@@ -355,23 +346,6 @@ def run_react_loop(
                             logger.error("Anti-repetition retry failed: %s", retry_e)
                             final_answer = _strip_any_degenerate_repetition(final_answer)
 
-                    # todo/contexte.txt section 858 (Option B1, mandated
-                    # after the negation-wording whack-a-mole -- 840->841->
-                    # 842/843->844->856->857 -- hit diminishing returns 2
-                    # recidives in a row): a GENERIC, wording-independent
-                    # coverage check (does the answer cite essentially none
-                    # of the real extended-model list the tools already
-                    # reported?) replaces trying to anticipate one more
-                    # negation verb/synonym. Catches denial AND omission
-                    # (the STK-Q3 variant, section 821) alike, in one retry,
-                    # regardless of exact wording. Mirrors the
-                    # anti-repetition retry above: same plain_llm_box, same
-                    # _invoke_with_rate_limit, same fail-safe shape --
-                    # never raises, never degrades final_answer; if this
-                    # retry errors or still doesn't fix it, final_answer is
-                    # left untouched for the existing text-patch guard
-                    # chain (postprocess.py, sections 838-857) to catch
-                    # what it can, unchanged.
                     try:
                         _extended_models = _extract_module_extended_models(
                             "\n\n".join(ctx.tool_observations)
@@ -386,8 +360,7 @@ def run_react_loop(
                                 "essentially none of the %d model(s) list_involved_modules "
                                 "reported this module extends outside its own perimeter -- "
                                 "retrying once with the real list made explicit. Pre-retry "
-                                "excerpt (first 800 chars, for diagnosis -- see "
-                                "todo/contexte.txt section 858): %r",
+                                "excerpt (first 800 chars, for diagnosis %r",
                                 len(_extended_models), final_answer[:800],
                             )
                             _models_list = ", ".join(f"'{m}'" for m in _extended_models)
@@ -534,10 +507,9 @@ class CodeIntelligenceAgentRunner:
 
         # Section 888/889: distinguish "state['user_groups'] key absent"
         # (demandeur identity unavailable this turn) from an explicit []
-        # (identity known, no groups) -- both still fail closed identically
-        # everywhere downstream (every consumer reads `ctx.resolved_user_group_xmlids
-        # or []`), the distinction is for correct diagnostics only, see
-        # DispatchContext.resolved_user_group_xmlids docstring.
+        # (identity known, no groups). UI availability consumers preserve
+        # unknown as None; security/authorization consumers may fail closed
+        # without presenting that fallback as a known denial.
         _USER_GROUPS_UNSET = object()
         _raw_user_groups = state.get("user_groups", _USER_GROUPS_UNSET)
         if _raw_user_groups is _USER_GROUPS_UNSET:
@@ -628,6 +600,7 @@ class CodeIntelligenceAgentRunner:
             requester_groups_known=requester_groups_known,
             trace_logger=trace_logger, trace_id=trace_id, hop_cap=CI_MAX_HOPS,
             security_principals=resolved_security_principals,
+            intent=(state.get("investigation_plan") or {}).get("intent"),
         )
         ctx.llm_call_count = llm_call_count
 

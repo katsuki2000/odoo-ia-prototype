@@ -14,12 +14,22 @@ This file locks two distinct things:
      identity computation that check_evidence's CONFLIT case depends on.
 """
 import dataclasses
+from unittest.mock import patch
 
+import networkx as nx
 import pytest
 
 from code_intelligence.agent.matching import ResolvedConcept
 from core.evidence.evidence_check import check_evidence
 from core.routing.routing import route
+
+
+@pytest.fixture(autouse=True)
+def _fixed_instance_graph():
+    graph = nx.DiGraph()
+    graph.add_node("model:custom.asset.loan", node_type="Model", name="custom.asset.loan")
+    with patch("code_intelligence.graph.loader.get_code_intelligence_graph", return_value=graph):
+        yield
 
 
 def _unresolved(user_term="et pour cette annee ?") -> ResolvedConcept:

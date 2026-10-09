@@ -99,7 +99,14 @@ from typing import Callable, Dict, Optional
 import networkx as nx
 
 from code_intelligence.rules.ontology import BehavioralTag, TechnicalTag
-from code_intelligence.utils import resolve_model_xmlref
+from code_intelligence.graph.workflow_extraction import (
+    STATE_FIELD,
+    origin_states,
+    selection_values,
+    written_states,
+    workflow_transition_records,
+)
+from code_intelligence.utils import qualify_xml_id, resolve_model_xmlref
 
 
 def add_security_group_nodes(
@@ -144,7 +151,7 @@ def add_security_group_nodes(
 
         mod_prefix = full_xml_id.split(".")[0]
         for parent_grp in grp.implied_ids:
-            full_parent_grp = parent_grp if "." in parent_grp else f"{mod_prefix}.{parent_grp}"
+            full_parent_grp = qualify_xml_id(parent_grp, mod_prefix)
             parent_node_id = f"group:{full_parent_grp}"
             G.add_edge(grp_node_id, parent_node_id, edge_type="IMPLIES")
 
@@ -192,8 +199,7 @@ def add_security_group_nodes(
             G.add_edge(model_node_id, rule_node_id, edge_type="RESTRICTED_BY")
 
         for grp_ref in rule.groups_id:
-            mod_prefix = full_xml_id.split(".")[0] if "." in full_xml_id else "base"
-            full_grp = grp_ref if "." in grp_ref else f"{mod_prefix}.{grp_ref}"
+            full_grp = qualify_xml_id(grp_ref, full_xml_id.split(".", 1)[0])
             grp_node_id = f"group:{full_grp}"
             G.add_edge(rule_node_id, grp_node_id, edge_type="APPLIES_TO_GROUP")
 
@@ -219,7 +225,7 @@ def add_security_group_nodes(
             G.add_edge(model_node_id, acl_node_id, edge_type="GRANTED_BY")
 
             if acl.group_id:
-                grp_node_id = f"group:{acl.group_id}"
+                grp_node_id = f"group:{qualify_xml_id(acl.group_id, mod_name)}"
                 G.add_edge(acl_node_id, grp_node_id, edge_type="APPLIES_TO_GROUP")
 
     # 4. Server Actions (ir.actions.server) & Automations (base.automation)
@@ -269,8 +275,7 @@ def add_security_group_nodes(
             G.add_edge(ba_node_id, model_node_id, edge_type="TRIGGERED_BY")
 
         for sa_ref in ba.action_server_ids:
-            mod_prefix = full_xml_id.split(".")[0] if "." in full_xml_id else "base"
-            full_sa = sa_ref if "." in sa_ref else f"{mod_prefix}.{sa_ref}"
+            full_sa = qualify_xml_id(sa_ref, full_xml_id.split(".", 1)[0])
             sa_node_id = f"server_action:{full_sa}"
             G.add_edge(ba_node_id, sa_node_id, edge_type="EXECUTES_ACTION")
 
@@ -289,7 +294,7 @@ from typing import Dict
 import networkx as nx
 
 from code_intelligence.rules.ontology import BehavioralTag
-from code_intelligence.utils import resolve_model_xmlref
+from code_intelligence.utils import qualify_xml_id, resolve_model_xmlref
 
 
 def add_menu_nodes(
@@ -300,37 +305,41 @@ def add_menu_nodes(
     """Add Menu nodes as fuzzy-matching targets and link to models via actions."""
     for mod_name, mod in modules_dict.items():
         for menu in mod.menuitems:
-            full_xml_id = menu.xml_id if "." in menu.xml_id else f"{mod_name}.{menu.xml_id}"
+            full_xml_id = qualify_xml_id(menu.xml_id, mod_name)
             menu_node_id = f"menu:{full_xml_id}"
+
+            action_ref = ""
+            action_rec = None
+            if menu.action:
+                action_ref = qualify_xml_id(menu.action, mod_name)
+                action_rec = registry.actions.get(action_ref) or registry.actions.get(menu.action)
 
             G.add_node(
                 menu_node_id,
                 node_type="Menu",
                 xml_id=full_xml_id,
                 module=mod_name,
-                name=menu.name,
+                name=menu.name or (action_rec.name if action_rec else ""),
                 sequence=menu.sequence,
                 filepath=menu.filepath,
                 action_ref=menu.action or "",
-                groups=[(g if "." in g else f"{mod_name}.{g}") for g in menu.groups],
+                action_domain=action_rec.domain if action_rec else "",
+                groups=[qualify_xml_id(g, mod_name) for g in menu.groups],
                 behavioral_tags=[],
                 technical_tags=[],
             )
 
             for g in menu.groups:
-                group_full = g if "." in g else f"{mod_name}.{g}"
+                group_full = qualify_xml_id(g, mod_name)
                 G.add_edge(menu_node_id, f"group:{group_full}", edge_type="APPLIES_TO_GROUP")
 
             if menu.parent:
-                parent_full = menu.parent if "." in menu.parent else f"{mod_name}.{menu.parent}"
+                parent_full = qualify_xml_id(menu.parent, mod_name)
                 G.add_edge(menu_node_id, f"menu:{parent_full}", edge_type="CHILD_OF")
 
             if not menu.action:
                 continue
 
-            action_ref = menu.action if "." in menu.action else f"{mod_name}.{menu.action}"
-
-            action_rec = registry.actions.get(action_ref) or registry.actions.get(menu.action)
             target_model = action_rec.res_model if (action_rec and action_rec.res_model) else None
             via = "act_window" if target_model else None
 
@@ -357,31 +366,39 @@ def add_workflow_nodes_and_edges(
     registry: ResolvedSymbolRegistry,
     modules_dict: Dict[str, ParsedModule],
 ):
-    """Build Workflow Sub-Graph with WorkflowState nodes and TRANSITIONS_VIA edges."""
+    """Build the workflow sub-graph from the real selection values and the code of each button."""
     for model_name, decls in registry.models.items():
-        state_field = None
-        for d in decls:
-            for f in d.fields:
-                if f.name == "state":
-                    state_field = f
-                    break
-            if state_field:
-                break
-
-        if not state_field:
+        if not any(f.name == STATE_FIELD for d in decls for f in d.fields):
             continue
 
+        selection = selection_values(decls)
         form_buttons = []
         for mod in modules_dict.values():
             for view in mod.views:
                 if view.model == model_name:
                     form_buttons.extend(view.buttons)
 
-        common_states = ["draft", "sent", "sale", "done", "cancel", "confirm", "validate"]
-        for st in common_states:
-            state_node_id = f"state:{model_name}.{st}"
+        transitions = []
+        for btn in form_buttons:
+            if not btn.name:
+                continue
+            origins = origin_states(btn.states, btn.invisible, selection)
+            targets = [
+                state for state in written_states(decls, btn.name)
+                if selection is None or state in selection
+            ]
+            if origins and targets:
+                transitions.append((btn, origins, targets))
+
+        states = list(selection) if selection else []
+        for _, origins, targets in transitions:
+            for state in origins + targets:
+                if state not in states:
+                    states.append(state)
+
+        for st in states:
             G.add_node(
-                state_node_id,
+                f"state:{model_name}.{st}",
                 node_type="WorkflowState",
                 model=model_name,
                 state_value=st,
@@ -389,25 +406,38 @@ def add_workflow_nodes_and_edges(
                 technical_tags=[],
             )
 
-        for btn in form_buttons:
-            if not btn.states or not btn.name:
-                continue
-
-            origin_states = [s.strip() for s in btn.states.split(",") if s.strip()]
-            target_st = "sale" if "confirm" in btn.name else ("cancel" if "cancel" in btn.name else "done")
-
-            for orig in origin_states:
-                orig_node_id = f"state:{model_name}.{orig}"
-                target_node_id = f"state:{model_name}.{target_st}"
-
-                G.add_edge(
-                    orig_node_id,
-                    target_node_id,
-                    edge_type="TRANSITIONS_VIA",
-                    method_name=btn.name,
-                    label_bouton=btn.string,
-                    groupe_requis=btn.groups,
-                )
+        for btn, origins, targets in transitions:
+            for orig in origins:
+                for target in targets:
+                    orig_node_id = f"state:{model_name}.{orig}"
+                    target_node_id = f"state:{model_name}.{target}"
+                    if orig == target:
+                        continue
+                    transition = {
+                        "method_name": btn.name,
+                        "label_bouton": btn.string,
+                        "groupe_requis": list(btn.groups or []),
+                        "alternative": len(targets) > 1,
+                    }
+                    if G.has_edge(orig_node_id, target_node_id):
+                        edge_data = G.edges[orig_node_id, target_node_id]
+                        if edge_data.get("edge_type") != "TRANSITIONS_VIA":
+                            continue
+                        records = workflow_transition_records(edge_data)
+                        if transition not in records:
+                            records.append(transition)
+                        edge_data["button_transitions"] = records
+                        continue
+                    G.add_edge(
+                        orig_node_id,
+                        target_node_id,
+                        edge_type="TRANSITIONS_VIA",
+                        method_name=btn.name,
+                        label_bouton=btn.string,
+                        groupe_requis=list(btn.groups or []),
+                        alternative=len(targets) > 1,
+                        button_transitions=[transition],
+                    )
 
 
 def add_view_button_nodes_and_edges(

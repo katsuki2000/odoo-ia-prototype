@@ -14,10 +14,11 @@ import networkx as nx
 
 logger = logging.getLogger(__name__)
 
-from code_intelligence.rules.common import NOT_FOUND_MARKER, QueryStatus
+from code_intelligence.rules.common import NO_WORKFLOW_TRANSITION_MARKER, NOT_FOUND_MARKER, QueryStatus
 from code_intelligence.rules.ontology import tags_for_node_attrs
 from code_intelligence.utils import format_xml_id_citations
 from core.evidence.evidence import Evidence, EvidenceSourceType, make_evidence
+from code_intelligence.graph.workflow_extraction import workflow_transition_records
 
 
 @dataclass
@@ -59,7 +60,7 @@ def _build_workflow_evidence(
         evidence.append(make_evidence(
             source_type=EvidenceSourceType.CODE,
             claim=claim,
-            source=f"transition:{model_name}:{method}:{origin}:{target}",
+            source=f"transition:{model_name}:{method}:{origin}:{target}:{button}",
             value=target,
             confidence="HIGH",
         ))
@@ -67,10 +68,13 @@ def _build_workflow_evidence(
     if not transitions:
         evidence.append(make_evidence(
             source_type=EvidenceSourceType.CODE,
-            claim=f"Model '{model_name}' has no explicit workflow state transitions defined",
+            claim=(
+                f"No workflow state transition could be derived from the indexed code for model '{model_name}'. "
+                "This does not prove that the model has no workflow; unsupported patterns may be absent from the graph."
+            ),
             source=f"workflow:{model_name}",
-            value=None,
-            confidence="HIGH",
+            value="no_transition_derived",
+            confidence="LOW",
         ))
 
     return evidence
@@ -101,16 +105,25 @@ def describe_workflow(
 
     for u, v, edge_data in G.edges(data=True):
         if edge_data.get("edge_type") == "TRANSITIONS_VIA":
-            orig_st = u.replace(f"state:{model_name}.", "").replace("state:", "")
-            targ_st = v.replace(f"state:{model_name}.", "").replace("state:", "")
-
-            if u.startswith(f"state:{model_name}") or v.startswith(f"state:{model_name}"):
+            origin = G.nodes.get(u, {})
+            target = G.nodes.get(v, {})
+            if (
+                origin.get("node_type") != "WorkflowState"
+                or target.get("node_type") != "WorkflowState"
+                or origin.get("model") != model_name
+                or target.get("model") != model_name
+            ):
+                continue
+            orig_st = origin.get("state_value", "")
+            targ_st = target.get("state_value", "")
+            for record in workflow_transition_records(edge_data):
                 transitions.append({
                     "origin_state": orig_st,
                     "target_state": targ_st,
-                    "method_name": edge_data.get("method_name", ""),
-                    "button_label": edge_data.get("label_bouton", ""),
-                    "required_groups": edge_data.get("groupe_requis", []),
+                    "method_name": record.get("method_name", ""),
+                    "button_label": record.get("label_bouton", ""),
+                    "required_groups": record.get("groupe_requis", []),
+                    "alternative": bool(record.get("alternative", False)),
                 })
 
     model_tags = tags_for_node_attrs(G.nodes[model_node])
@@ -121,7 +134,10 @@ def describe_workflow(
             status=QueryStatus.EMPTY,
             states=sorted(list(states)),
             model_tags=model_tags,
-            summary_text=f"Model '{model_name}' exists in the index but has no explicit workflow state transitions defined.",
+            summary_text=(
+                f"{NO_WORKFLOW_TRANSITION_MARKER} for '{model_name}'. "
+                "The graph may omit workflows expressed with unsupported patterns or fields."
+            ),
             evidence=_build_workflow_evidence(model_name, transitions),
         )
 
@@ -133,6 +149,7 @@ def describe_workflow(
         steps_text.append(
             f"Step {idx}: [{tr['origin_state']}] -> [{tr['target_state']}] "
             f"via Button '{tr['button_label']}' (Method: `{tr['method_name']}()`, Role: [{grp_str}]){_tr_suffix}"
+            + (" -- one of several possible outcomes of this button" if tr["alternative"] else "")
         )
 
     summary = f"Workflow Process for '{model_name}' ({len(transitions)} transitions):\n" + "\n".join(steps_text)

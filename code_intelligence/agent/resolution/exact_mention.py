@@ -9,6 +9,7 @@ from ..matching import (
     has_non_generic_field_mention,
     rank_by_specificity,
 )
+from .alias_targets import alias_targets_in_graph
 
 
 def resolve_exact_mention(clean_query: str, query_text: str, G, aliases, alias_patterns) -> Optional[ResolvedConcept]:
@@ -112,7 +113,7 @@ def resolve_exact_mention(clean_query: str, query_text: str, G, aliases, alias_p
                     )
                 ]
             for alias in merge_matched_aliases:
-                for t in aliases[alias]:
+                for t in alias_targets_in_graph(G, aliases[alias]):
                     if t not in exact_mentions:
                         exact_mentions.append(t)
 

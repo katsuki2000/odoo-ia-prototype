@@ -186,13 +186,18 @@ class TestH1BusinessResolverExposedBeforeRoute:
         unforced, classified this exact wording as CODE_INTELLIGENCE
         instead (section 404/411) -- a separate, already-tracked concern,
         not a regression of the DOC-08 guard this test protects."""
+        import networkx as nx
+
+        graph = nx.DiGraph()
+        graph.add_node("model:custom.asset.loan", node_type="Model", name="custom.asset.loan")
         state = {
             "question": "Quel est le délai de traitement pour une demande de mise à disposition ?",
             "retrieved_chunks": [],
             "chat_history": [],
             "timing": {},
         }
-        result = route(state)
+        with patch("code_intelligence.graph.loader.get_code_intelligence_graph", return_value=graph):
+            result = route(state)
         concept = result["resolved_concept"]
         assert concept["is_resolved"] is True
         assert concept["source_step"] == "static_alias"

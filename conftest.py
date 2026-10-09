@@ -25,6 +25,13 @@ def _force_offline_embedding_backend(monkeypatch):
     monkeypatch.setenv("RESOLVER_SEMANTIC_RETRIEVAL_ENABLED", "false")
 
 
+@pytest.fixture(autouse=True)
+def _isolate_semantic_index_cache(monkeypatch, tmp_path):
+    from config import settings
+
+    monkeypatch.setattr(settings, "SEMANTIC_INDEX_CACHE_DIR", str(tmp_path / "semantic_index"))
+
+
 @pytest.fixture(scope="module")
 def offline_odoo_runtime():
     """Module-scoped fixtures run before function-scoped autouse ones, so a graph built

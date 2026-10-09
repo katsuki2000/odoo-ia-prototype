@@ -10,6 +10,7 @@ _CI_TOOL_DISPLAY_NAMES = {
     "analyze_server_actions": "Actions serveur / automatisations",
     "analyze_method_override_chain": "Chaîne de surcharge de méthode",
     "who_has_access_to": "Matrice d'accès (ACL)",
+    "requester_acl_summary": "Verdict ACL du demandeur",
     "evaluate_record_rules": "Règles d'enregistrement (ir.rule)",
     "can_view_amount_v2": "Vérification déterministe du montant",
     "analyze_data_constraints": "Contraintes de données (Semgrep)",
@@ -38,10 +39,9 @@ class DispatchContext:
     tool_map: Dict[str, Any]
     # None = demandeur identity unavailable this turn (state["user_groups"] key
     # absent -- distinct from an explicit [], meaning identity known, no
-    # groups). See todo/contexte.txt section 888/889. Every consumer treats
-    # None the same as [] (fail closed) via `or []` -- the distinction exists
-    # for correct logging/diagnostics, not for a different authorization
-    # outcome.
+    # groups). See todo/contexte.txt section 888/889. UI availability checks
+    # preserve None as unknown; authorization/security consumers may fail
+    # closed where required and must not present that as a known denial.
     resolved_user_group_xmlids: Optional[List[str]]
     trace_logger: Any
     trace_id: str
@@ -77,6 +77,7 @@ class DispatchContext:
     # routing (previously silent, now explicitly loggable via
     # trace_logger.log_routing()).
     matched_dispatchers: List[str] = field(default_factory=list)
+    intent: Optional[str] = None
 
     # Section 888/889: benchmark-only, harness-declared hypothetical security
     # personas -- principal_id -> resolved group xml_ids -- immutable context

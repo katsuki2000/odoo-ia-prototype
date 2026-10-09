@@ -37,8 +37,8 @@ from code_intelligence.agent.tools import ALL_CI_TOOLS
 from code_intelligence.agent.predispatch_structure import (
     dispatch_describe_workflow,
     dispatch_button_execution_path,
-    _WORKFLOW_EMPTY_MARKER,
 )
+from code_intelligence.rules.common import NO_WORKFLOW_TRANSITION_MARKER
 
 
 class _FakeTraceLogger:
@@ -88,7 +88,7 @@ def test_mnt_q2_empty_workflow_relays_to_write(G, tool_map):
     dispatch_describe_workflow(ctx)
 
     assert ctx.tool_observation_tools == ["describe_workflow", "read_source_code"]
-    assert _WORKFLOW_EMPTY_MARKER in ctx.tool_observations[0]
+    assert NO_WORKFLOW_TRANSITION_MARKER in ctx.tool_observations[0]
     write_obs = ctx.tool_observations[1]
     assert "def write" in write_obs
     assert ctx.tool_observation_models[1] == "maintenance.request"
@@ -112,15 +112,17 @@ def test_non_empty_workflow_model_no_relay(G, tool_map):
     assert "STAGE-BASED MODEL(S)" not in ctx.system_prompt_suffix
 
 
-def test_empty_marker_constant_matches_workflow_rules_module():
-    """The marker string this dispatcher keys off of must stay byte-for-byte
-    in sync with the one describe_workflow() actually emits
-    (code_intelligence/rules/workflow.py) -- a silent drift here would
-    silently disable the whole relay."""
+def test_describe_workflow_empty_summary_carries_shared_marker():
+    """The summary emitted for a model without derived transitions must carry the
+    marker the dispatcher keys off of -- a drift would silently disable the relay."""
+    import networkx as nx
     from code_intelligence.rules.workflow import describe_workflow as _describe_workflow_impl
-    import inspect
-    src = inspect.getsource(_describe_workflow_impl)
-    assert _WORKFLOW_EMPTY_MARKER in src
+
+    graph = nx.DiGraph()
+    graph.add_node("model:demo.model", node_type="Model")
+    result = _describe_workflow_impl(graph, "demo.model")
+
+    assert NO_WORKFLOW_TRANSITION_MARKER in result.summary_text
 
 
 # ── (B) dispatch_button_execution_path -- button-to-button auto-follow ──

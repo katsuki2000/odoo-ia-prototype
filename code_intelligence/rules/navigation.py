@@ -166,7 +166,7 @@ form view buttons) -- no OWL/JS analysis"aucun chemin UI" triage criterion.
 """
 
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import Any, List, Optional
 import networkx as nx
 
 from code_intelligence.rules.common import NOT_FOUND_MARKER, QueryStatus
@@ -182,6 +182,10 @@ class NavigationPathResult:
     menu_breadcrumb: List[str] = field(default_factory=list)
     menu_xml_id: str = ""
     menu_groups: List[str] = field(default_factory=list)
+    # Section 1199: (menu xml_id, groups) for every menu of the CHILD_OF chain
+    # that carries groups. Odoo needs one group of EACH entry (OR inside a
+    # menu, AND between menus).
+    menu_group_requirements: List[Any] = field(default_factory=list)
     button_result: Optional[ButtonExecutionPathResult] = None
     available_to_requester: Optional[bool] = None
     unavailable_reason: str = ""
@@ -207,12 +211,37 @@ def _menu_breadcrumb(G: nx.DiGraph, menu_node_id: str) -> List[str]:
     return list(reversed(chain))
 
 
-def _menus_opening_model(G: nx.DiGraph, model_name: str):
+def _menu_chain_group_requirements(G: nx.DiGraph, menu_node_id: str):
+    """Section 1199: walk CHILD_OF edges leaf -> root and return
+    ([(menu xml_id, sorted groups)] for menus carrying groups, chain length)."""
+    requirements = []
+    seen = set()
+    current = menu_node_id
+    while current and current not in seen and current in G:
+        seen.add(current)
+        data = G.nodes[current]
+        groups = sorted(data.get("groups", []) or [])
+        if groups:
+            requirements.append((data.get("xml_id") or current.replace("menu:", ""), groups))
+        parent = None
+        for _, v, edge_data in G.out_edges(current, data=True):
+            if edge_data.get("edge_type") == "CHILD_OF":
+                parent = v
+                break
+        current = parent
+    return requirements, len(seen)
+
+
+def _menus_opening_model(G: nx.DiGraph, model_name: str, origin_states: Optional[List[str]] = None):
     """
     Every Menu node with an OPENS_MODEL edge to model_name, most-useful-first:
-    menus with no group restriction (broadest real navigation path) sort
-    before restricted ones, ties broken by declared menu sequence.
+    menus whose action domain admits at least one origin state of the button
+    come first (all of them when none does or the states are unknown), then
+    menus with no group restriction (broadest real navigation path), ties
+    broken by declared menu sequence.
     """
+    from code_intelligence.graph.workflow_extraction import domain_admits_any_state
+
     model_node_id = f"model:{model_name}"
     candidates = []
     if model_node_id not in G:
@@ -220,6 +249,11 @@ def _menus_opening_model(G: nx.DiGraph, model_name: str):
     for u, _, edge_data in G.in_edges(model_node_id, data=True):
         if edge_data.get("edge_type") == "OPENS_MODEL" and u.startswith("menu:"):
             candidates.append((u, G.nodes[u]))
+    compatible = [
+        c for c in candidates
+        if domain_admits_any_state(c[1].get("action_domain", ""), origin_states or [])
+    ]
+    candidates = compatible or candidates
     candidates.sort(key=lambda c: (bool(c[1].get("groups")), c[1].get("sequence", 999)))
     return candidates
 
@@ -263,7 +297,11 @@ def describe_navigation_path(
             summary_text=f"Model '{model_name}' {NOT_FOUND_MARKER}.",
         )
 
-    menu_candidates = _menus_opening_model(G, model_name)
+    button_result: Optional[ButtonExecutionPathResult] = None
+    if button_label_or_name:
+        button_result = button_execution_path(G, button_label_or_name, model_name, user_groups=user_groups)
+
+    menu_candidates = _menus_opening_model(G, model_name, button_result.origin_states if button_result else None)
     if not menu_candidates:
         summary = (
             f"Aucun chemin d'interface trouvé pour '{model_name}' : le modele existe dans le graphe "
@@ -289,20 +327,37 @@ def describe_navigation_path(
     menu_node_id, menu_data = menu_candidates[0]
     breadcrumb = _menu_breadcrumb(G, menu_node_id)
     menu_xml_id = menu_data.get("xml_id", "")
-    menu_groups = sorted(menu_data.get("groups", []))
+    menu_requirements, chain_length = _menu_chain_group_requirements(G, menu_node_id)
+    menu_groups = sorted({g for _, groups in menu_requirements for g in groups})
     menu_fp = menu_data.get("filepath", "")
     menu_link = format_file_link(menu_fp) if menu_fp else ""
 
     execution_steps = [f"1. UI Menu: navigate to " + " -> ".join(breadcrumb) + f" (id: {menu_xml_id})."]
     if menu_link:
         execution_steps.append(f"2. File Declaration: declared at {menu_link}.")
-    if menu_groups:
-        formatted_menu_groups = [
+    def _format_groups(groups):
+        return [
             f"{g} ('{get_group_display_name(G, g)}')" if get_group_display_name(G, g) else g
-            for g in sorted(menu_groups)
+            for g in sorted(groups)
         ]
+
+    if len(menu_requirements) == 1 and chain_length == 1:
         citations = format_xml_id_citations(menu_groups)
-        execution_steps.append(f"3. Menu Visibility: restricted to groups [{', '.join(formatted_menu_groups)}]. ({citations})")
+        execution_steps.append(
+            f"3. Menu Visibility: restricted to groups [{', '.join(_format_groups(menu_groups))}]. ({citations})"
+        )
+    elif menu_requirements:
+        per_menu = "; ".join(
+            f"menu {xml_id} requires one of [{', '.join(_format_groups(groups))}]"
+            for xml_id, groups in menu_requirements
+        )
+        citations = format_xml_id_citations(menu_groups)
+        execution_steps.append(
+            f"3. Menu Visibility: the user needs one group for EACH restricted menu of the path: "
+            f"{per_menu}. ({citations})"
+        )
+    elif chain_length > 1:
+        execution_steps.append("3. Menu Visibility: no group restriction on the menu or its parent menus.")
     else:
         execution_steps.append("3. Menu Visibility: no group restriction on the menu itself.")
 
@@ -313,18 +368,16 @@ def describe_navigation_path(
         value=menu_xml_id,
         confidence="HIGH",
     )]
-    if menu_groups:
+    for restricted_xml_id, restricted_groups in menu_requirements:
         evidence.append(make_evidence(
             source_type=EvidenceSourceType.CODE,
-            claim=f"Menu '{menu_xml_id}' is restricted to groups: {', '.join(menu_groups)}",
-            source=menu_node_id,
-            value=menu_groups,
+            claim=f"Menu '{restricted_xml_id}' is restricted to groups: {', '.join(restricted_groups)}",
+            source=f"menu:{restricted_xml_id}",
+            value=restricted_groups,
             confidence="HIGH",
         ))
 
-    button_result: Optional[ButtonExecutionPathResult] = None
-    if button_label_or_name:
-        button_result = button_execution_path(G, button_label_or_name, model_name, user_groups=user_groups)
+    if button_result:
         execution_steps.extend(f"4.{i + 1}. {s}" for i, s in enumerate(button_result.execution_steps))
         evidence.extend(button_result.evidence)
 
@@ -332,17 +385,26 @@ def describe_navigation_path(
     if button_result:
         combined_required_groups.update(button_result.required_groups)
 
+    # Section 1199: one group of EACH restricted menu of the chain, AND one
+    # group of the button when it has any (previously a single OR over the union).
+    requirement_sets = [list(groups) for _, groups in menu_requirements]
+    if button_result and button_result.required_groups:
+        requirement_sets.append(sorted(button_result.required_groups))
+
     available_to_requester: Optional[bool] = None
     unavailable_reason = ""
     if user_groups is not None:
-        available_to_requester = _requester_satisfies_required_groups(
-            G, sorted(combined_required_groups), user_groups
-        )
+        unsatisfied_sets = [
+            group_set for group_set in requirement_sets
+            if not _requester_satisfies_required_groups(G, group_set, user_groups)
+        ]
+        available_to_requester = not unsatisfied_sets
         if not available_to_requester:
             unavailable_reason = (
                 f"Le chemin d'interface vers '{model_name}' n'est pas disponible pour ce demandeur : "
-                f"groupes requis [{', '.join(sorted(combined_required_groups))}], dont il ne fait "
-                f"partie d'aucun (menu absent et/ou bouton indisponible dans l'interface)."
+                f"il lui faut un groupe parmi chacun de ces ensembles "
+                f"{' ET '.join('[' + ', '.join(gs) + ']' for gs in unsatisfied_sets)}, dont il ne fait "
+                f"partie d'aucun pour au moins l'un d'eux (menu absent et/ou bouton indisponible dans l'interface)."
             )
         evidence.append(make_evidence(
             source_type=EvidenceSourceType.CODE,
@@ -357,12 +419,16 @@ def describe_navigation_path(
         ))
 
     summary_parts = [f"Pour '{model_name}': menu " + " -> ".join(breadcrumb) + f" (id: {menu_xml_id})."]
-    if menu_groups:
-        formatted_menu_groups = [
-            f"{g} ('{get_group_display_name(G, g)}')" if get_group_display_name(G, g) else g
-            for g in sorted(menu_groups)
-        ]
-        summary_parts.append(f"Menu restreint aux groupes [{', '.join(formatted_menu_groups)}].")
+    if len(menu_requirements) == 1 and chain_length == 1:
+        summary_parts.append(f"Menu restreint aux groupes [{', '.join(_format_groups(menu_groups))}].")
+    elif menu_requirements:
+        summary_parts.append(
+            "Menus restreints (un groupe de chacun est requis) : "
+            + " ; ".join(
+                f"{xml_id} [{', '.join(_format_groups(groups))}]"
+                for xml_id, groups in menu_requirements
+            ) + "."
+        )
     if button_result:
         summary_parts.append(button_result.summary_text)
     if unavailable_reason:
@@ -375,6 +441,7 @@ def describe_navigation_path(
         menu_breadcrumb=breadcrumb,
         menu_xml_id=menu_xml_id,
         menu_groups=menu_groups,
+        menu_group_requirements=menu_requirements,
         button_result=button_result,
         available_to_requester=available_to_requester,
         unavailable_reason=unavailable_reason,
