@@ -36,11 +36,10 @@ def search_dynamic_view_or_menus(
         end_line = hook_sites[0].get("end_lineno", hook_line + 48) if hook_sites else (hook_line + 48)
         hook_file_link = format_file_link(hook_fp, hook_line, end_line)
         dynamic_summary = (
-            f"Button '{button_label_or_name}' on '{model_name}': No static XML button declaration found in views. "
-            f"Dynamic View Injection Detected: Method '{model_name}.{hook_name}' is overridden at {hook_file_link}. "
-            f"In Odoo, models overriding {hook_name}() dynamically inject buttons, labels, and widgets into the view arch "
-            f"at runtime (via xpath on /form/header/button, QWeb rendering, or _tier_validation_manual_config) "
-            f"without declaring them in static XML view files."
+            f"Button '{button_label_or_name}' on '{model_name}' was not found in static XML button declarations. "
+            f"An override of '{model_name}.{hook_name}' exists at {hook_file_link}, but the override's body "
+            "has not been verified to inject this button. Its existence alone is not evidence that the requested "
+            "button is added dynamically."
         )
         return ButtonExecutionPathResult(
             button_identifier=button_label_or_name,
@@ -50,9 +49,9 @@ def search_dynamic_view_or_menus(
             target_state="",
             required_groups=[],
             execution_steps=[
-                f"1. Dynamic View Injection: Method '{model_name}.{hook_name}()' dynamically processes form view XML.",
-                f"2. Source Hook: Defined at {hook_file_link}.",
-                f"3. Runtime XPath: Injects dynamic buttons into form header at runtime without static XML view declaration.",
+                f"1. Static XML Search: No matching button declaration was found.",
+                f"2. View Hook: Override '{model_name}.{hook_name}()' exists at {hook_file_link}.",
+                "3. Unresolved: The hook body has not been verified to inject the requested button.",
             ],
             summary_text=dynamic_summary,
             evidence=[],
