@@ -4302,3 +4302,12 @@ Les 19 fichiers de document_rag/tests/ ont été déplacés atomiquement vers te
 La carte todo/migration_map.md a été mise à jour pour indiquer que cette tranche de centralisation a commencé. Aucun code applicatif ni addon Odoo n'a été déplacé. La CI élargie doit confirmer la collecte et l'exécution des tests avant de continuer.
 
 Commit du déplacement : 76c41d4be1ea9b823df63fd2e8578f8c620a70ff.
+
+
+## Section 1220 : éviter les exécutions CI concurrentes pendant la migration
+
+Date : 10/10/2026
+
+Après l'élargissement de la CI, chaque commit déclenchait une suite complète; plusieurs exécutions se sont donc chevauchées pendant les mises à jour successives. Le workflow définit maintenant un groupe de concurrence par workflow et branche, avec annulation des exécutions précédentes lorsqu'un nouveau commit arrive. Cela conserve la validation du dernier état sans gaspiller des runners sur des commits dépassés.
+
+Fichier modifié : .github/workflows/ci.yml. La nouvelle exécution sur la tête actuelle doit être vérifiée avant toute affirmation sur l'état des tests.
