@@ -259,6 +259,7 @@ def build_synthesis_prompt(
         f"before writing. Cover every checklist item from its matching observation; "
         f"never substitute a related finding (for example a field-type guard for a "
         f"deletion guard), and copy numeric bounds and comparison operators exactly. "
+        f"The declared SQL constraint names and predicates are authoritative evidence. When the requested answer concerns SQL constraints, list the declarations actually present in the observation; never substitute common Odoo rules inferred from domain knowledge. If the declaration is absent or the observation is truncated, say so rather than guessing. " 
         f"For conditional constraints, preserve every branch predicate and its "
         f"required or forbidden values exactly: never swap NULL and non-NULL branches, "
         f"never reverse a condition, treat <= and >= as inclusive, and keep normalized "
