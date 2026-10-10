@@ -229,9 +229,9 @@ def _installed_module_names(installed_modules) -> set[str]:
 
 def _normalize_addon_roots(paths) -> list[Path]:
     roots = (
-        Path(os.path.expandvars(os.path.expanduser(str(path)))).resolve()
+        Path(os.path.expandvars(os.path.expanduser(str(path).strip()))).resolve()
         for path in paths
-        if path
+        if path and str(path).strip()
     )
     return list(dict.fromkeys(roots))
 
