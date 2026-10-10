@@ -5,10 +5,12 @@ on:
     paths:
       - 'code_intelligence/**'
       - 'scripts/run_oca_coverage.py'
+      - '.github/workflows/ci.yml'
   pull_request:
     paths:
       - 'code_intelligence/**'
       - 'scripts/run_oca_coverage.py'
+      - '.github/workflows/ci.yml'
   workflow_dispatch:
 
 jobs:
