@@ -4235,3 +4235,17 @@ Date : 10/10/2026
 
 **Fichiers modifies** : code_intelligence/graph/loader.py, code_intelligence/tests/test_audit_regressions.py, todo/contexte.txt.
 
+
+## Section 1215 : validation CI du mode fail-closed sans configuration Odoo
+
+Date : 10/10/2026
+
+**Verification** : le workflow GitHub Actions a termine avec succes sur le commit 1e0efbe26bb100432d1095ce4176495d7c634570.
+- Suite de regression : 16 tests passes en 0,76 s.
+- Couverture d'extraction OCA : 545 modules decouverts, 545 extraits avec succes.
+- Les tests confirment maintenant les deux comportements sans configuration : racines vides si l'inventaire runtime est disponible, fallback explicite si l'inventaire runtime est indisponible.
+
+**Limite** : le run CI ne se connecte pas a l'instance Miro ; la verification de ODOO_CONF_PATH et la reconstruction du graphe actif restent a faire dans l'environnement du projet.
+
+**Fichiers concernes** : code_intelligence/graph/loader.py, code_intelligence/tests/test_audit_regressions.py, .github/workflows/ci.yml, todo/contexte.txt.
+
