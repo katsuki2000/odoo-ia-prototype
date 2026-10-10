@@ -456,7 +456,11 @@ def _override_user_groups_arg(
         tool_args["user_groups_json"] = real_groups_json
         return tool_args
 
-    real_groups_json = json.dumps(resolved_user_group_xmlids or [])
+    real_groups_json = json.dumps(
+        resolved_user_group_xmlids
+        if resolved_user_group_xmlids is None
+        else list(resolved_user_group_xmlids)
+    )
     llm_proposed = tool_args.get("user_groups_json")
     if llm_proposed and llm_proposed != real_groups_json:
         logger.warning(
