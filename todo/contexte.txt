@@ -398,6 +398,7 @@ Contexte : le rejeu Q3 était globalement correct sur les extensions hors périm
 **Validation** : 23 tests ciblés et compilation Python passent.
 
 ## Section 1013 : Q4 -- interprétation inversée des boutons et contamination UI
+
 Date : 29/09/2026
 Contexte : MNT-Q4, SAL-Q4 et STK-Q4 sont conformes. PUR-Q4 inversait la condition `invisible='state != "to approve"'` et concluait à tort que le bouton était caché au bon état. ACC-Q4 recevait en plus des faits déterministes provenant de gardes de sécurité sans rapport avec une question de visibilité de champ.
 
@@ -796,6 +797,7 @@ Contexte : relecture critique du plan par pmm. La section 1034 conserve l'histor
 - la phase 3 ajoute une relecture aveugle par des non-techniciens avec grille d'exactitude metier, intelligibilite, fidelite aux preuves et absence de conseil invente, publiee comme `human_business_acceptance_rate` ; `technical_identifier_leak_rate` ne s'applique qu'a la zone destinee a l'utilisateur ;
 - la phase 6 commence par un contrat de securite : `with_user()` du demandeur, aucun `sudo` ni SQL brut, societes et ACL explicites, lecture seule, plafond de lignes, budgets et journal d'audit ;
 - la phase 7 porte sur plusieurs snapshots independants, separes par instance entiere, et conclut honnetement sur `N` instances echantillonnees, pas sur « toute instance ».
+
 **Decision** : cette revision v2 est documentaire et non mandatee. `plan.md` reste stable ; aucun code, test, alias ou graphe n'est modifie.
 
 **Fichiers modifies** : `todo/plan_generalisation.md`, `todo/contexte.txt` (cette section).
@@ -1195,7 +1197,8 @@ mesures provisoires de 1041 (21/25 et rappel 3/4 au rang 1) : elles ne sont pas 
 
 **Corrections** : le departage deterministe ne tire plus d'indice d'un prefixe XMLID ; il
 ne retient que les mentions autonomes de segments de modele ou de modules declarants. Le
-test qui attendait une resolution fondee sur `project_inventory.group_*` a ete remplace parune mention autonome du module et un test verifie que `base.group_portal` et
+test qui attendait une resolution fondee sur `project_inventory.group_*` a ete remplace par
+une mention autonome du module et un test verifie que `base.group_portal` et
 `sales_team.group_sale_salesman` ne departagent pas deux modeles. L'association des modeles
 issus d'un alias a un module explicite filtre egalement les aretes `DEFINED_IN` sur
 `role=declares`, comme l'index fuzzy, l'expansion des modeles, l'oracle et le calcul du
@@ -1594,7 +1597,8 @@ n'avaient aucun test dedie.
 Date : 02/10/2026
 Contexte : pmm mandate « brancher la recuperation semantique en production, puis rejouer l'ablation » (suite 1052-1053 : 23/25 avec LLM, abstentions PUR-Q5 et SAL-Q4).
 
-**Etat relu avant code** : `resolver._arbitration_candidates()` appelle deja `configured_semantic_model_candidates()` des que `llm is not None`, dans la production (`core/routing/routing.py:123`, `agent/loop.py:590`). Le branchement est donc deja cable ; deux obstacles empechent qu'il serve en pratique :1. Garde d'environnement `RESOLVER_SEMANTIC_RETRIEVAL_ENABLED` a `false` par defaut (code, `.env.example`, README) : la recuperation n'est jamais active sans configuration manuelle.
+**Etat relu avant code** : `resolver._arbitration_candidates()` appelle deja `configured_semantic_model_candidates()` des que `llm is not None`, dans la production (`core/routing/routing.py:123`, `agent/loop.py:590`). Le branchement est donc deja cable ; deux obstacles empechent qu'il serve en pratique :
+1. Garde d'environnement `RESOLVER_SEMANTIC_RETRIEVAL_ENABLED` a `false` par defaut (code, `.env.example`, README) : la recuperation n'est jamais active sans configuration manuelle.
 2. Dans la branche « aucun candidat fuzzy au-dessus du seuil strict », `resolve_business_term` ne tente l'arbitrage que `if widened_results:`. Si le fuzzy elargi est vide (cas probable de SAL-Q4 : ni « vente » ni « client » dans la question), les candidats semantiques ne sont jamais consultes. A confirmer par mesure avant correction.
 
 **Perimetre** : (a) mesurer sur PUR-Q5 et SAL-Q4 la liste de candidats d'arbitrage avec un LLM doublure (aucun appel reseau LLM) ; (b) activer la recuperation par defaut, repli silencieux inchange (exception -> liste deterministe) ; (c) consulter les candidats semantiques meme si le fuzzy elargi est vide ; (d) tests hors-ligne, la suite restant isolee par `conftest.py` ; (e) rejeu d'ablation avec LLM Qwen delegue a pmm (tunnel ngrok).
@@ -1994,6 +1998,7 @@ Date : 02/10/2026
 **Conclusion prudente** : lever les coupures change les observations et les reponses sur les trois questions ; gain net sur PUR-Q5, gain partiel et nouvelle erreur sur PUR-Q2, mitige sur ACC-Q5. Non concluant sur « les plafonds expliquent les erreurs » : (1) n=1, pas de bruit baseline contre baseline ; (2) l'observation `analyze_method_override_chain` varie d'un run a l'autre sur la baseline (2184, 2109, 2073 sur trois runs), donc la source de bruit n'est pas seulement le LLM ; (3) plusieurs leviers changes ensemble (plafonds du dict, litteraux, total), impossible d'isoler lequel agit.
 
 **Points ouverts** : (a) `analyze_security_locks(account.move)` rend 0 caractere a 3500 et 6836 a 8000 ; hypothese non verifiee : le water-filling donne 0 a tous les blocs quand le minimum protege depasse le budget et `ess_cap <= 0` les saute tous (`security_evidence.py`) ; (b) `analyze_security_locks(purchase.order)` depasse encore 8000 ; (c) rejeu avec `--repeat 3` pour mesurer le bruit avant toute decision ; (d) aucun changement de `context.py` mandate.
+
 **Fichiers modifies** : `todo/contexte.txt` (cette section).
 
 ## Section 1077 : `todo/architecture_cible.md` consolide en une seule version (documentation seule, aucun fichier source touche)
@@ -2392,6 +2397,7 @@ Date : 05/10/2026
 Contexte : reprise ("lis contexte et suis plan_generalisation et rules"). Le risque ouvert en 1096 etait qu'une reponse documentaire produite par le repli RAG, apres un verdict CI `insufficient`, soit classee `abstention` par l'adaptateur.
 
 **Cause racine** : la decision « le repli RAG a repondu » existait deja dans `format_output` (`ci_fell_back_to_rag`, meme condition que `ci_evidence_decision`, section 744) mais restait une variable locale, absente de la reponse serialisee ; l'adaptateur ne disposait d'aucun signal fiable (ni `route`, ni `sources`).
+
 **Realise** :
 - `core/schemas.py` : champ `AssistantResponse.rag_fallback` (booleen, `False` par defaut) ; description de `ci_evidence_sufficiency` corrigee (valeurs en minuscules, chemin du module), ce qui retire l'ambiguite relevee en 1096.
 - `core/graph/graph_nodes.py` : `format_output` renseigne `response.rag_fallback` avec la condition existante (source unique, aucune duplication).
@@ -2792,6 +2798,7 @@ Date : 05/10/2026
 **Fichiers modifies** : `conftest.py`, `code_intelligence/tests/conftest.py`, `code_intelligence/tests/_live_odoo.py` (nouveau), `code_intelligence/tests/test_f08_j36_graph_dependency_loading.py`, `code_intelligence/tests/test_j25_26_e2e_purchase_bypass_gate.py`, `code_intelligence/tests/test_offline_odoo_runtime_fixture.py` (nouveau), `todo/contexte.txt`.
 
 ## Section 1127 : T : etape 2 (extracteurs, verificateurs, `verify_answer_claims`) : perimetre et quatre ecarts raisonnes avec le mandat de la 1121
+
 Date : 05/10/2026
 **Perimetre** : `core/verification/` : `context.py` (`VerificationContext` : textes de preuve, valeurs ORM numeriques, graphe, methodes de base), `extractors.py`, `checkers.py`, `base_methods.py`, `verifier.py` (`verify_answer_claims(answer, context, mode)` pure : rapport + retrait de phrase en `enforce`). Le noeud `verify_answer` et le branchement restent a l'etape 3 ; `to_case_result` a l'etape 4. Tests : `tests/test_t2_*.py`.
 
@@ -3190,7 +3197,8 @@ Date : 06/10/2026
 **Mandat (pmm)** : « suis Plan et continue ».
 
 **Contexte et diagnostic des etages (Pas 2 de P2)** :
-La sonde de disponibilite (`preflight.require_backends`) indique que le tunnel d'inference distant est temporairement hors ligne. L'audit statique et architectural des etages de la branche documentaire (`document_rag/`) revele les causes racines identifiees par le plan :1. **Etage Recuperation** (`document_rag/vectorstore/search.py`) : la recherche vectorielle / BM25 retourne des fragments isoles (`top_k=10`). Lorsqu'une liste ou un tableau depasse 512 tokens, il est scinde entre les fragments $i$ et $i+1$. Si seul le fragment $i$ a un score lexical eleve, le fragment $i+1$ est ecarte, provoquant une amputation mecanique de la liste.
+La sonde de disponibilite (`preflight.require_backends`) indique que le tunnel d'inference distant est temporairement hors ligne. L'audit statique et architectural des etages de la branche documentaire (`document_rag/`) revele les causes racines identifiees par le plan :
+1. **Etage Recuperation** (`document_rag/vectorstore/search.py`) : la recherche vectorielle / BM25 retourne des fragments isoles (`top_k=10`). Lorsqu'une liste ou un tableau depasse 512 tokens, il est scinde entre les fragments $i$ et $i+1$. Si seul le fragment $i$ a un score lexical eleve, le fragment $i+1$ est ecarte, provoquant une amputation mecanique de la liste.
 2. **Etage Contexte & Limites** (`document_rag/generate_node.py`) : `max_tokens=1024` est encode en dur a quatre reprises (lignes 83, 87, 103, 106), violant la regle du plan (« budget de contexte derive de la fenetre configuree ; aucune limite en dur »). Une liste longue ou detaillee depassant 1024 tokens est tronquee par le decodeur du LLM.
 3. **Etage Consignes de generation** (`document_rag/prompts.py`) : la regle 3 enjoint de « synthetiser » les sources convergentes, incitant directement le LLM a resumer, paraphraser et omettre des elements de listes ou de tableaux au lieu de les restituer fidelement.
 4. **Etage Verification** : aucun controle post-generation ne verifie si les elements presents dans les extraits documentaires cites ont ete integralement restitues dans la reponse.
@@ -3589,6 +3597,7 @@ Date : 07/10/2026
 **Fichiers modifies** : `code_intelligence/rules/access_evaluator.py`, `code_intelligence/agent/predispatch_access.py`, `code_intelligence/agent/context.py`, `code_intelligence/agent/loop.py`, `code_intelligence/tests/test_requester_acl_access.py`, `code_intelligence/tests/test_section951_sal_q2_q3_acc_q2_fixes.py`, `todo/contexte.txt` (cette section).
 
 ## Section 1174 : suivi du lot ACL (0/2) — groupes Odoo transmis par XML ID et synthese personnelle deterministe
+
 Date : 07/10/2026
 **Nouvelle mesure** : le lot `current_batch_02` a de nouveau obtenu 0/2. Les deux reponses sont restees des listes de groupes generiques ; le dossier de preuves brut ne contient aucune preuve `requester_acl:*`. Cela montre que le verdict personnalise ajoute en 1173 n'a pas atteint la synthese. L'etat exact (groupes non resolus ou groupes absents du graphe) n'etait pas serialise dans les reponses brutes.
 
@@ -3988,7 +3997,8 @@ Date : 09/10/2026
 **Observe (log uvicorn de pmm, 14:56-14:57, graphe reconstruit a 14:53 : 19987 noeuds, 20350 aretes, schema 7)** : `Node [route]: intent=navigation_howto source=llm` ; `matched=['dispatch_navigation_path', 'dispatch_navigation_requester_acl']` (attendu de la 1198) ; 2 hops deterministes (4 ms et 8,9 ms) ; `evidence sufficiency=sufficient (relevant=2/2)` ; 1 appel LLM (la reponse vient de l'appel de selection d'outil, sans synthese separee : `ci_synthesis_time` et `ci_llm_wait_time` a 0 sont coherents, `llm_wait` ne mesure que l'attente du limiteur de debit). Duree 55,9 s : classification d'intention ~18 s, reponse LLM ~31 s (518 tokens), resolveur 0,9 s.
 **Verifie hors ligne (vrai graphe, lecture seule)** : `describe_navigation_path(G, 'account.move')` renvoie `Invoicing -> Customers -> Invoices` avec la restriction `account.menu_finance` (un groupe parmi `account.group_account_invoice`, `account.group_account_readonly`) : point (2) de la 1199 confirme. Profil comptable fictif : verdict ACL `CREATE: GRANTED`. Profil commercial fictif : chemin `NON DISPONIBLE POUR LE DEMANDEUR`, verdict ACL « inconnu » (`sale.group_sale_salesman` non represente pour ce modele). Le graphe contient `group:account.group_account_manager -IMPLIES-> group:account.group_account_invoice`, donc le gestionnaire ouvre bien le menu.
 **Reponse affichee** : chemin et groupes (Billing `account.group_account_invoice`, Account Manager `account.group_account_manager`) conformes a la preuve ; sources affichees fideles. Preuve du verdict ACL : `CREATE: GRANTED (through account.group_account_invoice, account.group_account_manager)`, groupes que le demandeur possede (presents dans le JWT du premier log du jour).
-**Defauts verifies**1. **Pas de conclusion pour le demandeur** (objectif de la 1198 manque) : la reponse dit « vous pouvez creer une facture si vous appartenez a l'un des groupes suivants ... sinon contactez votre administrateur », alors que la preuve dit GRANTED pour ce compte. Cause racine : le verdict est calcule par le code (`requester_acl_summary`) mais sa formulation est deleguee a l'obeissance du LLM (qwen3:14b) a la consigne de `system_prompt_suffix` (`predispatch_access.py` l. 160, « State it for the action asked (GRANTED / DENIED) ») ; la consigne etait bien dans le prompt (`loop.py` l. 623), elle n'a pas ete suivie. La 1198 avait volontairement laisse `ctx.requester_acl_verdicts` vide pour ne pas ecraser la reponse et perdre le menu (`build_requester_acl_answer` remplace toute la reponse et ne connait pas le libelle du modele : il imprimerait « modele concerne »).
+**Defauts verifies**
+1. **Pas de conclusion pour le demandeur** (objectif de la 1198 manque) : la reponse dit « vous pouvez creer une facture si vous appartenez a l'un des groupes suivants ... sinon contactez votre administrateur », alors que la preuve dit GRANTED pour ce compte. Cause racine : le verdict est calcule par le code (`requester_acl_summary`) mais sa formulation est deleguee a l'obeissance du LLM (qwen3:14b) a la consigne de `system_prompt_suffix` (`predispatch_access.py` l. 160, « State it for the action asked (GRANTED / DENIED) ») ; la consigne etait bien dans le prompt (`loop.py` l. 623), elle n'a pas ete suivie. La 1198 avait volontairement laisse `ctx.requester_acl_verdicts` vide pour ne pas ecraser la reponse et perdre le menu (`build_requester_acl_answer` remplace toute la reponse et ne connait pas le libelle du modele : il imprimerait « modele concerne »).
 2. **Portee non rappelee** : la preuve precise que seules les ACL du modele sont evaluees (regles d'enregistrement et logique metier non evaluees) ; la reponse ecrit « ces groupes vous donnent le droit de creer des factures via l'interface », ce qui sur-affirme.
 3. **Defaut latent, non declenche ici** : `loop.py` l. 517-518 met `resolved_user_group_xmlids = None` et `requester_groups_known = False` quand les groupes ne sont pas tous resolus, mais `predispatch_structure.py` (`dispatch_navigation_path`) passe `user_groups=ctx.resolved_user_group_xmlids or []`. Mesure sur le vrai graphe : avec `None`, `available_to_requester=None` et aucun texte « NON DISPONIBLE » ; avec `[]`, `available_to_requester=False` et « NON DISPONIBLE POUR LE DEMANDEUR ». Des groupes inconnus sont donc traites comme « aucun groupe », ce qui contredit le verdict ACL qui dit « inconnu » (regle : inconnu n'est jamais devine).
 4. **Mineurs** : le « Plan d'investigation » affiche une seule etape (`describe_navigation_path`) alors que le verdict ACL a aussi tourne (le plan est genere dans `route()`, une etape) ; l'observation de navigation n'affiche pas l'implication gestionnaire -> facturation ; `available_to_requester=True` n'est jamais dit dans le texte de l'observation (seul le cas negatif l'est).
