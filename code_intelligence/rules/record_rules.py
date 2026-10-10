@@ -198,17 +198,28 @@ def evaluate_record_rules(
     - Group-specific rules are combined with OR across groups the user belongs to.
     - If user belongs to NO groups linked to a group rule, that group rule is IGNORED (does not restrict the user).
     """
-    if user_groups is None:
-        user_groups = []
-
     model_node = f"model:{model_name}"
     perm_attr = f"perm_{permission}" if permission in {"read", "write", "create", "unlink"} else "perm_read"
 
     if model_node not in G:
         return RuleEvaluationResult(
             model_name=model_name,
-            user_groups=user_groups,
+            user_groups=user_groups or [],
             summary_text=f"Model '{model_name}' {NOT_FOUND_MARKER}."
+        )
+
+    if user_groups is None:
+        message = (
+            f"Cannot evaluate record rules for '{model_name}': requester group "
+            "membership is unresolved. No conclusion about group restrictions "
+            "or effective access can be made."
+        )
+        return RuleEvaluationResult(
+            model_name=model_name,
+            user_groups=[],
+            effective_domain_summary=message,
+            summary_text=message,
+            evidence=[],
         )
 
     # Find all rules attached to model that apply to requested permission
