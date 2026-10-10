@@ -21,6 +21,8 @@ import pytest
 def _force_offline_embedding_backend(monkeypatch):
     monkeypatch.setenv("EMBEDDING_BACKEND", "local_light")
     monkeypatch.setenv("GRAPH_OFFLINE_MODE", "true")
+    from config import settings
+    monkeypatch.setattr(settings, "GRAPH_OFFLINE_MODE", True)
     # Semantic retrieval is on by default in production; tests stay offline and
     # opt in explicitly (see test_semantic_retrieval.py).
     monkeypatch.setenv("RESOLVER_SEMANTIC_RETRIEVAL_ENABLED", "false")
