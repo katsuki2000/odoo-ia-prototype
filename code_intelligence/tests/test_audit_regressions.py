@@ -10,6 +10,7 @@ from code_intelligence.agent.tools.introspection import (
 from code_intelligence.graph.loader import _discover_installed_source_modules
 from code_intelligence.rules.button_path import button_execution_path
 from code_intelligence.rules.data_constraints import _compose_data_constraints_summary
+from code_intelligence.rules.navigation import search_dynamic_view_or_menus
 from code_intelligence.rules.record_rules import evaluate_record_rules
 
 
@@ -117,3 +118,23 @@ def test_button_path_rejects_multiple_exact_workflow_methods():
     assert "action_confirm" in result.summary_text
     assert "button_confirm" in result.summary_text
     assert result.method_name == ""
+
+
+
+def test_view_hook_presence_does_not_prove_dynamic_button_injection():
+    graph = nx.DiGraph()
+    graph.add_node(
+        "method:sale.order.get_view",
+        node_type="Method",
+        name="get_view",
+        filepath="",
+        lineno=1,
+        override_sites=[],
+    )
+
+    result = search_dynamic_view_or_menus(graph, "sale.order", "Special Button")
+
+    assert result is not None
+    assert "has not been verified to inject this button" in result.summary_text
+    assert "Dynamic View Injection Detected" not in result.summary_text
+    assert result.evidence == []
