@@ -4249,3 +4249,17 @@ Date : 10/10/2026
 
 **Fichiers concernes** : code_intelligence/graph/loader.py, code_intelligence/tests/test_audit_regressions.py, .github/workflows/ci.yml, todo/contexte.txt.
 
+
+## Section 1216 : configuration Odoo invalide -- interdiction de deviner les racines d'addons en mode connecte
+
+Date : 10/10/2026
+
+**Cause** : le resolver distinguait les chemins configures des chemins de secours lorsque le fichier manquait, mais un fichier present et mal forme pouvait encore declencher le fallback. Avec un inventaire runtime disponible, cela pouvait faire analyser des sources sans preuve que le serveur utilise ces racines.
+
+**Correction** : `code_intelligence/graph/loader.py` separe maintenant la lecture fiable de la configuration de la politique de fallback. Une configuration valide avec `addons_path` respecte strictement son ordre ; une configuration valide sans cette option utilise les valeurs par defaut Odoo 17 ; une configuration absente ou invalide entraine des racines vides lorsque l'inventaire runtime est disponible, et conserve les racines de secours uniquement en mode offline explicite.
+
+**Tests** : deux tests couvrent les configurations mal formees avec inventaire runtime disponible et indisponible. La CI doit confirmer leur execution avant que le correctif soit considere valide.
+
+**Limite** : cela ne prouve toujours pas que `ODOO_CONF_PATH` est le fichier effectivement utilise par le processus Odoo ; ce point doit etre verifie dans l'environnement de l'instance.
+
+**Fichiers modifies** : `code_intelligence/graph/loader.py`, `code_intelligence/tests/test_audit_regressions.py`, `todo/contexte.txt`.
