@@ -2,6 +2,7 @@ from pathlib import Path
 
 import networkx as nx
 
+from code_intelligence.agent.dispatch_guards import _override_user_groups_arg
 from code_intelligence.agent.tools.introspection import (
     _explain_decision_path_impl,
     read_precise_source_code,
@@ -138,3 +139,17 @@ def test_view_hook_presence_does_not_prove_dynamic_button_injection():
     assert "has not been verified to inject this button" in result.summary_text
     assert "Dynamic View Injection Detected" not in result.summary_text
     assert result.evidence == []
+
+
+
+def test_dispatch_does_not_turn_incomplete_group_resolution_into_empty_groups():
+    args = {"model_name": "sale.order", "user_groups_json": "[]"}
+
+    result = _override_user_groups_arg(
+        "evaluate_record_rules",
+        args,
+        ["sale.group_sale_salesman"],
+        requester_groups_known=False,
+    )
+
+    assert result["user_groups_json"] == "null"
