@@ -4174,4 +4174,5 @@ Date : 10/10/2026
 
 **Verification et limites** : les tests n'ont pas ete executes depuis cette session : les outils GitHub disponibles permettent de modifier et lire le depot, mais pas d'executer le venv Odoo local. Aucun resultat de pytest, aucune reconstruction du graphe et aucune validation runtime ne sont revendiques. L'ordre de la configuration ne sera exact que si ODOO_CONF_PATH pointe vers le fichier reel utilise par le serveur ; les options passees en ligne de commande au processus Odoo ne sont pas detectables de facon fiable depuis le connecteur XML-RPC seul.
 
-**Fichiers modifies** : code_intelligence/graph/loader.py, code_intelligence/tests/test_audit_regressions.py, todo/contexte.txt.
+**Fichiers modifies** : code_intelligence/graph/loader.py, config/settings.py, code_intelligence/tests/test_audit_regressions.py, todo/contexte.txt.
+
