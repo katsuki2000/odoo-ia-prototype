@@ -388,11 +388,24 @@ def _get_code_intelligence_graph(
 
     core_addons_root = Path(CORE_ADDONS_PATH)
     custom_addons_root = Path(CUSTOM_ADDONS_PATH)
+    config_file_available = bool(
+        ODOO_CONF_PATH and Path(ODOO_CONF_PATH).expanduser().is_file()
+    )
+    runtime_inventory_checked = False
     addon_roots = _configured_addon_roots(
         ODOO_CONF_PATH,
         [CORE_FRAMEWORK_ADDONS_PATH, CORE_ADDONS_PATH, CUSTOM_ADDONS_PATH],
         [CORE_FRAMEWORK_ADDONS_PATH, CORE_ADDONS_PATH],
     )
+    if not config_file_available and installed_modules is None:
+        installed_modules = _read_runtime_module_inventory()
+        runtime_inventory_checked = True
+    if not config_file_available and installed_modules is not None:
+        logger.warning(
+            "Odoo configuration is unavailable while the runtime module inventory is "
+            "reachable; skipping addon-source resolution rather than guessing addon roots."
+        )
+        addon_roots = []
     expected_addon_roots = [str(root) for root in addon_roots]
 
     if _CACHED_CODE_INTEL_GRAPH is not None and not force_rebuild:
@@ -497,7 +510,7 @@ def _get_code_intelligence_graph(
     # 2. Load installed modules whose source is accessible. A runtime inventory
     # replaces the fixed core shortlist; unavailable runtime access retains the
     # narrow offline fallback below.
-    if installed_modules is None:
+    if installed_modules is None and not runtime_inventory_checked:
         installed_modules = _read_runtime_module_inventory()
     if active_languages is None:
         active_languages = _read_runtime_active_languages()
@@ -645,8 +658,8 @@ def _get_code_intelligence_graph(
         for name, mod in modules_dict.items()
         if mod and mod.manifest
     }
-    source_paths = addon_roots
-    if OCA_SAMPLE_ADDONS_PATH:
+    source_paths = list(addon_roots)
+    if oca_modules_loaded:
         source_paths.append(Path(OCA_SAMPLE_ADDONS_PATH))
     fingerprint = build_instance_fingerprint(
         installed_modules=installed_modules,
