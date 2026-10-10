@@ -235,3 +235,33 @@ def test_offline_inventory_without_odoo_config_uses_explicit_fallback(tmp_path):
     )
 
     assert roots == [path.resolve() for path in fallback_roots]
+
+
+def test_invalid_odoo_config_with_live_inventory_skips_addon_roots(tmp_path):
+    config_file = tmp_path / "odoo.conf"
+    config_file.write_text("[options\naddons_path = /guessed/path\n", encoding="utf-8")
+    fallback_roots = [tmp_path / "core", tmp_path / "custom"]
+
+    roots = _resolve_addon_roots_for_inventory(
+        config_file,
+        fallback_roots,
+        fallback_roots[:1],
+        installed_modules=[{"name": "sale", "state": "installed"}],
+    )
+
+    assert roots == []
+
+
+def test_invalid_odoo_config_without_live_inventory_uses_explicit_fallback(tmp_path):
+    config_file = tmp_path / "odoo.conf"
+    config_file.write_text("[options\naddons_path = /guessed/path\n", encoding="utf-8")
+    fallback_roots = [tmp_path / "core", tmp_path / "custom"]
+
+    roots = _resolve_addon_roots_for_inventory(
+        config_file,
+        fallback_roots,
+        fallback_roots[:1],
+        installed_modules=None,
+    )
+
+    assert roots == [path.resolve() for path in fallback_roots]
