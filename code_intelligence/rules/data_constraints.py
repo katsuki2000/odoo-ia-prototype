@@ -463,6 +463,46 @@ def backfill_missing_bounds_facts(
     return final_answer.rstrip() + "\n\nPrécision issue du code :\n- " + "\n- ".join(dict.fromkeys(missing))
 
 
+def enforce_sql_constraint_fidelity(
+    final_answer: str,
+    constraint_observation: str,
+    question: str = "",
+) -> str:
+    """Prefer the actual constraint evidence when synthesis omits its declarations."""
+    if not re.search(
+        r"\\b(?:sql|contrainte|constraint|check|unicité|unique)\\b",
+        question,
+        flags=re.IGNORECASE,
+    ):
+        return final_answer
+    if "odoo-sql-constraints-declaration" not in constraint_observation:
+        return final_answer
+
+    names = list(dict.fromkeys(re.findall(
+        r"""['"]([A-Za-z][A-Za-z0-9_]*)['"]\\s*,\\s*['"]\\s*(?:CHECK|UNIQUE|FOREIGN\\s+KEY|EXCLUDE)\\b""",
+        constraint_observation,
+        flags=re.IGNORECASE,
+    )))
+    if not names or all(name.lower() in final_answer.lower() for name in names):
+        return final_answer
+
+    logger.warning(
+        "SQL constraint synthesis omitted declarations %s; returning source evidence instead.",
+        [name for name in names if name.lower() not in final_answer.lower()],
+    )
+    if _TRUNCATION_MARKER in constraint_observation:
+        preface = (
+            "La synthèse ne reprend pas fidèlement les contraintes SQL extraites. "
+            "L'observation étant tronquée, cet extrait ne garantit pas l'exhaustivité :"
+        )
+    else:
+        preface = (
+            "La synthèse ne reprend pas fidèlement les contraintes SQL extraites. "
+            "Voici la preuve source, sans ajouter de règle non observée :"
+        )
+    return f"{preface}\\n\\n{constraint_observation.strip()}"
+
+
 _SQL_KEYWORDS = frozenset({"is", "null", "and", "or", "not", "true", "false"})
 
 
