@@ -387,7 +387,18 @@ def button_execution_path(
                     near_buttons.append((m_name, btn_label))
 
     if candidate_transitions:
-        chosen_method = candidate_transitions[0][0]
+        candidate_methods = sorted({item[0] for item in candidate_transitions if item[0]})
+        if len(candidate_methods) > 1:
+            return ButtonExecutionPathResult(
+                button_identifier=button_label_or_name,
+                model_name=model_name,
+                summary_text=(
+                    f"Button '{button_label_or_name}' on '{model_name}' is ambiguous: "
+                    f"multiple exact workflow matches exist for methods "
+                    f"{', '.join(candidate_methods)}. No transition was selected."
+                ),
+            )
+        chosen_method = candidate_methods[0] if candidate_methods else ""
         for m_name, u, v, edge_data in candidate_transitions:
             if m_name == chosen_method:
                 method_name = m_name
@@ -418,6 +429,19 @@ def button_execution_path(
                     elif _is_near_button_match(target_clean, m_name.lower(), btn_label.lower()):
                         near_buttons.append((m_name, btn_label))
             if candidate_buttons:
+                candidate_methods = sorted({
+                    item[0] for item in candidate_buttons if item[0]
+                })
+                if len(candidate_methods) > 1:
+                    return ButtonExecutionPathResult(
+                        button_identifier=button_label_or_name,
+                        model_name=model_name,
+                        summary_text=(
+                            f"Button '{button_label_or_name}' on '{model_name}' is ambiguous: "
+                            f"multiple exact XML button declarations map to methods "
+                            f"{', '.join(candidate_methods)}. No method was selected."
+                        ),
+                    )
                 method_name, edge_data = candidate_buttons[0]
                 groups_req = edge_data.get("groupe_requis", [])
                 if isinstance(groups_req, list):
