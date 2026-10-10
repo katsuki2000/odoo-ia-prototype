@@ -8,6 +8,7 @@ from code_intelligence.agent.tools.introspection import (
     resolve_technical_name_to_role,
 )
 from code_intelligence.graph.loader import _discover_installed_source_modules
+from code_intelligence.rules.button_path import button_execution_path
 from code_intelligence.rules.data_constraints import _compose_data_constraints_summary
 from code_intelligence.rules.record_rules import evaluate_record_rules
 
@@ -84,3 +85,35 @@ def test_source_reader_rejects_files_outside_addon_roots(tmp_path, monkeypatch):
 
     assert result.startswith("Error:")
     assert "outside configured addon roots" in result
+
+
+
+def test_button_path_rejects_multiple_exact_workflow_methods():
+    graph = nx.DiGraph()
+    graph.add_node("model:sale.order", node_type="Model")
+    for state in ("draft", "sent", "done", "cancel"):
+        graph.add_node(
+            f"state:sale.order.{state}",
+            node_type="State",
+            model="sale.order",
+            state_value=state,
+        )
+    graph.add_edge(
+        "state:sale.order.draft",
+        "state:sale.order.sent",
+        edge_type="TRANSITIONS_VIA",
+        button_transitions=[{"method_name": "action_confirm", "label_bouton": "Confirm"}],
+    )
+    graph.add_edge(
+        "state:sale.order.cancel",
+        "state:sale.order.done",
+        edge_type="TRANSITIONS_VIA",
+        button_transitions=[{"method_name": "button_confirm", "label_bouton": "Confirm"}],
+    )
+
+    result = button_execution_path(graph, "Confirm", "sale.order")
+
+    assert "is ambiguous" in result.summary_text
+    assert "action_confirm" in result.summary_text
+    assert "button_confirm" in result.summary_text
+    assert result.method_name == ""
