@@ -281,7 +281,12 @@ def _configured_addon_roots(config_path, fallback_roots, odoo_default_roots=None
     return _normalize_addon_roots(fallback_roots)
 
 
-def _resolve_addon_roots_for_inventory(config_path, fallback_roots, odoo_default_roots, installed_modules) -> list[Path]:
+def _resolve_addon_roots_for_inventory(
+    config_path,
+    fallback_roots,
+    odoo_default_roots,
+    installed_modules,
+) -> list[Path]:
     configured_roots = _read_configured_addon_roots(config_path, odoo_default_roots)
     if configured_roots is not None:
         return configured_roots
