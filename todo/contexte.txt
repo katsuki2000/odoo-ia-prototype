@@ -4099,3 +4099,20 @@ Date : 09/10/2026
 **Correction de ma lecture precedente** : « comportement voulu, pas un bug » etait trop rapide : le mode est respecte pour la route, pas pour le cout ni pour l'intention. De meme, `LLM arbitration requested but no llm client was provided` ne vient pas d'un oubli de cablage : `routing.py` passe `llm=None` explicitement a `resolve_business_term` et `tool_helpers.py:86` n'en passe pas ; l'arbitrage LLM est donc saute par construction dans le routage et au niveau des outils (a trancher : voulu ou non).
 **Piste, non faite** : en mode systeme, exclure l'intention documentaire (classifieur restreint ou deterministe) pour economiser l'appel LLM et ne pas transmettre une intention documentaire au plan de l'agent de code. Touche le travail de la section 1156 et le routage ; a decider par pmm.
 **Verification de l'index de la 1180** : la requete du 09:34 n'y contribue pas (resolveur 0,9 s, aucun embedding, `active_semantic_index/` absent) ; la validation reste a faire avec la question N+1 (ligne `Semantic index ready`, puis redemarrage et seconde mesure).
+
+
+## Section 1207 : cadrage métier avant livraison du 20 octobre et priorité au classifieur métier
+
+Date : 10/10/2026
+**Mandat** : pmm valide la simplification et autorise à poursuivre sur `fix/local-test-failures`, sans modifier `todo/rules.md` ni `todo/plan.md`.
+
+**Realise** :
+- `todo/perimetre_livraison_20_octobre.md` : cadrage séparé pour la livraison, avec quatre familles prioritaires (accès/approbations, procédures métier, explication des blocages, état et indicateurs), limites du MVP, rôles proposés des modèles et critères de validation.
+- `code_intelligence/agent/investigation_llm.py` : consigne du classifieur d'intention recentrée sur le besoin métier et les quatre familles prioritaires ; les catégories existantes restent fermées et les intentions techniques ne sont pas supprimées.
+- `code_intelligence/tests/test_business_intent_prompt.py` : tests hermétiques du cadrage métier, du vocabulaire de catégories fermé et de la construction des messages.
+
+**Décision de prudence sur les modèles** : aucun changement du modèle par défaut n'est effectué à ce stade. Le dépôt documente déjà un modèle local et l'environnement d'inférence réel n'est pas accessible depuis cette modification GitHub ; changer le tag sans vérifier qu'il est installé et sans rejouer le protocole gelé pourrait rendre MIRO inutilisable ou donner une comparaison non mesurée. Qwen doit être évalué sur le protocole existant avant de remplacer le défaut ; BGE-M3 reste un modèle d'embeddings, distinct du modèle génératif.
+
+**Non vérifié** : les tests n'ont pas été exécutés dans le venv de la machine du projet ; pas de test d'inférence réel ni de rejeu du protocole gelé. Le changement de prompt est une amélioration du cadrage, pas une preuve d'exactitude ni un filtre complet des demandes hors périmètre.
+
+**Fichiers modifies** : `todo/perimetre_livraison_20_octobre.md`, `code_intelligence/agent/investigation_llm.py`, `code_intelligence/tests/test_business_intent_prompt.py`, `todo/contexte.txt`.
