@@ -560,7 +560,7 @@ def _get_code_intelligence_graph(
         "kpi": "reporting-engine",
     }
     oca_modules_loaded = []
-    if OCA_SAMPLE_ADDONS_PATH:
+    if OCA_SAMPLE_ADDONS_PATH and installed_modules is None:
         oca_sample_root = Path(OCA_SAMPLE_ADDONS_PATH)
         if oca_sample_root.exists():
             for mod_name, repo_name in OCA_SAMPLE_MODULE_REPOS.items():
