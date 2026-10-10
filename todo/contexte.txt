@@ -4335,3 +4335,20 @@ Date : 10/10/2026
 **Commit** : 21a8c85c5f8e8c384904282a807f34c7a922efb9.
 
 **Validation** : le prochain run CI doit vérifier si la disponibilité des sources officielles/OCA et l'exclusion explicite des tests d'intégration éliminent les échecs environnementaux. Les autres échecs seront triés à partir du nouveau rapport; aucun correctif applicatif n'est encore revendiqué pour eux.
+
+
+## 1222 — Tri des échecs après provisioning CI et corrections des tests
+
+**Run observé** : GitHub Actions run 38072619972, commit 7a3a9085fe8a6206bb51b9c7d11ec3fa445ad21b. La suite offline termine avec **2457 passed, 18 skipped, 58 deselected, 15 failed** en 191,46 s. Le provisioning Odoo/OCA fonctionne; aucun résultat vert n'est revendiqué.
+
+**Causes traitées dans ce commit** :
+- Le test de contrainte sur un chemin inexistant attendait à tort une conclusion négative; le contrat fail-closed doit indiquer que l'analyse est incomplète et que la source est indisponible.
+- Les tests de lecture source utilisant des fichiers temporaires doivent déclarer explicitement leur racine temporaire comme addon autorisé; le contrôle de sécurité du lecteur n'est pas désactivé.
+- Le test de fallback du lecteur utilise désormais un vrai fichier Odoo sous CORE_ADDONS_PATH, tout en exerçant la résolution d'un chemin relatif à la racine.
+- La citation du test d'Odoo est construite à partir du chemin canonique résolu, identique à celui émis par le lecteur.
+- Le test de découverte de modules distingue un inventaire runtime disponible mais vide (aucun candidat installé) d'une erreur de connexion (fallback statique), conformément au comportement documenté dans le loader.
+- Le test de priorité des addons attend le premier chemin configuré (core avant custom dans son cas de test).
+- Le test de dispatch vérifie la contrainte réelle — au plus une cible et aucune cible hors du modèle résolu — au lieu d'attendre un résultat vide indépendamment des sources présentes.
+- Le test de règles d'enregistrement fournit explicitement user_groups=[]; l'omission signifie volontairement que l'appartenance du demandeur est inconnue.
+
+Ces modifications corrigent des attentes et fixtures de tests, sans marquer d'échecs comme ignorés ni assouplir les contrôles d'accès aux sources. Le prochain CI doit confirmer le résultat; les échecs éventuels restants seront analysés séparément.

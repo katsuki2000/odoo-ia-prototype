@@ -12,12 +12,10 @@ it is stripped entirely (no citation, multi-file citations, a read error,
 or -- section 873 -- cited ranges that do not overlap the def/class the
 block names) -- never left displayed as fabricated text, warned or not.
 
-Uses a real tempfile (not the odoo-17.0 checkout) so these tests run on
-any machine regardless of .env/CORE_ADDONS_PATH (see rules.md: no
-machine-specific hardcoded paths in tests).
+Uses pytest's temporary directory as an explicitly configured custom-addon
+root, so the reader's production path-allowlist remains enabled in tests.
 """
 
-import tempfile
 from pathlib import Path
 
 import pytest
@@ -41,23 +39,23 @@ def _tail(self):
 
 
 @pytest.fixture
-def numbered_file():
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
-        f.write(_SOURCE)
-        path = Path(f.name)
-    yield path
-    path.unlink()
+def numbered_file(tmp_path, monkeypatch):
+    from config import settings
+    monkeypatch.setattr(settings, "CUSTOM_ADDONS_PATH", str(tmp_path))
+    path = tmp_path / "numbered.py"
+    path.write_text(_SOURCE, encoding="utf-8")
+    return path
 
 
 @pytest.fixture
-def padded_file():
+def padded_file(tmp_path, monkeypatch):
+    from config import settings
+    monkeypatch.setattr(settings, "CUSTOM_ADDONS_PATH", str(tmp_path))
     padding = "\n".join("# padding" for _ in range(300))
     source = f"def _helper(self):\n    return 1\n\n{padding}\n\ndef _check_name(self):\n    return 2\n"
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
-        f.write(source)
-        path = Path(f.name)
-    yield path
-    path.unlink()
+    path = tmp_path / "padded.py"
+    path.write_text(source, encoding="utf-8")
+    return path
 
 
 def _file_link(path: Path, start: int, end: int) -> str:

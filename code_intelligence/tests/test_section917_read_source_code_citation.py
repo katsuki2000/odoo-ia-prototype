@@ -27,7 +27,7 @@ from pathlib import Path
 from config.settings import CORE_ADDONS_PATH
 
 _PO_PATH = (Path(CORE_ADDONS_PATH) / "purchase" / "models" / "purchase_order.py") if CORE_ADDONS_PATH else None
-PURCHASE_ORDER_FP = str(_PO_PATH) if (_PO_PATH and _PO_PATH.exists()) else ""
+PURCHASE_ORDER_FP = str(_PO_PATH.resolve()) if (_PO_PATH and _PO_PATH.exists()) else ""
 
 
 @pytest.fixture(scope="module", autouse=True)

@@ -98,13 +98,15 @@ def test_format_noop_hook_note():
     assert "Ne PAS lui attribuer d'effet métier" in note
 
 
-def test_read_precise_source_code_annotates_noop_hook(tmp_path: Path):
+def test_read_precise_source_code_annotates_noop_hook(tmp_path: Path, monkeypatch):
     src = (
         "class SaleOrder:\n"
         "    def validate_taxes_on_sales_order(self):\n"
         "        # tax hook\n"
         "        return True\n"
     )
+    from config import settings
+    monkeypatch.setattr(settings, "CUSTOM_ADDONS_PATH", str(tmp_path))
     test_file = tmp_path / "sale_order.py"
     test_file.write_text(src, encoding="utf-8")
 

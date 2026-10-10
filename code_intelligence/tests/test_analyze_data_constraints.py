@@ -150,7 +150,8 @@ def test_skips_filepaths_that_do_not_exist_on_disk(monkeypatch, tmp_path):
     result = analyze_data_constraints.invoke({"model_name": "ghost.model"})
 
     assert called == []  # never invoked on a nonexistent file
-    assert "No _sql_constraints or relational domain=" in result
+    assert "analysis" in result.lower() and "incomplete" in result.lower()
+    assert "Source file is unavailable" in result
 
 
 def test_uses_shared_find_model_source_filepaths_helper(graph_with_model_file):

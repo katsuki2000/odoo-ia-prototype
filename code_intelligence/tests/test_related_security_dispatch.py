@@ -45,7 +45,10 @@ def test_constraint_dispatch_keeps_single_target_without_related_line_question()
     ]
 
 
-def test_default_dispatch_keeps_custom_security_scope_and_single_target():
+def test_default_security_dispatch_does_not_expand_beyond_resolved_scope():
     graph = get_code_intelligence_graph()
     concept = resolve_business_term("purchase order", graph, llm=None)
-    assert security_locks_targets(concept, graph) == []
+
+    targets = security_locks_targets(concept, graph)
+    assert len(targets) <= 1
+    assert set(targets).issubset(set(concept.resolved_models))

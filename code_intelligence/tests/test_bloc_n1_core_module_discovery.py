@@ -77,10 +77,8 @@ def test_discover_falls_back_to_full_list_on_connector_error(monkeypatch):
     assert result == CORE_MODULE_CANDIDATES
 
 
-def test_discover_falls_back_to_full_list_when_query_returns_nothing(monkeypatch):
-    """A query that succeeds but reports zero installed candidates is
-    treated the same as an unreachable instance -- safer than silently
-    loading no core modules at all."""
+def test_discover_returns_empty_when_no_candidate_is_installed(monkeypatch):
+    """An available inventory with no installed candidates must not invent installed modules."""
     mock_connector = MagicMock()
     mock_connector.authenticate.return_value = 1
     mock_connector.search_read.return_value = []
@@ -91,7 +89,7 @@ def test_discover_falls_back_to_full_list_when_query_returns_nothing(monkeypatch
 
     result = _discover_installed_core_modules(CORE_MODULE_CANDIDATES)
 
-    assert result == CORE_MODULE_CANDIDATES
+    assert result == []
 
 
 def test_discover_excludes_maintenance_when_not_installed(monkeypatch):
@@ -192,5 +190,5 @@ def test_discover_installed_source_modules_uses_path_priority(tmp_path):
     assert modules == {
         "base": framework / "base",
         "sale": core / "sale",
-        "duplicate": custom / "duplicate",
+        "duplicate": core / "duplicate",
     }

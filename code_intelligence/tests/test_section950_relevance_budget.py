@@ -115,7 +115,7 @@ def test_evaluate_record_rules_relevance_ranked_under_tight_budget(monkeypatch):
     orig_caps = dict(context.PER_TOOL_OBSERVATION_CAPS)
     monkeypatch.setattr(context, "PER_TOOL_OBSERVATION_CAPS", {**orig_caps, "evaluate_record_rules": 200})
 
-    res = evaluate_record_rules(G, "test.model")
+    res = evaluate_record_rules(G, "test.model", user_groups=[])
     assert "Règles Globales" in res.summary_text
 
 

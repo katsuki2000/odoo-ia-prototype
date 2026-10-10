@@ -151,12 +151,16 @@ def test_explain_transition_path_lists_all_buttons_sharing_an_edge():
 
 
 def test_b2_4_source_reader_fallback_resolves_from_real_repo_root():
-    """Regression: the fallback branch of read_precise_source_code() once computed
-    repo_root two levels too shallow (parent.parent.parent from this deeply nested
-    module), so the last-two-path-parts glob searched from the wrong directory and
-    silently failed on any absolute path missing its leading slash (a real shape
-    produced by the LLM tool-calling agent)."""
-    stripped_path = str(Path(__file__).resolve()).lstrip("/")
+    """The reader must recover a root-relative path while retaining addon-root checks."""
+    from config.settings import CORE_ADDONS_PATH
+
+    if not CORE_ADDONS_PATH:
+        pytest.skip("CORE_ADDONS_PATH is not configured")
+    source_path = Path(CORE_ADDONS_PATH) / "purchase" / "models" / "purchase_order.py"
+    if not source_path.is_file():
+        pytest.skip("Odoo purchase_order.py is unavailable in the configured core addons")
+
+    stripped_path = str(source_path.resolve()).lstrip("/")
     assert not Path(stripped_path).exists()
 
     result = read_precise_source_code(stripped_path, 1, 5)
