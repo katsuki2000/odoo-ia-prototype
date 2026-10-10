@@ -227,8 +227,21 @@ def _installed_module_names(installed_modules) -> set[str]:
     }
 
 
-def _configured_addon_roots(config_path, fallback_roots) -> list[Path]:
-    """Return addon roots in Odoo configuration order, with an explicit offline fallback."""
+def _normalize_addon_roots(paths) -> list[Path]:
+    roots = (
+        Path(os.path.expandvars(os.path.expanduser(str(path)))).resolve()
+        for path in paths
+        if path
+    )
+    return list(dict.fromkeys(roots))
+
+
+def _configured_addon_roots(
+    config_path,
+    fallback_roots,
+    odoo_default_roots=None,
+) -> list[Path]:
+    """Resolve addon roots using Odoo's configured order or an explicit fallback."""
     config_file = Path(config_path).expanduser() if config_path else None
     if config_file and config_file.is_file():
         parser = configparser.ConfigParser(interpolation=None)
@@ -244,31 +257,29 @@ def _configured_addon_roots(config_path, fallback_roots) -> list[Path]:
             )
         else:
             if configured_paths:
-                roots = []
-                for value in configured_paths.split(","):
-                    value = os.path.expandvars(os.path.expanduser(value.strip()))
-                    if value:
-                        roots.append(Path(value).resolve())
+                roots = _normalize_addon_roots(configured_paths.split(","))
                 if roots:
                     logger.info(
                         "Using %d addon roots in the order declared by Odoo config '%s'.",
                         len(roots),
                         config_file,
                     )
-                    return list(dict.fromkeys(roots))
-            logger.warning(
-                "Odoo configuration '%s' has no usable addons_path; using explicit addon-path fallback.",
+                    return roots
+            logger.info(
+                "Odoo configuration '%s' does not set addons_path; using Odoo's default addon roots.",
                 config_file,
+            )
+            return _normalize_addon_roots(
+                odoo_default_roots if odoo_default_roots is not None else fallback_roots
             )
     else:
         logger.warning(
             "ODOO_CONF_PATH is unset or unavailable (%s); addon-root precedence cannot be "
-            "confirmed against the live Odoo process. Using configured fallback roots.",
+            "confirmed against the live Odoo process. Using explicit fallback roots.",
             config_file,
         )
 
-    roots = [Path(root).expanduser().resolve() for root in fallback_roots if root]
-    return list(dict.fromkeys(roots))
+    return _normalize_addon_roots(fallback_roots)
 
 
 def _discover_installed_source_modules(addon_roots, installed_modules) -> dict[str, Path]:
@@ -335,13 +346,11 @@ def _discover_installed_core_modules(candidates: list, installed_modules=None) -
         return candidates
 
     if not installed:
-        logger.warning(
-            "ir.module.module query returned no installed modules among %s -- "
-            "falling back to the full candidate list (safer than silently "
-            "loading none).",
+        logger.info(
+            "No candidate core modules are installed on this instance; skipping: %s",
             candidates,
         )
-        return candidates
+        return []
 
     missing = [c for c in candidates if c not in installed]
     if missing:
@@ -458,7 +467,8 @@ def _get_code_intelligence_graph(
     core_framework_addons_root = Path(CORE_FRAMEWORK_ADDONS_PATH)
     addon_roots = _configured_addon_roots(
         ODOO_CONF_PATH,
-        [CORE_ADDONS_PATH, CORE_FRAMEWORK_ADDONS_PATH, CUSTOM_ADDONS_PATH],
+        [CORE_FRAMEWORK_ADDONS_PATH, CORE_ADDONS_PATH, CUSTOM_ADDONS_PATH],
+        [CORE_FRAMEWORK_ADDONS_PATH, CORE_ADDONS_PATH],
     )
 
     modules_dict = {}
