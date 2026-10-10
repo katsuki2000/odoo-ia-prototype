@@ -282,6 +282,27 @@ def _configured_addon_roots(
     return _normalize_addon_roots(fallback_roots)
 
 
+def _resolve_addon_roots_for_inventory(
+    config_path,
+    fallback_roots,
+    odoo_default_roots,
+    installed_modules,
+) -> list[Path]:
+    roots = _configured_addon_roots(
+        config_path,
+        fallback_roots,
+        odoo_default_roots,
+    )
+    config_file = Path(config_path).expanduser() if config_path else None
+    if (not config_file or not config_file.is_file()) and installed_modules is not None:
+        logger.warning(
+            "Odoo configuration is unavailable while the runtime module inventory is "
+            "reachable; skipping addon-source resolution rather than guessing addon roots."
+        )
+        return []
+    return roots
+
+
 def _discover_installed_source_modules(addon_roots, installed_modules) -> dict[str, Path]:
     """Map installed module names to source directories using Odoo addon-path order."""
     installed_names = _installed_module_names(installed_modules)
@@ -392,20 +413,15 @@ def _get_code_intelligence_graph(
         ODOO_CONF_PATH and Path(ODOO_CONF_PATH).expanduser().is_file()
     )
     runtime_inventory_checked = False
-    addon_roots = _configured_addon_roots(
-        ODOO_CONF_PATH,
-        [CORE_FRAMEWORK_ADDONS_PATH, CORE_ADDONS_PATH, CUSTOM_ADDONS_PATH],
-        [CORE_FRAMEWORK_ADDONS_PATH, CORE_ADDONS_PATH],
-    )
     if not config_file_available and installed_modules is None:
         installed_modules = _read_runtime_module_inventory()
         runtime_inventory_checked = True
-    if not config_file_available and installed_modules is not None:
-        logger.warning(
-            "Odoo configuration is unavailable while the runtime module inventory is "
-            "reachable; skipping addon-source resolution rather than guessing addon roots."
-        )
-        addon_roots = []
+    addon_roots = _resolve_addon_roots_for_inventory(
+        ODOO_CONF_PATH,
+        [CORE_FRAMEWORK_ADDONS_PATH, CORE_ADDONS_PATH, CUSTOM_ADDONS_PATH],
+        [CORE_FRAMEWORK_ADDONS_PATH, CORE_ADDONS_PATH],
+        installed_modules,
+    )
     expected_addon_roots = [str(root) for root in addon_roots]
 
     if _CACHED_CODE_INTEL_GRAPH is not None and not force_rebuild:
