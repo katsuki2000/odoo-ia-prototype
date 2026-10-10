@@ -4203,3 +4203,18 @@ Date : 10/10/2026
 
 **Fichiers modifies** : code_intelligence/graph/loader.py, code_intelligence/tests/test_audit_regressions.py, .github/workflows/ci.yml, todo/contexte.txt.
 
+
+## Section 1213 : validation CI des correctifs addons_path et des tests de regression
+
+Date : 10/10/2026
+
+**Verification effectuee** :
+- Le workflow GitHub Actions a termine avec succes sur le commit 241ec02b15ed2bba616ca5c89a6be82eb27c5b79.
+- pytest -q code_intelligence/tests/test_audit_regressions.py : 14 tests passes en 0,74 s.
+- La couverture d'extraction OCA a egalement reussi : 545 modules decouverts, 545 extraits avec succes.
+- Le premier lancement avait echoue sur un chemin contenant un espace initial apres une virgule dans addons_path ; la normalisation a ete corrigee et le second lancement est vert.
+
+**Limites restantes** : cette CI valide les tests de regression et l'extraction des sources OCA, mais ne constitue pas une reconstruction du graphe sur l'instance Odoo reelle de Miro. Il reste a verifier que ODOO_CONF_PATH cible bien le fichier effectivement utilise par ce serveur et que les chemins declares correspondent a ses sources chargees.
+
+**Fichiers concernes** : code_intelligence/graph/loader.py, code_intelligence/tests/test_audit_regressions.py, .github/workflows/ci.yml, todo/contexte.txt.
+
