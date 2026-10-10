@@ -462,6 +462,7 @@ def _get_code_intelligence_graph(
     )
 
     modules_dict = {}
+    installed_source_modules = {}
 
     if not core_addons_root.exists():
         logger.warning(
@@ -516,12 +517,15 @@ def _get_code_intelligence_graph(
                 name, mod = _load_module(custom_addons_root / mod_name, requested_languages)
                 modules_dict[name] = mod
 
-    custom_modules = [
-        name for name, module_dir in _discover_installed_source_modules(
-            [custom_addons_root], installed_modules,
-        ).items()
-        if module_dir.parent == custom_addons_root
-    ] if installed_modules is not None else discover_odoo_modules(custom_addons_root)
+    custom_modules = (
+        [
+            name
+            for name, module_dir in installed_source_modules.items()
+            if module_dir.parent.resolve() == custom_addons_root.resolve()
+        ]
+        if installed_modules is not None
+        else discover_odoo_modules(custom_addons_root)
+    )
 
     # 4. Load OCA Sample Modules (Bloc P3.1)
     OCA_SAMPLE_MODULE_REPOS = {
