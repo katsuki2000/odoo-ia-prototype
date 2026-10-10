@@ -12,6 +12,9 @@ concurrency:
 jobs:
   oca-coverage:
     runs-on: ubuntu-latest
+    env:
+      CORE_ADDONS_PATH: ${{ github.workspace }}/../odoo-17.0/addons
+      OCA_SAMPLE_ADDONS_PATH: ${{ github.workspace }}/tests/oca_sample
     steps:
       - uses: actions/checkout@v3
 
@@ -25,9 +28,10 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run project test suite
+      - name: Clone Odoo 17 core addons
         run: |
-          pytest -q
+          git clone --depth 1 --filter=blob:none --sparse --branch 17.0 https://github.com/odoo/odoo.git ../odoo-17.0
+          git -C ../odoo-17.0 sparse-checkout set addons
 
       - name: Clone OCA sample modules
         run: |
@@ -45,6 +49,10 @@ jobs:
           git clone --depth 1 -b 17.0 https://github.com/OCA/reporting-engine.git
           git clone --depth 1 -b 17.0 https://github.com/OCA/web.git
           git clone --depth 1 -b 17.0 https://github.com/OCA/project.git
+
+      - name: Run offline project test suite
+        run: |
+          pytest -q -m "not integration"
 
       - name: Run coverage script
         run: |
