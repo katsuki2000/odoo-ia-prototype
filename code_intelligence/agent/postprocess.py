@@ -75,6 +75,7 @@ from code_intelligence.rules.button_path import (
 from code_intelligence.rules.data_constraints import (
     backfill_missing_bounds_facts,
     backfill_missing_conditional_check_facts,
+    enforce_sql_constraint_fidelity,
 )
 from code_intelligence.agent.context import _EXECUTION_FAILURE_NOTICE, _CI_TOOL_DISPLAY_NAMES
 from code_intelligence.agent.context import DispatchContext
@@ -193,6 +194,7 @@ def _apply_backfill_chain(
         (_flag_ungrounded_group_xmlids, (scoped_tool_output,), {}),
         (_strip_core_only_group_mentions, (scoped_tool_output,), {}),
         (_strip_irrelevant_inheritance_constraints, (), {"question": question}),
+        (enforce_sql_constraint_fidelity, (constraint_source, question), {}),
     ]
     for guard, args, kwargs in steps:
         updated = guard(final_answer, *args, **kwargs)
