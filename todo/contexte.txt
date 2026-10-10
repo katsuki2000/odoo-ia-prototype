@@ -4218,3 +4218,20 @@ Date : 10/10/2026
 
 **Fichiers concernes** : code_intelligence/graph/loader.py, code_intelligence/tests/test_audit_regressions.py, .github/workflows/ci.yml, todo/contexte.txt.
 
+
+## Section 1214 : ne pas deviner les racines addon quand l'instance runtime est joignable
+
+Date : 10/10/2026
+
+**Cause racine** : si ODOO_CONF_PATH est absent ou pointe vers un fichier inexistant, le resolver avait encore la possibilite de prendre les racines de fallback du prototype alors qu'un inventaire runtime etait disponible. Cela pouvait associer des modules installes a des sources qui ne sont pas dans l'addons_path effectif.
+
+**Correction** :
+1. Si la configuration Odoo n'est pas disponible et que l'inventaire runtime peut etre obtenu (y compris un inventaire vide), le graphe ne resolve plus les sources depuis les chemins de fallback : il journalise l'incertitude et laisse les sources non resolues.
+2. Si l'inventaire runtime est indisponible, le fallback explicite reste disponible pour les constructions offline.
+3. L'inclusion du chemin OCA dans l'empreinte du graphe est limitee aux cas ou des modules OCA ont effectivement ete charges.
+4. Deux tests de regression couvrent le mode runtime fail-closed et le fallback offline.
+
+**Verification** : execution CI declenchee apres ces changements ; le resultat doit encore etre confirme. Le dernier run valide avant ce changement avait 14 tests passes et 545/545 modules OCA extraits.
+
+**Fichiers modifies** : code_intelligence/graph/loader.py, code_intelligence/tests/test_audit_regressions.py, todo/contexte.txt.
+
