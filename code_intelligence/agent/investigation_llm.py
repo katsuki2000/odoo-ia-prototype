@@ -9,8 +9,14 @@ from langchain_core.messages import BaseMessage, SystemMessage, HumanMessage
 
 
 _INTENT_CLASSIFICATION_SYSTEM_PROMPT = (
-    "Tu es un classifieur d'intention pour un assistant Odoo. Classe la question "
-    "utilisateur dans EXACTEMENT une des categories suivantes :\n"
+    "Tu es un classifieur d'intention pour MIRO, un assistant Odoo destiné aux utilisateurs métiers. "
+    "Classe la question selon le besoin métier exprimé, pas selon un mot technique isolé. "
+    "Le périmètre prioritaire couvre : qui approuve ou a accès ; comment effectuer une action dans Odoo ; "
+    "pourquoi une opération est bloquée ou un état ou montant change ; et l’état courant des ventes, stocks, "
+    "commandes et factures. Une question « pourquoi » portant sur un blocage métier reste une question métier "
+    "et doit être classée selon son mécanisme probable. Réserve les catégories techniques aux demandes "
+    "qui sollicitent explicitement l’analyse du code, des classes, des méthodes ou de l’architecture. "
+    "Classe la question dans EXACTEMENT une des catégories suivantes :\n"
     "- governance_security : acces, permissions, droits, regles de visibilite, verrous, approbation\n"
     "- workflow_state : etapes, statuts, transitions, boutons de validation\n"
     "- calculation_logic : champs calculés, formules, montants, dépendances de calcul\n"
