@@ -9,7 +9,10 @@ from code_intelligence.agent.tools.introspection import (
     read_precise_source_code,
     resolve_technical_name_to_role,
 )
-from code_intelligence.graph.loader import _discover_installed_source_modules
+from code_intelligence.graph.loader import (
+    _configured_addon_roots,
+    _discover_installed_source_modules,
+)
 from code_intelligence.rules.button_path import button_execution_path
 from code_intelligence.rules.data_constraints import _compose_data_constraints_summary
 from code_intelligence.rules.navigation import search_dynamic_view_or_menus
@@ -56,6 +59,31 @@ def test_unknown_group_role_is_not_fabricated_from_technical_slug():
     assert resolve_technical_name_to_role("custom.group_special_approver") == (
         "Unknown role (custom.group_special_approver)"
     )
+
+
+def test_addon_roots_follow_odoo_conf_order_and_resolve_relative_paths(tmp_path, monkeypatch):
+    first_root = tmp_path / "custom"
+    second_root = tmp_path / "core"
+    first_root.mkdir()
+    second_root.mkdir()
+    config_file = tmp_path / "odoo.conf"
+    config_file.write_text(
+        "[options]\naddons_path = custom, core\n",
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+
+    roots = _configured_addon_roots(config_file, [second_root, first_root])
+
+    assert roots == [first_root.resolve(), second_root.resolve()]
+
+
+def test_addon_roots_use_explicit_fallback_when_odoo_conf_is_unavailable(tmp_path):
+    fallback_roots = [tmp_path / "core", tmp_path / "custom"]
+
+    roots = _configured_addon_roots(tmp_path / "missing.conf", fallback_roots)
+
+    assert roots == [path.resolve() for path in fallback_roots]
 
 
 def test_installed_module_source_uses_first_configured_root(tmp_path):
