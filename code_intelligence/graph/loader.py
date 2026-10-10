@@ -236,71 +236,67 @@ def _normalize_addon_roots(paths) -> list[Path]:
     return list(dict.fromkeys(roots))
 
 
-def _configured_addon_roots(
-    config_path,
-    fallback_roots,
-    odoo_default_roots=None,
-) -> list[Path]:
-    """Resolve addon roots using Odoo's configured order or an explicit fallback."""
+def _read_configured_addon_roots(config_path, odoo_default_roots):
+    """Read authoritative addon roots; return None when the config cannot be trusted."""
     config_file = Path(config_path).expanduser() if config_path else None
-    if config_file and config_file.is_file():
-        parser = configparser.ConfigParser(interpolation=None)
-        try:
-            with config_file.open(encoding="utf-8") as stream:
-                parser.read_file(stream)
-            configured_paths = parser.get("options", "addons_path", fallback="").strip()
-        except (OSError, configparser.Error) as error:
-            logger.warning(
-                "Could not read Odoo configuration '%s' (%s); using explicit addon-path fallback.",
-                config_file,
-                error,
-            )
-        else:
-            if configured_paths:
-                roots = _normalize_addon_roots(configured_paths.split(","))
-                if roots:
-                    logger.info(
-                        "Using %d addon roots in the order declared by Odoo config '%s'.",
-                        len(roots),
-                        config_file,
-                    )
-                    return roots
-            logger.info(
-                "Odoo configuration '%s' does not set addons_path; using Odoo's default addon roots.",
-                config_file,
-            )
-            return _normalize_addon_roots(
-                odoo_default_roots if odoo_default_roots is not None else fallback_roots
-            )
-    else:
-        logger.warning(
-            "ODOO_CONF_PATH is unset or unavailable (%s); addon-root precedence cannot be "
-            "confirmed against the live Odoo process. Using explicit fallback roots.",
-            config_file,
-        )
+    if not config_file or not config_file.is_file():
+        return None
 
+    parser = configparser.ConfigParser(interpolation=None)
+    try:
+        with config_file.open(encoding="utf-8") as stream:
+            parser.read_file(stream)
+        if not parser.has_section("options"):
+            raise configparser.NoSectionError("options")
+        configured_paths = parser.get("options", "addons_path", fallback="").strip()
+    except (OSError, configparser.Error) as error:
+        logger.warning("Could not read valid Odoo configuration '%s' (%s).", config_file, error)
+        return None
+
+    if configured_paths:
+        roots = _normalize_addon_roots(configured_paths.split(","))
+        if roots:
+            logger.info("Using %d addon roots in the order declared by Odoo config '%s'.", len(roots), config_file)
+            return roots
+
+    logger.info("Odoo configuration '%s' does not set addons_path; using Odoo's default addon roots.", config_file)
+    return _normalize_addon_roots(odoo_default_roots)
+
+
+def _configured_addon_roots(config_path, fallback_roots, odoo_default_roots=None) -> list[Path]:
+    """Resolve addon roots from Odoo config or use the explicit offline fallback."""
+    configured_roots = _read_configured_addon_roots(
+        config_path,
+        odoo_default_roots if odoo_default_roots is not None else fallback_roots,
+    )
+    if configured_roots is not None:
+        return configured_roots
+
+    config_file = Path(config_path).expanduser() if config_path else None
+    logger.warning(
+        "ODOO_CONF_PATH is unset or unavailable (%s); addon-root precedence cannot be "
+        "confirmed. Using explicit fallback roots.",
+        config_file,
+    )
     return _normalize_addon_roots(fallback_roots)
 
 
-def _resolve_addon_roots_for_inventory(
-    config_path,
-    fallback_roots,
-    odoo_default_roots,
-    installed_modules,
-) -> list[Path]:
-    roots = _configured_addon_roots(
-        config_path,
-        fallback_roots,
-        odoo_default_roots,
-    )
-    config_file = Path(config_path).expanduser() if config_path else None
-    if (not config_file or not config_file.is_file()) and installed_modules is not None:
+def _resolve_addon_roots_for_inventory(config_path, fallback_roots, odoo_default_roots, installed_modules) -> list[Path]:
+    configured_roots = _read_configured_addon_roots(config_path, odoo_default_roots)
+    if configured_roots is not None:
+        return configured_roots
+
+    if installed_modules is not None:
         logger.warning(
-            "Odoo configuration is unavailable while the runtime module inventory is "
-            "reachable; skipping addon-source resolution rather than guessing addon roots."
+            "Odoo configuration is unavailable or invalid while the runtime module inventory "
+            "is reachable; skipping addon-source resolution rather than guessing addon roots."
         )
         return []
-    return roots
+
+    logger.warning(
+        "Odoo configuration is unavailable; using explicit fallback addon roots for offline analysis."
+    )
+    return _normalize_addon_roots(fallback_roots)
 
 
 def _discover_installed_source_modules(addon_roots, installed_modules) -> dict[str, Path]:
