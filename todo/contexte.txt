@@ -4189,3 +4189,17 @@ Date : 10/10/2026
 
 **Fichiers modifies** : .github/workflows/ci.yml, todo/contexte.txt.
 
+
+## Section 1212 : correction des chemins avec espaces et exclusion des sources OCA hors runtime
+
+Date : 10/10/2026
+
+**Corrections** :
+1. Les modules OCA du dossier de benchmark ne sont plus charges depuis un chemin separe lorsque l'inventaire runtime Odoo est disponible. Dans ce mode, le graphe doit utiliser les sources resolues depuis les racines effectives de addons_path ; les sources OCA hors de ces racines restent reservees au mode offline explicite.
+2. Le premier lancement CI de pytest a revele un cas de regression dans la normalisation : un espace apres une virgule dans addons_path produisait un chemin errone (13 tests passes, 1 test en echec). _normalize_addon_roots retire maintenant les espaces autour de chaque chemin et ignore les elements vides.
+3. Le workflow CI execute maintenant la suite test_audit_regressions.py ; le premier echec a donc ete detecte automatiquement. Une nouvelle execution est en cours pour valider le correctif de normalisation.
+
+**Verification** : aucun resultat vert du nouveau lancement pytest n'est encore revendique a la date de cette entree. Les executions precedentes de la couverture OCA etaient vertes, mais ne couvraient pas ces tests de regression.
+
+**Fichiers modifies** : code_intelligence/graph/loader.py, code_intelligence/tests/test_audit_regressions.py, .github/workflows/ci.yml, todo/contexte.txt.
+
