@@ -60,6 +60,7 @@ EVAL_DB_PREFIX = os.getenv("EVAL_DB_PREFIX", "eval_")
 EVAL_INSTANCES_DIR = os.getenv("EVAL_INSTANCES_DIR") or str(_ROOT / "captures" / "eval_instances")
 
 GRAPH_CACHE_PATH = os.getenv("GRAPH_CACHE_PATH") or str(_ROOT / "active_graph.json")
+GRAPH_OFFLINE_MODE = os.getenv("GRAPH_OFFLINE_MODE", "false").lower() in ("true", "1", "yes")
 SEMANTIC_INDEX_CACHE_DIR = os.getenv("SEMANTIC_INDEX_CACHE_DIR") or str(_ROOT / "active_semantic_index")
 
 # -- RAG documentary source path ----------------------
