@@ -4263,3 +4263,16 @@ Date : 10/10/2026
 **Limite** : cela ne prouve toujours pas que `ODOO_CONF_PATH` est le fichier effectivement utilise par le processus Odoo ; ce point doit etre verifie dans l'environnement de l'instance.
 
 **Fichiers modifies** : `code_intelligence/graph/loader.py`, `code_intelligence/tests/test_audit_regressions.py`, `todo/contexte.txt`.
+
+## Section 1217 : validation CI du resolver fail-closed pour configuration absente ou invalide
+
+Date : 10/10/2026
+
+**Verification** : le workflow GitHub Actions a termine avec succes sur le commit `fba33fc2cfbaad6e2e1551c6ea2a7e337cee6e93`.
+- Tests de regression : **18 passed in 0.56s**.
+- Couverture d'extraction OCA : 545 modules decouverts, 545 extraits, 0 echec.
+- Les deux nouveaux cas de configuration invalide sont inclus dans les 18 tests passes.
+
+**Limite** : la CI valide les fonctions de resolution et l'extraction OCA, pas la connexion a l'instance Odoo de Miro. Le run est vert malgre un avertissement de nettoyage Git lie au dossier de modules OCA clones ; les etapes de tests et de couverture ont reussi.
+
+**Fichiers concernes** : `code_intelligence/graph/loader.py`, `code_intelligence/tests/test_audit_regressions.py`, `.github/workflows/ci.yml`, `todo/contexte.txt`.
