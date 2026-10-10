@@ -21,7 +21,9 @@ import os
 import sys
 import unittest
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+sys.path.insert(0, project_root)
+sys.path.insert(0, os.path.join(project_root, "document_rag"))
 
 from document_rag.generate_node import _build_source_aliases, _verify_used_sources
 from core.schemas import SourceReference

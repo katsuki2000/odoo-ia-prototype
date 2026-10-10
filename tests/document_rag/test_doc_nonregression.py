@@ -6,7 +6,7 @@ Verifies that adding ERP function calling did not degrade
 answers on documentary questions (DOC-01 to DOC-10).
 
 Usage:
-    python3 tests/test_doc_nonregression.py
+    python3 tests/document_rag/test_doc_nonregression.py
 """
 
 import json
@@ -19,7 +19,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+sys.path.insert(0, project_root)
+sys.path.insert(0, os.path.join(project_root, "document_rag"))
 from core.graph.graph import query_graph
 
 logging.basicConfig(level=logging.ERROR)
@@ -134,7 +136,7 @@ def run_doc_nonregression():
         print("All documentary questions passed!")
 
     # Write report
-    captures_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "captures")
+    captures_dir = os.path.join(project_root, "document_rag", "captures")
     os.makedirs(captures_dir, exist_ok=True)
 
     report_path = os.path.join(captures_dir, "doc_nonregression_report.md")
