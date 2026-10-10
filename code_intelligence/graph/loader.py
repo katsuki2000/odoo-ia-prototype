@@ -380,6 +380,23 @@ def _get_code_intelligence_graph(
     if request_language:
         requested_languages = tuple(sorted(set(requested_languages) | {request_language}))
 
+    from config.settings import (
+        CORE_ADDONS_PATH,
+        CORE_FRAMEWORK_ADDONS_PATH,
+        CUSTOM_ADDONS_PATH,
+        OCA_SAMPLE_ADDONS_PATH,
+        ODOO_CONF_PATH,
+    )
+
+    core_addons_root = Path(CORE_ADDONS_PATH)
+    custom_addons_root = Path(CUSTOM_ADDONS_PATH)
+    addon_roots = _configured_addon_roots(
+        ODOO_CONF_PATH,
+        [CORE_FRAMEWORK_ADDONS_PATH, CORE_ADDONS_PATH, CUSTOM_ADDONS_PATH],
+        [CORE_FRAMEWORK_ADDONS_PATH, CORE_ADDONS_PATH],
+    )
+    expected_addon_roots = [str(root) for root in addon_roots]
+
     if _CACHED_CODE_INTEL_GRAPH is not None and not force_rebuild:
         requested_languages = tuple(sorted(
             set(requested_languages)
@@ -410,6 +427,7 @@ def _get_code_intelligence_graph(
                 graph_languages = set(G.graph.get("translation_languages", ()))
                 schema_valid = metadata.get("graph_schema_version", 0) >= GRAPH_SCHEMA_VERSION
                 paths_resolve = _graph_filepaths_resolve_locally(G)
+                addon_roots_match = G.graph.get("addon_roots_ordered") == expected_addon_roots
                 languages_match = _translation_cache_matches(requested_languages, graph_languages)
                 if schema_valid and paths_resolve and not languages_match and not force_rebuild:
                     requested_languages = tuple(sorted(set(requested_languages) | graph_languages))
@@ -417,6 +435,7 @@ def _get_code_intelligence_graph(
                 if (
                     schema_valid
                     and paths_resolve
+                    and addon_roots_match
                     and languages_match
                     and not force_rebuild
                 ):
@@ -436,6 +455,10 @@ def _get_code_intelligence_graph(
                         "exist on this machine -- discarding cache and rebuilding.",
                         GRAPH_JSON_PATH,
                     )
+                elif not addon_roots_match:
+                    logger.info(
+                        "Graph cache addon-root order differs from the current Odoo configuration; rebuilding."
+                    )
                 elif not languages_match:
                     logger.info(
                         "Graph cache does not contain requested translation languages %s; rebuilding.",
@@ -454,22 +477,6 @@ def _get_code_intelligence_graph(
 
     logger.info("Building Knowledge Graph from source files...")
     from code_intelligence.utils import discover_odoo_modules
-    from config.settings import (
-        CORE_ADDONS_PATH,
-        CORE_FRAMEWORK_ADDONS_PATH,
-        CUSTOM_ADDONS_PATH,
-        OCA_SAMPLE_ADDONS_PATH,
-        ODOO_CONF_PATH,
-    )
-
-    core_addons_root = Path(CORE_ADDONS_PATH)
-    custom_addons_root = Path(CUSTOM_ADDONS_PATH)
-    core_framework_addons_root = Path(CORE_FRAMEWORK_ADDONS_PATH)
-    addon_roots = _configured_addon_roots(
-        ODOO_CONF_PATH,
-        [CORE_FRAMEWORK_ADDONS_PATH, CORE_ADDONS_PATH, CUSTOM_ADDONS_PATH],
-        [CORE_FRAMEWORK_ADDONS_PATH, CORE_ADDONS_PATH],
-    )
 
     modules_dict = {}
     installed_source_modules = {}
@@ -646,6 +653,7 @@ def _get_code_intelligence_graph(
         request_language=request_language or (requested_languages[0] if len(requested_languages) == 1 else None),
         source_modules=source_modules,
     )
+    _CACHED_CODE_INTEL_GRAPH.graph["addon_roots_ordered"] = expected_addon_roots
     _CACHED_CODE_INTEL_GRAPH.graph["instance_fingerprint"] = fingerprint.digest
     _CACHED_CODE_INTEL_GRAPH.graph["instance_fingerprint_data"] = fingerprint.to_dict()
     _CACHED_CODE_INTEL_GRAPH.graph["translation_languages"] = list(requested_languages)
