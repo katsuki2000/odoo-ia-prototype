@@ -1,4 +1,5 @@
 from code_intelligence.rules.data_constraints import enforce_sql_constraint_fidelity
+from code_intelligence.utils import _TRUNCATION_MARKER
 
 
 SOURCE = """Analyse des contraintes de données (Semgrep) pour 'purchase.order.line':
@@ -30,6 +31,6 @@ def test_does_not_override_unrelated_answers():
 
 def test_marks_fallback_as_non_exhaustive_when_observation_was_truncated():
     result = enforce_sql_constraint_fidelity(
-        "Le produit doit être unique.", SOURCE + "[TRUNCATED]", "Explique la contrainte SQL"
+        "Le produit doit être unique.", SOURCE + _TRUNCATION_MARKER, "Explique la contrainte SQL"
     )
     assert "ne garantit pas l'exhaustivité" in result
