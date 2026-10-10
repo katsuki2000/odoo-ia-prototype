@@ -39,15 +39,20 @@ TECHNICAL_TO_BUSINESS_ROLES: Dict[str, str] = {
 }
 
 
-def resolve_technical_name_to_role(technical_name: str) -> str:
-    """Resolves technical group XML-ID to human-readable business role."""
+def resolve_technical_name_to_role(technical_name: str, G: Optional[nx.DiGraph] = None) -> str:
+    """Resolve a group to an evidenced display name without inventing translations."""
     clean_id = technical_name.strip()
     if clean_id in TECHNICAL_TO_BUSINESS_ROLES:
         return TECHNICAL_TO_BUSINESS_ROLES[clean_id]
 
-    short_id = clean_id.split(".")[-1] if "." in clean_id else clean_id
-    formatted = short_id.replace("group_", "").replace("_", " ").title()
-    return formatted
+    if G is not None:
+        from code_intelligence.rules.group_resolver import get_group_display_name
+
+        display_name = get_group_display_name(G, clean_id)
+        if display_name:
+            return display_name
+
+    return f"Unknown role ({clean_id})"
 
 
 def list_involved_modules_flat(G: nx.DiGraph, model_name: str) -> List[str]:
@@ -172,15 +177,23 @@ def _explain_decision_path_impl(G: nx.DiGraph, path_nodes: List[str]) -> str:
     if not path_nodes:
         return "No path specified."
 
+    for node_id in path_nodes:
+        if node_id not in G:
+            return f"Error: path contains unknown graph node '{node_id}'."
+
     steps = []
     for idx in range(len(path_nodes) - 1):
         u = str(path_nodes[idx])
         v = str(path_nodes[idx + 1])
+        edge_data = G.get_edge_data(u, v)
+        if edge_data is None:
+            return f"Error: no graph edge exists from '{u}' to '{v}'."
 
-        u_data = G.nodes.get(u, {})
-        v_data = G.nodes.get(v, {})
-        edge_data = G.get_edge_data(u, v) or {}
-        edge_type = edge_data.get("edge_type", "CONNECTED_TO")
+        u_data = G.nodes[u]
+        v_data = G.nodes[v]
+        edge_type = edge_data.get("edge_type")
+        if not edge_type:
+            return f"Error: graph edge from '{u}' to '{v}' has no declared edge type."
 
         u_type = u_data.get("node_type", u.split(":")[0])
         v_type = v_data.get("node_type", v.split(":")[0])
@@ -190,8 +203,8 @@ def _explain_decision_path_impl(G: nx.DiGraph, path_nodes: List[str]) -> str:
         elif edge_type == "APPLIES_TO_GROUP":
             steps.append(f"Step {idx + 1}: Security Rule '{u}' applies to Group '{v}'.")
         elif edge_type == "IMPLIES":
-            child_role = resolve_technical_name_to_role(u.replace("group:", ""))
-            parent_role = resolve_technical_name_to_role(v.replace("group:", ""))
+            child_role = resolve_technical_name_to_role(u.replace("group:", ""), G)
+            parent_role = resolve_technical_name_to_role(v.replace("group:", ""), G)
             steps.append(f"Step {idx + 1}: Group '{u}' ({child_role}) inherits permissions from '{v}' ({parent_role}).")
         elif edge_type == "EXTENDS":
             steps.append(f"Step {idx + 1}: Model '{u}' extends model '{v}' via `_inherit`.")
@@ -293,6 +306,27 @@ def read_precise_source_code(
             if not path.exists():
                 return f"Error: File '{filepath_str}' does not exist."
 
+    from config.settings import CORE_ADDONS_PATH, CUSTOM_ADDONS_PATH, OCA_SAMPLE_ADDONS_PATH
+
+    allowed_roots = [
+        Path(root).resolve()
+        for root in (CORE_ADDONS_PATH, CUSTOM_ADDONS_PATH, OCA_SAMPLE_ADDONS_PATH)
+        if root and Path(root).exists()
+    ]
+    try:
+        resolved_path = path.resolve(strict=True)
+    except OSError:
+        return f"Error: Source file '{filepath_str}' could not be resolved."
+
+    supported_source_suffixes = {".py", ".xml", ".csv", ".js", ".po", ".sql", ".css", ".scss", ".html"}
+    is_allowed = any(
+        resolved_path == root or root in resolved_path.parents
+        for root in allowed_roots
+    )
+    if not is_allowed or not resolved_path.is_file() or resolved_path.suffix.lower() not in supported_source_suffixes:
+        return "Error: Source file is outside configured addon roots or is not a supported source file."
+    path = resolved_path
+
     if target_model_resolved and path.exists() and line_start <= 1:
         try:
             import re
@@ -378,7 +412,7 @@ from core.evidence.evidence_collector import record_evidence
 @tool
 def resolve_technical_name(technical_name: str) -> str:
     """Resolve technical group XML-ID (e.g. sales_team.group_sale_manager) to business role name."""
-    return resolve_technical_name_to_role(technical_name)
+    return resolve_technical_name_to_role(technical_name, _require_graph())
 
 
 @tool
