@@ -4276,3 +4276,18 @@ Date : 10/10/2026
 **Limite** : la CI valide les fonctions de resolution et l'extraction OCA, pas la connexion a l'instance Odoo de Miro. Le run est vert malgre un avertissement de nettoyage Git lie au dossier de modules OCA clones ; les etapes de tests et de couverture ont reussi.
 
 **Fichiers concernes** : `code_intelligence/graph/loader.py`, `code_intelligence/tests/test_audit_regressions.py`, `.github/workflows/ci.yml`, `todo/contexte.txt`.
+
+
+## Section 1218 : début concret de migration — couverture CI élargie et carte de migration
+
+Date : 10/10/2026
+
+**Cause racine traitée** : la CI précédente ne se déclenchait que pour les changements sous code_intelligence/, un script de couverture OCA ou le workflow lui-même. Les changements dans core/, document_rag/, erp_data/, api/, config/, les tests partagés et les dépendances pouvaient donc ne pas déclencher cette validation. En plus, le workflow n'exécutait qu'un fichier de tests ciblé, ce qui ne suffisait pas pour sécuriser une migration inter-packages.
+
+**Changements effectués sur fix/local-test-failures** :
+1. .github/workflows/ci.yml : suppression des filtres de chemins sur push et pull_request; tous les changements de la branche déclenchent maintenant le workflow. Le job exécute pytest -q sur les répertoires configurés dans pytest.ini, puis conserve le contrôle d'extraction OCA comme étape séparée. Nom du workflow : « Python Tests and OCA Coverage ». Commit : 406abb9c274a19874683bc8fd6337131e11c7c64.
+2. todo/migration_map.md : ajout d'une carte source → cible, des risques, de l'ordre de migration et des contrôles obligatoires. Elle distingue le graphe LangGraph de requête du graphe statique des modules installés, traite séparément le runtime Odoo, le RAG, les tests et miro_ai, et interdit les façades de compatibilité temporaires. Commit : 05c2a72ce0c899e8e4444ee42a289322b8741d06.
+
+**Limites de validation** : les modifications ont été écrites sur GitHub, mais aucun résultat de la nouvelle CI n'est encore confirmé dans cette entrée. La carte est un plan d'exécution fondé sur l'audit des fichiers consultés; elle ne prétend pas que les déplacements de code ont déjà été effectués. Aucun fichier source applicatif n'a encore été déplacé dans ce lot.
+
+**Prochaine étape** : lire le résultat du workflow déclenché, corriger les échecs éventuels à la racine, puis établir l'inventaire complet des imports entrants/sortants pour sélectionner un premier sous-module feuille dont le code et les tests peuvent migrer ensemble sans façade temporaire.
