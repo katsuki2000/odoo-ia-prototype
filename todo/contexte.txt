@@ -4291,3 +4291,14 @@ Date : 10/10/2026
 **Limites de validation** : les modifications ont été écrites sur GitHub, mais aucun résultat de la nouvelle CI n'est encore confirmé dans cette entrée. La carte est un plan d'exécution fondé sur l'audit des fichiers consultés; elle ne prétend pas que les déplacements de code ont déjà été effectués. Aucun fichier source applicatif n'a encore été déplacé dans ce lot.
 
 **Prochaine étape** : lire le résultat du workflow déclenché, corriger les échecs éventuels à la racine, puis établir l'inventaire complet des imports entrants/sortants pour sélectionner un premier sous-module feuille dont le code et les tests peuvent migrer ensemble sans façade temporaire.
+
+
+## Section 1219 : centralisation des tests documentaires
+
+Date : 10/10/2026
+
+Les 19 fichiers de document_rag/tests/ ont été déplacés atomiquement vers tests/document_rag/. pytest.ini ne référence plus l'ancien répertoire. Les trois tests qui ajoutaient un chemin relatif à leur ancien emplacement résolvent maintenant la racine du projet et document_rag/ explicitement; le répertoire de rapports reste document_rag/captures/. Le chemin d'exécution documenté de test_doc_nonregression.py a été corrigé.
+
+La carte todo/migration_map.md a été mise à jour pour indiquer que cette tranche de centralisation a commencé. Aucun code applicatif ni addon Odoo n'a été déplacé. La CI élargie doit confirmer la collecte et l'exécution des tests avant de continuer.
+
+Commit du déplacement : 76c41d4be1ea9b823df63fd2e8578f8c620a70ff.
