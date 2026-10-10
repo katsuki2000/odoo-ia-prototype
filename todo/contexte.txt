@@ -4141,3 +4141,22 @@ Date : 10/10/2026
 **Limites restantes a ne pas masquer** : la priorite custom/core/framework choisie est explicite mais doit etre comparee a l'ordre reel de `addons_path` de l'instance cible si cet ordre differe. Le graphe existant sur disque doit etre reconstruit et son inventaire compare a celui de l'instance. La correction de synthese contraint le cas ou l'observation des contraintes est l'unique outil ; les cas ou plusieurs outils alimentent une synthese restent a verifier par le protocole PUR-Q5. Aucune validation runtime d'Odoo ni mesure de benchmark n'a ete faite ici.
 
 **Fichiers modifies** : `code_intelligence/agent/tools/introspection.py`, `code_intelligence/rules/record_rules.py`, `code_intelligence/agent/tools/access.py`, `code_intelligence/agent/dispatch_guards.py`, `code_intelligence/agent/loop.py`, `code_intelligence/rules/data_constraints.py`, `code_intelligence/rules/button_path.py`, `code_intelligence/rules/navigation.py`, `code_intelligence/graph/loader.py`, `code_intelligence/tests/test_audit_regressions.py`, `todo/contexte.txt`.
+
+
+## Section 1209 : resolution des addons selon l'ordre reel de `addons_path` (correctif applique, tests non executes)
+
+Date : 10/10/2026
+**Mandat** : pmm demande de poursuivre le chantier de reutilisation des mecanismes natifs Odoo, du parseur, du modele LLM et des embeddings, en priorite sur le chargement du graphe.
+
+**Cause racine corrigee** : la section 1208 avait introduit un ordre fixe `custom -> core -> framework` pour les modules homonymes. Cet ordre ne correspond pas necessairement a celui de l'instance Odoo 17 et pouvait faire analyser un fichier different de celui que l'instance charge. La source de priorite doit etre l'ordre de `addons_path` de la configuration Odoo cible, pas une convention propre au prototype.
+
+**Modifications appliquees**
+1. `code_intelligence/graph/loader.py` : ajout de `_configured_addon_roots`, qui lit `[options] addons_path` depuis le fichier de configuration, developpe les variables et `~`, resout les chemins et conserve leur ordre. La decouverte des modules installes, le prechargement de modules core, la resolution des dependances directes et l'empreinte de l'instance reutilisent maintenant ces racines ordonnees. Les modules homonymes respectent donc l'ordre fourni a la fonction de chargement.
+2. `config/settings.py` et `.env.example` : ajout de `ODOO_CONF_PATH`, distinct du parametre d'evaluation, avec repli vers `EVAL_ODOO_CONF`. Il faut le renseigner avec le fichier effectivement utilise par le serveur cible pour que l'ordre corresponde a l'instance en cours d'execution.
+3. `code_intelligence/tests/test_audit_regressions.py` : tests hermetiques ajoutes pour l'ordre et la resolution des chemins relatifs ainsi que pour le repli explicite lorsque la configuration n'est pas disponible.
+
+**Limites a ne pas masquer** : si `ODOO_CONF_PATH` ne pointe pas sur la configuration du serveur actif, le graphe utilise le repli existant et journalise que l'ordre runtime n'est pas confirme. Le prototype ne peut pas deduire de facon fiable le fichier de configuration reel du serveur distant a partir de XML-RPC seul. La configuration et l'inventaire `ir.module.module` restent deux sources distinctes : le fichier determine les chemins et leur priorite ; la base cible determine quels modules sont installes.
+
+**Verification** : aucune execution de pytest ni reconstruction du graphe n'a ete possible via les outils GitHub de cette session. Le resultat est donc une modification publiee, pas une validation de runtime. A verifier dans le venv du projet : `pytest code_intelligence/tests/test_audit_regressions.py`, puis suite complete et reconstruction du graphe actif avec `ODOO_CONF_PATH` configure.
+
+**Fichiers modifies** : `code_intelligence/graph/loader.py`, `config/settings.py`, `.env.example`, `code_intelligence/tests/test_audit_regressions.py`, `todo/contexte.txt`.
