@@ -26,7 +26,7 @@ import textwrap
 
 from core.evidence.evidence import Evidence, EvidenceSourceType, make_evidence
 from core.output import confidence_label
-from code_intelligence.utils import format_file_link
+from code_intelligence.utils import format_file_link, _TRUNCATION_MARKER
 
 _logger = logging.getLogger(__name__)
 
@@ -470,7 +470,7 @@ def enforce_sql_constraint_fidelity(
 ) -> str:
     """Prefer the actual constraint evidence when synthesis omits its declarations."""
     if not re.search(
-        r"\\b(?:sql|contrainte|constraint|check|unicité|unique)\\b",
+        r"\b(?:sql|contrainte|constraint|check|unicité|unique)\b",
         question,
         flags=re.IGNORECASE,
     ):
@@ -479,7 +479,7 @@ def enforce_sql_constraint_fidelity(
         return final_answer
 
     names = list(dict.fromkeys(re.findall(
-        r"""['"]([A-Za-z][A-Za-z0-9_]*)['"]\\s*,\\s*['"]\\s*(?:CHECK|UNIQUE|FOREIGN\\s+KEY|EXCLUDE)\\b""",
+        r"""['"]([A-Za-z][A-Za-z0-9_]*)['"]\s*,\s*['"]\s*(?:CHECK|UNIQUE|FOREIGN\s+KEY|EXCLUDE)\b""",
         constraint_observation,
         flags=re.IGNORECASE,
     )))
@@ -500,7 +500,7 @@ def enforce_sql_constraint_fidelity(
             "La synthèse ne reprend pas fidèlement les contraintes SQL extraites. "
             "Voici la preuve source, sans ajouter de règle non observée :"
         )
-    return f"{preface}\\n\\n{constraint_observation.strip()}"
+    return f"{preface}\n\n{constraint_observation.strip()}"
 
 
 _SQL_KEYWORDS = frozenset({"is", "null", "and", "or", "not", "true", "false"})
