@@ -471,7 +471,11 @@ def _get_code_intelligence_graph(
 
     if _CACHED_CODE_INTEL_GRAPH is not None and not force_rebuild:
         cached_languages = _CACHED_CODE_INTEL_GRAPH.graph.get("translation_languages", ())
-        if _translation_cache_matches(requested_languages, cached_languages):
+        cached_roots = _CACHED_CODE_INTEL_GRAPH.graph.get("addon_roots_ordered")
+        if (
+            cached_roots == expected_addon_roots
+            and _translation_cache_matches(requested_languages, cached_languages)
+        ):
             return _CACHED_CODE_INTEL_GRAPH
         _CACHED_CODE_INTEL_GRAPH = None
 
