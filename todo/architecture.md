@@ -60,6 +60,14 @@ est vrai sur l'instance.
 
 7. **Investigation bornée.** Le LLM planifie dans un vocabulaire d'actions fermé ; il ne crée pas d'outil, ne choisit ni l'utilisateur ni la société, et chaque appel est contrôlé par le moteur (outil, objet et périmètre autorisés) avant exécution. Partout où le LLM n'est pas indispensable (extraction du graphe,résolution exacte, contrôles de vérification), le traitement est déterministe.
 
+8. **Réutiliser l'existant avant de réimplémenter.** Avant d'ajouter une bibliothèque, un service ou un moteur,
+   inventorier les capacités déjà présentes dans le projet et celles de l'écosystème retenu. Réutiliser les
+   intégrations LLM et embeddings, le RAG existant, les mécanismes d'agentic AI et les fonctions natives
+   d'Odoo 17 (ORM, manifests, dépendances, ACL, règles d'enregistrement, modules et contexte utilisateur)
+   lorsqu'ils couvrent correctement le besoin. S'appuyer sur la documentation officielle Odoo 17 pour le
+   comportement standard, sans la confondre avec une preuve sur l'instance. Toute nouvelle dépendance ou
+   réimplémentation doit répondre à un écart mesuré, documenté et couvert par des tests.
+
 ## 3. Pipeline
 
 ```text
@@ -90,11 +98,23 @@ toujours rattachée à la version exacte de l'instance analysée.
 ### 4.2. Graphe de connaissances et état runtime
 Deux objets distincts.
 
-- **Graphe logiciel** : construit à partir du code (AST Python, vues et données XML, droits d'accès CSV) et du
-  registre runtime (vues, actions et server actions stockées en base, Studio inclus). Typé (modèles, champs,
-  méthodes, groupes, règles, ACL, actions, automations, menus, états, boutons), porteur de tags sémantiques à
-  vocabulaire fermé (comportementaux et techniques). Les relations sont dérivées par analyse du code, jamais
-  extraites par un LLM. Reconstruit hors ligne puis permuté atomiquement ; jamais modifié pendant une requête.
+- **Graphe logiciel** : représente les modules effectivement installés dans l'instance Odoo, natifs,
+  OCA et personnalisés. La liste d'installation et les états viennent de l'instance ; les chemins d'addons
+  accessibles servent uniquement à localiser le code correspondant. Un dossier présent sur disque, même
+  sous `odoo_addons/`, ne prouve pas qu'un module est installé et n'entre pas dans le graphe actif s'il ne
+  l'est pas. Les modules disponibles mais non installés peuvent figurer dans un inventaire séparé.
+  Les manifests et dépendances déclarées sont analysés, sans les confondre avec les dépendances runtime
+  réellement observées. Le graphe est construit à partir du code des modules installés (AST Python, vues et
+  données XML, droits d'accès CSV) et du registre runtime (vues, actions et server actions stockées en base,
+  Studio inclus). Typé (modèles, champs, méthodes, groupes, règles, ACL, actions, automations, menus, états,
+  boutons), porteur de tags sémantiques à vocabulaire fermé (comportementaux et techniques). Les relations
+  sont dérivées par analyse du code, jamais extraites par un LLM. Reconstruit hors ligne puis permuté
+  atomiquement ; jamais modifié pendant une requête.
+
+  Les addons OCA tiers sont rangés sous `odoo_addons/` selon la convention du projet, sans les considérer
+  automatiquement installés. Le `addons_path` d'Odoo doit inclure le répertoire parent des répertoires de
+  modules. Les addons natifs restent dans les chemins natifs Odoo ; les modules personnalisés, dont
+  `miro_ai`, sont traités séparément lors de toute décision de déplacement.
 - **État runtime** : valeurs, enregistrements, configuration. Temporel, lu par l'ORM au moment de la question,
   jamais indexé dans le graphe.
 
