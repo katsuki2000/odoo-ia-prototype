@@ -13,6 +13,7 @@ from code_intelligence.graph.loader import (
     _configured_addon_roots,
     _discover_installed_core_modules,
     _discover_installed_source_modules,
+    _resolve_addon_roots_for_inventory,
 )
 from code_intelligence.rules.button_path import button_execution_path
 from code_intelligence.rules.data_constraints import _compose_data_constraints_summary
@@ -208,3 +209,29 @@ def test_empty_installed_core_inventory_does_not_load_uninstalled_candidates():
         ["account", "sale", "purchase"],
         installed_modules=[],
     ) == []
+
+
+def test_live_inventory_without_odoo_config_skips_fallback_addon_roots(tmp_path):
+    fallback_roots = [tmp_path / "core", tmp_path / "custom"]
+
+    roots = _resolve_addon_roots_for_inventory(
+        tmp_path / "missing.conf",
+        fallback_roots,
+        fallback_roots[:1],
+        installed_modules=[],
+    )
+
+    assert roots == []
+
+
+def test_offline_inventory_without_odoo_config_uses_explicit_fallback(tmp_path):
+    fallback_roots = [tmp_path / "core", tmp_path / "custom"]
+
+    roots = _resolve_addon_roots_for_inventory(
+        tmp_path / "missing.conf",
+        fallback_roots,
+        fallback_roots[:1],
+        installed_modules=None,
+    )
+
+    assert roots == [path.resolve() for path in fallback_roots]
