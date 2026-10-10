@@ -422,6 +422,7 @@ def _override_user_groups_arg(
     tool_args: dict,
     resolved_user_group_xmlids: list,
     security_principals: dict = None,
+    requester_groups_known: bool = True,
 ) -> dict:
     """Overrides LLM-guessed user_groups_json with the real requester's own
     group XML-IDs -- UNLESS the call names a benchmark persona via
@@ -458,8 +459,8 @@ def _override_user_groups_arg(
 
     real_groups_json = json.dumps(
         resolved_user_group_xmlids
-        if resolved_user_group_xmlids is None
-        else list(resolved_user_group_xmlids)
+        if requester_groups_known and resolved_user_group_xmlids is not None
+        else None
     )
     llm_proposed = tool_args.get("user_groups_json")
     if llm_proposed and llm_proposed != real_groups_json:
