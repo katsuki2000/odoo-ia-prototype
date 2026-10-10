@@ -28,6 +28,11 @@ from code_intelligence.agent.context import DispatchContext
 logger = logging.getLogger(__name__)
 
 
+def _should_bypass_synthesis(tool_names: list[str]) -> bool:
+    """Return authoritative single-tool findings verbatim when synthesis adds no value."""
+    return tool_names == ["analyze_data_constraints"]
+
+
 def execute_tool_calls(ctx: DispatchContext, ai_msg, messages: list) -> None:
     for tool_call in ai_msg.tool_calls:
         tool_name = tool_call["name"]
@@ -276,7 +281,15 @@ def run_react_loop(
         elif ai_msg and ai_msg.content:
             final_answer = ai_msg.content
 
-        # Synthesize clean final answer from composite tool output
+        # Synthesize clean final answer from composite tool output.
+        # Static constraint findings are already source-grounded; returning the
+        # sole authoritative observation prevents synthesis from replacing them
+        # with constraints that were never extracted.
+        if not final_answer and ctx.tool_observations and _should_bypass_synthesis(
+            ctx.tool_observation_tools
+        ):
+            final_answer = ctx.tool_observations[0]
+
         if not final_answer:
             if ctx.tool_observations:
                 # trip 'could not be resolved' noise from who_has_access_to before it reaches the synthesis LLM when the real-auth override has already injected the demandeur's real groups into evaluate_record_rules and a deterministic can_view_amount fact is present.
