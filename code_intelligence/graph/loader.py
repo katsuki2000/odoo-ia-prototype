@@ -312,11 +312,9 @@ def _discover_installed_core_modules(candidates: list, installed_modules=None) -
     installed) through OdooConnector -- so the set of natively-preloaded
     modules reflects the real instance, not a fixed benchmark assumption.
 
-    Falls back to the full candidate list, unfiltered, if the instance is
-    unreachable at graph-build time (offline builds, OCA-only benchmark
-    runs, no live Odoo instance configured) -- explicit fallback per
-    todo/rules.md (machine-dependent values need a fallback, never a silent
-    hard assumption). See todo/contexte.txt section 752.
+    Falls back to the full candidate list only when the runtime inventory
+    cannot be queried or validated. An available but empty inventory means
+    no candidate module is installed.
     """
     if installed_modules is None:
         try:
