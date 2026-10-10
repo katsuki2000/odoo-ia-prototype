@@ -28,6 +28,13 @@ de calibrage.
 - Configuration unique : un seul fichier `.env` pour fournisseur LLM, hotes autorisés, fenêtre de contexte,
   budgets, chemins ; valeurs par defaut coherentes entre code, README et `.env.example`.
 - Documentation coherente : plan, architecture, journal et README sans contradiction.
+- Réutiliser l'existant avant d'ajouter ou de réécrire : inventorier les intégrations LLM et embeddings,
+  le RAG, les capacités agentiques, les bibliothèques et les fonctions natives d'Odoo 17. N'ajouter une
+  dépendance ou un nouveau sous-système que si un besoin mesuré et non couvert le justifie.
+- Distinguer les modules présents sur disque des modules réellement installés dans l'instance. Le graphe
+  actif représente les modules installés ; les chemins d'addons servent à retrouver leur code, pas à
+  déclarer tous les dossiers disponibles comme installés. Les addons OCA tiers sont rangés sous
+  `odoo_addons/` selon la convention du projet ; `addons_path` doit viser le répertoire parent des modules.
 
 Sortie : suite verte reproductible sur une machine neuve, une seule source de configuration.
 
@@ -82,8 +89,11 @@ l'echec qui la justifie.
 
 ## P3 -- Empreinte d'instance et contrat d'identite
 
-- Empreinte : modules installés, versions, etats, chemins d'addons accessibles, langues actives, hash.
-  Attachee à chaque graphe, lexique, trace, reponse et resultat d'evaluation.
+- Empreinte : modules effectivement installés dans Odoo, versions et états issus de l'instance,
+  chemins d'addons accessibles, langues actives, hash. Les modules disponibles sur disque mais non installés
+  sont inventoriés séparément et exclus du graphe actif. Les dépendances déclarées et les dépendances
+  effectivement observées sont distinguées. Attachee à chaque graphe, lexique, trace, reponse et resultat
+  d'evaluation.
 - Identité : toute lecture ERP s'execute par l'ORM sous l'identite du demandeur ; clé du demandeur absente
   signifie lecture refusée ; utilisateur et societe viennent de la session authentifiée, jamais du LLM ;
   aucune élévation implicite, aucun SQL brut. Un mode technique explicite, par variable d'environnement,
