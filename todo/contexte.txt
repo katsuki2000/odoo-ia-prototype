@@ -4311,3 +4311,27 @@ Date : 10/10/2026
 Après l'élargissement de la CI, chaque commit déclenchait une suite complète; plusieurs exécutions se sont donc chevauchées pendant les mises à jour successives. Le workflow définit maintenant un groupe de concurrence par workflow et branche, avec annulation des exécutions précédentes lorsqu'un nouveau commit arrive. Cela conserve la validation du dernier état sans gaspiller des runners sur des commits dépassés.
 
 Fichier modifié : .github/workflows/ci.yml. La nouvelle exécution sur la tête actuelle doit être vérifiée avant toute affirmation sur l'état des tests.
+
+
+## Section 1221 : diagnostic du premier run pytest complet et correction du socle CI
+
+Date : 10/10/2026
+
+**Résultat de référence** : sur le commit 500361201a3a4a46755bb54899a44cf8a3992d4b, pytest -q a donné 2448 passed, 55 skipped, 37 failed et 8 errors en 435,08 s. Ce résultat précède la migration des tests documentaires. Il n'est pas présenté comme un résultat vert.
+
+**Causes identifiées dans les logs** :
+- Le workflow exécutait pytest avant de cloner les sources OCA; les chemins par défaut des addons Odoo 17 pointaient également vers un checkout absent en CI. Des tests d'analyse statique ne pouvaient donc pas résoudre des modules et leurs sources.
+- Des tests de runtime Odoo sont marqués integration, mais l'ancien workflow exécutait quand même ces tests alors qu'aucun serveur Odoo n'est démarré.
+- Le dépôt contenait 12 entrées gitlink sous tests/oca_sample/ sans fichier .gitmodules correspondant; le nettoyage post-checkout échouait avec « No url found for submodule path ».
+- Un groupe distinct d'échecs porte sur les tests de garde du lecteur de sources, les observations de dispatch et des attentes de tests potentiellement périmées. Ces échecs ne sont pas déclarés corrigés par le seul changement de CI.
+
+**Correctif CI appliqué** dans .github/workflows/ci.yml :
+1. Checkout shallow/sparse des addons officiels Odoo 17 avant les tests, à l'emplacement attendu par config/settings.py.
+2. Clonage des échantillons OCA avant pytest et définition explicite de CORE_ADDONS_PATH et OCA_SAMPLE_ADDONS_PATH.
+3. Exécution de la suite offline avec pytest -q -m "not integration"; les tests d'intégration restent identifiés par leur marker et ne sont pas confondus avec les tests unitaires sans service.
+4. Suppression atomique des 12 gitlinks orphelins tests/oca_sample/; le workflow continue de récupérer les sources d'échantillon explicitement.
+5. Le groupe de concurrence CI annule les exécutions dépassées sur la même branche.
+
+**Commit** : 21a8c85c5f8e8c384904282a807f34c7a922efb9.
+
+**Validation** : le prochain run CI doit vérifier si la disponibilité des sources officielles/OCA et l'exclusion explicite des tests d'intégration éliminent les échecs environnementaux. Les autres échecs seront triés à partir du nouveau rapport; aucun correctif applicatif n'est encore revendiqué pour eux.
