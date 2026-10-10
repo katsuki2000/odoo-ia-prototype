@@ -4176,3 +4176,16 @@ Date : 10/10/2026
 
 **Fichiers modifies** : code_intelligence/graph/loader.py, config/settings.py, code_intelligence/tests/test_audit_regressions.py, todo/contexte.txt.
 
+
+## Section 1211 : execution des tests de regression dans la CI
+
+Date : 10/10/2026
+
+**Mandat** : ne pas confondre une CI verte de couverture d'extraction OCA avec l'execution des tests de regression qui protegent le chargement du graphe.
+
+**Correction** : le workflow .github/workflows/ci.yml execute maintenant pytest -q code_intelligence/tests/test_audit_regressions.py apres installation des dependances. Le workflow se declenche egalement quand son propre fichier change, afin que les modifications de la pipeline soient testees.
+
+**Verification** : execution CI declenchee sur la branche fix/local-test-failures ; resultat a confirmer avant de conclure. Les executions precedentes du workflow ne couvraient que scripts/run_oca_coverage.py et ne prouvaient pas le passage de cette suite de tests.
+
+**Fichiers modifies** : .github/workflows/ci.yml, todo/contexte.txt.
+
