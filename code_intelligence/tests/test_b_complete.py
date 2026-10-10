@@ -10,7 +10,6 @@ Tests:
   5.  Live Comparator & Divergence Detector (TTL cache, non-boolean divergence report)
 """
 
-import tempfile
 from pathlib import Path
 import pytest
 import networkx as nx
@@ -98,8 +97,10 @@ def test_b1_6_3_level_error_management():
     assert res_f.status == QueryStatus.FOUND
 
 
-def test_b2_auxiliary_tools():
+def test_b2_auxiliary_tools(tmp_path, monkeypatch):
     """Test : Role resolution, module listing, path explanation, line limit safeguard."""
+    from config import settings
+    monkeypatch.setattr(settings, "CUSTOM_ADDONS_PATH", str(tmp_path))
     # B.2.1 Role resolution
     assert resolve_technical_name_to_role("sales_team.group_sale_manager") == "Responsable Ventes"
 
@@ -116,18 +117,14 @@ def test_b2_auxiliary_tools():
     assert "Step 1:" in exp
 
     # B.2.4 Source reader safeguard (> 200 lines refused)
-    with tempfile.NamedTemporaryFile("w", delete=False) as f:
-        f.write("\n".join([f"line {i}" for i in range(300)]))
-        f_path = Path(f.name)
+    f_path = tmp_path / "sample.py"
+    f_path.write_text("\n".join([f"line {i}" for i in range(300)]), encoding="utf-8")
 
-    try:
-        err_res = read_precise_source_code(str(f_path), 1, 250)
-        assert "exceeds maximum safeguard limit" in err_res
+    err_res = read_precise_source_code(str(f_path), 1, 250)
+    assert "exceeds maximum safeguard limit" in err_res
 
-        valid_res = read_precise_source_code(str(f_path), 10, 20)
-        assert "10 | line 9" in valid_res
-    finally:
-        f_path.unlink()
+    valid_res = read_precise_source_code(str(f_path), 10, 20)
+    assert "10 | line 9" in valid_res
 
 
 def test_explain_transition_path_lists_all_buttons_sharing_an_edge():
