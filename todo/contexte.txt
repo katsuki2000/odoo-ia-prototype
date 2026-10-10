@@ -4116,3 +4116,21 @@ Date : 10/10/2026
 **Non vérifié** : les tests n'ont pas été exécutés dans le venv de la machine du projet ; pas de test d'inférence réel ni de rejeu du protocole gelé. Le changement de prompt est une amélioration du cadrage, pas une preuve d'exactitude ni un filtre complet des demandes hors périmètre.
 
 **Fichiers modifies** : `todo/perimetre_livraison_20_octobre.md`, `code_intelligence/agent/investigation_llm.py`, `code_intelligence/tests/test_business_intent_prompt.py`, `todo/contexte.txt`.
+
+
+## Section 1208 : Contrat d'inventaire du graphe et fidélité des contraintes SQL
+
+Date : 10/10/2026
+
+**Contexte** : reprise du diagnostic des sections 981-982. Le résultat direct de `analyze_data_constraints` était correct, mais la synthèse pouvait remplacer les contraintes SQL observées par des règles Odoo plausibles mais absentes de la preuve. Le chargeur pouvait aussi accepter un cache sans le comparer à l'inventaire installé courant et basculer silencieusement vers les dossiers présents lorsque l'inventaire runtime était inaccessible.
+
+**Corrections appliquées sur `fix/graph-runtime-fidelity`** :
+- `code_intelligence/graph/loader.py` : le cache est comparé à l'inventaire des modules installés et à leurs versions avant réutilisation. En production, si l'inventaire runtime est indisponible, la construction du graphe est refusée avec un message explicite au lieu d'utiliser implicitement un graphe potentiellement périmé ou d'inclure des modules non confirmés installés.
+- `GRAPH_OFFLINE_MODE` est une option explicite, désactivée par défaut et documentée dans `.env.example`. Le mode de test est activé explicitement par `conftest.py`. Il autorise l'analyse des sources hors ligne sans prétendre connaître l'état installé réel.
+- La découverte des modules respecte le premier chemin d'addons configuré pour un nom en doublon. Un inventaire runtime vide ne se transforme plus en liste statique de modules core supposés installés. En présence d'un inventaire, les dépendances directes sont filtrées sur l'état installé.
+- `code_intelligence/rules/data_constraints.py` et `code_intelligence/agent/postprocess.py` : si la question porte sur les contraintes SQL, que l'outil a retourné des déclarations SQL et que la synthèse omet leurs noms, la réponse non fidèle est remplacée par l'observation source. Un avertissement distingue le cas où cette observation est tronquée. La consigne de synthèse interdit aussi de substituer des contraintes Odoo courantes à celles réellement observées.
+- Tests ajoutés : `code_intelligence/tests/test_graph_inventory_contract.py` et `code_intelligence/tests/test_sql_constraint_fidelity.py`.
+
+**Validation** : tests non exécutés dans cet environnement. Le clonage du dépôt a échoué car `github.com` n'est pas résolu depuis l'environnement d'exécution. Les écritures GitHub confirment que les fichiers ont été enregistrés sur la branche, mais ne constituent pas une preuve de passage des tests. La suite de non-régression et le rejeu LLM réel restent nécessaires.
+
+**Fichiers modifiés** : `config/settings.py`, `.env.example`, `conftest.py`, `code_intelligence/graph/loader.py`, `code_intelligence/agent/prompts.py`, `code_intelligence/agent/postprocess.py`, `code_intelligence/rules/data_constraints.py`, `code_intelligence/tests/test_graph_inventory_contract.py`, `code_intelligence/tests/test_sql_constraint_fidelity.py`, `todo/contexte.txt`.
