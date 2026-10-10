@@ -11,6 +11,7 @@ from code_intelligence.agent.tools.introspection import (
 )
 from code_intelligence.graph.loader import (
     _configured_addon_roots,
+    _discover_installed_core_modules,
     _discover_installed_source_modules,
 )
 from code_intelligence.rules.button_path import button_execution_path
@@ -189,3 +190,21 @@ def test_data_constraint_observation_bypasses_free_form_synthesis_only_when_auth
     assert _should_bypass_synthesis(["analyze_data_constraints"])
     assert not _should_bypass_synthesis(["analyze_data_constraints", "read_source_code"])
     assert not _should_bypass_synthesis(["evaluate_record_rules"])
+
+
+def test_addon_roots_use_odoo_defaults_when_config_omits_addons_path(tmp_path):
+    config_file = tmp_path / "odoo.conf"
+    config_file.write_text("[options]\nhttp_port = 8069\n", encoding="utf-8")
+    default_roots = [tmp_path / "odoo" / "addons", tmp_path / "addons"]
+    fallback_roots = [tmp_path / "custom"]
+
+    roots = _configured_addon_roots(config_file, fallback_roots, default_roots)
+
+    assert roots == [path.resolve() for path in default_roots]
+
+
+def test_empty_installed_core_inventory_does_not_load_uninstalled_candidates():
+    assert _discover_installed_core_modules(
+        ["account", "sale", "purchase"],
+        installed_modules=[],
+    ) == []
