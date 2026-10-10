@@ -39,15 +39,21 @@ Cette carte est le registre de migration du code existant, pas une architecture 
 | tests/, code_intelligence/tests/, erp_data/tests/, document_rag/tests/ | tests/unit/, tests/integration/, tests/odoo_addons/ (cible graduelle) | Centraliser par type et non par package uniquement. Conserver les tests natifs dans le module Odoo lorsque le runner Odoo les exige. Migrer un lot à la fois, avec commandes de test et imports corrigés ensemble. | Élevé : fixtures globales, markers d'intégration et collecte pytest. |
 | scripts/ | scripts/diagnostics/, scripts/maintenance/, scripts/benchmarks/ | Classer par responsabilité après inventaire des points d'entrée et usages CI; éviter de renommer des scripts invoqués par documentation ou CI sans mise à jour atomique. | Faible/moyen. |
 
+## État d'avancement au 10/10/2026
+
+- P0 — CI élargie pour tous les push/pull request; la première suite complète est en cours de validation.
+- Centralisation progressive des tests commencée : les 19 fichiers de document_rag/tests/ ont été déplacés vers tests/document_rag/; les trois chemins de tests qui dépendaient de l'emplacement ont été adaptés et pytest.ini ne référence plus l'ancien dossier.
+- Aucun module applicatif n'a encore été déplacé. Le premier déplacement de code sera choisi après analyse des dépendances entrantes/sortantes et confirmation de la CI.
+
 ## Ordre d'exécution
 
 1. P0 — rendre la CI représentative : déclencher les tests sur tout changement, exécuter la suite pytest configurée, garder la couverture OCA comme contrôle séparé.
 2. P1 — établir l'inventaire des imports et contrats : construire les graphes de dépendances réels; noter les imports de package, les monkeypatchs et les effets de bord.
-3. P2 — premier lot à faible risque : sélectionner un sous-module feuille dont les consommateurs sont identifiés, déplacer le code et ses tests ensemble, mettre à jour tous les imports sans façade.
-4. P3 — migrer les familles transversales : evidence/routing/LLM/session seulement avec tests de contrat ciblés.
-5. P4 — traiter les deux graphes séparément : graphe d'orchestration de requête et graphe statique de l'instance restent des concepts distincts.
-6. P5 — migrer les adaptateurs : RAG documentaire puis runtime Odoo, avec tests de sécurité et d'isolation.
-7. P6 — centraliser les tests par type : après la CI élargie, sans déplacer les tests Odoo natifs hors des emplacements exigés.
+3. P2 — centraliser les tests par familles en parallèle des migrations de code, en commençant par les tests documentaires déjà déplacés; garder les tests Odoo natifs là où le runner Odoo les exige.
+4. P3 — premier lot de code à faible risque : sélectionner un sous-module feuille dont les consommateurs sont identifiés, déplacer le code et ses tests ensemble, mettre à jour tous les imports sans façade.
+5. P4 — migrer les familles transversales : evidence/routing/LLM/session seulement avec tests de contrat ciblés.
+6. P5 — traiter les deux graphes séparément : graphe d'orchestration de requête et graphe statique de l'instance restent des concepts distincts.
+7. P6 — migrer les adaptateurs : RAG documentaire puis runtime Odoo, avec tests de sécurité et d'isolation.
 8. P7 — traiter miro_ai séparément : seulement après validation de la convention OCA et de l'addons_path réel.
 
 ## Contrôles obligatoires par lot
