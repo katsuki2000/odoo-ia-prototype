@@ -27,6 +27,10 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Run audit regression tests
+        run: |
+          pytest -q code_intelligence/tests/test_audit_regressions.py
+
       - name: Clone OCA sample modules
         run: |
           mkdir -p tests/oca_sample
