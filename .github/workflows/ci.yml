@@ -1,16 +1,8 @@
-name: OCA Coverage Pipeline
+name: Python Tests and OCA Coverage
 
 on:
   push:
-    paths:
-      - 'code_intelligence/**'
-      - 'scripts/run_oca_coverage.py'
-      - '.github/workflows/ci.yml'
   pull_request:
-    paths:
-      - 'code_intelligence/**'
-      - 'scripts/run_oca_coverage.py'
-      - '.github/workflows/ci.yml'
   workflow_dispatch:
 
 jobs:
@@ -29,9 +21,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run audit regression tests
+      - name: Run project test suite
         run: |
-          pytest -q code_intelligence/tests/test_audit_regressions.py
+          pytest -q
 
       - name: Clone OCA sample modules
         run: |
