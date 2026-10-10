@@ -139,6 +139,26 @@ def _translation_cache_matches(requested, available) -> bool:
     return requested.issubset(available)
 
 
+def _graph_matches_installed_inventory(graph, installed_modules) -> bool:
+    if installed_modules is None:
+        return False
+    fingerprint = graph.graph.get("instance_fingerprint_data") or {}
+    cached_modules = fingerprint.get("modules")
+    if cached_modules is None:
+        return False
+    expected = sorted(
+        (
+            str(row.get("name", "")),
+            str(row.get("installed_version") or row.get("latest_version") or ""),
+            str(row.get("state", "")),
+        )
+        for row in installed_modules
+        if row.get("name")
+    )
+    actual = sorted(tuple(str(value) for value in row) for row in cached_modules)
+    return actual == expected
+
+
 def _normalize_language_code(language: str) -> str:
     return language.strip().replace("-", "_")
 GRAPH_JSON_PATH = Path(GRAPH_CACHE_PATH)
@@ -235,24 +255,13 @@ def _discover_installed_source_modules(addon_roots, installed_modules) -> dict[s
             continue
         for module_name in sorted(installed_names):
             module_dir = root / module_name
-            if (module_dir / "__manifest__.py").is_file():
+            if module_name not in modules and (module_dir / "__manifest__.py").is_file():
                 modules[module_name] = module_dir
     return modules
 
 
 def _discover_installed_core_modules(candidates: list, installed_modules=None) -> list:
-    """
-    Resolve which of the candidate core module names are actually installed
-    on the target Odoo instance, by querying ir.module.module (state=
-    installed) through OdooConnector -- so the set of natively-preloaded
-    modules reflects the real instance, not a fixed benchmark assumption.
-
-    Falls back to the full candidate list, unfiltered, if the instance is
-    unreachable at graph-build time (offline builds, OCA-only benchmark
-    runs, no live Odoo instance configured) -- explicit fallback per
-    todo/rules.md (machine-dependent values need a fallback, never a silent
-    hard assumption). See todo/contexte.txt section 752.
-    """
+    """Return only core candidates confirmed installed by the runtime inventory."""
     if installed_modules is None:
         try:
             connector, uid = _open_technical_session()
@@ -263,39 +272,14 @@ def _discover_installed_core_modules(candidates: list, installed_modules=None) -
                 fields=["name"],
             )
         except Exception as error:
-            logger.warning(
-                "Could not query ir.module.module on the live Odoo instance (%s) "
-                "-- falling back to the static core module candidate list %s.",
-                error, candidates,
-            )
-            return candidates
+            logger.warning("Cannot verify installed core modules: %s", error)
+            return []
 
-    try:
-        installed = _installed_module_names(installed_modules)
-    except (KeyError, TypeError) as error:
-        logger.warning(
-            "Could not query ir.module.module on the live Odoo instance (%s) "
-            "-- falling back to the static core module candidate list %s.",
-            error, candidates,
-        )
-        return candidates
-
-    if not installed:
-        logger.warning(
-            "ir.module.module query returned no installed modules among %s -- "
-            "falling back to the full candidate list (safer than silently "
-            "loading none).",
-            candidates,
-        )
-        return candidates
-
-    missing = [c for c in candidates if c not in installed]
+    installed = _installed_module_names(installed_modules)
+    missing = [name for name in candidates if name not in installed]
     if missing:
-        logger.info(
-            "Core module candidates not installed on this instance, skipping: %s",
-            missing,
-        )
-    return [c for c in candidates if c in installed]
+        logger.info("Core module candidates not installed, skipping: %s", missing)
+    return [name for name in candidates if name in installed]
 
 
 def _get_code_intelligence_graph(
@@ -317,6 +301,16 @@ def _get_code_intelligence_graph(
     if request_language:
         requested_languages = tuple(sorted(set(requested_languages) | {request_language}))
 
+    from config.settings import GRAPH_OFFLINE_MODE
+    if installed_modules is None:
+        installed_modules = _read_runtime_module_inventory()
+    if installed_modules is None and not GRAPH_OFFLINE_MODE:
+        raise RuntimeError(
+            "The installed-module inventory is unavailable. Graph construction is refused "
+            "to avoid indexing uninstalled modules or trusting a stale instance cache. "
+            "Set GRAPH_OFFLINE_MODE=true only for explicit offline source analysis."
+        )
+
     if _CACHED_CODE_INTEL_GRAPH is not None and not force_rebuild:
         requested_languages = tuple(sorted(
             set(requested_languages)
@@ -336,6 +330,12 @@ def _get_code_intelligence_graph(
                 or _CACHED_CODE_INTEL_GRAPH is None
                 or current_mtime > _CACHED_GRAPH_MTIME
                 or not _translation_cache_matches(requested_languages, cached_languages)
+                or (
+                    installed_modules is not None
+                    and not _graph_matches_installed_inventory(
+                        _CACHED_CODE_INTEL_GRAPH, installed_modules
+                    )
+                )
             ):
                 from .atomic_swap import atomic_read_json
                 from .version import GRAPH_SCHEMA_VERSION, deserialize_graph_with_metadata
@@ -348,6 +348,9 @@ def _get_code_intelligence_graph(
                 schema_valid = metadata.get("graph_schema_version", 0) >= GRAPH_SCHEMA_VERSION
                 paths_resolve = _graph_filepaths_resolve_locally(G)
                 languages_match = _translation_cache_matches(requested_languages, graph_languages)
+                inventory_matches = (
+                    GRAPH_OFFLINE_MODE and installed_modules is None
+                ) or _graph_matches_installed_inventory(G, installed_modules)
                 if schema_valid and paths_resolve and not languages_match and not force_rebuild:
                     requested_languages = tuple(sorted(set(requested_languages) | graph_languages))
                     languages_match = _translation_cache_matches(requested_languages, graph_languages)
@@ -355,6 +358,7 @@ def _get_code_intelligence_graph(
                     schema_valid
                     and paths_resolve
                     and languages_match
+                    and inventory_matches
                     and not force_rebuild
                 ):
                     _CACHED_CODE_INTEL_GRAPH = G
@@ -385,7 +389,10 @@ def _get_code_intelligence_graph(
 
     if _CACHED_CODE_INTEL_GRAPH is not None and not force_rebuild:
         cached_languages = _CACHED_CODE_INTEL_GRAPH.graph.get("translation_languages", ())
-        if _translation_cache_matches(requested_languages, cached_languages):
+        inventory_matches = (
+            GRAPH_OFFLINE_MODE and installed_modules is None
+        ) or _graph_matches_installed_inventory(_CACHED_CODE_INTEL_GRAPH, installed_modules)
+        if _translation_cache_matches(requested_languages, cached_languages) and inventory_matches:
             return _CACHED_CODE_INTEL_GRAPH
         _CACHED_CODE_INTEL_GRAPH = None
 
@@ -418,8 +425,6 @@ def _get_code_intelligence_graph(
     # 2. Load installed modules whose source is accessible. A runtime inventory
     # replaces the fixed core shortlist; unavailable runtime access retains the
     # narrow offline fallback below.
-    if installed_modules is None:
-        installed_modules = _read_runtime_module_inventory()
     if active_languages is None:
         active_languages = _read_runtime_active_languages()
     if installed_modules is not None:
@@ -438,7 +443,11 @@ def _get_code_intelligence_graph(
             len(modules_dict), len(_installed_module_names(installed_modules)),
         )
     else:
-        core_modules_always_loaded = _discover_installed_core_modules(CORE_MODULE_CANDIDATES)
+        core_modules_always_loaded = CORE_MODULE_CANDIDATES
+        logger.warning(
+            "Building an offline source graph without runtime install-state guarantees; "
+            "GRAPH_OFFLINE_MODE is intended for tests and explicit source analysis only."
+        )
         for core_name in core_modules_always_loaded:
             core_dir = core_addons_root / core_name
             if core_dir.is_dir() and (core_dir / "__manifest__.py").exists():
@@ -499,7 +508,10 @@ def _get_code_intelligence_graph(
         if dep_mod and dep_mod.manifest:
             direct_deps.update(dep_mod.manifest.depends)
 
+    installed_names = _installed_module_names(installed_modules)
     for dep_name in sorted(direct_deps):
+        if installed_modules is not None and dep_name not in installed_names:
+            continue
         if dep_name in modules_dict:
             continue
         dep_dir = core_addons_root / dep_name
