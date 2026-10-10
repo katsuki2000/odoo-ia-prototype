@@ -468,7 +468,7 @@ def enforce_sql_constraint_fidelity(
 ) -> str:
     """Prefer the actual constraint evidence when synthesis omits its declarations."""
     if not re.search(
-        r"\b(?:sql|contrainte|constraint|check|unicité|unique)\b",
+        r"\b(?:sql|contraintes?|constraints?|check|unicité|unique)\b",
         question,
         flags=re.IGNORECASE,
     ):
