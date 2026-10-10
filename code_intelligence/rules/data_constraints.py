@@ -71,12 +71,10 @@ def run_semgrep_analysis(
     Run Semgrep on target_path using config_path and return structured SemgrepMatch items.
     """
     if not target_path.exists():
-        _logger.warning("Target path does not exist for Semgrep analysis: %s", target_path)
-        return []
+        raise FileNotFoundError(f"Semgrep target path does not exist: {target_path}")
 
     if not config_path.exists():
-        _logger.warning("Config path does not exist for Semgrep analysis: %s", config_path)
-        return []
+        raise FileNotFoundError(f"Semgrep configuration path does not exist: {config_path}")
 
     binary = semgrep_bin or _find_semgrep_binary()
 
@@ -97,8 +95,7 @@ def run_semgrep_analysis(
             timeout=30,
         )
         if res.returncode not in (0, 1):
-            _logger.error("Semgrep execution failed (code %d): %s", res.returncode, res.stderr)
-            return []
+            raise RuntimeError(f"Semgrep failed with exit code {res.returncode}: {res.stderr.strip()}")
 
         data = json.loads(res.stdout)
         results = data.get("results", [])
@@ -137,7 +134,7 @@ def run_semgrep_analysis(
 
     except Exception as e:
         _logger.error("Error executing data_constraints runner: %s", e)
-        return []
+        raise RuntimeError(f"Semgrep analysis failed for '{target_path}': {e}") from e
 
 
 def _string_constants(node: ast.AST) -> List[str]:
@@ -208,6 +205,7 @@ class DataConstraintsAnalysis:
     matches: List[SemgrepMatch] = field(default_factory=list)
     summary_text: str = ""
     evidence: List[Evidence] = field(default_factory=list)
+    analysis_errors: List[str] = field(default_factory=list)
 
 
 def _strip_outer_parentheses(expression: str) -> str:
@@ -575,9 +573,19 @@ def _build_data_constraints_evidence(matches: List[SemgrepMatch]) -> List[Eviden
     return evidence
 
 
-def _compose_data_constraints_summary(model_name: str, matches: List[SemgrepMatch]) -> str:
-    """Build summary_text exactly as ci_agent_tools.py's previous inline
-    implementation did -- text contract strictly unchanged."""
+def _compose_data_constraints_summary(
+    model_name: str,
+    matches: List[SemgrepMatch],
+    analysis_errors: Optional[List[str]] = None,
+) -> str:
+    """Render findings without treating a failed scan as a negative result."""
+    analysis_errors = analysis_errors or []
+    if not matches and analysis_errors:
+        return (
+            f"Data-constraint analysis for '{model_name}' is incomplete. "
+            "No conclusion about the absence of _sql_constraints or relational "
+            f"domain patterns is possible. Errors: {'; '.join(analysis_errors)}"
+        )
     if not matches:
         return (
             f"No _sql_constraints or relational domain= patterns detected for "
@@ -586,9 +594,15 @@ def _compose_data_constraints_summary(model_name: str, matches: List[SemgrepMatc
         )
 
     lines = [
-        f"Analyse des contraintes de données (Semgrep) pour '{model_name}' "
+        f"Analyse des contraintes de données pour '{model_name}' "
         f"[Confiance: {confidence_label('high')} -- correspondance de motif statique, déterministe]:"
     ]
+    if analysis_errors:
+        lines.append(
+            "WARNING: This analysis is incomplete; some Semgrep scans failed. "
+            "The findings below do not establish that other constraints are absent. "
+            f"Errors: {'; '.join(analysis_errors)}"
+        )
     from code_intelligence.agent.tool_helpers import _is_custom_module_filepath
     def _constraint_priority(m: SemgrepMatch) -> tuple:
         is_custom = _is_custom_module_filepath(m.filepath)
@@ -681,19 +695,27 @@ def analyze_data_constraints_from_filepaths(
         config_dir = Path(__file__).resolve().parent.parent / "semgrep_rules"
 
     all_matches: List[SemgrepMatch] = []
+    analysis_errors: List[str] = []
     for fp in sorted(filepaths):
         p = Path(fp)
         if not p.exists():
+            analysis_errors.append(f"Source file is unavailable: {fp}")
             continue
-        all_matches.extend(run_semgrep_analysis(p, config_dir))
+        try:
+            all_matches.extend(run_semgrep_analysis(p, config_dir))
+        except (OSError, RuntimeError, ValueError) as error:
+            analysis_errors.append(str(error))
         all_matches.extend(_extract_static_exclusion_filters(p))
 
     _annotate_owner_models(all_matches)
     return DataConstraintsAnalysis(
         model_name=model_name,
         matches=all_matches,
-        summary_text=_compose_data_constraints_summary(model_name, all_matches),
+        summary_text=_compose_data_constraints_summary(
+            model_name, all_matches, analysis_errors,
+        ),
         evidence=_build_data_constraints_evidence(all_matches),
+        analysis_errors=analysis_errors,
     )
 
 
