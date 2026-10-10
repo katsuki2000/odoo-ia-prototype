@@ -235,8 +235,16 @@ def _discover_installed_source_modules(addon_roots, installed_modules) -> dict[s
             continue
         for module_name in sorted(installed_names):
             module_dir = root / module_name
-            if (module_dir / "__manifest__.py").is_file():
-                modules[module_name] = module_dir
+            if not (module_dir / "__manifest__.py").is_file():
+                continue
+            if module_name in modules:
+                logger.warning(
+                    "Installed addon '%s' exists in multiple roots; keeping '%s' "
+                    "according to configured addon-root priority and ignoring '%s'.",
+                    module_name, modules[module_name], module_dir,
+                )
+                continue
+            modules[module_name] = module_dir
     return modules
 
 
@@ -424,7 +432,7 @@ def _get_code_intelligence_graph(
         active_languages = _read_runtime_active_languages()
     if installed_modules is not None:
         installed_source_modules = _discover_installed_source_modules(
-            [core_framework_addons_root, core_addons_root, custom_addons_root],
+            [custom_addons_root, core_addons_root, core_framework_addons_root],
             installed_modules,
         )
         for module_name, module_dir in installed_source_modules.items():
@@ -499,8 +507,18 @@ def _get_code_intelligence_graph(
         if dep_mod and dep_mod.manifest:
             direct_deps.update(dep_mod.manifest.depends)
 
+    installed_module_names = (
+        _installed_module_names(installed_modules)
+        if installed_modules is not None else None
+    )
     for dep_name in sorted(direct_deps):
         if dep_name in modules_dict:
+            continue
+        if installed_module_names is not None and dep_name not in installed_module_names:
+            logger.warning(
+                "Skipping dependency '%s' absent from the runtime installed-module inventory.",
+                dep_name,
+            )
             continue
         dep_dir = core_addons_root / dep_name
         if not dep_dir.is_dir() or not (dep_dir / "__manifest__.py").exists():
