@@ -40,8 +40,10 @@ def evaluate_rules_raw(model_name: str, permission: str = "read", user_groups_js
     model_name = _resolve_model_param(model_name)
     try:
         user_groups = json.loads(user_groups_json) if isinstance(user_groups_json, str) else user_groups_json
-    except Exception:
-        user_groups = []
+    except (json.JSONDecodeError, TypeError):
+        user_groups = None
+    if not isinstance(user_groups, list) or any(not isinstance(group, str) for group in user_groups):
+        user_groups = None
     return _impl(G, model_name, permission=permission, user_groups=user_groups)
 
 
