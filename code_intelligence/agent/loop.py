@@ -39,7 +39,11 @@ def execute_tool_calls(ctx: DispatchContext, ai_msg, messages: list) -> None:
 
         try:
             tool_args = _override_user_groups_arg(
-                tool_name, tool_args, ctx.resolved_user_group_xmlids, ctx.security_principals,
+                tool_name,
+                tool_args,
+                ctx.resolved_user_group_xmlids,
+                ctx.security_principals,
+                requester_groups_known=ctx.requester_groups_known,
             )
         except UnknownPrincipalError as upe:
             logger.warning("Node [code_intelligence_agent]: %s", upe)
