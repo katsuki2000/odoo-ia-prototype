@@ -56,6 +56,8 @@ EVAL_ODOO_PYTHON = os.getenv("EVAL_ODOO_PYTHON") or (
 EVAL_ODOO_CONF = os.getenv("EVAL_ODOO_CONF") or (
     str(_ODOO_DEFAULT_CONF) if _ODOO_DEFAULT_CONF.is_file() else None
 )
+# Configuration used to resolve addon precedence for the target Odoo instance.
+ODOO_CONF_PATH = os.getenv("ODOO_CONF_PATH") or EVAL_ODOO_CONF
 EVAL_DB_PREFIX = os.getenv("EVAL_DB_PREFIX", "eval_")
 EVAL_INSTANCES_DIR = os.getenv("EVAL_INSTANCES_DIR") or str(_ROOT / "captures" / "eval_instances")
 
