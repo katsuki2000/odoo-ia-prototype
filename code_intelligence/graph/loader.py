@@ -118,7 +118,9 @@ code_intelligence/graph/build/loader.py
 Code Intelligence knowledge graph loading, caching, and building orchestration.
 """
 
+import configparser
 import logging
+import os
 import threading
 from pathlib import Path
 
@@ -225,8 +227,52 @@ def _installed_module_names(installed_modules) -> set[str]:
     }
 
 
+def _configured_addon_roots(config_path, fallback_roots) -> list[Path]:
+    """Return addon roots in Odoo configuration order, with an explicit offline fallback."""
+    config_file = Path(config_path).expanduser() if config_path else None
+    if config_file and config_file.is_file():
+        parser = configparser.ConfigParser(interpolation=None)
+        try:
+            with config_file.open(encoding="utf-8") as stream:
+                parser.read_file(stream)
+            configured_paths = parser.get("options", "addons_path", fallback="").strip()
+        except (OSError, configparser.Error) as error:
+            logger.warning(
+                "Could not read Odoo configuration '%s' (%s); using explicit addon-path fallback.",
+                config_file,
+                error,
+            )
+        else:
+            if configured_paths:
+                roots = []
+                for value in configured_paths.split(","):
+                    value = os.path.expandvars(os.path.expanduser(value.strip()))
+                    if value:
+                        roots.append(Path(value).resolve())
+                if roots:
+                    logger.info(
+                        "Using %d addon roots in the order declared by Odoo config '%s'.",
+                        len(roots),
+                        config_file,
+                    )
+                    return list(dict.fromkeys(roots))
+            logger.warning(
+                "Odoo configuration '%s' has no usable addons_path; using explicit addon-path fallback.",
+                config_file,
+            )
+    else:
+        logger.warning(
+            "ODOO_CONF_PATH is unset or unavailable (%s); addon-root precedence cannot be "
+            "confirmed against the live Odoo process. Using configured fallback roots.",
+            config_file,
+        )
+
+    roots = [Path(root).expanduser().resolve() for root in fallback_roots if root]
+    return list(dict.fromkeys(roots))
+
+
 def _discover_installed_source_modules(addon_roots, installed_modules) -> dict[str, Path]:
-    """Map installed module names to accessible addon directories by path priority."""
+    """Map installed module names to source directories using Odoo addon-path order."""
     installed_names = _installed_module_names(installed_modules)
     modules = {}
     for root in addon_roots:
@@ -404,11 +450,16 @@ def _get_code_intelligence_graph(
         CORE_FRAMEWORK_ADDONS_PATH,
         CUSTOM_ADDONS_PATH,
         OCA_SAMPLE_ADDONS_PATH,
+        ODOO_CONF_PATH,
     )
 
     core_addons_root = Path(CORE_ADDONS_PATH)
     custom_addons_root = Path(CUSTOM_ADDONS_PATH)
     core_framework_addons_root = Path(CORE_FRAMEWORK_ADDONS_PATH)
+    addon_roots = _configured_addon_roots(
+        ODOO_CONF_PATH,
+        [CORE_ADDONS_PATH, CORE_FRAMEWORK_ADDONS_PATH, CUSTOM_ADDONS_PATH],
+    )
 
     modules_dict = {}
 
@@ -432,7 +483,7 @@ def _get_code_intelligence_graph(
         active_languages = _read_runtime_active_languages()
     if installed_modules is not None:
         installed_source_modules = _discover_installed_source_modules(
-            [custom_addons_root, core_addons_root, core_framework_addons_root],
+            addon_roots,
             installed_modules,
         )
         for module_name, module_dir in installed_source_modules.items():
@@ -448,8 +499,15 @@ def _get_code_intelligence_graph(
     else:
         core_modules_always_loaded = _discover_installed_core_modules(CORE_MODULE_CANDIDATES)
         for core_name in core_modules_always_loaded:
-            core_dir = core_addons_root / core_name
-            if core_dir.is_dir() and (core_dir / "__manifest__.py").exists():
+            core_dir = next(
+                (
+                    root / core_name
+                    for root in addon_roots
+                    if (root / core_name / "__manifest__.py").is_file()
+                ),
+                None,
+            )
+            if core_dir is not None:
                 name, mod = _load_module(core_dir, requested_languages)
                 modules_dict[name] = mod
 
@@ -520,13 +578,20 @@ def _get_code_intelligence_graph(
                 dep_name,
             )
             continue
-        dep_dir = core_addons_root / dep_name
-        if not dep_dir.is_dir() or not (dep_dir / "__manifest__.py").exists():
-            fallback_dir = core_framework_addons_root / dep_name
-            if fallback_dir.is_dir() and (fallback_dir / "__manifest__.py").exists():
-                dep_dir = fallback_dir
-            else:
-                continue
+        dep_dir = next(
+            (
+                root / dep_name
+                for root in addon_roots
+                if (root / dep_name / "__manifest__.py").is_file()
+            ),
+            None,
+        )
+        if dep_dir is None:
+            logger.warning(
+                "Skipping dependency '%s': no manifest found in configured addon roots.",
+                dep_name,
+            )
+            continue
         try:
             name, mod = _load_module(dep_dir, requested_languages)
             modules_dict[name] = mod
@@ -557,7 +622,7 @@ def _get_code_intelligence_graph(
         for name, mod in modules_dict.items()
         if mod and mod.manifest
     }
-    source_paths = [core_addons_root, core_framework_addons_root, custom_addons_root]
+    source_paths = addon_roots
     if OCA_SAMPLE_ADDONS_PATH:
         source_paths.append(Path(OCA_SAMPLE_ADDONS_PATH))
     fingerprint = build_instance_fingerprint(
