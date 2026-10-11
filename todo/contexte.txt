@@ -4352,3 +4352,20 @@ Date : 10/10/2026
 - Le test de règles d'enregistrement fournit explicitement user_groups=[]; l'omission signifie volontairement que l'appartenance du demandeur est inconnue.
 
 Ces modifications corrigent des attentes et fixtures de tests, sans marquer d'échecs comme ignorés ni assouplir les contrôles d'accès aux sources. Le prochain CI doit confirmer le résultat; les échecs éventuels restants seront analysés séparément.
+
+
+## Section 1223 : reprise sélective de `fix/graph-runtime-fidelity` -- garde de fidélité SQL uniquement
+
+Date : 11/10/2026
+
+**Contexte** : `feat/security-lock-reranking` et `fix/graph-tools-evidence-safety` étaient déjà contenues dans `fix/local-test-failures`. `fix/graph-runtime-fidelity` (15 commits) mélangeait deux sujets : la garde de fidélité des contraintes SQL en synthèse (7 commits, absente de `fix/local-test-failures`) et `GRAPH_OFFLINE_MODE` avec la validation du cache contre l'inventaire installé (8 commits). Une fusion complète donnait 7 conflits dans `code_intelligence/graph/loader.py` et cassait la collecte et les fixtures de graphe de portée module, car la partie `GRAPH_OFFLINE_MODE` recoupe les sections 1209-1217 et change le comportement de production.
+
+**Décision** : cherry-pick des seuls commits SQL sur `integration/oct-2026` (`8f82963`, `0db3216`, `a250880`, `b49bbe3`, `cb320fb`, `c54c07e`, `ac75891` de `fix/graph-runtime-fidelity`). La partie `GRAPH_OFFLINE_MODE` / validation du cache contre l'inventaire installé est laissée de côté volontairement; elle reste disponible sur `origin/fix/graph-runtime-fidelity` (commits `6db42ae`, `b5d1524`, `b541cc7`, `cc8be87`, `ca28079`, `d0493c1`) et demande une décision de conception séparée (refus de construire le graphe sans inventaire runtime).
+
+**Correction** : dans `code_intelligence/rules/data_constraints.py`, l'avertissement de la garde SQL appelait `logger` alors que le module définit `_logger`; le test `test_replaces_fabricated_sql_summary_when_real_declarations_are_omitted` échouait avec `NameError`, y compris sur la branche d'origine. Remplacé par `_logger`.
+
+**Validation** : 28 tests passés (`test_sql_constraint_fidelity.py`, `test_analyze_data_constraints.py`, `test_related_security_dispatch.py`, `test_section974_data_constraints_model_scoped_redispatch.py`). Suite complète à lancer par pmm.
+
+**Note** : la section 1208 de `fix/graph-runtime-fidelity` (contrat d'inventaire du graphe) n'est pas reprise; son numéro entre en collision avec la 1208 de `fix/local-test-failures`.
+
+**Fichiers modifiés** : `code_intelligence/rules/data_constraints.py`, `todo/contexte.txt`.

@@ -484,7 +484,7 @@ def enforce_sql_constraint_fidelity(
     if not names or all(name.lower() in final_answer.lower() for name in names):
         return final_answer
 
-    logger.warning(
+    _logger.warning(
         "SQL constraint synthesis omitted declarations %s; returning source evidence instead.",
         [name for name in names if name.lower() not in final_answer.lower()],
     )
