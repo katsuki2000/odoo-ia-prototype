@@ -32,15 +32,7 @@ export function formatMarkdown(text) {
         .replace(/"/g, "&quot;")
         .replace(/'/g, "&#039;");
 
-    // Defense secondaire (todo/contexte.txt section 382, Bug A) : le prompt systeme
-    // impose desormais au LLM un contrat de sortie Markdown strict (correction
-    // principale), mais un LLM peut occasionnellement deroger et emettre du HTML
-    // brut malgre tout. Sans ce pas, cette balise arriverait ici deja echappee en
-    // "&lt;strong&gt;" par le bloc ci-dessus et s'afficherait ensuite littéralement
-    // a l'ecran via t-out. Restaure UNIQUEMENT ce petit ensemble explicite de
-    // balises sans attributs (strong/em/br) -- volontairement pas une tolerance
-    // HTML generale, pour ne pas transformer formatMarkdown() en second moteur de
-    // rendu HTML (cf decision utilisateur section 382).
+
     const ALLOWED_HTML_TAGS_RE = /&lt;(\/?)(strong|em|br)\s*\/?&gt;/gi;
     html = html.replace(ALLOWED_HTML_TAGS_RE, (match, closingSlash, tagName) => {
         const tag = tagName.toLowerCase();

@@ -2,7 +2,7 @@
 """
 miro_ai_log.py
 ==============
-Modèle de journal d'audit et d'historique des requêtes MIRO AI (Step 11 Day 4).
+Modèle de journal d'audit et d'historique des requêtes MIRO AI .
 Enregistre chaque question posée, la réponse générée par le RAG, les sources citées,
 le temps de réponse et l'utilisateur à l'origine de la requête pour traçabilité et débogage.
 """
