@@ -1,8 +1,9 @@
 """System, health check, module coverage, and statistics endpoints."""
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import RedirectResponse
 
+from api.auth import get_current_user
 from api.schemas import ModuleCoverageResponse, StatsResponse
 
 router = APIRouter()
@@ -37,8 +38,8 @@ def health_check_v1():
         status["status"] = "degraded"
 
     try:
-        connector = OdooConnector()
-        connector.authenticate("admin")
+        connector = OdooConnector(technical=True)
+        connector.authenticate(connector.username)
         status["services"]["odoo"] = "ok"
     except Exception:
         status["services"]["odoo"] = "error"
@@ -50,13 +51,13 @@ def health_check_v1():
     return status
 
 
-@router.get("/api/v1/modules", response_model=ModuleCoverageResponse)
+@router.get("/api/v1/modules", response_model=ModuleCoverageResponse, dependencies=[Depends(get_current_user)])
 def get_modules():
     """Get module coverage data comparing installed Odoo modules against AI capabilities."""
     from erp_data.odoo_connector import OdooConnector
     try:
-        connector = OdooConnector()
-        uid = connector.authenticate("admin")
+        connector = OdooConnector(technical=True)
+        uid = connector.authenticate(connector.username)
         records = connector.search_read(
             uid=uid,
             model="ir.module.module",
@@ -81,7 +82,7 @@ def get_modules():
     )
 
 
-@router.get("/stats", response_model=StatsResponse)
+@router.get("/stats", response_model=StatsResponse, dependencies=[Depends(get_current_user)])
 def get_stats():
     """Return statistics about the current vectorstore collection."""
     from document_rag.vectorstore.chroma_manager import (

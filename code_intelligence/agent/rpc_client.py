@@ -15,6 +15,8 @@ import xmlrpc.client
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
+from config.odoo_credentials import service_login, service_password
+
 logger = logging.getLogger(__name__)
 
 
@@ -29,8 +31,8 @@ class OdooRpcError(RuntimeError):
 class OdooRpcClient:
     url: str = field(default_factory=lambda: os.getenv("ODOO_URL", "http://localhost:8069"))
     db: str = field(default_factory=lambda: os.getenv("ODOO_DB", "odoo-dev"))
-    admin_login: str = field(default_factory=lambda: os.getenv("ODOO_ADMIN_LOGIN", "admin"))
-    admin_password: str = field(default_factory=lambda: os.getenv("ODOO_ADMIN_PASSWORD") or os.getenv("ODOO_PASSWORD", "admin"))
+    admin_login: str = field(default_factory=service_login)
+    admin_password: Optional[str] = None
 
     def __post_init__(self) -> None:
         self.common = xmlrpc.client.ServerProxy(f"{self.url}/xmlrpc/2/common", allow_none=True)
@@ -45,7 +47,7 @@ class OdooRpcClient:
         return int(uid)
 
     def authenticate_admin(self) -> int:
-        return self.authenticate_user(self.admin_login, self.admin_password)
+        return self.authenticate_user(self.admin_login, self.admin_password or service_password())
 
     def execute_kw(
         self,

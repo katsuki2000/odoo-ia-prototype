@@ -7,9 +7,14 @@ Permet de configurer l'URL de l'API RAG, le jeton d'authentification et d'active
 les catégories de compétences (Ventes, Stocks, Comptabilité, Tickets).
 """
 import logging
+import secrets
 from odoo import models, fields, api
+from odoo.exceptions import UserError
 
 _logger = logging.getLogger(__name__)
+
+MIN_SIGNING_SECRET_BYTES = 32
+LEGACY_DEFAULT_SECRET = 'default_insecure_secret_for_dev'
 
 
 class MiroAiSettings(models.Model):
@@ -48,8 +53,12 @@ class MiroAiSettings(models.Model):
     )
     api_token = fields.Char(
         string='Jeton Secret API (JWT Secret)',
-        default='default_insecure_secret_for_dev',
-        help='Jeton ou clé secrète utilisée pour signer les requêtes vers le backend RAG'
+        default=lambda self: secrets.token_urlsafe(48),
+        groups='base.group_system,miro_ai.group_miro_ai_admin',
+        copy=False,
+        help='Secret partagé avec le backend RAG (variable JWT_SECRET du serveur) : '
+             'aléatoire, au moins 32 octets, identique des deux côtés. '
+             'Lecture et écriture réservées aux administrateurs.'
     )
 
     # Catégories de compétences (skills toggles)
@@ -79,6 +88,17 @@ class MiroAiSettings(models.Model):
          'Le délai maximal de réponse doit être d\'au moins 10 secondes.'),
     ]
 
+    def get_signing_secret(self):
+        self.ensure_one()
+        secret = self.api_token or ''
+        if secret == LEGACY_DEFAULT_SECRET or len(secret.encode('utf-8')) < MIN_SIGNING_SECRET_BYTES:
+            raise UserError(
+                "Le secret de signature MIRO AI n'est pas configuré : renseignez dans les paramètres "
+                f"MIRO AI un secret aléatoire d'au moins {MIN_SIGNING_SECRET_BYTES} octets, "
+                "identique à JWT_SECRET du serveur RAG."
+            )
+        return secret
+
     @api.model
     def get_active_settings(self):
         """Récupère la configuration active pour la société courante ou en crée une par défaut."""
@@ -91,7 +111,6 @@ class MiroAiSettings(models.Model):
             config = self.create({
                 'name': 'Configuration MIRO RAG principale',
                 'api_url': 'http://127.0.0.1:8000',
-                'api_token': 'default_insecure_secret_for_dev',
                 'activer_ventes': True,
                 'activer_stocks': True,
                 'activer_comptabilite': True,

@@ -18,7 +18,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from config.settings import API_HOST, API_PORT
+from api.auth import get_jwt_secret
+from config.settings import API_HOST, API_PORT, CORS_ALLOWED_ORIGINS
 from document_rag.ingestion.ingest_all import DOCS_DIR
 from document_rag.ingestion.scheduler import (
     PeriodicScanScheduler,
@@ -55,6 +56,7 @@ LAST_INGESTION_STATUS: dict[str, Any] = {
 async def lifespan(app: FastAPI):
     """Manage application startup and shutdown lifecycle cleanly."""
     global SCHEDULER_INSTANCE
+    get_jwt_secret()
     try:
         import threading
         startup_roots = [DOCS_DIR]
@@ -93,13 +95,12 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Allow CORS for Odoo frontend and local development
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=CORS_ALLOWED_ORIGINS,
+    allow_credentials=False,
+    allow_methods=["GET", "POST"],
+    allow_headers=["Authorization", "Content-Type", "Accept-Language"],
 )
 
 # Mount the static UI

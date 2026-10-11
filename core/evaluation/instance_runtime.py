@@ -12,6 +12,7 @@ from typing import Callable, Mapping, Optional, Sequence
 from urllib import request
 from urllib.error import URLError
 
+from config import settings
 from core.evaluation import instances as ib
 
 CREDENTIALS_MARKER = "EVAL_CREDENTIALS:"
@@ -121,5 +122,6 @@ def worker_environment(
         **(os.environ if base_env is None else base_env),
         "ODOO_URL": base_url,
         "ODOO_DB": ib.database_name(spec, env.db_prefix),
+        "ODOO_ADMIN_PASSWORD": settings.EVAL_INSTANCE_ADMIN_PASSWORD,
         "GRAPH_CACHE_PATH": str(env.output_dir / "graphs" / f"{spec.name}.json"),
     }

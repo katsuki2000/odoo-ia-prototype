@@ -75,6 +75,9 @@ ODOO_CONF_PATH = (
     or EVAL_ODOO_CONF
 )
 EVAL_DB_PREFIX = os.getenv("EVAL_DB_PREFIX", "eval_")
+# Throwaway evaluation instances (random local port) keep the password Odoo gives a database created by `-i`;
+# it replaces any ODOO_ADMIN_PASSWORD of the operator inside their workers.
+EVAL_INSTANCE_ADMIN_PASSWORD = os.getenv("EVAL_INSTANCE_ADMIN_PASSWORD", "admin")
 EVAL_INSTANCES_DIR = os.getenv("EVAL_INSTANCES_DIR") or str(_ROOT / "captures" / "eval_instances")
 
 GRAPH_CACHE_PATH = os.getenv("GRAPH_CACHE_PATH") or str(_ROOT / "active_graph.json")
@@ -101,7 +104,15 @@ ENABLE_SMALLTALK_GATE = os.getenv("ENABLE_SMALLTALK_GATE", "false").lower() in (
 )
 
 # ── FastAPI ───────────────────────────────────────────
-API_HOST = "0.0.0.0"
+API_HOST = os.getenv("API_HOST", "127.0.0.1")
+
+
+def parse_cors_origins(raw: str) -> list[str]:
+    origins = [origin.strip().rstrip("/") for origin in raw.split(",")]
+    return [origin for origin in origins if origin and origin != "*"]
+
+
+CORS_ALLOWED_ORIGINS = parse_cors_origins(os.getenv("CORS_ALLOWED_ORIGINS", ""))
 API_PORT = 8000
 
 # Latency Budgets 
@@ -114,11 +125,6 @@ LATENCY_BUDGET_XMLRPC_MS = 5000         # Single XML-RPC call
 # ── ERP runtime (P9) read-only ORM tools ─────────────────
 ORM_RUNTIME_MAX_ROWS = int(os.getenv("ORM_RUNTIME_MAX_ROWS", "100"))
 ORM_NAME_SEARCH_LIMIT = int(os.getenv("ORM_NAME_SEARCH_LIMIT", "20"))
-ORM_RUNTIME_STRICT_IDENTITY = os.getenv("ORM_RUNTIME_STRICT_IDENTITY", "false").lower() in (
-    "true",
-    "1",
-    "yes",
-)
 # When true, orm_agent_loop binds typed ORM tools (fields_get/search/read/...).
 # When false, keeps the legacy domain-specific business tools.
 ORM_USE_TYPED_RUNTIME = os.getenv("ORM_USE_TYPED_RUNTIME", "true").lower() in (

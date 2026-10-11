@@ -9,6 +9,8 @@ import re
 import time
 import xmlrpc.client
 
+from config.odoo_credentials import service_login, service_password
+
 logger = logging.getLogger(__name__)
 
 _MODEL_NAME_RE = re.compile(r"^[a-z][a-z0-9_.]*$")
@@ -68,7 +70,8 @@ class OdooConnector:
         Initialize the connector. Credentials can be passed directly or read from env.
         Note: We do not store uid here because each query must pass the requesting user's uid.
         The password used here is the application token or user password for the XML-RPC connection.
-        In this prototype, we use the default admin password if not provided.
+        Without an explicit password the service account password is read from the environment
+        when it is first needed; there is no default (see config/odoo_credentials.py).
 
         A technical connector reads instance metadata (installed modules, languages,
         registry labels) with the configured service account and ignores the per-request
@@ -76,8 +79,8 @@ class OdooConnector:
         """
         self.url = url or os.getenv("ODOO_URL", "http://localhost:8069")
         self.db = db or os.getenv("ODOO_DB", "odoo-dev")
-        self.username = os.getenv("ODOO_USERNAME", "admin")
-        self.password = password or os.getenv("ODOO_PASSWORD") or os.getenv("ODOO_ADMIN_PASSWORD", "admin")
+        self.username = service_login()
+        self._password = password
         self.technical = technical
         if technical:
             logger.info("OdooConnector opened in technical mode as '%s' (instance metadata only).", self.username)
@@ -86,20 +89,24 @@ class OdooConnector:
         self.models = xmlrpc.client.ServerProxy(f"{self.url}/xmlrpc/2/object")
         self._allowed_models, self._wildcard_models = resolve_allowed_models()
 
+    @property
+    def password(self) -> str:
+        return self._password or service_password()
+
+    @password.setter
+    def password(self, value: str) -> None:
+        self._password = value
+
     def _resolve_password(self) -> str:
         """
-        Return the per-request API key/password if set via ContextVar, else
-        fall back to the instance default (admin) password.
+        Return the credential matching the identity of this call.
 
-        The ContextVar is set by query_graph() from the `api_key` it receives
-        -- on a real API request that is the real per-user Odoo API key
-        signed into the JWT by the Odoo controller (request.env['res.users.
-        apikeys']._generate(), see miro_ai/controllers/main.py), so calls
-        genuinely execute as that specific user and Odoo's own ir.rule / ACL
-        enforcement applies to them. Falling through to the admin password
-        means every call runs as admin regardless of who asked -- exactly the
-        auth mock this was meant to remove -- so it's logged loudly instead
-        of happening silently.
+        A technical connector uses its service password. Any other connector
+        uses the per-request API key set by query_graph() from the key signed
+        into the JWT by the Odoo controller (res.users.apikeys), so Odoo's own
+        ir.rule / ACL enforcement applies to the requesting user. Without that
+        key the call is refused: falling back to the admin password would run
+        it as admin whoever the token claims to be.
         """
         if self.technical:
             return self.password
@@ -107,13 +114,9 @@ class OdooConnector:
         ctx_key = odoo_api_key_ctx.get()
         if ctx_key is not None:
             return ctx_key
-        logger.warning(
-            "OdooConnector._resolve_password(): no per-request API key in "
-            "context -- falling back to the admin password. Expected in "
-            "tests/scripts; on a real API request it means the JWT api_key "
-            "was missing or not propagated."
+        raise OdooConnectorError(
+            "No per-request Odoo API key in context: refusing to run this call with the service credential."
         )
-        return self.password
 
     def authenticate(self, username: str) -> int:
         """

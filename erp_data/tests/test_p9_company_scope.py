@@ -5,6 +5,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from erp_data.odoo_context import (
+    odoo_api_key_ctx,
     odoo_company_id_ctx,
     odoo_company_ids_ctx,
     odoo_uid_ctx,
@@ -90,11 +91,13 @@ def test_connector_injects_allowed_company_ids():
     recorder = MagicMock()
     recorder.execute_kw.return_value = 0
     connector.models = recorder
+    key_t = odoo_api_key_ctx.set("request-user-api-key")
     cid_t = odoo_company_id_ctx.set(5)
     cids_t = odoo_company_ids_ctx.set([5])
     try:
         connector.search_count(3, "res.partner", [])
     finally:
+        odoo_api_key_ctx.reset(key_t)
         odoo_company_id_ctx.reset(cid_t)
         odoo_company_ids_ctx.reset(cids_t)
 

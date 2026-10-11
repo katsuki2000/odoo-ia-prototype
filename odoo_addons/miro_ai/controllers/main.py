@@ -12,6 +12,7 @@ import json
 import logging
 import time
 from odoo import http
+from odoo.exceptions import UserError
 from odoo.http import request
 
 from .backend_client import BackendError, BackendTimeout, post_with_failover
@@ -60,7 +61,10 @@ class MiroAiController(http.Controller):
         # Récupération de la configuration
         settings = request.env['miro.ai.settings'].sudo().get_active_settings()
         api_url = settings.api_url.rstrip('/') if settings and settings.api_url else "http://127.0.0.1:8000"
-        secret_key = settings.api_token if settings and settings.api_token else "default_insecure_secret_for_dev"
+        try:
+            secret_key = settings.get_signing_secret()
+        except UserError as err:
+            return {'answer': f"⚠️ {err.args[0]}", 'sources': []}
 
         # Métadonnées utilisateur courant Odoo
         user = request.env.user
@@ -98,7 +102,7 @@ class MiroAiController(http.Controller):
             apikey_record = None
             _logger.error("MIRO AI: échec de génération de la clé API pour uid=%s: %s", uid, key_err)
 
-        # Génération du JWT (sub et uid, company_id, groups, clé API réelle, expiration 1h)
+        # Génération du JWT (sub et uid, company_id, groups, clé API réelle, expiration 5 min)
         jwt_payload = {
             "sub": str(uid),
             "uid": uid,
@@ -106,7 +110,8 @@ class MiroAiController(http.Controller):
             "company_id": company_id,
             "groups": groups,
             "api_key": rpc_api_key,
-            "exp": int(time.time()) + 3600
+            "is_admin": user.has_group('base.group_system'),
+            "exp": int(time.time()) + 300
         }
         jwt_token = generate_jwt_token(jwt_payload, secret_key)
 

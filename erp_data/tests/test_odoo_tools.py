@@ -14,10 +14,7 @@ from erp_data.tools.inventory import (
 )
 from erp_data.tools.accounting import get_total_invoices, get_period_revenue
 from erp_data.tools.crm import search_partner, get_recent_tickets
-from erp_data._odoo_helpers import (
-    connector,
-    get_current_uid as _get_current_uid,
-)
+from erp_data._odoo_helpers import connector
 from erp_data.date_utils import parse_period
 from erp_data.odoo_connector import OdooConnectorError
 
@@ -102,7 +99,6 @@ class TestOdooTools:
 @pytest.mark.integration
 def test_read_only_enforcement():
     """Verify that writing/creating is impossible via our connector methods."""
-    uid = _get_current_uid()
     # The connector only exposes search_read, read_group, fields_get.
     # It does not have a write() or create() method.
     assert not hasattr(connector, 'write')
@@ -112,7 +108,6 @@ def test_read_only_enforcement():
 @pytest.mark.integration
 def test_whitelist_enforcement():
     """Verify the connector blocks queries to non-whitelisted models."""
-    uid = _get_current_uid()
     with pytest.raises(OdooConnectorError) as exc_info:
-        connector.search_read(uid, "res.users", [], [])
+        connector.search_read(1, "res.users", [], [])
     assert "not whitelisted" in str(exc_info.value)

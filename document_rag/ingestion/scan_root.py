@@ -49,6 +49,29 @@ def resolve_scan_root(file_path: Path, candidate_roots: Iterable[Path]) -> Optio
     return best
 
 
+def confine_to_scan_roots(
+    path: Path | str,
+    candidate_roots: Iterable[Path] = DEFAULT_SCAN_ROOT_CANDIDATES,
+) -> Path:
+    """Resolve path and accept it only if it lies under a configured scan root.
+
+    Roots come from env-backed settings (RAG_DOCS_PATH, CORE_ADDONS_PATH,
+    CUSTOM_ADDONS_PATH). Symlinks are followed via resolve() so a link inside
+    a root cannot escape to the rest of the filesystem.
+    """
+    resolved = Path(path).resolve()
+    for candidate in candidate_roots:
+        root = Path(candidate).resolve()
+        try:
+            resolved.relative_to(root)
+            return resolved
+        except ValueError:
+            continue
+    raise ValueError(
+        f"Path is outside configured ingestion roots: {resolved}"
+    )
+
+
 def compute_source(file_path: Path, scan_root: Optional[Path]) -> str:
     """Return the `source` metadata value for a loaded file.
 

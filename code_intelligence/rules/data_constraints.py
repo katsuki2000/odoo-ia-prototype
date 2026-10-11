@@ -48,6 +48,9 @@ class SemgrepMatch:
     owner_models: tuple = ()
 
 
+SEMGREP_TIMEOUT_SECONDS = int(os.getenv("SEMGREP_TIMEOUT_SECONDS", "120"))
+
+
 def _find_semgrep_binary() -> str:
     """Locate semgrep binary in .venv or system PATH."""
     venv_semgrep = Path(sys.executable).parent / "semgrep"
@@ -80,6 +83,8 @@ def run_semgrep_analysis(
 
     cmd = [
         binary,
+        "--metrics=off",
+        "--disable-version-check",
         "--config",
         str(config_path),
         "--json",
@@ -92,7 +97,7 @@ def run_semgrep_analysis(
             capture_output=True,
             text=True,
             check=False,
-            timeout=30,
+            timeout=SEMGREP_TIMEOUT_SECONDS,
         )
         if res.returncode not in (0, 1):
             raise RuntimeError(f"Semgrep failed with exit code {res.returncode}: {res.stderr.strip()}")

@@ -99,8 +99,7 @@ def test_cap_limits_from_settings(monkeypatch):
     assert cap_name_search_limit(100) == 10
 
 
-def test_strict_identity_refuses_without_uid(monkeypatch, mock_connector):
-    monkeypatch.setattr("config.settings.ORM_RUNTIME_STRICT_IDENTITY", True)
+def test_identity_refuses_without_uid(mock_connector):
     with pytest.raises(OrmRuntimeError, match="no requester uid"):
         orm_search_count("res.partner")
 

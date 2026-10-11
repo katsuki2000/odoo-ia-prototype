@@ -89,6 +89,17 @@ def test_markdown_to_html_formatting(bot_module):
     assert "<script>" not in escaped
     assert "&lt;script&gt;" in escaped
 
+    # XSS safety: javascript:/data: hrefs must not become clickable links
+    js_link = convert("[click](javascript:alert(1))")
+    assert "<a " not in js_link
+    assert "javascript:" not in js_link
+    assert "click" in js_link
+    data_link = convert("[x](data:text/html;base64,PHNjcmlwdD4=)")
+    assert "<a " not in data_link
+    safe_link = convert("[docs](https://example.com/path)")
+    assert 'href="https://example.com/path"' in safe_link
+    assert "docs</a>" in safe_link
+
     # Headings
     h3 = convert("### Titre Section")
     assert "<h6" in h3

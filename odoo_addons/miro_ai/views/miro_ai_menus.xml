@@ -21,7 +21,7 @@
               name="Configuration"
               parent="menu_miro_ai_root"
               sequence="100"
-              groups="base.group_system"/>
+              groups="base.group_system,miro_ai.group_miro_ai_admin"/>
 
     <!-- Option Paramètres sous Configuration -->
     <menuitem id="menu_miro_ai_settings_action"

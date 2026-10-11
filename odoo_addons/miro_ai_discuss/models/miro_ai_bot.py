@@ -20,13 +20,19 @@ import json
 import logging
 import re
 import time
+from urllib.parse import urlparse
+
 from markupsafe import Markup
 
 try:
     from odoo import api, models, _
+    from odoo.exceptions import UserError
     from odoo.tools import html2plaintext
 except ImportError:
     # Permet l'exécution des tests unitaires purs hors serveur Odoo
+    class UserError(Exception):
+        pass
+
     class _MockModels:
         AbstractModel = object
         Model = object
@@ -163,12 +169,21 @@ def markdown_to_html(text: str) -> str:
     text = re.sub(r'\*\*([^*\n]+)\*\*', r'<strong>\1</strong>', text)
     text = re.sub(r'(?<!\*)\*([^*\n]+)\*(?!\*)', r'<em>\1</em>', text)
 
-    # 8. Liens Markdown
-    text = re.sub(
-        r'\[([^\]]+)\]\(([^)]+)\)',
-        r'<a href="\2" target="_blank" rel="noopener noreferrer" style="color:#2563eb;text-decoration:underline;">\1</a>',
-        text
-    )
+    # 8. Liens Markdown (http/https only -- blocks javascript:/data:/etc.)
+    def link_repl(match):
+        label, href = match.group(1), match.group(2)
+        raw_href = html.unescape(href).strip()
+        parsed = urlparse(raw_href)
+        if parsed.scheme.lower() in ("http", "https") and parsed.netloc:
+            safe_href = html.escape(raw_href, quote=True)
+            return (
+                f'<a href="{safe_href}" target="_blank" rel="noopener noreferrer" '
+                f'style="color:#2563eb;text-decoration:underline;">{label}</a>'
+            )
+        return label
+
+    text = re.sub(r'\[([^\]]+)\]\(([^)]+)\)', link_repl, text)
+
 
     # 9. Listes à puces
     def list_repl(match):
@@ -231,7 +246,10 @@ class MiroAiBot(models.AbstractModel):
         """Interroge le serveur FastAPI RAG avec jeton JWT et clé API éphémère."""
         settings = self.env['miro.ai.settings'].sudo().get_active_settings()
         api_url = settings.api_url.rstrip('/') if settings and settings.api_url else "http://127.0.0.1:8000"
-        secret_key = settings.api_token if settings and settings.api_token else "default_insecure_secret_for_dev"
+        try:
+            secret_key = settings.get_signing_secret()
+        except UserError as err:
+            return {'answer': f"⚠️ {err.args[0]}", 'sources': []}
         timeout = settings.request_timeout or 120
 
         uid = user.id
@@ -264,7 +282,8 @@ class MiroAiBot(models.AbstractModel):
             "company_id": company_id,
             "groups": groups,
             "api_key": rpc_api_key,
-            "exp": int(time.time()) + 3600
+            "is_admin": user.has_group('base.group_system'),
+            "exp": int(time.time()) + 300
         }
         jwt_token = generate_jwt_token(jwt_payload, secret_key)
 

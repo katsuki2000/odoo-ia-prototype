@@ -1,32 +1,34 @@
-"""
-core/session_store.py
-
-In-memory thread-safe session store for chat history, last route, and resolved concept.
-"""
+"""In-memory thread-safe session store for chat history, last route, and resolved concept."""
 
 import threading
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from langchain_core.messages import BaseMessage
 
-# session_id -> {"chat_history": List[BaseMessage], "resolved_concept": Optional[dict], "last_route": Optional[str]}
+OwnerUid = Union[int, str]
+
+# owner_uid:session_id -> session state
 _SESSIONS: Dict[str, Dict[str, Any]] = {}
 _LOCK = threading.Lock()
 
 
-def get_session(session_id: str) -> Dict[str, Any]:
-    """Return this session's stored state, or a fresh empty one if unseen.
+def _owned_key(session_id: str, owner_uid: OwnerUid) -> str:
+    if owner_uid is None or str(owner_uid).strip() == "":
+        raise ValueError("owner_uid is required")
+    return f"{owner_uid}:{session_id}"
+
+
+def get_session(session_id: str, owner_uid: OwnerUid) -> Dict[str, Any]:
+    """Return this owner's session state, or a fresh empty one if unseen.
 
     Never returns None and never raises on an unknown session_id -- callers
     can always read ["chat_history"]/["resolved_concept"]/["last_route"]
-    without a presence check first. Returns a shallow copy (new dict, new
-    list for chat_history) so a caller mutating the returned value in place
-    can never corrupt the stored session without going through
-    update_session() -- concurrent requests for the same session_id must
-    not see a half-updated history.
+    without a presence check first. Returns a shallow copy so in-place
+    mutation cannot corrupt the store without update_session().
     """
+    key = _owned_key(session_id, owner_uid)
     with _LOCK:
-        session = _SESSIONS.get(session_id)
+        session = _SESSIONS.get(key)
         if session is None:
             return {"chat_history": [], "resolved_concept": None, "last_route": None}
         return {
@@ -41,25 +43,21 @@ def update_session(
     chat_history: List[BaseMessage],
     resolved_concept: Optional[dict] = None,
     last_route: Optional[str] = None,
+    *,
+    owner_uid: OwnerUid,
 ) -> None:
-    """Overwrite this session's stored state.
-
-    Last-write-wins -- no attempt at merging concurrent turns for the same
-    session_id, consistent with the "simplest possible PoC" scope of
-    H1b-i. resolved_concept and last_route are both actively populated by
-    the caller (api/main.py, H1c 2026-08-19 / H1b-ii 2026-08-20) after
-    every successful turn, from response.route/response.resolved_concept
-    (both set centrally by rag/graph.py's format_output() node).
-    """
+    """Overwrite this owner's session state (last-write-wins)."""
+    key = _owned_key(session_id, owner_uid)
     with _LOCK:
-        _SESSIONS[session_id] = {
+        _SESSIONS[key] = {
             "chat_history": list(chat_history),
             "resolved_concept": resolved_concept,
             "last_route": last_route,
         }
 
 
-def clear_session(session_id: str) -> None:
-    """Remove a session's stored state entirely (e.g. explicit reset)."""
+def clear_session(session_id: str, owner_uid: OwnerUid) -> None:
+    """Remove this owner's session state entirely."""
+    key = _owned_key(session_id, owner_uid)
     with _LOCK:
-        _SESSIONS.pop(session_id, None)
+        _SESSIONS.pop(key, None)

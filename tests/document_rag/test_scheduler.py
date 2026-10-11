@@ -7,13 +7,16 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
+from api.auth import require_admin
 from api.main import app, LAST_INGESTION_STATUS
 from document_rag.ingestion.scheduler import PeriodicScanScheduler, run_scheduled_scan, run_startup_scan
 
 
 @pytest.fixture
 def test_client():
-    return TestClient(app)
+    app.dependency_overrides[require_admin] = lambda: {"uid": 1, "is_admin": True}
+    yield TestClient(app)
+    app.dependency_overrides.pop(require_admin, None)
 
 
 def test_run_startup_scan_updates_status_and_logs_event(tmp_path):

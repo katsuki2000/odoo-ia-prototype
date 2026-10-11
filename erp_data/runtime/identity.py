@@ -1,6 +1,5 @@
 from typing import Optional
 
-from config import settings
 from erp_data.odoo_context import (
     odoo_company_id_ctx,
     odoo_company_ids_ctx,
@@ -13,11 +12,7 @@ def require_execution_uid() -> int:
     uid = odoo_uid_ctx.get()
     if uid is not None:
         return int(uid)
-    if settings.ORM_RUNTIME_STRICT_IDENTITY:
-        raise OrmRuntimeError("read refused: no requester uid in context")
-    from erp_data._odoo_helpers import get_current_uid
-
-    return get_current_uid()
+    raise OrmRuntimeError("read refused: no requester uid in context")
 
 
 def resolve_company_scope() -> tuple[Optional[int], Optional[list[int]]]:

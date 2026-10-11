@@ -75,8 +75,13 @@ def test_odoo_connector_timing_logging(caplog):
     connector.models = MagicMock()
     connector.models.execute_kw.return_value = [{"id": 1, "name": "Partner"}]
 
-    with caplog.at_level(logging.INFO):
-        res = connector.search_read(1, "res.partner", [])
+    from erp_data.odoo_context import odoo_api_key_ctx
+    token = odoo_api_key_ctx.set("request-user-api-key")
+    try:
+        with caplog.at_level(logging.INFO):
+            res = connector.search_read(1, "res.partner", [])
+    finally:
+        odoo_api_key_ctx.reset(token)
 
     assert len(res) == 1
     assert any("XML-RPC" in rec.message and "res.partner.search_read" in rec.message for rec in caplog.records)

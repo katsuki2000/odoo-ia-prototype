@@ -5,8 +5,9 @@ import sys
 from pathlib import Path
 from typing import Any, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
+from api.auth import require_admin
 from api.schemas import (
     IngestionStatusResponse,
     ReindexRequestV1,
@@ -17,13 +18,14 @@ from api.schemas import (
 from document_rag.ingestion.incremental import reindex_if_changed
 from document_rag.ingestion.ingest_all import DOCS_DIR, IngestionOrchestrator
 from document_rag.ingestion.logging_utils import now_iso, start_timer, write_ingestion_event
+from document_rag.ingestion.scan_root import confine_to_scan_roots
 from document_rag.ingestion.scheduler import run_scheduled_scan
 from document_rag.ingestion.watcher import DEFAULT_DOCS_DIR
 from document_rag.vectorstore.chroma_manager import ChromaManager
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_admin)])
 
 
 def _main_ref(name: str, fallback: Any) -> Any:
@@ -31,6 +33,15 @@ def _main_ref(name: str, fallback: Any) -> Any:
     if main and hasattr(main, name):
         return getattr(main, name)
     return fallback
+
+
+def _resolve_reindex_path(raw_path: Optional[str]) -> Optional[Path]:
+    if not raw_path:
+        return None
+    try:
+        return confine_to_scan_roots(raw_path)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.post("/reindex", response_model=ReindexResponse)
@@ -78,7 +89,7 @@ def reindex_v1(request: ReindexRequestV1):
     started_at = start_timer()
     chroma_cls = _main_ref("ChromaManager", ChromaManager)
     manager = chroma_cls()
-    target_path = Path(request.path).resolve() if request.path else None
+    target_path = _resolve_reindex_path(request.path)
 
     reindex_fn = _main_ref("reindex_if_changed", reindex_if_changed)
     write_event_fn = _main_ref("write_ingestion_event", write_ingestion_event)

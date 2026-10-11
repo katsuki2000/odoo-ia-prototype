@@ -16,7 +16,8 @@
                     <group>
                         <group string="Identifiants &amp; Connexion API">
                             <field name="api_url" widget="url"/>
-                            <field name="api_token" password="True"/>
+                            <field name="api_token" password="True"
+                                     groups="base.group_system,miro_ai.group_miro_ai_admin"/>
                             <field name="request_timeout"/>
                             <field name="company_id" groups="base.group_multi_company"/>
                             <field name="active" widget="boolean_toggle"/>

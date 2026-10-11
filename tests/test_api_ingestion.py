@@ -25,6 +25,7 @@ def test_api_v1_incremental_reindex_indexes_requested_path(tmp_path):
         patch("api.main.ChromaManager", return_value=manager),
         patch("api.main.reindex_if_changed") as reindex,
         patch("api.main.write_ingestion_event"),
+        patch("api.routes_ingestion.confine_to_scan_roots", return_value=docs_dir.resolve()),
     ):
         reindex.return_value = {
             "added_files": [str(source_file.resolve())],
@@ -42,6 +43,27 @@ def test_api_v1_incremental_reindex_indexes_requested_path(tmp_path):
     assert payload["scope"] == "incremental"
     assert str(source_file.resolve()) in payload["result"]["added_files"]
     assert payload["total_chunks"] == 1
+
+
+def test_api_v1_reindex_rejects_path_outside_scan_roots(tmp_path):
+    outside = tmp_path / "secrets"
+    outside.mkdir()
+    (outside / "passwd.txt").write_text("leak", encoding="utf-8")
+    manager = MagicMock()
+
+    with (
+        patch("api.main.ChromaManager", return_value=manager),
+        patch("api.main.reindex_if_changed") as reindex,
+        patch("api.main.write_ingestion_event"),
+    ):
+        from fastapi import HTTPException
+
+        with pytest.raises(HTTPException) as exc_info:
+            reindex_v1(ReindexRequestV1(scope="incremental", path=str(outside)))
+
+    assert exc_info.value.status_code == 400
+    assert "outside configured ingestion roots" in str(exc_info.value.detail)
+    reindex.assert_not_called()
 
 
 def test_api_v1_ingestion_status_reports_stats_and_watcher_state(tmp_path):

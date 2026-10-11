@@ -1,10 +1,9 @@
 """Shared helpers for ORM tool modules."""
 
-import logging
 from datetime import datetime, timezone
 from typing import List, Tuple
 
-from erp_data.odoo_connector import OdooConnector
+from erp_data.odoo_connector import OdooConnector, OdooConnectorError
 from erp_data.odoo_context import (
     odoo_api_key_ctx,
     odoo_company_id_ctx,
@@ -14,25 +13,16 @@ from erp_data.odoo_context import (
 from core.evidence.evidence import Evidence, EvidenceSourceType, make_evidence
 from erp_data.date_utils import parse_period
 
-logger = logging.getLogger(__name__)
-
 connector = OdooConnector()
-
-_cached_uid = None
 
 
 def get_current_uid() -> int:
     uid = odoo_uid_ctx.get()
-    if uid is not None:
-        return uid
-    global _cached_uid
-    if _cached_uid is None:
-        logger.warning(
-            "get_current_uid(): no requester uid in context -- falling back "
-            "to the admin uid. Expected in tests/scripts only."
+    if uid is None:
+        raise OdooConnectorError(
+            "No requester uid in context: refusing to run this call as another identity."
         )
-        _cached_uid = connector.authenticate(connector.username)
-    return _cached_uid
+    return int(uid)
 
 
 def orm_evidence_scope(uid: int) -> dict:

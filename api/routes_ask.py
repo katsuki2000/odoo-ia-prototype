@@ -53,18 +53,19 @@ def ask_question_v1(
     user: dict = Depends(get_current_user),
 ):
     """V1 endpoint for asking questions, using the LangGraph agent."""
-    session = get_session(request.session_id)
-    chat_history = session["chat_history"]
-    last_route = session["last_route"]
-    last_resolved_concept = session["resolved_concept"]
-
     try:
         if not request.question or not request.question.strip():
             raise HTTPException(status_code=400, detail="Empty question provided.")
 
         token_uid = user.get("uid")
-        if token_uid:
-            request.user_uid = token_uid
+        if token_uid is None:
+            raise HTTPException(status_code=401, detail="Token missing uid")
+        request.user_uid = token_uid
+
+        session = get_session(request.session_id, owner_uid=token_uid)
+        chat_history = session["chat_history"]
+        last_route = session["last_route"]
+        last_resolved_concept = session["resolved_concept"]
 
         token_api_key = user.get("api_key")
         token_groups = user.get("groups") or []
@@ -80,7 +81,7 @@ def ask_question_v1(
         if not token_api_key:
             logger.warning(
                 "No real Odoo API key in JWT for uid=%s -- ERP/XML-RPC calls "
-                "will fall back to the admin credential.", token_uid,
+                "will be refused; documentation answers are unaffected.", token_uid,
             )
 
         response = query_graph(
@@ -109,6 +110,7 @@ def ask_question_v1(
             request.session_id, updated_history,
             getattr(response, "resolved_concept", None) or last_resolved_concept,
             getattr(response, "route", None) or last_route,
+            owner_uid=token_uid,
         )
 
         omitted_list = []

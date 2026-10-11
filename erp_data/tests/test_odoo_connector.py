@@ -198,3 +198,34 @@ def test_fields_get(odoo_connector, uid):
     assert isinstance(fields, dict)
     assert "name" in fields
     assert fields["name"]["type"] == "char"
+
+
+def test_call_without_request_api_key_is_refused_and_never_sent():
+    connector = OdooConnector(url="http://odoo.invalid", db="test", password="admin-secret")
+    recorder = _RecordingModels([1])
+    connector.models = recorder
+
+    with pytest.raises(OdooConnectorError, match="No per-request Odoo API key"):
+        connector.search_read(2, "res.partner", [], ["name"])
+
+    assert recorder.calls == []
+
+
+def test_forged_admin_uid_without_api_key_cannot_use_the_service_credential():
+    connector = OdooConnector(url="http://odoo.invalid", db="test", password="admin-secret")
+    recorder = _RecordingModels([1])
+    connector.models = recorder
+
+    with pytest.raises(OdooConnectorError):
+        connector.search_read(2, "res.partner", [], ["name"])
+
+    assert all("admin-secret" not in call[0] for call in recorder.calls)
+
+
+def test_technical_connector_still_works_without_request_api_key():
+    connector = OdooConnector(url="http://odoo.invalid", db="test", password="service-secret", technical=True)
+    recorder = _RecordingModels([{"name": "base"}])
+    connector.models = recorder
+
+    assert connector.search_read(2, "ir.module.module", [], ["name"]) == [{"name": "base"}]
+    assert recorder.calls[0][0][2] == "service-secret"

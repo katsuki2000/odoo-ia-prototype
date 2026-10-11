@@ -294,7 +294,7 @@ odoo-ia-prototype/
 | `ODOO_URL` | No | `http://localhost:8069` | Odoo XML-RPC server URL |
 | `ODOO_DB` | No | `odoo-dev` | Odoo database name |
 | `ODOO_USERNAME` | No | `admin` | XML-RPC service username |
-| `ODOO_ADMIN_PASSWORD` | No | `admin` | Admin password for initial seeding and RPC fallback |
+| `ODOO_ADMIN_PASSWORD` | Yes | none | Password of the Odoo service account (metadata, health, live validation). No default; keep it in the backend `.env`, never in the Odoo interface |
 
 ---
 
