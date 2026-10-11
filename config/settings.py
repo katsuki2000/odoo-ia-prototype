@@ -34,6 +34,17 @@ LOCAL_EMBEDDING_BASE_URL = os.getenv("LOCAL_EMBEDDING_BASE_URL", f"{OLLAMA_HOST}
 LOCAL_EMBEDDING_MODEL    = os.getenv("LOCAL_EMBEDDING_MODEL", "all-minilm:latest")
 LOCAL_EMBEDDING_API_KEY  = os.getenv("LOCAL_EMBEDDING_API_KEY", "ollama")
 
+# Languages whose translations are attached to the knowledge graph at build time
+# (comma-separated codes, e.g. "fr,en_US"). Empty means labels stay in the source language.
+GRAPH_TRANSLATION_LANGUAGES = tuple(
+    code.strip()
+    for code in os.getenv("GRAPH_TRANSLATION_LANGUAGES", "").split(",")
+    if code.strip()
+)
+
+# Per-question tool-call budget of the code intelligence agent (default 20).
+CI_MAX_HOPS = int(os.getenv("CI_MAX_HOPS", "20"))
+
 # ── ChromaDB ──────────────────────────────────────────
 CHROMA_PATH = os.getenv("CHROMA_PATH") or str(_ROOT / "document_rag" / "vectorstore" / "chroma_db")
 DOCS_COLLECTION_NAME = "odoo_docs"

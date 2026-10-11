@@ -232,9 +232,7 @@ from code_intelligence.utils import _TRUNCATION_MARKER, _match_near_truncation
 
 
 
-import os as _os
-import config.settings  # noqa: F401 -- ensures .env is loaded before reading env vars
-CI_MAX_HOPS = int(_os.getenv("CI_MAX_HOPS", "20"))
+from config.settings import CI_MAX_HOPS
 
 # Composite tools whose dedup key is only (tool_name, model_name).
 _MODEL_KEYED_TOOLS = frozenset({

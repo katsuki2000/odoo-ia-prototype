@@ -14,6 +14,8 @@ from dataclasses import dataclass, asdict
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from config.settings import CI_MAX_HOPS
+
 _logger = logging.getLogger(__name__)
 
 # Maximum tool hops per question guardrail -- kept in sync with
@@ -21,7 +23,7 @@ _logger = logging.getLogger(__name__)
 # that module's comment for why); test_j46_j48_reasoning_trace.py asserts
 # the two never drift apart. Real call sites always pass hop_cap=ctx.hop_cap
 # explicitly (postprocess.py) -- this is only the fallback default below.
-MAX_HOPS_PER_QUESTION = 20  # sections 907/908: raised from 6 alongside CI_MAX_HOPS (.env) to fit dispatch_evaluate_record_rules_for_personas' worst case (2 personas x 4 permissions on SAL-Q1) -- kept in sync per test_j48_hop_cap_matches_ci_max_hops' own stated intent
+MAX_HOPS_PER_QUESTION = CI_MAX_HOPS
 
 
 @dataclass

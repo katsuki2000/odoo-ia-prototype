@@ -381,6 +381,15 @@ def _discover_installed_core_modules(candidates: list, installed_modules=None) -
     return [c for c in candidates if c in installed]
 
 
+def _merge_requested_languages(translation_languages, request_language, configured=()) -> tuple:
+    codes = {
+        _normalize_language_code(language)
+        for language in (*(translation_languages or ()), request_language, *configured)
+        if language and language.strip()
+    }
+    return tuple(sorted(codes))
+
+
 def _get_code_intelligence_graph(
     *,
     translation_languages=None,
@@ -391,21 +400,20 @@ def _get_code_intelligence_graph(
 ):
     """Lazy-load and cache Knowledge Graph for Code Intelligence node."""
     global _CACHED_CODE_INTEL_GRAPH, _CACHED_GRAPH_MTIME, _CACHED_TRANSLATION_LANGUAGES
-    requested_languages = tuple(sorted({
-        _normalize_language_code(language)
-        for language in (translation_languages or ())
-        if language and language.strip()
-    }))
     request_language = _normalize_language_code(request_language) if request_language else None
-    if request_language:
-        requested_languages = tuple(sorted(set(requested_languages) | {request_language}))
+    requested_languages = _merge_requested_languages(translation_languages, request_language)
 
     from config.settings import (
         CORE_ADDONS_PATH,
         CORE_FRAMEWORK_ADDONS_PATH,
         CUSTOM_ADDONS_PATH,
+        GRAPH_TRANSLATION_LANGUAGES,
         OCA_SAMPLE_ADDONS_PATH,
         ODOO_CONF_PATH,
+    )
+
+    requested_languages = _merge_requested_languages(
+        requested_languages, None, configured=GRAPH_TRANSLATION_LANGUAGES,
     )
 
     core_addons_root = Path(CORE_ADDONS_PATH)
