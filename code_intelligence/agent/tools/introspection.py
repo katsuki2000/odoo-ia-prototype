@@ -219,6 +219,20 @@ def _explain_decision_path_impl(G: nx.DiGraph, path_nodes: List[str]) -> str:
     return "\n".join(steps)
 
 
+def _allowed_source_roots() -> list:
+    """Configured addon roots plus the roots the active graph was built from."""
+    import code_intelligence.agent.tool_helpers as th
+    from config.settings import (
+        CORE_ADDONS_PATH, CORE_FRAMEWORK_ADDONS_PATH, CUSTOM_ADDONS_PATH, OCA_SAMPLE_ADDONS_PATH,
+    )
+
+    graph_roots = th._GRAPH_REF.graph.get("addon_roots_ordered", ()) if th._GRAPH_REF is not None else ()
+    configured = (
+        CORE_ADDONS_PATH, CORE_FRAMEWORK_ADDONS_PATH, CUSTOM_ADDONS_PATH, OCA_SAMPLE_ADDONS_PATH, *graph_roots,
+    )
+    return [Path(root).resolve() for root in dict.fromkeys(configured) if root and Path(root).exists()]
+
+
 def read_precise_source_code(
     filepath_str: str, line_start: int, line_end: int, max_lines: int = 200,
     include_citation: bool = False,
@@ -306,13 +320,7 @@ def read_precise_source_code(
             if not path.exists():
                 return f"Error: File '{filepath_str}' does not exist."
 
-    from config.settings import CORE_ADDONS_PATH, CUSTOM_ADDONS_PATH, OCA_SAMPLE_ADDONS_PATH
-
-    allowed_roots = [
-        Path(root).resolve()
-        for root in (CORE_ADDONS_PATH, CUSTOM_ADDONS_PATH, OCA_SAMPLE_ADDONS_PATH)
-        if root and Path(root).exists()
-    ]
+    allowed_roots = _allowed_source_roots()
     try:
         resolved_path = path.resolve(strict=True)
     except OSError:
