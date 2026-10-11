@@ -4426,3 +4426,17 @@ Date : 11/10/2026
 **Validation en attente** : suite complète `pytest -n auto -m "not integration" -q` après la section 1225, non exécutable dans le délai de l'outil; à lancer par pmm.
 
 **Fichiers modifiés** : `todo/contexte.txt`.
+
+
+## Section 1227 : Notebook Kaggle — tunnel public désactivé par défaut
+
+Date : 11/10/2026
+Contexte : revue du notebook `scripts/kaggle/llmodoo.ipynb` sur `main`. La cellule d'exposition ouvrait systématiquement un tunnel ngrok (ou cloudflared), tandis que `LOCAL_LLM_API_KEY=ollama` dans le modèle de configuration n'est pas une authentification du serveur Ollama. `OLLAMA_ORIGINS=*` ne fait que désactiver le contrôle CORS ; ce n'est pas une protection d'accès.
+
+**Modification** : la cellule de tunnel utilise désormais `ENABLE_PUBLIC_TUNNEL = False` par défaut. L'activation est explicite et les cellules de documentation signalent que le tunnel donne accès à l'API sans authentification, à réserver à des tests temporaires avec données non sensibles. Aucun URL de tunnel issu des sorties enregistrées n'est réutilisé.
+
+**Validation effectuée** : notebook relu depuis `main`, structure JSON parsée et modifiée en mémoire. Les cellules d'exécution Kaggle n'ont pas été exécutées à nouveau ; aucun test de connexion ni test MIRO n'est revendiqué.
+
+**Fichiers modifiés** : `scripts/kaggle/llmodoo.ipynb`, `todo/contexte.txt`.
+
+**Prochaine étape** : ne brancher MIRO au modèle Kaggle qu'après activation volontaire du tunnel et uniquement avec des données de test non sensibles ; ensuite vérifier le client LLM/embedding et lancer le protocole de mesure gelé prévu par le plan.
