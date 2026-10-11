@@ -4404,3 +4404,25 @@ Date : 11/10/2026
 **Reste** : `core.verification` (`VerificationReport`, `GROUP_XMLID_RE`), `NOT_FOUND_MARKER`, `ResolvedConcept` dans `core/evidence/`, et `document_rag/verification.py` vis-à-vis de `core.evaluation`.
 
 **Fichiers modifiés** : `core/state.py`, `core/guardrails.py`, `core/routing/{routing,routing_keywords,__init__}.py`, `core/routing/routing_guards.py` (supprimé), `core/graph/{graph,graph_nodes,graph_compat,verify_node}.py`, `core/evidence/evidence_check.py`, `code_intelligence/agent/loop.py`, `document_rag/{generate_node,prompts}.py`, `erp_data/orm_agent_node.py`, `tests/architecture/test_import_layers.py`, `tests/test_{out_of_scope_gate,bug_a_markdown_only_output,t3_verify_node}.py`, `code_intelligence/tests/test_j32_33_massive_extraction_guard.py`, `erp_data/tests/test_p9_typed_runtime_wiring.py`, `todo/contexte.txt`.
+
+
+## Section 1226 : orientation de travail et plan des 6 violations de couche restantes
+
+Date : 11/10/2026
+
+**Orientation retenue par pmm** : la date de livraison ne prime pas; l'objectif est un code propre, simple, maintenable et qui fonctionne. Le refactoring de structure passe donc avant `GRAPH_OFFLINE_MODE` (laissé de côté en section 1223). `main` est désormais la branche de travail (remplace l'ancien `main` du 10/07, conservé dans `backup/main-2026-07-10`); `todo/migration_map.md` cite encore `fix/local-test-failures` comme branche cible.
+
+**Plan retenu** : ne pas déplacer de dossiers; corriger le sens des imports (moteurs -> noyau, orchestration -> moteurs, jamais l'inverse) en plaçant les types et constantes partagés dans le noyau. Le garde-fou `tests/architecture/test_import_layers.py` fige les violations restantes; chaque lot en retire.
+
+**Violations restantes (`KNOWN_VIOLATIONS`, 6)** :
+- `core.schemas` -> `core.verification.claims` (`VerificationReport`) : placer le type dans le noyau.
+- `code_intelligence.agent.access_guards` -> `core.verification.extractors` (`GROUP_XMLID_RE`) : constante propre à Odoo; la définir côté `code_intelligence` et faire importer `core.verification` depuis là.
+- `core.evidence.evidence_sufficiency` -> `code_intelligence.rules.common` (`NOT_FOUND_MARKER`) : placer la constante dans le noyau; `code_intelligence` l'importe.
+- `core.evidence.evidence_check` -> `code_intelligence.agent.matching` (`ResolvedConcept`, sous `TYPE_CHECKING`) : à trancher entre type neutre dans le noyau et déplacement du module côté moteur.
+- `document_rag.verification` -> `core.evaluation.oracles.documentation` et `core.evaluation.protocol_metrics` : décision à prendre (vérification de production ou oracle d'évaluation, voir `todo/migration_map.md`).
+
+**Suites à traiter** : réexportations de compatibilité restantes (`core/routing/routing.py`, `core/routing/__init__.py`, `core/graph/graph_compat.py`) contraires à la carte de migration; `todo/Untitled.txt` (sortie pytest collée, 2423 passed / 18 skipped) à résumer ici puis supprimer; numérotation `P0-P7` de la carte de migration en collision avec `P0-P10` de `plan.md`.
+
+**Validation en attente** : suite complète `pytest -n auto -m "not integration" -q` après la section 1225, non exécutable dans le délai de l'outil; à lancer par pmm.
+
+**Fichiers modifiés** : `todo/contexte.txt`.
