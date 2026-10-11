@@ -4817,3 +4817,287 @@ Date : 11/10/2026
 **A faire par pmm** : suite complete ; `-u miro_ai_discuss` pour le convertisseur Markdown.
 **Fichiers modifies** : `document_rag/ingestion/scan_root.py`, `api/routes_ingestion.py`, `core/session/session_store.py`, `api/routes_ask.py`, `odoo_addons/miro_ai_discuss/models/miro_ai_bot.py`, `tests/test_scan_root_confine.py` (nouveau), `tests/test_session_store_ownership.py` (nouveau), `tests/test_api_ingestion.py`, `tests/test_miro_ai_discuss.py`, `todo/contexte.txt` (cette section).
 
+## Section 1248 : orientation pmm -- focus `miro_ai`, pas `miro_ai_discuss`
+
+Date : 11/10/2026
+**Mandat (pmm)** : « focus sur miro_ai, ne fais pas attention à discuss, note ça dans rules et contexte ».
+**Regle ajoutee** dans `todo/rules.md` : le travail sur les addons Odoo cible `miro_ai` uniquement ; `miro_ai_discuss` n'est ni modifie, ni teste, ni priorise sauf mandat explicite. Les correctifs (securite, architecture, auth) se font d'abord sur `miro_ai` (controleurs, settings, ACL, client backend).
+**Consequence pour la suite** : ne plus proposer ni appliquer de changements Discuss (XSS Markdown, bot, menus Discuss, tests `test_miro_ai_discuss.py`) tant que pmm ne le demande pas ; un correctif partage (ex. secret JWT, settings) reste dans `miro_ai` et beneficie a Discuss par dependance sans y toucher.
+**Fichiers modifies** : `todo/rules.md`, `todo/contexte.txt` (cette section).
+
+## Section 1249 : chemins des addons deduits de `odoo.conf` (point 1 de la 1246, topologie A : backend a cote d'Odoo) (journal avant code)
+
+Date : 11/10/2026
+**Mandat (pmm)** : « vas y pour A si c plus facile » (backend et Odoo sur la meme machine, LLM eventuellement distant). Sauvegardes : `/tmp/contexte.avant_1249.txt`, `/tmp/conf_src_avant/`.
+**Observe (lecture seule)** : le loader lit deja `addons_path` via `ODOO_CONF_PATH` et interroge `ir.module.module` (`loader.py` l. 172, 251, 330-352) ; `CORE_ADDONS_PATH`, `CUSTOM_ADDONS_PATH`, `CORE_FRAMEWORK_ADDONS_PATH` (`settings.py` l. 56-58, 90) ne servent PAS qu'au graphe : classification « module custom ou coeur » (`access_guards._block_is_custom_module_file`, `tool_helpers._is_custom_module_filepath`, avec repli sur des noms de dossiers `custom*`, `base`, `web`) et resolution de chemins relatifs (`introspection.read_precise_source_code`). La liste des racines lisibles (`_allowed_source_roots`) inclut deja `addon_roots_ordered` du graphe, donc deja issu du conf : deriver ces trois variables n'elargit pas la liste d'autorisation. `odoo.conf` reel de la machine : `addons_path` = `odoo/addons` (cadre, contient `base`), `addons` (coeur), `custom_addons`, `odoo_addons` du projet -> deux racines custom, alors que `CUSTOM_ADDONS_PATH` est mono-valeur.
+**Plan**
+1. `config/odoo_conf.py` (nouveau, fonctions pures sans import de `settings`) : lecture de `addons_path` (meme normalisation que le loader) et classement **structurel**, sans nom de dossier : racine cadre = contient `base/__manifest__.py` ; racine coeur = voisine d'un `odoo-bin` ou d'un `odoo/addons/base` ; le reste = racines custom (existantes seulement). `resolve_addon_paths(conf_path, environ, default_odoo_root, project_root)` : priorite `.env` (surcharge explicite) > `odoo.conf` > defaut actuel.
+2. `settings.py` : calcule d'abord le chemin du conf (meme ordre qu'avant : `ODOO_CONF_PATH` / `EVAL_ODOO_CONF` / `ODOO_RC` / defaut a cote du coeur), puis les trois chemins ; nouvelle valeur `CUSTOM_ADDONS_PATHS` (toutes les racines custom) ; `CUSTOM_ADDONS_PATH` reste mono-valeur (racine du projet si elle figure dans le conf, sinon la premiere) ; une ligne de log indique la source (env / conf / defaut) de chaque chemin.
+3. `access_guards.py`, `tool_helpers.py`, `introspection.py` : la classification custom et la resolution des chemins relatifs parcourent toutes les racines custom (`CUSTOM_ADDONS_PATH` + `CUSTOM_ADDONS_PATHS`, sans doublon).
+4. `.env.example` : les trois chemins deviennent des surcharges optionnelles.
+5. Tests hermetiques avec un `odoo.conf` temporaire : classement, priorite, racine parasite, defaut sans conf.
+**Hors perimetre** : `db_name` (reste `ODOO_DB`, la 1246 le gardait pour plus tard), utilisateur technique dedie, petits correctifs de la 1240, `get_module_path` via `miro_ai`.
+
+**Cloture de la 1249** (11/10/2026)
+**Realise** : `config/odoo_conf.py` (nouveau : `read_addons_path`, classement structurel `classify_addon_roots`, `resolve_addon_paths` : `.env` > `odoo.conf` > defaut) ; `config/settings.py` (chemin du conf calcule d'abord, puis `CORE_ADDONS_PATH`, `CUSTOM_ADDONS_PATH`, nouveau `CUSTOM_ADDONS_PATHS`, `CORE_FRAMEWORK_ADDONS_PATH`, une ligne de log avec la source de chaque chemin) ; `access_guards.py`, `tool_helpers.py`, `tools/introspection.py` (classification custom et resolution des chemins relatifs sur toutes les racines custom) ; `.env.example` (trois chemins en surcharges optionnelles, commentees).
+**Verifie** : compilation propre ; `tests/test_odoo_conf_addon_paths.py` (nouveau, 8 cas : ordre et blancs, classement structurel avec un dossier `addons` trompeur, cadre deduit, Odoo packagee, racine inexistante ignoree, conf seul, priorite `.env`, defauts historiques) ; 342 passes, 18 ignores sur les 38 fichiers de tests qui referencent ces chemins. Sur le vrai `odoo.conf` : sans variables, coeur / cadre / custom (`odoo_addons` du projet puis `custom_addons`) sortent tous du conf ; avec le `.env` actuel, coeur et custom restent ceux du `.env`, le cadre vient du conf (log de demarrage). Suite complete non lancee.
+**A faire par pmm** : (1) pour tester la production : commenter `CORE_ADDONS_PATH`, `CUSTOM_ADDONS_PATH` dans le `.env` et relancer ; la ligne `Addon paths (source)` du log doit afficher `odoo.conf` ; (2) suite complete : `.venv/bin/python -m pytest -n auto -m "not integration" -q --ignore=document_rag/tests` ; (3) le graphe n'est pas concerne (les racines venaient deja du conf) : pas de reconstruction.
+**Reste de la 1246** : `db_name`, utilisateur technique dedie (2), petits correctifs 1240 (3, fait en 1247), T5/T6.
+**Fichiers modifies** : `config/odoo_conf.py` (nouveau), `config/settings.py`, `code_intelligence/agent/access_guards.py`, `code_intelligence/agent/tool_helpers.py`, `code_intelligence/agent/tools/introspection.py`, `.env.example`, `tests/test_odoo_conf_addon_paths.py` (nouveau), `todo/contexte.txt`. Sauvegardes : `/tmp/conf_src_avant/`, `/tmp/contexte.avant_1249.txt`.
+
+## Section 1250 : base de donnees et URL d'Odoo deduites de `odoo.conf` (reste de la 1246, point 1) (journal avant code)
+
+Date : 11/10/2026
+**Mandat (pmm)** : « le mieux est de corriger ce qui est hors perimetre aussi, non ? » apres la 1249 (hors perimetre cite : `db_name`). Sauvegardes : `/tmp/contexte.avant_1250.txt`, `/tmp/conf_db_avant/`.
+**Observe** : `ODOO_DB` (defaut `odoo-dev`) et `ODOO_URL` (defaut `http://localhost:8069`) sont lus avec des valeurs en dur dans `erp_data/odoo_connector.py` l. 80-81 et `code_intelligence/agent/rpc_client.py` l. 32-33 ; `os.getenv("ODOO_DB", defaut)` renvoie `""` quand `.env` contient `ODOO_DB=` (cas de `.env.example`), donc une base vide. `core/evaluation/instance_runtime.py` fixe ces deux variables pour les instances d'evaluation ; `conftest.py` redirige `ODOO_URL` vers un port ferme pendant les tests : la variable d'environnement doit rester prioritaire. `odoo.conf` de la machine ne definit pas `db_name` (rien a deduire ici, defaut inchange). Les scripts `scripts/full_setup.py` et `scripts/clean_demo_data.py` ont `URL`/`DB` en dur : outils de preparation de demo, hors perimetre.
+**Plan** : `config/odoo_conf.py` : `read_option`, `resolve_database` (`ODOO_DB` > `db_name` du conf s'il designe UNE base (pas `False`, pas une liste) > `odoo-dev`), `resolve_odoo_url` (`ODOO_URL` > `http://localhost:<http_port>` > `http://localhost:8069`) ; `settings.py` : `ODOO_DB_DEFAULT`, `ODOO_URL_DEFAULT` ; connecteur et `rpc_client` : `os.getenv(...) or <defaut>` (une valeur vide dans `.env` retombe sur le conf) ; `.env.example` et README : defauts documentes. Tests hermetiques.
+**Hors perimetre** : utilisateur technique dedie (point 2 de la 1246 : cree des droits et une cle dans Odoo, decision de securite a part), `LOCAL_ALLOWED_HOSTS` (garde volontaire, pas de la configuration deductible), `get_module_path` via `miro_ai`, scripts de demo.
+
+**Cloture de la 1250** (11/10/2026)
+**Realise** : `config/odoo_conf.py` (`read_option`, `resolve_database`, `resolve_odoo_url`) ; `config/settings.py` (`ODOO_DB_DEFAULT`, `ODOO_URL_DEFAULT`, une ligne de log avec la source) ; `erp_data/odoo_connector.py` et `code_intelligence/agent/rpc_client.py` (`os.getenv(...) or <defaut du conf>` : une valeur vide dans `.env` retombe sur le conf au lieu de produire une base vide) ; `.env.example` (`ODOO_URL=` et `ODOO_DB=` vides par defaut) ; `README.md` (tableau des variables).
+**Verifie** : compilation propre ; `tests/test_odoo_conf_addon_paths.py` : 13 cas (8 de la 1249 + 5 nouveaux : priorite base, `db_name` ignore si `False` / liste / vide, valeur vide du `.env`, URL et validation du port, connecteur et client RPC) ; 112 passes sur les 20 fichiers qui referencent `odoo_connector`, `rpc_client`, `ODOO_DB`, `ODOO_URL` avec `-m "not integration"`. Lances SANS ce filtre, 13 tests `@pytest.mark.integration` echouent (`erp_data/tests/test_odoo_connector.py`, `test_odoo_tools.py`) avec « No requester uid / No per-request Odoo API key in context » : ils exigent un Odoo en ligne et le refus de repli sur le compte de service des sections 1243/1245, ils ne passent pas par le code modifie ici (a confirmer par pmm avec la suite complete filtree).
+**A faire par pmm** : (1) vider `ODOO_URL` et `ODOO_DB` dans le `.env` pour essayer le mode « tout vient du conf » : la ligne `Odoo connection defaults (source)` du log doit afficher `odoo.conf` si le conf definit `http_port` / `db_name` (le conf actuel ne definit ni l'un ni l'autre : defauts) ; (2) suite complete : `.venv/bin/python -m pytest -n auto -m "not integration" -q --ignore=document_rag/tests`.
+**Reste de la 1246** : utilisateur technique dedie (droits minimaux + cle d'API) a la place du compte `admin` (decision de securite, mandat a part), T5/T6.
+**Fichiers modifies** : `config/odoo_conf.py`, `config/settings.py`, `erp_data/odoo_connector.py`, `code_intelligence/agent/rpc_client.py`, `.env.example`, `README.md`, `tests/test_odoo_conf_addon_paths.py`, `todo/contexte.txt`. Sauvegardes : `/tmp/conf_db_avant/`, `/tmp/contexte.avant_1250.txt`.
+
+## Section 1251 : `.env` corrige pour la deduction depuis `odoo.conf` (suite des 1249-1250)
+
+Date : 11/10/2026
+**Mandat (pmm)** : « vas y corrige direct .env » apres le constat : sans `ODOO_CONF_PATH`, tous les chemins retombaient sur des valeurs par defaut inexistantes (`/media/donnee/projets/odoo-17.0`).
+**Fait** : ajout de `ODOO_CONF_PATH=/media/donnee/Programs/odoo-17.0/odoo.conf` ; lignes `JWT_SECRET=` et `ODOO_ADMIN_PASSWORD=` ajoutees VIDES (commentees d'une consigne) : aucune valeur n'est inventee ni lue ailleurs, elles sont a renseigner par pmm (le secret JWT doit etre identique au champ « Jeton Secret API » du module `miro_ai`, au moins 32 octets). Sauvegarde de l'ancien `.env` : `/tmp/.env.avant_correction` (droits 600).
+**Verifie** : chargement de `config.settings` : coeur, cadre et racines custom (`odoo_addons`, `custom_addons`) viennent tous de `odoo.conf` ; URL deduite du `http_port` du conf ; base = defaut `odoo-dev` (le conf ne definit pas `db_name`).
+**A faire par pmm** : renseigner `JWT_SECRET` et `ODOO_ADMIN_PASSWORD` ; relancer le serveur.
+**Fichiers modifies** : `.env`, `todo/contexte.txt`.
+
+## Section 1252 : la langue de l'interface Odoo de l'utilisateur est envoyee a l'API (suite de la 1232)
+
+Date : 11/10/2026
+**Mandat (pmm)** : « fais un truc simple, juste ce qu'il y a sur l'interface de l'utilisateur ». Sauvegardes : `/tmp/main.avant_1252.py`, `/tmp/loader.avant_1252.py`, `/tmp/contexte.avant_1252.txt`.
+**Constat** : `odoo_addons/miro_ai/controllers/main.py` n'envoyait pas `language` ; l'API (`api/routes_ask.py`) l'accepte deja et le fait passer a l'agent. Sans langue, le lexique des traductions n'est pas utilise (1181 a). Envoyer la langue brute de l'utilisateur aurait declenche une reconstruction du graphe pendant la requete : `_translation_cache_matches` exigeait que la langue demandee soit presente telle quelle dans le cache (`en_US` ou `fr_FR` absents d'un cache `['fr']`).
+**Correction**
+- `controllers/main.py` : `payload["language"] = request.env.context.get('lang') or user.lang` (langue active du client web, sinon preference de l'utilisateur), seulement si elle est definie.
+- `code_intelligence/graph/loader.py` : `_translation_cache_matches` accepte `en_US` (langue source, aucun catalogue), une langue presente a l'identique, ou une variante regionale dont la langue de base est presente (`fr_FR` pour un cache `fr`) ; la construction et `agent/matching.py` traitaient deja `fr_FR` comme `fr`.
+- Test ajoute dans `code_intelligence/tests/test_graph_translation_languages_setting.py` (4 cas : `fr_FR`/`fr`, `en_US`, identique, `de_DE` absent).
+**Verifie** : 12 passes (reglage, cache, permutation), 28 passes (traductions, langue, chargeur). Module Odoo non teste dans l'interface ; suite complete non rejouee.
+**Limites** : l'instance n'a que `en_US` actif, donc l'interface de pmm envoie `en_US` et le lexique francais n'intervient pas pour lui ; il faut activer `fr_FR` dans Odoo et passer l'utilisateur en francais (les traductions runtime apparaitraient alors aussi). Une langue sans catalogue statique (`de_DE`) reconstruit encore le graphe pendant la requete : point 2 de la 1232, non traite.
+**A faire par pmm** : mettre a jour le module `miro_ai` (`-u miro_ai`), activer `fr_FR`, passer l'utilisateur en francais, reposer « comment faire une demande d'achat ? », coller reponse et log.
+**Fichiers modifies** : `odoo_addons/miro_ai/controllers/main.py`, `code_intelligence/graph/loader.py`, `code_intelligence/tests/test_graph_translation_languages_setting.py`, `todo/contexte.txt`.
+
+## Section 1253 : langues du graphe deduites de l'instance Odoo (plus de `GRAPH_TRANSLATION_LANGUAGES`) et prechauffage du graphe au demarrage de l'API
+
+Date : 11/10/2026
+**Mandat (pmm)** : « oui » apres la question « le graphe n'est pas censé etre construit automatiquement ? ». Sauvegardes : `/tmp/loader.avant_1253.py`, `/tmp/settings.avant_1253.py`, `/tmp/api_main.avant_1253.py`, `/tmp/env.example.avant_1253`, `/tmp/contexte.avant_1253.txt`, `/tmp/active_graph.avant_1253.json` (graphe complet, 117 modules, `translation_languages=['fr']`).
+**Constat** : la 1232 avait introduit un reglage `.env` pour les langues, alors que la construction lit deja les langues actives de l'instance (`res.lang`) et les enregistre sans les reutiliser pour choisir les catalogues ; la reconstruction n'avait lieu que paresseusement, pendant la premiere question (30 a 90 s pour un delai de 120 s). Architecture 4.2 / 4.3 : construction hors requete, lexique derive de l'instance.
+**Correction**
+- `code_intelligence/graph/loader.py` : a la construction, `requested_languages` est fusionne avec les langues actives de l'instance (`_merge_requested_languages(..., configured=active_languages)`) ; retrait de l'import et de l'usage de `GRAPH_TRANSLATION_LANGUAGES`.
+- `config/settings.py` et `.env.example` : variable `GRAPH_TRANSLATION_LANGUAGES` supprimee ; `.env` : ligne et commentaire retires.
+- `api/main.py` : `warm_up_code_intelligence_graph()` lance dans un thread au demarrage (`lifespan`) ; charge le cache ou le reconstruit (permutation atomique existante) ; un echec est journalise sans arreter l'API. Les requetes arrivees pendant la construction attendent le verrou existant (inchange).
+- Tests : `tests/test_graph_warm_up.py` (2), `code_intelligence/tests/test_graph_instance_languages.py` (2) ; avec les tests du reglage, du cache et de la permutation : 16 passes. Suite complete non rejouee.
+**Incident pendant la verification (corrige, cause hors de cette section)** : `scripts/rebuild_graph.py` supprime le graphe avant de reconstruire. `ODOO_ADMIN_PASSWORD=` est vide dans `.env` (ligne 37 ; 1243/1244 : plus de mot de passe par defaut), l'authentification technique echoue, le chargeur retombe sur la liste statique de modules et ecrit un graphe degrade (26 modules, 11248 noeuds au lieu de 117 et 17427). Il a ecrase `active_graph.json` deux fois ; le graphe complet a ete restaure depuis `/tmp/active_graph.avant_1253.json` (le degrade est conserve dans `/tmp/active_graph.rebuilt_1253_degraded.json`). Aucune reconstruction ne doit etre lancee tant que le mot de passe n'est pas renseigne.
+**Limites**
+- Le graphe restaure contient `fr` (construit avec l'ancien reglage) ; la prochaine reconstruction sur l'instance actuelle (`en_US` seul actif) n'attachera aucune traduction tant que `fr_FR` n'est pas active dans Odoo.
+- Activer une langue apres la construction ne rafraichit pas le cache (l'empreinte d'instance n'est pas comparee, 1231) : redemarrer apres reconstruction.
+- Une langue de requete sans catalogue statique reconstruit encore pendant la requete (point 2 de la 1232).
+**Defaut propose, non traite** : un script de reconstruction qui efface le bon graphe avant d'avoir verifie le nouveau, et accepte de sauvegarder un graphe construit sans inventaire runtime. Correction possible : construire dans un fichier temporaire, refuser la permutation si l'inventaire runtime est indisponible (option explicite `--allow-offline`).
+**A faire par pmm** : renseigner `ODOO_ADMIN_PASSWORD` dans `.env` (secret, non gere par cette session) ; ensuite `python3 scripts/rebuild_graph.py`, redemarrer uvicorn (le journal doit afficher « Code intelligence graph ready »).
+**Fichiers modifies** : `code_intelligence/graph/loader.py`, `config/settings.py`, `.env.example`, `.env` (hors git), `api/main.py`, `tests/test_graph_warm_up.py`, `code_intelligence/tests/test_graph_instance_languages.py`, `todo/contexte.txt`.
+
+## Section 1254 : `scripts/rebuild_graph.py` ne remplace plus un bon graphe par un graphe degrade
+
+Date : 11/10/2026
+**Mandat (pmm)** : reprise des points ouverts de la 1253. Sauvegardes : `/tmp/rebuild_graph.avant_1254.py`, `/tmp/contexte.avant_1254.txt`.
+**Constat** : le script supprimait `active_graph.json` avant de reconstruire ; sans inventaire runtime (mot de passe de service vide, Odoo arrete), le chargeur retombait sur la liste statique de modules et sauvegardait un graphe de 26 modules a la place du graphe complet (trois fois pendant la 1253).
+**Correction**
+- `scripts/rebuild_graph.py` : copie le graphe courant en `active_graph.json.previous`, reconstruit avec `force_rebuild=True` (plus de suppression), puis verifie `instance_fingerprint_data.runtime_inventory_available`. Si faux et sans `--allow-offline` : le graphe precedent est restaure, message d'erreur (mot de passe, Odoo arrete), code de sortie 2. Option `--allow-offline` pour conserver volontairement un graphe hors ligne.
+- `.gitignore` : `active_graph.json.previous`.
+- `tests/test_rebuild_graph_script.py` (nouveau, 3 tests) : graphe degrade refuse et restaure ; conserve avec `--allow-offline` ; graphe runtime remplace l'ancien.
+**Verifie** : 3 passes ; reconstruction reelle apres le renseignement de `ODOO_ADMIN_PASSWORD` : 118 modules, 17436 noeuds, code 0, `.previous` cree. Le cas « degrade refuse » n'a pas ete rejoue sur l'instance (couvert par les tests unitaires). Suite complete non rejouee.
+**Fichiers modifies** : `scripts/rebuild_graph.py`, `.gitignore`, `tests/test_rebuild_graph_script.py` (nouveau), `todo/contexte.txt`.
+
+## Section 1255 : verdict ACL du demandeur regroupe par resultat ; routage « comment faire X ? » deja en place (constat)
+
+Date : 11/10/2026
+**Mandat (pmm)** : reprise des deux points ouverts (routage `navigation_howto`, bruit du verdict ACL). Sauvegardes : `/tmp/access_evaluator.avant_1254.py`, `/tmp/contexte.avant_1254.txt`.
+**Routage (constat, aucun code)** : le point 4 de la 1184 est depasse. La reponse a « comment faire une demande d'achat dans l'ERP? » affichait le plan `describe_navigation_path` et, depuis la 1198, le verdict ACL du demandeur : l'intention `navigation_howto` est donc bien classee et planifiee (`investigation_planner.plan_navigation_howto`, `predispatch_access.dispatch_navigation_requester_acl`). Ce qui reste faux n'est pas le routage mais la resolution du terme (alias « demande d'achat » vers `custom.purchase.request` au lieu de `purchase.order`), cause deja rattachee au plan P4 / E1 (1181 d, 1227) : non touchee.
+**Bruit du verdict ACL** : `requester_acl_summary` repetait la liste complete des groupes (26 dans l'exemple) pour READ, WRITE et CREATE. 
+**Correction** : `code_intelligence/rules/access_evaluator.py` : les permissions qui ont le meme resultat et la meme raison partagent une ligne (`READ, WRITE, CREATE: GRANTED (through ...)` ; `DELETE: DENIED (...)`). Les verdicts et les preuves par permission sont inchanges ; aucun code hors tests ne lit ces lignes (verifie par recherche).
+**Tests** : `code_intelligence/tests/test_requester_acl_summary_grouping.py` (nouveau, 2) ; `test_requester_acl_access.py::test_requester_acl_verdict_uses_effective_implied_groups` mis a jour (assertions `READ, CREATE: GRANTED` et `WRITE, DELETE: DENIED`, ancien format par permission). Sous-ensemble `acl or access or requester or howto or evidence` : 381 passes avant mise a jour du test, 8 passes apres (les deux fichiers concernes). Suite complete non rejouee.
+**Non traite** : phrase supposee du LLM sur « un bouton ou une vue personnalisee » (prompt de synthese, a examiner avant toute modification), double negation « n'est pas rattachee a aucun ».
+**Fichiers modifies** : `code_intelligence/rules/access_evaluator.py`, `code_intelligence/tests/test_requester_acl_summary_grouping.py` (nouveau), `code_intelligence/tests/test_requester_acl_access.py`, `todo/contexte.txt`.
+
+## Section 1256 : synthese de « comment faire X ? » sur une action fenetre sans menu : plus de piste inventee ni de double negation
+
+Date : 11/10/2026
+**Mandat (pmm)** : « corrige » (phrase supposee du LLM sur « un bouton ou une vue personnalisee » et double negation de la 1255). Sauvegardes : `/tmp/navigation.avant_1256.py`, `/tmp/prompts.avant_1256.py`, `/tmp/contexte.avant_1256.txt`.
+**Constat** : `build_synthesis_prompt` interdit deja les exemples, causes ou conseils absents des observations, mais `qwen3:14b` a quand meme ecrit qu'il « faudrait declencher l'action via un bouton ou une vue personnalisee » et conclu « contactez un administrateur » (alors que le verdict ACL accorde lecture, ecriture et creation). La double negation « n'est pas rattachee a aucun menu » vient du LLM : l'observation de l'outil disait « elle n'est rattachee a aucun menu », phrase correcte.
+**Correction (meme mecanisme que `DISPLAY_CAUSES_MARKER`, 813)**
+- `code_intelligence/rules/navigation.py` : constante `ORPHAN_ACTION_MARKER` (« elle n'est rattachee a aucun menu »), utilisee dans le texte de l'observation.
+- `code_intelligence/agent/prompts.py` : `orphan_action_rule`, ajoutee seulement si une observation contient ce marqueur : enoncer le fait (l'action existe, aucun menu) puis s'arreter ; aucune piste de declenchement (bouton, vue, automatisation, autre modele), aucun conseil de contacter un administrateur, jamais « pas » avec « aucun » dans la meme proposition.
+- `code_intelligence/tests/test_orphan_action_synthesis_rule.py` (nouveau, 2 tests : regle presente avec le marqueur, prompt inchange sans).
+**Verifie** : 25 passes (regle + navigation), 131 passes sur `prompt or synthesis or navigation or bloc17`. Pas de test avec le LLM reel : la conformite de `qwen3:14b` a cette regle n'est pas mesuree.
+**Limite** : une regle de prompt n'oblige pas un modele de 14 milliards de parametres ; si la phrase revient, la voie deterministe est de produire cette reponse sans passer par le LLM (comme les verdicts ACL), a decider avec P4.
+**A faire par pmm** : redemarrer uvicorn, reposer la question en mode automatique, coller la reponse.
+**Fichiers modifies** : `code_intelligence/rules/navigation.py`, `code_intelligence/agent/prompts.py`, `code_intelligence/tests/test_orphan_action_synthesis_rule.py` (nouveau), `todo/contexte.txt`.
+
+## Section 1249 : demarrage API bloque -- JWT_SECRET present mais vide dans `.env`
+
+Date : 11/10/2026
+**Mandat (pmm)** : echec `uvicorn api.main:app` avec `RuntimeError: JWT_SECRET must be set...` ; puis « continue ».
+**Cause** : apres T1 (1236), `get_jwt_secret()` refuse tout secret < 32 octets ; la cle `JWT_SECRET=` existait dans `.env` mais sans valeur (longueur 0). Comportement fail-closed correct.
+**Correction operationnelle** : generation d'un secret `token_urlsafe(48)` (64 octets) ecrit dans `.env` ; verification `get_jwt_secret()` OK. Fichier ponctuel `/tmp/miro_jwt_secret_once.txt` pour coller la meme valeur dans `miro.ai.settings.api_token` (Odoo), puis a supprimer.
+**A faire par pmm** : (1) coller le secret dans Parametres MIRO AI (`api_token`), identique a `JWT_SECRET` ; (2) `rm /tmp/miro_jwt_secret_once.txt` ; (3) relancer `uvicorn api.main:app` ; (4) `-u miro_ai` si l'ACL 1240 n'est pas encore appliquee en base.
+**Fichiers modifies** : `.env` (local, non versionne), `todo/contexte.txt` (cette section).
+
+## Section 1257 : ouverture de l'experience E1 -- decisions figees, harnais R0/R1 et jeu C amorce (sans changer MIRO)
+
+Date : 11/10/2026
+**Mandat (pmm)** : apres le constat « bon de commande fournisseur » resolu en `sale.order` (alias « commande »), pmm confirme que la faille se traite par BGE/BM25 (pas par empilement d'alias) et repond « oui » a l'ouverture de E1. Rules : cause racine, ne pas polluer `plan.md`, journaliser ici, focus `miro_ai` (pas Discuss), aucun chemin machine en dur.
+**Decisions figees (valeurs « propose » de la 1227, acceptees pour demarrer)**
+1. Criteres D1 a D3 tels qu'ecrits en 1227 (rappel@5, familles a/b/c, fausse resolution silencieuse, expansion).
+2. Regle de clarification sur C : `must_clarify` correct si au moins deux candidats distincts, ambiguite declaree, ou non-resolution sans candidat (abstention).
+3. Emplacement de C : `code_intelligence/evaluation/e1/data/calibration_cases.json` (distinct de `frozen_cases.json`), digest SHA-256 du jeu.
+4. Seconde instance de calibrage en_US : **pas construite dans cette tranche** ; le seed utilise `local_active_graph` + `human_review` ; les conclusions E1 sur C restent marquees `seed_incomplete` jusqu'a coverage >=20 cas/famille et instance(s) de calibrage dediees.
+**Realise (hors ligne, aucun appel LLM, comportement MIRO inchange)**
+- Package `code_intelligence/evaluation/e1/` : `config.json` (poids RRF, profondeur, D1-D3, digest), chargement/validation des cas, metriques recall@k / silent false / clarify, systemes R0 (aliases on) et R1 (aliases off) via `resolve_business_term(..., llm=None)`, CLI `python -m code_intelligence.evaluation.e1.run`.
+- R2-R5 (fiches + BM25 + BGE + RRF + expansion) : `NotImplementedError` explicite -- a implementer dans ce package seulement, jamais branche dans la boucle agent avant le gel de config et le passage held_out.
+- Seed C : 8 cas (paraphrase FR/EN dont l'echec observe, exact_label, ambiguous « commande », absent, non_model menu RFQ). Status `seed_incomplete`.
+- Tests hermetiques `code_intelligence/tests/test_e1_harness.py` : **7 passes** (digest, config, R0 alias OK sur « commande d'achat », R0 echec documente sur « bon de commande fournisseur », R1 sans static_alias, scoring clarify, summary).
+**Cause racine rappellee (mesuree par le test)** : l'alias court « commande » -> `sale.order` court-circuite avant tout retrieval semantique ; E1 doit montrer si R4 bat R1 sur les paraphrases sans dependre de cette table.
+**Non fait** : fiches de noeuds, index BM25/BGE, R2-R5, expansion, jeu C complet (120 cas), seconde instance en_US, passage held_out, changement du resolveur de production, commit.
+**A faire ensuite (ordre 1227)** : (1) elargir C (oracles / relecture) ; (2) implementer fiches + R2-R5 dans `e1/` ; (3) regler uniquement sur C ; (4) figer digest config ; (5) un seul passage held_out ; (6) appliquer D1-D3.
+**Fichiers modifies** : `code_intelligence/evaluation/e1/` (nouveau), `code_intelligence/tests/test_e1_harness.py` (nouveau), `todo/contexte.txt` (cette section). `plan.md` non touche.
+**Baseline mesuree sur le seed (graphe actif local, llm=None, ~157 s)** : R0 recall@5=0.40 (exact_label 1.0, paraphrase 0.0, silent_false 0.125) ; R1 recall@5=0.0, clarify=1.0 (sans alias ni arbitre LLM, rien ne se resout sur ce seed). Confirme le trou paraphrase / court-circuit d'alias avant tout travail sur R2-R5.
+
+## Section 1258 : E1 R2 -- fiches de noeuds + BM25 (hors ligne, MIRO inchange)
+
+Date : 11/10/2026
+**Mandat (pmm)** : « oui » puis « continue » apres la 1257 (prochaine tranche : fiches + BM25 / R2). Rules : package E1 seulement, pas de branchement dans la boucle agent, pas de pollution de `plan.md`, journal ici.
+**Realise**
+- `e1/cards.py` : fiches courtes (type, id, module, libelles filtrés par langue, menus via `OPENS_MODEL` + `CHILD_OF`, actions fenetre, technique). Types : Model, Menu, Field, Method, Group, Rule, Button. Hash SHA-256 du texte. Relations non embeddees.
+- `e1/bm25_index.py` : `BM25Okapi` (`rank-bm25` deja dans `requirements.txt`) sur tokens Unicode NFC-strip ; recherche top_k.
+- `e1/systems.py` : `run_r2` ; ambiguite si score2/score1 >= `bm25_ambiguity_score_ratio` (0.85, config) ; cache d'index par graphe/langue/types. R3-R5 restent `NotImplementedError`.
+- `e1/data/config.json` : `bm25_top_k`, `bm25_ambiguity_score_ratio`, `bm25_min_score`, `card_node_types`.
+- `e1/metrics.py` : candidats normalises en refs `model:` / `menu:` (R0 bare name => `model:`).
+- Tests : +2 (R2 range purchase sur paraphrase fournisseur ; chemins de menu + hash). Total harnais : **9 passes**.
+**Non fait** : R3 BGE, R4 RRF, R5 expansion ; elargissement de C ; passage held_out ; tout changement du resolveur de production.
+**A faire** : implementer R3 (meme fiches, dense BGE-M3), puis R4 RRF ; mesurer R2 sur le seed avec le graphe actif.
+**Fichiers modifies** : `code_intelligence/evaluation/e1/cards.py`, `bm25_index.py`, `systems.py`, `metrics.py`, `run.py`, `__init__.py`, `data/config.json`, `code_intelligence/tests/test_e1_harness.py`, `todo/contexte.txt`.
+
+**Mesure seed apres R2 (graphe actif, 11/10/2026)** : tests harnais **11 passes**. Sur `active_graph.json` : `translation_summary.attached = 0`, `purchase.order` n'a qu'un libelle `en_US` (« Purchase Order »). BM25 FR sur « bon de commande fournisseur » -> aucun hit apres filtrage des mots outils (`de`/`un`/`comment` expliquaient le bruit `ubl_de`). Requete EN « Purchase Order confirm » -> `purchase.order` en top-2. **Conclusion** : R2 est correct lexicalement ; sans traductions FR attachees au graphe il ne peut pas battre R0 sur les paraphrases FR du seed. Cause racine instance/graphe (1253), pas le code BM25. Prochaine tranche utile : (1) reconstruire le graphe avec libelles FR, et/ou (2) R3 BGE-M3 (multilingue) sur les memes fiches.
+
+## Section 1259 : shebang manquant sur `scripts/rebuild_graph.py`
+
+Date : 11/10/2026
+**Mandat (pmm)** : echec en lancant `scripts/rebuild_graph.py` (bash lit le docstring Python : `from: command not found`).
+**Cause** : fichier sans ligne `#!/usr/bin/env python3`, donc execute comme script shell.
+**Correction** : shebang ajoute ; `chmod +x`. Relancer avec `python scripts/rebuild_graph.py` ou `./scripts/rebuild_graph.py` apres activation de `fr_FR` et `ODOO_ADMIN_PASSWORD`.
+**Fichiers modifies** : `scripts/rebuild_graph.py`, `todo/contexte.txt`.
+
+## Section 1260 : rebuild graph live avec fr_FR
+
+Date : 11/10/2026
+**Mandat (pmm)** : suite echec shell, rebuild force via Python.
+**Resultat** : OK en 123.6s — 17436 nodes / 17607 edges ; `translation_languages=['en_US','fr_FR']` ; runtime attached 13398 ; ex. `purchase.order` → « Bon de commande fournisseur » (fr_FR + po).
+**Suite** : redemarrer uvicorn pour recharger le graphe ; retester recall FR R2.
+
+## Section 1261 : langue message vs langue UI Odoo
+
+Date : 11/10/2026
+**Mandat (pmm)** : l'utilisateur demande si FR parle + UI EN est gere ; objectif = reponses alignees sur ce que l'interface affiche.
+**Etat actuel** :
+1. `miro_ai` envoie `language` = `env.context['lang']` ou `user.lang` (langue d'interface), pas la langue du texte tape.
+2. Resolution / libelles graphe filtrent sur cette langue UI.
+3. Le prompt de synthese impose « meme langue que la Original Question » → prose suit le message, pas l'UI.
+**Ecart** : libelles = UI ; prose = message. Cas FR+UI EN non aligne avec l'objectif « repondre comme l'interface ».
+
+## Section 1262 : clarification objectif langue
+
+Date : 11/10/2026
+**Mandat (pmm)** : l'utilisateur precise l'objectif langue.
+**Objectif** :
+1. Prose LLM = langue de la Original Question (deja le prompt).
+2. « Suivre l'interface » = libelles metier/UI (menus, boutons, termes type purchase/sale) dans la langue d'affichage Odoo (`language` envoye), pas traduire ces termes librement.
+**Consequence** : pas de contradiction design ; le rebuild multi-langues sert les libelles UI, pas a forcer la prose.
+
+## Section 1263 : remesure R2 apres rebuild fr_FR
+
+Date : 11/10/2026
+**Mandat (pmm)** : « on enchaine » apres clarification langue.
+**Mesure seed (graphe avec translation_languages en_US+fr_FR, attached runtime 13398)** :
+- R0 : recall@5=0.33 ; paraphrase 0.0 ; « bon de commande fournisseur » -> sale.order (alias, silent_false).
+- R1 : recall@5=0.0.
+- R2 : recall@5=0.17 ; paraphrase 0.0 ; clarify=1.0. Sur « bon de commande fournisseur », `model:purchase.order` apparait en rang 8, noye sous des Field (`po_double_validation`, etc.). Cause : `card_node_types` inclut Field/Method ; BM25 lexical remonte les champs avant le modele. R2 n'est plus « aveugle FR », mais le rappel@5 modele est pollue par le type Field.
+**Conclusion** : libelles FR necessaires mais insuffisants pour D1 avec le jeu de types actuel ; R3 dense (BGE) est la tranche suivante.
+
+## Section 1264 : E1 R3 -- index dense BGE-M3 sur fiches (hors ligne)
+
+Date : 11/10/2026
+**Mandat (pmm)** : suite 1263 / ordre 1258.
+**Realise**
+- `e1/dense_index.py` : index cosine sur fiches, cache disque `active_e1_dense_index`, meme backend que le resolveur semantique (`RESOLVER_SEMANTIC_*` / BGE-M3 tunnel).
+- `run_r3` dans `systems.py` ; injection `embedding_function` pour tests hermetiques.
+- Config : `dense_top_k`, `dense_ambiguity_score_ratio`, `dense_min_score`, `dense_batch_size`.
+- Tests : +1 hermetique (fake bag-of-tokens). Total harnais **12 passes**.
+**Mesure seed R3 (Model+Menu seulement, bge-m3:latest via tunnel, cache)** : recall@5=**1.0**, silent_false=**0.0**, clarify=**1.0** ; paraphrase 1.0 dont « bon de commande fournisseur » -> `purchase.order` en top-1 (score 0.56). Presque tous les cas marquent `declared_ambiguous=True` (ratio cosine proche, seuil 0.85) -- recall@5 OK, resolution stricte rarement True.
+**Non fait** : R3 sur les 16018 fiches tous types (Field inclus) ; R4 RRF ; R5 expansion ; elargissement de C ; branchement production.
+**A faire** : R4 RRF (R2+R3) ; calibrer le seuil d'ambiguite dense ; mesurer R3 tous types si D2 l'exige.
+**Fichiers modifies** : `e1/dense_index.py` (nouveau), `systems.py`, `data/config.json`, `run.py`, `__init__.py`, `tests/test_e1_harness.py`, `todo/contexte.txt`.
+
+## Section 1265 : T5 de l'audit 1235 -- exceptions avalees en silence dans `rules/`, `graph/`, `extractor/` (journal avant code)
+
+Date : 11/10/2026
+**Mandat (pmm)** : « traite t5, mais lis contexte pour pouvoir enchainer avec ce qui y est prevu ». Contexte lu jusqu'a la 1264 : la suite prevue est l'experience E1 (R4 RRF, calibrage du seuil dense) dans `code_intelligence/evaluation/e1/` ; T5 n'y touche pas et n'empiete pas sur la production de E1. Sauvegardes : `/tmp/t5_avant/` (arborescence du depot), `/tmp/contexte.avant_1265.txt`.
+**Mesure (AST, code de production, hors tests et E1)** : 36 gestionnaires `except Exception` / `except:` dont le corps ne fait que `pass`, `continue` ou retourner une constante vide. Classement par cause :
+- `ast.unparse` enveloppe dans un `try` alors qu'il ne leve rien sur un arbre analyse (5 sites : `security.py` x2, `workflow.py` x2, `override_unguarded._safe_unparse`) ;
+- lecture d'un fichier source (`OSError`, `UnicodeDecodeError`) qui supprime une preuve sans trace (6 sites : `data_constraints` x2, `override_composer`, `security_locks`, `structure` x2, plus `staleness.compute_file_hash`) ;
+- analyse d'un XML d'addon (`ET.ParseError`, `OSError`) qui fait sauter un fichier entier (3 sites : `group_resolver`, `xml_view_finder` x2) ;
+- conversion d'entier (`xml.py` l. 122), resolution de chemin (`structure._resolve_source_filepath`).
+**Cause racine** : un `except Exception` large traite pareil une panne attendue (fichier absent, XML mal forme) et un bug de programmation (nom inconnu, mauvais type) ; les deux deviennent « pas de preuve », ce qui est le defaut de fond constate en 1194 et 1203.
+**Decision** : (1) attraper uniquement les pannes attendues ; (2) journaliser (`warning` quand une preuve est perdue, avec le chemin) ; (3) laisser remonter le reste ; (4) un seul jeu d'aides partagees (DRY) dans `code_intelligence/utils.py` : `read_source_text`, `parse_python_text`, `safe_unparse`.
+**Perimetre de cette tranche (18 sites, 12 fichiers)** : `utils.py`, `extractor/xml.py`, `graph/staleness.py`, `rules/data_constraints.py`, `group_resolver.py`, `override_composer.py`, `override_unguarded.py`, `security.py`, `security_locks.py`, `structure.py`, `workflow.py`, `xml_view_finder.py`.
+**Reporte (T5b)** : fichiers modifies par des sessions non suivies, a ne pas toucher sans instruction : `agent/access_guards.py`, `agent/tool_helpers.py` (x2), `agent/tools/introspection.py` (x2), `rules/navigation.py`, `odoo_addons/miro_ai/controllers/main.py` ; et hors `rules/graph/extractor` : `agent/context_extractors.py`, `agent/investigation_planner.py`, `core/llm/llm_retry.py`, `document_rag/ingestion/incremental.py` (x2), `document_rag/vectorstore/chroma_helpers.py`, `chroma_manager.py`, `miro_ai_discuss/models/miro_ai_bot.py`, 4 scripts.
+**Verification prevue** : tests unitaires des aides ; fichiers de tests des regles touchees (`security`, `workflow`, `structure`, `xml_view_finder`, `group_resolver`, `override_*`, `security_locks`, `data_constraints`, `staleness`) ; suite complete a la charge de pmm.
+
+## Section 1266 : T5 terminee dans `rules/`, `graph/`, `extractor/`, `utils.py` : plus aucun `except Exception` silencieux, pannes attendues journalisees (suite de la 1265)
+
+Date : 11/10/2026
+**Mandat (pmm)** : « il n'y a plus d'autres sessions », en reponse au constat qu'une session precedente avait ouvert la 1265. Reprise de la 1265 a partir de l'etat reel (ecart avec `/tmp/t5_avant/`). Sauvegardes de cette session : `/tmp/t5c_avant/`, `/tmp/contexte.avant_1266.txt`.
+**Etat repris (verifie par comparaison avec les sauvegardes de la 1265)** : 11 sites deja corriges, aucun ecrit depuis 23:00. `utils.py` : `read_source_text` et `parse_python_text` (journalisent `OSError`/`UnicodeDecodeError` et `SyntaxError`/`ValueError`/`RecursionError`, renvoient `None`). `extractor/xml.py` (conversion d'entier : `TypeError`/`ValueError` + avertissement), `graph/staleness.py` (`OSError` + avertissement), `data_constraints.py` (2 sites via les aides), `override_composer.py`, `override_unguarded.py`, `security.py` (2), `workflow.py` (2) : enveloppes `try` autour de `ast.unparse` retirees (il ne leve pas sur un arbre deja analyse) ; `group_resolver.py` : `try ... continue` retire apres verification que `parse_groups_from_xml` journalise et ne leve jamais (`_read_and_parse_xml`). Ecart avec la 1265 : l'aide `safe_unparse` n'a pas ete creee, devenue inutile.
+**Fait dans cette session (6 sites + 1)**
+- `security_locks.py` : lecture via `read_source_text`.
+- `structure.py` : localisation de la classe (`OSError`/`UnicodeDecodeError`, avertissement avec le fichier et le modele) ; `_resolve_source_filepath` : l'import de `config.settings` n'est plus dans le `try` (une erreur de configuration doit remonter), seul `Path.exists()` est protege (`OSError` + avertissement) ; `_extract_ast_class_info` : `read_source_text` + `parse_python_text`.
+- `xml_view_finder.py` (2 boucles de scan des vues) : `except (OSError, UnicodeDecodeError, ET.ParseError)` + avertissement avec le fichier ; un bug de programmation n'est plus avale ; `_logger` ajoute.
+- `navigation.py` (reporte en T5b par la 1265 faute de savoir qui l'avait modifie) : traite maintenant qu'il n'y a plus de session concurrente : `OSError`/`UnicodeDecodeError` + avertissement ; `_logger` ajoute.
+**Mesure finale (AST, memes criteres que la 1265)** : 0 gestionnaire `except Exception`/`except:` dont le corps ne fait que `pass`, `continue` ou renvoyer une constante vide dans `code_intelligence/rules`, `graph`, `extractor` et `utils.py` (la 1265 annonce 18 sites ; j'en compte 17 dans son perimetre, plus `navigation.py`).
+**Verification** : `code_intelligence/tests/test_t5_expected_failures_are_logged.py` (nouveau, 11 tests : lecture valide, fichier absent, octets non decodables, syntaxe Python invalide, hachage d'un chemin illisible, scan `has_group` d'un fichier illisible et d'un fichier valide, extraction de classe sur syntaxe invalide, scan de vues sur XML mal forme, **et une erreur de programmation (`AttributeError`) qui remonte** au lieu d'etre avalee) ; 26 fichiers de tests des regles concernees : 236 passes, 3 ignores ; `test_section889_security_principals.py` : 14 passes (2 echecs vus uniquement parce que je l'avais lance depuis un autre repertoire : chemin relatif `tests/native_n1_question_bank.json`). Suite complete non rejouee.
+**Comportement a connaitre** : un fichier source illisible ou un XML mal forme produit maintenant un avertissement avec son chemin au lieu d'un silence ; sur un depot propre il n'y en a aucun. Une erreur inattendue dans ces fonctions remonte desormais (au lieu de devenir « pas de preuve »), donc un bug latent pourrait apparaitre en test ou en production : c'est voulu.
+**Reste (T5b, non traite)** : mesure AST de cette session : 7 gestionnaires silencieux restent dans `code_intelligence/` hors `rules`/`graph`/`extractor`/tests/E1 (`agent/`, dont `access_guards.py`, `tool_helpers.py`, `tools/introspection.py`, `context_extractors.py`, `investigation_planner.py`) ; non mesures : `core/`, `document_rag/`, addons, scripts (la 1265 cite `llm_retry.py`, `incremental.py`, `chroma_helpers.py`, `chroma_manager.py`, `miro_ai_bot.py`). T6 (fonctions de plus de 200 lignes) non commence.
+**Fichiers modifies par cette session** : `code_intelligence/rules/security_locks.py`, `structure.py`, `xml_view_finder.py`, `navigation.py`, `code_intelligence/tests/test_t5_expected_failures_are_logged.py` (nouveau), `todo/contexte.txt` (cette section). Les 12 autres fichiers de la 1265 sont ceux de la session precedente, deja decrits ci-dessus.
+
+## Section 1267 : T5b : exceptions avalees en silence dans `agent/`, `core/`, `document_rag/` et les addons : 0 restant dans le code de production mesure
+
+Date : 11/10/2026
+**Mandat (pmm)** : « enchaine sur T5b ou sur l'E1 » ; choix : T5b d'abord (suite directe de la 1266, perimetre deja mesure), E1 ensuite. Sauvegardes : `/tmp/t5b_avant/` (arborescence du depot), `/tmp/contexte.avant_1267.txt`.
+**Mesure** : memes criteres AST que la 1265 : 14 gestionnaires silencieux (7 dans `code_intelligence/agent/`, 7 dans `core/`, `document_rag/` et les addons). Aucune autre session n'est active, donc les fichiers que la 1265 avait reportes (`access_guards.py`, `tool_helpers.py`, `introspection.py`, `navigation.py`, `controllers/main.py`, `miro_ai_bot.py`) sont traites ici.
+**Traitement par cause**
+- Resolution de chemin (`Path.resolve()` : `OSError`, `RuntimeError` en cas de boucle de liens) : `access_guards._block_is_custom_module_file`, `tool_helpers._is_custom_module_filepath`, `incremental._is_under_roots` (2 sites, dont `is_file`/`is_dir` en `OSError`) : exception restreinte + avertissement ; le repli sur l'analyse du nom de chemin est conserve.
+- Lecture de fichier : `tool_helpers` (suivi des sous-methodes), `introspection` (localisation de la classe) : `OSError`/`UnicodeDecodeError` + avertissement.
+- `try` qui ne protegeait rien : `context_extractors._rehydrate_sticky_concept` (simple construction d'un `ResolvedConcept` a partir de l'etat) et la note de hook vide de `introspection` (`inspect_noop_hook_method` gere deja `SyntaxError`, `format_noop_hook_note` n'est que du texte) : enveloppes retirees.
+- `llm_retry.try_recover_tool_use_failed` : `json.JSONDecodeError` uniquement, journalise en `debug` ; `import json` sorti du `try`.
+- `chroma_helpers.reset_collection` : seul `chromadb.errors.NotFoundError` (collection absente, verifie sur `chromadb==1.5.9`, version epinglee) est toleree ; toute autre panne remonte au lieu de recreer sur un etat inconnu.
+- Catch large conserve **mais journalise avec la trace** (cas ou l'on ne peut pas enumerer les pannes) : `investigation_planner` (sondes optionnelles des regles : en cas d'echec, plan avec les drapeaux par defaut + avertissement), `chroma_manager` (2 sites des statistiques de la base vectorielle), `controllers/main.py` et `miro_ai_bot.py` (`rollback()` dans le `finally` apres un echec de revocation de cle : ce nettoyage ne doit jamais masquer la reponse ; avertissement avec l'`uid`).
+**Mesure finale** : 0 gestionnaire `except Exception`/`except:` silencieux dans `code_intelligence/` (hors tests et `evaluation/`), `core/`, `document_rag/`, `api/`, `erp_data/`, `config/` et `odoo_addons/`. **Non mesures** : `scripts/`, `tests/`, `code_intelligence/evaluation/` (E1). Les `except Exception` qui journalisent deja ne sont pas concernes.
+**Verification** : `code_intelligence/tests/test_t5b_agent_and_storage_failures.py` (nouveau, 8 tests : chemin non resolvable dans les deux gardes avec avertissement ; reconstruction du concept depuis l'etat du module ; arguments d'appel d'outil malformes non recuperes ; candidat de scan non resolvable journalise et ignore ; `reset_collection` sur collection absente, sur collection existante (vidée) et **autre panne qui remonte**) ; 82 fichiers de tests des modules touches : 696 passes, 3 ignores (446 s). Suite complete non rejouee ; code Odoo (rollbacks) non execute sur une instance.
+**Impact a connaitre** : plus d'avertissements dans les journaux en cas de fichier ou chemin illisible ; une erreur inattendue dans `_rehydrate_sticky_concept` ou la note de hook vide remonte desormais au lieu d'etre ignoree ; `reset_collection` n'avale plus une panne du stockage.
+**Fichiers modifies** : `code_intelligence/agent/access_guards.py`, `context_extractors.py`, `investigation_planner.py`, `tool_helpers.py`, `tools/introspection.py`, `core/llm/llm_retry.py`, `document_rag/ingestion/incremental.py`, `document_rag/vectorstore/chroma_helpers.py`, `chroma_manager.py`, `odoo_addons/miro_ai/controllers/main.py`, `odoo_addons/miro_ai_discuss/models/miro_ai_bot.py`, `code_intelligence/tests/test_t5b_agent_and_storage_failures.py` (nouveau), `todo/contexte.txt` (cette section).
+**Suite** : E1 (R4 RRF de R2 et R3, calibrage du seuil d'ambiguite dense, voir 1264) ; T6 (fonctions de plus de 200 lignes) ; `scripts/` non mesures ; fichiers parasites `argparse`, `logging`, `shutil`, `sys` a la racine, a supprimer sur ton accord.
+
+## Section 1265 : cloture journee 11/10/2026 -- journal, commit, push
+
+Date : 11/10/2026
+**Mandat (pmm)** : « c bon pour aujourd'hui, note tout ça dans contexte, commit tout et push ».
+**Perimetre journalise (1257-1264)** : ouverture E1 ; R2 fiches+BM25 ; shebang `rebuild_graph.py` ; rebuild live fr_FR ; clarification langue UI vs prose ; remesure R2 (Field pollue recall@5) ; R3 dense BGE-M3 (Model+Menu seed recall@5=1.0).
+**Aussi dans l'arbre non encore pousse** (lot local depuis 564cc04) : durcissement auth/ACL/miro_ai, `config/odoo_conf.py`, tests graphe/warm-up/rebuild, regles/outils code_intelligence, `.env.example`, `rules.md` focus miro_ai.
+**Exclus du commit** : artefacts parasites racine `argparse`/`logging`/`shutil`/`sys`/`time` (dumps PostScript GraphicsMagick ~6 Mo, hors depot) ; cache `active_e1_dense_index/` (gitignore).
+**Non fait demain** : R4 RRF ; R3 tous types Field ; elargissement C ; branchement resolveur production ; redemarrer uvicorn si graphe FR pas encore recharge.
+

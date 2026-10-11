@@ -5,6 +5,7 @@ XML form view inspection for field definitions, labels, and UI constraints
 (readonly, invisible, required, groups).
 """
 
+import logging
 from pathlib import Path
 import re
 from typing import List, Optional
@@ -15,6 +16,8 @@ from code_intelligence.rules.button_path import ButtonExecutionPathResult
 from code_intelligence.rules.group_resolver import get_group_display_name
 from code_intelligence.rules.technical_groups import technical_groups_among
 from code_intelligence.utils import format_file_link, format_xml_id_citations
+
+_logger = logging.getLogger(__name__)
 
 
 def _resolve_field_name_from_view_string_override(
@@ -51,7 +54,8 @@ def _resolve_field_name_from_view_string_override(
                         fstring = fld.attrib.get("string", "")
                         if fname and fstring and fstring.strip().lower() == clean_label:
                             return fname, fstring.strip()
-            except Exception:
+            except (OSError, UnicodeDecodeError, ET.ParseError) as err:
+                _logger.warning("Cannot inspect view file %s: %s", xml_file, err)
                 continue
     return None
 
@@ -171,7 +175,8 @@ def _find_field_in_xml_views(
                             end_line = min(len(lines), ln + 6)
                             link = format_file_link(str(xml_file), ln, end_line)
                             view_matches.append((rec_id, str(xml_file), ln, end_line, attrs, link))
-            except Exception:
+            except (OSError, UnicodeDecodeError, ET.ParseError) as err:
+                _logger.warning("Cannot inspect view file %s: %s", xml_file, err)
                 continue
 
     if not view_matches:

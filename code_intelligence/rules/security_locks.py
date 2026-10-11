@@ -11,6 +11,7 @@ import re
 from typing import List, Optional, Tuple
 
 from code_intelligence.utils import (
+    read_source_text,
     _match_near_truncation,
     _extract_amount,
     _question_is_approval_related,
@@ -352,9 +353,8 @@ def _extract_has_group_xmlids_from_source(G: nx.DiGraph, model_name: str) -> Set
         p = Path(fp)
         if not p.exists():
             continue
-        try:
-            code = p.read_text(encoding="utf-8")
-        except Exception:
+        code = read_source_text(p)
+        if code is None:
             continue
         found.update(_HAS_GROUP_SOURCE_PATTERN.findall(code))
     return found

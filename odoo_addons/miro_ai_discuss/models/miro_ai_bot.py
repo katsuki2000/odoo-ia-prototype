@@ -396,8 +396,8 @@ class MiroAiBot(models.AbstractModel):
                     _logger.warning("MIRO AI Discuss: échec de révocation de la clé API pour uid=%s: %s", uid, revoke_err)
                     try:
                         self.env.cr.rollback()
-                    except Exception:
-                        pass
+                    except Exception as rollback_err:
+                        _logger.warning("MIRO AI Discuss: échec du rollback après la révocation pour uid=%s: %s", uid, rollback_err)
 
     def _handle_channel_message(self, channel, message, msg_vals):
         """Intercepte un message posté dans un canal Discuss et répond si le bot est sollicité."""

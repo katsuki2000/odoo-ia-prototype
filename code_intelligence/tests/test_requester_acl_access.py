@@ -28,9 +28,8 @@ def test_requester_acl_verdict_uses_effective_implied_groups():
         access_graph(), "account.move", ["account.group_account_manager"], True,
     )
 
-    assert "CREATE: GRANTED" in summary
-    assert "READ: GRANTED" in summary
-    assert "WRITE: DENIED" in summary
+    assert "READ, CREATE: GRANTED" in summary
+    assert "WRITE, DELETE: DENIED" in summary
     assert "model-level ACL decision only" in summary
     create_evidence = next(item for item in evidence if item.source.endswith(":create"))
     assert create_evidence.value["granted"] is True

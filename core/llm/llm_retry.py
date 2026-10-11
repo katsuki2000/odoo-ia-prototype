@@ -60,10 +60,11 @@ def try_recover_tool_use_failed(exc: Exception) -> Optional[ToolCallFallback]:
     if not call_match:
         return None
     fn_name, args_raw = call_match.group(1), call_match.group(2)
+    import json
     try:
-        import json
         args = json.loads(args_raw)
-    except Exception:
+    except json.JSONDecodeError as err:
+        logger.debug("failed_generation arguments for %s are not valid JSON: %s", fn_name, err)
         return None
     logger.warning("Recovered malformed tool call via failed_generation: %s(%s)", fn_name, args)
     return ToolCallFallback([{

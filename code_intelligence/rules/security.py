@@ -162,15 +162,9 @@ class SecurityLockASTVisitor(ast.NodeVisitor):
             if isinstance(test, ast.BoolOp) and isinstance(test.op, ast.And) and test.values:
                 first = test.values[0]
                 if not isinstance(first, ast.Compare):
-                    try:
-                        return ast.unparse(first)
-                    except Exception:
-                        return ""
+                    return ast.unparse(first)
             elif isinstance(test, (ast.Attribute, ast.Name)):
-                try:
-                    return ast.unparse(test)
-                except Exception:
-                    return ""
+                return ast.unparse(test)
         return ""
 
     def visit_Assign(self, node: ast.Assign):

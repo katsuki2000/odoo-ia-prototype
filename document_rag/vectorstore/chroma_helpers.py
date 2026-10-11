@@ -5,6 +5,7 @@ import logging
 import os
 from typing import Any, Dict, List, Optional
 import chromadb
+from chromadb.errors import NotFoundError
 
 from config.settings import CHROMA_PATH
 
@@ -86,8 +87,8 @@ def reset_collection(client, name: str = "miro_knowledge_base"):
     try:
         client.delete_collection(name)
         logger.info("Deleted collection '%s'", name)
-    except Exception:
-        pass
+    except NotFoundError:
+        logger.info("Collection '%s' does not exist yet, nothing to delete", name)
     return get_or_create_collection(client, name)
 
 

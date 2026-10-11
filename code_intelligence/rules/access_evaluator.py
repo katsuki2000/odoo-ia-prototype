@@ -77,6 +77,7 @@ def requester_acl_summary(
     lines = [f"[AUTHENTICATED REQUESTER ACL VERDICT — model '{model_name}']"]
     evidence = []
     verdicts = {}
+    labels_by_outcome: Dict[tuple, List[str]] = {}
     for permission, label in labels.items():
         allowed_groups, all_authenticated, _rules, _inherited_via = _eval_single_permission(
             G, model_name, permission,
@@ -91,7 +92,7 @@ def requester_acl_summary(
         else:
             reason = "no effective requester group has this ACL grant"
         verdict = "GRANTED" if granted else "DENIED"
-        lines.append(f"{label}: {verdict} ({reason}).")
+        labels_by_outcome.setdefault((verdict, reason), []).append(label)
         claim = (
             f"Authenticated requester has model-level {permission} ACL access to '{model_name}'"
             if granted else
@@ -106,6 +107,8 @@ def requester_acl_summary(
             scope={"requester_groups": sorted(effective_groups), "decision_layer": "model_acl"},
         ))
 
+    for (verdict, reason), outcome_labels in labels_by_outcome.items():
+        lines.append(f"{', '.join(outcome_labels)}: {verdict} ({reason}).")
     lines.append(
         "Scope: this is the model-level ACL decision only; record rules and model business logic "
         "may further restrict access to particular records or operations."

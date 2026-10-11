@@ -82,7 +82,7 @@ from typing import Any, Dict, List, Optional
 
 import networkx as nx
 
-from code_intelligence.utils import format_file_link
+from code_intelligence.utils import format_file_link, read_source_text
 from code_intelligence.rules.security import (
     analyze_python_security_locks,
     extract_method_security_constraints,
@@ -236,15 +236,13 @@ def _compose_compute_methods_overview(
 
             if m != model_name:
                 p = Path(s.get("filepath", ""))
-                if p.exists() and s.get("lineno"):
-                    try:
-                        code_lines = p.read_text(encoding="utf-8").splitlines()
-                        sl = max(0, s["lineno"] - 1)
-                        el = min(len(code_lines), (s.get("end_lineno") or s["lineno"]))
-                        snippet = "\n    ".join(code_lines[sl:el])
-                        lines.append(f"    Code {m}.{name}:\n    {snippet}")
-                    except Exception:
-                        pass
+                source = read_source_text(p) if p.exists() and s.get("lineno") else None
+                if source is not None:
+                    code_lines = source.splitlines()
+                    sl = max(0, s["lineno"] - 1)
+                    el = min(len(code_lines), (s.get("end_lineno") or s["lineno"]))
+                    snippet = "\n    ".join(code_lines[sl:el])
+                    lines.append(f"    Code {m}.{name}:\n    {snippet}")
 
             site_obj = MethodOverrideSite(
                 module=mod,

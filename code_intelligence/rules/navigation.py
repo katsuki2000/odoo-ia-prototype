@@ -5,6 +5,7 @@ Dynamic view injection (get_view / fields_view_get) and UI Menu item
 lookup for actions not found in static button declarations.
 """
 
+import logging
 from pathlib import Path
 import re
 from typing import Optional
@@ -14,6 +15,10 @@ from code_intelligence.rules.button_path import ButtonExecutionPathResult
 from code_intelligence.rules.group_resolver import get_group_display_name
 from code_intelligence.utils import format_file_link, format_xml_id_citations
 
+_logger = logging.getLogger(__name__)
+
+
+ORPHAN_ACTION_MARKER = "elle n'est rattachee a aucun menu"
 
 def search_dynamic_view_or_menus(
     G: nx.DiGraph,
@@ -122,8 +127,8 @@ def search_dynamic_view_or_menus(
                             end_lineno = menu_lineno + after[:close_tag].count("\n")
                         else:
                             end_lineno = menu_lineno + 6
-                except Exception:
-                    pass
+                except (OSError, UnicodeDecodeError) as err:
+                    _logger.warning("Cannot read menu file %s: %s", menu_fp, err)
         menu_link = f"[{Path(menu_fp).name}:L{menu_lineno}-L{end_lineno}](file://{menu_fp}#L{menu_lineno}-L{end_lineno})" if menu_fp else menu_fp
 
         menu_steps = [
@@ -310,7 +315,7 @@ def describe_navigation_path(
             )
             summary = (
                 f"Aucun menu (ir.ui.menu) n'ouvre '{model_name}'. Une action fenetre le cible pourtant : "
-                f"{action_labels}, mais elle n'est rattachee a aucun menu : le parcours utilisateur "
+                f"{action_labels}, mais {ORPHAN_ACTION_MARKER} : le parcours utilisateur "
                 f"normal n'existe pas dans le code analyse."
             )
             steps = [

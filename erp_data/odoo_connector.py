@@ -10,6 +10,7 @@ import time
 import xmlrpc.client
 
 from config.odoo_credentials import service_login, service_password
+from config.settings import ODOO_DB_DEFAULT, ODOO_URL_DEFAULT
 
 logger = logging.getLogger(__name__)
 
@@ -77,8 +78,8 @@ class OdooConnector:
         registry labels) with the configured service account and ignores the per-request
         API key, so the uid and the password always belong to the same identity.
         """
-        self.url = url or os.getenv("ODOO_URL", "http://localhost:8069")
-        self.db = db or os.getenv("ODOO_DB", "odoo-dev")
+        self.url = url or os.getenv("ODOO_URL") or ODOO_URL_DEFAULT
+        self.db = db or os.getenv("ODOO_DB") or ODOO_DB_DEFAULT
         self.username = service_login()
         self._password = password
         self.technical = technical

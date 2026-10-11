@@ -166,6 +166,7 @@ class ChromaManager:
                     results = self.collection.get(where={"type": {"$eq": doc_type}}, include=[])
                     type_stats[doc_type] = len(results.get("ids", []))
                 except Exception:
+                    logger.warning("Cannot count documents of type %s", doc_type, exc_info=True)
                     type_stats[doc_type] = 0
 
             module_stats = {}
@@ -176,7 +177,7 @@ class ChromaManager:
                     if module:
                         module_stats[module] = module_stats.get(module, 0) + 1
             except Exception:
-                pass
+                logger.warning("Cannot compute per-module statistics", exc_info=True)
 
             return {
                 "total_chunks": total_chunks,

@@ -291,8 +291,8 @@ odoo-ia-prototype/
 | `CORE_ADDONS_PATH` | No | `../odoo-17.0/addons` | Path to core Odoo addons |
 | `CUSTOM_ADDONS_PATH` | No | `./odoo_addons` | Path to custom addons |
 | `RAG_DOCS_PATH` | No | `./document_rag/documents` | Path to source documents for RAG indexing |
-| `ODOO_URL` | No | `http://localhost:8069` | Odoo XML-RPC server URL |
-| `ODOO_DB` | No | `odoo-dev` | Odoo database name |
+| `ODOO_URL` | No | `http://localhost:<http_port of odoo.conf>`, else `http://localhost:8069` | Odoo XML-RPC server URL (overrides odoo.conf) |
+| `ODOO_DB` | No | `db_name` of odoo.conf when it names a single database, else `odoo-dev` | Odoo database name (overrides odoo.conf) |
 | `ODOO_USERNAME` | No | `admin` | XML-RPC service username |
 | `ODOO_ADMIN_PASSWORD` | Yes | none | Password of the Odoo service account (metadata, health, live validation). No default; keep it in the backend `.env`, never in the Odoo interface |
 

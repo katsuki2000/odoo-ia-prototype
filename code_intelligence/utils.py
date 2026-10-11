@@ -1,10 +1,14 @@
 """Shared utilities for the Code Intelligence pipeline."""
 
+import ast
 import hashlib
+import logging
 import re
 import unicodedata
 from pathlib import Path
 from typing import List, Optional, Set
+
+_logger = logging.getLogger(__name__)
 
 __all__ = [
     "SENSITIVE_BYPASS_MARKER",
@@ -16,6 +20,8 @@ __all__ = [
     "discover_odoo_modules",
     "compute_addons_hash",
     "fold_accents",
+    "read_source_text",
+    "parse_python_text",
     "_TRUNCATION_MARKER",
     "_TRUNCATION_PROXIMITY_CHARS",
     "_match_near_truncation",
@@ -167,6 +173,22 @@ def compute_addons_hash(
 def fold_accents(text: str) -> str:
     """Normalize text: lowercase + strip diacritics."""
     return unicodedata.normalize("NFD", text.lower()).encode("ascii", "ignore").decode()
+
+
+def read_source_text(path) -> Optional[str]:
+    try:
+        return Path(path).read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as err:
+        _logger.warning("Cannot read source file %s: %s", path, err)
+        return None
+
+
+def parse_python_text(text: str, path) -> Optional[ast.Module]:
+    try:
+        return ast.parse(text, filename=str(path))
+    except (SyntaxError, ValueError, RecursionError) as err:
+        _logger.warning("Cannot parse Python source %s: %s", path, err)
+        return None
 
 
 # ── Text-signal primitives ──────────────────────────────────────────────────

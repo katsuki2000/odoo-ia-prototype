@@ -223,12 +223,14 @@ def _allowed_source_roots() -> list:
     """Configured addon roots plus the roots the active graph was built from."""
     import code_intelligence.agent.tool_helpers as th
     from config.settings import (
-        CORE_ADDONS_PATH, CORE_FRAMEWORK_ADDONS_PATH, CUSTOM_ADDONS_PATH, OCA_SAMPLE_ADDONS_PATH,
+        CORE_ADDONS_PATH, CORE_FRAMEWORK_ADDONS_PATH, CUSTOM_ADDONS_PATH, CUSTOM_ADDONS_PATHS,
+        OCA_SAMPLE_ADDONS_PATH,
     )
 
     graph_roots = th._GRAPH_REF.graph.get("addon_roots_ordered", ()) if th._GRAPH_REF is not None else ()
     configured = (
-        CORE_ADDONS_PATH, CORE_FRAMEWORK_ADDONS_PATH, CUSTOM_ADDONS_PATH, OCA_SAMPLE_ADDONS_PATH, *graph_roots,
+        CORE_ADDONS_PATH, CORE_FRAMEWORK_ADDONS_PATH, CUSTOM_ADDONS_PATH, *CUSTOM_ADDONS_PATHS,
+        OCA_SAMPLE_ADDONS_PATH, *graph_roots,
     )
     return [Path(root).resolve() for root in dict.fromkeys(configured) if root and Path(root).exists()]
 
@@ -254,10 +256,13 @@ def read_precise_source_code(
     if not path.exists():
         import re
         from config.settings import (
-            _ROOT, CORE_ADDONS_PATH, CUSTOM_ADDONS_PATH, OCA_SAMPLE_ADDONS_PATH,
+            _ROOT, CORE_ADDONS_PATH, CUSTOM_ADDONS_PATH, CUSTOM_ADDONS_PATHS, OCA_SAMPLE_ADDONS_PATH,
         )
         candidates = [
-            Path(CUSTOM_ADDONS_PATH) / filepath_str if CUSTOM_ADDONS_PATH else None,
+            *(
+                Path(custom_root) / filepath_str
+                for custom_root in dict.fromkeys((CUSTOM_ADDONS_PATH, *CUSTOM_ADDONS_PATHS)) if custom_root
+            ),
             Path(CORE_ADDONS_PATH) / filepath_str if CORE_ADDONS_PATH else None,
             Path(OCA_SAMPLE_ADDONS_PATH) / filepath_str if OCA_SAMPLE_ADDONS_PATH else None,
             _ROOT / filepath_str,
@@ -293,7 +298,11 @@ def read_precise_source_code(
                 corpus_roots = [
                     p for p in [
                         Path(CORE_ADDONS_PATH) if CORE_ADDONS_PATH else None,
-                        Path(CUSTOM_ADDONS_PATH) if CUSTOM_ADDONS_PATH else None,
+                        *(
+                            Path(custom_root)
+                            for custom_root in dict.fromkeys((CUSTOM_ADDONS_PATH, *CUSTOM_ADDONS_PATHS))
+                            if custom_root
+                        ),
                         Path(OCA_SAMPLE_ADDONS_PATH) if OCA_SAMPLE_ADDONS_PATH else None,
                     ]
                     if p and p.exists()
@@ -348,8 +357,8 @@ def read_precise_source_code(
                     class_lineno = text[:class_pos].count("\n") + 1
                     line_start = class_lineno
                     line_end = class_lineno + min(max_lines - 1, 150)
-        except Exception:
-            pass
+        except (OSError, UnicodeDecodeError) as err:
+            _logger.warning("Cannot read %s to locate model %s: %s", path, target_model_resolved, err)
 
     requested_lines = line_end - line_start + 1
     if requested_lines > max_lines:
@@ -376,17 +385,14 @@ def read_precise_source_code(
             snippet.append(f"{i:4d} | {line}{tag}")
 
         body = "\n".join(snippet)
-        try:
-            from code_intelligence.rules.source_callees import (
-                inspect_noop_hook_method,
-                format_noop_hook_note,
-            )
-            hook_info = inspect_noop_hook_method("\n".join(selected_lines))
-            if hook_info:
-                func_name, noop_desc = hook_info
-                body += "\n\n" + format_noop_hook_note(func_name, noop_desc)
-        except Exception:
-            pass
+        from code_intelligence.rules.source_callees import (
+            inspect_noop_hook_method,
+            format_noop_hook_note,
+        )
+        hook_info = inspect_noop_hook_method("\n".join(selected_lines))
+        if hook_info:
+            func_name, noop_desc = hook_info
+            body += "\n\n" + format_noop_hook_note(func_name, noop_desc)
         if include_citation:
             from code_intelligence.utils import format_file_link
             shown_start, shown_end = start_idx + 1, end_idx

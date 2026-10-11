@@ -52,7 +52,7 @@ def plan_governance_security(
             )
             has_who_has_access_target = primary_model in who_has_access_targets(question, resolved_concept, G)
         except Exception:
-            pass
+            logger.warning("Target probes failed; planning with the default flags", exc_info=True)
 
     steps: List[InvestigationStep] = []
 

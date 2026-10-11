@@ -172,17 +172,22 @@ def find_methods_with_override_cascade(G, model_name: str) -> list:
 
 def _is_custom_module_filepath(filepath: str) -> bool:
     """Check if filepath belongs to custom modules."""
-    from config.settings import CORE_ADDONS_PATH, CORE_FRAMEWORK_ADDONS_PATH, CUSTOM_ADDONS_PATH
+    from config.settings import (
+        CORE_ADDONS_PATH, CORE_FRAMEWORK_ADDONS_PATH, CUSTOM_ADDONS_PATH, CUSTOM_ADDONS_PATHS,
+    )
     try:
         resolved = Path(filepath).resolve()
-        if CUSTOM_ADDONS_PATH and Path(CUSTOM_ADDONS_PATH).resolve() in resolved.parents:
+        if any(
+            root and Path(root).resolve() in resolved.parents
+            for root in dict.fromkeys((CUSTOM_ADDONS_PATH, *CUSTOM_ADDONS_PATHS))
+        ):
             return True
         if CORE_ADDONS_PATH and Path(CORE_ADDONS_PATH).resolve() in resolved.parents:
             return False
         if CORE_FRAMEWORK_ADDONS_PATH and Path(CORE_FRAMEWORK_ADDONS_PATH).resolve() in resolved.parents:
             return False
-    except Exception:
-        pass
+    except (OSError, RuntimeError) as err:
+        _logger.warning("Cannot resolve path %s: %s", filepath, err)
     path_parts = Path(filepath).parts
     core_dirs = {"odoo/addons", "base", "web"}
     if any(c in path_parts for c in core_dirs):
@@ -272,8 +277,8 @@ def _trace_invoked_methods_with_citations(G, model_name: str, code: str):
                                     lines.append(f"\n{indent}  -> Sub-method called: {sub_m}() (Defined at {sub_link})")
                                     citations.append((sub_fp, sub_start, sub_end))
                                     queue.append((sub_m, sub_fp, sub_start, sub_end, depth + 1))
-                except Exception:
-                    pass
+                except (OSError, UnicodeDecodeError) as err:
+                    _logger.warning("Cannot read %s while following sub-methods: %s", curr_fp, err)
     return "".join(lines), citations
 
 

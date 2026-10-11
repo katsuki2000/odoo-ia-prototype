@@ -19,3 +19,5 @@ a clean architecture with subpackages and packages
 fait que la transition vers local soit facile en modifiant qu'un seul fichier (.env par exemple)
 
 > lorsque plusieurs oprions s"ouvrent , il faut se demander : est ce que là l'ia pourra repondre correctement sur n'importe quel instance odoo 17?
+
+focus addon Odoo : `miro_ai` seulement. Ne pas modifier, tester, ni prioriser `miro_ai_discuss` sauf mandat explicite de pmm ; les correctifs de securite et d'architecture se font d'abord sur `miro_ai` (controleurs, settings, ACL, client backend).

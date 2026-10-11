@@ -392,23 +392,16 @@ def inspect_stage_workflow_actions(source_text: str) -> dict:
                     actions["followers_condition"] = list(self.if_stack)
                 elif node.func.attr == "write":
                     for arg in node.args:
-                        try:
-                            arg_str = ast.unparse(arg)
-                            if "close_date" in arg_str:
-                                actions["has_close_date"] = True
-                        except Exception:
-                            pass
+                        if "close_date" in ast.unparse(arg):
+                            actions["has_close_date"] = True
             self.generic_visit(node)
 
         def visit_Assign(self, node):
-            try:
-                assign_str = ast.unparse(node)
-                if "kanban_state" in assign_str:
-                    actions["has_kanban_reset"] = True
-                elif "close_date" in assign_str:
-                    actions["has_close_date"] = True
-            except Exception:
-                pass
+            assign_str = ast.unparse(node)
+            if "kanban_state" in assign_str:
+                actions["has_kanban_reset"] = True
+            elif "close_date" in assign_str:
+                actions["has_close_date"] = True
             self.generic_visit(node)
 
     Visitor().visit(tree)

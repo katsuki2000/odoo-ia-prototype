@@ -127,6 +127,9 @@ class MiroAiController(http.Controller):
             "company_id": company_id,
             "groups": groups,
         }
+        interface_language = request.env.context.get('lang') or user.lang
+        if interface_language:
+            payload["language"] = interface_language
         # Explicit source chosen in the UI; anything else means automatic routing.
         if source_mode in ("documentation", "systeme"):
             payload["source_mode"] = source_mode
@@ -258,8 +261,8 @@ class MiroAiController(http.Controller):
                     )
                     try:
                         request.env.cr.rollback()
-                    except Exception:
-                        pass
+                    except Exception as rollback_err:
+                        _logger.warning("MIRO AI: échec du rollback après la révocation pour uid=%s: %s", uid, rollback_err)
 
     @http.route('/miro_ai/sessions', type='json', auth='user', methods=['POST'])
     def sessions(self, limit=30, **kwargs):

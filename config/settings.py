@@ -1,8 +1,11 @@
 # config/settings.py
+import logging
 import os
 import sys
 from pathlib import Path
 from dotenv import load_dotenv
+
+from config.odoo_conf import resolve_addon_paths, resolve_database, resolve_odoo_url
 
 # Load variables from .env or env file near project root
 _ROOT = Path(__file__).resolve().parent.parent
@@ -34,14 +37,6 @@ LOCAL_EMBEDDING_BASE_URL = os.getenv("LOCAL_EMBEDDING_BASE_URL", f"{OLLAMA_HOST}
 LOCAL_EMBEDDING_MODEL    = os.getenv("LOCAL_EMBEDDING_MODEL", "all-minilm:latest")
 LOCAL_EMBEDDING_API_KEY  = os.getenv("LOCAL_EMBEDDING_API_KEY", "ollama")
 
-# Languages whose translations are attached to the knowledge graph at build time
-# (comma-separated codes, e.g. "fr,en_US"). Empty means labels stay in the source language.
-GRAPH_TRANSLATION_LANGUAGES = tuple(
-    code.strip()
-    for code in os.getenv("GRAPH_TRANSLATION_LANGUAGES", "").split(",")
-    if code.strip()
-)
-
 # Per-question tool-call budget of the code intelligence agent (default 20).
 CI_MAX_HOPS = int(os.getenv("CI_MAX_HOPS", "20"))
 
@@ -53,9 +48,29 @@ DOCS_COLLECTION_NAME = "odoo_docs"
 ANSWER_VERIFIER_MODE = os.getenv("ANSWER_VERIFIER_MODE", "report")
 
 # -- Code Intelligence corpus paths ----------------------
-CORE_ADDONS_PATH = os.getenv("CORE_ADDONS_PATH") or str(_ROOT.parent / "odoo-17.0" / "addons")
-CUSTOM_ADDONS_PATH = os.getenv("CUSTOM_ADDONS_PATH") or str(_ROOT / "odoo_addons")
+# Addon paths: explicit environment variable > the target Odoo's odoo.conf (addons_path) > default.
+# The .env only needs ODOO_CONF_PATH; CORE/CUSTOM/CORE_FRAMEWORK_ADDONS_PATH are optional overrides.
+_explicit_core = os.getenv("CORE_ADDONS_PATH")
+_default_odoo_root = Path(_explicit_core).parent if _explicit_core else _ROOT.parent / "odoo-17.0"
+_default_odoo_conf = _default_odoo_root / "odoo.conf"
+_conf_for_addon_paths = (
+    os.getenv("ODOO_CONF_PATH")
+    or os.getenv("EVAL_ODOO_CONF")
+    or os.getenv("ODOO_RC")
+    or (str(_default_odoo_conf) if _default_odoo_conf.is_file() else None)
+)
+_ADDON_PATHS = resolve_addon_paths(_conf_for_addon_paths, os.environ, _default_odoo_root, _ROOT)
+CORE_ADDONS_PATH = _ADDON_PATHS.core
+CUSTOM_ADDONS_PATH = _ADDON_PATHS.custom[0]
+# Every custom addon root (the single CUSTOM_ADDONS_PATH above is only the main one).
+CUSTOM_ADDONS_PATHS = _ADDON_PATHS.custom
 OCA_SAMPLE_ADDONS_PATH = os.getenv("OCA_SAMPLE_ADDONS_PATH") or None
+logging.getLogger(__name__).info(
+    "Addon paths (source): core=%s (%s), framework=%s (%s), custom=%s (%s)",
+    _ADDON_PATHS.core, _ADDON_PATHS.sources["CORE_ADDONS_PATH"],
+    _ADDON_PATHS.framework, _ADDON_PATHS.sources["CORE_FRAMEWORK_ADDONS_PATH"],
+    list(_ADDON_PATHS.custom), _ADDON_PATHS.sources["CUSTOM_ADDONS_PATH"],
+)
 
 _ODOO_ROOT = Path(CORE_ADDONS_PATH).parent
 _ODOO_VENV_PYTHON = _ODOO_ROOT / ".venv" / "bin" / "python"
@@ -74,6 +89,13 @@ ODOO_CONF_PATH = (
     or os.getenv("ODOO_RC")
     or EVAL_ODOO_CONF
 )
+# Defaults of the Odoo connection, read from the same odoo.conf (ODOO_DB / ODOO_URL still win).
+ODOO_DB_DEFAULT, _odoo_db_source = resolve_database(ODOO_CONF_PATH, os.environ)
+ODOO_URL_DEFAULT, _odoo_url_source = resolve_odoo_url(ODOO_CONF_PATH, os.environ)
+logging.getLogger(__name__).info(
+    "Odoo connection defaults (source): url=%s (%s), db=%s (%s)",
+    ODOO_URL_DEFAULT, _odoo_url_source, ODOO_DB_DEFAULT, _odoo_db_source,
+)
 EVAL_DB_PREFIX = os.getenv("EVAL_DB_PREFIX", "eval_")
 # Throwaway evaluation instances (random local port) keep the password Odoo gives a database created by `-i`;
 # it replaces any ODOO_ADMIN_PASSWORD of the operator inside their workers.
@@ -87,7 +109,7 @@ SEMANTIC_INDEX_CACHE_DIR = os.getenv("SEMANTIC_INDEX_CACHE_DIR") or str(_ROOT / 
 RAG_DOCS_PATH = os.getenv("RAG_DOCS_PATH") or str(_ROOT / "document_rag" / "documents")
 DOCUMENT_MAX_TOKENS = int(os.getenv("DOCUMENT_MAX_TOKENS", "2048"))
 
-CORE_FRAMEWORK_ADDONS_PATH = os.getenv("CORE_FRAMEWORK_ADDONS_PATH") or str(Path(CORE_ADDONS_PATH).parent / "odoo" / "addons")
+CORE_FRAMEWORK_ADDONS_PATH = _ADDON_PATHS.framework
 
 # ── Retrieval / Re-ranking ────────────────────────────
 # Disabled by default to prevent CPU bottlenecks / non-AVX2 freezes.

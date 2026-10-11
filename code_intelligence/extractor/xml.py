@@ -1,5 +1,6 @@
 """XML extractors for actions, rules, groups, views, and menus."""
 
+import logging
 import re
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -22,6 +23,8 @@ from .xml_models import (
     parse_xml_root,
     _read_and_parse_xml,
 )
+
+_logger = logging.getLogger(__name__)
 
 # ── Actions & Automations ──
 
@@ -119,8 +122,8 @@ def parse_server_actions_from_xml(filepath: Path) -> List[OdooServerActionRecord
             elif field_name == "interval_number":
                 try:
                     sa.interval_number = int(field_text or (field_eval if field_eval else 1))
-                except Exception:
-                    pass
+                except (TypeError, ValueError):
+                    _logger.warning("Invalid interval_number %r on server action %s", field_text or field_eval, sa.xml_id)
             elif field_name == "interval_type":
                 sa.interval_type = field_text or (field_eval.strip("'\"") if field_eval else "")
 

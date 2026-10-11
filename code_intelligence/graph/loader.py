@@ -135,10 +135,18 @@ _CACHED_TRANSLATION_LANGUAGES: tuple[str, ...] = ()
 _GRAPH_LOAD_LOCK = threading.RLock()
 
 
+_SOURCE_LANGUAGE = "en_US"
+
+
 def _translation_cache_matches(requested, available) -> bool:
-    requested = set(requested)
     available = set(available)
-    return requested.issubset(available)
+    available_bases = {code.split("_", 1)[0].lower() for code in available}
+    return all(
+        code == _SOURCE_LANGUAGE
+        or code in available
+        or code.split("_", 1)[0].lower() in available_bases
+        for code in requested
+    )
 
 
 def _normalize_language_code(language: str) -> str:
@@ -407,13 +415,8 @@ def _get_code_intelligence_graph(
         CORE_ADDONS_PATH,
         CORE_FRAMEWORK_ADDONS_PATH,
         CUSTOM_ADDONS_PATH,
-        GRAPH_TRANSLATION_LANGUAGES,
         OCA_SAMPLE_ADDONS_PATH,
         ODOO_CONF_PATH,
-    )
-
-    requested_languages = _merge_requested_languages(
-        requested_languages, None, configured=GRAPH_TRANSLATION_LANGUAGES,
     )
 
     core_addons_root = Path(CORE_ADDONS_PATH)
@@ -539,6 +542,9 @@ def _get_code_intelligence_graph(
         installed_modules = _read_runtime_module_inventory()
     if active_languages is None:
         active_languages = _read_runtime_active_languages()
+    requested_languages = _merge_requested_languages(
+        requested_languages, None, configured=active_languages or (),
+    )
     if installed_modules is not None:
         installed_source_modules = _discover_installed_source_modules(
             addon_roots,

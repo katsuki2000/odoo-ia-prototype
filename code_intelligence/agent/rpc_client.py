@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
 from config.odoo_credentials import service_login, service_password
+import config.settings as _settings
 
 logger = logging.getLogger(__name__)
 
@@ -29,8 +30,8 @@ class OdooRpcError(RuntimeError):
 
 @dataclass
 class OdooRpcClient:
-    url: str = field(default_factory=lambda: os.getenv("ODOO_URL", "http://localhost:8069"))
-    db: str = field(default_factory=lambda: os.getenv("ODOO_DB", "odoo-dev"))
+    url: str = field(default_factory=lambda: os.getenv("ODOO_URL") or _settings.ODOO_URL_DEFAULT)
+    db: str = field(default_factory=lambda: os.getenv("ODOO_DB") or _settings.ODOO_DB_DEFAULT)
     admin_login: str = field(default_factory=service_login)
     admin_password: Optional[str] = None
 

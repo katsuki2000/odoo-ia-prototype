@@ -213,10 +213,15 @@ def _block_is_custom_module_file(block: str) -> bool:
     match = _BLOCK_FILE_LINK_RE.search(block)
     if not match:
         return True
-    from config.settings import CORE_ADDONS_PATH, CORE_FRAMEWORK_ADDONS_PATH, CUSTOM_ADDONS_PATH
+    from config.settings import (
+        CORE_ADDONS_PATH, CORE_FRAMEWORK_ADDONS_PATH, CUSTOM_ADDONS_PATH, CUSTOM_ADDONS_PATHS,
+    )
     try:
         resolved = Path(match.group(1)).resolve()
-        if CUSTOM_ADDONS_PATH and Path(CUSTOM_ADDONS_PATH).resolve() in resolved.parents:
+        if any(
+            root and Path(root).resolve() in resolved.parents
+            for root in dict.fromkeys((CUSTOM_ADDONS_PATH, *CUSTOM_ADDONS_PATHS))
+        ):
             return True
         if CORE_ADDONS_PATH and Path(CORE_ADDONS_PATH).resolve() in resolved.parents:
             try:
@@ -228,8 +233,8 @@ def _block_is_custom_module_file(block: str) -> bool:
             return False
         if CORE_FRAMEWORK_ADDONS_PATH and Path(CORE_FRAMEWORK_ADDONS_PATH).resolve() in resolved.parents:
             return False
-    except Exception:
-        pass
+    except (OSError, RuntimeError) as err:
+        logger.warning("Cannot resolve path %s: %s", match.group(1), err)
     path_parts = Path(match.group(1)).parts
     if any(part.startswith("custom") for part in path_parts):
         return True

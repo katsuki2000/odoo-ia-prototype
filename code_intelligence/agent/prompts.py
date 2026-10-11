@@ -11,6 +11,7 @@ from typing import List, Optional
 from code_intelligence.agent.context_extractors import rank_custom_modules_for_models
 from code_intelligence.agent.dispatch_guards import tools_lack_deeper_coverage
 from code_intelligence.rules.button_path import DISPLAY_CAUSES_MARKER
+from code_intelligence.rules.navigation import ORPHAN_ACTION_MARKER
 
 # System prompt with explicit scope-first navigation strategy.
 EFFECT_GROUNDING_RULE = (
@@ -240,10 +241,19 @@ def build_synthesis_prompt(
         "suggest they should be corrected, and do not add any cause the fact does not list."
         if any(DISPLAY_CAUSES_MARKER in observation for observation in tool_observations) else ""
     )
+    orphan_action_rule = (
+        f" When an observation says that a window action targets the model but '{ORPHAN_ACTION_MARKER}', "
+        "state exactly that fact (the action exists and is attached to no menu) and stop there: do not "
+        "describe how the action might otherwise be triggered, do not mention buttons, views, "
+        "automations or other models as possibilities, do not advise contacting an administrator, and "
+        "never combine the negation 'pas' with 'aucun' in the same clause."
+        if any(ORPHAN_ACTION_MARKER in observation for observation in tool_observations) else ""
+    )
     return (
         f"Original Question: {question}\n\n"
         f"Knowledge Graph Output:\n" + "\n---\n".join(tool_observations) +
         anti_fabrication_rule + coverage_caveat + persona_guidance + display_causes_rule +
+        orphan_action_rule +
         f"\n\nSynthesize a clear, professional response based strictly on the "
         f"data above. Respond in the SAME language as the Original Question "
         f"above (French question -> French answer, English question -> "

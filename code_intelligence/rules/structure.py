@@ -13,6 +13,7 @@ import networkx as nx
 
 from code_intelligence.rules.common import NOT_FOUND_MARKER
 from code_intelligence.rules.ontology import tags_for_node_attrs
+from code_intelligence.utils import parse_python_text, read_source_text
 from core.evidence.evidence import Evidence, EvidenceSourceType, make_evidence
 
 logger = logging.getLogger(__name__)
@@ -442,8 +443,8 @@ def trace_full_inheritance(
                         if class_matches:
                             class_pos = class_matches[-1].start()
                             lineno = text[:class_pos].count("\n") + 1
-                except Exception:
-                    pass
+                except (OSError, UnicodeDecodeError) as err:
+                    logger.warning("Cannot read %s to locate model %s: %s", p, model_name, err)
             end_line = min(lineno + 80, line_count)
             link = f"[{p.name}:L{lineno}-L{end_line}](file://{fp}#L{lineno}-L{end_line})"
             return link, lineno, end_line
@@ -785,16 +786,17 @@ def _resolve_source_filepath(filepath_str: str) -> Optional[Path]:
         return p
     if Path("/" + filepath_str).exists():
         return Path("/" + filepath_str)
+    from config.settings import CORE_ADDONS_PATH, CUSTOM_ADDONS_PATH, OCA_SAMPLE_ADDONS_PATH, _ROOT
+    candidates = [
+        Path(CUSTOM_ADDONS_PATH) / filepath_str if CUSTOM_ADDONS_PATH else None,
+        Path(CORE_ADDONS_PATH) / filepath_str if CORE_ADDONS_PATH else None,
+        Path(OCA_SAMPLE_ADDONS_PATH) / filepath_str if OCA_SAMPLE_ADDONS_PATH else None,
+        _ROOT / filepath_str,
+    ]
     try:
-        from config.settings import CORE_ADDONS_PATH, CUSTOM_ADDONS_PATH, OCA_SAMPLE_ADDONS_PATH, _ROOT
-        candidates = [
-            Path(CUSTOM_ADDONS_PATH) / filepath_str if CUSTOM_ADDONS_PATH else None,
-            Path(CORE_ADDONS_PATH) / filepath_str if CORE_ADDONS_PATH else None,
-            Path(OCA_SAMPLE_ADDONS_PATH) / filepath_str if OCA_SAMPLE_ADDONS_PATH else None,
-            _ROOT / filepath_str,
-        ]
         return next((c for c in candidates if c and c.exists()), None)
-    except Exception:
+    except OSError as err:
+        logger.warning("Cannot resolve source file %s: %s", filepath_str, err)
         return None
 
 
@@ -802,9 +804,11 @@ def _extract_ast_class_info(filepath_str: str, target_model: str) -> Optional[di
     p = _resolve_source_filepath(filepath_str)
     if not p:
         return None
-    try:
-        tree = ast.parse(p.read_text(encoding="utf-8"))
-    except Exception:
+    source = read_source_text(p)
+    if source is None:
+        return None
+    tree = parse_python_text(source, p)
+    if tree is None:
         return None
     for node in tree.body:
         if isinstance(node, ast.ClassDef):

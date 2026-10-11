@@ -26,7 +26,7 @@ import textwrap
 
 from core.evidence.evidence import Evidence, EvidenceSourceType, make_evidence
 from core.output import confidence_label
-from code_intelligence.utils import format_file_link, _TRUNCATION_MARKER
+from code_intelligence.utils import format_file_link, parse_python_text, read_source_text, _TRUNCATION_MARKER
 
 _logger = logging.getLogger(__name__)
 
@@ -117,13 +117,10 @@ def run_semgrep_analysis(
 
             # If Semgrep CLI returns 'requires login' or empty lines, slice from file on disk
             if not lines or "requires login" in lines.lower():
-                try:
-                    f_path = Path(path)
-                    if f_path.exists():
-                        file_lines = f_path.read_text(encoding="utf-8").splitlines()
-                        lines = "\n".join(file_lines[max(0, start_l - 1):end_l])
-                except Exception:
-                    pass
+                file_text = read_source_text(path)
+                if file_text is not None:
+                    file_lines = file_text.splitlines()
+                    lines = "\n".join(file_lines[max(0, start_l - 1):end_l])
 
             matches.append(
                 SemgrepMatch(
@@ -683,12 +680,13 @@ def _extract_static_exclusion_filters(filepath: Path) -> List[SemgrepMatch]:
     """Extract static exclusion dictionaries/lists/sets (blacklist, whitelist, exclude, etc.)
     defined at class or module level, returning them as structured SemgrepMatch objects."""
     matches: List[SemgrepMatch] = []
-    try:
-        content = filepath.read_text(encoding="utf-8")
-        tree = ast.parse(content)
-        source_lines = content.splitlines()
-    except Exception:
+    content = read_source_text(filepath)
+    if content is None:
         return []
+    tree = parse_python_text(content, filepath)
+    if tree is None:
+        return []
+    source_lines = content.splitlines()
 
     for node in ast.walk(tree):
         if isinstance(node, (ast.ClassDef, ast.Module)):

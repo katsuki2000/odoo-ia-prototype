@@ -1,0 +1,44 @@
+{
+  "experiment_id": "E1",
+  "protocol_section": 1227,
+  "resolution_k": [1, 5, 10],
+  "primary_k": 5,
+  "rrf_constant": 60,
+  "rrf_weight_bm25": 1.0,
+  "rrf_weight_dense": 1.0,
+  "bm25_top_k": 10,
+  "bm25_ambiguity_score_ratio": 0.85,
+  "bm25_min_score": 0.0,
+  "dense_top_k": 10,
+  "dense_ambiguity_score_ratio": 0.85,
+  "dense_min_score": 0.0,
+  "dense_batch_size": 64,
+  "card_node_types": ["Model", "Menu", "Field", "Method", "Group", "Rule", "Button"],
+  "expansion_depth": 1,
+  "expansion_edge_types": [
+    "DEFINED_IN",
+    "OPENS_MODEL",
+    "HAS_FIELD",
+    "HAS_METHOD",
+    "INHERITS"
+  ],
+  "clarification_on_calibration": "at_least_two_candidates_or_declared_ambiguity",
+  "decision_criteria": {
+    "D1_hybrid_as_candidate_generator": {
+      "C_recall_at_5_R4_minus_R1_families_a_c_min_points": 10,
+      "C_recall_at_5_R4_family_b_min": 0.9,
+      "C_silent_false_R4_le_R1": true,
+      "held_out_recall_at_5_R4_ge_R0_minus_points": 2,
+      "no_candidate_absent_from_graph": true
+    },
+    "D2_extend_beyond_models": {
+      "C_recall_at_5_R4_non_model_family_c_min": 0.7
+    },
+    "D3_expansion": {
+      "C_evidence_completeness_R5_min": 0.8,
+      "C_within_context_budget_min_fraction": 0.95
+    }
+  },
+  "systems": ["R0", "R1", "R2", "R3", "R4", "R5"],
+  "status": "config_frozen_for_harness_bootstrap_not_yet_tuned_on_C"
+}

@@ -232,20 +232,17 @@ def _rehydrate_sticky_concept(concept, state: dict):
 
     mod = state.get("module")
     if mod and isinstance(mod, str):
-        try:
-            from code_intelligence.agent.matching import ResolvedConcept
-            target_models = state.get("target_models", [])
-            return ResolvedConcept(
-                user_term=mod,
-                resolved_models=list(target_models) if target_models else [],
-                resolved_modules=[mod],
-                confidence=1.0,
-                source_step="state_module",
-                is_resolved=True,
-                reason=f"Resolved from state module: {mod}",
-            )
-        except Exception:
-            pass
+        from code_intelligence.agent.matching import ResolvedConcept
+        target_models = state.get("target_models", [])
+        return ResolvedConcept(
+            user_term=mod,
+            resolved_models=list(target_models) if target_models else [],
+            resolved_modules=[mod],
+            confidence=1.0,
+            source_step="state_module",
+            is_resolved=True,
+            reason=f"Resolved from state module: {mod}",
+        )
 
     return concept
 

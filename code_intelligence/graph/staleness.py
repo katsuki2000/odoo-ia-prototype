@@ -90,7 +90,8 @@ def compute_file_hash(filepath: Path) -> str:
         return ""
     try:
         return hashlib.sha256(p.read_bytes()).hexdigest()
-    except Exception:
+    except OSError as err:
+        _logger.warning("Cannot hash %s: %s", p, err)
         return ""
 
 

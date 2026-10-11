@@ -176,7 +176,7 @@ class _UnguardedSuperVisitor(ast.NodeVisitor):
         if not _branch_returns_or_raises(node.body) and _branch_mutates_record_state(
             node.body
         ):
-            condition_source = self._safe_unparse(node.test)
+            condition_source = ast.unparse(node.test)
             loop_var = self._for_loop_stack[-1] if self._for_loop_stack else None
             self.non_returning_conditionals.append((node.lineno, condition_source, loop_var))
         self._if_depth += 1
@@ -188,13 +188,6 @@ class _UnguardedSuperVisitor(ast.NodeVisitor):
             excluded_var = self._extract_excluded_recordset_name(node.func.value)
             self.unconditional_super_calls.append((node.lineno, excluded_var))
         self.generic_visit(node)
-
-    @staticmethod
-    def _safe_unparse(node: ast.expr) -> str:
-        try:
-            return ast.unparse(node)
-        except Exception:
-            return "?"
 
     @staticmethod
     def _filtered_source_name(node: ast.expr) -> Optional[str]:

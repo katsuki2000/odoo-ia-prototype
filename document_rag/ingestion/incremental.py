@@ -257,7 +257,8 @@ def _is_under_roots(source: str, roots: list[Path]) -> bool:
     for candidate in candidates:
         try:
             candidate_resolved = candidate.resolve()
-        except Exception:
+        except (OSError, RuntimeError) as err:
+            logger.warning("Cannot resolve %s: %s", candidate, err)
             continue
         for root in roots:
             try:
@@ -265,7 +266,8 @@ def _is_under_roots(source: str, roots: list[Path]) -> bool:
                     return True
                 if root.is_dir() and candidate_resolved.is_relative_to(root):
                     return True
-            except Exception:
+            except OSError as err:
+                logger.warning("Cannot inspect scan root %s: %s", root, err)
                 continue
 
     return False

@@ -45,14 +45,10 @@ def _lookup_group_name_in_xml(group_xml_id: str) -> str:
             if m_name not in _PARSED_MODULE_GROUPS:
                 _PARSED_MODULE_GROUPS[m_name] = {}
                 for xml_file in mod_dir.rglob("*.xml"):
-                    try:
-                        records = parse_groups_from_xml(xml_file)
-                        for r in records:
-                            if r.name:
-                                _PARSED_MODULE_GROUPS[m_name][r.xml_id] = r.name
-                                _PARSED_MODULE_GROUPS[m_name][f"{m_name}.{r.xml_id}"] = r.name
-                    except Exception:
-                        continue
+                    for r in parse_groups_from_xml(xml_file):
+                        if r.name:
+                            _PARSED_MODULE_GROUPS[m_name][r.xml_id] = r.name
+                            _PARSED_MODULE_GROUPS[m_name][f"{m_name}.{r.xml_id}"] = r.name
 
             mod_cache = _PARSED_MODULE_GROUPS[m_name]
             if group_xml_id in mod_cache:

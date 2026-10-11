@@ -1,17 +1,18 @@
-"""
-scripts/rebuild_graph.py
+#!/usr/bin/env python3
+"""Force-rebuild active_graph.json from the real Odoo addons corpus.
 
-Force-rebuild active_graph.json from the real Odoo addons corpus.
-
-Deletes the stale JSON first so get_code_intelligence_graph() falls
-through to the build-from-source path, then saves the freshly built
-graph with all current tags (Bloc P2) and metadata.
+The previous graph is kept aside while the new one is built. If the new graph could not use the
+live Odoo inventory (authentication or connection failure, so only the static fallback modules
+were loaded), the previous graph is put back and the script exits with an error, unless
+--allow-offline is given.
 
 Usage:
-    python scripts/rebuild_graph.py
+    python scripts/rebuild_graph.py [--allow-offline]
 """
 
+import argparse
 import logging
+import shutil
 import sys
 import time
 from pathlib import Path
@@ -24,18 +25,43 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from code_intelligence.graph.loader import GRAPH_JSON_PATH, get_code_intelligence_graph
 
 
-def main():
+def runtime_backed(G) -> bool:
+    """True when the graph was built from the live Odoo inventory, not the offline fallback."""
+    fingerprint = G.graph.get("instance_fingerprint_data") or {}
+    return bool(fingerprint.get("runtime_inventory_available"))
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description="Force-rebuild active_graph.json.")
+    parser.add_argument(
+        "--allow-offline", action="store_true",
+        help="Keep a graph built without the live Odoo inventory (static fallback modules).",
+    )
+    args = parser.parse_args(argv)
+
+    previous = GRAPH_JSON_PATH.with_name(GRAPH_JSON_PATH.name + ".previous")
     if GRAPH_JSON_PATH.exists():
         size_mb = GRAPH_JSON_PATH.stat().st_size / (1024 * 1024)
-        logger.info("Removing stale graph: %s (%.1f MB)", GRAPH_JSON_PATH, size_mb)
-        GRAPH_JSON_PATH.unlink()
+        logger.info("Keeping the current graph aside: %s (%.1f MB)", previous, size_mb)
+        shutil.copy2(GRAPH_JSON_PATH, previous)
     else:
         logger.info("No existing graph found at %s", GRAPH_JSON_PATH)
 
     logger.info("Rebuilding graph from source (this may take a minute)...")
     t0 = time.monotonic()
-    G = get_code_intelligence_graph()
+    G = get_code_intelligence_graph(force_rebuild=True)
     elapsed = time.monotonic() - t0
+
+    if not runtime_backed(G) and not args.allow_offline:
+        if previous.exists():
+            shutil.copy2(previous, GRAPH_JSON_PATH)
+            logger.error("Previous graph restored from %s.", previous)
+        logger.error(
+            "The new graph was built without the live Odoo inventory (%d nodes, %d modules): "
+            "check ODOO_ADMIN_PASSWORD and that Odoo is running. Use --allow-offline to keep it anyway.",
+            G.number_of_nodes(), len(G.graph.get("instance_fingerprint_data", {}).get("modules", ())),
+        )
+        return 2
 
     logger.info(
         "Done in %.1fs -- %d nodes, %d edges. Saved to %s (%.1f MB)",
