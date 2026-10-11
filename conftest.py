@@ -14,7 +14,13 @@ configured URL.
 
 UNREACHABLE_ODOO_URL = "http://127.0.0.1:9"
 
+import os
+
 import pytest
+
+# Read at import time by config.settings: pinned before any test module is collected so the
+# hop budget the tests assert does not depend on the developer .env.
+os.environ["CI_MAX_HOPS"] = "20"
 
 
 @pytest.fixture(autouse=True)
@@ -30,6 +36,22 @@ def _isolate_semantic_index_cache(monkeypatch, tmp_path):
     from config import settings
 
     monkeypatch.setattr(settings, "SEMANTIC_INDEX_CACHE_DIR", str(tmp_path / "semantic_index"))
+
+
+@pytest.fixture(autouse=True)
+def _isolate_tool_helpers_graph_ref():
+    """Undo any set_graph_ref() made by a test body so the next test in the same worker
+    never inherits it. Module-scoped fixtures run before this one, so a graph they set is
+    part of the saved value and stays in place for the whole module."""
+    import sys
+
+    module_name = "code_intelligence.agent.tool_helpers"
+    loaded = sys.modules.get(module_name)
+    previous = loaded.get_graph_ref() if loaded is not None else None
+    yield
+    loaded = sys.modules.get(module_name)
+    if loaded is not None:
+        loaded.set_graph_ref(previous)
 
 
 @pytest.fixture(scope="module")
