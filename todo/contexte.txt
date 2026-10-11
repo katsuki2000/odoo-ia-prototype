@@ -4440,3 +4440,184 @@ Contexte : revue du notebook `scripts/kaggle/llmodoo.ipynb` sur `main`. La cellu
 **Fichiers modifiés** : `scripts/kaggle/llmodoo.ipynb`, `todo/contexte.txt`.
 
 **Prochaine étape** : ne brancher MIRO au modèle Kaggle qu'après activation volontaire du tunnel et uniquement avec des données de test non sensibles ; ensuite vérifier le client LLM/embedding et lancer le protocole de mesure gelé prévu par le plan.
+
+## Section 1227 : pré-enregistrement de l'expérience E1 -- récupération hybride dans le graphe (BGE-M3, lexique, BM25) contre le résolveur actuel (journal seul, aucun code modifié)
+
+Date : 11/10/2026
+**Mandat (pmm)** : « oui, et dans plan aussi », après la discussion sur une architecture « retrieval-first » : BGE-M3 et les outils font la recherche dans le graphe, un prompt augmenté part vers qwen, qui rédige. Sauvegardes : `/tmp/contexte.avant_1227.txt`, `/tmp/plan.avant_1227.md`. Les valeurs marquées **(proposé)** sont des propositions de Claude, à valider ou corriger par pmm avant tout calcul ; une fois validées, elles sont figées.
+**Constat de départ** : dans les logs du 09/10, les échecs viennent du LLM qui choisit les outils (dix hops sur `purchase.request`, absent de l'instance) ; le chemin qui a bien marché (navigation : 2 hops déterministes puis un prompt augmenté) est déjà proche de l'idée. L'alias `demande d'achat` -> `purchase.request` / `custom.purchase.request` vient de l'instance de calibrage `adversarial_custom` (qui contient `custom_purchase_request`) ; il est absent de l'instance de pmm (section 1181). `plan.md` P4 prévoit déjà de mesurer le sémantique (bge-m3) puis d'étendre l'index aux champs, menus, boutons et groupes.
+**Question posée à E1** : une recherche hybride (BGE-M3, lexique, BM25, fusion RRF) sur des fiches de nœuds du graphe, suivie d'une expansion déterministe par arêtes typées, retrouve-t-elle les objets et les preuves attendus mieux que le résolveur actuel ? Le résultat conditionne seulement l'étude de E2 (comparaison bout en bout) ; il ne décide pas à lui seul de supprimer le planificateur LLM ni la boucle ReAct.
+**Périmètre** : hors ligne, aucun appel LLM, aucune modification du routeur, de la boucle ReAct, des prompts ni du comportement de MIRO. Hors périmètre : runtime/ORM, documents, vérification, index de production.
+
+**Limites constatées du protocole gelé actuel** (`core/evaluation/protocol/frozen_cases.json`, 249 cas)
+- Tous les cas sont `held_out` : ils ne servent jamais à régler fiches, poids RRF, seuils ni profondeur d'expansion, et on n'y ajoute aucun cas issu d'un échec observé.
+- Les 192 objets attendus sont tous de type `model:` ; le protocole actuel ne mesure ni le rappel des menus, champs, méthodes, règles, groupes, ni la complétude des preuves après expansion.
+- 192 cas sur 249 (77 %) sont des questions d'accès gabarit qui citent le libellé du modèle (« Puis-je créer les enregistrements du modèle « Pièce comptable » ? ») : flou et lexique y réussissent déjà ; aucun cas de navigation, de workflow ni de terme métier paraphrasé. Un rappel@5 sur ces cas ne départagerait probablement pas les systèmes.
+- Une seule instance de calibrage (`adversarial_custom`, fr_FR, 11 modules) contre six held_out (`sales_purchase_stock` en_US, `hr_suite` fr_FR, `accounting_fr` fr_FR, `crm_project_web` en_US, `oca_sale_workflow` fr_FR, `oca_server_tools` en_US). Calibrer sur une seule instance, en français, expose au sur-ajustement.
+- `preregistration.json` : `resolution_k = 5`, `clarify_by_abstention_counts_as_correct = False` (une clarification compte aujourd'hui comme une erreur).
+
+**Jeu de calibrage C à construire**
+- Provenance : instances de calibrage uniquement, jamais les held_out. Décision ouverte pmm : construire au moins une seconde instance de calibrage en en_US et avec d'autres modules (avec `core/evaluation/instances/builder.py`) avant de figer C ; sinon C ne couvre que l'instance `adversarial_custom` et les conclusions le disent.
+- Vérité terrain : oracle Odoo (`odoo_oracle`) ou relecture humaine (`human_review`), jamais déduite de la sortie d'un des systèmes comparés ni du graphe lui-même (sinon le test devient circulaire ; la « sonde de justesse » de P9 n'est donc pas utilisée ici).
+- Format de cas : celui de `frozen_cases.py` (instance, utilisateur, langue, question, objets attendus typés `model:|menu:|field:|method:|rule:|group:`, preuves acceptables, `abstention_rule`).
+- Familles (proposé : au moins 20 cas par famille, 120 au total) : (a) terme métier paraphrasé, absent des libellés de l'instance (ex. « demande d'achat ») ; (b) libellé cité exactement ; (c) cible qui n'est pas un modèle (menu, champ, méthode ou bouton, règle, groupe) ; (d) terme ambigu (`must_clarify`, ex. « commande », « avoir ») ; (e) terme absent de l'instance (abstention attendue, aucune cible) ; (f) paire de cas fr_FR et en_US pour un même besoin. Les échecs observés (dont la demande d'achat du 09/10) entrent dans C, jamais dans le jeu gelé.
+
+**Systèmes comparés** (mêmes cas, mêmes instances, graphe fixé par son empreinte)
+- R0 : résolveur actuel, avec table d'alias (comportement de production).
+- R1 : résolveur actuel sans table d'alias (ablation prévue en P4).
+- R2 : lexique + BM25 seuls sur les fiches.
+- R3 : BGE-M3 seul sur les fiches.
+- R4 : fusion RRF de R2 et R3.
+- R5 : R4 suivi d'une expansion déterministe par arêtes typées, profondeur et budget fixés dans la configuration.
+- Fiche de nœud : texte humain court (type, libellés dans la langue de la requête, aide ou docstring, chemin de menu, module). Les relations restent des arêtes et des métadonnées, elles ne sont pas embeddées. Types : modèles, champs, méthodes, menus, boutons et actions, groupes, ACL et règles. Index adressé par le hash du texte et rattaché à l'empreinte du graphe ; panne du backend d'embeddings signalée, jamais masquée.
+
+**Métriques** : `resolution_recall_at_k` (k = 5 comme dans `preregistration.json` ; k = 1 et 10 rapportés) par famille et par type de nœud ; taux de modèles résolus absents du graphe (attendu 0 pour R2 à R5 par construction, mesuré pour R0 et R1) ; taux de résolution fausse silencieuse (top-1 présenté comme résolu, différent de l'attendu, sur les familles (a), (d), (e)) ; abstention correcte sur (d) et (e) ; `evidence_completeness` et taille de l'ensemble récupéré (nœuds, tokens estimés) après expansion (R5) ; coût (construction de l'index hors ligne, latence de requête, appels LLM : 0 pour R2 à R5).
+**Règle sur la clarification dans E1 (proposé)** : sur C, un cas `must_clarify` est correct si le système renvoie au moins deux candidats distincts ou déclare l'ambiguïté ; pour tout autre cas, une clarification compte comme non résolu. Cette règle propre à E1 ne modifie pas `preregistration.json` ; la valeur globale sur le jeu gelé reste `False` et son éventuel changement est une décision séparée de pmm, à prendre avant tout rejeu, jamais après.
+**Incertitude** : intervalles regroupés par instance, bootstrap avec les valeurs de `preregistration.json` (2000 rééchantillons, graine 17). Avec une seule instance de calibrage, l'intervalle de C ne dit rien sur la généralisation ; seul le passage unique sur les held_out en dit quelque chose.
+
+**Calibrage et gel** : tout réglage (format de fiche, constante et poids RRF, seuils de confiance, profondeur d'expansion) se fait sur C seulement. La configuration est ensuite figée avec son digest, puis exécutée une seule fois sur les 249 cas held_out, sans réglage supplémentaire. Un second passage sur les held_out invalide le résultat.
+
+**Critères de décision (proposé, à valider avant tout calcul)**
+- **D1, adopter la recherche hybride comme générateur de candidats de la résolution** : sur C, rappel@5 de R4 supérieur ou égal à celui de R1 + 10 points sur les familles (a) et (c) réunies ; rappel@5 de R4 supérieur ou égal à 90 % sur la famille (b) ; taux de résolution fausse silencieuse de R4 inférieur ou égal à celui de R1 ; sur les held_out, rappel@5 de R4 supérieur ou égal à celui de R0 moins 2 points ; aucun candidat absent du graphe.
+- **D2, étendre l'index au-delà des modèles** : rappel@5 de R4 supérieur ou égal à 70 % sur les cibles non-modèle de la famille (c).
+- **D3, expansion** : `evidence_completeness` de R5 supérieure ou égale à 80 % sur C, et ensemble récupéré inférieur ou égal au budget de contexte de rédaction configuré (section 4.8 d'`architecture.md`) dans au moins 95 % des cas.
+- **D4, réduction du planificateur LLM** : ne se décide pas dans E1. Si D1 à D3 sont satisfaits, E2 compare bout en bout la boucle ReAct actuelle et la récupération hybride (`wrong_tool_rate`, `evidence_completeness`, `answer_faithfulness`, latence, coût, appels LLM) d'abord sur C, puis un seul passage sur les held_out.
+- Si D1 n'est pas satisfait : consigner les échecs par famille et par type de nœud, ne pas étendre l'index, conserver l'architecture actuelle.
+**Ce qui n'est pas modifié** : `architecture.md` reste inchangé jusqu'au résultat ; seul `plan.md` reçoit la mention de E1 (P4), de E2 (P6) et un renvoi dans « Simplification de l'orchestration ».
+
+**Décisions ouvertes pour pmm** : (1) valider ou corriger les valeurs marquées (proposé) ; (2) construire ou non une seconde instance de calibrage en_US ; (3) règle de clarification sur C ; (4) emplacement du jeu C (dossier distinct de `frozen_cases.json`, avec son digest).
+**Étapes suivantes (aucune lancée)** : valider cette section ; construire C et ses étiquettes ; construire les fiches et l'index ; exécuter R0 à R5 sur C et régler ; figer la configuration ; un seul passage sur les held_out ; journaliser les résultats.
+**Tests** : aucun, aucune ligne de code modifiée.
+**Fichiers modifiés** : `todo/contexte.txt` (cette section), `todo/plan.md` (section 1227, mentions de E1 et E2).
+
+## Section 1228 : configuration d'E1 -- BGE-M3 par le tunnel pour le résolveur sémantique, garde-fou LOCAL_ONLY et écarts de configuration
+
+Date : 11/10/2026
+**Mandat (pmm)** : « tu mettras à jour .env ? », puis « tunnel ngrok » (BGE-M3 tourne derrière le tunnel). Sauvegardes : `/tmp/env.avant_1228` (contient des secrets, droits 600), `/tmp/env.example.avant_1228`, `/tmp/contexte.avant_1227.txt`.
+**Constats avant modification**
+1. Le `.env` de ce poste avait `EMBEDDING_BACKEND=local_light` : le résolveur sémantique (`RESOLVER_SEMANTIC_EMBEDDING_BACKEND` vide) retombait sur l'embedding par défaut de Chroma (all-MiniLM-L6-v2, anglophone). `LOCAL_EMBEDDING_MODEL=nomic-embed-text` était inerte. Lancer E1 ainsi aurait fait mesurer MiniLM sous l'étiquette « BGE-M3 » (R3 de la section 1227).
+2. **Défaut de code non corrigé** : pour les backends `local_server`, `ollama`, `openai_compatible`, `vllm`, `tei`, `resolve_embedding_function` (`document_rag/vectorstore/embedding_functions.py`, ~l. 195) ignore son paramètre `embedding_model` et lit `LOCAL_EMBEDDING_MODEL`. `RESOLVER_SEMANTIC_EMBEDDING_MODEL`, documenté dans `.env.example`, n'a donc aucun effet avec un backend serveur. Le corriger demande de ne pas changer le comportement du RAG, qui passe aussi `embedding_model` à cette fonction : décision à prendre.
+3. **Garde-fou d'isolation** : `LOCAL_ONLY` vaut `true` par défaut et `LOCAL_ALLOWED_HOSTS` n'était pas défini dans ce `.env` (défaut : localhost, 127.0.0.1, ::1). L'hôte du tunnel était donc refusé, pour les embeddings (`ExternalEndpointError` constaté) et pour le LLM (`core/llm/llm_client.py` l. 67, vérifié : `hôte du LLM autorisé : False`). Ce `.env` ne pouvait pas appeler le LLM par le tunnel avec le code actuel ; les logs du 09/10 sont antérieurs au garde-fou.
+4. Historique : la section 720 avait désactivé les embeddings par tunnel parce que `/v1/embeddings` renvoyait 404. Sonde du jour sur l'hôte du LLM : HTTP 200, `bge-m3:latest`, dimension 1024. L'hôte en commentaire à la l. 31 de l'ancien `.env` est différent de l'hôte actif du LLM et n'a pas été réutilisé.
+5. `CI_MAX_HOPS` est lu par le code (`code_intelligence/agent/context.py`, défaut 20) et présent dans `.env`, mais absent de `.env.example`.
+**Modifications**
+- `.env` (non versionné, ignoré par git) : `LOCAL_EMBEDDING_MODEL=bge-m3:latest` (était `nomic-embed-text`) ; ajout de `RESOLVER_SEMANTIC_EMBEDDING_BACKEND=local_server` et de `LOCAL_EMBEDDING_BASE_URL` (même tunnel que `LOCAL_LLM_BASE_URL`) ; ajout de `LOCAL_ALLOWED_HOSTS=localhost,127.0.0.1,::1,<hôte du tunnel>`. `EMBEDDING_BACKEND=local_light` est inchangé : le RAG documentaire et son index Chroma ne sont pas touchés. `RESOLVER_SEMANTIC_EMBEDDING_MODEL` n'est volontairement pas défini (ignoré, voir constat 2). La ligne commentée obsolète n'a pas été supprimée.
+- `.env.example` (versionné) : ajout de `CI_MAX_HOPS=20` avec son commentaire, en section 10.
+**Vérification** (par le vrai chemin de code, avec `.env` seul) : garde-fou `LOCAL_ONLY` passe pour le LLM et pour les embeddings ; fonction d'embedding `local-server-bge-m3:latest`, dimension 1024, 4,1 s pour 4 textes ; RAG toujours sur l'ONNX MiniLM par défaut de Chroma. Anecdote sur une seule paire de textes, qui ne prouve rien sur le rappel et ne compte pas pour D1 : similarité cosinus de « demande d'achat » avec « Demandes de prix » 0,838, avec « Bon de commande fournisseur » 0,618, avec « Facture client » 0,535.
+**Effet sur le comportement actuel de MIRO (à connaître)** : l'étape sémantique du résolveur utilise désormais BGE-M3 par le tunnel au lieu de MiniLM. La première question qui en a besoin après un redémarrage construit l'index des ~535 modèles par le tunnel (~125 s selon la section 1180), puis il est persisté dans `active_semantic_index`. Tunnel hors ligne : statut signalé, liste déterministe conservée (section 1180). À chaque changement d'adresse du tunnel, mettre à jour ensemble `LOCAL_LLM_BASE_URL`, `LOCAL_EMBEDDING_BASE_URL` et `LOCAL_ALLOWED_HOSTS`.
+**Non fait** : aucun test pytest lancé ; uvicorn non redémarré ; index sémantique non construit ; aucun code modifié.
+**A faire par pmm** : redémarrer uvicorn ; préchauffer l'index une fois pour que la première question ne paie pas ~2 min : `.venv/bin/python -c "from code_intelligence.graph.loader import get_code_intelligence_graph as g; from code_intelligence.agent.semantic_retrieval import retrieve_semantic_model_candidates as r; print(r('demande d achat', g(translation_languages=['fr'], request_language='fr'), 'fr').status)"`.
+**Points ouverts** : (a) corriger ou non la prise en compte de `embedding_model` pour les backends serveur (constat 2) ; (b) `OLLAMA_MODEL=gpt-oss:20b` dans ce `.env`, alors que les logs du jour venaient de qwen3:14b par le tunnel : à confirmer ; (c) le RAG documentaire reste sur MiniLM anglophone (risque déjà assumé aux sections 709 et 716), non modifié ; (d) paramètres d'E1 (RRF, poids, profondeur, seuils) : dans un fichier versionné avec digest, pas dans `.env`.
+**Fichiers modifiés** : `.env` (hors git), `.env.example`, `todo/contexte.txt` (cette section).
+
+## Section 1229 : « comment faire une demande d'achat? » renvoyait l'analyse brute des verrous -- modele LLM inexistant sur le tunnel et repli de synthese qui exposait les observations brutes
+
+Date : 11/10/2026
+**Mandat (pmm)** : log uvicorn colle apres la section 1228. Sauvegardes : `/tmp/env.avant_1229` (secrets, droits 600), `/tmp/loop.avant_1229.py`, `/tmp/contexte.avant_1229.txt`.
+**Constat (log)** : `openai.NotFoundError 404 : model 'gpt-oss:20b' not found` sur la classification d'intention (repli `documentary_policy`), le choix d'outil et la synthese. Le tunnel (`/v1/models`) ne sert que `qwen3:14b` et `bge-m3:latest`. `config/settings.py` fait passer `LOCAL_LLM_MODEL` avant `OLLAMA_MODEL` ; `.env` avait `LOCAL_LLM_MODEL=gpt-oss:20b` (le point (b) de la 1228 portait sur `OLLAMA_MODEL`, mais la variable effective etait l'autre). Aussi : `python-docx` (dans `requirements.txt`, ligne 99) absent du venv, d'ou `Failed incremental indexing` pour les deux .docx.
+**Cause racine du symptome** : `code_intelligence/agent/loop.py`, repli de la synthese : `final_answer = "\n\n".join(ctx.tool_observations)`. Toute panne du LLM envoyait les observations brutes comme reponse (analyse des verrous de `custom.purchase.request` en double, dans la reponse et dans les sources).
+**Corrections**
+- `.env` (hors git) : `LOCAL_LLM_MODEL=qwen3:14b`.
+- `loop.py` : constante `SYNTHESIS_UNAVAILABLE_ANSWER` ; le repli renvoie ce message au lieu des observations brutes (les preuves restent dans `sources`).
+- `code_intelligence/tests/test_synthesis_failure_fallback.py` (nouveau) : 1 test passe.
+**Non traite** : la question « comment faire X ? » est routee vers l'analyse de verrous / `workflow_state` au lieu de `navigation_howto` (1184, point 4) ; a retester une fois le LLM joignable pour voir ce qui reste.
+**A faire par pmm** : `.venv/bin/pip install -r requirements.txt` ; redemarrer uvicorn ; reposer la question en mode automatique et coller le log.
+**Fichiers modifies** : `.env`, `code_intelligence/agent/loop.py`, `code_intelligence/tests/test_synthesis_failure_fallback.py`, `todo/contexte.txt`.
+
+## Section 1230 : `describe_navigation_path` signale les actions fenetre sans menu (« comment faire une demande d'achat dans l'ERP? » sur `custom.purchase.request`)
+
+Date : 11/10/2026
+**Mandat (pmm)** : « VAS Y » apres le constat suivant. Sauvegardes : `/tmp/navigation.avant_1230.py`, `/tmp/contexte.avant_1230.txt`.
+**Constat** : le LLM repondait (modele corrige en 1229) mais l'outil affirmait « aucun chemin d'interface » alors que l'addon declare l'action `action_custom_purchase_request` (« Demandes d'achat ») sans `menuitem`. Le graphe ne conservait les actions fenetre qu'a travers les menus ; une action sans menu etait invisible. Le LLM comblait ensuite par des pistes non sourcees (automatisation, bouton d'un autre modele).
+**Cause racine** : l'information « action fenetre ciblant le modele » n'existait pas dans le graphe.
+**Correction**
+- `code_intelligence/graph/nodes.py` : `add_window_action_refs(G, modules_dict)` enregistre sur chaque noeud modele la liste `window_actions` (`xml_id` qualifie, nom, module) ; modele inconnu du graphe ignore ; pas de nouveau type de noeud ni d'arete (aucun effet sur les decomptes ni sur `_menus_opening_model`).
+- `code_intelligence/graph/builder.py` : appel apres `_add_menu_nodes` (methode `_add_window_action_refs`).
+- `code_intelligence/rules/navigation.py` : le resultat `EMPTY` distingue « action fenetre presente mais sans menu » (nomme l'action, preuve et etapes) de « ni menu ni action ».
+- Tests : 3 ajoutes dans `code_intelligence/tests/test_navigation_menu_selection.py`.
+**Verification** : 319 tests passes (selection `graph or navigation or bloc17 or builder or menu`, `code_intelligence/tests` + `tests`). Suite complete non rejouee.
+**Effet a connaitre** : `active_graph.json` doit etre reconstruit pour porter `window_actions` (l'ancien cache n'a pas l'attribut : comportement precedent conserve, aucun plantage). Addon `custom_purchase_request` volontairement non modifie (jeu d'essai de calibrage).
+**A faire par pmm** : reconstruire le graphe (procedure habituelle), redemarrer uvicorn, reposer la question ; suite complete `pytest -n auto -m "not integration" -q`.
+**Non traite** : verdict ACL liste de groupes sans rapport avec le modele (bruit) ; routage « comment faire X ? » vers `navigation_howto`.
+**Fichiers modifies** : `code_intelligence/graph/nodes.py`, `code_intelligence/graph/builder.py`, `code_intelligence/rules/navigation.py`, `code_intelligence/tests/test_navigation_menu_selection.py`, `todo/contexte.txt`.
+
+## Section 1231 : `GRAPH_SCHEMA_VERSION` 9 -> 10 (oubli de la 1230) : la reconstruction du graphe est deja automatique, ce numero la declenche
+
+Date : 11/10/2026
+**Question (pmm)** : « le build du graph ne devrait pas etre automatique ? »
+**Constat** : `code_intelligence/graph/loader.py` reconstruit deja seul quand le fichier manque, que `graph_schema_version` du cache est inferieur a `GRAPH_SCHEMA_VERSION`, que l'ordre des racines d'addons differe, que les langues demandees manquent ou que les chemins de fichiers ne se resolvent pas sur la machine. La 1230 ajoute `window_actions` aux noeuds modele sans changer ce numero : un cache ancien aurait ete accepte sans l'attribut, d'ou la reconstruction manuelle. Oubli corrige.
+**Correction** : `code_intelligence/graph/version.py` : `GRAPH_SCHEMA_VERSION = 10`. Regle a retenir : tout changement du contenu du graphe (attribut, noeud, arete) incremente ce numero. Graphe reconstruit (17427 noeuds, 17601 aretes), `test_j37_j42_staleness_and_atomic_swap.py` : 9 passes.
+**Limite connue (non traitee)** : le chargement ne compare pas le cache a l'inventaire des modules installes ni aux sources modifiees (l'empreinte d'instance est ecrite, jamais comparee). Installer, desinstaller ou modifier un addon exige encore `scripts/rebuild_graph.py`. C'est la validation du cache contre l'inventaire de la branche `fix/graph-runtime-fidelity` laissee de cote en 1223 : decision de conception a prendre.
+**Fichiers modifies** : `code_intelligence/graph/version.py`, `todo/contexte.txt`.
+
+## Section 1232 : revue de la construction du graphe -- langues du lexique configurees dans `.env` (`GRAPH_TRANSLATION_LANGUAGES`)
+
+Date : 11/10/2026
+**Mandat (pmm)** : « revois comment le graphe est construit », puis « vas y » pour le point 1. Sauvegardes : `/tmp/contexte.avant_1232.txt`, `/tmp/loader.avant_1232.py`, `/tmp/settings.avant_1232.py`, `/tmp/env.example.avant_1232`.
+**Constats de la revue (lecture, aucun code modifie pour les points 2 a 6)**
+1. Le graphe etait construit sans aucune langue (`translation_languages=[]`, 0 traduction rattachee) : instance `en_US` seule active, `scripts/rebuild_graph.py` sans langue, aucun reglage de configuration. Le seul pont du francais vers les libelles anglais etait la table d'alias manuelle (architecture 4.3 : lexique derive de l'instance).
+2. La reconstruction peut se declencher pendant une requete (langue demandee absente du cache, schema, chemins) : 30 a 90 s pour un delai de requete de 120 s ; l'architecture 4.2 demande une construction hors ligne puis une permutation atomique.
+3. Code propre au benchmark dans `loader.py` : `OCA_SAMPLE_MODULE_REPOS`, `CORE_MODULE_CANDIDATES`, `OCA_SAMPLE_ADDONS_PATH` (branche sans inventaire runtime, avec un test `installed_modules is not None` jamais vrai a cet endroit).
+4. Heuristiques textuelles dans `builder.py` (`_method_has_group_and_raise` : sous-chaines `has_group(` et `raise ` ; `_domain_force_references_state` : sous-chaine `'state'`) au lieu de l'AST.
+5. Absents par rapport a 4.2 : registre runtime (vues, actions, server actions en base, Studio : P9), noeuds de vues, noeud d'action (attribut `window_actions` depuis la 1230).
+6. 76 noeuds sans `node_type` (50 champs, 19 modeles, 7 methodes references mais non definis) et 4 references non resolues (`auth_totp` : `auth.totp.wizard`, `auth.totp.device`) : cause non cherchee.
+Verifie : 117/117 modules installes charges ; `purchase`, `sale`, `custom_purchase_request` installes ; 4 actions fenetre sur `purchase.order`.
+**Correction (point 1)**
+- `config/settings.py` : `GRAPH_TRANSLATION_LANGUAGES` (codes separes par des virgules, vide par defaut).
+- `code_intelligence/graph/loader.py` : `_merge_requested_languages` (fusion des langues configurees, demandees et de la requete, normalisees) ; la configuration s'applique donc au rebuild comme aux requetes.
+- `.env.example` : variable documentee ; `.env` : `GRAPH_TRANSLATION_LANGUAGES=fr`.
+- `code_intelligence/tests/test_graph_translation_languages_setting.py` : 2 tests ; avec `test_j37_j42_staleness_and_atomic_swap.py` : 11 passes.
+**Mesure** : graphe reconstruit en 90,7 s, `translation_languages=['fr']`, 9360 libelles `po` rattaches (`unlinked` : 23356), par exemple `purchase.order` -> « Bon de commande fournisseur », menu RFQ -> « Demandes de prix ». Les traductions runtime restent a 0 (le francais n'est pas actif dans l'instance).
+**Limite** : sans `language` dans la requete, le resolveur n'utilise pas ce lexique (1181 a). Le controleur Odoo n'a volontairement pas ete modifie : envoyer la langue de l'utilisateur (`en_US` ici) forcerait une reconstruction pendant la requete tant que `en_US` n'est pas dans la configuration ; a decider avec le point 2. Suite complete non rejouee.
+**A faire par pmm** : redemarrer uvicorn ; `pytest -n auto -m "not integration" -q` ; decider de la langue de requete (champ `language` envoye par le client, ou langue par defaut en configuration).
+**Fichiers modifies** : `config/settings.py`, `code_intelligence/graph/loader.py`, `.env.example`, `.env` (hors git), `code_intelligence/tests/test_graph_translation_languages_setting.py`, `todo/contexte.txt`.
+
+## Section 1233 : suite verte apres corrections non journalisees du 11/10 (13:15) ; isolation de la reference globale du graphe entre tests (journal avant code)
+
+Date : 11/10/2026
+**Mandat (pmm)** : « tu peux toucher tant que tu respectes rules » (conftest.py inclus). Sauvegardes : `/tmp/contexte.avant_1233.txt`, `/tmp/conftest.avant_1233.py`.
+**Observe (run pmm, `pytest -n auto -m "not integration" -q`)** : 1er run : 5 echecs sur 2484 (`CI_MAX_HOPS` 15 au lieu de 20 dans `test_c_complete.py::test_c1_4_hop_counter_limit`, `test_j30_31_latency_budget.py` x2, `test_j46_j48_reasoning_trace.py::test_j48_hop_cap_matches_ci_max_hops` ; `test_section922_scoped_source_reader.py::test_bare_filename_resolves_to_native_not_tests` : « outside configured addon roots »). 2e run, apres des modifications de 13:15 : **2485 passes, 18 ignores, 0 echec** (470 s).
+**Causes (verifiees)** : (1) `.env` contient `CI_MAX_HOPS=15`, `config/settings.py` lit la variable a l'import (defaut 20) et les tests supposent le defaut ; (2) `read_precise_source_code` n'autorisait que `CORE_ADDONS_PATH`, `CUSTOM_ADDONS_PATH`, `OCA_SAMPLE_ADDONS_PATH` : les addons du framework (`base`, `CORE_FRAMEWORK_ADDONS_PATH`) etaient refuses.
+**Corrections deja presentes sur le disque, de session non suivie (constatees, non faites par cette session)** : `conftest.py` fixe `CI_MAX_HOPS=20` avant la collecte ; `code_intelligence/agent/tools/introspection.py` : `_allowed_source_roots()` (racines configurees, framework compris, plus `addon_roots_ordered` du graphe actif) ; `test_section922_scoped_source_reader.py` : test `test_source_under_a_graph_addon_root_is_readable`. Verifie en ciblé (sans xdist) : 7 passes (CI_MAX_HOPS) et 5 passes (922).
+**Defaut restant (non cause des echecs)** : une trentaine de tests (`code_intelligence/tests/`, `tests/`) appellent `set_graph_ref(G)` sans restaurer la reference globale `_GRAPH_REF` (`code_intelligence/agent/tool_helpers.py` l. 17) ; l'etat du test suivant dans le meme worker depend donc de l'ordre. Depuis `_allowed_source_roots()`, une reference laissee par un test influence meme les racines de lecture de code source.
+**Plan** : `conftest.py` : fixture autouse `_isolate_tool_helpers_graph_ref` : sauvegarde `_GRAPH_REF` avant chaque test et la restaure apres (sans importer `tool_helpers` s'il n'est pas deja charge, pour ne pas alourdir les tests sans lien) ; les fixtures de portee module restent intactes (elles s'executent avant et la valeur sauvegardee les inclut). Nouveau test `tests/test_graph_ref_isolation.py` (fixture active ; paire de tests ordonnee). Portee limitee a `_GRAPH_REF` : `_LLM_REF` et la question courante ne sont pas traites ici.
+
+**Cloture de la 1233** (11/10/2026)
+**Realise** : `conftest.py` : fixture autouse `_isolate_tool_helpers_graph_ref` (sauvegarde de `_GRAPH_REF` avant chaque test, restauration apres ; sans import de `tool_helpers` s'il n'est pas charge) ; `tests/test_graph_ref_isolation.py` (nouveau, 5 tests : fixture active, paire sans fuite, reference de portee module conservee). Edition faite avec dryRun puis application, diff relu : seul ajout, aucun autre changement dans `conftest.py`.
+**Verifie** : compilation propre ; avec `conftest.py` : 5 passes ; avec `--noconftest` (preuve negative) : 2 echecs (fixture absente, fuite visible), 3 passes ; fichiers voisins qui posent `set_graph_ref` (`test_section922`, `test_bloc17_jour4_navigation_path_tool_wiring`, `test_s2_8_fidelity_checker`, `test_section917`) : 21 passes. Suite complete non rejouee.
+**Risque a surveiller** : un test qui dependrait sans le dire d'une reference laissee par un test precedent echouera maintenant ; ce serait un defaut d'ordre revele, pas une regression de la fixture. Si cela arrive, corriger le test fautif (declarer sa propre reference), ne pas desactiver la fixture.
+**Hors perimetre, non traite** : `_LLM_REF` et la question courante (`set_llm_ref`, `set_current_question`) ont le meme schema de reference globale ; non constate comme cause d'echec.
+**A faire par pmm** : `pytest -n auto -m "not integration" -q` (attendu : 2490 passes, 18 ignores).
+**Fichiers modifies** : `conftest.py`, `tests/test_graph_ref_isolation.py` (nouveau), `todo/contexte.txt`.
+
+**Validation de la 1233** (11/10/2026) : suite `pytest -n auto -m "not integration" -q` rejouee par pmm apres la fixture d'isolation : **2490 passes, 18 ignores, 0 echec** (656 s), soit les 2485 de la 1233 plus les 5 tests de `tests/test_graph_ref_isolation.py`. Aucun test dependant d'une reference laissee par un autre n'a ete revele. Les 18 ignores et les 5 avertissements (dependances) sont inchanges. Reste non couvert : tests marques `integration` (non lances), `_LLM_REF` / question courante (hors perimetre).
+
+## Section 1234 : Creation du module odoo_addons/miro_ai_discuss (Integration Discuss Chat natif, 0 JS)
+
+Date : 11/10/2026
+**Mandat** : Creer un module a part distinct de `miro_ai`, avec les memes fonctionnalites et le meme systeme backend RAG/Code Intelligence, integre directement dans le chat Discuss d'Odoo 17, sans JavaScript (« pas trop de js, pas de js tout court si possible »).
+**Architecture retenue (0 JS, 100% Python backend hooks)** :
+1. **Module separe** : `odoo_addons/miro_ai_discuss` avec dependances `['base', 'mail', 'miro_ai']`.
+2. **Partenaire Bot Discuss** (`data/bot_partner_data.xml`) : Creation du partenaire `miro_ai_discuss.partner_miro_ai_bot` (nom : « Assistant IA », email : `assistant.ia@odoo.local`, actif avec avatar robot). Extension `res.partner` avec `im_status = 'bot'` pour l'affichage du badge bot natif dans Discuss.
+3. **Interception et delegation Discuss** (`models/discuss_channel.py` & `models/miro_ai_bot.py`) :
+   - Crochet `_message_post_after_hook` sur `discuss.channel` qui delegue a l'AbstractModel `miro.ai.bot._handle_channel_message`.
+   - Filtrage strict pour eviter les boucles infinies (ignore les messages dont l'auteur est le bot lui-meme).
+   - Prise en charge des deux modes de communication :
+     a. Chat direct 1-a-1 prive avec l'Assistant IA (`channel_type == 'chat'`).
+     b. Mention `@Assistant IA` dans n'importe quel canal ou groupe (`channel_type != 'chat'`), avec reponse pingant l'auteur via `partner_ids` et `parent_id`.
+4. **Securite et authentification** :
+   - Generation d'une cle API Odoo ephemere pour l'utilisateur demandeur via `res.users.apikeys.with_user(user)._generate()`, commitee immediatement pour permettre les sous-requetes XML-RPC du backend RAG avec les droits effectifs de l'utilisateur.
+   - Revocation systematique de la cle dans le bloc `finally` avec commit transactionnel.
+   - Signature d'un jeton JWT HS256 standard contenant `sub`, `uid`, `company_id`, `groups`, `api_key` et expiration.
+   - Dispatch HTTP avec basculement d'URL (`post_with_failover`) vers `/api/v1/ask`.
+   - Journalisation complete de l'echange dans `miro.ai.log` (`question`, `answer`, `session_id=discuss_channel_{id}`, `response_time_ms`, `sources`, `metadata`, `state`).
+5. **Rendu Markdown vers HTML riche** (`markdown_to_html`) :
+   - Convertisseur pur Python sans dependance tierce : echappement XSS initial, tableaux Markdown GFM (`<table class="table table-sm table-bordered">`), blocs de code (`<pre><code>`), code en ligne, titres, gras/italique, listes a puces et numerotees, liens.
+   - Envoi du message via `channel.message_post(body=Markup(answer_html), author_id=bot_id)`. Odoo diffuse le message via le bus websocket natif, assurant un rendu immediat dans le navigateur client sans aucune ligne de code JavaScript.
+6. **Action et Navigation** (`views/discuss_channel_views.xml`) :
+   - Action serveur `action_open_miro_discuss_chat` appelant `discuss.channel.action_open_ai_chat()` : cree ou recupere la conversation 1-a-1 et renvoie l'action cliente native `mail.action_discuss` avec `active_id`.
+   - Entree de menu « Chat Discuss (Assistant IA) » dans le menu principal MIRO Assistant.
+7. **Validation** :
+   - Suite de 10 tests unitaires dans `tests/test_miro_ai_discuss.py` (structure manifest, donnees XML, actions views, convertisseur Markdown, jetons JWT, extraction de mentions, et tests comportementaux de `_handle_channel_message`) : **10 passes, 0 echec**.
+   - Zero regression sur `tests/test_miro_ai_backend_client.py` (6 passes).
+

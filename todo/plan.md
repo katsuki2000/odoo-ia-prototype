@@ -13,6 +13,11 @@ l'identité, les autorisations, le périmètre, la validation des appels, les bu
 des preuves. En cas d'ambiguïté, demander une précision plutôt que deviner. Toute consolidation est guidée par
 les échecs mesurés du protocole et ne fusionne pas CI, RAG documentaire et accès ORM en un sous-système opaque.
 
+La direction inverse est à l'étude : récupération hybride dans le graphe (BGE-M3, lexique, BM25) puis expansion
+déterministe par arêtes typées, le LLM ne faisant que rédiger à partir d'un prompt augmenté. Elle est évaluée par
+les expériences E1 (P4) puis E2 (P6), pré-enregistrées en section 1227 du journal. Aucun changement
+d'orchestration, de planificateur ni de boucle ReAct avant leurs résultats.
+
 ## Ordre et dependances
 
 P0 -> P1 -> P2 -> T -> P3 -> P4 -> P5 -> P6 -> P7 -> P8 -> P9 -> P10
@@ -112,6 +117,14 @@ Sortie : toute reponse et toute trace rattachées à une empreinte ; aucune lect
   dans `ResolutionResult`. Panne du backend d'embeddings signalée, jamais masquée.
 - Departage deterministe fondé sur la rareté des indices ; abstention explicite en cas d'ambiguité.
 - Mesurer ce que le flou, les alias et le sémantique (bge-m3) resolvent seuls ; si le sémantique domine, réduire les alias manuels et les seuils flous, puis étendre l'index aux champs, menus, boutons et groupes. Le sémantique reste un indice : aucune décision d'accès n'en dépend.
+- **Expérience E1 (pré-enregistrée, section 1227 du journal)** : hors ligne, sans appel LLM, sans changer le
+  comportement de MIRO. Compare le résolveur actuel avec alias (R0) et sans alias (R1) à une recherche sur des fiches
+  de nœuds du graphe : lexique et BM25 (R2), BGE-M3 (R3), fusion RRF (R4), puis expansion déterministe par arêtes
+  typées (R5). Les cas gelés sont tous `held_out` et ne portent que sur des modèles : un jeu de calibrage séparé
+  est construit (familles : terme paraphrasé, libellé exact, cible non-modèle, terme ambigu, terme absent, fr et en),
+  avec vérité terrain par oracle Odoo ou relecture humaine, jamais déduite du graphe. Tout réglage se fait sur ce
+  jeu ; la configuration est figée, puis un seul passage sur les `held_out`. Critères D1 à D3 fixés avant le calcul ;
+  la décision sur le planificateur LLM n'en fait pas partie (voir E2 en P6).
 
 Sortie : `resolution_recall_at_k` mesure, ablation sans table d'alias au niveau du plancher fixe en P1.
 
@@ -136,6 +149,11 @@ Sortie : `RoutingResult` produit avant retrieval, sans choix silencieux.
 - `InvestigationBudget` unique, toutes valeurs en configuration, derivées de la fenetre de contexte ;
   degradation par priorité avec signal structuré de toute perte, transmis à la porte de suffisance.
 - Contexte d'instance compact et deterministe pour planifier et rediger.
+- **Expérience E2 (conditionnelle)** : lancée seulement si E1 satisfait D1 à D3. Compare bout en bout la boucle
+  ReAct actuelle et la récupération hybride avec collecteurs déterministes (`wrong_tool_rate`,
+  `evidence_completeness`, `answer_faithfulness`, latence, coût, appels LLM), d'abord sur le jeu de calibrage, puis
+  en un seul passage sur les `held_out`. C'est elle, et non E1, qui décide si le planificateur LLM est conservé,
+  réduit ou supprimé pour certaines familles de questions.
 
 Sortie : `wrong_tool_rate` mesuré ; aucun outil executé hors plan ; aucune limite de taille en dur.
 
