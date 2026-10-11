@@ -219,6 +219,13 @@ from code_intelligence.agent.prompts import build_synthesis_prompt
 logger = logging.getLogger(__name__)
 
 
+SYNTHESIS_UNAVAILABLE_ANSWER = (
+    "Le modèle de rédaction est indisponible pour le moment : la réponse n'a pas pu être "
+    "générée. Les éléments trouvés dans le graphe restent consultables dans les sources. "
+    "Réessayez dans un instant."
+)
+
+
 def run_react_loop(
     ctx: DispatchContext,
     system_prompt: str,
@@ -422,7 +429,7 @@ def run_react_loop(
                         logger.error("Extension-coverage check failed: %s", _coverage_outer_e)
                 except Exception as e:
                     logger.error("Synthesis failed: %s", e)
-                    final_answer = "\n\n".join(ctx.tool_observations)
+                    final_answer = SYNTHESIS_UNAVAILABLE_ANSWER
             else:
                 final_answer = "Je n'ai pas de données disponibles pour répondre à cette question."
 
