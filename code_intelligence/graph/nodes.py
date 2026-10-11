@@ -361,6 +361,19 @@ def add_menu_nodes(
                     )
 
 
+def add_window_action_refs(G: nx.DiGraph, modules_dict: Dict[str, ParsedModule]):
+    """Record on each model the window actions that target it, whether or not a menu opens them."""
+    for mod_name, mod in modules_dict.items():
+        for action in mod.actions:
+            model_node_id = f"model:{action.res_model}"
+            if not action.res_model or model_node_id not in G:
+                continue
+            refs = G.nodes[model_node_id].setdefault("window_actions", [])
+            full_xml_id = qualify_xml_id(action.xml_id, mod_name)
+            if all(ref["xml_id"] != full_xml_id for ref in refs):
+                refs.append({"xml_id": full_xml_id, "name": action.name, "module": mod_name})
+
+
 def add_workflow_nodes_and_edges(
     G: nx.DiGraph,
     registry: ResolvedSymbolRegistry,
@@ -479,6 +492,7 @@ def add_view_button_nodes_and_edges(
 
 __all__ = [
     "add_menu_nodes",
+    "add_window_action_refs",
     "add_workflow_nodes_and_edges",
     "add_view_button_nodes_and_edges",
 ]

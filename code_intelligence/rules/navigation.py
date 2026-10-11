@@ -302,21 +302,42 @@ def describe_navigation_path(
 
     menu_candidates = _menus_opening_model(G, model_name, button_result.origin_states if button_result else None)
     if not menu_candidates:
-        summary = (
-            f"Aucun chemin d'interface trouvé pour '{model_name}' : le modele existe dans le graphe "
-            f"de connaissance, mais aucun menu (ir.ui.menu) ne l'ouvre via une action. Soit ce modele "
-            f"n'est exposé que par du code/une automatisation (pas de parcours utilisateur reel), soit "
-            f"son menu n'a pas encore été extrait."
-        )
+        window_actions = G.nodes[model_node_id].get("window_actions") or []
+        if window_actions:
+            action_labels = ", ".join(
+                f"'{a['name']}' ({a['xml_id']})" if a.get("name") else a["xml_id"]
+                for a in window_actions
+            )
+            summary = (
+                f"Aucun menu (ir.ui.menu) n'ouvre '{model_name}'. Une action fenetre le cible pourtant : "
+                f"{action_labels}, mais elle n'est rattachee a aucun menu : le parcours utilisateur "
+                f"normal n'existe pas dans le code analyse."
+            )
+            steps = [
+                f"1. Menu Search: no ir.ui.menu opens model '{model_name}'.",
+                f"2. Window action(s) targeting the model without a menu: {action_labels}.",
+            ]
+            claim = (
+                f"Model '{model_name}' has window action(s) {action_labels} but no ir.ui.menu opens it"
+            )
+        else:
+            summary = (
+                f"Aucun chemin d'interface trouvé pour '{model_name}' : le modele existe dans le graphe "
+                f"de connaissance, mais ni menu (ir.ui.menu) ni action fenetre ne l'ouvre. Soit ce modele "
+                f"n'est exposé que par du code/une automatisation (pas de parcours utilisateur reel), soit "
+                f"son menu n'a pas encore été extrait."
+            )
+            steps = [f"1. Menu Search: no ir.ui.menu opens model '{model_name}'."]
+            claim = f"Model '{model_name}' exists in the graph but no ir.ui.menu opens it via an action"
         return NavigationPathResult(
             model_name=model_name,
             button_identifier=button_label_or_name,
             status=QueryStatus.EMPTY,
             summary_text=summary,
-            execution_steps=[f"1. Menu Search: no ir.ui.menu opens model '{model_name}'."],
+            execution_steps=steps,
             evidence=[make_evidence(
                 source_type=EvidenceSourceType.CODE,
-                claim=f"Model '{model_name}' exists in the graph but no ir.ui.menu opens it via an action",
+                claim=claim,
                 source=model_node_id,
                 value=None,
                 confidence="HIGH",

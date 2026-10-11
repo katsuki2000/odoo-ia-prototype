@@ -130,3 +130,45 @@ def test_action_domain_is_extracted_from_text_and_eval(tmp_path):
     assert domains["action_text"] == PURCHASE_ONLY
     assert domains["action_eval"] == "[('state', '=', 'draft')]"
     assert domains["action_none"] == ""
+
+
+def _module_with_actions(*actions):
+    return SimpleNamespace(menuitems=[], actions=list(actions))
+
+
+def _window_action(xml_id, res_model, name=""):
+    return SimpleNamespace(xml_id=xml_id, res_model=res_model, name=name)
+
+
+def test_window_action_without_menu_is_recorded_on_the_model():
+    from code_intelligence.graph.nodes import add_window_action_refs
+
+    graph = nx.DiGraph()
+    graph.add_node("model:custom.request")
+    add_window_action_refs(
+        graph,
+        {"custom": _module_with_actions(_window_action("act_request", "custom.request", "Requests"))},
+    )
+    assert graph.nodes["model:custom.request"]["window_actions"] == [
+        {"xml_id": "custom.act_request", "name": "Requests", "module": "custom"},
+    ]
+
+
+def test_window_action_targeting_an_unknown_model_is_ignored():
+    from code_intelligence.graph.nodes import add_window_action_refs
+
+    graph = nx.DiGraph()
+    add_window_action_refs(graph, {"custom": _module_with_actions(_window_action("a", "missing.model"))})
+    assert not graph.nodes
+
+
+def test_navigation_reports_the_orphan_window_action():
+    from code_intelligence.rules.navigation import describe_navigation_path
+
+    graph = nx.DiGraph()
+    graph.add_node("model:custom.request", node_type="Model", window_actions=[
+        {"xml_id": "custom.act_request", "name": "Requests", "module": "custom"},
+    ])
+    result = describe_navigation_path(graph, "custom.request")
+    assert "custom.act_request" in result.summary_text
+    assert "aucun menu" in result.summary_text.lower()

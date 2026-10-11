@@ -14,6 +14,7 @@ from code_intelligence.rules.ontology import BehavioralTag, TechnicalTag
 from .nodes import add_security_group_nodes
 from .nodes import (
     add_menu_nodes,
+    add_window_action_refs,
     add_view_button_nodes_and_edges,
     add_workflow_nodes_and_edges,
 )
@@ -93,6 +94,7 @@ class OdooGraphBuilder:
         self._add_workflow_nodes_and_edges()
         self._add_view_button_nodes_and_edges()
         self._add_menu_nodes()
+        self._add_window_action_refs()
         entries = [
             entry
             for module in self.modules_dict.values()
@@ -308,6 +310,9 @@ class OdooGraphBuilder:
 
     def _add_menu_nodes(self):
         add_menu_nodes(self.G, self.registry, self.modules_dict)
+
+    def _add_window_action_refs(self):
+        add_window_action_refs(self.G, self.modules_dict)
 
     def _add_workflow_nodes_and_edges(self):
         add_workflow_nodes_and_edges(self.G, self.registry, self.modules_dict)
