@@ -1,7 +1,30 @@
-"""Input validation, safety guardrails, and extraction defense for query routing."""
+"""Input guardrails and loop bounds shared by every engine."""
 
 import re
-from core.routing.routing_keywords import OUT_OF_SCOPE_TERMS, _ARITHMETIC_ONLY_RE
+
+OUT_OF_SCOPE_ANSWER = (
+    "Cette question ne fait pas partie de mon périmètre. "
+    "Je suis spécialisé dans l'assistance et les procédures internes"
+)
+
+OUT_OF_SCOPE_TERMS = {
+    "blague",
+    "gâteau",
+    "gateau",
+    "recette",
+    "coupe du monde",
+    "poème",
+    "poeme",
+    "lune",
+}
+
+_ARITHMETIC_ONLY_RE = re.compile(
+    r"^\s*\d+(?:[.,]\d+)?\s*[+\-*/]\s*\d+(?:[.,]\d+)?"
+    r"(?:\s*[+\-*/]\s*\d+(?:[.,]\d+)?)*"
+    r"(?:\s*=\s*\d*(?:[.,]\d+)?)?\s*\??\s*$"
+)
+
+REACT_RECURSION_LIMIT = 6
 
 _MASSIVE_EXTRACTION_PATTERNS = [
     r"toutes?\s+les?\s+règl(es|ements)",
@@ -37,7 +60,7 @@ _PROMPT_INJECTION_PATTERNS = [
 ]
 
 
-def _is_out_of_scope(question: str) -> bool:
+def is_out_of_scope(question: str) -> bool:
     """Reject obvious non-work questions before the LLM can improvise."""
     normalized = question.lower().strip()
     if not normalized:
@@ -47,7 +70,7 @@ def _is_out_of_scope(question: str) -> bool:
     return any(term in normalized for term in OUT_OF_SCOPE_TERMS)
 
 
-def _is_massive_extraction_request(question: str) -> bool:
+def is_massive_extraction_request(question: str) -> bool:
     """Detect queries attempting bulk metadata or rule extraction across models."""
     q = question.lower().strip()
     if not q:
@@ -67,7 +90,7 @@ def _is_massive_extraction_request(question: str) -> bool:
     return any(re.search(pat, q) for pat in _MASSIVE_EXTRACTION_PATTERNS)
 
 
-def _is_prompt_injection(question: str) -> bool:
+def is_prompt_injection(question: str) -> bool:
     """Detect prompt injection and system prompt reveal attempts."""
     q = question.lower().strip()
     if not q:

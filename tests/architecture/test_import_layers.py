@@ -17,16 +17,11 @@ ORCHESTRATION = ("core.graph", "core.routing", "core.verification", "core.evalua
 
 KNOWN_VIOLATIONS = frozenset({
     ("code_intelligence.agent.access_guards", "core.verification.extractors"),
-    ("code_intelligence.agent.loop", "core.routing.routing"),
     ("core.evidence.evidence_check", "code_intelligence.agent.matching"),
-    ("core.evidence.evidence_check", "core.routing.routing"),
     ("core.evidence.evidence_sufficiency", "code_intelligence.rules.common"),
     ("core.schemas", "core.verification.claims"),
-    ("document_rag.generate_node", "core.routing.routing"),
-    ("document_rag.prompts", "core.routing.routing"),
     ("document_rag.verification", "core.evaluation.oracles.documentation"),
     ("document_rag.verification", "core.evaluation.protocol_metrics"),
-    ("erp_data.orm_agent_node", "core.routing.routing"),
 })
 
 

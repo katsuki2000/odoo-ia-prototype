@@ -2,8 +2,8 @@
 code_intelligence/tests/test_j32_33_massive_extraction_guard.py
 
 Unit tests for J32-J33 (Security — Prompt Injection & Massive Extraction Guard):
-1. Verifies _is_massive_extraction_request detects bulk extraction queries.
-2. Verifies _is_prompt_injection detects system prompt reveal and jailbreak queries.
+1. Verifies is_massive_extraction_request detects bulk extraction queries.
+2. Verifies is_prompt_injection detects system prompt reveal and jailbreak queries.
 3. Verifies code_intelligence_agent returns explicit refusal for massive extraction queries.
 4. Verifies code_intelligence_agent returns explicit refusal for prompt injection queries.
 5. Verifies MAX_MODELS_PER_QUERY limits resolved models to 3 max.
@@ -16,11 +16,8 @@ from config.settings import (
     MASSIVE_EXTRACTION_REFUSAL_MSG,
     PROMPT_INJECTION_REFUSAL_MSG,
 )
-from core.graph.graph import (
-    _is_massive_extraction_request,
-    _is_prompt_injection,
-    code_intelligence_agent,
-)
+from core.graph.graph import code_intelligence_agent
+from core.guardrails import is_massive_extraction_request, is_prompt_injection
 from code_intelligence.agent.tools import (
     who_has_access_to,
     evaluate_record_rules,
@@ -44,7 +41,7 @@ from code_intelligence.agent.tool_helpers import WILDCARD_MODEL_ERROR_MSG
 ])
 def test_is_massive_extraction_request_detection(query: str):
     """J32-J33: verify bulk extraction query patterns are caught."""
-    assert _is_massive_extraction_request(query) is True
+    assert is_massive_extraction_request(query) is True
 
 
 @pytest.mark.parametrize("query", [
@@ -54,7 +51,7 @@ def test_is_massive_extraction_request_detection(query: str):
 ])
 def test_legitimate_queries_not_flagged_as_massive_extraction(query: str):
     """J32-J33: verify legitimate queries are NOT flagged as massive extraction."""
-    assert _is_massive_extraction_request(query) is False
+    assert is_massive_extraction_request(query) is False
 
 
 @pytest.mark.parametrize("query", [
@@ -67,7 +64,7 @@ def test_legitimate_queries_not_flagged_as_massive_extraction(query: str):
 ])
 def test_is_prompt_injection_detection(query: str):
     """J32-J33: verify prompt injection patterns are caught."""
-    assert _is_prompt_injection(query) is True
+    assert is_prompt_injection(query) is True
 
 
 def test_code_intelligence_agent_refuses_massive_extraction():

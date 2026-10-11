@@ -18,7 +18,9 @@ from core.schemas import (
     SourceReference,
     source_display_title,
 )
-from core.routing.routing import RAGState, _is_out_of_scope, OUT_OF_SCOPE_ANSWER, _fold_accents
+from core.guardrails import OUT_OF_SCOPE_ANSWER, is_out_of_scope
+from core.routing.routing import _fold_accents
+from core.state import RAGState
 from core.output import sanitize_html_to_markdown
 from code_intelligence.agent.investigation_classifier import has_documentary_anchor
 
@@ -58,7 +60,7 @@ def out_of_scope_gate(state: RAGState) -> dict:
     Intercepts them before retrieve() runs.
     """
     question = state.get("question", "")
-    if not _is_out_of_scope(question):
+    if not is_out_of_scope(question):
         return {}
 
     logger.info("Node [out_of_scope_gate]: out-of-scope question detected -- skipping retrieve()/route()")

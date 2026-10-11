@@ -1,6 +1,5 @@
 """Routing keywords, accent-folding helpers, and route priority definitions."""
 
-import re
 import unicodedata
 from core.schemas import QueryRoute
 
@@ -93,27 +92,3 @@ DATA_TERMS_FOLDED = _fold_keywords(DATA_TERMS)
 DOC_ANCHORS_FOLDED = _fold_keywords(DOC_ANCHORS)
 THRESHOLD_QUERY_TERMS_FOLDED = _fold_keywords(THRESHOLD_QUERY_TERMS)
 CONDITIONAL_AMOUNT_TERMS_FOLDED = _fold_keywords(CONDITIONAL_AMOUNT_TERMS)
-
-OUT_OF_SCOPE_ANSWER = (
-    "Cette question ne fait pas partie de mon périmètre. "
-    "Je suis spécialisé dans l'assistance et les procédures internes"
-)
-
-OUT_OF_SCOPE_TERMS = {
-    "blague",
-    "gâteau",
-    "gateau",
-    "recette",
-    "coupe du monde",
-    "poème",
-    "poeme",
-    "lune",
-}
-
-_ARITHMETIC_ONLY_RE = re.compile(
-    r"^\s*\d+(?:[.,]\d+)?\s*[+\-*/]\s*\d+(?:[.,]\d+)?"
-    r"(?:\s*[+\-*/]\s*\d+(?:[.,]\d+)?)*"
-    r"(?:\s*=\s*\d*(?:[.,]\d+)?)?\s*\??\s*$"
-)
-
-REACT_RECURSION_LIMIT = 6

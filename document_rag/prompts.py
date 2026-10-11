@@ -7,7 +7,7 @@ System prompts and template building logic for the documentary RAG pipeline.
 from typing import List, Optional
 from langchain_core.messages import BaseMessage, SystemMessage, HumanMessage
 
-from core.routing.routing import OUT_OF_SCOPE_ANSWER
+from core.guardrails import OUT_OF_SCOPE_ANSWER
 
 DOCUMENTARY_RAG_SYSTEM_PROMPT = """
 Tu es un assistant IA interne spécialisé dans la documentation et les procédures de l'ERP Odoo.

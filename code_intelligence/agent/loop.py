@@ -446,11 +446,14 @@ see todo/contexte.txt). Behavior unchanged.
 import logging
 import time
 
-from core.routing.routing import (
-    RAGState, _is_out_of_scope, OUT_OF_SCOPE_ANSWER,
-    _is_massive_extraction_request, _is_prompt_injection,
+from core.guardrails import (
+    OUT_OF_SCOPE_ANSWER,
     REACT_RECURSION_LIMIT,
+    is_massive_extraction_request,
+    is_out_of_scope,
+    is_prompt_injection,
 )
+from core.state import RAGState
 from core.llm.llm_client import get_chat_llm
 from code_intelligence.graph import get_code_intelligence_graph
 from code_intelligence.agent.resolver import resolve_business_term
@@ -482,7 +485,7 @@ class CodeIntelligenceAgentRunner:
         trace_id = new_trace_id()
         trace_logger = ReasoningTraceLogger()
 
-        if _is_out_of_scope(question):
+        if is_out_of_scope(question):
             logger.info("Node [code_intelligence_agent]: Out of scope question.")
             return build_early_refusal_response(
                 OUT_OF_SCOPE_ANSWER, trace_logger, trace_id, question, start_time, state, CI_MAX_HOPS,
@@ -495,13 +498,13 @@ class CodeIntelligenceAgentRunner:
             PROMPT_INJECTION_REFUSAL_MSG,
         )
 
-        if _is_prompt_injection(question):
+        if is_prompt_injection(question):
             logger.warning("Node [code_intelligence_agent]: Prompt injection attempt intercepted.")
             return build_early_refusal_response(
                 PROMPT_INJECTION_REFUSAL_MSG, trace_logger, trace_id, question, start_time, state, CI_MAX_HOPS,
             )
 
-        if _is_massive_extraction_request(question):
+        if is_massive_extraction_request(question):
             logger.warning("Node [code_intelligence_agent]: Massive extraction request intercepted.")
             return build_early_refusal_response(
                 MASSIVE_EXTRACTION_REFUSAL_MSG, trace_logger, trace_id, question, start_time, state, CI_MAX_HOPS,

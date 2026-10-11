@@ -21,7 +21,8 @@ from langchain_core.messages import BaseMessage
 from langgraph.graph import StateGraph, START, END
 
 from core.schemas import AssistantResponse, QueryRoute
-from core.routing.routing import RAGState, route, route_decision
+from core.state import RAGState
+from core.routing.routing import route, route_decision
 from document_rag.generate_node import generate
 # Not used directly below -- kept as monkeypatch targets for graph_nodes.py::retrieve(),
 # which resolves these two names off this module first (sys.modules lookup) before

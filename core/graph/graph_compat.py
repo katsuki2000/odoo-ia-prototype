@@ -48,8 +48,8 @@ from core.output import (
     _strip_any_degenerate_repetition,
 )
 
+from core.state import RAGState
 from core.routing.routing import (
-    RAGState,
     ERP_TYPES,
     ROUTING_CONFLICT_PRIORITY,
     ERP_KEYWORDS,
@@ -68,14 +68,6 @@ from core.routing.routing import (
     THRESHOLD_QUERY_TERMS_FOLDED,
     _fold_accents,
     _fold_keywords,
-    OUT_OF_SCOPE_ANSWER,
-    OUT_OF_SCOPE_TERMS,
-    REACT_RECURSION_LIMIT,
-    _is_out_of_scope,
-    _MASSIVE_EXTRACTION_PATTERNS,
-    _PROMPT_INJECTION_PATTERNS,
-    _is_massive_extraction_request,
-    _is_prompt_injection,
     _VALID_ROUTES,
     _sticky_route_or_default,
     route,

@@ -10,12 +10,8 @@ import time
 from langchain_core.messages import SystemMessage, HumanMessage, ToolMessage
 
 from core.schemas import AssistantResponse, SourceReference
-from core.routing.routing import (
-    RAGState,
-    REACT_RECURSION_LIMIT,
-    _is_out_of_scope,
-    OUT_OF_SCOPE_ANSWER,
-)
+from core.guardrails import OUT_OF_SCOPE_ANSWER, REACT_RECURSION_LIMIT, is_out_of_scope
+from core.state import RAGState
 from document_rag.generate_node import generate
 from core.llm.llm_client import invoke_with_rate_limit as _invoke_with_rate_limit
 from core.session.reasoning_trace_logger import ReasoningTraceLogger, new_trace_id
@@ -43,7 +39,7 @@ def orm_agent_loop(state: RAGState) -> dict:
     _llm_call_count = 0
     _hop_index = 0
 
-    if _is_out_of_scope(question):
+    if is_out_of_scope(question):
         logger.info("Node [orm_agent_loop]: Out of scope question.")
         response = AssistantResponse(answer=OUT_OF_SCOPE_ANSWER, sources=[], confidence=0.0)
         timing = state.get("timing", {}).copy()

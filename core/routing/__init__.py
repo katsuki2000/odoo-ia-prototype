@@ -1,7 +1,7 @@
 """
 core/routing/__init__.py
 
-Regroupement (todo/contexte.txt Section 649-653) : routing_keywords.py, routing_guards.py, routing.py.
+Regroupement (todo/contexte.txt Section 649-653) : routing_keywords.py, routing.py.
 """
 
 from .routing_keywords import (
@@ -25,22 +25,10 @@ from .routing_keywords import (
     DOC_ANCHORS_FOLDED,
     THRESHOLD_QUERY_TERMS_FOLDED,
     CONDITIONAL_AMOUNT_TERMS_FOLDED,
-    OUT_OF_SCOPE_ANSWER,
-    OUT_OF_SCOPE_TERMS,
-    _ARITHMETIC_ONLY_RE,
-    REACT_RECURSION_LIMIT,
-)
-from .routing_guards import (
-    _MASSIVE_EXTRACTION_PATTERNS,
-    _PROMPT_INJECTION_PATTERNS,
-    _is_out_of_scope,
-    _is_massive_extraction_request,
-    _is_prompt_injection,
 )
 from .routing import (
     logger,
     _VALID_ROUTES,
-    RAGState,
     _sticky_route_or_default,
     _sticky_concept_or_resolve,
     route,
@@ -68,18 +56,8 @@ __all__ = [
     "DOC_ANCHORS_FOLDED",
     "THRESHOLD_QUERY_TERMS_FOLDED",
     "CONDITIONAL_AMOUNT_TERMS_FOLDED",
-    "OUT_OF_SCOPE_ANSWER",
-    "OUT_OF_SCOPE_TERMS",
-    "_ARITHMETIC_ONLY_RE",
-    "REACT_RECURSION_LIMIT",
-    "_MASSIVE_EXTRACTION_PATTERNS",
-    "_PROMPT_INJECTION_PATTERNS",
-    "_is_out_of_scope",
-    "_is_massive_extraction_request",
-    "_is_prompt_injection",
     "logger",
     "_VALID_ROUTES",
-    "RAGState",
     "_sticky_route_or_default",
     "_sticky_concept_or_resolve",
     "route",

@@ -11,7 +11,7 @@ from core.evidence.evidence_collector import (
 from core.graph import verify_node
 from core.graph.graph import build_graph
 from core.graph.graph_nodes import answered_by_documents
-from core.routing.routing import RAGState
+from core.state import RAGState
 from core.schemas import AssistantResponse
 from core.verification.claims import VerifierMode
 from erp_data import orm_agent_node
@@ -207,7 +207,7 @@ def test_orm_loop_returns_the_tool_observations(monkeypatch):
         return AIMessage(content="Stock a=7, b=3."), 0.0
 
     monkeypatch.setattr(orm_agent_node, "ReasoningTraceLogger", SilentTraceLogger)
-    monkeypatch.setattr(orm_agent_node, "_is_out_of_scope", lambda _question: False)
+    monkeypatch.setattr(orm_agent_node, "is_out_of_scope", lambda _question: False)
     monkeypatch.setattr(orm_agent_node, "resolve_orm_tools", lambda _skills: [])
     monkeypatch.setattr(orm_agent_node, "_build_llm", lambda **_kwargs: FakeLlm())
     monkeypatch.setattr(orm_agent_node, "_invoke_with_rate_limit", fake_invoke)

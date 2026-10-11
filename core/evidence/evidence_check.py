@@ -2,7 +2,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from code_intelligence.agent.matching import ResolvedConcept
-    from core.routing.routing import RAGState
+    from core.state import RAGState
 
 
 def check_evidence(

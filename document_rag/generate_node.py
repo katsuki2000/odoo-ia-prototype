@@ -6,7 +6,8 @@ from typing import Optional
 
 from core.schemas import AssistantResponse, LLMResponse, SourceReference
 from config.settings import DOCUMENT_MAX_TOKENS
-from core.routing.routing import RAGState, _is_out_of_scope, OUT_OF_SCOPE_ANSWER
+from core.guardrails import OUT_OF_SCOPE_ANSWER, is_out_of_scope
+from core.state import RAGState
 from core.llm.llm_client import (
     get_chat_llm,
     invoke_with_rate_limit as _invoke_with_rate_limit,
@@ -38,7 +39,7 @@ def generate(state: RAGState) -> dict:
     _trace_id = new_trace_id()
     _trace_logger = ReasoningTraceLogger()
 
-    if _is_out_of_scope(question):
+    if is_out_of_scope(question):
         logger.info("Node [generate]: Deterministic out-of-scope refusal.")
         response = AssistantResponse(
             answer=OUT_OF_SCOPE_ANSWER,

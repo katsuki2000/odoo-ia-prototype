@@ -2,13 +2,13 @@
 
 import logging
 import time
-from typing import Any, List, Optional, TypedDict, TYPE_CHECKING
-from langchain_core.messages import BaseMessage
+from typing import Any, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from code_intelligence.agent.matching import ResolvedConcept
 
 from core.schemas import AssistantResponse, QueryRoute
+from core.state import RAGState
 from code_intelligence.agent.investigation_planner import (
     generate_investigation_plan,
     validate_plan_against_route,
@@ -38,48 +38,11 @@ from core.routing.routing_keywords import (
     DOC_ANCHORS_FOLDED,
     THRESHOLD_QUERY_TERMS_FOLDED,
     CONDITIONAL_AMOUNT_TERMS_FOLDED,
-    OUT_OF_SCOPE_ANSWER,
-    OUT_OF_SCOPE_TERMS,
-    _ARITHMETIC_ONLY_RE,
-    REACT_RECURSION_LIMIT,
-)
-from core.routing.routing_guards import (
-    _MASSIVE_EXTRACTION_PATTERNS,
-    _PROMPT_INJECTION_PATTERNS,
-    _is_out_of_scope,
-    _is_massive_extraction_request,
-    _is_prompt_injection,
 )
 
 logger = logging.getLogger(__name__)
 
 _VALID_ROUTES = {r.value for r in QueryRoute}
-
-
-class RAGState(TypedDict):
-    """Workflow state container for the LangGraph agent network."""
-    question: str
-    chat_history: List[BaseMessage]
-    uid: Optional[int]
-    skills: Optional[dict]
-    timing: dict
-    retrieved_chunks: List[dict]
-    raw_answer: str
-    route: Optional[str]
-    response: Optional[AssistantResponse]
-    user_groups: List[int | str]
-    user_groups_complete: Optional[bool]
-    resolved_concept: Optional[dict]
-    last_route: Optional[str]
-    last_resolved_concept: Optional[dict]
-    resolved_concept_reused: bool
-    evidence_status: Optional[str]
-    investigation_plan: Optional[dict]
-    sources_fallback_eligible: Optional[bool]
-    ci_evidence_sufficiency: Optional[dict]
-    raw_tool_output: Optional[str]
-    source_mode: Optional[str]
-    language: Optional[str]
 
 
 def _sticky_route_or_default(state: RAGState, default: str) -> str:

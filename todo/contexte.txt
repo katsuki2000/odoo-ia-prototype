@@ -4384,3 +4384,23 @@ Date : 11/10/2026
 **Suite** : déplacer les types partagés vers le noyau et supprimer les entrées de `KNOWN_VIOLATIONS` au fur et à mesure; trancher `document_rag/verification.py` vis-à-vis de `core.evaluation` (carte de migration).
 
 **Fichiers modifiés** : `tests/architecture/__init__.py`, `tests/architecture/test_import_layers.py`, `todo/contexte.txt`.
+
+
+## Section 1225 : état et garde-fous déplacés dans le noyau -- 5 violations de couche supprimées sur 11
+
+Date : 11/10/2026
+
+**Cause racine traitée** : `RAGState`, `OUT_OF_SCOPE_ANSWER`, `REACT_RECURSION_LIMIT` et les gardes d'entrée étaient définis dans `core/routing/` (orchestration) mais importés par les trois moteurs et par `core/evidence/`, ce qui créait des cycles.
+
+**Changements** :
+- Nouveau `core/state.py` : `RAGState` (déplacé de `core/routing/routing.py`).
+- Nouveau `core/guardrails.py` : `OUT_OF_SCOPE_ANSWER`, `OUT_OF_SCOPE_TERMS`, `REACT_RECURSION_LIMIT`, motifs d'extraction massive et d'injection, et les trois gardes, devenus publics (`is_out_of_scope`, `is_massive_extraction_request`, `is_prompt_injection`) puisqu'ils sont importés entre paquets. Le code est repris sans modification de logique.
+- `core/routing/routing_guards.py` supprimé; ses constantes quittent `routing_keywords.py`; les réexportations correspondantes sont retirées de `routing.py`, `routing/__init__.py` et `graph/graph_compat.py` (pas de façade de compatibilité).
+- Imports mis à jour dans `code_intelligence/agent/loop.py`, `document_rag/generate_node.py`, `document_rag/prompts.py`, `erp_data/orm_agent_node.py`, `core/evidence/evidence_check.py`, `core/graph/graph.py`, `graph_nodes.py`, `verify_node.py`, et dans 6 tests (dont les cibles de `monkeypatch.setattr` renommées en `is_out_of_scope`).
+- `KNOWN_VIOLATIONS` de `tests/architecture/test_import_layers.py` : 11 -> 6 entrées.
+
+**Validation** : 142 tests ciblés passés (architecture, garde hors périmètre, extraction massive, vérificateur T3, routage, câblage ERP typé). La suite complète n'a pas pu être exécutée dans le délai de l'outil; à lancer par pmm : `pytest -n auto -m "not integration" -q`.
+
+**Reste** : `core.verification` (`VerificationReport`, `GROUP_XMLID_RE`), `NOT_FOUND_MARKER`, `ResolvedConcept` dans `core/evidence/`, et `document_rag/verification.py` vis-à-vis de `core.evaluation`.
+
+**Fichiers modifiés** : `core/state.py`, `core/guardrails.py`, `core/routing/{routing,routing_keywords,__init__}.py`, `core/routing/routing_guards.py` (supprimé), `core/graph/{graph,graph_nodes,graph_compat,verify_node}.py`, `core/evidence/evidence_check.py`, `code_intelligence/agent/loop.py`, `document_rag/{generate_node,prompts}.py`, `erp_data/orm_agent_node.py`, `tests/architecture/test_import_layers.py`, `tests/test_{out_of_scope_gate,bug_a_markdown_only_output,t3_verify_node}.py`, `code_intelligence/tests/test_j32_33_massive_extraction_guard.py`, `erp_data/tests/test_p9_typed_runtime_wiring.py`, `todo/contexte.txt`.

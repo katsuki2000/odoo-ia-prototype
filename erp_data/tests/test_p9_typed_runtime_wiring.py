@@ -123,7 +123,7 @@ def test_orm_agent_loop_allows_second_hop_after_tool_observation(monkeypatch):
             ), 0
         return AIMessage(content="Il y a 2 partenaires."), 0
 
-    monkeypatch.setattr(node, "_is_out_of_scope", lambda _q: False)
+    monkeypatch.setattr(node, "is_out_of_scope", lambda _q: False)
     monkeypatch.setattr(node, "resolve_orm_tools", lambda _s: [])
     monkeypatch.setattr(node, "_build_llm", lambda **_k: FakeLlm())
     monkeypatch.setattr(node, "_invoke_with_rate_limit", fake_invoke)

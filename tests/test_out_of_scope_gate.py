@@ -3,7 +3,7 @@
 Tests for the out_of_scope_gate LangGraph node (core/graph.py) --
 todo/contexte.txt sections 360-361.
 
-generate()'s own _is_out_of_scope() fast-fail (document_rag/generate_node.py)
+generate()'s own is_out_of_scope() fast-fail (document_rag/generate_node.py)
 only runs after retrieve()/route() have already executed for the
 DOCUMENTAIRE branch -- every out-of-scope question paid for a retrieval
 call it never used. out_of_scope_gate() intercepts these questions BEFORE
@@ -20,7 +20,7 @@ Covers:
 import pytest
 
 from core.graph.graph import out_of_scope_gate, out_of_scope_decision
-from core.routing.routing import OUT_OF_SCOPE_ANSWER
+from core.guardrails import OUT_OF_SCOPE_ANSWER
 from core.schemas import AssistantResponse
 
 
