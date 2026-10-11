@@ -4369,3 +4369,18 @@ Date : 11/10/2026
 **Note** : la section 1208 de `fix/graph-runtime-fidelity` (contrat d'inventaire du graphe) n'est pas reprise; son numéro entre en collision avec la 1208 de `fix/local-test-failures`.
 
 **Fichiers modifiés** : `code_intelligence/rules/data_constraints.py`, `todo/contexte.txt`.
+
+
+## Section 1224 : garde-fou des couches d'imports -- 11 violations figées, à réduire
+
+Date : 11/10/2026
+
+**Constat** : inventaire AST des imports entre `core`, `code_intelligence`, `document_rag` et `erp_data`. `core` importe vers les moteurs (29 imports vers `code_intelligence`, 8 vers `document_rag`, 3 vers `erp_data`) et les moteurs importent `core` (51, 9, 18) : cycles. Cause racine : des types et constantes partagés sont définis dans des modules d'orchestration (`RAGState` et `OUT_OF_SCOPE_ANSWER` dans `core/routing/routing.py`, `VerificationReport` dans `core/verification/claims.py`, `GROUP_XMLID_RE` dans `core/verification/extractors.py`), ou dans un moteur (`NOT_FOUND_MARKER`, `expand_to_sentence_bounds` dans `code_intelligence/rules/common.py`).
+
+**Règle retenue** (sans nouvelle dépendance, sans déplacement de dossier) : noyau = `core.llm`, `core.session`, `core.schemas`, `core.output`, `core.evidence`; orchestration = `core.graph`, `core.routing`, `core.verification`, `core.evaluation`; moteurs = `code_intelligence`, `document_rag`, `erp_data`. Les moteurs n'importent que le noyau; le noyau n'importe ni moteur ni orchestration; l'orchestration peut importer les moteurs.
+
+**Ajout** : `tests/architecture/test_import_layers.py` (AST, imports différés et sous `TYPE_CHECKING` inclus). Il fige les 11 violations actuelles dans `KNOWN_VIOLATIONS` et échoue si une nouvelle apparaît ou si une entrée listée a été corrigée : la liste ne peut que diminuer. 2 tests passés.
+
+**Suite** : déplacer les types partagés vers le noyau et supprimer les entrées de `KNOWN_VIOLATIONS` au fur et à mesure; trancher `document_rag/verification.py` vis-à-vis de `core.evaluation` (carte de migration).
+
+**Fichiers modifiés** : `tests/architecture/__init__.py`, `tests/architecture/test_import_layers.py`, `todo/contexte.txt`.
