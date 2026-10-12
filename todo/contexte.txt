@@ -1181,3 +1181,56 @@ Date : 12/10/2026
 **Verification** : 77 tests cibles passent en 170 s. Suite complete a relancer par pmm.
 
 **Fichiers modifies** : `code_intelligence/extractor/js.py` (restaure), `code_intelligence/tests/test_ci_agent_tools_resolution.py`, `tests/test_h3_evidence_check.py`, `tests/test_j18_routing_fewshot.py`, `todo/contexte.txt` (cette section).
+
+
+
+IRO AI
+Bonjour ! Posez votre question ou interrogez-moi sur le document actif.
+Vous
+comment se passe la validation des congés dans la société?
+MIRO AI
+Code Intelligence
+La validation des congés dans la société est gérée par des groupes spécifiques définis dans le module hr_holidays. Les utilisateurs appartenant au groupe "Officer: Manage all requests" ou au groupe "Administrator" disposent des autorisations nécessaires pour valider les demandes de congés.
+
+Cependant, les observations indiquent qu'aucun bouton ou méthode nommée "action_validate" n'a été trouvé dans l'interface ou dans le code associé au modèle hr.holidays.summary.employee. De plus, aucun workflow, règle de validation ou action serveur spécifique n'a été détecté pour ce modèle.
+
+Cela suggère que la validation des congés repose principalement sur les permissions des groupes mentionnés, sans mécanisme supplémentaire explicitement défini dans les données fournies. Pour des détails plus précis sur le processus de validation, il faudrait consulter d'autres modules ou configurations non couverts par les observations actuelles.
+
+[Source: Graphe de Connaissances Code Intelligence]
+Plan d'investigation :
+
+    who_has_access_to: Résoudre le modèle cible à partir de la question utilisateur
+
+Sources :
+
+    Verrous de sécurité (code Python) — hr.holidays.summary.employee
+
+    [hr_holidays_summary_employees.py:L1-L31](file:///home/user/odoo-17.0/addons/hr_holidays/wizard/hr_holidays_summary_employees.py#L1-L31): aucun verrou.
+
+    Règles d'enregistrement (ir.rule) — hr.holidays.summary.employee
+
+    Évaluation des règles d'enregistrement (ir.rule) pour 'hr.holidays.summary.employee':
+      - Règles Globales: Aucune
+      - Règles de Groupe applicables: Aucune (l'utilisateur n'appartient à aucun des groupes visés)
+
+    Matrice d'accès (ACL) — hr.holidays.summary.employee
+
+    Model 'hr.holidays.summary.employee' [WRITE]: Granted to hr_holidays.group_hr_holidays_user ('Officer: Manage all requests'), hr_holidays.group_hr_holidays_manager ('Administrator') (via implied_ids <- hr_holidays.group_hr_holidays_user ('Officer: Manage all requests')). (xml_id: hr_holidays.group_hr_holidays_manager xml_id: hr_holidays.group_hr_holidays_user) Active Rules: 0.
+
+    Actions serveur / automatisations — hr.holidays.summary.employee
+
+    No server actions (ir.actions.server) found for model 'hr.holidays.summary.employee'.
+
+    Workflow (états) — hr.holidays.summary.employee
+
+    No workflow state transition could be derived from the indexed code for 'hr.holidays.summary.employee'. The graph may omit workflows expressed with unsupported patterns or fields.
+
+    Chemin d'exécution du bouton — hr.holidays.summary.employee
+
+    Button or UI element 'action_validate' on 'hr.holidays.summary.employee' was not found in the indexed knowledge graph: no declared button or method matches that name exactly. Transition: [] -> ''. Required Groups: [None].
+    1. UI Search: Button or UI element 'action_validate' was not found in XML views for 'hr.holidays.summary.employee'.
+    2. Method Lookup: Candidate method 'action_validate()' is not defined on model 'hr.holidays.summary.employee'.
+    3. State Transition: None.
+    4. Security Requirement: None.
+
+D
