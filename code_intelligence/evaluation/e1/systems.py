@@ -231,9 +231,15 @@ def run_system(
         return run_r3(
             case, graph, language=language, config=config, embedding_function=embedding_function,
         )
-    if system_id in {"R4", "R5"}:
+    if system_id == "R4":
+        from .hybrid import run_r4
+
+        return run_r4(
+            case, graph, language=language, config=config, embedding_function=embedding_function,
+        )
+    if system_id == "R5":
         raise NotImplementedError(
-            f"{system_id} (RRF/expansion) is not implemented yet; "
+            "R5 (typed-edge expansion) is not implemented yet; "
             "see todo/contexte.txt section 1227 / 1258"
         )
     raise ValueError(f"unknown E1 system: {system_id}")

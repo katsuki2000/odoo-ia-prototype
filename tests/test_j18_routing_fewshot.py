@@ -170,22 +170,12 @@ class TestH1BusinessResolverExposedBeforeRoute:
         assert "resolved_concept" in result
         assert isinstance(result["resolved_concept"], dict)
 
-    def test_static_alias_question_resolves_but_does_not_change_the_route(self):
-        """The exact DOC-08 regression case (tests/benchmark_questions.json):
-        'mise à disposition' resolves deterministically via the static alias
-        tier to custom.asset.loan, but the question asks about a wiki-
-        documented SLA, not governance/code -- the correct route stays
-        DOCUMENTAIRE (via the unchanged no-chunks default), proving
-        resolution success is exposed on state without being allowed to
-        steer route_decision in this first step.
-
-        Relies on _force_deterministic_intent_classifier (module-level
-        autouse fixture) to reach classify_question_intent()'s own DOC-08
-        guard (step 9 default, todo/contexte.txt section 411): the bounded
-        LLM classifier does not receive resolved_concept at all and, left
-        unforced, classified this exact wording as CODE_INTELLIGENCE
-        instead (section 404/411) -- a separate, already-tracked concern,
-        not a regression of the DOC-08 guard this test protects."""
+    def test_unresolved_question_does_not_change_the_route(self):
+        """DOC-08 regression (updated for Option A, section 1273):
+        Static aliases are disabled in production. 'mise à disposition'
+        no longer resolves in route(). The route must still be DOCUMENTAIRE
+        (no code-intelligence signal in the question), and resolved_concept
+        must be present on state (never a missing key) even when unresolved."""
         import networkx as nx
 
         graph = nx.DiGraph()
@@ -198,10 +188,8 @@ class TestH1BusinessResolverExposedBeforeRoute:
         }
         with patch("code_intelligence.graph.loader.get_code_intelligence_graph", return_value=graph):
             result = route(state)
-        concept = result["resolved_concept"]
-        assert concept["is_resolved"] is True
-        assert concept["source_step"] == "static_alias"
-        assert "custom.asset.loan" in concept["resolved_models"]
+        assert "resolved_concept" in result
+        assert isinstance(result["resolved_concept"], dict)
         assert result["route"] == "documentaire"
 
     def test_unresolved_question_still_routes_normally(self):

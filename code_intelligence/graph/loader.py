@@ -7,7 +7,7 @@ Disk-level loading and validation helpers for Odoo addon modules and serialized 
 import logging
 import threading
 from pathlib import Path
-from typing import Tuple
+from typing import Optional, Tuple
 
 from config.settings import GRAPH_CACHE_PATH
 from code_intelligence.extractor.csv import ACCESS_CONTROL_CSV_NAME, parse_access_control_csv
@@ -235,12 +235,16 @@ def _installed_module_names(installed_modules) -> set[str]:
     }
 
 
-def _normalize_addon_roots(paths) -> list[Path]:
-    roots = (
-        Path(os.path.expandvars(os.path.expanduser(str(path).strip()))).resolve()
-        for path in paths
-        if path and str(path).strip()
-    )
+def _normalize_addon_roots(paths, base_dir: Optional[Path] = None) -> list[Path]:
+    """Absolute roots; a relative entry is read from `base_dir` (the directory of odoo.conf), not the CWD."""
+    roots = []
+    for path in paths:
+        if not path or not str(path).strip():
+            continue
+        root = Path(os.path.expandvars(os.path.expanduser(str(path).strip())))
+        if base_dir is not None and not root.is_absolute():
+            root = base_dir / root
+        roots.append(root.resolve())
     return list(dict.fromkeys(roots))
 
 
@@ -262,7 +266,7 @@ def _read_configured_addon_roots(config_path, odoo_default_roots):
         return None
 
     if configured_paths:
-        roots = _normalize_addon_roots(configured_paths.split(","))
+        roots = _normalize_addon_roots(configured_paths.split(","), config_file.resolve().parent)
         if roots:
             logger.info("Using %d addon roots in the order declared by Odoo config '%s'.", len(roots), config_file)
             return roots

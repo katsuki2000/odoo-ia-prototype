@@ -278,6 +278,7 @@ import logging
 import time
 
 from code_intelligence.rules.data_constraints import analyze_data_constraints_from_filepaths
+from code_intelligence.rules.model_suggestions import model_not_found_message
 from code_intelligence.agent.tool_helpers import find_model_source_filepaths, _resolve_model_param
 from core.evidence.evidence_collector import record_evidence
 from code_intelligence.agent.context import (
@@ -332,7 +333,7 @@ def dispatch_analyze_data_constraints(ctx: DispatchContext) -> None:
             model_node = f"model:{resolved_model}"
             constraints_result = None
             if model_node not in ctx.G:
-                observation = f"Model '{resolved_model}' was not found in the indexed knowledge graph."
+                observation = model_not_found_message(ctx.G, resolved_model)
             else:
                 filepaths = find_model_source_filepaths(ctx.G, resolved_model)
                 if not filepaths:

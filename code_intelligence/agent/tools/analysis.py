@@ -11,6 +11,7 @@ from pathlib import Path
 
 from langchain_core.tools import tool
 
+from code_intelligence.rules.model_suggestions import model_not_found_message
 from code_intelligence.agent.tool_helpers import (
     _require_graph,
     _resolve_model_param,
@@ -44,7 +45,7 @@ def _compose_server_actions_observation(model_name: str):
     model_name = _resolve_model_param(model_name)
     model_node = f"model:{model_name}"
     if model_node not in G:
-        return f"Model '{model_name}' was not found in the indexed knowledge graph.", []
+        return model_not_found_message(G, model_name), []
 
     sa_nodes = find_server_action_nodes(G, model_name)
     if not sa_nodes:
@@ -96,7 +97,7 @@ def analyze_security_locks(model_name: str) -> str:
     model_name = _resolve_model_param(model_name)
     model_node = f"model:{model_name}"
     if model_node not in G:
-        return f"Model '{model_name}' was not found in the indexed knowledge graph."
+        return model_not_found_message(G, model_name)
 
     filepaths = find_model_source_filepaths(G, model_name)
     if not filepaths:
@@ -147,7 +148,7 @@ def analyze_data_constraints(model_name: str) -> str:
     model_name = _resolve_model_param(model_name)
     model_node = f"model:{model_name}"
     if model_node not in G:
-        return f"Model '{model_name}' was not found in the indexed knowledge graph."
+        return model_not_found_message(G, model_name)
 
     filepaths = find_model_source_filepaths(G, model_name)
     if not filepaths:

@@ -169,6 +169,46 @@ def rank_semantic_model_candidates(
     return [model for model, _score in ranked[:limit]]
 
 
+def rank_semantic_model_candidates_scored(
+    query: str,
+    graph,
+    embedding_function,
+    *,
+    language: Optional[str] = None,
+    limit: int = SEMANTIC_CANDIDATE_LIMIT,
+    cache_dir: Optional[str] = None,
+) -> List[Tuple[str, float]]:
+    """Like rank_semantic_model_candidates but returns (model, score) pairs."""
+    if not query or graph is None or limit <= 0:
+        return []
+
+    graph_cache = _SEMANTIC_INDEX_CACHE.setdefault(graph, {})
+    embedding_name = _embedding_name(embedding_function)
+    cache_key = (language.casefold() if language else None, embedding_name)
+    cached_index = graph_cache.get(cache_key)
+    if cached_index is None:
+        documents = _model_documents(graph, language)
+        if not documents:
+            return []
+        index_store = SemanticIndexStore(cache_dir, embedding_name) if cache_dir else None
+        cached_index = _build_index(documents, embedding_function, index_store)
+        graph_cache[cache_key] = cached_index
+
+    models, embeddings = cached_index
+    query_embeddings = embedding_function([query])
+    if len(query_embeddings) != 1:
+        raise ValueError("Embedding provider returned an unexpected query vector count.")
+    query_embedding = query_embeddings[0]
+    ranked = sorted(
+        (
+            (model, _cosine_similarity(query_embedding, embedding))
+            for model, embedding in zip(models, embeddings)
+        ),
+        key=lambda item: (-item[1], item[0]),
+    )
+    return [(model, score) for model, score in ranked[:limit]]
+
+
 def retrieve_semantic_model_candidates(
     query: str,
     graph,
@@ -214,6 +254,50 @@ def retrieve_semantic_model_candidates(
         return SemanticRetrieval(status=SemanticRetrievalStatus.ERROR)
     status = SemanticRetrievalStatus.SUCCESS if models else SemanticRetrievalStatus.NO_CANDIDATES
     return SemanticRetrieval(models, status)
+
+
+def retrieve_semantic_model_candidates_scored(
+    query: str,
+    graph,
+    language: Optional[str],
+    *,
+    limit: int = SEMANTIC_CANDIDATE_LIMIT,
+) -> Tuple[List[Tuple[str, float]], SemanticRetrievalStatus]:
+    """Return (model, score) pairs with retrieval status. Fails open on errors."""
+    if os.getenv(SEMANTIC_RETRIEVAL_ENABLED_ENV, "true").casefold() not in {"1", "true", "yes"}:
+        return [], SemanticRetrievalStatus.DISABLED
+
+    backend = os.getenv("RESOLVER_SEMANTIC_EMBEDDING_BACKEND") or os.getenv(
+        "EMBEDDING_BACKEND", "local_light",
+    )
+    model = os.getenv("RESOLVER_SEMANTIC_EMBEDDING_MODEL") or os.getenv(
+        "EMBEDDING_MODEL", "nomic-embed-text-v1.5",
+    )
+    try:
+        from document_rag.vectorstore.embedding_functions import resolve_embedding_function
+
+        embedding_function = resolve_embedding_function(backend=backend, embedding_model=model)
+        if embedding_function is None:
+            if backend == "local_light":
+                from chromadb.utils.embedding_functions import DefaultEmbeddingFunction
+
+                embedding_function = DefaultEmbeddingFunction()
+            else:
+                logger.warning("Semantic retrieval is enabled but no embedding provider is configured.")
+                return [], SemanticRetrievalStatus.ERROR
+        scored = rank_semantic_model_candidates_scored(
+            query,
+            graph,
+            embedding_function,
+            language=language,
+            limit=limit,
+            cache_dir=settings.SEMANTIC_INDEX_CACHE_DIR,
+        )
+    except Exception:
+        logger.exception("Semantic retrieval failed; keeping the deterministic candidate list.")
+        return [], SemanticRetrievalStatus.ERROR
+    status = SemanticRetrievalStatus.SUCCESS if scored else SemanticRetrievalStatus.NO_CANDIDATES
+    return scored, status
 
 
 def configured_semantic_model_candidates(

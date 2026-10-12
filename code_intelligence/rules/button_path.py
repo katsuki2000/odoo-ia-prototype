@@ -268,6 +268,7 @@ from typing import List, Optional, Set
 import networkx as nx
 
 from code_intelligence.rules.common import NOT_FOUND_MARKER
+from code_intelligence.rules.model_suggestions import model_not_found_message
 from code_intelligence.rules.group_resolver import (
     _expand_implied_user_groups,
     _fold_accents,
@@ -360,7 +361,7 @@ def button_execution_path(
         return ButtonExecutionPathResult(
             button_identifier=button_label_or_name,
             model_name=model_name,
-            summary_text=f"Model '{model_name}' {NOT_FOUND_MARKER}."
+            summary_text=model_not_found_message(G, model_name)
         )
 
     method_name = ""

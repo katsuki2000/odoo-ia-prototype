@@ -45,17 +45,17 @@ from code_intelligence.rules.record_rules import RuleDetail, RuleEvaluationResul
 
 class TestInferMoveTypeContextIsolation:
     def test_facture_resolves_to_out_invoice(self):
-        concept = resolve_business_term("Qui peut voir une facture de 30000 euros ?", G=None)
+        concept = resolve_business_term("Qui peut voir une facture de 30000 euros ?", G=None, use_static_aliases=True)
         assert concept.source_step == "static_alias"
         assert _infer_move_type_context(concept) == {"move_type": "out_invoice"}
 
     def test_avoir_resolves_to_out_refund(self):
-        concept = resolve_business_term("Qui peut voir un avoir de 30000 euros ?", G=None)
+        concept = resolve_business_term("Qui peut voir un avoir de 30000 euros ?", G=None, use_static_aliases=True)
         assert concept.source_step == "static_alias"
         assert _infer_move_type_context(concept) == {"move_type": "out_refund"}
 
     def test_unresolved_concept_returns_empty(self):
-        concept = resolve_business_term("xyzabc123 nonsense query", G=None)
+        concept = resolve_business_term("xyzabc123 nonsense query", G=None, use_static_aliases=True)
         assert concept.is_resolved is False
         assert _infer_move_type_context(concept) == {}
 
@@ -109,7 +109,7 @@ def _evaluate_for_question(question: str, amount: float = 30000.0):
     """Mirrors ci_agent_node.py's _dispatch_context/context construction
     exactly (same three update() calls, same order) so this test tracks
     the real integration point, not just the helper in isolation."""
-    concept = resolve_business_term(question, G=None)
+    concept = resolve_business_term(question, G=None, use_static_aliases=True)
     context = {"amount": amount}
     context.update(_extract_company_context(question))
     context.update(_infer_move_type_context(concept))
@@ -160,7 +160,8 @@ class TestMoveTypeInjectionResolvesRealCompanyAgnosticRule:
         no-op -- the same question genuinely used to come back
         unresolved."""
         concept = resolve_business_term(
-            "Qui peut voir une facture de 30000 euros ?", G=None
+            "Qui peut voir une facture de 30000 euros ?", G=None,
+            use_static_aliases=True,
         )
         assert concept.source_step == "static_alias"  # sanity: alias did match
 

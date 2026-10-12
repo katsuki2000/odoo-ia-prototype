@@ -74,7 +74,7 @@ def main():
             alias_targets.extend(BUSINESS_ALIASES[a])
         alias_targets = list(dict.fromkeys(alias_targets))  # dedup, ordre préservé
 
-        final = resolve_business_term(query, G)
+        final = resolve_business_term(query, G, use_static_aliases=True)
 
         print(f"\nRequête : {query!r}")
         print(f"  Fuzzy (Step 1)  : {fuzzy_results if fuzzy_results else '(aucun match >= seuil)'}")

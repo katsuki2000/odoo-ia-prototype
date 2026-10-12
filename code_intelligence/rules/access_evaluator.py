@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Set
 import networkx as nx
 
-from code_intelligence.rules.common import NOT_FOUND_MARKER
+from code_intelligence.rules.model_suggestions import model_not_found_message
 from code_intelligence.rules.group_resolver import (
     _expand_implied_user_groups,
     _expand_inheriting_acl_groups,
@@ -289,7 +289,7 @@ def who_has_access_to(
         return AccessEvaluationResult(
             model_name=model_name,
             requested_permission=permission,
-            summary_text=f"Model '{model_name}' {NOT_FOUND_MARKER} (probable typo or missing model)."
+            summary_text=model_not_found_message(G, model_name)
         )
 
     if permission.lower() == "all":

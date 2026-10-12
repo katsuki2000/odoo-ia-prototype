@@ -54,20 +54,20 @@ def _bank_question(qid: str) -> str:
 
 def test_pur_q1_no_longer_dispatches_override_chain(graph):
     q = _bank_question("PUR-Q1")
-    concept = resolve_business_term(q, graph, llm=None)
+    concept = resolve_business_term(q, graph, llm=None, use_static_aliases=True)
     assert override_chain_targets(q, concept, graph) == []
 
 
 def test_approval_with_amount_still_dispatches(graph):
     q = "Qui peut approuver un avoir de plus de 500 000 Ar sur account.move ?"
-    concept = resolve_business_term(q, graph, llm=None)
+    concept = resolve_business_term(q, graph, llm=None, use_static_aliases=True)
     pairs = override_chain_targets(q, concept, graph)
     assert pairs and all(m == "account.move" for m, _ in pairs)
 
 
 def test_approval_wording_alone_without_amount_no_longer_dispatches(graph):
     q = "Qui peut approuver un avoir sur account.move, sans condition de montant ?"
-    concept = resolve_business_term(q, graph, llm=None)
+    concept = resolve_business_term(q, graph, llm=None, use_static_aliases=True)
     assert override_chain_targets(q, concept, graph) == []
 
 
@@ -75,7 +75,7 @@ def test_method_wording_still_dispatches_without_amount(graph):
     """Non-regression : une question qui nomme explicitement une methode/override
     reste dispatchee, independamment de tout montant (PUR-Q2/PR-Q3-style)."""
     q = "Quelle methode ecrase button_confirm sur purchase.order et que fait-elle ?"
-    concept = resolve_business_term(q, graph, llm=None)
+    concept = resolve_business_term(q, graph, llm=None, use_static_aliases=True)
     assert override_chain_targets(q, concept, graph) != []
 
 
@@ -84,5 +84,5 @@ def test_gate_is_what_fixes_pur_q1(monkeypatch, graph):
     import code_intelligence.agent.forced_dispatch_predicates as fp
     monkeypatch.setattr(fp, "_extract_amount", lambda q: 1.0)
     q = _bank_question("PUR-Q1")
-    concept = resolve_business_term(q, graph, llm=None)
+    concept = resolve_business_term(q, graph, llm=None, use_static_aliases=True)
     assert override_chain_targets(q, concept, graph) != []

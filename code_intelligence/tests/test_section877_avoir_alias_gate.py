@@ -25,7 +25,7 @@ def _sal_q5_question() -> str:
 
 
 def _models(question: str):
-    return resolve_business_term(question, None, llm=None).resolved_models
+    return resolve_business_term(question, None, llm=None, use_static_aliases=True).resolved_models
 
 
 def test_sal_q5_no_longer_resolves_account_move():
@@ -67,7 +67,7 @@ def test_plural_avoirs_unchanged(question):
 
 
 def test_savoir_still_not_matched():
-    assert not resolve_business_term("je veux savoir comment faire", None).resolved_models
+    assert not resolve_business_term("je veux savoir comment faire", None, use_static_aliases=True).resolved_models
 
 
 def test_gate_is_what_fixes_sal_q5(monkeypatch):

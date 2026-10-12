@@ -133,7 +133,7 @@ def test_workflow_alias_wins_over_shared_method_symbol():
         "Que se passe-t-il exactement quand on confirme une commande de vente "
         "(action_confirm), et dans quel cas est-elle automatiquement verrouillee (locked) juste apres ?"
     )
-    concept = resolve_business_term(question, graph, llm=None)
+    concept = resolve_business_term(question, graph, llm=None, use_static_aliases=True)
 
     assert concept.resolved_models == ["sale.order"]
 
@@ -150,7 +150,7 @@ def test_unique_button_model_wins_over_generic_commande_alias():
         "Que se passe-t-il quand on clique sur 'Confirm Order' "
         "(button_confirm) pour une commande eligible à l'approbation directe ?"
     )
-    concept = resolve_business_term(question, graph, llm=None)
+    concept = resolve_business_term(question, graph, llm=None, use_static_aliases=True)
     assert concept.resolved_models == ["purchase.order"]
 
 

@@ -14,7 +14,8 @@ import networkx as nx
 
 logger = logging.getLogger(__name__)
 
-from code_intelligence.rules.common import NO_WORKFLOW_TRANSITION_MARKER, NOT_FOUND_MARKER, QueryStatus
+from code_intelligence.rules.common import NO_WORKFLOW_TRANSITION_MARKER, QueryStatus
+from code_intelligence.rules.model_suggestions import model_not_found_message
 from code_intelligence.rules.ontology import tags_for_node_attrs
 from code_intelligence.utils import format_xml_id_citations
 from core.evidence.evidence import Evidence, EvidenceSourceType, make_evidence
@@ -93,7 +94,7 @@ def describe_workflow(
         return WorkflowProcessResult(
             model_name=model_name,
             status=QueryStatus.NOT_FOUND,
-            summary_text=f"Model '{model_name}' {NOT_FOUND_MARKER} (probable typo or missing model)."
+            summary_text=model_not_found_message(G, model_name)
         )
 
     states: Set[str] = set()

@@ -16,11 +16,15 @@ from typing import Mapping, Optional, Sequence
 logger = logging.getLogger(__name__)
 
 
-def _normalize(raw: str) -> Optional[Path]:
+def _normalize(raw: str, base_dir: Optional[Path] = None) -> Optional[Path]:
+    """Absolute root; a relative entry is read from `base_dir` (the directory of odoo.conf), not the CWD."""
     text = raw.strip()
     if not text:
         return None
-    return Path(os.path.expandvars(os.path.expanduser(text))).resolve()
+    path = Path(os.path.expandvars(os.path.expanduser(text)))
+    if base_dir is not None and not path.is_absolute():
+        path = base_dir / path
+    return path.resolve()
 
 
 def read_addons_path(conf_path) -> list[Path]:
@@ -36,7 +40,7 @@ def read_addons_path(conf_path) -> list[Path]:
     except (OSError, configparser.Error) as error:
         logger.warning("Could not read Odoo configuration '%s' (%s).", conf_file, error)
         return []
-    roots = (_normalize(part) for part in raw.replace("\n", ",").split(","))
+    roots = (_normalize(part, conf_file.resolve().parent) for part in raw.replace("\n", ",").split(","))
     return list(dict.fromkeys(root for root in roots if root))
 
 

@@ -79,6 +79,7 @@ from code_intelligence.rules.data_constraints import (
 )
 from code_intelligence.agent.context import _EXECUTION_FAILURE_NOTICE, _CI_TOOL_DISPLAY_NAMES
 from code_intelligence.agent.context import DispatchContext
+from code_intelligence.agent.provenance import source_footer
 
 logger = logging.getLogger(__name__)
 
@@ -348,7 +349,7 @@ def build_final_response(
 
     final_answer = _strip_truncation_marker_for_display(final_answer, source_label="final_answer (synthese)")
 
-    final_answer += "\n\n[Source: Graphe de Connaissances Code Intelligence]"
+    final_answer += "\n\n" + source_footer(ci_evidence_sufficiency)
 
     seen_omitted_keys: set = set()
     deduped_omitted_items = []

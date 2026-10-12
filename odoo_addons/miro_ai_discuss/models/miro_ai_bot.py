@@ -83,6 +83,9 @@ except ImportError:
 
 _logger = logging.getLogger(__name__)
 
+_BULLET_PREFIX_RE = re.compile(r'^[-*]\s+')
+_NUMBERED_PREFIX_RE = re.compile(r'^\d+\.\s+')
+
 
 def generate_jwt_token(payload_dict, secret_key):
     """Génère un jeton JWT HS256 valide en pur Python standard."""
@@ -188,14 +191,14 @@ def markdown_to_html(text: str) -> str:
     # 9. Listes à puces
     def list_repl(match):
         items = match.group(0).strip().splitlines()
-        lis = ''.join(f'<li style="margin-bottom:2px;">{re.sub(r"^[-*]\s+", "", item.strip())}</li>' for item in items if item.strip())
+        lis = ''.join(f'<li style="margin-bottom:2px;">{_BULLET_PREFIX_RE.sub("", item.strip())}</li>' for item in items if item.strip())
         return f'<ul style="padding-left:20px;margin-top:4px;margin-bottom:8px;">{lis}</ul>'
     text = re.sub(r'(?:(?:^|\n)[-*]\s+[^\n]+)+', list_repl, text)
 
     # 10. Listes numérotées
     def num_list_repl(match):
         items = match.group(0).strip().splitlines()
-        lis = ''.join(f'<li style="margin-bottom:2px;">{re.sub(r"^\d+\.\s+", "", item.strip())}</li>' for item in items if item.strip())
+        lis = ''.join(f'<li style="margin-bottom:2px;">{_NUMBERED_PREFIX_RE.sub("", item.strip())}</li>' for item in items if item.strip())
         return f'<ol style="padding-left:20px;margin-top:4px;margin-bottom:8px;">{lis}</ol>'
     text = re.sub(r'(?:(?:^|\n)\d+\.\s+[^\n]+)+', num_list_repl, text)
 

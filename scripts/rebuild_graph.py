@@ -25,10 +25,27 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from code_intelligence.graph.loader import GRAPH_JSON_PATH, get_code_intelligence_graph
 
 
+MIN_SOURCE_COVERAGE = 0.9
+
+
 def runtime_backed(G) -> bool:
     """True when the graph was built from the live Odoo inventory, not the offline fallback."""
     fingerprint = G.graph.get("instance_fingerprint_data") or {}
     return bool(fingerprint.get("runtime_inventory_available"))
+
+
+def source_coverage(G) -> float:
+    """Share of the installed modules whose source code was found in the configured addon roots."""
+    fingerprint = G.graph.get("instance_fingerprint_data") or {}
+    installed = len(fingerprint.get("modules") or ())
+    if not installed:
+        return 1.0
+    return len(fingerprint.get("source_modules") or ()) / installed
+
+
+def missing_roots(G) -> list:
+    fingerprint = G.graph.get("instance_fingerprint_data") or {}
+    return [root for root, available in fingerprint.get("source_availability") or () if not available]
 
 
 def main(argv=None):
@@ -51,6 +68,17 @@ def main(argv=None):
     t0 = time.monotonic()
     G = get_code_intelligence_graph(force_rebuild=True)
     elapsed = time.monotonic() - t0
+
+    if runtime_backed(G) and source_coverage(G) < MIN_SOURCE_COVERAGE and not args.allow_offline:
+        if previous.exists():
+            shutil.copy2(previous, GRAPH_JSON_PATH)
+            logger.error("Previous graph restored from %s.", previous)
+        logger.error(
+            "The new graph holds the source of only %.0f%% of the installed modules (%d nodes); "
+            "addon roots not found: %s. Check addons_path in odoo.conf. Use --allow-offline to keep it anyway.",
+            source_coverage(G) * 100, G.number_of_nodes(), missing_roots(G) or "none",
+        )
+        return 2
 
     if not runtime_backed(G) and not args.allow_offline:
         if previous.exists():

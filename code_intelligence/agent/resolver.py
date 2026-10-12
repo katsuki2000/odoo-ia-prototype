@@ -34,6 +34,7 @@ from .resolution.candidates import (
     _candidate_contexts,
     _deterministic_tiebreak,
 )
+from .resolution.dense_lookup import resolve_dense_retrieval
 from .resolution.exact_mention import resolve_exact_mention
 from .resolution.fuzzy_lookup import resolve_fuzzy_match
 
@@ -44,9 +45,16 @@ def resolve_business_term(
     llm=None,
     *,
     language: Optional[str] = None,
-    use_static_aliases: bool = True,
+    use_static_aliases: bool = False,
 ) -> ResolvedConcept:
-    """Resolve a natural language query into a technical Odoo model/module."""
+    """Resolve a natural language query into a technical Odoo model/module.
+
+    Default pipeline: exact technical mention -> dense retrieval on instance
+    labels -> fuzzy graph match + LLM arbitration.
+
+    Static aliases are off by default. Pass use_static_aliases=True only for
+    backward-compatible evaluation (E1 R0).
+    """
     if not query_text:
         return ResolvedConcept(
             user_term="",
@@ -62,7 +70,12 @@ def resolve_business_term(
     if resolved is not None:
         return resolved
 
-    resolved = resolve_static_alias(clean_query, G, aliases, alias_patterns)
+    if use_static_aliases:
+        resolved = resolve_static_alias(clean_query, G, aliases, alias_patterns)
+        if resolved is not None:
+            return resolved
+
+    resolved = resolve_dense_retrieval(query_text, G, language)
     if resolved is not None:
         return resolved
 
@@ -75,7 +88,7 @@ def resolve_business_term(
         is_resolved=False,
         confidence=0.0,
         source_step="unresolved",
-        reason="No business alias or graph model match found.",
+        reason="No match found in instance labels or graph.",
     )
 
 

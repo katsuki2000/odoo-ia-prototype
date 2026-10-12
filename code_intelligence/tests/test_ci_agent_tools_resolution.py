@@ -27,9 +27,13 @@ def test_resolve_model_param_passes_through_valid_technical_name(sample_graph_wi
     assert ci_agent_tools._resolve_model_param("account.move") == "account.move"
 
 
-def test_resolve_model_param_resolves_business_term_via_static_alias(sample_graph_with_alias_target):
+def test_resolve_model_param_returns_term_unchanged_when_alias_disabled(sample_graph_with_alias_target):
+    # Option A (section 1273): static aliases are off in production.
+    # "avoir" does not resolve without a dense backend in test context;
+    # _resolve_model_param returns the term unchanged so the downstream
+    # tool surfaces a "model not found" message to the LLM.
     ci_agent_tools.set_graph_ref(sample_graph_with_alias_target)
-    assert ci_agent_tools._resolve_model_param("avoir") == "account.move"
+    assert ci_agent_tools._resolve_model_param("avoir") == "avoir"
 
 
 def test_resolve_model_param_resolves_business_term_via_fuzzy(sample_graph_with_alias_target):
@@ -48,11 +52,14 @@ def test_resolve_model_param_leaves_unresolvable_term_unchanged(sample_graph_wit
     assert result == "xyzabc123nonsense"
 
 
-def test_qui_a_acces_a_resolves_business_term_end_to_end(sample_graph_with_alias_target, monkeypatch):
+def test_qui_a_acces_a_passes_exact_technical_name_through(sample_graph_with_alias_target, monkeypatch):
     """
-    End-to-end guard: calling the who_has_access_to tool with a raw business
-    term ("avoir") instead of the technical model name must still work,
-    because _resolve_model_param() runs before _impl() is invoked.
+    J3 structural guard: _resolve_model_param() runs before _impl().
+    Option A (section 1273): static aliases are off in production.
+    When the LLM passes a technical name that exists in the graph, it
+    passes through unchanged. When it passes an unresolvable business
+    term, the tool receives it unchanged and surfaces a model-not-found
+    message -- the LLM can then retry with a candidate name.
     """
     ci_agent_tools.set_graph_ref(sample_graph_with_alias_target)
 
@@ -70,8 +77,7 @@ def test_qui_a_acces_a_resolves_business_term_end_to_end(sample_graph_with_alias
         "code_intelligence.rules.access_evaluator.who_has_access_to", _fake_impl
     )
 
-    ci_agent_tools.who_has_access_to.invoke({"model_name": "avoir", "permission": "read"})
+    ci_agent_tools.who_has_access_to.invoke({"model_name": "account.move", "permission": "read"})
     assert captured["model_name"] == "account.move", (
-        "The tool must call the underlying implementation with the resolved "
-        "technical model name, not the raw business term the LLM supplied."
+        "_resolve_model_param must pass a valid technical name through unchanged."
     )

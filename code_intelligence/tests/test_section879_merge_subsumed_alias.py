@@ -37,13 +37,13 @@ def _bank_question(qid: str) -> str:
 
 
 def test_pur_q1_does_not_pull_sale_order(graph):
-    c = resolve_business_term(_bank_question("PUR-Q1"), graph, llm=None)
+    c = resolve_business_term(_bank_question("PUR-Q1"), graph, llm=None, use_static_aliases=True)
     assert c.resolved_models == ["purchase.order"], c.resolved_models
 
 
 def test_subsumed_bare_commande_not_merged_when_longer_alias_matches(graph):
     c = resolve_business_term(
-        "Qui peut confirmer une commande d'achat dans purchase.order ?", graph, llm=None)
+        "Qui peut confirmer une commande d'achat dans purchase.order ?", graph, llm=None, use_static_aliases=True)
     assert "sale.order" not in c.resolved_models, c.resolved_models
     assert "purchase.order" in c.resolved_models
 
@@ -52,7 +52,7 @@ def test_merge_of_distinct_alias_still_works_stk_q5_style(graph):
     """Non-regression 801-802 : un terme metier DISTINCT (non inclus dans un autre
     alias apparie) est toujours fusionne avec la mention exacte."""
     c = resolve_business_term(
-        "Peut-on voir le numero de serie dans stock.quant ?", graph, llm=None)
+        "Peut-on voir le numero de serie dans stock.quant ?", graph, llm=None, use_static_aliases=True)
     assert "stock.quant" in c.resolved_models
     assert "stock.lot" in c.resolved_models, c.resolved_models
 
@@ -64,5 +64,5 @@ def test_parent_family_alias_is_kept_dc_q1_style(graph):
     create() des classes abstraites parentes)."""
     q = ("Un utilisateur simple (base.group_user) peut-il reellement declencher une purge "
          "de modeles orphelins via l'assistant cleanup.purge.wizard.model ?")
-    c = resolve_business_term(q, graph, llm=None)
+    c = resolve_business_term(q, graph, llm=None, use_static_aliases=True)
     assert c.resolved_models == ["cleanup.purge.wizard.model", "cleanup.purge.wizard"], c.resolved_models

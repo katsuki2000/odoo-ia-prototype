@@ -82,7 +82,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     parser.add_argument(
         "--systems",
         default="R0,R1,R2",
-        help="Comma-separated system ids (default: R0,R1,R2). R4-R5 not implemented yet.",
+        help="Comma-separated system ids (default: R0,R1,R2). R3 and R4 call the embedding backend; R5 not implemented yet.",
     )
     parser.add_argument("--json", action="store_true", help="Print full JSON report")
     args = parser.parse_args(argv)

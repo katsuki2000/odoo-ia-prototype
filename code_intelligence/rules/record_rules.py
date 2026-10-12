@@ -116,7 +116,7 @@ Evaluation engine for Odoo ir.rule record rules against user groups and permissi
 from typing import List, Optional
 import networkx as nx
 
-from code_intelligence.rules.common import NOT_FOUND_MARKER
+from code_intelligence.rules.model_suggestions import model_not_found_message
 from code_intelligence.rules.group_resolver import (
     _expand_implied_user_groups,
     get_group_display_name,
@@ -205,7 +205,7 @@ def evaluate_record_rules(
         return RuleEvaluationResult(
             model_name=model_name,
             user_groups=user_groups or [],
-            summary_text=f"Model '{model_name}' {NOT_FOUND_MARKER}."
+            summary_text=model_not_found_message(G, model_name)
         )
 
     if user_groups is None:

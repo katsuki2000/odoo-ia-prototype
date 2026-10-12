@@ -222,6 +222,7 @@ from typing import Dict, List, Set
 import networkx as nx
 
 from code_intelligence.rules.common import NOT_FOUND_MARKER, QueryStatus
+from code_intelligence.rules.model_suggestions import model_not_found_message
 from code_intelligence.rules.ontology import tags_for_node_attrs
 from core.evidence.evidence import Evidence, EvidenceSourceType, make_evidence
 
@@ -301,7 +302,7 @@ def trace_full_inheritance(
         return InheritanceChainResult(
             model_name=model_name,
             status=QueryStatus.NOT_FOUND,
-            summary_text=f"Model '{model_name}' {NOT_FOUND_MARKER} (probable typo or missing model)."
+            summary_text=model_not_found_message(G, model_name)
         )
 
     extension_parents: Set[str] = set()

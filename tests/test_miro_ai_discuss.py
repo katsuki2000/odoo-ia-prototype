@@ -290,3 +290,12 @@ def test_handle_channel_message_mention_in_public_channel(bot_module, monkeypatc
     assert kwargs["author_id"] == 999
     assert kwargs["parent_id"] == 501
     assert kwargs["partner_ids"] == [15]
+
+
+def test_markdown_lists_strip_their_markers(bot_module):
+    html = bot_module.markdown_to_html("- first\n- second\n\n1. one\n2. two")
+    assert html.count("<li") == 4
+    assert "- first" not in html
+    assert "1. one" not in html
+    assert ">first</li>" in html
+    assert ">two</li>" in html

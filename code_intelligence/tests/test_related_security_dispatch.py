@@ -12,7 +12,7 @@ def test_related_line_deletion_dispatches_order_and_line_models():
         "lignes selon leur etat ?"
     )
     graph = get_code_intelligence_graph()
-    concept = resolve_business_term(question, graph, llm=None)
+    concept = resolve_business_term(question, graph, llm=None, use_static_aliases=True)
 
     assert concept.resolved_models == ["purchase.order"]
     assert security_locks_targets(concept, graph, question) == [
@@ -28,7 +28,7 @@ def test_related_line_constraint_dispatches_order_and_line_models():
         "sur les lignes elles-memes ?"
     )
     graph = get_code_intelligence_graph()
-    concept = resolve_business_term(question, graph, llm=None)
+    concept = resolve_business_term(question, graph, llm=None, use_static_aliases=True)
 
     assert data_constraints_targets(concept, graph, question) == [
         "purchase.order",
@@ -38,7 +38,7 @@ def test_related_line_constraint_dispatches_order_and_line_models():
 
 def test_constraint_dispatch_keeps_single_target_without_related_line_question():
     graph = get_code_intelligence_graph()
-    concept = resolve_business_term("purchase.order", graph, llm=None)
+    concept = resolve_business_term("purchase.order", graph, llm=None, use_static_aliases=True)
 
     assert data_constraints_targets(concept, graph, "Quelles contraintes SQL s'appliquent ?") == [
         "purchase.order",
@@ -47,7 +47,7 @@ def test_constraint_dispatch_keeps_single_target_without_related_line_question()
 
 def test_default_security_dispatch_does_not_expand_beyond_resolved_scope():
     graph = get_code_intelligence_graph()
-    concept = resolve_business_term("purchase order", graph, llm=None)
+    concept = resolve_business_term("purchase order", graph, llm=None, use_static_aliases=True)
 
     targets = security_locks_targets(concept, graph)
     assert len(targets) <= 1

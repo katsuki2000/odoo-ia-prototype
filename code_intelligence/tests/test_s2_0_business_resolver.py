@@ -44,14 +44,14 @@ def mock_graph():
 
 
 def test_s2_0_static_alias_credit_note(mock_graph):
-    res = resolve_business_term("Qui a le permission d'approuver un avoir de 25 000€ ?", mock_graph)
+    res = resolve_business_term("Qui a le permission d'approuver un avoir de 25 000€ ?", mock_graph, use_static_aliases=True)
     assert res.is_resolved is True
     assert res.source_step == "static_alias"
     assert "account.move" in res.resolved_models or "custom_credit_note_approval" in res.resolved_models
 
 
 def test_s2_0_static_alias_purchase_request(mock_graph):
-    res = resolve_business_term("Qui peut valider une demande d'achat de 15000€ ?", mock_graph)
+    res = resolve_business_term("Qui peut valider une demande d'achat de 15000€ ?", mock_graph, use_static_aliases=True)
     assert res.is_resolved is True
     assert res.source_step == "static_alias"
     assert "custom.purchase.request" in res.resolved_models
@@ -64,26 +64,26 @@ def test_s2_0_static_alias_purchase_request_does_not_bundle_purchase_order(mock_
     fact under the forced-dispatch hop budget .
     'demande d'achat' is the literal _description of custom.purchase.request
     itself -- an unambiguous match, not a case needing a second candidate."""
-    res = resolve_business_term("Qui peut valider une demande d'achat de 15000€ ?", mock_graph)
+    res = resolve_business_term("Qui peut valider une demande d'achat de 15000€ ?", mock_graph, use_static_aliases=True)
     assert "purchase.order" not in res.resolved_models
 
 
 def test_s2_0_static_alias_asset_loan(mock_graph):
-    res = resolve_business_term("Comment faire une demande de mise à disposition de matériel ?", mock_graph)
+    res = resolve_business_term("Comment faire une demande de mise à disposition de matériel ?", mock_graph, use_static_aliases=True)
     assert res.is_resolved is True
     assert res.source_step == "static_alias"
     assert "custom.asset.loan" in res.resolved_models
 
 
 def test_s2_0_static_alias_expense(mock_graph):
-    res = resolve_business_term("Qui valide la note de frais dans custom_expense_reimbursement_indirect ?", mock_graph)
+    res = resolve_business_term("Qui valide la note de frais dans custom_expense_reimbursement_indirect ?", mock_graph, use_static_aliases=True)
     assert res.is_resolved is True
     assert res.source_step in ("static_alias", "exact_technical_mention")
     assert "custom.reimbursement.request" in res.resolved_models
 
 
 def test_s2_0_unresolved_concept(mock_graph):
-    res = resolve_business_term("Quelle est la météo à Paris aujourd'hui ?", mock_graph)
+    res = resolve_business_term("Quelle est la météo à Paris aujourd'hui ?", mock_graph, use_static_aliases=True)
     assert res.is_resolved is False
     assert res.source_step == "unresolved"
     assert res.confidence == 0.0
@@ -101,7 +101,7 @@ def test_s2_0_alias_not_shadowed_by_fuzzy_single_token(mock_graph):
     letting 'avoirs' resolve to res.partner (100.0) instead of the
     correct account.move alias.
     """
-    res = resolve_business_term("avoirs", mock_graph)
+    res = resolve_business_term("avoirs", mock_graph, use_static_aliases=True)
     assert res.source_step == "static_alias"
     assert res.resolved_models == ["account.move"]
     assert "res.partner" not in res.resolved_models
@@ -114,7 +114,7 @@ def test_s2_0_alias_word_boundary_respects_token_order(mock_graph):
     words as the 'mise à disposition' alias but in reversed order and
     must NOT resolve via static_alias.
     """
-    res = resolve_business_term("disposition à mise", mock_graph)
+    res = resolve_business_term("disposition à mise", mock_graph, use_static_aliases=True)
     assert res.source_step != "static_alias"
 
 
@@ -128,7 +128,7 @@ def test_s2_0_alias_matches_nfd_decomposed_input(mock_graph):
     """
     nfd_query = unicodedata.normalize("NFD", "mise à disposition de matériel")
     assert nfd_query != "mise à disposition de matériel"  # sanity check: genuinely different bytes
-    res = resolve_business_term(nfd_query, mock_graph)
+    res = resolve_business_term(nfd_query, mock_graph, use_static_aliases=True)
     assert res.is_resolved is True
     assert res.source_step == "static_alias"
     assert "custom.asset.loan" in res.resolved_models
@@ -203,7 +203,7 @@ def test_s2_0_no_llm_call_when_top_candidate_is_clear(mock_graph):
         raise AssertionError("LLM should not be invoked when resolution is unambiguous")
 
     fake_llm = type("Blocker", (), {"invoke": _should_not_be_called})()
-    res = resolve_business_term("avoirs", mock_graph, llm=fake_llm)
+    res = resolve_business_term("avoirs", mock_graph, llm=fake_llm, use_static_aliases=True)
     assert res.source_step == "static_alias"
 
 def _graph_with_models(*models):
@@ -216,7 +216,7 @@ def _graph_with_models(*models):
 def test_alias_to_models_absent_from_loaded_graph_is_not_resolved():
     graph = _graph_with_models("purchase.order", "account.move")
 
-    result = resolve_business_term("comment je fais une demande d'achat sur l'ERP?", graph)
+    result = resolve_business_term("comment je fais une demande d'achat sur l'ERP?", graph, use_static_aliases=True)
 
     assert result.source_step != "static_alias"
     assert "purchase.request" not in result.resolved_models
@@ -226,7 +226,7 @@ def test_alias_to_models_absent_from_loaded_graph_is_not_resolved():
 def test_absent_alias_is_left_out_of_the_resolved_terms():
     graph = _graph_with_models("purchase.order")
 
-    result = resolve_business_term("demande d'achat et commande d'achat", graph)
+    result = resolve_business_term("demande d'achat et commande d'achat", graph, use_static_aliases=True)
 
     assert result.source_step == "static_alias"
     assert result.resolved_models == ["purchase.order"]
@@ -234,14 +234,14 @@ def test_absent_alias_is_left_out_of_the_resolved_terms():
 
 
 def test_alias_targets_are_kept_when_no_graph_is_loaded():
-    result = resolve_business_term("demande d'achat", None)
+    result = resolve_business_term("demande d'achat", None, use_static_aliases=True)
 
     assert result.source_step == "static_alias"
     assert result.resolved_models == ["purchase.request", "custom.purchase.request"]
 
 
 def test_alias_targets_are_kept_when_graph_is_empty():
-    result = resolve_business_term("demande d'achat", nx.DiGraph())
+    result = resolve_business_term("demande d'achat", nx.DiGraph(), use_static_aliases=True)
 
     assert result.source_step == "static_alias"
     assert result.resolved_models == ["purchase.request", "custom.purchase.request"]
@@ -250,7 +250,7 @@ def test_alias_targets_are_kept_when_graph_is_empty():
 def test_exact_mention_merge_drops_alias_targets_absent_from_graph():
     graph = _graph_with_models("sale.order", "purchase.order")
 
-    result = resolve_business_term("quel est le workflow de sale.order pour une demande d'achat ?", graph)
+    result = resolve_business_term("quel est le workflow de sale.order pour une demande d'achat ?", graph, use_static_aliases=True)
 
     assert result.source_step == "exact_technical_mention"
     assert result.resolved_models == ["sale.order"]
@@ -259,7 +259,7 @@ def test_exact_mention_merge_drops_alias_targets_absent_from_graph():
 def test_exact_mention_merge_keeps_alias_targets_present_in_graph():
     graph = _graph_with_models("sale.order", "purchase.order")
 
-    result = resolve_business_term("workflow de sale.order et d'une commande d'achat", graph)
+    result = resolve_business_term("workflow de sale.order et d'une commande d'achat", graph, use_static_aliases=True)
 
     assert result.source_step == "exact_technical_mention"
     assert result.resolved_models == ["sale.order", "purchase.order"]

@@ -124,13 +124,12 @@ def test_resolved_concept_reused_false_on_first_turn_no_last_concept():
 
 
 def test_resolved_concept_reused_false_when_current_question_resolves_itself():
-    """"mise a disposition" resolves via a static alias on its own (the
-    exact DOC-08 term,  section 62) -- must not be flagged as
-    reused even though a last_resolved_concept is offered, since this
-    turn's own text is what produced the resolution."""
+    """When the current question resolves to a model on its own (via exact
+    technical mention, which is always active under Option A, section 1273),
+    the previous turn's resolved_concept must not be reused."""
     last_concept = dataclasses.asdict(_resolved(user_term="autre chose", models=["hr.leave"]))
     result = route(_route_state(
-        "Quel est le delai de traitement pour une demande de mise a disposition ?",
+        "Qui peut acceder au modele custom.asset.loan ?",
         last_resolved_concept=last_concept,
     ))
     assert result["resolved_concept_reused"] is False

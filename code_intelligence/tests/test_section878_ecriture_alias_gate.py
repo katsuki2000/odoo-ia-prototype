@@ -19,7 +19,7 @@ _BANK = Path(__file__).resolve().parents[2] / "tests" / "native_n1_question_bank
 
 
 def _models(question: str):
-    return resolve_business_term(question, None, llm=None).resolved_models
+    return resolve_business_term(question, None, llm=None, use_static_aliases=True).resolved_models
 
 
 def _bank_question(qid: str) -> str:

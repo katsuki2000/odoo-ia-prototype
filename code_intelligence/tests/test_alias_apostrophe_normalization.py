@@ -16,14 +16,14 @@ def graph():
 @pytest.mark.parametrize("apostrophe", ["'", "\u2019", "\u2018", "\u02bc"])
 def test_apostrophe_variants_resolve_the_same_alias(graph, apostrophe):
     question = f"comment confirmer une commande d{apostrophe}achat ?"
-    concept = resolve_business_term(question, graph, llm=None)
+    concept = resolve_business_term(question, graph, llm=None, use_static_aliases=True)
     assert concept.is_resolved is True
     assert concept.resolved_models == ["purchase.order"]
     assert concept.source_step == "static_alias"
 
 
 def test_shorter_alias_still_applies_without_the_longer_phrase(graph):
-    concept = resolve_business_term("comment confirmer une commande ?", graph, llm=None)
+    concept = resolve_business_term("comment confirmer une commande ?", graph, llm=None, use_static_aliases=True)
     assert concept.resolved_models == ["sale.order"]
 
 

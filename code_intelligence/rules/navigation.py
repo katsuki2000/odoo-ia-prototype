@@ -173,7 +173,8 @@ from dataclasses import dataclass, field
 from typing import Any, List, Optional
 import networkx as nx
 
-from code_intelligence.rules.common import NOT_FOUND_MARKER, QueryStatus
+from code_intelligence.rules.common import QueryStatus
+from code_intelligence.rules.model_suggestions import model_not_found_message
 from code_intelligence.utils import format_file_link, format_xml_id_citations
 from core.evidence.evidence import Evidence, EvidenceSourceType, make_evidence
 
@@ -298,7 +299,7 @@ def describe_navigation_path(
             model_name=model_name,
             button_identifier=button_label_or_name,
             status=QueryStatus.NOT_FOUND,
-            summary_text=f"Model '{model_name}' {NOT_FOUND_MARKER}.",
+            summary_text=model_not_found_message(G, model_name),
         )
 
     button_result: Optional[ButtonExecutionPathResult] = None
