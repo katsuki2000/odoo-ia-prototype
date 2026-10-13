@@ -90,7 +90,7 @@ def _labels(data: dict, language: Optional[str]) -> list[str]:
     return list(dict.fromkeys(label for label in labels if label))
 
 
-def _object_ref(node_id: str, data: dict) -> Optional[str]:
+def object_ref_of(node_id: str, data: dict) -> Optional[str]:
     node_type = data.get("node_type")
     if node_type == "Model":
         name = str(data.get("name") or "").strip()
@@ -191,7 +191,7 @@ def build_node_cards(
         node_type = data.get("node_type")
         if node_type not in allowed:
             continue
-        object_ref = _object_ref(str(node_id), data)
+        object_ref = object_ref_of(str(node_id), data)
         if not object_ref:
             continue
         labels = _labels(data, language)

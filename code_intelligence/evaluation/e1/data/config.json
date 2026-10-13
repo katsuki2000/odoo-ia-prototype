@@ -1,7 +1,11 @@
 {
   "experiment_id": "E1",
   "protocol_section": 1227,
-  "resolution_k": [1, 5, 10],
+  "resolution_k": [
+    1,
+    5,
+    10
+  ],
   "primary_k": 5,
   "rrf_constant": 60,
   "rrf_weight_bm25": 1.0,
@@ -13,7 +17,15 @@
   "dense_ambiguity_score_ratio": 0.85,
   "dense_min_score": 0.0,
   "dense_batch_size": 64,
-  "card_node_types": ["Model", "Menu", "Field", "Method", "Group", "Rule", "Button"],
+  "card_node_types": [
+    "Model",
+    "Menu",
+    "Field",
+    "Method",
+    "Group",
+    "Rule",
+    "Button"
+  ],
   "expansion_depth": 1,
   "expansion_edge_types": [
     "DEFINED_IN",
@@ -28,7 +40,6 @@
       "C_recall_at_5_R4_minus_R1_families_a_c_min_points": 10,
       "C_recall_at_5_R4_family_b_min": 0.9,
       "C_silent_false_R4_le_R1": true,
-      "held_out_recall_at_5_R4_ge_R0_minus_points": 2,
       "no_candidate_absent_from_graph": true
     },
     "D2_extend_beyond_models": {
@@ -37,8 +48,68 @@
     "D3_expansion": {
       "C_evidence_completeness_R5_min": 0.8,
       "C_within_context_budget_min_fraction": 0.95
+    },
+    "R6": {
+      "thresholds_fixed": true,
+      "fixed_in_section": 1290,
+      "max_silent_false_vs_R4": 0.0,
+      "min_correct_decision_non_ambiguous": 0.8,
+      "min_strict_clarification_ambiguous_and_absent": 1.0,
+      "denominators": {
+        "silent_false": "all cases of C (n=8); R4 measured on the same cases in the same run",
+        "correct_decision": "abstention_rule none and every expected object is a model (n=5); non_model cases are excluded because R6 returns models only, reported without threshold",
+        "strict_clarification": "abstention_rule must_clarify (n=2)"
+      },
+      "definitions": {
+        "silent_false": "harness definition: resolved, first candidate outside the expected objects, ambiguity not declared",
+        "correct_decision": "arbitration status CHOSEN and the chosen model is in the expected objects",
+        "strict_clarification": "no resolution and arbitration status NONE, AMBIGUOUS or NO_CANDIDATES; INVALID and LLM_ERROR count as failures",
+        "verdict": "R6 satisfies its criteria only if the three conditions hold together; no threshold is changed after an R6 result"
+      }
     }
   },
-  "systems": ["R0", "R1", "R2", "R3", "R4", "R5"],
-  "status": "config_frozen_for_harness_bootstrap_not_yet_tuned_on_C"
+  "systems": [
+    "R0",
+    "R1",
+    "R2",
+    "R3",
+    "R4",
+    "R5",
+    "R6"
+  ],
+  "status": "config_frozen_for_harness_bootstrap_not_yet_tuned_on_C",
+  "arbitration": {
+    "top_k": 5,
+    "temperature": 0.0,
+    "contract": [
+      "candidate_identifier",
+      "NONE",
+      "AMBIGU"
+    ],
+    "invalid_output": "no_resolution"
+  },
+  "metrics": {
+    "recall_at_k_projected_on_parent_model": true,
+    "raw_recall_kept": true
+  },
+  "amendments": [
+    {
+      "section": 1288,
+      "date": "2026-10-13",
+      "changes": [
+        "system R6 added (R4 candidates projected on models, closed-list LLM arbitration)",
+        "D1 clause held_out_recall_at_5_R4_ge_R0_minus_points removed (decision of pmm, section 1278)",
+        "decision metrics of M1c: recall@k projected on the parent model, raw recall kept",
+        "R6 thresholds not fixed: R6 refuses to compute until decision_criteria.R6.thresholds_fixed is true"
+      ]
+    },
+    {
+      "section": 1290,
+      "date": "2026-10-13",
+      "changes": [
+        "R6 thresholds fixed before any R6 computation: silent false <= R4 (all 8 cases), correct decision >= 0.8 (5 non-ambiguous model cases), strict clarification = 1.0 (2 must_clarify cases)",
+        "denominators and definitions of the three indicators recorded under decision_criteria.R6"
+      ]
+    }
+  ]
 }

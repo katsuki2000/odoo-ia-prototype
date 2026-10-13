@@ -1,23 +1,22 @@
-corrige tout ce qui ne respecte pas ces règles
-faut que le projet soit scalable et interoperable : pas de "ça marche sur ma machine" -- aucun chemin absolu, ID numerique (ir.model.data/xml_id a la place), ou config specifique a un poste code en dur ; toute valeur machine-dependante passe par .env/variable d'env avec un fallback explicite (skip propre) si absente. cf. todo/contexte.txt sections 217 (chemins corpus) et 219 (IDs res.groups) pour deux cas reels de violation de cette regle
-plan est le plan à suivre, ça doit etre  une feuille de rout, doit pas etre pollué, le changement devrait etrer rare
+corrige tout ce qui ne respecte pas ces règles quand tu vois un fichier
+faut que le projet soit scalable et interoperable : pas de "ça marche sur ma machine" -- aucun chemin absolu, ID numerique (ir.model.data/xml_id a la place), ou config specifique a un poste code en dur ; toute valeur machine-dependante passe par .env/variable d'env ou config avec un fallback explicite (skip propre) si absente.
+architecture est l'objectif à atteindre 
 pas de fix chirurgical, voir la root cause
-ne remplis pas de commentaire dans le code , écris que si c necessaire et sois bref, tu as deja deja contexte et readme pour les details
+ne remplis pas le code de commentaires, écris que si c necessaire et sois bref (je ne veux pas voir de d'après contexte, ou un truc du genre), tu as deja contexte et readme pour les details
 code in english
 don't use emojis
 think first
 clean code (très important)
-find best algorithm
-make the work like it was built by an human. no "plagiat", at least reformulate first
+find best algorithm (avec moins de complexité, et plus court que possible)
+make the work understooden easily by anyone (très important, je vais relire le code à un moment donné)
 put all installed packages in requirements(we work in venv)
-put everything you change in todo/contexte.txt
+put everything you change in todo/contexte.txt, and read the last lines before anything
 
 meme convention de nommage(snake_case pour les fichiers et PascalCase pour les classes, camel case pour les variables)
 DRY (Don't Repeat Yourself)
-respect d'architecture LLM recommandé 
-a clean architecture with subpackages and packages
-fait que la transition vers local soit facile en modifiant qu'un seul fichier (.env par exemple)
+utilise des trucs universels et standard , n'invente pas, au pire dis moi qu ça sort de l'ordinaire 
+fait que la transition vers aws soit facile en modifiant qu'un seul fichier (config/settings.py par exemple)
 
-> lorsque plusieurs oprions s"ouvrent , il faut se demander : est ce que là l'ia pourra repondre correctement sur n'importe quel instance odoo 17?
+> lorsque plusieurs options s"ouvrent , il faut se demander : est ce que là l'ia pourra repondre correctement sur n'importe quel instance odoo 17?
 
-focus addon Odoo : `miro_ai` seulement. Ne pas modifier, tester, ni prioriser `miro_ai_discuss` sauf mandat explicite de pmm ; les correctifs de securite et d'architecture se font d'abord sur `miro_ai` (controleurs, settings, ACL, client backend).
+focus addon Odoo : `miro_ai` seulement. Ne pas modifier, tester, ni prioriser `miro_ai_discuss` 

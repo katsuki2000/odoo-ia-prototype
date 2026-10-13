@@ -1,6 +1,6 @@
 """Resolution step: fuzzy matching on graph labels with deterministic tie-break and bounded LLM arbitration."""
 
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 
 from ..matching import ResolvedConcept, _fuzzy_match_graph
 from .arbitration import _llm_arbitrate
@@ -19,10 +19,23 @@ def _describe(fuzzy_results: List[Tuple[str, float]]) -> str:
     return ", ".join(f"{model} ({score:.0f})" for model, score in fuzzy_results)
 
 
-def _diagnostics(shortlist: ArbitrationShortlist) -> Dict[str, str]:
-    if shortlist.semantic_status is None:
-        return {}
-    return {"semantic_retrieval": shortlist.semantic_status.value}
+AMBIGUOUS_CANDIDATES_KEY = "ambiguous_candidates"
+_CANDIDATE_SEPARATOR = ","
+
+
+def _diagnostics(shortlist: ArbitrationShortlist, ambiguous_models: Sequence[str] = ()) -> Dict[str, str]:
+    diagnostics: Dict[str, str] = {}
+    if shortlist.semantic_status is not None:
+        diagnostics["semantic_retrieval"] = shortlist.semantic_status.value
+    if ambiguous_models:
+        diagnostics[AMBIGUOUS_CANDIDATES_KEY] = _CANDIDATE_SEPARATOR.join(ambiguous_models)
+    return diagnostics
+
+
+def ambiguous_candidates_of(concept: ResolvedConcept) -> List[str]:
+    """Tied fuzzy candidates an unresolved concept could not choose between."""
+    published = concept.diagnostics.get(AMBIGUOUS_CANDIDATES_KEY, "")
+    return [model for model in published.split(_CANDIDATE_SEPARATOR) if model]
 
 
 def _resolve_strict_candidates(
@@ -98,7 +111,7 @@ def _resolve_strict_candidates(
             f"({_describe(fuzzy_results)}) "
             f"and LLM arbitration did not select one."
         ),
-        diagnostics=_diagnostics(shortlist),
+        diagnostics=_diagnostics(shortlist, [model for model, _score in fuzzy_results]),
     )
 
 

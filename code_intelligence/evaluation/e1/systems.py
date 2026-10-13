@@ -9,6 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Optional
 
+from code_intelligence.agent.resolution.fuzzy_lookup import ambiguous_candidates_of
 from code_intelligence.agent.resolver import resolve_business_term
 
 from .bm25_index import Bm25CardIndex
@@ -32,7 +33,7 @@ class SystemOutput:
 
 
 def _from_resolved(system_id: str, concept) -> SystemOutput:
-    models = tuple(concept.resolved_models or ())
+    models = tuple(concept.resolved_models or ()) or tuple(ambiguous_candidates_of(concept))
     ambiguous = (not concept.is_resolved and len(models) >= 2) or (
         "ambig" in (concept.reason or "").casefold()
     )
@@ -220,6 +221,7 @@ def run_system(
     language: Optional[str] = None,
     config: Optional[dict] = None,
     embedding_function=None,
+    llm=None,
 ) -> SystemOutput:
     if system_id == "R0":
         return run_r0(case, graph, language=language)
@@ -236,6 +238,13 @@ def run_system(
 
         return run_r4(
             case, graph, language=language, config=config, embedding_function=embedding_function,
+        )
+    if system_id == "R6":
+        from .arbitrated import run_r6
+
+        return run_r6(
+            case, graph, language=language, config=config,
+            embedding_function=embedding_function, llm=llm,
         )
     if system_id == "R5":
         raise NotImplementedError(
