@@ -306,6 +306,7 @@ def _requester_satisfies_required_groups(
 
 _METHOD_PREFIXES = ("action_", "button_")
 _MAX_NEAR_BUTTONS = 5
+_MAX_LISTED_BUTTONS = 12
 
 
 def _strip_method_prefix(name: str) -> str:
@@ -331,17 +332,48 @@ def _is_near_button_match(target: str, method_name: str, label: str) -> bool:
     )
 
 
-def _format_near_buttons(near_buttons: List[Tuple[str, str]]) -> str:
+def _format_near_buttons(near_buttons: List[Tuple[str, str]], limit: int = _MAX_NEAR_BUTTONS) -> str:
     labels_by_method: dict = {}
     for method, label in near_buttons:
         labels = labels_by_method.setdefault(method, [])
         if label and label not in labels:
             labels.append(label)
     parts = []
-    for method, labels in list(labels_by_method.items())[:_MAX_NEAR_BUTTONS]:
+    for method, labels in list(labels_by_method.items())[:limit]:
         shown = ", ".join(f"'{label}'" for label in labels)
         parts.append(f"'{method}()' (label: {shown})" if labels else f"'{method}()'")
     return ", ".join(parts)
+
+
+def _transition_records_of(G: nx.DiGraph, model_name: str):
+    for u, v, edge_data in G.edges(data=True):
+        if edge_data.get("edge_type") != "TRANSITIONS_VIA":
+            continue
+        origin_node = G.nodes.get(u, {})
+        origin_model = origin_node.get("model") or u.removeprefix("state:").rsplit(".", 1)[0]
+        if origin_model != model_name:
+            continue
+        for record in workflow_transition_records(edge_data):
+            yield u, v, record
+
+
+def _button_edges_of(G: nx.DiGraph, model_name: str):
+    model_node_id = f"model:{model_name}"
+    if model_node_id not in G:
+        return
+    for _, _, edge_data in G.out_edges(model_node_id, data=True):
+        if edge_data.get("edge_type") == "HAS_BUTTON":
+            yield edge_data
+
+
+def _declared_buttons(G: nx.DiGraph, model_name: str) -> List[Tuple[str, str]]:
+    records = [record for _, _, record in _transition_records_of(G, model_name)]
+    records.extend(_button_edges_of(G, model_name))
+    pairs = {
+        ((record.get("method_name") or "").strip(), (record.get("label_bouton") or "").strip())
+        for record in records
+    }
+    return sorted(pair for pair in pairs if pair[0])
 
 
 def button_execution_path(
@@ -373,19 +405,13 @@ def button_execution_path(
     candidate_transitions = []
     near_buttons: List[Tuple[str, str]] = []
     target_clean = button_label_or_name.strip().lower()
-    for u, v, edge_data in G.edges(data=True):
-        if edge_data.get("edge_type") == "TRANSITIONS_VIA":
-            origin_node = G.nodes.get(u, {})
-            origin_model = origin_node.get("model") or u.removeprefix("state:").rsplit(".", 1)[0]
-            if origin_model != model_name:
-                continue
-            for record in workflow_transition_records(edge_data):
-                m_name = (record.get("method_name") or "").strip()
-                btn_label = (record.get("label_bouton") or "").strip()
-                if _is_exact_button_match(target_clean, m_name.lower(), btn_label.lower()):
-                    candidate_transitions.append((m_name, u, v, record))
-                elif _is_near_button_match(target_clean, m_name.lower(), btn_label.lower()):
-                    near_buttons.append((m_name, btn_label))
+    for u, v, record in _transition_records_of(G, model_name):
+        m_name = (record.get("method_name") or "").strip()
+        btn_label = (record.get("label_bouton") or "").strip()
+        if _is_exact_button_match(target_clean, m_name.lower(), btn_label.lower()):
+            candidate_transitions.append((m_name, u, v, record))
+        elif _is_near_button_match(target_clean, m_name.lower(), btn_label.lower()):
+            near_buttons.append((m_name, btn_label))
 
     if candidate_transitions:
         candidate_methods = sorted({item[0] for item in candidate_transitions if item[0]})
@@ -418,36 +444,33 @@ def button_execution_path(
 
     invisible_condition = ""
     if not method_name:
-        model_node_id = f"model:{model_name}"
-        if model_node_id in G:
-            candidate_buttons = []
-            for _, _, edge_data in G.out_edges(model_node_id, data=True):
-                if edge_data.get("edge_type") == "HAS_BUTTON":
-                    m_name = (edge_data.get("method_name") or "").strip()
-                    btn_label = (edge_data.get("label_bouton") or "").strip()
-                    if _is_exact_button_match(target_clean, m_name.lower(), btn_label.lower()):
-                        candidate_buttons.append((m_name, edge_data))
-                    elif _is_near_button_match(target_clean, m_name.lower(), btn_label.lower()):
-                        near_buttons.append((m_name, btn_label))
-            if candidate_buttons:
-                candidate_methods = sorted({
-                    item[0] for item in candidate_buttons if item[0]
-                })
-                if len(candidate_methods) > 1:
-                    return ButtonExecutionPathResult(
-                        button_identifier=button_label_or_name,
-                        model_name=model_name,
-                        summary_text=(
-                            f"Button '{button_label_or_name}' on '{model_name}' is ambiguous: "
-                            f"multiple exact XML button declarations map to methods "
-                            f"{', '.join(candidate_methods)}. No method was selected."
-                        ),
-                    )
-                method_name, edge_data = candidate_buttons[0]
-                groups_req = edge_data.get("groupe_requis", [])
-                if isinstance(groups_req, list):
-                    required_groups.update(groups_req)
-                invisible_condition = edge_data.get("invisible", "")
+        candidate_buttons = []
+        for edge_data in _button_edges_of(G, model_name):
+            m_name = (edge_data.get("method_name") or "").strip()
+            btn_label = (edge_data.get("label_bouton") or "").strip()
+            if _is_exact_button_match(target_clean, m_name.lower(), btn_label.lower()):
+                candidate_buttons.append((m_name, edge_data))
+            elif _is_near_button_match(target_clean, m_name.lower(), btn_label.lower()):
+                near_buttons.append((m_name, btn_label))
+        if candidate_buttons:
+            candidate_methods = sorted({
+                item[0] for item in candidate_buttons if item[0]
+            })
+            if len(candidate_methods) > 1:
+                return ButtonExecutionPathResult(
+                    button_identifier=button_label_or_name,
+                    model_name=model_name,
+                    summary_text=(
+                        f"Button '{button_label_or_name}' on '{model_name}' is ambiguous: "
+                        f"multiple exact XML button declarations map to methods "
+                        f"{', '.join(candidate_methods)}. No method was selected."
+                    ),
+                )
+            method_name, edge_data = candidate_buttons[0]
+            groups_req = edge_data.get("groupe_requis", [])
+            if isinstance(groups_req, list):
+                required_groups.update(groups_req)
+            invisible_condition = edge_data.get("invisible", "")
 
     button_identified = bool(method_name)
 
@@ -498,6 +521,16 @@ def button_execution_path(
                     f"call again with one of these exact names only if it is the one asked about): "
                     f"{_format_near_buttons(near_buttons)}."
                 )
+            else:
+                declared_buttons = _declared_buttons(G, model_name)
+                if declared_buttons:
+                    summary += (
+                        " No declared button is close to that name; button labels are stored as declared "
+                        "in the instance, possibly in another language than the question. Declared buttons "
+                        "on this model (nothing is asserted about them; call again with the exact name of "
+                        "the one the question is about, or use describe_workflow for the process): "
+                        f"{_format_near_buttons(declared_buttons, _MAX_LISTED_BUTTONS)}."
+                    )
     else:
         method_link_str = f"Defined: {method_exists}"
         if method_exists and method_node_id in G:

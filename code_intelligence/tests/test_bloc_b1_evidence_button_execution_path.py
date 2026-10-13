@@ -233,3 +233,62 @@ def test_near_buttons_sharing_a_method_are_listed_once_with_all_their_labels():
 
     assert res.summary_text.count("'action_create_invoice()'") == 1
     assert "(label: 'Create Bill', 'Create Bills')" in res.summary_text
+
+
+def test_a_button_named_in_another_language_gets_the_declared_buttons_listed():
+    G = _graph_with_buttons(
+        "hr.leave",
+        [("action_approve", "Approve"), ("action_validate", "Validate"), ("action_refuse", "Refuse")],
+    )
+
+    res = button_execution_path(G, "Valider", "hr.leave")
+
+    assert "was not found in the indexed knowledge graph" in res.summary_text
+    assert "Declared buttons on this model" in res.summary_text
+    for method in ("action_approve", "action_validate", "action_refuse"):
+        assert f"'{method}()'" in res.summary_text
+    assert "Closest declared buttons" not in res.summary_text
+    assert not res.origin_states and not res.target_state
+
+
+def test_declared_buttons_include_xml_button_declarations():
+    G = nx.DiGraph()
+    G.add_node("model:hr.leave")
+    G.add_node("view:hr.leave.form")
+    G.add_edge(
+        "model:hr.leave", "view:hr.leave.form",
+        edge_type="HAS_BUTTON", method_name="action_confirm", label_bouton="Confirm", groupe_requis=[],
+    )
+
+    res = button_execution_path(G, "Valider", "hr.leave")
+
+    assert "'action_confirm()' (label: 'Confirm')" in res.summary_text
+
+
+def test_close_matches_replace_the_full_declared_list():
+    G = _graph_with_buttons("sale.order", [("action_confirm", "Confirm Order"), ("action_cancel", "Cancel")])
+
+    res = button_execution_path(G, "confirm order now", "sale.order")
+
+    assert "Closest declared buttons" in res.summary_text
+    assert "Declared buttons on this model" not in res.summary_text
+
+
+def test_the_declared_button_list_is_sorted_and_capped():
+    G = _graph_with_buttons("hr.leave", [(f"action_step_{index:02d}", f"Step {index}") for index in range(20)])
+
+    res = button_execution_path(G, "Valider", "hr.leave")
+
+    assert res.summary_text.count("()' (label:") == 12
+    assert "'action_step_00()'" in res.summary_text
+    assert "'action_step_19()'" not in res.summary_text
+
+
+def test_a_model_without_declared_buttons_gets_no_list():
+    G = nx.DiGraph()
+    G.add_node("model:hr.leave")
+
+    res = button_execution_path(G, "Valider", "hr.leave")
+
+    assert "was not found in the indexed knowledge graph" in res.summary_text
+    assert "Declared buttons on this model" not in res.summary_text

@@ -127,7 +127,12 @@ _WORKFLOW_QUESTION_PATTERN = re.compile(
     # trigger-action phrasing for a state/stage change, distinct from the
     # "etat"/"transition" vocabulary above (see todo/contexte.txt section
     # 764/765: 4/5 native N1 workflow questions use this idiom instead).
-    r"\bque\s+se\s+passe[-\s]t[-\s]il\b.{0,150}?\b(?:clique|clic|confirme|valide|poste|atteint|marqu[eé]e?|passe\s+[aà])\b",
+    r"\bque\s+se\s+passe[-\s]t[-\s]il\b.{0,150}?\b(?:clique|clic|confirme|valide|poste|atteint|marqu[eé]e?|passe\s+[aà])\b|"
+    # "Comment se passe/se déroule/fonctionne ... la validation/approbation/
+    # confirmation" -- process-description idiom (section 1275: "comment se
+    # passe la validation des congés" was not triggering describe_workflow).
+    r"\bcomment\s+(?:se\s+)?(?:passe|deroule|d[eé]roule|fonctionne)\s"
+    r".{0,80}?\b(?:valid|appro[buv]|confirm)",
     re.IGNORECASE | re.DOTALL,
 )
 
