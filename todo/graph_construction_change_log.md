@@ -16,6 +16,8 @@ Tests : 13 tests du rapport passes nativement avec la bibliotheque standard et 4
 
 ### Lot 2 : cibles de modeles et integration au build
 
+Commit : `553c2d2327c5b16bfe13290a5b00c30522bdc134`, suivi du correctif de publication `313a3abaeae7de432c03b9eb670b78e7fb2f5058`.
+
 `code_intelligence/graph/builder.py` : heritage, delegation et comodels relationnels utilisent le registre partage de resolution; une cible absente ou ambigue est conservee comme reference non resolue avec module/fichier, sans creation automatique d'un modele fantome. Les cibles declarees plus tard dans l'ordre de construction restent liees. `_inherit` du meme modele (extension en place valide en Odoo) ne produit plus de boucle EXTENDS; la declaration brute et son role d'extension sont conserves. Un rapport d'integrite est stocke dans les metadonnees a la fin du build, apres les references non resolues. Anciennes descriptions de chemins/history commentary retirees; autres heuristiques de tags, fusion de champs et metadonnees de methodes non redesignees.
 
 `code_intelligence/graph/version.py` : schema 11 -> 12 pour ce changement de contenu. Les tests de version consultes utilisent la constante; aucun numero de schema fige a migrer dans ce fichier de test.
@@ -29,3 +31,9 @@ Le filtrage des modules installes et l'ordre des racines Odoo ne sont pas change
 A executer dans le venv du projet : tests du rapport et du constructeur, suite offline complete, reconstruction du graphe sur l'instance, puis `python scripts/check_graph_integrity.py <chemin_du_graphe>` et lecture des constats. Le rapport n'affirme pas que des references hors corpus sont des erreurs de l'ERP. Pas de reconstruction du graphe reel, appel LLM, embedding ou RPC ici.
 
 Fichiers : `code_intelligence/graph/integrity_report.py`, `scripts/check_graph_integrity.py`, `tests/test_graph_integrity_report.py`, `code_intelligence/graph/builder.py`, `code_intelligence/graph/version.py`, `tests/test_graph_builder_model_targets.py`, `todo/graph_construction_change_log.md`. Copie complete de `todo/contexte.txt` preparee localement avec ajout de cette section, historique conserve.
+
+### Verification de publication
+
+La comparaison des blobs distants a detecte un argument `registry` omis dans le relais des menus lors de la copie du contenu publie. Le commit `313a3abaeae7de432c03b9eb670b78e7fb2f5058` le remet; le blob final du constructeur (`b35198cae5e7670c8a99a55642ce5fcbca2da1f7`) correspond exactement a la copie testee. Les blobs distants du rapport et de la version correspondent aussi aux fichiers locaux. Le run isole final reste a 18 tests passes. `main` est toujours `981a7258abb63dcb2df08afea8b0371747e73ddc`.
+
+L'integralite des 454798 octets du journal initial a ete verifiee par son blob Git, puis preservee octet pour octet dans la copie complete de `contexte.txt` fournie avec la section ajoutee. Sa reintegration dans le fichier principal distant reste a faire; l'annexe n'est pas une mise a jour silencieuse du principal.
