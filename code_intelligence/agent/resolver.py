@@ -50,8 +50,8 @@ def resolve_business_term(
 ) -> ResolvedConcept:
     """Resolve a natural language query into a technical Odoo model/module.
 
-    Default pipeline: exact technical mention -> dense retrieval on instance
-    labels -> fuzzy graph match + LLM arbitration.
+    Exact mentions are resolved first. Dense retrieval proposes candidates;
+    lexical matching and bounded arbitration resolve disagreements.
 
     Static aliases are off by default. Pass use_static_aliases=True only for
     backward-compatible evaluation (E1 R0).
@@ -77,10 +77,10 @@ def resolve_business_term(
             return resolved
 
     dense = resolve_dense_retrieval(query_text, G, language)
-    if dense.concept is not None:
-        return dense.concept
-
-    resolved = resolve_fuzzy_match(query_text, clean_query, G, llm, language, use_static_aliases)
+    resolved = resolve_fuzzy_match(
+        query_text, clean_query, G, llm, language, use_static_aliases,
+        semantic_candidates=dense.candidates,
+    )
     if resolved is None:
         resolved = ResolvedConcept(
             user_term=query_text,
