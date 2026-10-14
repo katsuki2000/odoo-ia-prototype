@@ -2282,3 +2282,12 @@ status=complete answered=10/10 invalidated_attempts=0 report=captures/chat_serie
 **Limites de validation** : modifications poussées sur la branche GitHub. Les tests n'ont pas été exécutés dans un environnement Python par cette session ; aucune réussite de test ni amélioration des métriques n'est revendiquée. Avant toute fusion, lancer les tests ciblés du résolveur, puis le protocole E1 gelé et la suite hors intégration. Le changement corrige le raccourci où la recherche dense décidait seule ; il ne prouve pas encore que le rappel des candidats est suffisant sur toutes les instances Odoo 17.
 
 **Non fait** : aucune fusion dans `main`, aucun changement de comportement dans l'instance en exécution, aucun run E1/E2.
+
+
+### Complément à la section 1338 — revue après poussée
+
+Une revue du code après la première poussée a révélé un cas non couvert : lorsque la récupération dense fournissait des candidats mais que la recherche floue stricte ne trouvait rien, `resolve_fuzzy_match` envoyait la résolution vers le fallback élargi sans transmettre ces candidats. La récupération sémantique utile pouvait donc être perdue, avec éventuellement une nouvelle récupération dans le fallback.
+
+Correction ajoutée sur `fix/resolver-hybrid-retrieval` : si la recherche lexicale stricte ne renvoie aucun candidat mais que la récupération dense en a fourni, les candidats sémantiques sont maintenant soumis à l'arbitrage borné ; en l'absence de sélection valide, le résolveur s'abstient et consigne les candidats. Deux tests couvrent ce chemin, avec et sans LLM.
+
+**Validation toujours en attente** : cette correction et ces tests n'ont pas été exécutés localement dans cette session. Ce complément ne constitue pas une preuve que le résolveur est correct globalement ; la CI et l'évaluation E1 doivent encore être exécutées.
