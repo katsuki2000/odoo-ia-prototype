@@ -241,3 +241,60 @@ def test_resolver_abstains_when_retrievals_disagree_without_llm(monkeypatch):
     assert result.source_step == "unresolved"
     assert "purchase.order" in result.diagnostics["ambiguous_candidates"]
     assert "sale.order" in result.diagnostics["ambiguous_candidates"]
+
+
+def test_semantic_candidates_are_used_when_lexical_search_is_empty(monkeypatch):
+    import networkx as nx
+    from code_intelligence.agent import resolver
+    from code_intelligence.agent.resolution import fuzzy_lookup
+    from code_intelligence.agent.resolution.arbitration import ARBITRATION_SELECTED, ArbitrationTrace
+
+    graph = nx.DiGraph()
+    graph.add_node("model:hr.leave", node_type="Model", name="hr.leave", description="Leave requests")
+
+    monkeypatch.setattr(
+        resolver,
+        "resolve_dense_retrieval",
+        lambda *args, **kwargs: DenseResolution(
+            SemanticRetrievalStatus.SUCCESS, ("hr.leave",),
+        ),
+    )
+    monkeypatch.setattr(fuzzy_lookup, "_fuzzy_match_graph", lambda *args, **kwargs: [])
+    monkeypatch.setattr(
+        fuzzy_lookup,
+        "_llm_arbitrate",
+        lambda query, candidates, llm, contexts=None: ArbitrationTrace(
+            "hr.leave", ARBITRATION_SELECTED, "hr.leave",
+        ),
+    )
+
+    result = resolver.resolve_business_term("demande d'absence", graph, llm=object())
+
+    assert result.is_resolved
+    assert result.resolved_models == ["hr.leave"]
+    assert result.source_step == "semantic_candidate_arbitration"
+
+
+def test_semantic_candidates_are_not_silently_discarded_without_llm(monkeypatch):
+    import networkx as nx
+    from code_intelligence.agent import resolver
+    from code_intelligence.agent.resolution import fuzzy_lookup
+
+    graph = nx.DiGraph()
+    graph.add_node("model:hr.leave", node_type="Model", name="hr.leave", description="Leave requests")
+
+    monkeypatch.setattr(
+        resolver,
+        "resolve_dense_retrieval",
+        lambda *args, **kwargs: DenseResolution(
+            SemanticRetrievalStatus.SUCCESS, ("hr.leave",),
+        ),
+    )
+    monkeypatch.setattr(fuzzy_lookup, "_fuzzy_match_graph", lambda *args, **kwargs: [])
+
+    result = resolver.resolve_business_term("demande d'absence", graph, llm=None)
+
+    assert not result.is_resolved
+    assert result.source_step == "unresolved"
+    assert result.diagnostics["ambiguous_candidates"] == "hr.leave"
+    assert result.diagnostics["arbitration_outcome"] == "no_llm"
