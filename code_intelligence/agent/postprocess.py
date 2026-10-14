@@ -287,11 +287,7 @@ def build_final_response(
     from code_intelligence.agent.dispatch_guards import (
         verify_citations, annotate_unverifiable_citations, substitute_or_strip_code_blocks,
     )
-    # todo/contexte.txt section 870, todo/plan_4.1_citation_as_constraint.md:
-    # runs BEFORE verify_citations -- a substituted block is now genuinely
-    # covered by its own nearby citation, a stripped block is no longer a
-    # fenced code block at all, so neither re-triggers uncited_code_blocks.
-    final_answer = substitute_or_strip_code_blocks(final_answer)
+    final_answer = substitute_or_strip_code_blocks(final_answer, tool_observations)
     # Section 1027: strip fabricated file:// links whose path contains the
     # prompt's example placeholder '...' -- the LLM sometimes copies them
     # verbatim. Removing before verify_citations prevents a cascading

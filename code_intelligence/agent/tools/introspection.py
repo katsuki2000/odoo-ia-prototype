@@ -240,6 +240,11 @@ def read_precise_source_code(
     include_citation: bool = False,
 ) -> str:
     """Targeted source code reader with max line limit safeguard and sensitive pattern flagging."""
+    from code_intelligence.agent.source_boundary import validate_source_range
+
+    rangeError = validate_source_range(line_start, line_end, max_lines)
+    if rangeError:
+        return rangeError
     from code_intelligence.utils import SENSITIVE_BYPASS_MARKER
     from code_intelligence.rules.server_actions import (
         _SUDO_PATTERN,

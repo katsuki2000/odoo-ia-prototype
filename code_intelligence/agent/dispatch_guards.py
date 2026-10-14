@@ -1,5 +1,5 @@
 """
-code_intelligence/ci_agent_node/sourcing_guard.py
+code_intelligence/agent/dispatch_guards.py
 
 Mechanical verification that every citation in the agent's final answer corresponds
 to citations produced in the raw tool output for the question.
@@ -218,15 +218,6 @@ def annotate_unverifiable_citations(final_answer: str, result: SourcingVerificat
     )
 
 
-# todo/plan_4.1_citation_as_constraint.md / todo/contexte.txt sections 870-873:
-# citation-as-constraint. verify_citations() above only WARNS when a code
-# block presenting real Python syntax has no nearby scoped citation --
-# the fabricated block itself stays visible to the user. This substitutes
-# it with the real source read from disk or strips it entirely -- never
-# left displayed as fabricated text, warned or not. A block naming a
-# def/class is only backed by the cited ranges overlapping that definition
-# in the real file: a citation pointing at another definition strips the
-# block instead of substituting unrelated real code (section 872).
 _STRIPPED_CODE_BLOCK_NOTE = (
     "*(bloc de code omis : non retrouvé verbatim dans les observations "
     "produites pour cette question -- voir la/les citation(s) file:// "
@@ -280,66 +271,13 @@ def _unbacked_definition_note(names: List[str], ranges: List[Tuple[int, int]]) -
     )
 
 
-def substitute_or_strip_code_blocks(final_answer: str) -> str:
-    """Replace every fenced code block that presents real Python syntax
-    (see _PYTHON_CODE_MARKERS_PATTERN) with the actual source lines read
-    from disk, or strip it, depending on the scoped citation(s) found
-    nearby (same proximity window as verify_citations' uncited_code_blocks
-    check). Meant to run BEFORE verify_citations in the post-processing
-    pipeline: a substituted block is now genuinely covered by its own
-    nearby citation and will not be re-flagged; a stripped block is no
-    longer a fenced code block at all."""
-    from code_intelligence.agent.tools.introspection import read_precise_source_code
+def substitute_or_strip_code_blocks(
+    final_answer: str, tool_observations: Optional[List[str]] = None,
+) -> str:
+    """Keep code only when it occurs in the authorized observations."""
+    from code_intelligence.agent.source_boundary import enforce_source_blocks
 
-    _log = logging.getLogger(__name__)
-
-    def _replace(match: "re.Match") -> str:
-        block = match.group(1)
-        if not _PYTHON_CODE_MARKERS_PATTERN.search(block):
-            return match.group(0)
-
-        citations = _nearby_scoped_citations(final_answer, match.start(), match.end())
-        # The regex path group never includes the leading '/' consumed by
-        # the literal 'file:///' prefix -- restore it before touching disk.
-        paths = {("/" + path) for path, _s, _e in citations}
-
-        if len(paths) != 1:
-            _log.warning(
-                "Node [code_intelligence_agent]: stripping fabricated-looking "
-                "code block (%s) -- see todo/contexte.txt section 870, "
-                "todo/plan_4.1_citation_as_constraint.md.",
-                "no nearby citation" if not citations else "citations span multiple files",
-            )
-            return _STRIPPED_CODE_BLOCK_NOTE
-
-        path = next(iter(paths))
-        cited = [(s, e) for _p, s, e in citations]
-        names = _defined_names(block)
-        backing = _ranges_backing_definitions(Path(path), names, cited) if names else cited
-        if backing is None:
-            _log.warning(
-                "Node [code_intelligence_agent]: stripping code block -- cited "
-                "range(s) do not back definition(s) %s. See todo/contexte.txt "
-                "sections 872-873.",
-                names,
-            )
-            return _unbacked_definition_note(names, cited)
-
-        line_start = min(s for s, _e in backing)
-        line_end = max(e for _s, e in backing)
-        real_snippet = read_precise_source_code(path, line_start, line_end)
-        if real_snippet.startswith("Error"):
-            _log.warning(
-                "Node [code_intelligence_agent]: stripping fabricated-looking "
-                "code block -- read_precise_source_code failed (%s). See "
-                "todo/contexte.txt section 870, todo/plan_4.1_citation_as_constraint.md.",
-                real_snippet,
-            )
-            return _STRIPPED_CODE_BLOCK_NOTE
-
-        return f"```\n{real_snippet}\n```"
-
-    return _CODE_FENCE_PATTERN.sub(_replace, final_answer)
+    return enforce_source_blocks(final_answer, tool_observations or ())
 
 # ── Dispatch Utilities ──────────────────────────────────────────────────
 

@@ -1,18 +1,9 @@
 """
 code_intelligence/tests/test_section917_read_source_code_citation.py
 
-todo/contexte.txt sections 915/916/917: read_precise_source_code() never
-produced its own file:// citation, so verify_citations() (dispatch_guards.py)
-could never confirm a citation whose SOLE source is a raw read_source_code
-call -- structurally, even when perfectly exact (sections 911/914/915).
-
-Fix: an opt-in include_citation flag. The LLM-facing read_source_code
-@tool sets it True (introspection.py) so its own observation is now
-self-grounding. substitute_or_strip_code_blocks (dispatch_guards.py,
-sections 870/872/873) reuses the base function internally to rebuild a
-fenced code block's CONTENT from a citation given elsewhere -- it must
-keep the default (False), or the citation line would be injected inside
-the code fence it rebuilds.
+read_precise_source_code exposes an opt-in scoped file citation. The
+LLM-facing tool enables it so returned source is mechanically verifiable.
+Final code rendering uses authorized observations, not a fresh disk read.
 """
 
 import pytest
@@ -41,9 +32,7 @@ def _graph():
 
 class TestIncludeCitationFlag:
     def test_default_is_no_citation_unchanged(self):
-        """The base function's default behaviour (no flag passed) must be
-        byte-identical to before this section -- internal callers
-        (substitute_or_strip_code_blocks) rely on this."""
+        """Without the opt-in flag, the reader emits only numbered source."""
         out = read_precise_source_code(PURCHASE_ORDER_FP, 960, 968)
         assert not out.startswith("Source:")
         assert out.startswith(" 960 |") or out.lstrip().startswith("960 |")
@@ -61,9 +50,7 @@ class TestIncludeCitationFlag:
 
 class TestCitationIsMechanicallyVerifiable:
     def test_verify_citations_confirms_a_read_source_code_only_citation(self):
-        """Section 915's whole point: before this fix, this exact scenario
-        (citation's ONLY grounding is a raw read_source_code call) could
-        never be confirmed, even when perfectly accurate."""
+        """A scoped citation returned by the reader must be verifiable."""
         raw_tool_output = read_source_code.invoke(
             {"filepath": PURCHASE_ORDER_FP, "line_start": 960, "line_end": 968}
         )
@@ -77,8 +64,7 @@ class TestCitationIsMechanicallyVerifiable:
         assert result.unverified_scoped_citations == []
 
     def test_narrower_citation_within_the_read_range_still_verified(self):
-        """_scoped_covered is a subset check -- a citation narrower than
-        the full read range must still verify."""
+        """A subset of a read range remains a verifiable citation."""
         raw_tool_output = read_source_code.invoke(
             {"filepath": PURCHASE_ORDER_FP, "line_start": 955, "line_end": 970}
         )
@@ -89,8 +75,7 @@ class TestCitationIsMechanicallyVerifiable:
         assert result.is_fully_verified
 
     def test_unrelated_citation_still_flagged(self):
-        """A citation pointing somewhere never actually read must still be
-        rejected -- the fix must not make verification vacuously permissive."""
+        """A citation absent from the observations must stay unverified."""
         raw_tool_output = read_source_code.invoke(
             {"filepath": PURCHASE_ORDER_FP, "line_start": 960, "line_end": 968}
         )
@@ -102,10 +87,7 @@ class TestCitationIsMechanicallyVerifiable:
 
 class TestSubstituteOrStripCodeBlocksUnaffected:
     def test_substitution_does_not_embed_a_citation_line_in_the_fence(self):
-        """Regression guard: substitute_or_strip_code_blocks calls
-        read_precise_source_code internally to rebuild a code fence's
-        content from a citation given nearby -- that content must stay pure
-        code, never gain a 'Source: ...' line at its head."""
+        """A generated citation alone cannot authorize code reconstruction."""
         answer = (
             "Voici la méthode:\n"
             f"[purchase_order.py:L960-L968](file://{PURCHASE_ORDER_FP}#L960-L968)\n"
@@ -116,4 +98,5 @@ class TestSubstituteOrStripCodeBlocksUnaffected:
         )
         fixed = substitute_or_strip_code_blocks(answer)
         assert "Source:" not in fixed
-        assert "_approval_allowed" in fixed
+        assert "```" not in fixed
+        assert "bloc de code omis" in fixed
