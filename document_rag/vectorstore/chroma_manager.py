@@ -3,34 +3,26 @@
 from __future__ import annotations
 
 import hashlib
-import json
 import logging
 import os
-import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 from dotenv import load_dotenv
 
 _ROOT = Path(__file__).resolve().parent.parent.parent
 load_dotenv(_ROOT / ".env")
 
 import chromadb
-from chromadb.api.types import Documents, EmbeddingFunction, Embeddings
+from chromadb.api.types import EmbeddingFunction
 
 from config.settings import CHROMA_PATH, DOCS_COLLECTION_NAME
-from document_rag.vectorstore.embedding_functions import (
-    CustomNomicEmbeddingFunction,
-    LocalNomicEmbeddingFunction,
-    LocalServerEmbeddingFunction,
-    resolve_embedding_function,
-)
+from document_rag.vectorstore.embedding_functions import resolve_embedding_function
 from document_rag.vectorstore.chroma_helpers import (
     clean_metadata,
     format_query_results,
     get_chroma_client,
     get_or_create_collection,
     add_documents,
-    query_collection,
     reset_collection,
     get_collection_stats,
 )

@@ -3,61 +3,25 @@
 import logging
 import os
 import time
-from typing import Any, List, Optional
+from typing import List, Optional
 import requests
 from chromadb.api.types import Documents, EmbeddingFunction, Embeddings
 from core.llm.local_only import assert_local_endpoint
 
 logger = logging.getLogger(__name__)
 
-
-class CustomNomicEmbeddingFunction(EmbeddingFunction):
-    """Cloud-based embedding function for Nomic Atlas REST API."""
-
-    def __init__(
-        self,
-        model: str = "nomic-embed-text-v1.5",
-        api_key: Optional[str] = None,
-        task_type: str = "search_document",
-    ):
-        self.model = model
-        self.api_key = api_key
-        self.task_type = task_type
-        self.endpoint = "https://api-atlas.nomic.ai/v1/embedding/text"
-
-    def name(self) -> str:
-        return self.model
-
-    def __call__(self, input: Documents) -> Embeddings:
-        response = requests.post(
-            self.endpoint,
-            headers={"Authorization": f"Bearer {self.api_key}"},
-            json={
-                "texts": list(input),
-                "model": self.model,
-                "task_type": self.task_type,
-            },
-            timeout=30.0,
-        )
-        response.raise_for_status()
-        data = response.json()
-        return data["embeddings"]
-
-
 class LocalSentenceTransformerEmbeddingFunction(EmbeddingFunction):
     """Local embedding function via sentence-transformers.
 
-    Supports any HuggingFace model (e.g. nomic-ai/nomic-embed-text-v1.5, BAAI/bge-m3,
-    all-mpnet-base-v2) or a local weights directory path configured via EMBEDDING_MODEL.
-    Requires modern CPU with AVX2 or GPU.
+    Supports any HuggingFace model (e.g. BAAI/bge-m3, all-mpnet-base-v2) or a local
+    weights directory path configured via EMBEDDING_MODEL. Requires modern CPU with AVX2 or GPU.
     """
 
     _models = {}
 
-    def __init__(self, model_name: Optional[str] = None, task_type: str = "search_document"):
+    def __init__(self, model_name: Optional[str] = None):
         from config.settings import EMBEDDING_MODEL_NAME
         self.model_name = model_name or EMBEDDING_MODEL_NAME
-        self.task_type = task_type
         if self.model_name not in LocalSentenceTransformerEmbeddingFunction._models:
             os.environ.setdefault("OMP_NUM_THREADS", "2")
             os.environ.setdefault("MKL_NUM_THREADS", "2")
@@ -67,9 +31,8 @@ class LocalSentenceTransformerEmbeddingFunction(EmbeddingFunction):
 
             torch.set_num_threads(2)
             logger.info("Loading local sentence-transformers model '%s'...", self.model_name)
-            trust_remote = "nomic" in self.model_name.lower()
             LocalSentenceTransformerEmbeddingFunction._models[self.model_name] = SentenceTransformer(
-                self.model_name, trust_remote_code=trust_remote
+                self.model_name
             )
 
     def name(self) -> str:
@@ -77,15 +40,7 @@ class LocalSentenceTransformerEmbeddingFunction(EmbeddingFunction):
 
     def __call__(self, input: Documents) -> Embeddings:
         model = LocalSentenceTransformerEmbeddingFunction._models[self.model_name]
-        texts = list(input)
-        if "nomic" in self.model_name.lower():
-            prefix = "search_query: " if self.task_type == "search_query" else "search_document: "
-            texts = [f"{prefix}{text}" for text in texts]
-        embeddings = model.encode(texts, normalize_embeddings=True)
-        return embeddings.tolist()
-
-
-LocalNomicEmbeddingFunction = LocalSentenceTransformerEmbeddingFunction
+        return model.encode(list(input), normalize_embeddings=True).tolist()
 
 
 class LocalServerEmbeddingFunction(EmbeddingFunction):
@@ -172,7 +127,7 @@ class LocalServerEmbeddingFunction(EmbeddingFunction):
 
 def resolve_embedding_function(
     backend: Optional[str] = None,
-    embedding_model: str = "nomic-embed-text-v1.5",
+    embedding_model: Optional[str] = None,
 ) -> Optional[EmbeddingFunction]:
     """Resolve and instantiate embedding function based on EMBEDDING_BACKEND.
 
@@ -180,8 +135,7 @@ def resolve_embedding_function(
     - 'local_light' (default): Returns None for ChromaDB default ONNX all-MiniLM-L6-v2
       (384 dimensions, safe on non-AVX machines).
     - 'local_server' / 'ollama' / 'openai_compatible': Calls local HTTP embedding server.
-    - 'nomic_api': Calls cloud Nomic Atlas REST API.
-    - 'local': Local PyTorch nomic-embed-text-v1.5 (requires AVX2).
+    - 'local': Local sentence-transformers model (requires AVX2).
     """
     resolved_backend = (backend or os.environ.get("EMBEDDING_BACKEND", "local_light")).lower().strip()
 
@@ -203,17 +157,6 @@ def resolve_embedding_function(
             model=LOCAL_EMBEDDING_MODEL,
             api_key=LOCAL_EMBEDDING_API_KEY,
         )
-
-    if resolved_backend == "nomic_api":
-        assert_local_provider("nomic_api")
-        nomic_api_key = os.environ.get("NOMIC_API_KEY")
-        if nomic_api_key:
-            return CustomNomicEmbeddingFunction(
-                model=embedding_model,
-                api_key=nomic_api_key,
-            )
-        logger.warning("EMBEDDING_BACKEND=nomic_api but NOMIC_API_KEY is missing. Falling back to local_light.")
-        return None
 
     if resolved_backend == "local":
         try:

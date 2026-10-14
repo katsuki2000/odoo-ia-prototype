@@ -45,21 +45,10 @@ def _embedding_name(embedding_function) -> str:
 
 
 def resolve_e1_embedding_function():
-    """Same backend env as the production semantic resolver (BGE via tunnel when configured)."""
-    backend = os.getenv("RESOLVER_SEMANTIC_EMBEDDING_BACKEND") or os.getenv(
-        "EMBEDDING_BACKEND", "local_light",
-    )
-    model = os.getenv("RESOLVER_SEMANTIC_EMBEDDING_MODEL") or os.getenv(
-        "EMBEDDING_MODEL", "nomic-embed-text-v1.5",
-    )
-    from document_rag.vectorstore.embedding_functions import resolve_embedding_function
+    """Same embedding provider as the production semantic resolver."""
+    from code_intelligence.agent.semantic_retrieval import build_semantic_embedding_function
 
-    embedding_function = resolve_embedding_function(backend=backend, embedding_model=model)
-    if embedding_function is None and backend == "local_light":
-        from chromadb.utils.embedding_functions import DefaultEmbeddingFunction
-
-        embedding_function = DefaultEmbeddingFunction()
-    return embedding_function
+    return build_semantic_embedding_function()
 
 
 def _cache_dir() -> Optional[str]:

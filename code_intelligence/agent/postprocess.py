@@ -10,6 +10,7 @@ assembly.
 import logging
 import re
 import time
+from dataclasses import asdict
 from typing import List, Optional
 
 from core.schemas import AssistantResponse, SourceReference, OmittedForAuthorization
@@ -417,5 +418,6 @@ def build_final_response(
         "timing": timing,
         "raw_tool_output": "\n\n".join(tool_observations),
         "evidence_status": evidence_status,
+        "loop_resolved_concept": asdict(concept),
         "ci_evidence_sufficiency": ci_evidence_sufficiency.to_display_dict(),
     }

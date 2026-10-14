@@ -100,6 +100,10 @@ class AssistantResponse(BaseModel):
         default=None,
         description="Sourcing evidence status (RESOLU/NON_RESOLU/CONFLIT)",
     )
+    loop_resolved_concept: Optional[dict] = Field(
+        default=None,
+        description="Concept the code_intelligence_agent loop actually used (LLM arbitration, rehydration, model cap)",
+    )
     investigation_plan: Optional[dict] = Field(
         default=None,
         description="Structured investigation plan produced before tool execution (Bloc P1)",

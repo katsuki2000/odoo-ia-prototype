@@ -32,9 +32,9 @@ LOCAL_LLM_API_KEY  = os.getenv("LOCAL_LLM_API_KEY", "ollama")
 
 # ── Embeddings ─────────────────────────────────────────
 EMBEDDING_BACKEND        = os.getenv("EMBEDDING_BACKEND", "local_light").lower()
-EMBEDDING_MODEL_NAME     = os.getenv("EMBEDDING_MODEL", "nomic-ai/nomic-embed-text-v1.5")
+EMBEDDING_MODEL_NAME     = os.getenv("EMBEDDING_MODEL", "BAAI/bge-m3")
 LOCAL_EMBEDDING_BASE_URL = os.getenv("LOCAL_EMBEDDING_BASE_URL", f"{OLLAMA_HOST}/v1")
-LOCAL_EMBEDDING_MODEL    = os.getenv("LOCAL_EMBEDDING_MODEL", "all-minilm:latest")
+LOCAL_EMBEDDING_MODEL    = os.getenv("LOCAL_EMBEDDING_MODEL", "bge-m3:latest")
 LOCAL_EMBEDDING_API_KEY  = os.getenv("LOCAL_EMBEDDING_API_KEY", "ollama")
 
 # Per-question tool-call budget of the code intelligence agent (default 20).

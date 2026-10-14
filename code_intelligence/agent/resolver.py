@@ -37,6 +37,7 @@ from .resolution.candidates import (
 from .resolution.dense_lookup import resolve_dense_retrieval
 from .resolution.exact_mention import resolve_exact_mention
 from .resolution.fuzzy_lookup import resolve_fuzzy_match
+from .semantic_retrieval import SEMANTIC_STATUS_DIAGNOSTIC_KEY
 
 
 def resolve_business_term(
@@ -75,21 +76,22 @@ def resolve_business_term(
         if resolved is not None:
             return resolved
 
-    resolved = resolve_dense_retrieval(query_text, G, language)
-    if resolved is not None:
-        return resolved
+    dense = resolve_dense_retrieval(query_text, G, language)
+    if dense.concept is not None:
+        return dense.concept
 
     resolved = resolve_fuzzy_match(query_text, clean_query, G, llm, language, use_static_aliases)
-    if resolved is not None:
-        return resolved
-
-    return ResolvedConcept(
-        user_term=query_text,
-        is_resolved=False,
-        confidence=0.0,
-        source_step="unresolved",
-        reason="No match found in instance labels or graph.",
-    )
+    if resolved is None:
+        resolved = ResolvedConcept(
+            user_term=query_text,
+            is_resolved=False,
+            confidence=0.0,
+            source_step="unresolved",
+            reason="No match found in instance labels or graph.",
+        )
+    if dense.status is not None:
+        resolved.diagnostics.setdefault(SEMANTIC_STATUS_DIAGNOSTIC_KEY, dense.status.value)
+    return resolved
 
 
 __all__ = [

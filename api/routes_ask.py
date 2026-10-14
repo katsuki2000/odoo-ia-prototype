@@ -137,6 +137,7 @@ def ask_question_v1(
             route=getattr(response, "route", None),
             evidence_status=getattr(response, "evidence_status", None),
             resolved_concept=getattr(response, "resolved_concept", None),
+            loop_resolved_concept=getattr(response, "loop_resolved_concept", None),
             omitted_for_authorization=omitted_list,
             investigation_plan=getattr(response, "investigation_plan", None),
             evidence_dossier=evidence_dossier_list,

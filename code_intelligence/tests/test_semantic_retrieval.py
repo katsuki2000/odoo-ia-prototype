@@ -9,6 +9,15 @@ from code_intelligence.agent.semantic_retrieval import (
     rank_semantic_model_candidates,
     retrieve_semantic_model_candidates,
 )
+from code_intelligence.agent import semantic_retrieval as semantic_module
+from code_intelligence.agent.resolution.arbitration import ARBITRATION_SELECTED, ArbitrationTrace
+
+
+@pytest.fixture(autouse=True)
+def _fresh_query_embedding_cache():
+    semantic_module._QUERY_EMBEDDING_CACHE.clear()
+    yield
+    semantic_module._QUERY_EMBEDDING_CACHE.clear()
 
 
 class FakeEmbeddingFunction:
@@ -131,12 +140,12 @@ def test_semantic_candidates_reach_arbitration_when_widened_fuzzy_is_empty(monke
     monkeypatch.setattr(fuzzy_lookup, "_fuzzy_match_graph", lambda *a, **k: [])
     monkeypatch.setattr(
         candidates, "retrieve_semantic_model_candidates",
-        lambda q, g, lang: SemanticRetrieval(["sale.order"], SemanticRetrievalStatus.SUCCESS),
+        lambda q, g, lang, limit=None: SemanticRetrieval(["sale.order"], SemanticRetrievalStatus.SUCCESS),
     )
 
     def _arbiter(query, candidates, llm, contexts=None):
         seen["candidates"] = list(candidates)
-        return candidates[0]
+        return ArbitrationTrace(candidates[0], ARBITRATION_SELECTED, candidates[0])
 
     monkeypatch.setattr(fuzzy_lookup, "_llm_arbitrate", _arbiter)
 
@@ -156,7 +165,7 @@ def test_empty_candidate_list_does_not_call_the_arbiter(monkeypatch):
     monkeypatch.setattr(fuzzy_lookup, "_fuzzy_match_graph", lambda *a, **k: [])
     monkeypatch.setattr(
         candidates, "retrieve_semantic_model_candidates",
-        lambda q, g, lang: SemanticRetrieval([], SemanticRetrievalStatus.NO_CANDIDATES),
+        lambda q, g, lang, limit=None: SemanticRetrieval([], SemanticRetrievalStatus.NO_CANDIDATES),
     )
     monkeypatch.setattr(
         fuzzy_lookup, "_llm_arbitrate",
@@ -242,7 +251,7 @@ def test_resolver_publishes_semantic_status_when_arbitration_selects_nothing(mon
     monkeypatch.setattr(fuzzy_lookup, "_fuzzy_match_graph", lambda *a, **k: [])
     monkeypatch.setattr(
         candidates, "retrieve_semantic_model_candidates",
-        lambda q, g, lang: SemanticRetrieval([], SemanticRetrievalStatus.ERROR),
+        lambda q, g, lang, limit=None: SemanticRetrieval([], SemanticRetrievalStatus.ERROR),
     )
 
     result = resolver.resolve_business_term(
@@ -266,12 +275,15 @@ class RecordingEmbeddingFunction(FakeEmbeddingFunction):
         return super().__call__(texts)
 
     def embedded_documents(self):
-        return [text for call in self.calls[:-1] for text in call]
+        return [text for call in self.calls if call != [RANKED_QUESTION] for text in call]
+
+
+RANKED_QUESTION = "Ou gerer une commande client ?"
 
 
 def _rank(graph, embedding_function, cache_dir):
     return rank_semantic_model_candidates(
-        "Ou gerer une commande client ?", graph, embedding_function, language="fr", cache_dir=str(cache_dir),
+        RANKED_QUESTION, graph, embedding_function, language="fr", cache_dir=str(cache_dir),
     )
 
 
@@ -317,3 +329,104 @@ def test_ranking_without_cache_dir_leaves_the_disk_untouched(tmp_path):
     )
 
     assert list(tmp_path.iterdir()) == []
+
+
+def test_embedding_function_receives_no_forced_model_when_unset(monkeypatch):
+    from code_intelligence.agent.semantic_retrieval import build_semantic_embedding_function
+
+    captured = {}
+    monkeypatch.delenv("RESOLVER_SEMANTIC_EMBEDDING_MODEL", raising=False)
+    monkeypatch.delenv("EMBEDDING_MODEL", raising=False)
+    monkeypatch.setenv("RESOLVER_SEMANTIC_EMBEDDING_BACKEND", "local_server")
+    monkeypatch.setattr(
+        "document_rag.vectorstore.embedding_functions.resolve_embedding_function",
+        lambda **kwargs: captured.update(kwargs) or FakeEmbeddingFunction(),
+    )
+
+    assert isinstance(build_semantic_embedding_function(), FakeEmbeddingFunction)
+    assert captured == {"backend": "local_server", "embedding_model": None}
+
+
+def test_resolver_model_override_wins_over_global_embedding_model(monkeypatch):
+    from code_intelligence.agent.semantic_retrieval import build_semantic_embedding_function
+
+    captured = {}
+    monkeypatch.setenv("RESOLVER_SEMANTIC_EMBEDDING_MODEL", "resolver-model")
+    monkeypatch.setenv("EMBEDDING_MODEL", "global-model")
+    monkeypatch.setattr(
+        "document_rag.vectorstore.embedding_functions.resolve_embedding_function",
+        lambda **kwargs: captured.update(kwargs) or FakeEmbeddingFunction(),
+    )
+
+    build_semantic_embedding_function()
+
+    assert captured["embedding_model"] == "resolver-model"
+
+
+def test_query_embedding_is_computed_once_for_repeated_ranking():
+    import networkx as nx
+
+    module = semantic_module
+
+    class CountingEmbedding:
+        def __init__(self):
+            self.query_calls = 0
+
+        def name(self):
+            return "counting_embedding_1325"
+
+        def __call__(self, texts):
+            if len(texts) == 1 and texts[0] == "question unique 1325":
+                self.query_calls += 1
+            return [[1.0, float(len(text) % 3)] for text in texts]
+
+    graph = nx.DiGraph()
+    graph.add_node("model:sale.order", node_type="Model", description="Sales Order")
+    embedding = CountingEmbedding()
+    module.rank_semantic_model_candidates_scored("question unique 1325", graph, embedding)
+    module.rank_semantic_model_candidates("question unique 1325", graph, embedding)
+    assert embedding.query_calls == 1
+
+
+def test_unresolved_reason_names_the_missing_llm():
+    from code_intelligence.agent.resolution.fuzzy_lookup import _arbitration_outcome
+
+    assert "did not select one" in _arbitration_outcome(object())
+    assert "no LLM was available" in _arbitration_outcome(None)
+
+
+def test_shortlist_asks_for_twenty_semantic_candidates_and_keeps_a_model_ranked_seventeenth(monkeypatch):
+    from code_intelligence.agent.resolution import candidates
+
+    semantic_models = [f"dense.model_{rank}" for rank in range(1, 21)]
+    semantic_models[16] = "hr.leave"
+    requested = {}
+
+    def _retrieve(query, graph, language, limit=None):
+        requested["limit"] = limit
+        return SemanticRetrieval(semantic_models[:limit], SemanticRetrievalStatus.SUCCESS)
+
+    monkeypatch.setattr(candidates, "retrieve_semantic_model_candidates", _retrieve)
+    fuzzy = [(f"fuzzy.model_{index}", 90.0 - index) for index in range(8)]
+
+    shortlist = candidates.build_arbitration_shortlist("validation des conges", None, "fr", False, True, fuzzy)
+
+    assert requested["limit"] == candidates.SHORTLIST_SEMANTIC_LIMIT == 20
+    assert "hr.leave" in shortlist.models
+    assert shortlist.models[: candidates.SHORTLIST_FUZZY_LIMIT] == [f"fuzzy.model_{index}" for index in range(5)]
+    assert len(shortlist.models) == candidates.SHORTLIST_FUZZY_LIMIT + candidates.SHORTLIST_SEMANTIC_LIMIT
+
+
+def test_shortlist_without_semantic_candidates_is_the_unchanged_fuzzy_list(monkeypatch):
+    from code_intelligence.agent.resolution import candidates
+
+    monkeypatch.setattr(
+        candidates, "retrieve_semantic_model_candidates",
+        lambda q, g, lang, limit=None: SemanticRetrieval([], SemanticRetrievalStatus.ERROR),
+    )
+    fuzzy = [(f"fuzzy.model_{index}", 90.0 - index) for index in range(12)]
+
+    shortlist = candidates.build_arbitration_shortlist("question", None, "fr", False, True, fuzzy)
+
+    assert shortlist.models == [model for model, _score in fuzzy]
+    assert shortlist.semantic_status == SemanticRetrievalStatus.ERROR

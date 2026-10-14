@@ -3,7 +3,8 @@
 from typing import Dict, List, Optional, Sequence, Tuple
 
 from ..matching import ResolvedConcept, _fuzzy_match_graph
-from .arbitration import _llm_arbitrate
+from ..semantic_retrieval import SEMANTIC_STATUS_DIAGNOSTIC_KEY
+from .arbitration import ArbitrationTrace, _llm_arbitrate
 from .candidates import (
     AMBIGUITY_GAP_THRESHOLD,
     WIDENED_CANDIDATE_LIMIT,
@@ -15,20 +16,35 @@ from .candidates import (
 )
 
 
+def _arbitration_outcome(llm) -> str:
+    return "LLM arbitration did not select one" if llm is not None else "no LLM was available for arbitration"
+
+
 def _describe(fuzzy_results: List[Tuple[str, float]]) -> str:
     return ", ".join(f"{model} ({score:.0f})" for model, score in fuzzy_results)
 
 
 AMBIGUOUS_CANDIDATES_KEY = "ambiguous_candidates"
+ARBITRATION_OUTCOME_KEY = "arbitration_outcome"
+ARBITRATION_RAW_KEY = "arbitration_raw"
+ARBITRATION_RAW_MAX_LENGTH = 200
 _CANDIDATE_SEPARATOR = ","
 
 
-def _diagnostics(shortlist: ArbitrationShortlist, ambiguous_models: Sequence[str] = ()) -> Dict[str, str]:
+def _diagnostics(
+    shortlist: ArbitrationShortlist,
+    ambiguous_models: Sequence[str] = (),
+    trace: Optional[ArbitrationTrace] = None,
+) -> Dict[str, str]:
     diagnostics: Dict[str, str] = {}
     if shortlist.semantic_status is not None:
-        diagnostics["semantic_retrieval"] = shortlist.semantic_status.value
+        diagnostics[SEMANTIC_STATUS_DIAGNOSTIC_KEY] = shortlist.semantic_status.value
     if ambiguous_models:
         diagnostics[AMBIGUOUS_CANDIDATES_KEY] = _CANDIDATE_SEPARATOR.join(ambiguous_models)
+    if trace is not None:
+        diagnostics[ARBITRATION_OUTCOME_KEY] = trace.status
+        if trace.raw is not None:
+            diagnostics[ARBITRATION_RAW_KEY] = trace.raw[:ARBITRATION_RAW_MAX_LENGTH]
     return diagnostics
 
 
@@ -80,12 +96,13 @@ def _resolve_strict_candidates(
     shortlist = build_arbitration_shortlist(
         clean_query, G, language, use_static_aliases, llm is not None,
     )
-    chosen = _llm_arbitrate(
+    trace = _llm_arbitrate(
         query_text,
         shortlist.models,
         llm,
         _candidate_contexts(G, shortlist.models, language),
     )
+    chosen = trace.choice
     if chosen is not None:
         return ResolvedConcept(
             user_term=query_text,
@@ -98,7 +115,7 @@ def _resolve_strict_candidates(
                 f"({_describe(fuzzy_results)}) -> chose '{chosen}'. "
                 f"Low-confidence LLM interpretation, not a certain structural fact."
             ),
-            diagnostics=_diagnostics(shortlist),
+            diagnostics=_diagnostics(shortlist, trace=trace),
         )
 
     return ResolvedConcept(
@@ -109,9 +126,9 @@ def _resolve_strict_candidates(
         reason=(
             f"Ambiguous fuzzy candidates "
             f"({_describe(fuzzy_results)}) "
-            f"and LLM arbitration did not select one."
+            f"and {_arbitration_outcome(llm)}."
         ),
-        diagnostics=_diagnostics(shortlist, [model for model, _score in fuzzy_results]),
+        diagnostics=_diagnostics(shortlist, [model for model, _score in fuzzy_results], trace),
     )
 
 
@@ -136,7 +153,7 @@ def _resolve_widened_candidates(
     shortlist = build_arbitration_shortlist(
         clean_query, G, language, use_static_aliases, llm is not None, widened_results,
     )
-    chosen = (
+    trace = (
         _llm_arbitrate(
             query_text,
             shortlist.models,
@@ -146,6 +163,7 @@ def _resolve_widened_candidates(
         if shortlist.models
         else None
     )
+    chosen = trace.choice if trace is not None else None
     widened_description = _describe(widened_results) or "none"
     if chosen is not None:
         return ResolvedConcept(
@@ -162,7 +180,7 @@ def _resolve_widened_candidates(
                 f"-> LLM chose '{chosen}'. Low-confidence LLM interpretation "
                 f"over a weak candidate shortlist, not a certain structural fact."
             ),
-            diagnostics=_diagnostics(shortlist),
+            diagnostics=_diagnostics(shortlist, trace=trace),
         )
 
     return ResolvedConcept(
@@ -173,9 +191,9 @@ def _resolve_widened_candidates(
         reason=(
             f"No candidate reached the strict fuzzy threshold; widened candidates "
             f"({widened_description}; shortlist: {', '.join(shortlist.models) or 'none'}) "
-            f"and LLM arbitration did not select one."
+            f"and {_arbitration_outcome(llm)}."
         ),
-        diagnostics=_diagnostics(shortlist),
+        diagnostics=_diagnostics(shortlist, trace=trace),
     )
 
 

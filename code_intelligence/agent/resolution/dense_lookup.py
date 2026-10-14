@@ -7,10 +7,11 @@ time. The embedding model and backend are controlled by env vars
 """
 
 import logging
-from typing import Optional
+from typing import NamedTuple, Optional
 
 from ..matching import ResolvedConcept
 from ..semantic_retrieval import (
+    SEMANTIC_STATUS_DIAGNOSTIC_KEY,
     SemanticRetrievalStatus,
     retrieve_semantic_model_candidates_scored,
 )
@@ -21,23 +22,30 @@ DENSE_SCORE_GAP_THRESHOLD = 0.10
 DENSE_MIN_SCORE = 0.25
 
 
+class DenseResolution(NamedTuple):
+    """Outcome of the dense step; status is None when the step did not run."""
+
+    concept: Optional[ResolvedConcept]
+    status: Optional[SemanticRetrievalStatus]
+
+
 def resolve_dense_retrieval(
     query_text: str,
     G,
     language: Optional[str],
-) -> Optional[ResolvedConcept]:
-    """Resolve through dense retrieval on graph labels; None when unavailable or ambiguous."""
+) -> DenseResolution:
+    """Resolve through dense retrieval on graph labels; no concept when unavailable or ambiguous."""
     if G is None:
-        return None
+        return DenseResolution(None, None)
 
     scored, status = retrieve_semantic_model_candidates_scored(
         query_text, G, language, limit=10,
     )
     if status in (SemanticRetrievalStatus.DISABLED, SemanticRetrievalStatus.ERROR):
         _logger.debug("Dense retrieval skipped (status=%s); falling through.", status.value)
-        return None
+        return DenseResolution(None, status)
     if not scored:
-        return None
+        return DenseResolution(None, status)
 
     top_model, top_score = scored[0]
     if top_score < DENSE_MIN_SCORE:
@@ -45,7 +53,7 @@ def resolve_dense_retrieval(
             "Dense top score %.3f below threshold %.3f; falling through.",
             top_score, DENSE_MIN_SCORE,
         )
-        return None
+        return DenseResolution(None, status)
 
     is_ambiguous = (
         len(scored) >= 2
@@ -56,9 +64,9 @@ def resolve_dense_retrieval(
             "Dense retrieval ambiguous: %s (%.3f) vs %s (%.3f); falling through to arbitration.",
             top_model, top_score, scored[1][0], scored[1][1],
         )
-        return None
+        return DenseResolution(None, status)
 
-    return ResolvedConcept(
+    concept = ResolvedConcept(
         user_term=query_text,
         resolved_models=[top_model],
         confidence=round(top_score, 3),
@@ -70,5 +78,6 @@ def resolve_dense_retrieval(
             if len(scored) >= 2
             else f"Dense retrieval on instance labels: {top_model} (score={top_score:.3f}, sole candidate above threshold)"
         ),
-        diagnostics={"semantic_retrieval": status.value},
+        diagnostics={SEMANTIC_STATUS_DIAGNOSTIC_KEY: status.value},
     )
+    return DenseResolution(concept, status)

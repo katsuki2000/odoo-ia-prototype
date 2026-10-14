@@ -25,6 +25,7 @@ class RAGState(TypedDict):
     last_resolved_concept: Optional[dict]
     resolved_concept_reused: bool
     evidence_status: Optional[str]
+    loop_resolved_concept: Optional[dict]
     investigation_plan: Optional[dict]
     sources_fallback_eligible: Optional[bool]
     ci_evidence_sufficiency: Optional[dict]

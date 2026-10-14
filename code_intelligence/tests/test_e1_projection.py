@@ -7,6 +7,11 @@ import pytest
 
 from code_intelligence.agent.matching import ResolvedConcept
 from code_intelligence.agent.resolution import fuzzy_lookup
+from code_intelligence.agent.resolution.arbitration import (
+    ARBITRATION_NONE,
+    ARBITRATION_SELECTED,
+    ArbitrationTrace,
+)
 from code_intelligence.agent.resolution.candidates import ArbitrationShortlist
 from code_intelligence.agent.semantic_retrieval import SemanticRetrievalStatus
 from code_intelligence.evaluation.e1 import run as e1_run
@@ -244,7 +249,13 @@ def _patch_ambiguous_fuzzy_step(monkeypatch, *, arbitration_choice, semantic_sta
         lambda *args, **kwargs: ArbitrationShortlist([model for model, _ in ties], semantic_status),
     )
     monkeypatch.setattr(fuzzy_lookup, "_candidate_contexts", lambda *args, **kwargs: {})
-    monkeypatch.setattr(fuzzy_lookup, "_llm_arbitrate", lambda *args, **kwargs: arbitration_choice)
+    monkeypatch.setattr(
+        fuzzy_lookup,
+        "_llm_arbitrate",
+        lambda *args, **kwargs: ArbitrationTrace(
+            arbitration_choice, ARBITRATION_SELECTED if arbitration_choice else ARBITRATION_NONE, arbitration_choice,
+        ),
+    )
 
 
 def test_unresolved_ambiguous_fuzzy_candidates_are_published_in_diagnostics(monkeypatch):
@@ -267,6 +278,7 @@ def test_published_candidates_sit_next_to_the_semantic_status(monkeypatch):
     assert concept.diagnostics == {
         "semantic_retrieval": "error",
         fuzzy_lookup.AMBIGUOUS_CANDIDATES_KEY: "sale.order,purchase.order,account.move",
+        fuzzy_lookup.ARBITRATION_OUTCOME_KEY: ARBITRATION_NONE,
     }
 
 

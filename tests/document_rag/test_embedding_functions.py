@@ -1,11 +1,9 @@
 """Unit tests for embedding functions and provider resolution."""
 
-import os
 from unittest.mock import patch, MagicMock
 import pytest
 
 from document_rag.vectorstore.embedding_functions import (
-    CustomNomicEmbeddingFunction,
     LocalServerEmbeddingFunction,
     resolve_embedding_function,
 )
@@ -69,7 +67,7 @@ def test_local_server_embedding_function_ollama_native_format():
     """Verify LocalServerEmbeddingFunction correctly parses Ollama native response."""
     fn = LocalServerEmbeddingFunction(
         base_url="http://localhost:11434",
-        model="nomic-embed-text",
+        model="bge-m3:latest",
         api_key="ollama",
     )
     with patch("requests.post") as mock_post:
@@ -83,22 +81,6 @@ def test_local_server_embedding_function_ollama_native_format():
         results = fn(["single document"])
         assert len(results) == 1
         assert list(results[0]) == [0.7, 0.8, 0.9]
-
-
-def test_custom_nomic_embedding_function_calls_endpoint():
-    """Verify CustomNomicEmbeddingFunction calls Nomic REST endpoint."""
-    fn = CustomNomicEmbeddingFunction(
-        model="nomic-embed-text-v1.5",
-        api_key="test-nomic-key",
-    )
-    with patch("requests.post") as mock_post:
-        mock_resp = MagicMock()
-        mock_resp.status_code = 200
-        mock_resp.json.return_value = {"embeddings": [[0.05, 0.06]]}
-        mock_post.return_value = mock_resp
-
-        results = fn(["sample text"])
-        assert list(results[0]) == [0.05, 0.06]
 
 
 def test_resolve_embedding_function_local_custom_model():

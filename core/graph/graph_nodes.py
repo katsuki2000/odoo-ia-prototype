@@ -137,6 +137,7 @@ def format_output(state: RAGState) -> dict:
         response.route = route
         response.resolved_concept = state.get("resolved_concept")
         response.evidence_status = state.get("evidence_status")
+        response.loop_resolved_concept = state.get("loop_resolved_concept")
         response.investigation_plan = state.get("investigation_plan")
         response.ci_evidence_sufficiency = ci_sufficiency
         response.rag_fallback = ci_fell_back_to_rag

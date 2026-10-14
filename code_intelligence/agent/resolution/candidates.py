@@ -15,6 +15,8 @@ _TIEBREAK_RARITY_CACHE: "weakref.WeakKeyDictionary" = weakref.WeakKeyDictionary(
 AMBIGUITY_GAP_THRESHOLD = 10.0
 WIDENED_CANDIDATE_THRESHOLD = 30
 WIDENED_CANDIDATE_LIMIT = 20
+SHORTLIST_SEMANTIC_LIMIT = 20
+SHORTLIST_FUZZY_LIMIT = 5
 
 # Avoid generic 2-3 char words matching inside dotted model names.
 _MIN_SEGMENT_LEN = 4
@@ -81,7 +83,7 @@ def build_arbitration_shortlist(
         )
     fuzzy_models = [model for model, _score in fuzzy_results]
     retrieval = (
-        retrieve_semantic_model_candidates(query, G, language)
+        retrieve_semantic_model_candidates(query, G, language, limit=SHORTLIST_SEMANTIC_LIMIT)
         if use_semantic_retrieval else None
     )
     semantic_status = retrieval.status if retrieval else None
@@ -89,20 +91,8 @@ def build_arbitration_shortlist(
     if not semantic_models:
         return ArbitrationShortlist(fuzzy_models, semantic_status)
 
-    candidates = []
-    fuzzy_budget = max(WIDENED_CANDIDATE_LIMIT - len(semantic_models), 0)
-    for model in fuzzy_models[:fuzzy_budget]:
-        if model not in candidates:
-            candidates.append(model)
-    for model in semantic_models:
-        if model not in candidates:
-            candidates.append(model)
-    for model in fuzzy_models[fuzzy_budget:]:
-        if model not in candidates:
-            candidates.append(model)
-        if len(candidates) == WIDENED_CANDIDATE_LIMIT:
-            break
-    return ArbitrationShortlist(candidates[:WIDENED_CANDIDATE_LIMIT], semantic_status)
+    candidates = list(dict.fromkeys(fuzzy_models[:SHORTLIST_FUZZY_LIMIT] + semantic_models))
+    return ArbitrationShortlist(candidates, semantic_status)
 
 
 def _arbitration_candidates(
@@ -230,6 +220,8 @@ __all__ = [
     "AMBIGUITY_GAP_THRESHOLD",
     "WIDENED_CANDIDATE_THRESHOLD",
     "WIDENED_CANDIDATE_LIMIT",
+    "SHORTLIST_SEMANTIC_LIMIT",
+    "SHORTLIST_FUZZY_LIMIT",
     "ArbitrationShortlist",
     "build_arbitration_shortlist",
     "_arbitration_candidates",

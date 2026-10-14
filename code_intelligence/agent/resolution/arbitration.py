@@ -1,9 +1,23 @@
 """Bounded LLM arbitration over a closed list of candidate Odoo models."""
 
 import logging
+from dataclasses import dataclass
 from typing import Dict, List, Optional
 
 _logger = logging.getLogger(__name__)
+
+ARBITRATION_SELECTED = "selected"
+ARBITRATION_NONE = "none"
+ARBITRATION_OUT_OF_LIST = "out_of_list"
+ARBITRATION_CALL_FAILED = "call_failed"
+ARBITRATION_NO_LLM = "no_llm"
+
+
+@dataclass(frozen=True)
+class ArbitrationTrace:
+    choice: Optional[str]
+    status: str
+    raw: Optional[str] = None
 
 _ARBITRATION_SYSTEM_PROMPT = (
     "Tu es un composant de résolution de symboles techniques Odoo. "
@@ -42,11 +56,11 @@ def _llm_arbitrate(
     candidates: List[str],
     llm,
     candidate_contexts: Optional[Dict[str, str]] = None,
-) -> Optional[str]:
-    """Bounded LLM candidate selection over a closed list."""
+) -> ArbitrationTrace:
+    """Bounded LLM candidate selection over a closed list, with the raw answer kept."""
     if llm is None:
         _logger.warning("LLM arbitration requested but no llm client was provided; skipping.")
-        return None
+        return ArbitrationTrace(None, ARBITRATION_NO_LLM)
 
     try:
         from langchain_core.messages import SystemMessage, HumanMessage
@@ -67,18 +81,24 @@ def _llm_arbitrate(
         raw = (response.content or "").strip()
     except Exception:
         _logger.exception("LLM arbitration call failed for query=%r candidates=%r", query_text, candidates)
-        return None
+        return ArbitrationTrace(None, ARBITRATION_CALL_FAILED)
 
     if raw == "NONE":
-        return None
+        return ArbitrationTrace(None, ARBITRATION_NONE, raw)
     if raw in candidates:
-        return raw
+        return ArbitrationTrace(raw, ARBITRATION_SELECTED, raw)
 
     _logger.warning("LLM arbitration returned an out-of-list value: %r (candidates=%r)", raw, candidates)
-    return None
+    return ArbitrationTrace(None, ARBITRATION_OUT_OF_LIST, raw)
 
 
 __all__ = [
+    "ARBITRATION_CALL_FAILED",
+    "ARBITRATION_NONE",
+    "ARBITRATION_NO_LLM",
+    "ARBITRATION_OUT_OF_LIST",
+    "ARBITRATION_SELECTED",
+    "ArbitrationTrace",
     "_ARBITRATION_SYSTEM_PROMPT",
     "_build_arbitration_prompt",
     "_llm_arbitrate",
