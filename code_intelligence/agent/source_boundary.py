@@ -35,21 +35,39 @@ def validate_source_range(lineStart: int, lineEnd: int, maxLines: int = 200) -> 
     return None
 
 
+def _positive_line_number(text: str) -> int | None:
+    try:
+        value = int(text)
+    except ValueError:
+        return None
+    return value if value > 0 else None
+
+
+def _valid_citations(text: str) -> list[tuple[str, int, int]]:
+    citations = []
+    for match in _CITATION.finditer(text):
+        start = _positive_line_number(match['start'])
+        end = _positive_line_number(match['end'])
+        if start is not None and end is not None and start <= end:
+            citations.append((match['path'], start, end))
+    return citations
+
+
 def _source_excerpts(observations: Iterable[str]) -> list[SourceExcerpt]:
     excerpts = []
     for observation in observations:
-        citations = list(_CITATION.finditer(observation))
-        paths = {citation['path'] for citation in citations}
+        citations = _valid_citations(observation)
+        paths = {path for path, _, _ in citations}
         if len(paths) != 1:
             continue
         path = next(iter(paths))
-        ranges = [(int(citation['start']), int(citation['end'])) for citation in citations]
+        ranges = [(start, end) for _, start, end in citations]
         runStart = None
         runLines = []
         for line in [*observation.splitlines(), '']:
             match = _NUMBERED_LINE.fullmatch(line)
-            lineNumber = int(match[1]) if match else None
-            isCovered = match is not None and any(start <= lineNumber <= end for start, end in ranges)
+            lineNumber = _positive_line_number(match[1]) if match else None
+            isCovered = lineNumber is not None and any(start <= lineNumber <= end for start, end in ranges)
             if runLines and (not isCovered or lineNumber != runStart + len(runLines)):
                 excerpts.append(SourceExcerpt(path, runStart, tuple(runLines)))
                 runStart, runLines = None, []
@@ -73,7 +91,7 @@ def enforce_source_blocks(answer: str, observations: Iterable[str]) -> str:
         if not sourceLines or not any(line.strip() for line in sourceLines):
             return _OMITTED_BLOCK
         window = answer[max(0, match.start() - 500):match.end() + 500]
-        citations = [(item['path'], int(item['start']), int(item['end'])) for item in _CITATION.finditer(window)]
+        citations = _valid_citations(window)
         for excerpt in excerpts:
             for offset in range(len(excerpt.lines) - len(sourceLines) + 1):
                 start = excerpt.start + offset
