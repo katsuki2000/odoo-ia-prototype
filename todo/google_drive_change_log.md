@@ -1,0 +1,11 @@
+## Google Drive ingestion branch (14/10/2026)
+
+Branche independante `feat/document-rag-google-drive`, creee depuis `main` a `981a7258abb63dcb2df08afea8b0371747e73ddc`; ne contient pas les nouveaux commits de `fix/ci-api-errors`. Rules relues et dernieres lignes du journal local correspondant au blob principal connu relues avant les modifications. Main et les addons miro_ai/miro_ai_discuss ne sont pas modifies.
+
+Ajout du connecteur Drive API v3 en lecture seule avec ADC google-auth, inventaire pagine et recursif des seuls dossiers configures, validation d'identifiants, limites d'inventaire et de telechargement, refus des redirections avec bearer token. PDF/TXT/MD/DOCX et Google Docs exportes en DOCX reutilisent les lecteurs existants. Sources Drive stables, metadonnees de revision et chunks deterministes, skip des revisions inchangees, ajout des nouveaux chunks avant retrait des anciens. Les fichiers absents ne sont pas automatiquement purges; pas de synchronisation ACL par utilisateur ni d'OAuth interactif.
+
+Configuration centralisee dans `config/google_drive.py`, commande manuelle `python -m document_rag.ingestion.google_drive_cli`, aucune modification du scheduler/API ou des embeddings. Approbation explicite `GOOGLE_DRIVE_APPROVED_FOR_RAG=true` requise pour un corpus accessible a tous les lecteurs du RAG cible. Attention aux anciens documents conserves apres changement de droits: ce mode ne convient pas a la revocation immediate. Aucun document Drive reel n'a ete ingere ou transmis.
+
+Dependance optionnelle dans `requirements-google-drive.txt`, qui inclut les requirements du projet et google-auth. Aucun package installe dans ce sandbox, aucun credential/.env secret publie. Documentation `document_rag/google_drive_usage.md`. Tests prepares et executes localement: 15 regressions offline avec faux HTTP, credentials, manager et parser; compilation et CLI sans dossier passes. Pas de validation Google/Chroma/Odoo/embedding reelle. Les tests sont publies dans un commit separe.
+
+Journal: annexe temporaire selon l'exception deja autorisee, sans tronquer/remplacer `todo/contexte.txt`. Le principal distant n'est pas mis a jour par cette annexe. Fichiers ajoutes: connecteur, CLI, config, requirements optionnels, documentation, tests et cette annexe. Aucun changement aux fichiers existants de production.
