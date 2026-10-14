@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from langchain_core.messages import HumanMessage, AIMessage
 
 from api.auth import get_current_user
+from api.public_errors import public_error_details
 from api.schemas import AskRequestV1, AskResponseV1
 from core.graph.graph import query_graph
 from core.session.session_store import get_session, update_session
@@ -144,8 +145,7 @@ def ask_question_v1(
         )
     except HTTPException:
         raise
-    except Exception as e:
-        error_msg = str(e).lower()
-        if "connection" in error_msg or "timeout" in error_msg or "xmlrpc" in error_msg:
-            raise HTTPException(status_code=503, detail=f"Service Unavailable: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"RAG Graph error: {str(e)}")
+    except Exception as exc:
+        logger.exception("MIRO question processing failed.")
+        statusCode, detail = public_error_details(exc)
+        raise HTTPException(status_code=statusCode, detail=detail) from None

@@ -1,11 +1,15 @@
 """System, health check, module coverage, and statistics endpoints."""
 
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import RedirectResponse
 
-from api.auth import get_current_user
+from api.auth import get_current_user, require_admin
+from api.public_errors import public_error_details
 from api.schemas import ModuleCoverageResponse, StatsResponse
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
@@ -17,13 +21,13 @@ def root():
 
 @router.get("/health")
 def health_check():
-    """Basic health check to verify the API is running."""
+    """Return a public liveness signal without checking private services."""
     return {"status": "ok", "service": "miro-rag-api"}
 
 
-@router.get("/api/v1/health")
+@router.get("/api/v1/health", dependencies=[Depends(require_admin)])
 def health_check_v1():
-    """V1 health check verifying underlying services."""
+    """Check private dependencies for authenticated administrators."""
     from document_rag.vectorstore.chroma_manager import get_chroma_client
     from erp_data.odoo_connector import OdooConnector
 
@@ -34,6 +38,7 @@ def health_check_v1():
         client.heartbeat()
         status["services"]["chroma"] = "ok"
     except Exception:
+        logger.exception("Vectorstore health check failed.")
         status["services"]["chroma"] = "error"
         status["status"] = "degraded"
 
@@ -42,12 +47,11 @@ def health_check_v1():
         connector.authenticate(connector.username)
         status["services"]["odoo"] = "ok"
     except Exception:
+        logger.exception("Odoo health check failed.")
         status["services"]["odoo"] = "error"
         status["status"] = "degraded"
 
-    from config.settings import LOCAL_LLM_BASE_URL
-    status["services"]["llm"] = f"configured (local endpoint: {LOCAL_LLM_BASE_URL})"
-
+    status["services"]["llm"] = "not checked"
     return status
 
 
@@ -65,8 +69,10 @@ def get_modules():
             fields=["name"]
         )
         installed = {r["name"] for r in records}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Odoo error: {str(e)}")
+    except Exception as exc:
+        logger.exception("Odoo module coverage query failed.")
+        statusCode, detail = public_error_details(exc)
+        raise HTTPException(status_code=statusCode, detail=detail) from None
 
     supported = ["sale", "account", "helpdesk", "project", "stock"]
     code_indexed = ["sale", "account", "helpdesk", "project", "stock", "base"]
@@ -99,5 +105,7 @@ def get_stats():
             collection_name=stats["name"],
             document_count=stats["document_count"],
         )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to retrieve stats: {str(e)}")
+    except Exception as exc:
+        logger.exception("Vectorstore statistics query failed.")
+        statusCode, detail = public_error_details(exc)
+        raise HTTPException(status_code=statusCode, detail=detail) from None
