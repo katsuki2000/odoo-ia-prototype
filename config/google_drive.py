@@ -11,6 +11,7 @@ class GoogleDriveSettings:
     timeout: float = 30
     maxBytes: int = 20971520
     maxFiles: int = 10000
+    syncInterval: float = 300
 
     @classmethod
     def from_environment(cls):
@@ -20,7 +21,8 @@ class GoogleDriveSettings:
             timeout=float(os.getenv('GOOGLE_DRIVE_TIMEOUT', '30')),
             maxBytes=int(os.getenv('GOOGLE_DRIVE_MAX_BYTES', '20971520')),
             maxFiles=int(os.getenv('GOOGLE_DRIVE_MAX_FILES', '10000')),
+            syncInterval=float(os.getenv('GOOGLE_DRIVE_SYNC_INTERVAL_SECONDS', '300')),
         )
-        if settings.timeout <= 0 or settings.maxBytes <= 0 or settings.maxFiles <= 0:
+        if settings.timeout <= 0 or settings.maxBytes <= 0 or settings.maxFiles <= 0 or settings.syncInterval <= 0:
             raise ValueError('Google Drive limits must be positive.')
         return settings
