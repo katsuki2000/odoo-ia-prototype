@@ -189,7 +189,7 @@ class OdooGraphBuilder:
         add_security_group_nodes(self.G, self.registry, self.modules_dict, self._domain_force_references_state)
 
     def _add_menu_nodes(self):
-        add_menu_nodes(self.G, self.modules_dict)
+        add_menu_nodes(self.G, self.registry, self.modules_dict)
 
     def _add_window_action_refs(self):
         add_window_action_refs(self.G, self.modules_dict)
