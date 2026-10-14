@@ -25,9 +25,9 @@ os.environ["CI_MAX_HOPS"] = "20"
 
 @pytest.fixture(autouse=True)
 def _force_offline_embedding_backend(monkeypatch):
+    if os.environ.get("USE_KAGGLE_EMBEDDINGS", "").lower() == "true":
+        return
     monkeypatch.setenv("EMBEDDING_BACKEND", "local_light")
-    # Semantic retrieval is on by default in production; tests stay offline and
-    # opt in explicitly (see test_semantic_retrieval.py).
     monkeypatch.setenv("RESOLVER_SEMANTIC_RETRIEVAL_ENABLED", "false")
 
 
