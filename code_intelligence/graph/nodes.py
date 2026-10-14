@@ -1,11 +1,8 @@
-"""
-code_intelligence/graph/models.py
-
-Data models and registries for cross-file Odoo symbol resolution and graph building.
-"""
+"""Symbol registries and graph node builders for parsed Odoo modules."""
 
 from dataclasses import dataclass, field
 from enum import Enum
+import re
 from typing import Dict, List, Optional
 
 from code_intelligence.extractor.manifest import OdooManifest
@@ -20,6 +17,7 @@ from code_intelligence.extractor.xml import (
     OdooViewRecord,
 )
 from code_intelligence.extractor.csv import OdooAccessEntry
+from code_intelligence.model_references import build_model_xmlref_index, resolve_model_ref
 
 
 class UnresolvedCategory(Enum):
@@ -33,7 +31,7 @@ class UnresolvedReference:
     source_module: str
     source_file: str
     symbol_ref: str
-    ref_type: str  # "model", "group", "rule", "action"
+    ref_type: str
     category: UnresolvedCategory
     detail: str = ""
 
@@ -55,11 +53,8 @@ class ParsedModule:
 
 @dataclass
 class ResolvedSymbolRegistry:
-    # Key = model_name (e.g. "sale.order"), Value = List of declarations across modules
     models: Dict[str, List[OdooModelDeclaration]] = field(default_factory=dict)
-    # Key = model_name, Value = List of module names matching models[model_name] order
     model_modules: Dict[str, List[str]] = field(default_factory=dict)
-    # Key = full_xml_id (e.g. "base.group_user" or "sale.group_sale_manager"), Value = Record
     groups: Dict[str, OdooGroupRecord] = field(default_factory=dict)
     rules: Dict[str, OdooRuleRecord] = field(default_factory=dict)
     actions: Dict[str, OdooActionRecord] = field(default_factory=dict)
@@ -67,11 +62,37 @@ class ResolvedSymbolRegistry:
     base_automations: Dict[str, OdooBaseAutomationRecord] = field(default_factory=dict)
     menuitems: Dict[str, OdooMenuItemRecord] = field(default_factory=dict)
     views: Dict[str, OdooViewRecord] = field(default_factory=dict)
-
-    # Resolution & Unresolved tracking
-    resolved_inheritance: Dict[str, List[str]] = field(default_factory=dict)  # model -> parent_models
+    resolved_inheritance: Dict[str, List[str]] = field(default_factory=dict)
     unresolved_references: List[UnresolvedReference] = field(default_factory=list)
     detected_cycles: List[List[str]] = field(default_factory=list)
+    _modelRefIndex: Optional[dict[str, tuple[str, ...]]] = field(default=None, init=False, repr=False, compare=False)
+    _modelRefNames: frozenset[str] = field(default_factory=frozenset, init=False, repr=False, compare=False)
+
+    def resolve_model_ref(self, rawRef: str) -> Optional[str]:
+        if self._modelRefIndex is None or self._modelRefNames != self.models.keys():
+            self._modelRefNames = frozenset(self.models)
+            self._modelRefIndex = build_model_xmlref_index(self._modelRefNames)
+        return resolve_model_ref(rawRef, self._modelRefIndex)
+
+    def resolve_model_ref_or_record(self, rawRef: str, sourceModule: str, sourceFile: str) -> Optional[str]:
+        modelName = self.resolve_model_ref(rawRef)
+        if modelName is not None:
+            return modelName
+        reference = rawRef or ""
+        if not any(
+            item.ref_type == "model" and item.symbol_ref == reference
+            and item.source_module == sourceModule and item.source_file == sourceFile
+            for item in self.unresolved_references
+        ):
+            self.unresolved_references.append(UnresolvedReference(
+                source_module=sourceModule,
+                source_file=sourceFile,
+                symbol_ref=reference,
+                ref_type="model",
+                category=_categorize_unresolved(sourceModule, reference),
+                detail=f"Model reference '{reference}' is absent or ambiguous in the parsed corpus.",
+            ))
+        return None
 
 
 CORE_BASE_MODULES = {
@@ -79,23 +100,23 @@ CORE_BASE_MODULES = {
 }
 
 
-__all__ = [
-    "UnresolvedCategory",
-    "UnresolvedReference",
-    "ParsedModule",
-    "ResolvedSymbolRegistry",
-    "CORE_BASE_MODULES",
-]
+def _categorize_unresolved(mod_name: str, symbol_ref: str) -> UnresolvedCategory:
+    """Categorize an unresolved symbol reference."""
+    if "." in symbol_ref:
+        prefix = symbol_ref.split(".")[0]
+        if prefix in CORE_BASE_MODULES:
+            return UnresolvedCategory.CORE_ODOO_OUT_OF_SCOPE
+        elif not re.match(r"^[a-zA-Z0-9_\.]+$", symbol_ref):
+            return UnresolvedCategory.PROBABLE_TYPO
+    if symbol_ref.startswith("base.") or symbol_ref.startswith("mail."):
+        return UnresolvedCategory.CORE_ODOO_OUT_OF_SCOPE
+    elif symbol_ref.count(".") > 2 or " " in symbol_ref:
+        return UnresolvedCategory.PROBABLE_TYPO
+    else:
+        return UnresolvedCategory.ABSENT_FROM_CORPUS
 
-# ── Security Group Nodes ──────────────────────────────────────────────────
 
-"""
-code_intelligence/graph/security_nodes.py
-
-Sub-graph node and edge builders for security, rules, ACLs, server actions, and automations.
-"""
-
-from typing import Callable, Dict, Optional
+from typing import Callable
 import networkx as nx
 
 from code_intelligence.rules.ontology import BehavioralTag, TechnicalTag
@@ -106,7 +127,7 @@ from code_intelligence.graph.workflow_extraction import (
     written_states,
     workflow_transition_records,
 )
-from code_intelligence.utils import qualify_xml_id, resolve_model_xmlref
+from code_intelligence.utils import qualify_xml_id
 
 
 def add_security_group_nodes(
@@ -116,11 +137,8 @@ def add_security_group_nodes(
     domain_force_references_state_fn: Callable[[Optional[str]], bool],
 ):
     """Add Group, Rule, AccessEntry, ServerAction, and AutomationRule nodes + security edges."""
-    # 0. Collect implied_group declarations from res.config.settings fields
-    #    (Section 925: detect feature-flag groups activated via Settings booleans)
-    settings_implied_groups: Dict[str, str] = {}  # {group_xml_id: setting_field_name}
+    settings_implied_groups: Dict[str, str] = {}
     for model_name, decl_list in registry.models.items():
-        # res.config.settings or any model that _inherit it
         if model_name == "res.config.settings" or "res.config.settings" in sum(
             (d.inherit for d in decl_list), []
         ):
@@ -129,12 +147,10 @@ def add_security_group_nodes(
                     if fld.implied_group:
                         settings_implied_groups[fld.implied_group] = fld.name
 
-    # 1. Groups & Group IMPLIES Group hierarchy
     for full_xml_id, grp in registry.groups.items():
         if "." not in full_xml_id:
             continue
         grp_node_id = f"group:{full_xml_id}"
-        # Section 925: determine if this group is a technical feature flag
         is_technical = (
             full_xml_id in settings_implied_groups
             and grp.category_id in ("base.module_category_hidden", None)
@@ -148,14 +164,12 @@ def add_security_group_nodes(
             group_type="technical" if is_technical else "role",
             setting_field=settings_implied_groups.get(full_xml_id),
         )
-
         mod_prefix = full_xml_id.split(".")[0]
         for parent_grp in grp.implied_ids:
             full_parent_grp = qualify_xml_id(parent_grp, mod_prefix)
             parent_node_id = f"group:{full_parent_grp}"
             G.add_edge(grp_node_id, parent_node_id, edge_type="IMPLIES")
 
-    # 1b. Section 925: Add IMPLIES_CONFIGURABLE edges for settings-activated groups
     for group_xml_id, field_name in settings_implied_groups.items():
         target_node = f"group:{group_xml_id}"
         source_node = "group:base.group_user"
@@ -167,11 +181,8 @@ def add_security_group_nodes(
                 conditional=True,
             )
 
-    # 2. Rules & Model RESTRICTED_BY Rule -> Rule APPLIES_TO_GROUP Group
     for full_xml_id, rule in registry.rules.items():
-        if "." not in full_xml_id:
-            continue
-        if not getattr(rule, "active", True):
+        if "." not in full_xml_id or not getattr(rule, "active", True):
             continue
         rule_node_id = f"rule:{full_xml_id}"
         rule_behavioral_tags = [BehavioralTag.VISIBILITY_RULE.value]
@@ -192,18 +203,14 @@ def add_security_group_nodes(
             behavioral_tags=rule_behavioral_tags,
             technical_tags=[TechnicalTag.RECORD_RULE.value],
         )
-
         if rule.model_id:
-            raw_m = resolve_model_xmlref(rule.model_id)
-            model_node_id = f"model:{raw_m}"
-            G.add_edge(model_node_id, rule_node_id, edge_type="RESTRICTED_BY")
-
+            modelName = registry.resolve_model_ref_or_record(rule.model_id, full_xml_id.split('.', 1)[0], rule.filepath)
+            if modelName is not None:
+                G.add_edge(f"model:{modelName}", rule_node_id, edge_type="RESTRICTED_BY")
         for grp_ref in rule.groups_id:
             full_grp = qualify_xml_id(grp_ref, full_xml_id.split(".", 1)[0])
-            grp_node_id = f"group:{full_grp}"
-            G.add_edge(rule_node_id, grp_node_id, edge_type="APPLIES_TO_GROUP")
+            G.add_edge(rule_node_id, f"group:{full_grp}", edge_type="APPLIES_TO_GROUP")
 
-    # 3. CSV Access Control Entries (Model GRANTED_BY AccessEntry)
     for mod_name, mod in modules_dict.items():
         for acl in mod.acl_entries:
             acl_node_id = f"acl:{mod_name}.{acl.xml_id}"
@@ -219,26 +226,24 @@ def add_security_group_nodes(
                 behavioral_tags=[BehavioralTag.VISIBILITY_RULE.value],
                 technical_tags=[TechnicalTag.ACL.value],
             )
-
-            raw_m = resolve_model_xmlref(acl.model_id)
-            model_node_id = f"model:{raw_m}"
-            G.add_edge(model_node_id, acl_node_id, edge_type="GRANTED_BY")
-
+            modelName = registry.resolve_model_ref_or_record(acl.model_id, mod_name, acl.filepath)
+            if modelName is not None:
+                G.add_edge(f"model:{modelName}", acl_node_id, edge_type="GRANTED_BY")
             if acl.group_id:
-                grp_node_id = f"group:{qualify_xml_id(acl.group_id, mod_name)}"
-                G.add_edge(acl_node_id, grp_node_id, edge_type="APPLIES_TO_GROUP")
+                G.add_edge(acl_node_id, f"group:{qualify_xml_id(acl.group_id, mod_name)}", edge_type="APPLIES_TO_GROUP")
 
-    # 4. Server Actions (ir.actions.server) & Automations (base.automation)
     for full_xml_id, sa in registry.server_actions.items():
         if "." not in full_xml_id:
             continue
         sa_node_id = f"server_action:{full_xml_id}"
+        targetModel = registry.resolve_model_ref_or_record(sa.model_id, full_xml_id.split('.', 1)[0], sa.filepath) if sa.model_id else None
         G.add_node(
             sa_node_id,
             node_type="ServerAction",
             xml_id=full_xml_id,
             name=sa.name,
             model_id=sa.model_id,
+            target_model=targetModel or "",
             state=sa.state,
             code=sa.code,
             action_type=getattr(sa, "action_type", "server_action"),
@@ -248,53 +253,30 @@ def add_security_group_nodes(
             behavioral_tags=[],
             technical_tags=[TechnicalTag.SERVER_ACTION.value],
         )
-
-        if sa.model_id:
-            raw_m = resolve_model_xmlref(sa.model_id)
-            model_node_id = f"model:{raw_m}"
-            G.add_edge(sa_node_id, model_node_id, edge_type="TARGETS_MODEL")
+        if targetModel is not None:
+            G.add_edge(sa_node_id, f"model:{targetModel}", edge_type="TARGETS_MODEL")
 
     for full_xml_id, ba in registry.base_automations.items():
         if "." not in full_xml_id:
             continue
         ba_node_id = f"automation:{full_xml_id}"
+        targetModel = registry.resolve_model_ref_or_record(ba.model_id, full_xml_id.split('.', 1)[0], ba.filepath) if ba.model_id else None
         G.add_node(
             ba_node_id,
             node_type="AutomationRule",
             xml_id=full_xml_id,
             name=ba.name,
             model_id=ba.model_id,
+            target_model=targetModel or "",
             trigger=ba.trigger,
             behavioral_tags=[],
             technical_tags=[TechnicalTag.CRON.value],
         )
-
-        if ba.model_id:
-            raw_m = resolve_model_xmlref(ba.model_id)
-            model_node_id = f"model:{raw_m}"
-            G.add_edge(ba_node_id, model_node_id, edge_type="TRIGGERED_BY")
-
+        if targetModel is not None:
+            G.add_edge(ba_node_id, f"model:{targetModel}", edge_type="TRIGGERED_BY")
         for sa_ref in ba.action_server_ids:
             full_sa = qualify_xml_id(sa_ref, full_xml_id.split(".", 1)[0])
-            sa_node_id = f"server_action:{full_sa}"
-            G.add_edge(ba_node_id, sa_node_id, edge_type="EXECUTES_ACTION")
-
-
-__all__ = ["add_security_group_nodes"]
-
-# ── UI Nodes ──────────────────────────────────────────────────────────────
-
-"""
-code_intelligence/graph/ui_nodes.py
-
-Sub-graph node and edge builders for menus, workflows, and form buttons.
-"""
-
-from typing import Dict
-import networkx as nx
-
-from code_intelligence.rules.ontology import BehavioralTag
-from code_intelligence.utils import qualify_xml_id, resolve_model_xmlref
+            G.add_edge(ba_node_id, f"server_action:{full_sa}", edge_type="EXECUTES_ACTION")
 
 
 def add_menu_nodes(
@@ -307,13 +289,11 @@ def add_menu_nodes(
         for menu in mod.menuitems:
             full_xml_id = qualify_xml_id(menu.xml_id, mod_name)
             menu_node_id = f"menu:{full_xml_id}"
-
             action_ref = ""
             action_rec = None
             if menu.action:
                 action_ref = qualify_xml_id(menu.action, mod_name)
                 action_rec = registry.actions.get(action_ref) or registry.actions.get(menu.action)
-
             G.add_node(
                 menu_node_id,
                 node_type="Menu",
@@ -328,37 +308,28 @@ def add_menu_nodes(
                 behavioral_tags=[],
                 technical_tags=[],
             )
-
             for g in menu.groups:
-                group_full = qualify_xml_id(g, mod_name)
-                G.add_edge(menu_node_id, f"group:{group_full}", edge_type="APPLIES_TO_GROUP")
-
+                G.add_edge(menu_node_id, f"group:{qualify_xml_id(g, mod_name)}", edge_type="APPLIES_TO_GROUP")
             if menu.parent:
-                parent_full = qualify_xml_id(menu.parent, mod_name)
-                G.add_edge(menu_node_id, f"menu:{parent_full}", edge_type="CHILD_OF")
-
+                G.add_edge(menu_node_id, f"menu:{qualify_xml_id(menu.parent, mod_name)}", edge_type="CHILD_OF")
             if not menu.action:
                 continue
-
-            target_model = action_rec.res_model if (action_rec and action_rec.res_model) else None
-            via = "act_window" if target_model else None
-
+            target_model = None
+            via = None
+            if action_rec and action_rec.res_model:
+                target_model = registry.resolve_model_ref_or_record(action_rec.res_model, mod_name, menu.filepath)
+                via = "act_window"
             if not target_model:
                 sa_rec = registry.server_actions.get(action_ref) or registry.server_actions.get(menu.action)
                 if sa_rec and sa_rec.model_id:
-                    target_model = resolve_model_xmlref(sa_rec.model_id)
+                    target_model = registry.resolve_model_ref_or_record(sa_rec.model_id, mod_name, menu.filepath)
                     via = "server_action"
-
             if target_model:
                 model_node_id = f"model:{target_model}"
                 G.add_edge(menu_node_id, model_node_id, edge_type="OPENS_MODEL", via=via)
                 if model_node_id in G:
-                    G.nodes[menu_node_id]["behavioral_tags"] = list(
-                        G.nodes[model_node_id].get("behavioral_tags", [])
-                    )
-                    G.nodes[menu_node_id]["technical_tags"] = list(
-                        G.nodes[model_node_id].get("technical_tags", [])
-                    )
+                    G.nodes[menu_node_id]["behavioral_tags"] = list(G.nodes[model_node_id].get("behavioral_tags", []))
+                    G.nodes[menu_node_id]["technical_tags"] = list(G.nodes[model_node_id].get("technical_tags", []))
 
 
 def add_window_action_refs(G: nx.DiGraph, modules_dict: Dict[str, ParsedModule]):
@@ -383,32 +354,25 @@ def add_workflow_nodes_and_edges(
     for model_name, decls in registry.models.items():
         if not any(f.name == STATE_FIELD for d in decls for f in d.fields):
             continue
-
         selection = selection_values(decls)
         form_buttons = []
         for mod in modules_dict.values():
             for view in mod.views:
                 if view.model == model_name:
                     form_buttons.extend(view.buttons)
-
         transitions = []
         for btn in form_buttons:
             if not btn.name:
                 continue
             origins = origin_states(btn.states, btn.invisible, selection)
-            targets = [
-                state for state in written_states(decls, btn.name)
-                if selection is None or state in selection
-            ]
+            targets = [state for state in written_states(decls, btn.name) if selection is None or state in selection]
             if origins and targets:
                 transitions.append((btn, origins, targets))
-
         states = list(selection) if selection else []
         for _, origins, targets in transitions:
             for state in origins + targets:
                 if state not in states:
                     states.append(state)
-
         for st in states:
             G.add_node(
                 f"state:{model_name}.{st}",
@@ -418,7 +382,6 @@ def add_workflow_nodes_and_edges(
                 behavioral_tags=[BehavioralTag.WORKFLOW_RULE.value],
                 technical_tags=[],
             )
-
         for btn, origins, targets in transitions:
             for orig in origins:
                 for target in targets:
@@ -453,10 +416,7 @@ def add_workflow_nodes_and_edges(
                     )
 
 
-def add_view_button_nodes_and_edges(
-    G: nx.DiGraph,
-    modules_dict: Dict[str, ParsedModule],
-):
+def add_view_button_nodes_and_edges(G: nx.DiGraph, modules_dict: Dict[str, ParsedModule]):
     """Extract form view buttons and index them as Button nodes and HAS_BUTTON edges."""
     for mod in modules_dict.values():
         for view in mod.views:
@@ -469,30 +429,15 @@ def add_view_button_nodes_and_edges(
                     continue
                 button_node_id = f"button:{model_name}.{btn.name}"
                 if not G.has_node(button_node_id):
-                    G.add_node(
-                        button_node_id,
-                        node_type="Button",
-                        name=btn.name,
-                        label=btn.string,
-                        groups=btn.groups,
-                        invisible=btn.invisible,
-                        model=model_name,
-                    )
+                    G.add_node(button_node_id, node_type="Button", name=btn.name, label=btn.string,
+                               groups=btn.groups, invisible=btn.invisible, model=model_name)
                 if G.has_node(model_node_id):
-                    G.add_edge(
-                        model_node_id,
-                        button_node_id,
-                        edge_type="HAS_BUTTON",
-                        method_name=btn.name,
-                        label_bouton=btn.string,
-                        groupe_requis=btn.groups,
-                        invisible=btn.invisible,
-                    )
+                    G.add_edge(model_node_id, button_node_id, edge_type="HAS_BUTTON", method_name=btn.name,
+                               label_bouton=btn.string, groupe_requis=btn.groups, invisible=btn.invisible)
 
 
 __all__ = [
-    "add_menu_nodes",
-    "add_window_action_refs",
-    "add_workflow_nodes_and_edges",
-    "add_view_button_nodes_and_edges",
+    "UnresolvedCategory", "UnresolvedReference", "ParsedModule", "ResolvedSymbolRegistry", "CORE_BASE_MODULES",
+    "add_security_group_nodes", "add_menu_nodes", "add_window_action_refs",
+    "add_workflow_nodes_and_edges", "add_view_button_nodes_and_edges",
 ]

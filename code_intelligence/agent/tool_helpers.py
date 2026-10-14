@@ -1,19 +1,15 @@
-"""
-Helper functions, state guards, and prioritization logic for CI agent tools.
-"""
+"""Helper functions, state guards, and prioritization logic for CI agent tools."""
 
 from __future__ import annotations
 
 import logging
 from pathlib import Path
 from typing import Optional
-
 from code_intelligence.agent.resolver import resolve_business_term
-from code_intelligence.utils import resolve_model_xmlref, SENSITIVE_BYPASS_MARKER, format_file_link
+from code_intelligence.utils import SENSITIVE_BYPASS_MARKER, format_file_link
 import re
 
 _logger = logging.getLogger(__name__)
-
 _GRAPH_REF = None
 _LLM_REF = None
 _CURRENT_QUESTION = None
@@ -40,14 +36,7 @@ def get_llm_ref():
 
 
 def set_current_question(question: Optional[str]):
-    """Set the current turn's raw question text, readable by tool-internal
-    formatting code that has no direct parameter path back to it (e.g.
-    format_security_locks_summary, called deep inside a @tool wrapper that
-    only receives model_name -- todo/contexte.txt section 846, intra-block
-    relevance reranking). Same global-ref pattern as set_graph_ref/
-    set_llm_ref above; None (the default before this is called, e.g. in
-    isolated unit tests) means "no question available", and callers must
-    treat that as "skip reranking, keep original order" rather than error."""
+    """Set the current question used by tool-internal relevance ranking."""
     global _CURRENT_QUESTION
     _CURRENT_QUESTION = question
 
@@ -57,7 +46,6 @@ def get_current_question() -> Optional[str]:
 
 
 def _require_graph():
-    """Guard: ensure knowledge graph is initialized before tool execution."""
     if _GRAPH_REF is None:
         raise RuntimeError("Knowledge graph not initialized. Call set_graph_ref(G) first.")
     return _GRAPH_REF
@@ -78,16 +66,13 @@ def _resolve_model_param(model_name: str) -> str:
     """Resolve model param to technical model identifier if possible."""
     if _is_wildcard_model(model_name):
         return model_name
-
     G = _require_graph()
     if G.has_node(f"model:{model_name}"):
         return model_name
-
     concept = resolve_business_term(model_name, G)
     if concept.is_resolved and len(concept.resolved_models) == 1:
         _logger.info("Resolved business term %r -> %r", model_name, concept.resolved_models[0])
         return concept.resolved_models[0]
-
     return model_name
 
 
@@ -95,37 +80,28 @@ resolve_model_param = _resolve_model_param
 
 
 def find_model_source_filepaths(G, model_name: str) -> set:
-    """Locate Python source filepaths linked to model."""
     model_node = f"model:{model_name}"
     if model_node not in G:
         return set()
-
     filepaths = set(G.nodes[model_node].get("filepaths", []))
-
     for u, v, attrs in G.edges(data=True):
         if attrs.get("edge_type") == "HAS_FIELD" and u == model_node:
             f_path = G.nodes[v].get("filepath", "")
             if f_path:
                 filepaths.add(f_path)
-
     for node, attrs in G.nodes(data=True):
         if attrs.get("node_type") == "Method" and attrs.get("model") == model_name:
             f_path = attrs.get("filepath", "")
             if f_path:
                 filepaths.add(f_path)
-
     for _, target_node, attrs in G.out_edges(model_node, data=True):
         if attrs.get("edge_type") == "EXTENDS" and target_node.startswith("model:"):
-            parent_fps = G.nodes[target_node].get("filepaths", [])
-            filepaths.update(parent_fps)
-
+            filepaths.update(G.nodes[target_node].get("filepaths", []))
     return filepaths
 
 
 def find_security_lock_source_files(G, model_name: str) -> list:
-    """Return all source filepaths for model containing security findings."""
     from code_intelligence.rules.security import python_source_has_security_findings
-
     filepaths = find_model_source_filepaths(G, model_name)
     hit_files = []
     for fp in sorted(filepaths):
@@ -141,23 +117,21 @@ def find_security_lock_source_files(G, model_name: str) -> list:
 
 
 def find_server_action_nodes(G, model_name: str) -> list:
-    """Locate ServerAction nodes targeting model."""
-    model_node = f"model:{model_name}"
-    if model_node not in G:
+    """Use resolved model targets, never re-infer XML references at query time."""
+    modelNode = f"model:{model_name}"
+    if modelNode not in G or G.nodes[modelNode].get("node_type") != "Model":
         return []
-
-    sa_nodes = []
+    actions = []
     for node, attrs in G.nodes(data=True):
-        if attrs.get("node_type") == "ServerAction":
-            target_m = attrs.get("model_id", "")
-            clean_m = resolve_model_xmlref(target_m)
-            if clean_m == model_name or G.has_edge(node, model_node):
-                sa_nodes.append((node, attrs))
-    return sa_nodes
+        if attrs.get("node_type") != "ServerAction":
+            continue
+        targetEdge = G.get_edge_data(node, modelNode) or {}
+        if attrs.get("target_model") == model_name or targetEdge.get("edge_type") == "TARGETS_MODEL":
+            actions.append((node, attrs))
+    return actions
 
 
 def find_methods_with_override_cascade(G, model_name: str) -> list:
-    """Locate methods overridden in more than one module."""
     prefix = f"method:{model_name}."
     method_names = []
     for node, attrs in G.nodes(data=True):
@@ -171,16 +145,12 @@ def find_methods_with_override_cascade(G, model_name: str) -> list:
 
 
 def _is_custom_module_filepath(filepath: str) -> bool:
-    """Check if filepath belongs to custom modules."""
     from config.settings import (
         CORE_ADDONS_PATH, CORE_FRAMEWORK_ADDONS_PATH, CUSTOM_ADDONS_PATH, CUSTOM_ADDONS_PATHS,
     )
     try:
         resolved = Path(filepath).resolve()
-        if any(
-            root and Path(root).resolve() in resolved.parents
-            for root in dict.fromkeys((CUSTOM_ADDONS_PATH, *CUSTOM_ADDONS_PATHS))
-        ):
+        if any(root and Path(root).resolve() in resolved.parents for root in dict.fromkeys((CUSTOM_ADDONS_PATH, *CUSTOM_ADDONS_PATHS))):
             return True
         if CORE_ADDONS_PATH and Path(CORE_ADDONS_PATH).resolve() in resolved.parents:
             return False
@@ -196,11 +166,9 @@ def _is_custom_module_filepath(filepath: str) -> bool:
 
 
 def _is_custom_server_action_module(G, xml_id: str) -> bool:
-    """Check if ServerAction belongs to a custom module."""
     if "." not in xml_id:
         return False
-    module_name = xml_id.split(".", 1)[0]
-    module_node = f"module:{module_name}"
+    module_node = f"module:{xml_id.split('.', 1)[0]}"
     if module_node not in G:
         return False
     module_filepath = G.nodes[module_node].get("filepath", "")
@@ -210,7 +178,6 @@ def _is_custom_server_action_module(G, xml_id: str) -> bool:
 
 
 def _sort_server_action_entries_custom_first(entries: list) -> list:
-    """Sort server action entries with custom modules and bypass markers first."""
     def _priority(entry):
         xml_id, is_custom, summary = entry
         has_bypass_marker = SENSITIVE_BYPASS_MARKER in summary
@@ -219,21 +186,11 @@ def _sort_server_action_entries_custom_first(entries: list) -> list:
 
 
 def _sort_filepaths_custom_first(filepaths) -> list:
-    """Sort filepaths with custom modules first."""
     return sorted(filepaths, key=lambda fp: (not _is_custom_module_filepath(fp), fp))
 
 
 def _trace_invoked_methods_with_citations(G, model_name: str, code: str):
-    """Same traversal as _trace_invoked_methods, but also returns the
-    structured (filepath, start, end) citations discovered along the way,
-    instead of only the formatted text -- used by dispatch_server_actions
-    (todo/contexte.txt section 831, Famille 1 site 3/5) so the predispatch
-    layer no longer has to regex-parse the file:// links back out of the
-    text this function itself just built from that same structured data.
-    Returns (text, citations) where citations is a List[Tuple[str, int, int]]
-    of (filepath, start_line, end_line), in the same order the text lists
-    them (top-level calls first, then their sub-calls breadth-first).
-    """
+    """Trace direct and nested calls, retaining structured source citations."""
     invoked_methods = re.findall(r"\b(?:model|records?|self)\.([a-zA-Z0-9_]+)\s*\(", code)
     lines = []
     citations = []
