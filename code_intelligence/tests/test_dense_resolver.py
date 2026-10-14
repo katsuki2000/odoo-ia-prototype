@@ -1,4 +1,4 @@
-"""Tests for the dense retrieval resolution step (Option A: alias-free resolver)."""
+"""Tests that dense retrieval supplies candidates without resolving them."""
 
 import pytest
 
@@ -20,7 +20,7 @@ def _fake_scored_retrieval(results, status=None):
 
 
 class TestDenseResolution:
-    def test_clear_winner_resolves(self, monkeypatch):
+    def test_clear_semantic_winner_only_proposes_candidates(self, monkeypatch):
         scored = [("purchase.order", 0.56), ("sale.order", 0.30)]
         monkeypatch.setattr(
             "code_intelligence.agent.resolution.dense_lookup.retrieve_semantic_model_candidates_scored",
@@ -28,12 +28,9 @@ class TestDenseResolution:
         )
         import networkx as nx
         G = nx.DiGraph()
-        result = resolve_dense_retrieval("bon de commande fournisseur", G, "fr_FR").concept
-        assert result is not None
-        assert result.is_resolved
-        assert result.resolved_models == ["purchase.order"]
-        assert result.source_step == "dense_retrieval"
-        assert result.confidence == 0.56
+        outcome = resolve_dense_retrieval("bon de commande fournisseur", G, "fr_FR")
+        assert outcome.candidates == ("purchase.order", "sale.order")
+        assert outcome.status is SemanticRetrievalStatus.SUCCESS
 
     def test_ambiguous_scores_fall_through(self, monkeypatch):
         scored = [("purchase.order", 0.50), ("sale.order", 0.48)]
@@ -43,8 +40,8 @@ class TestDenseResolution:
         )
         import networkx as nx
         G = nx.DiGraph()
-        result = resolve_dense_retrieval("confirmer une commande", G, "fr_FR").concept
-        assert result is None
+        outcome = resolve_dense_retrieval("confirmer une commande", G, "fr_FR")
+        assert outcome.candidates == ("purchase.order", "sale.order")
 
     def test_low_score_falls_through(self, monkeypatch):
         scored = [("res.partner", 0.15)]
@@ -54,8 +51,9 @@ class TestDenseResolution:
         )
         import networkx as nx
         G = nx.DiGraph()
-        result = resolve_dense_retrieval("inventaire galactique", G, "fr_FR").concept
-        assert result is None
+        outcome = resolve_dense_retrieval("inventaire galactique", G, "fr_FR")
+        assert outcome.status is SemanticRetrievalStatus.SUCCESS
+        assert outcome.candidates == ()
 
     def test_disabled_falls_through(self, monkeypatch):
         from code_intelligence.agent.semantic_retrieval import SemanticRetrievalStatus
@@ -65,8 +63,8 @@ class TestDenseResolution:
         )
         import networkx as nx
         G = nx.DiGraph()
-        result = resolve_dense_retrieval("purchase order", G, "en_US").concept
-        assert result is None
+        result = resolve_dense_retrieval("purchase order", G, "en_US")
+        assert result == DenseResolution(SemanticRetrievalStatus.DISABLED)
 
     def test_error_falls_through(self, monkeypatch):
         from code_intelligence.agent.semantic_retrieval import SemanticRetrievalStatus
@@ -76,12 +74,12 @@ class TestDenseResolution:
         )
         import networkx as nx
         G = nx.DiGraph()
-        result = resolve_dense_retrieval("purchase order", G, "en_US").concept
-        assert result is None
+        result = resolve_dense_retrieval("purchase order", G, "en_US")
+        assert result == DenseResolution(SemanticRetrievalStatus.ERROR)
 
     def test_no_graph_returns_none(self):
-        result = resolve_dense_retrieval("purchase order", None, "en_US").concept
-        assert result is None
+        result = resolve_dense_retrieval("purchase order", None, "en_US")
+        assert result == DenseResolution(None)
 
     def test_empty_results_falls_through(self, monkeypatch):
         monkeypatch.setattr(
@@ -90,10 +88,10 @@ class TestDenseResolution:
         )
         import networkx as nx
         G = nx.DiGraph()
-        result = resolve_dense_retrieval("xyz", G, "fr_FR").concept
-        assert result is None
+        result = resolve_dense_retrieval("xyz", G, "fr_FR")
+        assert result == DenseResolution(SemanticRetrievalStatus.NO_CANDIDATES)
 
-    def test_sole_candidate_above_threshold_resolves(self, monkeypatch):
+    def test_sole_candidate_above_threshold_is_only_proposed(self, monkeypatch):
         scored = [("hr.leave", 0.45)]
         monkeypatch.setattr(
             "code_intelligence.agent.resolution.dense_lookup.retrieve_semantic_model_candidates_scored",
@@ -101,14 +99,13 @@ class TestDenseResolution:
         )
         import networkx as nx
         G = nx.DiGraph()
-        result = resolve_dense_retrieval("demande de conge", G, "fr_FR").concept
-        assert result is not None
-        assert result.resolved_models == ["hr.leave"]
-        assert "sole candidate" in result.reason
+        outcome = resolve_dense_retrieval("demande de conge", G, "fr_FR")
+        assert outcome.status is SemanticRetrievalStatus.SUCCESS
+        assert outcome.candidates == ("hr.leave",)
 
 
 class TestDenseStatusVisibility:
-    """The dense outcome must reach the resolved concept, whatever the fall-through reason."""
+    """The resolver exposes retrieval status when no candidate is selected."""
 
     @pytest.mark.parametrize(
         "status", [SemanticRetrievalStatus.DISABLED, SemanticRetrievalStatus.ERROR],
@@ -120,7 +117,7 @@ class TestDenseStatusVisibility:
         )
         import networkx as nx
         outcome = resolve_dense_retrieval("purchase order", nx.DiGraph(), "en_US")
-        assert outcome == DenseResolution(None, status)
+        assert outcome == DenseResolution(status)
 
     def test_ambiguous_fall_through_keeps_success_status(self, monkeypatch):
         scored = [("purchase.order", 0.50), ("sale.order", 0.48)]
@@ -130,10 +127,12 @@ class TestDenseStatusVisibility:
         )
         import networkx as nx
         outcome = resolve_dense_retrieval("confirmer une commande", nx.DiGraph(), "fr_FR")
-        assert outcome == DenseResolution(None, SemanticRetrievalStatus.SUCCESS)
+        assert outcome == DenseResolution(
+            SemanticRetrievalStatus.SUCCESS, ("purchase.order", "sale.order"),
+        )
 
     def test_step_not_run_without_graph(self):
-        assert resolve_dense_retrieval("purchase order", None, "en_US") == DenseResolution(None, None)
+        assert resolve_dense_retrieval("purchase order", None, "en_US") == DenseResolution(None)
 
     @pytest.mark.parametrize(
         "status", [SemanticRetrievalStatus.DISABLED, SemanticRetrievalStatus.ERROR],
@@ -142,7 +141,7 @@ class TestDenseStatusVisibility:
         from code_intelligence.agent import resolver
         import networkx as nx
         monkeypatch.setattr(
-            resolver, "resolve_dense_retrieval", lambda *a, **kw: DenseResolution(None, status),
+            resolver, "resolve_dense_retrieval", lambda *a, **kw: DenseResolution(status),
         )
         result = resolver.resolve_business_term("comment valider ?", nx.DiGraph(), llm=None)
         assert not result.is_resolved
@@ -152,7 +151,7 @@ class TestDenseStatusVisibility:
         from code_intelligence.agent import resolver
         import networkx as nx
         monkeypatch.setattr(
-            resolver, "resolve_dense_retrieval", lambda *a, **kw: DenseResolution(None, None),
+            resolver, "resolve_dense_retrieval", lambda *a, **kw: DenseResolution(None),
         )
         result = resolver.resolve_business_term("comment valider ?", nx.DiGraph(), llm=None)
         assert result.diagnostics == {}
@@ -175,3 +174,70 @@ class TestResolverDefaultChanged:
         result = resolve_business_term("avoir", G, llm=None, use_static_aliases=True)
         assert result.is_resolved
         assert "account.move" in result.resolved_models
+
+
+def test_resolver_arbitrates_when_dense_and_fuzzy_leaders_disagree(monkeypatch):
+    import networkx as nx
+    from code_intelligence.agent import resolver
+    from code_intelligence.agent.resolution import fuzzy_lookup
+    from code_intelligence.agent.resolution.arbitration import ARBITRATION_SELECTED, ArbitrationTrace
+
+    graph = nx.DiGraph()
+    for model in ("purchase.order", "sale.order"):
+        graph.add_node(f"model:{model}", node_type="Model", name=model, description=model)
+
+    monkeypatch.setattr(
+        resolver,
+        "resolve_dense_retrieval",
+        lambda *args, **kwargs: DenseResolution(
+            SemanticRetrievalStatus.SUCCESS, ("sale.order", "purchase.order"),
+        ),
+    )
+    monkeypatch.setattr(
+        fuzzy_lookup,
+        "_fuzzy_match_graph",
+        lambda *args, **kwargs: [("purchase.order", 95.0), ("sale.order", 45.0)],
+    )
+    monkeypatch.setattr(
+        fuzzy_lookup,
+        "_llm_arbitrate",
+        lambda query, candidates, llm, contexts=None: ArbitrationTrace(
+            "sale.order", ARBITRATION_SELECTED, "sale.order",
+        ),
+    )
+
+    result = resolver.resolve_business_term("confirmer le bon", graph, llm=object())
+
+    assert result.is_resolved
+    assert result.resolved_models == ["sale.order"]
+    assert result.source_step == "hybrid_arbitration"
+
+
+def test_resolver_abstains_when_retrievals_disagree_without_llm(monkeypatch):
+    import networkx as nx
+    from code_intelligence.agent import resolver
+    from code_intelligence.agent.resolution import fuzzy_lookup
+
+    graph = nx.DiGraph()
+    for model in ("purchase.order", "sale.order"):
+        graph.add_node(f"model:{model}", node_type="Model", name=model, description=model)
+
+    monkeypatch.setattr(
+        resolver,
+        "resolve_dense_retrieval",
+        lambda *args, **kwargs: DenseResolution(
+            SemanticRetrievalStatus.SUCCESS, ("sale.order", "purchase.order"),
+        ),
+    )
+    monkeypatch.setattr(
+        fuzzy_lookup,
+        "_fuzzy_match_graph",
+        lambda *args, **kwargs: [("purchase.order", 95.0), ("sale.order", 45.0)],
+    )
+
+    result = resolver.resolve_business_term("confirmer le bon", graph, llm=None)
+
+    assert not result.is_resolved
+    assert result.source_step == "unresolved"
+    assert "purchase.order" in result.diagnostics["ambiguous_candidates"]
+    assert "sale.order" in result.diagnostics["ambiguous_candidates"]

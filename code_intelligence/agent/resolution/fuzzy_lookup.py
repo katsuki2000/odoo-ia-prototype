@@ -204,6 +204,7 @@ def resolve_fuzzy_match(
     llm,
     language: Optional[str],
     use_static_aliases: bool,
+    semantic_candidates: Sequence[str] = (),
 ) -> Optional[ResolvedConcept]:
     """Resolve through fuzzy graph labels; None when there is nothing to arbitrate."""
     if G is None:
@@ -215,6 +216,44 @@ def resolve_fuzzy_match(
         use_static_synonyms=use_static_aliases,
     )
     if fuzzy_results:
+        if semantic_candidates and semantic_candidates[0] != fuzzy_results[0][0]:
+            candidates = list(dict.fromkeys(
+                [model for model, _score in fuzzy_results[:5]] + list(semantic_candidates[:5])
+            ))
+            trace = _llm_arbitrate(
+                query_text, candidates, llm, _candidate_contexts(G, candidates, language),
+            ) if llm is not None else None
+            if trace is not None and trace.choice is not None:
+                return ResolvedConcept(
+                    user_term=query_text,
+                    resolved_models=[trace.choice],
+                    confidence=0.6,
+                    source_step="hybrid_arbitration",
+                    is_resolved=True,
+                    reason=(
+                        "Lexical and semantic retrieval ranked different leading models; "
+                        f"closed-list arbitration selected '{trace.choice}'."
+                    ),
+                    diagnostics={
+                        ARBITRATION_OUTCOME_KEY: trace.status,
+                        **({ARBITRATION_RAW_KEY: trace.raw[:ARBITRATION_RAW_MAX_LENGTH]}
+                           if trace.raw is not None else {}),
+                    },
+                )
+            diagnostics = {
+                AMBIGUOUS_CANDIDATES_KEY: _CANDIDATE_SEPARATOR.join(candidates),
+                ARBITRATION_OUTCOME_KEY: trace.status if trace is not None else "no_llm",
+            }
+            if trace is not None and trace.raw is not None:
+                diagnostics[ARBITRATION_RAW_KEY] = trace.raw[:ARBITRATION_RAW_MAX_LENGTH]
+            return ResolvedConcept(
+                user_term=query_text,
+                is_resolved=False,
+                confidence=0.0,
+                source_step="unresolved",
+                reason="Lexical and semantic retrieval disagree; no candidate was safely selected.",
+                diagnostics=diagnostics,
+            )
         return _resolve_strict_candidates(
             query_text, clean_query, G, llm, language, use_static_aliases, fuzzy_results,
         )

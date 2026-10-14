@@ -2255,4 +2255,30 @@ status=complete answered=10/10 invalidated_attempts=0 report=captures/chat_serie
 2026-10-14 16:54:11,170 [9/10] s1_09_ambiguous_validate_order ok 59.2s route=code_intelligence
 2026-10-14 16:55:37,386 [10/10] s1_10_absent_delivery_drones ok 86.2s route=documentaire
 status=complete answered=10/10 invalidated_attempts=0 report=captures/chat_series_1_run2_employe.json
-(.venv) user@debian:~/odoo-ia-prototype$ 
+(.venv) user@debian:~/odoo-ia-prototype$
+
+
+## Section 1338 : résolution hybride : le sémantique propose, le moteur départage (14/10/2026)
+
+**Mandat** : créer une branche dédiée pour corriger durablement le résolveur métier, sans modifier `main`.
+
+**Branche** : `fix/resolver-hybrid-retrieval`, créée depuis `main`.
+
+**Cause racine ciblée** : `resolve_business_term` retournait immédiatement le modèle classé premier par la recherche dense lorsque son score dépassait `DENSE_MIN_SCORE` et que l'écart avec le deuxième candidat dépassait un seuil. Ces seuils de similarité ne prouvent pas que le modèle correspond au sens métier de la question ; le résolveur pouvait donc court-circuiter la recherche lexicale et l'arbitrage.
+
+**Changement** :
+- `resolve_dense_retrieval` ne sélectionne plus de modèle. Il renvoie les candidats au-dessus du seuil de récupération, avec le statut du backend.
+- Le résolveur transmet ces candidats à l'étape floue.
+- Si les premiers candidats lexicaux et sémantiques diffèrent, le moteur construit une liste fermée à partir des deux récupérations. Qwen ne peut choisir que dans cette liste ; sans LLM ou sans choix valide, le résolveur s'abstient et expose les candidats dans ses diagnostics.
+- Si les récupérations concordent, le chemin lexical existant reste inchangé. Les mentions techniques exactes et la couche d'alias d'évaluation R0 conservent leur priorité.
+- Ajout de tests pour le candidat sémantique seul, le désaccord entre les deux récupérations, l'arbitrage borné et l'abstention sans LLM.
+
+**Fichiers modifiés** :
+- `code_intelligence/agent/resolution/dense_lookup.py`
+- `code_intelligence/agent/resolution/fuzzy_lookup.py`
+- `code_intelligence/agent/resolver.py`
+- `code_intelligence/tests/test_dense_resolver.py`
+
+**Limites de validation** : modifications poussées sur la branche GitHub. Les tests n'ont pas été exécutés dans un environnement Python par cette session ; aucune réussite de test ni amélioration des métriques n'est revendiquée. Avant toute fusion, lancer les tests ciblés du résolveur, puis le protocole E1 gelé et la suite hors intégration. Le changement corrige le raccourci où la recherche dense décidait seule ; il ne prouve pas encore que le rappel des candidats est suffisant sur toutes les instances Odoo 17.
+
+**Non fait** : aucune fusion dans `main`, aucun changement de comportement dans l'instance en exécution, aucun run E1/E2.
