@@ -1,56 +1,69 @@
-# Google Drive document ingestion
+# Shared Google Drive corpus
 
-Manual, read-only ingestion of an approved folder corpus into the existing document RAG Chroma collection. This feature does not change Odoo addons, the local ingestion scheduler, the API or the graph.
+One approved shared Drive corpus per target RAG collection. No mapping between Google accounts and Odoo users is required: a technical identity reads the folders, and the selected documents must be approved for every reader of that RAG collection. This is not per-user Drive authorization.
 
-## Configure
+## Install and authenticate
 
-In the project virtual environment:
+Inside the project virtual environment:
 
 ```bash
 pip install -r requirements-google-drive.txt
 ```
 
-Enable the Google Drive API in your Google Cloud project. Use Application Default Credentials (ADC), preferably a dedicated service account whose access is limited to the selected corpus. Share the selected folders with that account as a reader. On AWS, use supported workload identity federation or provision the credential file outside the repository. An authorized-user ADC profile is also supported by google-auth; this feature does not provide an interactive OAuth browser flow.
+Enable Google Drive API in your Google Cloud project. Use Application Default Credentials (ADC), preferably a dedicated service account with reader access only to the approved folders. Share those folders with the service account. On AWS, use supported workload identity federation or a credential file provisioned outside the repository. Authorized-user ADC is also supported; there is no interactive OAuth setup in this feature.
 
-Keep credentials outside Git and outside the document ingestion directories. Do not paste keys or tokens into chat, commit them, or index the credential JSON. `GOOGLE_APPLICATION_CREDENTIALS` is the standard ADC environment variable, not a file that the connector creates.
-
-Add to your local `.env` (replace placeholders with your own configuration):
+Never commit credential JSON, index it as a document, or paste keys into chat. Configuration is centralized in `config/google_drive.py`; the existing Chroma and embedding settings remain authoritative.
 
 ```dotenv
 GOOGLE_DRIVE_FOLDER_IDS=your_folder_id
 GOOGLE_APPLICATION_CREDENTIALS=path_to_external_credentials.json
 GOOGLE_DRIVE_APPROVED_FOR_RAG=true
+GOOGLE_DRIVE_SYNC_INTERVAL_SECONDS=300
 GOOGLE_DRIVE_TIMEOUT=30
 GOOGLE_DRIVE_MAX_BYTES=20971520
 GOOGLE_DRIVE_MAX_FILES=10000
 ```
 
-Multiple folder identifiers may be comma-separated. Use identifiers from the folder URLs, not the full URLs. Configuration is centralized in `config/google_drive.py`. Existing `CHROMA_PATH`, `DOCS_COLLECTION_NAME` and embedding configuration remain authoritative. No credentials or account-specific configuration are included in the branch.
-
-## Audience and retention
-
-Only set `GOOGLE_DRIVE_APPROVED_FOR_RAG=true` after confirming that every document in the selected folders and their descendants can be exposed to every reader of the target RAG collection. Service-account access is not end-user authorization. There is no per-user Drive ACL filtering at retrieval time. Use a curated shared knowledge corpus, never arbitrary private employee folders. Keep separate Chroma storage/collections for audiences or tenants that must not share documents.
-
-This is manual import/refresh, not continuous permission synchronization. Absent, deleted, inaccessible or unsupported files are not automatically purged from Chroma. A previously imported file may remain searchable after access changes or after it leaves the folder. Review and remove affected indexed sources before changing the approved corpus or its audience. Do not use this mode for a corpus requiring immediate permission revocation. The scope is read-only; the connector never edits or deletes remote files.
+Replace placeholders. Folder IDs can be comma-separated. Keep one Drive corpus per collection; use separate storage/collections for distinct audiences or tenants. Changing the folder set authorizes reconciliation against the new set, including removal of old out-of-scope Drive chunks.
 
 ## Run
+
+One reconciliation:
 
 ```bash
 python -m document_rag.ingestion.google_drive_cli
 ```
 
-Without folders configured, the command reports `skipped` without initializing Google authentication or Chroma. With folders configured but no explicit corpus approval, it refuses to ingest. Exit codes: 0 successful/skipped; 1 per-file failures; 2 configuration, authentication, inventory or startup failure.
-
-PDF, TXT, Markdown and DOCX files use the existing document loaders. Native Google Docs are exported as DOCX and passed through the existing DOCX loader. Other Google-native types (Sheets, Slides, shortcuts) are skipped. Subfolders are traversed, with pagination and bounded inventory; shortcuts are not followed outside the chosen corpus. Shared-drive listing flags are included, but a live shared-drive run still needs validation.
-
-Downloads are bounded, stored in temporary directories, and removed after parsing. Redirects are refused so bearer credentials are never forwarded to another host; deployments that encounter download redirects fail rather than silently relaxing this protection. Sources point to stable Drive file URLs, not temporary paths. Metadata records the Drive file ID, revision, title, origin and chunk profile. Unchanged revisions skip downloads; changes to chunk size/overlap also trigger refresh.
-
-New chunks are added before obsolete chunks of the same source are deleted. Parser/read/write failures preserve the previous chunks. Chroma updates are not cross-operation transactions; partial writes or cleanup failures can leave extra chunks. Retry and inspect failures. Run a single ingestion writer per target collection. This command does not claim to repair the local ingestion pipeline's existing transaction behavior.
-
-## Validation
+Continuous worker, immediate scan then every configured interval:
 
 ```bash
-python -m unittest discover -s tests -p test_google_drive_ingestion.py -v
+python -m document_rag.ingestion.google_drive_cli --watch
 ```
 
-The connector was exercised with 15 offline tests using fake HTTP responses, credentials, collection and parser interfaces. The real connector and ingestion code run in those tests. The no-folder CLI path also passed. No live Google authentication, Drive download, production PDF/DOCX parsing, embeddings or Chroma integration was performed here. Test those in the project virtual environment before enabling ingestion against your real corpus.
+Run this worker under your deployment supervisor if it must survive logout/restart. No server or supervisor was configured by this change. A lock in the target Chroma directory excludes another instance of this CLI worker. Distributed hosts need a shared locking/storage strategy or one designated writer; a local file lock is not a distributed lease.
+
+Without folders the command skips without initializing Google or Chroma. An approved corpus is required. Single-run exit codes: 0 complete/skipped; 1 per-file errors or blocked corpus; 2 configuration/authentication/inventory/storage failure. Watch mode emits a result every cycle, retries failures at the configured interval, and stops on interruption; supervise its reports, not only its process exit code.
+
+## Synchronization and retrieval
+
+Each cycle uses a full paginated folder inventory, not Drive Changes or a persistent cursor. File revisions avoid unnecessary downloads. Inventory limits or incomplete listings abort before removal. Timeouts, generic 403/quota errors and other ambiguous failures do not imply deletion.
+
+After a complete inventory, Drive chunks for files absent from the selected corpus, unsupported files or files explicitly marked non-downloadable are deactivated before physical deletion. Local filesystem sources are untouched. Ingestion of current readable files reuses the original loaders and adds replacement chunks before deleting old ones.
+
+If a configured root returns 404, it is missing or inaccessible; the entire Drive corpus of that collection is deactivated and purged rather than guessing which roots own old chunks. Local documents remain. Recovery can reindex the shared corpus. Generic 403 errors remain ambiguous and pause synchronization without purging; investigate them operationally. A download error occurring after inventory does not automatically revoke an existing indexed copy.
+
+The main retrieval pipeline checks current chunk IDs and the `drive_active` flag for vector/lexical candidates, before reranking and after contiguous expansion. Stale BM25 entries for removed/deactivated Drive chunks are excluded. Availability lookup failures drop Drive candidates rather than trusting cached text. Tombstones stay effective if physical cleanup fails after deactivation; failure of deactivation itself aborts and requires operator intervention. New documents are visible to vector retrieval after ingestion; an existing cached BM25 index still needs rebuilding/restarting to include new lexical entries.
+
+This is periodic shared-corpus reconciliation, not instantaneous revocation or an end-user permission check. Detection waits until a successful cycle; outages can extend that delay. Already generated answers, chat history and requests already in flight are not erased by chunk removal. Do not use a private/dynamically restricted corpus with this shared-reader model.
+
+## Formats and safety
+
+PDF, TXT, Markdown and DOCX reuse existing loaders. Google Docs export as DOCX. Other Google-native types and shortcuts are skipped. Subfolders and shared-drive listing flags are supported, subject to a live shared-drive validation. Downloads are bounded and temporary. Redirects are refused to avoid forwarding bearer tokens. Sources retain stable Drive file URLs.
+
+## Tests and outstanding validation
+
+```bash
+python -m unittest discover -s tests -p 'test_google_drive*.py' -v
+```
+
+29 offline tests passed: the original 15 plus 14 synchronization/availability tests. HTTP, manager and parser interfaces use fixtures; two local-inventory helpers are executed in isolation from their parsed source. Compilation and the disabled CLI path passed. The full retrieval pipeline, real Chroma metadata updates, inter-process locking, live Drive credentials/downloads, production parsers and embeddings still need integration tests in the project environment. No live ingestion was started here.
