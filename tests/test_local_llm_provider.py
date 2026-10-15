@@ -66,7 +66,7 @@ def test_erp_data_orm_helpers_uses_local_llm():
 
 
 def test_health_check_v1_local_provider_healthy():
-    """Verify health check reports the configured local inference endpoint."""
+    """The detailed health check no longer probes the LLM and never exposes its endpoint."""
     from api.routes_system import health_check_v1
     with patch("config.settings.LLM_PROVIDER", "local"), \
          patch("config.settings.LOCAL_LLM_BASE_URL", "http://localhost:11434/v1"), \
@@ -77,7 +77,8 @@ def test_health_check_v1_local_provider_healthy():
 
         status = health_check_v1()
         assert status["status"] == "ok"
-        assert "local" in status["services"]["llm"]
+        assert status["services"]["llm"] == "not checked"
+        assert "localhost:11434" not in str(status)
 
 
 def test_rate_limit_spacing_is_disabled_for_local():

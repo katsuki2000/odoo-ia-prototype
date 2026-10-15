@@ -263,9 +263,13 @@ def build_synthesis_prompt(
         anti_fabrication_rule + coverage_caveat + persona_guidance + display_causes_rule +
         orphan_action_rule +
         f"\n\nSynthesize a clear, professional response based strictly on the "
-        f"data above. Respond in the SAME language as the Original Question "
-        f"above (French question -> French answer, English question -> "
-        f"English answer) -- never mix languages. Do NOT translate exact "
+        f"data above. Write the prose in the SAME language as the Original Question "
+        f"above (French question -> French prose, English question -> "
+        f"English prose). Interface labels (menu, button, field, state and group "
+        f"names as displayed by the interface) are not prose: copy each one verbatim "
+        f"as given in the observations, in quotes, never translate it and never add a "
+        f"translation or gloss next to it; a label absent from the observations is "
+        f"never quoted, describe its role in plain words instead. Do NOT translate exact "
         f"technical identifiers (model names, XML-IDs, group names, method "
         f"names) -- copy them verbatim. Each observation above comes from a "
         f"distinct mechanism (ir.rule evaluation vs Python code lock analysis "

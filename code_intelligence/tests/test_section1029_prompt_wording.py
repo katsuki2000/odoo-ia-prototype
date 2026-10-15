@@ -6,7 +6,7 @@ operational recommendation the observations never establish, and a harmful one
 (that group carries every purchase approval right, not just the one button).
 """
 
-from code_intelligence.agent.prompts import CI_SYSTEM_PROMPT
+from code_intelligence.agent.prompts import CI_SYSTEM_PROMPT, build_synthesis_prompt
 
 
 def test_unavailable_action_rule_forbids_access_recommendations():
@@ -31,3 +31,13 @@ def test_a_button_not_found_by_name_is_not_evidence_of_absence():
 def test_prompt_examples_do_not_seed_a_validation_button_name():
     assert "action_valider" not in CI_SYSTEM_PROMPT
     assert "bouton Valider" not in CI_SYSTEM_PROMPT
+
+
+def test_synthesis_prompt_keeps_interface_labels_out_of_the_question_language():
+    prompt = build_synthesis_prompt("Test question", ["Obs 1"], ["tool_a"])
+
+    assert "Write the prose in the SAME language as the Original Question" in prompt
+    assert "Interface labels (menu, button, field, state and group names" in prompt
+    assert "never translate it and never add a translation or gloss next to it" in prompt
+    assert "a label absent from the observations is never quoted" in prompt
+    assert "never mix languages" not in prompt

@@ -4,7 +4,7 @@ import networkx as nx
 import pytest
 
 from code_intelligence.extractor.xml import parse_actions_from_xml
-from code_intelligence.graph.nodes import add_menu_nodes
+from code_intelligence.graph.nodes import ResolvedSymbolRegistry, add_menu_nodes
 from code_intelligence.graph.workflow_extraction import domain_admits_any_state
 from code_intelligence.rules.navigation import _menus_opening_model
 
@@ -66,7 +66,8 @@ def test_all_menus_are_kept_when_none_admits_the_states():
 
 
 def _registry(**actions):
-    return SimpleNamespace(actions=actions, server_actions={})
+    # A real registry: a technical model name resolves only when it is in `models` (no guessing).
+    return ResolvedSymbolRegistry(actions=actions, models={"purchase.order": []})
 
 
 def _module(*menus):

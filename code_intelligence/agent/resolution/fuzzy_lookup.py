@@ -9,6 +9,8 @@ from .candidates import (
     AMBIGUITY_GAP_THRESHOLD,
     WIDENED_CANDIDATE_LIMIT,
     WIDENED_CANDIDATE_THRESHOLD,
+    HYBRID_SEMANTIC_LIMIT,
+    SHORTLIST_FUZZY_LIMIT,
     ArbitrationShortlist,
     _candidate_contexts,
     _deterministic_tiebreak,
@@ -218,7 +220,8 @@ def resolve_fuzzy_match(
     if fuzzy_results:
         if semantic_candidates and semantic_candidates[0] != fuzzy_results[0][0]:
             candidates = list(dict.fromkeys(
-                [model for model, _score in fuzzy_results[:5]] + list(semantic_candidates[:5])
+                [model for model, _score in fuzzy_results[:SHORTLIST_FUZZY_LIMIT]]
+                + list(semantic_candidates[:HYBRID_SEMANTIC_LIMIT])
             ))
             trace = _llm_arbitrate(
                 query_text, candidates, llm, _candidate_contexts(G, candidates, language),
@@ -262,7 +265,7 @@ def resolve_fuzzy_match(
         # Do not discard useful dense candidates just because lexical matching
         # found no strict candidate. Reuse the already retrieved shortlist rather
         # than performing a second semantic retrieval in the widened fallback.
-        candidates = list(dict.fromkeys(semantic_candidates[:10]))
+        candidates = list(dict.fromkeys(semantic_candidates[:HYBRID_SEMANTIC_LIMIT]))
         trace = (
             _llm_arbitrate(
                 query_text, candidates, llm, _candidate_contexts(G, candidates, language),

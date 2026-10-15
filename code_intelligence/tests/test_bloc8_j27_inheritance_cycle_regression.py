@@ -30,6 +30,8 @@ budget, never just run slightly slower.
 
 import time
 
+import networkx as nx
+
 from code_intelligence.extractor.manifest import OdooManifest
 from code_intelligence.extractor.python import OdooModelDeclaration
 from code_intelligence.graph.nodes import ParsedModule
@@ -144,9 +146,10 @@ def test_three_model_cascade_cycle_survives_full_graph_build_and_query():
 
 def test_self_inheriting_model_survives_full_graph_build_and_query():
     """
-    Degenerate edge case: a model whose own _inherit lists itself (e.g. a
-    copy-paste typo in a real module) -- a direct self-loop EXTENDS edge,
-    the shortest possible cycle. Not covered by test_a2_1_1.py at all.
+    Degenerate edge case: a model whose own _inherit lists itself (the Odoo
+    in-place extension pattern, or a copy-paste typo). The builder skips the
+    EXTENDS edge from a model to itself (section 1347: it has no meaning), so
+    the graph has no self-loop and the query must still terminate.
     """
     models = [
         OdooModelDeclaration(
@@ -157,7 +160,7 @@ def test_self_inheriting_model_survives_full_graph_build_and_query():
     G, registry = _build_graph_from_models({"self_mod": models})
 
     assert G.has_node("model:self.model")
-    assert G.has_edge("model:self.model", "model:self.model")
+    assert not G.has_edge("model:self.model", "model:self.model")
 
     t0 = time.perf_counter()
     result = trace_full_inheritance(G, "self.model")
@@ -167,8 +170,24 @@ def test_self_inheriting_model_survives_full_graph_build_and_query():
         f"trace_full_inheritance took {elapsed:.3f}s on a self-inheriting "
         f"model -- expected well under {_MAX_QUERY_SECONDS}s."
     )
-    # The model is technically its own only "parent" here; the visited-set
-    # guard must stop the BFS from re-enqueuing self.model a second time.
+    # No EXTENDS edge was built, so the model has no parent to report.
+    assert result.status == QueryStatus.EMPTY
+    assert result.full_ancestors == []
+    assert result.extension_parents == []
+
+
+def test_trace_full_inheritance_stops_on_a_self_loop_already_in_the_graph():
+    """
+    The builder no longer creates a self-loop, but a graph loaded from an older
+    cache may still contain one: the visited-set guard must stop the BFS from
+    re-enqueuing the model a second time.
+    """
+    G = nx.DiGraph()
+    G.add_node("model:self.model", node_type="Model", name="self.model")
+    G.add_edge("model:self.model", "model:self.model", edge_type="EXTENDS")
+
+    result = trace_full_inheritance(G, "self.model")
+
     assert result.status == QueryStatus.FOUND
     assert result.full_ancestors == []
     assert result.extension_parents == ["self.model"]

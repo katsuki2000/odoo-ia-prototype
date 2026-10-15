@@ -13,7 +13,7 @@ DATA_DIR = Path(__file__).resolve().parent / "data"
 CASES_PATH = DATA_DIR / "calibration_cases.json"
 
 FAMILIES = frozenset(
-    {"paraphrase", "exact_label", "non_model", "ambiguous", "absent", "bilingual_pair"}
+    {"paraphrase", "exact_label", "non_model", "ambiguous", "absent", "bilingual_pair", "role_question"}
 )
 ABSTENTION_RULES = frozenset({"none", "must_clarify"})
 OBJECT_REF = re.compile(r"^(model|menu|field|method|rule|group):.+$")

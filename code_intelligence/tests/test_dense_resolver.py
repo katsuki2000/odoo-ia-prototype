@@ -213,6 +213,44 @@ def test_resolver_arbitrates_when_dense_and_fuzzy_leaders_disagree(monkeypatch):
     assert result.source_step == "hybrid_arbitration"
 
 
+def test_closed_list_keeps_the_semantic_candidate_ranked_seventh(monkeypatch):
+    """A model at semantic rank 7 must reach the arbitrator (the list used to keep only 5)."""
+    import networkx as nx
+    from code_intelligence.agent import resolver
+    from code_intelligence.agent.resolution import fuzzy_lookup
+    from code_intelligence.agent.resolution.arbitration import ARBITRATION_SELECTED, ArbitrationTrace
+
+    semantic = tuple(f"noise.model_{index}" for index in range(1, 7)) + ("hr.leave",)
+    graph = nx.DiGraph()
+    for model in ("lexical.leader",) + semantic:
+        graph.add_node(f"model:{model}", node_type="Model", name=model, description=model)
+
+    monkeypatch.setattr(
+        resolver,
+        "resolve_dense_retrieval",
+        lambda *args, **kwargs: DenseResolution(SemanticRetrievalStatus.SUCCESS, semantic),
+    )
+    monkeypatch.setattr(
+        fuzzy_lookup,
+        "_fuzzy_match_graph",
+        lambda *args, **kwargs: [("lexical.leader", 95.0)],
+    )
+    seen = {}
+
+    def fake_arbitrate(query, candidates, llm, contexts=None):
+        seen["candidates"] = list(candidates)
+        return ArbitrationTrace("hr.leave", ARBITRATION_SELECTED, "hr.leave")
+
+    monkeypatch.setattr(fuzzy_lookup, "_llm_arbitrate", fake_arbitrate)
+
+    result = resolver.resolve_business_term("valider un conge", graph, llm=object())
+
+    assert "hr.leave" in seen["candidates"]
+    assert result.is_resolved
+    assert result.resolved_models == ["hr.leave"]
+    assert result.source_step == "hybrid_arbitration"
+
+
 def test_resolver_abstains_when_retrievals_disagree_without_llm(monkeypatch):
     import networkx as nx
     from code_intelligence.agent import resolver
