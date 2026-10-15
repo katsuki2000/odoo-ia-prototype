@@ -2,15 +2,14 @@
 core/graph_nodes.py
 
 Pipeline nodes and conditional edge decisions for the LangGraph workflow:
-smalltalk_gate, out_of_scope_gate, retrieve, format_output, ci_evidence_decision.
+out_of_scope_gate, retrieve, format_output.
 """
 
 import logging
 import sys
 
-from config.settings import ENABLE_SMALLTALK_GATE, USE_RERANKER
+from config.settings import USE_RERANKER
 from document_rag.vectorstore.search import get_retriever, retrieve as search_retrieve
-from core.session.smalltalk import classify_smalltalk, SMALLTALK_RESPONSES
 from core.evidence.evidence_sufficiency import EvidenceSufficiencyStatus
 from core.schemas import (
     AssistantResponse,
@@ -20,37 +19,9 @@ from core.schemas import (
 from core.guardrails import OUT_OF_SCOPE_ANSWER, is_out_of_scope
 from core.routing.routing import _fold_accents
 from core.state import RAGState
-from core.output import sanitize_html_to_markdown
 from code_intelligence.agent.investigation_classifier import has_documentary_anchor
 
 logger = logging.getLogger(__name__)
-
-
-def smalltalk_gate(state: RAGState) -> dict:
-    """
-    Deterministic pre-retrieval gate for pure smalltalk.
-    Disabled when ENABLE_SMALLTALK_GATE is false (LLM answers instead).
-    """
-    if not ENABLE_SMALLTALK_GATE:
-        return {}
-
-    question = state.get("question", "")
-    kind = classify_smalltalk(question)
-    if kind is None:
-        return {}
-
-    logger.info("Node [smalltalk_gate]: pure smalltalk detected (%s) -- skipping retrieve()/route()", kind)
-    response = AssistantResponse(
-        answer=SMALLTALK_RESPONSES[kind],
-        sources=[],
-        confidence=1.0,
-    )
-    return {"response": response, "route": "smalltalk", "retrieved_chunks": [], "investigation_plan": None}
-
-
-def smalltalk_decision(state: RAGState) -> str:
-    """Return the conditional-edge key out of smalltalk_gate."""
-    return "format_output" if state.get("response") is not None else "out_of_scope_gate"
 
 
 def out_of_scope_gate(state: RAGState) -> dict:
@@ -73,7 +44,7 @@ def out_of_scope_gate(state: RAGState) -> dict:
 
 def out_of_scope_decision(state: RAGState) -> str:
     """Return the conditional-edge key out of out_of_scope_gate."""
-    return "format_output" if state.get("response") is not None else "retrieve"
+    return "format_output" if state.get("response") is not None else "route"
 
 
 def _has_explicit_doc_request(state: RAGState) -> bool:
@@ -88,10 +59,8 @@ def _has_explicit_doc_request(state: RAGState) -> bool:
 
 
 def answered_by_documents(state: RAGState) -> bool:
-    """Whether generate() wrote the answer: CI ran and the question explicitly asks for
-    documentation. Single expression shared by ci_evidence_decision() (which routes to
-    generate), format_output() and verify_answer() so the three cannot drift apart."""
-    return bool(state.get("ci_evidence_sufficiency")) and _has_explicit_doc_request(state)
+    """Whether this turn was routed to the documentation corpus."""
+    return state.get("route") == "documentaire" or state.get("source_mode") == "documentation"
 
 
 def retrieve(state: RAGState) -> dict:
@@ -130,7 +99,7 @@ def format_output(state: RAGState) -> dict:
     ci_sufficiency = state.get("ci_evidence_sufficiency")
 
     # todo/contexte.txt section 744: an explicit documentary request wins over ANY CI evidence status.
-    ci_fell_back_to_rag = answered_by_documents(state)
+    documentation_route = answered_by_documents(state)
 
     if response:
         response.route = route
@@ -139,10 +108,9 @@ def format_output(state: RAGState) -> dict:
         response.loop_resolved_concept = state.get("loop_resolved_concept")
         response.investigation_plan = state.get("investigation_plan")
         response.ci_evidence_sufficiency = ci_sufficiency
-        response.rag_fallback = ci_fell_back_to_rag
-        response.answer = sanitize_html_to_markdown(response.answer)
+        response.rag_fallback = False
 
-    if response and chunks and ci_fell_back_to_rag:
+    if response and chunks and documentation_route:
         primary_chunk = chunks[0]
         primary_metadata = primary_chunk.get("metadata") or {}
         primary_type = primary_metadata.get("type", "")
