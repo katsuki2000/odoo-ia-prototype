@@ -77,7 +77,7 @@ def test_views_xml():
 
 
 def test_plain_text_rendering_escapes_html_and_does_not_parse_markdown(bot_module):
-    convert = bot_module.markdown_to_html
+    convert = bot_module.plain_text_to_html
     assert convert("") == ""
     assert convert(None) == ""
 
@@ -249,7 +249,7 @@ def test_handle_channel_message_mention_in_public_channel(bot_module, monkeypatc
 
 
 def test_markdown_lists_strip_their_markers(bot_module):
-    html = bot_module.markdown_to_html("- first\n- second\n\n1. one\n2. two")
+    html = bot_module.plain_text_to_html("- first\n- second\n\n1. one\n2. two")
     assert html.count("<li") == 4
     assert "- first" not in html
     assert "1. one" not in html
