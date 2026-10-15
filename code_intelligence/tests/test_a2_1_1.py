@@ -11,7 +11,6 @@ Tests:
 """
 
 from pathlib import Path
-import pytest
 
 from code_intelligence.extractor.manifest import OdooManifest, parse_manifest
 from code_intelligence.extractor.python import OdooModelDeclaration, extract_odoo_models_from_file

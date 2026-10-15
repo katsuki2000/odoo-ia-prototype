@@ -44,6 +44,12 @@ DEFAULT_ALLOWED_MODELS = {
     # client search results -- never exposed as a directly queryable tool.
 }
 
+TECHNICAL_ONLY_MODELS = {
+    "ir.model.data",
+    "ir.module.category",
+    "res.groups",
+}
+
 ALLOWED_MODELS = DEFAULT_ALLOWED_MODELS
 
 
@@ -135,6 +141,8 @@ class OdooConnector:
 
     def _check_whitelist(self, model: str):
         """Ensure the requested model is in the allowed whitelist."""
+        if self.technical and model in TECHNICAL_ONLY_MODELS:
+            return
         if self._wildcard_models:
             if not _MODEL_NAME_RE.match(model):
                 logger.warning("Attempted access with invalid model name: %s", model)

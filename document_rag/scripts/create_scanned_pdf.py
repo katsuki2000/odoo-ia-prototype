@@ -1,5 +1,5 @@
 from fpdf import FPDF
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw
 import os
 
 # 1. Creer une image avec du texte (simulation de scan)

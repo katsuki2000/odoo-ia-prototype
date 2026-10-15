@@ -6,7 +6,6 @@ core/evidence_sufficiency.py::assess_evidence_sufficiency(). Not wired into
 graph.py yet -- this only exercises the primitive on its own.
 """
 
-import pytest
 
 from core.evidence.evidence_sufficiency import (
     EvidenceSufficiencyStatus,

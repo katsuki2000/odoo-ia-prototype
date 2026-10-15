@@ -64,7 +64,6 @@ read directly from disk):
     modules 1/8, 3/8, 4/8, 5/8).
 """
 
-import re
 import sys
 import unicodedata
 from pathlib import Path

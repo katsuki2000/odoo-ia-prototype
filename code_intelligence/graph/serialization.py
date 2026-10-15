@@ -30,24 +30,24 @@ def load_graph_from_json(filepath: Path) -> nx.DiGraph:
     return G
 
 
-def benchmark_graph_traversal(G: nx.DiGraph, start_node: str, max_hops: int = 5) -> Tuple[float, List[str]]:
-    """
-    Benchmark 5-hop path traversal performance (A3.1.6).
-    Returns (elapsed_ms, sample_path).
-    """
-    t0 = time.perf_counter()
+def _find_path_of_length(G: nx.DiGraph, start_node: str, max_hops: int) -> List[str]:
+    if start_node not in G:
+        return []
+    paths = nx.single_source_shortest_path(G, start_node, cutoff=max_hops)
+    return next((path for path in paths.values() if len(path) == max_hops + 1), [])
 
-    visited_nodes = []
-    if start_node in G:
-        paths = nx.single_source_shortest_path(G, start_node, cutoff=max_hops)
-        for target, path in paths.items():
-            if len(path) == max_hops + 1:
-                visited_nodes = path
-                break
 
-    t1 = time.perf_counter()
-    elapsed_ms = (t1 - t0) * 1000.0
-    return elapsed_ms, visited_nodes
+def benchmark_graph_traversal(
+    G: nx.DiGraph, start_node: str, max_hops: int = 5, repeats: int = 5
+) -> Tuple[float, List[str]]:
+    """Return (best elapsed_ms over `repeats` runs, sample_path); the minimum filters out scheduler noise."""
+    best_ms = float("inf")
+    path: List[str] = []
+    for _ in range(repeats):
+        t0 = time.perf_counter()
+        path = _find_path_of_length(G, start_node, max_hops)
+        best_ms = min(best_ms, (time.perf_counter() - t0) * 1000.0)
+    return best_ms, path
 
 
 __all__ = [

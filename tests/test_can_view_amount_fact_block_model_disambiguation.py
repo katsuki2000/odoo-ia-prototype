@@ -23,7 +23,6 @@ This file locks:
   4. _backfill_missing_can_view_amount_fact forwards these parameters
      end-to-end and backfills the correct model's verdict.
 """
-import pytest
 
 from code_intelligence.agent.can_view_verifier import (
     _extract_can_view_amount_fact_block,

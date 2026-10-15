@@ -24,10 +24,9 @@ HYBRID_SEMANTIC_LIMIT = 10
 _MIN_SEGMENT_LEN = 4
 
 
-def _candidate_contexts(G, candidates: List[str], language: Optional[str]) -> Dict[str, str]:
-    """Describe candidates with labels and declaring modules from the graph."""
+def _candidate_contexts(G, candidates: List[str]) -> Dict[str, str]:
+    """Describe candidates with labels in every graph language and declaring modules."""
     contexts = {}
-    language_base = language.lower().split("_", 1)[0] if language else None
     for model in candidates:
         node_id = f"model:{model}"
         if not G.has_node(node_id):
@@ -36,8 +35,7 @@ def _candidate_contexts(G, candidates: List[str], language: Optional[str]) -> Di
         labels = []
         for label in data.get("business_labels", []):
             label_text = str(label.get("label") or "").strip()
-            label_language = str(label.get("language") or "").lower()
-            if not label_text or (language_base and label_language.split("_", 1)[0] != language_base):
+            if not label_text:
                 continue
             if label_text not in labels:
                 labels.append(label_text)
@@ -80,7 +78,6 @@ def build_arbitration_shortlist(
             query,
             G,
             limit=WIDENED_CANDIDATE_LIMIT,
-            language=language,
             use_static_synonyms=use_static_aliases,
         )
     fuzzy_models = [model for model, _score in fuzzy_results]

@@ -7,16 +7,13 @@ Unit and integration tests for Section 950:
   evaluate_record_rules, and analyze_method_override_chain (resolving Section 948 point 1).
 """
 
-from unittest.mock import MagicMock
 import networkx as nx
-import pytest
 
 from code_intelligence.rules.relevance_budget import (
     _significant_tokens,
     _relevance_score,
     _rerank_by_relevance,
     _protected_prefix_end,
-    _waterfill_with_protected_minimum,
     assemble_relevance_ranked_blocks,
 )
 from code_intelligence.rules.access_evaluator import who_has_access_to

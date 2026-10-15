@@ -7,13 +7,8 @@ Unit tests for Stories S2.5 & S2.6:
   Validates adversarial tests Q3.1, Q2.1, and Q9.1.
 """
 
-import pytest
 import textwrap
-from pathlib import Path
-from code_intelligence.rules.security import (
-    analyze_python_security_locks,
-    PythonSecurityLockAnalysis,
-)
+from code_intelligence.rules.security import analyze_python_security_locks
 
 
 class TestHardcodedLockDetection:

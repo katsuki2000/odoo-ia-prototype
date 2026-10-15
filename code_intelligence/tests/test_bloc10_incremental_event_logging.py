@@ -14,11 +14,8 @@ test_j46_j48_reasoning_trace.py.
 """
 
 import time
-import pytest
-from pathlib import Path
 
 from code_intelligence.graph.integrity import (
-    IncrementalEvent,
     IncrementalEventLogger,
     record_incremental_update,
     LATENCY_BUDGET_PARTIAL_RECALC_SECONDS,

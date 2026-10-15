@@ -26,10 +26,9 @@ score, for the one remaining gated source (SENSITIVE_BYPASS_MARKER).
 
 import networkx as nx
 
-from code_intelligence.rules.security_locks import gate_observation, OmittedItem
+from code_intelligence.rules.security_locks import gate_observation
 from code_intelligence.utils import SENSITIVE_BYPASS_MARKER
 from code_intelligence.rules.record_rules import evaluate_record_rules
-from code_intelligence.rules.record_rules import RuleDetail
 
 
 def _build_graph_with_acl(model_name: str, write_group: str) -> nx.DiGraph:

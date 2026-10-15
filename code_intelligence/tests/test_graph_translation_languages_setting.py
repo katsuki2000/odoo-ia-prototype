@@ -17,3 +17,17 @@ def test_interface_language_does_not_force_a_rebuild_when_its_catalog_is_present
     assert _translation_cache_matches(("en_US",), ())
     assert _translation_cache_matches(("fr",), ("fr",))
     assert not _translation_cache_matches(("de_DE",), ("fr",))
+
+
+def test_graph_languages_come_from_settings_with_french_by_default():
+    import os
+    import subprocess
+    import sys
+
+    script = "from config.settings import GRAPH_TRANSLATION_LANGUAGES as g; print(','.join(g))"
+    env = {key: value for key, value in os.environ.items() if key != "GRAPH_TRANSLATION_LANGUAGES"}
+    default = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True, env=env, check=True)
+    custom = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True,
+                            env={**env, "GRAPH_TRANSLATION_LANGUAGES": " de_DE , "}, check=True)
+    assert default.stdout.strip().endswith("en_US,fr_FR")
+    assert custom.stdout.strip().endswith("de_DE")

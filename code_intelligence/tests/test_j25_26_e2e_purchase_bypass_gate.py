@@ -65,7 +65,6 @@ LLM; the module fixture below skips when the module is not installed.
 
 from __future__ import annotations
 
-import logging
 
 import pytest
 

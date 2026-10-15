@@ -1,9 +1,8 @@
 import json
 import os
-import tempfile
 import uuid
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 import logging
 
 _logger = logging.getLogger(__name__)

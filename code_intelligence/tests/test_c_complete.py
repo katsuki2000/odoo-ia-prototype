@@ -10,12 +10,8 @@ Unit tests for - C.1.1: Tool binding & CI agent ReAct loop
 """
 
 import pytest
-from core.schemas import QueryRoute, AssistantResponse
-from core.graph.graph import (
-    build_graph,
-    code_intelligence_agent,
-    RAGState
-)
+from core.schemas import AssistantResponse
+from core.graph.graph import code_intelligence_agent
 from code_intelligence.agent.prompts import CI_SYSTEM_PROMPT
 from code_intelligence.agent.context import CI_MAX_HOPS
 from code_intelligence.agent.tools import ALL_CI_TOOLS

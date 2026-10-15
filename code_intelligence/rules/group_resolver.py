@@ -60,16 +60,7 @@ def _lookup_group_name_in_xml(group_xml_id: str) -> str:
 
 
 def get_group_display_name(G: Optional[nx.DiGraph], group_identifier: str) -> str:
-    """Return the human-readable display name (res.groups name) of a security group.
-    Looked up in order:
-      1. Direct graph node G.nodes[f"group:{group_identifier}"].get("name") if non-empty.
-      2. If group_identifier has no module prefix (e.g. 'group_purchase_user'),
-         find any group node in G ending with f".{group_identifier}" that has a name.
-      3. If group_identifier has a module prefix (e.g. 'purchase.group_purchase_user'),
-         find node f"group:{group_identifier.split('.')[-1]}" if it has a name.
-      4. Dynamic XML lookup across CORE_ADDONS_PATH and CUSTOM_ADDONS_PATH (cached in _PARSED_MODULE_GROUPS).
-      5. Empty string if not resolvable.
-    """
+    """Return a translated group label, qualified by its application if ambiguous."""
     if not group_identifier:
         return ""
 
@@ -78,27 +69,74 @@ def get_group_display_name(G: Optional[nx.DiGraph], group_identifier: str) -> st
     if G is not None:
         node_id = f"group:{clean_id}"
         if node_id in G:
-            name = G.nodes[node_id].get("name")
-            if name:
-                return name
+            return _qualified_group_label(G, node_id)
 
         if "." not in clean_id:
             suffix = f".{clean_id}"
-            for n in G.nodes:
-                if n.startswith("group:") and n.endswith(suffix):
-                    name = G.nodes[n].get("name")
-                    if name:
-                        return name
+            matches = [
+                node_id for node_id, data in G.nodes(data=True)
+                if node_id.startswith("group:")
+                and node_id.endswith(suffix)
+                and _localized_label(data)
+            ]
+            if len(matches) == 1:
+                return _qualified_group_label(G, matches[0])
         else:
             short_id = clean_id.split(".")[-1]
             short_node = f"group:{short_id}"
             if short_node in G:
-                name = G.nodes[short_node].get("name")
-                if name:
-                    return name
+                return _qualified_group_label(G, short_node)
 
     # Dynamic XML lookup across addons (cached in _PARSED_MODULE_GROUPS)
     return _lookup_group_name_in_xml(clean_id)
+
+
+def _localized_label(data: dict) -> str:
+    translations = [
+        item for item in data.get("business_labels") or []
+        if str(item.get("label") or "").strip()
+    ]
+    french = [
+        item for item in translations
+        if str(item.get("language") or "").casefold().replace("-", "_").split("_", 1)[0] == "fr"
+    ]
+    if french:
+        return sorted(str(item["label"]).strip() for item in french)[0]
+    if translations:
+        return sorted(str(item["label"]).strip() for item in translations)[0]
+    return str(data.get("name") or "").strip()
+
+
+def _application_label(G: nx.DiGraph, data: dict) -> str:
+    category_id = str(data.get("category_id") or "").strip()
+    if category_id:
+        category_node = category_id if category_id.startswith("category:") else f"category:{category_id}"
+        if G.has_node(category_node):
+            label = _localized_label(G.nodes[category_node])
+            if label:
+                return label
+        category_name = category_id.split(".", 1)[-1]
+        category_name = category_name.removeprefix("module_category_")
+        return category_name.replace("_", " ").strip().title()
+    xml_id = str(data.get("xml_id") or "")
+    return xml_id.split(".", 1)[0].replace("_", " ").title()
+
+
+def _qualified_group_label(G: nx.DiGraph, node_id: str) -> str:
+    data = G.nodes[node_id]
+    label = _localized_label(data)
+    if not label:
+        return ""
+    collisions = [
+        other_id for other_id, other_data in G.nodes(data=True)
+        if other_id.startswith("group:")
+        and other_id != node_id
+        and _localized_label(other_data).casefold() == label.casefold()
+    ]
+    if not collisions:
+        return label
+    application = _application_label(G, data)
+    return f"{application} : {label}" if application else label
 
 
 def _group_short_name(xml_id: str) -> str:
@@ -110,10 +148,7 @@ def _group_short_name(xml_id: str) -> str:
 def _group_display_name(G: nx.DiGraph, full_xml_id: str) -> str:
     """Human-readable name of a group node (e.g. 'Avoirs - Visibilite
     Regionale'), looked up from the graph. Empty string if not found."""
-    node_id = f"group:{full_xml_id}"
-    if G is not None and node_id in G:
-        return G.nodes[node_id].get("name", "")
-    return ""
+    return get_group_display_name(G, full_xml_id)
 
 
 def _strip_group_prefix(s: str) -> str:

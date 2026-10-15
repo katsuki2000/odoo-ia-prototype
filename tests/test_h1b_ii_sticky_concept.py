@@ -21,7 +21,6 @@ _sticky_concept_or_resolve's contract, restated from its own docstring:
 """
 import dataclasses
 
-import pytest
 
 from core.routing.routing import _sticky_concept_or_resolve
 

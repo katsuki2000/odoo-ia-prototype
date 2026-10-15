@@ -3,7 +3,6 @@
 E2E verification for custom_automation_traps server action bypass.
 """
 
-import re
 import sys
 import unicodedata
 from pathlib import Path

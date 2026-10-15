@@ -11,7 +11,6 @@ Tests for Section 918:
 """
 
 import warnings
-import pytest
 
 from code_intelligence.agent.access_guards import _backfill_missing_implied_ids_mechanism
 from code_intelligence.agent.prompts import CI_SYSTEM_PROMPT, build_synthesis_prompt

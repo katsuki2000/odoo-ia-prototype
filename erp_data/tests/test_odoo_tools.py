@@ -43,6 +43,7 @@ def test_parse_period_valid():
 @pytest.mark.integration
 class TestOdooTools:
     
+    @pytest.mark.usefixtures("admin_requester_identity")
     def test_obtenir_total_ventes(self):
         """Test sales aggregation tool."""
         res = get_total_sales.invoke({'client': 'Rakoto', 'periode': 'cette annee'})
@@ -56,6 +57,7 @@ class TestOdooTools:
         assert isinstance(res, str)
         assert "stock" in res.lower()
 
+    @pytest.mark.usefixtures("admin_requester_identity")
     def test_obtenir_statut_commande(self):
         """Test order status tool."""
         # 'S00001' might not exist in all environments, but it should return a safe string
@@ -63,12 +65,14 @@ class TestOdooTools:
         assert isinstance(res, str)
         assert "statut" in res or "n'existe pas" in res
 
+    @pytest.mark.usefixtures("admin_requester_identity")
     def test_obtenir_total_factures(self):
         """Test invoice aggregation tool."""
         res = get_total_invoices.invoke({'client': 'Rakoto', 'statut': 'impayé'})
         assert isinstance(res, str)
         assert "Ar" in res or "Aucune facture" in res
 
+    @pytest.mark.usefixtures("admin_requester_identity")
     def test_rechercher_client(self):
         """Test client search tool."""
         res = search_partner.invoke({'nom': 'Rakoto'})
@@ -81,6 +85,7 @@ class TestOdooTools:
         assert isinstance(res, str)
         assert "ticket" in res.lower()
 
+    @pytest.mark.usefixtures("admin_requester_identity")
     def test_lister_produits_en_rupture(self):
         """Test out of stock tool."""
         res = list_out_of_stock_products.invoke({})

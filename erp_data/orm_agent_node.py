@@ -7,7 +7,7 @@ ORM ReAct agent loop (ERP data queries) and hybrid pipeline node.
 import logging
 import time
 
-from langchain_core.messages import SystemMessage, HumanMessage, ToolMessage
+from langchain_core.messages import HumanMessage, ToolMessage
 
 from core.schemas import AssistantResponse, SourceReference
 from core.guardrails import OUT_OF_SCOPE_ANSWER, REACT_RECURSION_LIMIT, is_out_of_scope

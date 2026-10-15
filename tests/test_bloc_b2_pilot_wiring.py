@@ -14,7 +14,7 @@ from unittest.mock import patch, MagicMock
 
 import pytest
 
-from core.evidence.evidence import Evidence, EvidenceSourceType, make_evidence
+from core.evidence.evidence import EvidenceSourceType, make_evidence
 from core.evidence.evidence_collector import _turn_evidence_ctx, record_evidence
 from core.schemas import AssistantResponse
 

@@ -12,12 +12,12 @@ test_ci_agent_tools_resolution.py's monkeypatch of a deferred-import
 target and test_bloc_b2_pilot_wiring.py's existing pilot tests.
 """
 
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 import networkx as nx
 import pytest
 
-from core.evidence.evidence import Evidence, EvidenceSourceType, make_evidence
+from core.evidence.evidence import EvidenceSourceType, make_evidence
 from core.evidence.evidence_collector import (
     _turn_evidence_ctx,
     start_evidence_collection,

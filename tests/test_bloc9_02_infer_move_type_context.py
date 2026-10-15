@@ -14,7 +14,6 @@ inference function itself: append-only signal, Regle 5 discipline (never
 guess on ambiguity or on a non-static-alias resolution path).
 """
 
-import pytest
 
 from code_intelligence.agent.matching import ResolvedConcept
 from code_intelligence.agent.context_extractors import _infer_move_type_context

@@ -17,9 +17,6 @@ import networkx as nx
 from code_intelligence.rules.common import QueryStatus
 from code_intelligence.rules.structure import trace_full_inheritance
 from code_intelligence.rules.workflow import describe_workflow
-from code_intelligence.rules.access_evaluator import who_has_access_to
-from code_intelligence.rules.structure import field_change_impact
-from code_intelligence.rules.button_path import button_execution_path
 from code_intelligence.agent.tools.introspection import (
     resolve_technical_name_to_role,
     list_involved_modules_flat,

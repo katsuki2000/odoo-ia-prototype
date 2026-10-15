@@ -9,11 +9,9 @@ Tests Odoo's exact security algorithm:
   - Validates adversarial test 6 (Q6.1 & Q6.2).
 """
 
-import pytest
 import networkx as nx
 
 from code_intelligence.rules.record_rules import evaluate_record_rules
-from code_intelligence.rules.access_evaluator import who_has_access_to
 
 
 def _build_test_6_knowledge_graph() -> nx.DiGraph:

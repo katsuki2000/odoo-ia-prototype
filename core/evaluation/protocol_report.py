@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Mapping, Optional
+from typing import Mapping
 
 METRIC_ORDER = (
     "cases",

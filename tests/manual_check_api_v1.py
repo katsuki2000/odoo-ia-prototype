@@ -2,9 +2,6 @@ import os
 import time
 import requests
 import jwt
-from threading import Thread
-import uvicorn
-import subprocess
 
 # Generate a valid JWT token
 secret = os.getenv("JWT_SECRET", "default_insecure_secret_for_dev")

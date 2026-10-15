@@ -27,7 +27,6 @@ any beyond the 2 known ones) introduces "500" -- rather than only observing
 it in the final concatenated scoped_tool_output as the previous script did.
 """
 
-import re
 import sys
 from pathlib import Path
 

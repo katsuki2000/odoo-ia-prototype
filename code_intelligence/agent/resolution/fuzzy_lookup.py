@@ -102,7 +102,7 @@ def _resolve_strict_candidates(
         query_text,
         shortlist.models,
         llm,
-        _candidate_contexts(G, shortlist.models, language),
+        _candidate_contexts(G, shortlist.models),
     )
     chosen = trace.choice
     if chosen is not None:
@@ -146,7 +146,6 @@ def _resolve_widened_candidates(
         clean_query, G,
         threshold=WIDENED_CANDIDATE_THRESHOLD,
         limit=WIDENED_CANDIDATE_LIMIT,
-        language=language,
         use_static_synonyms=use_static_aliases,
     )
     if not widened_results and llm is None:
@@ -160,7 +159,7 @@ def _resolve_widened_candidates(
             query_text,
             shortlist.models,
             llm,
-            _candidate_contexts(G, shortlist.models, language),
+            _candidate_contexts(G, shortlist.models),
         )
         if shortlist.models
         else None
@@ -214,7 +213,6 @@ def resolve_fuzzy_match(
     fuzzy_results = _fuzzy_match_graph(
         clean_query,
         G,
-        language=language,
         use_static_synonyms=use_static_aliases,
     )
     if fuzzy_results:
@@ -224,7 +222,7 @@ def resolve_fuzzy_match(
                 + list(semantic_candidates[:HYBRID_SEMANTIC_LIMIT])
             ))
             trace = _llm_arbitrate(
-                query_text, candidates, llm, _candidate_contexts(G, candidates, language),
+                query_text, candidates, llm, _candidate_contexts(G, candidates),
             ) if llm is not None else None
             if trace is not None and trace.choice is not None:
                 return ResolvedConcept(
@@ -268,7 +266,7 @@ def resolve_fuzzy_match(
         candidates = list(dict.fromkeys(semantic_candidates[:HYBRID_SEMANTIC_LIMIT]))
         trace = (
             _llm_arbitrate(
-                query_text, candidates, llm, _candidate_contexts(G, candidates, language),
+                query_text, candidates, llm, _candidate_contexts(G, candidates),
             )
             if llm is not None else None
         )

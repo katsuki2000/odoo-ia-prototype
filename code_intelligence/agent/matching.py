@@ -9,10 +9,9 @@ import logging
 import unicodedata
 import weakref
 from collections import defaultdict
-from pathlib import Path
 import re
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple, Set
+from typing import Dict, List, Tuple, Set
 
 from rapidfuzz import fuzz, process
 
@@ -58,7 +57,7 @@ def _business_text(value: str) -> str:
     return " ".join(_business_tokens(value))
 
 
-def _paired_exact_field_model_matches(query: str, G, language: Optional[str]) -> List[str]:
+def _paired_exact_field_model_matches(query: str, G) -> List[str]:
     """Find models named in the query through both a rare field and a rare label."""
     def normalize(value: str) -> str:
         decomposed = unicodedata.normalize("NFKD", value.casefold())
@@ -68,7 +67,7 @@ def _paired_exact_field_model_matches(query: str, G, language: Optional[str]) ->
         return set(re.findall(r"[^\W_]+", normalize(value), flags=re.UNICODE))
 
     graph_cache = _FUZZY_INDEX_CACHE.setdefault(G, {})
-    cache_key = ("paired_field_model", language)
+    cache_key = "paired_field_model"
     evidence_index = graph_cache.get(cache_key)
     if evidence_index is None:
         model_labels: Dict[str, Set[str]] = defaultdict(set)
@@ -83,13 +82,6 @@ def _paired_exact_field_model_matches(query: str, G, language: Optional[str]) ->
                 model_labels[model].update(words(data.get("description", "")))
                 model_labels[model].update(words(model.replace(".", " ").replace("_", " ")))
                 for label in data.get("business_labels", []):
-                    label_language = label.get("language", "")
-                    if not language or (label_language and not (
-                        label_language.casefold() == language.casefold()
-                        or label_language.casefold().split("_", 1)[0]
-                        == language.casefold().split("_", 1)[0]
-                    )):
-                        continue
                     model_labels[model].update(words(label.get("label", "")))
             elif node_type == "Field":
                 name = data.get("name", "")
@@ -135,11 +127,9 @@ def _paired_exact_field_model_matches(query: str, G, language: Optional[str]) ->
     return sorted(matching_fields & matching_label_models)
 
 
-def _build_fuzzy_index(
-    G, language: Optional[str] = None, use_static_synonyms: bool = True,
-) -> List[Tuple[str, str]]:
-    """Build (label, technical_model_name) pairs from graph nodes for fuzzy matching."""
-    cache_key = (language, use_static_synonyms)
+def _build_fuzzy_index(G, use_static_synonyms: bool = True) -> List[Tuple[str, str]]:
+    """Build (label, technical_model_name) pairs from graph nodes, with the labels of every graph language."""
+    cache_key = ("fuzzy_index", use_static_synonyms)
     graph_cache = _FUZZY_INDEX_CACHE.setdefault(G, {})
     if cache_key in graph_cache:
         return graph_cache[cache_key]
@@ -184,16 +174,8 @@ def _build_fuzzy_index(
 
         if node_type in {"Model", "Field", "Menu"}:
             for translation in data.get("business_labels", []):
-                if not language:
-                    continue
                 label = translation.get("label", "").strip()
-                label_language = translation.get("language", "")
                 if not label or len(label) < 3:
-                    continue
-                if language and label_language and not (
-                    label_language.lower() == language.lower()
-                    or label_language.lower().split("_", 1)[0] == language.lower().split("_", 1)[0]
-                ):
                     continue
                 if node_type == "Model":
                     model_name = data.get("name", node_id.replace("model:", ""))
@@ -219,16 +201,8 @@ def _build_fuzzy_index(
         if not is_root:
             continue
         for translation in data.get("business_labels", []):
-            if not language:
-                continue
             label = translation.get("label", "").strip()
-            label_language = translation.get("language", "")
             if not label or len(label) < 3:
-                continue
-            if language and label_language and not (
-                label_language.lower() == language.lower()
-                or label_language.lower().split("_", 1)[0] == language.lower().split("_", 1)[0]
-            ):
                 continue
             module_labels[data["module"]].add(label.lower())
 
@@ -237,15 +211,7 @@ def _build_fuzzy_index(
             continue
         model_name = data.get("name", node_id.replace("model:", ""))
         labels = [data.get("description", "")]
-        labels.extend(
-            translation.get("label", "")
-            for translation in data.get("business_labels", [])
-            if language and (
-                not translation.get("language")
-                or translation["language"].lower() == language.lower()
-                or translation["language"].lower().split("_", 1)[0] == language.lower().split("_", 1)[0]
-            )
-        )
+        labels.extend(translation.get("label", "") for translation in data.get("business_labels", []))
         modules = [
             successor.removeprefix("module:")
             for successor in G.successors(node_id)
@@ -462,15 +428,14 @@ def _fuzzy_match_graph(
     G,
     threshold: int = 75,
     limit: int = 5,
-    language: Optional[str] = None,
     use_static_synonyms: bool = True,
 ) -> List[Tuple[str, float]]:
     """Fuzzy match query against indexed graph node labels and models."""
-    index = _build_fuzzy_index(G, language, use_static_synonyms)
+    index = _build_fuzzy_index(G, use_static_synonyms)
     if not index:
         return []
 
-    paired_matches = _paired_exact_field_model_matches(query, G, language)
+    paired_matches = _paired_exact_field_model_matches(query, G)
     if paired_matches:
         return [(model, 100.0) for model in paired_matches[:limit]]
 

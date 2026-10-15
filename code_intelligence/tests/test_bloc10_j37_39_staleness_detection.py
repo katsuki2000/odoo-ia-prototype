@@ -16,20 +16,14 @@ Critère de fin J37-J39 (from real_plan.md):
    non couverts par un recalcul local)."
 """
 
-import hashlib
 import json
 from pathlib import Path
 
 import networkx as nx
-import pytest
 
 from code_intelligence.graph.staleness import (
     StalenessLevel,
-    STALENESS_LEVEL_FILE,
-    STALENESS_LEVEL_EDGE,
-    STALENESS_LEVEL_UNCOVERABLE,
     GraphStalenessDetector,
-    StalenessReport,
     build_file_hash_index,
     compute_file_hash,
 )

@@ -25,14 +25,9 @@ dispatchers' whole point is deterministic graph resolution, so a fake
 graph would not exercise the real failure mode being fixed.
 """
 
-import sys
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Set
 
 import pytest
 
-from code_intelligence.graph.loader import get_code_intelligence_graph
-from code_intelligence.agent.tool_helpers import set_graph_ref
 from code_intelligence.agent.tools import ALL_CI_TOOLS
 from code_intelligence.agent.predispatch_structure import (
     dispatch_describe_workflow,
@@ -47,10 +42,8 @@ class _FakeTraceLogger:
 
 
 @pytest.fixture(scope="module")
-def G():
-    graph = get_code_intelligence_graph()
-    set_graph_ref(graph)
-    return graph
+def G(real_graph):
+    return real_graph
 
 
 @pytest.fixture

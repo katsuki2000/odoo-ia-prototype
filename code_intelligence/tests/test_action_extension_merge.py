@@ -9,7 +9,6 @@ actual values in the extending record). Tests base.action_partner_form / mail
 and sales_team.crm_team_action_pipeline patterns.
 """
 
-import pytest
 
 from code_intelligence.graph.symbols import build_module_symbol_registry
 from code_intelligence.graph.nodes import ParsedModule

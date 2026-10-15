@@ -22,8 +22,6 @@ predispatch behavior directly rather than through the full agent loop.
 
 import pytest
 
-from code_intelligence.graph.loader import get_code_intelligence_graph
-from code_intelligence.agent.tool_helpers import set_graph_ref
 from code_intelligence.agent.tools import ALL_CI_TOOLS
 from code_intelligence.agent.context import DispatchContext
 from code_intelligence.agent.predispatch_access import (
@@ -45,10 +43,8 @@ MNT_Q1_PRINCIPALS = {
 
 
 @pytest.fixture(scope="module")
-def G():
-    graph = get_code_intelligence_graph()
-    set_graph_ref(graph)
-    return graph
+def G(real_graph):
+    return real_graph
 
 
 class FakeConceptSaleOrder:

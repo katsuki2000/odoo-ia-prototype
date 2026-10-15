@@ -9,7 +9,6 @@ Tests cover:
 - Metadata validation
 """
 
-import os
 import tempfile
 import unittest
 from pathlib import Path

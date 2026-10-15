@@ -12,11 +12,10 @@ Tasks:
 
 import json
 import logging
-import os
 import sys
 import time
 from pathlib import Path
-from typing import Dict, List, Any
+from typing import Dict, Any
 
 # Add parent directory (miro-rag) to sys.path
 BASE_DIR = Path(__file__).resolve().parent
@@ -24,7 +23,7 @@ MIRO_RAG_DIR = BASE_DIR.parent.parent
 if str(MIRO_RAG_DIR) not in sys.path:
     sys.path.insert(0, str(MIRO_RAG_DIR))
 
-from core.graph.graph import code_intelligence_agent, route, build_graph, RAGState
+from core.graph.graph import code_intelligence_agent, route
 from core.schemas import AssistantResponse
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")

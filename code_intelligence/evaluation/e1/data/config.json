@@ -110,6 +110,13 @@
         "R6 thresholds fixed before any R6 computation: silent false <= R4 (all 8 cases), correct decision >= 0.8 (5 non-ambiguous model cases), strict clarification = 1.0 (2 must_clarify cases)",
         "denominators and definitions of the three indicators recorded under decision_criteria.R6"
       ]
+    },
+    {
+      "section": 1370,
+      "date": "2026-10-15",
+      "changes": [
+        "R6 contract: an identifier without its kind prefix is accepted as the full identifier when it equals the part after the prefix of exactly one candidate; punctuation, quotes, surrounding text and identifiers outside the list stay invalid (harness only, production untouched)"
+      ]
     }
   ]
 }

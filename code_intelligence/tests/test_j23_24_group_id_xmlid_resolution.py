@@ -18,7 +18,6 @@ These tests mock the RPC layer (no live Odoo needed) to prove:
      against the real gate_observation()/_has_elevated_access() code path.
 """
 import networkx as nx
-import pytest
 
 from code_intelligence.rules.security_locks import gate_observation, _has_elevated_access
 

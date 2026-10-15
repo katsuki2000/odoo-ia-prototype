@@ -204,6 +204,8 @@ def _read_runtime_active_languages():
 
 def _read_runtime_translations(requested_languages, active_languages):
     """Read registry labels for requested languages when the instance exposes them."""
+    from erp_data.odoo_connector import OdooConnectorError
+
     try:
         connector, uid = _open_technical_session()
         return read_runtime_translations(
@@ -212,7 +214,7 @@ def _read_runtime_translations(requested_languages, active_languages):
             requested_languages,
             active_languages,
         )
-    except Exception as error:
+    except OdooConnectorError as error:
         logger.warning("Could not read live runtime translations: %s", error)
         return [], {
             "active_languages_available": active_languages is not None,
@@ -413,16 +415,19 @@ def _get_code_intelligence_graph(
     """Lazy-load and cache Knowledge Graph for Code Intelligence node."""
     global _CACHED_CODE_INTEL_GRAPH, _CACHED_GRAPH_MTIME, _CACHED_TRANSLATION_LANGUAGES
     request_language = _normalize_language_code(request_language) if request_language else None
-    requested_languages = _merge_requested_languages(translation_languages, request_language)
 
     from config.settings import (
         CORE_ADDONS_PATH,
         CORE_FRAMEWORK_ADDONS_PATH,
         CUSTOM_ADDONS_PATH,
+        GRAPH_TRANSLATION_LANGUAGES,
         OCA_SAMPLE_ADDONS_PATH,
         ODOO_CONF_PATH,
     )
 
+    requested_languages = _merge_requested_languages(
+        translation_languages, request_language, configured=GRAPH_TRANSLATION_LANGUAGES,
+    )
     core_addons_root = Path(CORE_ADDONS_PATH)
     custom_addons_root = Path(CUSTOM_ADDONS_PATH)
     config_file_available = bool(

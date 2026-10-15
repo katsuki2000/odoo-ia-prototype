@@ -24,7 +24,6 @@ This file covers two things:
      contract, not just the two functions in isolation.
 """
 
-import pytest
 
 from code_intelligence.agent.can_view_verifier import (
     _backfill_missing_can_view_amount_fact,

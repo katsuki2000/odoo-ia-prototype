@@ -10,6 +10,7 @@ monolith (refactor, see todo/contexte.txt). Behavior unchanged.
 
 import logging
 import time
+from typing import List
 
 from code_intelligence.agent.context import (
     _truncate_observation_for_budget,
@@ -280,7 +281,10 @@ from code_intelligence.agent.context import (
     _truncate_observation_for_budget,
     _tool_call_key,
 )
-from code_intelligence.agent.context_extractors import _question_is_workflow_related
+from code_intelligence.agent.context_extractors import (
+    _question_is_approval_authority_related,
+    _question_is_workflow_related,
+)
 from code_intelligence.agent.context import DispatchContext
 from code_intelligence.rules.common import NO_WORKFLOW_TRANSITION_MARKER
 from code_intelligence.rules.override_unguarded import resolve_method_override_chain
@@ -297,7 +301,10 @@ logger = logging.getLogger(__name__)
 def dispatch_describe_workflow(ctx: DispatchContext) -> None:
     if not (
         ctx.concept.is_resolved and ctx.concept.resolved_models
-        and _question_is_workflow_related(ctx.question)
+        and (
+            _question_is_workflow_related(ctx.question)
+            or _question_is_approval_authority_related(ctx.question)
+        )
         and not ctx.hop_budget_exhausted
     ):
         return

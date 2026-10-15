@@ -16,7 +16,6 @@ This file covers:
   1. _specificity_score / rank_by_specificity in isolation.
   2. The exact reported scenario end-to-end through resolve_business_term().
 """
-import pytest
 
 from code_intelligence.agent.matching import rank_by_specificity, _specificity_score
 from code_intelligence.agent.resolver import resolve_business_term

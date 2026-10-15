@@ -85,13 +85,14 @@ def test_resolver_can_disable_static_aliases_and_use_instance_labels():
     assert result.resolved_models == ["purchase.order"]
     assert result.source_step == "fuzzy_graph_match"
 
-    no_language = resolve_business_term(
+    interface_language = resolve_business_term(
         "bon de commande fournisseur",
         graph,
         llm=None,
+        language="en_US",
         use_static_aliases=False,
     )
-    assert not no_language.is_resolved
+    assert interface_language.resolved_models == ["purchase.order"]
 
 
 def test_generic_command_does_not_default_to_sales_or_purchase():
@@ -144,7 +145,7 @@ def test_fuzzy_matching_normalizes_contractions_for_instance_labels():
         business_labels=[{"label": "Achats", "language": "fr"}],
     )
 
-    matches = _fuzzy_match_graph("commande d'achat", graph, language="fr", use_static_synonyms=False)
+    matches = _fuzzy_match_graph("commande d'achat", graph, use_static_synonyms=False)
 
     assert matches[0][0] == "purchase.order"
 
@@ -219,7 +220,7 @@ def test_root_menu_labels_attach_only_to_models_declared_by_the_module():
         business_labels=[{"label": "Inventaire", "language": "fr"}],
     )
 
-    index = _build_fuzzy_index(graph, "fr", use_static_synonyms=False)
+    index = _build_fuzzy_index(graph, use_static_synonyms=False)
 
     assert ("contact inventaire", "res.partner") not in index
     assert ("transfer inventaire", "stock.picking") in index

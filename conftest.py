@@ -55,6 +55,19 @@ def _isolate_tool_helpers_graph_ref():
 
 
 @pytest.fixture(scope="module")
+def real_graph():
+    """Real graph registered as the active graph for one test module, then restored."""
+    from code_intelligence.agent import tool_helpers
+    from code_intelligence.graph.loader import get_code_intelligence_graph
+
+    previous = tool_helpers.get_graph_ref()
+    graph = get_code_intelligence_graph()
+    tool_helpers.set_graph_ref(graph)
+    yield graph
+    tool_helpers.set_graph_ref(previous)
+
+
+@pytest.fixture(scope="module")
 def offline_odoo_runtime():
     """Module-scoped fixtures run before function-scoped autouse ones, so a graph built
     in one needs this explicit request to stay independent of a running Odoo."""

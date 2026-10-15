@@ -9,7 +9,6 @@ Tests:
 """
 
 from pathlib import Path
-import pytest
 import networkx as nx
 
 from code_intelligence.extractor.manifest import parse_manifest

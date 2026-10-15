@@ -37,11 +37,7 @@ classify deterministically regardless of which machine runs them.
 
 import pytest
 
-from core.graph.graph import (
-    _grounded_core_only_groups,
-    _strip_core_only_group_mentions,
-    _extract_required_groups,
-)
+from core.graph.graph import _grounded_core_only_groups, _strip_core_only_group_mentions
 
 
 @pytest.fixture(autouse=True)

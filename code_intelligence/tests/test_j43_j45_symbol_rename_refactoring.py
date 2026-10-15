@@ -9,7 +9,6 @@ Unit & Integration tests for  /  :
 
 import pytest
 import networkx as nx
-from pathlib import Path
 
 from code_intelligence.extractor.python import OdooModelDeclaration
 from code_intelligence.graph.symbols import (

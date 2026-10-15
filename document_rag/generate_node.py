@@ -2,9 +2,8 @@
 
 import logging
 import time
-from typing import Optional
 
-from core.schemas import AssistantResponse, LLMResponse, SourceReference
+from core.schemas import AssistantResponse, LLMResponse
 from config.settings import DOCUMENT_MAX_TOKENS
 from core.guardrails import OUT_OF_SCOPE_ANSWER, is_out_of_scope
 from core.state import RAGState
@@ -13,12 +12,9 @@ from core.llm.llm_client import (
     invoke_with_rate_limit as _invoke_with_rate_limit,
 )
 from document_rag.generate_helpers import (
-    build_source_aliases,
     build_source_aliases as _build_source_aliases,
-    verify_used_sources,
     verify_used_sources as _verify_used_sources,
     compute_rag_confidence,
-    parse_raw_json_answer,
     parse_raw_json_answer as _parse_raw_json_answer,
 )
 

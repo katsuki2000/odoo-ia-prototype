@@ -52,6 +52,29 @@ def test_framework_deduced_when_only_the_core_addons_dir_is_listed(tmp_path):
     assert custom == ((project / "odoo_addons").resolve(),)
 
 
+def _link_base_into_core_addons(root: Path):
+    (root / "addons" / "base").symlink_to(root / "odoo" / "addons" / "base")
+
+
+def test_core_addons_dir_linking_to_base_is_not_the_framework_root(tmp_path):
+    root, project = _odoo_tree(tmp_path)
+    _link_base_into_core_addons(root)
+    core, framework, custom = classify_addon_roots([(root / "addons").resolve(), (project / "odoo_addons").resolve()])
+    assert core == (root / "addons").resolve()
+    assert framework == (root / "odoo" / "addons").resolve()
+    assert custom == ((project / "odoo_addons").resolve(),)
+
+
+def test_framework_root_listed_beside_a_core_dir_linking_to_base(tmp_path):
+    root, project = _odoo_tree(tmp_path)
+    _link_base_into_core_addons(root)
+    roots = [root / "addons", root / "odoo" / "addons", project / "odoo_addons"]
+    core, framework, custom = classify_addon_roots([r.resolve() for r in roots])
+    assert core == (root / "addons").resolve()
+    assert framework == (root / "odoo" / "addons").resolve()
+    assert custom == ((project / "odoo_addons").resolve(),)
+
+
 def test_packaged_odoo_single_directory_is_core_and_framework(tmp_path):
     pkg = tmp_path / "dist-packages" / "odoo" / "addons"
     (pkg / "base").mkdir(parents=True)

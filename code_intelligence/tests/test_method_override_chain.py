@@ -23,7 +23,6 @@ mechanisms (see J5's live_client fixture / test_j34_35's MODULE_PATH use
 of the real addons tree).
 """
 
-from pathlib import Path
 
 import pytest
 

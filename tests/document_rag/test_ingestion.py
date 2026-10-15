@@ -12,10 +12,8 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import MagicMock, patch
 
 from document_rag.ingestion.ingest_all import IngestionOrchestrator
-from document_rag.vectorstore.chroma_manager import ChromaManager
 
 
 class TestIngestionPipeline(unittest.TestCase):

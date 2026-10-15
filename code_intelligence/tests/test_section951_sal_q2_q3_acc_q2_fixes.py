@@ -11,7 +11,6 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import networkx as nx
-import pytest
 
 from code_intelligence.agent import tool_helpers
 from code_intelligence.agent.access_guards import _flag_ungrounded_group_xmlids

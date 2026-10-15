@@ -20,7 +20,6 @@ security_rules.xml (module 08, custom_deep_document), not invented text:
      ('company_id', '=', user.company_id.id)]
 """
 
-import pytest
 
 from code_intelligence.rules.record_rules import RuleDetail, RuleEvaluationResult
 from code_intelligence.rules.domain import evaluate_domain_force

@@ -1,13 +1,9 @@
 """Tests for P2 exhaustive restoration: contiguous expansion, dynamic budget, and completeness check."""
 
-import pytest
 
 from config.settings import DOCUMENT_MAX_TOKENS
 from document_rag.prompts import DOCUMENTARY_RAG_SYSTEM_PROMPT
-from document_rag.verification import (
-    DocumentaryCompletenessReport,
-    verify_documentary_completeness,
-)
+from document_rag.verification import verify_documentary_completeness
 from document_rag.vectorstore.search_contiguous import (
     contains_list_or_table,
     expand_contiguous_chunks,

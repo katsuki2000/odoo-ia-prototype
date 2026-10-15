@@ -2,12 +2,12 @@
 
 import logging
 import time
-from typing import Any, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from code_intelligence.agent.matching import ResolvedConcept
 
-from core.schemas import AssistantResponse, QueryRoute
+from core.schemas import QueryRoute
 from core.state import RAGState
 from code_intelligence.agent.investigation_planner import (
     generate_investigation_plan,
@@ -27,7 +27,6 @@ from core.routing.routing_keywords import (
     DATA_TERMS,
     DOC_ANCHORS,
     THRESHOLD_QUERY_TERMS,
-    CONDITIONAL_AMOUNT_TERMS,
     _fold_accents,
     _fold_keywords,
     ERP_KEYWORDS_FOLDED,
@@ -37,7 +36,6 @@ from core.routing.routing_keywords import (
     DATA_TERMS_FOLDED,
     DOC_ANCHORS_FOLDED,
     THRESHOLD_QUERY_TERMS_FOLDED,
-    CONDITIONAL_AMOUNT_TERMS_FOLDED,
 )
 
 logger = logging.getLogger(__name__)

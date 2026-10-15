@@ -525,7 +525,7 @@ class CodeIntelligenceAgentRunner:
         )
         from code_intelligence.agent.tools import ALL_CI_TOOLS
         from code_intelligence.agent.tool_helpers import set_graph_ref, set_llm_ref, set_current_question
-        from code_intelligence.rules.security_locks import gate_observation, OmittedItem
+        from code_intelligence.rules.security_locks import gate_observation
         set_graph_ref(G)
         # todo/contexte.txt section 846: readable by format_security_locks_summary
         # for intra-block relevance reranking, deep inside a @tool wrapper that

@@ -1,6 +1,7 @@
 """Closed-list arbitration contract for E1 (harness only; production arbitration is untouched).
 
-The model answers with the exact identifier of one candidate, ``NONE`` or ``AMBIGU``.
+The model answers with the identifier of one candidate, ``NONE`` or ``AMBIGU``. The identifier is
+accepted exactly as listed, or without its kind prefix when it matches exactly one candidate.
 Every other output is invalid and never yields a resolution.
 """
 
@@ -58,8 +59,14 @@ def build_user_prompt(question: str, annotated_candidates: Sequence[tuple[str, s
     )
 
 
+def _resolve_bare_identifier(visible: str, candidates: Sequence[str]) -> Optional[str]:
+    """Full identifier of the single candidate whose part after the kind prefix equals ``visible``."""
+    matches = [candidate for candidate in candidates if candidate.partition(":")[2] == visible]
+    return matches[0] if len(matches) == 1 else None
+
+
 def parse_output(raw: str, candidates: Sequence[str]) -> tuple[ArbitrationStatus, Optional[str]]:
-    """Strict reading: the visible answer must be a candidate identifier, NONE or AMBIGU."""
+    """Strict reading: a candidate identifier (kind prefix optional when unambiguous), NONE or AMBIGU."""
     visible = _THINK_BLOCK.sub("", raw or "").strip()
     if visible == NONE_TOKEN:
         return ArbitrationStatus.NONE, None
@@ -67,6 +74,9 @@ def parse_output(raw: str, candidates: Sequence[str]) -> tuple[ArbitrationStatus
         return ArbitrationStatus.AMBIGUOUS, None
     if visible in candidates:
         return ArbitrationStatus.CHOSEN, visible
+    bare = _resolve_bare_identifier(visible, candidates)
+    if bare is not None:
+        return ArbitrationStatus.CHOSEN, bare
     return ArbitrationStatus.INVALID, None
 
 

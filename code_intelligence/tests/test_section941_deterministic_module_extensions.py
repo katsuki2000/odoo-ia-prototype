@@ -11,7 +11,6 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 import networkx as nx
-import pytest
 
 from code_intelligence.rules.structure import (
     ModelExtensionInfo,
@@ -21,7 +20,6 @@ from code_intelligence.rules.structure import (
     format_module_cross_domain_extensions,
     _backfill_missing_module_extension_details,
     _answer_denies_module_extension,
-    _correct_module_extension_contradiction,
 )
 from code_intelligence.agent.context import DispatchContext
 from code_intelligence.agent.predispatch_structure import dispatch_inheritance

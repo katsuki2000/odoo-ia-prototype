@@ -57,7 +57,6 @@ def test_semantic_ranking_uses_instance_translations():
         "Ou gerer une commande client ?",
         _graph_with_translated_models(),
         FakeEmbeddingFunction(),
-        language="fr",
     )
 
     assert candidates == ["sale.order", "purchase.order"]
@@ -283,7 +282,7 @@ RANKED_QUESTION = "Ou gerer une commande client ?"
 
 def _rank(graph, embedding_function, cache_dir):
     return rank_semantic_model_candidates(
-        RANKED_QUESTION, graph, embedding_function, language="fr", cache_dir=str(cache_dir),
+        RANKED_QUESTION, graph, embedding_function, cache_dir=str(cache_dir),
     )
 
 
@@ -325,7 +324,7 @@ def test_progress_is_kept_when_embedding_stops_midway(tmp_path, monkeypatch):
 
 def test_ranking_without_cache_dir_leaves_the_disk_untouched(tmp_path):
     rank_semantic_model_candidates(
-        "commande client", _graph_with_translated_models(), RecordingEmbeddingFunction(), language="fr",
+        "commande client", _graph_with_translated_models(), RecordingEmbeddingFunction(),
     )
 
     assert list(tmp_path.iterdir()) == []

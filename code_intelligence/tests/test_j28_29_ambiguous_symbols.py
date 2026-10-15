@@ -16,7 +16,6 @@ filepath, arbitrarily hiding every other module. This locks the fix:
     with an explicit ambiguity note instead of silently picking one.
 """
 import networkx as nx
-import pytest
 
 from code_intelligence.graph.nodes import ParsedModule
 from code_intelligence.graph.symbols import build_module_symbol_registry

@@ -3,12 +3,11 @@ Tests for Step 5b Day 3: Scheduled Full Scan & Startup Behavior.
 """
 
 from unittest.mock import MagicMock, patch
-from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
 from api.auth import require_admin
-from api.main import app, LAST_INGESTION_STATUS
+from api.main import app
 from document_rag.ingestion.scheduler import PeriodicScanScheduler, run_scheduled_scan, run_startup_scan
 
 

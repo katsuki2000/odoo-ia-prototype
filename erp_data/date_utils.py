@@ -4,7 +4,7 @@ miro-rag/tools/date_utils.py
 Utility functions for parsing French date expressions into Odoo domain ranges.
 """
 
-from datetime import datetime, date, timedelta
+from datetime import date, timedelta
 from typing import Tuple, Optional
 import calendar
 

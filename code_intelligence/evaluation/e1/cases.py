@@ -7,7 +7,7 @@ import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterable, Mapping, Sequence
+from typing import Any, Iterable, Mapping
 
 DATA_DIR = Path(__file__).resolve().parent / "data"
 CASES_PATH = DATA_DIR / "calibration_cases.json"

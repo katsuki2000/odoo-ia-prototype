@@ -27,7 +27,6 @@ Evidence shape covered:
 """
 
 import os
-import tempfile
 import textwrap
 
 import networkx as nx

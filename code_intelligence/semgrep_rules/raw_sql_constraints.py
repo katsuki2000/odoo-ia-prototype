@@ -1,7 +1,7 @@
 # le parseur de tests scanne tous les commentaires du fichier et
 # confond une explication en prose avec une vraie annotation.
 
-from odoo import models, fields
+from odoo import models
 from odoo.tools.sql import create_unique_index, create_index, index_exists
 
 

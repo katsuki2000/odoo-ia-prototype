@@ -19,7 +19,6 @@ isolation. Not executed in this session -- filesystem access only:
     pytest code_intelligence/tests/test_bloc_p2_j2_3_graph_tagging.py -v
 """
 
-from pathlib import Path
 
 import pytest
 

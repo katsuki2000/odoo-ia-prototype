@@ -11,7 +11,6 @@ from typing import Dict, List, Optional, Any, Tuple
 import logging
 
 from code_intelligence.graph import ResolvedSymbolRegistry
-from code_intelligence.graph import OdooGraphBuilder
 
 _logger = logging.getLogger(__name__)
 

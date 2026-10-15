@@ -1,2 +1,1 @@
--r requirements.txt
 google-auth>=2.29,<3

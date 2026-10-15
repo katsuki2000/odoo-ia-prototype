@@ -9,7 +9,6 @@ Tests for:
 - button_execution_path message for technical groups
 """
 import ast
-import pytest
 import networkx as nx
 
 from code_intelligence.extractor.python import OdooFieldDeclaration, OdooClassVisitor

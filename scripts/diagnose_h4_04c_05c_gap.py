@@ -23,7 +23,6 @@ sys.path.insert(0, str(project_root))
 logging.basicConfig(level=logging.INFO, format="%(name)s: %(message)s")
 
 from core.graph.graph import query_graph
-from core.routing.routing import _fold_accents
 from code_intelligence.agent.investigation_classifier import (
     concept_suggests_code_intelligence_v2,
     classify_question_intent,

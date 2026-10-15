@@ -6,7 +6,7 @@ Pydantic models for structured output.
 
 import os
 from enum import Enum
-from typing import Dict, List, Optional
+from typing import List, Optional
 from pydantic import BaseModel, ConfigDict, Field
 
 from core.evidence.evidence import Evidence

@@ -7,7 +7,6 @@ smalltalk_gate, out_of_scope_gate, retrieve, format_output, ci_evidence_decision
 
 import logging
 import sys
-from typing import Optional
 
 from config.settings import ENABLE_SMALLTALK_GATE, USE_RERANKER
 from document_rag.vectorstore.search import get_retriever, retrieve as search_retrieve

@@ -38,32 +38,24 @@ class SemanticRetrieval:
     status: SemanticRetrievalStatus = SemanticRetrievalStatus.NO_CANDIDATES
 
 
-def _language_matches(candidate_language: object, language: Optional[str]) -> bool:
-    if not language:
-        return True
-    candidate_base = str(candidate_language or "").casefold().split("_", 1)[0]
-    language_base = language.casefold().split("_", 1)[0]
-    return not candidate_base or candidate_base == language_base
-
-
-def _node_labels(data: Dict, language: Optional[str]) -> List[str]:
+def _node_labels(data: Dict) -> List[str]:
     labels = []
     description = str(data.get("description") or data.get("label") or data.get("name") or "").strip()
     if description:
         labels.append(description)
     for translation in data.get("business_labels", []):
         label = str(translation.get("label") or "").strip()
-        if label and _language_matches(translation.get("language"), language):
+        if label:
             labels.append(label)
     return list(dict.fromkeys(labels))
 
 
-def _model_documents(graph, language: Optional[str]) -> List[Tuple[str, str]]:
+def _model_documents(graph) -> List[Tuple[str, str]]:
     menu_labels: Dict[str, List[str]] = {}
     for node_id, data in graph.nodes(data=True):
         if data.get("node_type") != "Menu":
             continue
-        labels = _node_labels(data, language)
+        labels = _node_labels(data)
         if not labels:
             continue
         for successor in graph.successors(node_id):
@@ -77,7 +69,7 @@ def _model_documents(graph, language: Optional[str]) -> List[Tuple[str, str]]:
         if data.get("node_type") != "Model":
             continue
         model = str(data.get("name") or node_id.removeprefix("model:")).strip()
-        labels = _node_labels(data, language)
+        labels = _node_labels(data)
         labels.extend(menu_labels.get(model, []))
         labels = list(dict.fromkeys(label for label in labels if label))
         if labels:
@@ -167,11 +159,10 @@ def rank_semantic_model_candidates_scored(
     graph,
     embedding_function,
     *,
-    language: Optional[str] = None,
     limit: int = SEMANTIC_CANDIDATE_LIMIT,
     cache_dir: Optional[str] = None,
 ) -> List[Tuple[str, float]]:
-    """Rank graph models by cosine similarity to their instance labels.
+    """Rank graph models by cosine similarity to their labels in every language of the graph.
 
     With cache_dir, document embeddings persist on disk across processes.
     """
@@ -180,15 +171,14 @@ def rank_semantic_model_candidates_scored(
 
     graph_cache = _SEMANTIC_INDEX_CACHE.setdefault(graph, {})
     embedding_name = _embedding_name(embedding_function)
-    cache_key = (language.casefold() if language else None, embedding_name)
-    cached_index = graph_cache.get(cache_key)
+    cached_index = graph_cache.get(embedding_name)
     if cached_index is None:
-        documents = _model_documents(graph, language)
+        documents = _model_documents(graph)
         if not documents:
             return []
         index_store = SemanticIndexStore(cache_dir, embedding_name) if cache_dir else None
         cached_index = _build_index(documents, embedding_function, index_store)
-        graph_cache[cache_key] = cached_index
+        graph_cache[embedding_name] = cached_index
 
     models, embeddings = cached_index
     query_embedding = _query_embedding(embedding_function, query)
@@ -234,7 +224,6 @@ def retrieve_semantic_model_candidates(
             query,
             graph,
             embedding_function,
-            language=language,
             limit=limit,
             cache_dir=settings.SEMANTIC_INDEX_CACHE_DIR,
         )
@@ -265,7 +254,6 @@ def retrieve_semantic_model_candidates_scored(
             query,
             graph,
             embedding_function,
-            language=language,
             limit=limit,
             cache_dir=settings.SEMANTIC_INDEX_CACHE_DIR,
         )

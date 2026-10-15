@@ -15,7 +15,6 @@ concept.resolved_models / etc. attribute access works.
 """
 import dataclasses
 
-import pytest
 
 from code_intelligence.agent.matching import ResolvedConcept
 from code_intelligence.agent.context_extractors import _rehydrate_sticky_concept

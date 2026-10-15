@@ -4,7 +4,7 @@ import logging
 import re
 import xml.etree.ElementTree as ET
 from pathlib import Path
-from typing import List, Optional
+from typing import List
 
 from .xml_models import (
     OdooActionRecord,

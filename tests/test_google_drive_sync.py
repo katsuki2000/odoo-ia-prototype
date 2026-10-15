@@ -5,7 +5,6 @@ import io
 import json
 import logging
 from pathlib import Path
-from types import SimpleNamespace
 import unittest
 from urllib.error import HTTPError
 from urllib.parse import urlsplit

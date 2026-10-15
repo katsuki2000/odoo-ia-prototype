@@ -9,8 +9,6 @@ Tests:
   3. Real graph test on sale_order module (partner_id, amount_untaxed, amount_total)
 """
 
-from pathlib import Path
-import pytest
 import networkx as nx
 
 from code_intelligence.extractor.python import extract_odoo_models_from_file

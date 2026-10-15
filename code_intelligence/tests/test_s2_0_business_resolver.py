@@ -10,7 +10,6 @@ import unicodedata
 import pytest
 import networkx as nx
 from code_intelligence.agent.resolver import resolve_business_term
-from code_intelligence.agent.aliases import BUSINESS_ALIASES
 from code_intelligence.agent.resolution.alias_targets import alias_targets_in_graph
 
 

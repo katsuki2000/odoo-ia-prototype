@@ -103,6 +103,9 @@ EVAL_INSTANCE_ADMIN_PASSWORD = os.getenv("EVAL_INSTANCE_ADMIN_PASSWORD", "admin"
 EVAL_INSTANCES_DIR = os.getenv("EVAL_INSTANCES_DIR") or str(_ROOT / "captures" / "eval_instances")
 
 GRAPH_CACHE_PATH = os.getenv("GRAPH_CACHE_PATH") or str(_ROOT / "active_graph.json")
+GRAPH_TRANSLATION_LANGUAGES = tuple(
+    code.strip() for code in os.getenv("GRAPH_TRANSLATION_LANGUAGES", "en_US,fr_FR").split(",") if code.strip()
+)
 SEMANTIC_INDEX_CACHE_DIR = os.getenv("SEMANTIC_INDEX_CACHE_DIR") or str(_ROOT / "active_semantic_index")
 
 # -- RAG documentary source path ----------------------

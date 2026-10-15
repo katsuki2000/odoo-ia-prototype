@@ -35,7 +35,6 @@ trigger_path not surfaced) have been FIXED:
      surfaced via upstream_trigger_paths and in the summary_text.
 """
 
-from pathlib import Path
 
 import pytest
 

@@ -10,7 +10,6 @@ from erp_data.odoo_context import (
     odoo_company_ids_ctx,
     odoo_uid_ctx,
 )
-from core.evidence.evidence import Evidence, EvidenceSourceType, make_evidence
 from erp_data.date_utils import parse_period
 
 connector = OdooConnector()

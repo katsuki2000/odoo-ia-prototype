@@ -1,4 +1,4 @@
-from code_intelligence.tests._corpus_paths import CORE_ADDONS_PATH, CUSTOM_ADDONS_PATH
+from code_intelligence.tests._corpus_paths import CUSTOM_ADDONS_PATH
 """
 code_intelligence/tests/test_b1_1.py
 
@@ -12,7 +12,6 @@ Tests:
 """
 
 from pathlib import Path
-import pytest
 import networkx as nx
 
 from code_intelligence.extractor.manifest import parse_manifest

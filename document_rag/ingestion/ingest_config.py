@@ -10,12 +10,7 @@ import logging
 from pathlib import Path
 import sys
 
-from config.settings import (
-    CHROMA_PATH,
-    CORE_ADDONS_PATH,
-    CUSTOM_ADDONS_PATH,
-    RAG_DOCS_PATH,
-)
+from config.settings import CORE_ADDONS_PATH, CUSTOM_ADDONS_PATH, RAG_DOCS_PATH
 
 logger = logging.getLogger(__name__)
 

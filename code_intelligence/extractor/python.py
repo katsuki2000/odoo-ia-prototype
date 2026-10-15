@@ -107,6 +107,11 @@ POSITIONAL_ARG_ORDER = {
 }
 
 
+ODOO_FIELD_TYPES = frozenset({
+    "Many2one", "One2many", "Many2many", "Many2oneReference", "Reference",
+    "Char", "Text", "Html", "Integer", "Float", "Monetary", "Boolean",
+    "Selection", "Date", "Datetime", "Binary", "Image", "Json", "Properties", "PropertiesDefinition",
+})
 STATE_FIELD = "state"
 SELECTION_KWARGS = frozenset({"selection", "selection_add"})
 SELF_RECORDSET_METHODS = frozenset({
@@ -275,12 +280,7 @@ class OdooClassVisitor(ast.NodeVisitor):
         elif isinstance(call_node.func, ast.Name):
             field_type = call_node.func.id
 
-        known_fields = {
-            "Many2one", "One2many", "Many2many",
-            "Char", "Text", "Integer", "Float", "Boolean",
-            "Selection", "Monetary", "Datetime", "Date", "Binary", "Html", "Image"
-        }
-        if not field_type or field_type not in known_fields:
+        if field_type not in ODOO_FIELD_TYPES:
             return None
 
         kwargs = {}

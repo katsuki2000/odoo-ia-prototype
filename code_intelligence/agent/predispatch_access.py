@@ -19,7 +19,11 @@ from code_intelligence.agent.context import (
     _tool_call_key,
     PER_TOOL_OBSERVATION_CAPS,
 )
-from code_intelligence.agent.context_extractors import _question_is_access_related
+from code_intelligence.agent.context_extractors import (
+    _question_is_access_related,
+    _question_is_approval_authority_related,
+    _question_is_security_distinction_related,
+)
 from code_intelligence.agent.context import DispatchContext
 
 logger = logging.getLogger(__name__)
@@ -854,7 +858,6 @@ from code_intelligence.agent.context import (
     _truncate_observation_for_budget,
     _tool_call_key,
 )
-from code_intelligence.agent.context_extractors import _question_is_security_distinction_related
 from code_intelligence.agent.context import DispatchContext
 from code_intelligence.agent.tool_helpers import _resolve_model_param
 from code_intelligence.rules.button_path import button_execution_path as _button_execution_path_impl
@@ -974,9 +977,11 @@ def _fetch_button_and_source(
 
 
 def dispatch_security_distinction_guard(ctx: DispatchContext) -> None:
+    is_approval_question = _question_is_approval_authority_related(ctx.question)
+    is_security_distinction = _question_is_security_distinction_related(ctx.question)
     if not (
         ctx.concept.is_resolved and ctx.concept.resolved_models
-        and _question_is_security_distinction_related(ctx.question)
+        and (is_approval_question or is_security_distinction)
         and not ctx.hop_budget_exhausted
     ):
         return
@@ -986,6 +991,17 @@ def dispatch_security_distinction_guard(ctx: DispatchContext) -> None:
     # imply the tool call below will succeed, only that routing was not
     # silently left open to free ReAct for this predicate's category).
     ctx.matched_dispatchers.append("dispatch_security_distinction_guard")
+
+    if is_approval_question:
+        ctx.system_prompt_suffix += (
+            "\n\n[APPROVAL EVIDENCE]\n"
+            "This question asks who approves or validates an action. Generic model ACLs "
+            "grant CRUD permissions and do not establish approval authority; do not infer "
+            "approvers from write access. Use the workflow button and its application-level "
+            "guard observations. If those observations do not identify an approval rule, "
+            "state that the available source evidence does not establish who approves; do "
+            "not turn ACL groups into approvers or claim that no approval exists."
+        )
 
     wf_tool = ctx.tool_map.get("describe_workflow")
     btn_tool = ctx.tool_map.get("button_execution_path")
@@ -1105,7 +1121,7 @@ def dispatch_security_distinction_guard(ctx: DispatchContext) -> None:
             if fetch is not None:
                 ran_any_button = True
 
-    if ran_any_button:
+    if ran_any_button and is_security_distinction:
         _guard_note = (
             " Its own definition (the literal condition logic) has already been "
             "fetched above via a direct read_source_code lookup -- rely on that "

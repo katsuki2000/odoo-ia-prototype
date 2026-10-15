@@ -7,9 +7,7 @@ in observations produced by who_has_access_to, evaluate_record_rules, and
 button_execution_path / xml_view_finder / navigation.
 """
 
-from typing import Optional
 import networkx as nx
-import pytest
 
 from code_intelligence.rules.access_evaluator import who_has_access_to
 from code_intelligence.rules.button_path import button_execution_path
@@ -18,7 +16,6 @@ from code_intelligence.rules.group_resolver import (
     _group_display_name,
 )
 from code_intelligence.rules.record_rules import evaluate_record_rules
-from code_intelligence.rules.xml_view_finder import _find_field_in_xml_views
 
 
 def _build_security_test_graph() -> nx.DiGraph:

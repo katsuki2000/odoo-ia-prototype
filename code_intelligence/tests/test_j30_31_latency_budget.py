@@ -8,9 +8,7 @@ Unit tests for J30-J31 (Performance — latency budget & real measurement):
 4. Verifies fine-grained timing dict populated by code_intelligence_agent.
 """
 
-import time
-import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 from config.settings import (
     LATENCY_BUDGET_P90_SECONDS,
     LATENCY_BUDGET_RESOLVER_MS,

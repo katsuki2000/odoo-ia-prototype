@@ -126,7 +126,7 @@ def test_arbitration_context_comes_from_instance_labels_and_declaring_modules():
         "model:sale.order", "module:sale", edge_type="DEFINED_IN", role="declares",
     )
 
-    contexts = _candidate_contexts(graph, ["sale.order"], "fr")
+    contexts = _candidate_contexts(graph, ["sale.order"])
 
     assert contexts == {
         "sale.order": "labels: Commande client, Sales Order; modules: sale",

@@ -164,7 +164,30 @@ def _target_for_reference(reference: str, module: str, graph) -> Optional[tuple[
         xmlid = qualify_xml_id(match.group(1), module)
         node_id = f"menu:{xmlid}"
         return (node_id, "menu") if graph.has_node(node_id) else None
+
+    match = re.match(r"model:res\.groups,name:([^\s]+)$", reference)
+    if match:
+        xmlid = qualify_xml_id(match.group(1), module)
+        node_id = f"group:{xmlid}"
+        return (node_id, "group") if graph.has_node(node_id) else None
+
+    match = re.match(r"model:ir\.module\.category,name:([^\s]+)$", reference)
+    if match:
+        xmlid = qualify_xml_id(match.group(1), module)
+        return (f"category:{xmlid}", "category")
     return None
+
+
+def _ensure_category_node(graph, node_id: str, source_label: str = "") -> None:
+    if graph.has_node(node_id):
+        return
+    xml_id = node_id.removeprefix("category:")
+    graph.add_node(
+        node_id,
+        node_type="Category",
+        xml_id=xml_id,
+        name=source_label or xml_id.rsplit(".", 1)[-1],
+    )
 
 
 def attach_translations(graph, entries: Iterable[TranslationEntry]) -> dict[str, int]:
@@ -177,6 +200,8 @@ def attach_translations(graph, entries: Iterable[TranslationEntry]) -> dict[str,
             if not target:
                 continue
             node_id, entity_type = target
+            if entity_type == "category":
+                _ensure_category_node(graph, node_id, entry.msgid.strip())
             labels = graph.nodes[node_id].setdefault("business_labels", [])
             record = {
                 "label": entry.msgstr.strip(),
@@ -199,16 +224,26 @@ def attach_translations(graph, entries: Iterable[TranslationEntry]) -> dict[str,
 def attach_runtime_translations(graph, records: Iterable[dict]) -> dict[str, int]:
     attached = 0
     unlinked = 0
-    expected_types = {"model": "Model", "field": "Field", "menu": "Menu", "selection": "Field"}
+    expected_types = {
+        "model": "Model",
+        "field": "Field",
+        "menu": "Menu",
+        "selection": "Field",
+        "group": "Group",
+        "category": "Category",
+    }
     for record in records:
         node_id = record.get("node_id")
         label = str(record.get("label") or "").strip()
         language = str(record.get("language") or "")
         entity_type = str(record.get("entity_type") or "")
+        if not node_id or not label or not language or entity_type not in expected_types:
+            unlinked += 1
+            continue
+        if entity_type == "category":
+            _ensure_category_node(graph, node_id, str(record.get("source_label") or label))
         if (
-            not node_id or not label or not language
-            or entity_type not in expected_types
-            or not graph.has_node(node_id)
+            not graph.has_node(node_id)
             or graph.nodes[node_id].get("node_type") != expected_types[entity_type]
         ):
             unlinked += 1

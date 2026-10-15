@@ -6,11 +6,8 @@ Ensures deterministic tools and security analyzers include clickable file links
 and line references in markdown format [file.py:L12-34](file:///abs/path#L12-L34).
 """
 
-import pytest
-from pathlib import Path
 from code_intelligence.utils import format_file_link
 from code_intelligence.rules.security import analyze_python_security_locks
-from code_intelligence.rules.server_actions import analyze_server_action_code
 
 
 class TestStructuralSourcing:

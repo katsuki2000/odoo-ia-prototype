@@ -1,6 +1,6 @@
 """P9: typed ORM tools wired into resolve_orm_tools and LangChain wrappers."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 

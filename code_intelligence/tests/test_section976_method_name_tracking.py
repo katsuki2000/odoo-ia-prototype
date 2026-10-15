@@ -22,11 +22,7 @@ exception-tier budget. The tests below assert this is now fixed.
 
 import ast
 
-from code_intelligence.rules.security import (
-    SecurityLockASTVisitor,
-    PythonSecurityLockAnalysis,
-    analyze_python_security_locks,
-)
+from code_intelligence.rules.security import SecurityLockASTVisitor, analyze_python_security_locks
 from code_intelligence.rules.security_evidence import (
     build_security_lock_evidence,
     format_security_locks_summary,

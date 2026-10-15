@@ -11,7 +11,6 @@ Tests 3 cases:
 
 import tempfile
 from pathlib import Path
-import pytest
 
 from code_intelligence.extractor.python import extract_odoo_models_from_file, ModelRelationType
 

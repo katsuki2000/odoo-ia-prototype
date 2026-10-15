@@ -15,7 +15,7 @@ from unittest.mock import patch
 
 from erp_data.tools.sales import get_total_sales_raw, get_total_sales
 from erp_data.odoo_context import odoo_uid_ctx
-from core.evidence.evidence import Evidence, EvidenceSourceType
+from core.evidence.evidence import EvidenceSourceType
 
 
 def test_get_total_sales_raw_returns_text_and_currency_evidence():

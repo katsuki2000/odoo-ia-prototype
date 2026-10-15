@@ -9,10 +9,7 @@ recalculation during action_confirm).
 """
 
 from pathlib import Path
-from types import SimpleNamespace
-from unittest.mock import MagicMock
 import networkx as nx
-import pytest
 
 from code_intelligence.rules.source_callees import (
     inspect_noop_hook_method,

@@ -1,6 +1,5 @@
 """confine_to_scan_roots rejects paths outside configured corpus roots."""
 
-from pathlib import Path
 
 import pytest
 

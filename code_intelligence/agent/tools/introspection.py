@@ -12,7 +12,7 @@ Introspection tool implementations Deferred-imported by introspection.py's
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Any, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 import logging
 
 import networkx as nx

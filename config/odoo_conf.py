@@ -45,8 +45,9 @@ def read_addons_path(conf_path) -> list[Path]:
 
 
 def is_framework_root(root: Path) -> bool:
-    """Directory holding the `base` module (Odoo's `odoo/addons`)."""
-    return (root / "base" / "__manifest__.py").is_file()
+    """Directory that really holds the `base` module (Odoo's `odoo/addons`), not one that only links to it."""
+    base = root / "base"
+    return (base / "__manifest__.py").is_file() and base.resolve().parent == root.resolve()
 
 
 def is_core_addons_root(root: Path) -> bool:

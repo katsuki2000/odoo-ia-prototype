@@ -5,7 +5,6 @@ code_intelligence/tests/test_j8_llm_server_action_interpretation.py
 from types import SimpleNamespace
 from unittest.mock import Mock
 
-import pytest
 
 from code_intelligence.rules.server_actions import analyze_server_action_code
 from code_intelligence.rules.server_actions import interpret_server_action_with_llm

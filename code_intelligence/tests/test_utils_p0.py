@@ -7,8 +7,6 @@ Unit tests for P0 Generalization utilities:
   - compute_addons_hash
 """
 
-import pytest
-from pathlib import Path
 from code_intelligence.utils import (
     resolve_model_xmlref,
     discover_odoo_modules,

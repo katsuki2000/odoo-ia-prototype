@@ -146,3 +146,4 @@ pytest-cov==4.1.0
 rapidfuzz
 semgrep
 pytest-xdist
+google-auth>=2.29,<3

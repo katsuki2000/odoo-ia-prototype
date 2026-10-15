@@ -335,7 +335,7 @@ Facade module maintaining full backward compatibility.
 import ast
 from dataclasses import dataclass, field
 import logging
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from code_intelligence.rules.security_evidence import (
     build_security_lock_evidence,

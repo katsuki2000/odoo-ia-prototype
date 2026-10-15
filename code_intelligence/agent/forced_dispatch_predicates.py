@@ -19,6 +19,7 @@ from typing import List, Tuple
 
 from code_intelligence.agent.context_extractors import (
     _question_is_access_related,
+    _question_is_approval_authority_related,
     _question_is_approval_related,
     _extract_amount,
 )
@@ -159,10 +160,11 @@ def override_chain_targets(question: str, concept, G) -> List[Tuple[str, str]]:
 
 def who_has_access_targets(question: str, concept, G) -> List[str]:
     """Models who_has_access_to fires on: access-related wording.
-    If the question specifically asks about approval thresholds on a lock-governed model,
-    defer to the finer-grained security lock findings. Otherwise, on any general access,
-    modification, or creation question, the ACL matrix must be inspected."""
+    Approval authority is determined by workflow and application guards, not
+    by generic CRUD ACL grants."""
     if G is None or not _question_is_access_related(question):
+        return []
+    if _question_is_approval_authority_related(question):
         return []
     if _question_is_approval_related(question) and _extract_amount(question) is not None:
         lock_governed = set(security_locks_targets(concept, G))

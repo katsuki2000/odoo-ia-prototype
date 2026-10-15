@@ -33,7 +33,6 @@ Not executed in this session -- filesystem access only:
     pytest code_intelligence/tests/test_bloc_p2_j5_ontology_coverage.py -v
 """
 
-from pathlib import Path
 
 import pytest
 

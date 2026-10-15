@@ -44,12 +44,36 @@ def test_ambiguous_is_not_a_resolution():
 
 @pytest.mark.parametrize(
     "answer",
-    ["model:account.move", "model:purchase.order.", "purchase.order", "model:purchase.order, model:sale.order",
+    ["model:account.move", "model:purchase.order.", "model:purchase.order, model:sale.order",
      "Le modèle purchase.order", "", "none", "ambigu"],
 )
 def test_any_other_output_is_invalid(answer):
     result = arbitrate("q", ANNOTATED, _fixed(answer))
     assert (result.status, result.choice) == (ArbitrationStatus.INVALID, None)
+
+
+def test_bare_identifier_matching_one_candidate_is_chosen_with_its_full_identifier():
+    result = arbitrate("q", ANNOTATED, _fixed("purchase.order"))
+    assert (result.status, result.choice) == (ArbitrationStatus.CHOSEN, "model:purchase.order")
+    assert result.raw == "purchase.order"
+
+
+def test_bare_identifier_shared_by_two_candidate_kinds_stays_invalid():
+    candidates = ["model:sale.order", "menu:sale.order"]
+    assert parse_output("sale.order", candidates) == (ArbitrationStatus.INVALID, None)
+
+
+@pytest.mark.parametrize(
+    "answer",
+    ["account.move", "purchase.order.", '"purchase.order"', "`purchase.order`", "purchase.order, sale.order", "Purchase.Order"],
+)
+def test_bare_identifier_outside_the_list_or_with_extra_characters_stays_invalid(answer):
+    assert parse_output(answer, CANDIDATES) == (ArbitrationStatus.INVALID, None)
+
+
+def test_bare_identifier_after_a_reasoning_block_is_chosen():
+    raw = "<think>achat ou vente ?</think>\npurchase.order"
+    assert parse_output(raw, CANDIDATES) == (ArbitrationStatus.CHOSEN, "model:purchase.order")
 
 
 def test_llm_failure_is_a_distinct_status_with_no_choice():
@@ -200,7 +224,7 @@ def test_shipped_configuration_fixes_the_r6_thresholds_and_drops_the_held_out_cl
     assert set(r6["denominators"]) == {"silent_false", "correct_decision", "strict_clarification"}
     assert set(r6["definitions"]) >= set(r6["denominators"])
     assert "held_out_recall_at_5_R4_ge_R0_minus_points" not in criteria["D1_hybrid_as_candidate_generator"]
-    assert [amendment["section"] for amendment in config["amendments"]] == [1288, 1290]
+    assert [amendment["section"] for amendment in config["amendments"]] == [1288, 1290, 1370]
 
 
 def test_run_offline_reports_r6_as_an_error_block_while_thresholds_are_unfixed(monkeypatch):

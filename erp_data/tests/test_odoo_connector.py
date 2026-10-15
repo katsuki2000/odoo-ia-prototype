@@ -103,6 +103,35 @@ def test_technical_connector_ignores_the_request_api_key():
     assert denied_models.calls[0][0][2] == "service-secret"
 
 
+@pytest.mark.parametrize("model", ["ir.model.data", "ir.module.category", "res.groups"])
+def test_technical_connector_can_read_graph_translation_metadata(monkeypatch, model):
+    monkeypatch.setenv("ODOO_ALLOWED_MODELS", "sale.order")
+    connector = OdooConnector(
+        url="http://odoo.invalid",
+        db="test",
+        password="service-secret",
+        technical=True,
+    )
+    recorder = _RecordingModels([])
+    connector.models = recorder
+
+    assert connector.search_read(2, model, fields=["id"]) == []
+    assert recorder.calls[0][0][3] == model
+
+
+@pytest.mark.parametrize("model", ["ir.model.data", "ir.module.category", "res.groups"])
+def test_request_connector_cannot_read_technical_translation_metadata(monkeypatch, model):
+    monkeypatch.setenv("ODOO_ALLOWED_MODELS", "sale.order")
+    connector = OdooConnector(url="http://odoo.invalid", db="test", password="unused")
+    recorder = _RecordingModels([])
+    connector.models = recorder
+
+    with pytest.raises(OdooConnectorError, match="not whitelisted"):
+        connector.search_read(2, model, fields=["id"])
+
+    assert recorder.calls == []
+
+
 def test_default_connector_still_uses_the_request_api_key():
     connector = OdooConnector(url="http://odoo.invalid", db="test", password="service-secret")
     denied_models = _AccessDeniedModels()
@@ -166,7 +195,7 @@ def test_search_read_count_name_search_dispatch(monkeypatch):
     "stock.quant",
     "project.task"
 ])
-def test_whitelisted_models_search_read(odoo_connector, uid, model):
+def test_whitelisted_models_search_read(admin_requester_identity, odoo_connector, uid, model):
     """Confirm data retrieval works for each whitelisted model."""
     records = odoo_connector.search_read(
         uid=uid,
@@ -177,7 +206,7 @@ def test_whitelisted_models_search_read(odoo_connector, uid, model):
     assert isinstance(records, list)
 
 @pytest.mark.integration
-def test_read_group_success(odoo_connector, uid):
+def test_read_group_success(admin_requester_identity, odoo_connector, uid):
     """Test aggregation query works for a whitelisted model."""
     results = odoo_connector.read_group(
         uid=uid,
@@ -192,7 +221,7 @@ def test_read_group_success(odoo_connector, uid):
         assert "amount_total" in results[0]
 
 @pytest.mark.integration
-def test_fields_get(odoo_connector, uid):
+def test_fields_get(admin_requester_identity, odoo_connector, uid):
     """Test schema discovery."""
     fields = odoo_connector.fields_get(uid, "res.partner")
     assert isinstance(fields, dict)

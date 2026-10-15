@@ -3,9 +3,9 @@
 import logging
 import threading
 import time
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Optional, Tuple
 
-from langchain_core.messages import SystemMessage, HumanMessage, ToolMessage
+from langchain_core.messages import SystemMessage
 
 from config.settings import (
     LLM_PROVIDER,
@@ -15,15 +15,10 @@ from config.settings import (
 )
 from core.llm.local_only import assert_local_endpoint
 from core.llm.llm_retry import (
-    ToolCallFallback,
     ToolCallFallback as _ToolCallFallback,
-    parse_reset_seconds,
     parse_reset_seconds as _parse_reset_seconds,
-    extract_rate_limit_headers,
     extract_rate_limit_headers as _extract_rate_limit_headers,
-    try_recover_tool_use_failed,
     try_recover_tool_use_failed as _try_recover_tool_use_failed,
-    reduce_message_context,
     reduce_message_context as _reduce_message_context,
     _TOOL_MSG_HARD_CAP,
     _TOOL_USE_FAILED_RE,

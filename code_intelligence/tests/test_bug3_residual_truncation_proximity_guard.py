@@ -12,7 +12,6 @@ a word/line boundary, while the CONDITION/CONTEXT surrounding it is still
 incomplete because the cut landed nearby.
 """
 
-import pytest
 
 from code_intelligence.agent.context import _TRUNCATION_MARKER
 from code_intelligence.utils import _match_near_truncation

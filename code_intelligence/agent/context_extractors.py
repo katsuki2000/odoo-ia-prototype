@@ -32,6 +32,17 @@ def _strip_accents(text: str) -> str:
     )
 
 
+_APPROVAL_AUTHORITY_PATTERN = re.compile(
+    r"\b(?:approuv\w*|approb\w*|approve\w*|approv\w*|approver\w*|valid\w*|validation\w*)\b",
+    re.IGNORECASE,
+)
+
+
+def _question_is_approval_authority_related(question: str) -> bool:
+    """Identify questions about approval or validation decisions."""
+    return bool(_APPROVAL_AUTHORITY_PATTERN.search(_strip_accents(question or "")))
+
+
 # Deterministic patterns for tool triggers
 _AMOUNT_PATTERN = re.compile(r"\d[\d\s.,]*\d\s*(?:€|eur(?:os?)?\b)", re.IGNORECASE)
 _AUTOMATION_PATTERN = re.compile(

@@ -17,8 +17,6 @@ Output: Structured report documenting exactly what jedi handles vs. what needs
         the custom AST visitor (tasks A1.1.2 through A1.1.6).
 """
 
-import os
-import sys
 import json
 from pathlib import Path
 

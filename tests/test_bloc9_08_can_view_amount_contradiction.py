@@ -18,7 +18,6 @@ Covers:
     present, no contradiction, correct prose already).
 """
 
-import pytest
 
 from core.graph.graph import (
     _has_can_view_amount_fact,

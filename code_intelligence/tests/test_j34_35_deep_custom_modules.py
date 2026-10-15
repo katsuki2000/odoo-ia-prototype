@@ -8,8 +8,6 @@ Unit & Integration tests for J34-J35 (Generalization to Deep Custom Modules):
 4. Verifies business resolver mapping for deep document concepts.
 """
 
-from pathlib import Path
-import pytest
 from code_intelligence.extractor.manifest import parse_manifest
 from code_intelligence.extractor.python import extract_odoo_models_from_file
 from code_intelligence.extractor.xml import parse_ir_rules_from_xml

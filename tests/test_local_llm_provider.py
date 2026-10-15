@@ -1,7 +1,7 @@
 """Unit tests for local LLM migration and provider abstraction."""
 
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 from langchain_openai import ChatOpenAI
 

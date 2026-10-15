@@ -202,10 +202,7 @@ import logging
 import re
 from typing import List, Tuple
 
-from code_intelligence.rules.security_locks import (
-    _amount_present_in_text,
-    _OVERRIDE_CHAIN_AMOUNT_RE,
-)
+from code_intelligence.rules.security_locks import _OVERRIDE_CHAIN_AMOUNT_RE
 
 logger = logging.getLogger(__name__)
 

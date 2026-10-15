@@ -7,12 +7,9 @@ Tests for Section 919:
 3. _fetch_button_and_source helper returns None for already-seen calls.
 """
 
-import pytest
-import re
 
 from code_intelligence.agent.predispatch_access import (
     _WORKFLOW_STEP_METHOD_ROLE_RE,
-    _APPROVAL_BUTTON_METHOD_RE,
     _classify_security_distinction_methods,
 )
 

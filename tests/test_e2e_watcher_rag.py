@@ -5,7 +5,6 @@ indexes it and the assistant/retrieval pipeline answers correctly.
 Delete the document, verify incremental reindex removes it and the assistant says it doesn't know / no results.
 """
 
-import os
 import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch

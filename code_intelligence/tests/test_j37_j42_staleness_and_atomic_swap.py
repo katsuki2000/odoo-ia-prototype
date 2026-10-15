@@ -10,28 +10,17 @@ Unit & Concurrency Tests for  /  :
 - J42: 20 concurrent readers + 1 writer atomic swap stress test.
 """
 
-import os
-import json
 import time
 import threading
 import pytest
-from pathlib import Path
-from tempfile import TemporaryDirectory
 import networkx as nx
 
-from code_intelligence.graph.staleness import (
-    StalenessLevel,
-    StalenessReport,
-    analyze_changes,
-    get_nodes_for_filepath,
-    propagate_dirty_nodes,
-)
+from code_intelligence.graph.staleness import StalenessLevel, analyze_changes
 from code_intelligence.graph.atomic_swap import atomic_write_json, atomic_read_json
 from code_intelligence.graph.version import (
     GRAPH_SCHEMA_VERSION,
     serialize_graph_with_metadata,
     deserialize_graph_with_metadata,
-    get_git_commit_hash,
 )
 
 

@@ -8,9 +8,6 @@ Tests for Section 922:
 3. _PROSE_LINE_CLAIM_PATTERN properly recognizes unicode non-breaking hyphens (U+2011).
 """
 
-import re
-from pathlib import Path
-import pytest
 
 from code_intelligence.agent.dispatch_guards import _PROSE_LINE_CLAIM_PATTERN
 from code_intelligence.agent.tools.introspection import read_precise_source_code

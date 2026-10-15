@@ -5,7 +5,6 @@
 3. Fabricated file:// link stripping in postprocess
 """
 import re
-import pytest
 
 
 class TestDomainPrefixFiltering:

@@ -122,7 +122,12 @@ def refactor_rename_in_graph(G: nx.DiGraph, renames: List[SymbolRename]) -> Tupl
 
 from code_intelligence.utils import qualify_xml_id
 from .integrity import _detect_inheritance_cycles, topological_sort_modules
-from .nodes import CORE_BASE_MODULES, ParsedModule, ResolvedSymbolRegistry, UnresolvedCategory, UnresolvedReference, _categorize_unresolved
+from .nodes import (
+    ParsedModule,
+    ResolvedSymbolRegistry,
+    UnresolvedReference,
+    _categorize_unresolved,
+)
 
 
 def build_module_symbol_registry(modules_dict: Dict[str, ParsedModule]) -> ResolvedSymbolRegistry:

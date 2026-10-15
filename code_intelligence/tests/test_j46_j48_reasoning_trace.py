@@ -8,7 +8,6 @@ Distinct from test_bloc10_incremental_event_logging.py , which tests KNOWLEDGE G
 agent reasoning.
 """
 
-import pytest
 
 from core.session.reasoning_trace_logger import (
     ReasoningTraceLogger,

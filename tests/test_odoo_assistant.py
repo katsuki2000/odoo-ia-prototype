@@ -7,7 +7,6 @@ Authentifie un utilisateur Odoo, teste le endpoint /miro_ai/health,
 et vérifie la génération JWT ainsi que la communication avec /miro_ai/ask.
 """
 import requests
-import json
 import time
 
 ODOO_URL = "http://localhost:8069"

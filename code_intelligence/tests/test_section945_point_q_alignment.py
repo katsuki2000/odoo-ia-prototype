@@ -14,10 +14,8 @@ todo/contexte.txt Section 945 (Point Q resolution):
 import json
 from pathlib import Path
 import networkx as nx
-import pytest
 
 from code_intelligence.rules.structure import (
-    ModelExtensionInfo,
     inspect_module_cross_domain_extensions,
     _backfill_missing_module_extension_details,
     _correct_module_extension_contradiction,

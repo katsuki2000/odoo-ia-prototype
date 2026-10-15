@@ -26,7 +26,7 @@ from erp_data.tools.sales import (
     get_top_selling_products,
 )
 from erp_data.odoo_context import odoo_uid_ctx
-from core.evidence.evidence import Evidence, EvidenceSourceType
+from core.evidence.evidence import EvidenceSourceType
 
 
 def _rows(*triples):

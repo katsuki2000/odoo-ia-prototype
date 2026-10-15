@@ -31,7 +31,6 @@ import json
 import pytest
 
 from code_intelligence.graph.loader import get_code_intelligence_graph
-from code_intelligence.agent.tool_helpers import set_graph_ref
 from code_intelligence.agent.tools import ALL_CI_TOOLS
 from code_intelligence.agent.tools.access import evaluate_record_rules, evaluate_rules_raw
 from code_intelligence.agent.tools.structure import button_execution_path
@@ -47,10 +46,8 @@ SAL_Q1_PRINCIPALS = {
 
 
 @pytest.fixture(scope="module")
-def G():
-    graph = get_code_intelligence_graph()
-    set_graph_ref(graph)
-    return graph
+def G(real_graph):
+    return real_graph
 
 
 class FakeConcept:

@@ -23,20 +23,28 @@ def plan_governance_security(
     """Build investigation steps for GOVERNANCE_SECURITY intent."""
     from code_intelligence.agent.context_extractors import (
         _question_is_access_related,
-        _question_is_approval_related,
+        _question_is_approval_authority_related,
         _extract_amount,
     )
     from code_intelligence.agent.dispatch_guards import _question_suggests_automation_bypass
 
     is_access_related = _question_is_access_related(question)
-    is_approval_related = _question_is_approval_related(question)
+    is_approval_related = _question_is_approval_authority_related(question)
     is_automation_bypass = _question_suggests_automation_bypass(question)
     amount = _extract_amount(question)
+    approval_models = list(dict.fromkeys(
+        resolved_concept.resolved_models
+        if resolved_concept and resolved_concept.resolved_models
+        else [primary_model]
+    )) if is_approval_related else [primary_model]
 
-    has_security_lock_source = True  # conservative: assume present without a graph
+    security_lock_models = (
+        set(approval_models if is_approval_related else [primary_model])
+        if G is None else set()
+    )
     has_server_action_nodes = False
     has_override_cascade = False
-    has_who_has_access_target = is_access_related
+    has_who_has_access_target = is_access_related and not is_approval_related
     if G is not None:
         try:
             from code_intelligence.agent.forced_dispatch_predicates import (
@@ -45,14 +53,16 @@ def plan_governance_security(
                 override_chain_targets,
                 who_has_access_targets,
             )
-            has_security_lock_source = primary_model in security_locks_targets(resolved_concept, G)
+            security_lock_models = set(security_locks_targets(resolved_concept, G))
             has_server_action_nodes = primary_model in server_actions_targets(question, resolved_concept, G)
             has_override_cascade = any(
-                m == primary_model for m, _ in override_chain_targets(question, resolved_concept, G)
+                m in approval_models for m, _ in override_chain_targets(question, resolved_concept, G)
             )
             has_who_has_access_target = primary_model in who_has_access_targets(question, resolved_concept, G)
         except Exception:
             logger.warning("Target probes failed; planning with the default flags", exc_info=True)
+            if is_approval_related:
+                security_lock_models = set(approval_models)
 
     steps: List[InvestigationStep] = []
 
@@ -69,7 +79,7 @@ def plan_governance_security(
         )
 
     # 2. Record rules
-    if is_access_related and amount is not None:
+    if is_access_related and amount is not None and not is_approval_related:
         steps.append(
             InvestigationStep(
                 action=PlanAction.EVALUATE_RECORD_RULES,
@@ -81,19 +91,20 @@ def plan_governance_security(
         )
 
     # 3. Python security locks
-    if has_security_lock_source:
-        steps.append(
-            InvestigationStep(
-                action=PlanAction.ANALYZE_SECURITY_LOCKS,
-                target=primary_model,
-                justification=f"Scanner les verrous Python, exceptions levées et contournements de groupe dans {primary_model}",
-                behavioral_focus=BehavioralTag.BLOCKING_RULE,
-                technical_focus=TechnicalTag.CONSTRAINT,
+    for model in approval_models if is_approval_related else [primary_model]:
+        if model in security_lock_models:
+            steps.append(
+                InvestigationStep(
+                    action=PlanAction.ANALYZE_SECURITY_LOCKS,
+                    target=model,
+                    justification=f"Scanner les verrous Python et gardes applicatifs de {model}",
+                    behavioral_focus=BehavioralTag.BLOCKING_RULE,
+                    technical_focus=TechnicalTag.CONSTRAINT,
+                )
             )
-        )
 
     # 4. can_view_amount_v2
-    if is_access_related and amount is not None:
+    if is_access_related and amount is not None and not is_approval_related:
         steps.append(
             InvestigationStep(
                 action=PlanAction.CAN_VIEW_AMOUNT,
@@ -106,15 +117,35 @@ def plan_governance_security(
 
     # 5. Method override chain
     if is_approval_related and has_override_cascade:
-        steps.append(
-            InvestigationStep(
-                action=PlanAction.ANALYZE_METHOD_OVERRIDE_CHAIN,
-                target=primary_model,
-                justification=f"Vérifier si un override cascade dilue ou contredit une condition d'approbation sur {primary_model}",
-                behavioral_focus=BehavioralTag.APPROVAL_RULE,
-                technical_focus=None,
+        for model in approval_models:
+            steps.append(
+                InvestigationStep(
+                    action=PlanAction.ANALYZE_METHOD_OVERRIDE_CHAIN,
+                    target=model,
+                    justification=f"Vérifier la chaîne de méthodes d'approbation de {model}",
+                    behavioral_focus=BehavioralTag.APPROVAL_RULE,
+                    technical_focus=None,
+                )
             )
-        )
+
+    if is_approval_related:
+        for model in approval_models:
+            steps.extend([
+                InvestigationStep(
+                    action=PlanAction.DESCRIBE_WORKFLOW,
+                    target=model,
+                    justification=f"Identifier les transitions et actions de validation de {model}",
+                    behavioral_focus=BehavioralTag.APPROVAL_RULE,
+                    technical_focus=None,
+                ),
+                InvestigationStep(
+                    action=PlanAction.BUTTON_EXECUTION_PATH,
+                    target=model,
+                    justification=f"Relier les actions de validation de {model} a leurs groupes et gardes applicatifs",
+                    behavioral_focus=BehavioralTag.APPROVAL_RULE,
+                    technical_focus=TechnicalTag.CONSTRAINT,
+                ),
+            ])
 
     # 6. Server actions
     if is_automation_bypass and has_server_action_nodes:
@@ -269,35 +300,14 @@ from typing import Any, List, Optional
 import logging
 
 from code_intelligence.agent.resolver import ResolvedConcept
-from code_intelligence.agent.investigation_classifier import (
-    _AUTOMATION_PATTERNS,
-    _CALCULATION_AMOUNT_PATTERNS,
-    _CALCULATION_CODE_PATTERNS,
-    _DOC_ANCHOR_PATTERNS,
-    _ERP_DATA_PATTERNS,
-    _GOVERNANCE_PATTERNS,
-    _INHERITANCE_PATTERNS,
-    _WEAK_PROCESS_SIGNALS,
-    _WORKFLOW_PATTERNS,
-    classify_question_intent,
-    concept_suggests_code_intelligence_v2,
-    has_documentary_anchor,
-)
-from code_intelligence.agent.investigation_llm import (
-    _INTENT_CLASSIFICATION_SYSTEM_PROMPT,
-    IntentClassificationLLMResponse,
-    IntentResolution,
-    classify_question_intent_llm,
-    resolve_question_intent,
-)
+from code_intelligence.agent.investigation_classifier import classify_question_intent
+from code_intelligence.agent.investigation_llm import classify_question_intent_llm
 from code_intelligence.agent.investigation_schemas import (
-    INTENT_TO_ROUTE,
     InvestigationPlan,
     InvestigationStep,
     PlanAction,
     PlanGenerationSource,
     QuestionIntent,
-    _fold_accents,
 )
 from code_intelligence.rules.ontology import BehavioralTag, TechnicalTag
 
