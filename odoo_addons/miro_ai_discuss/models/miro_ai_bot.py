@@ -104,7 +104,7 @@ def generate_jwt_token(payload_dict, secret_key):
     return f"{encoded_header}.{encoded_payload}.{encoded_signature}"
 
 
-def markdown_to_html(text: str) -> str:
+def plain_text_to_html(text: str) -> str:
     """Échappe le texte brut pour Discuss et conserve les retours à la ligne."""
     if not text:
         return ""
@@ -335,7 +335,7 @@ class MiroAiBot(models.AbstractModel):
             # Appel du backend RAG
             result = self._call_rag_backend(question=question, user=user, channel_id=channel.id)
             raw_answer = result.get('answer', '')
-            answer_html = markdown_to_html(raw_answer)
+            answer_html = plain_text_to_html(raw_answer)
 
         # Construction du message de réponse
         reply_vals = {
