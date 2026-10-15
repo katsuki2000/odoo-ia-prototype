@@ -1,7 +1,7 @@
 """
 core/graph.py
 
-LangGraph RAG pipeline -- CI-first, RAG-as-last-resort.
+LangGraph pipeline with a source choice: documentation or Odoo system.
 Orchestrates StateGraph compilation, node dispatch, and pipeline querying.
 """
 
