@@ -59,11 +59,26 @@ def test_username_comes_from_environment(monkeypatch):
 
     assert connector.username == "service_user"
 
-def test_model_whitelist_enforcement(odoo_connector):
-    """Verify that querying a non-whitelisted model raises an error."""
-    with pytest.raises(OdooConnectorError) as exc_info:
-        odoo_connector.search_read(1, "res.users", domain=[], fields=["name"])
-    assert "not whitelisted" in str(exc_info.value)
+def test_optional_model_allowlist_enforcement(monkeypatch):
+    """A deployment may restrict models explicitly without hardcoding defaults."""
+    monkeypatch.setenv("ODOO_ALLOWED_MODELS", "res.partner")
+    connector = OdooConnector(url="http://odoo.invalid", db="test", password="secret")
+    with pytest.raises(OdooConnectorError, match="ODOO_ALLOWED_MODELS"):
+        connector.search_read(1, "x_custom.record", domain=[], fields=["name"])
+
+
+def test_custom_models_are_allowed_by_default(monkeypatch):
+    """Custom addon models are not blocked by a built-in model list."""
+    monkeypatch.delenv("ODOO_ALLOWED_MODELS", raising=False)
+    connector = OdooConnector(url="http://odoo.invalid", db="test", password="secret")
+    recorder = _RecordingModels([1])
+    connector.models = recorder
+    token = odoo_api_key_ctx.set("request-user-api-key")
+    try:
+        assert connector.search(7, "x_custom.record", domain=[], limit=1) == [1]
+    finally:
+        odoo_api_key_ctx.reset(token)
+    assert recorder.calls[0][0][3] == "x_custom.record"
 
 
 @pytest.mark.parametrize(
@@ -126,7 +141,7 @@ def test_request_connector_cannot_read_technical_translation_metadata(monkeypatc
     recorder = _RecordingModels([])
     connector.models = recorder
 
-    with pytest.raises(OdooConnectorError, match="not whitelisted"):
+    with pytest.raises(OdooConnectorError, match="ODOO_ALLOWED_MODELS"):
         connector.search_read(2, model, fields=["id"])
 
     assert recorder.calls == []

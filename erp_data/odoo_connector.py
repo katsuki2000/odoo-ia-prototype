@@ -1,6 +1,6 @@
 """
 Odoo XML-RPC connection manager for the AI.
-Enforces model whitelisting and read-only operations for secure data retrieval.
+Provides read-only ORM access under the requester's identity.
 """
 
 import logging
@@ -26,42 +26,19 @@ _METHOD_FAILURE_PREFIX = {
     "fields_get": "Failed to fetch fields for",
 }
 
-DEFAULT_ALLOWED_MODELS = {
-    "sale.order",
-    "sale.order.line",
-    "account.move",
-    "stock.quant",
-    "project.task",
-    "res.partner",
-    "product.product",
-    "ir.module.module",
-    "ir.model",
-    "ir.model.fields",
-    "res.lang",
-    "res.company",  # todo/contexte.txt section 536: read-only, whitelisted with
-    # explicit maitre de stage sign-off, solely to let search_partner_raw
-    # exclude self-company res.partner records (e.g. "Company Alpha") from
-    # client search results -- never exposed as a directly queryable tool.
-}
-
-TECHNICAL_ONLY_MODELS = {
+TECHNICAL_ONLY_MODELS = frozenset({
     "ir.model.data",
     "ir.module.category",
     "res.groups",
-}
-
-ALLOWED_MODELS = DEFAULT_ALLOWED_MODELS
+})
 
 
 def resolve_allowed_models():
-    """Return (allowed_set, wildcard). wildcard=True skips the static set."""
+    """Return an optional deployment-specific allowlist; unset means Odoo ACLs decide."""
     raw = os.getenv("ODOO_ALLOWED_MODELS")
-    if raw is None or not str(raw).strip():
-        return frozenset(DEFAULT_ALLOWED_MODELS), False
-    text = str(raw).strip()
-    if text == "*":
+    if raw is None or not str(raw).strip() or str(raw).strip() == "*":
         return frozenset(), True
-    return frozenset(part.strip() for part in text.split(",") if part.strip()), False
+    return frozenset(part.strip() for part in str(raw).split(",") if part.strip()), False
 
 
 class OdooConnectorError(Exception):
@@ -140,17 +117,13 @@ class OdooConnector:
             raise OdooConnectorError(f"Failed to authenticate: {str(e)}")
 
     def _check_whitelist(self, model: str):
-        """Ensure the requested model is in the allowed whitelist."""
+        """Apply optional deployment restrictions before Odoo's own access checks."""
+        if not _MODEL_NAME_RE.fullmatch(model):
+            raise OdooConnectorError(f"Model {model} is not a valid Odoo model name.")
         if self.technical and model in TECHNICAL_ONLY_MODELS:
             return
-        if self._wildcard_models:
-            if not _MODEL_NAME_RE.match(model):
-                logger.warning("Attempted access with invalid model name: %s", model)
-                raise OdooConnectorError(f"Model {model} is not a valid Odoo model name.")
-            return
-        if model not in self._allowed_models:
-            logger.warning("Attempted access to non-whitelisted model: %s", model)
-            raise OdooConnectorError(f"Model {model} is not whitelisted for AI queries.")
+        if not self._wildcard_models and model not in self._allowed_models:
+            raise OdooConnectorError(f"Model {model} is not allowed by ODOO_ALLOWED_MODELS.")
 
     def _session_orm_context(self) -> dict:
         from erp_data.odoo_context import odoo_company_id_ctx, odoo_company_ids_ctx
@@ -265,5 +238,5 @@ class OdooConnector:
             model,
             "fields_get",
             [],
-            {"attributes": ["string", "type", "help"]},
+            {"attributes": ["string", "type", "help", "relation", "selection", "required", "readonly", "store"]},
         )

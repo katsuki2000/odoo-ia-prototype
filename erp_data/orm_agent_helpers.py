@@ -1,9 +1,9 @@
-"""Helper utilities for ORM ReAct agent node."""
+"""Helper utilities for the ORM agent node."""
 
 import json
 import logging
 import re
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, List, Optional, Tuple
 
 from langchain_core.messages import HumanMessage
 
@@ -14,102 +14,11 @@ logger = logging.getLogger(__name__)
 _build_llm = get_chat_llm
 
 
-def _legacy_thick_tools(skills: Dict[str, Any]) -> List[Any]:
-    """Business tools not yet reduced to typed ORM primitives."""
-    from erp_data.tools.accounting import get_period_revenue, get_total_invoices
-    from erp_data.tools.crm import get_recent_tickets
-    from erp_data.tools.sales import (
-        get_average_sales,
-        get_sale_details,
-        get_top_selling_products,
-        get_total_sales,
-    )
+def resolve_orm_tools(_skills: Optional[dict[str, Any]] = None) -> List[Any]:
+    """Expose only model-agnostic, read-only ORM primitives."""
+    from erp_data.runtime.langchain_tools import TYPED_ORM_LANGCHAIN_TOOLS
 
-    tools: List[Any] = []
-    if skills.get("ventes", True):
-        tools.extend([
-            get_total_sales,
-            get_period_revenue,
-            get_average_sales,
-            get_sale_details,
-            get_top_selling_products,
-        ])
-    if skills.get("comptabilite", True):
-        tools.append(get_total_invoices)
-    if skills.get("tickets", True):
-        tools.append(get_recent_tickets)
-    return tools
-
-
-def _legacy_thin_tools(skills: Dict[str, Any]) -> List[Any]:
-    """FR-friendly tools backed by the typed ORM runtime."""
-    from erp_data.tools.crm import search_partner
-    from erp_data.tools.inventory import (
-        get_order_status,
-        get_product_stock,
-        list_out_of_stock_products,
-    )
-    from erp_data.tools.sales import get_order_count
-
-    tools: List[Any] = [search_partner]
-    if skills.get("ventes", True):
-        tools.extend([get_order_count, get_order_status])
-    if skills.get("stocks", True):
-        tools.extend([get_product_stock, list_out_of_stock_products])
-    return tools
-
-
-def resolve_orm_tools(skills: Dict[str, Any]) -> List[Any]:
-    """Return ORM tools bound for the ReAct agent.
-
-    Typed runtime (default): generic ORM tools plus thin wrappers rewritten
-    on that runtime, plus thick legacy aggregations still useful in French.
-    ORM_USE_TYPED_RUNTIME=false keeps the historical skill-based tool set.
-    """
-    from config import settings
-
-    if settings.ORM_USE_TYPED_RUNTIME:
-        from erp_data.runtime.langchain_tools import TYPED_ORM_LANGCHAIN_TOOLS
-
-        return (
-            list(TYPED_ORM_LANGCHAIN_TOOLS)
-            + _legacy_thin_tools(skills)
-            + _legacy_thick_tools(skills)
-        )
-
-    from erp_data.tools.accounting import get_period_revenue, get_total_invoices
-    from erp_data.tools.crm import get_recent_tickets, search_partner
-    from erp_data.tools.inventory import (
-        get_order_status,
-        get_product_stock,
-        list_out_of_stock_products,
-    )
-    from erp_data.tools.sales import (
-        get_average_sales,
-        get_order_count,
-        get_sale_details,
-        get_top_selling_products,
-        get_total_sales,
-    )
-
-    all_tools = [search_partner]
-    if skills.get("ventes", True):
-        all_tools.extend([
-            get_total_sales,
-            get_order_status,
-            get_period_revenue,
-            get_average_sales,
-            get_sale_details,
-            get_order_count,
-            get_top_selling_products,
-        ])
-    if skills.get("stocks", True):
-        all_tools.extend([get_product_stock, list_out_of_stock_products])
-    if skills.get("comptabilite", True):
-        all_tools.extend([get_total_invoices])
-    if skills.get("tickets", True):
-        all_tools.extend([get_recent_tickets])
-    return all_tools
+    return list(TYPED_ORM_LANGCHAIN_TOOLS)
 
 
 def recover_malformed_tool_call(
@@ -140,31 +49,23 @@ def execute_tool_call(
     """Execute a single tool call with graceful error handling."""
     tool_name = tool_call["name"]
     tool_args = tool_call["args"]
-    if tool_name not in [t.name for t in all_tools]:
-        return tool_name, tool_args, f"Outil '{tool_name}' non disponible."
+    tool_map = {tool.name: tool for tool in all_tools}
+    if tool_name not in tool_map:
+        return tool_name, tool_args, f"Tool '{tool_name}' is not available."
 
     try:
-        tool_map = {t.name: t for t in all_tools}
         observation = tool_map[tool_name].invoke(tool_args)
-    except Exception as e:
-        err_str = str(e)
-        logger.error("Tool call error for %s: %s", tool_name, e)
-        if "Access Denied" in err_str or "AccessDenied" in err_str:
-            observation = (
-                f"Vous n'avez pas les droits d'acces necessaires pour "
-                f"consulter ces donnees ({tool_name}). Contactez votre "
-                f"administrateur pour obtenir les permissions requises."
-            )
-        else:
-            observation = (
-                f"L'outil {tool_name} n'a pas pu s'executer correctement. "
-                f"Veuillez reessayer ou reformuler votre question."
-            )
+    except Exception as exc:
+        logger.error("Tool call error for %s: %s", tool_name, exc)
+        observation = (
+            f"ORM operation '{tool_name}' failed or was refused. "
+            "Check the requested model, fields, filters, and the requester's Odoo permissions."
+        )
     return tool_name, tool_args, observation
 
 
 def force_final_synthesis(question: str, tool_observations: List[str]) -> Tuple[str, int]:
-    """Synthesize final answer when ReAct iteration budget is exhausted."""
+    """Synthesize final answer when the ReAct iteration budget is exhausted."""
     logger.warning("Node [orm_agent_loop]: Recursion limit reached. Forcing final answer.")
     from erp_data.prompts import build_orm_synthesis_prompt
 
@@ -184,10 +85,10 @@ def force_final_synthesis(question: str, tool_observations: List[str]) -> Tuple[
         )
         llm_calls += 1
         return final_resp.content, llm_calls
-    except Exception as e:
+    except Exception as exc:
         llm_calls += 1
-        logger.error("Forced synthesis failed: %s", e)
+        logger.error("Forced synthesis failed: %s", exc)
         return (
-            "Je n'ai pas pu obtenir une réponse complète. Veuillez reformuler la question.",
+            "Je n'ai pas pu obtenir une réponse complète à partir des observations disponibles.",
             llm_calls,
         )

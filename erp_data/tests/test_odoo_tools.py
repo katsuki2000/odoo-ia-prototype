@@ -111,8 +111,15 @@ def test_read_only_enforcement():
     assert not hasattr(connector, 'unlink')
 
 @pytest.mark.integration
-def test_whitelist_enforcement():
-    """Verify the connector blocks queries to non-whitelisted models."""
-    with pytest.raises(OdooConnectorError) as exc_info:
-        connector.search_read(1, "res.users", [], [])
-    assert "not whitelisted" in str(exc_info.value)
+def test_optional_model_allowlist_enforcement(monkeypatch):
+    """Deployment-specific allowlists remain available as an optional restriction."""
+    from erp_data.odoo_connector import OdooConnector
+
+    monkeypatch.setenv("ODOO_ALLOWED_MODELS", "res.partner")
+    restricted = OdooConnector(
+        url="http://odoo.invalid",
+        db="test",
+        password="unused",
+    )
+    with pytest.raises(OdooConnectorError, match="ODOO_ALLOWED_MODELS"):
+        restricted.search_read(1, "x_custom.record", [], [])
