@@ -39,8 +39,6 @@ from core.routing.routing_keywords import (
 
 logger = logging.getLogger(__name__)
 
-_VALID_ROUTES = {r.value for r in QueryRoute}
-
 
 def _sticky_concept_or_resolve(state: RAGState, resolved_concept_dict: dict) -> dict:
     """Sticky concept reuse: reuse previous turn's resolved concept if current resolution failed."""
@@ -75,7 +73,7 @@ def route(state: RAGState) -> dict:
 
     # Otherwise the LLM classifies the question. If it is unavailable, the
     # intent resolver uses its deterministic classifier as a fallback.
-    from code_intelligence.agent.investigation_schemas import INTENT_TO_ROUTE, QuestionIntent
+    from code_intelligence.agent.investigation_schemas import INTENT_TO_ROUTE
     intent_resolution = resolve_question_intent(question)
     intent = intent_resolution.intent
     route_decision = INTENT_TO_ROUTE.get(intent, QueryRoute.DOCUMENTAIRE.value)
