@@ -3172,3 +3172,27 @@ Date : 15/10/2026
 
 **Etat** : `integration/fusion-15oct` = `main` + commit de journal + fusion erp-data + correction du test ; non poussee. Suite : suite complete par pmm ; puis `business-model-resolver` (3 tests a trancher) ; puis `refactor/simple-docs-system-routing` (conflits `loop.py` et `routing.py`) ; enfin fusion de l'integration dans `main` en `--no-ff`.
 **Fichiers modifies** : `tests/test_bug_a_markdown_only_output.py`, `todo/contexte.txt`.
+
+
+## Section 1406 : fusion de `audit/business-model-resolver` dans `integration/fusion-15oct` ; suppression des 3 tests devenus obsoletes (15/10/2026)
+
+Date : 15/10/2026
+**Mandat (pmm)** : apres 1405, pmm a rebuild le graphe puis lance la suite complete sur la branche d'integration, et a demande : « supprime les 3 tests de `business-model-resolver` ». Sauvegarde : `/tmp/contexte.avant_1406.txt`. Dernier numero lu avant ecriture : 1405.
+
+**Resultat de la suite complete (avant la fusion de `business-model-resolver`)** : `pytest -n auto -m "not integration"` : **1 failed, 3015 passed, 18 skipped en 687 s**. Rebuild prealable : 17 527 noeuds, 17 464 aretes, 118 modules, 359,6 s. Unique echec : `code_intelligence/tests/test_section918_implied_ids_and_citations.py::TestPromptCitationGuidelines::test_synthesis_prompt_forbids_inventing_file_links`, assertion obsolete deja signalee en 1402 (« a reprendre », point 1), presente sur `main` ; aucune regression due a la fusion `erp-data-capabilities-review`.
+
+**Realise** :
+1. Fusion `--no-ff` de `origin/audit/business-model-resolver` dans `integration/fusion-15oct`, sans conflit (23 fichiers, +1885/-1679).
+2. Suppression des 3 tests (decision pmm : le changement d'arbitrage est voulu) :
+   - `code_intelligence/tests/test_business_resolver.py::test_ambiguous_fuzzy_match_without_llm_is_unresolved` ;
+   - `code_intelligence/tests/test_dense_resolver.py::test_semantic_candidates_are_used_when_lexical_search_is_empty` (attendait `semantic_candidate_arbitration`, la branche produit `hybrid_arbitration`) ;
+   - `code_intelligence/tests/test_resolver_tiebreaker.py::test_arbitration_prompt_includes_graph_context_for_closed_candidates` (prompt d'arbitrage desormais en JSON) ; l'import `_build_arbitration_prompt`, devenu inutile dans ce fichier, est retire.
+
+**Couverture restante** : l'absence de resolution sans LLM reste testee par le cas « confirmer le bon » de `test_dense_resolver.py` ; `_candidate_contexts` garde son test ; `hybrid_arbitration` est assertee dans deux autres tests du resolveur dense ; la branche apporte `tests/test_resolver_decision_regressions.py` (selection, abstention, liste fermee). Plus aucun test direct de la presence du contexte graphe dans le prompt d'arbitrage JSON.
+
+**Verification** : `test_business_resolver.py`, `test_dense_resolver.py`, `test_resolver_tiebreaker.py`, `test_resolver_decision_regressions.py`, `test_capability_investigation.py` : **121 passed, 4 subtests** en 15 s ; `py_compile` et `git diff --check` propres. Suite complete non relancee apres cette fusion (a la charge de pmm).
+
+**Observations non traitees** : (a) les mesures des 1362/1363 sont a rejouer (baseline `captures/resolver_role_calibration_baseline.json`) : la branche modifie l'arbitrage et la resolution. (b) le rebuild de pmm donne 17 527 noeuds / 17 464 aretes / 118 modules, contre 17 955 / 18 101 / 115 en 1400 : ecart non investigue (instance et code differents entre les deux mesures).
+
+**Etat** : `integration/fusion-15oct` = `main` + journal + fusion erp-data + correction du test 1405 + fusion `business-model-resolver` + suppression des 3 tests ; non poussee. Suite : suite complete par pmm ; puis `refactor/simple-docs-system-routing` (conflits attendus sur `loop.py` et `routing.py`, a resoudre a la main en gardant la logique de `business-model-resolver` et la nomenclature du refactor) ; enfin fusion de l'integration dans `main` en `--no-ff`.
+**Fichiers modifies** : `code_intelligence/tests/test_business_resolver.py`, `code_intelligence/tests/test_dense_resolver.py`, `code_intelligence/tests/test_resolver_tiebreaker.py`, `todo/contexte.txt`.
