@@ -13,7 +13,6 @@ from code_intelligence.agent.investigation_planner import (
     generate_investigation_plan,
     validate_plan_against_route,
 )
-from code_intelligence.agent.investigation_classifier import has_documentary_anchor
 from code_intelligence.agent.investigation_llm import resolve_question_intent
 
 # Re-exports for backward compatibility
@@ -43,18 +42,6 @@ logger = logging.getLogger(__name__)
 _VALID_ROUTES = {r.value for r in QueryRoute}
 
 
-def _sticky_route_or_default(state: RAGState, default: str) -> str:
-    """Sticky session routing: reuse previous turn's branch if no keyword signal."""
-    last_route = state.get("last_route")
-    if last_route in _VALID_ROUTES:
-        logger.info(
-            "Node [route]: No keyword signal -- sticky-routing to previous branch (%s) instead of %s",
-            last_route, default,
-        )
-        return last_route
-    return default
-
-
 def _sticky_concept_or_resolve(state: RAGState, resolved_concept_dict: dict) -> dict:
     """Sticky concept reuse: reuse previous turn's resolved concept if current resolution failed."""
     if resolved_concept_dict.get("is_resolved"):
@@ -70,7 +57,6 @@ def route(state: RAGState) -> dict:
     """Classify the query via intent-based routing and plan generation."""
     start_time = time.time()
     question_raw = state.get("question", "")
-    question_folded = _fold_accents(question_raw.lower())
     logger.info("Node [route]: Classifying query type via intent resolution")
 
     source_mode = state.get("source_mode")
@@ -109,33 +95,17 @@ def route(state: RAGState) -> dict:
     intent = intent_resolution.intent
     logger.info("Node [route]: intent=%s source=%s", intent.value, intent_resolution.source)
 
-    has_doc_anchor = has_documentary_anchor(question_folded)
     derived_route = INTENT_TO_ROUTE.get(intent, QueryRoute.DOCUMENTAIRE.value)
 
-    if intent == QuestionIntent.DOCUMENTARY_POLICY and not has_doc_anchor:
-        route_decision = _sticky_route_or_default(state, QueryRoute.DOCUMENTAIRE.value)
-        logger.info(
-            "Node [route]: DOCUMENTARY_POLICY, no explicit anchor -> sticky/default (%s)",
-            route_decision,
-        )
-    else:
-        route_decision = derived_route
+    route_decision = derived_route
 
     if source_mode == "systeme" and route_decision == QueryRoute.DOCUMENTAIRE.value:
-        # User explicitly chose "d'apres le systeme": the documentary route is excluded.
-        if any(term in question_folded for term in DATA_TERMS_FOLDED):
+        # The user's explicit source choice takes precedence over the classifier.
+        if any(term in _fold_accents(question_raw.lower()) for term in DATA_TERMS_FOLDED):
             route_decision = QueryRoute.DONNEES_ERP.value
         else:
             route_decision = QueryRoute.CODE_INTELLIGENCE.value
-        logger.info("Node [route]: source_mode=systeme -> documentaire remapped to %s", route_decision)
-
-    if route_decision in (QueryRoute.DOCUMENTAIRE.value, QueryRoute.DONNEES_ERP.value):
-        is_hybrid = (
-            any(kw in question_folded for kw in DOC_KEYWORDS_FOLDED) or has_doc_anchor
-        ) and any(term in question_folded for term in QUANTITATIVE_TERMS_FOLDED)
-        if is_hybrid:
-            logger.info("Node [route]: doc-anchor/keyword + quantitative term -> HYBRIDE layer")
-            route_decision = QueryRoute.HYBRIDE.value
+        logger.info("Node [route]: source_mode=systeme -> %s", route_decision)
 
     timing = state.get("timing", {}).copy()
     timing["routing_time"] = time.time() - start_time
