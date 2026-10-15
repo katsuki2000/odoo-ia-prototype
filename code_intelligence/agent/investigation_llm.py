@@ -151,18 +151,10 @@ def resolve_question_intent(
     """
     Orchestrates intent resolution for a single question.
 
-    Deterministic doc-anchor override (DOC-08): when the question carries an
-    explicit documentary anchor (wiki/procedure/documentation...) AND is not
-    simultaneously an ERP aggregation query, short-circuit to DOCUMENTARY_POLICY
-    before the LLM even runs.
-
-    Otherwise: attempts the bounded LLM classifier first, falls back to the
-    deterministic classify_question_intent() on any LLM failure.
+    When the user has not explicitly selected a source, the bounded LLM
+    classifier decides whether the question belongs to documentation or the
+    Odoo system. A deterministic classifier is used only if the LLM fails.
     """
-    folded = _fold_accents(question)
-    if has_documentary_anchor(folded) and not any(re.search(p, folded) for p in _ERP_DATA_PATTERNS):
-        return IntentResolution(intent=QuestionIntent.DOCUMENTARY_POLICY, source="deterministic_semantic")
-
     import sys
     ip_mod = sys.modules.get("code_intelligence.agent.investigation_planner")
     llm_classifier = getattr(ip_mod, "classify_question_intent_llm", classify_question_intent_llm) if ip_mod else classify_question_intent_llm
