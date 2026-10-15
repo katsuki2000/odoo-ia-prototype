@@ -239,7 +239,7 @@ class CodeIntelligenceAgentRunner:
         resolverTime = time.perf_counter() - resolverStarted
         resolvedBefore = concept.is_resolved
         from core.evidence.evidence_check import check_evidence
-        evidence = check_evidence(concept, resolvedBefore, state)
+        evidence = check_evidence(concept, resolvedBefore)
         if not reused or (state.get('investigation_plan') or {}).get('execution_mode') != 'capability_v1':
             from code_intelligence.agent.investigation_planner import validate_plan_against_route
             from code_intelligence.agent.capability_planner import generate_investigation_plan

@@ -3223,3 +3223,14 @@ Date : 15/10/2026
 **Perte de couverture** : plus de test direct sur la publication des diagnostics d'arbitrage (`_diagnostics`, tie-break, shortlist), la chaine predispatch de navigation, le texte de citation de synthese, la reutilisation de concept entre tours (`resolved_concept_reused`), le calcul de similarite cosinus sur vecteur vide et la reprise d'embedding interrompu.
 **Non traite** : helpers de test devenus inutilises dans `test_arbitration_trace.py` et `test_e1_projection.py` (`_patch_strict_ties`, `_patch_widened_only`, `_patch_ambiguous_fuzzy_step`) ; fusion dans `main` non faite.
 **Fichiers modifies** : les 7 fichiers de test ci-dessus, `todo/contexte.txt`.
+
+
+## Section 1409 : suppression de `resolved_concept_reused` (15/10/2026)
+
+Date : 15/10/2026
+**Mandat (pmm)** : « supprime `resolved_concept_reused` si c'est pas utilise au lieu de laisser sur False ». Sauvegarde : `/tmp/contexte.avant_1409.txt`. Dernier numero lu avant ecriture : 1408.
+**Constat** : `route()` renvoyait toujours `False` (1407) ; le seul consommateur etait `check_evidence`, dont la branche `CONFLIT` (reutilisation depuis un tour precedent) est devenue inatteignable : `loop.py` ne reinjecte plus de concept sticky, donc `concept_resolved_before_rehydration` vaut toujours `concept.is_resolved`.
+**Realise** : cle retiree des 3 retours de `route()` (`core/routing/routing.py`) et de `core/state.py` ; branche `CONFLIT` et parametre `state` retires de `check_evidence()` (`core/evidence/evidence_check.py`), appel de `loop.py` adapte ; `tests/test_h3_evidence_check.py` : 3 tests `check_evidence` conserves (appel a 2 arguments), 6 tests supprimes (cas `CONFLIT`, cle absente/`True`, 3 tests du drapeau dans `route()`), fixture et helper de routage devenus inutiles retires.
+**Verification** : `test_h3_evidence_check`, `test_source_mode_routing`, `test_h1c_sticky_routing`, `test_j18_routing_fewshot`, `test_bloc_p1_tranche2_ci_first_evidence_routing`, `test_h1b_ii_rehydrate_ci_node`, `tests/architecture` : **59 passed** ; `git diff --check` propre. Suite complete non relancee.
+**Effet de bord** : `check_evidence` ne renvoie plus que `RESOLU` / `NON_RESOLU` ; `core/schemas.py:101` (description du champ) et `evidence_sufficiency.py:9` citent encore `CONFLIT`, non modifies. `last_resolved_concept` (state, `graph.py`, `api/routes_ask.py`) et `_sticky_concept_or_resolve` ne sont plus lus par `route()` : a retirer apres decision.
+**Fichiers modifies** : `core/routing/routing.py`, `core/state.py`, `core/evidence/evidence_check.py`, `code_intelligence/agent/loop.py`, `tests/test_h3_evidence_check.py`, `todo/contexte.txt`.

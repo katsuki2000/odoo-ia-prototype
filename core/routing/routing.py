@@ -39,7 +39,7 @@ def route(state: RAGState) -> dict:
     if sourceMode == 'documentation':
         timing['routing_time'] = time.time() - started
         return {'route': QueryRoute.DOCUMENTAIRE.value, 'timing': timing,
-                'resolved_concept': None, 'resolved_concept_reused': False, 'investigation_plan': None}
+                'resolved_concept': None, 'investigation_plan': None}
     from code_intelligence.agent.resolution.turn import resolve_turn
     from code_intelligence.agent.investigation_schemas import INTENT_TO_ROUTE
     from code_intelligence.graph.loader import get_code_intelligence_graph
@@ -55,12 +55,12 @@ def route(state: RAGState) -> dict:
     logger.info('Node [route]: route=%s intent=%s classifier=%s', decision, intent.value, intentResolution.source)
     if decision == QueryRoute.DOCUMENTAIRE.value:
         return {'route': decision, 'timing': timing, 'resolved_concept': None,
-                'resolved_concept_reused': False, 'investigation_plan': None}
+                'investigation_plan': None}
     plan = generate_investigation_plan(question=question, resolved_concept=concept, G=graph,
                                        user_groups=state.get('user_groups'), intent=intent)
     plan = validate_plan_against_route(plan, decision)
     return {'route': decision, 'timing': timing, 'resolved_concept': asdict(concept),
-            'resolved_concept_reused': False, 'investigation_plan': plan.to_display_dict()}
+            'investigation_plan': plan.to_display_dict()}
 
 
 def route_decision(state: RAGState) -> str:
