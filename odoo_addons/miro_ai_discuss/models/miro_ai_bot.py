@@ -9,7 +9,7 @@ Gère :
 - L'authentification sécurisée (clé API éphémère par utilisateur + JWT HS256)
 - L'interrogation du backend FastAPI / RAG (/api/v1/ask)
 - L'enregistrement dans le journal d'audit (miro.ai.log)
-- La conversion Markdown -> HTML riche (tableaux GFM, blocs de code, listes, titres)
+- L'affichage sécurisé des réponses en texte brut
 - La publication de la réponse en temps réel via le bus Odoo Discuss
 """
 import base64
