@@ -57,7 +57,7 @@ def __getattr__(name: str):
 # ── Graph Construction ────────────────────────────────────────────────────────
 
 def build_graph() -> StateGraph:
-    """Build and compile the RAG LangGraph -- CI-first, RAG-as-last-resort."""
+    """Build and compile the source-first documentation/system workflow."""
     workflow = StateGraph(RAGState)
 
     workflow.add_node("out_of_scope_gate", out_of_scope_gate)
