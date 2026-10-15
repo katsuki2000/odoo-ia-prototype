@@ -90,7 +90,7 @@ def retrieve(state: RAGState) -> dict:
 
 
 def format_output(state: RAGState) -> dict:
-    """Format and clean up the final output (OCR warnings, sources fallback)."""
+    """Attach response metadata and documentary source warnings; do not reformat answer text."""
     logger.info("Node [format_output]: Formatting final response")
 
     response = state.get("response")
@@ -98,7 +98,7 @@ def format_output(state: RAGState) -> dict:
     route = state.get("route")
     ci_sufficiency = state.get("ci_evidence_sufficiency")
 
-    # todo/contexte.txt section 744: an explicit documentary request wins over ANY CI evidence status.
+    # Documentation is selected before this node runs; only add metadata and source warnings here.
     documentation_route = answered_by_documents(state)
 
     if response:
