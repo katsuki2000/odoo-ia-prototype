@@ -108,7 +108,7 @@ def markdown_to_html(text: str) -> str:
     """Échappe le texte brut pour Discuss et conserve les retours à la ligne."""
     if not text:
         return ""
-    return html.escape(text).replace("\\n", "<br/>")
+    return html.escape(text).replace("\n", "<br/>")
 
 
 
