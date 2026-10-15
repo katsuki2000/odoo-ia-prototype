@@ -1,6 +1,6 @@
 """Routing follows the current classifier result; it does not reuse a previous source route."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -18,6 +18,7 @@ class _Concept:
     source_step: str = "unresolved"
     confidence: float = 0.0
     reason: str = ""
+    diagnostics: dict = field(default_factory=dict)
 
 
 def _route(question, intent, **state_overrides):

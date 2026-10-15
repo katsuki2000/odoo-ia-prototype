@@ -27,8 +27,8 @@ uniquement le CABLAGE qui les relie, la seule couche encore non testee.
 """
 import pytest
 
+from core.graph.graph_nodes import ci_evidence_decision
 from core.graph.graph import (
-    ci_evidence_decision,
     format_output,
     build_graph,
     hybrid_node,

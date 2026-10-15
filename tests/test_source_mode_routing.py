@@ -21,6 +21,7 @@ class _Concept:
     user_term: str = ""
     resolved_models: List[str] = field(default_factory=list)
     is_resolved: bool = False
+    diagnostics: dict = field(default_factory=dict)
 
 
 def _patched_pipeline(intent=QuestionIntent.DOCUMENTARY_POLICY):
