@@ -233,7 +233,7 @@ def _edge_targets(graph_view, source: str) -> set:
 
 
 @pytest.mark.integration
-def test_route_dispatches_documentaire_hybride_code_intelligence_to_ci_agent(compiled_graph_view):
+def test_route_dispatches_documentation_and_system_sources(compiled_graph_view):
     """Le choix de source se fait avant exécution : documentation -> retrieval,
     système -> agent CI ou ORM selon l'intention classifiée."""
     targets = _edge_targets(compiled_graph_view, "route")
@@ -254,7 +254,7 @@ def test_donnees_erp_is_the_only_route_reaching_orm_agent_loop_directly(compiled
 
 
 @pytest.mark.integration
-def test_code_intelligence_agent_only_reaches_verify_answer_or_generate(compiled_graph_view):
+def test_code_intelligence_agent_reaches_verification_directly(compiled_graph_view):
     """Les réponses système vont à la vérification sans fallback documentaire implicite."""
     targets = _edge_targets(compiled_graph_view, "code_intelligence_agent")
     assert targets == {"verify_answer"}
