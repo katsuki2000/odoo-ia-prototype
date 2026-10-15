@@ -120,7 +120,7 @@ def format_output(state: RAGState) -> dict:
         )
         if has_low_ocr:
             response.ocr_warning = True
-            response.answer += "\n\n *Cette information provient d'un document numérisé dont la qualité de lecture est limitée.*"
+            response.answer += "\n\nAttention : cette information provient d'un document numérisé dont la qualité de lecture est limitée."
 
         if not response.sources and state.get("sources_fallback_eligible"):
             sources = []
@@ -137,9 +137,6 @@ def format_output(state: RAGState) -> dict:
                 ))
             response.sources = sources
 
-        if response.sources and "[Source:" not in response.answer:
-            main_src = response.sources[0].title or response.sources[0].source
-            response.answer += f"\n\n[Source: Documentation ERP - {main_src}]"
 
     return {"response": response}
 
