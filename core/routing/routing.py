@@ -54,19 +54,17 @@ def _sticky_concept_or_resolve(state: RAGState, resolved_concept_dict: dict) -> 
 
 
 def route(state: RAGState) -> dict:
-    """Classify the query via intent-based routing and plan generation."""
+    """Choose the source first, then prepare system investigation only when needed."""
     start_time = time.time()
-    question_raw = state.get("question", "")
-    logger.info("Node [route]: Classifying query type via intent resolution")
-
+    question = state.get("question", "")
     source_mode = state.get("source_mode")
+
+    timing = state.get("timing", {}).copy()
+
+    # An explicit documentation choice bypasses all system/model resolution.
     if source_mode == "documentation":
-        # User explicitly chose "d'apres la documentation": no resolver, no intent LLM,
-        # the CI agent node is skipped and ci_evidence_decision() sends
-        # the turn straight to RAG generate (graph topology unchanged).
-        timing = state.get("timing", {}).copy()
         timing["routing_time"] = time.time() - start_time
-        logger.info("Node [route]: source_mode=documentation -> documentaire (RAG direct)")
+        logger.info("Node [route]: explicit documentation source")
         return {
             "route": QueryRoute.DOCUMENTAIRE.value,
             "timing": timing,
@@ -75,54 +73,73 @@ def route(state: RAGState) -> dict:
             "investigation_plan": None,
         }
 
-    from code_intelligence.agent.resolver import resolve_business_term
+    # Otherwise the LLM classifies the question. If it is unavailable, the
+    # intent resolver uses its deterministic classifier as a fallback.
     from code_intelligence.agent.investigation_schemas import INTENT_TO_ROUTE, QuestionIntent
+    intent_resolution = resolve_question_intent(question)
+    intent = intent_resolution.intent
+    route_decision = INTENT_TO_ROUTE.get(intent, QueryRoute.DOCUMENTAIRE.value)
+
+    # An explicit system choice overrides a documentary classification.
+    if source_mode == "systeme" and route_decision == QueryRoute.DOCUMENTAIRE.value:
+        from core.routing.routing_keywords import DATA_TERMS_FOLDED
+        folded_question = _fold_accents(question.lower())
+        route_decision = (
+            QueryRoute.DONNEES_ERP.value
+            if any(term in folded_question for term in DATA_TERMS_FOLDED)
+            else QueryRoute.CODE_INTELLIGENCE.value
+        )
+
+    timing["routing_time"] = time.time() - start_time
+    logger.info(
+        "Node [route]: route=%s intent=%s classifier=%s",
+        route_decision, intent.value, intent_resolution.source,
+    )
+
+    # Documentation has its own retrieval/generation path; do not build or
+    # resolve against the Odoo code graph for a documentation-only question.
+    if route_decision == QueryRoute.DOCUMENTAIRE.value:
+        return {
+            "route": route_decision,
+            "timing": timing,
+            "resolved_concept": None,
+            "resolved_concept_reused": False,
+            "investigation_plan": None,
+        }
+
+    from code_intelligence.agent.resolver import resolve_business_term
     from code_intelligence.graph.loader import get_code_intelligence_graph
+
     request_language = state.get("language")
     G = get_code_intelligence_graph(
         translation_languages=[request_language] if request_language else None,
         request_language=request_language,
     )
-
     resolved_concept = resolve_business_term(
-        question_raw,
+        question,
         G,
         llm=None,
         language=request_language,
     )
 
-    intent_resolution = resolve_question_intent(question_raw, resolved_concept, G)
-    intent = intent_resolution.intent
-    logger.info("Node [route]: intent=%s source=%s", intent.value, intent_resolution.source)
-
-    derived_route = INTENT_TO_ROUTE.get(intent, QueryRoute.DOCUMENTAIRE.value)
-
-    route_decision = derived_route
-
-    if source_mode == "systeme" and route_decision == QueryRoute.DOCUMENTAIRE.value:
-        # The user's explicit source choice takes precedence over the classifier.
-        if any(term in _fold_accents(question_raw.lower()) for term in DATA_TERMS_FOLDED):
-            route_decision = QueryRoute.DONNEES_ERP.value
-        else:
-            route_decision = QueryRoute.CODE_INTELLIGENCE.value
-        logger.info("Node [route]: source_mode=systeme -> %s", route_decision)
-
-    timing = state.get("timing", {}).copy()
-    timing["routing_time"] = time.time() - start_time
-
-    from dataclasses import asdict as _asdict
-    resolved_concept_dict = _asdict(resolved_concept)
-    resolved_concept_dict = _sticky_concept_or_resolve(state, resolved_concept_dict)
-    resolved_concept_reused = resolved_concept_dict is state.get("last_resolved_concept")
+    from dataclasses import asdict
+    resolved_concept_dict = _sticky_concept_or_resolve(
+        state, asdict(resolved_concept)
+    )
+    resolved_concept_reused = (
+        resolved_concept_dict is state.get("last_resolved_concept")
+    )
 
     investigation_plan = generate_investigation_plan(
-        question=question_raw,
+        question=question,
         resolved_concept=resolved_concept,
         G=G,
         user_groups=state.get("user_groups"),
         intent=intent,
     )
-    investigation_plan = validate_plan_against_route(investigation_plan, route_decision)
+    investigation_plan = validate_plan_against_route(
+        investigation_plan, route_decision
+    )
 
     return {
         "route": route_decision,
@@ -131,7 +148,6 @@ def route(state: RAGState) -> dict:
         "resolved_concept_reused": resolved_concept_reused,
         "investigation_plan": investigation_plan.to_display_dict(),
     }
-
 
 def route_decision(state: RAGState) -> str:
     """Return the routing key for conditional edges."""
