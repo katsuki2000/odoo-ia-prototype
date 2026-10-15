@@ -121,13 +121,6 @@ USE_RERANKER = os.getenv("USE_RERANKER", "false").lower() in ("true", "1", "yes"
 
 VECTOR_SIMILARITY_FLOOR = float(os.getenv("VECTOR_SIMILARITY_FLOOR", "0.20"))
 
-# Deterministic greeting/thanks gate. Off by default: the LLM answers smalltalk.
-ENABLE_SMALLTALK_GATE = os.getenv("ENABLE_SMALLTALK_GATE", "false").lower() in (
-    "true",
-    "1",
-    "yes",
-)
-
 # ── FastAPI ───────────────────────────────────────────
 API_HOST = os.getenv("API_HOST", "127.0.0.1")
 
