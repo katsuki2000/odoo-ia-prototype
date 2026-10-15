@@ -283,6 +283,8 @@ class CodeIntelligenceAgentRunner:
 
 
 def code_intelligence_agent(state: RAGState) -> dict:
-    if state.get('source_mode') == 'documentation':
-        return {'timing': state.get('timing', {})}
+    if state.get("source_mode") == "documentation":
+        # Defensive compatibility guard; the active graph routes documentation
+        # directly to retrieval/generation before entering this agent.
+        return {"timing": state.get("timing", {})}
     return CodeIntelligenceAgentRunner(state).run()

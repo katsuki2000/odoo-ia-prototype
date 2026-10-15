@@ -68,8 +68,6 @@ from core.routing.routing import (
     THRESHOLD_QUERY_TERMS_FOLDED,
     _fold_accents,
     _fold_keywords,
-    _VALID_ROUTES,
-    _sticky_route_or_default,
     route,
     route_decision,
 )
@@ -79,7 +77,6 @@ from document_rag.generate_node import (
     generate,
 )
 
-from core.output import sanitize_html_to_markdown
 
 from erp_data.orm_agent_node import (
     orm_agent_loop,

@@ -233,15 +233,13 @@ def _edge_targets(graph_view, source: str) -> set:
 
 
 @pytest.mark.integration
-def test_route_dispatches_documentaire_hybride_code_intelligence_to_ci_agent(compiled_graph_view):
-    """Contrainte utilisateur (1) : le routeur amont ne doit plus etre le
-    decideur principal a 4 branches -- DOCUMENTAIRE/HYBRIDE/CODE_INTELLIGENCE
-    doivent tous les 3 converger vers le meme noeud code_intelligence_agent
-    cote graphe, quelle que soit la classification amont."""
+def test_route_dispatches_documentation_and_system_sources(compiled_graph_view):
+    """Le choix de source se fait avant exécution : documentation -> retrieval,
+    système -> agent CI ou ORM selon l'intention classifiée."""
     targets = _edge_targets(compiled_graph_view, "route")
-    assert targets == {"code_intelligence_agent", "orm_agent_loop"}, (
-        f"route() ne doit dispatcher que vers ces 2 noeuds de premier niveau "
-        f"(CI ou ERP pur), pas vers 4 branches distinctes -- trouve : {targets}"
+    assert targets == {"retrieve", "code_intelligence_agent", "orm_agent_loop"}, (
+        f"la documentation doit aller directement vers retrieve, tandis que les "
+        f"questions système vont vers CI ou ORM -- trouve : {targets}"
     )
 
 
@@ -256,13 +254,10 @@ def test_donnees_erp_is_the_only_route_reaching_orm_agent_loop_directly(compiled
 
 
 @pytest.mark.integration
-def test_code_intelligence_agent_only_reaches_verify_answer_or_generate(compiled_graph_view):
-    """Post-CI, il ne doit exister que 2 destinations possibles -- pas de
-    3e branche cachee reintroduite en aval. Verrouille la forme de l'edge
-    conditionnelle cablee par ci_evidence_decision() ; la cle historique
-    "format_output" mene desormais a la verification (section 1129)."""
+def test_code_intelligence_agent_reaches_verification_directly(compiled_graph_view):
+    """Les réponses système vont à la vérification sans fallback documentaire implicite."""
     targets = _edge_targets(compiled_graph_view, "code_intelligence_agent")
-    assert targets == {"verify_answer", "generate"}
+    assert targets == {"verify_answer"}
 
 
 @pytest.mark.integration
@@ -318,18 +313,13 @@ def test_format_output_no_ocr_leak_when_ci_answer_is_sufficient():
     assert "qualité de lecture est limitée" not in result["response"].answer
 
 
-def test_format_output_ocr_warning_applies_when_ci_fell_back_to_rag():
-    """Cas symetrique : CI a tourne mais son verdict est != SUFFICIENT ET la
-    question portait un ancrage documentaire explicite (seul cas ou generate()
-    est autorise a tourner sous le nouveau gating) -- l'avertissement OCR
-    redevient legitime, meme si route est reste 'code_intelligence' (le
-    routeur amont ne reflete plus qui a produit la reponse sous le cablage
-    CI-d'abord)."""
+def test_format_output_ocr_warning_applies_on_documentation_route():
+    """L'avertissement OCR n'est ajouté que lorsque la branche documentation est utilisée."""
     state = {
         "question": "Selon le wiki, quelle est la procedure ?",
         "response": AssistantResponse(answer="Reponse RAG de repli.", confidence=0.5, sources=[]),
         "retrieved_chunks": [_low_ocr_chunk()],
-        "route": QueryRoute.CODE_INTELLIGENCE.value,
+        "route": QueryRoute.DOCUMENTAIRE.value,
         "ci_evidence_sufficiency": {"status": EvidenceSufficiencyStatus.INSUFFICIENT.value},
     }
     result = format_output(state)
@@ -355,26 +345,16 @@ def test_format_output_insufficient_without_doc_request_does_not_fall_back_to_ra
     assert "qualité de lecture est limitée" not in result["response"].answer
 
 
-def test_format_output_documentaire_route_without_ci_sufficiency_no_longer_leaks_ocr():
-    """todo/contexte.txt section 414 -- ce test remplace l'ancienne version qui
-    verrouillait (a tort) une fuite comme "non-regression du chemin DOCUMENTAIRE
-    historique". Sous le graphe compile actuel (build_graph(), sections 405-408),
-    route == 'documentaire' + chunks presents + ci_evidence_sufficiency ABSENT
-    n'est plus atteignable que via l'un des 3 refus precoces de
-    code_intelligence_agent (out-of-scope / prompt-injection / extraction
-    massive -- les seuls chemins qui retournent avant qu'assess_evidence_
-    sufficiency() ne tourne). Dans ce cas, `response` porte un message de
-    refus delibere, sans aucun rapport avec les chunks universels de
-    retrieve() -- l'avertissement OCR NE DOIT PAS s'y attacher. L'ancienne
-    assertion (ocr_warning is True) reproduisait exactement ce faux positif."""
+def test_format_output_documentation_route_reports_low_ocr_quality():
+    """Une réponse de la branche documentaire peut porter l'avertissement OCR."""
     state = {
         "response": AssistantResponse(answer="Cette question sort du perimetre de MIRO AI.", confidence=0.0, sources=[]),
         "retrieved_chunks": [_low_ocr_chunk()],
         "route": QueryRoute.DOCUMENTAIRE.value,
     }
     result = format_output(state)
-    assert result["response"].ocr_warning is not True
-    assert "qualité de lecture est limitée" not in result["response"].answer
+    assert result["response"].ocr_warning is True
+    assert "qualité de lecture est limitée" in result["response"].answer
 
 
 def test_format_output_conflicting_does_not_count_as_fell_back_to_rag():
@@ -409,8 +389,8 @@ def _insufficient_state(question):
     }
 
 
-def test_format_output_flags_rag_fallback_only_when_rag_produced_the_answer():
-    fell_back = format_output(_insufficient_state("Selon le wiki, quelle est la procedure ?"))
-    stayed = format_output(_insufficient_state("Qui peut approuver une commande ?"))
-    assert fell_back["response"].rag_fallback is True
-    assert stayed["response"].rag_fallback is False
+def test_format_output_does_not_mark_a_legacy_rag_fallback():
+    documentation_question = format_output(_insufficient_state("Selon le wiki, quelle est la procedure ?"))
+    system_question = format_output(_insufficient_state("Qui peut approuver une commande ?"))
+    assert documentation_question["response"].rag_fallback is False
+    assert system_question["response"].rag_fallback is False

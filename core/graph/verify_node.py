@@ -13,7 +13,6 @@ import networkx as nx
 from config.settings import ANSWER_VERIFIER_MODE
 from core.evidence.evidence_collector import peek_turn_evidence
 from core.graph.graph_nodes import answered_by_documents
-from core.output import sanitize_html_to_markdown
 from core.state import RAGState
 from core.verification.base_methods import default_base_model_methods
 from core.verification.claims import VerifierMode
@@ -65,7 +64,7 @@ def verify_answer(state: RAGState) -> dict:
     try:
         context = _build_context(state)
         verified, report = verify_answer_claims(
-            sanitize_html_to_markdown(response.answer), context, VERIFIER_MODE,
+            response.answer, context, VERIFIER_MODE,
         )
     except Exception:
         logger.exception("Answer verifier failed; answer left unverified")

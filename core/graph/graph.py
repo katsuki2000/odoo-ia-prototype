@@ -1,7 +1,7 @@
 """
 core/graph.py
 
-LangGraph RAG pipeline -- CI-first, RAG-as-last-resort.
+LangGraph pipeline with a source choice: documentation or Odoo system.
 Orchestrates StateGraph compilation, node dispatch, and pipeline querying.
 """
 
@@ -32,13 +32,10 @@ from erp_data.orm_agent_node import orm_agent_loop
 from code_intelligence.agent.loop import code_intelligence_agent
 
 from core.graph.graph_nodes import (
-    smalltalk_gate,
-    smalltalk_decision,
     out_of_scope_gate,
     out_of_scope_decision,
     retrieve,
     format_output,
-    ci_evidence_decision,
 )
 from core.graph.verify_node import verify_answer
 from core.evidence.evidence_collector import start_evidence_collection, collect_and_clear_evidence
@@ -60,10 +57,9 @@ def __getattr__(name: str):
 # ── Graph Construction ────────────────────────────────────────────────────────
 
 def build_graph() -> StateGraph:
-    """Build and compile the RAG LangGraph -- CI-first, RAG-as-last-resort."""
+    """Build and compile the source-first documentation/system workflow."""
     workflow = StateGraph(RAGState)
 
-    workflow.add_node("smalltalk_gate", smalltalk_gate)
     workflow.add_node("out_of_scope_gate", out_of_scope_gate)
     workflow.add_node("retrieve", retrieve)
     workflow.add_node("route", route)
@@ -73,34 +69,23 @@ def build_graph() -> StateGraph:
     workflow.add_node("verify_answer", verify_answer)
     workflow.add_node("format_output", format_output)
 
-    # Edges
-    workflow.add_edge(START, "smalltalk_gate")
-    workflow.add_conditional_edges("smalltalk_gate", smalltalk_decision, {
-        "format_output": "format_output",
-        "out_of_scope_gate": "out_of_scope_gate",
-    })
+    # Decide the source before doing retrieval or invoking an agent.
+    workflow.add_edge(START, "out_of_scope_gate")
     workflow.add_conditional_edges("out_of_scope_gate", out_of_scope_decision, {
         "format_output": "format_output",
-        "retrieve": "retrieve",
+        "route": "route",
     })
-    workflow.add_edge("retrieve", "route")
 
-    # Conditional routing -- CI-first
     workflow.add_conditional_edges("route", route_decision, {
-        QueryRoute.DOCUMENTAIRE.value: "code_intelligence_agent",
+        QueryRoute.DOCUMENTAIRE.value: "retrieve",
         QueryRoute.DONNEES_ERP.value: "orm_agent_loop",
         QueryRoute.HYBRIDE.value: "code_intelligence_agent",
         QueryRoute.CODE_INTELLIGENCE.value: "code_intelligence_agent",
     })
 
-    # Post-CI: SUFFICIENT and CONFLICTING stay on CI's answer; INSUFFICIENT falls back to RAG.
-    # ci_evidence_decision() keeps its legacy "format_output" key, which now leads to verification first.
-    workflow.add_conditional_edges("code_intelligence_agent", ci_evidence_decision, {
-        "format_output": "verify_answer",
-        "generate": "generate",
-    })
-
+    workflow.add_edge("retrieve", "generate")
     workflow.add_edge("generate", "verify_answer")
+    workflow.add_edge("code_intelligence_agent", "verify_answer")
     workflow.add_edge("orm_agent_loop", "verify_answer")
     workflow.add_edge("verify_answer", "format_output")
     workflow.add_edge("format_output", END)

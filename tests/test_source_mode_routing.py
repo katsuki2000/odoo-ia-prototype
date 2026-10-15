@@ -1,4 +1,4 @@
-"""source_mode (UI selector): 'documentation' -> RAG direct, 'systeme' -> no documentary route, None -> unchanged."""
+"""The user may force documentation/system; without a choice the LLM classifies the source."""
 
 from contextlib import ExitStack
 from dataclasses import dataclass, field
@@ -33,7 +33,6 @@ def _patched_pipeline(intent=QuestionIntent.DOCUMENTARY_POLICY):
     stack.enter_context(
         patch("core.routing.routing.resolve_question_intent", return_value=MagicMock(intent=intent, source="test"))
     )
-    stack.enter_context(patch("core.routing.routing.has_documentary_anchor", return_value=False))
     plan = MagicMock()
     plan.to_display_dict.return_value = {}
     stack.enter_context(patch("core.routing.routing.generate_investigation_plan", return_value=plan))

@@ -110,6 +110,7 @@ def test_documentary_branch_is_grounded_in_the_retrieved_chunks_only(run_node):
     state, _ = run_node(
         VerifierMode.REPORT, "Le seuil est de 5 000 euros, puis 9 999.",
         question=DOC_QUESTION,
+        route="documentaire",
         ci_evidence_sufficiency={"status": "insufficient"},
         retrieved_chunks=[{"document": "Le seuil est de 5000 euros."}],
         raw_tool_output="limite 9999",
@@ -125,10 +126,9 @@ def test_retrieved_chunks_are_not_evidence_when_another_branch_answered(run_node
     assert _unsupported_texts(state) == ["5 000"]
 
 
-def test_html_is_sanitized_before_claims_are_extracted(run_node):
+def test_answer_is_not_reformatted_before_claims_are_extracted(run_node):
     answer = '<ol start="7"><li>un</li></ol>'
     state, _ = run_node(VerifierMode.REPORT, answer)
-    assert state["response"].verification.claims_total == 0
     assert state["response"].answer == answer
 
 
@@ -159,10 +159,10 @@ def test_verifier_failure_never_breaks_the_answer(run_node, monkeypatch, caplog)
 
 
 @pytest.mark.parametrize("state, expected", [
-    ({"question": DOC_QUESTION, "ci_evidence_sufficiency": {"status": "insufficient"}}, True),
+    ({"question": DOC_QUESTION, "route": "documentaire"}, True),
+    ({"question": DOC_QUESTION, "source_mode": "documentation"}, True),
     ({"question": DOC_QUESTION}, False),
-    ({"question": DOC_QUESTION, "ci_evidence_sufficiency": None}, False),
-    ({"question": PLAIN_QUESTION, "ci_evidence_sufficiency": {"status": "insufficient"}}, False),
+    ({"question": PLAIN_QUESTION, "route": "code_intelligence"}, False),
 ])
 def test_answered_by_documents(state, expected):
     assert answered_by_documents(state) is expected
@@ -228,5 +228,5 @@ def _incoming(graph_view, target):
 def test_verify_answer_is_the_only_branch_entry_into_format_output():
     graph_view = build_graph().get_graph()
     assert {edge.target for edge in graph_view.edges if edge.source == "verify_answer"} == {"format_output"}
-    assert _incoming(graph_view, "format_output") == {"smalltalk_gate", "out_of_scope_gate", "verify_answer"}
+    assert _incoming(graph_view, "format_output") == {"out_of_scope_gate", "verify_answer"}
     assert _incoming(graph_view, "verify_answer") == {"code_intelligence_agent", "generate", "orm_agent_loop"}

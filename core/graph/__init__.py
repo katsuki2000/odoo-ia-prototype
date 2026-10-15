@@ -6,8 +6,6 @@ Regroupement (todo/contexte.txt Section 649-653) : graph_nodes.py, graph_compat.
 
 from .graph_nodes import (
     logger,
-    smalltalk_gate,
-    smalltalk_decision,
     out_of_scope_gate,
     out_of_scope_decision,
     retrieve,
@@ -22,8 +20,6 @@ from .graph import (
 
 __all__ = [
     "logger",
-    "smalltalk_gate",
-    "smalltalk_decision",
     "out_of_scope_gate",
     "out_of_scope_decision",
     "retrieve",
