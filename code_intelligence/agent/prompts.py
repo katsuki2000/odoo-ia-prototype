@@ -2,7 +2,7 @@
 code_intelligence/ci_agent_node/prompts.py
 
 Centralized system prompts and prompt builders for the Code Intelligence agent node:
-- CI_SYSTEM_PROMPT: Master system prompt with scope-first navigation rules and markdown output formatting.
+- CI_SYSTEM_PROMPT: Master system prompt with scope-first navigation and plain-text output.
 - build_business_context_prompt: Dynamic business term resolution context injected into system prompt.
 - build_synthesis_prompt: Final multi-hop synthesis prompt guiding structured, cited answer generation.
 """
@@ -91,15 +91,13 @@ CI_SYSTEM_PROMPT = (
     "Use business thresholds "
     "and amounts (e.g. 'au-dela de 10 000 euros'). Do NOT append any 'Preuves', 'Sources', or 'Citations' section "
     "to your answer -- all technical sourcing and evidence are automatically presented to users in the interface's "
-    "dedicated verification drawer ('Preuves'). Write the final answer in Markdown ONLY (**bold**, *italic*, \"-\" bullet "
-    "lists, \"##\"/\"###\" headings). NEVER emit raw HTML tags (no <strong>, <br>, <div>, "
-    "<em>, <ul>, etc.), even mixed in with Markdown. The rendering engine only interprets Markdown; any HTML "
-    "tag is shown to the user as literal, unreadable text.\n"
-    "Example of correctly formatted output:\n"
-    "### Analyse des droits d'acces\n\n"
-    "Seuls les membres du groupe « <libelle exact des observations> » peuvent approuver ce document. Au-dela de 10 000 euros, "
-    "seule la Direction peut valider.\n\n"
-    "No raw HTML tag and no technical file citation appears in this example -- only clean business Markdown.\n"
+    "dedicated verification drawer ('Preuves'). Write the final answer as plain text only: no Markdown syntax, "
+    "no headings beginning with #, no bold/italic markers, no bullet syntax, no tables, links or raw HTML. "
+    "Use short paragraphs and numbered steps such as '1) Ouvrez le menu'. Do not append source labels because "
+    "the interface presents technical provenance separately.\n"
+    "Example of plain-text output:\n"
+    "Seuls les membres du groupe « libellé exact des observations » peuvent approuver ce document. "
+    "Au-delà de 10 000 euros, seule la Direction peut valider.\n"
     "8. EFFECT GROUNDING RULE: " + EFFECT_GROUNDING_RULE
 )
 
