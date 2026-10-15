@@ -172,12 +172,10 @@ def ci_evidence_decision(state: RAGState) -> str:
 
     status = sufficiency.get("status")
 
-    if answered_by_documents(state):
-        logger.info(
-            "Node [route: post-CI]: explicit documentary request in the question -- falling back to "
-            "RAG (generate) regardless of CI evidence sufficiency=%s (section 744). reasons=%s",
-            status, sufficiency.get("reasons"),
-        )
+    # Legacy helper retained for compatibility with older callers/tests. The
+    # active graph now routes documentation directly before invoking CI.
+    if _has_explicit_doc_request(state):
+        logger.info("Legacy post-CI route: explicit documentary request -> generate")
         return "generate"
 
     if status == EvidenceSufficiencyStatus.SUFFICIENT.value:
