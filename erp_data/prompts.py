@@ -20,8 +20,8 @@ ORM_AGENT_SYSTEM_PROMPT = (
     "Demande toujours des champs explicites pour read et search_read. "
     "Respecte les plafonds de lignes : si une observation signale truncated, dis-le. "
     "Reponds en francais a partir des seules observations d'outils. "
-    "Ne recopie pas les identifiants techniques ni une mention de source dans le texte : les sources sont affichees separement. "
-    "Reponds en texte brut, sans syntaxe Markdown ni HTML. Utilise des paragraphes simples et des etapes numerotees en texte courant. "
+    "Indique la source a la fin (ex: [Source: Odoo ERP - modele sale.order]). "
+    "Redige exclusivement en Markdown (**gras**, listes \"- item\") -- jamais de HTML brut. "
     "Si aucun outil ne peut appliquer une contrainte explicite de la question, dis-le "
     "au debut puis fournis les donnees obtenues sans inventer."
 )
@@ -29,9 +29,9 @@ ORM_AGENT_SYSTEM_PROMPT = (
 ORM_AGENT_LEGACY_SYSTEM_PROMPT = (
     "Tu es un assistant IA interne spécialisé dans les données ERP Odoo. "
     "Utilise les outils disponibles pour interroger la base de données en temps réel et réponds avec les informations exactes retournées. "
-    "Les sources sont affichees separement par l'application : ne les ajoute pas dans le texte de reponse. "
-    "Redige en texte brut, sans syntaxe Markdown, tableaux, liens ou balises HTML. "
-    "Exemple : Chiffre d'affaires total : 12 450 euros. "
+    "Indique toujours la source exacte des données à la fin de ta réponse (ex: [Source: Odoo ERP - Module ...]). "
+    "Rédige ta réponse exclusivement en Markdown (**gras**, listes \"- item\", etc.) -- n'utilise JAMAIS de balise HTML brute (<strong>, <br>, <div>...), le moteur d'affichage ne les rend pas et les afficherait telles quelles. "
+    "Exemple de format attendu : **Chiffre d'affaires total** : 12 450€ [Source: Odoo ERP - Module Ventes]. Aucune balise HTML dans cet exemple. "
     "IMPORTANT -- honnêteté sur la couverture de la question : si aucun outil disponible ne peut satisfaire EXACTEMENT une contrainte explicite de la question (un classement/tri demandé, une limite de nombre de résultats, un filtre de période ou de catégorie precis), n'utilise JAMAIS l'outil le plus proche pour produire un résultat approximatif présenté comme si la question était pleinement répondue. Dans ce cas, indique explicitement au début de ta réponse quelle contrainte n'a pas pu être appliquée (ex: \"Je n'ai pas d'outil pour classer par produit -- voici la liste brute des commandes, non filtrée par produit :\"), puis fournis quand même les données brutes obtenues plutôt que de refuser totalement."
 )
 
@@ -75,7 +75,8 @@ def build_hybrid_combine_prompt(question: str, doc_answer: str, data_answer: str
         f"Voici ce que l'agent de documentation a trouvé sur les procédures :\n{doc_answer}\n\n"
         f"Voici ce que l'agent des données ERP a trouvé dans les chiffres :\n{data_answer}\n\n"
         f"Combine ces deux informations pour faire une seule réponse cohérente et fluide, sans mentionner l'existence des agents.\n"
-        f"Rédige en texte brut, sans syntaxe Markdown, tableau ou balise HTML. Utilise des paragraphes simples et des étapes numérotées en texte courant. "
+        f"Rédige exclusivement en Markdown (**gras**, listes \"- item\", etc.) -- aucune balise HTML brute (<strong>, <br>, <div>...), le moteur d'affichage ne les rend pas.\n"
+        f"Exemple de format attendu :\n### Procédure et données\n\n1. **Étape** : description courte\n- Donnée associée : valeur\n\nAucune balise HTML dans cet exemple."
     )
 
 
