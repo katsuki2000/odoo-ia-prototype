@@ -1,5 +1,6 @@
 """CI tool execution, ReAct synthesis and request orchestration."""
 
+import json
 import logging
 import time
 from langchain_core.messages import ToolMessage, SystemMessage, HumanMessage
@@ -27,6 +28,7 @@ from code_intelligence.agent.resolution.turn import resolve_turn
 from code_intelligence.agent.prompts import CI_SYSTEM_PROMPT, build_synthesis_prompt, build_business_context_prompt, build_persona_prompt_block
 from code_intelligence.agent.predispatch import run_predispatch_chain
 from .postprocess import build_final_response
+from .capability_dispatch import PlannedDispatchContext
 
 logger = logging.getLogger(__name__)
 SYNTHESIS_UNAVAILABLE_ANSWER = (
@@ -41,16 +43,21 @@ def _should_bypass_synthesis(tool_names: list[str]) -> bool:
 
 def execute_tool_calls(ctx: DispatchContext, ai_msg, messages: list) -> None:
     for call in ai_msg.tool_calls:
+        if ctx.hop_budget_exhausted:
+            break
         toolName, arguments, toolId = call['name'], call['args'], call['id']
         if toolName == 'who_has_access_to' and 'permission' not in arguments:
             arguments['permission'] = 'all'
+        if toolName == 'describe_navigation_path':
+            arguments = dict(arguments, user_groups_json=json.dumps(
+                ctx.resolved_user_group_xmlids if ctx.requester_groups_known else None))
         try:
             arguments = _override_user_groups_arg(toolName, arguments, ctx.resolved_user_group_xmlids,
                 ctx.security_principals, requester_groups_known=ctx.requester_groups_known)
         except UnknownPrincipalError as error:
             messages.append(ToolMessage(content=f'Appel refuse : {error}', tool_call_id=toolId))
             continue
-        callKey = _tool_call_key(toolName, arguments)
+        callKey = _tool_call_key(toolName, arguments) or (toolName, json.dumps(arguments, sort_keys=True))
         if callKey is not None and callKey in ctx.seen_calls:
             messages.append(ToolMessage(content=f"'{toolName}' a deja ete execute pour cette cible ; son observation est disponible plus haut.", tool_call_id=toolId))
             continue
@@ -58,6 +65,8 @@ def execute_tool_calls(ctx: DispatchContext, ai_msg, messages: list) -> None:
             messages.append(ToolMessage(content=f"Outil '{toolName}' non disponible.", tool_call_id=toolId))
             continue
         started = time.perf_counter()
+        ctx.hop_count += 1
+        ctx.seen_calls.add(callKey)
         try:
             observation = str(ctx.tool_map[toolName].invoke(arguments))
             observation = _truncate_observation_for_budget(ctx, observation, PER_TOOL_OBSERVATION_CAPS.get(toolName, DEFAULT_OBSERVATION_CAP))
@@ -76,7 +85,6 @@ def execute_tool_calls(ctx: DispatchContext, ai_msg, messages: list) -> None:
             ctx.tool_observation_tools.append(toolName)
             messages.append(ToolMessage(content=observation, tool_call_id=toolId))
             ctx.per_hop_times.append(time.perf_counter() - started)
-            ctx.hop_count += 1
             if callKey is not None:
                 ctx.seen_calls.add(callKey)
             ctx.trace_logger.log_hop(trace_id=ctx.trace_id, hop_index=ctx.hop_index, tool_name=toolName,
@@ -106,7 +114,7 @@ def execute_tool_calls(ctx: DispatchContext, ai_msg, messages: list) -> None:
 
 
 def run_react_loop(ctx: DispatchContext, system_prompt: str, chat_history: list, react_recursion_limit: int,
-                   tool_llm_box: list, rebuild_tool_llm) -> str:
+                   tool_llm_box: list, rebuild_tool_llm, *, allow_tool_selection: bool = True) -> str:
     messages = [SystemMessage(content=system_prompt), *chat_history[-6:], HumanMessage(content=ctx.question)]
     answer = _build_dynamic_uncertainty_answer('\n\n'.join(ctx.tool_observations)) if ctx.tool_observations else None
     if not answer and not ctx.security_distinction_reminder_sent:
@@ -116,7 +124,7 @@ def run_react_loop(ctx: DispatchContext, system_prompt: str, chat_history: list,
             ctx.security_distinction_reminder_sent = True
     for _ in range(0 if answer else react_recursion_limit):
         response = None
-        if not ctx.hop_budget_exhausted:
+        if allow_tool_selection and not ctx.hop_budget_exhausted:
             try:
                 response, wait = _invoke_with_rate_limit(tool_llm_box[0], messages, rebuild_llm=rebuild_tool_llm)
                 ctx.llm_call_count += 1
@@ -232,8 +240,9 @@ class CodeIntelligenceAgentRunner:
         resolvedBefore = concept.is_resolved
         from core.evidence.evidence_check import check_evidence
         evidence = check_evidence(concept, resolvedBefore, state)
-        if not reused and state.get('investigation_plan'):
-            from code_intelligence.agent.investigation_planner import generate_investigation_plan, validate_plan_against_route
+        if not reused or (state.get('investigation_plan') or {}).get('execution_mode') != 'capability_v1':
+            from code_intelligence.agent.investigation_planner import validate_plan_against_route
+            from code_intelligence.agent.capability_planner import generate_investigation_plan
             from code_intelligence.agent.investigation_llm import resolve_question_intent
             intent = resolve_question_intent(question, concept, graph).intent
             plan = generate_investigation_plan(question=question, resolved_concept=concept, G=graph, user_groups=state.get('user_groups'), intent=intent)
@@ -249,18 +258,22 @@ class CodeIntelligenceAgentRunner:
                                 concept.resolved_models.append(model)
         if len(concept.resolved_models) > MAX_MODELS_PER_QUERY:
             concept.resolved_models = _rank_and_cap_resolved_models(question, concept.resolved_models, MAX_MODELS_PER_QUERY)
-        ctx = DispatchContext(G=graph, concept=concept, question=question, tool_map={tool.name: tool for tool in ALL_CI_TOOLS},
+        ctx = PlannedDispatchContext(G=graph, concept=concept, question=question, tool_map={tool.name: tool for tool in ALL_CI_TOOLS},
             resolved_user_group_xmlids=groups, requester_groups_known=groupsKnown, trace_logger=traceLogger, trace_id=traceId,
-            hop_cap=CI_MAX_HOPS, security_principals=principals, intent=(state.get('investigation_plan') or {}).get('intent'))
+            hop_cap=CI_MAX_HOPS, security_principals=principals, intent=(state.get('investigation_plan') or {}).get('intent'),
+            investigation_plan=state.get('investigation_plan') or {})
         ctx.llm_call_count = int(concept.diagnostics.get('arbitration_attempts', '0'))
         ctx.llm_wait += float(concept.diagnostics.get('arbitration_wait_seconds', '0'))
+        ctx.llm_call_count += ctx.investigation_plan.get('planning_attempts', 0)
+        ctx.llm_wait += ctx.investigation_plan.get('planning_wait_seconds', 0.0)
         system = CI_SYSTEM_PROMPT + build_business_context_prompt(question, concept, graph) + build_persona_prompt_block(ctx.security_principals)
         run_predispatch_chain(ctx)
+        state = dict(state, investigation_plan=ctx.investigation_plan)
         traceLogger.log_routing(traceId, ctx.matched_dispatchers)
         system += ctx.system_prompt_suffix
         if ctx.tool_observations:
             system += '\n\n[PRIOR TOOL OBSERVATIONS]\n' + '\n---\n'.join(ctx.tool_observations)
-        answer = run_react_loop(ctx, system, history, REACT_RECURSION_LIMIT, toolLlm, rebuildTool)
+        answer = run_react_loop(ctx, system, history, REACT_RECURSION_LIMIT, toolLlm, rebuildTool, allow_tool_selection=False)
         if ctx.requester_acl_verdicts:
             from code_intelligence.agent.predispatch_access import build_requester_acl_answer
             deterministic = build_requester_acl_answer(question, language or '', ctx.requester_acl_verdicts)

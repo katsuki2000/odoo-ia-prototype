@@ -10,7 +10,8 @@ if TYPE_CHECKING:
 
 from core.schemas import QueryRoute
 from core.state import RAGState
-from code_intelligence.agent.investigation_planner import generate_investigation_plan, validate_plan_against_route
+from code_intelligence.agent.investigation_planner import validate_plan_against_route
+from code_intelligence.agent.capability_planner import generate_investigation_plan
 from code_intelligence.agent.investigation_classifier import has_documentary_anchor
 from code_intelligence.agent.investigation_llm import resolve_question_intent
 from core.routing.routing_keywords import (
