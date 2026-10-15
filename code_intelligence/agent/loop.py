@@ -593,7 +593,14 @@ class CodeIntelligenceAgentRunner:
             question, G, llm=llm, language=request_language,
         )
         resolver_time = time.perf_counter() - t_resolver
-        if concept.source_step == "llm_arbitration":
+        if concept.source_step in {
+            "llm_arbitration",
+            "llm_arbitration_widened",
+            "hybrid_arbitration",
+            "semantic_candidate_arbitration",
+        }:
+            # These resolution paths all invoke the LLM arbiter; count them
+            # consistently for per-turn latency/cost diagnostics.
             llm_call_count += 1
         concept_resolved_before_rehydration = concept.is_resolved
         from code_intelligence.agent.context_extractors import _rehydrate_sticky_concept
