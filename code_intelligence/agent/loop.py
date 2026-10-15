@@ -676,7 +676,7 @@ class CodeIntelligenceAgentRunner:
 
 def code_intelligence_agent(state: RAGState) -> dict:
     if state.get("source_mode") == "documentation":
-        # User chose "d'apres la documentation": skip the CI agent entirely;
-        # ci_evidence_decision() then routes straight to RAG generate.
+        # Defensive compatibility guard; the active graph routes documentation
+        # directly to retrieval/generation before entering this agent.
         return {"timing": state.get("timing", {})}
     return CodeIntelligenceAgentRunner(state).run()
