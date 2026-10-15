@@ -3152,3 +3152,23 @@ Date : 15/10/2026
 **Ordre (1403, decision pmm)** : `erp-data-capabilities-review` apres correction de `forbid_raw_html` ; puis `business-model-resolver` apres decision sur ses 3 tests ; puis `refactor/simple-docs-system-routing` rebasee ou fusionnee en resolvant `loop.py` et `routing.py` a la main ; un commit d'integration par branche ; suite complete par pmm entre chaque ; ensuite fusion de l'integration dans `main` en `--no-ff`.
 **Non fait** : aucune branche creee, aucune fusion.
 **Fichiers modifies** : `todo/contexte.txt` (cette section).
+
+
+## Section 1405 : branche d'integration `integration/fusion-15oct` creee ; `audit/erp-data-capabilities-review` fusionnee sans conflit ; regression `forbid_raw_html` corrigee dans le test (15/10/2026)
+
+Date : 15/10/2026
+**Mandat (pmm)** : « go » apres la recommandation de 1404 (branche d'integration plutot que fusion directe dans `main`). Sauvegarde : `/tmp/contexte.avant_1405.txt`. Dernier numero lu avant ecriture : 1404.
+**Realise** :
+1. Branche de sauvegarde `backup/main-avant-fusion-15oct` (= `be82aa0`, pointe de `main`, meme convention que `backup/main-avant-fusion-14oct`). `main` n'a pas ete touche.
+2. Branche `integration/fusion-15oct` creee depuis `main`. Commit `1c11e40` : sections 1403-1404 de ce journal, qui etaient non commitees.
+3. Fusion `--no-ff` de `origin/audit/erp-data-capabilities-review` (commit `876be16`), sans conflit : 11 fichiers sous `erp_data/`.
+4. Correction de la regression mesuree en 1403 : `tests/test_bug_a_markdown_only_output.py::test_donnees_erp_and_hybride_prompts_forbid_raw_html`.
+
+**Root cause** : le test lisait le code source de `erp_data/prompts.py` et comptait la chaine litterale « balise HTML brute ». La branche a reecrit les prompts (`ORM_AGENT_LEGACY_SYSTEM_PROMPT` supprime, formulation raccourcie en « Format Markdown uniquement, sans HTML brut »). Le contrat Markdown / pas de HTML est toujours present dans `ORM_AGENT_SYSTEM_PROMPT` et `build_hybrid_combine_prompt` : le prompt n'est pas en cause, le test etait couple a la formulation. Il valide maintenant le contenu rendu des deux prompts (marqueur Markdown + interdiction du HTML), comme les deux autres tests du fichier. Controle de mutation : sans la clause « sans HTML brut », l'assertion echoue sur les deux prompts.
+
+**Verification** : `test_bug_a_markdown_only_output.py` : **3 passed** ; `git diff --check` propre. Suite complete non lancee (a la charge de pmm).
+
+**Observations non traitees (hors perimetre)** : (a) `ORM_USE_TYPED_RUNTIME` n'est plus lu par du code de production depuis la suppression du prompt legacy : il reste defini dans `config/settings.py` et `.env.example`, et monkeypatche dans `erp_data/tests/test_p9_typed_runtime_wiring.py` ; parametre mort a retirer apres decision. (b) Le nouveau prompt ORM n'a plus la consigne « si aucun outil ne satisfait une contrainte explicite, ne pas presenter un resultat approximatif comme complet » ; elle est remplacee par des consignes de precision, d'ambiguite et de troncature. A confirmer avec l'auteur si c'est voulu.
+
+**Etat** : `integration/fusion-15oct` = `main` + commit de journal + fusion erp-data + correction du test ; non poussee. Suite : suite complete par pmm ; puis `business-model-resolver` (3 tests a trancher) ; puis `refactor/simple-docs-system-routing` (conflits `loop.py` et `routing.py`) ; enfin fusion de l'integration dans `main` en `--no-ff`.
+**Fichiers modifies** : `tests/test_bug_a_markdown_only_output.py`, `todo/contexte.txt`.
