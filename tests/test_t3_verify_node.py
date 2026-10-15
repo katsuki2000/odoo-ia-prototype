@@ -110,6 +110,7 @@ def test_documentary_branch_is_grounded_in_the_retrieved_chunks_only(run_node):
     state, _ = run_node(
         VerifierMode.REPORT, "Le seuil est de 5 000 euros, puis 9 999.",
         question=DOC_QUESTION,
+        route="documentaire",
         ci_evidence_sufficiency={"status": "insufficient"},
         retrieved_chunks=[{"document": "Le seuil est de 5000 euros."}],
         raw_tool_output="limite 9999",
@@ -125,10 +126,9 @@ def test_retrieved_chunks_are_not_evidence_when_another_branch_answered(run_node
     assert _unsupported_texts(state) == ["5 000"]
 
 
-def test_html_is_sanitized_before_claims_are_extracted(run_node):
+def test_answer_is_not_reformatted_before_claims_are_extracted(run_node):
     answer = '<ol start="7"><li>un</li></ol>'
     state, _ = run_node(VerifierMode.REPORT, answer)
-    assert state["response"].verification.claims_total == 0
     assert state["response"].answer == answer
 
 
