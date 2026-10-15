@@ -20,18 +20,64 @@ function isRequestCancelled(error) {
 }
 
 /**
- * Escape plain-text responses for safe rendering and preserve line breaks.
- * Answers are not interpreted as Markdown or HTML.
+ * Shared Markdown Formatter for MIRO AI responses.
+ * Converts headings, code blocks, lists, links, and bold/italic safely.
  */
-export function formatPlainText(text) {
+export function formatMarkdown(text) {
     if (!text) return "";
-    return text
+    let html = text
         .replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")
         .replace(/>/g, "&gt;")
         .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#039;")
-        .replace(/\n/g, "<br/>");
+        .replace(/'/g, "&#039;");
+
+
+    const ALLOWED_HTML_TAGS_RE = /&lt;(\/?)(strong|em|br)\s*\/?&gt;/gi;
+    html = html.replace(ALLOWED_HTML_TAGS_RE, (match, closingSlash, tagName) => {
+        const tag = tagName.toLowerCase();
+        if (tag === "br") {
+            return "<br/>";
+        }
+        return closingSlash ? `</${tag}>` : `<${tag}>`;
+    });
+
+    // Fenced code blocks
+    html = html.replace(/```(?:[a-zA-Z0-9_-]+)?\n?([\s\S]*?)```/g, (match, code) => {
+        return `<pre class="miro-code-block"><code>${code.trim()}</code></pre>`;
+    });
+
+    // Inline code
+    html = html.replace(/`([^`\n]+)`/g, `<code class="miro-inline-code">$1</code>`);
+
+    // Headings
+    html = html.replace(/^###\s+(.*)$/gm, `<h6 class="miro-heading mt-2 mb-1 font-weight-bold">$1</h6>`);
+    html = html.replace(/^##\s+(.*)$/gm, `<h5 class="miro-heading mt-2 mb-1 font-weight-bold">$1</h5>`);
+
+    // Bold and Italic
+    html = html.replace(/\*\*([^*\n]+)\*\*/g, `<strong>$1</strong>`);
+    html = html.replace(/\*([^*\n]+)\*/g, `<em>$1</em>`);
+
+    // Markdown Links
+    html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, `<a href="$2" target="_blank" rel="noopener noreferrer" class="miro-link font-weight-bold">$1</a>`);
+
+    // Unordered lists
+    html = html.replace(/(?:^|\n)([-*]\s+.+(?:\n[-*]\s+.+)*)/g, (match, listBlock) => {
+        const items = listBlock.trim().split(/\n/).map(line => {
+            const itemText = line.replace(/^[-*]\s+/, '');
+            return `<li>${itemText}</li>`;
+        }).join('');
+        return `<ul class="miro-list pl-3 mb-2">${items}</ul>`;
+    });
+
+    // Line breaks outside <pre> and <ul>
+    const parts = html.split(/(<pre[\s\S]*?<\/pre>|<ul[\s\S]*?<\/ul>)/g);
+    for (let i = 0; i < parts.length; i++) {
+        if (!parts[i].startsWith('<pre') && !parts[i].startsWith('<ul')) {
+            parts[i] = parts[i].replace(/\n/g, '<br/>');
+        }
+    }
+    return parts.join('');
 }
 
 /**
@@ -45,7 +91,7 @@ function createMessage(id, sender, content, extra = {}) {
         id,
         sender,
         content,
-        formattedContent: markup(formatPlainText(content)),
+        formattedContent: markup(formatMarkdown(content)),
         sources: [],
         route: null,
         confidence: 1.0,
