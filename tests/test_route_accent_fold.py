@@ -141,7 +141,7 @@ def test_unrelated_followup_with_no_keyword_at_all_is_still_unresolved():
     ("Quel est le rôle du responsable et combien de tickets sont en cours ?",
      "Quel est le role du responsable et combien de tickets sont en cours ?",
      QuestionIntent.DOCUMENTARY_POLICY,
-     "hybride"),
+     "documentaire"),
 ])
 def test_accented_and_unaccented_variants_route_identically(accented, unaccented, mocked_intent, expected_route):
     route_accented = _route_question(accented, mocked_intent)
