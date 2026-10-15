@@ -22,7 +22,6 @@ class RAGState(TypedDict):
     user_groups_complete: Optional[bool]
     resolved_concept: Optional[dict]
     last_route: Optional[str]
-    last_resolved_concept: Optional[dict]
     evidence_status: Optional[str]
     loop_resolved_concept: Optional[dict]
     investigation_plan: Optional[dict]

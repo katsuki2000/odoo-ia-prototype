@@ -66,7 +66,6 @@ def ask_question_v1(
         session = get_session(request.session_id, owner_uid=token_uid)
         chat_history = session["chat_history"]
         last_route = session["last_route"]
-        last_resolved_concept = session["resolved_concept"]
 
         token_api_key = user.get("api_key")
         token_groups = user.get("groups") or []
@@ -93,7 +92,6 @@ def ask_question_v1(
             user_groups=token_groups,
             skills=request.skills,
             last_route=last_route,
-            last_resolved_concept=last_resolved_concept,
             source_mode=request.source_mode,
             language=request_language,
             company_id=company_id,
@@ -109,7 +107,7 @@ def ask_question_v1(
         ]
         update_session(
             request.session_id, updated_history,
-            getattr(response, "resolved_concept", None) or last_resolved_concept,
+            getattr(response, "resolved_concept", None),
             getattr(response, "route", None) or last_route,
             owner_uid=token_uid,
         )

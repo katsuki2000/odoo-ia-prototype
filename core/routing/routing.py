@@ -24,11 +24,6 @@ from core.routing.routing_keywords import (
 logger = logging.getLogger(__name__)
 
 
-def _sticky_concept_or_resolve(state: RAGState, resolved_concept_dict: dict) -> dict:
-    """Do not replace a current abstention with a previous subject."""
-    return resolved_concept_dict
-
-
 def route(state: RAGState) -> dict:
     """Choose the source first, then resolve the business concept once for system questions."""
     started = time.time()

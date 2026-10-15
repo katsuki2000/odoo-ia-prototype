@@ -28,7 +28,6 @@ from .routing_keywords import (
 )
 from .routing import (
     logger,
-    _sticky_concept_or_resolve,
     route,
     route_decision,
 )
@@ -55,7 +54,6 @@ __all__ = [
     "THRESHOLD_QUERY_TERMS_FOLDED",
     "CONDITIONAL_AMOUNT_TERMS_FOLDED",
     "logger",
-    "_sticky_concept_or_resolve",
     "route",
     "route_decision",
 ]
