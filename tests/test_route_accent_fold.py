@@ -131,16 +131,13 @@ def test_unrelated_followup_with_no_keyword_at_all_is_still_unresolved():
      "Quelle est la disponibilite en droits d'acces pour ce module ?",
      QuestionIntent.GOVERNANCE_SECURITY,
      "code_intelligence"),
-    # DOC_ANCHORS ("où est documenté") combined with a quantitative term:
-    # DOCUMENTARY_POLICY intent + the deterministic HYBRIDE layer (still
-    # keyword/anchor-based, unaffected by the LLM classifier) promotes it
-    # to hybride when a quantitative term also co-occurs.
+    # A documentary intent now stays on the documentation source; the
+    # former hybrid route has been removed from automatic source selection.
     ("Où est documenté combien de tickets sont encore en cours ?",
      "Ou est documente combien de tickets sont encore en cours ?",
      QuestionIntent.DOCUMENTARY_POLICY,
-     "hybride"),
-    # DOC_KEYWORDS ("quel est le rôle") combined with a quantitative term:
-    # same HYBRIDE-layer mechanism as above, different source list.
+     "documentaire"),
+    # A quantitative phrase no longer silently changes the selected source.
     ("Quel est le rôle du responsable et combien de tickets sont en cours ?",
      "Quel est le role du responsable et combien de tickets sont en cours ?",
      QuestionIntent.DOCUMENTARY_POLICY,
