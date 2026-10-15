@@ -85,7 +85,7 @@ def test_plain_text_rendering_escapes_html_and_does_not_parse_markdown(bot_modul
     assert "<script>" not in escaped
     assert "&lt;script&gt;" in escaped
 
-    markdown = "### Titre\\n**important**\\n- Point 1\\n[docs](https://example.com)"
+    markdown = "### Titre\n**important**\n- Point 1\n[docs](https://example.com)"
     rendered = convert(markdown)
     assert rendered == "### Titre<br/>**important**<br/>- Point 1<br/>[docs](https://example.com)"
     assert "<h6" not in rendered
