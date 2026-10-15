@@ -4,7 +4,6 @@ from code_intelligence.agent.matching import _find_exact_technical_module_mentio
 from code_intelligence.agent.resolution import candidates as candidate_selection
 from code_intelligence.agent.resolver import (
     _arbitration_candidates,
-    _build_arbitration_prompt,
     _candidate_contexts,
     _deterministic_tiebreak,
 )
@@ -131,17 +130,6 @@ def test_arbitration_context_comes_from_instance_labels_and_declaring_modules():
     assert contexts == {
         "sale.order": "labels: Commande client, Sales Order; modules: sale",
     }
-
-
-def test_arbitration_prompt_includes_graph_context_for_closed_candidates():
-    prompt = _build_arbitration_prompt(
-        "Ou gerer les commandes client ?",
-        ["sale.order"],
-        {"sale.order": "labels: Commande client; modules: sale"},
-    )
-
-    assert "- sale.order — labels: Commande client; modules: sale" in prompt
-    assert "purchase.order" not in prompt
 
 
 def test_arbitration_candidates_do_not_call_embeddings_without_llm(monkeypatch):

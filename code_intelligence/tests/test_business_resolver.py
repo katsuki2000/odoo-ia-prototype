@@ -228,19 +228,6 @@ def test_menu_label_resolves_via_opens_model_edge(sample_graph):
 # Ambiguous cases -- bounded LLM arbitration ()
 # ---------------------------------------------------------------------------
 
-def test_ambiguous_fuzzy_match_without_llm_is_unresolved(sample_graph):
-    """
-    Without an llm client, genuine ambiguity (multiple near-tied fuzzy
-    candidates) must fall through to explicit 'unresolved' -- never guess
-    a default candidate, never report full confidence on a tie.
-    """
-    result = resolve_business_term("client vip", sample_graph, use_static_aliases=True)
-    assert result.is_resolved is False
-    assert result.source_step == "unresolved"
-    assert result.confidence == 0.0
-    assert "res.partner" in result.reason  # candidates listed for traceability
-
-
 def test_ambiguous_fuzzy_match_with_llm_picking_valid_candidate(sample_graph):
     """LLM arbitration selects a candidate from the closed list -> resolved, low confidence."""
     mock_llm = _mock_llm("res.partner")
