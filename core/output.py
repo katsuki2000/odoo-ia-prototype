@@ -15,12 +15,6 @@ Distinct from and does not change:
     (schema B) -- that contract is untouched, this module only maps its
     values to a display word.
 
-=== html_sanitizer (ex core/output/html_sanitizer.py) ===
-
-Backend defense against LLM-emitted raw HTML in answer text.
-Converts common structural HTML tags back to Markdown equivalents
-before the answer reaches the frontend or any API consumer.
-
 === degenerate_guards (ex core/output/degenerate_guards.py) ===
 
 Degenerate-repetition detection and collapsing guards.
