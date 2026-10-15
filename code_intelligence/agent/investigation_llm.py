@@ -61,17 +61,11 @@ Bloc P1 (todo/contexte.txt section 394+).
 from dataclasses import dataclass
 from typing import Any, Optional
 import logging
-import re
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from code_intelligence.agent.resolver import ResolvedConcept
-from code_intelligence.agent.investigation_classifier import (
-    _ERP_DATA_PATTERNS,
-    _fold_accents,
-    classify_question_intent,
-    has_documentary_anchor,
-)
+from code_intelligence.agent.investigation_classifier import classify_question_intent
 from code_intelligence.agent.investigation_schemas import QuestionIntent
 
 logger = logging.getLogger(__name__)
