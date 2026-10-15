@@ -1,479 +1,187 @@
-"""
-Executes the tool calls an LLM tool-selection turn returned, one at a
-time, appending observations to the shared DispatchContext exactly like
-the deterministic pre-dispatch blocks do
-"""
+"""CI tool execution, ReAct synthesis and request orchestration."""
 
 import logging
 import time
-
-from langchain_core.messages import ToolMessage
-
+from langchain_core.messages import ToolMessage, SystemMessage, HumanMessage
 from code_intelligence.rules.security_locks import gate_observation
 from code_intelligence.agent.context import (
-    _truncate_observation_for_budget,
-    _tool_call_key,
-    PER_TOOL_OBSERVATION_CAPS,
-    DEFAULT_OBSERVATION_CAP,
+    _truncate_observation_for_budget, _tool_call_key, PER_TOOL_OBSERVATION_CAPS,
+    DEFAULT_OBSERVATION_CAP, DispatchContext, CI_MAX_HOPS,
+    _resolve_user_group_xmlids, build_early_refusal_response,
 )
 from code_intelligence.agent.context_extractors import (
-    _extract_amount,
-    _extract_company_context,
-    _infer_move_type_context,
+    _extract_amount, _extract_company_context, _infer_move_type_context, _question_is_inheritance_related,
 )
 from code_intelligence.agent.can_view_verifier import _format_can_view_amount_fact
-from code_intelligence.agent.dispatch_guards import _override_user_groups_arg, UnknownPrincipalError
-from code_intelligence.agent.context import DispatchContext
-
-logger = logging.getLogger(__name__)
-
-
-def _should_bypass_synthesis(tool_names: list[str]) -> bool:
-    """Return authoritative single-tool findings verbatim when synthesis adds no value."""
-    return tool_names == ["analyze_data_constraints"]
-
-
-def execute_tool_calls(ctx: DispatchContext, ai_msg, messages: list) -> None:
-    for tool_call in ai_msg.tool_calls:
-        tool_name = tool_call["name"]
-        tool_args = tool_call["args"]
-        tool_id = tool_call["id"]
-
-        if tool_name == "who_has_access_to" and "permission" not in tool_args:
-            tool_args["permission"] = "all"
-
-        try:
-            tool_args = _override_user_groups_arg(
-                tool_name,
-                tool_args,
-                ctx.resolved_user_group_xmlids,
-                ctx.security_principals,
-                requester_groups_known=ctx.requester_groups_known,
-            )
-        except UnknownPrincipalError as upe:
-            logger.warning("Node [code_intelligence_agent]: %s", upe)
-            messages.append(ToolMessage(
-                content=f"Appel refuse : {upe}",
-                tool_call_id=tool_id,
-            ))
-            continue
-
-        dup_call_key = _tool_call_key(tool_name, tool_args)
-        if dup_call_key is not None and dup_call_key in ctx.seen_calls:
-            logger.info(
-                "Node [code_intelligence_agent]: LLM re-requested '%s' for %s "
-                "despite a prior dispatch for the same target -- its observation "
-                "is already present above, skipping re-execution.",
-                tool_name, dup_call_key[1:],
-            )
-            messages.append(ToolMessage(
-                content=(
-                    f"'{tool_name}' a deja ete execute pour cette cible plus haut "
-                    "dans cette analyse ; son observation est deja disponible "
-                    "ci-dessus, ne la rappelle pas."
-                ),
-                tool_call_id=tool_id,
-            ))
-            continue
-
-        logger.info("Node [code_intelligence_agent]: Single-Dispatch invoking '%s' with args %s", tool_name, tool_args)
-        if tool_name not in ctx.tool_map:
-            logger.warning(
-                "Node [code_intelligence_agent]: LLM requested unknown tool '%s'.",
-                tool_name,
-            )
-            messages.append(ToolMessage(
-                content=f"Outil '{tool_name}' non disponible.",
-                tool_call_id=tool_id,
-            ))
-        if tool_name in ctx.tool_map:
-            t0 = time.perf_counter()
-            try:
-                observation = str(ctx.tool_map[tool_name].invoke(tool_args))
-
-                observation_cap = PER_TOOL_OBSERVATION_CAPS.get(
-                    tool_name, DEFAULT_OBSERVATION_CAP
-                )
-                observation = _truncate_observation_for_budget(ctx, observation, observation_cap)
-
-                rule_result = None
-                if tool_name == "evaluate_record_rules":
-                    try:
-                        from code_intelligence.agent.tools import evaluate_rules_raw
-
-                        rule_result = evaluate_rules_raw(
-                            model_name=tool_args.get("model_name", ""),
-                            permission=tool_args.get("permission", "read"),
-                            user_groups_json=tool_args.get("user_groups_json", "[]"),
-                        )
-                    except Exception as ve:
-                        logger.error("evaluate_rules_raw computation failed: %s", ve)
-
-                observation, omitted_list = gate_observation(
-                    tool_name=tool_name,
-                    model_name=tool_args.get("model_name", ""),
-                    observation=observation,
-                    G=ctx.G,
-                    user_groups=ctx.resolved_user_group_xmlids or [],
-                    rule_result=rule_result,
-                )
-                ctx.omitted_items.extend(omitted_list)
-
-                ctx.tool_observations.append(observation)
-                ctx.tool_observation_models.append(tool_args.get("model_name", ""))
-                ctx.tool_observation_tools.append(tool_name)
-
-                messages.append(ToolMessage(content=observation, tool_call_id=tool_id))
-                ctx.per_hop_times.append(time.perf_counter() - t0)
-                ctx.hop_count += 1
-                if dup_call_key is not None:
-                    ctx.seen_calls.add(dup_call_key)
-
-                ctx.trace_logger.log_hop(
-                    trace_id=ctx.trace_id, hop_index=ctx.hop_index, tool_name=tool_name,
-                    tool_args=tool_args, observation=observation,
-                    elapsed_ms=ctx.per_hop_times[-1] * 1000,
-                )
-                ctx.hop_index += 1
-
-                if ctx.hop_budget_exhausted:
-                    logger.warning(
-                        "Node [code_intelligence_agent]: CI_MAX_HOPS (%d) "
-                        "reached -- breaking ReAct loop.", ctx.hop_cap,
-                    )
-                    break
-
-                if tool_name == "evaluate_record_rules" and rule_result is not None:
-                    amount = _extract_amount(ctx.question)
-                    if amount is not None:
-                        try:
-                            context = {"amount": amount}
-                            context.update(_extract_company_context(ctx.question))
-                            context.update(_infer_move_type_context(ctx.concept))
-                            can_view, unresolved_fields = rule_result.can_view_amount_v2(
-                                context
-                            )
-                            ctx.tool_observations.append(
-                                _format_can_view_amount_fact(amount, can_view, unresolved_fields)
-                            )
-                            ctx.tool_observation_models.append(tool_args.get("model_name", ""))
-                            ctx.tool_observation_tools.append("can_view_amount_v2")
-                            logger.info(
-                                "Node [code_intelligence_agent]: Injected deterministic "
-                                "can_view_amount_v2 fact for model=%s, amount=%.0f, "
-                                "result=%s, unresolved=%s, context=%s, "
-                                "global_rules_applied=%d, group_rules_applied=%d.",
-                                tool_args.get("model_name", ""), amount, can_view,
-                                unresolved_fields, context,
-                                len(rule_result.applied_global_rules),
-                                len(rule_result.applied_group_rules),
-                            )
-                        except Exception as ve:
-                            logger.error(
-                                "Deterministic can_view_amount injection failed: %s", ve
-                            )
-            except Exception as te:
-                logger.error("Tool execution failed (%s): %s", tool_name, te)
-                error_observation = f"Error executing {tool_name}: {str(te)}"
-                ctx.tool_observations.append(error_observation)
-                ctx.tool_observation_models.append(tool_args.get("model_name", ""))
-                ctx.tool_observation_tools.append(tool_name)
-                # ReAct-loop fix: surface the failure to the LLM too, so it
-                # doesn't blindly repeat the exact same failing call on the
-                # next iteration.
-                messages.append(ToolMessage(content=error_observation, tool_call_id=tool_id))
-
-# ── ReAct Loop ─────────────────────────────────────────────────────────
-
-"""
-code_intelligence/ci_agent_node/react_loop.py
-
-The CI agent's single-pass composite ReAct loop (tool-selection turn +
-tool execution + synthesis turn), plus the degenerate-repetition retry on
-the synthesized answer.
-"""
-
-import logging
-import time
-
-from langchain_core.messages import SystemMessage, HumanMessage
-
 from code_intelligence.agent.dispatch_guards import (
-    _strip_group_resolution_noise,
-    _build_dynamic_uncertainty_answer,
-    _maybe_build_application_layer_reminder,
+    _override_user_groups_arg, UnknownPrincipalError, _strip_group_resolution_noise,
+    _build_dynamic_uncertainty_answer, _maybe_build_application_layer_reminder, _rank_and_cap_resolved_models,
 )
-from code_intelligence.agent.context_extractors import _question_is_inheritance_related
-from code_intelligence.rules.structure import (
-    _extract_module_extended_models,
-    _answer_lacks_extension_coverage,
-)
+from code_intelligence.rules.structure import _extract_module_extended_models, _answer_lacks_extension_coverage
 from core.llm.llm_client import get_chat_llm, invoke_with_rate_limit as _invoke_with_rate_limit
-from core.output import (
-    _detect_any_degenerate_repetition,
-    _strip_any_degenerate_repetition,
-)
-from code_intelligence.agent.context import DispatchContext
-from code_intelligence.agent.prompts import build_synthesis_prompt
-
-logger = logging.getLogger(__name__)
-
-
-SYNTHESIS_UNAVAILABLE_ANSWER = (
-    "Le modèle de rédaction est indisponible pour le moment : la réponse n'a pas pu être "
-    "générée. Les éléments trouvés dans le graphe restent consultables dans les sources. "
-    "Réessayez dans un instant."
-)
-
-
-def run_react_loop(
-    ctx: DispatchContext,
-    system_prompt: str,
-    chat_history: list,
-    react_recursion_limit: int,
-    tool_llm_box: list,
-    rebuild_tool_llm,
-) -> str:
-    messages = [
-        SystemMessage(content=system_prompt),
-        *chat_history[-6:],
-        HumanMessage(content=ctx.question),
-    ]
-
-    final_answer = None
-    if ctx.tool_observations:
-        final_answer = _build_dynamic_uncertainty_answer("\n\n".join(ctx.tool_observations))
-
-    if not final_answer and not ctx.security_distinction_reminder_sent:
-        reminder = _maybe_build_application_layer_reminder(
-            ctx.question, ctx.tool_observation_tools,
-        )
-        if reminder:
-            messages.append(SystemMessage(content=reminder))
-            ctx.security_distinction_reminder_sent = True
-
-    for _ in range(0 if final_answer else react_recursion_limit):
-        # the deterministic pre-dispatch blocks each break their OWN loop once hop_count reaches the cap, but nothing previously stopped THIS ReAct loop from still invoking llm_with_tools for at least one more iteration when the hop budget was already exhausted by pre-dispatch. Skipping the tool-selection call outright once the budget is already spent closes the gap at its root: no second call is ever issued, nothing to reconcile after the fact.
-        if ctx.hop_budget_exhausted:
-            logger.info(
-                "Node [code_intelligence_agent]: hop budget already "
-                "exhausted (%d/%d) before this ReAct iteration -- "
-                "skipping tool-selection call, synthesizing directly "
-                "from the tool observations already gathered.",
-                ctx.hop_count, ctx.hop_cap,
-            )
-            ai_msg = None
-        else:
-            try:
-                ai_msg, wait = _invoke_with_rate_limit(
-                    tool_llm_box[0], messages, rebuild_llm=rebuild_tool_llm,
-                )
-                ctx.llm_call_count += 1  # tool-selection call
-                ctx.llm_wait += wait
-            except Exception as e:
-                ctx.llm_call_count += 1  # attempt still counts against the LLM-call budget
-                logger.error("LLM tool selection failed: %s", e)
-                ai_msg = None
-
-        if ai_msg and getattr(ai_msg, "tool_calls", None):
-            messages.append(ai_msg)
-            execute_tool_calls(ctx, ai_msg, messages)
-            if not ctx.security_distinction_reminder_sent:
-                reminder = _maybe_build_application_layer_reminder(
-                    ctx.question, ctx.tool_observation_tools,
-                )
-                if reminder:
-                    messages.append(SystemMessage(content=reminder))
-                    ctx.security_distinction_reminder_sent = True
-        elif ai_msg and ai_msg.content:
-            final_answer = ai_msg.content
-
-        # Synthesize clean final answer from composite tool output.
-        # Static constraint findings are already source-grounded; returning the
-        # sole authoritative observation prevents synthesis from replacing them
-        # with constraints that were never extracted.
-        if not final_answer and ctx.tool_observations and _should_bypass_synthesis(
-            ctx.tool_observation_tools
-        ):
-            final_answer = ctx.tool_observations[0]
-
-        if not final_answer:
-            if ctx.tool_observations:
-                # trip 'could not be resolved' noise from who_has_access_to before it reaches the synthesis LLM when the real-auth override has already injected the demandeur's real groups into evaluate_record_rules and a deterministic can_view_amount fact is present.
-                ctx.tool_observations, ctx.tool_observation_models, ctx.tool_observation_tools = _strip_group_resolution_noise(
-                    ctx.tool_observations, ctx.resolved_user_group_xmlids,
-                    ctx.tool_observation_models, ctx.tool_observation_tools,
-                )
-                synthesis_prompt = build_synthesis_prompt(
-                    ctx.question, ctx.tool_observations, ctx.tool_observation_tools,
-                    security_principals=ctx.security_principals,
-                )
-                try:
-                    plain_llm_box = [None]
-
-                    def _rebuild_plain_llm():
-                        plain_llm_box[0] = get_chat_llm(
-                            temperature=0.0, max_retries=0, max_tokens=4096,
-                            model_kwargs={"frequency_penalty": 0.3, "presence_penalty": 0.2},
-                        )
-                        return plain_llm_box[0]
-
-                    _rebuild_plain_llm()
-                    t_synth = time.perf_counter()
-                    final_resp, synth_wait = _invoke_with_rate_limit(
-                        plain_llm_box[0], [HumanMessage(content=synthesis_prompt)],
-                        rebuild_llm=_rebuild_plain_llm,
-                    )
-                    ctx.llm_call_count += 1  # synthesis call
-                    ctx.llm_wait += synth_wait
-                    final_answer = final_resp.content
-                    ctx.synthesis_time = time.perf_counter() - t_synth
-                    if _detect_any_degenerate_repetition(final_answer):
-                        logger.warning(
-                            "Node [code_intelligence_agent]: degenerate repetition detected in "
-                            "synthesis output (%d chars) -- retrying once with an explicit "
-                            "anti-repetition instruction before falling back to stripping it. "
-                            "Pre-retry excerpt (first 800 chars, for diagnosis -- see "
-                            "todo/contexte.txt section 841): %r",
-                            len(final_answer), final_answer[:800],
-                        )
-                        retry_messages = [
-                            HumanMessage(content=synthesis_prompt),
-                            SystemMessage(content=(
-                                "RAPPEL STRICT : ta r\u00e9ponse pr\u00e9c\u00e9dente contenait une "
-                                "r\u00e9p\u00e9tition d\u00e9g\u00e9n\u00e9r\u00e9e (le m\u00eame mot ou groupe "
-                                "de mots r\u00e9p\u00e9t\u00e9 des dizaines de fois de suite). Ne r\u00e9p\u00e8te "
-                                "JAMAIS un mot ou groupe de mots plus de 2-3 fois de suite. Si tu "
-                                "n'as rien de nouveau \u00e0 dire sur un point, passe au suivant ou "
-                                "termine ta phrase."
-                            )),
-                        ]
-                        try:
-                            retry_resp, retry_wait = _invoke_with_rate_limit(
-                                plain_llm_box[0], retry_messages, max_retries=2,
-                                rebuild_llm=_rebuild_plain_llm,
-                            )
-                            ctx.llm_call_count += 1  # anti-repetition retry call
-                            ctx.llm_wait += retry_wait
-                            if not _detect_any_degenerate_repetition(retry_resp.content):
-                                final_answer = retry_resp.content
-                            else:
-                                logger.error(
-                                    "Node [code_intelligence_agent]: synthesis still degenerate "
-                                    "after retry -- stripping the repeated run instead of shipping "
-                                    "it. Pre-strip retry excerpt (first 800 chars, for diagnosis -- "
-                                    "see todo/contexte.txt section 841): %r",
-                                    retry_resp.content[:800],
-                                )
-                                final_answer = _strip_any_degenerate_repetition(final_answer)
-                        except Exception as retry_e:
-                            logger.error("Anti-repetition retry failed: %s", retry_e)
-                            final_answer = _strip_any_degenerate_repetition(final_answer)
-
-                    try:
-                        _extended_models = _extract_module_extended_models(
-                            "\n\n".join(ctx.tool_observations)
-                        )
-                        if (
-                            _extended_models
-                            and _question_is_inheritance_related(ctx.question)
-                            and _answer_lacks_extension_coverage(final_answer, _extended_models)
-                        ):
-                            logger.warning(
-                                "Node [code_intelligence_agent]: synthesis reflects "
-                                "essentially none of the %d model(s) list_involved_modules "
-                                "reported this module extends outside its own perimeter -- "
-                                "retrying once with the real list made explicit. Pre-retry "
-                                "excerpt (first 800 chars, for diagnosis %r",
-                                len(_extended_models), final_answer[:800],
-                            )
-                            _models_list = ", ".join(f"'{m}'" for m in _extended_models)
-                            _coverage_retry_messages = [
-                                HumanMessage(content=synthesis_prompt),
-                                SystemMessage(content=(
-                                    "RAPPEL STRICT : les outils ont confirm\u00e9 que ce "
-                                    f"module \u00e9tend bien {len(_extended_models)} "
-                                    f"mod\u00e8le(s) en dehors de son propre p\u00e9rim\u00e8tre "
-                                    f": {_models_list}. Ta r\u00e9ponse pr\u00e9c\u00e9dente ne "
-                                    "refl\u00e9tait pas correctement ce fait (elle le niait "
-                                    "ou l'omettait, quelle qu'en soit la formulation). "
-                                    "Reformule une r\u00e9ponse compl\u00e8te et coh\u00e9rente "
-                                    "qui affirme et cite explicitement cette liste r\u00e9elle, "
-                                    "sans aucune phrase qui la contredise ailleurs dans la "
-                                    "r\u00e9ponse."
-                                )),
-                            ]
-                            try:
-                                _coverage_resp, _coverage_wait = _invoke_with_rate_limit(
-                                    plain_llm_box[0], _coverage_retry_messages, max_retries=2,
-                                    rebuild_llm=_rebuild_plain_llm,
-                                )
-                                ctx.llm_call_count += 1  # extension-coverage retry call
-                                ctx.llm_wait += _coverage_wait
-                                if not _answer_lacks_extension_coverage(
-                                    _coverage_resp.content, _extended_models
-                                ):
-                                    final_answer = _coverage_resp.content
-                                else:
-                                    logger.error(
-                                        "Node [code_intelligence_agent]: synthesis still "
-                                        "lacks extension coverage after retry -- leaving "
-                                        "final_answer as-is for the existing text-patch "
-                                        "guard chain to catch what it can. Post-retry "
-                                        "excerpt (first 800 chars): %r",
-                                        _coverage_resp.content[:800],
-                                    )
-                            except Exception as _coverage_e:
-                                logger.error("Extension-coverage retry failed: %s", _coverage_e)
-                    except Exception as _coverage_outer_e:
-                        logger.error("Extension-coverage check failed: %s", _coverage_outer_e)
-                except Exception as e:
-                    logger.error("Synthesis failed: %s", e)
-                    final_answer = SYNTHESIS_UNAVAILABLE_ANSWER
-            else:
-                final_answer = "Je n'ai pas de données disponibles pour répondre à cette question."
-
-        if final_answer:
-            break
-
-    return final_answer
-
-# ── Runner ─────────────────────────────────────────────────────────────
-
-"""
-code_intelligence/ci_agent_node/runner.py
-
-CodeIntelligenceAgentRunner: orchestrates the CI agent turn end-to-end --
-early refusals, graph/LLM setup, business-term resolution, the
-deterministic pre-dispatch chain, the ReAct loop, and final response
-assembly. Extracted from the former ci_agent_node.py monolith (refactor,
-see todo/contexte.txt). Behavior unchanged.
-"""
-
-import logging
-import time
-
-from core.guardrails import (
-    OUT_OF_SCOPE_ANSWER,
-    REACT_RECURSION_LIMIT,
-    is_massive_extraction_request,
-    is_out_of_scope,
-    is_prompt_injection,
-)
+from core.output import _detect_any_degenerate_repetition, _strip_any_degenerate_repetition
+from core.guardrails import OUT_OF_SCOPE_ANSWER, REACT_RECURSION_LIMIT, is_massive_extraction_request, is_out_of_scope, is_prompt_injection
 from core.state import RAGState
-from core.llm.llm_client import get_chat_llm
 from code_intelligence.graph import get_code_intelligence_graph
-from code_intelligence.agent.resolver import resolve_business_term
-from code_intelligence.agent.context import CI_MAX_HOPS
-from code_intelligence.agent.dispatch_guards import _rank_and_cap_resolved_models
-from code_intelligence.agent.context import _resolve_user_group_xmlids
-from code_intelligence.agent.context import build_early_refusal_response
-from code_intelligence.agent.context import DispatchContext
-from code_intelligence.agent.prompts import CI_SYSTEM_PROMPT, build_business_context_prompt, build_persona_prompt_block
+from code_intelligence.agent.resolution.turn import resolve_turn
+from code_intelligence.agent.prompts import CI_SYSTEM_PROMPT, build_synthesis_prompt, build_business_context_prompt, build_persona_prompt_block
 from code_intelligence.agent.predispatch import run_predispatch_chain
 from .postprocess import build_final_response
 
 logger = logging.getLogger(__name__)
+SYNTHESIS_UNAVAILABLE_ANSWER = (
+    "Le modèle de rédaction est indisponible pour le moment : la réponse n'a pas pu être "
+    "générée. Les éléments trouvés dans le graphe restent consultables dans les sources. Réessayez dans un instant."
+)
+
+
+def _should_bypass_synthesis(tool_names: list[str]) -> bool:
+    return tool_names == ['analyze_data_constraints']
+
+
+def execute_tool_calls(ctx: DispatchContext, ai_msg, messages: list) -> None:
+    for call in ai_msg.tool_calls:
+        toolName, arguments, toolId = call['name'], call['args'], call['id']
+        if toolName == 'who_has_access_to' and 'permission' not in arguments:
+            arguments['permission'] = 'all'
+        try:
+            arguments = _override_user_groups_arg(toolName, arguments, ctx.resolved_user_group_xmlids,
+                ctx.security_principals, requester_groups_known=ctx.requester_groups_known)
+        except UnknownPrincipalError as error:
+            messages.append(ToolMessage(content=f'Appel refuse : {error}', tool_call_id=toolId))
+            continue
+        callKey = _tool_call_key(toolName, arguments)
+        if callKey is not None and callKey in ctx.seen_calls:
+            messages.append(ToolMessage(content=f"'{toolName}' a deja ete execute pour cette cible ; son observation est disponible plus haut.", tool_call_id=toolId))
+            continue
+        if toolName not in ctx.tool_map:
+            messages.append(ToolMessage(content=f"Outil '{toolName}' non disponible.", tool_call_id=toolId))
+            continue
+        started = time.perf_counter()
+        try:
+            observation = str(ctx.tool_map[toolName].invoke(arguments))
+            observation = _truncate_observation_for_budget(ctx, observation, PER_TOOL_OBSERVATION_CAPS.get(toolName, DEFAULT_OBSERVATION_CAP))
+            ruleResult = None
+            if toolName == 'evaluate_record_rules':
+                try:
+                    from code_intelligence.agent.tools import evaluate_rules_raw
+                    ruleResult = evaluate_rules_raw(model_name=arguments.get('model_name', ''), permission=arguments.get('permission', 'read'), user_groups_json=arguments.get('user_groups_json', '[]'))
+                except Exception as error:
+                    logger.error('Rule evaluation failed: %s', error)
+            observation, omitted = gate_observation(tool_name=toolName, model_name=arguments.get('model_name', ''),
+                observation=observation, G=ctx.G, user_groups=ctx.resolved_user_group_xmlids or [], rule_result=ruleResult)
+            ctx.omitted_items.extend(omitted)
+            ctx.tool_observations.append(observation)
+            ctx.tool_observation_models.append(arguments.get('model_name', ''))
+            ctx.tool_observation_tools.append(toolName)
+            messages.append(ToolMessage(content=observation, tool_call_id=toolId))
+            ctx.per_hop_times.append(time.perf_counter() - started)
+            ctx.hop_count += 1
+            if callKey is not None:
+                ctx.seen_calls.add(callKey)
+            ctx.trace_logger.log_hop(trace_id=ctx.trace_id, hop_index=ctx.hop_index, tool_name=toolName,
+                tool_args=arguments, observation=observation, elapsed_ms=ctx.per_hop_times[-1] * 1000)
+            ctx.hop_index += 1
+            if ctx.hop_budget_exhausted:
+                break
+            if toolName == 'evaluate_record_rules' and ruleResult is not None:
+                amount = _extract_amount(ctx.question)
+                if amount is not None:
+                    try:
+                        context = {'amount': amount}
+                        context.update(_extract_company_context(ctx.question))
+                        context.update(_infer_move_type_context(ctx.concept))
+                        canView, unresolved = ruleResult.can_view_amount_v2(context)
+                        ctx.tool_observations.append(_format_can_view_amount_fact(amount, canView, unresolved))
+                        ctx.tool_observation_models.append(arguments.get('model_name', ''))
+                        ctx.tool_observation_tools.append('can_view_amount_v2')
+                    except Exception as error:
+                        logger.error('Amount visibility evaluation failed: %s', error)
+        except Exception as error:
+            observation = f'Error executing {toolName}: {str(error)}'
+            ctx.tool_observations.append(observation)
+            ctx.tool_observation_models.append(arguments.get('model_name', ''))
+            ctx.tool_observation_tools.append(toolName)
+            messages.append(ToolMessage(content=observation, tool_call_id=toolId))
+
+
+def run_react_loop(ctx: DispatchContext, system_prompt: str, chat_history: list, react_recursion_limit: int,
+                   tool_llm_box: list, rebuild_tool_llm) -> str:
+    messages = [SystemMessage(content=system_prompt), *chat_history[-6:], HumanMessage(content=ctx.question)]
+    answer = _build_dynamic_uncertainty_answer('\n\n'.join(ctx.tool_observations)) if ctx.tool_observations else None
+    if not answer and not ctx.security_distinction_reminder_sent:
+        reminder = _maybe_build_application_layer_reminder(ctx.question, ctx.tool_observation_tools)
+        if reminder:
+            messages.append(SystemMessage(content=reminder))
+            ctx.security_distinction_reminder_sent = True
+    for _ in range(0 if answer else react_recursion_limit):
+        response = None
+        if not ctx.hop_budget_exhausted:
+            try:
+                response, wait = _invoke_with_rate_limit(tool_llm_box[0], messages, rebuild_llm=rebuild_tool_llm)
+                ctx.llm_call_count += 1
+                ctx.llm_wait += wait
+            except Exception as error:
+                ctx.llm_call_count += 1
+                logger.error('Tool selection failed: %s', error)
+        if response and getattr(response, 'tool_calls', None):
+            messages.append(response)
+            execute_tool_calls(ctx, response, messages)
+            if not ctx.security_distinction_reminder_sent:
+                reminder = _maybe_build_application_layer_reminder(ctx.question, ctx.tool_observation_tools)
+                if reminder:
+                    messages.append(SystemMessage(content=reminder))
+                    ctx.security_distinction_reminder_sent = True
+        elif response and response.content:
+            answer = response.content
+        if not answer and ctx.tool_observations and _should_bypass_synthesis(ctx.tool_observation_tools):
+            answer = ctx.tool_observations[0]
+        if not answer:
+            if not ctx.tool_observations:
+                answer = "Je n'ai pas de données disponibles pour répondre à cette question."
+            else:
+                ctx.tool_observations, ctx.tool_observation_models, ctx.tool_observation_tools = _strip_group_resolution_noise(
+                    ctx.tool_observations, ctx.resolved_user_group_xmlids, ctx.tool_observation_models, ctx.tool_observation_tools)
+                prompt = build_synthesis_prompt(ctx.question, ctx.tool_observations, ctx.tool_observation_tools, security_principals=ctx.security_principals)
+                try:
+                    plain = [None]
+                    def rebuildPlain():
+                        plain[0] = get_chat_llm(temperature=0.0, max_retries=0, max_tokens=4096,
+                            model_kwargs={'frequency_penalty': 0.3, 'presence_penalty': 0.2})
+                        return plain[0]
+                    rebuildPlain()
+                    started = time.perf_counter()
+                    result, wait = _invoke_with_rate_limit(plain[0], [HumanMessage(content=prompt)], rebuild_llm=rebuildPlain)
+                    ctx.llm_call_count += 1
+                    ctx.llm_wait += wait
+                    ctx.synthesis_time = time.perf_counter() - started
+                    answer = result.content
+                    if _detect_any_degenerate_repetition(answer):
+                        try:
+                            retry, wait = _invoke_with_rate_limit(plain[0], [HumanMessage(content=prompt), SystemMessage(content=
+                                'Do not repeat a word or phrase more than twice. Give a concise, non-repetitive answer.')], max_retries=2, rebuild_llm=rebuildPlain)
+                            ctx.llm_call_count += 1
+                            ctx.llm_wait += wait
+                            answer = retry.content if not _detect_any_degenerate_repetition(retry.content) else _strip_any_degenerate_repetition(answer)
+                        except Exception:
+                            answer = _strip_any_degenerate_repetition(answer)
+                    try:
+                        models = _extract_module_extended_models('\n\n'.join(ctx.tool_observations))
+                        if models and _question_is_inheritance_related(ctx.question) and _answer_lacks_extension_coverage(answer, models):
+                            retry, wait = _invoke_with_rate_limit(plain[0], [HumanMessage(content=prompt), SystemMessage(content=
+                                f'The tools established that this module extends these models: {", ".join(models)}. Explain and cite that coverage without contradicting the findings.')], max_retries=2, rebuild_llm=rebuildPlain)
+                            ctx.llm_call_count += 1
+                            ctx.llm_wait += wait
+                            if not _answer_lacks_extension_coverage(retry.content, models):
+                                answer = retry.content
+                    except Exception as error:
+                        logger.error('Extension coverage retry failed: %s', error)
+                except Exception as error:
+                    logger.error('Synthesis failed: %s', error)
+                    answer = SYNTHESIS_UNAVAILABLE_ANSWER
+        if answer:
+            break
+    return answer
 
 
 class CodeIntelligenceAgentRunner:
@@ -482,194 +190,86 @@ class CodeIntelligenceAgentRunner:
 
     def run(self) -> dict:
         state = self.state
-        start_time = time.time()
-
-        question = state.get("question", "").strip()
-        chat_history = state.get("chat_history", [])
-        logger.info("Node [code_intelligence_agent]: Starting ReAct loop for: %s", question)
-
+        started = time.time()
+        question = state.get('question', '').strip()
+        history = state.get('chat_history', [])
         from core.session.reasoning_trace_logger import ReasoningTraceLogger, new_trace_id
-        trace_id = new_trace_id()
-        trace_logger = ReasoningTraceLogger()
-
+        traceId, traceLogger = new_trace_id(), ReasoningTraceLogger()
         if is_out_of_scope(question):
-            logger.info("Node [code_intelligence_agent]: Out of scope question.")
-            return build_early_refusal_response(
-                OUT_OF_SCOPE_ANSWER, trace_logger, trace_id, question, start_time, state, CI_MAX_HOPS,
-            )
-
-        # Security & Massive Extraction Safeguards
-        from config.settings import (
-            MAX_MODELS_PER_QUERY,
-            MASSIVE_EXTRACTION_REFUSAL_MSG,
-            PROMPT_INJECTION_REFUSAL_MSG,
-        )
-
+            return build_early_refusal_response(OUT_OF_SCOPE_ANSWER, traceLogger, traceId, question, started, state, CI_MAX_HOPS)
+        from config.settings import MAX_MODELS_PER_QUERY, MASSIVE_EXTRACTION_REFUSAL_MSG, PROMPT_INJECTION_REFUSAL_MSG
         if is_prompt_injection(question):
-            logger.warning("Node [code_intelligence_agent]: Prompt injection attempt intercepted.")
-            return build_early_refusal_response(
-                PROMPT_INJECTION_REFUSAL_MSG, trace_logger, trace_id, question, start_time, state, CI_MAX_HOPS,
-            )
-
+            return build_early_refusal_response(PROMPT_INJECTION_REFUSAL_MSG, traceLogger, traceId, question, started, state, CI_MAX_HOPS)
         if is_massive_extraction_request(question):
-            logger.warning("Node [code_intelligence_agent]: Massive extraction request intercepted.")
-            return build_early_refusal_response(
-                MASSIVE_EXTRACTION_REFUSAL_MSG, trace_logger, trace_id, question, start_time, state, CI_MAX_HOPS,
-            )
-
-        # Initialize the knowledge graph and inject into tool wrappers
-        request_language = state.get("language")
-        G = get_code_intelligence_graph(
-            translation_languages=[request_language] if request_language else None,
-            request_language=request_language,
-        )
+            return build_early_refusal_response(MASSIVE_EXTRACTION_REFUSAL_MSG, traceLogger, traceId, question, started, state, CI_MAX_HOPS)
+        language = state.get('language')
+        graph = get_code_intelligence_graph(translation_languages=[language] if language else None, request_language=language)
         from code_intelligence.agent.tools import ALL_CI_TOOLS
         from code_intelligence.agent.tool_helpers import set_graph_ref, set_llm_ref, set_current_question
-        from code_intelligence.rules.security_locks import gate_observation
-        set_graph_ref(G)
-        # todo/contexte.txt section 846: readable by format_security_locks_summary
-        # for intra-block relevance reranking, deep inside a @tool wrapper that
-        # has no direct parameter path back to the original question.
+        set_graph_ref(graph)
         set_current_question(question)
-
-        # Section 888/889: distinguish "state['user_groups'] key absent"
-        # (demandeur identity unavailable this turn) from an explicit []
-        # (identity known, no groups). UI availability consumers preserve
-        # unknown as None; security/authorization consumers may fail closed
-        # without presenting that fallback as a known denial.
-        _USER_GROUPS_UNSET = object()
-        _raw_user_groups = state.get("user_groups", _USER_GROUPS_UNSET)
-        if _raw_user_groups is _USER_GROUPS_UNSET:
-            resolved_user_group_xmlids = None
-            requester_groups_known = False
+        missing = object()
+        rawGroups = state.get('user_groups', missing)
+        if rawGroups is missing:
+            groups, groupsKnown = None, False
         else:
-            raw_user_groups = list(_raw_user_groups or [])
-            resolved_user_group_xmlids = _resolve_user_group_xmlids(raw_user_groups)
-            declared_groups_complete = state.get("user_groups_complete")
-            requester_groups_known = (
-                len(resolved_user_group_xmlids) == len(raw_user_groups)
-                and declared_groups_complete is not False
-            )
-            if _raw_user_groups and not resolved_user_group_xmlids:
-                logger.warning(
-                    "Node [code_intelligence_agent]: none of the demandeur's %d group ID(s) "
-                    "resolved to an xml_id -- gating will fail closed for this request.",
-                    len(_raw_user_groups),
-                )
-
-        # Section 888/889: benchmark-only, harness-declared hypothetical
-        # security personas (e.g. SAL-Q1's "vendeur" vs "utilisateur portail"),
-        # strictly separate from the real demandeur above -- never merged,
-        # never used as a fallback for each other. Empty outside benchmark
-        # runs that declare state["security_principals"].
-        resolved_security_principals = {
-            principal_id: _resolve_user_group_xmlids(principal_def.get("group_xmlids", []))
-            for principal_id, principal_def in (state.get("security_principals") or {}).items()
-        }
-
-        llm = get_chat_llm(
-            temperature=0.0,
-            max_retries=0,  # Let _invoke_with_rate_limit handle dynamic header backoff
-            max_tokens=1024,
-            model_kwargs={"parallel_tool_calls": False},
-        )
+            rawGroups = list(rawGroups or [])
+            groups = _resolve_user_group_xmlids(rawGroups)
+            groupsKnown = len(groups) == len(rawGroups) and state.get('user_groups_complete') is not False
+        principals = {key: _resolve_user_group_xmlids(value.get('group_xmlids', []))
+                      for key, value in (state.get('security_principals') or {}).items()}
+        llm = get_chat_llm(temperature=0.0, max_retries=0, max_tokens=1024, model_kwargs={'parallel_tool_calls': False})
         set_llm_ref(llm)
-        tool_llm_box = [llm.bind_tools(ALL_CI_TOOLS)]
-
-        def _rebuild_tool_llm():
-            fresh = get_chat_llm(
-                temperature=0.0, max_retries=0, max_tokens=1024,
-                model_kwargs={"parallel_tool_calls": False},
-            )
+        toolLlm = [llm.bind_tools(ALL_CI_TOOLS)]
+        def rebuildTool():
+            fresh = get_chat_llm(temperature=0.0, max_retries=0, max_tokens=1024, model_kwargs={'parallel_tool_calls': False})
             set_llm_ref(fresh)
-            tool_llm_box[0] = fresh.bind_tools(ALL_CI_TOOLS)
-            return tool_llm_box[0]
-
-        llm_call_count = 0
-
-        # Business Term Resolver -- Map natural language concepts to technical Odoo models/modules
-        t_resolver = time.perf_counter()
-        concept = resolve_business_term(
-            question, G, llm=llm, language=request_language,
-        )
-        resolver_time = time.perf_counter() - t_resolver
-        if concept.source_step == "llm_arbitration":
-            llm_call_count += 1
-        concept_resolved_before_rehydration = concept.is_resolved
-        from code_intelligence.agent.context_extractors import _rehydrate_sticky_concept
+            toolLlm[0] = fresh.bind_tools(ALL_CI_TOOLS)
+            return toolLlm[0]
+        resolverStarted = time.perf_counter()
+        concept, reused = resolve_turn(question, graph, state, language=language, llm=llm)
+        resolverTime = time.perf_counter() - resolverStarted
+        resolvedBefore = concept.is_resolved
         from core.evidence.evidence_check import check_evidence
-        concept = _rehydrate_sticky_concept(concept, state)
-        evidence_status = check_evidence(concept, concept_resolved_before_rehydration, state)
-
-        if concept.is_resolved and concept.resolved_modules and not concept.resolved_models and G is not None:
-            for mod in concept.resolved_modules:
-                mod_node = f"module:{mod}"
-                if mod_node in G:
-                    for u, v, d in G.in_edges(mod_node, data=True):
-                        if (
-                            u.startswith("model:")
-                            and d.get("edge_type") == "DEFINED_IN"
-                            and d.get("role", "declares") == "declares"
-                        ):
-                            m_name = u.split("model:", 1)[1]
-                            if m_name not in concept.resolved_models:
-                                concept.resolved_models.append(m_name)
-
-        if concept.resolved_models and len(concept.resolved_models) > MAX_MODELS_PER_QUERY:
-            concept.resolved_models = _rank_and_cap_resolved_models(
-                question, concept.resolved_models, MAX_MODELS_PER_QUERY,
-            )
-
-        tool_map = {t.name: t for t in ALL_CI_TOOLS}
-        ctx = DispatchContext(
-            G=G, concept=concept, question=question, tool_map=tool_map,
-            resolved_user_group_xmlids=resolved_user_group_xmlids,
-            requester_groups_known=requester_groups_known,
-            trace_logger=trace_logger, trace_id=trace_id, hop_cap=CI_MAX_HOPS,
-            security_principals=resolved_security_principals,
-            intent=(state.get("investigation_plan") or {}).get("intent"),
-        )
-        ctx.llm_call_count = llm_call_count
-
-        system_prompt = CI_SYSTEM_PROMPT + build_business_context_prompt(question, concept, G)
-
-        # Section 888/889 (mecanisme), 899 (texte durci -- SAL-Q1/897 et
-        # MNT-Q1/898 rechutaient avec la 1ere version) : tell the LLM which
-        # hypothetical personas this question names, and how to evaluate
-        # access for each -- via principal_id, never by supplying
-        # user_groups_json itself (always ignored/overridden, see
-        # dispatch_guards.py::_override_user_groups_arg).
-        system_prompt += build_persona_prompt_block(ctx.security_principals)
-
+        evidence = check_evidence(concept, resolvedBefore, state)
+        if not reused and state.get('investigation_plan'):
+            from code_intelligence.agent.investigation_planner import generate_investigation_plan, validate_plan_against_route
+            from code_intelligence.agent.investigation_llm import resolve_question_intent
+            intent = resolve_question_intent(question, concept, graph).intent
+            plan = generate_investigation_plan(question=question, resolved_concept=concept, G=graph, user_groups=state.get('user_groups'), intent=intent)
+            state = dict(state, investigation_plan=validate_plan_against_route(plan, state.get('route')).to_display_dict())
+        if concept.is_resolved and concept.resolved_modules and not concept.resolved_models:
+            for module in concept.resolved_modules:
+                moduleNode = 'module:' + module
+                if moduleNode in graph:
+                    for source, _target, edge in graph.in_edges(moduleNode, data=True):
+                        if source.startswith('model:') and edge.get('edge_type') == 'DEFINED_IN' and edge.get('role', 'declares') == 'declares':
+                            model = source.removeprefix('model:')
+                            if model not in concept.resolved_models:
+                                concept.resolved_models.append(model)
+        if len(concept.resolved_models) > MAX_MODELS_PER_QUERY:
+            concept.resolved_models = _rank_and_cap_resolved_models(question, concept.resolved_models, MAX_MODELS_PER_QUERY)
+        ctx = DispatchContext(G=graph, concept=concept, question=question, tool_map={tool.name: tool for tool in ALL_CI_TOOLS},
+            resolved_user_group_xmlids=groups, requester_groups_known=groupsKnown, trace_logger=traceLogger, trace_id=traceId,
+            hop_cap=CI_MAX_HOPS, security_principals=principals, intent=(state.get('investigation_plan') or {}).get('intent'))
+        ctx.llm_call_count = int(concept.diagnostics.get('arbitration_attempts', '0'))
+        ctx.llm_wait += float(concept.diagnostics.get('arbitration_wait_seconds', '0'))
+        system = CI_SYSTEM_PROMPT + build_business_context_prompt(question, concept, graph) + build_persona_prompt_block(ctx.security_principals)
         run_predispatch_chain(ctx)
-        # Section 861 (2a): explicit, always-logged routing decision -- never
-        # a silent fallthrough to free ReAct when no predispatch predicate
-        # matched (see ReasoningTraceLogger.log_routing docstring).
-        trace_logger.log_routing(trace_id, ctx.matched_dispatchers)
-        system_prompt += ctx.system_prompt_suffix
-
+        traceLogger.log_routing(traceId, ctx.matched_dispatchers)
+        system += ctx.system_prompt_suffix
         if ctx.tool_observations:
-            system_prompt += "\n\n[PRIOR TOOL OBSERVATIONS]\n" + "\n---\n".join(ctx.tool_observations)
-
-        final_answer = run_react_loop(
-            ctx, system_prompt, chat_history, REACT_RECURSION_LIMIT, tool_llm_box, _rebuild_tool_llm,
-        )
-
+            system += '\n\n[PRIOR TOOL OBSERVATIONS]\n' + '\n---\n'.join(ctx.tool_observations)
+        answer = run_react_loop(ctx, system, history, REACT_RECURSION_LIMIT, toolLlm, rebuildTool)
         if ctx.requester_acl_verdicts:
             from code_intelligence.agent.predispatch_access import build_requester_acl_answer
-
-            deterministic_acl_answer = build_requester_acl_answer(
-                question, request_language or "", ctx.requester_acl_verdicts,
-            )
-            if deterministic_acl_answer:
-                final_answer = deterministic_acl_answer
-
-        return build_final_response(ctx, final_answer, state, start_time, resolver_time, evidence_status)
+            deterministic = build_requester_acl_answer(question, language or '', ctx.requester_acl_verdicts)
+            if deterministic:
+                answer = deterministic
+        return build_final_response(ctx, answer, state, started, resolverTime, evidence)
 
 
 def code_intelligence_agent(state: RAGState) -> dict:
-    if state.get("source_mode") == "documentation":
-        # User chose "d'apres la documentation": skip the CI agent entirely;
-        # ci_evidence_decision() then routes straight to RAG generate.
-        return {"timing": state.get("timing", {})}
+    if state.get('source_mode') == 'documentation':
+        return {'timing': state.get('timing', {})}
     return CodeIntelligenceAgentRunner(state).run()
