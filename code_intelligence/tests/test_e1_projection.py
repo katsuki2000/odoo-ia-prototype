@@ -256,36 +256,3 @@ def _patch_ambiguous_fuzzy_step(monkeypatch, *, arbitration_choice, semantic_sta
             arbitration_choice, ARBITRATION_SELECTED if arbitration_choice else ARBITRATION_NONE, arbitration_choice,
         ),
     )
-
-
-def test_unresolved_ambiguous_fuzzy_candidates_are_published_in_diagnostics(monkeypatch):
-    _patch_ambiguous_fuzzy_step(monkeypatch, arbitration_choice=None)
-
-    concept = fuzzy_lookup.resolve_fuzzy_match("q", "q", object(), None, "fr_FR", False)
-
-    assert concept.is_resolved is False
-    assert concept.resolved_models == []
-    assert fuzzy_lookup.ambiguous_candidates_of(concept) == ["sale.order", "purchase.order", "account.move"]
-
-
-def test_published_candidates_sit_next_to_the_semantic_status(monkeypatch):
-    _patch_ambiguous_fuzzy_step(
-        monkeypatch, arbitration_choice=None, semantic_status=SemanticRetrievalStatus.ERROR,
-    )
-
-    concept = fuzzy_lookup.resolve_fuzzy_match("q", "q", object(), None, "fr_FR", False)
-
-    assert concept.diagnostics == {
-        "semantic_retrieval": "error",
-        fuzzy_lookup.AMBIGUOUS_CANDIDATES_KEY: "sale.order,purchase.order,account.move",
-        fuzzy_lookup.ARBITRATION_OUTCOME_KEY: ARBITRATION_NONE,
-    }
-
-
-def test_a_concept_chosen_by_arbitration_publishes_no_ambiguous_candidates(monkeypatch):
-    _patch_ambiguous_fuzzy_step(monkeypatch, arbitration_choice="purchase.order")
-
-    concept = fuzzy_lookup.resolve_fuzzy_match("q", "q", object(), object(), "fr_FR", False)
-
-    assert concept.is_resolved is True
-    assert fuzzy_lookup.ambiguous_candidates_of(concept) == []

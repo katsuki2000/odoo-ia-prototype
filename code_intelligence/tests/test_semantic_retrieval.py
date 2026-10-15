@@ -72,15 +72,6 @@ def test_configured_retrieval_returns_nothing_when_explicitly_disabled(monkeypat
     ) == []
 
 
-def test_cosine_similarity_accepts_numpy_vectors():
-    import numpy as np
-
-    from code_intelligence.agent.semantic_retrieval import _cosine_similarity
-
-    assert _cosine_similarity(np.array([1.0, 0.0]), np.array([1.0, 0.0])) == 1.0
-    assert _cosine_similarity(np.array([]), np.array([])) == 0.0
-
-
 def test_configured_retrieval_falls_back_to_default_embeddings_for_local_light(monkeypatch):
     import sys
     import types
@@ -128,33 +119,6 @@ def test_configured_retrieval_fails_open_when_provider_raises(monkeypatch):
     monkeypatch.setattr("document_rag.vectorstore.embedding_functions.resolve_embedding_function", _boom)
 
     assert configured_semantic_model_candidates("commande", _graph_with_translated_models(), "fr") == []
-
-
-def test_semantic_candidates_reach_arbitration_when_widened_fuzzy_is_empty(monkeypatch):
-    from code_intelligence.agent import resolver
-    from code_intelligence.agent.resolution import candidates, fuzzy_lookup
-
-    graph = _graph_with_translated_models()
-    seen = {}
-    monkeypatch.setattr(fuzzy_lookup, "_fuzzy_match_graph", lambda *a, **k: [])
-    monkeypatch.setattr(
-        candidates, "retrieve_semantic_model_candidates",
-        lambda q, g, lang, limit=None: SemanticRetrieval(["sale.order"], SemanticRetrievalStatus.SUCCESS),
-    )
-
-    def _arbiter(query, candidates, llm, contexts=None):
-        seen["candidates"] = list(candidates)
-        return ArbitrationTrace(candidates[0], ARBITRATION_SELECTED, candidates[0])
-
-    monkeypatch.setattr(fuzzy_lookup, "_llm_arbitrate", _arbiter)
-
-    result = resolver.resolve_business_term(
-        "qui peut rouvrir cela ?", graph, llm=object(), language="fr", use_static_aliases=False,
-    )
-
-    assert seen["candidates"] == ["sale.order"]
-    assert result.resolved_models == ["sale.order"]
-    assert result.source_step == "llm_arbitration_widened"
 
 
 def test_empty_candidate_list_does_not_call_the_arbiter(monkeypatch):
@@ -243,25 +207,6 @@ def test_retrieval_status_is_success_with_candidates(monkeypatch):
     assert result.status is SemanticRetrievalStatus.SUCCESS
 
 
-def test_resolver_publishes_semantic_status_when_arbitration_selects_nothing(monkeypatch):
-    from code_intelligence.agent import resolver
-    from code_intelligence.agent.resolution import candidates, fuzzy_lookup
-
-    monkeypatch.setattr(fuzzy_lookup, "_fuzzy_match_graph", lambda *a, **k: [])
-    monkeypatch.setattr(
-        candidates, "retrieve_semantic_model_candidates",
-        lambda q, g, lang, limit=None: SemanticRetrieval([], SemanticRetrievalStatus.ERROR),
-    )
-
-    result = resolver.resolve_business_term(
-        "qui peut rouvrir cela ?", _graph_with_translated_models(), llm=object(), language="fr",
-        use_static_aliases=False,
-    )
-
-    assert not result.is_resolved
-    assert result.diagnostics == {"semantic_retrieval": "error"}
-
-
 class RecordingEmbeddingFunction(FakeEmbeddingFunction):
     def __init__(self, fail_on_call=None):
         self.calls = []
@@ -308,18 +253,6 @@ def test_only_changed_labels_are_embedded_again(tmp_path):
 
     assert len(recorder.embedded_documents()) == 1
     assert "Achat" in recorder.embedded_documents()[0]
-
-
-def test_progress_is_kept_when_embedding_stops_midway(tmp_path, monkeypatch):
-    monkeypatch.setattr("code_intelligence.agent.semantic_retrieval.SEMANTIC_EMBEDDING_BATCH_SIZE", 1)
-    interrupted = RecordingEmbeddingFunction(fail_on_call=2)
-
-    with pytest.raises(ConnectionError):
-        _rank(_graph_with_translated_models(), interrupted, tmp_path)
-    resumed = RecordingEmbeddingFunction()
-    _rank(_graph_with_translated_models(), resumed, tmp_path)
-
-    assert len(resumed.embedded_documents()) == 1
 
 
 def test_ranking_without_cache_dir_leaves_the_disk_untouched(tmp_path):
@@ -385,13 +318,6 @@ def test_query_embedding_is_computed_once_for_repeated_ranking():
     module.rank_semantic_model_candidates_scored("question unique 1325", graph, embedding)
     module.rank_semantic_model_candidates("question unique 1325", graph, embedding)
     assert embedding.query_calls == 1
-
-
-def test_unresolved_reason_names_the_missing_llm():
-    from code_intelligence.agent.resolution.fuzzy_lookup import _arbitration_outcome
-
-    assert "did not select one" in _arbitration_outcome(object())
-    assert "no LLM was available" in _arbitration_outcome(None)
 
 
 def test_shortlist_asks_for_twenty_semantic_candidates_and_keeps_a_model_ranked_seventeenth(monkeypatch):

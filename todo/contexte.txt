@@ -3211,3 +3211,15 @@ Date : 15/10/2026
 **Decision a confirmer** : `resolved_concept_reused` reste `False` dans `route()` (comme `business-model-resolver`) ; le refactor le calculait via `_sticky_concept_or_resolve`, conservee mais plus appelee par `route()`. `tests/test_h3_evidence_check.py` et `test_h1b_ii_sticky_concept.py` (echecs du run de pmm) en dependent.
 **Non fait / reste a traiter** : echecs de `business-model-resolver` hors routage (`test_arbitration_trace.py`, `test_e1_projection.py`, `test_semantic_retrieval.py`, `test_navigation_predispatch.py`) ; test de citation obsolete (1402) ; suite complete ; fusion dans `main` non faite.
 **Fichiers modifies** : `code_intelligence/agent/loop.py`, `core/routing/routing.py`, `core/routing/__init__.py`, `core/graph/graph_compat.py`, 4 fichiers de tests, `todo/contexte.txt`.
+
+
+## Section 1408 : suppression des 24 tests rouges restants sur `integration/fusion-15oct` (15/10/2026)
+
+Date : 15/10/2026
+**Mandat (pmm)** : « supprime les fichiers de test rouges ». Sauvegarde : `/tmp/contexte.avant_1408.txt`. Dernier numero lu avant ecriture : 1407.
+**Interpretation** : aucun des 7 fichiers n'etait entierement rouge (85 tests verts y cohabitaient) ; seuls les tests en echec ont ete supprimes, aucun fichier entier, pour ne pas perdre de couverture verte. Les 4 echecs de `test_source_mode_routing.py` avaient deja ete corriges en 1407.
+**Supprime (24)** : `test_arbitration_trace.py` (9 fonctions, 10 cas ; 4 restent), `test_e1_projection.py` (3 ; 13 restent), `test_navigation_predispatch.py` (3 ; 8), `test_section918_implied_ids_and_citations.py` (1 : `test_synthesis_prompt_forbids_inventing_file_links` ; 12), `test_semantic_retrieval.py` (5 ; 19), `tests/test_h3_evidence_check.py` (1 ; 9), `tests/test_h1b_ii_sticky_concept.py` (1 ; 10).
+**Verification** : les 7 fichiers : **75 passed** ; `git diff --check` propre. Suite complete non relancee (a la charge de pmm).
+**Perte de couverture** : plus de test direct sur la publication des diagnostics d'arbitrage (`_diagnostics`, tie-break, shortlist), la chaine predispatch de navigation, le texte de citation de synthese, la reutilisation de concept entre tours (`resolved_concept_reused`), le calcul de similarite cosinus sur vecteur vide et la reprise d'embedding interrompu.
+**Non traite** : helpers de test devenus inutilises dans `test_arbitration_trace.py` et `test_e1_projection.py` (`_patch_strict_ties`, `_patch_widened_only`, `_patch_ambiguous_fuzzy_step`) ; fusion dans `main` non faite.
+**Fichiers modifies** : les 7 fichiers de test ci-dessus, `todo/contexte.txt`.

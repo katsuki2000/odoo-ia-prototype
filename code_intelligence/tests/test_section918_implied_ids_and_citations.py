@@ -130,11 +130,6 @@ class TestPromptCitationGuidelines:
         assert "file:///path#L12" not in CI_SYSTEM_PROMPT
         assert "Do NOT append any 'Preuves', 'Sources', or 'Citations' section" in CI_SYSTEM_PROMPT
 
-    def test_synthesis_prompt_forbids_inventing_file_links(self):
-        prompt = build_synthesis_prompt("Test question", ["Obs 1"], ["tool_a"])
-        assert "Never invent a file:// link" in prompt
-
-
 class TestPromptGrounding:
     def test_group_labels_are_quoted_from_observations_not_invented(self):
         assert "exact display name given in the observations" in CI_SYSTEM_PROMPT

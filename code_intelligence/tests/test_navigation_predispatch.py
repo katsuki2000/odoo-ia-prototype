@@ -62,53 +62,6 @@ def test_dispatch_skipped_when_concept_unresolved():
     ctx.record_observation.assert_not_called()
 
 
-def test_chain_runs_navigation_alone_when_it_fires():
-    from code_intelligence.agent import predispatch as pd
-    ctx = _ctx("navigation_howto")
-    with patch.object(pd, "dispatch_navigation_path",
-                      side_effect=lambda c: c.matched_dispatchers.append("dispatch_navigation_path")), \
-         patch.object(pd, "dispatch_navigation_requester_acl") as acl, \
-         patch.object(pd, "dispatch_security_locks") as sec, \
-         patch.object(pd, "dispatch_override_chain") as ovr, \
-         patch.object(pd, "dispatch_button_execution_path") as btn:
-        pd.run_predispatch_chain(ctx)
-    acl.assert_called_once()
-    sec.assert_not_called()
-    ovr.assert_not_called()
-    btn.assert_not_called()
-
-
-def test_chain_falls_back_to_full_chain_when_navigation_does_not_fire():
-    from code_intelligence.agent import predispatch as pd
-    ctx = _ctx("navigation_howto", resolved=False)
-    with patch.object(pd, "dispatch_navigation_path"), \
-         patch.object(pd, "dispatch_security_locks") as sec, \
-         patch.object(pd, "dispatch_server_actions"), patch.object(pd, "dispatch_override_chain"), \
-         patch.object(pd, "dispatch_who_has_access_to"), patch.object(pd, "dispatch_evaluate_record_rules"), \
-         patch.object(pd, "dispatch_evaluate_record_rules_for_personas"), \
-         patch.object(pd, "dispatch_security_distinction_guard"), patch.object(pd, "dispatch_describe_workflow"), \
-         patch.object(pd, "dispatch_inheritance"), patch.object(pd, "dispatch_module_level_ui_inquiry"), \
-         patch.object(pd, "dispatch_button_execution_path"), patch.object(pd, "dispatch_analyze_data_constraints"):
-        pd.run_predispatch_chain(ctx)
-    sec.assert_called_once()
-
-
-def test_chain_unchanged_for_other_intents():
-    from code_intelligence.agent import predispatch as pd
-    ctx = _ctx("governance_security")
-    with patch.object(pd, "dispatch_navigation_path") as nav, \
-         patch.object(pd, "dispatch_security_locks") as sec, \
-         patch.object(pd, "dispatch_server_actions"), patch.object(pd, "dispatch_override_chain"), \
-         patch.object(pd, "dispatch_who_has_access_to"), patch.object(pd, "dispatch_evaluate_record_rules"), \
-         patch.object(pd, "dispatch_evaluate_record_rules_for_personas"), \
-         patch.object(pd, "dispatch_security_distinction_guard"), patch.object(pd, "dispatch_describe_workflow"), \
-         patch.object(pd, "dispatch_inheritance"), patch.object(pd, "dispatch_module_level_ui_inquiry"), \
-         patch.object(pd, "dispatch_button_execution_path"), patch.object(pd, "dispatch_analyze_data_constraints"):
-        pd.run_predispatch_chain(ctx)
-    sec.assert_called_once()
-    nav.assert_called_once()
-
-
 # --- Section 1198: requester ACL verdict for navigation_howto -------------
 
 def _acl_patches(summary="[AUTHENTICATED REQUESTER ACL VERDICT]\nCREATE: GRANTED (through g).", verdicts={"create": True}):

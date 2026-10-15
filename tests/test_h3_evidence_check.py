@@ -136,13 +136,6 @@ def test_resolved_concept_reused_false_when_current_question_resolves_itself():
     assert result["resolved_concept"]["user_term"] != "autre chose"
 
 
-def test_resolved_concept_reused_true_when_current_text_has_nothing_and_last_concept_resolved():
-    last_concept = dataclasses.asdict(_resolved(user_term="facture", models=["account.move"]))
-    result = route(_route_state("Et pour cette annee ?", last_resolved_concept=last_concept))
-    assert result["resolved_concept_reused"] is True
-    assert result["resolved_concept"] == last_concept
-
-
 def test_resolved_concept_reused_false_when_last_concept_itself_unresolved():
     last_concept = dataclasses.asdict(_unresolved())
     result = route(_route_state("Et pour cette annee ?", last_resolved_concept=last_concept))

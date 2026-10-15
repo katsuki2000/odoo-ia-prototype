@@ -59,13 +59,6 @@ def test_current_resolved_even_when_no_prev_offered():
 
 # ── Case 2: current-turn resolution failed, prev resolved -- reuse prev ───
 
-def test_current_failed_prev_resolved_reuses_prev():
-    current = {"is_resolved": False, "user_term": "et pour cette annee ?"}
-    prev = {"is_resolved": True, "user_term": "facture", "resolved_models": ["account.move"]}
-    result = _sticky_concept_or_resolve(_state(prev), current)
-    assert result is prev
-
-
 # ── Case 3: current-turn failed, prev ALSO failed -- stays False ──────────
 
 def test_current_failed_prev_also_failed_stays_false():
