@@ -76,22 +76,66 @@ def test_views_xml():
     assert menu.attrib.get("action") == "action_open_miro_discuss_chat"
 
 
-def test_plain_text_rendering_escapes_html_and_does_not_parse_markdown(bot_module):
-    convert = bot_module.plain_text_to_html
+def test_markdown_to_html_formatting(bot_module):
+    """Test full markdown conversion including headings, bold, code, lists, and tables."""
+    convert = bot_module.markdown_to_html
+
+    # Empty inputs
     assert convert("") == ""
     assert convert(None) == ""
 
+    # XSS safety: script tags must be escaped
     escaped = convert("<script>alert('xss')</script>")
     assert "<script>" not in escaped
     assert "&lt;script&gt;" in escaped
 
-    markdown = "### Titre\n**important**\n- Point 1\n[docs](https://example.com)"
-    rendered = convert(markdown)
-    assert rendered == "### Titre<br/>**important**<br/>- Point 1<br/>[docs](https://example.com)"
-    assert "<h6" not in rendered
-    assert "<strong>" not in rendered
-    assert "<ul" not in rendered
-    assert "<a " not in rendered
+    # XSS safety: javascript:/data: hrefs must not become clickable links
+    js_link = convert("[click](javascript:alert(1))")
+    assert "<a " not in js_link
+    assert "javascript:" not in js_link
+    assert "click" in js_link
+    data_link = convert("[x](data:text/html;base64,PHNjcmlwdD4=)")
+    assert "<a " not in data_link
+    safe_link = convert("[docs](https://example.com/path)")
+    assert 'href="https://example.com/path"' in safe_link
+    assert "docs</a>" in safe_link
+
+    # Headings
+    h3 = convert("### Titre Section")
+    assert "<h6" in h3
+    assert "Titre Section" in h3
+
+    # Bold and Italics
+    formatted = convert("**important** et *secondaire*")
+    assert "<strong>important</strong>" in formatted
+    assert "<em>secondaire</em>" in formatted
+
+    # Inline code
+    inline = convert("Utiliser `stock.quant` ici.")
+    assert "<code" in inline
+    assert "stock.quant" in inline
+
+    # Code block
+    code_md = "```python\ndef hello():\n    return 'world'\n```"
+    code_html = convert(code_md)
+    assert "<pre" in code_html
+    assert "<code>def hello():" in code_html
+    assert "return &#x27;world&#x27;" in code_html or "return &#039;world&#039;" in code_html or "return 'world'" in code_html
+
+    # Lists
+    list_md = "- Point 1\n- Point 2"
+    list_html = convert(list_md)
+    assert "<ul" in list_html
+    assert "Point 1</li>" in list_html
+    assert "Point 2</li>" in list_html
+
+    # GFM Table
+    table_md = "| Colonne 1 | Colonne 2 |\n|---|---|\n| Val 1 | Val 2 |"
+    table_html = convert(table_md)
+    assert "<table" in table_html
+    assert "<th" in table_html
+    assert "Colonne 1" in table_html
+    assert "Val 1" in table_html
 
 
 def test_jwt_generation(bot_module):
@@ -249,7 +293,7 @@ def test_handle_channel_message_mention_in_public_channel(bot_module, monkeypatc
 
 
 def test_markdown_lists_strip_their_markers(bot_module):
-    html = bot_module.plain_text_to_html("- first\n- second\n\n1. one\n2. two")
+    html = bot_module.markdown_to_html("- first\n- second\n\n1. one\n2. two")
     assert html.count("<li") == 4
     assert "- first" not in html
     assert "1. one" not in html
