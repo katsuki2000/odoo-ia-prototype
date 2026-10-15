@@ -20,6 +20,7 @@ import re
 from document_rag.prompts import DOCUMENTARY_RAG_SYSTEM_PROMPT
 from core.guardrails import OUT_OF_SCOPE_ANSWER
 from code_intelligence.agent.prompts import CI_SYSTEM_PROMPT
+from erp_data.prompts import ORM_AGENT_SYSTEM_PROMPT, build_hybrid_combine_prompt
 
 
 # A prompt instruction telling the LLM not to use HTML tags, and to use
@@ -27,6 +28,7 @@ from code_intelligence.agent.prompts import CI_SYSTEM_PROMPT
 # system prompt, English for the Code Intelligence one (matches its own
 # existing language, see CI_SYSTEM_PROMPT rules 1-6).
 _FRENCH_NO_HTML_MARKER_RE = re.compile(r"\bJAMAIS\b.*\bHTML\b", re.IGNORECASE | re.DOTALL)
+_FRENCH_NO_RAW_HTML_MARKER_RE = re.compile(r"\b(?:sans|jamais|aucune?)\b[^.]*\bHTML\b", re.IGNORECASE)
 _FRENCH_MARKDOWN_MARKER_RE = re.compile(r"\bMarkdown\b", re.IGNORECASE)
 _ENGLISH_NO_HTML_MARKER_RE = re.compile(r"\bNEVER\b.*\bHTML\b", re.IGNORECASE)
 _ENGLISH_MARKDOWN_MARKER_RE = re.compile(r"\bMarkdown\b", re.IGNORECASE)
@@ -59,18 +61,10 @@ def test_donnees_erp_and_hybride_prompts_forbid_raw_html():
     """erp_data/prompts.py's ORM_AGENT_SYSTEM_PROMPT (donnees_erp branch)
     and build_hybrid_combine_prompt (hybride branch) must carry the
     Markdown-only / no-HTML contract (todo/contexte.txt section 382)."""
-    import inspect
-    from erp_data import prompts
-
-    source = inspect.getsource(prompts)
-
-    # Both prompts (orm_agent_loop's system_prompt and hybrid_node's
-    # combine_prompt) are housed in erp_data/prompts.py with the Markdown-only
-    # / no-HTML instruction text (section 382) -- assert it appears at least
-    # twice (once per prompt).
-    occurrences = source.count("balise HTML brute")
-    assert occurrences >= 2, (
-        "Expected the Markdown-only / no-raw-HTML instruction in both "
-        "ORM_AGENT_SYSTEM_PROMPT and build_hybrid_combine_prompt "
-        f"(erp_data/prompts.py) -- found {occurrences} occurrence(s)."
-    )
+    prompts = {
+        "ORM_AGENT_SYSTEM_PROMPT": ORM_AGENT_SYSTEM_PROMPT,
+        "build_hybrid_combine_prompt": build_hybrid_combine_prompt("question", "doc answer", "data answer"),
+    }
+    for name, prompt in prompts.items():
+        assert _FRENCH_MARKDOWN_MARKER_RE.search(prompt), f"{name} must instruct the LLM to use Markdown"
+        assert _FRENCH_NO_RAW_HTML_MARKER_RE.search(prompt), f"{name} must forbid raw HTML tags"
