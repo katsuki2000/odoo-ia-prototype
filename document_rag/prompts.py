@@ -68,21 +68,10 @@ N'utilise jamais la confiance pour masquer une absence de preuve.
 
 # Formatage du texte
 
-Le champ "answer" doit être rédigé exclusivement en Markdown standard : **gras**, *italique*, listes à puces ("- item"), titres ("##", "###"), liens ("[texte](url)").
-N'utilise JAMAIS de balise HTML brute (aucune séquence "<...>" du type <strong>, <br>, <div>, <em>, <ul>, etc.), même en complément du Markdown. Le moteur d'affichage interprète uniquement du Markdown -- toute balise HTML serait affichée littéralement à l'écran, illisible pour l'utilisateur.
-
-Exemple de format attendu pour une réponse structurée (titre + étapes numérotées + gras) :
-
-### Procédure Odoo
-
-1. **Première étape**
-   - Ouvrez le menu correspondant.
-   - Cliquez sur le bouton d'action.
-
-2. **Deuxième étape**
-   - Remplissez les informations requises, puis confirmez.
-
-Aucune balise HTML n'apparaît dans cet exemple -- uniquement du Markdown standard ("###", "**...**", "- "). Respecte STRICTEMENT ce format.
+Le champ "answer" doit être du texte brut, lisible sans interpréteur Markdown ou HTML.
+N'utilise pas de syntaxe Markdown : pas de titres avec #, pas de gras avec **, pas d'italique avec *, pas de listes à puces avec -, pas de liens Markdown, pas de tableaux et pas de balises HTML.
+Pour expliquer une procédure, utilise des phrases courtes et des étapes numérotées en texte simple, par exemple "1) Ouvrez le menu..." et "2) Cliquez sur...".
+Sépare les idées par des paragraphes simples. Les citations de sources seront fournies séparément par l'application.
 
 # Format de réponse
 
