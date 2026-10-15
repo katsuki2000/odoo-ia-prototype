@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from copy import deepcopy
 from typing import Any, Optional
 
 from langchain_core.tools import tool
@@ -29,12 +30,30 @@ def _format_observation(result: OrmToolResult) -> str:
         "model": result.observation.model,
         "row_count": result.observation.row_count,
         "truncated": result.observation.truncated,
-        "value": result.evidence[0].value if result.evidence else None,
+        "value": deepcopy(result.evidence[0].value) if result.evidence else None,
     }
     body = json.dumps(payload, ensure_ascii=False, default=str)
-    if len(body) > _OBS_VALUE_CHARS:
-        body = body[: _OBS_VALUE_CHARS] + "...[truncated]"
-    return f"{result.text}\n{body}"
+    output_truncated = len(body) > _OBS_VALUE_CHARS
+    if output_truncated:
+        payload["display_truncated"] = True
+        value = payload.get("value")
+        if isinstance(value, dict) and isinstance(value.get("fields"), dict):
+            fields = value["fields"]
+            while fields and len(json.dumps(payload, ensure_ascii=False, default=str)) > _OBS_VALUE_CHARS:
+                fields.pop(next(reversed(fields)))
+        elif isinstance(value, list):
+            while value and len(json.dumps(payload, ensure_ascii=False, default=str)) > _OBS_VALUE_CHARS:
+                value.pop()
+        body = json.dumps(payload, ensure_ascii=False, default=str)
+        if len(body) > _OBS_VALUE_CHARS:
+            body = json.dumps({
+                "tool": result.observation.tool,
+                "model": result.observation.model,
+                "display_truncated": True,
+                "value_summary": "Output too large to display; narrow fields or reduce the record limit.",
+            }, ensure_ascii=False)
+    notice = "\nDisplayed output is truncated; omitted fields or records are not evidence." if output_truncated else ""
+    return f"{result.text}{notice}\n{body}"
 
 
 def _invoke(call) -> str:

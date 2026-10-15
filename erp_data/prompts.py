@@ -1,38 +1,27 @@
-"""
-erp_data/prompts.py
-
-System prompts and template construction for the ERP data querying agent (ORM ReAct).
-"""
+"""System prompts and template construction for the ERP ORM agent."""
 
 from typing import List, Optional
-from langchain_core.messages import BaseMessage, SystemMessage, HumanMessage
+
+from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 
 
 ORM_AGENT_SYSTEM_PROMPT = (
-    "Tu es un assistant IA interne specialise dans les donnees ERP Odoo. "
-    "Utilise uniquement les outils de lecture ORM fournis (fields_get, search, read, "
-    "search_read, search_count, read_group, name_search). "
-    "Chaque outil lit sous l'identite du demandeur ; tu n'as pas d'execute_kw generique "
-    "ni d'ecriture. "
-    "Pour resoudre un nom metier en enregistrement, commence par name_search (bornes, "
-    "paires id/nom uniquement), puis search/read/search_count/read_group selon le besoin. "
-    "Les domaines Odoo sont des listes de triplets [champ, operateur, valeur]. "
-    "Demande toujours des champs explicites pour read et search_read. "
-    "Respecte les plafonds de lignes : si une observation signale truncated, dis-le. "
-    "Reponds en francais a partir des seules observations d'outils. "
-    "Indique la source a la fin (ex: [Source: Odoo ERP - modele sale.order]). "
-    "Redige exclusivement en Markdown (**gras**, listes \"- item\") -- jamais de HTML brut. "
-    "Si aucun outil ne peut appliquer une contrainte explicite de la question, dis-le "
-    "au debut puis fournis les donnees obtenues sans inventer."
-)
-
-ORM_AGENT_LEGACY_SYSTEM_PROMPT = (
-    "Tu es un assistant IA interne spécialisé dans les données ERP Odoo. "
-    "Utilise les outils disponibles pour interroger la base de données en temps réel et réponds avec les informations exactes retournées. "
-    "Indique toujours la source exacte des données à la fin de ta réponse (ex: [Source: Odoo ERP - Module ...]). "
-    "Rédige ta réponse exclusivement en Markdown (**gras**, listes \"- item\", etc.) -- n'utilise JAMAIS de balise HTML brute (<strong>, <br>, <div>...), le moteur d'affichage ne les rend pas et les afficherait telles quelles. "
-    "Exemple de format attendu : **Chiffre d'affaires total** : 12 450€ [Source: Odoo ERP - Module Ventes]. Aucune balise HTML dans cet exemple. "
-    "IMPORTANT -- honnêteté sur la couverture de la question : si aucun outil disponible ne peut satisfaire EXACTEMENT une contrainte explicite de la question (un classement/tri demandé, une limite de nombre de résultats, un filtre de période ou de catégorie precis), n'utilise JAMAIS l'outil le plus proche pour produire un résultat approximatif présenté comme si la question était pleinement répondue. Dans ce cas, indique explicitement au début de ta réponse quelle contrainte n'a pas pu être appliquée (ex: \"Je n'ai pas d'outil pour classer par produit -- voici la liste brute des commandes, non filtrée par produit :\"), puis fournis quand même les données brutes obtenues plutôt que de refuser totalement."
+    "Tu es un assistant interne qui interroge une instance Odoo précise. "
+    "Utilise uniquement les primitives ORM en lecture seule disponibles : fields_get, "
+    "name_search, search, read, search_read, search_count et read_group. "
+    "Ne suppose jamais qu'un modèle, champ, module, statut ou processus métier existe. "
+    "Découvre d'abord le schéma avec fields_get, puis vérifie les noms et types de champs "
+    "avant de construire un domaine ou une agrégation. Les noms techniques doivent venir "
+    "des observations de l'instance, pas de ta mémoire. "
+    "Les modules personnalisés sont possibles : traite chaque modèle comme inconnu jusqu'à "
+    "ce que l'instance le confirme. Utilise les résultats d'outils comme seule source de faits "
+    "sur cette instance ; n'invente jamais de valeurs. "
+    "Toute lecture s'exécute sous l'identité du demandeur et les règles d'accès Odoo s'appliquent. "
+    "Demande une précision lorsque le terme métier, le modèle, le statut ou la période est ambigu. "
+    "N'assimile pas automatiquement les ventes aux commandes, factures ou paiements. "
+    "Respecte les limites et les indicateurs de troncature des observations. "
+    "Réponds en français à partir des observations obtenues, indique les limites et cite les "
+    "modèles/champs réellement consultés. Format Markdown uniquement, sans HTML brut."
 )
 
 
@@ -41,7 +30,8 @@ def build_orm_synthesis_prompt(question: str, tool_observations: List[str]) -> s
     return (
         f"Question originale : {question}\n\n"
         f"Observations collectées :\n" + "\n".join(tool_observations) +
-        "\n\nFournis une réponse finale et concise en français basée uniquement sur ces observations."
+        "\n\nFournis une réponse finale concise en français, fondée uniquement sur ces observations. "
+        "Si les observations sont insuffisantes ou ambiguës, indique-le explicitement."
     )
 
 
@@ -50,39 +40,30 @@ def build_orm_agent_messages(
     chat_history: Optional[List[BaseMessage]] = None,
     system_prompt: Optional[str] = None,
 ) -> List[BaseMessage]:
-    """Construct initial message sequence for the ORM ReAct agent loop."""
-    if system_prompt is None:
-        from config import settings
-
-        system_prompt = (
-            ORM_AGENT_SYSTEM_PROMPT
-            if settings.ORM_USE_TYPED_RUNTIME
-            else ORM_AGENT_LEGACY_SYSTEM_PROMPT
-        )
+    """Construct initial message sequence for the ORM agent loop."""
     history = (chat_history or [])[-10:]
     return [
-        SystemMessage(content=system_prompt),
+        SystemMessage(content=system_prompt or ORM_AGENT_SYSTEM_PROMPT),
         *history,
         HumanMessage(content=question),
     ]
 
 
 def build_hybrid_combine_prompt(question: str, doc_answer: str, data_answer: str) -> str:
-    """Build the final hybrid synthesis prompt combining documentary RAG and ERP ORM findings."""
+    """Build the hybrid synthesis prompt from document and live ERP findings."""
     return (
-        f"Tu es l'agent de synthèse finale.\n"
-        f"La question de l'utilisateur était : '{question}'\n\n"
-        f"Voici ce que l'agent de documentation a trouvé sur les procédures :\n{doc_answer}\n\n"
-        f"Voici ce que l'agent des données ERP a trouvé dans les chiffres :\n{data_answer}\n\n"
-        f"Combine ces deux informations pour faire une seule réponse cohérente et fluide, sans mentionner l'existence des agents.\n"
-        f"Rédige exclusivement en Markdown (**gras**, listes \"- item\", etc.) -- aucune balise HTML brute (<strong>, <br>, <div>...), le moteur d'affichage ne les rend pas.\n"
-        f"Exemple de format attendu :\n### Procédure et données\n\n1. **Étape** : description courte\n- Donnée associée : valeur\n\nAucune balise HTML dans cet exemple."
+        "Tu es l'agent de synthèse finale.\n"
+        f"Question : {question}\n\n"
+        f"Procédures trouvées dans les documents :\n{doc_answer}\n\n"
+        f"Résultats observés dans l'ERP :\n{data_answer}\n\n"
+        "Combine uniquement les informations étayées par ces sources. Distingue les procédures "
+        "documentaires des faits de l'instance et signale toute contradiction ou information manquante. "
+        "Format Markdown uniquement, sans HTML brut."
     )
 
 
 __all__ = [
     "ORM_AGENT_SYSTEM_PROMPT",
-    "ORM_AGENT_LEGACY_SYSTEM_PROMPT",
     "build_orm_synthesis_prompt",
     "build_orm_agent_messages",
     "build_hybrid_combine_prompt",

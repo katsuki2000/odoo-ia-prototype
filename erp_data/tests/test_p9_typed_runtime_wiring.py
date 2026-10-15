@@ -10,11 +10,7 @@ from core.evidence.evidence_collector import (
 )
 from erp_data.odoo_context import odoo_uid_ctx
 from erp_data.orm_agent_helpers import resolve_orm_tools
-from erp_data.prompts import (
-    ORM_AGENT_LEGACY_SYSTEM_PROMPT,
-    ORM_AGENT_SYSTEM_PROMPT,
-    build_orm_agent_messages,
-)
+from erp_data.prompts import ORM_AGENT_SYSTEM_PROMPT, build_orm_agent_messages
 from erp_data.runtime.read_tools import set_connector_for_tests
 
 
@@ -25,11 +21,11 @@ def _reset_connector():
     set_connector_for_tests(None)
 
 
-def test_resolve_orm_tools_typed_by_default(monkeypatch):
-    monkeypatch.setattr("config.settings.ORM_USE_TYPED_RUNTIME", True)
-    tools = resolve_orm_tools({})
-    names = {t.name for t in tools}
-    assert {
+def test_resolve_orm_tools_exposes_only_generic_read_primitives(monkeypatch):
+    monkeypatch.setattr("config.settings.ORM_USE_TYPED_RUNTIME", False, raising=False)
+    tools = resolve_orm_tools({"ventes": True, "stocks": True, "comptabilite": True, "tickets": True})
+    names = {tool.name for tool in tools}
+    assert names == {
         "fields_get",
         "search",
         "read",
@@ -37,33 +33,15 @@ def test_resolve_orm_tools_typed_by_default(monkeypatch):
         "search_count",
         "read_group",
         "name_search",
-    }.issubset(names)
-    assert "search_partner" in names
-    assert "get_order_count" in names
-    assert "get_total_sales" in names
-    assert "get_product_stock" in names
+    }
 
 
-def test_resolve_orm_tools_legacy_when_flag_off(monkeypatch):
-    monkeypatch.setattr("config.settings.ORM_USE_TYPED_RUNTIME", False)
-    tools = resolve_orm_tools({"ventes": True, "stocks": True, "comptabilite": True, "tickets": True})
-    names = {t.name for t in tools}
-    assert "get_total_sales" in names
-    assert "search_partner" in names
-    assert "fields_get" not in names
-
-
-def test_typed_prompt_selected_when_flag_on(monkeypatch):
-    monkeypatch.setattr("config.settings.ORM_USE_TYPED_RUNTIME", True)
+def test_orm_prompt_requires_instance_schema_and_evidence():
     messages = build_orm_agent_messages("Combien de partenaires ?")
     assert messages[0].content == ORM_AGENT_SYSTEM_PROMPT
-    assert "name_search" in messages[0].content
-
-
-def test_legacy_prompt_selected_when_flag_off(monkeypatch):
-    monkeypatch.setattr("config.settings.ORM_USE_TYPED_RUNTIME", False)
-    messages = build_orm_agent_messages("Combien de ventes ?")
-    assert messages[0].content == ORM_AGENT_LEGACY_SYSTEM_PROMPT
+    assert "modules personnalisés" in messages[0].content
+    assert "Ne suppose jamais qu'un modèle" in messages[0].content
+    assert "seule source de faits" in messages[0].content
 
 
 def test_search_count_wrapper_records_evidence_and_returns_json():

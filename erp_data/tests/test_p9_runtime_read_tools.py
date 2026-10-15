@@ -24,6 +24,8 @@ from erp_data.runtime.validation import (
     validate_domain,
     validate_field_list,
     validate_model_name,
+    validate_name_search_operator,
+    validate_order,
     validate_record_ids,
 )
 
@@ -67,6 +69,9 @@ def test_validate_model_name_rejects_invalid():
     with pytest.raises(OrmRuntimeError):
         validate_model_name("sale.order;drop")
     assert validate_model_name("sale.order") == "sale.order"
+    assert validate_model_name("x_custom.record") == "x_custom.record"
+    with pytest.raises(OrmRuntimeError):
+        validate_model_name("x_custom.record\n")
 
 
 def test_validate_domain_accepts_leaves_and_operators():
@@ -79,6 +84,16 @@ def test_validate_domain_accepts_leaves_and_operators():
         validate_domain("bad")
     with pytest.raises(OrmRuntimeError):
         validate_domain([("a", "=")])
+    with pytest.raises(OrmRuntimeError, match="invalid domain leaf operator"):
+        validate_domain([("name", "execute", "x")])
+    with pytest.raises(OrmRuntimeError, match="invalid domain field"):
+        validate_domain([("name);write", "=", "x")])
+    assert validate_order("write_date desc, id asc") == "write_date desc, id asc"
+    with pytest.raises(OrmRuntimeError):
+        validate_order("name desc; unlink")
+    assert validate_name_search_operator("ilike") == "ilike"
+    with pytest.raises(OrmRuntimeError):
+        validate_name_search_operator("execute")
 
 
 def test_validate_field_list_blocks_aggregates_unless_allowed():

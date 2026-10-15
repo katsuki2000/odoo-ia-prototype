@@ -23,6 +23,8 @@ from erp_data.runtime.validation import (
     validate_field_list,
     validate_groupby,
     validate_model_name,
+    validate_name_search_operator,
+    validate_order,
     validate_record_ids,
 )
 
@@ -120,15 +122,23 @@ def orm_fields_get(model: str) -> OrmToolResult:
     uid = require_execution_uid()
     request = {"model": model}
     fields_info = _run_validated(lambda: _get_connector().fields_get(uid, model))
-    names = sorted(fields_info.keys()) if isinstance(fields_info, dict) else []
+    fields = {
+        name: {
+            key: metadata[key]
+            for key in ("string", "type", "help", "relation", "selection", "required", "readonly", "store")
+            if key in metadata
+        }
+        for name, metadata in sorted(fields_info.items())
+        if isinstance(metadata, dict)
+    } if isinstance(fields_info, dict) else {}
     return _build_result(
         tool="fields_get",
         method="fields_get",
         model=model,
         request=request,
-        value={"field_count": len(names), "fields": names[:50]},
-        claim=f"{model}: {len(names)} fields via fields_get",
-        row_count=len(names),
+        value={"field_count": len(fields), "fields": fields},
+        claim=f"{model}: {len(fields)} fields described by fields_get",
+        row_count=len(fields),
         truncated=False,
         uid=uid,
     )
@@ -143,6 +153,9 @@ def orm_search(
 ) -> OrmToolResult:
     model = validate_model_name(model)
     domain = _checked_domain(domain)
+    order = validate_order(order)
+    if isinstance(offset, bool) or not isinstance(offset, int) or offset < 0:
+        raise OrmRuntimeError("offset must be a non-negative integer")
     capped = cap_row_limit(limit)
     uid = require_execution_uid()
     request = {
@@ -215,6 +228,7 @@ def orm_search_read(
         raise OrmRuntimeError(
             "fields must be an explicit non-empty list for search_read"
         )
+    order = validate_order(order)
     capped = cap_row_limit(limit)
     uid = require_execution_uid()
     request = {
@@ -329,8 +343,7 @@ def orm_name_search(
     model = validate_model_name(model)
     if not isinstance(name, str):
         raise OrmRuntimeError("name must be a string")
-    if not isinstance(operator, str) or not operator:
-        raise OrmRuntimeError("operator must be a non-empty string")
+    operator = validate_name_search_operator(operator)
     domain = _checked_domain(domain)
     capped = cap_name_search_limit(limit)
     uid = require_execution_uid()
