@@ -1,35 +1,36 @@
-"""Optional semantic retrieval of model candidates from instance labels."""
+"""Semantic retrieval with explicit provider identity and validated vectors."""
 
+import hashlib
+import json
 import logging
 import math
 import os
-import time
+import threading
 import weakref
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Dict, List, Optional, Sequence, Tuple
+from urllib.parse import urlsplit, urlunsplit
 
 from config import settings
-
 from .semantic_index_store import SemanticIndexStore, text_key
 
-
 logger = logging.getLogger(__name__)
-
 SEMANTIC_CANDIDATE_LIMIT = 10
 SEMANTIC_EMBEDDING_BATCH_SIZE = 64
-SEMANTIC_RETRIEVAL_ENABLED_ENV = "RESOLVER_SEMANTIC_RETRIEVAL_ENABLED"
-SEMANTIC_STATUS_DIAGNOSTIC_KEY = "semantic_retrieval"
-_SEMANTIC_INDEX_CACHE: "weakref.WeakKeyDictionary" = weakref.WeakKeyDictionary()
+SEMANTIC_RETRIEVAL_ENABLED_ENV = 'RESOLVER_SEMANTIC_RETRIEVAL_ENABLED'
+SEMANTIC_STATUS_DIAGNOSTIC_KEY = 'semantic_retrieval'
+_SEMANTIC_INDEX_CACHE = weakref.WeakKeyDictionary()
 QUERY_EMBEDDING_CACHE_SIZE = 64
-_QUERY_EMBEDDING_CACHE: Dict[Tuple[str, str], Sequence[float]] = {}
+_QUERY_EMBEDDING_CACHE = {}
+_CACHE_LOCK = threading.RLock()
 
 
 class SemanticRetrievalStatus(str, Enum):
-    SUCCESS = "success"
-    NO_CANDIDATES = "no_candidates"
-    DISABLED = "disabled"
-    ERROR = "error"
+    SUCCESS = 'success'
+    NO_CANDIDATES = 'no_candidates'
+    DISABLED = 'disabled'
+    ERROR = 'error'
 
 
 @dataclass(frozen=True)
@@ -39,237 +40,151 @@ class SemanticRetrieval:
 
 
 def _node_labels(data: Dict) -> List[str]:
-    labels = []
-    description = str(data.get("description") or data.get("label") or data.get("name") or "").strip()
-    if description:
-        labels.append(description)
-    for translation in data.get("business_labels", []):
-        label = str(translation.get("label") or "").strip()
-        if label:
-            labels.append(label)
-    return list(dict.fromkeys(labels))
+    labels = [str(data.get('description') or data.get('label') or data.get('name') or '').strip()]
+    labels.extend(str(item.get('label') or '').strip() for item in data.get('business_labels', []))
+    return list(dict.fromkeys(label for label in labels if label))
 
 
 def _model_documents(graph) -> List[Tuple[str, str]]:
-    menu_labels: Dict[str, List[str]] = {}
-    for node_id, data in graph.nodes(data=True):
-        if data.get("node_type") != "Menu":
-            continue
-        labels = _node_labels(data)
-        if not labels:
-            continue
-        for successor in graph.successors(node_id):
-            if graph.edges[node_id, successor].get("edge_type") != "OPENS_MODEL":
-                continue
-            model = successor.removeprefix("model:")
-            menu_labels.setdefault(model, []).extend(labels)
-
+    menuLabels = {}
+    for nodeId, data in graph.nodes(data=True):
+        if data.get('node_type') == 'Menu':
+            for successor in graph.successors(nodeId):
+                if graph.edges[nodeId, successor].get('edge_type') == 'OPENS_MODEL':
+                    menuLabels.setdefault(successor.removeprefix('model:'), []).extend(_node_labels(data))
     documents = []
-    for node_id, data in graph.nodes(data=True):
-        if data.get("node_type") != "Model":
-            continue
-        model = str(data.get("name") or node_id.removeprefix("model:")).strip()
-        labels = _node_labels(data)
-        labels.extend(menu_labels.get(model, []))
-        labels = list(dict.fromkeys(label for label in labels if label))
-        if labels:
-            documents.append((model, " ; ".join(labels)))
+    for nodeId, data in graph.nodes(data=True):
+        if data.get('node_type') == 'Model':
+            model = str(data.get('name') or nodeId.removeprefix('model:')).strip()
+            labels = list(dict.fromkeys(_node_labels(data) + menuLabels.get(model, [])))
+            if labels:
+                documents.append((model, ' ; '.join(labels)))
     return sorted(documents)
 
 
 def _embedding_name(embedding_function) -> str:
-    name = getattr(embedding_function, "name", None)
-    return str(name() if callable(name) else type(embedding_function).__name__)
+    name = getattr(embedding_function, 'name', None)
+    name = str(name() if callable(name) else type(embedding_function).__name__)
+    endpoint = urlsplit(str(getattr(embedding_function, 'endpoint', '')))
+    host = endpoint.hostname or ''
+    if endpoint.port:
+        host += ':' + str(endpoint.port)
+    address = urlunsplit((endpoint.scheme, host, endpoint.path, '', ''))
+    identity = [name, address, os.getenv('RESOLVER_SEMANTIC_EMBEDDING_REVISION', '')]
+    return 'resolver-v2-' + hashlib.sha256(json.dumps(identity).encode()).hexdigest()
 
 
 def build_semantic_embedding_function():
-    """Embedding function of the semantic step (RESOLVER_SEMANTIC_* env, EMBEDDING_* fallback).
-
-    None when no provider is configured for a backend other than local_light.
-    """
     from document_rag.vectorstore.embedding_functions import resolve_embedding_function
-
-    backend = os.getenv("RESOLVER_SEMANTIC_EMBEDDING_BACKEND") or os.getenv(
-        "EMBEDDING_BACKEND", "local_light",
-    )
-    model = os.getenv("RESOLVER_SEMANTIC_EMBEDDING_MODEL") or os.getenv("EMBEDDING_MODEL")
-    embedding_function = resolve_embedding_function(backend=backend, embedding_model=model)
-    if embedding_function is None and backend == "local_light":
+    backend = (os.getenv('RESOLVER_SEMANTIC_EMBEDDING_BACKEND') or os.getenv('EMBEDDING_BACKEND', 'local_light')).strip().lower()
+    model = os.getenv('RESOLVER_SEMANTIC_EMBEDDING_MODEL')
+    if not model and backend == 'local':
+        model = os.getenv('EMBEDDING_MODEL')
+    provider = resolve_embedding_function(backend=backend, embedding_model=model)
+    if provider is None and backend == 'local_light':
         from chromadb.utils.embedding_functions import DefaultEmbeddingFunction
-
         return DefaultEmbeddingFunction()
-    return embedding_function
+    return provider
 
 
-def _build_index(
-    documents: Sequence[Tuple[str, str]],
-    embedding_function,
-    index_store: Optional[SemanticIndexStore],
-) -> Tuple[Sequence[str], List[Sequence[float]]]:
-    """Embed only the texts missing from the store, saving progress even on failure."""
+def _validated_vector(vector, dimension=None):
+    values = tuple(float(value) for value in vector)
+    if not values or (dimension is not None and len(values) != dimension):
+        raise ValueError('Embedding dimension mismatch or empty vector.')
+    if not all(math.isfinite(value) for value in values) or not any(values):
+        raise ValueError('Embedding vector must be finite and nonzero.')
+    return values
+
+
+def _build_index(documents, embedding_function, index_store):
     models, texts = zip(*documents)
     keys = [text_key(text) for text in texts]
-    vectors = index_store.load() if index_store else {}
+    stored = index_store.load() if index_store else {}
+    vectors = {key: stored[key] for key in keys if key in stored}
     pending = [(key, text) for key, text in dict(zip(keys, texts)).items() if key not in vectors]
-    started = time.perf_counter()
-    try:
-        for offset in range(0, len(pending), SEMANTIC_EMBEDDING_BATCH_SIZE):
-            batch = pending[offset:offset + SEMANTIC_EMBEDDING_BATCH_SIZE]
-            batch_vectors = embedding_function([text for _key, text in batch])
-            if len(batch_vectors) != len(batch):
-                raise ValueError("Embedding provider returned an unexpected number of vectors.")
-            vectors.update(zip((key for key, _text in batch), batch_vectors))
-    finally:
-        if index_store and pending:
-            index_store.save(vectors)
-    logger.info(
-        "Semantic index ready: %d models, %d embedded, %d reused, %.1fs",
-        len(models), len(pending), len(set(keys)) - len(pending), time.perf_counter() - started,
-    )
-    return models, [vectors[key] for key in keys]
+    for offset in range(0, len(pending), SEMANTIC_EMBEDDING_BATCH_SIZE):
+        batch = pending[offset:offset + SEMANTIC_EMBEDDING_BATCH_SIZE]
+        values = embedding_function([text for _key, text in batch])
+        if len(values) != len(batch):
+            raise ValueError('Embedding provider returned an unexpected vector count.')
+        vectors.update((key, _validated_vector(vector)) for (key, _text), vector in zip(batch, values))
+    dimension = len(_validated_vector(vectors[keys[0]]))
+    matrix = [_validated_vector(vectors[key], dimension) for key in keys]
+    if index_store and pending:
+        index_store.save(dict(zip(keys, matrix)))
+    return models, matrix
 
 
-def _cosine_similarity(left: Sequence[float], right: Sequence[float]) -> float:
-    if len(left) != len(right) or len(left) == 0:
-        return 0.0
-    numerator = sum(float(left_item) * float(right_item) for left_item, right_item in zip(left, right))
-    left_norm = math.sqrt(sum(float(item) ** 2 for item in left))
-    right_norm = math.sqrt(sum(float(item) ** 2 for item in right))
-    if not left_norm or not right_norm:
-        return 0.0
-    return numerator / (left_norm * right_norm)
+def _cosine_similarity(left, right):
+    left = _validated_vector(left)
+    right = _validated_vector(right, len(left))
+    numerator = sum(a * b for a, b in zip(left, right))
+    denominator = math.sqrt(sum(value * value for value in left)) * math.sqrt(sum(value * value for value in right))
+    if not math.isfinite(numerator) or not math.isfinite(denominator) or not denominator:
+        raise ValueError('Invalid cosine operands.')
+    return max(-1.0, min(1.0, numerator / denominator))
 
 
-def _query_embedding(embedding_function, query: str):
+def _query_embedding(embedding_function, query):
     key = (_embedding_name(embedding_function), query)
-    cached = _QUERY_EMBEDDING_CACHE.get(key)
+    with _CACHE_LOCK:
+        cached = _QUERY_EMBEDDING_CACHE.get(key)
     if cached is not None:
         return cached
-    query_embeddings = embedding_function([query])
-    if len(query_embeddings) != 1:
-        raise ValueError("Embedding provider returned an unexpected query vector count.")
-    if len(_QUERY_EMBEDDING_CACHE) >= QUERY_EMBEDDING_CACHE_SIZE:
-        _QUERY_EMBEDDING_CACHE.pop(next(iter(_QUERY_EMBEDDING_CACHE)))
-    _QUERY_EMBEDDING_CACHE[key] = query_embeddings[0]
-    return query_embeddings[0]
+    values = embedding_function([query])
+    if len(values) != 1:
+        raise ValueError('Embedding provider returned an unexpected query count.')
+    vector = _validated_vector(values[0])
+    with _CACHE_LOCK:
+        if len(_QUERY_EMBEDDING_CACHE) >= QUERY_EMBEDDING_CACHE_SIZE:
+            _QUERY_EMBEDDING_CACHE.pop(next(iter(_QUERY_EMBEDDING_CACHE)))
+        _QUERY_EMBEDDING_CACHE[key] = vector
+    return vector
 
 
-def rank_semantic_model_candidates_scored(
-    query: str,
-    graph,
-    embedding_function,
-    *,
-    limit: int = SEMANTIC_CANDIDATE_LIMIT,
-    cache_dir: Optional[str] = None,
-) -> List[Tuple[str, float]]:
-    """Rank graph models by cosine similarity to their labels in every language of the graph.
-
-    With cache_dir, document embeddings persist on disk across processes.
-    """
+def rank_semantic_model_candidates_scored(query, graph, embedding_function, *, limit=SEMANTIC_CANDIDATE_LIMIT, cache_dir=None):
     if not query or graph is None or limit <= 0:
         return []
-
-    graph_cache = _SEMANTIC_INDEX_CACHE.setdefault(graph, {})
-    embedding_name = _embedding_name(embedding_function)
-    cached_index = graph_cache.get(embedding_name)
-    if cached_index is None:
-        documents = _model_documents(graph)
-        if not documents:
-            return []
-        index_store = SemanticIndexStore(cache_dir, embedding_name) if cache_dir else None
-        cached_index = _build_index(documents, embedding_function, index_store)
-        graph_cache[embedding_name] = cached_index
-
-    models, embeddings = cached_index
-    query_embedding = _query_embedding(embedding_function, query)
-    ranked = sorted(
-        (
-            (model, _cosine_similarity(query_embedding, embedding))
-            for model, embedding in zip(models, embeddings)
-        ),
-        key=lambda item: (-item[1], item[0]),
-    )
-    return [(model, score) for model, score in ranked[:limit]]
+    documents = _model_documents(graph)
+    if not documents:
+        return []
+    digest = hashlib.sha256(json.dumps(documents, ensure_ascii=False).encode()).hexdigest()
+    identity = _embedding_name(embedding_function)
+    with _CACHE_LOCK:
+        cached = _SEMANTIC_INDEX_CACHE.setdefault(graph, {}).get(identity)
+    if cached is None or cached[0] != digest:
+        store = SemanticIndexStore(cache_dir, identity) if cache_dir else None
+        cached = (digest, _build_index(documents, embedding_function, store))
+        with _CACHE_LOCK:
+            _SEMANTIC_INDEX_CACHE.setdefault(graph, {})[identity] = cached
+    models, embeddings = cached[1]
+    queryVector = _query_embedding(embedding_function, query)
+    ranked = [(model, _cosine_similarity(queryVector, vector)) for model, vector in zip(models, embeddings)]
+    return sorted(ranked, key=lambda item: (-item[1], item[0]))[:limit]
 
 
-def rank_semantic_model_candidates(query: str, graph, embedding_function, **options) -> List[str]:
-    return [
-        model
-        for model, _score in rank_semantic_model_candidates_scored(
-            query, graph, embedding_function, **options,
-        )
-    ]
+def rank_semantic_model_candidates(query, graph, embedding_function, **options):
+    return [model for model, _score in rank_semantic_model_candidates_scored(query, graph, embedding_function, **options)]
 
 
-def retrieve_semantic_model_candidates(
-    query: str,
-    graph,
-    language: Optional[str],
-    *,
-    limit: int = SEMANTIC_CANDIDATE_LIMIT,
-) -> SemanticRetrieval:
-    """Return semantic candidates with an explicit outcome, failing open on any error.
-
-    Enabled by default; the caller keeps its deterministic list whatever the status.
-    """
-    if os.getenv(SEMANTIC_RETRIEVAL_ENABLED_ENV, "true").casefold() not in {"1", "true", "yes"}:
-        return SemanticRetrieval(status=SemanticRetrievalStatus.DISABLED)
-
-    try:
-        embedding_function = build_semantic_embedding_function()
-        if embedding_function is None:
-            logger.warning("Semantic retrieval is enabled but no embedding provider is configured.")
-            return SemanticRetrieval(status=SemanticRetrievalStatus.ERROR)
-        models = rank_semantic_model_candidates(
-            query,
-            graph,
-            embedding_function,
-            limit=limit,
-            cache_dir=settings.SEMANTIC_INDEX_CACHE_DIR,
-        )
-    except Exception:
-        logger.exception("Semantic retrieval failed; keeping the deterministic candidate list.")
-        return SemanticRetrieval(status=SemanticRetrievalStatus.ERROR)
-    status = SemanticRetrievalStatus.SUCCESS if models else SemanticRetrievalStatus.NO_CANDIDATES
-    return SemanticRetrieval(models, status)
-
-
-def retrieve_semantic_model_candidates_scored(
-    query: str,
-    graph,
-    language: Optional[str],
-    *,
-    limit: int = SEMANTIC_CANDIDATE_LIMIT,
-) -> Tuple[List[Tuple[str, float]], SemanticRetrievalStatus]:
-    """Return (model, score) pairs with retrieval status. Fails open on errors."""
-    if os.getenv(SEMANTIC_RETRIEVAL_ENABLED_ENV, "true").casefold() not in {"1", "true", "yes"}:
+def retrieve_semantic_model_candidates_scored(query, graph, language, *, limit=SEMANTIC_CANDIDATE_LIMIT):
+    if os.getenv(SEMANTIC_RETRIEVAL_ENABLED_ENV, 'true').casefold() not in {'1', 'true', 'yes'}:
         return [], SemanticRetrievalStatus.DISABLED
-
     try:
-        embedding_function = build_semantic_embedding_function()
-        if embedding_function is None:
-            logger.warning("Semantic retrieval is enabled but no embedding provider is configured.")
-            return [], SemanticRetrievalStatus.ERROR
-        scored = rank_semantic_model_candidates_scored(
-            query,
-            graph,
-            embedding_function,
-            limit=limit,
-            cache_dir=settings.SEMANTIC_INDEX_CACHE_DIR,
-        )
-    except Exception:
-        logger.exception("Semantic retrieval failed; keeping the deterministic candidate list.")
+        provider = build_semantic_embedding_function()
+        if provider is None:
+            raise ValueError('No resolver embedding provider configured.')
+        scored = rank_semantic_model_candidates_scored(query, graph, provider, limit=limit, cache_dir=settings.SEMANTIC_INDEX_CACHE_DIR)
+        return scored, SemanticRetrievalStatus.SUCCESS if scored else SemanticRetrievalStatus.NO_CANDIDATES
+    except Exception as error:
+        logger.warning('Semantic retrieval unavailable (%s).', type(error).__name__)
         return [], SemanticRetrievalStatus.ERROR
-    status = SemanticRetrievalStatus.SUCCESS if scored else SemanticRetrievalStatus.NO_CANDIDATES
-    return scored, status
 
 
-def configured_semantic_model_candidates(
-    query: str,
-    graph,
-    language: Optional[str],
-    *,
-    limit: int = SEMANTIC_CANDIDATE_LIMIT,
-) -> List[str]:
-    """Return semantic candidates only; see retrieve_semantic_model_candidates for the outcome."""
+def retrieve_semantic_model_candidates(query, graph, language, *, limit=SEMANTIC_CANDIDATE_LIMIT):
+    scored, status = retrieve_semantic_model_candidates_scored(query, graph, language, limit=limit)
+    return SemanticRetrieval([model for model, _score in scored], status)
+
+
+def configured_semantic_model_candidates(query, graph, language, *, limit=SEMANTIC_CANDIDATE_LIMIT):
     return retrieve_semantic_model_candidates(query, graph, language, limit=limit).models
