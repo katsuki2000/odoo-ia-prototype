@@ -159,10 +159,10 @@ def test_verifier_failure_never_breaks_the_answer(run_node, monkeypatch, caplog)
 
 
 @pytest.mark.parametrize("state, expected", [
-    ({"question": DOC_QUESTION, "ci_evidence_sufficiency": {"status": "insufficient"}}, True),
+    ({"question": DOC_QUESTION, "route": "documentaire"}, True),
+    ({"question": DOC_QUESTION, "source_mode": "documentation"}, True),
     ({"question": DOC_QUESTION}, False),
-    ({"question": DOC_QUESTION, "ci_evidence_sufficiency": None}, False),
-    ({"question": PLAIN_QUESTION, "ci_evidence_sufficiency": {"status": "insufficient"}}, False),
+    ({"question": PLAIN_QUESTION, "route": "code_intelligence"}, False),
 ])
 def test_answered_by_documents(state, expected):
     assert answered_by_documents(state) is expected
@@ -228,5 +228,5 @@ def _incoming(graph_view, target):
 def test_verify_answer_is_the_only_branch_entry_into_format_output():
     graph_view = build_graph().get_graph()
     assert {edge.target for edge in graph_view.edges if edge.source == "verify_answer"} == {"format_output"}
-    assert _incoming(graph_view, "format_output") == {"smalltalk_gate", "out_of_scope_gate", "verify_answer"}
+    assert _incoming(graph_view, "format_output") == {"out_of_scope_gate", "verify_answer"}
     assert _incoming(graph_view, "verify_answer") == {"code_intelligence_agent", "generate", "orm_agent_loop"}
