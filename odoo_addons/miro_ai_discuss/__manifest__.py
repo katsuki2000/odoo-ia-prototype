@@ -10,7 +10,7 @@ MIRO AI Discuss Integration
 Permet d'interagir avec l'Assistant IA directement dans l'application Discuss d'Odoo 17 :
 - Chat direct 1-à-1 avec le bot partenaire "Assistant IA"
 - Mention @Assistant IA dans n'importe quel canal ou groupe de discussion
-- Formatage HTML automatique des réponses (Markdown, tableaux GFM, blocs de code, listes, liens)
+- Affichage sécurisé des réponses en texte brut
 - Sécurité : jetons JWT éphémères et clés API par utilisateur (respect strict des droits Odoo)
 - Journalisation complète dans l'audit log MIRO AI (miro.ai.log)
 - Architecture 100% Python côté backend (0 ligne de JavaScript)
