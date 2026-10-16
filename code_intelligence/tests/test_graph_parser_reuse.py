@@ -1,5 +1,4 @@
 import ast
-from pathlib import Path
 import xml.etree.ElementTree as ET
 
 from code_intelligence.extractor.http_routes import parse_http_routes
