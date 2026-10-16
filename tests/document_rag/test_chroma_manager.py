@@ -13,6 +13,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import pytest
+
 from document_rag.vectorstore.chroma_manager import ChromaManager
 
 
@@ -45,6 +47,7 @@ class TestChromaManager(unittest.TestCase):
         self.assertIsNotNone(self.manager.collection)
         self.assertEqual(self.manager.collection_name, "test_collection")
 
+    @pytest.mark.embedding_server
     def test_add_chunks_simple(self):
         """Test adding simple chunks without IDs."""
         texts = [
@@ -61,6 +64,7 @@ class TestChromaManager(unittest.TestCase):
         self.assertEqual(len(ids), 2)
         self.assertTrue(all(isinstance(id, str) for id in ids))
 
+    @pytest.mark.embedding_server
     def test_add_chunks_with_ids(self):
         """Test adding chunks with explicit IDs."""
         texts = ["Chunk text"]
@@ -71,6 +75,7 @@ class TestChromaManager(unittest.TestCase):
 
         self.assertEqual(result_ids, ["custom_id_1"])
 
+    @pytest.mark.embedding_server
     def test_add_chunks_metadata_validation(self):
         """Test that metadata is properly validated and cleaned."""
         texts = ["Test chunk"]
@@ -101,6 +106,7 @@ class TestChromaManager(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.manager.add_chunks(texts, metadatas)
 
+    @pytest.mark.embedding_server
     def test_query(self):
         """Test querying chunks."""
         texts = [
@@ -125,6 +131,7 @@ class TestChromaManager(unittest.TestCase):
         self.assertTrue(all("metadata" in r for r in results["results"]))
         self.assertTrue(all("similarity" in r for r in results["results"]))
 
+    @pytest.mark.embedding_server
     def test_query_with_filter(self):
         """Test querying with metadata filters."""
         texts = [
@@ -151,6 +158,7 @@ class TestChromaManager(unittest.TestCase):
         for result in results["results"]:
             self.assertEqual(result["metadata"]["type"], "code_python")
 
+    @pytest.mark.embedding_server
     def test_get_by_id(self):
         """Test retrieving a chunk by ID."""
         texts = ["Test chunk content"]
@@ -170,6 +178,7 @@ class TestChromaManager(unittest.TestCase):
         result = self.manager.get_by_id("non_existent_id")
         self.assertIsNone(result)
 
+    @pytest.mark.embedding_server
     def test_delete_by_source(self):
         """Test deleting chunks by source."""
         texts = [
@@ -194,6 +203,7 @@ class TestChromaManager(unittest.TestCase):
         results = self.manager.query("file2", top_k=10)
         self.assertGreater(results["count"], 0)
 
+    @pytest.mark.embedding_server
     def test_delete_by_ids(self):
         """Test deleting chunks by ID."""
         texts = ["Chunk 1", "Chunk 2", "Chunk 3"]
@@ -229,6 +239,7 @@ class TestChromaManager(unittest.TestCase):
         self.assertEqual(stats["by_type"]["doc_pdf"], 0)
         self.assertEqual(stats["by_type"]["doc_wiki"], 0)
 
+    @pytest.mark.embedding_server
     def test_get_stats_populated(self):
         """Test getting stats from populated collection."""
         texts = [
@@ -260,6 +271,7 @@ class TestChromaManager(unittest.TestCase):
         self.assertEqual(stats["by_module"]["sale"], 2)
         self.assertEqual(stats["by_module"]["stock"], 1)
 
+    @pytest.mark.embedding_server
     def test_delete_collection(self):
         """Test deleting and recreating a collection."""
         texts = ["Test chunk"]

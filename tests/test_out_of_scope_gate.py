@@ -78,10 +78,10 @@ def test_out_of_scope_decision_routes_to_format_output_when_response_set():
     assert out_of_scope_decision(state) == "format_output"
 
 
-def test_out_of_scope_decision_routes_to_retrieve_when_no_response():
+def test_out_of_scope_decision_routes_to_route_when_no_response():
     state = {"response": None}
-    assert out_of_scope_decision(state) == "retrieve"
+    assert out_of_scope_decision(state) == "route"
 
 
-def test_out_of_scope_decision_routes_to_retrieve_when_response_key_absent():
-    assert out_of_scope_decision({}) == "retrieve"
+def test_out_of_scope_decision_routes_to_route_when_response_key_absent():
+    assert out_of_scope_decision({}) == "route"

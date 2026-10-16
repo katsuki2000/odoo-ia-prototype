@@ -157,23 +157,15 @@ class TestDenseStatusVisibility:
         assert result.diagnostics == {}
 
 
-class TestResolverDefaultChanged:
-    """Verify that the production resolver no longer uses static aliases by default."""
+class TestStaticAliasesRemoved:
+    """The manual alias tables and their switches no longer exist (section 1436)."""
 
-    def test_default_skips_alias(self):
+    def test_resolver_has_no_static_alias_switch(self):
         from code_intelligence.agent.resolver import resolve_business_term
         import inspect
-        sig = inspect.signature(resolve_business_term)
-        assert sig.parameters["use_static_aliases"].default is False
-
-    def test_aliases_still_available_when_requested(self):
-        from code_intelligence.agent.resolver import resolve_business_term
-        import networkx as nx
-        G = nx.DiGraph()
-        G.add_node("model:account.move", node_type="Model", name="account.move")
-        result = resolve_business_term("avoir", G, llm=None, use_static_aliases=True)
-        assert result.is_resolved
-        assert "account.move" in result.resolved_models
+        params = inspect.signature(resolve_business_term).parameters
+        assert "use_static_aliases" not in params
+        assert "use_static_synonyms" not in params
 
 
 def test_resolver_arbitrates_when_dense_and_fuzzy_leaders_disagree(monkeypatch):

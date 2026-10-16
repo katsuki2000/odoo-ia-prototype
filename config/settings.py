@@ -33,7 +33,10 @@ LOCAL_LLM_API_KEY  = os.getenv("LOCAL_LLM_API_KEY", "ollama")
 LLM_NO_THINK_MARKER = os.getenv("LLM_NO_THINK_MARKER", "/no_think" if LOCAL_LLM_MODEL.lower().startswith("qwen3") else "")
 
 # ── Embeddings ─────────────────────────────────────────
-EMBEDDING_BACKEND        = os.getenv("EMBEDDING_BACKEND", "local_light").lower()
+# Default: the inference server (Ollama/vLLM, local or remote on Kaggle/AWS) behind LOCAL_EMBEDDING_BASE_URL,
+# like the LLM. "local_light" (in-process ONNX MiniLM) stays available by setting EMBEDDING_BACKEND.
+DEFAULT_EMBEDDING_BACKEND = "local_server"
+EMBEDDING_BACKEND        = os.getenv("EMBEDDING_BACKEND", DEFAULT_EMBEDDING_BACKEND).lower()
 EMBEDDING_MODEL_NAME     = os.getenv("EMBEDDING_MODEL", "BAAI/bge-m3")
 LOCAL_EMBEDDING_BASE_URL = os.getenv("LOCAL_EMBEDDING_BASE_URL", f"{OLLAMA_HOST}/v1")
 LOCAL_EMBEDDING_MODEL    = os.getenv("LOCAL_EMBEDDING_MODEL", "bge-m3:latest")

@@ -70,8 +70,9 @@ def _embedding_name(embedding_function) -> str:
 
 
 def build_semantic_embedding_function():
+    from config.settings import DEFAULT_EMBEDDING_BACKEND
     from document_rag.vectorstore.embedding_functions import resolve_embedding_function
-    backend = (os.getenv('RESOLVER_SEMANTIC_EMBEDDING_BACKEND') or os.getenv('EMBEDDING_BACKEND', 'local_light')).strip().lower()
+    backend = (os.getenv('RESOLVER_SEMANTIC_EMBEDDING_BACKEND') or os.getenv('EMBEDDING_BACKEND', DEFAULT_EMBEDDING_BACKEND)).strip().lower()
     model = os.getenv('RESOLVER_SEMANTIC_EMBEDDING_MODEL')
     if not model and backend == 'local':
         model = os.getenv('EMBEDDING_MODEL')

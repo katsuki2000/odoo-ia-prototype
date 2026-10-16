@@ -2,17 +2,25 @@
 """
 scripts/run_bloc_n1_benchmark.py
 
-Runner de benchmark pour le Bloc N1 
-Ce script calcule seulement un signal deterministe de
-couverture d'outils (expected_tools vs outils reellement invoques) et
-laisse la comparaison qualitative verbatim/reference_answer a une revue
-humaine 
+Runner de benchmark des banques de questions de l'agent Code Intelligence :
+toutes les banques `tests/*_question_bank.json` (modules natifs, modules
+custom de l'instance, echantillon OCA). Ce script calcule seulement un signal
+deterministe de couverture d'outils (expected_tools vs outils reellement
+invoques) et laisse la comparaison qualitative verbatim/reference_answer a une
+revue humaine.
 
 Usage:
-    python scripts/run_bloc_n1_benchmark.py                 # les 25 questions
-    python scripts/run_bloc_n1_benchmark.py MNT-Q1 MNT-Q2    # sous-ensemble par id
+    python scripts/run_bloc_n1_benchmark.py                  # toutes les banques disponibles
+    python scripts/run_bloc_n1_benchmark.py MNT-Q1 CNA-Q1    # sous-ensemble par id
+    python scripts/run_bloc_n1_benchmark.py --bank native_n1 # une ou plusieurs banques
     python scripts/run_bloc_n1_benchmark.py --module stock   # un seul module
     python scripts/run_bloc_n1_benchmark.py --module stock MNT-Q1  # cumulable (union)
+    python scripts/run_bloc_n1_benchmark.py --technical      # questions techniques d'origine
+
+Par defaut, l'agent recoit `business_question` (francais courant, sans nom
+technique, libelles de l'interface Odoo : todo/architecture.md). Une banque
+dont `meta.requires_setting` n'est pas configure est sautee avec un message.
+Le run ne demarre pas si le serveur d'inference ou d'embeddings ne repond pas.
 
 Outputs (captures/) :
  - bloc_n1_verbatim.json
@@ -33,24 +41,91 @@ sys.path.insert(0, str(project_root))
 from core.graph.graph import code_intelligence_agent
 from core.evidence.evidence_collector import start_evidence_collection, collect_and_clear_evidence
 from core.evidence.source_refs import parse_code_graph_source
+from core.evaluation.preflight import BackendUnavailable, require_backends
+import config.settings as settings
 from config.settings import LATENCY_BUDGET_P90_SECONDS
 from code_intelligence.agent.security_principal_detection import (
     detect_security_principals_from_question,
 )
 
-QUESTION_BANK_PATH = project_root / "tests" / "native_n1_question_bank.json"
+BANKS_DIR = project_root / "tests"
+BANK_SUFFIX = "_question_bank.json"
 
 
-def load_questions(question_ids=None, module=None):
-    """Charge le banc et applique les filtres optionnels (union id/module,
-    pas intersection -- --module stock MNT-Q1 rejoue stock + MNT-Q1).
-    Retourne (questions, meta)."""
-    with open(QUESTION_BANK_PATH, encoding="utf-8") as f:
-        data = json.load(f)
+def discover_banks():
+    """Bank name (file name without suffix) -> path, for every bank on disk."""
+    return {p.name[: -len(BANK_SUFFIX)]: p for p in sorted(BANKS_DIR.glob(f"*{BANK_SUFFIX}"))}
 
-    all_questions = data["questions"]
-    meta = data["meta"]
 
+def _unmet_requirement(meta):
+    setting = meta.get("requires_setting")
+    if setting and not getattr(settings, setting, None):
+        return f"setting {setting} is not configured"
+    return None
+
+
+def read_installed_modules():
+    """Names of the modules installed on the target instance, or None when the
+    instance cannot be queried (then no question is skipped)."""
+    try:
+        from erp_data.odoo_connector import OdooConnector
+        from code_intelligence.graph.instance_fingerprint import read_runtime_inventory
+        connector = OdooConnector(technical=True)
+        modules, _ = read_runtime_inventory(connector, connector.authenticate(connector.username))
+        return {row["name"] for row in modules}
+    except Exception as error:
+        print(f"[WARN] Inventaire des modules installes indisponible, aucune question sautee : {error}")
+        return None
+
+
+def missing_modules(item, installed_modules):
+    """Modules required by a question (its own plus `requires_modules`) that are not installed."""
+    required = {item["module"], *item.get("requires_modules", [])}
+    return sorted(required - installed_modules) if installed_modules is not None else []
+
+
+def load_questions(question_ids=None, module=None, banks=None, installed_modules=None):
+    """Charge les banques demandees (toutes par defaut) et applique les filtres
+    optionnels (union id/module, pas intersection -- --module stock MNT-Q1
+    rejoue stock + MNT-Q1). Retourne (questions, meta) ; chaque question porte
+    sa banque dans `bank` et la langue de la banque dans `language`. Avec
+    `installed_modules`, les questions dont un module requis n'est pas installe
+    sont sautees avec un message."""
+    available = discover_banks()
+    unknown_banks = set(banks or []) - set(available)
+    if unknown_banks:
+        print(f"[WARN] Banque(s) inconnue(s) ignoree(s): {sorted(unknown_banks)} (disponibles: {sorted(available)})")
+
+    all_questions = []
+    modules_covered = []
+    for name in banks or available:
+        if name not in available:
+            continue
+        with open(available[name], encoding="utf-8") as f:
+            data = json.load(f)
+        reason = _unmet_requirement(data["meta"])
+        if reason:
+            print(f"[SKIP] Banque '{name}' sautee : {reason}.")
+            continue
+        for item in data["questions"]:
+            all_questions.append({**item, "bank": name, "language": data["meta"].get("language")})
+        modules_covered.extend(data["meta"].get("modules_covered", []))
+
+    ids = [q["id"] for q in all_questions]
+    duplicates = sorted({i for i in ids if ids.count(i) > 1})
+    if duplicates:
+        raise ValueError(f"Ids de questions en double entre banques: {duplicates}")
+
+    runnable = []
+    for question in all_questions:
+        missing = missing_modules(question, installed_modules)
+        if missing:
+            print(f"[SKIP] {question['id']} saute : module(s) non installe(s) {missing}.")
+        else:
+            runnable.append(question)
+    all_questions_with_skipped, all_questions = all_questions, runnable
+
+    meta = {"modules_covered": modules_covered}
     if not question_ids and not module:
         return all_questions, meta
 
@@ -60,11 +135,11 @@ def load_questions(question_ids=None, module=None):
         if q["id"] in wanted_ids or (module and q["module"] == module)
     ]
 
-    unknown_ids = wanted_ids - {q["id"] for q in all_questions}
+    unknown_ids = wanted_ids - {q['id'] for q in all_questions_with_skipped}
     if unknown_ids:
         print(f"[WARN] Id(s) inconnu(s) ignore(s): {sorted(unknown_ids)}")
-    if module and module not in meta.get("modules_covered", []):
-        print(f"[WARN] Module '{module}' absent de modules_covered={meta.get('modules_covered')}")
+    if module and module not in modules_covered:
+        print(f"[WARN] Module '{module}' absent de modules_covered={modules_covered}")
 
     return selected, meta
 
@@ -74,50 +149,74 @@ def _extract_tools_used(sources):
     return [ref.tool for ref in parsed if ref is not None]
 
 
-def build_agent_state(item):
+def select_question(item, technical=False):
+    """Wording asked to the agent: business by default, technical on request."""
+    if technical:
+        return item["question"]
+    return item.get("business_question", item["question"])
+
+
+def build_agent_state(item, technical=False):
     """Agent input state for one bank question. Personas are either declared
-    by the bank (section 889) or detected deterministically from the question
-    text (section 896), never guessed by the LLM."""
-    state = {"question": item["question"], "chat_history": []}
+    by the bank (section 889) or detected deterministically from the technical
+    question text (section 896), never guessed by the LLM. The bank language is
+    passed like the API passes the request language."""
+    state = {"question": select_question(item, technical), "chat_history": []}
+    if item.get("language"):
+        state["language"] = item["language"]
     principals = item.get("security_principals") or detect_security_principals_from_question(item["question"])
     if principals:
         state["security_principals"] = principals
     return state
 
 
-def run_benchmark(question_ids=None, module=None, fresh=False):
-    questions, meta = load_questions(question_ids, module)
+def run_benchmark(question_ids=None, module=None, fresh=False, technical=False, banks=None):
+    questions, meta = load_questions(question_ids, module, banks, read_installed_modules())
     if not questions:
         print("[ERROR] Aucune question ne correspond aux filtres -- rien a executer.")
-        return
+        return 1
+
+    try:
+        require_backends()
+    except BackendUnavailable as error:
+        print(f"[SKIP] Serveur d'inference indisponible, aucun run demarre : {error}")
+        return 2
 
     print("=" * 80)
-    print(" BLOC N1 -- BENCHMARK RUNNER (banc de questions natif) ")
+    print(" BENCHMARK RUNNER (banques de questions CI) ")
     print(f" Cible : {len(questions)} question(s)"
-          + (f" (filtre id={question_ids or []}, module={module})" if (question_ids or module) else " (banc complet)"))
+          + (f" (filtre id={question_ids or []}, module={module})" if (question_ids or module) else " (banques completes)"))
     print("=" * 80)
 
     results = []
 
     for item in questions:
         qid = item["id"]
-        mod = item["module"]
-        capability = item["capability"]
-        difficulty = item["difficulty"]
-        question = item["question"]
+        question = select_question(item, technical)
         expected_tools = item.get("expected_tools", [])
-        reference_answer = item["reference_answer"]
-        verification = item["verification"]
 
         print("\n" + "-" * 80)
-        print(f"[{qid}] module={mod} capability={capability} difficulty={difficulty}")
+        print(f"[{qid}] bank={item['bank']} module={item['module']} "
+              f"capability={item['capability']} difficulty={item['difficulty']}")
         print(f"Question: {question}")
         print("-" * 80)
+
+        record = {
+            "id": qid,
+            "bank": item["bank"],
+            "module": item["module"],
+            "capability": item["capability"],
+            "difficulty": item["difficulty"],
+            "question": question,
+            "reference_answer": item["reference_answer"],
+            "verification": item["verification"],
+            "expected_tools": expected_tools,
+        }
 
         time.sleep(2.0)  # Pacing between benchmark questions.
         start_time = time.time()
         try:
-            state = build_agent_state(item)
+            state = build_agent_state(item, technical)
             start_evidence_collection()
             try:
                 res = code_intelligence_agent(state)
@@ -134,9 +233,7 @@ def run_benchmark(question_ids=None, module=None, fresh=False):
                 sources = []
 
             tools_used = _extract_tools_used(sources)
-            tools_used_set = set(tools_used)
-            expected_set = set(expected_tools)
-            missing_tools = sorted(expected_set - tools_used_set)
+            missing_tools = sorted(set(expected_tools) - set(tools_used))
             tool_coverage_ok = not missing_tools
 
             timing_info = res.get("timing", {})
@@ -154,15 +251,7 @@ def run_benchmark(question_ids=None, module=None, fresh=False):
             if not tool_coverage_ok:
                 print(f"[WARN] Outil(s) attendu(s) non invoque(s): {missing_tools}")
 
-            results.append({
-                "id": qid,
-                "module": mod,
-                "capability": capability,
-                "difficulty": difficulty,
-                "question": question,
-                "reference_answer": reference_answer,
-                "verification": verification,
-                "expected_tools": expected_tools,
+            record.update({
                 "tools_used": tools_used,
                 "tool_coverage_ok": tool_coverage_ok,
                 "missing_tools": missing_tools,
@@ -176,15 +265,7 @@ def run_benchmark(question_ids=None, module=None, fresh=False):
 
         except Exception as e:
             print(f"[ERROR] Question echouee: {e}")
-            results.append({
-                "id": qid,
-                "module": mod,
-                "capability": capability,
-                "difficulty": difficulty,
-                "question": question,
-                "reference_answer": reference_answer,
-                "verification": verification,
-                "expected_tools": expected_tools,
+            record.update({
                 "tools_used": [],
                 "tool_coverage_ok": False,
                 "missing_tools": expected_tools,
@@ -196,9 +277,10 @@ def run_benchmark(question_ids=None, module=None, fresh=False):
                 "applied_guards": [],
             })
 
+        results.append(record)
+
     # --- Sauvegarde JSON (fusion avec l'existant si present, sauf si fresh=True) ---
-    root_dir = Path(__file__).resolve().parent.parent
-    captures_dir = root_dir / "captures"
+    captures_dir = project_root / "captures"
     captures_dir.mkdir(exist_ok=True)
 
     json_report_path = captures_dir / "bloc_n1_verbatim.json"
@@ -209,13 +291,10 @@ def run_benchmark(question_ids=None, module=None, fresh=False):
             merged_dict = {r["id"]: r for r in existing_data if isinstance(r, dict) and "id" in r}
             merged_dict.update({r["id"]: r for r in results})
             all_bank, _ = load_questions()
-            results_to_save = [
-                merged_dict[q["id"]] for q in all_bank if q["id"] in merged_dict
-            ]
-            # Inclure egalement les resultats non presents dans le banc
-            for r in results:
-                if r["id"] not in {q["id"] for q in all_bank} and r["id"] not in {x["id"] for x in results_to_save}:
-                    results_to_save.append(r)
+            bank_ids = {q["id"] for q in all_bank}
+            results_to_save = [merged_dict[q["id"]] for q in all_bank if q["id"] in merged_dict]
+            # Inclure egalement les resultats non presents dans les banques
+            results_to_save.extend(r for r in merged_dict.values() if r["id"] not in bank_ids)
         except Exception as e:
             print(f"[WARN] Impossible de fusionner avec {json_report_path}: {e}")
             results_to_save = results
@@ -245,12 +324,11 @@ def run_benchmark(question_ids=None, module=None, fresh=False):
 
     # --- Rapport Markdown (sauvegarde de toutes les questions consolidees) ---
     md_lines = [
-        "# Rapport Verbatim -- Bloc N1 (banc de questions natif)\n",
+        "# Rapport Verbatim -- benchmark des banques de questions CI\n",
         f"**Date d'execution :** {time.strftime('%Y-%m-%d %H:%M:%S')}\n",
-        "**Objectif :** rejouer les questions verite-terrain des 5 modules natifs "
-        "(maintenance, purchase, sale, stock, account) contre l'agent Code Intelligence "
-        "reel et capturer la reponse verbatim pour comparaison manuelle avec "
-        "`reference_answer` -- aucune notation automatique.\n",
+        "**Objectif :** rejouer les questions verite-terrain (modules natifs, modules custom, "
+        "echantillon OCA) contre l'agent Code Intelligence reel et capturer la reponse "
+        "verbatim pour comparaison manuelle avec `reference_answer` -- aucune notation automatique.\n",
         "---",
         "## Synthese\n",
         f"| Metrique | Valeur |",
@@ -267,7 +345,9 @@ def run_benchmark(question_ids=None, module=None, fresh=False):
     ]
 
     for r in results_to_save:
-        md_lines.append(f"\n## [{r['id']}] {r['module']} -- {r['capability']} ({r['difficulty']})")
+        md_lines.append(
+            f"\n## [{r['id']}] {r.get('bank', '?')} / {r['module']} -- {r['capability']} ({r['difficulty']})"
+        )
         md_lines.append(f"**Question :** {r['question']}\n")
         md_lines.append(f"**Reponse de reference (verite-terrain) :**\n> {r['reference_answer']}\n")
         md_lines.append(f"**A verifier dans le code :** `{r['verification']}`\n")
@@ -286,27 +366,39 @@ def run_benchmark(question_ids=None, module=None, fresh=False):
         f.write("\n".join(md_lines))
     print(f"Rapport Markdown sauvegarde: {md_report_path}")
     print("=" * 80)
+    return 0
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Rejoue le banc de questions Bloc N1 contre l'agent Code Intelligence reel."
+        description="Rejoue les banques de questions CI contre l'agent Code Intelligence reel."
     )
     parser.add_argument(
         "question_ids", nargs="*", default=None,
-        help="Sous-ensemble d'ids a rejouer (ex: MNT-Q1 MNT-Q2). Vide = pas de filtre par id.",
+        help="Sous-ensemble d'ids a rejouer (ex: MNT-Q1 CNA-Q1). Vide = pas de filtre par id.",
     )
     parser.add_argument(
-        "--module", default=None, choices=["maintenance", "purchase", "sale", "stock", "account"],
-        help="Ne rejoue que les 5 questions de ce module (cumulable avec des ids explicites).",
+        "--bank", nargs="+", default=None, metavar="BANK",
+        help=f"Ne charge que ces banques (defaut : toutes). Disponibles : {', '.join(discover_banks())}.",
+    )
+    parser.add_argument(
+        "--module", default=None,
+        help="Ne rejoue que les questions de ce module (cumulable avec des ids explicites).",
     )
     parser.add_argument(
         "--fresh", action="store_true",
         help="Ecraser les captures precedentes sans fusionner.",
     )
+    parser.add_argument(
+        "--technical", action="store_true",
+        help="Poser les questions techniques d'origine au lieu des questions metier.",
+    )
     args = parser.parse_args()
-    run_benchmark(question_ids=args.question_ids or None, module=args.module, fresh=args.fresh)
+    return run_benchmark(
+        question_ids=args.question_ids or None, module=args.module,
+        fresh=args.fresh, technical=args.technical, banks=args.bank,
+    )
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

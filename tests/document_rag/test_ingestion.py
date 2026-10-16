@@ -13,6 +13,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import pytest
+
 from document_rag.ingestion.ingest_all import IngestionOrchestrator
 
 
@@ -41,6 +43,7 @@ class TestIngestionPipeline(unittest.TestCase):
         except Exception:
             pass
 
+    @pytest.mark.embedding_server
     def test_metadata_schema_completeness(self):
         """Test that all ingested chunks have complete metadata."""
         with tempfile.NamedTemporaryFile(
@@ -166,6 +169,7 @@ class TestIngestionPipeline(unittest.TestCase):
             # Some loaders might not be available
             pass
 
+    @pytest.mark.embedding_server
     def test_retrieval_after_ingestion(self):
         """Test that ingested documents are retrievable."""
         # Create and ingest test document
@@ -208,6 +212,7 @@ class TestIngestionPipeline(unittest.TestCase):
         finally:
             os.unlink(txt_path)
 
+    @pytest.mark.embedding_server
     def test_delete_by_source(self):
         """Test deletion of chunks by source file."""
         with tempfile.NamedTemporaryFile(
@@ -243,6 +248,7 @@ class TestIngestionPipeline(unittest.TestCase):
         finally:
             os.unlink(txt_path)
 
+    @pytest.mark.embedding_server
     def test_statistics_reflect_docs_manager(self):
         """Test that ingestion statistics come from docs_manager alone."""
         doc_texts = ["PDF document chunk", "Wiki page chunk"]

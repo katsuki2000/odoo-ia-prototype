@@ -137,7 +137,6 @@ def test_empty_candidate_list_does_not_call_the_arbiter(monkeypatch):
 
     result = resolver.resolve_business_term(
         "qui peut rouvrir cela ?", _graph_with_translated_models(), llm=object(), language="fr",
-        use_static_aliases=False,
     )
 
     assert not result.is_resolved
@@ -334,7 +333,7 @@ def test_shortlist_asks_for_twenty_semantic_candidates_and_keeps_a_model_ranked_
     monkeypatch.setattr(candidates, "retrieve_semantic_model_candidates", _retrieve)
     fuzzy = [(f"fuzzy.model_{index}", 90.0 - index) for index in range(8)]
 
-    shortlist = candidates.build_arbitration_shortlist("validation des conges", None, "fr", False, True, fuzzy)
+    shortlist = candidates.build_arbitration_shortlist("validation des conges", None, "fr", True, fuzzy)
 
     assert requested["limit"] == candidates.SHORTLIST_SEMANTIC_LIMIT == 20
     assert "hr.leave" in shortlist.models
@@ -351,7 +350,7 @@ def test_shortlist_without_semantic_candidates_is_the_unchanged_fuzzy_list(monke
     )
     fuzzy = [(f"fuzzy.model_{index}", 90.0 - index) for index in range(12)]
 
-    shortlist = candidates.build_arbitration_shortlist("question", None, "fr", False, True, fuzzy)
+    shortlist = candidates.build_arbitration_shortlist("question", None, "fr", True, fuzzy)
 
     assert shortlist.models == [model for model, _score in fuzzy]
     assert shortlist.semantic_status == SemanticRetrievalStatus.ERROR

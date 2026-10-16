@@ -79,7 +79,7 @@ def test_nodes_are_built_and_inventory_agrees(tmp_path):
     G = nx.DiGraph()
     add_http_route_nodes(G, {"demo": module})
     node = G.nodes["route:demo.PortalController.orders"]
-    assert node["node_type"] == "HttpRoute" and node["technical_tags"] == ["http_route"] and node["module"] == "demo"
+    assert node["node_type"] == "HttpRoute" and node["technical_tags"] == [] and node["module"] == "demo"
     graph_ids = {n.partition(":")[2] for n, d in G.nodes(data=True) if d["node_type"] == "HttpRoute"}
     assert graph_ids == inventory_module(module_dir).xmlIds["http_route"]
 

@@ -1,6 +1,6 @@
 """E1 offline hybrid-retrieval experiment (protocol section 1227).
 
-Does not change MIRO production behaviour. Compares resolution systems R0-R5
+Does not change MIRO production behaviour. Compares resolution systems R1-R6
 on a calibration set C, then a single frozen held-out pass after config lock.
 """
 

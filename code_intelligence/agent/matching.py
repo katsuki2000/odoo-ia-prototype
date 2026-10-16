@@ -15,12 +15,6 @@ from typing import Dict, List, Tuple, Set
 
 from rapidfuzz import fuzz, process
 
-from .aliases import (
-    BUSINESS_ALIASES_NFC,
-    _ALIAS_PATTERNS,
-    NATIVE_MODEL_SYNONYMS,
-)
-
 logger = logging.getLogger(__name__)
 
 
@@ -30,7 +24,7 @@ class ResolvedConcept:
     resolved_models: List[str] = field(default_factory=list)
     resolved_modules: List[str] = field(default_factory=list)
     confidence: float = 1.0
-    source_step: str = "static_alias"
+    source_step: str = "unresolved"
     is_resolved: bool = True
     reason: str = ""
     diagnostics: Dict[str, str] = field(default_factory=dict)
@@ -127,12 +121,11 @@ def _paired_exact_field_model_matches(query: str, G) -> List[str]:
     return sorted(matching_fields & matching_label_models)
 
 
-def _build_fuzzy_index(G, use_static_synonyms: bool = True) -> List[Tuple[str, str]]:
+def _build_fuzzy_index(G) -> List[Tuple[str, str]]:
     """Build (label, technical_model_name) pairs from graph nodes, with the labels of every graph language."""
-    cache_key = ("fuzzy_index", use_static_synonyms)
     graph_cache = _FUZZY_INDEX_CACHE.setdefault(G, {})
-    if cache_key in graph_cache:
-        return graph_cache[cache_key]
+    if "fuzzy_index" in graph_cache:
+        return graph_cache["fuzzy_index"]
 
     index: List[Tuple[str, str]] = []
 
@@ -226,14 +219,7 @@ def _build_fuzzy_index(G, use_static_synonyms: bool = True) -> List[Tuple[str, s
                 for module_label in module_labels.get(module, ()):
                     index.append((f"{model_label} {module_label}", model_name))
 
-    if use_static_synonyms:
-        for model_name, synonyms in NATIVE_MODEL_SYNONYMS.items():
-            if not G.has_node(f"model:{model_name}"):
-                continue
-            for synonym in synonyms:
-                index.append((synonym.lower(), model_name))
-
-    graph_cache[cache_key] = index
+    graph_cache["fuzzy_index"] = index
     logger.info("Built fuzzy index: %d entries from graph (%d nodes)", len(index), G.number_of_nodes())
     return index
 
@@ -255,9 +241,7 @@ def _find_exact_technical_model_mentions(
     The method/button fallback is useful when a question contains only a
     technical symbol such as ``action_confirm``.  It is not an exact model
     mention, however: several unrelated models can expose the same method
-    name.  Callers resolving a business alias first therefore disable that
-    fallback so the alias remains the primary target (SAL-Q2, todo/context
-    section 1007).
+    name, so callers can disable it with ``include_symbol_inference=False``.
     """
     if G is None:
         return []
@@ -366,13 +350,6 @@ def _specificity_score(technical_name: str, query_lower: str) -> Tuple[int, int,
         if len(part) >= 4 and re.search(r"(?<!\w)" + re.escape(part.lower()) + r"(?!\w)", query_lower):
             has_context_mention = 1
             break
-    if not has_context_mention:
-        for alias, targets in BUSINESS_ALIASES_NFC.items():
-            if technical_name in targets:
-                pat = _ALIAS_PATTERNS.get(alias)
-                if pat and pat.search(query_lower):
-                    has_context_mention = 1
-                    break
 
     is_domain_model = 0 if (
         technical_name.startswith("ir.")
@@ -428,10 +405,9 @@ def _fuzzy_match_graph(
     G,
     threshold: int = 75,
     limit: int = 5,
-    use_static_synonyms: bool = True,
 ) -> List[Tuple[str, float]]:
     """Fuzzy match query against indexed graph node labels and models."""
-    index = _build_fuzzy_index(G, use_static_synonyms)
+    index = _build_fuzzy_index(G)
     if not index:
         return []
 

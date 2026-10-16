@@ -68,18 +68,12 @@ def build_arbitration_shortlist(
     query: str,
     G,
     language: Optional[str],
-    use_static_aliases: bool,
     use_semantic_retrieval: bool,
     fuzzy_results: Optional[List[Tuple[str, float]]] = None,
 ) -> ArbitrationShortlist:
     """Combine deterministic and optional semantic candidates for arbitration."""
     if fuzzy_results is None:
-        fuzzy_results = _fuzzy_match_graph(
-            query,
-            G,
-            limit=WIDENED_CANDIDATE_LIMIT,
-            use_static_synonyms=use_static_aliases,
-        )
+        fuzzy_results = _fuzzy_match_graph(query, G, limit=WIDENED_CANDIDATE_LIMIT)
     fuzzy_models = [model for model, _score in fuzzy_results]
     retrieval = (
         retrieve_semantic_model_candidates(query, G, language, limit=SHORTLIST_SEMANTIC_LIMIT)
@@ -98,13 +92,10 @@ def _arbitration_candidates(
     query: str,
     G,
     language: Optional[str],
-    use_static_aliases: bool,
     use_semantic_retrieval: bool,
     fuzzy_results: Optional[List[Tuple[str, float]]] = None,
 ) -> List[str]:
-    return build_arbitration_shortlist(
-        query, G, language, use_static_aliases, use_semantic_retrieval, fuzzy_results,
-    ).models
+    return build_arbitration_shortlist(query, G, language, use_semantic_retrieval, fuzzy_results).models
 
 
 def _tiebreak_rarity_index(G) -> Tuple[Dict[str, int], Dict[str, int], int]:

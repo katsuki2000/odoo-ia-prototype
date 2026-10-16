@@ -357,12 +357,16 @@ MAX_TOTAL_OBSERVATION_CHARS = 35000
 # behind at 8837), everything else <=2664. 11000 gives >16% headroom above
 # the measured worst case, same margin-over-measurement approach as above
 # rather than an arbitrary round number.
+# analyze_security_locks: measured across the same bank models, sale.order is
+# the worst case at 12566 (maintenance.equipment 4631 > the former 3500 cap);
+# 14600 keeps ~16% headroom. account.move (37526) stays bounded by the
+# water-filling in assemble_security_lock_blocks and MAX_TOTAL_OBSERVATION_CHARS.
 PER_TOOL_OBSERVATION_CAPS: Dict[str, int] = {
     "read_source_code": 9000,
     "analyze_data_constraints": 45000,
     "analyze_method_override_chain": 2200,
     "analyze_server_actions": 3500,
-    "analyze_security_locks": 3500,
+    "analyze_security_locks": 14600,
     "evaluate_record_rules": 3000,
     "who_has_access_to": 11000,
 }

@@ -57,7 +57,7 @@ def _modules_for_candidates(graph, models: list[str]) -> list[str]:
     return modules
 
 
-def evaluate(graph, questions: list[dict], language: str, use_static_aliases: bool, llm=None) -> list[dict]:
+def evaluate(graph, questions: list[dict], language: str, llm=None) -> list[dict]:
     rows = []
     for item in questions:
         expected_models = _models_for_module(graph, item["module"])
@@ -66,24 +66,16 @@ def evaluate(graph, questions: list[dict], language: str, use_static_aliases: bo
             graph,
             llm=llm,
             language=language,
-            use_static_aliases=use_static_aliases,
         )
         candidate_models = list(result.resolved_models)
         if not result.is_resolved:
-            fuzzy_candidates = _fuzzy_match_graph(
-                item["question"],
-                graph,
-                language=language,
-                use_static_synonyms=use_static_aliases,
-            )
+            fuzzy_candidates = _fuzzy_match_graph(item["question"], graph)
             if not fuzzy_candidates:
                 fuzzy_candidates = _fuzzy_match_graph(
                     item["question"],
                     graph,
                     threshold=WIDENED_CANDIDATE_THRESHOLD,
                     limit=WIDENED_CANDIDATE_LIMIT,
-                    language=language,
-                    use_static_synonyms=use_static_aliases,
                 )
             candidate_models = [model for model, _score in fuzzy_candidates]
         candidate_modules = _modules_for_candidates(graph, candidate_models)
@@ -119,7 +111,6 @@ def evaluate(graph, questions: list[dict], language: str, use_static_aliases: bo
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--language", default="fr")
-    parser.add_argument("--static-aliases", action="store_true")
     parser.add_argument("--use-llm", action="store_true",
                         help="Enable bounded LLM arbitration on tied candidates.")
     parser.add_argument("--output", type=Path)
@@ -136,11 +127,10 @@ def main() -> int:
         request_language=args.language,
         force_rebuild=True,
     )
-    rows = evaluate(graph, bank["questions"], args.language, args.static_aliases, llm=llm)
+    rows = evaluate(graph, bank["questions"], args.language, llm=llm)
     report = {
         "protocol": "business_resolver_routing",
         "language": args.language,
-        "static_aliases_enabled": args.static_aliases,
         "llm_enabled": args.use_llm,
         "graph_instance_fingerprint": graph.graph.get("instance_fingerprint"),
         "graph_instance_fingerprint_data": graph.graph.get("instance_fingerprint_data", {}),

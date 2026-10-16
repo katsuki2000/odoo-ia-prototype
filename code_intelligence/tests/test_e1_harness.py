@@ -10,7 +10,7 @@ import numpy as np
 from code_intelligence.evaluation.e1.cases import dataset_digest, load_calibration_cases
 from code_intelligence.evaluation.e1.config import load_e1_config
 from code_intelligence.evaluation.e1.metrics import score_resolution_case, summarize_system_scores
-from code_intelligence.evaluation.e1.systems import run_r0, run_r1
+from code_intelligence.evaluation.e1.systems import run_r1
 
 
 def _tiny_graph():
@@ -47,51 +47,7 @@ def test_e1_config_has_digest_and_decision_criteria():
     assert config["primary_k"] == 5
 
 
-def test_r0_alias_commande_achat_hits_purchase_on_tiny_graph():
-    from code_intelligence.evaluation.e1.cases import E1Case
-
-    case = E1Case.from_dict({
-        "case_id": "t_alias",
-        "family": "exact_label",
-        "instance": "test",
-        "language": "fr_FR",
-        "module": "purchase",
-        "question": "commande d'achat",
-        "expected_objects": ["model:purchase.order"],
-        "abstention_rule": "none",
-        "ground_truth": {"author": "t", "method": "human_review", "reference": "t"},
-    })
-    output = run_r0(case, _tiny_graph(), language="fr_FR")
-    assert "purchase.order" in output.candidates
-
-
-def test_r0_bon_commande_fournisseur_currently_wrong_on_alias_short_circuit():
-    """Documents the production failure E1 must beat: 'commande' alias -> sale.order."""
-    from code_intelligence.evaluation.e1.cases import E1Case
-
-    case = E1Case.from_dict({
-        "case_id": "t_paraphrase",
-        "family": "paraphrase",
-        "instance": "test",
-        "language": "fr_FR",
-        "module": "purchase",
-        "question": "Comment confirmer un bon de commande fournisseur ?",
-        "expected_objects": ["model:purchase.order"],
-        "abstention_rule": "none",
-        "ground_truth": {"author": "t", "method": "human_review", "reference": "t"},
-    })
-    output = run_r0(case, _tiny_graph(), language="fr_FR")
-    score = score_resolution_case(
-        case,
-        candidates=output.candidates,
-        declared_ambiguous=output.declared_ambiguous,
-        is_resolved=output.is_resolved,
-        primary_k=5,
-    )
-    assert score["silent_false_resolution"] is True or score["recall_at_5"] is False
-
-
-def test_r1_without_aliases_does_not_use_static_table():
+def test_r1_runs_offline_on_tiny_graph():
     from code_intelligence.evaluation.e1.cases import E1Case
 
     case = E1Case.from_dict({
@@ -484,19 +440,19 @@ def test_run_offline_keeps_other_systems_when_one_fails_and_persists_each_result
     seen: list[tuple[str, str]] = []
 
     report = e1_run.run_offline(
-        ["R0", "R3", "R1"],
+        ["R1", "R3", "R2"],
         graph=_tiny_graph(),
         output_path=output_path,
         on_system_done=lambda system_id, block: seen.append((system_id, block["status"])),
     )
 
-    assert seen == [("R0", "scored"), ("R3", "error"), ("R1", "scored")]
+    assert seen == [("R1", "scored"), ("R3", "error"), ("R2", "scored")]
     assert report["status"] == "partial"
     assert "ConnectionError" in report["systems"]["R3"]["detail"]
     persisted = json.loads(output_path.read_text(encoding="utf-8"))
     assert persisted["status"] == "partial"
-    assert persisted["systems"]["R0"]["status"] == "scored"
     assert persisted["systems"]["R1"]["status"] == "scored"
+    assert persisted["systems"]["R2"]["status"] == "scored"
 
 
 def test_run_offline_loads_graph_with_every_case_language(monkeypatch):

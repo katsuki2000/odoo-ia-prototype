@@ -16,6 +16,8 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
+import pytest
+
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, project_root)
 sys.path.insert(0, os.path.join(project_root, "document_rag"))
@@ -139,6 +141,7 @@ class TestRRF(unittest.TestCase):
             self.assertLessEqual(r["rrf_score"], 1.0)
 
 
+@pytest.mark.embedding_server
 class TestBM25Index(unittest.TestCase):
     """Test BM25 index building and searching."""
 
@@ -205,6 +208,7 @@ class TestBM25Index(unittest.TestCase):
         self.assertEqual(results, [])
 
 
+@pytest.mark.embedding_server
 class TestVectorSearch(unittest.TestCase):
     """Test vector search via ChromaDB."""
 
@@ -260,6 +264,7 @@ class TestVectorSearch(unittest.TestCase):
             self.assertEqual(r["metadata"]["type"], "code_python")
 
 
+@pytest.mark.embedding_server
 class TestHybridSearch(unittest.TestCase):
     """Test full hybrid search pipeline."""
 
@@ -348,6 +353,7 @@ class TestCrossEncoderRerank(unittest.TestCase):
         self.assertEqual(len(reranked), 1)
 
 
+@pytest.mark.embedding_server
 class TestRetrievePipeline(unittest.TestCase):
     """Test the full retrieve() pipeline end-to-end."""
 

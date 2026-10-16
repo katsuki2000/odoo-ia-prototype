@@ -28,8 +28,8 @@ class ChromaManager:
     def __init__(self, db_path: str | Path = None, embedding_model: Optional[str] = None, collection_name: str = DOCS_COLLECTION_NAME):
         self.db_path = Path(db_path) if db_path is not None else Path(CHROMA_PATH)
         self.db_path.mkdir(parents=True, exist_ok=True)
-        from config.settings import EMBEDDING_MODEL_NAME, LOCAL_EMBEDDING_MODEL
-        backend = os.getenv('EMBEDDING_BACKEND', 'local_light').strip().lower()
+        from config.settings import DEFAULT_EMBEDDING_BACKEND, EMBEDDING_MODEL_NAME, LOCAL_EMBEDDING_MODEL
+        backend = os.getenv('EMBEDDING_BACKEND', DEFAULT_EMBEDDING_BACKEND).strip().lower()
         defaultModel = LOCAL_EMBEDDING_MODEL if backend in SERVER_EMBEDDING_BACKENDS else os.getenv('EMBEDDING_MODEL') or EMBEDDING_MODEL_NAME
         self.embedding_model = embedding_model or defaultModel
         self.collection_name = collection_name

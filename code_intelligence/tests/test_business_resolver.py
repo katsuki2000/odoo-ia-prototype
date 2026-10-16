@@ -1,7 +1,7 @@
 """
 code_intelligence/tests/test_business_resolver.py
 
-J3 — Unit tests for business_resolver.resolve_business_term(, use_static_aliases=True), isolated from
+J3 — Unit tests for business_resolver.resolve_business_term(), isolated from
 the knowledge graph on disk. Uses a small synthetic graph fixture so these
 tests run fast and don't depend on /home/user/odoo-17.0 being present.
 
@@ -16,17 +16,15 @@ import networkx as nx
 import pytest
 
 from code_intelligence.agent.resolver import resolve_business_term, AMBIGUITY_GAP_THRESHOLD
-from code_intelligence.agent.aliases import BUSINESS_ALIASES
 
 
 @pytest.fixture
 def sample_graph() -> nx.DiGraph:
     """
     Minimal synthetic graph covering:
-      - a model matched only by static alias (account.move via "avoir")
       - a model matched only by fuzzy label, single clear candidate
         (custom.asset.loan via "matériel" -- accented to match the query,
-        deliberately NOT in BUSINESS_ALIASES to isolate the fuzzy path)
+        to isolate the fuzzy path)
       - three near-tied models to reproduce the "client vip" ambiguous case
       - a menu node reachable via OPENS_MODEL
     """
@@ -60,143 +58,15 @@ def _mock_llm(content: str) -> Mock:
 
 
 # ---------------------------------------------------------------------------
-# Synonyms — static alias path (deterministic, zero lexical overlap needed)
-# ---------------------------------------------------------------------------
-
-@pytest.mark.parametrize("query,expected_model", [
-    ("avoir", "account.move"),
-    ("avoirs", "account.move"),
-    ("mise à disposition", "custom.asset.loan"),
-    ("mise a disposition", "custom.asset.loan"),
-    ("congé", "hr.leave"),
-    ("congés", "hr.leave"),
-    ("demande de congé", "hr.leave"),
-    ("remboursement de frais", "custom.reimbursement.request"),
-])
-def test_known_alias_resolves_to_expected_model(sample_graph, query, expected_model):
-    result = resolve_business_term(query, sample_graph, use_static_aliases=True)
-    assert result.is_resolved
-    assert expected_model in result.resolved_models
-    assert result.source_step == "static_alias", (
-        f"Expected static_alias to win for a known business term, got {result.source_step!r}. "
-        "If this fails, the resolution order (alias-first) may have regressed."
-    )
-    assert result.confidence == 1.0
-
-
-# ---------------------------------------------------------------------------
-# "document deep" / "deep document" static aliases (fix (b2), bug (b) du
-# -  sections 159-163). Avant ce fix, "document Deep"
-# restait unresolved et "le document Deep" matchait a tort par fuzzy sur
-# ai.document (confiance non nulle, mauvais modele). Les deux formes sont
-# desormais des alias statiques directs vers custom.deep.document.
-# ---------------------------------------------------------------------------
-
-@pytest.mark.parametrize("query", [
-    "document deep",
-    "deep document",
-    "document Deep",
-    "Document Deep",
-    "DEEP DOCUMENT",
-    "le document Deep",
-    "un enregistrement du document Deep",
-])
-def test_document_deep_alias_resolves_to_custom_deep_document(query):
-    result = resolve_business_term(query, None, use_static_aliases=True)
-    assert result.is_resolved
-    assert "custom.deep.document" in result.resolved_models
-    assert result.source_step == "static_alias"
-    assert result.confidence == 1.0
-
-
-def test_document_deep_alias_does_not_regress_to_fuzzy_false_positive_ai_document():
-    """
-    Regression guard for the exact bug found in  section 159:
-    "le document Deep" used to fuzzy-match ai.document (wrong model, non-zero
-    confidence) because Step 2 (fuzzy) indexes the "document" token shared
-    with ai.document's label, and no competing candidate was close enough to
-    trip the ambiguity guard. The static alias (Step 1) must now short-circuit
-    Step 2 entirely for this query, so ai.document must never appear.
-    """
-    G = nx.DiGraph()
-    G.add_node("model:ai.document", node_type="Model",
-               name="ai.document", description="AI Document")
-    G.add_node("model:custom.deep.document", node_type="Model",
-               name="custom.deep.document", description="Deep Inheritance Document Base")
-
-    result = resolve_business_term("le document Deep", G, use_static_aliases=True)
-
-    assert result.is_resolved
-    assert result.source_step == "static_alias"
-    assert result.resolved_models == ["custom.deep.document"]
-    assert "ai.document" not in result.resolved_models
-
-
-def test_document_deep_alias_word_boundaries_not_triggered_by_unrelated_word():
-    """'deep' alone must not be an alias key (per the decision in
-     section 159/160 to avoid over-generic false positives);
-    a sentence using 'deep' as an unrelated English word must not resolve
-    via this alias pair."""
-    result = resolve_business_term("this is a deep dive into something else", None, use_static_aliases=True)
-    assert result.source_step != "static_alias" or "custom.deep.document" not in result.resolved_models
-
-
-def test_alias_matching_is_case_insensitive():
-    result = resolve_business_term("AVOIR", None, use_static_aliases=True)
-    assert result.is_resolved
-    assert "account.move" in result.resolved_models
-    assert result.source_step == "static_alias"
-
-
-def test_alias_matches_inside_a_full_sentence():
-    """
-    Regression guard: the benchmark questions are full sentences, not bare
-    keywords. The alias lookup must still fire via substring containment.
-    """
-    query = "Qui a le permission d'approuver un avoir de 25 000€ pour un client normal (pas VIP) ?"
-    result = resolve_business_term(query, None, use_static_aliases=True)
-    assert result.is_resolved
-    assert "account.move" in result.resolved_models
-    assert result.source_step == "static_alias"
-
-
-def test_alias_respects_word_boundaries():
-    """
-    'avoir' must not match inside an unrelated longer word like 'savoir'.
-    Regression guard for the word-boundary regex (_ALIAS_PATTERNS).
-    """
-    result = resolve_business_term("je veux savoir comment faire", None, use_static_aliases=True)
-    assert result.source_step != "static_alias" or "account.move" not in result.resolved_models
-    assert result.is_resolved is False, (
-        "No real alias should fire here; 'savoir' must not be matched as 'avoir'."
-    )
-
-
-def test_alias_matching_is_unicode_normalization_insensitive():
-    """
-    A decomposed-accent form of 'congé' (e + combining acute accent, U+0301)
-    must still match the precomposed key in BUSINESS_ALIASES via NFC
-    normalization on both sides.
-    """
-    decomposed_query = "conge\u0301"  # "congé" with combining accent
-    result = resolve_business_term(decomposed_query, None, use_static_aliases=True)
-    assert result.is_resolved
-    assert "hr.leave" in result.resolved_models
-    assert result.source_step == "static_alias"
-
-
-# ---------------------------------------------------------------------------
-# Synonyms — fuzzy fallback path (no static alias covers the term, single
+# Synonyms — fuzzy path (single
 # clear candidate -> no ambiguity, no LLM call)
 # ---------------------------------------------------------------------------
 
-def test_term_without_alias_falls_back_to_fuzzy_graph_match(sample_graph):
+def test_term_falls_back_to_fuzzy_graph_match(sample_graph):
     """
-    "matériel" alone is intentionally absent from BUSINESS_ALIASES (removed
-    during J2 cleanup as too generic on its own) but should still resolve
-    via fuzzy matching against the graph's Model.description labels.
+    "matériel" should resolve via fuzzy matching against the graph's Model.description labels.
     """
-    result = resolve_business_term("matériel", sample_graph, use_static_aliases=True)
+    result = resolve_business_term("matériel", sample_graph)
     assert result.is_resolved
     assert result.source_step == "fuzzy_graph_match"
     assert "custom.asset.loan" in result.resolved_models
@@ -209,17 +79,14 @@ def test_clear_top1_fuzzy_match_does_not_invoke_llm(sample_graph):
     is passed in -- arbitration is reserved for genuine ambiguity.
     """
     mock_llm = Mock()
-    result = resolve_business_term("matériel", sample_graph, llm=mock_llm, use_static_aliases=True)
+    result = resolve_business_term("matériel", sample_graph, llm=mock_llm)
     assert result.source_step == "fuzzy_graph_match"
     mock_llm.invoke.assert_not_called()
 
 
 def test_menu_label_resolves_via_opens_model_edge(sample_graph):
     """Menu.name -> OPENS_MODEL -> Model is one of the three indexed label sources ."""
-    result = resolve_business_term("conges", sample_graph, use_static_aliases=True)
-    # "conges" (no accent) matches BUSINESS_ALIASES["conges"] directly too,
-    # so this also exercises the alias path; the point is it must resolve
-    # to hr.leave either way.
+    result = resolve_business_term("conges", sample_graph)
     assert result.is_resolved
     assert "hr.leave" in result.resolved_models
 
@@ -231,7 +98,7 @@ def test_menu_label_resolves_via_opens_model_edge(sample_graph):
 def test_ambiguous_fuzzy_match_with_llm_picking_valid_candidate(sample_graph):
     """LLM arbitration selects a candidate from the closed list -> resolved, low confidence."""
     mock_llm = _mock_llm("res.partner")
-    result = resolve_business_term("client vip", sample_graph, llm=mock_llm, use_static_aliases=True)
+    result = resolve_business_term("client vip", sample_graph, llm=mock_llm)
     assert result.is_resolved
     assert result.source_step == "llm_arbitration"
     assert result.resolved_models == ["res.partner"]
@@ -245,7 +112,7 @@ def test_ambiguous_fuzzy_match_with_llm_picking_valid_candidate(sample_graph):
 def test_ambiguous_fuzzy_match_llm_says_none_is_unresolved(sample_graph):
     """LLM explicitly declines (NONE) -> unresolved, not a silent fallback to fuzzy top-1."""
     mock_llm = _mock_llm("NONE")
-    result = resolve_business_term("client vip", sample_graph, llm=mock_llm, use_static_aliases=True)
+    result = resolve_business_term("client vip", sample_graph, llm=mock_llm)
     assert result.is_resolved is False
     assert result.source_step == "unresolved"
 
@@ -257,7 +124,7 @@ def test_ambiguous_fuzzy_match_llm_hallucinates_out_of_list_is_unresolved(sample
     never trusted, per the closed-list constraint in the system prompt.
     """
     mock_llm = _mock_llm("some.hallucinated.model")
-    result = resolve_business_term("client vip", sample_graph, llm=mock_llm, use_static_aliases=True)
+    result = resolve_business_term("client vip", sample_graph, llm=mock_llm)
     assert result.is_resolved is False
     assert result.source_step == "unresolved"
     assert "some.hallucinated.model" not in result.resolved_models
@@ -267,7 +134,7 @@ def test_ambiguous_fuzzy_match_llm_call_failure_is_unresolved(sample_graph):
     """If the LLM call itself raises, arbitration must fail closed, not propagate the exception."""
     mock_llm = Mock()
     mock_llm.invoke.side_effect = RuntimeError("simulated API failure")
-    result = resolve_business_term("client vip", sample_graph, llm=mock_llm, use_static_aliases=True)
+    result = resolve_business_term("client vip", sample_graph, llm=mock_llm)
     assert result.is_resolved is False
     assert result.source_step == "unresolved"
 
@@ -288,57 +155,16 @@ def test_ambiguity_gap_threshold_is_a_positive_number():
     "xyzabc123 nonsense query",
 ])
 def test_out_of_scope_query_is_unresolved(sample_graph, query):
-    result = resolve_business_term(query, sample_graph, use_static_aliases=True)
+    result = resolve_business_term(query, sample_graph)
     assert result.is_resolved is False
     assert result.source_step == "unresolved"
     assert result.confidence == 0.0
 
 
 def test_empty_query_is_unresolved_without_graph_lookup():
-    result = resolve_business_term("", None, use_static_aliases=True)
+    result = resolve_business_term("", None)
     assert result.is_resolved is False
     assert "empty" in result.reason.lower()
-
-
-def test_none_graph_still_resolves_known_alias():
-    """
-    The resolver must degrade gracefully to alias-only matching when no
-    graph is available (e.g. graph build failed, or resolver called before
-    get_code_intelligence_graph() finishes) rather than raising.
-    """
-    result = resolve_business_term("congé", None, use_static_aliases=True)
-    assert result.is_resolved
-    assert "hr.leave" in result.resolved_models
-    assert result.source_step == "static_alias"
-
-
-# ---------------------------------------------------------------------------
-# Table hygiene — catches silent regressions in BUSINESS_ALIASES itself
-# ---------------------------------------------------------------------------
-
-def test_no_alias_key_is_empty_or_whitespace_only():
-    for key in BUSINESS_ALIASES:
-        assert key.strip(), f"Empty or whitespace-only alias key found: {key!r}"
-
-
-def test_no_alias_target_list_is_empty():
-    for key, targets in BUSINESS_ALIASES.items():
-        assert targets, f"Alias {key!r} maps to an empty target list."
-
-
-def test_removed_overgeneric_aliases_stay_removed():
-    """
-    J2 cleanup deliberately removed 'vip', 'client vip', 'régional', 'national'
-    as standalone aliases (too generic, no real lexical anchor to a single
-    model). This test documents that decision so it isn't silently
-    reintroduced by a future edit.
-    """
-    for overgeneric in ("vip", "client vip", "régional", "national"):
-        assert overgeneric not in BUSINESS_ALIASES, (
-            f"{overgeneric!r} was removed during J2 cleanup as too generic; "
-            "if reintroducing it, prefer a more specific phrase "
-            "(e.g. 'groupe régional' instead of 'régional')."
-        )
 
 
 # ---------------------------------------------------------------------------
@@ -358,7 +184,6 @@ def test_exact_technical_model_mention_resolves_even_with_unrelated_description(
     result = resolve_business_term(
         "Dans le modèle custom.asset.loan, quelles sont les conditions ?",
         sample_graph,
-        use_static_aliases=True,
     )
     assert result.is_resolved
     assert result.resolved_models == ["custom.asset.loan"]
@@ -366,16 +191,11 @@ def test_exact_technical_model_mention_resolves_even_with_unrelated_description(
     assert result.confidence == 1.0
 
 
-def test_exact_technical_model_mention_takes_priority_over_static_alias():
-    """todo/contexte.txt section 548 (mandat San Goku 2026-09-04) : quand un
-    alias business ET une mention technique exacte distincte sont presents,
-    la mention technique exacte gagne desormais (Step 0, avant le Step 1
-    alias) -- inversion permanente de l'ordre precedent. Dans ce cas precis
-    les deux visent le meme modele (account.move), donc seul source_step
-    change ; resolved_models reste identique."""
+def test_exact_technical_model_mention_in_a_sentence():
+    """Une mention technique exacte dans une phrase resout le modele (Step 0)."""
     G = nx.DiGraph()
     G.add_node("model:account.move", node_type="Model", name="account.move", description="")
-    result = resolve_business_term("un avoir concernant le modèle account.move", G, use_static_aliases=True)
+    result = resolve_business_term("un avoir concernant le modèle account.move", G)
     assert result.is_resolved
     assert result.resolved_models == ["account.move"]
     assert result.source_step == "exact_technical_mention"
@@ -411,55 +231,8 @@ def test_exact_technical_model_mention_does_not_match_substring_of_longer_identi
                description="Internal archival hierarchy record")
     result = resolve_business_term(
         "un champ nommé other.custom.deep.document.extended existe-t-il ?", G,
-        use_static_aliases=True,
     )
     assert not result.is_resolved
-
-
-def test_maintenance_equipment_alias_resolves_bloc_n1():
-    """Bloc N1 (todo/contexte.txt sections 748/767): 'equipement'/'\u00e9quipement'
-    (with or without accent) must resolve to maintenance.equipment -- this
-    alias was missing entirely when the maintenance module was added to the
-    native validation scope (distinct gap from the accent-stripping bug
-    already fixed in context_extractors.py, section 765: here the alias
-    itself never existed, in either spelling)."""
-    G = nx.DiGraph()
-    G.add_node("model:maintenance.equipment", node_type="Model", name="maintenance.equipment", description="")
-    for q in ("un equipement", "un \u00e9quipement", "des equipements", "des \u00e9quipements"):
-        result = resolve_business_term(q, G, use_static_aliases=True)
-        assert result.is_resolved, f"{q!r} should resolve"
-        assert result.resolved_models == ["maintenance.equipment"]
-
-
-def test_maintenance_request_alias_resolves_bloc_n1():
-    """Same gap as above, for 'demande de maintenance' -> maintenance.request
-    (MNT-Q2/MNT-Q5 in the native question bank)."""
-    G = nx.DiGraph()
-    G.add_node("model:maintenance.request", node_type="Model", name="maintenance.request", description="")
-    for q in ("une demande de maintenance", "une demande recurrente", "une demande r\u00e9currente"):
-        result = resolve_business_term(q, G, use_static_aliases=True)
-        assert result.is_resolved, f"{q!r} should resolve"
-        assert result.resolved_models == ["maintenance.request"]
-
-
-def test_constraint_question_with_specific_field_and_business_alias_keeps_both_models():
-    G = nx.DiGraph()
-    for model in ("maintenance.equipment", "maintenance.request"):
-        G.add_node(f"model:{model}", node_type="Model", name=model, description="")
-    G.add_node(
-        "field:maintenance.request.repeat_interval",
-        node_type="Field",
-        name="repeat_interval",
-        model="maintenance.request",
-    )
-
-    result = resolve_business_term(
-        "Quelle règle concerne les équipements et repeat_interval d'une demande récurrente ?",
-        G,
-        use_static_aliases=True,
-    )
-
-    assert result.resolved_models == ["maintenance.request", "maintenance.equipment"]
 
 
 def test_exact_multi_model_mentions_are_all_preserved():
@@ -470,7 +243,6 @@ def test_exact_multi_model_mentions_are_all_preserved():
     result = resolve_business_term(
         "Consulter stock.quant et modifier stock.move.line",
         G,
-        use_static_aliases=True,
     )
 
     assert result.resolved_models == ["stock.move.line", "stock.quant"]

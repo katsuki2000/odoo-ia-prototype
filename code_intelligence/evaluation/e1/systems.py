@@ -1,4 +1,4 @@
-"""E1 resolution systems. R0/R1 reuse the production resolver offline (llm=None).
+"""E1 resolution systems. R1 reuses the production resolver offline (llm=None).
 
 R2+ (BM25/BGE/RRF/expansion) live only in this package and must not be imported
 by the agent loop.
@@ -50,26 +50,13 @@ def _from_resolved(system_id: str, concept) -> SystemOutput:
     )
 
 
-def run_r0(case: E1Case, graph, *, language: Optional[str] = None) -> SystemOutput:
-    """Production resolver with static aliases."""
-    concept = resolve_business_term(
-        case.question,
-        graph,
-        llm=None,
-        language=language or case.language,
-        use_static_aliases=True,
-    )
-    return _from_resolved("R0", concept)
-
-
 def run_r1(case: E1Case, graph, *, language: Optional[str] = None) -> SystemOutput:
-    """Production resolver without static aliases (P4 ablation)."""
+    """Production resolver, offline and without LLM arbitration."""
     concept = resolve_business_term(
         case.question,
         graph,
         llm=None,
         language=language or case.language,
-        use_static_aliases=False,
     )
     return _from_resolved("R1", concept)
 
@@ -223,8 +210,6 @@ def run_system(
     embedding_function=None,
     llm=None,
 ) -> SystemOutput:
-    if system_id == "R0":
-        return run_r0(case, graph, language=language)
     if system_id == "R1":
         return run_r1(case, graph, language=language)
     if system_id == "R2":

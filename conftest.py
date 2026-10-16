@@ -1,33 +1,57 @@
-"""Network isolation shared by every test package.
+"""Shared test setup.
 
-Forces EMBEDDING_BACKEND=local_light (ChromaDB default ONNX all-MiniLM-L6-v2,
-fully offline) whatever the project .env contains, so tests never reach a
-local or remote embedding endpoint configured for real application use.
-
-Tests that exercise resolve_embedding_function() with a specific backend pass
-it as an argument and are not affected by this fixture.
-
-ODOO_URL is pointed at a closed port so a running Odoo server never changes
-what the code intelligence graph loads; tests marked integration keep the
-configured URL.
+Embeddings go through the inference server (EMBEDDING_BACKEND=local_server); tests marked
+embedding_server are skipped when it cannot be reached. The Odoo runtime is never contacted
+except by tests marked integration.
 """
-
-UNREACHABLE_ODOO_URL = "http://127.0.0.1:9"
 
 import os
 
 import pytest
+
+UNREACHABLE_ODOO_URL = "http://127.0.0.1:9"
+EMBEDDING_PROBE_TIMEOUT_SECONDS = 5
 
 # Read at import time by config.settings: pinned before any test module is collected so the
 # hop budget the tests assert does not depend on the developer .env.
 os.environ["CI_MAX_HOPS"] = "20"
 
 
+def _embedding_server_error():
+    """Return the failure of one real embedding call, or None when the server answers."""
+    from config import settings
+    from document_rag.vectorstore.embedding_functions import LocalServerEmbeddingFunction
+
+    try:
+        LocalServerEmbeddingFunction(
+            base_url=settings.LOCAL_EMBEDDING_BASE_URL,
+            model=settings.LOCAL_EMBEDDING_MODEL,
+            api_key=settings.LOCAL_EMBEDDING_API_KEY,
+            timeout=EMBEDDING_PROBE_TIMEOUT_SECONDS,
+            max_retries=1,
+        )(["ping"])
+    except Exception as error:
+        return error
+    return None
+
+
+def pytest_collection_modifyitems(items):
+    needing = [item for item in items if item.get_closest_marker("embedding_server")]
+    if not needing:
+        return
+    error = _embedding_server_error()
+    if error is None:
+        return
+    skip = pytest.mark.skip(reason=f"embedding server unavailable ({type(error).__name__})")
+    for item in needing:
+        item.add_marker(skip)
+
+
 @pytest.fixture(autouse=True)
-def _force_offline_embedding_backend(monkeypatch):
+def _pin_embedding_backend(monkeypatch):
     if os.environ.get("USE_KAGGLE_EMBEDDINGS", "").lower() == "true":
         return
-    monkeypatch.setenv("EMBEDDING_BACKEND", "local_light")
+    monkeypatch.setenv("EMBEDDING_BACKEND", "local_server")
     monkeypatch.setenv("RESOLVER_SEMANTIC_RETRIEVAL_ENABLED", "false")
 
 

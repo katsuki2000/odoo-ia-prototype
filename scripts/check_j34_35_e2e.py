@@ -26,10 +26,8 @@ Ground truth (models/deep_document.py):
     réservée à l'administrateur système."
 
 Uses the technical model name directly in the question (rather than a
-business term) to isolate graph/synthesis correctness from business_
-resolver alias coverage, which is a separate, lower-stakes concern (no
-static alias for "document" exists in BUSINESS_ALIASES as of 2026-08-06 --
-fuzzy match against graph labels is the fallback path being exercised too).
+business term) to isolate graph/synthesis correctness from business
+term resolution, which is a separate concern.
 """
 
 import sys

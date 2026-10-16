@@ -49,7 +49,7 @@ def test_po_translations_link_models_fields_menus_and_selections(tmp_path: Path)
     assert graph.nodes["menu:purchase.menu_purchase_root"]["business_labels"][0]["source"] == "po"
 
 
-def test_resolver_can_disable_static_aliases_and_use_instance_labels():
+def test_resolver_uses_instance_labels():
     graph = nx.DiGraph()
     graph.add_node(
         "model:purchase.order",
@@ -79,7 +79,6 @@ def test_resolver_can_disable_static_aliases_and_use_instance_labels():
         graph,
         llm=None,
         language="fr_FR",
-        use_static_aliases=False,
     )
 
     assert result.resolved_models == ["purchase.order"]
@@ -90,7 +89,6 @@ def test_resolver_can_disable_static_aliases_and_use_instance_labels():
         graph,
         llm=None,
         language="en_US",
-        use_static_aliases=False,
     )
     assert interface_language.resolved_models == ["purchase.order"]
 
@@ -117,7 +115,6 @@ def test_generic_command_does_not_default_to_sales_or_purchase():
         graph,
         llm=None,
         language="fr",
-        use_static_aliases=False,
     )
 
     assert not result.is_resolved
@@ -145,7 +142,7 @@ def test_fuzzy_matching_normalizes_contractions_for_instance_labels():
         business_labels=[{"label": "Achats", "language": "fr"}],
     )
 
-    matches = _fuzzy_match_graph("commande d'achat", graph, use_static_synonyms=False)
+    matches = _fuzzy_match_graph("commande d'achat", graph)
 
     assert matches[0][0] == "purchase.order"
 
@@ -180,7 +177,6 @@ def test_exact_field_and_model_label_pair_outweighs_generic_access_phrase():
         graph,
         llm=None,
         language="fr",
-        use_static_aliases=False,
     )
 
     assert result.resolved_models == ["maintenance.equipment"]
@@ -220,7 +216,7 @@ def test_root_menu_labels_attach_only_to_models_declared_by_the_module():
         business_labels=[{"label": "Inventaire", "language": "fr"}],
     )
 
-    index = _build_fuzzy_index(graph, use_static_synonyms=False)
+    index = _build_fuzzy_index(graph)
 
     assert ("contact inventaire", "res.partner") not in index
     assert ("transfer inventaire", "stock.picking") in index
@@ -238,7 +234,7 @@ def test_module_resolution_returns_declared_models_not_extensions():
         "model:stock.picking", "module:stock", edge_type="DEFINED_IN", role="declares",
     )
 
-    result = resolve_business_term("module stock", graph, use_static_aliases=False)
+    result = resolve_business_term("module stock", graph)
 
     assert result.resolved_models == ["stock.picking"]
 

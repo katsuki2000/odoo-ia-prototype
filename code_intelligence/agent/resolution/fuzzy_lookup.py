@@ -18,14 +18,14 @@ def ambiguous_candidates_of(concept: ResolvedConcept) -> List[str]:
     return [model for model in concept.diagnostics.get(AMBIGUOUS_CANDIDATES_KEY, '').split(',') if model]
 
 
-def resolve_fuzzy_match(query_text, clean_query, G, llm, language, use_static_aliases, semantic_candidates=()):
+def resolve_fuzzy_match(query_text, clean_query, G, llm, language, semantic_candidates=()):
     if G is None:
         return None
-    lexical = _fuzzy_match_graph(clean_query, G, use_static_synonyms=use_static_aliases)
+    lexical = _fuzzy_match_graph(clean_query, G)
     strict = bool(lexical)
     if not lexical:
         lexical = _fuzzy_match_graph(clean_query, G, threshold=WIDENED_CANDIDATE_THRESHOLD,
-                                     limit=WIDENED_CANDIDATE_LIMIT, use_static_synonyms=use_static_aliases)
+                                     limit=WIDENED_CANDIDATE_LIMIT)
     candidates = list(dict.fromkeys([model for model, _score in lexical[:SHORTLIST_FUZZY_LIMIT]]
                                    + list(semantic_candidates[:HYBRID_SEMANTIC_LIMIT])))
     candidates = [model for model in candidates if G.has_node('model:' + model)

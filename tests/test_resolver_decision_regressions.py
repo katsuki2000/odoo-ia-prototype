@@ -92,6 +92,7 @@ class ResolverDecisionTests(unittest.TestCase):
         self.settings.LOCAL_EMBEDDING_MODEL = 'configured-default'
         self.settings.LOCAL_EMBEDDING_API_KEY = 'fixture'
         self.settings.EMBEDDING_MODEL_NAME = 'local-default'
+        self.settings.DEFAULT_EMBEDDING_BACKEND = 'local_server'
         self.settings.SEMANTIC_INDEX_CACHE_DIR = None
         config = types.ModuleType('config')
         config.settings = self.settings

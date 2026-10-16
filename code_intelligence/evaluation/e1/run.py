@@ -1,4 +1,4 @@
-"""CLI: run E1 systems R0/R1 offline on the calibration seed (no LLM)."""
+"""CLI: run E1 systems R1 and following offline on the calibration seed."""
 
 from __future__ import annotations
 
@@ -154,11 +154,11 @@ def _enable_progress_logging() -> None:
 
 
 def main(argv: Optional[list[str]] = None) -> int:
-    parser = argparse.ArgumentParser(description="Run E1 offline resolution comparison (R0/R1).")
+    parser = argparse.ArgumentParser(description="Run E1 offline resolution comparison.")
     parser.add_argument(
         "--systems",
-        default="R0,R1,R2",
-        help="Comma-separated system ids (default: R0,R1,R2). R3, R4 and R6 call the embedding backend, R6 also the LLM; R5 not implemented yet.",
+        default="R1,R2",
+        help="Comma-separated system ids (default: R1,R2). R3, R4 and R6 call the embedding backend, R6 also the LLM; R5 not implemented yet.",
     )
     parser.add_argument("--json", action="store_true", help="Print full JSON report")
     parser.add_argument(

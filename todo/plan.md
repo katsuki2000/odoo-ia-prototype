@@ -111,14 +111,14 @@ Sortie : toute reponse et toute trace rattachées à une empreinte ; aucune lect
 
 - Lexique bidirectionnel (terme vers objet, objet vers libellé) derivé de l'instance : traductions statiques
   et runtime, lié a l'objet exact (modele, champ, menu, selection), à sa source, son module, sa langue.
-  Les alias manuels deviennent une couche de surcharges optionnelle, visible et mesurable.
+  Les alias manuels sont retires du code (journal 1436-1438) : aucune table d'alias, aucune couche de surcharge.
 - Resolution : mention technique exacte, lexique, contexte d'ecran, flou puis semantique comme indices,
   puis proposer-verifier par le LLM (noms valides dans le graphe uniquement). Discriminant (champ et valeur)
   dans `ResolutionResult`. Panne du backend d'embeddings signalée, jamais masquée.
 - Departage deterministe fondé sur la rareté des indices ; abstention explicite en cas d'ambiguité.
-- Mesurer ce que le flou, les alias et le sémantique (bge-m3) resolvent seuls ; si le sémantique domine, réduire les alias manuels et les seuils flous, puis étendre l'index aux champs, menus, boutons et groupes. Le sémantique reste un indice : aucune décision d'accès n'en dépend.
+- Mesurer ce que le flou et le sémantique (bge-m3) resolvent seuls ; si le sémantique domine, réduire les seuils flous, puis étendre l'index aux champs, menus, boutons et groupes. Le sémantique reste un indice : aucune décision d'accès n'en dépend.
 - **Expérience E1 (pré-enregistrée, section 1227 du journal)** : hors ligne, sans appel LLM, sans changer le
-  comportement de MIRO. Compare le résolveur actuel avec alias (R0) et sans alias (R1) à une recherche sur des fiches
+  comportement de MIRO. Compare le résolveur actuel (R1, sans alias ; R0 avec alias retiré, journal 1438) à une recherche sur des fiches
   de nœuds du graphe : lexique et BM25 (R2), BGE-M3 (R3), fusion RRF (R4), puis expansion déterministe par arêtes
   typées (R5). Les cas gelés sont tous `held_out` et ne portent que sur des modèles : un jeu de calibrage séparé
   est construit (familles : terme paraphrasé, libellé exact, cible non-modèle, terme ambigu, terme absent, fr et en),

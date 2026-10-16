@@ -69,7 +69,6 @@
     }
   },
   "systems": [
-    "R0",
     "R1",
     "R2",
     "R3",
@@ -116,6 +115,13 @@
       "date": "2026-10-15",
       "changes": [
         "R6 contract: an identifier without its kind prefix is accepted as the full identifier when it equals the part after the prefix of exactly one candidate; punctuation, quotes, surrounding text and identifiers outside the list stay invalid (harness only, production untouched)"
+      ]
+    },
+    {
+      "section": 1436,
+      "date": "2026-10-16",
+      "changes": [
+        "system R0 (production resolver with static aliases) removed: the alias tables no longer exist; R1 (production resolver) is the reference baseline; amendment to 1227 to be validated by pmm"
       ]
     }
   ]

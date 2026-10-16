@@ -81,8 +81,9 @@ def test_nodes_and_edges_are_built(tmp_path):
     G = nx.DiGraph()
     add_report_and_template_nodes(G, _Registry(), _modules(tmp_path))
     assert G.nodes["report:demo.action_report_order"]["target_model"] == "demo.order"
-    assert G.nodes["report:demo.action_report_order"]["technical_tags"] == ["report"]
-    assert G.nodes["mail_template:demo.email_template_order"]["technical_tags"] == ["mail_template"]
+    # Node kinds are carried by node_type; TechnicalTag stays the architecture.md vocabulary (record_rule, acl...).
+    assert G.nodes["report:demo.action_report_order"]["technical_tags"] == []
+    assert G.nodes["mail_template:demo.email_template_order"]["technical_tags"] == []
     edges = {(s, t, d["edge_type"]) for s, t, d in G.edges(data=True)}
     assert ("report:demo.action_report_order", "model:demo.order", "REPORTS_ON") in edges
     assert ("report:demo.action_report_proforma", "group:demo.group_proforma", "APPLIES_TO_GROUP") in edges

@@ -2,12 +2,12 @@
 
 Statut : brouillon valide par pmm le 13/10/2026 (section 1278) ; seuils R6 encore a fixer ; rien d'applique au code. A valider par pmm avant tout mandat. Echeance de reference : livraison du 20/10/2026
 (`todo/perimetre_livraison_20_octobre.md`). Lie a P4 / E1 (section 1227) et aux points (4)-(5) de la section 1277.
-Nommage : phases du plan = PR0 a PR4 ; systemes experimentaux E1 = R0 a R6 (R6 = R4 + arbitrage LLM, a creer).
+Nommage : phases du plan = PR0 a PR4 ; systemes experimentaux E1 = R1 a R6 (R0 retire avec les alias, journal 1438 ; R6 = R4 + arbitrage LLM, a creer).
 v2 : integre une relecture externe, chaque point verifie dans le code local (branche `main`, HEAD e42dadf).
 
 ## 1. Constats lus dans le code
 
-1. `resolve_business_term` : mention exacte -> [alias si `use_static_aliases`] -> dense (decide seul si score >= 0.25 et ecart
+1. `resolve_business_term` : mention exacte -> dense (decide seul si score >= 0.25 et ecart
    >= 0.10) -> fuzzy + departage deterministe + arbitrage LLM borne. Un dense confiant n'est jamais verifie par le LLM.
 2. L'arbitrage LLM est une liste fermee (hors liste = rejet) ; sa shortlist combine fuzzy et candidats semantiques si un client LLM
    est fourni. Sorties admises aujourd'hui : un candidat exact ou `NONE`. `AMBIGU` n'existe pas : il est traite comme hors liste.
@@ -15,7 +15,7 @@ v2 : integre une relecture externe, chaque point verifie dans le code local (bra
    `agent/tool_helpers.py:86` (sans LLM).
 4. `conftest.py` force `RESOLVER_SEMANTIC_RETRIEVAL_ENABLED=false` (autouse) : les 2 tests `plan_steps` en echec mesurent exact +
    fuzzy, sans dense ni arbitrage. A requalifier, pas a « corriger » par un retour des alias.
-5. Le harnais E1 n'a pas de client LLM : R0 a R4 mesurent la generation de candidats, jamais le choix LLM.
+5. Le harnais E1 n'a pas de client LLM : R1 a R4 mesurent la generation de candidats, jamais le choix LLM.
 6. Calibrage E1 : 8 cas, `status: seed_incomplete`. Cible deja inscrite en 1227 : >= 20 cas par famille, >= 120 au total, seconde
    instance `en_US` ouverte. `frozen_cases.json` : 249 cas, tous `held_out`.
 7. Mesure dense deja faite (sondes /tmp, section 1277) : sur 4 formulations de « conges », `hr.leave` n'est dans aucun top 6.
@@ -56,7 +56,7 @@ v2 : integre une relecture externe, chaque point verifie dans le code local (bra
   (risque d'une confiance artificielle).
   DECIDE par pmm (13/10/2026) : (b) calibrage partiel d'abord ; completer vers 120 avant la decision D1. Verite terrain par oracle Odoo ou relecture humaine, jamais
   deduite d'un systeme compare. Aucun cas pris dans les `held_out`. Inclure `adversarial_custom` (modele ou libelle renomme).
-- Sortie : tableau R0..R4 + R6 sur le calibrage, par famille et par langue.
+- Sortie : tableau R1..R4 + R6 sur le calibrage, par famille et par langue.
 - Requalifier les 2 tests `plan_steps` ; reecrire `test_j6_context_validation` sans figer les langues actives.
 
 ### PR1 -- Decision (criteres ecrits avant calcul)

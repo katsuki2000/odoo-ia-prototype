@@ -7,10 +7,13 @@ import tempfile
 import unittest
 from unittest.mock import MagicMock
 
+import pytest
+
 from document_rag.ingestion.incremental import reindex_if_changed
 from document_rag.vectorstore.chroma_manager import ChromaManager
 
 
+@pytest.mark.embedding_server
 class TestIncrementalIndexation(unittest.TestCase):
     """Validate modify, delete, and add incremental indexing scenarios."""
 

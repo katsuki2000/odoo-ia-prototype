@@ -2,13 +2,6 @@
 
 from typing import Optional
 
-from .aliases import (
-    BUSINESS_ALIASES,
-    NATIVE_MODEL_SYNONYMS,
-    normalize_alias_text,
-    BUSINESS_ALIASES_NFC,
-    _ALIAS_PATTERNS,
-)
 from .matching import (
     ResolvedConcept,
     _FUZZY_INDEX_CACHE,
@@ -20,7 +13,6 @@ from .matching import (
     rank_by_specificity,
     _fuzzy_match_graph,
 )
-from .resolution.alias_lookup import resolve_static_alias
 from .resolution.arbitration import (
     _ARBITRATION_SYSTEM_PROMPT,
     _build_arbitration_prompt,
@@ -38,6 +30,7 @@ from .resolution.dense_lookup import resolve_dense_retrieval
 from .resolution.exact_mention import resolve_exact_mention
 from .resolution.fuzzy_lookup import resolve_fuzzy_match
 from .semantic_retrieval import SEMANTIC_STATUS_DIAGNOSTIC_KEY
+from .text_normalization import normalize_query_text
 
 
 def resolve_business_term(
@@ -46,15 +39,11 @@ def resolve_business_term(
     llm=None,
     *,
     language: Optional[str] = None,
-    use_static_aliases: bool = False,
 ) -> ResolvedConcept:
     """Resolve a natural language query into a technical Odoo model/module.
 
     Exact mentions are resolved first. Dense retrieval proposes candidates;
     lexical matching and bounded arbitration resolve disagreements.
-
-    Static aliases are off by default. Pass use_static_aliases=True only for
-    backward-compatible evaluation (E1 R0).
     """
     if not query_text:
         return ResolvedConcept(
@@ -63,23 +52,15 @@ def resolve_business_term(
             reason="Empty query text provided.",
         )
 
-    clean_query = normalize_alias_text(query_text.lower().strip())
-    aliases = BUSINESS_ALIASES_NFC if use_static_aliases else {}
-    alias_patterns = _ALIAS_PATTERNS if use_static_aliases else {}
+    clean_query = normalize_query_text(query_text.lower().strip())
 
-    resolved = resolve_exact_mention(clean_query, query_text, G, aliases, alias_patterns)
+    resolved = resolve_exact_mention(clean_query, query_text, G)
     if resolved is not None:
         return resolved
 
-    if use_static_aliases:
-        resolved = resolve_static_alias(clean_query, G, aliases, alias_patterns)
-        if resolved is not None:
-            return resolved
-
     dense = resolve_dense_retrieval(query_text, G, language)
     resolved = resolve_fuzzy_match(
-        query_text, clean_query, G, llm, language, use_static_aliases,
-        semantic_candidates=dense.candidates,
+        query_text, clean_query, G, llm, language, semantic_candidates=dense.candidates,
     )
     if resolved is None:
         resolved = ResolvedConcept(
@@ -95,11 +76,6 @@ def resolve_business_term(
 
 
 __all__ = [
-    "BUSINESS_ALIASES",
-    "NATIVE_MODEL_SYNONYMS",
-    "normalize_alias_text",
-    "BUSINESS_ALIASES_NFC",
-    "_ALIAS_PATTERNS",
     "ResolvedConcept",
     "_FUZZY_INDEX_CACHE",
     "_build_fuzzy_index",

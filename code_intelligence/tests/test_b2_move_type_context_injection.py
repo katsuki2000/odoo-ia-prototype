@@ -31,6 +31,7 @@ This file covers two things:
      writing these assertions (not invented from the docstring alone).
 """
 
+from code_intelligence.agent.matching import ResolvedConcept
 from code_intelligence.agent.resolver import resolve_business_term
 from code_intelligence.agent.context_extractors import (
     _infer_move_type_context,
@@ -39,23 +40,31 @@ from code_intelligence.agent.context_extractors import (
 from code_intelligence.rules.record_rules import RuleDetail, RuleEvaluationResult
 
 
+def _static_alias_concept(term: str) -> ResolvedConcept:
+    """Synthetic concept: the static alias tables were removed (section 1436),
+    so no resolver step produces `static_alias` any more. The contract of
+    `_infer_move_type_context` is exercised on a hand-built concept."""
+    return ResolvedConcept(
+        user_term=term, resolved_models=["account.move"], confidence=1.0,
+        source_step="static_alias", is_resolved=True, reason="synthetic",
+    )
+
+
 # ---------------------------------------------------------------------------
 # _infer_move_type_context() in isolation
 # ---------------------------------------------------------------------------
 
 class TestInferMoveTypeContextIsolation:
     def test_facture_resolves_to_out_invoice(self):
-        concept = resolve_business_term("Qui peut voir une facture de 30000 euros ?", G=None, use_static_aliases=True)
-        assert concept.source_step == "static_alias"
+        concept = _static_alias_concept("facture")
         assert _infer_move_type_context(concept) == {"move_type": "out_invoice"}
 
     def test_avoir_resolves_to_out_refund(self):
-        concept = resolve_business_term("Qui peut voir un avoir de 30000 euros ?", G=None, use_static_aliases=True)
-        assert concept.source_step == "static_alias"
+        concept = _static_alias_concept("avoir")
         assert _infer_move_type_context(concept) == {"move_type": "out_refund"}
 
     def test_unresolved_concept_returns_empty(self):
-        concept = resolve_business_term("xyzabc123 nonsense query", G=None, use_static_aliases=True)
+        concept = resolve_business_term("xyzabc123 nonsense query", G=None)
         assert concept.is_resolved is False
         assert _infer_move_type_context(concept) == {}
 
@@ -105,11 +114,11 @@ def _real_avoir_multi_societe_rule() -> RuleDetail:
     )
 
 
-def _evaluate_for_question(question: str, amount: float = 30000.0):
+def _evaluate_for_question(question: str, term: str, amount: float = 30000.0):
     """Mirrors ci_agent_node.py's _dispatch_context/context construction
     exactly (same three update() calls, same order) so this test tracks
     the real integration point, not just the helper in isolation."""
-    concept = resolve_business_term(question, G=None, use_static_aliases=True)
+    concept = _static_alias_concept(term)
     context = {"amount": amount}
     context.update(_extract_company_context(question))
     context.update(_infer_move_type_context(concept))
@@ -131,7 +140,7 @@ class TestMoveTypeInjectionResolvesRealCompanyAgnosticRule:
         though 'facture' unambiguously means move_type != 'out_refund',
         which alone satisfies the OR regardless of company_id."""
         (verdict, unresolved), context = _evaluate_for_question(
-            "Qui peut voir une facture de 30000 euros ?"
+            "Qui peut voir une facture de 30000 euros ?", "facture"
         )
         assert context["move_type"] == "out_invoice"
         assert verdict is True
@@ -146,7 +155,7 @@ class TestMoveTypeInjectionResolvesRealCompanyAgnosticRule:
         for certain this IS a credit note, it just still needs the
         company to conclude."""
         (verdict, unresolved), context = _evaluate_for_question(
-            "Qui peut voir un avoir de 30000 euros ?"
+            "Qui peut voir un avoir de 30000 euros ?", "avoir"
         )
         assert context["move_type"] == "out_refund"
         assert verdict is None
@@ -159,17 +168,11 @@ class TestMoveTypeInjectionResolvesRealCompanyAgnosticRule:
         _infer_move_type_context call at all), proving the fix is not a
         no-op -- the same question genuinely used to come back
         unresolved."""
-        concept = resolve_business_term(
-            "Qui peut voir une facture de 30000 euros ?", G=None,
-            use_static_aliases=True,
-        )
-        assert concept.source_step == "static_alias"  # sanity: alias did match
-
         pre_b2_context = {"amount": 30000.0}
         pre_b2_context.update(
             _extract_company_context("Qui peut voir une facture de 30000 euros ?")
         )
-        # deliberately NOT updating with _infer_move_type_context(concept)
+        # deliberately NOT updating with _infer_move_type_context(...)
 
         result = RuleEvaluationResult(
             model_name="account.move",

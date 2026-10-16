@@ -122,22 +122,7 @@ def test_dispatch_inheritance_prioritizes_declaring_module(monkeypatch):
     assert mod_tool.calls[0] == "sale"
 
 
-def test_workflow_alias_wins_over_shared_method_symbol():
-    """A shared method name must not make unrelated models consume dispatch slots."""
-    graph = nx.DiGraph()
-    for model in ("sale.order", "stock.track.confirmation", "stock.picking", "hr.leave"):
-        graph.add_node(f"model:{model}", node_type="Model", name=model)
-
-    question = (
-        "Que se passe-t-il exactement quand on confirme une commande de vente "
-        "(action_confirm), et dans quel cas est-elle automatiquement verrouillee (locked) juste apres ?"
-    )
-    concept = resolve_business_term(question, graph, llm=None, use_static_aliases=True)
-
-    assert concept.resolved_models == ["sale.order"]
-
-
-def test_unique_button_model_wins_over_generic_commande_alias():
+def test_unique_button_model_wins_over_generic_commande_term():
     graph = nx.DiGraph()
     graph.add_node("model:purchase.order", node_type="Model", name="purchase.order")
     graph.add_node("model:sale.order", node_type="Model", name="sale.order")
@@ -149,7 +134,7 @@ def test_unique_button_model_wins_over_generic_commande_alias():
         "Que se passe-t-il quand on clique sur 'Confirm Order' "
         "(button_confirm) pour une commande eligible à l'approbation directe ?"
     )
-    concept = resolve_business_term(question, graph, llm=None, use_static_aliases=True)
+    concept = resolve_business_term(question, graph, llm=None)
     assert concept.resolved_models == ["purchase.order"]
 
 

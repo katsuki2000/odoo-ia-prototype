@@ -5,7 +5,6 @@ from typing import Dict
 
 import networkx as nx
 
-from code_intelligence.rules.ontology import TechnicalTag
 from code_intelligence.utils import qualify_xml_id
 
 from .nodes import ParsedModule, ResolvedSymbolRegistry
@@ -58,7 +57,7 @@ def add_http_route_nodes(G: nx.DiGraph, modules_dict: Dict[str, ParsedModule]) -
                 filepath=route.filepath,
                 lineno=route.lineno,
                 behavioral_tags=[],
-                technical_tags=[TechnicalTag.HTTP_ROUTE.value],
+                technical_tags=[],
             )
 
 
@@ -86,7 +85,7 @@ def add_report_and_template_nodes(G: nx.DiGraph, registry: ResolvedSymbolRegistr
             filepath=report.filepath,
             lineno=report.lineno,
             behavioral_tags=[],
-            technical_tags=[TechnicalTag.REPORT.value],
+            technical_tags=[],
         )
         if target is not None:
             G.add_edge(node_id, f"model:{target}", edge_type="REPORTS_ON")
@@ -114,7 +113,7 @@ def add_report_and_template_nodes(G: nx.DiGraph, registry: ResolvedSymbolRegistr
             filepath=template.filepath,
             lineno=template.lineno,
             behavioral_tags=[],
-            technical_tags=[TechnicalTag.MAIL_TEMPLATE.value],
+            technical_tags=[],
         )
         if target is not None:
             G.add_edge(node_id, f"model:{target}", edge_type="TEMPLATE_FOR")

@@ -79,7 +79,8 @@ class LocalServerEmbeddingFunction(EmbeddingFunction):
 
 def resolve_embedding_function(backend: Optional[str] = None, embedding_model: Optional[str] = None) -> Optional[EmbeddingFunction]:
     """Resolve a provider; explicit model overrides its configured backend default."""
-    backend = (backend or os.environ.get('EMBEDDING_BACKEND', 'local_light')).lower().strip()
+    from config.settings import DEFAULT_EMBEDDING_BACKEND
+    backend = (backend or os.environ.get('EMBEDDING_BACKEND', DEFAULT_EMBEDDING_BACKEND)).lower().strip()
     if backend == 'local_light':
         return None
     if backend in SERVER_EMBEDDING_BACKENDS:
