@@ -22,6 +22,7 @@ from code_intelligence.extractor.manifest import (
 )
 from code_intelligence.extractor.http_routes import parse_http_routes
 from code_intelligence.extractor.python import extract_odoo_models_from_file
+from code_intelligence.extractor.xml_models import parse_xml_document
 from code_intelligence.extractor.xml import (
     parse_actions_from_xml,
     parse_base_automations_from_xml,
@@ -33,7 +34,6 @@ from code_intelligence.extractor.xml import (
     parse_menuitems_from_xml,
     parse_server_actions_from_xml,
     parse_views_from_xml,
-    parse_xml_document,
 )
 from .translations import load_module_translations
 from .translations import attach_runtime_translations
