@@ -235,6 +235,20 @@ def parse_xml_root(
     return result[1] if result else None
 
 
+def parse_xml_document(
+    filepath: Path,
+    *,
+    missing_message: Optional[str] = None,
+    error_context: str = "",
+) -> Optional[Tuple[str, ET.Element]]:
+    """Read and parse an XML source once for use by multiple extractors."""
+    return _read_and_parse_xml(
+        filepath,
+        missing_message=missing_message,
+        error_context=error_context,
+    )
+
+
 def iter_records_by_model(
     root: ET.Element, model_names: Union[str, Set[str]]
 ) -> Iterator[Tuple[str, ET.Element]]:
