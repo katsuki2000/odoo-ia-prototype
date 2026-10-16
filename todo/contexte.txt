@@ -3468,3 +3468,28 @@ Date : 16/10/2026
 **Risque** : le raisonnement peut ameliorer le choix des capacites ; a surveiller sur la qualite des plans (evidence `sufficient`, hops choisis). Retour arriere : `LLM_NO_THINK_MARKER=` (vide) dans `.env`, sans toucher au code.
 **A faire par pmm** : redemarrer l'API, rejouer « comment on s'envoie des messages sur l'ERP? » et comparer `routing_time`, `ci_synthesis_time` et `total_time` du log `request_latency` aux mesures de 1411 ; verifier que les etapes du plan restent pertinentes.
 **Fichiers modifies** : `config/settings.py`, `.env.example`, `core/llm/llm_client.py`, `code_intelligence/agent/investigation_llm.py`, `code_intelligence/agent/resolution/arbitration.py`, `code_intelligence/agent/capability_planner.py`, `tests/test_llm_no_think.py` (nouveau), `tests/test_capability_investigation.py`, `tests/test_resolver_decision_regressions.py`, `todo/contexte.txt`.
+
+## Section 1422 : parsing partage pour la construction du graphe de code (16/10/2026)
+
+*(Renumerotee 1421 -> 1422 a la fusion : `integration/fusion-15oct` portait deja une section 1421 sur `qwen3`.)*
+
+Date : 16/10/2026
+**Mandat** : simplifier le parsing du graphe sur une nouvelle branche, sans Neo4j.
+**Cause** : le chargeur relisait et reparsait chaque fichier Python pour extraire les modeles puis les routes HTTP ; chaque fichier XML etait reparsé par dix extracteurs.
+**Realise** :
+- `graph/loader.py` lit chaque fichier Python une fois et construit un seul AST, transmis aux extracteurs de modeles et de routes. Les fichiers illisibles ou syntaxiquement invalides sont ignores avec un avertissement.
+- `extractor/xml_models.py` expose `parse_xml_document`; le chargeur lit et parse chaque XML une fois, puis transmet le document aux extracteurs de regles, ACL, rapports, modeles d'e-mail, groupes, actions, automatisations, menus et vues. Un XML invalide est signale une fois puis ignore par les extracteurs de ce fichier.
+- Les extracteurs conservent leurs signatures d'appel existantes pour les autres consommateurs ; le document preparse est un argument optionnel.
+- Le controle d'inventaire des sources garde sa logique de routes distincte pour rester un audit independant de l'extracteur. Le parcours BFS de propagation des champs est conserve : il filtre des types d'aretes precis, donc un remplacement par `nx.descendants` changerait la semantique.
+**Tests ajoutes** : partage AST entre extracteurs Python et reutilisation du document XML sans relecture.
+**Verification** : non executee a distance ; les tests cibles et `py_compile` restent a lancer sur la branche.
+**Fichiers modifies** : `code_intelligence/graph/loader.py`, `code_intelligence/extractor/python.py`, `code_intelligence/extractor/http_routes.py`, `code_intelligence/extractor/xml_models.py`, `code_intelligence/extractor/xml.py`, `code_intelligence/tests/test_graph_parser_reuse.py` (nouveau), `todo/contexte.txt`.
+
+## Section 1423 : fusion de `origin/refactor/code-graph-parser-reuse` dans `integration/fusion-15oct` (16/10/2026)
+
+Date : 16/10/2026
+**Mandat (pmm)** : « on peut merger ? » puis « vas y » (hors `main`). Sauvegarde du journal avant fusion : `/tmp/contexte.avant_fusion.txt`. HEAD avant fusion : `6339c28` (propre, en avance de 1 sur `origin/integration/fusion-15oct`) ; branche fusionnee : 11 commits issus de `630733d`.
+**Simulation** (`git merge-tree`, arbre intact) : un seul conflit, `todo/contexte.txt` ; code sans chevauchement (la branche touche `extractor/*`, `graph/loader.py` ; HEAD touche `llm_client.py`, `settings.py`, `arbitration.py`).
+**Resolution** : les deux sections 1421 gardees ; celle de la branche (parsing partage) renumerotee 1422, avec une note de renumerotation.
+**Verification** : `py_compile` des 5 fichiers de code fusionnes OK ; 27 passed (`test_graph_parser_reuse`, `test_http_route_nodes`, `test_report_mail_template_nodes`, `test_security_extraction_1416`, `test_graph_source_audit`, `test_s2_1_record_rules`). Pas de push.
+**A faire par pmm** : `python scripts/rebuild_graph.py` (le refactor ne doit rien changer : 17 928 noeuds, 17 579 aretes), `python scripts/audit_graph_coverage.py` (memes chiffres : Report 46, MailTemplate 30, HttpRoute 322, Rule 294, AccessEntry 956), suite complete, puis `git push` si satisfait.

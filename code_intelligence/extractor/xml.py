@@ -4,7 +4,7 @@ import logging
 import re
 import xml.etree.ElementTree as ET
 from pathlib import Path
-from typing import List
+from typing import List, Optional, Tuple
 
 from .csv import OdooAccessEntry
 from .xml_models import (
@@ -43,12 +43,15 @@ XML parsers for ir.actions.act_window, ir.actions.client, ir.actions.server, ir.
 _ACTION_TYPES = {"ir.actions.act_window": "act_window", "ir.actions.client": "client"}
 
 
-def parse_actions_from_xml(filepath: Path) -> List[OdooActionRecord]:
+def parse_actions_from_xml(filepath: Path, *, parsed_xml: Optional[Tuple[str, Optional[ET.Element]]] = None) -> List[OdooActionRecord]:
     """
     Parse an Odoo XML file and extract all <record model="ir.actions.act_window"> and
     <record model="ir.actions.client"> declarations (a client action has a tag, no res_model).
     """
-    root = parse_xml_root(filepath, error_context="for actions")
+    if parsed_xml is None:
+        root = parse_xml_root(filepath, error_context="for actions")
+    else:
+        _, root = parsed_xml
     if root is None:
         return []
 
@@ -85,12 +88,15 @@ def parse_actions_from_xml(filepath: Path) -> List[OdooActionRecord]:
     return actions
 
 
-def parse_server_actions_from_xml(filepath: Path) -> List[OdooServerActionRecord]:
+def parse_server_actions_from_xml(filepath: Path, *, parsed_xml: Optional[Tuple[str, Optional[ET.Element]]] = None) -> List[OdooServerActionRecord]:
     """
     Parse an Odoo XML file and extract all <record model="ir.actions.server"> declarations.
     Captures the 'code' field content that contains executable Python logic.
     """
-    root = parse_xml_root(filepath, missing_message="XML file does not exist: %s", error_context="")
+    if parsed_xml is None:
+        root = parse_xml_root(filepath, missing_message="XML file does not exist: %s", error_context="")
+    else:
+        _, root = parsed_xml
     if root is None:
         return []
 
@@ -142,12 +148,15 @@ def parse_server_actions_from_xml(filepath: Path) -> List[OdooServerActionRecord
     return actions
 
 
-def parse_base_automations_from_xml(filepath: Path) -> List[OdooBaseAutomationRecord]:
+def parse_base_automations_from_xml(filepath: Path, *, parsed_xml: Optional[Tuple[str, Optional[ET.Element]]] = None) -> List[OdooBaseAutomationRecord]:
     """
     Parse an Odoo XML file and extract all <record model="base.automation"> declarations.
     Links automation triggers to their associated ir.actions.server records.
     """
-    root = parse_xml_root(filepath, missing_message="XML file does not exist: %s", error_context="")
+    if parsed_xml is None:
+        root = parse_xml_root(filepath, missing_message="XML file does not exist: %s", error_context="")
+    else:
+        _, root = parsed_xml
     if root is None:
         return []
 
@@ -194,14 +203,19 @@ XML parsers for ir.rule and res.groups declarations.
 
 
 
-def parse_ir_rules_from_xml(filepath: Path) -> List[OdooRuleRecord]:
+def parse_ir_rules_from_xml(filepath: Path, *, parsed_xml: Optional[Tuple[str, Optional[ET.Element]]] = None) -> List[OdooRuleRecord]:
     """
     Parse an Odoo XML file and extract all <record model="ir.rule"> declarations.
     """
-    result = _read_and_parse_xml(filepath, missing_message="XML file does not exist: %s")
-    if result is None:
-        return []
-    content, root = result
+    if parsed_xml is None:
+        result = _read_and_parse_xml(filepath, missing_message="XML file does not exist: %s")
+        if result is None:
+            return []
+        content, root = result
+    else:
+        content, root = parsed_xml
+        if root is None:
+            return []
     lines = content.splitlines()
 
     rules: List[OdooRuleRecord] = []
@@ -276,12 +290,17 @@ def _field_refs(field_ref, field_eval) -> List[str]:
     return refs
 
 
-def parse_reports_from_xml(filepath: Path) -> List[OdooReportRecord]:
+def parse_reports_from_xml(filepath: Path, *, parsed_xml: Optional[Tuple[str, Optional[ET.Element]]] = None) -> List[OdooReportRecord]:
     """Parse an Odoo XML file and extract all <record model="ir.actions.report"> declarations."""
-    result = _read_and_parse_xml(filepath, missing_message="XML file does not exist: %s")
-    if result is None:
-        return []
-    content, root = result
+    if parsed_xml is None:
+        result = _read_and_parse_xml(filepath, missing_message="XML file does not exist: %s")
+        if result is None:
+            return []
+        content, root = result
+    else:
+        content, root = parsed_xml
+        if root is None:
+            return []
     lines = content.splitlines()
 
     reports: List[OdooReportRecord] = []
@@ -300,12 +319,17 @@ def parse_reports_from_xml(filepath: Path) -> List[OdooReportRecord]:
     return reports
 
 
-def parse_mail_templates_from_xml(filepath: Path) -> List[OdooMailTemplateRecord]:
+def parse_mail_templates_from_xml(filepath: Path, *, parsed_xml: Optional[Tuple[str, Optional[ET.Element]]] = None) -> List[OdooMailTemplateRecord]:
     """Parse an Odoo XML file and extract all <record model="mail.template"> declarations."""
-    result = _read_and_parse_xml(filepath, missing_message="XML file does not exist: %s")
-    if result is None:
-        return []
-    content, root = result
+    if parsed_xml is None:
+        result = _read_and_parse_xml(filepath, missing_message="XML file does not exist: %s")
+        if result is None:
+            return []
+        content, root = result
+    else:
+        content, root = parsed_xml
+        if root is None:
+            return []
     lines = content.splitlines()
 
     templates: List[OdooMailTemplateRecord] = []
@@ -326,17 +350,22 @@ def parse_mail_templates_from_xml(filepath: Path) -> List[OdooMailTemplateRecord
     return templates
 
 
-def parse_access_entries_from_xml(filepath: Path) -> List[OdooAccessEntry]:
+def parse_access_entries_from_xml(filepath: Path, *, parsed_xml: Optional[Tuple[str, Optional[ET.Element]]] = None) -> List[OdooAccessEntry]:
     """
     Parse an Odoo XML file and extract all <record model="ir.model.access"> declarations.
 
     Same semantics as the CSV extractor: missing permissions default to False and a
     missing group means the entry applies to every authenticated user.
     """
-    result = _read_and_parse_xml(filepath, missing_message="XML file does not exist: %s")
-    if result is None:
-        return []
-    content, root = result
+    if parsed_xml is None:
+        result = _read_and_parse_xml(filepath, missing_message="XML file does not exist: %s")
+        if result is None:
+            return []
+        content, root = result
+    else:
+        content, root = parsed_xml
+        if root is None:
+            return []
     lines = content.splitlines()
 
     entries: List[OdooAccessEntry] = []
@@ -370,11 +399,14 @@ def parse_access_entries_from_xml(filepath: Path) -> List[OdooAccessEntry]:
     return entries
 
 
-def parse_groups_from_xml(filepath: Path) -> List[OdooGroupRecord]:
+def parse_groups_from_xml(filepath: Path, *, parsed_xml: Optional[Tuple[str, Optional[ET.Element]]] = None) -> List[OdooGroupRecord]:
     """
     Parse an Odoo XML file and extract all <record model="res.groups"> declarations.
     """
-    root = parse_xml_root(filepath, error_context="for groups")
+    if parsed_xml is None:
+        root = parse_xml_root(filepath, error_context="for groups")
+    else:
+        _, root = parsed_xml
     if root is None:
         return []
 
@@ -451,11 +483,14 @@ def parse_xml_fields_from_xml(filepath: Path) -> List[OdooXmlFieldRecord]:
     return fields_list
 
 
-def parse_menuitems_from_xml(filepath: Path) -> List[OdooMenuItemRecord]:
+def parse_menuitems_from_xml(filepath: Path, *, parsed_xml: Optional[Tuple[str, Optional[ET.Element]]] = None) -> List[OdooMenuItemRecord]:
     """
     Parse an Odoo XML file and extract all <menuitem> elements and <record model="ir.ui.menu"> records.
     """
-    root = parse_xml_root(filepath, error_context="for menuitems")
+    if parsed_xml is None:
+        root = parse_xml_root(filepath, error_context="for menuitems")
+    else:
+        _, root = parsed_xml
     if root is None:
         return []
 
@@ -561,11 +596,14 @@ def _extract_buttons_from_arch_elem(arch_elem: ET.Element) -> List[OdooFormButto
     return buttons
 
 
-def parse_views_from_xml(filepath: Path) -> List[OdooViewRecord]:
+def parse_views_from_xml(filepath: Path, *, parsed_xml: Optional[Tuple[str, Optional[ET.Element]]] = None) -> List[OdooViewRecord]:
     """
     Parse an Odoo XML file and extract all <record model="ir.ui.view"> records with form buttons.
     """
-    root = parse_xml_root(filepath, error_context="for views")
+    if parsed_xml is None:
+        root = parse_xml_root(filepath, error_context="for views")
+    else:
+        _, root = parsed_xml
     if root is None:
         return []
 
