@@ -228,7 +228,8 @@ def evaluate_record_rules(
         edge_data = G.get_edge_data(model_node, neighbor) or {}
         if edge_data.get("edge_type") == "RESTRICTED_BY" and G.nodes[neighbor].get("node_type") == "Rule":
             rule_node = G.nodes[neighbor]
-            if not rule_node.get(perm_attr, True):
+            # Inactive rules (active=0) are kept in the graph but never enforced.
+            if not rule_node.get("active", True) or not rule_node.get(perm_attr, True):
                 continue
 
             rule_groups = []

@@ -107,7 +107,6 @@ def ask_question_v1(
         ]
         update_session(
             request.session_id, updated_history,
-            getattr(response, "resolved_concept", None),
             getattr(response, "route", None) or last_route,
             owner_uid=token_uid,
         )

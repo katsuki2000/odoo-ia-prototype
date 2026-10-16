@@ -18,9 +18,7 @@ both call sites now share so they can never disagree on what counts as
 "the same call".
 
 Tested here as a pure function (no LLM/graph/tool mocking), matching this
-project's convention for extracted pure helpers -- see
-tests/test_h1b_ii_rehydrate_ci_node.py for the same pattern applied to
-_rehydrate_sticky_concept. The full ReAct loop in
+project's convention for extracted pure helpers. The full ReAct loop in
 CodeIntelligenceAgentRunner.run() is deliberately NOT exercised here: it
 would require mocking the LLM, the knowledge graph, and every composite
 tool to reach the dedup branch, which tests far more than the dedup logic

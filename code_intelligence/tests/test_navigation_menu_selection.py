@@ -71,7 +71,7 @@ def _registry(**actions):
 
 
 def _module(*menus):
-    return SimpleNamespace(menuitems=list(menus))
+    return SimpleNamespace(menuitems=list(menus), client_action_models={})
 
 
 def _menu(xml_id, name="", action="", parent=""):
@@ -81,7 +81,7 @@ def _menu(xml_id, name="", action="", parent=""):
 
 def test_menu_without_name_takes_the_action_name_and_domain():
     action = SimpleNamespace(name="Requests for Quotation", res_model="purchase.order",
-                             domain="[]")
+                             domain="[]", action_type="act_window", tag="")
     graph = nx.DiGraph()
     add_menu_nodes(graph, _registry(**{"purchase.rfq_action": action}),
                    {"purchase": _module(_menu("menu_rfq", action="rfq_action"))})
@@ -91,7 +91,8 @@ def test_menu_without_name_takes_the_action_name_and_domain():
 
 
 def test_menu_own_name_wins_over_action_name():
-    action = SimpleNamespace(name="Action name", res_model="purchase.order", domain="")
+    action = SimpleNamespace(name="Action name", res_model="purchase.order", domain="",
+                             action_type="act_window", tag="")
     graph = nx.DiGraph()
     add_menu_nodes(graph, _registry(**{"purchase.act": action}),
                    {"purchase": _module(_menu("menu_x", name="Menu name", action="act"))})

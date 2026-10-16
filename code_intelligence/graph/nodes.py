@@ -11,7 +11,9 @@ from code_intelligence.extractor.xml import (
     OdooActionRecord,
     OdooBaseAutomationRecord,
     OdooGroupRecord,
+    OdooMailTemplateRecord,
     OdooMenuItemRecord,
+    OdooReportRecord,
     OdooRuleRecord,
     OdooServerActionRecord,
     OdooViewRecord,
@@ -48,7 +50,11 @@ class ParsedModule:
     menuitems: List[OdooMenuItemRecord] = field(default_factory=list)
     views: List[OdooViewRecord] = field(default_factory=list)
     acl_entries: List[OdooAccessEntry] = field(default_factory=list)
+    reports: List[OdooReportRecord] = field(default_factory=list)
+    mail_templates: List[OdooMailTemplateRecord] = field(default_factory=list)
+    http_routes: List[object] = field(default_factory=list)
     translations: List[object] = field(default_factory=list)
+    client_action_models: Dict[str, List[str]] = field(default_factory=dict)
 
 
 @dataclass
@@ -182,7 +188,7 @@ def add_security_group_nodes(
             )
 
     for full_xml_id, rule in registry.rules.items():
-        if "." not in full_xml_id or not getattr(rule, "active", True):
+        if "." not in full_xml_id:
             continue
         rule_node_id = f"rule:{full_xml_id}"
         rule_behavioral_tags = [BehavioralTag.VISIBILITY_RULE.value]
@@ -200,6 +206,7 @@ def add_security_group_nodes(
             perm_write=rule.perm_write,
             perm_create=rule.perm_create,
             perm_unlink=rule.perm_unlink,
+            active=bool(getattr(rule, "active", True)),
             behavioral_tags=rule_behavioral_tags,
             technical_tags=[TechnicalTag.RECORD_RULE.value],
         )
@@ -213,7 +220,7 @@ def add_security_group_nodes(
 
     for mod_name, mod in modules_dict.items():
         for acl in mod.acl_entries:
-            acl_node_id = f"acl:{mod_name}.{acl.xml_id}"
+            acl_node_id = f"acl:{qualify_xml_id(acl.xml_id, mod_name)}"
             G.add_node(
                 acl_node_id,
                 node_type="AccessEntry",
@@ -285,6 +292,7 @@ def add_menu_nodes(
     modules_dict: Dict[str, ParsedModule],
 ):
     """Add Menu nodes as fuzzy-matching targets and link to models via actions."""
+    clientActionModels = {tag: models for mod in modules_dict.values() for tag, models in mod.client_action_models.items()}
     for mod_name, mod in modules_dict.items():
         for menu in mod.menuitems:
             full_xml_id = qualify_xml_id(menu.xml_id, mod_name)
@@ -303,6 +311,8 @@ def add_menu_nodes(
                 sequence=menu.sequence,
                 filepath=menu.filepath,
                 action_ref=menu.action or "",
+                action_type=action_rec.action_type if action_rec else "",
+                action_tag=action_rec.tag if action_rec else "",
                 action_domain=action_rec.domain if action_rec else "",
                 groups=[qualify_xml_id(g, mod_name) for g in menu.groups],
                 behavioral_tags=[],
@@ -314,6 +324,11 @@ def add_menu_nodes(
                 G.add_edge(menu_node_id, f"menu:{qualify_xml_id(menu.parent, mod_name)}", edge_type="CHILD_OF")
             if not menu.action:
                 continue
+            if action_rec and action_rec.action_type == "client":
+                for model in clientActionModels.get(action_rec.tag, ()):
+                    if f"model:{model}" in G:
+                        G.add_edge(menu_node_id, f"model:{model}", edge_type="OPENS_MODEL", via="client_action_js")
+                continue
             target_model = None
             via = None
             if action_rec and action_rec.res_model:
@@ -321,6 +336,8 @@ def add_menu_nodes(
                 via = "act_window"
             if not target_model:
                 sa_rec = registry.server_actions.get(action_ref) or registry.server_actions.get(menu.action)
+                if sa_rec:
+                    G.nodes[menu_node_id]["action_type"] = "server_action"
                 if sa_rec and sa_rec.model_id:
                     target_model = registry.resolve_model_ref_or_record(sa_rec.model_id, mod_name, menu.filepath)
                     via = "server_action"

@@ -7,6 +7,7 @@ import json
 import logging
 
 from .investigation_schemas import PlanAction
+from .node_labels import node_labels
 
 logger = logging.getLogger(__name__)
 MAX_CANDIDATES = 128
@@ -49,8 +50,7 @@ def build_capability_catalogue(graph, concept):
 
     for model in models:
         data = graph.nodes['model:' + model]
-        labels = ' '.join(str(label.get('label', '')) for label in data.get('business_labels', []))
-        detail = f"{data.get('description', '')} {labels}".strip()
+        detail = ' '.join(node_labels(data))
         for action, description in (
             (PlanAction.DESCRIBE_WORKFLOW, 'Inspect recorded workflow states and transitions'),
             (PlanAction.DESCRIBE_NAVIGATION_PATH, 'Locate the model in the installed user interface'),
@@ -79,7 +79,7 @@ def build_capability_catalogue(graph, concept):
         name = nodeId[len(canonicalPrefix):] if nodeType in {'Method', 'Field'} and nodeId.startswith(canonicalPrefix) else data.get('name')
         if not isinstance(name, str) or not name:
             continue
-        description = f"{owner}.{name.replace('_', ' ')}. {data.get('description', '')} {data.get('label', '')}"
+        description = f"{owner}.{name.replace('_', ' ')}. {' '.join(node_labels(data))}"
         if data.get('filepath'):
             sourceModels.add(owner)
         if nodeType == 'Field':

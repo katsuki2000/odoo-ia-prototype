@@ -1,5 +1,4 @@
 import logging
-from types import SimpleNamespace
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -7,7 +6,6 @@ import chromadb
 import pytest
 
 from code_intelligence.agent.access_guards import _block_is_custom_module_file
-from code_intelligence.agent.context_extractors import _rehydrate_sticky_concept
 from code_intelligence.agent.tool_helpers import _is_custom_module_filepath
 from core.llm.llm_retry import try_recover_tool_use_failed
 from document_rag.ingestion.incremental import _is_under_roots
@@ -28,13 +26,6 @@ def test_block_custom_module_check_logs_an_unresolvable_path(caplog):
     with patch.object(Path, "resolve", side_effect=RuntimeError("symlink loop")):
         assert _block_is_custom_module_file("x (file:///tmp/custom_x/a.py#L1)") is True
     assert any("Cannot resolve path" in message for message in _warnings(caplog))
-
-
-def test_module_state_rehydrates_a_concept_without_a_swallowed_try():
-    concept = _rehydrate_sticky_concept(SimpleNamespace(is_resolved=False), {"module": "purchase", "target_models": ["purchase.order"]})
-    assert concept.resolved_modules == ["purchase"]
-    assert concept.resolved_models == ["purchase.order"]
-    assert concept.source_step == "state_module"
 
 
 def test_malformed_tool_call_arguments_are_not_recovered(caplog):

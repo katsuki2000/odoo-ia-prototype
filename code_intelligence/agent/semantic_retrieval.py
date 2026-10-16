@@ -13,6 +13,7 @@ from typing import Dict, List, Optional, Sequence, Tuple
 from urllib.parse import urlsplit, urlunsplit
 
 from config import settings
+from .node_labels import node_labels
 from .semantic_index_store import SemanticIndexStore, text_key
 
 logger = logging.getLogger(__name__)
@@ -39,24 +40,18 @@ class SemanticRetrieval:
     status: SemanticRetrievalStatus = SemanticRetrievalStatus.NO_CANDIDATES
 
 
-def _node_labels(data: Dict) -> List[str]:
-    labels = [str(data.get('description') or data.get('label') or data.get('name') or '').strip()]
-    labels.extend(str(item.get('label') or '').strip() for item in data.get('business_labels', []))
-    return list(dict.fromkeys(label for label in labels if label))
-
-
 def _model_documents(graph) -> List[Tuple[str, str]]:
     menuLabels = {}
     for nodeId, data in graph.nodes(data=True):
         if data.get('node_type') == 'Menu':
             for successor in graph.successors(nodeId):
                 if graph.edges[nodeId, successor].get('edge_type') == 'OPENS_MODEL':
-                    menuLabels.setdefault(successor.removeprefix('model:'), []).extend(_node_labels(data))
+                    menuLabels.setdefault(successor.removeprefix('model:'), []).extend(node_labels(data))
     documents = []
     for nodeId, data in graph.nodes(data=True):
         if data.get('node_type') == 'Model':
             model = str(data.get('name') or nodeId.removeprefix('model:')).strip()
-            labels = list(dict.fromkeys(_node_labels(data) + menuLabels.get(model, [])))
+            labels = list(dict.fromkeys(node_labels(data) + menuLabels.get(model, [])))
             if labels:
                 documents.append((model, ' ; '.join(labels)))
     return sorted(documents)

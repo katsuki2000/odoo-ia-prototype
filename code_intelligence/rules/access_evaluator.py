@@ -208,7 +208,8 @@ def _eval_single_permission(G: nx.DiGraph, model_name: str, permission: str, gro
 
         elif edge_type == "RESTRICTED_BY" and G.nodes[neighbor].get("node_type") == "Rule":
             rule_node = G.nodes[neighbor]
-            if rule_node.get(perm_attr, True):
+            # Inactive rules (active=0) are kept in the graph but never enforced.
+            if rule_node.get("active", True) and rule_node.get(perm_attr, True):
                 rule_groups = []
                 for rule_neighbor in G.neighbors(neighbor):
                     rule_edge = G.get_edge_data(neighbor, rule_neighbor) or {}

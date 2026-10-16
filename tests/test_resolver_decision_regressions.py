@@ -99,6 +99,7 @@ class ResolverDecisionTests(unittest.TestCase):
         sys.modules['config.settings'] = self.settings
         self.semantic = load_source('code_intelligence/agent/semantic_retrieval.py', {
             'settings': self.settings, 'SemanticIndexStore': Store,
+            'node_labels': load_source('code_intelligence/agent/node_labels.py').node_labels,
             'text_key': lambda text: hashlib.sha256(text.encode()).hexdigest()})
         self.arbitration = load_source('code_intelligence/agent/resolution/arbitration.py')
         self.graph = Graph()
@@ -274,7 +275,6 @@ class ResolverDecisionTests(unittest.TestCase):
         tree = ast.parse(source)
         calls = [node for node in ast.walk(tree) if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)]
         self.assertEqual(sum(node.func.id == 'resolve_turn' for node in calls), 1)
-        self.assertFalse(any(node.func.id == '_rehydrate_sticky_concept' for node in calls))
         self.assertIn("concept.diagnostics.get('arbitration_attempts'", source)
 
 

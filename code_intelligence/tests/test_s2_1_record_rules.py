@@ -270,12 +270,13 @@ def test_implied_group_hierarchy_expansion_direction():
 
 
 
-def test_inactive_rule_is_excluded_from_graph():
+def test_inactive_rule_is_kept_in_graph_but_flagged_inactive():
     """
-    Regression guard for J7 finding F-06: a rule with active=False in the
-    source XML must not be included in the graph at all, since Odoo itself
-    disables it -- evaluate_record_rules must never see it, let
-    alone apply it as a phantom restriction.
+    Regression guard for J7 finding F-06, contract revised in section 1416:
+    a rule with active=False in the source XML is kept in the graph (flagged
+    active=False, so "why can't I see X" questions can know it is disabled),
+    but evaluate_record_rules / _eval_single_permission never apply it as a
+    phantom restriction (see test_security_extraction_1416.py).
     """
     import sys
     sys.path.insert(0, '.')
@@ -309,6 +310,6 @@ def test_inactive_rule_is_excluded_from_graph():
     G = builder.build_graph()
 
     assert "rule:test_mod.rule_active" in G
-    assert "rule:test_mod.rule_inactive" not in G, (
-        "A rule with active=False must be excluded from the graph entirely."
-    )
+    assert G.nodes["rule:test_mod.rule_active"]["active"] is True
+    assert "rule:test_mod.rule_inactive" in G
+    assert G.nodes["rule:test_mod.rule_inactive"]["active"] is False

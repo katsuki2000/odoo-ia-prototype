@@ -91,6 +91,14 @@ def get_group_display_name(G: Optional[nx.DiGraph], group_identifier: str) -> st
     return _lookup_group_name_in_xml(clean_id)
 
 
+def format_groups(G: Optional[nx.DiGraph], groups) -> List[str]:
+    """Sorted "xml_id ('label')" entries, the bare xml_id when no label is known."""
+    return [
+        f"{group} ('{label}')" if (label := get_group_display_name(G, group)) else group
+        for group in sorted(groups)
+    ]
+
+
 def _localized_label(data: dict) -> str:
     translations = [
         item for item in data.get("business_labels") or []

@@ -11,6 +11,7 @@ from typing import Optional, Tuple
 
 from config.settings import GRAPH_CACHE_PATH
 from code_intelligence.extractor.csv import ACCESS_CONTROL_CSV_NAME, parse_access_control_csv
+from code_intelligence.extractor.js_client_actions import parse_client_action_models
 from code_intelligence.extractor.manifest import (
     KNOWN_CORE_MODULE_DEPENDS,
     MissingManifestError,
@@ -18,11 +19,15 @@ from code_intelligence.extractor.manifest import (
     parse_manifest,
     synthesize_fallback_manifest,
 )
+from code_intelligence.extractor.http_routes import parse_http_routes
 from code_intelligence.extractor.python import extract_odoo_models_from_file
 from code_intelligence.extractor.xml import (
     parse_actions_from_xml,
     parse_base_automations_from_xml,
+    parse_access_entries_from_xml,
     parse_groups_from_xml,
+    parse_mail_templates_from_xml,
+    parse_reports_from_xml,
     parse_ir_rules_from_xml,
     parse_menuitems_from_xml,
     parse_server_actions_from_xml,
@@ -74,14 +79,19 @@ def _load_module(
         if py_f.name == "__manifest__.py":
             continue
         mod.models.extend(extract_odoo_models_from_file(py_f))
+        mod.http_routes.extend(parse_http_routes(py_f))
     for xml_f in mod_dir.rglob("*.xml"):
         mod.rules.extend(parse_ir_rules_from_xml(xml_f))
+        mod.acl_entries.extend(parse_access_entries_from_xml(xml_f))
+        mod.reports.extend(parse_reports_from_xml(xml_f))
+        mod.mail_templates.extend(parse_mail_templates_from_xml(xml_f))
         mod.groups.extend(parse_groups_from_xml(xml_f))
         mod.actions.extend(parse_actions_from_xml(xml_f))
         mod.server_actions.extend(parse_server_actions_from_xml(xml_f))
         mod.base_automations.extend(parse_base_automations_from_xml(xml_f))
         mod.menuitems.extend(parse_menuitems_from_xml(xml_f))
         mod.views.extend(parse_views_from_xml(xml_f))
+    mod.client_action_models = parse_client_action_models(mod_dir)
     for csv_f in mod_dir.rglob(ACCESS_CONTROL_CSV_NAME):
         mod.acl_entries.extend(parse_access_control_csv(csv_f))
     return mod_dir.name, mod

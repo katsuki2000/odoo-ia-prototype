@@ -79,7 +79,7 @@ def _select_capabilities(question, candidates, observations=(), max_steps=None):
             raise ValueError('Selection outside inventory or execution budget')
         return identifiers, selection.rationale, attempts, wait
     except Exception as error:
-        logger.warning('Semantic capability planning unavailable (%s).', type(error).__name__)
+        logger.warning('Semantic capability planning unavailable (%s: %s).', type(error).__name__, error)
         return None, 'Semantic selection unavailable; bounded intent-based discovery only.', attempts, wait
 
 

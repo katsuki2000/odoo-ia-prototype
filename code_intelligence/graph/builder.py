@@ -12,6 +12,7 @@ from .nodes import (
     add_view_button_nodes_and_edges, add_workflow_nodes_and_edges,
     ParsedModule, ResolvedSymbolRegistry,
 )
+from .output_nodes import add_http_route_nodes, add_report_and_template_nodes
 from .translations import attach_translations, translation_fingerprint
 from .integrity_report import build_graph_integrity_report
 
@@ -73,6 +74,8 @@ class OdooGraphBuilder:
         self._add_model_field_method_nodes()
         self._add_deferred_member_edges()
         self._add_security_group_nodes()
+        add_report_and_template_nodes(self.G, self.registry, self.modules_dict)
+        add_http_route_nodes(self.G, self.modules_dict)
         self._add_workflow_nodes_and_edges()
         self._add_view_button_nodes_and_edges()
         self._add_menu_nodes()

@@ -124,6 +124,14 @@ def _model_from_xmlid(xmlid: str, graph) -> Optional[str]:
     return matches[0] if len(matches) == 1 else None
 
 
+_NAMED_RECORD_NODES = {
+    "ir.ui.menu": ("menu", "menu"),
+    "res.groups": ("group", "group"),
+    "ir.actions.report": ("report", "report"),
+    "mail.template": ("mail_template", "mail_template"),
+}
+
+
 def _target_for_reference(reference: str, module: str, graph) -> Optional[tuple[str, str]]:
     match = re.match(r"model:ir\.model,name:([^\s]+)$", reference)
     if match:
@@ -159,17 +167,11 @@ def _target_for_reference(reference: str, module: str, graph) -> Optional[tuple[
                 ]
                 return (matches[0], "selection") if len(matches) == 1 else None
 
-    match = re.match(r"model:ir\.ui\.menu,name:([^\s]+)$", reference)
-    if match:
-        xmlid = qualify_xml_id(match.group(1), module)
-        node_id = f"menu:{xmlid}"
-        return (node_id, "menu") if graph.has_node(node_id) else None
-
-    match = re.match(r"model:res\.groups,name:([^\s]+)$", reference)
-    if match:
-        xmlid = qualify_xml_id(match.group(1), module)
-        node_id = f"group:{xmlid}"
-        return (node_id, "group") if graph.has_node(node_id) else None
+    match = re.match(r"model:([\w.]+),name:([^\s]+)$", reference)
+    if match and match.group(1) in _NAMED_RECORD_NODES:
+        prefix, entity_type = _NAMED_RECORD_NODES[match.group(1)]
+        node_id = f"{prefix}:{qualify_xml_id(match.group(2), module)}"
+        return (node_id, entity_type) if graph.has_node(node_id) else None
 
     match = re.match(r"model:ir\.module\.category,name:([^\s]+)$", reference)
     if match:

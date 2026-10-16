@@ -177,6 +177,13 @@ class CapabilityInvestigationTests(unittest.TestCase):
     def test_custom_field_is_available(self):
         self.assertEqual(self.choose('field_change_impact').arguments['field_name'], 'x_score')
 
+    def test_identical_description_and_translations_are_listed_once(self):
+        label = {'label': 'Dossier atelier', 'language': 'en_US'}
+        self.graph.nodes['model:atelier.dossier'].update(
+            description='Dossier atelier', business_labels=[label, dict(label, language='fr_FR')])
+        description = self.choose('describe_navigation_path').description
+        self.assertEqual(description.count('Dossier atelier'), 1)
+
     def test_unresolved_subject_has_no_inventory(self):
         self.concept.is_resolved = False
         self.assertEqual(self.candidates(), [])

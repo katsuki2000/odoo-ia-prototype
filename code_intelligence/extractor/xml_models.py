@@ -47,10 +47,45 @@ class OdooActionRecord:
     filepath: str
     lineno: int
     name: str = ""
+    action_type: str = "act_window"
+    tag: str = ""
     res_model: str = ""
     view_mode: str = ""
     domain: str = ""
     groups_id: List[str] = field(default_factory=list)
+
+
+@dataclass
+class OdooReportRecord:
+    """Represents an ir.actions.report record (printable report) extracted from XML data files."""
+    xml_id: str
+    filepath: str
+    lineno: int
+    name: str = ""
+    model: str = ""  # technical model name (plain string field, not a ref)
+    binding_model_id: str = ""
+    report_type: str = ""
+    report_name: str = ""
+    print_report_name: str = ""
+    groups_id: List[str] = field(default_factory=list)
+
+
+@dataclass
+class OdooMailTemplateRecord:
+    """Represents a mail.template record extracted from XML data files (body_html is not kept)."""
+    xml_id: str
+    filepath: str
+    lineno: int
+    name: str = ""
+    model_id: str = ""
+    subject: str = ""
+    description: str = ""
+    email_from: str = ""
+    email_to: str = ""
+    partner_to: str = ""
+    lang: str = ""
+    report_template_ids: List[str] = field(default_factory=list)
+    active: bool = True
 
 
 @dataclass

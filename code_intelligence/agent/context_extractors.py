@@ -1,6 +1,6 @@
 """
 Heuristic regexes and extractors for question intent, amounts, companies,
-move types, and sticky concept rehydration.
+and move types.
 """
 
 import logging
@@ -227,40 +227,6 @@ def _question_is_security_distinction_related(question: str) -> bool:
     surface-level ACL/ir.rule check."""
     return bool(_SECURITY_DISTINCTION_PATTERN.search(_strip_accents(question)))
 
-
-def _rehydrate_sticky_concept(concept, state: dict):
-    """Reconstruct a ResolvedConcept from a sticky dict when current turn's resolution failed."""
-    if concept.is_resolved:
-        return concept
-
-    sticky = state.get("resolved_concept")
-    if isinstance(sticky, dict):
-        if sticky.get("is_resolved") is True:
-            try:
-                from code_intelligence.agent.matching import ResolvedConcept
-                return ResolvedConcept(**sticky)
-            except Exception:
-                logger.debug(
-                    "_rehydrate_sticky_concept: reconstruction from sticky dict "
-                    "failed (unexpected shape), degrading to original concept"
-                )
-                return concept
-
-    mod = state.get("module")
-    if mod and isinstance(mod, str):
-        from code_intelligence.agent.matching import ResolvedConcept
-        target_models = state.get("target_models", [])
-        return ResolvedConcept(
-            user_term=mod,
-            resolved_models=list(target_models) if target_models else [],
-            resolved_modules=[mod],
-            confidence=1.0,
-            source_step="state_module",
-            is_resolved=True,
-            reason=f"Resolved from state module: {mod}",
-        )
-
-    return concept
 
 # ── UI Patterns ─────────────────────────────────────────────────────────
 

@@ -1,18 +1,13 @@
 from types import SimpleNamespace
 
-import pytest
-
-from code_intelligence.agent.resolution import fuzzy_lookup
 from code_intelligence.agent.resolution.arbitration import (
     ARBITRATION_CALL_FAILED,
     ARBITRATION_NO_LLM,
     ARBITRATION_NONE,
     ARBITRATION_OUT_OF_LIST,
-    ARBITRATION_SELECTED,
     ArbitrationTrace,
     _llm_arbitrate,
 )
-from code_intelligence.agent.resolution.candidates import ArbitrationShortlist
 
 CANDIDATES = ["sale.order", "purchase.order"]
 
@@ -54,28 +49,3 @@ def test_a_failed_call_is_told_apart_from_an_abstention(monkeypatch):
     trace = _llm_arbitrate("q", CANDIDATES, object())
 
     assert trace == ArbitrationTrace(None, ARBITRATION_CALL_FAILED, None)
-
-
-def _patch_strict_ties(monkeypatch, trace):
-    ties = [("sale.order", 90.0), ("purchase.order", 90.0)]
-    monkeypatch.setattr(fuzzy_lookup, "_fuzzy_match_graph", lambda *args, **kwargs: ties)
-    monkeypatch.setattr(fuzzy_lookup, "_deterministic_tiebreak", lambda *args, **kwargs: None)
-    monkeypatch.setattr(
-        fuzzy_lookup, "build_arbitration_shortlist",
-        lambda *args, **kwargs: ArbitrationShortlist(CANDIDATES, None),
-    )
-    monkeypatch.setattr(fuzzy_lookup, "_candidate_contexts", lambda *args, **kwargs: {})
-    monkeypatch.setattr(fuzzy_lookup, "_llm_arbitrate", lambda *args, **kwargs: trace)
-
-
-def _patch_widened_only(monkeypatch, shortlist_models, arbiter):
-    monkeypatch.setattr(
-        fuzzy_lookup, "_fuzzy_match_graph",
-        lambda *args, **kwargs: [("sale.order", 40.0)] if "threshold" in kwargs else [],
-    )
-    monkeypatch.setattr(
-        fuzzy_lookup, "build_arbitration_shortlist",
-        lambda *args, **kwargs: ArbitrationShortlist(shortlist_models, None),
-    )
-    monkeypatch.setattr(fuzzy_lookup, "_candidate_contexts", lambda *args, **kwargs: {})
-    monkeypatch.setattr(fuzzy_lookup, "_llm_arbitrate", arbiter)

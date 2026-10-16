@@ -6,7 +6,7 @@ evidence sufficiency signal for the code_intelligence_agent branch.
 
 Deliberately distinct from core/evidence_check.py::check_evidence(), which
 is a PRE-analysis check of whether business_resolver could resolve the
-business concept (RESOLU / NON_RESOLU / CONFLIT), gating the internal
+business concept (RESOLU / NON_RESOLU), gating the internal
 [BUSINESS TERM RESOLVER] pre-dispatch inside code_intelligence_agent. That
 existing check_evidence() output is already surfaced as
 state["evidence_status"] / AssistantResponse.evidence_status -- this module

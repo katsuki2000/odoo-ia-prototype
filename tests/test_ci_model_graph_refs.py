@@ -94,7 +94,7 @@ class ModelGraphReferenceTests(unittest.TestCase):
         self.assertNotIn('model:ir.config.parameter', self.graph)
 
     def test_unknown_window_action_target_does_not_create_a_phantom(self):
-        self.registry.actions = {'demo.action_demo': SimpleNamespace(res_model='missing.item', name='Demo', domain='[]')}
+        self.registry.actions = {'demo.action_demo': SimpleNamespace(res_model='missing.item', name='Demo', domain='[]', action_type='act_window', tag='')}
         self.module.menuitems = [make_menu('action_demo')]
         add_menu_nodes(self.graph, self.registry, self.modules)
         self.assertNotIn('model:missing.item', self.graph)

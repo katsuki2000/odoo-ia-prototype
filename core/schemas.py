@@ -98,11 +98,11 @@ class AssistantResponse(BaseModel):
     )
     evidence_status: Optional[str] = Field(
         default=None,
-        description="Sourcing evidence status (RESOLU/NON_RESOLU/CONFLIT)",
+        description="Sourcing evidence status (RESOLU/NON_RESOLU)",
     )
     loop_resolved_concept: Optional[dict] = Field(
         default=None,
-        description="Concept the code_intelligence_agent loop actually used (LLM arbitration, rehydration, model cap)",
+        description="Concept the code_intelligence_agent loop actually used (LLM arbitration, model cap)",
     )
     investigation_plan: Optional[dict] = Field(
         default=None,

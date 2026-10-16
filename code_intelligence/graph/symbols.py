@@ -10,6 +10,7 @@ def _merge_action(existing: OdooActionRecord, new: OdooActionRecord) -> OdooActi
     new.res_model = new.res_model or existing.res_model
     new.view_mode = new.view_mode or existing.view_mode
     new.name = new.name or existing.name
+    new.tag = new.tag or existing.tag
     new.groups_id = new.groups_id or existing.groups_id
     return new
 

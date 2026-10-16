@@ -7,13 +7,6 @@ import pytest
 
 from code_intelligence.agent.matching import ResolvedConcept
 from code_intelligence.agent.resolution import fuzzy_lookup
-from code_intelligence.agent.resolution.arbitration import (
-    ARBITRATION_NONE,
-    ARBITRATION_SELECTED,
-    ArbitrationTrace,
-)
-from code_intelligence.agent.resolution.candidates import ArbitrationShortlist
-from code_intelligence.agent.semantic_retrieval import SemanticRetrievalStatus
 from code_intelligence.evaluation.e1 import run as e1_run
 from code_intelligence.evaluation.e1.cases import E1Case, dataset_digest
 from code_intelligence.evaluation.e1.metrics import score_resolution_case, summarize_system_scores
@@ -237,22 +230,3 @@ def test_system_output_reuses_the_ambiguous_candidates_an_unresolved_concept_pub
     assert output.candidates == ("sale.order", "purchase.order")
     assert output.declared_ambiguous is True
     assert output.is_resolved is False
-
-
-def _patch_ambiguous_fuzzy_step(monkeypatch, *, arbitration_choice, semantic_status=None):
-    ties = [("sale.order", 90.0), ("purchase.order", 90.0), ("account.move", 88.0)]
-    monkeypatch.setattr(fuzzy_lookup, "_fuzzy_match_graph", lambda *args, **kwargs: ties)
-    monkeypatch.setattr(fuzzy_lookup, "_deterministic_tiebreak", lambda *args, **kwargs: None)
-    monkeypatch.setattr(
-        fuzzy_lookup,
-        "build_arbitration_shortlist",
-        lambda *args, **kwargs: ArbitrationShortlist([model for model, _ in ties], semantic_status),
-    )
-    monkeypatch.setattr(fuzzy_lookup, "_candidate_contexts", lambda *args, **kwargs: {})
-    monkeypatch.setattr(
-        fuzzy_lookup,
-        "_llm_arbitrate",
-        lambda *args, **kwargs: ArbitrationTrace(
-            arbitration_choice, ARBITRATION_SELECTED if arbitration_choice else ARBITRATION_NONE, arbitration_choice,
-        ),
-    )

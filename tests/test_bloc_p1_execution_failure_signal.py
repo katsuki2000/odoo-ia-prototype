@@ -23,7 +23,7 @@ from core.evidence.evidence_sufficiency import (
     EvidenceSufficiencyStatus,
     assess_evidence_sufficiency,
 )
-from core.graph.graph import ci_evidence_decision
+from core.graph import ci_evidence_decision
 
 
 class TestCiEvidenceDecisionRouting:

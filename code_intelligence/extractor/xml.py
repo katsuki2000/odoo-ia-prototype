@@ -6,12 +6,15 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import List
 
+from .csv import OdooAccessEntry
 from .xml_models import (
     OdooActionRecord,
     OdooBaseAutomationRecord,
     OdooFormButton,
     OdooGroupRecord,
+    OdooMailTemplateRecord,
     OdooMenuItemRecord,
+    OdooReportRecord,
     OdooRuleRecord,
     OdooServerActionRecord,
     OdooViewRecord,
@@ -31,26 +34,31 @@ _logger = logging.getLogger(__name__)
 """
 code_intelligence/extractor/xml_actions.py
 
-XML parsers for ir.actions.act_window, ir.actions.server, ir.cron, and base.automation.
+XML parsers for ir.actions.act_window, ir.actions.client, ir.actions.server, ir.cron, and base.automation.
 """
 
 
 
 
+_ACTION_TYPES = {"ir.actions.act_window": "act_window", "ir.actions.client": "client"}
+
+
 def parse_actions_from_xml(filepath: Path) -> List[OdooActionRecord]:
     """
-    Parse an Odoo XML file and extract all <record model="ir.actions.act_window"> declarations.
+    Parse an Odoo XML file and extract all <record model="ir.actions.act_window"> and
+    <record model="ir.actions.client"> declarations (a client action has a tag, no res_model).
     """
     root = parse_xml_root(filepath, error_context="for actions")
     if root is None:
         return []
 
     actions: List[OdooActionRecord] = []
-    for xml_id, record in iter_records_by_model(root, "ir.actions.act_window"):
+    for xml_id, record in iter_records_by_model(root, set(_ACTION_TYPES)):
         action = OdooActionRecord(
             xml_id=xml_id,
             filepath=str(filepath),
             lineno=0,
+            action_type=_ACTION_TYPES[record.attrib["model"]],
         )
 
         for field_name, field_text, field_ref, field_eval, _field_elem in iter_field_attrs(record):
@@ -60,6 +68,8 @@ def parse_actions_from_xml(filepath: Path) -> List[OdooActionRecord]:
                 action.res_model = field_text or field_ref or ""
             elif field_name == "view_mode":
                 action.view_mode = field_text
+            elif field_name == "tag":
+                action.tag = field_text
             elif field_name == "domain":
                 action.domain = field_text or field_eval or ""
             elif field_name in {"groups", "groups_id"}:
@@ -247,6 +257,117 @@ def parse_ir_rules_from_xml(filepath: Path) -> List[OdooRuleRecord]:
         rules.append(rule)
 
     return rules
+
+
+def _record_lineno(lines: List[str], xml_id: str) -> int:
+    if xml_id:
+        for idx, line in enumerate(lines, 1):
+            if f'id="{xml_id}"' in line or f"id='{xml_id}'" in line:
+                return idx
+    return 1
+
+
+def _field_refs(field_ref, field_eval) -> List[str]:
+    refs: List[str] = []
+    if field_ref:
+        refs.append(field_ref)
+    if field_eval:
+        refs.extend(extract_refs_from_eval(field_eval))
+    return refs
+
+
+def parse_reports_from_xml(filepath: Path) -> List[OdooReportRecord]:
+    """Parse an Odoo XML file and extract all <record model="ir.actions.report"> declarations."""
+    result = _read_and_parse_xml(filepath, missing_message="XML file does not exist: %s")
+    if result is None:
+        return []
+    content, root = result
+    lines = content.splitlines()
+
+    reports: List[OdooReportRecord] = []
+    for xml_id, record in iter_records_by_model(root, "ir.actions.report"):
+        if not xml_id:
+            continue
+        report = OdooReportRecord(xml_id=xml_id, filepath=str(filepath), lineno=_record_lineno(lines, xml_id))
+        for field_name, field_text, field_ref, field_eval, _ in iter_field_attrs(record):
+            if field_name in {"name", "model", "report_type", "report_name", "print_report_name"}:
+                setattr(report, field_name, field_text)
+            elif field_name == "binding_model_id":
+                report.binding_model_id = field_ref or field_text
+            elif field_name in {"groups", "groups_id"}:
+                report.groups_id.extend(_field_refs(field_ref, field_eval))
+        reports.append(report)
+    return reports
+
+
+def parse_mail_templates_from_xml(filepath: Path) -> List[OdooMailTemplateRecord]:
+    """Parse an Odoo XML file and extract all <record model="mail.template"> declarations."""
+    result = _read_and_parse_xml(filepath, missing_message="XML file does not exist: %s")
+    if result is None:
+        return []
+    content, root = result
+    lines = content.splitlines()
+
+    templates: List[OdooMailTemplateRecord] = []
+    for xml_id, record in iter_records_by_model(root, "mail.template"):
+        if not xml_id:
+            continue
+        template = OdooMailTemplateRecord(xml_id=xml_id, filepath=str(filepath), lineno=_record_lineno(lines, xml_id))
+        for field_name, field_text, field_ref, field_eval, _ in iter_field_attrs(record):
+            if field_name in {"name", "subject", "description", "email_from", "email_to", "partner_to", "lang"}:
+                setattr(template, field_name, field_text)
+            elif field_name == "model_id":
+                template.model_id = field_ref or field_text
+            elif field_name == "report_template_ids":
+                template.report_template_ids.extend(_field_refs(field_ref, field_eval))
+            elif field_name == "active":
+                template.active = parse_eval_bool(field_eval, field_text, default=True)
+        templates.append(template)
+    return templates
+
+
+def parse_access_entries_from_xml(filepath: Path) -> List[OdooAccessEntry]:
+    """
+    Parse an Odoo XML file and extract all <record model="ir.model.access"> declarations.
+
+    Same semantics as the CSV extractor: missing permissions default to False and a
+    missing group means the entry applies to every authenticated user.
+    """
+    result = _read_and_parse_xml(filepath, missing_message="XML file does not exist: %s")
+    if result is None:
+        return []
+    content, root = result
+    lines = content.splitlines()
+
+    entries: List[OdooAccessEntry] = []
+
+    for xml_id, record in iter_records_by_model(root, "ir.model.access"):
+        if not xml_id:
+            continue
+        lineno = 1
+        for idx, line in enumerate(lines, 1):
+            if f'id="{xml_id}"' in line or f"id='{xml_id}'" in line:
+                lineno = idx
+                break
+
+        entry = OdooAccessEntry(xml_id=xml_id, filepath=str(filepath), lineno=lineno)
+        for field_name, field_text, field_ref, field_eval, _ in iter_field_attrs(record):
+            if field_name == "name":
+                entry.name = field_text
+            elif field_name == "model_id":
+                entry.model_id = field_ref or field_text
+            elif field_name == "group_id":
+                group = field_ref
+                if not group and field_eval:
+                    refs = extract_refs_from_eval(field_eval)
+                    group = refs[0] if refs else None
+                entry.group_id = group or field_text or None
+            elif field_name in {"perm_read", "perm_write", "perm_create", "perm_unlink"}:
+                setattr(entry, field_name, parse_eval_bool(field_eval, field_text, default=False))
+        entry.all_authenticated = not entry.group_id
+        entries.append(entry)
+
+    return entries
 
 
 def parse_groups_from_xml(filepath: Path) -> List[OdooGroupRecord]:

@@ -12,13 +12,14 @@ from typing import Optional
 import networkx as nx
 
 from code_intelligence.rules.button_path import ButtonExecutionPathResult
-from code_intelligence.rules.group_resolver import get_group_display_name
+from code_intelligence.rules.group_resolver import format_groups
 from code_intelligence.utils import format_file_link, format_xml_id_citations
 
 _logger = logging.getLogger(__name__)
 
 
 ORPHAN_ACTION_MARKER = "elle n'est rattachee a aucun menu"
+MAX_CLIENT_ACTION_MENUS = 5
 
 def search_dynamic_view_or_menus(
     G: nx.DiGraph,
@@ -102,10 +103,7 @@ def search_dynamic_view_or_menus(
         menu_xml_id = menu_data.get("xml_id", "")
         menu_fp = menu_data.get("filepath", "")
         menu_groups = menu_data.get("groups", [])
-        formatted_menu_groups = [
-            f"{g} ('{get_group_display_name(G, g)}')" if get_group_display_name(G, g) else g
-            for g in sorted(menu_groups)
-        ]
+        formatted_menu_groups = format_groups(G, menu_groups)
         grp_str = ", ".join(formatted_menu_groups) if menu_groups else "None"
         req_citations = format_xml_id_citations(sorted(menu_groups)) if menu_groups else ""
         citations_str = f" ({req_citations})" if req_citations else ""
@@ -173,7 +171,9 @@ from dataclasses import dataclass, field
 from typing import Any, List, Optional
 import networkx as nx
 
+from code_intelligence.agent.node_labels import node_labels
 from code_intelligence.rules.common import QueryStatus
+from code_intelligence.rules.model_outputs import describe_model_outputs
 from code_intelligence.rules.model_suggestions import model_not_found_message
 from code_intelligence.utils import format_file_link, format_xml_id_citations
 from core.evidence.evidence import Evidence, EvidenceSourceType, make_evidence
@@ -206,7 +206,7 @@ def _menu_breadcrumb(G: nx.DiGraph, menu_node_id: str) -> List[str]:
     current = menu_node_id
     while current and current not in seen and current in G:
         seen.add(current)
-        chain.append(G.nodes[current].get("name") or current.replace("menu:", ""))
+        chain.append(" / ".join(node_labels(G.nodes[current])) or current.replace("menu:", ""))
         parent = None
         for _, v, edge_data in G.out_edges(current, data=True):
             if edge_data.get("edge_type") == "CHILD_OF":
@@ -263,6 +263,21 @@ def _menus_opening_model(G: nx.DiGraph, model_name: str, origin_states: Optional
     return candidates
 
 
+def _client_action_menus(G: nx.DiGraph, model_name: str):
+    """Menus of the modules declaring model_name that open a client action, most-useful-first."""
+    modules = {
+        v.removeprefix("module:")
+        for _, v, edge_data in G.out_edges(f"model:{model_name}", data=True)
+        if edge_data.get("edge_type") == "DEFINED_IN" and edge_data.get("role", "declares") == "declares"
+    }
+    candidates = [
+        (node_id, data) for node_id, data in G.nodes(data=True)
+        if data.get("node_type") == "Menu" and data.get("action_type") == "client" and data.get("module") in modules
+    ]
+    candidates.sort(key=lambda c: (bool(c[1].get("groups")), c[1].get("sequence", 999), c[0]))
+    return candidates[:MAX_CLIENT_ACTION_MENUS]
+
+
 def describe_navigation_path(
     G: nx.DiGraph,
     model_name: str,
@@ -307,6 +322,7 @@ def describe_navigation_path(
         button_result = button_execution_path(G, button_label_or_name, model_name, user_groups=user_groups)
 
     menu_candidates = _menus_opening_model(G, model_name, button_result.origin_states if button_result else None)
+    outputs = describe_model_outputs(G, model_name, user_groups)
     if not menu_candidates:
         window_actions = G.nodes[model_node_id].get("window_actions") or []
         if window_actions:
@@ -335,19 +351,41 @@ def describe_navigation_path(
             )
             steps = [f"1. Menu Search: no ir.ui.menu opens model '{model_name}'."]
             claim = f"Model '{model_name}' exists in the graph but no ir.ui.menu opens it via an action"
+        evidence = [make_evidence(
+            source_type=EvidenceSourceType.CODE,
+            claim=claim,
+            source=model_node_id,
+            value=None,
+            confidence="HIGH",
+        )]
+        clientMenus = _client_action_menus(G, model_name)
+        if clientMenus:
+            entries = "; ".join(
+                f"{' -> '.join(_menu_breadcrumb(G, node_id))} (id: {data.get('xml_id', '')}, "
+                f"action client '{data.get('action_tag') or data.get('action_ref', '')}')"
+                for node_id, data in clientMenus
+            )
+            summary += (
+                f" Le module qui declare '{model_name}' expose cependant un menu qui ouvre une action client "
+                f"(ecran JavaScript, sans modele enregistre) : {entries}. Le code analyse ne prouve pas que "
+                f"cet ecran affiche '{model_name}'."
+            )
+            steps.append(f"{len(steps) + 1}. Client action menu(s) in the declaring module: {entries}.")
+            evidence.extend(make_evidence(
+                source_type=EvidenceSourceType.CODE,
+                claim=f"Menu '{data.get('xml_id', '')}' opens client action '{data.get('action_ref', '')}' "
+                      f"in a module declaring '{model_name}'",
+                source=node_id,
+                value=data.get("xml_id", ""),
+                confidence="MEDIUM",
+            ) for node_id, data in clientMenus)
         return NavigationPathResult(
             model_name=model_name,
             button_identifier=button_label_or_name,
             status=QueryStatus.EMPTY,
-            summary_text=summary,
+            summary_text=f"{summary} {outputs.summary}".strip(),
             execution_steps=steps,
-            evidence=[make_evidence(
-                source_type=EvidenceSourceType.CODE,
-                claim=claim,
-                source=model_node_id,
-                value=None,
-                confidence="HIGH",
-            )],
+            evidence=evidence + outputs.evidence,
         )
 
     menu_node_id, menu_data = menu_candidates[0]
@@ -361,20 +399,14 @@ def describe_navigation_path(
     execution_steps = [f"1. UI Menu: navigate to " + " -> ".join(breadcrumb) + f" (id: {menu_xml_id})."]
     if menu_link:
         execution_steps.append(f"2. File Declaration: declared at {menu_link}.")
-    def _format_groups(groups):
-        return [
-            f"{g} ('{get_group_display_name(G, g)}')" if get_group_display_name(G, g) else g
-            for g in sorted(groups)
-        ]
-
     if len(menu_requirements) == 1 and chain_length == 1:
         citations = format_xml_id_citations(menu_groups)
         execution_steps.append(
-            f"3. Menu Visibility: restricted to groups [{', '.join(_format_groups(menu_groups))}]. ({citations})"
+            f"3. Menu Visibility: restricted to groups [{', '.join(format_groups(G, menu_groups))}]. ({citations})"
         )
     elif menu_requirements:
         per_menu = "; ".join(
-            f"menu {xml_id} requires one of [{', '.join(_format_groups(groups))}]"
+            f"menu {xml_id} requires one of [{', '.join(format_groups(G, groups))}]"
             for xml_id, groups in menu_requirements
         )
         citations = format_xml_id_citations(menu_groups)
@@ -446,12 +478,12 @@ def describe_navigation_path(
 
     summary_parts = [f"Pour '{model_name}': menu " + " -> ".join(breadcrumb) + f" (id: {menu_xml_id})."]
     if len(menu_requirements) == 1 and chain_length == 1:
-        summary_parts.append(f"Menu restreint aux groupes [{', '.join(_format_groups(menu_groups))}].")
+        summary_parts.append(f"Menu restreint aux groupes [{', '.join(format_groups(G, menu_groups))}].")
     elif menu_requirements:
         summary_parts.append(
             "Menus restreints (un groupe de chacun est requis) : "
             + " ; ".join(
-                f"{xml_id} [{', '.join(_format_groups(groups))}]"
+                f"{xml_id} [{', '.join(format_groups(G, groups))}]"
                 for xml_id, groups in menu_requirements
             ) + "."
         )
@@ -459,6 +491,8 @@ def describe_navigation_path(
         summary_parts.append(button_result.summary_text)
     if unavailable_reason:
         summary_parts.append(f"NON DISPONIBLE POUR LE DEMANDEUR : {unavailable_reason}")
+    if outputs.summary:
+        summary_parts.append(outputs.summary)
 
     return NavigationPathResult(
         model_name=model_name,
@@ -473,5 +507,5 @@ def describe_navigation_path(
         unavailable_reason=unavailable_reason,
         summary_text=" ".join(summary_parts),
         execution_steps=execution_steps,
-        evidence=evidence,
+        evidence=evidence + outputs.evidence,
     )

@@ -1,4 +1,4 @@
-"""In-memory thread-safe session store for chat history, last route, and resolved concept."""
+"""In-memory thread-safe session store for chat history and last route."""
 
 import threading
 from typing import Any, Dict, List, Optional, Union
@@ -22,7 +22,7 @@ def get_session(session_id: str, owner_uid: OwnerUid) -> Dict[str, Any]:
     """Return this owner's session state, or a fresh empty one if unseen.
 
     Never returns None and never raises on an unknown session_id -- callers
-    can always read ["chat_history"]/["resolved_concept"]/["last_route"]
+    can always read ["chat_history"]/["last_route"]
     without a presence check first. Returns a shallow copy so in-place
     mutation cannot corrupt the store without update_session().
     """
@@ -30,10 +30,9 @@ def get_session(session_id: str, owner_uid: OwnerUid) -> Dict[str, Any]:
     with _LOCK:
         session = _SESSIONS.get(key)
         if session is None:
-            return {"chat_history": [], "resolved_concept": None, "last_route": None}
+            return {"chat_history": [], "last_route": None}
         return {
             "chat_history": list(session.get("chat_history", [])),
-            "resolved_concept": session.get("resolved_concept"),
             "last_route": session.get("last_route"),
         }
 
@@ -41,7 +40,6 @@ def get_session(session_id: str, owner_uid: OwnerUid) -> Dict[str, Any]:
 def update_session(
     session_id: str,
     chat_history: List[BaseMessage],
-    resolved_concept: Optional[dict] = None,
     last_route: Optional[str] = None,
     *,
     owner_uid: OwnerUid,
@@ -51,7 +49,6 @@ def update_session(
     with _LOCK:
         _SESSIONS[key] = {
             "chat_history": list(chat_history),
-            "resolved_concept": resolved_concept,
             "last_route": last_route,
         }
 

@@ -32,6 +32,9 @@ class TechnicalTag(str, Enum):
     COMPUTED_FIELD = "computed_field"
     SERVER_ACTION = "server_action"
     CRON = "cron"
+    REPORT = "report"
+    MAIL_TEMPLATE = "mail_template"
+    HTTP_ROUTE = "http_route"
 
 
 # === query ===========================================
