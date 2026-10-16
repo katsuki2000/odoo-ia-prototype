@@ -437,16 +437,22 @@ class OdooClassVisitor(ast.NodeVisitor):
         return None
 
 
-def extract_odoo_models_from_file(filepath: Path) -> List[OdooModelDeclaration]:
-    """Parse a python file and extract all Odoo model declarations."""
+def extract_odoo_models_from_file(
+    filepath: Path,
+    *,
+    source: Optional[str] = None,
+    tree: Optional[ast.Module] = None,
+) -> List[OdooModelDeclaration]:
+    """Extract Odoo model declarations from a file or an already parsed AST."""
     try:
-        content = filepath.read_text(encoding="utf-8")
-        tree = ast.parse(content, filename=str(filepath))
+        if tree is None:
+            content = source if source is not None else filepath.read_text(encoding="utf-8")
+            tree = ast.parse(content, filename=str(filepath))
         visitor = OdooClassVisitor(filepath=str(filepath))
         visitor.visit(tree)
         return visitor.declarations
-    except Exception as e:
-        print(f"Error parsing {filepath}: {e}")
+    except (OSError, UnicodeDecodeError, SyntaxError) as error:
+        print(f"Error parsing {filepath}: {error}")
         return []
 
 
