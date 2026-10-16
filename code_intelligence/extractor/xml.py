@@ -49,7 +49,7 @@ def parse_actions_from_xml(filepath: Path, *, parsed_xml: Optional[Tuple[str, Op
     <record model="ir.actions.client"> declarations (a client action has a tag, no res_model).
     """
     if parsed_xml is None:
-    root = parse_xml_root(filepath, error_context="for actions")
+        root = parse_xml_root(filepath, error_context="for actions")
     else:
         _, root = parsed_xml
     if root is None:
@@ -94,7 +94,7 @@ def parse_server_actions_from_xml(filepath: Path, *, parsed_xml: Optional[Tuple[
     Captures the 'code' field content that contains executable Python logic.
     """
     if parsed_xml is None:
-    root = parse_xml_root(filepath, missing_message="XML file does not exist: %s", error_context="")
+        root = parse_xml_root(filepath, missing_message="XML file does not exist: %s", error_context="")
     else:
         _, root = parsed_xml
     if root is None:
@@ -154,7 +154,7 @@ def parse_base_automations_from_xml(filepath: Path, *, parsed_xml: Optional[Tupl
     Links automation triggers to their associated ir.actions.server records.
     """
     if parsed_xml is None:
-    root = parse_xml_root(filepath, missing_message="XML file does not exist: %s", error_context="")
+        root = parse_xml_root(filepath, missing_message="XML file does not exist: %s", error_context="")
     else:
         _, root = parsed_xml
     if root is None:
@@ -404,7 +404,7 @@ def parse_groups_from_xml(filepath: Path, *, parsed_xml: Optional[Tuple[str, Opt
     Parse an Odoo XML file and extract all <record model="res.groups"> declarations.
     """
     if parsed_xml is None:
-    root = parse_xml_root(filepath, error_context="for groups")
+        root = parse_xml_root(filepath, error_context="for groups")
     else:
         _, root = parsed_xml
     if root is None:
@@ -488,7 +488,7 @@ def parse_menuitems_from_xml(filepath: Path, *, parsed_xml: Optional[Tuple[str, 
     Parse an Odoo XML file and extract all <menuitem> elements and <record model="ir.ui.menu"> records.
     """
     if parsed_xml is None:
-    root = parse_xml_root(filepath, error_context="for menuitems")
+        root = parse_xml_root(filepath, error_context="for menuitems")
     else:
         _, root = parsed_xml
     if root is None:
@@ -601,7 +601,7 @@ def parse_views_from_xml(filepath: Path, *, parsed_xml: Optional[Tuple[str, Opti
     Parse an Odoo XML file and extract all <record model="ir.ui.view"> records with form buttons.
     """
     if parsed_xml is None:
-    root = parse_xml_root(filepath, error_context="for views")
+        root = parse_xml_root(filepath, error_context="for views")
     else:
         _, root = parsed_xml
     if root is None:
