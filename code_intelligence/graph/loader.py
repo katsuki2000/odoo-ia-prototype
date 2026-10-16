@@ -4,6 +4,7 @@ code_intelligence/graph/build/disk_loader.py
 Disk-level loading and validation helpers for Odoo addon modules and serialized graphs.
 """
 
+import ast
 import logging
 import threading
 from pathlib import Path
@@ -32,6 +33,7 @@ from code_intelligence.extractor.xml import (
     parse_menuitems_from_xml,
     parse_server_actions_from_xml,
     parse_views_from_xml,
+    parse_xml_document,
 )
 from .translations import load_module_translations
 from .translations import attach_runtime_translations
@@ -78,19 +80,28 @@ def _load_module(
     for py_f in mod_dir.rglob("*.py"):
         if py_f.name == "__manifest__.py":
             continue
-        mod.models.extend(extract_odoo_models_from_file(py_f))
-        mod.http_routes.extend(parse_http_routes(py_f))
+        try:
+            source = py_f.read_text(encoding="utf-8")
+            tree = ast.parse(source, filename=str(py_f))
+        except (OSError, UnicodeDecodeError, SyntaxError) as error:
+            logger.warning("Cannot parse Python source %s: %s", py_f, error)
+            continue
+        mod.models.extend(extract_odoo_models_from_file(py_f, source=source, tree=tree))
+        mod.http_routes.extend(parse_http_routes(py_f, source=source, tree=tree))
     for xml_f in mod_dir.rglob("*.xml"):
-        mod.rules.extend(parse_ir_rules_from_xml(xml_f))
-        mod.acl_entries.extend(parse_access_entries_from_xml(xml_f))
-        mod.reports.extend(parse_reports_from_xml(xml_f))
-        mod.mail_templates.extend(parse_mail_templates_from_xml(xml_f))
-        mod.groups.extend(parse_groups_from_xml(xml_f))
-        mod.actions.extend(parse_actions_from_xml(xml_f))
-        mod.server_actions.extend(parse_server_actions_from_xml(xml_f))
-        mod.base_automations.extend(parse_base_automations_from_xml(xml_f))
-        mod.menuitems.extend(parse_menuitems_from_xml(xml_f))
-        mod.views.extend(parse_views_from_xml(xml_f))
+        parsed_xml = parse_xml_document(xml_f)
+        if parsed_xml is None:
+            parsed_xml = ("", None)
+        mod.rules.extend(parse_ir_rules_from_xml(xml_f, parsed_xml=parsed_xml))
+        mod.acl_entries.extend(parse_access_entries_from_xml(xml_f, parsed_xml=parsed_xml))
+        mod.reports.extend(parse_reports_from_xml(xml_f, parsed_xml=parsed_xml))
+        mod.mail_templates.extend(parse_mail_templates_from_xml(xml_f, parsed_xml=parsed_xml))
+        mod.groups.extend(parse_groups_from_xml(xml_f, parsed_xml=parsed_xml))
+        mod.actions.extend(parse_actions_from_xml(xml_f, parsed_xml=parsed_xml))
+        mod.server_actions.extend(parse_server_actions_from_xml(xml_f, parsed_xml=parsed_xml))
+        mod.base_automations.extend(parse_base_automations_from_xml(xml_f, parsed_xml=parsed_xml))
+        mod.menuitems.extend(parse_menuitems_from_xml(xml_f, parsed_xml=parsed_xml))
+        mod.views.extend(parse_views_from_xml(xml_f, parsed_xml=parsed_xml))
     mod.client_action_models = parse_client_action_models(mod_dir)
     for csv_f in mod_dir.rglob(ACCESS_CONTROL_CSV_NAME):
         mod.acl_entries.extend(parse_access_control_csv(csv_f))
