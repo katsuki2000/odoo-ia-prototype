@@ -294,6 +294,7 @@ class CapabilityInvestigationTests(unittest.TestCase):
         client = types.SimpleNamespace(invoke=lambda messages: self.planner.CapabilitySelection(capability_ids=['invented'], rationale='Bad'))
         llm.get_chat_llm = lambda **kwargs: types.SimpleNamespace(with_structured_output=lambda *args, **kwargs: client)
         llm.invoke_with_rate_limit = lambda counted, messages, **kwargs: (counted.invoke(messages), 0.1)
+        llm.with_no_think = lambda prompt: prompt
         sys.modules[llm.__name__] = llm
         selected, _reason, attempts, _wait = self.actualSelector('Question', self.candidates())
         self.assertIsNone(selected)

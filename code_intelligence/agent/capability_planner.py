@@ -53,7 +53,7 @@ def _select_capabilities(question, candidates, observations=(), max_steps=None):
     maxSteps = CI_MAX_HOPS if max_steps is None else max_steps
     import json
     from langchain_core.messages import SystemMessage, HumanMessage
-    from core.llm.llm_client import get_chat_llm, invoke_with_rate_limit
+    from core.llm.llm_client import get_chat_llm, invoke_with_rate_limit, with_no_think
     attempts = 0
     wait = 0.0
     try:
@@ -67,7 +67,7 @@ def _select_capabilities(question, candidates, observations=(), max_steps=None):
                       'purpose': item.description} for item in candidates]
         payload = {'question': question, 'max_steps': maxSteps, 'capabilities': inventory,
                    'observations': list(observations), 'instruction': 'Select further evidence only if needed; return no IDs when sufficient or no safe continuation exists.'}
-        selection, wait = invoke_with_rate_limit(CountedClient(), [SystemMessage(content=_SYSTEM_PROMPT),
+        selection, wait = invoke_with_rate_limit(CountedClient(), [SystemMessage(content=with_no_think(_SYSTEM_PROMPT)),
             HumanMessage(content=json.dumps(payload, ensure_ascii=False))], max_retries=1)
         if isinstance(selection, dict):
             selection = CapabilitySelection.model_validate(selection)

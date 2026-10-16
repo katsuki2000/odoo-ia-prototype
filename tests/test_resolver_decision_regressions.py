@@ -177,6 +177,7 @@ class ResolverDecisionTests(unittest.TestCase):
                     pass
             return client.invoke(messages), 0.25
         llmModule.invoke_with_rate_limit = invoke
+        llmModule.with_no_think = lambda prompt: prompt
         sys.modules['langchain_core.messages'] = messages
         sys.modules['core.llm.llm_client'] = llmModule
         class Client:

@@ -55,9 +55,9 @@ def _llm_arbitrate(query_text, candidates, llm, candidate_contexts=None):
 
     try:
         from langchain_core.messages import SystemMessage, HumanMessage
-        from core.llm.llm_client import invoke_with_rate_limit
+        from core.llm.llm_client import invoke_with_rate_limit, with_no_think
         response, waitSeconds = invoke_with_rate_limit(CountedClient(), [
-            SystemMessage(content=_ARBITRATION_SYSTEM_PROMPT),
+            SystemMessage(content=with_no_think(_ARBITRATION_SYSTEM_PROMPT)),
             HumanMessage(content=_build_arbitration_prompt(query_text, candidates, candidate_contexts)),
         ])
         raw = (response.content or '').strip()

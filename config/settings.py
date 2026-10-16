@@ -29,6 +29,8 @@ OLLAMA_MODEL       = os.getenv("OLLAMA_MODEL", "gpt-oss:20b")
 LOCAL_LLM_BASE_URL = os.getenv("LOCAL_LLM_BASE_URL", f"{OLLAMA_HOST}/v1")
 LOCAL_LLM_MODEL    = os.getenv("LOCAL_LLM_MODEL", OLLAMA_MODEL)
 LOCAL_LLM_API_KEY  = os.getenv("LOCAL_LLM_API_KEY", "ollama")
+# Soft switch that skips the reasoning phase on short structured calls (Qwen3); empty disables it.
+LLM_NO_THINK_MARKER = os.getenv("LLM_NO_THINK_MARKER", "/no_think" if LOCAL_LLM_MODEL.lower().startswith("qwen3") else "")
 
 # ── Embeddings ─────────────────────────────────────────
 EMBEDDING_BACKEND        = os.getenv("EMBEDDING_BACKEND", "local_light").lower()

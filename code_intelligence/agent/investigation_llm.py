@@ -7,6 +7,8 @@ System prompts and template construction for bounded LLM intent classification.
 from typing import List
 from langchain_core.messages import BaseMessage, SystemMessage, HumanMessage
 
+from core.llm.llm_client import with_no_think
+
 
 _INTENT_CLASSIFICATION_SYSTEM_PROMPT = (
     "Tu es un classifieur d'intention pour MIRO, un assistant Odoo destiné aux utilisateurs métiers. "
@@ -38,7 +40,7 @@ def build_intent_classification_prompt(question: str) -> str:
 def build_intent_classification_messages(question: str) -> List[BaseMessage]:
     """Build the message list for structured intent classification."""
     return [
-        SystemMessage(content=_INTENT_CLASSIFICATION_SYSTEM_PROMPT),
+        SystemMessage(content=with_no_think(_INTENT_CLASSIFICATION_SYSTEM_PROMPT)),
         HumanMessage(content=build_intent_classification_prompt(question)),
     ]
 

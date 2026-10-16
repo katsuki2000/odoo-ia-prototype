@@ -12,6 +12,7 @@ from config.settings import (
     LOCAL_LLM_BASE_URL,
     LOCAL_LLM_MODEL,
     LOCAL_LLM_API_KEY,
+    LLM_NO_THINK_MARKER,
 )
 from core.llm.local_only import assert_local_endpoint
 from core.llm.llm_retry import (
@@ -29,6 +30,10 @@ logger = logging.getLogger(__name__)
 
 
 # ── Provider-agnostic client factory ──────────────────────────────────────
+
+def with_no_think(prompt: str) -> str:
+    return f"{prompt} {LLM_NO_THINK_MARKER}" if LLM_NO_THINK_MARKER else prompt
+
 
 def get_chat_llm(
     *,
