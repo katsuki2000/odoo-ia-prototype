@@ -3455,3 +3455,18 @@ Date : 16/10/2026
 **Risque connu** : un modele a nombreux rapports (ex. `account.move`) allonge l'observation ; la borne de 8 par genre la limite, l'effet sur la troncature de 3000 caracteres reste a mesurer en (d).
 **Non traite** : routes HTTP (H) ; traductions runtime des rapports et modeles ; objet `subject` des modeles d'e-mail (expression Jinja) ; fusion/commit en attente de pmm.
 **Fichiers modifies** : `code_intelligence/graph/output_nodes.py`, `code_intelligence/graph/translations.py`, `code_intelligence/graph/version.py`, `code_intelligence/rules/group_resolver.py`, `code_intelligence/rules/navigation.py`, `code_intelligence/rules/model_outputs.py` (nouveau), `code_intelligence/tests/test_model_outputs.py` (nouveau), `todo/contexte.txt`.
+
+
+## Section 1421 : parsing partage pour la construction du graphe de code (16/10/2026)
+
+Date : 16/10/2026
+**Mandat** : simplifier le parsing du graphe sur une nouvelle branche, sans Neo4j.
+**Cause** : le chargeur relisait et reparsait chaque fichier Python pour extraire les modeles puis les routes HTTP ; chaque fichier XML etait reparsé par dix extracteurs.
+**Realise** :
+- `graph/loader.py` lit chaque fichier Python une fois et construit un seul AST, transmis aux extracteurs de modeles et de routes. Les fichiers illisibles ou syntaxiquement invalides sont ignores avec un avertissement.
+- `extractor/xml_models.py` expose `parse_xml_document`; le chargeur lit et parse chaque XML une fois, puis transmet le document aux extracteurs de regles, ACL, rapports, modeles d'e-mail, groupes, actions, automatisations, menus et vues. Un XML invalide est signale une fois puis ignore par les extracteurs de ce fichier.
+- Les extracteurs conservent leurs signatures d'appel existantes pour les autres consommateurs ; le document preparse est un argument optionnel.
+- Le controle d'inventaire des sources garde sa logique de routes distincte pour rester un audit independant de l'extracteur. Le parcours BFS de propagation des champs est conserve : il filtre des types d'aretes precis, donc un remplacement par `nx.descendants` changerait la semantique.
+**Tests ajoutes** : partage AST entre extracteurs Python et reutilisation du document XML sans relecture.
+**Verification** : non executee a distance ; les tests cibles et `py_compile` restent a lancer sur la branche.
+**Fichiers modifies** : `code_intelligence/graph/loader.py`, `code_intelligence/extractor/python.py`, `code_intelligence/extractor/http_routes.py`, `code_intelligence/extractor/xml_models.py`, `code_intelligence/extractor/xml.py`, `code_intelligence/tests/test_graph_parser_reuse.py` (nouveau), `todo/contexte.txt`.
