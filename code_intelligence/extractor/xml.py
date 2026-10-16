@@ -24,7 +24,6 @@ from .xml_models import (
     iter_records_by_model,
     parse_eval_bool,
     parse_xml_root,
-    parse_xml_document,
     _read_and_parse_xml,
 )
 
@@ -154,7 +153,10 @@ def parse_base_automations_from_xml(filepath: Path, *, parsed_xml: Optional[Tupl
     Parse an Odoo XML file and extract all <record model="base.automation"> declarations.
     Links automation triggers to their associated ir.actions.server records.
     """
+    if parsed_xml is None:
     root = parse_xml_root(filepath, missing_message="XML file does not exist: %s", error_context="")
+    else:
+        _, root = parsed_xml
     if root is None:
         return []
 
