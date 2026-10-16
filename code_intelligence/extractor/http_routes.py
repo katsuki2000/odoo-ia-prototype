@@ -75,20 +75,27 @@ def _route_from_decorator(decorator: ast.Call, controller: str, function, filepa
     )
 
 
-def parse_http_routes(filepath: Path) -> List[OdooHttpRoute]:
-    """Extract every route-decorated function of a Python file. Non literal arguments stay empty."""
-    try:
-        source = filepath.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError) as error:
-        _logger.warning("Cannot read %s for routes: %s", filepath, error)
-        return []
+def parse_http_routes(
+    filepath: Path,
+    *,
+    source: Optional[str] = None,
+    tree: Optional[ast.Module] = None,
+) -> List[OdooHttpRoute]:
+    """Extract routes from a file or an already parsed AST. Non literal arguments stay empty."""
+    if source is None:
+        try:
+            source = filepath.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError) as error:
+            _logger.warning("Cannot read %s for routes: %s", filepath, error)
+            return []
     if "route" not in source:
         return []
-    try:
-        tree = ast.parse(source)
-    except SyntaxError as error:
-        _logger.warning("Cannot parse %s for routes: %s", filepath, error)
-        return []
+    if tree is None:
+        try:
+            tree = ast.parse(source, filename=str(filepath))
+        except SyntaxError as error:
+            _logger.warning("Cannot parse %s for routes: %s", filepath, error)
+            return []
 
     routes: List[OdooHttpRoute] = []
 
