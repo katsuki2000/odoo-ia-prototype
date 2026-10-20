@@ -3,6 +3,7 @@
 import ast
 import copy
 import importlib.util
+import hashlib
 import json
 from pathlib import Path
 import sys
@@ -123,12 +124,35 @@ class RuntimeExportTests(unittest.TestCase):
         self.assertEqual(amount['label'], 'Amount')
         self.assertTrue(any(edge['edge_type'] == 'RELATES_TO' and edge['target'] == 'model:x.peer' for edge in snapshot['edges']))
 
-    def test_source_method_ranges_come_from_introspection(self):
-        snapshot = self.snapshot()
-        method = next(node for node in snapshot['nodes'] if node['id'] == 'method:x.case.approve')
-        self.assertGreaterEqual(method['end_lineno'], method['lineno'])
-        self.assertEqual(Path(method['filepath']).resolve(), Path(__file__).resolve())
-        self.assertEqual(len(method['override_sites'][0]['sha256']), 64)
+    def test_export_records_class_files_without_extracting_method_bodies(self):
+        with patch.object(exporter.inspect, 'getsourcelines', side_effect=AssertionError('No method extraction')):
+            with patch.object(Path, 'read_bytes', side_effect=AssertionError('No source file hashing')):
+                snapshot = self.snapshot()
+        model = next(node for node in snapshot['nodes'] if node['id'] == 'model:x.case')
+        self.assertIn(str(Path(__file__).resolve()), model['filepaths'])
+        self.assertIn({'module': 'custom', 'filepath': str(Path(__file__).resolve())}, model['source_sites'])
+        self.assertFalse(any(node['node_type'] == 'Method' for node in snapshot['nodes']))
+        self.assertFalse(any(edge['edge_type'] == 'HAS_METHOD' for edge in snapshot['edges']))
+
+    def test_exported_class_sites_feed_real_ast_source_search(self):
+        spec = importlib.util.spec_from_file_location('_runtime_source_search_test', ROOT / 'code_intelligence/agent/source_search.py')
+        source = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = source
+        spec.loader.exec_module(source)
+        class Nodes(dict):
+            def __call__(self, data=False):
+                return self.items() if data else self.keys()
+        graph = types.SimpleNamespace(nodes=Nodes({node['id']: node for node in self.snapshot()['nodes']}))
+        with patch.object(source, 'python_fragments', wraps=source.python_fragments) as parse:
+            result = source.search_source_fragments(graph, [ROOT], 'approve', model='x.case', module='custom')
+        self.assertEqual(parse.call_count, 1)
+        method = next(item for item in result['candidates'] if item['symbol'] == 'BaseCase.approve')
+        text = Path(method['filepath']).read_text().splitlines()
+        self.assertIn('def approve(self):', text[method['line_start'] - 1])
+        self.assertIn('return True', text[method['line_end'] - 1])
+        self.assertIn('custom', method['modules'])
+        self.assertIn('x.case', method['models'])
+        self.assertEqual(method['sha256'], hashlib.sha256(Path(method['filepath']).read_bytes()).hexdigest())
 
     def test_security_xmlids_and_edges_are_preserved(self):
         snapshot = self.snapshot()
