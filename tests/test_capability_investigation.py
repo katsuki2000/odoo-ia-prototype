@@ -125,6 +125,8 @@ class CapabilityInvestigationTests(unittest.TestCase):
             _override_user_groups_arg=lambda name, arguments, groups, principals, **kwargs: dict(arguments, user_groups_json=str(groups)) if name == 'evaluate_record_rules' else arguments,
             _truncate_observation_for_budget=lambda ctx, observation, cap: observation,
             PER_TOOL_OBSERVATION_CAPS={}, DEFAULT_OBSERVATION_CAP=2500,
+            MAX_TOTAL_OBSERVATION_CHARS=35000, DISCOVERY_TOOLS=set(),
+            _record_amount_fact=lambda *args: None,
             gate_observation=lambda **kwargs: (kwargs['observation'], []),
             ToolMessage=lambda **kwargs: types.SimpleNamespace(**kwargs))
         exec(compile(tree, str(ROOT / 'code_intelligence/agent/loop.py'), 'exec'), namespace)
@@ -345,10 +347,11 @@ class CapabilityInvestigationTests(unittest.TestCase):
         self.assertIn('run_planned_investigation', source)
         self.assertNotIn('dispatch_security_locks', source)
 
-    def test_runner_disables_unplanned_react_tool_selection(self):
+    def test_active_runner_uses_native_loop_not_legacy_plans(self):
         source = (ROOT / 'code_intelligence/agent/loop.py').read_text()
-        self.assertIn('allow_tool_selection=False', source)
-        self.assertIn('ctx.hop_count += 1\n        ctx.seen_calls.add', source)
+        self.assertIn('create_react_agent', source)
+        self.assertNotIn('run_predispatch_chain', source)
+        self.assertNotIn('generate_investigation_plan', source)
 
 
 if __name__ == '__main__':
