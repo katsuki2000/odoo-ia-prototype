@@ -40,12 +40,14 @@ def _graph_with_translated_models():
     graph.add_node(
         "model:purchase.order",
         node_type="Model",
+        name="purchase.order",
         description="Purchase Order",
         business_labels=[{"label": "Demande de prix", "language": "fr_FR"}],
     )
     graph.add_node(
         "model:sale.order",
         node_type="Model",
+        name="sale.order",
         description="Sales Order",
         business_labels=[{"label": "Commande client", "language": "fr_FR"}],
     )
@@ -312,7 +314,7 @@ def test_query_embedding_is_computed_once_for_repeated_ranking():
             return [[1.0, float(len(text) % 3)] for text in texts]
 
     graph = nx.DiGraph()
-    graph.add_node("model:sale.order", node_type="Model", description="Sales Order")
+    graph.add_node("model:sale.order", node_type="Model", name="sale.order", description="Sales Order")
     embedding = CountingEmbedding()
     module.rank_semantic_model_candidates_scored("question unique 1325", graph, embedding)
     module.rank_semantic_model_candidates("question unique 1325", graph, embedding)
@@ -354,3 +356,30 @@ def test_shortlist_without_semantic_candidates_is_the_unchanged_fuzzy_list(monke
 
     assert shortlist.models == [model for model, _score in fuzzy]
     assert shortlist.semantic_status == SemanticRetrievalStatus.ERROR
+
+
+def _graph_with_menu():
+    graph = nx.DiGraph()
+    graph.add_node("model:sale.order", node_type="Model", name="sale.order", description="Sales Order")
+    graph.add_node("model:res.partner", node_type="Model", name="res.partner", description="Contact")
+    graph.add_node("menu:sale.menu_quotations", node_type="Menu", xml_id="sale.menu_quotations", description="Devis clients")
+    graph.add_edge("menu:sale.menu_quotations", "model:sale.order", edge_type="OPENS_MODEL")
+    return graph
+
+
+def test_menu_card_is_a_second_document_of_the_model_it_opens():
+    documents = semantic_module._model_documents(_graph_with_menu())
+    assert [model for model, _text in documents].count("sale.order") == 2
+    assert [model for model, _text in documents].count("res.partner") == 1
+    assert any("Devis clients" in text for model, text in documents if model == "sale.order")
+
+
+def test_model_card_carries_the_technical_name():
+    documents = dict(semantic_module._model_documents(_graph_with_menu()))
+    assert "technical: res.partner" in documents["res.partner"]
+
+
+def test_ranking_keeps_the_best_document_per_model_without_duplicates():
+    ranked = rank_semantic_model_candidates("Ou gerer une commande client ?", _graph_with_menu(), FakeEmbeddingFunction())
+    assert ranked.count("sale.order") == 1
+    assert set(ranked) == {"sale.order", "res.partner"}

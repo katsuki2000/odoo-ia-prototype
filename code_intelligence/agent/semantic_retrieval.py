@@ -13,11 +13,13 @@ from typing import Dict, List, Optional, Sequence, Tuple
 from urllib.parse import urlsplit, urlunsplit
 
 from config import settings
-from .node_labels import node_labels
+from .node_cards import build_node_cards
+from .node_projection import ModelProjector
 from .semantic_index_store import SemanticIndexStore, text_key
 
 logger = logging.getLogger(__name__)
 SEMANTIC_CANDIDATE_LIMIT = 10
+INDEXED_NODE_TYPES = ('Model', 'Menu')
 SEMANTIC_EMBEDDING_BATCH_SIZE = 64
 SEMANTIC_RETRIEVAL_ENABLED_ENV = 'RESOLVER_SEMANTIC_RETRIEVAL_ENABLED'
 SEMANTIC_STATUS_DIAGNOSTIC_KEY = 'semantic_retrieval'
@@ -40,20 +42,12 @@ class SemanticRetrieval:
     status: SemanticRetrievalStatus = SemanticRetrievalStatus.NO_CANDIDATES
 
 
-def _model_documents(graph) -> List[Tuple[str, str]]:
-    menuLabels = {}
-    for nodeId, data in graph.nodes(data=True):
-        if data.get('node_type') == 'Menu':
-            for successor in graph.successors(nodeId):
-                if graph.edges[nodeId, successor].get('edge_type') == 'OPENS_MODEL':
-                    menuLabels.setdefault(successor.removeprefix('model:'), []).extend(node_labels(data))
+def _model_documents(graph, language=None) -> List[Tuple[str, str]]:
+    """One document per model card and per menu card, each attributed to the models it opens."""
+    projector = ModelProjector(graph)
     documents = []
-    for nodeId, data in graph.nodes(data=True):
-        if data.get('node_type') == 'Model':
-            model = str(data.get('name') or nodeId.removeprefix('model:')).strip()
-            labels = list(dict.fromkeys(node_labels(data) + menuLabels.get(model, [])))
-            if labels:
-                documents.append((model, ' ; '.join(labels)))
+    for card in build_node_cards(graph, language=language, node_types=INDEXED_NODE_TYPES):
+        documents.extend((model.removeprefix('model:'), card.text) for model in projector(card.object_ref))
     return sorted(documents)
 
 
@@ -138,10 +132,10 @@ def _query_embedding(embedding_function, query):
     return vector
 
 
-def rank_semantic_model_candidates_scored(query, graph, embedding_function, *, limit=SEMANTIC_CANDIDATE_LIMIT, cache_dir=None):
+def rank_semantic_model_candidates_scored(query, graph, embedding_function, *, limit=SEMANTIC_CANDIDATE_LIMIT, cache_dir=None, language=None):
     if not query or graph is None or limit <= 0:
         return []
-    documents = _model_documents(graph)
+    documents = _model_documents(graph, language)
     if not documents:
         return []
     digest = hashlib.sha256(json.dumps(documents, ensure_ascii=False).encode()).hexdigest()
@@ -155,8 +149,10 @@ def rank_semantic_model_candidates_scored(query, graph, embedding_function, *, l
             _SEMANTIC_INDEX_CACHE.setdefault(graph, {})[identity] = cached
     models, embeddings = cached[1]
     queryVector = _query_embedding(embedding_function, query)
-    ranked = [(model, _cosine_similarity(queryVector, vector)) for model, vector in zip(models, embeddings)]
-    return sorted(ranked, key=lambda item: (-item[1], item[0]))[:limit]
+    best = {}
+    for model, vector in zip(models, embeddings):
+        best[model] = max(best.get(model, -1.0), _cosine_similarity(queryVector, vector))
+    return sorted(best.items(), key=lambda item: (-item[1], item[0]))[:limit]
 
 
 def rank_semantic_model_candidates(query, graph, embedding_function, **options):
@@ -170,7 +166,7 @@ def retrieve_semantic_model_candidates_scored(query, graph, language, *, limit=S
         provider = build_semantic_embedding_function()
         if provider is None:
             raise ValueError('No resolver embedding provider configured.')
-        scored = rank_semantic_model_candidates_scored(query, graph, provider, limit=limit, cache_dir=settings.SEMANTIC_INDEX_CACHE_DIR)
+        scored = rank_semantic_model_candidates_scored(query, graph, provider, limit=limit, cache_dir=settings.SEMANTIC_INDEX_CACHE_DIR, language=language)
         return scored, SemanticRetrievalStatus.SUCCESS if scored else SemanticRetrievalStatus.NO_CANDIDATES
     except Exception as error:
         logger.warning('Semantic retrieval unavailable (%s).', type(error).__name__)

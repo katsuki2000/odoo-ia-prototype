@@ -6,6 +6,7 @@ The embedding model and backend are controlled by RESOLVER_SEMANTIC_* env vars.
 import logging
 from typing import NamedTuple, Optional
 
+from .candidates import HYBRID_SEMANTIC_LIMIT
 from ..semantic_retrieval import (
     SemanticRetrievalStatus,
     retrieve_semantic_model_candidates_scored,
@@ -33,7 +34,7 @@ def resolve_dense_retrieval(
         return DenseResolution(None)
 
     scored, status = retrieve_semantic_model_candidates_scored(
-        query_text, G, language, limit=10,
+        query_text, G, language, limit=HYBRID_SEMANTIC_LIMIT,
     )
     if status in (SemanticRetrievalStatus.DISABLED, SemanticRetrievalStatus.ERROR):
         _logger.debug("Dense retrieval skipped (status=%s); falling through.", status.value)

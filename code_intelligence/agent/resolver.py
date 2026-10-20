@@ -29,6 +29,7 @@ from .resolution.candidates import (
 from .resolution.dense_lookup import resolve_dense_retrieval
 from .resolution.exact_mention import resolve_exact_mention
 from .resolution.fuzzy_lookup import resolve_fuzzy_match
+from .resolution.label_mention import quoted_model_labels
 from .semantic_retrieval import SEMANTIC_STATUS_DIAGNOSTIC_KEY
 from .text_normalization import normalize_query_text
 
@@ -42,7 +43,7 @@ def resolve_business_term(
 ) -> ResolvedConcept:
     """Resolve a natural language query into a technical Odoo model/module.
 
-    Exact mentions are resolved first. Dense retrieval proposes candidates;
+    Exact technical names are resolved first. Quoted instance labels and dense retrieval propose candidates;
     lexical matching and bounded arbitration resolve disagreements.
     """
     if not query_text:
@@ -61,6 +62,7 @@ def resolve_business_term(
     dense = resolve_dense_retrieval(query_text, G, language)
     resolved = resolve_fuzzy_match(
         query_text, clean_query, G, llm, language, semantic_candidates=dense.candidates,
+        quoted_labels=quoted_model_labels(clean_query, G),
     )
     if resolved is None:
         resolved = ResolvedConcept(

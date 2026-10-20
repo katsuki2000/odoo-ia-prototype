@@ -18,7 +18,7 @@ WIDENED_CANDIDATE_LIMIT = 20
 SHORTLIST_SEMANTIC_LIMIT = 20
 SHORTLIST_FUZZY_LIMIT = 5
 # Semantic share of the closed list when lexical and semantic leaders disagree (or lexical is empty).
-HYBRID_SEMANTIC_LIMIT = 10
+HYBRID_SEMANTIC_LIMIT = 20
 
 # Avoid generic 2-3 char words matching inside dotted model names.
 _MIN_SEGMENT_LEN = 4

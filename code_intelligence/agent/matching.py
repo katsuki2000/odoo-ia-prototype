@@ -233,6 +233,16 @@ _GENERIC_FIELD_NAMES = {
 }
 
 
+# A technical name without "." or "_" ("base", "maintenance", "project") is also an ordinary
+# word of the question: it is a literal mention only when a marker introduces it.
+_MODULE_MARKER = r"(?:module|addon)\s+"
+_MODEL_MARKER = r"(?:mod[eè]le|model)\s+"
+
+
+def _is_plain_word(technical_name: str) -> bool:
+    return "." not in technical_name and "_" not in technical_name
+
+
 def _find_exact_technical_model_mentions(
     query_lower: str, G, *, include_symbol_inference: bool = True
 ) -> List[str]:
@@ -252,21 +262,12 @@ def _find_exact_technical_model_mentions(
         technical_name = data.get("name", node_id.replace("model:", ""))
         if not technical_name or len(technical_name) < 3:
             continue
-        # Section 890 (todo/contexte.txt): a plain word-boundary lookahead
-        # ("." is not \w) lets a model whose technical name collides with a
-        # module prefix -- 'base' is the classic case -- match inside an
-        # unrelated dotted token like a group xml_id ("base.group_portal")
-        # in the question text. (?!\.\w) additionally requires that the
-        # match not be followed by "." + a word char, i.e. not be merely the
-        # first component of a LONGER dotted identifier (an xml_id, or a
-        # more specific model name such as 'sale.order.line' vs 'sale.order').
-        # A genuine full dotted model name (e.g. 'sale.order') is unaffected:
-        # its own technical_name already includes the dots, so the pattern
-        # is anchored on the complete name, not a prefix of it.
-        pattern = r"(?<!\w)" + re.escape(technical_name.lower()) + r"(?!\w)(?!\.\w)"
-        if technical_name.isalpha():
-            # A one-word name ('base') is also an ordinary word: require "model <name>".
-            pattern = r"(?<!\w)(?:mod[\u00e8e]le|model)\s+['\"`]?" + re.escape(technical_name.lower()) + r"(?!\w)(?!\.\w)"
+        # A plain-word name ('base') is a mention only behind a marker. (?!\.\w) keeps a name from
+        # matching as the first component of a longer dotted identifier: an xml_id such as
+        # 'base.group_portal', or 'sale.order' inside 'sale.order.line'. A full dotted model name is
+        # anchored on the complete name, so it is unaffected.
+        marker = _MODEL_MARKER if _is_plain_word(technical_name) else ""
+        pattern = r"(?<!\w)" + marker + re.escape(technical_name.lower()) + r"(?!\w)(?!\.\w)"
         if re.search(pattern, query_lower):
             found.append(technical_name)
     if not found and include_symbol_inference:
@@ -320,7 +321,11 @@ def has_non_generic_field_mention(query_lower: str, G) -> bool:
 
 
 def _find_exact_technical_module_mentions(query_lower: str, G) -> List[str]:
-    """Find exact technical Odoo module names mentioned in query."""
+    """Find exact technical Odoo module names mentioned in query.
+
+    A plain-word module name ('maintenance', 'project') must follow 'module' or 'addon'; a name
+    containing '_' ('hr_holidays') is exact on its own.
+    """
     if G is None:
         return []
     found = []
@@ -332,10 +337,9 @@ def _find_exact_technical_module_mentions(query_lower: str, G) -> List[str]:
             continue
         mod_lower = mod_name.lower()
         mod_escaped = re.escape(mod_lower).replace('_', r'[\s_]+')
-        marked = r"(?<!\w)(?:module|addon)\s+" + mod_escaped + r"(?!\w)(?!\.\w)"
-        # Only a name written with "_" is unmistakably technical; a plain word needs "module <name>".
-        literal = r"(?<!\w)" + re.escape(mod_lower) + r"(?!\w)(?!\.\w)"
-        if re.search(marked, query_lower) or ("_" in mod_lower and re.search(literal, query_lower)):
+        marker = _MODULE_MARKER if _is_plain_word(mod_name) else ""
+        pattern = r"(?<!\w)" + marker + mod_escaped + r"(?!\w)(?!\.\w)"
+        if re.search(pattern, query_lower):
             if mod_name not in found:
                 found.append(mod_name)
 

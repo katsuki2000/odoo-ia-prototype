@@ -60,6 +60,7 @@
     {
       "id": "MNT-Q1",
       "module": "maintenance",
+      "expected_models": ["maintenance.equipment"],
       "capability": "security",
       "difficulty": "hard",
       "expected_tools": [
@@ -74,6 +75,7 @@
     {
       "id": "MNT-Q2",
       "module": "maintenance",
+      "expected_models": ["maintenance.request"],
       "capability": "workflow",
       "difficulty": "hard",
       "expected_tools": [
@@ -88,6 +90,8 @@
     {
       "id": "MNT-Q3",
       "module": "maintenance",
+      "expected_models": ["maintenance.equipment"],
+      "tolerated_models": ["maintenance.mixin"],
       "capability": "inheritance",
       "difficulty": "medium",
       "expected_tools": [
@@ -102,6 +106,7 @@
     {
       "id": "MNT-Q4",
       "module": "maintenance",
+      "expected_models": ["maintenance.equipment"],
       "capability": "ui",
       "difficulty": "easy",
       "expected_tools": [
@@ -115,6 +120,7 @@
     {
       "id": "MNT-Q5",
       "module": "maintenance",
+      "expected_models": ["maintenance.equipment", "maintenance.request"],
       "capability": "constraints",
       "difficulty": "medium",
       "expected_tools": [
@@ -128,6 +134,7 @@
     {
       "id": "PUR-Q1",
       "module": "purchase",
+      "expected_models": ["purchase.order"],
       "capability": "security",
       "difficulty": "hard",
       "expected_tools": [
@@ -143,6 +150,7 @@
     {
       "id": "PUR-Q2",
       "module": "purchase",
+      "expected_models": ["purchase.order"],
       "capability": "workflow",
       "difficulty": "medium",
       "expected_tools": [
@@ -157,6 +165,7 @@
     {
       "id": "PUR-Q3",
       "module": "purchase",
+      "expected_models": ["purchase.order", "account.move"],
       "capability": "inheritance",
       "difficulty": "medium",
       "expected_tools": [
@@ -171,6 +180,7 @@
     {
       "id": "PUR-Q4",
       "module": "purchase",
+      "expected_models": ["purchase.order"],
       "capability": "ui",
       "difficulty": "easy",
       "expected_tools": [
@@ -184,6 +194,7 @@
     {
       "id": "PUR-Q5",
       "module": "purchase",
+      "expected_models": ["purchase.order", "purchase.order.line"],
       "capability": "constraints",
       "difficulty": "medium",
       "expected_tools": [
@@ -197,6 +208,7 @@
     {
       "id": "SAL-Q1",
       "module": "sale",
+      "expected_models": ["sale.order"],
       "capability": "security",
       "difficulty": "hard",
       "expected_tools": [
@@ -223,6 +235,7 @@
     {
       "id": "SAL-Q2",
       "module": "sale",
+      "expected_models": ["sale.order"],
       "capability": "workflow",
       "difficulty": "medium",
       "expected_tools": [
@@ -237,6 +250,7 @@
     {
       "id": "SAL-Q3",
       "module": "sale",
+      "expected_models": ["sale.order", "account.move"],
       "capability": "inheritance",
       "difficulty": "medium",
       "expected_tools": [
@@ -251,6 +265,7 @@
     {
       "id": "SAL-Q4",
       "module": "sale",
+      "expected_models": ["sale.order"],
       "capability": "ui",
       "difficulty": "easy",
       "expected_tools": [
@@ -264,6 +279,7 @@
     {
       "id": "SAL-Q5",
       "module": "sale",
+      "expected_models": ["sale.order"],
       "capability": "constraints",
       "difficulty": "medium",
       "expected_tools": [
@@ -277,6 +293,8 @@
     {
       "id": "STK-Q1",
       "module": "stock",
+      "expected_models": ["stock.quant", "stock.move.line"],
+      "tolerated_models": ["stock.move"],
       "capability": "security",
       "difficulty": "hard",
       "expected_tools": [
@@ -291,6 +309,8 @@
     {
       "id": "STK-Q2",
       "module": "stock",
+      "expected_models": ["stock.picking"],
+      "tolerated_models": ["stock.backorder.confirmation"],
       "capability": "workflow",
       "difficulty": "hard",
       "expected_tools": [
@@ -305,6 +325,7 @@
     {
       "id": "STK-Q3",
       "module": "stock",
+      "expected_models": ["stock.picking", "product.product"],
       "capability": "inheritance",
       "difficulty": "medium",
       "expected_tools": [
@@ -319,6 +340,7 @@
     {
       "id": "STK-Q4",
       "module": "stock",
+      "expected_models": ["stock.picking"],
       "capability": "ui",
       "difficulty": "medium",
       "expected_tools": [
@@ -332,6 +354,7 @@
     {
       "id": "STK-Q5",
       "module": "stock",
+      "expected_models": ["stock.quant", "stock.lot"],
       "capability": "constraints",
       "difficulty": "medium",
       "expected_tools": [
@@ -345,6 +368,7 @@
     {
       "id": "ACC-Q1",
       "module": "account",
+      "expected_models": ["account.move"],
       "capability": "security",
       "difficulty": "hard",
       "expected_tools": [
@@ -360,6 +384,8 @@
     {
       "id": "ACC-Q2",
       "module": "account",
+      "expected_models": ["account.move"],
+      "tolerated_models": ["res.company"],
       "capability": "workflow",
       "difficulty": "hard",
       "expected_tools": [
@@ -374,6 +400,7 @@
     {
       "id": "ACC-Q3",
       "module": "account",
+      "expected_models": ["account.move", "res.partner"],
       "capability": "inheritance",
       "difficulty": "medium",
       "expected_tools": [
@@ -388,6 +415,7 @@
     {
       "id": "ACC-Q4",
       "module": "account",
+      "expected_models": ["account.move", "account.move.line"],
       "capability": "ui",
       "difficulty": "hard",
       "expected_tools": [
@@ -401,6 +429,7 @@
     {
       "id": "ACC-Q5",
       "module": "account",
+      "expected_models": ["account.move"],
       "capability": "constraints",
       "difficulty": "hard",
       "expected_tools": [

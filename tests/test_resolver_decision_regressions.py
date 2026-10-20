@@ -46,6 +46,10 @@ class Graph:
         return [target for source, target in self.edges if source == node]
     def has_node(self, node):
         return node in self.nodes
+    def in_edges(self, node, data=False):
+        return [(a, b, value) for (a, b), value in self.edges.items() if b == node]
+    def out_edges(self, node, data=False):
+        return [(a, b, value) for (a, b), value in self.edges.items() if a == node]
 
 
 class Provider:
@@ -98,9 +102,12 @@ class ResolverDecisionTests(unittest.TestCase):
         config.settings = self.settings
         sys.modules['config'] = config
         sys.modules['config.settings'] = self.settings
+        cards = load_source('code_intelligence/agent/node_cards.py')
+        projection = load_source('code_intelligence/agent/node_projection.py', {
+            'CARD_NODE_TYPES': cards.CARD_NODE_TYPES, 'object_ref_of': cards.object_ref_of})
         self.semantic = load_source('code_intelligence/agent/semantic_retrieval.py', {
             'settings': self.settings, 'SemanticIndexStore': Store,
-            'node_labels': load_source('code_intelligence/agent/node_labels.py').node_labels,
+            'build_node_cards': cards.build_node_cards, 'ModelProjector': projection.ModelProjector,
             'text_key': lambda text: hashlib.sha256(text.encode()).hexdigest()})
         self.arbitration = load_source('code_intelligence/agent/resolution/arbitration.py')
         self.graph = Graph()
@@ -155,7 +162,7 @@ class ResolverDecisionTests(unittest.TestCase):
         self.semantic.rank_semantic_model_candidates_scored('question', self.graph, self.provider)
         self.graph.nodes['model:alpha.record']['description'] = 'Changed'
         self.semantic.rank_semantic_model_candidates_scored('question', self.graph, self.provider)
-        self.assertTrue(any('Changed' in texts for texts in self.provider.calls))
+        self.assertTrue(any('Changed' in text for texts in self.provider.calls for text in texts))
 
     def test_identical_query_and_graph_reuse_embeddings(self):
         self.semantic.rank_semantic_model_candidates_scored('question', self.graph, self.provider)
@@ -222,25 +229,25 @@ class ResolverDecisionTests(unittest.TestCase):
 
     def test_high_score_does_not_promote_every_alternative(self):
         module = self.fuzzy_module([('alpha.record', 95), ('beta.record', 80)], ['alpha.record'])
-        result = module.resolve_fuzzy_match('question', 'question', self.graph, object(), None, False)
+        result = module.resolve_fuzzy_match('question', 'question', self.graph, object(), None)
         self.assertEqual(result.resolved_models, ['alpha.record'])
 
     def test_abstention_does_not_return_candidates_as_targets(self):
         module = self.fuzzy_module([('alpha.record', 95), ('beta.record', 80)], [])
-        result = module.resolve_fuzzy_match('question', 'question', self.graph, object(), None, False)
+        result = module.resolve_fuzzy_match('question', 'question', self.graph, object(), None)
         self.assertFalse(result.is_resolved)
         self.assertFalse(result.resolved_models)
         self.assertEqual(len(module.ambiguous_candidates_of(result)), 2)
 
     def test_multiple_selected_subjects_are_preserved(self):
         module = self.fuzzy_module([('alpha.record', 95), ('beta.record', 80)], ['alpha.record', 'beta.record'])
-        result = module.resolve_fuzzy_match('question', 'question', self.graph, object(), None, False)
+        result = module.resolve_fuzzy_match('question', 'question', self.graph, object(), None)
         self.assertEqual(result.resolved_models, ['alpha.record', 'beta.record'])
 
     def test_single_strict_candidate_needs_no_arbitration(self):
         module = self.fuzzy_module([('alpha.record', 95)], [])
         module._llm_arbitrate = lambda *args: self.fail('Unexpected arbitration')
-        result = module.resolve_fuzzy_match('question', 'question', self.graph, None, None, False)
+        result = module.resolve_fuzzy_match('question', 'question', self.graph, None, None)
         self.assertEqual(result.resolved_models, ['alpha.record'])
 
     def test_turn_reuses_exact_decision_and_preserves_abstention(self):

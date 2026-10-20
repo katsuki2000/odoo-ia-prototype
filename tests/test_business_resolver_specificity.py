@@ -129,7 +129,7 @@ class TestResolveBusinessTermExactMentionArbitration:
         """Both models are named literally: resolve_business_term must not
         drop either (section 1004) -- the specific one ranks first."""
         G = _FakeGraph(["base", "custom.deep.document"])
-        question = "Quel est le lien entre le modele base et le modele custom.deep.document ?"
+        question = "Quel est le lien entre le modèle base et le modèle custom.deep.document ?"
 
         concept = resolve_business_term(question, G, llm=None)
 

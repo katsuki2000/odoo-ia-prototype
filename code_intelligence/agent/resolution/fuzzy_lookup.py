@@ -2,7 +2,7 @@
 
 from typing import List
 from ..matching import ResolvedConcept, _fuzzy_match_graph
-from .arbitration import _llm_arbitrate
+from .arbitration import QUOTED_LABEL_MARKER, _llm_arbitrate
 from .candidates import (
     HYBRID_SEMANTIC_LIMIT, SHORTLIST_FUZZY_LIMIT, WIDENED_CANDIDATE_THRESHOLD,
     WIDENED_CANDIDATE_LIMIT, _candidate_contexts,
@@ -18,7 +18,8 @@ def ambiguous_candidates_of(concept: ResolvedConcept) -> List[str]:
     return [model for model in concept.diagnostics.get(AMBIGUOUS_CANDIDATES_KEY, '').split(',') if model]
 
 
-def resolve_fuzzy_match(query_text, clean_query, G, llm, language, semantic_candidates=()):
+def resolve_fuzzy_match(query_text, clean_query, G, llm, language, semantic_candidates=(), quoted_labels=None):
+    quoted_labels = quoted_labels or {}
     if G is None:
         return None
     lexical = _fuzzy_match_graph(clean_query, G)
@@ -26,7 +27,7 @@ def resolve_fuzzy_match(query_text, clean_query, G, llm, language, semantic_cand
     if not lexical:
         lexical = _fuzzy_match_graph(clean_query, G, threshold=WIDENED_CANDIDATE_THRESHOLD,
                                      limit=WIDENED_CANDIDATE_LIMIT)
-    candidates = list(dict.fromkeys([model for model, _score in lexical[:SHORTLIST_FUZZY_LIMIT]]
+    candidates = list(dict.fromkeys(list(quoted_labels) + [model for model, _score in lexical[:SHORTLIST_FUZZY_LIMIT]]
                                    + list(semantic_candidates[:HYBRID_SEMANTIC_LIMIT])))
     candidates = [model for model in candidates if G.has_node('model:' + model)
                   and G.nodes['model:' + model].get('node_type') == 'Model']
@@ -36,7 +37,10 @@ def resolve_fuzzy_match(query_text, clean_query, G, llm, language, semantic_cand
         return ResolvedConcept(user_term=query_text, resolved_models=candidates,
                                confidence=round(lexical[0][1] / 100, 2), source_step='fuzzy_graph_match',
                                is_resolved=True, reason='One strict graph-label candidate; no competing retrieved model.')
-    trace = _llm_arbitrate(query_text, candidates, llm, _candidate_contexts(G, candidates))
+    contexts = _candidate_contexts(G, candidates)
+    for model, label in quoted_labels.items():
+        contexts[model] = '; '.join(filter(None, [f"{QUOTED_LABEL_MARKER}: {label}", contexts.get(model)]))
+    trace = _llm_arbitrate(query_text, candidates, llm, contexts)
     diagnostics = {ARBITRATION_OUTCOME_KEY: trace.status,
                    'arbitration_attempts': str(trace.attempts), 'arbitration_wait_seconds': str(trace.waitSeconds)}
     if trace.raw is not None:

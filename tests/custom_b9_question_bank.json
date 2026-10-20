@@ -29,6 +29,7 @@
     {
       "id": "CNA-Q1",
       "module": "custom_credit_note_approval",
+      "expected_models": ["account.move"],
       "requires_modules": ["custom_credit_note_approval_regional"],
       "capability": "security",
       "difficulty": "hard",
@@ -41,6 +42,7 @@
     {
       "id": "CNA-Q2",
       "module": "custom_credit_note_approval",
+      "expected_models": ["account.move"],
       "requires_modules": ["custom_credit_note_approval_regional", "custom_credit_note_approval_vip"],
       "capability": "inheritance",
       "difficulty": "hard",
@@ -53,6 +55,7 @@
     {
       "id": "CNA-Q3",
       "module": "custom_credit_note_approval",
+      "expected_models": ["account.move"],
       "requires_modules": ["custom_credit_note_approval_vip"],
       "capability": "workflow",
       "difficulty": "hard",
@@ -65,6 +68,7 @@
     {
       "id": "CNV-Q1",
       "module": "custom_credit_note_visibility_rules",
+      "expected_models": ["account.move"],
       "capability": "security",
       "difficulty": "hard",
       "expected_tools": [],
@@ -76,6 +80,7 @@
     {
       "id": "CNV-Q2",
       "module": "custom_credit_note_visibility_rules",
+      "expected_models": ["account.move"],
       "capability": "security",
       "difficulty": "hard",
       "expected_tools": [],
@@ -87,6 +92,7 @@
     {
       "id": "HRL-Q1",
       "module": "custom_hr_leave_workflow",
+      "expected_models": ["hr.leave"],
       "capability": "workflow",
       "difficulty": "hard",
       "expected_tools": [],
@@ -98,6 +104,7 @@
     {
       "id": "HRL-Q2",
       "module": "custom_hr_leave_workflow",
+      "expected_models": ["hr.leave"],
       "capability": "workflow",
       "difficulty": "hard",
       "expected_tools": [],
@@ -109,6 +116,7 @@
     {
       "id": "HRL-Q3",
       "module": "custom_hr_leave_workflow",
+      "expected_models": ["hr.leave"],
       "capability": "workflow",
       "difficulty": "hard",
       "expected_tools": [],
@@ -120,6 +128,7 @@
     {
       "id": "PRQ-Q1",
       "module": "custom_purchase_request",
+      "expected_models": ["custom.purchase.request"],
       "capability": "security",
       "difficulty": "hard",
       "expected_tools": [],
@@ -131,6 +140,7 @@
     {
       "id": "PRQ-Q2",
       "module": "custom_purchase_request",
+      "expected_models": ["custom.purchase.request"],
       "capability": "workflow",
       "difficulty": "hard",
       "expected_tools": [],
@@ -142,6 +152,7 @@
     {
       "id": "PRQ-Q3",
       "module": "custom_purchase_request",
+      "expected_models": ["custom.purchase.request"],
       "capability": "security",
       "difficulty": "hard",
       "expected_tools": [],
@@ -153,6 +164,8 @@
     {
       "id": "ALN-Q1",
       "module": "custom_asset_loan",
+      "expected_models": ["custom.asset.loan"],
+      "tolerated_models": ["custom.purchase.request"],
       "capability": "workflow",
       "difficulty": "hard",
       "expected_tools": [],
@@ -164,6 +177,8 @@
     {
       "id": "ALN-Q2",
       "module": "custom_asset_loan",
+      "expected_models": ["custom.asset.loan"],
+      "tolerated_models": ["custom.purchase.request"],
       "capability": "workflow",
       "difficulty": "hard",
       "expected_tools": [],
@@ -175,6 +190,8 @@
     {
       "id": "ALN-Q3",
       "module": "custom_asset_loan",
+      "expected_models": ["custom.asset.loan"],
+      "tolerated_models": ["custom.purchase.request"],
       "capability": "workflow",
       "difficulty": "hard",
       "expected_tools": [],
@@ -186,6 +203,8 @@
     {
       "id": "AUT-Q1",
       "module": "custom_automation_traps",
+      "expected_models": ["account.move"],
+      "tolerated_models": ["base.automation"],
       "capability": "workflow",
       "difficulty": "hard",
       "expected_tools": [],
@@ -197,6 +216,8 @@
     {
       "id": "AUT-Q2",
       "module": "custom_automation_traps",
+      "expected_models": ["account.move"],
+      "tolerated_models": ["base.automation"],
       "capability": "workflow",
       "difficulty": "hard",
       "expected_tools": [],
@@ -213,6 +234,8 @@
     {
       "id": "AUT-Q3",
       "module": "custom_automation_traps",
+      "expected_models": ["account.move"],
+      "tolerated_models": ["base.automation"],
       "capability": "workflow",
       "difficulty": "hard",
       "expected_tools": [],
@@ -229,6 +252,7 @@
     {
       "id": "REI-Q1",
       "module": "custom_expense_reimbursement_indirect",
+      "expected_models": ["custom.reimbursement.request"],
       "capability": "security",
       "difficulty": "hard",
       "expected_tools": [],
@@ -240,6 +264,7 @@
     {
       "id": "REI-Q2",
       "module": "custom_expense_reimbursement_indirect",
+      "expected_models": ["custom.reimbursement.request"],
       "capability": "workflow",
       "difficulty": "hard",
       "expected_tools": [],
@@ -251,6 +276,7 @@
     {
       "id": "REI-Q3",
       "module": "custom_expense_reimbursement_indirect",
+      "expected_models": ["custom.reimbursement.request"],
       "capability": "security",
       "difficulty": "hard",
       "expected_tools": [],
@@ -262,6 +288,7 @@
     {
       "id": "DDI-Q1",
       "module": "custom_deep_inheritance_security",
+      "expected_models": ["custom.deep.document"],
       "capability": "security",
       "difficulty": "hard",
       "expected_tools": [],
@@ -273,6 +300,7 @@
     {
       "id": "DDI-Q2",
       "module": "custom_deep_inheritance_security",
+      "expected_models": ["custom.deep.document"],
       "capability": "security",
       "difficulty": "hard",
       "expected_tools": [],
@@ -284,6 +312,7 @@
     {
       "id": "DDI-Q3",
       "module": "custom_deep_inheritance_security",
+      "expected_models": ["custom.deep.document"],
       "capability": "security",
       "difficulty": "hard",
       "expected_tools": [],

@@ -25,12 +25,15 @@ sys.path.insert(0, str(PROJECT_ROOT))
 sys.path.insert(0, str(PROJECT_ROOT / "scripts"))
 
 from core.evaluation.preflight import BackendUnavailable, require_backends
+from core.evaluation.resolution_score import ABSTAINED, EXACT, UNSCORED, WRONG, score_resolution
 from core.llm.llm_client import get_chat_llm
+from core.llm.server_fingerprint import describe as describe_fingerprint, get_inference_fingerprint
 from code_intelligence.agent.resolution.turn import resolve_turn
 from code_intelligence.graph import get_code_intelligence_graph
 from run_bloc_n1_benchmark import build_agent_state, load_questions, read_installed_modules
 
 REPORT_PATH = PROJECT_ROOT / "captures" / "question_resolution_audit.json"
+FINGERPRINT_PATH = PROJECT_ROOT / "captures" / "inference_server_fingerprint.json"
 
 
 def loadGraph(graphs, language):
@@ -53,14 +56,33 @@ def auditQuestion(item, technical, graphs, llm):
                    arbitration=concept.diagnostics.get("arbitration_outcome"))
     except Exception as error:
         row.update(resolved=False, models=[], modules=[], error=f"{type(error).__name__}: {error}")
+    row["verdict"] = score_resolution(item, row["models"])
+    row["expected_models"] = item.get("expected_models", [])
     row["seconds"] = round(time.perf_counter() - started, 1)
     return row
+
+
+def recordServerFingerprint():
+    """Consigne l'empreinte du serveur ; avertit si elle differe de celle du dernier audit (1469)."""
+    fingerprint = get_inference_fingerprint()
+    print(f"[SERVEUR] {describe_fingerprint(fingerprint)}")
+    try:
+        previous = json.loads(FINGERPRINT_PATH.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        previous = None
+    if previous and previous.get("fingerprint_id") != fingerprint["fingerprint_id"]:
+        print(f"[ATTENTION] Serveur different du dernier audit ({previous.get('fingerprint_id')} -> "
+              f"{fingerprint['fingerprint_id']}) : comparaison avec le dernier score non fiable.")
+    FINGERPRINT_PATH.parent.mkdir(exist_ok=True)
+    FINGERPRINT_PATH.write_text(json.dumps(fingerprint, ensure_ascii=False, indent=2), encoding="utf-8")
+    return fingerprint["fingerprint_id"]
 
 
 def printRow(row):
     status = "OK  " if row["resolved"] else "FAIL"
     target = ", ".join(row["models"] + row["modules"]) or row.get("error", "-")
-    print(f"{status} {row['id']:<9} {row['seconds']:>5}s  attendu module={row['module']:<38} -> {target}")
+    verdict = "" if row["verdict"] == UNSCORED else f"  [{row['verdict'].upper()} ; attendu {', '.join(row['expected_models'])}]"
+    print(f"{status} {row['id']:<9} {row['seconds']:>5}s  attendu module={row['module']:<38} -> {target}{verdict}")
 
 
 def main():
@@ -78,16 +100,26 @@ def main():
         print(f"[SKIP] Serveur d'inference indisponible : {error}")
         return 2
 
+    serverId = recordServerFingerprint()
     graphs = {}
     llm = get_chat_llm(temperature=0.0, max_retries=0, max_tokens=1024, model_kwargs={"parallel_tool_calls": False})
     rows = []
     for item in questions:
         row = auditQuestion(item, args.technical, graphs, llm)
+        row["server"] = serverId
         printRow(row)
         rows.append(row)
 
     failed = [row["id"] for row in rows if not row["resolved"]]
+    endId = get_inference_fingerprint()["fingerprint_id"]
+    if endId != serverId:
+        print(f"[ATTENTION] Serveur modifie pendant l'audit ({serverId} -> {endId}) : resultats non comparables.")
     print(f"\n{len(rows) - len(failed)}/{len(rows)} resolues ; echecs : {failed or 'aucun'}")
+    counts = {verdict: [r["id"] for r in rows if r["verdict"] == verdict] for verdict in (EXACT, WRONG, ABSTAINED, UNSCORED)}
+    scored = len(rows) - len(counts[UNSCORED])
+    print(f"Exactitude : {len(counts[EXACT])}/{scored} exactes sur les questions notees ; "
+          f"faux : {counts[WRONG] or 'aucun'} ; abstentions : {counts[ABSTAINED] or 'aucune'} ; "
+          f"{len(counts[UNSCORED])} non notees (sans verite terrain)")
     REPORT_PATH.parent.mkdir(exist_ok=True)
     REPORT_PATH.write_text(json.dumps(rows, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"Rapport JSON : {REPORT_PATH}")

@@ -146,7 +146,6 @@ def test_arbitration_candidates_do_not_call_embeddings_without_llm(monkeypatch):
         graph,
         "en",
         False,
-        False,
         [("sale.order", 100.0)],
     )
 
