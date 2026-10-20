@@ -69,7 +69,7 @@ def runtime_model_facts(graph, modelName):
         row = {'id': node, **{name: data[name] for name in (
             'node_type', 'name', 'description', 'label', 'field_type', 'compute', 'related', 'store',
             'xml_id', 'domain_force', 'active', 'perm_read', 'perm_write', 'perm_create', 'perm_unlink',
-            'all_authenticated', 'filepath', 'lineno', 'end_lineno', 'override_sites',
+            'all_authenticated', 'filepaths', 'source_sites', 'filepath', 'lineno', 'end_lineno', 'override_sites',
             'button_type', 'invisible', 'view_xml_id', 'declaration_only') if name in data}}
         row['relations'] = [{'type': attrs.get('edge_type'), 'target': target}
                             for _, target, attrs in graph.out_edges(node, data=True)

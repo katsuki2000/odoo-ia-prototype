@@ -9,7 +9,7 @@ from .runtime_graph import runtime_model_facts
 
 @tool
 def inspect_runtime_model(model_name: str) -> str:
-    """Inspect a scoped model's exported fields, method locations, UI and security metadata.
+    """Inspect a scoped model's exported fields, class source files, UI and security metadata.
 
     This is a dated technical snapshot, not a live requester access or approval verdict.
     Missing, truncated or out-of-scope metadata never proves absence of functionality.
