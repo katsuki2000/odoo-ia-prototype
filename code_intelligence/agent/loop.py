@@ -33,13 +33,16 @@ from core.llm.llm_client import get_chat_llm, invoke_with_rate_limit
 from core.state import RAGState
 
 logger = logging.getLogger(__name__)
-DISCOVERY_TOOLS = frozenset({'search_instance_objects', 'resolve_technical_name'})
+DISCOVERY_TOOLS = frozenset({'search_instance_objects', 'resolve_technical_name', 'search_installed_source'})
 NO_EVIDENCE_ANSWER = (
     "Je n'ai pas obtenu de preuve exploitable pour cette question. "
     "Précisez le document, le modèle ou l'action à examiner ; les candidats de recherche seuls ne permettent pas de conclure."
 )
 SYSTEM_INVESTIGATION_PROMPT = (
     '\nUse the available read-only ORM tools for live records and CI tools for installed behavior. '
+    'Use search_installed_source to find relevant Python/XML implementations independently of model discovery. '
+    'Read candidate locations with read_source_fragment using their returned fingerprint before making behavior claims. '
+    'Source coverage gaps and stale graph metadata require a qualified answer, not an absence claim. '
     'No model has been selected in advance. Search instance objects when the target is unclear; '
     'inspect candidate models or symbols with analysis tools. Search hits are not evidence. '
     'Never infer an absence or an access verdict from failed, refused or truncated tools. '
@@ -54,6 +57,7 @@ def execute_tool_calls(ctx: DispatchContext, ai_msg, messages: list) -> None:
     """The only execution boundary, also used by the standard ToolNode wrappers."""
     for call in ai_msg.tool_calls:
         toolName, toolId = call.get('name', ''), call.get('id', '')
+        analysisName = 'read_source_code' if toolName == 'read_source_fragment' else toolName
         arguments = dict(call.get('args') or {})
         if ctx.hop_budget_exhausted:
             messages.append(ToolMessage(content='Investigation tool budget exhausted.', tool_call_id=toolId))
@@ -98,10 +102,11 @@ def execute_tool_calls(ctx: DispatchContext, ai_msg, messages: list) -> None:
                     user_groups_json=arguments.get('user_groups_json', 'null'))
             if toolName not in getattr(ctx, 'orm_tool_names', set()):
                 observation, omitted = gate_observation(
-                    tool_name=toolName, model_name=modelName, observation=observation,
+                    tool_name=analysisName, model_name=modelName, observation=observation,
                     G=ctx.G, user_groups=ctx.resolved_user_group_xmlids or [], rule_result=ruleResult)
                 ctx.omitted_items.extend(omitted)
-            cap = min(PER_TOOL_OBSERVATION_CAPS.get(toolName, DEFAULT_OBSERVATION_CAP),
+            cap = min(6000 if toolName == 'search_installed_source' else
+                      PER_TOOL_OBSERVATION_CAPS.get(analysisName, DEFAULT_OBSERVATION_CAP),
                       MAX_TOTAL_OBSERVATION_CHARS - used)
             observation = _truncate_observation_for_budget(ctx, observation, cap)
             if toolName in DISCOVERY_TOOLS:
@@ -109,7 +114,7 @@ def execute_tool_calls(ctx: DispatchContext, ai_msg, messages: list) -> None:
             else:
                 ctx.tool_observations.append(observation)
                 ctx.tool_observation_models.append(modelName)
-                ctx.tool_observation_tools.append(toolName)
+                ctx.tool_observation_tools.append(analysisName)
                 if modelName and modelName not in ctx.concept.resolved_models:
                     ctx.concept.resolved_models.append(modelName)
                 ctx.concept.is_resolved = True
@@ -226,9 +231,11 @@ class CodeIntelligenceAgentRunner:
         graph = get_code_intelligence_graph(
             translation_languages=[language] if language else None, request_language=language)
         from code_intelligence.agent.instance_search import search_instance_objects
+        from code_intelligence.agent.source_tools import search_installed_source, read_source_fragment
         from code_intelligence.agent.tools import ALL_CI_TOOLS
         from erp_data.runtime.langchain_tools import TYPED_ORM_LANGCHAIN_TOOLS
-        tools = [search_instance_objects, *ALL_CI_TOOLS, *TYPED_ORM_LANGCHAIN_TOOLS]
+        tools = [search_instance_objects, search_installed_source, read_source_fragment,
+                 *ALL_CI_TOOLS, *TYPED_ORM_LANGCHAIN_TOOLS]
         rawGroups = state.get('user_groups')
         groups = _resolve_user_group_xmlids(rawGroups) if rawGroups is not None else None
         groupsKnown = (rawGroups is not None and len(groups) == len(rawGroups)
