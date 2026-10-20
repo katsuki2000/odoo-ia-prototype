@@ -25,7 +25,9 @@ modulePaths = {row['name']: get_module_path(row['name']) for row in installed}
 try:
     snapshot = exporter(env, moduleScope, instanceKey, modulePaths,
                         maxModels=int(os.getenv('CI_RUNTIME_GRAPH_MAX_MODELS', '200')),
-                        maxRows=int(os.getenv('CI_RUNTIME_GRAPH_MAX_ROWS', '20000')))
+                        maxRows=int(os.getenv('CI_RUNTIME_GRAPH_MAX_ROWS', '20000')),
+                        maxSourceFiles=int(os.getenv('CI_RUNTIME_GRAPH_MAX_SOURCE_FILES', '10000')),
+                        maxSourceEntries=int(os.getenv('CI_RUNTIME_GRAPH_MAX_SOURCE_ENTRIES', '50000')))
     destination = Path(outputPath).expanduser().resolve()
     destination.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     descriptor, temporaryPath = tempfile.mkstemp(prefix='.runtime-graph-', dir=destination.parent)

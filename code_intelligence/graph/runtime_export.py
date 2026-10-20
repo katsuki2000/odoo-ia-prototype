@@ -1,7 +1,9 @@
 """Explicit technical metadata export from an already initialized Odoo environment."""
 
 from datetime import datetime, timezone
+from functools import cache
 import inspect
+import os
 from pathlib import Path
 import xml.etree.ElementTree as ET
 
@@ -20,14 +22,15 @@ def _callable_name(value):
     return value if isinstance(value, str) else getattr(value, '__name__', '')
 
 
-def export_runtime_graph(env, modules, instanceKey, modulePaths, maxModels=200, maxRows=20000):
+def export_runtime_graph(env, modules, instanceKey, modulePaths, maxModels=200, maxRows=20000,
+                         maxSourceFiles=10000, maxSourceEntries=50000):
     """Read technical metadata only; require an explicit privileged shell session."""
     if not getattr(env, 'su', False):
         raise PermissionError('Runtime export requires an explicit superuser Odoo shell session.')
     modules = sorted(set(modules))
     if not modules or not instanceKey.strip():
         raise ValueError('Explicit module scope and instance key are required.')
-    if maxModels < 1 or maxRows < 1:
+    if min(maxModels, maxRows, maxSourceFiles, maxSourceEntries) < 1:
         raise ValueError('Export limits must be positive.')
     def read(model, domain, fields):
         records = env[model].search_read(domain, fields=fields, limit=maxRows + 1)
@@ -39,7 +42,9 @@ def export_runtime_graph(env, modules, instanceKey, modulePaths, maxModels=200, 
     if not set(modules) <= installedNames:
         raise ValueError('Requested module scope contains modules not installed in this database.')
     roots = sorted({str(Path(path).resolve().parent) for name, path in modulePaths.items() if name in installedNames and path})
-    nodes, edges, gaps = {}, [], {'missing_xmlids': 0, 'unavailable_sources': 0, 'invalid_views': 0}
+    nodes, edges, gaps = {}, [], {'missing_xmlids': 0, 'unavailable_sources': 0, 'invalid_views': 0,
+                                'unavailable_module_paths': 0, 'skipped_source_links': 0,
+                                'unavailable_method_sources': 0}
     def node(key, kind, **data):
         nodes[key] = {'id': key, 'node_type': kind, 'provenance': 'odoo_runtime_snapshot', **data}
     def edge(source, target, kind, **data):
@@ -78,9 +83,22 @@ def export_runtime_graph(env, modules, instanceKey, modulePaths, maxModels=200, 
                 node('module:' + target, 'Module', name=target, scope_reference=True, depends=[])
             nodes['module:' + owner]['depends'].append(target)
             edge('module:' + owner, 'module:' + target, 'DEPENDS_ON')
+    moduleModels = {name: set() for name in modules}
+    methodCount = 0
+    @cache
+    def method_location(function):
+        try:
+            definition = inspect.unwrap(function)
+            path = Path(inspect.getsourcefile(definition)).resolve()
+            if not any(Path(root) in path.parents for root in roots):
+                return {}
+            return {'filepath': str(path), 'lineno': definition.__code__.co_firstlineno,
+                    'unwrapped': definition is not function}
+        except (OSError, TypeError, ValueError):
+            return {}
     for name, cls in selected.items():
         modelKey = 'model:' + name
-        filepaths, sourceSites = set(), []
+        filepaths, sourceSites, methods = set(), [], {}
         node(modelKey, 'Model', name=name, description=str(getattr(cls, '_description', name)),
              description_source='runtime', filepaths=[], behavioral_tags=[], technical_tags=[])
         for base in cls.__mro__:
@@ -90,6 +108,7 @@ def export_runtime_graph(env, modules, instanceKey, modulePaths, maxModels=200, 
             if 'module:' + owner not in nodes:
                 node('module:' + owner, 'Module', name=owner, scope_reference=True, depends=[])
             edge(modelKey, 'module:' + owner, 'DEFINED_IN', role='runtime_composition')
+            moduleModels.setdefault(owner, set()).add(name)
             try:
                 classPath = Path(inspect.getsourcefile(base)).resolve()
                 if not any(Path(root) in classPath.parents for root in roots):
@@ -100,6 +119,28 @@ def export_runtime_graph(env, modules, instanceKey, modulePaths, maxModels=200, 
                     sourceSites.append(site)
             except (OSError, TypeError, ValueError):
                 gaps['unavailable_sources'] += 1
+            for methodName, value in base.__dict__.items():
+                if isinstance(value, (classmethod, staticmethod)):
+                    value = value.__func__
+                if not inspect.isfunction(value):
+                    continue
+                methodCount += 1
+                if methodCount > maxRows:
+                    raise ValueError('Method-definition limit exceeded. Narrow the module scope.')
+                location = method_location(value)
+                if not location:
+                    gaps['unavailable_method_sources'] += 1
+                site = {'module': owner, 'class_name': base.__qualname__,
+                        'source_available': bool(location), **location}
+                methods.setdefault(methodName, []).append(site)
+                if location:
+                    filepaths.add(location['filepath'])
+        for methodName, sites in methods.items():
+            methodKey = f'method:{name}.{methodName}'
+            node(methodKey, 'Method', name=methodName, model=name, override_sites=sites,
+                 runtime_mro_order=True, locations_only=True,
+                 source_locations_complete=all(site['source_available'] for site in sites))
+            edge(modelKey, methodKey, 'HAS_METHOD')
         nodes[modelKey]['filepaths'] = sorted(filepaths)
         nodes[modelKey]['source_sites'] = sourceSites
         for fieldName, field in sorted(cls._fields.items()):
@@ -115,6 +156,41 @@ def export_runtime_graph(env, modules, instanceKey, modulePaths, maxModels=200, 
         for fieldName, field in selected[name]._fields.items():
             target = getattr(field, 'comodel_name', '')
             edge(f'field:{name}.{fieldName}', 'model:' + (target or ''), 'RELATES_TO')
+    sourceCount = entryCount = 0
+    def inventory_error(error):
+        raise ValueError('A module source directory could not be inventoried.') from error
+    for owner in sorted(moduleModels):
+        configured = modulePaths.get(owner)
+        modulePath = Path(configured).resolve() if configured else None
+        if modulePath is None or not modulePath.is_dir():
+            gaps['unavailable_module_paths'] += 1
+            continue
+        for directory, directories, filenames in os.walk(modulePath, followlinks=False, onerror=inventory_error):
+            entryCount += len(directories) + len(filenames)
+            if entryCount > maxSourceEntries:
+                raise ValueError('Source directory-entry limit exceeded. Narrow the module scope.')
+            for dirname in list(directories):
+                if (Path(directory) / dirname).is_symlink():
+                    gaps['skipped_source_links'] += 1
+            directories[:] = sorted(name for name in directories
+                                    if not name.startswith('.') and name != '__pycache__'
+                                    and not (Path(directory) / name).is_symlink())
+            for filename in sorted(filenames):
+                path = Path(directory) / filename
+                if path.suffix.lower() not in {'.py', '.xml'}:
+                    continue
+                resolved = path.resolve()
+                if modulePath not in resolved.parents or not resolved.is_file():
+                    gaps['skipped_source_links'] += 1
+                    continue
+                sourceCount += 1
+                if sourceCount > maxSourceFiles:
+                    raise ValueError('Source file inventory limit exceeded. Narrow the module scope.')
+                key = 'source:' + owner + ':' + path.relative_to(modulePath).as_posix()
+                node(key, 'SourceFile', filepath=str(resolved), module=owner,
+                     scope_models=sorted(moduleModels[owner]), inventory_only=True,
+                     source_priority=1 if owner in modules else 2)
+                edge('module:' + owner, key, 'HAS_SOURCE_FILE')
     modelRows = read('ir.model', [('model', 'in', list(selected))], ['model'])
     modelNames = {row['id']: row['model'] for row in modelRows}
     groups = read('res.groups', [], ['name', 'implied_ids'])
@@ -188,9 +264,10 @@ def export_runtime_graph(env, modules, instanceKey, modulePaths, maxModels=200, 
                 'instance_key': instanceKey, 'database': env.cr.dbname, 'module_scope': modules,
                 'exported_at': datetime.now(timezone.utc).isoformat(), 'language': env.context.get('lang'),
                 'addon_roots_ordered': roots, 'coverage_gaps': gaps,
+                'source_inventory_modules': sorted(moduleModels), 'source_inventory_files': sourceCount,
                 'limitations': ['Snapshot, not live state.', 'Views/buttons are declarations, not requester-effective visibility.',
                                 'No inferred workflows or complete Python call graph.',
-                                'Methods are discovered from source files on demand, not exported as a runtime override chain.', 'Security metadata does not establish an action approval verdict.'],
+                                'Ordered method definitions are locations for investigation, not a proven execution chain.', 'Security metadata does not establish an action approval verdict.'],
                 'available_ci_tools': ['list_involved_modules', 'resolve_technical_name', 'read_source_code']}
     return {'directed': True, 'multigraph': False, 'graph': metadata,
             'nodes': list(nodes.values()), 'edges': edges}
