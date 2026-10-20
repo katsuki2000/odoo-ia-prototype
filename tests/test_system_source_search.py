@@ -247,12 +247,12 @@ class SourceAgentBoundaryTests(unittest.TestCase):
         self.boundary = boundary
         self.fixture = boundary.ExecutionBoundaryTests()
         self.fixture.setUp()
-        self.fixture.namespace['DISCOVERY_TOOLS'].add('search_installed_source')
+        self.fixture.namespace['DISCOVERY_TOOLS'].add('search_system')
         self.fixture.namespace['PER_TOOL_OBSERVATION_CAPS']['read_source_code'] = 9000
 
     def test_source_candidates_are_not_counted_as_evidence(self):
-        ctx = self.boundary.Context({'search_installed_source': self.boundary.Tool()})
-        self.fixture.call(ctx, 'search_installed_source', {'query': 'approval'})
+        ctx = self.boundary.Context({'search_system': self.boundary.Tool()})
+        self.fixture.call(ctx, 'search_system', {'query': 'approval'})
         self.assertFalse(ctx.tool_observations)
         self.assertGreater(ctx.discovery_chars, 0)
 
@@ -272,7 +272,7 @@ class SourceAgentBoundaryTests(unittest.TestCase):
 
     def test_tools_are_registered_in_single_agent(self):
         text = (ROOT / 'code_intelligence/agent/loop.py').read_text()
-        self.assertIn('tools = [search_instance_objects, search_installed_source, read_source_fragment,', text)
+        self.assertIn('tools = [search_system, read_source_fragment,', text)
         self.assertIn('create_react_agent', text)
         self.assertNotIn('run_predispatch_chain', text)
 
