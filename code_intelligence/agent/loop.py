@@ -106,6 +106,7 @@ def execute_tool_calls(ctx: DispatchContext, ai_msg, messages: list) -> None:
                     G=ctx.G, user_groups=ctx.resolved_user_group_xmlids or [], rule_result=ruleResult)
                 ctx.omitted_items.extend(omitted)
             cap = min(6000 if toolName == 'search_system' else
+                      7500 if toolName == 'inspect_runtime_model' else
                       PER_TOOL_OBSERVATION_CAPS.get(analysisName, DEFAULT_OBSERVATION_CAP),
                       MAX_TOTAL_OBSERVATION_CHARS - used)
             observation = _truncate_observation_for_budget(ctx, observation, cap)
@@ -192,6 +193,8 @@ def run_react_loop(ctx, llm, history):
     system = CI_SYSTEM_PROMPT + SYSTEM_INVESTIGATION_PROMPT + build_persona_prompt_block(ctx.security_principals)
     def prepareMessages(state):
         reminder = _maybe_build_application_layer_reminder(ctx.question, ctx.tool_observation_tools) or ''
+        if getattr(ctx.G, 'graph', {}).get('generation_mode') == 'runtime_metadata':
+            reminder += '\nThis graph is an explicitly scoped runtime snapshot. Use inspect_runtime_model for dated metadata and source reads for behavior. Views/buttons are declarations, not requester-effective visibility. Do not infer missing workflows, call chains or access verdicts from this reduced graph.'
         return [SystemMessage(content=system + '\n' + reminder), *state['messages']]
 
     agent = create_react_agent(model=selectModel, tools=tools, prompt=prepareMessages)
@@ -235,6 +238,12 @@ class CodeIntelligenceAgentRunner:
         from erp_data.runtime.langchain_tools import TYPED_ORM_LANGCHAIN_TOOLS
         tools = [search_system, read_source_fragment,
                  *ALL_CI_TOOLS, *TYPED_ORM_LANGCHAIN_TOOLS]
+        if graph.graph.get('generation_mode') == 'runtime_metadata':
+            from code_intelligence.graph.runtime_graph import RUNTIME_CI_TOOLS
+            from code_intelligence.graph.runtime_tools import inspect_runtime_model
+            ciNames = {tool.name for tool in ALL_CI_TOOLS}
+            tools = [tool for tool in tools if tool.name not in ciNames or tool.name in RUNTIME_CI_TOOLS]
+            tools.append(inspect_runtime_model)
         rawGroups = state.get('user_groups')
         groups = _resolve_user_group_xmlids(rawGroups) if rawGroups is not None else None
         groupsKnown = (rawGroups is not None and len(groups) == len(rawGroups)
@@ -269,6 +278,9 @@ class CodeIntelligenceAgentRunner:
             if name in ctx.orm_tool_names:
                 source.source = f'odoo://xmlrpc/{model}/{name}'
                 source.doc_type = 'erp_data'
+            elif name == 'inspect_runtime_model':
+                source.source = f'odoo://runtime-snapshot/{model}'
+                source.doc_type = 'runtime_metadata'
         result['response'].confidence = 0.5 if ctx.tool_observations else 0.0
         return result
 
