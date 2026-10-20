@@ -12,7 +12,7 @@ from .integrity import (
 from .loader import (
     _graph_filepaths_resolve_locally,
     _load_module,
-    get_code_intelligence_graph,
+    get_code_intelligence_graph as _get_legacy_graph,
     GRAPH_JSON_PATH,
     _CACHED_CODE_INTEL_GRAPH,
     _CACHED_GRAPH_MTIME,
@@ -58,3 +58,12 @@ from .version import (
     serialize_graph_with_metadata,
     deserialize_graph_with_metadata,
 )
+
+
+def get_code_intelligence_graph(**kwargs):
+    import os
+    path = os.getenv('CI_RUNTIME_GRAPH_PATH', '').strip()
+    if path:
+        from .runtime_graph import load_runtime_graph
+        return load_runtime_graph(path, os.getenv('CI_RUNTIME_GRAPH_INSTANCE', '').strip())
+    return _get_legacy_graph(**kwargs)
