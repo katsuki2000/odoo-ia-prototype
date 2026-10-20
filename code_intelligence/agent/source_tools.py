@@ -2,13 +2,19 @@
 
 import hashlib
 import json
+import logging
 import os
+from itertools import zip_longest
 
 from langchain_core.tools import tool
 
+from code_intelligence.agent.instance_search import find_instance_candidates
 from code_intelligence.agent.source_search import SearchLimits, confined_source_path, search_source_fragments
 from code_intelligence.agent.tool_helpers import _require_graph
 from code_intelligence.agent.tools.introspection import _allowed_source_roots, read_precise_source_code
+
+
+logger = logging.getLogger(__name__)
 
 
 def _search_limits() -> SearchLimits:
@@ -71,3 +77,50 @@ def read_source_fragment(filepath: str, line_start: int, line_end: int, sha256: 
         return observation
     except (OSError, UnicodeError):
         return 'Error: Discovered source file could not be read.'
+
+
+@tool
+def search_system(query: str, model: str = '', limit: int = 8) -> str:
+    """Search the active instance for models, fields, buttons, methods and Python/XML fragments.
+
+    Use this single discovery entry point when the target or implementation is unclear.
+    An optional exact model scopes both searches. Results are typed candidates, NOT proof.
+    Inspect source_fragment candidates with read_source_fragment using their bounds/sha256;
+    inspect instance_object candidates with the relevant analysis tools.
+    Backend failures, coverage gaps and no matches never prove absence of behavior.
+    """
+    result = {'discovery_only': True, 'candidates': [],
+              'backends': {'objects': 'not_run', 'source': 'not_run'},
+              'semantic_status': 'not_requested', 'source_coverage': None,
+              'source_scan_complete': None, 'results_clipped': False,
+              'notice': 'Candidates are not evidence. Backend scores are not comparable. Read or analyze candidates before concluding; an empty search is not proof of absence.'}
+    if not query.strip():
+        return json.dumps(result, ensure_ascii=False)
+    graph = _require_graph()
+    limit = max(1, min(int(limit), 20))
+    objects, fragments = [], []
+    try:
+        found = find_instance_candidates(graph, query, model=model, limit=limit)
+        objects = [dict(item, kind='instance_object') for item in found['candidates']]
+        result['semantic_status'] = found.get('semantic_status', 'not_requested')
+        result['backends']['objects'] = 'available'
+    except Exception as error:
+        logger.warning('System object discovery failed (%s)', type(error).__name__)
+        result['backends']['objects'] = 'error'
+    try:
+        found = search_source_fragments(graph, _allowed_source_roots(), query,
+                                        model=model, limit=limit, limits=_search_limits())
+        fragments = [dict(item, kind='source_fragment') for item in found['candidates']]
+        result['source_coverage'] = found['coverage']
+        result['source_scan_complete'] = found.get('complete_scan')
+        result['backends']['source'] = 'available'
+    except Exception as error:
+        logger.warning('System source discovery failed (%s)', type(error).__name__)
+        result['backends']['source'] = 'error'
+    mixed = [item for pair in zip_longest(objects, fragments) for item in pair if item is not None]
+    result['candidates'] = mixed[:limit]
+    result['results_clipped'] = len(mixed) > limit
+    while len(json.dumps(result, ensure_ascii=False)) > 5500 and result['candidates']:
+        result['candidates'].pop()
+        result['results_clipped'] = True
+    return json.dumps(result, ensure_ascii=False)
