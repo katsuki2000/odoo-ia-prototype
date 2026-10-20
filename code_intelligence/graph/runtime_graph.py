@@ -50,10 +50,13 @@ def load_runtime_graph(path, expectedInstance):
     return graph
 
 
-def runtime_model_facts(graph, modelName):
+def runtime_model_facts(graph, modelName, methodName=''):
     key = 'model:' + modelName
     if key not in graph or graph.nodes[key].get('node_type') != 'Model':
         return {'error': 'Model is absent from the exported scope; no absence or access conclusion is possible.'}
+    methodKey = f'method:{modelName}.{methodName}'
+    if methodName and methodKey not in graph:
+        return {'error': 'Method is not present in this snapshot; this does not prove absence. Re-export or investigate source.'}
     associated = {key}
     associated.update(target for _, target in graph.out_edges(key)
                       if graph.nodes[target].get('node_type') in {'Field', 'Method', 'Module', 'AccessEntry', 'Rule', 'View'})
@@ -62,13 +65,16 @@ def runtime_model_facts(graph, modelName):
     for node in list(associated):
         associated.update(target for _, target, attrs in graph.out_edges(node, data=True)
                           if attrs.get('edge_type') == 'APPLIES_TO_GROUP')
+    if methodName:
+        associated = {key, methodKey}
     rows = []
-    priority = {'Model': 0, 'AccessEntry': 1, 'Rule': 2, 'Group': 3, 'Button': 4, 'Action': 5, 'View': 6}
+    priority = {'Method': 0 if methodName else 7, 'Model': 0, 'AccessEntry': 1, 'Rule': 2, 'Group': 3, 'Button': 4, 'Action': 5, 'View': 6}
     for node in sorted(associated, key=lambda item: (priority.get(graph.nodes[item].get('node_type'), 7), item)):
         data = graph.nodes[node]
         row = {'id': node, **{name: data[name] for name in (
             'node_type', 'name', 'description', 'label', 'field_type', 'compute', 'related', 'store',
             'xml_id', 'domain_force', 'active', 'perm_read', 'perm_write', 'perm_create', 'perm_unlink',
+            'runtime_mro_order', 'locations_only', 'source_locations_complete',
             'all_authenticated', 'filepaths', 'source_sites', 'filepath', 'lineno', 'end_lineno', 'override_sites',
             'button_type', 'invisible', 'view_xml_id', 'declaration_only') if name in data}}
         row['relations'] = [{'type': attrs.get('edge_type'), 'target': target}
@@ -76,9 +82,10 @@ def runtime_model_facts(graph, modelName):
                             if attrs.get('edge_type') in {'APPLIES_TO_GROUP', 'IMPLIES', 'RELATES_TO'}]
         rows.append(row)
     result = {'provenance': {name: graph.graph.get(name) for name in (
-        'instance_key', 'exported_at', 'module_scope', 'coverage_gaps', 'limitations', 'snapshot_sha256')},
-        'model': modelName, 'fact_count': len(rows), 'facts': rows, 'truncated': False,
-        'notice': 'Exported metadata, not a live authorization or approval verdict. Read current source and requester-authorized ORM data when needed.'}
+        'instance_key', 'exported_at', 'module_scope', 'source_inventory_modules', 'source_inventory_files',
+        'coverage_gaps', 'limitations', 'snapshot_sha256')},
+        'model': modelName, 'requested_method': methodName or None, 'fact_count': len(rows), 'facts': rows, 'truncated': False,
+        'notice': 'Method sites follow loaded class MRO, not a proven call/execution chain. Search and fingerprint-check current source before using locations. Exported metadata, not a live authorization or approval verdict. Read current source and requester-authorized ORM data when needed.'}
     while len(json.dumps(result, ensure_ascii=False)) > 7000 and result['facts']:
         result['facts'].pop()
         result['truncated'] = True

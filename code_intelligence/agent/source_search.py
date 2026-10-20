@@ -80,7 +80,7 @@ def graph_source_inventory(graph, model: str = '', module: str = '') -> dict[str
                         for site in data.get(key, []) if isinstance(site, dict)]]
         for site in sites:
             siteModule = site.get('module') or nodeModule
-            if model and owner != model:
+            if model and owner != model and model not in data.get('scope_models', []):
                 continue
             paths = [site.get('filepath'), *(site.get('filepaths') or [])]
             for value in paths:
@@ -88,7 +88,10 @@ def graph_source_inventory(graph, model: str = '', module: str = '') -> dict[str
                     continue
                 if module and siteModule != module and module not in Path(value).parts:
                     continue
-                entry = inventory.setdefault(value, {'models': set(), 'modules': set()})
+                entry = inventory.setdefault(value, {'models': set(), 'modules': set(),
+                                                     'context_models': set(), 'priority': 2})
+                entry['context_models'].update(data.get('scope_models', []))
+                entry['priority'] = min(entry['priority'], data.get('source_priority', 0))
                 if owner:
                     entry['models'].add(owner)
                 if siteModule:
@@ -120,8 +123,12 @@ def search_source_fragments(graph, roots, query: str, *, model: str = '', module
     coverage = {'files_considered': 0, 'files_indexed': 0, 'fragments_indexed': 0,
                 'blocked_paths': 0, 'unreadable_files': 0, 'parse_errors': 0,
                 'oversized_files': 0, 'truncated_fragments': 0, 'budget_exhausted': False}
+    snapshotGaps = getattr(graph, 'graph', {}).get('coverage_gaps', {})
+    coverage['inventory_gaps'] = {key: snapshotGaps[key] for key in (
+        'unavailable_module_paths', 'skipped_source_links', 'unavailable_method_sources', 'unavailable_sources')
+        if snapshotGaps.get(key)}
     result = {'discovery_only': True, 'candidates': [], 'coverage': coverage,
-              'notice': 'Locations are candidates, not behavior evidence. Read the source before concluding. An empty search is not proof of absence.'}
+              'notice': 'Module inventory may include files not loaded by Odoo. Context models indicate scope, not proven ownership or execution. Locations are candidates, not behavior evidence. Read the source before concluding. An empty search is not proof of absence.'}
     if not tokens:
         return result
     inventory = graph_source_inventory(graph, model, module)
@@ -129,7 +136,7 @@ def search_source_fragments(graph, roots, query: str, *, model: str = '', module
     metadata, visited, totalBytes = [], set(), 0
     with sqlite3.connect(':memory:') as database:
         database.execute('CREATE VIRTUAL TABLE fragments USING fts5(symbol, models, modules, body)')
-        for pathText, scope in sorted(inventory.items()):
+        for pathText, scope in sorted(inventory.items(), key=lambda item: (item[1]['priority'], item[0])):
             path = confined_source_path(pathText, roots)
             if path is None:
                 coverage['blocked_paths'] += 1
@@ -173,6 +180,7 @@ def search_source_fragments(graph, roots, query: str, *, model: str = '', module
                                  (fragment.symbol, ' '.join(models), ' '.join(modules), fragment.text))
                 metadata.append({'filepath': str(path), 'line_start': fragment.start, 'line_end': fragment.end,
                                  'symbol': fragment.symbol, 'models': models, 'modules': modules,
+                                 'context_models': sorted(scope['context_models']),
                                  'sha256': digest, 'truncated': fragment.truncated})
                 coverage['truncated_fragments'] += int(fragment.truncated)
         expression = ' OR '.join('"' + token + '"' for token in tokens)
@@ -181,6 +189,6 @@ def search_source_fragments(graph, roots, query: str, *, model: str = '', module
             (expression, max(1, min(int(limit), 20)))).fetchall()
         result['candidates'] = [metadata[rowId - 1] for rowId, in rows]
     coverage['fragments_indexed'] = len(metadata)
-    result['complete_scan'] = not any(coverage[key] for key in (
+    result['complete_scan'] = not coverage['inventory_gaps'] and not any(coverage[key] for key in (
         'blocked_paths', 'unreadable_files', 'parse_errors', 'oversized_files', 'truncated_fragments', 'budget_exhausted'))
     return result
