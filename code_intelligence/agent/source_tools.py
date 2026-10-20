@@ -50,7 +50,7 @@ def search_installed_source(query: str, model: str = '', module: str = '', limit
 def read_source_fragment(filepath: str, line_start: int, line_end: int, sha256: str) -> str:
     """Read a discovered source fragment, checking its fingerprint and permitted source roots.
 
-    Pass the filepath, line bounds and sha256 returned by search_installed_source.
+    Pass the filepath, line bounds and sha256 of a source_fragment returned by search_system.
     If the content changed, search again rather than reading stale line locations.
     The existing confined source reader and its 200-line bound remain authoritative.
     """

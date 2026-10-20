@@ -1,7 +1,6 @@
 """Explicit technical metadata export from an already initialized Odoo environment."""
 
 from datetime import datetime, timezone
-import hashlib
 import inspect
 from pathlib import Path
 import xml.etree.ElementTree as ET
@@ -79,10 +78,9 @@ def export_runtime_graph(env, modules, instanceKey, modulePaths, maxModels=200, 
                 node('module:' + target, 'Module', name=target, scope_reference=True, depends=[])
             nodes['module:' + owner]['depends'].append(target)
             edge('module:' + owner, 'module:' + target, 'DEPENDS_ON')
-    sourceHashes = {}
     for name, cls in selected.items():
         modelKey = 'model:' + name
-        filepaths, methods = set(), {}
+        filepaths, sourceSites = set(), []
         node(modelKey, 'Model', name=name, description=str(getattr(cls, '_description', name)),
              description_source='runtime', filepaths=[], behavioral_tags=[], technical_tags=[])
         for base in cls.__mro__:
@@ -94,38 +92,16 @@ def export_runtime_graph(env, modules, instanceKey, modulePaths, maxModels=200, 
             edge(modelKey, 'module:' + owner, 'DEFINED_IN', role='runtime_composition')
             try:
                 classPath = Path(inspect.getsourcefile(base)).resolve()
-                if any(Path(root) in classPath.parents for root in roots):
-                    filepaths.add(str(classPath))
+                if not any(Path(root) in classPath.parents for root in roots):
+                    raise ValueError('Source outside addon roots.')
+                filepaths.add(str(classPath))
+                site = {'module': owner, 'filepath': str(classPath)}
+                if site not in sourceSites:
+                    sourceSites.append(site)
             except (OSError, TypeError, ValueError):
                 gaps['unavailable_sources'] += 1
-            for methodName, value in base.__dict__.items():
-                if isinstance(value, (classmethod, staticmethod)):
-                    value = value.__func__
-                if not inspect.isfunction(value):
-                    continue
-                try:
-                    function = inspect.unwrap(value)
-                    filepath = Path(inspect.getsourcefile(function)).resolve()
-                    if not any(Path(root) in filepath.parents for root in roots):
-                        raise ValueError('Source outside addon roots.')
-                    lines, start = inspect.getsourcelines(function)
-                    if str(filepath) not in sourceHashes:
-                        sourceHashes[str(filepath)] = hashlib.sha256(filepath.read_bytes()).hexdigest()
-                    site = {'module': owner, 'filepath': str(filepath), 'lineno': start,
-                            'end_lineno': start + len(lines) - 1, 'sha256': sourceHashes[str(filepath)]}
-                    filepaths.add(str(filepath))
-                    if site not in methods.setdefault(methodName, []):
-                        methods[methodName].append(site)
-                except (OSError, TypeError, ValueError):
-                    gaps['unavailable_sources'] += 1
         nodes[modelKey]['filepaths'] = sorted(filepaths)
-        for methodName, sites in methods.items():
-            first = sites[0]
-            key = f'method:{name}.{methodName}'
-            node(key, 'Method', name=methodName, model=name, override_sites=sites,
-                 filepath=first['filepath'], lineno=first['lineno'], end_lineno=first['end_lineno'],
-                 runtime_mro_order=True, behavioral_tags=[], technical_tags=[])
-            edge(modelKey, key, 'HAS_METHOD')
+        nodes[modelKey]['source_sites'] = sourceSites
         for fieldName, field in sorted(cls._fields.items()):
             key = f'field:{name}.{fieldName}'
             related = getattr(field, 'related', None)
@@ -213,7 +189,8 @@ def export_runtime_graph(env, modules, instanceKey, modulePaths, maxModels=200, 
                 'exported_at': datetime.now(timezone.utc).isoformat(), 'language': env.context.get('lang'),
                 'addon_roots_ordered': roots, 'coverage_gaps': gaps,
                 'limitations': ['Snapshot, not live state.', 'Views/buttons are declarations, not requester-effective visibility.',
-                                'No inferred workflows or complete Python call graph.', 'Security metadata does not establish an action approval verdict.'],
+                                'No inferred workflows or complete Python call graph.',
+                                'Methods are discovered from source files on demand, not exported as a runtime override chain.', 'Security metadata does not establish an action approval verdict.'],
                 'available_ci_tools': ['list_involved_modules', 'resolve_technical_name', 'read_source_code']}
     return {'directed': True, 'multigraph': False, 'graph': metadata,
             'nodes': list(nodes.values()), 'edges': edges}

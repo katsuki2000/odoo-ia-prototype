@@ -76,7 +76,8 @@ def graph_source_inventory(graph, model: str = '', module: str = '') -> dict[str
     for nodeId, data in graph.nodes(data=True):
         owner = (data.get('name') or str(nodeId).removeprefix('model:')) if data.get('node_type') == 'Model' else data.get('model', '')
         nodeModule = data.get('module', '')
-        sites = [data, *[site for site in data.get('override_sites', []) if isinstance(site, dict)]]
+        sites = [data, *[site for key in ('source_sites', 'override_sites')
+                        for site in data.get(key, []) if isinstance(site, dict)]]
         for site in sites:
             siteModule = site.get('module') or nodeModule
             if model and owner != model:
