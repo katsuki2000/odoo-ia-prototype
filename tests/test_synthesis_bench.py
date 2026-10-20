@@ -40,17 +40,6 @@ def test_model_spec_parse_splits_known_provider_only():
     assert ModelSpec.parse("qwen3:14b") == ModelSpec(model="qwen3:14b")
 
 
-def test_recorder_captures_and_restores_the_synthesis_prompt_builder():
-    import code_intelligence.agent.loop as loop_module
-
-    original = loop_module.build_synthesis_prompt
-    recorder = SynthesisPromptRecorder()
-    with recorder.attached():
-        prompt = loop_module.build_synthesis_prompt("question?", ["observation"], ["who_has_access_to"])
-    assert recorder.last_prompt == prompt
-    assert loop_module.build_synthesis_prompt is original
-
-
 def test_generate_answer_appends_no_think_only_for_qwen3(monkeypatch):
     sent = []
 

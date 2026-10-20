@@ -264,6 +264,9 @@ def _find_exact_technical_model_mentions(
         # its own technical_name already includes the dots, so the pattern
         # is anchored on the complete name, not a prefix of it.
         pattern = r"(?<!\w)" + re.escape(technical_name.lower()) + r"(?!\w)(?!\.\w)"
+        if technical_name.isalpha():
+            # A one-word name ('base') is also an ordinary word: require "model <name>".
+            pattern = r"(?<!\w)(?:mod[\u00e8e]le|model)\s+['\"`]?" + re.escape(technical_name.lower()) + r"(?!\w)(?!\.\w)"
         if re.search(pattern, query_lower):
             found.append(technical_name)
     if not found and include_symbol_inference:
@@ -321,7 +324,6 @@ def _find_exact_technical_module_mentions(query_lower: str, G) -> List[str]:
     if G is None:
         return []
     found = []
-    generic_module_words = {"base", "mail", "web", "auth", "sale", "account", "stock", "purchase", "point_of_sale"}
     for node_id, data in G.nodes(data=True):
         if data.get("node_type") != "Module" and not node_id.startswith("module:"):
             continue
@@ -330,11 +332,10 @@ def _find_exact_technical_module_mentions(query_lower: str, G) -> List[str]:
             continue
         mod_lower = mod_name.lower()
         mod_escaped = re.escape(mod_lower).replace('_', r'[\s_]+')
-        if mod_lower in generic_module_words:
-            pattern = r"(?<!\w)(?:module|addon)\s+" + mod_escaped + r"(?!\w)(?!\.\w)"
-        else:
-            pattern = r"(?<!\w)" + mod_escaped + r"(?!\w)(?!\.\w)"
-        if re.search(pattern, query_lower):
+        marked = r"(?<!\w)(?:module|addon)\s+" + mod_escaped + r"(?!\w)(?!\.\w)"
+        # Only a name written with "_" is unmistakably technical; a plain word needs "module <name>".
+        literal = r"(?<!\w)" + re.escape(mod_lower) + r"(?!\w)(?!\.\w)"
+        if re.search(marked, query_lower) or ("_" in mod_lower and re.search(literal, query_lower)):
             if mod_name not in found:
                 found.append(mod_name)
 
