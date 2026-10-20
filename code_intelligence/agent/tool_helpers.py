@@ -1,54 +1,64 @@
-"""Helper functions, state guards, and prioritization logic for CI agent tools."""
+"""Helper functions and request-local state for CI tools."""
 
 from __future__ import annotations
 
 import logging
+import re
+from contextlib import contextmanager
+from contextvars import ContextVar
 from pathlib import Path
 from typing import Optional
 from code_intelligence.agent.resolver import resolve_business_term
 from code_intelligence.utils import SENSITIVE_BYPASS_MARKER, format_file_link
-import re
 
 _logger = logging.getLogger(__name__)
-_GRAPH_REF = None
-_LLM_REF = None
-_CURRENT_QUESTION = None
+_graphRef = ContextVar('ci_graph', default=None)
+_llmRef = ContextVar('ci_llm', default=None)
+_currentQuestion = ContextVar('ci_question', default=None)
 
 
 def set_graph_ref(G):
-    """Set global knowledge graph reference for tool wrappers."""
-    global _GRAPH_REF
-    _GRAPH_REF = G
+    _graphRef.set(G)
 
 
 def get_graph_ref():
-    return _GRAPH_REF
+    return _graphRef.get()
 
 
 def set_llm_ref(llm):
-    """Set global LLM reference for tool wrappers."""
-    global _LLM_REF
-    _LLM_REF = llm
+    _llmRef.set(llm)
 
 
 def get_llm_ref():
-    return _LLM_REF
+    return _llmRef.get()
 
 
 def set_current_question(question: Optional[str]):
-    """Set the current question used by tool-internal relevance ranking."""
-    global _CURRENT_QUESTION
-    _CURRENT_QUESTION = question
+    _currentQuestion.set(question)
 
 
 def get_current_question() -> Optional[str]:
-    return _CURRENT_QUESTION
+    return _currentQuestion.get()
+
+
+@contextmanager
+def tool_context(graph, llm, question):
+    graphToken = _graphRef.set(graph)
+    llmToken = _llmRef.set(llm)
+    questionToken = _currentQuestion.set(question)
+    try:
+        yield
+    finally:
+        _currentQuestion.reset(questionToken)
+        _llmRef.reset(llmToken)
+        _graphRef.reset(graphToken)
 
 
 def _require_graph():
-    if _GRAPH_REF is None:
-        raise RuntimeError("Knowledge graph not initialized. Call set_graph_ref(G) first.")
-    return _GRAPH_REF
+    graph = get_graph_ref()
+    if graph is None:
+        raise RuntimeError('Knowledge graph not initialized. Call set_graph_ref(G) first.')
+    return graph
 
 
 WILDCARD_MODEL_ERROR_MSG = (
