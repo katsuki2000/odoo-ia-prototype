@@ -243,7 +243,7 @@ class SourceReadBoundaryTests(unittest.TestCase):
 
 class SourceAgentBoundaryTests(unittest.TestCase):
     def setUp(self):
-        import test_single_investigation_loop as boundary
+        from tests import test_single_investigation_loop as boundary
         self.boundary = boundary
         self.fixture = boundary.ExecutionBoundaryTests()
         self.fixture.setUp()

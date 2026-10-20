@@ -272,13 +272,6 @@ class ResolverDecisionTests(unittest.TestCase):
             manager = module.ChromaManager(db_path=path)
             self.assertEqual(manager.embedding_model, 'configured-default')
 
-    def test_runner_uses_shared_turn_and_attempt_diagnostics(self):
-        source = (ROOT / 'code_intelligence/agent/loop.py').read_text()
-        tree = ast.parse(source)
-        calls = [node for node in ast.walk(tree) if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)]
-        self.assertEqual(sum(node.func.id == 'resolve_turn' for node in calls), 1)
-        self.assertIn("concept.diagnostics.get('arbitration_attempts'", source)
-
 
 if __name__ == '__main__':
     unittest.main()

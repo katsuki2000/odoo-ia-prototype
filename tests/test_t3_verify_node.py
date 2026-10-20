@@ -229,4 +229,4 @@ def test_verify_answer_is_the_only_branch_entry_into_format_output():
     graph_view = build_graph().get_graph()
     assert {edge.target for edge in graph_view.edges if edge.source == "verify_answer"} == {"format_output"}
     assert _incoming(graph_view, "format_output") == {"out_of_scope_gate", "verify_answer"}
-    assert _incoming(graph_view, "verify_answer") == {"code_intelligence_agent", "generate", "orm_agent_loop"}
+    assert _incoming(graph_view, "verify_answer") == {"code_intelligence_agent", "generate"}

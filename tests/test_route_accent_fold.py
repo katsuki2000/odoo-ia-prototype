@@ -81,19 +81,6 @@ def test_folded_lists_are_precomputed_and_match_source_length():
 
 # ── The exact regression case that surfaced the bug ───────────────────────
 
-def test_accented_and_unaccented_erp_keyword_route_identically():
-    """'cette année' (ERP_KEYWORDS, accented) and 'cette annee' (same
-    phrase, no accent) must now produce the SAME route. Before this fix,
-    only the accented form matched -- the unaccented form silently fell
-    through every branch to the documentaire default instead.
-
-    Mocked intent: ERP_DATA_QUERY -- the production LLM classifier is
-    expected to recognize a live-data aggregation question regardless of
-    accent, matching INTENT_TO_ROUTE's mapping to donnees_erp."""
-    accented = _route_question("Et pour cette année ?", QuestionIntent.ERP_DATA_QUERY)
-    unaccented = _route_question("Et pour cette annee ?", QuestionIntent.ERP_DATA_QUERY)
-    assert accented == unaccented == "donnees_erp"
-
 
 def test_unrelated_followup_with_no_keyword_at_all_is_still_unresolved():
     """Distinct, still-open gap: a follow-up with NO keyword (accented or

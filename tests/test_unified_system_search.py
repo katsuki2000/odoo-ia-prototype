@@ -138,7 +138,7 @@ class UnifiedSystemSearchTests(unittest.TestCase):
         self.assertIn('read_source_fragment', names)
 
     def test_real_source_backend_works_with_unified_interface(self):
-        import test_system_source_search as sources
+        from tests import test_system_source_search as sources
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             path = root / 'custom.py'
