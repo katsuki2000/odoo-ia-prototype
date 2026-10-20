@@ -131,8 +131,10 @@ class RuntimeExportTests(unittest.TestCase):
         model = next(node for node in snapshot['nodes'] if node['id'] == 'model:x.case')
         self.assertIn(str(Path(__file__).resolve()), model['filepaths'])
         self.assertIn({'module': 'custom', 'filepath': str(Path(__file__).resolve())}, model['source_sites'])
-        self.assertFalse(any(node['node_type'] == 'Method' for node in snapshot['nodes']))
-        self.assertFalse(any(edge['edge_type'] == 'HAS_METHOD' for edge in snapshot['edges']))
+        method = next(node for node in snapshot['nodes'] if node['id'] == 'method:x.case.approve')
+        self.assertTrue(method['runtime_mro_order'])
+        self.assertTrue(method['locations_only'])
+        self.assertNotIn('end_lineno', method['override_sites'][0])
 
     def test_exported_class_sites_feed_real_ast_source_search(self):
         spec = importlib.util.spec_from_file_location('_runtime_source_search_test', ROOT / 'code_intelligence/agent/source_search.py')
@@ -145,7 +147,7 @@ class RuntimeExportTests(unittest.TestCase):
         graph = types.SimpleNamespace(nodes=Nodes({node['id']: node for node in self.snapshot()['nodes']}))
         with patch.object(source, 'python_fragments', wraps=source.python_fragments) as parse:
             result = source.search_source_fragments(graph, [ROOT], 'approve', model='x.case', module='custom')
-        self.assertEqual(parse.call_count, 1)
+        self.assertEqual(sum('class FakeEnvironment:' in call.args[0] for call in parse.call_args_list), 1)
         method = next(item for item in result['candidates'] if item['symbol'] == 'BaseCase.approve')
         text = Path(method['filepath']).read_text().splitlines()
         self.assertIn('def approve(self):', text[method['line_start'] - 1])
