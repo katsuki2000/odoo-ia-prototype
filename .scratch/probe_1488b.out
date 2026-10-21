@@ -1,0 +1,5 @@
+modeles 901
+state selection + lifecycle=state: 70 | lifecycle autre champ: 0 | state sans ecriture detectee (perdrait son workflow): 0 | modeles sans state qui gagnent un champ: 7
+DIFF: []
+LOST (extrait): []
+GAIN: [('calendar.event', 'recurrence_update'), ('custom.asset.loan', 'etat'), ('custom.purchase.request', 'etat'), ('mail.group.message', 'moderation_status'), ('stock.warehouse.orderpoint', 'trigger'), ('survey.survey', 'questions_layout'), ('test_base_automation.task', 'state')]

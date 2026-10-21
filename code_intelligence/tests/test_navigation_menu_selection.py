@@ -31,12 +31,12 @@ NOT_QUOTATION = "[('state', 'not in', ('draft', 'sent', 'cancel'))]"
     ],
 )
 def test_domain_admits_any_state(domain, states, expected):
-    assert domain_admits_any_state(domain, states) is expected
+    assert domain_admits_any_state(domain, states, "state") is expected
 
 
 def _graph_with_two_menus():
     graph = nx.DiGraph()
-    graph.add_node("model:purchase.order", node_type="Model")
+    graph.add_node("model:purchase.order", node_type="Model", state_field="state")
     graph.add_node("menu:purchase.menu_orders", node_type="Menu", sequence=0, groups=[],
                    action_domain=PURCHASE_ONLY)
     graph.add_node("menu:purchase.menu_rfq", node_type="Menu", sequence=6, groups=[],

@@ -122,7 +122,7 @@ def full_graph(tmp_path):
             OdooFieldDeclaration(name="state", field_type="Selection", selection=["draft", "validated"]),
         ],
         methods=[
-            OdooMethodDeclaration(name="action_validate", lineno=5, end_lineno=8, written_states=["validated"]),
+            OdooMethodDeclaration(name="action_validate", lineno=5, end_lineno=8, written_values={"state": ["validated"]}),
         ],
     )
 

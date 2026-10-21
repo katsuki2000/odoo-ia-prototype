@@ -49,9 +49,9 @@ class OdooMethodDeclaration:
     is_instance_method: bool = True
     # End line number of the method source AST node if available
     end_lineno: Optional[int] = None
-    written_states: List[str] = field(default_factory=list)
+    written_values: Dict[str, List[str]] = field(default_factory=dict)
     called_self_methods: List[str] = field(default_factory=list)
-    returned_states: List[str] = field(default_factory=list)
+    returned_values: Dict[str, List[str]] = field(default_factory=dict)
     write_argument_methods: List[str] = field(default_factory=list)
 
 
@@ -112,7 +112,6 @@ ODOO_FIELD_TYPES = frozenset({
     "Char", "Text", "Html", "Integer", "Float", "Monetary", "Boolean",
     "Selection", "Date", "Datetime", "Binary", "Image", "Json", "Properties", "PropertiesDefinition",
 })
-STATE_FIELD = "state"
 SELECTION_KWARGS = frozenset({"selection", "selection_add"})
 SELF_RECORDSET_METHODS = frozenset({
     "filtered", "filtered_domain", "sudo", "with_context", "with_user", "with_company", "with_env",
@@ -137,20 +136,27 @@ def is_self_recordset(node: ast.AST, self_names: Set[str]) -> bool:
     return False
 
 
-def state_in_write_dict(node: ast.AST) -> Optional[str]:
+def constants_in_write_dict(node: ast.AST) -> Dict[str, str]:
     if not isinstance(node, ast.Dict):
-        return None
-    for key, value in zip(node.keys, node.values):
-        if isinstance(key, ast.Constant) and key.value == STATE_FIELD:
-            if isinstance(value, ast.Constant) and isinstance(value.value, str):
-                return value.value
-    return None
+        return {}
+    return {
+        key.value: value.value
+        for key, value in zip(node.keys, node.values)
+        if isinstance(key, ast.Constant) and isinstance(key.value, str)
+        and isinstance(value, ast.Constant) and isinstance(value.value, str)
+    }
+
+
+def add_constant(values: Dict[str, List[str]], field_name: str, constant: str) -> None:
+    bucket = values.setdefault(field_name, [])
+    if constant not in bucket:
+        bucket.append(constant)
 
 
 class StateActivity(NamedTuple):
-    written: List[str]
+    written: Dict[str, List[str]]
     called: List[str]
-    returned: List[str]
+    returned: Dict[str, List[str]]
     write_arguments: List[str]
 
 
@@ -167,18 +173,17 @@ def self_recordset_names(function_node: ast.AST) -> Set[str]:
 
 
 def scan_state_activity(function_node: ast.AST) -> StateActivity:
-    """States a method writes or returns for its own recordset, and the methods it calls on it."""
+    """String constants a method writes or returns per field for its own recordset, and the methods it calls on it."""
     self_names = self_recordset_names(function_node)
-    activity = StateActivity([], [], [], [])
+    activity = StateActivity({}, [], {}, [])
     for child in ast.walk(function_node):
         if isinstance(child, ast.Call) and isinstance(child.func, ast.Attribute):
             if not is_self_recordset(child.func.value, self_names):
                 continue
             if child.func.attr == "write":
                 for argument in child.args:
-                    state = state_in_write_dict(argument)
-                    if state and state not in activity.written:
-                        activity.written.append(state)
+                    for field_name, constant in constants_in_write_dict(argument).items():
+                        add_constant(activity.written, field_name, constant)
                     if isinstance(argument, ast.Call) and isinstance(argument.func, ast.Attribute):
                         if is_self_recordset(argument.func.value, self_names) and argument.func.attr not in activity.write_arguments:
                             activity.write_arguments.append(argument.func.attr)
@@ -188,17 +193,11 @@ def scan_state_activity(function_node: ast.AST) -> StateActivity:
             value = child.value
             if isinstance(value, ast.Constant) and isinstance(value.value, str):
                 for target in child.targets:
-                    if (
-                        isinstance(target, ast.Attribute)
-                        and target.attr == STATE_FIELD
-                        and is_self_recordset(target.value, self_names)
-                        and value.value not in activity.written
-                    ):
-                        activity.written.append(value.value)
-        elif isinstance(child, ast.Return):
-            state = state_in_write_dict(child.value) if child.value is not None else None
-            if state and state not in activity.returned:
-                activity.returned.append(state)
+                    if isinstance(target, ast.Attribute) and is_self_recordset(target.value, self_names):
+                        add_constant(activity.written, target.attr, value.value)
+        elif isinstance(child, ast.Return) and child.value is not None:
+            for field_name, constant in constants_in_write_dict(child.value).items():
+                add_constant(activity.returned, field_name, constant)
     return activity
 
 
@@ -367,9 +366,9 @@ class OdooClassVisitor(ast.NodeVisitor):
         method_decl.api_model = is_api_model
         method_decl.is_instance_method = is_instance
         activity = scan_state_activity(node)
-        method_decl.written_states = activity.written
+        method_decl.written_values = activity.written
         method_decl.called_self_methods = activity.called
-        method_decl.returned_states = activity.returned
+        method_decl.returned_values = activity.returned
         method_decl.write_argument_methods = activity.write_arguments
         return method_decl
 

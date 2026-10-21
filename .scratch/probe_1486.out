@@ -1,0 +1,3 @@
+questions notees: 48
+{'top1': 28, 'top3': 37, 'top5': 40, 'top10': 44, 'top20': 47}
+hors top 10: [('AUT-Q1', 12), ('AUT-Q2', 12), ('DDI-Q2', 527), ('DDI-Q3', 17)]

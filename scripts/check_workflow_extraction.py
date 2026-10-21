@@ -10,6 +10,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from code_intelligence.extractor.python import extract_odoo_models_from_file
+from code_intelligence.graph.state_field import lifecycle_field
 from code_intelligence.graph.workflow_extraction import selection_values, written_states
 from config.settings import CORE_ADDONS_PATH
 
@@ -32,9 +33,10 @@ def main() -> int:
     if not decls:
         print(f"model {args.model} is not declared in {path}")
         return 1
-    print(f"{args.model} state values: {selection_values(decls)}")
+    state_field = lifecycle_field(decls)
+    print(f"{args.model} state field: {state_field} ; values: {selection_values(decls, state_field) if state_field else None}")
     for button in args.buttons:
-        print(f"  {button} -> {written_states(decls, button)}")
+        print(f"  {button} -> {written_states(decls, button, state_field) if state_field else []}")
     return 0
 
 

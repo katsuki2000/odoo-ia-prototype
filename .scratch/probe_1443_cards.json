@@ -1,0 +1,418 @@
+[
+  {
+    "id": "CNA-Q1",
+    "kind": "echec",
+    "expected": "account.move",
+    "query": "Qui a le droit d'approuver un avoir de 25 000€ pour un client normal (pas VIP) ?",
+    "ranks": {
+      "P": 18,
+      "M": 1,
+      "MM": 1
+    },
+    "top3": {
+      "P": [
+        "mail.gateway.allowed",
+        "custom.purchase.request",
+        "custom.reimbursement.request"
+      ],
+      "M": [
+        "account.move",
+        "account.accrued.orders.wizard",
+        "account.reconcile.model"
+      ],
+      "MM": [
+        "account.move",
+        "account.accrued.orders.wizard",
+        "mail.gateway.allowed"
+      ]
+    },
+    "why": {
+      "M": "Model:model:account.move",
+      "MM": "Model:model:account.move"
+    }
+  },
+  {
+    "id": "CNA-Q3",
+    "kind": "echec",
+    "expected": "account.move",
+    "query": "Qui a le droit d'approuver un avoir pour un client VIP, et y a-t-il un piège dans le code ?",
+    "ranks": {
+      "P": 40,
+      "M": 5,
+      "MM": 7
+    },
+    "top3": {
+      "P": [
+        "mail.gateway.allowed",
+        "mail.guest",
+        "custom.purchase.request"
+      ],
+      "M": [
+        "account.accrued.orders.wizard",
+        "purchase.order",
+        "payment.capture.wizard"
+      ],
+      "MM": [
+        "account.accrued.orders.wizard",
+        "stock.picking",
+        "purchase.order"
+      ]
+    },
+    "why": {
+      "M": "Model:model:account.move",
+      "MM": "Model:model:account.move"
+    }
+  },
+  {
+    "id": "HRL-Q2",
+    "kind": "echec",
+    "expected": "hr.leave",
+    "query": "Quels sont tous les verrous de validation d'une demande de congé ?",
+    "ranks": {
+      "P": 15,
+      "M": 1,
+      "MM": 1
+    },
+    "top3": {
+      "P": [
+        "hr.leave.employee.type.report",
+        "hr.leave.report.calendar",
+        "applicant.get.refuse.reason"
+      ],
+      "M": [
+        "hr.leave",
+        "hr.leave.accrual.plan",
+        "hr.leave.type"
+      ],
+      "MM": [
+        "hr.leave",
+        "hr.leave.type",
+        "hr.leave.accrual.plan"
+      ]
+    },
+    "why": {
+      "M": "Model:model:hr.leave",
+      "MM": "Menu:menu:hr_holidays.menu_open_department_leave_approve"
+    }
+  },
+  {
+    "id": "MNT-Q4",
+    "kind": "echec",
+    "expected": "maintenance.equipment",
+    "query": "Pourquoi le champ Cost d'un Equipment n'est-il pas visible pour tous les utilisateurs qui peuvent ouvrir sa fiche ?",
+    "ranks": {
+      "P": 110,
+      "M": 11,
+      "MM": 4
+    },
+    "top3": {
+      "P": [
+        "hr.expense.refuse.wizard",
+        "account.tour.upload.bill",
+        "stock.inventory.conflict"
+      ],
+      "M": [
+        "hr.expense.sheet",
+        "hr.expense.refuse.wizard",
+        "hr.expense"
+      ],
+      "MM": [
+        "hr.expense.sheet",
+        "hr.expense.refuse.wizard",
+        "hr.expense"
+      ]
+    },
+    "why": {
+      "M": "Model:model:maintenance.equipment",
+      "MM": "Menu:menu:maintenance.menu_equipment_form"
+    }
+  },
+  {
+    "id": "DDI-Q2",
+    "kind": "echec",
+    "expected": "custom.deep.document",
+    "query": "Quelles sont toutes les validations de ce module qui exigent l'appartenance à un groupe, et à partir de quel montant chacune s'applique-t-elle ?",
+    "ranks": {
+      "P": 115,
+      "M": 526,
+      "MM": 527
+    },
+    "top3": {
+      "P": [
+        "base.module.install.review",
+        "base.module.install.request",
+        "ir.module.module.exclusion"
+      ],
+      "M": [
+        "account.journal.group",
+        "validate.account.move",
+        "account.tax.group"
+      ],
+      "MM": [
+        "account.journal.group",
+        "validate.account.move",
+        "account.tax.group"
+      ]
+    },
+    "why": {
+      "M": "Model:model:custom.deep.document",
+      "MM": "Model:model:custom.deep.document"
+    }
+  },
+  {
+    "id": "HRL-Q1",
+    "kind": "echec",
+    "expected": "hr.leave",
+    "query": "Pourquoi je n'arrive pas à valider ma demande de congé alors que j'ai coché 'urgente' ?",
+    "ranks": {
+      "P": 12,
+      "M": 1,
+      "MM": 1
+    },
+    "top3": {
+      "P": [
+        "applicant.get.refuse.reason",
+        "hr.holidays.cancel.leave",
+        "account.unreconcile"
+      ],
+      "M": [
+        "hr.leave",
+        "hr.leave.type",
+        "hr.leave.accrual.plan"
+      ],
+      "MM": [
+        "hr.leave",
+        "hr.leave.type",
+        "hr.leave.accrual.plan"
+      ]
+    },
+    "why": {
+      "M": "Model:model:hr.leave",
+      "MM": "Menu:menu:hr_holidays.menu_open_department_leave_approve"
+    }
+  },
+  {
+    "id": "DDI-Q3",
+    "kind": "echec",
+    "expected": "custom.deep.document",
+    "query": "Un utilisateur standard (groupe de base uniquement) dont l'entreprise est différente de celle du document peut-il voir un document de 30 000€ appartenant à un autre utilisateur, sachant que 30 000€ est sous le seuil de 50 000€ ?",
+    "ranks": {
+      "P": 64,
+      "M": 15,
+      "MM": 17
+    },
+    "top3": {
+      "P": [
+        "hr.employee.base",
+        "res.users",
+        "bus.presence"
+      ],
+      "M": [
+        "res.users",
+        "base.document.layout",
+        "account.edi.common"
+      ],
+      "MM": [
+        "res.users",
+        "base.document.layout",
+        "account.edi.common"
+      ]
+    },
+    "why": {
+      "M": "Model:model:custom.deep.document",
+      "MM": "Model:model:custom.deep.document"
+    }
+  },
+  {
+    "id": "STK-Q1",
+    "kind": "echec",
+    "expected": "stock.quant",
+    "query": "Un simple employé, sans droit sur l'application Inventory, peut-il consulter les quantités en stock ? Et peut-il modifier une ligne de mouvement de stock (Moves History) ?",
+    "ranks": {
+      "P": 24,
+      "M": 2,
+      "MM": 2
+    },
+    "top3": {
+      "P": [
+        "stock.request.count",
+        "stock.change.product.qty",
+        "report.stock.quantity"
+      ],
+      "M": [
+        "stock.move.line",
+        "stock.quant",
+        "stock.inventory.adjustment.name"
+      ],
+      "MM": [
+        "stock.move.line",
+        "stock.quant",
+        "stock.inventory.adjustment.name"
+      ]
+    },
+    "why": {
+      "M": "Model:model:stock.quant",
+      "MM": "Model:model:stock.quant"
+    }
+  },
+  {
+    "id": "PUR-Q1",
+    "kind": "temoin",
+    "expected": "purchase.order",
+    "query": "Les groupes Purchase « User » et « Administrator » peuvent tous deux lire, modifier, créer et supprimer un Purchase Order. Qu'est-ce qui les distingue réellement sur un Purchase Order ?",
+    "ranks": {
+      "P": 2,
+      "M": 1,
+      "MM": 1
+    },
+    "top3": {
+      "P": [
+        "sale.order",
+        "purchase.order",
+        "purchase.report"
+      ],
+      "M": [
+        "purchase.order",
+        "purchase.order.line",
+        "sale.order"
+      ],
+      "MM": [
+        "purchase.order",
+        "res.config.settings",
+        "purchase.report"
+      ]
+    },
+    "why": {
+      "M": "Model:model:purchase.order",
+      "MM": "Model:model:purchase.order"
+    }
+  },
+  {
+    "id": "CNA-Q2",
+    "kind": "temoin",
+    "expected": "account.move",
+    "query": "Quelles sont toutes les règles qui s'enchaînent quand on valide un avoir, et dans quel ordre s'exécutent-elles ?",
+    "ranks": {
+      "P": 12,
+      "M": 1,
+      "MM": 1
+    },
+    "top3": {
+      "P": [
+        "validate.account.move",
+        "stock.rule",
+        "stock.backorder.confirmation"
+      ],
+      "M": [
+        "account.move",
+        "validate.account.move",
+        "account.move.line"
+      ],
+      "MM": [
+        "account.move",
+        "validate.account.move",
+        "account.move.line"
+      ]
+    },
+    "why": {
+      "M": "Model:model:account.move",
+      "MM": "Model:model:account.move"
+    }
+  },
+  {
+    "id": "SAL-Q2",
+    "kind": "temoin",
+    "expected": "sale.order",
+    "query": "Que se passe-t-il exactement quand on clique sur « Confirm » sur un Sales Order, et dans quel cas est-il automatiquement verrouillé (Locked) juste après ?",
+    "ranks": {
+      "P": 8,
+      "M": 3,
+      "MM": 3
+    },
+    "top3": {
+      "P": [
+        "sale.order.cancel",
+        "stock.backorder.confirmation",
+        "stock.backorder.confirmation.line"
+      ],
+      "M": [
+        "stock.backorder.confirmation",
+        "stock.backorder.confirmation.line",
+        "sale.order"
+      ],
+      "MM": [
+        "stock.backorder.confirmation",
+        "stock.backorder.confirmation.line",
+        "sale.order"
+      ]
+    },
+    "why": {
+      "M": "Model:model:sale.order",
+      "MM": "Menu:menu:sale.menu_sale_order_upselling"
+    }
+  },
+  {
+    "id": "MNT-Q1",
+    "kind": "temoin",
+    "expected": "maintenance.equipment",
+    "query": "Un utilisateur simple, qui n'est pas « Equipment Manager », peut-il modifier une fiche Equipment, et quels Equipment peut-il seulement consulter ?",
+    "ranks": {
+      "P": 4,
+      "M": 2,
+      "MM": 1
+    },
+    "top3": {
+      "P": [
+        "res.config",
+        "maintenance.team",
+        "res.config.installer"
+      ],
+      "M": [
+        "maintenance.equipment.category",
+        "maintenance.equipment",
+        "maintenance.team"
+      ],
+      "MM": [
+        "maintenance.equipment",
+        "maintenance.equipment.category",
+        "maintenance.team"
+      ]
+    },
+    "why": {
+      "M": "Model:model:maintenance.equipment",
+      "MM": "Menu:menu:maintenance.menu_equipment_form"
+    }
+  },
+  {
+    "id": "ACC-Q5",
+    "kind": "temoin",
+    "expected": "account.move",
+    "query": "Comment l'unicité du numéro (Number) d'une Journal Entry est-elle réellement garantie ?",
+    "ranks": {
+      "P": 3,
+      "M": 1,
+      "MM": 1
+    },
+    "top3": {
+      "P": [
+        "account.resequence.wizard",
+        "ir.logging",
+        "account.move"
+      ],
+      "M": [
+        "account.move",
+        "account.resequence.wizard",
+        "account.automatic.entry.wizard"
+      ],
+      "MM": [
+        "account.move",
+        "account.resequence.wizard",
+        "account.automatic.entry.wizard"
+      ]
+    },
+    "why": {
+      "M": "Model:model:account.move",
+      "MM": "Model:model:account.move"
+    }
+  }
+]

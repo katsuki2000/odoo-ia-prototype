@@ -126,8 +126,8 @@ from typing import Callable
 import networkx as nx
 
 from code_intelligence.rules.ontology import BehavioralTag, TechnicalTag
+from code_intelligence.graph.state_field import lifecycle_field
 from code_intelligence.graph.workflow_extraction import (
-    STATE_FIELD,
     origin_states,
     selection_values,
     written_states,
@@ -140,7 +140,7 @@ def add_security_group_nodes(
     G: nx.DiGraph,
     registry: ResolvedSymbolRegistry,
     modules_dict: Dict[str, ParsedModule],
-    domain_force_references_state_fn: Callable[[Optional[str]], bool],
+    domain_force_references_field_fn: Callable[[Optional[str], str], bool],
 ):
     """Add Group, Rule, AccessEntry, ServerAction, and AutomationRule nodes + security edges."""
     settings_implied_groups: Dict[str, str] = {}
@@ -192,7 +192,12 @@ def add_security_group_nodes(
             continue
         rule_node_id = f"rule:{full_xml_id}"
         rule_behavioral_tags = [BehavioralTag.VISIBILITY_RULE.value]
-        if domain_force_references_state_fn(rule.domain_force):
+        ruleModelName = (
+            registry.resolve_model_ref_or_record(rule.model_id, full_xml_id.split('.', 1)[0], rule.filepath)
+            if rule.model_id else None
+        )
+        ruleStateField = lifecycle_field(registry.models.get(ruleModelName, [])) if ruleModelName else None
+        if ruleStateField and domain_force_references_field_fn(rule.domain_force, ruleStateField):
             rule_behavioral_tags.append(BehavioralTag.WORKFLOW_RULE.value)
         G.add_node(
             rule_node_id,
@@ -210,10 +215,8 @@ def add_security_group_nodes(
             behavioral_tags=rule_behavioral_tags,
             technical_tags=[TechnicalTag.RECORD_RULE.value],
         )
-        if rule.model_id:
-            modelName = registry.resolve_model_ref_or_record(rule.model_id, full_xml_id.split('.', 1)[0], rule.filepath)
-            if modelName is not None:
-                G.add_edge(f"model:{modelName}", rule_node_id, edge_type="RESTRICTED_BY")
+        if ruleModelName is not None:
+            G.add_edge(f"model:{ruleModelName}", rule_node_id, edge_type="RESTRICTED_BY")
         for grp_ref in rule.groups_id:
             full_grp = qualify_xml_id(grp_ref, full_xml_id.split(".", 1)[0])
             G.add_edge(rule_node_id, f"group:{full_grp}", edge_type="APPLIES_TO_GROUP")
@@ -369,9 +372,12 @@ def add_workflow_nodes_and_edges(
 ):
     """Build the workflow sub-graph from the real selection values and the code of each button."""
     for model_name, decls in registry.models.items():
-        if not any(f.name == STATE_FIELD for d in decls for f in d.fields):
+        stateField = lifecycle_field(decls)
+        if not stateField:
             continue
-        selection = selection_values(decls)
+        if f"model:{model_name}" in G:
+            G.nodes[f"model:{model_name}"]["state_field"] = stateField
+        selection = selection_values(decls, stateField)
         form_buttons = []
         for mod in modules_dict.values():
             for view in mod.views:
@@ -381,8 +387,8 @@ def add_workflow_nodes_and_edges(
         for btn in form_buttons:
             if not btn.name:
                 continue
-            origins = origin_states(btn.states, btn.invisible, selection)
-            targets = [state for state in written_states(decls, btn.name) if selection is None or state in selection]
+            origins = origin_states(btn.states, btn.invisible, selection, stateField)
+            targets = [state for state in written_states(decls, btn.name, stateField) if selection is None or state in selection]
             if origins and targets:
                 transitions.append((btn, origins, targets))
         states = list(selection) if selection else []
@@ -396,6 +402,7 @@ def add_workflow_nodes_and_edges(
                 node_type="WorkflowState",
                 model=model_name,
                 state_value=st,
+                state_field=stateField,
                 behavioral_tags=[BehavioralTag.WORKFLOW_RULE.value],
                 technical_tags=[],
             )

@@ -6,36 +6,30 @@ import ast
 import re
 from typing import Iterable, List, Optional, Sequence, Set
 
-from code_intelligence.extractor.python import STATE_FIELD
+from .state_field import selection_options
 
 MAX_CALL_DEPTH = 3
-STATE_PREDICATE = re.compile(r"^state\s+(==|!=|not\s+in|in)\s+(.+)$")
 
 
-def selection_values(decls: Iterable) -> Optional[List[str]]:
-    values: List[str] = []
-    known = False
-    for decl in decls:
-        for field in decl.fields:
-            if field.name != STATE_FIELD:
-                continue
-            for value in (field.selection or []) + (field.selection_add or []):
-                known = True
-                if value not in values:
-                    values.append(value)
-    return values if known else None
+def state_predicate(field_name: str):
+    return re.compile(rf"^{re.escape(field_name)}\s+(==|!=|not\s+in|in)\s+(.+)$")
 
 
-def returned_states(decls: Sequence, method_name: str) -> List[str]:
+def selection_values(decls: Iterable, field_name: str) -> Optional[List[str]]:
+    values = selection_options(decls, field_name)
+    return values or None
+
+
+def returned_states(decls: Sequence, method_name: str, field_name: str) -> List[str]:
     states: List[str] = []
     for decl in decls:
         for method in decl.methods:
             if method.name == method_name:
-                states.extend(state for state in method.returned_states if state not in states)
+                states.extend(state for state in method.returned_values.get(field_name, []) if state not in states)
     return states
 
 
-def written_states(decls: Sequence, method_name: str, depth: int = MAX_CALL_DEPTH, seen: Optional[Set[str]] = None) -> List[str]:
+def written_states(decls: Sequence, method_name: str, field_name: str, depth: int = MAX_CALL_DEPTH, seen: Optional[Set[str]] = None) -> List[str]:
     seen = set() if seen is None else seen
     if depth < 0 or method_name in seen:
         return []
@@ -45,15 +39,15 @@ def written_states(decls: Sequence, method_name: str, depth: int = MAX_CALL_DEPT
         for method in decl.methods:
             if method.name != method_name:
                 continue
-            for state in method.written_states:
+            for state in method.written_values.get(field_name, []):
                 if state not in states:
                     states.append(state)
             for helper in method.write_argument_methods:
-                for state in returned_states(decls, helper):
+                for state in returned_states(decls, helper, field_name):
                     if state not in states:
                         states.append(state)
             for callee in method.called_self_methods:
-                for state in written_states(decls, callee, depth - 1, seen):
+                for state in written_states(decls, callee, field_name, depth - 1, seen):
                     if state not in states:
                         states.append(state)
     return states
@@ -132,13 +126,14 @@ def literal_strings(text: str) -> Optional[Set[str]]:
     return string_set(value)
 
 
-def origin_states(states_attr: str, invisible: str, selection: Optional[Sequence[str]]) -> Optional[List[str]]:
+def origin_states(states_attr: str, invisible: str, selection: Optional[Sequence[str]], field_name: str) -> Optional[List[str]]:
     allowed: Optional[Set[str]] = None
     forbidden: Set[str] = set()
+    predicate = state_predicate(field_name)
     if states_attr:
         allowed = {item.strip() for item in states_attr.split(",") if item.strip()}
     for part in split_on_or(invisible or ""):
-        match = STATE_PREDICATE.match(strip_outer_parentheses(part))
+        match = predicate.match(strip_outer_parentheses(part))
         values = literal_strings(match.group(2)) if match else None
         if values is None:
             continue
@@ -160,9 +155,9 @@ def origin_states(states_attr: str, invisible: str, selection: Optional[Sequence
     return ordered or None
 
 
-def state_admitted_by_domain(domain_terms: Sequence, state: str) -> bool:
+def state_admitted_by_domain(domain_terms: Sequence, state: str, field_name: str) -> bool:
     for term in domain_terms:
-        if not (isinstance(term, (tuple, list)) and len(term) == 3 and term[0] == STATE_FIELD):
+        if not (isinstance(term, (tuple, list)) and len(term) == 3 and term[0] == field_name):
             continue
         _, operator, value = term
         values = string_set(value)
@@ -175,8 +170,8 @@ def state_admitted_by_domain(domain_terms: Sequence, state: str) -> bool:
     return True
 
 
-def domain_admits_any_state(domain_text: str, states: Sequence[str]) -> bool:
-    if not domain_text or not states:
+def domain_admits_any_state(domain_text: str, states: Sequence[str], field_name: Optional[str]) -> bool:
+    if not domain_text or not states or not field_name:
         return True
     try:
         terms = ast.literal_eval(domain_text.strip())
@@ -184,4 +179,4 @@ def domain_admits_any_state(domain_text: str, states: Sequence[str]) -> bool:
         return True
     if not isinstance(terms, list) or any(term in ("|", "!") for term in terms if isinstance(term, str)):
         return True
-    return any(state_admitted_by_domain(terms, state) for state in states)
+    return any(state_admitted_by_domain(terms, state, field_name) for state in states)

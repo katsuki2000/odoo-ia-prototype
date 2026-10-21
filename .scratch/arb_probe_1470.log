@@ -1,0 +1,40 @@
+[SKIP] Banque 'oca_p3_1' sautee : setting OCA_SAMPLE_ADDONS_PATH is not configured.
+CNA-Q1: liste10=12 liste20=21 attendu_dans_10=False attendu_dans_20=True
+HRL-Q2: liste10=14 liste20=23 attendu_dans_10=False attendu_dans_20=True
+AUT-Q1: liste10=15 liste20=23 attendu_dans_10=True attendu_dans_20=True
+AUT-Q2: liste10=15 liste20=23 attendu_dans_10=False attendu_dans_20=False
+[SERVEUR] serveur aec35e4f1e80 | modele configure=qwen3:14b | ollama 0.40.6 Q4_K_M ctx=32768 digest=bdbd181c33 | modele servi=qwen3:14b | system_fingerprint=fp_ollama | embeddings=bge-m3:latest | ok
+rep0 CNA-Q1  L=10 -> [] (none)
+rep0 CNA-Q1  L=20 -> [] (none)
+rep0 HRL-Q2  L=10 -> ['resource.calendar.leaves'] (selected)
+rep0 HRL-Q2  L=20 -> ['hr.leave'] (selected)
+rep0 AUT-Q1  L=10 -> ['account.move'] (selected)
+rep0 AUT-Q1  L=20 -> [] (none)
+rep0 AUT-Q2  L=10 -> ['account.move'] (selected)
+rep0 AUT-Q2  L=20 -> [] (none)
+rep1 CNA-Q1  L=10 -> ['validate.account.move'] (selected)
+rep1 CNA-Q1  L=20 -> [] (none)
+rep1 HRL-Q2  L=10 -> ['hr.leave.type'] (selected)
+rep1 HRL-Q2  L=20 -> ['hr.leave'] (selected)
+rep1 AUT-Q1  L=10 -> ['account.move'] (selected)
+rep1 AUT-Q1  L=20 -> [] (none)
+rep1 AUT-Q2  L=10 -> ['account.move'] (selected)
+rep1 AUT-Q2  L=20 -> [] (none)
+rep2 CNA-Q1  L=10 -> [] (none)
+rep2 CNA-Q1  L=20 -> [] (none)
+rep2 HRL-Q2  L=10 -> ['hr.leave.type'] (selected)
+rep2 HRL-Q2  L=20 -> ['hr.leave'] (selected)
+rep2 AUT-Q1  L=10 -> ['account.move'] (selected)
+rep2 AUT-Q1  L=20 -> [] (none)
+rep2 AUT-Q2  L=10 -> ['account.move'] (selected)
+rep2 AUT-Q2  L=20 -> [] (none)
+24 appels
+question cfg   n resolu  contient_attendu  reponses (effectif)
+AUT-Q1   10    3 3/3                  3/3  account.move x3
+AUT-Q1   20    3 0/3                  0/3  [] x3
+AUT-Q2   10    3 3/3                  n/a  account.move x3
+AUT-Q2   20    3 0/3                  n/a  [] x3
+HRL-Q2   10    3 3/3                  0/3  hr.leave.type x2 | resource.calendar.leaves x1
+HRL-Q2   20    3 3/3                  3/3  hr.leave x3
+CNA-Q1   10    3 1/3                  0/3  [] x2 | validate.account.move x1
+CNA-Q1   20    3 0/3                  0/3  [] x3

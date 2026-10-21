@@ -251,12 +251,13 @@ def _menus_opening_model(G: nx.DiGraph, model_name: str, origin_states: Optional
     candidates = []
     if model_node_id not in G:
         return candidates
+    state_field = G.nodes[model_node_id].get("state_field")
     for u, _, edge_data in G.in_edges(model_node_id, data=True):
         if edge_data.get("edge_type") == "OPENS_MODEL" and u.startswith("menu:"):
             candidates.append((u, G.nodes[u]))
     compatible = [
         c for c in candidates
-        if domain_admits_any_state(c[1].get("action_domain", ""), origin_states or [])
+        if domain_admits_any_state(c[1].get("action_domain", ""), origin_states or [], state_field)
     ]
     candidates = compatible or candidates
     candidates.sort(key=lambda c: (bool(c[1].get("groups")), c[1].get("sequence", 999)))

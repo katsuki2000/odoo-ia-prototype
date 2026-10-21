@@ -12,6 +12,7 @@ from .nodes import (
     add_view_button_nodes_and_edges, add_workflow_nodes_and_edges,
     ParsedModule, ResolvedSymbolRegistry,
 )
+from .state_field import lifecycle_field
 from .output_nodes import add_http_route_nodes, add_report_and_template_nodes
 from .translations import attach_translations, translation_fingerprint
 from .integrity_report import build_graph_integrity_report
@@ -59,10 +60,10 @@ class OdooGraphBuilder:
         return "has_group(" in snippet and "raise " in snippet
 
     @staticmethod
-    def _domain_force_references_state(domain_force: Optional[str]) -> bool:
+    def _domain_force_references_field(domain_force: Optional[str], field_name: str) -> bool:
         if not domain_force:
             return False
-        return "'state'" in domain_force or '"state"' in domain_force
+        return f"'{field_name}'" in domain_force or f'"{field_name}"' in domain_force
 
     def _add_model_reference_edge(self, sourceNode, modelRef, edgeType, sourceModule, sourceFile, **attributes):
         targetModel = self.registry.resolve_model_ref_or_record(modelRef, sourceModule, sourceFile)
@@ -118,7 +119,7 @@ class OdooGraphBuilder:
             model_description = explicit_description or _humanize_technical_name(model_name)
             description_source = "explicit" if explicit_description else "generated"
             model_behavioral_tags: List[str] = []
-            if any(f.name == "state" for d in decls for f in d.fields):
+            if lifecycle_field(decls):
                 model_behavioral_tags.append(BehavioralTag.WORKFLOW_RULE.value)
             self.G.add_node(
                 model_node_id, node_type="Model", name=model_name, inherits_list=all_inherits,
@@ -219,7 +220,7 @@ class OdooGraphBuilder:
         self._pendingMemberLinks.clear()
 
     def _add_security_group_nodes(self):
-        add_security_group_nodes(self.G, self.registry, self.modules_dict, self._domain_force_references_state)
+        add_security_group_nodes(self.G, self.registry, self.modules_dict, self._domain_force_references_field)
 
     def _add_menu_nodes(self):
         add_menu_nodes(self.G, self.registry, self.modules_dict)

@@ -574,12 +574,6 @@ def _extract_buttons_from_arch_elem(arch_elem: ET.Element) -> List[OdooFormButto
         btn_invisible = btn.attrib.get("invisible", "")
         btn_groups_raw = btn.attrib.get("groups", "")
 
-        # Handle Odoo 17 invisible="state not in ['draft', 'sent']" syntax if states attr is missing
-        if not btn_states and btn_invisible and "state" in btn_invisible:
-            extracted_states = re.findall(r"['\"]([a-zA-Z0-9_]+)['\"]", btn_invisible)
-            if extracted_states:
-                btn_states = ",".join(extracted_states)
-
         btn_groups = [g.strip() for g in btn_groups_raw.split(",") if g.strip()]
 
         if btn_name or btn_string:

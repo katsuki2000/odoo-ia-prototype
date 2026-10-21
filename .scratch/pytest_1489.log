@@ -1,0 +1,178 @@
+bringing up nodes...
+bringing up nodes...
+
+........................................................................ [  2%]
+.......................................................F..............F. [  5%]
+........................................................................ [  7%]
+........................................................................ [ 10%]
+........................................................................ [ 12%]
+........................................................................ [ 15%]
+........................................................................ [ 17%]
+......................................................................ss [ 20%]
+ss.................................................ss..s................ [ 22%]
+........................................................................ [ 25%]
+........................................................................ [ 27%]
+........................................................................ [ 30%]
+........................................................................ [ 32%]
+........................................................................ [ 35%]
+...........................................................sssssss...... [ 37%]
+........................................................................ [ 40%]
+........................................................................ [ 42%]
+........................................................................ [ 45%]
+........................................................................ [ 47%]
+........................................................................ [ 50%]
+........................................................................ [ 52%]
+........................................................................ [ 55%]
+........................................................................ [ 57%]
+...............................................ssss..................... [ 60%]
+........................................................................ [ 62%]
+................uuuuu........................uuuuuu.uuuuu.uuu..uuu...uuu [ 64%]
+uuuuu..uuuuu............................................................ [ 66%]
+.FF......................................uuu............................ [ 68%]
+........................................................................ [ 71%]
+........................................................................ [ 73%]
+...............uuuu..................................................... [ 76%]
+........................................................................ [ 78%]
+........................................................................ [ 81%]
+............................................................uuuu........ [ 83%]
+........................................................................ [ 86%]
+........................................................................ [ 88%]
+........................................................................ [ 91%]
+........................................................................ [ 93%]
+............uuu................uuuu.uuuuuu.......uuuu................... [ 95%]
+........................................................................ [ 97%]
+...........................................................              [100%]
+=================================== FAILURES ===================================
+____________ test_rule_gating_on_state_also_gets_workflow_rule_tag _____________
+[gw3] linux -- Python 3.13.5 /media/donnee/projets/odoo-ia-prototype/.venv/bin/python3
+
+tagged_graph = <networkx.classes.digraph.DiGraph object at 0x7fba1b2557c0>
+
+    def test_rule_gating_on_state_also_gets_workflow_rule_tag(tagged_graph):
+        node = tagged_graph.nodes["rule:custom_test.rule_workflow"]
+>       assert node["behavioral_tags"] == [
+            BehavioralTag.VISIBILITY_RULE.value,
+            BehavioralTag.WORKFLOW_RULE.value,
+        ]
+E       AssertionError: assert ['visibility_rule'] == ['visibility_...orkflow_rule']
+E         
+E         Right contains one more item: 'workflow_rule'
+E         Use -v to get more diff
+
+code_intelligence/tests/test_bloc_p2_j2_3_graph_tagging.py:198: AssertionError
+------------------------------ Captured log setup ------------------------------
+WARNING  code_intelligence.graph.integrity:integrity.py:98 Module 'custom_test' has no manifest (or no manifest.depends) -- treating it as having NO dependencies for load-order purposes. If 'custom_test' actually depends on other modules, this will silently produce a wrong load_order and a wrong method-override execution order for any method it shares with those dependencies.
+WARNING  code_intelligence.graph.builder:builder.py:106 Module 'custom_test' has no manifest; dependency and source metadata are unavailable.
+___________ test_who_has_access_to_exposes_tags_on_each_active_rule ____________
+[gw3] linux -- Python 3.13.5 /media/donnee/projets/odoo-ia-prototype/.venv/bin/python3
+
+tagged_graph = <networkx.classes.digraph.DiGraph object at 0x7fb9c45e17e0>
+
+    def test_who_has_access_to_exposes_tags_on_each_active_rule(tagged_graph):
+        result = who_has_access_to(tagged_graph, "custom.test.plain", permission="read")
+        by_xml_id = {r.rule_xml_id: r for r in result.active_rules}
+        assert by_xml_id["custom_test.rule_plain"].tags == [
+            BehavioralTag.VISIBILITY_RULE.value,
+            TechnicalTag.RECORD_RULE.value,
+        ]
+>       assert by_xml_id["custom_test.rule_workflow"].tags == [
+            BehavioralTag.VISIBILITY_RULE.value,
+            BehavioralTag.WORKFLOW_RULE.value,
+            TechnicalTag.RECORD_RULE.value,
+        ]
+E       AssertionError: assert ['visibility_...'record_rule'] == ['visibility_...'record_rule']
+E         
+E         At index 1 diff: 'record_rule' != 'workflow_rule'
+E         Right contains one more item: 'record_rule'
+E         Use -v to get more diff
+
+code_intelligence/tests/test_bloc_p2_j4_composite_tools_tag_exposure.py:176: AssertionError
+------------------------------ Captured log setup ------------------------------
+WARNING  code_intelligence.graph.integrity:integrity.py:98 Module 'custom_test' has no manifest (or no manifest.depends) -- treating it as having NO dependencies for load-order purposes. If 'custom_test' actually depends on other modules, this will silently produce a wrong load_order and a wrong method-override execution order for any method it shares with those dependencies.
+WARNING  code_intelligence.graph.builder:builder.py:106 Module 'custom_test' has no manifest; dependency and source metadata are unavailable.
+_ test_plain_word_is_not_a_module_mention[ou trouver le point of sale dans le menu ?] _
+[gw2] linux -- Python 3.13.5 /media/donnee/projets/odoo-ia-prototype/.venv/bin/python3
+
+question = 'ou trouver le point of sale dans le menu ?'
+
+    @pytest.mark.parametrize("question", [
+        "que se passe-t-il quand une maintenance request est deplacee ?",
+        "dans l'application maintenance, que fait le champ cost ?",
+        "le project est-il visible pour un utilisateur ?",
+        "ou trouver le point of sale dans le menu ?",
+        "les conges de hr holidays sont-ils visibles ?",
+    ])
+    def test_plain_word_is_not_a_module_mention(question):
+>       assert _find_exact_technical_module_mentions(question, _graph()) == []
+E       AssertionError: assert ['point_of_sale'] == []
+E         
+E         Left contains one more item: 'point_of_sale'
+E         Use -v to get more diff
+
+tests/test_exact_mention_bare_words.py:27: AssertionError
+_ test_plain_word_is_not_a_module_mention[les conges de hr holidays sont-ils visibles ?] _
+[gw2] linux -- Python 3.13.5 /media/donnee/projets/odoo-ia-prototype/.venv/bin/python3
+
+question = 'les conges de hr holidays sont-ils visibles ?'
+
+    @pytest.mark.parametrize("question", [
+        "que se passe-t-il quand une maintenance request est deplacee ?",
+        "dans l'application maintenance, que fait le champ cost ?",
+        "le project est-il visible pour un utilisateur ?",
+        "ou trouver le point of sale dans le menu ?",
+        "les conges de hr holidays sont-ils visibles ?",
+    ])
+    def test_plain_word_is_not_a_module_mention(question):
+>       assert _find_exact_technical_module_mentions(question, _graph()) == []
+E       AssertionError: assert ['hr_holidays'] == []
+E         
+E         Left contains one more item: 'hr_holidays'
+E         Use -v to get more diff
+
+tests/test_exact_mention_bare_words.py:27: AssertionError
+=============================== warnings summary ===============================
+.venv/lib/python3.13/site-packages/fastapi/testclient.py:1
+.venv/lib/python3.13/site-packages/fastapi/testclient.py:1
+.venv/lib/python3.13/site-packages/fastapi/testclient.py:1
+.venv/lib/python3.13/site-packages/fastapi/testclient.py:1
+  /media/donnee/projets/odoo-ia-prototype/.venv/lib/python3.13/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+code_intelligence/tests/test_bloc17_navigation_howto_intent.py::TestBenchmarkRegressionPin::test_all_five_still_present_in_benchmark
+  /media/donnee/projets/odoo-ia-prototype/.venv/lib/python3.13/site-packages/_pytest/fixtures.py:1313: PytestRemovedIn10Warning: Class-scoped fixture defined as instance method is deprecated.
+  Instance attributes set in this fixture will NOT be visible to test methods,
+  as each test gets a new instance while the fixture runs only once per class.
+  Use @classmethod decorator and set attributes on cls instead.
+  See https://docs.pytest.org/en/stable/deprecations.html#class-scoped-fixture-as-instance-method
+    fixturefunc = resolve_fixture_function(fixturedef, request)
+
+tests/document_rag/test_chroma_manager.py: 33 warnings
+tests/document_rag/test_collection_metadata.py: 4 warnings
+tests/document_rag/test_collection_name.py: 7 warnings
+tests/document_rag/test_indexation.py: 6 warnings
+tests/document_rag/test_search.py: 14 warnings
+tests/test_api_endpoint_protection.py: 1 warning
+tests/document_rag/test_ingest_all.py: 23 warnings
+tests/document_rag/test_ingestion.py: 16 warnings
+tests/test_api_ingestion.py: 2 warnings
+tests/document_rag/test_no_code_collection.py: 4 warnings
+  /media/donnee/projets/odoo-ia-prototype/.venv/lib/python3.13/site-packages/chromadb/api/types.py:945: DeprecationWarning: The class LocalServerEmbeddingFunction does not implement get_config(). This will be required in a future version.
+    or self.get_config() is NotImplemented
+
+tests/test_api_auth.py::test_token_signed_with_the_legacy_default_secret_is_rejected
+tests/test_api_endpoint_protection.py::test_authenticated_routes_refuse_a_forged_token[get-/stats]
+tests/test_api_endpoint_protection.py::test_authenticated_routes_refuse_a_forged_token[get-/api/v1/modules]
+  /media/donnee/projets/odoo-ia-prototype/.venv/lib/python3.13/site-packages/jwt/api_jwt.py:147: InsecureKeyLengthWarning: The HMAC key is 31 bytes long, which is below the minimum recommended length of 32 bytes for SHA256. See RFC 7518 Section 3.2.
+    return self._jws.encode(
+
+tests/test_single_investigation_loop.py::NativeAgentSmokeTests::test_native_loop_executes_guarded_tool_and_returns_final_message
+  code_intelligence/agent/loop.py:200: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.
+    agent = create_react_agent(model=selectModel, tools=tools, prompt=prepareMessages)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED code_intelligence/tests/test_bloc_p2_j2_3_graph_tagging.py::test_rule_gating_on_state_also_gets_workflow_rule_tag
+FAILED code_intelligence/tests/test_bloc_p2_j4_composite_tools_tag_exposure.py::test_who_has_access_to_exposes_tags_on_each_active_rule
+FAILED tests/test_exact_mention_bare_words.py::test_plain_word_is_not_a_module_mention[ou trouver le point of sale dans le menu ?]
+FAILED tests/test_exact_mention_bare_words.py::test_plain_word_is_not_a_module_mention[les conges de hr holidays sont-ils visibles ?]
+4 failed, 2854 passed, 18 skipped, 119 warnings, 63 subtests passed in 1435.29s (0:23:55)

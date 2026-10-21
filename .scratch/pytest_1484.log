@@ -1,0 +1,809 @@
+bringing up nodes...
+bringing up nodes...
+
+........................................................................ [ 13%]
+........................................................................ [ 26%]
+........................................................................ [ 40%]
+........................................................................ [ 53%]
+.......F.F......uuuu.................................................... [ 66%]
+........................................................................ [ 80%]
+........................................................................ [ 93%]
+...................................                                      [100%]
+==================================== ERRORS ====================================
+_ ERROR collecting tests/oca_sample/account-financial-reporting/account_financial_report/tests/test_journal_ledger.py _
+ImportError while importing test module '/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/account-financial-reporting/account_financial_report/tests/test_journal_ledger.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/oca_sample/account-financial-reporting/account_financial_report/__init__.py:5: in <module>
+    from . import models
+tests/oca_sample/account-financial-reporting/account_financial_report/models/__init__.py:1: in <module>
+    from . import account_age_report_configuration
+tests/oca_sample/account-financial-reporting/account_financial_report/models/account_age_report_configuration.py:4: in <module>
+    from odoo import _, api, fields, models
+E   ModuleNotFoundError: No module named 'odoo'
+_ ERROR collecting tests/oca_sample/account-invoicing/account_invoice_triple_discount/tests/test_invoice_triple_discount.py _
+ImportError while importing test module '/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/account-invoicing/account_invoice_triple_discount/tests/test_invoice_triple_discount.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/oca_sample/account-invoicing/account_invoice_triple_discount/__init__.py:1: in <module>
+    from . import models
+tests/oca_sample/account-invoicing/account_invoice_triple_discount/models/__init__.py:1: in <module>
+    from . import triple_discount_mixin
+tests/oca_sample/account-invoicing/account_invoice_triple_discount/models/triple_discount_mixin.py:8: in <module>
+    from odoo import api, fields, models
+E   ModuleNotFoundError: No module named 'odoo'
+_ ERROR collecting tests/oca_sample/account-invoicing/account_invoice_discount_display_amount/tests/test_account_move.py _
+ImportError while importing test module '/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/account-invoicing/account_invoice_discount_display_amount/tests/test_account_move.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/oca_sample/account-invoicing/account_invoice_discount_display_amount/__init__.py:1: in <module>
+    from . import models
+tests/oca_sample/account-invoicing/account_invoice_discount_display_amount/models/__init__.py:1: in <module>
+    from . import account_move
+tests/oca_sample/account-invoicing/account_invoice_discount_display_amount/models/account_move.py:4: in <module>
+    from odoo import api, fields, models
+E   ModuleNotFoundError: No module named 'odoo'
+_ ERROR collecting tests/oca_sample/account-invoicing/account_invoice_discount_display_amount/tests/test_account_move_line.py _
+ImportError while importing test module '/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/account-invoicing/account_invoice_discount_display_amount/tests/test_account_move_line.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/oca_sample/account-invoicing/account_invoice_discount_display_amount/__init__.py:1: in <module>
+    from . import models
+tests/oca_sample/account-invoicing/account_invoice_discount_display_amount/models/__init__.py:1: in <module>
+    from . import account_move
+tests/oca_sample/account-invoicing/account_invoice_discount_display_amount/models/account_move.py:4: in <module>
+    from odoo import api, fields, models
+E   ModuleNotFoundError: No module named 'odoo'
+_ ERROR collecting tests/oca_sample/account-invoicing/account_manual_currency/tests/test_account_manual_currency.py _
+ImportError while importing test module '/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/account-invoicing/account_manual_currency/tests/test_account_manual_currency.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/oca_sample/account-invoicing/account_manual_currency/__init__.py:3: in <module>
+    from . import models
+tests/oca_sample/account-invoicing/account_manual_currency/models/__init__.py:3: in <module>
+    from . import account_move
+tests/oca_sample/account-invoicing/account_manual_currency/models/account_move.py:6: in <module>
+    from odoo import _, api, fields, models
+E   ModuleNotFoundError: No module named 'odoo'
+_ ERROR collecting tests/oca_sample/account-invoicing/partner_invoicing_mode/tests/test_invoice_mode.py _
+ImportError while importing test module '/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/account-invoicing/partner_invoicing_mode/tests/test_invoice_mode.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/oca_sample/account-invoicing/partner_invoicing_mode/__init__.py:1: in <module>
+    from . import models
+tests/oca_sample/account-invoicing/partner_invoicing_mode/models/__init__.py:1: in <module>
+    from . import account_invoice
+tests/oca_sample/account-invoicing/partner_invoicing_mode/models/account_invoice.py:4: in <module>
+    from odoo import models
+E   ModuleNotFoundError: No module named 'odoo'
+____ ERROR collecting tests/oca_sample/hr/hr_course/tests/test_hr_course.py ____
+ImportError while importing test module '/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/hr/hr_course/tests/test_hr_course.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/oca_sample/hr/hr_course/__init__.py:1: in <module>
+    from . import models
+tests/oca_sample/hr/hr_course/models/__init__.py:1: in <module>
+    from . import hr_employee
+tests/oca_sample/hr/hr_course/models/hr_employee.py:1: in <module>
+    from odoo import api, fields, models
+E   ModuleNotFoundError: No module named 'odoo'
+_ ERROR collecting tests/oca_sample/hr/hr_employee_calendar_planning/tests/test_hr_employee_calendar_planning.py _
+ImportError while importing test module '/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/hr/hr_employee_calendar_planning/tests/test_hr_employee_calendar_planning.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/oca_sample/hr/hr_employee_calendar_planning/__init__.py:3: in <module>
+    from . import models
+tests/oca_sample/hr/hr_employee_calendar_planning/models/__init__.py:1: in <module>
+    from . import hr_employee
+tests/oca_sample/hr/hr_employee_calendar_planning/models/hr_employee.py:5: in <module>
+    from odoo import _, api, fields, models
+E   ModuleNotFoundError: No module named 'odoo'
+_ ERROR collecting tests/oca_sample/hr/hr_employee_firstname/tests/test_hr_employee_firstname.py _
+ImportError while importing test module '/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/hr/hr_employee_firstname/tests/test_hr_employee_firstname.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/oca_sample/hr/hr_employee_firstname/__init__.py:3: in <module>
+    from . import models
+tests/oca_sample/hr/hr_employee_firstname/models/__init__.py:2: in <module>
+    from . import base_config_settings
+tests/oca_sample/hr/hr_employee_firstname/models/base_config_settings.py:6: in <module>
+    from odoo import fields, models
+E   ModuleNotFoundError: No module named 'odoo'
+_ ERROR collecting tests/oca_sample/hr/hr_employee_medical_examination/tests/test_hr_employee_medical_examination.py _
+ImportError while importing test module '/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/hr/hr_employee_medical_examination/tests/test_hr_employee_medical_examination.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/oca_sample/hr/hr_employee_medical_examination/__init__.py:1: in <module>
+    from . import models
+tests/oca_sample/hr/hr_employee_medical_examination/models/__init__.py:1: in <module>
+    from . import hr_employee_medical_examination
+tests/oca_sample/hr/hr_employee_medical_examination/models/hr_employee_medical_examination.py:6: in <module>
+    from odoo import api, fields, models
+E   ModuleNotFoundError: No module named 'odoo'
+_ ERROR collecting tests/oca_sample/hr/hr_employee_second_lastname/tests/test_hr_employee_second_lastname.py _
+ImportError while importing test module '/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/hr/hr_employee_second_lastname/tests/test_hr_employee_second_lastname.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/oca_sample/hr/hr_employee_second_lastname/__init__.py:1: in <module>
+    from . import models
+tests/oca_sample/hr/hr_employee_second_lastname/models/__init__.py:1: in <module>
+    from . import hr_employee_base
+tests/oca_sample/hr/hr_employee_second_lastname/models/hr_employee_base.py:1: in <module>
+    from odoo import fields, models
+E   ModuleNotFoundError: No module named 'odoo'
+_ ERROR collecting tests/oca_sample/partner-contact-management/partner_firstname/tests/test_copy.py _
+ImportError while importing test module '/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/partner-contact-management/partner_firstname/tests/test_copy.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/oca_sample/partner-contact-management/partner_firstname/__init__.py:1: in <module>
+    from . import models
+tests/oca_sample/partner-contact-management/partner_firstname/models/__init__.py:1: in <module>
+    from . import base_config_settings
+tests/oca_sample/partner-contact-management/partner_firstname/models/base_config_settings.py:6: in <module>
+    from odoo import fields, models
+E   ModuleNotFoundError: No module named 'odoo'
+_ ERROR collecting tests/oca_sample/partner-contact-management/partner_second_lastname/tests/test_name.py _
+ImportError while importing test module '/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/partner-contact-management/partner_second_lastname/tests/test_name.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/oca_sample/partner-contact-management/partner_second_lastname/__init__.py:4: in <module>
+    from . import models
+tests/oca_sample/partner-contact-management/partner_second_lastname/models/__init__.py:3: in <module>
+    from . import res_config_settings
+tests/oca_sample/partner-contact-management/partner_second_lastname/models/res_config_settings.py:4: in <module>
+    from odoo import models
+E   ModuleNotFoundError: No module named 'odoo'
+_ ERROR collecting tests/oca_sample/project/project_milestone_status/tests/test_project_milestone_status.py _
+ImportError while importing test module '/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/project/project_milestone_status/tests/test_project_milestone_status.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/oca_sample/project/project_milestone_status/__init__.py:1: in <module>
+    from . import models
+tests/oca_sample/project/project_milestone_status/models/__init__.py:1: in <module>
+    from . import project_milestone
+tests/oca_sample/project/project_milestone_status/models/project_milestone.py:1: in <module>
+    from odoo import api, fields, models
+E   ModuleNotFoundError: No module named 'odoo'
+_ ERROR collecting tests/oca_sample/project/project_milestone_status/tests/test_project_status.py _
+ImportError while importing test module '/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/project/project_milestone_status/tests/test_project_status.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/oca_sample/project/project_milestone_status/__init__.py:1: in <module>
+    from . import models
+tests/oca_sample/project/project_milestone_status/models/__init__.py:1: in <module>
+    from . import project_milestone
+tests/oca_sample/project/project_milestone_status/models/project_milestone.py:1: in <module>
+    from odoo import api, fields, models
+E   ModuleNotFoundError: No module named 'odoo'
+_ ERROR collecting tests/oca_sample/purchase-workflow/purchase_advance_payment_line/tests/test_purchase_advance_payment_line.py _
+ImportError while importing test module '/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/purchase-workflow/purchase_advance_payment_line/tests/test_purchase_advance_payment_line.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/oca_sample/purchase-workflow/purchase_advance_payment_line/__init__.py:1: in <module>
+    from . import models
+tests/oca_sample/purchase-workflow/purchase_advance_payment_line/models/__init__.py:1: in <module>
+    from . import account_payment_line
+tests/oca_sample/purchase-workflow/purchase_advance_payment_line/models/account_payment_line.py:4: in <module>
+    from odoo import _, api, exceptions, fields, models
+E   ModuleNotFoundError: No module named 'odoo'
+_ ERROR collecting tests/oca_sample/purchase-workflow/purchase_delivery_split_date/tests/test_purchase_delivery.py _
+ImportError while importing test module '/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/purchase-workflow/purchase_delivery_split_date/tests/test_purchase_delivery.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/oca_sample/purchase-workflow/purchase_delivery_split_date/__init__.py:3: in <module>
+    from . import models
+tests/oca_sample/purchase-workflow/purchase_delivery_split_date/models/__init__.py:3: in <module>
+    from . import purchase_order
+tests/oca_sample/purchase-workflow/purchase_delivery_split_date/models/purchase_order.py:7: in <module>
+    from odoo import fields, models
+E   ModuleNotFoundError: No module named 'odoo'
+_ ERROR collecting tests/oca_sample/purchase-workflow/purchase_invoice_status_line/tests/test_purchase_invoice_status_line.py _
+ImportError while importing test module '/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/purchase-workflow/purchase_invoice_status_line/tests/test_purchase_invoice_status_line.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/oca_sample/purchase-workflow/purchase_invoice_status_line/__init__.py:1: in <module>
+    from . import models
+tests/oca_sample/purchase-workflow/purchase_invoice_status_line/models/__init__.py:1: in <module>
+    from . import purchase_order
+tests/oca_sample/purchase-workflow/purchase_invoice_status_line/models/purchase_order.py:4: in <module>
+    from odoo import api, fields, models
+E   ModuleNotFoundError: No module named 'odoo'
+_ ERROR collecting tests/oca_sample/purchase-workflow/purchase_manual_delivery/tests/test_purchase_manual_delivery.py _
+ImportError while importing test module '/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/purchase-workflow/purchase_manual_delivery/tests/test_purchase_manual_delivery.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/oca_sample/purchase-workflow/purchase_manual_delivery/__init__.py:1: in <module>
+    from . import models
+tests/oca_sample/purchase-workflow/purchase_manual_delivery/models/__init__.py:1: in <module>
+    from . import product_product
+tests/oca_sample/purchase-workflow/purchase_manual_delivery/models/product_product.py:1: in <module>
+    from odoo import models
+E   ModuleNotFoundError: No module named 'odoo'
+_ ERROR collecting tests/oca_sample/purchase-workflow/purchase_manual_delivery/tests/test_report_forecast.py _
+ImportError while importing test module '/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/purchase-workflow/purchase_manual_delivery/tests/test_report_forecast.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/oca_sample/purchase-workflow/purchase_manual_delivery/__init__.py:1: in <module>
+    from . import models
+tests/oca_sample/purchase-workflow/purchase_manual_delivery/models/__init__.py:1: in <module>
+    from . import product_product
+tests/oca_sample/purchase-workflow/purchase_manual_delivery/models/product_product.py:1: in <module>
+    from odoo import models
+E   ModuleNotFoundError: No module named 'odoo'
+_ ERROR collecting tests/oca_sample/purchase-workflow/purchase_order_line_deep_sort/tests/test_purchase_order_line_deep_sort.py _
+ImportError while importing test module '/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/purchase-workflow/purchase_order_line_deep_sort/tests/test_purchase_order_line_deep_sort.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/oca_sample/purchase-workflow/purchase_order_line_deep_sort/__init__.py:1: in <module>
+    from . import models
+tests/oca_sample/purchase-workflow/purchase_order_line_deep_sort/models/__init__.py:1: in <module>
+    from . import purchase_order
+tests/oca_sample/purchase-workflow/purchase_order_line_deep_sort/models/purchase_order.py:6: in <module>
+    from odoo import api, fields, models
+E   ModuleNotFoundError: No module named 'odoo'
+_ ERROR collecting tests/oca_sample/purchase-workflow/purchase_order_line_sequence/tests/test_po_lines_sequence.py _
+ImportError while importing test module '/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/purchase-workflow/purchase_order_line_sequence/tests/test_po_lines_sequence.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/oca_sample/purchase-workflow/purchase_order_line_sequence/__init__.py:3: in <module>
+    from . import models
+tests/oca_sample/purchase-workflow/purchase_order_line_sequence/models/__init__.py:3: in <module>
+    from . import purchase
+tests/oca_sample/purchase-workflow/purchase_order_line_sequence/models/purchase.py:7: in <module>
+    from odoo import api, fields, models
+E   ModuleNotFoundError: No module named 'odoo'
+_ ERROR collecting tests/oca_sample/purchase-workflow/purchase_order_type/tests/test_purchase_order_type.py _
+ImportError while importing test module '/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/purchase-workflow/purchase_order_type/tests/test_purchase_order_type.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/oca_sample/purchase-workflow/purchase_order_type/__init__.py:1: in <module>
+    from . import models
+tests/oca_sample/purchase-workflow/purchase_order_type/models/__init__.py:1: in <module>
+    from . import purchase_order_type
+tests/oca_sample/purchase-workflow/purchase_order_type/models/purchase_order_type.py:4: in <module>
+    from odoo import api, fields, models
+E   ModuleNotFoundError: No module named 'odoo'
+_ ERROR collecting tests/oca_sample/purchase-workflow/purchase_order_type_dashboard/tests/test_purchase_order_type_dashboard.py _
+ImportError while importing test module '/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/purchase-workflow/purchase_order_type_dashboard/tests/test_purchase_order_type_dashboard.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/oca_sample/purchase-workflow/purchase_order_type_dashboard/__init__.py:1: in <module>
+    from . import models
+tests/oca_sample/purchase-workflow/purchase_order_type_dashboard/models/__init__.py:1: in <module>
+    from . import purchase_order_type
+tests/oca_sample/purchase-workflow/purchase_order_type_dashboard/models/purchase_order_type.py:4: in <module>
+    from odoo import api, fields, models
+E   ModuleNotFoundError: No module named 'odoo'
+_ ERROR collecting tests/oca_sample/purchase-workflow/purchase_order_uninvoiced_amount_line/tests/test_purchase_order_line_uninvoiced_amount.py _
+ImportError while importing test module '/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/purchase-workflow/purchase_order_uninvoiced_amount_line/tests/test_purchase_order_line_uninvoiced_amount.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/oca_sample/purchase-workflow/purchase_order_uninvoiced_amount_line/__init__.py:4: in <module>
+    from . import models
+tests/oca_sample/purchase-workflow/purchase_order_uninvoiced_amount_line/models/__init__.py:4: in <module>
+    from . import purchase_order_line
+tests/oca_sample/purchase-workflow/purchase_order_uninvoiced_amount_line/models/purchase_order_line.py:4: in <module>
+    from odoo import api, fields, models
+E   ModuleNotFoundError: No module named 'odoo'
+_ ERROR collecting tests/oca_sample/purchase-workflow/purchase_reception_status_line/tests/test_purchase_receipt_status_line.py _
+ImportError while importing test module '/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/purchase-workflow/purchase_reception_status_line/tests/test_purchase_receipt_status_line.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/oca_sample/purchase-workflow/purchase_reception_status_line/__init__.py:1: in <module>
+    from . import models
+tests/oca_sample/purchase-workflow/purchase_reception_status_line/models/__init__.py:1: in <module>
+    from . import purchase_order
+tests/oca_sample/purchase-workflow/purchase_reception_status_line/models/purchase_order.py:4: in <module>
+    from odoo import api, fields, models
+E   ModuleNotFoundError: No module named 'odoo'
+_ ERROR collecting tests/oca_sample/purchase-workflow/purchase_request/tests/test_purchase_request_allocation.py _
+ImportError while importing test module '/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/purchase-workflow/purchase_request/tests/test_purchase_request_allocation.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/oca_sample/purchase-workflow/purchase_request/__init__.py:1: in <module>
+    from . import models
+tests/oca_sample/purchase-workflow/purchase_request/models/__init__.py:3: in <module>
+    from . import purchase_request_allocation
+tests/oca_sample/purchase-workflow/purchase_request/models/purchase_request_allocation.py:6: in <module>
+    from odoo import _, api, fields, models
+E   ModuleNotFoundError: No module named 'odoo'
+_ ERROR collecting tests/oca_sample/purchase-workflow/purchase_request/tests/test_purchase_request_to_rfq.py _
+ImportError while importing test module '/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/purchase-workflow/purchase_request/tests/test_purchase_request_to_rfq.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/oca_sample/purchase-workflow/purchase_request/__init__.py:1: in <module>
+    from . import models
+tests/oca_sample/purchase-workflow/purchase_request/models/__init__.py:3: in <module>
+    from . import purchase_request_allocation
+tests/oca_sample/purchase-workflow/purchase_request/models/purchase_request_allocation.py:6: in <module>
+    from odoo import _, api, fields, models
+E   ModuleNotFoundError: No module named 'odoo'
+_ ERROR collecting tests/oca_sample/purchase-workflow/purchase_triple_discount/tests/test_purchase_discount.py _
+ImportError while importing test module '/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/purchase-workflow/purchase_triple_discount/tests/test_purchase_discount.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/oca_sample/purchase-workflow/purchase_triple_discount/__init__.py:1: in <module>
+    from . import models
+tests/oca_sample/purchase-workflow/purchase_triple_discount/models/__init__.py:1: in <module>
+    from . import triple_discount_mixin
+tests/oca_sample/purchase-workflow/purchase_triple_discount/models/triple_discount_mixin.py:6: in <module>
+    from odoo import api, fields, models
+E   ModuleNotFoundError: No module named 'odoo'
+_ ERROR collecting tests/oca_sample/reporting-engine/bi_view_editor/tests/test_bi_view.py _
+ImportError while importing test module '/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/reporting-engine/bi_view_editor/tests/test_bi_view.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/oca_sample/reporting-engine/bi_view_editor/__init__.py:3: in <module>
+    from . import models
+tests/oca_sample/reporting-engine/bi_view_editor/models/__init__.py:3: in <module>
+    from . import models
+tests/oca_sample/reporting-engine/bi_view_editor/models/models.py:6: in <module>
+    from odoo import _, api, models
+E   ModuleNotFoundError: No module named 'odoo'
+___ ERROR collecting tests/oca_sample/reporting-engine/kpi/tests/test_kpi.py ___
+ImportError while importing test module '/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/reporting-engine/kpi/tests/test_kpi.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/oca_sample/reporting-engine/kpi/__init__.py:3: in <module>
+    from . import models
+tests/oca_sample/reporting-engine/kpi/models/__init__.py:3: in <module>
+    from . import kpi_category
+tests/oca_sample/reporting-engine/kpi/models/kpi_category.py:4: in <module>
+    from odoo import fields, models
+E   ModuleNotFoundError: No module named 'odoo'
+_ ERROR collecting tests/oca_sample/sale-workflow/sale_delivery_split_date/tests/test_sale_delivery.py _
+ImportError while importing test module '/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/sale-workflow/sale_delivery_split_date/tests/test_sale_delivery.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/oca_sample/sale-workflow/sale_delivery_split_date/__init__.py:3: in <module>
+    from . import models
+tests/oca_sample/sale-workflow/sale_delivery_split_date/models/__init__.py:3: in <module>
+    from . import sale_order_line
+tests/oca_sample/sale-workflow/sale_delivery_split_date/models/sale_order_line.py:6: in <module>
+    from odoo import models
+E   ModuleNotFoundError: No module named 'odoo'
+_ ERROR collecting tests/oca_sample/sale-workflow/sale_fixed_discount/tests/test_sale_fixed_discount.py _
+ImportError while importing test module '/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/sale-workflow/sale_fixed_discount/tests/test_sale_fixed_discount.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/oca_sample/sale-workflow/sale_fixed_discount/__init__.py:1: in <module>
+    from . import models
+tests/oca_sample/sale-workflow/sale_fixed_discount/models/__init__.py:1: in <module>
+    from . import sale_order_line
+tests/oca_sample/sale-workflow/sale_fixed_discount/models/sale_order_line.py:4: in <module>
+    from odoo import _, api, fields, models
+E   ModuleNotFoundError: No module named 'odoo'
+_ ERROR collecting tests/oca_sample/sale-workflow/sale_order_line_date/tests/test_sale_order_line_date.py _
+ImportError while importing test module '/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/sale-workflow/sale_order_line_date/tests/test_sale_order_line_date.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/oca_sample/sale-workflow/sale_order_line_date/__init__.py:1: in <module>
+    from . import models
+tests/oca_sample/sale-workflow/sale_order_line_date/models/__init__.py:1: in <module>
+    from . import sale_order
+tests/oca_sample/sale-workflow/sale_order_line_date/models/sale_order.py:9: in <module>
+    from odoo import api, models
+E   ModuleNotFoundError: No module named 'odoo'
+_ ERROR collecting tests/oca_sample/sale-workflow/sale_order_product_availability_inline/tests/test_sale_order_product_availability_inline.py _
+ImportError while importing test module '/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/sale-workflow/sale_order_product_availability_inline/tests/test_sale_order_product_availability_inline.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/oca_sample/sale-workflow/sale_order_product_availability_inline/__init__.py:2: in <module>
+    from . import models
+tests/oca_sample/sale-workflow/sale_order_product_availability_inline/models/__init__.py:2: in <module>
+    from . import product_product
+tests/oca_sample/sale-workflow/sale_order_product_availability_inline/models/product_product.py:4: in <module>
+    from odoo import models
+E   ModuleNotFoundError: No module named 'odoo'
+_ ERROR collecting tests/oca_sample/sale-workflow/sale_payment_sheet/tests/test_sale_payment_sheet.py _
+ImportError while importing test module '/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/sale-workflow/sale_payment_sheet/tests/test_sale_payment_sheet.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/oca_sample/sale-workflow/sale_payment_sheet/__init__.py:2: in <module>
+    from . import models
+tests/oca_sample/sale-workflow/sale_payment_sheet/models/__init__.py:2: in <module>
+    from . import res_users
+tests/oca_sample/sale-workflow/sale_payment_sheet/models/res_users.py:5: in <module>
+    from odoo import fields, models
+E   ModuleNotFoundError: No module named 'odoo'
+_ ERROR collecting tests/oca_sample/sale-workflow/sale_procurement_group_by_line/tests/test_sale_procurement_group_by_line.py _
+ImportError while importing test module '/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/sale-workflow/sale_procurement_group_by_line/tests/test_sale_procurement_group_by_line.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/oca_sample/sale-workflow/sale_procurement_group_by_line/__init__.py:3: in <module>
+    from . import model
+tests/oca_sample/sale-workflow/sale_procurement_group_by_line/model/__init__.py:3: in <module>
+    from . import sale
+tests/oca_sample/sale-workflow/sale_procurement_group_by_line/model/sale.py:6: in <module>
+    from odoo import fields, models
+E   ModuleNotFoundError: No module named 'odoo'
+_ ERROR collecting tests/oca_sample/sale-workflow/sale_product_set/tests/test_product_set.py _
+ImportError while importing test module '/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/sale-workflow/sale_product_set/tests/test_product_set.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/oca_sample/sale-workflow/sale_product_set/__init__.py:1: in <module>
+    from . import models
+tests/oca_sample/sale-workflow/sale_product_set/models/__init__.py:1: in <module>
+    from . import product_set_line
+tests/oca_sample/sale-workflow/sale_product_set/models/product_set_line.py:4: in <module>
+    from odoo import fields, models
+E   ModuleNotFoundError: No module named 'odoo'
+_ ERROR collecting tests/oca_sample/sale-workflow/sale_sourced_by_line/tests/test_sale_sourced_by_line.py _
+ImportError while importing test module '/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/sale-workflow/sale_sourced_by_line/tests/test_sale_sourced_by_line.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/oca_sample/sale-workflow/sale_sourced_by_line/__init__.py:6: in <module>
+    from . import model
+tests/oca_sample/sale-workflow/sale_sourced_by_line/model/__init__.py:6: in <module>
+    from . import sale
+tests/oca_sample/sale-workflow/sale_sourced_by_line/model/sale.py:7: in <module>
+    from odoo import fields, models
+E   ModuleNotFoundError: No module named 'odoo'
+_ ERROR collecting tests/oca_sample/sale-workflow/sale_triple_discount/tests/test_sale_triple_discount.py _
+ImportError while importing test module '/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/sale-workflow/sale_triple_discount/tests/test_sale_triple_discount.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/oca_sample/sale-workflow/sale_triple_discount/__init__.py:1: in <module>
+    from . import models
+tests/oca_sample/sale-workflow/sale_triple_discount/models/__init__.py:1: in <module>
+    from . import sale_order_line
+tests/oca_sample/sale-workflow/sale_triple_discount/models/sale_order_line.py:6: in <module>
+    from odoo import _, api, fields, models
+E   ModuleNotFoundError: No module named 'odoo'
+_ ERROR collecting tests/oca_sample/server-tools/tracking_manager/tests/test_mail_tracking_value.py _
+ImportError while importing test module '/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/server-tools/tracking_manager/tests/test_mail_tracking_value.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/oca_sample/server-tools/tracking_manager/__init__.py:1: in <module>
+    from . import models
+tests/oca_sample/server-tools/tracking_manager/models/__init__.py:1: in <module>
+    from . import mail_thread
+tests/oca_sample/server-tools/tracking_manager/models/mail_thread.py:5: in <module>
+    from odoo import models, tools
+E   ModuleNotFoundError: No module named 'odoo'
+_ ERROR collecting tests/oca_sample/stock-logistics-warehouse/scrap_reason_code/tests/test_scrap_reason_code.py _
+ImportError while importing test module '/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/stock-logistics-warehouse/scrap_reason_code/tests/test_scrap_reason_code.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/oca_sample/stock-logistics-warehouse/scrap_reason_code/__init__.py:3: in <module>
+    from . import models
+tests/oca_sample/stock-logistics-warehouse/scrap_reason_code/models/__init__.py:3: in <module>
+    from . import reason_code
+tests/oca_sample/stock-logistics-warehouse/scrap_reason_code/models/reason_code.py:6: in <module>
+    from odoo import fields, models
+E   ModuleNotFoundError: No module named 'odoo'
+_ ERROR collecting tests/oca_sample/stock-logistics-warehouse/stock_account_change_qty_reason/tests/test_stock_account_change_qty_reason.py _
+ImportError while importing test module '/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/stock-logistics-warehouse/stock_account_change_qty_reason/tests/test_stock_account_change_qty_reason.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/oca_sample/stock-logistics-warehouse/stock_account_change_qty_reason/__init__.py:1: in <module>
+    from . import models
+tests/oca_sample/stock-logistics-warehouse/stock_account_change_qty_reason/models/__init__.py:1: in <module>
+    from . import stock_quant_reason
+tests/oca_sample/stock-logistics-warehouse/stock_account_change_qty_reason/models/stock_quant_reason.py:3: in <module>
+    from odoo import fields, models
+E   ModuleNotFoundError: No module named 'odoo'
+_ ERROR collecting tests/oca_sample/stock-logistics-warehouse/stock_demand_estimate_matrix/tests/test_stock_demand_estimate.py _
+ImportError while importing test module '/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/stock-logistics-warehouse/stock_demand_estimate_matrix/tests/test_stock_demand_estimate.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/oca_sample/stock-logistics-warehouse/stock_demand_estimate_matrix/__init__.py:1: in <module>
+    from . import models
+tests/oca_sample/stock-logistics-warehouse/stock_demand_estimate_matrix/models/__init__.py:1: in <module>
+    from . import stock_demand_estimate
+tests/oca_sample/stock-logistics-warehouse/stock_demand_estimate_matrix/models/stock_demand_estimate.py:4: in <module>
+    from odoo import api, fields, models
+E   ModuleNotFoundError: No module named 'odoo'
+_ ERROR collecting tests/oca_sample/stock-logistics-warehouse/stock_inventory_discrepancy/tests/test_inventory_discrepancy.py _
+ImportError while importing test module '/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/stock-logistics-warehouse/stock_inventory_discrepancy/tests/test_inventory_discrepancy.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/oca_sample/stock-logistics-warehouse/stock_inventory_discrepancy/__init__.py:3: in <module>
+    from . import models
+tests/oca_sample/stock-logistics-warehouse/stock_inventory_discrepancy/models/__init__.py:3: in <module>
+    from . import stock_quant
+tests/oca_sample/stock-logistics-warehouse/stock_inventory_discrepancy/models/stock_quant.py:3: in <module>
+    from odoo import _, api, fields, models
+E   ModuleNotFoundError: No module named 'odoo'
+_ ERROR collecting tests/oca_sample/stock-logistics-warehouse/stock_inventory_preparation_filter/tests/test_stock_inventory_preparation_filter.py _
+ImportError while importing test module '/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/stock-logistics-warehouse/stock_inventory_preparation_filter/tests/test_stock_inventory_preparation_filter.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/oca_sample/stock-logistics-warehouse/stock_inventory_preparation_filter/__init__.py:1: in <module>
+    from . import models
+tests/oca_sample/stock-logistics-warehouse/stock_inventory_preparation_filter/models/__init__.py:1: in <module>
+    from . import stock_inventory
+tests/oca_sample/stock-logistics-warehouse/stock_inventory_preparation_filter/models/stock_inventory.py:6: in <module>
+    from odoo import fields, models
+E   ModuleNotFoundError: No module named 'odoo'
+_ ERROR collecting tests/oca_sample/stock-logistics-warehouse/stock_move_location/tests/test_common.py _
+ImportError while importing test module '/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/stock-logistics-warehouse/stock_move_location/tests/test_common.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/oca_sample/stock-logistics-warehouse/stock_move_location/__init__.py:1: in <module>
+    from . import wizard
+tests/oca_sample/stock-logistics-warehouse/stock_move_location/wizard/__init__.py:5: in <module>
+    from . import stock_move_location
+tests/oca_sample/stock-logistics-warehouse/stock_move_location/wizard/stock_move_location.py:7: in <module>
+    from odoo import Command, api, fields, models
+E   ModuleNotFoundError: No module named 'odoo'
+_ ERROR collecting tests/oca_sample/stock-logistics-warehouse/stock_move_location/tests/test_move_location.py _
+ImportError while importing test module '/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/stock-logistics-warehouse/stock_move_location/tests/test_move_location.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/oca_sample/stock-logistics-warehouse/stock_move_location/__init__.py:1: in <module>
+    from . import wizard
+tests/oca_sample/stock-logistics-warehouse/stock_move_location/wizard/__init__.py:5: in <module>
+    from . import stock_move_location
+tests/oca_sample/stock-logistics-warehouse/stock_move_location/wizard/stock_move_location.py:7: in <module>
+    from odoo import Command, api, fields, models
+E   ModuleNotFoundError: No module named 'odoo'
+_ ERROR collecting tests/oca_sample/stock-logistics-warehouse/stock_picking_procure_method/tests/test_stock_picking_procure_method.py _
+ImportError while importing test module '/media/donnee/projets/odoo-ia-prototype/tests/oca_sample/stock-logistics-warehouse/stock_picking_procure_method/tests/test_stock_picking_procure_method.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/oca_sample/stock-logistics-warehouse/stock_picking_procure_method/__init__.py:1: in <module>
+    from . import models
+tests/oca_sample/stock-logistics-warehouse/stock_picking_procure_method/models/__init__.py:1: in <module>
+    from . import stock_picking
+tests/oca_sample/stock-logistics-warehouse/stock_picking_procure_method/models/stock_picking.py:5: in <module>
+    from odoo import api, fields, models
+E   ModuleNotFoundError: No module named 'odoo'
+=================================== FAILURES ===================================
+___ ResolverDecisionTests.test_graph_label_mutation_invalidates_memory_index ___
+[gw2] linux -- Python 3.13.5 /media/donnee/projets/odoo-ia-prototype/.venv/bin/python3
+
+self = <tests.test_resolver_decision_regressions.ResolverDecisionTests testMethod=test_graph_label_mutation_invalidates_memory_index>
+
+    def test_graph_label_mutation_invalidates_memory_index(self):
+>       self.semantic.rank_semantic_model_candidates_scored('question', self.graph, self.provider)
+
+tests/test_resolver_decision_regressions.py:155: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+code_intelligence/agent/semantic_retrieval.py:138: in rank_semantic_model_candidates_scored
+    documents = _model_documents(graph, language)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+graph = <tests.test_resolver_decision_regressions.Graph object at 0x7fae42f90b00>
+language = None
+
+    def _model_documents(graph, language=None) -> List[Tuple[str, str]]:
+        """One document per model card and per menu card, each attributed to the models it opens."""
+>       projector = ModelProjector(graph)
+                    ^^^^^^^^^^^^^^
+E       NameError: name 'ModelProjector' is not defined
+
+code_intelligence/agent/semantic_retrieval.py:47: NameError
+____ ResolverDecisionTests.test_identical_query_and_graph_reuse_embeddings _____
+[gw2] linux -- Python 3.13.5 /media/donnee/projets/odoo-ia-prototype/.venv/bin/python3
+
+self = <tests.test_resolver_decision_regressions.ResolverDecisionTests testMethod=test_identical_query_and_graph_reuse_embeddings>
+
+    def test_identical_query_and_graph_reuse_embeddings(self):
+>       self.semantic.rank_semantic_model_candidates_scored('question', self.graph, self.provider)
+
+tests/test_resolver_decision_regressions.py:161: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+code_intelligence/agent/semantic_retrieval.py:138: in rank_semantic_model_candidates_scored
+    documents = _model_documents(graph, language)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+graph = <tests.test_resolver_decision_regressions.Graph object at 0x7fae4300e470>
+language = None
+
+    def _model_documents(graph, language=None) -> List[Tuple[str, str]]:
+        """One document per model card and per menu card, each attributed to the models it opens."""
+>       projector = ModelProjector(graph)
+                    ^^^^^^^^^^^^^^
+E       NameError: name 'ModelProjector' is not defined
+
+code_intelligence/agent/semantic_retrieval.py:47: NameError
+=============================== warnings summary ===============================
+tests/document_rag/test_chroma_manager.py: 33 warnings
+tests/document_rag/test_ingestion.py: 16 warnings
+  /media/donnee/projets/odoo-ia-prototype/.venv/lib/python3.13/site-packages/chromadb/api/types.py:945: DeprecationWarning: The class LocalServerEmbeddingFunction does not implement get_config(). This will be required in a future version.
+    or self.get_config() is NotImplemented
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_resolver_decision_regressions.py::ResolverDecisionTests::test_graph_label_mutation_invalidates_memory_index
+FAILED tests/test_resolver_decision_regressions.py::ResolverDecisionTests::test_identical_query_and_graph_reuse_embeddings
+ERROR tests/oca_sample/account-financial-reporting/account_financial_report/tests/test_journal_ledger.py
+ERROR tests/oca_sample/account-invoicing/account_invoice_triple_discount/tests/test_invoice_triple_discount.py
+ERROR tests/oca_sample/account-invoicing/account_invoice_discount_display_amount/tests/test_account_move.py
+ERROR tests/oca_sample/account-invoicing/account_invoice_discount_display_amount/tests/test_account_move_line.py
+ERROR tests/oca_sample/account-invoicing/account_manual_currency/tests/test_account_manual_currency.py
+ERROR tests/oca_sample/account-invoicing/partner_invoicing_mode/tests/test_invoice_mode.py
+ERROR tests/oca_sample/hr/hr_course/tests/test_hr_course.py - ImportError whi...
+ERROR tests/oca_sample/hr/hr_employee_calendar_planning/tests/test_hr_employee_calendar_planning.py
+ERROR tests/oca_sample/hr/hr_employee_firstname/tests/test_hr_employee_firstname.py
+ERROR tests/oca_sample/hr/hr_employee_medical_examination/tests/test_hr_employee_medical_examination.py
+ERROR tests/oca_sample/hr/hr_employee_second_lastname/tests/test_hr_employee_second_lastname.py
+ERROR tests/oca_sample/partner-contact-management/partner_firstname/tests/test_copy.py
+ERROR tests/oca_sample/partner-contact-management/partner_second_lastname/tests/test_name.py
+ERROR tests/oca_sample/project/project_milestone_status/tests/test_project_milestone_status.py
+ERROR tests/oca_sample/project/project_milestone_status/tests/test_project_status.py
+ERROR tests/oca_sample/purchase-workflow/purchase_advance_payment_line/tests/test_purchase_advance_payment_line.py
+ERROR tests/oca_sample/purchase-workflow/purchase_delivery_split_date/tests/test_purchase_delivery.py
+ERROR tests/oca_sample/purchase-workflow/purchase_invoice_status_line/tests/test_purchase_invoice_status_line.py
+ERROR tests/oca_sample/purchase-workflow/purchase_manual_delivery/tests/test_purchase_manual_delivery.py
+ERROR tests/oca_sample/purchase-workflow/purchase_manual_delivery/tests/test_report_forecast.py
+ERROR tests/oca_sample/purchase-workflow/purchase_order_line_deep_sort/tests/test_purchase_order_line_deep_sort.py
+ERROR tests/oca_sample/purchase-workflow/purchase_order_line_sequence/tests/test_po_lines_sequence.py
+ERROR tests/oca_sample/purchase-workflow/purchase_order_type/tests/test_purchase_order_type.py
+ERROR tests/oca_sample/purchase-workflow/purchase_order_type_dashboard/tests/test_purchase_order_type_dashboard.py
+ERROR tests/oca_sample/purchase-workflow/purchase_order_uninvoiced_amount_line/tests/test_purchase_order_line_uninvoiced_amount.py
+ERROR tests/oca_sample/purchase-workflow/purchase_reception_status_line/tests/test_purchase_receipt_status_line.py
+ERROR tests/oca_sample/purchase-workflow/purchase_request/tests/test_purchase_request_allocation.py
+ERROR tests/oca_sample/purchase-workflow/purchase_request/tests/test_purchase_request_to_rfq.py
+ERROR tests/oca_sample/purchase-workflow/purchase_triple_discount/tests/test_purchase_discount.py
+ERROR tests/oca_sample/reporting-engine/bi_view_editor/tests/test_bi_view.py
+ERROR tests/oca_sample/reporting-engine/kpi/tests/test_kpi.py - ImportError w...
+ERROR tests/oca_sample/sale-workflow/sale_delivery_split_date/tests/test_sale_delivery.py
+ERROR tests/oca_sample/sale-workflow/sale_fixed_discount/tests/test_sale_fixed_discount.py
+ERROR tests/oca_sample/sale-workflow/sale_order_line_date/tests/test_sale_order_line_date.py
+ERROR tests/oca_sample/sale-workflow/sale_order_product_availability_inline/tests/test_sale_order_product_availability_inline.py
+ERROR tests/oca_sample/sale-workflow/sale_payment_sheet/tests/test_sale_payment_sheet.py
+ERROR tests/oca_sample/sale-workflow/sale_procurement_group_by_line/tests/test_sale_procurement_group_by_line.py
+ERROR tests/oca_sample/sale-workflow/sale_product_set/tests/test_product_set.py
+ERROR tests/oca_sample/sale-workflow/sale_sourced_by_line/tests/test_sale_sourced_by_line.py
+ERROR tests/oca_sample/sale-workflow/sale_triple_discount/tests/test_sale_triple_discount.py
+ERROR tests/oca_sample/server-tools/tracking_manager/tests/test_mail_tracking_value.py
+ERROR tests/oca_sample/stock-logistics-warehouse/scrap_reason_code/tests/test_scrap_reason_code.py
+ERROR tests/oca_sample/stock-logistics-warehouse/stock_account_change_qty_reason/tests/test_stock_account_change_qty_reason.py
+ERROR tests/oca_sample/stock-logistics-warehouse/stock_demand_estimate_matrix/tests/test_stock_demand_estimate.py
+ERROR tests/oca_sample/stock-logistics-warehouse/stock_inventory_discrepancy/tests/test_inventory_discrepancy.py
+ERROR tests/oca_sample/stock-logistics-warehouse/stock_inventory_preparation_filter/tests/test_stock_inventory_preparation_filter.py
+ERROR tests/oca_sample/stock-logistics-warehouse/stock_move_location/tests/test_common.py
+ERROR tests/oca_sample/stock-logistics-warehouse/stock_move_location/tests/test_move_location.py
+ERROR tests/oca_sample/stock-logistics-warehouse/stock_picking_procure_method/tests/test_stock_picking_procure_method.py
+2 failed, 533 passed, 49 warnings, 49 errors, 4 subtests passed in 596.37s (0:09:56)
