@@ -1,0 +1,1154 @@
+...F....FF.....FF.F.....F.........FF..F.F...F.........FF...........FF... [ 25%]
+.FF.F........EEEEEEEEEEEEEFF............................................ [ 50%]
+........................................................................ [ 75%]
+..........................F...F..............F.FF......F....F.......F    [100%]
+==================================== ERRORS ====================================
+_ ERROR collecting code_intelligence/tests/test_t5_expected_failures_are_logged.py _
+ImportError while importing test module '/home/user/odoo-ia-prototype/code_intelligence/tests/test_t5_expected_failures_are_logged.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+code_intelligence/tests/test_t5_expected_failures_are_logged.py:9: in <module>
+    from code_intelligence.rules.security_locks import _extract_has_group_xmlids_from_source
+E   ImportError: cannot import name '_extract_has_group_xmlids_from_source' from 'code_intelligence.rules.security_locks' (/home/user/odoo-ia-prototype/code_intelligence/rules/security_locks.py)
+_ ERROR at setup of test_scoped_only_guards_receive_scoped_output[_backfill_missing_required_groups] _
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7ff32751be50>
+
+    @pytest.fixture
+    def recorded_calls(monkeypatch):
+        calls = {}
+    
+        def install(name):
+            def recorder(answer, *args, **kwargs):
+                calls.setdefault(name, []).append(args)
+                return answer
+            recorder.__name__ = name
+            monkeypatch.setattr(postprocess, name, recorder)
+    
+        for name in _SCOPED_ONLY_GUARDS:
+>           install(name)
+
+tests/test_bug2_backfill_scoped_output_wiring.py:62: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = '_backfill_missing_required_groups'
+
+    def install(name):
+        def recorder(answer, *args, **kwargs):
+            calls.setdefault(name, []).append(args)
+            return answer
+        recorder.__name__ = name
+>       monkeypatch.setattr(postprocess, name, recorder)
+E       AttributeError: <module 'code_intelligence.agent.postprocess' from '/home/user/odoo-ia-prototype/code_intelligence/agent/postprocess.py'> has no attribute '_backfill_missing_required_groups'
+
+tests/test_bug2_backfill_scoped_output_wiring.py:59: AttributeError
+_ ERROR at setup of test_scoped_only_guards_receive_scoped_output[_backfill_missing_security_lock_amount] _
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7ff32751bf10>
+
+    @pytest.fixture
+    def recorded_calls(monkeypatch):
+        calls = {}
+    
+        def install(name):
+            def recorder(answer, *args, **kwargs):
+                calls.setdefault(name, []).append(args)
+                return answer
+            recorder.__name__ = name
+            monkeypatch.setattr(postprocess, name, recorder)
+    
+        for name in _SCOPED_ONLY_GUARDS:
+>           install(name)
+
+tests/test_bug2_backfill_scoped_output_wiring.py:62: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = '_backfill_missing_required_groups'
+
+    def install(name):
+        def recorder(answer, *args, **kwargs):
+            calls.setdefault(name, []).append(args)
+            return answer
+        recorder.__name__ = name
+>       monkeypatch.setattr(postprocess, name, recorder)
+E       AttributeError: <module 'code_intelligence.agent.postprocess' from '/home/user/odoo-ia-prototype/code_intelligence/agent/postprocess.py'> has no attribute '_backfill_missing_required_groups'
+
+tests/test_bug2_backfill_scoped_output_wiring.py:59: AttributeError
+_ ERROR at setup of test_scoped_only_guards_receive_scoped_output[_backfill_missing_override_modules] _
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7ff327510a50>
+
+    @pytest.fixture
+    def recorded_calls(monkeypatch):
+        calls = {}
+    
+        def install(name):
+            def recorder(answer, *args, **kwargs):
+                calls.setdefault(name, []).append(args)
+                return answer
+            recorder.__name__ = name
+            monkeypatch.setattr(postprocess, name, recorder)
+    
+        for name in _SCOPED_ONLY_GUARDS:
+>           install(name)
+
+tests/test_bug2_backfill_scoped_output_wiring.py:62: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = '_backfill_missing_required_groups'
+
+    def install(name):
+        def recorder(answer, *args, **kwargs):
+            calls.setdefault(name, []).append(args)
+            return answer
+        recorder.__name__ = name
+>       monkeypatch.setattr(postprocess, name, recorder)
+E       AttributeError: <module 'code_intelligence.agent.postprocess' from '/home/user/odoo-ia-prototype/code_intelligence/agent/postprocess.py'> has no attribute '_backfill_missing_required_groups'
+
+tests/test_bug2_backfill_scoped_output_wiring.py:59: AttributeError
+_ ERROR at setup of test_scoped_only_guards_receive_scoped_output[_correct_override_cascade_contradictions] _
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7ff327535890>
+
+    @pytest.fixture
+    def recorded_calls(monkeypatch):
+        calls = {}
+    
+        def install(name):
+            def recorder(answer, *args, **kwargs):
+                calls.setdefault(name, []).append(args)
+                return answer
+            recorder.__name__ = name
+            monkeypatch.setattr(postprocess, name, recorder)
+    
+        for name in _SCOPED_ONLY_GUARDS:
+>           install(name)
+
+tests/test_bug2_backfill_scoped_output_wiring.py:62: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = '_backfill_missing_required_groups'
+
+    def install(name):
+        def recorder(answer, *args, **kwargs):
+            calls.setdefault(name, []).append(args)
+            return answer
+        recorder.__name__ = name
+>       monkeypatch.setattr(postprocess, name, recorder)
+E       AttributeError: <module 'code_intelligence.agent.postprocess' from '/home/user/odoo-ia-prototype/code_intelligence/agent/postprocess.py'> has no attribute '_backfill_missing_required_groups'
+
+tests/test_bug2_backfill_scoped_output_wiring.py:59: AttributeError
+_ ERROR at setup of test_scoped_only_guards_receive_scoped_output[_backfill_missing_override_chain_amount] _
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7ff32753af50>
+
+    @pytest.fixture
+    def recorded_calls(monkeypatch):
+        calls = {}
+    
+        def install(name):
+            def recorder(answer, *args, **kwargs):
+                calls.setdefault(name, []).append(args)
+                return answer
+            recorder.__name__ = name
+            monkeypatch.setattr(postprocess, name, recorder)
+    
+        for name in _SCOPED_ONLY_GUARDS:
+>           install(name)
+
+tests/test_bug2_backfill_scoped_output_wiring.py:62: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = '_backfill_missing_required_groups'
+
+    def install(name):
+        def recorder(answer, *args, **kwargs):
+            calls.setdefault(name, []).append(args)
+            return answer
+        recorder.__name__ = name
+>       monkeypatch.setattr(postprocess, name, recorder)
+E       AttributeError: <module 'code_intelligence.agent.postprocess' from '/home/user/odoo-ia-prototype/code_intelligence/agent/postprocess.py'> has no attribute '_backfill_missing_required_groups'
+
+tests/test_bug2_backfill_scoped_output_wiring.py:59: AttributeError
+_ ERROR at setup of test_scoped_only_guards_receive_scoped_output[_backfill_missing_trigger_condition_literals] _
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7ff3275117d0>
+
+    @pytest.fixture
+    def recorded_calls(monkeypatch):
+        calls = {}
+    
+        def install(name):
+            def recorder(answer, *args, **kwargs):
+                calls.setdefault(name, []).append(args)
+                return answer
+            recorder.__name__ = name
+            monkeypatch.setattr(postprocess, name, recorder)
+    
+        for name in _SCOPED_ONLY_GUARDS:
+>           install(name)
+
+tests/test_bug2_backfill_scoped_output_wiring.py:62: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = '_backfill_missing_required_groups'
+
+    def install(name):
+        def recorder(answer, *args, **kwargs):
+            calls.setdefault(name, []).append(args)
+            return answer
+        recorder.__name__ = name
+>       monkeypatch.setattr(postprocess, name, recorder)
+E       AttributeError: <module 'code_intelligence.agent.postprocess' from '/home/user/odoo-ia-prototype/code_intelligence/agent/postprocess.py'> has no attribute '_backfill_missing_required_groups'
+
+tests/test_bug2_backfill_scoped_output_wiring.py:59: AttributeError
+_ ERROR at setup of test_scoped_only_guards_receive_scoped_output[_backfill_missing_hardcoded_id_literals] _
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7ff3274b4550>
+
+    @pytest.fixture
+    def recorded_calls(monkeypatch):
+        calls = {}
+    
+        def install(name):
+            def recorder(answer, *args, **kwargs):
+                calls.setdefault(name, []).append(args)
+                return answer
+            recorder.__name__ = name
+            monkeypatch.setattr(postprocess, name, recorder)
+    
+        for name in _SCOPED_ONLY_GUARDS:
+>           install(name)
+
+tests/test_bug2_backfill_scoped_output_wiring.py:62: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = '_backfill_missing_required_groups'
+
+    def install(name):
+        def recorder(answer, *args, **kwargs):
+            calls.setdefault(name, []).append(args)
+            return answer
+        recorder.__name__ = name
+>       monkeypatch.setattr(postprocess, name, recorder)
+E       AttributeError: <module 'code_intelligence.agent.postprocess' from '/home/user/odoo-ia-prototype/code_intelligence/agent/postprocess.py'> has no attribute '_backfill_missing_required_groups'
+
+tests/test_bug2_backfill_scoped_output_wiring.py:59: AttributeError
+_ ERROR at setup of test_scoped_only_guards_receive_scoped_output[_backfill_missing_unguarded_super] _
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7ff32750c610>
+
+    @pytest.fixture
+    def recorded_calls(monkeypatch):
+        calls = {}
+    
+        def install(name):
+            def recorder(answer, *args, **kwargs):
+                calls.setdefault(name, []).append(args)
+                return answer
+            recorder.__name__ = name
+            monkeypatch.setattr(postprocess, name, recorder)
+    
+        for name in _SCOPED_ONLY_GUARDS:
+>           install(name)
+
+tests/test_bug2_backfill_scoped_output_wiring.py:62: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = '_backfill_missing_required_groups'
+
+    def install(name):
+        def recorder(answer, *args, **kwargs):
+            calls.setdefault(name, []).append(args)
+            return answer
+        recorder.__name__ = name
+>       monkeypatch.setattr(postprocess, name, recorder)
+E       AttributeError: <module 'code_intelligence.agent.postprocess' from '/home/user/odoo-ia-prototype/code_intelligence/agent/postprocess.py'> has no attribute '_backfill_missing_required_groups'
+
+tests/test_bug2_backfill_scoped_output_wiring.py:59: AttributeError
+_ ERROR at setup of test_scoped_only_guards_receive_scoped_output[_backfill_link_guard_clarifications] _
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7ff32750cc10>
+
+    @pytest.fixture
+    def recorded_calls(monkeypatch):
+        calls = {}
+    
+        def install(name):
+            def recorder(answer, *args, **kwargs):
+                calls.setdefault(name, []).append(args)
+                return answer
+            recorder.__name__ = name
+            monkeypatch.setattr(postprocess, name, recorder)
+    
+        for name in _SCOPED_ONLY_GUARDS:
+>           install(name)
+
+tests/test_bug2_backfill_scoped_output_wiring.py:62: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = '_backfill_missing_required_groups'
+
+    def install(name):
+        def recorder(answer, *args, **kwargs):
+            calls.setdefault(name, []).append(args)
+            return answer
+        recorder.__name__ = name
+>       monkeypatch.setattr(postprocess, name, recorder)
+E       AttributeError: <module 'code_intelligence.agent.postprocess' from '/home/user/odoo-ia-prototype/code_intelligence/agent/postprocess.py'> has no attribute '_backfill_missing_required_groups'
+
+tests/test_bug2_backfill_scoped_output_wiring.py:59: AttributeError
+_ ERROR at setup of test_scoped_only_guards_receive_scoped_output[_flag_ungrounded_group_xmlids] _
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7ff3274ca850>
+
+    @pytest.fixture
+    def recorded_calls(monkeypatch):
+        calls = {}
+    
+        def install(name):
+            def recorder(answer, *args, **kwargs):
+                calls.setdefault(name, []).append(args)
+                return answer
+            recorder.__name__ = name
+            monkeypatch.setattr(postprocess, name, recorder)
+    
+        for name in _SCOPED_ONLY_GUARDS:
+>           install(name)
+
+tests/test_bug2_backfill_scoped_output_wiring.py:62: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = '_backfill_missing_required_groups'
+
+    def install(name):
+        def recorder(answer, *args, **kwargs):
+            calls.setdefault(name, []).append(args)
+            return answer
+        recorder.__name__ = name
+>       monkeypatch.setattr(postprocess, name, recorder)
+E       AttributeError: <module 'code_intelligence.agent.postprocess' from '/home/user/odoo-ia-prototype/code_intelligence/agent/postprocess.py'> has no attribute '_backfill_missing_required_groups'
+
+tests/test_bug2_backfill_scoped_output_wiring.py:59: AttributeError
+_ ERROR at setup of test_scoped_only_guards_receive_scoped_output[_strip_core_only_group_mentions] _
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7ff3274cbf10>
+
+    @pytest.fixture
+    def recorded_calls(monkeypatch):
+        calls = {}
+    
+        def install(name):
+            def recorder(answer, *args, **kwargs):
+                calls.setdefault(name, []).append(args)
+                return answer
+            recorder.__name__ = name
+            monkeypatch.setattr(postprocess, name, recorder)
+    
+        for name in _SCOPED_ONLY_GUARDS:
+>           install(name)
+
+tests/test_bug2_backfill_scoped_output_wiring.py:62: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = '_backfill_missing_required_groups'
+
+    def install(name):
+        def recorder(answer, *args, **kwargs):
+            calls.setdefault(name, []).append(args)
+            return answer
+        recorder.__name__ = name
+>       monkeypatch.setattr(postprocess, name, recorder)
+E       AttributeError: <module 'code_intelligence.agent.postprocess' from '/home/user/odoo-ia-prototype/code_intelligence/agent/postprocess.py'> has no attribute '_backfill_missing_required_groups'
+
+tests/test_bug2_backfill_scoped_output_wiring.py:59: AttributeError
+_ ERROR at setup of test_scoped_only_guards_receive_scoped_output[_backfill_missing_can_view_amount_fact] _
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7ff3274cb210>
+
+    @pytest.fixture
+    def recorded_calls(monkeypatch):
+        calls = {}
+    
+        def install(name):
+            def recorder(answer, *args, **kwargs):
+                calls.setdefault(name, []).append(args)
+                return answer
+            recorder.__name__ = name
+            monkeypatch.setattr(postprocess, name, recorder)
+    
+        for name in _SCOPED_ONLY_GUARDS:
+>           install(name)
+
+tests/test_bug2_backfill_scoped_output_wiring.py:62: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = '_backfill_missing_required_groups'
+
+    def install(name):
+        def recorder(answer, *args, **kwargs):
+            calls.setdefault(name, []).append(args)
+            return answer
+        recorder.__name__ = name
+>       monkeypatch.setattr(postprocess, name, recorder)
+E       AttributeError: <module 'code_intelligence.agent.postprocess' from '/home/user/odoo-ia-prototype/code_intelligence/agent/postprocess.py'> has no attribute '_backfill_missing_required_groups'
+
+tests/test_bug2_backfill_scoped_output_wiring.py:59: AttributeError
+_ ERROR at setup of test_scoped_only_guards_receive_scoped_output[_correct_security_lock_threshold_contradictions] _
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7ff3275431d0>
+
+    @pytest.fixture
+    def recorded_calls(monkeypatch):
+        calls = {}
+    
+        def install(name):
+            def recorder(answer, *args, **kwargs):
+                calls.setdefault(name, []).append(args)
+                return answer
+            recorder.__name__ = name
+            monkeypatch.setattr(postprocess, name, recorder)
+    
+        for name in _SCOPED_ONLY_GUARDS:
+>           install(name)
+
+tests/test_bug2_backfill_scoped_output_wiring.py:62: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+name = '_backfill_missing_required_groups'
+
+    def install(name):
+        def recorder(answer, *args, **kwargs):
+            calls.setdefault(name, []).append(args)
+            return answer
+        recorder.__name__ = name
+>       monkeypatch.setattr(postprocess, name, recorder)
+E       AttributeError: <module 'code_intelligence.agent.postprocess' from '/home/user/odoo-ia-prototype/code_intelligence/agent/postprocess.py'> has no attribute '_backfill_missing_required_groups'
+
+tests/test_bug2_backfill_scoped_output_wiring.py:59: AttributeError
+=================================== FAILURES ===================================
+__ TestSecurityLockEvidenceHardcodedLogins.test_positive_value_and_confidence __
+
+self = <code_intelligence.tests.test_bloc_b1_evidence_analyze_security_locks.TestSecurityLockEvidenceHardcodedLogins object at 0x7ff329a9f310>
+
+    def test_positive_value_and_confidence(self):
+        code = '_VALIDATEURS_EXCEPTIONNELS = ["admin@corp.com", "root@corp.com"]\n'
+        analysis = analyze_python_security_locks(code, "logins.py")
+        ev = next(e for e in analysis.evidence if e.source == "security_lock:logins.py:hardcoded_logins")
+        assert ev.value == ["admin@corp.com", "root@corp.com"]
+        assert ev.confidence == "HIGH"
+>       assert ev.scope == {}
+E       AssertionError: assert {'sensitive': True} == {}
+E         
+E         Left contains 1 more item:
+E         {'sensitive': True}
+E         Use -v to get more diff
+
+code_intelligence/tests/test_bloc_b1_evidence_analyze_security_locks.py:62: AssertionError
+________ TestSecurityLockEvidenceRequiredGroups.test_negative_explicit _________
+
+self = <code_intelligence.tests.test_bloc_b1_evidence_analyze_security_locks.TestSecurityLockEvidenceRequiredGroups object at 0x7ff329a9e690>
+
+    def test_negative_explicit(self):
+        code = "def foo(self):\n    return True\n"
+        analysis = analyze_python_security_locks(code, "nogrp.py")
+        grp_ev = next(e for e in analysis.evidence if e.source == "security_lock:nogrp.py:group")
+        assert grp_ev.value is None
+>       assert "contains no has_group() requirement" in grp_ev.claim
+E       assert 'contains no has_group() requirement' in "File 'nogrp.py' contains no extracted literal group check"
+E        +  where "File 'nogrp.py' contains no extracted literal group check" = Evidence(evidence_id='5447c7e8815611069738962439191243', source_type=<EvidenceSourceType.CODE: 'code'>, claim="File 'n...ains no extracted literal group check", value=None, source='security_lock:nogrp.py:group', confidence='HIGH', scope={}).claim
+
+code_intelligence/tests/test_bloc_b1_evidence_analyze_security_locks.py:126: AssertionError
+_ TestSecurityLockEvidenceRequiredGroups.test_module_level_has_group_omits_method_key _
+
+self = <code_intelligence.tests.test_bloc_b1_evidence_analyze_security_locks.TestSecurityLockEvidenceRequiredGroups object at 0x7ff329aa9390>
+
+    def test_module_level_has_group_omits_method_key(self):
+        code = "if env.user.has_group('base.group_system'):\n    pass\n"
+        analysis = analyze_python_security_locks(code, "modlevel.py")
+        grp_ev = next(e for e in analysis.evidence if e.source == "security_lock:modlevel.py:group:base.group_system")
+>       assert "method" not in grp_ev.scope
+E       assert 'method' not in {'method': '', 'lineno': 1, 'authorization_verdict': 'not_evaluated'}
+E        +  where {'method': '', 'lineno': 1, 'authorization_verdict': 'not_evaluated'} = Evidence(evidence_id='df88c55d6389bb97e1d4d478c93b2fe0', source_type=<EvidenceSourceType.CODE: 'code'>, claim="File 'm...oup:base.group_system', confidence='HIGH', scope={'method': '', 'lineno': 1, 'authorization_verdict': 'not_evaluated'}).scope
+
+code_intelligence/tests/test_bloc_b1_evidence_analyze_security_locks.py:132: AssertionError
+_________ test_marked_bypass_line_is_redacted_for_read_only_demandeur __________
+
+    def test_marked_bypass_line_is_redacted_for_read_only_demandeur():
+        G = _build_graph_with_acl("account.move", "account.group_account_manager")
+        observation = (
+            f"Analyse des verrous Python [Confiance: HIGH]:\n"
+            f"  - {SENSITIVE_BYPASS_MARKER} Logins/Emails privilegies en dur: ['admin@corp.com']"
+        )
+        gated_text, omitted = gate_observation(
+            tool_name="analyze_security_locks",
+            model_name="account.move",
+            observation=observation,
+            G=G,
+            user_groups=["some_other_group"],  # not a member of the write group
+        )
+        assert len(omitted) == 1
+>       assert "account.move" in omitted[0].label
+E       assert 'account.move' in 'Détail technique sensible'
+E        +  where 'Détail technique sensible' = OmittedItem(label='Détail technique sensible', reason="Élément omis pour raison d'autorisation : la politique de divulgation des preuves techniques ne confirme pas l’autorisation du demandeur.").label
+
+code_intelligence/tests/test_j23_24_authorization_gate.py:93: AssertionError
+________ test_marked_bypass_line_is_not_redacted_for_elevated_demandeur ________
+
+    def test_marked_bypass_line_is_not_redacted_for_elevated_demandeur():
+        G = _build_graph_with_acl("account.move", "account.group_account_manager")
+        observation = f"  - {SENSITIVE_BYPASS_MARKER} Logins/Emails privilegies en dur: ['admin@corp.com']"
+        gated_text, omitted = gate_observation(
+            tool_name="analyze_security_locks",
+            model_name="account.move",
+            observation=observation,
+            G=G,
+            user_groups=["account.group_account_manager"],  # has write/unlink
+        )
+>       assert omitted == []
+E       assert [OmittedItem(... demandeur.")] == []
+E         
+E         Left contains one more item: OmittedItem(label='Détail technique sensible', reason="Élément omis pour raison d'autorisation : la politique de divulgation des preuves techniques ne confirme pas l’autorisation du demandeur.")
+E         Use -v to get more diff
+
+code_intelligence/tests/test_j23_24_authorization_gate.py:111: AssertionError
+____________ test_gated_tool_all_authenticated_write_is_not_omitted ____________
+
+    def test_gated_tool_all_authenticated_write_is_not_omitted():
+        """An ACL granting write to all authenticated users means nobody is
+        gated on that model -- everyone already has management-level access."""
+        G = nx.DiGraph()
+        G.add_node("model:helpdesk.ticket", node_type="Model", name="helpdesk.ticket")
+        G.add_node(
+            "acl:helpdesk.ticket.access_all",
+            node_type="AccessEntry",
+            perm_read=True, perm_write=True, perm_create=True, perm_unlink=False,
+            all_authenticated=True,
+        )
+        G.add_edge("model:helpdesk.ticket", "acl:helpdesk.ticket.access_all", edge_type="GRANTED_BY")
+    
+        observation = f"  - {SENSITIVE_BYPASS_MARKER} SUDO détecté: Contournement des droits d'accès via sudo()"
+        gated_text, omitted = gate_observation(
+            tool_name="analyze_server_actions",
+            model_name="helpdesk.ticket",
+            observation=observation,
+            G=G,
+            user_groups=[],
+        )
+>       assert omitted == []
+E       assert [OmittedItem(... demandeur.")] == []
+E         
+E         Left contains one more item: OmittedItem(label='Détail technique sensible', reason="Élément omis pour raison d'autorisation : la politique de divulgation des preuves techniques ne confirme pas l’autorisation du demandeur.")
+E         Use -v to get more diff
+
+code_intelligence/tests/test_j23_24_authorization_gate.py:160: AssertionError
+___________ test_resolved_xmlid_correctly_recognizes_elevated_access ___________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7ff327620610>
+
+    def test_resolved_xmlid_correctly_recognizes_elevated_access(monkeypatch):
+        """
+        Same scenario, but with the group ID resolved to its xml_id first
+        (simulating _resolve_user_group_xmlids() called on the JWT's raw ID) --
+        elevated access must now be correctly recognized.
+        """
+        G = _build_graph_with_acl("account.move", "account.group_account_manager")
+        resolved_xmlids = ["account.group_account_manager"]  # id=42 resolved
+>       assert _has_elevated_access(G, "account.move", resolved_xmlids) is True
+E       AssertionError: assert False is True
+E        +  where False = _has_elevated_access(<networkx.classes.digraph.DiGraph object at 0x7ff327622050>, 'account.move', ['account.group_account_manager'])
+
+code_intelligence/tests/test_j23_24_group_id_xmlid_resolution.py:61: AssertionError
+_ TestAnalyzeMethodOverrideChainSurfacesSecurityConstraints.test_two_sites_each_get_their_own_group_requirement _
+
+self = <code_intelligence.tests.test_method_security_constraints.TestAnalyzeMethodOverrideChainSurfacesSecurityConstraints object at 0x7ff329ac7110>
+tmp_path = PosixPath('/tmp/pytest-of-user/pytest-6/test_two_sites_each_get_their_0')
+
+    def test_two_sites_each_get_their_own_group_requirement(self, tmp_path):
+        base_file = tmp_path / "base_mod.py"
+        base_file.write_text(textwrap.dedent("""\
+            class CustomDeepDocument(models.Model):
+                _name = 'custom.deep.document'
+    
+                def action_validate(self):
+                    if not self.env.user.has_group('base.group_user'):
+                        raise UserError("basic access required")
+                    return True
+        """))
+        override_file = tmp_path / "override_mod.py"
+        override_file.write_text(textwrap.dedent("""\
+            class CustomDeepDocument(models.Model):
+                _inherit = 'custom.deep.document'
+    
+                def action_validate(self):
+                    if not self.env.user.has_group('account.group_account_manager'):
+                        raise UserError("manager access required")
+                    return super().action_validate()
+        """))
+    
+        G = nx.DiGraph()
+        G.add_node(
+            "method:custom.deep.document.action_validate",
+            node_type="Method",
+            override_sites=[
+                {"module": "base_mod", "filepath": str(base_file), "lineno": 4, "end_lineno": 7},
+                {"module": "override_mod", "filepath": str(override_file), "lineno": 4, "end_lineno": 7},
+            ],
+        )
+    
+        report = analyze_method_override_chain(G, "custom.deep.document", "action_validate")
+    
+>       assert "VERROU RATTACHE AU SITE: has_group('base.group_user')" in report
+E       assert "VERROU RATTACHE AU SITE: has_group('base.group_user')" in "Chaîne de surcharge de 'custom.deep.document.action_validate' (2 modules, ordre d'exécution réel, pas l'ordre de dépe...té par cette heuristique pour ce module -- pas de branche non garante ni de chaîne relationnelle non vérifiée trouvée)"
+
+code_intelligence/tests/test_method_security_constraints.py:182: AssertionError
+_ TestAnalyzeMethodOverrideChainSurfacesSecurityConstraints.test_site_with_no_security_finding_still_shows_no_structural_risk_note _
+
+self = <code_intelligence.tests.test_method_security_constraints.TestAnalyzeMethodOverrideChainSurfacesSecurityConstraints object at 0x7ff329ac73d0>
+tmp_path = PosixPath('/tmp/pytest-of-user/pytest-6/test_site_with_no_security_fin0')
+
+    def test_site_with_no_security_finding_still_shows_no_structural_risk_note(self, tmp_path):
+        """A site with a real security lock but no unguarded-super/
+        relational-chain risk must still print the existing "no structural
+        risk" note for THOSE two checks -- the new security-constraint
+        line is additive, it must not silently replace or hide it."""
+        f = tmp_path / "clean_mod.py"
+        f.write_text(textwrap.dedent("""\
+            class CustomDeepDocument(models.Model):
+                _name = 'custom.deep.document'
+    
+                def action_validate(self):
+                    if not self.env.user.has_group('base.group_user'):
+                        raise UserError("basic access required")
+                    return True
+        """))
+    
+        G = nx.DiGraph()
+        G.add_node(
+            "method:custom.deep.document.action_validate",
+            node_type="Method",
+            override_sites=[
+                {"module": "clean_mod", "filepath": str(f), "lineno": 4, "end_lineno": 7},
+            ],
+        )
+    
+        report = analyze_method_override_chain(G, "custom.deep.document", "action_validate")
+    
+>       assert "VERROU RATTACHE AU SITE: has_group('base.group_user')" in report
+E       assert "VERROU RATTACHE AU SITE: has_group('base.group_user')" in "Chaîne de surcharge de 'custom.deep.document.action_validate' (1 modules, ordre d'exécution réel, pas l'ordre de dépe...té par cette heuristique pour ce module -- pas de branche non garante ni de chaîne relationnelle non vérifiée trouvée)"
+
+code_intelligence/tests/test_method_security_constraints.py:222: AssertionError
+_ TestHardcodedLockDetection.test_required_group_attributed_to_enclosing_method_not_file_wide_bloc9_native_odoo _
+
+self = <code_intelligence.tests.test_s2_5_semgrep_locks.TestHardcodedLockDetection object at 0x7ff329ad45d0>
+
+    def test_required_group_attributed_to_enclosing_method_not_file_wide_bloc9_native_odoo(self):
+        """2026-08-13 fix (check_native_odoo_out_of_scope.py, real run on
+        sale.order): required_groups used to be a flat, file-wide bag with
+        no method attribution. On the real sale_order.py, action_confirm()
+        has NO has_group() at all -- the file's only has_group() is in the
+        unrelated _should_be_locked() (post-confirmation read-only locking,
+        not a confirmation gate). The live agent attributed that group to
+        action_confirm() anyway and fabricated a nonexistent method name to
+        go with it. This fixture reproduces that exact two-method shape."""
+        code = textwrap.dedent("""\
+            from odoo import models
+    
+            class SaleOrder(models.Model):
+                _name = 'sale.order'
+    
+                def action_confirm(self):
+                    self.write({'state': 'sale'})
+                    self.filtered(lambda so: so._should_be_locked()).action_lock()
+                    return True
+    
+                def _should_be_locked(self):
+                    self.ensure_one()
+                    return self.create_uid.has_group('sale.group_auto_done_setting')
+        """)
+        analysis = analyze_python_security_locks(code, "addons/sale/models/sale_order.py")
+        assert analysis.required_groups == ["sale.group_auto_done_setting"]
+        assert analysis.required_group_methods == ["_should_be_locked"]
+>       attribution_line = next(
+            line for line in analysis.summary_text.splitlines()
+            if "has_group('sale.group_auto_done_setting')" in line and "se trouve dans" in line
+        )
+E       StopIteration
+
+code_intelligence/tests/test_s2_5_semgrep_locks.py:85: StopIteration
+_ TestHardcodedLockDetection.test_has_group_outside_any_def_leaves_method_name_empty _
+
+self = <code_intelligence.tests.test_s2_5_semgrep_locks.TestHardcodedLockDetection object at 0x7ff329ad4d50>
+
+    def test_has_group_outside_any_def_leaves_method_name_empty(self):
+        """A has_group() call outside any def -- e.g. inside a field's
+        `default=lambda ...` at class-body level, a real, common Odoo
+        pattern -- must record "" as its method (a Lambda is not a
+        FunctionDef, so it never pushes onto _function_stack) rather than
+        guessing or leaving the two lists misaligned."""
+        code = textwrap.dedent("""\
+            from odoo import models, fields
+    
+            class CustomModel(models.Model):
+                _name = 'custom.model'
+                is_manager = fields.Boolean(
+                    default=lambda self: self.env.user.has_group('base.group_user')
+                )
+        """)
+        analysis = analyze_python_security_locks(code, "custom_model/models/custom_model.py")
+        assert analysis.required_groups == ["base.group_user"]
+        assert analysis.required_group_methods == [""]
+>       assert "niveau module" in analysis.summary_text
+E       AssertionError: assert 'niveau module' in 'Analyse des verrous Python ([custom_model.py:L1-L7](file://custom_model/models/custom_model.py#L1-L7)) [Confiance: ÉL...-L6](file://custom_model/models/custom_model.py#L6-L6))\n  - Aucun verrou spécifique ni incertitude dynamique détecté.'
+E        +  where 'Analyse des verrous Python ([custom_model.py:L1-L7](file://custom_model/models/custom_model.py#L1-L7)) [Confiance: ÉL...-L6](file://custom_model/models/custom_model.py#L6-L6))\n  - Aucun verrou spécifique ni incertitude dynamique détecté.' = PythonSecurityLockAnalysis(filepath='custom_model/models/custom_model.py', has_hardcoded_logins=False, hardcoded_login...value=None, source='security_lock:custom_model/models/custom_model.py:dynamic_dispatch', confidence='HIGH', scope={})]).summary_text
+
+code_intelligence/tests/test_s2_5_semgrep_locks.py:134: AssertionError
+_ TestHardcodedLockDetection.test_link_guard_field_detected_on_real_asset_loan_shape_bloc9_05c _
+
+self = <code_intelligence.tests.test_s2_5_semgrep_locks.TestHardcodedLockDetection object at 0x7ff329ad6490>
+
+    def test_link_guard_field_detected_on_real_asset_loan_shape_bloc9_05c(self):
+        """ gap, part 2 (module 5/8, 2026-08-10, ):
+        beyond capturing the raw condition text (previous test), the
+        analyzer must also detect the specific short-circuit-guard SHAPE --
+        a bare truthiness check on a relational field as the first `and`
+        operand -- and surface it as a computed field name, since a live
+        run showed the synthesis LLM misreading the short-circuit direction
+        even with the raw condition text quoted to it verbatim. Same
+        source shape as the real asset_loan.py module."""
+        code = textwrap.dedent("""\
+            from odoo import models, fields, api
+            from odoo.exceptions import UserError
+    
+    
+            class CustomAssetLoan(models.Model):
+                _name = 'custom.asset.loan'
+    
+                def action_demarrer(self):
+                    for rec in self:
+                        if rec.demande_achat_liee_id and rec.demande_achat_liee_id.montant_estime > 2000:
+                            if rec.demande_achat_liee_id.demandeur_id == rec.beneficiaire_id:
+                                raise UserError(
+                                    "Separation des roles requise : le beneficiaire d'un materiel de plus "
+                                    "de 2000 euros doit etre different du demandeur initial."
+                                )
+                        rec.etat = 'en_cours'
+        """)
+        analysis = analyze_python_security_locks(code, "custom_asset_loan/models/asset_loan.py")
+        assert len(analysis.exception_guard_fields) == 1
+        assert analysis.exception_guard_fields[0] == "rec.demande_achat_liee_id"
+        assert "[GARDE DE LIEN:" in analysis.summary_text
+        assert "court-circuit" in analysis.summary_text
+>       assert "NE S'APPLIQUE PAS" in analysis.summary_text
+E       assert "NE S'APPLIQUE PAS" in "Analyse des verrous Python ([asset_loan.py:L1-L16](file://custom_asset_loan/models/asset_loan.py#L1-L16)) [Confiance:...che a droite d'un 'and') -- la regle ci-dessus NE S’APPLIQUE PAS dans ce cas, quel que soit le reste de la condition.]"
+E        +  where "Analyse des verrous Python ([asset_loan.py:L1-L16](file://custom_asset_loan/models/asset_loan.py#L1-L16)) [Confiance:...che a droite d'un 'and') -- la regle ci-dessus NE S’APPLIQUE PAS dans ce cas, quel que soit le reste de la condition.]" = PythonSecurityLockAnalysis(filepath='custom_asset_loan/models/asset_loan.py', has_hardcoded_logins=False, hardcoded_lo...ue=None, source='security_lock:custom_asset_loan/models/asset_loan.py:dynamic_dispatch', confidence='HIGH', scope={})]).summary_text
+
+code_intelligence/tests/test_s2_5_semgrep_locks.py:243: AssertionError
+_ TestRequiredGroupAltConditionsExtraction.test_summary_text_states_group_is_not_the_only_path _
+
+self = <code_intelligence.tests.test_security_or_disjunct_group_check.TestRequiredGroupAltConditionsExtraction object at 0x7ff329ae5510>
+
+    def test_summary_text_states_group_is_not_the_only_path(self):
+        analysis = analyze_python_security_locks(APPROVAL_ALLOWED_SOURCE, "purchase_order.py")
+>       assert "N'EST PAS le seul chemin" in analysis.summary_text
+E       assert "N'EST PAS le seul chemin" in 'Analyse des verrous Python ([purchase_order.py:L1-L9](file://purchase_order.py#L1-L9)) [Confiance: ÉLEVÉE]:\n  - Véri...rchase_order.py:L9-L9](file://purchase_order.py#L9-L9))\n  - Aucun verrou spécifique ni incertitude dynamique détecté.'
+E        +  where 'Analyse des verrous Python ([purchase_order.py:L1-L9](file://purchase_order.py#L1-L9)) [Confiance: ÉLEVÉE]:\n  - Véri...rchase_order.py:L9-L9](file://purchase_order.py#L9-L9))\n  - Aucun verrou spécifique ni incertitude dynamique détecté.' = PythonSecurityLockAnalysis(filepath='purchase_order.py', has_hardcoded_logins=False, hardcoded_logins=[], exception_me...attr/eval/exec)", value=None, source='security_lock:purchase_order.py:dynamic_dispatch', confidence='HIGH', scope={})]).summary_text
+
+code_intelligence/tests/test_security_or_disjunct_group_check.py:62: AssertionError
+_ TestRequiredGroupAltConditionsExtraction.test_evidence_claim_also_carries_the_alt_condition_note _
+
+self = <code_intelligence.tests.test_security_or_disjunct_group_check.TestRequiredGroupAltConditionsExtraction object at 0x7ff329ae5ad0>
+
+    def test_evidence_claim_also_carries_the_alt_condition_note(self):
+        analysis = analyze_python_security_locks(APPROVAL_ALLOWED_SOURCE, "purchase_order.py")
+        grp_ev = next(
+            e for e in analysis.evidence
+            if e.source == "security_lock:purchase_order.py:group:purchase.group_purchase_manager"
+        )
+>       assert "not the only sufficient path" in grp_ev.claim.lower()
+E       assert 'not the only sufficient path' in "file 'purchase_order.py' contains a has_group()/user_has_groups() check of 'purchase.group_purchase_manager' in metho...elf.company_id.po_double_validation == 'two_step' and self.amount_total < self.company_id.po_double_validation_amount."
+E        +  where "file 'purchase_order.py' contains a has_group()/user_has_groups() check of 'purchase.group_purchase_manager' in metho...elf.company_id.po_double_validation == 'two_step' and self.amount_total < self.company_id.po_double_validation_amount." = <built-in method lower of str object at 0x7ff3276fee30>()
+E        +    where <built-in method lower of str object at 0x7ff3276fee30> = "File 'purchase_order.py' contains a has_group()/user_has_groups() check of 'purchase.group_purchase_manager' in metho...elf.company_id.po_double_validation == 'two_step' and self.amount_total < self.company_id.po_double_validation_amount.".lower
+E        +      where "File 'purchase_order.py' contains a has_group()/user_has_groups() check of 'purchase.group_purchase_manager' in metho...elf.company_id.po_double_validation == 'two_step' and self.amount_total < self.company_id.po_double_validation_amount." = Evidence(evidence_id='37cd3713b28e61e3140e9cae50530010', source_type=<EvidenceSourceType.CODE: 'code'>, claim="File 'p...ager', confidence='HIGH', scope={'method': '_approval_allowed', 'lineno': 9, 'authorization_verdict': 'not_evaluated'}).claim
+
+code_intelligence/tests/test_security_or_disjunct_group_check.py:72: AssertionError
+________ test_ci_evidence_decision_conflicting_is_traceable_not_silent _________
+
+caplog = <_pytest.logging.LogCaptureFixture object at 0x7ff3274c0910>
+
+    def test_ci_evidence_decision_conflicting_is_traceable_not_silent(caplog):
+        """Contrainte utilisateur explicite (section 419-420) : CONFLICTING ne
+        doit pas disparaitre silencieusement du log au pretexte qu'il partage
+        desormais sa destination avec SUFFICIENT -- le statut et les raisons
+        doivent rester visibles pour que ce chemin dedie reste auditable comme
+        un choix delibere, pas un accident de l'egalite de destination."""
+        import logging
+        state = {
+            "ci_evidence_sufficiency": {
+                "status": EvidenceSufficiencyStatus.CONFLICTING.value,
+                "reasons": ["deux constats deterministes se contredisent (hypothetique)"],
+            }
+        }
+        with caplog.at_level(logging.INFO):
+            result = ci_evidence_decision(state)
+        assert result == "format_output"
+>       assert any(
+            "conflicting" in record.getMessage().lower()
+            and "deux constats deterministes se contredisent" in record.getMessage()
+            for record in caplog.records
+        ), "le statut CONFLICTING et ses raisons doivent apparaitre dans le log, pas disparaitre silencieusement"
+E       AssertionError: le statut CONFLICTING et ses raisons doivent apparaitre dans le log, pas disparaitre silencieusement
+E       assert False
+E        +  where False = any(<generator object test_ci_evidence_decision_conflicting_is_traceable_not_silent.<locals>.<genexpr> at 0x7ff3275fef80>)
+
+tests/test_bloc_p1_tranche2_ci_first_evidence_routing.py:138: AssertionError
+_______________ test_ci_evidence_decision_insufficient_is_logged _______________
+
+caplog = <_pytest.logging.LogCaptureFixture object at 0x7ff32762d490>
+
+    def test_ci_evidence_decision_insufficient_is_logged(caplog):
+        import logging
+        state = {
+            "ci_evidence_sufficiency": {
+                "status": EvidenceSufficiencyStatus.INSUFFICIENT.value,
+                "reasons": ["no tool observations gathered (hop_count == 0)"],
+            }
+        }
+        with caplog.at_level(logging.INFO):
+            ci_evidence_decision(state)
+>       assert any("insufficient" in record.getMessage().lower() for record in caplog.records)
+E       assert False
+E        +  where False = any(<generator object test_ci_evidence_decision_insufficient_is_logged.<locals>.<genexpr> at 0x7ff3275ff5a0>)
+
+tests/test_bloc_p1_tranche2_ci_first_evidence_routing.py:155: AssertionError
+____________ test_route_dispatches_documentation_and_system_sources ____________
+
+compiled_graph_view = Graph(nodes={'__start__': Node(id='__start__', name='__start__', data=RunnableCallable(tags=None, recurse=True, explod..._output', data=None, conditional=False), Edge(source='format_output', target='__end__', data=None, conditional=False)])
+
+    @pytest.mark.integration
+    def test_route_dispatches_documentation_and_system_sources(compiled_graph_view):
+        """Le choix de source se fait avant exécution : documentation -> retrieval,
+        système -> agent CI ou ORM selon l'intention classifiée."""
+        targets = _edge_targets(compiled_graph_view, "route")
+>       assert targets == {"retrieve", "code_intelligence_agent", "orm_agent_loop"}, (
+            f"la documentation doit aller directement vers retrieve, tandis que les "
+            f"questions système vont vers CI ou ORM -- trouve : {targets}"
+        )
+E       AssertionError: la documentation doit aller directement vers retrieve, tandis que les questions système vont vers CI ou ORM -- trouve : {'format_output', 'code_intelligence_agent', 'retrieve'}
+E       assert {'code_intell...', 'retrieve'} == {'code_intell...', 'retrieve'}
+E         
+E         Extra items in the left set:
+E         'format_output'
+E         Extra items in the right set:
+E         'orm_agent_loop'
+E         Use -v to get more diff
+
+tests/test_bloc_p1_tranche2_ci_first_evidence_routing.py:240: AssertionError
+_____ test_donnees_erp_is_the_only_route_reaching_orm_agent_loop_directly ______
+
+compiled_graph_view = Graph(nodes={'__start__': Node(id='__start__', name='__start__', data=RunnableCallable(tags=None, recurse=True, explod..._output', data=None, conditional=False), Edge(source='format_output', target='__end__', data=None, conditional=False)])
+
+    @pytest.mark.integration
+    def test_donnees_erp_is_the_only_route_reaching_orm_agent_loop_directly(compiled_graph_view):
+        """Le seul chemin de premier niveau vers orm_agent_loop doit venir de
+        route -- confirme que DONNEES_ERP reste le seul cas qui court-circuite
+        code_intelligence_agent, conformement au plan (Domaine B, donnees
+        pures)."""
+        incoming_sources = {edge.source for edge in compiled_graph_view.edges if edge.target == "orm_agent_loop"}
+>       assert incoming_sources == {"route"}
+E       AssertionError: assert set() == {'route'}
+E         
+E         Extra items in the right set:
+E         'route'
+E         Use -v to get more diff
+
+tests/test_bloc_p1_tranche2_ci_first_evidence_routing.py:253: AssertionError
+__ test_orm_agent_loop_reaches_verify_answer_directly_bypassing_evidence_gate __
+
+compiled_graph_view = Graph(nodes={'__start__': Node(id='__start__', name='__start__', data=RunnableCallable(tags=None, recurse=True, explod..._output', data=None, conditional=False), Edge(source='format_output', target='__end__', data=None, conditional=False)])
+
+    @pytest.mark.integration
+    def test_orm_agent_loop_reaches_verify_answer_directly_bypassing_evidence_gate(compiled_graph_view):
+        """Le chemin ERP pur (Domaine B) ne passe jamais par
+        assess_evidence_sufficiency()/ci_evidence_decision() -- c'est un chemin
+        de premier niveau distinct, pas un cas particulier de CI. Une seule
+        destination attendue (la verification, section 1129), jamais 'generate'."""
+        targets = _edge_targets(compiled_graph_view, "orm_agent_loop")
+>       assert targets == {"verify_answer"}
+E       AssertionError: assert set() == {'verify_answer'}
+E         
+E         Extra items in the right set:
+E         'verify_answer'
+E         Use -v to get more diff
+
+tests/test_bloc_p1_tranche2_ci_first_evidence_routing.py:270: AssertionError
+_________ test_build_final_response_feeds_the_chain_with_scoped_output _________
+
+    def test_build_final_response_feeds_the_chain_with_scoped_output():
+        source = inspect.getsource(build_final_response)
+        call = re.search(r"_apply_backfill_chain\(\s*final_answer,\s*(\w+),", source)
+        assert call, "chain call not found in build_final_response source -- test is stale"
+>       assert call.group(1) == "scoped_tool_output"
+E       AssertionError: assert 'scoped' == 'scoped_tool_output'
+E         
+E         - scoped_tool_output
+E         + scoped
+
+tests/test_bug2_backfill_scoped_output_wiring.py:81: AssertionError
+________ test_applied_guards_lists_only_guards_that_changed_the_answer _________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7ff3276b9750>
+
+    def test_applied_guards_lists_only_guards_that_changed_the_answer(monkeypatch):
+        def changing_guard(answer, *args, **kwargs):
+            return answer + "!"
+    
+        def neutral_guard(answer, *args, **kwargs):
+            return answer
+    
+>       monkeypatch.setattr(postprocess, "_backfill_missing_required_groups", changing_guard)
+E       AttributeError: <module 'code_intelligence.agent.postprocess' from '/home/user/odoo-ia-prototype/code_intelligence/agent/postprocess.py'> has no attribute '_backfill_missing_required_groups'
+
+tests/test_bug2_backfill_scoped_output_wiring.py:91: AttributeError
+_ TestCorrectSecurityLockThresholdContradictions.test_corrects_live_bloc9_08a_verbatim_inversion _
+
+self = <tests.test_graph.TestCorrectSecurityLockThresholdContradictions object at 0x7ff3275d02d0>
+
+    def test_corrects_live_bloc9_08a_verbatim_inversion(self):
+        result = _correct_security_lock_threshold_contradictions(
+            self._BAD_VERBATIM_ANSWER,
+            _REAL_DEEP_INHERITANCE_SECURITY_RAW_TEXT,
+            self._QUESTION_60K,
+        )
+>       assert "account.group_account_manager" in result
+E       assert 'account.group_account_manager' in "Responsable comptabilité : a le permission de valider jusqu'à 50 000€. Puisque le montant est de 60 000€, elle n'a pa...r les documents supérieurs à 100 000€. Puisque le montant est de 60 000€, elle a le permission de valider ce document."
+
+tests/test_graph.py:1657: AssertionError
+_ TestCorrectSecurityLockThresholdContradictions.test_corrects_bullet_list_inversion _
+
+self = <tests.test_graph.TestCorrectSecurityLockThresholdContradictions object at 0x7ff3275d1a10>
+
+    def test_corrects_bullet_list_inversion(self):
+        bullet_bad = (
+            "- Responsable comptabilité : a le permission de valider jusqu'à 50 000€. "
+            "Puisque le montant est de 60 000€, elle n'a pas le permission de valider ce document.\n"
+            "- Administrateur système : a le permission de valider les documents supérieurs à 100 000€. "
+            "Puisque le montant est de 60 000€, elle a le permission de valider ce document."
+        )
+        result = _correct_security_lock_threshold_contradictions(
+            bullet_bad,
+            _REAL_DEEP_INHERITANCE_SECURITY_RAW_TEXT,
+            self._QUESTION_60K,
+        )
+>       assert "account.group_account_manager" in result
+E       assert 'account.group_account_manager' in "- Responsable comptabilité : a le permission de valider jusqu'à 50 000€. Puisque le montant est de 60 000€, elle n'a ...r les documents supérieurs à 100 000€. Puisque le montant est de 60 000€, elle a le permission de valider ce document."
+
+tests/test_graph.py:1700: AssertionError
+______ test_unrelated_followup_with_no_keyword_at_all_is_still_unresolved ______
+
+    def test_unrelated_followup_with_no_keyword_at_all_is_still_unresolved():
+        """Distinct, still-open gap: a follow-up with NO keyword (accented or
+        not) is not and cannot be fixed by accent-folding alone -- it still
+        falls to the documentaire default. This is the real remaining H1c
+        question (session/conversational context), not an accent artifact.
+        Asserted explicitly so a future change that silently "fixes" this via
+        an unrelated mechanism gets noticed here, not assumed.
+    
+        Mocked intent: DOCUMENTARY_POLICY -- the production LLM's own "nothing
+        more specific matched" catch-all for a question with zero business/
+        technical signal, same semantic bucket the deterministic classifier's
+        step 9 default used to cover."""
+>       assert _route_question("Et pour Lyon ?", QuestionIntent.DOCUMENTARY_POLICY) == "documentaire"
+E       AssertionError: assert 'source_clarification' == 'documentaire'
+E         
+E         - documentaire
+E         + source_clarification
+
+tests/test_route_accent_fold.py:97: AssertionError
+_ test_accented_and_unaccented_variants_route_identically[O\xf9 est document\xe9 combien de tickets sont encore en cours ?-Ou est documente combien de tickets sont encore en cours ?-documentary_policy-documentaire] _
+
+accented = 'Où est documenté combien de tickets sont encore en cours ?'
+unaccented = 'Ou est documente combien de tickets sont encore en cours ?'
+mocked_intent = <QuestionIntent.DOCUMENTARY_POLICY: 'documentary_policy'>
+expected_route = 'documentaire'
+
+    @pytest.mark.parametrize("accented, unaccented, mocked_intent, expected_route", [
+        # ERP_KEYWORDS ("cette année") -- covered above in its own dedicated
+        # test since it's the exact case that surfaced the bug live.
+    
+        # CODE_INTEL_KEYWORDS ("droits d'accès"): a governance/access question,
+        # LLM classifier expected to return GOVERNANCE_SECURITY -> maps
+        # directly to code_intelligence via INTENT_TO_ROUTE, independent of
+        # accent folding (the mock removes the folding question from the LLM
+        # call entirely -- accent-insensitivity is now the LLM's job, not this
+        # keyword list's; this test now only locks that route()'s OWN
+        # downstream wiring is accent-independent, not the classifier).
+        ("Quelle est la disponibilité en droits d'accès pour ce module ?",
+         "Quelle est la disponibilite en droits d'acces pour ce module ?",
+         QuestionIntent.GOVERNANCE_SECURITY,
+         "code_intelligence"),
+        # A documentary intent now stays on the documentation source; the
+        # former hybrid route has been removed from automatic source selection.
+        ("Où est documenté combien de tickets sont encore en cours ?",
+         "Ou est documente combien de tickets sont encore en cours ?",
+         QuestionIntent.DOCUMENTARY_POLICY,
+         "documentaire"),
+        # A quantitative phrase no longer silently changes the selected source.
+        ("Quel est le rôle du responsable et combien de tickets sont en cours ?",
+         "Quel est le role du responsable et combien de tickets sont en cours ?",
+         QuestionIntent.DOCUMENTARY_POLICY,
+         "documentaire"),
+    ])
+    def test_accented_and_unaccented_variants_route_identically(accented, unaccented, mocked_intent, expected_route):
+        route_accented = _route_question(accented, mocked_intent)
+        route_unaccented = _route_question(unaccented, mocked_intent)
+>       assert route_accented == route_unaccented == expected_route
+E       AssertionError: assert 'code_intelligence' == 'documentaire'
+E         
+E         - documentaire
+E         + code_intelligence
+
+tests/test_route_accent_fold.py:136: AssertionError
+_ test_accented_and_unaccented_variants_route_identically[Quel est le r\xf4le du responsable et combien de tickets sont en cours ?-Quel est le role du responsable et combien de tickets sont en cours ?-documentary_policy-documentaire] _
+
+accented = 'Quel est le rôle du responsable et combien de tickets sont en cours ?'
+unaccented = 'Quel est le role du responsable et combien de tickets sont en cours ?'
+mocked_intent = <QuestionIntent.DOCUMENTARY_POLICY: 'documentary_policy'>
+expected_route = 'documentaire'
+
+    @pytest.mark.parametrize("accented, unaccented, mocked_intent, expected_route", [
+        # ERP_KEYWORDS ("cette année") -- covered above in its own dedicated
+        # test since it's the exact case that surfaced the bug live.
+    
+        # CODE_INTEL_KEYWORDS ("droits d'accès"): a governance/access question,
+        # LLM classifier expected to return GOVERNANCE_SECURITY -> maps
+        # directly to code_intelligence via INTENT_TO_ROUTE, independent of
+        # accent folding (the mock removes the folding question from the LLM
+        # call entirely -- accent-insensitivity is now the LLM's job, not this
+        # keyword list's; this test now only locks that route()'s OWN
+        # downstream wiring is accent-independent, not the classifier).
+        ("Quelle est la disponibilité en droits d'accès pour ce module ?",
+         "Quelle est la disponibilite en droits d'acces pour ce module ?",
+         QuestionIntent.GOVERNANCE_SECURITY,
+         "code_intelligence"),
+        # A documentary intent now stays on the documentation source; the
+        # former hybrid route has been removed from automatic source selection.
+        ("Où est documenté combien de tickets sont encore en cours ?",
+         "Ou est documente combien de tickets sont encore en cours ?",
+         QuestionIntent.DOCUMENTARY_POLICY,
+         "documentaire"),
+        # A quantitative phrase no longer silently changes the selected source.
+        ("Quel est le rôle du responsable et combien de tickets sont en cours ?",
+         "Quel est le role du responsable et combien de tickets sont en cours ?",
+         QuestionIntent.DOCUMENTARY_POLICY,
+         "documentaire"),
+    ])
+    def test_accented_and_unaccented_variants_route_identically(accented, unaccented, mocked_intent, expected_route):
+        route_accented = _route_question(accented, mocked_intent)
+        route_unaccented = _route_question(unaccented, mocked_intent)
+>       assert route_accented == route_unaccented == expected_route
+E       AssertionError: assert 'code_intelligence' == 'documentaire'
+E         
+E         - documentaire
+E         + code_intelligence
+
+tests/test_route_accent_fold.py:136: AssertionError
+___________________ test_number_is_supported_by_the_question ___________________
+
+run_node = <function run_node.<locals>.run at 0x7ff30ba1c720>
+
+    def test_number_is_supported_by_the_question(run_node):
+        state, _ = run_node(
+            VerifierMode.REPORT, "Oui, le seuil de 15 000 est atteint.",
+            question="Le seuil de 15 000 est-il atteint ?",
+        )
+>       assert state["response"].verification.unsupported_claims == 0
+E       AssertionError: assert 1 == 0
+E        +  where 1 = VerificationReport(mode=<VerifierMode.REPORT: 'report'>, claims_total=1, unsupported_claims=1, claims_by_type={<ClaimT...1}, unsupported=[UnsupportedClaim(claim_type=<ClaimType.NUMBER: 'number'>, text='15 000', reason='no_matching_value')]).unsupported_claims
+E        +    where VerificationReport(mode=<VerifierMode.REPORT: 'report'>, claims_total=1, unsupported_claims=1, claims_by_type={<ClaimT...1}, unsupported=[UnsupportedClaim(claim_type=<ClaimType.NUMBER: 'number'>, text='15 000', reason='no_matching_value')]) = AssistantResponse(answer='Oui, le seuil de 15 000 est atteint.', sources=[], confidence=1.0, ocr_warning=False, omitte...portedClaim(claim_type=<ClaimType.NUMBER: 'number'>, text='15 000', reason='no_matching_value')]), evidence_dossier=[]).verification
+
+tests/test_t3_verify_node.py:98: AssertionError
+_______________ test_unavailable_graph_degrades_to_evidence_only _______________
+
+run_node = <function run_node.<locals>.run at 0x7ff3098a67a0>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7ff3094dfd90>
+
+    def test_unavailable_graph_degrades_to_evidence_only(run_node, monkeypatch):
+        def broken_loader(**_):
+            raise RuntimeError("graph unavailable")
+    
+        monkeypatch.setattr("code_intelligence.graph.loader.get_code_intelligence_graph", broken_loader)
+        state, _ = run_node(
+            VerifierMode.REPORT, UNKNOWN_GROUP_ANSWER + " Le groupe account.group_account_manager aussi.",
+            raw_tool_output="(groupes: account.group_account_manager)",
+        )
+>       assert [(item.text, item.reason) for item in state["response"].verification.unsupported] == [
+            ("purchase.group_purchase_director", "not_in_evidence"),
+        ]
+E       AssertionError: assert [('purchase.g...known_group')] == [('purchase.g...in_evidence')]
+E         
+E         At index 0 diff: ('purchase.group_purchase_director', 'unknown_group') != ('purchase.group_purchase_director', 'not_in_evidence')
+E         Use -v to get more diff
+
+tests/test_t3_verify_node.py:144: AssertionError
+________ test_verify_answer_is_the_only_branch_entry_into_format_output ________
+
+    def test_verify_answer_is_the_only_branch_entry_into_format_output():
+        graph_view = build_graph().get_graph()
+        assert {edge.target for edge in graph_view.edges if edge.source == "verify_answer"} == {"format_output"}
+>       assert _incoming(graph_view, "format_output") == {"out_of_scope_gate", "verify_answer"}
+E       AssertionError: assert {'out_of_scop...erify_answer'} == {'out_of_scop...erify_answer'}
+E         
+E         Extra items in the left set:
+E         'route'
+E         Use -v to get more diff
+
+tests/test_t3_verify_node.py:231: AssertionError
+=========================== short test summary info ============================
+FAILED code_intelligence/tests/test_bloc_b1_evidence_analyze_security_locks.py::TestSecurityLockEvidenceHardcodedLogins::test_positive_value_and_confidence
+FAILED code_intelligence/tests/test_bloc_b1_evidence_analyze_security_locks.py::TestSecurityLockEvidenceRequiredGroups::test_negative_explicit
+FAILED code_intelligence/tests/test_bloc_b1_evidence_analyze_security_locks.py::TestSecurityLockEvidenceRequiredGroups::test_module_level_has_group_omits_method_key
+FAILED code_intelligence/tests/test_j23_24_authorization_gate.py::test_marked_bypass_line_is_redacted_for_read_only_demandeur
+FAILED code_intelligence/tests/test_j23_24_authorization_gate.py::test_marked_bypass_line_is_not_redacted_for_elevated_demandeur
+FAILED code_intelligence/tests/test_j23_24_authorization_gate.py::test_gated_tool_all_authenticated_write_is_not_omitted
+FAILED code_intelligence/tests/test_j23_24_group_id_xmlid_resolution.py::test_resolved_xmlid_correctly_recognizes_elevated_access
+FAILED code_intelligence/tests/test_method_security_constraints.py::TestAnalyzeMethodOverrideChainSurfacesSecurityConstraints::test_two_sites_each_get_their_own_group_requirement
+FAILED code_intelligence/tests/test_method_security_constraints.py::TestAnalyzeMethodOverrideChainSurfacesSecurityConstraints::test_site_with_no_security_finding_still_shows_no_structural_risk_note
+FAILED code_intelligence/tests/test_s2_5_semgrep_locks.py::TestHardcodedLockDetection::test_required_group_attributed_to_enclosing_method_not_file_wide_bloc9_native_odoo
+FAILED code_intelligence/tests/test_s2_5_semgrep_locks.py::TestHardcodedLockDetection::test_has_group_outside_any_def_leaves_method_name_empty
+FAILED code_intelligence/tests/test_s2_5_semgrep_locks.py::TestHardcodedLockDetection::test_link_guard_field_detected_on_real_asset_loan_shape_bloc9_05c
+FAILED code_intelligence/tests/test_security_or_disjunct_group_check.py::TestRequiredGroupAltConditionsExtraction::test_summary_text_states_group_is_not_the_only_path
+FAILED code_intelligence/tests/test_security_or_disjunct_group_check.py::TestRequiredGroupAltConditionsExtraction::test_evidence_claim_also_carries_the_alt_condition_note
+FAILED tests/test_bloc_p1_tranche2_ci_first_evidence_routing.py::test_ci_evidence_decision_conflicting_is_traceable_not_silent
+FAILED tests/test_bloc_p1_tranche2_ci_first_evidence_routing.py::test_ci_evidence_decision_insufficient_is_logged
+FAILED tests/test_bloc_p1_tranche2_ci_first_evidence_routing.py::test_route_dispatches_documentation_and_system_sources
+FAILED tests/test_bloc_p1_tranche2_ci_first_evidence_routing.py::test_donnees_erp_is_the_only_route_reaching_orm_agent_loop_directly
+FAILED tests/test_bloc_p1_tranche2_ci_first_evidence_routing.py::test_orm_agent_loop_reaches_verify_answer_directly_bypassing_evidence_gate
+FAILED tests/test_bug2_backfill_scoped_output_wiring.py::test_build_final_response_feeds_the_chain_with_scoped_output
+FAILED tests/test_bug2_backfill_scoped_output_wiring.py::test_applied_guards_lists_only_guards_that_changed_the_answer
+FAILED tests/test_graph.py::TestCorrectSecurityLockThresholdContradictions::test_corrects_live_bloc9_08a_verbatim_inversion
+FAILED tests/test_graph.py::TestCorrectSecurityLockThresholdContradictions::test_corrects_bullet_list_inversion
+FAILED tests/test_route_accent_fold.py::test_unrelated_followup_with_no_keyword_at_all_is_still_unresolved
+FAILED tests/test_route_accent_fold.py::test_accented_and_unaccented_variants_route_identically[O\xf9 est document\xe9 combien de tickets sont encore en cours ?-Ou est documente combien de tickets sont encore en cours ?-documentary_policy-documentaire]
+FAILED tests/test_route_accent_fold.py::test_accented_and_unaccented_variants_route_identically[Quel est le r\xf4le du responsable et combien de tickets sont en cours ?-Quel est le role du responsable et combien de tickets sont en cours ?-documentary_policy-documentaire]
+FAILED tests/test_t3_verify_node.py::test_number_is_supported_by_the_question
+FAILED tests/test_t3_verify_node.py::test_unavailable_graph_degrades_to_evidence_only
+FAILED tests/test_t3_verify_node.py::test_verify_answer_is_the_only_branch_entry_into_format_output
+ERROR code_intelligence/tests/test_t5_expected_failures_are_logged.py
+ERROR tests/test_bug2_backfill_scoped_output_wiring.py::test_scoped_only_guards_receive_scoped_output[_backfill_missing_required_groups]
+ERROR tests/test_bug2_backfill_scoped_output_wiring.py::test_scoped_only_guards_receive_scoped_output[_backfill_missing_security_lock_amount]
+ERROR tests/test_bug2_backfill_scoped_output_wiring.py::test_scoped_only_guards_receive_scoped_output[_backfill_missing_override_modules]
+ERROR tests/test_bug2_backfill_scoped_output_wiring.py::test_scoped_only_guards_receive_scoped_output[_correct_override_cascade_contradictions]
+ERROR tests/test_bug2_backfill_scoped_output_wiring.py::test_scoped_only_guards_receive_scoped_output[_backfill_missing_override_chain_amount]
+ERROR tests/test_bug2_backfill_scoped_output_wiring.py::test_scoped_only_guards_receive_scoped_output[_backfill_missing_trigger_condition_literals]
+ERROR tests/test_bug2_backfill_scoped_output_wiring.py::test_scoped_only_guards_receive_scoped_output[_backfill_missing_hardcoded_id_literals]
+ERROR tests/test_bug2_backfill_scoped_output_wiring.py::test_scoped_only_guards_receive_scoped_output[_backfill_missing_unguarded_super]
+ERROR tests/test_bug2_backfill_scoped_output_wiring.py::test_scoped_only_guards_receive_scoped_output[_backfill_link_guard_clarifications]
+ERROR tests/test_bug2_backfill_scoped_output_wiring.py::test_scoped_only_guards_receive_scoped_output[_flag_ungrounded_group_xmlids]
+ERROR tests/test_bug2_backfill_scoped_output_wiring.py::test_scoped_only_guards_receive_scoped_output[_strip_core_only_group_mentions]
+ERROR tests/test_bug2_backfill_scoped_output_wiring.py::test_scoped_only_guards_receive_scoped_output[_backfill_missing_can_view_amount_fact]
+ERROR tests/test_bug2_backfill_scoped_output_wiring.py::test_scoped_only_guards_receive_scoped_output[_correct_security_lock_threshold_contradictions]
+29 failed, 243 passed, 14 errors in 125.44s (0:02:05)

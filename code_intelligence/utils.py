@@ -6,7 +6,7 @@ import logging
 import re
 import unicodedata
 from pathlib import Path
-from typing import List, Optional, Set
+from typing import Iterable, List, Optional, Set
 
 _logger = logging.getLogger(__name__)
 
@@ -106,6 +106,23 @@ def format_file_link(
     elif start_line is not None:
         return f"[{basename}:L{start_line}](file://{filepath}#L{start_line})"
     return f"[{basename}](file://{filepath})"
+
+
+_ABSOLUTE_FILE_LINK = re.compile(r"file://(/[^#)\s]+)")
+
+
+def relativize_file_links(text: str, roots: Iterable[str]) -> str:
+    """Make absolute file links machine independent: keep the path from the addons folder name onward."""
+    rootPaths = sorted((Path(root) for root in roots), key=lambda root: len(root.parts), reverse=True)
+
+    def relative(match: re.Match) -> str:
+        path = Path(match.group(1))
+        for root in rootPaths:
+            if path.is_relative_to(root):
+                return f"file://{path.relative_to(root.parent)}"
+        return match.group(0)
+
+    return _ABSOLUTE_FILE_LINK.sub(relative, text)
 
 
 # ── Model & module resolution ───────────────────────────────────────────────

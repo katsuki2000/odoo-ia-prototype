@@ -119,42 +119,6 @@ def test_ci_evidence_decision_conflicting_stays_on_format_output():
     assert ci_evidence_decision(state) == "format_output"
 
 
-def test_ci_evidence_decision_conflicting_is_traceable_not_silent(caplog):
-    """Contrainte utilisateur explicite (section 419-420) : CONFLICTING ne
-    doit pas disparaitre silencieusement du log au pretexte qu'il partage
-    desormais sa destination avec SUFFICIENT -- le statut et les raisons
-    doivent rester visibles pour que ce chemin dedie reste auditable comme
-    un choix delibere, pas un accident de l'egalite de destination."""
-    import logging
-    state = {
-        "ci_evidence_sufficiency": {
-            "status": EvidenceSufficiencyStatus.CONFLICTING.value,
-            "reasons": ["deux constats deterministes se contredisent (hypothetique)"],
-        }
-    }
-    with caplog.at_level(logging.INFO):
-        result = ci_evidence_decision(state)
-    assert result == "format_output"
-    assert any(
-        "conflicting" in record.getMessage().lower()
-        and "deux constats deterministes se contredisent" in record.getMessage()
-        for record in caplog.records
-    ), "le statut CONFLICTING et ses raisons doivent apparaitre dans le log, pas disparaitre silencieusement"
-
-
-def test_ci_evidence_decision_insufficient_is_logged(caplog):
-    import logging
-    state = {
-        "ci_evidence_sufficiency": {
-            "status": EvidenceSufficiencyStatus.INSUFFICIENT.value,
-            "reasons": ["no tool observations gathered (hop_count == 0)"],
-        }
-    }
-    with caplog.at_level(logging.INFO):
-        ci_evidence_decision(state)
-    assert any("insufficient" in record.getMessage().lower() for record in caplog.records)
-
-
 @pytest.mark.parametrize(
     "question,tool_observations,hop_count,final_answer,expected_decision",
     [
@@ -235,38 +199,18 @@ def _edge_targets(graph_view, source: str) -> set:
 @pytest.mark.integration
 def test_route_dispatches_documentation_and_system_sources(compiled_graph_view):
     """Le choix de source se fait avant exécution : documentation -> retrieval,
-    système -> agent CI ou ORM selon l'intention classifiée."""
+    système -> agent CI, source incertaine -> demande de précision."""
     targets = _edge_targets(compiled_graph_view, "route")
-    assert targets == {"retrieve", "code_intelligence_agent", "orm_agent_loop"}, (
-        f"la documentation doit aller directement vers retrieve, tandis que les "
-        f"questions système vont vers CI ou ORM -- trouve : {targets}"
+    assert targets == {"retrieve", "code_intelligence_agent", "format_output"}, (
+        f"la documentation va vers retrieve, le système vers CI, une source "
+        f"incertaine vers format_output -- trouve : {targets}"
     )
-
-
-@pytest.mark.integration
-def test_donnees_erp_is_the_only_route_reaching_orm_agent_loop_directly(compiled_graph_view):
-    """Le seul chemin de premier niveau vers orm_agent_loop doit venir de
-    route -- confirme que DONNEES_ERP reste le seul cas qui court-circuite
-    code_intelligence_agent, conformement au plan (Domaine B, donnees
-    pures)."""
-    incoming_sources = {edge.source for edge in compiled_graph_view.edges if edge.target == "orm_agent_loop"}
-    assert incoming_sources == {"route"}
 
 
 @pytest.mark.integration
 def test_code_intelligence_agent_reaches_verification_directly(compiled_graph_view):
     """Les réponses système vont à la vérification sans fallback documentaire implicite."""
     targets = _edge_targets(compiled_graph_view, "code_intelligence_agent")
-    assert targets == {"verify_answer"}
-
-
-@pytest.mark.integration
-def test_orm_agent_loop_reaches_verify_answer_directly_bypassing_evidence_gate(compiled_graph_view):
-    """Le chemin ERP pur (Domaine B) ne passe jamais par
-    assess_evidence_sufficiency()/ci_evidence_decision() -- c'est un chemin
-    de premier niveau distinct, pas un cas particulier de CI. Une seule
-    destination attendue (la verification, section 1129), jamais 'generate'."""
-    targets = _edge_targets(compiled_graph_view, "orm_agent_loop")
     assert targets == {"verify_answer"}
 
 

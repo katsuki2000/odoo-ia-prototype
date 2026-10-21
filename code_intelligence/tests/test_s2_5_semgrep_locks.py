@@ -84,7 +84,7 @@ class TestHardcodedLockDetection:
         assert analysis.required_group_methods == ["_should_be_locked"]
         attribution_line = next(
             line for line in analysis.summary_text.splitlines()
-            if "has_group('sale.group_auto_done_setting')" in line and "se trouve dans" in line
+            if "'sale.group_auto_done_setting'" in line and "dans '_should_be_locked()'" in line
         )
         assert "_should_be_locked" in attribution_line
         assert "action_confirm" not in attribution_line
@@ -131,7 +131,7 @@ class TestHardcodedLockDetection:
         analysis = analyze_python_security_locks(code, "custom_model/models/custom_model.py")
         assert analysis.required_groups == ["base.group_user"]
         assert analysis.required_group_methods == [""]
-        assert "niveau module" in analysis.summary_text
+        assert "hors de toute méthode" in analysis.summary_text
 
     def test_no_has_group_call_leaves_required_groups_empty(self):
         code = textwrap.dedent("""\

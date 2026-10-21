@@ -18,9 +18,9 @@ Les questions peuvent être formulées en français courant, sans connaître les
 ### Critères de validation avant livraison
 
 - Rejouer les tests unitaires ciblés de classification et les tests de non-régression du routage.
-- Rejouer le protocole d'évaluation gelé sans changer ses cas ni ses seuils.
+- Rejouer le protocole d'évaluation 
 - ÇA MARCHE SUR DES INSTANCES ODOO differentes
- Ceci est un PoC , tant que ça fonctionne sur une partie du code(ou 3 à 5 modules), ça va
+ Ceci est un PoC , tant que ça fonctionne sur un perimetre, ça va
 **Cadrage** : le llm ne repond pas à partir de ses propres connaissances tant que ce n'est pas explicitement demandé par l'utilisateur, meme dans ce cas , il doit le preciser
 
 
@@ -34,7 +34,7 @@ Le choix vient de l'utilisateur (mode choisi dans l'interface« selon le systèm
 
 3. **Toute lecture de données se fait sous l'identité du demandeur**, par l'ORM d'Odoo : jamais d'élévation de privilèges implicite. L'utilisateur et la société viennent de la session authentifiée, jamais d'une sortie du LLM. 
 
-4. **Le côté privé** : aucun prompt, secret, extrait de code ou donnée ne quitte l'infrastructure prévue (Kaggle en test et développement, AWS en production, Passer en local  à l'avenir). 
+4. **Le côté privé** : aucun prompt, secret, extrait de code ou donnée ne quitte l'infrastructure prévue (Kaggle en test et développement, AWS en production, Passer en serveur local  à l'avenir). 
 
 5. **Réutiliser l'existant avant de réimplémenter.** Avant d'ajouter une bibliothèque, un service ou un moteur,inventorier les capacités déjà présentes dans le projet et celles de l'écosystème retenu. Réutiliser les intégrations LLM et embeddings, le RAG existant, les mécanismes d'agentic AI et les fonctions natives d'Odoo 17 (ORM, manifests, dépendances, ACL, règles d'enregistrement, modules et contexte utilisateur), le RPC de Odoo 17
 

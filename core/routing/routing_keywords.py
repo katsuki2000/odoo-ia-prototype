@@ -8,9 +8,9 @@ ERP_TYPES = {"sale", "ticket"}
 # Inter-branch conflict policy: code intelligence takes priority for security/governance.
 ROUTING_CONFLICT_PRIORITY = (
     QueryRoute.CODE_INTELLIGENCE.value,
-    QueryRoute.DONNEES_ERP.value,
-    QueryRoute.HYBRIDE.value,
-    QueryRoute.DOCUMENTAIRE.value,
+    QueryRoute.ERP_DATA.value,
+    QueryRoute.HYBRID.value,
+    QueryRoute.DOCUMENTARY.value,
 )
 
 ERP_KEYWORDS = [

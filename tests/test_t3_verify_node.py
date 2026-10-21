@@ -90,12 +90,12 @@ def test_number_is_supported_by_tool_observations(run_node):
     assert _unsupported_texts(state) == ["7,5"]
 
 
-def test_number_is_supported_by_the_question(run_node):
+def test_number_stated_only_in_the_question_is_not_evidence(run_node):
     state, _ = run_node(
         VerifierMode.REPORT, "Oui, le seuil de 15 000 est atteint.",
         question="Le seuil de 15 000 est-il atteint ?",
     )
-    assert state["response"].verification.unsupported_claims == 0
+    assert _unsupported_texts(state) == ["15 000"]
 
 
 def test_numeric_turn_evidence_supports_a_number(run_node):
@@ -136,7 +136,7 @@ def test_unavailable_graph_degrades_to_evidence_only(run_node, monkeypatch):
     def broken_loader(**_):
         raise RuntimeError("graph unavailable")
 
-    monkeypatch.setattr("code_intelligence.graph.loader.get_code_intelligence_graph", broken_loader)
+    monkeypatch.setattr("code_intelligence.graph.get_code_intelligence_graph", broken_loader)
     state, _ = run_node(
         VerifierMode.REPORT, UNKNOWN_GROUP_ANSWER + " Le groupe account.group_account_manager aussi.",
         raw_tool_output="(groupes: account.group_account_manager)",
@@ -228,5 +228,5 @@ def _incoming(graph_view, target):
 def test_verify_answer_is_the_only_branch_entry_into_format_output():
     graph_view = build_graph().get_graph()
     assert {edge.target for edge in graph_view.edges if edge.source == "verify_answer"} == {"format_output"}
-    assert _incoming(graph_view, "format_output") == {"out_of_scope_gate", "verify_answer"}
+    assert _incoming(graph_view, "format_output") == {"out_of_scope_gate", "route", "verify_answer"}
     assert _incoming(graph_view, "verify_answer") == {"code_intelligence_agent", "generate"}

@@ -508,7 +508,7 @@ def dispatch_evaluate_record_rules_for_personas(ctx: DispatchContext) -> None:
     Hop-budget note (908): worst case in the current N1 bank is SAL-Q1 (2
     personas x 4 permissions = 8 calls from this dispatcher alone, on top
     of the ~2-3 hops the rest of predispatch already spends) -- comfortably
-    over the CI_MAX_HOPS default of 6. Raised to 20 in .env this same
+    over the CI_MAX_HOPS default of 6. Raised to 15 in .env this same
     section specifically so this dispatcher is not silently truncated
     mid-persona by hop_budget_exhausted the way STK-Q1's tool coverage was
     truncated in 901/903 -- a config change, not a code workaround; every

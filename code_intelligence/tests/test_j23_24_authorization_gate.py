@@ -31,6 +31,10 @@ from code_intelligence.utils import SENSITIVE_BYPASS_MARKER
 from code_intelligence.rules.record_rules import evaluate_record_rules
 
 
+def _set_disclosure_groups(monkeypatch, groups=()):
+    monkeypatch.setattr("config.settings.SENSITIVE_EVIDENCE_GROUP_XMLIDS", frozenset(groups))
+
+
 def _build_graph_with_acl(model_name: str, write_group: str) -> nx.DiGraph:
     """Minimal synthetic graph: one model with a WRITE-only ACL granted to
     write_group (no read/create/unlink), mirroring the ACL node shape used
@@ -76,7 +80,8 @@ def _build_graph_with_ir_rule(model_name: str, member_group: str, other_group: s
 
 # ── Source 1: lines tagged SENSITIVE_BYPASS_MARKER at the source ──
 
-def test_marked_bypass_line_is_redacted_for_read_only_demandeur():
+def test_marked_bypass_line_is_redacted_for_read_only_demandeur(monkeypatch):
+    _set_disclosure_groups(monkeypatch)
     G = _build_graph_with_acl("account.move", "account.group_account_manager")
     observation = (
         f"Analyse des verrous Python [Confiance: HIGH]:\n"
@@ -90,7 +95,7 @@ def test_marked_bypass_line_is_redacted_for_read_only_demandeur():
         user_groups=["some_other_group"],  # not a member of the write group
     )
     assert len(omitted) == 1
-    assert "account.move" in omitted[0].label
+    assert omitted[0].label == "Détail technique sensible"
     assert "autorisation" in omitted[0].reason.lower()
     assert "admin@corp.com" not in gated_text
     assert "ELEMENT OMITTED FOR AUTHORIZATION REASON" in gated_text
@@ -98,7 +103,8 @@ def test_marked_bypass_line_is_redacted_for_read_only_demandeur():
     assert "Analyse des verrous Python [Confiance: HIGH]:" in gated_text
 
 
-def test_marked_bypass_line_is_not_redacted_for_elevated_demandeur():
+def test_marked_bypass_line_is_not_redacted_for_a_configured_disclosure_group(monkeypatch):
+    _set_disclosure_groups(monkeypatch, {"account.group_account_manager"})
     G = _build_graph_with_acl("account.move", "account.group_account_manager")
     observation = f"  - {SENSITIVE_BYPASS_MARKER} Logins/Emails privilegies en dur: ['admin@corp.com']"
     gated_text, omitted = gate_observation(
@@ -106,7 +112,7 @@ def test_marked_bypass_line_is_not_redacted_for_elevated_demandeur():
         model_name="account.move",
         observation=observation,
         G=G,
-        user_groups=["account.group_account_manager"],  # has write/unlink
+        user_groups=["account.group_account_manager"],  # member of the configured disclosure group
     )
     assert omitted == []
     assert gated_text == observation
@@ -136,9 +142,9 @@ def test_unmarked_governance_content_is_never_redacted():
     assert gated_text == observation
 
 
-def test_gated_tool_all_authenticated_write_is_not_omitted():
-    """An ACL granting write to all authenticated users means nobody is
-    gated on that model -- everyone already has management-level access."""
+def test_write_acl_for_all_authenticated_users_does_not_authorize_disclosure(monkeypatch):
+    _set_disclosure_groups(monkeypatch)
+    """Disclosure follows the configured groups only, never an ACL or write right."""
     G = nx.DiGraph()
     G.add_node("model:helpdesk.ticket", node_type="Model", name="helpdesk.ticket")
     G.add_node(
@@ -157,8 +163,8 @@ def test_gated_tool_all_authenticated_write_is_not_omitted():
         G=G,
         user_groups=[],
     )
-    assert omitted == []
-    assert gated_text == observation
+    assert len(omitted) == 1
+    assert "Contournement" not in gated_text
 
 
 def test_no_marker_means_nothing_omitted_regardless_of_tool_name():

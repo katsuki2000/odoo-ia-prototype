@@ -9,10 +9,11 @@ from typing import List, Optional
 from core.schemas import AssistantResponse, SourceReference, OmittedForAuthorization
 from core.evidence.evidence_sufficiency import assess_evidence_sufficiency
 from core.evidence.source_refs import CODE_GRAPH_DOC_TYPE, format_code_graph_source
-from code_intelligence.utils import _TRUNCATION_MARKER
+from config.settings import SOURCE_LINK_ROOTS
+from code_intelligence.utils import _TRUNCATION_MARKER, relativize_file_links
 from core.output import _detect_any_degenerate_repetition, _strip_any_degenerate_repetition
 from code_intelligence.agent.access_guards import (
-    _scoped_raw_tool_output, _flag_ungrounded_group_xmlids, _backfill_missing_implied_ids_mechanism,
+    _scoped_raw_tool_output, _flag_ungrounded_group_xmlids,
 )
 from code_intelligence.rules.access_evaluator import _correct_access_permission_contradictions
 from code_intelligence.agent.link_guards import (
@@ -89,7 +90,6 @@ def _apply_backfill_chain(final_answer: str, scoped_tool_output: str, question: 
         (_correct_access_permission_contradictions, (scoped_tool_output,), {}),
         (_backfill_missing_can_view_amount_fact, (scoped_tool_output,),
          {'tool_observation_models': scoped_tool_observation_models, 'target_models': target_models}),
-        (_backfill_missing_implied_ids_mechanism, (scopedOrRaw, question), {}),
         (correct_button_role_contradictions, (rawOrScoped,), {}),
         (correct_button_visibility_contradictions, (rawOrScoped,), {}),
         (_backfill_missing_override_modules, (scoped_tool_output,), {'question': question}),
@@ -182,6 +182,7 @@ def build_final_response(ctx: DispatchContext, final_answer: str, state: dict,
     if omitted:
         final_answer += "\n\n[ACCES RESTREINT] ÉLÉMENT(S) OMIS POUR RAISON D'AUTORISATION:\n" + '\n'.join(
             f'  - {item.label} : {item.reason}' for item in omitted)
+    final_answer = relativize_file_links(final_answer, SOURCE_LINK_ROOTS)
     sources = []
     for obs, model, tool in zip(observations, models, tools):
         if not obs or not str(obs).strip():
@@ -190,7 +191,8 @@ def build_final_response(ctx: DispatchContext, final_answer: str, state: dict,
         sources.append(SourceReference(
             source=format_code_graph_source(tool, model), doc_type=CODE_GRAPH_DOC_TYPE,
             title=f'{display} — {model}' if model else display,
-            snippet=_strip_truncation_marker_for_display(str(obs), f'{tool}({model})')))
+            snippet=relativize_file_links(
+                _strip_truncation_marker_for_display(str(obs), f'{tool}({model})'), SOURCE_LINK_ROOTS)))
     response = AssistantResponse(answer=final_answer, sources=sources,
         confidence=1.0 if observations else 0.5, omitted_for_authorization=omitted)
     wallTime = time.time() - start_time

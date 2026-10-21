@@ -56,6 +56,8 @@ def test_resolved_xmlid_correctly_recognizes_elevated_access(monkeypatch):
     (simulating _resolve_user_group_xmlids() called on the JWT's raw ID) --
     elevated access must now be correctly recognized.
     """
+    monkeypatch.setattr(
+        "config.settings.SENSITIVE_EVIDENCE_GROUP_XMLIDS", frozenset({"account.group_account_manager"}))
     G = _build_graph_with_acl("account.move", "account.group_account_manager")
     resolved_xmlids = ["account.group_account_manager"]  # id=42 resolved
     assert _has_elevated_access(G, "account.move", resolved_xmlids) is True

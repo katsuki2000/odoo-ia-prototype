@@ -1,0 +1,4 @@
+ERROR tests/test_top_models.py
+FAILED code_intelligence/tests/test_e1_arbitration.py::test_shipped_configuration_fixes_the_r6_thresholds_and_drops_the_held_out_clause
+FAILED tests/test_exact_mention_bare_words.py::test_plain_word_is_not_a_module_mention[les conges de hr holidays sont-ils visibles ?]
+FAILED tests/test_exact_mention_bare_words.py::test_plain_word_is_not_a_module_mention[ou trouver le point of sale dans le menu ?]

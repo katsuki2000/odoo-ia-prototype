@@ -1,11 +1,4 @@
-"""
-code_intelligence/ci_agent_node/prompts.py
-
-Centralized system prompts and prompt builders for the Code Intelligence agent node:
-- CI_SYSTEM_PROMPT: Master system prompt with scope-first navigation rules and markdown output formatting.
-- build_business_context_prompt: Dynamic business term resolution context injected into system prompt.
-- build_synthesis_prompt: Final multi-hop synthesis prompt guiding structured, cited answer generation.
-"""
+"""Centralized system prompts and prompt builders for the Code Intelligence agent node."""
 
 from typing import List, Optional
 from code_intelligence.agent.context_extractors import rank_custom_modules_for_models
@@ -192,6 +185,185 @@ def _build_module_specific_guidance(tool_observations: List[str]) -> str:
     return "".join(f" {g}" for g in matched)
 
 
+_ANTI_FABRICATION_RULE = (
+    " NEVER write out a Python code block (a method definition, a decorator like "
+    "@api.constrains, or a raise statement) as if it were the real implementation unless "
+    "that exact code already appears, verbatim, in one of the observations above -- copy it, "
+    "do not reconstruct or guess it from a related pattern (e.g. a similar constraint seen on "
+    "a different model). If the observations do not contain the actual implementation of a "
+    "mechanism the question asks about, say explicitly that the observations gathered do not "
+    "show it (naming which observation you would have expected it in, if relevant), rather than "
+    "presenting a plausible-looking substitute as fact."
+)
+
+_COVERAGE_CAVEAT = (
+    " IMPORTANT COVERAGE CAVEAT: the observations above come only from access/permission-layer "
+    "tools (group membership, ACL, ir.rule, security-lock heuristics) -- no workflow analysis, "
+    "method-override trace, or direct source-code read was performed this turn. If none of these "
+    "observations show an explicit restriction, you must NOT conclude that no restriction exists "
+    "at all, and must NOT open the answer with an unqualified 'Oui'/'Non'/'Yes'/'No'. State plainly "
+    "that the access/permission layer shows no restriction, but that workflow-level or "
+    "application-level checks (e.g. date locks, state-based blocks, other Python guards) were not "
+    "verified in this pass, so the answer is incomplete rather than a definitive verdict."
+)
+
+_SYNTHESIS_LANGUAGE_AND_CITATION = (
+    "\n\nSynthesize a clear, professional response based strictly on the "
+    "data above. Write the prose in the SAME language as the Original Question "
+    "above (French question -> French prose, English question -> "
+    "English prose). Interface labels (menu, button, field, state and group "
+    "names as displayed by the interface) are not prose: copy each one verbatim "
+    "as given in the observations, in quotes, never translate it and never add a "
+    "translation or gloss next to it; a label absent from the observations is "
+    "never quoted, describe its role in plain words instead. Do NOT include "
+    "technical model names, XML-IDs, Python method names, file paths, or line "
+    "numbers in the user-facing response; the interface displays provenance separately. "
+    "Translate technical findings into clear business language without changing their meaning. "
+)
+
+_SYNTHESIS_EVIDENCE_HANDLING = (
+    "Each observation above comes from a "
+    "distinct mechanism (ir.rule evaluation vs Python code lock analysis "
+    "vs server action analysis) -- NEVER combine a numeric threshold or "
+    "condition from one mechanism with a rule/lock name from a different "
+    "one; attribute each finding only to its own source. Some observations "
+    "When the question asks for several distinct mechanisms, make an internal "
+    "checklist from the requested objects, methods, fields, and constraints "
+    "before writing. Cover every checklist item from its matching observation; "
+    "never substitute a related finding (for example a field-type guard for a "
+    "deletion guard), and copy numeric bounds and comparison operators exactly. "
+    "The declared SQL constraint names and predicates are authoritative evidence. "
+    "When the requested answer concerns SQL constraints, list the declarations "
+    "actually present in the observation; never substitute common Odoo rules "
+    "inferred from domain knowledge. If the declaration is absent or the "
+    "observation is truncated, say so rather than guessing. "
+    "For conditional constraints, preserve every branch predicate and its "
+    "required or forbidden values exactly: never swap NULL and non-NULL branches, "
+    "never reverse a condition, treat <= and >= as inclusive, and keep normalized "
+    "ratios such as 1.0 in their original numeric form. Omit findings unrelated "
+    "to the question unless they are needed to explain a requested mechanism. "
+    "When an observation contains a '[CHECK LOGIC]' line, treat that line as the "
+    "authoritative interpretation of the SQL predicate: copy its guard/condition "
+    "mapping exactly and do not recompute it from the constraint name or general "
+    "Odoo knowledge. "
+    "If a requested item is absent from the observations, say that the evidence "
+    "is absent instead of filling the gap from general Odoo knowledge. "
+    "Do not add hypothetical examples, scenarios, causes, or operational advice unless "
+    "the exact example or advice is present in the observations. "
+)
+
+_SYNTHESIS_CONFIDENCE_AND_FACTS = (
+    "carry an explicit confidence tag literally present in their source text "
+    "(e.g. '[Confiance: FAIBLE]', '[Confiance: ÉLEVÉE]', '[Confiance: MOYENNE]') -- for "
+    "those, copy the exact tag text verbatim next to the finding it qualifies; never "
+    "translate, abbreviate, or paraphrase ÉLEVÉE/MOYENNE/FAIBLE. Observations with NO "
+    "such tag in their source text (e.g. ir.rule / evaluate_record_rules "
+    "output, resolved model listings) are deterministic facts -- NEVER invent, "
+    "infer, or add a confidence tag to them. Presenting a deterministic fact as "
+    "if it carried a confidence level is itself a fabrication. "
+    "If a [FAIT DÉTERMINISTIQUE] observation is present, it is the "
+    "authoritative verdict on the user's access for the stated amount -- "
+    "never recompute or contradict it, and do NOT mention, paraphrase, or "
+    "allude to any 'could not be resolved' message from a different tool "
+    "about group identifiers; those are obsolete artifacts of an earlier "
+    "resolution step and have been superseded by the deterministic "
+    "evaluation. If that verdict says the engine CANNOT determine access "
+    "(an indeterminate/'indéterminé' result, listing which condition(s) "
+    "could not be resolved), you MUST report that uncertainty explicitly and "
+    "MUST NOT state or imply that access is allowed or denied -- do not round "
+    "an indeterminate verdict to a yes/no answer. This includes a short standalone "
+    "verdict token as the answer's opening line/sentence (e.g. 'Oui.', 'Non.', 'Yes.', "
+    "'No.') even if a later sentence correctly states the uncertainty -- a reader "
+    "stopping at the first line must not come away with a definite yes/no impression; "
+    "NEVER open the answer with such a token when the verdict is indeterminate. "
+    "This verdict is a CONCLUSION, not an explanation: you MUST "
+    "still explain WHY in your answer, using the applicable and ignored rule "
+    "names/domain_force from the OTHER observations in this same response "
+    "(e.g. an unconditional group rule that outweighs a capped one via OR, "
+    "or -- when no group rule applies at all -- the remaining global rule that "
+    "carries no amount condition). Never quote or restate the bracketed "
+    "'[FAIT DÉTERMINISTIQUE]' label or the mechanism name "
+    "'evaluate_record_rules.can_view_amount' itself as if that were "
+    "the explanation -- it is internal bookkeeping, not user-facing reasoning. "
+    "Any technical provenance must remain in the separate evidence record; do not reproduce file links, "
+    "XML-IDs, or implementation identifiers in the user-facing answer. "
+)
+
+_SYNTHESIS_OVERRIDE_CHAIN = (
+    "If an observation contains 'SUPER() NON GARDÉ', it means a conditional "
+    "exemption in one module can be silently nullified by an unconditional "
+    "super() call re-applying the parent module's logic -- this is the ACTUAL "
+    "real-world behavior, more authoritative than a single module's lock message "
+    "read in isolation. When both are present, lead the answer with what the "
+    "override-chain finding says actually happens, not with the base module's "
+    "lock message alone -- do not present the base module's rule as the answer "
+    "while ignoring a SUPER() NON GARDÉ finding on the same method. "
+    "If an observation contains 'CHAINE RELATIONNELLE NON VÉRIFIÉE', it "
+    "describes a SECOND, ADDITIONAL threshold/condition from a different "
+    "override module on top of whatever the base module's lock message already "
+    "said (e.g. base module: >5000€ needs manager approval; override module: "
+    ">20000€ ALSO triggers director notification, with a real risk it silently "
+    "fails if the hierarchy chain is incomplete) -- when the amount in the "
+    "Original Question clears BOTH thresholds, report BOTH levels explicitly as "
+    "a cascade, including the relational-chain risk verbatim; never report only "
+    "the first (lowest) threshold and drop the second. "
+    "When an observation names a chain of override modules (e.g. 'Chaîne de "
+    "surcharge de ... (N modules ...)'), treat its listed modules as exhaustive "
+    "evidence, but describe their effect in business terms; never expose module "
+    "names, file paths, or line ranges in the final answer. "
+    "When a finding includes a literal condition or field name in backticks "
+    "(e.g. `rec.partner_id.avoir_vip_exempt`, `rec.amount_total > 20000`), preserve "
+    "the condition and its exact threshold/comparison in business language; do not "
+    "include raw field or method names in the answer. If a module listed in an "
+    "override chain has NO warning attached to it in the observation, state "
+    "explicitly that no risk pattern was detected for that module by this "
+    "heuristic -- never invent a risk finding to fill that gap. "
+)
+
+_SYNTHESIS_APPROVAL_AND_ACCESS = (
+    "If the Original Question above asks about more than one condition or "
+    "threshold (e.g. 'qui peut valider X, et y a-t-il une restriction "
+    "supplémentaire au-delà de Y ?'), answer EACH part explicitly and "
+    "separately -- never answer only the first part and silently imply 'no' "
+    "for the rest. When an observation's 'Messages de verrous' section lists "
+    "more than one message, treat each one as a DISTINCT finding to report -- "
+    "do not summarize or select only one of them; a second or third message in "
+    "that list is exactly as authoritative as the first. When the question "
+    "asks who can validate/approve an operation for a specific monetary amount, "
+    "evaluate each lock message condition against that specific amount: a lock "
+    "whose threshold is exceeded (e.g. >50000€ for a 60000€ document) is triggered "
+    "and requires the specified group (meaning members of that group ARE AUTHORIZED to "
+    "validate above that amount, and the threshold is a minimum floor where their authority "
+    "is required, NOT an upper ceiling where their authority ends). A lock whose threshold "
+    "is NOT reached (e.g. >100000€ for a 60000€ document) is not triggered, does not "
+    "restrict that amount, and its group is NOT required for that amount. "
+    "When answering access or deletion permissions questions (e.g. 'qui peut créer... qui peut supprimer...'), "
+    "report both the ACL group permissions (CREATE vs UNLINK), any global ir.rule multi-company restrictions, "
+    "and any Python-level locks (such as `unlink()` restricting deletion to specific states like 'draft'). "
+    "For approval or validation questions, distinguish a dedicated approval gate from ordinary confirmation. "
+    "A workflow role of 'All Users' means only that no group restriction was extracted from that button's "
+    "interface declaration; it does NOT prove every user can perform the operation or that ACL, record-rule, "
+    "company, or application checks impose no further restrictions. Never say an action is unrestricted or "
+    "needs no approval solely because the workflow role says 'All Users'. State only whether the inspected "
+    "observations identify a dedicated approval group, and qualify access checks not examined. A group shown "
+    "on an approval button applies to that button and state only; do not present it as the sole path for all "
+    "confirmations or approvals. When a source describes alternate approval paths or threshold conditions, "
+    "report those conditions together and do not omit a bypass path. "
+)
+
+_SYNTHESIS_RESPONSE_FORMAT = (
+    "RESPONSE FORMAT: Rédige impérativement ta réponse en langage 100% métier accessible à tout utilisateur final. "
+    "Nomme un groupe par son libellé exact tel que donné dans les observations, entre guillemets, sans le traduire "
+    "ni le reformuler ; sans libellé fourni, décris son rôle en termes simples plutôt que d'inventer un nom. "
+    "Utilise les noms de menus "
+    "et boutons tels qu'affichés dans l'interface Odoo, ainsi que les seuils et montants métier. "
+    "N'inclus AUCUN détail technique dans ta réponse textuelle : aucun nom de méthode Python, aucun xml_id, "
+    "aucun lien file://, aucune référence de fichier ou numéro de ligne, aucun extrait de code brut, "
+    "et AUCUNE section 'Preuves' ou 'Sources' (les preuves et sources techniques sont gérées automatiquement "
+    "par l'interface dans le dépliant dédié)."
+)
+
+
 def build_synthesis_prompt(
     question: str,
     tool_observations: List[str],
@@ -199,42 +371,7 @@ def build_synthesis_prompt(
     security_principals: Optional[dict] = None,
 ) -> str:
     """Build the final synthesis prompt given to the plain LLM once observations are collected."""
-    # todo/contexte.txt section 812 (ACC-Q5): the LLM invented a complete,
-    # plausible `_check_name` Python method with no citation of its own,
-    # to fill a gap left by a real extraction blind spot (SQL-based
-    # constraints not covered by the Semgrep rules behind
-    # analyze_data_constraints). dispatch_guards.verify_citations now
-    # mechanically flags this pattern post-hoc (uncited_code_blocks), but
-    # the instruction below tries to prevent it at generation time.
-    anti_fabrication_rule = (
-        " NEVER write out a Python code block (a method definition, a decorator like "
-        "@api.constrains, or a raise statement) as if it were the real implementation unless "
-        "that exact code already appears, verbatim, in one of the observations above -- copy it, "
-        "do not reconstruct or guess it from a related pattern (e.g. a similar constraint seen on "
-        "a different model). If the observations do not contain the actual implementation of a "
-        "mechanism the question asks about, say explicitly that the observations gathered do not "
-        "show it (naming which observation you would have expected it in, if relevant), rather than "
-        "presenting a plausible-looking substitute as fact."
-    )
-    # todo/contexte.txt section 813 (ACC-Q2): the LLM concluded "no restriction
-    # exists" from an investigation that only ever ran access/permission-layer
-    # tools (who_has_access_to, evaluate_record_rules, analyze_security_locks,
-    # button_execution_path) -- the real restriction lived in a workflow/date-lock
-    # check none of those tools surface. Absence of evidence in a partial
-    # investigation is not evidence of absence; only added when the tool
-    # coverage this turn was actually partial (tools_lack_deeper_coverage),
-    # so a fully-covered investigation is not needlessly hedged.
-    coverage_caveat = (
-        " IMPORTANT COVERAGE CAVEAT: the observations above come only from access/permission-layer "
-        "tools (group membership, ACL, ir.rule, security-lock heuristics) -- no workflow analysis, "
-        "method-override trace, or direct source-code read was performed this turn. If none of these "
-        "observations show an explicit restriction, you must NOT conclude that no restriction exists "
-        "at all, and must NOT open the answer with an unqualified 'Oui'/'Non'/'Yes'/'No'. State plainly "
-        "that the access/permission layer shows no restriction, but that workflow-level or "
-        "application-level checks (e.g. date locks, state-based blocks, other Python guards) were not "
-        "verified in this pass, so the answer is incomplete rather than a definitive verdict."
-        if tools_lack_deeper_coverage(tool_observation_tools) else ""
-    )
+    coverage_caveat = _COVERAGE_CAVEAT if tools_lack_deeper_coverage(tool_observation_tools) else ""
     persona_guidance = ""
     if security_principals:
         p_names = ", ".join(f"'{p}'" for p in security_principals.keys())
@@ -263,141 +400,15 @@ def build_synthesis_prompt(
     return (
         f"Original Question: {question}\n\n"
         f"Knowledge Graph Output:\n" + "\n---\n".join(tool_observations) +
-        anti_fabrication_rule + coverage_caveat + persona_guidance + display_causes_rule +
-        orphan_action_rule +
-        f"\n\nSynthesize a clear, professional response based strictly on the "
-        f"data above. Write the prose in the SAME language as the Original Question "
-        f"above (French question -> French prose, English question -> "
-        f"English prose). Interface labels (menu, button, field, state and group "
-        f"names as displayed by the interface) are not prose: copy each one verbatim "
-        f"as given in the observations, in quotes, never translate it and never add a "
-        f"translation or gloss next to it; a label absent from the observations is "
-        f"never quoted, describe its role in plain words instead. Do NOT include "
-        f"technical model names, XML-IDs, Python method names, file paths, or line "
-        f"numbers in the user-facing response; the interface displays provenance separately. "
-        f"Translate technical findings into clear business language without changing their meaning. "
-        f"Each observation above comes from a "
-        f"distinct mechanism (ir.rule evaluation vs Python code lock analysis "
-        f"vs server action analysis) -- NEVER combine a numeric threshold or "
-        f"condition from one mechanism with a rule/lock name from a different "
-        f"one; attribute each finding only to its own source. Some observations "
-        f"When the question asks for several distinct mechanisms, make an internal "
-        f"checklist from the requested objects, methods, fields, and constraints "
-        f"before writing. Cover every checklist item from its matching observation; "
-        f"never substitute a related finding (for example a field-type guard for a "
-        f"deletion guard), and copy numeric bounds and comparison operators exactly. "
-        f"The declared SQL constraint names and predicates are authoritative evidence. When the requested answer concerns SQL constraints, list the declarations actually present in the observation; never substitute common Odoo rules inferred from domain knowledge. If the declaration is absent or the observation is truncated, say so rather than guessing. " 
-        f"For conditional constraints, preserve every branch predicate and its "
-        f"required or forbidden values exactly: never swap NULL and non-NULL branches, "
-        f"never reverse a condition, treat <= and >= as inclusive, and keep normalized "
-        f"ratios such as 1.0 in their original numeric form. Omit findings unrelated "
-        f"to the question unless they are needed to explain a requested mechanism. "
-        f"When an observation contains a '[CHECK LOGIC]' line, treat that line as the "
-        f"authoritative interpretation of the SQL predicate: copy its guard/condition "
-        f"mapping exactly and do not recompute it from the constraint name or general "
-        f"Odoo knowledge. "
-        f"If a requested item is absent from the observations, say that the evidence "
-        f"is absent instead of filling the gap from general Odoo knowledge. "
-        f"Do not add hypothetical examples, scenarios, causes, or operational advice unless "
-        f"the exact example or advice is present in the observations. "
-        f"carry an explicit confidence tag literally present in their source text "
-        f"(e.g. '[Confiance: FAIBLE]', '[Confiance: ÉLEVÉE]', '[Confiance: MOYENNE]') -- for "
-        f"those, copy the exact tag text verbatim next to the finding it qualifies; never "
-        f"translate, abbreviate, or paraphrase ÉLEVÉE/MOYENNE/FAIBLE. Observations with NO "
-        f"such tag in their source text (e.g. ir.rule / evaluate_record_rules "
-        f"output, resolved model listings) are deterministic facts -- NEVER invent, "
-        f"infer, or add a confidence tag to them. Presenting a deterministic fact as "
-        f"if it carried a confidence level is itself a fabrication. "
-        f"If a [FAIT DÉTERMINISTIQUE] observation is present, it is the "
-        f"authoritative verdict on the user's access for the stated amount -- "
-        f"never recompute or contradict it, and do NOT mention, paraphrase, or "
-        f"allude to any 'could not be resolved' message from a different tool "
-        f"about group identifiers; those are obsolete artifacts of an earlier "
-        f"resolution step and have been superseded by the deterministic "
-        f"evaluation. If that verdict says the engine CANNOT determine access "
-        f"(an indeterminate/'indéterminé' result, listing which condition(s) "
-        f"could not be resolved), you MUST report that uncertainty explicitly and "
-        f"MUST NOT state or imply that access is allowed or denied -- do not round "
-        f"an indeterminate verdict to a yes/no answer. This includes a short standalone "
-        f"verdict token as the answer's opening line/sentence (e.g. 'Oui.', 'Non.', 'Yes.', "
-        f"'No.') even if a later sentence correctly states the uncertainty -- a reader "
-        f"stopping at the first line must not come away with a definite yes/no impression; "
-        f"NEVER open the answer with such a token when the verdict is indeterminate. This verdict is a CONCLUSION, not an explanation: you MUST "
-        f"still explain WHY in your answer, using the applicable and ignored rule "
-        f"names/domain_force from the OTHER observations in this same response "
-        f"(e.g. an unconditional group rule that outweighs a capped one via OR, "
-        f"or -- when no group rule applies at all -- the remaining global rule that "
-        f"carries no amount condition). Never quote or restate the bracketed "
-        f"'[FAIT DÉTERMINISTIQUE]' label or the mechanism name "
-        f"'evaluate_record_rules.can_view_amount' itself as if that were "
-        f"the explanation -- it is internal bookkeeping, not user-facing reasoning. "
-        f"Any technical provenance must remain in the separate evidence record; do not reproduce file links, "
-        f"XML-IDs, or implementation identifiers in the user-facing answer. "
-        f"If an observation contains 'SUPER() NON GARDÉ', it means a conditional "
-        f"exemption in one module can be silently nullified by an unconditional "
-        f"super() call re-applying the parent module's logic -- this is the ACTUAL "
-        f"real-world behavior, more authoritative than a single module's lock message "
-        f"read in isolation. When both are present, lead the answer with what the "
-        f"override-chain finding says actually happens, not with the base module's "
-        f"lock message alone -- do not present the base module's rule as the answer "
-        f"while ignoring a SUPER() NON GARDÉ finding on the same method. "
-        f"If an observation contains 'CHAINE RELATIONNELLE NON VÉRIFIÉE', it "
-        f"describes a SECOND, ADDITIONAL threshold/condition from a different "
-        f"override module on top of whatever the base module's lock message already "
-        f"said (e.g. base module: >5000€ needs manager approval; override module: "
-        f">20000€ ALSO triggers director notification, with a real risk it silently "
-        f"fails if the hierarchy chain is incomplete) -- when the amount in the "
-        f"Original Question clears BOTH thresholds, report BOTH levels explicitly as "
-        f"a cascade, including the relational-chain risk verbatim; never report only "
-        f"the first (lowest) threshold and drop the second. "
-        f"When an observation names a chain of override modules (e.g. 'Chaîne de "
-        f"surcharge de ... (N modules ...)'), treat its listed modules as exhaustive "
-        f"evidence, but describe their effect in business terms; never expose module "
-        f"names, file paths, or line ranges in the final answer. "
-        f"When a finding includes a literal condition or field name in backticks "
-        f"(e.g. `rec.partner_id.avoir_vip_exempt`, `rec.amount_total > 20000`), preserve "
-        f"the condition and its exact threshold/comparison in business language; do not "
-        f"include raw field or method names in the answer. If a module listed in an "
-        f"override chain has NO ⚠️ warning attached to it in the observation, state "
-        f"explicitly that no risk pattern was detected for that module by this "
-        f"heuristic -- never invent a risk finding to fill that gap. "
-        f"If the Original Question above asks about more than one condition or "
-        f"threshold (e.g. 'qui peut valider X, et y a-t-il une restriction "
-        f"supplémentaire au-delà de Y ?'), answer EACH part explicitly and "
-        f"separately -- never answer only the first part and silently imply 'no' "
-        f"for the rest. When an observation's 'Messages de verrous' section lists "
-        f"more than one message, treat each one as a DISTINCT finding to report -- "
-        f"do not summarize or select only one of them; a second or third message in "
-        f"that list is exactly as authoritative as the first. When the question "
-        f"asks who can validate/approve an operation for a specific monetary amount, "
-        f"evaluate each lock message condition against that specific amount: a lock "
-        f"whose threshold is exceeded (e.g. >50000€ for a 60000€ document) is triggered "
-        f"and requires the specified group (meaning members of that group ARE AUTHORIZED to "
-        f"validate above that amount, and the threshold is a minimum floor where their authority "
-        f"is required, NOT an upper ceiling where their authority ends). A lock whose threshold "
-        f"is NOT reached (e.g. >100000€ for a 60000€ document) is not triggered, does not "
-        f"restrict that amount, and its group is NOT required for that amount. "
-        f"When answering access or deletion permissions questions (e.g. 'qui peut créer... qui peut supprimer...'), "
-        f"report both the ACL group permissions (CREATE vs UNLINK), any global ir.rule multi-company restrictions, "
-        f"and any Python-level locks (such as `unlink()` restricting deletion to specific states like 'draft'). "
-        f"For approval or validation questions, distinguish a dedicated approval gate from ordinary confirmation. "
-        f"A workflow role of 'All Users' means only that no group restriction was extracted from that button's "
-        f"interface declaration; it does NOT prove every user can perform the operation or that ACL, record-rule, "
-        f"company, or application checks impose no further restrictions. Never say an action is unrestricted or "
-        f"needs no approval solely because the workflow role says 'All Users'. State only whether the inspected "
-        f"observations identify a dedicated approval group, and qualify access checks not examined. A group shown "
-        f"on an approval button applies to that button and state only; do not present it as the sole path for all "
-        f"confirmations or approvals. When a source describes alternate approval paths or threshold conditions, "
-        f"report those conditions together and do not omit a bypass path. "
-        f"{EFFECT_GROUNDING_RULE} "
-        f"RESPONSE FORMAT: Rédige impérativement ta réponse en langage 100% métier accessible à tout utilisateur final. "
-        f"Nomme un groupe par son libellé exact tel que donné dans les observations, entre guillemets, sans le traduire "
-        f"ni le reformuler ; sans libellé fourni, décris son rôle en termes simples plutôt que d'inventer un nom. "
-        f"Utilise les noms de menus "
-        f"et boutons tels qu'affichés dans l'interface Odoo, ainsi que les seuils et montants métier. "
-        f"N'inclus AUCUN détail technique dans ta réponse textuelle : aucun nom de méthode Python, aucun xml_id, "
-        f"aucun lien file://, aucune référence de fichier ou numéro de ligne, aucun extrait de code brut, "
-        f"et AUCUNE section 'Preuves' ou 'Sources' (les preuves et sources techniques sont gérées automatiquement par l'interface dans le dépliant dédié)."
+        _ANTI_FABRICATION_RULE + coverage_caveat + persona_guidance +
+        display_causes_rule + orphan_action_rule +
+        _SYNTHESIS_LANGUAGE_AND_CITATION +
+        _SYNTHESIS_EVIDENCE_HANDLING +
+        _SYNTHESIS_CONFIDENCE_AND_FACTS +
+        _SYNTHESIS_OVERRIDE_CHAIN +
+        _SYNTHESIS_APPROVAL_AND_ACCESS +
+        f"{EFFECT_GROUNDING_RULE} " +
+        _SYNTHESIS_RESPONSE_FORMAT
     ) + _build_module_specific_guidance(tool_observations)
 
 

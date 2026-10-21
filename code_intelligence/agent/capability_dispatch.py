@@ -15,7 +15,7 @@ class PlannedDispatchContext(DispatchContext):
 
 
 def run_planned_investigation(ctx):
-    from .loop import execute_tool_calls
+    from .tool_execution import execute_tool_calls
     plan = deepcopy(getattr(ctx, 'investigation_plan', None))
     if not plan or plan.get('execution_mode') != 'capability_v1':
         plan = generate_investigation_plan(ctx.question, ctx.concept, ctx.G, intent=ctx.intent).to_display_dict()

@@ -291,7 +291,7 @@ class OwnershipAndRetirementTests(unittest.TestCase):
         namespace.pop('_apply_backfill_chain', None)
         ns = load('code_intelligence/agent/postprocess.py', {'_apply_backfill_chain'}, namespace)
         self.assertEqual(ns['_apply_backfill_chain']('answer', 'source', 'question'), 'answer')
-        self.assertEqual(len(called), 25)
+        self.assertEqual(len(called), 24)
 
     def test_retrieval_uses_its_owner_not_a_compatibility_patch(self):
         owned = Mock(return_value=('chroma', 'bm25'))

@@ -1,0 +1,45 @@
+
+==============================================================================
+QUESTION 1 (99s) : quelles sont les etapes à suivre pour faire une demande d'achat?
+==============================================================================
+Je n'ai pas obtenu de preuve exploitable pour cette question. Précisez le document, le modèle ou l'action à examiner ; les candidats de recherche seuls ne permettent pas de conclure.
+
+[Source: connaissances générales du modèle de langage. Aucune preuve retrouvée dans le graphe de votre instance : à vérifier avant usage.]
+
+[CONTROLE] bloc FAIT DETERMINISTIQUE present : False
+[CONTROLE] 'Precision d'heritage' present    : False
+[CONTROLE] route=code_intelligence ; sources=0
+
+==============================================================================
+QUESTION 2 (118s) : et qui peut approuver les demandes de mise à disposition?
+==============================================================================
+### Étapes pour une demande d'achat et approbation des mises à disposition
+
+#### 1. **Demande d'achat**  
+Pour soumettre une demande d'achat, le demandeur doit :  
+- Créer un enregistrement dans le modèle **`custom.asset.loan`** (ou un modèle similaire lié aux demandes de mise à disposition).  
+- Indiquer le matériel concerné, le bénéficiaire, et le montant estimé (si applicable).  
+
+#### 2. **Validation des rôles**  
+- Si le montant estimé de la demande dépasse **2 000 €** et que le bénéficiaire est le même que le demandeur initial, un **message d'erreur** est déclenché :  
+  > *"Separation des rôles requise : le bénéficiaire d'un matériel de plus de 2 000 € doit être différent du demandeur initial."*  
+- Cette vérification est effectuée automatiquement par le système lors de l'approbation ou de la validation de la demande.  
+
+#### 3. **Approbation des demandes**  
+- **Qui peut approuver ?**  
+  Les informations disponibles ne précisent **pas explicitement** les groupes ou utilisateurs autorisés à approuver les demandes de mise à disposition.  
+  - La vérification des rôles (demandeur vs. bénéficiaire) est une condition technique, mais **aucun groupe ou utilisateur spécifique n’est identifié comme approbateur** dans les données analysées.  
+  - Pour déterminer les approbateurs, il faudrait consulter les **règles de workflow**, les **groupes d’accès**, ou les **actions serveur** associés au modèle `custom.asset.loan`.  
+
+#### 4. **Recommandations**  
+- Si vous ne pouvez pas approuver une demande, vérifiez :  
+  - Que le bénéficiaire est différent du demandeur (si le montant dépasse 2 000 €).  
+  - Que les autorisations de votre groupe permettent d’effectuer l’approbation (à confirmer via les outils de gestion des droits).  
+
+Pour des détails supplémentaires, une analyse des **workflow transitions** ou des **règles d’accès** serait nécessaire.
+
+[Source: Graphe de Connaissances Code Intelligence]
+
+[CONTROLE] bloc FAIT DETERMINISTIQUE present : False
+[CONTROLE] 'Precision d'heritage' present    : False
+[CONTROLE] route=code_intelligence ; sources=1

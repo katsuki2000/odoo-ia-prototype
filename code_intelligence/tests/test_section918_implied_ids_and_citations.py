@@ -2,115 +2,16 @@
 code_intelligence/tests/test_section918_implied_ids_and_citations.py
 
 Tests for Section 918:
-1. _backfill_missing_implied_ids_mechanism: ensures answers concerning roles with
-   inherited permissions via implied_ids explicitly mention that inheritance mechanism.
-2. get_chat_llm: verifies frequency_penalty and presence_penalty are passed cleanly
+1. get_chat_llm: verifies frequency_penalty and presence_penalty are passed cleanly
    to ChatOpenAI without triggering LangChain UserWarning.
-3. CI_SYSTEM_PROMPT: verifies prompt instructions and examples use xml_id: rather than
+2. CI_SYSTEM_PROMPT: verifies prompt instructions and examples use xml_id: rather than
    the misleading file:///path#L12 placeholder for ACL sources.
 """
 
 import warnings
 
-from code_intelligence.agent.access_guards import _backfill_missing_implied_ids_mechanism
 from code_intelligence.agent.prompts import CI_SYSTEM_PROMPT, build_synthesis_prompt
 from core.llm.llm_client import get_chat_llm
-
-
-class TestBackfillMissingImpliedIdsMechanism:
-    def test_backfills_when_implied_ids_present_in_output_and_group_in_question(self):
-        raw_output = (
-            "Access Matrix for 'account.move':\n"
-            "[WRITE]: account.group_account_invoice, account.group_account_manager "
-            "(via implied_ids <- account.group_account_invoice)"
-        )
-        question = (
-            "L'ACL directe de account.group_account_manager sur account.move n'accorde que perm_read=1. "
-            "Un 'Billing Administrator' (group_account_manager) peut-il malgre tout creer et modifier des factures ?"
-        )
-        answer = (
-            "Oui. Le groupe account.group_account_manager possède les droits WRITE et CREATE sur account.move."
-        )
-
-        result = _backfill_missing_implied_ids_mechanism(answer, raw_output, question)
-        assert "Précision d'héritage de droits" in result
-        assert "account.group_account_manager" in result
-        assert "account.group_account_invoice" in result
-        assert "implied_ids" in result
-
-    def test_always_backfills_even_when_answer_already_explains_inheritance(self):
-        # Section 962: the gate against the LLM's own wording was removed
-        # (root cause of run-to-run flakiness on MNT-Q1 and others) -- the
-        # deterministic fact is now always appended when raw tool output
-        # supports it, even if the synthesized answer already covers the
-        # same ground in its own words. Redundancy is preferred over
-        # silently dropping evidence depending on non-deterministic LLM
-        # phrasing.
-        raw_output = (
-            "Access Matrix for 'account.move':\n"
-            "[WRITE]: account.group_account_manager (via implied_ids <- account.group_account_invoice)"
-        )
-        question = "group_account_manager peut-il modifier ?"
-        answer = (
-            "Oui, car group_account_manager hérite de account.group_account_invoice via implied_ids."
-        )
-
-        result = _backfill_missing_implied_ids_mechanism(answer, raw_output, question)
-        assert result != answer
-        assert "[FAIT DÉTERMINISTIQUE]" in result
-        assert "account.group_account_manager" in result
-        assert "account.group_account_invoice" in result
-
-    def test_skips_when_no_implied_ids_in_raw_output(self):
-        raw_output = "Access Matrix for 'sale.order':\n[WRITE]: sales_team.group_sale_salesman"
-        question = "Le vendeur peut-il modifier ?"
-        answer = "Oui, il a le droit d'écriture."
-
-        result = _backfill_missing_implied_ids_mechanism(answer, raw_output, question)
-        assert result == answer
-
-    def test_skips_when_child_group_unrelated_to_question_and_answer(self):
-        raw_output = (
-            "[WRITE]: hr_expense.group_hr_expense_manager (via implied_ids <- hr_expense.group_hr_expense_user)"
-        )
-        question = "Un client du portail peut-il voir sa commande ?"
-        answer = "Non, le portail ne peut que lire ses propres devis."
-
-        result = _backfill_missing_implied_ids_mechanism(answer, raw_output, question)
-        assert result == answer
-
-    def test_skips_security_inheritance_fact_for_accounting_field_visibility(self):
-        raw_output = (
-            "Access Matrix for 'account.move':\n"
-            "[WRITE]: account.group_account_manager "
-            "(via implied_ids <- account.group_account_invoice)"
-        )
-        question = (
-            "Un utilisateur Billing voit-il le compte comptable (account_id) "
-            "d'une ligne de facture ?"
-        )
-        answer = "Non, le champ account_id est restreint dans la vue."
-
-        result = _backfill_missing_implied_ids_mechanism(answer, raw_output, question)
-        assert result == answer
-
-    def test_corrects_false_claim_that_a_read_only_acl_is_non_restrictive(self):
-        raw_output = (
-            "[WRITE]: account.group_account_manager "
-            "(via implied_ids <- account.group_account_invoice)"
-        )
-        question = "group_account_manager peut-il créer des factures ?"
-        answer = (
-            "- L'ACL directe ne limite que la lecture, mais ne restreint pas les opérations "
-            "d'écriture, de création ou de suppression.\n"
-            "- Le groupe hérite d'autres droits."
-        )
-
-        result = _backfill_missing_implied_ids_mechanism(answer, raw_output, question)
-
-        assert "ne limite que la lecture" not in result
-        assert "ACL applicables sont additives" in result
-        assert "account.group_account_invoice" in result
 
 
 class TestGetChatLlmPenaltiesWarning:

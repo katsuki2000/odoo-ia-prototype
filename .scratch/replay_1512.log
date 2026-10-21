@@ -1,0 +1,16 @@
+
+==============================================================================
+QUESTION (125s) : qui approuve les congés dans l’ERP ?
+==============================================================================
+### Qui approuve les congés ?
+
+Les congés sont approuvés par deux groupes dans l'ordre suivant :
+
+1. **« Responsable des congés »** : Ce groupe valide la demande de congé en la passant du statut *confirmé* au statut *validé1*.
+2. **« Gestionnaire : Gérer toutes les demandes »** : Ce groupe finalise la validation en passant le congé du statut *validé1* au statut *validé*.
+
+Si une demande est refusée à n'importe quel stade, elle peut être renvoyée au statut *brouillon* pour modification.
+
+[Source: Graphe de Connaissances Code Intelligence]
+
+[CONTROLE] route=code_intelligence ; sources=2

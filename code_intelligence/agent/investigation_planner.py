@@ -1,8 +1,4 @@
-"""
-code_intelligence/investigation_plan_builders.py
-
-Intent-specific step generators for the Code Intelligence investigation planner.
-"""
+"""Intent-specific step generators for the Code Intelligence investigation planner."""
 
 from typing import Any, List, Optional
 
@@ -285,17 +281,6 @@ def plan_general_code_inquiry(primary_model: str) -> List[InvestigationStep]:
 
 # ── Planner ─────────────────────────────────────────────────────────────
 
-"""
-code_intelligence/investigation_plan.py
-
-Bloc P1 Jour 1-2 (todo/plan.md, Couche 3 architecture.md):
-Serializable Investigation Plan schema, Question Intent classification,
-and Semantic Planner logic.
-
-Facade and core orchestration module re-exporting all submodules for complete
-backward compatibility.
-"""
-
 from typing import Any, List, Optional
 import logging
 
@@ -334,10 +319,7 @@ def generate_investigation_plan(
     target_models = resolved_concept.resolved_models if (resolved_concept and resolved_concept.is_resolved) else []
     primary_model = target_models[0] if target_models else ""
     if intent is None:
-        import sys
-        ip_mod = sys.modules.get("code_intelligence.agent.investigation_planner")
-        kw_classifier = getattr(ip_mod, "classify_question_intent", classify_question_intent) if ip_mod else classify_question_intent
-        intent = kw_classifier(question, resolved_concept, G)
+        intent = classify_question_intent(question, resolved_concept, G)
     steps: List[InvestigationStep] = []
 
     if not primary_model:

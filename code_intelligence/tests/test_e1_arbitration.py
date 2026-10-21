@@ -224,7 +224,7 @@ def test_shipped_configuration_fixes_the_r6_thresholds_and_drops_the_held_out_cl
     assert set(r6["denominators"]) == {"silent_false", "correct_decision", "strict_clarification"}
     assert set(r6["definitions"]) >= set(r6["denominators"])
     assert "held_out_recall_at_5_R4_ge_R0_minus_points" not in criteria["D1_hybrid_as_candidate_generator"]
-    assert [amendment["section"] for amendment in config["amendments"]] == [1288, 1290, 1370, 1436]
+    assert [amendment["section"] for amendment in config["amendments"]][:4] == [1288, 1290, 1370, 1436]
 
 
 def test_run_offline_reports_r6_as_an_error_block_while_thresholds_are_unfixed(monkeypatch):

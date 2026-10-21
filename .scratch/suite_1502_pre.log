@@ -1,0 +1,92 @@
+bringing up nodes...
+bringing up nodes...
+
+.......................................F................................ [ 20%]
+..............................................F...F..................... [ 41%]
+........................................................................ [ 62%]
+........................................................................ [ 83%]
+........................................................                 [100%]
+==================================== ERRORS ====================================
+__________________ ERROR collecting tests/test_top_models.py ___________________
+ImportError while importing test module '/home/user/odoo-ia-prototype/.scratch/wt_pre_1502/tests/test_top_models.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/test_top_models.py:3: in <module>
+    from code_intelligence.evaluation.e1 import pipeline_components, systems
+code_intelligence/evaluation/e1/pipeline_components.py:19: in <module>
+    from .projection import ModelProjector, top_models
+E   ImportError: cannot import name 'top_models' from 'code_intelligence.evaluation.e1.projection' (/home/user/odoo-ia-prototype/.scratch/wt_pre_1502/code_intelligence/evaluation/e1/projection.py)
+=================================== FAILURES ===================================
+_ test_shipped_configuration_fixes_the_r6_thresholds_and_drops_the_held_out_clause _
+[gw2] linux -- Python 3.11.2 /home/user/odoo-ia-prototype/.venv/bin/python3
+
+    def test_shipped_configuration_fixes_the_r6_thresholds_and_drops_the_held_out_clause():
+        from code_intelligence.evaluation.e1.config import load_e1_config
+    
+        config = load_e1_config()
+        criteria = config["decision_criteria"]
+        r6 = criteria["R6"]
+        assert "R6" in config["systems"]
+        assert r6["thresholds_fixed"] is True and r6["fixed_in_section"] == 1290
+        assert r6["max_silent_false_vs_R4"] == 0.0
+        assert r6["min_correct_decision_non_ambiguous"] == 0.8
+        assert r6["min_strict_clarification_ambiguous_and_absent"] == 1.0
+        assert set(r6["denominators"]) == {"silent_false", "correct_decision", "strict_clarification"}
+        assert set(r6["definitions"]) >= set(r6["denominators"])
+        assert "held_out_recall_at_5_R4_ge_R0_minus_points" not in criteria["D1_hybrid_as_candidate_generator"]
+>       assert [amendment["section"] for amendment in config["amendments"]] == [1288, 1290, 1370, 1436]
+E       AssertionError: assert [1288, 1290, ... 'D-5', 'D-8'] == [1288, 1290, 1370, 1436]
+E         
+E         Left contains 2 more items, first extra item: 'D-5'
+E         Use -v to get more diff
+
+code_intelligence/tests/test_e1_arbitration.py:227: AssertionError
+_ test_plain_word_is_not_a_module_mention[ou trouver le point of sale dans le menu ?] _
+[gw1] linux -- Python 3.11.2 /home/user/odoo-ia-prototype/.venv/bin/python3
+
+question = 'ou trouver le point of sale dans le menu ?'
+
+    @pytest.mark.parametrize("question", [
+        "que se passe-t-il quand une maintenance request est deplacee ?",
+        "dans l'application maintenance, que fait le champ cost ?",
+        "le project est-il visible pour un utilisateur ?",
+        "ou trouver le point of sale dans le menu ?",
+        "les conges de hr holidays sont-ils visibles ?",
+    ])
+    def test_plain_word_is_not_a_module_mention(question):
+>       assert _find_exact_technical_module_mentions(question, _graph()) == []
+E       AssertionError: assert ['point_of_sale'] == []
+E         
+E         Left contains one more item: 'point_of_sale'
+E         Use -v to get more diff
+
+tests/test_exact_mention_bare_words.py:27: AssertionError
+_ test_plain_word_is_not_a_module_mention[les conges de hr holidays sont-ils visibles ?] _
+[gw1] linux -- Python 3.11.2 /home/user/odoo-ia-prototype/.venv/bin/python3
+
+question = 'les conges de hr holidays sont-ils visibles ?'
+
+    @pytest.mark.parametrize("question", [
+        "que se passe-t-il quand une maintenance request est deplacee ?",
+        "dans l'application maintenance, que fait le champ cost ?",
+        "le project est-il visible pour un utilisateur ?",
+        "ou trouver le point of sale dans le menu ?",
+        "les conges de hr holidays sont-ils visibles ?",
+    ])
+    def test_plain_word_is_not_a_module_mention(question):
+>       assert _find_exact_technical_module_mentions(question, _graph()) == []
+E       AssertionError: assert ['hr_holidays'] == []
+E         
+E         Left contains one more item: 'hr_holidays'
+E         Use -v to get more diff
+
+tests/test_exact_mention_bare_words.py:27: AssertionError
+=========================== short test summary info ============================
+FAILED code_intelligence/tests/test_e1_arbitration.py::test_shipped_configuration_fixes_the_r6_thresholds_and_drops_the_held_out_clause
+FAILED tests/test_exact_mention_bare_words.py::test_plain_word_is_not_a_module_mention[ou trouver le point of sale dans le menu ?]
+FAILED tests/test_exact_mention_bare_words.py::test_plain_word_is_not_a_module_mention[les conges de hr holidays sont-ils visibles ?]
+ERROR tests/test_top_models.py - ImportError while importing test module '/ho...
+3 failed, 341 passed, 1 error in 5.59s

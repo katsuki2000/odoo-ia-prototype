@@ -246,7 +246,7 @@ NATIVE_AVAILABLE = importlib.util.find_spec('langgraph') is not None and importl
 
 @unittest.skipUnless(NATIVE_AVAILABLE, 'Native LangGraph dependencies are not installed')
 class NativeAgentSmokeTests(unittest.TestCase):
-    def test_native_loop_executes_guarded_tool_and_returns_final_message(self):
+    def runLoop(self, answerForTurn, maxHops=4):
         from langchain_core.language_models.chat_models import BaseChatModel
         from langchain_core.messages import AIMessage
         from langchain_core.outputs import ChatGeneration, ChatResult
@@ -262,12 +262,9 @@ class NativeAgentSmokeTests(unittest.TestCase):
                 return self
             def _generate(self, messages, stop=None, run_manager=None, **kwargs):
                 self._turn += 1
-                answer = (AIMessage(content='', tool_calls=[{
-                    'name': 'describe_workflow', 'args': {'model_name': 'x_fixture.case'}, 'id': 'fixture'}])
-                    if self._turn == 1 else AIMessage(content='Confirmed fixture observation.'))
-                return ChatResult(generations=[ChatGeneration(message=answer)])
+                return ChatResult(generations=[ChatGeneration(message=answerForTurn(self._turn, AIMessage))])
         tool = StructuredTool.from_function(
-            func=lambda model_name: 'Real fixture workflow observation', name='describe_workflow',
+            func=lambda model_name, turn='': 'Real fixture workflow observation', name='describe_workflow',
             description='Inspect a fixture workflow.')
         ctx = Context({tool.name: tool})
         ctx.llm_call_count = 0
@@ -284,13 +281,39 @@ class NativeAgentSmokeTests(unittest.TestCase):
             'build_persona_prompt_block': lambda principals: '',
             '_maybe_build_application_layer_reminder': lambda *args: None,
             'invoke_with_rate_limit': lambda model, messages, **kwargs: (model.invoke(messages), 0),
-            'REACT_RECURSION_LIMIT': 8, 'NO_EVIDENCE_ANSWER': 'No evidence',
+            'CI_MAX_HOPS': maxHops, 'LANGGRAPH_STEP_LIMIT_NOTICE': 'Sorry, need more steps to process this request.',
+            'NO_EVIDENCE_ANSWER': 'No evidence',
             'logger': logging.getLogger(__name__),
         })
-        answer = namespace['run_react_loop'](ctx, FakeModel(), [])
+        return namespace['run_react_loop'](ctx, FakeModel(), []), ctx
+
+    def test_native_loop_executes_guarded_tool_and_returns_final_message(self):
+        def answerForTurn(turn, AIMessage):
+            return (AIMessage(content='', tool_calls=[{
+                'name': 'describe_workflow', 'args': {'model_name': 'x_fixture.case'}, 'id': 'fixture'}])
+                if turn == 1 else AIMessage(content='Confirmed fixture observation.'))
+        answer, ctx = self.runLoop(answerForTurn)
         self.assertEqual(answer, 'Confirmed fixture observation.')
         self.assertEqual(ctx.hop_count, 1)
         self.assertEqual(ctx.llm_call_count, 2)
+
+    def test_native_loop_allows_ci_max_hops_tool_rounds_before_step_limit(self):
+        def answerForTurn(turn, AIMessage):
+            return (AIMessage(content='', tool_calls=[{
+                'name': 'describe_workflow', 'args': {'model_name': 'x_fixture.case', 'turn': str(turn)},
+                'id': f'fixture{turn}'}]) if turn <= 4 else AIMessage(content='Confirmed after four rounds.'))
+        answer, ctx = self.runLoop(answerForTurn, maxHops=4)
+        self.assertEqual(answer, 'Confirmed after four rounds.')
+        self.assertEqual(ctx.hop_count, 4)
+
+    def test_native_loop_never_returns_langgraph_step_limit_notice_as_answer(self):
+        def answerForTurn(turn, AIMessage):
+            return AIMessage(content='', tool_calls=[{
+                'name': 'describe_workflow', 'args': {'model_name': 'x_fixture.case', 'turn': str(turn)},
+                'id': f'fixture{turn}'}])
+        answer, _ = self.runLoop(answerForTurn, maxHops=2)
+        self.assertNotIn('need more steps', answer)
+        self.assertTrue(answer.startswith('Investigation incomplète'))
 
 
 if __name__ == '__main__':

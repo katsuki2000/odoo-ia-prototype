@@ -324,7 +324,8 @@ def _find_exact_technical_module_mentions(query_lower: str, G) -> List[str]:
     """Find exact technical Odoo module names mentioned in query.
 
     A plain-word module name ('maintenance', 'project') must follow 'module' or 'addon'; a name
-    containing '_' ('hr_holidays') is exact on its own.
+    containing '_' ('hr_holidays') is exact on its own, but its spaced form ('hr holidays') also
+    needs the marker.
     """
     if G is None:
         return []
@@ -336,9 +337,10 @@ def _find_exact_technical_module_mentions(query_lower: str, G) -> List[str]:
         if not mod_name or len(mod_name) < 3:
             continue
         mod_lower = mod_name.lower()
-        mod_escaped = re.escape(mod_lower).replace('_', r'[\s_]+')
-        marker = _MODULE_MARKER if _is_plain_word(mod_name) else ""
-        pattern = r"(?<!\w)" + marker + mod_escaped + r"(?!\w)(?!\.\w)"
+        literal = re.escape(mod_lower)
+        marked = _MODULE_MARKER + literal.replace('_', r'[\s_]+')
+        body = marked if _is_plain_word(mod_name) else f"(?:{literal}|{marked})"
+        pattern = r"(?<!\w)" + body + r"(?!\w)(?!\.\w)"
         if re.search(pattern, query_lower):
             if mod_name not in found:
                 found.append(mod_name)

@@ -50,9 +50,9 @@ def build_graph() -> StateGraph:
     })
     workflow.add_conditional_edges('route', route_decision, {
         'source_clarification': 'format_output',
-        QueryRoute.DOCUMENTAIRE.value: 'retrieve',
-        QueryRoute.DONNEES_ERP.value: 'code_intelligence_agent',
-        QueryRoute.HYBRIDE.value: 'code_intelligence_agent',
+        QueryRoute.DOCUMENTARY.value: 'retrieve',
+        QueryRoute.ERP_DATA.value: 'code_intelligence_agent',
+        QueryRoute.HYBRID.value: 'code_intelligence_agent',
         QueryRoute.CODE_INTELLIGENCE.value: 'code_intelligence_agent',
     })
     workflow.add_edge('retrieve', 'generate')

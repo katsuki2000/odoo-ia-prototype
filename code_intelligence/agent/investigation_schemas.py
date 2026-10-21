@@ -61,8 +61,8 @@ INTENT_TO_ROUTE: Dict[QuestionIntent, str] = {
     QuestionIntent.INHERITANCE_STRUCTURE: QueryRoute.CODE_INTELLIGENCE.value,
     QuestionIntent.AUTOMATION_ACTION: QueryRoute.CODE_INTELLIGENCE.value,
     QuestionIntent.GENERAL_CODE_INQUIRY: QueryRoute.CODE_INTELLIGENCE.value,
-    QuestionIntent.ERP_DATA_QUERY: QueryRoute.DONNEES_ERP.value,
-    QuestionIntent.DOCUMENTARY_POLICY: QueryRoute.DOCUMENTAIRE.value,
+    QuestionIntent.ERP_DATA_QUERY: QueryRoute.ERP_DATA.value,
+    QuestionIntent.DOCUMENTARY_POLICY: QueryRoute.DOCUMENTARY.value,
     QuestionIntent.NAVIGATION_HOWTO: QueryRoute.CODE_INTELLIGENCE.value,
 }
 

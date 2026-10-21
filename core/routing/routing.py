@@ -30,7 +30,7 @@ def route(state: RAGState) -> dict:
     else:
         selection = select_source(state.get('question', ''))
         selected, confidence = selection.source, selection.confidence
-    decision = (QueryRoute.DOCUMENTAIRE.value if selected == 'documentation'
+    decision = (QueryRoute.DOCUMENTARY.value if selected == 'documentation'
                 else QueryRoute.CODE_INTELLIGENCE.value if selected == 'systeme'
                 else SOURCE_CLARIFICATION)
     if sourceMode not in {'documentation', 'systeme'} and confidence < SOURCE_SELECTION_MIN_CONFIDENCE:
@@ -40,7 +40,7 @@ def route(state: RAGState) -> dict:
     timing['source_selection_confidence'] = confidence
     result = {'route': decision, 'timing': timing,
               'resolved_concept': None, 'investigation_plan': None}
-    if decision not in {QueryRoute.DOCUMENTAIRE.value, QueryRoute.CODE_INTELLIGENCE.value}:
+    if decision not in {QueryRoute.DOCUMENTARY.value, QueryRoute.CODE_INTELLIGENCE.value}:
         result['response'] = AssistantResponse(
             answer='Souhaitez-vous une réponse selon le système Odoo ou d’après les documents internes ?',
             sources=[], confidence=0.0)

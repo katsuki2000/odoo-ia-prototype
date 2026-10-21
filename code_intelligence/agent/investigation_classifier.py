@@ -1,10 +1,4 @@
-"""
-code_intelligence/investigation_plan_classifier.py
-
-Deterministic Question Intent classification using regex cascades and graph ontology tags.
-Replaces the ad-hoc GOVERNANCE_SIGNAL_TERMS list with a principled
-intent + ontology-grounded classifier.
-"""
+"""Deterministic Question Intent classification using regex cascades and graph ontology tags."""
 
 from typing import Any, Optional
 import logging
@@ -220,10 +214,7 @@ def concept_suggests_code_intelligence_v2(
     if resolved_concept is None or not getattr(resolved_concept, "is_resolved", False):
         return False
 
-    import sys
-    ip_mod = sys.modules.get("code_intelligence.agent.investigation_planner")
-    classifier_fn = getattr(ip_mod, "classify_question_intent", classify_question_intent) if ip_mod else classify_question_intent
-    intent = classifier_fn(question, resolved_concept, G)
+    intent = classify_question_intent(question, resolved_concept, G)
 
     if intent in (QuestionIntent.DOCUMENTARY_POLICY, QuestionIntent.ERP_DATA_QUERY):
         return False

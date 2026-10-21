@@ -17,9 +17,9 @@ from core.verification.claims import VerificationReport
 
 class QueryRoute(str, Enum):
     """Classification of the query type for routing."""
-    DOCUMENTAIRE = "documentaire"
-    DONNEES_ERP = "donnees_erp"
-    HYBRIDE = "hybride"
+    DOCUMENTARY = "documentaire"
+    ERP_DATA = "donnees_erp"
+    HYBRID = "hybride"
     CODE_INTELLIGENCE = "code_intelligence"
 
 class SourceReference(BaseModel):

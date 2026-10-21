@@ -10,36 +10,18 @@ from core.graph.graph import (
     THRESHOLD_QUERY_TERMS, THRESHOLD_QUERY_TERMS_FOLDED,
     route,
 )
-from code_intelligence.agent.investigation_schemas import QuestionIntent
+from core.routing.source_selection import SourceSelection
 
 
-def _route_question(question: str, mocked_intent: QuestionIntent) -> str:
-    """Same helper as test_j18_routing_fewshot.py: run route() with empty
-    chunks/history, return only the route decision.
-
-    Cluster B fix (todo/contexte.txt sections 430-433): route() now calls
-    resolve_question_intent() (code_intelligence/investigation/llm.py),
-    which attempts a real, bounded LLM classifier
-    (classify_question_intent_llm) BEFORE falling back to the deterministic
-    keyword classifier these tests originally locked in. Left unmocked,
-    every test in this file depended on live network access to the inference server and a
-    non-deterministic classification -- not a unit test anymore. Per the
-    explicit decision (section 433): mock classify_question_intent_llm with
-    an EXPLICIT intent matching the classification the production LLM is
-    expected to return for that question (not a reversion to the
-    deterministic fallback -- the mock IS the LLM-first call site, just
-    made deterministic for the test).
-    """
+def _route_question(question: str, selection: SourceSelection) -> str:
+    """Run route() with the source selector replaced by a fixed signal."""
     state = {
         "question": question,
         "retrieved_chunks": [],
         "chat_history": [],
         "timing": {},
     }
-    with patch(
-        "code_intelligence.agent.investigation_planner.classify_question_intent_llm",
-        return_value=mocked_intent,
-    ):
+    with patch("core.routing.routing.select_source", return_value=selection):
         return route(state)["route"]
 
 
@@ -79,58 +61,31 @@ def test_folded_lists_are_precomputed_and_match_source_length():
     assert len(THRESHOLD_QUERY_TERMS_FOLDED) == len(THRESHOLD_QUERY_TERMS)
 
 
-# ── The exact regression case that surfaced the bug ───────────────────────
+# ── Routing consumes the selector signal; accents never change the decision ──
+
+def test_followup_with_no_source_signal_asks_for_clarification():
+    uncertain = SourceSelection(source="uncertain", confidence=0.0)
+    assert _route_question("Et pour Lyon ?", uncertain) == "source_clarification"
 
 
-def test_unrelated_followup_with_no_keyword_at_all_is_still_unresolved():
-    """Distinct, still-open gap: a follow-up with NO keyword (accented or
-    not) is not and cannot be fixed by accent-folding alone -- it still
-    falls to the documentaire default. This is the real remaining H1c
-    question (session/conversational context), not an accent artifact.
-    Asserted explicitly so a future change that silently "fixes" this via
-    an unrelated mechanism gets noticed here, not assumed.
-
-    Mocked intent: DOCUMENTARY_POLICY -- the production LLM's own "nothing
-    more specific matched" catch-all for a question with zero business/
-    technical signal, same semantic bucket the deterministic classifier's
-    step 9 default used to cover."""
-    assert _route_question("Et pour Lyon ?", QuestionIntent.DOCUMENTARY_POLICY) == "documentaire"
+def test_low_confidence_selection_asks_for_clarification():
+    weak = SourceSelection(source="documentation", confidence=0.1)
+    assert _route_question("Quel est le role du responsable ?", weak) == "source_clarification"
 
 
-# ── One genuinely diagnostic accented/unaccented pair per affected list --
-# "diagnostic" here means the UNACCENTED form actually lands on a
-# DIFFERENT branch than the accented form before this fix (not just on
-# the same documentaire default every unmatched question falls to
-# anyway) -- otherwise the pair doesn't actually exercise the bug.
-
-@pytest.mark.parametrize("accented, unaccented, mocked_intent, expected_route", [
-    # ERP_KEYWORDS ("cette année") -- covered above in its own dedicated
-    # test since it's the exact case that surfaced the bug live.
-
-    # CODE_INTEL_KEYWORDS ("droits d'accès"): a governance/access question,
-    # LLM classifier expected to return GOVERNANCE_SECURITY -> maps
-    # directly to code_intelligence via INTENT_TO_ROUTE, independent of
-    # accent folding (the mock removes the folding question from the LLM
-    # call entirely -- accent-insensitivity is now the LLM's job, not this
-    # keyword list's; this test now only locks that route()'s OWN
-    # downstream wiring is accent-independent, not the classifier).
+@pytest.mark.parametrize("accented, unaccented, selection, expected_route", [
     ("Quelle est la disponibilité en droits d'accès pour ce module ?",
      "Quelle est la disponibilite en droits d'acces pour ce module ?",
-     QuestionIntent.GOVERNANCE_SECURITY,
+     SourceSelection(source="systeme", confidence=0.9),
      "code_intelligence"),
-    # A documentary intent now stays on the documentation source; the
-    # former hybrid route has been removed from automatic source selection.
     ("Où est documenté combien de tickets sont encore en cours ?",
      "Ou est documente combien de tickets sont encore en cours ?",
-     QuestionIntent.DOCUMENTARY_POLICY,
+     SourceSelection(source="documentation", confidence=0.9),
      "documentaire"),
-    # A quantitative phrase no longer silently changes the selected source.
     ("Quel est le rôle du responsable et combien de tickets sont en cours ?",
      "Quel est le role du responsable et combien de tickets sont en cours ?",
-     QuestionIntent.DOCUMENTARY_POLICY,
-     "documentaire"),
+     SourceSelection(source="uncertain", confidence=0.9),
+     "source_clarification"),
 ])
-def test_accented_and_unaccented_variants_route_identically(accented, unaccented, mocked_intent, expected_route):
-    route_accented = _route_question(accented, mocked_intent)
-    route_unaccented = _route_question(unaccented, mocked_intent)
-    assert route_accented == route_unaccented == expected_route
+def test_accented_and_unaccented_variants_route_identically(accented, unaccented, selection, expected_route):
+    assert _route_question(accented, selection) == _route_question(unaccented, selection) == expected_route

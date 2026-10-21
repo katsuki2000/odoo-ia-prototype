@@ -201,17 +201,12 @@ def test_fiscal_lock_fact_does_not_exempt_manager_from_fiscalyear_lock():
     assert "société mère" not in result
 
 
-def test_fiscal_lock_fact_keeps_a_plain_language_verdict_and_removes_acl_noise():
+def test_fiscal_lock_fact_keeps_a_plain_language_verdict():
     raw = "_get_user_fiscal_lock_date period_lock_date fiscalyear_lock_date account.group_account_manager _check_fiscalyear_lock_date"
-    answer = (
-        "### Règles de blocage comptable\n\n"
-        "[FAIT DÉTERMINISTIQUE] Précision d'héritage de droits: account.group_account_manager "
-        "hérite d'une ACL via implied_ids."
-    )
+    answer = "### Règles de blocage comptable"
     result = _backfill_fiscal_lock_scope_fact(
         answer, raw, "un Billing Administrator peut-il poster avant la lock date ?"
     )
-    assert "Précision d'héritage" not in result
     assert "**Réponse : non.**" in result
 
 

@@ -179,8 +179,8 @@ class TestAnalyzeMethodOverrideChainSurfacesSecurityConstraints:
 
         report = analyze_method_override_chain(G, "custom.deep.document", "action_validate")
 
-        assert "VERROU RATTACHE AU SITE: has_group('base.group_user')" in report
-        assert "VERROU RATTACHE AU SITE: has_group('account.group_account_manager')" in report
+        assert "VÉRIFICATION RATTACHÉE AU SITE: groupe 'base.group_user' observé" in report
+        assert "VÉRIFICATION RATTACHÉE AU SITE: groupe 'account.group_account_manager' observé" in report
 
         # Execution order is the reverse of override_sites (most-dependent
         # module runs first, matching Odoo's real MRO) -- override_mod
@@ -219,5 +219,5 @@ class TestAnalyzeMethodOverrideChainSurfacesSecurityConstraints:
 
         report = analyze_method_override_chain(G, "custom.deep.document", "action_validate")
 
-        assert "VERROU RATTACHE AU SITE: has_group('base.group_user')" in report
+        assert "VÉRIFICATION RATTACHÉE AU SITE: groupe 'base.group_user' observé" in report
         assert "aucun risque structurel" in report

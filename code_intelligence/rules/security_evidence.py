@@ -143,7 +143,7 @@ def format_security_locks_summary(analysis: Any, code: str, filepath: str) -> st
             if guard:
                 lines.append(f"      [GARDE DE LIEN: si '{guard}' est vide/absent (aucun enregistrement lie), "
                     "cette condition est FAUSSE par court-circuit Python (evaluation de gauche a droite d'un 'and') "
-                    '-- la regle ci-dessus NE S’APPLIQUE PAS dans ce cas, quel que soit le reste de la condition.]')
+                    "-- la regle ci-dessus NE S'APPLIQUE PAS dans ce cas, quel que soit le reste de la condition.]")
     if analysis.has_dynamic_dispatch:
         lines.append(f"  - Incertitude dynamique ({', '.join(analysis.dynamic_dispatch_types)}): revue manuelle recommandée")
     if not analysis.security_warnings and not analysis.exception_messages and not analysis.static_filters:
@@ -212,6 +212,6 @@ def extract_method_security_constraints(analysis: Any, lineno: int, end_lineno: 
                 text += f' (condition : {condition})'
             if guard:
                 text += f" [GARDE DE LIEN: si '{guard}' est vide/absent, cette condition est FAUSSE "
-                text += 'par court-circuit Python -- la regle NE S’APPLIQUE PAS dans ce cas.]'
+                text += "par court-circuit Python -- la regle NE S'APPLIQUE PAS dans ce cas.]"
             constraints.append(text)
     return constraints

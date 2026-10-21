@@ -295,6 +295,7 @@ from typing import Optional, List
 
 from code_intelligence.agent.context_extractors import (
     _AUTOMATION_PATTERN,
+    _question_is_approval_authority_related,
     _question_is_security_distinction_related,
 )
 
@@ -505,6 +506,24 @@ def _build_dynamic_uncertainty_answer(raw_tool_output: str) -> Optional[str]:
 # vs. tools that actually look at the Python application-level guard.
 _ACL_LAYER_TOOLS = frozenset({"who_has_access_to", "evaluate_record_rules"})
 _APPLICATION_GUARD_TOOLS = frozenset({"read_source_code", "analyze_method_override_chain"})
+_APPROVAL_EVIDENCE_TOOLS = _ACL_LAYER_TOOLS | {"describe_workflow"}
+
+_DISTINCTION_REMINDER = (
+    "RAPPEL : l'ACL et les ir.rule seuls ne suffisent pas toujours à répondre à "
+    "une question de distinction entre deux rôles/groupes -- si les permissions "
+    "semblent identiques entre les groupes comparés dans la question, ne conclus "
+    "PAS encore à une absence de distinction. Vérifie le garde applicatif Python "
+    "(ex. méthode d'approbation/de validation invoquée depuis un bouton, souvent "
+    "nommée _*_allowed/_check_*/button_*) avec read_source_code avant de répondre."
+)
+_APPROVAL_REMINDER = (
+    "RAPPEL : le workflow (boutons, groupes XML) et les ACL n'établissent pas qui peut "
+    "réellement approuver ; « Role: [All Users] » signifie un bouton sans restriction XML. "
+    "Avant de conclure, lis avec read_source_code la méthode appelée par le bouton "
+    "d'approbation et ses vérifications Python (groupes, responsable désigné sur "
+    "l'enregistrement, mode de validation). Si tu ne l'as pas lue, dis que la preuve "
+    "est incomplète."
+)
 
 # todo/contexte.txt section 813/814: broader than _ACL_LAYER_TOOLS/
 # _APPLICATION_GUARD_TOOLS above (which target the narrow "distinction
@@ -560,18 +579,11 @@ def _maybe_build_application_layer_reminder(question: str, tool_observation_tool
     selection is therefore the only point where this can be corrected, and
     only before it settles on a final answer -- hence a SystemMessage
     injected between tool-selection turns, not a post-hoc check."""
-    if not _question_is_security_distinction_related(question):
-        return None
     tools_seen = set(tool_observation_tools)
-    if not (_ACL_LAYER_TOOLS & tools_seen):
-        return None
     if _APPLICATION_GUARD_TOOLS & tools_seen:
         return None
-    return (
-        "RAPPEL : l'ACL et les ir.rule seuls ne suffisent pas toujours à répondre à "
-        "une question de distinction entre deux rôles/groupes -- si les permissions "
-        "semblent identiques entre les groupes comparés dans la question, ne conclus "
-        "PAS encore à une absence de distinction. Vérifie le garde applicatif Python "
-        "(ex. méthode d'approbation/de validation invoquée depuis un bouton, souvent "
-        "nommée _*_allowed/_check_*/button_*) avec read_source_code avant de répondre."
-    )
+    if _question_is_security_distinction_related(question) and _ACL_LAYER_TOOLS & tools_seen:
+        return _DISTINCTION_REMINDER
+    if _question_is_approval_authority_related(question) and _APPROVAL_EVIDENCE_TOOLS & tools_seen:
+        return _APPROVAL_REMINDER
+    return None

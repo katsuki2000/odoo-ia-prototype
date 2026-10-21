@@ -1,3 +1,4 @@
+import pytest
 from unittest.mock import patch, MagicMock
 
 from core.schemas import AssistantResponse
@@ -1626,8 +1627,7 @@ class TestStripCoreOnlyGroupMentions:
 
 
 class TestCorrectSecurityLockThresholdContradictions:
-    """ gap fix (2026-08-14, module 8/8, ):
-    tests for _correct_security_lock_threshold_contradictions."""
+    """The threshold correction is retired: group membership alone cannot establish permission."""
 
     _BAD_VERBATIM_ANSWER = (
         "Responsable comptabilité : a le permission de valider jusqu'à 50 000€. "
@@ -1648,58 +1648,11 @@ class TestCorrectSecurityLockThresholdContradictions:
         "custom.deep.document (module de sécurité à héritage profond) ?"
     )
 
-    def test_corrects_live_bloc9_08a_verbatim_inversion(self):
+    @pytest.mark.parametrize("answer", [_BAD_VERBATIM_ANSWER, _GOOD_ANSWER])
+    def test_retired_correction_leaves_the_answer_unchanged(self, answer):
         result = _correct_security_lock_threshold_contradictions(
-            self._BAD_VERBATIM_ANSWER,
-            _REAL_DEEP_INHERITANCE_SECURITY_RAW_TEXT,
-            self._QUESTION_60K,
-        )
-        assert "account.group_account_manager" in result
-        assert "a donc le permission de valider ce document" in result
-        assert "base.group_system" in result
-        assert "ne s'applique pas à 60 000€" in result
-        assert "n'a pas le permission de valider" not in result
-
-    def test_no_op_when_answer_already_correct(self):
-        result = _correct_security_lock_threshold_contradictions(
-            self._GOOD_ANSWER,
-            _REAL_DEEP_INHERITANCE_SECURITY_RAW_TEXT,
-            self._QUESTION_60K,
-        )
-        assert result == self._GOOD_ANSWER
-
-    def test_no_op_when_no_amount_in_question(self):
-        q_no_amount = "Quelles sont les règles de validation de custom.deep.document ?"
-        result = _correct_security_lock_threshold_contradictions(
-            self._BAD_VERBATIM_ANSWER,
-            _REAL_DEEP_INHERITANCE_SECURITY_RAW_TEXT,
-            q_no_amount,
-        )
-        assert result == self._BAD_VERBATIM_ANSWER
-
-    def test_no_op_when_no_lock_rules_in_raw_output(self):
-        result = _correct_security_lock_threshold_contradictions(
-            self._BAD_VERBATIM_ANSWER,
-            "rien à voir ici",
-            self._QUESTION_60K,
-        )
-        assert result == self._BAD_VERBATIM_ANSWER
-
-    def test_corrects_bullet_list_inversion(self):
-        bullet_bad = (
-            "- Responsable comptabilité : a le permission de valider jusqu'à 50 000€. "
-            "Puisque le montant est de 60 000€, elle n'a pas le permission de valider ce document.\n"
-            "- Administrateur système : a le permission de valider les documents supérieurs à 100 000€. "
-            "Puisque le montant est de 60 000€, elle a le permission de valider ce document."
-        )
-        result = _correct_security_lock_threshold_contradictions(
-            bullet_bad,
-            _REAL_DEEP_INHERITANCE_SECURITY_RAW_TEXT,
-            self._QUESTION_60K,
-        )
-        assert "account.group_account_manager" in result
-        assert "a donc le permission de valider ce document" in result
-        assert "ne s'applique pas à 60 000€" in result
+            answer, _REAL_DEEP_INHERITANCE_SECURITY_RAW_TEXT, self._QUESTION_60K)
+        assert result == answer
 
 
 class TestBackfillMissingSecurityLockAmountAmountAware:

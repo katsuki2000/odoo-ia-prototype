@@ -31,8 +31,6 @@ SCOPED = "SCOPED-OUTPUT"
 RAW = "RAW-OUTPUT"
 
 _SCOPED_ONLY_GUARDS = [
-    "_backfill_missing_required_groups",
-    "_backfill_missing_security_lock_amount",
     "_backfill_missing_override_modules",
     "_correct_override_cascade_contradictions",
     "_backfill_missing_override_chain_amount",
@@ -41,9 +39,7 @@ _SCOPED_ONLY_GUARDS = [
     "_backfill_missing_unguarded_super",
     "_backfill_link_guard_clarifications",
     "_flag_ungrounded_group_xmlids",
-    "_strip_core_only_group_mentions",
     "_backfill_missing_can_view_amount_fact",
-    "_correct_security_lock_threshold_contradictions",
 ]
 
 
@@ -78,7 +74,7 @@ def test_build_final_response_feeds_the_chain_with_scoped_output():
     source = inspect.getsource(build_final_response)
     call = re.search(r"_apply_backfill_chain\(\s*final_answer,\s*(\w+),", source)
     assert call, "chain call not found in build_final_response source -- test is stale"
-    assert call.group(1) == "scoped_tool_output"
+    assert call.group(1) == "scoped"
 
 
 def test_applied_guards_lists_only_guards_that_changed_the_answer(monkeypatch):
@@ -88,7 +84,7 @@ def test_applied_guards_lists_only_guards_that_changed_the_answer(monkeypatch):
     def neutral_guard(answer, *args, **kwargs):
         return answer
 
-    monkeypatch.setattr(postprocess, "_backfill_missing_required_groups", changing_guard)
+    monkeypatch.setattr(postprocess, "_backfill_missing_override_modules", changing_guard)
     monkeypatch.setattr(postprocess, "_flag_ungrounded_group_xmlids", neutral_guard)
     applied = []
     result = _apply_backfill_chain("answer", SCOPED, "question", raw_tool_output=RAW, applied_guards=applied)

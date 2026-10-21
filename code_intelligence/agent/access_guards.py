@@ -276,68 +276,11 @@ def _backfill_missing_required_groups(final_answer: str, raw_tool_output: str, q
     )
 
 
-_IMPLIED_IDS_PATTERN = re.compile(
-    r"(?P<child>[a-zA-Z_][\w.]*)(?:\s*\('[^']*'\))?\s+\(via implied_ids <-\s*(?P<parent>[a-zA-Z_][\w.]*)"
-)
-_INHERITANCE_VERBALIZATION_RE = re.compile(
-    r"\b(?:implied_ids|h[eé]rite|h[eé]ritent|implication|transiti\w*)\b",
-    re.IGNORECASE,
-)
 _UI_ACCESS_QUESTION_RE = re.compile(
     r"\b(?:champ|bouton|visible|visibilit[eé]|interface|field|button|"
     r"compte\s+comptable|ligne\s+de\s+facture)\b",
     re.IGNORECASE,
 )
-_DIRECT_ACL_NEGATION_RE = re.compile(
-    r"^\s*[-*]\s+L['’]ACL directe.*?"
-    r"(?:ne limite que la lecture|ne restreint pas les opérations).*?(?=\n\s*[-*]\s|\n\s*\n|\Z)",
-    re.IGNORECASE | re.MULTILINE | re.DOTALL,
-)
-
-
-def _remove_false_direct_acl_explanation(final_answer: str) -> str:
-    """Remove the claim that a zero permission in one ACL is non-restrictive."""
-    return _DIRECT_ACL_NEGATION_RE.sub("", final_answer).rstrip()
-
-
-def _backfill_missing_implied_ids_mechanism(
-    final_answer: str, raw_tool_output: str, question: str = ""
-) -> str:
-    """Section 918 (ACC-Q1): when who_has_access_to reveals permissions inherited
-    via implied_ids for a group discussed in the question/answer, ensure the
-    answer explains this inheritance rather than flattening it into a direct ACL.
-    """
-    if question and _UI_ACCESS_QUESTION_RE.search(question):
-        return final_answer
-    matches = list(_IMPLIED_IDS_PATTERN.finditer(raw_tool_output))
-    if not matches:
-        return final_answer
-
-    combined_context = f"{question} {final_answer}"
-    for match in matches:
-        child_group = match.group("child")
-        parent_group = match.group("parent")
-        child_short = child_group.split(".")[-1]
-        parent_short = parent_group.split(".")[-1]
-
-        if child_group not in combined_context and child_short not in combined_context:
-            continue
-
-        logger.info(
-            "Node [code_intelligence_agent]: backfilling missing implied_ids "
-            "inheritance mechanism for %s <- %s",
-            child_group, parent_group,
-        )
-        final_answer = _remove_false_direct_acl_explanation(final_answer)
-        return (
-            final_answer
-            + f"\n\n[FAIT DÉTERMINISTIQUE] Précision d'héritage de droits : pour la permission "
-            f"concernée, `{child_group}` hérite de l'ACL de `{parent_group}` par implication "
-            f"transitive (`implied_ids`). Les ACL applicables sont additives : l'absence d'une "
-            f"permission dans une ACL directe ne retire pas le droit accordé par une autre ACL applicable."
-        )
-
-    return final_answer
 
 
 _IGNORED_GROUP_LINE_RE = re.compile(

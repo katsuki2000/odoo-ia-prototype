@@ -100,8 +100,6 @@ def _backfill_fiscal_lock_scope_fact(final_answer: str, raw_tool_output: str, qu
     marker = '[FAIT DÉTERMINISTIQUE -- PORTÉE DES DATES DE CLÔTURE]'
     if marker in final_answer:
         return final_answer
-    final_answer = re.sub(r"\n*\[FAIT DÉTERMINISTIQUE\]\s+Précision d'héritage de droits:.*?(?=\n\n\[|\Z)", '', final_answer,
-                          flags=re.DOTALL | re.IGNORECASE).rstrip()
     for pattern in (
         r"^.*(?:peut poster|peut publier|autorisé.*date.*clôture|jusqu'à cette date).*$\n?",
         r"^.*(?:Accès au niveau|date de clôture finale|L'administrateur a accès|Si la date de l'écriture dépasse).*$\n?",

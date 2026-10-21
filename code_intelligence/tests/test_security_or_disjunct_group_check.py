@@ -59,7 +59,8 @@ class TestRequiredGroupAltConditionsExtraction:
 
     def test_summary_text_states_group_is_not_the_only_path(self):
         analysis = analyze_python_security_locks(APPROVAL_ALLOWED_SOURCE, "purchase_order.py")
-        assert "N'EST PAS le seul chemin" in analysis.summary_text
+        assert "ne prouve ni obligation ni autorisation" in analysis.summary_text
+        assert "Autres termes du OR observés" in analysis.summary_text
         assert "one_step" in analysis.summary_text
         assert "purchase.group_purchase_manager" in analysis.summary_text
 
@@ -69,7 +70,7 @@ class TestRequiredGroupAltConditionsExtraction:
             e for e in analysis.evidence
             if e.source == "security_lock:purchase_order.py:group:purchase.group_purchase_manager"
         )
-        assert "not the only sufficient path" in grp_ev.claim.lower()
+        assert "does not establish a required group" in grp_ev.claim.lower()
         assert "one_step" in grp_ev.claim
 
 

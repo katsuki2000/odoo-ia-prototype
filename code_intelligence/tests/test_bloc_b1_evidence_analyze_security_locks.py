@@ -59,7 +59,7 @@ class TestSecurityLockEvidenceHardcodedLogins:
         ev = next(e for e in analysis.evidence if e.source == "security_lock:logins.py:hardcoded_logins")
         assert ev.value == ["admin@corp.com", "root@corp.com"]
         assert ev.confidence == "HIGH"
-        assert ev.scope == {}
+        assert ev.scope == {"sensitive": True}
         assert "admin@corp.com" in ev.claim
 
 
@@ -123,13 +123,13 @@ class TestSecurityLockEvidenceRequiredGroups:
         analysis = analyze_python_security_locks(code, "nogrp.py")
         grp_ev = next(e for e in analysis.evidence if e.source == "security_lock:nogrp.py:group")
         assert grp_ev.value is None
-        assert "contains no has_group() requirement" in grp_ev.claim
+        assert "contains no extracted literal group check" in grp_ev.claim
 
-    def test_module_level_has_group_omits_method_key(self):
+    def test_module_level_has_group_has_an_empty_method(self):
         code = "if env.user.has_group('base.group_system'):\n    pass\n"
         analysis = analyze_python_security_locks(code, "modlevel.py")
         grp_ev = next(e for e in analysis.evidence if e.source == "security_lock:modlevel.py:group:base.group_system")
-        assert "method" not in grp_ev.scope
+        assert grp_ev.scope["method"] == ""
 
 
 class TestSecurityLockEvidenceDynamicDispatch:

@@ -6,7 +6,6 @@ import networkx as nx
 import pytest
 
 from code_intelligence.graph.staleness import compute_file_hash
-from code_intelligence.rules.security_locks import _extract_has_group_xmlids_from_source
 from code_intelligence.rules.structure import _extract_ast_class_info
 from code_intelligence.rules.xml_view_finder import _resolve_field_name_from_view_string_override
 from code_intelligence.utils import parse_python_text, read_source_text
@@ -46,19 +45,6 @@ def test_parse_python_text_logs_a_syntax_error(caplog):
 def test_compute_file_hash_logs_an_unreadable_path(tmp_path, caplog):
     assert compute_file_hash(tmp_path) == ""
     assert _warnings(caplog)
-
-
-def test_security_locks_source_scan_logs_an_unreadable_file(tmp_path, caplog):
-    with patch("code_intelligence.agent.tool_helpers.find_model_source_filepaths", return_value=[str(tmp_path)]):
-        assert _extract_has_group_xmlids_from_source(nx.DiGraph(), "res.partner") == set()
-    assert _warnings(caplog)
-
-
-def test_security_locks_source_scan_still_reads_a_valid_file(tmp_path):
-    source = tmp_path / "model.py"
-    source.write_text("if self.env.user.has_group('base.group_system'):\n    pass\n", encoding="utf-8")
-    with patch("code_intelligence.agent.tool_helpers.find_model_source_filepaths", return_value=[str(source)]):
-        assert "base.group_system" in _extract_has_group_xmlids_from_source(nx.DiGraph(), "res.partner")
 
 
 def test_class_info_extraction_logs_a_syntax_error(tmp_path, caplog):

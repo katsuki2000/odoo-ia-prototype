@@ -1,0 +1,204 @@
+...F....FF.....FF.F.....F.........FF..F.F...F.........FF...........FF... [ 25%]
+.FF.F........EEEEEEEEEEEEEFF............................................ [ 50%]
+........................................................................ [ 75%]
+..........................F...F..............F.FF......F....F.......F    [100%]
+==================================== ERRORS ====================================
+_ ERROR collecting code_intelligence/tests/test_t5_expected_failures_are_logged.py _
+ImportError while importing test module '/home/user/odoo-ia-prototype/code_intelligence/tests/test_t5_expected_failures_are_logged.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+code_intelligence/tests/test_t5_expected_failures_are_logged.py:9: in <module>
+    from code_intelligence.rules.security_locks import _extract_has_group_xmlids_from_source
+E   ImportError: cannot import name '_extract_has_group_xmlids_from_source' from 'code_intelligence.rules.security_locks' (/home/user/odoo-ia-prototype/code_intelligence/rules/security_locks.py)
+_ ERROR at setup of test_scoped_only_guards_receive_scoped_output[_backfill_missing_required_groups] _
+E   AttributeError: <module 'code_intelligence.agent.postprocess' from '/home/user/odoo-ia-prototype/code_intelligence/agent/postprocess.py'> has no attribute '_backfill_missing_required_groups'
+_ ERROR at setup of test_scoped_only_guards_receive_scoped_output[_backfill_missing_security_lock_amount] _
+E   AttributeError: <module 'code_intelligence.agent.postprocess' from '/home/user/odoo-ia-prototype/code_intelligence/agent/postprocess.py'> has no attribute '_backfill_missing_required_groups'
+_ ERROR at setup of test_scoped_only_guards_receive_scoped_output[_backfill_missing_override_modules] _
+E   AttributeError: <module 'code_intelligence.agent.postprocess' from '/home/user/odoo-ia-prototype/code_intelligence/agent/postprocess.py'> has no attribute '_backfill_missing_required_groups'
+_ ERROR at setup of test_scoped_only_guards_receive_scoped_output[_correct_override_cascade_contradictions] _
+E   AttributeError: <module 'code_intelligence.agent.postprocess' from '/home/user/odoo-ia-prototype/code_intelligence/agent/postprocess.py'> has no attribute '_backfill_missing_required_groups'
+_ ERROR at setup of test_scoped_only_guards_receive_scoped_output[_backfill_missing_override_chain_amount] _
+E   AttributeError: <module 'code_intelligence.agent.postprocess' from '/home/user/odoo-ia-prototype/code_intelligence/agent/postprocess.py'> has no attribute '_backfill_missing_required_groups'
+_ ERROR at setup of test_scoped_only_guards_receive_scoped_output[_backfill_missing_trigger_condition_literals] _
+E   AttributeError: <module 'code_intelligence.agent.postprocess' from '/home/user/odoo-ia-prototype/code_intelligence/agent/postprocess.py'> has no attribute '_backfill_missing_required_groups'
+_ ERROR at setup of test_scoped_only_guards_receive_scoped_output[_backfill_missing_hardcoded_id_literals] _
+E   AttributeError: <module 'code_intelligence.agent.postprocess' from '/home/user/odoo-ia-prototype/code_intelligence/agent/postprocess.py'> has no attribute '_backfill_missing_required_groups'
+_ ERROR at setup of test_scoped_only_guards_receive_scoped_output[_backfill_missing_unguarded_super] _
+E   AttributeError: <module 'code_intelligence.agent.postprocess' from '/home/user/odoo-ia-prototype/code_intelligence/agent/postprocess.py'> has no attribute '_backfill_missing_required_groups'
+_ ERROR at setup of test_scoped_only_guards_receive_scoped_output[_backfill_link_guard_clarifications] _
+E   AttributeError: <module 'code_intelligence.agent.postprocess' from '/home/user/odoo-ia-prototype/code_intelligence/agent/postprocess.py'> has no attribute '_backfill_missing_required_groups'
+_ ERROR at setup of test_scoped_only_guards_receive_scoped_output[_flag_ungrounded_group_xmlids] _
+E   AttributeError: <module 'code_intelligence.agent.postprocess' from '/home/user/odoo-ia-prototype/code_intelligence/agent/postprocess.py'> has no attribute '_backfill_missing_required_groups'
+_ ERROR at setup of test_scoped_only_guards_receive_scoped_output[_strip_core_only_group_mentions] _
+E   AttributeError: <module 'code_intelligence.agent.postprocess' from '/home/user/odoo-ia-prototype/code_intelligence/agent/postprocess.py'> has no attribute '_backfill_missing_required_groups'
+_ ERROR at setup of test_scoped_only_guards_receive_scoped_output[_backfill_missing_can_view_amount_fact] _
+E   AttributeError: <module 'code_intelligence.agent.postprocess' from '/home/user/odoo-ia-prototype/code_intelligence/agent/postprocess.py'> has no attribute '_backfill_missing_required_groups'
+_ ERROR at setup of test_scoped_only_guards_receive_scoped_output[_correct_security_lock_threshold_contradictions] _
+E   AttributeError: <module 'code_intelligence.agent.postprocess' from '/home/user/odoo-ia-prototype/code_intelligence/agent/postprocess.py'> has no attribute '_backfill_missing_required_groups'
+=================================== FAILURES ===================================
+E   AssertionError: assert {'sensitive': True} == {}
+      
+      Left contains 1 more item:
+      {'sensitive': True}
+      Use -v to get more diff
+/home/user/odoo-ia-prototype/code_intelligence/tests/test_bloc_b1_evidence_analyze_security_locks.py:62: AssertionError: assert {'sensitive': True} == {}
+E   assert 'contains no has_group() requirement' in "File 'nogrp.py' contains no extracted literal group check"
+     +  where "File 'nogrp.py' contains no extracted literal group check" = Evidence(evidence_id='5447c7e8815611069738962439191243', source_type=<EvidenceSourceType.CODE: 'code'>, claim="File 'n...ains no extracted literal group check", value=None, source='security_lock:nogrp.py:group', confidence='HIGH', scope={}).claim
+/home/user/odoo-ia-prototype/code_intelligence/tests/test_bloc_b1_evidence_analyze_security_locks.py:126: assert 'contains no has_group() requirement' in "File 'nogrp.py' contains no extracted literal group check"
+E   assert 'method' not in {'method': '', 'lineno': 1, 'authorization_verdict': 'not_evaluated'}
+     +  where {'method': '', 'lineno': 1, 'authorization_verdict': 'not_evaluated'} = Evidence(evidence_id='df88c55d6389bb97e1d4d478c93b2fe0', source_type=<EvidenceSourceType.CODE: 'code'>, claim="File 'm...oup:base.group_system', confidence='HIGH', scope={'method': '', 'lineno': 1, 'authorization_verdict': 'not_evaluated'}).scope
+/home/user/odoo-ia-prototype/code_intelligence/tests/test_bloc_b1_evidence_analyze_security_locks.py:132: assert 'method' not in {'method': '', 'lineno': 1, 'authorization_verdict': 'not_evaluated'}
+E   assert 'account.move' in 'Détail technique sensible'
+     +  where 'Détail technique sensible' = OmittedItem(label='Détail technique sensible', reason="Élément omis pour raison d'autorisation : la politique de divulgation des preuves techniques ne confirme pas l’autorisation du demandeur.").label
+/home/user/odoo-ia-prototype/code_intelligence/tests/test_j23_24_authorization_gate.py:93: assert 'account.move' in 'Détail technique sensible'
+E   assert [OmittedItem(... demandeur.")] == []
+      
+      Left contains one more item: OmittedItem(label='Détail technique sensible', reason="Élément omis pour raison d'autorisation : la politique de divulgation des preuves techniques ne confirme pas l’autorisation du demandeur.")
+      Use -v to get more diff
+/home/user/odoo-ia-prototype/code_intelligence/tests/test_j23_24_authorization_gate.py:111: assert [OmittedItem(... demandeur.")] == []
+E   assert [OmittedItem(... demandeur.")] == []
+      
+      Left contains one more item: OmittedItem(label='Détail technique sensible', reason="Élément omis pour raison d'autorisation : la politique de divulgation des preuves techniques ne confirme pas l’autorisation du demandeur.")
+      Use -v to get more diff
+/home/user/odoo-ia-prototype/code_intelligence/tests/test_j23_24_authorization_gate.py:160: assert [OmittedItem(... demandeur.")] == []
+E   AssertionError: assert False is True
+     +  where False = _has_elevated_access(<networkx.classes.digraph.DiGraph object at 0x7f884fe03ad0>, 'account.move', ['account.group_account_manager'])
+/home/user/odoo-ia-prototype/code_intelligence/tests/test_j23_24_group_id_xmlid_resolution.py:61: AssertionError: assert False is True
+E   assert "VERROU RATTACHE AU SITE: has_group('base.group_user')" in "Chaîne de surcharge de 'custom.deep.document.action_validate' (2 modules, ordre d'exécution réel, pas l'ordre de dépe...té par cette heuristique pour ce module -- pas de branche non garante ni de chaîne relationnelle non vérifiée trouvée)"
+/home/user/odoo-ia-prototype/code_intelligence/tests/test_method_security_constraints.py:182: assert "VERROU RATTACHE AU SITE: has_group('base.group_user')" in "Chaîne de surcharge de 'custom.deep.document.action_validate' (2 modules, ordre d'exécution réel, pas l'ordre de dépe...té par cette heuristique pour ce module -- pas de branche non garante ni de chaîne relationnelle non vérifiée trouvée)"
+E   assert "VERROU RATTACHE AU SITE: has_group('base.group_user')" in "Chaîne de surcharge de 'custom.deep.document.action_validate' (1 modules, ordre d'exécution réel, pas l'ordre de dépe...té par cette heuristique pour ce module -- pas de branche non garante ni de chaîne relationnelle non vérifiée trouvée)"
+/home/user/odoo-ia-prototype/code_intelligence/tests/test_method_security_constraints.py:222: assert "VERROU RATTACHE AU SITE: has_group('base.group_user')" in "Chaîne de surcharge de 'custom.deep.document.action_validate' (1 modules, ordre d'exécution réel, pas l'ordre de dépe...té par cette heuristique pour ce module -- pas de branche non garante ni de chaîne relationnelle non vérifiée trouvée)"
+E   StopIteration
+/home/user/odoo-ia-prototype/code_intelligence/tests/test_s2_5_semgrep_locks.py:85: StopIteration
+E   AssertionError: assert 'niveau module' in 'Analyse des verrous Python ([custom_model.py:L1-L7](file://custom_model/models/custom_model.py#L1-L7)) [Confiance: ÉL...-L6](file://custom_model/models/custom_model.py#L6-L6))\n  - Aucun verrou spécifique ni incertitude dynamique détecté.'
+     +  where 'Analyse des verrous Python ([custom_model.py:L1-L7](file://custom_model/models/custom_model.py#L1-L7)) [Confiance: ÉL...-L6](file://custom_model/models/custom_model.py#L6-L6))\n  - Aucun verrou spécifique ni incertitude dynamique détecté.' = PythonSecurityLockAnalysis(filepath='custom_model/models/custom_model.py', has_hardcoded_logins=False, hardcoded_login...value=None, source='security_lock:custom_model/models/custom_model.py:dynamic_dispatch', confidence='HIGH', scope={})]).summary_text
+/home/user/odoo-ia-prototype/code_intelligence/tests/test_s2_5_semgrep_locks.py:134: AssertionError: assert 'niveau module' in 'Analyse des verrous Python ([custom_model.py:L1-L7](file://custom_model/models/custom_model.py#L1-L7)) [Confiance: ÉL...-L6](file://custom_model/models/custom_model.py#L6-L6))\n  - Aucun verrou spécifique ni incertitude dynamique détecté.'
+E   assert "NE S'APPLIQUE PAS" in "Analyse des verrous Python ([asset_loan.py:L1-L16](file://custom_asset_loan/models/asset_loan.py#L1-L16)) [Confiance:...che a droite d'un 'and') -- la regle ci-dessus NE S’APPLIQUE PAS dans ce cas, quel que soit le reste de la condition.]"
+     +  where "Analyse des verrous Python ([asset_loan.py:L1-L16](file://custom_asset_loan/models/asset_loan.py#L1-L16)) [Confiance:...che a droite d'un 'and') -- la regle ci-dessus NE S’APPLIQUE PAS dans ce cas, quel que soit le reste de la condition.]" = PythonSecurityLockAnalysis(filepath='custom_asset_loan/models/asset_loan.py', has_hardcoded_logins=False, hardcoded_lo...ue=None, source='security_lock:custom_asset_loan/models/asset_loan.py:dynamic_dispatch', confidence='HIGH', scope={})]).summary_text
+/home/user/odoo-ia-prototype/code_intelligence/tests/test_s2_5_semgrep_locks.py:243: assert "NE S'APPLIQUE PAS" in "Analyse des verrous Python ([asset_loan.py:L1-L16](file://custom_asset_loan/models/asset_loan.py#L1-L16)) [Confiance:...che a droite d'un 'and') -- la regle ci-dessus NE S’APPLIQUE PAS dans ce cas, quel que soit le reste de la condition.]"
+E   assert "N'EST PAS le seul chemin" in 'Analyse des verrous Python ([purchase_order.py:L1-L9](file://purchase_order.py#L1-L9)) [Confiance: ÉLEVÉE]:\n  - Véri...rchase_order.py:L9-L9](file://purchase_order.py#L9-L9))\n  - Aucun verrou spécifique ni incertitude dynamique détecté.'
+     +  where 'Analyse des verrous Python ([purchase_order.py:L1-L9](file://purchase_order.py#L1-L9)) [Confiance: ÉLEVÉE]:\n  - Véri...rchase_order.py:L9-L9](file://purchase_order.py#L9-L9))\n  - Aucun verrou spécifique ni incertitude dynamique détecté.' = PythonSecurityLockAnalysis(filepath='purchase_order.py', has_hardcoded_logins=False, hardcoded_logins=[], exception_me...attr/eval/exec)", value=None, source='security_lock:purchase_order.py:dynamic_dispatch', confidence='HIGH', scope={})]).summary_text
+/home/user/odoo-ia-prototype/code_intelligence/tests/test_security_or_disjunct_group_check.py:62: assert "N'EST PAS le seul chemin" in 'Analyse des verrous Python ([purchase_order.py:L1-L9](file://purchase_order.py#L1-L9)) [Confiance: ÉLEVÉE]:\n  - Véri...rchase_order.py:L9-L9](file://purchase_order.py#L9-L9))\n  - Aucun verrou spécifique ni incertitude dynamique détecté.'
+E   assert 'not the only sufficient path' in "file 'purchase_order.py' contains a has_group()/user_has_groups() check of 'purchase.group_purchase_manager' in metho...elf.company_id.po_double_validation == 'two_step' and self.amount_total < self.company_id.po_double_validation_amount."
+     +  where "file 'purchase_order.py' contains a has_group()/user_has_groups() check of 'purchase.group_purchase_manager' in metho...elf.company_id.po_double_validation == 'two_step' and self.amount_total < self.company_id.po_double_validation_amount." = <built-in method lower of str object at 0x7f884fedda30>()
+     +    where <built-in method lower of str object at 0x7f884fedda30> = "File 'purchase_order.py' contains a has_group()/user_has_groups() check of 'purchase.group_purchase_manager' in metho...elf.company_id.po_double_validation == 'two_step' and self.amount_total < self.company_id.po_double_validation_amount.".lower
+     +      where "File 'purchase_order.py' contains a has_group()/user_has_groups() check of 'purchase.group_purchase_manager' in metho...elf.company_id.po_double_validation == 'two_step' and self.amount_total < self.company_id.po_double_validation_amount." = Evidence(evidence_id='37cd3713b28e61e3140e9cae50530010', source_type=<EvidenceSourceType.CODE: 'code'>, claim="File 'p...ager', confidence='HIGH', scope={'method': '_approval_allowed', 'lineno': 9, 'authorization_verdict': 'not_evaluated'}).claim
+/home/user/odoo-ia-prototype/code_intelligence/tests/test_security_or_disjunct_group_check.py:72: assert 'not the only sufficient path' in "file 'purchase_order.py' contains a has_group()/user_has_groups() check of 'purchase.group_purchase_manager' in metho...elf.company_id.po_double_validation == 'two_step' and self.amount_total < self.company_id.po_double_validation_amount."
+E   AssertionError: le statut CONFLICTING et ses raisons doivent apparaitre dans le log, pas disparaitre silencieusement
+    assert False
+     +  where False = any(<generator object test_ci_evidence_decision_conflicting_is_traceable_not_silent.<locals>.<genexpr> at 0x7f884fdd9000>)
+/home/user/odoo-ia-prototype/tests/test_bloc_p1_tranche2_ci_first_evidence_routing.py:138: AssertionError: le statut CONFLICTING et ses raisons doivent apparaitre dans le log, pas disparaitre silencieusement
+E   assert False
+     +  where False = any(<generator object test_ci_evidence_decision_insufficient_is_logged.<locals>.<genexpr> at 0x7f884fdd9460>)
+/home/user/odoo-ia-prototype/tests/test_bloc_p1_tranche2_ci_first_evidence_routing.py:155: assert False
+E   AssertionError: la documentation doit aller directement vers retrieve, tandis que les questions système vont vers CI ou ORM -- trouve : {'code_intelligence_agent', 'format_output', 'retrieve'}
+    assert {'code_intell...', 'retrieve'} == {'code_intell...', 'retrieve'}
+      
+      Extra items in the left set:
+      'format_output'
+      Extra items in the right set:
+      'orm_agent_loop'
+      Use -v to get more diff
+/home/user/odoo-ia-prototype/tests/test_bloc_p1_tranche2_ci_first_evidence_routing.py:240: AssertionError: la documentation doit aller directement vers retrieve, tandis que les questions système vont vers CI ou ORM -- trouve : {'code_intelligence_agent', 'format_output', 'retrieve'}
+E   AssertionError: assert set() == {'route'}
+      
+      Extra items in the right set:
+      'route'
+      Use -v to get more diff
+/home/user/odoo-ia-prototype/tests/test_bloc_p1_tranche2_ci_first_evidence_routing.py:253: AssertionError: assert set() == {'route'}
+E   AssertionError: assert set() == {'verify_answer'}
+      
+      Extra items in the right set:
+      'verify_answer'
+      Use -v to get more diff
+/home/user/odoo-ia-prototype/tests/test_bloc_p1_tranche2_ci_first_evidence_routing.py:270: AssertionError: assert set() == {'verify_answer'}
+E   AssertionError: assert 'scoped' == 'scoped_tool_output'
+      
+      - scoped_tool_output
+      + scoped
+/home/user/odoo-ia-prototype/tests/test_bug2_backfill_scoped_output_wiring.py:81: AssertionError: assert 'scoped' == 'scoped_tool_output'
+E   AttributeError: <module 'code_intelligence.agent.postprocess' from '/home/user/odoo-ia-prototype/code_intelligence/agent/postprocess.py'> has no attribute '_backfill_missing_required_groups'
+/home/user/odoo-ia-prototype/tests/test_bug2_backfill_scoped_output_wiring.py:91: AttributeError: <module 'code_intelligence.agent.postprocess' from '/home/user/odoo-ia-prototype/code_intelligence/agent/postprocess.py'> has no attribute '_backfill_missing_required_groups'
+E   assert 'account.group_account_manager' in "Responsable comptabilité : a le permission de valider jusqu'à 50 000€. Puisque le montant est de 60 000€, elle n'a pa...r les documents supérieurs à 100 000€. Puisque le montant est de 60 000€, elle a le permission de valider ce document."
+/home/user/odoo-ia-prototype/tests/test_graph.py:1657: assert 'account.group_account_manager' in "Responsable comptabilité : a le permission de valider jusqu'à 50 000€. Puisque le montant est de 60 000€, elle n'a pa...r les documents supérieurs à 100 000€. Puisque le montant est de 60 000€, elle a le permission de valider ce document."
+E   assert 'account.group_account_manager' in "- Responsable comptabilité : a le permission de valider jusqu'à 50 000€. Puisque le montant est de 60 000€, elle n'a ...r les documents supérieurs à 100 000€. Puisque le montant est de 60 000€, elle a le permission de valider ce document."
+/home/user/odoo-ia-prototype/tests/test_graph.py:1700: assert 'account.group_account_manager' in "- Responsable comptabilité : a le permission de valider jusqu'à 50 000€. Puisque le montant est de 60 000€, elle n'a ...r les documents supérieurs à 100 000€. Puisque le montant est de 60 000€, elle a le permission de valider ce document."
+E   AssertionError: assert 'source_clarification' == 'documentaire'
+      
+      - documentaire
+      + source_clarification
+/home/user/odoo-ia-prototype/tests/test_route_accent_fold.py:97: AssertionError: assert 'source_clarification' == 'documentaire'
+E   AssertionError: assert 'code_intelligence' == 'documentaire'
+      
+      - documentaire
+      + code_intelligence
+/home/user/odoo-ia-prototype/tests/test_route_accent_fold.py:136: AssertionError: assert 'code_intelligence' == 'documentaire'
+E   AssertionError: assert 'code_intelligence' == 'documentaire'
+      
+      - documentaire
+      + code_intelligence
+/home/user/odoo-ia-prototype/tests/test_route_accent_fold.py:136: AssertionError: assert 'code_intelligence' == 'documentaire'
+E   AssertionError: assert 1 == 0
+     +  where 1 = VerificationReport(mode=<VerifierMode.REPORT: 'report'>, claims_total=1, unsupported_claims=1, claims_by_type={<ClaimT...1}, unsupported=[UnsupportedClaim(claim_type=<ClaimType.NUMBER: 'number'>, text='15 000', reason='no_matching_value')]).unsupported_claims
+     +    where VerificationReport(mode=<VerifierMode.REPORT: 'report'>, claims_total=1, unsupported_claims=1, claims_by_type={<ClaimT...1}, unsupported=[UnsupportedClaim(claim_type=<ClaimType.NUMBER: 'number'>, text='15 000', reason='no_matching_value')]) = AssistantResponse(answer='Oui, le seuil de 15 000 est atteint.', sources=[], confidence=1.0, ocr_warning=False, omitte...portedClaim(claim_type=<ClaimType.NUMBER: 'number'>, text='15 000', reason='no_matching_value')]), evidence_dossier=[]).verification
+/home/user/odoo-ia-prototype/tests/test_t3_verify_node.py:98: AssertionError: assert 1 == 0
+E   AssertionError: assert [('purchase.g...known_group')] == [('purchase.g...in_evidence')]
+      
+      At index 0 diff: ('purchase.group_purchase_director', 'unknown_group') != ('purchase.group_purchase_director', 'not_in_evidence')
+      Use -v to get more diff
+/home/user/odoo-ia-prototype/tests/test_t3_verify_node.py:144: AssertionError: assert [('purchase.g...known_group')] == [('purchase.g...in_evidence')]
+E   AssertionError: assert {'out_of_scop...erify_answer'} == {'out_of_scop...erify_answer'}
+      
+      Extra items in the left set:
+      'route'
+      Use -v to get more diff
+/home/user/odoo-ia-prototype/tests/test_t3_verify_node.py:231: AssertionError: assert {'out_of_scop...erify_answer'} == {'out_of_scop...erify_answer'}
+=========================== short test summary info ============================
+FAILED code_intelligence/tests/test_bloc_b1_evidence_analyze_security_locks.py::TestSecurityLockEvidenceHardcodedLogins::test_positive_value_and_confidence
+FAILED code_intelligence/tests/test_bloc_b1_evidence_analyze_security_locks.py::TestSecurityLockEvidenceRequiredGroups::test_negative_explicit
+FAILED code_intelligence/tests/test_bloc_b1_evidence_analyze_security_locks.py::TestSecurityLockEvidenceRequiredGroups::test_module_level_has_group_omits_method_key
+FAILED code_intelligence/tests/test_j23_24_authorization_gate.py::test_marked_bypass_line_is_redacted_for_read_only_demandeur
+FAILED code_intelligence/tests/test_j23_24_authorization_gate.py::test_marked_bypass_line_is_not_redacted_for_elevated_demandeur
+FAILED code_intelligence/tests/test_j23_24_authorization_gate.py::test_gated_tool_all_authenticated_write_is_not_omitted
+FAILED code_intelligence/tests/test_j23_24_group_id_xmlid_resolution.py::test_resolved_xmlid_correctly_recognizes_elevated_access
+FAILED code_intelligence/tests/test_method_security_constraints.py::TestAnalyzeMethodOverrideChainSurfacesSecurityConstraints::test_two_sites_each_get_their_own_group_requirement
+FAILED code_intelligence/tests/test_method_security_constraints.py::TestAnalyzeMethodOverrideChainSurfacesSecurityConstraints::test_site_with_no_security_finding_still_shows_no_structural_risk_note
+FAILED code_intelligence/tests/test_s2_5_semgrep_locks.py::TestHardcodedLockDetection::test_required_group_attributed_to_enclosing_method_not_file_wide_bloc9_native_odoo
+FAILED code_intelligence/tests/test_s2_5_semgrep_locks.py::TestHardcodedLockDetection::test_has_group_outside_any_def_leaves_method_name_empty
+FAILED code_intelligence/tests/test_s2_5_semgrep_locks.py::TestHardcodedLockDetection::test_link_guard_field_detected_on_real_asset_loan_shape_bloc9_05c
+FAILED code_intelligence/tests/test_security_or_disjunct_group_check.py::TestRequiredGroupAltConditionsExtraction::test_summary_text_states_group_is_not_the_only_path
+FAILED code_intelligence/tests/test_security_or_disjunct_group_check.py::TestRequiredGroupAltConditionsExtraction::test_evidence_claim_also_carries_the_alt_condition_note
+FAILED tests/test_bloc_p1_tranche2_ci_first_evidence_routing.py::test_ci_evidence_decision_conflicting_is_traceable_not_silent
+FAILED tests/test_bloc_p1_tranche2_ci_first_evidence_routing.py::test_ci_evidence_decision_insufficient_is_logged
+FAILED tests/test_bloc_p1_tranche2_ci_first_evidence_routing.py::test_route_dispatches_documentation_and_system_sources
+FAILED tests/test_bloc_p1_tranche2_ci_first_evidence_routing.py::test_donnees_erp_is_the_only_route_reaching_orm_agent_loop_directly
+FAILED tests/test_bloc_p1_tranche2_ci_first_evidence_routing.py::test_orm_agent_loop_reaches_verify_answer_directly_bypassing_evidence_gate
+FAILED tests/test_bug2_backfill_scoped_output_wiring.py::test_build_final_response_feeds_the_chain_with_scoped_output
+FAILED tests/test_bug2_backfill_scoped_output_wiring.py::test_applied_guards_lists_only_guards_that_changed_the_answer
+FAILED tests/test_graph.py::TestCorrectSecurityLockThresholdContradictions::test_corrects_live_bloc9_08a_verbatim_inversion
+FAILED tests/test_graph.py::TestCorrectSecurityLockThresholdContradictions::test_corrects_bullet_list_inversion
+FAILED tests/test_route_accent_fold.py::test_unrelated_followup_with_no_keyword_at_all_is_still_unresolved
+FAILED tests/test_route_accent_fold.py::test_accented_and_unaccented_variants_route_identically[O\xf9 est document\xe9 combien de tickets sont encore en cours ?-Ou est documente combien de tickets sont encore en cours ?-documentary_policy-documentaire]
+FAILED tests/test_route_accent_fold.py::test_accented_and_unaccented_variants_route_identically[Quel est le r\xf4le du responsable et combien de tickets sont en cours ?-Quel est le role du responsable et combien de tickets sont en cours ?-documentary_policy-documentaire]
+FAILED tests/test_t3_verify_node.py::test_number_is_supported_by_the_question
+FAILED tests/test_t3_verify_node.py::test_unavailable_graph_degrades_to_evidence_only
+FAILED tests/test_t3_verify_node.py::test_verify_answer_is_the_only_branch_entry_into_format_output
+ERROR code_intelligence/tests/test_t5_expected_failures_are_logged.py
+ERROR tests/test_bug2_backfill_scoped_output_wiring.py::test_scoped_only_guards_receive_scoped_output[_backfill_missing_required_groups]
+ERROR tests/test_bug2_backfill_scoped_output_wiring.py::test_scoped_only_guards_receive_scoped_output[_backfill_missing_security_lock_amount]
+ERROR tests/test_bug2_backfill_scoped_output_wiring.py::test_scoped_only_guards_receive_scoped_output[_backfill_missing_override_modules]
+ERROR tests/test_bug2_backfill_scoped_output_wiring.py::test_scoped_only_guards_receive_scoped_output[_correct_override_cascade_contradictions]
+ERROR tests/test_bug2_backfill_scoped_output_wiring.py::test_scoped_only_guards_receive_scoped_output[_backfill_missing_override_chain_amount]
+ERROR tests/test_bug2_backfill_scoped_output_wiring.py::test_scoped_only_guards_receive_scoped_output[_backfill_missing_trigger_condition_literals]
+ERROR tests/test_bug2_backfill_scoped_output_wiring.py::test_scoped_only_guards_receive_scoped_output[_backfill_missing_hardcoded_id_literals]
+ERROR tests/test_bug2_backfill_scoped_output_wiring.py::test_scoped_only_guards_receive_scoped_output[_backfill_missing_unguarded_super]
+ERROR tests/test_bug2_backfill_scoped_output_wiring.py::test_scoped_only_guards_receive_scoped_output[_backfill_link_guard_clarifications]
+ERROR tests/test_bug2_backfill_scoped_output_wiring.py::test_scoped_only_guards_receive_scoped_output[_flag_ungrounded_group_xmlids]
+ERROR tests/test_bug2_backfill_scoped_output_wiring.py::test_scoped_only_guards_receive_scoped_output[_strip_core_only_group_mentions]
+ERROR tests/test_bug2_backfill_scoped_output_wiring.py::test_scoped_only_guards_receive_scoped_output[_backfill_missing_can_view_amount_fact]
+ERROR tests/test_bug2_backfill_scoped_output_wiring.py::test_scoped_only_guards_receive_scoped_output[_correct_security_lock_threshold_contradictions]
+29 failed, 243 passed, 14 errors in 124.63s (0:02:04)

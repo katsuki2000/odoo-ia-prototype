@@ -54,3 +54,14 @@ class ModelProjector:
 def project_candidates(candidates: Sequence[str], projector: ModelProjector) -> list[str]:
     """Models of the candidates in rank order, each model kept at its best rank."""
     return list(dict.fromkeys(model for ref in candidates for model in projector(ref)))
+
+
+def top_models(candidates: Sequence[str], projector: ModelProjector, limit: int) -> list[str]:
+    """First `limit` distinct models of the candidates in rank order."""
+    models: dict[str, None] = {}
+    for ref in candidates:
+        for model in projector(ref):
+            models.setdefault(model)
+        if len(models) >= limit:
+            break
+    return list(models)[:limit]
