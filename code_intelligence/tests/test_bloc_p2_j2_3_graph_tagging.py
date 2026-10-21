@@ -94,7 +94,7 @@ def tagged_graph(tmp_path):
         filepath="",
         lineno=1,
         name="Workflow rule",
-        model_id="custom.test.plain",
+        model_id="custom.test.workflow",
         domain_force="[('state', '=', 'draft')]",
     )
     rule_plain = OdooRuleRecord(

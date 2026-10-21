@@ -6,7 +6,6 @@ import ast
 import re
 from typing import Iterable, List, Optional, Sequence, Set
 
-from .state_field import selection_options
 
 MAX_CALL_DEPTH = 3
 
@@ -16,7 +15,11 @@ def state_predicate(field_name: str):
 
 
 def selection_values(decls: Iterable, field_name: str) -> Optional[List[str]]:
-    values = selection_options(decls, field_name)
+    values: List[str] = []
+    for decl in decls:
+        for field in decl.fields:
+            if field.name == field_name:
+                values.extend(value for value in (field.selection or []) + (field.selection_add or []) if value not in values)
     return values or None
 
 

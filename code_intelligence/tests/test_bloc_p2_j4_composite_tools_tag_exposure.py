@@ -108,7 +108,7 @@ def tagged_graph(tmp_path):
         filepath="",
         lineno=1,
         name="Workflow rule",
-        model_id="custom.test.plain",
+        model_id="custom.test.workflow",
         domain_force="[('state', '=', 'draft')]",
     )
     rule_plain = OdooRuleRecord(
@@ -173,6 +173,8 @@ def test_who_has_access_to_exposes_tags_on_each_active_rule(tagged_graph):
         BehavioralTag.VISIBILITY_RULE.value,
         TechnicalTag.RECORD_RULE.value,
     ]
+    workflow_result = who_has_access_to(tagged_graph, "custom.test.workflow", permission="read")
+    by_xml_id = {r.rule_xml_id: r for r in workflow_result.active_rules}
     assert by_xml_id["custom_test.rule_workflow"].tags == [
         BehavioralTag.VISIBILITY_RULE.value,
         BehavioralTag.WORKFLOW_RULE.value,
@@ -270,12 +272,11 @@ def test_get_tagged_nodes_for_model_filters_by_technical_tag(tagged_graph):
 def test_get_tagged_nodes_for_model_unfiltered_excludes_untagged_nodes(tagged_graph):
     results = get_tagged_nodes_for_model(tagged_graph, "custom.test.plain")
     node_ids = {node_id for node_id, _ in results}
-    # Tagged nodes related to custom.test.plain: rule_plain, rule_workflow,
+    # Tagged nodes related to custom.test.plain: rule_plain,
     # field 'total', method 'action_validate', method '_check_amount',
     # the ACL, the server action, the automation rule.
     assert node_ids == {
         "rule:custom_test.rule_plain",
-        "rule:custom_test.rule_workflow",
         "field:custom.test.plain.total",
         "method:custom.test.plain.action_validate",
         "method:custom.test.plain._check_amount",

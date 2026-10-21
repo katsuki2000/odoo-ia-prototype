@@ -2,34 +2,26 @@
 
 from __future__ import annotations
 
-from typing import Iterable, List, Optional
+from typing import Dict, Iterable, List, Optional, Sequence
+
+from .workflow_extraction import selection_values, written_states
 
 # Odoo gives this name to the lifecycle field: the `states=` attributes of fields and buttons are relative to it.
 ODOO_STATE_FIELD = "state"
-
-
-def selection_options(decls: Iterable, field_name: str) -> List[str]:
-    options: List[str] = []
-    for decl in decls:
-        for field in decl.fields:
-            if field.name == field_name:
-                options.extend(value for value in (field.selection or []) + (field.selection_add or []) if value not in options)
-    return options
 
 
 def is_action_method(method) -> bool:
     return not method.name.startswith("_") and not method.decorators
 
 
-def written_constants(decls: Iterable, field_name: str, *, action_methods_only: bool = False) -> List[str]:
-    constants: List[str] = []
+def action_written_options(decls: Sequence, field_name: str) -> int:
+    options = set(selection_values(decls, field_name) or ())
+    written = set()
     for decl in decls:
         for method in decl.methods:
-            if action_methods_only and not is_action_method(method):
-                continue
-            for bucket in (method.written_values, method.returned_values):
-                constants.extend(value for value in bucket.get(field_name, []) if value not in constants)
-    return constants
+            if is_action_method(method):
+                written.update(written_states(decls, method.name, field_name))
+    return len(options & written)
 
 
 def lifecycle_field(decls: Iterable) -> Optional[str]:
@@ -38,15 +30,19 @@ def lifecycle_field(decls: Iterable) -> Optional[str]:
     if any(field.name == ODOO_STATE_FIELD for decl in decls for field in decl.fields):
         return ODOO_STATE_FIELD
     computed = {field.name for decl in decls for field in decl.fields if field.compute}
-    candidates: List[str] = []
+    names: List[str] = []
     for decl in decls:
         for field in decl.fields:
-            if field.field_type == "Selection" and field.name not in computed and field.name not in candidates:
-                candidates.append(field.name)
+            if field.field_type == "Selection" and field.name not in computed and field.name not in names:
+                names.append(field.name)
     best, best_count = None, 0
-    for name in candidates:
-        options = set(selection_options(decls, name))
-        count = len(options.intersection(written_constants(decls, name, action_methods_only=True)))
+    for name in names:
+        count = action_written_options(decls, name)
         if count > best_count:
             best, best_count = name, count
     return best
+
+
+def lifecycle_fields(registry, modules_dict=None) -> Dict[str, str]:
+    fields = {model: lifecycle_field(decls) for model, decls in registry.models.items()}
+    return {model: field for model, field in fields.items() if field}

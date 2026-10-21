@@ -12,7 +12,7 @@ from .nodes import (
     add_view_button_nodes_and_edges, add_workflow_nodes_and_edges,
     ParsedModule, ResolvedSymbolRegistry,
 )
-from .state_field import lifecycle_field
+from .state_field import lifecycle_fields
 from .output_nodes import add_http_route_nodes, add_report_and_template_nodes
 from .translations import attach_translations, translation_fingerprint
 from .integrity_report import build_graph_integrity_report
@@ -38,6 +38,7 @@ class OdooGraphBuilder:
         self.G = nx.DiGraph()
         self._source_cache: Dict[str, str] = {}
         self._pendingMemberLinks: List[tuple] = []
+        self._lifecycle = lifecycle_fields(registry, modules_dict)
 
     def _read_source_cached(self, filepath: str) -> str:
         if filepath not in self._source_cache:
@@ -119,7 +120,7 @@ class OdooGraphBuilder:
             model_description = explicit_description or _humanize_technical_name(model_name)
             description_source = "explicit" if explicit_description else "generated"
             model_behavioral_tags: List[str] = []
-            if lifecycle_field(decls):
+            if model_name in self._lifecycle:
                 model_behavioral_tags.append(BehavioralTag.WORKFLOW_RULE.value)
             self.G.add_node(
                 model_node_id, node_type="Model", name=model_name, inherits_list=all_inherits,

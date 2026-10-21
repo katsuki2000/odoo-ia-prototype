@@ -126,7 +126,7 @@ from typing import Callable
 import networkx as nx
 
 from code_intelligence.rules.ontology import BehavioralTag, TechnicalTag
-from code_intelligence.graph.state_field import lifecycle_field
+from code_intelligence.graph.state_field import lifecycle_fields
 from code_intelligence.graph.workflow_extraction import (
     origin_states,
     selection_values,
@@ -143,6 +143,7 @@ def add_security_group_nodes(
     domain_force_references_field_fn: Callable[[Optional[str], str], bool],
 ):
     """Add Group, Rule, AccessEntry, ServerAction, and AutomationRule nodes + security edges."""
+    lifecycle = lifecycle_fields(registry, modules_dict)
     settings_implied_groups: Dict[str, str] = {}
     for model_name, decl_list in registry.models.items():
         if model_name == "res.config.settings" or "res.config.settings" in sum(
@@ -196,7 +197,7 @@ def add_security_group_nodes(
             registry.resolve_model_ref_or_record(rule.model_id, full_xml_id.split('.', 1)[0], rule.filepath)
             if rule.model_id else None
         )
-        ruleStateField = lifecycle_field(registry.models.get(ruleModelName, [])) if ruleModelName else None
+        ruleStateField = lifecycle.get(ruleModelName)
         if ruleStateField and domain_force_references_field_fn(rule.domain_force, ruleStateField):
             rule_behavioral_tags.append(BehavioralTag.WORKFLOW_RULE.value)
         G.add_node(
@@ -371,8 +372,9 @@ def add_workflow_nodes_and_edges(
     modules_dict: Dict[str, ParsedModule],
 ):
     """Build the workflow sub-graph from the real selection values and the code of each button."""
+    lifecycle = lifecycle_fields(registry, modules_dict)
     for model_name, decls in registry.models.items():
-        stateField = lifecycle_field(decls)
+        stateField = lifecycle.get(model_name)
         if not stateField:
             continue
         if f"model:{model_name}" in G:
