@@ -6,30 +6,12 @@ and move types.
 import logging
 import os
 import re
-import unicodedata
 from typing import Optional, Dict, Any
 
 logger = logging.getLogger(__name__)
 
+from code_intelligence.agent.text_normalization import strip_accents
 from code_intelligence.utils import _extract_amount, _question_is_approval_related
-
-
-def _strip_accents(text: str) -> str:
-    """Normalize a string by removing diacritics (accents) at matching time.
-
-    Several _question_is_*_related regexes below already defensively use
-    character classes like '[eé]tat' to tolerate accented/unaccented input,
-    but not uniformly (see todo/contexte.txt section 764: the native N1
-    question bank on disk is pure ASCII -- no accents anywhere -- which is
-    exactly the kind of source this normalization protects against, along
-    with NFD-decomposed copy-paste and non-French keyboards). Applied only
-    to the text being matched against, never to captured group content --
-    extract_ui_element_name() below must keep returning the original
-    spelling of whatever UI label it extracts."""
-    return "".join(
-        c for c in unicodedata.normalize("NFKD", text)
-        if not unicodedata.combining(c)
-    )
 
 
 _APPROVAL_AUTHORITY_PATTERN = re.compile(
@@ -40,7 +22,7 @@ _APPROVAL_AUTHORITY_PATTERN = re.compile(
 
 def _question_is_approval_authority_related(question: str) -> bool:
     """Identify questions about approval or validation decisions."""
-    return bool(_APPROVAL_AUTHORITY_PATTERN.search(_strip_accents(question or "")))
+    return bool(_APPROVAL_AUTHORITY_PATTERN.search(strip_accents(question or "")))
 
 
 # Deterministic patterns for tool triggers
@@ -125,7 +107,7 @@ _ACCESS_QUESTION_PATTERN = re.compile(
 
 def _question_is_access_related(question: str) -> bool:
     """True if the question is asking about access permissions or visibility."""
-    return bool(_ACCESS_QUESTION_PATTERN.search(_strip_accents(question)))
+    return bool(_ACCESS_QUESTION_PATTERN.search(strip_accents(question)))
 
 
 _WORKFLOW_QUESTION_PATTERN = re.compile(
@@ -150,7 +132,7 @@ _WORKFLOW_QUESTION_PATTERN = re.compile(
 
 def _question_is_workflow_related(question: str) -> bool:
     """True if question investigates workflow state transitions or states."""
-    return bool(_WORKFLOW_QUESTION_PATTERN.search(_strip_accents(question)))
+    return bool(_WORKFLOW_QUESTION_PATTERN.search(strip_accents(question)))
 
 
 _INHERITANCE_QUESTION_PATTERN = re.compile(
@@ -169,7 +151,7 @@ _INHERITANCE_QUESTION_PATTERN = re.compile(
 
 def _question_is_inheritance_related(question: str) -> bool:
     """True if question inquires about model inheritance, mixins, or extensions."""
-    return bool(_INHERITANCE_QUESTION_PATTERN.search(_strip_accents(question)))
+    return bool(_INHERITANCE_QUESTION_PATTERN.search(strip_accents(question)))
 
 
 _METHOD_OR_OVERRIDE_PATTERN = re.compile(
@@ -183,7 +165,7 @@ _METHOD_OR_OVERRIDE_PATTERN = re.compile(
 
 def _question_is_method_or_override_related(question: str) -> bool:
     """True if question inquires about method behavior, overrides, or write-time field mutations."""
-    return bool(_METHOD_OR_OVERRIDE_PATTERN.search(_strip_accents(question)))
+    return bool(_METHOD_OR_OVERRIDE_PATTERN.search(strip_accents(question)))
 
 
 _CONSTRAINTS_QUESTION_PATTERN = re.compile(
@@ -198,7 +180,7 @@ _CONSTRAINTS_QUESTION_PATTERN = re.compile(
 
 def _question_is_constraint_related(question: str) -> bool:
     """True if question investigates model data constraints, validation rules, or write blockers."""
-    return bool(_CONSTRAINTS_QUESTION_PATTERN.search(_strip_accents(question)))
+    return bool(_CONSTRAINTS_QUESTION_PATTERN.search(strip_accents(question)))
 
 
 # "What actually distinguishes X from Y" phrasing -- a security question
@@ -225,7 +207,7 @@ def _question_is_security_distinction_related(question: str) -> bool:
     """True if the question asks what genuinely/really distinguishes two
     roles/groups, implying a real distinction should exist beyond a
     surface-level ACL/ir.rule check."""
-    return bool(_SECURITY_DISTINCTION_PATTERN.search(_strip_accents(question)))
+    return bool(_SECURITY_DISTINCTION_PATTERN.search(strip_accents(question)))
 
 
 # ── UI Patterns ─────────────────────────────────────────────────────────
@@ -266,7 +248,7 @@ _MODULE_UI_PATTERN = re.compile(
 
 
 def matches_module_level_ui_inquiry(question: str) -> bool:
-    return bool(_MODULE_UI_PATTERN.search(_strip_accents(question)))
+    return bool(_MODULE_UI_PATTERN.search(strip_accents(question)))
 
 
 _GROUP_IDENTIFIER_PATTERN = re.compile(r"(?:[a-z0-9_]+\.)?group_", re.IGNORECASE)
@@ -298,7 +280,7 @@ def _bare_parenthesized_ui_candidate(question: str) -> Optional[str]:
     (SAL-Q5 "(prepayment_percent)", MNT-Q5 "(repeat_interval)") is not a UI
     element the question asks about; a field named in a visibility question
     (ACC-Q4 "(account_id)", "voit-il") is (todo/contexte.txt section 876)."""
-    intent_is_visibility = bool(_UI_VISIBILITY_INTENT_PATTERN.search(_strip_accents(question)))
+    intent_is_visibility = bool(_UI_VISIBILITY_INTENT_PATTERN.search(strip_accents(question)))
     for cand in _BARE_PAREN_IDENTIFIER_PATTERN.finditer(question):
         name = cand.group(1).strip()
         if is_group_identifier(name):

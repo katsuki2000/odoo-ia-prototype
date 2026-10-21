@@ -8,16 +8,22 @@ from langchain_core.tools import tool
 from rapidfuzz import fuzz, utils
 
 from code_intelligence.agent.node_labels import node_labels
+from code_intelligence.agent.text_normalization import strip_accents
 from code_intelligence.agent.tool_helpers import _require_graph
 
 logger = logging.getLogger(__name__)
+
+
+def _comparable(text: str) -> str:
+    """Accent-blind, case-folded form used to score a query against a label."""
+    return utils.default_process(strip_accents(text))
 
 
 def find_instance_candidates(graph, query: str, model: str = '', limit: int = 10) -> dict:
     limit = max(1, min(limit, 20))
     if not query.strip():
         return {'discovery_only': True, 'candidates': []}
-    normalized = utils.default_process(query)
+    normalized = _comparable(query)
     def rankedNodes():
         for nodeId, data in graph.nodes(data=True):
             if data.get('node_type') not in {'Model', 'Method', 'Field', 'Button', 'Module', 'Menu'}:
@@ -27,7 +33,7 @@ def find_instance_candidates(graph, query: str, model: str = '', limit: int = 10
             if model and owner != model:
                 continue
             labels = [technicalName, *node_labels(data)]
-            score = max(fuzz.WRatio(normalized, utils.default_process(label)) for label in labels if label)
+            score = max(fuzz.WRatio(normalized, _comparable(label)) for label in labels if label)
             if score >= 45:
                 yield score, str(nodeId), owner, data
     ranked = heapq.nlargest(limit, rankedNodes(), key=lambda row: (row[0], row[1]))

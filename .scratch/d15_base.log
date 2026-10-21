@@ -1,0 +1,141 @@
+bringing up nodes...
+bringing up nodes...
+
+........................................................................ [ 43%]
+....................F........F....Fuuuu.......F......................... [ 85%]
+........................                                                 [100%]
+=================================== FAILURES ===================================
+_ ResolverDecisionTests.test_abstention_does_not_return_candidates_as_targets __
+[gw3] linux -- Python 3.11.2 /home/user/odoo-ia-prototype/.venv/bin/python3
+
+self = <tests.test_resolver_decision_regressions.ResolverDecisionTests testMethod=test_abstention_does_not_return_candidates_as_targets>
+
+    def test_abstention_does_not_return_candidates_as_targets(self):
+        module = self.fuzzy_module([('alpha.record', 95), ('beta.record', 80)], [])
+>       result = module.resolve_fuzzy_match('question', 'question', self.graph, object(), None, False)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_resolver_decision_regressions.py:230: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+query_text = 'question', clean_query = 'question'
+G = <tests.test_resolver_decision_regressions.Graph object at 0x7fd7f00b4a90>
+llm = <object object at 0x7fd7f43a2870>, language = None
+semantic_candidates = False
+
+    def resolve_fuzzy_match(query_text, clean_query, G, llm, language, semantic_candidates=()):
+        if G is None:
+            return None
+        lexical = _fuzzy_match_graph(clean_query, G)
+        strict = bool(lexical)
+        if not lexical:
+            lexical = _fuzzy_match_graph(clean_query, G, threshold=WIDENED_CANDIDATE_THRESHOLD,
+                                         limit=WIDENED_CANDIDATE_LIMIT)
+        candidates = list(dict.fromkeys([model for model, _score in lexical[:SHORTLIST_FUZZY_LIMIT]]
+>                                      + list(semantic_candidates[:HYBRID_SEMANTIC_LIMIT])))
+                                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: 'bool' object is not subscriptable
+
+code_intelligence/agent/resolution/fuzzy_lookup.py:30: TypeError
+___ ResolverDecisionTests.test_high_score_does_not_promote_every_alternative ___
+[gw2] linux -- Python 3.11.2 /home/user/odoo-ia-prototype/.venv/bin/python3
+
+self = <tests.test_resolver_decision_regressions.ResolverDecisionTests testMethod=test_high_score_does_not_promote_every_alternative>
+
+    def test_high_score_does_not_promote_every_alternative(self):
+        module = self.fuzzy_module([('alpha.record', 95), ('beta.record', 80)], ['alpha.record'])
+>       result = module.resolve_fuzzy_match('question', 'question', self.graph, object(), None, False)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_resolver_decision_regressions.py:225: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+query_text = 'question', clean_query = 'question'
+G = <tests.test_resolver_decision_regressions.Graph object at 0x7fe3586d7290>
+llm = <object object at 0x7fe36ffe28b0>, language = None
+semantic_candidates = False
+
+    def resolve_fuzzy_match(query_text, clean_query, G, llm, language, semantic_candidates=()):
+        if G is None:
+            return None
+        lexical = _fuzzy_match_graph(clean_query, G)
+        strict = bool(lexical)
+        if not lexical:
+            lexical = _fuzzy_match_graph(clean_query, G, threshold=WIDENED_CANDIDATE_THRESHOLD,
+                                         limit=WIDENED_CANDIDATE_LIMIT)
+        candidates = list(dict.fromkeys([model for model, _score in lexical[:SHORTLIST_FUZZY_LIMIT]]
+>                                      + list(semantic_candidates[:HYBRID_SEMANTIC_LIMIT])))
+                                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: 'bool' object is not subscriptable
+
+code_intelligence/agent/resolution/fuzzy_lookup.py:30: TypeError
+_____ ResolverDecisionTests.test_multiple_selected_subjects_are_preserved ______
+[gw0] linux -- Python 3.11.2 /home/user/odoo-ia-prototype/.venv/bin/python3
+
+self = <tests.test_resolver_decision_regressions.ResolverDecisionTests testMethod=test_multiple_selected_subjects_are_preserved>
+
+    def test_multiple_selected_subjects_are_preserved(self):
+        module = self.fuzzy_module([('alpha.record', 95), ('beta.record', 80)], ['alpha.record', 'beta.record'])
+>       result = module.resolve_fuzzy_match('question', 'question', self.graph, object(), None, False)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_resolver_decision_regressions.py:237: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+query_text = 'question', clean_query = 'question'
+G = <tests.test_resolver_decision_regressions.Graph object at 0x7f6c0ca7e850>
+llm = <object object at 0x7f6c243928c0>, language = None
+semantic_candidates = False
+
+    def resolve_fuzzy_match(query_text, clean_query, G, llm, language, semantic_candidates=()):
+        if G is None:
+            return None
+        lexical = _fuzzy_match_graph(clean_query, G)
+        strict = bool(lexical)
+        if not lexical:
+            lexical = _fuzzy_match_graph(clean_query, G, threshold=WIDENED_CANDIDATE_THRESHOLD,
+                                         limit=WIDENED_CANDIDATE_LIMIT)
+        candidates = list(dict.fromkeys([model for model, _score in lexical[:SHORTLIST_FUZZY_LIMIT]]
+>                                      + list(semantic_candidates[:HYBRID_SEMANTIC_LIMIT])))
+                                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: 'bool' object is not subscriptable
+
+code_intelligence/agent/resolution/fuzzy_lookup.py:30: TypeError
+___ ResolverDecisionTests.test_single_strict_candidate_needs_no_arbitration ____
+[gw3] linux -- Python 3.11.2 /home/user/odoo-ia-prototype/.venv/bin/python3
+
+self = <tests.test_resolver_decision_regressions.ResolverDecisionTests testMethod=test_single_strict_candidate_needs_no_arbitration>
+
+    def test_single_strict_candidate_needs_no_arbitration(self):
+        module = self.fuzzy_module([('alpha.record', 95)], [])
+        module._llm_arbitrate = lambda *args: self.fail('Unexpected arbitration')
+>       result = module.resolve_fuzzy_match('question', 'question', self.graph, None, None, False)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_resolver_decision_regressions.py:243: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+query_text = 'question', clean_query = 'question'
+G = <tests.test_resolver_decision_regressions.Graph object at 0x7fd7f09af210>
+llm = None, language = None, semantic_candidates = False
+
+    def resolve_fuzzy_match(query_text, clean_query, G, llm, language, semantic_candidates=()):
+        if G is None:
+            return None
+        lexical = _fuzzy_match_graph(clean_query, G)
+        strict = bool(lexical)
+        if not lexical:
+            lexical = _fuzzy_match_graph(clean_query, G, threshold=WIDENED_CANDIDATE_THRESHOLD,
+                                         limit=WIDENED_CANDIDATE_LIMIT)
+        candidates = list(dict.fromkeys([model for model, _score in lexical[:SHORTLIST_FUZZY_LIMIT]]
+>                                      + list(semantic_candidates[:HYBRID_SEMANTIC_LIMIT])))
+                                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: 'bool' object is not subscriptable
+
+code_intelligence/agent/resolution/fuzzy_lookup.py:30: TypeError
+=========================== short test summary info ============================
+FAILED tests/test_resolver_decision_regressions.py::ResolverDecisionTests::test_abstention_does_not_return_candidates_as_targets
+FAILED tests/test_resolver_decision_regressions.py::ResolverDecisionTests::test_high_score_does_not_promote_every_alternative
+FAILED tests/test_resolver_decision_regressions.py::ResolverDecisionTests::test_multiple_selected_subjects_are_preserved
+FAILED tests/test_resolver_decision_regressions.py::ResolverDecisionTests::test_single_strict_candidate_needs_no_arbitration
+4 failed, 160 passed, 4 subtests passed in 250.37s (0:04:10)

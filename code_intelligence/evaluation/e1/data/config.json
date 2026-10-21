@@ -11,9 +11,12 @@
   "rrf_weight_bm25": 1.0,
   "rrf_weight_dense": 1.0,
   "bm25_top_k": 10,
+  "fuzzy_top_models": 10,
+  "bm25_top_models": 20,
+  "dense_top_models": 20,
   "bm25_ambiguity_score_ratio": 0.85,
   "bm25_min_score": 0.0,
-  "dense_top_k": 10,
+  "dense_top_k": 20,
   "dense_ambiguity_score_ratio": 0.85,
   "dense_min_score": 0.0,
   "dense_batch_size": 64,
@@ -122,6 +125,20 @@
       "date": "2026-10-16",
       "changes": [
         "system R0 (production resolver with static aliases) removed: the alias tables no longer exist; R1 (production resolver) is the reference baseline; amendment to 1227 to be validated by pmm"
+      ]
+    },
+    {
+      "section": "D-5",
+      "date": "2026-10-20",
+      "changes": [
+        "dense_top_k 10 -> 20 (decision of pmm, measured in an earlier session); RapidFuzz keeps its own fuzzy_top_k (default 10) in the pipeline comparison"
+      ]
+    },
+    {
+      "section": "D-8",
+      "date": "2026-10-20",
+      "changes": [
+        "pipeline comparison counts models, not cards: fuzzy_top_models 10, bm25_top_models 20, dense_top_models 20 (top_k of systems.py R1-R6 still counts cards, dense_top_k stays 20)"
       ]
     }
   ]

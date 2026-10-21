@@ -1,0 +1,808 @@
+bringing up nodes...
+bringing up nodes...
+
+................................F.....F......F..........F..........F.... [ 35%]
+............F.....F...F.......F.F................FF.....FF.......FF....F [ 71%]
+F.F.........Fuuuu...F...FF..F................................            [100%]
+==================================== ERRORS ====================================
+______ ERROR collecting code_intelligence/tests/test_audit_regressions.py ______
+ImportError while importing test module '/home/user/odoo-ia-prototype/.scratch/merge_check_d15/code_intelligence/tests/test_audit_regressions.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.11/importlib/__init__.py:126: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+code_intelligence/tests/test_audit_regressions.py:5: in <module>
+    from code_intelligence.agent.loop import _should_bypass_synthesis
+E   ImportError: cannot import name '_should_bypass_synthesis' from 'code_intelligence.agent.loop' (/home/user/odoo-ia-prototype/.scratch/merge_check_d15/code_intelligence/agent/loop.py)
+=================================== FAILURES ===================================
+_ SourceAgentBoundaryTests.test_source_candidates_are_not_counted_as_evidence __
+[gw1] linux -- Python 3.11.2 /home/user/odoo-ia-prototype/.venv/bin/python3
+
+self = <tests.test_system_source_search.SourceAgentBoundaryTests testMethod=test_source_candidates_are_not_counted_as_evidence>
+
+    def setUp(self):
+>       import test_single_investigation_loop as boundary
+E       ModuleNotFoundError: No module named 'test_single_investigation_loop'
+
+tests/test_system_source_search.py:246: ModuleNotFoundError
+_ SourceAgentBoundaryTests.test_source_fragment_uses_existing_source_gate_and_evidence_kind _
+[gw1] linux -- Python 3.11.2 /home/user/odoo-ia-prototype/.venv/bin/python3
+
+self = <tests.test_system_source_search.SourceAgentBoundaryTests testMethod=test_source_fragment_uses_existing_source_gate_and_evidence_kind>
+
+    def setUp(self):
+>       import test_single_investigation_loop as boundary
+E       ModuleNotFoundError: No module named 'test_single_investigation_loop'
+
+tests/test_system_source_search.py:246: ModuleNotFoundError
+_ SourceAgentBoundaryTests.test_stale_source_refusal_does_not_become_evidence __
+[gw1] linux -- Python 3.11.2 /home/user/odoo-ia-prototype/.venv/bin/python3
+
+self = <tests.test_system_source_search.SourceAgentBoundaryTests testMethod=test_stale_source_refusal_does_not_become_evidence>
+
+    def setUp(self):
+>       import test_single_investigation_loop as boundary
+E       ModuleNotFoundError: No module named 'test_single_investigation_loop'
+
+tests/test_system_source_search.py:246: ModuleNotFoundError
+______ SourceAgentBoundaryTests.test_tools_are_registered_in_single_agent ______
+[gw1] linux -- Python 3.11.2 /home/user/odoo-ia-prototype/.venv/bin/python3
+
+self = <tests.test_system_source_search.SourceAgentBoundaryTests testMethod=test_tools_are_registered_in_single_agent>
+
+    def setUp(self):
+>       import test_single_investigation_loop as boundary
+E       ModuleNotFoundError: No module named 'test_single_investigation_loop'
+
+tests/test_system_source_search.py:246: ModuleNotFoundError
+_________________ test_documentation_mode_short_circuits_route _________________
+[gw2] linux -- Python 3.11.2 /home/user/odoo-ia-prototype/.venv/bin/python3
+
+    def test_documentation_mode_short_circuits_route():
+        """Mode documentation: ni resolveur, ni classifieur d'intention."""
+>       stack, resolver = _patched_pipeline()
+                          ^^^^^^^^^^^^^^^^^^^
+
+tests/test_source_mode_routing.py:52: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_source_mode_routing.py:34: in _patched_pipeline
+    stack.enter_context(
+/usr/lib/python3.11/contextlib.py:505: in enter_context
+    result = _enter(cm)
+             ^^^^^^^^^^
+/usr/lib/python3.11/unittest/mock.py:1437: in __enter__
+    original, local = self.get_original()
+                      ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <unittest.mock._patch object at 0x7efc6f953a10>
+
+    def get_original(self):
+        target = self.getter()
+        name = self.attribute
+    
+        original = DEFAULT
+        local = False
+    
+        try:
+            original = target.__dict__[name]
+        except (AttributeError, KeyError):
+            original = getattr(target, name, DEFAULT)
+        else:
+            local = True
+    
+        if name in _builtins and isinstance(target, ModuleType):
+            self.create = True
+    
+        if not self.create and original is DEFAULT:
+>           raise AttributeError(
+                "%s does not have the attribute %r" % (target, name)
+            )
+E           AttributeError: <module 'core.routing.routing' from '/home/user/odoo-ia-prototype/.scratch/merge_check_d15/core/routing/routing.py'> does not have the attribute 'resolve_question_intent'
+
+/usr/lib/python3.11/unittest/mock.py:1410: AttributeError
+__________ test_systeme_mode_remaps_documentary_to_erp_when_data_term __________
+[gw0] linux -- Python 3.11.2 /home/user/odoo-ia-prototype/.venv/bin/python3
+
+    def test_systeme_mode_remaps_documentary_to_erp_when_data_term():
+>       stack, _ = _patched_pipeline()
+                   ^^^^^^^^^^^^^^^^^^^
+
+tests/test_source_mode_routing.py:108: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_source_mode_routing.py:34: in _patched_pipeline
+    stack.enter_context(
+/usr/lib/python3.11/contextlib.py:505: in enter_context
+    result = _enter(cm)
+             ^^^^^^^^^^
+/usr/lib/python3.11/unittest/mock.py:1437: in __enter__
+    original, local = self.get_original()
+                      ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <unittest.mock._patch object at 0x7f94c9b42fd0>
+
+    def get_original(self):
+        target = self.getter()
+        name = self.attribute
+    
+        original = DEFAULT
+        local = False
+    
+        try:
+            original = target.__dict__[name]
+        except (AttributeError, KeyError):
+            original = getattr(target, name, DEFAULT)
+        else:
+            local = True
+    
+        if name in _builtins and isinstance(target, ModuleType):
+            self.create = True
+    
+        if not self.create and original is DEFAULT:
+>           raise AttributeError(
+                "%s does not have the attribute %r" % (target, name)
+            )
+E           AttributeError: <module 'core.routing.routing' from '/home/user/odoo-ia-prototype/.scratch/merge_check_d15/core/routing/routing.py'> does not have the attribute 'resolve_question_intent'
+
+/usr/lib/python3.11/unittest/mock.py:1410: AttributeError
+_____________________ test_no_mode_keeps_documentary_route _____________________
+[gw2] linux -- Python 3.11.2 /home/user/odoo-ia-prototype/.venv/bin/python3
+
+    def test_no_mode_keeps_documentary_route():
+>       stack, _ = _patched_pipeline()
+                   ^^^^^^^^^^^^^^^^^^^
+
+tests/test_source_mode_routing.py:94: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_source_mode_routing.py:34: in _patched_pipeline
+    stack.enter_context(
+/usr/lib/python3.11/contextlib.py:505: in enter_context
+    result = _enter(cm)
+             ^^^^^^^^^^
+/usr/lib/python3.11/unittest/mock.py:1437: in __enter__
+    original, local = self.get_original()
+                      ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <unittest.mock._patch object at 0x7efc6ff18650>
+
+    def get_original(self):
+        target = self.getter()
+        name = self.attribute
+    
+        original = DEFAULT
+        local = False
+    
+        try:
+            original = target.__dict__[name]
+        except (AttributeError, KeyError):
+            original = getattr(target, name, DEFAULT)
+        else:
+            local = True
+    
+        if name in _builtins and isinstance(target, ModuleType):
+            self.create = True
+    
+        if not self.create and original is DEFAULT:
+>           raise AttributeError(
+                "%s does not have the attribute %r" % (target, name)
+            )
+E           AttributeError: <module 'core.routing.routing' from '/home/user/odoo-ia-prototype/.scratch/merge_check_d15/core/routing/routing.py'> does not have the attribute 'resolve_question_intent'
+
+/usr/lib/python3.11/unittest/mock.py:1410: AttributeError
+__________ test_accented_and_unaccented_erp_keyword_route_identically __________
+[gw1] linux -- Python 3.11.2 /home/user/odoo-ia-prototype/.venv/bin/python3
+
+    def test_accented_and_unaccented_erp_keyword_route_identically():
+        """'cette année' (ERP_KEYWORDS, accented) and 'cette annee' (same
+        phrase, no accent) must now produce the SAME route. Before this fix,
+        only the accented form matched -- the unaccented form silently fell
+        through every branch to the documentaire default instead.
+    
+        Mocked intent: ERP_DATA_QUERY -- the production LLM classifier is
+        expected to recognize a live-data aggregation question regardless of
+        accent, matching INTENT_TO_ROUTE's mapping to donnees_erp."""
+        accented = _route_question("Et pour cette année ?", QuestionIntent.ERP_DATA_QUERY)
+        unaccented = _route_question("Et pour cette annee ?", QuestionIntent.ERP_DATA_QUERY)
+>       assert accented == unaccented == "donnees_erp"
+E       AssertionError: assert 'code_intelligence' == 'donnees_erp'
+E         
+E         - donnees_erp
+E         + code_intelligence
+
+tests/test_route_accent_fold.py:95: AssertionError
+_____________ test_systeme_mode_leaves_non_documentary_route_alone _____________
+[gw0] linux -- Python 3.11.2 /home/user/odoo-ia-prototype/.venv/bin/python3
+
+    def test_systeme_mode_leaves_non_documentary_route_alone():
+>       stack, _ = _patched_pipeline(intent=QuestionIntent.GOVERNANCE_SECURITY)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_source_mode_routing.py:115: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_source_mode_routing.py:34: in _patched_pipeline
+    stack.enter_context(
+/usr/lib/python3.11/contextlib.py:505: in enter_context
+    result = _enter(cm)
+             ^^^^^^^^^^
+/usr/lib/python3.11/unittest/mock.py:1437: in __enter__
+    original, local = self.get_original()
+                      ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <unittest.mock._patch object at 0x7f94dd496f90>
+
+    def get_original(self):
+        target = self.getter()
+        name = self.attribute
+    
+        original = DEFAULT
+        local = False
+    
+        try:
+            original = target.__dict__[name]
+        except (AttributeError, KeyError):
+            original = getattr(target, name, DEFAULT)
+        else:
+            local = True
+    
+        if name in _builtins and isinstance(target, ModuleType):
+            self.create = True
+    
+        if not self.create and original is DEFAULT:
+>           raise AttributeError(
+                "%s does not have the attribute %r" % (target, name)
+            )
+E           AttributeError: <module 'core.routing.routing' from '/home/user/odoo-ia-prototype/.scratch/merge_check_d15/core/routing/routing.py'> does not have the attribute 'resolve_question_intent'
+
+/usr/lib/python3.11/unittest/mock.py:1410: AttributeError
+__________ test_systeme_mode_remaps_documentary_to_code_intelligence ___________
+[gw2] linux -- Python 3.11.2 /home/user/odoo-ia-prototype/.venv/bin/python3
+
+    def test_systeme_mode_remaps_documentary_to_code_intelligence():
+>       stack, _ = _patched_pipeline()
+                   ^^^^^^^^^^^^^^^^^^^
+
+tests/test_source_mode_routing.py:101: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_source_mode_routing.py:34: in _patched_pipeline
+    stack.enter_context(
+/usr/lib/python3.11/contextlib.py:505: in enter_context
+    result = _enter(cm)
+             ^^^^^^^^^^
+/usr/lib/python3.11/unittest/mock.py:1437: in __enter__
+    original, local = self.get_original()
+                      ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <unittest.mock._patch object at 0x7efc6f94ce90>
+
+    def get_original(self):
+        target = self.getter()
+        name = self.attribute
+    
+        original = DEFAULT
+        local = False
+    
+        try:
+            original = target.__dict__[name]
+        except (AttributeError, KeyError):
+            original = getattr(target, name, DEFAULT)
+        else:
+            local = True
+    
+        if name in _builtins and isinstance(target, ModuleType):
+            self.create = True
+    
+        if not self.create and original is DEFAULT:
+>           raise AttributeError(
+                "%s does not have the attribute %r" % (target, name)
+            )
+E           AttributeError: <module 'core.routing.routing' from '/home/user/odoo-ia-prototype/.scratch/merge_check_d15/core/routing/routing.py'> does not have the attribute 'resolve_question_intent'
+
+/usr/lib/python3.11/unittest/mock.py:1410: AttributeError
+__________ test_llm_can_select_documentation_when_user_did_not_choose __________
+[gw0] linux -- Python 3.11.2 /home/user/odoo-ia-prototype/.venv/bin/python3
+
+    def test_llm_can_select_documentation_when_user_did_not_choose():
+>       assert _route("Quelle est la procédure interne ?", QuestionIntent.DOCUMENTARY_POLICY) == QueryRoute.DOCUMENTAIRE.value
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_j18_routing_fewshot.py:43: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_j18_routing_fewshot.py:32: in _route
+    with (
+/usr/lib/python3.11/unittest/mock.py:1437: in __enter__
+    original, local = self.get_original()
+                      ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <unittest.mock._patch object at 0x7f94dd5590d0>
+
+    def get_original(self):
+        target = self.getter()
+        name = self.attribute
+    
+        original = DEFAULT
+        local = False
+    
+        try:
+            original = target.__dict__[name]
+        except (AttributeError, KeyError):
+            original = getattr(target, name, DEFAULT)
+        else:
+            local = True
+    
+        if name in _builtins and isinstance(target, ModuleType):
+            self.create = True
+    
+        if not self.create and original is DEFAULT:
+>           raise AttributeError(
+                "%s does not have the attribute %r" % (target, name)
+            )
+E           AttributeError: <module 'core.routing.routing' from '/home/user/odoo-ia-prototype/.scratch/merge_check_d15/core/routing/routing.py'> does not have the attribute 'resolve_question_intent'
+
+/usr/lib/python3.11/unittest/mock.py:1410: AttributeError
+________ test_verify_answer_is_the_only_branch_entry_into_format_output ________
+[gw1] linux -- Python 3.11.2 /home/user/odoo-ia-prototype/.venv/bin/python3
+
+    def test_verify_answer_is_the_only_branch_entry_into_format_output():
+        graph_view = build_graph().get_graph()
+        assert {edge.target for edge in graph_view.edges if edge.source == "verify_answer"} == {"format_output"}
+        assert _incoming(graph_view, "format_output") == {"out_of_scope_gate", "verify_answer"}
+>       assert _incoming(graph_view, "verify_answer") == {"code_intelligence_agent", "generate", "orm_agent_loop"}
+E       AssertionError: assert {'code_intell...', 'generate'} == {'code_intell...m_agent_loop'}
+E         
+E         Extra items in the right set:
+E         'orm_agent_loop'
+E         Use -v to get more diff
+
+tests/test_t3_verify_node.py:232: AssertionError
+_______ test_recorder_captures_and_restores_the_synthesis_prompt_builder _______
+[gw1] linux -- Python 3.11.2 /home/user/odoo-ia-prototype/.venv/bin/python3
+
+    def test_recorder_captures_and_restores_the_synthesis_prompt_builder():
+        import code_intelligence.agent.loop as loop_module
+    
+>       original = loop_module.build_synthesis_prompt
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: module 'code_intelligence.agent.loop' has no attribute 'build_synthesis_prompt'
+
+tests/test_synthesis_bench.py:46: AttributeError
+_______________________ test_llm_can_select_system_data ________________________
+[gw0] linux -- Python 3.11.2 /home/user/odoo-ia-prototype/.venv/bin/python3
+
+    def test_llm_can_select_system_data():
+>       assert _route("Combien de ventes ?", QuestionIntent.ERP_DATA_QUERY) == QueryRoute.DONNEES_ERP.value
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_j18_routing_fewshot.py:47: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_j18_routing_fewshot.py:32: in _route
+    with (
+/usr/lib/python3.11/unittest/mock.py:1437: in __enter__
+    original, local = self.get_original()
+                      ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <unittest.mock._patch object at 0x7f94c95737d0>
+
+    def get_original(self):
+        target = self.getter()
+        name = self.attribute
+    
+        original = DEFAULT
+        local = False
+    
+        try:
+            original = target.__dict__[name]
+        except (AttributeError, KeyError):
+            original = getattr(target, name, DEFAULT)
+        else:
+            local = True
+    
+        if name in _builtins and isinstance(target, ModuleType):
+            self.create = True
+    
+        if not self.create and original is DEFAULT:
+>           raise AttributeError(
+                "%s does not have the attribute %r" % (target, name)
+            )
+E           AttributeError: <module 'core.routing.routing' from '/home/user/odoo-ia-prototype/.scratch/merge_check_d15/core/routing/routing.py'> does not have the attribute 'resolve_question_intent'
+
+/usr/lib/python3.11/unittest/mock.py:1410: AttributeError
+_______________ test_current_llm_intent_wins_over_previous_route _______________
+[gw2] linux -- Python 3.11.2 /home/user/odoo-ia-prototype/.venv/bin/python3
+
+    def test_current_llm_intent_wins_over_previous_route():
+>       assert _route(
+            "Et pour Lyon ?",
+            QuestionIntent.DOCUMENTARY_POLICY,
+            last_route=QueryRoute.DONNEES_ERP.value,
+        ) == QueryRoute.DOCUMENTAIRE.value
+
+tests/test_h1c_sticky_routing.py:39: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_h1c_sticky_routing.py:28: in _route
+    with (
+/usr/lib/python3.11/unittest/mock.py:1437: in __enter__
+    original, local = self.get_original()
+                      ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <unittest.mock._patch object at 0x7efc7f7a0190>
+
+    def get_original(self):
+        target = self.getter()
+        name = self.attribute
+    
+        original = DEFAULT
+        local = False
+    
+        try:
+            original = target.__dict__[name]
+        except (AttributeError, KeyError):
+            original = getattr(target, name, DEFAULT)
+        else:
+            local = True
+    
+        if name in _builtins and isinstance(target, ModuleType):
+            self.create = True
+    
+        if not self.create and original is DEFAULT:
+>           raise AttributeError(
+                "%s does not have the attribute %r" % (target, name)
+            )
+E           AttributeError: <module 'core.routing.routing' from '/home/user/odoo-ia-prototype/.scratch/merge_check_d15/core/routing/routing.py'> does not have the attribute 'resolve_question_intent'
+
+/usr/lib/python3.11/unittest/mock.py:1410: AttributeError
+_ ResolverDecisionTests.test_abstention_does_not_return_candidates_as_targets __
+[gw1] linux -- Python 3.11.2 /home/user/odoo-ia-prototype/.venv/bin/python3
+
+self = <tests.test_resolver_decision_regressions.ResolverDecisionTests testMethod=test_abstention_does_not_return_candidates_as_targets>
+
+    def test_abstention_does_not_return_candidates_as_targets(self):
+        module = self.fuzzy_module([('alpha.record', 95), ('beta.record', 80)], [])
+>       result = module.resolve_fuzzy_match('question', 'question', self.graph, object(), None, False)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_resolver_decision_regressions.py:230: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+query_text = 'question', clean_query = 'question'
+G = <tests.test_resolver_decision_regressions.Graph object at 0x7f2a07515ad0>
+llm = <object object at 0x7f2a0ed327b0>, language = None
+semantic_candidates = False
+
+    def resolve_fuzzy_match(query_text, clean_query, G, llm, language, semantic_candidates=()):
+        if G is None:
+            return None
+        lexical = _fuzzy_match_graph(clean_query, G)
+        strict = bool(lexical)
+        if not lexical:
+            lexical = _fuzzy_match_graph(clean_query, G, threshold=WIDENED_CANDIDATE_THRESHOLD,
+                                         limit=WIDENED_CANDIDATE_LIMIT)
+        candidates = list(dict.fromkeys([model for model, _score in lexical[:SHORTLIST_FUZZY_LIMIT]]
+>                                      + list(semantic_candidates[:HYBRID_SEMANTIC_LIMIT])))
+                                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: 'bool' object is not subscriptable
+
+code_intelligence/agent/resolution/fuzzy_lookup.py:30: TypeError
+___ ResolverDecisionTests.test_high_score_does_not_promote_every_alternative ___
+[gw1] linux -- Python 3.11.2 /home/user/odoo-ia-prototype/.venv/bin/python3
+
+self = <tests.test_resolver_decision_regressions.ResolverDecisionTests testMethod=test_high_score_does_not_promote_every_alternative>
+
+    def test_high_score_does_not_promote_every_alternative(self):
+        module = self.fuzzy_module([('alpha.record', 95), ('beta.record', 80)], ['alpha.record'])
+>       result = module.resolve_fuzzy_match('question', 'question', self.graph, object(), None, False)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_resolver_decision_regressions.py:225: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+query_text = 'question', clean_query = 'question'
+G = <tests.test_resolver_decision_regressions.Graph object at 0x7f29f77514d0>
+llm = <object object at 0x7f2a06317d70>, language = None
+semantic_candidates = False
+
+    def resolve_fuzzy_match(query_text, clean_query, G, llm, language, semantic_candidates=()):
+        if G is None:
+            return None
+        lexical = _fuzzy_match_graph(clean_query, G)
+        strict = bool(lexical)
+        if not lexical:
+            lexical = _fuzzy_match_graph(clean_query, G, threshold=WIDENED_CANDIDATE_THRESHOLD,
+                                         limit=WIDENED_CANDIDATE_LIMIT)
+        candidates = list(dict.fromkeys([model for model, _score in lexical[:SHORTLIST_FUZZY_LIMIT]]
+>                                      + list(semantic_candidates[:HYBRID_SEMANTIC_LIMIT])))
+                                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: 'bool' object is not subscriptable
+
+code_intelligence/agent/resolution/fuzzy_lookup.py:30: TypeError
+_________________ test_llm_can_select_system_code_intelligence _________________
+[gw0] linux -- Python 3.11.2 /home/user/odoo-ia-prototype/.venv/bin/python3
+
+    def test_llm_can_select_system_code_intelligence():
+>       assert _route("Qui peut approuver une commande ?", QuestionIntent.GOVERNANCE_SECURITY) == QueryRoute.CODE_INTELLIGENCE.value
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_j18_routing_fewshot.py:51: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_j18_routing_fewshot.py:32: in _route
+    with (
+/usr/lib/python3.11/unittest/mock.py:1437: in __enter__
+    original, local = self.get_original()
+                      ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <unittest.mock._patch object at 0x7f94dd4412d0>
+
+    def get_original(self):
+        target = self.getter()
+        name = self.attribute
+    
+        original = DEFAULT
+        local = False
+    
+        try:
+            original = target.__dict__[name]
+        except (AttributeError, KeyError):
+            original = getattr(target, name, DEFAULT)
+        else:
+            local = True
+    
+        if name in _builtins and isinstance(target, ModuleType):
+            self.create = True
+    
+        if not self.create and original is DEFAULT:
+>           raise AttributeError(
+                "%s does not have the attribute %r" % (target, name)
+            )
+E           AttributeError: <module 'core.routing.routing' from '/home/user/odoo-ia-prototype/.scratch/merge_check_d15/core/routing/routing.py'> does not have the attribute 'resolve_question_intent'
+
+/usr/lib/python3.11/unittest/mock.py:1410: AttributeError
+______ test_current_system_intent_wins_over_previous_documentation_route _______
+[gw2] linux -- Python 3.11.2 /home/user/odoo-ia-prototype/.venv/bin/python3
+
+    def test_current_system_intent_wins_over_previous_documentation_route():
+>       assert _route(
+            "Qui peut approuver une commande ?",
+            QuestionIntent.GOVERNANCE_SECURITY,
+            last_route=QueryRoute.DOCUMENTAIRE.value,
+        ) == QueryRoute.CODE_INTELLIGENCE.value
+
+tests/test_h1c_sticky_routing.py:47: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_h1c_sticky_routing.py:28: in _route
+    with (
+/usr/lib/python3.11/unittest/mock.py:1437: in __enter__
+    original, local = self.get_original()
+                      ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <unittest.mock._patch object at 0x7efc6f95b450>
+
+    def get_original(self):
+        target = self.getter()
+        name = self.attribute
+    
+        original = DEFAULT
+        local = False
+    
+        try:
+            original = target.__dict__[name]
+        except (AttributeError, KeyError):
+            original = getattr(target, name, DEFAULT)
+        else:
+            local = True
+    
+        if name in _builtins and isinstance(target, ModuleType):
+            self.create = True
+    
+        if not self.create and original is DEFAULT:
+>           raise AttributeError(
+                "%s does not have the attribute %r" % (target, name)
+            )
+E           AttributeError: <module 'core.routing.routing' from '/home/user/odoo-ia-prototype/.scratch/merge_check_d15/core/routing/routing.py'> does not have the attribute 'resolve_question_intent'
+
+/usr/lib/python3.11/unittest/mock.py:1410: AttributeError
+_ test_explicit_documentation_choice_skips_intent_classification_and_system_resolution _
+[gw0] linux -- Python 3.11.2 /home/user/odoo-ia-prototype/.venv/bin/python3
+
+    def test_explicit_documentation_choice_skips_intent_classification_and_system_resolution():
+>       with (
+            patch("core.routing.routing.resolve_question_intent") as classify,
+            patch("code_intelligence.agent.resolver.resolve_business_term") as resolve,
+        ):
+
+tests/test_j18_routing_fewshot.py:55: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/usr/lib/python3.11/unittest/mock.py:1437: in __enter__
+    original, local = self.get_original()
+                      ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <unittest.mock._patch object at 0x7f94dd550750>
+
+    def get_original(self):
+        target = self.getter()
+        name = self.attribute
+    
+        original = DEFAULT
+        local = False
+    
+        try:
+            original = target.__dict__[name]
+        except (AttributeError, KeyError):
+            original = getattr(target, name, DEFAULT)
+        else:
+            local = True
+    
+        if name in _builtins and isinstance(target, ModuleType):
+            self.create = True
+    
+        if not self.create and original is DEFAULT:
+>           raise AttributeError(
+                "%s does not have the attribute %r" % (target, name)
+            )
+E           AttributeError: <module 'core.routing.routing' from '/home/user/odoo-ia-prototype/.scratch/merge_check_d15/core/routing/routing.py'> does not have the attribute 'resolve_question_intent'
+
+/usr/lib/python3.11/unittest/mock.py:1410: AttributeError
+___________ test_explicit_system_choice_overrides_documentary_intent ___________
+[gw0] linux -- Python 3.11.2 /home/user/odoo-ia-prototype/.venv/bin/python3
+
+    def test_explicit_system_choice_overrides_documentary_intent():
+>       assert _route(
+            "Explique les règles de codage",
+            QuestionIntent.DOCUMENTARY_POLICY,
+            source_mode="systeme",
+        ) == QueryRoute.CODE_INTELLIGENCE.value
+
+tests/test_j18_routing_fewshot.py:71: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_j18_routing_fewshot.py:32: in _route
+    with (
+/usr/lib/python3.11/unittest/mock.py:1437: in __enter__
+    original, local = self.get_original()
+                      ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <unittest.mock._patch object at 0x7f94dd530250>
+
+    def get_original(self):
+        target = self.getter()
+        name = self.attribute
+    
+        original = DEFAULT
+        local = False
+    
+        try:
+            original = target.__dict__[name]
+        except (AttributeError, KeyError):
+            original = getattr(target, name, DEFAULT)
+        else:
+            local = True
+    
+        if name in _builtins and isinstance(target, ModuleType):
+            self.create = True
+    
+        if not self.create and original is DEFAULT:
+>           raise AttributeError(
+                "%s does not have the attribute %r" % (target, name)
+            )
+E           AttributeError: <module 'core.routing.routing' from '/home/user/odoo-ia-prototype/.scratch/merge_check_d15/core/routing/routing.py'> does not have the attribute 'resolve_question_intent'
+
+/usr/lib/python3.11/unittest/mock.py:1410: AttributeError
+___ ResolverDecisionTests.test_single_strict_candidate_needs_no_arbitration ____
+[gw1] linux -- Python 3.11.2 /home/user/odoo-ia-prototype/.venv/bin/python3
+
+self = <tests.test_resolver_decision_regressions.ResolverDecisionTests testMethod=test_single_strict_candidate_needs_no_arbitration>
+
+    def test_single_strict_candidate_needs_no_arbitration(self):
+        module = self.fuzzy_module([('alpha.record', 95)], [])
+        module._llm_arbitrate = lambda *args: self.fail('Unexpected arbitration')
+>       result = module.resolve_fuzzy_match('question', 'question', self.graph, None, None, False)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_resolver_decision_regressions.py:243: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+query_text = 'question', clean_query = 'question'
+G = <tests.test_resolver_decision_regressions.Graph object at 0x7f2a075b9950>
+llm = None, language = None, semantic_candidates = False
+
+    def resolve_fuzzy_match(query_text, clean_query, G, llm, language, semantic_candidates=()):
+        if G is None:
+            return None
+        lexical = _fuzzy_match_graph(clean_query, G)
+        strict = bool(lexical)
+        if not lexical:
+            lexical = _fuzzy_match_graph(clean_query, G, threshold=WIDENED_CANDIDATE_THRESHOLD,
+                                         limit=WIDENED_CANDIDATE_LIMIT)
+        candidates = list(dict.fromkeys([model for model, _score in lexical[:SHORTLIST_FUZZY_LIMIT]]
+>                                      + list(semantic_candidates[:HYBRID_SEMANTIC_LIMIT])))
+                                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: 'bool' object is not subscriptable
+
+code_intelligence/agent/resolution/fuzzy_lookup.py:30: TypeError
+__ ResolverDecisionTests.test_runner_uses_shared_turn_and_attempt_diagnostics __
+[gw0] linux -- Python 3.11.2 /home/user/odoo-ia-prototype/.venv/bin/python3
+
+self = <tests.test_resolver_decision_regressions.ResolverDecisionTests testMethod=test_runner_uses_shared_turn_and_attempt_diagnostics>
+
+    def test_runner_uses_shared_turn_and_attempt_diagnostics(self):
+        source = (ROOT / 'code_intelligence/agent/loop.py').read_text()
+        tree = ast.parse(source)
+        calls = [node for node in ast.walk(tree) if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)]
+>       self.assertEqual(sum(node.func.id == 'resolve_turn' for node in calls), 1)
+E       AssertionError: 0 != 1
+
+tests/test_resolver_decision_regressions.py:279: AssertionError
+_____ ResolverDecisionTests.test_multiple_selected_subjects_are_preserved ______
+[gw2] linux -- Python 3.11.2 /home/user/odoo-ia-prototype/.venv/bin/python3
+
+self = <tests.test_resolver_decision_regressions.ResolverDecisionTests testMethod=test_multiple_selected_subjects_are_preserved>
+
+    def test_multiple_selected_subjects_are_preserved(self):
+        module = self.fuzzy_module([('alpha.record', 95), ('beta.record', 80)], ['alpha.record', 'beta.record'])
+>       result = module.resolve_fuzzy_match('question', 'question', self.graph, object(), None, False)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_resolver_decision_regressions.py:237: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+query_text = 'question', clean_query = 'question'
+G = <tests.test_resolver_decision_regressions.Graph object at 0x7efc7fbd8e90>
+llm = <object object at 0x7efc7ede7c70>, language = None
+semantic_candidates = False
+
+    def resolve_fuzzy_match(query_text, clean_query, G, llm, language, semantic_candidates=()):
+        if G is None:
+            return None
+        lexical = _fuzzy_match_graph(clean_query, G)
+        strict = bool(lexical)
+        if not lexical:
+            lexical = _fuzzy_match_graph(clean_query, G, threshold=WIDENED_CANDIDATE_THRESHOLD,
+                                         limit=WIDENED_CANDIDATE_LIMIT)
+        candidates = list(dict.fromkeys([model for model, _score in lexical[:SHORTLIST_FUZZY_LIMIT]]
+>                                      + list(semantic_candidates[:HYBRID_SEMANTIC_LIMIT])))
+                                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: 'bool' object is not subscriptable
+
+code_intelligence/agent/resolution/fuzzy_lookup.py:30: TypeError
+=============================== warnings summary ===============================
+tests/test_single_investigation_loop.py::NativeAgentSmokeTests::test_native_loop_executes_guarded_tool_and_returns_final_message
+  code_intelligence/agent/loop.py:197: LangGraphDeprecatedSinceV10: create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`. Deprecated in LangGraph V1.0 to be removed in V2.0.
+    agent = create_react_agent(model=selectModel, tools=tools, prompt=prepareMessages)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_system_source_search.py::SourceAgentBoundaryTests::test_source_candidates_are_not_counted_as_evidence
+FAILED tests/test_system_source_search.py::SourceAgentBoundaryTests::test_source_fragment_uses_existing_source_gate_and_evidence_kind
+FAILED tests/test_system_source_search.py::SourceAgentBoundaryTests::test_stale_source_refusal_does_not_become_evidence
+FAILED tests/test_system_source_search.py::SourceAgentBoundaryTests::test_tools_are_registered_in_single_agent
+FAILED tests/test_source_mode_routing.py::test_documentation_mode_short_circuits_route
+FAILED tests/test_source_mode_routing.py::test_systeme_mode_remaps_documentary_to_erp_when_data_term
+FAILED tests/test_source_mode_routing.py::test_no_mode_keeps_documentary_route
+FAILED tests/test_route_accent_fold.py::test_accented_and_unaccented_erp_keyword_route_identically
+FAILED tests/test_source_mode_routing.py::test_systeme_mode_leaves_non_documentary_route_alone
+FAILED tests/test_source_mode_routing.py::test_systeme_mode_remaps_documentary_to_code_intelligence
+FAILED tests/test_j18_routing_fewshot.py::test_llm_can_select_documentation_when_user_did_not_choose
+FAILED tests/test_t3_verify_node.py::test_verify_answer_is_the_only_branch_entry_into_format_output
+FAILED tests/test_synthesis_bench.py::test_recorder_captures_and_restores_the_synthesis_prompt_builder
+FAILED tests/test_j18_routing_fewshot.py::test_llm_can_select_system_data - A...
+FAILED tests/test_h1c_sticky_routing.py::test_current_llm_intent_wins_over_previous_route
+FAILED tests/test_resolver_decision_regressions.py::ResolverDecisionTests::test_abstention_does_not_return_candidates_as_targets
+FAILED tests/test_resolver_decision_regressions.py::ResolverDecisionTests::test_high_score_does_not_promote_every_alternative
+FAILED tests/test_j18_routing_fewshot.py::test_llm_can_select_system_code_intelligence
+FAILED tests/test_h1c_sticky_routing.py::test_current_system_intent_wins_over_previous_documentation_route
+FAILED tests/test_j18_routing_fewshot.py::test_explicit_documentation_choice_skips_intent_classification_and_system_resolution
+FAILED tests/test_j18_routing_fewshot.py::test_explicit_system_choice_overrides_documentary_intent
+FAILED tests/test_resolver_decision_regressions.py::ResolverDecisionTests::test_single_strict_candidate_needs_no_arbitration
+FAILED tests/test_resolver_decision_regressions.py::ResolverDecisionTests::test_runner_uses_shared_turn_and_attempt_diagnostics
+FAILED tests/test_resolver_decision_regressions.py::ResolverDecisionTests::test_multiple_selected_subjects_are_preserved
+ERROR code_intelligence/tests/test_audit_regressions.py - ImportError while i...
+24 failed, 177 passed, 1 warning, 1 error, 4 subtests passed in 17.24s

@@ -1,0 +1,31 @@
+{
+  "_meta": {
+    "purpose": "Modeles attendus par question de la banque des 48 (verite terrain lue dans le code, jamais deduite d'une sortie du resolveur). Format compatible avec compare_resolution_pipelines.py --expected.",
+    "established": "2026-10-20",
+    "sources": {
+      "AUT-Q1, AUT-Q2": "odoo_addons/custom_automation_traps/data/automation_rule.xml : action serveur + base.automation sur account.move",
+      "CNA-Q1, CNA-Q2, CNA-Q3": "action_valider_avoir surchargee sur account.move par custom_credit_note_approval, _regional et _vip ; validate.account.move est l'assistant natif, absent du code personnalise",
+      "REI-Q2": "odoo_addons/custom_expense_reimbursement_indirect : custom.reimbursement.request",
+      "STK-Q2": "stock_picking.py button_validate ; stock.backorder.confirmation n'est ouvert que si create_backorder == 'ask'",
+      "HRL-Q1, HRL-Q2": "custom_hr_leave_workflow/models/hr_leave.py : _inherit = 'hr.leave'",
+      "PUR-Q1": "purchase_order.py _approval_allowed() ; ir.model.access.csv ; res.company seulement pour po_double_validation"
+    },
+    "not_established": "ACC-*, ALN-*, CNV-*, DDI-*, MNT-*, PRQ-*, PUR-Q2..Q5, REI-Q1, REI-Q3, SAL-*, STK-Q1, STK-Q3..Q5, HRL-Q3 : pas de verite etablie, non notees"
+  },
+  "AUT-Q1": ["account.move"],
+  "AUT-Q2": ["account.move"],
+  "CNA-Q1": ["account.move"],
+  "CNA-Q2": ["account.move"],
+  "CNA-Q3": ["account.move"],
+  "REI-Q2": ["custom.reimbursement.request"],
+  "STK-Q2": ["stock.picking"],
+  "HRL-Q1": ["hr.leave"],
+  "HRL-Q2": ["hr.leave"],
+  "PUR-Q1": ["purchase.order"],
+  "_tolerated": {
+    "AUT-Q1": ["base.automation"],
+    "AUT-Q2": ["base.automation"],
+    "STK-Q2": ["stock.backorder.confirmation"],
+    "PUR-Q1": ["res.company"]
+  }
+}

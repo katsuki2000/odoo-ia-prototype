@@ -1,0 +1,7 @@
+6 failed, 2687 passed, 49 skipped, 69 warnings, 63 subtests passed in 161.24s (0:02:41)
+FAILED code_intelligence/tests/test_e1_arbitration.py::test_shipped_configuration_fixes_the_r6_thresholds_and_drops_the_held_out_clause
+FAILED code_intelligence/tests/test_resolver_tiebreaker.py::test_arbitration_candidates_do_not_call_embeddings_without_llm
+FAILED tests/test_resolver_decision_regressions.py::ResolverDecisionTests::test_abstention_does_not_return_candidates_as_targets
+FAILED tests/test_resolver_decision_regressions.py::ResolverDecisionTests::test_high_score_does_not_promote_every_alternative
+FAILED tests/test_resolver_decision_regressions.py::ResolverDecisionTests::test_multiple_selected_subjects_are_preserved
+FAILED tests/test_resolver_decision_regressions.py::ResolverDecisionTests::test_single_strict_candidate_needs_no_arbitration

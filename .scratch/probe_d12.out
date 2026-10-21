@@ -1,0 +1,42 @@
+e1_a_fr_bon_commande_fournisseur_confirm {'M': 1, 'MM': 1, 'MM+Group': 1, 'MM+Rule': 1, 'MM+Field': 3, 'MM+Method': 1, 'MM+Button': 1, 'ALL': 3}
+e1_a_fr_valider_achat_chez_fournisseur {'M': 1, 'MM': 1, 'MM+Group': 1, 'MM+Rule': 1, 'MM+Field': 2, 'MM+Method': 1, 'MM+Button': 1, 'ALL': 1}
+e1_b_fr_commande_achat_exact_alias {'M': 1, 'MM': 1, 'MM+Group': 1, 'MM+Rule': 1, 'MM+Field': 1, 'MM+Method': 1, 'MM+Button': 1, 'ALL': 1}
+e1_b_fr_piece_comptable_quoted {'M': 4, 'MM': 4, 'MM+Group': 4, 'MM+Rule': 4, 'MM+Field': 4, 'MM+Method': 5, 'MM+Button': 4, 'ALL': 5}
+e1_c_fr_menu_achats_rfq {'M': None, 'MM': None, 'MM+Group': None, 'MM+Rule': None, 'MM+Field': None, 'MM+Method': None, 'MM+Button': None, 'ALL': None}
+e1_d_fr_commande_ambiguous {'M': None, 'MM': None, 'MM+Group': None, 'MM+Rule': None, 'MM+Field': None, 'MM+Method': None, 'MM+Button': None, 'ALL': None}
+e1_e_fr_module_absent {'M': None, 'MM': None, 'MM+Group': None, 'MM+Rule': None, 'MM+Field': None, 'MM+Method': None, 'MM+Button': None, 'ALL': None}
+e1_f_en_confirm_vendor_po {'M': 1, 'MM': 1, 'MM+Group': 1, 'MM+Rule': 1, 'MM+Field': 1, 'MM+Method': 1, 'MM+Button': 1, 'ALL': 1}
+role_en_stock_transfer_validator {'M': 3, 'MM': 3, 'MM+Group': 3, 'MM+Rule': 1, 'MM+Field': 7, 'MM+Method': 3, 'MM+Button': 3, 'ALL': 5}
+role_fr_absent_printer_repair {'M': None, 'MM': None, 'MM+Group': None, 'MM+Rule': None, 'MM+Field': None, 'MM+Method': None, 'MM+Button': None, 'ALL': None}
+role_fr_absent_validate_weather {'M': None, 'MM': None, 'MM+Group': None, 'MM+Rule': None, 'MM+Field': None, 'MM+Method': None, 'MM+Button': None, 'ALL': None}
+role_fr_applicant_refuser {'M': 4, 'MM': 5, 'MM+Group': 5, 'MM+Rule': 5, 'MM+Field': 2, 'MM+Method': 3, 'MM+Button': 2, 'ALL': 2}
+role_fr_employee_contract_opener {'M': 2, 'MM': 2, 'MM+Group': 2, 'MM+Rule': 2, 'MM+Field': 2, 'MM+Method': 1, 'MM+Button': 3, 'ALL': 2}
+role_fr_expense_report_approver {'M': 2, 'MM': 2, 'MM+Group': 2, 'MM+Rule': 1, 'MM+Field': 2, 'MM+Method': 1, 'MM+Button': 2, 'ALL': 1}
+role_fr_project_task_editor {'M': 1, 'MM': 1, 'MM+Group': 1, 'MM+Rule': 1, 'MM+Field': 1, 'MM+Method': 1, 'MM+Button': 1, 'ALL': 1}
+role_fr_quotation_confirmer {'M': 18, 'MM': 18, 'MM+Group': 18, 'MM+Rule': 18, 'MM+Field': 20, 'MM+Method': 6, 'MM+Button': 19, 'ALL': 10}
+role_fr_vendor_bill_cancel {'M': 8, 'MM': 8, 'MM+Group': 8, 'MM+Rule': 8, 'MM+Field': 24, 'MM+Method': 13, 'MM+Button': 10, 'ALL': 27}
+role_en_scrap_validator {'M': 3, 'MM': 3, 'MM+Group': 3, 'MM+Rule': 1, 'MM+Field': 5, 'MM+Method': 1, 'MM+Button': 3, 'ALL': 1}
+role_fr_absent_attendance {'M': None, 'MM': None, 'MM+Group': None, 'MM+Rule': None, 'MM+Field': None, 'MM+Method': None, 'MM+Button': None, 'ALL': None}
+role_fr_absent_fleet_vehicle {'M': None, 'MM': None, 'MM+Group': None, 'MM+Rule': None, 'MM+Field': None, 'MM+Method': None, 'MM+Button': None, 'ALL': None}
+role_fr_absent_mrp_launch {'M': None, 'MM': None, 'MM+Group': None, 'MM+Rule': None, 'MM+Field': None, 'MM+Method': None, 'MM+Button': None, 'ALL': None}
+role_fr_absent_payslip {'M': None, 'MM': None, 'MM+Group': None, 'MM+Rule': None, 'MM+Field': None, 'MM+Method': None, 'MM+Button': None, 'ALL': None}
+role_fr_customer_invoice_validate {'M': 3, 'MM': 3, 'MM+Group': 3, 'MM+Rule': 3, 'MM+Field': 4, 'MM+Method': 6, 'MM+Button': 3, 'ALL': 7}
+role_fr_employee_file_editor {'M': 11, 'MM': 11, 'MM+Group': 11, 'MM+Rule': 23, 'MM+Field': 8, 'MM+Method': 3, 'MM+Button': 11, 'ALL': 13}
+role_fr_lead_won {'M': 3, 'MM': 3, 'MM+Group': 3, 'MM+Rule': 3, 'MM+Field': 13, 'MM+Method': 5, 'MM+Button': 1, 'ALL': 4}
+role_fr_leave_approver {'M': 1, 'MM': 1, 'MM+Group': 1, 'MM+Rule': 2, 'MM+Field': 5, 'MM+Method': 1, 'MM+Button': 1, 'ALL': 3}
+role_fr_maintenance_request_creator {'M': 1, 'MM': 1, 'MM+Group': 1, 'MM+Rule': 1, 'MM+Field': 1, 'MM+Method': 1, 'MM+Button': 1, 'ALL': 1}
+role_fr_partner_editor {'M': 14, 'MM': 14, 'MM+Group': 14, 'MM+Rule': 29, 'MM+Field': 43, 'MM+Method': 4, 'MM+Button': 16, 'ALL': 20}
+role_fr_payment_validator {'M': 1, 'MM': 1, 'MM+Group': 1, 'MM+Rule': 3, 'MM+Field': 8, 'MM+Method': 4, 'MM+Button': 1, 'ALL': 5}
+role_fr_project_editor {'M': 1, 'MM': 1, 'MM+Group': 1, 'MM+Rule': 5, 'MM+Field': 7, 'MM+Method': 1, 'MM+Button': 1, 'ALL': 4}
+role_fr_purchase_order_approver {'M': 1, 'MM': 1, 'MM+Group': 1, 'MM+Rule': 1, 'MM+Field': 1, 'MM+Method': 1, 'MM+Button': 1, 'ALL': 1}
+role_fr_sale_order_cancel {'M': 13, 'MM': 13, 'MM+Group': 13, 'MM+Rule': 18, 'MM+Field': 16, 'MM+Method': 10, 'MM+Button': 22, 'ALL': 22}
+role_fr_transfer_cancel {'M': 1, 'MM': 1, 'MM+Group': 1, 'MM+Rule': 1, 'MM+Field': 6, 'MM+Method': 1, 'MM+Button': 1, 'ALL': 6}
+=== RESULTATS ===
+M          r@1=11 r@5=19 r@10=20 r@20=24 n=33 MRR=0.432
+MM         r@1=11 r@5=19 r@10=20 r@20=24 n=33 MRR=0.430
+MM+Group   r@1=11 r@5=19 r@10=20 r@20=24 n=33 MRR=0.430
+MM+Rule    r@1=11 r@5=19 r@10=20 r@20=22 n=33 MRR=0.423
+MM+Field   r@1=5 r@5=14 r@10=19 r@20=22 n=33 MRR=0.278
+MM+Method  r@1=13 r@5=20 r@10=23 r@20=24 n=33 MRR=0.467
+MM+Button  r@1=12 r@5=19 r@10=20 r@20=23 n=33 MRR=0.453
+ALL        r@1=8 r@5=17 r@10=20 r@20=22 n=33 MRR=0.345

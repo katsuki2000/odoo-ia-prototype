@@ -1,0 +1,100 @@
+... MNT-Q1
+... MNT-Q2
+... MNT-Q3
+... MNT-Q4
+... MNT-Q5
+... PUR-Q1
+... PUR-Q2
+... PUR-Q3
+... PUR-Q4
+... PUR-Q5
+... SAL-Q1
+... SAL-Q2
+... SAL-Q3
+... SAL-Q4
+... SAL-Q5
+... STK-Q1
+... STK-Q2
+... STK-Q3
+... STK-Q4
+... STK-Q5
+... ACC-Q1
+... ACC-Q2
+... ACC-Q3
+... ACC-Q4
+... ACC-Q5
+... CNA-Q1
+... CNA-Q2
+... CNA-Q3
+... CNV-Q1
+... CNV-Q2
+... HRL-Q1
+... HRL-Q2
+... HRL-Q3
+... PRQ-Q1
+... PRQ-Q2
+... PRQ-Q3
+... ALN-Q1
+... ALN-Q2
+... ALN-Q3
+... AUT-Q1
+... AUT-Q2
+... AUT-Q3
+... REI-Q1
+... REI-Q2
+... REI-Q3
+... DDI-Q1
+... DDI-Q2
+... DDI-Q3
+48 questions ; seuil d'ecart AMBIGUITY_GAP_THRESHOLD=10.0
+repartition : {'aucun': 0, 'tranche': 2, 'ambigu': 46}
+verite terrain disponible pour 0 questions ; tranchees exactes=0 fausses=0
+top-2 par question (id, verdict, meilleur, second) :
+  MNT-Q1   ambigu   res.users 94 | privacy.lookup.wizard.line 90
+  MNT-Q2   ambigu   maintenance.request 100 | maintenance.stage 100
+  MNT-Q3   ambigu   maintenance.equipment 100 | product.template 100
+  MNT-Q4   ambigu   project.project 93 | res.company 90
+  MNT-Q5   ambigu   maintenance.equipment 100 | res.config.settings 100
+  PUR-Q1   ambigu   account.move 100 | purchase.order 100
+  PUR-Q2   ambigu   calendar.attendee 100 | product.template 90
+  PUR-Q3   ambigu   account.move 100 | purchase.order 100
+  PUR-Q4   ambigu   account.move 100 | purchase.order 100
+  PUR-Q5   ambigu   account.move 100 | account.move.line 100
+  SAL-Q1   ambigu   payment.transaction 100 | stock.lot 100
+  SAL-Q2   ambigu   res.partner 100 | sale.order 100
+  SAL-Q3   ambigu   res.partner 100 | sale.order 100
+  SAL-Q4   ambigu   res.partner 100 | sale.order 100
+  SAL-Q5   ambigu   res.config.settings 100 | res.company 100
+  STK-Q1   ambigu   product.product 100 | stock.move 100
+  STK-Q2   ambigu   stock.scrap 90 | stock.move 84
+  STK-Q3   ambigu   digest.digest 84 | res.partner 82
+  STK-Q4   ambigu   res.users.log 90 | account.payment.register 84
+  STK-Q5   ambigu   stock.lot 100 | stock.quant 100
+  ACC-Q1   ambigu   hr.expense.sheet 100 | account.move 100
+  ACC-Q2   ambigu   account.move 100 | account.payment 100
+  ACC-Q3   ambigu   account.move 100 | account.payment 100
+  ACC-Q4   tranche  stock.valuation.layer 96 | res.users 84
+  ACC-Q5   ambigu   account.move 100 | account.payment 100
+  CNA-Q1   ambigu   crm.lead2opportunity.partner 84 | crm.lead2opportunity.partner.mass 84
+  CNA-Q2   ambigu   digest.digest 90 | hr.applicant 90
+  CNA-Q3   ambigu   product.document 90 | ir.actions.server 90
+  CNV-Q1   ambigu   res.groups 90 | ir.asset 90
+  CNV-Q2   ambigu   res.users.deletion 90 | ir.sequence 84
+  HRL-Q1   ambigu   resource.calendar.leaves 97 | hr.holidays.cancel.leave 97
+  HRL-Q2   ambigu   resource.calendar.leaves 97 | hr.holidays.cancel.leave 97
+  HRL-Q3   ambigu   resource.calendar.leaves 97 | hr.holidays.cancel.leave 97
+  PRQ-Q1   ambigu   custom.purchase.request 90 | custom.asset.loan 90
+  PRQ-Q2   ambigu   digest.digest 90 | hr.applicant 90
+  PRQ-Q3   ambigu   res.config.settings 90 | res.company 90
+  ALN-Q1   tranche  custom.asset.loan 100 | custom.purchase.request 77
+  ALN-Q2   ambigu   custom.asset.loan 100 | digest.digest 90
+  ALN-Q3   ambigu   custom.asset.loan 100 | account.move 100
+  AUT-Q1   ambigu   account.move 94 | account.invoice.report 94
+  AUT-Q2   ambigu   account.move 94 | account.invoice.report 94
+  AUT-Q3   ambigu   res.company 90 | product.pricelist.item 90
+  REI-Q1   ambigu   custom.reimbursement.request 100 | purchase.order 90
+  REI-Q2   ambigu   purchase.order 90 | hr.leave.report 90
+  REI-Q3   ambigu   resource.calendar.leaves 90 | purchase.order 90
+  DDI-Q1   ambigu   ir.model.access 90 | ir.module.module 90
+  DDI-Q2   ambigu   hr.applicant 90 | digest.digest 90
+  DDI-Q3   ambigu   ir.ui.view 90 | calendar.recurrence 90
