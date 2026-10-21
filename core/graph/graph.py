@@ -19,8 +19,6 @@ from core.schemas import AssistantResponse, QueryRoute
 from core.state import RAGState
 from core.routing.routing import route, route_decision
 from document_rag.generate_node import generate
-# Retained as compatibility targets for graph_nodes.retrieve.
-from document_rag.vectorstore.search import get_retriever, retrieve as search_retrieve
 from code_intelligence.agent.loop import code_intelligence_agent
 from core.graph.graph_nodes import out_of_scope_gate, out_of_scope_decision, retrieve, format_output
 from core.graph.verify_node import verify_answer
@@ -51,6 +49,7 @@ def build_graph() -> StateGraph:
         'format_output': 'format_output', 'route': 'route',
     })
     workflow.add_conditional_edges('route', route_decision, {
+        'source_clarification': 'format_output',
         QueryRoute.DOCUMENTAIRE.value: 'retrieve',
         QueryRoute.DONNEES_ERP.value: 'code_intelligence_agent',
         QueryRoute.HYBRIDE.value: 'code_intelligence_agent',
@@ -111,7 +110,9 @@ def query_graph(
         timing['total_time'] = time.time() - start_time
         logger.info(json.dumps({'event': 'request_latency', 'metrics': timing}))
         response = final_state['response']
-        response.evidence_dossier = collect_and_clear_evidence()
+        from code_intelligence.rules.security_locks import filter_disclosed_evidence
+        response.evidence_dossier = filter_disclosed_evidence(
+            collect_and_clear_evidence(), final_state.get('sensitive_evidence_allowed', False))
         return response
     except Exception as error:
         logger.error('Graph execution failed: %s', error)
