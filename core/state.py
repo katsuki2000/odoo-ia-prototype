@@ -1,14 +1,11 @@
-"""Workflow state shared by every node of the LangGraph agent network."""
+"""Workflow state shared by the LangGraph agent network."""
 
-from typing import List, Optional, TypedDict
-
+from typing import Any, List, Optional, TypedDict
 from langchain_core.messages import BaseMessage
-
 from core.schemas import AssistantResponse
 
 
 class RAGState(TypedDict):
-    """Workflow state container for the LangGraph agent network."""
     question: str
     chat_history: List[BaseMessage]
     uid: Optional[int]
@@ -30,3 +27,5 @@ class RAGState(TypedDict):
     raw_tool_output: Optional[str]
     source_mode: Optional[str]
     language: Optional[str]
+    knowledge_graph: Optional[Any]
+    sensitive_evidence_allowed: bool
