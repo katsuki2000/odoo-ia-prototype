@@ -10,57 +10,19 @@ from typing import List, Optional, Set, Tuple
 import networkx as nx
 
 from code_intelligence.utils import (
-    _match_near_truncation, _extract_amount, _question_is_approval_related,
-    _has_can_view_amount_fact, _split_before_first_fact_marker,
+    _split_before_first_fact_marker,
     _LOCK_CONDITION_LINE_RE, _AMOUNT_CMP_RE,
 )
 from code_intelligence.rules.group_resolver import _fold_accents
 
 logger = logging.getLogger(__name__)
 _OVERRIDE_CHAIN_AMOUNT_RE = re.compile(r"rec\.\w+\s*>\s*(\d[\d\s]*\d)")
-_SECURITY_LOCK_MESSAGES_MARKER = 'Security lock messages (UserError/ValidationError)'
 
 
 def _amount_present_in_text(amount: str, text: str) -> bool:
     spaced = f'{amount[:-3]} {amount[-3:]}' if len(amount) > 3 else amount
     return any(re.search(r'(?<!\d)' + re.escape(candidate) + r'(?!\d)', text)
                for candidate in {amount, spaced})
-
-
-def _extract_security_lock_condition_amounts(raw_tool_output: str) -> List[str]:
-    amounts = []
-    for block in raw_tool_output.split('\n\n'):
-        if _SECURITY_LOCK_MESSAGES_MARKER not in block:
-            continue
-        for match in _OVERRIDE_CHAIN_AMOUNT_RE.finditer(block):
-            if _match_near_truncation(block, match.start(), match.end()):
-                continue
-            amount = match.group(1).replace(' ', '').strip()
-            if amount and amount not in amounts:
-                amounts.append(amount)
-    return amounts
-
-
-def _backfill_missing_security_lock_amount(final_answer: str, raw_tool_output: str, question: Optional[str] = None) -> str:
-    """Legacy API; not part of the active answer pipeline."""
-    if question is not None:
-        if _has_can_view_amount_fact(final_answer):
-            return final_answer
-        if not (_question_is_approval_related(question) or _extract_amount(question) is not None):
-            return final_answer
-        amount = _extract_amount(question)
-    else:
-        amount = None
-    amounts = _extract_security_lock_condition_amounts(raw_tool_output)
-    if amount is not None:
-        amounts = [a for a in amounts if float(a) <= amount]
-    if not amounts:
-        return final_answer
-    amountList = ', '.join(f'{a}€' for a in amounts)
-    return final_answer + (
-        f'\n\n[FAIT DÉTERMINISTIQUE] Le verrou de sécurité contient une condition '
-        f'supplémentaire déclenchée au-delà de {amountList}, distincte du groupe '
-        f'requis ci-dessus. Fait extrait directement de l’analyse statique du code.')
 
 
 def _backfill_missing_approval_guard_facts(final_answer: str, raw_tool_output: str, question: str) -> str:
@@ -112,11 +74,6 @@ def _backfill_fiscal_lock_scope_fact(final_answer: str, raw_tool_output: str, qu
         'ne concerne que `period_lock_date` (verrou de période). Elle conserve `fiscalyear_lock_date` comme date '
         'effective ; `_check_fiscalyear_lock_date()` bloque donc aussi le Billing Administrator lorsque la date '
         "de l'écriture est antérieure ou égale à la clôture d'exercice.")
-
-
-def _correct_security_lock_threshold_contradictions(final_answer: str, scoped_tool_output: str, question: str) -> str:
-    """Retired unsafe correction: group membership alone cannot establish permission."""
-    return final_answer
 
 
 _OMITTED_MARKER = 'ELEMENT OMITTED FOR AUTHORIZATION REASON'

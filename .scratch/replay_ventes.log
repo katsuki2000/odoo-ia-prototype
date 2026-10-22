@@ -1,0 +1,44 @@
+comment se passe les ventes sur l'ERP? (110s)
+### Processus de vente sur Odoo
+
+1. **Qualification des prospects**
+   - Les nouveaux prospects sont saisis dans le module **CRM** et ajoutés au **Pipeline**.
+   - Informations requises : nom, société, email, téléphone, besoin exprimé.
+   - Un score de qualification est attribué : **Chaud** (>70%), **Tiède** (30-70%), **Froid** (<30%).
+   - **Prospects Chaud** : contact sous 24h par le commercial assigné.
+   - **Prospects Tiède** : email de nurturing automatique via **Odoo Marketing**.
+   - **Prospects Froid** : relance manuelle après 30 jours.
+
+2. **Création d’un devis**
+   - Le devis est créé depuis le **CRM** ou directement dans **Ventes → Devis**.
+   - Sélection du client, ajout des lignes de produits/services, application de la **liste de prix** appropriée si client récurrent.
+   - **Remise maximale sans approbation** : 10%.
+   - **Remise > 10%** : approbation du **Directeur Commercial** obligatoire.
+   - **Validité du devis** : 30 jours par défaut.
+
+3. **Confirmation de commande**
+   - Le devis devient commande client après **acceptation du client**.
+   - **Signature électronique** via le portail client Odoo (si activé) ou confirmation manuelle par le commercial dans **Ventes → Commandes**.
+   - La confirmation déclenche automatiquement : 
+     * Création du **bon de livraison** (si produits physiques)
+     * Planification de la **tâche projet** (si service)
+     * Notification à l’équipe concernée.
+
+4. **Facturation**
+   - Facturation **après livraison** (par défaut) ou **à la commande**.
+   - Facture créée depuis la commande via le bouton **"Créer une facture"**.
+   - Vérification par le service comptable avant envoi.
+   - Envoi par email via Odoo avec **PDF en pièce jointe**.
+   - Suivi des paiements dans **Comptabilité → Clients → Paiements**.
+
+5. **Suivi après-vente**
+   - Enquête de satisfaction envoyée **7 jours après livraison**.
+   - **Tickets de support** gérés dans le module **Projet** (MIRO Support Tickets).
+   - **Renouvellement des contrats de support** : alerte 30 jours avant expiration.
+   - **Reporting mensuel** : CA par client, par produit, par commercial.
+   - **Réunion commerciale hebdomadaire** : revue du pipeline CRM.
+
+
+
+SUMMARY hops 0 llm 1 repli None
+APERCU None

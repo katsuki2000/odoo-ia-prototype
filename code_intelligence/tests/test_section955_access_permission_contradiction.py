@@ -9,8 +9,7 @@ own prose asserted the exact opposite. This is deliberately out of scope for
 H3/EvidenceSufficiencyStatus.CONFLICTING (see that status's own docstring):
 CONFLICTING is reserved for two VALID findings disagreeing with each other,
 not a single unambiguous fact the synthesis inverted. It belongs to the same
-splice-out-and-replace family as _correct_can_view_amount_contradictions /
-_correct_security_lock_threshold_contradictions.
+splice-out-and-replace family as _correct_can_view_amount_contradictions.
 """
 
 from code_intelligence.rules.access_evaluator import _correct_access_permission_contradictions

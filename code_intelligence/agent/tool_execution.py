@@ -60,7 +60,7 @@ def execute_tool_calls(ctx: DispatchContext, ai_msg, messages: list) -> None:
         try:
             observation = str(ctx.tool_map[toolName].invoke(arguments))
             if observation.lstrip().lower().startswith(('error', 'erreur', 'orm read refused:')):
-                raise ValueError('Tool did not produce usable evidence.')
+                raise ValueError(f'Tool returned no usable evidence: {observation[:200]}')
             ruleResult = None
             if toolName == 'evaluate_record_rules':
                 from code_intelligence.agent.tools import evaluate_rules_raw
@@ -98,6 +98,8 @@ def execute_tool_calls(ctx: DispatchContext, ai_msg, messages: list) -> None:
                 _record_amount_fact(ctx, modelName, ruleResult)
         except Exception as error:
             logger.warning('Investigation tool %s failed (%s)', toolName, type(error).__name__)
+            ctx.trace_logger.log_failure(
+                ctx.trace_id, 'tool', error, tool_name=toolName, tool_args=arguments)
             ctx.execution_failed = True
             messages.append(ToolMessage(
                 content=f'Error executing {toolName}; no conclusion can be drawn from this failure.',

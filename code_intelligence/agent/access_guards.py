@@ -6,17 +6,9 @@ core-only stripping, and custom module boundary enforcement.
 """
 
 import logging
-from pathlib import Path
 import re
-from typing import List, Optional, Tuple, Dict
+from typing import List
 
-from code_intelligence.utils import (
-    _match_near_truncation,
-    _extract_amount,
-    _question_is_approval_related,
-    _LOCK_CONDITION_LINE_RE,
-    _AMOUNT_CMP_RE,
-)
 from core.verification.extractors import GROUP_XMLID_RE as _GROUP_XMLID_RE
 logger = logging.getLogger(__name__)
 
@@ -87,64 +79,6 @@ def _flag_ungrounded_group_xmlids(final_answer: str, raw_tool_output: str) -> st
     )
 
 
-_SENTENCE_SPLIT_RE = re.compile(
-    r"(?<=[.!?])\s+(?=[A-Z\u00c0\u00c2\u00c4\u00c9\u00c8\u00ca\u00cb\u00ce\u00cf\u00d4\u00d6\u00d9\u00db\u00dc\u00c7])"
-)
-
-
-def _grounded_core_only_groups(final_answer: str, scoped_tool_output: str) -> List[str]:
-    """Find group XML-IDs grounded only in core Odoo when a custom override also exists.
-    """
-    grounded = set(_extract_required_groups(scoped_tool_output))
-    if not grounded:
-        return []
-    custom_grounded = set(
-        _extract_required_groups(_restrict_blocks_to_custom_modules(scoped_tool_output))
-    )
-    if not custom_grounded:
-        return []
-    all_core_only = grounded - custom_grounded
-    if len(all_core_only) > 1:
-        return []
-    mentioned = set(_GROUP_XMLID_RE.findall(final_answer))
-    return sorted(mentioned & all_core_only)
-
-
-def _strip_core_only_group_mentions(final_answer: str, scoped_tool_output: str) -> str:
-    """Remove mentions of group XML-IDs superseded by custom-module groups."""
-    core_only = _grounded_core_only_groups(final_answer, scoped_tool_output)
-    if not core_only:
-        return final_answer
-
-    def _contains_core_only(fragment: str) -> bool:
-        return any(xmlid in fragment for xmlid in core_only)
-
-    kept_paragraphs = []
-    for para in final_answer.split("\n\n"):
-        if not _contains_core_only(para):
-            kept_paragraphs.append(para)
-            continue
-
-        lines = para.split("\n")
-        if len(lines) > 1 and any(l.strip().startswith(("-", "*")) for l in lines):
-            kept_lines = [l for l in lines if not _contains_core_only(l)]
-            if kept_lines:
-                kept_paragraphs.append("\n".join(kept_lines))
-        elif len(lines) == 1:
-            sentences = _SENTENCE_SPLIT_RE.split(para)
-            kept_sentences = [s for s in sentences if not _contains_core_only(s)]
-            if kept_sentences:
-                kept_paragraphs.append(" ".join(kept_sentences))
-
-    result = "\n\n".join(kept_paragraphs)
-    logger.warning(
-        "Node [code_intelligence_agent]: stripped grounded-but-core-Odoo-only "
-        "group xmlid(s) from synthesized answer: %s",
-        ", ".join(core_only),
-    )
-    return result
-
-
 def _scoped_raw_tool_output(
     tool_observations: List[str],
     tool_observation_models: List[str],
@@ -160,120 +94,6 @@ def _scoped_raw_tool_output(
         if model and model in target_set
     ]
     return "\n\n".join(scoped)
-
-
-def _extract_required_groups_for_amount(raw_tool_output: str, amount: Optional[float] = None) -> List[str]:
-    """Pull required group xml_ids from raw tool text, filtered by amount threshold."""
-    all_groups = _extract_required_groups(raw_tool_output)
-    if amount is None or not all_groups:
-        return all_groups
-
-    group_conditions: Dict[str, List[Tuple[str, float]]] = {}
-    for match in _LOCK_CONDITION_LINE_RE.finditer(raw_tool_output):
-        if _match_near_truncation(raw_tool_output, match.start(), match.end()):
-            continue
-        cond_text = match.group(1)
-        group_name = match.group(2).strip()
-        cmp_match = _AMOUNT_CMP_RE.search(cond_text)
-        if cmp_match:
-            op = cmp_match.group(1)
-            thresh = float(cmp_match.group(2))
-            group_conditions.setdefault(group_name, []).append((op, thresh))
-
-    filtered_groups: List[str] = []
-    for g in all_groups:
-        if g not in group_conditions:
-            filtered_groups.append(g)
-        else:
-            active = False
-            for op, thresh in group_conditions[g]:
-                if op == ">" and amount > thresh:
-                    active = True
-                    break
-                elif op == ">=" and amount >= thresh:
-                    active = True
-                    break
-                elif op == "<" and amount < thresh:
-                    active = True
-                    break
-                elif op == "<=" and amount <= thresh:
-                    active = True
-                    break
-            if active:
-                filtered_groups.append(g)
-
-    return filtered_groups
-
-
-_BLOCK_FILE_LINK_RE = re.compile(r"\(file://([^)#]+)")
-
-
-def _block_is_custom_module_file(block: str) -> bool:
-    """True when file link points to an installed custom module rather than core Odoo."""
-    match = _BLOCK_FILE_LINK_RE.search(block)
-    if not match:
-        return True
-    from config.settings import (
-        CORE_ADDONS_PATH, CORE_FRAMEWORK_ADDONS_PATH, CUSTOM_ADDONS_PATH, CUSTOM_ADDONS_PATHS,
-    )
-    try:
-        resolved = Path(match.group(1)).resolve()
-        if any(
-            root and Path(root).resolve() in resolved.parents
-            for root in dict.fromkeys((CUSTOM_ADDONS_PATH, *CUSTOM_ADDONS_PATHS))
-        ):
-            return True
-        if CORE_ADDONS_PATH and Path(CORE_ADDONS_PATH).resolve() in resolved.parents:
-            try:
-                rel = resolved.relative_to(Path(CORE_ADDONS_PATH).resolve())
-                if rel.parts and rel.parts[0].startswith("custom"):
-                    return True
-            except ValueError:
-                pass
-            return False
-        if CORE_FRAMEWORK_ADDONS_PATH and Path(CORE_FRAMEWORK_ADDONS_PATH).resolve() in resolved.parents:
-            return False
-    except (OSError, RuntimeError) as err:
-        logger.warning("Cannot resolve path %s: %s", match.group(1), err)
-    path_parts = Path(match.group(1)).parts
-    if any(part.startswith("custom") for part in path_parts):
-        return True
-    core_dirs = {"base", "web", "odoo"}
-    if any(part in core_dirs for part in path_parts):
-        return False
-    return True
-
-
-def _restrict_blocks_to_custom_modules(raw_tool_output: str) -> str:
-    """Drop blocks whose file link points outside a custom module."""
-    blocks = raw_tool_output.split("\n\n")
-    kept = [b for b in blocks if _block_is_custom_module_file(b)]
-    return "\n\n".join(kept) if kept else raw_tool_output
-
-
-def _backfill_missing_required_groups(final_answer: str, raw_tool_output: str, question: str) -> str:
-    """Backfill required groups detected in code if absent from synthesized answer."""
-    if not _question_is_approval_related(question):
-        return final_answer
-
-    amount = _extract_amount(question)
-    custom_scoped_output = _restrict_blocks_to_custom_modules(raw_tool_output)
-    required_groups = _extract_required_groups_for_amount(custom_scoped_output, amount)
-    if not required_groups:
-        return final_answer
-
-    group_list = ", ".join(required_groups)
-    logger.info(
-        "Node [code_intelligence_agent]: backfilling required group(s) missing "
-        "from synthesized answer: %s",
-        group_list,
-    )
-    return (
-        final_answer
-        + f"\n\n[FAIT DÉTERMINISTIQUE] Groupe(s) technique(s) requis (has_group) "
-        f"détecté(s) dans le code pour cette action : {group_list}. Fait extrait "
-        f"directement de l'analyse statique du code."
-    )
 
 
 _UI_ACCESS_QUESTION_RE = re.compile(

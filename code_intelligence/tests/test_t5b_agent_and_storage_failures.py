@@ -5,7 +5,6 @@ from unittest.mock import MagicMock, patch
 import chromadb
 import pytest
 
-from code_intelligence.agent.access_guards import _block_is_custom_module_file
 from code_intelligence.agent.tool_helpers import _is_custom_module_filepath
 from core.llm.llm_retry import try_recover_tool_use_failed
 from document_rag.ingestion.incremental import _is_under_roots
@@ -19,12 +18,6 @@ def _warnings(caplog):
 def test_custom_module_check_logs_an_unresolvable_path_and_falls_back(caplog):
     with patch.object(Path, "resolve", side_effect=OSError("loop")):
         assert isinstance(_is_custom_module_filepath("/tmp/custom_x/models/a.py"), bool)
-    assert any("Cannot resolve path" in message for message in _warnings(caplog))
-
-
-def test_block_custom_module_check_logs_an_unresolvable_path(caplog):
-    with patch.object(Path, "resolve", side_effect=RuntimeError("symlink loop")):
-        assert _block_is_custom_module_file("x (file:///tmp/custom_x/a.py#L1)") is True
     assert any("Cannot resolve path" in message for message in _warnings(caplog))
 
 

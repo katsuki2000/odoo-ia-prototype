@@ -112,24 +112,11 @@ from code_intelligence.agent.access_guards import (
     _GROUP_XMLID_RE,
     _extract_required_groups,
     _flag_ungrounded_group_xmlids,
-    _grounded_core_only_groups,
-    _strip_core_only_group_mentions,
     _scoped_raw_tool_output,
-    _LOCK_CONDITION_LINE_RE,
-    _AMOUNT_CMP_RE,
-    _extract_required_groups_for_amount,
-    _BLOCK_FILE_LINK_RE,
-    _block_is_custom_module_file,
-    _restrict_blocks_to_custom_modules,
-    _backfill_missing_required_groups,
 )
 from code_intelligence.rules.security_locks import (
     _OVERRIDE_CHAIN_AMOUNT_RE,
     _amount_present_in_text,
-    _SECURITY_LOCK_MESSAGES_MARKER,
-    _extract_security_lock_condition_amounts,
-    _backfill_missing_security_lock_amount,
-    _correct_security_lock_threshold_contradictions,
 )
 from code_intelligence.agent.link_guards import (
     _LINK_GUARD_RE,

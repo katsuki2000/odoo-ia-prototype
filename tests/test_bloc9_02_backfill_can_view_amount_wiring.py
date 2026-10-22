@@ -10,18 +10,7 @@ No existing test caught this: test_bloc9_08_can_view_amount_contradiction.py
 only exercises _correct_can_view_amount_contradictions and its helpers,
 never this backfill.
 
-This file covers two things:
-  1. The backfill function itself, in isolation (append/no-op contract).
-  2. The exact cascade this wiring gap caused in production (section 96
-     diagnostic): _backfill_missing_security_lock_amount's own no-op guard
-     (`if _has_can_view_amount_fact(final_answer): return final_answer`)
-     is only effective when _backfill_missing_can_view_amount_fact has
-     already run on final_answer -- otherwise it goes on to inject an
-     unrelated security-lock threshold (e.g. another module's 5000€ lock
-     sharing the same account.move model) as if it were relevant. The fix
-     (rag/ci_agent_node.py) calls the backfill FIRST, before every other
-     backfill/correction in that block -- test 2 below locks that ordering
-     contract, not just the two functions in isolation.
+This file covers the backfill function itself, in isolation (append/no-op contract).
 """
 
 
@@ -30,7 +19,6 @@ from code_intelligence.agent.can_view_verifier import (
     _has_can_view_amount_fact,
     _format_can_view_amount_fact,
 )
-from code_intelligence.rules.security_locks import _backfill_missing_security_lock_amount
 
 
 # ---------------------------------------------------------------------------
@@ -97,36 +85,3 @@ _UNRELATED_SECURITY_LOCK_BLOCK = (
 _RAW_TOOL_OUTPUT = _UNRELATED_SECURITY_LOCK_BLOCK + "\n\n" + _CAN_VIEW_FACT_BLOCK
 
 _QUESTION = "Un utilisateur standard peut-il consulter un avoir de 80 000€ ?"
-
-
-class TestBackfillOrderingPreventsUnrelatedSeuilInjection:
-    def test_without_the_fix_the_unrelated_seuil_leaks_in(self):
-        """Reproduces the pre-fix bug directly: if
-        _backfill_missing_security_lock_amount runs BEFORE the can_view
-        fact has been backfilled into final_answer, its own no-op guard
-        never triggers, and the unrelated 5000€ lock gets injected into an
-        answer about an 80 000€ can_view_amount_v2 verdict."""
-        final_answer = "Réponse synthétisée sans le fait can_view_amount_v2."
-
-        buggy_result = _backfill_missing_security_lock_amount(
-            final_answer, _RAW_TOOL_OUTPUT, question=_QUESTION,
-        )
-
-        assert "5000€" in buggy_result or "5000" in buggy_result
-
-    def test_with_the_fix_the_unrelated_seuil_is_not_injected(self):
-        """The fixed call order (rag/ci_agent_node.py): the can_view fact
-        is backfilled first, so _backfill_missing_security_lock_amount's
-        guard now correctly sees it and no-ops."""
-        final_answer = "Réponse synthétisée sans le fait can_view_amount_v2."
-
-        final_answer = _backfill_missing_can_view_amount_fact(final_answer, _RAW_TOOL_OUTPUT)
-        assert _has_can_view_amount_fact(final_answer) is True
-
-        fixed_result = _backfill_missing_security_lock_amount(
-            final_answer, _RAW_TOOL_OUTPUT, question=_QUESTION,
-        )
-
-        assert "5000" not in fixed_result
-        # The real can_view_amount_v2 verdict is still present, untouched.
-        assert _CAN_VIEW_FACT_BLOCK in fixed_result

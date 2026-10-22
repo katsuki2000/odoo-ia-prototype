@@ -12,8 +12,8 @@ from code_intelligence.utils import _TRUNCATION_MARKER, _match_near_truncation
 logger = logging.getLogger(__name__)
 _EXECUTION_FAILURE_NOTICE = (
     "\n\n[ATTENTION] Une ou plusieurs analyses n'ont pas pu "
-    "s'exécuter correctement pour cette question (panne technique d'un ou "
-    "plusieurs outils). La réponse ci-dessus peut donc être incomplète ; "
+    "s'exécuter correctement pour cette question (panne technique d'un outil "
+    "ou du modèle de langage). La réponse ci-dessus peut donc être incomplète ; "
     "n'y voyez pas une absence confirmée d'information.")
 _CI_TOOL_DISPLAY_NAMES = {
     'analyze_security_locks': 'Verrous de sécurité (code Python)',

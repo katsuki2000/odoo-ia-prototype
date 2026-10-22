@@ -37,7 +37,7 @@ to a RAG fallback node whenever status != SUFFICIENT) is Tranche 2.
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import List
+from typing import List, Optional
 
 from code_intelligence.rules.common import NOT_FOUND_MARKER
 
@@ -63,7 +63,6 @@ class EvidenceSufficiencyStatus(str, Enum):
     -- as opposed to a single model's verdict that the LLM's own prose
     merely misstated, which stays a synthesis-inversion bug, already
     corrected in place by _correct_can_view_amount_contradictions /
-    _correct_security_lock_threshold_contradictions / 
     _answer_denies_other_overrides before final_answer reaches this
     function, and deliberately still OUT of scope for CONFLICTING (an
     already-corrected synthesis slip is not "two valid findings

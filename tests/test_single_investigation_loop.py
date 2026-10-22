@@ -49,7 +49,7 @@ class Context:
     omitted_items: list = field(default_factory=list)
     per_hop_times: list = field(default_factory=list)
     trace_id: str = 'fixture'
-    trace_logger: object = field(default_factory=lambda: SimpleNamespace(log_hop=lambda **kwargs: None))
+    trace_logger: object = field(default_factory=lambda: SimpleNamespace(log_hop=lambda **kwargs: None, log_failure=lambda *args, **kwargs: None))
     concept: object = field(default_factory=lambda: SimpleNamespace(resolved_models=[], is_resolved=False))
     orm_tool_names: set = field(default_factory=lambda: {'search_read'})
 

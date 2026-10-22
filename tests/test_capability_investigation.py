@@ -63,7 +63,7 @@ class Context:
     matched_dispatchers: list = field(default_factory=list)
     system_prompt_suffix: str = ''
     trace_id: str = 'fixture'
-    trace_logger: object = field(default_factory=lambda: types.SimpleNamespace(log_hop=lambda **kwargs: None))
+    trace_logger: object = field(default_factory=lambda: types.SimpleNamespace(log_hop=lambda **kwargs: None, log_failure=lambda *args, **kwargs: None))
     @property
     def hop_budget_exhausted(self):
         return self.hop_count >= self.hop_cap

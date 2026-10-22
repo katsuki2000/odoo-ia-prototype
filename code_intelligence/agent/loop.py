@@ -113,6 +113,7 @@ def run_react_loop(ctx, llm, history):
         return final.content or NO_EVIDENCE_ANSWER
     except Exception as error:
         logger.warning('System investigation interrupted (%s)', type(error).__name__)
+        ctx.trace_logger.log_failure(ctx.trace_id, 'llm_loop', error)
         ctx.fallback_reason = 'interrupted'
         ctx.execution_failed = True
         return 'Investigation interrompue. Les observations disponibles ne permettent pas de garantir une réponse complète.'

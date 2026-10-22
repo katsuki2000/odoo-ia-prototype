@@ -7,7 +7,7 @@ and _backfill_link_guard_clarifications -- the second half of the fix (extractio
 coverage for exception_conditions/exception_guard_fields/[GARDE DE LIEN] itself lives in
 test_s2_5_semgrep_locks.py).
 
-Same principle as the earlier required-groups backfill (_backfill_missing_required_groups):
+Same principle as the earlier required-groups backfill:
 rather than trusting the small synthesis LLM to correctly reason about Python's `and`
 short-circuit direction from raw condition text alone -- which a live run showed it get
 backwards even when the condition was quoted to it verbatim -- the verdict is computed

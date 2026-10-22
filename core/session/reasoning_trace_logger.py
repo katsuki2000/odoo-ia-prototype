@@ -38,6 +38,17 @@ class ReasoningHop:
 
 
 @dataclass
+class ReasoningFailure:
+    trace_id: str
+    timestamp: str
+    stage: str  # "tool" | "llm_loop"
+    error_type: str
+    message: str
+    tool_name: Optional[str] = None
+    tool_args: Optional[Dict[str, Any]] = None
+
+
+@dataclass
 class ReasoningRouting:
     trace_id: str
     timestamp: str
@@ -100,6 +111,26 @@ class ReasoningTraceLogger:
             trace_id, hop_index, tool_name, tool_args, elapsed_ms,
         )
         return hop
+
+    def log_failure(
+        self,
+        trace_id: str,
+        stage: str,
+        error: BaseException,
+        tool_name: Optional[str] = None,
+        tool_args: Optional[Dict[str, Any]] = None,
+    ) -> ReasoningFailure:
+        failure = ReasoningFailure(
+            trace_id=trace_id,
+            timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            stage=stage,
+            error_type=type(error).__name__,
+            message=str(error)[:300],
+            tool_name=tool_name,
+            tool_args=tool_args,
+        )
+        self._write({"record_type": "FAILURE", **asdict(failure)})
+        return failure
 
     def log_routing(self, trace_id: str, matched_dispatchers: List[str]) -> ReasoningRouting:
         """Section 861 (mandat 4.4/trajectory recall): logs, once per question

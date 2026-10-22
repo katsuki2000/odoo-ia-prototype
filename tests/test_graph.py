@@ -1,30 +1,34 @@
-import pytest
 from unittest.mock import patch, MagicMock
 
 from core.schemas import AssistantResponse
 from types import SimpleNamespace
 
 from core.graph.graph import (
-    generate, format_output, _parse_raw_json_answer,
+    generate,
+    format_output,
+    _parse_raw_json_answer,
     _rank_and_cap_override_methods,
-    _format_can_view_amount_fact, _question_suggests_automation_bypass,
-    _extract_override_modules, _backfill_missing_override_modules,
-    _extract_override_chain_amounts, _backfill_missing_override_chain_amount,
-    _answer_denies_other_overrides, _answer_asserts_override_shortcircuit,
-    _neutralize_override_count_denial, _neutralize_override_shortcircuit_sentence,
+    _format_can_view_amount_fact,
+    _question_suggests_automation_bypass,
+    _extract_override_modules,
+    _backfill_missing_override_modules,
+    _extract_override_chain_amounts,
+    _backfill_missing_override_chain_amount,
+    _answer_denies_other_overrides,
+    _answer_asserts_override_shortcircuit,
+    _neutralize_override_count_denial,
+    _neutralize_override_shortcircuit_sentence,
     _correct_override_cascade_contradictions,
     _force_out_of_scope_model_answer,
-    _extract_security_lock_condition_amounts, _backfill_missing_security_lock_amount,
     _amount_present_in_text,
-    _extract_hardcoded_id_literals, _backfill_missing_hardcoded_id_literals,
-    _detect_degenerate_growing_repetition, _strip_degenerate_growing_repetition,
+    _extract_hardcoded_id_literals,
+    _backfill_missing_hardcoded_id_literals,
+    _detect_degenerate_growing_repetition,
+    _strip_degenerate_growing_repetition,
     _question_is_access_related,
     _extract_company_context,
-    _extract_required_groups, _extract_required_groups_for_amount,
-    _backfill_missing_required_groups, _flag_ungrounded_group_xmlids,
-    _block_is_custom_module_file, _restrict_blocks_to_custom_modules,
-    _grounded_core_only_groups, _strip_core_only_group_mentions,
-    _correct_security_lock_threshold_contradictions,
+    _extract_required_groups,
+    _flag_ungrounded_group_xmlids,
 )
 from document_rag.generate_node import _verify_used_sources
 from config.settings import CORE_ADDONS_PATH as _TEST_CORE_ADDONS_PATH
@@ -546,18 +550,8 @@ class TestForceOutOfScopeModelAnswer:
         assert _force_out_of_scope_model_answer("", concept) is None
 
 
-# gap, module 4/8 (custom_purchase_request, 04a-business /
-# 04c-manager-trap, found 2026-08-13): analyze_security_locks's
-# second, amount-gated UserError ("Au-dela de 10 000 euros, seule la
-# Direction peut valider") was reliably present in the raw tool text but
-# dropped from the synthesized answer -- see the module-level comment
-# above _SECURITY_LOCK_MESSAGES_MARKER in rag/graph.py for the full
-# diagnosis. Fixture text below mirrors analyze_python_security_locks'
-# real rendering verbatim for custom_purchase_request/models/
-# purchase_request.py (both exception messages + the required group
-# line), and the contamination test reuses _REAL_OVERRIDE_CHAIN_RAW_TEXT
-# already defined above (the reverse-direction leak, proven real by
-# TestBackfillMissingOverrideChainAmount's own contamination test).
+# Real analyze_python_security_locks output for custom_purchase_request/models/purchase_request.py:
+# both exception messages and the required group line.
 _REAL_SECURITY_LOCK_RAW_TEXT = (
     f"Analyse des verrous Python (file://{_TEST_CORE_ADDONS_PATH}/"
     "custom_purchase_request/models/purchase_request.py#L1-L28) "
@@ -578,102 +572,8 @@ _REAL_SECURITY_LOCK_RAW_TEXT = (
 )
 
 
-class TestBackfillMissingSecurityLockAmount:
-    def test_extracts_amount_from_condition_text(self):
-        assert _extract_security_lock_condition_amounts(_REAL_SECURITY_LOCK_RAW_TEXT) == ["10000"]
-
-    def test_no_op_when_marker_absent(self):
-        assert _extract_security_lock_condition_amounts(
-            "rec.montant_estime > 10000, mais sans le marqueur attendu"
-        ) == []
-
-    def test_backfills_amount_dropped_from_business_phrased_answer(self):
-        answer = (
-            "Un utilisateur membre du groupe purchase.group_purchase_manager "
-            "peut valider une demande d'achat de 15 000€."
-        )
-        result = _backfill_missing_security_lock_amount(answer, _REAL_SECURITY_LOCK_RAW_TEXT)
-        assert "10000" in result
-        assert "[FAIT DÉTERMINISTIQUE]" in result
-
-    def test_always_backfills_even_when_amount_already_present_unspaced(self):
-        answer = "Au-dela de 10000€, seule la Direction peut valider."
-        result = _backfill_missing_security_lock_amount(answer, _REAL_SECURITY_LOCK_RAW_TEXT)
-        assert result != answer
-        assert "[FAIT DÉTERMINISTIQUE]" in result
-
-    def test_always_backfills_even_when_amount_already_present_with_space(self):
-        answer = "Au-dela de 10 000€, seule la Direction peut valider."
-        result = _backfill_missing_security_lock_amount(answer, _REAL_SECURITY_LOCK_RAW_TEXT)
-        assert result != answer
-        assert "[FAIT DÉTERMINISTIQUE]" in result
-
-    def test_backfills_regardless_of_question_wording(self):
-        result = _backfill_missing_security_lock_amount("réponse courte", _REAL_SECURITY_LOCK_RAW_TEXT)
-        assert "10000" in result
-
-    def test_no_op_when_raw_text_has_no_marker(self):
-        result = _backfill_missing_security_lock_amount("réponse courte", "rien à voir ici")
-        assert result == "réponse courte"
-
-    def test_no_op_on_unrelated_rec_comparison_outside_security_lock_text(self):
-        """Reverse-direction contamination check: an override-cascade
-        finding's own 'rec.amount_total > 20000' (a DIFFERENT tool's
-        output, analyze_method_override_chain -- see
-        _REAL_OVERRIDE_CHAIN_RAW_TEXT above) must never be mistaken for a
-        security-lock condition amount just because both tools render
-        Python comparisons the same way."""
-        result = _extract_security_lock_condition_amounts(_REAL_OVERRIDE_CHAIN_RAW_TEXT)
-        assert result == [], (
-            "contamination regression: an override-cascade amount was "
-            "mistaken for a security-lock condition amount"
-        )
-
-    def test_no_op_on_unrelated_amount_in_a_separate_joined_block(self):
-        """ /  live failure (2026-08-13
-        rerun): the previous test above only proves the override-cascade
-        text is clean IN ISOLATION (no marker anywhere in it). On
-        account.move, the real scoped_tool_output handed to this function
-        can contain BOTH this security-lock block (marker present, real
-        amount 10000/5000-shaped) AND a separate analyser_chaine_surcharge_
-        methode block (no marker, its own unrelated 20000) joined with the
-        same '\n\n' separator _scoped_raw_tool_output always uses -- model-
-        scoping alone cannot split them apart since both target the same
-        model. The old (pre-fix) implementation gated on the marker being
-        present ANYWHERE in the full string, then scanned the ENTIRE
-        string for amounts -- silently absorbing the unrelated 20000 into
-        the security-lock backfill and mislabeling it as a 'verrou de
-        securite' amount (live-confirmed:  asserted
-        20000 as the security-lock threshold, and the real 5000 never
-        appeared anywhere in that answer; 's backfilled
-        20000 fact directly contradicted its own correct prose two lines
-        above, which cited 5000). This test reproduces that exact combined
-        shape and locks in per-block scoping as the fix."""
-        combined = _REAL_SECURITY_LOCK_RAW_TEXT + "\n\n" + _REAL_OVERRIDE_CHAIN_RAW_TEXT
-        result = _extract_security_lock_condition_amounts(combined)
-        assert result == ["10000"], (
-            "contamination regression: an override-cascade amount from a "
-            "separate joined block leaked into the security-lock "
-            f"extraction (got {result!r})"
-        )
-
-
-# gap, found 2026-08-13 (module 1/8, 01a-business rerun --
-# AFTER the per-block scoping fix above is confirmed working on
-# 01b-technical/01c-vip-trap): the real custom_credit_note_approval
-# security lock (source: /home/user/odoo-17.0/addons/
-# custom_credit_note_approval/models/account_move.py, 'rec.amount_total >
-# 5000 and not has_group(...)') never reached 01a-business's final
-# answer, even though the forced pre-dispatch of analyze_security_locks
-# is unconditional (not gated on question phrasing) and fires identically
-# for 01a/01b/01c. Root cause: _backfill_missing_security_lock_amount's old
-# local _amount_present() did a plain `in` substring check on the spaced
-# thousands-separator form ('5 000'), and 01a's own question amount gets
-# echoed verbatim in the synthesized answer's opening sentence ('un avoir
-# de 25 000€') -- '5 000' is a literal substring of '25 000', so the check
-# false-positived and the backfill silently no-op'd, believing the fact was
-# already covered. Fixed by _amount_present_in_text using a digit-boundary
-# regex instead of a bare substring check.
+# Real analyze_python_security_locks output for custom_credit_note_approval/models/account_move.py:
+# a 5000 amount lock requiring has_group('account.group_account_manager').
 _REAL_CREDIT_NOTE_SECURITY_LOCK_RAW_TEXT = (
     f"Analyse des verrous Python (file://{_TEST_CORE_ADDONS_PATH}/"
     "custom_credit_note_approval/models/account_move.py#L14-L18) "
@@ -712,32 +612,6 @@ class TestAmountPresentInText:
 
     def test_genuine_amount_with_currency_suffix_detected(self):
         assert _amount_present_in_text("5000", "un avoir de plus de 5000€.") is True
-
-
-class TestBackfillSecurityLockAmountNotMaskedByEchoedQuestionAmount:
-    def test_backfills_real_threshold_despite_larger_amount_echoed_in_answer_bloc9_01a(self):
-        """End-to-end reproduction of the live  gap:
-        the answer never states the real 5000€ threshold on its own terms,
-        it only echoes the question's 25 000€ -- the backfill must still
-        fire and append the real 5000€ fact."""
-        answer = (
-            "D'après l'analyse des verrous Python, il semble que la question "
-            "concerne les droits d'approuver un avoir de 25 000€ pour un "
-            "client normal (pas VIP) dans le cadre de l'application Odoo."
-        )
-        result = _backfill_missing_security_lock_amount(
-            answer, _REAL_CREDIT_NOTE_SECURITY_LOCK_RAW_TEXT
-        )
-        assert "5000" in result
-        assert "[FAIT DÉTERMINISTIQUE]" in result
-
-    def test_always_backfills_even_when_real_threshold_genuinely_already_present(self):
-        answer = "Seul un responsable comptable peut valider un avoir de plus de 5000€."
-        result = _backfill_missing_security_lock_amount(
-            answer, _REAL_CREDIT_NOTE_SECURITY_LOCK_RAW_TEXT
-        )
-        assert result != answer
-        assert "[FAIT DÉTERMINISTIQUE]" in result
 
 
 # gap fix (2026-08-13, module 6/8, 06c-technical-condition-
@@ -1343,36 +1217,6 @@ class TestFlagUngroundedGroupXmlids:
         assert result.startswith(answer)
 
 
-class TestExtractRequiredGroupsForAmount:
-    """ gap fix (2026-08-14, module 8/8, ):
-    tests that required groups extracted from security lock conditions
-    are filtered by monetary threshold when an explicit amount is present."""
-
-    def test_unfiltered_when_amount_none(self):
-        groups = _extract_required_groups_for_amount(_REAL_DEEP_INHERITANCE_SECURITY_RAW_TEXT, None)
-        assert groups == ["account.group_account_manager", "base.group_system"]
-
-    def test_filters_out_higher_threshold_bloc9_08a(self):
-        # 60 000€ is > 50 000€ (account.group_account_manager) but <= 100 000€ (base.group_system)
-        groups = _extract_required_groups_for_amount(_REAL_DEEP_INHERITANCE_SECURITY_RAW_TEXT, 60000)
-        assert groups == ["account.group_account_manager"]
-
-    def test_includes_both_when_above_all_thresholds(self):
-        groups = _extract_required_groups_for_amount(_REAL_DEEP_INHERITANCE_SECURITY_RAW_TEXT, 120000)
-        assert groups == ["account.group_account_manager", "base.group_system"]
-
-    def test_returns_empty_when_below_all_thresholds(self):
-        groups = _extract_required_groups_for_amount(_REAL_DEEP_INHERITANCE_SECURITY_RAW_TEXT, 30000)
-        assert groups == []
-
-    def test_backfill_only_injects_triggered_group_for_60k(self):
-        question = "Qui a le permission de valider un document à 60 000€ dans le modèle custom.deep.document ?"
-        synthesized_without_groups = "Pour valider un document à 60 000€, il faut être responsable comptabilité."
-        result = _backfill_missing_required_groups(synthesized_without_groups, _REAL_DEEP_INHERITANCE_SECURITY_RAW_TEXT, question)
-        assert "account.group_account_manager" in result
-        assert "base.group_system" not in result
-
-
 # gap fix (2026-08-14, module 1/8 follow-up, 'account.group_account_invoice
 # noise', see  -- left deliberately open at the time as
 # cosmetic, 'necessiterait un scoping fichier/module plus fin qu'un scoping
@@ -1396,91 +1240,6 @@ _REAL_CORE_ACCOUNT_MOVE_SECURITY_LOCK_RAW_TEXT = (
 )
 
 
-class TestBlockIsCustomModuleFile:
-    def test_custom_module_file_link_is_kept(self):
-        assert _block_is_custom_module_file(_REAL_CREDIT_NOTE_SECURITY_LOCK_RAW_TEXT) is True
-
-    def test_core_odoo_file_link_is_excluded(self):
-        assert _block_is_custom_module_file(_REAL_CORE_ACCOUNT_MOVE_SECURITY_LOCK_RAW_TEXT) is False
-
-    def test_block_with_no_file_link_is_kept_by_default(self):
-        """Never silently drop a block this cannot positively classify as
-        core/OCA Odoo -- same conservative default as every other scoping
-        guard in rag/graph.py (_scoped_raw_tool_output, etc.)."""
-        assert _block_is_custom_module_file("Aucun lien fichier ici.") is True
-
-
-class TestRestrictBlocksToCustomModules:
-    """Live reproduction of the  noise: on a shared
-    model like account.move, analyze_security_locks's raw output
-    contains both the real custom override block AND Odoo's own core
-    block, joined with '\\n\\n' (same separator _scoped_raw_tool_output
-    already relies on)."""
-
-    def test_drops_core_odoo_block_keeps_custom_block(self):
-        combined = (
-            _REAL_CREDIT_NOTE_SECURITY_LOCK_RAW_TEXT
-            + "\n\n"
-            + _REAL_CORE_ACCOUNT_MOVE_SECURITY_LOCK_RAW_TEXT
-        )
-        scoped = _restrict_blocks_to_custom_modules(combined)
-        assert "custom_credit_note_approval" in scoped
-        assert "account/models/account_move.py" not in scoped
-
-    def test_order_independent(self):
-        combined = (
-            _REAL_CORE_ACCOUNT_MOVE_SECURITY_LOCK_RAW_TEXT
-            + "\n\n"
-            + _REAL_CREDIT_NOTE_SECURITY_LOCK_RAW_TEXT
-        )
-        scoped = _restrict_blocks_to_custom_modules(combined)
-        assert "custom_credit_note_approval" in scoped
-        assert "account/models/account_move.py" not in scoped
-
-    def test_falls_back_to_unscoped_when_no_custom_block_present(self):
-        """Never drop everything: a turn with only core-Odoo blocks (no
-        custom module resolved at all) keeps its original, unscoped text
-        rather than losing all content."""
-        scoped = _restrict_blocks_to_custom_modules(_REAL_CORE_ACCOUNT_MOVE_SECURITY_LOCK_RAW_TEXT)
-        assert scoped == _REAL_CORE_ACCOUNT_MOVE_SECURITY_LOCK_RAW_TEXT
-
-    def test_does_not_affect_deep_inheritance_security_fixture(self):
-        """Non-regression: the existing  fixture already lives
-        under a custom_* addon, so this new filter must be a no-op on it."""
-        scoped = _restrict_blocks_to_custom_modules(_REAL_DEEP_INHERITANCE_SECURITY_RAW_TEXT)
-        assert scoped == _REAL_DEEP_INHERITANCE_SECURITY_RAW_TEXT
-
-
-class TestBackfillMissingRequiredGroupsExcludesCoreOdooNoise:
-    """End-to-end reproduction of the live  gap
-    (account.group_account_invoice noise): _backfill_missing_required_
-    groups must never inject a core-Odoo has_group() check that has
-    nothing to do with the custom approval mechanism the question is
-    actually about."""
-
-    def test_backfill_never_injects_core_odoo_group_noise(self):
-        question = "Qui a le permission d'approuver un avoir de 25 000€ pour un client normal ?"
-        answer_missing_both = "D'après l'analyse, il faut un rôle comptable spécifique pour valider."
-        combined = (
-            _REAL_CREDIT_NOTE_SECURITY_LOCK_RAW_TEXT
-            + "\n\n"
-            + _REAL_CORE_ACCOUNT_MOVE_SECURITY_LOCK_RAW_TEXT
-        )
-        result = _backfill_missing_required_groups(answer_missing_both, combined, question)
-        assert "account.group_account_manager" in result
-        assert "account.group_account_invoice" not in result
-
-    def test_backfill_still_works_when_only_custom_block_present(self):
-        """Non-regression: the fix must not break the ordinary case where
-        the raw tool output never had a core-Odoo block to begin with."""
-        question = "Qui a le permission d'approuver un avoir de 25 000€ pour un client normal ?"
-        answer_missing_group = "D'après l'analyse, il faut un rôle comptable spécifique pour valider."
-        result = _backfill_missing_required_groups(
-            answer_missing_group, _REAL_CREDIT_NOTE_SECURITY_LOCK_RAW_TEXT, question
-        )
-        assert "account.group_account_manager" in result
-
-
 # gap fix (2026-08-14, module 1/8 follow-up, LLM free-prose
 # 'account.group_account_invoice' noise -- see  and
 #  section 42/addendum). Live reproduction: 01a-business's
@@ -1491,198 +1250,6 @@ _REAL_01A_BULLET_ANSWER_WITH_CORE_NOISE = (
     "- Être membre du groupe `account.group_account_manager`\n"
     "- Être membre du groupe `account.group_account_invoice`\n"
 )
-
-
-class TestGroundedCoreOnlyGroups:
-    """See rag/graph.py's own docstring above _grounded_core_only_groups
-    for the design rationale -- a third category, orthogonal to
-    _flag_ungrounded_group_xmlids' grounded/ungrounded split: a group can
-    be genuinely grounded (real has_group() call) while living only in a
-    non-custom (core Odoo) block of the same scoped_tool_output."""
-
-    def _combined(self):
-        return (
-            _REAL_CREDIT_NOTE_SECURITY_LOCK_RAW_TEXT
-            + "\n\n"
-            + _REAL_CORE_ACCOUNT_MOVE_SECURITY_LOCK_RAW_TEXT
-        )
-
-    def test_identifies_core_only_group_mentioned_in_answer(self):
-        result = _grounded_core_only_groups(
-            _REAL_01A_BULLET_ANSWER_WITH_CORE_NOISE, self._combined()
-        )
-        assert result == ["account.group_account_invoice"]
-
-    def test_does_not_flag_the_custom_group_even_though_also_in_core_block(self):
-        """account.group_account_manager appears in BOTH blocks (real, per
-        the core fixture's own has_group() summary line) -- must stay out
-        of the core-only set since it is also genuinely custom-grounded."""
-        result = _grounded_core_only_groups(
-            _REAL_01A_BULLET_ANSWER_WITH_CORE_NOISE, self._combined()
-        )
-        assert "account.group_account_manager" not in result
-
-    def test_empty_when_no_core_block_present(self):
-        result = _grounded_core_only_groups(
-            _REAL_01A_BULLET_ANSWER_WITH_CORE_NOISE,
-            _REAL_CREDIT_NOTE_SECURITY_LOCK_RAW_TEXT,
-        )
-        assert result == []
-
-    def test_empty_when_grounded_set_is_empty(self):
-        answer = "Un utilisateur du groupe account.group_account_invoice peut valider."
-        result = _grounded_core_only_groups(answer, "rien à voir ici")
-        assert result == []
-
-    def test_empty_when_core_group_never_mentioned_in_answer(self):
-        """The core block is present in scoped_tool_output, but the answer
-        itself never names the core-only group -- nothing to identify."""
-        answer = "Seul un membre du groupe account.group_account_manager peut valider."
-        result = _grounded_core_only_groups(answer, self._combined())
-        assert result == []
-
-    def test_bloc9_08a_scenario_not_flagged(self):
-        """Non-regression: base.group_system in the deep-inheritance
-        fixture lives in the SAME custom file as account.group_account_manager
-        (single-file module), so it must never be classified as
-        core-only -- a different, harder 'grounded but misattributed to
-        the wrong threshold' problem, explicitly out of scope here (see
-        _flag_ungrounded_group_xmlids' own equivalent non-regression test)."""
-        answer = (
-            "Pour un montant de 60 000€, il faut que l'utilisateur soit "
-            "membre du groupe account.group_account_manager. Le groupe "
-            "base.group_system est également mentionné dans le code pour "
-            "le palier à 100 000€."
-        )
-        result = _grounded_core_only_groups(answer, _REAL_DEEP_INHERITANCE_SECURITY_RAW_TEXT)
-        assert result == []
-
-
-class TestStripCoreOnlyGroupMentions:
-    """See rag/graph.py's own docstring above _strip_core_only_group_mentions
-    for the design rationale (in-place removal, not a flag -- precedent:
-    module 5/8 Bug 2, a bandeau alone left the wrong content visible and
-    readable underneath the warning)."""
-
-    def _combined(self):
-        return (
-            _REAL_CREDIT_NOTE_SECURITY_LOCK_RAW_TEXT
-            + "\n\n"
-            + _REAL_CORE_ACCOUNT_MOVE_SECURITY_LOCK_RAW_TEXT
-        )
-
-    def test_strips_core_only_bullet_live_reproduction(self):
-        """Live reproduction of the  answer verbatim."""
-        result = _strip_core_only_group_mentions(
-            _REAL_01A_BULLET_ANSWER_WITH_CORE_NOISE, self._combined()
-        )
-        assert "account.group_account_invoice" not in result
-        assert "account.group_account_manager" in result
-
-    def test_strips_inline_clause_without_touching_surrounding_sentences(self):
-        answer = (
-            "Seul un responsable comptable peut valider, membre du groupe "
-            "account.group_account_manager. Le groupe account.group_account_invoice "
-            "est également mentionné dans le fichier core. Fin de la réponse."
-        )
-        result = _strip_core_only_group_mentions(answer, self._combined())
-        assert "account.group_account_invoice" not in result
-        assert "account.group_account_manager" in result
-        assert "Fin de la réponse." in result
-
-    def test_no_op_when_only_custom_group_mentioned(self):
-        answer = "Seul un membre du groupe account.group_account_manager peut valider."
-        result = _strip_core_only_group_mentions(answer, self._combined())
-        assert result == answer
-
-    def test_no_op_when_grounded_set_is_empty(self):
-        answer = "Un utilisateur du groupe account.group_account_invoice peut valider."
-        result = _strip_core_only_group_mentions(answer, "rien à voir ici")
-        assert result == answer
-
-    def test_no_op_when_no_core_block_present(self):
-        """Non-regression: the ordinary case (single custom file, no core
-        block aggregated at all) must be a complete no-op, mentioned group
-        included -- this is not the mechanism that classifies it, it is
-        simply never in scope (no core block to compare against)."""
-        result = _strip_core_only_group_mentions(
-            _REAL_01A_BULLET_ANSWER_WITH_CORE_NOISE,
-            _REAL_CREDIT_NOTE_SECURITY_LOCK_RAW_TEXT,
-        )
-        assert result == _REAL_01A_BULLET_ANSWER_WITH_CORE_NOISE
-
-    def test_does_not_affect_bloc9_08a_scenario(self):
-        """Non-regression: same scenario as
-        TestGroundedCoreOnlyGroups::test_bloc9_08a_scenario_not_flagged --
-        must be a full no-op on the answer text, not just an empty
-        core_only list."""
-        answer = (
-            "Pour un montant de 60 000€, il faut que l'utilisateur soit "
-            "membre du groupe account.group_account_manager. Le groupe "
-            "base.group_system est également mentionné dans le code pour "
-            "le palier à 100 000€."
-        )
-        result = _strip_core_only_group_mentions(answer, _REAL_DEEP_INHERITANCE_SECURITY_RAW_TEXT)
-        assert result == answer
-
-
-class TestCorrectSecurityLockThresholdContradictions:
-    """The threshold correction is retired: group membership alone cannot establish permission."""
-
-    _BAD_VERBATIM_ANSWER = (
-        "Responsable comptabilité : a le permission de valider jusqu'à 50 000€. "
-        "Puisque le montant est de 60 000€, elle n'a pas le permission de valider ce document.\n\n"
-        "Administrateur système : a le permission de valider les documents supérieurs à 100 000€. "
-        "Puisque le montant est de 60 000€, elle a le permission de valider ce document."
-    )
-
-    _GOOD_ANSWER = (
-        "Pour valider un document de 60 000€, il faut être membre du groupe "
-        "account.group_account_manager (Responsable comptabilité), car le montant "
-        "dépasse le seuil de 50 000€. Le verrou de 100 000€ réservé à "
-        "base.group_system ne s'applique pas."
-    )
-
-    _QUESTION_60K = (
-        "Qui a le permission de valider un document à 60 000€ dans le modèle "
-        "custom.deep.document (module de sécurité à héritage profond) ?"
-    )
-
-    @pytest.mark.parametrize("answer", [_BAD_VERBATIM_ANSWER, _GOOD_ANSWER])
-    def test_retired_correction_leaves_the_answer_unchanged(self, answer):
-        result = _correct_security_lock_threshold_contradictions(
-            answer, _REAL_DEEP_INHERITANCE_SECURITY_RAW_TEXT, self._QUESTION_60K)
-        assert result == answer
-
-
-class TestBackfillMissingSecurityLockAmountAmountAware:
-    """ gap fix (2026-08-14, module 8/8 follow-up):
-    amount-aware tests for _backfill_missing_security_lock_amount."""
-
-    def test_does_not_backfill_100k_when_question_amount_is_60k(self):
-        # Section 964: the >60k amount-relevance filter (business logic,
-        # not a final_answer wording gate) is unaffected by the fix --
-        # 100000€ must still never appear. What changes is that 50000€,
-        # having survived that filter, is now always re-appended even
-        # though the answer already states it (tolerated redundancy).
-        answer = "Le responsable comptabilité doit valider au-delà de 50 000€."
-        q = "Qui valide un document de 60 000€ dans custom.deep.document ?"
-        result = _backfill_missing_security_lock_amount(
-            answer, _REAL_DEEP_INHERITANCE_SECURITY_RAW_TEXT, question=q
-        )
-        assert "100000" not in result
-        assert "50000" in result
-
-    def test_does_not_backfill_when_can_view_amount_fact_present(self):
-        answer = (
-            "L'utilisateur NE PEUT PAS voir ce document de 30 000€.\n\n"
-            "[FAIT DÉTERMINISTIQUE] can_view_amount() = False : l'utilisateur NE PEUT PAS voir cet enregistrement pour ce montant."
-        )
-        q = "Un utilisateur peut-il voir un document de 30 000€ ?"
-        result = _backfill_missing_security_lock_amount(
-            answer, _REAL_DEEP_INHERITANCE_SECURITY_RAW_TEXT, question=q
-        )
-        assert result == answer
 
 
 class TestVerifyUsedSourcesDedup:
