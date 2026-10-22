@@ -573,6 +573,7 @@ def _extract_buttons_from_arch_elem(arch_elem: ET.Element) -> List[OdooFormButto
         btn_states = btn.attrib.get("states", "")
         btn_invisible = btn.attrib.get("invisible", "")
         btn_groups_raw = btn.attrib.get("groups", "")
+        btn_context = btn.attrib.get("context", "")
 
         btn_groups = [g.strip() for g in btn_groups_raw.split(",") if g.strip()]
 
@@ -585,6 +586,7 @@ def _extract_buttons_from_arch_elem(arch_elem: ET.Element) -> List[OdooFormButto
                     states=btn_states,
                     groups=btn_groups,
                     invisible=btn_invisible,
+                    context=btn_context,
                 )
             )
     return buttons

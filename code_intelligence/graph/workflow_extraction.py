@@ -32,25 +32,54 @@ def returned_states(decls: Sequence, method_name: str, field_name: str) -> List[
     return states
 
 
-def written_states(decls: Sequence, method_name: str, field_name: str, depth: int = MAX_CALL_DEPTH, seen: Optional[Set[str]] = None) -> List[str]:
+WILDCARD_FLAG = "*"
+
+
+def context_flags_of_text(text: str) -> Set[str]:
+    """Keys a view `context` attribute sets; the wildcard when it cannot be read."""
+    text = (text or "").strip()
+    if not text:
+        return set()
+    try:
+        tree = ast.parse(text, mode="eval").body
+    except SyntaxError:
+        return {WILDCARD_FLAG}
+    if not isinstance(tree, ast.Dict) or not all(isinstance(key, ast.Constant) and isinstance(key.value, str) for key in tree.keys):
+        return {WILDCARD_FLAG}
+    return {key.value for key in tree.keys}
+
+
+def write_reachable(method, field_name: str, state: str, context_flags: Optional[Set[str]]) -> bool:
+    """A guarded write is reachable only when every flag of one of its occurrences is set on the path."""
+    if context_flags is None or WILDCARD_FLAG in context_flags:
+        return True
+    occurrences = getattr(method, "written_guards", {}).get(field_name, {}).get(state)
+    return not occurrences or any(set(flags) <= context_flags for flags in occurrences)
+
+
+def written_states(decls: Sequence, method_name: str, field_name: str, depth: int = MAX_CALL_DEPTH, seen: Optional[Set] = None,
+                   context_flags: Optional[Set[str]] = None) -> List[str]:
+    """States a method may write, following its calls; `context_flags` = flags set on the path so far (None: unfiltered)."""
     seen = set() if seen is None else seen
-    if depth < 0 or method_name in seen:
+    visit_key = (method_name, None if context_flags is None else frozenset(context_flags))
+    if depth < 0 or visit_key in seen:
         return []
-    seen.add(method_name)
+    seen.add(visit_key)
     states: List[str] = []
     for decl in decls:
         for method in decl.methods:
             if method.name != method_name:
                 continue
             for state in method.written_values.get(field_name, []):
-                if state not in states:
+                if state not in states and write_reachable(method, field_name, state, context_flags):
                     states.append(state)
             for helper in method.write_argument_methods:
                 for state in returned_states(decls, helper, field_name):
                     if state not in states:
                         states.append(state)
             for callee in method.called_self_methods:
-                for state in written_states(decls, callee, field_name, depth - 1, seen):
+                callee_flags = None if context_flags is None else context_flags | set(getattr(method, "call_context_flags", {}).get(callee, ()))
+                for state in written_states(decls, callee, field_name, depth - 1, seen, callee_flags):
                     if state not in states:
                         states.append(state)
     return states

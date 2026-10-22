@@ -1,0 +1,32 @@
+comment faire une demande d'achat ? (120s)
+### Étapes pour soumettre une demande d'achat
+
+1. **Création de la demande**  
+   Le demandeur accède au module **custom.purchase.request** via l'interface Odoo. Il remplit les champs requis (désignation, montant estimé, fournisseur, etc.) et sauvegarde la demande.
+
+2. **Validation par le responsable achat**  
+   La demande est transmise au **responsable achat** (membre du groupe « *purchase.group_purchase_manager* »). Ce dernier peut valider la demande via le bouton **"Valider"** si :
+   - Le montant estimé est **inférieur ou égal à 10 000 €**, ou
+   - Le montant est **supérieur à 10 000 €** mais le validateur appartient à la **Direction** (liste restreinte définie dans `_VALIDATEURS_EXCEPTIONNELS`).
+
+3. **Restrictions et erreurs**  
+   - Si le demandeur tente de valider lui-même la demande, un message d'erreur indique :  
+     *« Vous n'avez pas le droit de valider cette demande d'achat. »*  
+   - Pour les montants **> 10 000 €**, seuls les membres de la **Direction** peuvent valider, sous peine de l'erreur :  
+     *« Au-dela de 10 000 euros, seule la Direction peut valider (liste restreinte). »*
+
+4. **Suivi de la demande**  
+   Une fois validée, la demande est transmise au module **purchase.order** pour la création d'un bon de commande.
+
+[Source: Graphe de Connaissances Code Intelligence]
+
+[ACCES RESTREINT] ÉLÉMENT(S) OMIS POUR RAISON D'AUTORISATION:
+  - Détail technique sensible : Élément omis pour raison d'autorisation : la politique de divulgation des preuves techniques ne confirme pas l’autorisation du demandeur.
+
+SUMMARY hops 1 llm 2 repli None
+APERCU '### Protocole de gestion des commandes de vente\n\nLe processus de gestion des commandes de vente dans Odoo suit les étapes suivantes :\n\n1. **Brouillon (Draft)** → **Commande (Sale)**  \n   - **Action** : Cliquez sur le bouton **"Confirmer"**.  \n   - **Rôle** : Disponible pour tous les utilisateurs (so'
+HOP 0 search_system {"query": "demande achat", "model": "", "limit": 8}
+HOP 1 describe_workflow {"model_name": "custom.purchase.request"}
+HOP 2 analyze_security_locks {"model_name": "custom.purchase.request"}
+SUMMARY hops 4 llm 3 repli None
+APERCU "### Étapes pour soumettre une demande d'achat\n\n1. **Création de la demande**  \n   Le demandeur accède au module **custom.purchase.request** via l'interface Odoo. Il remplit les champs requis (désignation, montant estimé, fournisseur, etc.) et sauvegarde la demande.\n\n2. **Validation par le responsabl"

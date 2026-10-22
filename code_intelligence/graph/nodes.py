@@ -130,6 +130,7 @@ from code_intelligence.graph.state_field import lifecycle_fields
 from code_intelligence.graph.workflow_extraction import (
     origin_states,
     selection_values,
+    context_flags_of_text,
     written_states,
     workflow_transition_records,
 )
@@ -390,7 +391,8 @@ def add_workflow_nodes_and_edges(
             if not btn.name:
                 continue
             origins = origin_states(btn.states, btn.invisible, selection, stateField)
-            targets = [state for state in written_states(decls, btn.name, stateField) if selection is None or state in selection]
+            button_flags = context_flags_of_text(getattr(btn, "context", ""))
+            targets = [state for state in written_states(decls, btn.name, stateField, context_flags=button_flags) if selection is None or state in selection]
             if origins and targets:
                 transitions.append((btn, origins, targets))
         states = list(selection) if selection else []

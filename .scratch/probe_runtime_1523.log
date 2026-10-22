@@ -1,0 +1,94 @@
+record_evidence() called before start_evidence_collection() -- evidence dropped, no active turn accumulator.
+record_evidence() called before start_evidence_collection() -- evidence dropped, no active turn accumulator.
+
+######## describe_workflow(hr.leave) ########
+Workflow Process for 'hr.leave' (15 transitions):
+Step 1: [draft] -> [confirm] via Button 'Confirm' (Method: `action_confirm()`, Role: [All Users]) -- one of several possible outcomes of this button
+Step 2: [draft] -> [validate] via Button 'Confirm' (Method: `action_confirm()`, Role: [All Users]) -- one of several possible outcomes of this button
+Step 3: [confirm] -> [validate1] via Button 'Approve' (Method: `action_approve()`, Role: [All Users]) -- one of several possible outcomes of this button
+Step 4: [confirm] -> [validate1] via Button 'Approve' (Method: `action_approve()`, Role: [hr_holidays.group_hr_holidays_responsible]) (xml_id: hr_holidays.group_hr_holidays_responsible) -- one of several possible outcomes of this button
+Step 5: [confirm] -> [validate] via Button 'Approve' (Method: `action_approve()`, Role: [All Users]) -- one of several possible outcomes of this button
+Step 6: [confirm] -> [validate] via Button 'Approve' (Method: `action_approve()`, Role: [hr_holidays.group_hr_holidays_responsible]) (xml_id: hr_holidays.group_hr_holidays_responsible) -- one of several possible outcomes of this button
+Step 7: [confirm] -> [refuse] via Button 'Refuse' (Method: `action_refuse()`, Role: [All Users])
+Step 8: [confirm] -> [refuse] via Button 'Refuse' (Method: `action_refuse()`, Role: [hr_holidays.group_hr_holidays_responsible]) (xml_id: hr_holidays.group_hr_holidays_responsible)
+Step 9: [confirm] -> [draft] via Button 'Mark as Draft' (Method: `action_draft()`, Role: [All Users])
+Step 10: [refuse] -> [draft] via Button 'Mark as Draft' (Method: `action_draft()`, Role: [All Users])
+Step 11: [validate1] -> [validate] via Button 'Validate' (Method: `action_validate()`, Role: [hr_holidays.group_hr_holidays_user]) (xml_id: hr_holidays.group_hr_holidays_user)
+Step 12: [validate1] -> [validate] via Button 'Validate' (Method: `action_validate()`, Role: [hr_holidays.group_hr_holidays_responsible]) (xml_id: hr_holidays.group_hr_holidays_responsible)
+Step 13: [validate1] -> [refuse] via Button 'Refuse' (Method: `action_refuse()`, Role: [All Users])
+Step 14: [validate1] -> [refuse] via Button 'Refuse' (Method: `action_refuse()`, Role: [hr_holidays.group_hr_holidays_responsible]) (xml_id: hr_holidays.group_hr_holidays_responsible)
+Step 15: [validate] -> [refuse] via Button 'Refuse' (Method: `action_refuse()`, Role: [All Users])
+
+######## analyze_security_locks(hr.leave) ########
+Analyse des verrous Python ([hr_leave.py:L1-L28](file:///media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_hr_leave_workflow/models/hr_leave.py#L1-L28)) [Confiance: ÉLEVÉE]:
+  - Vérifications de groupes observées : leur présence seule ne prouve ni obligation ni autorisation.
+    * Vérification du groupe 'hr_holidays.group_hr_holidays_manager' via has_group()/user_has_groups() dans 'action_approve()'. Lire la condition complète, sa polarité et les autres gardes avant de conclure sur les droits. (xml_id: hr_holidays.group_hr_holidays_manager) ([hr_leave.py:L24-L24](file:///media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_hr_leave_workflow/models/hr_leave.py#L24-L24))
+  - Security lock messages (UserError/ValidationError):
+    * "Impossible de valider : le solde de conges restant (%.1f jours) est insuffisant. Cochez 'Demande urgente' pour soumettre quand meme a validation exceptionnelle du N+2." (condition : rec.number_of_days > rec.employee_id.remaining_leaves and (not rec.conge_urgence)) (dans '_check_solde_conge()') ([hr_leave.py:L15-L15](file:///media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_hr_leave_workflow/models/hr_leave.py#L15-L15))
+    * "Une demande urgente depassant le solde doit etre validee par le N+2 ou un responsable RH." (condition : rec.conge_urgence and rec.number_of_days > rec.employee_id.remaining_leaves and self.env.user != rec.employee_id.parent_id.parent_id.user_id and (not self.env.user.has_group('hr_holidays.group_hr_holidays_manager'))) (dans 'action_approve()') ([hr_leave.py:L25-L25](file:///media/donnee/projets/odoo-ia-prototype/odoo_addons/custom_hr_leave_workflow/models/hr_leave.py#L25-L25))
+      [GARDE DE LIEN: si 'rec.conge_urgence' est vide/absent (aucun enregistrement lie), cette condition est FAUSSE par court-circuit Python (evaluation de gauche a droite d'un 'and') -- la regle ci-dessus NE S'APPLIQUE PAS dans ce cas, quel que soit le reste de la condition.]
+
+[mail_activity_mixin.py:L1-L18](file:///media/donnee/Programs/odoo-17.0/addons/calendar/models/mail_activity_mixin.py#L1-L18): aucun verrou.
+
+Analyse des verrous Python ([hr_leave.py:L1-L1825](file:///media/donnee/Programs/odoo-17.0/addons/hr_holidays/models/hr_leave.py#L1-L1825)) [Confiance: ÉLEVÉE]:
+  - Vérifications de groupes observées : leur présence seule ne prouve ni obligation ni autorisation.
+    * Vérification du groupe 'hr_holidays.group_hr_holidays_user' via has_group()/user_has_groups() dans '_compute_description()'. Lire la condition complète, sa polarité et les autres gardes avant de conclure sur les droits. (xml_id: hr_holidays.group_hr_holidays_user) ([hr_leave.py:L335-L335](file:///media/donnee/Programs/odoo-17.0/addons/hr_holidays/models/hr_leave.py#L335-L335))
+    * Vérification du groupe 'hr_holidays.group_hr_holidays_responsible' via has_group()/user_has_groups() dans '_compute_is_user_only_responsible()'. Lire la condition complète, sa polarité et les autres gardes avant de conclure sur les droits. (xml_id: hr_holidays.group_hr_holidays_responsible) ([hr_leave.py:L512-L512](file:///media/donnee/Programs/odoo-17.0/addons/hr_holidays/models/hr_leave.py#L512-L512))
+    * Vérification du groupe 'hr_holidays.group_hr_holidays_manager' via has_group()/user_has_groups() dans '_check_double_validation_rules()'. Lire la condition complète, sa polarité et les autres gardes avant de conclure sur les droits. (xml_id: hr_holidays.group_hr_holidays_manager) ([hr_leave.py:L919-L919](file:///media/donnee/Programs/odoo-17.0/addons/hr_holidays/models/hr_leave.py#L919-L919))
+  - Security lock messages (UserError/ValidationError):
+    * "You've already booked time off which overlaps with this period:
+%s
+Attempting to double-book your time off won't magically make your vacation 2x better!" (condition : all_leaves.filtered_domain(search_domain) and False) (dans '_check_date()') ([hr_leave.py:L760-L760](file:///media/donnee/Programs/odoo-17.0/addons/hr_holidays/models/hr_leave.py#L760-L760))
+      [GARDE DE LIEN: si 'conflicting_holidays' est vide/absent (aucun enregistrement lie), cette condition est FAUSSE par court-circuit Python (evaluation de gauche a droite d'un 'and') -- la regle ci-dessus NE S'APPLIQUE PAS dans ce cas, quel que soit le reste de la condition.]
+    * "An employee already booked time off which overlaps with this period:%s" (condition : all_leaves.filtered_domain(search_domain)) (dans '_check_date()') ([hr_leave.py:L773-L773](file:///media/donnee/Programs/odoo-17.0/addons/hr_holidays/models/hr_leave.py#L773-L773))
+      [GARDE DE LIEN: si 'conflicting_holidays' est vide/absent (aucun enregistrement lie), cette condition est FAUSSE par court-circuit Python (evaluation de gauche a droite d'un 'and') -- la regle ci-dessus NE S'APPLIQUE PAS dans ce cas, quel que soit le reste de la condition.]
+    * "This modification is not allowed in the current state." (condition : holiday.state in ['cancel', 'refuse', 'validate1', 'validate']) (dans '_check_date_state()') ([hr_leave.py:L783-L783](file:///media/donnee/Programs/odoo-17.0/addons/hr_holidays/models/hr_leave.py#L783-L783))
+    * "You do not have any allocation for this time off type.
+Please request an allocation before submitting your time off request." (condition : leave_type.allows_negative and not leave_type.get_allocation_data(employees, date_from)[employee]) (dans '_check_validity()') ([hr_leave.py:L800-L800](file:///media/donnee/Programs/odoo-17.0/addons/hr_holidays/models/hr_leave.py#L800-L800))
+      [GARDE DE LIEN: si 'leave_type.allows_negative' est vide/absent (aucun enregistrement lie), cette condition est FAUSSE par court-circuit Python (evaluation de gauche a droite d'un 'and') -- la regle ci-dessus NE S'APPLIQUE PAS dans ce cas, quel que soit le reste de la condition.]
+    * "There is no valid allocation to cover that request." (condition : leave_type.allows_negative and leave_type.get_allocation_data(employees, date_from)[employee] and leave_type.get_allocation_data(employees, date_from)[employee][0][1]['virtual_remaining_leaves'] < -leave_type.max_allowed_negative) (dans '_check_validity()') ([hr_leave.py:L803-L803](file:///media/donnee/Programs/odoo-17.0/addons/hr_holidays/models/hr_leave.py#L803-L803))
+      [GARDE DE LIEN: si 'leave_type.allows_negative' est vide/absent (aucun enregistrement lie), cette condition est FAUSSE par court-circuit Python (evaluation de gauche a droite d'un 'and') -- la regle ci-dessus NE S'APPLIQUE PAS dans ce cas, quel que soit le reste de la condition.]
+    * "You do not have any allocation for this time off type.
+Please request an allocation before submitting your time off request." (condition : not leave_type.get_allocation_data(employees, date_from)[employee]) (dans '_check_validity()') ([hr_leave.py:L813-L813](file:///media/donnee/Programs/odoo-17.0/addons/hr_holidays/models/hr_leave.py#L813-L813))
+    * "There is no valid allocation to cover that request." (condition : (previous_leave_data[employee] and previous_leave_data[employee][0][1]['virtual_excess_data']) != (leave_data[employee] and leave_data[employee][0][1]['virtual_excess_data']) and len(leave_data[employee] and leave_data[employee][0][1]['virtual_excess_data']) >= len(previous_leave_data[employee] and previous_leave_data[employee][0][1]['virtual_excess_data'])) (dans '_check_validity()') ([hr_leave.py:L818-L818](file:///media/donnee/Programs/odoo-17.0/addons/hr_holidays/models/hr_leave.py#L818-L818))
+    * "You are not allowed to request a time off on a Mandatory Day." (condition : not self.user_has_groups('hr_holidays.group_hr_holidays_user') and any((leave.has_mandatory_day for leave in self))) (dans '_check_mandatory_day()') ([hr_leave.py:L916-L916](file:///media/donnee/Programs/odoo-17.0/addons/hr_holidays/models/hr_leave.py#L916-L916))
+      [GARDE DE LIEN: si 'not is_leave_user' est vide/absent (aucun enregistrement lie), cette condition est FAUSSE par court-circuit Python (evaluation de gauche a droite d'un 'and') -- la regle ci-dessus NE S'APPLIQUE PAS dans ce cas, quel que soit le reste de la condition.]
+    * "You cannot first approve a time off for %s, because you are not his time off manager" (condition : state == 'validate1' and employees.filtered(lambda employee: employee.leave_manager_id != self.env.user) and (not self.user_has_groups('hr_holidays.group_hr_holidays_user'))) (dans '_check_double_validation_rules()') ([hr_leave.py:L926-L926](file:///media/donnee/Programs/odoo-17.0/addons/hr_holidays/models/hr_leave.py#L926-L926))
+      [GARDE DE LIEN: si 'employees' est vide/absent (aucun enregistrement lie), cette condition est FAUSSE par court-circuit Python (evaluation de gauche a droite d'un 'and') -- la regle ci-dessus NE S'APPLIQUE PAS dans ce cas, quel que soit le reste de la condition.]
+    * "You don't have the rights to apply second approval on a time off request" (condition : state == 'validate1' and state == 'validate' and (not self.user_has_groups('hr_holidays.group_hr_holidays_user'))) (dans '_check_double_validation_rules()') ([hr_leave.py:L929-L929](file:///media/donnee/Programs/odoo-17.0/addons/hr_holidays/models/hr_leave.py#L929-L929))
+    * "You can't manually archive/unarchive a time off." (condition : 'active' in values and (not self.env.context.get('from_cancel_wizard'))) (dans 'write()') ([hr_leave.py:L987-L987](file:///media/donnee/Programs/odoo-17.0/addons/hr_holidays/models/hr_leave.py#L987-L987))
+    * "You must have manager rights to modify/validate a time off that already begun" (condition : not (self.env.user.has_group('hr_holidays.group_hr_holidays_user') or self.env.is_superuser()) and values.keys() - {'attachment_ids', 'supported_attachment_ids', 'message_main_attachment_id'} and any((hol.date_from.date() < fields.Date.today() and hol.employee_id.leave_manager_id != self.env.user and (hol.state not in ('confirm', 'draft')) for hol in self))) (dans 'write()') ([hr_leave.py:L993-L993](file:///media/donnee/Programs/odoo-17.0/addons/hr_holidays/models/hr_leave.py#L993-L993))
+      [GARDE DE LIEN: si 'not is_officer' est vide/absent (aucun enregistrement lie), cette condition est FAUSSE par court-circuit Python (evaluation de gauche a droite d'un 'and') -- la regle ci-dessus NE S'APPLIQUE PAS dans ce cas, quel que soit le reste de la condition.]
+    * "You cannot delete a time off which is in %s state" (condition : not self.user_has_groups('hr_holidays.group_hr_holidays_user') and hol.state not in ['draft', 'confirm', 'validate1']) (dans '_unlink_if_correct_states()') ([hr_leave.py:L1033-L1033](file:///media/donnee/Programs/odoo-17.0/addons/hr_holidays/models/hr_leave.py#L1033-L1033))
+    * "You cannot delete a time off which is in the past" (condition : not self.user_has_groups('hr_holidays.group_hr_holidays_user') and hol.date_from.date() < fields.Datetime.now().date()) (dans '_unlink_if_correct_states()') ([hr_leave.py:L1035-L1035](file:///media/donnee/Programs/odoo-17.0/addons/hr_holidays/models/hr_leave.py#L1035-L1035))
+    * "You cannot delete a time off assigned to several employees" (condition : not self.user_has_groups('hr_holidays.group_hr_holidays_user') and hol.sudo().employee_ids and (not hol.employee_id)) (dans '_unlink_if_correct_states()') ([hr_leave.py:L1037-L1037](file:///media/donnee/Programs/odoo-17.0/addons/hr_holidays/models/hr_leave.py#L1037-L1037))
+      [GARDE DE LIEN: si 'hol.sudo().employee_ids' est vide/absent (aucun enregistrement lie), cette condition est FAUSSE par court-circuit Python (evaluation de gauche a droite d'un 'and') -- la regle ci-dessus NE S'APPLIQUE PAS dans ce cas, quel que soit le reste de la condition.]
+    * "You cannot delete a time off which is in %s state" (condition : not self.user_has_groups('hr_holidays.group_hr_holidays_user')) (dans '_unlink_if_correct_states()') ([hr_leave.py:L1040-L1040](file:///media/donnee/Programs/odoo-17.0/addons/hr_holidays/models/hr_leave.py#L1040-L1040))
+    * "A time off cannot be duplicated." (dans 'copy_data()') ([hr_leave.py:L1057-L1057](file:///media/donnee/Programs/odoo-17.0/addons/hr_holidays/models/hr_leave.py#L1057-L1057))
+    * "Time off request state must be "Refused" or "To Approve" in order to be reset to draft." (condition : any((holiday.state not in ['confirm', 'refuse'] for holiday in self))) (dans 'action_draft()') ([hr_leave.py:L1225-L1225](file:///media/donnee/Programs/odoo-17.0/addons/hr_holidays/models/hr_leave.py#L1225-L1225))
+    * "Time off request must be in Draft state ("To Submit") in order to confirm it." (condition : self.filtered(lambda holiday: holiday.state != 'draft')) (dans 'action_confirm()') ([hr_leave.py:L1240-L1240](file:///media/donnee/Programs/odoo-17.0/addons/hr_holidays/models/hr_leave.py#L1240-L1240))
+    * "Time off request must be confirmed ("To Approve") in order to approve it." (condition : check_state and any((holiday.state != 'confirm' for holiday in self))) (dans 'action_approve()') ([hr_leave.py:L1255-L1255](file:///media/donnee/Programs/odoo-17.0/addons/hr_holidays/models/hr_leave.py#L1255-L1255))
+      [GARDE DE LIEN: si 'check_state' est vide/absent (aucun enregistrement lie), cette condition est FAUSSE par court-circuit Python (evaluation de gauche a droite d'un 'and') -- la regle ci-dessus NE S'APPLIQUE PAS dans ce cas, quel que soit le reste de la condition.]
+    * "The following employees are not supposed to work during that period:
+ %s" (condition : self._get_leaves_on_public_holiday()) (dans 'action_validate()') ([hr_leave.py:L1368-L1368](file:///media/donnee/Programs/odoo-17.0/addons/hr_holidays/models/hr_leave.py#L1368-L1368))
+      [GARDE DE LIEN: si 'leaves' est vide/absent (aucun enregistrement lie), cette condition est FAUSSE par court-circuit Python (evaluation de gauche a droite d'un 'and') -- la regle ci-dessus NE S'APPLIQUE PAS dans ce cas, quel que soit le reste de la condition.]
+    * "Time off request must be confirmed in order to approve it." (condition : any((holiday.state not in ['confirm', 'validate1'] and holiday.validation_type != 'no_validation' for holiday in self))) (dans 'action_validate()') ([hr_leave.py:L1371-L1371](file:///media/donnee/Programs/odoo-17.0/addons/hr_holidays/models/hr_leave.py#L1371-L1371))
+[... Content truncated for LLM context limit ...]
+
+[hr_leave.py:L1-L67](file:///media/donnee/Programs/odoo-17.0/addons/hr_holidays/populate/hr_leave.py#L1-L67): aucun verrou.
+
+[mail_activity_mixin.py:L1-L484](file:///media/donnee/Programs/odoo-17.0/addons/mail/models/mail_activity_mixin.py#L1-L484): aucun verrou.
+
+[mail_thread_main_attachment.py:L1-L41](file:///media/donnee/Programs/odoo-17.0/addons/mail/models/mail_thread_main_attachment.py#L1-L41): aucun verrou.record_evidence() called before start_evidence_collection() -- evidence dropped, no active turn accumulator.
+
+
+######## describe_workflow(sale.order) ########
+Workflow Process for 'sale.order' (8 transitions):
+Step 1: [draft] -> [sale] via Button 'Confirm' (Method: `action_confirm()`, Role: [All Users])
+Step 2: [draft] -> [cancel] via Button 'Cancel' (Method: `action_cancel()`, Role: [All Users])
+Step 3: [draft] -> [sent] via Button ' Update Prices' (Method: `action_update_prices()`, Role: [All Users])
+Step 4: [draft] -> [sent] via Button ' Update Taxes' (Method: `action_update_taxes()`, Role: [All Users])
+Step 5: [sent] -> [sale] via Button 'Confirm' (Method: `action_confirm()`, Role: [All Users])
+Step 6: [sent] -> [cancel] via Button 'Cancel' (Method: `action_cancel()`, Role: [All Users])
+Step 7: [sale] -> [cancel] via Button 'Cancel' (Method: `action_cancel()`, Role: [All Users])
+Step 8: [cancel] -> [draft] via Button 'Set to Quotation' (Method: `action_draft()`, Role: [All Users])

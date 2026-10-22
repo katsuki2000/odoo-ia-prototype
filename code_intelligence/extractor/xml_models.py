@@ -149,6 +149,7 @@ class OdooFormButton:
     states: str = ""
     groups: List[str] = field(default_factory=list)
     invisible: str = ""
+    context: str = ""
 
 
 @dataclass

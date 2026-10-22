@@ -154,6 +154,11 @@ def describe_workflow(
         )
 
     summary = f"Workflow Process for '{model_name}' ({len(transitions)} transitions):\n" + "\n".join(steps_text)
+    if any(not tr["required_groups"] for tr in transitions):
+        summary += (
+            "\nNote: 'Role: [All Users]' means no group is declared on the button in the XML views; "
+            "ACL, record rules and Python checks inside the method can still restrict who may use it."
+        )
 
     return WorkflowProcessResult(
         model_name=model_name,

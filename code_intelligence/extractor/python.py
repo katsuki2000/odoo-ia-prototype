@@ -53,6 +53,10 @@ class OdooMethodDeclaration:
     called_self_methods: List[str] = field(default_factory=list)
     returned_values: Dict[str, List[str]] = field(default_factory=dict)
     write_argument_methods: List[str] = field(default_factory=list)
+    # field -> state -> context flags guarding each write occurrence ([] = unguarded)
+    written_guards: Dict[str, Dict[str, List[List[str]]]] = field(default_factory=dict)
+    # callee -> context flags set by with_context() on the call receiver ('*' = unknown)
+    call_context_flags: Dict[str, List[str]] = field(default_factory=dict)
 
 
 @dataclass
@@ -158,6 +162,8 @@ class StateActivity(NamedTuple):
     called: List[str]
     returned: Dict[str, List[str]]
     write_arguments: List[str]
+    written_guards: Dict[str, Dict[str, List[List[str]]]]
+    call_context_flags: Dict[str, List[str]]
 
 
 def self_recordset_names(function_node: ast.AST) -> Set[str]:
@@ -172,10 +178,75 @@ def self_recordset_names(function_node: ast.AST) -> Set[str]:
     return names
 
 
+def context_flag_of(node: ast.AST) -> Optional[str]:
+    """Flag read by `<x>.env.context.get('f')`, `<x>.env.context['f']` or `<x>._context.get('f')`.
+
+    A `.get` whose default is truthy is not a guard: the branch runs when the flag is absent."""
+    if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "get" and node.args:
+        container, key = node.func.value, node.args[0]
+        if len(node.args) > 1 and not (isinstance(node.args[1], ast.Constant) and not node.args[1].value):
+            return None
+    elif isinstance(node, ast.Subscript):
+        container, key = node.value, node.slice
+    else:
+        return None
+    if not (isinstance(key, ast.Constant) and isinstance(key.value, str) and isinstance(container, ast.Attribute)):
+        return None
+    on_env = isinstance(container.value, ast.Attribute) and container.value.attr == "env"
+    return key.value if container.attr == "_context" or (container.attr == "context" and on_env) else None
+
+
+def context_flags_of_test(test: ast.AST) -> List[str]:
+    """Context flags a true `if` test necessarily requires: its context reads, alone or joined by `and`."""
+    operands = test.values if isinstance(test, ast.BoolOp) and isinstance(test.op, ast.And) else [test]
+    return [flag for flag in (context_flag_of(operand) for operand in operands) if flag]
+
+
+def context_guards_by_node(function_node: ast.AST) -> Dict[int, List[str]]:
+    """Context flags required to reach each node, from the `if` bodies enclosing it."""
+    guards: Dict[int, List[str]] = {}
+
+    def visit(node: ast.AST, active: List[str]) -> None:
+        guards[id(node)] = active
+        inside = active
+        if isinstance(node, ast.If):
+            inside = active + [flag for flag in context_flags_of_test(node.test) if flag not in active]
+        for field_name, value in ast.iter_fields(node):
+            for child in value if isinstance(value, list) else [value]:
+                if isinstance(child, ast.AST):
+                    visit(child, inside if isinstance(node, ast.If) and field_name == "body" else active)
+
+    visit(function_node, [])
+    return guards
+
+
+def receiver_context_flags(receiver: ast.AST) -> Set[str]:
+    """Context keys set by the `with_context(...)` calls chained on a call receiver; '*' when unreadable."""
+    flags: Set[str] = set()
+    node = receiver
+    while isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr in SELF_RECORDSET_METHODS:
+        if node.func.attr == "with_context":
+            flags.update(keyword.arg or "*" for keyword in node.keywords)
+            if node.args:
+                flags.add("*")
+        node = node.func.value
+    return flags
+
+
+def add_guarded_constant(guards: Dict[str, Dict[str, List[List[str]]]], field_name: str, constant: str, flags: List[str]) -> None:
+    occurrences = guards.setdefault(field_name, {}).setdefault(constant, [])
+    if flags not in occurrences:
+        occurrences.append(flags)
+
+
 def scan_state_activity(function_node: ast.AST) -> StateActivity:
-    """String constants a method writes or returns per field for its own recordset, and the methods it calls on it."""
+    """String constants a method writes or returns per field for its own recordset, and the methods it calls on it.
+
+    Also keeps, per write, the context flags guarding it and, per call, the flags the receiver sets."""
     self_names = self_recordset_names(function_node)
-    activity = StateActivity({}, [], {}, [])
+    guards = context_guards_by_node(function_node)
+    call_flags: Dict[str, Set[str]] = {}
+    activity = StateActivity({}, [], {}, [], {}, {})
     for child in ast.walk(function_node):
         if isinstance(child, ast.Call) and isinstance(child.func, ast.Attribute):
             if not is_self_recordset(child.func.value, self_names):
@@ -184,20 +255,25 @@ def scan_state_activity(function_node: ast.AST) -> StateActivity:
                 for argument in child.args:
                     for field_name, constant in constants_in_write_dict(argument).items():
                         add_constant(activity.written, field_name, constant)
+                        add_guarded_constant(activity.written_guards, field_name, constant, guards.get(id(child), []))
                     if isinstance(argument, ast.Call) and isinstance(argument.func, ast.Attribute):
                         if is_self_recordset(argument.func.value, self_names) and argument.func.attr not in activity.write_arguments:
                             activity.write_arguments.append(argument.func.attr)
-            elif child.func.attr not in SELF_RECORDSET_METHODS and child.func.attr not in activity.called:
-                activity.called.append(child.func.attr)
+            elif child.func.attr not in SELF_RECORDSET_METHODS:
+                if child.func.attr not in activity.called:
+                    activity.called.append(child.func.attr)
+                call_flags.setdefault(child.func.attr, set()).update(receiver_context_flags(child.func.value))
         elif isinstance(child, ast.Assign):
             value = child.value
             if isinstance(value, ast.Constant) and isinstance(value.value, str):
                 for target in child.targets:
                     if isinstance(target, ast.Attribute) and is_self_recordset(target.value, self_names):
                         add_constant(activity.written, target.attr, value.value)
+                        add_guarded_constant(activity.written_guards, target.attr, value.value, guards.get(id(child), []))
         elif isinstance(child, ast.Return) and child.value is not None:
             for field_name, constant in constants_in_write_dict(child.value).items():
                 add_constant(activity.returned, field_name, constant)
+    activity.call_context_flags.update({callee: sorted(flags) for callee, flags in call_flags.items() if flags})
     return activity
 
 
@@ -370,6 +446,8 @@ class OdooClassVisitor(ast.NodeVisitor):
         method_decl.called_self_methods = activity.called
         method_decl.returned_values = activity.returned
         method_decl.write_argument_methods = activity.write_arguments
+        method_decl.written_guards = activity.written_guards
+        method_decl.call_context_flags = activity.call_context_flags
         return method_decl
 
     def _get_decorator_name(self, dec: ast.AST) -> Optional[str]:
