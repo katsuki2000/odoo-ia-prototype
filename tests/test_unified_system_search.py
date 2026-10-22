@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 class UnifiedSystemSearchTests(unittest.TestCase):
     def setUp(self):
-        self.graph = object()
+        self.graph = {'model:x_custom.case'}
         self.calls = []
         self.objects = {'semantic_status': 'available', 'candidates': [
             {'node_id': 'model:x_case', 'model': 'x_case', 'score': 94},
@@ -41,6 +41,11 @@ class UnifiedSystemSearchTests(unittest.TestCase):
 
     def result(self, **kwargs):
         return json.loads(self.search('approval', **kwargs))
+
+    def test_unknown_model_scope_is_dropped_and_reported(self):
+        result = self.result(model='x_missing.case')
+        self.assertTrue(all(call[3]['model'] == '' for call in self.calls))
+        self.assertIn("'x_missing.case' is not in the graph", result['notice'])
 
     def test_one_call_uses_both_existing_backends(self):
         result = self.result()
@@ -143,7 +148,8 @@ class UnifiedSystemSearchTests(unittest.TestCase):
             root = Path(directory)
             path = root / 'custom.py'
             path.write_text('def authorize():\n    return "approval"\n')
-            self.graph = type('Graph', (), {'nodes': sources.Nodes({'method': {
+            self.graph = type('Graph', (), {'__contains__': lambda self, nodeId: nodeId == 'model:x_custom.case',
+                'nodes': sources.Nodes({'method': {
                 'node_type': 'Method', 'model': 'x_custom.case', 'filepath': str(path)}})})()
             self.namespace['search_source_fragments'] = sources.source.search_source_fragments
             self.namespace['_allowed_source_roots'] = lambda: [root]

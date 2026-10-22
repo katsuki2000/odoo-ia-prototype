@@ -14,6 +14,7 @@ from code_intelligence.agent.context import (
 from code_intelligence.agent.dispatch_guards import (
     UnknownPrincipalError, _override_user_groups_arg,
 )
+from code_intelligence.rules.common import NOT_FOUND_MARKER
 from code_intelligence.rules.security_locks import gate_observation
 
 logger = logging.getLogger(__name__)
@@ -78,7 +79,7 @@ def execute_tool_calls(ctx: DispatchContext, ai_msg, messages: list) -> None:
             observation = _truncate_observation_for_budget(ctx, observation, cap)
             if toolName in DISCOVERY_TOOLS:
                 ctx.discovery_chars = getattr(ctx, 'discovery_chars', 0) + len(observation)
-            else:
+            elif NOT_FOUND_MARKER not in observation.lstrip().split('\n', 1)[0]:
                 ctx.tool_observations.append(observation)
                 ctx.tool_observation_models.append(modelName)
                 ctx.tool_observation_tools.append(analysisName)

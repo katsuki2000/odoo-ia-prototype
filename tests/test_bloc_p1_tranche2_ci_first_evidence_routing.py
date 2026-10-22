@@ -263,7 +263,7 @@ def test_format_output_ocr_warning_applies_on_documentation_route():
         "question": "Selon le wiki, quelle est la procedure ?",
         "response": AssistantResponse(answer="Reponse RAG de repli.", confidence=0.5, sources=[]),
         "retrieved_chunks": [_low_ocr_chunk()],
-        "route": QueryRoute.DOCUMENTAIRE.value,
+        "route": QueryRoute.DOCUMENTARY.value,
         "ci_evidence_sufficiency": {"status": EvidenceSufficiencyStatus.INSUFFICIENT.value},
     }
     result = format_output(state)
@@ -294,7 +294,7 @@ def test_format_output_documentation_route_reports_low_ocr_quality():
     state = {
         "response": AssistantResponse(answer="Cette question sort du perimetre de MIRO AI.", confidence=0.0, sources=[]),
         "retrieved_chunks": [_low_ocr_chunk()],
-        "route": QueryRoute.DOCUMENTAIRE.value,
+        "route": QueryRoute.DOCUMENTARY.value,
     }
     result = format_output(state)
     assert result["response"].ocr_warning is True

@@ -1,0 +1,13 @@
+DUREE 109.0 s
+TOURS LLM: 3
+  tour (2, ['search_system'], '')
+  tour (4, ['search_system'], '')
+  tour (6, ['analyze_security_locks'], '')
+APPELS OUTILS: 2
+   ('search_system', '{"query": "mise à disposition", "model": "", "limit": 5}')
+   ('  -> observation', '{"discovery_only": true, "candidates": [{"node_id": "field:res.currency.position", "node_type": "Field", "model": "res.currency", "name": "position", "labels": ["Symbol Position", "Après le montant", "Avant le montant"], "score": 90.0, "kind": "instance_object"}, {"filepath": "/media/donnee/Programs/odoo-17.0/addons/account/controllers/download_docs.py", "line_start": 8, "line_end": 14, "symbol": ')
+   ('search_system', '{"query": "allocation approval", "model": "hr.leave", "limit": 5}')
+   ('  -> observation', '{"discovery_only": true, "candidates": [{"node_id": "method:hr.leave.action_approve", "node_type": "Method", "model": "hr.leave", "name": "action_approve", "labels": ["action_approve"], "score": 78.79, "kind": "instance_object"}, {"filepath": "/media/donnee/Programs/odoo-17.0/addons/hr_holidays/models/hr_leave.py", "line_start": 1579, "line_end": 1598, "symbol": "HolidaysRequest._get_responsible_f')
+REPONSE: Je n'ai pas obtenu de preuve exploitable pour cette question. Précisez le document, le modèle ou l'action à examiner ; les candidats de recherche seuls ne permettent pas de conclure.
+
+[Source: connaissances générales du modèle de langage. Aucune preuve retrouvée dans le graphe de votre instance : à vérifier avant usage.]

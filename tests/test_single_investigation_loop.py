@@ -40,6 +40,8 @@ class Context:
     resolved_user_group_xmlids: list = field(default_factory=lambda: ['fixture.member'])
     requester_groups_known: bool = True
     security_principals: dict = field(default_factory=dict)
+    fallback_reason: str = None
+    final_message_preview: str = None
     seen_calls: set = field(default_factory=set)
     tool_observations: list = field(default_factory=list)
     tool_observation_models: list = field(default_factory=list)
@@ -75,12 +77,12 @@ class ExecutionBoundaryTests(unittest.TestCase):
             if arguments.get('principal_id') and arguments['principal_id'] not in principals:
                 raise PermissionError()
             return arguments
-        self.namespace = functions('code_intelligence/agent/loop.py', {'execute_tool_calls'}, {
+        self.namespace = functions('code_intelligence/agent/tool_execution.py', {'execute_tool_calls'}, {
             'DispatchContext': Context, 'json': json, 'time': time, 'logger': logging.getLogger(__name__),
             'ToolMessage': lambda **kwargs: SimpleNamespace(**kwargs),
             'UnknownPrincipalError': PermissionError, '_override_user_groups_arg': override,
             'MAX_TOTAL_OBSERVATION_CHARS': 35000, 'PER_TOOL_OBSERVATION_CAPS': {},
-            'DEFAULT_OBSERVATION_CAP': 2500, 'DISCOVERY_TOOLS': {'search_instance_objects'},
+            'DEFAULT_OBSERVATION_CAP': 2500, 'DISCOVERY_TOOLS': {'search_instance_objects'}, 'NOT_FOUND_MARKER': 'was not found in the indexed knowledge graph',
             '_truncate_observation_for_budget': lambda ctx, text, cap: text[:cap],
             'gate_observation': lambda **kwargs: (kwargs['observation'], []),
         })
@@ -104,6 +106,15 @@ class ExecutionBoundaryTests(unittest.TestCase):
         self.assertFalse(ctx.tool_observations)
         self.assertFalse(ctx.concept.resolved_models)
         self.assertGreater(ctx.discovery_chars, 0)
+
+    def test_model_not_found_is_returned_to_the_model_but_is_not_evidence(self):
+        message = "Model 'x_missing' was not found in the indexed knowledge graph. Closest: x_fixture.case"
+        ctx = Context({'describe_workflow': Tool(message)})
+        content = self.call(ctx, 'describe_workflow', {'model_name': 'x_missing'})
+        self.assertIn('Closest', content)
+        self.assertFalse(ctx.tool_observations)
+        self.assertFalse(ctx.concept.resolved_models)
+        self.assertFalse(ctx.concept.is_resolved)
 
     def test_refused_orm_is_not_evidence(self):
         ctx = Context({'search_read': Tool('ORM read refused: fixture')})
@@ -214,7 +225,7 @@ class RequestContextTests(unittest.TestCase):
 
 class RoutingTests(unittest.TestCase):
     def test_explicit_sources_do_not_import_classifier_or_resolver(self):
-        routes = Enum('QueryRoute', {'DOCUMENTAIRE': 'documentation', 'CODE_INTELLIGENCE': 'system'})
+        routes = Enum('QueryRoute', {'DOCUMENTARY': 'documentation', 'CODE_INTELLIGENCE': 'system'})
         route = functions('core/routing/routing.py', {'route'}, {
             'RAGState': dict, 'time': time, 'QueryRoute': routes, 'logger': logging.getLogger(__name__),
         })['route']
@@ -231,7 +242,7 @@ class RoutingTests(unittest.TestCase):
     def test_all_system_routes_share_one_node(self):
         source = (ROOT / 'core/graph/graph.py').read_text()
         self.assertNotIn("add_node('orm_agent_loop'", source)
-        for name in ('DONNEES_ERP', 'HYBRIDE', 'CODE_INTELLIGENCE'):
+        for name in ('ERP_DATA', 'HYBRID', 'CODE_INTELLIGENCE'):
             self.assertIn(f"QueryRoute.{name}.value: 'code_intelligence_agent'", source)
         self.assertIn("'user_groups': user_groups,", source)
 
@@ -283,6 +294,7 @@ class NativeAgentSmokeTests(unittest.TestCase):
             'invoke_with_rate_limit': lambda model, messages, **kwargs: (model.invoke(messages), 0),
             'CI_MAX_HOPS': maxHops, 'LANGGRAPH_STEP_LIMIT_NOTICE': 'Sorry, need more steps to process this request.',
             'NO_EVIDENCE_ANSWER': 'No evidence',
+            'FINAL_MESSAGE_PREVIEW_CHARS': 300,
             'logger': logging.getLogger(__name__),
         })
         return namespace['run_react_loop'](ctx, FakeModel(), []), ctx
@@ -311,9 +323,24 @@ class NativeAgentSmokeTests(unittest.TestCase):
             return AIMessage(content='', tool_calls=[{
                 'name': 'describe_workflow', 'args': {'model_name': 'x_fixture.case', 'turn': str(turn)},
                 'id': f'fixture{turn}'}])
-        answer, _ = self.runLoop(answerForTurn, maxHops=2)
+        answer, ctx = self.runLoop(answerForTurn, maxHops=2)
         self.assertNotIn('need more steps', answer)
         self.assertTrue(answer.startswith('Investigation incomplète'))
+        self.assertEqual(ctx.fallback_reason, 'incomplete_investigation')
+
+    def test_native_loop_records_reason_and_preview_of_a_discarded_final_message(self):
+        answer, ctx = self.runLoop(lambda turn, AIMessage: AIMessage(content='Which model do you mean?'))
+        self.assertEqual(answer, 'No evidence')
+        self.assertEqual(ctx.fallback_reason, 'no_analysis_observation')
+        self.assertEqual(ctx.final_message_preview, 'Which model do you mean?')
+
+    def test_native_loop_records_no_fallback_reason_on_a_supported_answer(self):
+        def answerForTurn(turn, AIMessage):
+            return (AIMessage(content='', tool_calls=[{
+                'name': 'describe_workflow', 'args': {'model_name': 'x_fixture.case'}, 'id': 'fixture'}])
+                if turn == 1 else AIMessage(content='Confirmed fixture observation.'))
+        _, ctx = self.runLoop(answerForTurn)
+        self.assertIsNone(ctx.fallback_reason)
 
 
 if __name__ == '__main__':

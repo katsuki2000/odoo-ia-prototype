@@ -84,6 +84,20 @@ def test_j47_read_trace_reconstructs_full_reasoning_path(tmp_path):
     assert all(r["trace_id"] == trace_id for r in path)
 
 
+def test_summary_records_fallback_reason_and_final_message_preview(tmp_path):
+    logger = ReasoningTraceLogger(log_filepath=tmp_path / "trace.jsonl")
+    trace_id = new_trace_id()
+    logger.log_summary(
+        trace_id=trace_id, branch="code_intelligence", question="q", hop_count=1, llm_call_count=2,
+        total_time_ms=10.0, fallback_reason="no_analysis_observation", final_message_preview="Which model?",
+    )
+    logger.log_summary(new_trace_id(), "documentaire", "q_doc", 0, 1, 5.0)
+    summary = logger.read_trace(trace_id)[0]
+    assert summary["fallback_reason"] == "no_analysis_observation"
+    assert summary["final_message_preview"] == "Which model?"
+    assert logger.read_recent(limit=1, record_type="SUMMARY")[0]["fallback_reason"] is None
+
+
 def test_j48_hop_cap_matches_ci_max_hops():
     """J48: the generic hop-cap guardrail constant must stay in sync with
     rag.graph's CI_MAX_HOPS -- both express the same per-question budget."""

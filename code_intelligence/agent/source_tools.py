@@ -84,7 +84,8 @@ def search_system(query: str, model: str = '', limit: int = 8) -> str:
     """Search the active instance for models, fields, buttons, methods and Python/XML fragments.
 
     Use this single discovery entry point when the target or implementation is unclear.
-    An optional exact model scopes both searches. Results are typed candidates, NOT proof.
+    Leave model empty unless the user named the model or its technical name: a guessed model hides the right candidates.
+    Results are typed candidates, NOT proof.
     Inspect source_fragment candidates with read_source_fragment using their bounds/sha256;
     inspect instance_object candidates with the relevant analysis tools.
     Backend failures, coverage gaps and no matches never prove absence of behavior.
@@ -98,6 +99,9 @@ def search_system(query: str, model: str = '', limit: int = 8) -> str:
         return json.dumps(result, ensure_ascii=False)
     graph = _require_graph()
     limit = max(1, min(int(limit), 20))
+    if model and f'model:{model}' not in graph:
+        result['notice'] += f" Model '{model}' is not in the graph: all models were searched."
+        model = ''
     objects, fragments = [], []
     try:
         found = find_instance_candidates(graph, query, model=model, limit=limit)

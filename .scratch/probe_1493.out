@@ -1,0 +1,4 @@
+droite -> hybrid_arbitration ['custom.asset.loan'] | arbitrage: 
+   liste: [(1, 'custom.asset.loan'), (2, 'hr.leave.type'), (3, 'maintenance.team'), (4, 'maintenance.request'), (5, 'purchase.order'), (6, 'hr.leave.allocation'), (7, 'account.move'), (8, 'res.config.settings'), (9, 'hr.job'), (10, 'stock.picking'), (11, 'custom.purchase.request'), (12, 'hr.department')]
+courbe -> hybrid_arbitration ['custom.asset.loan'] | arbitrage: 
+   liste: [(1, 'custom.asset.loan'), (2, 'hr.leave.type'), (3, 'maintenance.team'), (4, 'maintenance.request'), (5, 'purchase.order'), (6, 'hr.leave.allocation'), (7, 'account.move'), (8, 'res.config.settings'), (9, 'hr.job'), (10, 'stock.picking'), (11, 'portal.wizard.user'), (12, 'hr.applicant')]

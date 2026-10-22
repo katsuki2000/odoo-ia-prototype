@@ -19,8 +19,8 @@ from core.schemas import QueryRoute
 def test_route_decision_ignores_source_mode():
     """La topologie du graphe ne change pas : route_decision() renvoie toujours la route calculee."""
     for mode in (None, "documentation", "systeme"):
-        assert route_decision({"route": QueryRoute.DONNEES_ERP.value, "source_mode": mode}) == QueryRoute.DONNEES_ERP.value
-        assert route_decision({"route": QueryRoute.DOCUMENTAIRE.value, "source_mode": mode}) == QueryRoute.DOCUMENTAIRE.value
+        assert route_decision({"route": QueryRoute.ERP_DATA.value, "source_mode": mode}) == QueryRoute.ERP_DATA.value
+        assert route_decision({"route": QueryRoute.DOCUMENTARY.value, "source_mode": mode}) == QueryRoute.DOCUMENTARY.value
 
 
 def test_ci_agent_node_skipped_in_documentation_mode():

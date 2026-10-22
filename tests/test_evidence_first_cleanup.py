@@ -109,7 +109,7 @@ class RoutingTests(unittest.TestCase):
         self.select = Mock(return_value=NS(source='systeme', confidence=.9))
         self.ns = load('core/routing/routing.py', {'route', 'route_decision'}, {
             'time': time, 'SOURCE_SELECTION_MIN_CONFIDENCE': .75, 'SOURCE_CLARIFICATION': 'source_clarification',
-            'QueryRoute': Enum('Routes', {'DOCUMENTAIRE': 'documentaire', 'CODE_INTELLIGENCE': 'code_intelligence'}),
+            'QueryRoute': Enum('Routes', {'DOCUMENTARY': 'documentaire', 'CODE_INTELLIGENCE': 'code_intelligence'}),
             'select_source': self.select, 'AssistantResponse': NS})
 
     def test_explicit_sources_bypass_selection(self):

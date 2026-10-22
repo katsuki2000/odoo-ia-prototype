@@ -202,7 +202,8 @@ def build_final_response(ctx: DispatchContext, final_answer: str, state: dict,
         ci_business_resolver_time=round(resolver_time, 3), ci_per_hop_times=[round(t, 3) for t in ctx.per_hop_times],
         ci_synthesis_time=round(ctx.synthesis_time, 3), ci_applied_guards=applied, llm_call_count=ctx.llm_call_count)
     ctx.trace_logger.log_summary(trace_id=ctx.trace_id, branch='code_intelligence', question=question,
-        hop_count=ctx.hop_count, llm_call_count=ctx.llm_call_count, total_time_ms=wallTime * 1000, hop_cap=ctx.hop_cap)
+        hop_count=ctx.hop_count, llm_call_count=ctx.llm_call_count, total_time_ms=wallTime * 1000, hop_cap=ctx.hop_cap,
+        fallback_reason=ctx.fallback_reason, final_message_preview=ctx.final_message_preview)
     return {'response': response, 'raw_answer': final_answer, 'timing': timing, 'raw_tool_output': raw,
             'knowledge_graph': ctx.G,
             'sensitive_evidence_allowed': _has_elevated_access(ctx.G, '', ctx.resolved_user_group_xmlids or []),

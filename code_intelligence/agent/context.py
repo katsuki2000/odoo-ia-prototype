@@ -63,6 +63,8 @@ class DispatchContext:
     matched_dispatchers: List[str] = field(default_factory=list)
     intent: Optional[str] = None
     security_principals: Dict[str, List[str]] = field(default_factory=dict)
+    fallback_reason: Optional[str] = None
+    final_message_preview: Optional[str] = None
 
     @property
     def hop_budget_exhausted(self) -> bool:

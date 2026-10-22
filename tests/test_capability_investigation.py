@@ -10,6 +10,8 @@ import types
 import unittest
 from unittest.mock import patch
 
+from core.schemas import QueryRoute  # real enum: a hand-made copy drifted when the members were renamed
+
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -81,6 +83,7 @@ class Tool:
 class CapabilityInvestigationTests(unittest.TestCase):
     def setUp(self):
         self.saved = dict(sys.modules)
+        self.addCleanup(self.restoreModules)  # also runs when setUp raises; tearDown does not
         for name, directory in [('code_intelligence', 'code_intelligence'), ('code_intelligence.agent', 'code_intelligence/agent')]:
             module = types.ModuleType(name)
             module.__path__ = [str(ROOT / directory)]
@@ -94,7 +97,7 @@ class CapabilityInvestigationTests(unittest.TestCase):
         ontology.TechnicalTag = Enum('TechnicalTag', {'DUMMY': 'dummy'})
         sys.modules[ontology.__name__] = ontology
         core = types.ModuleType('core.schemas')
-        core.QueryRoute = Enum('QueryRoute', {'CODE_INTELLIGENCE': 'code_intelligence', 'DONNEES_ERP': 'donnees_erp', 'DOCUMENTAIRE': 'documentaire'})
+        core.QueryRoute = QueryRoute
         sys.modules[core.__name__] = core
         semantic = types.ModuleType('code_intelligence.agent.semantic_retrieval')
         def unavailable():
@@ -136,6 +139,8 @@ class CapabilityInvestigationTests(unittest.TestCase):
 
     def tearDown(self):
         self.followupPatch.stop()
+
+    def restoreModules(self):
         for name in set(sys.modules) - set(self.saved):
             del sys.modules[name]
         sys.modules.update(self.saved)

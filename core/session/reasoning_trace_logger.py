@@ -55,6 +55,8 @@ class ReasoningSummary:
     llm_call_count: int
     total_time_ms: float
     hop_cap_hit: bool
+    fallback_reason: Optional[str] = None
+    final_message_preview: Optional[str] = None
 
 
 class ReasoningTraceLogger:
@@ -130,6 +132,8 @@ class ReasoningTraceLogger:
         llm_call_count: int,
         total_time_ms: float,
         hop_cap: int = MAX_HOPS_PER_QUESTION,
+        fallback_reason: Optional[str] = None,
+        final_message_preview: Optional[str] = None,
     ) -> ReasoningSummary:
         summary = ReasoningSummary(
             trace_id=trace_id,
@@ -140,11 +144,13 @@ class ReasoningTraceLogger:
             llm_call_count=llm_call_count,
             total_time_ms=round(total_time_ms, 3),
             hop_cap_hit=hop_count >= hop_cap,
+            fallback_reason=fallback_reason,
+            final_message_preview=final_message_preview,
         )
         self._write({"record_type": "SUMMARY", **asdict(summary)})
         _logger.info(
-            "Reasoning trace [%s] SUMMARY: branch=%s hops=%d/%d llm_calls=%d total=%.2fms",
-            trace_id, branch, hop_count, hop_cap, llm_call_count, total_time_ms,
+            "Reasoning trace [%s] SUMMARY: branch=%s hops=%d/%d llm_calls=%d total=%.2fms fallback=%s",
+            trace_id, branch, hop_count, hop_cap, llm_call_count, total_time_ms, fallback_reason,
         )
         return summary
 
